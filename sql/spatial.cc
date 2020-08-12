@@ -380,7 +380,7 @@ int Geometry::as_json(String *wkt, uint max_dec_digits, const char **end)
   if (wkt->reserve(4 + type_keyname_len + 2 + len + 2 + 2 +
                    coord_keyname_len + 4, 512))
     return 1;
-  wkt->qs_append("\"", 1);
+  wkt->qs_append('"');
   wkt->qs_append((const char *) type_keyname, type_keyname_len);
   wkt->qs_append("\": \"", 4);
   wkt->qs_append(get_class_info()->m_geojson_name.str, len);
@@ -404,7 +404,7 @@ int Geometry::bbox_as_json(String *wkt)
   const char *end;
   if (wkt->reserve(5 + bbox_keyname_len + (FLOATING_POINT_DECIMALS+2)*4, 512))
     return 1;
-  wkt->qs_append("\"", 1);
+  wkt->qs_append('"');
   wkt->qs_append((const char *) bbox_keyname, bbox_keyname_len);
   wkt->qs_append("\": [", 4);
 
@@ -418,7 +418,7 @@ int Geometry::bbox_as_json(String *wkt)
   wkt->qs_append(mbr.xmax);
   wkt->qs_append(", ", 2);
   wkt->qs_append(mbr.ymax);
-  wkt->qs_append("]", 1);
+  wkt->qs_append(']');
 
   return 0;
 }
@@ -3504,13 +3504,13 @@ bool Gis_geometry_collection::get_data_as_json(String *txt, uint max_dec_digits,
     if (!(geom= create_by_typeid(&buffer, wkb_type)))
       return 1;
     geom->set_data_ptr(data, (uint) (m_data_end - data));
-    if (txt->append("{", 1) ||
+    if (txt->append('{') ||
         geom->as_json(txt, max_dec_digits, &data) ||
         txt->append(STRING_WITH_LEN("}, "), 512))
       return 1;
   }
   txt->length(txt->length() - 2);
-  if (txt->append("]", 1))
+  if (txt->append(']'))
     return 1;
 
   *end= data;

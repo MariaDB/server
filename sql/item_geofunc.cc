@@ -293,7 +293,7 @@ String *Item_func_as_geojson::val_str_ascii(String *str)
       goto error;
   }
 
-  if ((geom->as_json(str, max_dec, &dummy) || str->append("}", 1)))
+  if ((geom->as_json(str, max_dec, &dummy) || str->append('}')))
       goto error;
 
   return str;
@@ -1127,28 +1127,28 @@ Item_func_spatial_rel::get_mm_leaf(RANGE_OPT_PARAM *param,
 }
 
 
-const char *Item_func_spatial_mbr_rel::func_name() const 
+LEX_CSTRING Item_func_spatial_mbr_rel::func_name_cstring() const
 { 
   switch (spatial_rel) {
     case SP_CONTAINS_FUNC:
-      return "mbrcontains";
+      return { STRING_WITH_LEN("mbrcontains") };
     case SP_WITHIN_FUNC:
-      return "mbrwithin";
+      return { STRING_WITH_LEN("mbrwithin") } ;
     case SP_EQUALS_FUNC:
-      return "mbrequals";
+      return { STRING_WITH_LEN("mbrequals") };
     case SP_DISJOINT_FUNC:
-      return "mbrdisjoint";
+      return { STRING_WITH_LEN("mbrdisjoint") };
     case SP_INTERSECTS_FUNC:
-      return "mbrintersects";
+      return { STRING_WITH_LEN("mbrintersects") };
     case SP_TOUCHES_FUNC:
-      return "mbrtouches";
+      return { STRING_WITH_LEN("mbrtouches") };
     case SP_CROSSES_FUNC:
-      return "mbrcrosses";
+      return { STRING_WITH_LEN("mbrcrosses") };
     case SP_OVERLAPS_FUNC:
-      return "mbroverlaps";
+      return { STRING_WITH_LEN("mbroverlaps") };
     default:
       DBUG_ASSERT(0);  // Should never happened
-      return "mbrsp_unknown"; 
+      return { STRING_WITH_LEN("mbrsp_unknown") };
   }
 }
 
@@ -1198,28 +1198,28 @@ longlong Item_func_spatial_mbr_rel::val_int()
 }
 
 
-const char *Item_func_spatial_precise_rel::func_name() const 
+LEX_CSTRING Item_func_spatial_precise_rel::func_name_cstring() const
 { 
   switch (spatial_rel) {
     case SP_CONTAINS_FUNC:
-      return "st_contains";
+      return { STRING_WITH_LEN("st_contains") };
     case SP_WITHIN_FUNC:
-      return "st_within";
+      return { STRING_WITH_LEN("st_within") };
     case SP_EQUALS_FUNC:
-      return "st_equals";
+      return { STRING_WITH_LEN("st_equals") };
     case SP_DISJOINT_FUNC:
-      return "st_disjoint";
+      return { STRING_WITH_LEN("st_disjoint") };
     case SP_INTERSECTS_FUNC:
-      return "st_intersects";
+      return { STRING_WITH_LEN("st_intersects") };
     case SP_TOUCHES_FUNC:
-      return "st_touches";
+      return { STRING_WITH_LEN("st_touches") };
     case SP_CROSSES_FUNC:
-      return "st_crosses";
+      return { STRING_WITH_LEN("st_crosses") };
     case SP_OVERLAPS_FUNC:
-      return "st_overlaps";
+      return { STRING_WITH_LEN("st_overlaps") } ;
     default:
       DBUG_ASSERT(0);  // Should never happened
-      return "sp_unknown"; 
+      return { STRING_WITH_LEN("sp_unknown") };
   }
 }
 
@@ -1591,20 +1591,20 @@ exit:
 }
 
 
-const char *Item_func_spatial_operation::func_name() const
+LEX_CSTRING Item_func_spatial_operation::func_name_cstring() const
 { 
   switch (spatial_op) {
     case Gcalc_function::op_intersection:
-      return "st_intersection";
+      return { STRING_WITH_LEN("st_intersection") };
     case Gcalc_function::op_difference:
-      return "st_difference";
+      return { STRING_WITH_LEN("st_difference") };
     case Gcalc_function::op_union:
-      return "st_union";
+      return { STRING_WITH_LEN("st_union") };
     case Gcalc_function::op_symdifference:
-      return "st_symdifference";
+      return { STRING_WITH_LEN("st_symdifference") };
     default:
       DBUG_ASSERT(0);  // Should never happen
-      return "sp_unknown"; 
+      return { STRING_WITH_LEN("sp_unknown") };
   }
 }
 

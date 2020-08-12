@@ -2325,30 +2325,32 @@ int ha_sphinx::write_row ( const byte * )
 	// SphinxQL inserts only, pretty much similar to abandoned federated
 	char sQueryBuf[1024];
 	char sValueBuf[1024];
-
 	String sQuery ( sQueryBuf, sizeof(sQueryBuf), &my_charset_bin );
 	String sValue ( sValueBuf, sizeof(sQueryBuf), &my_charset_bin );
+        const char *query;
 	sQuery.length ( 0 );
 	sValue.length ( 0 );
 
 	CSphSEThreadTable * pTable = GetTls ();
-	sQuery.append ( pTable && pTable->m_bReplace ? "REPLACE INTO " : "INSERT INTO " );
-	sQuery.append ( m_pShare->m_sIndex );
-	sQuery.append ( " (" );
+        query= pTable && pTable->m_bReplace ? "REPLACE INTO " : "INSERT INTO ";
+	sQuery.append (query, strlen(query));
+	sQuery.append ( m_pShare->m_sIndex, strlen(m_pShare->m_sIndex ));
+	sQuery.append (STRING_WITH_LEN(" (" ));
 
 	for ( Field ** ppField = table->field; *ppField; ppField++ )
 	{
-		sQuery.append ( (*ppField)->field_name.str );
+          sQuery.append ( (*ppField)->field_name.str,
+                          strlen((*ppField)->field_name.str));
 		if ( ppField[1] )
-			sQuery.append ( ", " );
+                      sQuery.append (STRING_WITH_LEN(", "));
 	}
-	sQuery.append ( ") VALUES (" );
+	sQuery.append (STRING_WITH_LEN( ") VALUES (" ));
 
 	for ( Field ** ppField = table->field; *ppField; ppField++ )
 	{
 		if ( (*ppField)->is_null() )
 		{
-			sQuery.append ( "''" );
+                        sQuery.append (STRING_WITH_LEN( "''" ));
 
 		} else
 		{
@@ -2360,23 +2362,23 @@ int ha_sphinx::write_row ( const byte * )
 				pConv->quick_fix_field();
 				unsigned int uTs = (unsigned int) pConv->val_int();
 
-				snprintf ( sValueBuf, sizeof(sValueBuf), "'%u'", uTs );
-				sQuery.append ( sValueBuf );
+				uint len= my_snprintf ( sValueBuf, sizeof(sValueBuf), "'%u'", uTs );
+				sQuery.append ( sValueBuf, len );
 
 			} else
 			{
 				(*ppField)->val_str ( &sValue );
-				sQuery.append ( "'" );
+				sQuery.append ( '\'' );
 				sValue.print ( &sQuery );
-				sQuery.append ( "'" );
+				sQuery.append ( '\'' );
 				sValue.length(0);
 			}
 		}
 
 		if ( ppField[1] )
-			sQuery.append ( ", " );
+                        sQuery.append (STRING_WITH_LEN(", "));
 	}
-	sQuery.append ( ")" );
+	sQuery.append ( ')' );
 
 	// FIXME? pretty inefficient to reconnect every time under high load,
 	// but this was intentionally written for a low load scenario..
@@ -2432,13 +2434,14 @@ int ha_sphinx::delete_row ( const byte * )
 	String sQuery ( sQueryBuf, sizeof(sQueryBuf), &my_charset_bin );
 	sQuery.length ( 0 );
 
-	sQuery.append ( "DELETE FROM " );
-	sQuery.append ( m_pShare->m_sIndex );
-	sQuery.append ( " WHERE id=" );
+	sQuery.append (STRING_WITH_LEN( "DELETE FROM " ));
+	sQuery.append ( m_pShare->m_sIndex, strlen(m_pShare->m_sIndex));
+	sQuery.append (STRING_WITH_LEN( " WHERE id=" ));
 
 	char sValue[32];
-	snprintf ( sValue, sizeof(sValue), "%lld", table->field[0]->val_int() );
-	sQuery.append ( sValue );
+	uint length= my_snprintf ( sValue, sizeof(sValue), "%lld",
+                                   table->field[0]->val_int() );
+	sQuery.append ( sValue, length );
 
 	// FIXME? pretty inefficient to reconnect every time under high load,
 	// but this was intentionally written for a low load scenario..

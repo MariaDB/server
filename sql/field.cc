@@ -11361,7 +11361,7 @@ Field::print_key_part_value(String *out, const uchar* key, uint32 length)
     */
     if (*key)
     {
-      out->append(STRING_WITH_LEN("NULL"));
+      out->append(NULL_clex_str);
       return;
     }
     null_byte++;  // Skip null byte

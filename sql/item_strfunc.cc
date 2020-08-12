@@ -554,7 +554,7 @@ String *Item_func_decode_histogram::val_str(String *str)
     size_t size= my_snprintf(numbuf, sizeof(numbuf),
                           representation_by_type[type], val - prev);
     str->append(numbuf, size);
-    str->append(",");
+    str->append(',');
     prev= val;
   }
   /* show delta with max */
@@ -2145,7 +2145,7 @@ void Item_func_trim::print(String *str, enum_query_type query_type)
     Item_func::print(str, query_type);
     return;
   }
-  str->append(Item_func_trim::func_name());
+  str->append(Item_func_trim::func_name_cstring());
   str->append(func_name_ext());
   str->append('(');
   str->append(mode_name());
@@ -2934,13 +2934,14 @@ String *Item_func_make_set::val_str(String *str)
 
 void Item_func_char::print(String *str, enum_query_type query_type)
 {
-  str->append(Item_func_char::func_name());
+  str->append(Item_func_char::func_name_cstring());
   str->append('(');
   print_args(str, 0, query_type);
   if (collation.collation != &my_charset_bin)
   {
     str->append(STRING_WITH_LEN(" using "));
-    str->append(collation.collation->csname);
+    str->append(collation.collation->csname,
+                strlen(collation.collation->csname));
   }
   str->append(')');
 }
@@ -3223,7 +3224,7 @@ bool Item_func_pad::fix_length_and_dec()
       return TRUE;
     pad_str.set_charset(collation.collation);
     pad_str.length(0);
-    pad_str.append(" ", 1);
+    pad_str.append(' ');
   }
 
   DBUG_ASSERT(collation.collation->mbmaxlen > 0);
@@ -3533,7 +3534,8 @@ void Item_func_conv_charset::print(String *str, enum_query_type query_type)
   str->append(STRING_WITH_LEN("convert("));
   args[0]->print(str, query_type);
   str->append(STRING_WITH_LEN(" using "));
-  str->append(collation.collation->csname);
+  str->append(collation.collation->csname,
+              strlen(collation.collation->csname));
   str->append(')');
 }
 
@@ -3573,7 +3575,7 @@ void Item_func_set_collation::print(String *str, enum_query_type query_type)
 {
   args[0]->print_parenthesised(str, query_type, precedence());
   str->append(STRING_WITH_LEN(" collate "));
-  str->append(m_set_collation->name);
+  str->append(m_set_collation->name, strlen(m_set_collation->name));
 }
 
 String *Item_func_charset::val_str(String *str)
@@ -3704,7 +3706,7 @@ nl:
 
 void Item_func_weight_string::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append('(');
   args[0]->print(str, query_type);
   str->append(',');
@@ -4631,7 +4633,8 @@ void Item_func_dyncol_create::print_arguments(String *str,
       if (defs[i].cs)
       {
         str->append(STRING_WITH_LEN(" charset "));
-        str->append(defs[i].cs->csname);
+        const char *cs= defs[i].cs->csname;
+        str->append(cs, strlen(cs));
         str->append(' ');
       }
       break;

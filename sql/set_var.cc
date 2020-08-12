@@ -1218,12 +1218,14 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     {
       uint i;
       strbuf.length(0);
-      for (i=0; i + 1 < tl->count; i++)
+      for (i=0; i < tl->count; i++)
       {
-        strbuf.append(tl->type_names[i]);
+        const char *name= tl->type_names[i];
+        strbuf.append(name, strlen(name));
         strbuf.append(',');
       }
-      strbuf.append(tl->type_names[i]);
+      if (!strbuf.is_empty())
+        strbuf.chop();
       fields[11]->set_notnull();
       fields[11]->store(strbuf.ptr(), strbuf.length(), scs);
     }

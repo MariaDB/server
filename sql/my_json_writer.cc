@@ -33,7 +33,7 @@ void Json_writer::start_object()
   if (!element_started)
     start_element();
 
-  output.append("{");
+  output.append('{');
   indent_level+=INDENT_SIZE;
   first_child=true;
   element_started= false;
@@ -48,7 +48,7 @@ void Json_writer::start_array()
   if (!element_started)
     start_element();
 
-  output.append("[");
+  output.append('[');
   indent_level+=INDENT_SIZE;
   first_child=true;
   element_started= false;
@@ -62,7 +62,7 @@ void Json_writer::end_object()
   if (!first_child)
     append_indent();
   first_child= false;
-  output.append("}");
+  output.append('}');
 }
 
 
@@ -73,7 +73,7 @@ void Json_writer::end_array()
   indent_level-=INDENT_SIZE;
   if (!first_child)
     append_indent();
-  output.append("]");
+  output.append(']');
 }
 
 
@@ -104,7 +104,7 @@ Json_writer& Json_writer::add_member(const char *name, size_t len)
 
   output.append('"');
   output.append(name, len);
-  output.append("\": ");
+  output.append(STRING_WITH_LEN("\": "));
   return *this;
 }
 
@@ -376,13 +376,13 @@ void Single_line_formatting_helper::flush_on_one_line()
     {
       owner->output.append('"');
       owner->output.append(str);
-      owner->output.append("\": ");
+      owner->output.append(STRING_WITH_LEN("\": "));
       owner->output.append('[');
     }
     else
     {
       if (nr != 1)
-        owner->output.append(", ");
+        owner->output.append(STRING_WITH_LEN(", "));
       owner->output.append('"');
       owner->output.append(str);
       owner->output.append('"');

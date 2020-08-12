@@ -642,7 +642,7 @@ static int
 create_insert_stmt_from_insert_delayed(THD *thd, String *buf)
 {
   /* Make a copy of thd->query() and then remove the "DELAYED" keyword */
-  if (buf->append(thd->query()) ||
+  if (buf->append(thd->query(), thd->query_length()) ||
       buf->replace(thd->lex->keyword_delayed_begin_offset,
                    thd->lex->keyword_delayed_end_offset -
                    thd->lex->keyword_delayed_begin_offset, NULL, 0))
@@ -4864,12 +4864,12 @@ bool binlog_drop_table(THD *thd, TABLE *table)
   if (!thd->binlog_table_should_be_logged(&table->s->db))
     return 0;
 
-  query.append("DROP ");
+  query.append(STRING_WITH_LEN("DROP "));
   if (table->s->tmp_table)
-    query.append("TEMPORARY ");
-  query.append("TABLE IF EXISTS ");
+    query.append(STRING_WITH_LEN("TEMPORARY "));
+  query.append(STRING_WITH_LEN("TABLE IF EXISTS "));
   append_identifier(thd, &query, &table->s->db);
-  query.append(".");
+  query.append('.');
   append_identifier(thd, &query, &table->s->table_name);
 
   return thd->binlog_query(THD::STMT_QUERY_TYPE,

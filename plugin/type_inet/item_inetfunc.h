@@ -32,7 +32,11 @@ class Item_func_inet_aton : public Item_longlong_func
 public:
   Item_func_inet_aton(THD *thd, Item *a): Item_longlong_func(thd, a) {}
   longlong val_int();
-  const char *func_name() const { return "inet_aton"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("inet_aton") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     decimals= 0;
@@ -56,7 +60,11 @@ public:
   Item_func_inet_ntoa(THD *thd, Item *a): Item_str_func(thd, a)
   { }
   String* val_str(String* str);
-  const char *func_name() const { return "inet_ntoa"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("inet_ntoa") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     decimals= 0;
@@ -98,9 +106,11 @@ public:
   { }
 
 public:
-  virtual const char *func_name() const
-  { return "inet6_aton"; }
-
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("inet6_aton") };
+    return name;
+  }
   virtual bool fix_length_and_dec()
   {
     decimals= 0;
@@ -127,8 +137,11 @@ public:
   { }
 
 public:
-  virtual const char *func_name() const
-  { return "inet6_ntoa"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("inet6_ntoa") };
+    return name;
+  }
 
   virtual bool fix_length_and_dec()
   {
@@ -160,8 +173,11 @@ public:
   { }
 
 public:
-  virtual const char *func_name() const
-  { return "is_ipv4"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("is_ipv4") };
+    return name;
+  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_is_ipv4>(thd, this); }
 
@@ -180,8 +196,11 @@ public:
     Item_func_inet_bool_base(thd, ip_addr)
   { }
 
-  virtual const char *func_name() const
-  { return "is_ipv6"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("is_ipv6") };
+    return name;
+  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_is_ipv6>(thd, this); }
 
@@ -199,8 +218,11 @@ public:
   inline Item_func_is_ipv4_compat(THD *thd, Item *ip_addr):
     Item_func_inet_bool_base(thd, ip_addr)
   { }
-  virtual const char *func_name() const
-  { return "is_ipv4_compat"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("is_ipv4_compat") };
+    return name;
+  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_is_ipv4_compat>(thd, this); }
   longlong val_int();
@@ -217,8 +239,11 @@ public:
   inline Item_func_is_ipv4_mapped(THD *thd, Item *ip_addr):
     Item_func_inet_bool_base(thd, ip_addr)
   { }
-  virtual const char *func_name() const
-  { return "is_ipv4_mapped"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("is_ipv4_mapped") };
+    return name;
+  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_is_ipv4_mapped>(thd, this); }
   longlong val_int();

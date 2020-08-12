@@ -1183,9 +1183,22 @@ int ha_partition::rename_partitions(const char *path)
 #define ASSIGN_KEYCACHE_PARTS 5
 #define PRELOAD_KEYS_PARTS 6
 
-static const char *opt_op_name[]= {NULL,
-                                   "optimize", "analyze", "check", "repair",
-                                   "assign_to_keycache", "preload_keys"};
+static const LEX_CSTRING opt_op_name[]=
+{
+  { NULL, 0},
+  { STRING_WITH_LEN("optimize") },
+  { STRING_WITH_LEN("analyze") },
+  { STRING_WITH_LEN("check") },
+  { STRING_WITH_LEN("repair") },
+  { STRING_WITH_LEN("assign_to_keycache") },
+  { STRING_WITH_LEN("preload_keys") }
+};
+
+
+static const LEX_CSTRING msg_note= { STRING_WITH_LEN("note") };
+static const LEX_CSTRING msg_warning= { STRING_WITH_LEN("warning") };
+#define msg_error error_clex_str
+
 
 /*
   Optimize table
@@ -1389,14 +1402,14 @@ int ha_partition::handle_opt_part(THD *thd, HA_CHECK_OPT *check_opt,
    TODO: move this into the handler, or rewrite mysql_admin_table.
 */
 bool print_admin_msg(THD* thd, uint len,
-                            const char* msg_type,
-                            const char* db_name, String &table_name,
-                            const char* op_name, const char *fmt, ...)
+                     const LEX_CSTRING *msg_type,
+                     const char* db_name, String &table_name,
+                     const LEX_CSTRING *op_name, const char *fmt, ...)
   ATTRIBUTE_FORMAT(printf, 7, 8);
 bool print_admin_msg(THD* thd, uint len,
-                            const char* msg_type,
-                            const char* db_name, String &table_name,
-                            const char* op_name, const char *fmt, ...)
+                     const LEX_CSTRING *msg_type,
+                     const char* db_name, String &table_name,
+                     const LEX_CSTRING *op_name, const char *fmt, ...)
 {
   va_list args;
   Protocol *protocol= thd->protocol;
@@ -1504,9 +1517,9 @@ int ha_partition::handle_opt_partitions(THD *thd, HA_CHECK_OPT *check_opt,
                 error != HA_ADMIN_ALREADY_DONE &&
                 error != HA_ADMIN_TRY_ALTER)
             {
-	      print_admin_msg(thd, MYSQL_ERRMSG_SIZE, "error",
+	      print_admin_msg(thd, MYSQL_ERRMSG_SIZE, &msg_error,
                               table_share->db.str, table->alias,
-                              opt_op_name[flag],
+                              &opt_op_name[flag],
                               "Subpartition %s returned error",
                               sub_elem->partition_name);
             }
@@ -1531,9 +1544,9 @@ int ha_partition::handle_opt_partitions(THD *thd, HA_CHECK_OPT *check_opt,
               error != HA_ADMIN_ALREADY_DONE &&
               error != HA_ADMIN_TRY_ALTER)
           {
-	    print_admin_msg(thd, MYSQL_ERRMSG_SIZE, "error",
+	    print_admin_msg(thd, MYSQL_ERRMSG_SIZE, &msg_error,
                             table_share->db.str, table->alias,
-                            opt_op_name[flag], "Partition %s returned error",
+                            &opt_op_name[flag], "Partition %s returned error",
                             part_elem->partition_name);
           }
           /* reset part_state for the remaining partitions */
@@ -9947,9 +9960,9 @@ void ha_partition::append_row_to_str(String &str)
     for (; key_part != key_part_end; key_part++)
     {
       Field *field= key_part->field;
-      str.append(" ");
+      str.append(' ');
       str.append(&field->field_name);
-      str.append(":");
+      str.append(':');
       field_unpack(&str, field, rec, 0, false);
     }
     if (!is_rec0)
@@ -9967,9 +9980,9 @@ void ha_partition::append_row_to_str(String &str)
          field_ptr++)
     {
       Field *field= *field_ptr;
-      str.append(" ");
+      str.append(' ');
       str.append(&field->field_name);
-      str.append(":");
+      str.append(':');
       field_unpack(&str, field, rec, 0, false);
     }
     if (!is_rec0)
@@ -10007,14 +10020,14 @@ void ha_partition::print_error(int error, myf errflag)
       String str(buf,sizeof(buf),system_charset_info);
       uint32 part_id;
       str.length(0);
-      str.append("(");
+      str.append('(');
       str.append_ulonglong(m_last_part);
-      str.append(" != ");
+      str.append(STRING_WITH_LEN(" != "));
       if (get_part_for_buf(m_err_rec, m_rec0, m_part_info, &part_id))
-        str.append("?");
+        str.append('?');
       else
         str.append_ulonglong(part_id);
-      str.append(")");
+      str.append(')');
       append_row_to_str(str);
 
       /* Log this error, so the DBA can notice it and fix it! */
@@ -10967,9 +10980,9 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
       read_part_id != m_part_info->vers_info->now_part->id &&
       !m_part_info->vers_info->interval.is_set())
   {
-    print_admin_msg(ha_thd(), MYSQL_ERRMSG_SIZE, "note",
+    print_admin_msg(ha_thd(), MYSQL_ERRMSG_SIZE, &msg_note,
                     table_share->db.str, table->alias,
-                    opt_op_name[CHECK_PARTS],
+                    &opt_op_name[CHECK_PARTS],
                     "Not supported for non-INTERVAL history partitions");
     DBUG_RETURN(HA_ADMIN_NOT_IMPLEMENTED);
   }
@@ -10998,9 +11011,9 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
 
       if (num_misplaced_rows > 0)
       {
-	print_admin_msg(ha_thd(), MYSQL_ERRMSG_SIZE, "warning",
+	print_admin_msg(ha_thd(), MYSQL_ERRMSG_SIZE, &msg_warning,
                         table_share->db.str, table->alias,
-                        opt_op_name[REPAIR_PARTS],
+                        &opt_op_name[REPAIR_PARTS],
                         "Moved %lld misplaced rows",
                         num_misplaced_rows);
       }
@@ -11020,9 +11033,9 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
       if (!do_repair)
       {
         /* Check. */
-	print_admin_msg(ha_thd(), MYSQL_ERRMSG_SIZE, "error",
+	print_admin_msg(ha_thd(), MYSQL_ERRMSG_SIZE, &msg_error,
                         table_share->db.str, table->alias,
-                        opt_op_name[CHECK_PARTS],
+                        &opt_op_name[CHECK_PARTS],
                         "Found a misplaced row");
         /* Break on first misplaced row! */
         result= HA_ADMIN_NEEDS_UPGRADE;
@@ -11047,8 +11060,9 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
           str.length(0);
           if (result == HA_ERR_FOUND_DUPP_KEY)
           {
-            str.append("Duplicate key found, "
-                       "please update or delete the record:\n");
+            str.append(STRING_WITH_LEN("Duplicate key found, "
+                                       "please update or delete the "
+                                       "record:\n"));
             result= HA_ADMIN_CORRUPT;
           }
           m_err_rec= NULL;
@@ -11068,9 +11082,9 @@ int ha_partition::check_misplaced_rows(uint read_part_id, bool do_repair)
                             (uint) correct_part_id,
                             str.c_ptr_safe());
           }
-	  print_admin_msg(ha_thd(), MYSQL_ERRMSG_SIZE, "error",
+	  print_admin_msg(ha_thd(), MYSQL_ERRMSG_SIZE, &msg_error,
                           table_share->db.str, table->alias,
-                          opt_op_name[REPAIR_PARTS],
+                          &opt_op_name[REPAIR_PARTS],
                           "Failed to move/insert a row"
                           " from part %u into part %u:\n%s",
                           (uint) read_part_id,
@@ -11195,19 +11209,19 @@ int ha_partition::check_for_upgrade(HA_CHECK_OPT *check_opt)
               !(part_buf= generate_partition_syntax_for_frm(thd, m_part_info,
                                                             &part_buf_len,
                                                             NULL, NULL)) ||
-	      print_admin_msg(thd, SQL_ADMIN_MSG_TEXT_SIZE + 1, "error",
+	      print_admin_msg(thd, SQL_ADMIN_MSG_TEXT_SIZE + 1, &msg_error,
 	                      table_share->db.str,
 	                      table->alias,
-                              opt_op_name[CHECK_PARTS],
+                              &opt_op_name[CHECK_PARTS],
                               KEY_PARTITIONING_CHANGED_STR,
                               db_name.c_ptr_safe(),
                               table_name.c_ptr_safe(),
                               part_buf))
 	  {
 	    /* Error creating admin message (too long string?). */
-	    print_admin_msg(thd, MYSQL_ERRMSG_SIZE, "error",
+	    print_admin_msg(thd, MYSQL_ERRMSG_SIZE, &msg_error,
                             table_share->db.str, table->alias,
-                            opt_op_name[CHECK_PARTS],
+                            &opt_op_name[CHECK_PARTS],
                             KEY_PARTITIONING_CHANGED_STR,
                             db_name.c_ptr_safe(), table_name.c_ptr_safe(),
                             "<old partition clause>, but add ALGORITHM = 1"

@@ -90,11 +90,11 @@ static int cmp_row_type(Item* item1, Item* item2)
   @retval false otherwise
 */
 
-bool
-Type_handler_hybrid_field_type::aggregate_for_comparison(const char *funcname,
-                                                         Item **items,
-                                                         uint nitems,
-                                                         bool int_uint_as_dec)
+bool Type_handler_hybrid_field_type::
+aggregate_for_comparison(const LEX_CSTRING &funcname,
+                         Item **items,
+                         uint nitems,
+                         bool int_uint_as_dec)
 {
   uint unsigned_count= items[0]->unsigned_flag;
   /*
@@ -120,7 +120,7 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const char *funcname,
                i == 1 ? items[0]->type_handler()->name().ptr() :
                         type_handler()->name().ptr(),
                items[i]->type_handler()->name().ptr(),
-               funcname);
+               funcname.str);
       return true;
     }
     /*
@@ -476,7 +476,8 @@ int Arg_comparator::set_cmp_func(THD *thd, Item_func_or_sum *owner_arg,
   b= a2;
   Item *tmp_args[2]= {*a1, *a2};
   Type_handler_hybrid_field_type tmp;
-  if (tmp.aggregate_for_comparison(owner_arg->func_name(), tmp_args, 2, false))
+  if (tmp.aggregate_for_comparison(owner_arg->func_name_cstring(), tmp_args, 2,
+                                   false))
   {
     DBUG_ASSERT(thd->is_error());
     return 1;
@@ -2114,7 +2115,8 @@ bool Item_func_between::fix_length_and_dec()
   */
   if (!args[0] || !args[1] || !args[2])
     return TRUE;
-  if (m_comparator.aggregate_for_comparison(Item_func_between::func_name(),
+  if (m_comparator.aggregate_for_comparison(Item_func_between::
+                                            func_name_cstring(),
                                             args, 3, false))
   {
     DBUG_ASSERT(current_thd->is_error());
@@ -2801,7 +2803,7 @@ void Item_func_nullif::print(String *str, enum_query_type query_type)
     */
     DBUG_ASSERT(arg_count == 2 ||
                 args[0] == args[2] || current_thd->lex->context_analysis_only);
-    str->append(func_name());
+    str->append(func_name_cstring());
     str->append('(');
     if (arg_count == 2)
       args[0]->print(str, query_type);
@@ -3163,9 +3165,10 @@ bool Item_func_case_simple::prepare_predicant_and_values(THD *thd,
   add_predicant(this, 0);
   for (uint i= 0 ; i < ncases; i++)
   {
+    static LEX_CSTRING case_when= { STRING_WITH_LEN("case..when") };
     if (nulls_equal ?
-        add_value("case..when", this, i + 1) :
-        add_value_skip_null("case..when", this, i + 1, &have_null))
+        add_value(case_when, this, i + 1) :
+        add_value_skip_null(case_when, this, i + 1, &have_null))
       return true;
   }
   all_values_added(&tmp, &type_cnt, &m_found_types);
@@ -3208,7 +3211,8 @@ bool Item_func_decode_oracle::fix_length_and_dec()
 */
 bool Item_func_case::aggregate_then_and_else_arguments(THD *thd, uint start)
 {
-  if (aggregate_for_result(func_name(), args + start, arg_count - start, true))
+  if (aggregate_for_result(func_name_cstring(), args + start,
+                           arg_count - start, true))
     return true;
 
   if (fix_attributes(args + start, arg_count - start))
@@ -3392,7 +3396,7 @@ void Item_func_case_simple::print(String *str, enum_query_type query_type)
 
 void Item_func_decode_oracle::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append('(');
   args[0]->print(str, query_type);
   for (uint i= 1, count= when_count() ; i <= count; i++)
@@ -3926,7 +3930,7 @@ bool Predicant_to_list_comparator::alloc_comparators(THD *thd, uint nargs)
 }
 
 
-bool Predicant_to_list_comparator::add_value(const char *funcname,
+bool Predicant_to_list_comparator::add_value(const LEX_CSTRING &funcname,
                                              Item_args *args,
                                              uint value_index)
 {
@@ -3948,10 +3952,11 @@ bool Predicant_to_list_comparator::add_value(const char *funcname,
 }
 
 
-bool Predicant_to_list_comparator::add_value_skip_null(const char *funcname,
-                                                       Item_args *args,
-                                                       uint value_index,
-                                                       bool *nulls_found)
+bool Predicant_to_list_comparator::
+add_value_skip_null(const LEX_CSTRING &funcname,
+                    Item_args *args,
+                    uint value_index,
+                    bool *nulls_found)
 {
   /*
     Skip explicit NULL constant items.
@@ -4377,7 +4382,8 @@ bool Item_func_in::prepare_predicant_and_values(THD *thd, uint *found_types)
   add_predicant(this, 0);
   for (uint i= 1 ; i < arg_count; i++)
   {
-    if (add_value_skip_null(Item_func_in::func_name(), this, i, &have_null))
+    if (add_value_skip_null(Item_func_in::func_name_cstring(), this, i,
+                            &have_null))
       return true;
   }
   all_values_added(&m_comparator, &type_cnt, found_types);
@@ -4504,7 +4510,7 @@ bool cmp_item_row::
       aggregate_row_elements_for_comparison(THD *thd,
                                             Type_handler_hybrid_field_type *cmp,
                                             Item_args *tmp,
-                                            const char *funcname,
+                                            const LEX_CSTRING &funcname,
                                             uint col,
                                             uint level)
 {
@@ -4514,8 +4520,8 @@ bool cmp_item_row::
     {
       Item *arg= tmp->arguments()[i];
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                          ER_UNKNOWN_ERROR, "DBUG: %s[%d,%d] handler=%s",
-                          String_space(level).c_ptr(), col, i,
+                          ER_UNKNOWN_ERROR, "DBUG: %*s[%d,%d] handler=%s",
+                          level, "", col, i,
                           arg->type_handler()->name().ptr());
     }
   }
@@ -4526,8 +4532,8 @@ bool cmp_item_row::
   {
     if (!err)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                          ER_UNKNOWN_ERROR, "DBUG: %s=> handler=%s",
-                          String_space(level).c_ptr(),
+                          ER_UNKNOWN_ERROR, "DBUG: %*s=> handler=%s",
+                          level,"",
                           cmp->type_handler()->name().ptr());
   }
   );
@@ -4535,13 +4541,13 @@ bool cmp_item_row::
 }
 
 
-bool cmp_item_row::prepare_comparators(THD *thd, const char *funcname,
+bool cmp_item_row::prepare_comparators(THD *thd, const LEX_CSTRING &funcname,
                                        const Item_args *args, uint level)
 {
   DBUG_EXECUTE_IF("cmp_item",
                   push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                  ER_UNKNOWN_ERROR, "DBUG: %sROW(%d args) level=%d",
-                  String_space(level).c_ptr(),
+                  ER_UNKNOWN_ERROR, "DBUG: %*sROW(%d args) level=%d",
+                                      level,"",
                   args->argument_count(), level););
   DBUG_ASSERT(args->argument_count() > 0);
   if (alloc_comparators(thd, args->arguments()[0]->cols()))
@@ -4590,7 +4596,7 @@ bool Item_func_in::fix_for_row_comparison_using_bisection(THD *thd)
   if (unlikely(!(array= new (thd->mem_root) in_row(thd, arg_count-1, 0))))
     return true;
   cmp_item_row *cmp= &((in_row*)array)->tmp;
-  if (cmp->prepare_comparators(thd, func_name(), this, 0))
+  if (cmp->prepare_comparators(thd, func_name_cstring(), this, 0))
     return true;
   fix_in_vector();
   return false;
@@ -4629,7 +4635,7 @@ bool Item_func_in::fix_for_row_comparison_using_cmp_items(THD *thd)
   DBUG_ASSERT(get_comparator_type_handler(0) == &type_handler_row);
   DBUG_ASSERT(get_comparator_cmp_item(0));
   cmp_item_row *cmp_row= (cmp_item_row*) get_comparator_cmp_item(0);
-  return cmp_row->prepare_comparators(thd, func_name(), this, 0);
+  return cmp_row->prepare_comparators(thd, func_name_cstring(), this, 0);
 }
 
 
@@ -5281,7 +5287,7 @@ void Item_cond::print(String *str, enum_query_type query_type)
   while ((item=li++))
   {
     str->append(' ');
-    str->append(func_name());
+    str->append(func_name_cstring());
     str->append(' ');
     item->print_parenthesised(str, query_type, precedence());
   }
@@ -5525,7 +5531,7 @@ void Item_func_isnull::print(String *str, enum_query_type query_type)
 {
   if (const_item() && !args[0]->maybe_null() &&
       !(query_type & (QT_NO_DATA_EXPANSION | QT_VIEW_INTERNAL)))
-    str->append("/*always not null*/ 1");
+    str->append(STRING_WITH_LEN("/*always not null*/ 1"));
   else
     args[0]->print_parenthesised(str, query_type, precedence());
   str->append(STRING_WITH_LEN(" is null"));
@@ -5586,7 +5592,7 @@ void Item_func_like::print(String *str, enum_query_type query_type)
   str->append(' ');
   if (negated)
     str->append(STRING_WITH_LEN(" not "));
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append(' ');
   if (escape_used_in_parsing)
   {
@@ -7244,7 +7250,7 @@ void Item_equal::print(String *str, enum_query_type query_type)
     str->append('0');
     return;
   }
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append('(');
   List_iterator_fast<Item> it(equal_items);
   Item *item;

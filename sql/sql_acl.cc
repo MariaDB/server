@@ -453,15 +453,15 @@ public:
   void print_grant(String *str)
   {
     str->append(STRING_WITH_LEN("GRANT PROXY ON '"));
-    str->append(proxied_user);
+    str->append(proxied_user, strlen(proxied_user));
     str->append(STRING_WITH_LEN("'@'"));
     if (proxied_host.hostname)
       str->append(proxied_host.hostname, strlen(proxied_host.hostname));
     str->append(STRING_WITH_LEN("' TO '"));
-    str->append(user);
+    str->append(user, strlen(user));
     str->append(STRING_WITH_LEN("'@'"));
     if (host.hostname)
-      str->append(host.hostname);
+      str->append(host.hostname, strlen(host.hostname));
     str->append(STRING_WITH_LEN("'"));
     if (with_grant)
       str->append(STRING_WITH_LEN(" WITH GRANT OPTION"));
@@ -1776,7 +1776,7 @@ class User_table_json: public User_table
       if (value_len)
         json.append(',');
       json.append('"');
-      json.append(key);
+      json.append(key, strlen(key));
       json.append(STRING_WITH_LEN("\":"));
       if (string)
         json.append('"');
@@ -9136,7 +9136,7 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
     goto end;
   }
 
-  result.append("CREATE USER ");
+  result.append(STRING_WITH_LEN("CREATE USER "));
   append_identifier(thd, &result, username, strlen(username));
   add_user_parameters(thd, &result, acl_user, false);
 
@@ -9160,9 +9160,10 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
    of a user account, including both the manual expiration state of the
    account and the automatic expiration policy attached to it, we should
    print two statements here, a CREATE USER (printed above) and an ALTER USER */
-  if (acl_user->password_expired && acl_user->password_lifetime > -1) {
+  if (acl_user->password_expired && acl_user->password_lifetime > -1)
+  {
     result.length(0);
-    result.append("ALTER USER ");
+    result.append(STRING_WITH_LEN("ALTER USER "));
     append_identifier(thd, &result, username, strlen(username));
     result.append('@');
     append_identifier(thd, &result, acl_user->host.hostname,
@@ -9418,7 +9419,7 @@ static bool show_default_role(THD *thd, ACL_USER *acl_entry,
     def_str.length(0);
     def_str.append(STRING_WITH_LEN("SET DEFAULT ROLE "));
     def_str.append(&def_rolename);
-    def_str.append(" FOR '");
+    def_str.append(STRING_WITH_LEN(" FOR '"));
     def_str.append(&acl_entry->user);
     DBUG_ASSERT(!(acl_entry->flags & IS_ROLE));
     def_str.append(STRING_WITH_LEN("'@'"));

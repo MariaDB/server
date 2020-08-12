@@ -63,7 +63,8 @@ socket_args::set(const config& conf)
     } else {
       const char *nd = !node.length() ? 0 : node.c_ptr();
       if (resolve(nd, port.c_ptr()) != 0) {
-        String message("getaddrinfo failed: ", &my_charset_bin);
+        String message(STRING_WITH_LEN("getaddrinfo failed: "),
+                       &my_charset_bin);
         message.reserve(node.length() + sizeof(":") - 1 + port.length());
         message.append(node);
         message.q_append(":", sizeof(":") - 1);

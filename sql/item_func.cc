@@ -165,7 +165,7 @@ bool Item_func::check_argument_types_or_binary(const Type_handler *handler,
   for (uint i= start; i < end ; i++)
   {
     DBUG_ASSERT(i < arg_count);
-    if (args[i]->check_type_or_binary(func_name(), handler))
+    if (args[i]->check_type_or_binary(func_name_cstring(), handler))
       return true;
   }
   return false;
@@ -178,7 +178,7 @@ bool Item_func::check_argument_types_traditional_scalar(uint start,
   for (uint i= start; i < end ; i++)
   {
     DBUG_ASSERT(i < arg_count);
-    if (args[i]->check_type_traditional_scalar(func_name()))
+    if (args[i]->check_type_traditional_scalar(func_name_cstring()))
       return true;
   }
   return false;
@@ -191,7 +191,7 @@ bool Item_func::check_argument_types_can_return_int(uint start,
   for (uint i= start; i < end ; i++)
   {
     DBUG_ASSERT(i < arg_count);
-    if (args[i]->check_type_can_return_int(func_name()))
+    if (args[i]->check_type_can_return_int(func_name_cstring()))
       return true;
   }
   return false;
@@ -204,7 +204,7 @@ bool Item_func::check_argument_types_can_return_real(uint start,
   for (uint i= start; i < end ; i++)
   {
     DBUG_ASSERT(i < arg_count);
-    if (args[i]->check_type_can_return_real(func_name()))
+    if (args[i]->check_type_can_return_real(func_name_cstring()))
       return true;
   }
   return false;
@@ -217,7 +217,7 @@ bool Item_func::check_argument_types_can_return_text(uint start,
   for (uint i= start; i < end ; i++)
   {
     DBUG_ASSERT(i < arg_count);
-    if (args[i]->check_type_can_return_text(func_name()))
+    if (args[i]->check_type_can_return_text(func_name_cstring()))
       return true;
   }
   return false;
@@ -230,7 +230,7 @@ bool Item_func::check_argument_types_can_return_str(uint start,
   for (uint i= start; i < end ; i++)
   {
     DBUG_ASSERT(i < arg_count);
-    if (args[i]->check_type_can_return_str(func_name()))
+    if (args[i]->check_type_can_return_str(func_name_cstring()))
       return true;
   }
   return false;
@@ -243,7 +243,7 @@ bool Item_func::check_argument_types_can_return_date(uint start,
   for (uint i= start; i < end ; i++)
   {
     DBUG_ASSERT(i < arg_count);
-    if (args[i]->check_type_can_return_date(func_name()))
+    if (args[i]->check_type_can_return_date(func_name_cstring()))
       return true;
   }
   return false;
@@ -256,7 +256,7 @@ bool Item_func::check_argument_types_can_return_time(uint start,
   for (uint i= start; i < end ; i++)
   {
     DBUG_ASSERT(i < arg_count);
-    if (args[i]->check_type_can_return_time(func_name()))
+    if (args[i]->check_type_can_return_time(func_name_cstring()))
       return true;
   }
   return false;
@@ -268,7 +268,7 @@ bool Item_func::check_argument_types_scalar(uint start, uint end) const
   for (uint i= start; i < end; i++)
   {
     DBUG_ASSERT(i < arg_count);
-    if (args[i]->check_type_scalar(func_name()))
+    if (args[i]->check_type_scalar(func_name_cstring()))
       return true;
   }
   return false;
@@ -605,7 +605,7 @@ table_map Item_func::not_null_tables() const
 
 void Item_func::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append('(');
   print_args(str, 0, query_type);
   str->append(')');
@@ -629,7 +629,7 @@ void Item_func::print_op(String *str, enum_query_type query_type)
   {
     args[i]->print_parenthesised(str, query_type, precedence());
     str->append(' ');
-    str->append(func_name());
+    str->append(func_name_cstring());
     str->append(' ');
   }
   args[arg_count-1]->print_parenthesised(str, query_type, higher_precedence());
@@ -672,7 +672,7 @@ bool Item_hybrid_func::fix_attributes(Item **items, uint nitems)
 {
   bool rc= Item_hybrid_func::type_handler()->
              Item_hybrid_func_fix_attributes(current_thd,
-                                             func_name(), this, this,
+                                             func_name_cstring(), this, this,
                                              items, nitems);
   DBUG_ASSERT(!rc || current_thd->is_error());
   return rc;
@@ -1070,11 +1070,12 @@ void Item_real_typecast::print(String *str, enum_query_type query_type)
 {
   char len_buf[20*3 + 1];
   char *end;
+  Name name= type_handler()->name();
 
   str->append(STRING_WITH_LEN("cast("));
   args[0]->print(str, query_type);
   str->append(STRING_WITH_LEN(" as "));
-  str->append(type_handler()->name().ptr());
+  str->append(name.ptr(), name.length());
   if (decimals != NOT_FIXED_DEC)
   {
     str->append('(');
@@ -3754,7 +3755,7 @@ void Item_udf_func::cleanup()
 
 void Item_udf_func::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append('(');
   for (uint i=0 ; i < arg_count ; i++)
   {
@@ -5412,12 +5413,12 @@ int Item_func_set_user_var::save_in_field(Field *field, bool no_conversions,
     String *result;
     CHARSET_INFO *cs= collation.collation;
     char buff[MAX_FIELD_WIDTH];		// Alloc buffer for small columns
-    str_value.set_quick(buff, sizeof(buff), cs);
+    str_value.set_buffer_if_not_allocated(buff, sizeof(buff), cs);
     result= m_var_entry->val_str(&null_value, &str_value, decimals);
 
     if (null_value)
     {
-      str_value.set_quick(0, 0, cs);
+      str_value.set_buffer_if_not_allocated(0, 0, cs);
       return set_field_to_null_with_conversions(field, no_conversions);
     }
 
@@ -5425,7 +5426,7 @@ int Item_func_set_user_var::save_in_field(Field *field, bool no_conversions,
 
     field->set_notnull();
     error=field->store(result->ptr(),result->length(),cs);
-    str_value.set_quick(0, 0, cs);
+    str_value.set_buffer_if_not_allocated(0, 0, cs);
   }
   else if (result_type() == REAL_RESULT)
   {
@@ -6569,11 +6570,11 @@ Item_func_sp::cleanup()
   Item_func::cleanup();
 }
 
-const char *
-Item_func_sp::func_name() const
+LEX_CSTRING
+Item_func_sp::func_name_cstring() const
 {
   THD *thd= current_thd;
-  return Item_sp::func_name(thd);
+  return Item_sp::func_name_cstring(thd);
 }
 
 
@@ -6947,7 +6948,7 @@ bool Item_func_last_value::fix_length_and_dec()
 }
 
 
-void Cursor_ref::print_func(String *str, const char *func_name)
+void Cursor_ref::print_func(String *str, const LEX_CSTRING &func_name)
 {
   append_identifier(current_thd, str, &m_cursor_name);
   str->append(func_name);
@@ -7076,7 +7077,7 @@ void Item_func_nextval::print(String *str, enum_query_type query_type)
   bool use_db_name= d_name.str && d_name.str[0];
   THD *thd= current_thd;                        // Don't trust 'table'
 
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append('(');
 
   /*
@@ -7200,7 +7201,7 @@ void Item_func_setval::print(String *str, enum_query_type query_type)
   bool use_db_name= d_name.str && d_name.str[0];
   THD *thd= current_thd;                        // Don't trust 'table'
 
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append('(');
 
   /*

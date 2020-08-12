@@ -136,11 +136,18 @@ static const LEX_CSTRING sys_table_aliases[]=
   {NullS, 0}
 };
 
-const char *ha_row_type[] = {
-  "", "FIXED", "DYNAMIC", "COMPRESSED", "REDUNDANT", "COMPACT", "PAGE"
+const LEX_CSTRING ha_row_type[]=
+{
+  { STRING_WITH_LEN("") },
+  { STRING_WITH_LEN("FIXED") },
+  { STRING_WITH_LEN("DYNAMIC") },
+  { STRING_WITH_LEN("COMPRESSED") },
+  { STRING_WITH_LEN("REDUNDANT") },
+  { STRING_WITH_LEN("COMPACT") },
+  { STRING_WITH_LEN("PAGE") }
 };
 
-const char *tx_isolation_names[] =
+const char *tx_isolation_names[]=
 { "READ-UNCOMMITTED", "READ-COMMITTED", "REPEATABLE-READ", "SERIALIZABLE",
   NullS};
 TYPELIB tx_isolation_typelib= {array_elements(tx_isolation_names)-1,"",
@@ -4117,7 +4124,9 @@ void handler::print_error(int error, myf errflag)
     break;
   case HA_ERR_LOCK_DEADLOCK:
   {
-    String str, full_err_msg(ER_DEFAULT(ER_LOCK_DEADLOCK), system_charset_info);
+    String str, full_err_msg(ER_DEFAULT(ER_LOCK_DEADLOCK),
+                             strlen(ER_DEFAULT(ER_LOCK_DEADLOCK)),
+                             system_charset_info);
 
     get_error_message(error, &str);
     full_err_msg.append(str);

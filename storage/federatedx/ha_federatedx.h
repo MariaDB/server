@@ -104,7 +104,7 @@ typedef struct st_federatedx_share {
   /*
     the primary select query to be used in rnd_init
   */
-  char *select_query;
+  LEX_CSTRING select_query;
   /*
     remote host info, parse_url supplies
   */

@@ -714,7 +714,7 @@ public:
     return !na.is_null() && !nb.is_null() && !na.cmp(nb);
   }
   bool Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *h,
                                        Type_all_attributes *attr,
                                        Item **items,
@@ -747,7 +747,7 @@ public:
                                         Item **items,
                                         uint nitems) const override
   {
-    return Item_hybrid_func_fix_attributes(thd, func->func_name(),
+    return Item_hybrid_func_fix_attributes(thd, func->func_name_cstring(),
                                            func, func, items, nitems);
 
   }

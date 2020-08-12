@@ -804,7 +804,7 @@ void vers_select_conds_t::print(String *str, enum_query_type query_type) const
     DBUG_ASSERT(0);
     break;
   case SYSTEM_TIME_ALL:
-    str->append(" FOR SYSTEM_TIME ALL");
+    str->append(STRING_WITH_LEN(" FOR SYSTEM_TIME ALL"));
     break;
   }
 }
@@ -13477,8 +13477,11 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
                  char buff[256];
                  String str(buff,sizeof(buff),system_charset_info);
                  str.length(0);
-                 str.append(tab->table? tab->table->alias.c_ptr() :"<no_table_name>");
-                 str.append(" final_pushdown_cond");
+                 if (tab->table)
+                   str.append(tab->table->alias);
+                 else
+                   str.append(STRING_WITH_LEN("<no_table_name>"));
+                 str.append(STRING_WITH_LEN(" final_pushdown_cond"));
                  print_where(tab->select_cond, str.c_ptr_safe(), QT_ORDINARY););
   }
   uint n_top_tables= (uint)(join->join_tab_ranges.head()->end -  
@@ -27733,13 +27736,13 @@ Index_hint::print(THD *thd, String *str)
     case INDEX_HINT_USE:    str->append(STRING_WITH_LEN("USE INDEX")); break;
     case INDEX_HINT_FORCE:  str->append(STRING_WITH_LEN("FORCE INDEX")); break;
   }
-  str->append (STRING_WITH_LEN(" ("));
+  str->append(STRING_WITH_LEN(" ("));
   if (key_name.length)
   {
     if (thd && !system_charset_info->strnncoll(
                              (const uchar *)key_name.str, key_name.length, 
-                             (const uchar *)primary_key_name, 
-                             strlen(primary_key_name)))
+                             (const uchar *)primary_key_name.str,
+                             primary_key_name.length))
       str->append(primary_key_name);
     else
       append_identifier(thd, str, &key_name);
@@ -27897,8 +27900,8 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
 
       while ((hint= it++))
       {
-        str->append (STRING_WITH_LEN(" "));
-        hint->print (thd, str);
+        str->append(' ');
+        hint->print(thd, str);
       }
     }
   }
@@ -27920,21 +27923,21 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
       thd->lex->all_selects_list->link_next &&
       select_number != FAKE_SELECT_LEX_ID)
   {
-    str->append("/* select#");
+    str->append(STRING_WITH_LEN("/* select#"));
     str->append_ulonglong(select_number);
     if (thd->lex->describe & DESCRIBE_EXTENDED2)
     {
-      str->append("/");
+      str->append('/');
       str->append_ulonglong(nest_level);
 
       if (master_unit()->fake_select_lex &&
           master_unit()->first_select() == this)
       {
-        str->append(" Filter Select: ");
+        str->append(STRING_WITH_LEN(" Filter Select: "));
         master_unit()->fake_select_lex->print(thd, str, query_type);
       }
     }
-    str->append(" */ ");
+    str->append(STRING_WITH_LEN(" */ "));
   }
 
   str->append(STRING_WITH_LEN("select "));
@@ -28034,7 +28037,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     if (cur_where)
       cur_where->print(str, query_type);
     else
-      str->append(cond_value != Item::COND_FALSE ? "1" : "0");
+      str->append(cond_value != Item::COND_FALSE ? '1' : '0');
   }
 
   // group by & olap
@@ -28066,7 +28069,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     if (cur_having)
       cur_having->print(str, query_type);
     else
-      str->append(having_value != Item::COND_FALSE ? "1" : "0");
+      str->append(having_value != Item::COND_FALSE ? '1' : '0');
   }
 
   if (order_list.elements)
@@ -28080,12 +28083,11 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 
   // lock type
   if (select_lock == select_lock_type::IN_SHARE_MODE)
-    str->append(" lock in share mode");
+    str->append(STRING_WITH_LEN(" lock in share mode"));
   else if (select_lock == select_lock_type::FOR_UPDATE)
-    str->append(" for update");
-
+    str->append(STRING_WITH_LEN(" for update"));
   if (unlikely(skip_locked))
-    str->append(" skip locked");
+    str->append(STRING_WITH_LEN(" skip locked"));
 
   // PROCEDURE unsupported here
 }

@@ -35,7 +35,11 @@ public:
     set_maybe_null();
     return false;
   }
-  const char *func_name() const { return "sysconst_test"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("sysconst_test") };
+    return name;
+  }
   const char *fully_qualified_func_name() const { return "sysconst_test()"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_sysconst_test>(thd, this); }

@@ -99,7 +99,12 @@ public:
   bool send_result_set_row(List<Item> *row_items);
 
   bool store(I_List<i_string> *str_list);
-  bool store(const char *from, CHARSET_INFO *cs);
+  /* This will be deleted in future commit */
+  bool store(const char *from, CHARSET_INFO *cs)
+  {
+    return store_string_or_null(from, cs);
+  }
+  bool store_string_or_null(const char *from, CHARSET_INFO *cs);
   bool store_warning(const char *from, size_t length);
   String *storage_packet() { return packet; }
   inline void free() { packet->free(); }
@@ -114,6 +119,10 @@ public:
   { return store_longlong((longlong) from, 1); }
   inline bool store(String *str)
   { return store((char*) str->ptr(), str->length(), str->charset()); }
+  inline bool store(const LEX_CSTRING *from, CHARSET_INFO *cs)
+  {
+    return store(from->str, from->length, cs);
+  }
 
   virtual bool prepare_for_send(uint num_columns)
   {

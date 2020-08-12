@@ -36,7 +36,7 @@ bool Item_func_history::val_bool()
 
 void Item_func_history::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append('(');
   args[0]->print(str, query_type);
   str->append(')');

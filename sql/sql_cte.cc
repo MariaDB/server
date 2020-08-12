@@ -1478,7 +1478,7 @@ void With_clause::print(THD *thd, String *str, enum_query_type query_type)
        with_elem= with_elem->next)
   {
     if (with_elem != with_list.first)
-      str->append(", ");
+      str->append(STRING_WITH_LEN(", "));
     with_elem->print(thd, str, query_type);
   }
 }

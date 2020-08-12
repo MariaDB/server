@@ -196,9 +196,9 @@ hstcpcli::read_more()
         errno = 0;
         continue;
       }
-      error_str = String("read: failed", &my_charset_bin);
+      error_str = String(STRING_WITH_LEN("read: failed"), &my_charset_bin);
     } else {
-      error_str = String("read: eof", &my_charset_bin);
+      error_str = String(STRING_WITH_LEN("read: eof"), &my_charset_bin);
     }
     return rlen;
   }
@@ -503,7 +503,7 @@ hstcpcli::response_recv(size_t& num_flds_r)
     char *const err_end = start;
     String e = String(err_begin, (uint32)(err_end - err_begin), &my_charset_bin);
     if (!e.length()) {
-      e = String("unknown_error", &my_charset_bin);
+      e = String(STRING_WITH_LEN("unknown_error"), &my_charset_bin);
     }
     return set_error(resp_code, e);
   }

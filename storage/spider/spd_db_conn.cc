@@ -9694,8 +9694,8 @@ int spider_db_open_item_cond(
   int error_num = 0;
   List_iterator_fast<Item> lif(*(item_cond->argument_list()));
   Item *item;
-  char *func_name = NULL;
-  int func_name_length = 0, restart_pos = 0;
+  LEX_CSTRING func_name= {0,0};
+  int restart_pos = 0;
   DBUG_ENTER("spider_db_open_item_cond");
   if (str)
   {
@@ -9731,15 +9731,13 @@ restart_first:
     if (str)
     {
       restart_pos = str->length();
-      if (!func_name)
-      {
-        func_name = (char*) item_cond->func_name();
-        func_name_length = strlen(func_name);
-      }
-      if (str->reserve(func_name_length + SPIDER_SQL_SPACE_LEN * 2))
+      if (!func_name.str)
+        func_name= item_cond->func_name_cstring();
+
+      if (str->reserve(func_name.length + SPIDER_SQL_SPACE_LEN * 2))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       str->q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
-      str->q_append(func_name, func_name_length);
+      str->q_append(func_name.str, func_name.length);
       str->q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
     }
 

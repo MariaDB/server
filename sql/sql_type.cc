@@ -1294,8 +1294,9 @@ Type_numeric_attributes::aggregate_numeric_attributes_real(Item **items,
 
   @retval            False on success, true on error.
 */
-bool Type_std_attributes::aggregate_attributes_string(const char *func_name,
-                                                      Item **items, uint nitems)
+bool Type_std_attributes::
+aggregate_attributes_string(const LEX_CSTRING &func_name,
+                            Item **items, uint nitems)
 {
   if (agg_arg_charsets_for_string_result(collation, func_name,
                                          items, nitems, 1))
@@ -1424,10 +1425,10 @@ CHARSET_INFO *Type_handler::charset_for_protocol(const Item *item) const
 
 
 bool
-Type_handler::Item_func_or_sum_illegal_param(const char *funcname) const
+Type_handler::Item_func_or_sum_illegal_param(const LEX_CSTRING &funcname) const
 {
   my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           name().ptr(), funcname);
+           name().ptr(), funcname.str);
   return true;
 }
 
@@ -1435,7 +1436,7 @@ Type_handler::Item_func_or_sum_illegal_param(const char *funcname) const
 bool
 Type_handler::Item_func_or_sum_illegal_param(const Item_func_or_sum *it) const
 {
-  return Item_func_or_sum_illegal_param(it->func_name());
+  return Item_func_or_sum_illegal_param(it->func_name_cstring());
 }
 
 
@@ -1831,10 +1832,9 @@ Type_handler::bit_and_int_mixture_handler(uint max_char_length)
   @retval true  - on error
 */
 
-bool
-Type_handler_hybrid_field_type::aggregate_for_result(const char *funcname,
-                                                     Item **items, uint nitems,
-                                                     bool treat_bit_as_number)
+bool Type_handler_hybrid_field_type::
+aggregate_for_result(const LEX_CSTRING &funcname, Item **items, uint nitems,
+                     bool treat_bit_as_number)
 {
   bool bit_and_non_bit_mixture_found= false;
   uint32 max_display_length;
@@ -1862,7 +1862,7 @@ Type_handler_hybrid_field_type::aggregate_for_result(const char *funcname,
     if (aggregate_for_result(cur))
     {
       my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
-               type_handler()->name().ptr(), cur->name().ptr(), funcname);
+               type_handler()->name().ptr(), cur->name().ptr(), funcname.str);
       return true;
     }
   }
@@ -2051,7 +2051,7 @@ Type_collection_std::aggregate_for_min_max(const Type_handler *ha,
 
 
 bool
-Type_handler_hybrid_field_type::aggregate_for_min_max(const char *funcname,
+Type_handler_hybrid_field_type::aggregate_for_min_max(const LEX_CSTRING &funcname,
                                                       Item **items, uint nitems)
 {
   bool bit_and_non_bit_mixture_found= false;
@@ -2067,7 +2067,7 @@ Type_handler_hybrid_field_type::aggregate_for_min_max(const char *funcname,
     if (aggregate_for_min_max(cur))
     {
       my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
-               type_handler()->name().ptr(), cur->name().ptr(), funcname);
+               type_handler()->name().ptr(), cur->name().ptr(), funcname.str);
       return true;
     }
   }
@@ -4579,7 +4579,7 @@ Type_handler_timestamp_common::create_item_copy(THD *thd, Item *item) const
 
 bool Type_handler_int_result::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4605,7 +4605,7 @@ bool Type_handler_int_result::
 
 bool Type_handler_real_result::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4617,7 +4617,7 @@ bool Type_handler_real_result::
 
 bool Type_handler_decimal_result::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4630,7 +4630,7 @@ bool Type_handler_decimal_result::
 
 bool Type_handler_string_result::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &func_name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4646,7 +4646,7 @@ bool Type_handler_string_result::
 */
 bool Type_handler_typelib::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &func_name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4678,7 +4678,7 @@ bool Type_handler_typelib::
 
 bool Type_handler_blob_common::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &func_name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4692,7 +4692,7 @@ bool Type_handler_blob_common::
 
 bool Type_handler_date_common::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4704,7 +4704,7 @@ bool Type_handler_date_common::
 
 bool Type_handler_time_common::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4716,7 +4716,7 @@ bool Type_handler_time_common::
 
 bool Type_handler_datetime_common::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4728,7 +4728,7 @@ bool Type_handler_datetime_common::
 
 bool Type_handler_timestamp_common::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4748,7 +4748,7 @@ bool Type_handler::
     with aggregating for CASE-alike functions (e.g. COALESCE)
     for the majority of data type handlers.
   */
-  return Item_hybrid_func_fix_attributes(thd, func->func_name(),
+  return Item_hybrid_func_fix_attributes(thd, func->func_name_cstring(),
                                          func, func, items, nitems);
 }
 
@@ -6209,9 +6209,9 @@ String *Type_handler_row::
     if (tmp)
       str->append(*tmp);
     else
-      str->append(STRING_WITH_LEN("NULL"));
+      str->append(NULL_clex_str);
   }
-  str->append(STRING_WITH_LEN(")"));
+  str->append(')');
   return str;
 }
 
@@ -6231,15 +6231,17 @@ String *Type_handler::
 
   StringBuffer<STRING_BUFFER_USUAL_SIZE> buf(result->charset());
   CHARSET_INFO *cs= thd->variables.character_set_client;
+  const char *res_cs_name= result->charset()->csname;
+  const char *collation_name= item->collation.collation->name;
 
   buf.append('_');
-  buf.append(result->charset()->csname);
+  buf.append(res_cs_name, strlen(res_cs_name));
   if (cs->escape_with_backslash_is_dangerous)
     buf.append(' ');
   append_query_string(cs, &buf, result->ptr(), result->length(),
                      thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
-  buf.append(" COLLATE '");
-  buf.append(item->collation.collation->name);
+  buf.append(STRING_WITH_LEN(" COLLATE '"));
+  buf.append(collation_name, strlen(collation_name));
   buf.append('\'');
   str->copy(buf);
 
@@ -9219,7 +9221,7 @@ bool Type_handler::Column_definition_data_type_info_image(Binary_string *to,
   // Have *some* columns write type info (let's use string fields as an example)
   DBUG_EXECUTE_IF("frm_data_type_info_emulate",
                   if (cmp_type() == STRING_RESULT)
-                    return to->append("x", 1) ||
+                    return to->append_char('x') ||
                            to->append(name().lex_cstring()););
   if (type_collection() != &type_collection_std)
     return to->append(name().lex_cstring());
@@ -9339,7 +9341,7 @@ bool Type_handler::partition_field_append_value(
   String *res;
 
   if (!(res= item_expr->val_str(&buf)))
-    return str->append(STRING_WITH_LEN("NULL"), system_charset_info);
+    return str->append(NULL_clex_str, system_charset_info);
 
   if (!res->length())
     return str->append(STRING_WITH_LEN("''"), system_charset_info);

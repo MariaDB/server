@@ -1092,13 +1092,18 @@ void Item_subselect::print(String *str, enum_query_type query_type)
     if (unit && unit->first_select())
     {
       char buf[64];
-      ll2str(unit->first_select()->select_number, buf, 10, 0); 
-      str->append(buf);
+      size_t length= (size_t)
+        (longlong10_to_str(unit->first_select()->select_number, buf, 10) -
+         buf);
+      str->append(buf, length);
     }
     else
-      str->append("NULL"); // TODO: what exactly does this mean?
+    {
+      // TODO: Explain what exactly does this mean?
+      str->append(NULL_clex_str);
+    }
 
-    str->append(")");
+    str->append(')');
     return;
   }
   if (engine)
@@ -1108,7 +1113,7 @@ void Item_subselect::print(String *str, enum_query_type query_type)
     str->append(')');
   }
   else
-    str->append("(...)");
+    str->append(STRING_WITH_LEN("(...)"));
 }
 
 
@@ -3693,7 +3698,8 @@ void Item_allany_subselect::print(String *str, enum_query_type query_type)
   {
     left_expr->print(str, query_type);
     str->append(' ');
-    str->append(func->symbol(all));
+    const char *name= func->symbol(all);
+    str->append(name, strlen(name));
     str->append(all ? " all " : " any ", 5);
   }
   Item_subselect::print(str, query_type);
@@ -6216,26 +6222,34 @@ bool Ordered_key::next_same()
 void Ordered_key::print(String *str)
 {
   uint i;
-  str->append("{idx=");
+
+  /* We have to pre-allocate string as we are using qs_append() */
+  if (str->alloc(str->length() +
+                 5+10+4+ (NAME_LEN+2)*key_column_count+
+                 20+11+21+10+FLOATING_POINT_BUFFER*3+50
+                 ))
+      return;
+  str->append(STRING_WITH_LEN("{idx="));
   str->qs_append(keyid);
-  str->append(", (");
-  for (i= 0; i < key_column_count - 1; i++)
+  str->append(STRING_WITH_LEN(", ("));
+  for (i= 0; i < key_column_count ; i++)
   {
     str->append(&key_columns[i]->field->field_name);
-    str->append(", ");
+    str->append(STRING_WITH_LEN(", "));
   }
-  str->append(&key_columns[i]->field->field_name);
-  str->append("), ");
+  if (key_column_count)
+    str->length(str->length() - 2);
+  str->append(STRING_WITH_LEN("), "));
 
-  str->append("null_bitmap: (bits=");
+  str->append(STRING_WITH_LEN("null_bitmap: (bits="));
   str->qs_append(null_key.n_bits);
-  str->append(", nulls= ");
+  str->append(STRING_WITH_LEN(", nulls= "));
   str->qs_append((double)null_count);
-  str->append(", min_null= ");
+  str->append(STRING_WITH_LEN(", min_null= "));
   str->qs_append((double)min_null_row);
-  str->append(", max_null= ");
+  str->append(STRING_WITH_LEN(", max_null= "));
   str->qs_append((double)max_null_row);
-  str->append("), ");
+  str->append(STRING_WITH_LEN("), "));
 
   str->append('}');
 }

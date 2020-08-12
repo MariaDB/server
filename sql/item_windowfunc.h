@@ -143,9 +143,10 @@ public:
   {
     return count;
   }
-  const char*func_name() const
+  LEX_CSTRING func_name_cstring() const override
   {
-    return "row_number";
+    static LEX_CSTRING name= {STRING_WITH_LEN("row_number") };
+    return name;
   }
 
   Item *get_copy(THD *thd)
@@ -205,9 +206,10 @@ public:
     return RANK_FUNC;
   }
 
-  const char*func_name() const
+  LEX_CSTRING func_name_cstring() const override
   {
-    return "rank";
+    static LEX_CSTRING name= {STRING_WITH_LEN("rank") };
+    return name;
   }
 
   void setup_window_func(THD *thd, Window_spec *window_spec);
@@ -276,9 +278,10 @@ class Item_sum_dense_rank: public Item_sum_int
     return DENSE_RANK_FUNC;
   }
 
-  const char*func_name() const
+  LEX_CSTRING func_name_cstring() const override
   {
-    return "dense_rank";
+    static LEX_CSTRING name= {STRING_WITH_LEN("dense_rank") };
+    return name;
   }
 
   void setup_window_func(THD *thd, Window_spec *window_spec);
@@ -350,9 +353,10 @@ class Item_sum_first_value : public Item_sum_hybrid_simple
     return FIRST_VALUE_FUNC;
   }
 
-  const char*func_name() const
+  LEX_CSTRING func_name_cstring() const override
   {
-    return "first_value";
+    static LEX_CSTRING name= {STRING_WITH_LEN("first_value") };
+    return name;
   }
 
   Item *get_copy(THD *thd)
@@ -376,14 +380,16 @@ class Item_sum_last_value : public Item_sum_hybrid_simple
     return LAST_VALUE_FUNC;
   }
 
-  const char*func_name() const
+  LEX_CSTRING func_name_cstring() const override
   {
-    return "last_value";
+    static LEX_CSTRING name= {STRING_WITH_LEN("last_value") };
+    return name;
   }
 
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_last_value>(thd, this); }
 };
+
 
 class Item_sum_nth_value : public Item_sum_hybrid_simple
 {
@@ -396,14 +402,16 @@ class Item_sum_nth_value : public Item_sum_hybrid_simple
     return NTH_VALUE_FUNC;
   }
 
-  const char*func_name() const
+  LEX_CSTRING func_name_cstring() const override
   {
-    return "nth_value";
+    static LEX_CSTRING name= {STRING_WITH_LEN("nth_value") };
+    return name;
   }
 
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_nth_value>(thd, this); }
 };
+
 
 class Item_sum_lead : public Item_sum_hybrid_simple
 {
@@ -416,14 +424,16 @@ class Item_sum_lead : public Item_sum_hybrid_simple
     return LEAD_FUNC;
   }
 
-  const char*func_name() const
+  LEX_CSTRING func_name_cstring() const override
   {
-    return "lead";
+    static LEX_CSTRING name= {STRING_WITH_LEN("lead") };
+    return name;
   }
 
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_lead>(thd, this); }
 };
+
 
 class Item_sum_lag : public Item_sum_hybrid_simple
 {
@@ -436,9 +446,10 @@ class Item_sum_lag : public Item_sum_hybrid_simple
     return LAG_FUNC;
   }
 
-  const char*func_name() const
+  LEX_CSTRING func_name_cstring() const override
   {
-    return "lag";
+    static LEX_CSTRING name= {STRING_WITH_LEN("lag") };
+    return name;
   }
 
   Item *get_copy(THD *thd)
@@ -523,9 +534,10 @@ class Item_sum_percent_rank: public Item_sum_double,
     return PERCENT_RANK_FUNC;
   }
 
-  const char*func_name() const
+  LEX_CSTRING func_name_cstring() const override
   {
-    return "percent_rank";
+    static LEX_CSTRING name= {STRING_WITH_LEN("percent_rank") };
+    return name;
   }
 
   void update_field() {}
@@ -618,9 +630,10 @@ class Item_sum_cume_dist: public Item_sum_double,
     partition_row_count_= 0;
   }
 
-  const char*func_name() const
+  LEX_CSTRING func_name_cstring() const override
   {
-    return "cume_dist";
+    static LEX_CSTRING name= {STRING_WITH_LEN("cume_dist") };
+    return name;
   }
 
   void update_field() {}
@@ -699,9 +712,10 @@ class Item_sum_ntile : public Item_sum_int,
     n_old_val_= 0;
   }
 
-  const char*func_name() const
+  LEX_CSTRING func_name_cstring() const override
   {
-    return "ntile";
+    static LEX_CSTRING name= {STRING_WITH_LEN("ntile") };
+    return name;
   }
 
   void update_field() {}
@@ -855,9 +869,10 @@ public:
     current_row_count_= 0;
   }
 
-  const char*func_name() const
+  LEX_CSTRING func_name_cstring() const override
   {
-    return "percentile_disc";
+    static LEX_CSTRING name= {STRING_WITH_LEN("percentile_disc") };
+    return name;
   }
 
   void update_field() {}
@@ -994,9 +1009,10 @@ public:
     current_row_count_= 0;
   }
 
-  const char*func_name() const
+  LEX_CSTRING func_name_cstring() const override
   {
-    return "percentile_cont";
+    static LEX_CSTRING name= {STRING_WITH_LEN("percentile_cont") };
+    return name;
   }
   void update_field() {}
 
@@ -1357,7 +1373,11 @@ public:
     return FALSE;
   }
 
-  const char* func_name() const { return "WF"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("WF") };
+    return name;
+  }
 
   bool fix_fields(THD *thd, Item **ref);
 

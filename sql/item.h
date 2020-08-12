@@ -1886,7 +1886,6 @@ public:
                      LOWEST_PRECEDENCE);
   }
   virtual void print(String *str, enum_query_type query_type);
-
   class Print: public String
   {
   public:
@@ -2358,17 +2357,18 @@ public:
   virtual Item* element_index(uint i) { return this; }
   virtual Item** addr(uint i) { return 0; }
   virtual bool check_cols(uint c);
-  bool check_type_traditional_scalar(const char *opname) const;
-  bool check_type_scalar(const char *opname) const;
-  bool check_type_or_binary(const char *opname, const Type_handler *handler) const;
-  bool check_type_general_purpose_string(const char *opname) const;
-  bool check_type_can_return_int(const char *opname) const;
-  bool check_type_can_return_decimal(const char *opname) const;
-  bool check_type_can_return_real(const char *opname) const;
-  bool check_type_can_return_str(const char *opname) const;
-  bool check_type_can_return_text(const char *opname) const;
-  bool check_type_can_return_date(const char *opname) const;
-  bool check_type_can_return_time(const char *opname) const;
+  bool check_type_traditional_scalar(const LEX_CSTRING &opname) const;
+  bool check_type_scalar(const LEX_CSTRING &opname) const;
+  bool check_type_or_binary(const LEX_CSTRING &opname,
+                            const Type_handler *handler) const;
+  bool check_type_general_purpose_string(const LEX_CSTRING &opname) const;
+  bool check_type_can_return_int(const LEX_CSTRING &opname) const;
+  bool check_type_can_return_decimal(const LEX_CSTRING &opname) const;
+  bool check_type_can_return_real(const LEX_CSTRING &opname) const;
+  bool check_type_can_return_str(const LEX_CSTRING &opname) const;
+  bool check_type_can_return_text(const LEX_CSTRING &opname) const;
+  bool check_type_can_return_date(const LEX_CSTRING &opname) const;
+  bool check_type_can_return_time(const LEX_CSTRING &opname) const;
   // It is not row => null inside is impossible
   virtual bool null_inside() { return 0; }
   // used in row subselects to get value of elements
@@ -2650,7 +2650,8 @@ public:
   DbugStringItemTypeValue(THD *thd, const Item *item)
   {
     append('(');
-    append(item->type_handler()->name().ptr());
+    Name Item_name= item->type_handler()->name();
+    append(Item_name.ptr(), Item_name.length());
     append(')');
     const_cast<Item*>(item)->print(this, QT_EXPLAIN);
     /* Append end \0 to allow usage of c_ptr() */
@@ -3808,7 +3809,7 @@ public:
 
   void print(String *str, enum_query_type) override
   {
-    str->append(STRING_WITH_LEN("NULL"));
+    str->append(NULL_clex_str);
   }
 
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs) override;
@@ -4515,7 +4516,7 @@ public:
 
   void print(String *str, enum_query_type) override
   {
-    str->append(func_name);
+    str->append(func_name, strlen(func_name));
   }
 
   Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs) override
@@ -5299,7 +5300,7 @@ protected:
   bool agg_arg_charsets(DTCollation &c, Item **items, uint nitems,
                         uint flags, int item_sep)
   {
-    return Type_std_attributes::agg_arg_charsets(c, func_name(),
+    return Type_std_attributes::agg_arg_charsets(c, func_name_cstring(),
                                                  items, nitems,
                                                  flags, item_sep);
   }
@@ -5308,7 +5309,7 @@ protected:
                                           int item_sep= 1)
   {
     return Type_std_attributes::
-      agg_arg_charsets_for_string_result(c, func_name(),
+      agg_arg_charsets_for_string_result(c, func_name_cstring(),
                                          items, nitems, item_sep);
   }
   bool agg_arg_charsets_for_string_result_with_comparison(DTCollation &c,
@@ -5317,7 +5318,7 @@ protected:
                                                           int item_sep= 1)
   {
     return Type_std_attributes::
-      agg_arg_charsets_for_string_result_with_comparison(c, func_name(),
+      agg_arg_charsets_for_string_result_with_comparison(c, func_name_cstring(),
                                                          items, nitems,
                                                          item_sep);
   }
@@ -5332,7 +5333,7 @@ protected:
                                        int item_sep= 1)
   {
     return Type_std_attributes::
-      agg_arg_charsets_for_comparison(c, func_name(), items, nitems, item_sep);
+      agg_arg_charsets_for_comparison(c, func_name_cstring(), items, nitems, item_sep);
   }
 
 public:
@@ -5351,9 +5352,9 @@ public:
                func_name());
       return true;
     }
-    if (agg_item_set_converter(tmp, func_name(),
+    if (agg_item_set_converter(tmp, func_name_cstring(),
                                a, 1, MY_COLL_CMP_CONV, 1) ||
-        agg_item_set_converter(tmp, func_name(),
+        agg_item_set_converter(tmp, func_name_cstring(),
                                b, 1, MY_COLL_CMP_CONV, 1))
       return true;
     *cs= tmp.collation;
@@ -5393,12 +5394,15 @@ public:
     instead.
     Added here, to the parent class of both Item_func and Item_sum.
 
-    NOTE: for Items inherited from Item_sum, func_name() return part of
-    function name till first argument (including '(') to make difference in
-    names for functions with 'distinct' clause and without 'distinct' and
-    also to make printing of items inherited from Item_sum uniform.
+    NOTE: for Items inherited from Item_sum, func_name() and
+    func_name_cstring() returns part of function name till first
+    argument (including '(') to make difference in names for functions
+    with 'distinct' clause and without 'distinct' and also to make
+    printing of items inherited from Item_sum uniform.
   */
-  virtual const char *func_name() const= 0;
+  inline const char *func_name() const
+  { return (char*) func_name_cstring().str; }
+  virtual LEX_CSTRING func_name_cstring() const= 0;
   virtual bool fix_length_and_dec()= 0;
   bool const_item() const override { return const_item_cache; }
   table_map used_tables() const override { return used_tables_cache; }
@@ -5433,7 +5437,7 @@ public:
   Field *sp_result_field;
   Item_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name_arg);
   Item_sp(THD *thd, Item_sp *item);
-  const char *func_name(THD *thd) const;
+  LEX_CSTRING func_name_cstring(THD *thd) const;
   void cleanup();
   bool sp_check_access(THD *thd);
   bool execute(THD *thd, bool *null_value, Item **args, uint arg_count);

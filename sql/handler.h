@@ -5114,7 +5114,7 @@ bool key_uses_partial_cols(TABLE_SHARE *table, uint keyno);
 
 	/* Some extern variables used with handlers */
 
-extern const char *ha_row_type[];
+extern const LEX_CSTRING ha_row_type[];
 extern MYSQL_PLUGIN_IMPORT const char *tx_isolation_names[];
 extern MYSQL_PLUGIN_IMPORT const char *binlog_format_names[];
 extern TYPELIB tx_isolation_typelib;
