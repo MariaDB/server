@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -758,21 +758,6 @@ page_mem_alloc_free(
 	rec_t*		next_rec,/*!< in: pointer to the new head of the
 				free record list */
 	ulint		need);	/*!< in: number of bytes allocated */
-/************************************************************//**
-Allocates a block of memory from the heap of an index page.
-@return	pointer to start of allocated buffer, or NULL if allocation fails */
-UNIV_INTERN
-byte*
-page_mem_alloc_heap(
-/*================*/
-	page_t*		page,	/*!< in/out: index page */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page with enough
-				space available for inserting the record,
-				or NULL */
-	ulint		need,	/*!< in: total number of bytes needed */
-	ulint*		heap_no);/*!< out: this contains the heap number
-				of the allocated record
-				if allocation succeeds */
 /************************************************************//**
 Puts a record to free list. */
 UNIV_INLINE
