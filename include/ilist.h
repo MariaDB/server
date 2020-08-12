@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "my_dbug.h"
+
 #include <cstddef>
 #include <iterator>
 
@@ -69,12 +71,12 @@ public:
     typedef T *pointer;
     typedef T &reference;
 
-    Iterator(ListNode *node) : node_(node) { assert(node_); }
+    Iterator(ListNode *node) : node_(node) { DBUG_ASSERT(node_); }
 
     Iterator &operator++()
     {
       node_= node_->next;
-      assert(node_);
+      DBUG_ASSERT(node_);
       return *this;
     }
     Iterator operator++(int)
@@ -87,7 +89,7 @@ public:
     Iterator &operator--()
     {
       node_= node_->prev;
-      assert(node_);
+      DBUG_ASSERT(node_);
       return *this;
     }
     Iterator operator--(int)
