@@ -71,12 +71,12 @@ public:
     typedef T *pointer;
     typedef T &reference;
 
-    Iterator(ListNode *node) : node_(node) { DBUG_ASSERT(node_); }
+    Iterator(ListNode *node) : node_(node) { DBUG_ASSERT(node_ != NULL); }
 
     Iterator &operator++()
     {
       node_= node_->next;
-      DBUG_ASSERT(node_);
+      DBUG_ASSERT(node_ != NULL);
       return *this;
     }
     Iterator operator++(int)
