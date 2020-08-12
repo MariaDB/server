@@ -280,23 +280,6 @@ buf_read_ahead_random(
 		* buf_read_ahead_random_area;
 
 	if (fil_space_t* space = fil_space_acquire(page_id.space())) {
-#ifdef UNIV_DEBUG
-		if (srv_file_per_table) {
-			ulint	size = 0;
-
-			for (const fil_node_t*	node =
-				UT_LIST_GET_FIRST(space->chain);
-			     node != NULL;
-			     node = UT_LIST_GET_NEXT(chain, node)) {
-
-				size += ulint(os_file_get_size(node->handle)
-					/ page_size.physical());
-			}
-
-			ut_ad(size == space->size);
-		}
-#endif /* UNIV_DEBUG */
-
 		high = space->max_page_number_for_io(high);
 		fil_space_release(space);
 	} else {
