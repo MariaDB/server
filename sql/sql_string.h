@@ -332,10 +332,6 @@ public:
     int4store(Ptr + position,value);
   }
 
-  void qs_append(const char *str)
-  {
-    qs_append(str, (uint32)strlen(str));
-  }
   void qs_append(const LEX_CSTRING *ls)
   {
     DBUG_ASSERT(ls->length < UINT_MAX32 &&
@@ -390,9 +386,6 @@ public:
     init_private_data();
     (void) real_alloc(length_arg);
   }
-  explicit Binary_string(const char *str)
-   :Binary_string(str, strlen(str))
-  { }
   /*
     NOTE: If one intend to use the c_ptr() method, the following two
     contructors need the size of memory for STR to be at least LEN+1 (to make
@@ -418,7 +411,10 @@ public:
     alloced= thread_specific= 0;
   }
 
-  ~Binary_string() { free(); }
+  ~Binary_string()
+  {
+    free();
+  }
 
   /* Mark variable thread specific it it's not allocated already */
   inline void set_thread_specific()
@@ -500,10 +496,20 @@ public:
     return old;
   }
 
-  inline void set_quick(char *str, size_t arg_length)
+  /*
+    This is used to set a new buffer for String.
+    However if the String already has an allocated buffer, it will
+    keep that one.
+    It's not to be used to set the value or length of the string.
+  */
+  inline void set_buffer_if_not_allocated(char *str, size_t arg_length)
   {
     if (!alloced)
     {
+      /*
+        Following should really be set_str(str, 0), but some code may
+        depend on that the String lenth is same as buffer length.
+      */
       Static_binary_string::set(str, arg_length);
       Alloced_length= (uint32) arg_length;
     }
@@ -639,8 +645,9 @@ public:
       my_free(Ptr);
     }
     Alloced_length= extra_alloc= 0;
-    Static_binary_string::set(NULL, 0); // Safety
+    Static_binary_string::set(NULL, 0); // Safety, probably not needed
   }
+
   inline bool alloc(size_t arg_length)
   {
     /*
@@ -750,10 +757,6 @@ public:
   String(size_t length_arg)
    :Binary_string(length_arg)
   { }
-  String(const char *str, CHARSET_INFO *cs)
-   :Charset(cs),
-    Binary_string(str)
-  { }
   /*
     NOTE: If one intend to use the c_ptr() method, the following two
     contructors need the size of memory for STR to be at least LEN+1 (to make
@@ -788,9 +791,10 @@ public:
     set_charset(cs);
   }
   bool set_ascii(const char *str, size_t arg_length);
-  inline void set_quick(char *str,size_t arg_length, CHARSET_INFO *cs)
+  inline void set_buffer_if_not_allocated(char *str,size_t arg_length,
+                                          CHARSET_INFO *cs)
   {
-    Binary_string::set_quick(str, arg_length);
+    Binary_string::set_buffer_if_not_allocated(str, arg_length);
     set_charset(cs);
   }
   bool set_int(longlong num, bool unsigned_flag, CHARSET_INFO *cs);
@@ -910,8 +914,8 @@ public:
   bool append_introducer_and_hex(const String *str)
   {
     return
-      append(STRING_WITH_LEN("_"))   ||
-      append(str->charset()->csname)  ||
+      append('_')   ||
+      append(str->charset()->csname, strlen(str->charset()->csname)) ||
       append(STRING_WITH_LEN(" 0x")) ||
       append_hex(str->ptr(), (uint32) str->length());
   }
@@ -925,10 +929,6 @@ public:
   }
 
   // Append with optional character set conversion from ASCII (e.g. to UCS2)
-  bool append(const char *s)
-  {
-    return append(s, strlen(s));
-  }
   bool append(const LEX_STRING *ls)
   {
     DBUG_ASSERT(ls->length < UINT_MAX32 &&
@@ -994,12 +994,6 @@ public:
   {
     return append_for_single_quote(s->ptr(), s->length());
   }
-  bool append_for_single_quote(const char *st)
-  {
-    size_t len= strlen(st);
-    DBUG_ASSERT(len < UINT_MAX32);
-    return append_for_single_quote(st, (uint32) len);
-  }
 
   void swap(String &s)
   {
@@ -1061,18 +1055,6 @@ class BinaryStringBuffer : public Binary_string
 public:
   BinaryStringBuffer() : Binary_string(buff, buff_sz) { length(0); }
 };
-
-
-class String_space: public String
-{
-public:
-  String_space(uint n)
-  {
-    if (fill(n, ' '))
-      set("", 0, &my_charset_bin);
-  }
-};
-
 
 static inline bool check_if_only_end_space(CHARSET_INFO *cs,
                                            const char *str,

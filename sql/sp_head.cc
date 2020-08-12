@@ -150,9 +150,9 @@ bool Item_splocal::append_value_for_log(THD *thd, String *str)
   Item *item= this_item();
   String *str_value= item->type_handler()->print_item_value(thd, item,
                                                             &str_value_holder);
-  return str_value ?
-         str->append(*str_value) :
-         str->append(STRING_WITH_LEN("NULL"));
+  return (str_value ?
+          str->append(*str_value) :
+          str->append(NULL_clex_str));
 }
 
 
@@ -166,7 +166,7 @@ bool Item_splocal_row_field::append_for_log(THD *thd, String *str)
 
   if (str->append(STRING_WITH_LEN(" NAME_CONST('")) ||
       str->append(&m_name) ||
-      str->append(".") ||
+      str->append('.') ||
       str->append(&m_field_name) ||
       str->append(STRING_WITH_LEN("',")))
     return true;
@@ -2117,7 +2117,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
       if (str_value)
         binlog_buf.append(*str_value);
       else
-        binlog_buf.append(STRING_WITH_LEN("NULL"));
+        binlog_buf.append(NULL_clex_str);
     }
     binlog_buf.append(')');
   }
@@ -4203,7 +4203,8 @@ sp_instr_freturn::print(String *str)
   if (str->reserve(1024+8+32)) // Add some for the expr. too
     return;
   str->qs_append(STRING_WITH_LEN("freturn "));
-  str->qs_append(m_type_handler->name().ptr());
+  LEX_CSTRING name= m_type_handler->name().lex_cstring();
+  str->qs_append(&name);
   str->qs_append(' ');
   m_value->print(str, enum_query_type(QT_ORDINARY |
                                       QT_ITEM_ORIGINAL_FUNC_NULLIF));

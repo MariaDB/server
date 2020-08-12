@@ -33,7 +33,7 @@ bool get_interval_value(THD *thd, Item *args,
 class Item_long_func_date_field: public Item_long_func
 {
   bool check_arguments() const
-  { return args[0]->check_type_can_return_date(func_name()); }
+  { return args[0]->check_type_can_return_date(func_name_cstring()); }
 public:
   Item_long_func_date_field(THD *thd, Item *a)
    :Item_long_func(thd, a) { }
@@ -43,7 +43,7 @@ public:
 class Item_long_func_time_field: public Item_long_func
 {
   bool check_arguments() const
-  { return args[0]->check_type_can_return_time(func_name()); }
+  { return args[0]->check_type_can_return_time(func_name_cstring()); }
 public:
   Item_long_func_time_field(THD *thd, Item *a)
    :Item_long_func(thd, a) { }
@@ -57,7 +57,11 @@ class Item_func_period_add :public Item_long_func
 public:
   Item_func_period_add(THD *thd, Item *a, Item *b): Item_long_func(thd, a, b) {}
   longlong val_int();
-  const char *func_name() const { return "period_add"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("period_add") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     max_length=6*MY_CHARSET_BIN_MB_MAXLEN;
@@ -75,7 +79,11 @@ class Item_func_period_diff :public Item_long_func
 public:
   Item_func_period_diff(THD *thd, Item *a, Item *b): Item_long_func(thd, a, b) {}
   longlong val_int();
-  const char *func_name() const { return "period_diff"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("period_diff") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     decimals=0;
@@ -92,7 +100,11 @@ class Item_func_to_days :public Item_long_func_date_field
 public:
   Item_func_to_days(THD *thd, Item *a): Item_long_func_date_field(thd, a) {}
   longlong val_int();
-  const char *func_name() const { return "to_days"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("to_days") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     decimals=0; 
@@ -120,7 +132,11 @@ class Item_func_to_seconds :public Item_longlong_func
 public:
   Item_func_to_seconds(THD *thd, Item *a): Item_longlong_func(thd, a) {}
   longlong val_int();
-  const char *func_name() const { return "to_seconds"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("to_seconds") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     decimals=0; 
@@ -147,7 +163,11 @@ class Item_func_dayofmonth :public Item_long_func_date_field
 public:
   Item_func_dayofmonth(THD *thd, Item *a): Item_long_func_date_field(thd, a) {}
   longlong val_int();
-  const char *func_name() const { return "dayofmonth"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("dayofmonth") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     decimals=0; 
@@ -172,7 +192,11 @@ public:
   Item_func_month(THD *thd, Item *a): Item_long_func(thd, a)
   { }
   longlong val_int();
-  const char *func_name() const { return "month"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("month") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     decimals= 0;
@@ -196,7 +220,11 @@ class Item_func_monthname :public Item_str_func
   MY_LOCALE *locale;
 public:
   Item_func_monthname(THD *thd, Item *a): Item_str_func(thd, a) {}
-  const char *func_name() const { return "monthname"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("monthname") };
+    return name;
+  }
   String *val_str(String *str);
   bool fix_length_and_dec();
   bool check_partition_func_processor(void *int_arg) {return TRUE;}
@@ -218,7 +246,11 @@ class Item_func_dayofyear :public Item_long_func_date_field
 public:
   Item_func_dayofyear(THD *thd, Item *a): Item_long_func_date_field(thd, a) {}
   longlong val_int();
-  const char *func_name() const { return "dayofyear"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("dayofyear") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     decimals= 0;
@@ -242,7 +274,11 @@ class Item_func_hour :public Item_long_func_time_field
 public:
   Item_func_hour(THD *thd, Item *a): Item_long_func_time_field(thd, a) {}
   longlong val_int();
-  const char *func_name() const { return "hour"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("hour") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     decimals=0;
@@ -266,7 +302,11 @@ class Item_func_minute :public Item_long_func_time_field
 public:
   Item_func_minute(THD *thd, Item *a): Item_long_func_time_field(thd, a) {}
   longlong val_int();
-  const char *func_name() const { return "minute"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("minute") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     decimals=0;
@@ -290,7 +330,11 @@ class Item_func_quarter :public Item_long_func_date_field
 public:
   Item_func_quarter(THD *thd, Item *a): Item_long_func_date_field(thd, a) {}
   longlong val_int();
-  const char *func_name() const { return "quarter"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("quarter") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
      decimals=0;
@@ -314,7 +358,11 @@ class Item_func_second :public Item_long_func_time_field
 public:
   Item_func_second(THD *thd, Item *a): Item_long_func_time_field(thd, a) {}
   longlong val_int();
-  const char *func_name() const { return "second"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("second") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     decimals=0;
@@ -337,14 +385,18 @@ class Item_func_week :public Item_long_func
 {
   bool check_arguments() const
   {
-    return args[0]->check_type_can_return_date(func_name()) ||
-           (arg_count > 1 && args[1]->check_type_can_return_int(func_name()));
+    return args[0]->check_type_can_return_date(func_name_cstring()) ||
+           (arg_count > 1 && args[1]->check_type_can_return_int(func_name_cstring()));
   }
 public:
   Item_func_week(THD *thd, Item *a): Item_long_func(thd, a) {}
   Item_func_week(THD *thd, Item *a, Item *b): Item_long_func(thd, a, b) {}
   longlong val_int();
-  const char *func_name() const { return "week"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("week") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     decimals=0;
@@ -370,14 +422,18 @@ class Item_func_yearweek :public Item_long_func
 {
   bool check_arguments() const
   {
-    return args[0]->check_type_can_return_date(func_name()) ||
-           args[1]->check_type_can_return_int(func_name());
+    return args[0]->check_type_can_return_date(func_name_cstring()) ||
+           args[1]->check_type_can_return_int(func_name_cstring());
   }
 public:
   Item_func_yearweek(THD *thd, Item *a, Item *b)
    :Item_long_func(thd, a, b) {}
   longlong val_int();
-  const char *func_name() const { return "yearweek"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("yearweek") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     decimals=0;
@@ -401,7 +457,11 @@ class Item_func_year :public Item_long_func_date_field
 public:
   Item_func_year(THD *thd, Item *a): Item_long_func_date_field(thd, a) {}
   longlong val_int();
-  const char *func_name() const { return "year"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("year") };
+    return name;
+  }
   enum_monotonicity_info get_monotonicity_info() const;
   longlong val_int_endpoint(bool left_endp, bool *incl_endp);
   bool fix_length_and_dec()
@@ -429,9 +489,11 @@ public:
   Item_func_weekday(THD *thd, Item *a, bool type_arg):
     Item_long_func(thd, a), odbc_type(type_arg) { }
   longlong val_int();
-  const char *func_name() const
+  LEX_CSTRING func_name_cstring() const override
   {
-     return (odbc_type ? "dayofweek" : "weekday");
+    static LEX_CSTRING dayofweek= {STRING_WITH_LEN("dayofweek") };
+    static LEX_CSTRING weekday= {STRING_WITH_LEN("weekday") };
+    return (odbc_type ? dayofweek : weekday);
   }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
@@ -459,7 +521,11 @@ class Item_func_dayname :public Item_str_func
   MY_LOCALE *locale;
  public:
   Item_func_dayname(THD *thd, Item *a): Item_str_func(thd, a) {}
-  const char *func_name() const { return "dayname"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("dayname") };
+    return name;
+  }
   String *val_str(String *str);
   const Type_handler *type_handler() const { return &type_handler_varchar; }
   bool fix_length_and_dec();
@@ -510,7 +576,11 @@ public:
   Item_func_unix_timestamp(THD *thd): Item_func_seconds_hybrid(thd) {}
   Item_func_unix_timestamp(THD *thd, Item *a):
     Item_func_seconds_hybrid(thd, a) {}
-  const char *func_name() const { return "unix_timestamp"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("unix_timestamp") };
+    return name;
+  }
   enum_monotonicity_info get_monotonicity_info() const;
   longlong val_int_endpoint(bool left_endp, bool *incl_endp);
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
@@ -547,7 +617,11 @@ class Item_func_time_to_sec :public Item_func_seconds_hybrid
 public:
   Item_func_time_to_sec(THD *thd, Item *item):
     Item_func_seconds_hybrid(thd, item) {}
-  const char *func_name() const { return "time_to_sec"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("time_to_sec") };
+    return name;
+  }
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
   bool check_valid_arguments_processor(void *int_arg)
@@ -651,7 +725,11 @@ class Item_func_curtime_local :public Item_func_curtime
 {
 public:
   Item_func_curtime_local(THD *thd, uint dec): Item_func_curtime(thd, dec) {}
-  const char *func_name() const { return "curtime"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("curtime") };
+    return name;
+  }
   virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_curtime_local>(thd, this); }
@@ -662,7 +740,11 @@ class Item_func_curtime_utc :public Item_func_curtime
 {
 public:
   Item_func_curtime_utc(THD *thd, uint dec): Item_func_curtime(thd, dec) {}
-  const char *func_name() const { return "utc_time"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("utc_time") };
+    return name;
+  }
   virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_curtime_utc>(thd, this); }
@@ -690,7 +772,11 @@ class Item_func_curdate_local :public Item_func_curdate
 {
 public:
   Item_func_curdate_local(THD *thd): Item_func_curdate(thd) {}
-  const char *func_name() const { return "curdate"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("curdate") };
+    return name;
+  }
   void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_curdate_local>(thd, this); }
@@ -701,7 +787,11 @@ class Item_func_curdate_utc :public Item_func_curdate
 {
 public:
   Item_func_curdate_utc(THD *thd): Item_func_curdate(thd) {}
-  const char *func_name() const { return "utc_date"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("utc_date") };
+    return name;
+  }
   void store_now_in_TIME(THD* thd, MYSQL_TIME *now_time);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_curdate_utc>(thd, this); }
@@ -738,7 +828,11 @@ class Item_func_now_local :public Item_func_now
 {
 public:
   Item_func_now_local(THD *thd, uint dec): Item_func_now(thd, dec) {}
-  const char *func_name() const { return "current_timestamp"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("current_timestamp") };
+    return name;
+  }
   int save_in_field(Field *field, bool no_conversions);
   virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time);
   virtual enum Functype functype() const { return NOW_FUNC; }
@@ -751,7 +845,11 @@ class Item_func_now_utc :public Item_func_now
 {
 public:
   Item_func_now_utc(THD *thd, uint dec): Item_func_now(thd, dec) {}
-  const char *func_name() const { return "utc_timestamp"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("utc_timestamp") };
+    return name;
+  }
   virtual void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time);
   virtual enum Functype functype() const { return NOW_UTC_FUNC; }
   virtual bool check_vcol_func_processor(void *arg)
@@ -773,7 +871,11 @@ class Item_func_sysdate_local :public Item_func_now
 public:
   Item_func_sysdate_local(THD *thd, uint dec): Item_func_now(thd, dec) {}
   bool const_item() const { return 0; }
-  const char *func_name() const { return "sysdate"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("sysdate") };
+    return name;
+  }
   void store_now_in_TIME(THD *thd, MYSQL_TIME *now_time);
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   table_map used_tables() const { return RAND_TABLE_BIT; }
@@ -791,10 +893,14 @@ public:
 class Item_func_from_days :public Item_datefunc
 {
   bool check_arguments() const
-  { return args[0]->check_type_can_return_int(func_name()); }
+  { return args[0]->check_type_can_return_int(func_name_cstring()); }
 public:
   Item_func_from_days(THD *thd, Item *a): Item_datefunc(thd, a) {}
-  const char *func_name() const { return "from_days"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("from_days") };
+    return name;
+  }
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   bool check_partition_func_processor(void *int_arg) {return FALSE;}
   bool check_vcol_func_processor(void *arg) { return FALSE;}
@@ -811,7 +917,7 @@ class Item_func_date_format :public Item_str_func
 {
   bool check_arguments() const
   {
-    return args[0]->check_type_can_return_date(func_name()) ||
+    return args[0]->check_type_can_return_date(func_name_cstring()) ||
            check_argument_types_can_return_text(1, arg_count);
   }
   const MY_LOCALE *locale;
@@ -825,7 +931,11 @@ public:
   Item_func_date_format(THD *thd, Item *a, Item *b, Item *c):
     Item_str_func(thd, a, b, c), locale(0), is_time_format(false) {}
   String *val_str(String *str);
-  const char *func_name() const { return "date_format"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("date_format") };
+    return name;
+  }
   bool fix_length_and_dec();
   uint format_length(const String *format);
   bool eq(const Item *item, bool binary_cmp) const;
@@ -844,7 +954,11 @@ class Item_func_time_format: public Item_func_date_format
 public:
   Item_func_time_format(THD *thd, Item *a, Item *b):
     Item_func_date_format(thd, a, b) { is_time_format= true; }
-  const char *func_name() const { return "time_format"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("time_format") };
+    return name;
+  }
   bool check_vcol_func_processor(void *arg) { return false; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_time_format>(thd, this); }
@@ -854,11 +968,15 @@ public:
 class Item_func_from_unixtime :public Item_datetimefunc
 {
   bool check_arguments() const
-  { return args[0]->check_type_can_return_decimal(func_name()); }
+  { return args[0]->check_type_can_return_decimal(func_name_cstring()); }
   Time_zone *tz;
  public:
   Item_func_from_unixtime(THD *thd, Item *a): Item_datetimefunc(thd, a) {}
-  const char *func_name() const { return "from_unixtime"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("from_unixtime") };
+    return name;
+  }
   bool fix_length_and_dec();
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   bool check_vcol_func_processor(void *arg)
@@ -888,7 +1006,7 @@ class Item_func_convert_tz :public Item_datetimefunc
 {
   bool check_arguments() const
   {
-    return args[0]->check_type_can_return_date(func_name()) ||
+    return args[0]->check_type_can_return_date(func_name_cstring()) ||
            check_argument_types_can_return_text(1, arg_count);
   }
   /*
@@ -902,7 +1020,11 @@ class Item_func_convert_tz :public Item_datetimefunc
  public:
   Item_func_convert_tz(THD *thd, Item *a, Item *b, Item *c):
     Item_datetimefunc(thd, a, b, c), from_tz_cached(0), to_tz_cached(0) {}
-  const char *func_name() const { return "convert_tz"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("convert_tz") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     fix_attributes_datetime(args[0]->datetime_precision(current_thd));
@@ -919,7 +1041,7 @@ class Item_func_convert_tz :public Item_datetimefunc
 class Item_func_sec_to_time :public Item_timefunc
 {
   bool check_arguments() const
-  { return args[0]->check_type_can_return_decimal(func_name()); }
+  { return args[0]->check_type_can_return_decimal(func_name_cstring()); }
 public:
   Item_func_sec_to_time(THD *thd, Item *item): Item_timefunc(thd, item) {}
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
@@ -929,7 +1051,11 @@ public:
     set_maybe_null();
     return FALSE;
   }
-  const char *func_name() const { return "sec_to_time"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("sec_to_time") };
+    return name;
+  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_sec_to_time>(thd, this); }
 };
@@ -944,7 +1070,11 @@ public:
                          bool neg_arg):
     Item_handled_func(thd, a, b), int_type(type_arg),
     date_sub_interval(neg_arg) {}
-  const char *func_name() const { return "date_add_interval"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("date_add_interval") };
+    return name;
+  }
   bool fix_length_and_dec();
   bool eq(const Item *item, bool binary_cmp) const;
   void print(String *str, enum_query_type query_type);
@@ -1005,7 +1135,11 @@ class Item_extract :public Item_int_func,
   }
   longlong val_int();
   enum Functype functype() const { return EXTRACT_FUNC; }
-  const char *func_name() const { return "extract"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("extract") };
+    return name;
+  }
   bool check_arguments() const;
   bool fix_length_and_dec();
   bool eq(const Item *item, bool binary_cmp) const;
@@ -1082,7 +1216,11 @@ public:
     m_suppress_warning_to_error_escalation(false) {}
   enum Functype functype() const { return CHAR_TYPECAST_FUNC; }
   bool eq(const Item *item, bool binary_cmp) const;
-  const char *func_name() const { return "cast_as_char"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("cast_as_char") };
+    return name;
+  }
   CHARSET_INFO *cast_charset() const { return cast_cs; }
   String *val_str_generic(String *a);
   String *val_str_binary_from_native(String *a);
@@ -1123,7 +1261,11 @@ class Item_date_typecast :public Item_datefunc
 {
 public:
   Item_date_typecast(THD *thd, Item *a): Item_datefunc(thd, a) {}
-  const char *func_name() const { return "cast_as_date"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("cast_as_date") };
+    return name;
+  }
   void print(String *str, enum_query_type query_type)
   {
     print_cast_temporal(str, query_type);
@@ -1143,7 +1285,11 @@ class Item_time_typecast :public Item_timefunc
 public:
   Item_time_typecast(THD *thd, Item *a, uint dec_arg):
     Item_timefunc(thd, a) { decimals= dec_arg; }
-  const char *func_name() const { return "cast_as_time"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("cast_as_time") };
+    return name;
+  }
   void print(String *str, enum_query_type query_type)
   {
     print_cast_temporal(str, query_type);
@@ -1165,7 +1311,11 @@ class Item_datetime_typecast :public Item_datetimefunc
 public:
   Item_datetime_typecast(THD *thd, Item *a, uint dec_arg):
     Item_datetimefunc(thd, a) { decimals= dec_arg; }
-  const char *func_name() const { return "cast_as_datetime"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("cast_as_datetime") };
+    return name;
+  }
   void print(String *str, enum_query_type query_type)
   {
     print_cast_temporal(str, query_type);
@@ -1189,7 +1339,11 @@ class Item_func_makedate :public Item_datefunc
 public:
   Item_func_makedate(THD *thd, Item *a, Item *b):
     Item_datefunc(thd, a, b) {}
-  const char *func_name() const { return "makedate"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("makedate") };
+    return name;
+  }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_makedate>(thd, this); }
@@ -1200,14 +1354,18 @@ class Item_func_timestamp :public Item_datetimefunc
 {
   bool check_arguments() const
   {
-    return args[0]->check_type_can_return_date(func_name()) ||
-           args[1]->check_type_can_return_time(func_name());
+    return args[0]->check_type_can_return_date(func_name_cstring()) ||
+           args[1]->check_type_can_return_time(func_name_cstring());
   }
 public:
   Item_func_timestamp(THD *thd, Item *a, Item *b)
    :Item_datetimefunc(thd, a, b)
   { }
-  const char *func_name() const { return "timestamp"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("timestamp") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     THD *thd= current_thd;
@@ -1255,7 +1413,12 @@ public:
    :Item_handled_func(thd, a, b), sign(neg_arg ? -1 : 1)
   { }
   bool fix_length_and_dec();
-  const char *func_name() const { return sign > 0 ? "addtime" : "subtime"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING addtime= { STRING_WITH_LEN("addtime") };
+    static LEX_CSTRING subtime= { STRING_WITH_LEN("subtime") };
+    return sign > 0 ? addtime : subtime;
+  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_add_time>(thd, this); }
 };
@@ -1267,7 +1430,11 @@ class Item_func_timediff :public Item_timefunc
   { return check_argument_types_can_return_time(0, arg_count); }
 public:
   Item_func_timediff(THD *thd, Item *a, Item *b): Item_timefunc(thd, a, b) {}
-  const char *func_name() const { return "timediff"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("timediff") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     THD *thd= current_thd;
@@ -1287,7 +1454,7 @@ class Item_func_maketime :public Item_timefunc
   bool check_arguments() const
   {
     return check_argument_types_can_return_int(0, 2) ||
-           args[2]->check_type_can_return_decimal(func_name());
+           args[2]->check_type_can_return_decimal(func_name_cstring());
   }
 public:
   Item_func_maketime(THD *thd, Item *a, Item *b, Item *c):
@@ -1299,7 +1466,11 @@ public:
     set_maybe_null();
     return FALSE;
   }
-  const char *func_name() const { return "maketime"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("maketime") };
+    return name;
+  }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_maketime>(thd, this); }
@@ -1311,7 +1482,11 @@ class Item_func_microsecond :public Item_long_func_time_field
 public:
   Item_func_microsecond(THD *thd, Item *a): Item_long_func_time_field(thd, a) {}
   longlong val_int();
-  const char *func_name() const { return "microsecond"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("microsecond") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     decimals=0;
@@ -1341,7 +1516,11 @@ public:
 public:
   Item_func_timestamp_diff(THD *thd, Item *a, Item *b, interval_type type_arg):
     Item_longlong_func(thd, a, b), int_type(type_arg) {}
-  const char *func_name() const { return "timestampdiff"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("timestampdiff") };
+    return name;
+  }
   longlong val_int();
   bool fix_length_and_dec()
   {
@@ -1368,7 +1547,11 @@ public:
     Item_str_ascii_func(thd, a), type(type_arg)
   {}
   String *val_str_ascii(String *str);
-  const char *func_name() const { return "get_format"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("get_format") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     set_maybe_null();
@@ -1395,7 +1578,11 @@ public:
   {}
   bool get_date_common(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate,
                        timestamp_type);
-  const char *func_name() const { return "str_to_date"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("str_to_date") };
+    return name;
+  }
   bool fix_length_and_dec();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_str_to_date>(thd, this); }
@@ -1405,10 +1592,14 @@ public:
 class Item_func_last_day :public Item_datefunc
 {
   bool check_arguments() const
-  { return args[0]->check_type_can_return_date(func_name()); }
+  { return args[0]->check_type_can_return_date(func_name_cstring()); }
 public:
   Item_func_last_day(THD *thd, Item *a): Item_datefunc(thd, a) {}
-  const char *func_name() const { return "last_day"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("last_day") };
+    return name;
+  }
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_last_day>(thd, this); }

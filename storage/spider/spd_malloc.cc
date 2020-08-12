@@ -292,7 +292,7 @@ spider_string::spider_string(
 spider_string::spider_string(
   const char *str,
   CHARSET_INFO *cs
-) : str(str, cs), next(NULL)
+) : str(str, strlen(str), cs), next(NULL)
 {
   DBUG_ENTER("spider_string::spider_string");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -551,7 +551,7 @@ void spider_string::set_quick(
   DBUG_ASSERT(mem_calc_inited);
   DBUG_ASSERT((!current_alloc_mem && !this->str.is_alloced()) ||
     current_alloc_mem == this->str.alloced_length());
-  this->str.set_quick(str, arg_length, cs);
+  this->str.set_buffer_if_not_allocated(str, arg_length, cs);
   SPIDER_STRING_CALC_MEM;
   DBUG_VOID_RETURN;
 }
@@ -868,7 +868,7 @@ bool spider_string::append(
   DBUG_ASSERT(mem_calc_inited);
   DBUG_ASSERT((!current_alloc_mem && !str.is_alloced()) ||
     current_alloc_mem == str.alloced_length());
-  bool res = str.append(s);
+  bool res = str.append(s, strlen(s));
   SPIDER_STRING_CALC_MEM;
   DBUG_RETURN(res);
 }
@@ -1231,13 +1231,15 @@ void spider_string::append_escape_string(
   const char *st,
   uint len
 ) {
+  my_bool overflow;
   DBUG_ENTER("spider_string::append_escape_string");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_ASSERT(mem_calc_inited);
   DBUG_ASSERT((!current_alloc_mem && !str.is_alloced()) ||
     current_alloc_mem == str.alloced_length());
   str.length(str.length() + escape_string_for_mysql(
-    str.charset(), (char *) str.ptr() + str.length(), 0, st, len));
+    str.charset(), (char *) str.ptr() + str.length(), 0, st, len,
+                                                    &overflow));
   DBUG_VOID_RETURN;
 }
 
@@ -1246,13 +1248,14 @@ void spider_string::append_escape_string(
   uint len,
   CHARSET_INFO *cs
 ) {
+  my_bool overflow;
   DBUG_ENTER("spider_string::append_escape_string");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_ASSERT(mem_calc_inited);
   DBUG_ASSERT((!current_alloc_mem && !str.is_alloced()) ||
     current_alloc_mem == str.alloced_length());
   str.length(str.length() + escape_string_for_mysql(
-    cs, (char *) str.ptr() + str.length(), 0, st, len));
+    cs, (char *) str.ptr() + str.length(), 0, st, len, &overflow));
   DBUG_VOID_RETURN;
 }
 
@@ -1301,7 +1304,7 @@ bool spider_string::append_for_single_quote(
   DBUG_ASSERT((!current_alloc_mem && !str.is_alloced()) ||
     current_alloc_mem == str.alloced_length());
 #ifdef SPIDER_HAS_APPEND_FOR_SINGLE_QUOTE
-  bool res = str.append_for_single_quote(st);
+  bool res = str.append_for_single_quote(st, strlen(st));
 #else
   String ststr(st, str.charset());
   bool res = append_escaped(&str, &ststr);

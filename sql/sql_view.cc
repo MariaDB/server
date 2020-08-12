@@ -689,11 +689,13 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       LEX_CSTRING *name;
       int i;
       
+      buff.append('(');
       for (i= 0; (name= names++); i++)
       {
-        buff.append(i ? ", " : "(");
         append_identifier(thd, &buff, name);
+        buff.append(", ", 2);
       }
+      buff.length(buff.length()-2);
       buff.append(')');
     }
     buff.append(STRING_WITH_LEN(" AS "));
@@ -1843,11 +1845,11 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     if ((not_exist= my_access(path, F_OK)) || !dd_frm_is_view(thd, path))
     {
       char name[FN_REFLEN];
-      my_snprintf(name, sizeof(name), "%s.%s", view->db.str,
-                  view->table_name.str);
+      size_t length= my_snprintf(name, sizeof(name), "%s.%s", view->db.str,
+                                 view->table_name.str);
       if (non_existant_views.length())
         non_existant_views.append(',');
-      non_existant_views.append(name);
+      non_existant_views.append(name, length);
 
       if (!not_exist)
       {

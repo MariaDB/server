@@ -274,7 +274,11 @@ class Item_func_istrue : public Item_func_truth
 public:
   Item_func_istrue(THD *thd, Item *a): Item_func_truth(thd, a, true, true) {}
   ~Item_func_istrue() {}
-  virtual const char* func_name() const { return "istrue"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("istrue") };
+    return name;
+  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_istrue>(thd, this); }
 };
@@ -290,7 +294,11 @@ public:
   Item_func_isnottrue(THD *thd, Item *a):
     Item_func_truth(thd, a, true, false) {}
   ~Item_func_isnottrue() {}
-  virtual const char* func_name() const { return "isnottrue"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("isnottrue") };
+    return name;
+  }
   bool find_not_null_fields(table_map allowed) { return false; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_isnottrue>(thd, this); }
@@ -307,7 +315,11 @@ class Item_func_isfalse : public Item_func_truth
 public:
   Item_func_isfalse(THD *thd, Item *a): Item_func_truth(thd, a, false, true) {}
   ~Item_func_isfalse() {}
-  virtual const char* func_name() const { return "isfalse"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("isfalse") };
+    return name;
+  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_isfalse>(thd, this); }
 };
@@ -323,7 +335,11 @@ public:
   Item_func_isnotfalse(THD *thd, Item *a):
     Item_func_truth(thd, a, false, false) {}
   ~Item_func_isnotfalse() {}
-  virtual const char* func_name() const { return "isnotfalse"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("isnotfalse") };
+    return name;
+  }
   bool find_not_null_fields(table_map allowed) { return false; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_isnotfalse>(thd, this); }
@@ -377,7 +393,11 @@ public:
   longlong val_int() override;
   void cleanup() override;
   enum Functype functype() const override { return IN_OPTIMIZER_FUNC; }
-  const char *func_name() const override { return "<in_optimizer>"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("<in_optimizer>") };
+    return name;
+  }
   Item_cache **get_cache() { return &cache; }
   void keep_top_level_cache();
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
@@ -583,7 +603,11 @@ class Item_func_xor :public Item_bool_func
 public:
   Item_func_xor(THD *thd, Item *i1, Item *i2): Item_bool_func(thd, i1, i2) {}
   enum Functype functype() const { return XOR_FUNC; }
-  const char *func_name() const { return "xor"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("xor") };
+    return name;
+  }
   enum precedence precedence() const { return XOR_PRECEDENCE; }
   void print(String *str, enum_query_type query_type)
   { Item_func::print_op(str, query_type); }
@@ -609,7 +633,11 @@ public:
   bool is_top_level_item() const override { return abort_on_null; }
   longlong val_int() override;
   enum Functype functype() const override { return NOT_FUNC; }
-  const char *func_name() const override { return "not"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("not") };
+    return name;
+  }
   bool find_not_null_fields(table_map allowed) override { return false; }
   enum precedence precedence() const override { return NEG_PRECEDENCE; }
   Item *neg_transformer(THD *thd) override;
@@ -658,7 +686,11 @@ public:
   { trig_var= f; }
   longlong val_int() { return *trig_var ? args[0]->val_int() : 1; }
   enum Functype functype() const { return TRIG_COND_FUNC; };
-  const char *func_name() const { return "trigcond"; };
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("trigcond") };
+    return name;
+  }
   bool const_item() const { return FALSE; }
   bool *get_trig_var() { return trig_var; }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
@@ -683,7 +715,11 @@ public:
   table_map not_null_tables() const { return 0; }
   longlong val_int();
   enum Functype functype() const { return NOT_ALL_FUNC; }
-  const char *func_name() const { return "<not>"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("<not>") };
+    return name;
+  }
   bool fix_fields(THD *thd, Item **ref)
     {return Item_func::fix_fields(thd, ref);}
   virtual void print(String *str, enum_query_type query_type);
@@ -700,7 +736,11 @@ public:
 
   Item_func_nop_all(THD *thd, Item *a): Item_func_not_all(thd, a) {}
   longlong val_int();
-  const char *func_name() const { return "<nop>"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("<nop>") };
+    return name;
+  }
   Item *neg_transformer(THD *thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_nop_all>(thd, this); }
@@ -719,7 +759,11 @@ public:
   enum Functype functype() const { return EQ_FUNC; }
   enum Functype rev_functype() const { return EQ_FUNC; }
   cond_result eq_cmp_result() const { return COND_TRUE; }
-  const char *func_name() const { return "="; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("=") };
+    return name;
+  }
   void top_level_item() { abort_on_null= true; }
   Item *negated_item(THD *thd);
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
@@ -759,7 +803,11 @@ public:
   enum Functype functype() const { return EQUAL_FUNC; }
   enum Functype rev_functype() const { return EQUAL_FUNC; }
   cond_result eq_cmp_result() const { return COND_TRUE; }
-  const char *func_name() const { return "<=>"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("<=>") };
+    return name;
+  }
   Item *neg_transformer(THD *thd) { return 0; }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                       uint *and_level, table_map usable_tables,
@@ -782,7 +830,11 @@ public:
   enum Functype functype() const { return GE_FUNC; }
   enum Functype rev_functype() const { return LE_FUNC; }
   cond_result eq_cmp_result() const { return COND_TRUE; }
-  const char *func_name() const { return ">="; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN(">=") };
+    return name;
+  }
   Item *negated_item(THD *thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_ge>(thd, this); }
@@ -798,7 +850,11 @@ public:
   enum Functype functype() const { return GT_FUNC; }
   enum Functype rev_functype() const { return LT_FUNC; }
   cond_result eq_cmp_result() const { return COND_FALSE; }
-  const char *func_name() const { return ">"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN(">") };
+    return name;
+  }
   Item *negated_item(THD *thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_gt>(thd, this); }
@@ -814,7 +870,11 @@ public:
   enum Functype functype() const { return LE_FUNC; }
   enum Functype rev_functype() const { return GE_FUNC; }
   cond_result eq_cmp_result() const { return COND_TRUE; }
-  const char *func_name() const { return "<="; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("<=") };
+    return name;
+  }
   Item *negated_item(THD *thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_le>(thd, this); }
@@ -830,7 +890,11 @@ public:
   enum Functype functype() const { return LT_FUNC; }
   enum Functype rev_functype() const { return GT_FUNC; }
   cond_result eq_cmp_result() const { return COND_FALSE; }
-  const char *func_name() const { return "<"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("<") };
+    return name;
+  }
   Item *negated_item(THD *thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_lt>(thd, this); }
@@ -853,7 +917,11 @@ public:
   enum Functype functype() const { return NE_FUNC; }
   enum Functype rev_functype() const { return NE_FUNC; }
   cond_result eq_cmp_result() const { return COND_FALSE; }
-  const char *func_name() const { return "<>"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("<>") };
+    return name;
+  }
   Item *negated_item(THD *thd);
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables);
@@ -925,7 +993,11 @@ public:
     return m_comparator.type_handler()->Item_func_between_val_int(this);
   }
   enum Functype functype() const   { return BETWEEN; }
-  const char *func_name() const { return "between"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("between") };
+    return name;
+  }
   enum precedence precedence() const { return BETWEEN_PRECEDENCE; }
   bool fix_length_and_dec();
   bool fix_length_and_dec_string(THD *)
@@ -976,7 +1048,11 @@ public:
     Item_long_func(thd, a, b) {}
   longlong val_int();
   uint decimal_precision() const { return 1; }
-  const char *func_name() const { return "strcmp"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("strcmp") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
@@ -1012,11 +1088,15 @@ public:
   bool fix_fields(THD *, Item **);
   longlong val_int();
   bool fix_length_and_dec();
-  const char *func_name() const { return "interval"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("interval") };
+    return name;
+  }
   uint decimal_precision() const { return 2; }
   void print(String *str, enum_query_type query_type)
   {
-    str->append(func_name());
+    str->append(func_name_cstring());
     print_args(str, 0, query_type);
   }
   Item *get_copy(THD *thd)
@@ -1040,12 +1120,16 @@ public:
   bool native_op(THD *thd, Native *to);
   bool fix_length_and_dec()
   {
-    if (aggregate_for_result(func_name(), args, arg_count, true))
+    if (aggregate_for_result(func_name_cstring(), args, arg_count, true))
       return TRUE;
     fix_attributes(args, arg_count);
     return FALSE;
   }
-  const char *func_name() const { return "coalesce"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("coalesce") };
+    return name;
+  }
   table_map not_null_tables() const { return 0; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_coalesce>(thd, this); }
@@ -1063,7 +1147,7 @@ class Item_func_case_abbreviation2 :public Item_func_case_expression
 protected:
   bool fix_length_and_dec2(Item **items)
   {
-    if (aggregate_for_result(func_name(), items, 2, true))
+    if (aggregate_for_result(func_name_cstring(), items, 2, true))
       return TRUE;
     fix_attributes(items, 2);
     return FALSE;
@@ -1135,7 +1219,11 @@ public:
       return TRUE;
     return FALSE;
   }
-  const char *func_name() const { return "ifnull"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("ifnull") };
+    return name;
+  }
 
   table_map not_null_tables() const { return 0; }
   Item *get_copy(THD *thd)
@@ -1208,7 +1296,11 @@ public:
   {
     return fix_length_and_dec2_eliminate_null(args + 1);
   }
-  const char *func_name() const { return "if"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("if") };
+    return name;
+  }
   bool eval_not_null_tables(void *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   Item *get_copy(THD *thd)
@@ -1227,7 +1319,11 @@ public:
   Item_func_nvl2(THD *thd, Item *a, Item *b, Item *c):
     Item_func_case_abbreviation2_switch(thd, a, b, c)
   {}
-  const char *func_name() const { return "nvl2"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("nvl2") };
+    return name;
+  }
   bool fix_length_and_dec()
   {
     return fix_length_and_dec2_eliminate_null(args + 1);
@@ -1293,7 +1389,11 @@ public:
   bool native_op(THD *thd, Native *to);
   bool fix_length_and_dec();
   bool walk(Item_processor processor, bool walk_subquery, void *arg);
-  const char *func_name() const { return "nullif"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("nullif") };
+    return name;
+  }
   void print(String *str, enum_query_type query_type);
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array, 
                       List<Item> &fields, uint flags);
@@ -1642,7 +1742,7 @@ public:
   void set_charset(CHARSET_INFO *cs)
   {
     cmp_charset= cs;
-    value.set_quick(value_buff, sizeof(value_buff), cs);
+    value.set_buffer_if_not_allocated(value_buff, sizeof(value_buff), cs);
   }
 };
 
@@ -2068,13 +2168,14 @@ public:
                              arguments (e.g. ROWs with size)
     @retval false          - a new element was successfully added.
   */
-  bool add_value(const char *funcname, Item_args *args, uint value_index);
+  bool add_value(const LEX_CSTRING &funcname, Item_args *args,
+                 uint value_index);
 
   /**
     Add a new element into m_comparators[], ignoring explicit NULL values.
     If the value appeared to be an explicit NULL, nulls_found[0] is set to true.
   */
-  bool add_value_skip_null(const char *funcname,
+  bool add_value_skip_null(const LEX_CSTRING &funcname,
                            Item_args *args, uint value_index,
                            bool *nulls_found);
 
@@ -2206,7 +2307,11 @@ public:
   bool native_op(THD *thd, Native *to);
   bool fix_fields(THD *thd, Item **ref);
   table_map not_null_tables() const { return 0; }
-  const char *func_name() const { return "case"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("case") };
+    return name;
+  }
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   bool need_parentheses_in_default() { return true; }
 };
@@ -2309,7 +2414,11 @@ public:
   Item_func_decode_oracle(THD *thd, List<Item> &list)
    :Item_func_case_simple(thd, list)
   { }
-  const char *func_name() const { return "decode_oracle"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("decode_oracle") };
+    return name;
+  }
   void print(String *str, enum_query_type query_type);
   bool fix_length_and_dec();
   Item *find_item();
@@ -2470,7 +2579,11 @@ public:
   }
   virtual void print(String *str, enum_query_type query_type);
   enum Functype functype() const { return IN_FUNC; }
-  const char *func_name() const { return "in"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("in") };
+    return name;
+  }
   enum precedence precedence() const { return IN_PRECEDENCE; }
   bool eval_not_null_tables(void *opt_arg);
   bool find_not_null_fields(table_map allowed);
@@ -2504,14 +2617,14 @@ class cmp_item_row :public cmp_item
   bool aggregate_row_elements_for_comparison(THD *thd,
                                              Type_handler_hybrid_field_type *cmp,
                                              Item_args *tmp,
-                                             const char *funcname,
+                                             const LEX_CSTRING &funcname,
                                              uint col,
                                              uint level);
 public:
   cmp_item_row(): comparators(0), n(0) {}
   ~cmp_item_row();
   void store_value(Item *item);
-  bool prepare_comparators(THD *, const char *funcname,
+  bool prepare_comparators(THD *, const LEX_CSTRING &funcname,
                            const Item_args *args, uint level);
   int cmp(Item *arg);
   int cmp_not_null(const Value *val)
@@ -2584,7 +2697,11 @@ public:
   Item_func_isnull(THD *thd, Item *a): Item_func_null_predicate(thd, a) {}
   longlong val_int();
   enum Functype functype() const { return ISNULL_FUNC; }
-  const char *func_name() const { return "isnull"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("isnull") };
+    return name;
+  }
   void print(String *str, enum_query_type query_type);
   enum precedence precedence() const { return CMP_PRECEDENCE; }
 
@@ -2643,7 +2760,11 @@ public:
   {}
   enum Functype functype() const { return ISNOTNULLTEST_FUNC; }
   longlong val_int();
-  const char *func_name() const { return "<is_not_null_test>"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("<is_not_null_test>") };
+    return name;
+  }
   void update_used_tables();
   /*
     we add RAND_TABLE_BIT to prevent moving this item from HAVING to WHERE
@@ -2663,7 +2784,11 @@ public:
   { }
   longlong val_int();
   enum Functype functype() const { return ISNOTNULL_FUNC; }
-  const char *func_name() const { return "isnotnull"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("isnotnull") };
+    return name;
+  }
   enum precedence precedence() const { return CMP_PRECEDENCE; }
   table_map not_null_tables() const
   { return abort_on_null ? not_null_tables_cache : 0; }
@@ -2798,7 +2923,11 @@ public:
                                         cond);
     return this;
   }
-  const char *func_name() const { return "like"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("like") };
+    return name;
+  }
   enum precedence precedence() const { return IN_PRECEDENCE; }
   bool fix_fields(THD *thd, Item **ref);
   bool fix_length_and_dec()
@@ -2914,7 +3043,11 @@ public:
   }
   longlong val_int();
   bool fix_length_and_dec();
-  const char *func_name() const { return "regexp"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("regexp") };
+    return name;
+  }
   enum precedence precedence() const { return IN_PRECEDENCE; }
   Item *get_copy(THD *) { return 0; }
   void print(String *str, enum_query_type query_type)
@@ -2936,8 +3069,8 @@ class Item_func_regexp_instr :public Item_long_func
 {
   bool check_arguments() const
   {
-    return args[0]->check_type_can_return_str(func_name()) ||
-           args[1]->check_type_can_return_text(func_name());
+    return (args[0]->check_type_can_return_str(func_name_cstring()) ||
+            args[1]->check_type_can_return_text(func_name_cstring()));
   }
   Regexp_processor_pcre re;
   DTCollation cmp_collation;
@@ -2954,7 +3087,11 @@ public:
   }
   longlong val_int();
   bool fix_length_and_dec();
-  const char *func_name() const { return "regexp_instr"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("regexp_instr") };
+    return name;
+  }
   Item *get_copy(THD *thd) { return 0; }
 };
 
@@ -3188,7 +3325,11 @@ public:
   void update_const(THD *thd);
   enum Functype functype() const { return MULT_EQUAL_FUNC; }
   longlong val_int(); 
-  const char *func_name() const { return "multiple equal"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("multiple equal") };
+    return name;
+  }
   void sort(Item_field_cmpfunc compare, void *arg);
   bool fix_length_and_dec();
   bool fix_fields(THD *thd, Item **ref);
@@ -3366,7 +3507,11 @@ public:
   Item_cond_and(THD *thd, List<Item> &list_arg): Item_cond(thd, list_arg) {}
   enum Functype functype() const { return COND_AND_FUNC; }
   longlong val_int();
-  const char *func_name() const { return "and"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("and") };
+    return name;
+  }
   enum precedence precedence() const { return AND_PRECEDENCE; }
   table_map not_null_tables() const
   { return abort_on_null ? not_null_tables_cache: and_tables_cache; }
@@ -3400,7 +3545,11 @@ public:
   Item_cond_or(THD *thd, List<Item> &list_arg): Item_cond(thd, list_arg) {}
   enum Functype functype() const { return COND_OR_FUNC; }
   longlong val_int();
-  const char *func_name() const { return "or"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("or") };
+    return name;
+  }
   enum precedence precedence() const { return OR_PRECEDENCE; }
   table_map not_null_tables() const { return and_tables_cache; }
   Item *copy_andor_structure(THD *thd);
@@ -3414,7 +3563,11 @@ class Item_func_dyncol_check :public Item_bool_func
 public:
   Item_func_dyncol_check(THD *thd, Item *str): Item_bool_func(thd, str) {}
   longlong val_int();
-  const char *func_name() const { return "column_check"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("column_check") };
+    return name;
+  }
   bool need_parentheses_in_default() { return false; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_dyncol_check>(thd, this); }
@@ -3426,7 +3579,11 @@ public:
   Item_func_dyncol_exists(THD *thd, Item *str, Item *num):
     Item_bool_func(thd, str, num) {}
   longlong val_int();
-  const char *func_name() const { return "column_exists"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("column_exists") };
+    return name;
+  }
   bool need_parentheses_in_default() { return false; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_dyncol_exists>(thd, this); }
@@ -3445,7 +3602,7 @@ public:
   }
   void print(String *str, enum_query_type query_type)
   {
-    Cursor_ref::print_func(str, func_name());
+    Cursor_ref::print_func(str, func_name_cstring());
   }
 };
 
@@ -3455,7 +3612,11 @@ class Item_func_cursor_isopen: public Item_func_cursor_bool_attr
 public:
   Item_func_cursor_isopen(THD *thd, const LEX_CSTRING *name, uint offset)
    :Item_func_cursor_bool_attr(thd, name, offset) { }
-  const char *func_name() const { return "%ISOPEN"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("%ISOPEN") };
+    return name;
+  }
   longlong val_int();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_cursor_isopen>(thd, this); }
@@ -3470,7 +3631,11 @@ public:
   {
     set_maybe_null();
   }
-  const char *func_name() const { return "%FOUND"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("%FOUND") };
+    return name;
+  }
   longlong val_int();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_cursor_found>(thd, this); }
@@ -3485,7 +3650,11 @@ public:
   {
     set_maybe_null();
   }
-  const char *func_name() const { return "%NOTFOUND"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("%NOTFOUND") };
+    return name;
+  }
   longlong val_int();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_cursor_notfound>(thd, this); }

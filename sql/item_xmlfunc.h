@@ -131,7 +131,11 @@ class Item_func_xml_extractvalue: public Item_xml_str_func
 public:
   Item_func_xml_extractvalue(THD *thd, Item *a, Item *b):
     Item_xml_str_func(thd, a, b) {}
-  const char *func_name() const { return "extractvalue"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("extractvalue") };
+    return name;
+  }
   String *val_str(String *);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_xml_extractvalue>(thd, this); }
@@ -148,7 +152,11 @@ class Item_func_xml_update: public Item_xml_str_func
 public:
   Item_func_xml_update(THD *thd, Item *a, Item *b, Item *c):
     Item_xml_str_func(thd, a, b, c) {}
-  const char *func_name() const { return "updatexml"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("updatexml") };
+    return name;
+  }
   String *val_str(String *);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_xml_update>(thd, this); }

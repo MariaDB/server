@@ -1044,7 +1044,11 @@ public:
     Item_typecast_inet6 *cast= (Item_typecast_inet6*) item;
     return args[0]->eq(cast->args[0], binary_cmp);
   }
-  const char *func_name() const override { return "cast_as_inet6"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("cast_as_inet6") };
+    return name;
+  }
   void print(String *str, enum_query_type query_type) override
   {
     str->append(STRING_WITH_LEN("cast("));
@@ -1212,7 +1216,7 @@ public:
   {
     StringBufferInet6 tmp;
     m_value.to_string(&tmp);
-    str->append("INET6'");
+    str->append(STRING_WITH_LEN("INET6'"));
     str->append(tmp);
     str->append('\'');
   }

@@ -385,7 +385,7 @@ void Field_enum::do_field_enum(Copy_field *copy)
 static void do_field_varbinary_pre50(Copy_field *copy)
 {
   char buff[MAX_FIELD_WIDTH];
-  copy->tmp.set_quick(buff,sizeof(buff),copy->tmp.charset());
+  copy->tmp.set_buffer_if_not_allocated(buff,sizeof(buff),copy->tmp.charset());
   copy->from_field->val_str(&copy->tmp);
 
   /* Use the same function as in 4.1 to trim trailing spaces */

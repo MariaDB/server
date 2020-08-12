@@ -497,7 +497,7 @@ void Item_sum::print(String *str, enum_query_type query_type)
 {
   /* orig_args is not filled with valid values until fix_fields() */
   Item **pargs= fixed() ? orig_args : args;
-  str->append(func_name());
+  str->append(func_name_cstring());
   /*
     TODO:
     The fact that func_name() may return a name with an extra '('
@@ -1458,11 +1458,10 @@ Item_sum_sp::fix_length_and_dec()
   DBUG_RETURN(res);
 }
 
-const char *
-Item_sum_sp::func_name() const
+LEX_CSTRING Item_sum_sp::func_name_cstring() const
 {
   THD *thd= current_thd;
-  return Item_sp::func_name(thd);
+  return Item_sp::func_name_cstring(thd);
 }
 
 Item* Item_sum_sp::copy_or_same(THD *thd)
@@ -3367,7 +3366,7 @@ void Item_udf_sum::cleanup()
 
 void Item_udf_sum::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append('(');
   for (uint i=0 ; i < arg_count ; i++)
   {
@@ -4524,7 +4523,7 @@ uint Item_func_group_concat::get_null_bytes()
 
 void Item_func_group_concat::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  str->append(func_name_cstring());
   if (distinct)
     str->append(STRING_WITH_LEN("distinct "));
   for (uint i= 0; i < arg_count_field; i++)

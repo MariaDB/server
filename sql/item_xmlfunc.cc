@@ -198,7 +198,10 @@ public:
     const_item_cache= false;
     return FALSE;
   }
-  const char *func_name() const { return "nodeset"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("nodeset") };
+  }
   bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
@@ -213,7 +216,10 @@ class Item_nodeset_func_rootelement :public Item_nodeset_func
 public:
   Item_nodeset_func_rootelement(THD *thd, String *pxml):
     Item_nodeset_func(thd, pxml) {}
-  const char *func_name() const { return "xpath_rootelement"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("xpath_rootelement") };
+  }
   bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_rootelement>(thd, this); }
@@ -226,7 +232,10 @@ class Item_nodeset_func_union :public Item_nodeset_func
 public:
   Item_nodeset_func_union(THD *thd, Item *a, Item *b, String *pxml):
     Item_nodeset_func(thd, a, b, pxml) {}
-  const char *func_name() const { return "xpath_union"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("xpath_union") };
+  }
   bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_union>(thd, this); }
@@ -242,7 +251,10 @@ public:
   Item_nodeset_func_axisbyname(THD *thd, Item *a, const char *n_arg, uint l_arg,
                                String *pxml):
     Item_nodeset_func(thd, a, pxml), node_name(n_arg), node_namelen(l_arg) { }
-  const char *func_name() const { return "xpath_axisbyname"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("xpath_axisbyname") };
+  }
   bool validname(MY_XML_NODE *n)
   {
     if (node_name[0] == '*')
@@ -260,7 +272,10 @@ public:
   Item_nodeset_func_selfbyname(THD *thd, Item *a, const char *n_arg, uint l_arg,
                                String *pxml):
     Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml) {}
-  const char *func_name() const { return "xpath_selfbyname"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("xpath_selfbyname") };
+  }
   bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_selfbyname>(thd, this); }
@@ -274,7 +289,10 @@ public:
   Item_nodeset_func_childbyname(THD *thd, Item *a, const char *n_arg, uint l_arg,
                                 String *pxml): 
     Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml) {}
-  const char *func_name() const { return "xpath_childbyname"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("xpath_childbyname") };
+  }
   bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_childbyname>(thd, this); }
@@ -290,7 +308,10 @@ public:
                                      String *pxml, bool need_self_arg):
     Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml),
       need_self(need_self_arg) {}
-  const char *func_name() const { return "xpath_descendantbyname"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("xpath_descendantbyname") };
+  }
   bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_descendantbyname>(thd, this); }
@@ -306,7 +327,10 @@ public:
                                    String *pxml, bool need_self_arg):
     Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml),
       need_self(need_self_arg) {}
-  const char *func_name() const { return "xpath_ancestorbyname"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("xpath_ancestorbyname") };
+  }
   bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_ancestorbyname>(thd, this); }
@@ -320,7 +344,11 @@ public:
   Item_nodeset_func_parentbyname(THD *thd, Item *a, const char *n_arg, uint l_arg,
                                  String *pxml):
     Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml) {}
-  const char *func_name() const { return "xpath_parentbyname"; }
+
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("xpath_parentbyname") };
+  }
   bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_parentbyname>(thd, this); }
@@ -334,7 +362,10 @@ public:
   Item_nodeset_func_attributebyname(THD *thd, Item *a, const char *n_arg,
                                     uint l_arg, String *pxml):
     Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml) {}
-  const char *func_name() const { return "xpath_attributebyname"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("xpath_attributebyname") };
+  }
   bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_attributebyname>(thd, this); }
@@ -351,7 +382,10 @@ class Item_nodeset_func_predicate :public Item_nodeset_func
 public:
   Item_nodeset_func_predicate(THD *thd, Item *a, Item *b, String *pxml):
     Item_nodeset_func(thd, a, b, pxml) {}
-  const char *func_name() const { return "xpath_predicate"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("xpath_predicate") };
+  }
   bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_predicate>(thd, this); }
@@ -364,7 +398,10 @@ class Item_nodeset_func_elementbyindex :public Item_nodeset_func
 public:
   Item_nodeset_func_elementbyindex(THD *thd, Item *a, Item *b, String *pxml):
     Item_nodeset_func(thd, a, b, pxml) { }
-  const char *func_name() const { return "xpath_elementbyindex"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("xpath_elementbyindex") };
+  }
   bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_elementbyindex>(thd, this); }
@@ -384,7 +421,10 @@ class Item_xpath_cast_bool :public Item_bool_func
 public:
   Item_xpath_cast_bool(THD *thd, Item *a, String *pxml_arg):
     Item_bool_func(thd, a), pxml(pxml_arg) {}
-  const char *func_name() const { return "xpath_cast_bool"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("xpath_cast_bool") };
+  }
   longlong val_int()
   {
     if (args[0]->fixed_type_handler() == &type_handler_xpath_nodeset)
@@ -406,7 +446,10 @@ class Item_xpath_cast_number :public Item_real_func
 {
 public:
   Item_xpath_cast_number(THD *thd, Item *a): Item_real_func(thd, a) {}
-  const char *func_name() const { return "xpath_cast_number"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("xpath_cast_number") };
+  }
   virtual double val_real() { return args[0]->val_real(); }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_xpath_cast_number>(thd, this); }
@@ -439,7 +482,10 @@ class Item_func_xpath_position :public Item_long_func
 public:
   Item_func_xpath_position(THD *thd, Item *a, String *p):
     Item_long_func(thd, a), pxml(p) {}
-  const char *func_name() const { return "xpath_position"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("xpath_position") };
+  }
   bool fix_length_and_dec() { max_length=10; return FALSE; }
   longlong val_int()
   {
@@ -460,7 +506,10 @@ class Item_func_xpath_count :public Item_long_func
 public:
   Item_func_xpath_count(THD *thd, Item *a, String *p):
     Item_long_func(thd, a), pxml(p) {}
-  const char *func_name() const { return "xpath_count"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("xpath_count") };
+  }
   bool fix_length_and_dec() { max_length=10; return FALSE; }
   longlong val_int()
   {
@@ -484,7 +533,10 @@ public:
   Item_func_xpath_sum(THD *thd, Item *a, String *p):
     Item_real_func(thd, a), pxml(p) {}
 
-  const char *func_name() const { return "xpath_sum"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("xpath_sum") };
+  }
   double val_real()
   {
     double sum= 0;
@@ -556,7 +608,10 @@ public:
   Item_nodeset_to_const_comparator(THD *thd, Item *nodeset, Item *cmpfunc,
                                    String *p):
     Item_bool_func(thd, nodeset, cmpfunc), pxml(p) {}
-  const char *func_name() const { return "xpath_nodeset_to_const_comparator"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("xpath_nodeset_to_const_comparator") };
+  }
   bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);

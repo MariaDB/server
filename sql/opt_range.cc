@@ -16016,7 +16016,7 @@ print_sel_arg_key(Field *field, const uchar *key, String *out)
   {
     if (*key)
     {
-      out->append("NULL");
+      out->append(STRING_WITH_LEN("NULL"));
       goto end;
     }
     key++;					// Skip null byte
@@ -16049,15 +16049,16 @@ const char *dbug_print_sel_arg(SEL_ARG *sel_arg)
 {
   StringBuffer<64> buf;
   String &out= dbug_print_sel_arg_buf;
+  LEX_CSTRING tmp;
   out.length(0);
 
   if (!sel_arg)
   {
-    out.append("NULL");
+    out.append(STRING_WITH_LEN("NULL"));
     goto end;
   }
 
-  out.append("SEL_ARG(");
+  out.append(STRING_WITH_LEN("SEL_ARG("));
 
   const char *stype;
   switch(sel_arg->type) {
@@ -16077,34 +16078,42 @@ const char *dbug_print_sel_arg(SEL_ARG *sel_arg)
 
   if (stype)
   {
-    out.append("type=");
-    out.append(stype);
+    out.append(STRING_WITH_LEN("type="));
+    out.append(stype, strlen(stype));
     goto end;
   }
 
   if (sel_arg->min_flag & NO_MIN_RANGE)
-    out.append("-inf");
+    out.append(STRING_WITH_LEN("-inf"));
   else
   {
     print_sel_arg_key(sel_arg->field, sel_arg->min_value, &buf);
     out.append(buf);
   }
 
-  out.append((sel_arg->min_flag & NEAR_MIN)? "<" : "<=");
+  if (sel_arg->min_flag & NEAR_MIN)
+    lex_string_set3(&tmp, "<", 1);
+  else
+    lex_string_set3(&tmp, "<=", 2);
+  out.append(&tmp);
 
   out.append(sel_arg->field->field_name);
 
-  out.append((sel_arg->max_flag & NEAR_MAX)? "<" : "<=");
+  if (sel_arg->min_flag & NEAR_MAX)
+    lex_string_set3(&tmp, "<", 1);
+  else
+    lex_string_set3(&tmp, "<=", 2);
+  out.append(&tmp);
 
   if (sel_arg->max_flag & NO_MAX_RANGE)
-    out.append("+inf");
+    out.append(STRING_WITH_LEN("+inf"));
   else
   {
     print_sel_arg_key(sel_arg->field, sel_arg->max_value, &buf);
     out.append(buf);
   }
 
-  out.append(")");
+  out.append(')');
 
 end:
   return dbug_print_sel_arg_buf.c_ptr_safe();

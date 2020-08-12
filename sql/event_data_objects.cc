@@ -292,7 +292,7 @@ Event_basic::load_string_fields(Field **fields, ...)
 bool
 Event_basic::load_time_zone(THD *thd, const LEX_CSTRING *tz_name)
 {
-  String str(tz_name->str, &my_charset_latin1);
+  String str(tz_name->str, strlen(tz_name->str), &my_charset_latin1);
   time_zone= my_tz_find(thd, &str);
 
   return (time_zone == NULL);

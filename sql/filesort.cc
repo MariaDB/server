@@ -667,24 +667,25 @@ const char* dbug_print_table_row(TABLE *table)
 
   output.length(0);
   output.append(table->alias);
-  output.append("(");
+  output.append('(');
   bool first= true;
 
   for (pfield= table->field; *pfield ; pfield++)
   {
+    const LEX_CSTRING *name;
     if (table->read_set && !bitmap_is_set(table->read_set, (*pfield)->field_index))
       continue;
     
     if (first)
       first= false;
     else
-      output.append(",");
+      output.append(',');
 
-    output.append((*pfield)->field_name.str ?
-                  (*pfield)->field_name.str: "NULL");
+    name= (*pfield)->field_name.str ? &(*pfield)->field_name: &NULL_clex_str;
+    output.append(name);
   }
 
-  output.append(")=(");
+  output.append(STRING_WITH_LEN(")=("));
 
   first= true;
   for (pfield= table->field; *pfield ; pfield++)
@@ -697,10 +698,10 @@ const char* dbug_print_table_row(TABLE *table)
     if (first)
       first= false;
     else
-      output.append(",");
+      output.append(',');
 
     if (field->is_null())
-      output.append("NULL");
+      output.append(&NULL_clex_str);
     else
     {
       if (field->type() == MYSQL_TYPE_BIT)
@@ -710,7 +711,7 @@ const char* dbug_print_table_row(TABLE *table)
       output.append(tmp.ptr(), tmp.length());
     }
   }
-  output.append(")");
+  output.append(')');
   
   return output.c_ptr_safe();
 }

@@ -2796,8 +2796,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     uint add_first_key_parts= 0;
     longlong ha_option= handler_file->ha_table_flags();
     keyinfo= share->key_info;
-    uint primary_key= my_strcasecmp(system_charset_info, share->keynames.type_names[0],
-                                    primary_key_name) ? MAX_KEY : 0;
+    uint primary_key= my_strcasecmp(system_charset_info,
+                                    share->keynames.type_names[0],
+                                    primary_key_name.str) ? MAX_KEY : 0;
     KEY* key_first_info= NULL;
 
     if (primary_key >= MAX_KEY && keyinfo->flags & HA_NOSAME &&
@@ -6150,10 +6151,10 @@ int TABLE::verify_constraints(bool ignore_failure)
                     vcol_type == VCOL_CHECK_FIELD);
         if (vcol_type == VCOL_CHECK_FIELD)
         {
-          field_error.append(s->table_name.str);
-          field_error.append(".");
+          field_error.append(s->table_name);
+          field_error.append('.');
         }
-        field_error.append((*chk)->name.str);
+        field_error.append((*chk)->name);
         my_error(ER_CONSTRAINT_FAILED,
                  MYF(ignore_failure ? ME_WARNING : 0), field_error.c_ptr(),
                  s->db.str, s->table_name.str);

@@ -16,8 +16,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#include "mysql_json.h"
 #include "my_global.h"
+#include "mysql_json.h"
 #include "compat56.h"
 #include "my_decimal.h"
 #include "sql_time.h"
@@ -169,25 +169,25 @@ static bool append_string_json(String *buffer, const uchar *data, size_t len)
     const uchar c= *data;
     switch (c) {
     case '\\':
-      buffer->append("\\\\");
+      buffer->append(STRING_WITH_LEN("\\\\"));
       break;
     case '\n':
-      buffer->append("\\n");
+      buffer->append(STRING_WITH_LEN("\\n"));
       break;
     case '\r':
-      buffer->append("\\r");
+      buffer->append(STRING_WITH_LEN("\\r"));
       break;
     case '"':
-      buffer->append("\\\"");
+      buffer->append(STRING_WITH_LEN("\\\""));
       break;
     case '\b':
-      buffer->append("\\b");
+      buffer->append(STRING_WITH_LEN("\\b"));
       break;
     case '\f':
-      buffer->append("\\f");
+      buffer->append(STRING_WITH_LEN("\\f"));
       break;
     case '\t':
-      buffer->append("\\t");
+      buffer->append(STRING_WITH_LEN("\\t"));
       break;
     default:
       buffer->append(c);
@@ -242,11 +242,11 @@ static bool parse_mysql_scalar(String *buffer, size_t value_json_type,
       return true;
     switch (static_cast<JSONB_LITERAL_TYPES>(*data)) {
     case JSONB_NULL_LITERAL:
-      return buffer->append("null");
+      return buffer->append(STRING_WITH_LEN("null"));
     case JSONB_TRUE_LITERAL:
-      return buffer->append("true");
+      return buffer->append(STRING_WITH_LEN("true"));
     case JSONB_FALSE_LITERAL:
-      return buffer->append("false");
+      return buffer->append(STRING_WITH_LEN("false"));
     default: /* Invalid literal constant, malformed JSON. */
       return true;
     }
@@ -326,7 +326,7 @@ static bool parse_mysql_scalar(String *buffer, size_t value_json_type,
     default:
     {
       /* Any other MySQL type is presented as a base64 encoded string. */
-      if (buffer->append("\"base64:type") ||
+      if (buffer->append(STRING_WITH_LEN("\"base64:type")) ||
           buffer->append_longlong(field_type) ||
           buffer->append(':'))
         return true;
@@ -455,7 +455,7 @@ static bool parse_array_or_object(String *buffer, const uchar *data, size_t len,
       /* First print the key. */
       if (buffer->append('"') ||
           append_string_json(buffer, data + key_start, key_len) ||
-          buffer->append("\": "))
+          buffer->append(STRING_WITH_LEN("\": ")))
       {
         return true;
       }
@@ -478,7 +478,7 @@ static bool parse_array_or_object(String *buffer, const uchar *data, size_t len,
         return true;
     }
 
-    if (i != element_count - 1 && buffer->append(", "))
+    if (i != element_count - 1 && buffer->append(STRING_WITH_LEN(", ")))
       return true;
   }
 

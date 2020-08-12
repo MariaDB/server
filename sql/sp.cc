@@ -1072,12 +1072,14 @@ sp_returns_type(THD *thd, String &result, const sp_head *sp)
 
   if (field->has_charset())
   {
+    const char *name= field->charset()->csname;
     result.append(STRING_WITH_LEN(" CHARSET "));
-    result.append(field->charset()->csname);
+    result.append(name, strlen(name));
     if (!(field->charset()->state & MY_CS_PRIMARY))
     {
+      name= field->charset()->name;
       result.append(STRING_WITH_LEN(" COLLATE "));
-      result.append(field->charset()->name);
+      result.append(name, strlen(name));
     }
   }
 
@@ -1550,7 +1552,7 @@ Sp_handler_package::show_create_sp(THD *thd, String *buf,
      buf->append(STRING_WITH_LEN("OR REPLACE "))) ||
     append_definer(thd, buf, &definer.user, &definer.host) ||
     buf->append(type_lex_cstring()) ||
-    buf->append(" ", 1) ||
+    buf->append(' ') ||
     (ddl_options.if_not_exists() &&
      buf->append(STRING_WITH_LEN("IF NOT EXISTS "))) ||
     (db.length > 0 &&
@@ -1558,7 +1560,7 @@ Sp_handler_package::show_create_sp(THD *thd, String *buf,
       buf->append('.'))) ||
     append_identifier(thd, buf, name.str, name.length) ||
     append_package_chistics(buf, chistics) ||
-    buf->append(" ", 1) ||
+    buf->append(' ') ||
     buf->append(body.str, body.length);
   return rc;
 }

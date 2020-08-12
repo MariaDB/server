@@ -963,7 +963,7 @@ bool Item_func_monthname::fix_length_and_dec()
 {
   THD* thd= current_thd;
   CHARSET_INFO *cs= thd->variables.collation_connection;
-  locale= thd->variables.lc_time_names;  
+  locale= thd->variables.lc_time_names;
   collation.set(cs, DERIVATION_COERCIBLE, locale->repertoire());
   decimals=0;
   max_length= locale->max_month_name_length * collation.collation->mbmaxlen;
@@ -1562,7 +1562,7 @@ bool Item_func_curtime::get_date(THD *thd, MYSQL_TIME *res,
 
 void Item_func_curtime::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append('(');
   if (decimals)
     str->append_ulonglong(decimals);
@@ -1624,7 +1624,7 @@ bool Item_func_now::fix_fields(THD *thd, Item **items)
 
 void Item_func_now::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append('(');
   if (decimals)
     str->append_ulonglong(decimals);
@@ -2096,16 +2096,19 @@ static const char *interval_names[]=
 void Item_date_add_interval::print(String *str, enum_query_type query_type)
 {
   args[0]->print_parenthesised(str, query_type, INTERVAL_PRECEDENCE);
-  str->append(date_sub_interval?" - interval ":" + interval ");
+  static LEX_CSTRING minus_interval= { STRING_WITH_LEN(" - interval ") };
+  static LEX_CSTRING plus_interval=  { STRING_WITH_LEN(" + interval ") };
+  LEX_CSTRING *tmp= date_sub_interval ? &minus_interval : &plus_interval;
+  str->append(tmp);
   args[1]->print(str, query_type);
   str->append(' ');
-  str->append(interval_names[int_type]);
+  str->append(interval_names[int_type], strlen(interval_names[int_type]));
 }
 
 void Item_extract::print(String *str, enum_query_type query_type)
 {
   str->append(STRING_WITH_LEN("extract("));
-  str->append(interval_names[int_type]);
+  str->append(interval_names[int_type], strlen(interval_names[int_type]));
   str->append(STRING_WITH_LEN(" from "));
   args[0]->print(str, query_type);
   str->append(')');
@@ -2247,7 +2250,8 @@ void Item_func::print_cast_temporal(String *str, enum_query_type query_type)
   if (decimals && decimals != NOT_FIXED_DEC)
   {
     str->append('(');
-    str->append(llstr(decimals, buf));
+    size_t length= (size_t) (longlong10_to_str(decimals, buf, -10) - buf);
+    str->append(buf, length);
     str->append(')');
   }
   str->append(')');
@@ -2261,18 +2265,16 @@ void Item_char_typecast::print(String *str, enum_query_type query_type)
   str->append(STRING_WITH_LEN(" as char"));
   if (cast_length != ~0U)
   {
+    char buf[20];
+    size_t length= (size_t) (longlong10_to_str(cast_length, buf, 10) - buf);
     str->append('(');
-    char buffer[20];
-    // my_charset_bin is good enough for numbers
-    String st(buffer, sizeof(buffer), &my_charset_bin);
-    st.set(static_cast<ulonglong>(cast_length), &my_charset_bin);
-    str->append(st);
+    str->append(buf, length);
     str->append(')');
   }
   if (cast_cs)
   {
     str->append(STRING_WITH_LEN(" charset "));
-    str->append(cast_cs->csname);
+    str->append(cast_cs->csname, strlen(cast_cs->csname));
   }
   str->append(')');
 }
@@ -2869,7 +2871,7 @@ null_date:
 
 void Item_func_timestamp_diff::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append('(');
 
   switch (int_type) {
@@ -2948,7 +2950,7 @@ String *Item_func_get_format::val_str_ascii(String *str)
 
 void Item_func_get_format::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append('(');
 
   switch (type) {

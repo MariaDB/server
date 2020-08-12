@@ -391,9 +391,9 @@ static void init_aria_psi_keys(void)
 #define init_aria_psi_keys() /* no-op */
 #endif /* HAVE_PSI_INTERFACE */
 
-const char *MA_CHECK_INFO= "info";
-const char *MA_CHECK_WARNING= "warning";
-const char *MA_CHECK_ERROR= "error";
+const LEX_CSTRING MA_CHECK_INFO= { STRING_WITH_LEN("info") };
+const LEX_CSTRING MA_CHECK_WARNING= { STRING_WITH_LEN("warning") };
+const LEX_CSTRING MA_CHECK_ERROR= { STRING_WITH_LEN("error") };
 
 /*****************************************************************************
 ** MARIA tables
@@ -407,13 +407,13 @@ static handler *maria_create_handler(handlerton *hton,
 }
 
 
-static void _ma_check_print(HA_CHECK *param, const char* msg_type,
+static void _ma_check_print(HA_CHECK *param, const LEX_CSTRING *msg_type,
                             const char *msgbuf)
 {
-  if (msg_type == MA_CHECK_INFO)
+  if (msg_type == &MA_CHECK_INFO)
     sql_print_information("%s.%s: %s", param->db_name, param->table_name,
                           msgbuf);
-  else if (msg_type == MA_CHECK_WARNING)
+  else if (msg_type == &MA_CHECK_WARNING)
     sql_print_warning("%s.%s: %s", param->db_name, param->table_name,
                       msgbuf);
   else
@@ -423,7 +423,7 @@ static void _ma_check_print(HA_CHECK *param, const char* msg_type,
 
 // collect errors printed by maria_check routines
 
-static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
+static void _ma_check_print_msg(HA_CHECK *param, const LEX_CSTRING *msg_type,
                                 const char *fmt, va_list args)
 {
   THD *thd= (THD *) param->thd;
@@ -438,7 +438,7 @@ static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
   msg_length= my_vsnprintf(msgbuf, sizeof(msgbuf), fmt, args);
   msgbuf[sizeof(msgbuf) - 1]= 0;                // healthy paranoia
 
-  DBUG_PRINT(msg_type, ("message: %s", msgbuf));
+  DBUG_PRINT(msg_type->str, ("message: %s", msgbuf));
 
   if (!thd->vio_ok())
   {
@@ -450,9 +450,9 @@ static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
       (T_CREATE_MISSING_KEYS | T_SAFE_REPAIR | T_AUTO_REPAIR))
   {
     myf flag= 0;
-    if (msg_type == MA_CHECK_INFO)
+    if (msg_type == &MA_CHECK_INFO)
       flag= ME_NOTE;
-    else if (msg_type == MA_CHECK_WARNING)
+    else if (msg_type == &MA_CHECK_WARNING)
       flag= ME_WARNING;
     my_message(ER_NOT_KEYFILE, msgbuf, MYF(flag));
     if (thd->variables.log_warnings > 2)
@@ -471,9 +471,9 @@ static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
   */
   protocol->prepare_for_resend();
   protocol->store(name, (uint)length, system_charset_info);
-  protocol->store(param->op_name, system_charset_info);
+  protocol->store(param->op_name, strlen(param->op_name), system_charset_info);
   protocol->store(msg_type, system_charset_info);
-  protocol->store(msgbuf, (uint)msg_length, system_charset_info);
+  protocol->store(msgbuf, msg_length, system_charset_info);
   if (protocol->write())
     sql_print_error("Failed on my_net_write, writing to stderr instead: %s.%s: %s\n",
                     param->db_name, param->table_name, msgbuf);
@@ -911,7 +911,7 @@ void _ma_check_print_error(HA_CHECK *param, const char *fmt, ...)
   if (param->testflag & T_SUPPRESS_ERR_HANDLING)
     DBUG_VOID_RETURN;
   va_start(args, fmt);
-  _ma_check_print_msg(param, MA_CHECK_ERROR, fmt, args);
+  _ma_check_print_msg(param, &MA_CHECK_ERROR, fmt, args);
   va_end(args);
   DBUG_VOID_RETURN;
 }
@@ -922,7 +922,7 @@ void _ma_check_print_info(HA_CHECK *param, const char *fmt, ...)
   va_list args;
   DBUG_ENTER("_ma_check_print_info");
   va_start(args, fmt);
-  _ma_check_print_msg(param, MA_CHECK_INFO, fmt, args);
+  _ma_check_print_msg(param, &MA_CHECK_INFO, fmt, args);
   va_end(args);
   DBUG_VOID_RETURN;
 }
@@ -935,7 +935,7 @@ void _ma_check_print_warning(HA_CHECK *param, const char *fmt, ...)
   param->warning_printed= 1;
   param->out_flag |= O_DATA_LOST;
   va_start(args, fmt);
-  _ma_check_print_msg(param, MA_CHECK_WARNING, fmt, args);
+  _ma_check_print_msg(param, &MA_CHECK_WARNING, fmt, args);
   va_end(args);
   DBUG_VOID_RETURN;
 }

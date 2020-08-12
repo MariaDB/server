@@ -4298,7 +4298,9 @@ bool show_binlog_info(THD* thd)
     LOG_INFO li;
     mysql_bin_log.get_current_log(&li);
     size_t dir_len = dirname_length(li.log_file_name);
-    protocol->store(li.log_file_name + dir_len, &my_charset_bin);
+    const char *base= li.log_file_name + dir_len;
+
+    protocol->store(base, strlen(base), &my_charset_bin);
     protocol->store((ulonglong) li.pos);
     protocol->store(binlog_filter->get_do_db());
     protocol->store(binlog_filter->get_ignore_db());
