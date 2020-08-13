@@ -716,7 +716,8 @@ INNODB_DATA_HOME_DIR=${INNODB_DATA_HOME_DIR:-""}
 if [ ! -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
     INNODB_DATA_HOME_DIR=$INNODB_DATA_HOME_DIR_ARG
 fi
-# if INNODB_DATA_HOME_DIR env. variable is not set, try to get it from my.cnf
+# if no command line arg and INNODB_DATA_HOME_DIR environment variable
+# is not set, try to get it from my.cnf:
 if [ -z "$INNODB_DATA_HOME_DIR" ]; then
     INNODB_DATA_HOME_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-data-home-dir '')
 fi
@@ -964,17 +965,25 @@ then
 
     ib_home_dir=$INNODB_DATA_HOME_DIR
 
-    # Try to set ib_log_dir from the command line:
-    ib_log_dir=$INNODB_LOG_GROUP_HOME_ARG
-    if [ -z "$ib_log_dir" ]; then
-        ib_log_dir=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-log-group-home-dir "")
+    WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
+    # Try to set WSREP_LOG_DIR from the command line:
+    if [ ! -z "$INNODB_LOG_GROUP_HOME_ARG" ]; then
+        WSREP_LOG_DIR=$INNODB_LOG_GROUP_HOME_ARG
     fi
-    if [ -z "$ib_log_dir" ]; then
-        ib_log_dir=$(parse_cnf --mysqld innodb-log-group-home-dir "")
+    # if no command line arg and WSREP_LOG_DIR is not set,
+    # try to get it from my.cnf:
+    if [ -z "$WSREP_LOG_DIR" ]; then
+        WSREP_LOG_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-log-group-home-dir '')
+    fi
+    if [ -z "$WSREP_LOG_DIR" ]; then
+        WSREP_LOG_DIR=$(parse_cnf --mysqld innodb-log-group-home-dir '')
     fi
 
+    ib_log_dir=$WSREP_LOG_DIR
+
     # Try to set ib_undo_dir from the command line:
-    ib_undo_dir=$INNODB_UNDO_DIR_ARG
+    ib_undo_dir=${INNODB_UNDO_DIR_ARG:-""}
+    # if no command line arg then try to get it from my.cnf:
     if [ -z "$ib_undo_dir" ]; then
         ib_undo_dir=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-undo-directory "")
     fi

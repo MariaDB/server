@@ -515,7 +515,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	zlib
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Compression algorithm used on page compression. One of: none, zlib, lz4, lzo, lzma, or bzip2
+VARIABLE_COMMENT	Compression algorithm used on page compression. One of: none, zlib, lz4, lzo, lzma, bzip2, or snappy
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL

@@ -21068,7 +21068,7 @@ static TYPELIB page_compression_algorithms_typelib=
 };
 static MYSQL_SYSVAR_ENUM(compression_algorithm, innodb_compression_algorithm,
   PLUGIN_VAR_OPCMDARG,
-  "Compression algorithm used on page compression. One of: none, zlib, lz4, lzo, lzma, or bzip2",
+  "Compression algorithm used on page compression. One of: none, zlib, lz4, lzo, lzma, bzip2, or snappy",
   innodb_compression_algorithm_validate, NULL,
   /* We use here the largest number of supported compression method to
   enable all those methods that are available. Availability of compression

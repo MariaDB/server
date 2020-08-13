@@ -1176,6 +1176,52 @@ page_cur_parse_insert_rec(
 	return(const_cast<byte*>(ptr + end_seg_len));
 }
 
+/************************************************************//**
+Allocates a block of memory from the heap of an index page.
+@return	pointer to start of allocated buffer, or NULL if allocation fails */
+static
+byte*
+page_mem_alloc_heap(
+/*================*/
+	page_t*		page,	/*!< in/out: index page */
+	page_zip_des_t*	page_zip,/*!< in/out: compressed page with enough
+				space available for inserting the record,
+				or NULL */
+	ulint		need,	/*!< in: total number of bytes needed */
+	ulint*		heap_no)/*!< out: this contains the heap number
+				of the allocated record
+				if allocation succeeds */
+{
+	byte*	block;
+	ulint	avl_space;
+
+	ut_ad(page && heap_no);
+
+	avl_space = page_get_max_insert_size(page, 1);
+
+	if (avl_space >= need) {
+		const ulint h = page_dir_get_n_heap(page);
+		if (UNIV_UNLIKELY(h >= 8191)) {
+			/* At the minimum record size of 5+2 bytes,
+			we can only reach this condition when using
+			innodb_page_size=64k. */
+			ut_ad(srv_page_size == 65536);
+			return(NULL);
+		}
+		*heap_no = h;
+
+		block = page_header_get_ptr(page, PAGE_HEAP_TOP);
+
+		page_header_set_ptr(page, page_zip, PAGE_HEAP_TOP,
+				    block + need);
+		page_dir_set_n_heap(page, page_zip, 1 + *heap_no);
+
+		return(block);
+	}
+
+	return(NULL);
+}
+
 /***********************************************************//**
 Inserts a record next to page cursor on an uncompressed page.
 Returns pointer to inserted record if succeed, i.e., enough
