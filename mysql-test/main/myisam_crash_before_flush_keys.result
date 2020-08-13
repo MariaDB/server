@@ -25,6 +25,6 @@ ERROR HY000: Lost connection to MySQL server during query
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	warning	1 client is using or hasn't closed the table properly
-test.t1	check	error	Size of indexfile is: 1024        Should be: 3072
+test.t1	check	error	Size of indexfile is:     1024        Should be: 3072
 test.t1	check	error	Corrupt
 DROP TABLE t1;
