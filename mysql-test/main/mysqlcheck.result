@@ -427,7 +427,7 @@ create table mysqltest1.t1 (a int) engine=myisam;
 create table t2 (a int);
 check table mysqltest1.t1;
 Table	Op	Msg_type	Msg_text
-mysqltest1.t1	check	warning	Size of datafile is: 4       Should be: 0
+mysqltest1.t1	check	warning	Size of datafile is:         4       Should be: 0
 mysqltest1.t1	check	error	got error: 0 when reading datafile at record: 0
 mysqltest1.t1	check	error	Corrupt
 mtr.global_suppressions                            Table is already up to date
@@ -462,7 +462,7 @@ mysql.time_zone_transition_type                    Table is already up to date
 mysql.transaction_registry                         OK
 mysqltest1.t1
 warning  : Table is marked as crashed
-warning  : Size of datafile is: 4       Should be: 0
+warning  : Size of datafile is:         4       Should be: 0
 error    : got error: 0 when reading datafile at record: 0
 error    : Corrupt
 test.t2                                            Table is already up to date

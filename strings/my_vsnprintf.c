@@ -224,12 +224,27 @@ err:
 */
 
 static char *process_str_arg(CHARSET_INFO *cs, char *to, const char *end,
-                             size_t width, char *par, uint print_type,
-                             my_bool nice_cut)
+                             longlong length_arg, size_t width, char *par,
+                             uint print_type, my_bool nice_cut)
 {
   int well_formed_error;
   uint dots= 0;
   size_t plen, left_len= (size_t) (end - to) + 1, slen=0;
+  my_bool left_fill= 1;
+  size_t length;
+
+  /*
+    The sign of the length argument specific the string should be right
+    or left adjusted
+  */
+  if (length_arg < 0)
+  {
+    length= -length_arg;
+    left_fill= 0;
+  }
+  else
+    length= (size_t) length_arg;
+
   if (!par)
     par = (char*) "(null)";
 
@@ -265,18 +280,25 @@ static char *process_str_arg(CHARSET_INFO *cs, char *to, const char *end,
   plen= my_well_formed_length(cs, par, par + plen, width, &well_formed_error);
   if (print_type & ESCAPED_ARG)
   {
+    const char *org_to= to;
     to= backtick_string(cs, to, end, par, plen + dots, '`', MY_TEST(dots));
+    plen= (size_t) (to - org_to);
     dots= 0;
   }
   else
-    to= strnmov(to,par,plen);
-
-  if (dots)
   {
-    for (; dots; dots--)
-      *(to++)= '.';
-    *(to)= 0;
+    if (left_fill)
+    {
+      if (plen + dots < length)
+        to= strfill(to, length - plen - dots, ' ');
+    }
+    to= strnmov(to,par,plen);
+    if (dots)
+      to= strfill(to, dots, '.');
   }
+
+  if (!left_fill && plen + dots < length)
+    to= strfill(to, length - plen - dots, ' ');
   return to;
 }
 
@@ -494,11 +516,16 @@ start:
       case 's':
       case 'T':
       {
+        longlong min_field_width;
         char *par= args_arr[print_arr[i].arg_idx].str_arg;
         width= (print_arr[i].flags & WIDTH_ARG)
           ? (size_t)args_arr[print_arr[i].width].longlong_arg
           : print_arr[i].width;
-        to= process_str_arg(cs, to, end, width, par, print_arr[i].flags,
+        min_field_width= (print_arr[i].flags & LENGTH_ARG)
+          ? args_arr[print_arr[i].length].longlong_arg
+          : (longlong) print_arr[i].length;
+        to= process_str_arg(cs, to, end, min_field_width, width, par,
+                            print_arr[i].flags,
                             (print_arr[i].arg_type == 'T'));
         break;
       }
@@ -565,7 +592,7 @@ start:
           *to++= ' ';
           *to++= '"';
           my_strerror(errmsg_buff, sizeof(errmsg_buff), (int) larg);
-          to= process_str_arg(cs, to, real_end, width, errmsg_buff,
+          to= process_str_arg(cs, to, real_end, 0, width, errmsg_buff,
                               print_arr[i].flags, 1);
           if (real_end > to) *to++= '"';
         }
@@ -693,7 +720,8 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
     if (*fmt == 's' || *fmt == 'T')			/* String parameter */
     {
       reg2 char *par= va_arg(ap, char *);
-      to= process_str_arg(cs, to, end, width, par, print_type, (*fmt == 'T'));
+      to= process_str_arg(cs, to, end, (longlong) length, width, par,
+                          print_type, (*fmt == 'T'));
       continue;
     }
     else if (*fmt == 'b')				/* Buffer parameter */
@@ -751,7 +779,7 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
         *to++= ' ';
         *to++= '"';
         my_strerror(errmsg_buff, sizeof(errmsg_buff), (int) larg);
-        to= process_str_arg(cs, to, real_end, width, errmsg_buff,
+        to= process_str_arg(cs, to, real_end, 0, width, errmsg_buff,
                             print_type, 1);
         if (real_end > to) *to++= '"';
       }

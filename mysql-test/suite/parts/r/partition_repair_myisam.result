@@ -16,8 +16,8 @@ FLUSH TABLES;
 CHECK TABLE tp;
 Table	Op	Msg_type	Msg_text
 test.tp	check	warning	1 client is using or hasn't closed the table properly
-test.tp	check	error	Size of indexfile is: 1024        Should be: 2048
-test.tp	check	warning	Size of datafile is: 77       Should be: 7
+test.tp	check	error	Size of indexfile is:     1024        Should be: 2048
+test.tp	check	warning	Size of datafile is:        77       Should be: 7
 test.tp	check	error	Partition pCrashed returned error
 test.tp	check	error	Corrupt
 ALTER TABLE tp EXCHANGE PARTITION pCrashed WITH TABLE t;
@@ -40,8 +40,8 @@ FLUSH TABLES;
 CHECK TABLE t;
 Table	Op	Msg_type	Msg_text
 test.t	check	warning	1 client is using or hasn't closed the table properly
-test.t	check	error	Size of indexfile is: 1024        Should be: 2048
-test.t	check	warning	Size of datafile is: 77       Should be: 7
+test.t	check	error	Size of indexfile is:     1024        Should be: 2048
+test.t	check	warning	Size of datafile is:        77       Should be: 7
 test.t	check	error	Corrupt
 ALTER TABLE tp EXCHANGE PARTITION pCrashed WITH TABLE t;
 ERROR HY000: Table './test/t' is marked as crashed and should be repaired
@@ -69,8 +69,8 @@ FLUSH TABLES;
 CHECK TABLE t1_will_crash;
 Table	Op	Msg_type	Msg_text
 test.t1_will_crash	check	warning	1 client is using or hasn't closed the table properly
-test.t1_will_crash	check	error	Size of indexfile is: 1024        Should be: 2048
-test.t1_will_crash	check	warning	Size of datafile is: 77       Should be: 7
+test.t1_will_crash	check	error	Size of indexfile is:     1024        Should be: 2048
+test.t1_will_crash	check	warning	Size of datafile is:        77       Should be: 7
 test.t1_will_crash	check	error	Corrupt
 REPAIR TABLE t1_will_crash;
 Table	Op	Msg_type	Msg_text
@@ -104,8 +104,8 @@ FLUSH TABLES;
 CHECK TABLE t1_will_crash;
 Table	Op	Msg_type	Msg_text
 test.t1_will_crash	check	warning	1 client is using or hasn't closed the table properly
-test.t1_will_crash	check	error	Size of indexfile is: 1024        Should be: 2048
-test.t1_will_crash	check	warning	Size of datafile is: 28       Should be: 7
+test.t1_will_crash	check	error	Size of indexfile is:     1024        Should be: 2048
+test.t1_will_crash	check	warning	Size of datafile is:        28       Should be: 7
 test.t1_will_crash	check	error	Partition p1 returned error
 test.t1_will_crash	check	error	Corrupt
 REPAIR TABLE t1_will_crash;
@@ -134,16 +134,16 @@ test.t1_will_crash	check	status	OK
 ALTER TABLE t1_will_crash CHECK PARTITION p0, p1;
 Table	Op	Msg_type	Msg_text
 test.t1_will_crash	check	warning	1 client is using or hasn't closed the table properly
-test.t1_will_crash	check	error	Size of indexfile is: 1024        Should be: 2048
-test.t1_will_crash	check	warning	Size of datafile is: 28       Should be: 7
+test.t1_will_crash	check	error	Size of indexfile is:     1024        Should be: 2048
+test.t1_will_crash	check	warning	Size of datafile is:        28       Should be: 7
 test.t1_will_crash	check	error	Partition p1 returned error
 test.t1_will_crash	check	error	Corrupt
 ALTER TABLE t1_will_crash CHECK PARTITION p1, p2;
 Table	Op	Msg_type	Msg_text
 test.t1_will_crash	check	warning	Table is marked as crashed
 test.t1_will_crash	check	warning	1 client is using or hasn't closed the table properly
-test.t1_will_crash	check	error	Size of indexfile is: 1024        Should be: 2048
-test.t1_will_crash	check	warning	Size of datafile is: 28       Should be: 7
+test.t1_will_crash	check	error	Size of indexfile is:     1024        Should be: 2048
+test.t1_will_crash	check	warning	Size of datafile is:        28       Should be: 7
 test.t1_will_crash	check	error	Partition p1 returned error
 test.t1_will_crash	check	error	Corrupt
 ALTER TABLE t1_will_crash REPAIR PARTITION p0, p2;
@@ -195,8 +195,8 @@ FLUSH TABLES;
 CHECK TABLE t1_will_crash;
 Table	Op	Msg_type	Msg_text
 test.t1_will_crash	check	warning	1 client is using or hasn't closed the table properly
-test.t1_will_crash	check	error	Size of indexfile is: 1024        Should be: 2048
-test.t1_will_crash	check	warning	Size of datafile is: 14       Should be: 7
+test.t1_will_crash	check	error	Size of indexfile is:     1024        Should be: 2048
+test.t1_will_crash	check	warning	Size of datafile is:        14       Should be: 7
 test.t1_will_crash	check	error	Subpartition p1sp0 returned error
 test.t1_will_crash	check	error	Corrupt
 REPAIR TABLE t1_will_crash;
@@ -225,16 +225,16 @@ test.t1_will_crash	check	status	OK
 ALTER TABLE t1_will_crash CHECK PARTITION all;
 Table	Op	Msg_type	Msg_text
 test.t1_will_crash	check	warning	1 client is using or hasn't closed the table properly
-test.t1_will_crash	check	error	Size of indexfile is: 1024        Should be: 2048
-test.t1_will_crash	check	warning	Size of datafile is: 14       Should be: 7
+test.t1_will_crash	check	error	Size of indexfile is:     1024        Should be: 2048
+test.t1_will_crash	check	warning	Size of datafile is:        14       Should be: 7
 test.t1_will_crash	check	error	Subpartition p1sp0 returned error
 test.t1_will_crash	check	error	Corrupt
 ALTER TABLE t1_will_crash CHECK PARTITION p1;
 Table	Op	Msg_type	Msg_text
 test.t1_will_crash	check	warning	Table is marked as crashed
 test.t1_will_crash	check	warning	1 client is using or hasn't closed the table properly
-test.t1_will_crash	check	error	Size of indexfile is: 1024        Should be: 2048
-test.t1_will_crash	check	warning	Size of datafile is: 14       Should be: 7
+test.t1_will_crash	check	error	Size of indexfile is:     1024        Should be: 2048
+test.t1_will_crash	check	warning	Size of datafile is:        14       Should be: 7
 test.t1_will_crash	check	error	Subpartition p1sp0 returned error
 test.t1_will_crash	check	error	Corrupt
 ALTER TABLE t1_will_crash REPAIR PARTITION p0;
@@ -331,7 +331,7 @@ test.t1_will_crash	optimize	warning	Number of rows changed from 8 to 7
 test.t1_will_crash	optimize	status	OK
 CHECK TABLE t1_will_crash;
 Table	Op	Msg_type	Msg_text
-test.t1_will_crash	check	error	Size of datafile is: 0         Should be: 164
+test.t1_will_crash	check	error	Size of datafile is:         0         Should be: 164
 test.t1_will_crash	check	error	Partition p0 returned error
 test.t1_will_crash	check	error	Corrupt
 REPAIR TABLE t1_will_crash;
@@ -406,7 +406,7 @@ ALTER TABLE t1_will_crash CHECK PARTITION p4;
 Table	Op	Msg_type	Msg_text
 test.t1_will_crash	check	warning	Table is marked as crashed and last repair failed
 test.t1_will_crash	check	warning	1 client is using or hasn't closed the table properly
-test.t1_will_crash	check	warning	Size of datafile is: 368       Should be: 252
+test.t1_will_crash	check	warning	Size of datafile is:       368       Should be: 252
 test.t1_will_crash	check	error	Found 4 keys of 3
 test.t1_will_crash	check	error	Partition p4 returned error
 test.t1_will_crash	check	error	Corrupt
@@ -419,7 +419,7 @@ FLUSH TABLES;
 # replacing p6 with a crashed MYD file (2) (splitted dynamic record)
 ALTER TABLE t1_will_crash CHECK PARTITION p6;
 Table	Op	Msg_type	Msg_text
-test.t1_will_crash	check	warning	Size of datafile is: 868       Should be: 604
+test.t1_will_crash	check	warning	Size of datafile is:       868       Should be: 604
 test.t1_will_crash	check	error	Unexpected byte: 0 at link: 340
 test.t1_will_crash	check	error	Partition p6 returned error
 test.t1_will_crash	check	error	Corrupt
@@ -472,9 +472,9 @@ partition	b	a
 SET @@optimizer_switch=@save_optimizer_switch;
 ALTER TABLE t1_will_crash CHECK PARTITION p6;
 Table	Op	Msg_type	Msg_text
-test.t1_will_crash	check	warning	Size of datafile is: 868       Should be: 604
-test.t1_will_crash	check	error	Record-count is not ok; is 8   Should be: 7
-test.t1_will_crash	check	warning	Found 10 key parts. Should be: 7
+test.t1_will_crash	check	warning	Size of datafile is:       868       Should be: 604
+test.t1_will_crash	check	error	Record-count is not ok; is          8   Should be: 7
+test.t1_will_crash	check	warning	Found         10 key parts. Should be: 7
 test.t1_will_crash	check	error	Partition p6 returned error
 test.t1_will_crash	check	error	Corrupt
 ALTER TABLE t1_will_crash REPAIR PARTITION p6;

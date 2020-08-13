@@ -187,8 +187,8 @@ connection con1;
 check table mysqltest_db1.t1;
 Table	Op	Msg_type	Msg_text
 mysqltest_db1.t1	check	warning	1 client is using or hasn't closed the table properly
-mysqltest_db1.t1	check	error	Size of indexfile is: 1024        Should be: 2048
-mysqltest_db1.t1	check	warning	Size of datafile is: 14       Should be: 7
+mysqltest_db1.t1	check	error	Size of indexfile is:     1024        Should be: 2048
+mysqltest_db1.t1	check	warning	Size of datafile is:        14       Should be: 7
 mysqltest_db1.t1	check	error	Corrupt
 # The below statement should fail before repairing t1.
 # Otherwise info about such repair will be missing from its result-set.
@@ -201,8 +201,8 @@ check table mysqltest_db1.t1;
 Table	Op	Msg_type	Msg_text
 mysqltest_db1.t1	check	warning	Table is marked as crashed
 mysqltest_db1.t1	check	warning	1 client is using or hasn't closed the table properly
-mysqltest_db1.t1	check	error	Size of indexfile is: 1024        Should be: 2048
-mysqltest_db1.t1	check	warning	Size of datafile is: 14       Should be: 7
+mysqltest_db1.t1	check	error	Size of indexfile is:     1024        Should be: 2048
+mysqltest_db1.t1	check	warning	Size of datafile is:        14       Should be: 7
 mysqltest_db1.t1	check	error	Corrupt
 repair table mysqltest_db1.t1;
 Table	Op	Msg_type	Msg_text

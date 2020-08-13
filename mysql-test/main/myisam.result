@@ -2643,8 +2643,8 @@ FLUSH TABLES;
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	warning	1 client is using or hasn't closed the table properly
-test.t1	check	error	Size of indexfile is: 1024        Should be: 2048
-test.t1	check	warning	Size of datafile is: 14       Should be: 7
+test.t1	check	error	Size of indexfile is:     1024        Should be: 2048
+test.t1	check	warning	Size of datafile is:        14       Should be: 7
 test.t1	check	error	Corrupt
 # Alter table should report error and not auto-repair the table.
 ALTER TABLE t1 ENGINE = MyISAM;
@@ -2653,8 +2653,8 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	warning	Table is marked as crashed
 test.t1	check	warning	1 client is using or hasn't closed the table properly
-test.t1	check	error	Size of indexfile is: 1024        Should be: 2048
-test.t1	check	warning	Size of datafile is: 14       Should be: 7
+test.t1	check	error	Size of indexfile is:     1024        Should be: 2048
+test.t1	check	warning	Size of datafile is:        14       Should be: 7
 test.t1	check	error	Corrupt
 DROP TABLE t1;
 #
