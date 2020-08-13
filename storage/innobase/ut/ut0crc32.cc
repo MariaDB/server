@@ -342,11 +342,11 @@ allocations, would not hurt if called twice, but would be pointless. */
 void ut_crc32_init()
 {
 #ifndef HAVE_CRC32_VPMSUM
-# if defined(__GNUC__) && defined(HAVE_ARMV8_CRC) && defined(HAVE_ARMV8_CRYPTO)
-  if (crc32c_aarch64_available())
+# if defined(__GNUC__) && defined(HAVE_ARMV8_CRC)
+  if (const char *crc32c_implementation= crc32c_aarch64_available())
   {
     ut_crc32_low= crc32c_aarch64;
-    ut_crc32_implementation= "Using ARMv8 crc32 + pmull instructions";
+    ut_crc32_implementation= crc32c_implementation;
     return;
   }
 # elif defined(TRY_SSE4_2)
