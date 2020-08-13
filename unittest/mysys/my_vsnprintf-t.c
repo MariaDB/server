@@ -61,7 +61,7 @@ static void test_many(const char **res, const char *fmt, ...)
 
 int main(void)
 {
-  plan(47);
+  plan(48);
 
   test1("Constant string",
         "Constant string");
@@ -96,8 +96,11 @@ int main(void)
   test1("Flag '0' works <0006>",
         "Flag '0' works <%04d>", 6);
 
-  test1("Width is ignored for strings <x> <y>",
-        "Width is ignored for strings <%04s> <%5s>", "x", "y");
+  test1("Width for strings <   x> <    y>",
+        "Width for strings <%04s> <%5s>", "x", "y");
+
+  test1("Negative width is ignored for strings <   x> <    y>",
+        "Negative width is ignored for strings <%-4s> <%-5s>", "x", "y");
 
   test1("Precision works for strings <abcde>",
         "Precision works for strings <%.5s>", "abcdef!");

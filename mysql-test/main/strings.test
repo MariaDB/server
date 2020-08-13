@@ -1,0 +1,16 @@
+--source include/not_windows.inc
+--source include/not_embedded.inc
+
+#
+# Test that exposes problems in string functions like my_vsnprintf
+#
+
+--echo #
+--echo # MDEV-25612 Assertion `to <= end' failed in process_args
+--echo #
+SET SESSION default_master_connection=REPEAT('a',190),lc_messages=ru_ru;
+CHANGE MASTER TO master_host='dummy';
+START SLAVE sql_thread;
+--error ER_SLAVE_MUST_STOP
+CHANGE MASTER TO master_user='user',master_password='pwd';
+STOP SLAVE;
