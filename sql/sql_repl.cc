@@ -374,11 +374,15 @@ static int send_file(THD *thd)
     We need net_flush here because the client will not know it needs to send
     us the file name until it has processed the load event entry
   */
-  if (unlikely(net_flush(net) || (packet_len = my_net_read(net)) == packet_error))
+  if (unlikely(net_flush(net)))
   {
+  read_error:
     errmsg = "while reading file name";
     goto err;
   }
+  packet_len= my_net_read(net);
+  if (unlikely(packet_len == packet_error))
+    goto read_error;
 
   // terminate with \0 for fn_format
   *((char*)net->read_pos +  packet_len) = 0;

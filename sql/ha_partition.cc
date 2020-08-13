@@ -1,6 +1,6 @@
 /*
   Copyright (c) 2005, 2019, Oracle and/or its affiliates.
-  Copyright (c) 2009, 2019, MariaDB
+  Copyright (c) 2009, 2020, MariaDB
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -6380,7 +6380,7 @@ ha_rows ha_partition::multi_range_read_info(uint keyno, uint n_ranges,
 {
   uint i;
   handler **file;
-  ha_rows rows;
+  ha_rows rows= 0;
   DBUG_ENTER("ha_partition::multi_range_read_info");
   DBUG_PRINT("enter", ("partition this: %p", this));
 
@@ -9516,7 +9516,6 @@ double ha_partition::read_time(uint index, uint ranges, ha_rows rows)
 
 ha_rows ha_partition::records()
 {
-  int error;
   ha_rows tot_rows= 0;
   uint i;
   DBUG_ENTER("ha_partition::records");
@@ -9525,9 +9524,10 @@ ha_rows ha_partition::records()
        i < m_tot_parts;
        i= bitmap_get_next_set(&m_part_info->read_partitions, i))
   {
-    ha_rows rows;
-    if (unlikely((error= m_file[i]->pre_records()) ||
-                 (rows= m_file[i]->records()) == HA_POS_ERROR))
+    if (unlikely(m_file[i]->pre_records()))
+      DBUG_RETURN(HA_POS_ERROR);
+    const ha_rows rows= m_file[i]->records();
+    if (unlikely(rows == HA_POS_ERROR))
       DBUG_RETURN(HA_POS_ERROR);
     tot_rows+= rows;
   }
