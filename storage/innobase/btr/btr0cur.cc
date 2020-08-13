@@ -3373,17 +3373,23 @@ fail_err:
 	}
 
 	ulint	max_size = page_get_max_insert_size_after_reorganize(page, 1);
+	if (max_size < rec_size) {
+		goto fail;
+	}
+
+	const ulint n_recs = page_get_n_recs(page);
+	if (UNIV_UNLIKELY(n_recs >= 8189)) {
+		ut_ad(srv_page_size == 65536);
+		goto fail;
+	}
 
 	if (page_has_garbage(page)) {
-		if ((max_size < rec_size
-		     || max_size < BTR_CUR_PAGE_REORGANIZE_LIMIT)
-		    && page_get_n_recs(page) > 1
+		if (max_size < BTR_CUR_PAGE_REORGANIZE_LIMIT
+		    && n_recs > 1
 		    && page_get_max_insert_size(page, 1) < rec_size) {
 
 			goto fail;
 		}
-	} else if (max_size < rec_size) {
-		goto fail;
 	}
 
 	/* If there have been many consecutive inserts to the

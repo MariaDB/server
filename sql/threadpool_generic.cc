@@ -1078,7 +1078,10 @@ void thread_group_destroy(thread_group_t *thread_group)
 #endif
 
   if (my_atomic_add32(&shutdown_group_count, -1) == 1)
+  {
     my_free(all_groups);
+    all_groups= 0;
+  }
 }
 
 /**
@@ -1671,6 +1674,14 @@ TP_pool_generic::~TP_pool_generic()
   {
     thread_group_close(&all_groups[i]);
   }
+
+  /*
+    Wait until memory occupied by all_groups is freed.
+  */
+  int timeout_ms=5000;
+  while(all_groups && timeout_ms--)
+    my_sleep(1000);
+
   threadpool_started= false;
   DBUG_VOID_RETURN;
 }

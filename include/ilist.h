@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include "my_dbug.h"
+
 #include <cstddef>
 #include <iterator>
 
@@ -26,8 +28,7 @@ template <class Tag= void> struct ilist_node
 {
   ilist_node()
 #ifndef DBUG_OFF
-      :
-        next(NULL), prev(NULL)
+      : next(NULL), prev(NULL)
 #endif
   {
   }
@@ -70,11 +71,12 @@ public:
     typedef T *pointer;
     typedef T &reference;
 
-    Iterator(ListNode *node) : node_(node) {}
+    Iterator(ListNode *node) : node_(node) { DBUG_ASSERT(node_ != NULL); }
 
     Iterator &operator++()
     {
       node_= node_->next;
+      DBUG_ASSERT(node_ != NULL);
       return *this;
     }
     Iterator operator++(int)
@@ -87,6 +89,7 @@ public:
     Iterator &operator--()
     {
       node_= node_->prev;
+      DBUG_ASSERT(node_);
       return *this;
     }
     Iterator operator--(int)

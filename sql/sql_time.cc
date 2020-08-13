@@ -432,7 +432,7 @@ static bool number_to_time_with_warn(bool neg, ulonglong nr, ulong sec_part,
   int was_cut;
   longlong res;
   enum_mysql_timestamp_type ts_type;
-  bool have_warnings;
+  bool have_warnings= false;
 
   if (fuzzydate & TIME_TIME_ONLY)
   {

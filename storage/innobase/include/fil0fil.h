@@ -269,11 +269,13 @@ struct fil_space_t : ilist_node<unflushed_spaces_tag_t>,
 
 	/** Acquire a tablespace reference. */
 	void acquire() { my_atomic_addlint(&n_pending_ops, 1); }
-	/** Release a tablespace reference. */
-	void release()
+	/** Release a tablespace reference.
+	@return whether this was the last reference */
+	bool release()
 	{
-		ut_ad(referenced());
-		my_atomic_addlint(&n_pending_ops, ulint(-1));
+		ulint n = my_atomic_addlint(&n_pending_ops, ulint(-1));
+		ut_ad(n);
+		return n == 1;
 	}
 	/** @return whether references are being held */
 	bool referenced() { return my_atomic_loadlint(&n_pending_ops); }

@@ -827,7 +827,7 @@ my_strtoll10_mb2(CHARSET_INFO *cs __attribute__((unused)),
                  const char *nptr, char **endptr, int *error)
 {
   const uchar *s, *end, *start, *n_end, *true_end;
-  uchar c;
+  uchar UNINIT_VAR(c);
   unsigned long i, j, k;
   ulonglong li;
   int negative;
