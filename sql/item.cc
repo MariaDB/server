@@ -7475,7 +7475,6 @@ Item *find_producing_item(Item *item, st_select_lex *sel)
   DBUG_ASSERT(item->type() == Item::FIELD_ITEM ||
               (item->type() == Item::REF_ITEM &&
                ((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF)); 
-  Item *producing_item;
   Item_field *field_item= NULL;
   Item_equal *item_equal= item->get_item_equal();
   table_map tab_map= sel->master_unit()->derived->table->map;
@@ -7497,6 +7496,7 @@ Item *find_producing_item(Item *item, st_select_lex *sel)
   List_iterator_fast<Item> li(sel->item_list);
   if (field_item)
   {
+    Item *producing_item= NULL;
     uint field_no= field_item->field->field_index;
     for (uint i= 0; i <= field_no; i++)
       producing_item= li++;

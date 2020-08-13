@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2019, MariaDB Corporation.
+Copyright (C) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -252,15 +252,6 @@ fail:
 		memset(out_buf + tmp, 0, write_size - tmp);
 	}
 
-#ifdef UNIV_DEBUG
-	/* Verify that page can be decompressed */
-	{
-		page_t tmp_buf[UNIV_PAGE_SIZE_MAX];
-		page_t page[UNIV_PAGE_SIZE_MAX];
-		memcpy(page, out_buf, write_size);
-		ut_ad(fil_page_decompress(tmp_buf, page, flags));
-	}
-#endif
 	srv_stats.page_compression_saved.add(srv_page_size - write_size);
 	srv_stats.pages_page_compressed.inc();
 
@@ -330,8 +321,6 @@ static ulint fil_page_compress_for_non_full_crc32(
 	mach_write_to_2(out_buf + FIL_PAGE_DATA + FIL_PAGE_COMP_SIZE,
 			write_size);
 
-#ifdef UNIV_DEBUG
-	/* Verify */
 	ut_ad(fil_page_is_compressed(out_buf)
 	      || fil_page_is_compressed_encrypted(out_buf));
 
@@ -341,6 +330,7 @@ static ulint fil_page_compress_for_non_full_crc32(
 	ut_ad(mach_read_from_2(out_buf + FIL_PAGE_DATA + FIL_PAGE_COMP_SIZE)
 	      == write_size);
 
+#ifdef UNIV_DEBUG
 	bool is_compressed = (mach_read_from_8(out_buf + FIL_PAGE_COMP_ALGO)
 			      == (ulint) comp_algo);
 
@@ -348,18 +338,9 @@ static ulint fil_page_compress_for_non_full_crc32(
 		(mach_read_from_2(out_buf + FIL_PAGE_DATA
 				  + FIL_PAGE_ENCRYPT_COMP_ALGO)
 		 == (ulint) comp_algo);
+#endif /* UNIV_DEBUG */
 
 	ut_ad(is_compressed || is_encrypted_compressed);
-
-	/* Verify that page can be decompressed */
-	{
-		page_t tmp_buf[UNIV_PAGE_SIZE_MAX];
-		page_t page[UNIV_PAGE_SIZE_MAX];
-		memcpy(page, out_buf, srv_page_size);
-		ut_ad(fil_page_decompress(tmp_buf, page, flags));
-		ut_ad(!buf_page_is_corrupted(false, page, flags));
-	}
-#endif /* UNIV_DEBUG */
 
 	write_size+=header_len;
 

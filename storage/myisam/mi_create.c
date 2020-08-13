@@ -46,7 +46,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   uint aligned_key_start, block_length, res;
   uint internal_table= flags & HA_CREATE_INTERNAL_TABLE;
   ulong reclength, real_reclength,min_pack_length;
-  char kfilename[FN_REFLEN],klinkname[FN_REFLEN], *klinkname_ptr;
+  char kfilename[FN_REFLEN],klinkname[FN_REFLEN], *klinkname_ptr= 0;
   char dfilename[FN_REFLEN],dlinkname[FN_REFLEN], *dlinkname_ptr= 0;
   ulong pack_reclength;
   ulonglong tot_length,max_rows, tmp;
@@ -622,7 +622,6 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
     fn_format(kfilename, name, "", MI_NAME_IEXT,
               MY_UNPACK_FILENAME | MY_RETURN_REAL_PATH |
               (have_iext ? MY_REPLACE_EXT : MY_APPEND_EXT));
-    klinkname_ptr= 0;
     /* Replace the current file */
     create_flag=(flags & HA_CREATE_KEEP_FILES) ? 0 : MY_DELETE_OLD;
   }

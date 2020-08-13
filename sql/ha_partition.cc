@@ -9593,7 +9593,6 @@ double ha_partition::read_time(uint index, uint ranges, ha_rows rows)
 
 ha_rows ha_partition::records()
 {
-  int error;
   ha_rows tot_rows= 0;
   uint i;
   DBUG_ENTER("ha_partition::records");
@@ -9602,9 +9601,10 @@ ha_rows ha_partition::records()
        i < m_tot_parts;
        i= bitmap_get_next_set(&m_part_info->read_partitions, i))
   {
-    ha_rows rows;
-    if (unlikely((error= m_file[i]->pre_records()) ||
-                 (rows= m_file[i]->records()) == HA_POS_ERROR))
+    if (unlikely(m_file[i]->pre_records()))
+      DBUG_RETURN(HA_POS_ERROR);
+    const ha_rows rows= m_file[i]->records();
+    if (unlikely(rows == HA_POS_ERROR))
       DBUG_RETURN(HA_POS_ERROR);
     tot_rows+= rows;
   }

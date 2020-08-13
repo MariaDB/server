@@ -4310,9 +4310,10 @@ sp_fetch_list:
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
             sp_pcontext *spc= lex->spcont;
-            sp_variable *spv;
-
-            if (unlikely(!spc || !(spv = spc->find_variable(&$1, false))))
+            sp_variable *spv= likely(spc != NULL)
+              ? spc->find_variable(&$1, false)
+              : NULL;
+            if (unlikely(!spv))
               my_yyabort_error((ER_SP_UNDECLARED_VAR, MYF(0), $1.str));
 
             /* An SP local variable */
@@ -4324,9 +4325,10 @@ sp_fetch_list:
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
             sp_pcontext *spc= lex->spcont;
-            sp_variable *spv;
-
-            if (unlikely(!spc || !(spv = spc->find_variable(&$3, false))))
+            sp_variable *spv= likely(spc != NULL)
+              ? spc->find_variable(&$3, false)
+              : NULL;
+            if (unlikely(!spv))
               my_yyabort_error((ER_SP_UNDECLARED_VAR, MYF(0), $3.str));
 
             /* An SP local variable */

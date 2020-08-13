@@ -4758,7 +4758,11 @@ innobase_pk_order_preserved(
 		if (old_pk_column) {
 			new_field_order = lint(old_field);
 		} else if (innobase_pk_col_is_existing(new_col_no, col_map,
-						       old_n_cols)) {
+						       old_n_cols)
+			   || new_clust_index->table->persistent_autoinc
+			   == new_field + 1) {
+			/* Adding an existing column or an AUTO_INCREMENT
+			column may change the existing ordering. */
 			new_field_order = lint(old_n_uniq
 					       + existing_field_count++);
 		} else {
@@ -6919,12 +6923,6 @@ error_handling_drop_uncached_1:
 			user_table);
 		dict_index_t*	new_clust_index = dict_table_get_first_index(
 			ctx->new_table);
-		ctx->skip_pk_sort = innobase_pk_order_preserved(
-			ctx->col_map, clust_index, new_clust_index);
-
-		DBUG_EXECUTE_IF("innodb_alter_table_pk_assert_no_sort",
-			DBUG_ASSERT(ctx->skip_pk_sort););
-
 		ut_ad(!new_clust_index->is_instant());
 		/* row_merge_build_index() depends on the correct value */
 		ut_ad(new_clust_index->n_core_null_bytes
@@ -6946,6 +6944,12 @@ error_handling_drop_uncached_1:
 				btr_write_autoinc(new_clust_index, autoinc);
 			}
 		}
+
+		ctx->skip_pk_sort = innobase_pk_order_preserved(
+			ctx->col_map, clust_index, new_clust_index);
+
+		DBUG_EXECUTE_IF("innodb_alter_table_pk_assert_no_sort",
+			DBUG_ASSERT(ctx->skip_pk_sort););
 
 		if (ctx->online) {
 			/* Allocate a log for online table rebuild. */
