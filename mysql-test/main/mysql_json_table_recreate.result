@@ -30,6 +30,8 @@ show create table mysql_json_test;
 ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test` FORCE" or dump/reload to fix it!
 select * from mysql_json_test;
 ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test` FORCE" or dump/reload to fix it!
+LOCK TABLES mysql_json_test WRITE;
+ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test` FORCE" or dump/reload to fix it!
 alter table mysql_json_test force;
 select description, expected, actual, expected = actual from mysql_json_test;
 description	expected	actual	expected = actual

@@ -50,6 +50,9 @@ show create table mysql_json_test;
 --error ER_TABLE_NEEDS_REBUILD
 select * from mysql_json_test;
 
+--error ER_TABLE_NEEDS_REBUILD
+LOCK TABLES mysql_json_test WRITE;
+
 alter table mysql_json_test force;
 
 --sorted_result
