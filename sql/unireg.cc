@@ -138,8 +138,8 @@ get_fieldno_by_name(HA_CREATE_INFO *create_info, List<Create_field> &create_fiel
   {
     if (field_name.streq(sql_field->field_name))
     {
-      DBUG_ASSERT(field_no <= uint16(~0U));
-      return uint16(field_no);
+      DBUG_ASSERT(field_no < NO_CACHED_FIELD_INDEX);
+      return (field_index_t) field_no;
     }
   }
 

@@ -203,11 +203,11 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
                         const char *item_name, const char *db_name,
                         const char *table_name, Item **ref,
                         bool check_privileges, bool allow_rowid,
-                        uint16 *cached_field_index_ptr,
+                        field_index_t *cached_field_index_ptr,
                         bool register_tree_change, TABLE_LIST **actual_table);
 Field *
 find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
-                    bool allow_rowid, uint16 *cached_field_index_ptr);
+                    bool allow_rowid, field_index_t *cached_field_index_ptr);
 Field *
 find_field_in_table_sef(TABLE *table, const char *name);
 Item ** find_item_in_list(Item *item, List<Item> &items, uint *counter,

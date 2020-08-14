@@ -828,10 +828,10 @@ public:
 
   utype	unireg_check;
   field_visibility_t invisible;
-  uint32	field_length;           // Length of field
-  uint32	flags;
-  uint16   field_index;           // field number in fields array
-  uchar	null_bit;                  // Bit used to test null bit
+  uint32        field_length;          // Length of field
+  uint32        flags;
+  field_index_t field_index;           // field number in fields array
+  uchar null_bit;                      // Bit used to test null bit
 
   /**
      If true, this field was created in create_tmp_field_from_item from a NULL
