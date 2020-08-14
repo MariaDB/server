@@ -1053,6 +1053,15 @@ static byte* page_mem_alloc_heap(buf_block_t *block, ulint need,
   byte *n_heap= my_assume_aligned<2>(PAGE_N_HEAP + PAGE_HEADER + block->frame);
 
   const uint16_t h= mach_read_from_2(n_heap);
+  if (UNIV_UNLIKELY((h + 1) & 0x6000))
+  {
+    /* At the minimum record size of 5+2 bytes, we can only reach this
+    condition when using innodb_page_size=64k. */
+    ut_ad((h & 0x7fff) == 8191);
+    ut_ad(srv_page_size == 65536);
+    return NULL;
+  }
+
   *heap_no= h & 0x7fff;
   ut_ad(*heap_no < srv_page_size / REC_N_NEW_EXTRA_BYTES);
   compile_time_assert(UNIV_PAGE_SIZE_MAX / REC_N_NEW_EXTRA_BYTES < 0x3fff);

@@ -1781,7 +1781,7 @@ apply_log_finish()
 bool
 copy_back()
 {
-	bool ret;
+	bool ret = false;
 	datadir_iter_t *it = NULL;
 	datadir_node_t node;
 	char *dst_dir;

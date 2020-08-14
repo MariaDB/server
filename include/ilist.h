@@ -19,6 +19,8 @@
 #ifndef ILIST_H
 #define ILIST_H
 
+#include "my_dbug.h"
+
 #include <cstddef>
 #include <iterator>
 
@@ -73,11 +75,13 @@ public:
     typedef T *pointer;
     typedef T &reference;
 
-    Iterator(ListNode *node) noexcept : node_(node) {}
+    Iterator(ListNode *node) noexcept : node_(node)
+    { DBUG_ASSERT(node_ != nullptr); }
 
     Iterator &operator++() noexcept
     {
       node_= node_->next;
+      DBUG_ASSERT(node_ != nullptr);
       return *this;
     }
     Iterator operator++(int) noexcept
@@ -90,6 +94,7 @@ public:
     Iterator &operator--() noexcept
     {
       node_= node_->prev;
+      DBUG_ASSERT(node_ != nullptr);
       return *this;
     }
     Iterator operator--(int) noexcept
@@ -184,8 +189,8 @@ public:
 
 #ifndef DBUG_OFF
     ListNode *curr= pos.node_;
-    curr->prev= NULL;
-    curr->next= NULL;
+    curr->prev= nullptr;
+    curr->next= nullptr;
 #endif
 
     return next;

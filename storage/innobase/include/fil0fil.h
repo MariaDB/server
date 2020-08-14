@@ -504,8 +504,9 @@ struct fil_space_t
 
 	/** Acquire a tablespace reference. */
 	void acquire() { n_pending_ops++; }
-	/** Release a tablespace reference. */
-	void release() { ut_ad(referenced()); n_pending_ops--; }
+	/** Release a tablespace reference.
+	@return whether this was the last reference */
+	bool release() { auto n= n_pending_ops--; ut_ad(n); return n == 1; }
 	/** @return whether references are being held */
 	bool referenced() const { return n_pending_ops; }
 
