@@ -258,7 +258,7 @@ public:
   bool store_longlong(longlong from, bool unsigned_flag) override;
   bool store_decimal(const my_decimal *) override;
   bool store_str(const char *from, size_t length,
-                 CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
+                 CHARSET_INFO *fromcs, CHARSET_INFO *tocs) override;
   bool store(MYSQL_TIME *time, int decimals) override;
   bool store_date(MYSQL_TIME *time) override;
   bool store_time(MYSQL_TIME *time, int decimals) override;
@@ -306,7 +306,7 @@ public:
   bool store_long(longlong) override { return false; }
   bool store_longlong(longlong, bool) override { return false; }
   bool store_decimal(const my_decimal *) override { return false; }
-  bool store_str(const char *, size_t, CHARSET_INFO *, CHARSET_INFO *)
+  bool store_str(const char *, size_t, CHARSET_INFO *, CHARSET_INFO *) override
   {
     return false;
   }
