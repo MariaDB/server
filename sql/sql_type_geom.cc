@@ -841,8 +841,6 @@ int Field_geom::store(const char *from, size_t length, CHARSET_INFO *cs)
     bzero(ptr, Field_blob::pack_length());
   else
   {
-    if (from == Geometry::bad_geometry_data.ptr())
-      goto err;
     // Check given WKB
     uint32 wkb_type;
     if (length < SRID_SIZE + WKB_HEADER_SIZE + 4)
