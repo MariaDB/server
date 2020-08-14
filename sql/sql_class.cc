@@ -327,16 +327,6 @@ bool Foreign_key::validate(List<Create_field> &table_fields)
 ****************************************************************************/
 
 /**
-  Get current THD object from thread local data
-
-  @retval     The THD object for the thread, NULL if not connection thread
-*/
-THD *thd_get_current_thd()
-{
-  return current_thd;
-}
-
-/**
   Clear errors from the previous THD
 
   @param thd              THD object

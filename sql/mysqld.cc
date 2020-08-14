@@ -667,7 +667,15 @@ static std::atomic<char*> shutdown_user;
 
 static thread_local THD *THR_THD;
 
+/**
+  Get current THD object from thread local data
+
+  @retval     The THD object for the thread, NULL if not connection thread
+*/
+
 MYSQL_THD _current_thd() { return THR_THD; }
+THD *thd_get_current_thd() { return THR_THD; }
+
 void set_current_thd(THD *thd) { THR_THD= thd; }
 
 /*
