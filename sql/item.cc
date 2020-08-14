@@ -488,8 +488,7 @@ void Item::print_parenthesised(String *str, enum_query_type query_type,
 
 void Item::print(String *str, enum_query_type query_type)
 {
-  const char *name= full_name();
-  str->append(name, strlen(name));
+  str->append(full_name_cstring());
 }
 
 
@@ -3131,32 +3130,37 @@ bool Item_field::switch_to_nullable_fields_processor(void *arg)
   return 0;
 }
 
-const char *Item_ident::full_name() const
+LEX_CSTRING Item_ident::full_name_cstring() const
 {
   char *tmp;
+  size_t length;
   if (!table_name.str || !field_name.str)
-    return field_name.str ? field_name.str : name.str ? name.str : "tmp_field";
-
+  {
+    if (field_name.str)
+      return field_name;
+    if (name.str)
+      return name;
+    return { STRING_WITH_LEN("tmp_field") };
+  }
   if (db_name.str && db_name.str[0])
   {
     THD *thd= current_thd;
     tmp=(char*) thd->alloc((uint) db_name.length+ (uint) table_name.length +
 			   (uint) field_name.length+3);
-    strxmov(tmp,db_name.str,".",table_name.str,".",field_name.str,NullS);
+    length= (strxmov(tmp,db_name.str,".",table_name.str,".",field_name.str,
+                     NullS) - tmp);
   }
   else
   {
-    if (table_name.str[0])
-    {
-      THD *thd= current_thd;
-      tmp= (char*) thd->alloc((uint) table_name.length +
-			      field_name.length + 2);
-      strxmov(tmp, table_name.str, ".", field_name.str, NullS);
-    }
-    else
-      return field_name.str;
+    if (!table_name.str[0])
+      return field_name;
+
+    THD *thd= current_thd;
+    tmp= (char*) thd->alloc((uint) table_name.length +
+                            field_name.length + 2);
+    length= (strxmov(tmp, table_name.str, ".", field_name.str, NullS) - tmp);
   }
-  return tmp;
+  return {tmp, length};
 }
 
 void Item_ident::print(String *str, enum_query_type query_type)

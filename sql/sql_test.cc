@@ -185,8 +185,7 @@ TEST_join(JOIN *join)
       JOIN_TAB *tab= jt_range->start + i;
       for (ref= 0; ref < tab->ref.key_parts; ref++)
       {
-        const char *full_name=(tab->ref.items[ref]->full_name());
-        ref_key_parts[i].append(full_name, strlen(full_name));
+        ref_key_parts[i].append(tab->ref.items[ref]->full_name_cstring());
         ref_key_parts[i].append(STRING_WITH_LEN("  "));
       }
     }
