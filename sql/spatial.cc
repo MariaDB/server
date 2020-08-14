@@ -144,8 +144,6 @@ int MBR::within(const MBR *mbr)
 
 /***************************** Gis_class_info *******************************/
 
-String Geometry::bad_geometry_data("Bad object", &my_charset_bin);
-
 Geometry::Class_info *Geometry::ci_collection[Geometry::wkb_last+1]=
 {
   NULL, NULL, NULL, NULL, NULL, NULL, NULL
