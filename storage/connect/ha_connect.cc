@@ -3438,11 +3438,11 @@ bool ha_connect::get_error_message(int error, String* buf)
 
 		if (trace(1))
 			htrc("GEM(%d): %s\n", error, g->Message);
-
-		buf->append(ErrConvString(g->Message, strlen(g->Message),
-			&my_charset_latin1).ptr());
+                buf->append(ErrConvString(g->Message,
+                                          strlen(g->Message),
+                                          &my_charset_latin1).lex_cstring());
 	} else
-    buf->append("Cannot retrieve error message");
+          buf->append(STRING_WITH_LEN("Cannot retrieve error message"));
 
   DBUG_RETURN(false);
 } // end of get_error_message

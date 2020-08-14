@@ -394,7 +394,7 @@ void field_unpack(String *to, Field *field, const uchar *rec, uint max_length,
     if (max_length < field->pack_length())
       tmp.length(MY_MIN(tmp.length(),max_length));
     ErrConvString err(&tmp);
-    to->append(err.ptr());
+    to->append(err.lex_cstring());
   }
   else
     to->append(STRING_WITH_LEN("???"));
