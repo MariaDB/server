@@ -2999,10 +2999,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       {
         Field *field;
 	if (new_field_pack_flag <= 1)
-	  key_part->fieldnr= (uint16) find_field(share->field,
-                                                 share->default_values,
-                                                 (uint) key_part->offset,
-                                                 (uint) key_part->length);
+	  key_part->fieldnr= (field_index_t) find_field(share->field,
+                                                        share->default_values,
+                                                        (uint) key_part->offset,
+                                                        (uint) key_part->length);
 	if (!key_part->fieldnr)
           goto err;
 

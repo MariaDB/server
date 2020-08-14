@@ -11634,8 +11634,8 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
   
   for (KEY_PART_INFO *kp= table_key->key_part; kp < key_part; kp++)
   {
-    uint16 fieldnr= param->table->key_info[keynr].
-                    key_part[kp - table_key->key_part].fieldnr - 1;
+    field_index_t fieldnr= (param->table->key_info[keynr].
+                            key_part[kp - table_key->key_part].fieldnr - 1);
     if (param->table->field[fieldnr]->key_length() != kp->length)
       return FALSE;
   }

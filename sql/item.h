@@ -3322,7 +3322,7 @@ public:
     stmts for speeding up their re-execution. Holds NO_CACHED_FIELD_INDEX
     if index value is not known.
   */
-  uint16 cached_field_index;
+  field_index_t cached_field_index;
   /*
     Some Items resolved in another select should not be marked as dependency
     of the subquery where they are. During normal name resolution, we check
@@ -6690,7 +6690,7 @@ public:
   enum __attribute__((packed)) row_version_type {OLD_ROW, NEW_ROW};
   row_version_type row_version;
   /* Index of the field in the TABLE::field array */
-  uint16 field_idx;
+  field_index_t field_idx;
 
 private:
   /*

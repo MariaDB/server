@@ -36,6 +36,9 @@ class Index_statistics;
 
 class THD;
 
+/* Array index type for table.field[] */
+typedef uint16 field_index_t;
+
 typedef struct st_date_time_format {
   uchar positions[8];
   char  time_separator;			/* Separator between hour and minute */
@@ -82,10 +85,10 @@ typedef struct st_key_part_info {	/* Info about a key part */
   */
   uint16 store_length;
   uint16 key_type;
-  uint16 fieldnr;                       /* Fieldnr begins counting from 1 */
+  field_index_t fieldnr;                /* Fieldnr begins counting from 1 */
   uint16 key_part_flag;                 /* 0 or HA_REVERSE_SORT */
   uint8 type;
-  uint8 null_bit;			/* Position to null_bit */
+  uint8 null_bit;                       /* Position to null_bit */
 } KEY_PART_INFO ;
 
 class engine_option_value;
