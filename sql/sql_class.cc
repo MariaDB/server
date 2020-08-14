@@ -325,17 +325,6 @@ bool Foreign_key::validate(List<Create_field> &table_fields)
 ** Thread specific functions
 ****************************************************************************/
 
-/**
-  Get current THD object from thread local data
-
-  @retval     The THD object for the thread, NULL if not connection thread
-*/
-THD *thd_get_current_thd()
-{
-  return current_thd;
-}
-
-
 extern "C" unsigned long long thd_query_id(const MYSQL_THD thd)
 {
   return((unsigned long long)thd->query_id);

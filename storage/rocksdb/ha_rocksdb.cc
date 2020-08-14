@@ -7812,7 +7812,7 @@ int ha_rocksdb::create(const char *const name, TABLE *const table_arg,
   }
 
   // FOREIGN KEY isn't supported yet
-  THD *const thd = my_core::thd_get_current_thd();
+  THD *const thd = _current_thd();
   if (contains_foreign_key(thd)) {
     my_error(ER_NOT_SUPPORTED_YET, MYF(0),
              "FOREIGN KEY for the RocksDB storage engine");

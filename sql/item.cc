@@ -447,10 +447,10 @@ Item::Item():
   name(null_clex_str), orig_name(0), is_expensive_cache(-1)
 {
   DBUG_ASSERT(my_progname == NULL); // before main()
+  common_flags= IS_AUTO_GENERATED_NAME;
   marker= 0;
   maybe_null= with_window_func= with_field= in_rollup= with_param= 0;
   fixed= 1;
-  null_value= 0;
   join_tab_idx= MAX_TABLES;
 }
 
