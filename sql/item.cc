@@ -3193,6 +3193,12 @@ void Item_ident::print(String *str, enum_query_type query_type)
       use_db_name= use_table_name= false;
   }
 
+  if ((query_type & QT_ITEM_IDENT_DISABLE_DB_TABLE_NAMES))
+  {
+    // Don't print db or table name irrespective of any other settings.
+    use_db_name= use_table_name= false;
+  }
+
   if (!field_name.str || !field_name.str[0])
   {
     append_identifier(thd, str, STRING_WITH_LEN("tmp_field"));
