@@ -212,7 +212,7 @@ bool get_type_attributes_for_tvc(THD *thd,
     Item *item;
     for (uint holder_pos= 0 ; (item= it++); holder_pos++)
     {
-      DBUG_ASSERT(item->is_fixed());
+      DBUG_ASSERT(item->fixed());
       holders[holder_pos].add_argument(item);
     }
   }

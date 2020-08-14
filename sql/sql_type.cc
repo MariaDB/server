@@ -6984,7 +6984,7 @@ Item_temporal_precision(THD *thd, Item *item, bool is_time) const
   StringBuffer<64> buf;
   String *tmp;
   MYSQL_TIME_STATUS status;
-  DBUG_ASSERT(item->is_fixed());
+  DBUG_ASSERT(item->fixed());
   // Nanosecond rounding is not needed here, for performance purposes
   if ((tmp= item->val_str(&buf)) &&
       (is_time ?

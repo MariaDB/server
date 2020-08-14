@@ -2075,7 +2075,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   for (arg_no= 0; arg_no < argcount; arg_no++)
   {
     /* Arguments must be fixed in Item_func_sp::fix_fields */
-    DBUG_ASSERT(argp[arg_no]->is_fixed());
+    DBUG_ASSERT(argp[arg_no]->fixed());
 
     if ((err_status= (*func_ctx)->set_parameter(thd, arg_no, &(argp[arg_no]))))
       goto err_with_cleanup;

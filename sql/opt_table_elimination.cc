@@ -628,7 +628,7 @@ void eliminate_tables(JOIN *join)
     List_iterator<Item> val_it(thd->lex->value_list);
     while ((item= val_it++))
     {
-      DBUG_ASSERT(item->is_fixed());
+      DBUG_ASSERT(item->fixed());
       used_tables |= item->used_tables();
     }
   }

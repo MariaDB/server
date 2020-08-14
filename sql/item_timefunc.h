@@ -1591,7 +1591,7 @@ public:
   bool get_date(THD *thd, Item_handled_func *item,
                 MYSQL_TIME *to, date_mode_t fuzzy) const
   {
-    DBUG_ASSERT(item->is_fixed());
+    DBUG_ASSERT(item->fixed());
     Datetime::Options opt(TIME_CONV_NONE, thd);
     Datetime dt(thd, item->arguments()[0], opt);
     if (!dt.is_valid_datetime())
@@ -1625,7 +1625,7 @@ public:
   bool get_date(THD *thd, Item_handled_func *item,
                 MYSQL_TIME *to, date_mode_t fuzzy) const
   {
-    DBUG_ASSERT(item->is_fixed());
+    DBUG_ASSERT(item->fixed());
     Time t(thd, item->arguments()[0]);
     if (!t.is_valid_time())
       return (item->null_value= true);
@@ -1662,7 +1662,7 @@ public:
   bool get_date(THD *thd, Item_handled_func *item,
                 MYSQL_TIME *to, date_mode_t fuzzy) const
   {
-    DBUG_ASSERT(item->is_fixed());
+    DBUG_ASSERT(item->fixed());
     // Detect a proper timestamp type based on the argument values
     Temporal_hybrid l_time1(thd, item->arguments()[0],
                             Temporal::Options(TIME_TIME_ONLY, thd));

@@ -2126,7 +2126,7 @@ bool Item_in_subselect::fix_having(Item *having, SELECT_LEX *select_lex)
 {
   bool fix_res= 0;
   DBUG_ASSERT(thd);
-  if (!having->is_fixed())
+  if (!having->fixed())
   {
     select_lex->having_fix_field= 1;
     fix_res= having->fix_fields(thd, 0);
@@ -2466,9 +2466,9 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
     Item *item_having_part2= 0;
     for (uint i= 0; i < cols_num; i++)
     {
-      DBUG_ASSERT((left_expr->is_fixed() &&
+      DBUG_ASSERT((left_expr->fixed() &&
 
-                  select_lex->ref_pointer_array[i]->is_fixed()) ||
+                  select_lex->ref_pointer_array[i]->fixed()) ||
                   (select_lex->ref_pointer_array[i]->type() == REF_ITEM &&
                    ((Item_ref*)(select_lex->ref_pointer_array[i]))->ref_type() ==
                     Item_ref::OUTER_REF));
@@ -2537,8 +2537,8 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
     for (uint i= 0; i < cols_num; i++)
     {
       Item *item, *item_isnull;
-      DBUG_ASSERT((left_expr->is_fixed() &&
-                  select_lex->ref_pointer_array[i]->is_fixed()) ||
+      DBUG_ASSERT((left_expr->fixed() &&
+                  select_lex->ref_pointer_array[i]->fixed()) ||
                   (select_lex->ref_pointer_array[i]->type() == REF_ITEM &&
                    ((Item_ref*)(select_lex->ref_pointer_array[i]))->ref_type() ==
                     Item_ref::OUTER_REF));

@@ -3519,7 +3519,7 @@ bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol)
     DBUG_RETURN(0);
 
   vcol->expr->walk(&Item::cleanup_excluding_fields_processor, 0, 0);
-  DBUG_ASSERT(!vcol->expr->is_fixed());
+  DBUG_ASSERT(!vcol->expr->fixed());
   DBUG_RETURN(fix_vcol_expr(thd, vcol));
 }
 
@@ -3574,7 +3574,7 @@ static bool fix_and_check_vcol_expr(THD *thd, TABLE *table,
   DBUG_PRINT("info", ("vcol: %p", vcol));
   DBUG_ASSERT(func_expr);
 
-  if (func_expr->is_fixed())
+  if (func_expr->fixed())
     DBUG_RETURN(0); // nothing to do
 
   if (fix_vcol_expr(thd, vcol))
@@ -5703,7 +5703,7 @@ bool TABLE_LIST::prep_where(THD *thd, Item **conds,
 
   if (where)
   {
-    if (where->is_fixed())
+    if (where->fixed())
       where->update_used_tables();
     else if (where->fix_fields(thd, &where))
       DBUG_RETURN(TRUE);
@@ -6732,13 +6732,13 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
       ('mysql_schema_table' function). So we can return directly the
       field. This case happens only for 'show & where' commands.
     */
-    DBUG_ASSERT(field && field->is_fixed());
+    DBUG_ASSERT(field && field->fixed());
     DBUG_RETURN(field);
   }
 
   DBUG_ASSERT(field);
   thd->lex->current_select->no_wrap_view_item= TRUE;
-  if (!field->is_fixed())
+  if (!field->fixed())
   {
     if (field->fix_fields(thd, field_ref))
     {
