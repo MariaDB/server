@@ -32,13 +32,6 @@
 #include <stdarg.h>
 
 static const unsigned int PACKET_BUFFER_EXTRA_ALLOC= 1024;
-/* Declared non-static only because of the embedded library. */
-bool net_send_error_packet(THD *, uint, const char *, const char *);
-/* Declared non-static only because of the embedded library. */
-bool net_send_ok(THD *, uint, uint, ulonglong, ulonglong, const char *,
-                 bool, bool);
-/* Declared non-static only because of the embedded library. */
-bool net_send_eof(THD *thd, uint server_status, uint statement_warn_count);
 #ifndef EMBEDDED_LIBRARY
 static bool write_eof_packet(THD *, NET *, uint, uint);
 #endif
@@ -152,11 +145,11 @@ bool Protocol_binary::net_store_data_cs(const uchar *from, size_t length,
     @retval TRUE An error occurred and the message wasn't sent properly
 */
 
-bool net_send_error(THD *thd, uint sql_errno, const char *err,
-                    const char* sqlstate)
+bool Protocol::net_send_error(THD *thd, uint sql_errno, const char *err,
+                              const char* sqlstate)
 {
   bool error;
-  DBUG_ENTER("net_send_error");
+  DBUG_ENTER("Protocol::net_send_error");
 
   DBUG_ASSERT(!thd->spcont);
   DBUG_ASSERT(sql_errno);
@@ -214,11 +207,11 @@ bool net_send_error(THD *thd, uint sql_errno, const char *err,
 
 #ifndef EMBEDDED_LIBRARY
 bool
-net_send_ok(THD *thd,
-            uint server_status, uint statement_warn_count,
-            ulonglong affected_rows, ulonglong id, const char *message,
-            bool is_eof,
-            bool skip_flush)
+Protocol::net_send_ok(THD *thd,
+                      uint server_status, uint statement_warn_count,
+                      ulonglong affected_rows, ulonglong id,
+                      const char *message, bool is_eof,
+                      bool skip_flush)
 {
   NET *net= &thd->net;
   StringBuffer<MYSQL_ERRMSG_SIZE + 10> store;
@@ -226,7 +219,7 @@ net_send_ok(THD *thd,
   bool state_changed= false;
 
   bool error= FALSE;
-  DBUG_ENTER("net_send_ok");
+  DBUG_ENTER("Protocol::net_send_ok");
 
   if (! net->vio)	// hack for re-parsing queries
   {
@@ -329,11 +322,11 @@ static uchar eof_buff[1]= { (uchar) 254 };      /* Marker for end of fields */
 */    
 
 bool
-net_send_eof(THD *thd, uint server_status, uint statement_warn_count)
+Protocol::net_send_eof(THD *thd, uint server_status, uint statement_warn_count)
 {
   NET *net= &thd->net;
   bool error= FALSE;
-  DBUG_ENTER("net_send_eof");
+  DBUG_ENTER("Protocol::net_send_eof");
 
   /*
     Check if client understand new format packets (OK instead of EOF)
@@ -420,8 +413,8 @@ static bool write_eof_packet(THD *thd, NET *net,
    @retval TRUE  An error occurred and the messages wasn't sent properly
 */
 
-bool net_send_error_packet(THD *thd, uint sql_errno, const char *err,
-                           const char* sqlstate)
+bool Protocol::net_send_error_packet(THD *thd, uint sql_errno, const char *err,
+                                     const char* sqlstate)
 
 {
   NET *net= &thd->net;
@@ -434,7 +427,7 @@ bool net_send_error_packet(THD *thd, uint sql_errno, const char *err,
   char buff[2+1+SQLSTATE_LENGTH+MYSQL_ERRMSG_SIZE], *pos;
   my_bool ret;
   uint8 save_compress;
-  DBUG_ENTER("send_error_packet");
+  DBUG_ENTER("Protocol::send_error_packet");
 
   if (net->vio == 0)
   {
@@ -963,7 +956,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
   for (uint pos= 0; (item=it++); pos++)
   {
     prot.prepare_for_resend();
-    if (prot.store_field_metadata(thd, item, pos))
+    if (prot.store_item_metadata(thd, item, pos))
       goto err;
     if (prot.write())
       DBUG_RETURN(1);
@@ -1043,7 +1036,7 @@ bool Protocol::write()
 #endif /* EMBEDDED_LIBRARY */
 
 
-bool Protocol_text::store_field_metadata(THD *thd, Item *item, uint pos)
+bool Protocol_text::store_item_metadata(THD *thd, Item *item, uint pos)
 {
   Send_field field(thd, item);
   return store_field_metadata(thd, field, item->charset_for_protocol(), pos);

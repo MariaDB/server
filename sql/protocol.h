@@ -50,14 +50,13 @@ protected:
   }
 #endif
   uint field_count;
-#ifndef EMBEDDED_LIBRARY
-  bool net_store_data(const uchar *from, size_t length);
-  bool net_store_data_cs(const uchar *from, size_t length,
-                      CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
-#else
   virtual bool net_store_data(const uchar *from, size_t length);
   virtual bool net_store_data_cs(const uchar *from, size_t length,
                       CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
+  virtual bool net_send_ok(THD *, uint, uint, ulonglong, ulonglong, const char *,
+                           bool, bool);
+  virtual bool net_send_error_packet(THD *, uint, const char *, const char *);
+#ifdef EMBEDDED_LIBRARY
   char **next_field;
   MYSQL_FIELD *next_mysql_field;
   MEM_ROOT *alloc;
@@ -181,6 +180,9 @@ public:
   };
   virtual enum enum_protocol_type type()= 0;
 
+  virtual bool net_send_eof(THD *thd, uint server_status, uint statement_warn_count);
+  bool net_send_error(THD *thd, uint sql_errno, const char *err,
+                      const char* sqlstate);
   void end_statement();
 
   friend int send_answer_1(Protocol *protocol, String *s1, String *s2,
@@ -191,7 +193,7 @@ public:
 
 /** Class used for the old (MySQL 4.0 protocol). */
 
-class Protocol_text final :public Protocol
+class Protocol_text :public Protocol
 {
   StringBuffer<FLOATING_POINT_BUFFER> buffer;
   bool store_numeric_string_aux(const char *from, size_t length);
@@ -226,10 +228,10 @@ public:
 #ifdef EMBEDDED_LIBRARY
   void remove_last_row() override;
 #endif
-  bool store_field_metadata(const THD *thd, const Send_field &field,
-                            CHARSET_INFO *charset_for_protocol,
-                            uint pos);
-  bool store_field_metadata(THD *thd, Item *item, uint pos);
+  virtual bool store_field_metadata(const THD *thd, const Send_field &field,
+                                    CHARSET_INFO *charset_for_protocol,
+                                    uint pos);
+  bool store_item_metadata(THD *thd, Item *item, uint pos);
   bool store_field_metadata_for_list_fields(const THD *thd, Field *field,
                                             const TABLE_LIST *table_list,
                                             uint pos);
@@ -321,8 +323,6 @@ public:
 
 
 void send_warning(THD *thd, uint sql_errno, const char *err=0);
-bool net_send_error(THD *thd, uint sql_errno, const char *err,
-                    const char* sqlstate);
 void net_send_progress_packet(THD *thd);
 uchar *net_store_data(uchar *to,const uchar *from, size_t length);
 uchar *net_store_data(uchar *to,int32 from);

@@ -3735,6 +3735,12 @@ static MYSQL_RES * cli_use_result(MYSQL *mysql)
 }
 
 
+my_ulonglong STDCALL mysql_affected_rows(MYSQL *mysql)
+{
+  return mysql->affected_rows;
+}
+
+
 /**************************************************************************
   Return next row of the query results
 **************************************************************************/

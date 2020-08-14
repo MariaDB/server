@@ -1139,7 +1139,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
 
   for (uint pos= 0 ; (item= it++); pos++)
   {
-    if (prot.store_field_metadata(thd, item, pos))
+    if (prot.store_item_metadata(thd, item, pos))
       goto err;
   }
 
@@ -1254,8 +1254,7 @@ bool Protocol_binary::write()
     @retval FALSE Success
 */
 
-bool
-net_send_ok(THD *thd,
+bool Protocol::net_send_ok(THD *thd,
             uint server_status, uint statement_warn_count,
             ulonglong affected_rows, ulonglong id, const char *message,
             bool, bool)
@@ -1290,7 +1289,7 @@ net_send_ok(THD *thd,
 */
 
 bool
-net_send_eof(THD *thd, uint server_status, uint statement_warn_count)
+Protocol::net_send_eof(THD *thd, uint server_status, uint statement_warn_count)
 {
   bool error= write_eof_packet(thd, server_status, statement_warn_count);
   thd->cur_data= 0;
@@ -1298,8 +1297,8 @@ net_send_eof(THD *thd, uint server_status, uint statement_warn_count)
 }
 
 
-bool net_send_error_packet(THD *thd, uint sql_errno, const char *err,
-                           const char *sqlstate)
+bool Protocol::net_send_error_packet(THD *thd, uint sql_errno, const char *err,
+                                     const char *sqlstate)
 {
   uint error;
   char converted_err[MYSQL_ERRMSG_SIZE];

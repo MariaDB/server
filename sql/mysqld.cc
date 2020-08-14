@@ -2553,7 +2553,7 @@ void close_connection(THD *thd, uint sql_errno)
 
   if (sql_errno)
   {
-    net_send_error(thd, sql_errno, ER_DEFAULT(sql_errno), NULL);
+    thd->protocol->net_send_error(thd, sql_errno, ER_DEFAULT(sql_errno), NULL);
     thd->print_aborted_warning(lvl, ER_DEFAULT(sql_errno));
   }
   else
