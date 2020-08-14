@@ -2307,8 +2307,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
   if (join_having || select_lex->with_sum_func ||
       select_lex->group_list.elements)
   {
-    const char *tmp= this->full_name();
-    LEX_CSTRING field_name= {tmp, safe_strlen(tmp)};
+    LEX_CSTRING field_name= this->full_name_cstring();
     Item *item= func->create(thd, expr,
                              new (thd->mem_root) Item_ref_null_helper(
                                                       thd,

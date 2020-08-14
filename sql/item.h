@@ -1697,7 +1697,13 @@ public:
 
   virtual Field *get_tmp_table_field() { return 0; }
   virtual Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table);
-  virtual const char *full_name() const { return name.str ? name.str : "???"; }
+  inline const char *full_name() const { return full_name_cstring().str; }
+  virtual LEX_CSTRING full_name_cstring() const
+  {
+    if (name.str)
+      return name;
+    return { STRING_WITH_LEN("???") };
+  }
   const char *field_name_or_null()
   { return real_item()->type() == Item::FIELD_ITEM ? name.str : NULL; }
   const TABLE_SHARE *field_table_or_null();
@@ -3439,7 +3445,7 @@ public:
              const LEX_CSTRING &field_name_arg);
   Item_ident(THD *thd, Item_ident *item);
   Item_ident(THD *thd, TABLE_LIST *view_arg, const LEX_CSTRING &field_name_arg);
-  const char *full_name() const override;
+  LEX_CSTRING full_name_cstring() const override;
   void cleanup() override;
   st_select_lex *get_depended_from() const;
   bool remove_dependence_processor(void * arg) override;
@@ -5845,7 +5851,8 @@ public:
   /* Following methods make this item transparent as much as possible */
 
   void print(String *str, enum_query_type query_type) override;
-  const char *full_name() const override { return orig_item->full_name(); }
+  LEX_CSTRING full_name_cstring() const override
+  { return orig_item->full_name_cstring(); }
   void make_send_field(THD *thd, Send_field *field) override
   { orig_item->make_send_field(thd, field); }
   bool eq(const Item *item, bool binary_cmp) const override
