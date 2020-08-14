@@ -3816,7 +3816,7 @@ void Item_string::print(String *str, enum_query_type query_type)
         changed.
       */
       ErrConvString tmp(str_value.ptr(), str_value.length(), &my_charset_bin);
-      str->append(tmp.ptr());
+      str->append(tmp.lex_cstring());
     }
     else
     {
