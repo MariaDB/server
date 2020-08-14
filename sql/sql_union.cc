@@ -1184,11 +1184,11 @@ bool st_select_lex_unit::join_union_type_attributes(THD *thd_arg,
         been fixed yet. An Item_type_holder must be created based on a fixed
         Item, so use the inner Item instead.
       */
-      DBUG_ASSERT(item_tmp->is_fixed() ||
+      DBUG_ASSERT(item_tmp->fixed() ||
                   (item_tmp->type() == Item::REF_ITEM &&
                    ((Item_ref *)(item_tmp))->ref_type() ==
                    Item_ref::OUTER_REF));
-      if (!item_tmp->is_fixed())
+      if (!item_tmp->fixed())
         item_tmp= item_tmp->real_item();
       holders[holder_pos].add_argument(item_tmp);
     }

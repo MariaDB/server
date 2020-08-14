@@ -40,7 +40,7 @@ public:
   }
   bool fix_length_and_dec()
   {
-    set_maybe_null(0);
+    flags|= ITEM_FLAG_MAYBE_NULL;
     null_value= 0;
     decimals= 0;
     max_length= 1;

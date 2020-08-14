@@ -343,7 +343,7 @@ public:
 
   bool excl_dep_on_grouping_fields(st_select_lex *sel)
   {
-    if (has_rand_bit() || has_subquery())
+    if (has_rand_bit() || with_subquery())
       return false;
     return Item_args::excl_dep_on_grouping_fields(sel);
   }
@@ -509,14 +509,14 @@ public:
     }
     double val_real(Item_handled_func *item) const
     {
-      DBUG_ASSERT(item->is_fixed());
+      DBUG_ASSERT(item->fixed());
       StringBuffer<64> tmp;
       String *res= item->val_str(&tmp);
       return res ? item->double_from_string_with_check(res) : 0.0;
     }
     longlong val_int(Item_handled_func *item) const
     {
-      DBUG_ASSERT(item->is_fixed());
+      DBUG_ASSERT(item->fixed());
       StringBuffer<22> tmp;
       String *res= item->val_str(&tmp);
       return res ? item->longlong_from_string_with_check(res) : 0;
