@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -83,11 +83,8 @@ reduce the size of the log.
 /** Redo log system */
 log_t*	log_sys	= NULL;
 
-/** Whether to generate and require checksums on the redo log pages */
+/** Whether to require checksums on the redo log pages */
 my_bool	innodb_log_checksums;
-
-/** Pointer to the log checksum calculation function */
-log_checksum_func_t log_checksum_algorithm_ptr;
 
 /* Next log block number to do dummy record filling if no log records written
 for a while */
@@ -857,7 +854,7 @@ log_block_store_checksum(
 /*=====================*/
 	byte*	block)	/*!< in/out: pointer to a log block */
 {
-	log_block_set_checksum(block, log_block_calc_checksum(block));
+	log_block_set_checksum(block, log_block_calc_checksum_crc32(block));
 }
 
 /******************************************************//**

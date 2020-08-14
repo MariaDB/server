@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -55,12 +55,6 @@ step which modifies the database, is started */
 
 #define LOG_CHECKPOINT_FREE_PER_THREAD	(4 * UNIV_PAGE_SIZE)
 #define LOG_CHECKPOINT_EXTRA_FREE	(8 * UNIV_PAGE_SIZE)
-
-typedef ulint (*log_checksum_func_t)(const byte* log_block);
-
-/** Pointer to the log checksum calculation function. Protected with
-log_sys->mutex. */
-extern log_checksum_func_t log_checksum_algorithm_ptr;
 
 /** Append a string to the log.
 @param[in]	str		string
@@ -295,14 +289,6 @@ log_block_set_data_len(
 /*===================*/
 	byte*	log_block,	/*!< in/out: log block */
 	ulint	len);		/*!< in: data length */
-/************************************************************//**
-Calculates the checksum for a log block.
-@return checksum */
-UNIV_INLINE
-ulint
-log_block_calc_checksum(
-/*====================*/
-	const byte*	block);	/*!< in: log block */
 
 /** Calculates the checksum for a log block using the CRC32 algorithm.
 @param[in]	block	log block
@@ -311,13 +297,6 @@ UNIV_INLINE
 ulint
 log_block_calc_checksum_crc32(
 	const byte*	block);
-
-/** Calculates the checksum for a log block using the "no-op" algorithm.
-@param[in]	block	the redo log block
-@return		the calculated checksum value */
-UNIV_INLINE
-ulint
-log_block_calc_checksum_none(const byte*	block);
 
 /************************************************************//**
 Gets a log block checksum field value.
@@ -403,7 +382,7 @@ log_group_close_all(void);
 void
 log_shutdown();
 
-/** Whether to generate and require checksums on the redo log pages */
+/** Whether to require checksums on the redo log pages */
 extern my_bool	innodb_log_checksums;
 
 /* Values used as flags */

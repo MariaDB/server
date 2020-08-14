@@ -2023,10 +2023,6 @@ innodb_init_param(void)
 		srv_undo_dir = (char*) ".";
 	}
 
-	log_checksum_algorithm_ptr = innodb_log_checksums || srv_encrypt_log
-		? log_block_calc_checksum_crc32
-		: log_block_calc_checksum_none;
-
 	return(FALSE);
 
 error:

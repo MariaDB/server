@@ -1223,7 +1223,10 @@ recv_log_recover_10_3()
 			% univ_page_size.physical()),
 	       OS_FILE_LOG_BLOCK_SIZE, buf, NULL);
 
-	if (log_block_calc_checksum(buf) != log_block_get_checksum(buf)) {
+	const ulint cksum = log_block_get_checksum(buf);
+
+	if (cksum != LOG_NO_CHECKSUM_MAGIC
+	    && cksum != log_block_calc_checksum_crc32(buf)) {
 		return(DB_CORRUPTION);
 	}
 
