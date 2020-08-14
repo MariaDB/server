@@ -115,7 +115,8 @@ static bool fix_type_pointers(const char ***typelib_value_names,
                               TYPELIB *point_to_type, uint types,
                               char *names, size_t names_length);
 
-static uint find_field(Field **fields, uchar *record, uint start, uint length);
+static field_index_t find_field(Field **fields, uchar *record, uint start,
+                                uint length);
 
 inline bool is_system_table_name(const char *name, size_t length);
 
@@ -3002,10 +3003,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       {
         Field *field;
 	if (new_field_pack_flag <= 1)
-	  key_part->fieldnr= (uint16) find_field(share->field,
-                                                 share->default_values,
-                                                 (uint) key_part->offset,
-                                                 (uint) key_part->length);
+	  key_part->fieldnr= find_field(share->field,
+                                        share->default_values,
+                                        (uint) key_part->offset,
+                                        (uint) key_part->length);
 	if (!key_part->fieldnr)
           goto err;
 
@@ -4631,10 +4632,11 @@ fix_type_pointers(const char ***typelib_value_names,
    #  field number +1
 */
 
-static uint find_field(Field **fields, uchar *record, uint start, uint length)
+static field_index_t find_field(Field **fields, uchar *record, uint start,
+                                uint length)
 {
   Field **field;
-  uint i, pos;
+  field_index_t i, pos;
 
   pos= 0;
   for (field= fields, i=1 ; *field ; i++,field++)
