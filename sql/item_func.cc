@@ -375,7 +375,7 @@ Item_func::quick_fix_field()
   {
     for (arg=args, arg_end=args+arg_count; arg != arg_end ; arg++)
     {
-      if (!(*arg)->is_fixed())
+      if (!(*arg)->fixed())
         (*arg)->quick_fix_field();
     }
   }
@@ -2138,7 +2138,7 @@ class Func_handler_shift_left_int_to_ulonglong:
 public:
   Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    DBUG_ASSERT(item->is_fixed());
+    DBUG_ASSERT(item->fixed());
     return item->arguments()[0]->to_longlong_null() <<
            item->arguments()[1]->to_longlong_null();
   }
@@ -2151,7 +2151,7 @@ class Func_handler_shift_left_decimal_to_ulonglong:
 public:
   Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    DBUG_ASSERT(item->is_fixed());
+    DBUG_ASSERT(item->fixed());
     return VDec(item->arguments()[0]).to_xlonglong_null() <<
            item->arguments()[1]->to_longlong_null();
   }
@@ -2185,7 +2185,7 @@ class Func_handler_shift_right_decimal_to_ulonglong:
 public:
   Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    DBUG_ASSERT(item->is_fixed());
+    DBUG_ASSERT(item->fixed());
     return VDec(item->arguments()[0]).to_xlonglong_null() >>
            item->arguments()[1]->to_longlong_null();
   }
@@ -2206,7 +2206,7 @@ class Func_handler_bit_neg_int_to_ulonglong:
 public:
   Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    DBUG_ASSERT(item->is_fixed());
+    DBUG_ASSERT(item->fixed());
     return ~ item->arguments()[0]->to_longlong_null();
   }
 };
@@ -2218,7 +2218,7 @@ class Func_handler_bit_neg_decimal_to_ulonglong:
 public:
   Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    DBUG_ASSERT(item->is_fixed());
+    DBUG_ASSERT(item->fixed());
     return ~ VDec(item->arguments()[0]).to_xlonglong_null();
   }
 };
@@ -3370,7 +3370,7 @@ class Func_handler_bit_count_int_to_slong:
 public:
   Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    DBUG_ASSERT(item->is_fixed());
+    DBUG_ASSERT(item->fixed());
     return item->arguments()[0]->to_longlong_null().bit_count();
   }
 };
@@ -3382,7 +3382,7 @@ class Func_handler_bit_count_decimal_to_slong:
 public:
   Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    DBUG_ASSERT(item->is_fixed());
+    DBUG_ASSERT(item->fixed());
     return VDec(item->arguments()[0]).to_xlonglong_null().bit_count();
   }
 };
@@ -5718,7 +5718,7 @@ bool Item_func_get_user_var::set_value(THD *thd,
 
 bool Item_user_var_as_out_param::fix_fields(THD *thd, Item **ref)
 {
-  DBUG_ASSERT(!is_fixed());
+  DBUG_ASSERT(!fixed());
   DBUG_ASSERT(thd->lex->exchange);
   if (!(entry= get_variable(&thd->user_vars, &org_name, 1)))
     return TRUE;
@@ -6423,7 +6423,7 @@ class Func_handler_bit_xor_int_to_ulonglong:
 public:
   Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    DBUG_ASSERT(item->is_fixed());
+    DBUG_ASSERT(item->fixed());
     return item->arguments()[0]->to_longlong_null() ^
            item->arguments()[1]->to_longlong_null();
   }
@@ -6436,7 +6436,7 @@ class Func_handler_bit_xor_dec_to_ulonglong:
 public:
   Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    DBUG_ASSERT(item->is_fixed());
+    DBUG_ASSERT(item->fixed());
     return VDec(item->arguments()[0]).to_xlonglong_null() ^
            VDec(item->arguments()[1]).to_xlonglong_null();
   }

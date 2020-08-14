@@ -337,7 +337,7 @@ my_decimal *Item::val_decimal_from_real(my_decimal *decimal_value)
 
 my_decimal *Item::val_decimal_from_int(my_decimal *decimal_value)
 {
-  DBUG_ASSERT(is_fixed());
+  DBUG_ASSERT(fixed());
   longlong nr= val_int();
   if (null_value)
     return 0;
@@ -554,7 +554,7 @@ void Item::cleanup()
 
 bool Item::cleanup_processor(void *arg)
 {
-  if (is_fixed())
+  if (fixed())
     cleanup();
   return FALSE;
 }
@@ -1103,7 +1103,7 @@ bool Item::check_type_scalar(const char *opname) const
     This hack in Item_outer_ref should probably be refactored eventually.
     Discuss with Sanja.
   */
-  DBUG_ASSERT(is_fixed() || type() == REF_ITEM);
+  DBUG_ASSERT(fixed() || type() == REF_ITEM);
   const Type_handler *handler= type_handler();
   if (handler->is_scalar_type())
     return false;
@@ -1302,7 +1302,7 @@ Item *Item::const_charset_converter(THD *thd, CHARSET_INFO *tocs,
                                     const char *func_name)
 {
   DBUG_ASSERT(const_item());
-  DBUG_ASSERT(is_fixed());
+  DBUG_ASSERT(fixed());
   StringBuffer<64>tmp;
   String *s= val_str(&tmp);
   MEM_ROOT *mem_root= thd->mem_root;
@@ -1582,7 +1582,7 @@ bool Item_sp_variable::fix_fields_from_item(THD *thd, Item **, const Item *it)
 {
   m_thd= thd; /* NOTE: this must be set before any this_xxx() */
 
-  DBUG_ASSERT(it->is_fixed());
+  DBUG_ASSERT(it->fixed());
 
   max_length= it->max_length;
   decimals= it->decimals;
@@ -5382,7 +5382,7 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
                  ref->name.str, "forward reference in item list");
         return NULL;
       }
-      DBUG_ASSERT((*select_ref)->is_fixed());
+      DBUG_ASSERT((*select_ref)->fixed());
       return &select->ref_pointer_array[counter];
     }
     if (group_by_ref)
@@ -5659,7 +5659,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
         return -1; /* Some error occurred (e.g. ambiguous names). */
       if (ref != not_found_item)
       {
-        DBUG_ASSERT(*ref && (*ref)->is_fixed());
+        DBUG_ASSERT(*ref && (*ref)->fixed());
         prev_subselect_item->used_tables_and_const_cache_join(*ref);
         break;
       }
@@ -5701,7 +5701,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     Item_ref *rf;
 
     /* Should have been checked in resolve_ref_in_select_and_group(). */
-    DBUG_ASSERT(*ref && (*ref)->is_fixed());
+    DBUG_ASSERT(*ref && (*ref)->fixed());
     /*
       Here, a subset of actions performed by Item_ref::set_properties
       is not enough. So we pass ptr to NULL into Item_[direct]_ref
@@ -7700,7 +7700,7 @@ Item_ref::Item_ref(THD *thd, Name_resolution_context *context_arg,
   /*
     This constructor used to create some internals references over fixed items
   */
-  if ((set_properties_only= (ref && *ref && (*ref)->is_fixed())))
+  if ((set_properties_only= (ref && *ref && (*ref)->fixed())))
     set_properties();
 }
 
@@ -7749,7 +7749,7 @@ Item_ref::Item_ref(THD *thd, TABLE_LIST *view_arg, Item **item,
   /*
     This constructor is used to create some internal references over fixed items
   */
-  if ((set_properties_only= (ref && *ref && (*ref)->is_fixed())))
+  if ((set_properties_only= (ref && *ref && (*ref)->fixed())))
     set_properties();
 }
 
@@ -7875,7 +7875,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
             goto error; /* Some error occurred (e.g. ambiguous names). */
           if (ref != not_found_item)
           {
-            DBUG_ASSERT(*ref && (*ref)->is_fixed());
+            DBUG_ASSERT(*ref && (*ref)->fixed());
             prev_subselect_item->used_tables_and_const_cache_join(*ref);
             break;
           }
@@ -7998,7 +7998,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
         goto error;
       }
       /* Should be checked in resolve_ref_in_select_and_group(). */
-      DBUG_ASSERT(*ref && (*ref)->is_fixed());
+      DBUG_ASSERT(*ref && (*ref)->fixed());
       mark_as_dependent(thd, last_checked_context->select_lex,
                         context->select_lex, this, this);
       /*
@@ -8026,7 +8026,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       (((*ref)->with_sum_func() && name.str &&
         !(current_sel->get_linkage() != GLOBAL_OPTIONS_TYPE &&
           current_sel->having_fix_field)) ||
-       !(*ref)->is_fixed()))
+       !(*ref)->fixed()))
   {
     my_error(ER_ILLEGAL_REFERENCE, MYF(0),
              name.str, ((*ref)->with_sum_func() ?
@@ -8542,7 +8542,7 @@ Item_cache_wrapper::~Item_cache_wrapper()
 Item_cache_wrapper::Item_cache_wrapper(THD *thd, Item *item_arg):
   Item_result_field(thd), orig_item(item_arg), expr_cache(NULL), expr_value(NULL)
 {
-  DBUG_ASSERT(orig_item->is_fixed());
+  DBUG_ASSERT(orig_item->fixed());
   Type_std_attributes::set(orig_item);
 
   flags|= ITEM_FLAG_FIXED |
@@ -8606,7 +8606,7 @@ void Item_cache_wrapper::print(String *str, enum_query_type query_type)
 bool Item_cache_wrapper::fix_fields(THD *thd  __attribute__((unused)),
                                     Item **it __attribute__((unused)))
 {
-  DBUG_ASSERT(orig_item->is_fixed());
+  DBUG_ASSERT(orig_item->fixed());
   DBUG_ASSERT(fixed());
   return FALSE;
 }
@@ -8989,7 +8989,7 @@ bool Item_direct_view_ref::fix_fields(THD *thd, Item **reference)
   /* view fild reference must be defined */
   DBUG_ASSERT(*ref);
   /* (*ref)->check_cols() will be made in Item_direct_ref::fix_fields */
-  if ((*ref)->is_fixed())
+  if ((*ref)->fixed())
   {
     Item *ref_item= (*ref)->real_item();
     if (ref_item->type() == Item::FIELD_ITEM)
@@ -9591,7 +9591,7 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
 {
   DBUG_ASSERT(fixed() == 0);
   /* We should only check that arg is in first table */
-  if (!arg->is_fixed())
+  if (!arg->fixed())
   {
     bool res;
     TABLE_LIST *orig_next_table= context->last_name_resolution_table;
@@ -10111,7 +10111,7 @@ bool Item_cache_timestamp::val_native(THD *thd, Native *to)
 
 Datetime Item_cache_timestamp::to_datetime(THD *thd)
 {
-  DBUG_ASSERT(is_fixed() == 1);
+  DBUG_ASSERT(fixed() == 1);
   if (!has_value())
   {
     null_value= true;

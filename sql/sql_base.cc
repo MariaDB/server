@@ -8971,7 +8971,7 @@ int init_ftfuncs(THD *thd, SELECT_LEX *select_lex, bool no_order)
     Item_func_match *ifm;
 
     while ((ifm=li++))
-      if (unlikely(!ifm->is_fixed()))
+      if (unlikely(!ifm->fixed()))
         /*
           it mean that clause where was FT function was removed, so we have
           to remove the function from the list.
