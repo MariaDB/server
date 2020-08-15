@@ -407,10 +407,6 @@ ADD_CUSTOM_TARGET(distclean
 
 IF(INSTALL_LAYOUT STREQUAL "STANDALONE")
 
-# Copy db.opt into data/test/
-SET(DBOPT_FILE ${CMAKE_SOURCE_DIR}/support-files/db.opt ) 
-INSTALL(FILES ${DBOPT_FILE} DESTINATION data/test COMPONENT DataFiles)
-
 # Install initial database on windows
 IF(WIN32 AND TARGET mysqld AND NOT CMAKE_CROSSCOMPILING)
 
