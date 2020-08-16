@@ -15,7 +15,7 @@
 
 MY_ADD_TESTS(bitmap base64 my_atomic my_rdtsc lf my_malloc my_getopt dynstring
              aes
-             queues LINK_LIBRARIES mysys)
+             queues stacktrace LINK_LIBRARIES mysys)
 MY_ADD_TESTS(my_vsnprintf LINK_LIBRARIES strings mysys)
 
 ADD_DEFINITIONS(${SSL_DEFINES})

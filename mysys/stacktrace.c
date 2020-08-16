@@ -34,107 +34,16 @@
 #include <execinfo.h>
 #endif
 
-#ifdef __linux__
-#define PTR_SANE(p) ((p) && (char*)(p) >= heap_start && (char*)(p) <= heap_end)
-static char *heap_start;
-char *__bss_start;
-#else
-#define PTR_SANE(p) (p)
-#endif /* __linux */
-
 void my_init_stacktrace()
 {
-#ifdef __linux__
-  heap_start = (char*) &__bss_start;
-#endif /* __linux__ */
 }
 
-#ifdef __linux__
-
-static void print_buffer(char *buffer, size_t count)
-{
-  const char s[]= " ";
-  for (; count && *buffer; --count)
-  {
-    my_write_stderr(isprint(*buffer) ? buffer : s, 1);
-    ++buffer;
-  }
-}
-
-/**
-  Access the pages of this process through /proc/self/task/<tid>/mem
-  in order to safely print the contents of a memory address range.
-
-  @param  addr      The address at the start of the memory region.
-  @param  max_len   The length of the memory region.
-
-  @return Zero on success.
-*/
-static int safe_print_str(const char *addr, int max_len)
-{
-  int fd;
-  pid_t tid;
-  off_t offset;
-  ssize_t nbytes= 0;
-  size_t total, count;
-  char buf[256];
-
-  tid= (pid_t) syscall(SYS_gettid);
-
-  sprintf(buf, "/proc/self/task/%d/mem", tid);
-
-  if ((fd= open(buf, O_RDONLY)) < 0)
-    return -1;
-
-  /* Ensure that off_t can hold a pointer. */
-  compile_time_assert(sizeof(off_t) >= sizeof(intptr));
-
-  total= max_len;
-  offset= (intptr) addr;
-
-  /* Read up to the maximum number of bytes. */
-  while (total)
-  {
-    count= MY_MIN(sizeof(buf), total);
-
-    if ((nbytes= pread(fd, buf, count, offset)) < 0)
-    {
-      /* Just in case... */
-      if (errno == EINTR)
-        continue;
-      else
-        break;
-    }
-
-    /* Advance offset into memory. */
-    total-= nbytes;
-    offset+= nbytes;
-    addr+= nbytes;
-
-    /* Output the printable characters. */
-    print_buffer(buf, nbytes);
-
-    /* Break if less than requested... */
-    if ((count - nbytes))
-      break;
-  }
-
-  if (nbytes == -1)
-    my_safe_printf_stderr("Can't read from address %p", addr);
-
-  close(fd);
-
-  return 0;
-}
-
-#endif
 
 /*
   Attempt to print a char * pointer as a string.
 
   SYNOPSIS
-    Prints either until the end of string ('\0'), or max_len characters have
-    been printed.
+    Prints until  max_len characters have been printed.
 
   RETURN VALUE
     0  Pointer was within the heap address space.
@@ -149,24 +58,25 @@ static int safe_print_str(const char *addr, int max_len)
 
 int my_safe_print_str(const char* val, int max_len)
 {
-#ifdef __linux__
-  char *heap_end;
-
-  // Try and make use of /proc filesystem to safely print memory contents.
-  if (!safe_print_str(val, max_len))
-    return 0;
-
-  heap_end= (char*) sbrk(0);
-#endif
-
-  if (!PTR_SANE(val))
+  const char *orig_val= val;
+  if (!val)
   {
-    my_safe_printf_stderr("%s", "is an invalid pointer");
+    my_safe_printf_stderr("%s", "(null)");
     return 1;
   }
 
-  for (; max_len && PTR_SANE(val) && *val; --max_len)
-    my_write_stderr((val++), 1);
+  for (; max_len; --max_len)
+  {
+    if (my_write_stderr((val++), 1) != 1)
+    {
+      if ((errno == EFAULT) &&(val == orig_val + 1))
+      {
+        // We can not read the address from very beginning
+        my_safe_printf_stderr("Can't access address %p", orig_val);
+      }
+      break;
+    }
+  }
   my_safe_printf_stderr("%s", "\n");
 
   return 0;
