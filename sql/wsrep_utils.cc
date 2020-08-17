@@ -417,7 +417,7 @@ process::wait ()
   return err_;
 }
 
-thd::thd (my_bool won) : init(), ptr(new THD(0))
+thd::thd (my_bool won, bool system_thread) : init(), ptr(new THD(0))
 {
   if (ptr)
   {
@@ -426,6 +426,8 @@ thd::thd (my_bool won) : init(), ptr(new THD(0))
     wsrep_store_threadvars(ptr);
     ptr->variables.option_bits&= ~OPTION_BIN_LOG; // disable binlog
     ptr->variables.wsrep_on= won;
+    if (system_thread)
+      ptr->system_thread= SYSTEM_THREAD_GENERIC;
     ptr->security_ctx->master_access= ALL_KNOWN_ACL;
     lex_start(ptr);
   }
