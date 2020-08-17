@@ -293,29 +293,28 @@ static bool buf_flush_or_remove_page(buf_page_t *bpage, bool flush)
 
 	bool		processed = false;
 
-	/* We have to release the flush_list_mutex to obey the
-	latching order. We are however guaranteed that the page
-	will stay in the flush_list and won't be relocated because
-	buf_flush_remove() and buf_flush_relocate_on_flush_list()
-	need buf_pool.mutex as well. */
-
-	mutex_exit(&buf_pool.flush_list_mutex);
-
 	ut_ad(bpage->oldest_modification());
 
 	if (!flush) {
 		buf_flush_remove(bpage);
 		processed = true;
 	} else if (bpage->ready_for_flush()) {
+		/* We have to release the flush_list_mutex to obey the
+		latching order. We are however guaranteed that the page
+		will stay in the flush_list and won't be relocated because
+		buf_flush_remove() and buf_flush_relocate_on_flush_list()
+		need buf_pool.mutex as well. */
+
+		mutex_exit(&buf_pool.flush_list_mutex);
+
 		processed = buf_flush_page(bpage, IORequest::SINGLE_PAGE,
 					   nullptr, false);
 
 		if (processed) {
 			mutex_enter(&buf_pool.mutex);
 		}
+		mutex_enter(&buf_pool.flush_list_mutex);
 	}
-
-	mutex_enter(&buf_pool.flush_list_mutex);
 
 	ut_ad(mutex_own(&buf_pool.mutex));
 
@@ -1298,25 +1297,35 @@ func_exit:
 		hash_lock->write_unlock();
 	}
 
-	mutex_exit(&buf_pool.mutex);
-
-	/* Remove possible adaptive hash index on the page.
-	The page was declared uninitialized by
-	buf_LRU_block_remove_hashed().  We need to flag
-	the contents of the page valid (which it still is) in
-	order to avoid bogus Valgrind or MSAN warnings.*/
 	buf_block_t* block = reinterpret_cast<buf_block_t*>(bpage);
 
-	MEM_MAKE_DEFINED(block->frame, srv_page_size);
-	btr_search_drop_page_hash_index(block);
-	MEM_UNDEFINED(block->frame, srv_page_size);
+#ifdef BTR_CUR_HASH_ADAPT
+	if (block->index) {
+		mutex_exit(&buf_pool.mutex);
 
+		/* Remove the adaptive hash index on the page.
+		The page was declared uninitialized by
+		buf_LRU_block_remove_hashed().  We need to flag
+		the contents of the page valid (which it still is) in
+		order to avoid bogus Valgrind or MSAN warnings.*/
+
+		MEM_MAKE_DEFINED(block->frame, srv_page_size);
+		btr_search_drop_page_hash_index(block);
+		MEM_UNDEFINED(block->frame, srv_page_size);
+
+		if (UNIV_LIKELY_NULL(b)) {
+			ut_ad(b->zip_size());
+			b->io_unfix();
+		}
+
+		mutex_enter(&buf_pool.mutex);
+	} else
+#endif
 	if (UNIV_LIKELY_NULL(b)) {
 		ut_ad(b->zip_size());
 		b->io_unfix();
 	}
 
-	mutex_enter(&buf_pool.mutex);
 	buf_LRU_block_free_hashed_page(block);
 
 	return(true);

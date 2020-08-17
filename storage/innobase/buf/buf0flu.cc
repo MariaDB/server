@@ -424,7 +424,7 @@ void buf_flush_remove(buf_page_t* bpage)
 	}
 #endif
 	ut_ad(mutex_own(&buf_pool.mutex));
-	mutex_enter(&buf_pool.flush_list_mutex);
+	ut_ad(mutex_own(&buf_pool.flush_list_mutex));
 
 	/* Important that we adjust the hazard pointer before removing
 	the bpage from flush list. */
@@ -451,8 +451,6 @@ void buf_flush_remove(buf_page_t* bpage)
 #ifdef UNIV_DEBUG
 	buf_flush_validate_skip();
 #endif /* UNIV_DEBUG */
-
-	mutex_exit(&buf_pool.flush_list_mutex);
 }
 
 /*******************************************************************//**
@@ -527,7 +525,9 @@ static void buf_flush_write_complete(buf_page_t *bpage,
                                      IORequest::flush_t flush_type, bool dblwr)
 {
   ut_ad(mutex_own(&buf_pool.mutex));
+  mutex_enter(&buf_pool.flush_list_mutex);
   buf_flush_remove(bpage);
+  mutex_exit(&buf_pool.flush_list_mutex);
 
   switch (--buf_pool.n_flush[flush_type]) {
 #ifdef UNIV_DEBUG
@@ -986,7 +986,9 @@ static void buf_release_freed_page(buf_page_t *bpage)
   mutex_enter(&buf_pool.mutex);
   bpage->set_io_fix(BUF_IO_NONE);
   bpage->status= buf_page_t::NORMAL;
+  mutex_enter(&buf_pool.flush_list_mutex);
   buf_flush_remove(bpage);
+  mutex_exit(&buf_pool.flush_list_mutex);
 
   if (uncompressed)
     rw_lock_sx_unlock_gen(&reinterpret_cast<buf_block_t*>(bpage)->lock,
@@ -1659,47 +1661,6 @@ static ulint buf_do_flush_list_batch(ulint min_n, lsn_t lsn_limit)
   return count;
 }
 
-/** This utility flushes dirty blocks from the end of the LRU list or
-flush_list.
-NOTE 1: in the case of an LRU flush the calling thread may own latches to
-pages: to avoid deadlocks, this function must be written so that it cannot
-end up waiting for these latches! NOTE 2: in the case of a flush list flush,
-the calling thread is not allowed to own any latches on pages!
-@param[in]	lru		true=LRU; false=FLUSH_LIST;
-if !lru, then the caller must not own any latches on pages
-@param[in]	min_n		wished minimum mumber of blocks flushed (it is
-not guaranteed that the actual number is that big, though)
-@param[in]	lsn_limit	in the case of !lru all blocks whose
-@param[out]	n		counts of flushed and evicted pages
-oldest_modification is smaller than this should be flushed (if their number
-does not exceed min_n), otherwise ignored */
-static
-void
-buf_flush_batch(
-	bool			lru,
-	ulint			min_n,
-	lsn_t			lsn_limit,
-	flush_counters_t*	n)
-{
-	ut_ad(lru || !sync_check_iterate(dict_sync_check()));
-
-	mutex_enter(&buf_pool.mutex);
-
-	/* Note: The buffer pool mutex is released and reacquired within
-	the flush functions. */
-	if (lru) {
-		buf_do_LRU_batch(min_n, n);
-	} else {
-		n->flushed = buf_do_flush_list_batch(min_n, lsn_limit);
-		n->evicted = 0;
-	}
-
-	mutex_exit(&buf_pool.mutex);
-
-	DBUG_PRINT("ib_buf",
-		   (lru ? "LRU flush completed" : "flush_list completed"));
-}
-
 /******************************************************************//**
 Gather the aggregated stats for both flush list and LRU list flushing.
 @param page_count_flush	number of pages flushed from the end of the flush_list
@@ -1718,48 +1679,6 @@ buf_flush_stats(
 			      unsigned(page_count_LRU)));
 
 	srv_stats.buf_pool_flushed.add(page_count_flush + page_count_LRU);
-}
-
-/** Start a buffer flush batch for LRU or flush list
-@param[in]	lru	true=buf_pool.LRU; false=buf_pool.flush_list
-@return	whether the flush batch was started (was not already running) */
-static bool buf_flush_start(bool lru)
-{
-  IORequest::flush_t flush_type= lru ? IORequest::LRU : IORequest::FLUSH_LIST;
-  mutex_enter(&buf_pool.mutex);
-
-  if (buf_pool.n_flush[flush_type] > 0 || buf_pool.init_flush[flush_type])
-  {
-    /* There is already a flush batch of the same type running */
-    mutex_exit(&buf_pool.mutex);
-    return false;
-  }
-
-  buf_pool.init_flush[flush_type]= true;
-  os_event_reset(buf_pool.no_flush[flush_type]);
-  mutex_exit(&buf_pool.mutex);
-  return true;
-}
-
-/** End a buffer flush batch.
-@param[in]	lru	true=buf_pool.LRU; false=buf_pool.flush_list */
-static void buf_flush_end(bool lru)
-{
-  IORequest::flush_t flush_type= lru ? IORequest::LRU : IORequest::FLUSH_LIST;
-
-  mutex_enter(&buf_pool.mutex);
-
-  buf_pool.init_flush[flush_type]= false;
-  buf_pool.try_LRU_scan= true;
-
-  if (!buf_pool.n_flush[flush_type])
-    /* The running flush batch has ended */
-    os_event_set(buf_pool.no_flush[flush_type]);
-
-  mutex_exit(&buf_pool.mutex);
-
-  if (!srv_read_only_mode)
-    buf_dblwr_flush_buffered_writes();
 }
 
 /** Wait until a flush batch ends.
@@ -1787,15 +1706,47 @@ passed back to caller. Ignored if NULL
 bool buf_flush_do_batch(bool lru, ulint min_n, lsn_t lsn_limit,
                         flush_counters_t *n)
 {
+  ut_ad(lru || !sync_check_iterate(dict_sync_check()));
+
   if (n)
     n->flushed= 0;
 
-  if (!buf_flush_start(lru))
+  IORequest::flush_t flush_type= lru ? IORequest::LRU : IORequest::FLUSH_LIST;
+  mutex_enter(&buf_pool.mutex);
+
+  if (buf_pool.n_flush[flush_type] > 0 || buf_pool.init_flush[flush_type])
+  {
+    /* There is already a flush batch of the same type running */
+    mutex_exit(&buf_pool.mutex);
     return false;
+  }
 
-  buf_flush_batch(lru, min_n, lsn_limit, n);
-  buf_flush_end(lru);
+  buf_pool.init_flush[flush_type]= true;
+  os_event_reset(buf_pool.no_flush[flush_type]);
 
+  /* Note: The buffer pool mutex is released and reacquired within
+  the flush functions. */
+  if (lru)
+    buf_do_LRU_batch(min_n, n);
+  else
+  {
+    n->flushed= buf_do_flush_list_batch(min_n, lsn_limit);
+    n->evicted= 0;
+  }
+
+  buf_pool.init_flush[flush_type]= false;
+  buf_pool.try_LRU_scan= true;
+
+  if (!buf_pool.n_flush[flush_type])
+    /* The running flush batch has ended */
+    os_event_set(buf_pool.no_flush[flush_type]);
+
+  mutex_exit(&buf_pool.mutex);
+
+  if (!srv_read_only_mode)
+    buf_dblwr_flush_buffered_writes();
+
+  DBUG_PRINT("ib_buf", (lru ? "LRU flush completed" : "flush_list completed"));
   return true;
 }
 
