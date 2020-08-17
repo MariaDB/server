@@ -2746,7 +2746,7 @@ void recv_sys_t::apply(bool last_batch)
     mutex_enter(&writer_mutex);
 
     /* Wait for any currently run batch to end. */
-    buf_flush_wait_LRU_batch_end();
+    buf_flush_wait_batch_end_acquiring_mutex(true);
 
     os_event_reset(flush_end);
     flush_lru= false;
@@ -3651,7 +3651,7 @@ recv_recovery_from_checkpoint_finish(void)
 	/* By acquring the mutex we ensure that the recv_writer thread
 	won't trigger any more LRU batches. Now wait for currently
 	in progress batches to finish. */
-	buf_flush_wait_LRU_batch_end();
+	buf_flush_wait_batch_end_acquiring_mutex(true);
 
 	mutex_exit(&recv_sys.writer_mutex);
 

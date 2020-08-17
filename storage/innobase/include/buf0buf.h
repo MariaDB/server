@@ -1946,22 +1946,17 @@ public:
   /** mutex protecting flush_list, buf_page_t::set_oldest_modification()
   and buf_page_t::list pointers when !oldest_modification() */
   mysql_mutex_t flush_list_mutex;
-	FlushHp			flush_hp;/*!< "hazard pointer"
-					used during scan of flush_list
-					while doing flush list batch.
-					Protected by flush_list_mutex */
-	UT_LIST_BASE_NODE_T(buf_page_t) flush_list;
-					/*!< base node of the modified block
-					list */
-	/** Number of pending or initiated writes of a flush type.
-	The sum of these is approximately the sum of BUF_IO_WRITE blocks. */
-	Atomic_counter<ulint> n_flush[3];
-	os_event_t	no_flush[3];
-					/*!< this is in the set state
-					when there is no flush batch
-					of the given type running;
-					os_event_set() and os_event_reset()
-					are protected by buf_pool_t::mutex */
+  /** "hazard pointer" for flush_list scans; protected by flush_list_mutex */
+  FlushHp flush_hp;
+  /** modified blocks (a subset of LRU) */
+  UT_LIST_BASE_NODE_T(buf_page_t) flush_list;
+
+  /** Number of pending or initiated writes of a flush type.
+  The sum of these is approximately the sum of BUF_IO_WRITE blocks
+  in flush_list. */
+  Atomic_counter<ulint> n_flush[3];
+  /** signalled when n_flush[] reaches 0; protected by mutex */
+  mysql_cond_t no_flush[3];
 	ib_rbt_t*	flush_rbt;	/*!< a red-black tree is used
 					exclusively during recovery to
 					speed up insertions in the

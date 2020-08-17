@@ -156,8 +156,8 @@ buf_flush_note_modification(
 /** Initialize page_cleaner. */
 void buf_flush_page_cleaner_init();
 
-/** Wait for any possible LRU flushes to complete. */
-void buf_flush_wait_LRU_batch_end();
+/** Wait for pending flushes to complete. */
+void buf_flush_wait_batch_end_acquiring_mutex(bool lru);
 
 #ifdef UNIV_DEBUG
 /** Validate the flush list. */

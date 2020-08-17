@@ -524,7 +524,7 @@ static void buf_flush_write_complete(buf_page_t *bpage,
   ut_ad(buf_pool.n_flush[flush_type]);
 
   if (1 == buf_pool.n_flush[flush_type]--)
-    os_event_set(buf_pool.no_flush[flush_type]);
+    mysql_cond_signal(&buf_pool.no_flush[flush_type]);
 
   if (dblwr)
     buf_dblwr_update(*bpage, flush_type == IORequest::SINGLE_PAGE);
@@ -1086,9 +1086,8 @@ bool buf_flush_page(buf_page_t *bpage, IORequest::flush_t flush_type,
   is protected even if !rw_lock. */
   const auto status= bpage->status;
 
-  if (status != buf_page_t::FREED &&
-      0 == buf_pool.n_flush[flush_type]++)
-    os_event_reset(buf_pool.no_flush[flush_type]);
+  if (status != buf_page_t::FREED)
+    buf_pool.n_flush[flush_type]++;
 
   page_t *frame= bpage->zip.data;
   size_t size, orig_size;
@@ -1663,8 +1662,13 @@ buf_flush_stats(
 void buf_flush_wait_batch_end(bool lru)
 {
   thd_wait_begin(nullptr, THD_WAIT_DISKIO);
-  os_event_wait(buf_pool.no_flush[lru
-                                  ? IORequest::LRU : IORequest::FLUSH_LIST]);
+  if (lru)
+    while (buf_pool.n_flush[IORequest::LRU])
+      mysql_cond_wait(&buf_pool.no_flush[IORequest::LRU], &buf_pool.mutex);
+  else
+    while (buf_pool.n_flush[IORequest::FLUSH_LIST])
+      mysql_cond_wait(&buf_pool.no_flush[IORequest::FLUSH_LIST],
+                      &buf_pool.mutex);
   thd_wait_end(nullptr);
 }
 
@@ -1703,7 +1707,6 @@ bool buf_flush_do_batch(bool lru, ulint min_n, lsn_t lsn_limit,
   }
 
   buf_pool.n_flush[flush_type]++;
-  os_event_reset(buf_pool.no_flush[flush_type]);
 
   /* Note: The buffer pool mutex is released and reacquired within
   the flush functions. */
@@ -1718,7 +1721,7 @@ bool buf_flush_do_batch(bool lru, ulint min_n, lsn_t lsn_limit,
   buf_pool.try_LRU_scan= true;
 
   if (1 == buf_pool.n_flush[flush_type]--)
-    os_event_set(buf_pool.no_flush[flush_type]);
+    mysql_cond_signal(&buf_pool.no_flush[flush_type]);
 
   mysql_mutex_unlock(&buf_pool.mutex);
 
@@ -1900,11 +1903,15 @@ static ulint buf_flush_LRU_list()
 	return(n.flushed);
 }
 
-/** Wait for any possible LRU flushes to complete. */
-void buf_flush_wait_LRU_batch_end()
+/** Wait for pending flushes to complete. */
+void buf_flush_wait_batch_end_acquiring_mutex(bool lru)
 {
-  if (buf_pool.n_flush[IORequest::LRU])
-    buf_flush_wait_batch_end(true);
+  if (buf_pool.n_flush[lru ? IORequest::LRU : IORequest::FLUSH_LIST])
+  {
+    mysql_mutex_lock(&buf_pool.mutex);
+    buf_flush_wait_batch_end(lru);
+    mysql_mutex_unlock(&buf_pool.mutex);
+  }
 }
 
 /*********************************************************************//**
@@ -2740,8 +2747,8 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 	considering end of that batch as a finish of our final
 	sweep and we'll come out of the loop leaving behind dirty pages
 	in the flush_list */
-	buf_flush_wait_batch_end(false);
-	buf_flush_wait_LRU_batch_end();
+	buf_flush_wait_batch_end_acquiring_mutex(false);
+	buf_flush_wait_batch_end_acquiring_mutex(true);
 
 	bool	success;
 
@@ -2756,9 +2763,8 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 
 		n_flushed = n_flushed_lru + n_flushed_list;
 
-		buf_flush_wait_batch_end(false);
-		buf_flush_wait_LRU_batch_end();
-
+		buf_flush_wait_batch_end_acquiring_mutex(false);
+		buf_flush_wait_batch_end_acquiring_mutex(true);
 	} while (!success || n_flushed > 0);
 
 	/* Some sanity checks */
@@ -2812,7 +2818,7 @@ void buf_flush_sync()
 	bool success;
 	do {
 		success = buf_flush_lists(ULINT_MAX, LSN_MAX, NULL);
-		buf_flush_wait_batch_end(false);
+		buf_flush_wait_batch_end_acquiring_mutex(false);
 	} while (!success);
 }
 

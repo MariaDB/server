@@ -1091,7 +1091,7 @@ static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 		do {
 			ulint n_pages = 0;
 			success = buf_flush_lists(ULINT_MAX, end_lsn, &n_pages);
-			buf_flush_wait_batch_end(false);
+			buf_flush_wait_batch_end_acquiring_mutex(false);
 			sum_pages += n_pages;
 		} while (!success);
 
@@ -1975,7 +1975,7 @@ fil_crypt_flush_space(
 
 		do {
 			success = buf_flush_lists(ULINT_MAX, end_lsn, &n_pages);
-			buf_flush_wait_batch_end(false);
+			buf_flush_wait_batch_end_acquiring_mutex(false);
 			sum_pages += n_pages;
 		} while (!success && !space->is_stopping());
 

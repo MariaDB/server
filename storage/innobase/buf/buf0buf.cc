@@ -1576,7 +1576,7 @@ bool buf_pool_t::create()
                    MY_MUTEX_INIT_FAST);
 
   for (int i= 0; i < 3; i++)
-    no_flush[i]= os_event_create(0);
+    mysql_cond_init(0, &no_flush[i], nullptr);
 
   try_LRU_scan= true;
 
@@ -1643,7 +1643,7 @@ void buf_pool_t::close()
   }
 
   for (int i= 0; i < 3; ++i)
-    os_event_destroy(no_flush[i]);
+    mysql_cond_destroy(&no_flush[i]);
 
   ut_free(chunks);
   chunks= nullptr;
@@ -1870,7 +1870,7 @@ inline bool buf_pool_t::withdraw_blocks()
 				scan_depth);
 
 			buf_flush_do_batch(true, scan_depth, 0, &n);
-			buf_flush_wait_batch_end(true);
+			buf_flush_wait_batch_end_acquiring_mutex(true);
 
 			if (n.flushed) {
 				MONITOR_INC_VALUE_CUMULATIVE(
@@ -4389,17 +4389,8 @@ void buf_pool_invalidate()
 	mysql_mutex_lock(&buf_pool.mutex);
 	ut_ad(!buf_pool.n_flush[IORequest::SINGLE_PAGE]);
 
-	if (buf_pool.n_flush[IORequest::LRU]) {
-		mysql_mutex_unlock(&buf_pool.mutex);
-		buf_flush_wait_batch_end(true);
-		mysql_mutex_lock(&buf_pool.mutex);
-	}
-
-	if (buf_pool.n_flush[IORequest::FLUSH_LIST]) {
-		mysql_mutex_unlock(&buf_pool.mutex);
-		buf_flush_wait_batch_end(false);
-		mysql_mutex_lock(&buf_pool.mutex);
-	}
+	buf_flush_wait_batch_end(true);
+	buf_flush_wait_batch_end(false);
 
 	/* It is possible that a write batch that has been posted
 	earlier is still not complete. For buffer pool invalidation to
