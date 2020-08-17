@@ -39,8 +39,12 @@ static pthread_mutex_t sf_mutex;
 static int init_done= 0;
 
 #ifndef SF_REMEMBER_FRAMES
+#ifdef USE_MYSYS_NEW
+#define SF_REMEMBER_FRAMES 14
+#else
 #define SF_REMEMBER_FRAMES 8
-#endif
+#endif /* USE_MYSYS_NEW */
+#endif /* SF_REMEMBER_FRAMES */
 
 /* ignore the first two frames (sf_malloc itself, and my_malloc) */
 #define SF_FRAMES_SKIP          2

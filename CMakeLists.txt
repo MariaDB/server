@@ -362,7 +362,8 @@ ENDIF()
 # Run platform tests
 INCLUDE(configure.cmake)
 
-# force -DUSE_MYSYS_NEW unless already done by HAVE_CXX_NEW
+# Use mysys/my_new.cc if '#include <new>'  doesn't work.
+# One can also specify -DUSE_MYSYS_NEW explicitly, see mysys/my_new.cc
 IF(NOT HAVE_CXX_NEW)
   ADD_DEFINITIONS(-DUSE_MYSYS_NEW)
 ENDIF()
