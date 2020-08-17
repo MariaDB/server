@@ -367,10 +367,8 @@ ENDIF()
 # Run platform tests
 INCLUDE(configure.cmake)
 
-# force -DUSE_MYSYS_NEW unless already done by HAVE_CXX_NEW
-IF(NOT HAVE_CXX_NEW)
-  ADD_DEFINITIONS(-DUSE_MYSYS_NEW)
-ENDIF()
+# Always use USE_MYSYS_NEW
+ADD_DEFINITIONS(-DUSE_MYSYS_NEW)
 
 # Find header files from the bundled libraries
 # (wolfssl, readline, pcre2, etc)
