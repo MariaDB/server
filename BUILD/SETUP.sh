@@ -276,7 +276,7 @@ then
   CCACHE_GCOV_VERSION_ENABLED=1
 fi
 
-if ccache -V > /dev/null 2>&1 && test "$CCACHE_GCOV_VERSION_ENABLED" = "1"
+if ccache -V > /dev/null 2>&1 && test "$CCACHE_GCOV_VERSION_ENABLED" = "1" && "$CC" = "gcc"
 then
     if test -x /usr/lib64/ccache/gcc
     then
