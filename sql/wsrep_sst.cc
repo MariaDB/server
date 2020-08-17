@@ -1,4 +1,4 @@
-/* Copyright 2008-2015 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2020 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -186,7 +186,6 @@ bool wsrep_before_SE()
 
 static bool            sst_complete = false;
 static bool            sst_needed   = false;
-static bool            sst_in_progress = false;
 
 #define WSREP_EXTEND_TIMEOUT_INTERVAL 30
 #define WSREP_TIMEDWAIT_SECONDS 10
@@ -1548,11 +1547,11 @@ static void* sst_donor_thread (void* a)
   wsrep_uuid_t  ret_uuid= WSREP_UUID_UNDEFINED;
   // seqno of complete SST
   wsrep_seqno_t ret_seqno= WSREP_SEQNO_UNDEFINED;
-  // SST is now in progress
-  sst_in_progress= true;
 
-  wsp::thd thd(FALSE); // we turn off wsrep_on for this THD so that it can
-                       // operate with wsrep_ready == OFF
+  // We turn off wsrep_on for this THD so that it can
+  // operate with wsrep_ready == OFF
+  // We also set this SST thread THD as system thread
+  wsp::thd thd(FALSE, true);
   wsp::process proc(arg->cmd, "r", arg->env);
 
   err= proc.error();
@@ -1650,8 +1649,6 @@ wait_signal:
   };
   wsrep->sst_sent (wsrep, &state_id, -err);
   proc.wait();
-
-  sst_in_progress= false;
 
   return NULL;
 }
@@ -1826,9 +1823,4 @@ void wsrep_SE_init_done()
 void wsrep_SE_initialized()
 {
   SE_initialized = true;
-}
-
-bool wsrep_is_sst_progress()
-{
-  return (sst_in_progress);
 }
