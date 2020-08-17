@@ -525,7 +525,7 @@ decrypt_failed:
 @retval 0 if all modified persistent pages have been flushed */
 lsn_t buf_pool_t::get_oldest_modification()
 {
-  mutex_enter(&flush_list_mutex);
+  mysql_mutex_lock(&flush_list_mutex);
 
   /* FIXME: Keep temporary tablespace pages in a separate flush
   list. We would only need to write out temporary pages if the
@@ -538,7 +538,7 @@ lsn_t buf_pool_t::get_oldest_modification()
     ut_ad(bpage->oldest_modification());
 
   lsn_t oldest_lsn= bpage ? bpage->oldest_modification() : 0;
-  mutex_exit(&flush_list_mutex);
+  mysql_mutex_unlock(&flush_list_mutex);
 
   /* The result may become stale as soon as we released the mutex.
   On log checkpoint, also log_sys.flush_order_mutex will be needed. */
@@ -1063,14 +1063,14 @@ buf_madvise_do_dump()
 		ret+= madvise(recv_sys.buf, recv_sys.len, MADV_DODUMP);
 	}
 
-	mutex_enter(&buf_pool.mutex);
+	mysql_mutex_lock(&buf_pool.mutex);
 	auto chunk = buf_pool.chunks;
 
 	for (ulint n = buf_pool.n_chunks; n--; chunk++) {
 		ret+= madvise(chunk->mem, chunk->mem_size(), MADV_DODUMP);
 	}
 
-	mutex_exit(&buf_pool.mutex);
+	mysql_mutex_lock(&buf_pool.mutex);
 	return ret;
 }
 #endif
@@ -1546,7 +1546,7 @@ bool buf_pool_t::create()
   while (++chunk < chunks + n_chunks);
 
   ut_ad(is_initialised());
-  mutex_create(LATCH_ID_BUF_POOL, &mutex);
+  mysql_mutex_init(buf_pool_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
 
   UT_LIST_INIT(LRU, &buf_page_t::LRU);
   UT_LIST_INIT(withdraw, &buf_page_t::list);
@@ -1572,7 +1572,8 @@ bool buf_pool_t::create()
   zip_hash.create(2 * curr_size);
   last_printout_time= time(NULL);
 
-  mutex_create(LATCH_ID_FLUSH_LIST, &flush_list_mutex);
+  mysql_mutex_init(flush_list_mutex_key, &flush_list_mutex,
+                   MY_MUTEX_INIT_FAST);
 
   for (int i= 0; i < 3; i++)
     no_flush[i]= os_event_create(0);
@@ -1606,8 +1607,8 @@ void buf_pool_t::close()
   if (!is_initialised())
     return;
 
-  mutex_free(&mutex);
-  mutex_free(&flush_list_mutex);
+  mysql_mutex_destroy(&mutex);
+  mysql_mutex_destroy(&flush_list_mutex);
 
   if (flush_rbt)
   {
@@ -1669,7 +1670,7 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 	buf_block_t*	new_block;
 
 	ut_ad(withdrawing);
-	ut_ad(mutex_own(&mutex));
+	mysql_mutex_assert_owner(&mutex);
 	ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
 
 	new_block = buf_LRU_get_free_only();
@@ -1816,16 +1817,16 @@ inline bool buf_pool_t::withdraw_blocks()
 		<< withdraw_target << " blocks";
 
 	/* Minimize zip_free[i] lists */
-	mutex_enter(&mutex);
+	mysql_mutex_lock(&mutex);
 	buf_buddy_condense_free();
-	mutex_exit(&mutex);
+	mysql_mutex_unlock(&mutex);
 
 	while (UT_LIST_GET_LEN(withdraw) < withdraw_target) {
 
 		/* try to withdraw from free_list */
 		ulint	count1 = 0;
 
-		mutex_enter(&mutex);
+		mysql_mutex_lock(&mutex);
 		block = reinterpret_cast<buf_block_t*>(
 			UT_LIST_GET_FIRST(free));
 		while (block != NULL
@@ -1850,7 +1851,7 @@ inline bool buf_pool_t::withdraw_blocks()
 
 			block = next_block;
 		}
-		mutex_exit(&mutex);
+		mysql_mutex_unlock(&mutex);
 
 		/* reserve free_list length */
 		if (UT_LIST_GET_LEN(withdraw) < withdraw_target) {
@@ -1858,9 +1859,9 @@ inline bool buf_pool_t::withdraw_blocks()
 			flush_counters_t n;
 
 			/* cap scan_depth with current LRU size. */
-			mutex_enter(&mutex);
+			mysql_mutex_lock(&mutex);
 			scan_depth = UT_LIST_GET_LEN(LRU);
-			mutex_exit(&mutex);
+			mysql_mutex_unlock(&mutex);
 
 			scan_depth = ut_min(
 				ut_max(withdraw_target
@@ -1883,7 +1884,7 @@ inline bool buf_pool_t::withdraw_blocks()
 		/* relocate blocks/buddies in withdrawn area */
 		ulint	count2 = 0;
 
-		mutex_enter(&mutex);
+		mysql_mutex_lock(&mutex);
 		buf_page_t*	bpage;
 		bpage = UT_LIST_GET_FIRST(LRU);
 		while (bpage != NULL) {
@@ -1923,7 +1924,7 @@ inline bool buf_pool_t::withdraw_blocks()
 
 			bpage = next_bpage;
 		}
-		mutex_exit(&mutex);
+		mysql_mutex_unlock(&mutex);
 
 		buf_resize_status(
 			"withdrawing blocks. (" ULINTPF "/" ULINTPF ")",
@@ -2043,7 +2044,7 @@ inline void buf_pool_t::page_hash_table::write_unlock_all()
 
 inline void buf_pool_t::write_lock_all_page_hash()
 {
-  ut_ad(mutex_own(&mutex));
+  mysql_mutex_assert_owner(&mutex);
   page_hash.write_lock_all();
   for (page_hash_table *old_page_hash= freed_page_hash; old_page_hash;
        old_page_hash= static_cast<page_hash_table*>
@@ -2115,7 +2116,7 @@ inline void buf_pool_t::resize()
 			  srv_buf_pool_old_size, srv_buf_pool_size,
 			  srv_buf_pool_chunk_unit);
 
-	mutex_enter(&mutex);
+	mysql_mutex_lock(&mutex);
 	ut_ad(curr_size == old_size);
 	ut_ad(n_chunks_new == n_chunks);
 	ut_ad(UT_LIST_GET_LEN(withdraw) == 0);
@@ -2124,7 +2125,7 @@ inline void buf_pool_t::resize()
 	n_chunks_new = (new_instance_size << srv_page_size_shift)
 		/ srv_buf_pool_chunk_unit;
 	curr_size = n_chunks_new * chunks->size;
-	mutex_exit(&mutex);
+	mysql_mutex_unlock(&mutex);
 
 #ifdef BTR_CUR_HASH_ADAPT
 	/* disable AHI if needed */
@@ -2238,7 +2239,7 @@ withdraw_retry:
 	/* Indicate critical path */
 	resizing.store(true, std::memory_order_relaxed);
 
-  mutex_enter(&mutex);
+  mysql_mutex_lock(&mutex);
   write_lock_all_page_hash();
 
 	chunk_t::map_reg = UT_NEW_NOKEY(chunk_t::map());
@@ -2402,7 +2403,7 @@ calc_buf_pool_size:
 		ib::info() << "hash tables were resized";
 	}
 
-  mutex_exit(&mutex);
+  mysql_mutex_unlock(&mutex);
   write_unlock_all_page_hash();
 
 	UT_DELETE(chunk_map_old);
@@ -2467,10 +2468,10 @@ static void buf_resize_callback(void *)
 {
   DBUG_ENTER("buf_resize_callback");
   ut_a(srv_shutdown_state == SRV_SHUTDOWN_NONE);
-  mutex_enter(&buf_pool.mutex);
+  mysql_mutex_lock(&buf_pool.mutex);
   const auto size= srv_buf_pool_size;
   const bool work= srv_buf_pool_old_size != size;
-  mutex_exit(&buf_pool.mutex);
+  mysql_mutex_unlock(&buf_pool.mutex);
 
   if (work)
     buf_pool.resize();
@@ -2508,7 +2509,7 @@ static void buf_relocate(buf_page_t *bpage, buf_page_t *dpage)
 {
   const ulint fold= bpage->id().fold();
   ut_ad(bpage->state() == BUF_BLOCK_ZIP_PAGE);
-  ut_ad(mutex_own(&buf_pool.mutex));
+  mysql_mutex_assert_owner(&buf_pool.mutex);
   ut_ad(buf_pool.hash_lock_get(bpage->id())->is_write_locked());
   ut_a(bpage->io_fix() == BUF_IO_NONE);
   ut_a(!bpage->buf_fix_count());
@@ -2581,7 +2582,7 @@ retry:
 
   (*hash_lock)->write_unlock();
   /* Allocate a watch[] and then try to insert it into the page_hash. */
-  mutex_enter(&mutex);
+  mysql_mutex_lock(&mutex);
 
   /* The maximum number of purge tasks should never exceed
   the UT_ARR_SIZE(watch) - 1, and there is no way for a purge task to hold a
@@ -2605,17 +2606,17 @@ retry:
 
     *hash_lock= page_hash.lock_get(fold);
     (*hash_lock)->write_lock();
-    mutex_exit(&mutex);
+    mysql_mutex_unlock(&mutex);
 
     buf_page_t *bpage= page_hash_get_low(id, fold);
     if (UNIV_LIKELY_NULL(bpage))
     {
       (*hash_lock)->write_unlock();
-      mutex_enter(&mutex);
+      mysql_mutex_lock(&mutex);
       w->set_state(BUF_BLOCK_NOT_USED);
       *hash_lock= page_hash.lock_get(fold);
       (*hash_lock)->write_lock();
-      mutex_exit(&mutex);
+      mysql_mutex_unlock(&mutex);
       goto retry;
     }
 
@@ -2628,7 +2629,7 @@ retry:
   }
 
   ut_error;
-  mutex_exit(&mutex);
+  mysql_mutex_unlock(&mutex);
   return nullptr;
 }
 
@@ -2746,10 +2747,10 @@ err_exit:
     {
       discard_attempted= true;
       hash_lock->read_unlock();
-      mutex_enter(&buf_pool.mutex);
+      mysql_mutex_lock(&buf_pool.mutex);
       if (buf_page_t *bpage= buf_pool.page_hash_get_low(page_id, fold))
         buf_LRU_free_page(bpage, false);
-      mutex_exit(&buf_pool.mutex);
+      mysql_mutex_unlock(&buf_pool.mutex);
       goto lookup;
     }
 
@@ -3274,14 +3275,14 @@ got_block:
 		if (UNIV_UNLIKELY(mode == BUF_EVICT_IF_IN_POOL)) {
 evict_from_pool:
 			ut_ad(!fix_block->page.oldest_modification());
-			mutex_enter(&buf_pool.mutex);
+			mysql_mutex_lock(&buf_pool.mutex);
 			fix_block->unfix();
 
 			if (!buf_LRU_free_page(&fix_block->page, true)) {
 				ut_ad(0);
 			}
 
-			mutex_exit(&buf_pool.mutex);
+			mysql_mutex_unlock(&buf_pool.mutex);
 			return(NULL);
 		}
 
@@ -3330,7 +3331,7 @@ evict_from_pool:
 		block = buf_LRU_get_free_block(false);
 		buf_block_init_low(block);
 
-		mutex_enter(&buf_pool.mutex);
+		mysql_mutex_lock(&buf_pool.mutex);
 		hash_lock = buf_pool.page_hash.lock_get(fold);
 
 		hash_lock->write_lock();
@@ -3349,7 +3350,7 @@ evict_from_pool:
 
 			hash_lock->write_unlock();
 			buf_LRU_block_free_non_file_page(block);
-			mutex_exit(&buf_pool.mutex);
+			mysql_mutex_unlock(&buf_pool.mutex);
 
 			/* Try again */
 			goto loop;
@@ -3391,7 +3392,7 @@ evict_from_pool:
 
 		MEM_UNDEFINED(bpage, sizeof *bpage);
 
-		mutex_exit(&buf_pool.mutex);
+		mysql_mutex_unlock(&buf_pool.mutex);
 		hash_lock->write_unlock();
 		buf_pool.n_pend_unzip++;
 
@@ -3440,7 +3441,7 @@ evict_from_pool:
 		/* Try to evict the block from the buffer pool, to use the
 		insert buffer (change buffer) as much as possible. */
 
-		mutex_enter(&buf_pool.mutex);
+		mysql_mutex_lock(&buf_pool.mutex);
 
 		fix_block->unfix();
 
@@ -3451,7 +3452,7 @@ evict_from_pool:
 			space->release_for_io();
 			hash_lock = buf_pool.page_hash.lock_get(fold);
 			hash_lock->write_lock();
-			mutex_exit(&buf_pool.mutex);
+			mysql_mutex_unlock(&buf_pool.mutex);
 			/* We may set the watch, as it would have
 			been set if the page were not in the
 			buffer pool in the first place. */
@@ -3488,7 +3489,7 @@ evict_from_pool:
 
 		/* Failed to evict the page; change it directly */
 
-		mutex_exit(&buf_pool.mutex);
+		mysql_mutex_unlock(&buf_pool.mutex);
 	}
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
@@ -3828,7 +3829,7 @@ buf_page_create(fil_space_t *space, uint32_t offset,
 
   const ulint fold= page_id.fold();
 
-  mutex_enter(&buf_pool.mutex);
+  mysql_mutex_lock(&buf_pool.mutex);
 
   buf_block_t *block= reinterpret_cast<buf_block_t*>
     (buf_pool.page_hash_get_low(page_id, fold));
@@ -3845,7 +3846,7 @@ buf_page_create(fil_space_t *space, uint32_t offset,
 
     /* Page can be found in buf_pool */
     buf_LRU_block_free_non_file_page(free_block);
-    mutex_exit(&buf_pool.mutex);
+    mysql_mutex_unlock(&buf_pool.mutex);
 
 #ifdef BTR_CUR_HASH_ADAPT
     if (UNIV_UNLIKELY(drop_hash_entry))
@@ -3916,7 +3917,7 @@ buf_page_create(fil_space_t *space, uint32_t offset,
   else
     hash_lock->write_unlock();
 
-  mutex_exit(&buf_pool.mutex);
+  mysql_mutex_unlock(&buf_pool.mutex);
 
   mtr->memo_push(block, MTR_MEMO_BUF_FIX);
   block->page.set_accessed();
@@ -4069,7 +4070,7 @@ void buf_pool_t::corrupted_evict(buf_page_t *bpage)
   const page_id_t id(bpage->id());
   page_hash_latch *hash_lock= hash_lock_get(id);
 
-  mutex_enter(&mutex);
+  mysql_mutex_lock(&mutex);
   hash_lock->write_lock();
 
   ut_ad(bpage->io_fix() == BUF_IO_READ);
@@ -4084,7 +4085,7 @@ void buf_pool_t::corrupted_evict(buf_page_t *bpage)
 
   /* remove from LRU and page_hash */
   buf_LRU_free_one_page(bpage, id, hash_lock);
-  mutex_exit(&mutex);
+  mysql_mutex_unlock(&mutex);
 
   ut_d(auto n=) n_pend_reads--;
   ut_ad(n > 0);
@@ -4365,12 +4366,12 @@ release_page:
 @retval nullptr if all freed */
 void buf_pool_t::assert_all_freed()
 {
-  mutex_enter(&mutex);
+  mysql_mutex_lock(&mutex);
   const chunk_t *chunk= chunks;
   for (auto i= n_chunks; i--; chunk++)
     if (const buf_block_t* block= chunk->not_freed())
       ib::fatal() << "Page " << block->page.id() << " still fixed or dirty";
-  mutex_exit(&mutex);
+  mysql_mutex_unlock(&mutex);
 }
 #endif /* UNIV_DEBUG */
 
@@ -4385,28 +4386,28 @@ void buf_refresh_io_stats()
 All pages must be in a replaceable state (not modified or latched). */
 void buf_pool_invalidate()
 {
-	mutex_enter(&buf_pool.mutex);
+	mysql_mutex_lock(&buf_pool.mutex);
 	ut_ad(!buf_pool.n_flush[IORequest::SINGLE_PAGE]);
 
 	if (buf_pool.n_flush[IORequest::LRU]) {
-		mutex_exit(&buf_pool.mutex);
+		mysql_mutex_unlock(&buf_pool.mutex);
 		buf_flush_wait_batch_end(true);
-		mutex_enter(&buf_pool.mutex);
+		mysql_mutex_lock(&buf_pool.mutex);
 	}
 
 	if (buf_pool.n_flush[IORequest::FLUSH_LIST]) {
-		mutex_exit(&buf_pool.mutex);
+		mysql_mutex_unlock(&buf_pool.mutex);
 		buf_flush_wait_batch_end(false);
-		mutex_enter(&buf_pool.mutex);
+		mysql_mutex_lock(&buf_pool.mutex);
 	}
 
 	/* It is possible that a write batch that has been posted
 	earlier is still not complete. For buffer pool invalidation to
 	proceed we must ensure there is NO write activity happening. */
 
-	ut_d(mutex_exit(&buf_pool.mutex));
+	ut_d(mysql_mutex_unlock(&buf_pool.mutex));
 	ut_d(buf_pool.assert_all_freed());
-	ut_d(mutex_enter(&buf_pool.mutex));
+	ut_d(mysql_mutex_lock(&buf_pool.mutex));
 
 	while (buf_LRU_scan_and_free_block(true));
 
@@ -4419,7 +4420,7 @@ void buf_pool_invalidate()
 
 	memset(&buf_pool.stat, 0x00, sizeof(buf_pool.stat));
 	buf_refresh_io_stats();
-	mutex_exit(&buf_pool.mutex);
+	mysql_mutex_unlock(&buf_pool.mutex);
 }
 
 #ifdef UNIV_DEBUG
@@ -4431,7 +4432,7 @@ void buf_pool_t::validate()
 	ulint		n_free		= 0;
 	ulint		n_zip		= 0;
 
-	mutex_enter(&mutex);
+	mysql_mutex_lock(&mutex);
 
 	chunk_t* chunk = chunks;
 
@@ -4500,7 +4501,7 @@ void buf_pool_t::validate()
 
 	/* Check dirty blocks. */
 
-	mutex_enter(&flush_list_mutex);
+	mysql_mutex_lock(&flush_list_mutex);
 	for (buf_page_t* b = UT_LIST_GET_FIRST(flush_list); b;
 	     b = UT_LIST_GET_NEXT(list, b)) {
 		ut_ad(b->oldest_modification());
@@ -4526,7 +4527,7 @@ void buf_pool_t::validate()
 
 	ut_ad(UT_LIST_GET_LEN(flush_list) == n_flushing);
 
-	mutex_exit(&flush_list_mutex);
+	mysql_mutex_unlock(&flush_list_mutex);
 
 	if (curr_size == old_size
 	    && n_lru + n_free > curr_size + n_zip) {
@@ -4546,7 +4547,7 @@ void buf_pool_t::validate()
 			<< ", free blocks " << n_free << ". Aborting...";
 	}
 
-	mutex_exit(&mutex);
+	mysql_mutex_unlock(&mutex);
 
 	ut_d(buf_LRU_validate());
 	ut_d(buf_flush_validate());
@@ -4574,8 +4575,8 @@ void buf_pool_t::print()
 
 	counts = static_cast<ulint*>(ut_malloc_nokey(sizeof(ulint) * size));
 
-	mutex_enter(&mutex);
-	mutex_enter(&flush_list_mutex);
+	mysql_mutex_lock(&mutex);
+	mysql_mutex_lock(&flush_list_mutex);
 
 	ib::info()
 		<< "[buffer pool: size=" << curr_size
@@ -4594,7 +4595,7 @@ void buf_pool_t::print()
 		<< ", created=" << stat.n_pages_created
 		<< ", written=" << stat.n_pages_written << "]";
 
-	mutex_exit(&flush_list_mutex);
+	mysql_mutex_unlock(&flush_list_mutex);
 
 	/* Count the number of blocks belonging to each index in the buffer */
 
@@ -4635,7 +4636,7 @@ void buf_pool_t::print()
 		}
 	}
 
-	mutex_exit(&mutex);
+	mysql_mutex_unlock(&mutex);
 
 	for (i = 0; i < n_found; i++) {
 		index = dict_index_get_if_in_cache(index_ids[i]);
@@ -4667,7 +4668,7 @@ ulint buf_get_latched_pages_number()
 	ulint		i;
 	ulint		fixed_pages_number = 0;
 
-	mutex_enter(&buf_pool.mutex);
+	mysql_mutex_lock(&buf_pool.mutex);
 
 	auto chunk = buf_pool.chunks;
 
@@ -4697,7 +4698,7 @@ ulint buf_get_latched_pages_number()
 		}
 	}
 
-	mutex_enter(&buf_pool.flush_list_mutex);
+	mysql_mutex_lock(&buf_pool.flush_list_mutex);
 	for (b = UT_LIST_GET_FIRST(buf_pool.flush_list); b;
 	     b = UT_LIST_GET_NEXT(list, b)) {
 		ut_ad(b->oldest_modification());
@@ -4719,8 +4720,8 @@ ulint buf_get_latched_pages_number()
 		ut_error;
 	}
 
-	mutex_exit(&buf_pool.flush_list_mutex);
-	mutex_exit(&buf_pool.mutex);
+	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+	mysql_mutex_unlock(&buf_pool.mutex);
 
 	return(fixed_pages_number);
 }
@@ -4733,8 +4734,8 @@ void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
 	time_t			current_time;
 	double			time_elapsed;
 
-	mutex_enter(&buf_pool.mutex);
-	mutex_enter(&buf_pool.flush_list_mutex);
+	mysql_mutex_lock(&buf_pool.mutex);
+	mysql_mutex_lock(&buf_pool.flush_list_mutex);
 
 	pool_info->pool_size = buf_pool.curr_size;
 
@@ -4758,7 +4759,7 @@ void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
 	pool_info->n_pending_flush_single_page =
 		buf_pool.n_flush[IORequest::SINGLE_PAGE];
 
-	mutex_exit(&buf_pool.flush_list_mutex);
+	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
 	current_time = time(NULL);
 	time_elapsed = 0.001 + difftime(current_time,
@@ -4849,7 +4850,7 @@ void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
 	pool_info->unzip_cur = buf_LRU_stat_cur.unzip;
 
 	buf_refresh_io_stats();
-	mutex_exit(&buf_pool.mutex);
+	mysql_mutex_unlock(&buf_pool.mutex);
 }
 
 /*********************************************************************//**

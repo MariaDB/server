@@ -7058,7 +7058,7 @@ static void btr_blob_free(buf_block_t *block, bool all, mtr_t *mtr)
 
   const ulint fold= page_id.fold();
 
-  mutex_enter(&buf_pool.mutex);
+  mysql_mutex_lock(&buf_pool.mutex);
 
   if (buf_page_t *bpage= buf_pool.page_hash_get_low(page_id, fold))
     if(!buf_LRU_free_page(bpage, all) && all && bpage->zip.data)
@@ -7066,7 +7066,7 @@ static void btr_blob_free(buf_block_t *block, bool all, mtr_t *mtr)
       if the whole ROW_FORMAT=COMPRESSED block cannot be deallocted. */
       buf_LRU_free_page(bpage, false);
 
-  mutex_exit(&buf_pool.mutex);
+  mysql_mutex_unlock(&buf_pool.mutex);
 }
 
 /** Helper class used while writing blob pages, during insert or update. */

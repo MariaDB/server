@@ -455,9 +455,7 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_MONITOR_MUTEX);
 	LEVEL_MAP_INSERT(SYNC_ANY_LATCH);
 	LEVEL_MAP_INSERT(SYNC_DOUBLEWRITE);
-	LEVEL_MAP_INSERT(SYNC_BUF_FLUSH_LIST);
 	LEVEL_MAP_INSERT(SYNC_BUF_PAGE_HASH);
-	LEVEL_MAP_INSERT(SYNC_BUF_POOL);
 	LEVEL_MAP_INSERT(SYNC_POOL);
 	LEVEL_MAP_INSERT(SYNC_POOL_MANAGER);
 	LEVEL_MAP_INSERT(SYNC_SEARCH_SYS);
@@ -812,15 +810,6 @@ LatchDebug::check_order(
 			basic_check(latches, level, level - 1);
 			ut_a(find(latches, SYNC_LOCK_SYS) != 0);
 		}
-		break;
-
-	case SYNC_BUF_FLUSH_LIST:
-	case SYNC_BUF_POOL:
-
-		/* We can have multiple mutexes of this type therefore we
-		can only check whether the greater than condition holds. */
-
-		basic_check(latches, level, level - 1);
 		break;
 
 	case SYNC_REC_LOCK:
@@ -1255,8 +1244,6 @@ sync_latch_meta_init()
 	/* The latches should be ordered on latch_id_t. So that we can
 	index directly into the vector to update and fetch meta-data. */
 
-	LATCH_ADD_MUTEX(BUF_POOL, SYNC_BUF_POOL, buf_pool_mutex_key);
-
 	LATCH_ADD_MUTEX(CACHE_LAST_READ, SYNC_TRX_I_S_LAST_READ,
 			cache_last_read_mutex_key);
 
@@ -1266,8 +1253,6 @@ sync_latch_meta_init()
 	LATCH_ADD_MUTEX(DICT_SYS, SYNC_DICT, dict_sys_mutex_key);
 
 	LATCH_ADD_MUTEX(FIL_SYSTEM, SYNC_ANY_LATCH, fil_system_mutex_key);
-
-	LATCH_ADD_MUTEX(FLUSH_LIST, SYNC_BUF_FLUSH_LIST, flush_list_mutex_key);
 
 	LATCH_ADD_MUTEX(FTS_BG_THREADS, SYNC_FTS_BG_THREADS,
 			fts_bg_threads_mutex_key);

@@ -1635,7 +1635,7 @@ i_s_cmpmem_fill_low(
 	buf_buddy_stat_t	buddy_stat_local[BUF_BUDDY_SIZES_MAX + 1];
 
 	/* Save buddy stats for buffer pool in local variables. */
-	mutex_enter(&buf_pool.mutex);
+	mysql_mutex_lock(&buf_pool.mutex);
 
 	for (uint x = 0; x <= BUF_BUDDY_SIZES; x++) {
 		zip_free_len_local[x] = (x < BUF_BUDDY_SIZES) ?
@@ -1650,7 +1650,7 @@ i_s_cmpmem_fill_low(
 		}
 	}
 
-	mutex_exit(&buf_pool.mutex);
+	mysql_mutex_unlock(&buf_pool.mutex);
 
 	for (uint x = 0; x <= BUF_BUDDY_SIZES; x++) {
 		buf_buddy_stat_t* buddy_stat = &buddy_stat_local[x];
@@ -4270,7 +4270,7 @@ static int i_s_innodb_buffer_page_fill(THD *thd, TABLE_LIST *tables, Item *)
 			buffer pool info printout, we are not required to
 			preserve the overall consistency, so we can
 			release mutex periodically */
-			mutex_enter(&buf_pool.mutex);
+			mysql_mutex_lock(&buf_pool.mutex);
 
 			/* GO through each block in the chunk */
 			for (n_blocks = num_to_process; n_blocks--; block++) {
@@ -4281,7 +4281,7 @@ static int i_s_innodb_buffer_page_fill(THD *thd, TABLE_LIST *tables, Item *)
 				num_page++;
 			}
 
-			mutex_exit(&buf_pool.mutex);
+			mysql_mutex_unlock(&buf_pool.mutex);
 
 			/* Fill in information schema table with information
 			just collected from the buffer chunk scan */
@@ -4604,7 +4604,7 @@ static int i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item *)
 
 	/* Aquire the mutex before allocating info_buffer, since
 	UT_LIST_GET_LEN(buf_pool.LRU) could change */
-	mutex_enter(&buf_pool.mutex);
+	mysql_mutex_lock(&buf_pool.mutex);
 
 	lru_len = UT_LIST_GET_LEN(buf_pool.LRU);
 
@@ -4636,7 +4636,7 @@ static int i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item *)
 	ut_ad(lru_pos == UT_LIST_GET_LEN(buf_pool.LRU));
 
 exit:
-	mutex_exit(&buf_pool.mutex);
+	mysql_mutex_unlock(&buf_pool.mutex);
 
 	if (info_buffer) {
 		status = i_s_innodb_buf_page_lru_fill(

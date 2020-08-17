@@ -121,7 +121,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
 
   const ulint fold= page_id.fold();
 
-  mutex_enter(&buf_pool.mutex);
+  mysql_mutex_lock(&buf_pool.mutex);
 
   /* We must acquire hash_lock this early to prevent
   a race condition with buf_pool_t::watch_remove() */
@@ -242,11 +242,11 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
 #endif /* UNIV_DEBUG */
   }
 
-  mutex_exit(&buf_pool.mutex);
+  mysql_mutex_unlock(&buf_pool.mutex);
   buf_pool.n_pend_reads++;
   goto func_exit_no_mutex;
 func_exit:
-  mutex_exit(&buf_pool.mutex);
+  mysql_mutex_unlock(&buf_pool.mutex);
 func_exit_no_mutex:
   if (mode == BUF_READ_IBUF_PAGES_ONLY)
     ibuf_mtr_commit(&mtr);

@@ -155,7 +155,7 @@ static void buf_LRU_block_free_hashed_page(buf_block_t *block)
 static inline void incr_LRU_size_in_bytes(const buf_page_t* bpage)
 {
 	/* FIXME: use atomics, not mutex */
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 
 	buf_pool.stat.LRU_bytes += bpage->physical_size();
 
@@ -166,7 +166,7 @@ static inline void incr_LRU_size_in_bytes(const buf_page_t* bpage)
 instead of the general LRU list */
 bool buf_LRU_evict_from_unzip_LRU()
 {
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 
 	/* If the unzip_LRU list is empty, we can only use the LRU. */
 	if (UT_LIST_GET_LEN(buf_pool.unzip_LRU) == 0) {
@@ -212,7 +212,7 @@ The current page is "fixed" before the release of the mutexes and then
 @param[in,out]	bpage	current page */
 static void buf_flush_yield(buf_page_t *bpage)
 {
-  mutex_exit(&buf_pool.flush_list_mutex);
+  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   ut_ad(bpage->oldest_modification());
   ut_ad(bpage->in_file());
   ut_ad(bpage->io_fix() == BUF_IO_NONE);
@@ -222,14 +222,14 @@ static void buf_flush_yield(buf_page_t *bpage)
   (3) bpage->in_LRU_list cannot change
   However, bpage->LRU can change. */
   bpage->set_io_fix(BUF_IO_PIN);
-  mutex_exit(&buf_pool.mutex);
+  mysql_mutex_unlock(&buf_pool.mutex);
 
   /* Try and force a context switch. */
   os_thread_yield();
 
-  mutex_enter(&buf_pool.mutex);
+  mysql_mutex_lock(&buf_pool.mutex);
   bpage->io_unfix();
-  mutex_enter(&buf_pool.flush_list_mutex);
+  mysql_mutex_lock(&buf_pool.flush_list_mutex);
   /* Should not have been removed from the flush
   list during the yield. However, this check is
   not sufficient to catch a remove -> add. */
@@ -275,8 +275,8 @@ buf_flush_try_yield(
 @return true if page was removed. */
 static bool buf_flush_or_remove_page(buf_page_t *bpage, bool flush)
 {
-	ut_ad(mutex_own(&buf_pool.mutex));
-	ut_ad(mutex_own(&buf_pool.flush_list_mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
+	mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
 
 	/* bpage->id and bpage->io_fix are protected by
 	buf_pool.mutex (and bpage->id additionally by hash_lock).
@@ -305,18 +305,18 @@ static bool buf_flush_or_remove_page(buf_page_t *bpage, bool flush)
 		buf_flush_remove() and buf_flush_relocate_on_flush_list()
 		need buf_pool.mutex as well. */
 
-		mutex_exit(&buf_pool.flush_list_mutex);
+		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
 		processed = buf_flush_page(bpage, IORequest::SINGLE_PAGE,
 					   nullptr, false);
 
 		if (processed) {
-			mutex_enter(&buf_pool.mutex);
+			mysql_mutex_lock(&buf_pool.mutex);
 		}
-		mutex_enter(&buf_pool.flush_list_mutex);
+		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 	}
 
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 
 	return(processed);
 }
@@ -335,7 +335,7 @@ static bool buf_flush_or_remove_pages(ulint id, bool flush, ulint first)
 	buf_page_t*	bpage;
 	ulint		processed = 0;
 
-	mutex_enter(&buf_pool.flush_list_mutex);
+	mysql_mutex_lock(&buf_pool.flush_list_mutex);
 rescan:
 	bool	all_freed = true;
 
@@ -400,7 +400,7 @@ rescan:
 #endif /* BTR_CUR_HASH_ADAPT */
 	}
 
-	mutex_exit(&buf_pool.flush_list_mutex);
+	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
 	return(all_freed);
 }
@@ -413,19 +413,19 @@ as they age and move towards the tail of the LRU list.
 @param[in]	first		first page to be flushed or evicted */
 static void buf_flush_dirty_pages(ulint id, bool flush, ulint first)
 {
-  mutex_enter(&buf_pool.mutex);
+  mysql_mutex_lock(&buf_pool.mutex);
   while (!buf_flush_or_remove_pages(id, flush, first))
   {
-    mutex_exit(&buf_pool.mutex);
+    mysql_mutex_unlock(&buf_pool.mutex);
     ut_d(buf_flush_validate());
     os_thread_sleep(2000);
-    mutex_enter(&buf_pool.mutex);
+    mysql_mutex_lock(&buf_pool.mutex);
   }
 
 #ifdef UNIV_DEBUG
   if (!first)
   {
-    mutex_enter(&buf_pool.flush_list_mutex);
+    mysql_mutex_lock(&buf_pool.flush_list_mutex);
 
     for (buf_page_t *bpage= UT_LIST_GET_FIRST(buf_pool.flush_list); bpage;
          bpage= UT_LIST_GET_NEXT(list, bpage))
@@ -435,11 +435,11 @@ static void buf_flush_dirty_pages(ulint id, bool flush, ulint first)
       ut_ad(id != bpage->id().space());
     }
 
-    mutex_exit(&buf_pool.flush_list_mutex);
+    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   }
 #endif
 
-  mutex_exit(&buf_pool.mutex);
+  mysql_mutex_unlock(&buf_pool.mutex);
 }
 
 /** Empty the flush list for all pages belonging to a tablespace.
@@ -468,7 +468,7 @@ buf_LRU_insert_zip_clean(
 /*=====================*/
 	buf_page_t*	bpage)	/*!< in: pointer to the block in question */
 {
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 	ut_ad(bpage->state() == BUF_BLOCK_ZIP_PAGE);
 	ut_ad(!bpage->oldest_modification());
 
@@ -501,7 +501,7 @@ LRU list.  The compressed page is preserved, and it need not be clean.
 @return true if freed */
 static bool buf_LRU_free_from_unzip_LRU_list(bool scan_all)
 {
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 
 	if (!buf_LRU_evict_from_unzip_LRU()) {
 		return(false);
@@ -544,7 +544,7 @@ static bool buf_LRU_free_from_unzip_LRU_list(bool scan_all)
 @return whether a page was freed */
 static bool buf_LRU_free_from_common_LRU_list(bool scan_all)
 {
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 
 	ulint		scanned = 0;
 	bool		freed = false;
@@ -592,7 +592,7 @@ static bool buf_LRU_free_from_common_LRU_list(bool scan_all)
 @return true if found and freed */
 bool buf_LRU_scan_and_free_block(bool scan_all)
 {
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 
 	return(buf_LRU_free_from_unzip_LRU_list(scan_all)
 	       || buf_LRU_free_from_common_LRU_list(scan_all));
@@ -604,7 +604,7 @@ buf_block_t* buf_LRU_get_free_only()
 {
 	buf_block_t*	block;
 
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 
 	block = reinterpret_cast<buf_block_t*>(
 		UT_LIST_GET_FIRST(buf_pool.free));
@@ -650,7 +650,7 @@ function will either assert or issue a warning and switch on the
 status monitor. */
 static void buf_LRU_check_size_of_non_data_objects()
 {
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 
 	if (!recv_recovery_is_on()
 	    && buf_pool.curr_size == buf_pool.old_size
@@ -743,11 +743,11 @@ buf_block_t* buf_LRU_get_free_block(bool have_mutex)
 	ulint		flush_failures	= 0;
 	MONITOR_INC(MONITOR_LRU_GET_FREE_SEARCH);
 	if (have_mutex) {
-		ut_ad(mutex_own(&buf_pool.mutex));
+		mysql_mutex_assert_owner(&buf_pool.mutex);
 		goto got_mutex;
 	}
 loop:
-	mutex_enter(&buf_pool.mutex);
+	mysql_mutex_lock(&buf_pool.mutex);
 got_mutex:
 
 	buf_LRU_check_size_of_non_data_objects();
@@ -762,7 +762,7 @@ got_mutex:
 
 	if (block) {
 		if (!have_mutex) {
-			mutex_exit(&buf_pool.mutex);
+			mysql_mutex_unlock(&buf_pool.mutex);
 		}
 		memset(&block->page.zip, 0, sizeof block->page.zip);
 		return(block);
@@ -795,7 +795,7 @@ got_mutex:
 not_found:
 #endif
 
-	mutex_exit(&buf_pool.mutex);
+	mysql_mutex_unlock(&buf_pool.mutex);
 
 	if (freed) {
 		goto loop;
@@ -866,7 +866,7 @@ static void buf_LRU_old_adjust_len()
 	ulint	new_len;
 
 	ut_a(buf_pool.LRU_old);
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 	ut_ad(buf_pool.LRU_old_ratio >= BUF_LRU_OLD_RATIO_MIN);
 	ut_ad(buf_pool.LRU_old_ratio <= BUF_LRU_OLD_RATIO_MAX);
 	compile_time_assert(BUF_LRU_OLD_RATIO_MIN * BUF_LRU_OLD_MIN_LEN
@@ -927,7 +927,7 @@ static void buf_LRU_old_adjust_len()
 called when the LRU list grows to BUF_LRU_OLD_MIN_LEN length. */
 static void buf_LRU_old_init()
 {
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 	ut_a(UT_LIST_GET_LEN(buf_pool.LRU) == BUF_LRU_OLD_MIN_LEN);
 
 	/* We first initialize all blocks in the LRU list as old and then use
@@ -956,7 +956,7 @@ static void buf_LRU_old_init()
 static void buf_unzip_LRU_remove_block_if_needed(buf_page_t* bpage)
 {
 	ut_ad(bpage->in_file());
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 
 	if (bpage->belongs_to_unzip_LRU()) {
 		buf_block_t*	block = reinterpret_cast<buf_block_t*>(bpage);
@@ -1039,7 +1039,7 @@ buf_unzip_LRU_add_block(
 	ibool		old)	/*!< in: TRUE if should be put to the end
 				of the list, else put to the start */
 {
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 	ut_a(block->page.belongs_to_unzip_LRU());
 	ut_ad(!block->in_unzip_LRU_list);
 	ut_d(block->in_unzip_LRU_list = true);
@@ -1063,7 +1063,7 @@ buf_LRU_add_block(
 				LRU list is very short, the block is added to
 				the start, regardless of this parameter */
 {
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 	ut_ad(!bpage->in_LRU_list);
 
 	if (!old || (UT_LIST_GET_LEN(buf_pool.LRU) < BUF_LRU_OLD_MIN_LEN)) {
@@ -1123,7 +1123,7 @@ void buf_page_make_young(buf_page_t *bpage)
 {
   ut_ad(bpage->in_file());
 
-  mutex_enter(&buf_pool.mutex);
+  mysql_mutex_lock(&buf_pool.mutex);
 
   if (UNIV_UNLIKELY(bpage->old))
     buf_pool.stat.n_pages_made_young++;
@@ -1131,7 +1131,7 @@ void buf_page_make_young(buf_page_t *bpage)
   buf_LRU_remove_block(bpage);
   buf_LRU_add_block(bpage, false);
 
-  mutex_exit(&buf_pool.mutex);
+  mysql_mutex_unlock(&buf_pool.mutex);
 }
 
 /** Try to free a block. If bpage is a descriptor of a compressed-only
@@ -1146,7 +1146,7 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 	const page_id_t id(bpage->id());
 	buf_page_t*	b = nullptr;
 
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 	ut_ad(bpage->in_file());
 	ut_ad(bpage->in_LRU_list);
 
@@ -1187,7 +1187,7 @@ func_exit:
 		b->set_state(BUF_BLOCK_ZIP_PAGE);
 	}
 
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 	ut_ad(bpage->in_file());
 	ut_ad(bpage->in_LRU_list);
 
@@ -1301,7 +1301,7 @@ func_exit:
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (block->index) {
-		mutex_exit(&buf_pool.mutex);
+		mysql_mutex_unlock(&buf_pool.mutex);
 
 		/* Remove the adaptive hash index on the page.
 		The page was declared uninitialized by
@@ -1318,7 +1318,7 @@ func_exit:
 			b->io_unfix();
 		}
 
-		mutex_enter(&buf_pool.mutex);
+		mysql_mutex_lock(&buf_pool.mutex);
 	} else
 #endif
 	if (UNIV_LIKELY_NULL(b)) {
@@ -1404,7 +1404,7 @@ this case the block is already returned to the buddy allocator. */
 static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
                                         page_hash_latch *hash_lock, bool zip)
 {
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
         ut_ad(hash_lock->is_write_locked());
 
 	ut_a(bpage->io_fix() == BUF_IO_NONE);
@@ -1602,7 +1602,7 @@ uint buf_LRU_old_ratio_update(uint old_pct, bool adjust)
 	}
 
 	if (adjust) {
-		mutex_enter(&buf_pool.mutex);
+		mysql_mutex_lock(&buf_pool.mutex);
 
 		if (ratio != buf_pool.LRU_old_ratio) {
 			buf_pool.LRU_old_ratio = ratio;
@@ -1613,7 +1613,7 @@ uint buf_LRU_old_ratio_update(uint old_pct, bool adjust)
 			}
 		}
 
-		mutex_exit(&buf_pool.mutex);
+		mysql_mutex_unlock(&buf_pool.mutex);
 	} else {
 		buf_pool.LRU_old_ratio = ratio;
 	}
@@ -1666,7 +1666,7 @@ void buf_LRU_validate()
 	ulint	old_len;
 	ulint	new_len;
 
-	mutex_enter(&buf_pool.mutex);
+	mysql_mutex_lock(&buf_pool.mutex);
 
 	if (UT_LIST_GET_LEN(buf_pool.LRU) >= BUF_LRU_OLD_MIN_LEN) {
 
@@ -1744,7 +1744,7 @@ void buf_LRU_validate()
 		ut_a(block->page.belongs_to_unzip_LRU());
 	}
 
-	mutex_exit(&buf_pool.mutex);
+	mysql_mutex_unlock(&buf_pool.mutex);
 }
 #endif /* UNIV_DEBUG */
 
@@ -1752,7 +1752,7 @@ void buf_LRU_validate()
 /** Dump the LRU list to stderr. */
 void buf_LRU_print()
 {
-	mutex_enter(&buf_pool.mutex);
+	mysql_mutex_lock(&buf_pool.mutex);
 
 	for (buf_page_t* bpage = UT_LIST_GET_FIRST(buf_pool.LRU);
 	     bpage != NULL;
@@ -1801,6 +1801,6 @@ void buf_LRU_print()
 		}
 	}
 
-	mutex_exit(&buf_pool.mutex);
+	mysql_mutex_unlock(&buf_pool.mutex);
 }
 #endif /* UNIV_DEBUG_PRINT || UNIV_DEBUG */

@@ -1054,7 +1054,7 @@ struct buf_block_t{
 					is of size srv_page_size, and
 					aligned to an address divisible by
 					srv_page_size */
-	BPageLock	lock;		/*!< read-write lock of the buffer
+	rw_lock_t	lock;		/*!< read-write lock of the buffer
 					frame */
 #ifdef UNIV_DEBUG
   /** whether page.list is in buf_pool.withdraw
@@ -1237,13 +1237,13 @@ public:
   virtual ~HazardPointer() {}
 
   /** @return current value */
-  buf_page_t *get() const { ut_ad(mutex_own(m_mutex)); return m_hp; }
+  buf_page_t *get() const { mysql_mutex_assert_owner(m_mutex); return m_hp; }
 
   /** Set current value
   @param bpage buffer block to be set as hp */
   void set(buf_page_t *bpage)
   {
-    ut_ad(mutex_own(m_mutex));
+    mysql_mutex_assert_owner(m_mutex);
     ut_ad(!bpage || bpage->in_file());
     m_hp= bpage;
   }
@@ -1252,7 +1252,7 @@ public:
   @param bpage  buffer block to be compared
   @return true if it is hp */
   bool is_hp(const buf_page_t *bpage) const
-  { ut_ad(mutex_own(m_mutex)); return bpage == m_hp; }
+  { mysql_mutex_assert_owner(m_mutex); return bpage == m_hp; }
 
   /** Adjust the value of hp. This happens when some
   other thread working on the same list attempts to
@@ -1261,7 +1261,7 @@ public:
 
 #ifdef UNIV_DEBUG
   /** mutex that protects access to the m_hp. */
-  const ib_mutex_t *m_mutex= nullptr;
+  const mysql_mutex_t *m_mutex= nullptr;
 #endif /* UNIV_DEBUG */
 
 protected:
@@ -1517,7 +1517,10 @@ public:
   bool will_be_withdrawn(const byte *ptr) const
   {
     ut_ad(curr_size < old_size);
-    ut_ad(!resizing.load(std::memory_order_relaxed) || mutex_own(&mutex));
+#ifdef SAFE_MUTEX
+    if (resizing.load(std::memory_order_relaxed))
+      mysql_mutex_assert_owner(&mutex);
+#endif /* SAFE_MUTEX */
 
     for (const chunk_t *chunk= chunks + n_chunks_new,
          * const echunk= chunks + n_chunks;
@@ -1534,7 +1537,10 @@ public:
   bool will_be_withdrawn(const buf_page_t &bpage) const
   {
     ut_ad(curr_size < old_size);
-    ut_ad(!resizing.load(std::memory_order_relaxed) || mutex_own(&mutex));
+#ifdef SAFE_MUTEX
+    if (resizing.load(std::memory_order_relaxed))
+      mysql_mutex_assert_owner(&mutex);
+#endif /* SAFE_MUTEX */
 
     for (const chunk_t *chunk= chunks + n_chunks_new,
          * const echunk= chunks + n_chunks;
@@ -1556,7 +1562,7 @@ public:
   @retval nullptr  if not found */
   const buf_block_t *contains_zip(const void *data) const
   {
-    ut_ad(mutex_own(&mutex));
+    mysql_mutex_assert_owner(&mutex);
     for (const chunk_t *chunk= chunks, * const end= chunks + n_chunks;
          chunk != end; chunk++)
       if (const buf_block_t *block= chunk->contains_zip(data))
@@ -1579,8 +1585,8 @@ public:
   inline buf_block_t *block_from_ahi(const byte *ptr) const;
 #endif /* BTR_CUR_HASH_ADAPT */
 
-  bool is_block_lock(const BPageLock *l) const
-  { return is_block_field(reinterpret_cast<const void*>(l)); }
+  bool is_block_lock(const rw_lock_t *l) const
+  { return is_block_field(static_cast<const void*>(l)); }
 
   /**
   @return the smallest oldest_modification lsn for any page
@@ -1611,7 +1617,10 @@ public:
   buf_page_t *page_hash_get_low(const page_id_t id, const ulint fold)
   {
     ut_ad(id.fold() == fold);
-    ut_ad(mutex_own(&mutex) || page_hash.lock_get(fold)->is_locked());
+#ifdef SAFE_MUTEX
+    DBUG_ASSERT(mysql_mutex_is_owner(&mutex) ||
+                page_hash.lock_get(fold)->is_locked());
+#endif /* SAFE_MUTEX */
     buf_page_t *bpage;
     /* Look for the page in the hash table */
     HASH_SEARCH(hash, &page_hash, fold, buf_page_t*, bpage,
@@ -1678,7 +1687,10 @@ public:
   @return whether bpage a sentinel for a buffer pool watch */
   bool watch_is_sentinel(const buf_page_t &bpage)
   {
-    ut_ad(mutex_own(&mutex) || hash_lock_get(bpage.id())->is_locked());
+#ifdef SAFE_MUTEX
+    DBUG_ASSERT(mysql_mutex_is_owner(&mutex) ||
+                hash_lock_get(bpage.id())->is_locked());
+#endif /* SAFE_MUTEX */
     ut_ad(bpage.in_file());
 
     if (&bpage < &watch[0] || &bpage >= &watch[UT_ARR_SIZE(watch)])
@@ -1735,7 +1747,7 @@ public:
       HASH_DELETE(buf_page_t, hash, &page_hash, fold, watch);
       hash_lock->write_unlock();
       // Now that the watch is detached from page_hash, release it to watch[].
-      mutex_enter(&mutex);
+      mysql_mutex_lock(&mutex);
       /* It is possible that watch_remove() already removed the watch. */
       if (watch->id_ == id)
       {
@@ -1743,7 +1755,7 @@ public:
         ut_ad(watch->state() == BUF_BLOCK_ZIP_PAGE);
         watch->set_state(BUF_BLOCK_NOT_USED);
       }
-      mutex_exit(&mutex);
+      mysql_mutex_unlock(&mutex);
     }
     else
       hash_lock->write_unlock();
@@ -1776,7 +1788,7 @@ public:
   @return the predecessor in the LRU list */
   buf_page_t *LRU_remove(buf_page_t *bpage)
   {
-    ut_ad(mutex_own(&mutex));
+    mysql_mutex_assert_owner(&mutex);
     ut_ad(bpage->in_LRU_list);
     ut_ad(bpage->in_page_hash);
     ut_ad(!bpage->in_zip_hash);
@@ -1793,9 +1805,11 @@ public:
   /** Number of pages to read ahead */
   static constexpr uint32_t READ_AHEAD_PAGES= 64;
 
+  /** Buffer pool mutex */
+  mysql_mutex_t mutex;
+
 	/** @name General fields */
 	/* @{ */
-	BufPoolMutex	mutex;		/*!< Buffer pool mutex */
 	ulint		curr_pool_size;	/*!< Current pool size in bytes */
 	ulint		LRU_old_ratio;  /*!< Reserve this much of the buffer
 					pool for "old" blocks */
@@ -1926,18 +1940,12 @@ public:
 
 	/* @} */
 
-	/** @name Page flushing algorithm fields */
+  /** @name Page flushing algorithm fields */
+  /* @{ */
 
-	/* @{ */
-
-	FlushListMutex	flush_list_mutex;/*!< mutex protecting the
-					flush list access. This mutex
-					protects flush_list, flush_rbt
-					and bpage::list pointers when
-					the bpage is on flush_list. It
-					also protects writes to
-					bpage::oldest_modification and
-					flush_list_hp */
+  /** mutex protecting flush_list, buf_page_t::set_oldest_modification()
+  and buf_page_t::list pointers when !oldest_modification() */
+  mysql_mutex_t flush_list_mutex;
 	FlushHp			flush_hp;/*!< "hazard pointer"
 					used during scan of flush_list
 					while doing flush list batch.
@@ -2132,7 +2140,7 @@ extern buf_pool_t buf_pool;
 
 inline void page_hash_latch::read_lock()
 {
-  ut_ad(!mutex_own(&buf_pool.mutex));
+  mysql_mutex_assert_not_owner(&buf_pool.mutex);
   if (!read_trylock())
     read_lock_wait();
 }
@@ -2145,19 +2153,19 @@ inline void page_hash_latch::write_lock()
 
 inline void buf_page_t::add_buf_fix_count(uint32_t count)
 {
-  ut_ad(mutex_own(&buf_pool.mutex));
+  mysql_mutex_assert_owner(&buf_pool.mutex);
   buf_fix_count_+= count;
 }
 
 inline void buf_page_t::set_buf_fix_count(uint32_t count)
 {
-  ut_ad(mutex_own(&buf_pool.mutex));
+  mysql_mutex_assert_owner(&buf_pool.mutex);
   buf_fix_count_= count;
 }
 
 inline void buf_page_t::set_state(buf_page_state state)
 {
-  ut_ad(mutex_own(&buf_pool.mutex));
+  mysql_mutex_assert_owner(&buf_pool.mutex);
 #ifdef UNIV_DEBUG
   switch (state) {
   case BUF_BLOCK_REMOVE_HASH:
@@ -2186,7 +2194,7 @@ inline void buf_page_t::set_state(buf_page_state state)
 
 inline void buf_page_t::set_io_fix(buf_io_fix io_fix)
 {
-  ut_ad(mutex_own(&buf_pool.mutex));
+  mysql_mutex_assert_owner(&buf_pool.mutex);
   io_fix_= io_fix;
 }
 
@@ -2212,7 +2220,7 @@ inline void buf_page_t::set_corrupt_id()
 /** Set oldest_modification when adding to buf_pool.flush_list */
 inline void buf_page_t::set_oldest_modification(lsn_t lsn)
 {
-  ut_ad(mutex_own(&buf_pool.flush_list_mutex));
+  mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
   ut_ad(!oldest_modification());
   oldest_modification_= lsn;
 }
@@ -2220,7 +2228,7 @@ inline void buf_page_t::set_oldest_modification(lsn_t lsn)
 /** Clear oldest_modification when removing from buf_pool.flush_list */
 inline void buf_page_t::clear_oldest_modification()
 {
-  ut_ad(mutex_own(&buf_pool.flush_list_mutex));
+  mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
   ut_d(const auto state= state_);
   ut_ad(state == BUF_BLOCK_FILE_PAGE || state == BUF_BLOCK_ZIP_PAGE ||
         state == BUF_BLOCK_REMOVE_HASH);
@@ -2231,7 +2239,7 @@ inline void buf_page_t::clear_oldest_modification()
 /** @return whether the block is modified and ready for flushing */
 inline bool buf_page_t::ready_for_flush() const
 {
-  ut_ad(mutex_own(&buf_pool.mutex));
+  mysql_mutex_assert_owner(&buf_pool.mutex);
   ut_ad(in_LRU_list);
   ut_a(in_file());
   return oldest_modification() && io_fix_ == BUF_IO_NONE;
@@ -2241,7 +2249,7 @@ inline bool buf_page_t::ready_for_flush() const
 The block can be dirty, but it must not be I/O-fixed or bufferfixed. */
 inline bool buf_page_t::can_relocate() const
 {
-  ut_ad(mutex_own(&buf_pool.mutex));
+  mysql_mutex_assert_owner(&buf_pool.mutex);
   ut_ad(in_file());
   ut_ad(in_LRU_list);
   return io_fix_ == BUF_IO_NONE && !buf_fix_count_;
@@ -2250,7 +2258,7 @@ inline bool buf_page_t::can_relocate() const
 /** @return whether the block has been flagged old in buf_pool.LRU */
 inline bool buf_page_t::is_old() const
 {
-  ut_ad(mutex_own(&buf_pool.mutex));
+  mysql_mutex_assert_owner(&buf_pool.mutex);
   ut_ad(in_file());
   ut_ad(in_LRU_list);
   return old;
@@ -2259,7 +2267,7 @@ inline bool buf_page_t::is_old() const
 /** Set whether a block is old in buf_pool.LRU */
 inline void buf_page_t::set_old(bool old)
 {
-  ut_ad(mutex_own(&buf_pool.mutex));
+  mysql_mutex_assert_owner(&buf_pool.mutex);
   ut_ad(in_LRU_list);
 
 #ifdef UNIV_LRU_DEBUG
@@ -2286,14 +2294,14 @@ inline void buf_page_t::set_old(bool old)
 
 #ifdef UNIV_DEBUG
 /** Forbid the release of the buffer pool mutex. */
-# define buf_pool_mutex_exit_forbid() do {	\
-	ut_ad(mutex_own(&buf_pool.mutex));	\
-	buf_pool.mutex_exit_forbidden++;	\
+# define buf_pool_mutex_exit_forbid() do {		\
+	mysql_mutex_assert_owner(&buf_pool.mutex);	\
+	buf_pool.mutex_exit_forbidden++;		\
 } while (0)
 /** Allow the release of the buffer pool mutex. */
 # define buf_pool_mutex_exit_allow() do {		\
-	ut_ad(mutex_own(&buf_pool.mutex));		\
-	ut_ad(buf_pool.mutex_exit_forbidden--);	\
+	mysql_mutex_assert_owner(&buf_pool.mutex);	\
+	ut_ad(buf_pool.mutex_exit_forbidden--);		\
 } while (0)
 #else
 /** Forbid the release of the buffer pool mutex. */
@@ -2349,7 +2357,7 @@ of the LRU list.
 @return buf_page_t from where to start scan. */
 inline buf_page_t *LRUItr::start()
 {
-  ut_ad(mutex_own(m_mutex));
+  mysql_mutex_assert_owner(m_mutex);
 
   if (!m_hp || m_hp->old)
     m_hp= UT_LIST_GET_LAST(buf_pool.LRU);

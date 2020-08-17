@@ -194,10 +194,6 @@ extern const byte field_ref_zero[UNIV_PAGE_SIZE_MAX];
 #include "sync0rw.h"
 #include "rw_lock.h"
 
-typedef ib_mutex_t BufPoolMutex;
-typedef ib_mutex_t FlushListMutex;
-typedef rw_lock_t BPageLock;
-
 class page_hash_latch : public rw_lock
 {
 public:

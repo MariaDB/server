@@ -3338,10 +3338,10 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
 	      || srv_operation == SRV_OPERATION_RESTORE
 	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
-	ut_d(mutex_enter(&buf_pool.flush_list_mutex));
+	ut_d(mysql_mutex_lock(&buf_pool.flush_list_mutex));
 	ut_ad(UT_LIST_GET_LEN(buf_pool.LRU) == 0);
 	ut_ad(UT_LIST_GET_LEN(buf_pool.unzip_LRU) == 0);
-	ut_d(mutex_exit(&buf_pool.flush_list_mutex));
+	ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
 
 	/* Initialize red-black tree for fast insertions into the
 	flush_list during recovery process. */

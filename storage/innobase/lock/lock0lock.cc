@@ -517,7 +517,7 @@ void lock_sys_t::resize(ulint n_cells)
 	old_hash.free();
 
 	/* need to update block->lock_hash_val */
-	mutex_enter(&buf_pool.mutex);
+	mysql_mutex_lock(&buf_pool.mutex);
 	for (buf_page_t* bpage = UT_LIST_GET_FIRST(buf_pool.LRU);
 	     bpage; bpage = UT_LIST_GET_NEXT(LRU, bpage)) {
 		if (bpage->state() == BUF_BLOCK_FILE_PAGE) {
@@ -526,7 +526,7 @@ void lock_sys_t::resize(ulint n_cells)
 				= lock_rec_hash(id.space(), id.page_no());
 		}
 	}
-	mutex_exit(&buf_pool.mutex);
+	mysql_mutex_unlock(&buf_pool.mutex);
 	mutex_exit(&mutex);
 }
 
