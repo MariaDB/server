@@ -298,6 +298,7 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
 {
   Dl_info info;
   int error;
+  void *offset;
 
   if (!dladdr(ptr, &info))
     return 1;
@@ -319,7 +320,13 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
     /* Save result for future comparisons. */
     strnmov(addr2line_binary, info.dli_fname, sizeof(addr2line_binary));
   }
-  if (!(error= addr_resolve((void*) (ptr - info.dli_fbase), loc)))
+
+  offset= info.dli_fbase;
+  /* offset is 0 for the current executable (not shared library */
+  if (strcmp(info.dli_fname, my_progname) == 0)
+    offset= 0;
+
+  if (!(error= addr_resolve((void*) (ptr - offset), loc)))
     return 0;
   return error;
 }
