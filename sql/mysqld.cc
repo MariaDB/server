@@ -1865,7 +1865,7 @@ static void mysqld_exit(int exit_code)
   {
     fprintf(stderr, "Warning: Memory not freed: %lld\n",
             (longlong) global_status_var.global_memory_used);
-    if (exit_code == 0)
+    if (exit_code == 0 || opt_endinfo)
       SAFEMALLOC_REPORT_MEMORY(0);
   }
   DBUG_LEAVE;
