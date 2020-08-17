@@ -4386,9 +4386,6 @@ All pages must be in a replaceable state (not modified or latched). */
 void buf_pool_invalidate()
 {
 	mutex_enter(&buf_pool.mutex);
-	ut_ad(!buf_pool.init_flush[IORequest::LRU]);
-	ut_ad(!buf_pool.init_flush[IORequest::FLUSH_LIST]);
-	ut_ad(!buf_pool.init_flush[IORequest::SINGLE_PAGE]);
 	ut_ad(!buf_pool.n_flush[IORequest::SINGLE_PAGE]);
 
 	if (buf_pool.n_flush[IORequest::LRU]) {
@@ -4753,17 +4750,13 @@ void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
 
 	pool_info->n_pend_reads = buf_pool.n_pend_reads;
 
-	pool_info->n_pending_flush_lru =
-		(buf_pool.n_flush[IORequest::LRU]
-		 + buf_pool.init_flush[IORequest::LRU]);
+	pool_info->n_pending_flush_lru = buf_pool.n_flush[IORequest::LRU];
 
 	pool_info->n_pending_flush_list =
-		 (buf_pool.n_flush[IORequest::FLUSH_LIST]
-		  + buf_pool.init_flush[IORequest::FLUSH_LIST]);
+		buf_pool.n_flush[IORequest::FLUSH_LIST];
 
 	pool_info->n_pending_flush_single_page =
-		 (buf_pool.n_flush[IORequest::SINGLE_PAGE]
-		  + buf_pool.init_flush[IORequest::SINGLE_PAGE]);
+		buf_pool.n_flush[IORequest::SINGLE_PAGE];
 
 	mutex_exit(&buf_pool.flush_list_mutex);
 

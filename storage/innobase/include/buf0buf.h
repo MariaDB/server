@@ -1945,9 +1945,7 @@ public:
 	UT_LIST_BASE_NODE_T(buf_page_t) flush_list;
 					/*!< base node of the modified block
 					list */
-	/** set if a flush of the type is being initialized */
-	Atomic_relaxed<bool> init_flush[3];
-	/** Number of pending writes of a flush type.
+	/** Number of pending or initiated writes of a flush type.
 	The sum of these is approximately the sum of BUF_IO_WRITE blocks. */
 	Atomic_counter<ulint> n_flush[3];
 	os_event_t	no_flush[3];

@@ -529,16 +529,10 @@ static void buf_flush_write_complete(buf_page_t *bpage,
   buf_flush_remove(bpage);
   mutex_exit(&buf_pool.flush_list_mutex);
 
-  switch (--buf_pool.n_flush[flush_type]) {
-#ifdef UNIV_DEBUG
-  case ULINT_UNDEFINED:
-    ut_error;
-    break;
-#endif
-  case 0:
-    if (!buf_pool.init_flush[flush_type])
-      os_event_set(buf_pool.no_flush[flush_type]);
-  }
+  ut_ad(buf_pool.n_flush[flush_type]);
+
+  if (1 == buf_pool.n_flush[flush_type]--)
+    os_event_set(buf_pool.no_flush[flush_type]);
 
   if (dblwr)
     buf_dblwr_update(*bpage, flush_type == IORequest::SINGLE_PAGE);
@@ -1091,6 +1085,7 @@ bool buf_flush_page(buf_page_t *bpage, IORequest::flush_t flush_type,
   ut_ad(bpage->oldest_modification());
   ut_ad(bpage->state() ==
         (rw_lock ? BUF_BLOCK_FILE_PAGE : BUF_BLOCK_ZIP_PAGE));
+  ut_ad(buf_pool.n_flush[flush_type] < ULINT_UNDEFINED);
 
   /* Because bpage->status can only be changed while buf_block_t
   exists, it cannot be modified for ROW_FORMAT=COMPRESSED pages
@@ -1099,19 +1094,9 @@ bool buf_flush_page(buf_page_t *bpage, IORequest::flush_t flush_type,
   is protected even if !rw_lock. */
   const auto status= bpage->status;
 
-  if (status != buf_page_t::FREED)
-  {
-    switch (buf_pool.n_flush[flush_type]++) {
-    case 0:
-      os_event_reset(buf_pool.no_flush[flush_type]);
-      break;
-#ifdef UNIV_DEBUG
-    case ULINT_UNDEFINED:
-      ut_error;
-      break;
-#endif
-    }
-  }
+  if (status != buf_page_t::FREED &&
+      0 == buf_pool.n_flush[flush_type]++)
+    os_event_reset(buf_pool.no_flush[flush_type]);
 
   page_t *frame= bpage->zip.data;
   size_t size, orig_size;
@@ -1712,16 +1697,20 @@ bool buf_flush_do_batch(bool lru, ulint min_n, lsn_t lsn_limit,
     n->flushed= 0;
 
   IORequest::flush_t flush_type= lru ? IORequest::LRU : IORequest::FLUSH_LIST;
+
+  if (buf_pool.n_flush[flush_type])
+    return false;
+
   mutex_enter(&buf_pool.mutex);
 
-  if (buf_pool.n_flush[flush_type] > 0 || buf_pool.init_flush[flush_type])
+  if (buf_pool.n_flush[flush_type])
   {
     /* There is already a flush batch of the same type running */
     mutex_exit(&buf_pool.mutex);
     return false;
   }
 
-  buf_pool.init_flush[flush_type]= true;
+  buf_pool.n_flush[flush_type]++;
   os_event_reset(buf_pool.no_flush[flush_type]);
 
   /* Note: The buffer pool mutex is released and reacquired within
@@ -1734,11 +1723,9 @@ bool buf_flush_do_batch(bool lru, ulint min_n, lsn_t lsn_limit,
     n->evicted= 0;
   }
 
-  buf_pool.init_flush[flush_type]= false;
   buf_pool.try_LRU_scan= true;
 
-  if (!buf_pool.n_flush[flush_type])
-    /* The running flush batch has ended */
+  if (1 == buf_pool.n_flush[flush_type]--)
     os_event_set(buf_pool.no_flush[flush_type]);
 
   mutex_exit(&buf_pool.mutex);
@@ -1924,7 +1911,7 @@ static ulint buf_flush_LRU_list()
 /** Wait for any possible LRU flushes to complete. */
 void buf_flush_wait_LRU_batch_end()
 {
-  if (buf_pool.n_flush[IORequest::LRU] || buf_pool.init_flush[IORequest::LRU])
+  if (buf_pool.n_flush[IORequest::LRU])
     buf_flush_wait_batch_end(true);
 }
 
