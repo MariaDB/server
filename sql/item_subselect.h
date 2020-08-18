@@ -298,29 +298,30 @@ public:
   Item_singlerow_subselect(THD *thd_arg): Item_subselect(thd_arg), value(0), row (0)
   {}
 
-  void cleanup();
-  subs_type substype() { return SINGLEROW_SUBS; }
+  void cleanup() override;
+  subs_type substype() override { return SINGLEROW_SUBS; }
 
-  void reset();
-  void no_rows_in_result();
-  bool select_transformer(JOIN *join);
+  void reset() override;
+  void no_rows_in_result() override;
+  bool select_transformer(JOIN *join) override;
   void store(uint i, Item* item);
-  double val_real();
-  longlong val_int ();
-  String *val_str (String *);
-  bool val_native(THD *thd, Native *);
-  my_decimal *val_decimal(my_decimal *);
-  bool val_bool();
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
-  const Type_handler *type_handler() const;
-  bool fix_length_and_dec();
+  double val_real() override;
+  longlong val_int() override;
+  String *val_str(String *) override;
+  bool val_native(THD *thd, Native *) override;
+  my_decimal *val_decimal(my_decimal *) override;
+  bool val_bool() override;
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
+  const Type_handler *type_handler() const override;
+  bool fix_length_and_dec() override;
 
-  uint cols() const;
-  Item* element_index(uint i) { return reinterpret_cast<Item*>(row[i]); }
-  Item** addr(uint i) { return (Item**)row + i; }
-  bool check_cols(uint c);
-  bool null_inside();
-  void bring_value();
+  uint cols() const override;
+  Item* element_index(uint i) override
+  { return reinterpret_cast<Item*>(row[i]); }
+  Item** addr(uint i) override { return (Item**)row + i; }
+  bool check_cols(uint c) override;
+  bool null_inside() override;
+  void bring_value() override;
 
   /**
     This method is used to implement a special case of semantic tree
@@ -336,7 +337,7 @@ public:
   */
   st_select_lex* invalidate_and_restore_select_lex();
 
-  Item* expr_cache_insert_transformer(THD *thd, uchar *unused);
+  Item* expr_cache_insert_transformer(THD *thd, uchar *unused) override;
 
   friend class select_singlerow_subselect;
 };
@@ -351,12 +352,12 @@ protected:
 public:
   Item_maxmin_subselect(THD *thd, Item_subselect *parent,
 			st_select_lex *select_lex, bool max);
-  virtual void print(String *str, enum_query_type query_type);
-  void cleanup();
+  void print(String *str, enum_query_type query_type) override;
+  void cleanup() override;
   bool any_value() { return was_values; }
   void register_value() { was_values= TRUE; }
-  void reset_value_registration() { was_values= FALSE; }
-  void no_rows_in_result();
+  void reset_value_registration() override { was_values= FALSE; }
+  void no_rows_in_result() override;
 };
 
 /* exists subselect */

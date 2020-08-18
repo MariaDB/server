@@ -1198,7 +1198,7 @@ public:
   virtual uint16 key_part_flag() const { return 0; }
   virtual uint16 key_part_length_bytes() const { return 0; }
   virtual uint32 key_length() const { return pack_length(); }
-  virtual const Type_handler *type_handler() const= 0;
+  virtual const Type_handler *type_handler() const = 0;
   virtual enum_field_types type() const
   {
     return type_handler()->field_type();
@@ -4151,7 +4151,7 @@ public:
   {
     return (uint32) field_length + sort_suffix_length();
   }
-  virtual uint32 sort_suffix_length() const override
+  uint32 sort_suffix_length() const override
   {
     return (field_charset() == &my_charset_bin ? length_bytes : 0);
   }
@@ -4501,7 +4501,7 @@ public:
   uint32 sort_length() const override;
   uint32 sort_suffix_length() const override;
   uint32 value_length() override { return get_length(); }
-  virtual uint32 max_data_length() const override
+  uint32 max_data_length() const override
   {
     return (uint32) (((ulonglong) 1 << (packlength*8)) -1);
   }

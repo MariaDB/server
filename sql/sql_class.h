@@ -6781,7 +6781,8 @@ public:
   ~my_var_sp() { }
   bool set(THD *thd, Item *val);
   my_var_sp *get_my_var_sp() { return this; }
-  const Type_handler *type_handler() const { return m_type_handler; }
+  const Type_handler *type_handler() const
+  { return m_type_handler; }
   sp_rcontext *get_rcontext(sp_rcontext *local_ctx) const;
 };
 
