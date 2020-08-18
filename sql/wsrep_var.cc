@@ -320,6 +320,12 @@ static int wsrep_provider_verify (const char* provider_str)
   {
     return 1;
   }
+
+  if (MY_S_ISDIR(f_stat.st_mode))
+  {
+    return 1;
+  }
+
   return 0;
 }
 
