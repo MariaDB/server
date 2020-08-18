@@ -734,7 +734,7 @@ decimal_digits_t Item_datetime_precision(THD *thd, Item *item) const override
     {
       if (Inet6::fix_fields_maybe_null_on_conversion_to_inet6(items[i]))
       {
-        attr->set_maybe_null(true);
+        attr->set_type_maybe_null(true);
         break;
       }
     }
