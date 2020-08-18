@@ -5379,9 +5379,13 @@ String *Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
 
 String *Item_func_wsrep_last_seen_gtid::val_str_ascii(String *str)
 {
-  /* TODO: Should call Wsrep_server_state.instance().last_committed_gtid()
-     instead. */
-  wsrep::gtid gtid= Wsrep_server_state::instance().provider().last_committed_gtid();
+  wsrep::gtid gtid= wsrep::gtid::undefined();
+  if (Wsrep_server_state::instance().is_provider_loaded())
+  {
+    /* TODO: Should call Wsrep_server_state.instance().last_committed_gtid()
+       instead. */
+    gtid= Wsrep_server_state::instance().provider().last_committed_gtid();
+  }
   if (gtid_str.alloc(wsrep::gtid_c_str_len()))
   {
     my_error(ER_OUTOFMEMORY, wsrep::gtid_c_str_len());
