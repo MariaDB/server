@@ -120,7 +120,7 @@ bool dict_col_t::same_encoding(uint16_t a, uint16_t b)
 {
   if (const CHARSET_INFO *acs= get_charset(a, MYF(MY_WME)))
     if (const CHARSET_INFO *bcs= get_charset(b, MYF(MY_WME)))
-      return Charset(acs).same_encoding(bcs);
+      return Charset(bcs).encoding_allows_reinterpret_as(acs);
   return false;
 }
 

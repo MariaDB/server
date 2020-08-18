@@ -429,4 +429,11 @@ INSERT INTO t SET i=1;
 ALTER TABLE t ADD e CHAR(255) CHARACTER SET UTF32 FIRST, ALGORITHM=INSTANT;
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-23499 Assertion c.same_type(*o) failed
+--echo #
+CREATE TABLE t (pk SERIAL, b TEXT CHARACTER SET utf8) ENGINE=InnoDB;
+ALTER TABLE t MODIFY b TEXT CHARACTER SET utf8mb4 FIRST;
+DROP TABLE t;
+
 SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;
