@@ -54,12 +54,12 @@ public:
     DBUG_ENTER("analyze");
     DBUG_RETURN(HA_ERR_TABLE_READONLY);
   }
-  int repair(THD *, HA_CHECK_OPT *) override
+  int repair(THD * thd, HA_CHECK_OPT * check_opt) override
   {
     DBUG_ENTER("repair");
     DBUG_RETURN(HA_ERR_TABLE_READONLY);
   }
-  int preload_keys(THD *, HA_CHECK_OPT *) override
+  int preload_keys(THD * thd, HA_CHECK_OPT * check_opt) override
   {
     DBUG_ENTER("preload_keys");
     DBUG_RETURN(HA_ERR_TABLE_READONLY);
