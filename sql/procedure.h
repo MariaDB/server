@@ -44,9 +44,9 @@ public:
      this->name.str=    name_par;
      this->name.length= strlen(name_par);
   }
-  enum Type type() const { return Item::PROC_ITEM; }
+  enum Type type() const override { return Item::PROC_ITEM; }
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
-                             const Tmp_field_param *param)
+                             const Tmp_field_param *param) override
   {
     /*
       We can get to here when using a CURSOR for a query with PROCEDURE:
@@ -58,19 +58,19 @@ public:
   virtual void set(double nr)=0;
   virtual void set(const char *str,uint length,CHARSET_INFO *cs)=0;
   virtual void set(longlong nr)=0;
-  const Type_handler *type_handler() const=0;
+  const Type_handler *type_handler() const override=0;
   void set(const char *str) { set(str,(uint) strlen(str), default_charset()); }
   unsigned int size_of() { return sizeof(*this);}
-  bool check_vcol_func_processor(void *arg)
+  bool check_vcol_func_processor(void *arg) override
   {
     DBUG_ASSERT(0); // impossible
     return mark_unsupported_function("proc", arg, VCOL_IMPOSSIBLE);
   }
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
     return type_handler()->Item_get_date_with_warn(thd, this, ltime, fuzzydate);
   }
-  Item* get_copy(THD *thd) { return 0; }
+  Item* get_copy(THD *thd) override { return 0; }
 };
 
 class Item_proc_real :public Item_proc
@@ -82,23 +82,24 @@ public:
   {
      decimals=dec; max_length=float_length(dec);
   }
-  const Type_handler *type_handler() const { return &type_handler_double; }
-  void set(double nr) { value=nr; }
-  void set(longlong nr) { value=(double) nr; }
-  void set(const char *str,uint length,CHARSET_INFO *cs)
+  const Type_handler *type_handler() const override
+  { return &type_handler_double; }
+  void set(double nr) override { value=nr; }
+  void set(longlong nr) override { value=(double) nr; }
+  void set(const char *str,uint length,CHARSET_INFO *cs) override
   {
     int err_not_used;
     char *end_not_used;
     value= cs->strntod((char*) str,length, &end_not_used, &err_not_used);
   }
-  double val_real() { return value; }
-  longlong val_int() { return (longlong) value; }
-  String *val_str(String *s)
+  double val_real() override { return value; }
+  longlong val_int() override { return (longlong) value; }
+  String *val_str(String *s) override
   {
     s->set_real(value,decimals,default_charset());
     return s;
   }
-  my_decimal *val_decimal(my_decimal *);
+  my_decimal *val_decimal(my_decimal *) override;
   unsigned int size_of() { return sizeof(*this);}
 };
 
@@ -108,20 +109,21 @@ class Item_proc_int :public Item_proc
 public:
   Item_proc_int(THD *thd, const char *name_par): Item_proc(thd, name_par)
   { max_length=11; }
-  const Type_handler *type_handler() const
+  const Type_handler *type_handler() const override
   {
     if (unsigned_flag)
       return &type_handler_ulonglong;
     return &type_handler_slonglong;
   }
-  void set(double nr) { value=(longlong) nr; }
-  void set(longlong nr) { value=nr; }
-  void set(const char *str,uint length, CHARSET_INFO *cs)
+  void set(double nr) override { value=(longlong) nr; }
+  void set(longlong nr) override { value=nr; }
+  void set(const char *str,uint length, CHARSET_INFO *cs) override
   { int err; value= cs->strntoll(str,length,10,NULL,&err); }
-  double val_real() { return (double) value; }
-  longlong val_int() { return value; }
-  String *val_str(String *s) { s->set(value, default_charset()); return s; }
-  my_decimal *val_decimal(my_decimal *);
+  double val_real() override { return (double) value; }
+  longlong val_int() override { return value; }
+  String *val_str(String *s) override
+  { s->set(value, default_charset()); return s; }
+  my_decimal *val_decimal(my_decimal *) override;
   unsigned int size_of() { return sizeof(*this);}
 };
 
@@ -131,12 +133,13 @@ class Item_proc_string :public Item_proc
 public:
   Item_proc_string(THD *thd, const char *name_par, uint length):
     Item_proc(thd, name_par) { this->max_length=length; }
-  const Type_handler *type_handler() const { return &type_handler_varchar; }
-  void set(double nr) { str_value.set_real(nr, 2, default_charset()); }
-  void set(longlong nr) { str_value.set(nr, default_charset()); }
-  void set(const char *str, uint length, CHARSET_INFO *cs)
+  const Type_handler *type_handler() const override
+  { return &type_handler_varchar; }
+  void set(double nr) override { str_value.set_real(nr, 2, default_charset()); }
+  void set(longlong nr) override { str_value.set(nr, default_charset()); }
+  void set(const char *str, uint length, CHARSET_INFO *cs) override
   { str_value.copy(str,length,cs); }
-  double val_real()
+  double val_real() override
   {
     int err_not_used;
     char *end_not_used;
@@ -144,17 +147,17 @@ public:
     return cs->strntod((char*) str_value.ptr(), str_value.length(),
 		       &end_not_used, &err_not_used);
   }
-  longlong val_int()
+  longlong val_int() override
   { 
     int err;
     CHARSET_INFO *cs=str_value.charset();
     return cs->strntoll(str_value.ptr(),str_value.length(),10,NULL,&err);
   }
-  String *val_str(String*)
+  String *val_str(String*) override
   {
     return null_value ? (String*) 0 : (String*) &str_value;
   }
-  my_decimal *val_decimal(my_decimal *);
+  my_decimal *val_decimal(my_decimal *) override;
   unsigned int size_of() { return sizeof(*this);}  
 };
 

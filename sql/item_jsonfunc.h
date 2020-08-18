@@ -82,13 +82,13 @@ protected:
 
 public:
   Item_func_json_valid(THD *thd, Item *json) : Item_bool_func(thd, json) {}
-  longlong val_int();
+  longlong val_int() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_valid") };
     return name;
   }
-  bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   {
     if (Item_bool_func::fix_length_and_dec())
       return TRUE;
@@ -96,13 +96,14 @@ public:
     return FALSE;
   }
   bool set_format_by_check_constraint(Send_field_extended_metadata *to) const
+    override
   {
     static const Lex_cstring fmt(STRING_WITH_LEN("json"));
     return to->set_format_name(fmt);
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_valid>(thd, this); }
-  enum Functype functype() const   { return JSON_VALID_FUNC; }
+  enum Functype functype() const override { return JSON_VALID_FUNC; }
 };
 
 
@@ -120,10 +121,10 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_exists") };
     return name;
   }
-  bool fix_length_and_dec();
-  Item *get_copy(THD *thd)
+  bool fix_length_and_dec() override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_exists>(thd, this); }
-  longlong val_int();
+  longlong val_int() override;
 };
 
 
@@ -217,9 +218,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_quote") };
     return name;
   }
-  bool fix_length_and_dec();
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  bool fix_length_and_dec() override;
+  String *val_str(String *) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_quote>(thd, this); }
 };
 
@@ -236,9 +237,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_unquote") };
     return name;
   }
-  bool fix_length_and_dec();
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  bool fix_length_and_dec() override;
+  String *val_str(String *) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_unquote>(thd, this); }
 };
 
@@ -271,14 +272,14 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_extract") };
     return name;
   }
-  enum Functype functype() const   { return JSON_EXTRACT_FUNC; }
-  bool fix_length_and_dec();
-  String *val_str(String *);
-  longlong val_int();
-  double val_real();
-  my_decimal *val_decimal(my_decimal *);
-  uint get_n_paths() const { return arg_count - 1; }
-  Item *get_copy(THD *thd)
+  enum Functype functype() const override { return JSON_EXTRACT_FUNC; }
+  bool fix_length_and_dec() override;
+  String *val_str(String *) override;
+  longlong val_int() override;
+  double val_real() override;
+  my_decimal *val_decimal(my_decimal *) override;
+  uint get_n_paths() const override { return arg_count - 1; }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_extract>(thd, this); }
 };
 
@@ -299,9 +300,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_contains") };
     return name;
   }
-  bool fix_length_and_dec();
-  longlong val_int();
-  Item *get_copy(THD *thd)
+  bool fix_length_and_dec() override;
+  longlong val_int() override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_contains>(thd, this); }
 };
 
@@ -324,11 +325,11 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_contains_path") };
     return name;
   }
-  bool fix_fields(THD *thd, Item **ref);
-  bool fix_length_and_dec();
-  void cleanup();
-  longlong val_int();
-  Item *get_copy(THD *thd)
+  bool fix_fields(THD *thd, Item **ref) override;
+  bool fix_length_and_dec() override;
+  void cleanup() override;
+  longlong val_int() override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_contains_path>(thd, this); }
 };
 
@@ -343,14 +344,14 @@ public:
     Item_json_func(thd) {}
   Item_func_json_array(THD *thd, List<Item> &list):
     Item_json_func(thd, list) {}
-  String *val_str(String *);
-  bool fix_length_and_dec();
+  String *val_str(String *) override;
+  bool fix_length_and_dec() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_array") };
     return name;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_array>(thd, this); }
 };
 
@@ -363,15 +364,15 @@ protected:
 public:
   Item_func_json_array_append(THD *thd, List<Item> &list):
     Item_json_str_multipath(thd, list) {}
-  bool fix_length_and_dec();
-  String *val_str(String *);
-  uint get_n_paths() const { return arg_count/2; }
+  bool fix_length_and_dec() override;
+  String *val_str(String *) override;
+  uint get_n_paths() const override { return arg_count/2; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_array_append") };
     return name;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_array_append>(thd, this); }
 };
 
@@ -381,13 +382,13 @@ class Item_func_json_array_insert: public Item_func_json_array_append
 public:
   Item_func_json_array_insert(THD *thd, List<Item> &list):
     Item_func_json_array_append(thd, list) {}
-  String *val_str(String *);
+  String *val_str(String *) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_array_insert") };
     return name;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_array_insert>(thd, this); }
 };
 
@@ -399,13 +400,13 @@ public:
     Item_func_json_array(thd) {}
   Item_func_json_object(THD *thd, List<Item> &list):
     Item_func_json_array(thd, list) {}
-  String *val_str(String *);
+  String *val_str(String *) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_object") };
     return name;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_object>(thd, this); }
 };
 
@@ -417,13 +418,13 @@ protected:
 public:
   Item_func_json_merge(THD *thd, List<Item> &list):
     Item_func_json_array(thd, list) {}
-  String *val_str(String *);
+  String *val_str(String *) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_merge_preserve") };
     return name;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_merge>(thd, this); }
 };
 
@@ -437,14 +438,14 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_merge_patch") };
     return name;
   }
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  String *val_str(String *) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_merge_patch>(thd, this); }
 };
 
 class Item_func_json_length: public Item_long_func
 {
-  bool check_arguments() const
+  bool check_arguments() const override
   {
     return args[0]->check_type_can_return_text(func_name_cstring()) ||
            (arg_count > 1 &&
@@ -462,16 +463,16 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_length") };
     return name;
   }
-  bool fix_length_and_dec();
-  longlong val_int();
-  Item *get_copy(THD *thd)
+  bool fix_length_and_dec() override;
+  longlong val_int() override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_length>(thd, this); }
 };
 
 
 class Item_func_json_depth: public Item_long_func
 {
-  bool check_arguments() const
+  bool check_arguments() const override
   { return args[0]->check_type_can_return_text(func_name_cstring()); }
 protected:
   String tmp_js;
@@ -482,9 +483,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_depth") };
     return name;
   }
-  bool fix_length_and_dec() { max_length= 10; return FALSE; }
-  longlong val_int();
-  Item *get_copy(THD *thd)
+  bool fix_length_and_dec() override { max_length= 10; return FALSE; }
+  longlong val_int() override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_depth>(thd, this); }
 };
 
@@ -500,9 +501,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_type") };
     return name;
   }
-  bool fix_length_and_dec();
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  bool fix_length_and_dec() override;
+  String *val_str(String *) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_type>(thd, this); }
 };
 
@@ -517,9 +518,9 @@ public:
   Item_func_json_insert(bool i_mode, bool r_mode, THD *thd, List<Item> &list):
     Item_json_str_multipath(thd, list),
       mode_insert(i_mode), mode_replace(r_mode) {}
-  bool fix_length_and_dec();
-  String *val_str(String *);
-  uint get_n_paths() const { return arg_count/2; }
+  bool fix_length_and_dec() override;
+  String *val_str(String *) override;
+  uint get_n_paths() const override { return arg_count/2; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING json_set=    {STRING_WITH_LEN("json_set") };
@@ -528,7 +529,7 @@ public:
     return (mode_insert ?
             (mode_replace ? json_set : json_insert) : json_update);
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_insert>(thd, this); }
 };
 
@@ -540,15 +541,15 @@ protected:
 public:
   Item_func_json_remove(THD *thd, List<Item> &list):
     Item_json_str_multipath(thd, list) {}
-  bool fix_length_and_dec();
-  String *val_str(String *);
-  uint get_n_paths() const { return arg_count - 1; }
+  bool fix_length_and_dec() override;
+  String *val_str(String *) override;
+  uint get_n_paths() const override { return arg_count - 1; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_remove") };
     return name;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_remove>(thd, this); }
 };
 
@@ -567,9 +568,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_keys") };
     return name;
   }
-  bool fix_length_and_dec();
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  bool fix_length_and_dec() override;
+  String *val_str(String *) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_keys>(thd, this); }
 };
 
@@ -594,11 +595,11 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_search") };
     return name;
   }
-  bool fix_fields(THD *thd, Item **ref);
-  bool fix_length_and_dec();
-  String *val_str(String *);
-  uint get_n_paths() const { return arg_count > 4 ? arg_count - 4 : 0; }
-  Item *get_copy(THD *thd)
+  bool fix_fields(THD *thd, Item **ref) override;
+  bool fix_length_and_dec() override;
+  String *val_str(String *) override;
+  uint get_n_paths() const override { return arg_count > 4 ? arg_count - 4 : 0; }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_search>(thd, this); }
 };
 
@@ -623,10 +624,10 @@ public:
     Item_json_func(thd, list), fmt(DETAILED) {}
 
   LEX_CSTRING func_name_cstring() const override;
-  bool fix_length_and_dec();
-  String *val_str(String *str);
-  String *val_json(String *str);
-  Item *get_copy(THD *thd)
+  bool fix_length_and_dec() override;
+  String *val_str(String *str) override;
+  String *val_json(String *str) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_format>(thd, this); }
 };
 
@@ -638,12 +639,12 @@ protected:
     Overrides Item_func_group_concat::skip_nulls()
     NULL-s should be added to the result as JSON null value.
   */
-  bool skip_nulls() const { return false; }
-  String *get_str_from_item(Item *i, String *tmp);
+  bool skip_nulls() const override { return false; }
+  String *get_str_from_item(Item *i, String *tmp) override;
   String *get_str_from_field(Item *i, Field *f, String *tmp,
-                             const uchar *key, size_t offset);
+                             const uchar *key, size_t offset) override;
   void cut_max_length(String *result,
-                      uint old_length, uint max_length) const;
+                      uint old_length, uint max_length) const override;
 public:
   String m_tmp_json; /* Used in get_str_from_*.. */
   Item_func_json_arrayagg(THD *thd, Name_resolution_context *context_arg,
@@ -655,18 +656,18 @@ public:
   {
   }
   Item_func_json_arrayagg(THD *thd, Item_func_json_arrayagg *item);
-  bool is_json_type() { return true; }
+  bool is_json_type() override { return true; }
 
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_arrayagg(") };
     return name;
   }
-  enum Sumfunctype sum_func() const {return JSON_ARRAYAGG_FUNC;}
+  enum Sumfunctype sum_func() const override {return JSON_ARRAYAGG_FUNC;}
 
-  String* val_str(String *str);
+  String* val_str(String *str) override;
 
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_arrayagg>(thd, this); }
 };
 
@@ -683,44 +684,44 @@ public:
   }
 
   Item_func_json_objectagg(THD *thd, Item_func_json_objectagg *item);
-  bool is_json_type() { return true; }
-  void cleanup();
+  bool is_json_type() override { return true; }
+  void cleanup() override;
 
-  enum Sumfunctype sum_func () const {return JSON_OBJECTAGG_FUNC;}
+  enum Sumfunctype sum_func () const override { return JSON_OBJECTAGG_FUNC;}
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_objectagg") };
     return name;
   }
-  const Type_handler *type_handler() const
+  const Type_handler *type_handler() const override
   {
     if (too_big_for_varchar())
       return &type_handler_blob;
     return &type_handler_varchar;
   }
-  void clear();
-  bool add();
-  void reset_field() { DBUG_ASSERT(0); }        // not used
-  void update_field() { DBUG_ASSERT(0); }       // not used
-  bool fix_fields(THD *,Item **);
+  void clear() override;
+  bool add() override;
+  void reset_field() override { DBUG_ASSERT(0); }        // not used
+  void update_field() override { DBUG_ASSERT(0); }       // not used
+  bool fix_fields(THD *,Item **) override;
 
-  double val_real()
+  double val_real() override
   { return 0.0; }
-  longlong val_int()
+  longlong val_int() override
   { return 0; }
-  my_decimal *val_decimal(my_decimal *decimal_value)
+  my_decimal *val_decimal(my_decimal *decimal_value) override
   {
     my_decimal_set_zero(decimal_value);
     return decimal_value;
   }
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
     return get_date_from_string(thd, ltime, fuzzydate);
   }
-  String* val_str(String* str);
-  Item *copy_or_same(THD* thd);
-  void no_rows_in_result() {}
-  Item *get_copy(THD *thd)
+  String *val_str(String* str) override;
+  Item *copy_or_same(THD* thd) override;
+  void no_rows_in_result() override {}
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_objectagg>(thd, this); }
 };
 

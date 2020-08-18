@@ -1960,8 +1960,8 @@ class store_key_field: public store_key
     }
   }  
 
-  enum Type type() const { return FIELD_STORE_KEY; }
-  const char *name() const { return field_name; }
+  enum Type type() const override { return FIELD_STORE_KEY; }
+  const char *name() const override { return field_name; }
 
   void change_source_field(Item_field *fld_item)
   {
@@ -1970,7 +1970,7 @@ class store_key_field: public store_key
   }
 
  protected: 
-  enum store_key_result copy_inner()
+  enum store_key_result copy_inner() override
   {
     TABLE *table= copy_field.to_field->table;
     MY_BITMAP *old_map= dbug_tmp_use_all_columns(table,
@@ -2013,11 +2013,11 @@ public:
   {}
 
 
-  enum Type type() const { return ITEM_STORE_KEY; }
-  const char *name() const { return "func"; }
+  enum Type type() const override { return ITEM_STORE_KEY; }
+  const char *name() const  override { return "func"; }
 
  protected:  
-  enum store_key_result copy_inner()
+  enum store_key_result copy_inner() override
   {
     TABLE *table= to_field->table;
     MY_BITMAP *old_map= dbug_tmp_use_all_columns(table,
@@ -2066,12 +2066,12 @@ public:
     :store_key_item(arg, new_item, FALSE), inited(0)
   {}
 
-  enum Type type() const { return CONST_ITEM_STORE_KEY; }
-  const char *name() const { return "const"; }
-  bool store_key_is_const() { return true; }
+  enum Type type() const override { return CONST_ITEM_STORE_KEY; }
+  const char *name() const  override { return "const"; }
+  bool store_key_is_const() override { return true; }
 
 protected:  
-  enum store_key_result copy_inner()
+  enum store_key_result copy_inner() override
   {
     int res;
     if (!inited)

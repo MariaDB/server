@@ -27,17 +27,17 @@
 
 class Item_func_inet_aton : public Item_longlong_func
 {
-  bool check_arguments() const
+  bool check_arguments() const override
   { return check_argument_types_can_return_text(0, arg_count); }
 public:
   Item_func_inet_aton(THD *thd, Item *a): Item_longlong_func(thd, a) {}
-  longlong val_int();
+  longlong val_int() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("inet_aton") };
     return name;
   }
-  bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   {
     decimals= 0;
     max_length= 21;
@@ -45,7 +45,7 @@ public:
     unsigned_flag= 1;
     return FALSE;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_inet_aton>(thd, this); }
 };
 
@@ -59,20 +59,20 @@ class Item_func_inet_ntoa : public Item_str_func
 public:
   Item_func_inet_ntoa(THD *thd, Item *a): Item_str_func(thd, a)
   { }
-  String* val_str(String* str);
+  String *val_str(String* str) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("inet_ntoa") };
     return name;
   }
-  bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   {
     decimals= 0;
     fix_length_and_charset(3 * 8 + 7, default_charset());
     set_maybe_null();
     return FALSE;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_inet_ntoa>(thd, this); }
 };
 
@@ -111,17 +111,17 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("inet6_aton") };
     return name;
   }
-  virtual bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   {
     decimals= 0;
     fix_length_and_charset(16, &my_charset_bin);
     set_maybe_null();
     return FALSE;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_inet6_aton>(thd, this); }
 
-  String *val_str(String *to);
+  String *val_str(String *to) override;
 };
 
 
@@ -143,7 +143,7 @@ public:
     return name;
   }
 
-  virtual bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   {
     decimals= 0;
 
@@ -155,8 +155,8 @@ public:
     set_maybe_null();;
     return FALSE;
   }
-  String *val_str_ascii(String *to);
-  Item *get_copy(THD *thd)
+  String *val_str_ascii(String *to) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_inet6_ntoa>(thd, this); }
 };
 
@@ -178,10 +178,10 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("is_ipv4") };
     return name;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_is_ipv4>(thd, this); }
 
-  longlong val_int();
+  longlong val_int() override;
 };
 
 
@@ -201,10 +201,10 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("is_ipv6") };
     return name;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_is_ipv6>(thd, this); }
 
-  longlong val_int();
+  longlong val_int() override;
 };
 
 
@@ -223,9 +223,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("is_ipv4_compat") };
     return name;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_is_ipv4_compat>(thd, this); }
-  longlong val_int();
+  longlong val_int() override;
 };
 
 
@@ -244,9 +244,9 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("is_ipv4_mapped") };
     return name;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_is_ipv4_mapped>(thd, this); }
-  longlong val_int();
+  longlong val_int() override;
 };
 
 #endif // ITEM_INETFUNC_INCLUDED

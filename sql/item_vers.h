@@ -33,12 +33,9 @@ public:
     DBUG_ASSERT(a->type() == Item::FIELD_ITEM);
   }
 
-  virtual bool val_bool();
-  virtual longlong val_int()
-  {
-    return (val_bool() ? 1 : 0);
-  }
-  bool fix_length_and_dec()
+  bool val_bool() override;
+  longlong val_int() override { return val_bool(); }
+  bool fix_length_and_dec() override
   {
     set_maybe_null();
     null_value= 0;
@@ -46,13 +43,13 @@ public:
     max_length= 1;
     return FALSE;
   }
-  virtual LEX_CSTRING func_name_cstring() const override
+  LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("is_history") };
    return name;
   }
-  virtual void print(String *str, enum_query_type query_type);
-  Item *get_copy(THD *thd)
+  void print(String *str, enum_query_type query_type) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_history>(thd, this); }
 };
 
@@ -67,10 +64,10 @@ public:
     static LEX_CSTRING commit_name= {STRING_WITH_LEN("trt_commit_ts") };
     return (trt_field == TR_table::FLD_BEGIN_TS) ? begin_name : commit_name;
   }
-  bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
-  Item *get_copy(THD *thd)
+  bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_trt_ts>(thd, this); }
-  bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   { fix_attributes_datetime(decimals); return FALSE; }
 };
 
@@ -105,15 +102,15 @@ public:
     return NULL_clex_str;
   }
 
-  bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   {
     bool res= Item_int_func::fix_length_and_dec();
     max_length= 20;
     return res;
   }
 
-  longlong val_int();
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_trt_id>(thd, this); }
 };
 
@@ -129,8 +126,8 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("trt_trx_sees") };
     return name;
   }
-  longlong val_int();
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_trt_trx_sees>(thd, this); }
 };
 

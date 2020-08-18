@@ -60,7 +60,8 @@ public:
   Spvar_definition field_def;
 
   /// Field-type of the SP-variable.
-  const Type_handler *type_handler() const { return field_def.type_handler(); }
+  const Type_handler *type_handler() const
+    { return field_def.type_handler(); }
 
 public:
   sp_variable(const LEX_CSTRING *name_arg, uint offset_arg)
