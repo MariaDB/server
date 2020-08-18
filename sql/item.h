@@ -1158,6 +1158,11 @@ public:
   }
   const TYPELIB *get_typelib() const { return NULL; }
   void set_maybe_null(bool maybe_null_arg) { maybe_null= maybe_null_arg; }
+  /* This is used when calling Type_all_attributes::set_type_maybe_null() */
+  void set_type_maybe_null(bool maybe_null_arg) override
+  {
+    set_maybe_null(maybe_null_arg);
+  }
   void set_typelib(const TYPELIB *typelib)
   {
     // Non-field Items (e.g. hybrid functions) never have ENUM/SET types yet.

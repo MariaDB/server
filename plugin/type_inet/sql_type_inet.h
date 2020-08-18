@@ -736,7 +736,7 @@ public:
     {
       if (Inet6::fix_fields_maybe_null_on_conversion_to_inet6(items[i]))
       {
-        attr->set_maybe_null(true);
+        attr->set_type_maybe_null(true);
         break;
       }
     }
