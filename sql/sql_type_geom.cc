@@ -498,7 +498,7 @@ bool Type_handler_geometry::
   func->unsigned_flag= false;
   func->decimals= 0;
   func->max_length= (uint32) UINT_MAX32;
-  func->set_maybe_null(true);
+  func->set_type_maybe_null(true);
   return false;
 }
 
