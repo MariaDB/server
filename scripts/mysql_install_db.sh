@@ -296,6 +296,11 @@ then
 elif test -n "$dirname0" -a -x "$dirname0/@bindir@/my_print_defaults"
 then
   print_defaults="$dirname0/@bindir@/my_print_defaults"
+elif test -x "./extra/my_print_defaults"
+then
+  srcdir="."
+  builddir="."
+  print_defaults="./extra/my_print_defaults"
 else
   print_defaults="@bindir@/my_print_defaults"
 fi
