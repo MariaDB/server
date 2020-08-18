@@ -254,9 +254,6 @@ my_bool innobase_locks_unsafe_for_binlog;
 my_bool innobase_rollback_on_timeout;
 my_bool innobase_create_status_file;
 
-ulong	innobase_active_counter	= 0;
-
-
 static char *xtrabackup_debug_sync = NULL;
 
 my_bool xtrabackup_incremental_force_scan = FALSE;

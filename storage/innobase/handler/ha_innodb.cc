@@ -446,6 +446,14 @@ static TYPELIB innodb_lock_schedule_algorithm_typelib = {
 	NULL
 };
 
+/** Notify the master thread that there may be work to do */
+inline void innobase_active_small()
+{
+  static size_t count;
+  if (!(++count & 31))
+    srv_inc_activity_count();
+}
+
 /** Allowed values of innodb_change_buffering */
 static const char* innobase_change_buffering_values[IBUF_USE_COUNT] = {
 	"none",		/* IBUF_USE_NONE */
@@ -8321,6 +8329,8 @@ report_error:
 	}
 
 func_exit:
+	innobase_active_small();
+
 	DBUG_RETURN(error_result);
 }
 
@@ -8991,6 +9001,8 @@ func_exit:
 			error, m_prebuilt->table->flags, m_user_thd);
 	}
 
+	innobase_active_small();
+
 #ifdef WITH_WSREP
 	if (error == DB_SUCCESS && trx->is_wsrep() &&
 	    wsrep_thd_exec_mode(m_user_thd) == LOCAL_STATE &&
@@ -9045,6 +9057,7 @@ ha_innobase::delete_row(
 	error = row_update_for_mysql(m_prebuilt);
 
 	innobase_srv_conc_exit_innodb(m_prebuilt);
+	innobase_active_small();
 
 #ifdef WITH_WSREP
 	if (error == DB_SUCCESS && trx->is_wsrep()

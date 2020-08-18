@@ -1537,6 +1537,7 @@ trx_flush_log_if_needed_low(
 	case 1:
 		/* Write the log and optionally flush it to disk */
 		log_write_up_to(lsn, flush);
+		srv_inc_activity_count();
 		return;
 	case 0:
 		/* Do nothing */
