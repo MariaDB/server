@@ -29,7 +29,7 @@ CREATE TABLE t1 (
 # "size>0" to skip directory names on Windows
 --replace_result $MYSQLD_DATADIR DATADIR/
 --sorted_result
-SELECT fname, ftype, size FROM t1 WHERE size>0;
+SELECT fname, ftype, size FROM t1 WHERE size>0 AND ftype!='.opt';
 
 --connection user
 SELECT user();

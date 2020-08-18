@@ -40,9 +40,6 @@ ALTER TABLE t1 ENGINE=InnoDB;
 
 drop table t1;
 
-let $datadir=`select @@datadir`;
---remove_file $datadir/test/db.opt
-
 --enable_query_log
 --enable_result_log
 --enable_warnings

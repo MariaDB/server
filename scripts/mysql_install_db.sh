@@ -35,11 +35,10 @@ force=0
 in_rpm=0
 ip_only=0
 cross_bootstrap=0
-install_params="create database if not exists mysql;
-create database if not exists test;
-use mysql;"
 auth_root_authentication_method=normal
 auth_root_socket_user='root'
+skip_anon_user=0
+skip_test_db=0
 
 dirname0=`dirname $0 2>/dev/null`
 dirname0=`dirname $dirname0 2>/dev/null`
@@ -87,6 +86,7 @@ Usage: $0 [OPTIONS]
   --skip-name-resolve  Use IP addresses rather than hostnames when creating
                        grant table entries.  This option can be useful if
                        your DNS does not work.
+  --skip-test-db       Don't install a test database.
   --srcdir=path        The path to the MariaDB source directory.  This option
                        uses the compiled binaries and support files within the
                        source tree, useful for if you don't want to install
@@ -169,8 +169,7 @@ parse_arguments()
         # --windows is a deprecated alias
         cross_bootstrap=1 ;;
       --skip-auth-anonymous-user)
-	install_params="$install_params
-SET @skip_auth_anonymous=1;" ;;
+        skip_anon_user=1 ;;
       --auth-root-authentication-method=normal)
 	auth_root_authentication_method=normal ;;
       --auth-root-authentication-method=socket)
@@ -179,6 +178,7 @@ SET @skip_auth_anonymous=1;" ;;
         usage ;;
       --auth-root-socket-user=*)
         auth_root_socket_user="$(parse_arg "$arg")" ;;
+      --skip-test-db) skip_test_db=1 ;;
 
       *)
         if test -n "$pick_args"
@@ -379,8 +379,9 @@ create_system_tables="$srcpkgdatadir/mysql_system_tables.sql"
 create_system_tables2="$srcpkgdatadir/mysql_performance_tables.sql"
 fill_system_tables="$srcpkgdatadir/mysql_system_tables_data.sql"
 maria_add_gis_sp="$buildpkgdatadir/maria_add_gis_sp_bootstrap.sql"
+mysql_test_db="$srcpkgdatadir/mysql_test_db.sql"
 
-for f in "$fill_help_tables" "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$maria_add_gis_sp"
+for f in "$fill_help_tables" "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$maria_add_gis_sp" "$mysql_test_db"
 do
   if test ! -f "$f"
   then
@@ -493,20 +494,37 @@ mysqld_install_cmd_line()
   --net_buffer_length=16K
 }
 
+cat_sql()
+{
+  echo "create database if not exists mysql;"
+  echo "use mysql;"
+
+  case "$auth_root_authentication_method" in
+    normal)
+      echo "SET @skip_auth_root_nopasswd=NULL;"
+      echo "SET @auth_root_socket=NULL;"
+      ;;
+    socket)
+      echo "SET @skip_auth_root_nopasswd=1;"
+      echo "SET @auth_root_socket='$auth_root_socket_user';"
+      ;;
+  esac
+
+  cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp"
+  if test "$skip_test_db" -eq 0
+  then
+    # $skip_anon_user below for 10.1, 10.2 compatibility - delete below  3 lines in 10.3 merge along with references above
+    if test "$skip_anon_user" -eq 1
+    then
+      echo "SET @skip_auth_anonymous=1;"
+    fi
+    cat "$mysql_test_db"
+  fi
+}
 
 # Create the system and help tables by passing them to "mysqld --bootstrap"
 s_echo "Installing MariaDB/MySQL system tables in '$ldata' ..."
-case "$auth_root_authentication_method" in
-  normal)
-    install_params="$install_params
-SET @skip_auth_root_nopasswd=NULL;
-SET @auth_root_socket=NULL;" ;;
-  socket)
-    install_params="$install_params
-SET @skip_auth_root_nopasswd=1;
-SET @auth_root_socket='$auth_root_socket_user';" ;;
-esac
-if { echo "$install_params"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
+if cat_sql | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then
   s_echo "OK"
 else
@@ -539,26 +557,6 @@ else
   echo "at http://mariadb.org/jira"
   echo
   exit 1
-fi
-
-s_echo "Filling help tables..."
-if { echo "use mysql;"; cat "$fill_help_tables"; } | mysqld_install_cmd_line > /dev/null
-then
-  s_echo "OK"
-else
-  echo
-  echo "WARNING: HELP FILES ARE NOT COMPLETELY INSTALLED!"
-  echo "The \"HELP\" command might not work properly."
-fi
-
-s_echo "Creating OpenGIS required SP-s..."
-if { echo "use mysql;"; cat "$maria_add_gis_sp"; } | mysqld_install_cmd_line > /dev/null
-then
-  s_echo "OK"
-else
-  echo
-  echo "WARNING: OPENGIS REQUIRED SP-S WERE NOT COMPLETELY INSTALLED!"
-  echo "GIS extentions might not work properly."
 fi
 
 

@@ -432,12 +432,13 @@ IF(WIN32)
   ADD_CUSTOM_COMMAND(OUTPUT    
     ${my_bootstrap_sql}
     COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR}/scripts
-    cmd /c copy mysql_system_tables.sql+mysql_system_tables_data.sql+fill_help_tables.sql+mysql_performance_tables.sql ${native_outfile}
+    cmd /c copy mysql_system_tables.sql+mysql_system_tables_data.sql+fill_help_tables.sql+mysql_performance_tables.sql+mysql_test_db.sql ${native_outfile}
     DEPENDS
     ${CMAKE_SOURCE_DIR}/scripts/mysql_system_tables.sql
     ${CMAKE_SOURCE_DIR}/scripts/mysql_system_tables_data.sql
     ${CMAKE_SOURCE_DIR}/scripts/fill_help_tables.sql
     ${CMAKE_SOURCE_DIR}/scripts/mysql_performance_tables.sql
+    ${CMAKE_SOURCE_DIR}/scripts/mysql_test_db.sql
   )
 
   ADD_CUSTOM_COMMAND(

@@ -109,7 +109,9 @@ EOF
     # log files.
     if [ ! -d "$mysql_statedir/mysql" -a ! -L "$mysql_statedir/mysql" ]; then
       # Debian: beware of the bashisms...
-      /bin/bash /usr/bin/mysql_install_db --rpm --user=mysql --disable-log-bin 2>&1 | $ERR_LOGGER
+      /bin/bash /usr/bin/mysql_install_db --rpm --cross-bootstrap --user=mysql \
+                                     --disable-log-bin --skip-test-db 2>&1 | \
+                                     $ERR_LOGGER
     fi
     if [ ! -d "$mysql_newlogdir"      -a ! -L "$mysql_newlogdir"      ]; then mkdir "$mysql_newlogdir"; fi
     # When creating an ext3 jounal on an already mounted filesystem like e.g.

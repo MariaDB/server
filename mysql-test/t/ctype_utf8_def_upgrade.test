@@ -10,7 +10,6 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 
 --echo # Test with a saved table from 3.23
 
-SELECT @@character_set_database;
 SET @@character_set_database="latin1";
 --copy_file std_data/host_old.frm $MYSQLD_DATADIR/test/t1.frm
 --copy_file std_data/host_old.MYD $MYSQLD_DATADIR/test/t1.MYD
