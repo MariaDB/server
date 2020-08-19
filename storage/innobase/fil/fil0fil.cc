@@ -1995,7 +1995,7 @@ fil_check_pending_io(
 
                 /* Give a warning every 10 second, starting after 1 second */
 		if ((count % 500) == 50) {
-			ib::warn() << "Trying to delete"
+			ib::info() << "Trying to delete"
 				" tablespace '" << space->name
 				<< "' but there are "
 				<< space->n_pending_flushes
