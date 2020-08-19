@@ -2109,7 +2109,10 @@ void fil_close_tablespace(ulint id)
 	Thus we can clean the tablespace out of buf_pool
 	completely and permanently. The flag stop_new_ops also prevents
 	fil_flush() from being applied to this tablespace. */
-	buf_LRU_flush_or_remove_pages(id, true);
+	buf_flush_dirty_pages(id);
+	/* Ensure that all asynchronous IO is completed. */
+	os_aio_wait_until_no_pending_writes();
+	fil_flush(id);
 
 	/* If the free is successful, the X lock will be released before
 	the space memory data structure is freed. */
@@ -2198,7 +2201,7 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists,
 	::stop_new_ops flag in fil_io(). */
 
 	err = DB_SUCCESS;
-	buf_LRU_flush_or_remove_pages(id, false);
+	buf_flush_remove_pages(id);
 
 	/* If it is a delete then also delete any generated files, otherwise
 	when we drop the database the remove directory will fail. */

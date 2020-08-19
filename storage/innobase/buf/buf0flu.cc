@@ -67,7 +67,7 @@ static const int buf_flush_page_cleaner_priority = -20;
 
 /** Sleep time in microseconds for loop waiting for the oldest
 modification lsn */
-static const ulint buf_flush_wait_flushed_sleep_time = 10000;
+static constexpr ulint buf_flush_wait_flushed_sleep_time = 10000;
 
 #include <my_service_manager.h>
 
@@ -403,8 +403,8 @@ func_exit:
 }
 
 /** Remove a block from the flush list of modified blocks.
-@param[in]	bpage	block to be removed from the flush list */
-void buf_flush_remove(buf_page_t* bpage)
+@param[in,out]	bpage	block to be removed from the flush list */
+static void buf_flush_remove(buf_page_t *bpage)
 {
 #if 0 // FIXME: Rate-limit the output. Move this to the page cleaner?
 	if (UNIV_UNLIKELY(srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE)) {
@@ -443,6 +443,83 @@ void buf_flush_remove(buf_page_t* bpage)
 #ifdef UNIV_DEBUG
 	buf_flush_validate_skip();
 #endif /* UNIV_DEBUG */
+}
+
+/** Remove all dirty pages belonging to a given tablespace when we are
+deleting the data file of that tablespace.
+The pages still remain a part of LRU and are evicted from
+the list as they age towards the tail of the LRU.
+@param id    tablespace identifier */
+void buf_flush_remove_pages(ulint id)
+{
+  const page_id_t first(id, 0), end(id + 1, 0);
+  ut_ad(id);
+  mysql_mutex_lock(&buf_pool.mutex);
+
+  for (;;)
+  {
+    bool deferred= false;
+
+    mysql_mutex_lock(&buf_pool.flush_list_mutex);
+
+    for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.flush_list); bpage; )
+    {
+      ut_a(bpage->in_file());
+      buf_page_t *prev= UT_LIST_GET_PREV(list, bpage);
+
+      const page_id_t bpage_id(bpage->id());
+
+      if (bpage_id < first || bpage_id >= end);
+      else if (bpage->io_fix() != BUF_IO_NONE)
+        deferred= true;
+      else
+        buf_flush_remove(bpage);
+
+      bpage= prev;
+    }
+
+    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+
+    if (!deferred)
+      break;
+
+    mysql_mutex_unlock(&buf_pool.mutex);
+    os_thread_yield();
+    mysql_mutex_lock(&buf_pool.mutex);
+    buf_flush_wait_batch_end(false);
+  }
+
+  mysql_mutex_unlock(&buf_pool.mutex);
+}
+
+/** Flush all the dirty pages that belong to a given tablespace.
+The pages will remain in the LRU list and will be evicted from the LRU list
+as they age and move towards the tail of the LRU list.
+@param[in]	id		tablespace identifier */
+void buf_flush_dirty_pages(ulint id)
+{
+  ut_ad(!sync_check_iterate(dict_sync_check()));
+
+  for (;;)
+  {
+    ulint n= 0;
+
+    mysql_mutex_lock(&buf_pool.flush_list_mutex);
+
+    for (buf_page_t *bpage= UT_LIST_GET_FIRST(buf_pool.flush_list); bpage;
+         bpage= UT_LIST_GET_NEXT(list, bpage))
+    {
+      ut_ad(bpage->in_file());
+      ut_ad(bpage->oldest_modification());
+      if (id == bpage->id().space())
+        n++;
+    }
+    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+    if (!n)
+      return;
+
+    buf_flush_lists(ULINT_MAX, LSN_MAX, nullptr);
+  }
 }
 
 /*******************************************************************//**
@@ -509,27 +586,6 @@ buf_flush_relocate_on_flush_list(
 	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 }
 
-/** Update the buf_pool data structures on write completion.
-@param[in,out]  bpage        written page
-@param[in]      flush_type   write request type
-@param[in]      dblwr        whether the doublewrite buffer was used */
-static void buf_flush_write_complete(buf_page_t *bpage,
-                                     IORequest::flush_t flush_type, bool dblwr)
-{
-  mysql_mutex_assert_owner(&buf_pool.mutex);
-  mysql_mutex_lock(&buf_pool.flush_list_mutex);
-  buf_flush_remove(bpage);
-  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-
-  ut_ad(buf_pool.n_flush[flush_type]);
-
-  if (1 == buf_pool.n_flush[flush_type]--)
-    mysql_cond_signal(&buf_pool.no_flush[flush_type]);
-
-  if (dblwr)
-    buf_dblwr_update(*bpage, flush_type == IORequest::SINGLE_PAGE);
-}
-
 /** Complete write of a file page from buf_pool.
 @param bpage   written page
 @param request write request
@@ -559,9 +615,27 @@ void buf_page_write_complete(buf_page_t *bpage, const IORequest &request,
     buf_page_monitor(bpage, BUF_IO_WRITE);
   DBUG_PRINT("ib_buf", ("write page %u:%u",
                         bpage->id().space(), bpage->id().page_no()));
+  ut_ad(request.is_LRU() ? buf_pool.n_flush_LRU : buf_pool.n_flush_list);
+
   mysql_mutex_lock(&buf_pool.mutex);
   bpage->set_io_fix(BUF_IO_NONE);
-  buf_flush_write_complete(bpage, request.flush_type(), dblwr);
+  mysql_mutex_lock(&buf_pool.flush_list_mutex);
+  buf_flush_remove(bpage);
+  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+
+  if (request.is_LRU())
+  {
+    if (!--buf_pool.n_flush_LRU)
+      mysql_cond_signal(&buf_pool.no_flush_LRU);
+  }
+  else
+  {
+    if (!--buf_pool.n_flush_list)
+      mysql_cond_signal(&buf_pool.no_flush_list);
+  }
+
+  if (dblwr)
+    buf_dblwr_update(*bpage);
 
   /* Because this thread which does the unlocking might not be the same that
   did the locking, we use a pass value != 0 in unlock, which simply
@@ -987,56 +1061,28 @@ static void buf_release_freed_page(buf_page_t *bpage)
 /** Write a flushable page from buf_pool to a file.
 buf_pool.mutex must be held.
 @param bpage       buffer control block
-@param flush_type  type of flush
-@param space       tablespace (or nullptr if not known)
-@param sync        whether this is a synchronous request
-                   (only for flush_type=SINGLE_PAGE)
+@param lru         true=buf_pool.LRU; false=buf_pool.flush_list
+@param space       tablespace
 @return whether the page was flushed and buf_pool.mutex was released */
-bool buf_flush_page(buf_page_t *bpage, IORequest::flush_t flush_type,
-                    fil_space_t *space, bool sync)
+static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
 {
   ut_ad(bpage->in_file());
   ut_ad(bpage->ready_for_flush());
-  ut_ad(!sync || flush_type == IORequest::SINGLE_PAGE);
   mysql_mutex_assert_owner(&buf_pool.mutex);
 
   rw_lock_t *rw_lock;
-  bool no_fix_count= bpage->buf_fix_count() == 0;
 
   if (bpage->state() != BUF_BLOCK_FILE_PAGE)
     rw_lock= nullptr;
-  else if (!(no_fix_count || flush_type == IORequest::FLUSH_LIST) ||
-           (!no_fix_count && srv_shutdown_state <= SRV_SHUTDOWN_CLEANUP &&
-            fsp_is_system_temporary(bpage->id().space())))
-    /* This is a heuristic, to avoid expensive SX attempts. */
-    /* For table residing in temporary tablespace sync is done
-    using IO_FIX and so before scheduling for flush ensure that
-    page is not fixed. */
-    return false;
   else
   {
     rw_lock= &reinterpret_cast<buf_block_t*>(bpage)->lock;
-    if (flush_type != IORequest::FLUSH_LIST &&
-        !rw_lock_sx_lock_nowait(rw_lock, BUF_IO_WRITE))
+    if (!rw_lock_sx_lock_nowait(rw_lock, BUF_IO_WRITE))
       return false;
   }
 
-  /* We are committed to flushing by the time we get here */
   bpage->set_io_fix(BUF_IO_WRITE);
   mysql_mutex_unlock(&buf_pool.mutex);
-
-  if (flush_type == IORequest::FLUSH_LIST && rw_lock &&
-      !rw_lock_sx_lock_nowait(rw_lock, BUF_IO_WRITE))
-  {
-    if (!fsp_is_system_temporary(bpage->id().space()))
-      /* Avoid a potential deadlock with the doublewrite buffer,
-      which might be holding another buf_block_t::lock. */
-      buf_dblwr_flush_buffered_writes();
-    else
-      os_aio_wait_until_no_pending_writes();
-
-    rw_lock_sx_lock_gen(rw_lock, BUF_IO_WRITE);
-  }
 
   /* We are holding rw_lock = buf_block_t::lock in SX mode except if
   this is a ROW_FORMAT=COMPRESSED page whose uncompressed page frame
@@ -1045,31 +1091,16 @@ bool buf_flush_page(buf_page_t *bpage, IORequest::flush_t flush_type,
   Apart from possible rw_lock protection, bpage is also protected by
   io_fix and oldest_modification()!=0. Thus, it cannot be relocated in
   the buffer pool or removed from flush_list or LRU_list. */
-#if 0 /* rw_lock_own() does not hold because we passed BUF_IO_WRITE above. */
-  ut_ad(!rw_lock || rw_lock_own(rw_lock, RW_LOCK_SX));
-#endif
 
-  const fil_space_t * const provided_space= space;
-  if (!space)
-  {
-    space= fil_space_acquire_for_io(bpage->id().space());
-    if (UNIV_UNLIKELY(!space))
-    {
-      mysql_mutex_lock(&buf_pool.mutex);
-      bpage->status= buf_page_t::NORMAL;
-      bpage->set_io_fix(BUF_IO_NONE);
-      if (rw_lock)
-        rw_lock_sx_unlock_gen(rw_lock, BUF_IO_WRITE);
-      return false;
-    }
-  }
   ut_ad((space->purpose == FIL_TYPE_TEMPORARY) ==
         (space == fil_system.temp_space));
+  ut_ad(space->purpose == FIL_TYPE_TABLESPACE ||
+        space->atomic_write_supported);
 
   const bool full_crc32= space->full_crc32();
 
-  DBUG_PRINT("ib_buf", ("flush %s %u page %u:%u",
-                        sync ? "sync" : "async", (unsigned) flush_type,
+  DBUG_PRINT("ib_buf", ("%s %u page %u:%u",
+                        lru ? "LRU" : "flush_list",
                         bpage->id().space(), bpage->id().page_no()));
   mysql_mutex_assert_not_owner(&buf_pool.mutex);
   mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
@@ -1077,7 +1108,8 @@ bool buf_flush_page(buf_page_t *bpage, IORequest::flush_t flush_type,
   ut_ad(bpage->oldest_modification());
   ut_ad(bpage->state() ==
         (rw_lock ? BUF_BLOCK_FILE_PAGE : BUF_BLOCK_ZIP_PAGE));
-  ut_ad(buf_pool.n_flush[flush_type] < ULINT_UNDEFINED);
+  ut_ad(ULINT_UNDEFINED >
+        (lru ? buf_pool.n_flush_LRU : buf_pool.n_flush_list));
 
   /* Because bpage->status can only be changed while buf_block_t
   exists, it cannot be modified for ROW_FORMAT=COMPRESSED pages
@@ -1086,8 +1118,11 @@ bool buf_flush_page(buf_page_t *bpage, IORequest::flush_t flush_type,
   is protected even if !rw_lock. */
   const auto status= bpage->status;
 
-  if (status != buf_page_t::FREED)
-    buf_pool.n_flush[flush_type]++;
+  if (status == buf_page_t::FREED);
+  else if (lru)
+    buf_pool.n_flush_LRU++;
+  else
+    buf_pool.n_flush_list++;
 
   page_t *frame= bpage->zip.data;
   size_t size, orig_size;
@@ -1130,7 +1165,8 @@ bool buf_flush_page(buf_page_t *bpage, IORequest::flush_t flush_type,
     frame= page;
   }
 
-  if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE))
+  if (UNIV_LIKELY(status != buf_page_t::FREED &&
+                  space->purpose == FIL_TYPE_TABLESPACE))
   {
     const lsn_t lsn= mach_read_from_8(frame + FIL_PAGE_LSN);
     ut_ad(lsn);
@@ -1138,11 +1174,9 @@ bool buf_flush_page(buf_page_t *bpage, IORequest::flush_t flush_type,
     ut_ad(!srv_read_only_mode);
     log_write_up_to(lsn, true);
   }
-  else
-    ut_ad(space->atomic_write_supported);
 
   bool use_doublewrite;
-  IORequest request(IORequest::WRITE, bpage, flush_type);
+  IORequest request(IORequest::WRITE, bpage, lru);
 
   ut_ad(status == bpage->status);
 
@@ -1150,17 +1184,14 @@ bool buf_flush_page(buf_page_t *bpage, IORequest::flush_t flush_type,
   default:
     ut_ad(status == buf_page_t::FREED);
     buf_release_freed_page(bpage);
-    goto done;
+    break;
   case buf_page_t::NORMAL:
     use_doublewrite= space->use_doublewrite();
 
     if (use_doublewrite)
     {
       ut_ad(!srv_read_only_mode);
-      if (flush_type == IORequest::SINGLE_PAGE)
-        buf_dblwr->write_single_page(bpage, sync, size);
-      else
-        buf_dblwr->add_to_batch(bpage, flush_type, size);
+      buf_dblwr->add_to_batch(bpage, lru, size);
       break;
     }
     /* fall through */
@@ -1169,30 +1200,10 @@ bool buf_flush_page(buf_page_t *bpage, IORequest::flush_t flush_type,
     if (size != orig_size)
       request.set_punch_hole();
     /* FIXME: pass space to fil_io() */
-    fil_io_t fio= fil_io(request, sync, bpage->id(), bpage->zip_size(), 0,
-                         bpage->physical_size(), frame, bpage);
-    ut_ad(!fio.node || fio.node->space == space);
-    if (fio.node && sync)
-      fio.node->space->release_for_io();
+    fil_io(request, false, bpage->id(), bpage->zip_size(), 0,
+           bpage->physical_size(), frame, bpage);
   }
 
-  if (sync)
-  {
-    ut_ad(bpage->io_fix() == BUF_IO_WRITE);
-
-    /* When flushing single page synchronously, we flush the changes
-    only for the tablespace we are working on. */
-    if (space->purpose != FIL_TYPE_TEMPORARY)
-      fil_flush(space);
-
-    if (size != orig_size && space->punch_hole)
-      request.set_punch_hole();
-    buf_page_write_complete(bpage, request, use_doublewrite, true/*evict*/);
-  }
-
-done:
-  if (!provided_space)
-    space->release_for_io();
   /* Increment the I/O operation count used for selecting LRU policy. */
   buf_LRU_stat_inc_io();
   return true;
@@ -1200,12 +1211,10 @@ done:
 
 /** Check whether a page can be flushed from the buf_pool.
 @param id          page identifier
-@param flush       LRU or FLUSH_LIST
+@param lru         true=buf_pool.LRU; false=buf_pool.flush_list
 @return whether the page can be flushed */
-static bool buf_flush_check_neighbor(const page_id_t id,
-                                     IORequest::flush_t flush)
+static bool buf_flush_check_neighbor(const page_id_t id, bool lru)
 {
-  ut_ad(flush == IORequest::LRU || flush == IORequest::FLUSH_LIST);
   mysql_mutex_assert_owner(&buf_pool.mutex);
 
   buf_page_t *bpage= buf_pool.page_hash_get_low(id, id.fold());
@@ -1216,21 +1225,18 @@ static bool buf_flush_check_neighbor(const page_id_t id,
   /* We avoid flushing 'non-old' blocks in an LRU flush, because the
   flushed blocks are soon freed */
 
-  return (flush != IORequest::LRU || bpage->is_old()) &&
-    bpage->ready_for_flush();
+  return (!lru || bpage->is_old()) && bpage->ready_for_flush();
 }
 
 /** Check which neighbors of a page can be flushed from the buf_pool.
 @param space       tablespace
 @param id          page identifier of a dirty page
-@param flush       LRU or FLUSH_LIST
+@param lru         true=buf_pool.LRU; false=buf_pool.flush_list
 @return last page number that can be flushed */
 static page_id_t buf_flush_check_neighbors(const fil_space_t &space,
-                                           page_id_t &id,
-                                           IORequest::flush_t flush)
+                                           page_id_t &id, bool lru)
 {
   ut_ad(id.page_no() < space.size);
-  ut_ad(flush == IORequest::LRU || flush == IORequest::FLUSH_LIST);
   /* When flushed, dirty blocks are searched in neighborhoods of this
   size, and flushed along with the original page. */
   const ulint s= buf_pool.curr_size / 16;
@@ -1254,7 +1260,7 @@ static page_id_t buf_flush_check_neighbors(const fil_space_t &space,
     {
       fold--;
       ut_ad(i.fold() == fold);
-      if (!buf_flush_check_neighbor(i, flush))
+      if (!buf_flush_check_neighbor(i, lru))
       {
         low= i + 1;
         break;
@@ -1271,7 +1277,7 @@ static page_id_t buf_flush_check_neighbors(const fil_space_t &space,
   {
     ++fold;
     ut_ad(i.fold() == fold);
-    if (!buf_flush_check_neighbor(i, flush))
+    if (!buf_flush_check_neighbor(i, lru))
       break;
   }
 
@@ -1333,22 +1339,16 @@ static void buf_flush_freed_pages(fil_space_t *space)
 
 /** Flushes to disk all flushable pages within the flush area
 and also write zeroes or punch the hole for the freed ranges of pages.
-@param[in]	page_id		page id
-@param[in]	flush		LRU or FLUSH_LIST
-@param[in]	n_flushed	number of pages flushed so far in this batch
-@param[in]	n_to_flush	maximum number of pages we are allowed to flush
+@param page_id     page identifier
+@param lru         true=buf_pool.LRU; false=buf_pool.flush_list
+@param n_flushed   number of pages flushed so far in this batch
+@param n_to_flush  maximum number of pages we are allowed to flush
 @return number of pages flushed */
-static
-ulint
-buf_flush_try_neighbors(
-	const page_id_t		page_id,
-	IORequest::flush_t	flush,
-	ulint			n_flushed,
-	ulint			n_to_flush)
+static ulint buf_flush_try_neighbors(const page_id_t page_id, bool lru,
+                                     ulint n_flushed, ulint n_to_flush)
 {
 	ulint		count = 0;
 
-	ut_ad(flush == IORequest::LRU || flush == IORequest::FLUSH_LIST);
 	fil_space_t* space = fil_space_acquire_for_io(page_id.space());
 	if (!space) {
 		return 0;
@@ -1363,7 +1363,7 @@ buf_flush_try_neighbors(
 			  < BUF_LRU_OLD_MIN_LEN
 			  || !space->is_rotational())
 		? id + 1 /* Flush the minimum. */
-		: buf_flush_check_neighbors(*space, id, flush);
+		: buf_flush_check_neighbors(*space, id, lru);
 
 	for (; id < high; ++id) {
 		buf_page_t*	bpage;
@@ -1399,11 +1399,10 @@ buf_flush_try_neighbors(
 		/* We avoid flushing 'non-old' blocks in an LRU flush,
 		because the flushed blocks are soon freed */
 
-		if (flush != IORequest::LRU
-		    || id == page_id || bpage->is_old()) {
+		if (!lru || id == page_id || bpage->is_old()) {
 			if (bpage->ready_for_flush()
 			    && (id == page_id || bpage->buf_fix_count() == 0)
-			    && buf_flush_page(bpage, flush, space, false)) {
+			    && buf_flush_page(bpage, lru, space)) {
 				    ++count;
 				    continue;
 			}
@@ -1515,8 +1514,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n)
       helper thread will put it on free list in IO completion routine. */
       const page_id_t page_id(bpage->id());
       mysql_mutex_unlock(&buf_pool.mutex);
-      n->flushed+= buf_flush_try_neighbors(page_id, IORequest::LRU, n->flushed,
-                                           max);
+      n->flushed+= buf_flush_try_neighbors(page_id, true, n->flushed, max);
       mysql_mutex_lock(&buf_pool.mutex);
     }
     else
@@ -1569,12 +1567,10 @@ static void buf_do_LRU_batch(ulint max, flush_counters_t* n)
 
 /** This utility flushes dirty blocks from the end of the flush_list.
 The calling thread is not allowed to own any latches on pages!
-@param[in]	min_n		wished minimum mumber of blocks flushed (it is
-not guaranteed that the actual number is that big, though)
-@param[in]	lsn_limit	all blocks whose oldest_modification is smaller
-than this should be flushed (if their number does not exceed min_n)
+@param max_n    maximum mumber of blocks to flush
+@param lsn      once an oldest_modification>=lsn is found, terminate the batch
 @return number of blocks for which the write request was queued */
-static ulint buf_do_flush_list_batch(ulint min_n, lsn_t lsn_limit)
+static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn)
 {
   ulint count= 0;
   ulint scanned= 0;
@@ -1592,11 +1588,11 @@ static ulint buf_do_flush_list_batch(ulint min_n, lsn_t lsn_limit)
   must check the hazard pointer and if it is removing the same block
   then it must reset it. */
   for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.flush_list);
-       bpage && len && count < min_n;
+       bpage && len && count < max_n;
        bpage= buf_pool.flush_hp.get(), ++scanned, len--)
   {
     const lsn_t oldest_modification= bpage->oldest_modification();
-    if (oldest_modification >= lsn_limit)
+    if (oldest_modification >= lsn)
       break;
     ut_a(oldest_modification);
 
@@ -1611,8 +1607,7 @@ static ulint buf_do_flush_list_batch(ulint min_n, lsn_t lsn_limit)
     {
       const page_id_t page_id(bpage->id());
       mysql_mutex_unlock(&buf_pool.mutex);
-      count+= buf_flush_try_neighbors(page_id, IORequest::FLUSH_LIST,
-				      count, min_n);
+      count+= buf_flush_try_neighbors(page_id, false, count, max_n);
       mysql_mutex_lock(&buf_pool.mutex);
     }
 
@@ -1663,72 +1658,59 @@ void buf_flush_wait_batch_end(bool lru)
 {
   thd_wait_begin(nullptr, THD_WAIT_DISKIO);
   if (lru)
-    while (buf_pool.n_flush[IORequest::LRU])
-      mysql_cond_wait(&buf_pool.no_flush[IORequest::LRU], &buf_pool.mutex);
+    while (buf_pool.n_flush_LRU)
+      mysql_cond_wait(&buf_pool.no_flush_LRU, &buf_pool.mutex);
   else
-    while (buf_pool.n_flush[IORequest::FLUSH_LIST])
-      mysql_cond_wait(&buf_pool.no_flush[IORequest::FLUSH_LIST],
-                      &buf_pool.mutex);
+    while (buf_pool.n_flush_list)
+      mysql_cond_wait(&buf_pool.no_flush_list, &buf_pool.mutex);
   thd_wait_end(nullptr);
 }
 
-/** Do flushing batch of a given type.
-NOTE: The calling thread is not allowed to own any latches on pages!
-@param[in]	lru		true=buf_pool.LRU; false=buf_pool.flush_list
-@param[in]	min_n		wished minimum mumber of blocks flushed
-(it is not guaranteed that the actual number is that big, though)
-@param[in]	lsn_limit	if !lru, all blocks whose
-oldest_modification is smaller than this should be flushed (if their number
-does not exceed min_n), otherwise ignored
-@param[out]	n_processed	the number of pages which were processed is
-passed back to caller. Ignored if NULL
-@retval true	if a batch was queued successfully.
-@retval false	if another batch of same type was already running. */
-bool buf_flush_do_batch(bool lru, ulint min_n, lsn_t lsn_limit,
-                        flush_counters_t *n)
+/** Initiate a flushing batch.
+@param max_n  wished minimum mumber of blocks flushed
+@param lsn    0 for buf_pool.LRU flushing; otherwise,
+              stop the buf_pool.flush_list batch on oldest_modification>=lsn
+@param n      the number of processed pages
+@return whether a batch was queued successfully (not running already) */
+bool buf_flush_do_batch(ulint max_n, lsn_t lsn, flush_counters_t *n)
 {
-  ut_ad(lru || !sync_check_iterate(dict_sync_check()));
+  n->flushed= 0;
 
-  if (n)
-    n->flushed= 0;
+  auto &n_flush= lsn ? buf_pool.n_flush_list : buf_pool.n_flush_LRU;
 
-  IORequest::flush_t flush_type= lru ? IORequest::LRU : IORequest::FLUSH_LIST;
-
-  if (buf_pool.n_flush[flush_type])
+  if (n_flush)
     return false;
 
   mysql_mutex_lock(&buf_pool.mutex);
-
-  if (buf_pool.n_flush[flush_type])
+  const bool running= n_flush != 0;
+  if (running || !UT_LIST_GET_LEN(buf_pool.flush_list))
   {
-    /* There is already a flush batch of the same type running */
     mysql_mutex_unlock(&buf_pool.mutex);
-    return false;
+    return !running;
   }
+  n_flush++;
 
-  buf_pool.n_flush[flush_type]++;
-
-  /* Note: The buffer pool mutex is released and reacquired within
-  the flush functions. */
-  if (lru)
-    buf_do_LRU_batch(min_n, n);
+  if (!lsn)
+  {
+    buf_do_LRU_batch(max_n, n);
+    if (!--n_flush)
+      mysql_cond_signal(&buf_pool.no_flush_LRU);
+  }
   else
   {
-    n->flushed= buf_do_flush_list_batch(min_n, lsn_limit);
+    n->flushed= buf_do_flush_list_batch(max_n, lsn);
     n->evicted= 0;
+    if (!--n_flush)
+      mysql_cond_signal(&buf_pool.no_flush_list);
   }
 
   buf_pool.try_LRU_scan= true;
-
-  if (1 == buf_pool.n_flush[flush_type]--)
-    mysql_cond_signal(&buf_pool.no_flush[flush_type]);
-
   mysql_mutex_unlock(&buf_pool.mutex);
 
   if (!srv_read_only_mode)
     buf_dblwr_flush_buffered_writes();
 
-  DBUG_PRINT("ib_buf", (lru ? "LRU flush completed" : "flush_list completed"));
+  DBUG_PRINT("ib_buf", (lsn ? "flush_list completed" : "LRU flush completed"));
   return true;
 }
 
@@ -1782,9 +1764,11 @@ passed back to caller. Ignored if NULL.
 @retval false if another batch of same type was already running */
 bool buf_flush_lists(ulint min_n, lsn_t lsn_limit, ulint *n_processed)
 {
+	ut_ad(lsn_limit);
+
 	flush_counters_t	n;
 
-	bool success = buf_flush_do_batch(false, min_n, lsn_limit, &n);
+	bool success = buf_flush_do_batch(min_n, lsn_limit, &n);
 
 	if (n.flushed) {
 		buf_flush_stats(n.flushed, 0);
@@ -1795,71 +1779,6 @@ bool buf_flush_lists(ulint min_n, lsn_t lsn_limit, ulint *n_processed)
 	}
 
 	return success;
-}
-
-/******************************************************************//**
-This function picks up a single page from the tail of the LRU
-list, flushes it (if it is dirty), removes it from page_hash and LRU
-list and puts it on the free list. It is called from user threads when
-they are unable to find a replaceable page at the tail of the LRU
-list i.e.: when the background LRU flushing in the page_cleaner thread
-is not fast enough to keep pace with the workload.
-@return true if success. */
-bool buf_flush_single_page_from_LRU()
-{
-	ulint scanned = 0;
-	bool freed = false;
-
-	mysql_mutex_lock(&buf_pool.mutex);
-
-	for (buf_page_t* bpage = buf_pool.single_scan_itr.start(); bpage;
-	     ++scanned, bpage = buf_pool.single_scan_itr.get()) {
-
-		mysql_mutex_assert_owner(&buf_pool.mutex);
-
-		buf_page_t*	prev = UT_LIST_GET_PREV(LRU, bpage);
-		buf_pool.single_scan_itr.set(prev);
-
-		if (!bpage->ready_for_flush()) { // FIXME: ready_for_replace()
-			continue;
-		}
-
-		if (!bpage->buf_fix_count()
-		    && buf_LRU_free_page(bpage, true)) {
-			/* block is ready for eviction i.e., it is
-			clean and is not IO-fixed or buffer fixed. */
-			freed = true;
-			break;
-		} else {
-			/* Block is ready for flush. Try and dispatch an IO
-			request. We'll put it on free list in IO completion
-			routine if it is not buffer fixed. The following call
-			will release the buf_pool.mutex.
-
-			Note: There is no guarantee that this page has actually
-			been freed, only that it has been flushed to disk */
-
-			freed = buf_flush_page(bpage, IORequest::SINGLE_PAGE,
-					       nullptr, true);
-
-			if (freed) {
-				goto found;
-			}
-		}
-	}
-
-	mysql_mutex_unlock(&buf_pool.mutex);
-found:
-	if (scanned) {
-		MONITOR_INC_VALUE_CUMULATIVE(
-			MONITOR_LRU_SINGLE_FLUSH_SCANNED,
-			MONITOR_LRU_SINGLE_FLUSH_SCANNED_NUM_CALL,
-			MONITOR_LRU_SINGLE_FLUSH_SCANNED_PER_CALL,
-			scanned);
-	}
-
-	mysql_mutex_assert_not_owner(&buf_pool.mutex);
-	return(freed);
 }
 
 /**
@@ -1898,7 +1817,7 @@ static ulint buf_flush_LRU_list()
 	that can trigger an LRU flush at the same time.
 	So, it is not possible that a batch triggered during
 	last iteration is still running, */
-	buf_flush_do_batch(true, scan_depth, 0, &n);
+	buf_flush_do_batch(scan_depth, 0, &n);
 
 	return(n.flushed);
 }
@@ -1906,7 +1825,7 @@ static ulint buf_flush_LRU_list()
 /** Wait for pending flushes to complete. */
 void buf_flush_wait_batch_end_acquiring_mutex(bool lru)
 {
-  if (buf_pool.n_flush[lru ? IORequest::LRU : IORequest::FLUSH_LIST])
+  if (lru ? buf_pool.n_flush_LRU : buf_pool.n_flush_list)
   {
     mysql_mutex_lock(&buf_pool.mutex);
     buf_flush_wait_batch_end(lru);
@@ -2255,6 +2174,8 @@ Requests for all slots to flush.
 */
 static void pc_request(ulint min_n, lsn_t lsn_limit)
 {
+	ut_ad(lsn_limit);
+
 	mutex_enter(&page_cleaner.mutex);
 
 	ut_ad(page_cleaner.n_slots_requested == 0);
@@ -2326,9 +2247,9 @@ static ulint pc_flush_slot()
 			flush_counters_t n;
 			memset(&n, 0, sizeof(flush_counters_t));
 			list_tm = ut_time_ms();
+			ut_ad(page_cleaner.lsn_limit);
 
 			page_cleaner.slot.succeeded_list = buf_flush_do_batch(
-				false,
 				page_cleaner.slot.n_pages_requested,
 				page_cleaner.lsn_limit,
 				&n);
@@ -2621,7 +2542,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 				lsn_limit = LSN_MAX;
 			} else {
 				n_to_flush = 0;
-				lsn_limit = 0;
+				lsn_limit = 1;
 			}
 
 			/* Request flushing for threads */

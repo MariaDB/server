@@ -106,10 +106,6 @@ struct buf_pool_info_t
 	ulint	n_pend_reads;		/*!< buf_pool.n_pend_reads, pages
 					pending read */
 	ulint	n_pending_flush_lru;	/*!< Pages pending flush in LRU */
-	ulint	n_pending_flush_single_page;/*!< Pages pending to be
-					flushed as part of single page
-					flushes issued by various user
-					threads */
 	ulint	n_pending_flush_list;	/*!< Pages pending flush in FLUSH
 					LIST */
 	ulint	n_pages_made_young;	/*!< number of pages made young */
@@ -1795,7 +1791,6 @@ public:
     ut_ad(bpage->in_file());
     lru_hp.adjust(bpage);
     lru_scan_itr.adjust(bpage);
-    single_scan_itr.adjust(bpage);
     ut_d(bpage->in_LRU_list= false);
     buf_page_t *prev= UT_LIST_GET_PREV(LRU, bpage);
     UT_LIST_REMOVE(LRU, bpage);
@@ -1951,12 +1946,18 @@ public:
   /** modified blocks (a subset of LRU) */
   UT_LIST_BASE_NODE_T(buf_page_t) flush_list;
 
-  /** Number of pending or initiated writes of a flush type.
-  The sum of these is approximately the sum of BUF_IO_WRITE blocks
-  in flush_list. */
-  Atomic_counter<ulint> n_flush[3];
-  /** signalled when n_flush[] reaches 0; protected by mutex */
-  mysql_cond_t no_flush[3];
+  /** Number of pending LRU flush. */
+  Atomic_counter<ulint> n_flush_LRU;
+  /** signalled when n_flush_LRU reaches 0; protected by mutex */
+  mysql_cond_t no_flush_LRU;
+  /** Number of pending flush_list flush. */
+  Atomic_counter<ulint> n_flush_list;
+  /** signalled when n_flush_list reaches 0; protected by mutex */
+  mysql_cond_t no_flush_list;
+
+  // n_flush_LRU + n_flush_list is approximately COUNT(io_fix()==BUF_IO_WRITE)
+  // in flush_list
+
 	ib_rbt_t*	flush_rbt;	/*!< a red-black tree is used
 					exclusively during recovery to
 					speed up insertions in the
@@ -2016,10 +2017,6 @@ public:
 	replacable victim. Protected by buf_pool_t::mutex. */
 	LRUItr		lru_scan_itr;
 
-	/** Iterator used to scan the LRU list when searching for
-	single page flushing victim.  Protected by buf_pool_t::mutex. */
-	LRUItr		single_scan_itr;
-
 	UT_LIST_BASE_NODE_T(buf_page_t) LRU;
 					/*!< base node of the LRU list */
 
@@ -2069,16 +2066,12 @@ public:
   /** @return whether any I/O is pending */
   bool any_io_pending() const
   {
-    return n_pend_reads ||
-      n_flush[IORequest::LRU] || n_flush[IORequest::FLUSH_LIST] ||
-      n_flush[IORequest::SINGLE_PAGE];
+    return n_pend_reads || n_flush_LRU || n_flush_list;
   }
   /** @return total amount of pending I/O */
   ulint io_pending() const
   {
-    return n_pend_reads +
-      n_flush[IORequest::LRU] + n_flush[IORequest::FLUSH_LIST] +
-      n_flush[IORequest::SINGLE_PAGE];
+    return n_pend_reads + n_flush_LRU + n_flush_list;
   }
 private:
   /** Temporary memory for page_compressed and encrypted I/O */
@@ -2314,8 +2307,8 @@ MEMORY:		is not in free list, LRU list, or flush list, nor page
 		hash table
 FILE_PAGE:	space and offset are defined, is in page hash table
 		if io_fix == BUF_IO_WRITE,
-			pool: no_flush[flush_type] is in reset state,
-			pool: n_flush[flush_type] > 0
+			pool: no_flush_LRU or no_flush_list is in reset state,
+			pool: n_flush_LRU > 0 or n_flush_list > 0
 
 		(1) if buf_fix_count == 0, then
 			is in LRU list, not in free list

@@ -1575,15 +1575,14 @@ bool buf_pool_t::create()
   mysql_mutex_init(flush_list_mutex_key, &flush_list_mutex,
                    MY_MUTEX_INIT_FAST);
 
-  for (int i= 0; i < 3; i++)
-    mysql_cond_init(0, &no_flush[i], nullptr);
+  mysql_cond_init(0, &no_flush_LRU, nullptr);
+  mysql_cond_init(0, &no_flush_list, nullptr);
 
   try_LRU_scan= true;
 
   ut_d(flush_hp.m_mutex= &flush_list_mutex;);
   ut_d(lru_hp.m_mutex= &mutex);
   ut_d(lru_scan_itr.m_mutex= &mutex);
-  ut_d(single_scan_itr.m_mutex= &mutex);
 
   io_buf.create((srv_n_read_io_threads + srv_n_write_io_threads) *
                 OS_AIO_N_PENDING_IOS_PER_THREAD);
@@ -1642,8 +1641,8 @@ void buf_pool_t::close()
     allocator.deallocate_large_dodump(chunk->mem, &chunk->mem_pfx);
   }
 
-  for (int i= 0; i < 3; ++i)
-    mysql_cond_destroy(&no_flush[i]);
+  mysql_cond_destroy(&no_flush_LRU);
+  mysql_cond_destroy(&no_flush_list);
 
   ut_free(chunks);
   chunks= nullptr;
@@ -1869,7 +1868,7 @@ inline bool buf_pool_t::withdraw_blocks()
 				       static_cast<ulint>(srv_LRU_scan_depth)),
 				scan_depth);
 
-			buf_flush_do_batch(true, scan_depth, 0, &n);
+			buf_flush_do_batch(scan_depth, 0, &n);
 			buf_flush_wait_batch_end_acquiring_mutex(true);
 
 			if (n.flushed) {
@@ -3432,7 +3431,7 @@ evict_from_pool:
 	ut_ad(fix_block->page.state() == BUF_BLOCK_FILE_PAGE);
 
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
-
+re_evict:
 	if (mode != BUF_GET_IF_IN_POOL
 	    && mode != BUF_GET_IF_IN_POOL_OR_WATCH) {
 	} else if (!ibuf_debug) {
@@ -3447,9 +3446,10 @@ evict_from_pool:
 
 		/* Blocks cannot be relocated or enter or exit the
 		buf_pool while we are holding the buf_pool.mutex. */
+		const bool evicted = buf_LRU_free_page(&fix_block->page, true);
+		space->release_for_io();
 
-		if (buf_LRU_free_page(&fix_block->page, true)) {
-			space->release_for_io();
+		if (evicted) {
 			hash_lock = buf_pool.page_hash.lock_get(fold);
 			hash_lock->write_lock();
 			mysql_mutex_unlock(&buf_pool.mutex);
@@ -3476,20 +3476,16 @@ evict_from_pool:
 			return(NULL);
 		}
 
-		bool flushed = fix_block->page.ready_for_flush()
-			&& buf_flush_page(&fix_block->page,
-					  IORequest::SINGLE_PAGE, space, true);
-		space->release_for_io();
-		if (flushed) {
-			guess = fix_block;
-			goto loop;
+		fix_block->fix();
+		mysql_mutex_unlock(&buf_pool.mutex);
+
+		buf_flush_dirty_pages(page_id.space());
+
+		if (!fix_block->page.oldest_modification()) {
+			goto re_evict;
 		}
 
-		fix_block->fix();
-
 		/* Failed to evict the page; change it directly */
-
-		mysql_mutex_unlock(&buf_pool.mutex);
 	}
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
@@ -4387,7 +4383,6 @@ All pages must be in a replaceable state (not modified or latched). */
 void buf_pool_invalidate()
 {
 	mysql_mutex_lock(&buf_pool.mutex);
-	ut_ad(!buf_pool.n_flush[IORequest::SINGLE_PAGE]);
 
 	buf_flush_wait_batch_end(true);
 	buf_flush_wait_batch_end(false);
@@ -4577,9 +4572,8 @@ void buf_pool_t::print()
 		<< UT_LIST_GET_LEN(flush_list)
 		<< ", n pending decompressions=" << n_pend_unzip
 		<< ", n pending reads=" << n_pend_reads
-		<< ", n pending flush LRU=" << n_flush[IORequest::LRU]
-		<< " list=" << n_flush[IORequest::FLUSH_LIST]
-		<< " single page=" << n_flush[IORequest::SINGLE_PAGE]
+		<< ", n pending flush LRU=" << n_flush_LRU
+		<< " list=" << n_flush_list
 		<< ", pages made young=" << stat.n_pages_made_young
 		<< ", not young=" << stat.n_pages_not_made_young
 		<< ", pages read=" << stat.n_pages_read
@@ -4742,13 +4736,9 @@ void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
 
 	pool_info->n_pend_reads = buf_pool.n_pend_reads;
 
-	pool_info->n_pending_flush_lru = buf_pool.n_flush[IORequest::LRU];
+	pool_info->n_pending_flush_lru = buf_pool.n_flush_LRU;
 
-	pool_info->n_pending_flush_list =
-		buf_pool.n_flush[IORequest::FLUSH_LIST];
-
-	pool_info->n_pending_flush_single_page =
-		buf_pool.n_flush[IORequest::SINGLE_PAGE];
+	pool_info->n_pending_flush_list = buf_pool.n_flush_list;
 
 	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
@@ -4864,8 +4854,7 @@ buf_print_io_instance(
 		"Percent of dirty pages(LRU & free pages): %.3f\n"
 		"Max dirty pages percent: %.3f\n"
 		"Pending reads " ULINTPF "\n"
-		"Pending writes: LRU " ULINTPF ", flush list " ULINTPF
-		", single page " ULINTPF "\n",
+		"Pending writes: LRU " ULINTPF ", flush list " ULINTPF "\n",
 		pool_info->pool_size,
 		pool_info->free_list_len,
 		pool_info->lru_len,
@@ -4878,8 +4867,7 @@ buf_print_io_instance(
 		srv_max_buf_pool_modified_pct,
 		pool_info->n_pend_reads,
 		pool_info->n_pending_flush_lru,
-		pool_info->n_pending_flush_list,
-		pool_info->n_pending_flush_single_page);
+		pool_info->n_pending_flush_list);
 
 	fprintf(file,
 		"Pages made young " ULINTPF ", not young " ULINTPF "\n"

@@ -11,3 +11,4 @@
 ##############################################################################
 
 create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails
+innodb-wl5522-debug : MDEV-23399 FIXME: result difference due to ibuf

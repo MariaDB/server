@@ -535,7 +535,10 @@ row_quiesce_table_start(
 	}
 
 	if (!trx_is_interrupted(trx)) {
-		buf_LRU_flush_or_remove_pages(table->space_id, true);
+		buf_flush_dirty_pages(table->space_id);
+		/* Ensure that all asynchronous IO is completed. */
+		os_aio_wait_until_no_pending_writes();
+		fil_flush(table->space_id);
 
 		if (row_quiesce_write_cfg(table, trx->mysql_thd)
 		    != DB_SUCCESS) {

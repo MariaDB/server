@@ -343,11 +343,6 @@ my_bool	srv_stats_sample_traditional;
 
 my_bool	srv_use_doublewrite_buf;
 
-/** innodb_doublewrite_batch_size (a debug parameter) specifies the
-number of pages to use in LRU and flush_list batch flushing.
-The rest of the doublewrite buffer is used for single-page flushing. */
-ulong	srv_doublewrite_batch_size = 120;
-
 /** innodb_sync_spin_loops */
 ulong	srv_n_spin_wait_rounds;
 /** innodb_spin_wait_delay */

@@ -85,15 +85,6 @@
  VARIABLE_COMMENT	Percentage of empty space on a data page that can be reserved to make the page compressible.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	75
-@@ -661,7 +661,7 @@
- SESSION_VALUE	NULL
- DEFAULT_VALUE	120
- VARIABLE_SCOPE	GLOBAL
--VARIABLE_TYPE	BIGINT UNSIGNED
-+VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Number of pages reserved in doublewrite buffer for batch flushing
- NUMERIC_MIN_VALUE	1
- NUMERIC_MAX_VALUE	127
 @@ -757,7 +757,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	600

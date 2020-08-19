@@ -562,23 +562,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_SET_MEMBER, MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE,
 	 MONITOR_LRU_BATCH_EVICT_PAGES},
 
-	/* Cumulative counter for single page LRU scans */
-	{"buffer_LRU_single_flush_scanned", "buffer",
-	 "Total pages scanned as part of single page LRU flush",
-	 MONITOR_SET_OWNER,
-	 MONITOR_LRU_SINGLE_FLUSH_SCANNED_NUM_CALL,
-	 MONITOR_LRU_SINGLE_FLUSH_SCANNED},
-
-	{"buffer_LRU_single_flush_num_scan", "buffer",
-	 "Number of times single page LRU flush is called",
-	 MONITOR_SET_MEMBER, MONITOR_LRU_SINGLE_FLUSH_SCANNED,
-	 MONITOR_LRU_SINGLE_FLUSH_SCANNED_NUM_CALL},
-
-	{"buffer_LRU_single_flush_scanned_per_call", "buffer",
-	 "Page scanned per single LRU flush",
-	 MONITOR_SET_MEMBER, MONITOR_LRU_SINGLE_FLUSH_SCANNED,
-	 MONITOR_LRU_SINGLE_FLUSH_SCANNED_PER_CALL},
-
 	{"buffer_LRU_single_flush_failure_count", "Buffer",
 	 "Number of times attempt to flush a single page from LRU failed",
 	 MONITOR_NONE,

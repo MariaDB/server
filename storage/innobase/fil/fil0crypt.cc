@@ -1081,7 +1081,7 @@ static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 		mtr.commit();
 
 		/* 4 - sync tablespace before publishing crypt data */
-		buf_LRU_flush_or_remove_pages(space->id, true);
+		buf_flush_dirty_pages(space->id);
 
 		/* 5 - publish crypt data */
 		mutex_enter(&fil_crypt_threads_mutex);
@@ -1958,7 +1958,7 @@ fil_crypt_flush_space(
 	if (end_lsn > 0 && !space->is_stopping()) {
 		ulint sum_pages = 0; // FIXME: determine this!
 		const ulonglong start = my_interval_timer();
-		buf_LRU_flush_or_remove_pages(state->space->id, true);
+		buf_flush_dirty_pages(state->space->id);
 
 		if (sum_pages) {
 			const ulonglong end = my_interval_timer();

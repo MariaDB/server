@@ -193,21 +193,8 @@ The I/O context that is passed down to the low level IO code */
 class IORequest
 {
 public:
-  /** Buffer pool flush types */
-  enum flush_t
-  {
-    /** via buf_pool.LRU */
-    LRU= 0,
-    /** via buf_pool.flush_list */
-    FLUSH_LIST,
-    /** single page of buf_poof.LRU */
-    SINGLE_PAGE
-  };
-
-  IORequest(ulint type= READ, buf_page_t *bpage= nullptr,
-            flush_t flush_type= LRU) :
-    m_bpage(bpage), m_type(static_cast<uint16_t>(type)),
-    m_flush_type(flush_type) {}
+  IORequest(ulint type= READ, buf_page_t *bpage= nullptr, bool lru= false) :
+    m_bpage(bpage), m_type(static_cast<uint16_t>(type)), m_LRU(lru) {}
 
 	/** Flags passed in the request, they can be ORred together. */
 	enum {
@@ -340,8 +327,8 @@ public:
 	@return DB_SUCCESS or error code */
 	dberr_t punch_hole(os_file_t fh, os_offset_t off, ulint len);
 
-  /** @return the flush type */
-  flush_t flush_type() const { return m_flush_type; }
+  /** @return type of page flush (for writes) */
+  bool is_LRU() const { return m_LRU; }
 
 private:
 	/** Page to be written on write operation. */
@@ -354,7 +341,7 @@ private:
 	uint16_t		m_type= READ;
 
   /** for writes, type of page flush */
-  flush_t m_flush_type= LRU;
+  bool m_LRU= false;
 };
 
 /* @} */

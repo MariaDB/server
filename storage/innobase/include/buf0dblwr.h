@@ -70,7 +70,7 @@ void
 buf_dblwr_free();
 
 /** Update the doublewrite buffer on write completion. */
-void buf_dblwr_update(const buf_page_t &bpage, bool single_page);
+void buf_dblwr_update(const buf_page_t &bpage);
 /****************************************************************//**
 Determines if a page number is located inside the doublewrite buffer.
 @return TRUE if the location is inside the two blocks of the
@@ -103,10 +103,6 @@ struct buf_dblwr_t{
 				batch flush to end;
 				os_event_set() and os_event_reset()
 				are protected by buf_dblwr_t::mutex */
-	ulint		s_reserved;/*!< number of slots currently
-				reserved for single page flushes. */
-	os_event_t	s_event;/*!< event where threads wait for a
-				single page flush slot. Protected by mutex. */
 	bool		batch_running;/*!< set to TRUE if currently a batch
 				is being written from the doublewrite
 				buffer. */
@@ -119,8 +115,8 @@ struct buf_dblwr_t{
   {
     /** block descriptor */
     buf_page_t *bpage;
-    /** flush type */
-    IORequest::flush_t flush;
+    /** true=buf_pool.flush_list, false=buf_pool.LRU */
+    bool lru;
     /** payload size in bytes */
     size_t size;
   };
@@ -130,21 +126,10 @@ struct buf_dblwr_t{
 
   /** Schedule a page write. If the doublewrite memory buffer is full,
   buf_dblwr_flush_buffered_writes() will be invoked to make space.
-  @param bpage     buffer pool page to be written
-  @param flush     type of flush
-  @param size      payload size in bytes */
-  void add_to_batch(buf_page_t *bpage, IORequest::flush_t flush, size_t size);
-  /** Write a page to the doublewrite buffer on disk, sync it, then write
-  the page to the datafile and sync the datafile. This function is used
-  for single page flushes. If all the buffers allocated for single page
-  flushes in the doublewrite buffer are in use we wait here for one to
-  become free. We are guaranteed that a slot will become free because any
-  thread that is using a slot must also release the slot before leaving
-  this function.
-  @param bpage   buffer pool page to be written
-  @param sync    whether synchronous operation is requested
-  @param size    payload size in bytes */
-  void write_single_page(buf_page_t *bpage, bool sync, size_t size);
+  @param bpage      buffer pool page to be written
+  @param lru        true=buf_pool.LRU; false=buf_pool.flush_list
+  @param size       payload size in bytes */
+  void add_to_batch(buf_page_t *bpage, bool lru, size_t size);
 };
 
 #endif

@@ -41,12 +41,6 @@ These are low-level functions
 /** Minimum LRU list length for which the LRU_old pointer is defined */
 #define BUF_LRU_OLD_MIN_LEN	512	/* 8 megabytes of 16k pages */
 
-/** Empty the flush list for all pages belonging to a tablespace.
-@param[in]	id		tablespace identifier
-@param[in]	flush		whether to write the pages to files
-@param[in]	first		first page to be flushed or evicted */
-void buf_LRU_flush_or_remove_pages(ulint id, bool flush, ulint first = 0);
-
 #ifdef UNIV_DEBUG
 /********************************************************************//**
 Insert a compressed block into buf_pool.zip_clean in the LRU order. */
