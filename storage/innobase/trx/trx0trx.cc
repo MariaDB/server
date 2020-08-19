@@ -1804,6 +1804,12 @@ trx_commit_in_memory(
 		}
 
 		trx->commit_lsn = lsn;
+
+		/* Tell server some activity has happened, since the trx
+		does changes something. Background utility threads like
+		master thread, purge thread or page_cleaner thread might
+		have some work to do. */
+		srv_active_wake_master_thread();
 	}
 
 	ut_ad(!trx->rsegs.m_noredo.undo);

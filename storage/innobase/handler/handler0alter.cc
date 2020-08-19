@@ -8641,6 +8641,11 @@ foreign_fail:
 
 	log_append_on_checkpoint(NULL);
 
+	/* Tell the InnoDB server that there might be work for
+	utility threads: */
+
+	srv_active_wake_master_thread();
+
 	if (fail) {
 		for (inplace_alter_handler_ctx** pctx = ctx_array;
 		     *pctx; pctx++) {

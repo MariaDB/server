@@ -254,6 +254,12 @@ my_bool innobase_locks_unsafe_for_binlog;
 my_bool innobase_rollback_on_timeout;
 my_bool innobase_create_status_file;
 
+/* The following counter is used to convey information to InnoDB
+about server activity: in selects it is not sensible to call
+srv_active_wake_master_thread after each fetch or search, we only do
+it every INNOBASE_WAKE_INTERVAL'th step. */
+
+#define INNOBASE_WAKE_INTERVAL	32
 ulong	innobase_active_counter	= 0;
 
 

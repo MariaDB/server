@@ -1249,7 +1249,7 @@ row_truncate_complete(
 
 	ut_ad(!trx_is_started(trx));
 
-	srv_inc_activity_count();
+	srv_wake_master_thread();
 
 	DBUG_EXECUTE_IF("ib_trunc_crash_after_truncate_done",
 			DBUG_SUICIDE(););

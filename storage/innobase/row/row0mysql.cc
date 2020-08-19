@@ -3820,7 +3820,7 @@ funct_exit:
 
 	trx->op_info = "";
 
-	srv_inc_activity_count();
+	srv_wake_master_thread();
 
 	DBUG_RETURN(err);
 }
