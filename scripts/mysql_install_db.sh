@@ -40,6 +40,7 @@ auth_root_authentication_method=normal
 auth_root_socket_user='root'
 tzdir=
 skip_anonymous=
+explicit_hostname=
 
 dirname0=`dirname $0 2>/dev/null`
 dirname0=`dirname $dirname0 2>/dev/null`
@@ -60,6 +61,8 @@ Usage: $0 [OPTIONS]
                        specifies the name of the MariaDB root account, as well
                        as of the system account allowed to access it. Defaults
                        to 'root'.
+  --auth-root-hostname=name
+                       Use name as host for root user without DNS resolving it.
   --basedir=path       The path to the MariaDB installation directory.
   --builddir=path      If using --srcdir with out-of-directory builds, you
                        will need to set this to the location of the build
@@ -176,6 +179,8 @@ parse_arguments()
 	auth_root_authentication_method=normal ;;
       --auth-root-authentication-method=socket)
 	auth_root_authentication_method=socket ;;
+      --auth-root-hostname=*)
+        explicit_hostname=`parse_arg "$arg"` ;;
       --auth-root-authentication-method=*)
         usage ;;
       --auth-root-socket-user=*)
@@ -449,7 +454,7 @@ fi
 hostname=`@HOSTNAME@`
 
 # Check if hostname is valid
-if test "$cross_bootstrap" -eq 0 -a "$in_rpm" -eq 0 -a "$force" -eq 0
+if test "$cross_bootstrap" -eq 0 -a "$in_rpm" -eq 0 -a "$force" -eq 0 -a -z "$explicit_hostname"
 then
   resolved=`"$resolveip" $hostname 2>&1`
   if test $? -ne 0
@@ -513,7 +518,11 @@ fi
 # When doing a "cross bootstrap" install, no reference to the current
 # host should be added to the system tables.  So we filter out any
 # lines which contain the current host name.
-if test $cross_bootstrap -eq 1
+if test -n "$explicit_hostname"
+then
+  # First @current_hostname in out is settings its value
+  filter_cmd_line="sed -e '/INTO @current_hostname/c\\\nset @current_hostname=\"${explicit_hostname}\";'"
+elif test $cross_bootstrap -eq 1
 then
   filter_cmd_line="sed -e '/@current_hostname/d'"
 else
