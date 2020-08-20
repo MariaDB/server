@@ -1173,7 +1173,14 @@ int maria_create(const char *name, enum data_file_type datafile_type,
                                   FALSE, TRUE))
       goto err;
     my_free(log_data);
+
+    /*
+      We don't need to sync directory as we can use the log to recreate
+      the index and data files if needed.
+    */
+    sync_dir= 0;
   }
+  DBUG_ASSERT(!internal_table || sync_dir == 0);
 
   if (!(flags & HA_DONT_TOUCH_DATA))
   {
@@ -1211,7 +1218,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     if ((dfile=
          mysql_file_create_with_symlink(key_file_dfile, dlinkname_ptr,
                                         dfilename, 0, create_mode,
-                                        MYF(MY_WME | create_flag | sync_dir))) < 0)
+                                        MYF(MY_WME | create_flag))) < 0)
       goto err;
     errpos=3;
 
