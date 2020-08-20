@@ -5600,6 +5600,8 @@ buf_page_create(
 				buf_pool_mutex_exit(buf_pool);
 				rw_lock_x_unlock(hash_lock);
 
+				os_thread_yield();
+
 				buf_pool_mutex_enter(buf_pool);
 				rw_lock_x_lock(hash_lock);
 				mutex_enter(&block->mutex);
