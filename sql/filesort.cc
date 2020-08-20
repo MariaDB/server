@@ -1920,6 +1920,8 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
             memcpy(&cnt, buffpek->current_key() + dupl_count_ofs, sizeof(cnt));
             dupl_count+= cnt;
           }
+          rec_length= param->get_record_length_for_unique(buffpek->current_key(),
+                                                          size_of_dupl_count);
           goto skip_duplicate;
         }
 
@@ -1929,6 +1931,8 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
           uint dupl_count_ofs= rec_length - sizeof(element_count);
           memcpy(unique_buff + dupl_count_ofs, &dupl_count, sizeof(dupl_count));
         }
+        rec_length= param->get_record_length_for_unique(unique_buff,
+                                                        size_of_dupl_count);
         res_length= rec_length - size_of_dupl_count;
         src= unique_buff;
       }

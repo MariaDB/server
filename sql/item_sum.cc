@@ -1039,6 +1039,7 @@ bool Aggregator_distinct::add()
       if ((to= make_packed_record(to)) == NULL)
         return false;
       packed_length= static_cast<uint>(to - orig_to);
+      DBUG_ASSERT(packed_length <= tree->get_size());
       Unique::store_packed_length(orig_to, packed_length);
     }
     else
