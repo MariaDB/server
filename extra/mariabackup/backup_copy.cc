@@ -868,20 +868,13 @@ datafile_rsync_backup(const char *filepath, bool save_to_list, FILE *f)
 	return(true);
 }
 
-
-static
-bool
-backup_file_vprintf(const char *filename, const char *fmt, va_list ap)
+bool backup_file_print_buf(const char *filename, const char *buf, int buf_len)
 {
 	ds_file_t	*dstfile	= NULL;
 	MY_STAT		 stat;			/* unused for now */
-	char		*buf		= 0;
-	int		 buf_len;
 	const char	*action;
 
 	memset(&stat, 0, sizeof(stat));
-
-	buf_len = vasprintf(&buf, fmt, ap);
 
 	stat.st_size = buf_len;
 	stat.st_mtime = my_time(0);
@@ -906,7 +899,6 @@ backup_file_vprintf(const char *filename, const char *fmt, va_list ap)
 
 	/* close */
 	msg("        ...done");
-	free(buf);
 
 	if (ds_close(dstfile)) {
 		goto error_close;
@@ -915,7 +907,6 @@ backup_file_vprintf(const char *filename, const char *fmt, va_list ap)
 	return(true);
 
 error:
-	free(buf);
 	if (dstfile != NULL) {
 		ds_close(dstfile);
 	}
@@ -923,8 +914,21 @@ error:
 error_close:
 	msg("Error: backup file failed.");
 	return(false); /*ERROR*/
-}
 
+	return true;
+};
+
+static
+bool
+backup_file_vprintf(const char *filename, const char *fmt, va_list ap)
+{
+	char		*buf		= 0;
+	int		 buf_len;
+	buf_len = vasprintf(&buf, fmt, ap);
+	bool result = backup_file_print_buf(filename, buf, buf_len);
+	free(buf);
+	return result;
+}
 
 bool
 backup_file_printf(const char *filename, const char *fmt, ...)
@@ -1380,7 +1384,7 @@ out:
 	return(ret);
 }
 
-void backup_fix_ddl(void);
+void backup_fix_ddl(CorruptedPages &);
 
 lsn_t get_current_lsn(MYSQL *connection)
 {
@@ -1405,7 +1409,7 @@ lsn_t get_current_lsn(MYSQL *connection)
 lsn_t server_lsn_after_lock;
 extern void backup_wait_for_lsn(lsn_t lsn);
 /** Start --backup */
-bool backup_start()
+bool backup_start(CorruptedPages &corrupted_pages)
 {
 	if (!opt_no_lock) {
 		if (opt_safe_slave_backup) {
@@ -1440,7 +1444,7 @@ bool backup_start()
 
 	msg("Waiting for log copy thread to read lsn %llu", (ulonglong)server_lsn_after_lock);
 	backup_wait_for_lsn(server_lsn_after_lock);
-	backup_fix_ddl();
+	backup_fix_ddl(corrupted_pages);
 
 	// There is no need to stop slave thread before coping non-Innodb data when
 	// --no-lock option is used because --no-lock option requires that no DDL or
