@@ -22,7 +22,7 @@ INSERT into t1 values(1);
 --let after_copy_test_t2=DROP TABLE test.t2
 --let after_copy_test_t3=CREATE INDEX a_i ON test.t3(i);
 --let before_copy_test_t10=DROP TABLE test.t10
---let wait_innodb_redo_before_copy=test/t10
+--let wait_innodb_redo_before_copy_test_t10 = 1
 
 # mariabackup should crash with assertion if MDEV-24026 is not fixed
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$incremental_dir --incremental-basedir=$basedir --dbug=+d,mariabackup_events,mariabackup_inject_code;

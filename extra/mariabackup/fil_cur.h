@@ -29,6 +29,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "read_filt.h"
 #include "srv0start.h"
 #include "srv0srv.h"
+#include "xtrabackup.h"
 
 struct xb_fil_cur_t {
 	pfs_os_file_t	file;		/*!< source file handle */
@@ -52,7 +53,7 @@ struct xb_fil_cur_t {
 					last cursor read */
 	ib_int64_t	buf_offset;	/*!< file offset of the first page in
 					buffer */
-	ulint		buf_page_no;	/*!< number of the first page in
+	unsigned		buf_page_no;	/*!< number of the first page in
 					buffer */
 	uint		thread_n;	/*!< thread number for diagnostics */
 	ulint		space_id;	/*!< ID of tablespace */
@@ -97,8 +98,8 @@ if there are no more pages to read and XB_FIL_CUR_ERROR on error. */
 xb_fil_cur_result_t
 xb_fil_cur_read(
 /*============*/
-	xb_fil_cur_t*	cursor);	/*!< in/out: source file cursor */
-
+	xb_fil_cur_t*	cursor,	/*!< in/out: source file cursor */
+	CorruptedPages &corrupted_pages);
 /************************************************************************
 Close the source file cursor opened with xb_fil_cur_open() and its
 associated read filter. */
