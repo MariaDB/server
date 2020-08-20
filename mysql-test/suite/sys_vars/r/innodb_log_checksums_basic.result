@@ -28,9 +28,11 @@ SELECT @@global.innodb_log_checksums;
 @@global.innodb_log_checksums
 1
 SET GLOBAL innodb_log_checksums = OFF;
+Warnings:
+Warning	138	innodb_log_checksums is deprecated and has no effect outside recovery
 SELECT @@global.innodb_log_checksums;
 @@global.innodb_log_checksums
-0
+1
 SET GLOBAL innodb_log_checksums = default;
 SET GLOBAL innodb_log_checksums = ON;
 SELECT @@global.innodb_log_checksums;

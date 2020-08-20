@@ -418,15 +418,17 @@ row_undo(
 		return DB_SUCCESS;
 	}
 
-	/* Prevent DROP TABLE etc. while we are rolling back this row.
-	If we are doing a TABLE CREATE or some other dictionary operation,
-	then we already have dict_sys.latch locked in x-mode. Do not
-	try to lock again, because that would cause a hang. */
-
+	/* Prevent prepare_inplace_alter_table_dict() from adding
+	dict_table_t::indexes while we are processing the record.
+	Recovered transactions are not protected by MDL, and the
+	secondary index creation is not protected by table locks
+	for online operation. (A table lock would only be acquired
+	when committing the ALTER TABLE operation.) */
 	trx_t* trx = node->trx;
-	const bool locked_data_dict = (trx->dict_operation_lock_mode == 0);
+	const bool locked_data_dict = UNIV_UNLIKELY(trx->is_recovered)
+		&& !trx->dict_operation_lock_mode;
 
-	if (locked_data_dict) {
+	if (UNIV_UNLIKELY(locked_data_dict)) {
 		row_mysql_freeze_data_dictionary(trx);
 	}
 
@@ -446,7 +448,7 @@ row_undo(
 		err = DB_CORRUPTION;
 	}
 
-	if (locked_data_dict) {
+	if (UNIV_UNLIKELY(locked_data_dict)) {
 		row_mysql_unfreeze_data_dictionary(trx);
 	}
 

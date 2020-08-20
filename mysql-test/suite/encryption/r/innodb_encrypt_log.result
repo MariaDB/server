@@ -7,7 +7,7 @@
 #
 SET GLOBAL innodb_log_checksums=0;
 Warnings:
-Warning	138	innodb_encrypt_log implies innodb_log_checksums
+Warning	138	innodb_log_checksums is deprecated and has no effect outside recovery
 SELECT @@global.innodb_log_checksums;
 @@global.innodb_log_checksums
 1

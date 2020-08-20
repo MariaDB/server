@@ -3079,7 +3079,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(void*)
 		/* The page_cleaner skips sleep if the server is
 		idle and there are no pending IOs in the buffer pool
 		and there is work to do. */
-		if (srv_check_activity(&last_activity)
+		if (srv_check_activity(last_activity)
 		    || buf_get_n_pending_read_ios()
 		    || n_flushed == 0) {
 
@@ -3171,7 +3171,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_coordinator)(void*)
 
 			n_flushed = n_flushed_lru + n_flushed_list;
 
-		} else if (srv_check_activity(&last_activity)) {
+		} else if (srv_check_activity(last_activity)) {
 			ulint	n_to_flush;
 			lsn_t	lsn_limit = 0;
 

@@ -657,6 +657,8 @@ SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 --echo # with CONSTRAINTs
 --echo #
 
+call mtr.add_suppression("\\[Warning\\] InnoDB: In ALTER TABLE `test`\\.`t2` has or is referenced in foreign key constraints which are not compatible with the new table definition.");
+
 set foreign_key_checks=on;
 create table t1 (id int not null primary key) engine=innodb;
 create table t2 (id int not null primary key, fid int not null,
@@ -697,6 +699,27 @@ show create table t2;
 drop table t1,t2;
 --error ER_BAD_TABLE_ERROR
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-22934 Table disappear after two alter table command
+--echo #
+CREATE TABLE t1(f1 INT NOT NULL AUTO_INCREMENT,
+		f2 INT NOT NULL,
+		PRIMARY KEY (f1), INDEX (f2))ENGINE=InnoDB;
+CREATE TABLE t2(f1 INT NOT NULL,
+		f2 INT NOT NULL, f3 INT NOT NULL,
+		PRIMARY KEY(f1, f2), UNIQUE KEY(f2),
+CONSTRAINT `t2_ibfk_1` FOREIGN KEY (f2) REFERENCES t1(f2) ON DELETE CASCADE,
+CONSTRAINT `t2_ibfk_2` FOREIGN KEY (f1) REFERENCES t1(f1) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+SET FOREIGN_KEY_CHECKS=0;
+ALTER TABLE t2 DROP PRIMARY KEY, ADD PRIMARY KEY(f3), ALGORITHM=INPLACE;
+ALTER TABLE t2 DROP INDEX `f2`, ALGORITHM=COPY;
+SHOW CREATE TABLE t2;
+--error ER_TABLE_EXISTS_ERROR
+CREATE TABLE t2 (f1 INT NOT NULL)ENGINE=InnoDB;
+DROP TABLE t2, t1;
 
 --echo # End of 10.2 tests
 

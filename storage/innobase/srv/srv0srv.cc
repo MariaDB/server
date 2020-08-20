@@ -1910,6 +1910,33 @@ srv_get_active_thread_type(void)
 	return(ret);
 }
 
+/** Wake up the InnoDB master thread if it was suspended (not sleeping). */
+void
+srv_active_wake_master_thread_low()
+{
+	ut_ad(!srv_read_only_mode);
+	ut_ad(!mutex_own(&srv_sys.mutex));
+
+	srv_inc_activity_count();
+
+	if (srv_sys.n_threads_active[SRV_MASTER] == 0) {
+		srv_slot_t*	slot;
+
+		srv_sys_mutex_enter();
+
+		slot = &srv_sys.sys_threads[SRV_MASTER_SLOT];
+
+		/* Only if the master thread has been started. */
+
+		if (slot->in_use) {
+			ut_a(srv_slot_get_type(slot) == SRV_MASTER);
+			os_event_set(slot->event);
+		}
+
+		srv_sys_mutex_exit();
+	}
+}
+
 /** Wake up the purge threads if there is work to do. */
 void
 srv_wake_purge_thread_if_not_active()
@@ -1925,6 +1952,14 @@ srv_wake_purge_thread_if_not_active()
 	}
 }
 
+/** Wake up the master thread if it is suspended or being suspended. */
+void
+srv_wake_master_thread()
+{
+	srv_inc_activity_count();
+	srv_release_threads(SRV_MASTER, 1);
+}
+
 /*******************************************************************//**
 Get current server activity count. We don't hold srv_sys::mutex while
 reading this value as it is only used in heuristics.
@@ -1936,20 +1971,15 @@ srv_get_activity_count(void)
 	return(srv_sys.activity_count);
 }
 
-/** Check if there has been any activity.
-@param[in,out]  activity_count  recent activity count to be returned
-if there is a change
+/*******************************************************************//**
+Check if there has been any activity.
 @return FALSE if no change in activity counter. */
-bool srv_check_activity(ulint  *activity_count)
+ibool
+srv_check_activity(
+/*===============*/
+	ulint		old_activity_count)	/*!< in: old activity count */
 {
-  ulint new_activity_count= srv_sys.activity_count;
-  if (new_activity_count != *activity_count)
-  {
-    *activity_count= new_activity_count;
-    return true;
-  }
-
-  return false;
+	return(srv_sys.activity_count != old_activity_count);
 }
 
 /********************************************************************//**
@@ -2346,30 +2376,48 @@ DECLARE_THREAD(srv_master_thread)(
 	slot = srv_reserve_slot(SRV_MASTER);
 	ut_a(slot == srv_sys.sys_threads);
 
+loop:
 	while (srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
 		srv_master_sleep();
 
 		MONITOR_INC(MONITOR_MASTER_THREAD_SLEEP);
 
-		if (srv_check_activity(&old_activity_count)) {
+		if (srv_check_activity(old_activity_count)) {
+			old_activity_count = srv_get_activity_count();
 			srv_master_do_active_tasks();
 		} else {
 			srv_master_do_idle_tasks();
 		}
 	}
 
-        ut_ad(srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS
-              || srv_shutdown_state == SRV_SHUTDOWN_CLEANUP);
-
-	if (srv_shutdown_state == SRV_SHUTDOWN_CLEANUP
-            && srv_fast_shutdown < 2) {
-	        srv_shutdown(srv_fast_shutdown == 0);
+	switch (srv_shutdown_state) {
+	case SRV_SHUTDOWN_NONE:
+	case SRV_SHUTDOWN_INITIATED:
+		break;
+	case SRV_SHUTDOWN_FLUSH_PHASE:
+	case SRV_SHUTDOWN_LAST_PHASE:
+		ut_ad(0);
+		/* fall through */
+	case SRV_SHUTDOWN_EXIT_THREADS:
+		/* srv_init_abort() must have been invoked */
+	case SRV_SHUTDOWN_CLEANUP:
+		if (srv_shutdown_state == SRV_SHUTDOWN_CLEANUP
+		    && srv_fast_shutdown < 2) {
+			srv_shutdown(srv_fast_shutdown == 0);
+		}
+		srv_suspend_thread(slot);
+		my_thread_end();
+		os_thread_exit();
 	}
 
+	srv_main_thread_op_info = "suspending";
+
 	srv_suspend_thread(slot);
-	my_thread_end();
-	os_thread_exit();
-	OS_THREAD_DUMMY_RETURN;
+
+	srv_main_thread_op_info = "waiting for server activity";
+
+	srv_resume_thread(slot);
+	goto loop;
 }
 
 /** @return whether purge should exit due to shutdown */
@@ -2537,13 +2585,15 @@ static uint32_t srv_do_purge(ulint* n_total_purged
 				++n_use_threads;
 			}
 
-		} else if (srv_check_activity(&old_activity_count)
+		} else if (srv_check_activity(old_activity_count)
 			   && n_use_threads > 1) {
 
 			/* History length same or smaller since last snapshot,
 			use fewer threads. */
 
 			--n_use_threads;
+
+			old_activity_count = srv_get_activity_count();
 		}
 
 		/* Ensure that the purge threads are less than what
