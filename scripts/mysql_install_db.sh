@@ -41,6 +41,7 @@ auth_root_socket_user='root'
 tzdir=
 skip_anonymous=
 explicit_hostname=
+root_password=
 
 dirname0=`dirname $0 2>/dev/null`
 dirname0=`dirname $dirname0 2>/dev/null`
@@ -63,6 +64,11 @@ Usage: $0 [OPTIONS]
                        to 'root'.
   --auth-root-hostname=name
                        Use name as host for root user without DNS resolving it.
+                       (for --auth-root-authentication-method=normal)
+  --auth-root-password-env
+                       Use the \$MARIADB_ROOT_PASSWORD as the root user password.
+                       (needs to be SQL escaped, for
+                       --auth-root-authentication-method=normal)
   --basedir=path       The path to the MariaDB installation directory.
   --builddir=path      If using --srcdir with out-of-directory builds, you
                        will need to set this to the location of the build
@@ -181,6 +187,8 @@ parse_arguments()
 	auth_root_authentication_method=socket ;;
       --auth-root-hostname=*)
         explicit_hostname=`parse_arg "$arg"` ;;
+      --auth-root-password-env)
+        root_password=$MARIADB_ROOT_PASSWORD ;;
       --auth-root-authentication-method=*)
         usage ;;
       --auth-root-socket-user=*)
@@ -553,16 +561,17 @@ cat_sql()
   fi
   case "$auth_root_authentication_method" in
     normal)
-      install_params="$install_params
-  SET @skip_auth_root_nopasswd=NULL;
-  SET @auth_root_socket=NULL;" ;;
+      echo "SET @skip_auth_root_native_password=NULL;"
+      echo "SET @auth_root_password='$root_password';"
+      echo "SET @auth_root_socket=NULL;"
+      ;;
     socket)
-      install_params="$install_params
-  SET @skip_auth_root_nopasswd=1;
-  SET @auth_root_socket='$auth_root_socket_user';" ;;
+      echo "SET @skip_auth_root_native_password=1;"
+      echo "SET @auth_root_socket='$auth_root_socket_user';"
+      ;;
   esac
 
-  echo "$install_params"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp";
+  cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp";
 
   if test ! -z "$tzdir"
   then
