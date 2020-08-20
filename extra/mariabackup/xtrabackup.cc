@@ -300,6 +300,7 @@ my_bool opt_noversioncheck = FALSE;
 my_bool opt_no_backup_locks = FALSE;
 my_bool opt_decompress = FALSE;
 my_bool opt_remove_original;
+my_bool opt_ignore_innodb_page_corruption;
 
 my_bool opt_lock_ddl_per_table = FALSE;
 static my_bool opt_check_privileges;
@@ -833,7 +834,9 @@ enum options_xtrabackup
   OPT_LOCK_DDL_PER_TABLE,
   OPT_ROCKSDB_DATADIR,
   OPT_BACKUP_ROCKSDB,
-  OPT_XTRA_CHECK_PRIVILEGES
+  OPT_XTRA_CHECK_PRIVILEGES,
+
+  OPT_XB_IGNORE_INNODB_PAGE_CORRUPTION
 };
 
 struct my_option xb_client_options[]= {
@@ -1230,6 +1233,13 @@ struct my_option xb_client_options[]= {
      " uses old (pre-4.1.1) protocol.",
      &opt_secure_auth, &opt_secure_auth, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0,
      0},
+
+    {"ignore-innodb-page-corruption", OPT_XB_IGNORE_INNODB_PAGE_CORRUPTION,
+     "Continue backup with error message if innodb page corrupted. "
+     "This option can cause data incosistency in restored backup.",
+     &opt_ignore_innodb_page_corruption, &opt_ignore_innodb_page_corruption, 0,
+     GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+
 #define MYSQL_CLIENT
 #include "sslopt-longopts.h"
 #undef MYSQL_CLIENT

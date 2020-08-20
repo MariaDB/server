@@ -110,6 +110,8 @@ extern my_bool		opt_remove_original;
 extern my_bool		opt_extended_validation;
 extern my_bool		opt_encrypted_backup;
 extern my_bool		opt_lock_ddl_per_table;
+extern my_bool    opt_ignore_innodb_page_corruption;
+
 
 extern char		*opt_incremental_history_name;
 extern char		*opt_incremental_history_uuid;

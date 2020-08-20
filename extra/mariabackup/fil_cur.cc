@@ -454,12 +454,17 @@ read_retry:
 			retry_count--;
 
 			if (retry_count == 0) {
+        const char *ignore_corruption_warn = opt_ignore_innodb_page_corruption ?
+          " WARNING!!! The corruption is ignored due to"
+          " ignore-innodb-page-corruption option, the backup can contain"
+          " corrupted data." : "";
 				msg(cursor->thread_n,
 				    "Error: failed to read page after "
 				    "10 retries. File %s seems to be "
-				    "corrupted.", cursor->abs_path);
-				ret = XB_FIL_CUR_ERROR;
+				    "corrupted.%s", cursor->abs_path, ignore_corruption_warn);
 				buf_page_print(page, cursor->page_size);
+        if (!opt_ignore_innodb_page_corruption)
+				  ret = XB_FIL_CUR_ERROR;
 				break;
 			}
 			msg(cursor->thread_n, "Database page corruption detected at page "
