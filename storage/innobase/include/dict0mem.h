@@ -1041,6 +1041,9 @@ struct dict_index_t{
 	/** @return whether this is a spatial index */
 	bool is_spatial() const { return UNIV_UNLIKELY(type & DICT_SPATIAL); }
 
+	/** @return whether this is the change buffer */
+	bool is_ibuf() const { return UNIV_UNLIKELY(type & DICT_IBUF); }
+
 	/** @return whether the index includes virtual columns */
 	bool has_virtual() const { return type & DICT_VIRTUAL; }
 

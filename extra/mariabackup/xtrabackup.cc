@@ -249,6 +249,12 @@ my_bool innobase_locks_unsafe_for_binlog;
 my_bool innobase_rollback_on_timeout;
 my_bool innobase_create_status_file;
 
+/* The following counter is used to convey information to InnoDB
+about server activity: in selects it is not sensible to call
+srv_active_wake_master_thread after each fetch or search, we only do
+it every INNOBASE_WAKE_INTERVAL'th step. */
+
+#define INNOBASE_WAKE_INTERVAL	32
 ulong	innobase_active_counter	= 0;
 
 #ifndef _WIN32
@@ -2005,10 +2011,6 @@ static bool innodb_init_param()
 	if (!srv_undo_dir || !xtrabackup_backup) {
 		srv_undo_dir = (char*) ".";
 	}
-
-	log_checksum_algorithm_ptr = innodb_log_checksums || srv_encrypt_log
-		? log_block_calc_checksum_crc32
-		: log_block_calc_checksum_none;
 
 #ifdef _WIN32
 	srv_use_native_aio = TRUE;

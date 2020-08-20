@@ -447,6 +447,14 @@ TYPELIB innodb_flush_method_typelib = {
 	NULL
 };
 
+/* The following counter is used to convey information to InnoDB
+about server activity: in case of normal DML ops it is not
+sensible to call srv_active_wake_master_thread after each
+operation, we only do it every INNOBASE_WAKE_INTERVAL'th step. */
+
+#define INNOBASE_WAKE_INTERVAL	32
+static ulong	innobase_active_counter	= 0;
+
 /** Allowed values of innodb_change_buffering */
 static const char* innodb_change_buffering_names[] = {
 	"none",		/* IBUF_USE_NONE */
@@ -1842,6 +1850,23 @@ thd_to_trx_id(
 	return(thd_to_trx(thd)->id);
 }
 #endif /* WITH_WSREP */
+
+/********************************************************************//**
+Increments innobase_active_counter and every INNOBASE_WAKE_INTERVALth
+time calls srv_active_wake_master_thread. This function should be used
+when a single database operation may introduce a small need for
+server utility activity, like checkpointing. */
+inline
+void
+innobase_active_small(void)
+/*=======================*/
+{
+	innobase_active_counter++;
+
+	if ((innobase_active_counter % INNOBASE_WAKE_INTERVAL) == 0) {
+		srv_active_wake_master_thread();
+	}
+}
 
 /********************************************************************//**
 Converts an InnoDB error code to a MySQL error code and also tells to MySQL
@@ -3488,8 +3513,7 @@ static int innodb_init_abort()
 	DBUG_RETURN(1);
 }
 
-/** Update log_checksum_algorithm_ptr with a pointer to the function
-corresponding to whether checksums are enabled.
+/** If applicable, emit a message that log checksums cannot be disabled.
 @param[in,out]	thd	client session, or NULL if at startup
 @param[in]	check	whether redo log block checksums are enabled
 @return whether redo log block checksums are enabled */
@@ -3497,32 +3521,19 @@ static inline
 bool
 innodb_log_checksums_func_update(THD* thd, bool check)
 {
-	static const char msg[] = "innodb_encrypt_log implies"
-		" innodb_log_checksums";
+	static const char msg[] = "innodb_log_checksums is deprecated"
+		" and has no effect outside recovery";
 
 	ut_ad(!thd == !srv_was_started);
 
 	if (!check) {
-		check = srv_encrypt_log;
-		if (!check) {
-		} else if (thd) {
+		if (thd) {
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    HA_ERR_UNSUPPORTED, msg);
+			check = true;
 		} else {
 			sql_print_warning(msg);
 		}
-	}
-
-	if (thd) {
-		log_mutex_enter();
-		log_checksum_algorithm_ptr = check
-			? log_block_calc_checksum_crc32
-			: log_block_calc_checksum_none;
-		log_mutex_exit();
-	} else {
-		log_checksum_algorithm_ptr = check
-			? log_block_calc_checksum_crc32
-			: log_block_calc_checksum_none;
 	}
 
 	return(check);
@@ -6456,6 +6467,11 @@ ha_innobase::close()
 
 	MONITOR_INC(MONITOR_TABLE_CLOSE);
 
+	/* Tell InnoDB server that there might be work for
+	utility threads: */
+
+	srv_active_wake_master_thread();
+
 	DBUG_RETURN(0);
 }
 
@@ -8166,6 +8182,8 @@ report_error:
 	}
 
 func_exit:
+	innobase_active_small();
+
 	DBUG_RETURN(error_result);
 }
 
@@ -8852,6 +8870,11 @@ func_exit:
 			error, m_prebuilt->table->flags, m_user_thd);
 	}
 
+	/* Tell InnoDB server that there might be work for
+	utility threads: */
+
+	innobase_active_small();
+
 #ifdef WITH_WSREP
 	if (error == DB_SUCCESS && trx->is_wsrep() &&
 	    wsrep_thd_exec_mode(m_user_thd) == LOCAL_STATE &&
@@ -8909,6 +8932,11 @@ ha_innobase::delete_row(
 	error = row_update_for_mysql(m_prebuilt);
 
 	innobase_srv_conc_exit_innodb(m_prebuilt);
+
+	/* Tell the InnoDB server that there might be work for
+	utility threads: */
+
+	innobase_active_small();
 
 #ifdef WITH_WSREP
 	if (error == DB_SUCCESS && trx->is_wsrep()
@@ -12697,6 +12725,7 @@ create_table_info_t::create_table_update_dict()
 	if (m_flags2 & DICT_TF2_FTS) {
 		if (!innobase_fts_load_stopword(innobase_table, NULL, m_thd)) {
 			dict_table_close(innobase_table, FALSE, FALSE);
+			srv_active_wake_master_thread();
 			trx_free(m_trx);
 			DBUG_RETURN(-1);
 		}
@@ -12845,6 +12874,11 @@ ha_innobase::create(
 	ut_ad(!srv_read_only_mode);
 
 	error = info.create_table_update_dict();
+
+	/* Tell the InnoDB server that there might be work for
+	utility threads: */
+
+	srv_active_wake_master_thread();
 
 	DBUG_RETURN(error);
 }
@@ -19068,7 +19102,7 @@ static MYSQL_SYSVAR_ENUM(checksum_algorithm, srv_checksum_algorithm,
 
 static MYSQL_SYSVAR_BOOL(log_checksums, innodb_log_checksums,
   PLUGIN_VAR_RQCMDARG,
-  "Whether to compute and require checksums for InnoDB redo log blocks",
+  "DEPRECATED. Whether to require checksums for InnoDB redo log blocks.",
   NULL, innodb_log_checksums_update, TRUE);
 
 static MYSQL_SYSVAR_BOOL(checksums, innobase_use_checksums,

@@ -82,6 +82,7 @@ row_undo_ins_remove_clust_rec(
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 	} else {
 		index->set_modified(mtr);
+		ut_ad(lock_table_has_locks(index->table));
 	}
 
 	/* This is similar to row_undo_mod_clust(). The DDL thread may
@@ -92,8 +93,7 @@ row_undo_ins_remove_clust_rec(
 
 	online = dict_index_is_online_ddl(index);
 	if (online) {
-		ut_ad(node->trx->dict_operation_lock_mode
-		      != RW_X_LATCH);
+		ut_ad(!node->trx->dict_operation_lock_mode);
 		ut_ad(node->table->id != DICT_INDEXES_ID);
 		mtr_s_lock_index(index, &mtr);
 	}
@@ -567,6 +567,9 @@ row_undo_ins(
 	if (node->table == NULL) {
 		return(DB_SUCCESS);
 	}
+
+	ut_ad(node->table->is_temporary()
+	      || lock_table_has_locks(node->table));
 
 	/* Iterate over all the indexes and undo the insert.*/
 

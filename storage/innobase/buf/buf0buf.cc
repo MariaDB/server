@@ -5653,7 +5653,23 @@ buf_page_create(
 
 		if (drop_hash_entry) {
 			mutex_enter(&block->mutex);
-			buf_page_set_sticky(&block->page);
+			/* Avoid a hang if I/O is going on. Release
+			the buffer pool mutex and page hash lock
+			and wait for I/O to complete */
+			while (buf_block_get_io_fix(block) != BUF_IO_NONE) {
+				buf_block_fix(block);
+				mutex_exit(&block->mutex);
+				buf_pool_mutex_exit(buf_pool);
+				rw_lock_x_unlock(hash_lock);
+
+				os_thread_yield();
+
+				buf_pool_mutex_enter(buf_pool);
+				rw_lock_x_lock(hash_lock);
+				mutex_enter(&block->mutex);
+				buf_block_unfix(block);
+			}
+			rw_lock_x_lock(&block->lock);
 			mutex_exit(&block->mutex);
 		}
 #endif
@@ -5665,11 +5681,7 @@ buf_page_create(
 #ifdef BTR_CUR_HASH_ADAPT
 		if (drop_hash_entry) {
 			btr_search_drop_page_hash_index(block);
-			buf_pool_mutex_enter(buf_pool);
-			mutex_enter(&block->mutex);
-			buf_page_unset_sticky(&block->page);
-			mutex_exit(&block->mutex);
-			buf_pool_mutex_exit(buf_pool);
+			rw_lock_x_unlock(&block->lock);
 		}
 #endif /* BTR_CUR_HASH_ADAPT */
 

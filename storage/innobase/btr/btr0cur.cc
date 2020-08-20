@@ -3360,7 +3360,7 @@ fail:
 
 		/* prefetch siblings of the leaf for the pessimistic
 		operation, if the page is leaf. */
-		if (page_is_leaf(page)) {
+		if (page_is_leaf(page) && !index->is_ibuf()) {
 			btr_cur_prefetch_siblings(block);
 		}
 fail_err:
@@ -4330,6 +4330,7 @@ btr_cur_optimistic_update(
 
 	if (rec_offs_any_extern(*offsets)) {
 any_extern:
+		ut_ad(!index->is_ibuf());
 		/* Externally stored fields are treated in pessimistic
 		update */
 
@@ -4525,7 +4526,7 @@ func_exit:
 		}
 	}
 
-	if (err != DB_SUCCESS) {
+	if (err != DB_SUCCESS && !index->is_ibuf()) {
 		/* prefetch siblings of the leaf for the pessimistic
 		operation. */
 		btr_cur_prefetch_siblings(block);
