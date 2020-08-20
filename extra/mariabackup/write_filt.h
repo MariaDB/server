@@ -27,26 +27,26 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 #include "fil_cur.h"
 #include "datasink.h"
+#include "xtrabackup.h"
 
 /* Incremental page filter context */
 typedef struct {
 	ulint		delta_buf_size;
 	byte		*delta_buf;
 	ulint		 npages;
+	CorruptedPages *corrupted_pages;
 } xb_wf_incremental_ctxt_t;
 
 /* Page filter context used as an opaque structure by callers */
 typedef struct {
 	xb_fil_cur_t	*cursor;
-	union {
-		xb_wf_incremental_ctxt_t	wf_incremental_ctxt;
-	} u;
+	xb_wf_incremental_ctxt_t	wf_incremental_ctxt;
 } xb_write_filt_ctxt_t;
 
 
 typedef struct {
 	my_bool	(*init)(xb_write_filt_ctxt_t *ctxt, char *dst_name,
-			xb_fil_cur_t *cursor);
+			xb_fil_cur_t *cursor, CorruptedPages *corrupted_pages);
 	my_bool	(*process)(xb_write_filt_ctxt_t *ctxt, ds_file_t *dstfile);
 	my_bool	(*finalize)(xb_write_filt_ctxt_t *, ds_file_t *dstfile);
 	void (*deinit)(xb_write_filt_ctxt_t *);
