@@ -215,7 +215,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
 
   DBUG_EXECUTE("info",TEST_filesort(filesort->sortorder, s_length););
 #ifdef SKIP_DBUG_IN_FILESORT
-  DBUG_PUSH("");		/* No DBUG here */
+  DBUG_PUSH_EMPTY;		/* No DBUG here */
 #endif
   SORT_INFO *sort;
   TABLE_LIST *tab= table->pos_in_table_list;
@@ -493,7 +493,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   sort->examined_rows= param.examined_rows;
   sort->return_rows= num_rows;
 #ifdef SKIP_DBUG_IN_FILESORT
-  DBUG_POP();			/* Ok to DBUG */
+  DBUG_POP_EMPTY;		/* Ok to DBUG */
 #endif
 
   DBUG_PRINT("exit",
