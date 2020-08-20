@@ -127,7 +127,7 @@ int main(int argc, char **argv)
   int error;
   MY_INIT(argv[0]);
 
-  my_init_stacktrace(1);
+  my_setup_stacktrace();
   default_log_dir= opt_log_dir= maria_data_root= (char *)".";
   maria_chk_init(&check_param);
   check_param.opt_lock_memory= 1;		/* Lock memory if possible */

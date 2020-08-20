@@ -655,6 +655,7 @@ SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 # MDEV-17187 table doesn't exist in engine after ALTER other tables
 # with CONSTRAINTs
 #
+call mtr.add_suppression("\\[Warning\\] InnoDB: In ALTER TABLE `test`\\.`t2` has or is referenced in foreign key constraints which are not compatible with the new table definition.");
 set foreign_key_checks=on;
 create table t1 (id int not null primary key) engine=innodb;
 create table t2 (id int not null primary key, fid int not null,
@@ -710,6 +711,32 @@ drop table t1,t2;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 drop table t1,t2;
 ERROR 42S02: Unknown table 'test.t2'
+#
+# MDEV-22934 Table disappear after two alter table command
+#
+CREATE TABLE t1(f1 INT NOT NULL AUTO_INCREMENT,
+f2 INT NOT NULL,
+PRIMARY KEY (f1), INDEX (f2))ENGINE=InnoDB;
+CREATE TABLE t2(f1 INT NOT NULL,
+f2 INT NOT NULL, f3 INT NOT NULL,
+PRIMARY KEY(f1, f2), UNIQUE KEY(f2),
+CONSTRAINT `t2_ibfk_1` FOREIGN KEY (f2) REFERENCES t1(f2) ON DELETE CASCADE,
+CONSTRAINT `t2_ibfk_2` FOREIGN KEY (f1) REFERENCES t1(f1) ON DELETE CASCADE
+) ENGINE=InnoDB;
+SET FOREIGN_KEY_CHECKS=0;
+ALTER TABLE t2 DROP PRIMARY KEY, ADD PRIMARY KEY(f3), ALGORITHM=INPLACE;
+ALTER TABLE t2 DROP INDEX `f2`, ALGORITHM=COPY;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `f1` int(11) NOT NULL,
+  `f2` int(11) NOT NULL,
+  `f3` int(11) NOT NULL,
+  PRIMARY KEY (`f3`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+CREATE TABLE t2 (f1 INT NOT NULL)ENGINE=InnoDB;
+ERROR 42S01: Table 't2' already exists
+DROP TABLE t2, t1;
 # End of 10.2 tests
 CREATE TABLE t1 (a GEOMETRY, INDEX(a(8)),
 FOREIGN KEY (a) REFERENCES x (xx)) ENGINE=InnoDB;
@@ -761,11 +788,12 @@ set default_storage_engine= default;
 #
 # MDEV-21690 LeakSanitizer: detected memory leaks in mem_heap_create_block_func
 #
+SET FOREIGN_KEY_CHECKS=1;
 CREATE TABLE t1 (a TEXT, b TEXT) ENGINE=InnoDB;
 ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (b);
 ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+SET FOREIGN_KEY_CHECKS=DEFAULT;
 DROP TABLE t1;
-# End of 10.5 tests
 #
 # MDEV-22602 Disable UPDATE CASCADE for SQL constraints
 #
@@ -784,3 +812,4 @@ create or replace table t1 (a varchar(4096) unique) engine=innodb;
 create or replace table t2 (pk int primary key, a varchar(4096) unique, foreign key(a) references t1(a) on update cascade) engine=innodb;
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 drop table t1;
+# End of 10.5 tests

@@ -2098,6 +2098,7 @@ wrong_page_type:
 	/* Validate the record list in a loop checking also that
 	it is consistent with the directory. */
 	ulint count = 0, data_size = 0, own_count = 1, slot_no = 0;
+	ulint info_bits;
 	slot_no = 0;
 	slot = page_dir_get_nth_slot(page, slot_no);
 
@@ -2121,9 +2122,16 @@ wrong_page_type:
 			goto next_rec;
 		}
 
+		info_bits = rec_get_info_bits(rec, page_is_comp(page));
+		if (info_bits
+		    & ~(REC_INFO_MIN_REC_FLAG | REC_INFO_DELETED_FLAG)) {
+			ib::error() << "info_bits has an incorrect value "
+				    << info_bits;
+			ret = false;
+		}
+
 		if (rec == first_rec) {
-			if ((rec_get_info_bits(rec, page_is_comp(page))
-			     & REC_INFO_MIN_REC_FLAG)) {
+			if (info_bits & REC_INFO_MIN_REC_FLAG) {
 				if (page_has_prev(page)) {
 					ib::error() << "REC_INFO_MIN_REC_FLAG "
 						"is set on non-left page";
@@ -2134,8 +2142,7 @@ wrong_page_type:
 					ib::error() << "REC_INFO_MIN_REC_FLAG "
 						"is set in a leaf-page record";
 					ret = false;
-				} else if (!rec_get_deleted_flag(
-						   rec, page_is_comp(page))
+				} else if (!(info_bits & REC_INFO_DELETED_FLAG)
 					   != !index->table->instant) {
 					ib::error() << (index->table->instant
 							? "Metadata record "
@@ -2149,11 +2156,49 @@ wrong_page_type:
 				ib::error() << "Metadata record is missing";
 				ret = false;
 			}
-		} else if (rec_get_info_bits(rec, page_is_comp(page))
-			   & REC_INFO_MIN_REC_FLAG) {
+		} else if (info_bits & REC_INFO_MIN_REC_FLAG) {
 			ib::error() << "REC_INFO_MIN_REC_FLAG record is not "
 				       "first in page";
 			ret = false;
+		}
+
+		if (page_is_comp(page)) {
+			const rec_comp_status_t status = rec_get_status(rec);
+			if (status != REC_STATUS_ORDINARY
+			    && status != REC_STATUS_NODE_PTR
+			    && status != REC_STATUS_INFIMUM
+			    && status != REC_STATUS_SUPREMUM
+			    && status != REC_STATUS_INSTANT) {
+				ib::error() << "impossible record status "
+					    << status;
+				ret = false;
+			} else if (page_rec_is_infimum(rec)) {
+				if (status != REC_STATUS_INFIMUM) {
+					ib::error()
+						<< "infimum record has status "
+						<< status;
+					ret = false;
+				}
+			} else if (page_rec_is_supremum(rec)) {
+				if (status != REC_STATUS_SUPREMUM) {
+					ib::error() << "supremum record has "
+						       "status "
+						    << status;
+					ret = false;
+				}
+			} else if (!page_is_leaf(page)) {
+				if (status != REC_STATUS_NODE_PTR) {
+					ib::error() << "node ptr record has "
+						       "status "
+						    << status;
+					ret = false;
+				}
+			} else if (!index->is_instant()
+				   && status == REC_STATUS_INSTANT) {
+				ib::error() << "instantly added record in a "
+					       "non-instant index";
+				ret = false;
+			}
 		}
 
 		/* Check that the records are in the ascending order */

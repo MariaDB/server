@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2001, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -41,7 +42,7 @@
 C_MODE_START
 
 #if defined(HAVE_STACKTRACE) || defined(HAVE_BACKTRACE)
-void my_init_stacktrace(int setup_handlers);
+void my_setup_stacktrace(void);
 void my_print_stacktrace(uchar* stack_bottom, ulong thread_stack,
                          my_bool silent);
 int my_safe_print_str(const char* val, size_t max_len);
@@ -53,7 +54,7 @@ char *my_demangle(const char *mangled_name, int *status);
 void my_set_exception_pointers(EXCEPTION_POINTERS *ep);
 #endif /* __WIN__ */
 #else
-#define my_init_stacktrace(A) do { } while(0)
+#define my_setup_stacktrace()
 #endif /* ! (defined(HAVE_STACKTRACE) || defined(HAVE_BACKTRACE)) */
 
 #ifndef _WIN32
