@@ -33,7 +33,7 @@ copy_file(ds_ctxt_t *datasink,
 	  uint thread_n);
 
 /** Start --backup */
-bool backup_start();
+bool backup_start(CorruptedPages &corrupted_pages);
 /** Release resources after backup_start() */
 void backup_release();
 /** Finish after backup_start() and backup_release() */
@@ -51,5 +51,6 @@ directory_exists(const char *dir, bool create);
 
 lsn_t
 get_current_lsn(MYSQL *connection);
+bool backup_file_print_buf(const char *filename, const char *buf, int buf_len);
 
 #endif
