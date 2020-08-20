@@ -580,6 +580,11 @@ cat_sql()
     "$tzinfo_to_sql" --skip-wsrep-checks --skip-write-binlog "$tzdir"
     echo 'UNLOCK TABLES;'
   fi
+  # Input file descriptor 3 is used to send to bootstrap
+  if { >&3; } 2> /dev/null
+  then
+    cat <&3
+  fi
 }
 
 # Create the system and help tables by passing them to "mysqld --bootstrap"
