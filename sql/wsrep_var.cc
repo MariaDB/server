@@ -948,6 +948,11 @@ int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff)
     var->type= SHOW_ARRAY;
     var->value= (char *) &mysql_status_vars;
   }
+  else
+  {
+    var->type= SHOW_CHAR;
+    var->value= (char*) "0";
+  }
   return 0;
 }
 
