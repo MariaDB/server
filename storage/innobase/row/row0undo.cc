@@ -279,6 +279,19 @@ row_undo(
 			? UNDO_NODE_INSERT : UNDO_NODE_MODIFY;
 	}
 
+	/* Prevent prepare_inplace_alter_table_dict() from adding
+	dict_table_t::indexes while we are processing the record.
+	Recovered transactions are not protected by MDL, and the
+	secondary index creation is not protected by table locks
+	for online operation. (A table lock would only be acquired
+	when committing the ALTER TABLE operation.) */
+	const bool locked_data_dict = UNIV_UNLIKELY(trx->is_recovered)
+		&& !trx->dict_operation_lock_mode;
+
+	if (UNIV_UNLIKELY(locked_data_dict)) {
+		row_mysql_freeze_data_dictionary(trx);
+	}
+
 	dberr_t err;
 
 	if (node->state == UNDO_NODE_INSERT) {
@@ -289,6 +302,10 @@ row_undo(
 	} else {
 		ut_ad(node->state == UNDO_NODE_MODIFY);
 		err = row_undo_mod(node, thr);
+	}
+
+	if (UNIV_UNLIKELY(locked_data_dict)) {
+		row_mysql_unfreeze_data_dictionary(trx);
 	}
 
 	/* Do some cleanup */

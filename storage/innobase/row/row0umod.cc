@@ -319,17 +319,7 @@ row_undo_mod_clust(
 		ut_ad(err == DB_SUCCESS || err == DB_OUT_OF_FILE_SPACE);
 	}
 
-	/* Online rebuild cannot be initiated while we are holding
-	dict_operation_lock and index->lock. (It can be aborted.) */
-	ut_ad(online || !dict_index_is_online_ddl(index));
-
-	if (err == DB_SUCCESS && online) {
-
-		ut_ad(rw_lock_own_flagged(
-				&index->lock,
-				RW_LOCK_FLAG_S | RW_LOCK_FLAG_X
-				| RW_LOCK_FLAG_SX));
-
+	if (err == DB_SUCCESS && online && dict_index_is_online_ddl(index)) {
 		switch (node->rec_type) {
 		case TRX_UNDO_DEL_MARK_REC:
 			row_log_table_insert(
