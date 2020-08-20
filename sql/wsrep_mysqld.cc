@@ -1171,7 +1171,7 @@ bool wsrep_must_sync_wait (THD* thd, uint mask)
     mysql_mutex_lock(&thd->LOCK_thd_data);
     ret= (thd->variables.wsrep_sync_wait & mask) &&
       thd->wsrep_client_thread &&
-      thd->variables.wsrep_on &&
+      WSREP_ON &&
       !(thd->variables.wsrep_dirty_reads &&
         !is_update_query(thd->lex->sql_command)) &&
       !thd->in_active_multi_stmt_transaction() &&

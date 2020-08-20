@@ -217,7 +217,7 @@ int spider_udf_parse_copy_tables_param(
 ) {
   int error_num = 0;
   char *param_string = NULL;
-  char *sprit_ptr[2];
+  char *sprit_ptr;
   char *tmp_ptr, *tmp_ptr2, *start_ptr;
   int title_length;
   SPIDER_PARAM_STRING_PARSE param_string_parse;
@@ -244,23 +244,17 @@ int spider_udf_parse_copy_tables_param(
   }
   DBUG_PRINT("info",("spider param_string=%s", param_string));
 
-  sprit_ptr[0] = param_string;
+  sprit_ptr = param_string;
   param_string_parse.init(param_string, ER_SPIDER_INVALID_UDF_PARAM_NUM);
-  while (sprit_ptr[0])
+  while (sprit_ptr)
   {
-    if ((sprit_ptr[1] = strchr(sprit_ptr[0], ',')))
-    {
-      *sprit_ptr[1] = '\0';
-      sprit_ptr[1]++;
-    }
-    tmp_ptr = sprit_ptr[0];
-    sprit_ptr[0] = sprit_ptr[1];
+    tmp_ptr = sprit_ptr;
     while (*tmp_ptr == ' ' || *tmp_ptr == '\r' ||
       *tmp_ptr == '\n' || *tmp_ptr == '\t')
       tmp_ptr++;
 
     if (*tmp_ptr == '\0')
-      continue;
+      break;
 
     title_length = 0;
     start_ptr = tmp_ptr;
@@ -273,6 +267,11 @@ int spider_udf_parse_copy_tables_param(
       start_ptr++;
     }
     param_string_parse.set_param_title(tmp_ptr, tmp_ptr + title_length);
+    if ((error_num = param_string_parse.get_next_parameter_head(
+      start_ptr, &sprit_ptr)))
+    {
+      goto error;
+    }
 
     switch (title_length)
     {

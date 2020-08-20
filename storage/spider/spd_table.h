@@ -180,6 +180,94 @@ typedef struct st_spider_param_string_parse
     DBUG_RETURN(error_num);
   }
 
+  inline int get_next_parameter_head(char *st, char **nx)
+  {
+    DBUG_ENTER("get_next_parameter_head");
+    char *sq = strchr(st, '\'');
+    char *dq = strchr(st, '"');
+    if (!sq && !dq)
+    {
+      DBUG_RETURN(print_param_error());
+    }
+    else if (!sq || sq > dq)
+    {
+      while (1)
+      {
+        ++dq;
+        if (*dq == '\\')
+        {
+          ++dq;
+        }
+        else if (*dq == '"')
+        {
+          break;
+        }
+        else if (*dq == '\0')
+        {
+          DBUG_RETURN(print_param_error());
+        }
+      }
+      while (1)
+      {
+        ++dq;
+        if (*dq == '\0')
+        {
+          *nx = dq;
+          break;
+        }
+        else if (*dq == ',')
+        {
+          *dq = '\0';
+          *nx = dq + 1;
+          break;
+        }
+        else if (*dq != ' ' && *dq != '\r' && *dq != '\n' && *dq != '\t')
+        {
+          DBUG_RETURN(print_param_error());
+        }
+      }
+    }
+    else
+    {
+      while (1)
+      {
+        ++sq;
+        if (*sq == '\\')
+        {
+          ++sq;
+        }
+        else if (*sq == '\'')
+        {
+          break;
+        }
+        else if (*sq == '\0')
+        {
+          DBUG_RETURN(print_param_error());
+        }
+      }
+      while (1)
+      {
+        ++sq;
+        if (*sq == '\0')
+        {
+          *nx = sq;
+          break;
+        }
+        else if (*sq == ',')
+        {
+          *sq = '\0';
+          *nx = sq + 1;
+          break;
+        }
+        else if (*sq != ' ' && *sq != '\r' && *sq != '\n' && *sq != '\t')
+        {
+          DBUG_RETURN(print_param_error());
+        }
+      }
+    }
+    DBUG_RETURN(0);
+  }
+
   /**
     Restore the current parameter's input delimiter characters in the
     parameter string.  They were NULLed during parameter parsing.

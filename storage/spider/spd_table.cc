@@ -2053,7 +2053,7 @@ int spider_parse_connect_info(
 ) {
   int error_num = 0;
   char *connect_string = NULL;
-  char *sprit_ptr[2];
+  char *sprit_ptr;
   char *tmp_ptr, *tmp_ptr2, *start_ptr;
   int roop_count;
   int title_length;
@@ -2247,23 +2247,17 @@ int spider_parse_connect_info(
         break;
     }
 
-    sprit_ptr[0] = connect_string;
+    sprit_ptr = connect_string;
     connect_string_parse.init(connect_string, ER_SPIDER_INVALID_CONNECT_INFO_NUM);
-    while (sprit_ptr[0])
+    while (sprit_ptr)
     {
-      if ((sprit_ptr[1] = strchr(sprit_ptr[0], ',')))
-      {
-        *sprit_ptr[1] = '\0';
-        sprit_ptr[1]++;
-      }
-      tmp_ptr = sprit_ptr[0];
-      sprit_ptr[0] = sprit_ptr[1];
+      tmp_ptr = sprit_ptr;
       while (*tmp_ptr == ' ' || *tmp_ptr == '\r' ||
         *tmp_ptr == '\n' || *tmp_ptr == '\t')
         tmp_ptr++;
 
       if (*tmp_ptr == '\0')
-        continue;
+        break;
 
       title_length = 0;
       start_ptr = tmp_ptr;
@@ -2276,6 +2270,11 @@ int spider_parse_connect_info(
         start_ptr++;
       }
       connect_string_parse.set_param_title(tmp_ptr, tmp_ptr + title_length);
+      if ((error_num = connect_string_parse.get_next_parameter_head(
+        start_ptr, &sprit_ptr)))
+      {
+        goto error;
+      }
 
       switch (title_length)
       {
