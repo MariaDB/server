@@ -578,6 +578,9 @@ cat_sql()
   then
     "$tzinfo_to_sql" --skip-wsrep-checks --skip-write-binlog "$tzdir"
   fi
+  # TODO check if open
+  # Input file descriptor 3 is used to send to bootstrap
+  cat <&3
 }
 
 # Create the system and help tables by passing them to "mysqld --bootstrap"
