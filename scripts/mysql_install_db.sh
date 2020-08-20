@@ -576,7 +576,10 @@ cat_sql()
   fi
   if test ! -z "$tzdir"
   then
+    echo 'LOCK TABLES time_zone WRITE, time_zone_leap_second WRITE,
+          time_zone_name WRITE, time_zone_transition WRITE, time_zone_transition_type WRITE;'
     "$tzinfo_to_sql" --skip-wsrep-checks --skip-write-binlog "$tzdir"
+    echo 'UNLOCK TABLES;'
   fi
   # TODO check if open
   # Input file descriptor 3 is used to send to bootstrap
