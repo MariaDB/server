@@ -212,7 +212,7 @@ SELECT * FROM `db1``; select 'oops!'`.`t``1` ORDER BY 1;
 wait-rpl_mdev382.test
 EOF
 
---shutdown_server 30
+--shutdown_server
 
 --append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 restart-rpl_mdev382.test
