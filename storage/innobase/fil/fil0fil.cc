@@ -1610,22 +1610,28 @@ void fil_system_t::create(ulint hash_size)
 
 void fil_system_t::close()
 {
-	ut_ad(this == &fil_system);
-	ut_a(!UT_LIST_GET_LEN(LRU));
-	ut_a(unflushed_spaces.empty());
-	ut_a(!UT_LIST_GET_LEN(space_list));
-	ut_ad(!sys_space);
-	ut_ad(!temp_space);
+  ut_ad(this == &fil_system);
+  ut_a(!UT_LIST_GET_LEN(LRU));
+  ut_a(unflushed_spaces.empty());
+  ut_a(!UT_LIST_GET_LEN(space_list));
+  ut_ad(!sys_space);
+  ut_ad(!temp_space);
 
-	if (is_initialised()) {
-		m_initialised = false;
-		hash_table_free(spaces);
-		spaces = NULL;
-		mutex_free(&mutex);
-		fil_space_crypt_cleanup();
-	}
+  if (is_initialised())
+  {
+    m_initialised= false;
+    hash_table_free(spaces);
+    spaces = nullptr;
+    mutex_free(&mutex);
+    fil_space_crypt_cleanup();
+  }
 
-	ut_ad(!spaces);
+  ut_ad(!spaces);
+
+#ifdef UNIV_LINUX
+  ssd.clear();
+  ssd.shrink_to_fit();
+#endif /* UNIV_LINUX */
 }
 
 /*******************************************************************//**
