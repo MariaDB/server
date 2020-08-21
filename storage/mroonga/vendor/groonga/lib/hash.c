@@ -2261,7 +2261,7 @@ grn_hash_lock(grn_ctx *ctx, grn_hash *hash, int timeout)
     GRN_ATOMIC_ADD_EX(hash->lock, 1, lock);
     if (lock) {
       GRN_ATOMIC_ADD_EX(hash->lock, -1, lock);
-      if (!timeout || (timeout > 0 && timeout == count)) { break; }
+      if (!timeout || (timeout > 0 && (uint32_t) timeout == count)) { break; }
       if (!(++_ncolls % 1000000) && (_ncolls > _ncalls)) {
         if (_ncolls < 0 || _ncalls < 0) {
           _ncolls = 0; _ncalls = 0;
@@ -3350,7 +3350,7 @@ grn_hash_sort(grn_ctx *ctx, grn_hash *hash,
       return 0;
     }
   }
-  if (limit > *hash->n_entries) { limit = *hash->n_entries; }
+  if ((uint) limit > (uint) *hash->n_entries) { limit = *hash->n_entries; }
   /*  hash->limit = limit; */
   if (optarg) {
     int dir = (optarg->flags & GRN_TABLE_SORT_DESC);

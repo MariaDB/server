@@ -479,6 +479,12 @@ void
 grn_proc_init_column_rename(grn_ctx *ctx)
 {
   grn_expr_var vars[3];
+  vars[0].name= NULL;
+  vars[0].name_size= 0;
+  vars[1].name= NULL;
+  vars[1].name_size= 0;
+  vars[2].name= NULL;
+  vars[2].name_size= 0;
 
   grn_plugin_expr_var_init(ctx, &(vars[0]), "table", -1);
   grn_plugin_expr_var_init(ctx, &(vars[1]), "name", -1);
