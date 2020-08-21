@@ -506,9 +506,9 @@ static bool write_db_opt(THD *thd, const char *path,
   {
     ulong length;
     length= (ulong) (strxnmov(buf, sizeof(buf)-1, "default-character-set=",
-                              create->default_table_charset->csname,
+                              create->default_table_charset->cs_name.str,
                               "\ndefault-collation=",
-                              create->default_table_charset->name,
+                              create->default_table_charset->col_name.str,
                               "\n", NullS) - buf);
 
     if (create->schema_comment)

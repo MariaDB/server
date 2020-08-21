@@ -33,6 +33,7 @@
 #ifdef HAVE_CHARSET_ujis
 
 const char charset_name_ujis[]= "ujis";
+#define charset_name_ujis_length (sizeof(charset_name_ujis) - 1)
 
 static const uchar ctype_ujis[257] =
 {
@@ -67338,8 +67339,8 @@ struct charset_info_st my_charset_ujis_japanese_ci=
 {
     12,0,0,		/* number       */
     MY_CS_COMPILED|MY_CS_PRIMARY,	/* state        */
-    charset_name_ujis,		/* cs name    */
-    "ujis_japanese_ci",	/* name         */
+    { charset_name_ujis, charset_name_ujis_length }, /* csname       */
+    { STRING_WITH_LEN("ujis_japanese_ci") },	/* name         */
     "",			/* comment      */
     NULL,		/* tailoring    */
     ctype_ujis,
@@ -67371,8 +67372,8 @@ struct charset_info_st my_charset_ujis_bin=
 {
     91,0,0,		/* number       */
     MY_CS_COMPILED|MY_CS_BINSORT,	/* state        */
-    charset_name_ujis,		/* cs name    */
-    "ujis_bin",		/* name         */
+    { charset_name_ujis, charset_name_ujis_length }, /* csname       */
+    { STRING_WITH_LEN("ujis_bin") },		/* name         */
     "",			/* comment      */
     NULL,		/* tailoring    */
     ctype_ujis,
@@ -67404,8 +67405,8 @@ struct charset_info_st my_charset_ujis_japanese_nopad_ci=
 {
     MY_NOPAD_ID(12),0,0,/* number           */
     MY_CS_COMPILED|MY_CS_NOPAD, /* state    */
-    charset_name_ujis,             /* cs name          */
-    "ujis_japanese_nopad_ci", /* name       */
+    { charset_name_ujis, charset_name_ujis_length }, /* csname       */
+    { STRING_WITH_LEN("ujis_japanese_nopad_ci") }, /* name       */
     "",                 /* comment          */
     NULL,               /* tailoring        */
     ctype_ujis,
@@ -67437,8 +67438,8 @@ struct charset_info_st my_charset_ujis_nopad_bin=
 {
     MY_NOPAD_ID(91),0,0,/* number           */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD, /* state */
-    charset_name_ujis,             /* cs name          */
-    "ujis_nopad_bin",   /* name             */
+    { charset_name_ujis, charset_name_ujis_length }, /* csname       */
+    { STRING_WITH_LEN("ujis_nopad_bin") },   /* name             */
     "",                 /* comment          */
     NULL,               /* tailoring        */
     ctype_ujis,

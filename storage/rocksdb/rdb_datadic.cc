@@ -3417,7 +3417,7 @@ bool Rdb_field_packing::setup(const Rdb_key_def *const key_descr,
           sql_print_warning(
               "RocksDB: you're trying to create an index "
               "with a multi-level collation %s",
-              cs->name);
+              cs->cs_name.str);
           //  NO_LINT_DEBUG
           sql_print_warning(
               "MyRocks will handle this collation internally "

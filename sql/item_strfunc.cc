@@ -2939,8 +2939,7 @@ void Item_func_char::print(String *str, enum_query_type query_type)
   if (collation.collation != &my_charset_bin)
   {
     str->append(STRING_WITH_LEN(" using "));
-    str->append(collation.collation->csname,
-                strlen(collation.collation->csname));
+    str->append(collation.collation->cs_name);
   }
   str->append(')');
 }
@@ -3533,8 +3532,7 @@ void Item_func_conv_charset::print(String *str, enum_query_type query_type)
   str->append(STRING_WITH_LEN("convert("));
   args[0]->print(str, query_type);
   str->append(STRING_WITH_LEN(" using "));
-  str->append(collation.collation->csname,
-              strlen(collation.collation->csname));
+  str->append(collation.collation->cs_name);
   str->append(')');
 }
 
@@ -3553,7 +3551,8 @@ bool Item_func_set_collation::fix_length_and_dec()
   if (!my_charset_same(args[0]->collation.collation, m_set_collation))
   {
     my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0),
-             m_set_collation->name, args[0]->collation.collation->csname);
+             m_set_collation->col_name.str,
+             args[0]->collation.collation->cs_name.str);
     return TRUE;
   }
   collation.set(m_set_collation, DERIVATION_EXPLICIT,
@@ -3574,7 +3573,7 @@ void Item_func_set_collation::print(String *str, enum_query_type query_type)
 {
   args[0]->print_parenthesised(str, query_type, precedence());
   str->append(STRING_WITH_LEN(" collate "));
-  str->append(m_set_collation->name, strlen(m_set_collation->name));
+  str->append(m_set_collation->col_name);
 }
 
 String *Item_func_charset::val_str(String *str)
@@ -3584,7 +3583,7 @@ String *Item_func_charset::val_str(String *str)
 
   CHARSET_INFO *cs= args[0]->charset_for_protocol(); 
   null_value= 0;
-  str->copy(cs->csname, (uint) strlen(cs->csname),
+  str->copy(cs->cs_name.str, cs->cs_name.length,
 	    &my_charset_latin1, collation.collation, &dummy_errors);
   return str;
 }
@@ -3596,8 +3595,8 @@ String *Item_func_collation::val_str(String *str)
   CHARSET_INFO *cs= args[0]->charset_for_protocol(); 
 
   null_value= 0;
-  str->copy(cs->name, (uint) strlen(cs->name),
-	    &my_charset_latin1, collation.collation, &dummy_errors);
+  str->copy(cs->col_name.str, cs->col_name.length, &my_charset_latin1,
+            collation.collation, &dummy_errors);
   return str;
 }
 
@@ -4633,8 +4632,7 @@ void Item_func_dyncol_create::print_arguments(String *str,
       if (defs[i].cs)
       {
         str->append(STRING_WITH_LEN(" charset "));
-        const char *cs= defs[i].cs->csname;
-        str->append(cs, strlen(cs));
+        str->append(defs[i].cs->cs_name);
         str->append(' ');
       }
       break;

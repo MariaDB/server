@@ -1951,7 +1951,7 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
     {
       /* for mysql client */
       if (my_b_printf(file, "/*!\\C %s */%s\n",
-                      cs_info->csname, print_event_info->delimiter))
+                      cs_info->cs_name.str, print_event_info->delimiter))
         goto err;
     }
     if (my_b_printf(file,"SET "
@@ -2502,7 +2502,7 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
       }
       else
         error= my_b_printf(&cache, ":=_%s %s COLLATE `%s`%s\n",
-                           cs->csname, hex_str, cs->name,
+                           cs->cs_name.str, hex_str, cs->col_name.str,
                            print_event_info->delimiter);
       my_free(hex_str);
       if (unlikely(error))
@@ -3563,7 +3563,8 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
     // Print column character set, except in text columns with binary collation
     if (cs != NULL &&
         (is_enum_or_set_type(real_type) || cs->number != my_charset_bin.number))
-      my_b_printf(file, " CHARSET %s COLLATE %s", cs->csname, cs->name);
+      my_b_printf(file, " CHARSET %s COLLATE %s", cs->cs_name.str,
+                  cs->col_name.str);
     if (i != m_colcnt - 1) my_b_printf(file, ",\n#         ");
   }
   my_b_printf(file, ")");

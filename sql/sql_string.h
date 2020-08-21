@@ -183,7 +183,7 @@ public:
   }
   bool same_encoding(const Charset &other) const
   {
-    return !strcmp(m_charset->csname, other.m_charset->csname);
+    return my_charset_same(m_charset, other.m_charset);
   }
   /*
     Collation name without the character set name.
@@ -915,7 +915,7 @@ public:
   {
     return
       append('_')   ||
-      append(str->charset()->csname, strlen(str->charset()->csname)) ||
+      append(str->charset()->cs_name) ||
       append(STRING_WITH_LEN(" 0x")) ||
       append_hex(str->ptr(), (uint32) str->length());
   }

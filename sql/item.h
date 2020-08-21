@@ -5284,9 +5284,9 @@ public:
         tmp.derivation == DERIVATION_NONE)
     {
       my_error(ER_CANT_AGGREGATE_2COLLATIONS,MYF(0),
-               (*a)->collation.collation->name,
+               (*a)->collation.collation->col_name.str,
                (*a)->collation.derivation_name(),
-               (*b)->collation.collation->name,
+               (*b)->collation.collation->col_name.str,
                (*b)->collation.derivation_name(),
                func_name());
       return true;

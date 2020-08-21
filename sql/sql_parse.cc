@@ -10420,7 +10420,8 @@ merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl)
   {
     if (!my_charset_same(cs, cl))
     {
-      my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0), cl->name, cs->csname);
+      my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0), cl->col_name.str,
+               cs->cs_name.str);
       return NULL;
     }
     return cl;
@@ -10432,7 +10433,7 @@ merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl)
 */
 CHARSET_INFO *find_bin_collation(CHARSET_INFO *cs)
 {
-  const char *csname= cs->csname;
+  const char *csname= cs->cs_name.str;
   cs= get_charset_by_csname(csname, MY_CS_BINSORT, MYF(0));
   if (!cs)
   {

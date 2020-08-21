@@ -732,14 +732,11 @@ send_show_create_event(THD *thd, Event_timed *et, Protocol *protocol)
   protocol->store(tz_name->ptr(), tz_name->length(), system_charset_info);
   protocol->store(show_str.ptr(), show_str.length(),
                   et->creation_ctx->get_client_cs());
-  protocol->store(et->creation_ctx->get_client_cs()->csname,
-                  strlen(et->creation_ctx->get_client_cs()->csname),
+  protocol->store(&et->creation_ctx->get_client_cs()->cs_name,
                   system_charset_info);
-  protocol->store(et->creation_ctx->get_connection_cl()->name,
-                  strlen(et->creation_ctx->get_connection_cl()->name),
+  protocol->store(&et->creation_ctx->get_connection_cl()->col_name,
                   system_charset_info);
-  protocol->store(et->creation_ctx->get_db_cl()->name,
-                  strlen(et->creation_ctx->get_db_cl()->name),
+  protocol->store(&et->creation_ctx->get_db_cl()->col_name,
                   system_charset_info);
 
   if (protocol->write())

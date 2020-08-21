@@ -2274,7 +2274,7 @@ void Item_char_typecast::print(String *str, enum_query_type query_type)
   if (cast_cs)
   {
     str->append(STRING_WITH_LEN(" charset "));
-    str->append(cast_cs->csname, strlen(cast_cs->csname));
+    str->append(cast_cs->cs_name);
   }
   str->append(')');
 }

@@ -1333,10 +1333,10 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
     buffer.set_charset(table_list->view_creation_ctx->get_client_cs());
     protocol->store(&buffer);
 
-    protocol->store(table_list->view_creation_ctx->get_client_cs()->csname,
+    protocol->store(&table_list->view_creation_ctx->get_client_cs()->cs_name,
                     system_charset_info);
 
-    protocol->store(table_list->view_creation_ctx->get_connection_cl()->name,
+    protocol->store(&table_list->view_creation_ctx->get_connection_cl()->col_name,
                     system_charset_info);
   }
   else
@@ -1440,13 +1440,11 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
   {
     buffer.append(STRING_WITH_LEN(" /*!40100"));
     buffer.append(STRING_WITH_LEN(" DEFAULT CHARACTER SET "));
-    buffer.append(create.default_table_charset->csname,
-                  strlen(create.default_table_charset->csname));
+    buffer.append(create.default_table_charset->cs_name);
     if (!(create.default_table_charset->state & MY_CS_PRIMARY))
     {
       buffer.append(STRING_WITH_LEN(" COLLATE "));
-      buffer.append(create.default_table_charset->name,
-                    strlen(create.default_table_charset->name));
+      buffer.append(create.default_table_charset->col_name);
     }
     buffer.append(STRING_WITH_LEN(" */"));
   }
@@ -1902,13 +1900,11 @@ static void add_table_options(THD *thd, TABLE *table,
         (create_info_arg->used_fields & HA_CREATE_USED_DEFAULT_CHARSET))
     {
       packet->append(STRING_WITH_LEN(" DEFAULT CHARSET="));
-      packet->append(share->table_charset->csname,
-                     strlen(share->table_charset->csname));
+      packet->append(share->table_charset->cs_name);
       if (!(share->table_charset->state & MY_CS_PRIMARY))
       {
         packet->append(STRING_WITH_LEN(" COLLATE="));
-        packet->append(table->s->table_charset->name,
-                       strlen(table->s->table_charset->name));
+        packet->append(table->s->table_charset->col_name);
       }
     }
   }
@@ -2190,8 +2186,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       if (field->charset() != share->table_charset)
       {
 	packet->append(STRING_WITH_LEN(" CHARACTER SET "));
-	packet->append(field->charset()->csname,
-                       strlen(field->charset()->csname));
+	packet->append(field->charset()->cs_name);
       }
       /*
 	For string types dump collation name only if
@@ -2205,7 +2200,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
            field->charset() != field->vcol_info->expr->collation.collation))
       {
 	packet->append(STRING_WITH_LEN(" COLLATE "));
-	packet->append(field->charset()->name, strlen(field->charset()->name));
+	packet->append(field->charset()->col_name);
       }
     }
 
@@ -5309,9 +5304,9 @@ bool store_schema_schemata(THD* thd, TABLE *table, LEX_CSTRING *db_name,
 {
   restore_record(table, s->default_values);
   table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
-  table->field[1]->store(db_name->str, db_name->length, system_charset_info);
-  table->field[2]->store(cs->csname, strlen(cs->csname), system_charset_info);
-  table->field[3]->store(cs->name, strlen(cs->name), system_charset_info);
+  table->field[1]->store(db_name, system_charset_info);
+  table->field[2]->store(&cs->cs_name, system_charset_info);
+  table->field[3]->store(&cs->col_name, system_charset_info);
   if (schema_comment)
     table->field[5]->store(schema_comment->str, schema_comment->length,
                            system_charset_info);
@@ -5598,13 +5593,15 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
     if (str.length())
       table->field[19]->store(str.ptr()+1, str.length()-1, cs);
 
-    tmp_buff= (share->table_charset ?
-               share->table_charset->name : "default");
-
-    table->field[17]->store(tmp_buff, strlen(tmp_buff), cs);
+    LEX_CSTRING tmp_str;
+    if (share->table_charset)
+      tmp_str= share->table_charset->col_name;
+    else
+      tmp_str= { STRING_WITH_LEN("default") };
+    table->field[17]->store(&tmp_str, cs);
 
     if (share->comment.str)
-      table->field[20]->store(share->comment.str, share->comment.length, cs);
+      table->field[20]->store(&share->comment, cs);
 
     /* Collect table info from the storage engine  */
 
@@ -5825,12 +5822,10 @@ static void store_column_type(TABLE *table, Field *field, CHARSET_INFO *cs,
   if (field->has_charset())
   {
     /* CHARACTER_SET_NAME column*/
-    tmp_buff= field->charset()->csname;
-    table->field[offset + 6]->store(tmp_buff, strlen(tmp_buff), cs);
+    table->field[offset + 6]->store(&field->charset()->cs_name, cs);
     table->field[offset + 6]->set_notnull();
     /* COLLATION_NAME column */
-    tmp_buff= field->charset()->name;
-    table->field[offset + 7]->store(tmp_buff, strlen(tmp_buff), cs);
+    table->field[offset + 7]->store(&field->charset()->col_name, cs);
     table->field[offset + 7]->set_notnull();
   }
 }
@@ -6117,12 +6112,12 @@ int fill_schema_charsets(THD *thd, TABLE_LIST *tables, COND *cond)
         (tmp_cs->state & MY_CS_AVAILABLE) &&
         !(tmp_cs->state & MY_CS_HIDDEN) &&
         !(wild && wild[0] &&
-	  wild_case_compare(scs, tmp_cs->csname,wild)))
+	  wild_case_compare(scs, tmp_cs->cs_name.str,wild)))
     {
       const char *comment;
       restore_record(table, s->default_values);
-      table->field[0]->store(tmp_cs->csname, strlen(tmp_cs->csname), scs);
-      table->field[1]->store(tmp_cs->name, strlen(tmp_cs->name), scs);
+      table->field[0]->store(&tmp_cs->cs_name, scs);
+      table->field[1]->store(&tmp_cs->col_name, scs);
       comment= tmp_cs->comment ? tmp_cs->comment : "";
       table->field[2]->store(comment, strlen(comment), scs);
       table->field[3]->store((longlong) tmp_cs->mbmaxlen, TRUE);
@@ -6234,12 +6229,13 @@ int fill_schema_collation(THD *thd, TABLE_LIST *tables, COND *cond)
           !my_charset_same(tmp_cs, tmp_cl))
 	continue;
       if (!(wild && wild[0] &&
-	  wild_case_compare(scs, tmp_cl->name,wild)))
+	  wild_case_compare(scs, tmp_cl->col_name.str, wild)))
       {
 	const char *tmp_buff;
 	restore_record(table, s->default_values);
-	table->field[0]->store(tmp_cl->name, strlen(tmp_cl->name), scs);
-        table->field[1]->store(tmp_cl->csname , strlen(tmp_cl->csname), scs);
+	table->field[0]->store(tmp_cl->col_name.str, tmp_cl->col_name.length,
+                               scs);
+        table->field[1]->store(&tmp_cl->cs_name, scs);
         table->field[2]->store((longlong) tmp_cl->number, TRUE);
         tmp_buff= (tmp_cl->state & MY_CS_PRIMARY) ? "Yes" : "";
 	table->field[3]->store(tmp_buff, strlen(tmp_buff), scs);
@@ -6279,8 +6275,8 @@ int fill_schema_coll_charset_app(THD *thd, TABLE_LIST *tables, COND *cond)
           !my_charset_same(tmp_cs,tmp_cl))
 	continue;
       restore_record(table, s->default_values);
-      table->field[0]->store(tmp_cl->name, strlen(tmp_cl->name), scs);
-      table->field[1]->store(tmp_cl->csname , strlen(tmp_cl->csname), scs);
+      table->field[0]->store(&tmp_cl->col_name, scs);
+      table->field[1]->store(&tmp_cl->cs_name, scs);
       if (schema_table_store_record(thd, table))
         return 1;
     }
@@ -6883,15 +6879,10 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
     else
       table->field[7]->store(STRING_WITH_LEN("INVOKER"), cs);
 
-    table->field[8]->store(tables->view_creation_ctx->get_client_cs()->csname,
-                           strlen(tables->view_creation_ctx->
-                                  get_client_cs()->csname), cs);
-
-    table->field[9]->store(tables->view_creation_ctx->
-                           get_connection_cl()->name,
-                           strlen(tables->view_creation_ctx->
-                                  get_connection_cl()->name), cs);
-
+    table->field[8]->store(&tables->view_creation_ctx->get_client_cs()->cs_name,
+                           cs);
+    table->field[9]->store(&tables->view_creation_ctx->
+                           get_connection_cl()->col_name, cs);
     table->field[10]->store(view_algorithm(tables), cs);
 
     if (schema_table_store_record(thd, table))
@@ -7095,12 +7086,9 @@ static bool store_trigger(THD *thd, Trigger *trigger,
   sql_mode_string_representation(thd, trigger->sql_mode, &sql_mode_rep);
   table->field[17]->store(sql_mode_rep.str, sql_mode_rep.length, cs);
   table->field[18]->store(definer_buffer.str, definer_buffer.length, cs);
-  table->field[19]->store(trigger->client_cs_name.str,
-                          trigger->client_cs_name.length, cs);
-  table->field[20]->store(trigger->connection_cl_name.str,
-                          trigger->connection_cl_name.length, cs);
-  table->field[21]->store(trigger->db_cl_name.str,
-                          trigger->db_cl_name.length, cs);
+  table->field[19]->store(&trigger->client_cs_name, cs);
+  table->field[20]->store(&trigger->connection_cl_name, cs);
+  table->field[21]->store(&trigger->db_cl_name, cs);
 
   return schema_table_store_record(thd, table);
 }
@@ -7787,22 +7775,15 @@ copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table)
                       store(et.comment.str, et.comment.length, scs);
 
   sch_table->field[ISE_CLIENT_CS]->set_notnull();
-  sch_table->field[ISE_CLIENT_CS]->store(
-    et.creation_ctx->get_client_cs()->csname,
-    strlen(et.creation_ctx->get_client_cs()->csname),
-    scs);
-
+  sch_table->field[ISE_CLIENT_CS]->store(&et.creation_ctx->get_client_cs()->
+                                         cs_name, scs);
   sch_table->field[ISE_CONNECTION_CL]->set_notnull();
-  sch_table->field[ISE_CONNECTION_CL]->store(
-    et.creation_ctx->get_connection_cl()->name,
-    strlen(et.creation_ctx->get_connection_cl()->name),
-    scs);
-
+  sch_table->field[ISE_CONNECTION_CL]->store(&et.creation_ctx->
+                                             get_connection_cl()->col_name,
+                                             scs);
   sch_table->field[ISE_DB_CL]->set_notnull();
-  sch_table->field[ISE_DB_CL]->store(
-    et.creation_ctx->get_db_cl()->name,
-    strlen(et.creation_ctx->get_db_cl()->name),
-    scs);
+  sch_table->field[ISE_DB_CL]->store(&et.creation_ctx->get_db_cl()->col_name,
+                                     scs);
 
   if (schema_table_store_record(thd, sch_table))
     DBUG_RETURN(1);
@@ -9841,17 +9822,11 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
            trg_sql_original_stmt.length,
            trg_client_cs);
 
-  p->store(trigger->client_cs_name.str,
-           trigger->client_cs_name.length,
-           system_charset_info);
+  p->store(&trigger->client_cs_name, system_charset_info);
 
-  p->store(trigger->connection_cl_name.str,
-           trigger->connection_cl_name.length,
-           system_charset_info);
+  p->store(&trigger->connection_cl_name, system_charset_info);
 
-  p->store(trigger->db_cl_name.str,
-           trigger->db_cl_name.length,
-           system_charset_info);
+  p->store(&trigger->db_cl_name, system_charset_info);
 
   if (trigger->create_time)
   {

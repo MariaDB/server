@@ -10049,8 +10049,8 @@ int spider_discover_table_structure(
   } else {
     table_charset = system_charset_info;
   }
-  uint csnamelen = strlen(table_charset->csname);
-  uint collatelen = strlen(table_charset->name);
+  uint csnamelen = table_charset->cs_name.length;
+  uint collatelen = table_charset->col_name.length;
   if (str.reserve(SPIDER_SQL_CLOSE_PAREN_LEN + SPIDER_SQL_DEFAULT_CHARSET_LEN +
     csnamelen + SPIDER_SQL_COLLATE_LEN + collatelen +
     SPIDER_SQL_CONNECTION_LEN + SPIDER_SQL_VALUE_QUOTE_LEN +
@@ -10060,9 +10060,9 @@ int spider_discover_table_structure(
   }
   str.q_append(SPIDER_SQL_CLOSE_PAREN_STR, SPIDER_SQL_CLOSE_PAREN_LEN);
   str.q_append(SPIDER_SQL_DEFAULT_CHARSET_STR, SPIDER_SQL_DEFAULT_CHARSET_LEN);
-  str.q_append(table_charset->csname, csnamelen);
+  str.q_append(table_charset->cs_name.str, csnamelen);
   str.q_append(SPIDER_SQL_COLLATE_STR, SPIDER_SQL_COLLATE_LEN);
-  str.q_append(table_charset->name, collatelen);
+  str.q_append(table_charset->col_name.str, collatelen);
   str.q_append(SPIDER_SQL_COMMENT_STR, SPIDER_SQL_COMMENT_LEN);
   str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
   str.append_escape_string(share->comment.str, share->comment.length);

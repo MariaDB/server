@@ -183,23 +183,21 @@ static int qc_info_fill_table(THD *thd, TABLE_LIST *tables,
     cs_client= get_charset(flags.character_set_client_num, MYF(MY_WME));
     if (likely(cs_client))
       table->field[COLUMN_CHARACTER_SET_CLIENT]->
-        store(cs_client->csname, strlen(cs_client->csname), scs);
+        store(&cs_client->cs_name, scs);
     else
       table->field[COLUMN_CHARACTER_SET_CLIENT]->
         store(STRING_WITH_LEN(unknown), scs);
 
     cs_result= get_charset(flags.character_set_results_num, MYF(MY_WME));
     if (likely(cs_result))
-      table->field[COLUMN_CHARACTER_SET_RESULT]->
-        store(cs_result->csname, strlen(cs_result->csname), scs);
+      table->field[COLUMN_CHARACTER_SET_RESULT]->store(&cs_result->cs_name, scs);
     else
       table->field[COLUMN_CHARACTER_SET_RESULT]->
         store(STRING_WITH_LEN(unknown), scs);
 
     collation= get_charset(flags.collation_connection_num, MYF(MY_WME));
     if (likely(collation))
-      table->field[COLUMN_COLLATION]->
-        store(collation->name, strlen(collation->name), scs);
+      table->field[COLUMN_COLLATION]-> store(&collation->col_name, scs);
     else
       table->field[COLUMN_COLLATION]-> store(STRING_WITH_LEN(unknown), scs);
 

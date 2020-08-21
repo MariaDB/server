@@ -798,7 +798,7 @@ bool thd_init_client_charset(THD *thd, uint cs_number)
     {
       /* Disallow non-supported parser character sets: UCS2, UTF16, UTF32 */
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "character_set_client",
-               cs->csname);
+               cs->cs_name.str);
       return true;
     }
     thd->org_charset= cs;

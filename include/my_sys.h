@@ -1045,7 +1045,7 @@ extern void free_charsets(void);
 extern char *get_charsets_dir(char *buf);
 static inline my_bool my_charset_same(CHARSET_INFO *cs1, CHARSET_INFO *cs2)
 {
-  return (cs1->csname == cs2->csname);
+  return (cs1->cs_name.str == cs2->cs_name.str);
 }
 extern my_bool init_compiled_charsets(myf flags);
 extern void add_compiled_collation(struct charset_info_st *cs);

@@ -24,6 +24,7 @@
 #include <m_ctype.h>
 
 const char charset_name_binary[]= "binary";
+#define charset_name_binary_length (sizeof(charset_name_binary)-1)
 
 static const uchar ctype_bin[]=
 {
@@ -570,8 +571,8 @@ struct charset_info_st my_charset_bin =
 {
     63,0,0,			/* number        */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_PRIMARY|MY_CS_NOPAD,/* state */
-    charset_name_binary,	/* cs name    */
-    "binary",			/* name          */
+    { charset_name_binary, charset_name_binary_length},	/* cs name    */
+    { STRING_WITH_LEN("binary")},	                /* name          */
     "",				/* comment       */
     NULL,			/* tailoring     */
     ctype_bin,			/* ctype         */
