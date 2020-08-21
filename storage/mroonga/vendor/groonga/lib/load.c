@@ -468,7 +468,8 @@ bracket_close(grn_ctx *ctx, grn_loader *loader)
   }
 
   for (i = 0; i < nvalues; i++, value = values_next(ctx, value)) {
-    if (i == loader->id_offset || i == loader->key_offset) {
+    if ((uint) i == (uint) loader->id_offset ||
+        (uint) i == (uint) loader->key_offset) {
        /* Skip _id and _key, because it's already used to get id. */
        continue;
     }
@@ -532,7 +533,7 @@ brace_close(grn_ctx *ctx, grn_loader *loader)
   GRN_ASSERT(value->header.domain == GRN_JSON_LOAD_OPEN_BRACE);
   GRN_UINT32_SET(ctx, value_begin, loader->values_size - begin - 1);
   value_begin++;
-  if (GRN_BULK_VSIZE(&loader->level) > sizeof(uint32_t) * loader->emit_level) {
+  if ((size_t) GRN_BULK_VSIZE(&loader->level) > sizeof(uint32_t) * loader->emit_level) {
     return;
   }
   if (!loader->table) {
