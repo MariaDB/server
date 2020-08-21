@@ -9437,12 +9437,10 @@ ha_innobase::ft_init_ext(
 		}
 	}
 
-	/* FIXME: utf32 and utf16 are not compatible with some
-	string function used. So to convert them to uft8 before
-	we proceed. */
-	if (strcmp(char_set->csname, "utf32") == 0
-	    || strcmp(char_set->csname, "utf16") == 0) {
-
+        /* Multi byte character sets like utf32 and utf16 are not
+           compatible with some string function used. So to convert them
+           to uft8 before we proceed. */
+	if (char_set->mbminlen != 1) {
 		buf_tmp_used = innobase_convert_string(
 			buf_tmp, sizeof(buf_tmp) - 1,
 			&my_charset_utf8mb3_general_ci,
