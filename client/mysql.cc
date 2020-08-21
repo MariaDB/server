@@ -3176,8 +3176,8 @@ com_charset(String *buffer __attribute__((unused)), char *line)
   if (new_cs)
   {
     charset_info= new_cs;
-    mysql_set_character_set(&mysql, charset_info->csname);
-    default_charset= (char *)charset_info->csname;
+    mysql_set_character_set(&mysql, charset_info->cs_name.str);
+    default_charset= (char *)charset_info->cs_name.str;
     put_info("Charset changed", INFO_INFO);
   }
   else put_info("Charset is not found", INFO_INFO);
@@ -4713,9 +4713,8 @@ sql_real_connect(char *host,char *database,char *user,char *password,
     return -1;					// Retryable
   }
 
-  charset_info= get_charset_by_name(mysql.charset->name, MYF(0));
-
-  
+  charset_info= get_charset_by_name(IF_EMBEDDED(mysql.charset->col_name.str,
+                                                mysql.charset->name), MYF(0));
   connected=1;
 #ifndef EMBEDDED_LIBRARY
   mysql_options(&mysql, MYSQL_OPT_RECONNECT, &debug_info_flag);
@@ -4854,8 +4853,9 @@ com_status(String *buffer __attribute__((unused)),
   else
   {
     /* Probably pre-4.1 server */
-    tee_fprintf(stdout, "Client characterset:\t%s\n", charset_info->csname);
-    tee_fprintf(stdout, "Server characterset:\t%s\n", mysql.charset->csname);
+    tee_fprintf(stdout, "Client characterset:\t%s\n", charset_info->cs_name.str);
+    tee_fprintf(stdout, "Server characterset:\t%s\n",
+                mysql_character_set_name(&mysql));
   }
 
 #ifndef EMBEDDED_LIBRARY

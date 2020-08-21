@@ -1524,7 +1524,7 @@ static void fill_server(MEM_ROOT *mem_root, FEDERATEDX_SERVER *server,
     server->password= NULL;
 
   if (table_charset)
-    server->csname= strdup_root(mem_root, table_charset->csname);
+    server->csname= strdup_root(mem_root, table_charset->cs_name.str);
 
   DBUG_VOID_RETURN;
 }
@@ -3647,7 +3647,7 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
     return HA_WRONG_CREATE_OPTION;
 
   mysql_init(&mysql);
-  mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, cs->csname);
+  mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, cs->cs_name.str);
   mysql_options(&mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, (char*)&my_true);
 
   if (!mysql_real_connect(&mysql, tmp_share.hostname, tmp_share.username,

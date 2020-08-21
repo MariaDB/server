@@ -4208,7 +4208,7 @@ void User_var_log_event::pack_info(Protocol* protocol)
         char *beg, *end;
         if (user_var_append_name_part(protocol->thd, &buf, name, name_len) ||
             buf.append('_') ||
-            buf.append(cs->csname, strlen(cs->csname)) ||
+            buf.append(cs->cs_name) ||
             buf.append(' '))
           return;
         old_len= buf.length();
@@ -4219,7 +4219,7 @@ void User_var_log_event::pack_info(Protocol* protocol)
         end= str_to_hex(beg, val, val_len);
         buf.length(old_len + (end - beg));
         if (buf.append(STRING_WITH_LEN(" COLLATE ")) ||
-            buf.append(cs->name, strlen(cs->name)))
+            buf.append(cs->col_name))
           return;
       }
       protocol->store(buf.ptr(), buf.length(), &my_charset_bin);

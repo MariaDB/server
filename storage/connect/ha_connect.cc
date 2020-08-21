@@ -1408,7 +1408,7 @@ PCSZ ha_connect::GetStringOption(PCSZ opname, PCSZ sdef)
                                      : table->s->table_charset;
 
     if (chif)
-      opval= (char*)chif->csname;
+      opval= (char*)chif->cs_name.str;
 
   } else
     opval= GetStringTableOption(xp->g, options, opname, NULL);
@@ -1600,7 +1600,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     pcf->Fieldfmt= NULL;
   } // endif fop
 
-  chset= (char *)fp->charset()->name;
+  chset= (char *)fp->charset()->col_name.str;
 
 	if (!strcmp(chset, "binary"))
 		v = 'B';		// Binary string
@@ -5530,8 +5530,7 @@ static int init_table_share(THD* thd,
   if (create_info->default_table_charset) {
     oom|= sql->append(' ');
     oom|= sql->append(STRING_WITH_LEN("CHARSET="));
-    oom|= sql->append(create_info->default_table_charset->csname,
-                      strlen(create_info->default_table_charset->csname));
+    oom|= sql->append(create_info->default_table_charset->cs_name);
 
     if (oom)
       return HA_ERR_OUT_OF_MEM;

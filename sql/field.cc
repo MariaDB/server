@@ -7588,7 +7588,7 @@ void Field_string::sql_rpl_type(String *res) const
                                       res->alloced_length(),
                                       "char(%u octets) character set %s",
                                       field_length,
-                                      charset()->csname);
+                                      charset()->cs_name.str);
     res->length(length);
   }
   else
@@ -8037,7 +8037,7 @@ void Field_varstring::sql_rpl_type(String *res) const
                                       res->alloced_length(),
                                       "varchar(%u octets) character set %s",
                                       field_length,
-                                      charset()->csname);
+                                      charset()->cs_name.str);
     res->length(length);
   }
   else

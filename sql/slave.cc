@@ -2183,7 +2183,8 @@ maybe it is a *VERY OLD MASTER*.");
         (master_res= mysql_store_result(mysql)) &&
         (master_row= mysql_fetch_row(master_res)))
     {
-      if (strcmp(master_row[0], global_system_variables.collation_server->name))
+      if (strcmp(master_row[0],
+                 global_system_variables.collation_server->col_name.str))
       {
         errmsg= "The slave I/O thread stops because master and slave have \
 different values for the COLLATION_SERVER global variable. The values must \
@@ -7356,16 +7357,16 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
     charset, then set client charset to 'latin1' (default client charset).
   */
   if (is_supported_parser_charset(default_charset_info))
-    mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset_info->csname);
+    mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset_info->cs_name.str);
   else
   {
     sql_print_information("'%s' can not be used as client character set. "
                           "'%s' will be used as default client character set "
                           "while connecting to master.",
-                          default_charset_info->csname,
-                          default_client_charset_info->csname);
+                          default_charset_info->cs_name.str,
+                          default_client_charset_info->cs_name.str);
     mysql_options(mysql, MYSQL_SET_CHARSET_NAME,
-                  default_client_charset_info->csname);
+                  default_client_charset_info->cs_name.str);
   }
 
   /* This one is not strictly needed but we have it here for completeness */
@@ -7512,7 +7513,8 @@ MYSQL *rpl_connect_master(MYSQL *mysql)
   }
 #endif
 
-  mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset_info->csname);
+  mysql_options(mysql, MYSQL_SET_CHARSET_NAME,
+                default_charset_info->cs_name.str);
   /* This one is not strictly needed but we have it here for completeness */
   mysql_options(mysql, MYSQL_SET_CHARSET_DIR, (char *) charsets_dir);
 

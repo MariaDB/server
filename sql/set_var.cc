@@ -1034,7 +1034,7 @@ int set_var_collation_client::check(THD *thd)
   if (!is_supported_parser_charset(character_set_client))
   {
     my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "character_set_client",
-             character_set_client->csname);
+             character_set_client->cs_name.str);
     return 1;
   }
   return 0;

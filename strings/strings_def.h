@@ -132,11 +132,16 @@ int my_wc_to_printable_8bit(CHARSET_INFO *cs, my_wc_t wc,
 
 /* Some common character set names */
 extern const char charset_name_latin2[];
+#define charset_name_latin2_length 6
 extern const char charset_name_utf8[];
+#define charset_name_utf8_length 4
 extern const char charset_name_utf16[];
+#define charset_name_utf16_length 5
 extern const char charset_name_utf32[];
+#define charset_name_utf32_length 5
 extern const char charset_name_ucs2[];
-extern const char charset_name_ucs2[];
+#define charset_name_ucs2_length 4
 extern const char charset_name_utf8mb4[];
+#define charset_name_utf8mb4_length 7
 
 #endif /*STRINGS_DEF_INCLUDED */

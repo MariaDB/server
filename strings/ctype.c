@@ -35,7 +35,6 @@
     http://oss.software.ibm.com/icu/userguide/Collate_Customization.html
   
 */
-
 const char charset_name_latin2[]= "latin2";
 const char charset_name_utf8[]= "utf8";
 const char charset_name_utf16[]= "utf16";
@@ -609,10 +608,12 @@ static int cs_value(MY_XML_PARSER *st,const char *attr, size_t len)
     i->cs.primary_number= strtol(attr,(char**)NULL,10);
     break;
   case _CS_COLNAME:
-    i->cs.name=mstr(i->name,attr,len,MY_CS_NAME_SIZE-1);
+    i->cs.col_name.str= mstr(i->name,attr,len,MY_CS_NAME_SIZE-1);
+    i->cs.col_name.length= strlen(i->cs.col_name.str);
     break;
   case _CS_CSNAME:
-    i->cs.csname=mstr(i->csname,attr,len,MY_CS_NAME_SIZE-1);
+    i->cs.cs_name.str= mstr(i->csname,attr,len,MY_CS_NAME_SIZE-1);
+    i->cs.cs_name.length= strlen(i->cs.cs_name.str);
     break;
   case _CS_CSDESCRIPT:
     i->cs.comment=mstr(i->comment,attr,len,MY_CS_CSDESCR_SIZE-1);

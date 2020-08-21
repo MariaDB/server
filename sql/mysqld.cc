@@ -4073,7 +4073,7 @@ static int init_common_variables()
     {
       sql_print_error(ER_DEFAULT(ER_COLLATION_CHARSET_MISMATCH),
 		      default_collation_name,
-		      default_charset_info->csname);
+		      default_charset_info->cs_name.str);
       return 1;
     }
     default_charset_info= default_collation;
@@ -4091,8 +4091,8 @@ static int init_common_variables()
   {
     sql_print_warning("'%s' can not be used as client character set. "
                       "'%s' will be used as default client character set.",
-                      default_charset_info->csname,
-                      my_charset_latin1.csname);
+                      default_charset_info->cs_name.str,
+                      my_charset_latin1.cs_name.str);
     global_system_variables.collation_connection= &my_charset_latin1;
     global_system_variables.character_set_results= &my_charset_latin1;
     global_system_variables.character_set_client= &my_charset_latin1;
@@ -7421,7 +7421,7 @@ static void usage(void)
 						   MYF(MY_WME))))
     exit(1);
   if (!default_collation_name)
-    default_collation_name= (char*) default_charset_info->name;
+    default_collation_name= (char*) default_charset_info->col_name.str;
   print_version();
   puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
   puts("Starts the MariaDB database server.\n");

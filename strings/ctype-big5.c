@@ -33,6 +33,7 @@
 #ifdef HAVE_CHARSET_big5
 
 const char charset_name_big5[]= "big5";
+#define charset_name_big5_length (sizeof(charset_name_big5) -1)
 
 /* 
   Support for Chinese(BIG5) characters, by jou@nematic.ieo.nctu.edu.tw
@@ -6809,8 +6810,8 @@ struct charset_info_st my_charset_big5_chinese_ci=
 {
     1,0,0, 		/* number     */
     MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM,	/* state      */
-    charset_name_big5, /* cs name    */
-    "big5_chinese_ci",	/* name       */
+    { charset_name_big5, charset_name_big5_length },    /* cs name    */
+    { STRING_WITH_LEN("big5_chinese_ci") },	/* name       */
     "",			/* comment    */
     NULL,		/* tailoring */
     ctype_big5,
@@ -6842,8 +6843,8 @@ struct charset_info_st my_charset_big5_bin=
 {
     84,0,0, 		/* number     */
     MY_CS_COMPILED|MY_CS_BINSORT,	/* state      */
-    charset_name_big5,	/* cs name    */
-    "big5_bin",		/* name       */
+    { charset_name_big5, charset_name_big5_length },    /* cs name    */
+    { STRING_WITH_LEN("big5_bin") },                    /* name       */
     "",			/* comment    */
     NULL,		/* tailoring */
     ctype_big5,
@@ -6875,8 +6876,8 @@ struct charset_info_st my_charset_big5_chinese_nopad_ci=
 {
     MY_NOPAD_ID(1),0,0,       /* number     */
     MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_NOPAD, /* state */
-    charset_name_big5,        /* cs name    */
-    "big5_chinese_nopad_ci",  /* name       */
+    { charset_name_big5, charset_name_big5_length },    /* cs name    */
+    { STRING_WITH_LEN("big5_chinese_nopad_ci") },       /* name       */
     "",                       /* comment    */
     NULL,                     /* tailoring */
     ctype_big5,
@@ -6908,8 +6909,8 @@ struct charset_info_st my_charset_big5_nopad_bin=
 {
     MY_NOPAD_ID(84),0,0,      /* number     */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD, /* state */
-    charset_name_big5,        /* cs name    */
-    "big5_nopad_bin",         /* name       */
+    { charset_name_big5, charset_name_big5_length },    /* cs name    */
+    { STRING_WITH_LEN("big5_nopad_bin") },         /* name       */
     "",                       /* comment    */
     NULL,                     /* tailoring */
     ctype_big5,

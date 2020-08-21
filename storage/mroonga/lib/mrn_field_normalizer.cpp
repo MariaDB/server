@@ -39,9 +39,9 @@ namespace mrn {
     DBUG_PRINT("info",
                ("mroonga: result_type = %u", field_->result_type()));
     DBUG_PRINT("info",
-               ("mroonga: charset->name = %s", field_->charset()->name));
+               ("mroonga: charset->name = %s", field_->charset()->col_name.str));
     DBUG_PRINT("info",
-               ("mroonga: charset->csname = %s", field_->charset()->csname));
+               ("mroonga: charset->csname = %s", field_->charset()->cs_name.str));
     DBUG_PRINT("info",
                ("mroonga: charset->state = %u", field_->charset()->state));
     bool need_normalize_p;
@@ -108,14 +108,14 @@ namespace mrn {
     const CHARSET_INFO *charset_info = field_->charset();
     const char *normalizer_name = NULL;
     const char *default_normalizer_name = "NormalizerAuto";
-    if ((strcmp(charset_info->name, "utf8_general_ci") == 0) ||
-        (strcmp(charset_info->name, "utf8mb4_general_ci") == 0)) {
+    if ((strcmp(charset_info->col_name.str, "utf8_general_ci") == 0) ||
+        (strcmp(charset_info->col_name.str, "utf8mb4_general_ci") == 0)) {
       normalizer_name = "NormalizerMySQLGeneralCI";
-    } else if ((strcmp(charset_info->name, "utf8_unicode_ci") == 0) ||
-               (strcmp(charset_info->name, "utf8mb4_unicode_ci") == 0)) {
+    } else if ((strcmp(charset_info->col_name.str, "utf8_unicode_ci") == 0) ||
+               (strcmp(charset_info->col_name.str, "utf8mb4_unicode_ci") == 0)) {
       normalizer_name = "NormalizerMySQLUnicodeCI";
-    } else if ((strcmp(charset_info->name, "utf8_unicode_520_ci") == 0) ||
-               (strcmp(charset_info->name, "utf8mb4_unicode_520_ci") == 0)) {
+    } else if ((strcmp(charset_info->col_name.str, "utf8_unicode_520_ci") == 0) ||
+               (strcmp(charset_info->col_name.str, "utf8mb4_unicode_520_ci") == 0)) {
       normalizer_name = "NormalizerMySQLUnicode520CI";
     }
 
@@ -129,7 +129,7 @@ namespace mrn {
                  "Install groonga-normalizer-mysql normalizer. "
                  "%s is used as fallback.",
                  normalizer_name,
-                 charset_info->name,
+                 charset_info->col_name.str,
                  default_normalizer_name);
         push_warning(thread_, MRN_SEVERITY_WARNING,
                      HA_ERR_UNSUPPORTED, error_message);

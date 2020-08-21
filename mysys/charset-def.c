@@ -468,7 +468,7 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
 #endif /* HAVE_CHARSET_utf32 */
 
   /* Copy compiled charsets */
-  for (cs=compiled_charsets; cs->name; cs++)
+  for (cs=compiled_charsets; cs->col_name.str; cs++)
     add_compiled_extra_collation((struct charset_info_st *) cs);
   
   return FALSE;

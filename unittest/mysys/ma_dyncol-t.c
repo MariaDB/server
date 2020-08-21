@@ -236,7 +236,7 @@ void test_value_single_string(const char *string, size_t len,
 err:
   ok(rc, "'%s' - '%s' %u %u-%s", string,
      res.x.string.value.str, (uint)res.x.string.value.length,
-     (uint)res.x.string.charset->number, res.x.string.charset->name);
+     (uint)res.x.string.charset->number, res.x.string.charset->col_name.str);
   /* cleanup */
   val.x.string.value.str= NULL; // we did not allocated it
   mariadb_dyncol_free(&str);

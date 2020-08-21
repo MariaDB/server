@@ -22,6 +22,7 @@
 #define _m_ctype_h
 
 #include <my_attribute.h>
+#include <m_string.h>
 
 enum loglevel {
    ERROR_LEVEL=       0,
@@ -569,8 +570,8 @@ struct charset_info_st
   uint      primary_number;
   uint      binary_number;
   uint      state;
-  const char *csname;
-  const char *name;
+  LEX_CSTRING cs_name;
+  LEX_CSTRING col_name;
   const char *comment;
   const char *tailoring;
   const uchar *m_ctype;

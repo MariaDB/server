@@ -31,7 +31,8 @@ test_like_range_for_charset(CHARSET_INFO *cs, const char *src, size_t src_len)
   
   my_ci_like_range(cs, src, src_len, '\\', '_', '%',
                    sizeof(min_str),  min_str, max_str, &min_len, &max_len);
-  diag("min_len=%d\tmax_len=%d\t%s", (int) min_len, (int) max_len, cs->name);
+  diag("min_len=%d\tmax_len=%d\t%s", (int) min_len, (int) max_len,
+       cs->col_name.str);
   min_well_formed_len= my_well_formed_length(cs,
                                              min_str, min_str + min_len,
                                              10000, &error);
@@ -632,7 +633,7 @@ strcollsp(CHARSET_INFO *cs, const STRNNCOLL_PARAM *param)
     str2hex(ahex, sizeof(ahex), p->a, p->alen);
     str2hex(bhex, sizeof(bhex), p->b, p->blen);
     diag("%-20s %-10s %-10s %10d %10d%s",
-         cs->name, ahex, bhex, p->res, res,
+         cs->col_name.str, ahex, bhex, p->res, res,
          eqres(res, p->res) ? "" : " FAILED");
     if (!eqres(res, p->res))
     {
@@ -772,7 +773,7 @@ int main()
     if (test_like_range_for_charset(cs, "abc%", 4))
     {
       ++failed;
-      diag("Failed for %s", cs->name);
+      diag("Failed for %s", cs->col_name.str);
     }
   }
   ok(failed == 0, "Testing my_like_range_xxx() functions");

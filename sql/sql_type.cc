@@ -6156,17 +6156,15 @@ String *Type_handler::
 
   StringBuffer<STRING_BUFFER_USUAL_SIZE> buf(result->charset());
   CHARSET_INFO *cs= thd->variables.character_set_client;
-  const char *res_cs_name= result->charset()->csname;
-  const char *collation_name= item->collation.collation->name;
 
   buf.append('_');
-  buf.append(res_cs_name, strlen(res_cs_name));
+  buf.append(result->charset()->cs_name);
   if (cs->escape_with_backslash_is_dangerous)
     buf.append(' ');
   append_query_string(cs, &buf, result->ptr(), result->length(),
                      thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
   buf.append(STRING_WITH_LEN(" COLLATE '"));
-  buf.append(collation_name, strlen(collation_name));
+  buf.append(item->collation.collation->col_name);
   buf.append('\'');
   str->copy(buf);
 
@@ -9307,33 +9305,27 @@ LEX_CSTRING Charset::collation_specific_name() const
     for character sets and collations, so a collation
     name not necessarily starts with the character set name.
   */
-  LEX_CSTRING retval;
-  size_t csname_length= strlen(m_charset->csname);
-  if (strncmp(m_charset->name, m_charset->csname, csname_length))
-  {
-    retval.str= NULL;
-    retval.length= 0;
-    return retval;
-  }
-  const char *ptr= m_charset->name + csname_length;
-  retval.str= ptr;
-  retval.length= strlen(ptr);
-  return retval;
+  size_t cs_name_length= m_charset->cs_name.length;
+  if (strncmp(m_charset->col_name.str, m_charset->cs_name.str,
+              cs_name_length))
+    return {NULL, 0};
+  const char *ptr= m_charset->col_name.str + cs_name_length;
+  return {ptr, m_charset->col_name.length - cs_name_length };
 }
 
 
 bool
 Charset::encoding_allows_reinterpret_as(const CHARSET_INFO *cs) const
 {
-  if (!strcmp(m_charset->csname, cs->csname))
+  if (my_charset_same(m_charset, cs))
     return true;
 
-  if (!strcmp(m_charset->csname, MY_UTF8MB3) &&
-      !strcmp(cs->csname, MY_UTF8MB4))
+  if (!strcmp(m_charset->cs_name.str, MY_UTF8MB3) &&
+      !strcmp(cs->cs_name.str, MY_UTF8MB4))
     return true;
 
   /*
-    Originally we allowed here instat ALTER for ASCII-to-LATIN1
+    Originally we allowed here instant ALTER for ASCII-to-LATIN1
     and UCS2-to-UTF16, but this was wrong:
     - MariaDB's ascii is not a subset for 8-bit character sets
       like latin1, because it allows storing bytes 0x80..0xFF as

@@ -3144,7 +3144,7 @@ int ha_federated::real_connect()
   */
   /* this sets the csname like 'set names utf8' */
   mysql_options(mysql,MYSQL_SET_CHARSET_NAME,
-                this->table->s->table_charset->csname);
+                this->table->s->table_charset->cs_name.str);
 
   sql_query.length(0);
   if (!mysql_real_connect(mysql,

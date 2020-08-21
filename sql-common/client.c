@@ -3217,7 +3217,7 @@ my_bool mysql_reconnect(MYSQL *mysql)
     strmov(mysql->net.sqlstate, tmp_mysql.net.sqlstate);
     DBUG_RETURN(1);
   }
-  if (mysql_set_character_set(&tmp_mysql, mysql->charset->csname))
+  if (mysql_set_character_set(&tmp_mysql, mysql->charset->cs_name.str))
   {
     DBUG_PRINT("error", ("mysql_set_character_set() failed"));
     bzero((char*) &tmp_mysql.options,sizeof(tmp_mysql.options));
