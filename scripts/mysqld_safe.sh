@@ -24,7 +24,6 @@ unsafe_my_cnf=0
 wsrep_on=0
 dry_run=0
 defaults_group_suffix=
-ignore_unknown=1
 
 # Initial logging status: error log is not open, and not using syslog
 logging=init
@@ -384,22 +383,11 @@ parse_arguments() {
 
       --help) usage ;;
 
-      --ignore-unknown) ignore_unknown=1 ;;
-      --no-ignore-unknown|--not-ignore-unknown) ignore_unknown=0 ;;
-
       *)
-        if test $ignore_unknown -eq 0
-        then
-          case "$unrecognized_handling" in
-            collect) append_arg_to_args "$arg" ;;
-            complain) log_error "unknown option '$arg'"
-          esac
-        else
-          case "$arg" in
-            "--loose-"*) append_arg_to_args "$arg" ;;
-            *)           append_arg_to_args "--loose-$arg"
-          esac
-        fi
+        case "$unrecognized_handling" in
+          collect) append_arg_to_args "$arg" ;;
+          complain) log_error "unknown option '$arg'" ;;
+        esac
     esac
   done
 }
