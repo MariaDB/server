@@ -2592,7 +2592,7 @@ row_drop_table_for_mysql_in_background(
 
 	trx_commit_for_mysql(trx);
 
-	trx_free(trx);
+	trx->free();
 
 	return(error);
 }
@@ -2773,7 +2773,7 @@ row_mysql_drop_garbage_tables()
 	btr_pcur_close(&pcur);
 	mtr.commit();
 	row_mysql_unlock_data_dictionary(trx);
-	trx_free(trx);
+	trx->free();
 	mem_heap_free(heap);
 }
 
@@ -4613,7 +4613,7 @@ funct_exit:
 
 		trx_bg->dict_operation_lock_mode = 0;
 		trx_commit_for_mysql(trx_bg);
-		trx_free(trx_bg);
+		trx_bg->free();
 	}
 
 	if (table != NULL) {

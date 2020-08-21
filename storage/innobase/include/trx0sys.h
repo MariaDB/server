@@ -566,7 +566,7 @@ public:
     Releases LF_HASH pins.
 
     Must be called by thread that owns trx_t object when the latter is being
-    "detached" from thread (e.g. released to the pool by trx_free()). Can be
+    "detached" from thread (e.g. released to the pool by trx_t::free()). Can be
     called earlier if thread is expected not to use rw_trx_hash.
 
     Since pins are not allowed to be transferred to another thread,

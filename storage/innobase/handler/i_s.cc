@@ -2901,7 +2901,7 @@ i_s_fts_deleted_generic_fill(
 
 	rw_lock_s_unlock(&dict_operation_lock);
 
-	trx_free(trx);
+	trx->free();
 
 	fields = table->field;
 
@@ -3481,7 +3481,7 @@ i_s_fts_index_table_fill_selected(
 	que_graph_free(graph);
 	mutex_exit(&dict_sys->mutex);
 
-	trx_free(trx);
+	trx->free();
 
 	if (fetch.total_memory >= fts_result_cache_limit) {
 		error = DB_FTS_EXCEED_RESULT_CACHE_LIMIT;
@@ -3968,7 +3968,7 @@ no_fts:
 
 	rw_lock_s_unlock(&dict_operation_lock);
 
-	trx_free(trx);
+	trx->free();
 
 	DBUG_RETURN(ret);
 }

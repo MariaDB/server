@@ -4071,7 +4071,7 @@ row_merge_drop_temp_indexes(void)
 
 	trx_commit_for_mysql(trx);
 	row_mysql_unlock_data_dictionary(trx);
-	trx_free(trx);
+	trx->free();
 }
 
 

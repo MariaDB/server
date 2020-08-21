@@ -835,7 +835,7 @@ discard:
         trx_free_at_shutdown(trx);
       }
       else
-        trx_free(trx);
+        trx->free();
     }
   }
 }

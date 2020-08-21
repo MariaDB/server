@@ -613,7 +613,7 @@ row_truncate_update_sys_tables_during_fix_up(
 	}
 
 	trx_commit_for_mysql(trx);
-	trx_free(trx);
+	trx->free();
 
 	return(err);
 }

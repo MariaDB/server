@@ -1623,7 +1623,7 @@ dict_create_or_check_foreign_constraint_tables(void)
 
 	row_mysql_unlock_data_dictionary(trx);
 
-	trx_free(trx);
+	trx->free();
 
 	srv_file_per_table = srv_file_per_table_backup;
 
@@ -1724,7 +1724,7 @@ dict_create_or_check_sys_virtual()
 
 	row_mysql_unlock_data_dictionary(trx);
 
-	trx_free(trx);
+	trx->free();
 
 	srv_file_per_table = srv_file_per_table_backup;
 
@@ -2257,7 +2257,7 @@ dict_create_or_check_sys_tablespace(void)
 
 	row_mysql_unlock_data_dictionary(trx);
 
-	trx_free(trx);
+	trx->free();
 
 	srv_file_per_table = srv_file_per_table_backup;
 

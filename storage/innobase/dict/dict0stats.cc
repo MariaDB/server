@@ -326,7 +326,7 @@ dict_stats_exec_sql(
 	}
 
 	if (trx_started) {
-		trx_free(trx);
+		trx->free();
 	}
 
 	return(err);
@@ -2577,7 +2577,7 @@ dict_stats_save(
 	trx_commit_for_mysql(trx);
 
 end:
-	trx_free(trx);
+	trx->free();
 
 	mutex_exit(&dict_sys->mutex);
 	rw_lock_x_unlock(&dict_operation_lock);
@@ -3053,7 +3053,7 @@ dict_stats_fetch_from_ps(
 
 	trx_commit_for_mysql(trx);
 
-	trx_free(trx);
+	trx->free();
 
 	if (!index_fetch_arg.stats_were_modified) {
 		return(DB_STATS_DO_NOT_EXIST);
