@@ -756,7 +756,7 @@ grn_ja_alloc(grn_ctx *ctx, grn_ja *ja, grn_id id,
       if (SEGMENTS_AT(ja, i)) {
         j = i;
       } else {
-        if (i == j + n) {
+        if (i == (uint) (j + n)) {
           j++;
           addr = grn_io_win_map(ja->io, ctx, iw, j, 0, element_size, grn_io_wronly);
           if (!addr) {
@@ -764,7 +764,7 @@ grn_ja_alloc(grn_ctx *ctx, grn_ja *ja, grn_id id,
             return GRN_NO_MEMORY_AVAILABLE;
           }
           EHUGE_ENC(einfo, j, element_size);
-          for (; j <= i; j++) { SEGMENTS_HUGE_ON(ja, j); }
+          for (; j <= (int) i; j++) { SEGMENTS_HUGE_ON(ja, j); }
           grn_io_unlock(ja->io);
           return GRN_SUCCESS;
         }
@@ -862,7 +862,7 @@ grn_ja_alloc(grn_ctx *ctx, grn_ja *ja, grn_id id,
       }
       vp = &ja->header->free_elements[m - JA_W_EINFO];
       if (!vp->seg) {
-        int i = 0;
+        uint i = 0;
         while (SEGMENTS_AT(ja, i)) {
           if (++i >= JA_N_DSEGMENTS) {
             grn_io_unlock(ja->io);

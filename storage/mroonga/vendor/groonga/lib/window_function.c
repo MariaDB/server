@@ -63,7 +63,7 @@ grn_window_next(grn_ctx *ctx, grn_window *window)
   }
 
   if (window->direction == GRN_WINDOW_DIRECTION_ASCENDING) {
-    if (window->current_index >= window->n_ids) {
+    if ((unsigned long) window->current_index >= window->n_ids) {
       GRN_API_RETURN(GRN_ID_NIL);
     }
   } else {
@@ -250,7 +250,7 @@ grn_expr_is_window_function_call(grn_ctx *ctx,
   if (call->op != GRN_OP_CALL) {
     return GRN_FALSE;
   }
-  if (call->nargs != (expr->codes_curr - 1)) {
+  if ((unsigned int) call->nargs != (expr->codes_curr - 1)) {
     return GRN_FALSE;
   }
 

@@ -526,7 +526,7 @@ grn_io_detect_type(grn_ctx *ctx, const char *path)
   grn_open(fd, path, O_RDONLY | GRN_OPEN_FLAG_BINARY);
   if (fd != -1) {
     struct stat s;
-    if (fstat(fd, &s) != -1 && s.st_size >= sizeof(struct _grn_io_header)) {
+    if (fstat(fd, &s) != -1 && (size_t) s.st_size >= sizeof(struct _grn_io_header)) {
       if (grn_read(fd, &h, sizeof(struct _grn_io_header)) ==
           sizeof(struct _grn_io_header)) {
         if (!memcmp(h.idstr, GRN_IO_IDSTR, GRN_IO_IDSTR_LEN)) {
@@ -593,7 +593,7 @@ grn_io_open(grn_ctx *ctx, const char *path, grn_io_mode mode)
       grn_close(fd);
       return NULL;
     }
-    if (s.st_size < sizeof(struct _grn_io_header)) {
+    if ((size_t) s.st_size < sizeof(struct _grn_io_header)) {
       ERR(GRN_INCOMPATIBLE_FILE_FORMAT,
           "[io][open] file size is too small: "
           "<%" GRN_FMT_INT64D ">(required: >= %" GRN_FMT_SIZE "): <%s>",
@@ -707,7 +707,7 @@ grn_io_close(grn_ctx *ctx, grn_io *io)
     segment_size = io->header->segment_size;
     file_size = grn_io_compute_file_size(io->header->version);
     segments_per_file = file_size / segment_size;
-    for (i = 0; i < max_segment; i++) {
+    for (i = 0; (uint) i < max_segment; i++) {
       grn_io_mapinfo *mi;
       mi = &(io->maps[i]);
       if (mi->map) {
@@ -726,7 +726,7 @@ grn_io_close(grn_ctx *ctx, grn_io *io)
   GRN_MUNMAP(ctx, &grn_gctx, io, (io->fis ? &io->fis->fmo : NULL),
              io->fis, io->header, io->base);
   if (io->fis) {
-    int i;
+    uint i;
     for (i = 0; i < max_nfiles; i++) {
       fileinfo *fi = &(io->fis[i]);
       grn_fileinfo_close(ctx, fi);
@@ -797,7 +797,7 @@ grn_io_n_files(grn_ctx *ctx, grn_io *io)
 grn_rc
 grn_io_size(grn_ctx *ctx, grn_io *io, uint64_t *size)
 {
-  int fno;
+  uint32_t fno;
   struct stat s;
   uint64_t tsize = 0;
   char buffer[PATH_MAX];
@@ -930,7 +930,7 @@ grn_io_read_ja(grn_io *io, grn_ctx *ctx, grn_io_ja_einfo *einfo, uint32_t epos,
     *value_len = 0;
     return GRN_NO_MEMORY_AVAILABLE;
   }
-  if (pos + size > file_size) {
+  if ((unsigned long) (pos + size) > file_size) {
     rest = pos + size - file_size;
     size = file_size - pos;
   }
@@ -1026,7 +1026,7 @@ grn_io_write_ja(grn_io *io, grn_ctx *ctx, uint32_t key,
   fileinfo *fi = &io->fis[fno];
   off_t base = fno ? 0 : io->base - (uint64_t)segment_size * io->base_seg;
   off_t pos = (uint64_t)segment_size * (bseg % segments_per_file) + offset + base;
-  if (pos + size > file_size) {
+  if ((unsigned long) (pos + size) > file_size) {
     rest = pos + size - file_size;
     size = file_size - pos;
   }
@@ -1303,7 +1303,7 @@ grn_io_expire(grn_ctx *ctx, grn_io *io, int count_thresh, uint32_t limit)
     {
       uint32_t nref, nmaps, *pnref = &io->nref;
       GRN_ATOMIC_ADD_EX(pnref, 1, nref);
-      if (!nref && grn_gtick - io->count > count_thresh) {
+      if (!nref && grn_gtick - io->count > (uint) count_thresh) {
         {
           uint32_t i = io->header->n_arrays;
           grn_io_array_spec *array_specs = (grn_io_array_spec *)io->user_header;
@@ -1341,10 +1341,10 @@ grn_io_expire(grn_ctx *ctx, grn_io *io, int count_thresh, uint32_t limit)
     {
       grn_io_mapinfo *info = io->maps;
       for (m = io->max_map_seg; n < limit && m; info++, m--) {
-        if (info->map && (grn_gtick - info->count) > count_thresh) {
+        if (info->map && (grn_gtick - info->count) > (uint) count_thresh) {
           uint32_t nmaps, nref, *pnref = &info->nref;
           GRN_ATOMIC_ADD_EX(pnref, 1, nref);
-          if (!nref && info->map && (grn_gtick - info->count) > count_thresh) {
+          if (!nref && info->map && (grn_gtick - info->count) > (uint) count_thresh) {
             GRN_MUNMAP(ctx, &grn_gctx, io, &info->fmo, NULL,
                        info->map, io->header->segment_size);
             GRN_ATOMIC_ADD_EX(&io->nmaps, -1, nmaps);
@@ -1395,7 +1395,7 @@ grn_io_lock(grn_ctx *ctx, grn_io *io, int timeout)
                 "io(%s) collisions(%d/%d): lock failed %d times",
                 io->path, _ncolls, _ncalls, count_log_border);
       }
-      if (!timeout || (timeout > 0 && timeout == count)) {
+      if (!timeout || (timeout > 0 && timeout == (int) count)) {
         GRN_LOG(ctx, GRN_LOG_WARNING,
                 "[DB Locked] time out(%d): io(%s) collisions(%d/%d)",
                 timeout, io->path, _ncolls, _ncalls);
@@ -2166,7 +2166,7 @@ inline static grn_rc
 grn_pread(grn_ctx *ctx, fileinfo *fi, void *buf, size_t count, off_t offset)
 {
   ssize_t r = pread(fi->fd, buf, count, offset);
-  if (r != count) {
+  if (r != (ssize_t) count) {
     if (r == -1) {
       SERR("pread");
     } else {
@@ -2184,7 +2184,7 @@ inline static grn_rc
 grn_pwrite(grn_ctx *ctx, fileinfo *fi, void *buf, size_t count, off_t offset)
 {
   ssize_t r = pwrite(fi->fd, buf, count, offset);
-  if (r != count) {
+  if (r != (ssize_t) count) {
     if (r == -1) {
       SERR("pwrite");
     } else {

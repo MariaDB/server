@@ -168,31 +168,31 @@ grn_operator_to_exec_func(grn_operator op)
 #define DO_EQ_SUB do {\
   switch (y->header.domain) {\
   case GRN_DB_INT8 :\
-    r = (x_ == GRN_INT8_VALUE(y));\
+    r = ((unsigned char) x_ == (unsigned char) GRN_INT8_VALUE(y));       \
     break;\
   case GRN_DB_UINT8 :\
     r = (x_ == GRN_UINT8_VALUE(y));\
     break;\
   case GRN_DB_INT16 :\
-    r = (x_ == GRN_INT16_VALUE(y));\
+    r = ((int) x_ == (int) GRN_INT16_VALUE(y));  \
     break;\
   case GRN_DB_UINT16 :\
     r = (x_ == GRN_UINT16_VALUE(y));\
     break;\
   case GRN_DB_INT32 :\
-    r = (x_ == GRN_INT32_VALUE(y));\
+    r = ((int) x_ == (int) GRN_INT32_VALUE(y));  \
     break;\
   case GRN_DB_UINT32 :\
-    r = (x_ == GRN_UINT32_VALUE(y));\
+    r = ((uint) x_ == GRN_UINT32_VALUE(y));      \
     break;\
   case GRN_DB_INT64 :\
-    r = (x_ == GRN_INT64_VALUE(y));\
+    r = ((long long) x_ == GRN_INT64_VALUE(y));  \
     break;\
   case GRN_DB_TIME :\
     r = (GRN_TIME_PACK(x_,0) == GRN_INT64_VALUE(y));\
     break;\
   case GRN_DB_UINT64 :\
-    r = (x_ == GRN_UINT64_VALUE(y));\
+    r = ((unsigned long long) x_ == GRN_UINT64_VALUE(y));   \
     break;\
   case GRN_DB_FLOAT :\
     r = ((x_ <= GRN_FLOAT_VALUE(y)) && (x_ >= GRN_FLOAT_VALUE(y)));\
@@ -203,7 +203,7 @@ grn_operator_to_exec_func(grn_operator op)
     {\
       const char *p_ = GRN_TEXT_VALUE(y);\
       int i_ = grn_atoi(p_, p_ + GRN_TEXT_LEN(y), NULL);\
-      r = (x_ == i_);\
+      r = ((int) x_ == i_);                              \
     }\
     break;\
   default :\
@@ -271,10 +271,10 @@ grn_operator_to_exec_func(grn_operator op)
         break;\
       case GRN_DB_INT64 :\
       case GRN_DB_TIME :\
-        r = (x_ == GRN_INT64_VALUE(y));\
+        r = ((long long) x_ == GRN_INT64_VALUE(y));       \
         break;\
       case GRN_DB_UINT64 :\
-        r = (x_ == GRN_UINT64_VALUE(y));\
+        r = ((unsigned long long) x_ == GRN_UINT64_VALUE(y));    \
         break;\
       case GRN_DB_FLOAT :\
         r = (x_ == GRN_TIME_PACK(GRN_FLOAT_VALUE(y), 0));\
@@ -405,31 +405,31 @@ grn_operator_exec_not_equal(grn_ctx *ctx, grn_obj *x, grn_obj *y)
     r = (x_ op (uint8_t)(GRN_BOOL_VALUE(y) ? 1 : 0));\
     break;\
   case GRN_DB_INT8 :\
-    r = (x_ op GRN_INT8_VALUE(y));\
+    r = ((signed char) x_ op GRN_INT8_VALUE(y)); \
     break;\
   case GRN_DB_UINT8 :\
-    r = (x_ op GRN_UINT8_VALUE(y));\
+    r = ((unsigned char) x_ op GRN_UINT8_VALUE(y));      \
     break;\
   case GRN_DB_INT16 :\
-    r = (x_ op GRN_INT16_VALUE(y));\
+    r = ((short) x_ op GRN_INT16_VALUE(y));      \
     break;\
   case GRN_DB_UINT16 :\
-    r = (x_ op GRN_UINT16_VALUE(y));\
+    r = ((unsigned short) x_ op GRN_UINT16_VALUE(y));    \
     break;\
   case GRN_DB_INT32 :\
-    r = (x_ op GRN_INT32_VALUE(y));\
+    r = ((int) x_ op GRN_INT32_VALUE(y));        \
     break;\
   case GRN_DB_UINT32 :\
-    r = (x_ op GRN_UINT32_VALUE(y));\
+    r = ((uint) x_ op GRN_UINT32_VALUE(y));      \
     break;\
   case GRN_DB_INT64 :\
-    r = (x_ op GRN_INT64_VALUE(y));\
+    r = ((long long) x_ op GRN_INT64_VALUE(y));  \
     break;\
   case GRN_DB_TIME :\
     r = (GRN_TIME_PACK(x_,0) op GRN_INT64_VALUE(y));\
     break;\
   case GRN_DB_UINT64 :\
-    r = (x_ op GRN_UINT64_VALUE(y));\
+    r = ((unsigned long long) x_ op GRN_UINT64_VALUE(y));        \
     break;\
   case GRN_DB_FLOAT :\
     r = (x_ op GRN_FLOAT_VALUE(y));\
@@ -552,10 +552,10 @@ grn_operator_exec_not_equal(grn_ctx *ctx, grn_obj *x, grn_obj *y)
         break;\
       case GRN_DB_INT64 :\
       case GRN_DB_TIME :\
-        r = (x_ op GRN_INT64_VALUE(y));\
+        r = ((long long) x_ op GRN_INT64_VALUE(y));      \
         break;\
       case GRN_DB_UINT64 :\
-        r = (x_ op GRN_UINT64_VALUE(y));\
+        r = ((unsigned long long) x_ op GRN_UINT64_VALUE(y));    \
         break;\
       case GRN_DB_FLOAT :\
         r = (x_ op GRN_TIME_PACK(GRN_FLOAT_VALUE(y), 0));\
