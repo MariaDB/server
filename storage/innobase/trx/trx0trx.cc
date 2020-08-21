@@ -112,7 +112,7 @@ trx_init(
 
 	trx->op_info = "";
 
-	trx->active_commit_ordered = 0;
+	trx->active_commit_ordered = false;
 
 	trx->isolation_level = TRX_ISO_REPEATABLE_READ;
 
@@ -214,6 +214,15 @@ struct TrxFactory {
 	@param trx the transaction for which to release resources */
 	static void destroy(trx_t* trx)
 	{
+#ifdef __SANITIZE_ADDRESS__
+		/* Unpoison the memory for AddressSanitizer */
+		MEM_MAKE_ADDRESSABLE(trx, sizeof *trx);
+#else
+		/* Declare the contents as initialized for Valgrind;
+		we checked this in trx_t::free(). */
+		MEM_MAKE_DEFINED(trx, sizeof *trx);
+#endif
+
 		ut_a(trx->magic_n == TRX_MAGIC_N);
 		ut_ad(!trx->mysql_thd);
 
@@ -241,36 +250,6 @@ struct TrxFactory {
 		trx->lock.table_locks.~lock_list();
 
 		trx->read_view.~ReadView();
-	}
-
-	/** Enforce any invariants here, this is called before the transaction
-	is added to the pool.
-	@return true if all OK */
-	static bool debug(const trx_t* trx)
-	{
-		ut_a(trx->error_state == DB_SUCCESS);
-
-		ut_a(trx->magic_n == TRX_MAGIC_N);
-
-		ut_ad(!trx->read_only);
-
-		ut_ad(trx->state == TRX_STATE_NOT_STARTED);
-
-		ut_ad(trx->dict_operation == TRX_DICT_OP_NONE);
-
-		ut_ad(trx->mysql_thd == 0);
-
-		ut_a(trx->lock.wait_thr == NULL);
-		ut_a(trx->lock.wait_lock == NULL);
-		ut_a(trx->dict_operation_lock_mode == 0);
-
-		ut_a(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
-
-		ut_ad(trx->autoinc_locks == NULL);
-
-		ut_ad(trx->lock.table_locks.empty());
-
-		return(true);
 	}
 };
 
@@ -348,10 +327,22 @@ trx_pool_close()
 	trx_pools = 0;
 }
 
-/** @return a trx_t instance from trx_pools. */
+/** @return an allocated transaction */
 trx_t *trx_create()
 {
 	trx_t*	trx = trx_pools->get();
+
+#ifdef __SANITIZE_ADDRESS__
+	/* Unpoison the memory for AddressSanitizer.
+	It may have been poisoned in trx_t::free().*/
+	MEM_MAKE_ADDRESSABLE(trx, sizeof *trx);
+#else
+	/* Declare the memory initialized for Valgrind.
+	The trx_t that are released to the pool are
+	actually initialized; we checked that by
+	MEM_CHECK_DEFINED() in trx_t::free(). */
+	MEM_MAKE_DEFINED(trx, sizeof *trx);
+#endif
 
 	trx->assert_freed();
 
@@ -368,14 +359,9 @@ trx_t *trx_create()
 
 	alloc = ib_heap_allocator_create(heap);
 
-	/* Remember to free the vector explicitly in trx_free(). */
 	trx->autoinc_locks = ib_vector_create(alloc, sizeof(void**), 4);
 
-	/* Should have been either just initialized or .clear()ed by
-	trx_free(). */
 	ut_ad(trx->mod_tables.empty());
-	ut_ad(trx->lock.table_locks.empty());
-	ut_ad(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
 	ut_ad(trx->lock.n_rec_locks == 0);
 	ut_ad(trx->lock.table_cached == 0);
 	ut_ad(trx->lock.rec_cached == 0);
@@ -390,91 +376,110 @@ trx_t *trx_create()
 	return(trx);
 }
 
-/**
-  Release a trx_t instance back to the pool.
-  @param trx the instance to release.
-*/
-void trx_free(trx_t*& trx)
+/** Free the memory to trx_pools */
+void trx_t::free()
 {
-	ut_ad(!trx->declared_to_be_inside_innodb);
-	ut_ad(!trx->n_mysql_tables_in_use);
-	ut_ad(!trx->mysql_n_tables_locked);
-	ut_ad(!trx->internal);
+  MEM_CHECK_DEFINED(this, sizeof *this);
 
-	if (UNIV_UNLIKELY(trx->declared_to_be_inside_innodb)) {
-		ib::error() << "Freeing a trx ("
-			<< trx_get_id_for_print(trx) << ") which is declared"
-			" to be processing inside InnoDB";
+  ut_ad(!n_mysql_tables_in_use);
+  ut_ad(!mysql_n_tables_locked);
+  ut_ad(!internal);
+  ut_ad(!declared_to_be_inside_innodb);
+  ut_ad(!will_lock);
+  ut_ad(error_state == DB_SUCCESS);
+  ut_ad(magic_n == TRX_MAGIC_N);
+  ut_ad(!read_only);
+  ut_ad(!lock.wait_lock);
 
-		trx_print(stderr, trx, 600);
-		putc('\n', stderr);
+  dict_operation= TRX_DICT_OP_NONE;
+  trx_sys.deregister_trx(this);
+  assert_freed();
+  trx_sys.rw_trx_hash.put_pins(this);
 
-		/* This is an error but not a fatal error. We must keep
-		the counters like srv_conc.n_active accurate. */
-		srv_conc_force_exit_innodb(trx);
-	}
+  mysql_thd= NULL;
+  mysql_log_file_name= NULL;
 
-	if (trx->n_mysql_tables_in_use != 0
-	    || trx->mysql_n_tables_locked != 0) {
+  // FIXME: We need to avoid this heap free/alloc for each commit.
+  if (autoinc_locks)
+  {
+    ut_ad(ib_vector_is_empty(autoinc_locks));
+    /* We allocated a dedicated heap for the vector. */
+    ib_vector_free(autoinc_locks);
+    autoinc_locks= NULL;
+  }
 
-		ib::error() << "MySQL is freeing a thd though"
-			" trx->n_mysql_tables_in_use is "
-			<< trx->n_mysql_tables_in_use
-			<< " and trx->mysql_n_tables_locked is "
-			<< trx->mysql_n_tables_locked << ".";
+  mod_tables.clear();
 
-		trx_print(stderr, trx, 600);
-		ut_print_buf(stderr, trx, sizeof(trx_t));
-		putc('\n', stderr);
-	}
-
-	trx->dict_operation = TRX_DICT_OP_NONE;
-	ut_ad(!trx->dict_operation_lock_mode);
-
-	trx_sys.deregister_trx(trx);
-
-	trx->assert_freed();
-
-	trx_sys.rw_trx_hash.put_pins(trx);
-	trx->mysql_thd = 0;
-	trx->mysql_log_file_name = 0;
-
-	// FIXME: We need to avoid this heap free/alloc for each commit.
-	if (trx->autoinc_locks != NULL) {
-		ut_ad(ib_vector_is_empty(trx->autoinc_locks));
-		/* We allocated a dedicated heap for the vector. */
-		ib_vector_free(trx->autoinc_locks);
-		trx->autoinc_locks = NULL;
-	}
-
-	trx->mod_tables.clear();
-
-	/* trx locking state should have been reset before returning trx
-	to pool */
-	ut_ad(trx->will_lock == 0);
-
-	trx_pools->mem_free(trx);
-#ifdef __SANITIZE_ADDRESS__
-	/* Unpoison the memory for innodb_monitor_set_option;
-	it is operating also on the freed transaction objects. */
-	MEM_MAKE_ADDRESSABLE(&trx->mutex, sizeof trx->mutex);
-	/* For innobase_kill_connection() */
-	MEM_MAKE_ADDRESSABLE(&trx->state, sizeof trx->state);
-	MEM_MAKE_ADDRESSABLE(&trx->mysql_thd, sizeof trx->mysql_thd);
-#endif
-	/* Unpoison the memory for innodb_monitor_set_option;
-	it is operating also on the freed transaction objects.
-	We checked that these were initialized in
-	trx_pools->mem_free(trx). */
-	MEM_MAKE_DEFINED(&trx->mutex, sizeof trx->mutex);
-	/* For innobase_kill_connection() */
-# ifdef WITH_WSREP
-	MEM_MAKE_DEFINED(&trx->wsrep, sizeof trx->wsrep);
-# endif
-	MEM_MAKE_DEFINED(&trx->state, sizeof trx->state);
-	MEM_MAKE_DEFINED(&trx->mysql_thd, sizeof trx->mysql_thd);
-
-	trx = NULL;
+  MEM_NOACCESS(&n_ref, sizeof n_ref);
+  /* do not poison mutex */
+  MEM_NOACCESS(&id, sizeof id);
+  MEM_NOACCESS(&no, sizeof no);
+  /* state is accessed by innobase_kill_connection() */
+  MEM_NOACCESS(&is_recovered, sizeof is_recovered);
+  /* wsrep is accessed by innobase_kill_connection() */
+  MEM_NOACCESS(&read_view, sizeof read_view);
+  MEM_NOACCESS(&trx_list, sizeof trx_list);
+  MEM_NOACCESS(&lock, sizeof lock);
+  MEM_NOACCESS(&op_info, sizeof op_info);
+  MEM_NOACCESS(&isolation_level, sizeof isolation_level);
+  MEM_NOACCESS(&check_foreigns, sizeof check_foreigns);
+  MEM_NOACCESS(&is_registered, sizeof is_registered);
+  MEM_NOACCESS(&active_commit_ordered, sizeof active_commit_ordered);
+  MEM_NOACCESS(&check_unique_secondary, sizeof check_unique_secondary);
+  MEM_NOACCESS(&flush_log_later, sizeof flush_log_later);
+  MEM_NOACCESS(&must_flush_log_later, sizeof must_flush_log_later);
+  MEM_NOACCESS(&duplicates, sizeof duplicates);
+  MEM_NOACCESS(&dict_operation, sizeof dict_operation);
+  MEM_NOACCESS(&declared_to_be_inside_innodb, sizeof declared_to_be_inside_innodb);
+  MEM_NOACCESS(&n_tickets_to_enter_innodb, sizeof n_tickets_to_enter_innodb);
+  MEM_NOACCESS(&dict_operation_lock_mode, sizeof dict_operation_lock_mode);
+  MEM_NOACCESS(&start_time, sizeof start_time);
+  MEM_NOACCESS(&start_time_micro, sizeof start_time_micro);
+  MEM_NOACCESS(&commit_lsn, sizeof commit_lsn);
+  MEM_NOACCESS(&table_id, sizeof table_id);
+  /* mysql_thd is accessed by innobase_kill_connection() */
+  MEM_NOACCESS(&mysql_log_file_name, sizeof mysql_log_file_name);
+  MEM_NOACCESS(&mysql_log_offset, sizeof mysql_log_offset);
+  MEM_NOACCESS(&n_mysql_tables_in_use, sizeof n_mysql_tables_in_use);
+  MEM_NOACCESS(&mysql_n_tables_locked, sizeof mysql_n_tables_locked);
+  MEM_NOACCESS(&error_state, sizeof error_state);
+  MEM_NOACCESS(&error_info, sizeof error_info);
+  MEM_NOACCESS(&error_key_num, sizeof error_key_num);
+  MEM_NOACCESS(&graph, sizeof graph);
+  MEM_NOACCESS(&trx_savepoints, sizeof trx_savepoints);
+  MEM_NOACCESS(&undo_no, sizeof undo_no);
+  MEM_NOACCESS(&last_sql_stat_start, sizeof last_sql_stat_start);
+  MEM_NOACCESS(&rsegs, sizeof rsegs);
+  MEM_NOACCESS(&roll_limit, sizeof roll_limit);
+  MEM_NOACCESS(&in_rollback, sizeof in_rollback);
+  MEM_NOACCESS(&pages_undone, sizeof pages_undone);
+  MEM_NOACCESS(&n_autoinc_rows, sizeof n_autoinc_rows);
+  MEM_NOACCESS(&autoinc_locks, sizeof autoinc_locks);
+  MEM_NOACCESS(&read_only, sizeof read_only);
+  MEM_NOACCESS(&auto_commit, sizeof auto_commit);
+  MEM_NOACCESS(&will_lock, sizeof will_lock);
+  MEM_NOACCESS(&fts_trx, sizeof fts_trx);
+  MEM_NOACCESS(&fts_next_doc_id, sizeof fts_next_doc_id);
+  MEM_NOACCESS(&flush_tables, sizeof flush_tables);
+  MEM_NOACCESS(&ddl, sizeof ddl);
+  MEM_NOACCESS(&internal, sizeof internal);
+#ifdef UNIV_DEBUG
+  MEM_NOACCESS(&start_line, sizeof start_line);
+  MEM_NOACCESS(&start_file, sizeof start_file);
+#endif /* UNIV_DEBUG */
+  MEM_NOACCESS(&xid, sizeof xid);
+  MEM_NOACCESS(&mod_tables, sizeof mod_tables);
+  MEM_NOACCESS(&detailed_error, sizeof detailed_error);
+  MEM_NOACCESS(&flush_observer, sizeof flush_observer);
+  MEM_NOACCESS(&n_rec_lock_waits, sizeof n_rec_lock_waits);
+  MEM_NOACCESS(&n_table_lock_waits, sizeof n_table_lock_waits);
+  MEM_NOACCESS(&total_rec_lock_wait_time, sizeof total_rec_lock_wait_time);
+  MEM_NOACCESS(&total_table_lock_wait_time, sizeof total_table_lock_wait_time);
+#ifdef WITH_WSREP
+  MEM_NOACCESS(&wsrep_event, sizeof wsrep_event);
+#endif /* WITH_WSREP */
+  MEM_NOACCESS(&magic_n, sizeof magic_n);
+  trx_pools->mem_free(this);
 }
 
 /** Transition to committed state, to release implicit locks. */
@@ -544,8 +549,7 @@ trx_free_at_shutdown(trx_t *trx)
 	trx->state = TRX_STATE_NOT_STARTED;
 	ut_ad(!UT_LIST_GET_LEN(trx->lock.trx_locks));
 	trx->id = 0;
-
-	trx_free(trx);
+	trx->free();
 }
 
 

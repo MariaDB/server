@@ -277,7 +277,7 @@ dict_table_try_drop_aborted(
 	}
 
 	row_mysql_unlock_data_dictionary(trx);
-	trx_free(trx);
+	trx->free();
 }
 
 /**********************************************************************//**
@@ -1768,7 +1768,7 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 		row_merge_drop_indexes_dict(trx, table->id);
 		trx_commit_for_mysql(trx);
 		trx->dict_operation_lock_mode = 0;
-		trx_free(trx);
+		trx->free();
 	}
 
 	/* Free virtual column template if any */

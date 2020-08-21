@@ -2725,18 +2725,6 @@ trx_is_registered_for_2pc(
 }
 
 /*********************************************************************//**
-Note that innobase_commit_ordered() was run. */
-static inline
-void
-trx_set_active_commit_ordered(
-/*==========================*/
-	trx_t*	trx)	/* in: transaction */
-{
-	ut_a(trx_is_registered_for_2pc(trx));
-	trx->active_commit_ordered = 1;
-}
-
-/*********************************************************************//**
 Note that a transaction has been registered with MySQL 2PC coordinator. */
 static inline
 void
@@ -2745,7 +2733,7 @@ trx_register_for_2pc(
 	trx_t*	trx)	/* in: transaction */
 {
 	trx->is_registered = 1;
-	ut_ad(trx->active_commit_ordered == 0);
+	ut_ad(!trx->active_commit_ordered);
 }
 
 /*********************************************************************//**
@@ -2756,19 +2744,8 @@ trx_deregister_from_2pc(
 /*====================*/
 	trx_t*	trx)	/* in: transaction */
 {
-	trx->is_registered = 0;
-	trx->active_commit_ordered = 0;
-}
-
-/*********************************************************************//**
-Check whether a transaction has active_commit_ordered set */
-static inline
-bool
-trx_is_active_commit_ordered(
-/*=========================*/
-	const trx_t*	trx)	/* in: transaction */
-{
-	return(trx->active_commit_ordered == 1);
+  trx->is_registered= false;
+  trx->active_commit_ordered= false;
 }
 
 /*********************************************************************//**
@@ -4275,9 +4252,8 @@ innobase_end(handlerton*, ha_panic_function)
 	if (srv_was_started) {
 		THD *thd= current_thd;
 		if (thd) { // may be UNINSTALL PLUGIN statement
-		 	trx_t* trx = thd_to_trx(thd);
-		 	if (trx) {
-				trx_free(trx);
+		 	if (trx_t* trx = thd_to_trx(thd)) {
+				trx->free();
 		 	}
 		}
 
@@ -4510,8 +4486,7 @@ innobase_commit_ordered(
 		(!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)));
 
 	innobase_commit_ordered_2(trx, thd);
-
-	trx_set_active_commit_ordered(trx);
+	trx->active_commit_ordered = true;
 
 	DBUG_VOID_RETURN;
 }
@@ -4564,7 +4539,7 @@ innobase_commit(
 				DBUG_SUICIDE(););
 
 		/* Run the fast part of commit if we did not already. */
-		if (!trx_is_active_commit_ordered(trx)) {
+		if (!trx->active_commit_ordered) {
 			innobase_commit_ordered_2(trx, thd);
 
 		}
@@ -5054,7 +5029,7 @@ innobase_close_connection(
 		} else {
 rollback_and_free:
 			innobase_rollback_trx(trx);
-			trx_free(trx);
+			trx->free();
 		}
 	}
 
@@ -5088,7 +5063,7 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
 
     trx_t::state changes are protected by trx_t::mutex, and
     trx_sys.trx_list is protected by trx_sys.mutex, in
-    both trx_create() and trx_free().
+    both trx_create() and trx_t::free().
 
     At this point, trx may have been reallocated for another client
     connection, or for a background operation. In that case, either
@@ -12734,7 +12709,7 @@ create_table_info_t::create_table_update_dict()
 		if (!innobase_fts_load_stopword(innobase_table, NULL, m_thd)) {
 			dict_table_close(innobase_table, FALSE, FALSE);
 			srv_active_wake_master_thread();
-			trx_free(m_trx);
+			m_trx->free();
 			DBUG_RETURN(-1);
 		}
 
@@ -12862,7 +12837,7 @@ ha_innobase::create(
 		trx_rollback_for_mysql(trx);
 		row_mysql_unlock_data_dictionary(trx);
 		if (own_trx) {
-			trx_free(trx);
+			trx->free();
 		}
 		DBUG_RETURN(error);
 	}
@@ -12871,7 +12846,7 @@ ha_innobase::create(
 	row_mysql_unlock_data_dictionary(trx);
 
 	if (own_trx) {
-		trx_free(trx);
+		trx->free();
 	}
 
 	/* Flush the log to reduce probability that the .frm files and
@@ -13214,7 +13189,7 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 
 	innobase_commit_low(trx);
 
-	trx_free(trx);
+	trx->free();
 
 	DBUG_RETURN(convert_error_code_to_mysql(err, 0, NULL));
 }
@@ -13314,7 +13289,7 @@ innobase_drop_database(
 
 	innobase_commit_low(trx);
 
-	trx_free(trx);
+	trx->free();
 }
 
 /** Rename an InnoDB table.
@@ -13521,7 +13496,7 @@ int ha_innobase::truncate()
 			     || dict_table_is_file_per_table(ib_table), trx);
 	}
 
-	trx_free(trx);
+	trx->free();
 
 	if (!err) {
 		/* Reopen the newly created table, and drop the
@@ -13584,7 +13559,7 @@ ha_innobase::rename_table(
 
 	innobase_commit_low(trx);
 
-	trx_free(trx);
+	trx->free();
 
 	if (error == DB_SUCCESS) {
 		char	norm_from[MAX_FULL_NAME_LEN];
@@ -17018,7 +16993,7 @@ innobase_commit_by_xid(
 		ut_ad(trx->mysql_thd == NULL);
 		trx_deregister_from_2pc(trx);
 		ut_ad(!trx->will_lock);    /* trx cache requirement */
-		trx_free(trx);
+		trx->free();
 
 		return(XA_OK);
 	} else {
@@ -17053,7 +17028,7 @@ int innobase_rollback_by_xid(handlerton* hton, XID* xid)
 		int ret = innobase_rollback_trx(trx);
 		trx_deregister_from_2pc(trx);
 		ut_ad(!trx->will_lock);
-		trx_free(trx);
+		trx->free();
 
 		return(ret);
 	} else {

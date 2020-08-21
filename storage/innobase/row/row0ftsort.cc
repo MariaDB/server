@@ -1801,7 +1801,7 @@ exit:
 	error = ins_ctx.btr_bulk->finish(error);
 	UT_DELETE(ins_ctx.btr_bulk);
 
-	trx_free(trx);
+	trx->free();
 
 	mem_heap_free(heap);
 
