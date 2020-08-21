@@ -497,6 +497,12 @@ public:
     virtual longlong val_int(Item_handled_func *) const= 0;
     virtual my_decimal *val_decimal(Item_handled_func *, my_decimal *) const= 0;
     virtual bool get_date(THD *thd, Item_handled_func *, MYSQL_TIME *, date_mode_t fuzzydate) const= 0;
+    virtual bool val_native(THD *thd, Item_handled_func *, Native *to) const
+    {
+      DBUG_ASSERT(0);
+      to->length(0);
+      return true;
+    }
     virtual const Type_handler *return_type_handler() const= 0;
     virtual bool fix_length_and_dec(Item_handled_func *) const= 0;
   };
@@ -600,6 +606,10 @@ public:
     {
       return Time(item).to_string(to, item->decimals);
     }
+    bool val_native(THD *thd, Item_handled_func *item, Native *to) const
+    {
+      return Time(thd, item).to_native(to, item->decimals);
+    }
   };
 
 
@@ -667,6 +677,10 @@ public:
   bool get_date(THD *thd, MYSQL_TIME *to, date_mode_t fuzzydate)
   {
     return m_func_handler->get_date(thd, this, to, fuzzydate);
+  }
+  bool val_native(THD *thd, Native *to)
+  {
+    return m_func_handler->val_native(thd, this, to);
   }
 };
 

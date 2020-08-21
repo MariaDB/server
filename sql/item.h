@@ -1311,16 +1311,13 @@ public:
   {
    /*
      The default implementation for the Items that do not need native format:
-     - Item_basic_value
+     - Item_basic_value (default implementation)
      - Item_copy
      - Item_exists_subselect
      - Item_sum_field
      - Item_sum_or_func (default implementation)
      - Item_proc
      - Item_type_holder (as val_xxx() are never called for it);
-     - TODO: Item_name_const will need val_native() in the future,
-       when we add this syntax:
-         TIMESTAMP WITH LOCAL TIMEZONE'2001-01-01 00:00:00'
 
      These hybrid Item types override val_native():
      - Item_field
@@ -1331,6 +1328,8 @@ public:
      - Item_direct_ref
      - Item_direct_view_ref
      - Item_ref_null_helper
+     - Item_name_const
+     - Item_time_literal
      - Item_sum_or_func
          Note, these hybrid type Item_sum_or_func descendants
          override the default implementation:
@@ -3139,6 +3138,7 @@ public:
   String *val_str(String *sp);
   my_decimal *val_decimal(my_decimal *);
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  bool val_native(THD *thd, Native *to);
   bool is_null();
   virtual void print(String *str, enum_query_type query_type);
 
@@ -4897,6 +4897,10 @@ public:
   String *val_str(String *to) { return Time(this).to_string(to, decimals); }
   my_decimal *val_decimal(my_decimal *to) { return Time(this).to_decimal(to); }
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
+  bool val_native(THD *thd, Native *to)
+  {
+    return Time(thd, this).to_native(to, decimals);
+  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_time_literal>(thd, this); }
 };
@@ -6871,6 +6875,10 @@ public:
   my_decimal *val_decimal(my_decimal *to)
   {
     return has_value() ? Time(this).to_decimal(to) : NULL;
+  }
+  bool val_native(THD *thd, Native *to)
+  {
+    return has_value() ? Time(thd, this).to_native(to, decimals) : true;
   }
 };
 

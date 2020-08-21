@@ -1308,6 +1308,7 @@ class Schema;
 */
 class Time: public Temporal
 {
+  static uint binary_length_to_precision(uint length);
 public:
   enum datetime_to_time_mode_t
   {
@@ -1540,6 +1541,7 @@ public:
   */
   Time(int *warn, bool neg, ulonglong hour, uint minute, const Sec6 &second);
   Time() { time_type= MYSQL_TIMESTAMP_NONE; }
+  Time(const Native &native);
   Time(Item *item)
    :Time(current_thd, item)
   { }
@@ -1695,6 +1697,7 @@ public:
     return !is_valid_time() ? 0 :
            Temporal::to_double(neg, TIME_to_ulonglong_time(this), second_part);
   }
+  bool to_native(Native *to, uint decimals) const;
   String *to_string(String *str, uint dec) const
   {
     if (!is_valid_time())
@@ -5324,6 +5327,12 @@ public:
   {
     return MYSQL_TIMESTAMP_TIME;
   }
+  bool is_val_native_ready() const { return true; }
+  const Type_handler *type_handler_for_native_format() const;
+  int cmp_native(const Native &a, const Native &b) const;
+  bool Item_val_native_with_conversion(THD *thd, Item *, Native *to) const;
+  bool Item_val_native_with_conversion_result(THD *thd, Item *, Native *to) const;
+  bool Item_param_val_native(THD *thd, Item_param *item, Native *to) const;
   Item_literal *create_literal_item(THD *thd, const char *str, size_t length,
                                     CHARSET_INFO *cs, bool send_error) const;
   Item *create_typecast_item(THD *thd, Item *item,

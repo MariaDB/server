@@ -6011,6 +6011,24 @@ bool Field_time::get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
 }
 
 
+int Field_time::store_native(const Native &value)
+{
+  Time t(value);
+  DBUG_ASSERT(t.is_valid_time());
+  store_TIME(t);
+  return 0;
+}
+
+
+bool Field_time::val_native(Native *to)
+{
+  MYSQL_TIME ltime;
+  get_date(&ltime, date_mode_t(0));
+  int warn;
+  return Time(&warn, &ltime, 0).to_native(to, decimals());
+}
+
+
 bool Field_time::send_binary(Protocol *protocol)
 {
   MYSQL_TIME ltime;
@@ -6253,6 +6271,22 @@ bool Field_timef::get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   TIME_from_longlong_time_packed(ltime, tmp);
   return false;
 }
+
+int Field_timef::store_native(const Native &value)
+{
+  DBUG_ASSERT(value.length() == my_time_binary_length(dec));
+  DBUG_ASSERT(Time(value).is_valid_time());
+  memcpy(ptr, value.ptr(), value.length());
+  return 0;
+}
+
+
+bool Field_timef::val_native(Native *to)
+{
+  uint32 binlen= my_time_binary_length(dec);
+  return to->copy((const char*) ptr, binlen);
+}
+
 
 /****************************************************************************
 ** year type

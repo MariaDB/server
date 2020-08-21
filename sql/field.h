@@ -3213,6 +3213,8 @@ public:
            decimals() == from->decimals();
   }
   sql_mode_t conversion_depends_on_sql_mode(THD *, Item *) const;
+  int store_native(const Native &value);
+  bool val_native(Native *to);
   int store_time_dec(const MYSQL_TIME *ltime, uint dec);
   int store(const char *to,size_t length,CHARSET_INFO *charset);
   int store(double nr);
@@ -3334,6 +3336,8 @@ public:
   }
   int reset();
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  int store_native(const Native &value);
+  bool val_native(Native *to);
   uint size_of() const { return sizeof(*this); }
 };
 

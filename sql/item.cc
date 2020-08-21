@@ -2011,6 +2011,11 @@ bool Item_name_const::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydat
   return rc;
 }
 
+bool Item_name_const::val_native(THD *thd, Native *to)
+{
+  return val_native_from_item(thd, value_item, to);
+}
+
 bool Item_name_const::is_null()
 {
   return value_item->is_null();
