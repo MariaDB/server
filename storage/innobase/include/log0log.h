@@ -480,6 +480,11 @@ public:
   bool writes_are_durable() const noexcept;
   dberr_t write(os_offset_t offset, span<const byte> buf) noexcept;
   dberr_t flush() noexcept;
+  void free()
+  {
+    m_path.clear();
+    m_path.shrink_to_fit();
+  }
 
 private:
   std::unique_ptr<file_io> m_file;
