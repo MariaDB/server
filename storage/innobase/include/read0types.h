@@ -279,22 +279,15 @@ public:
 
 
   /**
-    Make the memory accessible by innodb_monitor_set_option;
-    It is operating also on freed transaction objects.
+    Declare the object mostly unaccessible.
+    innodb_monitor_set_option is operating also on freed transaction objects.
   */
-  void mem_valid() const
+  void mem_noaccess() const
   {
-    /* Cancel the effect of MEM_NOACCESS(). */
-#ifdef __SANITIZE_ADDRESS__
-    MEM_MAKE_ADDRESSABLE(&m_mutex, sizeof m_mutex);
-#endif
-#if defined HAVE_valgrind && !__has_feature(memory_sanitizer)
-    /* In Valgrind, we cannot cancel MEM_NOACCESS() without changing
-    the state of the V bits (indicating which bits are initialized).
-    We will declare the contents as initialized.
-    We did invoke MEM_CHECK_DEFINED() in trx_pools->mem_free(). */
-    MEM_MAKE_DEFINED(&m_mutex, sizeof m_mutex);
-#endif
+    MEM_NOACCESS(&m_open, sizeof m_open);
+    /* m_mutex is accessed by innodb_show_mutex_status()
+    and innodb_monitor_update() even after trx_t::free() */
+    MEM_NOACCESS(&m_creator_trx_id, sizeof m_creator_trx_id);
   }
 };
 #endif

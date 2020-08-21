@@ -15,7 +15,7 @@ if ($rpl_inited)
 
 # Send shutdown to the connected server and give
 # it 10 seconds to die before zapping it
-shutdown_server 10;
+shutdown_server;
 
 # Write file to make mysql-test-run.pl start up the server again
 --exec echo "restart:$_mysqld_option" > $_expect_file_name

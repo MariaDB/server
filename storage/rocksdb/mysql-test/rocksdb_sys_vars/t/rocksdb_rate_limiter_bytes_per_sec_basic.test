@@ -13,7 +13,7 @@ SET @@global.rocksdb_rate_limiter_bytes_per_sec = 10000;
 
 # Send shutdown to the connected server and give it 10 seconds to die before
 # zapping it
-shutdown_server 10;
+shutdown_server;
 
 # Attempt to restart the server with the rate limiter on
 --exec echo "restart:--rocksdb_rate_limiter_bytes_per_sec=10000" >$_expect_file_name
@@ -53,7 +53,7 @@ SET @@global.rocksdb_rate_limiter_bytes_per_sec = -1;
 
 # Restart the server without the rate limiter
 --exec echo "wait" >$_expect_file_name
-shutdown_server 10;
+shutdown_server;
 --exec echo "restart" >$_expect_file_name
 --sleep 5
 

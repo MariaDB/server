@@ -626,7 +626,7 @@ SELECT * FROM t1 WHERE a >= 30 ORDER BY a;
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 wait
 EOF
-shutdown_server 10;
+shutdown_server;
 --source include/wait_until_disconnected.inc
 
 --remove_file $datadir/master-bin.state

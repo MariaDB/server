@@ -87,19 +87,6 @@ struct Pool {
 		for (Element* elem = m_start; elem != m_last; ++elem) {
 
 			ut_ad(elem->m_pool == this);
-#ifdef __SANITIZE_ADDRESS__
-			/* Unpoison the memory for AddressSanitizer */
-			MEM_MAKE_ADDRESSABLE(&elem->m_type,
-					     sizeof elem->m_type);
-#endif
-#if defined HAVE_valgrind && !__has_feature(memory_sanitizer)
-			/* In Valgrind, we cannot cancel MEM_NOACCESS() without
-			changing the state of the V bits (which indicate
-			which bits are initialized).
-			We will declare the contents as initialized.
-			We did invoke MEM_CHECK_DEFINED() in mem_free(). */
-			MEM_MAKE_DEFINED(&elem->m_type, sizeof elem->m_type);
-#endif
 			Factory::destroy(&elem->m_type);
 		}
 
@@ -134,24 +121,6 @@ struct Pool {
 			elem = NULL;
 		}
 
-#if defined HAVE_valgrind || defined __SANITIZE_ADDRESS__
-		if (elem) {
-# ifdef __SANITIZE_ADDRESS__
-			/* Unpoison the memory for AddressSanitizer */
-			MEM_MAKE_ADDRESSABLE(&elem->m_type,
-					     sizeof elem->m_type);
-# endif
-# if defined HAVE_valgrind && !__has_feature(memory_sanitizer)
-			/* In Valgrind, we cannot cancel MEM_NOACCESS() without
-			changing the state of the V bits (which indicate
-			which bits are initialized).
-			We will declare the contents as initialized.
-			We did invoke MEM_CHECK_DEFINED() in mem_free(). */
-			MEM_MAKE_DEFINED(&elem->m_type, sizeof elem->m_type);
-# endif
-		}
-#endif
-
 		m_lock_strategy.exit();
 		return elem ? &elem->m_type : NULL;
 	}
@@ -164,12 +133,10 @@ struct Pool {
 		byte*		p = reinterpret_cast<byte*>(ptr + 1);
 
 		elem = reinterpret_cast<Element*>(p - sizeof(*elem));
-		MEM_CHECK_DEFINED(&elem->m_type, sizeof elem->m_type);
 
 		elem->m_pool->m_lock_strategy.enter();
 
 		elem->m_pool->putl(elem);
-		MEM_NOACCESS(&elem->m_type, sizeof elem->m_type);
 
 		elem->m_pool->m_lock_strategy.exit();
 	}
@@ -192,9 +159,6 @@ private:
 	void putl(Element* elem)
 	{
 		ut_ad(elem >= m_start && elem < m_last);
-
-		ut_ad(Factory::debug(&elem->m_type));
-
 		m_pqueue.push(elem);
 	}
 
