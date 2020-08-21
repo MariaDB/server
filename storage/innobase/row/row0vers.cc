@@ -455,11 +455,8 @@ row_vers_build_clust_v_col(
 	mem_heap_t*		heap,
 	purge_vcol_info_t*	vcol_info)
 {
-	mem_heap_t*	local_heap = NULL;
-	VCOL_STORAGE	*vcol_storage= NULL;
 	THD*		thd= current_thd;
 	TABLE*		maria_table= 0;
-	byte*		record= 0;
 
 	ut_ad(dict_index_has_virtual(index));
 	ut_ad(index->table == clust_index->table);
@@ -469,15 +466,12 @@ row_vers_build_clust_v_col(
 		maria_table = vcol_info->table();
 	}
 
-	innobase_allocate_row_for_vcol(thd, index,
-				       &local_heap,
-				       &maria_table,
-				       &record,
-				       &vcol_storage);
+	ib_vcol_row vc(NULL);
+	byte *record = vc.record(thd, index, &maria_table);
 
 	if (vcol_info && !vcol_info->table()) {
 		vcol_info->set_table(maria_table);
-		goto func_exit;
+		return;
 	}
 
 	for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
@@ -491,17 +485,10 @@ row_vers_build_clust_v_col(
 				ind_field->col);
 
 			innobase_get_computed_value(
-				row, col, clust_index, &local_heap,
+				row, col, clust_index, &vc.heap,
 				heap, NULL, thd, maria_table, record, NULL,
 				NULL, NULL);
 		}
-	}
-
-func_exit:
-	if (local_heap) {
-		if (vcol_storage)
-			innobase_free_row_for_vcol(vcol_storage);
-		mem_heap_free(local_heap);
 	}
 }
 

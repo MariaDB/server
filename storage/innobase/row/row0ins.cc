@@ -916,16 +916,15 @@ row_ins_invalidate_query_cache(
 @param[in]	index		clustered index of child table
 @param[in]	node		parent update node
 @param[in]	foreign		foreign key information
-@param[out]	err		error code. */
+@return		error code. */
 static
-void
+dberr_t
 row_ins_foreign_fill_virtual(
 	upd_node_t*		cascade,
 	const rec_t*		rec,
 	dict_index_t*		index,
 	upd_node_t*		node,
-	dict_foreign_t*		foreign,
-	dberr_t*		err)
+	dict_foreign_t*		foreign)
 {
 	THD*		thd = current_thd;
 	row_ext_t*	ext;
@@ -934,10 +933,7 @@ row_ins_foreign_fill_virtual(
 	const rec_offs*	offsets =
 		rec_get_offsets(rec, index, offsets_, true,
 				ULINT_UNDEFINED, &cascade->heap);
-	mem_heap_t*	v_heap = NULL;
 	TABLE*		mysql_table= NULL;
-	VCOL_STORAGE*	vcol_storage= NULL;
-	byte*		record;
 	upd_t*		update = cascade->update;
 	ulint		n_v_fld = index->table->n_v_def;
 	ulint		n_diff;
@@ -957,12 +953,10 @@ row_ins_foreign_fill_virtual(
 		innobase_init_vc_templ(index->table);
 	}
 
-	if (innobase_allocate_row_for_vcol(thd, index, &v_heap,
-                                           &mysql_table,
-                                           &record, &vcol_storage)) {
-		if (v_heap) mem_heap_free(v_heap);
-		*err = DB_OUT_OF_MEMORY;
-		goto func_exit;
+	ib_vcol_row vc(NULL);
+	uchar *record = vc.record(thd, index, &mysql_table);
+	if (!record) {
+		return DB_OUT_OF_MEMORY;
 	}
 
 	for (ulint i = 0; i < n_v_fld; i++) {
@@ -978,12 +972,11 @@ row_ins_foreign_fill_virtual(
 
 		dfield_t*	vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
-				&v_heap, update->heap, NULL, thd, mysql_table,
+				&vc.heap, update->heap, NULL, thd, mysql_table,
                                 record, NULL, NULL, NULL);
 
 		if (vfield == NULL) {
-			*err = DB_COMPUTE_VALUE_FAILED;
-			goto func_exit;
+			return DB_COMPUTE_VALUE_FAILED;
 		}
 
 		upd_field = upd_get_nth_field(update, n_diff);
@@ -1008,13 +1001,12 @@ row_ins_foreign_fill_virtual(
 
 			dfield_t* new_vfield = innobase_get_computed_value(
 					update->old_vrow, col, index,
-					&v_heap, update->heap, NULL, thd,
+					&vc.heap, update->heap, NULL, thd,
 					mysql_table, record, NULL,
 					node->update, foreign);
 
 			if (new_vfield == NULL) {
-				*err = DB_COMPUTE_VALUE_FAILED;
-				goto func_exit;
+				return DB_COMPUTE_VALUE_FAILED;
 			}
 
 			dfield_copy(&(upd_field->new_val), new_vfield);
@@ -1024,14 +1016,7 @@ row_ins_foreign_fill_virtual(
 	}
 
 	update->n_fields = n_diff;
-	*err = DB_SUCCESS;
-
-func_exit:
-	if (v_heap) {
-		if (vcol_storage)
-			innobase_free_row_for_vcol(vcol_storage);
-		mem_heap_free(v_heap);
-	}
+	return DB_SUCCESS;
 }
 
 #ifdef WITH_WSREP
@@ -1312,9 +1297,9 @@ row_ins_foreign_check_on_constraint(
 
 		if (foreign->v_cols != NULL
 		    && foreign->v_cols->size() > 0) {
-			row_ins_foreign_fill_virtual(
+			err = row_ins_foreign_fill_virtual(
 				cascade, clust_rec, clust_index,
-				node, foreign, &err);
+				node, foreign);
 
 			if (err != DB_SUCCESS) {
 				goto nonstandard_exit_func;
@@ -1351,9 +1336,9 @@ row_ins_foreign_check_on_constraint(
 			node, foreign, tmp_heap, trx);
 
 		if (foreign->v_cols && !foreign->v_cols->empty()) {
-			row_ins_foreign_fill_virtual(
+			err = row_ins_foreign_fill_virtual(
 				cascade, clust_rec, clust_index,
-				node, foreign, &err);
+				node, foreign);
 
 			if (err != DB_SUCCESS) {
 				goto nonstandard_exit_func;

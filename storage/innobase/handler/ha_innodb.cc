@@ -21820,64 +21820,53 @@ innobase_get_field_from_update_vector(
    Allocate a heap and record for calculating virtual fields
    Used mainly for virtual fields in indexes
 
-@param[in]	thd		MariaDB THD
-@param[in]	index		Index in use
-@param[out]	heap		Heap that holds temporary row
-@param[in,out]	table		MariaDB table
-@param[out]	record		Pointer to allocated MariaDB record
-@param[out]	storage		Internal storage for blobs etc
+@param[in]      thd             MariaDB THD
+@param[in]      index           Index in use
+@param[out]     heap            Heap that holds temporary row
+@param[in,out]  table           MariaDB table
+@param[out]     record	        Pointer to allocated MariaDB record
+@param[out]     storage	        Internal storage for blobs etc
 
-@retval		false on success
-@retval		true on malloc failure or failed to open the maria table
+@retval		true on success
+@retval		false on malloc failure or failed to open the maria table
 		for purge thread.
 */
 
-bool innobase_allocate_row_for_vcol(
-				    THD *	  thd,
-				    dict_index_t* index,
-				    mem_heap_t**  heap,
-				    TABLE**	  table,
-				    byte**	  record,
-				    VCOL_STORAGE** storage)
+bool innobase_allocate_row_for_vcol(THD *thd, dict_index_t *index,
+                                    mem_heap_t **heap, TABLE **table,
+                                    VCOL_STORAGE *storage)
 {
-	TABLE *maria_table;
-	String *blob_value_storage;
-	if (!*table)
-		*table= innodb_find_table_for_vc(thd, index->table);
+  TABLE *maria_table;
+  String *blob_value_storage;
+  if (!*table)
+    *table = innodb_find_table_for_vc(thd, index->table);
 
-	/* For purge thread, there is a possiblity that table could have
-	dropped, corrupted or unaccessible. */
-	if (!*table)
-		return true;
-	maria_table= *table;
-	if (!*heap && !(*heap= mem_heap_create(srv_page_size)))
-	{
-		*storage= 0;
-		return TRUE;
-	}
-	*record= static_cast<byte*>(mem_heap_alloc(*heap,
-                                                   maria_table->s->reclength));
-	*storage= static_cast<VCOL_STORAGE*>
-          (mem_heap_alloc(*heap, sizeof(**storage)));
-	blob_value_storage= static_cast<String*>
-          (mem_heap_alloc(*heap,
-                          maria_table->s->virtual_not_stored_blob_fields *
-                          sizeof(String)));
-	if (!*record || !*storage || !blob_value_storage)
-	{
-		*storage= 0;
-		return TRUE;
-	}
-	(*storage)->maria_table= maria_table;
-	(*storage)->innobase_record= *record;
-	(*storage)->maria_record= maria_table->field[0]->record_ptr();
-	(*storage)->blob_value_storage= blob_value_storage;
+  /* For purge thread, there is a possiblity that table could have
+     dropped, corrupted or unaccessible. */
+  if (!*table)
+    return false;
+  maria_table = *table;
+  if (!*heap && !(*heap = mem_heap_create(srv_page_size)))
+    return false;
 
-	maria_table->move_fields(maria_table->field, *record,
-				 (*storage)->maria_record);
-	maria_table->remember_blob_values(blob_value_storage);
+  uchar *record = static_cast<byte *>(mem_heap_alloc(*heap,
+                                                    maria_table->s->reclength));
 
-	return FALSE;
+  size_t len = maria_table->s->virtual_not_stored_blob_fields * sizeof(String);
+  blob_value_storage = static_cast<String *>(mem_heap_alloc(*heap, len));
+
+  if (!record || !blob_value_storage)
+    return false;
+
+  storage->maria_table = maria_table;
+  storage->innobase_record = record;
+  storage->maria_record = maria_table->field[0]->record_ptr();
+  storage->blob_value_storage = blob_value_storage;
+
+  maria_table->move_fields(maria_table->field, record, storage->maria_record);
+  maria_table->remember_blob_values(blob_value_storage);
+
+  return true;
 }
 
 

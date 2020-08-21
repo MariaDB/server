@@ -176,9 +176,6 @@ row_sel_sec_rec_is_for_clust_rec(
 	rec_offs	sec_offsets_[REC_OFFS_SMALL_SIZE];
 	rec_offs*	clust_offs	= clust_offsets_;
 	rec_offs*	sec_offs	= sec_offsets_;
-	ibool		is_equal	= TRUE;
-	VCOL_STORAGE*	vcol_storage= 0;
-	byte*		record;
 
 	rec_offs_init(clust_offsets_);
 	rec_offs_init(sec_offsets_);
@@ -197,6 +194,7 @@ row_sel_sec_rec_is_for_clust_rec(
 	}
 
 	heap = mem_heap_create(256);
+	ib_vcol_row vc(heap);
 
 	clust_offs = rec_get_offsets(clust_rec, clust_index, clust_offs,
 				     true, ULINT_UNDEFINED, &heap);
@@ -225,16 +223,9 @@ row_sel_sec_rec_is_for_clust_rec(
 			dfield_t*		vfield;
 			row_ext_t*		ext;
 
-			if (!vcol_storage)
-			{
-				TABLE *mysql_table= thr->prebuilt->m_mysql_table;
-				innobase_allocate_row_for_vcol(thr_get_trx(thr)->mysql_thd,
-							       clust_index,
-							       &heap,
-							       &mysql_table,
-							       &record,
-							       &vcol_storage);
-			}
+			byte *record = vc.record(thr_get_trx(thr)->mysql_thd,
+						 clust_index,
+						 &thr->prebuilt->m_mysql_table);
 
 			v_col = reinterpret_cast<const dict_v_col_t*>(col);
 
@@ -284,7 +275,7 @@ row_sel_sec_rec_is_for_clust_rec(
 					    sec_field, sec_len,
 					    ifield->prefix_len,
 					    clust_index->table)) {
-					goto inequal;
+					return FALSE;
 				}
 
 				continue;
@@ -320,28 +311,19 @@ row_sel_sec_rec_is_for_clust_rec(
 			rtr_read_mbr(sec_field, &sec_mbr);
 
 			if (!MBR_EQUAL_CMP(&sec_mbr, &tmp_mbr)) {
-				is_equal = FALSE;
-				goto func_exit;
+				return FALSE;
 			}
 		} else {
 
 			if (0 != cmp_data_data(col->mtype, col->prtype,
 					       clust_field, len,
 					       sec_field, sec_len)) {
-inequal:
-				is_equal = FALSE;
-				goto func_exit;
+				return FALSE;
 			}
 		}
 	}
 
-func_exit:
-	if (UNIV_LIKELY_NULL(heap)) {
-		if (UNIV_LIKELY_NULL(vcol_storage))
-			innobase_free_row_for_vcol(vcol_storage);
-		mem_heap_free(heap);
-	}
-	return(is_equal);
+	return TRUE;
 }
 
 /*********************************************************************//**

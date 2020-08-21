@@ -814,6 +814,8 @@ struct VCOL_STORAGE
 	byte *innobase_record;
 	byte *maria_record;
 	String *blob_value_storage;
+	VCOL_STORAGE(): maria_table(NULL), innobase_record(NULL),
+		maria_record(NULL),  blob_value_storage(NULL) {}
 };
 
 /**
@@ -836,11 +838,41 @@ bool innobase_allocate_row_for_vcol(
 				    dict_index_t* index,
 				    mem_heap_t**  heap,
 				    TABLE**	  table,
-				    byte**	  record,
-				    VCOL_STORAGE** storage);
+				    VCOL_STORAGE* storage);
 
 /** Free memory allocated by innobase_allocate_row_for_vcol() */
 void innobase_free_row_for_vcol(VCOL_STORAGE *storage);
+
+class ib_vcol_row
+{
+  VCOL_STORAGE storage;
+public:
+  mem_heap_t *heap;
+
+  ib_vcol_row(mem_heap_t *heap) : heap(heap) {}
+
+  byte *record(THD *thd, dict_index_t *index, TABLE **table)
+  {
+    if (!storage.innobase_record)
+    {
+      bool ok = innobase_allocate_row_for_vcol(thd, index, &heap, table,
+                                               &storage);
+      if (!ok)
+        return NULL;
+    }
+    return storage.innobase_record;
+  };
+
+  ~ib_vcol_row()
+  {
+    if (heap)
+    {
+      if (storage.innobase_record)
+        innobase_free_row_for_vcol(&storage);
+      mem_heap_free(heap);
+    }
+  }
+};
 
 /** Get the computed value by supplying the base column values.
 @param[in,out]	row		the data row

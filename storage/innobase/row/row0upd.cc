@@ -1116,10 +1116,6 @@ row_upd_build_difference_binary(
 	for purge/mvcc purpose) */
 	if (n_v_fld > 0) {
 		row_ext_t*	ext;
-		mem_heap_t*	v_heap = NULL;
-		byte*		record;
-		VCOL_STORAGE*	vcol_storage;
-
 		THD*		thd;
 
 		if (trx == NULL) {
@@ -1130,9 +1126,8 @@ row_upd_build_difference_binary(
 
 		ut_ad(!update->old_vrow);
 
-		innobase_allocate_row_for_vcol(thd, index, &v_heap,
-					       &mysql_table,
-					       &record, &vcol_storage);
+		ib_vcol_row vc(NULL);
+		uchar *record = vc.record(thd, index, &mysql_table);
 
 		for (i = 0; i < n_v_fld; i++) {
 			const dict_v_col_t*     col
@@ -1150,10 +1145,9 @@ row_upd_build_difference_binary(
 
 			dfield_t*	vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
-				&v_heap, heap, NULL, thd, mysql_table, record,
+				&vc.heap, heap, NULL, thd, mysql_table, record,
 				NULL, NULL, NULL);
 			if (vfield == NULL) {
-				if (v_heap) mem_heap_free(v_heap);
 				*error = DB_COMPUTE_VALUE_FAILED;
 				return(NULL);
 			}
@@ -1181,12 +1175,6 @@ row_upd_build_difference_binary(
 				n_diff++;
 
 			}
-		}
-
-		if (v_heap) {
-			if (vcol_storage)
-				innobase_free_row_for_vcol(vcol_storage);
-			mem_heap_free(v_heap);
 		}
 	}
 
@@ -2122,14 +2110,8 @@ row_upd_store_v_row(
 	THD*		thd,
 	TABLE*		mysql_table)
 {
-	mem_heap_t*	heap = NULL;
 	dict_index_t*	index = dict_table_get_first_index(node->table);
-        byte*           record= 0;
-	VCOL_STORAGE	*vcol_storage= 0;
-
-	if (!update)
-	  innobase_allocate_row_for_vcol(thd, index, &heap, &mysql_table,
-					 &record, &vcol_storage);
+	ib_vcol_row	vc(NULL);
 
 	for (ulint col_no = 0; col_no < dict_table_get_n_v_cols(node->table);
 	     col_no++) {
@@ -2179,24 +2161,19 @@ row_upd_store_v_row(
 						dfield_dup(dfield, node->heap);
 					}
 				} else {
+					uchar *record = vc.record(thd, index,
+								  &mysql_table);
 					/* Need to compute, this happens when
 					deleting row */
 					innobase_get_computed_value(
 						node->row, col, index,
-						&heap, node->heap, NULL,
-						thd, mysql_table, record, NULL,
-						NULL, NULL);
+						&vc.heap, node->heap,
+						NULL, thd, mysql_table,
+						record, NULL, NULL, NULL);
 				}
 			}
 		}
 	}
-
-	if (heap) {
-		if (vcol_storage)
-			innobase_free_row_for_vcol(vcol_storage);
-		mem_heap_free(heap);
-	}
-
 }
 
 /** Stores to the heap the row on which the node->pcur is positioned.

@@ -1076,16 +1076,17 @@ struct rec_offsets_print
 @param[in,out]	o	output stream
 @param[in]	r	record to display
 @return	the output stream */
+ATTRIBUTE_COLD
 std::ostream&
 operator<<(std::ostream& o, const rec_offsets_print& r);
 
-# ifndef DBUG_OFF
 /** Pretty-printer of records and tuples */
 class rec_printer : public std::ostringstream {
 public:
 	/** Construct a pretty-printed record.
 	@param rec	record with header
 	@param offsets	rec_get_offsets(rec, ...) */
+	ATTRIBUTE_COLD
 	rec_printer(const rec_t* rec, const rec_offs* offsets)
 		:
 		std::ostringstream ()
@@ -1099,6 +1100,7 @@ public:
 	@param rec record, possibly lacking header
 	@param info rec_get_info_bits(rec)
 	@param offsets rec_get_offsets(rec, ...) */
+	ATTRIBUTE_COLD
 	rec_printer(const rec_t* rec, ulint info, const rec_offs* offsets)
 		:
 		std::ostringstream ()
@@ -1108,6 +1110,7 @@ public:
 
 	/** Construct a pretty-printed tuple.
 	@param tuple	data tuple */
+	ATTRIBUTE_COLD
 	rec_printer(const dtuple_t* tuple)
 		:
 		std::ostringstream ()
@@ -1118,6 +1121,7 @@ public:
 	/** Construct a pretty-printed tuple.
 	@param field	array of data tuple fields
 	@param n	number of fields */
+	ATTRIBUTE_COLD
 	rec_printer(const dfield_t* field, ulint n)
 		:
 		std::ostringstream ()
@@ -1134,7 +1138,7 @@ private:
 	/** Assignment operator */
 	rec_printer& operator=(const rec_printer& other);
 };
-# endif /* !DBUG_OFF */
+
 
 # ifdef UNIV_DEBUG
 /** Read the DB_TRX_ID of a clustered index record.
