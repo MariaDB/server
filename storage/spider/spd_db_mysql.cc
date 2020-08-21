@@ -6890,11 +6890,11 @@ int spider_db_mbase_util::open_item_func(
           (Item_func_conv_charset *)item_func;
         CHARSET_INFO *conv_charset =
           item_func_conv_charset->SPIDER_Item_func_conv_charset_conv_charset;
-        uint cset_length = strlen(conv_charset->csname);
+        uint cset_length = conv_charset->cs_name.length;
         if (str->reserve(SPIDER_SQL_USING_LEN + cset_length))
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         str->q_append(SPIDER_SQL_USING_STR, SPIDER_SQL_USING_LEN);
-        str->q_append(conv_charset->csname, cset_length);
+        str->q_append(conv_charset->cs_name.str, cset_length);
       }
     }
   }
@@ -7036,8 +7036,8 @@ int spider_db_mbase_util::append_escaped_util(
 ) {
   DBUG_ENTER("spider_db_mbase_util::append_escaped_util");
   DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_PRINT("info",("spider from=%s", from->charset()->csname));
-  DBUG_PRINT("info",("spider to=%s", to->charset()->csname));
+  DBUG_PRINT("info",("spider from=%s", from->charset()->cs_name.str));
+  DBUG_PRINT("info",("spider to=%s", to->charset()->cs_name.str));
   to->append_escape_string(from->ptr(), from->length());
   DBUG_RETURN(0);
 }
@@ -9051,11 +9051,11 @@ int spider_mbase_handler::append_key_column_types(
     if (field->has_charset())
     {
       CHARSET_INFO *cs = field->charset();
-      uint coll_length = strlen(cs->name);
+      uint coll_length = cs->coll_name.length;
       if (str->reserve(SPIDER_SQL_COLLATE_LEN + coll_length))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       str->q_append(SPIDER_SQL_COLLATE_STR, SPIDER_SQL_COLLATE_LEN);
-      str->q_append(cs->name, coll_length);
+      str->q_append(cs->coll_name.str, coll_length);
     }
 
     if (str->reserve(SPIDER_SQL_COMMA_LEN))
@@ -9304,8 +9304,8 @@ int spider_mbase_handler::append_create_tmp_bka_table(
   THD *thd = spider->wide_handler->trx->thd;
   char *bka_engine = spider_param_bka_engine(thd, share->bka_engine);
   uint bka_engine_length = strlen(bka_engine),
-    cset_length = strlen(table_charset->csname),
-    coll_length = strlen(table_charset->name);
+    cset_length = table_charset->cs_name.length,
+    coll_length = table_charset->coll_name.length;
   DBUG_ENTER("spider_mbase_handler::append_create_tmp_bka_table");
   if (str->reserve(SPIDER_SQL_CREATE_TMP_LEN + tmp_table_name_length +
     SPIDER_SQL_OPEN_PAREN_LEN + SPIDER_SQL_ID_LEN + SPIDER_SQL_ID_TYPE_LEN +
@@ -9327,9 +9327,9 @@ int spider_mbase_handler::append_create_tmp_bka_table(
   str->q_append(SPIDER_SQL_ENGINE_STR, SPIDER_SQL_ENGINE_LEN);
   str->q_append(bka_engine, bka_engine_length);
   str->q_append(SPIDER_SQL_DEF_CHARSET_STR, SPIDER_SQL_DEF_CHARSET_LEN);
-  str->q_append(table_charset->csname, cset_length);
+  str->q_append(table_charset->cs_name.str, cset_length);
   str->q_append(SPIDER_SQL_COLLATE_STR, SPIDER_SQL_COLLATE_LEN);
-  str->q_append(table_charset->name, coll_length);
+  str->q_append(table_charset->coll_name.str, coll_length);
   str->q_append(SPIDER_SQL_SEMICOLON_STR, SPIDER_SQL_SEMICOLON_LEN);
   DBUG_RETURN(0);
 }

@@ -625,8 +625,8 @@ struct charset_info_st my_charset_latin2_czech_ci =
     2,0,0,                                      /* number    */
     MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_CSSORT|
     MY_CS_STRNXFRM_BAD_NWEIGHTS|MY_CS_NON1TO1,  /* state     */
-    charset_name_latin2,                                   /* cs name   */
-    "latin2_czech_cs",                          /* name      */
+    { charset_name_latin2, charset_name_latin2_length}, /* cs_name */
+    { STRING_WITH_LEN("latin2_czech_cs")},      /* col_name      */
     "",                                         /* comment   */
     NULL,                                       /* tailoring */
     ctype_czech,

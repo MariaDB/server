@@ -1075,14 +1075,12 @@ sp_returns_type(THD *thd, String &result, const sp_head *sp)
 
   if (field->has_charset())
   {
-    const char *name= field->charset()->csname;
     result.append(STRING_WITH_LEN(" CHARSET "));
-    result.append(name, strlen(name));
+    result.append(field->charset()->cs_name);
     if (!(field->charset()->state & MY_CS_PRIMARY))
     {
-      name= field->charset()->name;
       result.append(STRING_WITH_LEN(" COLLATE "));
-      result.append(name, strlen(name));
+      result.append(field->charset()->coll_name);
     }
   }
 
@@ -1428,22 +1426,19 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
 
     table->field[MYSQL_PROC_FIELD_CHARACTER_SET_CLIENT]->set_notnull();
     store_failed= store_failed ||
-      table->field[MYSQL_PROC_FIELD_CHARACTER_SET_CLIENT]->store(
-        thd->charset()->csname,
-        strlen(thd->charset()->csname),
-        system_charset_info);
+      table->field[MYSQL_PROC_FIELD_CHARACTER_SET_CLIENT]->
+      store(&thd->charset()->cs_name, system_charset_info);
 
     table->field[MYSQL_PROC_FIELD_COLLATION_CONNECTION]->set_notnull();
     store_failed= store_failed ||
-      table->field[MYSQL_PROC_FIELD_COLLATION_CONNECTION]->store(
-        thd->variables.collation_connection->name,
-        strlen(thd->variables.collation_connection->name),
-        system_charset_info);
+      table->field[MYSQL_PROC_FIELD_COLLATION_CONNECTION]->
+      store(&thd->variables.collation_connection->coll_name,
+            system_charset_info);
 
     table->field[MYSQL_PROC_FIELD_DB_COLLATION]->set_notnull();
     store_failed= store_failed ||
-      table->field[MYSQL_PROC_FIELD_DB_COLLATION]->store(
-        db_cs->name, strlen(db_cs->name), system_charset_info);
+      table->field[MYSQL_PROC_FIELD_DB_COLLATION]->
+      store(&db_cs->coll_name, system_charset_info);
 
     table->field[MYSQL_PROC_FIELD_BODY_UTF8]->set_notnull();
     store_failed= store_failed ||

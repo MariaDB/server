@@ -937,11 +937,9 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
       - connection collation contains pair {character set, collation};
       - database collation contains pair {character set, collation};
   */
-  lex_string_set(&trigger->client_cs_name, thd->charset()->csname);
-  lex_string_set(&trigger->connection_cl_name,
-                 thd->variables.collation_connection->name);
-  lex_string_set(&trigger->db_cl_name,
-                 get_default_db_collation(thd, tables->db.str)->name);
+  trigger->client_cs_name= thd->charset()->cs_name;
+  trigger->connection_cl_name= thd->variables.collation_connection->coll_name;
+  trigger->db_cl_name= get_default_db_collation(thd, tables->db.str)->coll_name;
 
   /* Add trigger in it's correct place */
   add_trigger(lex->trg_chistics.event,
@@ -1505,12 +1503,9 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
                                         lex.raw_trg_on_table_name_begin);
 
         /* Copy pointers to character sets to make trigger easier to use */
-        lex_string_set(&trigger->client_cs_name,
-                       creation_ctx->get_client_cs()->csname);
-        lex_string_set(&trigger->connection_cl_name,
-                       creation_ctx->get_connection_cl()->name);
-        lex_string_set(&trigger->db_cl_name,
-                       creation_ctx->get_db_cl()->name);
+        trigger->client_cs_name= creation_ctx->get_client_cs()->cs_name;
+        trigger->connection_cl_name= creation_ctx->get_connection_cl()->coll_name;
+        trigger->db_cl_name= creation_ctx->get_db_cl()->coll_name;
 
         /* event can only be TRG_EVENT_MAX in case of fatal parse errors */
         if (lex.trg_chistics.event != TRG_EVENT_MAX)

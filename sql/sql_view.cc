@@ -1094,11 +1094,10 @@ loop_out:
     frm-file.
   */
 
-  lex_string_set(&view->view_client_cs_name,
-                 view->view_creation_ctx->get_client_cs()->csname);
+  view->view_client_cs_name= view->view_creation_ctx->get_client_cs()->cs_name;
 
-  lex_string_set(&view->view_connection_cl_name,
-                 view->view_creation_ctx->get_connection_cl()->name);
+  view->view_connection_cl_name=
+    view->view_creation_ctx->get_connection_cl()->coll_name;
 
   if (!thd->make_lex_string(&view->view_body_utf8, is_query.ptr(),
                             is_query.length()))

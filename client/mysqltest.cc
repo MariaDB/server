@@ -6010,7 +6010,7 @@ void do_connect(struct st_command *command)
   if (opt_compress || con_compress)
     mysql_options(con_slot->mysql, MYSQL_OPT_COMPRESS, NullS);
   mysql_options(con_slot->mysql, MYSQL_SET_CHARSET_NAME,
-                csname?csname: charset_info->csname);
+                csname ? csname : charset_info->cs_name.str);
   if (opt_charsets_dir)
     mysql_options(con_slot->mysql, MYSQL_SET_CHARSET_DIR,
                   opt_charsets_dir);
@@ -9259,7 +9259,7 @@ int main(int argc, char **argv)
   if (opt_compress)
     mysql_options(con->mysql,MYSQL_OPT_COMPRESS,NullS);
   mysql_options(con->mysql, MYSQL_SET_CHARSET_NAME,
-                charset_info->csname);
+                charset_info->cs_name.str);
   if (opt_charsets_dir)
     mysql_options(con->mysql, MYSQL_SET_CHARSET_DIR,
                   opt_charsets_dir);

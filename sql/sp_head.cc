@@ -3110,9 +3110,12 @@ sp_head::show_create_routine(THD *thd, const Sp_handler *sph)
     protocol->store_null();
 
 
-  protocol->store(m_creation_ctx->get_client_cs()->csname, system_charset_info);
-  protocol->store(m_creation_ctx->get_connection_cl()->name, system_charset_info);
-  protocol->store(m_creation_ctx->get_db_cl()->name, system_charset_info);
+  protocol->store(&m_creation_ctx->get_client_cs()->cs_name,
+                  system_charset_info);
+  protocol->store(&m_creation_ctx->get_connection_cl()->coll_name,
+                  system_charset_info);
+  protocol->store(&m_creation_ctx->get_db_cl()->coll_name,
+                  system_charset_info);
 
   err_status= protocol->write();
 

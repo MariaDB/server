@@ -7708,8 +7708,8 @@ bool HA_CREATE_INFO::check_conflicting_charset_declarations(CHARSET_INFO *cs)
   {
     my_error(ER_CONFLICTING_DECLARATIONS, MYF(0),
              "CHARACTER SET ", default_table_charset ?
-                               default_table_charset->csname : "DEFAULT",
-             "CHARACTER SET ", cs ? cs->csname : "DEFAULT");
+                               default_table_charset->cs_name.str : "DEFAULT",
+             "CHARACTER SET ", cs ? cs->cs_name.str : "DEFAULT");
     return true;
   }
   return false;

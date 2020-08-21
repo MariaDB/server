@@ -867,7 +867,7 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
      */
     qualify_db= db_arg;
   }
-  lle.print_query(thd, FALSE, (const char *) ex->cs?ex->cs->csname:NULL,
+  lle.print_query(thd, FALSE, (const char*) ex->cs ? ex->cs->cs_name.str : NULL,
                   &query_str, &fname_start, &fname_end, qualify_db);
 
   /*

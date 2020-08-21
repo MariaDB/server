@@ -202,7 +202,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
     {  \
       if (unlikely(Lex->charset && !my_charset_same(Lex->charset,X)))  \
         my_yyabort_error((ER_COLLATION_CHARSET_MISMATCH, MYF(0),  \
-                          X->name,Lex->charset->csname));  \
+                          X->coll_name.str,Lex->charset->cs_name.str));  \
       Lex->charset= X;  \
     }  \
   } while(0)
@@ -6581,7 +6581,7 @@ attribute:
           {
             if (unlikely(Lex->charset && !my_charset_same(Lex->charset,$2)))
               my_yyabort_error((ER_COLLATION_CHARSET_MISMATCH, MYF(0),
-                                $2->name,Lex->charset->csname));
+                                $2->coll_name.str, Lex->charset->cs_name.str));
             Lex->last_field->charset= $2;
           }
         | serial_attribute
@@ -6799,7 +6799,7 @@ binary:
           {
             if (!my_charset_same(Lex->charset, $1))
               my_yyabort_error((ER_COLLATION_CHARSET_MISMATCH, MYF(0),
-                                Lex->charset->name, $1->csname));
+                                Lex->charset->coll_name.str, $1->cs_name.str));
           }
         | collate { }
         ;
@@ -7882,7 +7882,7 @@ alter_list_item:
             $5= $5 ? $5 : $4;
             if (unlikely(!my_charset_same($4,$5)))
               my_yyabort_error((ER_COLLATION_CHARSET_MISMATCH, MYF(0),
-                                $5->name, $4->csname));
+                                $5->coll_name.str, $4->cs_name.str));
             if (unlikely(Lex->create_info.add_alter_list_item_convert_to_charset($5)))
               MYSQL_YYABORT;
             Lex->alter_info.flags|= ALTER_CONVERT_TO;
@@ -16757,7 +16757,7 @@ option_value_no_option_type:
             if (unlikely(!my_charset_same(cs2, cs3)))
             {
               my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0),
-                       cs3->name, cs2->csname);
+                       cs3->coll_name.str, cs2->cs_name.str);
               MYSQL_YYABORT;
             }
             set_var_collation_client *var;

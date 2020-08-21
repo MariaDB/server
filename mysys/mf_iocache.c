@@ -153,7 +153,7 @@ init_functions(IO_CACHE* info)
 int init_io_cache_ext(IO_CACHE *info, File file, size_t cachesize,
                       enum cache_type type, my_off_t seek_offset,
                       pbool use_async_io, myf cache_myflags,
-                      PSI_file_key file_key)
+                      PSI_file_key file_key __attribute__((unused)))
 {
   size_t min_cache;
   my_off_t pos;

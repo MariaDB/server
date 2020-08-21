@@ -2580,8 +2580,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         {
           // 3.23 or 4.0 string
           myf utf8_flag= thd->get_utf8_flag();
-          if (!(attr.charset= get_charset_by_csname(share->table_charset->csname,
-                                                         MY_CS_BINSORT,
+          if (!(attr.charset= get_charset_by_csname(share->table_charset->
+                                                    cs_name.str,
+                                                    MY_CS_BINSORT,
                                                     MYF(utf8_flag))))
             attr.charset= &my_charset_bin;
         }
@@ -5187,7 +5188,7 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
         error= TRUE;
       }
       else if (field_def->cset.str &&
-               strcmp(field->charset()->csname, field_def->cset.str))
+               strcmp(field->charset()->cs_name.str, field_def->cset.str))
       {
         report_error(0, "Incorrect definition of table %s.%s: "
                      "expected the type of column '%s' at position %d "
@@ -5195,7 +5196,7 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
                      "character set '%s'.", table->s->db.str,
                      table->alias.c_ptr(),
                      field_def->name.str, i, field_def->cset.str,
-                     field->charset()->csname);
+                     field->charset()->cs_name.str);
         error= TRUE;
       }
     }

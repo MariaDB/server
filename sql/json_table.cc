@@ -914,7 +914,7 @@ int Json_table_column::print(THD *thd, Field **f, String *str)
     if (str->append(column_type) ||
         ((*f)->has_charset() && m_explicit_cs &&
          (str->append(STRING_WITH_LEN(" CHARSET ")) ||
-          str->append(m_explicit_cs->csname, strlen(m_explicit_cs->csname)))) ||
+          str->append(&m_explicit_cs->cs_name))) ||
         str->append(m_column_type == PATH ? &path : &exists_path) ||
         print_path(str, &m_path))
       return 1;

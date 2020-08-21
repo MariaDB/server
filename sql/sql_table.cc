@@ -4658,13 +4658,13 @@ bool validate_comment_length(THD *thd, LEX_CSTRING *comment, size_t max_len,
       if (thd->is_strict_mode())
       {
          my_error(ER_INVALID_CHARACTER_STRING, MYF(0),
-                  system_charset_info->csname, comment->str);
+                  system_charset_info->cs_name.str, comment->str);
          DBUG_RETURN(true);
       }
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_INVALID_CHARACTER_STRING,
                           ER_THD(thd, ER_INVALID_CHARACTER_STRING),
-                          system_charset_info->csname, comment->str);
+                          system_charset_info->cs_name.str, comment->str);
       comment->length= tmp_len;
       DBUG_RETURN(false);
     }

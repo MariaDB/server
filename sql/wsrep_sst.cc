@@ -1526,10 +1526,10 @@ static int sst_flush_tables(THD* thd)
   if (!is_supported_parser_charset(current_charset))
   {
       /* Do not use non-supported parser character sets */
-      WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->csname);
+      WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->cs_name.str);
       thd->variables.character_set_client= &my_charset_latin1;
       WSREP_WARN("For SST temporally setting character set to : %s",
-                 my_charset_latin1.csname);
+                 my_charset_latin1.cs_name.str);
   }
 
   if (run_sql_command(thd, "FLUSH TABLES WITH READ LOCK"))
@@ -1628,10 +1628,10 @@ static void sst_disallow_writes (THD* thd, bool yes)
   if (!is_supported_parser_charset(current_charset))
   {
       /* Do not use non-supported parser character sets */
-      WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->csname);
+      WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->cs_name.str);
       thd->variables.character_set_client= &my_charset_latin1;
       WSREP_WARN("For SST temporally setting character set to : %s",
-                 my_charset_latin1.csname);
+                 my_charset_latin1.cs_name.str);
   }
 
   snprintf (query_str, query_max, "SET GLOBAL innodb_disallow_writes=%d",

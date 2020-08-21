@@ -344,7 +344,7 @@ private:
       fflush(stdout);
       fprintf(stderr,
               "Illegal %s byte sequence at position %d\n",
-              m_fromcs->csname,
+              m_fromcs->cs_name.str,
               (uint) (well_formed_error_pos() - from));
     }
     else if (cannot_convert_error_pos())
@@ -352,7 +352,7 @@ private:
       fflush(stdout);
       fprintf(stderr,
               "Conversion from %s to %s failed at position %d\n",
-              m_fromcs->csname, m_tocs->csname,
+              m_fromcs->cs_name.str, m_tocs->cs_name.str,
               (uint) (cannot_convert_error_pos() - from));
     }
   }
@@ -453,7 +453,7 @@ int main(int argc, char *argv[])
         charset_info_to->mbminlen > 1)
     {
       fprintf(stderr, "--delimiter cannot be used with %s to %s conversion\n",
-              charset_info_from->csname, charset_info_to->csname);
+              charset_info_from->cs_name.str, charset_info_to->cs_name.str);
       return 1;
     }
     if (conv.set_delimiter_unescape(opt.m_delimiter))
