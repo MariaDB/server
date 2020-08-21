@@ -4234,7 +4234,7 @@ fts_sync_commit(
 			<< " ins/sec";
 	}
 
-	/* Avoid assertion in trx_free(). */
+	/* Avoid assertion in trx_t::free(). */
 	trx->dict_operation_lock_mode = 0;
 	trx_free_for_background(trx);
 
@@ -4288,7 +4288,7 @@ fts_sync_rollback(
 
 	fts_sql_rollback(trx);
 
-	/* Avoid assertion in trx_free(). */
+	/* Avoid assertion in trx_t::free(). */
 	trx->dict_operation_lock_mode = 0;
 	trx_free_for_background(trx);
 }

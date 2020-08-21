@@ -73,12 +73,9 @@ Creates a transaction object for MySQL.
 trx_t*
 trx_allocate_for_mysql(void);
 /*========================*/
-/********************************************************************//**
-Creates a transaction object for background operations by the master thread.
-@return own: transaction object */
-trx_t*
-trx_allocate_for_background(void);
-/*=============================*/
+
+/** @return allocated transaction object for internal operations */
+trx_t *trx_allocate_for_background();
 
 /** Frees and initialize a transaction object instantinated during recovery.
 @param trx trx object to free and initialize during recovery */
@@ -917,7 +914,8 @@ public:
 					the coordinator using the XA API, and
 					is set to false  after commit or
 					rollback. */
-	unsigned	active_commit_ordered:1;/* 1 if owns prepare mutex */
+	/** whether this is holding the prepare mutex */
+	bool		active_commit_ordered;
 	/*------------------------------*/
 	bool		check_unique_secondary;
 					/*!< normally TRUE, but if the user
@@ -1203,6 +1201,9 @@ public:
     my_atomic_add32_explicit(&n_ref, -1, MY_MEMORY_ORDER_RELAXED);
     ut_ad(old_n_ref > 0);
   }
+
+  /** Free the memory to trx_pools */
+  inline void free();
 
 
 private:
