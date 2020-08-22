@@ -1401,6 +1401,8 @@ public:
   void copy_from_tmp(int offset);
   uint fill_cache_field(struct st_cache_field *copy);
   virtual bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  virtual longlong val_datetime_packed(THD *thd);
+  virtual longlong val_time_packed(THD *thd);
   virtual TYPELIB *get_typelib() const { return NULL; }
   virtual CHARSET_INFO *charset(void) const { return &my_charset_bin; }
   virtual CHARSET_INFO *charset_for_protocol(void) const
@@ -3167,6 +3169,7 @@ public:
   void sql_type(String &str) const;
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return Field_newdate::get_TIME(ltime, ptr, fuzzydate); }
+  longlong val_datetime_packed(THD *thd);
   uint size_of() const { return sizeof(*this); }
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item);
 };
@@ -3336,6 +3339,7 @@ public:
   }
   int reset();
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  longlong val_time_packed(THD *thd);
   int store_native(const Native &value);
   bool val_native(Native *to);
   uint size_of() const { return sizeof(*this); }
@@ -3495,6 +3499,7 @@ public:
   int reset();
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
   { return Field_datetimef::get_TIME(ltime, ptr, fuzzydate); }
+  longlong val_datetime_packed(THD *thd);
   uint size_of() const { return sizeof(*this); }
 };
 

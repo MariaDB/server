@@ -3418,6 +3418,8 @@ public:
   longlong val_int_endpoint(bool left_endp, bool *incl_endp);
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
   bool get_date_result(THD *thd, MYSQL_TIME *ltime,date_mode_t fuzzydate);
+  longlong val_datetime_packed(THD *thd);
+  longlong val_time_packed(THD *thd);
   bool is_null() { return field->is_null(); }
   void update_null_value();
   void update_table_bitmaps()

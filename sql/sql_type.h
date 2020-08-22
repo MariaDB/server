@@ -1542,6 +1542,13 @@ public:
   Time(int *warn, bool neg, ulonglong hour, uint minute, const Sec6 &second);
   Time() { time_type= MYSQL_TIMESTAMP_NONE; }
   Time(const Native &native);
+  Time(THD *thd, const MYSQL_TIME *ltime, const Options opt)
+  {
+    *(static_cast<MYSQL_TIME*>(this))= *ltime;
+    DBUG_ASSERT(is_valid_temporal());
+    int warn= 0;
+    valid_MYSQL_TIME_to_valid_value(thd, &warn, opt);
+  }
   Time(Item *item)
    :Time(current_thd, item)
   { }
