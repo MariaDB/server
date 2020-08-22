@@ -3560,6 +3560,8 @@ public:
            decimals() == from->decimals();
   }
   sql_mode_t conversion_depends_on_sql_mode(THD *, Item *) const override;
+  int store_native(const Native &value) override;
+  bool val_native(Native *to) override;
   int store_time_dec(const MYSQL_TIME *ltime, uint dec) override;
   int store(const char *to,size_t length,CHARSET_INFO *charset) override;
   int store(double nr) override;
@@ -3711,6 +3713,8 @@ public:
   }
   int reset() override;
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
+  int store_native(const Native &value) override;
+  bool val_native(Native *to) override;
   uint size_of() const override { return sizeof *this; }
   Binlog_type_info binlog_type_info() const override;
 };
