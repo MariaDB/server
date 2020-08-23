@@ -1717,6 +1717,7 @@ int spider_db_append_key_where_internal(
   int key_count;
   uint length;
   uint store_length;
+  uint current_pos = str->length();
   const uchar *ptr, *another_ptr;
   const key_range *use_key, *another_key;
   KEY_PART_INFO *key_part;
@@ -2690,6 +2691,11 @@ int spider_db_append_key_where_internal(
     DBUG_RETURN(error_num);
 
 end:
+  if (spider->multi_range_num && current_pos == str->length())
+  {
+    DBUG_PRINT("info", ("spider no key where condition"));
+    dbton_hdl->no_where_cond = TRUE;
+  }
   /* use condition */
   if (dbton_hdl->append_condition_part(NULL, 0, sql_type, FALSE))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
