@@ -68,7 +68,6 @@ EOT
 
 mysql <<EOT
 SET GLOBAL innodb_compression_algorithm=lz4;
-SET GLOBAL innodb_compression_algorithm=snappy;
 SET GLOBAL innodb_compression_algorithm=zlib;
 SET GLOBAL innodb_compression_algorithm=none;
 EOT
