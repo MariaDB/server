@@ -3320,6 +3320,24 @@ bool Item_field::val_native_result(THD *thd, Native *to)
 }
 
 
+longlong Item_field::val_datetime_packed(THD *thd)
+{
+  DBUG_ASSERT(fixed == 1);
+  if ((null_value= field->is_null()))
+    return 0;
+  return field->val_datetime_packed(thd);
+}
+
+
+longlong Item_field::val_time_packed(THD *thd)
+{
+  DBUG_ASSERT(fixed == 1);
+  if ((null_value= field->is_null()))
+    return 0;
+  return field->val_time_packed(thd);
+}
+
+
 void Item_field::save_result(Field *to)
 {
   save_field_in_field(result_field, &null_value, to, TRUE);

@@ -2419,6 +2419,33 @@ bool Field::get_date(MYSQL_TIME *to, date_mode_t mode)
   return !t->is_valid_temporal();
 }
 
+
+longlong Field::val_datetime_packed(THD *thd)
+{
+  MYSQL_TIME ltime, tmp;
+  if (get_date(&ltime, Datetime::Options_cmp(thd)))
+    return 0;
+  if (ltime.time_type != MYSQL_TIMESTAMP_TIME)
+    return pack_time(&ltime);
+  if (time_to_datetime_with_warn(thd, &ltime, &tmp, TIME_CONV_NONE))
+    return 0;
+  return pack_time(&tmp);
+}
+
+
+longlong Field::val_time_packed(THD *thd)
+{
+  MYSQL_TIME ltime;
+  Time::Options_cmp opt(thd);
+  if (get_date(&ltime, opt))
+    return 0;
+  if (ltime.time_type == MYSQL_TIMESTAMP_TIME)
+    return pack_time(&ltime);
+  // Conversion from DATETIME or DATE to TIME is needed
+  return Time(thd, &ltime, opt).to_packed();
+}
+
+
 /**
   This is called when storing a date in a string.
 
@@ -6339,6 +6366,17 @@ Binlog_type_info Field_timef::binlog_type_info() const
   return Binlog_type_info(Field_timef::binlog_type(), decimals(), 1);
 }
 
+
+longlong Field_timef::val_time_packed(THD *thd)
+{
+  DBUG_ASSERT(marked_for_read());
+  longlong tmp= my_time_packed_from_binary(ptr, dec);
+  MYSQL_TIME ltime;
+  TIME_from_longlong_time_packed(&ltime, tmp);
+  return pack_time(&ltime);
+}
+
+
 int Field_timef::store_native(const Native &value)
 {
   DBUG_ASSERT(value.length() == my_time_binary_length(dec));
@@ -6743,6 +6781,14 @@ bool Field_newdate::get_TIME(MYSQL_TIME *ltime, const uchar *pos,
 }
 
 
+longlong Field_newdate::val_datetime_packed(THD *thd)
+{
+  MYSQL_TIME ltime;
+  Field_newdate::get_date(&ltime, date_mode_t(0));
+  return pack_time(&ltime);
+}
+
+
 int Field_newdate::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   uint32 a,b;
@@ -7063,6 +7109,16 @@ Binlog_type_info Field_datetimef::binlog_type_info() const
 {
   return Binlog_type_info(Field_datetimef::binlog_type(), decimals(), 1);
 }
+
+longlong Field_datetimef::val_datetime_packed(THD *thd)
+{
+  DBUG_ASSERT(marked_for_read());
+  longlong tmp= my_datetime_packed_from_binary(ptr, dec);
+  MYSQL_TIME ltime;
+  TIME_from_longlong_datetime_packed(&ltime, tmp);
+  return pack_time(&ltime);
+}
+
 
 /****************************************************************************
 ** string type

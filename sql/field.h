@@ -1606,6 +1606,8 @@ public:
   void copy_from_tmp(int offset);
   uint fill_cache_field(struct st_cache_field *copy);
   virtual bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  virtual longlong val_datetime_packed(THD *thd);
+  virtual longlong val_time_packed(THD *thd);
   virtual const TYPELIB *get_typelib() const { return NULL; }
   virtual CHARSET_INFO *charset() const= 0;
   virtual const DTCollation &dtcollation() const= 0;
@@ -3513,6 +3515,7 @@ public:
   void sql_type(String &str) const override;
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   { return Field_newdate::get_TIME(ltime, ptr, fuzzydate); }
+  longlong val_datetime_packed(THD *thd) override;
   uint size_of() const override { return sizeof *this; }
   Item *get_equal_const_item(THD *thd, const Context &ctx, Item *const_item)
     override;
@@ -3713,6 +3716,7 @@ public:
   }
   int reset() override;
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
+  longlong val_time_packed(THD *thd) override;
   int store_native(const Native &value) override;
   bool val_native(Native *to) override;
   uint size_of() const override { return sizeof *this; }
@@ -3916,6 +3920,7 @@ public:
   int reset() override;
   bool get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   { return Field_datetimef::get_TIME(ltime, ptr, fuzzydate); }
+  longlong val_datetime_packed(THD *thd) override;
   uint size_of() const override { return sizeof *this; }
   Binlog_type_info binlog_type_info() const override;
 };
