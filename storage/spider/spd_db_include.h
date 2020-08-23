@@ -1355,6 +1355,7 @@ public:
   SPIDER_LINK_IDX_CHAIN *link_idx_chain;
 #endif
   bool strict_group_by;
+  bool no_where_cond;
   spider_db_handler(ha_spider *spider, spider_db_share *db_share) :
     dbton_id(db_share->dbton_id), spider(spider), db_share(db_share),
     first_link_idx(-1) {}
