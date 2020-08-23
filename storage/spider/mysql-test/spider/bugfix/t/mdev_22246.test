@@ -1,0 +1,92 @@
+--source ../include/mdev_22246_init.inc
+--echo
+--echo this test is for MDEV-22246
+--echo
+--echo drop and create databases
+--connection master_1
+--disable_warnings
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+--connection child2_1
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+--connection child2_2
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
+--enable_warnings
+
+--echo
+--echo create table and insert
+
+--connection child2_1
+--disable_query_log
+echo CHILD2_1_CREATE_TABLES;
+eval $CHILD2_1_CREATE_TABLES;
+--enable_query_log
+TRUNCATE TABLE mysql.general_log;
+
+--connection child2_2
+--disable_query_log
+echo CHILD2_2_CREATE_TABLES;
+eval $CHILD2_2_CREATE_TABLES;
+--enable_query_log
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+--disable_query_log
+echo CREATE TABLE tbl_a (
+    id bigint NOT NULL,
+    node text,
+    PRIMARY KEY (id)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
+eval CREATE TABLE tbl_a (
+    id bigint NOT NULL,
+    node text,
+    PRIMARY KEY (id)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+--enable_query_log
+INSERT INTO tbl_a (id,node) VALUES (1,'DB-G0'),(2,'DB-G1');
+
+--echo
+--echo select test 1
+
+--connection child2_1
+TRUNCATE TABLE mysql.general_log;
+
+--connection child2_2
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+SELECT * FROM tbl_a;
+SELECT * FROM tbl_a WHERE id != 0;
+
+--connection child2_1
+eval $CHILD2_1_SELECT_TABLES;
+
+--connection child2_2
+eval $CHILD2_2_SELECT_TABLES;
+
+--echo
+--echo deinit
+--disable_warnings
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+
+--connection child2_2
+DROP DATABASE IF EXISTS auto_test_remote2;
+SET GLOBAL log_output = @old_log_output;
+
+--enable_warnings
+--source ../include/mdev_22246_deinit.inc
+--echo
+--echo end of test

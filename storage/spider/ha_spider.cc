@@ -1590,6 +1590,7 @@ int ha_spider::reset()
     multi_range_keys = NULL;
   }
 #endif
+  multi_range_num = 0;
   ft_handler = NULL;
   ft_current = NULL;
   ft_count = 0;
@@ -4131,6 +4132,64 @@ int ha_spider::read_range_next()
   DBUG_RETURN(check_ha_range_eof());
 }
 
+void ha_spider::reset_no_where_cond()
+{
+  uint roop_count;
+  DBUG_ENTER("ha_spider::reset_no_where_cond");
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+  if (sql_kinds & (SPIDER_SQL_KIND_SQL | SPIDER_SQL_KIND_HANDLER))
+  {
+#endif
+    for (roop_count = 0; roop_count < share->use_sql_dbton_count; roop_count++)
+    {
+      dbton_handler[share->use_sql_dbton_ids[roop_count]]->no_where_cond =
+        FALSE;
+    }
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+  }
+  if (sql_kinds & SPIDER_SQL_KIND_HS)
+  {
+    for (roop_count = 0; roop_count < share->use_hs_dbton_count; roop_count++)
+    {
+      dbton_handler[share->use_hs_dbton_ids[roop_count]]->no_where_cond =
+        FALSE;
+    }
+  }
+#endif
+  DBUG_VOID_RETURN;
+}
+
+bool ha_spider::check_no_where_cond()
+{
+  uint roop_count;
+  DBUG_ENTER("ha_spider::check_no_where_cond");
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+  if (sql_kinds & (SPIDER_SQL_KIND_SQL | SPIDER_SQL_KIND_HANDLER))
+  {
+#endif
+    for (roop_count = 0; roop_count < share->use_sql_dbton_count; roop_count++)
+    {
+      if (dbton_handler[share->use_sql_dbton_ids[roop_count]]->no_where_cond)
+      {
+        DBUG_RETURN(TRUE);
+      }
+    }
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+  }
+  if (sql_kinds & SPIDER_SQL_KIND_HS)
+  {
+    for (roop_count = 0; roop_count < share->use_hs_dbton_count; roop_count++)
+    {
+      if (dbton_handler[share->use_hs_dbton_ids[roop_count]]->no_where_cond)
+      {
+        DBUG_RETURN(TRUE);
+      }
+    }
+  }
+#endif
+  DBUG_RETURN(FALSE);
+}
+
 #ifdef HA_MRR_USE_DEFAULT_IMPL
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
 ha_rows ha_spider::multi_range_read_info_const(
@@ -4276,6 +4335,7 @@ int ha_spider::multi_range_read_init(
   DBUG_PRINT("info",("spider n_ranges=%u", n_ranges));
   multi_range_num = n_ranges;
   mrr_have_range = FALSE;
+  reset_no_where_cond();
   DBUG_RETURN(
     handler::multi_range_read_init(
       seq,
@@ -4748,6 +4808,10 @@ int ha_spider::read_multi_range_first_internal(
           else
             result_list.current = result_list.current->prev;
         }
+      }
+      if (check_no_where_cond())
+      {
+        DBUG_RETURN(check_error_mode_eof(0));
       }
       set_where_to_pos_sql(SPIDER_SQL_TYPE_SELECT_SQL);
       set_where_to_pos_sql(SPIDER_SQL_TYPE_HANDLER);
@@ -5224,6 +5288,15 @@ int ha_spider::read_multi_range_first_internal(
             DBUG_PRINT("info",("spider range_res8=%d", range_res));
           }
 #endif
+          if (check_no_where_cond())
+          {
+#ifdef HA_MRR_USE_DEFAULT_IMPL
+            range_res = 1;
+#else
+            multi_range_curr = multi_range_end;
+#endif
+            break;
+          }
         }
 #ifdef HA_MRR_USE_DEFAULT_IMPL
         while (!range_res);
@@ -5637,6 +5710,10 @@ int ha_spider::read_multi_range_first_internal(
         } else
           DBUG_RETURN(error_num);
       }
+      if (check_no_where_cond())
+      {
+        DBUG_RETURN(check_error_mode_eof(0));
+      }
       multi_range_cnt = 0;
       if ((error_num = reset_sql_sql(
         SPIDER_SQL_TYPE_SELECT_SQL | SPIDER_SQL_TYPE_HANDLER)))
@@ -5858,6 +5935,10 @@ int ha_spider::read_multi_range_next(
 #ifdef HA_MRR_USE_DEFAULT_IMPL
       DBUG_PRINT("info",("spider range_res2=%d", range_res));
 #endif
+      if (check_no_where_cond())
+      {
+        DBUG_RETURN(check_error_mode_eof(0));
+      }
       set_where_to_pos_sql(SPIDER_SQL_TYPE_SELECT_SQL);
       set_where_to_pos_sql(SPIDER_SQL_TYPE_HANDLER);
       result_list.limit_num =
@@ -6279,6 +6360,10 @@ int ha_spider::read_multi_range_next(
 #endif
     )
       DBUG_RETURN(error_num);
+    if (check_no_where_cond())
+    {
+      DBUG_RETURN(check_error_mode_eof(0));
+    }
     spider_db_free_one_result_for_start_next(this);
     spider_first_split_read_param(this);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -7085,6 +7170,10 @@ int ha_spider::read_multi_range_next(
           error_num = 0;
         } else
           DBUG_RETURN(error_num);
+      }
+      if (check_no_where_cond())
+      {
+        DBUG_RETURN(check_error_mode_eof(0));
       }
       multi_range_cnt = 0;
       if ((error_num = reset_sql_sql(
