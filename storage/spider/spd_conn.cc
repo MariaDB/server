@@ -1117,7 +1117,7 @@ SPIDER_CONN *spider_get_conn(
 
           }
           else
-          {	/* did not enable conncetion pool , create_conn */
+          { /* did not enable conncetion pool , create_conn */
             DBUG_PRINT("info",("spider create new conn"));
             if (!(conn = spider_create_conn(share, spider, link_idx,
               base_link_idx, conn_kind, error_num)))
