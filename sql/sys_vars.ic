@@ -2669,7 +2669,11 @@ private:
         Datetime::Options opt(TIME_CONV_NONE |
                               TIME_NO_ZERO_IN_DATE |
                               TIME_NO_ZERO_DATE, thd);
-        res= var->value->get_date(thd, &out.ltime, opt);
+        /*
+          var->value is allowed to return DATETIME and DATE
+          Make sure to convert DATE to DATETIME.
+        */
+        res= Datetime(thd, var->value, opt).copy_to_mysql_time(&out.ltime);
       }
       else // set DEFAULT from global var
       {

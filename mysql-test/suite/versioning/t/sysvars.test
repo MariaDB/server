@@ -138,4 +138,14 @@ SET @@global.system_versioning_asof= timestamp'2001-12-31 23:59:59.9999999';
 SELECT @@global.system_versioning_asof;
 SET @@global.system_versioning_asof= DEFAULT;
 
+--echo #
+--echo # MDEV-23562 Assertion `time_type == MYSQL_TIMESTAMP_DATETIME' failed upon SELECT from versioned table
+--echo #
+
+CREATE TABLE t1 (a INT) WITH SYSTEM VERSIONING;
+SET system_versioning_asof= DATE(NOW());
+SELECT * FROM t1;
+DROP TABLE t1;
+SET system_versioning_asof= DEFAULT;
+
 --echo # End of 10.4 tests
