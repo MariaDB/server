@@ -2443,6 +2443,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       was_table|= wrong_drop_sequence;
       local_non_tmp_error= 1;
       error= table_type == TABLE_TYPE_UNKNOWN ? ENOENT : -1;
+      tdc_remove_table(thd, db.str, table_name.str);
     }
     else
     {
