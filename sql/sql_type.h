@@ -1056,6 +1056,13 @@ public:
   }
   // End of constuctors
 
+  bool copy_valid_value_to_mysql_time(MYSQL_TIME *ltime) const
+  {
+    DBUG_ASSERT(is_valid_temporal());
+    *ltime= *this;
+    return false;
+  }
+
   longlong to_longlong() const
   {
     if (!is_valid_temporal())
@@ -1976,7 +1983,7 @@ public:
   }
   explicit Date(const Temporal_hybrid *from)
   {
-    *(static_cast<MYSQL_TIME*>(this))= *from;
+    from->copy_valid_value_to_mysql_time(this);
     DBUG_ASSERT(is_valid_date_slow());
   }
   bool is_valid_date() const
@@ -2240,7 +2247,7 @@ public:
   }
   explicit Datetime(const Temporal_hybrid *from)
   {
-    *(static_cast<MYSQL_TIME*>(this))= *from;
+    from->copy_valid_value_to_mysql_time(this);
     DBUG_ASSERT(is_valid_datetime_slow());
   }
   explicit Datetime(const MYSQL_TIME *from)
