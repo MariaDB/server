@@ -3038,6 +3038,7 @@ c1	c2
 411	421
 511	521
 #
+truncate table m1;
 ALTER TABLE m1 ENGINE=MRG_MyISAM UNION=(t1,t2)
 INSERT_METHOD=LAST;
 SELECT * FROM m1;
@@ -3445,6 +3446,7 @@ c1	c2
 411	421
 511	521
 #
+truncate table m1;
 ALTER TABLE m1 ENGINE=MRG_MyISAM UNION=(t1,t2)
 INSERT_METHOD=LAST;
 SELECT * FROM m1;
@@ -3919,3 +3921,14 @@ ERROR HY000: Unable to open underlying table which is differently defined or of 
 DROP TRIGGER trg1;
 DROP TABLE t1;
 DROP TABLE m1;
+#
+# MDEV-23485 - Change table to merge engine may cause table data lost.
+#
+CREATE TABLE t1(a INT);
+ALTER TABLE t1 engine=MRG_MYISAM;
+drop table t1;
+CREATE TABLE t1(a INT);
+insert into t1() values(1);
+ALTER TABLE t1 engine=MRG_MYISAM;
+ERROR HY000: ALTER TABLE TO MERGE ENGINE is not supported for this operation, The original table is not merge engine and have rows may cause table data lost.
+drop table t1;
