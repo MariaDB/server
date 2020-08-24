@@ -184,7 +184,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   if (flags & HA_CREATE_TMP_TABLE)
   {
     options|= HA_OPTION_TMP_TABLE;
-    create_mode|= O_NOFOLLOW;
+    create_mode|= O_NOFOLLOW | (internal_table ? 0 : O_EXCL);
   }
   if (flags & HA_CREATE_CHECKSUM || (options & HA_OPTION_CHECKSUM))
   {
@@ -618,8 +618,8 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   {
     char *iext= strrchr(name, '.');
     int have_iext= iext && !strcmp(iext, MI_NAME_IEXT);
-    fn_format(kfilename, name, "", MI_NAME_IEXT,
-              MY_UNPACK_FILENAME | MY_RETURN_REAL_PATH |
+    fn_format(kfilename, name, "", MI_NAME_IEXT, MY_UNPACK_FILENAME |
+              (internal_table ? 0 : MY_RETURN_REAL_PATH) |
               (have_iext ? MY_REPLACE_EXT : MY_APPEND_EXT));
     klinkname_ptr= 0;
     /* Replace the current file */
