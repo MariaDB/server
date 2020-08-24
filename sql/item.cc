@@ -6998,7 +6998,7 @@ void Item_date_literal::print(String *str, enum_query_type query_type)
 {
   str->append("DATE'");
   char buf[MAX_DATE_STRING_REP_LENGTH];
-  my_date_to_str(&cached_time, buf);
+  my_date_to_str(cached_time.get_mysql_time(), buf);
   str->append(buf);
   str->append('\'');
 }
@@ -7013,7 +7013,7 @@ Item *Item_date_literal::clone_item(THD *thd)
 bool Item_date_literal::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   fuzzydate |= sql_mode_for_dates(thd);
-  *ltime= cached_time;
+  cached_time.copy_to_mysql_time(ltime);
   return (null_value= check_date_with_warn(thd, ltime, fuzzydate,
                                            MYSQL_TIMESTAMP_ERROR));
 }
@@ -7023,7 +7023,7 @@ void Item_datetime_literal::print(String *str, enum_query_type query_type)
 {
   str->append("TIMESTAMP'");
   char buf[MAX_DATE_STRING_REP_LENGTH];
-  my_datetime_to_str(&cached_time, buf, decimals);
+  my_datetime_to_str(cached_time.get_mysql_time(), buf, decimals);
   str->append(buf);
   str->append('\'');
 }
@@ -7038,7 +7038,7 @@ Item *Item_datetime_literal::clone_item(THD *thd)
 bool Item_datetime_literal::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   fuzzydate |= sql_mode_for_dates(thd);
-  *ltime= cached_time;
+  cached_time.copy_to_mysql_time(ltime);
   return (null_value= check_date_with_warn(thd, ltime, fuzzydate,
                                            MYSQL_TIMESTAMP_ERROR));
 }
@@ -7048,7 +7048,7 @@ void Item_time_literal::print(String *str, enum_query_type query_type)
 {
   str->append("TIME'");
   char buf[MAX_DATE_STRING_REP_LENGTH];
-  my_time_to_str(&cached_time, buf, decimals);
+  my_time_to_str(cached_time.get_mysql_time(), buf, decimals);
   str->append(buf);
   str->append('\'');
 }
@@ -7062,7 +7062,7 @@ Item *Item_time_literal::clone_item(THD *thd)
 
 bool Item_time_literal::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  *ltime= cached_time;
+  cached_time.copy_to_mysql_time(ltime);
   if (fuzzydate & TIME_TIME_ONLY)
     return (null_value= false);
   return (null_value= check_date_with_warn(thd, ltime, fuzzydate,
@@ -9922,23 +9922,20 @@ Item *Item_cache_temporal::convert_to_basic_const_item(THD *thd)
 
 Item *Item_cache_datetime::make_literal(THD *thd)
 {
-  MYSQL_TIME ltime;
-  unpack_time(val_datetime_packed(thd), &ltime, MYSQL_TIMESTAMP_DATETIME);
-  return new (thd->mem_root) Item_datetime_literal(thd, &ltime, decimals);
+  Datetime dt(thd, this, TIME_CONV_NONE | TIME_FRAC_NONE);
+  return new (thd->mem_root) Item_datetime_literal(thd, &dt, decimals);
 }
 
 Item *Item_cache_date::make_literal(THD *thd)
 {
-  MYSQL_TIME ltime;
-  unpack_time(val_datetime_packed(thd), &ltime, MYSQL_TIMESTAMP_DATE);
-  return new (thd->mem_root) Item_date_literal(thd, &ltime);
+  Date d(thd, this, TIME_CONV_NONE | TIME_FRAC_NONE);
+  return new (thd->mem_root) Item_date_literal(thd, &d);
 }
 
 Item *Item_cache_time::make_literal(THD *thd)
 {
-  MYSQL_TIME ltime;
-  unpack_time(val_time_packed(thd), &ltime, MYSQL_TIMESTAMP_TIME);
-  return new (thd->mem_root) Item_time_literal(thd, &ltime, decimals);
+  Time t(thd, this);
+  return new (thd->mem_root) Item_time_literal(thd, &t, decimals);
 }
 
 

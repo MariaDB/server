@@ -9365,7 +9365,8 @@ bool TR_table::query(MYSQL_TIME &commit_time, bool backwards)
   SELECT_LEX &slex= *(thd->lex->first_select_lex());
   Name_resolution_context_backup backup(slex.context, *this);
   Item *field= newx Item_field(thd, &slex.context, (*this)[FLD_COMMIT_TS]);
-  Item *value= newx Item_datetime_literal(thd, &commit_time, 6);
+  Datetime dt(&commit_time);
+  Item *value= newx Item_datetime_literal(thd, &dt, 6);
   COND *conds;
   if (backwards)
     conds= newx Item_func_ge(thd, field, value);

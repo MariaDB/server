@@ -5818,9 +5818,7 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
         See comments about truncation in the same place in
         Field_time::get_equal_const_item().
       */
-      return new (thd->mem_root) Item_datetime_literal(thd,
-                                                       dt.get_mysql_time(),
-                                                       decimals());
+      return new (thd->mem_root) Item_datetime_literal(thd, &dt, decimals());
     }
     break;
   case ANY_SUBST:
@@ -5832,7 +5830,7 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
       if (!dt.is_valid_datetime())
         return NULL;
       return new (thd->mem_root)
-        Item_datetime_literal_for_invalid_dates(thd, dt.get_mysql_time(),
+        Item_datetime_literal_for_invalid_dates(thd, &dt,
                                                 dt.get_mysql_time()->
                                                 second_part ?
                                                 TIME_SECOND_PART_DIGITS : 0);
@@ -6183,7 +6181,7 @@ Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
 
         (assuming CURRENT_DATE is '2015-08-30'
       */
-      return new (thd->mem_root) Item_time_literal(thd, tm.get_mysql_time(),
+      return new (thd->mem_root) Item_time_literal(thd, &tm,
                                                    tm.get_mysql_time()->
                                                    second_part ?
                                                    TIME_SECOND_PART_DIGITS :
@@ -6212,8 +6210,7 @@ Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
               decimals());
       if (!tm.is_valid_time())
         return NULL;
-      return new (thd->mem_root) Item_time_literal(thd, tm.get_mysql_time(),
-                                                   decimals());
+      return new (thd->mem_root) Item_time_literal(thd, &tm, decimals());
     }
     break;
   }
@@ -6772,12 +6769,12 @@ Item *Field_newdate::get_equal_const_item(THD *thd, const Context &ctx,
       */
       if (!dt.hhmmssff_is_zero())
         return new (thd->mem_root)
-          Item_datetime_literal_for_invalid_dates(thd, dt.get_mysql_time(),
+          Item_datetime_literal_for_invalid_dates(thd, &dt,
                                                   dt.get_mysql_time()->
                                                     second_part ?
                                                   TIME_SECOND_PART_DIGITS : 0);
-      return new (thd->mem_root)
-        Item_date_literal_for_invalid_dates(thd, Date(&dt).get_mysql_time());
+      Date d(&dt);
+      return new (thd->mem_root) Item_date_literal_for_invalid_dates(thd, &d);
     }
     break;
   case IDENTITY_SUBST:
@@ -6792,8 +6789,8 @@ Item *Field_newdate::get_equal_const_item(THD *thd, const Context &ctx,
       Datetime dt(thd, const_item, Datetime::Options(TIME_CONV_NONE, thd));
       if (!dt.is_valid_datetime())
         return NULL;
-      return new (thd->mem_root)
-        Item_date_literal(thd, Date(&dt).get_mysql_time());
+      Date d(&dt);
+      return new (thd->mem_root) Item_date_literal(thd, &d);
     }
     break;
   }
