@@ -74,14 +74,12 @@ extern void wsrep_SE_init_grab();   /*! grab init critical section */
 extern void wsrep_SE_init_wait();   /*! wait for SE init to complete */
 extern void wsrep_SE_init_done();   /*! signal that SE init is complte */
 extern void wsrep_SE_initialized(); /*! mark SE initialization complete */
-extern bool wsrep_is_sst_progress();
 
 #else
 #define wsrep_SE_initialized() do { } while(0)
 #define wsrep_SE_init_grab() do { } while(0)
 #define wsrep_SE_init_done() do { } while(0)
 #define wsrep_sst_continue() (0)
-#define wsrep_is_sst_progress() (0)
 
 #endif /* WITH_WSREP */
 #endif /* WSREP_SST_H */
