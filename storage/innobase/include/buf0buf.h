@@ -825,15 +825,11 @@ public:
 
   state() == BUF_BLOCK_NOT_USED: buf_pool.free or buf_pool.withdraw
 
-  state() == BUF_BLOCK_FILE_PAGE ||
-  (state() == BUF_BLOCK_ZIP_PAGE && !oldest_modification()):
+  in_file() && oldest_modification():
   buf_pool.flush_list (protected by buf_pool.flush_list_mutex)
 
-  state() == BUF_BLOCK_ZIP_PAGE && !oldest_modification(): buf_pool.zip_clean
-
-  The contents is undefined if
-  !oldest_modification() && state() == BUF_BLOCK_FILE_PAGE,
-  or if state() is not any of the above. */
+  The contents is undefined if in_file() && !oldest_modification(),
+  or if state() is BUF_BLOCK_MEMORY or BUF_BLOCK_REMOVE_HASH. */
   UT_LIST_NODE_T(buf_page_t) list;
 
 private:
@@ -2040,22 +2036,11 @@ public:
 					unzip_LRU list */
 
 	/* @} */
-	/** @name Buddy allocator fields
-	The buddy allocator is used for allocating compressed page
-	frames and buf_page_t descriptors of blocks that exist
-	in the buffer pool only in compressed form. */
-	/* @{ */
-#ifdef UNIV_DEBUG
-	/** unmodified ROW_FORMAT=COMPRESSED pages;
-	protected by buf_pool.mutex */
-	UT_LIST_BASE_NODE_T(buf_page_t)	zip_clean;
-#endif /* UNIV_DEBUG */
-	UT_LIST_BASE_NODE_T(buf_buddy_free_t) zip_free[BUF_BUDDY_SIZES_MAX];
-					/*!< buddy free lists */
+  /** free ROW_FORMAT=COMPRESSED page frames */
+  UT_LIST_BASE_NODE_T(buf_buddy_free_t) zip_free[BUF_BUDDY_SIZES_MAX];
 #if BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN
 # error "BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN"
 #endif
-	/* @} */
 
   /** Sentinels to detect if pages are read into the buffer pool while
   a delete-buffering operation is pending. Protected by mutex. */

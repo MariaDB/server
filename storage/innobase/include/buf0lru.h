@@ -41,15 +41,6 @@ These are low-level functions
 /** Minimum LRU list length for which the LRU_old pointer is defined */
 #define BUF_LRU_OLD_MIN_LEN	512	/* 8 megabytes of 16k pages */
 
-#ifdef UNIV_DEBUG
-/********************************************************************//**
-Insert a compressed block into buf_pool.zip_clean in the LRU order. */
-void
-buf_LRU_insert_zip_clean(
-/*=====================*/
-	buf_page_t*	bpage);	/*!< in: pointer to the block in question */
-#endif /* UNIV_DEBUG */
-
 /** Try to free a block. If bpage is a descriptor of a compressed-only
 ROW_FORMAT=COMPRESSED page, the buf_page_t object will be freed as well.
 The caller must hold buf_pool.mutex.
