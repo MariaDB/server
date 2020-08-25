@@ -2614,6 +2614,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     if (!(*field= (*org_field)->make_new_field(client_thd->mem_root, copy, 1)))
       goto error;
     (*field)->unireg_check= (*org_field)->unireg_check;
+    (*field)->invisible= (*org_field)->invisible;
     (*field)->orig_table= copy;			// Remove connection
     (*field)->move_field_offset(adjust_ptrs);	// Point at copy->record[0]
     memdup_vcol(client_thd, (*field)->vcol_info);

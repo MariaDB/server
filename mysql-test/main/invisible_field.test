@@ -271,3 +271,11 @@ select a,b from t1;
 
 #cleanup
 drop table t1;
+
+--echo #
+--echo # MDEV-23467 SIGSEGV in fill_record/fill_record_n_invoke_before_triggers on INSERT DELAYED
+--echo #
+create table t1 (a int, b int invisible);
+insert delayed into t1 values (1);
+# cleanup
+drop table t1;
