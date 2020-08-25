@@ -1704,13 +1704,16 @@ public:
     return false;
   }
   void session_save_default(THD *thd, set_var *var)
-  { var->save_result.ulonglong_value= global_var(ulonglong) & bitmask; }
+  {
+    var->save_result.ulonglong_value=
+      (reverse_semantics == !(global_var(ulonglong) & bitmask));
+  }
   void global_save_default(THD *thd, set_var *var)
   { var->save_result.ulonglong_value= option.def_value; }
 
   uchar *valptr(THD *thd, ulonglong val)
   {
-    thd->sys_var_tmp.my_bool_value= reverse_semantics ^ ((val & bitmask) != 0);
+    thd->sys_var_tmp.my_bool_value= (reverse_semantics == !(val & bitmask));
     return (uchar*) &thd->sys_var_tmp.my_bool_value;
   }
   uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
