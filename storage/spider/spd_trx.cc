@@ -2194,11 +2194,7 @@ int spider_internal_xa_commit(
   SPIDER_CONN *conn;
   uint force_commit = spider_param_force_commit(thd);
   MEM_ROOT mem_root;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
-  Open_tables_backup open_tables_backup;
-#endif
+  SPIDER_Open_tables_backup open_tables_backup;
   bool table_xa_opened = FALSE;
   bool table_xa_member_opened = FALSE;
   DBUG_ENTER("spider_internal_xa_commit");
@@ -2382,11 +2378,7 @@ int spider_internal_xa_rollback(
   SPIDER_CONN *conn;
   uint force_commit = spider_param_force_commit(thd);
   MEM_ROOT mem_root;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
-  Open_tables_backup open_tables_backup;
-#endif
+  SPIDER_Open_tables_backup open_tables_backup;
   bool server_lost = FALSE;
   bool table_xa_opened = FALSE;
   bool table_xa_member_opened = FALSE;
@@ -2624,11 +2616,7 @@ int spider_internal_xa_prepare(
   int error_num;
   SPIDER_CONN *conn;
   uint force_commit = spider_param_force_commit(thd);
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
-  Open_tables_backup open_tables_backup;
-#endif
+  SPIDER_Open_tables_backup open_tables_backup;
   bool table_xa_opened = FALSE;
   bool table_xa_member_opened = FALSE;
   DBUG_ENTER("spider_internal_xa_prepare");
@@ -2799,11 +2787,7 @@ int spider_internal_xa_recover(
   int cnt = 0;
   char xa_key[MAX_KEY_LENGTH];
   MEM_ROOT mem_root;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
-  Open_tables_backup open_tables_backup;
-#endif
+  SPIDER_Open_tables_backup open_tables_backup;
   DBUG_ENTER("spider_internal_xa_recover");
   /*
     select
@@ -2858,50 +2842,24 @@ int spider_initinal_xa_recover(
   uint len
 ) {
   int error_num;
-  static THD *thd = NULL;
-  static TABLE *table_xa = NULL;
-  static READ_RECORD *read_record = NULL;
-#if MYSQL_VERSION_ID < 50500
-  static Open_tables_state *open_tables_backup = NULL;
-#else
-  static Open_tables_backup *open_tables_backup = NULL;
-#endif
+  THD *thd;
+  TABLE *table_xa;
+  READ_RECORD *read_record;
+  SPIDER_Open_tables_backup open_tables_backup;
   int cnt = 0;
   MEM_ROOT mem_root;
   DBUG_ENTER("spider_initinal_xa_recover");
-  if (!open_tables_backup)
+  if (!(read_record = new READ_RECORD))
   {
-#if MYSQL_VERSION_ID < 50500
-    if (!(open_tables_backup = new Open_tables_state))
-#else
-    if (!(open_tables_backup = new Open_tables_backup))
-#endif
-    {
-      error_num = HA_ERR_OUT_OF_MEM;
-      goto error_create_state;
-    }
-  }
-  if (!read_record)
-  {
-    if (!(read_record = new READ_RECORD))
-    {
-      error_num = HA_ERR_OUT_OF_MEM;
-      goto error_create_read_record;
-    }
+    error_num = HA_ERR_OUT_OF_MEM;
+    goto error_create_read_record;
   }
 
-/*
-  if (!thd)
+  if (!(thd = spider_create_tmp_thd()))
   {
-*/
-    if (!(thd = spider_create_tmp_thd()))
-    {
-      error_num = HA_ERR_OUT_OF_MEM;
-      goto error_create_thd;
-    }
-/*
+    error_num = HA_ERR_OUT_OF_MEM;
+    goto error_create_thd;
   }
-*/
 
   /*
     select
@@ -2912,17 +2870,14 @@ int spider_initinal_xa_recover(
     from
       mysql.spider_xa
   */
-  if (!table_xa)
-  {
-    if (
-      !(table_xa = spider_open_sys_table(
-        thd, SPIDER_SYS_XA_TABLE_NAME_STR, SPIDER_SYS_XA_TABLE_NAME_LEN,
-        FALSE, open_tables_backup, TRUE, &error_num))
-    )
-      goto error_open_table;
-    SPIDER_init_read_record(read_record, thd, table_xa, NULL, NULL, TRUE,
-      FALSE, FALSE);
-  }
+  if (
+    !(table_xa = spider_open_sys_table(
+      thd, SPIDER_SYS_XA_TABLE_NAME_STR, SPIDER_SYS_XA_TABLE_NAME_LEN,
+      FALSE, &open_tables_backup, TRUE, &error_num))
+  )
+    goto error_open_table;
+  SPIDER_init_read_record(read_record, thd, table_xa, NULL, NULL, TRUE,
+    FALSE, FALSE);
   SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
   while ((!(read_record->SPIDER_read_record_read_record(read_record))) &&
     cnt < (int) len)
@@ -2932,30 +2887,15 @@ int spider_initinal_xa_recover(
   }
   free_root(&mem_root, MYF(0));
 
-/*
-  if (cnt < (int) len)
-  {
-*/
-    end_read_record(read_record);
-    spider_close_sys_table(thd, table_xa, open_tables_backup, TRUE);
-    table_xa = NULL;
-    spider_free_tmp_thd(thd);
-    thd = NULL;
-    delete read_record;
-    read_record = NULL;
-    delete open_tables_backup;
-    open_tables_backup = NULL;
-/*
-  }
-*/
-  DBUG_RETURN(cnt);
-
-/*
-error:
-  end_read_record(&read_record_info);
+  end_read_record(read_record);
   spider_close_sys_table(thd, table_xa, &open_tables_backup, TRUE);
   table_xa = NULL;
-*/
+  spider_free_tmp_thd(thd);
+  thd = NULL;
+  delete read_record;
+  read_record = NULL;
+  DBUG_RETURN(cnt);
+
 error_open_table:
   spider_free_tmp_thd(thd);
   thd = NULL;
@@ -2963,9 +2903,6 @@ error_create_thd:
   delete read_record;
   read_record = NULL;
 error_create_read_record:
-  delete open_tables_backup;
-  open_tables_backup = NULL;
-error_create_state:
   DBUG_RETURN(0);
 }
 
@@ -2986,11 +2923,7 @@ int spider_internal_xa_commit_by_xid(
   SPIDER_CONN *conn;
   uint force_commit = spider_param_force_commit(thd);
   MEM_ROOT mem_root;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
-  Open_tables_backup open_tables_backup;
-#endif
+  SPIDER_Open_tables_backup open_tables_backup;
   bool table_xa_opened = FALSE;
   bool table_xa_member_opened = FALSE;
   DBUG_ENTER("spider_internal_xa_commit_by_xid");
@@ -3221,11 +3154,7 @@ int spider_internal_xa_rollback_by_xid(
   SPIDER_CONN *conn;
   uint force_commit = spider_param_force_commit(thd);
   MEM_ROOT mem_root;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
-  Open_tables_backup open_tables_backup;
-#endif
+  SPIDER_Open_tables_backup open_tables_backup;
   bool table_xa_opened = FALSE;
   bool table_xa_member_opened = FALSE;
   DBUG_ENTER("spider_internal_xa_rollback_by_xid");

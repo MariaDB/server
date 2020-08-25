@@ -33,8 +33,6 @@ XA START 'test';
 INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 XA END 'test';
 XA PREPARE 'test';
-Warnings:
-Warning	1030	Got error 131 "Command not supported by the engine" from storage engine Aria
 XA COMMIT 'test';
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %';

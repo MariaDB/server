@@ -86,56 +86,40 @@ public:
   uint link_id_length;
 };
 
+TABLE *spider_open_sys_table(
+  THD *thd,
+  const char *table_name,
+  int table_name_length,
+  bool write,
+  SPIDER_Open_tables_backup *open_tables_backup,
+  bool need_lock,
+  int *error_num
+);
+
+void spider_close_sys_table(
+  THD *thd,
+  TABLE *table,
+  SPIDER_Open_tables_backup *open_tables_backup,
+  bool need_lock
+);
+
 #if MYSQL_VERSION_ID < 50500
-TABLE *spider_open_sys_table(
-  THD *thd,
-  const char *table_name,
-  int table_name_length,
-  bool write,
-  Open_tables_state *open_tables_backup,
-  bool need_lock,
-  int *error_num
-);
-
-void spider_close_sys_table(
-  THD *thd,
-  TABLE *table,
-  Open_tables_state *open_tables_backup,
-  bool need_lock
-);
 #else
-TABLE *spider_open_sys_table(
-  THD *thd,
-  const char *table_name,
-  int table_name_length,
-  bool write,
-  Open_tables_backup *open_tables_backup,
-  bool need_lock,
-  int *error_num
-);
-
-void spider_close_sys_table(
-  THD *thd,
-  TABLE *table,
-  Open_tables_backup *open_tables_backup,
-  bool need_lock
-);
-
-bool spider_sys_open_tables(
+bool spider_sys_open_and_lock_tables(
   THD *thd,
   TABLE_LIST **tables,
-  Open_tables_backup *open_tables_backup
+  SPIDER_Open_tables_backup *open_tables_backup
 );
 
 TABLE *spider_sys_open_table(
   THD *thd,
   TABLE_LIST *tables,
-  Open_tables_backup *open_tables_backup
+  SPIDER_Open_tables_backup *open_tables_backup
 );
 
 void spider_sys_close_table(
   THD *thd,
-  Open_tables_backup *open_tables_backup
+  SPIDER_Open_tables_backup *open_tables_backup
 );
 #endif
 

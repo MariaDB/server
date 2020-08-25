@@ -5077,11 +5077,7 @@ SPIDER_SHARE *spider_get_share(
   int semi_table_lock_conn;
   int search_link_idx;
   uint sql_command = thd_sql_command(thd);
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
-  Open_tables_backup open_tables_backup;
-#endif
+  SPIDER_Open_tables_backup open_tables_backup;
   MEM_ROOT mem_root;
   TABLE *table_tables = NULL;
   bool init_mem_root = FALSE;
@@ -5218,11 +5214,10 @@ SPIDER_SHARE *spider_get_share(
           SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
           init_mem_root = TRUE;
 
-          start_new_trans new_trans(thd);
           if (
             !(table_tables = spider_open_sys_table(
               thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
-              SPIDER_SYS_TABLES_TABLE_NAME_LEN, FALSE, 0,
+              SPIDER_SYS_TABLES_TABLE_NAME_LEN, FALSE, &open_tables_backup,
               FALSE, error_num))
           ) {
             for (roop_count = 0;
@@ -5259,8 +5254,9 @@ SPIDER_SHARE *spider_get_share(
               share->init_error_time = (time_t) time((time_t*) 0);
               share->init = TRUE;
               spider_free_share(share);
-              thd->commit_whole_transaction_and_close_tables();
-              new_trans.restore_old_transaction();
+              spider_close_sys_table(thd, table_tables,
+                &open_tables_backup, FALSE);
+              table_tables = NULL;
               goto error_open_sys_table;
             }
           } else {
@@ -5268,8 +5264,9 @@ SPIDER_SHARE *spider_get_share(
               sizeof(long) * share->all_link_count);
             share->link_status_init = TRUE;
           }
-          thd->commit_whole_transaction_and_close_tables();
-          new_trans.restore_old_transaction();
+          spider_close_sys_table(thd, table_tables,
+            &open_tables_backup, FALSE);
+          table_tables = NULL;
         }
         share->have_recovery_link = spider_conn_check_recovery_link(share);
         if (init_mem_root)
@@ -5775,12 +5772,11 @@ SPIDER_SHARE *spider_get_share(
         {
           SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
           init_mem_root = TRUE;
-          start_new_trans new_trans(thd);
 
           if (
             !(table_tables = spider_open_sys_table(
               thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
-              SPIDER_SYS_TABLES_TABLE_NAME_LEN, FALSE, 0,
+              SPIDER_SYS_TABLES_TABLE_NAME_LEN, FALSE, &open_tables_backup,
               FALSE, error_num))
           ) {
             for (roop_count = 0;
@@ -5811,8 +5807,9 @@ SPIDER_SHARE *spider_get_share(
               }
               pthread_mutex_unlock(&share->mutex);
               spider_free_share(share);
-              thd->commit_whole_transaction_and_close_tables();
-              new_trans.restore_old_transaction();
+              spider_close_sys_table(thd, table_tables,
+                &open_tables_backup, FALSE);
+              table_tables = NULL;
               goto error_open_sys_table;
             }
           } else {
@@ -5820,9 +5817,9 @@ SPIDER_SHARE *spider_get_share(
               sizeof(long) * share->all_link_count);
             share->link_status_init = TRUE;
           }
-          thd->commit_whole_transaction_and_close_tables();
-          new_trans.restore_old_transaction();
-          table_tables= 0;
+          spider_close_sys_table(thd, table_tables,
+            &open_tables_backup, FALSE);
+          table_tables = NULL;
         }
         share->have_recovery_link = spider_conn_check_recovery_link(share);
         if (init_mem_root)
@@ -6774,11 +6771,7 @@ int spider_open_all_tables(
   long *long_info;
   longlong *longlong_info;
   MEM_ROOT mem_root;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
-  Open_tables_backup open_tables_backup;
-#endif
+  SPIDER_Open_tables_backup open_tables_backup;
   DBUG_ENTER("spider_open_all_tables");
   if (
     !(table_tables = spider_open_sys_table(
@@ -9784,7 +9777,7 @@ int spider_discover_table_structure(
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *part_info = thd->work_part_info;
 #endif
-  Open_tables_backup open_tables_backup;
+  SPIDER_Open_tables_backup open_tables_backup;
   TABLE *table_tables;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   uint str_len;
