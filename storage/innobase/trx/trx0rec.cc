@@ -2446,7 +2446,11 @@ trx_undo_prev_version_build(
 		/* The page containing the clustered index record
 		corresponding to entry is latched in mtr.  Thus the
 		following call is safe. */
-		row_upd_index_replace_new_col_vals(entry, index, update, heap);
+		if (!row_upd_index_replace_new_col_vals(entry, *index, update,
+							heap)) {
+			ut_a(v_status & TRX_UNDO_PREV_IN_PURGE);
+			return false;
+		}
 
 		/* Get number of externally stored columns in updated record */
 		const ulint n_ext = dtuple_get_n_ext(entry);
