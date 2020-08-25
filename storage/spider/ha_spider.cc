@@ -11401,11 +11401,7 @@ int ha_spider::create(
   uint sql_command = thd_sql_command(thd), roop_count;
   SPIDER_TRX *trx;
   TABLE *table_tables = NULL;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
-  Open_tables_backup open_tables_backup;
-#endif
+  SPIDER_Open_tables_backup open_tables_backup;
   bool need_lock = FALSE;
   DBUG_ENTER("ha_spider::create");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -11657,11 +11653,7 @@ int ha_spider::rename_table(
   TABLE *table_tables = NULL;
   SPIDER_ALTER_TABLE *alter_table_from, *alter_table_to;
   SPIDER_LGTM_TBLHND_SHARE *from_lgtm_tblhnd_share, *to_lgtm_tblhnd_share;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
-  Open_tables_backup open_tables_backup;
-#endif
+  SPIDER_Open_tables_backup open_tables_backup;
   bool need_lock = FALSE;
   DBUG_ENTER("ha_spider::rename_table");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -11885,11 +11877,7 @@ int ha_spider::delete_table(
   TABLE *table_tables = NULL;
   uint sql_command = thd_sql_command(thd);
   SPIDER_ALTER_TABLE *alter_table;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
-  Open_tables_backup open_tables_backup;
-#endif
+  SPIDER_Open_tables_backup open_tables_backup;
   bool need_lock = FALSE;
   DBUG_ENTER("ha_spider::delete_table");
   DBUG_PRINT("info",("spider this=%p", this));

@@ -353,11 +353,7 @@ int spider_udf_get_copy_tgt_tables(
 ) {
   int error_num, roop_count;
   TABLE *table_tables = NULL;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
-  Open_tables_backup open_tables_backup;
-#endif
+  SPIDER_Open_tables_backup open_tables_backup;
   char table_key[MAX_KEY_LENGTH];
   SPIDER_COPY_TABLE_CONN *table_conn = NULL, *src_table_conn_prev = NULL,
     *dst_table_conn_prev = NULL;
