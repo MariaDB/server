@@ -759,6 +759,7 @@ int spider_get_ping_table_gtid_pos(
   if (spider_sys_open_and_lock_tables(thd, &tables,
     &open_tables_backup_tables))
   {
+    error_num = my_errno;
     goto error_open_table_tables;
   }
   table_tables = tables_tables.table;
