@@ -621,3 +621,9 @@ a	b
 1	3
 2	4
 drop table t1;
+#
+# MDEV-23467 SIGSEGV in fill_record/fill_record_n_invoke_before_triggers on INSERT DELAYED
+#
+create table t1 (a int, b int invisible);
+insert delayed into t1 values (1);
+drop table t1;

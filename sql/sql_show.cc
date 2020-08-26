@@ -9669,11 +9669,6 @@ int finalize_schema_table(st_plugin_int *plugin)
   DBUG_RETURN(0);
 }
 
-/*
-  This is used to create a timestamp field
-*/
-
-MYSQL_TIME zero_time={ 0,0,0,0,0,0,0,0, MYSQL_TIMESTAMP_TIME };
 
 /**
   Output trigger information (SHOW CREATE TRIGGER) to the client.
@@ -9758,8 +9753,9 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
                                      MY_CS_NAME_SIZE),
                    mem_root);
 
+  static const Datetime zero_datetime(Datetime::zero());
   Item_datetime_literal *tmp= (new (mem_root) 
-                               Item_datetime_literal(thd, &zero_time, 2));
+                               Item_datetime_literal(thd, &zero_datetime, 2));
   tmp->set_name(thd, Lex_cstring(STRING_WITH_LEN("Created")));
   fields.push_back(tmp, mem_root);
 

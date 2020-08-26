@@ -1619,9 +1619,8 @@ public:
     return h;
   }
 
-  ha_rows part_records(void *_part_elem)
+  ha_rows part_records(partition_element *part_elem)
   {
-    partition_element *part_elem= reinterpret_cast<partition_element *>(_part_elem);
     DBUG_ASSERT(m_part_info);
     uint32 sub_factor= m_part_info->num_subparts ? m_part_info->num_subparts : 1;
     uint32 part_id= part_elem->id * sub_factor;

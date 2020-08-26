@@ -4820,29 +4820,20 @@ public:
 
 class Item_temporal_literal :public Item_literal
 {
-protected:
-  MYSQL_TIME cached_time;
 public:
-  /**
-    Constructor for Item_date_literal.
-    @param ltime  DATE value.
-  */
-  Item_temporal_literal(THD *thd, const MYSQL_TIME *ltime)
+  Item_temporal_literal(THD *thd)
    :Item_literal(thd)
   {
     collation= DTCollation_numeric();
     decimals= 0;
-    cached_time= *ltime;
   }
-  Item_temporal_literal(THD *thd, const MYSQL_TIME *ltime, uint dec_arg):
+  Item_temporal_literal(THD *thd, uint dec_arg):
     Item_literal(thd)
   {
     collation= DTCollation_numeric();
     decimals= dec_arg;
-    cached_time= *ltime;
   }
 
-  const MYSQL_TIME *const_ptr_mysql_time() const { return &cached_time; }
   int save_in_field(Field *field, bool no_conversions)
   { return save_date_in_field(field, no_conversions); }
 };
@@ -4853,27 +4844,62 @@ public:
 */
 class Item_date_literal: public Item_temporal_literal
 {
-public:
-  Item_date_literal(THD *thd, const MYSQL_TIME *ltime)
-    :Item_temporal_literal(thd, ltime)
+protected:
+  Date cached_time;
+  bool update_null()
   {
+    return maybe_null &&
+           (null_value= cached_time.check_date_with_warn(current_thd));
+  }
+public:
+  Item_date_literal(THD *thd, const Date *ltime)
+    :Item_temporal_literal(thd),
+     cached_time(*ltime)
+  {
+    DBUG_ASSERT(cached_time.is_valid_date());
     max_length= MAX_DATE_WIDTH;
     /*
       If date has zero month or day, it can return NULL in case of
       NO_ZERO_DATE or NO_ZERO_IN_DATE.
-      We can't just check the current sql_mode here in constructor,
+      If date is `February 30`, it can return NULL in case if
+      no ALLOW_INVALID_DATES is set.
+      We can't set null_value using the current sql_mode here in constructor,
       because sql_mode can change in case of prepared statements
       between PREPARE and EXECUTE.
+      Here we only set maybe_null to true if the value has such anomalies.
+      Later (during execution time), if maybe_null is true, then the value
+      will be checked per row, according to the execution time sql_mode.
+      The check_date() below call should cover all cases mentioned.
     */
-    maybe_null= !ltime->month || !ltime->day;
+    maybe_null= cached_time.check_date(TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE);
   }
   const Type_handler *type_handler() const { return &type_handler_newdate; }
   void print(String *str, enum_query_type query_type);
+  const MYSQL_TIME *const_ptr_mysql_time() const
+  {
+    return cached_time.get_mysql_time();
+  }
   Item *clone_item(THD *thd);
-  longlong val_int() { return Date(this).to_longlong(); }
-  double val_real() { return Date(this).to_double(); }
-  String *val_str(String *to) { return Date(this).to_string(to); }
-  my_decimal *val_decimal(my_decimal *to) { return Date(this).to_decimal(to); }
+  longlong val_int()
+  {
+    return update_null() ? 0 : cached_time.to_longlong();
+  }
+  double val_real()
+  {
+    return update_null() ? 0 : cached_time.to_double();
+  }
+  String *val_str(String *to)
+  {
+    return update_null() ? 0 : cached_time.to_string(to);
+  }
+  my_decimal *val_decimal(my_decimal *to)
+  {
+    return update_null() ? 0 : cached_time.to_decimal(to);
+  }
+  longlong val_datetime_packed(THD *thd)
+  {
+    return update_null() ? 0 : cached_time.valid_date_to_packed();
+  }
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_date_literal>(thd, this); }
@@ -4885,19 +4911,31 @@ public:
 */
 class Item_time_literal: public Item_temporal_literal
 {
+protected:
+  Time cached_time;
 public:
-  Item_time_literal(THD *thd, const MYSQL_TIME *ltime, uint dec_arg):
-    Item_temporal_literal(thd, ltime, dec_arg)
+  Item_time_literal(THD *thd, const Time *ltime, uint dec_arg):
+    Item_temporal_literal(thd, dec_arg),
+    cached_time(*ltime)
   {
+    DBUG_ASSERT(cached_time.is_valid_time());
     max_length= MIN_TIME_WIDTH + (decimals ? decimals + 1 : 0);
   }
   const Type_handler *type_handler() const { return &type_handler_time2; }
   void print(String *str, enum_query_type query_type);
+  const MYSQL_TIME *const_ptr_mysql_time() const
+  {
+    return cached_time.get_mysql_time();
+  }
   Item *clone_item(THD *thd);
-  longlong val_int() { return Time(this).to_longlong(); }
-  double val_real() { return Time(this).to_double(); }
-  String *val_str(String *to) { return Time(this).to_string(to, decimals); }
-  my_decimal *val_decimal(my_decimal *to) { return Time(this).to_decimal(to); }
+  longlong val_int() { return cached_time.to_longlong(); }
+  double val_real() { return cached_time.to_double(); }
+  String *val_str(String *to) { return cached_time.to_string(to, decimals); }
+  my_decimal *val_decimal(my_decimal *to) { return cached_time.to_decimal(to); }
+  longlong val_time_packed(THD *thd)
+  {
+    return cached_time.valid_time_to_packed();
+  }
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   bool val_native(THD *thd, Native *to)
   {
@@ -4913,26 +4951,49 @@ public:
 */
 class Item_datetime_literal: public Item_temporal_literal
 {
-public:
-  Item_datetime_literal(THD *thd, const MYSQL_TIME *ltime, uint dec_arg):
-    Item_temporal_literal(thd, ltime, dec_arg)
+protected:
+  Datetime cached_time;
+  bool update_null()
   {
+    return maybe_null &&
+           (null_value= cached_time.check_date_with_warn(current_thd));
+  }
+public:
+  Item_datetime_literal(THD *thd, const Datetime *ltime, uint dec_arg):
+    Item_temporal_literal(thd, dec_arg),
+    cached_time(*ltime)
+  {
+    DBUG_ASSERT(cached_time.is_valid_datetime());
     max_length= MAX_DATETIME_WIDTH + (decimals ? decimals + 1 : 0);
     // See the comment on maybe_null in Item_date_literal
-    maybe_null= !ltime->month || !ltime->day;
+    maybe_null= cached_time.check_date(TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE);
   }
   const Type_handler *type_handler() const { return &type_handler_datetime2; }
   void print(String *str, enum_query_type query_type);
+  const MYSQL_TIME *const_ptr_mysql_time() const
+  {
+    return cached_time.get_mysql_time();
+  }
   Item *clone_item(THD *thd);
-  longlong val_int() { return Datetime(this).to_longlong(); }
-  double val_real() { return Datetime(this).to_double(); }
+  longlong val_int()
+  {
+    return update_null() ? 0 : cached_time.to_longlong();
+  }
+  double val_real()
+  {
+    return update_null() ? 0 : cached_time.to_double();
+  }
   String *val_str(String *to)
   {
-    return Datetime(this).to_string(to, decimals);
+    return update_null() ? NULL : cached_time.to_string(to, decimals);
   }
   my_decimal *val_decimal(my_decimal *to)
   {
-    return Datetime(this).to_decimal(to);
+    return update_null() ? NULL : cached_time.to_decimal(to);
+  }
+  longlong val_datetime_packed(THD *thd)
+  {
+    return update_null() ? 0 : cached_time.valid_datetime_to_packed();
   }
   bool get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate);
   Item *get_copy(THD *thd)
@@ -4969,11 +5030,14 @@ class Item_date_literal_for_invalid_dates: public Item_date_literal
     in sql_mode=TRADITIONAL.
   */
 public:
-  Item_date_literal_for_invalid_dates(THD *thd, const MYSQL_TIME *ltime)
-   :Item_date_literal(thd, ltime) { }
+  Item_date_literal_for_invalid_dates(THD *thd, const Date *ltime)
+   :Item_date_literal(thd, ltime)
+  {
+    maybe_null= false;
+  }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    *ltime= cached_time;
+    cached_time.copy_to_mysql_time(ltime);
     return (null_value= false);
   }
 };
@@ -4987,11 +5051,14 @@ class Item_datetime_literal_for_invalid_dates: public Item_datetime_literal
 {
 public:
   Item_datetime_literal_for_invalid_dates(THD *thd,
-                                          const MYSQL_TIME *ltime, uint dec_arg)
-   :Item_datetime_literal(thd, ltime, dec_arg) { }
+                                          const Datetime *ltime, uint dec_arg)
+   :Item_datetime_literal(thd, ltime, dec_arg)
+  {
+    maybe_null= false;
+  }
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
   {
-    *ltime= cached_time;
+    cached_time.copy_to_mysql_time(ltime);
     return (null_value= false);
   }
 };

@@ -729,8 +729,9 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
   if (type != SYSTEM_TIME_UNSPECIFIED && type != SYSTEM_TIME_ALL)
   {
     DBUG_ASSERT(type == SYSTEM_TIME_AS_OF);
+    Datetime dt(&in.ltime);
     start.item= new (thd->mem_root)
-        Item_datetime_literal(thd, &in.ltime, TIME_SECOND_PART_DIGITS);
+        Item_datetime_literal(thd, &dt, TIME_SECOND_PART_DIGITS);
     if (!start.item)
       return true;
   }
@@ -794,15 +795,17 @@ Item* period_get_condition(THD *thd, TABLE_LIST *table, SELECT_LEX *select,
     {
     case SYSTEM_TIME_UNSPECIFIED:
     case SYSTEM_TIME_HISTORY:
+    {
       thd->variables.time_zone->gmt_sec_to_TIME(&max_time, TIMESTAMP_MAX_VALUE);
       max_time.second_part= TIME_MAX_SECOND_PART;
-      curr= newx Item_datetime_literal(thd, &max_time, TIME_SECOND_PART_DIGITS);
+      Datetime dt(&max_time);
+      curr= newx Item_datetime_literal(thd, &dt, TIME_SECOND_PART_DIGITS);
       if (conds->type == SYSTEM_TIME_UNSPECIFIED)
         cond1= newx Item_func_eq(thd, conds->field_end, curr);
       else
         cond1= newx Item_func_lt(thd, conds->field_end, curr);
       break;
-      break;
+    }
     case SYSTEM_TIME_AS_OF:
       cond1= newx Item_func_le(thd, conds->field_start, conds->start.item);
       cond2= newx Item_func_gt(thd, conds->field_end, conds->start.item);
