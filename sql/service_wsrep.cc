@@ -337,3 +337,26 @@ extern "C" bool wsrep_thd_set_wsrep_aborter(THD *bf_thd, THD *victim_thd)
   victim_thd->wsrep_aborter = bf_thd->thread_id;
   return false;
 }
+
+extern "C" void wsrep_report_bf_lock_wait(const THD *thd,
+                                          unsigned long long trx_id)
+{
+  if (thd)
+  {
+    WSREP_ERROR("Thread %s trx_id: %llu thread: %ld "
+                "seqno: %lld client_state: %s client_mode: %s transaction_mode: %s "
+                "applier: %d toi: %d local: %d "
+                "query: %s",
+                wsrep_thd_is_BF(thd, false) ? "BF" : "normal",
+                trx_id,
+                thd_get_thread_id(thd),
+                wsrep_thd_trx_seqno(thd),
+                wsrep_thd_client_state_str(thd),
+                wsrep_thd_client_mode_str(thd),
+                wsrep_thd_transaction_state_str(thd),
+                wsrep_thd_is_applying(thd),
+                wsrep_thd_is_toi(thd),
+                wsrep_thd_is_local(thd),
+                wsrep_thd_query(thd));
+  }
+}
