@@ -875,3 +875,23 @@ bool wsrep_is_load_multi_commit(THD *thd)
 {
    return thd->wsrep_split_flag;
 }
+
+void wsrep_report_bf_lock_wait(THD *thd,
+                               unsigned long long trx_id)
+{
+  if (thd)
+  {
+    WSREP_ERROR("Thread %s trx_id: %llu thread: %ld "
+                "seqno: %lld query_state: %s conf_state: %s exec_mode: %s "
+                "applier: %d query: %s",
+                wsrep_thd_is_BF(thd, false) ? "BF" : "normal",
+                trx_id,
+                thd_get_thread_id(thd),
+                wsrep_thd_trx_seqno(thd),
+                wsrep_thd_query_state_str(thd),
+                wsrep_thd_conflict_state_str(thd),
+                wsrep_thd_exec_mode_str(thd),
+                thd->wsrep_applier,
+                wsrep_thd_query(thd));
+  }
+}

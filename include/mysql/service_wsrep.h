@@ -117,6 +117,8 @@ extern struct wsrep_service_st {
   void                        (*wsrep_unlock_rollback_func)();
   void                        (*wsrep_set_data_home_dir_func)(const char *data_dir);
   my_bool                     (*wsrep_thd_is_applier_func)(MYSQL_THD);
+  void                        (*wsrep_report_bf_lock_wait_func)(MYSQL_THD thd,
+                                                                unsigned long long trx_id);
 } *wsrep_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -165,6 +167,7 @@ extern struct wsrep_service_st {
 #define wsrep_unlock_rollback() wsrep_service->wsrep_unlock_rollback_func()
 #define wsrep_set_data_home_dir(A) wsrep_service->wsrep_set_data_home_dir_func(A)
 #define wsrep_thd_is_applier(T) wsrep_service->wsrep_thd_is_applier_func(T)
+#define wsrep_report_bf_lock_wait(T,I) wsrep_service->wsrep_report_bf_lock_wait_func(T,I)
 
 #define wsrep_debug get_wsrep_debug()
 #define wsrep_log_conflicts get_wsrep_log_conflicts()
@@ -229,6 +232,8 @@ bool wsrep_thd_ignore_table(THD *thd);
 void wsrep_unlock_rollback();
 void wsrep_set_data_home_dir(const char *data_dir);
 my_bool wsrep_thd_is_applier(MYSQL_THD thd);
+void wsrep_report_bf_lock_wait(THD *thd,
+                               unsigned long long trx_id);
 #endif
 
 #ifdef __cplusplus
