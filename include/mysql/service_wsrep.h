@@ -88,6 +88,8 @@ extern struct wsrep_service_st {
   my_bool                     (*wsrep_thd_has_ignored_error_func)(const MYSQL_THD thd);
   void                        (*wsrep_thd_set_ignored_error_func)(MYSQL_THD thd, my_bool val);
   bool                        (*wsrep_thd_set_wsrep_aborter_func)(MYSQL_THD bf_thd, MYSQL_THD thd);
+  void                        (*wsrep_report_bf_lock_wait_func)(const MYSQL_THD thd,
+                                                                unsigned long long trx_id);
 } *wsrep_service;
 
 #define MYSQL_SERVICE_WSREP_INCLUDED
@@ -132,6 +134,7 @@ extern struct wsrep_service_st {
 #define wsrep_thd_has_ignored_error(T) wsrep_service->wsrep_thd_has_ignored_error_func(T)
 #define wsrep_thd_set_ignored_error(T,V) wsrep_service->wsrep_thd_set_ignored_error_func(T,V)
 #define wsrep_thd_set_wsrep_aborter(T) wsrep_service->wsrep_thd_set_wsrep_aborter_func(T1, T2)
+#define wsrep_report_bf_lock_wait(T,I) wsrep_service->wsrep_report_bf_lock_wait(T,I)
 #else
 
 #define MYSQL_SERVICE_WSREP_STATIC_INCLUDED
@@ -229,5 +232,7 @@ extern "C" ulong wsrep_OSU_method_get(const MYSQL_THD thd);
 extern "C" my_bool wsrep_thd_has_ignored_error(const MYSQL_THD thd);
 extern "C" void wsrep_thd_set_ignored_error(MYSQL_THD thd, my_bool val);
 extern "C" bool wsrep_thd_set_wsrep_aborter(MYSQL_THD bf_thd, MYSQL_THD victim_thd);
+extern "C" void wsrep_report_bf_lock_wait(const THD *thd,
+                                          unsigned long long trx_id);
 #endif
 #endif /* MYSQL_SERVICE_WSREP_INCLUDED */
