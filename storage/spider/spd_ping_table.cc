@@ -290,11 +290,7 @@ int spider_get_ping_table_mon(
 ) {
   int error_num;
   TABLE *table_link_mon = NULL;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
-  Open_tables_backup open_tables_backup;
-#endif
+  SPIDER_Open_tables_backup open_tables_backup;
   char table_key[MAX_KEY_LENGTH];
   SPIDER_TABLE_MON *table_mon, *table_mon_prev = NULL;
   SPIDER_SHARE *tmp_share;
@@ -475,11 +471,7 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_tgt(
   int *error_num
 ) {
   TABLE *table_tables = NULL;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
-  Open_tables_backup open_tables_backup;
-#endif
+  SPIDER_Open_tables_backup open_tables_backup;
   char table_key[MAX_KEY_LENGTH];
 
   SPIDER_TABLE_MON_LIST *table_mon_list = NULL;
@@ -698,12 +690,9 @@ int spider_get_ping_table_gtid_pos(
   int error_num, source_link_idx, need_mon;
   char table_key[MAX_KEY_LENGTH];
   TABLE *table_tables, *table_gtid_pos;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup_tables;
-  Open_tables_state open_tables_backup_gtid_pos;
-#else
-  Open_tables_backup open_tables_backup_tables;
-  Open_tables_backup open_tables_backup_gtid_pos;
+  SPIDER_Open_tables_backup open_tables_backup_tables;
+#ifdef SPIDER_REQUIRE_DEFINE_FOR_SECONDARY_OPEN_TABLES_BACKUP
+  SPIDER_Open_tables_backup open_tables_backup_gtid_pos;
 #endif
   MEM_ROOT mem_root;
   long link_status;
@@ -721,6 +710,7 @@ int spider_get_ping_table_gtid_pos(
       db_name = setted db_name and
       table_name = setted table_name
   */
+#ifdef SPIDER_REQUIRE_DEFINE_FOR_SECONDARY_OPEN_TABLES_BACKUP
   if (
     !(table_tables = spider_open_sys_table(
       thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
@@ -736,6 +726,44 @@ int spider_get_ping_table_gtid_pos(
       &open_tables_backup_gtid_pos, need_lock, &error_num))
   )
     goto error_open_table_gtid_pos;
+#else
+  TABLE_LIST tables_tables;
+  TABLE_LIST tables_gtid_pos;
+  TABLE_LIST *tables = &tables_tables;
+  LEX_CSTRING db_name =
+  {
+    "mysql",
+    sizeof("mysql") - 1
+  };
+  LEX_CSTRING tbl_name_tables =
+  {
+    SPIDER_SYS_TABLES_TABLE_NAME_STR,
+    SPIDER_SYS_TABLES_TABLE_NAME_LEN
+  };
+  LEX_CSTRING tbl_name_gtid_pos =
+  {
+    SPIDER_SYS_POS_FOR_RECOVERY_TABLE_NAME_STR,
+    SPIDER_SYS_POS_FOR_RECOVERY_TABLE_NAME_LEN
+  };
+  tables_tables.init_one_table(&db_name, &tbl_name_tables, 0, TL_READ);
+  tables_gtid_pos.init_one_table(&db_name, &tbl_name_gtid_pos, 0, TL_READ);
+  MDL_REQUEST_INIT(&tables_tables.mdl_request, MDL_key::TABLE,
+    SPIDER_TABLE_LIST_db_str(&tables_tables),
+    SPIDER_TABLE_LIST_table_name_str(&tables_tables),
+    MDL_SHARED_READ, MDL_TRANSACTION);
+  MDL_REQUEST_INIT(&tables_gtid_pos.mdl_request, MDL_key::TABLE,
+    SPIDER_TABLE_LIST_db_str(&tables_gtid_pos),
+    SPIDER_TABLE_LIST_table_name_str(&tables_gtid_pos),
+    MDL_SHARED_READ, MDL_TRANSACTION);
+  tables_tables.next_global = &tables_gtid_pos;
+  if (spider_sys_open_and_lock_tables(thd, &tables,
+    &open_tables_backup_tables))
+  {
+    goto error_open_table_tables;
+  }
+  table_tables = tables_tables.table;
+  table_gtid_pos = tables_gtid_pos.table;
+#endif
 
   table_tables->use_all_columns();
   table_gtid_pos->use_all_columns();
@@ -822,8 +850,10 @@ int spider_get_ping_table_gtid_pos(
   {
     goto error_sys_index_end;
   }
-  spider_close_sys_table(thd, table_gtid_pos, &open_tables_backup_gtid_pos,
-    need_lock);
+#ifdef SPIDER_REQUIRE_DEFINE_FOR_SECONDARY_OPEN_TABLES_BACKUP
+  spider_close_sys_table(thd, table_gtid_pos,
+    &open_tables_backup_gtid_pos, need_lock);
+#endif
   spider_close_sys_table(thd, table_tables, &open_tables_backup_tables,
     need_lock);
 
@@ -835,9 +865,12 @@ error_get_sys_tables_link_status:
   spider_sys_index_end(table_tables);
 error_sys_index_end:
 error_get_sys_table_by_idx:
-  spider_close_sys_table(thd, table_gtid_pos, &open_tables_backup_gtid_pos,
+#ifdef SPIDER_REQUIRE_DEFINE_FOR_SECONDARY_OPEN_TABLES_BACKUP
+  spider_close_sys_table(thd, table_gtid_pos,
+    &open_tables_backup_gtid_pos,
     need_lock);
 error_open_table_gtid_pos:
+#endif
   spider_close_sys_table(thd, table_tables, &open_tables_backup_tables,
     need_lock);
 error_open_table_tables:
@@ -852,11 +885,7 @@ int spider_init_ping_table_mon_cache(
   int error_num, same;
   uint old_elements;
   TABLE *table_link_mon = NULL;
-#if MYSQL_VERSION_ID < 50500
-  Open_tables_state open_tables_backup;
-#else
-  Open_tables_backup open_tables_backup;
-#endif
+  SPIDER_Open_tables_backup open_tables_backup;
   SPIDER_MON_KEY mon_key;
   DBUG_ENTER("spider_init_ping_table_mon_cache");
 

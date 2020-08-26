@@ -184,24 +184,18 @@ row_upd_index_replace_new_col_vals_index_pos(
 	const upd_t*		update,
 	mem_heap_t*		heap)
 	MY_ATTRIBUTE((nonnull));
-/***********************************************************//**
-Replaces the new column values stored in the update vector to the index entry
-given. */
-void
-row_upd_index_replace_new_col_vals(
-/*===============================*/
-	dtuple_t*	entry,	/*!< in/out: index entry where replaced;
-				the clustered index record must be
-				covered by a lock or a page latch to
-				prevent deletion (rollback or purge) */
-	dict_index_t*	index,	/*!< in: index; NOTE that this may also be a
-				non-clustered index */
-	const upd_t*	update,	/*!< in: an update vector built for the
-				CLUSTERED index so that the field number in
-				an upd_field is the clustered index position */
-	mem_heap_t*	heap)	/*!< in: memory heap for allocating and
-				copying the new values */
-	MY_ATTRIBUTE((nonnull));
+/** Replace the new column values stored in the update vector,
+during trx_undo_prev_version_build().
+@param entry   clustered index tuple where the values are replaced
+               (the clustered index leaf page latch must be held)
+@param index   clustered index
+@param update  update vector for the clustered index
+@param heap    memory heap for allocating and copying values
+@return whether the previous version was built successfully */
+bool
+row_upd_index_replace_new_col_vals(dtuple_t *entry, const dict_index_t &index,
+                                   const upd_t *update, mem_heap_t *heap)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 /***********************************************************//**
 Replaces the new column values stored in the update vector. */
 void

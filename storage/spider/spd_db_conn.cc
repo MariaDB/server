@@ -1742,6 +1742,7 @@ int spider_db_append_key_where_internal(
   int key_count;
   uint length;
   uint store_length;
+  uint current_pos = str->length();
   const uchar *ptr, *another_ptr;
   const key_range *use_key, *another_key;
   KEY_PART_INFO *key_part;
@@ -2715,6 +2716,11 @@ int spider_db_append_key_where_internal(
     DBUG_RETURN(error_num);
 
 end:
+  if (spider->multi_range_num && current_pos == str->length())
+  {
+    DBUG_PRINT("info", ("spider no key where condition"));
+    dbton_hdl->no_where_cond = TRUE;
+  }
   /* use condition */
   if (dbton_hdl->append_condition_part(NULL, 0, sql_type, FALSE))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -10030,9 +10036,9 @@ int spider_db_open_item_string(
   if (str)
   {
     THD *thd = NULL;
-    TABLE *table;
+    TABLE *UNINIT_VAR(table);
     my_bitmap_map *saved_map = NULL;
-    Time_zone *saved_time_zone;
+    Time_zone *UNINIT_VAR(saved_time_zone);
     String str_value;
     char tmp_buf[MAX_FIELD_WIDTH];
     spider_string tmp_str(tmp_buf, MAX_FIELD_WIDTH, str->charset());
@@ -10755,7 +10761,7 @@ int spider_db_udf_direct_sql(
 #else
   if (direct_sql->real_table_used)
   {
-    if (spider_sys_open_tables(c_thd, &direct_sql->table_list_first,
+    if (spider_sys_open_and_lock_tables(c_thd, &direct_sql->table_list_first,
                                &direct_sql->open_tables_backup))
     {
       direct_sql->real_table_used = FALSE;

@@ -2419,6 +2419,33 @@ bool Field::get_date(MYSQL_TIME *to, date_mode_t mode)
   return !t->is_valid_temporal();
 }
 
+
+longlong Field::val_datetime_packed(THD *thd)
+{
+  MYSQL_TIME ltime, tmp;
+  if (get_date(&ltime, Datetime::Options_cmp(thd)))
+    return 0;
+  if (ltime.time_type != MYSQL_TIMESTAMP_TIME)
+    return pack_time(&ltime);
+  if (time_to_datetime_with_warn(thd, &ltime, &tmp, TIME_CONV_NONE))
+    return 0;
+  return pack_time(&tmp);
+}
+
+
+longlong Field::val_time_packed(THD *thd)
+{
+  MYSQL_TIME ltime;
+  Time::Options_cmp opt(thd);
+  if (get_date(&ltime, opt))
+    return 0;
+  if (ltime.time_type == MYSQL_TIMESTAMP_TIME)
+    return pack_time(&ltime);
+  // Conversion from DATETIME or DATE to TIME is needed
+  return Time(thd, &ltime, opt).to_packed();
+}
+
+
 /**
   This is called when storing a date in a string.
 
@@ -5865,9 +5892,7 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
         See comments about truncation in the same place in
         Field_time::get_equal_const_item().
       */
-      return new (thd->mem_root) Item_datetime_literal(thd,
-                                                       dt.get_mysql_time(),
-                                                       decimals());
+      return new (thd->mem_root) Item_datetime_literal(thd, &dt, decimals());
     }
     break;
   case ANY_SUBST:
@@ -5879,7 +5904,7 @@ Item *Field_temporal::get_equal_const_item_datetime(THD *thd,
       if (!dt.is_valid_datetime())
         return NULL;
       return new (thd->mem_root)
-        Item_datetime_literal_for_invalid_dates(thd, dt.get_mysql_time(),
+        Item_datetime_literal_for_invalid_dates(thd, &dt,
                                                 dt.get_mysql_time()->
                                                 second_part ?
                                                 TIME_SECOND_PART_DIGITS : 0);
@@ -6085,6 +6110,24 @@ bool Field_time0::get_date(MYSQL_TIME *ltime, date_mode_t fuzzydate)
 }
 
 
+int Field_time::store_native(const Native &value)
+{
+  Time t(value);
+  DBUG_ASSERT(t.is_valid_time());
+  store_TIME(t);
+  return 0;
+}
+
+
+bool Field_time::val_native(Native *to)
+{
+  MYSQL_TIME ltime;
+  get_date(&ltime, date_mode_t(0));
+  int warn;
+  return Time(&warn, &ltime, 0).to_native(to, decimals());
+}
+
+
 bool Field_time::send(Protocol *protocol)
 {
   MYSQL_TIME ltime;
@@ -6201,7 +6244,7 @@ Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
 
         (assuming CURRENT_DATE is '2015-08-30'
       */
-      return new (thd->mem_root) Item_time_literal(thd, tm.get_mysql_time(),
+      return new (thd->mem_root) Item_time_literal(thd, &tm,
                                                    tm.get_mysql_time()->
                                                    second_part ?
                                                    TIME_SECOND_PART_DIGITS :
@@ -6230,8 +6273,7 @@ Item *Field_time::get_equal_const_item(THD *thd, const Context &ctx,
               decimals());
       if (!tm.is_valid_time())
         return NULL;
-      return new (thd->mem_root) Item_time_literal(thd, tm.get_mysql_time(),
-                                                   decimals());
+      return new (thd->mem_root) Item_time_literal(thd, &tm, decimals());
     }
     break;
   }
@@ -6320,6 +6362,33 @@ Binlog_type_info Field_timef::binlog_type_info() const
 {
   return Binlog_type_info(Field_timef::binlog_type(), decimals(), 1);
 }
+
+
+longlong Field_timef::val_time_packed(THD *thd)
+{
+  DBUG_ASSERT(marked_for_read());
+  longlong tmp= my_time_packed_from_binary(ptr, dec);
+  MYSQL_TIME ltime;
+  TIME_from_longlong_time_packed(&ltime, tmp);
+  return pack_time(&ltime);
+}
+
+
+int Field_timef::store_native(const Native &value)
+{
+  DBUG_ASSERT(value.length() == my_time_binary_length(dec));
+  DBUG_ASSERT(Time(value).is_valid_time());
+  memcpy(ptr, value.ptr(), value.length());
+  return 0;
+}
+
+
+bool Field_timef::val_native(Native *to)
+{
+  uint32 binlen= my_time_binary_length(dec);
+  return to->copy((const char*) ptr, binlen);
+}
+
 
 /****************************************************************************
 ** year type
@@ -6709,6 +6778,14 @@ bool Field_newdate::get_TIME(MYSQL_TIME *ltime, const uchar *pos,
 }
 
 
+longlong Field_newdate::val_datetime_packed(THD *thd)
+{
+  MYSQL_TIME ltime;
+  Field_newdate::get_date(&ltime, date_mode_t(0));
+  return pack_time(&ltime);
+}
+
+
 int Field_newdate::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
   uint32 a,b;
@@ -6762,12 +6839,12 @@ Item *Field_newdate::get_equal_const_item(THD *thd, const Context &ctx,
       */
       if (!dt.hhmmssff_is_zero())
         return new (thd->mem_root)
-          Item_datetime_literal_for_invalid_dates(thd, dt.get_mysql_time(),
+          Item_datetime_literal_for_invalid_dates(thd, &dt,
                                                   dt.get_mysql_time()->
                                                     second_part ?
                                                   TIME_SECOND_PART_DIGITS : 0);
-      return new (thd->mem_root)
-        Item_date_literal_for_invalid_dates(thd, Date(&dt).get_mysql_time());
+      Date d(&dt);
+      return new (thd->mem_root) Item_date_literal_for_invalid_dates(thd, &d);
     }
     break;
   case IDENTITY_SUBST:
@@ -6782,8 +6859,8 @@ Item *Field_newdate::get_equal_const_item(THD *thd, const Context &ctx,
       Datetime dt(thd, const_item, Datetime::Options(TIME_CONV_NONE, thd));
       if (!dt.is_valid_datetime())
         return NULL;
-      return new (thd->mem_root)
-        Item_date_literal(thd, Date(&dt).get_mysql_time());
+      Date d(&dt);
+      return new (thd->mem_root) Item_date_literal(thd, &d);
     }
     break;
   }
@@ -7029,6 +7106,16 @@ Binlog_type_info Field_datetimef::binlog_type_info() const
 {
   return Binlog_type_info(Field_datetimef::binlog_type(), decimals(), 1);
 }
+
+longlong Field_datetimef::val_datetime_packed(THD *thd)
+{
+  DBUG_ASSERT(marked_for_read());
+  longlong tmp= my_datetime_packed_from_binary(ptr, dec);
+  MYSQL_TIME ltime;
+  TIME_from_longlong_datetime_packed(&ltime, tmp);
+  return pack_time(&ltime);
+}
+
 
 /****************************************************************************
 ** string type

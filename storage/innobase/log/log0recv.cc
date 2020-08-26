@@ -907,37 +907,34 @@ fil_name_process(char* name, ulint len, ulint space_id, bool deleted)
 /** Clean up after recv_sys_t::create() */
 void recv_sys_t::close()
 {
-	ut_ad(this == &recv_sys);
-	ut_ad(!recv_writer_thread_active);
+  ut_ad(this == &recv_sys);
+  ut_ad(!recv_writer_thread_active);
 
-	if (is_initialised()) {
-		dblwr.pages.clear();
-		ut_d(mutex_enter(&mutex));
-		clear();
-		ut_d(mutex_exit(&mutex));
+  if (is_initialised())
+  {
+    dblwr.pages.clear();
+    ut_d(mutex_enter(&mutex));
+    clear();
+    ut_d(mutex_exit(&mutex));
 
-		if (flush_start) {
-			os_event_destroy(flush_start);
-		}
+    os_event_destroy(flush_start);
+    os_event_destroy(flush_end);
 
-		if (flush_end) {
-			os_event_destroy(flush_end);
-		}
+    if (buf)
+    {
+      ut_free_dodump(buf, RECV_PARSING_BUF_SIZE);
+      buf= nullptr;
+    }
 
-		if (buf) {
-			ut_free_dodump(buf, RECV_PARSING_BUF_SIZE);
-			buf = NULL;
-		}
+    last_stored_lsn= 0;
+    mutex_free(&writer_mutex);
+    mutex_free(&mutex);
+  }
 
-		last_stored_lsn = 0;
-		mutex_free(&writer_mutex);
-		mutex_free(&mutex);
-	}
+  recv_spaces.clear();
+  mlog_init.clear();
 
-	recv_spaces.clear();
-	mlog_init.clear();
-
-	files.clear();
+  close_files();
 }
 
 /******************************************************************//**
@@ -1060,24 +1057,25 @@ inline void recv_sys_t::clear()
 /** Free most recovery data structures. */
 void recv_sys_t::debug_free()
 {
-	ut_ad(this == &recv_sys);
-	ut_ad(is_initialised());
-	mutex_enter(&mutex);
+  ut_ad(this == &recv_sys);
+  ut_ad(is_initialised());
+  mutex_enter(&mutex);
 
-	pages.clear();
-	ut_free_dodump(buf, RECV_PARSING_BUF_SIZE);
+  pages.clear();
+  ut_free_dodump(buf, RECV_PARSING_BUF_SIZE);
 
-	buf = NULL;
+  buf= nullptr;
 
-	/* wake page cleaner up to progress */
-	if (!srv_read_only_mode) {
-		ut_ad(!recv_recovery_is_on());
-		ut_ad(!recv_writer_thread_active);
-		os_event_reset(buf_flush_event);
-		os_event_set(flush_start);
-	}
+  /* wake page cleaner up to progress */
+  if (!srv_read_only_mode)
+  {
+    ut_ad(!recv_recovery_is_on());
+    ut_ad(!recv_writer_thread_active);
+    os_event_reset(buf_flush_event);
+    os_event_set(flush_start);
+  }
 
-	mutex_exit(&mutex);
+  mutex_exit(&mutex);
 }
 
 inline void *recv_sys_t::alloc(size_t len)

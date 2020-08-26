@@ -823,11 +823,12 @@ void log_t::file::flush()
 
 void log_t::file::close_file()
 {
-  if (!fd.is_opened())
-    return;
-
-  if (const dberr_t err= fd.close())
-    ib::fatal() << "close(" << fd.get_path() << ") returned " << err;
+  if (fd.is_opened())
+  {
+    if (const dberr_t err= fd.close())
+      ib::fatal() << "close(" << fd.get_path() << ") returned " << err;
+  }
+  fd.free();                                    // Free path
 }
 
 /** Initialize the redo log. */

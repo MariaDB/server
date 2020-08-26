@@ -302,7 +302,7 @@ public:
 
   void read(os_offset_t offset, span<byte> buf);
   inline size_t files_size();
-  void close_files() { files.clear(); }
+  void close_files() { files.clear(); files.shrink_to_fit(); }
 
 private:
   /** Attempt to initialize a page based on redo log records.

@@ -738,8 +738,8 @@ Field *spider_field_exchange(
 #endif
 
 int spider_set_direct_limit_offset(
-                                   ha_spider*		spider
-                                   );
+  ha_spider *spider
+);
 
 bool spider_check_index_merge(
   TABLE *table,

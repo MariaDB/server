@@ -106,6 +106,9 @@ extern int (*dbug_sanity)(void);
         (_db_keyword_(0,(keyword), 1) ? (a1) : (a2))
 #define DBUG_PRINT(keyword,arglist) \
         do if (_db_pargs_(__LINE__,keyword)) _db_doprnt_ arglist; while(0)
+
+#define DBUG_PUSH_EMPTY if (_dbug_on_) { DBUG_PUSH(""); }
+#define DBUG_POP_EMPTY  if (_dbug_on_) { DBUG_POP(); }
 #define DBUG_PUSH(a1) _db_push_ (a1)
 #define DBUG_POP() _db_pop_ ()
 #define DBUG_SET(a1) _db_set_ (a1)
@@ -172,6 +175,8 @@ extern void _db_suicide_(void);
 #define DBUG_EVALUATE(keyword,a1,a2) (a2)
 #define DBUG_EVALUATE_IF(keyword,a1,a2) (a2)
 #define DBUG_PRINT(keyword,arglist)     do { } while(0)
+#define DBUG_PUSH_EMPTY                 do { } while(0)
+#define DBUG_POP_EMPTY                  do { } while(0)
 #define DBUG_PUSH(a1)                   do { } while(0)
 #define DBUG_SET(a1)                    do { } while(0)
 #define DBUG_SET_INITIAL(a1)            do { } while(0)

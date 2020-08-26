@@ -4054,7 +4054,7 @@ online_retry_drop_indexes(
 		online_retry_drop_indexes_low(table, trx);
 		trx_commit_for_mysql(trx);
 		row_mysql_unlock_data_dictionary(trx);
-		trx_free(trx);
+		trx->free();
 	}
 
 	ut_d(mutex_enter(&dict_sys.mutex));
@@ -7163,7 +7163,7 @@ err_exit:
 	if (ctx->trx) {
 		row_mysql_unlock_data_dictionary(ctx->trx);
 
-		trx_free(ctx->trx);
+		ctx->trx->free();
 	}
 	trx_commit_for_mysql(ctx->prebuilt->trx);
 
@@ -8730,7 +8730,8 @@ rollback_inplace_alter_table(
 
 	trx_commit_for_mysql(ctx->trx);
 	row_mysql_unlock_data_dictionary(ctx->trx);
-	trx_free(ctx->trx);
+	ctx->trx->free();
+	ctx->trx = NULL;
 
 func_exit:
 #ifndef DBUG_OFF
@@ -11101,7 +11102,7 @@ foreign_fail:
 
 		row_mysql_unlock_data_dictionary(trx);
 		if (trx != ctx0->trx) {
-			trx_free(trx);
+			trx->free();
 		}
 		DBUG_RETURN(true);
 	}
@@ -11120,7 +11121,8 @@ foreign_fail:
 			= static_cast<ha_innobase_inplace_ctx*>(*pctx);
 
 		if (ctx->trx) {
-			trx_free(ctx->trx);
+			ctx->trx->free();
+			ctx->trx = NULL;
 		}
 	}
 
@@ -11168,7 +11170,7 @@ foreign_fail:
 		}
 
 		row_mysql_unlock_data_dictionary(trx);
-		trx_free(trx);
+		trx->free();
 		MONITOR_ATOMIC_DEC(MONITOR_PENDING_ALTER_TABLE);
 		DBUG_RETURN(false);
 	}
@@ -11289,7 +11291,7 @@ foreign_fail:
 	}
 
 	row_mysql_unlock_data_dictionary(trx);
-	trx_free(trx);
+	trx->free();
 
 	/* TODO: The following code could be executed
 	while allowing concurrent access to the table

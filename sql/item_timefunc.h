@@ -598,6 +598,10 @@ public:
   double val_real() { return Time(this).to_double(); }
   String *val_str(String *to) { return Time(this).to_string(to, decimals); }
   my_decimal *val_decimal(my_decimal *to) { return Time(this).to_decimal(to); }
+  bool val_native(THD *thd, Native *to)
+  {
+    return Time(thd, this).to_native(to, decimals);
+  }
 };
 
 

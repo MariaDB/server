@@ -192,7 +192,7 @@ void purge_sys_t::close()
   ut_ad(!trx->id);
   ut_ad(trx->state == TRX_STATE_ACTIVE);
   trx->state= TRX_STATE_NOT_STARTED;
-  trx_free(trx);
+  trx->free();
   rw_lock_free(&latch);
   mutex_free(&pq_mutex);
   mem_heap_free(heap);

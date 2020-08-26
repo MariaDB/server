@@ -953,7 +953,7 @@ int Wsrep_schema::update_fragment_meta(THD* thd,
 
   Wsrep_schema_impl::binlog_off binlog_off(thd);
   int error;
-  uchar key[MAX_KEY_LENGTH];
+  uchar key[MAX_KEY_LENGTH+MAX_FIELD_WIDTH];
   key_part_map key_map= 0;
   TABLE* frag_table= 0;
 
@@ -1015,7 +1015,7 @@ static int remove_fragment(THD*                  thd,
               seqno.get());
   int ret= 0;
   int error;
-  uchar key[MAX_KEY_LENGTH];
+  uchar key[MAX_KEY_LENGTH+MAX_FIELD_WIDTH];
   key_part_map key_map= 0;
 
   DBUG_ASSERT(server_id.is_undefined() == false);
@@ -1141,7 +1141,7 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
   int ret= 1;
   int error;
   TABLE* frag_table= 0;
-  uchar key[MAX_KEY_LENGTH];
+  uchar key[MAX_KEY_LENGTH+MAX_FIELD_WIDTH];
   key_part_map key_map= 0;
 
   for (std::vector<wsrep::seqno>::const_iterator i= fragments.begin();

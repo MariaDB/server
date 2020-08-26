@@ -73,7 +73,7 @@ Created 10/8/1995 Heikki Tuuri
 #include "fil0crypt.h"
 #include "fil0pagecompress.h"
 #include "trx0types.h"
-
+#include <list>
 
 #include <my_service_manager.h>
 /* The following is the maximum allowed duration of a lock wait. */
@@ -2105,7 +2105,7 @@ static uint32_t srv_do_purge(ulint* n_total_purged)
 }
 
 
-static std::queue<THD*> purge_thds;
+static std::list<THD*> purge_thds;
 static std::mutex purge_thd_mutex;
 extern void* thd_attach_thd(THD*);
 extern void thd_detach_thd(void *);
@@ -2115,11 +2115,11 @@ THD* acquire_thd(void **ctx)
 	std::unique_lock<std::mutex> lk(purge_thd_mutex);
 	if (purge_thds.empty()) {
 		THD* thd = current_thd;
-		purge_thds.push(innobase_create_background_thd("InnoDB purge worker"));
+		purge_thds.push_back(innobase_create_background_thd("InnoDB purge worker"));
 		set_current_thd(thd);
 	}
 	THD* thd = purge_thds.front();
-	purge_thds.pop();
+	purge_thds.pop_front();
 	lk.unlock();
 
 	/* Set current thd, and thd->mysys_var as well,
@@ -2132,7 +2132,7 @@ void release_thd(THD *thd, void *ctx)
 {
 	thd_detach_thd(ctx);
 	std::unique_lock<std::mutex> lk(purge_thd_mutex);
-	purge_thds.push(thd);
+	purge_thds.push_back(thd);
 	lk.unlock();
 	set_current_thd(0);
 }
@@ -2231,7 +2231,7 @@ static void srv_shutdown_purge_tasks()
   while (!purge_thds.empty())
   {
     innobase_destroy_background_thd(purge_thds.front());
-    purge_thds.pop();
+    purge_thds.pop_front();
   }
 }
 

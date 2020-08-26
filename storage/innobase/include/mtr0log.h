@@ -513,7 +513,8 @@ inline void mtr_t::init(buf_block_t *b)
 {
   if (UNIV_LIKELY_NULL(m_freed_pages))
   {
-    ut_ad(m_user_space->id == b->page.id().space());
+    ut_ad(m_log_mode != MTR_LOG_ALL ||
+          m_user_space_id == b->page.id().space());
     if (m_freed_pages->remove_if_exists(b->page.id().page_no()) &&
         m_freed_pages->empty())
     {
