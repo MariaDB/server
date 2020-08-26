@@ -18,7 +18,7 @@
 
 #include "client_priv.h"
 #include <sslopt-vars.h>
-#include "../scripts/mysql_fix_privilege_tables_sql.c"
+#include <../scripts/mysql_fix_privilege_tables_sql.c>
 
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
