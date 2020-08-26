@@ -1,4 +1,4 @@
-/* Copyright 2008-2017 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2020 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -54,7 +54,6 @@ my_bool wsrep_sst_donor_rejects_queries= FALSE;
 
 bool sst_joiner_completed            = false;
 bool sst_donor_completed             = false;
-bool sst_needed                      = false;
 
 struct sst_thread_arg
 {
@@ -308,7 +307,6 @@ bool wsrep_before_SE()
           && strcmp (wsrep_sst_method, WSREP_SST_MYSQLDUMP));
 }
 
-static bool            sst_in_progress = false;
 // Signal end of SST
 static void wsrep_sst_complete (THD*                thd,
                                 int const           rcode)
@@ -1627,12 +1625,11 @@ static void* sst_donor_thread (void* a)
   wsrep_uuid_t  ret_uuid= WSREP_UUID_UNDEFINED;
   // seqno of complete SST
   wsrep_seqno_t ret_seqno= WSREP_SEQNO_UNDEFINED;
-  // SST is now in progress
-  sst_in_progress= true;
 
-  wsp::thd thd(FALSE); // we turn off wsrep_on for this THD so that it can
-                       // operate with wsrep_ready == OFF
-
+  // We turn off wsrep_on for this THD so that it can
+  // operate with wsrep_ready == OFF
+  // We also set this SST thread THD as system thread
+  wsp::thd thd(FALSE, true);
   wsp::process proc(arg->cmd, "r", arg->env);
 
   err= -proc.error();
@@ -1734,10 +1731,7 @@ wait_signal:
   proc.wait();
 
   wsrep_donor_monitor_end();
-  sst_in_progress= false;
-
-
-  return NULL;
+  return nullptr;
 }
 
 static int sst_donate_other (const char*        method,
@@ -1888,9 +1882,4 @@ int wsrep_sst_donate(const std::string& msg,
   }
 
   return (ret >= 0 ? 0 : 1);
-}
-
-bool wsrep_is_sst_progress()
-{
-  return (sst_in_progress);
 }

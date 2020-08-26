@@ -1127,7 +1127,9 @@ containing also the reference to the external part
 @param[in,out]	len		input - length of prefix to
 fetch; output: fetched length of the prefix
 @param[in,out]	heap		heap where to allocate
-@return BLOB prefix */
+@return BLOB prefix
+@retval NULL if the record is incomplete (should only happen
+in row_vers_vc_matches_cluster() executed concurrently with another purge) */
 static
 byte*
 row_upd_ext_fetch(
@@ -1142,10 +1144,7 @@ row_upd_ext_fetch(
 	*len = btr_copy_externally_stored_field_prefix(
 		buf, *len, zip_size, data, local_len);
 
-	/* We should never update records containing a half-deleted BLOB. */
-	ut_a(*len);
-
-	return(buf);
+	return *len ? buf : NULL;
 }
 
 /** Replaces the new column value stored in the update vector in
@@ -1156,9 +1155,11 @@ the given index entry field.
 @param[in]	uf		update field
 @param[in,out]	heap		memory heap for allocating and copying
 the new value
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0 */
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@return whether the previous version was built successfully */
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 static
-void
+bool
 row_upd_index_replace_new_col_val(
 	dfield_t*		dfield,
 	const dict_field_t*	field,
@@ -1173,13 +1174,13 @@ row_upd_index_replace_new_col_val(
 	dfield_copy_data(dfield, &uf->new_val);
 
 	if (dfield_is_null(dfield)) {
-		return;
+		return true;
 	}
 
 	len = dfield_get_len(dfield);
 	data = static_cast<const byte*>(dfield_get_data(dfield));
 
-	if (field && field->prefix_len > 0) {
+	if (field->prefix_len > 0) {
 		ibool		fetch_ext = dfield_is_ext(dfield)
 			&& len < (ulint) field->prefix_len
 			+ BTR_EXTERN_FIELD_REF_SIZE;
@@ -1191,6 +1192,9 @@ row_upd_index_replace_new_col_val(
 
 			data = row_upd_ext_fetch(data, l, zip_size,
 						 &len, heap);
+			if (UNIV_UNLIKELY(!data)) {
+				return false;
+			}
 		}
 
 		len = dtype_get_at_most_n_mbchars(col->prtype,
@@ -1204,7 +1208,7 @@ row_upd_index_replace_new_col_val(
 			dfield_dup(dfield, heap);
 		}
 
-		return;
+		return true;
 	}
 
 	switch (uf->orig_len) {
@@ -1243,6 +1247,8 @@ row_upd_index_replace_new_col_val(
 		dfield_set_ext(dfield);
 		break;
 	}
+
+	return true;
 }
 
 /** Apply an update vector to an metadata entry.
@@ -1289,8 +1295,11 @@ row_upd_index_replace_metadata(
 
 		f -= f > first;
 		const dict_field_t* field = dict_index_get_nth_field(index, f);
-		row_upd_index_replace_new_col_val(dfield, field, field->col,
-						  uf, heap, zip_size);
+		if (!row_upd_index_replace_new_col_val(dfield, field,
+						       field->col,
+						       uf, heap, zip_size)) {
+			ut_error;
+		}
 	}
 
 	ut_ad(found_mblob);
@@ -1341,68 +1350,57 @@ row_upd_index_replace_new_col_vals_index_pos(
 				update, i, false);
 		}
 
-		if (uf) {
-			row_upd_index_replace_new_col_val(
-				dtuple_get_nth_field(entry, i),
-				field, col, uf, heap, zip_size);
+		if (uf && UNIV_UNLIKELY(!row_upd_index_replace_new_col_val(
+						dtuple_get_nth_field(entry, i),
+						field, col, uf, heap,
+						zip_size))) {
+			ut_error;
 		}
 	}
 }
 
-/***********************************************************//**
-Replaces the new column values stored in the update vector to the index entry
-given. */
-void
-row_upd_index_replace_new_col_vals(
-/*===============================*/
-	dtuple_t*	entry,	/*!< in/out: index entry where replaced;
-				the clustered index record must be
-				covered by a lock or a page latch to
-				prevent deletion (rollback or purge) */
-	dict_index_t*	index,	/*!< in: index; NOTE that this may also be a
-				non-clustered index */
-	const upd_t*	update,	/*!< in: an update vector built for the
-				CLUSTERED index so that the field number in
-				an upd_field is the clustered index position */
-	mem_heap_t*	heap)	/*!< in: memory heap for allocating and
-				copying the new values */
+/** Replace the new column values stored in the update vector,
+during trx_undo_prev_version_build().
+@param entry   clustered index tuple where the values are replaced
+               (the clustered index leaf page latch must be held)
+@param index   clustered index
+@param update  update vector for the clustered index
+@param heap    memory heap for allocating and copying values
+@return whether the previous version was built successfully */
+bool
+row_upd_index_replace_new_col_vals(dtuple_t *entry, const dict_index_t &index,
+                                   const upd_t *update, mem_heap_t *heap)
 {
-	ulint			i;
-	const dict_index_t*	clust_index
-		= dict_table_get_first_index(index->table);
-	const ulint zip_size = index->table->space->zip_size();
+  ut_ad(index.is_primary());
+  const ulint zip_size= index.table->space->zip_size();
 
-	ut_ad(!index->table->skip_alter_undo);
+  ut_ad(!index.table->skip_alter_undo);
+  dtuple_set_info_bits(entry, update->info_bits);
 
-	dtuple_set_info_bits(entry, update->info_bits);
+  for (ulint i= 0; i < index.n_fields; i++)
+  {
+   const dict_field_t *field= &index.fields[i];
+   const dict_col_t* col= dict_field_get_col(field);
+   const upd_field_t *uf;
 
-	for (i = 0; i < dict_index_get_n_fields(index); i++) {
-		const dict_field_t*	field;
-		const dict_col_t*	col;
-		const upd_field_t*	uf;
+   if (col->is_virtual())
+   {
+     const dict_v_col_t *vcol= reinterpret_cast<const dict_v_col_t*>(col);
+     uf= upd_get_field_by_field_no(update, vcol->v_pos, true);
+   }
+   else
+     uf= upd_get_field_by_field_no(update, dict_col_get_clust_pos(col, &index),
+                                   false);
 
-		field = dict_index_get_nth_field(index, i);
-		col = dict_field_get_col(field);
-		if (col->is_virtual()) {
-			const dict_v_col_t*	vcol = reinterpret_cast<
-							const dict_v_col_t*>(
-								col);
+   if (!uf)
+     continue;
 
-			uf = upd_get_field_by_field_no(
-				update, vcol->v_pos, true);
-		} else {
-			uf = upd_get_field_by_field_no(
-				update,
-				dict_col_get_clust_pos(col, clust_index),
-				false);
-		}
+   if (!row_upd_index_replace_new_col_val(dtuple_get_nth_field(entry, i),
+                                          field, col, uf, heap, zip_size))
+     return false;
+  }
 
-		if (uf) {
-			row_upd_index_replace_new_col_val(
-				dtuple_get_nth_field(entry, i),
-				field, col, uf, heap, zip_size);
-		}
-	}
+  return true;
 }
 
 /** Replaces the virtual column values stored in the update vector.
@@ -2421,7 +2419,7 @@ row_upd_sec_index_entry(
 #ifdef UNIV_DEBUG
 		mtr_commit(&mtr);
 		mtr_start(&mtr);
-		ut_ad(btr_validate_index(index, 0));
+		ut_ad(btr_validate_index(index, 0) == DB_SUCCESS);
 		ut_ad(0);
 #endif /* UNIV_DEBUG */
 		break;
