@@ -936,7 +936,8 @@ loop:
 and invoke log_mutex_enter(). */
 static void log_write_flush_to_disk_low(lsn_t lsn)
 {
-  log_sys.log.flush();
+  if (!log_sys.log.writes_are_durable())
+    log_sys.log.flush();
   ut_a(lsn >= log_sys.get_flushed_lsn());
   log_sys.set_flushed_lsn(lsn);
 }
@@ -1129,12 +1130,7 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key)
   /* Flush the highest written lsn.*/
   auto flush_lsn = write_lock.value();
   flush_lock.set_pending(flush_lsn);
-
-  if (!log_sys.log.writes_are_durable())
-  {
-    log_write_flush_to_disk_low(flush_lsn);
-  }
-
+  log_write_flush_to_disk_low(flush_lsn);
   flush_lock.release(flush_lsn);
 
   innobase_mysql_log_notify(flush_lsn);

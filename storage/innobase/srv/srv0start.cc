@@ -1390,10 +1390,9 @@ dberr_t srv_start(bool create_new_db)
 
 	std::string logfile0;
 	if (create_new_db) {
-
+		flushed_lsn = log_sys.get_lsn();
+		log_sys.set_flushed_lsn(flushed_lsn);
 		buf_flush_sync();
-
-		flushed_lsn = log_get_lsn();
 
 		err = create_log_file(flushed_lsn, logfile0);
 

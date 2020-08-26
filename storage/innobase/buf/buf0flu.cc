@@ -1112,13 +1112,27 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
   is protected even if !rw_lock. */
   const auto status= bpage->status;
 
-  if (status == buf_page_t::FREED);
-  else if (lru)
-    buf_pool.n_flush_LRU++;
-  else
-    buf_pool.n_flush_list++;
-
+  buf_block_t *block= reinterpret_cast<buf_block_t*>(bpage);
   page_t *frame= bpage->zip.data;
+
+  if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE))
+  {
+    const lsn_t lsn= mach_read_from_8(my_assume_aligned<8>
+                                      (FIL_PAGE_LSN +
+                                       (frame ? frame : block->frame)));
+    ut_ad(lsn);
+    ut_ad(lsn >= bpage->oldest_modification());
+    ut_ad(!srv_read_only_mode);
+    if (UNIV_UNLIKELY(lsn > log_sys.get_flushed_lsn()))
+    {
+      if (rw_lock)
+        rw_lock_sx_unlock_gen(rw_lock, BUF_IO_WRITE);
+      mysql_mutex_lock(&buf_pool.mutex);
+      bpage->set_io_fix(BUF_IO_NONE);
+      return false;
+    }
+  }
+
   size_t size, orig_size;
 
   if (UNIV_UNLIKELY(!rw_lock)) /* ROW_FORMAT=COMPRESSED */
@@ -1135,37 +1149,26 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
   }
   else
   {
-    buf_block_t *block= reinterpret_cast<buf_block_t*>(bpage);
     byte *page= block->frame;
     orig_size= size= block->physical_size();
 
-    if (status != buf_page_t::FREED)
+    if (status == buf_page_t::FREED);
+    else if (full_crc32)
     {
-      if (full_crc32)
-      {
-        /* innodb_checksum_algorithm=full_crc32 is not implemented for
-        ROW_FORMAT=COMPRESSED pages. */
-        ut_ad(!frame);
-        page= buf_page_encrypt(space, bpage, page, &size);
-      }
-
+      /* innodb_checksum_algorithm=full_crc32 is not implemented for
+      ROW_FORMAT=COMPRESSED pages. */
+      ut_ad(!frame);
+      page= buf_page_encrypt(space, bpage, page, &size);
+      buf_flush_init_for_writing(block, page, nullptr, full_crc32);
+    }
+    else
+    {
       buf_flush_init_for_writing(block, page, frame ? &bpage->zip : nullptr,
                                  full_crc32);
-
-      if (!full_crc32)
-        page= buf_page_encrypt(space, bpage, frame ? frame : page, &size);
+      page= buf_page_encrypt(space, bpage, frame ? frame : page, &size);
     }
 
     frame= page;
-  }
-
-  if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE))
-  {
-    const lsn_t lsn= mach_read_from_8(frame + FIL_PAGE_LSN);
-    ut_ad(lsn);
-    ut_ad(lsn >= bpage->oldest_modification());
-    ut_ad(!srv_read_only_mode);
-    log_write_up_to(lsn, true);
   }
 
   bool use_doublewrite;
@@ -1184,11 +1187,19 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
     if (use_doublewrite)
     {
       ut_ad(!srv_read_only_mode);
+      if (lru)
+        buf_pool.n_flush_LRU++;
+      else
+        buf_pool.n_flush_list++;
       buf_dblwr->add_to_batch(bpage, lru, size);
       break;
     }
     /* fall through */
   case buf_page_t::INIT_ON_FLUSH:
+    if (lru)
+      buf_pool.n_flush_LRU++;
+    else
+      buf_pool.n_flush_list++;
     use_doublewrite= false;
     if (size != orig_size)
       request.set_punch_hole();
@@ -1673,6 +1684,12 @@ bool buf_flush_do_batch(ulint max_n, lsn_t lsn, flush_counters_t *n)
 
   if (n_flush)
     return false;
+
+  const lsn_t last_lsn= log_sys.get_lsn();
+  const lsn_t log_lsn= lsn ? last_lsn : std::max(lsn, last_lsn);
+
+  if (log_lsn > log_sys.get_flushed_lsn())
+    log_write_up_to(log_lsn, true);
 
   mysql_mutex_lock(&buf_pool.mutex);
   const bool running= n_flush != 0;

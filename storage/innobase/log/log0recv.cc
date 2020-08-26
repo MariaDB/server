@@ -3496,6 +3496,11 @@ completed:
 	}
 
 	log_sys.set_lsn(recv_sys.recovered_lsn);
+	if (UNIV_LIKELY(log_sys.get_flushed_lsn() < recv_sys.recovered_lsn)) {
+		/* This may already have been set by create_log_file()
+		if no logs existed when the server started up. */
+		log_sys.set_flushed_lsn(recv_sys.recovered_lsn);
+	}
 
 	if (recv_needed_recovery) {
 		bool missing_tablespace = false;
