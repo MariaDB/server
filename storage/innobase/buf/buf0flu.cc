@@ -1159,8 +1159,7 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
     frame= page;
   }
 
-  if (UNIV_LIKELY(status != buf_page_t::FREED &&
-                  space->purpose == FIL_TYPE_TABLESPACE))
+  if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE))
   {
     const lsn_t lsn= mach_read_from_8(frame + FIL_PAGE_LSN);
     ut_ad(lsn);
