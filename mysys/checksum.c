@@ -30,7 +30,10 @@ static unsigned int my_crc32_zlib(unsigned int crc, const void *data,
 my_crc32_t my_checksum= my_crc32_zlib;
 #endif
 
-#if __GNUC__ >= 4 && defined(__x86_64__)
+#if __GNUC__ >= 4 && defined(__x86_64__) && defined(HAVE_CLMUL_INSTRUCTION)
+/*  this define being set means crc32_x86.c with pclmul instructions
+    has been included, not necessarily that the pclmul functions are
+    available at runtime */
 
 extern int crc32_pclmul_enabled();
 extern unsigned int crc32_pclmul(unsigned int, const void *, size_t);
