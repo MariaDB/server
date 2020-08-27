@@ -3083,8 +3083,7 @@ bool JOIN::add_having_as_table_cond(JOIN_TAB *tab)
   DBUG_ENTER("JOIN::add_having_as_table_cond");
 
   Item* sort_table_cond= make_cond_for_table(thd, tmp_having, used_tables,
-                                             (table_map) 0, false,
-                                             false, false);
+                                             (table_map) 0, 0, false, false);
   if (sort_table_cond)
   {
     if (!tab->select)
@@ -3125,7 +3124,7 @@ bool JOIN::add_having_as_table_cond(JOIN_TAB *tab)
                                      QT_ORDINARY););
 
     having= make_cond_for_table(thd, tmp_having, ~ (table_map) 0,
-                                ~used_tables, false, false, false);
+                                ~used_tables, 0, false, false);
     DBUG_EXECUTE("where",
                  print_where(having, "having after sort", QT_ORDINARY););
   }
@@ -22764,7 +22763,7 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
 
   if (cond->marker == 2 || cond->eq_cmp_result() == Item::COND_OK)
   {
-    cond->set_join_tab_idx(join_tab_idx_arg);
+    cond->set_join_tab_idx((uint8) join_tab_idx_arg);
     return cond;				// Not boolean op
   }
 
@@ -22787,7 +22786,7 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
     }
   }
   cond->marker=2;
-  cond->set_join_tab_idx(join_tab_idx_arg);
+  cond->set_join_tab_idx((uint8) join_tab_idx_arg);
   return cond;
 }
 

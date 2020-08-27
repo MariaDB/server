@@ -6961,7 +6961,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 
       while ((column = column_iter++))
       {
-        uint unused_field_idx= NO_CACHED_FIELD_INDEX;
+        uint16 unused_field_idx= NO_CACHED_FIELD_INDEX;
         TABLE_LIST *dummy;
         Field *f=find_field_in_table_ref(thd, table_list, column->column.ptr(),
                                          column->column.length(),

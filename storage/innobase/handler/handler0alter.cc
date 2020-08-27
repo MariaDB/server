@@ -2236,7 +2236,7 @@ innodb_instant_alter_column_allowed_reason:
 				DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 			}
 
-			DBUG_ASSERT((MTYP_TYPENR(key_part->field->unireg_check)
+			DBUG_ASSERT((key_part->field->unireg_check
 				     == Field::NEXT_NUMBER)
 				    == !!(key_part->field->flags
 					  & AUTO_INCREMENT_FLAG));
@@ -2371,9 +2371,9 @@ innodb_instant_alter_column_allowed_reason:
 				(An AUTO_INCREMENT attribute cannot
 				be introduced to a column with
 				ALGORITHM=INPLACE.) */
-				ut_ad((MTYP_TYPENR((*af)->unireg_check)
+				ut_ad(((*af)->unireg_check
 				       == Field::NEXT_NUMBER)
-				      == (MTYP_TYPENR(f->unireg_check)
+				      == (f->unireg_check
 					  == Field::NEXT_NUMBER));
 				goto next_column;
 			}
@@ -8178,7 +8178,7 @@ err_exit:
 
 		field = altered_table->field[i];
 
-		DBUG_ASSERT((MTYP_TYPENR(field->unireg_check)
+		DBUG_ASSERT((field->unireg_check
 			     == Field::NEXT_NUMBER)
 			    == !!(field->flags & AUTO_INCREMENT_FLAG));
 

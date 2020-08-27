@@ -1221,10 +1221,11 @@ public:
   {
     Datetime dt(thd, args[0], Datetime::Options(TIME_CONV_NONE, thd));
     if (!dt.is_valid_datetime())
-      return null_value= true;
+      return (null_value= 1);
+
     Interval_DDhhmmssff it(thd, args[1]);
     if (!it.is_valid_interval_DDhhmmssff())
-      return null_value= true;
+      return (null_value= true);
     return (null_value= Sec6_add(dt.get_mysql_time(), it.get_mysql_time(), 1).
                            to_datetime(ltime));
   }
@@ -1594,13 +1595,13 @@ public:
     Datetime::Options opt(TIME_CONV_NONE, thd);
     Datetime dt(thd, item->arguments()[0], opt);
     if (!dt.is_valid_datetime())
-      return item->null_value= true;
+      return (item->null_value= true);
     Interval_DDhhmmssff it(thd, item->arguments()[1]);
     if (!it.is_valid_interval_DDhhmmssff())
-      return item->null_value= true;
+      return (item->null_value= true);
     return (item->null_value= (Sec6_add(dt.get_mysql_time(),
                                         it.get_mysql_time(), m_sign).
-                                to_datetime(to)));
+                               to_datetime(to)));
   }
 };
 
@@ -1627,10 +1628,10 @@ public:
     DBUG_ASSERT(item->is_fixed());
     Time t(thd, item->arguments()[0]);
     if (!t.is_valid_time())
-      return item->null_value= true;
+      return (item->null_value= true);
     Interval_DDhhmmssff i(thd, item->arguments()[1]);
     if (!i.is_valid_interval_DDhhmmssff())
-      return item->null_value= true;
+      return (item->null_value= true);
     return (item->null_value= (Sec6_add(t.get_mysql_time(),
                                         i.get_mysql_time(), m_sign).
                                  to_time(thd, to, item->decimals)));

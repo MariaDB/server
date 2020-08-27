@@ -2339,9 +2339,9 @@ void Table_triggers_list::mark_fields_used(trg_event_type event)
            trg_field= trg_field->next_trg_field)
       {
         /* We cannot mark fields which does not present in table. */
-        if (trg_field->field_idx != (uint)-1)
+        if (trg_field->field_idx != NO_CACHED_FIELD_INDEX)
         {
-          DBUG_PRINT("info", ("marking field: %d", trg_field->field_idx));
+          DBUG_PRINT("info", ("marking field: %u", (uint) trg_field->field_idx));
           if (trg_field->get_settable_routine_parameter())
             bitmap_set_bit(trigger_table->write_set, trg_field->field_idx);
           trigger_table->mark_column_with_deps(
