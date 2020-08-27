@@ -1500,7 +1500,7 @@ bool Field::make_empty_rec_store_default_value(THD *thd, Item *item)
 Field_num::Field_num(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                      uchar null_bit_arg, utype unireg_check_arg,
                      const LEX_CSTRING *field_name_arg,
-                     uint8 dec_arg, bool zero_arg, bool unsigned_arg)
+                     decimal_digits_t dec_arg, bool zero_arg, bool unsigned_arg)
   :Field(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
          unireg_check_arg, field_name_arg),
   dec(dec_arg),zerofill(zero_arg),unsigned_flag(unsigned_arg)
@@ -3281,10 +3281,11 @@ Field *Field_decimal::make_new_field(MEM_ROOT *root, TABLE *new_table,
 ** Field_new_decimal
 ****************************************************************************/
 
-static uint get_decimal_precision(uint len, uint8 dec, bool unsigned_val)
+static decimal_digits_t get_decimal_precision(uint len, decimal_digits_t dec,
+                                              bool unsigned_val)
 {
   uint precision= my_decimal_length_to_precision(len, dec, unsigned_val);
-  return MY_MIN(precision, DECIMAL_MAX_PRECISION);
+  return (decimal_digits_t) MY_MIN(precision, DECIMAL_MAX_PRECISION);
 }
 
 Field_new_decimal::Field_new_decimal(uchar *ptr_arg,
@@ -3292,7 +3293,7 @@ Field_new_decimal::Field_new_decimal(uchar *ptr_arg,
                                      uchar null_bit_arg,
                                      enum utype unireg_check_arg,
                                      const LEX_CSTRING *field_name_arg,
-                                     uint8 dec_arg,bool zero_arg,
+                                     decimal_digits_t dec_arg,bool zero_arg,
                                      bool unsigned_arg)
   :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
              unireg_check_arg, field_name_arg, dec_arg, zero_arg, unsigned_arg)
@@ -4821,7 +4822,7 @@ int Field_double::store(longlong nr, bool unsigned_val)
     1   Value was truncated
 */
 
-int truncate_double(double *nr, uint field_length, uint dec,
+int truncate_double(double *nr, uint field_length, decimal_digits_t dec,
                     bool unsigned_flag, double max_value)
 {
   int error= 0;
@@ -10390,7 +10391,8 @@ void Column_definition::create_length_to_internal_length_bit()
 void Column_definition::create_length_to_internal_length_newdecimal()
 {
   DBUG_ASSERT(length < UINT_MAX32);
-  uint prec= get_decimal_precision((uint)length, decimals, flags & UNSIGNED_FLAG);
+  decimal_digit_t prec= get_decimal_precision((uint)length, decimals,
+                                              flags & UNSIGNED_FLAG);
   pack_length= my_decimal_get_binary_size(prec, decimals);
 }
 

@@ -1649,14 +1649,14 @@ public:
     return type_handler()->Item_decimal_precision(this);
   }
   /* Returns the number of integer part digits only */
-  inline int decimal_int_part() const
-  { return my_decimal_int_part(decimal_precision(), decimals); }
+  inline decimal_digits_t decimal_int_part() const
+  { return (decimal_digits_t) my_decimal_int_part(decimal_precision(), decimals); }
   /*
     Returns the number of fractional digits only.
     NOT_FIXED_DEC is replaced to the maximum possible number
     of fractional digits, taking into account the data type.
   */
-  uint decimal_scale() const
+  decimal_digits_t decimal_scale() const
   {
     return type_handler()->Item_decimal_scale(this);
   }
@@ -4255,7 +4255,7 @@ public:
   Item_bool_static(const char *str_arg, longlong i):
     Item_bool(NULL, str_arg, i) {};
 
-  void set_join_tab_idx(uint8 join_tab_idx_arg) override
+  void set_join_tab_idx(uint join_tab_idx_arg) override
   { DBUG_ASSERT(0); }
 };
 
@@ -4854,7 +4854,7 @@ public:
     Item_literal(thd)
   {
     collation= DTCollation_numeric();
-    decimals= dec_arg;
+    decimals= (decimal_digits_t) dec_arg;
   }
 
   int save_in_field(Field *field, bool no_conversions)

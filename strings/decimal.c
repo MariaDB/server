@@ -1342,7 +1342,8 @@ int decimal2bin(const decimal_t *from, uchar *to, int precision, int frac)
     E_DEC_OK/E_DEC_TRUNCATED/E_DEC_OVERFLOW
 */
 
-int bin2decimal(const uchar *from, decimal_t *to, int precision, int scale)
+int bin2decimal(const uchar *from, decimal_t *to, int precision,
+                decimal_digits_t scale)
 {
   int error=E_DEC_OK, intg=precision-scale,
       intg0=intg/DIG_PER_DEC1, frac0=scale/DIG_PER_DEC1,
@@ -1461,9 +1462,9 @@ err:
     (multiply by sizeof(dec1) to get the size if bytes)
 */
 
-int decimal_size(int precision, int scale)
+int decimal_size(int precision, decimal_digits_t scale)
 {
-  DBUG_ASSERT(scale >= 0 && precision > 0 && scale <= precision);
+  DBUG_ASSERT(precision > 0 && scale <= precision);
   return ROUND_UP(precision-scale)+ROUND_UP(scale);
 }
 
@@ -1474,13 +1475,12 @@ int decimal_size(int precision, int scale)
     size in bytes
 */
 
-int decimal_bin_size(int precision, int scale)
+int decimal_bin_size(int precision, decimal_digits_t scale)
 {
   int intg=precision-scale,
       intg0=intg/DIG_PER_DEC1, frac0=scale/DIG_PER_DEC1,
       intg0x=intg-intg0*DIG_PER_DEC1, frac0x=scale-frac0*DIG_PER_DEC1;
 
-  DBUG_ASSERT(scale >= 0);
   DBUG_ASSERT(precision > 0);
   DBUG_ASSERT(scale <= precision);
   return intg0*sizeof(dec1)+dig2bytes[intg0x]+

@@ -351,7 +351,7 @@ public:
   {
     return m_ptr ? m_ptr->to_string(to, prec, dec, filler) : NULL;
   }
-  int to_binary(uchar *bin, int prec, int scale) const
+  int to_binary(uchar *bin, int prec, decimal_digits_t scale) const
   {
     return (m_ptr ? m_ptr : &decimal_zero)->to_binary(bin, prec, scale);
   }
@@ -374,12 +374,13 @@ class Dec_ptr_and_buffer: public Dec_ptr
 protected:
   my_decimal m_buffer;
 public:
+  /* scale is int as it can be negative here */
   int round_to(my_decimal *to, int scale, decimal_round_mode mode)
   {
     DBUG_ASSERT(m_ptr);
     return m_ptr->round_to(to, scale, mode);
   }
-  int round_self(uint scale, decimal_round_mode mode)
+  int round_self(decimal_digits_t scale, decimal_round_mode mode)
   {
     return round_to(&m_buffer, scale, mode);
   }
@@ -391,7 +392,7 @@ public:
     m_ptr= &m_buffer;
     return res;
   }
-  String *to_string_round(String *to, uint dec)
+  String *to_string_round(String *to, decimal_digits_t dec)
   {
     /*
       decimal_round() allows from==to
@@ -3002,28 +3003,27 @@ char_to_byte_length_safe(size_t char_length_arg, uint32 mbmaxlen_arg)
   return tmp > UINT_MAX32 ? (uint32) UINT_MAX32 : static_cast<uint32>(tmp);
 }
 
-
 class Type_numeric_attributes
 {
 public:
   static uint count_unsigned(Item **item, uint nitems);
   static uint32 find_max_char_length(Item **item, uint nitems);
   static uint32 find_max_octet_length(Item **item, uint nitems);
-  static int find_max_decimal_int_part(Item **item, uint nitems);
-  static uint find_max_decimals(Item **item, uint nitems);
+  static decimal_digits_t find_max_decimal_int_part(Item **item, uint nitems);
+  static decimal_digits_t find_max_decimals(Item **item, uint nitems);
 public:
   /*
     The maximum value length in characters multiplied by collation->mbmaxlen.
     Almost always it's the maximum value length in bytes.
   */
   uint32 max_length;
-  uint decimals;
+  decimal_digits_t decimals;
   bool unsigned_flag;
 public:
   Type_numeric_attributes()
    :max_length(0), decimals(0), unsigned_flag(false)
   { }
-  Type_numeric_attributes(uint32 max_length_arg, uint decimals_arg,
+  Type_numeric_attributes(uint32 max_length_arg, decimal_digits_t decimals_arg,
                           bool unsigned_flag_arg)
    :max_length(max_length_arg),
     decimals(decimals_arg),
@@ -3040,9 +3040,10 @@ protected:
 class Type_temporal_attributes: public Type_numeric_attributes
 {
 public:
-  Type_temporal_attributes(uint int_part_length, uint dec, bool unsigned_arg)
+  Type_temporal_attributes(uint32 int_part_length, decimal_digits_t dec, bool unsigned_arg)
    :Type_numeric_attributes(int_part_length + (dec ? 1 : 0),
-                            MY_MIN(dec, TIME_SECOND_PART_DIGITS),
+                            MY_MIN(dec,
+                                   (decimal_digits_t) TIME_SECOND_PART_DIGITS),
                             unsigned_arg)
   {
     max_length+= decimals;
@@ -3053,7 +3054,7 @@ public:
 class Type_temporal_attributes_not_fixed_dec: public Type_numeric_attributes
 {
 public:
-  Type_temporal_attributes_not_fixed_dec(uint32 int_part_length, uint dec,
+  Type_temporal_attributes_not_fixed_dec(uint32 int_part_length, decimal_digits_t dec,
                                          bool unsigned_flag)
    :Type_numeric_attributes(int_part_length, dec, unsigned_flag)
   {
@@ -3108,7 +3109,7 @@ public:
     max_length= char_to_byte_length_safe(max_char_length_arg,
                                          collation.collation->mbmaxlen);
   }
-  void fix_attributes_temporal(uint32 int_part_length, uint dec)
+  void fix_attributes_temporal(uint32 int_part_length, decimal_digits_t dec)
   {
     *this= Type_std_attributes(
              Type_temporal_attributes(int_part_length, dec, false),
@@ -3118,11 +3119,11 @@ public:
   {
     fix_attributes_temporal(MAX_DATE_WIDTH, 0);
   }
-  void fix_attributes_time(uint dec)
+  void fix_attributes_time(decimal_digits_t dec)
   {
     fix_attributes_temporal(MIN_TIME_WIDTH, dec);
   }
-  void fix_attributes_datetime(uint dec)
+  void fix_attributes_datetime(decimal_digits_t dec)
   {
     fix_attributes_temporal(MAX_DATETIME_WIDTH, dec);
   }
@@ -3412,7 +3413,7 @@ class Information_schema_numeric_attributes
     ATTR_PRECISION_AND_SCALE= (ATTR_PRECISION|ATTR_SCALE)
   };
   uint m_precision;
-  uint m_scale;
+  decimal_digits_t m_scale;
   enum_attr m_available_attributes;
 public:
   Information_schema_numeric_attributes()
@@ -3423,7 +3424,7 @@ public:
    :m_precision(precision), m_scale(0),
     m_available_attributes(ATTR_PRECISION)
   { }
-  Information_schema_numeric_attributes(uint precision, uint scale)
+  Information_schema_numeric_attributes(uint precision, decimal_digits_t scale)
    :m_precision(precision), m_scale(scale),
     m_available_attributes(ATTR_PRECISION_AND_SCALE)
   { }
@@ -3434,10 +3435,10 @@ public:
     DBUG_ASSERT(has_precision());
     return (uint) m_precision;
   }
-  uint scale() const
+  decimal_digits_t scale() const
   {
     DBUG_ASSERT(has_scale());
-    return (uint) m_scale;
+    return m_scale;
   }
 };
 
@@ -3784,15 +3785,15 @@ public:
   virtual bool can_return_extract_source(interval_type type) const;
   virtual bool is_bool_type() const { return false; }
   virtual bool is_general_purpose_string_type() const { return false; }
-  virtual uint Item_time_precision(THD *thd, Item *item) const;
-  virtual uint Item_datetime_precision(THD *thd, Item *item) const;
-  virtual uint Item_decimal_scale(const Item *item) const;
-  virtual uint Item_decimal_precision(const Item *item) const= 0;
+  virtual decimal_digits_t Item_time_precision(THD *thd, Item *item) const;
+  virtual decimal_digits_t Item_datetime_precision(THD *thd, Item *item) const;
+  virtual decimal_digits_t Item_decimal_scale(const Item *item) const;
+  virtual decimal_digits_t Item_decimal_precision(const Item *item) const= 0;
   /*
     Returns how many digits a divisor adds into a division result.
     See Item::divisor_precision_increment() in item.h for more comments.
   */
-  virtual uint Item_divisor_precision_increment(const Item *) const;
+  virtual decimal_digits_t Item_divisor_precision_increment(const Item *) const;
   /**
     Makes a temporary table Field to handle numeric aggregate functions,
     e.g. SUM(DISTINCT expr), AVG(DISTINCT expr), etc.
@@ -4424,7 +4425,7 @@ public:
   }
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
                      Item *a, Item *b) const override;
-  uint Item_decimal_precision(const Item *item) const override
+  decimal_digits_t Item_decimal_precision(const Item *item) const override
   {
     DBUG_ASSERT(0);
     return DECIMAL_MAX_PRECISION;
@@ -4742,7 +4743,7 @@ public:
                      bool binary_cmp) const override;
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
                      Item *a, Item *b) const override;
-  uint Item_decimal_precision(const Item *item) const override;
+  decimal_digits_t Item_decimal_precision(const Item *item) const override;
   bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
   bool Item_param_set_from_value(THD *thd,
                                  Item_param *param,
@@ -4871,7 +4872,7 @@ public:
     VDec va(a), vb(b);
     return va.ptr() && vb.ptr() && !va.cmp(vb);
   }
-  uint Item_decimal_precision(const Item *item) const override;
+  decimal_digits_t Item_decimal_precision(const Item *item) const override;
   bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
   void Item_param_set_param_func(Item_param *param,
                                  uchar **pos, ulong len) const override;
@@ -5113,7 +5114,7 @@ public:
                      bool binary_cmp) const override;
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
                      Item *a, Item *b) const override;
-  uint Item_decimal_precision(const Item *item) const override;
+  decimal_digits_t Item_decimal_precision(const Item *item) const override;
   bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
   bool Item_param_set_from_value(THD *thd,
                                  Item_param *param,
@@ -5199,8 +5200,8 @@ public:
 class Type_handler_temporal_result: public Type_handler
 {
 protected:
-  uint Item_decimal_scale_with_seconds(const Item *item) const;
-  uint Item_divisor_precision_increment_with_seconds(const Item *) const;
+  decimal_digits_t Item_decimal_scale_with_seconds(const Item *item) const;
+  decimal_digits_t Item_divisor_precision_increment_with_seconds(const Item *) const;
 public:
   Item_result result_type() const override { return STRING_RESULT; }
   Item_result cmp_type() const override { return TIME_RESULT; }
@@ -5279,7 +5280,7 @@ public:
 
 class Type_handler_string_result: public Type_handler
 {
-  uint Item_temporal_precision(THD *thd, Item *item, bool is_time) const;
+  decimal_digits_t Item_temporal_precision(THD *thd, Item *item, bool is_time) const;
 public:
   const Name &default_value() const override;
   protocol_send_type_t protocol_send_type() const override
@@ -5337,15 +5338,15 @@ public:
                      bool binary_cmp) const override;
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
                      Item *a, Item *b) const override;
-  uint Item_time_precision(THD *thd, Item *item) const override
+  decimal_digits_t Item_time_precision(THD *thd, Item *item) const override
   {
     return Item_temporal_precision(thd, item, true);
   }
-  uint Item_datetime_precision(THD *thd, Item *item) const override
+  decimal_digits_t Item_datetime_precision(THD *thd, Item *item) const override
   {
     return Item_temporal_precision(thd, item, false);
   }
-  uint Item_decimal_precision(const Item *item) const override;
+  decimal_digits_t Item_decimal_precision(const Item *item) const override;
   void Item_update_null_value(Item *item) const override;
   bool Item_save_in_value(THD *thd, Item *item, st_value *value) const override;
   void Item_param_setup_conversion(THD *thd, Item_param *) const override;
@@ -6020,12 +6021,12 @@ public:
                              const override;
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
                      Item *a, Item *b) const override;
-  uint Item_decimal_scale(const Item *item) const override
+  decimal_digits_t Item_decimal_scale(const Item *item) const override
   {
     return Item_decimal_scale_with_seconds(item);
   }
-  uint Item_decimal_precision(const Item *item) const override;
-  uint Item_divisor_precision_increment(const Item *item) const override
+  decimal_digits_t Item_decimal_precision(const Item *item) const override;
+  decimal_digits_t Item_divisor_precision_increment(const Item *item) const override
   {
     return Item_divisor_precision_increment_with_seconds(item);
   }
@@ -6235,7 +6236,7 @@ public:
   void
   Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
                                         uchar *buff) const override;
-  uint Item_decimal_precision(const Item *item) const override;
+  decimal_digits_t Item_decimal_precision(const Item *item) const override;
   String *print_item_value(THD *thd, Item *item, String *str) const override;
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
   String *Item_func_min_max_val_str(Item_func_min_max *, String *) const override;
@@ -6364,12 +6365,12 @@ public:
                                           const uchar *buffer,
                                           LEX_CUSTRING *gis_options)
                                           const override;
-  uint Item_decimal_scale(const Item *item) const override
+  decimal_digits_t Item_decimal_scale(const Item *item) const override
   {
     return Item_decimal_scale_with_seconds(item);
   }
-  uint Item_decimal_precision(const Item *item) const override;
-  uint Item_divisor_precision_increment(const Item *item) const override
+  decimal_digits_t Item_decimal_precision(const Item *item) const override;
+  decimal_digits_t Item_divisor_precision_increment(const Item *item) const override
   {
     return Item_divisor_precision_increment_with_seconds(item);
   }
@@ -6526,12 +6527,12 @@ public:
                    const Type_std_attributes *item,
                    SORT_FIELD_ATTR *attr) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
-  uint Item_decimal_scale(const Item *item) const override
+  decimal_digits_t Item_decimal_scale(const Item *item) const override
   {
     return Item_decimal_scale_with_seconds(item);
   }
-  uint Item_decimal_precision(const Item *item) const override;
-  uint Item_divisor_precision_increment(const Item *item) const override
+  decimal_digits_t Item_decimal_precision(const Item *item) const override;
+  decimal_digits_t Item_divisor_precision_increment(const Item *item) const override
   {
     return Item_divisor_precision_increment_with_seconds(item);
   }

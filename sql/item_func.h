@@ -1383,10 +1383,10 @@ class Item_decimal_typecast :public Item_func
 {
   my_decimal decimal_value;
 public:
-  Item_decimal_typecast(THD *thd, Item *a, uint len, uint dec)
+  Item_decimal_typecast(THD *thd, Item *a, uint len, decimal_digits_t dec)
    :Item_func(thd, a)
   {
-    decimals= (uint8) dec;
+    decimals= (decimal_digits_t)  dec;
     collation= DTCollation_numeric();
     fix_char_length(my_decimal_precision_to_length_no_truncation(len, dec,
                                                                  unsigned_flag));

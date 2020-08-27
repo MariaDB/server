@@ -79,6 +79,7 @@ typedef const struct my_collation_handler_st MY_COLLATION_HANDLER;
 typedef const struct unicase_info_st MY_UNICASE_INFO;
 typedef const struct uni_ctype_st MY_UNI_CTYPE;
 typedef const struct my_uni_idx_st MY_UNI_IDX;
+typedef uint16 decimal_digits_t;
 
 typedef struct unicase_info_char_st
 {
