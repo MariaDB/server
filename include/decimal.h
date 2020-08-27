@@ -53,10 +53,11 @@ int decimal2double(const decimal_t *from, double *to);
 int double2decimal(double from, decimal_t *to);
 int decimal_actual_fraction(const decimal_t *from);
 int decimal2bin(const decimal_t *from, uchar *to, int precision, int scale);
-int bin2decimal(const uchar *from, decimal_t *to, int precision, int scale);
+int bin2decimal(const uchar *from, decimal_t *to, int precision,
+                decimal_digits_t scale);
 
-int decimal_size(int precision, int scale);
-int decimal_bin_size(int precision, int scale);
+int decimal_size(int precision, decimal_digits_t scale);
+int decimal_bin_size(int precision, decimal_digits_t scale);
 int decimal_result_size(decimal_t *from1, decimal_t *from2, char op,
                         int param);
 

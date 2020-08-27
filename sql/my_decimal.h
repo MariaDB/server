@@ -50,7 +50,7 @@ typedef struct st_mysql_time MYSQL_TIME;
 #define DECIMAL_MAX_FIELD_SIZE DECIMAL_MAX_PRECISION
 
 
-inline uint my_decimal_size(uint precision, uint scale)
+inline uint my_decimal_size(uint precision, decimal_digits_t scale)
 {
   /*
     Always allocate more space to allow library to put decimal point
@@ -60,7 +60,7 @@ inline uint my_decimal_size(uint precision, uint scale)
 }
 
 
-inline int my_decimal_int_part(uint precision, uint decimals)
+inline int my_decimal_int_part(uint precision, decimal_digits_t decimals)
 {
   return precision - ((decimals == DECIMAL_NOT_SPECIFIED) ? 0 : decimals);
 }
@@ -147,7 +147,7 @@ public:
   {
     init();
   }
-  my_decimal(const uchar *bin, int prec, int scale)
+  my_decimal(const uchar *bin, int prec, decimal_digits_t scale)
   {
     init();
     check_result(E_DEC_FATAL_ERROR, bin2decimal(bin, this, prec, scale));
@@ -217,17 +217,19 @@ public:
   {
     return to_string(to, 0, 0, 0);
   }
-  String *to_string_round(String *to, int scale, my_decimal *round_buff) const
+  String *to_string_round(String *to, decimal_digits_t scale,
+                          my_decimal *round_buff) const
   {
     (void) round_to(round_buff, scale, HALF_UP); // QQ: check result?
     return round_buff->to_string(to);
   }
+  /* Scale can be negative here when called from truncate() */
   int round_to(my_decimal *to, int scale, decimal_round_mode mode,
                int mask= E_DEC_FATAL_ERROR) const
   {
     return check_result(mask, decimal_round(this, to, scale, mode));
   }
-  int to_binary(uchar *bin, int prec, int scale,
+  int to_binary(uchar *bin, int prec, decimal_digits_t scale,
                 uint mask= E_DEC_FATAL_ERROR) const;
 #endif
   /** Swap two my_decimal values */
@@ -277,7 +279,7 @@ inline int check_result_and_overflow(uint mask, int result, my_decimal *val)
   return result;
 }
 
-inline uint my_decimal_length_to_precision(uint length, uint scale,
+inline uint my_decimal_length_to_precision(uint length, decimal_digits_t scale,
                                            bool unsigned_flag)
 {
   /* Precision can't be negative thus ignore unsigned_flag when length is 0. */
@@ -287,7 +289,7 @@ inline uint my_decimal_length_to_precision(uint length, uint scale,
 }
 
 inline uint32 my_decimal_precision_to_length_no_truncation(uint precision,
-                                                           uint8 scale,
+                                                           decimal_digits_t scale,
                                                            bool unsigned_flag)
 {
   /*
@@ -299,7 +301,8 @@ inline uint32 my_decimal_precision_to_length_no_truncation(uint precision,
                   (unsigned_flag || !precision ? 0 : 1));
 }
 
-inline uint32 my_decimal_precision_to_length(uint precision, uint8 scale,
+inline uint32 my_decimal_precision_to_length(uint precision,
+                                             decimal_digits_t scale,
                                              bool unsigned_flag)
 {
   /*
@@ -329,9 +332,9 @@ int my_decimal_max_length(const my_decimal *d)
 
 
 inline
-int my_decimal_get_binary_size(uint precision, uint scale)
+int my_decimal_get_binary_size(uint precision, decimal_digits_t scale)
 {
-  return decimal_bin_size((int)precision, (int)scale);
+  return decimal_bin_size((int)precision, scale);
 }
 
 
@@ -344,7 +347,7 @@ void my_decimal2decimal(const my_decimal *from, my_decimal *to)
 
 inline
 int binary2my_decimal(uint mask, const uchar *bin, my_decimal *d, int prec,
-		      int scale)
+		      decimal_digits_t scale)
 {
   return check_result(mask, bin2decimal(bin, d, prec, scale));
 }
@@ -531,7 +534,7 @@ int my_decimal_intg(const my_decimal *a)
 }
 
 
-void my_decimal_trim(ulonglong *precision, uint *scale);
+void my_decimal_trim(ulonglong *precision, decimal_digits_t *scale);
 
 
 #endif /*my_decimal_h*/

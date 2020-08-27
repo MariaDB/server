@@ -1179,9 +1179,9 @@ Datetime_truncation_not_needed::Datetime_truncation_not_needed(THD *thd, Item *i
 
 /********************************************************************/
 
-uint Type_numeric_attributes::find_max_decimals(Item **item, uint nitems)
+decimal_digits_t Type_numeric_attributes::find_max_decimals(Item **item, uint nitems)
 {
-  uint res= 0;
+  decimal_digits_t res= 0;
   for (uint i= 0; i < nitems; i++)
     set_if_bigger(res, item[i]->decimals);
   return res;
@@ -1218,9 +1218,10 @@ uint32 Type_numeric_attributes::find_max_octet_length(Item **item, uint nitems)
 }
 
 
-int Type_numeric_attributes::find_max_decimal_int_part(Item **item, uint nitems)
+decimal_digits_t Type_numeric_attributes::
+find_max_decimal_int_part(Item **item, uint nitems)
 {
-  int max_int_part= 0;
+  decimal_digits_t max_int_part= 0;
   for (uint i=0 ; i < nitems ; i++)
     set_if_bigger(max_int_part, item[i]->decimal_int_part());
   return max_int_part;
@@ -1237,11 +1238,12 @@ Type_numeric_attributes::aggregate_numeric_attributes_decimal(Item **item,
                                                               uint nitems,
                                                               bool unsigned_arg)
 {
-  int max_int_part= find_max_decimal_int_part(item, nitems);
+  decimal_digits_t max_int_part= find_max_decimal_int_part(item, nitems);
   decimals= find_max_decimals(item, nitems);
-  int precision= MY_MIN(max_int_part + decimals, DECIMAL_MAX_PRECISION);
+  decimal_digits_t precision= (decimal_digits_t)
+    MY_MIN(max_int_part + decimals, DECIMAL_MAX_PRECISION);
   max_length= my_decimal_precision_to_length_no_truncation(precision,
-                                                           (uint8) decimals,
+                                                           decimals,
                                                            unsigned_flag);
 }
 
@@ -6955,20 +6957,20 @@ const Vers_type_handler* Type_handler_blob_common::vers() const
 
 /***************************************************************************/
 
-uint Type_handler::Item_time_precision(THD *thd, Item *item) const
+decimal_digits_t Type_handler::Item_time_precision(THD *thd, Item *item) const
 {
   return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
 }
 
 
-uint Type_handler::Item_datetime_precision(THD *thd, Item *item) const
+decimal_digits_t Type_handler::Item_datetime_precision(THD *thd, Item *item) const
 {
   return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
 }
 
 
-uint Type_handler_string_result::Item_temporal_precision(THD *thd, Item *item,
-                                                         bool is_time) const
+decimal_digits_t Type_handler_string_result::
+Item_temporal_precision(THD *thd, Item *item, bool is_time) const
 {
   StringBuffer<64> buf;
   String *tmp;
@@ -6984,34 +6986,34 @@ uint Type_handler_string_result::Item_temporal_precision(THD *thd, Item *item,
        Datetime(thd, &status, tmp->ptr(), tmp->length(), tmp->charset(),
                 Datetime::Options(TIME_FUZZY_DATES, TIME_FRAC_TRUNCATE)).
          is_valid_datetime()))
-    return MY_MIN(status.precision, TIME_SECOND_PART_DIGITS);
-  return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+    return (decimal_digits_t) MY_MIN(status.precision, TIME_SECOND_PART_DIGITS);
+  return (decimal_digits_t) MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
 }
 
 /***************************************************************************/
 
-uint Type_handler::Item_decimal_scale(const Item *item) const
+decimal_digits_t Type_handler::Item_decimal_scale(const Item *item) const
 {
-  return item->decimals < NOT_FIXED_DEC ?
-         item->decimals :
-         MY_MIN(item->max_length, DECIMAL_MAX_SCALE);
+  return (item->decimals < NOT_FIXED_DEC ?
+          item->decimals :
+          (decimal_digits_t) MY_MIN(item->max_length, DECIMAL_MAX_SCALE));
 }
 
-uint Type_handler_temporal_result::
-       Item_decimal_scale_with_seconds(const Item *item) const
+decimal_digits_t Type_handler_temporal_result::
+Item_decimal_scale_with_seconds(const Item *item) const
 {
-  return item->decimals < NOT_FIXED_DEC ?
-         item->decimals :
-         TIME_SECOND_PART_DIGITS;
+  return (item->decimals < NOT_FIXED_DEC ?
+          item->decimals :
+          TIME_SECOND_PART_DIGITS);
 }
 
-uint Type_handler::Item_divisor_precision_increment(const Item *item) const
+decimal_digits_t Type_handler::Item_divisor_precision_increment(const Item *item) const
 {
   return item->decimals;
 }
 
-uint Type_handler_temporal_result::
-       Item_divisor_precision_increment_with_seconds(const Item *item) const
+decimal_digits_t Type_handler_temporal_result::
+Item_divisor_precision_increment_with_seconds(const Item *item) const
 {
   return item->decimals <  NOT_FIXED_DEC ?
          item->decimals :
@@ -7020,7 +7022,7 @@ uint Type_handler_temporal_result::
 
 /***************************************************************************/
 
-uint Type_handler_string_result::Item_decimal_precision(const Item *item) const
+decimal_digits_t Type_handler_string_result::Item_decimal_precision(const Item *item) const
 {
   uint res= item->max_char_length();
   /*
@@ -7029,49 +7031,51 @@ uint Type_handler_string_result::Item_decimal_precision(const Item *item) const
     INT(0) or DECIMAL(0,0) when converting NULL or empty strings to INT/DECIMAL:
       CREATE TABLE t1 AS SELECT CONVERT(NULL,SIGNED) AS a;
   */
-  return res ? MY_MIN(res, DECIMAL_MAX_PRECISION) : 1;
+  return res ? (decimal_digits_t) MY_MIN(res, DECIMAL_MAX_PRECISION) : (decimal_digits_t) 1;
 }
 
-uint Type_handler_real_result::Item_decimal_precision(const Item *item) const
+decimal_digits_t Type_handler_real_result::Item_decimal_precision(const Item *item) const
 {
   uint res= item->max_char_length();
-  return res ? MY_MIN(res, DECIMAL_MAX_PRECISION) : 1;
+  return res ? (decimal_digits_t) MY_MIN(res, DECIMAL_MAX_PRECISION) : (decimal_digits_t) 1;
 }
 
-uint Type_handler_decimal_result::Item_decimal_precision(const Item *item) const
+decimal_digits_t Type_handler_decimal_result::Item_decimal_precision(const Item *item) const
 {
   uint prec= my_decimal_length_to_precision(item->max_char_length(),
                                             item->decimals,
                                             item->unsigned_flag);
-  return MY_MIN(prec, DECIMAL_MAX_PRECISION);
+  return (decimal_digits_t) MY_MIN(prec, DECIMAL_MAX_PRECISION);
 }
 
-uint Type_handler_int_result::Item_decimal_precision(const Item *item) const
+decimal_digits_t Type_handler_int_result::Item_decimal_precision(const Item *item) const
 {
  uint prec= my_decimal_length_to_precision(item->max_char_length(),
                                            item->decimals,
                                            item->unsigned_flag);
- return MY_MIN(prec, DECIMAL_MAX_PRECISION);
+ return (decimal_digits_t) MY_MIN(prec, DECIMAL_MAX_PRECISION);
 }
 
-uint Type_handler_time_common::Item_decimal_precision(const Item *item) const
+decimal_digits_t Type_handler_time_common::Item_decimal_precision(const Item *item) const
 {
-  return 7 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+  return (decimal_digits_t) (7 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS));
 }
 
-uint Type_handler_date_common::Item_decimal_precision(const Item *item) const
+decimal_digits_t Type_handler_date_common::Item_decimal_precision(const Item *item) const
 {
   return 8;
 }
 
-uint Type_handler_datetime_common::Item_decimal_precision(const Item *item) const
+decimal_digits_t Type_handler_datetime_common::
+Item_decimal_precision(const Item *item) const
 {
-  return 14 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+  return (decimal_digits_t) (14 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS));
 }
 
-uint Type_handler_timestamp_common::Item_decimal_precision(const Item *item) const
+decimal_digits_t Type_handler_timestamp_common::
+Item_decimal_precision(const Item *item) const
 {
-  return 14 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+  return (decimal_digits_t) (14 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS));
 }
 
 /***************************************************************************/
@@ -7606,7 +7610,7 @@ static void wrong_precision_error(uint errcode, Item *a,
 */
 
 bool get_length_and_scale(ulonglong length, ulonglong decimals,
-                          uint *out_length, uint *out_decimals,
+                          uint *out_length, decimal_digits_t *out_decimals,
                           uint max_precision, uint max_scale,
                           Item *a)
 {
@@ -7621,7 +7625,7 @@ bool get_length_and_scale(ulonglong length, ulonglong decimals,
     return 1;
   }
 
-  *out_decimals=  (uint) decimals;
+  *out_decimals=  (decimal_digits_t)  decimals;
   my_decimal_trim(&length, out_decimals);
   *out_length=  (uint) length;
   
@@ -7689,7 +7693,8 @@ Item *Type_handler_decimal_result::
         create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const
 {
-  uint len, dec;
+  uint len;
+  decimal_digits_t dec;
   if (get_length_and_scale(attr.length(), attr.decimals(), &len, &dec,
                            DECIMAL_MAX_PRECISION, DECIMAL_MAX_SCALE, item))
     return NULL;
@@ -7701,7 +7706,8 @@ Item *Type_handler_double::
         create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const
 {
-  uint len, dec;
+  uint len;
+  decimal_digits_t dec;
   if (!attr.length_specified())
     return new (thd->mem_root) Item_double_typecast(thd, item,
                                                     DBL_DIG + 7,
