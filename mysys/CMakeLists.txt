@@ -59,10 +59,12 @@ IF (WIN32)
 ENDIF()
 
 IF(NOT MSVC AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|i[36]86")
-  #Check for PCLMUL instruction (x86)
+  #Check for CPUID and PCLMUL. GCC before version 5 would refuse to emit the
+  #CPUID instruction for -m32 -fPIC because it would clobber the EBX register.
   CHECK_C_SOURCE_COMPILES("
   int main()
   {
+    asm volatile (\"cpuid\" : : \"a\"(1) : \"ebx\");
     asm volatile (\"pclmulqdq \\$0x00, %%xmm1, %%xmm0\":::\"cc\");
     return 0;
   }" HAVE_CLMUL_INSTRUCTION)
