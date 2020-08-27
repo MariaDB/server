@@ -28,6 +28,7 @@ local_ip()
     [ "$1" = "127.0.0.2" ]      && return 0
     [ "$1" = "localhost" ]      && return 0
     [ "$1" = "[::1]" ]          && return 0
+    [ "$1" = "$(uname -n)" ]    && return 0
     [ "$1" = "$(hostname -s)" ] && return 0
     [ "$1" = "$(hostname -f)" ] && return 0
     [ "$1" = "$(hostname -d)" ] && return 0

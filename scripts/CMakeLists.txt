@@ -173,7 +173,7 @@ ELSE()
   SET(CHECK_PID "kill -s SIGCONT $PID  > /dev/null 2> /dev/null")
 ENDIF()
 
-SET(HOSTNAME "hostname")
+SET(HOSTNAME "uname -n")
 SET(MYSQLD_USER "mysql")
 ENDIF(UNIX)
 
