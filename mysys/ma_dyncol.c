@@ -1208,7 +1208,7 @@ dynamic_column_decimal_read(DYNAMIC_COLUMN_VALUE *store_it_here,
       (length - intg_len - frac_len) >
       (size_t) (DECIMAL_BUFF_LENGTH*sizeof(decimal_digit_t)) ||
       decimal_bin_size(intg + frac, frac) !=
-      (int) (length - intg_len - frac_len))
+      (uint) (length - intg_len - frac_len))
     return ER_DYNCOL_FORMAT;
 
   if (bin2decimal(data, &store_it_here->x.decimal.value, precision, scale) !=

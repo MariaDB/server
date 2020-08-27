@@ -7029,7 +7029,7 @@ void Item_hex_hybrid::print(String *str, enum_query_type query_type)
 }
 
 
-uint Item_hex_hybrid::decimal_precision() const
+decimal_digits_t Item_hex_hybrid::decimal_precision() const
 {
   switch (max_length) {// HEX                                 DEC
   case 0:              // ----                                ---

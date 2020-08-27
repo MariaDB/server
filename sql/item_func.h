@@ -1341,7 +1341,8 @@ public:
     return args[0]->type_handler()->Item_func_signed_fix_length_and_dec(this);
   }
   virtual void print(String *str, enum_query_type query_type);
-  uint decimal_precision() const { return args[0]->decimal_precision(); }
+  decimal_digits_t decimal_precision() const override
+  { return args[0]->decimal_precision(); }
   bool need_parentheses_in_default() { return true; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_signed>(thd, this); }
@@ -1372,7 +1373,7 @@ public:
   {
     return args[0]->type_handler()->Item_func_unsigned_fix_length_and_dec(this);
   }
-  uint decimal_precision() const { return max_length; }
+  decimal_digits_t decimal_precision() const override { return max_length; }
   virtual void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_unsigned>(thd, this); }
@@ -1383,10 +1384,10 @@ class Item_decimal_typecast :public Item_func
 {
   my_decimal decimal_value;
 public:
-  Item_decimal_typecast(THD *thd, Item *a, uint len, uint dec)
+  Item_decimal_typecast(THD *thd, Item *a, uint len, decimal_digits_t dec)
    :Item_func(thd, a)
   {
-    decimals= (uint8) dec;
+    decimals= dec;
     collation= DTCollation_numeric();
     fix_char_length(my_decimal_precision_to_length_no_truncation(len, dec,
                                                                  unsigned_flag));
@@ -1656,7 +1657,8 @@ public:
   void fix_length_and_dec_double();
   void fix_length_and_dec_decimal();
   bool fix_length_and_dec();
-  uint decimal_precision() const { return args[0]->decimal_precision(); }
+  decimal_digits_t decimal_precision() const  override
+  { return args[0]->decimal_precision(); }
   bool need_parentheses_in_default() { return true; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_neg>(thd, this); }
@@ -1990,7 +1992,7 @@ class Item_func_sign :public Item_long_func
 public:
   Item_func_sign(THD *thd, Item *a): Item_long_func(thd, a) {}
   const char *func_name() const { return "sign"; }
-  uint decimal_precision() const { return 1; }
+  decimal_digits_t decimal_precision() const override { return 1; }
   bool fix_length_and_dec() { fix_char_length(2); return FALSE; }
   longlong val_int();
   Item *get_copy(THD *thd)

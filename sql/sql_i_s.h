@@ -76,8 +76,10 @@ public:
   { }
   const Type_handler *type_handler() const { return m_type_handler; }
   uint char_length()      const { return m_char_length; }
-  uint decimal_precision() const { return (m_char_length / 100) % 100; }
-  uint decimal_scale() const { return m_char_length % 10; }
+  decimal_digits_t decimal_precision() const
+  { return (decimal_digits_t) ((m_char_length / 100) % 100); }
+  decimal_digits_t decimal_scale() const
+  { return (decimal_digits_t) (m_char_length % 10); }
   uint fsp() const
   {
     DBUG_ASSERT(m_char_length <= TIME_SECOND_PART_DIGITS);

@@ -1655,19 +1655,19 @@ public:
   inline uint float_length(uint decimals_par) const
   { return decimals < FLOATING_POINT_DECIMALS ? (DBL_DIG+2+decimals_par) : DBL_DIG+8;}
   /* Returns total number of decimal digits */
-  virtual uint decimal_precision() const
+  decimal_digits_t decimal_precision() const override
   {
     return type_handler()->Item_decimal_precision(this);
   }
   /* Returns the number of integer part digits only */
-  inline int decimal_int_part() const
-  { return my_decimal_int_part(decimal_precision(), decimals); }
+  inline decimal_digits_t decimal_int_part() const
+  { return (decimal_digits_t) my_decimal_int_part(decimal_precision(), decimals); }
   /*
     Returns the number of fractional digits only.
     NOT_FIXED_DEC is replaced to the maximum possible number
     of fractional digits, taking into account the data type.
   */
-  uint decimal_scale() const
+  decimal_digits_t decimal_scale() const
   {
     return type_handler()->Item_decimal_scale(this);
   }
@@ -4267,8 +4267,8 @@ public:
   Item *clone_item(THD *thd) override;
   void print(String *str, enum_query_type query_type) override;
   Item *neg(THD *thd) override;
-  uint decimal_precision() const override
-  { return (uint) (max_length - MY_TEST(value < 0)); }
+  decimal_digits_t decimal_precision() const override
+  { return (decimal_digits_t) (max_length - MY_TEST(value < 0)); }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_int>(thd, this); }
 };
@@ -4324,7 +4324,8 @@ public:
   double val_real() { return ulonglong2double((ulonglong)value); }
   Item *clone_item(THD *thd);
   Item *neg(THD *thd);
-  uint decimal_precision() const { return max_length; }
+  decimal_digits_t decimal_precision() const override
+  { return decimal_digits_t(max_length); }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_uint>(thd, this); }
 };
@@ -4380,7 +4381,8 @@ public:
     str->append(str_value);
   }
   Item *neg(THD *thd) override;
-  uint decimal_precision() const override { return decimal_value.precision(); }
+  decimal_digits_t decimal_precision() const override
+  { return decimal_value.precision(); }
   void set_decimal_value(my_decimal *value_par);
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_decimal>(thd, this); }
@@ -4779,7 +4781,7 @@ public:
     Item_hex_constant(thd, str, str_length) {}
   const Type_handler *type_handler() const override
   { return &type_handler_hex_hybrid; }
-  uint decimal_precision() const override;
+  decimal_digits_t decimal_precision() const override;
   double val_real() override
   { 
     return (double) (ulonglong) Item_hex_hybrid::val_int();
@@ -4909,7 +4911,7 @@ public:
     collation= DTCollation_numeric();
     decimals= 0;
   }
-  Item_temporal_literal(THD *thd, uint dec_arg):
+  Item_temporal_literal(THD *thd, decimal_digits_t dec_arg):
     Item_literal(thd)
   {
     collation= DTCollation_numeric();
@@ -4997,7 +4999,7 @@ class Item_time_literal: public Item_temporal_literal
 protected:
   Time cached_time;
 public:
-  Item_time_literal(THD *thd, const Time *ltime, uint dec_arg):
+  Item_time_literal(THD *thd, const Time *ltime, decimal_digits_t dec_arg):
     Item_temporal_literal(thd, dec_arg),
     cached_time(*ltime)
   {
@@ -5045,7 +5047,8 @@ protected:
            (null_value= cached_time.check_date_with_warn(current_thd));
   }
 public:
-  Item_datetime_literal(THD *thd, const Datetime *ltime, uint dec_arg):
+  Item_datetime_literal(THD *thd, const Datetime *ltime,
+                        decimal_digits_t dec_arg):
     Item_temporal_literal(thd, dec_arg),
     cached_time(*ltime)
   {
@@ -5138,7 +5141,8 @@ class Item_datetime_literal_for_invalid_dates: public Item_datetime_literal
 {
 public:
   Item_datetime_literal_for_invalid_dates(THD *thd,
-                                          const Datetime *ltime, uint dec_arg)
+                                          const Datetime *ltime,
+                                          decimal_digits_t dec_arg)
    :Item_datetime_literal(thd, ltime, dec_arg)
   {
     maybe_null= false;

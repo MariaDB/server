@@ -225,7 +225,7 @@ public:
   const Type_handler *fixed_type_handler() const { return &type_handler_bool; }
   CHARSET_INFO *compare_collation() const { return NULL; }
   bool fix_length_and_dec() { decimals=0; max_length=1; return FALSE; }
-  uint decimal_precision() const { return 1; }
+  decimal_digits_t decimal_precision() const override { return 1; }
   bool need_parentheses_in_default() { return true; }
 };
 
@@ -968,7 +968,7 @@ public:
   Item_func_strcmp(THD *thd, Item *a, Item *b):
     Item_long_func(thd, a, b) {}
   longlong val_int();
-  uint decimal_precision() const { return 1; }
+  decimal_digits_t decimal_precision() const override { return 1; }
   const char *func_name() const { return "strcmp"; }
   bool fix_length_and_dec()
   {
@@ -1006,7 +1006,7 @@ public:
   longlong val_int();
   bool fix_length_and_dec();
   const char *func_name() const { return "interval"; }
-  uint decimal_precision() const { return 2; }
+  decimal_digits_t decimal_precision() const override { return 2; }
   void print(String *str, enum_query_type query_type)
   {
     str->append(func_name());

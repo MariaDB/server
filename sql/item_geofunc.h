@@ -874,7 +874,7 @@ public:
   longlong val_int();
   const char *func_name() const { return "st_issimple"; }
   bool fix_length_and_dec() { decimals=0; max_length=2; return FALSE; }
-  uint decimal_precision() const { return 1; }
+  decimal_digits_t decimal_precision() const override { return 1; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_issimple>(thd, this); }
 };
@@ -887,7 +887,7 @@ public:
   longlong val_int();
   const char *func_name() const { return "st_isclosed"; }
   bool fix_length_and_dec() { decimals=0; max_length=2; return FALSE; }
-  uint decimal_precision() const { return 1; }
+  decimal_digits_t decimal_precision() const override { return 1; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_isclosed>(thd, this); }
 };

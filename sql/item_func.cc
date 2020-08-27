@@ -2739,7 +2739,7 @@ my_decimal *Item_func_round::decimal_op(my_decimal *decimal_value)
     dec= INT_MIN;
     
   if (!(null_value= (value.is_null() || args[1]->null_value ||
-                     value.round_to(decimal_value, (uint) dec,
+                     value.round_to(decimal_value, (int) dec,
                                     truncate ? TRUNCATE : HALF_UP) > 1)))
     return decimal_value;
   return 0;

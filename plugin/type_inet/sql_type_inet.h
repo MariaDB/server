@@ -402,19 +402,19 @@ public:
   bool can_return_time() const override { return false; }
   bool convert_to_binary_using_val_native() const override { return true; }
 
-  uint Item_time_precision(THD *thd, Item *item) const override
+  decimal_digits_t  Item_time_precision(THD *thd, Item *item) const override
   {
     return 0;
   }
-  uint Item_datetime_precision(THD *thd, Item *item) const override
+  decimal_digits_t Item_datetime_precision(THD *thd, Item *item) const override
   {
     return 0;
   }
-  uint Item_decimal_scale(const Item *item) const override
+  decimal_digits_t Item_decimal_scale(const Item *item) const override
   {
     return 0;
   }
-  uint Item_decimal_precision(const Item *item) const override
+  decimal_digits_t  Item_decimal_precision(const Item *item) const override
   {
     /*
       This will be needed if we ever allow cast from INET6 to DECIMAL.
@@ -429,7 +429,7 @@ public:
     Returns how many digits a divisor adds into a division result.
     See Item::divisor_precision_increment() in item.h for more comments.
   */
-  uint Item_divisor_precision_increment(const Item *) const override
+  decimal_digits_t Item_divisor_precision_increment(const Item *) const override
   {
     return 0;
   }
