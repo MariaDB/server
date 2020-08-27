@@ -1378,21 +1378,20 @@ row_ins_foreign_check_on_constraint(
 		btr_pcur_store_position(cascade->pcur, mtr);
 	}
 
+#ifdef WITH_WSREP
+	err = wsrep_append_foreign_key(trx, foreign, clust_rec, clust_index,
+				       FALSE, WSREP_SERVICE_KEY_EXCLUSIVE);
+	if (err != DB_SUCCESS) {
+		ib::info() << "WSREP: foreign key append failed: " <<  err;
+		goto nonstandard_exit_func;
+	}
+#endif /* WITH_WSREP */
 	mtr_commit(mtr);
 
 	ut_a(cascade->pcur->rel_pos == BTR_PCUR_ON);
 
 	cascade->state = UPD_NODE_UPDATE_CLUSTERED;
 
-#ifdef WITH_WSREP
-	err = wsrep_append_foreign_key(trx, foreign, cascade->pcur->old_rec,
-				       clust_index,
-				       FALSE, WSREP_SERVICE_KEY_EXCLUSIVE);
-	if (err != DB_SUCCESS) {
-		fprintf(stderr,
-			"WSREP: foreign key append failed: %d\n", err);
-	} else
-#endif /* WITH_WSREP */
 	err = row_update_cascade_for_mysql(thr, cascade,
 					   foreign->foreign_table);
 
