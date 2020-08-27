@@ -346,10 +346,10 @@ f1
 🐱🌑
 select @cluster_lookups;
 @cluster_lookups
-2
+1
 select @cluster_lookups_avoided;
 @cluster_lookups_avoided
-0
+1
 # Eligible - record length is shorter than prefix length
 SELECT f1 FROM t1 FORCE INDEX (`f1`) WHERE f1 like '🌑%';
 f1
@@ -366,10 +366,10 @@ f1
 🌒
 select @cluster_lookups;
 @cluster_lookups
-1
+0
 select @cluster_lookups_avoided;
 @cluster_lookups_avoided
-1
+2
 DROP TABLE t1;
 CREATE TABLE t1(
 col1 INT,
@@ -398,4 +398,9 @@ select @cluster_lookups_avoided;
 @cluster_lookups_avoided
 0
 DROP TABLE t1;
+CREATE TABLE t(c POINT UNIQUE) ENGINE=InnoDB;
+INSERT t SET c=POINT(1,1);
+SELECT * FROM t WHERE c > (SELECT MAX(c) FROM t);
+c
+DROP TABLE t;
 set global innodb_prefix_index_cluster_optimization = OFF;

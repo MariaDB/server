@@ -2815,6 +2815,9 @@ row_sel_field_store_in_mysql_format_func(
 	ut_ad(len != UNIV_SQL_NULL);
 	MEM_CHECK_DEFINED(data, len);
 	MEM_CHECK_ADDRESSABLE(dest, templ->mysql_col_len);
+	for (ulint i = templ->mysql_col_len; i--; ) {
+		dest[i] = static_cast<byte>(ut_rnd_gen());
+	}
 #ifdef HAVE_valgrind_or_MSAN
 	MEM_UNDEFINED(dest, templ->mysql_col_len);
 #endif /* HAVE_valgrind_or_MSAN */
@@ -4184,6 +4187,7 @@ bool row_search_with_covering_prefix(
 	for (ulint i = 0; i < prebuilt->n_template; i++) {
 		mysql_row_templ_t* templ = prebuilt->mysql_template + i;
 		ulint j = templ->rec_prefix_field_no;
+		ut_ad(!templ->mbminlen == !templ->mbmaxlen);
 
 		/** Condition (1) : is the field in the index. */
 		if (j == ULINT_UNDEFINED) {
@@ -4199,27 +4203,19 @@ bool row_search_with_covering_prefix(
 
 		ulint rec_size = rec_offs_nth_size(offsets, j);
 		const dict_field_t* field = dict_index_get_nth_field(index, j);
-		ulint max_chars = field->prefix_len / templ->mbmaxlen;
 
-		ut_a(field->prefix_len > 0);
+		ut_ad(field->prefix_len);
 
-		if (rec_size < max_chars) {
-			/* Record in bytes shorter than the index
-			prefix length in char. */
-			continue;
-		}
-
-		if (rec_size * templ->mbminlen >= field->prefix_len) {
+		if (rec_size >= field->prefix_len) {
 			/* Shortest representation string by the
 			byte length of the record is longer than the
 			maximum possible index prefix. */
 			return false;
 		}
 
-		size_t num_chars = rec_field_len_in_chars(
-			field->col, j, rec, offsets);
-
-		if (num_chars >= max_chars) {
+		if (templ->mbminlen != templ->mbmaxlen
+		    && rec_field_len_in_chars(field->col, j, rec, offsets)
+		    >= field->prefix_len / templ->mbmaxlen) {
 			/* No of chars to store the record exceeds
 			the index prefix character length. */
 			return false;

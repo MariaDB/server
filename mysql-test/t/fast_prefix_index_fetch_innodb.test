@@ -665,4 +665,10 @@ select @cluster_lookups;
 select @cluster_lookups_avoided;
 
 DROP TABLE t1;
+
+CREATE TABLE t(c POINT UNIQUE) ENGINE=InnoDB;
+INSERT t SET c=POINT(1,1);
+SELECT * FROM t WHERE c > (SELECT MAX(c) FROM t);
+DROP TABLE t;
+
 set global innodb_prefix_index_cluster_optimization = OFF;
