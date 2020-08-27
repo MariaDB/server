@@ -547,6 +547,23 @@ struct compression_service_lzo_st{
 };
 extern struct compression_service_lzo_st *compression_service_lzo;
 }
+extern "C" {
+extern bool COMPRESSION_LOADED_SNAPPY;
+typedef enum{
+    SNAPPY_OK = 0,
+    SNAPPY_INVALID_INPUT = 1,
+    SNAPPY_BUFFER_TOO_SMALL = 2
+} snappy_status;
+typedef size_t (*PTR_snappy_max_compressed_length)( size_t source_length );
+typedef snappy_status (*PTR_snappy_compress)( const char *input, size_t input_length, char *compressed, size_t *compressed_length );
+typedef snappy_status (*PTR_snappy_uncompress)( const char *compressed, size_t compressed_length, char *uncompressed, size_t *uncompressed_length );
+struct compression_service_snappy_st{
+    PTR_snappy_max_compressed_length snappy_max_compressed_length_ptr;
+    PTR_snappy_compress snappy_compress_ptr;
+    PTR_snappy_uncompress snappy_uncompress_ptr;
+};
+extern struct compression_service_snappy_st *compression_service_snappy;
+}
 }
 struct st_mysql_xid {
   long formatID;

@@ -142,6 +142,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../libservices/compression_service_bzip2.c
            ../libservices/compression_service_lzma.c
            ../libservices/compression_service_lzma.c
+           ../libservices/compression_service_snappy.c
 )
 
 

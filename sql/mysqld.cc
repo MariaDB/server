@@ -7321,6 +7321,7 @@ SHOW_VAR status_vars[]= {
   {"Compression_loaded_bzip2", (char*) &COMPRESSION_LOADED_BZIP2,  SHOW_BOOL},
   {"Compression_loaded_lzma",  (char*) &COMPRESSION_LOADED_LZMA,   SHOW_BOOL},
   {"Compression_loaded_lzo",   (char*) &COMPRESSION_LOADED_LZO,    SHOW_BOOL},
+  {"Compression_loaded_snappy",(char*) &COMPRESSION_LOADED_SNAPPY, SHOW_BOOL},
   {"Connections",              (char*) &global_thread_id,         SHOW_LONG_NOFLUSH},
   {"Connection_errors_accept", (char*) &connection_errors_accept, SHOW_LONG},
   {"Connection_errors_internal", (char*) &connection_errors_internal, SHOW_LONG},
