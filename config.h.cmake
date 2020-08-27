@@ -102,6 +102,8 @@
 /* Libraries */
 #cmakedefine HAVE_LIBWRAP 1
 #cmakedefine HAVE_SYSTEMD 1
+
+#cmakedefine HAVE_CLMUL_INSTRUCTION 1
 #cmakedefine HAVE_CRC32_VPMSUM 1
 
 /* Support ARMv8 crc + crypto  */

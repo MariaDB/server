@@ -57,8 +57,6 @@ typedef uint8_t byte;
 
 # define _gcry_bswap32 __builtin_bswap32
 
-#if __GNUC__ >= 4 && defined(__x86_64__)
-
 #if defined(_GCRY_GCC_VERSION) && _GCRY_GCC_VERSION >= 40400 /* 4.4 */
 /* Prevent compiler from issuing SSE instructions between asm blocks. */
 #  pragma GCC target("no-sse")
@@ -542,4 +540,3 @@ unsigned int crc32_pclmul(unsigned int crc32, const void *buf, size_t len)
   crc32_intel_pclmul(&crc32, buf, len);
   return ~crc32;
 }
-#endif
