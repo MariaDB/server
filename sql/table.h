@@ -365,7 +365,7 @@ enum enum_vcol_update_mode
 
 /* Field visibility enums */
 
-enum field_visibility_t {
+enum __attribute__((packed)) field_visibility_t {
   VISIBLE= 0,
   INVISIBLE_USER,
   /* automatically added by the server. Can be queried explicitly

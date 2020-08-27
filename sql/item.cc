@@ -410,13 +410,13 @@ int Item::save_str_value_in_field(Field *field, String *result)
 
 
 Item::Item(THD *thd):
-  is_expensive_cache(-1), rsize(0), name(null_clex_str), orig_name(0),
-  common_flags(IS_AUTO_GENERATED_NAME)
+  name(null_clex_str), orig_name(0), is_expensive_cache(-1)
 {
+  common_flags= IS_AUTO_GENERATED_NAME;
   marker= 0;
-  maybe_null= null_value= with_window_func= with_field= false;
-  in_rollup= 0;
-  with_param= 0;
+  maybe_null= with_window_func= with_field= in_rollup= with_param= 0;
+  fixed= 1;                           // Simple Item's doesn't have to be fixed
+  null_value= 0;
 
    /* Initially this item is not attached to any JOIN_TAB. */
   join_tab_idx= MAX_TABLES;
@@ -460,20 +460,19 @@ const TABLE_SHARE *Item::field_table_or_null()
 */
 Item::Item(THD *thd, Item *item):
   Type_all_attributes(*item),
-  join_tab_idx(item->join_tab_idx),
-  is_expensive_cache(-1),
-  rsize(0),
   str_value(item->str_value),
   name(item->name),
   orig_name(item->orig_name),
-  marker(item->marker),
   maybe_null(item->maybe_null),
   in_rollup(item->in_rollup),
-  null_value(item->null_value),
   with_param(item->with_param),
   with_window_func(item->with_window_func),
   with_field(item->with_field),
-  common_flags(item->common_flags)
+  marker(item->marker),
+  null_value(item->null_value),
+  is_expensive_cache(-1),
+  common_flags(item->common_flags),
+  join_tab_idx(item->join_tab_idx)
 {
   next= thd->free_list;				// Put in free list
   thd->free_list= this;
@@ -642,8 +641,9 @@ Item_ident::Item_ident(THD *thd, Name_resolution_context *context_arg,
    orig_field_name(field_name_arg), context(context_arg),
    db_name(db_name_arg), table_name(table_name_arg),
    field_name(field_name_arg),
-   alias_name_used(FALSE), cached_field_index(NO_CACHED_FIELD_INDEX),
-   cached_table(0), depended_from(0), can_be_depended(TRUE)
+   cached_table(NULL), depended_from(NULL),
+   cached_field_index(NO_CACHED_FIELD_INDEX),
+   can_be_depended(TRUE), alias_name_used(FALSE)
 {
   name= field_name_arg;
 }
@@ -658,8 +658,9 @@ Item_ident::Item_ident(THD *thd, TABLE_LIST *view_arg,
    context(&view_arg->view->first_select_lex()->context),
    db_name(null_clex_str), table_name(view_arg->alias),
    field_name(field_name_arg),
-   alias_name_used(FALSE), cached_field_index(NO_CACHED_FIELD_INDEX),
-   cached_table(NULL), depended_from(NULL), can_be_depended(TRUE)
+   cached_table(NULL), depended_from(NULL),
+   cached_field_index(NO_CACHED_FIELD_INDEX),
+   can_be_depended(TRUE), alias_name_used(FALSE)
 {
   name= field_name_arg;
 }
@@ -678,11 +679,11 @@ Item_ident::Item_ident(THD *thd, Item_ident *item)
    db_name(item->db_name),
    table_name(item->table_name),
    field_name(item->field_name),
-   alias_name_used(item->alias_name_used),
-   cached_field_index(item->cached_field_index),
    cached_table(item->cached_table),
    depended_from(item->depended_from),
-   can_be_depended(item->can_be_depended)
+   cached_field_index(item->cached_field_index),
+   can_be_depended(item->can_be_depended),
+   alias_name_used(item->alias_name_used)
 {}
 
 void Item_ident::cleanup()
@@ -6509,19 +6510,16 @@ static int save_field_in_field(Field *from, bool *null_value,
     DBUG_RETURN(set_field_to_null_with_conversions(to, no_conversions));
   }
   to->set_notnull();
+  (*null_value)= 0;
 
   /*
     If we're setting the same field as the one we're reading from there's 
     nothing to do. This can happen in 'SET x = x' type of scenarios.
   */
   if (to == from)
-  {
-    (*null_value)= 0;
     DBUG_RETURN(0);
-  }
 
   res= field_conv(to, from);
-  (*null_value)= 0;
   DBUG_RETURN(res);
 }
 
@@ -9672,7 +9670,7 @@ bool Item_trigger_field::fix_fields(THD *thd, Item **items)
 
   /* Set field. */
 
-  if (likely(field_idx != (uint)-1))
+  if (likely(field_idx != NO_CACHED_FIELD_INDEX))
   {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     /*
@@ -10033,7 +10031,7 @@ bool Item_cache_timestamp::val_native(THD *thd, Native *to)
     null_value= true;
     return true;
   }
-  return null_value= to->copy(m_native);
+  return (null_value= to->copy(m_native));
 }
 
 

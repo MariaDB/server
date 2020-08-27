@@ -5972,10 +5972,10 @@ find_field_in_natural_join(THD *thd, TABLE_LIST *table_ref, const char *name, si
 
 Field *
 find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
-                    bool allow_rowid, uint *cached_field_index_ptr)
+                    bool allow_rowid, uint16 *cached_field_index_ptr)
 {
   Field *field;
-  uint cached_field_index= *cached_field_index_ptr;
+  uint16 cached_field_index= *cached_field_index_ptr;
   DBUG_ENTER("find_field_in_table");
   DBUG_PRINT("enter", ("table: '%s', field name: '%s'", table->alias.c_ptr(),
                        name));
@@ -6069,7 +6069,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
                         const char *item_name, const char *db_name,
                         const char *table_name, Item **ref,
                         bool check_privileges, bool allow_rowid,
-                        uint *cached_field_index_ptr,
+                        uint16 *cached_field_index_ptr,
                         bool register_tree_change, TABLE_LIST **actual_table)
 {
   Field *fld;

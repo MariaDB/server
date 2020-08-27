@@ -849,7 +849,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
       as auto-update field.
     */
     if (field->real_field_type() == MYSQL_TYPE_TIMESTAMP &&
-        MTYP_TYPENR(field->unireg_check) != Field::NONE &&
+        field->unireg_check != Field::NONE &&
 	!time_stamp_pos)
       time_stamp_pos= (uint) field->offset+ (uint) data_offset + 1;
     length=field->pack_length;

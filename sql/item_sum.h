@@ -1412,7 +1412,7 @@ public:
 
   bool val_native(THD *thd, Native *to)
   {
-    return null_value= execute() || sp_result_field->val_native(to);
+    return (null_value= execute()) || sp_result_field->val_native(to);
   }
 
   String *val_str(String *str)

@@ -2473,10 +2473,12 @@ bool Item_func_current_role::fix_fields(THD *thd, Item **ref)
                        system_charset_info))
       return 1;
     str_value.mark_as_const();
-    null_value= maybe_null= 0;
+    null_value= 0;
+    maybe_null= 0;
     return 0;
   }
-  null_value= maybe_null= 1;
+  null_value= 1;
+  maybe_null= 1;
   return 0;
 }
 

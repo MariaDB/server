@@ -874,7 +874,8 @@ public:
   bool fix_length_and_dec()
   {
     max_length= 512 * system_charset_info->mbmaxlen;
-    null_value= maybe_null= false;
+    null_value= false;
+    maybe_null= false;
     return FALSE;
   }
   Item *get_copy(THD *thd)
