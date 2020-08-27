@@ -72,7 +72,7 @@ const char *zerofill_error_msg=
    corrupted.
 */
 ulonglong maria_recover_options= HA_RECOVER_NONE;
-handlerton __attribute__((visibility("default"))) *maria_hton;
+handlerton *maria_hton;
 
 /* bits in maria_recover_options */
 const char *maria_recover_names[]=

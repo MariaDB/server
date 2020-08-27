@@ -51,7 +51,11 @@
   but the stored block will be the size of the compressed block.
 
   Implementation:
-  The s3 engine inherits from the ha_maria handler
+  The s3 engine inherits from the ha_maria handler.
+
+  It uses Aria code and relies on Aria being enabled. We don't have to check
+  that Aria is enabled though, because Aria is a mandatory plugin, and
+  the server will refuse to start if Aria failed to initialize.
 
   s3 will use it's own page cache to not interfere with normal Aria
   usage but also to ensure that the S3 page cache is large enough
@@ -996,14 +1000,7 @@ static int ha_s3_init(void *p)
   bool res;
   static const char *no_exts[]= { 0 };
 
-  /* This can happen if Aria fails to start */
-  if (!maria_hton)
-    return HA_ERR_INITIALIZATION;
-
   s3_hton= (handlerton *)p;
-
-  /* Use Aria engine as a base */
-  memcpy(s3_hton, maria_hton, sizeof(*s3_hton));
   s3_hton->db_type= DB_TYPE_S3;
   s3_hton->create= s3_create_handler;
   s3_hton->panic=  s3_hton_panic;
