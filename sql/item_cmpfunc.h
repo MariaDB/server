@@ -381,7 +381,7 @@ public:
   Item *expr_cache_insert_transformer(THD *thd, uchar *unused) override;
   bool is_expensive_processor(void *arg) override;
   bool is_expensive() override;
-  void set_join_tab_idx(uint join_tab_idx_arg) override
+  void set_join_tab_idx(uint8 join_tab_idx_arg) override
   { args[1]->set_join_tab_idx(join_tab_idx_arg); }
   void get_cache_parameters(List<Item> &parameters) override;
   bool is_top_level_item() const override;

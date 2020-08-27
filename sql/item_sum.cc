@@ -890,7 +890,8 @@ bool Aggregator_distinct::setup(THD *thd)
       mem_root.
     */
 
-    item_sum->null_value= item_sum->maybe_null= 1;
+    item_sum->null_value= 1;
+    item_sum->maybe_null= 1;
     item_sum->quick_group= 0;
 
     DBUG_ASSERT(item_sum->get_arg(0)->is_fixed());
