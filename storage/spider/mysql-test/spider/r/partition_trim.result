@@ -1,0 +1,114 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+drop and create databases
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote_2;
+CREATE DATABASE auto_test_remote_2;
+USE auto_test_remote_2;
+
+create table for child
+connection child2_1;
+CHILD2_1_DROP_TABLES
+CHILD2_1_CREATE_TABLES
+connection child2_2;
+CHILD2_2_DROP_TABLES
+CHILD2_2_CREATE_TABLES
+
+create table for master
+connection master_1;
+DROP TABLE IF EXISTS ta_l;
+CREATE TABLE tbl_a (
+a INT, 
+b VARCHAR(30)
+)ENGINE=Spider COMMENT='wrapper "mysql", table "tbl_a"' 
+PARTITION BY LIST (a%2) (
+PARTITION ptbl_a VALUES IN (0) COMMENT = 'database "auto_test_remote", table "tbl_a", srv "s_2_1",aim "0"',
+PARTITION pt2 VALUES IN (1) COMMENT = 'database "auto_test_remote_2", table "tbl_a", srv "s_2_2",aim "1"'
+);
+
+insert data and test
+INSERT INTO tbl_a VALUES(10000, "  abcd   ");
+INSERT INTO tbl_a VALUES(10001, "  abcd   ");
+INSERT INTO tbl_a VALUES(10002, "  abcd   ");
+INSERT INTO tbl_a VALUES(10003, "[[[abcd][[");
+INSERT INTO tbl_a VALUES(10004, "[[[abcd][[");
+INSERT INTO tbl_a VALUES(10005, "[[[abcd][[");
+INSERT INTO tbl_a VALUES(10006, "[[[abcd]]");
+INSERT INTO tbl_a VALUES(10007, "[[[abcd]]");
+INSERT INTO tbl_a VALUES(10008, "[[[abcd]]");
+INSERT INTO tbl_a VALUES(10009, "[[[**abcd****]]");
+UPDATE tbl_a SET b = trim(b) WHERE a = 10000;
+SELECT * FROM tbl_a WHERE a = 10000;
+a	b
+10000	abcd
+UPDATE tbl_a SET b = ltrim(b) WHERE a = 10001;
+SELECT * FROM tbl_a WHERE a = 10001;
+a	b
+10001	abcd   
+UPDATE tbl_a SET b = rtrim(b) WHERE a = 10002;
+SELECT * FROM tbl_a WHERE a = 10002;
+a	b
+10002	  abcd
+UPDATE tbl_a SET b = trim(BOTH '[' FROM b) WHERE a = 10003;
+SELECT * FROM tbl_a WHERE a = 10003;
+a	b
+10003	abcd]
+UPDATE tbl_a SET b = trim(LEADING '[' FROM b) WHERE a = 10004;
+SELECT * FROM tbl_a WHERE a = 10004;
+a	b
+10004	abcd][[
+UPDATE tbl_a SET b = trim(TRAILING '[' FROM b) WHERE a = 10005;
+SELECT * FROM tbl_a WHERE a = 10005;
+a	b
+10005	[[[abcd]
+UPDATE tbl_a SET b = trim(LEADING '[' FROM trim(TRAILING ']' FROM b)) WHERE a = 10006;
+SELECT * FROM tbl_a WHERE a = 10006;
+a	b
+10006	abcd
+UPDATE tbl_a SET b = trim(TRAILING '[' FROM trim(LEADING ']' FROM b)) WHERE a = 10007;
+SELECT * FROM tbl_a WHERE a = 10007;
+a	b
+10007	[[[abcd]]
+UPDATE tbl_a SET b = trim(TRAILING ']' FROM trim(LEADING '[' FROM b)) WHERE a = 10008;
+SELECT * FROM tbl_a WHERE a = 10008;
+a	b
+10008	abcd
+UPDATE tbl_a SET b = trim(BOTH '*' FROM trim(TRAILING ']' FROM trim(LEADING '[' FROM b))) WHERE a = 10009;
+SELECT * FROM tbl_a WHERE a = 10009;
+a	b
+10009	abcd
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+connection child2_2;
+DROP DATABASE IF EXISTS auto_test_remote_2;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+end of test
