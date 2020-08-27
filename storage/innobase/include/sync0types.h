@@ -258,8 +258,6 @@ enum latch_level_t {
 
 	SYNC_TRX_I_S_RWLOCK,
 
-	SYNC_RECV_WRITER,
-
 	/** Level is varying. Only used with buffer pool page locks, which
 	do not have a fixed level, but instead have their level set after
 	the page is locked; see e.g.  ibuf_bitmap_get_map_page(). */
@@ -299,7 +297,6 @@ enum latch_id_t {
 	LATCH_ID_PURGE_SYS_PQ,
 	LATCH_ID_RECALC_POOL,
 	LATCH_ID_RECV_SYS,
-	LATCH_ID_RECV_WRITER,
 	LATCH_ID_REDO_RSEG,
 	LATCH_ID_NOREDO_RSEG,
 	LATCH_ID_RW_LOCK_DEBUG,
@@ -1008,9 +1005,6 @@ struct sync_checker : public sync_check_functor_t
 	{
 		if (some_allowed) {
 			switch (level) {
-			case SYNC_RECV_WRITER:
-				/* This only happens in
-				recv_apply_hashed_log_recs. */
 			case SYNC_DICT:
 			case SYNC_DICT_OPERATION:
 			case SYNC_FTS_CACHE:

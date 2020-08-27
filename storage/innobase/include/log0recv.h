@@ -33,9 +33,6 @@ Created 9/20/1997 Heikki Tuuri
 
 #include <deque>
 
-/** Is recv_writer_thread active? */
-extern bool	recv_writer_thread_active;
-
 /** @return whether recovery is currently running. */
 #define recv_recovery_is_on() UNIV_UNLIKELY(recv_sys.recovery_on)
 
@@ -226,16 +223,6 @@ struct recv_sys_t
   /** whether recv_recover_page(), invoked from buf_page_read_complete(),
   should apply log records*/
   bool apply_log_recs;
-
-	ib_mutex_t		writer_mutex;/*!< mutex coordinating
-				flushing between recv_writer_thread and
-				the recovery thread. */
-	os_event_t		flush_start;/*!< event to activate
-				page cleaner threads */
-	os_event_t		flush_end;/*!< event to signal that the page
-				cleaner has finished the request */
-  /** whether to flush from buf_pool.LRU instead of buf_pool.flush_list */
-  bool flush_lru;
 	/** whether recv_apply_hashed_log_recs() is running */
 	bool		apply_batch_on;
 	byte*		buf;	/*!< buffer for parsing log records */

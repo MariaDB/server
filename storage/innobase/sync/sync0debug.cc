@@ -508,7 +508,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_DICT_OPERATION);
 	LEVEL_MAP_INSERT(SYNC_TRX_I_S_LAST_READ);
 	LEVEL_MAP_INSERT(SYNC_TRX_I_S_RWLOCK);
-	LEVEL_MAP_INSERT(SYNC_RECV_WRITER);
 	LEVEL_MAP_INSERT(SYNC_LEVEL_VARYING);
 	LEVEL_MAP_INSERT(SYNC_NO_ORDER_CHECK);
 
@@ -772,7 +771,6 @@ LatchDebug::check_order(
 	case SYNC_STATS_AUTO_RECALC:
 	case SYNC_POOL:
 	case SYNC_POOL_MANAGER:
-	case SYNC_RECV_WRITER:
 	case SYNC_BUF_PAGE_HASH:
 		basic_check(latches, level, level);
 		break;
@@ -1294,8 +1292,6 @@ sync_latch_meta_init()
 			recalc_pool_mutex_key);
 
 	LATCH_ADD_MUTEX(RECV_SYS, SYNC_RECV, recv_sys_mutex_key);
-
-	LATCH_ADD_MUTEX(RECV_WRITER, SYNC_RECV_WRITER, recv_writer_mutex_key);
 
 	LATCH_ADD_MUTEX(REDO_RSEG, SYNC_REDO_RSEG, redo_rseg_mutex_key);
 
