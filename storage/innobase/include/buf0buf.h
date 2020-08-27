@@ -39,7 +39,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "hash0hash.h"
 #include "ut0byte.h"
 #include "page0types.h"
-#include "ut0rbt.h"
 #include "os0proc.h"
 #include "log0log.h"
 #include "srv0srv.h"
@@ -1954,20 +1953,6 @@ public:
   // n_flush_LRU + n_flush_list is approximately COUNT(io_fix()==BUF_IO_WRITE)
   // in flush_list
 
-	ib_rbt_t*	flush_rbt;	/*!< a red-black tree is used
-					exclusively during recovery to
-					speed up insertions in the
-					flush_list. This tree contains
-					blocks in order of
-					oldest_modification LSN and is
-					kept in sync with the
-					flush_list.
-					Each member of the tree MUST
-					also be on the flush_list.
-					This tree is relevant only in
-					recovery and is set to NULL
-					once the recovery is over.
-					Protected by flush_list_mutex */
 	unsigned	freed_page_clock;/*!< a sequence number used
 					to count the number of buffer
 					blocks removed from the end of

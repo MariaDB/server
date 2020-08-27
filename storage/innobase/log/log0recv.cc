@@ -984,6 +984,8 @@ DECLARE_THREAD(recv_writer_thread)(
 		mutex_exit(&recv_sys.writer_mutex);
 	}
 
+	// FIXME: remove this workaround, and use sorted buf_pool.flush_list
+	buf_flush_lists(ULINT_MAX, LSN_MAX, nullptr);
 	recv_writer_thread_active = false;
 
 	my_thread_end();
@@ -3341,10 +3343,6 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	ut_ad(UT_LIST_GET_LEN(buf_pool.unzip_LRU) == 0);
 	ut_d(mysql_mutex_unlock(&buf_pool.flush_list_mutex));
 
-	/* Initialize red-black tree for fast insertions into the
-	flush_list during recovery process. */
-	buf_flush_init_flush_rbt();
-
 	if (srv_force_recovery >= SRV_FORCE_NO_LOG_REDO) {
 
 		ib::info() << "innodb_force_recovery=6 skips redo log apply";
@@ -3671,8 +3669,6 @@ recv_recovery_from_checkpoint_finish(void)
 
 	recv_sys.debug_free();
 
-	/* Free up the flush_rbt. */
-	buf_flush_free_flush_rbt();
 	/* Enable innodb_sync_debug checks */
 	ut_d(sync_check_enable());
 }

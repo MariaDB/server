@@ -1607,12 +1607,6 @@ void buf_pool_t::close()
   mysql_mutex_destroy(&mutex);
   mysql_mutex_destroy(&flush_list_mutex);
 
-  if (flush_rbt)
-  {
-    rbt_free(flush_rbt);
-    flush_rbt= nullptr;
-  }
-
   for (buf_page_t *bpage= UT_LIST_GET_LAST(LRU), *prev_bpage= nullptr; bpage;
        bpage= prev_bpage)
   {
@@ -2117,7 +2111,6 @@ inline void buf_pool_t::resize()
 	ut_ad(curr_size == old_size);
 	ut_ad(n_chunks_new == n_chunks);
 	ut_ad(UT_LIST_GET_LEN(withdraw) == 0);
-	ut_ad(flush_rbt == NULL);
 
 	n_chunks_new = (new_instance_size << srv_page_size_shift)
 		/ srv_buf_pool_chunk_unit;
