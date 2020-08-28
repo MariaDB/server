@@ -2924,7 +2924,12 @@ static int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
     definer_host.length= 0;
   }
 
-  stmt_query.append(STRING_WITH_LEN("CREATE "));
+  const LEX_STRING command[3]=
+      {{ C_STRING_WITH_LEN("CREATE ") },
+       { C_STRING_WITH_LEN("ALTER ") },
+       { C_STRING_WITH_LEN("CREATE OR REPLACE ") }};
+  stmt_query.append(command[thd->lex->create_view_mode].str,
+                    command[thd->lex->create_view_mode].length);
 
   append_definer(thd, &stmt_query, &definer_user, &definer_host);
 
