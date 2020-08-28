@@ -32,6 +32,12 @@ typedef enum{
     size_t *compressed_length                               \
 )
 
+#define DEFINE_snappy_uncompressed_length(NAME) snappy_status NAME( \
+    const char *compressed,                                         \
+    size_t compressed_length,                                       \
+    size_t *result                                                  \
+)
+
 #define DEFINE_snappy_uncompress(NAME) snappy_status NAME(  \
     const char *compressed,                                 \
     size_t compressed_length,                               \
@@ -41,11 +47,13 @@ typedef enum{
 
 typedef DEFINE_snappy_max_compressed_length ((*PTR_snappy_max_compressed_length));
 typedef DEFINE_snappy_compress              ((*PTR_snappy_compress));
+typedef DEFINE_snappy_uncompressed_length   ((*PTR_snappy_uncompressed_length));
 typedef DEFINE_snappy_uncompress            ((*PTR_snappy_uncompress));
 
 struct compression_service_snappy_st{
     PTR_snappy_max_compressed_length snappy_max_compressed_length_ptr;
     PTR_snappy_compress              snappy_compress_ptr;
+    PTR_snappy_uncompressed_length   snappy_uncompressed_length_ptr;
     PTR_snappy_uncompress            snappy_uncompress_ptr;
 };
 
@@ -53,6 +61,7 @@ extern struct compression_service_snappy_st *compression_service_snappy;
 
 #define snappy_max_compressed_length(...) compression_service_snappy->snappy_max_compressed_length_ptr (__VA_ARGS__)
 #define snappy_compress(...)              compression_service_snappy->snappy_compress_ptr              (__VA_ARGS__)
+#define snappy_uncompressed_length(...)   compression_service_snappy->snappy_uncompressed_length_ptr   (__VA_ARGS__)
 #define snappy_uncompress(...)            compression_service_snappy->snappy_uncompress_ptr            (__VA_ARGS__)
 
 #ifdef __cplusplus

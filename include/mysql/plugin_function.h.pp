@@ -568,10 +568,12 @@ typedef enum{
 } snappy_status;
 typedef size_t (*PTR_snappy_max_compressed_length)( size_t source_length );
 typedef snappy_status (*PTR_snappy_compress)( const char *input, size_t input_length, char *compressed, size_t *compressed_length );
+typedef snappy_status (*PTR_snappy_uncompressed_length)( const char *compressed, size_t compressed_length, size_t *result );
 typedef snappy_status (*PTR_snappy_uncompress)( const char *compressed, size_t compressed_length, char *uncompressed, size_t *uncompressed_length );
 struct compression_service_snappy_st{
     PTR_snappy_max_compressed_length snappy_max_compressed_length_ptr;
     PTR_snappy_compress snappy_compress_ptr;
+    PTR_snappy_uncompressed_length snappy_uncompressed_length_ptr;
     PTR_snappy_uncompress snappy_uncompress_ptr;
 };
 extern struct compression_service_snappy_st *compression_service_snappy;
