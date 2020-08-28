@@ -81,19 +81,12 @@ os_event_t	buf_flush_event;
 
 /** Page cleaner request state for buf_pool */
 struct page_cleaner_slot_t {
-	ulint			n_flushed_lru;
-					/*!< number of flushed pages
-					by LRU scan flushing */
 	ulint			n_flushed_list;
 					/*!< number of flushed pages
 					by flush_list flushing */
-	ulint			flush_lru_time;
-					/*!< elapsed time for LRU flushing */
 	ulint			flush_list_time;
 					/*!< elapsed time for flush_list
 					flushing */
-	ulint			flush_lru_pass;
-					/*!< count to attempt LRU flushing */
 	ulint			flush_list_pass;
 					/*!< count to attempt flush_list
 					flushing */
@@ -1332,7 +1325,7 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn)
   /* Start from the end of the list looking for a suitable block to be
   flushed. */
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
-  ulint len = UT_LIST_GET_LEN(buf_pool.flush_list);
+  ulint len= UT_LIST_GET_LEN(buf_pool.flush_list);
 
   /* In order not to degenerate this scan to O(n*n) we attempt to
   preserve pointer of previous block in the flush list. To do so we
@@ -1384,24 +1377,12 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn)
   return count;
 }
 
-/******************************************************************//**
-Gather the aggregated stats for both flush list and LRU list flushing.
-@param page_count_flush	number of pages flushed from the end of the flush_list
-@param page_count_LRU	number of pages flushed from the end of the LRU list
-*/
-static
-void
-buf_flush_stats(
-/*============*/
-	ulint		page_count_flush,
-	ulint		page_count_LRU)
+/** Gather the aggregated stats for flushing.
+@param n     number of pages flushed */
+static void buf_flush_stats(ulint n)
 {
-	DBUG_PRINT("ib_buf", ("flush completed, from flush_list %u pages, "
-			      "from LRU_list %u pages",
-			      unsigned(page_count_flush),
-			      unsigned(page_count_LRU)));
-
-	srv_stats.buf_pool_flushed.add(page_count_flush + page_count_LRU);
+  DBUG_PRINT("ib_buf", ("flush completed, " ULINTPF " pages", n));
+  srv_stats.buf_pool_flushed.add(n);
 }
 
 /** Wait until a flush batch ends.
@@ -1551,7 +1532,7 @@ bool buf_flush_lists(ulint min_n, lsn_t lsn_limit, ulint *n_processed)
 	bool success = buf_flush_do_batch(min_n, lsn_limit, &n);
 
 	if (n.flushed) {
-		buf_flush_stats(n.flushed, 0);
+		buf_flush_stats(n.flushed);
 	}
 
 	if (n_processed) {
@@ -1560,48 +1541,6 @@ bool buf_flush_lists(ulint min_n, lsn_t lsn_limit, ulint *n_processed)
 
 	return success;
 }
-
-/**
-Clear up the tail of the LRU list.
-Put replaceable pages at the tail of LRU to the free list.
-Flush dirty pages at the tail of LRU to the disk.
-The depth to which we scan each buffer pool is controlled by dynamic
-config parameter innodb_LRU_scan_depth.
-@return total pages flushed */
-static ulint buf_flush_LRU_list()
-{
-	ulint	scan_depth, withdraw_depth;
-	flush_counters_t	n;
-
-	memset(&n, 0, sizeof(flush_counters_t));
-
-	/* srv_LRU_scan_depth can be arbitrarily large value.
-	We cap it with current LRU size. */
-	mysql_mutex_lock(&buf_pool.mutex);
-	scan_depth = UT_LIST_GET_LEN(buf_pool.LRU);
-	if (buf_pool.curr_size < buf_pool.old_size
-	    && buf_pool.withdraw_target > 0) {
-		withdraw_depth = buf_pool.withdraw_target
-			- UT_LIST_GET_LEN(buf_pool.withdraw);
-	} else {
-		withdraw_depth = 0;
-	}
-	mysql_mutex_unlock(&buf_pool.mutex);
-	if (withdraw_depth > srv_LRU_scan_depth) {
-		scan_depth = ut_min(withdraw_depth, scan_depth);
-	} else {
-		scan_depth = ut_min(static_cast<ulint>(srv_LRU_scan_depth),
-				    scan_depth);
-	}
-	/* Currently one of page_cleaners is the only thread
-	that can trigger an LRU flush at the same time.
-	So, it is not possible that a batch triggered during
-	last iteration is still running, */
-	buf_flush_do_batch(scan_depth, 0, &n);
-
-	return(n.flushed);
-}
-
 /** Wait for pending flushes to complete. */
 void buf_flush_wait_batch_end_acquiring_mutex(bool lru)
 {
@@ -1767,19 +1706,12 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 		page_cleaner.flush_time = 0;
 		page_cleaner.flush_pass = 0;
 
-		ulint	lru_tm = page_cleaner.slot.flush_lru_time;
 		ulint	list_tm = page_cleaner.slot.flush_list_time;
-		ulint	lru_pass = page_cleaner.slot.flush_lru_pass;
 		ulint	list_pass = page_cleaner.slot.flush_list_pass;
-		page_cleaner.slot.flush_lru_time  = 0;
-		page_cleaner.slot.flush_lru_pass  = 0;
 		page_cleaner.slot.flush_list_time = 0;
 		page_cleaner.slot.flush_list_pass = 0;
 
 		/* minimum values are 1, to avoid dividing by zero. */
-		if (lru_tm < 1) {
-			lru_tm = 1;
-		}
 		if (list_tm < 1) {
 			list_tm = 1;
 		}
@@ -1787,9 +1719,6 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 			flush_tm = 1;
 		}
 
-		if (lru_pass < 1) {
-			lru_pass = 1;
-		}
 		if (list_pass < 1) {
 			list_pass = 1;
 		}
@@ -1799,23 +1728,14 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 
 		MONITOR_SET(MONITOR_FLUSH_ADAPTIVE_AVG_TIME_SLOT,
 			    list_tm / list_pass);
-		MONITOR_SET(MONITOR_LRU_BATCH_FLUSH_AVG_TIME_SLOT,
-			    lru_tm  / lru_pass);
 
 		MONITOR_SET(MONITOR_FLUSH_ADAPTIVE_AVG_TIME_THREAD,
 			    list_tm / flush_pass);
-		MONITOR_SET(MONITOR_LRU_BATCH_FLUSH_AVG_TIME_THREAD,
-			    lru_tm / flush_pass);
 		MONITOR_SET(MONITOR_FLUSH_ADAPTIVE_AVG_TIME_EST,
-			    flush_tm * list_tm / flush_pass
-			    / (list_tm + lru_tm));
-		MONITOR_SET(MONITOR_LRU_BATCH_FLUSH_AVG_TIME_EST,
-			    flush_tm * lru_tm / flush_pass
-			    / (list_tm + lru_tm));
+			    flush_tm / flush_pass);
 		MONITOR_SET(MONITOR_FLUSH_AVG_TIME, flush_tm / flush_pass);
 
 		MONITOR_SET(MONITOR_FLUSH_ADAPTIVE_AVG_PASS, list_pass);
-		MONITOR_SET(MONITOR_LRU_BATCH_FLUSH_AVG_PASS, lru_pass);
 		MONITOR_SET(MONITOR_FLUSH_AVG_PASS, flush_pass);
 
 		prev_lsn = cur_lsn;
@@ -1919,45 +1839,24 @@ pc_sleep_if_needed(
 	return(OS_SYNC_TIME_EXCEEDED);
 }
 
-/**
-Requests for all slots to flush.
-@param min_n	wished minimum mumber of blocks flushed
-		(it is not guaranteed that the actual number is that big)
-@param lsn_limit in the case of buf_pool.flush_list all blocks whose
-		oldest_modification is smaller than this should be flushed
-		(if their number does not exceed min_n), otherwise ignored
+/** Initiate a flushing batch.
+@param max_n	maximum mumber of blocks flushed
+@param lsn      oldest_modification limit
 @return ut_time_ms() at the start of the wait */
-static ulint pc_request_flush_slot(const ulint min_n, lsn_t lsn_limit)
+static ulint pc_request_flush_slot(ulint max_n, lsn_t lsn)
 {
-	ut_ad(lsn_limit);
+  if (!max_n)
+    return 0;
+  ut_ad(lsn);
 
-	const ulint start_tm = ut_time_ms();
-
-	/* Flush pages from end of LRU if required */
-	page_cleaner.slot.n_flushed_lru = buf_flush_LRU_list();
-
-	const ulint flush_start_tm = ut_time_ms();
-
-	page_cleaner.slot.flush_lru_time += flush_start_tm - start_tm;
-	page_cleaner.slot.flush_lru_pass++;
-
-	/* Flush pages from flush_list if required */
-	if (min_n) {
-		flush_counters_t n;
-		memset(&n, 0, sizeof(flush_counters_t));
-
-		buf_flush_do_batch(min_n, lsn_limit, &n);
-
-		page_cleaner.slot.n_flushed_list = n.flushed;
-
-		page_cleaner.slot.flush_list_time += ut_time_ms()
-			- flush_start_tm;
-		page_cleaner.slot.flush_list_pass++;
-	} else {
-		page_cleaner.slot.n_flushed_list = 0;
-	}
-
-	return start_tm;
+  const ulint flush_start_tm= ut_time_ms();
+  flush_counters_t n;
+  memset(&n, 0, sizeof n);
+  buf_flush_do_batch(max_n, lsn, &n);
+  page_cleaner.slot.n_flushed_list= n.flushed;
+  page_cleaner.slot.flush_list_time+= ut_time_ms() - flush_start_tm;
+  page_cleaner.slot.flush_list_pass++;
+  return flush_start_tm;
 }
 
 #ifdef UNIV_DEBUG
@@ -2001,7 +1900,6 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 #endif /* UNIV_LINUX */
 
 	ulint	ret_sleep = 0;
-	ulint	n_evicted = 0;
 	ulint	n_flushed_last = 0;
 	ulint	warn_interval = 1;
 	ulint	warn_count = 0;
@@ -2046,9 +1944,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 						<< "ms. The settings might not"
 						" be optimal. (flushed="
 						<< n_flushed_last
-						<< " and evicted="
-						<< n_evicted
-						<< ", during the time.)";
+						<< " during the time.)";
 					if (warn_interval > 300) {
 						warn_interval = 600;
 					} else {
@@ -2066,7 +1962,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 			}
 
 			next_loop_time = curr_time + 1000;
-			n_flushed_last = n_evicted = 0;
+			n_flushed_last = 0;
 		}
 
 		lsn_t lsn_limit;
@@ -2078,13 +1974,10 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 
 			page_cleaner.flush_time += ut_time_ms() - tm;
 			page_cleaner.flush_pass++;
-			n_flushed = page_cleaner.slot.n_flushed_lru
-				+ page_cleaner.slot.n_flushed_list;
+			n_flushed = page_cleaner.slot.n_flushed_list;
 
 			if (n_flushed) {
-				buf_flush_stats(
-					page_cleaner.slot.n_flushed_list,
-					page_cleaner.slot.n_flushed_lru);
+				buf_flush_stats(n_flushed);
 
 				MONITOR_INC_VALUE_CUMULATIVE(
 					MONITOR_FLUSH_SYNC_TOTAL_PAGE,
@@ -2102,40 +1995,26 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 				n_to_flush =
 					page_cleaner_flush_pages_recommendation(
 						last_pages);
-				lsn_limit = LSN_MAX;
 			} else {
 				n_to_flush = 0;
-				lsn_limit = 1;
 			}
 
-			ulint tm= pc_request_flush_slot(n_to_flush, lsn_limit);
+			ulint tm= pc_request_flush_slot(n_to_flush, LSN_MAX);
 
 			page_cleaner.flush_time += ut_time_ms() - tm;
 			page_cleaner.flush_pass++ ;
 
-			n_flushed = page_cleaner.slot.n_flushed_lru
-				+ page_cleaner.slot.n_flushed_list;
+			n_flushed = page_cleaner.slot.n_flushed_list;
 
 			if (n_flushed) {
-				buf_flush_stats(
-					page_cleaner.slot.n_flushed_list,
-					page_cleaner.slot.n_flushed_lru);
+				buf_flush_stats(n_flushed);
 			}
 
 			if (ret_sleep == OS_SYNC_TIME_EXCEEDED) {
 				last_pages = page_cleaner.slot.n_flushed_list;
 			}
 
-			n_evicted += page_cleaner.slot.n_flushed_lru;
 			n_flushed_last += page_cleaner.slot.n_flushed_list;
-
-			if (page_cleaner.slot.n_flushed_lru) {
-				MONITOR_INC_VALUE_CUMULATIVE(
-					MONITOR_LRU_BATCH_FLUSH_TOTAL_PAGE,
-					MONITOR_LRU_BATCH_FLUSH_COUNT,
-					MONITOR_LRU_BATCH_FLUSH_PAGES,
-					page_cleaner.slot.n_flushed_lru);
-			}
 
 			if (page_cleaner.slot.n_flushed_list) {
 				MONITOR_INC_VALUE_CUMULATIVE(
