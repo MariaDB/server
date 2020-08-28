@@ -93,9 +93,6 @@ struct page_cleaner_slot_t {
 	ulint			n_flushed_list;
 					/*!< number of flushed pages
 					by flush_list flushing */
-	bool			succeeded_list;
-					/*!< true if flush_list flushing
-					succeeded. */
 	ulint			flush_lru_time;
 					/*!< elapsed time for LRU flushing */
 	ulint			flush_list_time;
@@ -1962,7 +1959,7 @@ static ulint pc_request_flush_slot(const ulint min_n, lsn_t lsn_limit)
 		memset(&n, 0, sizeof(flush_counters_t));
 		ut_ad(page_cleaner.lsn_limit);
 
-		page_cleaner.slot.succeeded_list = buf_flush_do_batch(
+		buf_flush_do_batch(
 			page_cleaner.slot.n_pages_requested,
 			page_cleaner.lsn_limit,
 			&n);
@@ -1975,7 +1972,6 @@ static ulint pc_request_flush_slot(const ulint min_n, lsn_t lsn_limit)
 		page_cleaner.slot.n_pages_requested = 0;
 	} else {
 		page_cleaner.slot.n_flushed_list = 0;
-		page_cleaner.slot.succeeded_list = true;
 	}
 
 	return start_tm;
@@ -2200,6 +2196,9 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 		goto thread_exit;
 	}
 
+	buf_flush_wait_batch_end_acquiring_mutex(false);
+	buf_flush_wait_batch_end_acquiring_mutex(true);
+
 	/* In case of normal and slow shutdown the page_cleaner thread
 	must wait for all other activity in the server to die down.
 	Note that we can start flushing the buffer pool as soon as the
@@ -2211,37 +2210,28 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 	and the purge threads may be working as well. We start flushing
 	the buffer pool but can't be sure that no new pages are being
 	dirtied until we enter SRV_SHUTDOWN_FLUSH_PHASE phase. */
+	flush_counters_t n;
 
 	do {
-		pc_request_flush_slot(ULINT_MAX, LSN_MAX);
+		buf_flush_do_batch(ULINT_MAX, LSN_MAX, &n);
+		buf_flush_wait_batch_end_acquiring_mutex(true);
 	} while (srv_shutdown_state == SRV_SHUTDOWN_CLEANUP);
 
-	/* At this point all threads including the master and the purge
-	thread must have been suspended. */
-	ut_ad(!srv_any_background_activity());
-	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE);
-
-	/* We can now make a final sweep on flushing the buffer pool
-	and exit after we have cleaned the whole buffer pool.
-	It is important that we wait for any running batch that has
-	been triggered by us to finish. Otherwise we can end up
-	considering end of that batch as a finish of our final
-	sweep and we'll come out of the loop leaving behind dirty pages
-	in the flush_list */
-	buf_flush_wait_batch_end_acquiring_mutex(false);
-	buf_flush_wait_batch_end_acquiring_mutex(true);
+	/* At this point all threads including the master and the
+	purge thread must have been suspended. We can now make a final
+	sweep on flushing the buffer pool and exit after we have
+	cleaned the whole buffer pool. */
 
 	do {
-		pc_request_flush_slot(ULINT_MAX, LSN_MAX);
-		buf_flush_wait_batch_end_acquiring_mutex(false);
+		ut_ad(!srv_any_background_activity());
+		ut_ad(srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE);
+		if (!buf_flush_do_batch(ULINT_MAX, LSN_MAX, &n)) {
+			/* Another batch is running. Keep waiting. */
+			n.flushed = 1;
+		}
 		buf_flush_wait_batch_end_acquiring_mutex(true);
-	} while (!page_cleaner.slot.succeeded_list
-		 || page_cleaner.slot.n_flushed_lru
-		 || page_cleaner.slot.n_flushed_list);
+	} while (n.flushed);
 
-	/* Some sanity checks */
-	ut_ad(!srv_any_background_activity());
-	ut_ad(srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE);
 	ut_a(UT_LIST_GET_LEN(buf_pool.flush_list) == 0);
 
 	/* We have lived our life. Time to die. */
