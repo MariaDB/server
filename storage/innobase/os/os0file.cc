@@ -153,9 +153,6 @@ static ulint	os_innodb_umask	= 0;
 #endif /* _WIN32 */
 
 
-/** Flag indicating if the page_cleaner is in active state. */
-extern bool buf_page_cleaner_is_active;
-
 #ifdef WITH_INNODB_DISALLOW_WRITES
 #define WAIT_ALLOW_WRITES() os_event_wait(srv_allow_writes_event)
 #else

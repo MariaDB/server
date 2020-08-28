@@ -158,10 +158,6 @@ void buf_flush_validate();
 NOTE: The calling thread is not allowed to hold any buffer page latches! */
 void buf_flush_sync();
 
-/** Request IO burst and wake page_cleaner up.
-@param[in]	lsn_limit	upper limit of LSN to be flushed */
-void buf_flush_request_force(lsn_t lsn_limit);
-
 #include "buf0flu.ic"
 
 #endif

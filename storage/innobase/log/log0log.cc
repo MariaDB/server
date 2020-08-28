@@ -1217,12 +1217,6 @@ static bool log_preflush_pool_modified_pages(lsn_t new_oldest)
 			n_pages);
 	} else {
 		/* better to wait for flushed by page cleaner */
-
-		if (srv_flush_sync) {
-			/* wake page cleaner for IO burst */
-			buf_flush_request_force(new_oldest);
-		}
-
 		buf_flush_wait_flushed(new_oldest);
 
 		success = true;
