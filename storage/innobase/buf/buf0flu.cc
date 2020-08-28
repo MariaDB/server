@@ -81,12 +81,6 @@ os_event_t	buf_flush_event;
 
 /** Page cleaner request state for buf_pool */
 struct page_cleaner_slot_t {
-	ulint			n_pages_requested;
-					/*!< number of requested pages
-					for the slot (0=finished) */
-	/* These values are updated while n_pages_requested>0,
-	and commited with n_pages_requested=0.
-	The consistency is protected by the 'n_pages_requested' */
 	ulint			n_flushed_lru;
 					/*!< number of flushed pages
 					by LRU scan flushing */
@@ -107,8 +101,6 @@ struct page_cleaner_slot_t {
 
 /** Page cleaner structure */
 struct page_cleaner_t {
-	lsn_t			lsn_limit;	/*!< upper limit of LSN to be
-						flushed */
 	ulint			flush_time;	/*!< elapsed time to flush
 						requests for all slots */
 	ulint			flush_pass;	/*!< count to finish to flush
@@ -1941,10 +1933,6 @@ static ulint pc_request_flush_slot(const ulint min_n, lsn_t lsn_limit)
 
 	const ulint start_tm = ut_time_ms();
 
-	page_cleaner.lsn_limit = lsn_limit;
-	ut_ad(!page_cleaner.slot.n_pages_requested);
-	page_cleaner.slot.n_pages_requested = min_n;
-
 	/* Flush pages from end of LRU if required */
 	page_cleaner.slot.n_flushed_lru = buf_flush_LRU_list();
 
@@ -1957,19 +1945,14 @@ static ulint pc_request_flush_slot(const ulint min_n, lsn_t lsn_limit)
 	if (min_n) {
 		flush_counters_t n;
 		memset(&n, 0, sizeof(flush_counters_t));
-		ut_ad(page_cleaner.lsn_limit);
 
-		buf_flush_do_batch(
-			page_cleaner.slot.n_pages_requested,
-			page_cleaner.lsn_limit,
-			&n);
+		buf_flush_do_batch(min_n, lsn_limit, &n);
 
 		page_cleaner.slot.n_flushed_list = n.flushed;
 
 		page_cleaner.slot.flush_list_time += ut_time_ms()
 			- flush_start_tm;
 		page_cleaner.slot.flush_list_pass++;
-		page_cleaner.slot.n_pages_requested = 0;
 	} else {
 		page_cleaner.slot.n_flushed_list = 0;
 	}
@@ -2095,7 +2078,6 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 
 			page_cleaner.flush_time += ut_time_ms() - tm;
 			page_cleaner.flush_pass++;
-			ut_ad(!page_cleaner.slot.n_pages_requested);
 			n_flushed = page_cleaner.slot.n_flushed_lru
 				+ page_cleaner.slot.n_flushed_list;
 
@@ -2131,7 +2113,6 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 			page_cleaner.flush_time += ut_time_ms() - tm;
 			page_cleaner.flush_pass++ ;
 
-			ut_ad(!page_cleaner.slot.n_pages_requested);
 			n_flushed = page_cleaner.slot.n_flushed_lru
 				+ page_cleaner.slot.n_flushed_list;
 
