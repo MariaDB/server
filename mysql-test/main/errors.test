@@ -246,3 +246,39 @@ SELECT UPDATEXML(-73 * -2465717823867977728,@@global.auto_increment_increment,nu
 SELECT UPDATEXML(-73 * -2465717823867977728,@@global.long_query_time,null);
 
 -- echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-23518: Syntax error in ond SP results in misleading
+--echo # message on SHOW CREATE PROCEDURE
+--echo #
+
+DELIMITER $$;
+
+CREATE PROCEDURE P1 ()
+BEGIN NOT ATOMIC
+  IF (SELECT 2) THEN
+    SELECT 4;
+  END IF ;
+END;
+$$
+
+DELIMITER ;$$
+
+select name,db,body from mysql.proc where name = "P1";
+update mysql.proc set body_utf8="BEGIN NOT ATOMIC
+IF (SELECT 2) OR foo = 3 THEN
+SELECT 4;
+END IF ;
+END", body="BEGIN NOT ATOMIC
+IF (SELECT 2) OR foo = 3 THEN
+SELECT 4;
+END IF ;
+END"where name = "P1";
+
+--error ER_SP_PROC_TABLE_CORRUPT
+show create procedure P1;
+show warnings;
+
+drop procedure P1;
+
+-- echo # End of 10.4 tests
