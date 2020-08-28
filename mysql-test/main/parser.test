@@ -1883,3 +1883,24 @@ SELECT CAST(1 AS ACTION);
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-25510 Assertion `sel->select_lock ==
+--echo # st_select_lex::select_lock_type::NONE' failed in Lex_select_lock::set_to
+--echo #
+
+--error ER_NO_SUCH_TABLE
+(SELECT x FROM t WINDOW w1 AS () FOR UPDATE) LIMIT 1;
+create table t1 (x int);
+insert into t1 values (1),(2);
+explain extended (SELECT x FROM t1 WINDOW w1 as () FOR UPDATE) LIMIT 1;
+explain extended (SELECT x FROM t1 FOR UPDATE) LIMIT 1;
+drop table t1;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
