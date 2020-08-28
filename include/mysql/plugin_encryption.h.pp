@@ -465,6 +465,43 @@ int json_unescape_json(const char *json_str, const char *json_end,
                        char *res, char *res_end);
 }
 extern "C" {
+extern bool COMPRESSION_LOADED_BZIP2;
+typedef struct{
+    char *next_in;
+    unsigned int avail_in;
+    unsigned int total_in_lo32;
+    unsigned int total_in_hi32;
+    char *next_out;
+    unsigned int avail_out;
+    unsigned int total_out_lo32;
+    unsigned int total_out_hi32;
+    void *state;
+    void *(*bzalloc)(void *, int, int);
+    void (*bzfree)(void *, void *);
+    void *opaque;
+}
+    bz_stream;
+typedef int (*PTR_BZ2_bzBuffToBuffCompress)( char *dest, unsigned int *destLen, char *source, unsigned int sourceLen, int blockSize100k, int verbosity, int workFactor );
+typedef int (*PTR_BZ2_bzBuffToBuffDecompress)( char *dest, unsigned int *destLen, char *source, unsigned int sourceLen, int small, int verbosity );
+typedef int (*PTR_BZ2_bzCompress)( bz_stream *strm, int action );
+typedef int (*PTR_BZ2_bzCompressEnd)( bz_stream *strm );
+typedef int (*PTR_BZ2_bzCompressInit)( bz_stream *strm, int blockSize100k, int verbosity, int workFactor );
+typedef int (*PTR_BZ2_bzDecompress)( bz_stream *strm );
+typedef int (*PTR_BZ2_bzDecompressEnd)( bz_stream *strm );
+typedef int (*PTR_BZ2_bzDecompressInit)( bz_stream *strm, int verbosity, int small );
+struct compression_service_bzip2_st{
+    PTR_BZ2_bzBuffToBuffCompress BZ2_bzBuffToBuffCompress_ptr;
+    PTR_BZ2_bzBuffToBuffDecompress BZ2_bzBuffToBuffDecompress_ptr;
+    PTR_BZ2_bzCompress BZ2_bzCompress_ptr;
+    PTR_BZ2_bzCompressEnd BZ2_bzCompressEnd_ptr;
+    PTR_BZ2_bzCompressInit BZ2_bzCompressInit_ptr;
+    PTR_BZ2_bzDecompress BZ2_bzDecompress_ptr;
+    PTR_BZ2_bzDecompressEnd BZ2_bzDecompressEnd_ptr;
+    PTR_BZ2_bzDecompressInit BZ2_bzDecompressInit_ptr;
+};
+extern struct compression_service_bzip2_st *compression_service_bzip2;
+}
+extern "C" {
 extern bool COMPRESSION_LOADED_LZMA;
 typedef enum{
     LZMA_OK = 0,

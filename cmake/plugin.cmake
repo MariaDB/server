@@ -282,16 +282,19 @@ MACRO(MYSQL_ADD_PLUGIN)
   ENDIF()
 
   IF(plugin STREQUAL "CONNECT")
+    ADD_DEFINITIONS(-DHAVE_BZIP2)
 
   ELSEIF(plugin STREQUAL "INNOBASE")
     # TODO: see if changing storage/innobase/<library>.cmake is better.
     ADD_DEFINITIONS(
+      -DHAVE_BZIP2
       -DHAVE_LZMA
       -DHAVE_LZO
     )
 
     GET_PROPERTY(LINK_LIBRARIES DIRECTORY PROPERTY LINK_LIBRARIES)
     LIST(REMOVE_ITEM LINK_LIBRARIES
+      bz2
       lzma
       lzo2 liblzo2.a
     )
