@@ -87,9 +87,7 @@ os_event_t	buf_flush_event;
 enum page_cleaner_state_t {
 	/** Not requested any yet. */
 	PAGE_CLEANER_STATE_FINISHED = 0,
-	/** Requested but not started flushing. Moved from NONE. */
-	PAGE_CLEANER_STATE_REQUESTED,
-	/** Flushing is on going. Moved from REQUESTED. */
+	/** Flushing is on going. */
 	PAGE_CLEANER_STATE_FLUSHING
 };
 
@@ -135,24 +133,8 @@ struct page_cleaner_t {
 	ib_mutex_t		mutex;		/*!< mutex to protect whole of
 						page_cleaner_t struct and
 						page_cleaner_slot_t slots. */
-	bool			requested;	/*!< true if requested pages
-						to flush */
 	lsn_t			lsn_limit;	/*!< upper limit of LSN to be
 						flushed */
-#if 1 /* FIXME: use bool for these, or remove some of these */
-	ulint			n_slots_requested;
-						/*!< number of slots
-						in the state
-						PAGE_CLEANER_STATE_REQUESTED */
-	ulint			n_slots_flushing;
-						/*!< number of slots
-						in the state
-						PAGE_CLEANER_STATE_FLUSHING */
-	ulint			n_slots_finished;
-						/*!< number of slots
-						in the state
-						PAGE_CLEANER_STATE_FINISHED */
-#endif
 	ulint			flush_time;	/*!< elapsed time to flush
 						requests for all slots */
 	ulint			flush_pass;	/*!< count to finish to flush
@@ -1909,12 +1891,6 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 	}
 	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
-	mutex_enter(&page_cleaner.mutex);
-	ut_ad(page_cleaner.slot.state == PAGE_CLEANER_STATE_FINISHED);
-	page_cleaner.slot.n_pages_requested
-		= pages_for_lsn / buf_flush_lsn_scan_factor + 1;
-	mutex_exit(&page_cleaner.mutex);
-
 	pages_for_lsn /= buf_flush_lsn_scan_factor;
 	if (pages_for_lsn < 1) {
 		pages_for_lsn = 1;
@@ -1933,18 +1909,8 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 	}
 
 	mutex_enter(&page_cleaner.mutex);
-	ut_ad(page_cleaner.n_slots_requested == 0);
-	ut_ad(page_cleaner.n_slots_flushing == 0);
-	ut_ad(page_cleaner.n_slots_finished == 0);
-
-	/* if REDO has enough of free space,
-	don't care about age distribution of pages */
-	if (pct_for_lsn > 30) {
-		page_cleaner.slot.n_pages_requested *= n_pages
-			/ pages_for_lsn + 1;
-	} else {
-		page_cleaner.slot.n_pages_requested = n_pages;
-	}
+	ut_ad(page_cleaner.slot.state == PAGE_CLEANER_STATE_FINISHED);
+	page_cleaner.slot.n_pages_requested = n_pages;
 	mutex_exit(&page_cleaner.mutex);
 
 	MONITOR_SET(MONITOR_FLUSH_N_TO_FLUSH_REQUESTED, n_pages);
@@ -2004,17 +1970,12 @@ Requests for all slots to flush.
 		oldest_modification is smaller than this should be flushed
 		(if their number does not exceed min_n), otherwise ignored
 @return ut_time_ms() at the start of the wait */
-static ulint pc_request_flush_slot(ulint min_n, lsn_t lsn_limit)
+static ulint pc_request_flush_slot(const ulint min_n, lsn_t lsn_limit)
 {
 	ut_ad(lsn_limit);
 
 	mutex_enter(&page_cleaner.mutex);
 
-	ut_ad(page_cleaner.n_slots_requested == 0);
-	ut_ad(page_cleaner.n_slots_flushing == 0);
-	ut_ad(page_cleaner.n_slots_finished == 0);
-
-	page_cleaner.requested = (min_n > 0);
 	page_cleaner.lsn_limit = lsn_limit;
 
 	ut_ad(page_cleaner.slot.state == PAGE_CLEANER_STATE_FINISHED);
@@ -2026,12 +1987,6 @@ static ulint pc_request_flush_slot(ulint min_n, lsn_t lsn_limit)
 	/* page_cleaner.slot.n_pages_requested was already set by
 	page_cleaner_flush_pages_recommendation() */
 
-	page_cleaner.slot.state = PAGE_CLEANER_STATE_REQUESTED;
-
-	page_cleaner.n_slots_requested = 1;
-	page_cleaner.n_slots_flushing = 0;
-	page_cleaner.n_slots_finished = 0;
-
 	const ulint start_tm = ut_time_ms();
 
 	ulint	lru_tm = 0;
@@ -2039,67 +1994,56 @@ static ulint pc_request_flush_slot(ulint min_n, lsn_t lsn_limit)
 	ulint	lru_pass = 0;
 	ulint	list_pass = 0;
 
-	if (page_cleaner.n_slots_requested) {
-		ut_ad(page_cleaner.slot.state == PAGE_CLEANER_STATE_REQUESTED);
-		page_cleaner.n_slots_requested--;
-		ut_ad(!page_cleaner.n_slots_requested);
-		ut_ad(!page_cleaner.n_slots_flushing);
-		page_cleaner.n_slots_flushing++;
-		page_cleaner.slot.state = PAGE_CLEANER_STATE_FLUSHING;
+	page_cleaner.slot.state = PAGE_CLEANER_STATE_FLUSHING;
 
-		if (UNIV_UNLIKELY(!buf_page_cleaner_is_active)) {
-			page_cleaner.slot.n_flushed_lru = 0;
-			page_cleaner.slot.n_flushed_list = 0;
-			goto finish_mutex;
-		}
-
-		mutex_exit(&page_cleaner.mutex);
-
-		/* Flush pages from end of LRU if required */
-		page_cleaner.slot.n_flushed_lru = buf_flush_LRU_list();
-
-		lru_tm = ut_time_ms() - start_tm;
-		lru_pass++;
-
-		if (UNIV_UNLIKELY(!buf_page_cleaner_is_active)) {
-			page_cleaner.slot.n_flushed_list = 0;
-			goto finish;
-		}
-
-		/* Flush pages from flush_list if required */
-		if (page_cleaner.requested) {
-			flush_counters_t n;
-			memset(&n, 0, sizeof(flush_counters_t));
-			list_tm = ut_time_ms();
-			ut_ad(page_cleaner.lsn_limit);
-
-			page_cleaner.slot.succeeded_list = buf_flush_do_batch(
-				page_cleaner.slot.n_pages_requested,
-				page_cleaner.lsn_limit,
-				&n);
-
-			page_cleaner.slot.n_flushed_list = n.flushed;
-
-			list_tm = ut_time_ms() - list_tm;
-			list_pass++;
-		} else {
-			page_cleaner.slot.n_flushed_list = 0;
-			page_cleaner.slot.succeeded_list = true;
-		}
-finish:
-		mutex_enter(&page_cleaner.mutex);
-finish_mutex:
-		page_cleaner.n_slots_flushing--;
-		page_cleaner.n_slots_finished++;
-		page_cleaner.slot.state = PAGE_CLEANER_STATE_FINISHED;
-
-		page_cleaner.slot.flush_lru_time += lru_tm;
-		page_cleaner.slot.flush_list_time += list_tm;
-		page_cleaner.slot.flush_lru_pass += lru_pass;
-		page_cleaner.slot.flush_list_pass += list_pass;
+	if (UNIV_UNLIKELY(!buf_page_cleaner_is_active)) {
+		page_cleaner.slot.n_flushed_lru = 0;
+		page_cleaner.slot.n_flushed_list = 0;
+		goto finish_mutex;
 	}
 
-	ut_ad(!page_cleaner.n_slots_requested);
+	mutex_exit(&page_cleaner.mutex);
+
+	/* Flush pages from end of LRU if required */
+	page_cleaner.slot.n_flushed_lru = buf_flush_LRU_list();
+
+	lru_tm = ut_time_ms() - start_tm;
+	lru_pass++;
+
+	if (UNIV_UNLIKELY(!buf_page_cleaner_is_active)) {
+		page_cleaner.slot.n_flushed_list = 0;
+		goto finish;
+	}
+
+	/* Flush pages from flush_list if required */
+	if (min_n) {
+		flush_counters_t n;
+		memset(&n, 0, sizeof(flush_counters_t));
+		list_tm = ut_time_ms();
+		ut_ad(page_cleaner.lsn_limit);
+
+		page_cleaner.slot.succeeded_list = buf_flush_do_batch(
+			page_cleaner.slot.n_pages_requested,
+			page_cleaner.lsn_limit,
+			&n);
+
+		page_cleaner.slot.n_flushed_list = n.flushed;
+
+		list_tm = ut_time_ms() - list_tm;
+		list_pass++;
+	} else {
+		page_cleaner.slot.n_flushed_list = 0;
+		page_cleaner.slot.succeeded_list = true;
+	}
+finish:
+	mutex_enter(&page_cleaner.mutex);
+finish_mutex:
+	page_cleaner.slot.state = PAGE_CLEANER_STATE_FINISHED;
+	page_cleaner.slot.n_pages_requested = 0;
+	page_cleaner.slot.flush_lru_time += lru_tm;
+	page_cleaner.slot.flush_list_time += list_tm;
+	page_cleaner.slot.flush_lru_pass += lru_pass;
+	page_cleaner.slot.flush_list_pass += list_pass;
 
 	mutex_exit(&page_cleaner.mutex);
 
@@ -2125,17 +2069,11 @@ pc_wait_finished(
 
 	mutex_enter(&page_cleaner.mutex);
 
-	ut_ad(page_cleaner.n_slots_requested == 0);
-	ut_ad(page_cleaner.n_slots_flushing == 0);
-	ut_ad(page_cleaner.n_slots_finished == 1);
-
 	ut_ad(page_cleaner.slot.state == PAGE_CLEANER_STATE_FINISHED);
+	ut_ad(!page_cleaner.slot.n_pages_requested);
 	*n_flushed_lru = page_cleaner.slot.n_flushed_lru;
 	*n_flushed_list = page_cleaner.slot.n_flushed_list;
 	all_succeeded = page_cleaner.slot.succeeded_list;
-	page_cleaner.slot.n_pages_requested = 0;
-
-	page_cleaner.n_slots_finished = 0;
 
 	mutex_exit(&page_cleaner.mutex);
 
