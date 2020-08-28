@@ -110,10 +110,6 @@ struct page_cleaner_slot_t {
 
 /** Page cleaner structure */
 struct page_cleaner_t {
-	/* FIXME: do we need mutex? use atomics? */
-	ib_mutex_t		mutex;		/*!< mutex to protect whole of
-						page_cleaner_t struct and
-						page_cleaner_slot_t slots. */
 	lsn_t			lsn_limit;	/*!< upper limit of LSN to be
 						flushed */
 	ulint			flush_time;	/*!< elapsed time to flush
@@ -1776,9 +1772,6 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 
 		lsn_avg_rate = (lsn_avg_rate + lsn_rate) / 2;
 
-		/* aggregate stats of all slots */
-		mutex_enter(&page_cleaner.mutex);
-
 		ulint	flush_tm = page_cleaner.flush_time;
 		ulint	flush_pass = page_cleaner.flush_pass;
 
@@ -1793,7 +1786,6 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 		page_cleaner.slot.flush_lru_pass  = 0;
 		page_cleaner.slot.flush_list_time = 0;
 		page_cleaner.slot.flush_list_pass = 0;
-		mutex_exit(&page_cleaner.mutex);
 
 		/* minimum values are 1, to avoid dividing by zero. */
 		if (lru_tm < 1) {
@@ -1952,8 +1944,6 @@ static ulint pc_request_flush_slot(const ulint min_n, lsn_t lsn_limit)
 
 	const ulint start_tm = ut_time_ms();
 
-	mutex_enter(&page_cleaner.mutex);
-
 	page_cleaner.lsn_limit = lsn_limit;
 	ut_ad(!page_cleaner.slot.n_pages_requested);
 	page_cleaner.slot.n_pages_requested = min_n;
@@ -1962,8 +1952,6 @@ static ulint pc_request_flush_slot(const ulint min_n, lsn_t lsn_limit)
 	ulint	list_tm = 0;
 	ulint	lru_pass = 0;
 	ulint	list_pass = 0;
-
-	mutex_exit(&page_cleaner.mutex);
 
 	/* Flush pages from end of LRU if required */
 	page_cleaner.slot.n_flushed_lru = buf_flush_LRU_list();
@@ -1992,13 +1980,11 @@ static ulint pc_request_flush_slot(const ulint min_n, lsn_t lsn_limit)
 		page_cleaner.slot.succeeded_list = true;
 	}
 
-	mutex_enter(&page_cleaner.mutex);
 	page_cleaner.slot.n_pages_requested = 0;
 	page_cleaner.slot.flush_lru_time += lru_tm;
 	page_cleaner.slot.flush_list_time += list_tm;
 	page_cleaner.slot.flush_lru_pass += lru_pass;
 	page_cleaner.slot.flush_list_pass += list_pass;
-	mutex_exit(&page_cleaner.mutex);
 
 	return start_tm;
 }
@@ -2020,14 +2006,10 @@ pc_wait_finished(
 	*n_flushed_lru = 0;
 	*n_flushed_list = 0;
 
-	mutex_enter(&page_cleaner.mutex);
-
 	ut_ad(!page_cleaner.slot.n_pages_requested);
 	*n_flushed_lru = page_cleaner.slot.n_flushed_lru;
 	*n_flushed_list = page_cleaner.slot.n_flushed_list;
 	all_succeeded = page_cleaner.slot.succeeded_list;
-
-	mutex_exit(&page_cleaner.mutex);
 
 	return(all_succeeded);
 }
@@ -2054,6 +2036,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 	pfs_register_thread(page_cleaner_thread_key);
 #endif /* UNIV_PFS_THREAD */
 	ut_ad(!srv_read_only_mode);
+	ut_ad(buf_page_cleaner_is_active);
 
 #ifdef UNIV_DEBUG_THREAD_CREATION
 	ib::info() << "page_cleaner thread running, id "
@@ -2321,8 +2304,6 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 	/* We have lived our life. Time to die. */
 
 thread_exit:
-	mutex_destroy(&page_cleaner.mutex);
-
 	buf_page_cleaner_is_active = false;
 
 	my_thread_end();
@@ -2337,12 +2318,9 @@ thread_exit:
 /** Initialize page_cleaner. */
 void buf_flush_page_cleaner_init()
 {
-	ut_ad(!buf_page_cleaner_is_active);
-
-	mutex_create(LATCH_ID_PAGE_CLEANER, &page_cleaner.mutex);
-
-	buf_page_cleaner_is_active = true;
-	os_thread_create(buf_flush_page_cleaner, NULL, NULL);
+  ut_ad(!buf_page_cleaner_is_active);
+  buf_page_cleaner_is_active= true;
+  os_thread_create(buf_flush_page_cleaner, nullptr, nullptr);
 }
 
 /** Synchronously flush dirty blocks.
