@@ -102,17 +102,7 @@ const char*	ut_crc32_implementation = "Using POWER8 crc32 instructions";
 extern "C" {
 uint32_t crc32c_aarch64(uint32_t crc, const unsigned char *buffer, uint64_t len);
 };
-# elif defined(_MSC_VER)
-#  define TRY_SSE4_2
-# elif defined (__GNUC__)
-#  ifdef __x86_64__
-#   define TRY_SSE4_2
-#  elif defined(__i386__) && (__GNUC__ > 4 || defined __clang__)
-#   define TRY_SSE4_2
-#  endif
-# endif
-
-# ifdef TRY_SSE4_2
+# elif defined HAVE_CPUID_INSTRUCTION
 /** return whether SSE4.2 instructions are available */
 static inline bool has_sse4_2()
 {
@@ -349,7 +339,7 @@ void ut_crc32_init()
     ut_crc32_implementation= crc32c_implementation;
     return;
   }
-# elif defined(TRY_SSE4_2)
+# elif defined HAVE_CPUID_INSTRUCTION
   if (has_sse4_2())
   {
     ut_crc32_low= ut_crc32_hw;
