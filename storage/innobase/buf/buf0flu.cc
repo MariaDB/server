@@ -59,11 +59,7 @@ static constexpr ulint buf_flush_wait_flushed_sleep_time = 10000;
 /** Number of pages flushed through non flush_list flushes. */
 ulint buf_lru_flush_page_count;
 
-/** Flag indicating if the page_cleaner is in active state. This flag
-is set to TRUE by the page_cleaner thread when it is spawned and is set
-back to FALSE at shutdown by the page_cleaner as well. Therefore no
-need to protect it by a mutex. It is only ever read by the thread
-doing the shutdown */
+/** Flag indicating if the page_cleaner is in active state. */
 bool buf_page_cleaner_is_active;
 
 /** Factor for scan length to determine n_pages for intended oldest LSN
@@ -83,29 +79,14 @@ mysql_pfs_key_t page_cleaner_thread_key;
 /** Event to synchronise with the flushing. */
 os_event_t	buf_flush_event;
 
-/** State for page cleaner array slot */
-enum page_cleaner_state_t {
-	/** Not requested any yet. */
-	PAGE_CLEANER_STATE_FINISHED = 0,
-	/** Flushing is on going. */
-	PAGE_CLEANER_STATE_FLUSHING
-};
-
 /** Page cleaner request state for buf_pool */
 struct page_cleaner_slot_t {
-	page_cleaner_state_t	state;	/*!< state of the request.
-					protected by page_cleaner_t::mutex
-					if the worker thread got the slot and
-					set to PAGE_CLEANER_STATE_FLUSHING,
-					n_flushed_lru and n_flushed_list can be
-					updated only by the worker thread */
-	/* This value is set during state==PAGE_CLEANER_STATE_FINISHED */
 	ulint			n_pages_requested;
 					/*!< number of requested pages
-					for the slot */
-	/* These values are updated during state==PAGE_CLEANER_STATE_FLUSHING,
-	and commited with state==PAGE_CLEANER_STATE_FINISHED.
-	The consistency is protected by the 'state' */
+					for the slot (0=finished) */
+	/* These values are updated while n_pages_requested>0,
+	and commited with n_pages_requested=0.
+	The consistency is protected by the 'n_pages_requested' */
 	ulint			n_flushed_lru;
 					/*!< number of flushed pages
 					by LRU scan flushing */
@@ -1908,11 +1889,6 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 		n_pages = srv_max_io_capacity;
 	}
 
-	mutex_enter(&page_cleaner.mutex);
-	ut_ad(page_cleaner.slot.state == PAGE_CLEANER_STATE_FINISHED);
-	page_cleaner.slot.n_pages_requested = n_pages;
-	mutex_exit(&page_cleaner.mutex);
-
 	MONITOR_SET(MONITOR_FLUSH_N_TO_FLUSH_REQUESTED, n_pages);
 
 	MONITOR_SET(MONITOR_FLUSH_N_TO_FLUSH_BY_AGE, pages_for_lsn);
@@ -1974,33 +1950,18 @@ static ulint pc_request_flush_slot(const ulint min_n, lsn_t lsn_limit)
 {
 	ut_ad(lsn_limit);
 
+	const ulint start_tm = ut_time_ms();
+
 	mutex_enter(&page_cleaner.mutex);
 
 	page_cleaner.lsn_limit = lsn_limit;
-
-	ut_ad(page_cleaner.slot.state == PAGE_CLEANER_STATE_FINISHED);
-
-	if (min_n == 0 || min_n == ULINT_MAX) {
-		page_cleaner.slot.n_pages_requested = min_n;
-	}
-
-	/* page_cleaner.slot.n_pages_requested was already set by
-	page_cleaner_flush_pages_recommendation() */
-
-	const ulint start_tm = ut_time_ms();
+	ut_ad(!page_cleaner.slot.n_pages_requested);
+	page_cleaner.slot.n_pages_requested = min_n;
 
 	ulint	lru_tm = 0;
 	ulint	list_tm = 0;
 	ulint	lru_pass = 0;
 	ulint	list_pass = 0;
-
-	page_cleaner.slot.state = PAGE_CLEANER_STATE_FLUSHING;
-
-	if (UNIV_UNLIKELY(!buf_page_cleaner_is_active)) {
-		page_cleaner.slot.n_flushed_lru = 0;
-		page_cleaner.slot.n_flushed_list = 0;
-		goto finish_mutex;
-	}
 
 	mutex_exit(&page_cleaner.mutex);
 
@@ -2009,11 +1970,6 @@ static ulint pc_request_flush_slot(const ulint min_n, lsn_t lsn_limit)
 
 	lru_tm = ut_time_ms() - start_tm;
 	lru_pass++;
-
-	if (UNIV_UNLIKELY(!buf_page_cleaner_is_active)) {
-		page_cleaner.slot.n_flushed_list = 0;
-		goto finish;
-	}
 
 	/* Flush pages from flush_list if required */
 	if (min_n) {
@@ -2035,16 +1991,13 @@ static ulint pc_request_flush_slot(const ulint min_n, lsn_t lsn_limit)
 		page_cleaner.slot.n_flushed_list = 0;
 		page_cleaner.slot.succeeded_list = true;
 	}
-finish:
+
 	mutex_enter(&page_cleaner.mutex);
-finish_mutex:
-	page_cleaner.slot.state = PAGE_CLEANER_STATE_FINISHED;
 	page_cleaner.slot.n_pages_requested = 0;
 	page_cleaner.slot.flush_lru_time += lru_tm;
 	page_cleaner.slot.flush_list_time += list_tm;
 	page_cleaner.slot.flush_lru_pass += lru_pass;
 	page_cleaner.slot.flush_list_pass += list_pass;
-
 	mutex_exit(&page_cleaner.mutex);
 
 	return start_tm;
@@ -2069,7 +2022,6 @@ pc_wait_finished(
 
 	mutex_enter(&page_cleaner.mutex);
 
-	ut_ad(page_cleaner.slot.state == PAGE_CLEANER_STATE_FINISHED);
 	ut_ad(!page_cleaner.slot.n_pages_requested);
 	*n_flushed_lru = page_cleaner.slot.n_flushed_lru;
 	*n_flushed_list = page_cleaner.slot.n_flushed_list;
@@ -2085,8 +2037,7 @@ pc_wait_finished(
 static void buf_flush_page_cleaner_disabled_loop()
 {
 	while (innodb_page_cleaner_disabled_debug
-	       && srv_shutdown_state == SRV_SHUTDOWN_NONE
-	       && buf_page_cleaner_is_active) {
+	       && srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 		os_thread_sleep(100000);
 	}
 }
