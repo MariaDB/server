@@ -1948,22 +1948,18 @@ static ulint pc_request_flush_slot(const ulint min_n, lsn_t lsn_limit)
 	ut_ad(!page_cleaner.slot.n_pages_requested);
 	page_cleaner.slot.n_pages_requested = min_n;
 
-	ulint	lru_tm = 0;
-	ulint	list_tm = 0;
-	ulint	lru_pass = 0;
-	ulint	list_pass = 0;
-
 	/* Flush pages from end of LRU if required */
 	page_cleaner.slot.n_flushed_lru = buf_flush_LRU_list();
 
-	lru_tm = ut_time_ms() - start_tm;
-	lru_pass++;
+	const ulint flush_start_tm = ut_time_ms();
+
+	page_cleaner.slot.flush_lru_time += flush_start_tm - start_tm;
+	page_cleaner.slot.flush_lru_pass++;
 
 	/* Flush pages from flush_list if required */
 	if (min_n) {
 		flush_counters_t n;
 		memset(&n, 0, sizeof(flush_counters_t));
-		list_tm = ut_time_ms();
 		ut_ad(page_cleaner.lsn_limit);
 
 		page_cleaner.slot.succeeded_list = buf_flush_do_batch(
@@ -1973,45 +1969,16 @@ static ulint pc_request_flush_slot(const ulint min_n, lsn_t lsn_limit)
 
 		page_cleaner.slot.n_flushed_list = n.flushed;
 
-		list_tm = ut_time_ms() - list_tm;
-		list_pass++;
+		page_cleaner.slot.flush_list_time += ut_time_ms()
+			- flush_start_tm;
+		page_cleaner.slot.flush_list_pass++;
+		page_cleaner.slot.n_pages_requested = 0;
 	} else {
 		page_cleaner.slot.n_flushed_list = 0;
 		page_cleaner.slot.succeeded_list = true;
 	}
 
-	page_cleaner.slot.n_pages_requested = 0;
-	page_cleaner.slot.flush_lru_time += lru_tm;
-	page_cleaner.slot.flush_list_time += list_tm;
-	page_cleaner.slot.flush_lru_pass += lru_pass;
-	page_cleaner.slot.flush_list_pass += list_pass;
-
 	return start_tm;
-}
-
-/**
-Wait until all flush requests are finished.
-@param n_flushed_lru	number of pages flushed from the end of the LRU list.
-@param n_flushed_list	number of pages flushed from the end of the
-			flush_list.
-@return			true if all flush_list flushing batch were success. */
-static
-bool
-pc_wait_finished(
-	ulint*	n_flushed_lru,
-	ulint*	n_flushed_list)
-{
-	bool	all_succeeded = true;
-
-	*n_flushed_lru = 0;
-	*n_flushed_list = 0;
-
-	ut_ad(!page_cleaner.slot.n_pages_requested);
-	*n_flushed_lru = page_cleaner.slot.n_flushed_lru;
-	*n_flushed_list = page_cleaner.slot.n_flushed_list;
-	all_succeeded = page_cleaner.slot.succeeded_list;
-
-	return(all_succeeded);
 }
 
 #ifdef UNIV_DEBUG
@@ -2130,27 +2097,23 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 				0, std::memory_order_release))) {
 			ulint tm = pc_request_flush_slot(ULINT_MAX, lsn_limit);
 
-			/* only coordinator is using these counters,
-			so no need to protect by lock. */
 			page_cleaner.flush_time += ut_time_ms() - tm;
 			page_cleaner.flush_pass++;
+			ut_ad(!page_cleaner.slot.n_pages_requested);
+			n_flushed = page_cleaner.slot.n_flushed_lru
+				+ page_cleaner.slot.n_flushed_list;
 
-			/* Wait for all slots to be finished */
-			ulint	n_flushed_lru = 0;
-			ulint	n_flushed_list = 0;
-			pc_wait_finished(&n_flushed_lru, &n_flushed_list);
-
-			if (n_flushed_list > 0 || n_flushed_lru > 0) {
-				buf_flush_stats(n_flushed_list, n_flushed_lru);
+			if (n_flushed) {
+				buf_flush_stats(
+					page_cleaner.slot.n_flushed_list,
+					page_cleaner.slot.n_flushed_lru);
 
 				MONITOR_INC_VALUE_CUMULATIVE(
 					MONITOR_FLUSH_SYNC_TOTAL_PAGE,
 					MONITOR_FLUSH_SYNC_COUNT,
 					MONITOR_FLUSH_SYNC_PAGES,
-					n_flushed_lru + n_flushed_list);
+					n_flushed);
 			}
-
-			n_flushed = n_flushed_lru + n_flushed_list;
 
 		} else if (srv_check_activity(&last_activity)) {
 			ulint	n_to_flush;
@@ -2169,44 +2132,40 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 
 			ulint tm= pc_request_flush_slot(n_to_flush, lsn_limit);
 
-			/* only coordinator is using these counters,
-			so no need to protect by lock. */
 			page_cleaner.flush_time += ut_time_ms() - tm;
 			page_cleaner.flush_pass++ ;
 
-			/* Wait for all slots to be finished */
-			ulint	n_flushed_lru = 0;
-			ulint	n_flushed_list = 0;
+			ut_ad(!page_cleaner.slot.n_pages_requested);
+			n_flushed = page_cleaner.slot.n_flushed_lru
+				+ page_cleaner.slot.n_flushed_list;
 
-			pc_wait_finished(&n_flushed_lru, &n_flushed_list);
-
-			if (n_flushed_list > 0 || n_flushed_lru > 0) {
-				buf_flush_stats(n_flushed_list, n_flushed_lru);
+			if (n_flushed) {
+				buf_flush_stats(
+					page_cleaner.slot.n_flushed_list,
+					page_cleaner.slot.n_flushed_lru);
 			}
 
 			if (ret_sleep == OS_SYNC_TIME_EXCEEDED) {
-				last_pages = n_flushed_list;
+				last_pages = page_cleaner.slot.n_flushed_list;
 			}
 
-			n_evicted += n_flushed_lru;
-			n_flushed_last += n_flushed_list;
+			n_evicted += page_cleaner.slot.n_flushed_lru;
+			n_flushed_last += page_cleaner.slot.n_flushed_list;
 
-			n_flushed = n_flushed_lru + n_flushed_list;
-
-			if (n_flushed_lru) {
+			if (page_cleaner.slot.n_flushed_lru) {
 				MONITOR_INC_VALUE_CUMULATIVE(
 					MONITOR_LRU_BATCH_FLUSH_TOTAL_PAGE,
 					MONITOR_LRU_BATCH_FLUSH_COUNT,
 					MONITOR_LRU_BATCH_FLUSH_PAGES,
-					n_flushed_lru);
+					page_cleaner.slot.n_flushed_lru);
 			}
 
-			if (n_flushed_list) {
+			if (page_cleaner.slot.n_flushed_list) {
 				MONITOR_INC_VALUE_CUMULATIVE(
 					MONITOR_FLUSH_ADAPTIVE_TOTAL_PAGE,
 					MONITOR_FLUSH_ADAPTIVE_COUNT,
 					MONITOR_FLUSH_ADAPTIVE_PAGES,
-					n_flushed_list);
+					page_cleaner.slot.n_flushed_list);
 			}
 
 		} else if (ret_sleep == OS_SYNC_TIME_EXCEEDED) {
@@ -2255,16 +2214,6 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 
 	do {
 		pc_request_flush_slot(ULINT_MAX, LSN_MAX);
-		ulint	n_flushed_lru = 0;
-		ulint	n_flushed_list = 0;
-		pc_wait_finished(&n_flushed_lru, &n_flushed_list);
-
-		n_flushed = n_flushed_lru + n_flushed_list;
-
-		/* We sleep only if there are no pages to flush */
-		if (n_flushed == 0) {
-			os_thread_sleep(100000);
-		}
 	} while (srv_shutdown_state == SRV_SHUTDOWN_CLEANUP);
 
 	/* At this point all threads including the master and the purge
@@ -2282,19 +2231,13 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 	buf_flush_wait_batch_end_acquiring_mutex(false);
 	buf_flush_wait_batch_end_acquiring_mutex(true);
 
-	bool	success;
-
 	do {
 		pc_request_flush_slot(ULINT_MAX, LSN_MAX);
-		ulint	n_flushed_lru = 0;
-		ulint	n_flushed_list = 0;
-		success = pc_wait_finished(&n_flushed_lru, &n_flushed_list);
-
-		n_flushed = n_flushed_lru + n_flushed_list;
-
 		buf_flush_wait_batch_end_acquiring_mutex(false);
 		buf_flush_wait_batch_end_acquiring_mutex(true);
-	} while (!success || n_flushed > 0);
+	} while (!page_cleaner.slot.succeeded_list
+		 || page_cleaner.slot.n_flushed_lru
+		 || page_cleaner.slot.n_flushed_list);
 
 	/* Some sanity checks */
 	ut_ad(!srv_any_background_activity());
