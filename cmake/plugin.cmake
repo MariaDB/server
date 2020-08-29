@@ -288,6 +288,7 @@ MACRO(MYSQL_ADD_PLUGIN)
     # TODO: see if changing storage/innobase/<library>.cmake is better.
     ADD_DEFINITIONS(
       -DHAVE_BZIP2
+      -DHAVE_LZ4 -DHAVE_LZ4_COMPRESS_DEFAULT
       -DHAVE_LZMA
       -DHAVE_LZO
       -DHAVE_SNAPPY
@@ -296,6 +297,7 @@ MACRO(MYSQL_ADD_PLUGIN)
     GET_PROPERTY(LINK_LIBRARIES DIRECTORY PROPERTY LINK_LIBRARIES)
     LIST(REMOVE_ITEM LINK_LIBRARIES
       bz2
+      lz4
       lzma
       lzo2 liblzo2.a
       snappy

@@ -4,6 +4,7 @@
 
 void init_compression(
     struct compression_service_bzip2_st  *bzip2_handler,
+    struct compression_service_lz4_st    *lz4_handler,
     struct compression_service_lzma_st   *lzma_handler,
     struct compression_service_lzo_st    *lzo_handler,
     struct compression_service_snappy_st *snappy_handler,
@@ -28,6 +29,7 @@ void init_compression(
     // TODO: Handle different versions of the library (liblzma.so.1, liblzma.so.2, etc)
 
     init_bzip2  (bzip2_handler,  (enabled_compression_libraries & COMPRESSION_BZIP2));
+    init_lz4    (lz4_handler,    (enabled_compression_libraries & COMPRESSION_LZ4));
     init_lzma   (lzma_handler,   (enabled_compression_libraries & COMPRESSION_LZMA));
     init_lzo    (lzo_handler,    (enabled_compression_libraries & COMPRESSION_LZO));
     init_snappy (snappy_handler, (enabled_compression_libraries & COMPRESSION_SNAPPY));

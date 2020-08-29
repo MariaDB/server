@@ -502,6 +502,18 @@ struct compression_service_bzip2_st{
 extern struct compression_service_bzip2_st *compression_service_bzip2;
 }
 extern "C" {
+extern bool COMPRESSION_LOADED_LZ4;
+typedef int (*PTR_LZ4_compressBound)( int inputSize );
+typedef int (*PTR_LZ4_compress_default)( const char *src, char *dst, int srcSize, int dstCapacity );
+typedef int (*PTR_LZ4_decompress_safe)( const char *src, char *dst, int compressedSize, int dstCapacity );
+struct compression_service_lz4_st{
+    PTR_LZ4_compressBound LZ4_compressBound_ptr;
+    PTR_LZ4_compress_default LZ4_compress_default_ptr;
+    PTR_LZ4_decompress_safe LZ4_decompress_safe_ptr;
+};
+extern struct compression_service_lz4_st *compression_service_lz4;
+}
+extern "C" {
 extern bool COMPRESSION_LOADED_LZMA;
 typedef enum{
     LZMA_OK = 0,

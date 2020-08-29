@@ -40,6 +40,7 @@ SET(MYSQLSERVICES_SOURCES
   json_service.c
 
   compression_service_bzip2.c
+  compression_service_lz4.c
   compression_service_lzma.c
   compression_service_lzo.c
   compression_service_snappy.c

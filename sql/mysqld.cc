@@ -7319,6 +7319,7 @@ SHOW_VAR status_vars[]= {
   {"Com",                      (char*) com_status_vars, SHOW_ARRAY},
   {"Compression",              (char*) &show_net_compression, SHOW_SIMPLE_FUNC},
   {"Compression_loaded_bzip2", (char*) &COMPRESSION_LOADED_BZIP2,  SHOW_BOOL},
+  {"Compression_loaded_lz4",   (char*) &COMPRESSION_LOADED_LZ4,    SHOW_BOOL},
   {"Compression_loaded_lzma",  (char*) &COMPRESSION_LOADED_LZMA,   SHOW_BOOL},
   {"Compression_loaded_lzo",   (char*) &COMPRESSION_LOADED_LZO,    SHOW_BOOL},
   {"Compression_loaded_snappy",(char*) &COMPRESSION_LOADED_SNAPPY, SHOW_BOOL},

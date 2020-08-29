@@ -1,4 +1,5 @@
 #include <compression/bzlib.h>
+#include <compression/lz4.h>
 #include <compression/lzma.h>
 #include <compression/lzo/lzo1x.h>
 #include <compression/snappy-c.h>
@@ -16,6 +17,7 @@
 
 void init_compression(
     struct compression_service_bzip2_st  *,
+    struct compression_service_lz4_st    *,
     struct compression_service_lzma_st   *,
     struct compression_service_lzo_st    *,
     struct compression_service_snappy_st *,
@@ -23,6 +25,7 @@ void init_compression(
 );
 
 void init_bzip2  (struct compression_service_bzip2_st  *, bool);
+void init_lz4    (struct compression_service_lz4_st    *, bool);
 void init_lzma   (struct compression_service_lzma_st   *, bool);
 void init_lzo    (struct compression_service_lzo_st    *, bool);
 void init_snappy (struct compression_service_snappy_st *, bool);
