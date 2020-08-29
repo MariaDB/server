@@ -117,12 +117,12 @@ if(MRN_GROONGA_BUNDLED)
     MRN_BUNDLED_LZ4_VERSION)
   set(MRN_BUNDLED_LZ4_DIR
     "${MRN_BUNDLED_GROONGA_DIR}/vendor/lz4-${MRN_BUNDLED_LZ4_VERSION}")
-  if(EXISTS ${MRN_BUNDLED_LZ4_DIR})
-    set(GRN_WITH_BUNDLED_LZ4 ON)
-    set(GRN_WITH_LZ4 "yes")
-  else()
-    set(GRN_WITH_LZ4 "no")
-  endif()
+
+  #FIXME: Move to cmake/plugin.cmake if possible
+  set(GRN_WITH_LZ4 "yes")
+  set(LIBLZ4_FOUND TRUE)
+  set(LZ4_LIBS "")
+  set(LIBLZ4_LIBRARY_DIRS "${CMAKE_SOURCE_DIR}/include/compression")
 
   add_subdirectory("${MRN_BUNDLED_GROONGA_RELATIVE_DIR}")
 else()
