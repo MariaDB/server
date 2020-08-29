@@ -48,6 +48,7 @@ extern "C" {
 #include <compression/lzma.h>
 #include <compression/lzo/lzo1x.h>
 #include <compression/snappy-c.h>
+#include <compression/zstd.h>
 
 #ifdef __cplusplus
 }

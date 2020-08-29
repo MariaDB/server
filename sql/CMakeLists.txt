@@ -170,6 +170,7 @@ SET (SQL_SOURCE
                compression/lzma.cc   ../libservices/compression_service_lzma.c
                compression/lzo.cc    ../libservices/compression_service_lzo.c
                compression/snappy.cc ../libservices/compression_service_snappy.c
+               compression/zstd.cc   ../libservices/compression_service_zstd.c
 )
   
 IF ((CMAKE_SYSTEM_NAME MATCHES "Linux" OR

@@ -564,6 +564,22 @@ struct compression_service_snappy_st{
 };
 extern struct compression_service_snappy_st *compression_service_snappy;
 }
+extern "C" {
+extern bool COMPRESSION_LOADED_ZSTD;
+typedef size_t (*PTR_ZSTD_compress)( void *dst, size_t dstCapacity, const void *src, size_t srcSize, int compressionLevel );
+typedef size_t (*PTR_ZSTD_compressBound)( size_t srcSize );
+typedef size_t (*PTR_ZSTD_decompress)( void *dst, size_t dstCapacity, const void *src, size_t compressedSize );
+typedef const char* (*PTR_ZSTD_getErrorName)( size_t code );
+typedef unsigned (*PTR_ZSTD_isError)( size_t code );
+struct compression_service_zstd_st{
+    PTR_ZSTD_compress ZSTD_compress_ptr;
+    PTR_ZSTD_compressBound ZSTD_compressBound_ptr;
+    PTR_ZSTD_decompress ZSTD_decompress_ptr;
+    PTR_ZSTD_getErrorName ZSTD_getErrorName_ptr;
+    PTR_ZSTD_isError ZSTD_isError_ptr;
+};
+extern struct compression_service_zstd_st *compression_service_zstd;
+}
 }
 struct st_mysql_xid {
   long formatID;

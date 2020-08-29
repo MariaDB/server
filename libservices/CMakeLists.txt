@@ -43,6 +43,7 @@ SET(MYSQLSERVICES_SOURCES
   compression_service_lzma.c
   compression_service_lzo.c
   compression_service_snappy.c
+  compression_service_zstd.c
   )
 
 ADD_CONVENIENCE_LIBRARY(mysqlservices ${MYSQLSERVICES_SOURCES})
