@@ -1481,7 +1481,9 @@ grn_ja_ref_lz4(grn_ctx *ctx, grn_ja *ja, grn_id id, grn_io_win *iw, uint32_t *va
 #endif /* GRN_WITH_LZ4 */
 
 #ifdef GRN_WITH_ZSTD
-#include <zstd.h>
+//FIXME: Override include paths to force
+//`include/compression` to have priority
+#include <compression/zstd.h>
 
 static void *
 grn_ja_ref_zstd(grn_ctx *ctx,
