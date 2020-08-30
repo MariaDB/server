@@ -503,15 +503,89 @@ extern struct compression_service_bzip2_st *compression_service_bzip2;
 }
 extern "C" {
 extern bool COMPRESSION_LOADED_LZ4;
+typedef struct LZ4_stream_t_internal LZ4_stream_t_internal;
+struct LZ4_stream_t_internal{
+    uint32_t hashTable[(1 << (14 -2))];
+    uint32_t currentOffset;
+    uint16_t dirty;
+    uint16_t tableType;
+    const uint8_t *dictionary;
+    const LZ4_stream_t_internal *dictCtx;
+    uint32_t dictSize;
+};
+typedef struct{
+    const uint8_t *externalDict;
+    size_t extDictSize;
+    const uint8_t *prefixEnd;
+    size_t prefixSize;
+} LZ4_streamDecode_t_internal;
+union LZ4_stream_u{
+    unsigned long long table[((1 << (14 -3)) + 4 + ((sizeof(void*)==16) ? 4 : 0))];
+    LZ4_stream_t_internal internal_donotuse;
+};
+typedef union LZ4_stream_u LZ4_stream_t;
+union LZ4_streamDecode_u{
+    unsigned long long table[(4 + ((sizeof(void*)==16) ? 2 : 0))];
+    LZ4_streamDecode_t_internal internal_donotuse;
+};
+typedef union LZ4_streamDecode_u LZ4_streamDecode_t;
+typedef struct LZ4HC_CCtx_internal LZ4HC_CCtx_internal;
+struct LZ4HC_CCtx_internal{
+    uint32_t hashTable[(1 << 15)];
+    uint16_t chainTable[(1<<16)];
+    const uint8_t *end;
+    const uint8_t *base;
+    const uint8_t *dictBase;
+    uint32_t dictLimit;
+    uint32_t lowLimit;
+    uint32_t nextToUpdate;
+    short compressionLevel;
+    int8_t favorDecSpeed;
+    int8_t dirty;
+    const LZ4HC_CCtx_internal *dictCtx;
+};
+union LZ4_streamHC_u{
+    size_t table[((4*(1 << 15) + 2*(1<<16) + 56 + ((sizeof(void*)==16) ? 56 : 0)) / sizeof(size_t))];
+    LZ4HC_CCtx_internal internal_donotuse;
+};
+typedef union LZ4_streamHC_u LZ4_streamHC_t;
 typedef int (*PTR_LZ4_compressBound)( int inputSize );
 typedef int (*PTR_LZ4_compress_default)( const char *src, char *dst, int srcSize, int dstCapacity );
 typedef int (*PTR_LZ4_decompress_safe)( const char *src, char *dst, int compressedSize, int dstCapacity );
+typedef int (*PTR_LZ4_compress_fast_continue)( LZ4_stream_t *streamPtr, const char *src, char *dst, int srcSize, int dstCapacity, int acceleration );
+typedef LZ4_stream_t *(*PTR_LZ4_createStream)();
+typedef LZ4_streamDecode_t *(*PTR_LZ4_createStreamDecode)();
+typedef int (*PTR_LZ4_decompress_safe_continue)( LZ4_streamDecode_t *LZ4_streamDecode, const char *src, char *dst, int srcSize, int dstCapacity );
+typedef int (*PTR_LZ4_freeStream)( LZ4_stream_t *streamPtr );
+typedef int (*PTR_LZ4_freeStreamDecode)( LZ4_streamDecode_t *LZ4_stream );
+typedef int (*PTR_LZ4_loadDict)( LZ4_stream_t *streamPtr, const char *dictionary, int dictSize );
+typedef int (*PTR_LZ4_setStreamDecode)( LZ4_streamDecode_t *LZ4_streamDecode, const char *dictionary, int dictSize );
+typedef int (*PTR_LZ4_compress_HC_continue)( LZ4_streamHC_t *streamHCPtr, const char *src, char *dst, int srcSize, int maxDstSize );
+typedef LZ4_streamHC_t *(*PTR_LZ4_createStreamHC)();
+typedef int (*PTR_LZ4_freeStreamHC)( LZ4_streamHC_t *streamHCPtr );
+typedef int (*PTR_LZ4_loadDictHC)( LZ4_streamHC_t *streamHCPtr, const char *dictionary, int dictSize );
+typedef void (*PTR_LZ4_resetStreamHC)( LZ4_streamHC_t *streamHCPtr, int compressionLevel );
 struct compression_service_lz4_st{
     PTR_LZ4_compressBound LZ4_compressBound_ptr;
     PTR_LZ4_compress_default LZ4_compress_default_ptr;
+    PTR_LZ4_compress_fast_continue LZ4_compress_fast_continue_ptr;
+    PTR_LZ4_createStream LZ4_createStream_ptr;
+    PTR_LZ4_createStreamDecode LZ4_createStreamDecode_ptr;
     PTR_LZ4_decompress_safe LZ4_decompress_safe_ptr;
+    PTR_LZ4_decompress_safe_continue LZ4_decompress_safe_continue_ptr;
+    PTR_LZ4_freeStream LZ4_freeStream_ptr;
+    PTR_LZ4_freeStreamDecode LZ4_freeStreamDecode_ptr;
+    PTR_LZ4_loadDict LZ4_loadDict_ptr;
+    PTR_LZ4_setStreamDecode LZ4_setStreamDecode_ptr;
+    PTR_LZ4_compress_HC_continue LZ4_compress_HC_continue_ptr;
+    PTR_LZ4_createStreamHC LZ4_createStreamHC_ptr;
+    PTR_LZ4_freeStreamHC LZ4_freeStreamHC_ptr;
+    PTR_LZ4_loadDictHC LZ4_loadDictHC_ptr;
+    PTR_LZ4_resetStreamHC LZ4_resetStreamHC_ptr;
 };
 extern struct compression_service_lz4_st *compression_service_lz4;
+}
+extern "C" {
 }
 extern "C" {
 extern bool COMPRESSION_LOADED_LZMA;

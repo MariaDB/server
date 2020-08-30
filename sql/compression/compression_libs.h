@@ -1,5 +1,6 @@
 #include <compression/bzlib.h>
 #include <compression/lz4.h>
+#include <compression/lz4hc.h>
 #include <compression/lzma.h>
 #include <compression/lzo/lzo1x.h>
 #include <compression/snappy-c.h>
