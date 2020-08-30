@@ -1,0 +1,66 @@
+--echo # Testing all compression libraries
+
+# \       |BZip2|LZ4|LZ4HC|LZMA|LZO|Snappy|ZStandard
+# --------|-----|---|-----|----|---|------|---------
+# Connect |*    |   |     |    |   |      |         
+# InnoDB  |*    |*  |     |*   |*  |*     |         
+# Mroonga |     |*  |     |    |   |      |*        
+# RocksDB |*    |*  |*    |    |   |*     |*        
+
+#TODO: Fix remaining tests
+
+# Connect
+let $test_engine  = connect;
+
+# let $test_library = bzip2;
+# source test_library.inc;
+
+
+# InnoDB
+let $test_engine  = innodb;
+
+let $test_library = bzip2;
+source test_library.inc;
+
+let $test_library = lz4;
+source test_library.inc;
+
+let $test_library = lzma;
+source test_library.inc;
+
+let $test_library = lzo;
+source test_library.inc;
+
+let $test_library = snappy;
+source test_library.inc;
+
+
+# Mroonga
+let $test_engine  = mroonga;
+
+let $test_library = lz4;
+source test_library.inc;
+
+let $test_library = zstd;
+source test_library.inc;
+
+
+# RocksDB
+#FIXME: rocksdb tests failing
+let $test_engine  = rocksdb;
+
+# let $test_library = bzip2;
+# source test_library.inc;
+
+# let $test_library = lz4;
+# source test_library.inc;
+
+# let $test_library = lz4hc;
+# source test_library.inc;
+
+# let $test_library = snappy;
+# source test_library.inc;
+
+# let $test_library = zstd;
+# source test_library.inc;
+

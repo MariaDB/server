@@ -1,0 +1,316 @@
+# Testing all compression libraries
+
+
+#
+# Test --use-compression=bzip2 on storage engine "innodb"
+#
+# Check if library is loaded
+# Start server with default options (bzip2 enabled)
+# restart: --use-compression=bzip2
+DROP TABLE IF EXISTS innodb_compressed_bzip2;
+SET GLOBAL Innodb_compression_algorithm = bzip2;
+CREATE TABLE innodb_compressed_bzip2 (
+a int,
+b text 
+)
+engine = innodb
+page_compressed = 1
+;
+INSERT INTO innodb_compressed_bzip2 (a, b) VALUES (0, "abc");
+INSERT INTO innodb_compressed_bzip2 (a, b) VALUES (1, "def");
+INSERT INTO innodb_compressed_bzip2 (a, b) VALUES (2, "ghi");
+SELECT * FROM innodb_compressed_bzip2;
+a	b
+0	abc
+1	def
+2	ghi
+# Start server with no libraries
+# restart: --use_compression=
+# Table should not exist, as server does not know how to read compressed data
+SELECT * FROM innodb_compressed_bzip2;
+ERROR 42S02: Table 'test.innodb_compressed_bzip2' doesn't exist in engine
+DROP TABLE innodb_compressed_bzip2;
+UNINSTALL SONAME IF EXISTS "ha_connect.so";
+UNINSTALL SONAME IF EXISTS "ha_mroonga.so";
+UNINSTALL SONAME IF EXISTS "ha_rocksdb.so";
+# restart
+
+
+#
+# Test --use-compression=lz4 on storage engine "innodb"
+#
+# Check if library is loaded
+# Start server with default options (lz4 enabled)
+# restart: --use-compression=lz4
+DROP TABLE IF EXISTS innodb_compressed_lz4;
+SET GLOBAL Innodb_compression_algorithm = lz4;
+CREATE TABLE innodb_compressed_lz4 (
+a int,
+b text 
+)
+engine = innodb
+page_compressed = 1
+;
+INSERT INTO innodb_compressed_lz4 (a, b) VALUES (0, "abc");
+INSERT INTO innodb_compressed_lz4 (a, b) VALUES (1, "def");
+INSERT INTO innodb_compressed_lz4 (a, b) VALUES (2, "ghi");
+SELECT * FROM innodb_compressed_lz4;
+a	b
+0	abc
+1	def
+2	ghi
+# Start server with no libraries
+# restart: --use_compression=
+# Table should not exist, as server does not know how to read compressed data
+SELECT * FROM innodb_compressed_lz4;
+ERROR 42S02: Table 'test.innodb_compressed_lz4' doesn't exist in engine
+DROP TABLE innodb_compressed_lz4;
+UNINSTALL SONAME IF EXISTS "ha_connect.so";
+UNINSTALL SONAME IF EXISTS "ha_mroonga.so";
+UNINSTALL SONAME IF EXISTS "ha_rocksdb.so";
+# restart
+
+
+#
+# Test --use-compression=lzma on storage engine "innodb"
+#
+# Check if library is loaded
+# Start server with default options (lzma enabled)
+# restart: --use-compression=lzma
+DROP TABLE IF EXISTS innodb_compressed_lzma;
+SET GLOBAL Innodb_compression_algorithm = lzma;
+CREATE TABLE innodb_compressed_lzma (
+a int,
+b text 
+)
+engine = innodb
+page_compressed = 1
+;
+INSERT INTO innodb_compressed_lzma (a, b) VALUES (0, "abc");
+INSERT INTO innodb_compressed_lzma (a, b) VALUES (1, "def");
+INSERT INTO innodb_compressed_lzma (a, b) VALUES (2, "ghi");
+SELECT * FROM innodb_compressed_lzma;
+a	b
+0	abc
+1	def
+2	ghi
+# Start server with no libraries
+# restart: --use_compression=
+# Table should not exist, as server does not know how to read compressed data
+SELECT * FROM innodb_compressed_lzma;
+ERROR 42S02: Table 'test.innodb_compressed_lzma' doesn't exist in engine
+DROP TABLE innodb_compressed_lzma;
+UNINSTALL SONAME IF EXISTS "ha_connect.so";
+UNINSTALL SONAME IF EXISTS "ha_mroonga.so";
+UNINSTALL SONAME IF EXISTS "ha_rocksdb.so";
+# restart
+
+
+#
+# Test --use-compression=lzo on storage engine "innodb"
+#
+# Check if library is loaded
+# Start server with default options (lzo enabled)
+# restart: --use-compression=lzo
+DROP TABLE IF EXISTS innodb_compressed_lzo;
+SET GLOBAL Innodb_compression_algorithm = lzo;
+CREATE TABLE innodb_compressed_lzo (
+a int,
+b text 
+)
+engine = innodb
+page_compressed = 1
+;
+INSERT INTO innodb_compressed_lzo (a, b) VALUES (0, "abc");
+INSERT INTO innodb_compressed_lzo (a, b) VALUES (1, "def");
+INSERT INTO innodb_compressed_lzo (a, b) VALUES (2, "ghi");
+SELECT * FROM innodb_compressed_lzo;
+a	b
+0	abc
+1	def
+2	ghi
+# Start server with no libraries
+# restart: --use_compression=
+# Table should not exist, as server does not know how to read compressed data
+SELECT * FROM innodb_compressed_lzo;
+ERROR 42S02: Table 'test.innodb_compressed_lzo' doesn't exist in engine
+DROP TABLE innodb_compressed_lzo;
+UNINSTALL SONAME IF EXISTS "ha_connect.so";
+UNINSTALL SONAME IF EXISTS "ha_mroonga.so";
+UNINSTALL SONAME IF EXISTS "ha_rocksdb.so";
+# restart
+
+
+#
+# Test --use-compression=snappy on storage engine "innodb"
+#
+# Check if library is loaded
+# Start server with default options (snappy enabled)
+# restart: --use-compression=snappy
+DROP TABLE IF EXISTS innodb_compressed_snappy;
+SET GLOBAL Innodb_compression_algorithm = snappy;
+CREATE TABLE innodb_compressed_snappy (
+a int,
+b text 
+)
+engine = innodb
+page_compressed = 1
+;
+INSERT INTO innodb_compressed_snappy (a, b) VALUES (0, "abc");
+INSERT INTO innodb_compressed_snappy (a, b) VALUES (1, "def");
+INSERT INTO innodb_compressed_snappy (a, b) VALUES (2, "ghi");
+SELECT * FROM innodb_compressed_snappy;
+a	b
+0	abc
+1	def
+2	ghi
+# Start server with no libraries
+# restart: --use_compression=
+# Table should not exist, as server does not know how to read compressed data
+SELECT * FROM innodb_compressed_snappy;
+ERROR 42S02: Table 'test.innodb_compressed_snappy' doesn't exist in engine
+DROP TABLE innodb_compressed_snappy;
+UNINSTALL SONAME IF EXISTS "ha_connect.so";
+UNINSTALL SONAME IF EXISTS "ha_mroonga.so";
+UNINSTALL SONAME IF EXISTS "ha_rocksdb.so";
+# restart
+
+
+#
+# Test --use-compression=lz4 on storage engine "mroonga"
+#
+# Check if library is loaded
+# Start server with default options (lz4 enabled)
+# restart: --use-compression=lz4
+DROP TABLE IF EXISTS mroonga_compressed_lz4;
+INSTALL SONAME "ha_mroonga.so";
+CREATE TABLE mroonga_compressed_lz4 (
+a int,
+b text COMMENT 'FLAGS "COLUMN_SCALAR|COMPRESS_LZ4"'
+)
+engine = mroonga
+charset = utf8
+;
+INSERT INTO mroonga_compressed_lz4 (a, b) VALUES (0, "abc");
+INSERT INTO mroonga_compressed_lz4 (a, b) VALUES (1, "def");
+INSERT INTO mroonga_compressed_lz4 (a, b) VALUES (2, "ghi");
+INSERT INTO mroonga_compressed_lz4 (a, b) VALUES (3, "
+        This is an extra long string to exceed Mroonga's compression threshold of 256 bytes (= 256 characters).
+        Mroonga dosen't compress strings that are below the threshold, which
+        means if the server is started without a compression library then for records:
+            |         | < threshold | >= threshold      |
+            |---------|-------------|-------------------|
+            | Reading | Works fine  | Records are blank |
+            | Writing | Works fine  | Throws an error   |
+        Note that create a compressed table will work even if the library is not loaded.
+    ");
+SELECT * FROM mroonga_compressed_lz4;
+a	b
+0	abc
+1	def
+2	ghi
+3	
+        This is an extra long string to exceed Mroonga's compression threshold of 256 bytes (= 256 characters).
+        Mroonga dosen't compress strings that are below the threshold, which
+        means if the server is started without a compression library then for records:
+            |         | < threshold | >= threshold      |
+            |---------|-------------|-------------------|
+            | Reading | Works fine  | Records are blank |
+            | Writing | Works fine  | Throws an error   |
+        Note that create a compressed table will work even if the library is not loaded.
+    
+# Start server with no libraries
+# restart: --use_compression=
+# Inserting a record below the threshold should work
+INSERT INTO mroonga_compressed_lz4 (a, b) VALUES (4, "jkl");
+# But inserting a record above the threshold should fail
+INSERT INTO mroonga_compressed_lz4 (a, b) VALUES (5, "
+        0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+        0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+        0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+        0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+    ");
+ERROR HY000: [ja][lz4] failed to compress: <mroonga_compressed_lz4.b>: <6>
+# Records below the threshold (abc, def, ghi) should appear, but records above the threshold should not
+SELECT * FROM mroonga_compressed_lz4;
+a	b
+0	abc
+1	def
+2	ghi
+3	
+4	jkl
+DROP TABLE mroonga_compressed_lz4;
+UNINSTALL SONAME IF EXISTS "ha_connect.so";
+UNINSTALL SONAME IF EXISTS "ha_mroonga.so";
+UNINSTALL SONAME IF EXISTS "ha_rocksdb.so";
+# restart
+
+
+#
+# Test --use-compression=zstd on storage engine "mroonga"
+#
+# Check if library is loaded
+# Start server with default options (zstd enabled)
+# restart: --use-compression=zstd
+DROP TABLE IF EXISTS mroonga_compressed_zstd;
+INSTALL SONAME "ha_mroonga.so";
+CREATE TABLE mroonga_compressed_zstd (
+a int,
+b text COMMENT 'FLAGS "COLUMN_SCALAR|COMPRESS_ZSTD"'
+)
+engine = mroonga
+charset = utf8
+;
+INSERT INTO mroonga_compressed_zstd (a, b) VALUES (0, "abc");
+INSERT INTO mroonga_compressed_zstd (a, b) VALUES (1, "def");
+INSERT INTO mroonga_compressed_zstd (a, b) VALUES (2, "ghi");
+INSERT INTO mroonga_compressed_zstd (a, b) VALUES (3, "
+        This is an extra long string to exceed Mroonga's compression threshold of 256 bytes (= 256 characters).
+        Mroonga dosen't compress strings that are below the threshold, which
+        means if the server is started without a compression library then for records:
+            |         | < threshold | >= threshold      |
+            |---------|-------------|-------------------|
+            | Reading | Works fine  | Records are blank |
+            | Writing | Works fine  | Throws an error   |
+        Note that create a compressed table will work even if the library is not loaded.
+    ");
+SELECT * FROM mroonga_compressed_zstd;
+a	b
+0	abc
+1	def
+2	ghi
+3	
+        This is an extra long string to exceed Mroonga's compression threshold of 256 bytes (= 256 characters).
+        Mroonga dosen't compress strings that are below the threshold, which
+        means if the server is started without a compression library then for records:
+            |         | < threshold | >= threshold      |
+            |---------|-------------|-------------------|
+            | Reading | Works fine  | Records are blank |
+            | Writing | Works fine  | Throws an error   |
+        Note that create a compressed table will work even if the library is not loaded.
+    
+# Start server with no libraries
+# restart: --use_compression=
+# Inserting a record below the threshold should work
+INSERT INTO mroonga_compressed_zstd (a, b) VALUES (4, "jkl");
+# But inserting a record above the threshold should fail
+INSERT INTO mroonga_compressed_zstd (a, b) VALUES (5, "
+        0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+        0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+        0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+        0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ
+    ");
+ERROR HY000: [ja][zstd] failed to compress: <mroonga_compressed_zstd.b>: <6> :<ZStd is not loaded.>
+# Records below the threshold (abc, def, ghi) should appear, but records above the threshold should not
+SELECT * FROM mroonga_compressed_zstd;
+a	b
+0	abc
+1	def
+2	ghi
+3	
+4	jkl
+DROP TABLE mroonga_compressed_zstd;
+UNINSTALL SONAME IF EXISTS "ha_connect.so";
+UNINSTALL SONAME IF EXISTS "ha_mroonga.so";
+UNINSTALL SONAME IF EXISTS "ha_rocksdb.so";
+# restart
