@@ -323,7 +323,7 @@ static Sys_var_long Sys_pfs_digest_size(
        "Size of the statement digest."
        " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_digest_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 200),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024 * 1024),
        DEFAULT(-1),
        BLOCK_SIZE(1));
 
