@@ -86,8 +86,17 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 #include "ut0crc32.h"
 #include "my_valgrind.h"
 
-#ifdef _MSC_VER
-# include <intrin.h>
+#ifdef HAVE_CPUID_INSTRUCTION
+# ifdef _MSC_VER
+#  include <intrin.h>
+# elif defined __GNUC__ && !defined __clang__ && __GNUC__ < 5
+/* <nmmintrin.h> does not really work in GCC before version 5 */
+#  define _mm_crc32_u8(crc,data) __builtin_ia32_crc32qi(crc,data)
+#  define _mm_crc32_u32(crc,data) __builtin_ia32_crc32si(crc,data)
+#  define _mm_crc32_u64(crc,data) __builtin_ia32_crc32di(crc,data)
+# else
+#  include <nmmintrin.h>
+# endif
 #endif
 
 /* CRC32 hardware implementation. */
@@ -123,42 +132,24 @@ static inline bool has_sse4_2()
 @param crc   CRC-32C checksum so far
 @param data  data to be checksummed
 @return the updated CRC-32C */
+__attribute__((target("sse4.2")))
 static inline ulint ut_crc32c_8(ulint crc, byte data)
 {
-#  ifdef _MSC_VER
   return _mm_crc32_u8(static_cast<uint32_t>(crc), data);
-#  elif __has_feature(memory_sanitizer)
-  return __builtin_ia32_crc32qi(static_cast<uint32_t>(crc), data);
-#  else
-  asm("crc32b %1, %0" : "+r" (crc) : "rm" (data));
-  return crc;
-#  endif
 }
 
 /** Append 64 bits (8 aligned bytes) to a CRC-32C checksum
 @param[in] crc    CRC-32C checksum so far
 @param[in] data   8 bytes of aligned data
 @return the updated CRC-32C */
+__attribute__((target("sse4.2")))
 static inline ulint ut_crc32c_64(ulint crc, uint64_t data)
 {
-#  ifdef _MSC_VER
-#   ifdef _M_X64
+#  if SIZEOF_SIZE_T > 4
   return _mm_crc32_u64(crc, data);
-#   elif defined(_M_IX86)
+#  else
   crc= _mm_crc32_u32(crc, static_cast<uint32_t>(data));
   crc= _mm_crc32_u32(crc, static_cast<uint32_t>(data >> 32));
-  return crc;
-#   else
-#    error Unsupported processor type
-#   endif
-#  elif __has_feature(memory_sanitizer)
-  return __builtin_ia32_crc32di(crc, data);
-#  elif defined __x86_64__
-  asm("crc32q %1, %0" : "+r" (crc) : "rm" (data));
-  return crc;
-#  else
-  asm("crc32l %1, %0" : "+r" (crc) : "rm" (static_cast<uint32_t>(data)));
-  asm("crc32l %1, %0" : "+r" (crc) : "rm" (static_cast<uint32_t>(data >> 32)));
   return crc;
 #  endif
 }
