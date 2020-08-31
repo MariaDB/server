@@ -5775,14 +5775,13 @@ innobase_vcol_build_templ(
 	mysql_row_templ_t*	templ,
 	ulint			col_no)
 {
-	if (dict_col_is_virtual(col)) {
-		templ->is_virtual = true;
-		templ->col_no = col_no;
+	templ->col_no = col_no;
+	templ->is_virtual = col->is_virtual();
+
+	if (templ->is_virtual) {
 		templ->clust_rec_field_no = ULINT_UNDEFINED;
 		templ->rec_field_no = col->ind;
 	} else {
-		templ->is_virtual = false;
-		templ->col_no = col_no;
 		templ->clust_rec_field_no = dict_col_get_clust_pos(
 						col, clust_index);
 		ut_a(templ->clust_rec_field_no != ULINT_UNDEFINED);
