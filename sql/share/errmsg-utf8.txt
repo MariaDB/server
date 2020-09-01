@@ -1800,9 +1800,10 @@ ER_WRONG_AUTO_KEY 42000 S1009
         slo "Môžete mať iba jedno AUTO pole a to musí byť definované ako kľúč"
         spa "Puede ser solamente un campo automatico y este debe ser definido como una clave"
         swe "Det får finnas endast ett AUTO_INCREMENT-fält och detta måste vara en nyckel"
-        ukr "Невірне визначення таблиці; Може бути лише один автоматичний стовбець, що повинен бути визначений як ключ"
+        ukr "Хибне визначення таблиці; Може бути лише один автоматичний стовбець, що повинен бути визначений як ключ"
 ER_BINLOG_CANT_DELETE_GTID_DOMAIN
 	eng "Could not delete gtid domain. Reason: %s."
+        ukr "Не можу видалити домен gtid. Причина: %s."
 ER_NORMAL_SHUTDOWN  
         cze "%s (%s): normální ukončení"
         dan "%s (%s): Normal nedlukning"
@@ -2203,6 +2204,7 @@ ER_INSERT_INFO
 ER_UPDATE_TABLE_USED
         eng "Table '%-.192s' is specified twice, both as a target for '%s' and as a separate source for data"
         swe "Table '%-.192s' är använd två gånger. Både för '%s' och för att hämta data"
+        ukr "Таблиця '%-.192s' вказується двічі, як цільова для '%s', так і як окреме джерело даних"
 ER_NO_SUCH_THREAD  
         cze "Neznámá identifikace threadu: %lu"
         dan "Ukendt tråd id: %lu"
@@ -2824,6 +2826,7 @@ ER_WRONG_OUTER_JOIN 42000
 ER_NULL_COLUMN_IN_INDEX 42000 
         eng "Table handler doesn't support NULL in given index. Please change column '%-.192s' to be NOT NULL or use another handler"
         swe "Tabell hanteraren kan inte indexera NULL kolumner för den givna index typen. Ändra '%-.192s' till NOT NULL eller använd en annan hanterare"
+        ukr "Вказівник таблиці не підтримує NULL у зазначенному індексі. Будь ласка, зменіть стовпчик '%-.192s' на NOT NULL або використайте інший вказівник таблиці."
 ER_CANT_FIND_UDF  
         cze "Nemohu načíst funkci '%-.192s'"
         dan "Kan ikke læse funktionen '%-.192s'"
@@ -4314,6 +4317,7 @@ ER_MASTER_INFO
         jpn "'master info '%.*s''構造体の初期化ができませんでした。MariaDBエラーログでエラーメッセージを確認してください。"
         serbian "Nisam mogao da inicijalizujem informacionu strukturu glavnog servera, proverite da li imam privilegije potrebne za pristup file-u 'master.info' '%.*s'"
         swe "Kunde inte initialisera replikationsstrukturerna för '%.*s'. See MariaDB fel fil för mera information"
+        ukr "Інформаційна структура з'єднання головного і підлеглого (master.info) для '%.*s' не може бути ініціалізована"
 ER_SLAVE_THREAD
         dan "Kunne ikke danne en slave-tråd; check systemressourcerne"
         nla "Kon slave thread niet aanmaken, controleer systeem resources"
@@ -4478,6 +4482,7 @@ ER_UNION_TABLES_IN_DIFFERENT_DIR
         serbian "Pogrešna definicija tabele; sve 'MERGE' tabele moraju biti u istoj bazi podataka"
         spa "Incorrecta definición de la tabla; Todas las tablas MERGE deben estar en el mismo banco de datos"
         swe "Felaktig tabelldefinition; alla tabeller i en MERGE-tabell måste vara i samma databas"
+        ukr "Хибне визначення таблиці; всі MERGE-таблиці повинні належити до однієї бази ланних."
 ER_LOCK_DEADLOCK 40001 
         nla "Deadlock gevonden tijdens lock-aanvraag poging; Probeer herstart van de transactie"
         eng "Deadlock found when trying to get lock; try restarting transaction"
@@ -4491,6 +4496,7 @@ ER_LOCK_DEADLOCK 40001
         serbian "Unakrsno zaključavanje pronađeno kada sam pokušao da dobijem pravo na zaključavanje; Probajte da restartujete transakciju"
         spa "Encontrado deadlock cuando tentando obtener el bloqueo; Tente recomenzar la transición"
         swe "Fick 'DEADLOCK' vid låsförsök av block/rad. Försök att starta om transaktionen"
+        ukr "Взаємне блокування знайдено під час спроби отримати блокування; спробуйте перезапустити транзакцію."
 ER_TABLE_CANT_HANDLE_FT  
         nla "Het gebruikte tabel type (%s) ondersteund geen FULLTEXT indexen"
         eng "The storage engine %s doesn't support FULLTEXT indexes"
@@ -4517,6 +4523,7 @@ ER_CANNOT_ADD_FOREIGN
         serbian "Ne mogu da dodam proveru spoljnog ključa"
         spa "No puede adicionar clave extranjera constraint"
         swe "Kan inte lägga till 'FOREIGN KEY constraint'"
+        ukr "Не можу додати обмеження зовнішнього ключа"
 ER_NO_REFERENCED_ROW 23000 
         nla "Kan onderliggende rij niet toevoegen: foreign key beperking gefaald"
         eng "Cannot add or update a child row: a foreign key constraint fails"
@@ -4531,6 +4538,7 @@ ER_NO_REFERENCED_ROW 23000
         rus "Невозможно добавить или обновить дочернюю строку: проверка ограничений внешнего ключа не выполняется"
         spa "No puede adicionar una línea hijo: falla de clave extranjera constraint"
         swe "FOREIGN KEY-konflikt:  Kan inte skriva barn"
+        ukr "Не вдається додати або оновити дочірній рядок: невдала перевірка обмеження зовнішнього ключа"
 ER_ROW_IS_REFERENCED 23000 
         eng "Cannot delete or update a parent row: a foreign key constraint fails"
         fre "Impossible de supprimer un enregistrement père : une constrainte externe l'empèche"
