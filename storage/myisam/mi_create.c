@@ -623,7 +623,6 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
     fn_format(kfilename, name, "", MI_NAME_IEXT,
               MY_UNPACK_FILENAME | MY_RETURN_REAL_PATH |
               (have_iext ? MY_REPLACE_EXT : MY_APPEND_EXT));
-    klinkname_ptr= 0;
     /* Replace the current file */
     create_flag=(flags & HA_CREATE_KEEP_FILES) ? 0 : MY_DELETE_OLD;
   }

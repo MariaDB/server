@@ -897,7 +897,6 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     fn_format(kfilename, name, "", MARIA_NAME_IEXT,
               MY_UNPACK_FILENAME | MY_RETURN_REAL_PATH |
               (have_iext ? MY_REPLACE_EXT : MY_APPEND_EXT));
-    klinkname_ptr= NullS;
     /*
       Replace the current file.
       Don't sync dir now if the data file has the same path.

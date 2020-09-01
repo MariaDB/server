@@ -2346,6 +2346,7 @@ INSERT INTO m1 VALUES (511, 521);
 SELECT * FROM m1;
 #
 --echo #
+truncate table m1;
 ALTER TABLE m1 ENGINE=MRG_MyISAM UNION=(t1,t2)
   INSERT_METHOD=LAST;
 SELECT * FROM m1;
@@ -2512,6 +2513,7 @@ INSERT INTO m1 VALUES (511, 521);
 SELECT * FROM m1;
 #
 --echo #
+truncate table m1;
 ALTER TABLE m1 ENGINE=MRG_MyISAM UNION=(t1,t2)
   INSERT_METHOD=LAST;
 SELECT * FROM m1;
@@ -2919,3 +2921,15 @@ set global default_storage_engine=@save_default_storage_engine;
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.
 --source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # MDEV-23485 - Change table to merge engine may cause table data lost.
+--echo #
+CREATE TABLE t1(a INT);
+ALTER TABLE t1 engine=MRG_MYISAM;
+drop table t1;
+CREATE TABLE t1(a INT);
+insert into t1() values(1);
+--error ER_ALTER_TO_MERGE_ENGINE_NOT_SUPPORTED
+ALTER TABLE t1 engine=MRG_MYISAM;
+drop table t1;

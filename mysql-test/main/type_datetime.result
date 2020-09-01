@@ -57,6 +57,7 @@ select * from t1;
 t
 0000-00-00 00:00:00
 drop table t1;
+SET TIMESTAMP=UNIX_TIMESTAMP('2020-08-11 00:00:01');
 CREATE TABLE t1 (a timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, b date, c time, d datetime);
 insert into t1 (b,c,d) values(now(),curtime(),now());
 Warnings:
@@ -65,6 +66,7 @@ select date_format(a,"%Y-%m-%d")=b,right(a+0,6)=c+0,a=d+0 from t1;
 date_format(a,"%Y-%m-%d")=b	right(a+0,6)=c+0	a=d+0
 1	1	1
 drop table t1;
+SET TIMESTAMP=DEFAULT;
 CREATE TABLE t1 (a datetime not null);
 insert into t1 values (0);
 select * from t1 where a is null;
@@ -298,8 +300,10 @@ f2	f3
 select f2 from t1 where DATE(f2) between "2001-4-15" AND "01-4-15";
 f2
 2001-04-15 00:00:00
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 00:00:01');
 SELECT 1 from dual where NOW() BETWEEN CURRENT_DATE() - INTERVAL 1 DAY AND CURRENT_DATE();
 1
+SET timestamp=DEFAULT;
 drop table t1;
 create table t1 (f1 date);
 insert into t1 values('01-01-01'),('01-01-02'),('01-01-03');

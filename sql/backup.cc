@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, MariaDB Corporation
+/* Copyright (c) 2018, 2020, MariaDB Corporation.
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; version 2 of the License.
@@ -96,7 +96,7 @@ bool run_backup_stage(THD *thd, backup_stages stage)
 
   do
   {
-    bool res;
+    bool res= false;
     backup_stages previous_stage= thd->current_backup_stage;
     thd->current_backup_stage= next_stage;
     switch (next_stage) {
@@ -120,7 +120,6 @@ bool run_backup_stage(THD *thd, backup_stages stage)
       break;
     case BACKUP_FINISHED:
       DBUG_ASSERT(0);
-      res= 0;
     }
     if (res)
     {

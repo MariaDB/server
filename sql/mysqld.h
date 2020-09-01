@@ -872,6 +872,12 @@ enum enum_query_type
                         QT_ITEM_SUBSELECT_ID_ONLY,
 
   QT_SHOW_SELECT_NUMBER= (1<<10),
+
+  /// Do not print database name or table name in the identifiers (even if
+  /// this means the printout will be ambigous). It is assumed that the caller
+  ///  passing this flag knows what they are doing.
+  QT_ITEM_IDENT_DISABLE_DB_TABLE_NAMES= (1 <<11),
+
   /// This is used for EXPLAIN EXTENDED extra warnings / Be more detailed
   /// Be more detailed than QT_EXPLAIN.
   /// Perhaps we should eventually include QT_ITEM_IDENT_SKIP_CURRENT_DATABASE

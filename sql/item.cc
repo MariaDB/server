@@ -3193,6 +3193,12 @@ void Item_ident::print(String *str, enum_query_type query_type)
       use_db_name= use_table_name= false;
   }
 
+  if ((query_type & QT_ITEM_IDENT_DISABLE_DB_TABLE_NAMES))
+  {
+    // Don't print db or table name irrespective of any other settings.
+    use_db_name= use_table_name= false;
+  }
+
   if (!field_name.str || !field_name.str[0])
   {
     append_identifier(thd, str, STRING_WITH_LEN("tmp_field"));
@@ -7537,7 +7543,6 @@ Item *find_producing_item(Item *item, st_select_lex *sel)
   DBUG_ASSERT(item->type() == Item::FIELD_ITEM ||
               (item->type() == Item::REF_ITEM &&
                ((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF)); 
-  Item *producing_item;
   Item_field *field_item= NULL;
   Item_equal *item_equal= item->get_item_equal();
   table_map tab_map= sel->master_unit()->derived->table->map;
@@ -7559,6 +7564,7 @@ Item *find_producing_item(Item *item, st_select_lex *sel)
   List_iterator_fast<Item> li(sel->item_list);
   if (field_item)
   {
+    Item *producing_item= NULL;
     uint field_no= field_item->field->field_index;
     for (uint i= 0; i <= field_no; i++)
       producing_item= li++;

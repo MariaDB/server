@@ -3618,7 +3618,8 @@ my_bool translog_init_with_table(const char *directory,
   int old_log_was_recovered= 0, logs_found= 0;
   uint old_flags= flags;
   uint32 start_file_num= 1;
-  TRANSLOG_ADDRESS sure_page, last_page, last_valid_page, checkpoint_lsn;
+  TRANSLOG_ADDRESS UNINIT_VAR(sure_page), last_page, last_valid_page,
+    checkpoint_lsn;
   my_bool version_changed= 0;
   DBUG_ENTER("translog_init_with_table");
 

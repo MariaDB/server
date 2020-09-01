@@ -10130,6 +10130,35 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     DBUG_RETURN(true);
   }
 
+  /*
+    MDEV-23485: Change table to merge engine may cause table data lost.
+
+    If we want to change a table to merge engine, the original table
+    should't be merge engine table and the table have no rows, otherwise
+    may cause table data lost.
+  */
+  if (table->file->ht->db_type != DB_TYPE_MRG_MYISAM &&
+      create_info->db_type->db_type == DB_TYPE_MRG_MYISAM)
+  {
+    READ_RECORD info;
+    if (init_read_record(&info, thd, table, NULL, NULL, 1, 1, FALSE))
+    {
+      DBUG_RETURN(true);
+    }
+
+    while (!(error= info.read_record()))
+    {
+      DBUG_PRINT("info", ("The original table is not merge table "
+                          "and have rows doesn't support alter"));
+      my_error(ER_ALTER_TO_MERGE_ENGINE_NOT_SUPPORTED, MYF(0),
+              "ALTER TABLE TO MERGE ENGINE");
+      end_read_record(&info);
+      DBUG_RETURN(true);
+    }
+
+    end_read_record(&info);
+  }
+
   if (table->s->tmp_table == NO_TMP_TABLE)
     mysql_audit_alter_table(thd, table_list);
 

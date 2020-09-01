@@ -25,6 +25,9 @@
 #include <mysql/plugin.h>
 #include <mysql/service_thd_wait.h>
 #include <mysql/psi/mysql_stage.h>
+#ifdef WITH_WSREP
+#include "wsrep_sst.h"
+#endif
 #include <tpool.h>
 #include <pfs_metadata_provider.h>
 #include <mysql/psi/mysql_mdl.h>
@@ -2332,18 +2335,26 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
     wait_status= m_wait.timed_wait(m_owner, &abs_shortwait, FALSE,
                                    mdl_request->key.get_wait_state_name());
 
+    THD* thd= m_owner->get_thd();
+
     if (wait_status != MDL_wait::EMPTY)
       break;
     /* Check if the client is gone while we were waiting. */
-    if (! thd_is_connected(m_owner->get_thd()))
+    if (! thd_is_connected(thd))
     {
-      /*
-       * The client is disconnected. Don't wait forever:
-       * assume it's the same as a wait timeout, this
-       * ensures all error handling is correct.
-       */
-      wait_status= MDL_wait::TIMEOUT;
-      break;
+#if defined(WITH_WSREP) && !defined(EMBEDDED_LIBRARY)
+      // During SST client might not be connected
+      if (!wsrep_is_sst_progress())
+#endif
+      {
+        /*
+         * The client is disconnected. Don't wait forever:
+         * assume it's the same as a wait timeout, this
+         * ensures all error handling is correct.
+         */
+        wait_status= MDL_wait::TIMEOUT;
+        break;
+      }
     }
 
     mysql_prlock_wrlock(&lock->m_rwlock);
