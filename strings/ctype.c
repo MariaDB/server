@@ -921,7 +921,7 @@ my_string_metadata_get(MY_STRING_METADATA *metadata,
 /*
   Check repertoire: detect pure ascii strings
 */
-uint
+my_repertoire_t
 my_string_repertoire(CHARSET_INFO *cs, const char *str, size_t length)
 {
   if (cs->mbminlen == 1 && !(cs->state & MY_CS_NONASCII))
@@ -948,7 +948,7 @@ my_string_repertoire(CHARSET_INFO *cs, const char *str, size_t length)
 /*
   Returns repertoire for charset
 */
-uint my_charset_repertoire(CHARSET_INFO *cs)
+my_repertoire_t my_charset_repertoire(CHARSET_INFO *cs)
 {
   return cs->state & MY_CS_PUREASCII ?
     MY_REPERTOIRE_ASCII : MY_REPERTOIRE_UNICODE30;
