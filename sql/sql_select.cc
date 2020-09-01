@@ -21924,6 +21924,9 @@ check_reverse_order:
     else if (select && select->quick)
       select->quick->need_sorted_output();
 
+    tab->read_record.unlock_row= (tab->type == JT_EQ_REF) ?
+                                 join_read_key_unlock_row : rr_unlock_row;
+
   } // QEP has been modified
 
   /*
