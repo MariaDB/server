@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -3740,9 +3740,16 @@ bool row_search_with_covering_prefix(
 		return false;
 	}
 
+	/* We can avoid a clustered index lookup if
+	all of the following hold:
+	(1) all columns are in the secondary index
+	(2) all values for columns that are prefix-only
+	indexes are shorter than the prefix size
+	This optimization can avoid many IOs for certain schemas. */
 	for (ulint i = 0; i < prebuilt->n_template; i++) {
 		mysql_row_templ_t* templ = prebuilt->mysql_template + i;
 		ulint j = templ->rec_prefix_field_no;
+		ut_ad(!templ->mbminlen == !templ->mbmaxlen);
 
 		/** Condition (1) : is the field in the index. */
 		if (j == ULINT_UNDEFINED) {
@@ -3752,34 +3759,29 @@ bool row_search_with_covering_prefix(
 		/** Condition (2): If this is a prefix index then
 		row's value size shorter than prefix length. */
 
-		if (!templ->rec_field_is_prefix) {
+		if (!templ->rec_field_is_prefix
+		    || rec_offs_nth_sql_null(offsets, j)) {
 			continue;
 		}
 
-		ulint rec_size = rec_offs_nth_size(offsets, j);
 		const dict_field_t* field = dict_index_get_nth_field(index, j);
-		ulint max_chars = field->prefix_len / templ->mbmaxlen;
 
-		ut_a(field->prefix_len > 0);
-
-		if (rec_size < max_chars) {
-			/* Record in bytes shorter than the index
-			prefix length in char. */
+		if (!field->prefix_len) {
 			continue;
 		}
 
-		if (rec_size * templ->mbminlen >= field->prefix_len) {
+		const ulint rec_size = rec_offs_nth_size(offsets, j);
+
+		if (rec_size >= field->prefix_len) {
 			/* Shortest representation string by the
 			byte length of the record is longer than the
 			maximum possible index prefix. */
 			return false;
 		}
 
-
-		size_t num_chars = rec_field_len_in_chars(
-			field->col, j, rec, offsets);
-
-		if (num_chars >= max_chars) {
+		if (templ->mbminlen != templ->mbmaxlen
+		    && rec_field_len_in_chars(field->col, j, rec, offsets)
+		    >= field->prefix_len / templ->mbmaxlen) {
 			/* No of chars to store the record exceeds
 			the index prefix character length. */
 			return false;
