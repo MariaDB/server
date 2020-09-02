@@ -463,7 +463,7 @@ public:
   virtual void update_field()=0;
   virtual bool fix_length_and_dec()
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     null_value=1;
     return FALSE;
   }
@@ -786,7 +786,7 @@ public:
   {
     decimals=0;
     max_length=21;
-    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    base_flags&= ~item_base_t::MAYBE_NULL;
     null_value=0;
     return FALSE; }
 };
@@ -1219,7 +1219,7 @@ public:
     if (args[0]->check_type_can_return_int(func_name()))
       return true;
     decimals= 0; max_length=21; unsigned_flag= 1;
-    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    base_flags&= ~item_base_t::MAYBE_NULL;
     null_value= 0;
     return FALSE;
   }
@@ -1470,7 +1470,7 @@ public:
     :Item(thd), field(item->result_field)
   {
     name= item->name;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     decimals= item->decimals;
     max_length= item->max_length;
     unsigned_flag= item->unsigned_flag;
@@ -1614,7 +1614,7 @@ public:
     if (init_sum_func_check(thd))
       return TRUE;
 
-    flags|= ITEM_FLAG_FIXED;
+    base_flags|= item_base_t::FIXED;
     /*
       We set const_item_cache to false in constructors.
       It can be later changed to "true", in a Item_sum::make_const() call.
@@ -1846,7 +1846,8 @@ public:
     { DBUG_ASSERT(fixed()); null_value=1; return 0; }
   double val_real() { DBUG_ASSERT(fixed()); null_value=1; return 0.0; }
   longlong val_int() { DBUG_ASSERT(fixed()); null_value=1; return 0; }
-  bool fix_length_and_dec() { flags|= ITEM_FLAG_MAYBE_NULL; max_length=0; return FALSE; }
+  bool fix_length_and_dec() override
+  { base_flags|= item_base_t::MAYBE_NULL; max_length=0; return FALSE; }
   enum Sumfunctype sum_func () const { return UDF_SUM_FUNC; }
   void clear() {}
   bool add() { return 0; }  

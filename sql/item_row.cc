@@ -38,7 +38,7 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
   null_value= 0;
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  base_flags&= ~item_base_t::MAYBE_NULL;
 
   Item **arg, **arg_end;
   for (arg= args, arg_end= args + arg_count; arg != arg_end ; arg++)
@@ -61,14 +61,10 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
           with_null|= 1;
       }
     }
-    flags|= (item->flags & (ITEM_FLAG_MAYBE_NULL |
-                            ITEM_FLAG_WITH_SUM_FUNC |
-                            ITEM_FLAG_WITH_WINDOW_FUNC |
-                            ITEM_FLAG_WITH_FIELD |
-                            ITEM_FLAG_WITH_SUBQUERY |
-                            ITEM_FLAG_WITH_PARAM));
+    base_flags|= (item->base_flags & item_base_t::MAYBE_NULL);
+    with_flags|= item->with_flags;
   }
-  flags|= ITEM_FLAG_FIXED;
+  base_flags|= item_base_t::FIXED;
   return FALSE;
 }
 

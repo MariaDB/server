@@ -2858,7 +2858,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   field_list.push_back(field=new (mem_root)
                        Item_empty_string(thd, "db", NAME_CHAR_LEN),
                        mem_root);
-  field->flags|= ITEM_FLAG_MAYBE_NULL;;
+  field->set_maybe_null();;
   field_list.push_back(new (mem_root) Item_empty_string(thd, "Command", 16),
                        mem_root);
   field_list.push_back(field= new (mem_root)
@@ -2868,18 +2868,18 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   field_list.push_back(field=new (mem_root)
                        Item_empty_string(thd, "State", 30),
                        mem_root);
-  field->flags|= ITEM_FLAG_MAYBE_NULL;;
+  field->set_maybe_null();;
   field_list.push_back(field=new (mem_root)
                        Item_empty_string(thd, "Info", arg.max_query_length),
                        mem_root);
-  field->flags|= ITEM_FLAG_MAYBE_NULL;;
+  field->set_maybe_null();;
   if (!thd->variables.old_mode &&
       !(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
   {
     field_list.push_back(field= new (mem_root)
                          Item_float(thd, "Progress", 0.0, 3, 7),
                          mem_root);
-    field->flags&= (Item::item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    field->base_flags&= ~item_base_t::MAYBE_NULL;
   }
   if (protocol->send_result_set_metadata(&field_list,
                                          Protocol::SEND_NUM_ROWS |
@@ -9723,7 +9723,7 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
                                        (uint)MY_MAX(trg_sql_original_stmt.length,
                                               1024));
 
-    stmt_fld->flags|= ITEM_FLAG_MAYBE_NULL;
+    stmt_fld->set_maybe_null();
 
     fields.push_back(stmt_fld, mem_root);
   }

@@ -967,7 +967,7 @@ bool Item_func_monthname::fix_length_and_dec()
   collation.set(cs, DERIVATION_COERCIBLE, locale->repertoire());
   decimals=0;
   max_length= locale->max_month_name_length * collation.collation->mbmaxlen;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return FALSE;
 }
 
@@ -1112,7 +1112,7 @@ bool Item_func_dayname::fix_length_and_dec()
   collation.set(cs, DERIVATION_COERCIBLE, locale->repertoire());
   decimals=0;
   max_length= locale->max_day_name_length * collation.collation->mbmaxlen;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return FALSE;
 }
 
@@ -1761,7 +1761,7 @@ bool Item_func_date_format::fix_length_and_dec()
                    collation.collation->mbmaxlen;
     set_if_smaller(max_length,MAX_BLOB_WIDTH);
   }
-  flags|= ITEM_FLAG_MAYBE_NULL;					// If wrong date
+  set_maybe_null(); // If wrong date
   return FALSE;
 }
 
@@ -1924,7 +1924,7 @@ bool Item_func_from_unixtime::fix_length_and_dec()
     Type_temporal_attributes_not_fixed_dec(MAX_DATETIME_WIDTH,
                                            args[0]->decimals, false),
     DTCollation_numeric());
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return FALSE;
 }
 
@@ -2051,7 +2051,7 @@ bool Item_date_add_interval::fix_length_and_dec()
   {
     set_func_handler(&func_handler_date_add_interval_string);
   }
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return m_func_handler->fix_length_and_dec(this);
 }
 
@@ -2128,7 +2128,7 @@ bool Item_extract::check_arguments() const
 
 bool Item_extract::fix_length_and_dec()
 {
-  flags|= ITEM_FLAG_MAYBE_NULL;					// If wrong date
+  set_maybe_null(); // If wrong date
   uint32 daylen= args[0]->cmp_type() == TIME_RESULT ? 2 :
                  TIME_MAX_INTERVAL_DAY_CHAR_LENGTH;
   switch (int_type) {
@@ -2491,7 +2491,8 @@ Item_char_typecast::fix_length_and_dec_native_to_binary(uint32 octet_length)
 {
   collation.set(&my_charset_bin, DERIVATION_IMPLICIT);
   max_length= has_explicit_length() ? (uint32) cast_length : octet_length;
-  flags|= (current_thd->is_strict_mode() ? ITEM_FLAG_MAYBE_NULL : 0);
+  if (current_thd->is_strict_mode())
+    set_maybe_null();
 }
 
 
@@ -2536,7 +2537,8 @@ void Item_char_typecast::fix_length_and_dec_internal(CHARSET_INFO *from_cs)
                  args[0]->collation.collation->mbmaxlen));
   max_length= char_length * cast_cs->mbmaxlen;
   // Add NULL-ability in strict mode. See Item_str_func::fix_fields()
-  flags|= (current_thd->is_strict_mode() ? ITEM_FLAG_MAYBE_NULL : 0);
+  if (current_thd->is_strict_mode())
+    set_maybe_null();
 }
 
 
@@ -2660,7 +2662,7 @@ bool Item_func_add_time::fix_length_and_dec()
                                 &func_handler_add_time_string_sub);
   }
 
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return m_func_handler->fix_length_and_dec(this);
 }
 
@@ -3046,7 +3048,7 @@ bool Item_func_str_to_date::fix_length_and_dec()
   if (collation.collation->mbminlen > 1)
     internal_charset= &my_charset_utf8mb4_general_ci;
 
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   set_func_handler(&func_handler_str_to_date_datetime_usec);
 
   if ((const_item= args[1]->const_item()))
