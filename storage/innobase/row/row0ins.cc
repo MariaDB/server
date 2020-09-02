@@ -1905,6 +1905,39 @@ exit_func:
 	DBUG_RETURN(err);
 }
 
+/** Sets the values of the dtuple fields in ref_entry from the values of
+foreign columns in entry.
+@param[in]	foreign		foreign key constraint
+@param[in]	index		clustered index
+@param[in]	entry		tuple of clustered index
+@param[in]	ref_entry	tuple of foreign columns
+@return true if all foreign key fields present in clustered index */
+static
+bool row_ins_foreign_index_entry(dict_foreign_t *foreign,
+                                 const dict_index_t *index,
+                                 const dtuple_t *entry,
+                                 dtuple_t *ref_entry)
+{
+  for (ulint i= 0; i < foreign->n_fields; i++)
+  {
+    for (ulint j= 0; j < index->n_fields; j++)
+    {
+      const char *col_name= dict_table_get_col_name(
+        index->table, dict_index_get_nth_col_no(index, j));
+      if (0 == innobase_strcasecmp(col_name, foreign->foreign_col_names[i]))
+      {
+        dfield_copy(&ref_entry->fields[i], &entry->fields[j]);
+        goto got_match;
+      }
+    }
+    return false;
+got_match:
+    continue;
+  }
+
+  return true;
+}
+
 /***************************************************************//**
 Checks if foreign key constraints fail for an index entry. If index
 is not mentioned in any constraint, this function does nothing,
@@ -1923,9 +1956,10 @@ row_ins_check_foreign_constraints(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	dict_foreign_t*	foreign;
-	dberr_t		err;
+	dberr_t		err = DB_SUCCESS;
 	trx_t*		trx;
 	ibool		got_s_lock	= FALSE;
+	mem_heap_t*	heap = NULL;
 
 	DBUG_ASSERT(index->is_primary() == pk);
 
@@ -1935,13 +1969,36 @@ row_ins_check_foreign_constraints(
 			    "foreign_constraint_check_for_ins");
 
 	for (dict_foreign_set::iterator it = table->foreign_set.begin();
-	     it != table->foreign_set.end();
+	     err == DB_SUCCESS && it != table->foreign_set.end();
 	     ++it) {
 
 		foreign = *it;
 
 		if (foreign->foreign_index == index
 		    || (pk && !foreign->foreign_index)) {
+
+			dtuple_t*	ref_tuple = entry;
+			if (UNIV_UNLIKELY(!foreign->foreign_index)) {
+				/* Change primary key entry to
+				foreign key index entry */
+				if (!heap) {
+					heap = mem_heap_create(1000);
+				} else {
+					mem_heap_empty(heap);
+				}
+
+				ref_tuple = dtuple_create(
+					heap, foreign->n_fields);
+				dtuple_set_n_fields_cmp(
+					ref_tuple, foreign->n_fields);
+				if (!row_ins_foreign_index_entry(
+					foreign, index, entry, ref_tuple)) {
+					err = DB_NO_REFERENCED_ROW;
+					break;
+				}
+
+			}
+
 			dict_table_t*	ref_table = NULL;
 			dict_table_t*	referenced_table
 						= foreign->referenced_table;
@@ -1971,7 +2028,7 @@ row_ins_check_foreign_constraints(
 			table from being dropped while the check is running. */
 
 			err = row_ins_check_foreign_constraint(
-				TRUE, foreign, table, entry, thr);
+				TRUE, foreign, table, ref_tuple, thr);
 
 			if (referenced_table) {
 				my_atomic_addlint(
@@ -1986,15 +2043,14 @@ row_ins_check_foreign_constraints(
 			if (ref_table != NULL) {
 				dict_table_close(ref_table, FALSE, FALSE);
 			}
-
-			if (err != DB_SUCCESS) {
-
-				return(err);
-			}
 		}
 	}
 
-	return(DB_SUCCESS);
+	if (UNIV_LIKELY_NULL(heap)) {
+		mem_heap_free(heap);
+	}
+
+	return err;
 }
 
 /***************************************************************//**
