@@ -1,6 +1,6 @@
 #!/bin/bash -ue
 # Copyright (C) 2013 Percona Inc
-# Copyright (C) 2017-2019 MariaDB
+# Copyright (C) 2017-2020 MariaDB
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -363,7 +363,7 @@ read_cnf()
     iopts=$(parse_cnf sst inno-backup-opts "")
     iapts=$(parse_cnf sst inno-apply-opts "")
     impts=$(parse_cnf sst inno-move-opts "")
-    stimeout=$(parse_cnf sst sst-initial-timeout 100)
+    stimeout=$(parse_cnf sst sst-initial-timeout 300)
     ssyslog=$(parse_cnf sst sst-syslog 0)
     ssystag=$(parse_cnf mysqld_safe syslog-tag "${SST_SYSLOG_TAG:-}")
     ssystag+="-"
@@ -624,7 +624,8 @@ recv_joiner()
     popd 1>/dev/null 
 
     if [[ ${RC[0]} -eq 124 ]];then 
-        wsrep_log_error "Possible timeout in receving first data from donor in gtid stage"
+        wsrep_log_error "Possible timeout in receiving first data from "
+	                "donor in gtid stage: exit codes: ${RC[@]}"
         exit 32
     fi
 
