@@ -3840,7 +3840,7 @@ buf_page_create(fil_space_t *space, uint32_t offset,
     const bool drop_hash_entry= block->page.state() == BUF_BLOCK_FILE_PAGE &&
       UNIV_LIKELY_NULL(block->index);
     if (UNIV_UNLIKELY(drop_hash_entry))
-      block->page.set_io_fix(BUF_IO_PIN);
+      rw_lock_x_lock(&block->lock);
 #endif /* BTR_CUR_HASH_ADAPT */
 
     /* Page can be found in buf_pool */
@@ -3851,7 +3851,7 @@ buf_page_create(fil_space_t *space, uint32_t offset,
     if (UNIV_UNLIKELY(drop_hash_entry))
     {
       btr_search_drop_page_hash_index(block);
-      block->page.io_unfix();
+      rw_lock_x_unlock(&block->lock);
     }
 #endif /* BTR_CUR_HASH_ADAPT */
 

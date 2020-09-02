@@ -11597,11 +11597,16 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                   HA_CAN_TABLE_CONDITION_PUSHDOWN) &&
                 !first_inner_tab)
             {
+              Json_writer_object wrap(thd);
+              Json_writer_object trace_cp(thd, "table_condition_pushdown");
+              trace_cp.add_table_name(tab->table);
+
               COND *push_cond= 
               make_cond_for_table(thd, tmp_cond, current_map, current_map,
                                   -1, FALSE, FALSE);
               if (push_cond)
               {
+                trace_cp.add("push_cond", push_cond);
                 /* Push condition to handler */
                 if (!tab->table->file->cond_push(push_cond))
                   tab->table->file->pushed_cond= push_cond;

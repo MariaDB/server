@@ -32,13 +32,6 @@
 #include <stdarg.h>
 
 static const unsigned int PACKET_BUFFER_EXTRA_ALLOC= 1024;
-/* Declared non-static only because of the embedded library. */
-bool net_send_error_packet(THD *, uint, const char *, const char *);
-/* Declared non-static only because of the embedded library. */
-bool net_send_ok(THD *, uint, uint, ulonglong, ulonglong, const char *,
-                 bool);
-/* Declared non-static only because of the embedded library. */
-bool net_send_eof(THD *thd, uint server_status, uint statement_warn_count);
 #ifndef EMBEDDED_LIBRARY
 static bool write_eof_packet(THD *, NET *, uint, uint);
 #endif
@@ -152,11 +145,11 @@ bool Protocol_binary::net_store_data_cs(const uchar *from, size_t length,
     @retval TRUE An error occurred and the message wasn't sent properly
 */
 
-bool net_send_error(THD *thd, uint sql_errno, const char *err,
-                    const char* sqlstate)
+bool Protocol::net_send_error(THD *thd, uint sql_errno, const char *err,
+                              const char* sqlstate)
 {
   bool error;
-  DBUG_ENTER("net_send_error");
+  DBUG_ENTER("Protocol::net_send_error");
 
   DBUG_ASSERT(!thd->spcont);
   DBUG_ASSERT(sql_errno);
@@ -214,10 +207,10 @@ bool net_send_error(THD *thd, uint sql_errno, const char *err,
 
 #ifndef EMBEDDED_LIBRARY
 bool
-net_send_ok(THD *thd,
-            uint server_status, uint statement_warn_count,
-            ulonglong affected_rows, ulonglong id, const char *message,
-            bool is_eof)
+Protocol::net_send_ok(THD *thd,
+                      uint server_status, uint statement_warn_count,
+                      ulonglong affected_rows, ulonglong id,
+                      const char *message, bool is_eof)
 {
   NET *net= &thd->net;
   StringBuffer<MYSQL_ERRMSG_SIZE + 10> store;
@@ -225,7 +218,7 @@ net_send_ok(THD *thd,
   bool state_changed= false;
 
   bool error= FALSE;
-  DBUG_ENTER("net_send_ok");
+  DBUG_ENTER("Protocol::net_send_ok");
 
   if (! net->vio)	// hack for re-parsing queries
   {
@@ -328,11 +321,11 @@ static uchar eof_buff[1]= { (uchar) 254 };      /* Marker for end of fields */
 */    
 
 bool
-net_send_eof(THD *thd, uint server_status, uint statement_warn_count)
+Protocol::net_send_eof(THD *thd, uint server_status, uint statement_warn_count)
 {
   NET *net= &thd->net;
   bool error= FALSE;
-  DBUG_ENTER("net_send_eof");
+  DBUG_ENTER("Protocol::net_send_eof");
 
   /*
     Check if client understand new format packets (OK instead of EOF)
@@ -419,8 +412,8 @@ static bool write_eof_packet(THD *thd, NET *net,
    @retval TRUE  An error occurred and the messages wasn't sent properly
 */
 
-bool net_send_error_packet(THD *thd, uint sql_errno, const char *err,
-                           const char* sqlstate)
+bool Protocol::net_send_error_packet(THD *thd, uint sql_errno, const char *err,
+                                     const char* sqlstate)
 
 {
   NET *net= &thd->net;
@@ -433,7 +426,7 @@ bool net_send_error_packet(THD *thd, uint sql_errno, const char *err,
   char buff[2+1+SQLSTATE_LENGTH+MYSQL_ERRMSG_SIZE], *pos;
   my_bool ret;
   uint8 save_compress;
-  DBUG_ENTER("send_error_packet");
+  DBUG_ENTER("Protocol::send_error_packet");
 
   if (net->vio == 0)
   {
@@ -845,13 +838,12 @@ bool Protocol_text::store_field_metadata(const THD * thd,
 {
   CHARSET_INFO *thd_charset= thd->variables.character_set_results;
   char *pos;
-  CHARSET_INFO *cs= system_charset_info;
   DBUG_ASSERT(field.is_sane());
 
   if (thd->client_capabilities & CLIENT_PROTOCOL_41)
   {
     const LEX_CSTRING def= {STRING_WITH_LEN("def")};
-    if (store_ident(def, MY_REPERTOIRE_ASCII) ||
+    if (store_ident(def) ||
         store_ident(field.db_name) ||
         store_ident(field.table_name) ||
         store_ident(field.org_table_name) ||
@@ -867,8 +859,7 @@ bool Protocol_text::store_field_metadata(const THD * thd,
         Don't apply character set conversion:
         extended metadata is a binary encoded data.
       */
-      if (store_binary_string(&metadata, cs,
-                              MY_REPERTOIRE_UNICODE30))
+      if (store_binary_string(metadata.ptr(), metadata.length()))
         return true;
     }
     if (packet->realloc(packet->length() + 12))
@@ -962,7 +953,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
   for (uint pos= 0; (item=it++); pos++)
   {
     prot.prepare_for_resend();
-    if (prot.store_field_metadata(thd, item, pos))
+    if (prot.store_item_metadata(thd, item, pos))
       goto err;
     if (prot.write())
       DBUG_RETURN(1);
@@ -1042,7 +1033,7 @@ bool Protocol::write()
 #endif /* EMBEDDED_LIBRARY */
 
 
-bool Protocol_text::store_field_metadata(THD *thd, Item *item, uint pos)
+bool Protocol_text::store_item_metadata(THD *thd, Item *item, uint pos)
 {
   Send_field field(thd, item);
   return store_field_metadata(thd, field, item->charset_for_protocol(), pos);
@@ -1182,12 +1173,10 @@ bool Protocol_text::store_null()
 */
 
 bool Protocol::store_string_aux(const char *from, size_t length,
-                                CHARSET_INFO *fromcs,
-                                my_repertoire_t from_repertoire,
-                                CHARSET_INFO *tocs)
+                                CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
 {
   /* 'tocs' is set 0 when client issues SET character_set_results=NULL */
-  if (needs_conversion(fromcs, from_repertoire, tocs))
+  if (needs_conversion(fromcs, tocs))
   {
     /* Store with conversion */
     return net_store_data_cs((uchar*) from, length, fromcs, tocs);
@@ -1220,9 +1209,7 @@ bool Protocol::store_warning(const char *from, size_t length)
 
 
 bool Protocol_text::store_str(const char *from, size_t length,
-                              CHARSET_INFO *fromcs,
-                              my_repertoire_t from_repertoire,
-                              CHARSET_INFO *tocs)
+                              CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
 {
 #ifndef DBUG_OFF
   DBUG_PRINT("info", ("Protocol_text::store field %u : %.*b", field_pos,
@@ -1231,7 +1218,23 @@ bool Protocol_text::store_str(const char *from, size_t length,
   DBUG_ASSERT(valid_handler(field_pos, PROTOCOL_SEND_STRING));
   field_pos++;
 #endif
-  return store_string_aux(from, length, fromcs, from_repertoire, tocs);
+  return store_string_aux(from, length, fromcs, tocs);
+}
+
+
+bool Protocol_text::store_numeric_zerofill_str(const char *from,
+                                               size_t length,
+                                               protocol_send_type_t send_type)
+{
+#ifndef DBUG_OFF
+  DBUG_PRINT("info",
+       ("Protocol_text::store_numeric_zerofill_str field %u : %.*b",
+        field_pos, (int) length, (length == 0 ? "" : from)));
+  DBUG_ASSERT(field_handlers == 0 || field_pos < field_count);
+  DBUG_ASSERT(valid_handler(field_pos, send_type));
+  field_pos++;
+#endif
+  return store_numeric_string_aux(from, length);
 }
 
 
@@ -1298,25 +1301,25 @@ bool Protocol_text::store_decimal(const my_decimal *d)
 }
 
 
-bool Protocol_text::store(float from, uint32 decimals, String *buffer)
+bool Protocol_text::store_float(float from, uint32 decimals)
 {
 #ifndef DBUG_OFF
   DBUG_ASSERT(valid_handler(field_pos, PROTOCOL_SEND_FLOAT));
   field_pos++;
 #endif
-  Float(from).to_string(buffer, decimals);
-  return store_numeric_string_aux(buffer->ptr(), buffer->length());
+  Float(from).to_string(&buffer, decimals);
+  return store_numeric_string_aux(buffer.ptr(), buffer.length());
 }
 
 
-bool Protocol_text::store(double from, uint32 decimals, String *buffer)
+bool Protocol_text::store_double(double from, uint32 decimals)
 {
 #ifndef DBUG_OFF
   DBUG_ASSERT(valid_handler(field_pos, PROTOCOL_SEND_DOUBLE));
   field_pos++;
 #endif
-  buffer->set_real(from, decimals, thd->charset());
-  return store_numeric_string_aux(buffer->ptr(), buffer->length());
+  buffer.set_real(from, decimals, thd->charset());
+  return store_numeric_string_aux(buffer.ptr(), buffer.length());
 }
 
 
@@ -1324,12 +1327,6 @@ bool Protocol_text::store(Field *field)
 {
   if (field->is_null())
     return store_null();
-#ifndef DBUG_OFF
-  field_pos++;
-#endif
-  char buff[MAX_FIELD_WIDTH];
-  String str(buff,sizeof(buff), &my_charset_bin);
-  CHARSET_INFO *tocs= this->thd->variables.character_set_results;
 #ifdef DBUG_ASSERT_EXISTS
   TABLE *table= field->table;
   my_bitmap_map *old_map= 0;
@@ -1337,14 +1334,14 @@ bool Protocol_text::store(Field *field)
     old_map= dbug_tmp_use_all_columns(table, table->read_set);
 #endif
 
-  field->val_str(&str);
+  bool rc= field->send(this);
+
 #ifdef DBUG_ASSERT_EXISTS
   if (old_map)
     dbug_tmp_restore_column_map(table->read_set, old_map);
 #endif
 
-  return store_string_aux(str.ptr(), str.length(), str.charset(),
-                          field->dtcollation().repertoire, tocs);
+  return rc;
 }
 
 
@@ -1463,12 +1460,10 @@ void Protocol_binary::prepare_for_resend()
 
 
 bool Protocol_binary::store_str(const char *from, size_t length,
-                                CHARSET_INFO *fromcs,
-                                my_repertoire_t from_repertoire,
-                                CHARSET_INFO *tocs)
+                                CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
 {
   field_pos++;
-  return store_string_aux(from, length, fromcs, from_repertoire, tocs);
+  return store_string_aux(from, length, fromcs, tocs);
 }
 
 bool Protocol_binary::store_null()
@@ -1531,11 +1526,10 @@ bool Protocol_binary::store_decimal(const my_decimal *d)
   StringBuffer<DECIMAL_MAX_STR_LENGTH> str;
   (void) d->to_string(&str);
   return store_str(str.ptr(), str.length(), str.charset(),
-                   MY_REPERTOIRE_ASCII,
                    thd->variables.character_set_results);
 }
 
-bool Protocol_binary::store(float from, uint32 decimals, String *buffer)
+bool Protocol_binary::store_float(float from, uint32 decimals)
 {
   field_pos++;
   char *to= packet->prep_append(4, PACKET_BUFFER_EXTRA_ALLOC);
@@ -1546,7 +1540,7 @@ bool Protocol_binary::store(float from, uint32 decimals, String *buffer)
 }
 
 
-bool Protocol_binary::store(double from, uint32 decimals, String *buffer)
+bool Protocol_binary::store_double(double from, uint32 decimals)
 {
   field_pos++;
   char *to= packet->prep_append(8, PACKET_BUFFER_EXTRA_ALLOC);
@@ -1560,12 +1554,12 @@ bool Protocol_binary::store(double from, uint32 decimals, String *buffer)
 bool Protocol_binary::store(Field *field)
 {
   /*
-    We should not increment field_pos here as send_binary() will call another
+    We should not increment field_pos here as send() will call another
     protocol function to do this for us
   */
   if (field->is_null())
     return store_null();
-  return field->send_binary(this);
+  return field->send(this);
 }
 
 

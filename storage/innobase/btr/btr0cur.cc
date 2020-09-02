@@ -3442,7 +3442,7 @@ fail:
 
 		/* prefetch siblings of the leaf for the pessimistic
 		operation, if the page is leaf. */
-		if (page_is_leaf(page)) {
+		if (page_is_leaf(page) && !index->is_ibuf()) {
 			btr_cur_prefetch_siblings(block);
 		}
 fail_err:
@@ -3455,17 +3455,23 @@ fail_err:
 	}
 
 	ulint	max_size = page_get_max_insert_size_after_reorganize(page, 1);
+	if (max_size < rec_size) {
+		goto fail;
+	}
+
+	const ulint n_recs = page_get_n_recs(page);
+	if (UNIV_UNLIKELY(n_recs >= 8189)) {
+		ut_ad(srv_page_size == 65536);
+		goto fail;
+	}
 
 	if (page_has_garbage(page)) {
-		if ((max_size < rec_size
-		     || max_size < BTR_CUR_PAGE_REORGANIZE_LIMIT)
-		    && page_get_n_recs(page) > 1
+		if (max_size < BTR_CUR_PAGE_REORGANIZE_LIMIT
+		    && n_recs > 1
 		    && page_get_max_insert_size(page, 1) < rec_size) {
 
 			goto fail;
 		}
-	} else if (max_size < rec_size) {
-		goto fail;
 	}
 
 	/* If there have been many consecutive inserts to the
@@ -4569,6 +4575,7 @@ btr_cur_optimistic_update(
 
 	if (rec_offs_any_extern(*offsets)) {
 any_extern:
+		ut_ad(!index->is_ibuf());
 		/* Externally stored fields are treated in pessimistic
 		update */
 
@@ -4765,7 +4772,7 @@ func_exit:
 		}
 	}
 
-	if (err != DB_SUCCESS) {
+	if (err != DB_SUCCESS && !index->is_ibuf()) {
 		/* prefetch siblings of the leaf for the pessimistic
 		operation. */
 		btr_cur_prefetch_siblings(block);

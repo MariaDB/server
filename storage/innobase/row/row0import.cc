@@ -2200,7 +2200,7 @@ row_import_cleanup(
 
 	row_mysql_unlock_data_dictionary(trx);
 
-	trx_free(trx);
+	trx->free();
 
 	prebuilt->trx->op_info = "";
 

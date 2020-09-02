@@ -123,7 +123,7 @@ ELSE()
 ENDIF()
 SET(CPACK_WIX_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/CPackWixConfig.cmake)
 
-IF(NOT TARGET mysql_upgrade_wizard)
+IF(NOT TARGET mariadb-upgrade-wizard)
   SET(EXTRA_WIX_PREPROCESSOR_FLAGS "-dHaveUpgradeWizard=0")
 ENDIF()
 IF(WITH_INNOBASE_STORAGE_ENGINE)

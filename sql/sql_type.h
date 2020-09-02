@@ -1453,6 +1453,7 @@ class Schema;
 */
 class Time: public Temporal
 {
+  static uint binary_length_to_precision(uint length);
 public:
   enum datetime_to_time_mode_t
   {
@@ -1685,6 +1686,14 @@ public:
   */
   Time(int *warn, bool neg, ulonglong hour, uint minute, const Sec6 &second);
   Time() { time_type= MYSQL_TIMESTAMP_NONE; }
+  Time(const Native &native);
+  Time(THD *thd, const MYSQL_TIME *ltime, const Options opt)
+  {
+    *(static_cast<MYSQL_TIME*>(this))= *ltime;
+    DBUG_ASSERT(is_valid_temporal());
+    int warn= 0;
+    valid_MYSQL_TIME_to_valid_value(thd, &warn, opt);
+  }
   Time(Item *item)
    :Time(current_thd, item)
   { }
@@ -1840,6 +1849,7 @@ public:
     return !is_valid_time() ? 0 :
            Temporal::to_double(neg, TIME_to_ulonglong_time(this), second_part);
   }
+  bool to_native(Native *to, uint decimals) const;
   String *to_string(String *str, uint dec) const
   {
     if (!is_valid_time())
@@ -5897,6 +5907,15 @@ public:
   {
     return MYSQL_TIMESTAMP_TIME;
   }
+  bool is_val_native_ready() const override { return true; }
+  const Type_handler *type_handler_for_native_format() const override;
+  int cmp_native(const Native &a, const Native &b) const override;
+  bool Item_val_native_with_conversion(THD *thd, Item *, Native *to)
+                                       const override;
+  bool Item_val_native_with_conversion_result(THD *thd, Item *, Native *to)
+                                              const override;
+  bool Item_param_val_native(THD *thd, Item_param *item, Native *to)
+                             const override;
   bool partition_field_check(const LEX_CSTRING &field_name,
                              Item *item_expr) const override
   {

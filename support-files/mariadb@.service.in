@@ -100,7 +100,7 @@
 # in configuration between instances.
 #
 #   [Service]
-#   Environment=MYSQLD_MULTI_INSTANCE="--socket=/var/run/mysqld/%I.sock \
+#   Environment=MYSQLD_MULTI_INSTANCE="--socket=/run/mysqld/%I.sock \
 #                        --datadir=/var/lib/mysqld-multi/%I \
 #                        --skip-networking"
 #

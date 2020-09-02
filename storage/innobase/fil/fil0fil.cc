@@ -1496,21 +1496,27 @@ void fil_system_t::create(ulint hash_size)
 
 void fil_system_t::close()
 {
-	ut_ad(this == &fil_system);
-	ut_a(!UT_LIST_GET_LEN(LRU));
-	ut_a(unflushed_spaces.empty());
-	ut_a(!UT_LIST_GET_LEN(space_list));
-	ut_ad(!sys_space);
-	ut_ad(!temp_space);
+  ut_ad(this == &fil_system);
+  ut_a(!UT_LIST_GET_LEN(LRU));
+  ut_a(unflushed_spaces.empty());
+  ut_a(!UT_LIST_GET_LEN(space_list));
+  ut_ad(!sys_space);
+  ut_ad(!temp_space);
 
-	if (is_initialised()) {
-		m_initialised = false;
-		spaces.free();
-		mutex_free(&mutex);
-		fil_space_crypt_cleanup();
-	}
+  if (is_initialised())
+  {
+    m_initialised= false;
+    spaces.free();
+    mutex_free(&mutex);
+    fil_space_crypt_cleanup();
+  }
 
-	ut_ad(!spaces.array);
+  ut_ad(!spaces.array);
+
+#ifdef UNIV_LINUX
+  ssd.clear();
+  ssd.shrink_to_fit();
+#endif /* UNIV_LINUX */
 }
 
 /** Opens all system tablespace data files. They stay open until the
@@ -1995,7 +2001,7 @@ fil_check_pending_io(
 
                 /* Give a warning every 10 second, starting after 1 second */
 		if ((count % 500) == 50) {
-			ib::warn() << "Trying to delete"
+			ib::info() << "Trying to delete"
 				" tablespace '" << space->name
 				<< "' but there are "
 				<< space->n_pending_flushes

@@ -313,10 +313,11 @@ gcov_configs="--with-gcov"
 
 # gprof
 
-gprof_compile_flags="-O2 -pg -g"
+gprof_compile_flags="-O2"
 
+# Rest of the flags are set in CmakeFile.txt
 gprof_link_flags="--disable-shared $static_link"
 
-disable_gprof_plugins="--with-zlib-dir=bundled --without-plugin-oqgraph --without-plugin-mroonga"
+disable_gprof_plugins="--with-zlib-dir=bundled --without-plugin-oqgraph --without-plugin-mroonga --with-gprof"
 
 disable_asan_plugins="--without-plugin-rocksdb"

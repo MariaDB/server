@@ -195,7 +195,14 @@ extern char empty_c_string[1];
 extern MYSQL_PLUGIN_IMPORT const char **errmesg;
 
 extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd);
+extern "C" unsigned long long thd_query_id(const MYSQL_THD thd);
 extern "C" size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen);
+extern "C" const char *thd_user_name(MYSQL_THD thd);
+extern "C" const char *thd_client_host(MYSQL_THD thd);
+extern "C" const char *thd_client_ip(MYSQL_THD thd);
+extern "C" LEX_CSTRING *thd_current_db(MYSQL_THD thd);
+extern "C" int thd_current_status(MYSQL_THD thd);
+extern "C" enum enum_server_command thd_current_command(MYSQL_THD thd);
 
 /**
   @class CSET_STRING

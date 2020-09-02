@@ -491,8 +491,8 @@ int emb_load_querycache_result(THD *thd, Querycache_stream *src)
   *prev_row= NULL;
   data->embedded_info->prev_ptr= prev_row;
 return_ok:
-  net_send_eof(thd, thd->server_status,
-               thd->get_stmt_da()->current_statement_warn_count());
+  thd->protocol->net_send_eof(thd, thd->server_status,
+    thd->get_stmt_da()->current_statement_warn_count());
   DBUG_RETURN(0);
 err:
   DBUG_RETURN(1);

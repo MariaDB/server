@@ -728,7 +728,7 @@ public:
   bool same_format(const dict_col_t &other) const
   {
     return same_type(other) && len >= other.len &&
-      mbminlen == other.mbminlen && mbmaxlen == other.mbmaxlen &&
+      mbminlen == other.mbminlen && mbmaxlen >= other.mbmaxlen &&
       !((prtype ^ other.prtype) & ~(DATA_NOT_NULL | DATA_VERSIONED |
                                     CHAR_COLL_MASK << 16 |
                                     DATA_LONG_TRUE_VARCHAR));
