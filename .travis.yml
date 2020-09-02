@@ -11,7 +11,7 @@ language: cpp
 os:
   - linux
   - osx
-osx_image: xcode10.1
+osx_image: xcode12u
 compiler:
   - gcc
   - clang
