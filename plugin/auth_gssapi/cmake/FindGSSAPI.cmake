@@ -97,7 +97,7 @@ else(GSSAPI_LIBS AND GSSAPI_FLAVOR)
 
     # Until new gssapi is used MDEV-23564
     IF(CMAKE_SYSTEM_NAME MATCHES "Darwin")
-      string(APPEND CMAKE_C_FLAGS " -Wno-deprecated-declarations")
+      MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-deprecated-declarations)
     ENDIF()
 
 endif(GSSAPI_LIBS AND GSSAPI_FLAVOR)
