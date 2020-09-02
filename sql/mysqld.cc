@@ -1900,13 +1900,10 @@ extern "C" void unireg_abort(int exit_code)
     WSREP_INFO("Some threads may fail to exit.");
   }
 
-  if (WSREP_ON)
+  if (WSREP_ON && wsrep_inited)
   {
-    /* In bootstrap mode we deinitialize wsrep here. */
-    if (opt_bootstrap || wsrep_recovery)
-    {
-      if (wsrep_inited) wsrep_deinit(true);
-    }
+    wsrep_deinit(true);
+    wsrep_deinit_server();
   }
 #endif // WITH_WSREP
 
