@@ -47,7 +47,7 @@ bool Item_geometry_func::fix_length_and_dec()
   collation.set(&my_charset_bin);
   decimals=0;
   max_length= (uint32) UINT_MAX32;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return FALSE;
 }
 
@@ -221,7 +221,7 @@ bool Item_func_as_wkt::fix_length_and_dec()
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= (uint32) UINT_MAX32;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return FALSE;
 }
 
@@ -248,7 +248,7 @@ bool Item_func_as_geojson::fix_length_and_dec()
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length=MAX_BLOB_WIDTH;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return FALSE;
 }
 

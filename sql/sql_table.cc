@@ -11766,12 +11766,12 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
   field_list.push_back(item= new (thd->mem_root)
                        Item_empty_string(thd, "Table", NAME_LEN*2),
                        thd->mem_root);
-  item->flags|= ITEM_FLAG_MAYBE_NULL;
+  item->set_maybe_null();
   field_list.push_back(item= new (thd->mem_root)
                        Item_int(thd, "Checksum", (longlong) 1,
                                 MY_INT64_NUM_DECIMAL_DIGITS),
                        thd->mem_root);
-  item->flags|= ITEM_FLAG_MAYBE_NULL;
+  item->set_maybe_null();
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);

@@ -368,7 +368,7 @@ public:
     Item_bool_func(thd, a, b), cache(0), expr_cache(0),
     save_cache(0), result_for_null_param(UNKNOWN)
   {
-    flags|= ITEM_FLAG_WITH_SUBQUERY;
+    with_flags|= item_with_t::SUBQUERY;
   }
   bool fix_fields(THD *, Item **) override;
   bool fix_left(THD *thd);
@@ -1130,7 +1130,7 @@ public:
         IFNULL(inet6_not_null_expr, 'foo') -> INET6 NULL
         IFNULL(inet6_not_null_expr, '::1') -> INET6 NOT NULL
     */
-    copy_flags(args[1], ITEM_FLAG_MAYBE_NULL);
+    copy_flags(args[1], item_base_t::MAYBE_NULL);
     if (Item_func_case_abbreviation2::fix_length_and_dec2(args))
       return TRUE;
     return FALSE;
@@ -2571,7 +2571,7 @@ public:
   {
     decimals=0;
     max_length=1;
-    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
   bool count_sargable_conds(void *arg);
@@ -3468,7 +3468,7 @@ public:
   Item_func_cursor_found(THD *thd, const LEX_CSTRING *name, uint offset)
    :Item_func_cursor_bool_attr(thd, name, offset)
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
   }
   const char *func_name() const { return "%FOUND"; }
   longlong val_int();
@@ -3483,7 +3483,7 @@ public:
   Item_func_cursor_notfound(THD *thd, const LEX_CSTRING *name, uint offset)
    :Item_func_cursor_bool_attr(thd, name, offset)
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
   }
   const char *func_name() const { return "%NOTFOUND"; }
   longlong val_int();

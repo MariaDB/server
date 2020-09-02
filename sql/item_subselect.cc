@@ -67,7 +67,7 @@ Item_subselect::Item_subselect(THD *thd_arg):
 #ifndef DBUG_OFF
   exec_counter= 0;
 #endif
-  flags|= ITEM_FLAG_WITH_SUBQUERY;
+  with_flags|= item_with_t::SUBQUERY;
   reset();
   /*
     Item value is NULL if select_result_interceptor didn't change this value
@@ -346,7 +346,7 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
     if (uncacheable & UNCACHEABLE_RAND)
       used_tables_cache|= RAND_TABLE_BIT;
   }
-  flags|= ITEM_FLAG_FIXED;
+  base_flags|= item_base_t::FIXED;
 
 end:
   done_first_fix_fields= FALSE;
@@ -1076,7 +1076,7 @@ Item_singlerow_subselect::Item_singlerow_subselect(THD *thd, st_select_lex *sele
 {
   DBUG_ENTER("Item_singlerow_subselect::Item_singlerow_subselect");
   init(select_lex, new (thd->mem_root) select_singlerow_subselect(thd, this));
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   max_columns= UINT_MAX;
   DBUG_VOID_RETURN;
 }
@@ -1113,7 +1113,7 @@ Item_maxmin_subselect::Item_maxmin_subselect(THD *thd,
        new (thd->mem_root) select_max_min_finder_subselect(thd,
              this, max_arg, parent->substype() == Item_subselect::ALL_SUBS));
   max_columns= 1;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   max_columns= 1;
 
   /*
@@ -1301,7 +1301,7 @@ bool Item_singlerow_subselect::fix_length_and_dec()
   else
   {
     for (uint i= 0; i < max_columns; i++)
-      row[i]->flags|= ITEM_FLAG_MAYBE_NULL;
+      row[i]->set_maybe_null();
   }
   return FALSE;
 }
@@ -1548,7 +1548,7 @@ Item_exists_subselect::Item_exists_subselect(THD *thd,
   init(select_lex, new (thd->mem_root) select_exists_subselect(thd, this));
   max_columns= UINT_MAX;
   null_value= FALSE; //can't be NULL
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL; //can't be NULL
+  base_flags&= ~item_base_t::MAYBE_NULL; //can't be NULL
   value= 0;
   DBUG_VOID_RETURN;
 }
@@ -1597,7 +1597,7 @@ Item_in_subselect::Item_in_subselect(THD *thd, Item * left_exp,
   func= &eq_creator;
   init(select_lex, new (thd->mem_root) select_exists_subselect(thd, this));
   max_columns= UINT_MAX;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   reset();
   //if test_limit will fail then error will be reported to client
   test_limit(select_lex->master_unit());
@@ -3500,7 +3500,7 @@ bool Item_in_subselect::fix_fields(THD *thd_arg, Item **ref)
   else
   if (Item_subselect::fix_fields(thd_arg, ref))
     goto err;
-  flags|= ITEM_FLAG_FIXED;
+  base_flags|= item_base_t::FIXED;
   thd->where= save_where;
   DBUG_RETURN(FALSE);
 

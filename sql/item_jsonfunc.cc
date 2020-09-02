@@ -386,7 +386,7 @@ bool Item_func_json_exists::fix_length_and_dec()
 {
   if (Item_bool_func::fix_length_and_dec())
     return TRUE;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   path.set_constant_flag(args[1]->const_item());
   return FALSE;
 }
@@ -440,7 +440,7 @@ bool Item_func_json_value::fix_length_and_dec()
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
   set_constant_flag(args[1]->const_item());
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return FALSE;
 }
 
@@ -450,7 +450,7 @@ bool Item_func_json_query::fix_length_and_dec()
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
   set_constant_flag(args[1]->const_item());
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return FALSE;
 }
 
@@ -598,7 +598,7 @@ bool Item_func_json_unquote::fix_length_and_dec()
   collation.set(&my_charset_utf8mb3_general_ci,
                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= args[0]->max_length;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return FALSE;
 }
 
@@ -721,7 +721,7 @@ bool Item_func_json_extract::fix_length_and_dec()
   max_length= args[0]->max_length * (arg_count - 1);
 
   mark_constant_paths(paths, args+1, arg_count-1);
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return FALSE;
 }
 
@@ -990,7 +990,7 @@ bool Item_func_json_contains::fix_length_and_dec()
 {
   a2_constant= args[1]->const_item();
   a2_parsed= FALSE;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   if (arg_count > 2)
     path.set_constant_flag(args[2]->const_item());
   return Item_bool_func::fix_length_and_dec();
@@ -1241,7 +1241,7 @@ bool Item_func_json_contains_path::fix_length_and_dec()
 {
   ooa_constant= args[1]->const_item();
   ooa_parsed= FALSE;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   mark_constant_paths(paths, args+2, arg_count-2);
   return Item_bool_func::fix_length_and_dec();
 }
@@ -1632,7 +1632,7 @@ bool Item_func_json_array_append::fix_length_and_dec()
   }
 
   fix_char_length_ulonglong(char_length);
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return FALSE;
 }
 
@@ -2551,7 +2551,7 @@ bool Item_func_json_length::fix_length_and_dec()
 {
   if (arg_count > 1)
     path.set_constant_flag(args[1]->const_item());
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   max_length= 10;
   return FALSE;
 }
@@ -2697,7 +2697,7 @@ bool Item_func_json_type::fix_length_and_dec()
 {
   collation.set(&my_charset_utf8mb3_general_ci);
   max_length= 12;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return FALSE;
 }
 
@@ -2766,7 +2766,7 @@ bool Item_func_json_insert::fix_length_and_dec()
   }
 
   fix_char_length_ulonglong(char_length);
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return FALSE;
 }
 
@@ -3018,7 +3018,7 @@ bool Item_func_json_remove::fix_length_and_dec()
   max_length= args[0]->max_length;
 
   mark_constant_paths(paths, args+1, arg_count-1);
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return FALSE;
 }
 
@@ -3203,7 +3203,7 @@ bool Item_func_json_keys::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   if (arg_count > 1)
     path.set_constant_flag(args[1]->const_item());
   return FALSE;
@@ -3388,7 +3388,7 @@ bool Item_func_json_search::fix_length_and_dec()
 
   if (arg_count > 4)
     mark_constant_paths(paths, args+4, arg_count-4);
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return FALSE;
 }
 
@@ -3571,7 +3571,7 @@ bool Item_func_json_format::fix_length_and_dec()
 {
   decimals= 0;
   max_length= args[0]->max_length;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return FALSE;
 }
 
@@ -3779,7 +3779,7 @@ Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
   if (init_sum_func_check(thd))
     return TRUE;
 
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
 
   /*
     Fix fields for select list and ORDER clause
@@ -3789,9 +3789,7 @@ Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
   {
     if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
-    flags|= (args[i]->flags & (ITEM_FLAG_WITH_SUBQUERY |
-                               ITEM_FLAG_WITH_PARAM |
-                               ITEM_FLAG_WITH_WINDOW_FUNC));
+    with_flags|= args[i]->with_flags;
   }
 
   /* skip charset aggregation for order columns */
@@ -3808,7 +3806,7 @@ Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
   if (check_sum_func(thd, ref))
     return TRUE;
 
-  flags|= ITEM_FLAG_FIXED;
+  base_flags|= item_base_t::FIXED;
   return FALSE;
 }
 

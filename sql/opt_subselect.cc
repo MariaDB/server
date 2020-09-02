@@ -966,7 +966,7 @@ bool make_in_exists_conversion(THD *thd, JOIN *join, Item_in_subselect *item)
     call.
   */
   item->changed= 0;
-  item->flags|= ITEM_FLAG_FIXED;
+  item->base_flags|= item_base_t::FIXED;
 
   SELECT_LEX *save_select_lex= thd->lex->current_select;
   thd->lex->current_select= item->unit->first_select();
@@ -1318,7 +1318,7 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
   {
     JOIN *child_join= in_subq->unit->first_select()->join;
     in_subq->changed= 0;
-    in_subq->flags|= ITEM_FLAG_FIXED;
+    in_subq->base_flags|= item_base_t::FIXED;
 
     SELECT_LEX *save_select_lex= thd->lex->current_select;
     thd->lex->current_select= in_subq->unit->first_select();
