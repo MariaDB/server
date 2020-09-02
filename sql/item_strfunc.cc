@@ -124,7 +124,8 @@ bool Item_str_func::fix_fields(THD *thd, Item **ref)
     In Item_str_func::check_well_formed_result() we may set null_value
     flag on the same condition as in test() below.
   */
-  flags|= thd->is_strict_mode() ? ITEM_FLAG_MAYBE_NULL : 0;
+  if (thd->is_strict_mode())
+    set_maybe_null();
   return res;
 }
 
@@ -286,7 +287,7 @@ String *Item_func_sha2::val_str_ascii(String *str)
 
 bool Item_func_sha2::fix_length_and_dec()
 {
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   max_length = 0;
 
   int sha_variant= (int)(args[1]->const_item() ? args[1]->val_int() : 512);
@@ -374,7 +375,7 @@ bool Item_func_aes_encrypt::fix_length_and_dec()
 bool Item_func_aes_decrypt::fix_length_and_dec()
 {
   max_length=args[0]->max_length;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   what= ENCRYPTION_FLAG_DECRYPT;
   return FALSE;
 }
@@ -382,11 +383,11 @@ bool Item_func_aes_decrypt::fix_length_and_dec()
 
 bool Item_func_to_base64::fix_length_and_dec()
 {
-  flags|= args[0]->flags & ITEM_FLAG_MAYBE_NULL;
+  base_flags|= args[0]->base_flags & item_base_t::MAYBE_NULL;
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   if (args[0]->max_length > (uint) my_base64_encode_max_arg_length())
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     fix_char_length_ulonglong((ulonglong) my_base64_encode_max_arg_length());
   }
   else
@@ -442,7 +443,8 @@ bool Item_func_from_base64::fix_length_and_dec()
     int length= my_base64_needed_decoded_length((int) args[0]->max_length);
     fix_char_length_ulonglong((ulonglong) length);
   }
-  flags|= ITEM_FLAG_MAYBE_NULL; // Can be NULL, e.g. in case of badly formed input string
+  // Can be NULL, e.g. in case of badly formed input string
+  set_maybe_null();
   return FALSE;
 }
 
@@ -2311,7 +2313,8 @@ bool Item_func_encode::seed()
 bool Item_func_encode::fix_length_and_dec()
 {
   max_length=args[0]->max_length;
-  flags|= (args[0]->flags | args[1]->flags) & ITEM_FLAG_MAYBE_NULL;
+  base_flags|= ((args[0]->base_flags | args[1]->base_flags) &
+                item_base_t::MAYBE_NULL);
   collation.set(&my_charset_bin);
   /* Precompute the seed state if the item is constant. */
   seeded= args[1]->const_item() &&
@@ -2475,11 +2478,11 @@ bool Item_func_current_role::fix_fields(THD *thd, Item **ref)
       return 1;
     str_value.mark_as_const();
     null_value= 0;
-    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    base_flags&= ~item_base_t::MAYBE_NULL;
     return 0;
   }
   null_value= 1;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return 0;
 }
 
@@ -2814,7 +2817,7 @@ bool Item_func_elt::fix_length_and_dec()
     set_if_bigger(decimals,args[i]->decimals);
   }
   fix_char_length(char_length);
-  flags|= ITEM_FLAG_MAYBE_NULL;					// NULL if wrong first arg
+  set_maybe_null(); // NULL if wrong first arg
   return FALSE;
 }
 
@@ -3038,7 +3041,7 @@ bool Item_func_repeat::fix_length_and_dec()
     return false;
   }
   max_length= MAX_BLOB_WIDTH;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return false;
 }
 
@@ -3110,7 +3113,7 @@ bool Item_func_space::fix_length_and_dec()
     return false;
   }
   max_length= MAX_BLOB_WIDTH;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return false;
 }
 
@@ -3165,7 +3168,7 @@ bool Item_func_binlog_gtid_pos::fix_length_and_dec()
 {
   collation.set(system_charset_info);
   max_length= MAX_BLOB_WIDTH;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return FALSE;
 }
 
@@ -3207,8 +3210,9 @@ bool Item_func_pad::fix_length_and_dec()
   if (arg_count == 3)
   {
     String *str;
-    if (!args[2]->basic_const_item() || !(str= args[2]->val_str(&pad_str)) || !str->length())
-      flags|= ITEM_FLAG_MAYBE_NULL;
+    if (!args[2]->basic_const_item() || !(str= args[2]->val_str(&pad_str)) ||
+        !str->length())
+      set_maybe_null();
     // Handle character set for args[0] and args[2].
     if (agg_arg_charsets_for_string_result(collation, &args[0], 2, 2))
       return TRUE;
@@ -3229,7 +3233,7 @@ bool Item_func_pad::fix_length_and_dec()
     return false;
   }
   max_length= MAX_BLOB_WIDTH;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return false;
 }
 
@@ -3614,7 +3618,7 @@ bool Item_func_weight_string::fix_length_and_dec()
                  args[0]->max_char_length() : nweights * cs->levels_for_order;
     max_length= (uint32) cs->strnxfrmlen(char_length * cs->mbmaxlen);
   }
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   return FALSE;
 }
 
@@ -4397,7 +4401,7 @@ bool Item_func_dyncol_create::fix_fields(THD *thd, Item **ref)
 bool Item_func_dyncol_create::fix_length_and_dec()
 {
   max_length= MAX_BLOB_WIDTH;
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   collation.set(&my_charset_bin);
   decimals= 0;
   return FALSE;

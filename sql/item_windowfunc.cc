@@ -120,7 +120,7 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
 
   const_item_cache= false;
 
-  flags= (flags & ~ITEM_FLAG_WITH_SUM_FUNC) | ITEM_FLAG_WITH_WINDOW_FUNC;
+  with_flags= (with_flags & ~item_with_t::SUM_FUNC) | item_with_t::WINDOW_FUNC;
 
   if (fix_length_and_dec())
     return TRUE;
@@ -128,7 +128,7 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
   max_length= window_func()->max_length;
   set_maybe_null(window_func()->maybe_null());
 
-  flags|= ITEM_FLAG_FIXED;
+  base_flags|= item_base_t::FIXED;
   set_phase_to_initial();
   return false;
 }
@@ -344,8 +344,7 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
   {
     if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
-    flags|= (args[i]->flags & (ITEM_FLAG_WITH_WINDOW_FUNC |
-                               ITEM_FLAG_WITH_SUBQUERY));
+    with_flags|= args[i]->with_flags;
   }
 
   if (fix_length_and_dec())
@@ -359,14 +358,14 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
   for (uint i= 0; i < arg_count; i++)
     orig_args[i]= args[i];
 
-  flags|= ITEM_FLAG_FIXED;
+  base_flags|= item_base_t::FIXED;
   return FALSE;
 }
 
 
 bool Item_sum_hybrid_simple::fix_length_and_dec()
 {
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   null_value= true;
   return args[0]->type_handler()->Item_sum_hybrid_fix_length_and_dec(this);
 }

@@ -6854,7 +6854,7 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
     views/derived tables.
   */
   if (view->table && view->table->maybe_null)
-    item->flags|= ITEM_FLAG_MAYBE_NULL;
+    item->set_maybe_null();
   /* Save item in case we will need to fall back to materialization. */
   view->used_items.push_front(item, thd->mem_root);
   /*

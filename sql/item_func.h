@@ -97,45 +97,33 @@ public:
   virtual enum Functype functype() const   { return UNKNOWN_FUNC; }
   Item_func(THD *thd): Item_func_or_sum(thd)
   {
-    flags&=(item_flags_t)  ~(ITEM_FLAG_WITH_FIELD | ITEM_FLAG_WITH_FIELD);
+    DBUG_ASSERT(with_flags == item_with_t::NONE);
+    with_flags= item_with_t::NONE;
   }
   Item_func(THD *thd, Item *a): Item_func_or_sum(thd, a)
   {
-    copy_flags(a,
-               ITEM_FLAG_WITH_SUM_FUNC | ITEM_FLAG_WITH_FIELD |
-               ITEM_FLAG_WITH_PARAM);
+    with_flags= a->with_flags;
   }
   Item_func(THD *thd, Item *a, Item *b):
     Item_func_or_sum(thd, a, b)
   {
-    flags|= ((a->flags | b->flags) &
-             (ITEM_FLAG_WITH_SUM_FUNC |
-              ITEM_FLAG_WITH_PARAM |
-              ITEM_FLAG_WITH_FIELD));
+    with_flags= a->with_flags | b->with_flags;
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c):
     Item_func_or_sum(thd, a, b, c)
   {
-    flags|= ((a->flags | b->flags | c->flags) &
-             (ITEM_FLAG_WITH_SUM_FUNC |
-              ITEM_FLAG_WITH_PARAM |
-              ITEM_FLAG_WITH_FIELD));
+    with_flags|= a->with_flags | b->with_flags | c->with_flags;
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d):
     Item_func_or_sum(thd, a, b, c, d)
   {
-    flags|= ((a->flags | b->flags | c->flags | d->flags) &
-             (ITEM_FLAG_WITH_SUM_FUNC |
-              ITEM_FLAG_WITH_PARAM |
-              ITEM_FLAG_WITH_FIELD));
+    with_flags= a->with_flags | b->with_flags | c->with_flags | d->with_flags;
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d, Item* e):
     Item_func_or_sum(thd, a, b, c, d, e)
   {
-    flags|= ((a->flags | b->flags | c->flags | d->flags | e->flags) &
-             (ITEM_FLAG_WITH_SUM_FUNC |
-              ITEM_FLAG_WITH_PARAM |
-              ITEM_FLAG_WITH_FIELD));
+    with_flags= (a->with_flags | b->with_flags | c->with_flags | d->with_flags |
+                 e->with_flags);
   }
   Item_func(THD *thd, List<Item> &list):
     Item_func_or_sum(thd, list)
@@ -153,10 +141,11 @@ public:
     Item_func_or_sum::cleanup();
     used_tables_and_const_cache_init();
   }
-  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
-  void quick_fix_field();
-  table_map not_null_tables() const;
-  void update_used_tables()
+  void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge)
+    override;
+  void quick_fix_field() override;
+  table_map not_null_tables() const override;
+  void update_used_tables() override
   {
     used_tables_and_const_cache_init();
     used_tables_and_const_cache_update_and_join(arg_count, args);
@@ -201,7 +190,7 @@ public:
     if (max_result_length >= MAX_BLOB_WIDTH)
     {
       max_length= MAX_BLOB_WIDTH;
-      flags|= ITEM_FLAG_MAYBE_NULL;
+      set_maybe_null();
     }
     else
       max_length= (uint32) max_result_length;
@@ -1253,7 +1242,7 @@ public:
   Item_func_cursor_rowcount(THD *thd, const LEX_CSTRING *name, uint offset)
    :Item_longlong_func(thd), Cursor_ref(name, offset)
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
   }
   const char *func_name() const { return "%ROWCOUNT"; }
   longlong val_int();
@@ -1433,7 +1422,7 @@ public:
   void print(String *str, enum_query_type query_type);
   void fix_length_and_dec_generic()
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
   }
 };
 
@@ -1699,7 +1688,7 @@ class Item_dec_func :public Item_real_func
   {
     decimals= NOT_FIXED_DEC;
     max_length= float_length(decimals);
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
 };
@@ -1873,7 +1862,7 @@ public:
     fix_attributes_datetime(0);
     set_handler(&type_handler_datetime2);
     // Thinks like CEILING(TIMESTAMP'0000-01-01 23:59:59.9') returns NULL
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
   }
   bool fix_length_and_dec();
   String *str_op(String *str) { DBUG_ASSERT(0); return 0; }
@@ -2234,7 +2223,7 @@ public:
   bool fix_length_and_dec()
   {
     max_length=10;
-    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
   bool eval_not_null_tables(void *)
@@ -2497,7 +2486,7 @@ public:
   bool fix_length_and_dec()
   {
     max_length=1;
-    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
   virtual void print(String *str, enum_query_type query_type);
@@ -2579,7 +2568,7 @@ public:
     DBUG_ASSERT(fixed() == 0);
     bool res= udf.fix_fields(thd, this, arg_count, args);
     set_non_deterministic_if_needed();
-    flags|= ITEM_FLAG_FIXED;
+    base_flags|= item_base_t::FIXED;
     return res;
   }
   void fix_num_length_and_dec();
@@ -2828,7 +2817,8 @@ public:
     { DBUG_ASSERT(fixed()); null_value=1; return 0; }
   double val_real() { DBUG_ASSERT(fixed()); null_value= 1; return 0.0; }
   longlong val_int() { DBUG_ASSERT(fixed()); null_value=1; return 0; }
-  bool fix_length_and_dec() { flags|= ITEM_FLAG_MAYBE_NULL; max_length=0; return FALSE; }
+  bool fix_length_and_dec() override
+  { base_flags|= item_base_t::MAYBE_NULL; max_length=0; return FALSE; }
 };
 
 #endif /* HAVE_DLOPEN */
@@ -2871,7 +2861,7 @@ class Item_func_get_lock final :public Item_func_lock
   bool fix_length_and_dec()
   {
     max_length= 1;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   Item *get_copy(THD *thd) final
@@ -2903,7 +2893,7 @@ public:
   bool fix_length_and_dec()
   {
     max_length= 1;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   Item *get_copy(THD *thd) final
@@ -2936,7 +2926,7 @@ public:
   bool fix_length_and_dec()
   {
     max_length=21;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   bool check_vcol_func_processor(void *arg)
@@ -3378,7 +3368,7 @@ public:
   {
     decimals=0;
     max_length=1;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   bool check_vcol_func_processor(void *arg)
@@ -3401,7 +3391,7 @@ public:
   bool fix_length_and_dec()
   {
     decimals=0; max_length=10;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   bool check_vcol_func_processor(void *arg)
@@ -3458,7 +3448,7 @@ public:
   bool fix_length_and_dec()
   {
     decimals= 0;
-    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
   bool check_vcol_func_processor(void *arg)
@@ -3628,7 +3618,7 @@ public:
   bool fix_length_and_dec()
   {
     decimals= 0;
-    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    base_flags&= ~item_base_t::MAYBE_NULL;
     return FALSE;
   }
   bool check_vcol_func_processor(void *arg)
@@ -3675,7 +3665,7 @@ public:
   }
   bool fix_length_and_dec()
   {
-    flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+    base_flags&= ~item_base_t::MAYBE_NULL;
     null_value= false;
     max_length= 11;
     return FALSE;
@@ -3735,7 +3725,7 @@ public:
   void update_used_tables()
   {
     Item_func::update_used_tables();
-    copy_flags(last_value, ITEM_FLAG_MAYBE_NULL);
+    copy_flags(last_value, item_base_t::MAYBE_NULL);
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_last_value>(thd, this); }
@@ -3758,7 +3748,7 @@ public:
   {
     unsigned_flag= 0;
     max_length= MAX_BIGINT_WIDTH;
-    flags|= ITEM_FLAG_MAYBE_NULL;             /* In case of errors */
+    set_maybe_null();             /* In case of errors */
     return FALSE;
   }
   /*

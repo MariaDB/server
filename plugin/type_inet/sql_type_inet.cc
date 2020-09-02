@@ -1055,7 +1055,7 @@ public:
   {
     Type_std_attributes::operator=(Type_std_attributes_inet6());
     if (Inet6::fix_fields_maybe_null_on_conversion_to_inet6(args[0]))
-      flags|= ITEM_FLAG_MAYBE_NULL;
+      set_maybe_null();
     return false;
   }
   String *val_str(String *to) override

@@ -284,7 +284,7 @@ public:
     collation.set(&my_charset_bin);
     decimals=0;
     max_length= (uint32) UINT_MAX32;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   Item *get_copy(THD *thd)
@@ -326,7 +326,7 @@ public:
   {
     // "GeometryCollection" is the longest
     fix_length_and_charset(20, default_charset());
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   };
   Item *get_copy(THD *thd)
@@ -675,7 +675,7 @@ public:
   Item_func_spatial_rel(THD *thd, Item *a, Item *b, enum Functype sp_rel):
     Item_bool_func2_with_rev(thd, a, b), spatial_rel(sp_rel)
   {
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
   }
   enum Functype functype() const { return spatial_rel; }
   enum Functype rev_functype() const
@@ -854,11 +854,12 @@ class Item_func_isempty: public Item_bool_func_args_geometry
 public:
   Item_func_isempty(THD *thd, Item *a)
    :Item_bool_func_args_geometry(thd, a) {}
-  longlong val_int();
+  longlong val_int() override;
   const char *func_name() const { return "st_isempty"; }
-  bool fix_length_and_dec() { flags|= ITEM_FLAG_MAYBE_NULL; return FALSE; }
-  bool need_parentheses_in_default() { return false; }
-  Item *get_copy(THD *thd)
+  bool fix_length_and_dec() override
+  { set_maybe_null(); return FALSE; }
+  bool need_parentheses_in_default() override { return false; }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_isempty>(thd, this); }
 };
 
@@ -907,10 +908,11 @@ class Item_func_dimension: public Item_long_func_args_geometry
 public:
   Item_func_dimension(THD *thd, Item *a)
    :Item_long_func_args_geometry(thd, a) {}
-  longlong val_int();
+  longlong val_int() override;
   const char *func_name() const { return "st_dimension"; }
-  bool fix_length_and_dec() { max_length= 10; flags|= ITEM_FLAG_MAYBE_NULL; return FALSE; }
-  Item *get_copy(THD *thd)
+  bool fix_length_and_dec() override
+  { max_length= 10; set_maybe_null(); return FALSE; }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_dimension>(thd, this); }
 };
 
@@ -925,7 +927,7 @@ public:
   {
     if (Item_real_func::fix_length_and_dec())
       return TRUE;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   Item *get_copy(THD *thd)
@@ -943,7 +945,7 @@ public:
   {
     if (Item_real_func::fix_length_and_dec())
       return TRUE;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   Item *get_copy(THD *thd)
@@ -956,10 +958,11 @@ class Item_func_numgeometries: public Item_long_func_args_geometry
 public:
   Item_func_numgeometries(THD *thd, Item *a)
    :Item_long_func_args_geometry(thd, a) {}
-  longlong val_int();
+  longlong val_int() override;
   const char *func_name() const { return "st_numgeometries"; }
-  bool fix_length_and_dec() { max_length= 10; flags|= ITEM_FLAG_MAYBE_NULL; return FALSE; }
-  Item *get_copy(THD *thd)
+  bool fix_length_and_dec() override
+  { max_length= 10; set_maybe_null(); return FALSE; }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_numgeometries>(thd, this); }
 };
 
@@ -969,10 +972,11 @@ class Item_func_numinteriorring: public Item_long_func_args_geometry
 public:
   Item_func_numinteriorring(THD *thd, Item *a)
    :Item_long_func_args_geometry(thd, a) {}
-  longlong val_int();
+  longlong val_int() override;
   const char *func_name() const { return "st_numinteriorrings"; }
-  bool fix_length_and_dec() { max_length= 10; flags|= ITEM_FLAG_MAYBE_NULL; return FALSE; }
-  Item *get_copy(THD *thd)
+  bool fix_length_and_dec() override
+  { max_length= 10; set_maybe_null(); return FALSE; }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_numinteriorring>(thd, this); }
 };
 
@@ -982,10 +986,11 @@ class Item_func_numpoints: public Item_long_func_args_geometry
 public:
   Item_func_numpoints(THD *thd, Item *a)
    :Item_long_func_args_geometry(thd, a) {}
-  longlong val_int();
+  longlong val_int() override;
   const char *func_name() const { return "st_numpoints"; }
-  bool fix_length_and_dec() { max_length= 10; flags|= ITEM_FLAG_MAYBE_NULL; return FALSE; }
-  Item *get_copy(THD *thd)
+  bool fix_length_and_dec() override
+  { max_length= 10; set_maybe_null(); return FALSE; }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_numpoints>(thd, this); }
 };
 
@@ -1000,7 +1005,7 @@ public:
   {
     if (Item_real_func::fix_length_and_dec())
       return TRUE;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   Item *get_copy(THD *thd)
@@ -1020,7 +1025,7 @@ public:
   {
     if (Item_real_func::fix_length_and_dec())
       return TRUE;
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
     return FALSE;
   }
   Item *get_copy(THD *thd)
@@ -1033,10 +1038,11 @@ class Item_func_srid: public Item_long_func_args_geometry
 public:
   Item_func_srid(THD *thd, Item *a)
    :Item_long_func_args_geometry(thd, a) {}
-  longlong val_int();
+  longlong val_int() override;
   const char *func_name() const { return "srid"; }
-  bool fix_length_and_dec() { max_length= 10; flags|= ITEM_FLAG_MAYBE_NULL; return FALSE; }
-  Item *get_copy(THD *thd)
+  bool fix_length_and_dec() override
+  { max_length= 10; set_maybe_null(); return FALSE; }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_srid>(thd, this); }
 };
 

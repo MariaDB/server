@@ -4792,7 +4792,8 @@ bool Type_handler_temporal_result::
       continue; // No conversion.
     if (ha->cmp_type() != TIME_RESULT)
     {
-      func->flags|= ITEM_FLAG_MAYBE_NULL; // Conversion from non-temporal is not safe
+      // Conversion from non-temporal is not safe
+      func->set_maybe_null();
       break;
     }
     timestamp_type tf= hf->mysql_timestamp_type();
@@ -4843,7 +4844,7 @@ bool Type_handler_temporal_result::
     DBUG_ASSERT(hf->field_type() == MYSQL_TYPE_DATETIME);
     if (!(thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST))
       continue;
-    func->flags|= ITEM_FLAG_MAYBE_NULL;
+    func->set_maybe_null();
     break;
   }
   return rc;
@@ -4867,7 +4868,7 @@ bool Type_handler_date_common::
   {
     if (items[i]->type_handler()->cmp_type() != TIME_RESULT)
     {
-      func->flags|= ITEM_FLAG_MAYBE_NULL;
+      func->set_maybe_null();
       break;
     }
   }
@@ -6749,7 +6750,7 @@ bool Type_handler::
             item->arguments()[0]->time_precision(current_thd) :
             item->decimals;
   item->fix_attributes_temporal(MIN_TIME_WIDTH, dec);
-  item->flags|= ITEM_FLAG_MAYBE_NULL;
+  item->set_maybe_null();
   return false;
 }
 
@@ -6758,7 +6759,7 @@ bool Type_handler::
        Item_date_typecast_fix_length_and_dec(Item_date_typecast *item) const
 {
   item->fix_attributes_temporal(MAX_DATE_WIDTH, 0);
-  item->flags|= ITEM_FLAG_MAYBE_NULL;
+  item->set_maybe_null();
   return false;
 }
 
@@ -6771,7 +6772,7 @@ bool Type_handler::
             item->arguments()[0]->datetime_precision(current_thd) :
             item->decimals;
   item->fix_attributes_temporal(MAX_DATETIME_WIDTH, dec);
-  item->flags|= ITEM_FLAG_MAYBE_NULL;
+  item->set_maybe_null();
   return false;
 }
 

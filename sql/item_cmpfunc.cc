@@ -1142,7 +1142,7 @@ int Arg_comparator::compare_e_str_json()
 
 bool Item_func_truth::fix_length_and_dec()
 {
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  base_flags&= ~item_base_t::MAYBE_NULL;
   null_value= 0;
   decimals= 0;
   max_length= 1;
@@ -1336,10 +1336,8 @@ bool Item_in_optimizer::fix_left(THD *thd)
     used_tables_cache= args[0]->used_tables();
   }
   eval_not_null_tables(NULL);
-  flags|= ((args[0]->flags &  (ITEM_FLAG_WITH_SUM_FUNC | ITEM_FLAG_WITH_PARAM |
-                              ITEM_FLAG_WITH_FIELD)) |
-           (args[1]->flags & (ITEM_FLAG_WITH_PARAM)));
-
+  with_flags|= (args[0]->with_flags |
+               (args[1]->with_flags & item_with_t::SP_VAR));
   if ((const_item_cache= args[0]->const_item()))
   {
     cache->store(args[0]);
@@ -1349,7 +1347,7 @@ bool Item_in_optimizer::fix_left(THD *thd)
   {
     /* to avoid overriding is called to update left expression */
     used_tables_and_const_cache_join(args[1]);
-    flags|= args[1]->flags & ITEM_FLAG_WITH_SUM_FUNC;
+    with_flags|= args[1]->with_flags & item_with_t::SUM_FUNC;
   }
   DBUG_RETURN(0);
 }
@@ -1371,7 +1369,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
   if (fix_left(thd))
     return TRUE;
   if (args[0]->maybe_null())
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
 
   if (args[1]->fix_fields_if_needed(thd, args + 1))
     return TRUE;
@@ -1383,12 +1381,11 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
     return TRUE;
   }
 
-  flags|= (ITEM_FLAG_FIXED | ITEM_FLAG_WITH_SUBQUERY |
-           (args[1]->flags & (ITEM_FLAG_MAYBE_NULL |
-                              ITEM_FLAG_WITH_SUM_FUNC |
-                              ITEM_FLAG_WITH_FIELD |
-                              ITEM_FLAG_WITH_PARAM)) |
-            (args[0]->flags & ITEM_FLAG_WITH_PARAM));
+  base_flags|= (item_base_t::FIXED |
+                (args[1]->base_flags & item_base_t::MAYBE_NULL));
+  with_flags|= (item_with_t::SUBQUERY |
+                args[1]->with_flags |
+                (args[0]->with_flags & item_with_t::SP_VAR));
   used_tables_and_const_cache_join(args[1]);
   return FALSE;
 }
@@ -1777,7 +1774,7 @@ longlong Item_func_eq::val_int()
 bool Item_func_equal::fix_length_and_dec()
 {
   bool rc= Item_bool_rowready_func2::fix_length_and_dec();
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  base_flags&= ~item_base_t::MAYBE_NULL;
   null_value=0;
   return rc;
 }
@@ -1931,13 +1928,11 @@ bool Item_func_interval::fix_length_and_dec()
       }
     }
   }
-  flags&= (item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+  base_flags&= ~item_base_t::MAYBE_NULL;
   max_length= 2;
   used_tables_and_const_cache_join(row);
   not_null_tables_cache= row->not_null_tables();
-  flags|= (row->flags & (ITEM_FLAG_WITH_SUM_FUNC |
-                         ITEM_FLAG_WITH_PARAM |
-                         ITEM_FLAG_WITH_FIELD));
+  with_flags|= row->with_flags;
   return FALSE;
 }
 
@@ -2722,7 +2717,7 @@ Item_func_nullif::fix_length_and_dec()
   decimals= args[2]->decimals;
   unsigned_flag= args[2]->unsigned_flag;
   fix_char_length(args[2]->max_char_length());
-  flags|= ITEM_FLAG_MAYBE_NULL;
+  set_maybe_null();
   m_arg0= args[0];
   if (setup_args_and_comparator(thd, &cmp))
     return TRUE;
@@ -3137,7 +3132,7 @@ bool Item_func_case::fix_fields(THD *thd, Item **ref)
 
   Item **pos= else_expr_addr();
   if (!pos || pos[0]->maybe_null())
-    flags|= ITEM_FLAG_MAYBE_NULL;
+    set_maybe_null();
   return res;
 }
 
@@ -4898,7 +4893,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
       return TRUE; /* purecov: inspected */
     item= *li.ref(); // item can be substituted in fix_fields
     used_tables_cache|=     item->used_tables();
-    if (item->const_item() && !item->with_param() &&
+    if (item->const_item() && !item->with_sp_var() &&
         !item->is_expensive() && !cond_has_datetime_is_null(item))
     {
       if (item->eval_const_cond() == is_and_cond && top_level())
@@ -4934,17 +4929,12 @@ Item_cond::fix_fields(THD *thd, Item **ref)
 
       const_item_cache= FALSE;
     } 
-  
-    flags|= (item->flags & (ITEM_FLAG_WITH_SUM_FUNC |
-                            ITEM_FLAG_WITH_PARAM |
-                            ITEM_FLAG_WITH_FIELD |
-                            ITEM_FLAG_WITH_SUBQUERY |
-                            ITEM_FLAG_WITH_WINDOW_FUNC |
-                            ITEM_FLAG_MAYBE_NULL));
+    base_flags|= item->base_flags & item_base_t::MAYBE_NULL;
+    with_flags|= item->with_flags;
   }
   if (fix_length_and_dec())
     return TRUE;
-  flags|= ITEM_FLAG_FIXED;
+  base_flags|= item_base_t::FIXED;
   return FALSE;
 }
 
@@ -4960,7 +4950,7 @@ Item_cond::eval_not_null_tables(void *opt_arg)
   while ((item=li++))
   {
     table_map tmp_table_map;
-    if (item->const_item() && !item->with_param() &&
+    if (item->const_item() && !item->with_sp_var() &&
         !item->is_expensive() && !cond_has_datetime_is_null(item))
     {
       if (item->eval_const_cond() == is_and_cond && top_level())
@@ -6090,14 +6080,14 @@ void Regexp_processor_pcre::fix_owner(Item_func *owner,
   {
     if (compile(pattern_arg, true))
     {
-      owner->flags|= ITEM_FLAG_MAYBE_NULL; // Will always return NULL
+      owner->set_maybe_null(); // Will always return NULL
       return;
     }
     set_const(true);
-    owner->flags|= subject_arg->flags & ITEM_FLAG_MAYBE_NULL;
+    owner->base_flags|= subject_arg->base_flags & item_base_t::MAYBE_NULL;
   }
   else
-    owner->flags|= ITEM_FLAG_MAYBE_NULL;
+    owner->set_maybe_null();
 }
 
 
@@ -7056,7 +7046,7 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
     not_null_tables_cache|= tmp_table_map;
     DBUG_ASSERT(!item->with_sum_func() && !item->with_subquery());
     if (item->maybe_null())
-      flags|= ITEM_FLAG_MAYBE_NULL;
+      set_maybe_null();
     if (!item->get_item_equal())
       item->set_item_equal(this);
     if (link_equal_fields && item->real_item()->type() == FIELD_ITEM)
@@ -7073,7 +7063,7 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
     last_equal_field->next_equal_field= first_equal_field;
   if (fix_length_and_dec())
     return TRUE;
-  flags|= ITEM_FLAG_FIXED;
+  base_flags|= item_base_t::FIXED;
   return FALSE;
 }
 

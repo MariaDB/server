@@ -18731,7 +18731,7 @@ bool Create_tmp_table::add_fields(THD *thd,
               new_field->maybe_null() is still false, it will be
               changed below. But we have to setup Item_field correctly
             */
-            arg->flags|= ITEM_FLAG_MAYBE_NULL;
+            arg->set_maybe_null();
           }
           if (current_counter == distinct)
             new_field->flags|= FIELD_PART_OF_TMP_UNIQUE;
@@ -19133,7 +19133,7 @@ bool Create_tmp_table::finalize(THD *thd,
             that the key,field and item definition match.
           */
           maybe_null= 0;
-          (*cur_group->item)->flags&= (Item::item_flags_t) ~ITEM_FLAG_MAYBE_NULL;
+          (*cur_group->item)->base_flags&= ~item_base_t::MAYBE_NULL;
         }
 
 	if (!(cur_group->field= field->new_key_field(thd->mem_root,table,
@@ -25119,7 +25119,7 @@ count_field_types(SELECT_LEX *select_lex, TMP_TABLE_PARAM *param,
     {
       param->func_count++;
       if (reset_with_sum_func)
-	field->flags&= ~ITEM_FLAG_WITH_SUM_FUNC;
+	field->with_flags&= ~item_with_t::SUM_FUNC;
     }
   }
 }
@@ -26192,7 +26192,7 @@ static bool change_group_ref(THD *thd, Item_func *expr, ORDER *group_list,
     }
     if (arg_changed)
     {
-      expr->flags|= ITEM_FLAG_MAYBE_NULL | ITEM_FLAG_IN_ROLLUP;
+      expr->base_flags|= item_base_t::MAYBE_NULL | item_base_t::IN_ROLLUP;
       *changed= TRUE;
     }
   }
@@ -26263,7 +26263,7 @@ bool JOIN::rollup_init()
     {
       if (*group_tmp->item == item)
       {
-        item->flags|= ITEM_FLAG_MAYBE_NULL | ITEM_FLAG_IN_ROLLUP;
+        item->base_flags|= item_base_t::MAYBE_NULL | item_base_t::IN_ROLLUP;
         found_in_group= 1;
         break;
       }
@@ -26279,7 +26279,7 @@ bool JOIN::rollup_init()
         Marking the expression item as 'with_sum_func' will ensure this.
       */ 
       if (changed)
-        item->flags|= ITEM_FLAG_WITH_SUM_FUNC;
+        item->with_flags|= item_with_t::SUM_FUNC;
     }
   }
   return 0;
@@ -26449,7 +26449,8 @@ bool JOIN::rollup_make_fields(List<Item> &fields_arg, List<Item> &sel_fields,
             Item_null_result *null_item= new (thd->mem_root) Item_null_result(thd);
             if (!null_item)
               return 1;
-	    item->flags|= ITEM_FLAG_MAYBE_NULL;		// Value will be null sometimes
+            // Value will be null sometimes
+	    item->set_maybe_null();
             null_item->result_field= item->get_tmp_table_field();
             item= null_item;
 	    break;

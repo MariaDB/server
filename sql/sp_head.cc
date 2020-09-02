@@ -2994,7 +2994,7 @@ sp_head::show_create_routine_get_fields(THD *thd, const Sp_handler *sph,
 
     Item_empty_string *stmt_fld=
       new (mem_root) Item_empty_string(thd, col3_caption, 1024);
-    stmt_fld->flags|= ITEM_FLAG_MAYBE_NULL;
+    stmt_fld->set_maybe_null();
 
     fields->push_back(stmt_fld, mem_root);
   }
@@ -3070,7 +3070,7 @@ sp_head::show_create_routine(THD *thd, const Sp_handler *sph)
       new (mem_root) Item_empty_string(thd, col3_caption,
                             (uint)MY_MAX(m_defstr.length, 1024));
 
-    stmt_fld->flags|= ITEM_FLAG_MAYBE_NULL;
+    stmt_fld->set_maybe_null();
 
     fields.push_back(stmt_fld, thd->mem_root);
   }
