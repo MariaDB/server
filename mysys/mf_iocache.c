@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates
-   Copyright (c) 2010, 2015, MariaDB
+   Copyright (c) 2010, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -804,7 +804,8 @@ int _my_b_cache_read(IO_CACHE *info, uchar *Buffer, size_t Count)
   info->read_pos=info->buffer+Count;
   info->read_end=info->buffer+length;
   info->pos_in_file=pos_in_file;
-  memcpy(Buffer, info->buffer, Count);
+  if (Count)
+    memcpy(Buffer, info->buffer, Count);
   DBUG_RETURN(0);
 }
 
@@ -1305,7 +1306,8 @@ static int _my_b_cache_read_r(IO_CACHE *cache, uchar *Buffer, size_t Count)
       DBUG_RETURN(1);
     }
     cnt= (len > Count) ? Count : len;
-    memcpy(Buffer, cache->read_pos, cnt);
+    if (cnt)
+      memcpy(Buffer, cache->read_pos, cnt);
     Count -= cnt;
     Buffer+= cnt;
     left_length+= cnt;

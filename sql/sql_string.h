@@ -555,7 +555,8 @@ public:
   }
   void q_append(const char *data, size_t data_len)
   {
-    memcpy(Ptr + str_length, data, data_len);
+    if (data_len)
+      memcpy(Ptr + str_length, data, data_len);
     DBUG_ASSERT(str_length <= UINT_MAX32 - data_len);
     str_length += (uint)data_len;
   }

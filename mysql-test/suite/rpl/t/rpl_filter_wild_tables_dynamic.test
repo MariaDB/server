@@ -13,6 +13,8 @@ SET @@GLOBAL.replicate_wild_ignore_table="test.b%";
 
 connection slave;
 source include/stop_slave.inc;
+SET @@GLOBAL.replicate_wild_do_table="";
+SET @@GLOBAL.replicate_wild_ignore_table="";
 SET @@GLOBAL.replicate_wild_do_table="test.a%";
 SET @@GLOBAL.replicate_wild_ignore_table="test.b%";
 source include/start_slave.inc;

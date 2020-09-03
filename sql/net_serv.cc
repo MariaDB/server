@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2018, MariaDB Corporation.
+   Copyright (c) 2012, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -604,7 +604,8 @@ net_write_buff(NET *net, const uchar *packet, ulong len)
       return net_real_write(net, packet, len) ? 1 : 0;
     /* Send out rest of the blocks as full sized blocks */
   }
-  memcpy((char*) net->write_pos,packet,len);
+  if (len)
+    memcpy((char*) net->write_pos,packet,len);
   net->write_pos+= len;
   return 0;
 }
