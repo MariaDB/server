@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2010, Oracle and/or its affiliates
+   Copyright (c) 2010, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -449,7 +450,8 @@ char *strmake_root(MEM_ROOT *root, const char *str, size_t len)
   char *pos;
   if ((pos=alloc_root(root,len+1)))
   {
-    memcpy(pos,str,len);
+    if (len)
+      memcpy(pos,str,len);
     pos[len]=0;
   }
   return pos;
