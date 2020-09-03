@@ -882,16 +882,15 @@ row_ins_invalidate_query_cache(
 @param[in]	index		clustered index of child table
 @param[in]	node		parent update node
 @param[in]	foreign		foreign key information
-@param[out]	err		error code. */
+@return		error code. */
 static
-void
+dberr_t
 row_ins_foreign_fill_virtual(
 	upd_node_t*		cascade,
 	const rec_t*		rec,
 	dict_index_t*		index,
 	upd_node_t*		node,
-	dict_foreign_t*		foreign,
-	dberr_t*		err)
+	dict_foreign_t*		foreign)
 {
 	THD*		thd = current_thd;
 	row_ext_t*	ext;
@@ -900,10 +899,7 @@ row_ins_foreign_fill_virtual(
 	const rec_offs*	offsets =
 		rec_get_offsets(rec, index, offsets_, true,
 				ULINT_UNDEFINED, &cascade->heap);
-	mem_heap_t*	v_heap = NULL;
 	TABLE*		mysql_table= NULL;
-	VCOL_STORAGE*	vcol_storage= NULL;
-	byte*		record;
 	upd_t*		update = cascade->update;
 	ulint		n_v_fld = index->table->n_v_def;
 	ulint		n_diff;
@@ -923,12 +919,10 @@ row_ins_foreign_fill_virtual(
 		innobase_init_vc_templ(index->table);
 	}
 
-	if (innobase_allocate_row_for_vcol(thd, index, &v_heap,
-                                           &mysql_table,
-                                           &record, &vcol_storage)) {
-		if (v_heap) mem_heap_free(v_heap);
-		*err = DB_OUT_OF_MEMORY;
-		goto func_exit;
+	ib_vcol_row vc(NULL);
+	uchar *record = vc.record(thd, index, &mysql_table);
+	if (!record) {
+		return DB_OUT_OF_MEMORY;
 	}
 
 	for (ulint i = 0; i < n_v_fld; i++) {
@@ -944,12 +938,11 @@ row_ins_foreign_fill_virtual(
 
 		dfield_t*	vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
-				&v_heap, update->heap, NULL, thd, mysql_table,
+				&vc.heap, update->heap, NULL, thd, mysql_table,
                                 record, NULL, NULL, NULL);
 
 		if (vfield == NULL) {
-			*err = DB_COMPUTE_VALUE_FAILED;
-			goto func_exit;
+			return DB_COMPUTE_VALUE_FAILED;
 		}
 
 		upd_field = upd_get_nth_field(update, n_diff);
@@ -974,13 +967,12 @@ row_ins_foreign_fill_virtual(
 
 			dfield_t* new_vfield = innobase_get_computed_value(
 					update->old_vrow, col, index,
-					&v_heap, update->heap, NULL, thd,
+					&vc.heap, update->heap, NULL, thd,
 					mysql_table, record, NULL,
 					node->update, foreign);
 
 			if (new_vfield == NULL) {
-				*err = DB_COMPUTE_VALUE_FAILED;
-				goto func_exit;
+				return DB_COMPUTE_VALUE_FAILED;
 			}
 
 			dfield_copy(&(upd_field->new_val), new_vfield);
@@ -990,14 +982,7 @@ row_ins_foreign_fill_virtual(
 	}
 
 	update->n_fields = n_diff;
-	*err = DB_SUCCESS;
-
-func_exit:
-	if (v_heap) {
-		if (vcol_storage)
-			innobase_free_row_for_vcol(vcol_storage);
-		mem_heap_free(v_heap);
-	}
+	return DB_SUCCESS;
 }
 
 #ifdef WITH_WSREP
@@ -1281,9 +1266,9 @@ row_ins_foreign_check_on_constraint(
 
 		if (foreign->v_cols != NULL
 		    && foreign->v_cols->size() > 0) {
-			row_ins_foreign_fill_virtual(
+			err = row_ins_foreign_fill_virtual(
 				cascade, clust_rec, clust_index,
-				node, foreign, &err);
+				node, foreign);
 
 			if (err != DB_SUCCESS) {
 				goto nonstandard_exit_func;
@@ -1319,9 +1304,9 @@ row_ins_foreign_check_on_constraint(
 			node, foreign, tmp_heap, trx);
 
 		if (foreign->v_cols && !foreign->v_cols->empty()) {
-			row_ins_foreign_fill_virtual(
+			err = row_ins_foreign_fill_virtual(
 				cascade, clust_rec, clust_index,
-				node, foreign, &err);
+				node, foreign);
 
 			if (err != DB_SUCCESS) {
 				goto nonstandard_exit_func;
@@ -1379,20 +1364,20 @@ row_ins_foreign_check_on_constraint(
 		btr_pcur_store_position(cascade->pcur, mtr);
 	}
 
+#ifdef WITH_WSREP
+	err = wsrep_append_foreign_key(trx, foreign, clust_rec, clust_index,
+				       FALSE, WSREP_KEY_EXCLUSIVE);
+	if (err != DB_SUCCESS) {
+		ib::info() << "WSREP: foreign key append failed: " <<  err;
+		goto nonstandard_exit_func;
+	}
+#endif /* WITH_WSREP */
 	mtr_commit(mtr);
 
 	ut_a(cascade->pcur->rel_pos == BTR_PCUR_ON);
 
 	cascade->state = UPD_NODE_UPDATE_CLUSTERED;
 
-#ifdef WITH_WSREP
-	err = wsrep_append_foreign_key(trx, foreign, cascade->pcur->old_rec, clust_index,
-				       FALSE, WSREP_KEY_EXCLUSIVE);
-	if (err != DB_SUCCESS) {
-		fprintf(stderr,
-			"WSREP: foreign key append failed: %d\n", err);
-	} else
-#endif /* WITH_WSREP */
 	err = row_update_cascade_for_mysql(thr, cascade,
 					   foreign->foreign_table);
 
@@ -1928,6 +1913,39 @@ exit_func:
 	DBUG_RETURN(err);
 }
 
+/** Sets the values of the dtuple fields in ref_entry from the values of
+foreign columns in entry.
+@param[in]	foreign		foreign key constraint
+@param[in]	index		clustered index
+@param[in]	entry		tuple of clustered index
+@param[in]	ref_entry	tuple of foreign columns
+@return true if all foreign key fields present in clustered index */
+static
+bool row_ins_foreign_index_entry(dict_foreign_t *foreign,
+                                 const dict_index_t *index,
+                                 const dtuple_t *entry,
+                                 dtuple_t *ref_entry)
+{
+  for (ulint i= 0; i < foreign->n_fields; i++)
+  {
+    for (ulint j= 0; j < index->n_fields; j++)
+    {
+      const char *col_name= dict_table_get_col_name(
+        index->table, dict_index_get_nth_col_no(index, j));
+      if (0 == innobase_strcasecmp(col_name, foreign->foreign_col_names[i]))
+      {
+        dfield_copy(&ref_entry->fields[i], &entry->fields[j]);
+        goto got_match;
+      }
+    }
+    return false;
+got_match:
+    continue;
+  }
+
+  return true;
+}
+
 /***************************************************************//**
 Checks if foreign key constraints fail for an index entry. If index
 is not mentioned in any constraint, this function does nothing,
@@ -1946,9 +1964,10 @@ row_ins_check_foreign_constraints(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	dict_foreign_t*	foreign;
-	dberr_t		err;
+	dberr_t		err = DB_SUCCESS;
 	trx_t*		trx;
 	ibool		got_s_lock	= FALSE;
+	mem_heap_t*	heap = NULL;
 
 	DBUG_ASSERT(index->is_primary() == pk);
 
@@ -1958,13 +1977,36 @@ row_ins_check_foreign_constraints(
 			    "foreign_constraint_check_for_ins");
 
 	for (dict_foreign_set::iterator it = table->foreign_set.begin();
-	     it != table->foreign_set.end();
+	     err == DB_SUCCESS && it != table->foreign_set.end();
 	     ++it) {
 
 		foreign = *it;
 
 		if (foreign->foreign_index == index
 		    || (pk && !foreign->foreign_index)) {
+
+			dtuple_t*	ref_tuple = entry;
+			if (UNIV_UNLIKELY(!foreign->foreign_index)) {
+				/* Change primary key entry to
+				foreign key index entry */
+				if (!heap) {
+					heap = mem_heap_create(1000);
+				} else {
+					mem_heap_empty(heap);
+				}
+
+				ref_tuple = dtuple_create(
+					heap, foreign->n_fields);
+				dtuple_set_n_fields_cmp(
+					ref_tuple, foreign->n_fields);
+				if (!row_ins_foreign_index_entry(
+					foreign, index, entry, ref_tuple)) {
+					err = DB_NO_REFERENCED_ROW;
+					break;
+				}
+
+			}
+
 			dict_table_t*	ref_table = NULL;
 			dict_table_t*	referenced_table
 						= foreign->referenced_table;
@@ -1992,7 +2034,7 @@ row_ins_check_foreign_constraints(
 			table from being dropped while the check is running. */
 
 			err = row_ins_check_foreign_constraint(
-				TRUE, foreign, table, entry, thr);
+				TRUE, foreign, table, ref_tuple, thr);
 
 			if (referenced_table) {
 				foreign->foreign_table->dec_fk_checks();
@@ -2005,15 +2047,14 @@ row_ins_check_foreign_constraints(
 			if (ref_table != NULL) {
 				dict_table_close(ref_table, FALSE, FALSE);
 			}
-
-			if (err != DB_SUCCESS) {
-
-				return(err);
-			}
 		}
 	}
 
-	return(DB_SUCCESS);
+	if (UNIV_LIKELY_NULL(heap)) {
+		mem_heap_free(heap);
+	}
+
+	return err;
 }
 
 /***************************************************************//**

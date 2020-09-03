@@ -1119,10 +1119,6 @@ row_upd_build_difference_binary(
 	for purge/mvcc purpose) */
 	if (n_v_fld > 0) {
 		row_ext_t*	ext;
-		mem_heap_t*	v_heap = NULL;
-		byte*		record;
-		VCOL_STORAGE*	vcol_storage;
-
 		THD*		thd;
 
 		if (trx == NULL) {
@@ -1133,9 +1129,8 @@ row_upd_build_difference_binary(
 
 		ut_ad(!update->old_vrow);
 
-		innobase_allocate_row_for_vcol(thd, index, &v_heap,
-					       &mysql_table,
-					       &record, &vcol_storage);
+		ib_vcol_row vc(NULL);
+		uchar *record = vc.record(thd, index, &mysql_table);
 
 		for (ulint i = 0; i < n_v_fld; i++) {
 			const dict_v_col_t*     col
@@ -1153,10 +1148,9 @@ row_upd_build_difference_binary(
 
 			dfield_t*	vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
-				&v_heap, heap, NULL, thd, mysql_table, record,
+				&vc.heap, heap, NULL, thd, mysql_table, record,
 				NULL, NULL, NULL);
 			if (vfield == NULL) {
-				if (v_heap) mem_heap_free(v_heap);
 				*error = DB_COMPUTE_VALUE_FAILED;
 				return(NULL);
 			}
@@ -1176,12 +1170,6 @@ row_upd_build_difference_binary(
 				dfield_copy(&uf->new_val, dfield);
 				upd_field_set_v_field_no(uf, i, index);
 			}
-		}
-
-		if (v_heap) {
-			if (vcol_storage)
-				innobase_free_row_for_vcol(vcol_storage);
-			mem_heap_free(v_heap);
 		}
 	}
 
@@ -2116,23 +2104,19 @@ row_upd_eval_new_vals(
 @param[in,out]	node		row update node
 @param[in]	update		an update vector if it is update
 @param[in]	thd		mysql thread handle
-@param[in,out]	mysql_table	mysql table object */
+@param[in,out]	mysql_table	mysql table object
+@return true if success
+	false if virtual column value computation fails. */
 static
-void
+bool
 row_upd_store_v_row(
 	upd_node_t*	node,
 	const upd_t*	update,
 	THD*		thd,
 	TABLE*		mysql_table)
 {
-	mem_heap_t*	heap = NULL;
 	dict_index_t*	index = dict_table_get_first_index(node->table);
-        byte*           record= 0;
-	VCOL_STORAGE	*vcol_storage= 0;
-
-	if (!update)
-	  innobase_allocate_row_for_vcol(thd, index, &heap, &mysql_table,
-					 &record, &vcol_storage);
+	ib_vcol_row	vc(NULL);
 
 	for (ulint col_no = 0; col_no < dict_table_get_n_v_cols(node->table);
 	     col_no++) {
@@ -2182,33 +2166,37 @@ row_upd_store_v_row(
 						dfield_dup(dfield, node->heap);
 					}
 				} else {
+					uchar *record = vc.record(thd, index,
+								  &mysql_table);
 					/* Need to compute, this happens when
 					deleting row */
-					innobase_get_computed_value(
-						node->row, col, index,
-						&heap, node->heap, NULL,
-						thd, mysql_table, record, NULL,
-						NULL, NULL);
+					dfield_t* vfield =
+						innobase_get_computed_value(
+							node->row, col, index,
+							&vc.heap, node->heap,
+							NULL, thd, mysql_table,
+							record, NULL, NULL,
+							NULL);
+					if (vfield == NULL) {
+						return false;
+					}
 				}
 			}
 		}
 	}
 
-	if (heap) {
-		if (vcol_storage)
-			innobase_free_row_for_vcol(vcol_storage);
-		mem_heap_free(heap);
-	}
-
+	return true;
 }
 
 /** Stores to the heap the row on which the node->pcur is positioned.
 @param[in]	node		row update node
 @param[in]	thd		mysql thread handle
 @param[in,out]	mysql_table	NULL, or mysql table object when
-				user thread invokes dml */
+				user thread invokes dml
+@return false if virtual column value computation fails
+	true otherwise. */
 static
-void
+bool
 row_upd_store_row(
 	upd_node_t*	node,
 	THD*		thd,
@@ -2252,8 +2240,12 @@ row_upd_store_row(
 			      NULL, NULL, NULL, ext, node->heap);
 
 	if (node->table->n_v_cols) {
-		row_upd_store_v_row(node, node->is_delete ? NULL : node->update,
+		bool ok = row_upd_store_v_row(node,
+				    node->is_delete ? NULL : node->update,
 				    thd, mysql_table);
+		if (!ok) {
+			return false;
+		}
 	}
 
 	if (node->is_delete == PLAIN_DELETE) {
@@ -2268,6 +2260,7 @@ row_upd_store_row(
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
+	return true;
 }
 
 /***********************************************************//**
@@ -2984,9 +2977,12 @@ row_upd_del_mark_clust_rec(
 	/* Store row because we have to build also the secondary index
 	entries */
 
-	row_upd_store_row(node, trx->mysql_thd,
+	if (!row_upd_store_row(node, trx->mysql_thd,
 			  thr->prebuilt  && thr->prebuilt->table == node->table
-			  ? thr->prebuilt->m_mysql_table : NULL);
+			  ? thr->prebuilt->m_mysql_table : NULL)) {
+		err = DB_COMPUTE_VALUE_FAILED;
+		return err;
+	}
 
 	/* Mark the clustered index record deleted; we do not have to check
 	locks, because we assume that we have an x-lock on the record */
@@ -3204,8 +3200,11 @@ row_upd_clust_step(
 		goto exit_func;
 	}
 
-	row_upd_store_row(node, trx->mysql_thd,
-			  thr->prebuilt ? thr->prebuilt->m_mysql_table : NULL);
+	if(!row_upd_store_row(node, trx->mysql_thd,
+			thr->prebuilt ? thr->prebuilt->m_mysql_table : NULL)) {
+		err = DB_COMPUTE_VALUE_FAILED;
+		goto exit_func;
+	}
 
 	if (row_upd_changes_ord_field_binary(index, node->update, thr,
 					     node->row, node->ext)) {

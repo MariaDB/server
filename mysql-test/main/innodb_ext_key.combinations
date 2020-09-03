@@ -1,0 +1,5 @@
+[on]
+optimizer_switch=extended_keys=on
+
+[off]
+optimizer_switch=extended_keys=off

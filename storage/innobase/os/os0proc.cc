@@ -29,6 +29,7 @@ Created 9/30/1995 Heikki Tuuri
 #ifdef HAVE_LINUX_LARGE_PAGES
 # include "mysqld.h"
 #endif
+#include "my_valgrind.h"
 
 /* FreeBSD for example has only MAP_ANON, Linux has MAP_ANONYMOUS and
 MAP_ANON but MAP_ANON is marked as deprecated */

@@ -520,8 +520,7 @@ row_merge_buf_add(
 	ulint			bucket = 0;
 	doc_id_t		write_doc_id;
 	ulint			n_row_added = 0;
-	VCOL_STORAGE*		vcol_storage= 0;
-	byte*			record;
+	VCOL_STORAGE		vcol_storage;
 	DBUG_ENTER("row_merge_buf_add");
 
 	if (buf->n_tuples >= buf->max_tuples) {
@@ -555,23 +554,16 @@ row_merge_buf_add(
 
 	for (i = 0; i < n_fields; i++, field++, ifield++) {
 		ulint			len;
-		const dict_col_t*	col;
-		ulint			col_no;
 		ulint			fixed_len;
 		const dfield_t*		row_field;
-
-		col = ifield->col;
-		const dict_v_col_t*	v_col = NULL;
-		if (col->is_virtual()) {
-			v_col = reinterpret_cast<const dict_v_col_t*>(col);
-		}
-
-		col_no = dict_col_get_no(col);
+		const dict_col_t* const col = ifield->col;
+		const dict_v_col_t* const v_col = col->is_virtual()
+			? reinterpret_cast<const dict_v_col_t*>(col)
+			: NULL;
 
 		/* Process the Doc ID column */
-		if (*doc_id > 0
-		    && col_no == index->table->fts->doc_col
-		    && !col->is_virtual()) {
+		if (!v_col && *doc_id
+		    && col->ind == index->table->fts->doc_col) {
 			fts_write_doc_id((byte*) &write_doc_id, *doc_id);
 
 			/* Note: field->data now points to a value on the
@@ -590,12 +582,15 @@ row_merge_buf_add(
 			field->type.len = ifield->col->len;
 		} else {
 			/* Use callback to get the virtual column value */
-			if (col->is_virtual()) {
+			if (v_col) {
 				dict_index_t*	clust_index
 					= dict_table_get_first_index(new_table);
 
-                                if (!vcol_storage &&
-                                    innobase_allocate_row_for_vcol(trx->mysql_thd, clust_index, v_heap, &my_table, &record, &vcol_storage)) {
+                                if (!vcol_storage.innobase_record &&
+                                    !innobase_allocate_row_for_vcol(
+						trx->mysql_thd, clust_index,
+						v_heap, &my_table,
+						&vcol_storage)) {
 					*err = DB_OUT_OF_MEMORY;
 					goto error;
 				}
@@ -603,8 +598,8 @@ row_merge_buf_add(
 				row_field = innobase_get_computed_value(
 					row, v_col, clust_index,
 					v_heap, NULL, ifield, trx->mysql_thd,
-					my_table, record, old_table, NULL,
-					NULL);
+					my_table, vcol_storage.innobase_record, 
+					old_table, NULL, NULL);
 
 				if (row_field == NULL) {
 					*err = DB_COMPUTE_VALUE_FAILED;
@@ -612,7 +607,8 @@ row_merge_buf_add(
 				}
 				dfield_copy(field, row_field);
 			} else {
-				row_field = dtuple_get_nth_field(row, col_no);
+				row_field = dtuple_get_nth_field(row,
+								 col->ind);
 				dfield_copy(field, row_field);
 			}
 
@@ -718,7 +714,7 @@ row_merge_buf_add(
 		} else if (!ext) {
 		} else if (dict_index_is_clust(index)) {
 			/* Flag externally stored fields. */
-			const byte*	buf = row_ext_lookup(ext, col_no,
+			const byte*	buf = row_ext_lookup(ext, col->ind,
 							     &len);
 			if (UNIV_LIKELY_NULL(buf)) {
 				ut_a(buf != field_ref_zero);
@@ -729,9 +725,9 @@ row_merge_buf_add(
 					len = dfield_get_len(field);
 				}
 			}
-		} else if (!col->is_virtual()) {
+		} else if (!v_col) {
 			/* Only non-virtual column are stored externally */
-			const byte*	buf = row_ext_lookup(ext, col_no,
+			const byte*	buf = row_ext_lookup(ext, col->ind,
 							     &len);
 			if (UNIV_LIKELY_NULL(buf)) {
 				ut_a(buf != field_ref_zero);
@@ -846,13 +842,13 @@ row_merge_buf_add(
 	}
 
 end:
-        if (vcol_storage)
-		innobase_free_row_for_vcol(vcol_storage);
+        if (vcol_storage.innobase_record)
+		innobase_free_row_for_vcol(&vcol_storage);
 	DBUG_RETURN(n_row_added);
 
 error:
-        if (vcol_storage)
-		innobase_free_row_for_vcol(vcol_storage);
+        if (vcol_storage.innobase_record)
+		innobase_free_row_for_vcol(&vcol_storage);
         DBUG_RETURN(0);
 }
 
