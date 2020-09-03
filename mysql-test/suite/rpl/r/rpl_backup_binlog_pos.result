@@ -1,0 +1,29 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t(i INT) ENGINE INNODB;
+connection slave;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,xid_log_event_wait_before_commit';
+connection master;
+INSERT INTO t VALUES(0);
+connection slave;
+SET DEBUG_SYNC='now WAIT_FOR xid_log_event_before_commit';
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_COMMIT;
+# Get binlog position before binlog flush
+SET DEBUG_SYNC='now SIGNAL xid_log_event_commit WAIT_FOR binlog_flushed';
+# Get binlog position after binlog flush
+SET GLOBAL debug_dbug=@saved_debug;
+SET DEBUG_SYNC='RESET';
+#############
+# Binlog position must not be changed under BLOCK_COMMIT lock,
+# the following result must be equal to 1
+######################
+SELECT @pos_before = @pos_after;
+@pos_before = @pos_after
+1
+BACKUP STAGE END;
+connection master;
+DROP TABLE t;
+connection slave;
+include/rpl_end.inc

@@ -9049,6 +9049,17 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
   general_log_print(thd, COM_QUERY,
                     "COMMIT /* implicit, from Xid_log_event */");
   thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("xid_log_event_wait_before_commit", {
+    DBUG_ASSERT(debug_sync_service);
+    DBUG_ASSERT(!debug_sync_set_action(
+        thd, STRING_WITH_LEN("now SIGNAL xid_log_event_before_commit "
+                             "WAIT_FOR xid_log_event_commit")));
+    DBUG_ASSERT(!debug_sync_set_action(
+        thd, STRING_WITH_LEN("ha_commit_trans_after_log_and_order "
+                             "SIGNAL binlog_flushed")));
+  });
+#endif
   res= trans_commit(thd); /* Automatically rolls back on error. */
   thd->mdl_context.release_transactional_locks();
 #ifdef WITH_WSREP

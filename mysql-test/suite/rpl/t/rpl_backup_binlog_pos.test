@@ -1,0 +1,46 @@
+--source include/master-slave.inc
+--source include/have_debug.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t(i INT) ENGINE INNODB;
+
+--connection slave
+
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+# Slave thread will freeze before Xid_log_event commit
+SET GLOBAL debug_dbug= '+d,xid_log_event_wait_before_commit';
+
+--connection master
+INSERT INTO t VALUES(0);
+
+--connection slave
+# Wait for slave thread to executed all Xid_log_event code before commit
+SET DEBUG_SYNC='now WAIT_FOR xid_log_event_before_commit';
+
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_COMMIT;
+--echo # Get binlog position before binlog flush
+--let $pos_before= query_get_value(SHOW MASTER STATUS,Position,1)
+SET DEBUG_SYNC='now SIGNAL xid_log_event_commit WAIT_FOR binlog_flushed';
+--echo # Get binlog position after binlog flush
+--let $pos_after= query_get_value(SHOW MASTER STATUS,Position,1)
+SET GLOBAL debug_dbug=@saved_debug;
+SET DEBUG_SYNC='RESET';
+
+--disable_query_log
+--eval SET @pos_before=$pos_before
+--eval SET @pos_after=$pos_after
+--enable_query_log
+
+--echo #############
+--echo # Binlog position must not be changed under BLOCK_COMMIT lock,
+--echo # the following result must be equal to 1
+--echo ######################
+SELECT @pos_before = @pos_after;
+
+BACKUP STAGE END;
+
+--connection master
+DROP TABLE t;
+--sync_slave_with_master
+--source include/rpl_end.inc
