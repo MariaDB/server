@@ -35,7 +35,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "btr0sea.h"
 #include "lock0lock.h"
 #include "log0log.h"
-#include "os0proc.h"
 #include "que0que.h"
 #include "srv0mon.h"
 #include "srv0srv.h"

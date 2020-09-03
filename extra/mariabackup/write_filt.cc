@@ -28,7 +28,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "write_filt.h"
 #include "fil_cur.h"
 #include "xtrabackup.h"
-#include <os0proc.h>
 
 /************************************************************************
 Write-through page write filter. */
