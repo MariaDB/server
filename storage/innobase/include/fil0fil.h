@@ -93,18 +93,6 @@ struct fil_space_t : ilist_node<unflushed_spaces_tag_t>,
 	/** Log sequence number of the latest MLOG_INDEX_LOAD record
 	that was found while parsing the redo log */
 	lsn_t		enable_lsn;
-	bool		stop_new_ops;
-				/*!< we set this true when we start
-				deleting a single-table tablespace.
-				When this is set following new ops
-				are not allowed:
-				* read IO request
-				* ibuf merge
-				* file flush
-				Note that we can still possibly have
-				new write operations because we don't
-				check this flag when doing flush
-				batches. */
 	/** whether undo tablespace truncation is in progress */
 	bool		is_being_truncated;
 #ifdef UNIV_DEBUG
@@ -142,14 +130,24 @@ struct fil_space_t : ilist_node<unflushed_spaces_tag_t>,
 	ulint		n_pending_flushes; /*!< this is positive when flushing
 				the tablespace to disk; dropping of the
 				tablespace is forbidden if this is positive */
-	/** Number of pending buffer pool operations accessing the tablespace
-	without holding a table lock or dict_operation_lock S-latch
-	that would prevent the table (and tablespace) from being
-	dropped. An example is change buffer merge.
-	The tablespace cannot be dropped while this is nonzero,
-	or while fil_node_t::n_pending is nonzero.
-	Protected by fil_system.mutex and my_atomic_loadlint() and friends. */
-	ulint		n_pending_ops;
+private:
+  /** Number of pending buffer pool operations accessing the
+  tablespace without holding a table lock or dict_operation_lock
+  S-latch that would prevent the table (and tablespace) from being
+  dropped. An example is change buffer merge.
+
+  The tablespace cannot be dropped while this is nonzero, or while
+  fil_node_t::n_pending is nonzero.
+
+  The most significant bit contains the STOP_NEW_OPS flag.
+
+  Protected by my_atomic. */
+  uint32_t n_pending_ops;
+
+  /** Flag in n_pending_ops that indicates that the tablespace is being
+  deleted, and no further operations should be performed */
+  static const uint32_t STOP_NEW_OPS= 1U << 31;
+public:
 	/** Number of pending block read or write operations
 	(when a write is imminent or a read has recently completed).
 	The tablespace object cannot be freed while this is nonzero,
@@ -182,9 +180,6 @@ struct fil_space_t : ilist_node<unflushed_spaces_tag_t>,
 	bool		punch_hole;
 
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
-
-	/** @return whether the tablespace is about to be dropped */
-	bool is_stopping() const { return stop_new_ops;	}
 
   /** Clamp a page number for batched I/O, such as read-ahead.
   @param offset   page number limit
@@ -267,39 +262,78 @@ struct fil_space_t : ilist_node<unflushed_spaces_tag_t>,
 	/** Close each file. Only invoked on fil_system.temp_space. */
 	void close();
 
-	/** Acquire a tablespace reference. */
-	void acquire() { my_atomic_addlint(&n_pending_ops, 1); }
-	/** Release a tablespace reference.
-	@return whether this was the last reference */
-	bool release()
-	{
-		ulint n = my_atomic_addlint(&n_pending_ops, ulint(-1));
-		ut_ad(n);
-		return n == 1;
-	}
-	/** @return whether references are being held */
-	bool referenced() { return my_atomic_loadlint(&n_pending_ops); }
-	/** @return whether references are being held */
-	bool referenced() const
-	{
-		return const_cast<fil_space_t*>(this)->referenced();
-	}
+  /** @return whether the tablespace is about to be dropped or is referenced */
+  uint32_t is_stopping_or_referenced()
+  {
+    return my_atomic_load32(&n_pending_ops);
+  }
 
-	/** Acquire a tablespace reference for I/O. */
-	void acquire_for_io() { my_atomic_addlint(&n_pending_ios, 1); }
-	/** Release a tablespace reference for I/O. */
-	void release_for_io()
-	{
-		ut_ad(pending_io());
-		my_atomic_addlint(&n_pending_ios, ulint(-1));
-	}
-	/** @return whether I/O is pending */
-	bool pending_io() { return my_atomic_loadlint(&n_pending_ios); }
-	/** @return whether I/O is pending */
-	bool pending_io() const
-	{
-		return const_cast<fil_space_t*>(this)->pending_io();
-	}
+  /** @return whether the tablespace is about to be dropped or is referenced */
+  uint32_t is_stopping_or_referenced() const
+  {
+    return const_cast<fil_space_t*>(this)->is_stopping_or_referenced();
+  }
+
+  /** @return whether the tablespace is about to be dropped */
+  bool is_stopping() const
+  {
+    return is_stopping_or_referenced() & STOP_NEW_OPS;
+  }
+
+  /** @return number of references being held */
+  uint32_t referenced() const
+  {
+    return is_stopping_or_referenced() & ~STOP_NEW_OPS;
+  }
+
+  /** Note that operations on the tablespace must stop or can resume */
+  void set_stopping(bool stopping)
+  {
+    /* Note: starting with 10.4 this should be std::atomic::fetch_xor() */
+    uint32_t n= stopping ? 0 : STOP_NEW_OPS;
+    while (!my_atomic_cas32_strong_explicit(&n_pending_ops, &n,
+                                            n ^ STOP_NEW_OPS,
+                                            MY_MEMORY_ORDER_ACQUIRE,
+                                            MY_MEMORY_ORDER_RELAXED))
+      ut_ad(!(n & STOP_NEW_OPS) == stopping);
+  }
+
+  MY_ATTRIBUTE((warn_unused_result))
+  /** @return whether a tablespace reference was successfully acquired */
+  bool acquire()
+  {
+    uint32_t n= 0;
+    while (!my_atomic_cas32_strong_explicit(&n_pending_ops, &n, n + 1,
+                                            MY_MEMORY_ORDER_ACQUIRE,
+                                            MY_MEMORY_ORDER_RELAXED))
+      if (UNIV_UNLIKELY(n & STOP_NEW_OPS))
+        return false;
+    return true;
+  }
+  /** Release a tablespace reference.
+  @return whether this was the last reference */
+  bool release()
+  {
+    uint32_t n= my_atomic_add32(&n_pending_ops, uint32_t(-1));
+    ut_ad(n & ~STOP_NEW_OPS);
+    return (n & ~STOP_NEW_OPS) == 1;
+  }
+
+  /** Acquire a tablespace reference for I/O. */
+  void acquire_for_io() { my_atomic_addlint(&n_pending_ios, 1); }
+  /** Release a tablespace reference for I/O. */
+  void release_for_io()
+  {
+    ut_d(ulint n=) my_atomic_addlint(&n_pending_ios, ulint(-1));
+    ut_ad(n);
+  }
+  /** @return whether I/O is pending */
+  bool pending_io() { return my_atomic_loadlint(&n_pending_ios); }
+  /** @return whether I/O is pending */
+  bool pending_io() const
+  {
+    return const_cast<fil_space_t*>(this)->pending_io();
+  }
 };
 
 /** Value of fil_space_t::magic_n */
