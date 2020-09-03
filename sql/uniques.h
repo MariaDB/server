@@ -45,31 +45,9 @@ class Unique :public Sql_alloc
                             always 0 for unions, > 0 for intersections */
   bool with_counters;
   /*
-    TRUE  :  Value stored is of variable size
-    FALSE :  Value stored is of fixed size
-  */
-  bool packed;
-  /*
     size in bytes used for storing keys in the Unique tree
   */
   size_t memory_used;
-  /*
-    Packed record ptr for a record of the table, the packed value in this
-    record is added to the unique tree
-  */
-  uchar* packed_rec_ptr;
-
-  /*
-    Array of SORT_FIELD structure storing the information about the key parts
-    in the sort key of the Unique tree
-    @see Unique::setup()
-  */
-  SORT_FIELD *sortorder;
-
-  /*
-    Structure storing information about usage of keys
-  */
-  Sort_keys *sort_keys;
 
   bool merge(TABLE *table, uchar *buff, size_t size, bool without_last_merge);
   bool flush();
@@ -94,8 +72,8 @@ public:
   SORT_INFO sort;
   Unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
          uint size_arg, size_t max_in_memory_size_arg,
-         uint min_dupl_count_arg= 0, bool packed_arg= false);
-  ~Unique();
+         uint min_dupl_count_arg= 0);
+  virtual ~Unique();
   ulong elements_in_tree() { return tree.elements_in_tree; }
 
   /*
@@ -160,14 +138,94 @@ public:
   uint get_size() const { return size; }
   uint get_full_size() const { return full_size; }
   size_t get_max_in_memory_size() const { return max_in_memory_size; }
+  bool is_count_stored() { return with_counters; }
+  IO_CACHE *get_file ()  { return &file; }
+  virtual uchar *get_packed_rec_ptr()
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
+  virtual Sort_keys *get_keys()
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
+  virtual SORT_FIELD *get_sortorder()
+  {
+    DBUG_ASSERT(0);
+    return NULL;
+  }
+  virtual bool setup(THD *thd, Item_sum *item, uint non_const_args,
+                     uint arg_count, bool exclude_nulls)
+  {
+    return false;
+  }
+
+  virtual bool setup(THD *thd, Field *field)
+  {
+    return false;
+  }
+
+  virtual int compare_packed_keys(uchar *a, uchar *b)
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
+
+  virtual uint get_length(uchar *ptr, bool exclude_nulls)
+  {
+    return size;
+  }
+  virtual int write_record_to_file(uchar *key);
+
+  // returns TRUE if the unique tree stores packed values
+  virtual bool is_packed() { return false; }
+
+  friend int unique_write_to_file(uchar* key, element_count count, Unique *unique);
+  friend int unique_write_to_ptrs(uchar* key, element_count count, Unique *unique);
+
+  friend int unique_write_to_file_with_count(uchar* key, element_count count,
+                                             Unique *unique);
+  friend int unique_intersect_write_to_ptrs(uchar* key, element_count count,
+				            Unique *unique);
+};
+
+
+class Unique_packed : public Unique
+{
+  /*
+    Packed record ptr for a record of the table, the packed value in this
+    record is added to the unique tree
+  */
+  uchar* packed_rec_ptr;
+
+  /*
+    Array of SORT_FIELD structure storing the information about the key parts
+    in the sort key of the Unique tree
+    @see Unique::setup()
+  */
+  SORT_FIELD *sortorder;
+
+  /*
+    Structure storing information about usage of keys
+  */
+  Sort_keys *sort_keys;
+
+  public:
+  Unique_packed(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
+                uint size_arg, size_t max_in_memory_size_arg,
+                uint min_dupl_count_arg);
+
+  ~Unique_packed();
+  bool is_packed() { return true; }
   uchar *get_packed_rec_ptr() { return packed_rec_ptr; }
   Sort_keys *get_keys() { return sort_keys; }
   SORT_FIELD *get_sortorder() { return sortorder; }
-  bool is_count_stored() { return with_counters; }
-
-  // returns TRUE if the unique tree stores packed values
-  bool is_packed() { return packed; }
-
+  bool setup(THD *thd, Item_sum *item, uint non_const_args,
+             uint arg_count, bool exclude_nulls);
+  bool setup(THD *thd, Field *field);
+  int compare_packed_keys(uchar *a, uchar *b);
+  int write_record_to_file(uchar *key);
   static void store_packed_length(uchar *p, uint sz)
   {
     int4store(p, sz - size_of_length_field);
@@ -179,29 +237,10 @@ public:
     return size_of_length_field + uint4korr(p);
   }
 
-  bool setup(THD *thd, Item_sum *item, uint non_const_args,
-             uint arg_count, bool exclude_nulls);
-  bool setup(THD *thd, Field *field);
-  int compare_packed_keys(uchar *a, uchar *b);
-
-  /*
-    TODO varun:
-    Currently the size_of_length_field is set to 4 but we can also use 2 here,
-    as fields are always inserted in the unique tree either from the base table
-    or from the temp table.
-    This does not look possible as the merge process
-    in merge buffers expect the length of dynmice sort keys to be stored in
-    4 bytes, maybe this needs to be discussed
-  */
   static const uint size_of_length_field= 4;
-
-  friend int unique_write_to_file(uchar* key, element_count count, Unique *unique);
-  friend int unique_write_to_ptrs(uchar* key, element_count count, Unique *unique);
-
-  friend int unique_write_to_file_with_count(uchar* key, element_count count,
-                                             Unique *unique);
-  friend int unique_intersect_write_to_ptrs(uchar* key, element_count count, 
-				            Unique *unique);
 };
+
+
+
 
 #endif /* UNIQUE_INCLUDED */

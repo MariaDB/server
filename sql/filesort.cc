@@ -2589,7 +2589,7 @@ uint32 Sort_param::get_record_length_for_unique(uchar *to,
                                                 uint size_of_dupl_count)
 {
   return using_packed_sortkeys() ?
-         Unique::read_packed_length(to) + size_of_dupl_count :
+         Unique_packed::read_packed_length(to) + size_of_dupl_count :
          rec_length;
 }
 

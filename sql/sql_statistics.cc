@@ -1574,8 +1574,8 @@ public:
       if (column->is_packable())
       {
         column->unpack(column->ptr,
-                       to + Unique::size_of_length_field,
-                       to + Unique::read_packed_length(to), 0);
+                       to + Unique_packed::size_of_length_field,
+                       to + Unique_packed::read_packed_length(to), 0);
       }
       else
         column->store_field_value(to, col_length);
@@ -1692,9 +1692,9 @@ public:
     {
       tree_key_length= table_field->max_packed_col_length(table_field->pack_length());
 
-      tree_key_length+= Unique::size_of_length_field;
-      tree= new Unique((qsort_cmp2) simple_packed_str_key_cmp, (void*) this,
-                       tree_key_length, max_heap_table_size, 1, TRUE);
+      tree_key_length+= Unique_packed::size_of_length_field;
+      tree= new Unique_packed((qsort_cmp2) simple_packed_str_key_cmp, (void*) this,
+                       tree_key_length, max_heap_table_size, 1);
     }
     else
     {
@@ -1703,13 +1703,13 @@ public:
         tree_key_length= sizeof(ulonglong);
         tree= new Unique((qsort_cmp2) simple_ulonglong_key_cmp,
                          (void*) &tree_key_length,
-                         tree_key_length, max_heap_table_size, 1, FALSE);
+                         tree_key_length, max_heap_table_size, 1);
       }
       else
       {
         tree_key_length= table_field->pack_length();
         tree= new Unique((qsort_cmp2) simple_str_key_cmp, (void*) table_field,
-                         tree_key_length, max_heap_table_size, 1, FALSE);
+                         tree_key_length, max_heap_table_size, 1);
       }
     }
     if (!tree)
@@ -1734,10 +1734,10 @@ public:
     {
       uchar *to;
       orig_to= to= tree->get_packed_rec_ptr();
-      to+= Unique::size_of_length_field;
+      to+= Unique_packed::size_of_length_field;
       to+= table_field->make_packed_record_field(to);
       length= static_cast<uint>(to - orig_to);
-      Unique::store_packed_length(orig_to, length);
+      Unique_packed::store_packed_length(orig_to, length);
     }
     return tree->unique_add(orig_to, length);
   }

@@ -903,9 +903,13 @@ bool Aggregator_distinct::setup(THD *thd)
       }
 
       DBUG_ASSERT(tree == 0);
-      tree= new Unique(compare_key, cmp_arg, tree_key_length,
-                       item_sum->ram_limitation(thd), 0, allow_packing);
-      /*
+      if (allow_packing)
+        tree= new Unique_packed(compare_key, cmp_arg, tree_key_length,
+                                item_sum->ram_limitation(thd), 0);
+      else
+        tree= new Unique(compare_key, cmp_arg, tree_key_length,
+                         item_sum->ram_limitation(thd), 0);
+        /*
         The only time tree_key_length could be 0 is if someone does
         count(distinct) on a char(0) field - stupid thing to do,
         but this has to be handled - otherwise someone can crash
@@ -1040,7 +1044,7 @@ bool Aggregator_distinct::add()
         return false;
       packed_length= static_cast<uint>(to - orig_to);
       DBUG_ASSERT(packed_length <= tree->get_size());
-      Unique::store_packed_length(orig_to, packed_length);
+      Unique_packed::store_packed_length(orig_to, packed_length);
     }
     else
     {
@@ -1862,7 +1866,7 @@ bool Aggregator_distinct::is_distinct_packed()
 */
 uchar *Aggregator_distinct::make_packed_record(uchar *to)
 {
-  to+= Unique::size_of_length_field;
+  to+= Unique_packed::size_of_length_field;
 
   for (Field **field=table->field ; *field ; field++)
   {
@@ -3919,7 +3923,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   {
     pos= item->unique_filter->get_sortorder();
     key_end= key + item->unique_filter->get_full_size();
-    key+= Unique::size_of_length_field;
+    key+= Unique_packed::size_of_length_field;
   }
 
   ulonglong *offset_limit= &item->copy_offset_limit;
@@ -4313,7 +4317,7 @@ bool Item_func_group_concat::add(bool exclude_nulls)
   if (is_distinct_packed())
   {
     orig_to= to= unique_filter->get_packed_rec_ptr();
-    to+= Unique::size_of_length_field;
+    to+= Unique_packed::size_of_length_field;
   }
 
   for (uint i= 0; i < arg_count_field; i++)
@@ -4370,7 +4374,7 @@ bool Item_func_group_concat::add(bool exclude_nulls)
     if (unique_filter->is_packed())
     {
       packed_length= static_cast<uint>(to - orig_to);
-      Unique::store_packed_length(orig_to, packed_length);
+      Unique_packed::store_packed_length(orig_to, packed_length);
     }
     /* Filter out duplicate rows. */
     uint count= unique_filter->elements_in_tree();
@@ -4608,10 +4612,20 @@ bool Item_func_group_concat::setup(THD *thd)
 
   if (distinct)
   {
-    unique_filter= new Unique(get_comparator_function_for_distinct(allow_packing),
-                              (void*)this,
-                              tree_key_length + get_null_bytes(),
-                              ram_limitation(thd), 0, allow_packing);
+    if (allow_packing)
+    {
+      unique_filter= new Unique_packed(get_comparator_function_for_distinct(allow_packing),
+                                       (void*)this,
+                                       tree_key_length + get_null_bytes(),
+                                       ram_limitation(thd), 0);
+    }
+    else
+    {
+      unique_filter= new Unique(get_comparator_function_for_distinct(allow_packing),
+                                (void*)this,
+                                tree_key_length + get_null_bytes(),
+                                ram_limitation(thd), 0);
+    }
 
     if (!unique_filter || unique_filter->setup(thd, this, non_const_items,
                                                arg_count_field, skip_nulls()))
@@ -4824,7 +4838,7 @@ bool Item_sum::is_packing_allowed(TABLE *table, uint* total_length)
     Unique::size_of_lengt_field is the length bytes to store the packed length
     for each record inserted in the Unique tree
   */
-  (*total_length)+= Unique::size_of_length_field + size_of_packable_fields;
+  (*total_length)+= Unique_packed::size_of_length_field + size_of_packable_fields;
   return true;
 }
 

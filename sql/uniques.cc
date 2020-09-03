@@ -48,9 +48,7 @@ int unique_write_to_file(uchar* key, element_count count, Unique *unique)
     when tree implementation chooses to store pointer to key in TREE_ELEMENT
     (instead of storing the element itself there)
   */
-  return (unique->is_packed() ?
-          my_b_write(&unique->file, key, Unique::read_packed_length(key)) :
-          my_b_write(&unique->file, key, unique->size)) ? 1 : 0;
+  return  unique->write_record_to_file(key) ? 1 : 0;
 }
 
 int unique_write_to_file_with_count(uchar* key, element_count count, Unique *unique)
@@ -80,15 +78,12 @@ int unique_intersect_write_to_ptrs(uchar* key, element_count count, Unique *uniq
 
 
 Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
-	       uint size_arg, size_t max_in_memory_size_arg,
-               uint min_dupl_count_arg, bool packed_arg)
+	             uint size_arg, size_t max_in_memory_size_arg,
+               uint min_dupl_count_arg)
   :max_in_memory_size(max_in_memory_size_arg),
    size(size_arg),
-   packed(packed_arg),
-   memory_used(0), packed_rec_ptr(NULL),
-   sortorder(NULL), sort_keys(NULL),
+   memory_used(0),
    elements(0)
-
 {
   my_b_clear(&file);
   min_dupl_count= min_dupl_count_arg;
@@ -101,13 +96,6 @@ Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
   /* If the following fail's the next add will also fail */
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &file_ptrs, sizeof(Merge_chunk), 16,
                         16, MYF(MY_THREAD_SPECIFIC));
-
-  if (packed)
-  {
-    packed_rec_ptr= (uchar *)my_malloc(PSI_INSTRUMENT_ME,
-                                       size,
-                                       MYF(MY_WME | MY_THREAD_SPECIFIC));
-  }
   /*
     If you change the following, change it in get_max_elements function, too.
   */
@@ -391,7 +379,6 @@ Unique::~Unique()
   close_cached_file(&file);
   delete_tree(&tree, 0);
   delete_dynamic(&file_ptrs);
-  my_free(packed_rec_ptr);
 }
 
 
@@ -831,7 +818,7 @@ bool Unique::get(TABLE *table)
   sort.return_rows= elements+tree.elements_in_tree;
   DBUG_ENTER("Unique::get");
 
-  DBUG_ASSERT(packed == FALSE);
+  DBUG_ASSERT(is_packed() == FALSE);
 
   if (my_b_tell(&file) == 0)
   {
@@ -877,6 +864,25 @@ err:
 }
 
 
+Unique_packed::Unique_packed(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
+                            uint size_arg, size_t max_in_memory_size_arg,
+                            uint min_dupl_count_arg):
+  Unique(comp_func, comp_func_fixed_arg, size_arg,
+         max_in_memory_size_arg, min_dupl_count_arg),
+  packed_rec_ptr(NULL),
+  sortorder(NULL), sort_keys(NULL)
+{
+  packed_rec_ptr= (uchar *)my_malloc(PSI_INSTRUMENT_ME,
+                                     size_arg,
+                                     MYF(MY_WME | MY_THREAD_SPECIFIC));
+}
+
+Unique_packed::~Unique_packed()
+{
+  my_free(packed_rec_ptr);
+}
+
+
 /*
   @brief
     Setup the structures that are used when Unique stores packed values
@@ -898,11 +904,9 @@ err:
 */
 
 bool
-Unique::setup(THD *thd, Item_sum *item, uint non_const_args,
-              uint arg_count, bool exclude_nulls)
+Unique_packed::setup(THD *thd, Item_sum *item, uint non_const_args,
+                     uint arg_count, bool exclude_nulls)
 {
-  if (!packed)   // no packing so don't create the sortorder list
-    return false;
   SORT_FIELD *sort,*pos;
   if (sortorder)
     return false;
@@ -943,11 +947,8 @@ Unique::setup(THD *thd, Item_sum *item, uint non_const_args,
     FALSE setup successful
 */
 
-bool Unique::setup(THD *thd, Field *field)
+bool Unique_packed::setup(THD *thd, Field *field)
 {
-  if (!packed)   // no packing so don't create the sortorder list
-    return false;
-
   SORT_FIELD *sort,*pos;
   if (sortorder)
     return false;
@@ -981,8 +982,19 @@ bool Unique::setup(THD *thd, Field *field)
 
 */
 
-int Unique::compare_packed_keys(uchar *a_ptr, uchar *b_ptr)
+int Unique_packed::compare_packed_keys(uchar *a_ptr, uchar *b_ptr)
 {
-  return sort_keys->compare_keys(a_ptr + Unique::size_of_length_field,
-                                 b_ptr + Unique::size_of_length_field);
+  return sort_keys->compare_keys(a_ptr + size_of_length_field,
+                                 b_ptr + size_of_length_field);
+}
+
+int Unique::write_record_to_file(uchar *key)
+{
+  return my_b_write(get_file(), key, size);
+}
+
+
+int Unique_packed::write_record_to_file(uchar *key)
+{
+  return my_b_write(get_file(), key, read_packed_length(key));
 }
