@@ -81,7 +81,7 @@ class Type_handler_hybrid_field_type;
 class Sort_param;
 class Arg_comparator;
 class Spvar_definition;
-struct st_value;
+class st_value;
 class Protocol;
 class handler;
 struct TABLE;

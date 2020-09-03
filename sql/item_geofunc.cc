@@ -100,12 +100,12 @@ String *Item_func_geometry_from_wkb::val_str(String *str)
     srid= (uint32)args[1]->val_int();
 
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
   {
     null_value= TRUE;                           /* purecov: inspected */
     return 0;                                   /* purecov: inspected */
   }
-  str->length(0);
   str->q_append(srid);
   if ((null_value= 
         (args[0]->null_value ||
@@ -144,9 +144,9 @@ String *Item_func_geometry_from_json::val_str(String *str)
     srid= (uint32)args[2]->val_int();
 
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
     return 0;
-  str->length(0);
   str->q_append(srid);
 
   json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
@@ -456,9 +456,9 @@ String *Item_func_boundary::val_str(String *str_value)
     goto mem_error;
 
   str_value->set_charset(&my_charset_bin);
+  str_value->length(0);
   if (str_value->reserve(SRID_SIZE, 512))
     goto mem_error;
-  str_value->length(0);
   str_value->q_append(srid);
 
   if (!Geometry::create_from_opresult(&buffer, str_value, res_receiver))
@@ -487,9 +487,9 @@ String *Item_func_centroid::val_str(String *str)
     return 0;
 
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
     return 0;
-  str->length(0);
   srid= uint4korr(swkb->ptr());
   str->q_append(srid);
 
@@ -616,9 +616,9 @@ String *Item_func_convexhull::val_str(String *str_value)
 
 build_result:
   str_value->set_charset(&my_charset_bin);
+  str_value->length(0);
   if (str_value->reserve(SRID_SIZE, 512))
     goto mem_error;
-  str_value->length(0);
   str_value->q_append(srid);
 
   if (!Geometry::create_from_opresult(&buffer, str_value, res_receiver))
@@ -762,9 +762,9 @@ skip_point:;
 
 build_result:
   str_value->set_charset(&my_charset_bin);
+  str_value->length(0);
   if (str_value->reserve(SRID_SIZE, 512))
     goto mem_error;
-  str_value->length(0);
   str_value->q_append(srid);
 
   if (!Geometry::create_from_opresult(&buffer, str_value, res_receiver))
@@ -800,9 +800,9 @@ String *Item_func_spatial_decomp::val_str(String *str)
 
   srid= uint4korr(swkb->ptr());
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
     goto err;
-  str->length(0);
   str->q_append(srid);
   switch (decomp_func) {
     case SP_STARTPOINT:
@@ -847,10 +847,10 @@ String *Item_func_spatial_decomp_n::val_str(String *str)
     return 0;
 
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
     goto err;
   srid= uint4korr(swkb->ptr());
-  str->length(0);
   str->q_append(srid);
   switch (decomp_func_n)
   {
@@ -1575,9 +1575,9 @@ String *Item_func_spatial_operation::val_str(String *str_value)
 
 
   str_value->set_charset(&my_charset_bin);
+  str_value->length(0);
   if (str_value->reserve(SRID_SIZE, 512))
     goto exit;
-  str_value->length(0);
   str_value->q_append(srid);
 
   if (!Geometry::create_from_opresult(&g1.buffer, str_value, res_receiver))
@@ -2045,9 +2045,9 @@ String *Item_func_buffer::val_str(String *str_value)
 
 return_empty_result:
   str_value->set_charset(&my_charset_bin);
+  str_value->length(0);
   if (str_value->reserve(SRID_SIZE, 512))
     goto mem_error;
-  str_value->length(0);
   str_value->q_append(srid);
 
   if (!Geometry::create_from_opresult(&buffer, str_value, res_receiver))
@@ -2737,10 +2737,10 @@ String *Item_func_pointonsurface::val_str(String *str)
     goto exit;
 
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
     goto mem_error;
 
-  str->length(0);
   srid= uint4korr(res->ptr());
   str->q_append(srid);
 

@@ -960,6 +960,7 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
   newlex.current_select= NULL;
 
   defstr.set_charset(creation_ctx->get_client_cs());
+  defstr.set_thread_specific();
 
   /*
     We have to add DEFINER clause and provide proper routine characterstics in

@@ -1785,6 +1785,7 @@ public:
   void print(String *str, enum_query_type query_type) override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_conv_charset>(thd, this); }
+  int save_in_field(Field*, bool) override;
 };
 
 class Item_func_set_collation :public Item_str_func

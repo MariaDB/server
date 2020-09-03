@@ -3507,6 +3507,27 @@ String *Item_func_conv::val_str(String *str)
 }
 
 
+/*
+  This function is needed as Item_func_conc_charset stores cached values
+  in str_value.
+*/
+
+int Item_func_conv_charset::save_in_field(Field *field, bool no_conversions)
+{
+  String *result;
+  CHARSET_INFO *cs= collation.collation;
+
+  result= val_str(&str_value);
+  if (null_value)
+    return set_field_to_null_with_conversions(field, no_conversions);
+
+  /* NOTE: If null_value == FALSE, "result" must be not NULL.  */
+  field->set_notnull();
+  int error= field->store(result->ptr(),result->length(),cs);
+  return error;
+}
+
+
 String *Item_func_conv_charset::val_str(String *str)
 {
   DBUG_ASSERT(fixed());

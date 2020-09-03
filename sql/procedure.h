@@ -130,34 +130,40 @@ public:
 
 class Item_proc_string :public Item_proc
 {
+  String value;
 public:
   Item_proc_string(THD *thd, const char *name_par, uint length):
-    Item_proc(thd, name_par) { this->max_length=length; }
+    Item_proc(thd, name_par)
+  {
+    this->max_length=length;
+    value.set_thread_specific();
+  }
   const Type_handler *type_handler() const override
   { return &type_handler_varchar; }
-  void set(double nr) override { str_value.set_real(nr, 2, default_charset()); }
-  void set(longlong nr) override { str_value.set(nr, default_charset()); }
+  void set(double nr) override { value.set_real(nr, 2, default_charset()); }
+  void set(longlong nr) override { value.set(nr, default_charset()); }
   void set(const char *str, uint length, CHARSET_INFO *cs) override
-  { str_value.copy(str,length,cs); }
+  { value.copy(str,length,cs); }
   double val_real() override
   {
     int err_not_used;
     char *end_not_used;
-    CHARSET_INFO *cs= str_value.charset();
-    return cs->strntod((char*) str_value.ptr(), str_value.length(),
+    CHARSET_INFO *cs= value.charset();
+    return cs->strntod((char*) value.ptr(), value.length(),
 		       &end_not_used, &err_not_used);
   }
   longlong val_int() override
   { 
     int err;
-    CHARSET_INFO *cs=str_value.charset();
-    return cs->strntoll(str_value.ptr(),str_value.length(),10,NULL,&err);
+    CHARSET_INFO *cs=value.charset();
+    return cs->strntoll(value.ptr(), value.length(), 10, NULL, &err);
   }
   String *val_str(String*) override
   {
-    return null_value ? (String*) 0 : (String*) &str_value;
+    return null_value ? (String*) 0 : &value;
   }
   my_decimal *val_decimal(my_decimal *) override;
+  void cleanup() override { value.free(); }
   unsigned int size_of() { return sizeof(*this);}  
 };
 

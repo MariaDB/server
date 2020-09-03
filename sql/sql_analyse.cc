@@ -683,10 +683,19 @@ int analyse::end_of_records()
   String *res, s_min(buff, sizeof(buff),&my_charset_bin), 
 	 s_max(buff, sizeof(buff),&my_charset_bin),
 	 ans(buff, sizeof(buff),&my_charset_bin);
+  StringBuffer<NAME_LEN> name;
 
   for (; f != f_end; f++)
   {
-    func_items[0]->set((*f)->item->full_name());
+    /*
+      We have to make a copy of full_name() as it stores it's value in str_value,
+      which is reset by save_str_in_field
+    */
+    LEX_CSTRING col_name= (*f)->item->full_name_cstring();
+    name.set_buffer_if_not_allocated(&my_charset_bin);
+    name.copy(col_name.str, col_name.length, &my_charset_bin);
+    func_items[0]->set((char*) name.ptr(), name.length(), &my_charset_bin);
+
     if (!(*f)->found)
     {
       func_items[1]->null_value = 1;
@@ -1232,4 +1241,4 @@ uint check_ulonglong(const char *str, uint length)
   }
   while (*cmp && *cmp++ == *str++) ;
   return ((uchar) str[-1] <= (uchar) cmp[-1]) ? smaller : bigger;
-} /* check_ulonlong */
+} /* check_ulonglong */

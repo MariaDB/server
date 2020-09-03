@@ -42,8 +42,13 @@ C_MODE_START
   3. change type of m_decmal to struct st_my_decimal and move inside the union
   4. move the definition to some file in /include
 */
-struct st_value
+class st_value
 {
+public:
+  st_value() {}
+  st_value(char *buffer, size_t buffer_size) :
+  m_string(buffer, buffer_size, &my_charset_bin)
+  {}
   enum enum_dynamic_column_type m_type;
   union
   {
@@ -61,6 +66,10 @@ C_MODE_END
 class Value: public st_value
 {
 public:
+  Value(char *buffer, size_t buffer_size) : st_value(buffer, buffer_size)
+  {}
+  Value()
+  {}
   bool is_null() const { return m_type == DYN_COL_NULL; }
   bool is_longlong() const
   {
@@ -77,14 +86,12 @@ template<size_t buffer_size>
 class ValueBuffer: public Value
 {
   char buffer[buffer_size];
+public:
+  ValueBuffer(): Value(buffer, buffer_size)
+  {}
   void reset_buffer()
   {
-    m_string.set(buffer, buffer_size, &my_charset_bin);
-  }
-public:
-  ValueBuffer()
-  {
-    reset_buffer();
+    m_string.set_buffer_if_not_allocated(buffer, buffer_size, &my_charset_bin);
   }
 };
 
@@ -996,7 +1003,7 @@ public:
 
   /*
     str_values's main purpose is to be used to cache the value in
-    save_in_field
+    save_in_field. Calling full_name() for Item_field will also use str_value.
   */
   String str_value;
 
@@ -1167,7 +1174,7 @@ public:
     DBUG_ASSERT(0);
   }
 
-  bool save_in_value(THD *thd, struct st_value *value)
+  bool save_in_value(THD *thd, st_value *value)
   {
     return type_handler()->Item_save_in_value(thd, this, value);
   }

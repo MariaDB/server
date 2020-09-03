@@ -6144,6 +6144,8 @@ int TABLE::verify_constraints(bool ignore_failure)
   {
     if (versioned() && !vers_end_field()->is_max())
       return VIEW_CHECK_OK;
+
+    StringBuffer<MAX_FIELD_WIDTH> field_error(system_charset_info);
     for (Virtual_column_info **chk= check_constraints ; *chk ; chk++)
     {
       /*
@@ -6153,10 +6155,13 @@ int TABLE::verify_constraints(bool ignore_failure)
       if (((*chk)->expr->val_int() == 0 && !(*chk)->expr->null_value) ||
           in_use->is_error())
       {
-        StringBuffer<MAX_FIELD_WIDTH> field_error(system_charset_info);
         enum_vcol_info_type vcol_type= (*chk)->get_vcol_type();
         DBUG_ASSERT(vcol_type == VCOL_CHECK_TABLE ||
                     vcol_type == VCOL_CHECK_FIELD);
+
+        field_error.set_buffer_if_not_allocated(system_charset_info);
+        field_error.length(0);
+
         if (vcol_type == VCOL_CHECK_FIELD)
         {
           field_error.append(s->table_name);

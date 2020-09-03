@@ -48,7 +48,8 @@ inline uint32 copy_and_convert(char *to, size_t to_length,
                                const char *from, size_t from_length,
                                CHARSET_INFO *from_cs, uint *errors)
 {
-  return my_convert(to, (uint)to_length, to_cs, from, (uint)from_length, from_cs, errors);
+  return my_convert(to, (uint)to_length, to_cs, from, (uint)from_length,
+                    from_cs, errors);
 }
 
 
@@ -110,7 +111,8 @@ public:
     "dstcs" and "srccs" cannot be &my_charset_bin.
   */
   size_t convert_fix(CHARSET_INFO *dstcs, char *dst, size_t dst_length,
-                     CHARSET_INFO *srccs, const char *src, size_t src_length, size_t nchars)
+                     CHARSET_INFO *srccs, const char *src, size_t src_length,
+                     size_t nchars)
   {
     return my_convert_fix(dstcs, dst, dst_length,
                           srccs, src, src_length, nchars, this, this);
@@ -119,10 +121,12 @@ public:
      Copy a string. Fix bad bytes/characters to '?'.
   */
   uint well_formed_copy(CHARSET_INFO *to_cs, char *to, size_t to_length,
-                        CHARSET_INFO *from_cs, const char *from, size_t from_length, size_t nchars);
+                        CHARSET_INFO *from_cs, const char *from,
+                        size_t from_length, size_t nchars);
   // Same as above, but without the "nchars" limit.
   uint well_formed_copy(CHARSET_INFO *to_cs, char *to, size_t to_length,
-                        CHARSET_INFO *from_cs, const char *from, size_t from_length)
+                        CHARSET_INFO *from_cs, const char *from,
+                        size_t from_length)
   {
     return well_formed_copy(to_cs, to, to_length,
                             from_cs, from, from_length,
@@ -369,12 +373,21 @@ public:
 
 class Binary_string: public Static_binary_string
 {
+protected:
   uint32 Alloced_length, extra_alloc;
   bool alloced, thread_specific;
   void init_private_data()
   {
     Alloced_length= extra_alloc= 0;
     alloced= thread_specific= false;
+  }
+  inline void free_buffer()
+  {
+    if (alloced)
+    {
+      alloced=0;
+      my_free(Ptr);
+    }
   }
 public:
   Binary_string()
@@ -430,7 +443,7 @@ public:
 
   inline bool uses_buffer_owned_by(const Binary_string *s) const
   {
-    return (s->alloced && Ptr >= s->Ptr && Ptr < s->Ptr + s->str_length);
+    return (s->alloced && Ptr >= s->Ptr && Ptr < s->Ptr + s->Alloced_length);
   }
 
   /* Swap two string objects. Efficient way to exchange data without memcpy. */
@@ -450,7 +463,7 @@ public:
   */
   void set_alloced(char *str, size_t length_arg, size_t alloced_length_arg)
   {
-    free();
+    free_buffer();
     Static_binary_string::set(str, length_arg);
     DBUG_ASSERT(alloced_length_arg < UINT_MAX32);
     Alloced_length= (uint32) alloced_length_arg;
@@ -461,15 +474,17 @@ public:
   }
   inline void set(const char *str, size_t arg_length)
   {
-    free();
+    free_buffer();
     Static_binary_string::set((char *) str, arg_length);
+    Alloced_length= 0;
   }
 
   void set(Binary_string &str, size_t offset, size_t arg_length)
   {
     DBUG_ASSERT(&str != this);
-    free();
+    free_buffer();
     Static_binary_string::set((char*) str.ptr() + offset, arg_length);
+    Alloced_length= 0;
     if (str.Alloced_length)
       Alloced_length= (uint32) (str.Alloced_length - offset);
   }
@@ -507,12 +522,14 @@ public:
     if (!alloced)
     {
       /*
-        Following should really be set_str(str, 0), but some code may
-        depend on that the String lenth is same as buffer length.
+        Following should really set str_length= 0, but some code may
+        depend on that the String length is same as buffer length.
       */
       Static_binary_string::set(str, arg_length);
       Alloced_length= (uint32) arg_length;
     }
+    /* One should set str_length before using it */
+    MEM_UNDEFINED(&str_length, sizeof(str_length));
   }
 
   inline Binary_string& operator=(const Binary_string &s)
@@ -660,19 +677,20 @@ public:
 
   inline void free()
   {
-    if (alloced)
-    {
-      alloced=0;
-      my_free(Ptr);
-    }
+    free_buffer();
+    /*
+      We have to clear the values as some Strings, like in Field, are
+      reused after free(). Because of this we cannot use MEM_UNDEFINED() here.
+    */
+    Ptr= 0;
+    str_length= 0;
     Alloced_length= extra_alloc= 0;
-    Static_binary_string::set(NULL, 0); // Safety, probably not needed
   }
 
   inline bool alloc(size_t arg_length)
   {
     /*
-      Allocate if we need more space or if we don't have p_done any
+      Allocate if we need more space or if we don't have done any
       allocation yet (we don't want to have Ptr to be NULL for empty strings).
 
       Note that if arg_length == Alloced_length then we don't allocate.
@@ -911,7 +929,8 @@ public:
     if (unlikely(alloc(tocs->mbmaxlen * src_length)))
       return true;
     str_length= copier->well_formed_copy(tocs, Ptr, alloced_length(),
-                                         fromcs, src, (uint)src_length, (uint)nchars);
+                                         fromcs, src, (uint) src_length,
+                                         (uint) nchars);
     set_charset(tocs);
     return false;
   }
@@ -1065,6 +1084,18 @@ public:
   explicit StringBuffer(CHARSET_INFO *cs) : String(buff, buff_sz, cs)
   {
     length(0);
+  }
+  void set_buffer_if_not_allocated(CHARSET_INFO *cs)
+  {
+    if (!is_alloced())
+    {
+      Ptr= buff;
+      Alloced_length= (uint32) buff_sz;
+    }
+    str_length= 0;                          /* Safety, not required */
+    /* One should set str_length before using it */
+    MEM_UNDEFINED(&str_length, sizeof(str_length));
+    set_charset(cs);
   }
 };
 

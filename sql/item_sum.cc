@@ -4159,6 +4159,8 @@ bool Item_func_group_concat::add(bool exclude_nulls)
       if (field->is_null_in_record((const uchar*) table->record[0]) &&
           exclude_nulls)
         return 0;                    // Skip row if it contains null
+
+      buf.set_buffer_if_not_allocated(&my_charset_bin);
       if (tree && (res= field->val_str(&buf)))
         row_str_len+= res->length();
     }

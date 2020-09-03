@@ -40,7 +40,7 @@ bool Binary_string::real_alloc(size_t length)
   str_length=0;
   if (Alloced_length < arg_length)
   {
-    free();
+    free_buffer();
     if (!(Ptr=(char*) my_malloc(STRING_PSI_MEMORY_KEY,
                                 arg_length,MYF(MY_WME | (thread_specific ?
                                                 MY_THREAD_SPECIFIC : 0)))))
@@ -1112,7 +1112,8 @@ uint
 String_copier::well_formed_copy(CHARSET_INFO *to_cs,
                                 char *to, size_t to_length,
                                 CHARSET_INFO *from_cs,
-                                const char *from, size_t from_length, size_t nchars)
+                                const char *from, size_t from_length,
+                                size_t nchars)
 {
   if ((to_cs == &my_charset_bin) || 
       (from_cs == &my_charset_bin) ||
