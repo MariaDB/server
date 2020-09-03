@@ -1316,18 +1316,12 @@ bool Protocol_text::store_field_metadata_for_list_fields(const THD *thd,
 bool Protocol::send_result_set_row(List<Item> *row_items)
 {
   List_iterator_fast<Item> it(*row_items);
-
+  ValueBuffer<MAX_FIELD_WIDTH> value_buffer;
   DBUG_ENTER("Protocol::send_result_set_row");
 
   for (Item *item= it++; item; item= it++)
   {
-    /*
-      ValueBuffer::m_string can be altered during Item::send().
-      It's important to declare value_buffer inside the loop,
-      to have ValueBuffer::m_string point to ValueBuffer::buffer
-      on every iteration.
-    */
-    ValueBuffer<MAX_FIELD_WIDTH> value_buffer;
+    value_buffer.reset_buffer();
     if (item->send(this, &value_buffer))
     {
       // If we're out of memory, reclaim some, to help us recover.
