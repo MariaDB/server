@@ -3837,7 +3837,8 @@ rpl_make_log_name(const char *opt,
                   const char *ext)
 {
   DBUG_ENTER("rpl_make_log_name");
-  DBUG_PRINT("enter", ("opt: %s, def: %s, ext: %s", opt, def, ext));
+  DBUG_PRINT("enter", ("opt: %s, def: %s, ext: %s", opt ? opt : "(null)",
+                       def, ext));
   char buff[FN_REFLEN];
   const char *base= opt ? opt : def;
   unsigned int options=

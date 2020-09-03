@@ -889,6 +889,7 @@ typedef struct st_print_event_info
    */
   IO_CACHE head_cache;
   IO_CACHE body_cache;
+  IO_CACHE tail_cache;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
   /* Storing the SQL for reviewing */
   IO_CACHE review_sql_cache;
@@ -899,6 +900,7 @@ typedef struct st_print_event_info
   ~st_print_event_info() {
     close_cached_file(&head_cache);
     close_cached_file(&body_cache);
+    close_cached_file(&tail_cache);
 #ifdef WHEN_FLASHBACK_REVIEW_READY
     close_cached_file(&review_sql_cache);
 #endif

@@ -1,5 +1,10 @@
 connection node_2;
 connection node_1;
+#
+# test phase with cascading foreign key through 3 tables
+#
+connection node_1;
+set wsrep_sync_wait=0;
 CREATE TABLE grandparent (
 id INT NOT NULL PRIMARY KEY
 ) ENGINE=InnoDB;
@@ -21,14 +26,15 @@ INSERT INTO grandparent VALUES (1),(2);
 INSERT INTO parent VALUES (1,1), (2,2);
 INSERT INTO child VALUES (1,1), (2,2);
 connection node_2;
+set wsrep_sync_wait=0;
 DELETE FROM grandparent WHERE id = 1;
 connection node_1;
-SELECT COUNT(*) = 0 FROM parent WHERE grandparent_id = 1;
-COUNT(*) = 0
-1
-SELECT COUNT(*) = 0 FROM child WHERE parent_id = 1;
-COUNT(*) = 0
-1
+SELECT COUNT(*), COUNT(*) = 0 FROM parent WHERE grandparent_id = 1;
+COUNT(*)	COUNT(*) = 0
+0	1
+SELECT COUNT(*), COUNT(*) = 0 FROM child WHERE parent_id = 1;
+COUNT(*)	COUNT(*) = 0
+0	1
 DROP TABLE child;
 DROP TABLE parent;
 DROP TABLE grandparent;

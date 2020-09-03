@@ -318,7 +318,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   {
     options|= HA_OPTION_TMP_TABLE;
     tmp_table= TRUE;
-    create_mode|= O_NOFOLLOW;
+    create_mode|= O_NOFOLLOW | (internal_table ? 0 : O_EXCL);
     /* "CREATE TEMPORARY" tables are not crash-safe (dropped at restart) */
     ci->transactional= FALSE;
     flags&= ~HA_CREATE_PAGE_CHECKSUM;
@@ -891,8 +891,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   {
     char *iext= strrchr(name, '.');
     int have_iext= iext && !strcmp(iext, MARIA_NAME_IEXT);
-    fn_format(kfilename, name, "", MARIA_NAME_IEXT,
-              MY_UNPACK_FILENAME | MY_RETURN_REAL_PATH |
+    fn_format(kfilename, name, "", MARIA_NAME_IEXT, MY_UNPACK_FILENAME |
+              (internal_table ? 0 : MY_RETURN_REAL_PATH) |
               (have_iext ? MY_REPLACE_EXT : MY_APPEND_EXT));
     /*
       Replace the current file.
