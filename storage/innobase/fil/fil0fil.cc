@@ -658,8 +658,7 @@ fil_try_to_close_file_in_LRU(
 static void fil_flush_low(fil_space_t* space, bool metadata = false)
 {
 	ut_ad(mutex_own(&fil_system.mutex));
-	ut_ad(space);
-	ut_ad(!space->stop_new_ops);
+	ut_ad(!space->is_stopping());
 
 	if (fil_buffering_disabled(space)) {
 
@@ -1869,10 +1868,8 @@ fil_space_t* fil_space_acquire_low(ulint id, bool silent)
 			ib::warn() << "Trying to access missing"
 				" tablespace " << id;
 		}
-	} else if (space->is_stopping()) {
+	} else if (!space->acquire()) {
 		space = NULL;
-	} else {
-		space->acquire();
 	}
 
 	mutex_exit(&fil_system.mutex);
@@ -2156,14 +2153,14 @@ static ulint fil_check_pending_ops(const fil_space_t* space, ulint count)
 {
 	ut_ad(mutex_own(&fil_system.mutex));
 
-	if (space == NULL) {
+	if (!space) {
 		return 0;
 	}
 
-	if (ulint n_pending_ops = space->n_pending_ops) {
+	if (auto n_pending_ops = space->referenced()) {
 
-          /* Give a warning every 10 second, starting after 1 second */
-          if ((count % 500) == 50) {
+		/* Give a warning every 10 second, starting after 1 second */
+		if ((count % 500) == 50) {
 			ib::warn() << "Trying to delete"
 				" tablespace '" << space->name
 				<< "' but there are " << n_pending_ops
@@ -2249,14 +2246,13 @@ fil_check_pending_operations(
 	fil_space_t* sp = fil_space_get_by_id(id);
 
 	if (sp) {
-		sp->stop_new_ops = true;
-		if (sp->crypt_data) {
-			sp->acquire();
+		if (sp->crypt_data && sp->acquire()) {
 			mutex_exit(&fil_system.mutex);
 			fil_space_crypt_close_tablespace(sp);
 			mutex_enter(&fil_system.mutex);
 			sp->release();
 		}
+		sp->set_stopping(true);
 	}
 
 	/* Check for pending operations. */
@@ -2777,7 +2773,7 @@ fil_rename_tablespace(
 	multiple datafiles per tablespace. */
 	ut_a(UT_LIST_GET_LEN(space->chain) == 1);
 	node = UT_LIST_GET_FIRST(space->chain);
-	space->n_pending_ops++;
+	ut_a(space->acquire());
 
 	mutex_exit(&fil_system.mutex);
 
@@ -2799,8 +2795,7 @@ fil_rename_tablespace(
 	/* log_sys.mutex is above fil_system.mutex in the latching order */
 	ut_ad(log_mutex_own());
 	mutex_enter(&fil_system.mutex);
-	ut_ad(space->n_pending_ops);
-	space->n_pending_ops--;
+	space->release();
 	ut_ad(space->name == old_space_name);
 	ut_ad(node->name == old_file_name);
 	bool success;
@@ -4133,7 +4128,7 @@ fil_io(
 	if (space == NULL
 	    || (req_type.is_read()
 		&& !sync
-		&& space->stop_new_ops
+		&& space->is_stopping()
 		&& !space->is_being_truncated)) {
 
 		mutex_exit(&fil_system.mutex);
@@ -4733,7 +4728,7 @@ fil_space_validate_for_mtr_commit(
 	fil_space_acquire() before mtr_start() and
 	fil_space_t::release() after mtr_commit(). This is why
 	n_pending_ops should not be zero if stop_new_ops is set. */
-	ut_ad(!space->stop_new_ops
+	ut_ad(!space->is_stopping()
 	      || space->is_being_truncated /* fil_truncate_prepare() */
 	      || space->referenced());
 }
@@ -4948,24 +4943,4 @@ fil_space_get_block_size(const fil_space_t* space, unsigned offset)
 	}
 
 	return block_size;
-}
-
-/*******************************************************************//**
-Returns the table space by a given id, NULL if not found. */
-fil_space_t*
-fil_space_found_by_id(
-/*==================*/
-	ulint	id)	/*!< in: space id */
-{
-	fil_space_t* space = NULL;
-	mutex_enter(&fil_system.mutex);
-	space = fil_space_get_by_id(id);
-
-	/* Not found if space is being deleted */
-	if (space && space->stop_new_ops) {
-		space = NULL;
-	}
-
-	mutex_exit(&fil_system.mutex);
-	return space;
 }

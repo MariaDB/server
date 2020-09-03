@@ -776,12 +776,12 @@ not_free:
 		/* This is only executed by srv_purge_coordinator_thread. */
 		export_vars.innodb_undo_truncations++;
 
-		/* TODO: PUNCH_HOLE the garbage (with write-ahead logging) */
+		/* In MDEV-8319 (10.5) we will PUNCH_HOLE the garbage
+		(with write-ahead logging). */
 		mutex_enter(&fil_system.mutex);
 		ut_ad(&space == purge_sys.truncate.current);
-		ut_ad(space.stop_new_ops);
 		ut_ad(space.is_being_truncated);
-		purge_sys.truncate.current->stop_new_ops = false;
+		purge_sys.truncate.current->set_stopping(false);
 		purge_sys.truncate.current->is_being_truncated = false;
 		mutex_exit(&fil_system.mutex);
 

@@ -102,15 +102,6 @@ struct fil_space_t
 	/** Log sequence number of the latest MLOG_INDEX_LOAD record
 	that was found while parsing the redo log */
 	lsn_t		enable_lsn;
-	/** set when an .ibd file is about to be deleted,
-	or an undo tablespace is about to be truncated.
-	When this is set following new ops are not allowed:
-	* read IO request
-	* ibuf merge
-	* file flush
-	Note that we can still possibly have new write operations
-	because we don't check this flag when doing flush batches. */
-	bool		stop_new_ops;
 	/** whether undo tablespace truncation is in progress */
 	bool		is_being_truncated;
 #ifdef UNIV_DEBUG
@@ -142,14 +133,22 @@ struct fil_space_t
 	ulint		n_pending_flushes; /*!< this is positive when flushing
 				the tablespace to disk; dropping of the
 				tablespace is forbidden if this is positive */
-	/** Number of pending buffer pool operations accessing the tablespace
-	without holding a table lock or dict_sys.latch S-latch
-	that would prevent the table (and tablespace) from being
-	dropped. An example is change buffer merge.
-	The tablespace cannot be dropped while this is nonzero,
-	or while fil_node_t::n_pending is nonzero.
-	Protected by fil_system.mutex and std::atomic. */
-	std::atomic<ulint>		n_pending_ops;
+private:
+  /** Number of pending buffer pool operations accessing the
+  tablespace without holding a table lock or dict_operation_lock
+  S-latch that would prevent the table (and tablespace) from being
+  dropped. An example is change buffer merge.
+
+  The tablespace cannot be dropped while this is nonzero, or while
+  fil_node_t::n_pending is nonzero.
+
+  The most significant bit contains the STOP_NEW_OPS flag. */
+  Atomic_relaxed<size_t> n_pending_ops;
+
+  /** Flag in n_pending_ops that indicates that the tablespace is being
+  deleted, and no further operations should be performed */
+  static const size_t STOP_NEW_OPS= ~(~size_t(0) >> 1);
+public:
 	/** Number of pending block read or write operations
 	(when a write is imminent or a read has recently completed).
 	The tablespace object cannot be freed while this is nonzero,
@@ -182,9 +181,6 @@ struct fil_space_t
 	bool		punch_hole;
 
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
-
-	/** @return whether the tablespace is about to be dropped */
-	bool is_stopping() const { return stop_new_ops;	}
 
   /** Clamp a page number for batched I/O, such as read-ahead.
   @param offset   page number limit
@@ -270,20 +266,45 @@ struct fil_space_t
 	/** Close each file. Only invoked on fil_system.temp_space. */
 	void close();
 
-	/** Acquire a tablespace reference. */
-	void acquire() { n_pending_ops++; }
-	/** Release a tablespace reference.
-	@return whether this was the last reference */
-	bool release() { auto n= n_pending_ops--; ut_ad(n); return n == 1; }
-	/** @return whether references are being held */
-	bool referenced() const { return n_pending_ops; }
+  /** @return whether the tablespace is about to be dropped */
+  bool is_stopping() const { return n_pending_ops & STOP_NEW_OPS; }
 
-	/** Acquire a tablespace reference for I/O. */
-	void acquire_for_io() { n_pending_ios++; }
-	/** Release a tablespace reference for I/O. */
-	void release_for_io() { ut_ad(pending_io()); n_pending_ios--; }
-	/** @return whether I/O is pending */
-	bool pending_io() const { return n_pending_ios; }
+  /** @return number of references being held */
+  size_t referenced() const { return n_pending_ops & ~STOP_NEW_OPS; }
+
+  /** Note that operations on the tablespace must stop or can resume */
+  void set_stopping(bool stopping)
+  {
+    ut_d(auto n=) n_pending_ops.fetch_xor(STOP_NEW_OPS);
+    ut_ad(!(n & STOP_NEW_OPS) == stopping);
+  }
+
+  MY_ATTRIBUTE((warn_unused_result))
+  /** @return whether a tablespace reference was successfully acquired */
+  bool acquire()
+  {
+    size_t n= 0;
+    while (!n_pending_ops.compare_exchange_strong(n, n + 1,
+                                                  std::memory_order_acquire,
+                                                  std::memory_order_relaxed))
+      if (UNIV_UNLIKELY(n & STOP_NEW_OPS))
+        return false;
+    return true;
+  }
+  /** Release a tablespace reference.
+  @return whether this was the last reference */
+  bool release()
+  {
+    auto n= n_pending_ops.fetch_sub(1);
+    ut_ad(n & ~STOP_NEW_OPS);
+    return (n & ~STOP_NEW_OPS) == 1;
+  }
+  /** Acquire a tablespace reference for I/O. */
+  void acquire_for_io() { n_pending_ios++; }
+  /** Release a tablespace reference for I/O. */
+  void release_for_io() { ut_d(auto n=) n_pending_ios--; ut_ad(n); }
+  /** @return whether I/O is pending */
+  bool pending_io() const { return n_pending_ios; }
 #endif /* !UNIV_INNOCHECKSUM */
 	/** FSP_SPACE_FLAGS and FSP_FLAGS_MEM_ flags;
 	check fsp0types.h to more info about flags. */
