@@ -1045,6 +1045,12 @@ public:
   {
     length(0);
   }
+  void set_buffer_if_not_allocated(CHARSET_INFO *cs)
+  {
+    if (is_alloced())
+      Static_binary_string::set(buff, buff_sz);
+    set_charset(cs);
+  }
 };
 
 

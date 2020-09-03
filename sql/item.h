@@ -77,14 +77,14 @@ template<size_t buffer_size>
 class ValueBuffer: public Value
 {
   char buffer[buffer_size];
-  void reset_buffer()
-  {
-    m_string.set(buffer, buffer_size, &my_charset_bin);
-  }
 public:
   ValueBuffer()
   {
     reset_buffer();
+  }
+  void reset_buffer()
+  {
+    m_string.set_buffer_if_not_allocated(buffer, buffer_size, &my_charset_bin);
   }
 };
 

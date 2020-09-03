@@ -2406,6 +2406,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
   /* Add table level check constraints */
   if (share->table_check_constraints)
   {
+    StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
     for (uint i= share->field_check_constraints;
          i < share->table_check_constraints ; i++)
     {
@@ -2414,7 +2415,8 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       if (share->period.constr_name.streq(check->name))
         continue;
 
-      StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
+      str.set_buffer_if_not_allocated(&my_charset_utf8mb4_general_ci);
+      str.length(0);                            // Print appends to str
       check->print(&str);
 
       packet->append(STRING_WITH_LEN(",\n  "));
@@ -3029,14 +3031,16 @@ int select_result_text_buffer::append_row(List<Item> &items, bool send_names)
       rows.push_back(row, thd->mem_root))
     return true;
 
+  StringBuffer<32> buf;
+
   while ((item= it++))
   {
     DBUG_ASSERT(column < n_columns);
-    StringBuffer<32> buf;
     const char *data_ptr; 
     char *ptr;
     size_t data_len;
 
+    buf.set_buffer_if_not_allocated(&my_charset_bin);
     if (send_names)
     {
       DBUG_ASSERT(strlen(item->name.str) == item->name.length);

@@ -4414,9 +4414,11 @@ void JOIN::exec_inner()
   {
     List_iterator_fast<Item> const_item_it(exec_const_order_group_cond);
     Item *cur_const_item;
+    StringBuffer<MAX_FIELD_WIDTH> tmp;
     while ((cur_const_item= const_item_it++))
     {
-      cur_const_item->val_str(); // This caches val_str() to Item::str_value
+      tmp.set_buffer_if_not_allocated(&my_charset_bin);
+      cur_const_item->val_str(&tmp);
       if (unlikely(thd->is_error()))
       {
         error= thd->is_error();
