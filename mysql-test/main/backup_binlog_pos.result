@@ -1,0 +1,21 @@
+CREATE TABLE t(i INT) ENGINE INNODB;
+SET DEBUG_SYNC='ha_commit_trans_before_log_and_order SIGNAL before_binlog_flush WAIT_FOR cont';
+SET DEBUG_SYNC='ha_commit_trans_after_log_and_order SIGNAL after_binlog_flush';
+INSERT INTO t VALUES(0);
+connect  con1,localhost,root,,;
+SET DEBUG_SYNC='now WAIT_FOR before_binlog_flush';
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_COMMIT;
+SET DEBUG_SYNC='now SIGNAL cont WAIT_FOR after_binlog_flush';
+SET DEBUG_SYNC='RESET';
+BACKUP STAGE END;
+#############
+# Binlog position must not be changed under BLOCK_COMMIT lock,
+# the following result must be equal to 1
+######################
+SELECT @pos_before = @pos_after;
+@pos_before = @pos_after
+1
+disconnect con1;
+connection default;
+DROP TABLE t;

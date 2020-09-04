@@ -1,0 +1,37 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+
+CREATE TABLE t(i INT) ENGINE INNODB;
+
+SET DEBUG_SYNC='ha_commit_trans_before_log_and_order SIGNAL before_binlog_flush WAIT_FOR cont';
+SET DEBUG_SYNC='ha_commit_trans_after_log_and_order SIGNAL after_binlog_flush';
+--send INSERT INTO t VALUES(0)
+
+--connect (con1,localhost,root,,)
+
+SET DEBUG_SYNC='now WAIT_FOR before_binlog_flush';
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_COMMIT;
+--let $pos_before= query_get_value(SHOW MASTER STATUS,Position,1)
+SET DEBUG_SYNC='now SIGNAL cont WAIT_FOR after_binlog_flush';
+SET DEBUG_SYNC='RESET';
+--let $pos_after= query_get_value(SHOW MASTER STATUS,Position,1)
+BACKUP STAGE END;
+
+--disable_query_log
+--eval SET @pos_before=$pos_before
+--eval SET @pos_after=$pos_after
+--enable_query_log
+
+--echo #############
+--echo # Binlog position must not be changed under BLOCK_COMMIT lock,
+--echo # the following result must be equal to 1
+--echo ######################
+SELECT @pos_before = @pos_after;
+
+--disconnect con1
+--connection default
+--reap
+
+DROP TABLE t;
