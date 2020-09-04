@@ -449,7 +449,6 @@ START TRANSACTION
 ### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
-'/*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -1073,7 +1072,6 @@ START TRANSACTION
 ### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
-'/*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;

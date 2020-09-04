@@ -106,6 +106,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fil0crypt.h"
 #include "srv0mon.h"
 #include "srv0start.h"
+#include "rem0rec.h"
 #ifdef UNIV_DEBUG
 #include "trx0purge.h"
 #endif /* UNIV_DEBUG */
@@ -5255,14 +5256,13 @@ innobase_vcol_build_templ(
 	mysql_row_templ_t*	templ,
 	ulint			col_no)
 {
-	if (col->is_virtual()) {
-		templ->is_virtual = true;
-		templ->col_no = col_no;
+	templ->col_no = col_no;
+	templ->is_virtual = col->is_virtual();
+
+	if (templ->is_virtual) {
 		templ->clust_rec_field_no = ULINT_UNDEFINED;
 		templ->rec_field_no = col->ind;
 	} else {
-		templ->is_virtual = false;
-		templ->col_no = col_no;
 		templ->clust_rec_field_no = dict_col_get_clust_pos(
 						col, clust_index);
 		ut_a(templ->clust_rec_field_no != ULINT_UNDEFINED);
@@ -6874,6 +6874,8 @@ build_template_field(
 
 	templ = prebuilt->mysql_template + prebuilt->n_template++;
 	MEM_UNDEFINED(templ, sizeof *templ);
+	templ->rec_field_is_prefix = FALSE;
+	templ->rec_prefix_field_no = ULINT_UNDEFINED;
 	templ->is_virtual = !field->stored_in_db();
 
 	if (!templ->is_virtual) {
@@ -6935,8 +6937,6 @@ build_template_field(
 				<< " query "
 				<< innobase_get_stmt_unsafe(current_thd, &size);
 		}
-		templ->rec_field_is_prefix = FALSE;
-		templ->rec_prefix_field_no = ULINT_UNDEFINED;
 
 		if (dict_index_is_clust(index)) {
 			templ->rec_field_no = templ->clust_rec_field_no;
@@ -6954,7 +6954,6 @@ build_template_field(
 		DBUG_ASSERT(!ha_innobase::omits_virtual_cols(*table->s));
 		col = &dict_table_get_nth_v_col(index->table, v_no)->m_col;
 		templ->clust_rec_field_no = v_no;
-		templ->rec_prefix_field_no = ULINT_UNDEFINED;
 
 		if (dict_index_is_clust(index)) {
 			templ->rec_field_no = templ->clust_rec_field_no;
@@ -20508,64 +20507,53 @@ innobase_get_field_from_update_vector(
    Allocate a heap and record for calculating virtual fields
    Used mainly for virtual fields in indexes
 
-@param[in]	thd		MariaDB THD
-@param[in]	index		Index in use
-@param[out]	heap		Heap that holds temporary row
-@param[in,out]	table		MariaDB table
-@param[out]	record		Pointer to allocated MariaDB record
-@param[out]	storage		Internal storage for blobs etc
+@param[in]      thd             MariaDB THD
+@param[in]      index           Index in use
+@param[out]     heap            Heap that holds temporary row
+@param[in,out]  table           MariaDB table
+@param[out]     record	        Pointer to allocated MariaDB record
+@param[out]     storage	        Internal storage for blobs etc
 
-@retval		false on success
-@retval		true on malloc failure or failed to open the maria table
+@retval		true on success
+@retval		false on malloc failure or failed to open the maria table
 		for purge thread.
 */
 
-bool innobase_allocate_row_for_vcol(
-				    THD *	  thd,
-				    dict_index_t* index,
-				    mem_heap_t**  heap,
-				    TABLE**	  table,
-				    byte**	  record,
-				    VCOL_STORAGE** storage)
+bool innobase_allocate_row_for_vcol(THD *thd, dict_index_t *index,
+                                    mem_heap_t **heap, TABLE **table,
+                                    VCOL_STORAGE *storage)
 {
-	TABLE *maria_table;
-	String *blob_value_storage;
-	if (!*table)
-		*table= innodb_find_table_for_vc(thd, index->table);
+  TABLE *maria_table;
+  String *blob_value_storage;
+  if (!*table)
+    *table = innodb_find_table_for_vc(thd, index->table);
 
-	/* For purge thread, there is a possiblity that table could have
-	dropped, corrupted or unaccessible. */
-	if (!*table)
-		return true;
-	maria_table= *table;
-	if (!*heap && !(*heap= mem_heap_create(srv_page_size)))
-	{
-		*storage= 0;
-		return TRUE;
-	}
-	*record= static_cast<byte*>(mem_heap_alloc(*heap,
-                                                   maria_table->s->reclength));
-	*storage= static_cast<VCOL_STORAGE*>
-          (mem_heap_alloc(*heap, sizeof(**storage)));
-	blob_value_storage= static_cast<String*>
-          (mem_heap_alloc(*heap,
-                          maria_table->s->virtual_not_stored_blob_fields *
-                          sizeof(String)));
-	if (!*record || !*storage || !blob_value_storage)
-	{
-		*storage= 0;
-		return TRUE;
-	}
-	(*storage)->maria_table= maria_table;
-	(*storage)->innobase_record= *record;
-	(*storage)->maria_record= maria_table->field[0]->record_ptr();
-	(*storage)->blob_value_storage= blob_value_storage;
+  /* For purge thread, there is a possiblity that table could have
+     dropped, corrupted or unaccessible. */
+  if (!*table)
+    return false;
+  maria_table = *table;
+  if (!*heap && !(*heap = mem_heap_create(srv_page_size)))
+    return false;
 
-	maria_table->move_fields(maria_table->field, *record,
-				 (*storage)->maria_record);
-	maria_table->remember_blob_values(blob_value_storage);
+  uchar *record = static_cast<byte *>(mem_heap_alloc(*heap,
+                                                    maria_table->s->reclength));
 
-	return FALSE;
+  size_t len = maria_table->s->virtual_not_stored_blob_fields * sizeof(String);
+  blob_value_storage = static_cast<String *>(mem_heap_alloc(*heap, len));
+
+  if (!record || !blob_value_storage)
+    return false;
+
+  storage->maria_table = maria_table;
+  storage->innobase_record = record;
+  storage->maria_record = maria_table->field[0]->record_ptr();
+  storage->blob_value_storage = blob_value_storage;
+
+  maria_table->move_fields(maria_table->field, record, storage->maria_record);
+  maria_table->remember_blob_values(blob_value_storage);
+
+  return true;
 }
 
 
@@ -20577,6 +20565,13 @@ void innobase_free_row_for_vcol(VCOL_STORAGE *storage)
 	maria_table->move_fields(maria_table->field, storage->maria_record,
                                  storage->innobase_record);
         maria_table->restore_blob_values(storage->blob_value_storage);
+}
+
+
+void innobase_report_computed_value_failed(dtuple_t *row)
+{
+  ib::error() << "Compute virtual column values failed for "
+              << rec_printer(row).str();
 }
 
 
@@ -20715,13 +20710,6 @@ innobase_get_computed_value(
 	dbug_tmp_restore_column_map(mysql_table->write_set, old_write_set);
 
 	if (ret != 0) {
-	// FIXME: Why this error message is macro-hidden?
-#ifdef INNODB_VIRTUAL_DEBUG
-		ib::warn() << "Compute virtual column values failed ";
-		fputs("InnoDB: Cannot compute value for following record ",
-		      stderr);
-		dtuple_print(stderr, row);
-#endif /* INNODB_VIRTUAL_DEBUG */
 		DBUG_RETURN(NULL);
 	}
 

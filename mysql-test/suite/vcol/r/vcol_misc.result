@@ -476,8 +476,7 @@ select pk, col_bit+0, vcol_bit+0 from t1;
 pk	col_bit+0	vcol_bit+0
 99	10000	1023
 REPLACE LOW_PRIORITY INTO `t1` (`pk`) VALUES (99);
-Warnings:
-Warning	1264	Out of range value for column 'vcol_bit' at row 1
+ERROR 22001: Data too long for column 'vcol_bit' at row 1
 drop table t1;
 #
 # MDEV-17837 REPLACE on table with virtual_field can cause crash in set_ok_status()
@@ -496,8 +495,7 @@ INSERT IGNORE INTO t1 (pk,i) VALUES (1,127);
 Warnings:
 Warning	1264	Out of range value for column 'vi' at row 1
 REPLACE INTO t1 (pk,i) VALUES (1,2);
-Warnings:
-Warning	1264	Out of range value for column 'vi' at row 1
+ERROR 22003: Out of range value for column 'vi' at row 1
 DROP TABLE t1;
 SET @sql_mode=@old_sql_mode;
 #

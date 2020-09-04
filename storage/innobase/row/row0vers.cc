@@ -442,52 +442,44 @@ row_vers_impl_x_locked(
 @param[in]	index		the secondary index
 @param[in]	heap		heap used to build virtual dtuple. */
 static
-void
+bool
 row_vers_build_clust_v_col(
 	dtuple_t*		row,
 	dict_index_t*		clust_index,
 	dict_index_t*		index,
 	mem_heap_t*		heap)
 {
-	mem_heap_t*	local_heap = NULL;
-	VCOL_STORAGE	*vcol_storage= NULL;
 	THD*		thd= current_thd;
 	TABLE*		maria_table= 0;
-	byte*		record= 0;
 
 	ut_ad(dict_index_has_virtual(index));
 	ut_ad(index->table == clust_index->table);
 
-	innobase_allocate_row_for_vcol(thd, index,
-				       &local_heap,
-				       &maria_table,
-				       &record,
-				       &vcol_storage);
+	ib_vcol_row vc(nullptr);
+	byte *record = vc.record(thd, index, &maria_table);
 
 	ut_ad(maria_table);
 
 	for (ulint i = 0; i < dict_index_get_n_fields(index); i++) {
-		const dict_field_t* ind_field = dict_index_get_nth_field(
-				index, i);
+		const dict_col_t* c = dict_index_get_nth_col(index, i);
 
-		if (ind_field->col->is_virtual()) {
-			const dict_v_col_t*       col;
+		if (c->is_virtual()) {
+			const dict_v_col_t* col
+				= reinterpret_cast<const dict_v_col_t*>(c);
 
-			col = reinterpret_cast<const dict_v_col_t*>(
-				ind_field->col);
-
-			innobase_get_computed_value(
-				row, col, clust_index, &local_heap,
+			dfield_t *vfield = innobase_get_computed_value(
+				row, col, clust_index, &vc.heap,
 				heap, NULL, thd, maria_table, record, NULL,
 				NULL, NULL);
+			if (!vfield) {
+				innobase_report_computed_value_failed(row);
+				ut_ad(0);
+				return false;
+			}
 		}
 	}
 
-	if (local_heap) {
-		if (vcol_storage)
-			innobase_free_row_for_vcol(vcol_storage);
-		mem_heap_free(local_heap);
-	}
+	return true;
 }
 
 /** Build latest virtual column data from undo log
@@ -568,9 +560,8 @@ row_vers_build_cur_vrow_low(
 		all_filled = true;
 
 		for (i = 0; i < entry_len; i++) {
-			const dict_field_t*	ind_field
-				 = dict_index_get_nth_field(index, i);
-			const dict_col_t*	col = ind_field->col;
+			const dict_col_t* col
+				= dict_index_get_nth_col(index, i);
 
 			if (!col->is_virtual()) {
 				continue;
@@ -816,8 +807,10 @@ row_vers_build_cur_vrow(
 					  rec, *clust_offsets,
 					  NULL, NULL, NULL, NULL, heap);
 
-		row_vers_build_clust_v_col(
-			row, clust_index, index, heap);
+		if (!row_vers_build_clust_v_col(row, clust_index, index,
+						heap)) {
+			return nullptr;
+		}
 
 		cur_vrow = dtuple_copy(row, v_heap);
 		dtuple_dup_v_fld(cur_vrow, v_heap);
@@ -925,8 +918,10 @@ row_vers_old_has_index_entry(
 			if (trx_undo_roll_ptr_is_insert(t_roll_ptr)
 			    || dbug_v_purge) {
 
-				row_vers_build_clust_v_col(
-					row, clust_index, index, heap);
+				if (!row_vers_build_clust_v_col(
+					    row, clust_index, index, heap)) {
+					goto unsafe_to_purge;
+				}
 
 				entry = row_build_index_entry(
 					row, ext, index, heap);

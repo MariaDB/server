@@ -578,7 +578,7 @@ uint build_table_filename(char *buff, size_t bufflen, const char *db,
 
 
 /**
-  Create path to a temporary table mysql_tmpdir/#sql1234_12_1
+  Create path to a temporary table mysql_tmpdir/#sql-temptable-1234-12-1
   (i.e. to its .FRM file but without an extension).
 
   @param thd      The thread handle.
