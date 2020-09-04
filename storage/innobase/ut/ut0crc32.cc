@@ -89,14 +89,17 @@ mysys/my_perf.c, contributed by Facebook under the following license.
 #ifdef HAVE_CPUID_INSTRUCTION
 # ifdef _MSC_VER
 #  include <intrin.h>
-# elif defined __GNUC__ && !defined __clang__ && __GNUC__ < 5
-/* <nmmintrin.h> does not really work in GCC before version 5 */
-#  define _mm_crc32_u8(crc,data) __builtin_ia32_crc32qi(crc,data)
-#  define _mm_crc32_u32(crc,data) __builtin_ia32_crc32si(crc,data)
-#  define _mm_crc32_u64(crc,data) __builtin_ia32_crc32di(crc,data)
 # else
-#  include <nmmintrin.h>
-# endif
+#  include <cpuid.h>
+#    if defined __GNUC__ && !defined __clang__ && __GNUC__ < 5
+/* <nmmintrin.h> does not really work in GCC before version 5 */
+#      define _mm_crc32_u8(crc,data) __builtin_ia32_crc32qi(crc,data)
+#      define _mm_crc32_u32(crc,data) __builtin_ia32_crc32si(crc,data)
+#      define _mm_crc32_u64(crc,data) __builtin_ia32_crc32di(crc,data)
+#    else
+#      include <nmmintrin.h>
+#    endif
+#  endif
 #endif
 
 /* CRC32 hardware implementation. */
@@ -122,9 +125,9 @@ static inline bool has_sse4_2()
   __cpuid(data, 1);
   return !!(data[2] & 1 << 20);
 #  else
-  uint32_t eax, ecx;
-  asm("cpuid" : "=a"(eax), "=c"(ecx) : "a"(1) : "ebx", "edx");
-  return !!(ecx & 1 << 20);
+  uint32_t reax = 0, rebx = 0, recx = 0, redx = 0;
+  __cpuid(1, reax, rebx, recx, redx);
+  return !!(recx & 1 << 20);
 #  endif
 }
 
