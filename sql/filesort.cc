@@ -2597,7 +2597,7 @@ uint32 Sort_param::get_record_length_for_unique(uchar *to,
 uint
 Type_handler_string_result::make_packed_sort_key_part(uchar *to, Item *item,
                                             const SORT_FIELD_ATTR *sort_field,
-                                            Sort_param *param) const
+                                            String *tmp_buffer) const
 {
   CHARSET_INFO *cs= item->collation.collation;
   bool maybe_null= item->maybe_null;
@@ -2605,7 +2605,7 @@ Type_handler_string_result::make_packed_sort_key_part(uchar *to, Item *item,
   if (maybe_null)
     *to++= 1;
 
-  String *res= item->str_result(&param->tmp_buffer);
+  String *res= item->str_result(tmp_buffer);
   if (!res)
   {
     if (maybe_null)
@@ -2636,7 +2636,7 @@ Type_handler_string_result::make_packed_sort_key_part(uchar *to, Item *item,
 uint
 Type_handler_int_result::make_packed_sort_key_part(uchar *to, Item *item,
                                             const SORT_FIELD_ATTR *sort_field,
-                                            Sort_param *param) const
+                                            String *tmp_buffer) const
 {
   longlong value= item->val_int_result();
   return make_packed_sort_key_longlong(to, item->maybe_null,
@@ -2648,7 +2648,7 @@ Type_handler_int_result::make_packed_sort_key_part(uchar *to, Item *item,
 uint
 Type_handler_decimal_result::make_packed_sort_key_part(uchar *to, Item *item,
                                             const SORT_FIELD_ATTR *sort_field,
-                                            Sort_param *param) const
+                                            String *tmp_buffer) const
 {
   my_decimal dec_buf, *dec_val= item->val_decimal_result(&dec_buf);
   if (item->maybe_null)
@@ -2670,7 +2670,7 @@ Type_handler_decimal_result::make_packed_sort_key_part(uchar *to, Item *item,
 uint
 Type_handler_real_result::make_packed_sort_key_part(uchar *to, Item *item,
                                             const SORT_FIELD_ATTR *sort_field,
-                                            Sort_param *param) const
+                                            String *tmp_buffer) const
 {
   double value= item->val_result();
   if (item->maybe_null)
@@ -2691,7 +2691,7 @@ Type_handler_real_result::make_packed_sort_key_part(uchar *to, Item *item,
 uint
 Type_handler_temporal_result::make_packed_sort_key_part(uchar *to, Item *item,
                                             const SORT_FIELD_ATTR *sort_field,
-                                            Sort_param *param) const
+                                            String *tmp_buffer) const
 {
   MYSQL_TIME buf;
   // This is a temporal type. No nanoseconds. Rounding mode is not important.
@@ -2713,7 +2713,7 @@ Type_handler_temporal_result::make_packed_sort_key_part(uchar *to, Item *item,
 uint
 Type_handler_timestamp_common::make_packed_sort_key_part(uchar *to, Item *item,
                                             const SORT_FIELD_ATTR *sort_field,
-                                            Sort_param *param) const
+                                            String *tmp_buffer) const
 {
  THD *thd= current_thd;
   uint binlen= my_timestamp_binary_length(item->decimals);
@@ -2808,7 +2808,6 @@ bool SORT_FIELD_ATTR::check_if_packing_possible(THD *thd) const
 
   @param
     fld              field structure
-    exclude_nulls    TRUE if nulls are not to be considered
     with_suffix      TRUE if length bytes needed to store the length
                      for binary charset
 
@@ -2817,29 +2816,45 @@ bool SORT_FIELD_ATTR::check_if_packing_possible(THD *thd) const
     TODD varun: we can refactor the code for filesort to use this function.
 
 */
-void SORT_FIELD::setup(Field *fld, bool exclude_nulls, bool with_suffix)
+void SORT_FIELD::setup(Field *fld, bool with_suffix)
 {
   field= fld;
   item= NULL;
+  reverse= false;
+  SORT_FIELD_ATTR::setup(fld, with_suffix);
+}
+
+
+void SORT_FIELD::setup(Item *item_arg, bool with_suffix)
+{
+  Field *fld= item_arg->get_tmp_table_field();
+  DBUG_ASSERT(fld);
+  item= item_arg;
+  field= NULL;
+  reverse= false;
+  SORT_FIELD_ATTR::setup(fld, with_suffix);
+}
+
+
+void SORT_FIELD_ATTR::setup(Field *fld, bool with_suffix)
+{
   /*
     For unique needs to be set to FALSE always
     but we can even pass the reverse as an argument to the function
   */
-  reverse= false;
   original_length= length= (with_suffix ?
-                            field->sort_length() :
-                            field->sort_length_without_suffix());
+                            fld->sort_length() :
+                            fld->sort_length_without_suffix());
 
-  cs= field->sort_charset();
-  suffix_length= with_suffix ? field->sort_suffix_length() : 0;
-  type= field->is_packable() ?
+  cs= fld->sort_charset();
+  suffix_length= with_suffix ? fld->sort_suffix_length() : 0;
+  type= fld->is_packable() ?
         SORT_FIELD_ATTR::VARIABLE_SIZE :
         SORT_FIELD_ATTR::FIXED_SIZE;
-  maybe_null= exclude_nulls ? false  : field->maybe_null();
+  maybe_null= fld->maybe_null();
   length_bytes= is_variable_sized() ?
                 number_storage_requirement(length) : 0;
 }
-
 
 /*
   Compare function used for packing sort keys
@@ -3153,7 +3168,7 @@ static uint make_packed_sortkey(Sort_param *param, uchar *to)
     {
       // Field
       length= field->make_packed_sort_key_part(to, sort_field);
-      if ((maybe_null= field->maybe_null()))
+      if ((maybe_null= sort_field->maybe_null))
         to++;
     }
     else
@@ -3161,8 +3176,8 @@ static uint make_packed_sortkey(Sort_param *param, uchar *to)
       Item *item= sort_field->item;
       length= item->type_handler()->make_packed_sort_key_part(to, item,
                                                               sort_field,
-                                                              param);
-      if ((maybe_null= sort_field->item->maybe_null))
+                                                              &param->tmp_buffer);
+      if ((maybe_null= sort_field->maybe_null))
         to++;
     }
     to+= length;

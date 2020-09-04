@@ -311,6 +311,7 @@ class Window_spec;
   any particular table (like COUNT(*)), returm 0 from Item_sum::used_tables(),
   but still return false from Item_sum::const_item().
 */
+class Unique;
 
 class Item_sum :public Item_func_or_sum
 {
@@ -591,10 +592,10 @@ public:
   bool with_sum_func() const { return true; }
   virtual void set_partition_row_count(ulonglong count) { DBUG_ASSERT(0); }
   bool is_packing_allowed(TABLE* table, uint* total_length);
+  Unique *get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
+                     uint size_arg, size_t max_in_memory_size_arg,
+                     uint min_dupl_count_arg, bool allow_packing);
 };
-
-
-class Unique;
 
 
 /**
@@ -700,7 +701,6 @@ public:
   bool is_distinct_packed();
   static int composite_key_cmp(void* arg, uchar* key1, uchar* key2);
   static int composite_packed_key_cmp(void* arg, uchar* key1, uchar* key2);
-  uchar* make_packed_record(uchar *to);
 };
 
 

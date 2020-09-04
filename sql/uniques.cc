@@ -875,6 +875,8 @@ Unique_packed::Unique_packed(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
   packed_rec_ptr= (uchar *)my_malloc(PSI_INSTRUMENT_ME,
                                      size_arg,
                                      MYF(MY_WME | MY_THREAD_SPECIFIC));
+
+  tmp_buffer.alloc(size_arg);
 }
 
 Unique_packed::~Unique_packed()
@@ -904,8 +906,8 @@ Unique_packed::~Unique_packed()
 */
 
 bool
-Unique_packed::setup(THD *thd, Item_sum *item, uint non_const_args,
-                     uint arg_count, bool exclude_nulls)
+Unique_packed::setup(THD *thd, Item_sum *item,
+                     uint non_const_args, uint arg_count)
 {
   SORT_FIELD *sort,*pos;
   if (sortorder)
@@ -924,11 +926,14 @@ Unique_packed::setup(THD *thd, Item_sum *item, uint non_const_args,
     Item *arg= item->get_arg(i);
     if (arg->const_item())
       continue;
-    Field *field= arg->get_tmp_table_field();
-    if (!field)
-      continue;
 
-    pos->setup(field, exclude_nulls, false);
+    if (arg->type() == Item::FIELD_ITEM)
+    {
+      Field *field= ((Item_field*)arg)->field;
+      pos->setup(field, false);
+    }
+    else
+      pos->setup(arg, false);
     pos++;
   }
   return false;
@@ -962,7 +967,7 @@ bool Unique_packed::setup(THD *thd, Field *field)
   if (!sort_keys)
     return true;
   sort=pos= sortorder;
-  pos->setup(field, true, false);  // Nulls are always excluded
+  pos->setup(field, false);  // Nulls are always excluded
 
   return false;
 }
@@ -997,4 +1002,47 @@ int Unique::write_record_to_file(uchar *key)
 int Unique_packed::write_record_to_file(uchar *key)
 {
   return my_b_write(get_file(), key, read_packed_length(key));
+}
+
+
+uint Unique_packed::make_packed_record(bool exclude_nulls)
+{
+  Field *field;
+  SORT_FIELD *sort_field;
+  uint length;
+  uchar *orig_to, *to;
+  orig_to= to= packed_rec_ptr;
+  to+= size_of_length_field;
+
+  for (sort_field=sort_keys->begin() ;
+       sort_field != sort_keys->end() ;
+       sort_field++)
+  {
+    bool maybe_null=0;
+    if ((field=sort_field->field))
+    {
+      // Field
+      length= field->make_packed_sort_key_part(to, sort_field);
+    }
+    else
+    {           // Item
+      Item *item= sort_field->item;
+      length= item->type_handler()->make_packed_sort_key_part(to, item,
+                                                              sort_field,
+                                                              &tmp_buffer);
+    }
+
+    if ((maybe_null= sort_field->maybe_null))
+    {
+      if (exclude_nulls && (to[0] == 0))
+        return 0;   // NULL value
+      to++;
+    }
+
+    to+= length;
+  }
+
+  length= static_cast<int>(to - orig_to);
+  store_packed_length(orig_to, length);
+  return length;
 }

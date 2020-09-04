@@ -6446,6 +6446,7 @@ struct SORT_FIELD_ATTR
                                 uchar *b, size_t *b_len);
   bool check_if_packing_possible(THD *thd) const;
   bool is_variable_sized() { return type == VARIABLE_SIZE; }
+  void setup(Field *fld, bool with_suffix);
 };
 
 
@@ -6454,7 +6455,8 @@ struct SORT_FIELD: public SORT_FIELD_ATTR
   Field *field;				/* Field to sort */
   Item	*item;				/* Item if not sorting fields */
   bool reverse;				/* if descending sort */
-  void setup(Field *fld, bool exclude_nulls, bool with_suffix);
+  void setup(Field *fld, bool with_suffix);
+  void setup(Item *item, bool with_suffix);
 };
 
 

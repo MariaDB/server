@@ -1574,8 +1574,8 @@ public:
       if (column->is_packable())
       {
         column->unpack(column->ptr,
-                       to + Unique_packed::size_of_length_field,
-                       to + Unique_packed::read_packed_length(to), 0);
+        to + Unique_packed::size_of_length_field + MY_TEST(column->maybe_null()),
+        to + Unique_packed::read_packed_length(to) + MY_TEST(column->maybe_null()), 0);
       }
       else
         column->store_field_value(to, col_length);
@@ -1693,6 +1693,7 @@ public:
       tree_key_length= table_field->max_packed_col_length(table_field->pack_length());
 
       tree_key_length+= Unique_packed::size_of_length_field;
+      tree_key_length+= MY_TEST(table_field->maybe_null());
       tree= new Unique_packed((qsort_cmp2) simple_packed_str_key_cmp, (void*) this,
                        tree_key_length, max_heap_table_size, 1);
     }
@@ -1726,20 +1727,17 @@ public:
   virtual bool add()
   {
     table_field->mark_unused_memory_as_defined();
-    uchar *orig_to= table_field->ptr;
     DBUG_ASSERT(tree);
 
     uint length= tree->get_size();
     if (tree->is_packed())
     {
-      uchar *to;
-      orig_to= to= tree->get_packed_rec_ptr();
-      to+= Unique_packed::size_of_length_field;
-      to+= table_field->make_packed_record_field(to);
-      length= static_cast<uint>(to - orig_to);
-      Unique_packed::store_packed_length(orig_to, length);
+      length= tree->make_packed_record(true);
+      DBUG_ASSERT(length != 0);
+      DBUG_ASSERT(length <= tree->get_size());
+      return tree->unique_add(tree->get_packed_rec_ptr(), length);
     }
-    return tree->unique_add(orig_to, length);
+    return tree->unique_add(table_field->ptr, length);
   }
 
   /*

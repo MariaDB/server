@@ -903,21 +903,18 @@ bool Aggregator_distinct::setup(THD *thd)
       }
 
       DBUG_ASSERT(tree == 0);
-      if (allow_packing)
-        tree= new Unique_packed(compare_key, cmp_arg, tree_key_length,
-                                item_sum->ram_limitation(thd), 0);
-      else
-        tree= new Unique(compare_key, cmp_arg, tree_key_length,
-                         item_sum->ram_limitation(thd), 0);
-        /*
+
+      tree= item_sum->get_unique(compare_key, cmp_arg, tree_key_length,
+                                 item_sum->ram_limitation(thd), 0,
+                                 allow_packing);
+      /*
         The only time tree_key_length could be 0 is if someone does
         count(distinct) on a char(0) field - stupid thing to do,
         but this has to be handled - otherwise someone can crash
         the server with a DoS attack
       */
       if (!tree || tree->setup(thd, item_sum,
-                               non_const_items, item_sum->get_arg_count(),
-                               TRUE))
+                               non_const_items, item_sum->get_arg_count()))
         return TRUE;
     }
     return FALSE;
@@ -1030,29 +1027,27 @@ bool Aggregator_distinct::add()
       item_sum->sum_func() == Item_sum::COUNT_DISTINCT_FUNC)
   {
     int error;
-    copy_fields(tmp_table_param);
-    if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
-      return TRUE;
 
-    uchar *to= NULL, *orig_to= table->record[0] + table->s->null_bytes;
+    uchar *orig_to= NULL;
     uint packed_length= 0;
+
 
     if (is_distinct_packed())
     {
-      orig_to= to= tree->get_packed_rec_ptr();
-      if ((to= make_packed_record(to)) == NULL)
+      if ((packed_length= tree->make_packed_record(true)) == 0)
         return false;
-      packed_length= static_cast<uint>(to - orig_to);
       DBUG_ASSERT(packed_length <= tree->get_size());
-      Unique_packed::store_packed_length(orig_to, packed_length);
-    }
-    else
-    {
-      for (Field **field=table->field ; *field ; field++)
-        if ((*field)->is_real_null(0))
-          return 0;         // Don't count NULL
+      return tree->unique_add(tree->get_packed_rec_ptr(), packed_length);
     }
 
+    copy_fields(tmp_table_param);
+    if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
+      return TRUE;
+    orig_to= table->record[0] + table->s->null_bytes;
+
+    for (Field **field=table->field ; *field ; field++)
+      if ((*field)->is_real_null(0))
+        return 0;         // Don't count NULL
     if (tree)
     {
       /*
@@ -1061,9 +1056,10 @@ bool Aggregator_distinct::add()
         bloat the tree without providing any valuable info. Besides,
         key_length used to initialize the tree didn't include space for them.
       */
-      return tree->unique_add(orig_to, tree->is_packed() ?
-                                       packed_length : tree->get_size());
+
+      return tree->unique_add(orig_to, tree->get_size());
     }
+
     if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))) &&
         table->file->is_fatal_error(error, HA_CHECK_DUP))
       return TRUE;
@@ -1854,32 +1850,6 @@ bool Aggregator_distinct::is_distinct_packed()
 {
   return tree && tree->is_packed();
 
-}
-
-
-/*
-  @brief
-    Make a record with packed values
-
-  @param
-    to                     buffer to store the packed value
-*/
-uchar *Aggregator_distinct::make_packed_record(uchar *to)
-{
-  to+= Unique_packed::size_of_length_field;
-
-  for (Field **field=table->field ; *field ; field++)
-  {
-    Field *fld= (*field);
-    if (fld->is_real_null(0))
-      return NULL;         // Don't count NULL
-
-    /*
-      Storing the packed values for the non-const fields of the record
-    */
-    to+= fld->make_packed_record_field(to);
-  }
-  return to;
 }
 
 
@@ -4612,23 +4582,13 @@ bool Item_func_group_concat::setup(THD *thd)
 
   if (distinct)
   {
-    if (allow_packing)
-    {
-      unique_filter= new Unique_packed(get_comparator_function_for_distinct(allow_packing),
-                                       (void*)this,
-                                       tree_key_length + get_null_bytes(),
-                                       ram_limitation(thd), 0);
-    }
-    else
-    {
-      unique_filter= new Unique(get_comparator_function_for_distinct(allow_packing),
-                                (void*)this,
-                                tree_key_length + get_null_bytes(),
-                                ram_limitation(thd), 0);
-    }
+    unique_filter= get_unique(get_comparator_function_for_distinct(allow_packing),
+                             (void*)this,
+                             tree_key_length + get_null_bytes(),
+                             ram_limitation(thd), 0, allow_packing);
 
     if (!unique_filter || unique_filter->setup(thd, this, non_const_items,
-                                               arg_count_field, skip_nulls()))
+                                               arg_count_field))
       DBUG_RETURN(TRUE);
   }
   if ((row_limit && row_limit->cmp_type() != INT_RESULT) ||
@@ -4784,6 +4744,11 @@ bool Item_func_group_concat::is_packing_allowed(uint* total_length)
   if (!distinct || arg_count_order)
     return false;
 
+  /*
+    TODO varun: this needs to be removed
+  */
+  return false;
+
   return Item_sum::is_packing_allowed(table, total_length);
 }
 
@@ -4816,6 +4781,9 @@ bool Item_sum::is_packing_allowed(TABLE *table, uint* total_length)
       if (field->flags & BLOB_FLAG)
         return false;
 
+      // 1 byte for nullability;
+      tot_length+= MY_TEST(field->maybe_null());
+
       tot_length+= field->sort_length_without_suffix();
       if (field->is_packable())
       {
@@ -4840,6 +4808,20 @@ bool Item_sum::is_packing_allowed(TABLE *table, uint* total_length)
   */
   (*total_length)+= Unique_packed::size_of_length_field + size_of_packable_fields;
   return true;
+}
+
+
+Unique* Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
+                             uint size_arg, size_t max_in_memory_size_arg,
+                             uint min_dupl_count_arg, bool allow_packing)
+{
+
+  if (allow_packing)
+    return new Unique_packed(comp_func, comp_func_fixed_arg, size_arg,
+                             max_in_memory_size_arg, min_dupl_count_arg);
+  return new Unique(comp_func, comp_func_fixed_arg, size_arg,
+                    max_in_memory_size_arg, min_dupl_count_arg);
+
 }
 
 

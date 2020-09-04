@@ -156,7 +156,7 @@ public:
     return NULL;
   }
   virtual bool setup(THD *thd, Item_sum *item, uint non_const_args,
-                     uint arg_count, bool exclude_nulls)
+                     uint arg_count)
   {
     return false;
   }
@@ -180,6 +180,11 @@ public:
 
   // returns TRUE if the unique tree stores packed values
   virtual bool is_packed() { return false; }
+  virtual uint make_packed_record(bool exclude_nulls)
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
 
   friend int unique_write_to_file(uchar* key, element_count count, Unique *unique);
   friend int unique_write_to_ptrs(uchar* key, element_count count, Unique *unique);
@@ -198,6 +203,8 @@ class Unique_packed : public Unique
     record is added to the unique tree
   */
   uchar* packed_rec_ptr;
+
+  String tmp_buffer;
 
   /*
     Array of SORT_FIELD structure storing the information about the key parts
@@ -221,11 +228,11 @@ class Unique_packed : public Unique
   uchar *get_packed_rec_ptr() { return packed_rec_ptr; }
   Sort_keys *get_keys() { return sort_keys; }
   SORT_FIELD *get_sortorder() { return sortorder; }
-  bool setup(THD *thd, Item_sum *item, uint non_const_args,
-             uint arg_count, bool exclude_nulls);
+  bool setup(THD *thd, Item_sum *item, uint non_const_args, uint arg_count);
   bool setup(THD *thd, Field *field);
   int compare_packed_keys(uchar *a, uchar *b);
   int write_record_to_file(uchar *key);
+  uint make_packed_record(bool exclude_nulls);
   static void store_packed_length(uchar *p, uint sz)
   {
     int4store(p, sz - size_of_length_field);
