@@ -142,11 +142,11 @@ private:
   The most significant bit contains the STOP_NEW_OPS flag.
 
   Protected by my_atomic. */
-  uint32_t n_pending_ops;
+  int32 n_pending_ops;
 
   /** Flag in n_pending_ops that indicates that the tablespace is being
   deleted, and no further operations should be performed */
-  static const uint32_t STOP_NEW_OPS= 1U << 31;
+  static const int32 STOP_NEW_OPS= 1 << 31;
 public:
 	/** Number of pending block read or write operations
 	(when a write is imminent or a read has recently completed).
@@ -263,13 +263,13 @@ public:
 	void close();
 
   /** @return whether the tablespace is about to be dropped or is referenced */
-  uint32_t is_stopping_or_referenced()
+  int32 is_stopping_or_referenced()
   {
     return my_atomic_load32(&n_pending_ops);
   }
 
   /** @return whether the tablespace is about to be dropped or is referenced */
-  uint32_t is_stopping_or_referenced() const
+  int32 is_stopping_or_referenced() const
   {
     return const_cast<fil_space_t*>(this)->is_stopping_or_referenced();
   }
@@ -281,7 +281,7 @@ public:
   }
 
   /** @return number of references being held */
-  uint32_t referenced() const
+  int32 referenced() const
   {
     return is_stopping_or_referenced() & ~STOP_NEW_OPS;
   }
@@ -290,7 +290,7 @@ public:
   void set_stopping(bool stopping)
   {
     /* Note: starting with 10.4 this should be std::atomic::fetch_xor() */
-    uint32_t n= stopping ? 0 : STOP_NEW_OPS;
+    int32 n= stopping ? 0 : STOP_NEW_OPS;
     while (!my_atomic_cas32_strong_explicit(&n_pending_ops, &n,
                                             n ^ STOP_NEW_OPS,
                                             MY_MEMORY_ORDER_ACQUIRE,
@@ -302,7 +302,7 @@ public:
   /** @return whether a tablespace reference was successfully acquired */
   bool acquire()
   {
-    uint32_t n= 0;
+    int32 n= 0;
     while (!my_atomic_cas32_strong_explicit(&n_pending_ops, &n, n + 1,
                                             MY_MEMORY_ORDER_ACQUIRE,
                                             MY_MEMORY_ORDER_RELAXED))
@@ -314,7 +314,7 @@ public:
   @return whether this was the last reference */
   bool release()
   {
-    uint32_t n= my_atomic_add32(&n_pending_ops, uint32_t(-1));
+    int32 n= my_atomic_add32(&n_pending_ops, -1);
     ut_ad(n & ~STOP_NEW_OPS);
     return (n & ~STOP_NEW_OPS) == 1;
   }
