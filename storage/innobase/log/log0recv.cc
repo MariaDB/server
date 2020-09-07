@@ -144,17 +144,21 @@ struct file_name_t {
 	fil_status	status;
 
 	/** FSP_SIZE of tablespace */
-	ulint		size;
+	ulint		size = 0;
 
 	/** the log sequence number of the last observed MLOG_INDEX_LOAD
 	record for the tablespace */
-	lsn_t		enable_lsn;
+	lsn_t		enable_lsn = 0;
+
+	/** Dummy flags before they have been read from the .ibd file */
+	static constexpr uint32_t initial_flags = FSP_FLAGS_FCRC32_MASK_MARKER;
+	/** FSP_SPACE_FLAGS of tablespace */
+	uint32_t	flags = initial_flags;
 
 	/** Constructor */
 	file_name_t(std::string name_, bool deleted)
 		: name(std::move(name_)), space(NULL),
-		status(deleted ? DELETED: NORMAL),
-		size(0), enable_lsn(0) {}
+		status(deleted ? DELETED: NORMAL) {}
 
 	/** Report a MLOG_INDEX_LOAD operation, meaning that
 	mlog_init for any earlier LSN must be skipped.
@@ -440,14 +444,18 @@ fil_name_process(
 		case FIL_LOAD_OK:
 			ut_ad(space != NULL);
 
-			if (f.space == NULL || f.space == space) {
-
-				if (f.size && f.space == NULL) {
-					fil_space_set_recv_size(space->id, f.size);
+			if (!f.space) {
+				if (f.size
+				    || f.flags != f.initial_flags) {
+					fil_space_set_recv_size_and_flags(
+						space->id, f.size, f.flags);
 				}
 
-				f.name = fname.name;
 				f.space = space;
+				goto same_space;
+			} else if (f.space == space) {
+same_space:
+				f.name = fname.name;
 				f.status = file_name_t::NORMAL;
 			} else {
 				ib::error() << "Tablespace " << space_id
@@ -2441,6 +2449,44 @@ apply:
 	mutex_exit(&recv_sys.mutex);
 }
 
+/** Parse the redo log to set the space recovery size and flags
+@param[in]	ptr	pointer to parsing redo buffer
+@param[in]	end_ptr	end of the parsing redo buffer
+@param[in]	space	tablespace id */
+static
+void recv_parse_set_size_and_flags(const byte *ptr, byte *end_ptr,
+                                   ulint space)
+{
+  switch (const uint16_t offset= mach_read_from_2(ptr))
+  {
+  default:
+    break;
+  case FSP_HEADER_OFFSET + FSP_SIZE:
+  case FSP_HEADER_OFFSET + FSP_SPACE_FLAGS:
+    ptr += 2;
+    ulint val= mach_parse_compressed(&ptr, end_ptr);
+    recv_spaces_t::iterator it= recv_spaces.find(space);
+
+    ut_ad(!recv_sys.mlog_checkpoint_lsn || space == TRX_SYS_SPACE ||
+          srv_is_undo_tablespace(space) || it != recv_spaces.end());
+
+    if (offset == FSP_HEADER_OFFSET + FSP_SIZE)
+      fil_space_set_recv_size_and_flags(
+         space, val, FSP_FLAGS_FCRC32_MASK_MARKER);
+    else
+      fil_space_set_recv_size_and_flags(
+         space, 0, static_cast<uint32_t>(val));
+
+    if (it == recv_spaces.end() || it->second.space)
+      return;
+
+    if (offset == FSP_HEADER_OFFSET + FSP_SIZE)
+      it->second.size= val;
+    else
+      it->second.flags= static_cast<uint32_t>(val);
+  }
+}
+
 /** Tries to parse a single log record.
 @param[out]	type		log record type
 @param[in]	ptr		pointer to a buffer
@@ -2527,25 +2573,8 @@ recv_parse_log_rec(
 		return(0);
 	}
 
-	if (*page_no == 0 && *type == MLOG_4BYTES
-	    && apply
-	    && mach_read_from_2(old_ptr) == FSP_HEADER_OFFSET + FSP_SIZE) {
-		old_ptr += 2;
-
-		ulint size = mach_parse_compressed(&old_ptr, end_ptr);
-
-		recv_spaces_t::iterator it = recv_spaces.find(*space);
-
-		ut_ad(!recv_sys.mlog_checkpoint_lsn
-		      || *space == TRX_SYS_SPACE
-		      || srv_is_undo_tablespace(*space)
-		      || it != recv_spaces.end());
-
-		if (it != recv_spaces.end() && !it->second.space) {
-			it->second.size = size;
-		}
-
-		fil_space_set_recv_size(*space, size);
+	if (*page_no == 0 && *type == MLOG_4BYTES && apply) {
+		recv_parse_set_size_and_flags(old_ptr, end_ptr, *space);
 	}
 
 	return ulint(new_ptr - ptr);

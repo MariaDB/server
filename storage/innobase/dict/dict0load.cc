@@ -2710,8 +2710,9 @@ dict_get_and_save_data_dir_path(
 		if (table->data_dir_path == NULL) {
 			/* Since we did not set the table data_dir_path,
 			unset the flag.  This does not change SYS_DATAFILES
-			or SYS_TABLES or FSP_FLAGS on the header page of the
-			tablespace, but it makes dict_table_t consistent. */
+			or SYS_TABLES or FSP_SPACE_FLAGS on the header page
+			of the tablespace, but it makes dict_table_t
+			consistent. */
 			table->flags &= ~DICT_TF_MASK_DATA_DIR;
 		}
 

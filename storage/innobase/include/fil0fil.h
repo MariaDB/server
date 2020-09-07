@@ -311,7 +311,7 @@ public:
 	ulint		flags;
 
 	/** Determine if full_crc32 is used for a data file
-	@param[in]	flags	tablespace flags (FSP_FLAGS)
+	@param[in]	flags	tablespace flags (FSP_SPACE_FLAGS)
 	@return whether the full_crc32 algorithm is active */
 	static bool full_crc32(ulint flags) {
 		return flags & FSP_FLAGS_FCRC32_MASK_MARKER;
@@ -430,23 +430,23 @@ public:
 	static bool is_flags_full_crc32_equal(ulint flags, ulint expected)
 	{
 		ut_ad(full_crc32(flags));
-		ulint page_ssize = FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(flags);
+		ulint fcrc32_psize = FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(flags);
 
 		if (full_crc32(expected)) {
 			/* The data file may have been created with a
 			different innodb_compression_algorithm. But
 			we only support one innodb_page_size for all files. */
-			return page_ssize
-				== FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(expected);
+			return fcrc32_psize
+			       == FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(expected);
 		}
 
-		ulint space_page_ssize = FSP_FLAGS_GET_PAGE_SSIZE(expected);
+		ulint non_fcrc32_psize = FSP_FLAGS_GET_PAGE_SSIZE(expected);
 
-		if (page_ssize == 5) {
-			if (space_page_ssize) {
+		if (!non_fcrc32_psize) {
+			if (fcrc32_psize != 5) {
 				return false;
 			}
-		} else if (space_page_ssize != page_ssize) {
+		} else if (fcrc32_psize != non_fcrc32_psize) {
 			return false;
 		}
 
@@ -464,15 +464,15 @@ public:
 			return false;
 		}
 
-		ulint page_ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
-		ulint space_page_ssize = FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(
+		ulint non_fcrc32_psize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
+		ulint fcrc32_psize = FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(
 			expected);
 
-		if (page_ssize) {
-			if (space_page_ssize != 5) {
+		if (!non_fcrc32_psize) {
+			if (fcrc32_psize != 5) {
 				return false;
 			}
-		} else if (space_page_ssize != page_ssize) {
+		} else if (fcrc32_psize != non_fcrc32_psize) {
 			return false;
 		}
 
@@ -1060,11 +1060,12 @@ fil_space_free(
 	bool		x_latched);
 
 /** Set the recovered size of a tablespace in pages.
-@param id	tablespace ID
-@param size	recovered size in pages */
+@param	id	tablespace ID
+@param	size	recovered size in pages
+@param	flags	tablespace flags */
 UNIV_INTERN
-void
-fil_space_set_recv_size(ulint id, ulint size);
+void fil_space_set_recv_size_and_flags(ulint id, ulint size, uint32_t flags);
+
 /*******************************************************************//**
 Returns the size of the space in pages. The tablespace must be cached in the
 memory cache.

@@ -1403,22 +1403,18 @@ fil_space_get_space(
 	return(space);
 }
 
-/** Set the recovered size of a tablespace in pages.
-@param id	tablespace ID
-@param size	recovered size in pages */
 UNIV_INTERN
-void
-fil_space_set_recv_size(ulint id, ulint size)
+void fil_space_set_recv_size_and_flags(ulint id, ulint size, uint32_t flags)
 {
-	mutex_enter(&fil_system.mutex);
-	ut_ad(size);
-	ut_ad(id < SRV_LOG_SPACE_FIRST_ID);
+  mutex_enter(&fil_system.mutex);
+  ut_ad(id < SRV_LOG_SPACE_FIRST_ID);
 
-	if (fil_space_t* space = fil_space_get_space(id)) {
-		space->recv_size = size;
-	}
-
-	mutex_exit(&fil_system.mutex);
+  if (fil_space_t* space= fil_space_get_space(id))
+  {
+    if (!size) space->recv_size= size;
+    if (flags != FSP_FLAGS_FCRC32_MASK_MARKER) space->flags= flags;
+  }
+  mutex_exit(&fil_system.mutex);
 }
 
 /*******************************************************************//**
