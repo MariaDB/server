@@ -1162,7 +1162,8 @@ lock_rec_other_has_conflicting(
 	ulint			heap_no,/*!< in: heap number of the record */
 	const trx_t*		trx)	/*!< in: our transaction */
 {
-	lock_t*		res = NULL;
+	lock_t*		conflict = NULL;
+	bool		skip_waiting = false;
 
 	DBUG_ENTER("lock_rec_other_has_conflicting");
 	ut_ad(lock_mutex_own());
@@ -1173,6 +1174,10 @@ lock_rec_other_has_conflicting(
 	     lock != NULL;
 	     lock = lock_rec_get_next(heap_no, lock)) {
 
+		if (skip_waiting && lock->is_waiting()) {
+			continue;
+		}
+
 		/* If current trx already acquired a lock not weaker covering
 		same types then we don't have to wait for any locks. */
 		if (lock->is_stronger(mode, heap_no, trx)) {
@@ -1180,26 +1185,35 @@ lock_rec_other_has_conflicting(
 			DBUG_LOG("ib_lock", CONFLICTS(trx, mode, NULL)
 				 << "because: " << WEAKER(mode, lock)) ;
 			DBUG_RETURN(NULL);
-		}
+		} else if (lock->trx == trx && !lock->is_waiting()) {
+			if (conflict && conflict->is_waiting()) {
+				conflict = NULL;
+			}
+			skip_waiting = true;
+		} else if (lock_rec_has_to_wait(true, trx, mode, lock,
+						is_supremum)) {
 
-		if (!res && lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
-			res = lock;
+			if (!conflict || (conflict->is_waiting()
+					  && !lock->is_waiting())) {
+
+				conflict = lock;
+			}
 		}
 	}
 
 #ifdef WITH_WSREP
-	if (res && trx->is_wsrep()) {
-		trx_mutex_enter(res->trx);
+	if (conflict && trx->is_wsrep()) {
+		trx_mutex_enter(conflict->trx);
 		/* Below function will roll back either trx
 		or lock->trx depending on priority of the
 		transaction. */
-		wsrep_kill_victim(const_cast<trx_t*>(trx), res);
-		trx_mutex_exit(res->trx);
+		wsrep_kill_victim(const_cast<trx_t*>(trx), conflict);
+		trx_mutex_exit(conflict->trx);
 	}
 #endif /* WITH_WSREP */
 
-	DBUG_LOG("ib_lock", CONFLICTS(trx, mode, res));
-	DBUG_RETURN(res);
+	DBUG_LOG("ib_lock", CONFLICTS(trx, mode, conflict));
+	DBUG_RETURN(conflict);
 }
 
 /*********************************************************************//**

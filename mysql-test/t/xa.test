@@ -340,9 +340,7 @@ DROP TABLE t1;
 
 
 --echo #
---echo # Bug#12352846 - TRANS_XA_START(THD*):
---echo #                ASSERTION THD->TRANSACTION.XID_STATE.XID.IS_NULL()
---echo #                FAILED 
+--echo # MDEV-10962 Deadlock with 3 concurrent DELETEs by unique key
 --echo #
 
 --disable_warnings
@@ -369,20 +367,17 @@ let $wait_condition=
 --source include/wait_condition.inc
 --sleep 0.1
 DELETE FROM t1;
+COMMIT;
 
 --connection con2
 --echo # Reaping: INSERT INTO t2 SELECT a FROM t1
---error ER_LOCK_DEADLOCK
 --reap
---error ER_XA_RBDEADLOCK
+XA END 'xid1';
+XA PREPARE 'xid1';
 XA COMMIT 'xid1';
 
-connection default;
-
-COMMIT;
-
 connection con2;
-# This caused the assert to be triggered
+# This caused the assert to be triggered (Bug#12352846)
 XA START 'xid1';
 
 XA END 'xid1';

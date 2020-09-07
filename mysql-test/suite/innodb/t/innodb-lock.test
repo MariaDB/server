@@ -366,3 +366,28 @@ select * from t1;
 disconnect con1;
 drop table t1;
 
+--echo #
+--echo # MDEV-10962 Deadlock with 3 concurrent DELETEs by unique key
+--echo #
+create table t1 (a int unique) engine innodb;
+insert into t1 values (1);
+connect (con1, localhost, root,, test);
+connect (con2, localhost, root,, test);
+connect (con3, localhost, root,, test);
+connection con1;
+send delete from t1 where a = 1;
+connection con2;
+send delete from t1 where a = 1;
+connection con3;
+send delete from t1 where a = 1;
+connection con1;
+reap;
+connection con2;
+reap;
+connection con3;
+reap;
+connection default;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+drop table t1;

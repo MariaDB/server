@@ -308,3 +308,25 @@ pk	x
 5	16
 disconnect con1;
 drop table t1;
+#
+# MDEV-10962 Deadlock with 3 concurrent DELETEs by unique key
+#
+create table t1 (a int unique) engine innodb;
+insert into t1 values (1);
+connect  con1, localhost, root,, test;
+connect  con2, localhost, root,, test;
+connect  con3, localhost, root,, test;
+connection con1;
+delete from t1 where a = 1;
+connection con2;
+delete from t1 where a = 1;
+connection con3;
+delete from t1 where a = 1;
+connection con1;
+connection con2;
+connection con3;
+connection default;
+disconnect con1;
+disconnect con2;
+disconnect con3;
+drop table t1;

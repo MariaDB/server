@@ -239,9 +239,7 @@ XA END 'xa1';
 XA ROLLBACK 'xa1';
 DROP TABLE t1;
 #
-# Bug#12352846 - TRANS_XA_START(THD*):
-#                ASSERTION THD->TRANSACTION.XID_STATE.XID.IS_NULL()
-#                FAILED 
+# MDEV-10962 Deadlock with 3 concurrent DELETEs by unique key
 #
 DROP TABLE IF EXISTS t1, t2;
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
@@ -255,13 +253,12 @@ INSERT INTO t2 SELECT a FROM t1;
 connection default;
 # Waiting until INSERT ... is blocked
 DELETE FROM t1;
+COMMIT;
 connection con2;
 # Reaping: INSERT INTO t2 SELECT a FROM t1
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+XA END 'xid1';
+XA PREPARE 'xid1';
 XA COMMIT 'xid1';
-ERROR XA102: XA_RBDEADLOCK: Transaction branch was rolled back: deadlock was detected
-connection default;
-COMMIT;
 connection con2;
 XA START 'xid1';
 XA END 'xid1';
