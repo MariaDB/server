@@ -237,7 +237,10 @@ struct ib_lock_t
 		return(type_mode & LOCK_INSERT_INTENTION);
 	}
 
-	ulint type() const {
+	bool is_stronger(ulint precise_mode, ulint heap_no, const trx_t* t) const;
+
+	ulint type() const
+	{
 		return(type_mode & LOCK_TYPE_MASK);
 	}
 

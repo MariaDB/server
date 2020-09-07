@@ -1022,19 +1022,7 @@ lock_rec_has_expl(
 	     lock != NULL;
 	     lock = lock_rec_get_next(heap_no, lock)) {
 
-		if (lock->trx == trx
-		    && !lock_rec_get_insert_intention(lock)
-		    && lock_mode_stronger_or_eq(
-			    lock_get_mode(lock),
-			    static_cast<lock_mode>(
-				    precise_mode & LOCK_MODE_MASK))
-		    && !lock_get_wait(lock)
-		    && (!lock_rec_get_rec_not_gap(lock)
-			|| (precise_mode & LOCK_REC_NOT_GAP)
-			|| heap_no == PAGE_HEAP_NO_SUPREMUM)
-		    && (!lock_rec_get_gap(lock)
-			|| (precise_mode & LOCK_GAP)
-			|| heap_no == PAGE_HEAP_NO_SUPREMUM)) {
+		if (lock->is_stronger(precise_mode, heap_no, trx)) {
 
 			return(lock);
 		}
@@ -1165,39 +1153,47 @@ lock_rec_other_has_conflicting(
 /*===========================*/
 	ulint			mode,	/*!< in: LOCK_S or LOCK_X,
 					possibly ORed to LOCK_GAP or
-					LOC_REC_NOT_GAP,
+					LOCK_REC_NOT_GAP,
 					LOCK_INSERT_INTENTION */
 	const buf_block_t*	block,	/*!< in: buffer block containing
 					the record */
 	ulint			heap_no,/*!< in: heap number of the record */
 	const trx_t*		trx)	/*!< in: our transaction */
 {
-	lock_t*		lock;
+	lock_t*		res = NULL;
 
 	ut_ad(lock_mutex_own());
 
 	bool	is_supremum = (heap_no == PAGE_HEAP_NO_SUPREMUM);
 
-	for (lock = lock_rec_get_first(lock_sys->rec_hash, block, heap_no);
+	for (lock_t* lock = lock_rec_get_first(lock_sys->rec_hash, block, heap_no);
 	     lock != NULL;
 	     lock = lock_rec_get_next(heap_no, lock)) {
 
-		if (lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
-#ifdef WITH_WSREP
-			if (trx->is_wsrep()) {
-				trx_mutex_enter(lock->trx);
-				/* Below function will roll back either trx
-				or lock->trx depending on priority of the
-				transaction. */
-				wsrep_kill_victim(const_cast<trx_t*>(trx), lock);
-				trx_mutex_exit(lock->trx);
-			}
-#endif /* WITH_WSREP */
-			return(lock);
+		/* If current trx already acquired a lock not weaker covering
+		same types then we don't have to wait for any locks. */
+		if (lock->is_stronger(mode, heap_no, trx)) {
+
+			return(NULL);
+		}
+
+		if (!res && lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
+			res = lock;
 		}
 	}
 
-	return(NULL);
+#ifdef WITH_WSREP
+	if (res && trx->is_wsrep()) {
+		trx_mutex_enter(res->trx);
+		/* Below function will roll back either trx
+		or lock->trx depending on priority of the
+		transaction. */
+		wsrep_kill_victim(const_cast<trx_t*>(trx), res);
+		trx_mutex_exit(res->trx);
+	}
+#endif /* WITH_WSREP */
+
+	return(res);
 }
 
 /*********************************************************************//**
