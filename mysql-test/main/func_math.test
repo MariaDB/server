@@ -1883,6 +1883,11 @@ CREATE TABLE t2 AS SELECT UUID_SHORT() - a FROM t1;
 SHOW CREATE TABLE t2;
 DROP TABLE t2, t1;
 
+--echo #
+--echo # MDEV-23680 Assertion `data' failed in crcr32_calc_pclmulqdq
+--echo #
+SELECT CRC32(ExtractValue('<a><b/></a>', '/a/b')) AS f;
+
 
 --echo #
 --echo # End of 10.5 tests

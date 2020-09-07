@@ -219,7 +219,7 @@ static inline uint32_t crcr32_calc_pclmulqdq(const uint8_t *data, uint32_t data_
   __m128i temp, fold, k;
   uint32_t n;
 
-  DBUG_ASSERT(data);
+  DBUG_ASSERT(data != NULL || data_len == 0);
   DBUG_ASSERT(params);
 
   if (unlikely(data_len == 0))
