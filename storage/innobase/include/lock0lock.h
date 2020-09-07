@@ -1050,4 +1050,28 @@ lock_get_info(
 
 #include "lock0lock.ic"
 
+/** The global output operator is overloaded to conveniently
+print the lock_table_t object into the given output stream.
+@param[in,out]	out	the output stream
+@param[in]	lock	the table lock
+@return the given output stream */
+inline
+std::ostream&
+operator<<(std::ostream& out, const lock_table_t& lock)
+{
+	return(lock.print(out));
+}
+
+/** The global output operator is overloaded to conveniently
+print the ib_lock_t object into the given output stream.
+@param[in,out]	out	the output stream
+@param[in]	lock	the record lock
+@return the given output stream */
+inline
+std::ostream&
+operator<<(std::ostream& out, const ib_lock_t& lock)
+{
+	return(lock.print(out));
+}
+
 #endif

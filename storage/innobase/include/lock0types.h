@@ -57,19 +57,19 @@ const char* lock_mode_string(enum lock_mode mode)
 {
 	switch (mode) {
 	case LOCK_IS:
-		return("LOCK_IS");
+		return("IS");
 	case LOCK_IX:
-		return("LOCK_IX");
+		return("IX");
 	case LOCK_S:
-		return("LOCK_S");
+		return("S");
 	case LOCK_X:
-		return("LOCK_X");
+		return("X");
 	case LOCK_AUTO_INC:
-		return("LOCK_AUTO_INC");
+		return("AUTO_INC");
 	case LOCK_NONE:
-		return("LOCK_NONE");
+		return("NONE");
 	case LOCK_NONE_UNSET:
-		return("LOCK_NONE_UNSET");
+		return("NONE_UNSET");
 	default:
 		ut_error;
 	}
@@ -109,7 +109,7 @@ struct lock_rec_t {
 inline
 std::ostream& lock_rec_t::print(std::ostream& out) const
 {
-	out << "[lock_rec_t: space=" << space << ", page_no=" << page_no
+	out << "[space=" << space << ", page_no=" << page_no
 		<< ", n_bits=" << n_bits << "]";
 	return(out);
 }
@@ -175,6 +175,51 @@ operator<<(std::ostream& out, const lock_rec_t& lock)
 # error
 #endif
 /* @} */
+
+inline
+const char*
+type_string(ulint type_mode)
+{
+	switch (type_mode & LOCK_TYPE_MASK) {
+	case LOCK_REC:
+		return("REC");
+	case LOCK_TABLE:
+		return("TABLE");
+	default:
+		ut_error;
+	}
+}
+
+/** Convert 'type_mode' into a human readable string.
+@return human readable string */
+inline
+std::string
+type_mode_string(ulint type_mode)
+{
+	std::ostringstream sout;
+	lock_mode mode = static_cast<enum lock_mode>(type_mode & LOCK_MODE_MASK);
+	if (type_mode & LOCK_TYPE_MASK) {
+		sout << type_string(type_mode) << "|";
+	}
+	sout << lock_mode_string(mode);
+
+	if (type_mode & LOCK_REC_NOT_GAP) {
+		sout << "|REC_NOT_GAP";
+	}
+
+	if (type_mode & LOCK_WAIT) {
+		sout << "|WAIT";
+	}
+
+	if (type_mode & LOCK_GAP) {
+		sout << "|GAP";
+	}
+
+	if (type_mode & LOCK_INSERT_INTENTION) {
+		sout << "|INSERT_INTENTION";
+	}
+	return(sout.str());
+}
 
 /** Lock struct; protected by lock_sys->mutex */
 struct ib_lock_t
@@ -254,23 +299,98 @@ struct ib_lock_t
 	@return the given output stream. */
 	std::ostream& print(std::ostream& out) const;
 
-	/** Convert the member 'type_mode' into a human readable string.
-	@return human readable string */
-	std::string type_mode_string() const;
+	std::string type_mode_string() const
+	{
+		return ::type_mode_string(type_mode);
+	}
 
 	const char* type_string() const
 	{
-		switch (type_mode & LOCK_TYPE_MASK) {
-		case LOCK_REC:
-			return("LOCK_REC");
-		case LOCK_TABLE:
-			return("LOCK_TABLE");
-		default:
-			ut_error;
-		}
+		return ::type_string(type_mode);
 	}
 };
 
 typedef UT_LIST_BASE_NODE_T(ib_lock_t) trx_lock_list_t;
 
+#ifndef DBUG_OFF
+/* Classes used to catch various locking situations in code */
+
+struct ADD /* add lock */
+{
+	const lock_t *lock;
+	ADD(const lock_t *l) : lock(l)
+	{
+	}
+};
+
+inline
+std::ostream&
+operator<<(std::ostream& out, const ADD& a)
+{
+	out << "ADD(" << a.lock << ") ";
+	return out;
+}
+
+struct VICTIM /* deadlock victim */
+{
+	const trx_t *trx;
+	bool set;
+	VICTIM(const trx_t *t, bool s = true) : trx(t), set(s)
+	{
+	}
+};
+
+inline
+std::ostream&
+operator<<(std::ostream& out, const VICTIM& v)
+{
+	out << (v.set ? '+' : '-') << "VICTIM(trx=" << v.trx << ") ";
+	return out;
+}
+
+struct WEAKER /* precise_mode is weaker than existing lock (of same trx) */
+{
+	ulint precise_mode;
+	lock_t *lock;
+	WEAKER(ulint m, lock_t *l) : precise_mode(m), lock(l)
+	{
+	}
+};
+
+inline
+std::ostream&
+operator<<(std::ostream& out, const WEAKER& w)
+{
+	out << "WEAKER(" << type_mode_string(w.precise_mode) << ", " << w.lock << ") ";
+	w.lock->print(out);
+	out << " ";
+	return out;
+}
+
+struct CONFLICTS /* precise_mode conflicts (or doesn't) with any existing locks */
+{
+	const trx_t *trx;
+	ulint precise_mode;
+	const lock_t *conflict;
+	CONFLICTS(const trx_t *t, ulint m, const lock_t *c) :
+		trx(t), precise_mode(m), conflict(c)
+	{
+	}
+};
+
+inline
+std::ostream&
+operator<<(std::ostream& out, const CONFLICTS& c)
+{
+	out << (c.conflict ? "CONFLICTS(trx=" : "NO_CONFLICTS(trx=")
+		<< c.trx << ", " << type_mode_string(c.precise_mode) << ", "
+		<< c.conflict  << ") ";
+	if (c.conflict) {
+		c.conflict->print(out);
+		out << " ";
+	}
+	return out;
+}
+
+#endif /* !DBUG_OFF */
 #endif /* lock0types_h */
