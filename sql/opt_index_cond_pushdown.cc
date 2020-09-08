@@ -206,7 +206,7 @@ static Item *make_cond_for_index(THD *thd, Item *cond, TABLE *table, uint keyno,
 	  new_cond->argument_list()->push_back(fix, thd->mem_root);
           used_tables|= fix->used_tables();
         }
-        if (MY_TEST(item->marker == ICP_COND_USES_INDEX_ONLY))
+        if (item->marker == ICP_COND_USES_INDEX_ONLY)
         {
           n_marked++;
           item->marker= 0;
@@ -239,7 +239,7 @@ static Item *make_cond_for_index(THD *thd, Item *cond, TABLE *table, uint keyno,
 	if (!fix)
 	  return (COND*) 0;
 	new_cond->argument_list()->push_back(fix, thd->mem_root);
-        if (MY_TEST(item->marker == ICP_COND_USES_INDEX_ONLY))
+        if (item->marker == ICP_COND_USES_INDEX_ONLY)
         {
           n_marked++;
           item->marker= 0;
