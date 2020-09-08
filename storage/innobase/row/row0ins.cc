@@ -1908,8 +1908,14 @@ bool row_ins_foreign_index_entry(dict_foreign_t *foreign,
   {
     for (ulint j= 0; j < index->n_fields; j++)
     {
-      const char *col_name= dict_table_get_col_name(
-        index->table, dict_index_get_nth_col_no(index, j));
+      const dict_col_t *col= dict_index_get_nth_col(index, j);
+
+      /* A clustered index may contain instantly dropped columns,
+      which must be skipped. */
+      if (col->is_dropped())
+        continue;
+
+      const char *col_name= dict_table_get_col_name(index->table, col->ind);
       if (0 == innobase_strcasecmp(col_name, foreign->foreign_col_names[i]))
       {
         dfield_copy(&ref_entry->fields[i], &entry->fields[j]);

@@ -741,6 +741,20 @@ DROP TABLE t1;
 CREATE TABLE t1 (a GEOMETRY, INDEX(a(8)),
 		 FOREIGN KEY (a) REFERENCES x (xx)) ENGINE=InnoDB;
 
+--echo #
+--echo # MDEV-23675 Assertion `pos < table->n_def' in dict_table_get_nth_col
+--echo #
+CREATE TABLE t1 (pk int PRIMARY KEY, a INT, b INT, c INT, KEY(c),
+FOREIGN KEY fx (b) REFERENCES t1 (c))
+ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,0,10,10);
+ALTER TABLE t1 DROP a, ALGORITHM=INSTANT;
+SET FOREIGN_KEY_CHECKS= 0;
+DROP INDEX fx ON t1;
+INSERT INTO t1 VALUES (2,11,11);
+DROP TABLE t1;
+SET FOREIGN_KEY_CHECKS=DEFAULT;
+
 -- echo # End of 10.4 tests
 
 --source include/wait_until_count_sessions.inc
