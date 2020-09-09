@@ -2010,9 +2010,8 @@ fseg_create_general(
 	if (block) {
 		header = byte_offset + buf_block_get_frame(block);
 
-		const ulint type =
-			(block->page.id.space() == TRX_SYS_SPACE
-			 && block->page.id.page_no() == TRX_SYS_PAGE_NO)
+		const ulint type = block->page.id == page_id_t(TRX_SYS_SPACE,
+							       TRX_SYS_PAGE_NO)
 			? FIL_PAGE_TYPE_TRX_SYS
 			: FIL_PAGE_TYPE_SYS;
 
