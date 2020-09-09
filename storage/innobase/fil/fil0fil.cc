@@ -5416,51 +5416,6 @@ fil_delete_file(
 	}
 }
 
-/**
-Iterate over all the spaces in the space list and fetch the
-tablespace names. It will return a copy of the name that must be
-freed by the caller using: delete[].
-@return DB_SUCCESS if all OK. */
-dberr_t
-fil_get_space_names(
-/*================*/
-	space_name_list_t&	space_name_list)
-				/*!< in/out: List to append to */
-{
-	fil_space_t*	space;
-	dberr_t		err = DB_SUCCESS;
-
-	mutex_enter(&fil_system->mutex);
-
-	for (space = UT_LIST_GET_FIRST(fil_system->space_list);
-	     space != NULL;
-	     space = UT_LIST_GET_NEXT(space_list, space)) {
-
-		if (space->purpose == FIL_TYPE_TABLESPACE) {
-			ulint	len;
-			char*	name;
-
-			len = ::strlen(space->name);
-			name = UT_NEW_ARRAY_NOKEY(char, len + 1);
-
-			if (name == 0) {
-				/* Caller to free elements allocated so far. */
-				err = DB_OUT_OF_MEMORY;
-				break;
-			}
-
-			memcpy(name, space->name, len);
-			name[len] = 0;
-
-			space_name_list.push_back(name);
-		}
-	}
-
-	mutex_exit(&fil_system->mutex);
-
-	return(err);
-}
-
 /** Generate redo log for swapping two .ibd files
 @param[in]	old_table	old table
 @param[in]	new_table	new table

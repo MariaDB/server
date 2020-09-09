@@ -735,12 +735,9 @@ fts_savepoint_rollback_last_stmt(
 /*=============================*/
 	trx_t*		trx);			/*!< in: transaction */
 
-/***********************************************************************//**
-Drop all orphaned FTS auxiliary tables, those that don't have a parent
+/** Drop all orphaned FTS auxiliary tables, those that don't have a parent
 table or FTS index defined on them. */
-void
-fts_drop_orphaned_tables(void);
-/*==========================*/
+void fts_drop_orphaned_tables();
 
 /** Run SYNC on the table, i.e., write out data from the cache to the
 FTS auxiliary INDEX table and clear the cache at the end.
@@ -773,15 +770,6 @@ doc_id_t
 fts_init_doc_id(
 /*============*/
 	const dict_table_t*		table);	/*!< in: table */
-
-/* Get parent table name if it's a fts aux table
-@param[in]	aux_table_name	aux table name
-@param[in]	aux_table_len	aux table length
-@return parent table name, or NULL */
-char*
-fts_get_parent_table_name(
-	const char*	aux_table_name,
-	ulint		aux_table_len);
 
 /******************************************************************//**
 compare two character string according to their charset. */
@@ -988,5 +976,15 @@ and there are no new fts index to add.
 @param[in,out]  table   table  where fts is to be freed
 @param[in]      trx     transaction to drop all fts tables */
 void fts_clear_all(dict_table_t *table, trx_t *trx);
+
+/** Check whether the given name is fts auxiliary table
+and fetch the parent table id and index id
+@param[in]	name		table name
+@param[in,out]	table_id	parent table id
+@param[in,out]	index_id	index id
+@return true if it is auxilary table */
+bool fts_check_aux_table(const char *name,
+                         table_id_t *table_id,
+                         index_id_t *index_id);
 
 #endif /*!< fts0fts.h */

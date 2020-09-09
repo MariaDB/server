@@ -1349,18 +1349,6 @@ ulint
 fil_space_get_id_by_name(
 	const char*	tablespace);
 
-/**
-Iterate over all the spaces in the space list and fetch the
-tablespace names. It will return a copy of the name that must be
-freed by the caller using: delete[].
-@return DB_SUCCESS if all OK. */
-dberr_t
-fil_get_space_names(
-/*================*/
-	space_name_list_t&	space_name_list)
-				/*!< in/out: Vector for collecting the names. */
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Generate redo log for swapping two .ibd files
 @param[in]	old_table	old table
 @param[in]	new_table	new table
