@@ -264,7 +264,6 @@ SET(INNOBASE_SOURCES
 	include/ut0byte.h
 	include/ut0byte.ic
 	include/ut0counter.h
-	include/ut0crc32.h
 	include/ut0dbg.h
 	include/ut0list.h
 	include/ut0list.ic
@@ -340,7 +339,6 @@ SET(INNOBASE_SOURCES
 	trx/trx0sys.cc
 	trx/trx0trx.cc
 	trx/trx0undo.cc
-	ut/ut0crc32.cc
 	ut/ut0dbg.cc
 	ut/ut0list.cc
 	ut/ut0mem.cc

@@ -209,16 +209,6 @@ IF(CMAKE_CXX_COMPILER_ID MATCHES "SunPro"
     PROPERTIES COMPILE_FLAGS -xO3)
 ENDIF()
 
-# Avoid generating Hardware Capabilities due to crc32 instructions
-IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_SYSTEM_PROCESSOR MATCHES "i386")
-  MY_CHECK_CXX_COMPILER_FLAG("-Wa,-nH")
-  IF(have_CXX__Wa__nH)
-    ADD_COMPILE_FLAGS(
-      ut/ut0crc32.cc
-      COMPILE_FLAGS "-Wa,-nH"
-    )
-  ENDIF()
-ENDIF()
 
 IF(MSVC)
   # Avoid "unreferenced label" warning in generated file

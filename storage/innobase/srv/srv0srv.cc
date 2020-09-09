@@ -762,7 +762,6 @@ static void srv_init()
 	/* Initialize some INFORMATION SCHEMA internal structures */
 	trx_i_s_cache_init(trx_i_s_cache);
 
-	ut_crc32_init();
 }
 
 /*********************************************************************//**
