@@ -308,6 +308,32 @@ struct DebugCheck {
 };
 #endif
 
+/** Find buffer fix count of the given block acquired by the
+mini-transaction */
+struct FindBlock
+{
+  int32_t num_fix;
+  buf_block_t *block;
+
+  FindBlock(buf_block_t *block_buf): num_fix(0), block(block_buf) {}
+  bool operator()(const mtr_memo_slot_t* slot)
+  {
+    if (slot->object != NULL)
+    {
+      buf_block_t *mtr_block= reinterpret_cast<buf_block_t*>(slot->object);
+      if (mtr_block == block)
+	num_fix++;
+    }
+
+    return true;
+  }
+
+  int32_t get_num_fix()
+  {
+    return num_fix;
+  }
+};
+
 /** Release a resource acquired by the mini-transaction. */
 struct ReleaseBlocks {
 	/** Release specific object */
@@ -802,6 +828,15 @@ mtr_t::release_free_extents(ulint n_reserved)
 
   ut_ad(memo_contains(get_memo(), space, MTR_MEMO_SPACE_X_LOCK));
   space->release_free_extents(n_reserved);
+}
+
+int32_t mtr_t::get_fix_count(buf_block_t *block)
+{
+  struct FindBlock find_block(block);
+  Iterate<FindBlock> iteration(find_block);
+  if (m_memo.for_each_block(iteration))
+    return iteration.functor.get_num_fix();
+  return 0;
 }
 
 #ifdef UNIV_DEBUG

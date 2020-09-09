@@ -179,7 +179,7 @@ dict_hdr_create(
 
 	/* Create the dictionary header file block in a new, allocated file
 	segment in the system tablespace */
-	block = fseg_create(DICT_HDR_SPACE, 0,
+	block = fseg_create(DICT_HDR_SPACE,
 			    DICT_HDR + DICT_HDR_FSEG_HEADER, mtr);
 
 	ut_a(DICT_HDR_PAGE_NO == block->page.id.page_no());

@@ -446,9 +446,9 @@ trx_undo_seg_create(
 	}
 
 	/* Allocate a new file segment for the undo log */
-	block = fseg_create_general(space, 0,
+	block = fseg_create_general(space,
 				    TRX_UNDO_SEG_HDR
-				    + TRX_UNDO_FSEG_HEADER, TRUE, mtr);
+				    + TRX_UNDO_FSEG_HEADER, TRUE, mtr, NULL);
 
 	fil_space_release_free_extents(space, n_reserved);
 

@@ -407,42 +407,52 @@ fsp_header_inc_size(
 	ulint	space_id,	/*!< in: space id */
 	ulint	size_inc,	/*!< in: size increment in pages */
 	mtr_t*	mtr);		/*!< in/out: mini-transaction */
-/**********************************************************************//**
-Creates a new segment.
+
+/** Creates a new segment.
+@param[in]	space		space id
+@param[in]	byte_offset	byte offset of the created segment header
+				on the page
+@param[in,out]	mtr		mini-transaction
+@param[in,out]	block		block where segment header is placed;
+				If it is null then new page will be
+				allocated and it will belong to
+				the created segment
 @return the block where the segment header is placed, x-latched, NULL
 if could not create segment because of lack of space */
 buf_block_t*
 fseg_create(
-/*========*/
-	ulint	space_id,/*!< in: space id */
-	ulint	page,	/*!< in: page where the segment header is placed: if
-			this is != 0, the page must belong to another segment,
-			if this is 0, a new page will be allocated and it
-			will belong to the created segment */
-	ulint	byte_offset, /*!< in: byte offset of the created segment header
-			on the page */
-	mtr_t*	mtr);	/*!< in/out: mini-transaction */
-/**********************************************************************//**
-Creates a new segment.
+	ulint		space,
+	ulint		byte_offset,
+	mtr_t*		mtr,
+	buf_block_t*	block=NULL);
+
+/** Creates a new segment.
+@param[in]	space_id		space_id
+@param[in]	byte_offset		byte offset of the created segment
+					header on the page
+@param[in]	has_done_reservation	TRUE if the caller has already
+					done the reservation for the pages
+					with fsp_reserve_free_externts
+					(at least 2 extents: one for
+					the inode and the other for the
+					segment) then there is no need to do
+					the check for this individual
+					operation
+@param[in,out]	mtr			mini-transaction
+@param[in]	block			block where the segment header is
+					placed. If it is null then new page
+					will be allocated and it will belong
+					to the created segment
 @return the block where the segment header is placed, x-latched, NULL
 if could not create segment because of lack of space */
 buf_block_t*
 fseg_create_general(
-/*================*/
-	ulint	space_id,/*!< in: space id */
-	ulint	page,	/*!< in: page where the segment header is placed: if
-			this is != 0, the page must belong to another segment,
-			if this is 0, a new page will be allocated and it
-			will belong to the created segment */
-	ulint	byte_offset, /*!< in: byte offset of the created segment header
-			on the page */
-	ibool	has_done_reservation, /*!< in: TRUE if the caller has already
-			done the reservation for the pages with
-			fsp_reserve_free_extents (at least 2 extents: one for
-			the inode and the other for the segment) then there is
-			no need to do the check for this individual
-			operation */
-	mtr_t*	mtr);	/*!< in/out: mini-transaction */
+	ulint		space_id,
+	ulint		byte_offset,
+	ibool		has_done_reservation,
+	mtr_t*		mtr,
+	buf_block_t*	block);
+
 /**********************************************************************//**
 Calculates the number of pages reserved by a segment, and how many pages are
 currently used.
