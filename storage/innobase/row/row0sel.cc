@@ -3316,7 +3316,7 @@ class Row_sel_get_clust_rec_for_mysql
   {
     rec_offs vers_offs[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS];
     rec_offs_init(vers_offs);
-    mem_heap_t *heap= nullptr;
+    mem_heap_t *heap= NULL;
 
     ut_ad(rec_offs_validate(cached_clust_rec, index, offsets));
     ut_ad(index->first_user_field() <= rec_offs_n_fields(offsets));
