@@ -22,8 +22,21 @@ INSERT INTO t1 VALUES (3);
 INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
 
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+--let $wait_condition = SELECT COUNT(*) = 5 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+--let $wait_condition = SELECT COUNT(*) = 5 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+
 --connection node_2
 --error ER_LOCK_DEADLOCK
 ROLLBACK;
 
 DROP TABLE t1;
+
+--disconnect node_1a
+--disconnect node_2a
