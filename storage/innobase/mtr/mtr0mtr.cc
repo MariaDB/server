@@ -313,24 +313,16 @@ mini-transaction */
 struct FindBlock
 {
   int32_t num_fix;
-  buf_block_t *block;
+  const buf_block_t *const block;
 
-  FindBlock(buf_block_t *block_buf): num_fix(0), block(block_buf) {}
+  FindBlock(const buf_block_t *block_buf): num_fix(0), block(block_buf) {}
+
   bool operator()(const mtr_memo_slot_t* slot)
   {
-    if (slot->object != NULL)
-    {
-      buf_block_t *mtr_block= reinterpret_cast<buf_block_t*>(slot->object);
-      if (mtr_block == block)
-	num_fix++;
-    }
-
+    if (slot->object == block)
+      ut_d(if (slot->type != MTR_MEMO_MODIFY))
+      num_fix++;
     return true;
-  }
-
-  int32_t get_num_fix()
-  {
-    return num_fix;
   }
 };
 
@@ -832,10 +824,9 @@ mtr_t::release_free_extents(ulint n_reserved)
 
 int32_t mtr_t::get_fix_count(buf_block_t *block)
 {
-  struct FindBlock find_block(block);
-  Iterate<FindBlock> iteration(find_block);
+  Iterate<FindBlock> iteration((FindBlock(block)));
   if (m_memo.for_each_block(iteration))
-    return iteration.functor.get_num_fix();
+    return iteration.functor.num_fix;
   return 0;
 }
 
