@@ -702,6 +702,31 @@ inline lsn_t mtr_t::finish_write(ulint len)
 	return start_lsn;
 }
 
+/** Find buffer fix count of the given block acquired by the
+mini-transaction */
+struct FindBlock
+{
+  int32_t num_fix;
+  const buf_block_t *const block;
+
+  FindBlock(const buf_block_t *block_buf): num_fix(0), block(block_buf) {}
+
+  bool operator()(const mtr_memo_slot_t* slot)
+  {
+    if (slot->object == block)
+      num_fix++;
+    return true;
+  }
+};
+
+uint32_t mtr_t::get_fix_count(const buf_block_t *block) const
+{
+  Iterate<FindBlock> iteration((FindBlock(block)));
+  if (m_memo.for_each_block(iteration))
+    return iteration.functor.num_fix;
+  return 0;
+}
+
 #ifdef UNIV_DEBUG
 /** Check if we are holding an rw-latch in this mini-transaction
 @param lock   latch to search for

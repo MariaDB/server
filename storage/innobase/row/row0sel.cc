@@ -3178,20 +3178,46 @@ row_sel_build_prev_vers_for_mysql(
 	return(err);
 }
 
-/** Helper class to cache clust_rec and old_ver */
+/** Helper class to cache clust_rec and old_vers */
 class Row_sel_get_clust_rec_for_mysql
 {
-	const rec_t *cached_clust_rec;
-	rec_t *cached_old_vers;
+  const rec_t *cached_clust_rec;
+  rec_t *cached_old_vers;
+  lsn_t cached_lsn;
+  page_id_t cached_page_id;
+
+#ifdef UNIV_DEBUG
+  void check_eq(const dict_index_t *index, const rec_offs *offsets) const
+  {
+    rec_offs vers_offs[REC_OFFS_HEADER_SIZE + MAX_REF_PARTS];
+    rec_offs_init(vers_offs);
+    mem_heap_t *heap= nullptr;
+
+    ut_ad(rec_offs_validate(cached_clust_rec, index, offsets));
+    ut_ad(index->first_user_field() <= rec_offs_n_fields(offsets));
+    ut_ad(vers_offs == rec_get_offsets(cached_old_vers, index, vers_offs, true,
+                                       index->db_trx_id(), &heap));
+    ut_ad(!heap);
+    for (auto n= index->db_trx_id(); n--; )
+    {
+      const dict_col_t *col= dict_index_get_nth_col(index, n);
+      ulint len1, len2;
+      const byte *b1= rec_get_nth_field(cached_clust_rec, offsets, n, &len1);
+      const byte *b2= rec_get_nth_field(cached_old_vers, vers_offs, n, &len2);
+      ut_ad(!cmp_data_data(col->mtype, col->prtype, b1, len1, b2, len2));
+    }
+  }
+#endif
 
 public:
-	Row_sel_get_clust_rec_for_mysql() :
-	cached_clust_rec(NULL), cached_old_vers(NULL) {}
+  Row_sel_get_clust_rec_for_mysql() :
+    cached_clust_rec(NULL), cached_old_vers(NULL), cached_lsn(0),
+    cached_page_id(page_id_t(0,0)) {}
 
-	dberr_t operator()(row_prebuilt_t *prebuilt, dict_index_t *sec_index,
-			const rec_t *rec, que_thr_t *thr, const rec_t **out_rec,
-			rec_offs **offsets, mem_heap_t **offset_heap,
-			dtuple_t **vrow, mtr_t *mtr);
+  dberr_t operator()(row_prebuilt_t *prebuilt, dict_index_t *sec_index,
+                     const rec_t *rec, que_thr_t *thr, const rec_t **out_rec,
+                     rec_offs **offsets, mem_heap_t **offset_heap,
+                     dtuple_t **vrow, mtr_t *mtr);
 };
 
 /*********************************************************************//**
@@ -3391,8 +3417,15 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 		    && !lock_clust_rec_cons_read_sees(
 			    clust_rec, clust_index, *offsets,
 			    &trx->read_view)) {
+			const buf_page_t& bpage = btr_pcur_get_block(
+				prebuilt->clust_pcur)->page;
 
-			if (clust_rec != cached_clust_rec) {
+			const lsn_t lsn = mach_read_from_8(
+				page_align(clust_rec) + FIL_PAGE_LSN);
+
+			if (lsn != cached_lsn
+			    || bpage.id() != cached_page_id
+			    || clust_rec != cached_clust_rec) {
 				/* The following call returns 'offsets' associated with
 				'old_vers' */
 				err = row_sel_build_prev_vers_for_mysql(
@@ -3404,6 +3437,8 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 
 					goto err_exit;
 				}
+				cached_lsn = lsn;
+				cached_page_id = bpage.id();
 				cached_clust_rec = clust_rec;
 				cached_old_vers = old_vers;
 			} else {
@@ -3414,7 +3449,8 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 				version of clust_rec and its old version
 				old_vers. Re-calculate the offsets for old_vers. */
 
-				if (old_vers != NULL) {
+				if (old_vers) {
+					ut_d(check_eq(clust_index, *offsets));
 					*offsets = rec_get_offsets(
 						old_vers, clust_index, *offsets,
 						true, ULINT_UNDEFINED, offset_heap);

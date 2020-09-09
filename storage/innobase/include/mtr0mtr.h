@@ -591,6 +591,11 @@ public:
     m_freed_pages->add_value(id.page_no());
   }
 
+  /** Determine the added buffer fix count of a block.
+  @param block block to be checked
+  @return number of buffer count added by this mtr */
+  uint32_t get_fix_count(const buf_block_t *block) const;
+
 private:
   /** Log a write of a byte string to a page.
   @param block   buffer page

@@ -2592,7 +2592,6 @@ inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
       ut_ad(&recs == &p->second);
       i.created= true;
       buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
-      mtr.x_latch_at_savepoint(0, block);
       recv_recover_page(block, mtr, p, space, &i);
       ut_ad(mtr.has_committed());
       recs.log.clear();

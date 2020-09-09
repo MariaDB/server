@@ -3823,6 +3823,7 @@ buf_page_create(fil_space_t *space, uint32_t offset,
   ut_ad(page_id.space() != 0 || !zip_size);
 
   space->free_page(offset, false);
+loop:
   buf_block_t *free_block= buf_LRU_get_free_block(false);
   free_block->initialise(page_id, zip_size, 1);
 
@@ -3837,35 +3838,71 @@ buf_page_create(fil_space_t *space, uint32_t offset,
       !buf_pool.watch_is_sentinel(block->page))
   {
 #ifdef BTR_CUR_HASH_ADAPT
-    const bool drop_hash_entry= block->page.state() == BUF_BLOCK_FILE_PAGE &&
-      UNIV_LIKELY_NULL(block->index);
-    if (UNIV_UNLIKELY(drop_hash_entry))
+    const dict_index_t *drop_hash_entry= nullptr;
+#endif
+    switch (block->page.state()) {
+    default:
+      ut_ad(0);
+      break;
+    case BUF_BLOCK_FILE_PAGE:
+      buf_block_buf_fix_inc(block, __FILE__, __LINE__);
+      {
+        const auto num_fix_count= mtr->get_fix_count(block) + 1;
+        while (block->page.io_fix() != BUF_IO_NONE ||
+               num_fix_count != block->page.buf_fix_count())
+        {
+          mutex_exit(&buf_pool.mutex);
+          os_thread_yield();
+          mutex_enter(&buf_pool.mutex);
+        }
+      }
       rw_lock_x_lock(&block->lock);
-#endif /* BTR_CUR_HASH_ADAPT */
+#ifdef BTR_CUR_HASH_ADAPT
+      drop_hash_entry= block->index;
+#endif
+      buf_LRU_block_free_non_file_page(free_block);
+      break;
+    case BUF_BLOCK_ZIP_PAGE:
+      page_hash_latch *hash_lock= buf_pool.page_hash.lock_get(fold);
+      hash_lock->write_lock();
+      if (block->page.io_fix() != BUF_IO_NONE)
+      {
+        hash_lock->write_unlock();
+        buf_LRU_block_free_non_file_page(block);
+        mutex_exit(&buf_pool.mutex);
+        goto loop;
+      }
 
-    /* Page can be found in buf_pool */
-    buf_LRU_block_free_non_file_page(free_block);
+      rw_lock_x_lock(&free_block->lock);
+      buf_relocate(&block->page, &free_block->page);
+
+      if (block->page.oldest_modification() > 0)
+        buf_flush_relocate_on_flush_list(&block->page, &free_block->page);
+#ifdef UNIV_DEBUG
+      else
+        UT_LIST_REMOVE(buf_pool.zip_clean, &block->page);
+#endif
+
+      free_block->page.set_state(BUF_BLOCK_FILE_PAGE);
+      free_block->lock_hash_val= lock_rec_hash(
+        page_id.space(), page_id.page_no());
+      buf_unzip_LRU_add_block(free_block, FALSE);
+      hash_lock->write_unlock();
+      buf_page_free_descriptor(&block->page);
+      block= free_block;
+      buf_block_buf_fix_inc(block, __FILE__, __LINE__);
+      break;
+    }
+
     mutex_exit(&buf_pool.mutex);
 
 #ifdef BTR_CUR_HASH_ADAPT
-    if (UNIV_UNLIKELY(drop_hash_entry))
-    {
+    if (drop_hash_entry)
       btr_search_drop_page_hash_index(block);
-      rw_lock_x_unlock(&block->lock);
-    }
 #endif /* BTR_CUR_HASH_ADAPT */
 
-    if (!recv_recovery_is_on())
-      /* FIXME: Remove the redundant lookup and avoid
-      the unnecessary invocation of buf_zip_decompress().
-      We may have to convert buf_page_t to buf_block_t,
-      but we are going to initialize the page. */
-      return buf_page_get_gen(page_id, zip_size, RW_NO_LATCH,
-                              block, BUF_GET_POSSIBLY_FREED,
-                              __FILE__, __LINE__, mtr);
-    mutex_exit(&recv_sys.mutex);
-    block= buf_page_get_with_no_latch(page_id, zip_size, mtr);
-    mutex_enter(&recv_sys.mutex);
+    mtr_memo_push(mtr, block, MTR_MEMO_PAGE_X_FIX);
+
     return block;
   }
 
@@ -3889,13 +3926,13 @@ buf_page_create(fil_space_t *space, uint32_t offset,
   ut_d(block->page.in_page_hash= true);
   HASH_INSERT(buf_page_t, hash, &buf_pool.page_hash, fold, &block->page);
 
+  rw_lock_x_lock(&block->lock);
   if (UNIV_UNLIKELY(zip_size))
   {
     /* Prevent race conditions during buf_buddy_alloc(), which may
     release and reacquire buf_pool.mutex, by IO-fixing and X-latching
     the block. */
     block->page.set_io_fix(BUF_IO_READ);
-    rw_lock_x_lock(&block->lock);
     hash_lock->write_unlock();
 
     /* buf_pool.mutex may be released and reacquired by
@@ -3911,14 +3948,13 @@ buf_page_create(fil_space_t *space, uint32_t offset,
     buf_unzip_LRU_add_block(block, FALSE);
 
     block->page.set_io_fix(BUF_IO_NONE);
-    rw_lock_x_unlock(&block->lock);
   }
   else
     hash_lock->write_unlock();
 
   mutex_exit(&buf_pool.mutex);
 
-  mtr->memo_push(block, MTR_MEMO_BUF_FIX);
+  mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
   block->page.set_accessed();
   buf_pool.stat.n_pages_created++;
 

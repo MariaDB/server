@@ -101,7 +101,6 @@ minimize file space fragmentation.
 @param[in]	direction		if the new page is needed because of
 an index page split, and records are inserted there in order, into which
 direction they go alphabetically: FSP_DOWN, FSP_UP, FSP_NO_DIR
-@param[in]	rw_latch		RW_SX_LATCH, RW_X_LATCH
 @param[in,out]	mtr			mini-transaction
 @param[in,out]	init_mtr		mtr or another mini-transaction in
 which the page should be initialized.
@@ -114,7 +113,6 @@ fseg_alloc_free_page_low(
 	buf_block_t*		iblock,
 	ulint			hint,
 	byte			direction,
-	rw_lock_type_t		rw_latch,
 #ifdef UNIV_DEBUG
 	bool			has_done_reservation,
 	/*!< whether the space has already been reserved */
@@ -147,7 +145,8 @@ template<bool free>
 inline void xdes_set_free(const buf_block_t &block, xdes_t *descr,
                           ulint offset, mtr_t *mtr)
 {
-  ut_ad(mtr->memo_contains_flagged(&block, MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(&block, MTR_MEMO_PAGE_SX_FIX |
+                                   MTR_MEMO_PAGE_X_FIX));
   ut_ad(offset < FSP_EXTENT_SIZE);
   ut_ad(page_align(descr) == block.frame);
   compile_time_assert(XDES_BITS_PER_PAGE == 2);
@@ -218,7 +217,8 @@ inline void xdes_set_state(const buf_block_t &block, xdes_t *descr,
   ut_ad(descr && mtr);
   ut_ad(state >= XDES_FREE);
   ut_ad(state <= XDES_FSEG);
-  ut_ad(mtr->memo_contains_flagged(&block, MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(&block, MTR_MEMO_PAGE_SX_FIX |
+                                   MTR_MEMO_PAGE_X_FIX));
   ut_ad(page_align(descr) == block.frame);
   ut_ad(mach_read_from_4(descr + XDES_STATE) <= XDES_FSEG);
   mtr->write<1>(block, XDES_STATE + 3 + descr, state);
@@ -245,7 +245,8 @@ xdes_get_state(
 Inits an extent descriptor to the free and clean state. */
 inline void xdes_init(const buf_block_t &block, xdes_t *descr, mtr_t *mtr)
 {
-  ut_ad(mtr->memo_contains_flagged(&block, MTR_MEMO_PAGE_SX_FIX));
+  ut_ad(mtr->memo_contains_flagged(&block, MTR_MEMO_PAGE_SX_FIX |
+                                   MTR_MEMO_PAGE_X_FIX));
   mtr->memset(&block, uint16_t(descr - block.frame) + XDES_BITMAP,
               XDES_SIZE - XDES_BITMAP, 0xff);
   xdes_set_state(block, descr, XDES_FREE, mtr);
@@ -320,7 +321,8 @@ xdes_get_descriptor_with_space_hdr(
 	ulint	size;
 	ulint	descr_page_no;
 	ut_ad(mtr->memo_contains(*space));
-	ut_ad(mtr->memo_contains_flagged(header, MTR_MEMO_PAGE_SX_FIX));
+	ut_ad(mtr->memo_contains_flagged(header, MTR_MEMO_PAGE_SX_FIX
+					 | MTR_MEMO_PAGE_X_FIX));
 	/* Read free limit and space size */
 	limit = mach_read_from_4(FSP_HEADER_OFFSET + FSP_FREE_LIMIT
 				 + header->frame);
@@ -553,9 +555,7 @@ void fsp_header_init(fil_space_t* space, ulint size, mtr_t* mtr)
 
 	mtr_x_lock_space(space, mtr);
 
-	const auto savepoint = mtr->get_savepoint();
 	buf_block_t* block = buf_page_create(space, 0, zip_size, mtr);
-	mtr->sx_latch_at_savepoint(savepoint, block);
 	buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
 
 	space->size_in_header = size;
@@ -874,11 +874,9 @@ fsp_fill_free_list(
 			pages should be ignored. */
 
 			if (i > 0) {
-				const auto savepoint = mtr->get_savepoint();
 				block= buf_page_create(
 					space, static_cast<uint32_t>(i),
 					zip_size, mtr);
-				mtr->sx_latch_at_savepoint(savepoint, block);
 
 				buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
 				fsp_init_file_page(space, block, mtr);
@@ -888,13 +886,11 @@ fsp_fill_free_list(
 			}
 
 			if (space->purpose != FIL_TYPE_TEMPORARY) {
-				const auto savepoint = mtr->get_savepoint();
 				block = buf_page_create(
 					space,
 					static_cast<uint32_t>(
 						i + FSP_IBUF_BITMAP_OFFSET),
 					zip_size, mtr);
-				mtr->sx_latch_at_savepoint(savepoint, block);
 				buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
 
 				fsp_init_file_page(space, block, mtr);
@@ -1040,46 +1036,22 @@ fsp_alloc_from_free_frag(buf_block_t *header, buf_block_t *xdes, xdes_t *descr,
 /** Gets a buffer block for an allocated page.
 @param[in,out]	space		tablespace
 @param[in]	offset		page number of the allocated page
-@param[in]	rw_latch	RW_SX_LATCH, RW_X_LATCH
 @param[in,out]	mtr		mini-transaction
 @return block, initialized */
 static
 buf_block_t*
-fsp_page_create(
-	fil_space_t*		space,
-	page_no_t		offset,
-	rw_lock_type_t		rw_latch,
-	mtr_t*			mtr)
+fsp_page_create(fil_space_t *space, page_no_t offset, mtr_t *mtr)
 {
-	buf_block_t*	block = buf_page_create(
-					space, static_cast<uint32_t>(offset),
-					space->zip_size(), mtr);
-
-	/* The latch may already have been acquired, so we cannot invoke
-	mtr_t::x_latch_at_savepoint() or mtr_t::sx_latch_at_savepoint(). */
-	mtr_memo_type_t memo;
-
-	if (rw_latch == RW_X_LATCH) {
-		rw_lock_x_lock(&block->lock);
-		memo = MTR_MEMO_PAGE_X_FIX;
-	} else {
-		ut_ad(rw_latch == RW_SX_LATCH);
-		rw_lock_sx_lock(&block->lock);
-		memo = MTR_MEMO_PAGE_SX_FIX;
-	}
-
-	mtr_memo_push(mtr, block, memo);
-	buf_block_buf_fix_inc(block, __FILE__, __LINE__);
-	fsp_init_file_page(space, block, mtr);
-
-	return(block);
+  buf_block_t *block= buf_page_create(space, static_cast<uint32_t>(offset),
+				      space->zip_size(), mtr);
+  fsp_init_file_page(space, block, mtr);
+  return block;
 }
 
 /** Allocates a single free page from a space.
 The page is marked as used.
 @param[in,out]	space		tablespace
 @param[in]	hint		hint of which page would be desirable
-@param[in]	rw_latch	RW_SX_LATCH, RW_X_LATCH
 @param[in,out]	mtr		mini-transaction
 @param[in,out]	init_mtr	mini-transaction in which the page should be
 initialized (may be the same as mtr)
@@ -1089,7 +1061,6 @@ buf_block_t*
 fsp_alloc_free_page(
 	fil_space_t*		space,
 	ulint			hint,
-	rw_lock_type_t		rw_latch,
 	mtr_t*			mtr,
 	mtr_t*			init_mtr)
 {
@@ -1184,7 +1155,7 @@ fsp_alloc_free_page(
 	}
 
 	fsp_alloc_from_free_frag(block, xdes, descr, free, mtr);
-	return fsp_page_create(space, page_no, rw_latch, init_mtr);
+	return fsp_page_create(space, page_no, init_mtr);
 }
 
 /** Frees a single page of a space.
@@ -1376,13 +1347,13 @@ bool
 fsp_alloc_seg_inode_page(fil_space_t *space, buf_block_t *header, mtr_t *mtr)
 {
   ut_ad(header->page.id().space() == space->id);
-  buf_block_t *block= fsp_alloc_free_page(space, 0, RW_SX_LATCH, mtr, mtr);
+  buf_block_t *block= fsp_alloc_free_page(space, 0, mtr, mtr);
 
   if (!block)
     return false;
 
   buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
-  ut_ad(rw_lock_get_sx_lock_count(&block->lock) == 1);
+  ut_ad(rw_lock_get_x_lock_count(&block->lock) == 1);
 
   mtr->write<2>(*block, block->frame + FIL_PAGE_TYPE, FIL_PAGE_INODE);
 
@@ -1650,48 +1621,40 @@ static ulint fseg_get_n_frag_pages(const fseg_inode_t *inode)
 	return(count);
 }
 
-/**********************************************************************//**
-Creates a new segment.
-@return the block where the segment header is placed, x-latched, NULL
-if could not create segment because of lack of space */
+/** Create a new segment.
+@param space                tablespace
+@param byte_offset          byte offset of the created segment header
+@param mtr                  mini-transaction
+@param has_done_reservation whether fsp_reserve_free_extents() was invoked
+@param block                block where segment header is placed,
+                            or NULL to allocate an additional page for that
+@return the block where the segment header is placed, x-latched
+@retval NULL if could not create segment because of lack of space */
 buf_block_t*
-fseg_create(
-	fil_space_t* space, /*!< in,out: tablespace */
-	ulint	page,	/*!< in: page where the segment header is placed: if
-			this is != 0, the page must belong to another segment,
-			if this is 0, a new page will be allocated and it
-			will belong to the created segment */
-	ulint	byte_offset, /*!< in: byte offset of the created segment header
-			on the page */
-	mtr_t*	mtr,
-   	bool	has_done_reservation) /*!< in: whether the caller
-			has already done the reservation for the pages with
-			fsp_reserve_free_extents (at least 2 extents: one for
-			the inode and the other for the segment) then there is
-			no need to do the check for this individual
-			operation */
+fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
+            bool has_done_reservation, buf_block_t *block)
 {
 	fseg_inode_t*	inode;
 	ib_id_t		seg_id;
-	buf_block_t*	block	= 0; /* remove warning */
 	ulint		n_reserved;
 
 	DBUG_ENTER("fseg_create");
 
 	ut_ad(mtr);
+	ut_ad(byte_offset >= FIL_PAGE_DATA);
 	ut_ad(byte_offset + FSEG_HEADER_SIZE
 	      <= srv_page_size - FIL_PAGE_DATA_END);
 
 	mtr_x_lock_space(space, mtr);
 	ut_d(space->modify_check(*mtr));
 
-	if (page != 0) {
-		block = buf_page_get(page_id_t(space->id, page),
-				     space->zip_size(),
-				     RW_SX_LATCH, mtr);
+	if (block) {
+		ut_ad(block->page.id().space() == space->id);
+
 		if (!space->full_crc32()) {
-			fil_block_check_type(*block, space->id == TRX_SYS_SPACE
-					     && page == TRX_SYS_PAGE_NO
+			fil_block_check_type(*block, block->page.id()
+					     == page_id_t(TRX_SYS_SPACE,
+							  TRX_SYS_PAGE_NO)
 					     ? FIL_PAGE_TYPE_TRX_SYS
 					     : FIL_PAGE_TYPE_SYS,
 					     mtr);
@@ -1734,10 +1697,9 @@ fseg_create(
 	mtr->memset(iblock, uint16_t(inode - iblock->frame) + FSEG_FRAG_ARR,
 		    FSEG_FRAG_SLOT_SIZE * FSEG_FRAG_ARR_N_SLOTS, 0xff);
 
-	if (page == 0) {
+	if (!block) {
 		block = fseg_alloc_free_page_low(space,
 						 inode, iblock, 0, FSP_UP,
-						 RW_SX_LATCH,
 #ifdef UNIV_DEBUG
 						 has_done_reservation,
 #endif /* UNIV_DEBUG */
@@ -1752,7 +1714,7 @@ fseg_create(
 			goto funct_exit;
 		}
 
-		ut_ad(rw_lock_get_sx_lock_count(&block->lock) == 1);
+		ut_ad(rw_lock_get_x_lock_count(&block->lock) == 1);
 		ut_ad(!fil_page_get_type(block->frame));
 		mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->frame,
 			      FIL_PAGE_TYPE_SYS);
@@ -1957,7 +1919,6 @@ minimize file space fragmentation.
 @param[in]	direction		if the new page is needed because of
 an index page split, and records are inserted there in order, into which
 direction they go alphabetically: FSP_DOWN, FSP_UP, FSP_NO_DIR
-@param[in]	rw_latch		RW_SX_LATCH, RW_X_LATCH
 @param[in,out]	mtr			mini-transaction
 @param[in,out]	init_mtr		mtr or another mini-transaction in
 which the page should be initialized.
@@ -1970,7 +1931,6 @@ fseg_alloc_free_page_low(
 	buf_block_t*		iblock,
 	ulint			hint,
 	byte			direction,
-	rw_lock_type_t		rw_latch,
 #ifdef UNIV_DEBUG
 	bool			has_done_reservation,
 	/*!< whether the space has already been reserved */
@@ -2111,11 +2071,11 @@ take_hinted_page:
 		/* 6. We allocate an individual page from the space
 		===================================================*/
 		buf_block_t* block = fsp_alloc_free_page(
-			space, hint, rw_latch, mtr, init_mtr);
+			space, hint, mtr, init_mtr);
 
-		ut_ad(!has_done_reservation || block != NULL);
+		ut_ad(!has_done_reservation || block);
 
-		if (block != NULL) {
+		if (block) {
 			/* Put the page in the fragment page array of the
 			segment */
 			n = fseg_find_free_frag_page_slot(seg_inode);
@@ -2192,7 +2152,7 @@ got_hinted_page:
 				    xdes, mtr);
 	}
 
-	return fsp_page_create(space, ret_page, rw_latch, init_mtr);
+	return fsp_page_create(space, ret_page, init_mtr);
 }
 
 /**********************************************************************//**
@@ -2243,7 +2203,6 @@ fseg_alloc_free_page_general(
 
 	block = fseg_alloc_free_page_low(space,
 					 inode, iblock, hint, direction,
-					 RW_X_LATCH,
 #ifdef UNIV_DEBUG
 					 has_done_reservation,
 #endif /* UNIV_DEBUG */
