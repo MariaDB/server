@@ -2323,7 +2323,6 @@ init_fail:
   {
     i.created= true;
     buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
-    mtr.x_latch_at_savepoint(0, block);
     recv_recover_page(block, mtr, recv_addr, i.lsn);
     ut_ad(mtr.has_committed());
   }

@@ -1082,8 +1082,7 @@ btr_create(
 	if (type & DICT_IBUF) {
 		/* Allocate first the ibuf header page */
 		buf_block_t*	ibuf_hdr_block = fseg_create(
-			space, 0,
-			IBUF_HEADER + IBUF_TREE_SEG_HEADER, mtr);
+			space, IBUF_HEADER + IBUF_TREE_SEG_HEADER, mtr);
 
 		if (ibuf_hdr_block == NULL) {
 			return(FIL_NULL);
@@ -1114,7 +1113,7 @@ btr_create(
 		flst_init(block->frame + PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST,
 			  mtr);
 	} else {
-		block = fseg_create(space, 0,
+		block = fseg_create(space,
 				    PAGE_HEADER + PAGE_BTR_SEG_TOP, mtr);
 
 		if (block == NULL) {
@@ -1123,8 +1122,9 @@ btr_create(
 
 		buf_block_dbg_add_level(block, SYNC_TREE_NODE_NEW);
 
-		if (!fseg_create(space, block->page.id.page_no(),
-				 PAGE_HEADER + PAGE_BTR_SEG_LEAF, mtr)) {
+		if (!fseg_create(space,
+				 PAGE_HEADER + PAGE_BTR_SEG_LEAF, mtr,
+				 false, block)) {
 			/* Not enough space for new segment, free root
 			segment before return. */
 			btr_free_root(block, mtr,

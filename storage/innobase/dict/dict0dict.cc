@@ -6514,7 +6514,11 @@ dict_foreign_qualify_index(
 		return(false);
 	}
 
-	if (index->type & (DICT_SPATIAL | DICT_FTS)) {
+	if (index->type & (DICT_SPATIAL | DICT_FTS | DICT_CORRUPT)) {
+		return false;
+	}
+
+	if (index->online_status >= ONLINE_INDEX_ABORTED) {
 		return false;
 	}
 

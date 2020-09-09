@@ -170,6 +170,7 @@ buf_dblwr_create()
 {
 	buf_block_t*	block2;
 	buf_block_t*	new_block;
+	buf_block_t*	trx_sys_block;
 	byte*	doublewrite;
 	byte*	fseg_header;
 	ulint	page_no;
@@ -205,9 +206,13 @@ start_again:
 		}
 	}
 
-	block2 = fseg_create(fil_system.sys_space, TRX_SYS_PAGE_NO,
-			     TRX_SYS_DOUBLEWRITE
-			     + TRX_SYS_DOUBLEWRITE_FSEG, &mtr);
+	trx_sys_block = buf_page_get(
+		page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
+		univ_page_size, RW_X_LATCH, &mtr);
+
+	block2 = fseg_create(fil_system.sys_space,
+			     TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_FSEG,
+			     &mtr, false, trx_sys_block);
 
 	if (block2 == NULL) {
 too_small:

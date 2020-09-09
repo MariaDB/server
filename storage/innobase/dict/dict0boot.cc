@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -180,7 +180,7 @@ dict_hdr_create(
 
 	/* Create the dictionary header file block in a new, allocated file
 	segment in the system tablespace */
-	block = fseg_create(fil_system.sys_space, 0,
+	block = fseg_create(fil_system.sys_space,
 			    DICT_HDR + DICT_HDR_FSEG_HEADER, mtr);
 
 	ut_a(DICT_HDR_PAGE_NO == block->page.id.page_no());

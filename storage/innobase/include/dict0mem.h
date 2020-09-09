@@ -1047,6 +1047,25 @@ struct dict_index_t{
 	/** @return whether the index includes virtual columns */
 	bool has_virtual() const { return type & DICT_VIRTUAL; }
 
+	/** @return the position of DB_TRX_ID */
+	uint16_t db_trx_id() const {
+		DBUG_ASSERT(is_primary());
+		DBUG_ASSERT(n_uniq);
+		return n_uniq;
+	}
+	/** @return the position of DB_ROLL_PTR */
+	uint16_t db_roll_ptr() const
+	{
+		return static_cast<uint16_t>(db_trx_id() + 1);
+	}
+
+	/** @return the offset of the metadata BLOB field,
+	or the first user field after the PRIMARY KEY,DB_TRX_ID,DB_ROLL_PTR */
+	uint16_t first_user_field() const
+	{
+		return static_cast<uint16_t>(db_trx_id() + 2);
+	}
+
 	/** @return whether the index is corrupted */
 	inline bool is_corrupted() const;
 
