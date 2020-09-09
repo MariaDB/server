@@ -5588,14 +5588,13 @@ buf_page_create(
 {
 	buf_frame_t*	frame;
 	buf_block_t*	block;
-	buf_block_t*	free_block	= NULL;
 	buf_pool_t*	buf_pool = buf_pool_get(page_id);
 	rw_lock_t*	hash_lock;
 
 	ut_ad(mtr->is_active());
 	ut_ad(page_id.space() != 0 || !zip_size);
-
-	free_block = buf_LRU_get_free_block(buf_pool);
+loop:
+	buf_block_t *free_block = buf_LRU_get_free_block(buf_pool);
 
 	buf_pool_mutex_enter(buf_pool);
 
@@ -5604,22 +5603,68 @@ buf_page_create(
 
 	block = (buf_block_t*) buf_page_hash_get_low(buf_pool, page_id);
 
-	if (block
+	if (UNIV_LIKELY_NULL(block)
 	    && buf_page_in_file(&block->page)
 	    && !buf_pool_watch_is_sentinel(buf_pool, &block->page)) {
 		ut_d(block->page.file_page_was_freed = FALSE);
-
 #ifdef BTR_CUR_HASH_ADAPT
-		bool drop_hash_entry =
-			(block->page.state == BUF_BLOCK_FILE_PAGE
-			 && block->index);
+		const dict_index_t *drop_hash_entry= nullptr;
+#endif
+		switch (const auto page_state= buf_block_get_state(block)) {
+		default:
+			ut_ad(0);
+			break;
+		case BUF_BLOCK_ZIP_PAGE:
+		case BUF_BLOCK_ZIP_DIRTY:
+			buf_block_init_low(free_block);
+			mutex_enter(&buf_pool->zip_mutex);
 
-		if (drop_hash_entry) {
-			/* Avoid a hang if I/O is going on. Release
-			the buffer pool mutex and page hash lock
-			and wait for I/O to complete */
-			while (buf_block_get_io_fix(block) != BUF_IO_NONE) {
-				block->fix();
+			buf_page_mutex_enter(free_block);
+			if (buf_page_get_io_fix(&block->page) != BUF_IO_NONE) {
+				mutex_exit(&buf_pool->zip_mutex);
+				rw_lock_x_unlock(hash_lock);
+				buf_LRU_block_free_non_file_page(free_block);
+				buf_pool_mutex_exit(buf_pool);
+				buf_page_mutex_exit(free_block);
+
+				goto loop;
+			}
+
+			rw_lock_x_lock(&free_block->lock);
+
+			buf_relocate(&block->page, &free_block->page);
+			if (page_state == BUF_BLOCK_ZIP_DIRTY) {
+				ut_ad(block->page.in_flush_list);
+				ut_ad(block->page.oldest_modification > 0);
+				buf_flush_relocate_on_flush_list(
+					&block->page, &free_block->page);
+			} else {
+				ut_ad(block->page.oldest_modification == 0);
+				ut_ad(!block->page.in_flush_list);
+#ifdef UNIV_DEBUG
+				UT_LIST_REMOVE(
+					buf_pool->zip_clean, &block->page);
+#endif
+			}
+
+			free_block->page.state = BUF_BLOCK_FILE_PAGE;
+			mutex_exit(&buf_pool->zip_mutex);
+			free_block->lock_hash_val = lock_rec_hash(
+				page_id.space(), page_id.page_no());
+			buf_unzip_LRU_add_block(free_block, false);
+			buf_page_free_descriptor(&block->page);
+			block = free_block;
+			buf_block_buf_fix_inc(block, __FILE__, __LINE__);
+			buf_page_mutex_exit(free_block);
+			free_block = nullptr;
+			break;
+		case BUF_BLOCK_FILE_PAGE:
+			buf_block_buf_fix_inc(block, __FILE__, __LINE__);
+			const uint32_t num_fix_count= mtr->get_fix_count(block)
+				+ 1;
+			while (buf_block_get_io_fix(block) != BUF_IO_NONE
+			       || (num_fix_count
+				   != block->page.buf_fix_count)) {
 				buf_pool_mutex_exit(buf_pool);
 				rw_lock_x_unlock(hash_lock);
 
@@ -5627,31 +5672,30 @@ buf_page_create(
 
 				buf_pool_mutex_enter(buf_pool);
 				rw_lock_x_lock(hash_lock);
-				block->unfix();
 			}
+
 			rw_lock_x_lock(&block->lock);
-		}
+#ifdef BTR_CUR_HASH_ADAPT
+			drop_hash_entry = block->index;
 #endif
+			break;
+		}
 		/* Page can be found in buf_pool */
 		buf_pool_mutex_exit(buf_pool);
 		rw_lock_x_unlock(hash_lock);
 
-		buf_block_free(free_block);
+		if (free_block) {
+			buf_block_free(free_block);
+		}
+
 #ifdef BTR_CUR_HASH_ADAPT
-		if (drop_hash_entry) {
+		if (UNIV_LIKELY_NULL(drop_hash_entry)) {
 			btr_search_drop_page_hash_index(block);
-			rw_lock_x_unlock(&block->lock);
 		}
 #endif /* BTR_CUR_HASH_ADAPT */
 
-		if (!recv_recovery_is_on()) {
-			return buf_page_get_with_no_latch(page_id, zip_size,
-							  mtr);
-		}
+		mtr_memo_push(mtr, block, MTR_MEMO_PAGE_X_FIX);
 
-		mutex_exit(&recv_sys.mutex);
-		block = buf_page_get_with_no_latch(page_id, zip_size, mtr);
-		mutex_enter(&recv_sys.mutex);
 		return block;
 	}
 
@@ -5665,6 +5709,8 @@ buf_page_create(
 	buf_page_mutex_enter(block);
 
 	buf_page_init(buf_pool, page_id, zip_size, block);
+
+	rw_lock_x_lock(&block->lock);
 
 	rw_lock_x_unlock(hash_lock);
 
@@ -5683,7 +5729,6 @@ buf_page_create(
 		by IO-fixing and X-latching the block. */
 
 		buf_page_set_io_fix(&block->page, BUF_IO_READ);
-		rw_lock_x_lock(&block->lock);
 
 		buf_page_mutex_exit(block);
 		/* buf_pool->mutex may be released and reacquired by
@@ -5705,12 +5750,11 @@ buf_page_create(
 		buf_unzip_LRU_add_block(block, FALSE);
 
 		buf_page_set_io_fix(&block->page, BUF_IO_NONE);
-		rw_lock_x_unlock(&block->lock);
 	}
 
 	buf_pool_mutex_exit(buf_pool);
 
-	mtr_memo_push(mtr, block, MTR_MEMO_BUF_FIX);
+	mtr_memo_push(mtr, block, MTR_MEMO_PAGE_X_FIX);
 
 	buf_page_set_accessed(&block->page);
 

@@ -426,6 +426,10 @@ struct mtr_t {
 	static inline bool is_block_dirtied(const buf_block_t* block)
 		MY_ATTRIBUTE((warn_unused_result));
 
+	/** Determine the added buffer fix count of a block.
+	@param block block to be checked
+	@return number of buffer count added by this mtr */
+	uint32_t get_fix_count(const buf_block_t *block);
 private:
 	/** Prepare to write the mini-transaction log to the redo log buffer.
 	@return number of bytes to write in finish_write() */
