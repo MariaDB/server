@@ -720,6 +720,19 @@ SHOW CREATE TABLE t2;
 CREATE TABLE t2 (f1 INT NOT NULL)ENGINE=InnoDB;
 DROP TABLE t2, t1;
 
+--echo #
+--echo # MDEV-23685 SIGSEGV on ADD FOREIGN KEY after failed attempt
+--echo # to create unique key on virtual column
+--echo #
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT AS (a)) ENGINE=InnODB;
+
+INSERT INTO t1 (pk,a) VALUES (1,10),(2,10);
+--error ER_DUP_ENTRY
+ALTER TABLE t1 ADD UNIQUE INDEX ind9 (b), LOCK=SHARED;
+SET FOREIGN_KEY_CHECKS= 0;
+ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (pk);
+DROP TABLE t1;
+
 --echo # End of 10.2 tests
 
 --source include/wait_until_count_sessions.inc
