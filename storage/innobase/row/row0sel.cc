@@ -3323,7 +3323,7 @@ class Row_sel_get_clust_rec_for_mysql
     ut_ad(vers_offs == rec_get_offsets(cached_old_vers, index, vers_offs, true,
                                        index->db_trx_id(), &heap));
     ut_ad(!heap);
-    for (auto n= index->db_trx_id(); n--; )
+    for (unsigned n= index->db_trx_id(); n--; )
     {
       const dict_col_t *col= dict_index_get_nth_col(index, n);
       ulint len1, len2;
