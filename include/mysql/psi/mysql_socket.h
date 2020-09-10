@@ -75,6 +75,15 @@ struct st_mysql_socket
   /** The real socket descriptor. */
   my_socket fd;
 
+  /** Is this a Unix-domain socket? */
+  char is_unix_domain_socket;
+
+  /** Is this a socket opened for the extra port? */
+  char is_extra_port;
+
+  /** Address family of the socket. (See sa_family from struct sockaddr). */
+  unsigned short address_family;
+
   /**
     The instrumentation hook.
     Note that this hook is not conditionally defined,
@@ -105,7 +114,7 @@ typedef struct st_mysql_socket MYSQL_SOCKET;
 static inline MYSQL_SOCKET
 mysql_socket_invalid()
 {
-  MYSQL_SOCKET mysql_socket= {INVALID_SOCKET, NULL};
+  MYSQL_SOCKET mysql_socket= {INVALID_SOCKET, 0, 0, 0, NULL};
   return mysql_socket;
 }
 

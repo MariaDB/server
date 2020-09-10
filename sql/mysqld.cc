@@ -338,7 +338,6 @@ static char *character_set_filesystem_name;
 static char *lc_messages;
 static char *lc_time_names_name;
 char *my_bind_addr_str;
-int server_socket_ai_family;
 static char *default_collation_name;
 char *default_storage_engine, *default_tmp_storage_engine;
 char *enforced_storage_engine=NULL;
@@ -1349,7 +1348,8 @@ static Buffered_logs buffered_logs;
 struct my_rnd_struct sql_rand; ///< used by sql_class.cc:THD::THD()
 
 #ifndef EMBEDDED_LIBRARY
-MYSQL_SOCKET unix_sock, base_ip_sock, extra_ip_sock;
+std::vector<MYSQL_SOCKET> listen_sockets;
+bool unix_sock_is_online= false;
 /**
   Error reporter that buffer log messages.
   @param level          log message level
@@ -1690,28 +1690,15 @@ static void close_connections(void)
 
   /* Abort listening to new connections */
   DBUG_PRINT("quit",("Closing sockets"));
-  if (!opt_disable_networking )
+  for (std::vector<MYSQL_SOCKET>::iterator sock = listen_sockets.begin();
+       sock != listen_sockets.end(); ++sock)
   {
-    if (mysql_socket_getfd(base_ip_sock) != INVALID_SOCKET)
-    {
-      (void) mysql_socket_close(base_ip_sock);
-      base_ip_sock= MYSQL_INVALID_SOCKET;
-    }
-    if (mysql_socket_getfd(extra_ip_sock) != INVALID_SOCKET)
-    {
-      (void) mysql_socket_close(extra_ip_sock);
-      extra_ip_sock= MYSQL_INVALID_SOCKET;
-    }
+    (void) mysql_socket_close(*sock);
+    if (sock->is_unix_domain_socket)
+      (void) unlink(mysqld_unix_port);
   }
+  listen_sockets.clear();
 
-#ifdef HAVE_SYS_UN_H
-  if (mysql_socket_getfd(unix_sock) != INVALID_SOCKET)
-  {
-    (void) mysql_socket_close(unix_sock);
-    (void) unlink(mysqld_unix_port);
-    unix_sock= MYSQL_INVALID_SOCKET;
-  }
-#endif
   end_thr_alarm(0);			 // Abort old alarms.
 
   /*
@@ -1800,13 +1787,20 @@ static void close_server_sock()
 #ifdef HAVE_CLOSE_SERVER_SOCK
   DBUG_ENTER("close_server_sock");
 
-  close_socket(base_ip_sock, "TCP/IP");
-  close_socket(extra_ip_sock, "TCP/IP");
-  close_socket(unix_sock, "unix/IP");
-
-  if (mysql_socket_getfd(unix_sock) != INVALID_SOCKET)
-    (void) unlink(mysqld_unix_port);
-  base_ip_sock= extra_ip_sock= unix_sock= MYSQL_INVALID_SOCKET;
+  for (std::vector<MYSQL_SOCKET>::iterator sock= listen_sockets.begin();
+       sock != listen_sockets.end(); ++sock)
+  {
+    if (sock->is_unix_domain_socket)
+    {
+      close_socket(*sock, "unix/IP");
+      (void) unlink(mysqld_unix_port);
+    }
+    else
+    {
+      close_socket(*sock, "TCP/IP");
+    }
+  }
+  listen_sockets.clear();
 
   DBUG_VOID_RETURN;
 #endif
@@ -2241,7 +2235,9 @@ static void set_root(const char *path)
    Activate usage of a tcp port
 */
 
-static MYSQL_SOCKET activate_tcp_port(uint port)
+static void activate_tcp_port(uint port,
+                              std::vector<MYSQL_SOCKET> *listen_sockets,
+                              bool is_extra_port= false)
 {
   struct addrinfo *ai, *a;
   struct addrinfo hints;
@@ -2273,20 +2269,6 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
     unireg_abort(1);				/* purecov: tested */
   }
 
-  /*
-    special case: for wildcard addresses prefer ipv6 over ipv4,
-    because we later switch off IPV6_V6ONLY, so ipv6 wildcard
-    addresses will work for ipv4 too
-  */
-  if (!real_bind_addr_str && ai->ai_family == AF_INET && ai->ai_next
-      && ai->ai_next->ai_family == AF_INET6)
-  {
-    a= ai;
-    ai= ai->ai_next;
-    a->ai_next= ai->ai_next;
-    ai->ai_next= a;
-  }
-
   for (a= ai; a != NULL; a= a->ai_next)
   {
     ip_sock= mysql_socket_socket(key_socket_tcpip, a->ai_family,
@@ -2309,99 +2291,98 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
     }
     else 
     {
-      server_socket_ai_family= a->ai_family;
+      ip_sock.address_family= a->ai_family;
       sql_print_information("Server socket created on IP: '%s'.",
                           (const char *) ip_addr);
-      break;
-    }
-  }
 
-  if (mysql_socket_getfd(ip_sock) == INVALID_SOCKET)
-  {
-    DBUG_PRINT("error",("Got error: %d from socket()",socket_errno));
-    sql_perror(ER_DEFAULT(ER_IPSOCK_ERROR));  /* purecov: tested */
-    unireg_abort(1);				/* purecov: tested */
-  }
+      if (mysql_socket_getfd(ip_sock) == INVALID_SOCKET)
+      {
+        DBUG_PRINT("error",("Got error: %d from socket()",socket_errno));
+        sql_perror(ER_DEFAULT(ER_IPSOCK_ERROR));  /* purecov: tested */
+        unireg_abort(1);                          /* purecov: tested */
+      }
 
-  mysql_socket_set_thread_owner(ip_sock);
+      mysql_socket_set_thread_owner(ip_sock);
 
 #ifndef __WIN__
-  /*
-    We should not use SO_REUSEADDR on windows as this would enable a
-    user to open two mysqld servers with the same TCP/IP port.
-  */
-  arg= 1;
-  (void) mysql_socket_setsockopt(ip_sock,SOL_SOCKET,SO_REUSEADDR,(char*)&arg,
-                                 sizeof(arg));
+      /*
+        We should not use SO_REUSEADDR on windows as this would enable a
+        user to open two mysqld servers with the same TCP/IP port.
+      */
+      arg= 1;
+      (void) mysql_socket_setsockopt(ip_sock, SOL_SOCKET, SO_REUSEADDR,
+                                     (char*)&arg, sizeof(arg));
 #endif /* __WIN__ */
 
 #ifdef IPV6_V6ONLY
-   /*
-     For interoperability with older clients, IPv6 socket should
-     listen on both IPv6 and IPv4 wildcard addresses.
-     Turn off IPV6_V6ONLY option.
-
-     NOTE: this will work starting from Windows Vista only.
-     On Windows XP dual stack is not available, so it will not
-     listen on the corresponding IPv4-address.
-   */
-  if (a->ai_family == AF_INET6)
-  {
-    arg= 0;
-    (void) mysql_socket_setsockopt(ip_sock, IPPROTO_IPV6, IPV6_V6ONLY,
-                                   (char*)&arg, sizeof(arg));
-  }
+      /*
+        If an address name resolves to both IPv4 and IPv6 addresses, the server
+        will listen on them both. With IPV6_V6ONLY unset, listening on an IPv6
+        wildcard address may cause listening on an IPv4 wildcard address
+        to fail. That's why IPV6_V6ONLY needs to be forcefully turned on.
+      */
+      if (a->ai_family == AF_INET6)
+      {
+        arg= 1;
+        (void) mysql_socket_setsockopt(ip_sock, IPPROTO_IPV6, IPV6_V6ONLY,
+                                       (char*)&arg, sizeof(arg));
+      }
 #endif
 
 #ifdef IP_FREEBIND
-  arg= 1;
-  (void) mysql_socket_setsockopt(ip_sock, IPPROTO_IP, IP_FREEBIND, (char*) &arg,
-                                 sizeof(arg));
+      arg= 1;
+      (void) mysql_socket_setsockopt(ip_sock, IPPROTO_IP, IP_FREEBIND,
+                                     (char*) &arg, sizeof(arg));
 #endif
-  /*
-    Sometimes the port is not released fast enough when stopping and
-    restarting the server. This happens quite often with the test suite
-    on busy Linux systems. Retry to bind the address at these intervals:
-    Sleep intervals: 1, 2, 4,  6,  9, 13, 17, 22, ...
-    Retry at second: 1, 3, 7, 13, 22, 35, 52, 74, ...
-    Limit the sequence by mysqld_port_timeout (set --port-open-timeout=#).
-  */
-  int ret;
-  uint waited, retry, this_wait;
-  for (waited= 0, retry= 1; ; retry++, waited+= this_wait)
-  {
-    if (((ret= mysql_socket_bind(ip_sock, a->ai_addr, a->ai_addrlen)) >= 0 ) ||
-        (socket_errno != SOCKET_EADDRINUSE) ||
-        (waited >= mysqld_port_timeout))
-      break;
-    sql_print_information("Retrying bind on TCP/IP port %u", port);
-    this_wait= retry * retry / 3 + 1;
-    sleep(this_wait);
-  }
-  freeaddrinfo(ai);
-  if (ret < 0)
-  {
-    char buff[100];
-    sprintf(buff, "Can't start server: Bind on TCP/IP port. Got error: %d",
-            (int) socket_errno);
-    sql_perror(buff);
-    sql_print_error("Do you already have another mysqld server running on "
-                    "port: %u ?", port);
-    unireg_abort(1);
-  }
-  if (mysql_socket_listen(ip_sock,(int) back_log) < 0)
-  {
-    sql_perror("Can't start server: listen() on TCP/IP port");
-    sql_print_error("listen() on TCP/IP failed with error %d",
-                    socket_errno);
-    unireg_abort(1);
-  }
+      /*
+        Sometimes the port is not released fast enough when stopping and
+        restarting the server. This happens quite often with the test suite
+        on busy Linux systems. Retry to bind the address at these intervals:
+        Sleep intervals: 1, 2, 4,  6,  9, 13, 17, 22, ...
+        Retry at second: 1, 3, 7, 13, 22, 35, 52, 74, ...
+        Limit the sequence by mysqld_port_timeout (set --port-open-timeout=#).
+      */
+      int ret;
+      uint waited, retry, this_wait;
+      for (waited= 0, retry= 1; ; retry++, waited+= this_wait)
+      {
+        if (((ret= mysql_socket_bind(ip_sock, a->ai_addr, a->ai_addrlen)) >= 0 )
+            || (socket_errno != SOCKET_EADDRINUSE)
+            || (waited >= mysqld_port_timeout))
+          break;
+        sql_print_information("Retrying bind on TCP/IP port %u", port);
+        this_wait= retry * retry / 3 + 1;
+        sleep(this_wait);
+      }
+
+      if (ret < 0)
+      {
+        char buff[100];
+        sprintf(buff, "Can't start server: Bind on TCP/IP port. Got error: %d",
+                (int) socket_errno);
+        sql_perror(buff);
+        sql_print_error("Do you already have another mysqld server running on "
+                        "port: %u ?", port);
+        unireg_abort(1);
+      }
+      if (mysql_socket_listen(ip_sock,(int) back_log) < 0)
+      {
+        sql_perror("Can't start server: listen() on TCP/IP port");
+        sql_print_error("listen() on TCP/IP failed with error %d",
+                        socket_errno);
+        unireg_abort(1);
+      }
 
 #ifdef FD_CLOEXEC
-  (void) fcntl(mysql_socket_getfd(ip_sock), F_SETFD, FD_CLOEXEC);
+      (void) fcntl(mysql_socket_getfd(ip_sock), F_SETFD, FD_CLOEXEC);
 #endif
+      ip_sock.is_extra_port= is_extra_port;
+      listen_sockets->push_back(ip_sock);
+    }
+  }
 
-  DBUG_RETURN(ip_sock);
+  freeaddrinfo(ai);
+  DBUG_VOID_RETURN;
 }
 
 static void network_init(void)
@@ -2431,9 +2412,11 @@ static void network_init(void)
   if (!opt_disable_networking && !opt_bootstrap)
   {
     if (mysqld_port)
-      base_ip_sock= activate_tcp_port(mysqld_port);
+      activate_tcp_port(mysqld_port, &listen_sockets,
+                        /* is_extra_port= */ false);
     if (mysqld_extra_port)
-      extra_ip_sock= activate_tcp_port(mysqld_extra_port);
+      activate_tcp_port(mysqld_extra_port, &listen_sockets,
+                        /* is_extra_port= */ true);
   }
 
 #if defined(HAVE_SYS_UN_H)
@@ -2442,6 +2425,7 @@ static void network_init(void)
   */
   if (mysqld_unix_port[0] && !opt_bootstrap)
   {
+    MYSQL_SOCKET unix_sock= MYSQL_INVALID_SOCKET;
     size_t port_len;
     DBUG_PRINT("general",("UNIX Socket is %s",mysqld_unix_port));
 
@@ -2458,6 +2442,9 @@ static void network_init(void)
       unireg_abort(1);				/* purecov: inspected */
     }
 
+    unix_sock.is_unix_domain_socket= true;
+    listen_sockets.push_back(unix_sock);
+    unix_sock_is_online= true;
     mysql_socket_set_thread_owner(unix_sock);
 
     bzero((char*) &UNIXaddr, sizeof(UNIXaddr));
@@ -5645,8 +5632,7 @@ int mysqld_main(int argc, char **argv)
 
   if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
     sql_print_information(ER_DEFAULT(ER_STARTUP), my_progname, server_version,
-                          ((mysql_socket_getfd(unix_sock) == INVALID_SOCKET) ?
-                           (char*) "" : mysqld_unix_port),
+                          (unix_sock_is_online ? mysqld_unix_port : (char*) ""),
                           mysqld_port, MYSQL_COMPILATION_COMMENT);
   else
   {
@@ -5658,8 +5644,7 @@ int mysqld_main(int argc, char **argv)
 
     sql_print_information(ER_DEFAULT(ER_STARTUP), my_progname,
                           real_server_version,
-                          ((mysql_socket_getfd(unix_sock) == INVALID_SOCKET) ?
-                           (char*) "" : mysqld_unix_port),
+                          (unix_sock_is_online ? mysqld_unix_port : (char*) ""),
                           mysqld_port, MYSQL_COMPILATION_COMMENT);
   }
 
@@ -5866,8 +5851,7 @@ void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock)
 {
 #ifdef HAVE_LIBWRAP
   {
-    if (mysql_socket_getfd(sock) == mysql_socket_getfd(base_ip_sock) ||
-      mysql_socket_getfd(sock) == mysql_socket_getfd(extra_ip_sock))
+    if (!sock.is_unix_domain_socket)
     {
       struct request_info req;
       signal(SIGCHLD, SIG_DFL);
@@ -5910,11 +5894,9 @@ void handle_accepted_socket(MYSQL_SOCKET new_sock, MYSQL_SOCKET sock)
   DBUG_PRINT("info", ("Creating CONNECT for new connection"));
 
   if (auto connect= new CONNECT(new_sock,
-                                mysql_socket_getfd(sock) ==
-                                mysql_socket_getfd(unix_sock) ?
+                                sock.is_unix_domain_socket ?
                                 VIO_TYPE_SOCKET : VIO_TYPE_TCPIP,
-                                mysql_socket_getfd(sock) ==
-                                mysql_socket_getfd(extra_ip_sock) ?
+                                sock.is_extra_port ?
                                 extra_thread_scheduler : thread_scheduler))
     create_new_thread(connect);
   else
@@ -5950,36 +5932,30 @@ void handle_connections_sockets()
   struct sockaddr_storage cAddr;
   int retval;
 #ifdef HAVE_POLL
-  int socket_count= 0;
-  struct pollfd fds[3]; // for ip_sock, unix_sock and extra_ip_sock
-  MYSQL_SOCKET  pfs_fds[3]; // for performance schema
-#define setup_fds(X)                    \
-    mysql_socket_set_thread_owner(X);             \
-    pfs_fds[socket_count]= (X);                   \
-    fds[socket_count].fd= mysql_socket_getfd(X);  \
-    fds[socket_count].events= POLLIN;   \
-    socket_count++
+  std::vector<struct pollfd> fds; // for ip_sock, unix_sock and extra_ip_sock
 #else
-#define setup_fds(X)    FD_SET(mysql_socket_getfd(X),&clientFDs)
   fd_set readFDs,clientFDs;
-  FD_ZERO(&clientFDs);
 #endif
 
   DBUG_ENTER("handle_connections_sockets");
 
-  if (mysql_socket_getfd(base_ip_sock) != INVALID_SOCKET)
+#ifdef HAVE_POLL
+  fds.resize(listen_sockets.size());
+  for (size_t i= 0; i < listen_sockets.size(); i++)
   {
-    setup_fds(base_ip_sock);
-    set_non_blocking_if_supported(base_ip_sock);
+    mysql_socket_set_thread_owner(listen_sockets[i]);
+    fds[i].fd= mysql_socket_getfd(listen_sockets[i]);
+    fds[i].events= POLLIN;
+    set_non_blocking_if_supported(listen_sockets[i]);
   }
-  if (mysql_socket_getfd(extra_ip_sock) != INVALID_SOCKET)
+#else
+  FD_ZERO(&clientFDs);
+  for (size_t i= 0; i < listen_sockets.size(); i++)
   {
-    setup_fds(extra_ip_sock);
-    set_non_blocking_if_supported(extra_ip_sock);
+    int fd= mysql_socket_getfd(listen_sockets[i]);
+    FD_SET(fd, &clientFDs);
+    set_non_blocking_if_supported(listen_sockets[i]);
   }
-#ifdef HAVE_SYS_UN_H
-  setup_fds(unix_sock);
-  set_non_blocking_if_supported(unix_sock);
 #endif
 
   sd_notify(0, "READY=1\n"
@@ -5989,10 +5965,10 @@ void handle_connections_sockets()
   while (!abort_loop)
   {
 #ifdef HAVE_POLL
-    retval= poll(fds, socket_count, -1);
+    retval= poll(fds.data(), fds.size(), -1);
 #else
     readFDs=clientFDs;
-    retval= select((int) 0,&readFDs,0,0,0);
+    retval= select(FD_SETSIZE, &readFDs, NULL, NULL, NULL);
 #endif
 
     if (retval < 0)
@@ -6016,22 +5992,23 @@ void handle_connections_sockets()
 
     /* Is this a new connection request ? */
 #ifdef HAVE_POLL
-    for (int i= 0; i < socket_count; ++i) 
+    for (size_t i= 0; i < fds.size(); ++i)
     {
       if (fds[i].revents & POLLIN)
       {
-        sock= pfs_fds[i];
+        sock= listen_sockets[i];
         break;
       }
     }
 #else  // HAVE_POLL
-    if (FD_ISSET(mysql_socket_getfd(base_ip_sock),&readFDs))
-      sock=  base_ip_sock;
-    else
-    if (FD_ISSET(mysql_socket_getfd(extra_ip_sock),&readFDs))
-      sock=  extra_ip_sock;
-    else
-      sock = unix_sock;
+    for (size_t i=0; i < listen_sockets.size(); i++)
+    {
+      if (FD_ISSET(mysql_socket_getfd(listen_sockets[i]), &readFDs))
+      {
+        sock= listen_sockets[i];
+        break;
+      }
+    }
 #endif // HAVE_POLL
 
     for (uint retry=0; retry < MAX_ACCEPT_RETRY; retry++)
@@ -7514,9 +7491,6 @@ static int mysql_init_variables(void)
   character_set_filesystem= &my_charset_bin;
 
   opt_specialflag= SPECIAL_ENGLISH;
-#ifndef EMBEDDED_LIBRARY 
-  unix_sock= base_ip_sock= extra_ip_sock= MYSQL_INVALID_SOCKET;
-#endif
   mysql_home_ptr= mysql_home;
   log_error_file_ptr= log_error_file;
   protocol_version= PROTOCOL_VERSION;

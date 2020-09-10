@@ -38,6 +38,10 @@ if($my_socket_debug)
   --echo IPV6=$check_ipv6_supported, IPV4_MAPPED=$check_ipv4_mapped_supported, LOCALHOST=$my_localhost
 }
 
+# This test only runs when IPv6 is supported (see include/check_ipv6.inc), so
+# the server will listen on both IPv4 and IPv6 wildcard addresses. That's why
+# the expected number of TCP/IP listeners is always 2.
+
 #
 # Preserve the current state of SOCKET_INSTANCES
 #
@@ -222,17 +226,18 @@ AND PORT = 0 AND THREAD_ID = @thread_id;
 
 --echo # Characteristics of 'server_tcpip_socket' entry
 --echo #    Server listening socket, TCP/IP
---echo #    There is only one entry with 'wait/io/socket/sql/server_tcpip_socket'.
---echo #    It shares the same thread id as 'wait/io/socket/sql/server_unix_socket'.
+--echo #    There are two entries with 'wait/io/socket/sql/server_tcpip_socket',
+--echo #    for [::] and for 0.0.0.0.
+--echo #    They share the same thread id with 'wait/io/socket/sql/server_unix_socket'.
 
-SELECT COUNT(*) = 1 AS 'Expect 1'
+SELECT COUNT(*) = 2 AS 'Expect 1'
 FROM performance_schema.socket_instances
 WHERE EVENT_NAME = 'wait/io/socket/sql/server_tcpip_socket';
 
 # Store the thread id of server_tcpip_socket
 --echo # Get the 'server_tcpip_socket' thread id
 
-SELECT THREAD_ID INTO @thread_id
+SELECT DISTINCT THREAD_ID INTO @thread_id
 FROM performance_schema.socket_instances
 WHERE EVENT_NAME = 'wait/io/socket/sql/server_tcpip_socket';
 
@@ -288,14 +293,14 @@ WHERE EVENT_NAME = 'wait/io/socket/sql/server_unix_socket';
 --disable_query_log ONCE
 eval SET @thread_id = $server_tcpip_thread_id;
 
-eval SELECT COUNT(*) = 2 AS 'Expect 1'
+eval SELECT COUNT(*) = 3 AS 'Expect 1'
 FROM performance_schema.socket_instances
 WHERE THREAD_ID = @thread_id;
 
 --disable_query_log ONCE
 eval SET @thread_id = $server_unix_thread_id;
 
-eval SELECT COUNT(*) = 2 AS 'Expect 1'
+eval SELECT COUNT(*) = 3 AS 'Expect 1'
 FROM performance_schema.socket_instances
 WHERE THREAD_ID = @thread_id;
 

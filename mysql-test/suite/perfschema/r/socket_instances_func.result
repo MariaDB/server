@@ -80,15 +80,16 @@ Expect 1
 1
 # Characteristics of 'server_tcpip_socket' entry
 #    Server listening socket, TCP/IP
-#    There is only one entry with 'wait/io/socket/sql/server_tcpip_socket'.
-#    It shares the same thread id as 'wait/io/socket/sql/server_unix_socket'.
-SELECT COUNT(*) = 1 AS 'Expect 1'
+#    There are two entries with 'wait/io/socket/sql/server_tcpip_socket',
+#    for [::] and for 0.0.0.0.
+#    They share the same thread id with 'wait/io/socket/sql/server_unix_socket'.
+SELECT COUNT(*) = 2 AS 'Expect 1'
 FROM performance_schema.socket_instances
 WHERE EVENT_NAME = 'wait/io/socket/sql/server_tcpip_socket';
 Expect 1
 1
 # Get the 'server_tcpip_socket' thread id
-SELECT THREAD_ID INTO @thread_id
+SELECT DISTINCT THREAD_ID INTO @thread_id
 FROM performance_schema.socket_instances
 WHERE EVENT_NAME = 'wait/io/socket/sql/server_tcpip_socket';
 #    Check the content.
@@ -99,6 +100,7 @@ AND STATE = 'ACTIVE' AS 'Expect 1'
 FROM performance_schema.socket_instances
 WHERE EVENT_NAME = 'wait/io/socket/sql/server_tcpip_socket';
 Expect 1
+1
 1
 # Characteristics of 'server_unix_socket' entry
 #    Server listening socket, unix domain (socket file)
@@ -123,12 +125,12 @@ WHERE EVENT_NAME = 'wait/io/socket/sql/server_unix_socket';
 Expect 1
 1
 # Server listening sockets (TCP and Unix) are handled on the same thread
-SELECT COUNT(*) = 2 AS 'Expect 1'
+SELECT COUNT(*) = 3 AS 'Expect 1'
 FROM performance_schema.socket_instances
 WHERE THREAD_ID = @thread_id;
 Expect 1
 1
-SELECT COUNT(*) = 2 AS 'Expect 1'
+SELECT COUNT(*) = 3 AS 'Expect 1'
 FROM performance_schema.socket_instances
 WHERE THREAD_ID = @thread_id;
 Expect 1
