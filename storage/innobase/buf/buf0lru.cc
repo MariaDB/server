@@ -347,63 +347,52 @@ function will either assert or issue a warning and switch on the
 status monitor. */
 static void buf_LRU_check_size_of_non_data_objects()
 {
-	mysql_mutex_assert_owner(&buf_pool.mutex);
+  mysql_mutex_assert_owner(&buf_pool.mutex);
 
-	if (!recv_recovery_is_on()
-	    && buf_pool.curr_size == buf_pool.old_size
-	    && UT_LIST_GET_LEN(buf_pool.free)
-	    + UT_LIST_GET_LEN(buf_pool.LRU) < buf_pool.curr_size / 20) {
+  if (recv_recovery_is_on() || buf_pool.curr_size != buf_pool.old_size)
+    return;
 
-		ib::fatal() << "Over 95 percent of the buffer pool is"
-			" occupied by lock heaps"
+  const auto s= UT_LIST_GET_LEN(buf_pool.free) + UT_LIST_GET_LEN(buf_pool.LRU);
+
+  if (s < buf_pool.curr_size / 20)
+    ib::fatal() << "Over 95 percent of the buffer pool is"
+            " occupied by lock heaps"
 #ifdef BTR_CUR_HASH_ADAPT
-			" or the adaptive hash index!"
+            " or the adaptive hash index"
 #endif /* BTR_CUR_HASH_ADAPT */
-			" Check that your transactions do not set too many"
-			" row locks, or review if"
-			" innodb_buffer_pool_size="
-			<< (buf_pool.curr_size >> (20U - srv_page_size_shift))
-			<< "M could be bigger.";
-	} else if (!recv_recovery_is_on()
-		   && buf_pool.curr_size == buf_pool.old_size
-		   && (UT_LIST_GET_LEN(buf_pool.free)
-		       + UT_LIST_GET_LEN(buf_pool.LRU))
-		   < buf_pool.curr_size / 3) {
+            "! Check that your transactions do not set too many"
+            " row locks, or review if innodb_buffer_pool_size="
+                << (buf_pool.curr_size >> (20U - srv_page_size_shift))
+                << "M could be bigger.";
 
-		if (!buf_lru_switched_on_innodb_mon && srv_monitor_timer) {
-
-			/* Over 67 % of the buffer pool is occupied by lock
-			heaps or the adaptive hash index. This may be a memory
-			leak! */
-
-			ib::warn() << "Over 67 percent of the buffer pool is"
-				" occupied by lock heaps"
+  if (s < buf_pool.curr_size / 3)
+  {
+    if (!buf_lru_switched_on_innodb_mon && srv_monitor_timer)
+    {
+      /* Over 67 % of the buffer pool is occupied by lock heaps or
+      the adaptive hash index. This may be a memory leak! */
+      ib::warn() << "Over 67 percent of the buffer pool is"
+              " occupied by lock heaps"
 #ifdef BTR_CUR_HASH_ADAPT
-				" or the adaptive hash index!"
+              " or the adaptive hash index"
 #endif /* BTR_CUR_HASH_ADAPT */
-				" Check that your transactions do not"
-				" set too many row locks."
-				" innodb_buffer_pool_size="
-				<< (buf_pool.curr_size >>
-				    (20U - srv_page_size_shift)) << "M."
-				" Starting the InnoDB Monitor to print"
-				" diagnostics.";
-
-			buf_lru_switched_on_innodb_mon = true;
-			srv_print_innodb_monitor = TRUE;
-			srv_monitor_timer_schedule_now();
-		}
-
-	} else if (buf_lru_switched_on_innodb_mon) {
-
-		/* Switch off the InnoDB Monitor; this is a simple way
-		to stop the monitor if the situation becomes less urgent,
-		but may also surprise users if the user also switched on the
-		monitor! */
-
-		buf_lru_switched_on_innodb_mon = false;
-		srv_print_innodb_monitor = FALSE;
-	}
+              "! Check that your transactions do not set too many row locks."
+              " innodb_buffer_pool_size="
+                 << (buf_pool.curr_size >> (20U - srv_page_size_shift))
+                 << "M. Starting the InnoDB Monitor to print diagnostics.";
+      buf_lru_switched_on_innodb_mon= true;
+      srv_print_innodb_monitor= TRUE;
+      srv_monitor_timer_schedule_now();
+    }
+  }
+  else if (buf_lru_switched_on_innodb_mon)
+  {
+    /* Switch off the InnoDB Monitor; this is a simple way to stop the
+    monitor if the situation becomes less urgent, but may also
+    surprise users who did SET GLOBAL innodb_status_output=ON earlier! */
+    buf_lru_switched_on_innodb_mon= false;
+    srv_print_innodb_monitor= FALSE;
+  }
 }
 
 /** Get a free block from the buf_pool. The block is taken off the
@@ -434,8 +423,6 @@ we put it to free list to be used.
 @return the free control block, in state BUF_BLOCK_MEMORY */
 buf_block_t* buf_LRU_get_free_block(bool have_mutex)
 {
-	buf_block_t*	block		= NULL;
-	bool		freed		= false;
 	ulint		n_iterations	= 0;
 	ulint		flush_failures	= 0;
 	MONITOR_INC(MONITOR_LRU_GET_FREE_SEARCH);
@@ -446,7 +433,6 @@ buf_block_t* buf_LRU_get_free_block(bool have_mutex)
 loop:
 	mysql_mutex_lock(&buf_pool.mutex);
 got_mutex:
-
 	buf_LRU_check_size_of_non_data_objects();
 
 	DBUG_EXECUTE_IF("ib_lru_force_no_free_page",
@@ -454,54 +440,47 @@ got_mutex:
 			n_iterations = 21;
 			goto not_found;});
 
+retry:
 	/* If there is a block in the free list, take it */
-	block = buf_LRU_get_free_only();
-
-	if (block) {
+	if (buf_block_t* block = buf_LRU_get_free_only()) {
 		if (!have_mutex) {
 			mysql_mutex_unlock(&buf_pool.mutex);
 		}
 		memset(&block->page.zip, 0, sizeof block->page.zip);
-		return(block);
+		return block;
 	}
 
 	MONITOR_INC( MONITOR_LRU_GET_FREE_LOOPS );
-	freed = false;
 	if (n_iterations || buf_pool.try_LRU_scan) {
 		/* If no block was in the free list, search from the
 		end of the LRU list and try to free a block there.
 		If we are doing for the first time we'll scan only
 		tail of the LRU list otherwise we scan the whole LRU
 		list. */
-		freed = buf_LRU_scan_and_free_block(n_iterations > 0);
-
-		if (!freed && n_iterations == 0) {
-			/* Tell other threads that there is no point
-			in scanning the LRU list. This flag is set to
-			TRUE again when we flush a batch from this
-			buffer pool. */
-			buf_pool.try_LRU_scan = false;
-
-			/* Also tell the page_cleaner thread that
-			there is work for it to do. */
+		if (!buf_LRU_scan_and_free_block(n_iterations != 0)) {
 			os_event_set(buf_flush_event);
+			if (n_iterations == 0) {
+				/* Tell other threads that there is no point
+				in scanning the LRU list. */
+				buf_pool.try_LRU_scan = false;
+			}
+		} else {
+			goto retry;
 		}
 	}
 
 #ifndef DBUG_OFF
 not_found:
 #endif
-
+	buf_flush_wait_batch_end(true);
 	mysql_mutex_unlock(&buf_pool.mutex);
 
-	if (freed) {
-		goto loop;
-	}
+	os_event_set(buf_flush_event);
 
 	if (n_iterations > 20 && !buf_lru_free_blocks_error_printed
 	    && srv_buf_pool_old_size == srv_buf_pool_size) {
 
-		ib::info() << "Difficult to find free blocks in the buffer pool"
+		ib::warn() << "Difficult to find free blocks in the buffer pool"
 			" (" << n_iterations << " search iterations)! "
 			<< flush_failures << " failed attempts to"
 			" flush a page!"
@@ -518,18 +497,8 @@ not_found:
 		buf_lru_free_blocks_error_printed = true;
 	}
 
-	/* If we have scanned the whole LRU and still are unable to
-	find a free block then we should sleep here to let the
-	page_cleaner do an LRU batch for us. */
-
-	if (!srv_read_only_mode) {
-		os_event_set(buf_flush_event);
-	}
-
 	if (n_iterations > 1) {
-
 		MONITOR_INC( MONITOR_LRU_GET_FREE_WAITS );
-		os_thread_sleep(10000);
 	}
 
 	/* No free block was found: try to flush the LRU list.
@@ -540,11 +509,11 @@ not_found:
 	TODO: A more elegant way would have been to return the freed
 	up block to the caller here but the code that deals with
 	removing the block from page_hash and LRU_list is fairly
-	involved (particularly in case of compressed pages). We
+	involved (particularly in case of ROW_FORMAT=COMPRESSED pages). We
 	can do that in a separate patch sometime in future. */
 
 	flush_counters_t n;
-	if (!buf_flush_do_batch(1, 0, &n)) {
+	if (!buf_flush_do_batch(BUF_LRU_SEARCH_SCAN_THRESHOLD, 0, &n)) {
 		MONITOR_INC(MONITOR_LRU_SINGLE_FLUSH_FAILURE_COUNT);
 		++flush_failures;
 	}
