@@ -1016,14 +1016,6 @@ EOF
 
 DROP TABLE t1;
 
---disable_query_log
-# Enable metrics for the counters we are going to use
-set global innodb_monitor_enable = purge_stop_count;
-set global innodb_monitor_enable = purge_resume_count;
-set global innodb_monitor_enable = ibuf_merges;
-set global innodb_monitor_enable = ibuf_merges_insert;
---enable_query_log
-
 #
 # Create a large table with delete marked records, disable purge during
 # the update so that we can test the IMPORT purge code.
@@ -1041,9 +1033,6 @@ CREATE TABLE t1 (
 connect (purge_control,localhost,root);
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
-
-SET GLOBAL innodb_monitor_reset = ibuf_merges;
-SET GLOBAL innodb_monitor_reset = ibuf_merges_insert;
 
 INSERT INTO t1
 SELECT 1 + seq, 1 + (seq MOD 4),
@@ -1075,10 +1064,6 @@ SELECT c1, c2 FROM t1;
 SELECT COUNT(*) FROM t1;
 SELECT SUM(c2) FROM t1;
 
-SELECT name
-  FROM information_schema.innodb_metrics
-  WHERE name = 'ibuf_merges_insert' AND count = 0;
-
 FLUSH TABLES t1 FOR EXPORT;
 
 perl;
@@ -1087,14 +1072,6 @@ ib_backup_tablespaces("test", "t1");
 EOF
 
 UNLOCK TABLES;
-
-SELECT name
-  FROM information_schema.innodb_metrics
-  WHERE name = 'ibuf_merges' AND count > 0;
-
-SELECT name
-  FROM information_schema.innodb_metrics
-  WHERE name = 'ibuf_merges_inserts' AND count > 0;
 
 # Enable normal operation
 connection purge_control;
@@ -1385,21 +1362,9 @@ do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
 ib_unlink_tablespace("test", "t1");
 EOF
 
-set global innodb_monitor_disable = all;
-set global innodb_monitor_reset_all = all;
-
--- disable_warnings
-set global innodb_monitor_enable = default;
-set global innodb_monitor_disable = default;
-set global innodb_monitor_reset = default;
-set global innodb_monitor_reset_all = default;
--- enable_warnings
-
 --disable_query_log
 call mtr.add_suppression("InnoDB: The log sequence numbers [0-9]+ and [0-9]+ in ibdata files do not match the log sequence number [0-9]+ in the ib_logfiles!");
 call mtr.add_suppression("'Resource temporarily unavailable'");
-call mtr.add_suppression("Monitor ibuf_merges is already enabled");
-call mtr.add_suppression("Monitor ibuf_merges_insert is already enabled");
 call mtr.add_suppression("Got error -1 when reading table '.*'");
 call mtr.add_suppression("InnoDB: Table '.*' tablespace is set as discarded.");
 call mtr.add_suppression("InnoDB: Tablespace '.*' exists in the cache.*");
