@@ -493,7 +493,7 @@ void log_t::create()
   log record has a non-zero start lsn, a fact which we will use */
 
   set_lsn(LOG_START_LSN + LOG_BLOCK_HDR_SIZE);
-  set_flushed_lsn(0);
+  set_flushed_lsn(LOG_START_LSN + LOG_BLOCK_HDR_SIZE);
 
   ut_ad(srv_log_buffer_size >= 16 * OS_FILE_LOG_BLOCK_SIZE);
   ut_ad(srv_log_buffer_size >= 4U << srv_page_size_shift);
