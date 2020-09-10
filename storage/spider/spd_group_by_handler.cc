@@ -1411,6 +1411,7 @@ int spider_group_by_handler::init_scan()
       }
     } else {
 #endif
+      pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
       if (dbton_hdl->need_lock_before_set_sql_for_exec(
         SPIDER_SQL_TYPE_SELECT_SQL))
       {
@@ -1421,6 +1422,12 @@ int spider_group_by_handler::init_scan()
         dbton_hdl->set_sql_for_exec(SPIDER_SQL_TYPE_SELECT_SQL, link_idx,
         link_idx_chain)))
       {
+        if (dbton_hdl->need_lock_before_set_sql_for_exec(
+          SPIDER_SQL_TYPE_SELECT_SQL))
+        {
+          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+          pthread_mutex_unlock(&conn->mta_conn_mutex);
+        }
         DBUG_RETURN(error_num);
       }
       if (!dbton_hdl->need_lock_before_set_sql_for_exec(
@@ -1430,11 +1437,15 @@ int spider_group_by_handler::init_scan()
         SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
       }
       conn->need_mon = &spider->need_mons[link_idx];
+      DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = TRUE;
       conn->mta_conn_mutex_unlock_later = TRUE;
       if ((error_num = spider_db_set_names(spider, conn,
         link_idx)))
       {
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -1459,6 +1470,8 @@ int spider_group_by_handler::init_scan()
         spider->result_list.quick_mode,
         &spider->need_mons[link_idx])
       ) {
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         error_num = spider_db_errorno(conn);
@@ -1475,6 +1488,8 @@ int spider_group_by_handler::init_scan()
         DBUG_RETURN(error_num);
       }
       spider->connection_ids[link_idx] = conn->connection_id;
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       if (fields->is_first_link_ok_chain(link_idx_chain))

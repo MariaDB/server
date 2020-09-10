@@ -12,8 +12,6 @@ cache:
   timeout: 500
   apt: true
   ccache: true
-  directories:
-    - /usr/local/Cellar # Fails do to permission error: https://github.com/travis-ci/travis-ci/issues/8092
 
 addons:
   apt:
@@ -155,7 +153,7 @@ jobs:
       script: *deb-script
       # Just one OS X build is enough
     - os: osx
-      osx_image: xcode11.3
+      osx_image: xcode12u
       compiler: clang
       env: CC_VERSION=8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
       # Some chosen ones with s390x and gcc

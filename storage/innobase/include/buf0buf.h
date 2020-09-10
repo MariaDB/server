@@ -39,7 +39,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "hash0hash.h"
 #include "ut0byte.h"
 #include "page0types.h"
-#include "os0proc.h"
 #include "log0log.h"
 #include "srv0srv.h"
 #include <ostream>

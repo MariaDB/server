@@ -157,6 +157,12 @@ ms3_st *s3_open_connection(S3_INFO *s3)
   if (s3->protocol_version)
     ms3_set_option(s3_client, MS3_OPT_FORCE_PROTOCOL_VERSION,
                    &s3->protocol_version);
+  if (s3->port)
+    ms3_set_option(s3_client, MS3_OPT_PORT_NUMBER, &s3->port);
+
+  if (s3->use_http)
+    ms3_set_option(s3_client, MS3_OPT_USE_HTTP, NULL);
+
   return s3_client;
 }
 

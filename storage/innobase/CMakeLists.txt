@@ -190,7 +190,6 @@ SET(INNOBASE_SOURCES
 	include/os0event.h
 	include/os0file.h
 	include/os0file.ic
-	include/os0proc.h
 	include/os0thread.h
 	include/page0cur.h
 	include/page0cur.ic
@@ -296,7 +295,6 @@ SET(INNOBASE_SOURCES
 	mem/mem0mem.cc
 	mtr/mtr0mtr.cc
 	os/os0file.cc
-	os/os0proc.cc
 	os/os0event.cc
 	os/os0thread.cc
 	page/page0cur.cc

@@ -298,6 +298,16 @@ int main(int ac, char **av)
 }"
 HAVE_SYS_GETTID)
 
+# Check for getthrid()
+CHECK_C_SOURCE_COMPILES("
+#include <unistd.h>
+int main(int ac, char **av)
+{
+  unsigned long long tid = getthrid();
+  return (tid != 0 ? 0 : 1);
+}"
+HAVE_GETTHRID)
+
 # Check for pthread_getthreadid_np()
 CHECK_C_SOURCE_COMPILES("
 #include <pthread_np.h>

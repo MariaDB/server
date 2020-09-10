@@ -317,9 +317,15 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
   DBUG_ASSERT(thd->wsrep_trx().active());
   thd->wsrep_cs().prepare_for_ordering(ws_handle, ws_meta, true);
   thd_proc_info(thd, "committing");
+  int ret=0;
 
   const bool is_ordered= !ws_meta.seqno().is_undefined();
-  int ret= trans_commit(thd);
+
+  if (!thd->transaction->stmt.is_empty())
+    ret= trans_commit_stmt(thd);
+
+  if (ret == 0)
+    ret= trans_commit(thd);
 
   if (ret == 0)
   {

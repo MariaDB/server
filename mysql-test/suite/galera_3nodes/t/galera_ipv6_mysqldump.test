@@ -1,5 +1,6 @@
 --source include/galera_cluster.inc
 --source include/check_ipv6.inc
+--source include/force_restart.inc
 
 call mtr.add_suppression("WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to'");
 call mtr.add_suppression("Failed to load slave replication state from table mysql.gtid_slave_pos");

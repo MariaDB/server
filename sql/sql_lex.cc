@@ -400,6 +400,9 @@ bool sp_create_assignment_lex(THD *thd, const char *pos)
     new_lex->sphead->m_tmp_query= pos;
     return thd->lex->sphead->reset_lex(thd, new_lex);
   }
+  else
+    if (thd->lex->main_select_push(false))
+      return true;
   return false;
 }
 
@@ -491,6 +494,8 @@ bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
     /* Copy option_type to outer lex in case it has changed. */
     thd->lex->option_type= inner_option_type;
   }
+  else
+    lex->pop_select();
   return false;
 }
 
@@ -2960,6 +2965,7 @@ void st_select_lex::init_query()
   changed_elements= 0;
   first_natural_join_processing= 1;
   first_cond_optimization= 1;
+  is_service_select= 0;
   parsing_place= NO_MATTER;
   save_parsing_place= NO_MATTER;
   exclude_from_table_unique_test= no_wrap_view_item= FALSE;
@@ -8242,7 +8248,7 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
       return new (thd->mem_root) Item_func_sqlerrm(thd);
   }
 
-  if (!select_stack_head() &&
+  if (fields_are_impossible() &&
       (current_select->parsing_place != FOR_LOOP_BOUND ||
        spcont->find_cursor(name, &unused_off, false) == NULL))
   {
@@ -9579,11 +9585,13 @@ void st_select_lex::add_statistics(SELECT_LEX_UNIT *unit)
 }
 
 
-bool LEX::main_select_push()
+bool LEX::main_select_push(bool service)
 {
   DBUG_ENTER("LEX::main_select_push");
+  DBUG_PRINT("info", ("service: %u", service));
   current_select_number= 1;
   builtin_select.select_number= 1;
+  builtin_select.is_service_select= service;
   if (push_select(&builtin_select))
     DBUG_RETURN(TRUE);
   DBUG_RETURN(FALSE);

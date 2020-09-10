@@ -1851,15 +1851,13 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
       }
       if (table->vfield)
       {
-        my_bool abort_on_warning= thd->abort_on_warning;
         /*
           We have not yet called update_virtual_fields(VOL_UPDATE_FOR_READ)
           in handler methods for the just read row in record[1].
         */
         table->move_fields(table->field, table->record[1], table->record[0]);
-        thd->abort_on_warning= 0;
-        table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_REPLACE);
-        thd->abort_on_warning= abort_on_warning;
+        if (table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_REPLACE))
+          goto err;
         table->move_fields(table->field, table->record[0], table->record[1]);
       }
       if (info->handle_duplicates == DUP_UPDATE)

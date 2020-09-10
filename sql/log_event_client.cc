@@ -1729,7 +1729,7 @@ bool Log_event::print_base64(IO_CACHE* file,
       ev->need_flashback_review= need_flashback_review;
       if (print_event_info->verbose)
       {
-        if (ev->print_verbose(file, print_event_info))
+        if (ev->print_verbose(&print_event_info->tail_cache, print_event_info))
           goto err;
       }
       else
@@ -1753,22 +1753,9 @@ bool Log_event::print_base64(IO_CACHE* file,
       }
 #else
       if (print_event_info->verbose)
-      {
-        /*
-          Verbose event printout can't start before encoded data
-          got enquoted. This is done at this point though multi-row
-          statement remain vulnerable.
-          TODO: fix MDEV-10362 to remove this workaround.
-        */
-        if (print_event_info->base64_output_mode !=
-            BASE64_OUTPUT_DECODE_ROWS)
-          my_b_printf(file, "'%s\n", print_event_info->delimiter);
-        error= ev->print_verbose(file, print_event_info);
-      }
+        error= ev->print_verbose(&print_event_info->tail_cache, print_event_info);
       else
-      {
         ev->count_row_events(print_event_info);
-      }
 #endif
       delete ev;
       if (unlikely(error))
@@ -2763,7 +2750,7 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
                                 FILE *file,
                                 bool do_wrap,
                                 const char *delimiter,
-                                bool is_verbose)
+                                bool is_verbose /*TODO: remove */)
 {
   const my_off_t cache_size= my_b_tell(body);
 
@@ -2796,8 +2783,7 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
     my_fprintf(file, fmt_frag, 1);
     if (my_b_copy_to_file(body, file, SIZE_T_MAX))
       goto err;
-    if (!is_verbose)
-      my_fprintf(file, fmt_delim, delimiter);
+    my_fprintf(file, fmt_delim, delimiter);
 
     my_fprintf(file, fmt_binlog2, delimiter);
   }
@@ -2806,8 +2792,7 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
     my_fprintf(file, str_binlog);
     if (my_b_copy_to_file(body, file, SIZE_T_MAX))
       goto err;
-    if (!is_verbose)
-      my_fprintf(file, fmt_delim, delimiter);
+    my_fprintf(file, fmt_delim, delimiter);
   }
   reinit_io_cache(body, WRITE_CACHE, 0, FALSE, TRUE);
 
@@ -2893,7 +2878,6 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
       goto err;
     str += (add_to_len= uint32(cache->end_of_file - (cache_size/2 + 1)));
     to->length += add_to_len;
-    if (!is_verbose)
     {
       str += (add_to_len= sprintf(str , fmt_delim, delimiter));
       to->length += add_to_len;
@@ -2909,7 +2893,6 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
       goto err;
     str += cache->end_of_file;
     to->length += (size_t)cache->end_of_file;
-    if (!is_verbose)
       to->length += sprintf(str , fmt_delim, delimiter);
   }
 
@@ -2957,6 +2940,7 @@ bool Rows_log_event::print_helper(FILE *file,
 {
   IO_CACHE *const head= &print_event_info->head_cache;
   IO_CACHE *const body= &print_event_info->body_cache;
+  IO_CACHE *const tail= &print_event_info->tail_cache;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
   IO_CACHE *const sql= &print_event_info->review_sql_cache;
 #endif
@@ -2987,7 +2971,8 @@ bool Rows_log_event::print_helper(FILE *file,
       if (copy_event_cache_to_file_and_reinit(head, file) ||
           copy_cache_to_file_wrapped(body, file, do_print_encoded,
                                      print_event_info->delimiter,
-                                     print_event_info->verbose))
+                                     print_event_info->verbose) ||
+          copy_event_cache_to_file_and_reinit(tail, file))
         goto err;
     }
     else
@@ -3005,6 +2990,11 @@ bool Rows_log_event::print_helper(FILE *file,
       return 1;
     output_buf.append(tmp_str.str, tmp_str.length);
     my_free(tmp_str.str);
+    if (copy_event_cache_to_string_and_reinit(tail, &tmp_str))
+      return 1;
+    output_buf.append(tmp_str.str, tmp_str.length);
+    my_free(tmp_str.str);
+
 #ifdef WHEN_FLASHBACK_REVIEW_READY
     if (copy_event_cache_to_string_and_reinit(sql, &tmp_str))
       return 1;
@@ -3787,6 +3777,7 @@ st_print_event_info::st_print_event_info()
   base64_output_mode=BASE64_OUTPUT_UNSPEC;
   open_cached_file(&head_cache, NULL, NULL, 0, flags);
   open_cached_file(&body_cache, NULL, NULL, 0, flags);
+  open_cached_file(&tail_cache, NULL, NULL, 0, flags);
 #ifdef WHEN_FLASHBACK_REVIEW_READY
   open_cached_file(&review_sql_cache, NULL, NULL, 0, flags);
 #endif

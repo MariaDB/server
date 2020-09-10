@@ -13,12 +13,17 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
 # Block node #2's applier before table t1's inserts have come into play
 
 --connection node_2
-SELECT COUNT(*) = 0 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
 
 --connection node_1
 CREATE TABLE t2 (f1 INTEGER);
 
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2'
+--source include/wait_condition.inc
+
 LOCK TABLE t2 WRITE;
 
 --connection node_1
@@ -39,11 +44,8 @@ INSERT INTO t1 VALUES (3);
 INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (5);
 
---sleep 2
-
 --connection node_2
 --source include/kill_galera.inc
---sleep 1
 
 --connection node_1
 INSERT INTO t1 VALUES (6);
@@ -54,8 +56,6 @@ INSERT INTO t1 VALUES (10);
 
 --connection node_2
 --source include/start_mysqld.inc
---sleep 1
-
 --source include/wait_until_connected_again.inc
 --source include/galera_wait_ready.inc
 
@@ -67,12 +67,17 @@ INSERT INTO t1 VALUES (14);
 INSERT INTO t1 VALUES (15);
 COMMIT;
 
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 
 --connection node_2
---sleep 5
-SELECT COUNT(*) = 15 FROM t1;
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+--let $wait_condition = SELECT COUNT(*) = 15 FROM t1
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_15 FROM t1;
+SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 
 --connection node_1
 

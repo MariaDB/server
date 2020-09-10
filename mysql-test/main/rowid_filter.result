@@ -2165,6 +2165,12 @@ A.a+1000*B.a + 10000,
 'filler-data-filler-data'
 from
 t11 A, t10 B;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'el_index'
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'filler'
+test.t1	analyze	status	Table is already up to date
 # This must not use rowid_filter with key=el_index|el_index_60:
 explain
 select * from t1

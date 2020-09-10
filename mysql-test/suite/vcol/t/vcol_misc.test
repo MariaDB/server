@@ -448,6 +448,7 @@ replace INTO `t1` (`pk`,col_bit) VALUES (99,1000);
 select pk, col_bit+0, vcol_bit+0 from t1;
 replace INTO `t1` (`pk`,col_bit) VALUES (99,10000);
 select pk, col_bit+0, vcol_bit+0 from t1;
+--error ER_DATA_TOO_LONG
 REPLACE LOW_PRIORITY INTO `t1` (`pk`) VALUES (99);
 drop table t1;
 
@@ -468,6 +469,7 @@ CREATE TABLE t1 (
 INSERT INTO t1 (pk,i) VALUES (1,1);
 TRUNCATE TABLE t1;
 INSERT IGNORE INTO t1 (pk,i) VALUES (1,127);
+--error ER_WARN_DATA_OUT_OF_RANGE
 REPLACE INTO t1 (pk,i) VALUES (1,2);
 DROP TABLE t1;
 SET @sql_mode=@old_sql_mode;

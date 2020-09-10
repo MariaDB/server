@@ -316,7 +316,7 @@ trx_rseg_header_create(
 	ut_ad(!sys_header == (space == fil_system.temp_space));
 
 	/* Allocate a new file segment for the rollback segment */
-	block = fseg_create(space, 0, TRX_RSEG + TRX_RSEG_FSEG_HEADER, mtr);
+	block = fseg_create(space, TRX_RSEG + TRX_RSEG_FSEG_HEADER, mtr);
 
 	if (block == NULL) {
 		/* No space left */

@@ -5356,7 +5356,5 @@ START TRANSACTION
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Table_map: `test`.`t1dec102` mapped to number #
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO `test`.`t1dec102`
-### SET
-###   @1=
+
 Error: Found Old DECIMAL (mysql-4.1 or earlier). Not enough metadata to display the value.

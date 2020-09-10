@@ -34,6 +34,9 @@ SET SESSION wsrep_sync_wait = 0;
 
 SET SESSION wsrep_dirty_reads = 1;
 
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
+
 # Those statements should succeed
 
 --error 0
@@ -111,6 +114,7 @@ SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.PROCESSLIST;
 
 # Restore cluster
 SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+--source include/galera_wait_ready.inc
 
 --connection node_1
 --let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';

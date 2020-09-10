@@ -348,7 +348,8 @@ static char *debug_sync_bmove_len(char *to, char *to_end,
   DBUG_ASSERT(to_end);
   DBUG_ASSERT(!length || from);
   set_if_smaller(length, (size_t) (to_end - to));
-  memcpy(to, from, length);
+  if (length)
+    memcpy(to, from, length);
   return (to + length);
 }
 
