@@ -1110,6 +1110,6 @@ maria_declare_plugin(s3)
   status_variables,             /* status variables */
   system_variables,             /* system variables */
   "1.0",                        /* string version   */
-  MariaDB_PLUGIN_MATURITY_ALPHA /* maturity         */
+  MariaDB_PLUGIN_MATURITY_GAMMA /* maturity         */
 }
 maria_declare_plugin_end;
