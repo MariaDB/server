@@ -311,7 +311,7 @@ public:
   }
 
   int compare_keys(uchar *a, uchar *b);
-  int compare_keys_for_unique(uchar *a, uchar *b);
+  int compare_keys_for_single_arg(uchar *a, uchar *b);
 
   static const uint size_of_length_field= 4;
 

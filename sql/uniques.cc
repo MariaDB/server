@@ -42,13 +42,7 @@
 
 int unique_write_to_file(uchar* key, element_count count, Unique *unique)
 {
-  /*
-    Use unique->size (size of element stored in the tree) and not
-    unique->tree.size_of_element. The latter is different from unique->size
-    when tree implementation chooses to store pointer to key in TREE_ELEMENT
-    (instead of storing the element itself there)
-  */
-  return  unique->write_record_to_file(key) ? 1 : 0;
+  return unique->write_record_to_file(key) ? 1 : 0;
 }
 
 int unique_write_to_file_with_count(uchar* key, element_count count, Unique *unique)
@@ -880,17 +874,6 @@ Unique_packed::Unique_packed(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
 }
 
 
-Unique_packed_single_arg::Unique_packed_single_arg(qsort_cmp2 comp_func,
-                                                   void *comp_func_fixed_arg,
-                                                   uint size_arg,
-                                                   size_t max_in_memory_size_arg,
-                                                   uint min_dupl_count_arg):
-  Unique_packed(comp_func, comp_func_fixed_arg, size_arg,
-                max_in_memory_size_arg, min_dupl_count_arg)
-{
-}
-
-
 Unique_packed::~Unique_packed()
 {
   my_free(packed_rec_ptr);
@@ -905,12 +888,10 @@ Unique_packed::~Unique_packed()
   @param item                  item of aggregate function
   @param non_const_args        number of non constant arguments
   @param arg_count             total number of arguments
-  @param exclude_nulls         TRUE:  NULLS should be excluded
-                               FALSE: otherwise
 
   @note
-    This implementation is used by GROUP_CONCAT as it can have more than
-    one arguments in the argument list.
+    This implementation is used by GROUP_CONCAT and COUNT_DISTINCT
+    as it can have more than one arguments in the argument list.
 
   @retval
     TRUE  error
@@ -1008,9 +989,21 @@ int Unique_packed::compare_packed_keys(uchar *a_ptr, uchar *b_ptr)
 
 int Unique_packed_single_arg::compare_packed_keys(uchar *a_ptr, uchar *b_ptr)
 {
-  return sort_keys->compare_keys_for_unique(a_ptr + size_of_length_field,
-                                            b_ptr + size_of_length_field);
+  return sort_keys->compare_keys_for_single_arg(a_ptr + size_of_length_field,
+                                                b_ptr + size_of_length_field);
 }
+
+
+/*
+  @brief
+    Write an intermediate unique record to the file
+
+  @param key                  key to be written
+
+  @retval
+    >0   Error
+    =0   Record successfully written
+*/
 
 int Unique::write_record_to_file(uchar *key)
 {
@@ -1024,6 +1017,9 @@ int Unique_packed::write_record_to_file(uchar *key)
 }
 
 
+/*
+  TODO varun:  add description
+*/
 uint Unique_packed::make_packed_record(bool exclude_nulls)
 {
   Field *field;

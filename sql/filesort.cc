@@ -2856,6 +2856,7 @@ void SORT_FIELD_ATTR::setup(Field *fld, bool with_suffix)
                 number_storage_requirement(length) : 0;
 }
 
+
 /*
   Compare function used for packing sort keys
 */
@@ -2928,7 +2929,8 @@ int SORT_FIELD_ATTR::compare_packed_varstrings(uchar *a, size_t *a_len,
 }
 
 
-int SORT_FIELD_ATTR::compare_packed_varstrings(uchar *a, uchar *b)
+int
+SORT_FIELD_ATTR::compare_packed_varstrings_for_single_arg(uchar *a, uchar *b)
 {
   size_t a_length, b_length;
   if (maybe_null)
@@ -3069,11 +3071,11 @@ int Sort_keys::compare_keys(uchar *a, uchar *b)
 }
 
 
-int Sort_keys::compare_keys_for_unique(uchar *a, uchar *b)
+int Sort_keys::compare_keys_for_single_arg(uchar *a, uchar *b)
 {
   SORT_FIELD *sort_field= begin();
 
-  return sort_field->compare_packed_varstrings(a, b);
+  return sort_field->compare_packed_varstrings_for_single_arg(a, b);
 }
 
 

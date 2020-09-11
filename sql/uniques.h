@@ -196,6 +196,27 @@ public:
 };
 
 
+
+/*
+  Unique_packed class: derived from Unique class, used to store
+  records in packed format to efficiently utilize the space provided
+  inside the tree.
+
+  The format is as follows:
+
+    <sort_key_length><packed_value_1><packed_value2> ....... <packed_valueN>
+
+    format for a n-part key
+
+  <sort_key_length> is the length of the whole key.
+  Each packed value is encoded as follows:
+
+    <null_byte=0>  // This is a an SQL NULL
+    [<null_byte=1>] <packed_value>  // this a non-NULL value
+  null_byte is present if the field/item is NULLable.
+  SQL NULL is encoded as just one NULL-indicator byte.
+*/
+
 class Unique_packed : public Unique
 {
 protected:
@@ -254,9 +275,11 @@ class Unique_packed_single_arg : public Unique_packed
   public:
     Unique_packed_single_arg(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
                              uint size_arg, size_t max_in_memory_size_arg,
-                             uint min_dupl_count_arg);
+                             uint min_dupl_count_arg):
+      Unique_packed(comp_func, comp_func_fixed_arg, size_arg,
+                max_in_memory_size_arg, min_dupl_count_arg)
+  {}
 
-  ~Unique_packed_single_arg() {}
   int compare_packed_keys(uchar *a, uchar *b);
 
 };
