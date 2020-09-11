@@ -5804,12 +5804,13 @@ bool fts_check_aux_table(const char *name,
     /* First search the common table suffix array. */
     for (ulint i = 0; fts_common_tables[i]; ++i)
     {
-      if (!memcmp(ptr, fts_common_tables[i], len))
+      if (!strncmp(ptr, fts_common_tables[i], len))
         return true;
     }
 
     /* Could be obsolete common tables. */
-    if (!memcmp(ptr, "ADDED", len) || !memcmp(ptr, "STOPWORDS", len))
+    if ((len == 5 && !memcmp(ptr, "ADDED", len)) ||
+        (len == 9 && !memcmp(ptr, "STOPWORDS", len)))
       return true;
 
     const char* index_id_ptr= ptr;
@@ -5836,7 +5837,7 @@ bool fts_check_aux_table(const char *name,
     }
 
     /* Other FT index specific table(s). */
-    if (!memcmp(ptr, "DOC_ID", len))
+    if (len == 6 && !memcmp(ptr, "DOC_ID", len))
       return true;
   }
 
