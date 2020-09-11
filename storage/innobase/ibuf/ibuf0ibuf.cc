@@ -3329,18 +3329,22 @@ fail_exit:
 	and done mtr_commit(&mtr) to release the latch. */
 
 	ibuf_mtr_start(&bitmap_mtr);
-	index->set_modified(bitmap_mtr);
 
 	bitmap_page = ibuf_bitmap_get_map_page(page_id, zip_size, &bitmap_mtr);
 
 	/* We check if the index page is suitable for buffered entries */
 
-	if (buf_pool.page_hash_contains(page_id)
-	    || lock_rec_expl_exist_on_page(page_id.space(),
-					   page_id.page_no())) {
-
+	if (buf_pool.page_hash_contains(page_id)) {
+commit_exit:
 		ibuf_mtr_commit(&bitmap_mtr);
 		goto fail_exit;
+	} else {
+		lock_mutex_enter();
+		const auto lock_exists = lock_sys.get_first(page_id);
+		lock_mutex_exit();
+		if (lock_exists) {
+			goto commit_exit;
+		}
 	}
 
 	if (op == IBUF_OP_INSERT) {
@@ -3378,8 +3382,7 @@ fail_exit:
 		dfield_t*	field;
 
 		if (counter == ULINT_UNDEFINED) {
-			ibuf_mtr_commit(&bitmap_mtr);
-			goto fail_exit;
+			goto commit_exit;
 		}
 
 		field = dtuple_get_nth_field(
@@ -3391,6 +3394,7 @@ fail_exit:
 
 	/* Set the bitmap bit denoting that the insert buffer contains
 	buffered entries for this index page, if the bit is not set yet */
+	index->set_modified(bitmap_mtr);
 	ibuf_bitmap_page_set_bits<IBUF_BITMAP_BUFFERED>(
 		bitmap_page, page_id, physical_size, true, &bitmap_mtr);
 	ibuf_mtr_commit(&bitmap_mtr);

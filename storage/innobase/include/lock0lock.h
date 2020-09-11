@@ -252,15 +252,6 @@ lock_rec_restore_from_page_infimum(
 					state; lock bits are reset on
 					the infimum */
 /*********************************************************************//**
-Determines if there are explicit record locks on a page.
-@return an explicit record lock on the page, or NULL if there are none */
-lock_t*
-lock_rec_expl_exist_on_page(
-/*========================*/
-	ulint	space,	/*!< in: space id */
-	ulint	page_no)/*!< in: page number */
-	MY_ATTRIBUTE((warn_unused_result));
-/*********************************************************************//**
 Checks if locks of other transactions prevent an immediate insert of
 a record. If they do, first tests if the query thread should anyway
 be suspended for some reason; if not, then puts the transaction and
@@ -486,28 +477,6 @@ lock_rec_unlock(
 /** Release the explicit locks of a committing transaction,
 and release possible other transactions waiting because of these locks. */
 void lock_release(trx_t* trx);
-
-/*********************************************************************//**
-Calculates the fold value of a page file address: used in inserting or
-searching for a lock in the hash table.
-@return folded value */
-UNIV_INLINE
-ulint
-lock_rec_fold(
-/*==========*/
-	ulint	space,	/*!< in: space */
-	ulint	page_no)/*!< in: page number */
-	MY_ATTRIBUTE((const));
-/*********************************************************************//**
-Calculates the hash value of a page file address: used in inserting or
-searching for a lock in the hash table.
-@return hashed value */
-UNIV_INLINE
-unsigned
-lock_rec_hash(
-/*==========*/
-	ulint	space,	/*!< in: space */
-	ulint	page_no);/*!< in: page number */
 
 /*************************************************************//**
 Get the lock hash table */
@@ -819,6 +788,46 @@ public:
 
   /** Closes the lock system at database shutdown. */
   void close();
+
+  /** @return the hash value for a page address */
+  ulint hash(const page_id_t id) const
+  { ut_ad(mutex_own(&mutex)); return rec_hash.calc_hash(id.fold()); }
+
+  /** Get the first lock on a page.
+  @param lock_hash   hash table to look at
+  @param id          page number
+  @return first lock
+  @retval nullptr if none exists */
+  lock_t *get_first(const hash_table_t &lock_hash, const page_id_t id) const
+  {
+    ut_ad(&lock_hash == &rec_hash || &lock_hash == &prdt_hash ||
+          &lock_hash == &prdt_page_hash);
+    for (lock_t *lock= static_cast<lock_t*>
+         (HASH_GET_FIRST(&lock_hash, hash(id)));
+         lock; lock= static_cast<lock_t*>(HASH_GET_NEXT(hash, lock)))
+      if (lock->un_member.rec_lock.page_id == id)
+         return lock;
+    return nullptr;
+  }
+
+  /** Get the first record lock on a page.
+  @param id          page number
+  @return first lock
+  @retval nullptr if none exists */
+  lock_t *get_first(const page_id_t id) const
+  { return get_first(rec_hash, id); }
+  /** Get the first predicate lock on a SPATIAL INDEX page.
+  @param id          page number
+  @return first lock
+  @retval nullptr if none exists */
+  lock_t *get_first_prdt(const page_id_t id) const
+  { return get_first(prdt_hash, id); }
+  /** Get the first predicate lock on a SPATIAL INDEX page.
+  @param id          page number
+  @return first lock
+  @retval nullptr if none exists */
+  lock_t *get_first_prdt_page(const page_id_t id) const
+  { return get_first(prdt_page_hash, id); }
 };
 
 /*********************************************************************//**
@@ -858,8 +867,7 @@ lock_rec_discard(
 without checking for deadlocks or conflicts.
 @param[in]	type_mode	lock mode and wait flag; type will be replaced
 				with LOCK_REC
-@param[in]	space		tablespace id
-@param[in]	page_no		index page number
+@param[in]	page_id		index page number
 @param[in]	page		R-tree index page, or NULL
 @param[in]	heap_no		record heap number in the index page
 @param[in]	index		the index tree
@@ -873,8 +881,7 @@ lock_rec_create_low(
 	que_thr_t*	thr,	/*!< thread owning trx */
 #endif
 	unsigned	type_mode,
-	ulint		space,
-	ulint		page_no,
+	const page_id_t	page_id,
 	const page_t*	page,
 	ulint		heap_no,
 	dict_index_t*	index,
