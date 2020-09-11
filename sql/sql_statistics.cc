@@ -1694,8 +1694,9 @@ public:
 
       tree_key_length+= Unique_packed::size_of_length_field;
       tree_key_length+= MY_TEST(table_field->maybe_null());
-      tree= new Unique_packed((qsort_cmp2) simple_packed_str_key_cmp, (void*) this,
-                       tree_key_length, max_heap_table_size, 1);
+      tree= new Unique_packed_single_arg((qsort_cmp2) simple_packed_str_key_cmp,
+                                         (void*) this, tree_key_length,
+                                         max_heap_table_size, 1);
     }
     else
     {

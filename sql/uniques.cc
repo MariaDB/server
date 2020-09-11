@@ -879,6 +879,18 @@ Unique_packed::Unique_packed(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
   tmp_buffer.alloc(size_arg);
 }
 
+
+Unique_packed_single_arg::Unique_packed_single_arg(qsort_cmp2 comp_func,
+                                                   void *comp_func_fixed_arg,
+                                                   uint size_arg,
+                                                   size_t max_in_memory_size_arg,
+                                                   uint min_dupl_count_arg):
+  Unique_packed(comp_func, comp_func_fixed_arg, size_arg,
+                max_in_memory_size_arg, min_dupl_count_arg)
+{
+}
+
+
 Unique_packed::~Unique_packed()
 {
   my_free(packed_rec_ptr);
@@ -993,6 +1005,13 @@ int Unique_packed::compare_packed_keys(uchar *a_ptr, uchar *b_ptr)
                                  b_ptr + size_of_length_field);
 }
 
+
+int Unique_packed_single_arg::compare_packed_keys(uchar *a_ptr, uchar *b_ptr)
+{
+  return sort_keys->compare_keys_for_unique(a_ptr + size_of_length_field,
+                                            b_ptr + size_of_length_field);
+}
+
 int Unique::write_record_to_file(uchar *key)
 {
   return my_b_write(get_file(), key, size);
@@ -1034,11 +1053,10 @@ uint Unique_packed::make_packed_record(bool exclude_nulls)
 
     if ((maybe_null= sort_field->maybe_null))
     {
-      if (exclude_nulls && (to[0] == 0))
+      if (exclude_nulls && length == 0)
         return 0;   // NULL value
       to++;
     }
-
     to+= length;
   }
 

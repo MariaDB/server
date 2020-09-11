@@ -198,6 +198,7 @@ public:
 
 class Unique_packed : public Unique
 {
+protected:
   /*
     Packed record ptr for a record of the table, the packed value in this
     record is added to the unique tree
@@ -223,14 +224,14 @@ class Unique_packed : public Unique
                 uint size_arg, size_t max_in_memory_size_arg,
                 uint min_dupl_count_arg);
 
-  ~Unique_packed();
+  virtual ~Unique_packed();
   bool is_packed() { return true; }
   uchar *get_packed_rec_ptr() { return packed_rec_ptr; }
   Sort_keys *get_keys() { return sort_keys; }
   SORT_FIELD *get_sortorder() { return sortorder; }
   bool setup(THD *thd, Item_sum *item, uint non_const_args, uint arg_count);
   bool setup(THD *thd, Field *field);
-  int compare_packed_keys(uchar *a, uchar *b);
+  virtual int compare_packed_keys(uchar *a, uchar *b);
   int write_record_to_file(uchar *key);
   uint make_packed_record(bool exclude_nulls);
   static void store_packed_length(uchar *p, uint sz)
@@ -248,6 +249,16 @@ class Unique_packed : public Unique
 };
 
 
+class Unique_packed_single_arg : public Unique_packed
+{
+  public:
+    Unique_packed_single_arg(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
+                             uint size_arg, size_t max_in_memory_size_arg,
+                             uint min_dupl_count_arg);
 
+  ~Unique_packed_single_arg() {}
+  int compare_packed_keys(uchar *a, uchar *b);
+
+};
 
 #endif /* UNIQUE_INCLUDED */

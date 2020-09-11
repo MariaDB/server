@@ -1028,14 +1028,11 @@ bool Aggregator_distinct::add()
   {
     int error;
 
-    uchar *orig_to= NULL;
-    uint packed_length= 0;
-
-
     if (is_distinct_packed())
     {
+      uint packed_length;
       if ((packed_length= tree->make_packed_record(true)) == 0)
-        return false;
+        return false; // NULL value
       DBUG_ASSERT(packed_length <= tree->get_size());
       return tree->unique_add(tree->get_packed_rec_ptr(), packed_length);
     }
@@ -1043,7 +1040,6 @@ bool Aggregator_distinct::add()
     copy_fields(tmp_table_param);
     if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
       return TRUE;
-    orig_to= table->record[0] + table->s->null_bytes;
 
     for (Field **field=table->field ; *field ; field++)
       if ((*field)->is_real_null(0))
@@ -1057,7 +1053,8 @@ bool Aggregator_distinct::add()
         key_length used to initialize the tree didn't include space for them.
       */
 
-      return tree->unique_add(orig_to, tree->get_size());
+      return tree->unique_add(table->record[0] + table->s->null_bytes,
+                              tree->get_size());
     }
 
     if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))) &&
@@ -4817,8 +4814,15 @@ Unique* Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
 {
 
   if (allow_packing)
+  {
+    if (get_arg_count() == 1)
+      return new Unique_packed_single_arg(comp_func, comp_func_fixed_arg,
+                                          size_arg, max_in_memory_size_arg,
+                                          min_dupl_count_arg);
+
     return new Unique_packed(comp_func, comp_func_fixed_arg, size_arg,
                              max_in_memory_size_arg, min_dupl_count_arg);
+  }
   return new Unique(comp_func, comp_func_fixed_arg, size_arg,
                     max_in_memory_size_arg, min_dupl_count_arg);
 

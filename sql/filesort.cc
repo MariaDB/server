@@ -2928,6 +2928,35 @@ int SORT_FIELD_ATTR::compare_packed_varstrings(uchar *a, size_t *a_len,
 }
 
 
+int SORT_FIELD_ATTR::compare_packed_varstrings(uchar *a, uchar *b)
+{
+  size_t a_length, b_length;
+  if (maybe_null)
+  {
+    if (*a != *b)
+    {
+      if (*a == 0)
+        return -1;
+      else
+        return 1;
+    }
+    else
+    {
+      if (*a == 0)
+        return 0;
+    }
+    a++;
+    b++;
+  }
+
+  a_length= read_keypart_length(a, length_bytes);
+  b_length= read_keypart_length(b, length_bytes);
+
+  return cs->strnncollsp(a + length_bytes, a_length,
+                         b + length_bytes, b_length);
+}
+
+
 /*
   A value comparison function that has a signature that's suitable for
   comparing packed values, but actually compares fixed-size values with memcmp.
@@ -3037,6 +3066,14 @@ int Sort_keys::compare_keys(uchar *a, uchar *b)
     b+= b_len;
   }
   return retval;
+}
+
+
+int Sort_keys::compare_keys_for_unique(uchar *a, uchar *b)
+{
+  SORT_FIELD *sort_field= begin();
+
+  return sort_field->compare_packed_varstrings(a, b);
 }
 
 
