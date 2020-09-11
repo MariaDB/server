@@ -591,16 +591,6 @@ inline uint buf_page_full_crc32_size(const byte* buf, bool* comp, bool* cr)
 }
 
 #ifndef UNIV_INNOCHECKSUM
-/**********************************************************************//**
-Gets the hash value of a block. This can be used in searches in the
-lock hash table.
-@return lock hash value */
-UNIV_INLINE
-unsigned
-buf_block_get_lock_hash_val(
-/*========================*/
-	const buf_block_t*	block)	/*!< in: block */
-	MY_ATTRIBUTE((warn_unused_result));
 #ifdef UNIV_DEBUG
 /** Find a block in the buffer pool that points to a given compressed page.
 @param[in]	data		pointer to compressed page
@@ -1061,13 +1051,6 @@ struct buf_block_t{
 					a block is in the unzip_LRU list
 					if page.state() == BUF_BLOCK_FILE_PAGE
 					and page.zip.data != NULL */
-	uint32_t	lock_hash_val;	/*!< hashed value of the page address
-					in the record lock hash table;
-					protected by buf_block_t::lock
-					(or buf_pool.mutex
-				        in buf_page_get_gen(),
-					buf_page_init_for_read()
-					and buf_page_create()) */
 	/* @} */
 	/** @name Optimistic search field */
 	/* @{ */

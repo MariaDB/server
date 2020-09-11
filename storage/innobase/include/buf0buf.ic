@@ -154,24 +154,6 @@ ok:
 }
 #endif /* UNIV_DEBUG */
 
-/**********************************************************************//**
-Gets the hash value of the page the pointer is pointing to. This can be used
-in searches in the lock hash table.
-@return lock hash value */
-UNIV_INLINE
-unsigned
-buf_block_get_lock_hash_val(
-/*========================*/
-	const buf_block_t*	block)	/*!< in: block */
-{
-	ut_ad(block);
-	ut_ad(block->page.in_file());
-	ut_ad(rw_lock_own(&(((buf_block_t*) block)->lock), RW_LOCK_X)
-	      || rw_lock_own(&(((buf_block_t*) block)->lock), RW_LOCK_S));
-
-	return(block->lock_hash_val);
-}
-
 /********************************************************************//**
 Allocates a buf_page_t descriptor. This function must succeed. In case
 of failure we assert in this function.

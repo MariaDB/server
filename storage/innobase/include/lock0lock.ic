@@ -39,7 +39,7 @@ lock_rec_fold(
 	ulint	space,	/*!< in: space */
 	ulint	page_no)/*!< in: page number */
 {
-	return(ut_fold_ulint_pair(space, page_no));
+	return page_id_t(space, page_no).fold();
 }
 
 /*********************************************************************//**
