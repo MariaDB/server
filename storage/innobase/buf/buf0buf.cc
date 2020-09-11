@@ -1763,10 +1763,6 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 		new_block->left_side	= TRUE;
 #endif /* BTR_CUR_HASH_ADAPT */
 
-		new_block->lock_hash_val = block->lock_hash_val;
-		ut_ad(new_block->lock_hash_val == lock_rec_hash(
-			      id.space(), id.page_no()));
-
 		hash_lock->write_unlock();
 
 		/* free block */
@@ -3368,9 +3364,6 @@ evict_from_pool:
 		/* Set after buf_relocate(). */
 		block->page.set_buf_fix_count(1);
 
-		block->lock_hash_val = lock_rec_hash(page_id.space(),
-						     page_id.page_no());
-
 		if (!block->page.oldest_modification()) {
 			ut_d(UT_LIST_REMOVE(buf_pool.zip_clean, &block->page));
 		} else {
@@ -3800,7 +3793,6 @@ void buf_block_t::initialise(const page_id_t page_id, ulint zip_size,
 {
   ut_ad(page.state() != BUF_BLOCK_FILE_PAGE);
   buf_block_init_low(this);
-  lock_hash_val= lock_rec_hash(page_id.space(), page_id.page_no());
   page.init(page_id, fix);
   page_zip_set_size(&page.zip, zip_size);
 }
@@ -3884,8 +3876,6 @@ loop:
 #endif
 
       free_block->page.set_state(BUF_BLOCK_FILE_PAGE);
-      free_block->lock_hash_val= lock_rec_hash(
-        page_id.space(), page_id.page_no());
       buf_unzip_LRU_add_block(free_block, FALSE);
       hash_lock->write_unlock();
       buf_page_free_descriptor(&block->page);

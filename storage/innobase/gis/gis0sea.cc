@@ -1528,7 +1528,6 @@ rtr_copy_buf(
 	ut_d(matches->block.in_withdraw_list = block->in_withdraw_list);
 
 	/* Skip buf_block_t::lock */
-	matches->block.lock_hash_val = block->lock_hash_val;
 	matches->block.modify_clock = block->modify_clock;
 #ifdef BTR_CUR_HASH_ADAPT
 	matches->block.n_hash_helps = block->n_hash_helps;

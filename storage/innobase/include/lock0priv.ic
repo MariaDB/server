@@ -164,12 +164,14 @@ lock_rec_get_first_on_page(
 {
 	ut_ad(lock_mutex_own());
 
-	ulint	space	= block->page.id().space();
-	ulint	page_no	= block->page.id().page_no();
-	ulint	hash = buf_block_get_lock_hash_val(block);
+	const page_id_t page_id(block->page.id());
+
+	ulint	space	= page_id.space();
+	ulint	page_no	= page_id.page_no();
 
 	for (lock_t* lock = static_cast<lock_t*>(
-			HASH_GET_FIRST(lock_hash, hash));
+			HASH_GET_FIRST(lock_hash,
+				       lock_rec_hash(space, page_no)));
 	     lock != NULL;
 	     lock = static_cast<lock_t*>(HASH_GET_NEXT(hash, lock))) {
 

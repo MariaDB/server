@@ -515,18 +515,6 @@ void lock_sys_t::resize(ulint n_cells)
 	HASH_MIGRATE(&old_hash, &prdt_page_hash, lock_t, hash,
 		     lock_rec_lock_fold);
 	old_hash.free();
-
-	/* need to update block->lock_hash_val */
-	mutex_enter(&buf_pool.mutex);
-	for (buf_page_t* bpage = UT_LIST_GET_FIRST(buf_pool.LRU);
-	     bpage; bpage = UT_LIST_GET_NEXT(LRU, bpage)) {
-		if (bpage->state() == BUF_BLOCK_FILE_PAGE) {
-			const page_id_t id(bpage->id());
-			reinterpret_cast<buf_block_t*>(bpage)->lock_hash_val
-				= lock_rec_hash(id.space(), id.page_no());
-		}
-	}
-	mutex_exit(&buf_pool.mutex);
 	mutex_exit(&mutex);
 }
 
