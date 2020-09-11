@@ -138,6 +138,10 @@ typedef void (*memory_free_v1_t)
 
 /** @} (end of group Group_PSI_v1) */
 
+#ifdef _AIX
+PSI_memory_key key_memory_log_event;
+#endif
+
 #endif /* HAVE_PSI_1 */
 
 #ifdef HAVE_PSI_2
