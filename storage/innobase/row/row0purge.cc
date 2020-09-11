@@ -499,9 +499,8 @@ row_purge_remove_sec_if_poss_leaf(
 					    && btr_cur->rtr_info->thr
 					    ? thr_get_trx(
 						    btr_cur->rtr_info->thr)
-					    : NULL,
-					    block->page.id().space(),
-					    block->page.id().page_no())) {
+					    : nullptr,
+					    block->page.id())) {
 					/* this is the last record on page,
 					and it has a "page" lock on it,
 					which mean search is still depending

@@ -699,10 +699,10 @@ fill_innodb_locks_from_cache(
 			OK(field_store_string(fields[IDX_LOCK_INDEX],
 					      row->lock_index));
 			OK(fields[IDX_LOCK_SPACE]->store(
-				   row->lock_space, true));
+				   row->lock_page.space(), true));
 			fields[IDX_LOCK_SPACE]->set_notnull();
 			OK(fields[IDX_LOCK_PAGE]->store(
-				   row->lock_page, true));
+				   row->lock_page.page_no(), true));
 			fields[IDX_LOCK_PAGE]->set_notnull();
 			OK(fields[IDX_LOCK_REC]->store(
 				   row->lock_rec, true));

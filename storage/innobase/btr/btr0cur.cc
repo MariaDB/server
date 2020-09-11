@@ -5423,8 +5423,7 @@ btr_cur_compress_if_useful(
 		const buf_block_t* block = btr_cur_get_block(cursor);
 
 		/* Check whether page lock prevents the compression */
-		if (!lock_test_prdt_page_lock(trx, block->page.id().space(),
-					      block->page.id().page_no())) {
+		if (!lock_test_prdt_page_lock(trx, block->page.id())) {
 			return(false);
 		}
 	}
