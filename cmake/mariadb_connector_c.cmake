@@ -42,8 +42,7 @@ ADD_SUBDIRECTORY(libmariadb)
 
 IF(UNIX)
   INSTALL(CODE "EXECUTE_PROCESS(
-                  COMMAND ${CMAKE_COMMAND} -E make_directory ${INSTALL_BINDIR}
-                  WORKING_DIRECTORY \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX})
+                  COMMAND ${CMAKE_COMMAND} -E make_directory \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${INSTALL_BINDIR})
                 EXECUTE_PROCESS(
                   COMMAND ${CMAKE_COMMAND} -E create_symlink mariadb_config ${INSTALL_BINDIR}/mariadb-config
                   WORKING_DIRECTORY \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX})"
