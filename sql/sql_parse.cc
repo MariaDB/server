@@ -4717,6 +4717,14 @@ mysql_execute_command(THD *thd)
         }
         delete sel_result;
       }
+      else if (res < 0)
+      {
+        /*
+          Insert should be ignored but we have to log the query in statement
+          format in the binary log
+        */
+        res= thd->binlog_current_query_unfiltered();
+      }
       delete result;
       if (save_protocol)
       {

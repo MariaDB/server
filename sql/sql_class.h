@@ -3491,6 +3491,7 @@ public:
                    char const *query, ulong query_len, bool is_trans,
                    bool direct, bool suppress_use,
                    int errcode);
+  bool binlog_current_query_unfiltered();
 #endif
 
   inline void

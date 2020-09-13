@@ -37,32 +37,32 @@ public:
   int update_row(const uchar * old_data, const uchar * new_data)
   {
     DBUG_ENTER("update_row");
-    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+    DBUG_RETURN(HA_ERR_TABLE_READONLY);
   }
   int delete_row(const uchar * buf)
   {
     DBUG_ENTER("delete_row");
-    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+    DBUG_RETURN(HA_ERR_TABLE_READONLY);
   }
   int check(THD * thd, HA_CHECK_OPT * check_opt)
   {
     DBUG_ENTER("delete_row");
-    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+    DBUG_RETURN(HA_ERR_TABLE_READONLY);
   }
   int analyze(THD * thd, HA_CHECK_OPT * check_opt)
   {
     DBUG_ENTER("analyze");
-    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+    DBUG_RETURN(HA_ERR_TABLE_READONLY);
   }
   int repair(THD * thd, HA_CHECK_OPT * check_opt)
   {
     DBUG_ENTER("repair");
-    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+    DBUG_RETURN(HA_ERR_TABLE_READONLY);
   }
   int preload_keys(THD * thd, HA_CHECK_OPT * check_opt)
   {
     DBUG_ENTER("preload_keys");
-    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+    DBUG_RETURN(HA_ERR_TABLE_READONLY);
   }
   int external_lock(THD * thd, int lock_type);
   /*

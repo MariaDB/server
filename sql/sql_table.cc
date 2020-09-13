@@ -5079,6 +5079,7 @@ int create_table_impl(THD *thd, const LEX_CSTRING &orig_db,
   int		error= 1;
   bool          frm_only= create_table_mode == C_ALTER_TABLE_FRM_ONLY;
   bool          internal_tmp_table= create_table_mode == C_ALTER_TABLE || frm_only;
+  handlerton *exists_hton;
   DBUG_ENTER("mysql_create_table_no_lock");
   DBUG_PRINT("enter", ("db: '%s'  table: '%s'  tmp: %d  path: %s",
                        db.str, table_name.str, internal_tmp_table, path));
@@ -5167,8 +5168,16 @@ int create_table_impl(THD *thd, const LEX_CSTRING &orig_db,
       goto err;
     }
 
-    if (!internal_tmp_table && ha_table_exists(thd, &db, &table_name))
+    if (!internal_tmp_table && ha_table_exists(thd, &db, &table_name,
+                                               &exists_hton))
     {
+      if (ha_check_if_updates_are_ignored(thd, exists_hton, "CREATE"))
+      {
+        /* Don't create table. CREATE will still be logged in binary log */
+        error= 0;
+        goto err;
+      }
+
       if (options.or_replace())
       {
         (void) delete_statistics_for_table(thd, &db, &table_name);
@@ -5206,7 +5215,20 @@ int create_table_impl(THD *thd, const LEX_CSTRING &orig_db,
           goto err;
       }
       else if (options.if_not_exists())
+      {
+        /*
+          We never come here as part of normal create table as table existance
+          is  checked in open_and_lock_tables(). We may come here as part of
+          ALTER TABLE when converting a table for a distributed engine to a
+          a local one.
+        */
+
+        /* Log CREATE IF NOT EXISTS on slave for distributed engines */
+        if (thd->slave_thread && (exists_hton && exists_hton->flags &
+                                  HTON_IGNORE_UPDATES))
+          thd->log_current_statement= 1;
         goto warn;
+      }
       else
       {
         my_error(ER_TABLE_EXISTS_ERROR, MYF(0), table_name.str);
@@ -5437,12 +5459,21 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   thd->lex->create_info.options|= create_info->options;
 
   /* Open or obtain an exclusive metadata lock on table being created  */
+  create_table->db_type= 0;
   result= open_and_lock_tables(thd, *create_info, create_table, FALSE, 0);
 
   thd->lex->create_info.options= save_thd_create_info_options;
 
   if (result)
   {
+    if (thd->slave_thread &&
+        !thd->is_error() && create_table->db_type &&
+        (create_table->db_type->flags & HTON_IGNORE_UPDATES))
+    {
+      /* Table existed in distributed engine. Log query to binary log */
+      result= 0;
+      goto err;
+    }
     /* is_error() may be 0 if table existed and we generated a warning */
     DBUG_RETURN(thd->is_error());
   }
@@ -9777,7 +9808,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     mysql_prepare_create_table().
   */
   bool varchar= create_info->varchar, table_creation_was_logged= 0;
-  bool binlog_done= 0, log_if_exists= 0;
+  bool binlog_as_create_select= 0, log_if_exists= 0;
   uint tables_opened;
   handlerton *new_db_type, *old_db_type;
   ha_rows copied=0, deleted=0;
@@ -10699,7 +10730,6 @@ do_continue:;
       thd->variables.option_bits|= OPTION_BIN_COMMIT_OFF;
       res= (binlog_drop_table(thd, table) ||
             binlog_create_table(thd, new_table, 1));
-      thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
       new_table->s->tmp_table= org_tmp_table;
       if (res)
         goto err_new_table_cleanup;
@@ -10707,7 +10737,7 @@ do_continue:;
         ha_write_row() will log inserted rows in copy_data_between_tables().
         No additional logging of query is needed
       */
-      binlog_done= 1;
+      binlog_as_create_select= 1;
       DBUG_ASSERT(new_table->file->row_logging);
       new_table->mark_columns_needed_for_insert();
       thd->binlog_write_table_map(new_table, 1);
@@ -10763,10 +10793,21 @@ do_continue:;
     if (thd->rename_temporary_table(new_table, &alter_ctx.new_db,
                                     &alter_ctx.new_name))
       goto err_new_table_cleanup;
+
+    if (binlog_as_create_select)
+    {
+      /*
+        The original table is now deleted. Copy the
+        DROP + CREATE + data statement to the binary log
+      */
+      thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
+      (binlog_hton->commit)(binlog_hton, thd, 1);
+    }
+
     /* We don't replicate alter table statement on temporary tables */
     if (!thd->is_current_stmt_binlog_format_row() &&
         table_creation_was_logged &&
-        !binlog_done &&
+        !binlog_as_create_select &&
         write_bin_log_with_if_exists(thd, true, false, log_if_exists))
       DBUG_RETURN(true);
     my_free(const_cast<uchar*>(frm.str));
@@ -10926,6 +10967,15 @@ do_continue:;
                            NO_FRM_RENAME |
                            (engine_changed ? 0 : FN_IS_TMP));
   }
+  if (binlog_as_create_select)
+  {
+    /*
+      The original table is now deleted. Copy the
+      DROP + CREATE + data statement to the binary log
+    */
+    thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
+    binlog_hton->commit(binlog_hton, thd, 1);
+  }
 
   if (error)
   {
@@ -10938,6 +10988,7 @@ do_continue:;
   }
 
 end_inplace:
+  thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
 
   if (thd->locked_tables_list.reopen_tables(thd, false))
     goto err_with_mdl_after_alter;
@@ -10949,7 +11000,7 @@ end_inplace:
   DBUG_ASSERT(!(mysql_bin_log.is_open() &&
                 thd->is_current_stmt_binlog_format_row() &&
                 (create_info->tmp_table())));
-  if (!binlog_done)
+  if (!binlog_as_create_select)
   {
     if (write_bin_log_with_if_exists(thd, true, false, log_if_exists))
       DBUG_RETURN(true);
@@ -10967,6 +11018,8 @@ end_inplace:
   }
 
 end_temporary:
+  thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
+
   my_snprintf(alter_ctx.tmp_buff, sizeof(alter_ctx.tmp_buff),
               ER_THD(thd, ER_INSERT_INFO),
 	      (ulong) (copied + deleted), (ulong) deleted,
@@ -10977,6 +11030,8 @@ end_temporary:
 
 err_new_table_cleanup:
   DBUG_PRINT("error", ("err_new_table_cleanup"));
+  thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
+
   my_free(const_cast<uchar*>(frm.str));
   /*
     No default value was provided for a DATE/DATETIME field, the
@@ -11014,7 +11069,7 @@ err_with_mdl_after_alter:
     We can't reset error as we will return 'true' below and the server
     expects that error is set
   */
-  if (!binlog_done)
+  if (!binlog_as_create_select)
     write_bin_log_with_if_exists(thd, FALSE, FALSE, log_if_exists);
 
 err_with_mdl:

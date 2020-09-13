@@ -1316,7 +1316,12 @@ bool wait_while_table_is_used(THD *thd, TABLE *table,
   table->s->tdc->flush(thd, true);
   /* extra() call must come only after all instances above are closed */
   if (function != HA_EXTRA_NOT_USED)
-    DBUG_RETURN(table->file->extra(function));
+  {
+    int error= table->file->extra(function);
+    if (error)
+      table->file->print_error(error, MYF(0));
+    DBUG_RETURN(error);
+  }
   DBUG_RETURN(FALSE);
 }
 
@@ -3907,7 +3912,8 @@ static bool upgrade_lock_if_not_exists(THD *thd,
   {
     DEBUG_SYNC(thd,"create_table_before_check_if_exists");
     if (!create_info.or_replace() &&
-        ha_table_exists(thd, &create_table->db, &create_table->table_name))
+        ha_table_exists(thd, &create_table->db, &create_table->table_name,
+                        &create_table->db_type))
     {
       if (create_info.if_not_exists())
       {
@@ -3955,7 +3961,8 @@ static bool upgrade_lock_if_not_exists(THD *thd,
   Note that for CREATE TABLE IF EXISTS we only generate a warning
   but still return TRUE (to abort the calling open_table() function).
   On must check THD->is_error() if one wants to distinguish between warning
-  and error.
+  and error.  If table existed, tables_start->db_type is set to the handlerton
+  for the found table.
 */
 
 bool

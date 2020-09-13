@@ -724,6 +724,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   Item *unused_conds= 0;
   DBUG_ENTER("mysql_insert");
 
+  bzero((char*) &info,sizeof(info));
   create_explain_query(thd->lex, thd->mem_root);
   /*
     Upgrade lock type if the requested lock is incompatible with
@@ -764,16 +765,28 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     DBUG_RETURN(TRUE);
   value_count= values->elements;
 
-  if (mysql_prepare_insert(thd, table_list, table, fields, values,
-                           update_fields, update_values, duplic,
-                           &unused_conds, FALSE))
+  if ((res= mysql_prepare_insert(thd, table_list, fields, values,
+                                 update_fields, update_values, duplic,
+                                 &unused_conds, FALSE)))
+  {
+    retval= thd->is_error();
+    if (res < 0)
+    {
+      /*
+        Insert should be ignored but we have to log the query in statement
+        format in the binary log
+      */
+      if (thd->binlog_current_query_unfiltered())
+        retval= 1;
+    }
     goto abort;
+  }
+  /* mysql_prepare_insert sets table_list->table if it was not set */
+  table= table_list->table;
 
   /* Prepares LEX::returing_list if it is not empty */
   if (returning)
     result->prepare(returning->item_list, NULL);
-  /* mysql_prepare_insert sets table_list->table if it was not set */
-  table= table_list->table;
 
   context= &thd->lex->first_select_lex()->context;
   /*
@@ -828,7 +841,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   /*
     Fill in the given fields and dump it to the table file
   */
-  bzero((char*) &info,sizeof(info));
   info.ignore= ignore;
   info.handle_duplicates=duplic;
   info.update_fields= &update_fields;
@@ -1534,9 +1546,6 @@ static void prepare_for_positional_update(TABLE *table, TABLE_LIST *tables)
     mysql_prepare_insert()
     thd                 Thread handler
     table_list          Global/local table list
-    table               Table to insert into
-                        (can be NULL if table should
-                        be taken from table_list->table)
     where               Where clause (for insert ... select)
     select_insert       TRUE if INSERT ... SELECT statement
 
@@ -1551,15 +1560,16 @@ static void prepare_for_positional_update(TABLE *table, TABLE_LIST *tables)
     before releasing the table object.
 
   RETURN VALUE
-    FALSE OK
-    TRUE  error
+    0  OK
+    >0 error
+    <0 insert should be ignored
 */
 
-bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
-                          TABLE *table, List<Item> &fields, List_item *values,
-                          List<Item> &update_fields, List<Item> &update_values,
-                          enum_duplicates duplic, COND **where,
-                          bool select_insert)
+int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
+                         List<Item> &fields, List_item *values,
+                         List<Item> &update_fields, List<Item> &update_values,
+                         enum_duplicates duplic, COND **where,
+                         bool select_insert)
 {
   SELECT_LEX *select_lex= thd->lex->first_select_lex();
   Name_resolution_context *context= &select_lex->context;
@@ -1567,29 +1577,34 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
   bool insert_into_view= (table_list->view != 0);
   bool res= 0;
   table_map map= 0;
+  TABLE *table;
   DBUG_ENTER("mysql_prepare_insert");
-  DBUG_PRINT("enter", ("table_list: %p  table: %p  view: %d",
-		       table_list, table,
-		       (int)insert_into_view));
+  DBUG_PRINT("enter", ("table_list: %p  view: %d",
+		       table_list, (int) insert_into_view));
   /* INSERT should have a SELECT or VALUES clause */
   DBUG_ASSERT (!select_insert || !values);
 
   if (mysql_handle_derived(thd->lex, DT_INIT))
-    DBUG_RETURN(TRUE); 
+    DBUG_RETURN(1);
   if (table_list->handle_derived(thd->lex, DT_MERGE_FOR_INSERT))
-    DBUG_RETURN(TRUE); 
+    DBUG_RETURN(1);
   if (thd->lex->handle_list_of_derived(table_list, DT_PREPARE))
-    DBUG_RETURN(TRUE); 
+    DBUG_RETURN(1);
 
   if (duplic == DUP_UPDATE)
   {
     /* it should be allocated before Item::fix_fields() */
     if (table_list->set_insert_values(thd->mem_root))
-      DBUG_RETURN(TRUE);
+      DBUG_RETURN(1);
   }
 
+  table= table_list->table;
+
+  if (table->file->check_if_updates_are_ignored("INSERT"))
+    DBUG_RETURN(-1);
+
   if (mysql_prepare_insert_check_table(thd, table_list, fields, select_insert))
-    DBUG_RETURN(TRUE);
+    DBUG_RETURN(1);
 
   /* Prepare the fields in the statement. */
   if (values)
@@ -1632,9 +1647,6 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
   if (res)
     DBUG_RETURN(res);
 
-  if (!table)
-    table= table_list->table;
-
   if (check_duplic_insert_without_overlaps(thd, table, duplic) != 0)
     DBUG_RETURN(true);
 
@@ -1642,7 +1654,7 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
   {
     // Additional memory may be required to create historical items.
     if (table_list->set_insert_values(thd->mem_root))
-      DBUG_RETURN(TRUE);
+      DBUG_RETURN(1);
   }
 
   if (!select_insert)
@@ -1653,7 +1665,7 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
                                  CHECK_DUP_ALLOW_DIFFERENT_ALIAS)))
     {
       update_non_unique_table_error(table_list, "INSERT", duplicate);
-      DBUG_RETURN(TRUE);
+      DBUG_RETURN(1);
     }
     select_lex->fix_prepare_information(thd, &fake_conds, &fake_conds);
   }
@@ -1663,7 +1675,7 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
   */
   if (duplic == DUP_UPDATE || duplic == DUP_REPLACE)
     prepare_for_positional_update(table, table_list);
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(0);
 }
 
 
@@ -3703,12 +3715,14 @@ bool Delayed_insert::handle_inserts(void)
     thd         thread handler
 
   RETURN
-    FALSE OK
-    TRUE  Error
+  0   OK
+  > 0 Error
+  < 0 Ok, ignore insert
 */
 
-bool mysql_insert_select_prepare(THD *thd, select_result *sel_res)
+int mysql_insert_select_prepare(THD *thd, select_result *sel_res)
 {
+  int res;
   LEX *lex= thd->lex;
   SELECT_LEX *select_lex= lex->first_select_lex();
   DBUG_ENTER("mysql_insert_select_prepare");
@@ -3718,11 +3732,11 @@ bool mysql_insert_select_prepare(THD *thd, select_result *sel_res)
     clause if table is VIEW
   */
 
-  if (mysql_prepare_insert(thd, lex->query_tables,
-                           lex->query_tables->table, lex->field_list, 0,
-                           lex->update_list, lex->value_list, lex->duplicates,
-                           &select_lex->where, TRUE))
-    DBUG_RETURN(TRUE);
+  if ((res= mysql_prepare_insert(thd, lex->query_tables, lex->field_list, 0,
+                                 lex->update_list, lex->value_list,
+                                 lex->duplicates,
+                                 &select_lex->where, TRUE)))
+    DBUG_RETURN(res);
 
   /*
     If sel_res is not empty, it means we have items in returing_list.
@@ -3763,7 +3777,7 @@ bool mysql_insert_select_prepare(THD *thd, select_result *sel_res)
   while ((table= ti++) && insert_tables--)
     ti.remove();
 
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(0);
 }
 
 

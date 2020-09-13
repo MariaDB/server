@@ -2151,6 +2151,12 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all)
 
     DBUG_RETURN(0);
   }
+  /*
+    This is true if we are doing an alter table that is replicated as
+    CREATE TABLE ... SELECT
+  */
+  if (thd->variables.option_bits & OPTION_BIN_COMMIT_OFF)
+    DBUG_RETURN(0);
 
   DBUG_PRINT("debug",
              ("all: %d, in_transaction: %s, all.modified_non_trans_table: %s, stmt.modified_non_trans_table: %s",

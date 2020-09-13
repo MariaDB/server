@@ -7477,6 +7477,38 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
   DBUG_RETURN(0);
 }
 
+
+/**
+  Binlog current query as a statement, ignoring the binlog filter setting.
+
+  The filter is in decide_logging_format() to mark queries to not be stored
+  in the binary log, for example by a shared distributed engine like S3.
+  This function resets the filter to ensure the the query is logged if
+  the binlog is active.
+
+  Note that 'direct' is set to false, which means that the query will
+  not be directly written to the binary log but instead to the cache.
+
+  @retval false   ok
+  @retval true    error
+*/
+
+
+bool THD::binlog_current_query_unfiltered()
+{
+  if (!mysql_bin_log.is_open())
+    return 0;
+
+  reset_binlog_local_stmt_filter();
+  clear_binlog_local_stmt_filter();
+  return binlog_query(THD::STMT_QUERY_TYPE, query(), query_length(),
+                      /* is_trans */     FALSE,
+                      /* direct */       FALSE,
+                      /* suppress_use */ FALSE,
+                      /* Error */        0) > 0;
+}
+
+
 void
 THD::wait_for_wakeup_ready()
 {

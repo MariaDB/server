@@ -2764,6 +2764,9 @@ int ha_delete_table(THD *thd, handlerton *hton, const char *path,
   if (hton == NULL || hton == view_pseudo_hton)
     DBUG_RETURN(0);
 
+  if (ha_check_if_updates_are_ignored(thd, hton, "DROP"))
+    DBUG_RETURN(0);
+
   error= hton->drop_table(hton, path);
   if (error > 0)
   {
@@ -2801,7 +2804,8 @@ int ha_delete_table(THD *thd, handlerton *hton, const char *path,
       error= -1;
     }
   }
-
+  if (error)
+    DBUG_PRINT("exit", ("error: %d", error));
   DBUG_RETURN(error);
 }
 
@@ -5008,7 +5012,8 @@ static my_bool delete_table_force(THD *thd, plugin_ref plugin, void *arg)
   handlerton *hton = plugin_hton(plugin);
   st_force_drop_table_params *param = (st_force_drop_table_params *)arg;
 
-  if (param->discovering == (hton->discover_table != NULL))
+  if (param->discovering == (hton->discover_table != NULL) &&
+      !(thd->slave_thread && (hton->flags & HTON_IGNORE_UPDATES)))
   {
     int error;
     error= ha_delete_table(thd, hton, param->path, param->db, param->alias, 0);

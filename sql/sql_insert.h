@@ -23,11 +23,11 @@
 typedef List<Item> List_item;
 typedef struct st_copy_info COPY_INFO;
 
-bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list, TABLE *table,
-                          List<Item> &fields, List_item *values,
-                          List<Item> &update_fields,
-                          List<Item> &update_values, enum_duplicates duplic,
-                          COND **where, bool select_insert);
+int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
+                         List<Item> &fields, List_item *values,
+                         List<Item> &update_fields,
+                         List<Item> &update_values, enum_duplicates duplic,
+                         COND **where, bool select_insert);
 bool mysql_insert(THD *thd,TABLE_LIST *table,List<Item> &fields,
                   List<List_item> &values, List<Item> &update_fields,
                   List<Item> &update_values, enum_duplicates flag,

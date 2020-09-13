@@ -269,7 +269,7 @@ int ha_s3::write_row(const uchar *buf)
   DBUG_ENTER("ha_s3::write_row");
   if (in_alter_table)
     DBUG_RETURN(ha_maria::write_row(buf));
-  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+  DBUG_RETURN(HA_ERR_TABLE_READONLY);
 }
 
 /* Return true if S3 can be used */
@@ -576,7 +576,25 @@ int ha_s3::open(const char *name, int mode, uint open_flags)
   if (!s3_usable())
     DBUG_RETURN(HA_ERR_UNSUPPORTED);
 
-  if (mode != O_RDONLY && !(open_flags & HA_OPEN_FOR_CREATE))
+  /*
+    On slaves with s3_slave_ignore_updates set we allow tables to be
+    opened in write mode to be able to ignore queries that modify
+    the table trough handler::check_if_updates_are_ignored().
+
+    This is needed for the slave to be able to handle
+    CREATE TABLE t1...
+    INSERT INTO TABLE t1 ....
+    ALTER TABLE t1 ENGINE=S3
+    If this is not done, the insert will fail on the slave if the
+    master has already executed the ALTER TABLE.
+
+    We also have to allow open for create, as part of
+    ALTER TABLE ... ENGINE=S3.
+
+    Otherwise we only allow the table to be open in read mode
+  */
+  if (mode != O_RDONLY && !(open_flags & HA_OPEN_FOR_CREATE) &&
+      !s3_slave_ignore_updates)
     DBUG_RETURN(EACCES);
 
   open_args= 0;
