@@ -2828,6 +2828,12 @@ bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
   append_identifier(thd, &query, table_name);
   query.append(STRING_WITH_LEN("/* Generated to handle "
                                "failed CREATE OR REPLACE */"));
+
+  /*
+    In case of temporary tables we don't have to log the database name
+    in the binary log. We log this for non temporary tables, as the slave
+    may use a filter to ignore queries for a specific database.
+  */
   error= thd->binlog_query(THD::STMT_QUERY_TYPE,
                            query.ptr(), query.length(),
                            FALSE, FALSE, temporary_table, 0) > 0;
@@ -5205,7 +5211,8 @@ int create_table_impl(THD *thd, const LEX_CSTRING &orig_db,
         thd->variables.option_bits|= OPTION_KEEP_LOG;
         thd->log_current_statement= 1;
         create_info->table_was_deleted= 1;
-        DBUG_EXECUTE_IF("send_kill_after_delete", thd->set_killed(KILL_QUERY); );
+        DBUG_EXECUTE_IF("send_kill_after_delete",
+                        thd->set_killed(KILL_QUERY); );
 
         /*
           Restart statement transactions for the case of CREATE ... SELECT.
@@ -5745,7 +5752,8 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
   DBUG_ENTER("mysql_rename_table");
   DBUG_ASSERT(base);
   DBUG_PRINT("enter", ("old: '%s'.'%s'  new: '%s'.'%s'",
-                       old_db->str, old_name->str, new_db->str, new_name->str));
+                       old_db->str, old_name->str, new_db->str,
+                       new_name->str));
 
   // Temporarily disable foreign key checks
   if (flags & NO_FK_CHECKS) 
@@ -5755,8 +5763,8 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
 
   build_table_filename(from, sizeof(from) - 1, old_db->str, old_name->str, "",
                        flags & FN_FROM_IS_TMP);
-  length= build_table_filename(to, sizeof(to) - 1, new_db->str, new_name->str, "",
-                               flags & FN_TO_IS_TMP);
+  length= build_table_filename(to, sizeof(to) - 1, new_db->str,
+                               new_name->str, "", flags & FN_TO_IS_TMP);
   // Check if we hit FN_REFLEN bytes along with file extension.
   if (length+reg_ext_length > FN_REFLEN)
   {

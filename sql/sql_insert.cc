@@ -1211,7 +1211,7 @@ values_loop_end:
 	such case the flag is ignored for constructing binlog event.
 	*/
 	DBUG_ASSERT(thd->killed != KILL_BAD_DATA || error > 0);
-        if (was_insert_delayed && table_list->lock_type ==  TL_WRITE)
+        if (was_insert_delayed && table_list->lock_type == TL_WRITE)
         {
           /* Binlog INSERT DELAYED as INSERT without DELAYED. */
           String log_query;
@@ -3823,15 +3823,18 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   */
   lex->current_select= lex->first_select_lex();
 
-  res= setup_returning_fields(thd, table_list) ||
-       setup_fields(thd, Ref_ptr_array(), values, MARK_COLUMNS_READ, 0, 0, 0) ||
-       check_insert_fields(thd, table_list, *fields, values,
-                                  !insert_into_view, 1, &map);
+  res= (setup_returning_fields(thd, table_list) ||
+        setup_fields(thd, Ref_ptr_array(), values, MARK_COLUMNS_READ, 0, 0,
+                     0) ||
+        check_insert_fields(thd, table_list, *fields, values,
+                            !insert_into_view, 1, &map));
 
   if (!res && fields->elements)
   {
-    Abort_on_warning_instant_set aws(thd, !info.ignore && thd->is_strict_mode());
-    res= check_that_all_fields_are_given_values(thd, table_list->table, table_list);
+    Abort_on_warning_instant_set aws(thd,
+                                     !info.ignore && thd->is_strict_mode());
+    res= check_that_all_fields_are_given_values(thd, table_list->table,
+                                                table_list);
   }
 
   if (info.handle_duplicates == DUP_UPDATE && !res)

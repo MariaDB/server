@@ -1826,7 +1826,7 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
   TABLE table;
   char path[FN_REFLEN];
   bool result= 0;
-  DBUG_ENTER("Triggers::drop_all_triggers");
+  DBUG_ENTER("Table_triggers_list::drop_all_triggers");
 
   table.reset();
   init_sql_alloc(key_memory_Table_trigger_dispatcher,

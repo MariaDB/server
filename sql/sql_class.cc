@@ -6562,8 +6562,8 @@ exit:;
 /**
   Check if we should log a table DDL to the binlog
 
-  @@return true  yes
-  @@return false no
+  @retval true  yes
+  @retval false no
 */
 
 bool THD::binlog_table_should_be_logged(const LEX_CSTRING *db)
@@ -7452,14 +7452,14 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
       */
       if (binlog_should_compress(query_len))
       {
-        Query_compressed_log_event qinfo(this, query_arg, query_len, is_trans, direct,
-                            suppress_use, errcode);
+        Query_compressed_log_event qinfo(this, query_arg, query_len, is_trans,
+                                         direct, suppress_use, errcode);
         error= mysql_bin_log.write(&qinfo);
       }
       else
       {
         Query_log_event qinfo(this, query_arg, query_len, is_trans, direct,
-          suppress_use, errcode);
+                              suppress_use, errcode);
         error= mysql_bin_log.write(&qinfo);
       }
       /*
