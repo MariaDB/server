@@ -321,6 +321,7 @@ my $opt_start_timeout   = $ENV{MTR_START_TIMEOUT}    || 180; # seconds
 sub suite_timeout { return $opt_suite_timeout * 60; };
 
 my $opt_wait_all;
+my $opt_wait_for_pos_timeout;
 my $opt_user_args;
 my $opt_repeat= 1;
 my $opt_retry= 1;
@@ -1229,6 +1230,7 @@ sub command_line_setup {
              'verbose+'                 => \$opt_verbose,
              'verbose-restart'          => \&report_option,
              'sleep=i'                  => \$opt_sleep,
+             'wait-for-pos-timeout=i'   => \$opt_wait_for_pos_timeout,
              'start-dirty'              => \$opt_start_dirty,
              'start-and-exit'           => \$opt_start_exit,
              'start'                    => \$opt_start,
@@ -5824,11 +5826,15 @@ sub start_mysqltest ($) {
     mtr_add_arg($args, "--sleep=%d", $opt_sleep);
   }
 
-  if ( $opt_valgrind )
+  if ( $opt_valgrind || $opt_wait_for_pos_timeout)
   {
-    # We are running server under valgrind, which causes some replication
-    # test to be much slower, notable rpl_mdev6020.  Increase timeout.
-    mtr_add_arg($args, "--wait-for-pos-timeout=1500");
+    if (! $opt_wait_for_pos_timeout)
+    {
+      # We are running server under valgrind, which causes some replication
+      # test to be much slower, notable rpl_mdev6020.  Increase timeout.
+      $opt_wait_for_pos_timeout= 1500;
+    }
+    mtr_add_arg($args, "--wait-for-pos-timeout=$opt_wait_for_pos_timeout");
   }
 
   if ( $opt_ssl )
@@ -6456,7 +6462,7 @@ Options for debugging the product
   debug-server          Use debug version of server, but without turning on
                         tracing
   debugger=NAME         Start mysqld in the selected debugger
-  gdb                   Start the mysqld(s) in gdb
+  gdb[=gdb-arguments]   Start the mysqld(s) in gdb.
   manual-debug          Let user manually start mysqld in debugger, before
                         running test(s)
   manual-gdb            Let user manually start mysqld in gdb, before running
@@ -6563,6 +6569,7 @@ Misc options
                         the file (for buildbot)
 
   sleep=SECONDS         Passed to mysqltest, will be used as fixed sleep time
+  wait-for-pos-timeout=NUM  Passed to mysqltest
   debug-sync-timeout=NUM Set default timeout for WAIT_FOR debug sync
                         actions. Disable facility with NUM=0.
   gcov                  Collect coverage information after the test.
