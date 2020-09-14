@@ -1144,7 +1144,6 @@ struct rotate_thread_t {
 		case SRV_SHUTDOWN_CLEANUP:
 		case SRV_SHUTDOWN_INITIATED:
 			return true;
-		case SRV_SHUTDOWN_FLUSH_PHASE:
 		case SRV_SHUTDOWN_LAST_PHASE:
 			break;
 		}

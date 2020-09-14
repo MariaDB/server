@@ -165,15 +165,6 @@ void buf_flush_insert_into_flush_list(buf_block_t* block, lsn_t lsn)
 @param[in,out]	bpage	block to be removed from the flush list */
 static void buf_flush_remove(buf_page_t *bpage)
 {
-#if 0 // FIXME: Rate-limit the output. Move this to the page cleaner?
-	if (UNIV_UNLIKELY(srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE)) {
-		service_manager_extend_timeout(
-			INNODB_EXTEND_TIMEOUT_INTERVAL,
-			"Flush and remove page with tablespace id %u"
-			", flush list length " ULINTPF,
-			bpage->space, UT_LIST_GET_LEN(buf_pool.flush_list));
-	}
-#endif
 	mysql_mutex_assert_owner(&buf_pool.mutex);
 	mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
 
@@ -1995,56 +1986,11 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 		ut_d(buf_flush_page_cleaner_disabled_loop());
 	}
 
-	ut_ad(srv_shutdown_state > SRV_SHUTDOWN_INITIATED);
-	if (srv_fast_shutdown == 2
-	    || srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS) {
-		/* In very fast shutdown or when innodb failed to start, we
-		simulate a crash of the buffer pool. We are not required to do
-		any flushing. */
-		goto thread_exit;
+	if (srv_fast_shutdown != 2) {
+		buf_flush_wait_batch_end_acquiring_mutex(true);
+		buf_flush_wait_batch_end_acquiring_mutex(false);
 	}
 
-	buf_flush_wait_batch_end_acquiring_mutex(false);
-	buf_flush_wait_batch_end_acquiring_mutex(true);
-
-	/* In case of normal and slow shutdown the page_cleaner thread
-	must wait for all other activity in the server to die down.
-	Note that we can start flushing the buffer pool as soon as the
-	server enters shutdown phase but we must stay alive long enough
-	to ensure that any work done by the master or purge threads is
-	also flushed.
-	During shutdown we pass through two stages. In the first stage,
-	when SRV_SHUTDOWN_CLEANUP is set other threads like the master
-	and the purge threads may be working as well. We start flushing
-	the buffer pool but can't be sure that no new pages are being
-	dirtied until we enter SRV_SHUTDOWN_FLUSH_PHASE phase. */
-	flush_counters_t n;
-
-	do {
-		buf_flush_do_batch(ULINT_MAX, LSN_MAX, &n);
-		buf_flush_wait_batch_end_acquiring_mutex(true);
-	} while (srv_shutdown_state == SRV_SHUTDOWN_CLEANUP);
-
-	/* At this point all threads including the master and the
-	purge thread must have been suspended. We can now make a final
-	sweep on flushing the buffer pool and exit after we have
-	cleaned the whole buffer pool. */
-
-	do {
-		ut_ad(!srv_any_background_activity());
-		ut_ad(srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE);
-		if (!buf_flush_do_batch(ULINT_MAX, LSN_MAX, &n)) {
-			/* Another batch is running. Keep waiting. */
-			n.flushed = 1;
-		}
-		buf_flush_wait_batch_end_acquiring_mutex(true);
-	} while (n.flushed);
-
-	ut_a(UT_LIST_GET_LEN(buf_pool.flush_list) == 0);
-
-	/* We have lived our life. Time to die. */
-
-thread_exit:
 	buf_page_cleaner_is_active = false;
 
 	my_thread_end();

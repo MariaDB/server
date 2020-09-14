@@ -1505,6 +1505,41 @@ void log_check_margins()
 
 extern void buf_resize_shutdown();
 
+/** @return the number of dirty pages in the buffer pool */
+static ulint flush_list_length()
+{
+  mysql_mutex_lock(&buf_pool.flush_list_mutex);
+  const ulint len= UT_LIST_GET_LEN(buf_pool.flush_list);
+  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+  return len;
+}
+
+static void flush_buffer_pool()
+{
+  service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+                                 "Waiting to flush the buffer pool");
+  while (flush_list_length())
+  {
+    buf_flush_lists(ULINT_MAX, LSN_MAX, nullptr);
+    struct timespec abstime;
+
+    if (buf_pool.n_flush_list)
+    {
+      service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+                                     "Waiting to flush " ULINTPF " pages",
+                                     flush_list_length());
+      set_timespec(abstime, INNODB_EXTEND_TIMEOUT_INTERVAL / 2);
+      mysql_mutex_lock(&buf_pool.mutex);
+      if (buf_pool.n_flush_list)
+        mysql_cond_timedwait(&buf_pool.done_flush_list, &buf_pool.mutex,
+                             &abstime);
+      mysql_mutex_unlock(&buf_pool.mutex);
+    }
+  }
+
+  ut_ad(!buf_pool.any_io_pending());
+}
+
 /** Make a checkpoint at the latest lsn on shutdown. */
 void logs_empty_and_mark_files_at_shutdown()
 {
@@ -1606,27 +1641,26 @@ wait_suspend_loop:
 		goto wait_suspend_loop;
 	}
 
+	if (buf_page_cleaner_is_active) {
+		thread_name = "page cleaner thread";
+		mysql_cond_signal(&buf_pool.do_flush_list);
+		goto wait_suspend_loop;
+	}
+
 	buf_load_dump_end();
 
-	srv_shutdown_state = SRV_SHUTDOWN_FLUSH_PHASE;
-
-	/* At this point only page_cleaner should be active. We wait
-	here to let it complete the flushing of the buffer pools
-	before proceeding further. */
-
-	count = 0;
-	service_manager_extend_timeout(COUNT_INTERVAL * CHECK_INTERVAL/1000000 * 2,
-		"Waiting for page cleaner");
-	while (buf_page_cleaner_is_active) {
-		++count;
-		os_thread_sleep(CHECK_INTERVAL);
-		if (srv_print_verbose_log && count > COUNT_INTERVAL) {
-			service_manager_extend_timeout(COUNT_INTERVAL * CHECK_INTERVAL/1000000 * 2,
-				"Waiting for page cleaner");
-			ib::info() << "Waiting for page_cleaner to "
-				"finish flushing of buffer pool";
+	if (!buf_pool.is_initialised()) {
+		ut_ad(!srv_was_started);
+	} else if (ulint pending_io = buf_pool.io_pending()) {
+		if (srv_print_verbose_log && count > 600) {
+			ib::info() << "Waiting for " << pending_io << " buffer"
+				" page I/Os to complete";
 			count = 0;
 		}
+
+		goto loop;
+	} else {
+		flush_buffer_pool();
 	}
 
 	if (log_sys.is_initialised()) {
@@ -1645,18 +1679,6 @@ wait_suspend_loop:
 			}
 			goto loop;
 		}
-	}
-
-	if (!buf_pool.is_initialised()) {
-		ut_ad(!srv_was_started);
-	} else if (ulint pending_io = buf_pool.io_pending()) {
-		if (srv_print_verbose_log && count > 600) {
-			ib::info() << "Waiting for " << pending_io << " buffer"
-				" page I/Os to complete";
-			count = 0;
-		}
-
-		goto loop;
 	}
 
 	if (srv_fast_shutdown == 2 || !srv_was_started) {
