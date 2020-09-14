@@ -1847,14 +1847,15 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 	ulint	n_flushed_last = 0;
 	ulint	warn_interval = 1;
 	ulint	warn_count = 0;
-	ulint	next_loop_time = ut_time_ms() + 1000;
+	ulint	curr_time = ut_time_ms();
 	ulint	n_flushed = 0;
-	ulint	last_activity = srv_get_activity_count();
 	ulint	last_pages = 0;
 
-	while (srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
-		ulint curr_time = ut_time_ms();
+	for (ulint next_loop_time = curr_time + 1000;
+	     srv_shutdown_state <= SRV_SHUTDOWN_INITIATED;
+	     curr_time = ut_time_ms()) {
 		bool sleep_timeout;
+		ulint last_activity;
 
 		/* The page_cleaner skips sleep if the server is
 		idle and there are no pending IOs in the buffer pool
