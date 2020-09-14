@@ -44,9 +44,6 @@ extern my_bool		innodb_page_cleaner_disabled_debug;
 
 #endif /* UNIV_DEBUG */
 
-/** Event to synchronise with the flushing. */
-extern os_event_t	buf_flush_event;
-
 class ut_stage_alter_t;
 
 /** Handled page counters for a single flush */

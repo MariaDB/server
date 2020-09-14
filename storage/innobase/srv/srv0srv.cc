@@ -726,9 +726,6 @@ static void srv_init()
 
 		mutex_create(LATCH_ID_SRV_SYS_TASKS, &srv_sys.tasks_mutex);
 
-
-		buf_flush_event = os_event_create("buf_flush_event");
-
 		UT_LIST_INIT(srv_sys.tasks, &que_thr_t::queue);
 	}
 
@@ -776,7 +773,6 @@ srv_free(void)
 	if (!srv_read_only_mode) {
 		mutex_free(&srv_sys.mutex);
 		mutex_free(&srv_sys.tasks_mutex);
-		os_event_destroy(buf_flush_event);
 	}
 
 	ut_d(os_event_destroy(srv_master_thread_disabled_event));
@@ -1894,10 +1890,6 @@ srv_master_do_idle_tasks(void)
 	log_checkpoint();
 	MONITOR_INC_TIME_IN_MICRO_SECS(MONITOR_SRV_CHECKPOINT_MICROSECOND,
 				       counter_time);
-
-	/* This is a workaround to avoid the InnoDB hang when OS datetime
-	changed backwards.*/
-	os_event_set(buf_flush_event);
 }
 
 /**

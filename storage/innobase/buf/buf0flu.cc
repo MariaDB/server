@@ -76,9 +76,6 @@ static std::atomic<lsn_t> buf_flush_sync_lsn;
 mysql_pfs_key_t page_cleaner_thread_key;
 #endif /* UNIV_PFS_THREAD */
 
-/** Event to synchronise with the flushing. */
-os_event_t	buf_flush_event;
-
 /** Page cleaner request state for buf_pool */
 struct page_cleaner_slot_t {
 	ulint			n_flushed_list;
@@ -1452,7 +1449,7 @@ static void buf_flush_request_force(lsn_t lsn)
     if (lsn > o)
       break;
 
-  os_event_set(buf_flush_event);
+  mysql_cond_signal(&buf_pool.do_flush_list);
 }
 
 /** Wait until a flush batch of the given lsn ends
@@ -1787,43 +1784,6 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 	return(n_pages);
 }
 
-/*********************************************************************//**
-Puts the page_cleaner thread to sleep if it has finished work in less
-than a second
-@retval 0 wake up by event set,
-@retval OS_SYNC_TIME_EXCEEDED if timeout was exceeded
-@param next_loop_time	time when next loop iteration should start
-@param sig_count	zero or the value returned by previous call of
-			os_event_reset()
-@param cur_time		current time as in ut_time_ms() */
-static
-ulint
-pc_sleep_if_needed(
-/*===============*/
-	ulint		next_loop_time,
-	int64_t		sig_count,
-	ulint		cur_time)
-{
-	/* No sleep if we are cleaning the buffer pool during the shutdown
-	with everything else finished */
-	if (srv_shutdown_state == SRV_SHUTDOWN_FLUSH_PHASE)
-		return OS_SYNC_TIME_EXCEEDED;
-
-	if (next_loop_time > cur_time) {
-		/* Get sleep interval in micro seconds. We use
-		ut_min() to avoid long sleep in case of wrap around. */
-		ulint	sleep_us;
-
-		sleep_us = ut_min(static_cast<ulint>(1000000),
-				  (next_loop_time - cur_time) * 1000);
-
-		return(os_event_wait_time_low(buf_flush_event,
-					      sleep_us, sig_count));
-	}
-
-	return(OS_SYNC_TIME_EXCEEDED);
-}
-
 /** Initiate a flushing batch.
 @param max_n	maximum mumber of blocks flushed
 @param lsn      oldest_modification limit
@@ -1884,40 +1844,49 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 	}
 #endif /* UNIV_LINUX */
 
-	ulint	ret_sleep = 0;
 	ulint	n_flushed_last = 0;
 	ulint	warn_interval = 1;
 	ulint	warn_count = 0;
-	int64_t	sig_count = os_event_reset(buf_flush_event);
 	ulint	next_loop_time = ut_time_ms() + 1000;
 	ulint	n_flushed = 0;
 	ulint	last_activity = srv_get_activity_count();
 	ulint	last_pages = 0;
 
 	while (srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
-		ulint	curr_time = ut_time_ms();
+		ulint curr_time = ut_time_ms();
+		bool sleep_timeout;
 
 		/* The page_cleaner skips sleep if the server is
 		idle and there are no pending IOs in the buffer pool
 		and there is work to do. */
-		if (!n_flushed || !buf_pool.n_pend_reads
-		    || srv_check_activity(&last_activity)) {
-
-			ret_sleep = pc_sleep_if_needed(
-				next_loop_time, sig_count, curr_time);
-		} else if (curr_time > next_loop_time) {
-			ret_sleep = OS_SYNC_TIME_EXCEEDED;
+		if (next_loop_time <= curr_time) {
+			sleep_timeout = true;
+		} else if (!n_flushed || !buf_pool.n_pend_reads
+			   || srv_check_activity(&last_activity)) {
+			const ulint sleep_ms = std::min<ulint>(next_loop_time
+							       - curr_time,
+							       1000);
+			struct timespec abstime;
+			set_timespec_nsec(abstime, sleep_ms * 1000000ULL);
+			mysql_mutex_lock(&buf_pool.flush_list_mutex);
+#if 0 // FIXME: use blocking wait, not a timed one
+			const auto len = UT_LIST_GET_LEN(buf_pool.flush_list);
+#endif
+			const auto error = mysql_cond_timedwait(
+				&buf_pool.do_flush_list,
+				&buf_pool.flush_list_mutex,
+				&abstime);
+			mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+			sleep_timeout = error == ETIMEDOUT || error == ETIME;
 		} else {
-			ret_sleep = 0;
+			sleep_timeout = false;
 		}
 
 		if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 			break;
 		}
 
-		sig_count = os_event_reset(buf_flush_event);
-
-		if (ret_sleep == OS_SYNC_TIME_EXCEEDED) {
+		if (sleep_timeout) {
 			if (global_system_variables.log_warnings > 2
 			    && curr_time > next_loop_time + 3000
 			    && !(test_flags & TEST_SIGINT)) {
@@ -1952,7 +1921,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 
 		lsn_t lsn_limit;
 
-		if (ret_sleep != OS_SYNC_TIME_EXCEEDED
+		if (!sleep_timeout
 		    && (lsn_limit = buf_flush_sync_lsn.exchange(
 				0, std::memory_order_release))) {
 			ulint tm = pc_request_flush_slot(ULINT_MAX, lsn_limit);
@@ -1973,8 +1942,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 
 		} else if (srv_check_activity(&last_activity)) {
 			/* Estimate pages from flush_list to be flushed */
-			const ulint n_to_flush = (ret_sleep
-						  == OS_SYNC_TIME_EXCEEDED)
+			const ulint n_to_flush = sleep_timeout
 				? page_cleaner_flush_pages_recommendation(
 					last_pages)
 				: 0;
@@ -1989,7 +1957,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 				buf_flush_stats(n_flushed);
 			}
 
-			if (ret_sleep == OS_SYNC_TIME_EXCEEDED) {
+			if (sleep_timeout) {
 				last_pages = page_cleaner.slot.n_flushed_list;
 			}
 
@@ -2003,7 +1971,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 					page_cleaner.slot.n_flushed_list);
 			}
 
-		} else if (ret_sleep == OS_SYNC_TIME_EXCEEDED) {
+		} else if (sleep_timeout) {
 			/* no activity, slept enough */
 			buf_flush_lists(srv_io_capacity, LSN_MAX, &n_flushed);
 

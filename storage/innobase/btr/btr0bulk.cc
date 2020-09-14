@@ -1113,7 +1113,7 @@ BtrBulk::insert(
 
 			/* Wake up page cleaner to flush dirty pages. */
 			srv_inc_activity_count();
-			os_event_set(buf_flush_event);
+			mysql_cond_signal(&buf_pool.do_flush_list);
 
 			logFreeCheck();
 		}

@@ -1575,6 +1575,7 @@ bool buf_pool_t::create()
 
   mysql_cond_init(0, &done_flush_LRU, nullptr);
   mysql_cond_init(0, &done_flush_list, nullptr);
+  mysql_cond_init(0, &do_flush_list, nullptr);
 
   try_LRU_scan= true;
 
@@ -1635,6 +1636,7 @@ void buf_pool_t::close()
 
   mysql_cond_destroy(&done_flush_LRU);
   mysql_cond_destroy(&done_flush_list);
+  mysql_cond_destroy(&do_flush_list);
 
   ut_free(chunks);
   chunks= nullptr;

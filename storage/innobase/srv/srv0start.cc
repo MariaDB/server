@@ -856,8 +856,8 @@ srv_shutdown_all_bg_threads()
 		if (buf_page_cleaner_is_active) {
 			ut_ad(!srv_read_only_mode);
 
-			/* e. Exit the i/o threads */
-			os_event_set(buf_flush_event);
+			/* e. Exit the buf_flush_page_cleaner */
+			mysql_cond_signal(&buf_pool.do_flush_list);
 		}
 
 		if (!os_thread_count) {

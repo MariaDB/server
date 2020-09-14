@@ -458,7 +458,7 @@ retry:
 		tail of the LRU list otherwise we scan the whole LRU
 		list. */
 		if (!buf_LRU_scan_and_free_block(n_iterations != 0)) {
-			os_event_set(buf_flush_event);
+			mysql_cond_signal(&buf_pool.do_flush_list);
 			if (n_iterations == 0) {
 				/* Tell other threads that there is no point
 				in scanning the LRU list. */
@@ -472,10 +472,9 @@ retry:
 #ifndef DBUG_OFF
 not_found:
 #endif
+	mysql_cond_signal(&buf_pool.do_flush_list);
 	buf_flush_wait_batch_end(true);
 	mysql_mutex_unlock(&buf_pool.mutex);
-
-	os_event_set(buf_flush_event);
 
 	if (n_iterations > 20 && !buf_lru_free_blocks_error_printed
 	    && srv_buf_pool_old_size == srv_buf_pool_size) {
