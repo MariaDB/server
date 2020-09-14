@@ -466,13 +466,7 @@ row_undo_step(
 {
 	dberr_t		err;
 	undo_node_t*	node;
-	trx_t*		trx;
-
-	ut_ad(thr);
-
-	srv_inc_activity_count();
-
-	trx = thr_get_trx(thr);
+	trx_t*		trx = thr_get_trx(thr);
 
 	node = static_cast<undo_node_t*>(thr->run_node);
 

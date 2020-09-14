@@ -981,7 +981,7 @@ inline void BtrBulk::logFreeCheck()
 	if (log_sys.check_flush_or_checkpoint()) {
 		release();
 
-		log_free_check();
+		log_check_margins();
 
 		latch();
 	}
