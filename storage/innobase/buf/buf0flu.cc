@@ -361,12 +361,12 @@ void buf_page_write_complete(buf_page_t *bpage, const IORequest &request,
   if (request.is_LRU())
   {
     if (!--buf_pool.n_flush_LRU)
-      mysql_cond_signal(&buf_pool.no_flush_LRU);
+      mysql_cond_broadcast(&buf_pool.no_flush_LRU);
   }
   else
   {
     if (!--buf_pool.n_flush_list)
-      mysql_cond_signal(&buf_pool.no_flush_list);
+      mysql_cond_broadcast(&buf_pool.no_flush_list);
   }
 
   if (dblwr)
@@ -1368,14 +1368,18 @@ static void buf_flush_stats(ulint n)
 @param[in]	lru	true=buf_pool.LRU; false=buf_pool.flush_list */
 void buf_flush_wait_batch_end(bool lru)
 {
-  thd_wait_begin(nullptr, THD_WAIT_DISKIO);
-  if (lru)
-    while (buf_pool.n_flush_LRU)
-      mysql_cond_wait(&buf_pool.no_flush_LRU, &buf_pool.mutex);
-  else
-    while (buf_pool.n_flush_list)
-      mysql_cond_wait(&buf_pool.no_flush_list, &buf_pool.mutex);
-  thd_wait_end(nullptr);
+  const auto &n_flush= lru ? buf_pool.n_flush_LRU : buf_pool.n_flush_list;
+
+  if (n_flush)
+  {
+    auto cond= lru ? &buf_pool.no_flush_LRU : &buf_pool.no_flush_list;
+    thd_wait_begin(nullptr, THD_WAIT_DISKIO);
+    do
+      mysql_cond_wait(cond, &buf_pool.mutex);
+    while (n_flush);
+    thd_wait_end(nullptr);
+    mysql_cond_broadcast(cond);
+  }
 }
 
 /** Initiate a flushing batch.
@@ -1399,28 +1403,30 @@ bool buf_flush_do_batch(ulint max_n, lsn_t lsn, flush_counters_t *n)
   if (log_lsn > log_sys.get_flushed_lsn())
     log_write_up_to(log_lsn, true);
 
+  auto cond= lsn ? &buf_pool.no_flush_list : &buf_pool.no_flush_LRU;
+
   mysql_mutex_lock(&buf_pool.mutex);
   const bool running= n_flush != 0;
   if (running || !UT_LIST_GET_LEN(buf_pool.flush_list))
   {
     mysql_mutex_unlock(&buf_pool.mutex);
-    return !running;
+    if (running)
+      return false;
+    mysql_cond_broadcast(cond);
+    return true;
   }
   n_flush++;
 
   if (!lsn)
-  {
     buf_do_LRU_batch(max_n, n);
-    if (!--n_flush)
-      mysql_cond_signal(&buf_pool.no_flush_LRU);
-  }
   else
   {
     n->flushed= buf_do_flush_list_batch(max_n, lsn);
     n->evicted= 0;
-    if (!--n_flush)
-      mysql_cond_signal(&buf_pool.no_flush_list);
   }
+
+  if (!--n_flush)
+    mysql_cond_broadcast(cond);
 
   buf_pool.try_LRU_scan= true;
   mysql_mutex_unlock(&buf_pool.mutex);
