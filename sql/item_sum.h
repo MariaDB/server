@@ -699,6 +699,7 @@ public:
   bool unique_walk_function(void *element);
   bool unique_walk_function_for_count(void *element);
   bool is_distinct_packed();
+  int insert_record_to_unique();
   static int composite_key_cmp(void* arg, uchar* key1, uchar* key2);
   static int composite_packed_key_cmp(void* arg, uchar* key1, uchar* key2);
 };
@@ -2031,6 +2032,9 @@ public:
   uint get_null_bytes();
   bool is_distinct_packed();
   bool is_packing_allowed(uint* total_length);
+  Unique *get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
+                     uint size_arg, size_t max_in_memory_size_arg,
+                     uint min_dupl_count_arg, bool allow_packing);
 };
 
 #endif /* ITEM_SUM_INCLUDED */

@@ -782,8 +782,8 @@ bool Aggregator_distinct::setup(THD *thd)
 
   if (item_sum->setup(thd))
     return TRUE;
-  if (item_sum->sum_func() == Item_sum::COUNT_FUNC || 
-      item_sum->sum_func() == Item_sum::COUNT_DISTINCT_FUNC)
+
+  if (item_sum->sum_func() == Item_sum::COUNT_DISTINCT_FUNC)
   {
     List<Item> list;
     SELECT_LEX *select_lex= thd->lex->current_select;
@@ -1002,6 +1002,46 @@ void Aggregator_distinct::clear()
 }
 
 
+/*
+  @brief
+    Insert a record inside the Unique tree
+
+  @retval
+    -1       NULL value, record rejected
+     0       record succesfully inserted into the tree
+     1       error
+*/
+int Aggregator_distinct::insert_record_to_unique()
+{
+  if (tree->is_packed())
+  {
+    uint packed_length;
+    if ((packed_length= tree->make_packed_record(true)) == 0)
+      return -1; // NULL value
+    DBUG_ASSERT(packed_length <= tree->get_size());
+    return tree->unique_add(tree->get_packed_rec_ptr(), packed_length);
+  }
+
+  copy_fields(tmp_table_param);
+  if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
+    return 1;
+
+  for (Field **field=table->field ; *field ; field++)
+    if ((*field)->is_real_null(0))
+      return -1;         // Don't count NULL
+
+  /*
+    The first few bytes of record (at least one) are just markers
+    for deleted and NULLs. We want to skip them since they will
+    bloat the tree without providing any valuable info. Besides,
+    key_length used to initialize the tree didn't include space for them.
+  */
+
+  return tree->unique_add(table->record[0] + table->s->null_bytes,
+                          tree->get_size());
+}
+
+
 /**
   Process incoming row. 
   
@@ -1023,20 +1063,17 @@ bool Aggregator_distinct::add()
   if (always_null)
     return 0;
 
-  if (item_sum->sum_func() == Item_sum::COUNT_FUNC || 
-      item_sum->sum_func() == Item_sum::COUNT_DISTINCT_FUNC)
+  if (item_sum->sum_func() == Item_sum::COUNT_DISTINCT_FUNC)
   {
-    int error;
-
-    if (is_distinct_packed())
+    if (tree)
     {
-      uint packed_length;
-      if ((packed_length= tree->make_packed_record(true)) == 0)
-        return false; // NULL value
-      DBUG_ASSERT(packed_length <= tree->get_size());
-      return tree->unique_add(tree->get_packed_rec_ptr(), packed_length);
+      int retval= insert_record_to_unique();
+      if (retval == -1)
+        return false;
+      return retval != 0;
     }
 
+    int error;
     copy_fields(tmp_table_param);
     if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
       return TRUE;
@@ -1044,18 +1081,6 @@ bool Aggregator_distinct::add()
     for (Field **field=table->field ; *field ; field++)
       if ((*field)->is_real_null(0))
         return 0;         // Don't count NULL
-    if (tree)
-    {
-      /*
-        The first few bytes of record (at least one) are just markers
-        for deleted and NULLs. We want to skip them since they will
-        bloat the tree without providing any valuable info. Besides,
-        key_length used to initialize the tree didn't include space for them.
-      */
-
-      return tree->unique_add(table->record[0] + table->s->null_bytes,
-                              tree->get_size());
-    }
 
     if (unlikely((error= table->file->ha_write_tmp_row(table->record[0]))) &&
         table->file->is_fatal_error(error, HA_CHECK_DUP))
@@ -1069,6 +1094,8 @@ bool Aggregator_distinct::add()
       return 0;
     DBUG_ASSERT(tree);
     item_sum->null_value= 0;
+
+    DBUG_ASSERT(tree->is_packed() == false);
     /*
       '0' values are also stored in the tree. This doesn't matter
       for SUM(DISTINCT), but is important for AVG(DISTINCT)
@@ -4827,6 +4854,21 @@ Unique* Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
                     max_in_memory_size_arg, min_dupl_count_arg);
 
 }
+
+
+Unique* Item_func_group_concat::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
+                                           uint size_arg, size_t max_in_memory_size_arg,
+                                           uint min_dupl_count_arg, bool allow_packing)
+{
+
+  if (allow_packing)
+    return new Unique_packed(comp_func, comp_func_fixed_arg, size_arg,
+                             max_in_memory_size_arg, min_dupl_count_arg);
+  return new Unique(comp_func, comp_func_fixed_arg, size_arg,
+                    max_in_memory_size_arg, min_dupl_count_arg);
+
+}
+
 
 
 void Item_func_group_concat::print(String *str, enum_query_type query_type)

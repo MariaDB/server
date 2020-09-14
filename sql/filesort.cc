@@ -2868,6 +2868,38 @@ qsort2_cmp get_packed_keys_compare_ptr()
 
 
 /*
+  @brief
+    Compare nullability of 2 keys
+
+  @param
+    a              key to be compared
+    b              key to be compared
+
+  @retval
+    -1     key a is NULL
+    1      key b is NULL
+    0      either key a and key b are both NULL or
+           both are NOT NULL
+*/
+
+int compare_nullability(uchar *a, uchar *b)
+{
+  if (*a != *b)
+  {
+    if (*a == 0)
+      return -1;
+    return 1;
+  }
+  else
+  {
+    if (*a == 0)
+      return 0;
+  }
+  return 0;
+}
+
+
+/*
   Compare two varstrings.
 
   The strings are in this data format:
@@ -2885,20 +2917,10 @@ int SORT_FIELD_ATTR::compare_packed_varstrings(uchar *a, size_t *a_len,
   if (maybe_null)
   {
     *a_len= *b_len= 1; // NULL bytes are always stored
-    if (*a != *b)
-    {
-      // Note we don't return a proper value in *{a|b}_len for the non-NULL
-      // value but that's ok
-      if (*a == 0)
-        return -1;
-      else
-        return 1;
-    }
-    else
-    {
-      if (*a == 0)
-        return 0;
-    }
+    int cmp_val;
+
+    if ((cmp_val= compare_nullability(a, b)) || *a == 0)
+      return cmp_val;
     a++;
     b++;
   }
@@ -2935,18 +2957,10 @@ SORT_FIELD_ATTR::compare_packed_varstrings_for_single_arg(uchar *a, uchar *b)
   size_t a_length, b_length;
   if (maybe_null)
   {
-    if (*a != *b)
-    {
-      if (*a == 0)
-        return -1;
-      else
-        return 1;
-    }
-    else
-    {
-      if (*a == 0)
-        return 0;
-    }
+    int cmp_val;
+    if ((cmp_val= compare_nullability(a, b)) || *a == 0)
+      return cmp_val;
+
     a++;
     b++;
   }
@@ -2974,18 +2988,10 @@ int SORT_FIELD_ATTR::compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
   {
     *a_len=1;
     *b_len=1;
-    if (*a != *b)
-    {
-      if (*a == 0)
-        return -1;
-      else
-        return 1;
-    }
-    else
-    {
-      if (*a == 0)
-        return 0;
-    }
+    int cmp_val;
+    if ((cmp_val= compare_nullability(a, b)) || *a == 0)
+      return cmp_val;
+
     a++;
     b++;
   }
@@ -2994,7 +3000,7 @@ int SORT_FIELD_ATTR::compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
 
   *a_len+= length;
   *b_len+= length;
-  return memcmp(a,b, length);
+  return memcmp(a, b, length);
 }
 
 

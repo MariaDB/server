@@ -227,5 +227,6 @@ void change_double_for_sort(double nr,uchar *to);
 void store_length(uchar *to, uint length, uint pack_length);
 void
 reverse_key(uchar *to, const SORT_FIELD_ATTR *sort_field);
+int compare_nullability(uchar *a, uchar *b);
 
 #endif /* FILESORT_INCLUDED */

@@ -1517,6 +1517,27 @@ public:
   }
 };
 
+
+/*
+  @brief
+    Get the start of the buffer storing the value for the field
+*/
+uchar* get_buffer_start(Field *field, uchar *to)
+{
+  return to + Unique_packed::size_of_length_field + MY_TEST(field->maybe_null());
+}
+
+
+/*
+  @brief
+    Get the end of the buffer storing the value for the field
+*/
+uchar* get_buffer_end(Field *field, uchar *to)
+{
+  return to + Unique_packed::read_packed_length(to);
+}
+
+
 /*
   Histogram_builder is a helper class that is used to build histograms
   for columns
@@ -1573,9 +1594,8 @@ public:
       uchar *to= (uchar* )elem;
       if (column->is_packable())
       {
-        column->unpack(column->ptr,
-        to + Unique_packed::size_of_length_field + MY_TEST(column->maybe_null()),
-        to + Unique_packed::read_packed_length(to) + MY_TEST(column->maybe_null()), 0);
+        column->unpack(column->ptr, get_buffer_start(column, to),
+                       get_buffer_end(column, to), 0);
       }
       else
         column->store_field_value(to, col_length);
@@ -1686,7 +1706,7 @@ public:
       thd                    Thread structure
       max_heap_table_size    max allowed size of the unique tree
   */
-  bool setup(THD *thd, size_t max_heap_table_size)
+  virtual bool setup(THD *thd, size_t max_heap_table_size)
   {
     if (table_field->is_packable())
     {
@@ -1700,19 +1720,9 @@ public:
     }
     else
     {
-      if (table_field->type() == MYSQL_TYPE_BIT)
-      {
-        tree_key_length= sizeof(ulonglong);
-        tree= new Unique((qsort_cmp2) simple_ulonglong_key_cmp,
-                         (void*) &tree_key_length,
-                         tree_key_length, max_heap_table_size, 1);
-      }
-      else
-      {
-        tree_key_length= table_field->pack_length();
-        tree= new Unique((qsort_cmp2) simple_str_key_cmp, (void*) table_field,
-                         tree_key_length, max_heap_table_size, 1);
-      }
+      tree_key_length= table_field->pack_length();
+      tree= new Unique((qsort_cmp2) simple_str_key_cmp, (void*) table_field,
+                       tree_key_length, max_heap_table_size, 1);
     }
     if (!tree)
       return true;  // OOM
@@ -1795,23 +1805,20 @@ public:
   }
 
   static int simple_packed_str_key_cmp(void* arg, uchar* key1, uchar* key2);
-  static int simple_ulonglong_key_cmp(void* arg, uchar* key1, uchar* key2);
-
 };
-
-
-int Count_distinct_field::simple_ulonglong_key_cmp(void* arg,
-                                                   uchar* key1, uchar* key2)
-{
-  ulonglong *val1= (ulonglong *) key1;
-  ulonglong *val2= (ulonglong *) key2;
-  return *val1 > *val2 ? 1 : *val1 == *val2 ? 0 : -1; 
-}
-
 
 /*
   @brief
     Compare function for packed keys
+  @param    arg     Pointer to the relevant class instance
+  @param    key1    left key image
+  @param    key2    right key image
+
+
+  @return   comparison result
+    @retval < 0       if key1 < key2
+    @retval = 0       if key1 = key2
+    @retval > 0       if key1 > key2
 */
 int Count_distinct_field::simple_packed_str_key_cmp(void* arg,
                                                     uchar* key1, uchar* key2)
@@ -1838,7 +1845,43 @@ public:
     longlong val= table_field->val_int();   
     return tree->unique_add(&val, tree->get_size());
   }
+  bool setup(THD *thd, size_t max_heap_table_size)
+  {
+    tree_key_length= sizeof(ulonglong);
+    tree= new Unique((qsort_cmp2) simple_ulonglong_key_cmp,
+                     (void*) &tree_key_length,
+                     tree_key_length, max_heap_table_size, 1);
+    if (!tree)
+      return true;  // OOM
+
+    return tree->setup(thd, table_field);
+  }
+  static int simple_ulonglong_key_cmp(void* arg, uchar* key1, uchar* key2);
 };
+
+
+/*
+  @brief
+    Compare function for Bit fields
+
+  @param    arg     Pointer to the relevant class instance
+  @param    key1    left key image
+  @param    key2    right key image
+
+
+  @return   comparison result
+    @retval < 0       if key1 < key2
+    @retval = 0       if key1 = key2
+    @retval > 0       if key1 > key2
+*/
+int Count_distinct_field_bit::simple_ulonglong_key_cmp(void* arg,
+                                                       uchar* key1,
+                                                       uchar* key2)
+{
+  ulonglong *val1= (ulonglong *) key1;
+  ulonglong *val2= (ulonglong *) key2;
+  return *val1 > *val2 ? 1 : *val1 == *val2 ? 0 : -1;
+}
 
 
 /* 

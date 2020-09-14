@@ -1321,21 +1321,9 @@ public:
     }
     return update_fl;
   }
-
-  /*
-    @brief
-      Make a packed value for a field
-    @param
-      to                     buffer to store the value
-  */
-  virtual uint make_packed_record_field(uchar *to)
-  {
-    uchar* end= pack(to, ptr);
-    return static_cast<uint>(end - to);
-  }
   virtual void store_field_value(uchar *val, uint len)
   {
-    memcpy(ptr, val, len);
+     memcpy(ptr, val, len);
   }
   virtual uint decimals() const { return 0; }
   virtual Information_schema_numeric_attributes
@@ -4486,7 +4474,7 @@ public:
   uint32 sort_length() const override;
   uint32 sort_length_without_suffix() const override
   {
-    return field_length;
+    return (uint32)field_length;
   }
   uint32 sort_suffix_length() const override;
   uint32 value_length() override { return get_length(); }
