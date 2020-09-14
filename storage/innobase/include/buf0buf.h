@@ -1779,6 +1779,14 @@ public:
 
   /** Buffer pool mutex */
   mysql_mutex_t mutex;
+  /** Number of pending LRU flush. */
+  Atomic_counter<ulint> n_flush_LRU;
+  /** broadcast when n_flush_LRU reaches 0; protected by mutex */
+  mysql_cond_t done_flush_LRU;
+  /** Number of pending flush_list flush. */
+  Atomic_counter<ulint> n_flush_list;
+  /** broadcast when n_flush_list reaches 0; protected by mutex */
+  mysql_cond_t done_flush_list;
 
 	/** @name General fields */
 	/* @{ */
@@ -1923,14 +1931,8 @@ public:
   /** modified blocks (a subset of LRU) */
   UT_LIST_BASE_NODE_T(buf_page_t) flush_list;
 
-  /** Number of pending LRU flush. */
-  Atomic_counter<ulint> n_flush_LRU;
-  /** signalled when n_flush_LRU reaches 0; protected by mutex */
-  mysql_cond_t no_flush_LRU;
-  /** Number of pending flush_list flush. */
-  Atomic_counter<ulint> n_flush_list;
-  /** signalled when n_flush_list reaches 0; protected by mutex */
-  mysql_cond_t no_flush_list;
+  /** signalled to wake up the page_cleaner; protected by flush_list_mutex */
+  mysql_cond_t do_flush_list;
 
   // n_flush_LRU + n_flush_list is approximately COUNT(io_fix()==BUF_IO_WRITE)
   // in flush_list
@@ -2259,8 +2261,7 @@ MEMORY:		is not in free list, LRU list, or flush list, nor page
 		hash table
 FILE_PAGE:	space and offset are defined, is in page hash table
 		if io_fix == BUF_IO_WRITE,
-			pool: no_flush_LRU or no_flush_list is in reset state,
-			pool: n_flush_LRU > 0 or n_flush_list > 0
+			buf_pool.n_flush_LRU > 0 || buf_pool.n_flush_list > 0
 
 		(1) if buf_fix_count == 0, then
 			is in LRU list, not in free list

@@ -1573,8 +1573,8 @@ bool buf_pool_t::create()
   mysql_mutex_init(flush_list_mutex_key, &flush_list_mutex,
                    MY_MUTEX_INIT_FAST);
 
-  mysql_cond_init(0, &no_flush_LRU, nullptr);
-  mysql_cond_init(0, &no_flush_list, nullptr);
+  mysql_cond_init(0, &done_flush_LRU, nullptr);
+  mysql_cond_init(0, &done_flush_list, nullptr);
 
   try_LRU_scan= true;
 
@@ -1633,8 +1633,8 @@ void buf_pool_t::close()
     allocator.deallocate_large_dodump(chunk->mem, &chunk->mem_pfx);
   }
 
-  mysql_cond_destroy(&no_flush_LRU);
-  mysql_cond_destroy(&no_flush_list);
+  mysql_cond_destroy(&done_flush_LRU);
+  mysql_cond_destroy(&done_flush_list);
 
   ut_free(chunks);
   chunks= nullptr;

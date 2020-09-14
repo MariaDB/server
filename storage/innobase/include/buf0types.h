@@ -27,8 +27,7 @@ Created 11/17/1995 Heikki Tuuri
 #ifndef buf0types_h
 #define buf0types_h
 
-#include "os0event.h"
-#include "ut0ut.h"
+#include "univ.i"
 
 /** Buffer page (uncompressed or compressed) */
 class buf_page_t;

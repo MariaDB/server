@@ -361,12 +361,12 @@ void buf_page_write_complete(buf_page_t *bpage, const IORequest &request,
   if (request.is_LRU())
   {
     if (!--buf_pool.n_flush_LRU)
-      mysql_cond_broadcast(&buf_pool.no_flush_LRU);
+      mysql_cond_broadcast(&buf_pool.done_flush_LRU);
   }
   else
   {
     if (!--buf_pool.n_flush_list)
-      mysql_cond_broadcast(&buf_pool.no_flush_list);
+      mysql_cond_broadcast(&buf_pool.done_flush_list);
   }
 
   if (dblwr)
@@ -1372,7 +1372,7 @@ void buf_flush_wait_batch_end(bool lru)
 
   if (n_flush)
   {
-    auto cond= lru ? &buf_pool.no_flush_LRU : &buf_pool.no_flush_list;
+    auto cond= lru ? &buf_pool.done_flush_LRU : &buf_pool.done_flush_list;
     thd_wait_begin(nullptr, THD_WAIT_DISKIO);
     do
       mysql_cond_wait(cond, &buf_pool.mutex);
@@ -1403,7 +1403,7 @@ bool buf_flush_do_batch(ulint max_n, lsn_t lsn, flush_counters_t *n)
   if (log_lsn > log_sys.get_flushed_lsn())
     log_write_up_to(log_lsn, true);
 
-  auto cond= lsn ? &buf_pool.no_flush_list : &buf_pool.no_flush_LRU;
+  auto cond= lsn ? &buf_pool.done_flush_list : &buf_pool.done_flush_LRU;
 
   mysql_mutex_lock(&buf_pool.mutex);
   const bool running= n_flush != 0;
@@ -1972,18 +1972,12 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 			}
 
 		} else if (srv_check_activity(&last_activity)) {
-			ulint	n_to_flush;
-
 			/* Estimate pages from flush_list to be flushed */
-			if (ret_sleep == OS_SYNC_TIME_EXCEEDED) {
-				last_activity = srv_get_activity_count();
-				n_to_flush =
-					page_cleaner_flush_pages_recommendation(
-						last_pages);
-			} else {
-				n_to_flush = 0;
-			}
-
+			const ulint n_to_flush = (ret_sleep
+						  == OS_SYNC_TIME_EXCEEDED)
+				? page_cleaner_flush_pages_recommendation(
+					last_pages)
+				: 0;
 			ulint tm= pc_request_flush_slot(n_to_flush, LSN_MAX);
 
 			page_cleaner.flush_time += ut_time_ms() - tm;
