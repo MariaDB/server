@@ -368,3 +368,14 @@ show index from t2;
 
 # Cleanup
 DROP TABLE t1,t2;
+
+#
+# MDEV-23264 Unique blobs allow duplicate values upon UPDATE
+#
+
+CREATE TABLE t1 (f TEXT UNIQUE);
+INSERT INTO t1 VALUES (NULL),(NULL);
+--error ER_DUP_ENTRY
+UPDATE t1 SET f = '';
+SELECT * FROM t1;
+DROP TABLE t1;

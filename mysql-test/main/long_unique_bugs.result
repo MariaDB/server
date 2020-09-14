@@ -288,3 +288,12 @@ Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_par
 t2	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
 t2	0	a	2	b	A	NULL	NULL	NULL	YES	HASH		
 DROP TABLE t1,t2;
+CREATE TABLE t1 (f TEXT UNIQUE);
+INSERT INTO t1 VALUES (NULL),(NULL);
+UPDATE t1 SET f = '';
+ERROR 23000: Duplicate entry '' for key 'f'
+SELECT * FROM t1;
+f
+
+NULL
+DROP TABLE t1;
