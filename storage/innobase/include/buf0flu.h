@@ -107,18 +107,13 @@ buf_flush_init_for_writing(
 @return whether a batch was queued successfully (not running already) */
 bool buf_flush_do_batch(ulint max_n, lsn_t lsn, flush_counters_t *n);
 
-/** This utility flushes dirty blocks from the end of the flush list.
-NOTE: The calling thread is not allowed to own any latches on pages!
-@param[in]	min_n		wished minimum mumber of blocks flushed (it is
-not guaranteed that the actual number is that big, though)
-@param[in]	lsn_limit	in the case BUF_FLUSH_LIST all blocks whose
-oldest_modification is smaller than this should be flushed (if their number
-does not exceed min_n), otherwise ignored
-@param[out]	n_processed	the number of pages which were processed is
-passed back to caller. Ignored if NULL.
+/** Write out dirty blocks from buf_pool.flush_list.
+@param max_n	wished maximum mumber of blocks flushed
+@param lsn      stop on oldest_modification>=lsn
+@param n_processed the number of processed pages
 @retval true if a batch was queued successfully
-@retval false if another batch of same type was already running */
-bool buf_flush_lists(ulint min_n, lsn_t lsn_limit, ulint *n_processed);
+@retval false if another batch was already running */
+bool buf_flush_lists(ulint max_n, lsn_t lsn, ulint *n_processed);
 
 /** Wait until a flush batch ends.
 @param[in]	lru	true=buf_pool.LRU; false=buf_pool.flush_list */

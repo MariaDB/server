@@ -1485,24 +1485,19 @@ void buf_flush_wait_flushed(lsn_t new_oldest)
 	}
 }
 
-/** This utility flushes dirty blocks from the end of the flush list.
-NOTE: The calling thread is not allowed to own any latches on pages!
-@param[in]	min_n		wished minimum mumber of blocks flushed (it is
-not guaranteed that the actual number is that big, though)
-@param[in]	lsn_limit	all blocks whose
-oldest_modification is smaller than this should be flushed (if their number
-does not exceed min_n), otherwise ignored
-@param[out]	n_processed	the number of pages which were processed is
-passed back to caller. Ignored if NULL.
+/** Write out dirty blocks from buf_pool.flush_list.
+@param max_n	wished maximum mumber of blocks flushed
+@param lsn      stop on oldest_modification>=lsn
+@param n_processed the number of processed pages
 @retval true if a batch was queued successfully
-@retval false if another batch of same type was already running */
-bool buf_flush_lists(ulint min_n, lsn_t lsn_limit, ulint *n_processed)
+@retval false if another batch was already running */
+bool buf_flush_lists(ulint max_n, lsn_t lsn, ulint *n_processed)
 {
-	ut_ad(lsn_limit);
+	ut_ad(lsn);
 
 	flush_counters_t	n;
 
-	bool success = buf_flush_do_batch(min_n, lsn_limit, &n);
+	bool success = buf_flush_do_batch(max_n, lsn, &n);
 
 	if (n.flushed) {
 		buf_flush_stats(n.flushed);
@@ -1626,7 +1621,6 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 	static	ulint		n_iterations = 0;
 	static	time_t		prev_time;
 	lsn_t			oldest_lsn;
-	lsn_t			cur_lsn;
 	lsn_t			age;
 	lsn_t			lsn_rate;
 	ulint			n_pages = 0;
@@ -1634,7 +1628,7 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 	ulint			pct_for_lsn = 0;
 	ulint			pct_total = 0;
 
-	cur_lsn = log_sys.get_lsn();
+	const lsn_t cur_lsn = log_sys.get_lsn();
 
 	if (prev_lsn == 0) {
 		/* First time around. */
@@ -1781,8 +1775,7 @@ page_cleaner_flush_pages_recommendation(ulint last_pages_in)
 @return ut_time_ms() at the start of the wait */
 static ulint pc_request_flush_slot(ulint max_n, lsn_t lsn)
 {
-  if (!max_n)
-    return 0;
+  ut_ad(max_n);
   ut_ad(lsn);
 
   const ulint flush_start_tm= ut_time_ms();
@@ -1908,17 +1901,23 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 			}
 
 			next_loop_time = curr_time + 1000;
-			n_flushed_last = 0;
-		}
 
-		lsn_t lsn_limit;
+			/* no activity, slept enough */
+			buf_flush_lists(srv_io_capacity, LSN_MAX, &n_flushed);
+			n_flushed_last = n_flushed;
 
-		if (!sleep_timeout
-		    && (lsn_limit = buf_flush_sync_lsn.exchange(
-				0, std::memory_order_release))) {
-			ulint tm = pc_request_flush_slot(ULINT_MAX, lsn_limit);
+			if (n_flushed) {
+				MONITOR_INC_VALUE_CUMULATIVE(
+					MONITOR_FLUSH_BACKGROUND_TOTAL_PAGE,
+					MONITOR_FLUSH_BACKGROUND_COUNT,
+					MONITOR_FLUSH_BACKGROUND_PAGES,
+					n_flushed);
 
-			page_cleaner.flush_time += ut_time_ms() - tm;
+			}
+		} else if (lsn_t lsn_limit = buf_flush_sync_lsn.exchange(
+				   0, std::memory_order_release)) {
+			page_cleaner.flush_time += ut_time_ms()
+				- pc_request_flush_slot(ULINT_MAX, lsn_limit);
 			page_cleaner.flush_pass++;
 			n_flushed = page_cleaner.slot.n_flushed_list;
 
@@ -1931,14 +1930,13 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 					MONITOR_FLUSH_SYNC_PAGES,
 					n_flushed);
 			}
-
-		} else if (srv_check_activity(&last_activity)) {
+		} else if (!srv_check_activity(&last_activity)) {
+			/* no activity, but woken up by event */
+			n_flushed = 0;
+		} else if (ulint n= page_cleaner_flush_pages_recommendation(
+				   last_pages)) {
 			/* Estimate pages from flush_list to be flushed */
-			const ulint n_to_flush = sleep_timeout
-				? page_cleaner_flush_pages_recommendation(
-					last_pages)
-				: 0;
-			ulint tm= pc_request_flush_slot(n_to_flush, LSN_MAX);
+			ulint tm= pc_request_flush_slot(n, LSN_MAX);
 
 			page_cleaner.flush_time += ut_time_ms() - tm;
 			page_cleaner.flush_pass++ ;
@@ -1947,39 +1945,15 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 
 			if (n_flushed) {
 				buf_flush_stats(n_flushed);
-			}
+				n_flushed_last += n_flushed;
 
-			if (sleep_timeout) {
-				last_pages = page_cleaner.slot.n_flushed_list;
-			}
-
-			n_flushed_last += page_cleaner.slot.n_flushed_list;
-
-			if (page_cleaner.slot.n_flushed_list) {
 				MONITOR_INC_VALUE_CUMULATIVE(
 					MONITOR_FLUSH_ADAPTIVE_TOTAL_PAGE,
 					MONITOR_FLUSH_ADAPTIVE_COUNT,
 					MONITOR_FLUSH_ADAPTIVE_PAGES,
-					page_cleaner.slot.n_flushed_list);
-			}
-
-		} else if (sleep_timeout) {
-			/* no activity, slept enough */
-			buf_flush_lists(srv_io_capacity, LSN_MAX, &n_flushed);
-
-			n_flushed_last += n_flushed;
-
-			if (n_flushed) {
-				MONITOR_INC_VALUE_CUMULATIVE(
-					MONITOR_FLUSH_BACKGROUND_TOTAL_PAGE,
-					MONITOR_FLUSH_BACKGROUND_COUNT,
-					MONITOR_FLUSH_BACKGROUND_PAGES,
 					n_flushed);
-
 			}
-
 		} else {
-			/* no activity, but woken up by event */
 			n_flushed = 0;
 		}
 
