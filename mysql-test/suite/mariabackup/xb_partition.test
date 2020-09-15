@@ -68,9 +68,9 @@ ALTER TABLE isam_p ADD PARTITION (PARTITION p5 VALUES LESS THAN (600));
 INSERT INTO isam_p VALUES (401), (501);
 
 --disable_result_log
-exec $INNOBACKUPEX --defaults-file=$MYSQLTEST_VARDIR/my.cnf --incremental --no-timestamp --incremental-basedir=$targetdir/full $targetdir/inc;
-exec $INNOBACKUPEX --defaults-file=$MYSQLTEST_VARDIR/my.cnf --apply-log $targetdir/full;
-exec $INNOBACKUPEX --defaults-file=$MYSQLTEST_VARDIR/my.cnf --apply-log --incremental-dir=$targetdir/inc $targetdir/full;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --incremental-basedir=$targetdir/full --target-dir=$targetdir/inc;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --prepare --target-dir=$targetdir/full;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --prepare --incremental-dir=$targetdir/inc --target-dir=$targetdir/full;
 
 let $targetdir=$targetdir/full;
 -- source include/restart_and_restore.inc

@@ -94,7 +94,6 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include "changed_page_bitmap.h"
 #include "read_filt.h"
 #include "backup_wsrep.h"
-#include "innobackupex.h"
 #include "backup_mysql.h"
 #include "backup_copy.h"
 #include "backup_mysql.h"
@@ -262,8 +261,6 @@ my_bool xb_close_files;
 ds_ctxt_t       *ds_data     = NULL;
 ds_ctxt_t       *ds_meta     = NULL;
 ds_ctxt_t       *ds_redo     = NULL;
-
-static bool	innobackupex_mode = false;
 
 /* String buffer used by --print-param to accumulate server options as they are
 parsed from the defaults file */
@@ -1003,7 +1000,7 @@ struct my_option xb_client_options[]= {
 
     {"rsync", OPT_RSYNC,
      "Uses the rsync utility to optimize local file "
-     "transfers. When this option is specified, innobackupex uses rsync "
+     "transfers. When this option is specified, mariabackup uses rsync "
      "to copy all non-InnoDB files instead of spawning a separate cp for "
      "each file, which can be much faster for servers with a large number "
      "of databases or tables.  This option cannot be used together with "
@@ -1111,7 +1108,7 @@ struct my_option xb_client_options[]= {
 
     {"ftwrl-wait-query-type", OPT_LOCK_WAIT_QUERY_TYPE,
      "This option specifies which types of queries are allowed to complete "
-     "before innobackupex will issue the global lock. Default is all.",
+     "before mariabackup will issue the global lock. Default is all.",
      (uchar *) &opt_lock_wait_query_type, (uchar *) &opt_lock_wait_query_type,
      &query_type_typelib, GET_ENUM, REQUIRED_ARG, QUERY_TYPE_ALL, 0, 0, 0, 0,
      0},
@@ -1131,26 +1128,26 @@ struct my_option xb_client_options[]= {
      NULL, NULL, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 
     {"kill-long-queries-timeout", OPT_KILL_LONG_QUERIES_TIMEOUT,
-     "This option specifies the number of seconds innobackupex waits "
+     "This option specifies the number of seconds mariabackup waits "
      "between starting FLUSH TABLES WITH READ LOCK and killing those "
      "queries that block it. Default is 0 seconds, which means "
-     "innobackupex will not attempt to kill any queries.",
+     "mariabackup will not attempt to kill any queries.",
      (uchar *) &opt_kill_long_queries_timeout,
      (uchar *) &opt_kill_long_queries_timeout, 0, GET_UINT, REQUIRED_ARG, 0, 0,
      0, 0, 0, 0},
 
     {"ftwrl-wait-timeout", OPT_LOCK_WAIT_TIMEOUT,
-     "This option specifies time in seconds that innobackupex should wait "
+     "This option specifies time in seconds that mariabackup should wait "
      "for queries that would block FTWRL before running it. If there are "
-     "still such queries when the timeout expires, innobackupex terminates "
-     "with an error. Default is 0, in which case innobackupex does not "
+     "still such queries when the timeout expires, mariabackup terminates "
+     "with an error. Default is 0, in which case mariabackup does not "
      "wait for queries to complete and starts FTWRL immediately.",
      (uchar *) &opt_lock_wait_timeout, (uchar *) &opt_lock_wait_timeout, 0,
      GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
     {"ftwrl-wait-threshold", OPT_LOCK_WAIT_THRESHOLD,
      "This option specifies the query run time threshold which is used by "
-     "innobackupex to detect long-running queries with a non-zero value "
+     "mariabackup to detect long-running queries with a non-zero value "
      "of --ftwrl-wait-timeout. FTWRL is not started until such "
      "long-running queries exist. This option has no effect if "
      "--ftwrl-wait-timeout is 0. Default value is 60 seconds.",
@@ -5946,12 +5943,6 @@ void handle_options(int argc, char **argv, char ***argv_server,
 	for (n = 0; (*argv_client)[n]; n++) {};
  	argc_client = n;
 
-	if (innobackupex_mode && argc_client > 0) {
-		if (!ibx_handle_options(&argc_client, argv_client)) {
-			exit(EXIT_FAILURE);
-		}
-	}
-
 	if (argc_client > 0
 	    && (ho_error=handle_options(&argc_client, argv_client,
 					xb_client_options, xb_get_one_option)))
@@ -5977,10 +5968,6 @@ void handle_options(int argc, char **argv, char ***argv_server,
         /* Add back the program name handle_options removes */
         ++argc_backup;
         --(*argv_backup);
-
-        if (innobackupex_mode && argc_backup > 0 &&
-            !ibx_handle_options(&argc_backup, argv_backup))
-          exit(EXIT_FAILURE);
 
         my_getopt_skip_unknown = FALSE;
 
@@ -6069,12 +6056,6 @@ int main(int argc, char **argv)
 			argv[0]+=2;
 			return mysqld_main(argc, argv);
 		}
-		if(strcmp(argv[1], "--innobackupex") == 0)
-		{
-			argv++;
-			argc--;
-			innobackupex_mode = true;
-		}
 	}
   
 	if (argc > 1)
@@ -6117,10 +6098,6 @@ int main(int argc, char **argv)
 	end_thr_timer();
 	backup_cleanup();
 
-	if (innobackupex_mode) {
-		ibx_cleanup();
-	}
-
 	free_defaults(server_defaults);
         free_defaults(client_defaults);
         free_defaults(backup_defaults);
@@ -6145,12 +6122,6 @@ int main(int argc, char **argv)
 
 static int main_low(char** argv)
 {
-	if (innobackupex_mode) {
-		if (!ibx_init()) {
-			return(EXIT_FAILURE);
-		}
-	}
-
 	if (!xtrabackup_print_param && !xtrabackup_prepare
 	    && !strcmp(mysql_data_home, "./")) {
 		if (!xtrabackup_print_param)

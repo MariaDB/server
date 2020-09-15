@@ -50,7 +50,6 @@ ADD_DEFINITIONS(-DPCRE_STATIC=1)
 ADD_DEFINITIONS(${SSL_DEFINES})
 MYSQL_ADD_EXECUTABLE(mariadb-backup
   xtrabackup.cc
-  innobackupex.cc
   changed_page_bitmap.cc
   datasink.cc
   ds_buffer.cc

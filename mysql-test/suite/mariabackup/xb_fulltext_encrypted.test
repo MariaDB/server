@@ -15,8 +15,9 @@ let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 
 --disable_result_log
 
-exec $INNOBACKUPEX --defaults-file=$MYSQLTEST_VARDIR/my.cnf --no-timestamp $targetdir;
-exec $INNOBACKUPEX --apply-log $targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+exec $XTRABACKUP --prepare --target-dir=$targetdir;
+
 --source include/restart_and_restore.inc
 
 --enable_result_log
