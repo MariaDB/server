@@ -1605,10 +1605,20 @@ file_checked:
 			}
 		}
 
-		/* recv_recovery_from_checkpoint_finish needs trx lists which
-		are initialized in trx_lists_init_at_db_start(). */
-
-		recv_recovery_from_checkpoint_finish();
+		recv_sys.debug_free();
+#if 1 /* FIXME: do this earlier */
+		/* FIXME: latching order issues between recv_sys.mutex
+		and log_sys.mutex */
+		ut_d(sync_check_enable());
+#endif
+#if 1 // FIXME: this should not be needed!
+		/* At least the following tests fail if we remove this:
+		rpl.rpl_gtid_crash innodb.group_commit_crash_no_optimize_thread
+		innodb.blob-crash
+		innodb_zip.wl5522_debug_zip
+		innodb.innodb_bulk_create_index_debug */
+		buf_flush_sync();
+#endif
 
 		if (srv_operation == SRV_OPERATION_RESTORE
 		    || srv_operation == SRV_OPERATION_RESTORE_EXPORT) {
@@ -1619,7 +1629,9 @@ file_checked:
 			InnoDB files is needed. */
 			ut_ad(!srv_force_recovery);
 			ut_ad(recv_no_log_write);
+#if 0 // FIXME: we did this above, even though we should not have done it
 			buf_flush_sync();
+#endif
 			err = fil_write_flushed_lsn(log_get_lsn());
 			DBUG_ASSERT(!buf_pool.any_io_pending());
 			log_sys.log.close_file();

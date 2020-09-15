@@ -50,21 +50,12 @@ ATTRIBUTE_COLD void recv_recover_page(fil_space_t* space, buf_page_t* bpage)
 	MY_ATTRIBUTE((nonnull));
 
 /** Start recovering from a redo log checkpoint.
-@see recv_recovery_from_checkpoint_finish
 @param[in]	flush_lsn	FIL_PAGE_FILE_FLUSH_LSN
 of first system tablespace page
 @return error code or DB_SUCCESS */
 dberr_t
 recv_recovery_from_checkpoint_start(
 	lsn_t	flush_lsn);
-/** Complete recovery from a checkpoint. */
-void
-recv_recovery_from_checkpoint_finish(void);
-/********************************************************//**
-Initiates the rollback of active transactions. */
-void
-recv_recovery_rollback_active(void);
-/*===============================*/
 
 /** Whether to store redo log records in recv_sys.pages */
 enum store_t {

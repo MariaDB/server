@@ -980,9 +980,9 @@ void recv_sys_t::debug_free()
 {
   ut_ad(this == &recv_sys);
   ut_ad(is_initialised());
-  ut_ad(!recv_recovery_is_on());
   mutex_enter(&mutex);
 
+  recovery_on= false;
   pages.clear();
   ut_free_dodump(buf, RECV_PARSING_BUF_SIZE);
 
@@ -3216,7 +3216,6 @@ recv_init_crash_recovery_spaces(bool rescan, bool& missing_tablespace)
 }
 
 /** Start recovering from a redo log checkpoint.
-@see recv_recovery_from_checkpoint_finish
 @param[in]	flush_lsn	FIL_PAGE_FILE_FLUSH_LSN
 of first system tablespace page
 @return error code or DB_SUCCESS */
