@@ -1844,21 +1844,13 @@ inline bool buf_pool_t::withdraw_blocks()
 
 		/* reserve free_list length */
 		if (UT_LIST_GET_LEN(withdraw) < withdraw_target) {
-			ulint	scan_depth;
 			flush_counters_t n;
 
-			/* cap scan_depth with current LRU size. */
-			mysql_mutex_lock(&mutex);
-			scan_depth = UT_LIST_GET_LEN(LRU);
-			mysql_mutex_unlock(&mutex);
-
-			scan_depth = ut_min(
-				ut_max(withdraw_target
-				       - UT_LIST_GET_LEN(withdraw),
-				       static_cast<ulint>(srv_LRU_scan_depth)),
-				scan_depth);
-
-			buf_flush_do_batch(scan_depth, 0, &n);
+			buf_flush_do_batch(
+				std::max<ulong>(withdraw_target
+						- UT_LIST_GET_LEN(withdraw),
+						srv_LRU_scan_depth),
+				0, &n);
 			buf_flush_wait_batch_end_acquiring_mutex(true);
 
 			if (n.flushed) {
@@ -4408,7 +4400,7 @@ void buf_pool_invalidate()
 	ut_d(buf_pool.assert_all_freed());
 	ut_d(mysql_mutex_lock(&buf_pool.mutex));
 
-	while (buf_LRU_scan_and_free_block(true));
+	while (buf_LRU_scan_and_free_block(ULINT_UNDEFINED));
 
 	ut_ad(UT_LIST_GET_LEN(buf_pool.LRU) == 0);
 	ut_ad(UT_LIST_GET_LEN(buf_pool.unzip_LRU) == 0);

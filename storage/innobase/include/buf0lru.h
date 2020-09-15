@@ -52,10 +52,9 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
   MY_ATTRIBUTE((nonnull));
 
 /** Try to free a replaceable block.
-@param[in]	scan_all	true=scan the whole LRU list,
-				false=use BUF_LRU_SEARCH_SCAN_THRESHOLD
+@param limit  maximum number of blocks to scan
 @return true if found and freed */
-bool buf_LRU_scan_and_free_block(bool scan_all);
+bool buf_LRU_scan_and_free_block(ulint max_scan);
 
 /** @return a buffer block from the buf_pool.free list
 @retval	NULL	if the free list is empty */

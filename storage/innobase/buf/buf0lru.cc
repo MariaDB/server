@@ -59,10 +59,6 @@ static const ulint BUF_LRU_OLD_TOLERANCE = 20;
 @see buf_LRU_old_adjust_len */
 #define BUF_LRU_NON_OLD_MIN_LEN	5
 
-/** We scan these many blocks when looking for a clean page to evict
-during LRU eviction. */
-static const ulint BUF_LRU_SEARCH_SCAN_THRESHOLD = 100;
-
 /** If we switch on the InnoDB monitor because there are too few available
 frames in the buffer pool, we set this to TRUE */
 static bool buf_lru_switched_on_innodb_mon = false;
@@ -193,10 +189,9 @@ bool buf_LRU_evict_from_unzip_LRU()
 
 /** Try to free an uncompressed page of a compressed block from the unzip
 LRU list.  The compressed page is preserved, and it need not be clean.
-@param[in]	scan_all	true=scan the whole list;
-				false=scan srv_LRU_scan_depth / 2 blocks
+@param limit  maximum number of blocks to scan
 @return true if freed */
-static bool buf_LRU_free_from_unzip_LRU_list(bool scan_all)
+static bool buf_LRU_free_from_unzip_LRU_list(ulint limit)
 {
 	mysql_mutex_assert_owner(&buf_pool.mutex);
 
@@ -205,7 +200,6 @@ static bool buf_LRU_free_from_unzip_LRU_list(bool scan_all)
 	}
 
 	ulint	scanned = 0;
-	const ulint limit = scan_all ? ULINT_UNDEFINED : srv_LRU_scan_depth;
 	bool	freed = false;
 
 	for (buf_block_t* block = UT_LIST_GET_LAST(buf_pool.unzip_LRU);
@@ -236,10 +230,9 @@ static bool buf_LRU_free_from_unzip_LRU_list(bool scan_all)
 }
 
 /** Try to free a clean page from the common LRU list.
-@param[in]	scan_all	true=scan the whole LRU list
-				false=use BUF_LRU_SEARCH_SCAN_THRESHOLD
+@param limit  maximum number of blocks to scan
 @return whether a page was freed */
-static bool buf_LRU_free_from_common_LRU_list(bool scan_all)
+static bool buf_LRU_free_from_common_LRU_list(ulint limit)
 {
 	mysql_mutex_assert_owner(&buf_pool.mutex);
 
@@ -247,7 +240,7 @@ static bool buf_LRU_free_from_common_LRU_list(bool scan_all)
 	bool		freed = false;
 
 	for (buf_page_t* bpage = buf_pool.lru_scan_itr.start();
-	     bpage && (scan_all || scanned < BUF_LRU_SEARCH_SCAN_THRESHOLD);
+	     bpage && scanned < limit;
 	     ++scanned, bpage = buf_pool.lru_scan_itr.get()) {
 		buf_page_t*	prev = UT_LIST_GET_PREV(LRU, bpage);
 		buf_pool.lru_scan_itr.set(prev);
@@ -284,15 +277,14 @@ static bool buf_LRU_free_from_common_LRU_list(bool scan_all)
 }
 
 /** Try to free a replaceable block.
-@param[in]	scan_all	true=scan the whole LRU list,
-				false=use BUF_LRU_SEARCH_SCAN_THRESHOLD
+@param limit  maximum number of blocks to scan
 @return true if found and freed */
-bool buf_LRU_scan_and_free_block(bool scan_all)
+bool buf_LRU_scan_and_free_block(ulint limit)
 {
-	mysql_mutex_assert_owner(&buf_pool.mutex);
+  mysql_mutex_assert_owner(&buf_pool.mutex);
 
-	return(buf_LRU_free_from_unzip_LRU_list(scan_all)
-	       || buf_LRU_free_from_common_LRU_list(scan_all));
+  return buf_LRU_free_from_unzip_LRU_list(limit) ||
+    buf_LRU_free_from_common_LRU_list(limit);
 }
 
 /** @return a buffer block from the buf_pool.free list
@@ -457,7 +449,9 @@ retry:
 		If we are doing for the first time we'll scan only
 		tail of the LRU list otherwise we scan the whole LRU
 		list. */
-		if (!buf_LRU_scan_and_free_block(n_iterations != 0)) {
+		if (!buf_LRU_scan_and_free_block(n_iterations
+						 ? ULINT_UNDEFINED
+						 : srv_LRU_scan_depth)) {
 			mysql_cond_signal(&buf_pool.do_flush_list);
 			if (n_iterations == 0) {
 				/* Tell other threads that there is no point
@@ -512,7 +506,7 @@ not_found:
 	can do that in a separate patch sometime in future. */
 
 	flush_counters_t n;
-	if (!buf_flush_do_batch(BUF_LRU_SEARCH_SCAN_THRESHOLD, 0, &n)) {
+	if (!buf_flush_do_batch(srv_LRU_scan_depth, 0, &n)) {
 		MONITOR_INC(MONITOR_LRU_SINGLE_FLUSH_FAILURE_COUNT);
 		++flush_failures;
 	}
