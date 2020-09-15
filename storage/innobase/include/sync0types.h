@@ -1003,6 +1003,7 @@ struct sync_checker : public sync_check_functor_t
 	{
 		if (some_allowed) {
 			switch (level) {
+			case SYNC_FSP:
 			case SYNC_DICT:
 			case SYNC_DICT_OPERATION:
 			case SYNC_FTS_CACHE:
