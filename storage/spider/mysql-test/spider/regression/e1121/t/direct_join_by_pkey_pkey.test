@@ -1,3 +1,4 @@
+--source include/no_protocol.inc
 --source ../include/direct_join_by_pkey_pkey_init.inc
 --echo
 --echo this test is for MDEV-18995

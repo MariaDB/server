@@ -1,3 +1,4 @@
+--source include/no_protocol.inc
 --source ../include/mdev_21884_init.inc
 --echo
 --echo this test is for MDEV-21884
