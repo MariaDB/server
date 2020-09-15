@@ -1847,7 +1847,7 @@ inline bool buf_pool_t::withdraw_blocks()
 			flush_counters_t n;
 
 			buf_flush_do_batch(
-				std::max<ulong>(withdraw_target
+				std::max<ulint>(withdraw_target
 						- UT_LIST_GET_LEN(withdraw),
 						srv_LRU_scan_depth),
 				0, &n);
