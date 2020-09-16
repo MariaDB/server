@@ -1166,8 +1166,7 @@ sync_check_iterate(const sync_check_functor_t& functor)
 
 Note: We don't enforce any synchronisation checks. The caller must ensure
 that no races can occur */
-void
-sync_check_enable()
+static void sync_check_enable()
 {
 	if (!srv_sync_debug) {
 
@@ -1490,6 +1489,8 @@ sync_check_init()
 	ut_d(LatchDebug::init());
 
 	sync_array_init();
+
+	ut_d(sync_check_enable());
 }
 
 /** Free the InnoDB synchronization data structures. */

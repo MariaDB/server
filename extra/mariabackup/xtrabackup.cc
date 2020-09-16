@@ -4008,7 +4008,6 @@ fail:
         }
 	srv_thread_pool_init();
 	sync_check_init();
-	ut_d(sync_check_enable());
 	/* Reset the system variables in the recovery module. */
 	trx_pool_init();
 
@@ -5385,7 +5384,6 @@ static bool xtrabackup_prepare_func(char** argv)
 		}
 
 		sync_check_init();
-		ut_d(sync_check_enable());
 		ut_crc32_init();
 		recv_sys.create();
 		log_sys.create();

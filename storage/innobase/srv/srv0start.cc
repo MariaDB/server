@@ -1606,11 +1606,6 @@ file_checked:
 		}
 
 		recv_sys.debug_free();
-#if 1 /* FIXME: do this earlier */
-		/* FIXME: latching order issues between recv_sys.mutex
-		and log_sys.mutex */
-		ut_d(sync_check_enable());
-#endif
 #if 1 // FIXME: this should not be needed!
 		/* At least the following tests fail if we remove this:
 		rpl.rpl_gtid_crash innodb.group_commit_crash_no_optimize_thread
