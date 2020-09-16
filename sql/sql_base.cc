@@ -8813,14 +8813,17 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
         goto err;
     field->set_has_explicit_value();
   }
-  /* Update virtual fields */
-  thd->abort_on_warning= FALSE;
-  if (table->versioned())
-    table->vers_update_fields();
-  if (table->vfield &&
-      table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE))
-    goto err;
-  thd->abort_on_warning= abort_on_warning_saved;
+  /* Update virtual fields if there wasn't any errors */
+  if (!thd->is_error())
+  {
+    thd->abort_on_warning= FALSE;
+    if (table->versioned())
+      table->vers_update_fields();
+    if (table->vfield &&
+        table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_WRITE))
+      goto err;
+    thd->abort_on_warning= abort_on_warning_saved;
+  }
   DBUG_RETURN(thd->is_error());
 
 err:
