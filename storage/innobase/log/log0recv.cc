@@ -3526,22 +3526,6 @@ completed:
 	return(DB_SUCCESS);
 }
 
-/** Complete recovery from a checkpoint. */
-void recv_recovery_from_checkpoint_finish()
-{
-	/* Free the resources of the recovery system */
-	recv_sys.recovery_on= false;
-
-	if (!srv_read_only_mode) {
-		buf_flush_sync();
-	}
-
-	recv_sys.debug_free();
-
-	/* Enable innodb_sync_debug checks */
-	ut_d(sync_check_enable()); // FIXME: enable earlier
-}
-
 bool recv_dblwr_t::validate_page(const page_id_t page_id,
                                  const byte *page,
                                  const fil_space_t *space,
