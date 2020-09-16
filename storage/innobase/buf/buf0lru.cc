@@ -1041,6 +1041,16 @@ buf_LRU_block_free_non_file_page(
 	MEM_NOACCESS(block->frame, srv_page_size);
 }
 
+/** Release a memory block to the buffer pool. */
+ATTRIBUTE_COLD void buf_pool_t::free_block(buf_block_t *block)
+{
+  ut_ad(this == &buf_pool);
+  mysql_mutex_lock(&mutex);
+  buf_LRU_block_free_non_file_page(block);
+  mysql_mutex_unlock(&mutex);
+}
+
+
 /** Remove bpage from buf_pool.LRU and buf_pool.page_hash.
 
 If bpage->state() == BUF_BLOCK_ZIP_PAGE && !bpage->oldest_modification(),

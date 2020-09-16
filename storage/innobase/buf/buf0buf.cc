@@ -3784,22 +3784,21 @@ FILE_PAGE (the other is buf_page_get_gen).
 @param[in]	offset		offset of the tablespace
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in,out]	mtr		mini-transaction
+@param[in,out]	free_block	pre-allocated buffer block
 @return pointer to the block, page bufferfixed */
 buf_block_t*
 buf_page_create(fil_space_t *space, uint32_t offset,
-                ulint zip_size, mtr_t *mtr)
+                ulint zip_size, mtr_t *mtr, buf_block_t *free_block)
 {
   page_id_t page_id(space->id, offset);
   ut_ad(mtr->is_active());
   ut_ad(page_id.space() != 0 || !zip_size);
 
   space->free_page(offset, false);
-loop:
-  buf_block_t *free_block= buf_LRU_get_free_block(false);
   free_block->initialise(page_id, zip_size, 1);
 
   const ulint fold= page_id.fold();
-
+loop:
   mysql_mutex_lock(&buf_pool.mutex);
 
   buf_block_t *block= reinterpret_cast<buf_block_t*>
@@ -3831,7 +3830,6 @@ loop:
 #ifdef BTR_CUR_HASH_ADAPT
       drop_hash_entry= block->index;
 #endif
-      buf_LRU_block_free_non_file_page(free_block);
       break;
     case BUF_BLOCK_ZIP_PAGE:
       page_hash_latch *hash_lock= buf_pool.page_hash.lock_get(fold);
@@ -4066,7 +4064,7 @@ static void buf_mark_space_corrupt(buf_page_t* bpage, const fil_space_t& space)
 
 /** Release and evict a corrupted page.
 @param bpage    page that was being read */
-void buf_pool_t::corrupted_evict(buf_page_t *bpage)
+ATTRIBUTE_COLD void buf_pool_t::corrupted_evict(buf_page_t *bpage)
 {
   const page_id_t id(bpage->id());
   page_hash_latch *hash_lock= hash_lock_get(id);
@@ -4096,6 +4094,7 @@ void buf_pool_t::corrupted_evict(buf_page_t *bpage)
 @param[in]	bpage	Corrupted page
 @param[in]	node	data file
 Also remove the bpage from LRU list. */
+ATTRIBUTE_COLD
 static void buf_corrupt_page_release(buf_page_t *bpage, const fil_node_t &node)
 {
   ut_ad(bpage->id().space() == node.space->id);
@@ -4279,7 +4278,7 @@ dberr_t buf_page_read_complete(buf_page_t *bpage, const fil_node_t &node)
   }
 
   err= buf_page_check_corrupt(bpage, node);
-  if (err != DB_SUCCESS)
+  if (UNIV_UNLIKELY(err != DB_SUCCESS))
   {
 database_corrupted:
     /* Not a real corruption if it was triggered by error injection */

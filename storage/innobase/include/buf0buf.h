@@ -335,10 +335,11 @@ FILE_PAGE (the other is buf_page_get_gen).
 @param[in]	offset		offset of the tablespace
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in,out]	mtr		mini-transaction
+@param[in,out]	free_block	pre-allocated buffer block
 @return pointer to the block, page bufferfixed */
 buf_block_t*
 buf_page_create(fil_space_t *space, uint32_t offset,
-                ulint zip_size, mtr_t *mtr);
+                ulint zip_size, mtr_t *mtr, buf_block_t *free_block);
 
 /********************************************************************//**
 Releases a compressed-only page acquired with buf_page_get_zip(). */
@@ -1526,7 +1527,10 @@ public:
 
   /** Release and evict a corrupted page.
   @param bpage    page that was being read */
-  void corrupted_evict(buf_page_t *bpage);
+  ATTRIBUTE_COLD void corrupted_evict(buf_page_t *bpage);
+
+  /** Release a memory block to the buffer pool. */
+  ATTRIBUTE_COLD void free_block(buf_block_t *block);
 
 #ifdef UNIV_DEBUG
   /** Find a block that points to a ROW_FORMAT=COMPRESSED page

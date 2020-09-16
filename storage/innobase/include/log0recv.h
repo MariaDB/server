@@ -287,9 +287,10 @@ private:
   @param page_id  page identifier
   @param p        iterator pointing to page_id
   @param mtr      mini-transaction
+  @param b        pre-allocated buffer pool block
   @return whether the page was successfully initialized */
   inline buf_block_t *recover_low(const page_id_t page_id, map::iterator &p,
-                                  mtr_t &mtr);
+                                  mtr_t &mtr, buf_block_t *b);
   /** Attempt to initialize a page based on redo log records.
   @param page_id  page identifier
   @return the recovered block

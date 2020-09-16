@@ -2471,9 +2471,11 @@ static void recv_read_in_area(page_id_t page_id)
 @param page_id  page identifier
 @param p        iterator pointing to page_id
 @param mtr      mini-transaction
+@param b        pre-allocated buffer pool block
 @return whether the page was successfully initialized */
 inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
-                                            map::iterator &p, mtr_t &mtr)
+                                            map::iterator &p, mtr_t &mtr,
+                                            buf_block_t *b)
 {
   ut_ad(mutex_own(&mutex));
   ut_ad(p->first == page_id);
@@ -2489,20 +2491,21 @@ inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
   {
     mtr.start();
     mtr.set_log_mode(MTR_LOG_NO_REDO);
-    block= buf_page_create(space, page_id.page_no(), space->zip_size(), &mtr);
-    p= recv_sys.pages.find(page_id);
-    if (p == recv_sys.pages.end())
+    block= buf_page_create(space, page_id.page_no(), space->zip_size(), &mtr,
+                           b);
+    if (UNIV_UNLIKELY(block != b))
     {
       /* The page happened to exist in the buffer pool, or it was just
       being read in. Before buf_page_get_with_no_latch() returned to
       buf_page_create(), all changes must have been applied to the
       page already. */
+      ut_ad(recv_sys.pages.find(page_id) == recv_sys.pages.end());
       mtr.commit();
       block= nullptr;
     }
     else
     {
-      ut_ad(&recs == &p->second);
+      ut_ad(&recs == &recv_sys.pages.find(page_id)->second);
       i.created= true;
       buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
       recv_recover_page(block, mtr, p, space, &i);
@@ -2522,6 +2525,7 @@ inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
 @return whether the page was successfully initialized */
 buf_block_t *recv_sys_t::recover_low(const page_id_t page_id)
 {
+  buf_block_t *free_block= buf_LRU_get_free_block(false);
   buf_block_t *block= nullptr;
 
   mutex_enter(&mutex);
@@ -2530,10 +2534,13 @@ buf_block_t *recv_sys_t::recover_low(const page_id_t page_id)
   if (p != pages.end() && p->second.state == page_recv_t::RECV_WILL_NOT_READ)
   {
     mtr_t mtr;
-    block= recover_low(page_id, p, mtr);
+    block= recover_low(page_id, p, mtr, free_block);
+    ut_ad(!block || block == free_block);
   }
 
   mutex_exit(&mutex);
+  if (UNIV_UNLIKELY(!block))
+    buf_pool.free_block(free_block);
   return block;
 }
 
@@ -2588,6 +2595,8 @@ void recv_sys_t::apply(bool last_batch)
         trim(page_id_t(id + srv_undo_space_id_start, t.pages), t.lsn);
     }
 
+    buf_block_t *free_block= buf_LRU_get_free_block(false);
+
     for (map::iterator p= pages.begin(); p != pages.end(); )
     {
       const page_id_t page_id= p->first;
@@ -2600,7 +2609,14 @@ void recv_sys_t::apply(bool last_batch)
         p++;
         continue;
       case page_recv_t::RECV_WILL_NOT_READ:
-        recover_low(page_id, p, mtr);
+        if (UNIV_LIKELY(!!recover_low(page_id, p, mtr, free_block)))
+        {
+          mutex_exit(&mutex);
+          free_block= buf_LRU_get_free_block(false);
+          mutex_enter(&mutex);
+next_page:
+          p= pages.lower_bound(page_id);
+        }
         continue;
       case page_recv_t::RECV_NOT_PROCESSED:
         mtr.start();
@@ -2626,8 +2642,10 @@ void recv_sys_t::apply(bool last_batch)
         continue;
       }
 
-      p= pages.lower_bound(page_id);
+      goto next_page;
     }
+
+    buf_pool.free_block(free_block);
 
     /* Wait until all the pages have been processed */
     while (!pages.empty())
