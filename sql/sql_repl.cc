@@ -2130,7 +2130,7 @@ static int init_binlog_sender(binlog_send_info *info,
         "Start binlog_dump to slave_server(%lu), pos(%s, %lu), "
         "using_gtid(%d), gtid('%s')", thd->variables.server_id,
         log_ident, (ulong)*pos, info->using_gtid_state,
-        connect_gtid_state.c_ptr_quick());
+        connect_gtid_state.c_ptr_safe());
   }
 
 #ifndef DBUG_OFF
@@ -2153,7 +2153,7 @@ static int init_binlog_sender(binlog_send_info *info,
   const char *name=search_file_name;
   if (info->using_gtid_state)
   {
-    if (info->gtid_state.load(connect_gtid_state.c_ptr_quick(),
+    if (info->gtid_state.load(connect_gtid_state.ptr(),
                              connect_gtid_state.length()))
     {
       info->errmsg= "Out of memory or malformed slave request when obtaining "
@@ -2162,7 +2162,7 @@ static int init_binlog_sender(binlog_send_info *info,
       return 1;
     }
     if (info->until_gtid_state &&
-        info->until_gtid_state->load(slave_until_gtid_str.c_ptr_quick(),
+        info->until_gtid_state->load(slave_until_gtid_str.ptr(),
                                     slave_until_gtid_str.length()))
     {
       info->errmsg= "Out of memory or malformed slave request when "

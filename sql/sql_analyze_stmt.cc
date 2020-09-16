@@ -81,7 +81,7 @@ void Filesort_tracker::print_json_members(Json_writer *writer)
   }
 
   get_data_format(&str);
-  writer->add_member("r_sort_mode").add_str(str.c_ptr(), str.length());
+  writer->add_member("r_sort_mode").add_str(str.ptr(), str.length());
 }
 
 void Filesort_tracker::get_data_format(String *str)
