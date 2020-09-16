@@ -1250,7 +1250,7 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
     {
       Wsrep_schema_impl::thd_context_switch thd_context_switch(&thd, orig_thd);
 
-      ret= wsrep_apply_events(orig_thd, rli, buf.c_ptr_quick(), buf.length());
+      ret= wsrep_apply_events(orig_thd, rli, buf.ptr(), buf.length());
       if (ret)
       {
         WSREP_WARN("Wsrep_schema::replay_transaction: failed to apply fragments");
@@ -1404,7 +1404,7 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
       String data_str;
 
       (void)frag_table->field[4]->val_str(&data_str);
-      wsrep::const_buffer data(data_str.c_ptr_quick(), data_str.length());
+      wsrep::const_buffer data(data_str.ptr(), data_str.length());
       wsrep::ws_meta ws_meta(gtid,
                              wsrep::stid(server_id,
                                          transaction_id,

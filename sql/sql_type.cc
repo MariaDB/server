@@ -9258,7 +9258,7 @@ Type_handler_general_purpose_int::partition_field_append_value(
                                             const
 {
   DBUG_ASSERT(item_expr->cmp_type() == INT_RESULT);
-  StringBuffer<21> tmp;
+  StringBuffer<LONGLONG_BUFFER_SIZE> tmp;
   longlong value= item_expr->val_int();
   tmp.set(value, system_charset_info);
   return str->append(tmp);

@@ -12077,18 +12077,18 @@ using_list:
           {
             if (unlikely(!($$= new (thd->mem_root) List<String>)))
               MYSQL_YYABORT;
-            String *s= new (thd->mem_root) String((const char *) $1.str,
-                                                    $1.length,
-                                                    system_charset_info);
+            String *s= new (thd->mem_root) String((const char*) $1.str,
+                                                  $1.length,
+                                                  system_charset_info);
             if (unlikely(unlikely(s == NULL)))
               MYSQL_YYABORT;
             $$->push_back(s, thd->mem_root);
           }
         | using_list ',' ident
           {
-            String *s= new (thd->mem_root) String((const char *) $3.str,
-                                                    $3.length,
-                                                    system_charset_info);
+            String *s= new (thd->mem_root) String((const char*) $3.str,
+                                                  $3.length,
+                                                  system_charset_info);
             if (unlikely(unlikely(s == NULL)))
               MYSQL_YYABORT;
             if (unlikely($1->push_back(s, thd->mem_root)))
@@ -14256,8 +14256,9 @@ wild_and_where:
           /* empty */ { $$= 0; }
         | LIKE remember_tok_start TEXT_STRING_sys
           {
-            Lex->wild= new (thd->mem_root) String($3.str, $3.length,
-                                                    system_charset_info);
+            Lex->wild= new (thd->mem_root) String((const char*) $3.str,
+                                                   $3.length,
+                                                   system_charset_info);
             if (unlikely(Lex->wild == NULL))
               MYSQL_YYABORT;
             $$= $2;
@@ -14931,9 +14932,9 @@ text_literal:
 text_string:
           TEXT_STRING_literal
           {
-            $$= new (thd->mem_root) String($1.str,
-                                             $1.length,
-                                             thd->variables.collation_connection);
+            $$= new (thd->mem_root) String((const char*) $1.str,
+                                           $1.length,
+                                           thd->variables.collation_connection);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }

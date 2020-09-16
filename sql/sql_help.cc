@@ -541,7 +541,12 @@ extern "C" int string_ptr_cmp(const void* ptr1, const void* ptr2)
 {
   String *str1= *(String**)ptr1;
   String *str2= *(String**)ptr2;
-  return strcmp(str1->c_ptr(),str2->c_ptr());
+  uint length1= str1->length();
+  uint length2= str2->length();
+  int tmp= memcmp(str1->ptr(),str2->ptr(), MY_MIN(length1, length2));
+  if (tmp)
+    return tmp;
+  return (int) length2 - (int) length1;
 }
 
 /*

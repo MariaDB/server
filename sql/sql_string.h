@@ -600,25 +600,55 @@ public:
 
   inline char *c_ptr()
   {
-    DBUG_ASSERT(!alloced || !Ptr || !Alloced_length ||
-                (Alloced_length >= (str_length + 1)));
+    if (unlikely(!Ptr))
+      return (char*) "";
+    /*
+      Here we assume that any buffer used to initalize String has
+      an end \0 or have at least an accessable character at end.
+      This is to handle the case of String("Hello",5) and
+      String("hello",5) efficiently.
 
-    if (!Ptr || Ptr[str_length])              // Should be safe
-      (void) realloc(str_length);
+      We have two options here. To test for !Alloced_length or !alloced.
+      Using "Alloced_length" is slightly safer so that we do not read
+      from potentially unintialized memory (normally not dangerous but
+      may give warnings in valgrind), but "alloced" is safer as there
+      are less change to get memory loss from code that is using
+      String((char*), length) or String.set((char*), length) and does
+      not free things properly (and there is several places in the code
+      where this happens and it is hard to find out if any of these will call
+      c_ptr().
+    */
+    if (unlikely(!alloced && !Ptr[str_length]))
+      return Ptr;
+    if (str_length < Alloced_length)
+    {
+      Ptr[str_length]=0;
+      return Ptr;
+    }
+    (void) realloc(str_length+1);               /* This will add end \0 */
     return Ptr;
   }
+  /*
+    One should use c_ptr() instead for most cases. This will be deleted soon,
+    kept for compatiblity.
+  */
   inline char *c_ptr_quick()
   {
-    if (Ptr && str_length < Alloced_length)
-      Ptr[str_length]=0;
-    return Ptr;
+    return c_ptr_safe();
   }
+  /*
+    This is to be used only in the case when one cannot use c_ptr().
+    The cases are:
+    - When one initializes String with an external buffer and length and
+      buffer[length] could be uninitalized when c_ptr() is called.
+    - When valgrind gives warnings about uninitialized memory with c_ptr().
+  */
   inline char *c_ptr_safe()
   {
     if (Ptr && str_length < Alloced_length)
       Ptr[str_length]=0;
     else
-      (void) realloc(str_length);
+      (void) realloc(str_length + 1);
     return Ptr;
   }
 
@@ -634,7 +664,16 @@ public:
   }
   inline bool alloc(size_t arg_length)
   {
-    if (arg_length < Alloced_length)
+    /*
+      Allocate if we need more space or if we don't have p_done any
+      allocation yet (we don't want to have Ptr to be NULL for empty strings).
+
+      Note that if arg_length == Alloced_length then we don't allocate.
+      This ensures we don't do any extra allocations in protocol and String:int,
+      but the string will not be atomically null terminated if c_ptr() is not
+      called.
+    */
+    if (arg_length <= Alloced_length && Alloced_length)
       return 0;
     return real_alloc(arg_length);
   }
@@ -642,7 +681,7 @@ public:
   bool realloc_raw(size_t arg_length);
   bool realloc(size_t arg_length)
   {
-    if (realloc_raw(arg_length))
+    if (realloc_raw(arg_length+1))
       return TRUE;
     Ptr[arg_length]= 0; // This make other funcs shorter
     return FALSE;
@@ -743,7 +782,7 @@ public:
   */
   String(const char *str, size_t len, CHARSET_INFO *cs)
    :Charset(cs),
-    Binary_string((char *) str, len)
+    Binary_string(str, len)
   { }
   String(char *str, size_t len, CHARSET_INFO *cs)
    :Charset(cs),
