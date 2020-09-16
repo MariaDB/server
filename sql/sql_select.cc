@@ -27524,7 +27524,7 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
         for (i= 1; i <= num_parts; i++)
         {
           String *name= name_it++;
-          append_identifier(thd, str, name->c_ptr(), name->length());
+          append_identifier(thd, str, name->ptr(), name->length());
           if (i != num_parts)
             str->append(',');
         }

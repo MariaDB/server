@@ -404,12 +404,16 @@ static int item_value_type(struct st_mysql_value *value)
 static const char *item_val_str(struct st_mysql_value *value,
                                 char *buffer, int *length)
 {
-  String str(buffer, *length, system_charset_info), *res;
+  size_t org_length= *length;
+  String str(buffer, org_length, system_charset_info), *res;
   if (!(res= ((st_item_value_holder*)value)->item->val_str(&str)))
     return NULL;
   *length= res->length();
-  if (res->c_ptr_quick() == buffer)
+  if (res->ptr() == buffer && res->length() < org_length)
+  {
+    buffer[res->length()]= 0;
     return buffer;
+  }
 
   /*
     Lets be nice and create a temporary string since the

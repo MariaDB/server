@@ -10077,7 +10077,7 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   */
   DBUG_ASSERT(buffer != NULL);
   length= MY_MIN(str.length(), length-1);
-  memcpy(buffer, str.c_ptr_quick(), length);
+  memcpy(buffer, str.ptr(), length);
   /* Make sure that the new string is null terminated */
   buffer[length]= '\0';
   return buffer;

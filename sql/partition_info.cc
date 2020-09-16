@@ -126,7 +126,7 @@ partition_info *partition_info::get_clone(THD *thd)
 /**
   Mark named [sub]partition to be used/locked.
 
-  @param part_name  Partition name to match.
+  @param part_name  Partition name to match.  Must be \0 terminated!
   @param length     Partition name length.
 
   @return Success if partition found
@@ -172,9 +172,9 @@ bool partition_info::add_named_partition(const char *part_name, size_t length)
     else
       bitmap_set_bit(&read_partitions, part_def->part_id);
   }
-  DBUG_PRINT("info", ("Found partition %u is_subpart %d for name %s",
+  DBUG_PRINT("info", ("Found partition %u is_subpart %d for name %.*s",
                       part_def->part_id, part_def->is_subpart,
-                      part_name));
+                      length, part_name));
   DBUG_RETURN(false);
 }
 
