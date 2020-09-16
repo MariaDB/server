@@ -312,6 +312,7 @@ class Window_spec;
   but still return false from Item_sum::const_item().
 */
 class Unique;
+class Variable_sized_keys;
 
 class Item_sum :public Item_func_or_sum
 {
@@ -681,10 +682,12 @@ class Aggregator_distinct : public Aggregator
   */
   bool use_distinct_values;
 
+  Variable_sized_keys *variable_sized_keys;
+
 public:
   Aggregator_distinct (Item_sum *sum) :
     Aggregator(sum), table(NULL), tmp_table_param(NULL), tree(NULL),
-    always_null(false), use_distinct_values(false) {}
+    always_null(false), use_distinct_values(false), variable_sized_keys(NULL) {}
   virtual ~Aggregator_distinct ();
   Aggregator_type Aggrtype() { return DISTINCT_AGGREGATOR; }
 
@@ -698,7 +701,6 @@ public:
 
   bool unique_walk_function(void *element);
   bool unique_walk_function_for_count(void *element);
-  bool is_distinct_packed();
   int insert_record_to_unique();
   static int composite_key_cmp(void* arg, uchar* key1, uchar* key2);
   static int composite_packed_key_cmp(void* arg, uchar* key1, uchar* key2);

@@ -24,6 +24,7 @@
 
 class Field;
 struct TABLE;
+class Item_sum;
 
 /* Defines used by filesort and uniques */
 
@@ -696,5 +697,67 @@ int merge_index(Sort_param *param, Sort_buffer sort_buffer,
                 Merge_chunk *buffpek, uint maxbuffer,
                 IO_CACHE *tempfile, IO_CACHE *outfile);
 void reuse_freed_buff(QUEUE *queue, Merge_chunk *reuse, uint key_length);
+
+
+/*
+  An interface to handle variable sized records.
+  The primary use of this class is to create record for a key
+  which has variable sized values for its keyparts.
+
+
+  The format used for the record is:
+
+    <total_key_length> <keypart1_null_byte> < keypart1_length> <keypart1_value> ......... <keypartN_value>
+
+  <total_key_length>     : 4 bytes is used to store the length of the key.
+  <keypart1_null_byte>   : uses 1 byte to store nullability for a kepart,
+                           no byte is used if  the keypart is defined as NOT NULLABLE
+  <keypart1_length>      : length of the value of the keypart. This is optional and is only stored for keyparts
+                           that can have variable sized values. For eg VARCHARS and CHARS will have this length
+                           but integers being fixed size will not have these additional bytes for length.
+  <keypart1_value>       : the value for the keypart.
+
+*/
+class Variable_sized_keys : public Sql_alloc
+{
+  /*
+    Packed record ptr for a record of the table, the packed value in this
+    record is added to the unique tree
+  */
+  uchar* packed_rec_ptr;
+
+  String tmp_buffer;
+
+  /*
+    Array of SORT_FIELD structure storing the information about the key parts
+    in the sort key of the Unique tree
+    @see Unique::setup()
+  */
+  SORT_FIELD *sortorder;
+
+  /*
+    Structure storing information about usage of keys
+  */
+  Sort_keys *sort_keys;
+
+  uint key_length;
+
+public:
+  Variable_sized_keys(uint size);
+  ~Variable_sized_keys();
+
+  uchar *get_packed_rec_ptr() { return packed_rec_ptr; }
+  Sort_keys *get_keys() { return sort_keys; }
+  SORT_FIELD *get_sortorder() { return sortorder; }
+  bool setup(THD *thd, Item_sum *item, uint non_const_args, uint arg_count);
+  bool setup(THD *thd, Field *field);
+  uint make_packed_record(bool exclude_nulls);
+  int compare_packed_keys(uchar *a, uchar *b);
+  static void store_packed_length(uchar *p, uint sz)
+  {
+    int4store(p, sz - size_of_length_field);
+  }
+  static const uint size_of_length_field= 4;
+};
 
 #endif /* SQL_SORT_INCLUDED */

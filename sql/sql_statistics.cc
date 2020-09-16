@@ -32,6 +32,7 @@
 #include "uniques.h"
 #include "sql_show.h"
 #include "sql_partition.h"
+#include "sql_sort.h"
 
 /*
   The system variable 'use_stat_tables' can take one of the
@@ -1655,6 +1656,7 @@ protected:
 
   ulonglong distincts;
   ulonglong distincts_single_occurence;
+  Variable_sized_keys *variable_size_keys;
 
 public:
   
@@ -1680,12 +1682,15 @@ public:
     table_field= field;
     tree_key_length= 0;
     tree= NULL;
+    variable_size_keys= NULL;
   }
 
   virtual ~Count_distinct_field()
   {
     delete tree;
     tree= NULL;
+    delete variable_size_keys;
+    variable_size_keys= NULL;
   }
 
   /* 
@@ -1714,20 +1719,24 @@ public:
 
       tree_key_length+= Unique_packed::size_of_length_field;
       tree_key_length+= MY_TEST(table_field->maybe_null());
+      variable_size_keys= new Variable_sized_keys(tree_key_length);
+      if (!variable_size_keys)
+        return true; // OOM
+
       tree= new Unique_packed_single_arg((qsort_cmp2) simple_packed_str_key_cmp,
                                          (void*) this, tree_key_length,
                                          max_heap_table_size, 1);
+      return variable_size_keys->setup(thd, table_field);
+
     }
-    else
-    {
-      tree_key_length= table_field->pack_length();
-      tree= new Unique((qsort_cmp2) simple_str_key_cmp, (void*) table_field,
-                       tree_key_length, max_heap_table_size, 1);
-    }
+
+    tree_key_length= table_field->pack_length();
+    tree= new Unique((qsort_cmp2) simple_str_key_cmp, (void*) table_field,
+                     tree_key_length, max_heap_table_size, 1);
+
     if (!tree)
       return true;  // OOM
-
-    return tree->setup(thd, table_field);
+    return false;
   }
 
 
@@ -1743,10 +1752,11 @@ public:
     uint length= tree->get_size();
     if (tree->is_packed())
     {
-      length= tree->make_packed_record(true);
+      DBUG_ASSERT(variable_size_keys);
+      length= variable_size_keys->make_packed_record(true);
       DBUG_ASSERT(length != 0);
       DBUG_ASSERT(length <= tree->get_size());
-      return tree->unique_add(tree->get_packed_rec_ptr(), length);
+      return tree->unique_add(variable_size_keys->get_packed_rec_ptr(), length);
     }
     return tree->unique_add(table_field->ptr, length);
   }
@@ -1824,9 +1834,10 @@ int Count_distinct_field::simple_packed_str_key_cmp(void* arg,
                                                     uchar* key1, uchar* key2)
 {
   Count_distinct_field *compare_arg= (Count_distinct_field*)arg;
-  return compare_arg->tree->compare_packed_keys(key1, key2);
+  DBUG_ASSERT(compare_arg->variable_size_keys);
+  return compare_arg->variable_size_keys->compare_packed_keys(key1, key2);
 }
-  
+
 
 /* 
   The class Count_distinct_field_bit is derived from the class 

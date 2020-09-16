@@ -34,6 +34,7 @@
 #include "sp.h"
 #include "sql_parse.h"
 #include "sp_head.h"
+#include "sql_sort.h"
 
 /**
   Calculate the affordable RAM limit for structures like TREE or Unique
@@ -722,8 +723,8 @@ Aggregator_distinct::composite_packed_key_cmp(void* arg,
                                               uchar* key1, uchar* key2)
 {
   Aggregator_distinct *aggr= (Aggregator_distinct *) arg;
-  DBUG_ASSERT(aggr->tree);
-  return aggr->tree->compare_packed_keys(key1, key2);
+  DBUG_ASSERT(aggr->variable_sized_keys);
+  return aggr->variable_sized_keys->compare_packed_keys(key1, key2);
 }
 
 
@@ -900,8 +901,10 @@ bool Aggregator_distinct::setup(THD *thd)
       {
         compare_key= (qsort_cmp2) composite_packed_key_cmp;
         cmp_arg= (void*)this;
+        variable_sized_keys= new Variable_sized_keys(tree_key_length);
+        if (variable_sized_keys == NULL)
+          return true;
       }
-
       DBUG_ASSERT(tree == 0);
 
       tree= item_sum->get_unique(compare_key, cmp_arg, tree_key_length,
@@ -913,8 +916,10 @@ bool Aggregator_distinct::setup(THD *thd)
         but this has to be handled - otherwise someone can crash
         the server with a DoS attack
       */
-      if (!tree || tree->setup(thd, item_sum,
-                               non_const_items, item_sum->get_arg_count()))
+      if (!tree || (variable_sized_keys &&
+                    variable_sized_keys->setup(thd, item_sum,
+                                               non_const_items,
+                                               item_sum->get_arg_count())))
         return TRUE;
     }
     return FALSE;
@@ -1016,10 +1021,10 @@ int Aggregator_distinct::insert_record_to_unique()
   if (tree->is_packed())
   {
     uint packed_length;
-    if ((packed_length= tree->make_packed_record(true)) == 0)
+    if ((packed_length= variable_sized_keys->make_packed_record(true)) == 0)
       return -1; // NULL value
     DBUG_ASSERT(packed_length <= tree->get_size());
-    return tree->unique_add(tree->get_packed_rec_ptr(), packed_length);
+    return tree->unique_add(variable_sized_keys->get_packed_rec_ptr(), packed_length);
   }
 
   copy_fields(tmp_table_param);
@@ -1861,22 +1866,6 @@ bool Aggregator_distinct::unique_walk_function_for_count(void *element)
 }
 
 
-/*
-  @brief
-    Checks whether the unique tree is packed or not
-
-  @retval
-    TRUE    tree stored packed values
-    FALSE   otherwise
-*/
-
-bool Aggregator_distinct::is_distinct_packed()
-{
-  return tree && tree->is_packed();
-
-}
-
-
 Aggregator_distinct::~Aggregator_distinct()
 {
   if (tree)
@@ -1893,6 +1882,11 @@ Aggregator_distinct::~Aggregator_distinct()
   {
     delete tmp_table_param;
     tmp_table_param= NULL;
+  }
+  if (variable_sized_keys)
+  {
+    delete variable_sized_keys;
+    variable_sized_keys= NULL;
   }
 }
 
@@ -4767,11 +4761,6 @@ bool Item_func_group_concat::is_packing_allowed(uint* total_length)
   */
   if (!distinct || arg_count_order)
     return false;
-
-  /*
-    TODO varun: this needs to be removed
-  */
-  return false;
 
   return Item_sum::is_packing_allowed(table, total_length);
 }

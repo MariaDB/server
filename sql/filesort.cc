@@ -3233,3 +3233,173 @@ static uint make_packed_sortkey(Sort_param *param, uchar *to)
   Sort_keys::store_sortkey_length(orig_to, length);
   return length;
 }
+
+
+Variable_sized_keys::Variable_sized_keys(uint size):
+                     packed_rec_ptr(NULL),
+                     sortorder(NULL), sort_keys(NULL),
+                     key_length(size)
+{
+  packed_rec_ptr= (uchar *)my_malloc(PSI_INSTRUMENT_ME,
+                                     size,
+                                     MYF(MY_WME | MY_THREAD_SPECIFIC));
+  tmp_buffer.alloc(size);
+}
+
+
+Variable_sized_keys::~Variable_sized_keys()
+{
+  my_free(packed_rec_ptr);
+}
+
+
+/*
+  @brief
+    Setup the structures that are used when Unique stores packed values
+
+  @param thd                   thread structure
+  @param item                  item of aggregate function
+  @param non_const_args        number of non constant arguments
+  @param arg_count             total number of arguments
+
+  @note
+    This implementation is used by GROUP_CONCAT and COUNT_DISTINCT
+    as it can have more than one arguments in the argument list.
+
+  @retval
+    TRUE  error
+    FALSE setup successful
+*/
+
+bool
+Variable_sized_keys::setup(THD *thd, Item_sum *item,
+                           uint non_const_args, uint arg_count)
+{
+  SORT_FIELD *sort,*pos;
+  if (sortorder)
+    return false;
+  DBUG_ASSERT(sort_keys == NULL);
+  sortorder= (SORT_FIELD*) thd->alloc(sizeof(SORT_FIELD) * non_const_args);
+  pos= sort= sortorder;
+  if (!pos)
+    return true;
+  sort_keys= new Sort_keys(sortorder, non_const_args);
+  if (!sort_keys)
+    return true;
+  sort=pos= sortorder;
+  for (uint i= 0; i < arg_count; i++)
+  {
+    Item *arg= item->get_arg(i);
+    if (arg->const_item())
+      continue;
+
+    if (arg->type() == Item::FIELD_ITEM)
+    {
+      Field *field= ((Item_field*)arg)->field;
+      pos->setup(field, false);
+    }
+    else
+      pos->setup(arg, false);
+    pos++;
+  }
+  return false;
+}
+
+
+/*
+  @brief
+    Setup the structures that are used when Unique stores packed values
+
+  @param thd                   thread structure
+  @param field                 field structure
+
+  @retval
+    TRUE  error
+    FALSE setup successful
+*/
+
+bool Variable_sized_keys::setup(THD *thd, Field *field)
+{
+  SORT_FIELD *sort,*pos;
+  if (sortorder)
+    return false;
+
+  DBUG_ASSERT(sort_keys == NULL);
+  sortorder= (SORT_FIELD*) thd->alloc(sizeof(SORT_FIELD));
+  pos= sort= sortorder;
+  if (!pos)
+    return true;
+  sort_keys= new Sort_keys(sortorder, 1);
+  if (!sort_keys)
+    return true;
+  sort=pos= sortorder;
+  pos->setup(field, false);  // Nulls are always excluded
+
+  return false;
+}
+
+
+/*
+  @brief
+    Compare two packed keys inside the Unique tree
+
+  @param a_ptr             packed sort key
+  @param b_ptr             packed sort key
+
+  @retval
+    >0   key a_ptr greater than b_ptr
+    =0   key a_ptr equal to b_ptr
+    <0   key a_ptr less than b_ptr
+
+*/
+
+int Variable_sized_keys::compare_packed_keys(uchar *a_ptr, uchar *b_ptr)
+{
+  return sort_keys->compare_keys(a_ptr + size_of_length_field,
+                                 b_ptr + size_of_length_field);
+}
+
+
+/*
+  TODO varun:  add description
+*/
+uint Variable_sized_keys::make_packed_record(bool exclude_nulls)
+{
+  Field *field;
+  SORT_FIELD *sort_field;
+  uint length;
+  uchar *orig_to, *to;
+  orig_to= to= packed_rec_ptr;
+  to+= size_of_length_field;
+
+  for (sort_field=sort_keys->begin() ;
+       sort_field != sort_keys->end() ;
+       sort_field++)
+  {
+    bool maybe_null=0;
+    if ((field=sort_field->field))
+    {
+      // Field
+      length= field->make_packed_sort_key_part(to, sort_field);
+    }
+    else
+    {           // Item
+      Item *item= sort_field->item;
+      length= item->type_handler()->make_packed_sort_key_part(to, item,
+                                                              sort_field,
+                                                              &tmp_buffer);
+    }
+
+    if ((maybe_null= sort_field->maybe_null))
+    {
+      if (exclude_nulls && length == 0)
+        return 0;   // NULL value
+      to++;
+    }
+    to+= length;
+  }
+
+  length= static_cast<int>(to - orig_to);
+  store_packed_length(orig_to, length);
+  return length;
+}
