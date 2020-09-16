@@ -863,7 +863,7 @@ lock_rec_bitmap_reset(
 
 	ut_ad((lock_rec_get_n_bits(lock) % 8) == 0);
 
-	memset(&lock[1], 0, n_bytes);
+	memset(reinterpret_cast<void*>(&lock[1]), 0, n_bytes);
 }
 
 /*********************************************************************//**
