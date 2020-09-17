@@ -63,9 +63,10 @@ CREATE VIEW v1 AS SELECT DISTINCT n_name, c_name FROM customer, orders, nation
 WHERE o_custkey= c_custkey and c_nationkey= n_nationkey;
 
 --echo #
---echo # The two queries should return the same result
+--echo # These 2 queries should return the same result
 --echo #
-SELECT n_name, GROUP_CONCAT(c_name), COUNT(c_name) FROM v1 GROUP BY n_name;
+
+SELECT n_name, GROUP_CONCAT(c_name ORDER BY c_name), COUNT(c_name) FROM v1 GROUP BY n_name;
 
 SELECT n_name, GROUP_CONCAT(DISTINCT c_name), COUNT(DISTINCT c_name)
 FROM customer, orders, nation

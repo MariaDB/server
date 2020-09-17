@@ -1862,9 +1862,6 @@ int group_concat_key_cmp_with_order(void* arg, const void* key1,
                                     const void* key2);
 int group_concat_key_cmp_with_order_with_nulls(void *arg, const void *key1,
                                                const void *key2);
-int dump_leaf_key(void* key_arg,
-                  element_count count __attribute__((unused)),
-                  void* item_arg);
 C_MODE_END
 
 class Item_func_group_concat : public Item_sum
@@ -1916,6 +1913,8 @@ protected:
   */
   Item_func_group_concat *original;
 
+  Variable_sized_keys *variable_sized_keys;
+
   /*
     Used by Item_func_group_concat and Item_func_json_arrayagg. The latter
     needs null values but the former doesn't.
@@ -1934,9 +1933,6 @@ protected:
 					     const void* key2);
   friend int group_concat_key_cmp_with_order_with_nulls(void *arg,
                                        const void *key1, const void *key2);
-  friend int dump_leaf_key(void* key_arg,
-                           element_count count __attribute__((unused)),
-			   void* item_arg);
 
   bool repack_tree(THD *thd);
 
@@ -2037,6 +2033,13 @@ public:
   Unique *get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
                      uint size_arg, size_t max_in_memory_size_arg,
                      uint min_dupl_count_arg, bool allow_packing);
+  static int dump_leaf_key(void* key_arg,
+                           element_count count __attribute__((unused)),
+                           void* item_arg);
+  static int dump_leaf_variable_sized_key(void *key_arg,
+                                          element_count __attribute__((unused)),
+                                          void *item_arg);
+  int insert_record_to_unique();
 };
 
 #endif /* ITEM_SUM_INCLUDED */

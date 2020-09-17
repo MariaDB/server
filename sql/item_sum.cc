@@ -3724,10 +3724,10 @@ int group_concat_packed_key_cmp_with_distinct(void *arg,
 {
   Item_func_group_concat *item_func= (Item_func_group_concat*)arg;
 
-  DBUG_ASSERT(item_func->unique_filter);
+  DBUG_ASSERT(item_func->variable_sized_keys);
   uchar *a= (uchar*)a_ptr;
   uchar *b= (uchar*)b_ptr;
-  return item_func->unique_filter->compare_packed_keys(a, b);
+  return item_func->variable_sized_keys->compare_packed_keys(a, b);
 }
 
 
@@ -3888,9 +3888,9 @@ void Item_func_group_concat::cut_max_length(String *result,
   Append data from current leaf to item->result.
 */
 
-extern "C"
-int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
-                  void* item_arg)
+int Item_func_group_concat::dump_leaf_key(void* key_arg,
+                                          element_count count __attribute__((unused)),
+                                          void* item_arg)
 {
   Item_func_group_concat *item= (Item_func_group_concat *) item_arg;
   TABLE *table= item->table;
@@ -3899,20 +3899,9 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
              default_charset_info);
   String tmp2;
   const uchar *key= (const uchar *) key_arg;
-  const uchar *key_end= NULL;
   String *result= &item->result;
   Item **arg= item->args, **arg_end= item->args + item->arg_count_field;
   uint old_length= result->length();
-  SORT_FIELD *pos;
-
-  const bool packed= item->is_distinct_packed();
-
-  if (packed)
-  {
-    pos= item->unique_filter->get_sortorder();
-    key_end= key + item->unique_filter->get_full_size();
-    key+= Unique_packed::size_of_length_field;
-  }
 
   ulonglong *offset_limit= &item->copy_offset_limit;
   ulonglong *row_limit = &item->copy_row_limit;
@@ -3953,46 +3942,136 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
       Field *field= (*arg)->get_tmp_table_field();
       if (field)
       {
-        if (packed)
-        {
-          DBUG_ASSERT(pos->field == field);
-          if (!item->skip_nulls() && field->maybe_null())
-          {
-            if (*key == 0)
-            {
-              // Case with NULL value
-              field->set_null();
-              res= item->get_str_from_field(*arg, field, &tmp);
-              key++;
-            }
-            else
-            {
-              // Case with NOT NULL value
-              field->set_notnull();
-              const uchar *end= field->unpack(field->ptr, key+1, key_end, 0);
-              res= item->get_str_from_field(*arg, field, &tmp);
-              key= end;
-            }
-          }
-          else
-          {
-            const uchar *end= field->unpack(field->ptr, key, key_end, 0);
-            res= item->get_str_from_field(*arg, field, &tmp);
-            key= end;
-          }
-          pos++;
-        }
-        else
-        {
-          uint offset= (field->offset(field->table->record[0]) -
-                        table->s->null_bytes);
-          DBUG_ASSERT(offset < table->s->reclength);
-          res= item->get_str_from_field(*arg, field, &tmp, key,
-                                        offset + item->get_null_bytes());
-        }
+        uint offset= (field->offset(field->table->record[0]) -
+                      table->s->null_bytes);
+        DBUG_ASSERT(offset < table->s->reclength);
+        res= item->get_str_from_field(*arg, field, &tmp, key,
+                                      offset + item->get_null_bytes());
       }
       else
         res= item->get_str_from_item(*arg, &tmp);
+    }
+
+    if (res)
+      result->append(*res);
+  }
+
+  if (item->limit_clause)
+    (*row_limit)--;
+  item->row_count++;
+
+  /* stop if length of result more than max_length */
+  if (result->length() > max_length)
+  {
+    THD *thd= current_thd;
+    item->cut_max_length(result, old_length, max_length);
+    item->warning_for_row= TRUE;
+    report_cut_value_error(thd, item->row_count, item->func_name());
+
+    /**
+       To avoid duplicated warnings in Item_func_group_concat::val_str()
+    */
+    if (table && table->blob_storage)
+      table->blob_storage->set_truncated_value(false);
+    return 1;
+  }
+  return 0;
+}
+
+
+/**
+  Append data from current leaf of variable size to item->result.
+*/
+int
+Item_func_group_concat::dump_leaf_variable_sized_key(void *key_arg,
+                                        element_count __attribute__((unused)),
+                                        void *item_arg)
+{
+  Item_func_group_concat *item= (Item_func_group_concat *) item_arg;
+  TABLE *table= item->table;
+  uint max_length= (uint)table->in_use->variables.group_concat_max_len;
+  String tmp((char *)table->record[1], table->s->reclength,
+             default_charset_info);
+  String tmp2;
+
+  const uchar *key= (const uchar *) key_arg;
+  const uchar *key_end= NULL;
+  String *result= &item->result;
+
+  Item **arg= item->args, **arg_end= item->args + item->arg_count_field;
+
+  uint old_length= result->length();
+  SORT_FIELD *pos;
+
+  pos= item->variable_sized_keys->get_sortorder();
+  key_end= key + item->unique_filter->get_full_size();
+  key+= Unique_packed::size_of_length_field;
+
+  ulonglong *offset_limit= &item->copy_offset_limit;
+  ulonglong *row_limit = &item->copy_row_limit;
+  if (item->limit_clause && !(*row_limit))
+  {
+    item->result_finalized= true;
+    return 1;
+  }
+
+  tmp.length(0);
+
+  if (item->limit_clause && (*offset_limit))
+  {
+    item->row_count++;
+    (*offset_limit)--;
+    return 0;
+  }
+
+  if (!item->result_finalized)
+    item->result_finalized= true;
+  else
+    result->append(*item->separator);
+
+  for (; arg < arg_end; arg++)
+  {
+    String *res;
+    /*
+      We have to use get_tmp_table_field() instead of
+      real_item()->get_tmp_table_field() because we want the field in
+      the temporary table, not the original field
+      We also can't use table->field array to access the fields
+      because it contains both order and arg list fields.
+     */
+    if ((*arg)->const_item())
+      res= item->get_str_from_item(*arg, &tmp);
+    else
+    {
+      Field *field= (*arg)->get_tmp_table_field();
+      if (field)
+      {
+        if (field->maybe_null())
+        {
+          if (*key == 0)
+          {
+            // Case with NULL value
+            field->set_null();
+            res= item->get_str_from_field(*arg, field, &tmp);
+            key++;
+          }
+          else
+          {
+            // Case with NOT NULL value
+            field->set_notnull();
+            const uchar *end= field->unpack(field->ptr, key+1, key_end, 0);
+            res= item->get_str_from_field(*arg, field, &tmp);
+            key= end;
+          }
+        }
+        else
+        {
+          const uchar *end= field->unpack(field->ptr, key, key_end, 0);
+          res= item->get_str_from_field(*arg, field, &tmp);
+          key= end;
+        }
+        pos++;
+      }
     }
 
     if (res)
@@ -4047,7 +4126,8 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
    warning_for_row(FALSE),
    force_copy_fields(0), row_limit(NULL),
    offset_limit(NULL), limit_clause(limit_clause),
-   copy_offset_limit(0), copy_row_limit(0), original(0)
+   copy_offset_limit(0), copy_row_limit(0), original(0),
+   variable_sized_keys(NULL)
 {
   Item *item_select;
   Item **arg_ptr;
@@ -4116,7 +4196,8 @@ Item_func_group_concat::Item_func_group_concat(THD *thd,
   force_copy_fields(item->force_copy_fields),
   row_limit(item->row_limit), offset_limit(item->offset_limit),
   limit_clause(item->limit_clause),copy_offset_limit(item->copy_offset_limit),
-  copy_row_limit(item->copy_row_limit), original(item)
+  copy_row_limit(item->copy_row_limit), original(item),
+  variable_sized_keys(item->variable_sized_keys)
 {
   quick_group= item->quick_group;
   result.set_charset(collation.collation);
@@ -4177,6 +4258,11 @@ void Item_func_group_concat::cleanup()
       {
         delete unique_filter;
         unique_filter= NULL;
+      }
+      if (variable_sized_keys)
+      {
+        delete variable_sized_keys;
+        variable_sized_keys= NULL;
       }
     }
     DBUG_ASSERT(tree == 0);
@@ -4293,83 +4379,57 @@ bool Item_func_group_concat::add(bool exclude_nulls)
 {
   if (always_null && exclude_nulls)
     return 0;
-  copy_fields(tmp_table_param);
-  if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
-    return TRUE;
 
   size_t row_str_len= 0;
   StringBuffer<MAX_FIELD_WIDTH> buf;
   String *res;
-  uchar *to= NULL, *orig_to= get_record_pointer();
+  bool row_eligible= TRUE;
 
-  if (is_distinct_packed())
+  if (distinct)
   {
-    orig_to= to= unique_filter->get_packed_rec_ptr();
-    to+= Unique_packed::size_of_length_field;
+    uint count= unique_filter->elements_in_tree();
+      int retval= insert_record_to_unique();
+      if (retval == -1)
+        return false;
+    if (count == unique_filter->elements_in_tree())
+      row_eligible= FALSE;
+  }
+  else
+  {
+    copy_fields(tmp_table_param);
+    if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
+      return TRUE;
   }
 
-  for (uint i= 0; i < arg_count_field; i++)
+  if (!distinct || tree)
   {
-    Item *show_item= args[i];
-    if (show_item->const_item())
-      continue;
-
-    Field *field= show_item->get_tmp_table_field();
-    if (field)
+    for (uint i= 0; i < arg_count_field; i++)
     {
-      if (field->is_null_in_record((const uchar*) table->record[0]) &&
-          exclude_nulls)
-        return 0;                    // Skip row if it contains null
-      if (tree && (res= field->val_str(&buf)))
-        row_str_len+= res->length();
+      Item *show_item= args[i];
+      if (show_item->const_item())
+        continue;
 
-      /*
-        Storing the packed values for the non-const fields of the record
-      */
-      if (is_distinct_packed())
+      Field *field= show_item->get_tmp_table_field();
+      if (field)
       {
-        if (!exclude_nulls && field->maybe_null())
-        {
-          if (field->is_null_in_record((const uchar*) table->record[0]))
-          {
-            *to++=0;
-            continue;
-          }
-          *to++=1;
-        }
-        uchar* end= field->pack(to, field->ptr);
-        to+=  static_cast<uint>(end - to);
+        if (field->is_null_in_record((const uchar*) table->record[0]) &&
+            exclude_nulls)
+          return 0;                    // Skip row if it contains null
+        if (tree && (res= field->val_str(&buf)))
+          row_str_len+= res->length();
       }
-    }
-    else
-    {
-      /*
-        should not reach here, we create temp table for all the arguments of
-        the group_concat function
-      */
-      DBUG_ASSERT(0);
+      else
+      {
+        /*
+          should not reach here, we create temp table for all the arguments of
+          the group_concat function
+        */
+        DBUG_ASSERT(0);
+      }
     }
   }
 
   null_value= FALSE;
-  bool row_eligible= TRUE;
-
-  if (distinct) 
-  {
-    DBUG_ASSERT(unique_filter);
-    uint packed_length= unique_filter->get_size();
-
-    if (unique_filter->is_packed())
-    {
-      packed_length= static_cast<uint>(to - orig_to);
-      Unique_packed::store_packed_length(orig_to, packed_length);
-    }
-    /* Filter out duplicate rows. */
-    uint count= unique_filter->elements_in_tree();
-    unique_filter->unique_add(get_record_pointer(), packed_length);
-    if (count == unique_filter->elements_in_tree())
-      row_eligible= FALSE;
-  }
 
   TREE_ELEMENT *el= 0;                          // Only for safety
   if (row_eligible && tree)
@@ -4598,6 +4658,13 @@ bool Item_func_group_concat::setup(THD *thd)
     tree_len= 0;
   }
 
+  if (allow_packing)
+  {
+    variable_sized_keys= new Variable_sized_keys(tree_key_length);
+    if (variable_sized_keys == NULL)
+      DBUG_RETURN(TRUE); //OOM
+  }
+
   if (distinct)
   {
     unique_filter= get_unique(get_comparator_function_for_distinct(allow_packing),
@@ -4605,8 +4672,10 @@ bool Item_func_group_concat::setup(THD *thd)
                              tree_key_length + get_null_bytes(),
                              ram_limitation(thd), 0, allow_packing);
 
-    if (!unique_filter || unique_filter->setup(thd, this, non_const_items,
-                                               arg_count_field))
+    if (!unique_filter || (variable_sized_keys &&
+                           variable_sized_keys->setup(thd, this,
+                                                      non_const_items,
+                                                      arg_count_field)))
       DBUG_RETURN(TRUE);
   }
   if ((row_limit && row_limit->cmp_type() != INT_RESULT) ||
@@ -4643,7 +4712,10 @@ String* Item_func_group_concat::val_str(String* str)
     if (tree != NULL) // order by
       tree_walk(tree, &dump_leaf_key, this, left_root_right);
     else if (distinct) // distinct (and no order by).
-      unique_filter->walk(table, &dump_leaf_key, this);
+      unique_filter->walk(table,
+                          variable_sized_keys ?
+                          dump_leaf_variable_sized_key :
+                          dump_leaf_key, this);
     else if (row_limit && copy_row_limit == (ulonglong)row_limit->val_int())
       return &result;
     else
@@ -4701,7 +4773,7 @@ qsort_cmp2 Item_func_group_concat::get_comparator_function_for_order_by()
 uchar* Item_func_group_concat::get_record_pointer()
 {
   return is_distinct_packed() ?
-         unique_filter->get_packed_rec_ptr() :
+         variable_sized_keys->get_packed_rec_ptr() :
          (skip_nulls() ?
           table->record[0] + table->s->null_bytes :
           table->record[0]);
@@ -4911,4 +4983,34 @@ Item_func_group_concat::~Item_func_group_concat()
 {
   if (!original && unique_filter)
     delete unique_filter;    
+}
+
+
+int Item_func_group_concat::insert_record_to_unique()
+{
+  if (unique_filter->is_packed())
+  {
+    uint packed_length;
+    if ((packed_length= variable_sized_keys->make_packed_record(skip_nulls())) == 0)
+      return -1; // NULL value
+    DBUG_ASSERT(packed_length <= unique_filter->get_size());
+    return unique_filter->unique_add(variable_sized_keys->get_packed_rec_ptr(), packed_length);
+  }
+
+  copy_fields(tmp_table_param);
+  if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
+    return 1;
+
+  for (Field **field=table->field ; *field ; field++)
+    if (skip_nulls() && (*field)->is_real_null(0))
+      return -1;         // Don't count NULL
+
+  /*
+    The first few bytes of record (at least one) are just markers
+    for deleted and NULLs. We want to skip them since they will
+    bloat the tree without providing any valuable info. Besides,
+    key_length used to initialize the tree didn't include space for them.
+  */
+
+  return unique_filter->unique_add(get_record_pointer(), unique_filter->get_size());
 }
