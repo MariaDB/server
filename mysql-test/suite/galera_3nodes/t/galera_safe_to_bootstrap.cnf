@@ -1,10 +1,10 @@
 !include ../galera_3nodes.cnf
 
-[mariadb.1]
+[mysqld.1]
 wsrep_debug=1
 
-[mariadb.2]
+[mysqld.2]
 wsrep_debug=1
 
-[mariadb.3]
+[mysqld.3]
 wsrep_debug=1
