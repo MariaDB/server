@@ -44,16 +44,6 @@ extern my_bool		innodb_page_cleaner_disabled_debug;
 
 #endif /* UNIV_DEBUG */
 
-class ut_stage_alter_t;
-
-/** Handled page counters for a single flush */
-struct flush_counters_t {
-	ulint	flushed;	/*!< number of dirty pages flushed */
-	ulint	evicted;	/*!< number of clean pages evicted */
-	ulint	unzip_LRU_evicted;/*!< number of uncompressed page images
-				evicted */
-};
-
 /** Remove all dirty pages belonging to a given tablespace when we are
 deleting the data file of that tablespace.
 The pages still remain a part of LRU and are evicted from
@@ -99,14 +89,6 @@ buf_flush_init_for_writing(
 	byte*			page,
 	void*			page_zip_,
 	bool			use_full_checksum);
-
-/** Initiate a flushing batch.
-@param max_n  wished minimum mumber of blocks flushed
-@param lsn    0 for buf_pool.LRU flushing; otherwise,
-              stop the buf_pool.flush_list batch on oldest_modification>=lsn
-@param n      the number of processed pages
-@return whether a batch was queued successfully (not running already) */
-bool buf_flush_do_batch(ulint max_n, lsn_t lsn, flush_counters_t *n);
 
 /** Write out dirty blocks from buf_pool.flush_list.
 @param max_n	wished maximum mumber of blocks flushed

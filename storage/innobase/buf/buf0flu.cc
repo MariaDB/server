@@ -1201,6 +1201,16 @@ static ulint buf_free_from_unzip_LRU_list_batch(ulint max)
 	return(count);
 }
 
+struct flush_counters_t
+{
+  /** number of dirty pages flushed */
+  ulint	flushed;
+  /** number of clean pages evicted */
+  ulint evicted;
+  /** number of evicted uncompressed ROW_FORMAT=COMPRESSED page frames */
+  ulint unzip_LRU_evicted;
+};
+
 /** Flush dirty blocks from the end of the LRU list.
 The calling thread is not allowed to own any latches on pages!
 
@@ -1382,7 +1392,7 @@ void buf_flush_wait_batch_end(bool lru)
               stop the buf_pool.flush_list batch on oldest_modification>=lsn
 @param n      the number of processed pages
 @return whether a batch was queued successfully (not running already) */
-bool buf_flush_do_batch(ulint max_n, lsn_t lsn, flush_counters_t *n)
+static bool buf_flush_do_batch(ulint max_n, lsn_t lsn, flush_counters_t *n)
 {
   n->flushed= 0;
 
@@ -1501,8 +1511,6 @@ void buf_flush_wait_flushed(lsn_t new_oldest)
 @retval false if another batch was already running */
 bool buf_flush_lists(ulint max_n, lsn_t lsn, ulint *n_processed)
 {
-	ut_ad(lsn);
-
 	flush_counters_t	n;
 
 	bool success = buf_flush_do_batch(max_n, lsn, &n);

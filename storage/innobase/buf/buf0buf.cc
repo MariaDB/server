@@ -1839,21 +1839,21 @@ inline bool buf_pool_t::withdraw_blocks()
 
 		/* reserve free_list length */
 		if (UT_LIST_GET_LEN(withdraw) < withdraw_target) {
-			flush_counters_t n;
+			ulint n_flushed;
 
-			buf_flush_do_batch(
+			buf_flush_lists(
 				std::max<ulint>(withdraw_target
 						- UT_LIST_GET_LEN(withdraw),
 						srv_LRU_scan_depth),
-				0, &n);
+				0, &n_flushed);
 			buf_flush_wait_batch_end_acquiring_mutex(true);
 
-			if (n.flushed) {
+			if (n_flushed) {
 				MONITOR_INC_VALUE_CUMULATIVE(
 					MONITOR_LRU_BATCH_FLUSH_TOTAL_PAGE,
 					MONITOR_LRU_BATCH_FLUSH_COUNT,
 					MONITOR_LRU_BATCH_FLUSH_PAGES,
-					n.flushed);
+					n_flushed);
 			}
 		}
 
