@@ -688,6 +688,8 @@ my_bool mi_killed_in_mariadb(MI_INFO *info)
 
 static int compute_vcols(MI_INFO *info, uchar *record, int keynum)
 {
+  /* This mutex is needed for parallel repair */
+  mysql_mutex_lock(&info->s->intern_lock);
   TABLE *table= (TABLE*)(info->external_ref);
   table->move_fields(table->field, record, table->field[0]->record_ptr());
   if (keynum == -1) // update all vcols
@@ -695,6 +697,7 @@ static int compute_vcols(MI_INFO *info, uchar *record, int keynum)
     int error= table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
     if (table->update_virtual_fields(table->file, VCOL_UPDATE_INDEXED))
       error= 1;
+    mysql_mutex_unlock(&info->s->intern_lock);
     return error;
   }
   // update only one key
@@ -703,9 +706,10 @@ static int compute_vcols(MI_INFO *info, uchar *record, int keynum)
   for (; kp < end; kp++)
   {
     Field *f= table->field[kp->fieldnr - 1];
-    if (f->vcol_info)
+    if (f->vcol_info && !f->vcol_info->stored_in_db)
       table->update_virtual_field(f);
   }
+  mysql_mutex_unlock(&info->s->intern_lock);
   return 0;
 }
 
@@ -956,7 +960,7 @@ void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
   if (!table->vfield)
     return;
 
-  if  (file->s->base.reclength == file->s->vreclength)
+  if (file->s->base.reclength == file->s->vreclength)
   {
     bool indexed_vcols= false;
     ulong new_vreclength= file->s->vreclength;
@@ -964,7 +968,8 @@ void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
     {
       if (!(*vf)->stored_in_db())
       {
-        uint vf_end= (*vf)->offset(table->record[0]) + (*vf)->pack_length_in_rec();
+        uint vf_end= ((*vf)->offset(table->record[0]) +
+                      (*vf)->pack_length_in_rec());
         set_if_bigger(new_vreclength, vf_end);
         indexed_vcols|= ((*vf)->flags & PART_KEY_FLAG) != 0;
       }
@@ -982,7 +987,8 @@ void ha_myisam::restore_vcos_after_repair()
 {
   if (file->s->base.reclength < file->s->vreclength)
   {
-    table->move_fields(table->field, table->record[0], table->field[0]->record_ptr());
+    table->move_fields(table->field, table->record[0],
+                       table->field[0]->record_ptr());
     table->default_column_bitmaps();
   }
 }
