@@ -162,5 +162,25 @@ COUNT(*)
 500
 DROP TABLE t1,t2;
 #
+# MDEV-23296 Assertion `block->type == PAGECACHE_EMPTY_PAGE ||
+# block->type == PAGECACHE_READ_UNKNOWN_PAGE || block->type == type ||
+# (block->type == PAGECACHE_PLAIN_PAGE && type == PAGECACHE_LSN_PAGE)'
+# with aria_max_sort_file_size
+#
+SET @max_size.save= @@aria_max_sort_file_size;
+SET GLOBAL aria_max_sort_file_size= 0;
+CREATE TABLE t1 (pk INT PRIMARY KEY, a CHAR(255), KEY(a)) ENGINE=Aria;
+ALTER TABLE t1 DISABLE KEYS;
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+ALTER TABLE t1 ENABLE KEYS;
+INSERT INTO t1 VALUES (3,'nice try');
+SELECT * FROM t1;
+pk	a
+1	foo
+2	bar
+3	nice try
+DROP TABLE t1;
+SET GLOBAL aria_max_sort_file_size= @max_size.save;
+#
 # End of 10.4 test
 #

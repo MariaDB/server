@@ -2550,6 +2550,9 @@ static int maria_drop_all_indexes(HA_CHECK *param, MARIA_HA *info,
     DBUG_PRINT("repair", ("declared all indexes disabled"));
   }
 
+  /* Flush obsolete index data from key cache */
+  _ma_flush_table_files(info, MARIA_FLUSH_INDEX,
+                        FLUSH_IGNORE_CHANGED, FLUSH_IGNORE_CHANGED);
   /* Clear index root block pointers. */
   for (i= 0; i < share->base.keys; i++)
     state->key_root[i]= HA_OFFSET_ERROR;
