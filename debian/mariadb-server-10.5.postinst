@@ -103,6 +103,19 @@ EOF
 	    rmdir $mysql_upgradedir 2>/dev/null || true
 
     done
+    # Upgrading from mysql.com needs might have the root user as auth_socket.
+    # auto.cnf is a sign of a mysql install, that doesn't exist in mariadb.
+    # We use lsof to protect against concurrent access by mysqld (mariadb has
+    # its own projection). We make sure we're not doing this on a MySQL-8.0
+    # directory.
+    # This direct update is needed to enable an authentication mechanism to
+    # perform mariadb-upgrade, (MDEV-22678).  To keep the impact minimal, we
+    # skip innodb and set key-buffer-size to 0 as it isn't reused.
+    if [ -f "$mysql_datadir"/auto.cnf ] && [ -f "$mysql_datadir"/mysql/user.MYD ] &&
+       [ ! lsof -nt "$mysql_datadir"/mysql/user.MYD > /dev/null ] && [ ! -f "$mysql_datadir"/undo_001 ]; then
+         echo "UPDATE mysql.user SET plugin='unix_socket' WHERE plugin='auth_socket';" |
+             /usr/sbin/mariadbd --skip-innodb --key_buffer_size=0  --default-storage-engine=MyISAM --bootstrap 2> /dev/null
+    fi
 
     # Ensure the existence and right permissions for the database and
     # log files. Use mkdir option 'Z' to create with correct SELinux context.
