@@ -10594,18 +10594,19 @@ function_call_generic:
               names are resolved with the following order:
               - MySQL native functions,
               - User Defined Functions,
+              - Constructors, like POINT(1,1)
               - Stored Functions (assuming the current <use> database)
 
               This will be revised with WL#2128 (SQL PATH)
             */
-            if ((h= Type_handler::handler_by_name(thd, $1)) &&
-                (item= h->make_constructor_item(thd, $4)))
-            {
-              // Found a constructor with a proper argument count
-            }
-            else if ((builder= find_native_function_builder(thd, &$1)))
+            if ((builder= find_native_function_builder(thd, &$1)))
             {
               item= builder->create_func(thd, &$1, $4);
+            }
+            else if ((h= Type_handler::handler_by_name(thd, $1)) &&
+                     (item= h->make_constructor_item(thd, $4)))
+            {
+              // Found a constructor with a proper argument count
             }
             else
             {
