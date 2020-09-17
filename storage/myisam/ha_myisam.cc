@@ -726,7 +726,7 @@ ha_myisam::ha_myisam(handlerton *hton, TABLE_SHARE *table_arg)
                   HA_CAN_INSERT_DELAYED | HA_CAN_BIT_FIELD | HA_CAN_RTREEKEYS |
                   HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT | HA_CAN_REPAIR |
                   HA_CAN_TABLES_WITHOUT_ROLLBACK),
-   can_enable_indexes(1)
+   can_enable_indexes(0)
 {}
 
 handler *ha_myisam::clone(const char *name __attribute__((unused)),
@@ -1729,6 +1729,7 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
   THD *thd= table->in_use;
   ulong size= MY_MIN(thd->variables.read_buff_size,
                      (ulong) (table->s->avg_row_length*rows));
+  bool index_disabled= 0;
   DBUG_PRINT("info",("start_bulk_insert: rows %lu size %lu",
                      (ulong) rows, size));
 
@@ -1752,6 +1753,7 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
     if (file->open_flag & HA_OPEN_INTERNAL_TABLE)
     {
       file->update|= HA_STATE_CHANGED;
+      index_disabled= file->s->base.keys > 0;
       mi_clear_all_keys_active(file->s->state.key_map);
     }
     else
@@ -1782,6 +1784,7 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
             table->key_info[i].algorithm != HA_KEY_ALG_LONG_HASH)
         {
           mi_clear_key_active(share->state.key_map, i);
+          index_disabled= 1;
           file->update|= HA_STATE_CHANGED;
           file->create_unique_index_by_sort= all_keys;
         }
@@ -1789,12 +1792,15 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
     }
   }
   else
+  {
     if (!file->bulk_insert &&
         (!rows || rows >= MI_MIN_ROWS_TO_USE_BULK_INSERT))
     {
       mi_init_bulk_insert(file, (size_t) thd->variables.bulk_insert_buff_size,
                           rows);
     }
+  }
+  can_enable_indexes= index_disabled;
   DBUG_VOID_RETURN;
 }
 
@@ -1846,6 +1852,7 @@ int ha_myisam::end_bulk_insert()
         file->s->state.changed&= ~(STATE_CRASHED|STATE_CRASHED_ON_REPAIR);
       }
     }
+    can_enable_indexes= 0;
   }
   DBUG_PRINT("exit", ("first_error: %d", first_error));
   DBUG_RETURN(first_error);

@@ -10614,6 +10614,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   bool make_versioned= !from->versioned() && to->versioned();
   bool make_unversioned= from->versioned() && !to->versioned();
   bool keep_versioned= from->versioned() && to->versioned();
+  bool bulk_insert_started= 0;
   Field *to_row_start= NULL, *to_row_end= NULL, *from_row_end= NULL;
   MYSQL_TIME query_start;
   DBUG_ENTER("copy_data_between_tables");
@@ -10652,6 +10653,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   to->file->extra(HA_EXTRA_PREPARE_FOR_ALTER_TABLE);
   to->file->ha_start_bulk_insert(from->file->stats.records,
                                  ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
+  bulk_insert_started= 1;
   List_iterator<Create_field> it(create);
   Create_field *def;
   copy_end=copy;
@@ -10914,6 +10916,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
       to->file->print_error(my_errno,MYF(0));
     error= 1;
   }
+  bulk_insert_started= 0;
   if (!ignore)
     to->file->extra(HA_EXTRA_END_ALTER_COPY);
 
@@ -10927,7 +10930,10 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     error= 1;
 
  err:
-  /* Free resources */
+  if (bulk_insert_started)
+    (void) to->file->ha_end_bulk_insert();
+
+/* Free resources */
   if (init_read_record_done)
     end_read_record(&info);
   delete [] copy;
