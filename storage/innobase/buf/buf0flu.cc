@@ -269,6 +269,7 @@ use the current list node (bpage) to do the list manipulation because
 the list pointers could have changed between the time that we copied
 the contents of bpage to the dpage and the flush list manipulation
 below. */
+ATTRIBUTE_COLD
 void
 buf_flush_relocate_on_flush_list(
 /*=============================*/
@@ -278,6 +279,11 @@ buf_flush_relocate_on_flush_list(
 	buf_page_t*	prev;
 
 	mysql_mutex_assert_owner(&buf_pool.mutex);
+
+	if (!bpage->oldest_modification()) {
+		return;
+	}
+
 	mysql_mutex_lock(&buf_pool.flush_list_mutex);
 
 	/* FIXME: At this point we have both buf_pool and flush_list
@@ -300,7 +306,7 @@ buf_flush_relocate_on_flush_list(
 
 	if (prev) {
 		ut_ad(prev->oldest_modification());
-		UT_LIST_INSERT_AFTER( buf_pool.flush_list, prev, dpage);
+		UT_LIST_INSERT_AFTER(buf_pool.flush_list, prev, dpage);
 	} else {
 		UT_LIST_ADD_FIRST(buf_pool.flush_list, dpage);
 	}
@@ -1447,6 +1453,8 @@ static void buf_flush_request_force(lsn_t lsn)
 @param[in]	new_oldest	target oldest_modified_lsn to wait for */
 void buf_flush_wait_flushed(lsn_t new_oldest)
 {
+	ut_ad(new_oldest);
+
 	if (srv_flush_sync) {
 		/* wake page cleaner for IO burst */
 		buf_flush_request_force(new_oldest);
@@ -1779,10 +1787,7 @@ static ulint pc_request_flush_slot(ulint max_n, lsn_t lsn)
   ut_ad(lsn);
 
   const ulint flush_start_tm= ut_time_ms();
-  flush_counters_t n;
-  memset(&n, 0, sizeof n);
-  buf_flush_do_batch(max_n, lsn, &n);
-  page_cleaner.slot.n_flushed_list= n.flushed;
+  buf_flush_lists(max_n, lsn, &page_cleaner.slot.n_flushed_list);
   page_cleaner.slot.flush_list_time+= ut_time_ms() - flush_start_tm;
   page_cleaner.slot.flush_list_pass++;
   return flush_start_tm;

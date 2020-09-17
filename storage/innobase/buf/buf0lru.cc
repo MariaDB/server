@@ -937,9 +937,7 @@ func_exit:
 			buf_LRU_add_block(b, b->old);
 		}
 
-		if (b->oldest_modification()) {
-			buf_flush_relocate_on_flush_list(bpage, b);
-		}
+		buf_flush_relocate_on_flush_list(bpage, b);
 
 		bpage->zip.data = nullptr;
 

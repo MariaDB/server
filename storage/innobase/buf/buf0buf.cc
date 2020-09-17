@@ -1734,13 +1734,8 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 				  + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
 		MEM_UNDEFINED(block->frame, srv_page_size);
 		block->page.set_state(BUF_BLOCK_REMOVE_HASH);
-
-		/* Relocate flush_list. */
-		if (block->page.oldest_modification()) {
-			buf_flush_relocate_on_flush_list(
-				&block->page, &new_block->page);
-		}
-
+		buf_flush_relocate_on_flush_list(&block->page,
+						 &new_block->page);
 		block->page.set_corrupt_id();
 
 		/* set other flags of buf_block_t */
@@ -1830,7 +1825,7 @@ inline bool buf_pool_t::withdraw_blocks()
 				UT_LIST_GET_NEXT(
 					list, &block->page));
 
-			if (buf_pool.will_be_withdrawn(block->page)) {
+			if (will_be_withdrawn(block->page)) {
 				/* This should be withdrawn */
 				UT_LIST_REMOVE(free, &block->page);
 				UT_LIST_ADD_LAST(withdraw, &block->page);
@@ -1886,7 +1881,7 @@ inline bool buf_pool_t::withdraw_blocks()
 			}
 
 			if (bpage->state() == BUF_BLOCK_FILE_PAGE
-			    && buf_pool.will_be_withdrawn(*bpage)) {
+			    && will_be_withdrawn(*bpage)) {
 				if (bpage->can_relocate()) {
 					buf_pool_mutex_exit_forbid();
 					if (!realloc(
@@ -3349,9 +3344,7 @@ evict_from_pool:
 		/* Set after buf_relocate(). */
 		block->page.set_buf_fix_count(1);
 
-		if (block->page.oldest_modification()) {
-			buf_flush_relocate_on_flush_list(bpage, &block->page);
-		}
+		buf_flush_relocate_on_flush_list(bpage, &block->page);
 
 		/* Buffer-fix, I/O-fix, and X-latch the block
 		for the duration of the decompression.
@@ -3810,7 +3803,7 @@ loop:
 #ifdef BTR_CUR_HASH_ADAPT
     const dict_index_t *drop_hash_entry= nullptr;
 #endif
-    switch (block->page.state()) {
+    switch (UNIV_EXPECT(block->page.state(), BUF_BLOCK_FILE_PAGE)) {
     default:
       ut_ad(0);
       break;
@@ -3844,9 +3837,7 @@ loop:
 
       rw_lock_x_lock(&free_block->lock);
       buf_relocate(&block->page, &free_block->page);
-
-      if (block->page.oldest_modification() > 0)
-        buf_flush_relocate_on_flush_list(&block->page, &free_block->page);
+      buf_flush_relocate_on_flush_list(&block->page, &free_block->page);
 
       free_block->page.set_state(BUF_BLOCK_FILE_PAGE);
       buf_unzip_LRU_add_block(free_block, FALSE);

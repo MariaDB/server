@@ -69,6 +69,7 @@ void buf_flush_dirty_pages(ulint id);
 Relocates a buffer control block on the flush_list.
 Note that it is assumed that the contents of bpage has already been
 copied to dpage. */
+ATTRIBUTE_COLD
 void
 buf_flush_relocate_on_flush_list(
 /*=============================*/
