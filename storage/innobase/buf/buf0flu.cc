@@ -1207,16 +1207,11 @@ struct flush_counters_t
   ulint	flushed;
   /** number of clean pages evicted */
   ulint evicted;
-  /** number of evicted uncompressed ROW_FORMAT=COMPRESSED page frames */
-  ulint unzip_LRU_evicted;
 };
 
 /** Flush dirty blocks from the end of the LRU list.
-The calling thread is not allowed to own any latches on pages!
-
-@param[in]	max	desired number of blocks to make available
-			in the free list (best effort; not guaranteed)
-@param[out]	n	counts of flushed and evicted pages */
+@param max   maximum number of blocks to make available in buf_pool.free
+@param n     counts of flushed and evicted pages */
 static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n)
 {
   ulint scanned= 0;
@@ -1273,18 +1268,19 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n)
 
 /** Flush and move pages from LRU or unzip_LRU list to the free list.
 Whether LRU or unzip_LRU is used depends on the state of the system.
-@param[in]	max	desired number of blocks to make available
-			in the free list (best effort; not guaranteed)
-@param[out]	n	counts of flushed and evicted pages */
+@param max   maximum number of blocks to make available in buf_pool.free
+@param n     counts of flushed and evicted pages */
 static void buf_do_LRU_batch(ulint max, flush_counters_t* n)
 {
-  n->flushed= 0;
-  n->evicted= n->unzip_LRU_evicted= buf_LRU_evict_from_unzip_LRU()
+  const ulint n_unzip_LRU_evicted= buf_LRU_evict_from_unzip_LRU()
     ? buf_free_from_unzip_LRU_list_batch(max)
     : 0;
+
+  n->flushed= 0;
+  n->evicted= n_unzip_LRU_evicted;
   buf_flush_LRU_list_batch(max, n);
 
-  if (const auto evicted = n->evicted - n->unzip_LRU_evicted)
+  if (const ulint evicted= n->evicted - n_unzip_LRU_evicted)
   {
     MONITOR_INC_VALUE_CUMULATIVE(MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE,
                                  MONITOR_LRU_BATCH_EVICT_COUNT,
@@ -1387,7 +1383,7 @@ void buf_flush_wait_batch_end(bool lru)
 }
 
 /** Initiate a flushing batch.
-@param max_n  wished minimum mumber of blocks flushed
+@param max_n  maximum mumber of blocks flushed
 @param lsn    0 for buf_pool.LRU flushing; otherwise,
               stop the buf_pool.flush_list batch on oldest_modification>=lsn
 @param n      the number of processed pages
