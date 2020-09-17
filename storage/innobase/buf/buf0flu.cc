@@ -158,7 +158,17 @@ void buf_flush_insert_into_flush_list(buf_block_t* block, lsn_t lsn)
 
 	UT_LIST_ADD_FIRST(buf_pool.flush_list, &block->page);
 	ut_d(buf_flush_validate_skip());
+	const ulint len= UT_LIST_GET_LEN(buf_pool.flush_list);
 	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+	if (!srv_adaptive_flushing) {
+		/* We perform a dirty read for performance.
+		FIXME: use Atomic_relaxed or Atomic_counter */
+		const ulint lru_len = UT_LIST_GET_LEN(buf_pool.LRU);
+		if (len > static_cast<ulint>(srv_max_dirty_pages_pct_lwm
+					     * static_cast<double>(lru_len))) {
+			mysql_cond_signal(&buf_pool.do_flush_list);
+		}
+	}
 }
 
 /** Remove a block from the flush list of modified blocks.
@@ -1461,7 +1471,7 @@ void buf_flush_wait_flushed(lsn_t new_oldest)
 {
 	ut_ad(new_oldest);
 
-	if (srv_flush_sync) {
+	if (srv_flush_sync || !srv_adaptive_flushing) {
 		/* wake page cleaner for IO burst */
 		buf_flush_request_force(new_oldest);
 	}
@@ -1492,8 +1502,13 @@ void buf_flush_wait_flushed(lsn_t new_oldest)
 			break;
 		}
 
-		/* sleep and retry */
-		os_thread_sleep(buf_flush_wait_flushed_sleep_time);
+		if (!srv_adaptive_flushing) {
+			buf_flush_request_force(new_oldest);
+			buf_flush_wait_batch_end_acquiring_mutex(false);
+		} else {
+			/* sleep and retry */
+			os_thread_sleep(buf_flush_wait_flushed_sleep_time);
+		}
 
 		MONITOR_INC(MONITOR_FLUSH_SYNC_WAITS);
 	}
@@ -1595,12 +1610,6 @@ af_get_pct_for_lsn(
 	}
 
 	max_async_age = log_get_max_modified_age_async();
-
-	if (age < max_async_age && !srv_adaptive_flushing) {
-		/* We have still not reached the max_async point and
-		the user has disabled adaptive flushing. */
-		return(0);
-	}
 
 	/* If we are here then we know that either:
 	1) User has enabled adaptive flushing
@@ -1808,6 +1817,51 @@ static void buf_flush_page_cleaner_disabled_loop()
 }
 #endif /* UNIV_DEBUG */
 
+/** Purely event-driven page cleaner for innodb_adaptive_flushing=OFF */
+static void page_cleaner_event()
+{
+  mysql_mutex_lock(&buf_pool.mutex);
+  const ulint lru_len= UT_LIST_GET_LEN(buf_pool.LRU);
+  mysql_mutex_unlock(&buf_pool.mutex);
+
+  const ulint flush_threshold= static_cast<ulint>
+    (srv_max_buf_pool_modified_pct * static_cast<double>(lru_len) / 100);
+  const ulint flush_target= static_cast<ulint>
+    (srv_max_dirty_pages_pct_lwm * static_cast<double>(lru_len) / 100);
+
+  mysql_mutex_lock(&buf_pool.flush_list_mutex);
+  ulint flush_len= UT_LIST_GET_LEN(buf_pool.flush_list);
+  if (flush_len <= flush_threshold)
+  {
+    mysql_cond_wait(&buf_pool.do_flush_list, &buf_pool.flush_list_mutex);
+    flush_len= UT_LIST_GET_LEN(buf_pool.flush_list);
+  }
+  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+
+  ulint len= ULINT_MAX;
+
+  if (lsn_t lsn= buf_flush_sync_lsn.exchange(0, std::memory_order_release))
+  {
+do_flush:
+    ulint n_flushed;
+    buf_flush_lists(len, lsn, &n_flushed);
+    if (n_flushed)
+    {
+      MONITOR_INC_VALUE_CUMULATIVE(MONITOR_FLUSH_BACKGROUND_TOTAL_PAGE,
+                                   MONITOR_FLUSH_BACKGROUND_COUNT,
+                                   MONITOR_FLUSH_BACKGROUND_PAGES,
+                                   n_flushed);
+    }
+  }
+  else
+  {
+    lsn= LSN_MAX;
+    len= flush_len - flush_target;
+    if (flush_len > flush_target)
+      goto do_flush;
+  }
+}
+
 /******************************************************************//**
 page_cleaner thread tasked with flushing dirty pages from the buffer
 pools. As of now we'll have only one coordinator.
@@ -1845,8 +1899,13 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 	ulint	last_pages = 0;
 
 	for (ulint next_loop_time = curr_time + 1000;
-	     srv_shutdown_state <= SRV_SHUTDOWN_INITIATED;
-	     curr_time = ut_time_ms()) {
+	     srv_shutdown_state <= SRV_SHUTDOWN_INITIATED; ) {
+		if (!srv_adaptive_flushing) {
+			page_cleaner_event();
+			ut_d(buf_flush_page_cleaner_disabled_loop());
+			continue;
+		}
+
 		bool sleep_timeout;
 		ulint last_activity;
 
@@ -1863,9 +1922,6 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 			struct timespec abstime;
 			set_timespec_nsec(abstime, sleep_ms * 1000000ULL);
 			mysql_mutex_lock(&buf_pool.flush_list_mutex);
-#if 0 // FIXME: use blocking wait, not a timed one
-			const auto len = UT_LIST_GET_LEN(buf_pool.flush_list);
-#endif
 			const auto error = mysql_cond_timedwait(
 				&buf_pool.do_flush_list,
 				&buf_pool.flush_list_mutex,
@@ -1967,6 +2023,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 		}
 
 		ut_d(buf_flush_page_cleaner_disabled_loop());
+		curr_time = ut_time_ms();
 	}
 
 	if (srv_fast_shutdown != 2) {
