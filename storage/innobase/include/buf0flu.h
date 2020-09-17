@@ -96,7 +96,7 @@ buf_flush_init_for_writing(
 @param n_processed the number of processed pages
 @retval true if a batch was queued successfully
 @retval false if another batch was already running */
-bool buf_flush_lists(ulint max_n, lsn_t lsn, ulint *n_processed);
+bool buf_flush_lists(ulint max_n, lsn_t lsn, ulint *n_processed= nullptr);
 
 /** Wait until a flush batch ends.
 @param[in]	lru	true=buf_pool.LRU; false=buf_pool.flush_list */

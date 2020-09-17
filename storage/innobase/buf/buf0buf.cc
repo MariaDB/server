@@ -3446,7 +3446,7 @@ re_evict:
 
 		fix_block->fix();
 		mysql_mutex_unlock(&buf_pool.mutex);
-		buf_flush_lists(ULINT_MAX, LSN_MAX, nullptr);
+		buf_flush_lists(ULINT_MAX, LSN_MAX);
 		buf_flush_wait_batch_end_acquiring_mutex(false);
 
 		if (!fix_block->page.oldest_modification()) {

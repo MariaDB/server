@@ -505,7 +505,7 @@ not_found:
 	involved (particularly in case of ROW_FORMAT=COMPRESSED pages). We
 	can do that in a separate patch sometime in future. */
 
-	if (!buf_flush_lists(srv_LRU_scan_depth, 0, nullptr)) {
+	if (!buf_flush_lists(srv_LRU_scan_depth, 0)) {
 		MONITOR_INC(MONITOR_LRU_SINGLE_FLUSH_FAILURE_COUNT);
 		++flush_failures;
 	}

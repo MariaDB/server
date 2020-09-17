@@ -254,7 +254,7 @@ void buf_flush_dirty_pages(ulint id)
     if (!n)
       return;
 
-    buf_flush_lists(ULINT_MAX, LSN_MAX, nullptr);
+    buf_flush_lists(ULINT_MAX, LSN_MAX);
   }
 }
 
@@ -2005,7 +2005,7 @@ void buf_flush_sync()
 
   for (;;)
   {
-    const bool success= buf_flush_lists(ULINT_MAX, LSN_MAX, nullptr);
+    const bool success= buf_flush_lists(ULINT_MAX, LSN_MAX);
     buf_flush_wait_batch_end_acquiring_mutex(false);
     if (success)
     {

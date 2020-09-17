@@ -1520,7 +1520,7 @@ static void flush_buffer_pool()
                                  "Waiting to flush the buffer pool");
   while (flush_list_length())
   {
-    buf_flush_lists(ULINT_MAX, LSN_MAX, nullptr);
+    buf_flush_lists(ULINT_MAX, LSN_MAX);
     struct timespec abstime;
 
     if (buf_pool.n_flush_list)
