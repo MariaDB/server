@@ -627,7 +627,6 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
            get_counter_from_merged_element(top->current_key(), cnt_ofs) : 1;
       if (walk_action(top->current_key(), cnt, walk_action_arg))
         goto end;
-
       top->advance_current_key(key_length);
     }
     while (top->decrement_mem_count());
@@ -862,135 +861,8 @@ Unique_packed::Unique_packed(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
                             uint size_arg, size_t max_in_memory_size_arg,
                             uint min_dupl_count_arg):
   Unique(comp_func, comp_func_fixed_arg, size_arg,
-         max_in_memory_size_arg, min_dupl_count_arg),
-  packed_rec_ptr(NULL),
-  sortorder(NULL), sort_keys(NULL)
+         max_in_memory_size_arg, min_dupl_count_arg)
 {
-  packed_rec_ptr= (uchar *)my_malloc(PSI_INSTRUMENT_ME,
-                                     size_arg,
-                                     MYF(MY_WME | MY_THREAD_SPECIFIC));
-
-  tmp_buffer.alloc(size_arg);
-}
-
-
-Unique_packed::~Unique_packed()
-{
-  my_free(packed_rec_ptr);
-}
-
-
-/*
-  @brief
-    Setup the structures that are used when Unique stores packed values
-
-  @param thd                   thread structure
-  @param item                  item of aggregate function
-  @param non_const_args        number of non constant arguments
-  @param arg_count             total number of arguments
-
-  @note
-    This implementation is used by GROUP_CONCAT and COUNT_DISTINCT
-    as it can have more than one arguments in the argument list.
-
-  @retval
-    TRUE  error
-    FALSE setup successful
-*/
-
-bool
-Unique_packed::setup(THD *thd, Item_sum *item,
-                     uint non_const_args, uint arg_count)
-{
-  SORT_FIELD *sort,*pos;
-  if (sortorder)
-    return false;
-  DBUG_ASSERT(sort_keys == NULL);
-  sortorder= (SORT_FIELD*) thd->alloc(sizeof(SORT_FIELD) * non_const_args);
-  pos= sort= sortorder;
-  if (!pos)
-    return true;
-  sort_keys= new Sort_keys(sortorder, non_const_args);
-  if (!sort_keys)
-    return true;
-  sort=pos= sortorder;
-  for (uint i= 0; i < arg_count; i++)
-  {
-    Item *arg= item->get_arg(i);
-    if (arg->const_item())
-      continue;
-
-    if (arg->type() == Item::FIELD_ITEM)
-    {
-      Field *field= ((Item_field*)arg)->field;
-      pos->setup(field, false);
-    }
-    else
-      pos->setup(arg, false);
-    pos++;
-  }
-  return false;
-}
-
-
-/*
-  @brief
-    Setup the structures that are used when Unique stores packed values
-
-  @param thd                   thread structure
-  @param field                 field structure
-
-  @retval
-    TRUE  error
-    FALSE setup successful
-*/
-
-bool Unique_packed::setup(THD *thd, Field *field)
-{
-  SORT_FIELD *sort,*pos;
-  if (sortorder)
-    return false;
-
-  DBUG_ASSERT(sort_keys == NULL);
-  sortorder= (SORT_FIELD*) thd->alloc(sizeof(SORT_FIELD));
-  pos= sort= sortorder;
-  if (!pos)
-    return true;
-  sort_keys= new Sort_keys(sortorder, 1);
-  if (!sort_keys)
-    return true;
-  sort=pos= sortorder;
-  pos->setup(field, false);  // Nulls are always excluded
-
-  return false;
-}
-
-
-/*
-  @brief
-    Compare two packed keys inside the Unique tree
-
-  @param a_ptr             packed sort key
-  @param b_ptr             packed sort key
-
-  @retval
-    >0   key a_ptr greater than b_ptr
-    =0   key a_ptr equal to b_ptr
-    <0   key a_ptr less than b_ptr
-
-*/
-
-int Unique_packed::compare_packed_keys(uchar *a_ptr, uchar *b_ptr)
-{
-  return sort_keys->compare_keys(a_ptr + size_of_length_field,
-                                 b_ptr + size_of_length_field);
-}
-
-
-int Unique_packed_single_arg::compare_packed_keys(uchar *a_ptr, uchar *b_ptr)
-{
-  return sort_keys->compare_keys_for_single_arg(a_ptr + size_of_length_field,
-                                                b_ptr + size_of_length_field);
 }
 
 
@@ -1014,49 +886,4 @@ int Unique::write_record_to_file(uchar *key)
 int Unique_packed::write_record_to_file(uchar *key)
 {
   return my_b_write(get_file(), key, read_packed_length(key));
-}
-
-
-/*
-  TODO varun:  add description
-*/
-uint Unique_packed::make_packed_record(bool exclude_nulls)
-{
-  Field *field;
-  SORT_FIELD *sort_field;
-  uint length;
-  uchar *orig_to, *to;
-  orig_to= to= packed_rec_ptr;
-  to+= size_of_length_field;
-
-  for (sort_field=sort_keys->begin() ;
-       sort_field != sort_keys->end() ;
-       sort_field++)
-  {
-    bool maybe_null=0;
-    if ((field=sort_field->field))
-    {
-      // Field
-      length= field->make_packed_sort_key_part(to, sort_field);
-    }
-    else
-    {           // Item
-      Item *item= sort_field->item;
-      length= item->type_handler()->make_packed_sort_key_part(to, item,
-                                                              sort_field,
-                                                              &tmp_buffer);
-    }
-
-    if ((maybe_null= sort_field->maybe_null))
-    {
-      if (exclude_nulls && length == 0)
-        return 0;   // NULL value
-      to++;
-    }
-    to+= length;
-  }
-
-  length= static_cast<int>(to - orig_to);
-  store_packed_length(orig_to, length);
-  return length;
 }

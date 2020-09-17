@@ -753,6 +753,7 @@ public:
   bool setup(THD *thd, Field *field);
   uint make_packed_record(bool exclude_nulls);
   int compare_packed_keys(uchar *a, uchar *b);
+  int compare_keys_for_single_arg(uchar *a, uchar *b);
   static void store_packed_length(uchar *p, uint sz)
   {
     int4store(p, sz - size_of_length_field);

@@ -682,6 +682,10 @@ class Aggregator_distinct : public Aggregator
   */
   bool use_distinct_values;
 
+  /*
+    Used to store information about variable sized keys
+    @see sql_sort.h for the class definition
+  */
   Variable_sized_keys *variable_sized_keys;
 
 public:
@@ -702,8 +706,10 @@ public:
   bool unique_walk_function(void *element);
   bool unique_walk_function_for_count(void *element);
   int insert_record_to_unique();
+  qsort_cmp2 get_compare_func_for_packed_keys();
   static int composite_key_cmp(void* arg, uchar* key1, uchar* key2);
   static int composite_packed_key_cmp(void* arg, uchar* key1, uchar* key2);
+  static int packed_key_cmp_single_arg(void *arg, uchar *key1, uchar *key2);
 };
 
 
@@ -2030,9 +2036,6 @@ public:
   uint get_null_bytes();
   bool is_distinct_packed();
   bool is_packing_allowed(uint* total_length);
-  Unique *get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
-                     uint size_arg, size_t max_in_memory_size_arg,
-                     uint min_dupl_count_arg, bool allow_packing);
   static int dump_leaf_key(void* key_arg,
                            element_count count __attribute__((unused)),
                            void* item_arg);

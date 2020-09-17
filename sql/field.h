@@ -1111,7 +1111,7 @@ public:
   virtual uint32 sort_length() const { return pack_length(); }
   /*
     returns the sort_length for a field without the suffix length bytes
-    for fields with binary charset.
+    for field with binary charset.
   */
   virtual uint32 sort_length_without_suffix() const { return pack_length(); }
 

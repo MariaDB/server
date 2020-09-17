@@ -3817,6 +3817,11 @@ public:
 
   /*
     create a compact size key part for a sort key
+
+    @param to                   buffer to store value of keypart
+    @param item                 item corresponding to the keypart
+    @param sort_field           sort field structure
+    @param tmp_buffer           temporary buffer to store the packed value if needed
   */
   virtual uint make_packed_sort_key_part(uchar *to, Item *item,
                                          const SORT_FIELD_ATTR *sort_field,

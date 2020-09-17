@@ -3077,6 +3077,15 @@ int Sort_keys::compare_keys(uchar *a, uchar *b)
 }
 
 
+/*
+  @brief
+    Compare two packed sort keys with a single keypart
+
+  @retval
+    >0   key a greater than b
+    =0   key a equal to b
+    <0   key a less than b
+*/
 int Sort_keys::compare_keys_for_single_arg(uchar *a, uchar *b)
 {
   SORT_FIELD *sort_field= begin();
@@ -3360,8 +3369,20 @@ int Variable_sized_keys::compare_packed_keys(uchar *a_ptr, uchar *b_ptr)
 }
 
 
+int Variable_sized_keys::compare_keys_for_single_arg(uchar *a, uchar *b)
+{
+  return sort_keys->compare_keys_for_single_arg(a + size_of_length_field,
+                                                b + size_of_length_field);
+}
+
+
 /*
-  TODO varun:  add description
+  @brief
+    Make a record with packed values for a key
+
+  @retval
+    0         NULL value
+    >0        length of the packed record
 */
 uint Variable_sized_keys::make_packed_record(bool exclude_nulls)
 {

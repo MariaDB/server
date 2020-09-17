@@ -1723,20 +1723,19 @@ public:
       if (!variable_size_keys)
         return true; // OOM
 
-      tree= new Unique_packed_single_arg((qsort_cmp2) simple_packed_str_key_cmp,
-                                         (void*) this, tree_key_length,
-                                         max_heap_table_size, 1);
+      tree= new Unique_packed((qsort_cmp2) simple_packed_str_key_cmp,
+                              (void*) this, tree_key_length,
+                              max_heap_table_size, 1);
+      if (!tree)
+        return true; // OOM
       return variable_size_keys->setup(thd, table_field);
-
     }
 
     tree_key_length= table_field->pack_length();
     tree= new Unique((qsort_cmp2) simple_str_key_cmp, (void*) table_field,
                      tree_key_length, max_heap_table_size, 1);
 
-    if (!tree)
-      return true;  // OOM
-    return false;
+    return tree == NULL;
   }
 
 
@@ -1835,7 +1834,7 @@ int Count_distinct_field::simple_packed_str_key_cmp(void* arg,
 {
   Count_distinct_field *compare_arg= (Count_distinct_field*)arg;
   DBUG_ASSERT(compare_arg->variable_size_keys);
-  return compare_arg->variable_size_keys->compare_packed_keys(key1, key2);
+  return compare_arg->variable_size_keys->compare_keys_for_single_arg(key1, key2);
 }
 
 
@@ -1853,7 +1852,7 @@ public:
 
   bool add()
   {
-    longlong val= table_field->val_int();   
+    longlong val= table_field->val_int();
     return tree->unique_add(&val, tree->get_size());
   }
   bool setup(THD *thd, size_t max_heap_table_size)
@@ -1862,10 +1861,7 @@ public:
     tree= new Unique((qsort_cmp2) simple_ulonglong_key_cmp,
                      (void*) &tree_key_length,
                      tree_key_length, max_heap_table_size, 1);
-    if (!tree)
-      return true;  // OOM
-
-    return tree->setup(thd, table_field);
+    return tree == NULL;
   }
   static int simple_ulonglong_key_cmp(void* arg, uchar* key1, uchar* key2);
 };

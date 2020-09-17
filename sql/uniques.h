@@ -140,51 +140,10 @@ public:
   size_t get_max_in_memory_size() const { return max_in_memory_size; }
   bool is_count_stored() { return with_counters; }
   IO_CACHE *get_file ()  { return &file; }
-  virtual uchar *get_packed_rec_ptr()
-  {
-    DBUG_ASSERT(0);
-    return NULL;
-  }
-  virtual Sort_keys *get_keys()
-  {
-    DBUG_ASSERT(0);
-    return NULL;
-  }
-  virtual SORT_FIELD *get_sortorder()
-  {
-    DBUG_ASSERT(0);
-    return NULL;
-  }
-  virtual bool setup(THD *thd, Item_sum *item, uint non_const_args,
-                     uint arg_count)
-  {
-    return false;
-  }
-
-  virtual bool setup(THD *thd, Field *field)
-  {
-    return false;
-  }
-
-  virtual int compare_packed_keys(uchar *a, uchar *b)
-  {
-    DBUG_ASSERT(0);
-    return 0;
-  }
-
-  virtual uint get_length(uchar *ptr, bool exclude_nulls)
-  {
-    return size;
-  }
   virtual int write_record_to_file(uchar *key);
 
   // returns TRUE if the unique tree stores packed values
   virtual bool is_packed() { return false; }
-  virtual uint make_packed_record(bool exclude_nulls)
-  {
-    DBUG_ASSERT(0);
-    return 0;
-  }
 
   friend int unique_write_to_file(uchar* key, element_count count, Unique *unique);
   friend int unique_write_to_ptrs(uchar* key, element_count count, Unique *unique);
@@ -201,64 +160,18 @@ public:
   Unique_packed class: derived from Unique class, used to store
   records in packed format to efficiently utilize the space provided
   inside the tree.
-
-  The format is as follows:
-
-    <sort_key_length><packed_value_1><packed_value2> ....... <packed_valueN>
-
-    format for a n-part key
-
-  <sort_key_length> is the length of the whole key.
-  Each packed value is encoded as follows:
-
-    <null_byte=0>  // This is a an SQL NULL
-    [<null_byte=1>] <packed_value>  // this a non-NULL value
-  null_byte is present if the field/item is NULLable.
-  SQL NULL is encoded as just one NULL-indicator byte.
 */
 
 class Unique_packed : public Unique
 {
 protected:
-  /*
-    Packed record ptr for a record of the table, the packed value in this
-    record is added to the unique tree
-  */
-  uchar* packed_rec_ptr;
-
-  String tmp_buffer;
-
-  /*
-    Array of SORT_FIELD structure storing the information about the key parts
-    in the sort key of the Unique tree
-    @see Unique::setup()
-  */
-  SORT_FIELD *sortorder;
-
-  /*
-    Structure storing information about usage of keys
-  */
-  Sort_keys *sort_keys;
-
   public:
   Unique_packed(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
                 uint size_arg, size_t max_in_memory_size_arg,
                 uint min_dupl_count_arg);
 
-  virtual ~Unique_packed();
   bool is_packed() { return true; }
-  uchar *get_packed_rec_ptr() { return packed_rec_ptr; }
-  Sort_keys *get_keys() { return sort_keys; }
-  SORT_FIELD *get_sortorder() { return sortorder; }
-  bool setup(THD *thd, Item_sum *item, uint non_const_args, uint arg_count);
-  bool setup(THD *thd, Field *field);
-  virtual int compare_packed_keys(uchar *a, uchar *b);
   int write_record_to_file(uchar *key);
-  uint make_packed_record(bool exclude_nulls);
-  static void store_packed_length(uchar *p, uint sz)
-  {
-    int4store(p, sz - size_of_length_field);
-  }
 
   // returns the length of the key along with the length bytes for the key
   static uint read_packed_length(uchar *p)
@@ -267,21 +180,6 @@ protected:
   }
 
   static const uint size_of_length_field= 4;
-};
-
-
-class Unique_packed_single_arg : public Unique_packed
-{
-  public:
-    Unique_packed_single_arg(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
-                             uint size_arg, size_t max_in_memory_size_arg,
-                             uint min_dupl_count_arg):
-      Unique_packed(comp_func, comp_func_fixed_arg, size_arg,
-                max_in_memory_size_arg, min_dupl_count_arg)
-  {}
-
-  int compare_packed_keys(uchar *a, uchar *b);
-
 };
 
 #endif /* UNIQUE_INCLUDED */

@@ -728,6 +728,29 @@ Aggregator_distinct::composite_packed_key_cmp(void* arg,
 }
 
 
+/**
+  Correctly compare composite keys.
+
+  Used by the Unique class to compare packed keys which have a single argument
+
+  @param arg     Pointer to the relevant Aggregator_distinct instance
+  @param key1    left key image
+  @param key2    right key image
+
+  @return        comparison result
+    @retval <0       if key1 < key2
+    @retval =0       if key1 = key2
+    @retval >0       if key1 > key2
+*/
+int
+Aggregator_distinct::packed_key_cmp_single_arg(void *arg, uchar *key1, uchar *key2)
+{
+  Aggregator_distinct *aggr= (Aggregator_distinct *) arg;
+  DBUG_ASSERT(aggr->variable_sized_keys);
+  return aggr->variable_sized_keys->compare_keys_for_single_arg(key1, key2);
+}
+
+
 /***************************************************************************/
 
 C_MODE_START
@@ -899,8 +922,9 @@ bool Aggregator_distinct::setup(THD *thd)
 
       if (allow_packing)
       {
-        compare_key= (qsort_cmp2) composite_packed_key_cmp;
+        compare_key= get_compare_func_for_packed_keys();
         cmp_arg= (void*)this;
+
         variable_sized_keys= new Variable_sized_keys(tree_key_length);
         if (variable_sized_keys == NULL)
           return true;
@@ -968,9 +992,9 @@ bool Aggregator_distinct::setup(THD *thd)
       simple_raw_key_cmp because the table contains numbers only; decimals
       are converted to binary representation as well.
     */
-    tree= new Unique(simple_raw_key_cmp, &tree_key_length, tree_key_length,
-                     item_sum->ram_limitation(thd));
-
+    tree= item_sum->get_unique(simple_raw_key_cmp, &tree_key_length, tree_key_length,
+                               item_sum->ram_limitation(thd), 0,
+                               false);
     DBUG_RETURN(tree == 0);
   }
 }
@@ -1044,6 +1068,21 @@ int Aggregator_distinct::insert_record_to_unique()
 
   return tree->unique_add(table->record[0] + table->s->null_bytes,
                           tree->get_size());
+}
+
+
+/*
+  @brief
+    Get compare function for packed keys
+
+    @retval
+      comparision function
+*/
+qsort_cmp2 Aggregator_distinct::get_compare_func_for_packed_keys()
+{
+  return item_sum->get_arg_count() == 1 ?
+         (qsort_cmp2) packed_key_cmp_single_arg:
+         (qsort_cmp2) composite_packed_key_cmp;
 }
 
 
@@ -4808,6 +4847,8 @@ uint Item_func_group_concat::get_null_bytes()
 
 bool Item_func_group_concat::is_distinct_packed()
 {
+  DBUG_ASSERT((variable_sized_keys != NULL) ==
+              (unique_filter && unique_filter->is_packed()));
   return unique_filter && unique_filter->is_packed();
 }
 
@@ -4896,40 +4937,21 @@ bool Item_sum::is_packing_allowed(TABLE *table, uint* total_length)
 }
 
 
+/*
+  @brief
+    Get unique instance to filter out duplicate for AGG_FUNC(DISTINCT col....)
+*/
 Unique* Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
                              uint size_arg, size_t max_in_memory_size_arg,
                              uint min_dupl_count_arg, bool allow_packing)
 {
-
   if (allow_packing)
-  {
-    if (get_arg_count() == 1)
-      return new Unique_packed_single_arg(comp_func, comp_func_fixed_arg,
-                                          size_arg, max_in_memory_size_arg,
-                                          min_dupl_count_arg);
-
-    return new Unique_packed(comp_func, comp_func_fixed_arg, size_arg,
-                             max_in_memory_size_arg, min_dupl_count_arg);
-  }
-  return new Unique(comp_func, comp_func_fixed_arg, size_arg,
-                    max_in_memory_size_arg, min_dupl_count_arg);
-
-}
-
-
-Unique* Item_func_group_concat::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
-                                           uint size_arg, size_t max_in_memory_size_arg,
-                                           uint min_dupl_count_arg, bool allow_packing)
-{
-
-  if (allow_packing)
-    return new Unique_packed(comp_func, comp_func_fixed_arg, size_arg,
+   return new Unique_packed(comp_func, comp_func_fixed_arg, size_arg,
                              max_in_memory_size_arg, min_dupl_count_arg);
   return new Unique(comp_func, comp_func_fixed_arg, size_arg,
                     max_in_memory_size_arg, min_dupl_count_arg);
 
 }
-
 
 
 void Item_func_group_concat::print(String *str, enum_query_type query_type)
@@ -4986,6 +5008,15 @@ Item_func_group_concat::~Item_func_group_concat()
 }
 
 
+/*
+  @brief
+    Insert a record inside the Unique tree
+
+  @retval
+    -1       NULL value, record rejected
+     0       record succesfully inserted into the tree
+     1       error
+*/
 int Item_func_group_concat::insert_record_to_unique()
 {
   if (unique_filter->is_packed())
