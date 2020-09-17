@@ -1202,7 +1202,8 @@ static bool log_preflush_pool_modified_pages(lsn_t new_oldest)
 
 		ulint	n_pages;
 
-		success = buf_flush_lists(ULINT_MAX, new_oldest, &n_pages);
+		success = buf_flush_lists(ULINT_UNDEFINED, new_oldest,
+					  &n_pages);
 
 		buf_flush_wait_batch_end_acquiring_mutex(false);
 
@@ -1520,7 +1521,7 @@ static void flush_buffer_pool()
                                  "Waiting to flush the buffer pool");
   while (flush_list_length())
   {
-    buf_flush_lists(ULINT_MAX, LSN_MAX);
+    buf_flush_lists(ULINT_UNDEFINED, LSN_MAX);
     struct timespec abstime;
 
     if (buf_pool.n_flush_list)

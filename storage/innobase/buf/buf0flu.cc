@@ -264,7 +264,7 @@ void buf_flush_dirty_pages(ulint id)
     if (!n)
       return;
 
-    buf_flush_lists(ULINT_MAX, LSN_MAX);
+    buf_flush_lists(ULINT_UNDEFINED, LSN_MAX);
   }
 }
 
@@ -1417,6 +1417,8 @@ static bool buf_flush_do_batch(ulint max_n, lsn_t lsn, flush_counters_t *n)
 
   mysql_mutex_lock(&buf_pool.mutex);
   const bool running= n_flush != 0;
+  /* FIXME: we are performing a dirty read of buf_pool.flush_list.count
+  while not holding buf_pool.flush_list_mutex */
   if (running || !UT_LIST_GET_LEN(buf_pool.flush_list))
   {
     mysql_mutex_unlock(&buf_pool.mutex);
@@ -1435,11 +1437,13 @@ static bool buf_flush_do_batch(ulint max_n, lsn_t lsn, flush_counters_t *n)
     n->evicted= 0;
   }
 
-  if (!--n_flush)
-    mysql_cond_broadcast(cond);
+  const auto n_flushing= --n_flush;
 
   buf_pool.try_LRU_scan= true;
   mysql_mutex_unlock(&buf_pool.mutex);
+
+  if (!n_flushing)
+    mysql_cond_broadcast(cond);
 
   if (!srv_read_only_mode)
     buf_dblwr_flush_buffered_writes();
@@ -1503,7 +1507,7 @@ void buf_flush_wait_flushed(lsn_t new_oldest)
 		}
 
 		if (!srv_adaptive_flushing) {
-			buf_flush_request_force(new_oldest);
+			buf_flush_request_force(LSN_MAX);
 			buf_flush_wait_batch_end_acquiring_mutex(false);
 		} else {
 			/* sleep and retry */
@@ -1820,45 +1824,44 @@ static void buf_flush_page_cleaner_disabled_loop()
 /** Purely event-driven page cleaner for innodb_adaptive_flushing=OFF */
 static void page_cleaner_event()
 {
-  mysql_mutex_lock(&buf_pool.mutex);
+  /* This is a dirty read without holding buf_pool.mutex */
   const ulint lru_len= UT_LIST_GET_LEN(buf_pool.LRU);
-  mysql_mutex_unlock(&buf_pool.mutex);
-
   const ulint flush_threshold= static_cast<ulint>
     (srv_max_buf_pool_modified_pct * static_cast<double>(lru_len) / 100);
   const ulint flush_target= static_cast<ulint>
     (srv_max_dirty_pages_pct_lwm * static_cast<double>(lru_len) / 100);
 
-  mysql_mutex_lock(&buf_pool.flush_list_mutex);
-  ulint flush_len= UT_LIST_GET_LEN(buf_pool.flush_list);
-  if (flush_len <= flush_threshold)
-  {
-    mysql_cond_wait(&buf_pool.do_flush_list, &buf_pool.flush_list_mutex);
-    flush_len= UT_LIST_GET_LEN(buf_pool.flush_list);
-  }
-  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+  lsn_t lsn= buf_flush_sync_lsn.exchange(0, std::memory_order_release);
+  ulint len= ULINT_UNDEFINED;
 
-  ulint len= ULINT_MAX;
-
-  if (lsn_t lsn= buf_flush_sync_lsn.exchange(0, std::memory_order_release))
+  if (!lsn)
   {
-do_flush:
-    ulint n_flushed;
-    buf_flush_lists(len, lsn, &n_flushed);
-    if (n_flushed)
+    mysql_mutex_lock(&buf_pool.flush_list_mutex);
+    ulint flush_len= UT_LIST_GET_LEN(buf_pool.flush_list);
+    if (flush_len <= flush_threshold)
     {
-      MONITOR_INC_VALUE_CUMULATIVE(MONITOR_FLUSH_BACKGROUND_TOTAL_PAGE,
-                                   MONITOR_FLUSH_BACKGROUND_COUNT,
-                                   MONITOR_FLUSH_BACKGROUND_PAGES,
-                                   n_flushed);
+      mysql_cond_wait(&buf_pool.do_flush_list, &buf_pool.flush_list_mutex);
+      flush_len= UT_LIST_GET_LEN(buf_pool.flush_list);
+    }
+    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+    lsn= buf_flush_sync_lsn.exchange(0, std::memory_order_release);
+    if (!lsn)
+    {
+      if (flush_len <= flush_target)
+        return;
+      len= flush_len - flush_target;
+      lsn= LSN_MAX;
     }
   }
-  else
+
+  ulint n_flushed;
+  buf_flush_lists(len, lsn, &n_flushed);
+  if (n_flushed)
   {
-    lsn= LSN_MAX;
-    len= flush_len - flush_target;
-    if (flush_len > flush_target)
-      goto do_flush;
+    MONITOR_INC_VALUE_CUMULATIVE(MONITOR_FLUSH_BACKGROUND_TOTAL_PAGE,
+                                 MONITOR_FLUSH_BACKGROUND_COUNT,
+                                 MONITOR_FLUSH_BACKGROUND_PAGES,
+                                 n_flushed);
   }
 }
 
@@ -2058,7 +2061,7 @@ void buf_flush_sync()
 
   for (;;)
   {
-    const bool success= buf_flush_lists(ULINT_MAX, LSN_MAX);
+    const bool success= buf_flush_lists(ULINT_UNDEFINED, LSN_MAX);
     buf_flush_wait_batch_end_acquiring_mutex(false);
     if (success)
     {
