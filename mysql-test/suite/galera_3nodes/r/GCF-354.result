@@ -1,17 +1,18 @@
 connection node_2;
 connection node_1;
-connection node_2;
-SET wsrep_on=OFF;
-DROP SCHEMA test;
 connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
 connection node_3;
 connection node_1;
 connection node_2;
 connection node_3;
+connection node_2;
 SET wsrep_on=OFF;
-CREATE TABLE test.t1 (f1 INTEGER);
+DROP SCHEMA test;
+connection node_3;
+SET SESSION wsrep_on=OFF;
+CREATE TABLE test.t1 (f1 INTEGER) engine=innodb;
 connection node_1;
-CREATE TABLE test.t1 (f1 INTEGER);
+CREATE TABLE test.t1 (f1 INTEGER) engine=innodb;
 SHOW STATUS LIKE 'wsrep_cluster_status';
 Variable_name	Value
 wsrep_cluster_status	Primary

@@ -1583,7 +1583,6 @@ int main(
 	/* enable when space_id of given file is zero. */
 	bool		is_system_tablespace = false;
 
-	ut_crc32_init();
 	MY_INIT(argv[0]);
 	DBUG_ENTER("main");
 	DBUG_PROCESS(argv[0]);

@@ -2392,7 +2392,7 @@ public:
     if (join_tab_idx_arg < join_tab_idx)
       join_tab_idx= join_tab_idx_arg;
   }
-  virtual uint get_join_tab_idx() { return join_tab_idx; }
+  uint get_join_tab_idx() const { return join_tab_idx; }
 
   table_map view_used_tables(TABLE_LIST *view)
   {

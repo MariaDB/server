@@ -1169,7 +1169,7 @@ dberr_t srv_start(bool create_new_db)
 
 	srv_boot();
 
-	ib::info() << ut_crc32_implementation;
+	ib::info() << my_crc32c_implementation();
 
 	if (!srv_read_only_mode) {
 

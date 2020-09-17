@@ -9,5 +9,3 @@ ERROR 42000: Table 's3_unique_table' uses an extension that doesn't exist in thi
 rename table s3_unique_table to t1;
 ERROR HY000: Error on rename of './test/s3_unique_table' to './test/t1' (errno: 138 "Unsupported extension used for table")
 drop table s3_unique_table;
-Warnings:
-Warning	1112	Table 's3_unique_table' uses an extension that doesn't exist in this MariaDB version

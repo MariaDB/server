@@ -97,8 +97,6 @@ main(int argc, char **argv)
 {
 	MY_INIT(argv[0]);
 
-	my_checksum_init();
-
 	if (get_options(&argc, &argv)) {
 		goto err;
 	}
