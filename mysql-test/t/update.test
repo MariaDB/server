@@ -672,4 +672,18 @@ UPDATE t1,t2 SET t1.i1 = -39 WHERE t2.d1 <> t1.i1 AND t2.d1 = t1.d2;
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-23500: Assertion `!is_set() || (m_status == DA_OK_BULK &&
+--echo # is_bulk_op())' failed in Diagnostics_area::set_ok_status upon
+--echo # multi-table update
+--echo #
+
+CREATE TABLE t (f INT NOT NULL);
+INSERT INTO t VALUES (0),(0);
+
+--error WARN_DATA_TRUNCATED
+UPDATE t AS t1 LEFT JOIN t AS t2 ON t1.f <=> t2.f SET t2.f = NULL;
+
+DROP TABLE t;
+
 --echo # End of MariaDB 10.2 tests

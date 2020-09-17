@@ -2466,6 +2466,8 @@ int multi_update::do_updates()
 	   copy_field_ptr++)
       {
 	(*copy_field_ptr->do_copy)(copy_field_ptr);
+        if (thd->is_error())
+          goto err2;
         copy_field_ptr->to_field->set_has_explicit_value();
       }
 
