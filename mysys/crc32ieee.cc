@@ -18,40 +18,46 @@
 #include <my_sys.h>
 #include <zlib.h>
 
-#if !defined(HAVE_CRC32_VPMSUM)
 /* TODO: remove this once zlib adds inherent support for hardware accelerated
 crc32 for all architectures. */
 static unsigned int my_crc32_zlib(unsigned int crc, const void *data,
                                   size_t len)
 {
-  return (unsigned int) crc32(crc, data, (unsigned int) len);
+  return (unsigned int) crc32(crc, (const Bytef *)data, (unsigned int) len);
 }
 
-my_crc32_t my_checksum= my_crc32_zlib;
-#endif
-
-#ifdef HAVE_CLMUL_INSTRUCTION
-extern int crc32_pclmul_enabled();
-extern unsigned int crc32_pclmul(unsigned int, const void *, size_t);
-
-/*----------------------------- x86_64 ---------------------------------*/
-void my_checksum_init(void)
-{
-  if (crc32_pclmul_enabled())
-    my_checksum= crc32_pclmul;
-}
+#ifdef HAVE_PCLMUL
+extern "C" int crc32_pclmul_enabled();
+extern "C" unsigned int crc32_pclmul(unsigned int, const void *, size_t);
 #elif defined(__GNUC__) && defined(HAVE_ARMV8_CRC)
-/*----------------------------- aarch64 --------------------------------*/
-
-extern unsigned int crc32_aarch64(unsigned int, const void *, size_t);
-
-/* Ideally all ARM 64 bit processor should support crc32 but if some model
-doesn't support better to find it out through auxillary vector. */
-void my_checksum_init(void)
-{
-  if (crc32_aarch64_available())
-    my_checksum= crc32_aarch64;
-}
-#else
-void my_checksum_init(void) {}
+extern "C" int crc32_aarch64_available();
+extern "C" unsigned int crc32_aarch64(unsigned int, const void *, size_t);
 #endif
+
+
+typedef unsigned int (*my_crc32_t)(unsigned int, const void *, size_t);
+
+static my_crc32_t init_crc32()
+{
+  my_crc32_t func= my_crc32_zlib;
+#ifdef HAVE_PCLMUL
+  if (crc32_pclmul_enabled())
+    func = crc32_pclmul;
+#elif defined(__GNUC__) && defined(HAVE_ARMV8_CRC)
+  if (crc32_aarch64_available())
+    func= crc32_aarch64;
+#endif
+  return func;
+}
+
+static const my_crc32_t my_checksum_func= init_crc32();
+
+#ifndef __powerpc64__
+/* For powerpc, my_checksum is defined elsewhere.*/
+extern "C" unsigned int my_checksum(unsigned int crc, const void *data, size_t len)
+{
+  return my_checksum_func(crc, data, len);
+}
+#endif
+
+

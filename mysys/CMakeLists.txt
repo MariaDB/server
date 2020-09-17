@@ -16,7 +16,7 @@
 
 INCLUDE_DIRECTORIES(${ZLIB_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/mysys)
 
-SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
+SET(MYSYS_SOURCES  array.c charset-def.c charset.c crc32ieee.cc my_default.c
                 get_password.c
 				errors.c hash.c list.c
                                 mf_cache.c mf_dirname.c mf_fn_ext.c
@@ -45,7 +45,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
                                 my_uuid.c wqueue.c waiting_threads.c ma_dyncol.c ../sql-common/my_time.c
 				my_rdtsc.c my_context.c psi_noop.c
                                 my_atomic_writes.c my_cpu.c my_likely.c my_largepage.c
-                                file_logger.c my_dlerror.c)
+                                file_logger.c my_dlerror.c   crc32/crc32c.cc)
 
 IF (WIN32)
   SET (MYSYS_SOURCES ${MYSYS_SOURCES}
@@ -59,25 +59,23 @@ IF (WIN32)
 ENDIF()
 
 IF(MSVC)
-  SET(HAVE_CPUID_INSTRUCTION 1 CACHE BOOL "")
-  SET(HAVE_CLMUL_INSTRUCTION 1 CACHE BOOL "")
   SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32_x86.c)
+  ADD_DEFINITIONS(-DHAVE_SSE42 -DHAVE_PCLMUL)
   IF(CLANG_CL)
-    SET_SOURCE_FILES_PROPERTIES(crc32/crc32_x86.c PROPERTIES COMPILE_FLAGS "-msse4.2 -mpclmul")
+    SET_SOURCE_FILES_PROPERTIES(crc32/crc32_x86.cc crc32/crc32c.c PROPERTIES COMPILE_FLAGS "-msse4.2 -mpclmul")
   ENDIF()
 ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|i386|i686")
-  SET(HAVE_CPUID_INSTRUCTION 1 CACHE BOOL "")
   MY_CHECK_C_COMPILER_FLAG(-msse4.2)
   MY_CHECK_C_COMPILER_FLAG(-mpclmul)
   CHECK_INCLUDE_FILE(cpuid.h HAVE_CPUID_H)
   CHECK_INCLUDE_FILE(x86intrin.h HAVE_X86INTRIN_H)
   IF(have_C__msse4.2 AND have_C__mpclmul AND HAVE_CPUID_H AND HAVE_X86INTRIN_H)
-    SET(HAVE_CLMUL_INSTRUCTION 1 CACHE BOOL "")
     SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32_x86.c)
-    SET_SOURCE_FILES_PROPERTIES(crc32/crc32_x86.c PROPERTIES COMPILE_FLAGS "-msse4.2 -mpclmul")
+    SET_SOURCE_FILES_PROPERTIES(crc32/crc32_x86.c crc32/crc32c.cc PROPERTIES COMPILE_FLAGS "-msse4.2 -mpclmul")
+    ADD_DEFINITIONS(-DHAVE_SSE42 -DHAVE_PCLMUL)
   ENDIF()
 ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
-  IF(CMAKE_COMPILER_IS_GNUCC AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.1)
+  IF(CMAKE_COMPILER_IS_GNUCC)
     include(CheckCXXSourceCompiles)
 
     CHECK_CXX_SOURCE_COMPILES("
@@ -99,23 +97,29 @@ ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
     #include <sys/auxv.h>
     int main() { foo(0); getauxval(AT_HWCAP); }" HAVE_ARMV8_CRYPTO)
 
-    CHECK_C_COMPILER_FLAG(-march=armv8-a+crc+crypto HAVE_ARMV8_CRC_CRYPTO_INTRINSICS)
-    IF(HAVE_ARMV8_CRC_CRYPTO_INTRINSICS)
+    CHECK_C_COMPILER_FLAG(-march=armv8-a+crc+crypto HAVE_ARMV8_CRC_CRYPTO_MARCH)
+
+    IF(HAVE_ARMV8_CRC_CRYPTO_MARCH)
+      CHECK_INCLUDE_FILE(arm_acle.h HAVE_ARM_ACLE_H -march=armv8-a+crc+crypto)
+      IF(HAVE_ARM_ACLE_H)
+       ADD_DEFINITIONS(-DHAVE_ARMV8_CRC_CRYPTO_INTRINSICS)
+      ENDIF()
+      IF(HAVE_ARMV8_CRC)
+        ADD_DEFINITIONS(-DHAVE_ARMV8_CRC)
+      ENDIF()
+      IF(HAVE_ARMV8_CRYPTO)
+        ADD_DEFINITIONS(-DHAVE_ARMV8_CRYPTO)
+      ENDIF()
       SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32_arm64.c)
       SET_SOURCE_FILES_PROPERTIES(crc32/crc32_arm64.c PROPERTIES
         COMPILE_FLAGS "-march=armv8-a+crc+crypto")
     ENDIF()
   ENDIF()
 ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
-  SET(HAVE_CRC32_VPMSUM 1 PARENT_SCOPE)
-  SET(MYSYS_SOURCES ${MYSYS_SOURCES} $<TARGET_OBJECTS:crc32c> $<TARGET_OBJECTS:crc32ieee>)
-
-  ADD_LIBRARY(crc32c OBJECT crc32/crc32_ppc64.c)
-  ADD_LIBRARY(crc32ieee OBJECT crc32/crc32_ppc64.c)
-
-  SET_TARGET_PROPERTIES(crc32c crc32ieee PROPERTIES COMPILE_FLAGS "${COMPILE_FLAGS} -maltivec -mvsx -mpower8-vector -mcrypto -mpower8-vector")
-  SET_TARGET_PROPERTIES(crc32ieee PROPERTIES COMPILE_DEFINITIONS "CRC32_FUNCTION=my_checksum;CRC32_CONSTANTS_HEADER=\"pcc_crc32_constants.h\"")
-  SET_TARGET_PROPERTIES(crc32c PROPERTIES COMPILE_DEFINITIONS "CRC32_FUNCTION=crc32c_vpmsum;CRC32_CONSTANTS_HEADER=\"pcc_crc32c_constants.h\"")
+  SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32_ppc64.c crc32/crc32c_ppc.c)
+  SET_SOURCE_FILES_PROPERTIES(crc32/crc32_ppc64.c crc32/crc32c_ppc.c PROPERTIES
+        COMPILE_FLAGS "${COMPILE_FLAGS} -maltivec -mvsx -mpower8-vector -mcrypto -mpower8-vector")
+  ADD_DEFINITIONS(-DHAVE_POWER8 -DHAS_ALTIVEC)
 ENDIF()
 
 IF(UNIX)
