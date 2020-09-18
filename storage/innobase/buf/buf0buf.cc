@@ -1839,7 +1839,6 @@ inline bool buf_pool_t::withdraw_blocks()
 
 		/* reserve free_list length */
 		if (UT_LIST_GET_LEN(withdraw) < withdraw_target) {
-			mysql_cond_signal(&buf_pool.do_flush_list);
 			ulint n_flushed;
 
 			buf_flush_lists(
