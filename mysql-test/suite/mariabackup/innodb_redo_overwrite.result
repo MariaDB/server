@@ -1,0 +1,28 @@
+CREATE TABLE t(i INT) ENGINE=INNODB;
+INSERT INTO t VALUES
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9);
+# Generate enough data to overwrite innodb redo log
+# on the next "INSERT INTO t SELECT * FROM t" execution.
+INSERT INTO t SELECT * FROM t;
+INSERT INTO t SELECT * FROM t;
+INSERT INTO t SELECT * FROM t;
+INSERT INTO t SELECT * FROM t;
+INSERT INTO t SELECT * FROM t;
+INSERT INTO t SELECT * FROM t;
+INSERT INTO t SELECT * FROM t;
+INSERT INTO t SELECT * FROM t;
+INSERT INTO t SELECT * FROM t;
+# xtrabackup backup
+FOUND 1 /failed: redo log block is overwritten/ in backup.log
+FOUND 1 /failed: redo log block checksum does not match/ in backup.log
+FOUND 1 /failed: unknown reason/ in backup.log
+DROP TABLE t;
