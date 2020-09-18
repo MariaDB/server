@@ -451,7 +451,7 @@ retry:
 		list. */
 		if (!buf_LRU_scan_and_free_block(n_iterations
 						 ? ULINT_UNDEFINED
-						 : srv_LRU_scan_depth)) {
+						 : 100)) {
 			mysql_cond_signal(&buf_pool.do_flush_list);
 			if (n_iterations == 0) {
 				/* Tell other threads that there is no point
