@@ -2766,6 +2766,7 @@ static bool xtrabackup_copy_logfile(bool last = false)
 	ut_a(dst_log_file != NULL);
 	ut_ad(recv_sys.is_initialised());
 
+	bool overwritten_block = false;
 	lsn_t	start_lsn;
 	lsn_t	end_lsn;
 
@@ -2791,6 +2792,12 @@ static bool xtrabackup_copy_logfile(bool last = false)
 		}
 
 		if (lsn == start_lsn) {
+			overwritten_block= !recv_sys.found_corrupt_log
+				&& (innodb_log_checksums || log_sys.log.is_encrypted())
+				&& log_block_calc_checksum_crc32(log_sys.buf) ==
+					log_block_get_checksum(log_sys.buf)
+				&& log_block_get_hdr_no(log_sys.buf) >
+					log_block_convert_lsn_to_no(start_lsn);
 			start_lsn = 0;
 		} else {
 			mutex_enter(&recv_sys.mutex);
@@ -2801,9 +2808,15 @@ static bool xtrabackup_copy_logfile(bool last = false)
 		log_mutex_exit();
 
 		if (!start_lsn) {
-			die(recv_sys.found_corrupt_log
-			    ? "xtrabackup_copy_logfile() failed: corrupt log."
-			    : "xtrabackup_copy_logfile() failed.");
+			const char *reason = recv_sys.found_corrupt_log
+				? "corrupt log."
+				: (overwritten_block
+					? "redo log block is overwritten,  please increase redo log size."
+					: ((innodb_log_checksums || log_sys.log.is_encrypted())
+						? "redo log block checksum does not match."
+						: "unknown reason as innodb_log_checksums is switched off and redo"
+							" log is not encrypted."));
+			die("xtrabackup_copy_logfile() failed: %s", reason);
 			return true;
 		}
 	} while (start_lsn == end_lsn);

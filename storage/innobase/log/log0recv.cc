@@ -961,6 +961,8 @@ fail:
 					 }
 			 });
 
+			DBUG_EXECUTE_IF("log_checksum_mismatch", { cksum = crc + 1; });
+
 			if (crc != cksum) {
 				ib::error() << "Invalid log block checksum."
 					    << " block: " << block_number
