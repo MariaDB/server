@@ -8684,5 +8684,103 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.mark_join_nest_as_const'))
     }
 ]
 drop table t0, t1, t2, t3;
+#
+# MDEV-23767: IN-to-subquery conversion is not visible in optimizer trace
+#
+create table t0 (a int);
+INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+set @tmp=@@in_predicate_conversion_threshold;
+set in_predicate_conversion_threshold=3;
+explain select * from t0 where a in (1,2,3,4,5,6);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	PRIMARY	<derived3>	ref	key0	key0	4	test.t0.a	2	FirstMatch(t0)
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
+from information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
+[
+    
+    {
+        "item": "t0.a in (1,2,3,4,5,6)",
+        "conversion": 
+        [
+            
+            {
+                "join_preparation": 
+                {
+                    "select_id": 2,
+                    "steps": 
+                    [
+                        
+                        {
+                            "derived": 
+                            {
+                                "table": "tvc_0",
+                                "select_id": 3,
+                                "algorithm": "materialized"
+                            }
+                        },
+                        
+                        {
+                            "transformation": 
+                            {
+                                "select_id": 2,
+                                "from": "IN (SELECT)",
+                                "to": "materialization",
+                                "sjm_scan_allowed": true,
+                                "possible": true
+                            }
+                        },
+                        
+                        {
+                            "transformation": 
+                            {
+                                "select_id": 2,
+                                "from": "IN (SELECT)",
+                                "to": "semijoin",
+                                "chosen": true
+                            }
+                        },
+                        
+                        {
+                            "expanded_query": "/* select#2 */ select tvc_0._col_1 from (values (1),(2),(3),(4),(5),(6)) tvc_0"
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+]
+explain select * from t0 where a in (1,2,3,4,5,a+1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
+from information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
+[
+    
+    {
+        "item": "t0.a in (1,2,3,4,5,t0.a + 1)",
+        "done": false,
+        "reason": "non-constant element in the IN-list"
+    }
+]
+explain select * from t0 where a in ('1','2','3','4','5','6');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
+from information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
+[
+    
+    {
+        "item": "t0.a in ('1','2','3','4','5','6')",
+        "done": false,
+        "reason": "type mismatch"
+    }
+]
+set in_predicate_conversion_threshold=@tmp;
+drop table t0;
 # End of 10.5 tests
 set optimizer_trace='enabled=off';
