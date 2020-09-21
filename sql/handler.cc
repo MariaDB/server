@@ -4180,6 +4180,13 @@ void handler::print_error(int error, myf errflag)
     my_error(ER_DROP_INDEX_FK, errflag, ptr);
     DBUG_VOID_RETURN;
   }
+  case HA_ERR_FK_UPGRADE:
+    if (!ha_thd()->transaction_rollback_request)
+    {
+      /* Ensure this becomes a true error */
+      errflag|= (ME_NOTE);
+    }
+    /* fall through */
   case HA_ERR_TABLE_NEEDS_UPGRADE:
     textno= ER_TABLE_NEEDS_UPGRADE;
     my_error(ER_TABLE_NEEDS_UPGRADE, errflag,

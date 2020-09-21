@@ -222,12 +222,13 @@ dict_boot(void)
 	ut_ad(DICT_NUM_FIELDS__SYS_INDEXES == 10);
 	ut_ad(DICT_NUM_COLS__SYS_FIELDS == 3);
 	ut_ad(DICT_NUM_FIELDS__SYS_FIELDS == 5);
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
 	ut_ad(DICT_NUM_COLS__SYS_FOREIGN == 4);
 	ut_ad(DICT_NUM_FIELDS__SYS_FOREIGN == 6);
 	ut_ad(DICT_NUM_FIELDS__SYS_FOREIGN_FOR_NAME == 2);
 	ut_ad(DICT_NUM_COLS__SYS_FOREIGN_COLS == 4);
 	ut_ad(DICT_NUM_FIELDS__SYS_FOREIGN_COLS == 6);
-
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 	mtr_start(&mtr);
 
 	/* Create the hash tables etc. */

@@ -1093,6 +1093,14 @@ que_eval_sql(
 		dict_sys.mutex_unlock();
 	}
 
+#ifdef UNIV_DEBUG
+	if (!graph) {
+		trx->error_state = DB_ERROR;
+		DBUG_RETURN(trx->error_state);
+	}
+#endif /* UNIV_DEBUG */
+	ut_ad(graph);
+
 	graph->trx = trx;
 	trx->graph = NULL;
 

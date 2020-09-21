@@ -1,0 +1,425 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/lcase_names.inc
+--source suite/innodb/include/have_legacy_fk.inc
+
+set default_storage_engine= innodb;
+
+call mtr.add_suppression("Couldn't repair table:");
+set @saved_debug_dbug= @@session.debug_dbug;
+
+set session debug_dbug= "+d,fk_skip_store";
+create or replace table t1(x int primary key);
+create or replace table t2(y int references t1(x));
+set session debug_dbug= @saved_debug_dbug;
+show create table t2;
+
+set session debug_dbug= "+d,fk_create_legacy_storage";
+set global innodb_eval_sql="BEGIN
+INSERT INTO SYS_FOREIGN VALUES ('test/t2_ibfk_1', 'test/t2', 'test/t1', 1);
+INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
+set session debug_dbug= @saved_debug_dbug;
+
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+flush tables;
+--echo # Data is imported from SYS_FOREIGN[_COLS] on table open
+# Warnings doesn't appear in SHOW CREATE TABLE under ps-protocol
+--disable_warnings
+show create table t2;
+--enable_warnings
+
+set global innodb_background_drop_list_empty= 1;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign_cols;
+
+flush tables;
+--error ER_ROW_IS_REFERENCED_2
+drop table t1;
+drop tables t2, t1;
+
+--echo # DROP TABLE
+set session debug_dbug= "+d,fk_skip_store";
+create or replace table t1(x int primary key);
+create or replace table t2(y int references t1(x));
+set session debug_dbug= @saved_debug_dbug;
+
+set session debug_dbug= "+d,fk_create_legacy_storage";
+set global innodb_eval_sql="BEGIN
+INSERT INTO SYS_FOREIGN VALUES ('test/t2_ibfk_1', 'test/t2', 'test/t1', 1);
+INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
+set session debug_dbug= @saved_debug_dbug;
+
+--error ER_ROW_IS_REFERENCED_2
+drop table t1;
+drop tables t2, t1;
+
+set global innodb_background_drop_list_empty= 1;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign_cols;
+
+--echo # DROP DATABASE
+create database D1;
+create database D2;
+create or replace table D1.t1(x int primary key);
+set session debug_dbug= "+d,fk_skip_store";
+create or replace table D2.t2(y int references D1.t1(x));
+set session debug_dbug= @saved_debug_dbug;
+
+set session debug_dbug= "+d,fk_create_legacy_storage";
+set global innodb_eval_sql="BEGIN
+INSERT INTO SYS_FOREIGN VALUES ('D2/t2_ibfk_1', 'D2/t2', 'D1/t1', 1);
+INSERT INTO SYS_FOREIGN_COLS VALUES ('D2/t2_ibfk_1', 0, 'y', 'x');";
+set session debug_dbug= @saved_debug_dbug;
+
+--replace_result d1 D1 d2 D2
+check table D1.t1, D2.t2;
+--error ER_ROW_IS_REFERENCED_2
+drop database D1;
+--replace_result d1 D1 d2 D2
+check table D1.t1, D2.t2;
+drop database D2;
+--replace_result d1 D1 d2 D2
+check table D1.t1, D2.t2;
+set global innodb_background_drop_list_empty= 1;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign_cols;
+drop database D1;
+
+--echo # Index errors
+create or replace table t1(x int primary key);
+create or replace table t2(y int);
+
+set session debug_dbug= "+d,fk_create_legacy_storage";
+set global innodb_eval_sql="BEGIN
+INSERT INTO SYS_FOREIGN VALUES ('test/t2_ibfk_1', 'test/t2', 'test/t1', 1);
+INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
+set session debug_dbug= @saved_debug_dbug;
+
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+flush tables;
+
+--error ER_NOT_KEYFILE
+show create table t2;
+show warnings;
+
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+drop tables t2, t1;
+
+set session debug_dbug= "+d,fk_skip_store";
+create or replace table t1(x int);
+create or replace table t2(y int references t1(x));
+set session debug_dbug= @saved_debug_dbug;
+
+set session debug_dbug= "+d,fk_create_legacy_storage";
+set global innodb_eval_sql="BEGIN
+INSERT INTO SYS_FOREIGN VALUES ('test/t2_ibfk_1', 'test/t2', 'test/t1', 1);
+INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
+set session debug_dbug= @saved_debug_dbug;
+
+--error ER_NOT_KEYFILE
+show create table t2;
+show warnings;
+drop tables t2, t1;
+
+set session debug_dbug= "+d,fk_skip_store";
+create or replace table t1(x int primary key);
+create or replace table t2(z int references t1(x));
+set session debug_dbug= @saved_debug_dbug;
+
+set session debug_dbug= "+d,fk_create_legacy_storage";
+set global innodb_eval_sql="BEGIN
+INSERT INTO SYS_FOREIGN VALUES ('test/t2_ibfk_1', 'test/t2', 'test/t1', 1);
+INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
+set session debug_dbug= @saved_debug_dbug;
+
+--error ER_NOT_KEYFILE
+show create table t2;
+show warnings;
+drop tables t2, t1;
+
+set session debug_dbug= "+d,fk_skip_store";
+create or replace table t1(z int primary key);
+create or replace table t2(y int references t1(z));
+set session debug_dbug= @saved_debug_dbug;
+
+set session debug_dbug= "+d,fk_create_legacy_storage";
+set global innodb_eval_sql="BEGIN
+INSERT INTO SYS_FOREIGN VALUES ('test/t2_ibfk_1', 'test/t2', 'test/t1', 1);
+INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
+set session debug_dbug= @saved_debug_dbug;
+
+--error ER_NOT_KEYFILE
+show create table t2;
+show warnings;
+
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+drop tables t2, t1;
+
+--echo # Rename of tables (RENAME TABLE)
+
+set session debug_dbug= "+d,fk_skip_store";
+create or replace table t1(x int primary key);
+create or replace table t2(y int references t1(x));
+set session debug_dbug= @saved_debug_dbug;
+
+set session debug_dbug= "+d,fk_create_legacy_storage";
+set global innodb_eval_sql="BEGIN
+INSERT INTO SYS_FOREIGN VALUES ('test/t2_ibfk_1', 'test/t2', 'test/t1', 1);
+INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
+set session debug_dbug= @saved_debug_dbug;
+
+rename table t1 to t0;
+
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+
+--disable_warnings
+show create table t2;
+--enable_warnings
+
+set global innodb_background_drop_list_empty= 1;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign_cols;
+--error ER_ROW_IS_REFERENCED_2
+drop table t0;
+drop tables t2, t0;
+
+set session debug_dbug= "+d,fk_skip_store";
+create or replace table t1(x int primary key);
+create or replace table t2(y int references t1(x));
+set session debug_dbug= @saved_debug_dbug;
+
+set session debug_dbug= "+d,fk_create_legacy_storage";
+set global innodb_eval_sql="BEGIN
+INSERT INTO SYS_FOREIGN VALUES ('test/t2_ibfk_1', 'test/t2', 'test/t1', 1);
+INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
+set session debug_dbug= @saved_debug_dbug;
+
+rename table t2 to t3;
+
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+
+--disable_warnings
+show create table t3;
+--enable_warnings
+
+set global innodb_background_drop_list_empty= 1;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign_cols;
+--error ER_ROW_IS_REFERENCED_2
+drop table t1;
+drop tables t3, t1;
+
+--echo # Rename of tables (ALTER TABLE .. RENAME)
+
+set session debug_dbug= "+d,fk_skip_store";
+create or replace table t1(x int primary key);
+create or replace table t2(y int references t1(x));
+set session debug_dbug= @saved_debug_dbug;
+
+set session debug_dbug= "+d,fk_create_legacy_storage";
+set global innodb_eval_sql="BEGIN
+INSERT INTO SYS_FOREIGN VALUES ('test/t2_ibfk_1', 'test/t2', 'test/t1', 1);
+INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
+set session debug_dbug= @saved_debug_dbug;
+
+alter table t1 rename t0;
+
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+
+--disable_warnings
+show create table t2;
+--enable_warnings
+
+set global innodb_background_drop_list_empty= 1;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign_cols;
+drop tables t2, t0;
+
+set session debug_dbug= "+d,fk_skip_store";
+create or replace table t1(x int primary key);
+create or replace table t2(y int references t1(x));
+set session debug_dbug= @saved_debug_dbug;
+
+set session debug_dbug= "+d,fk_create_legacy_storage";
+set global innodb_eval_sql="BEGIN
+INSERT INTO SYS_FOREIGN VALUES ('test/t2_ibfk_1', 'test/t2', 'test/t1', 1);
+INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
+set session debug_dbug= @saved_debug_dbug;
+
+alter table t2 rename t3;
+
+set global innodb_background_drop_list_empty= 1;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign_cols;
+
+show create table t3;
+--error ER_ROW_IS_REFERENCED_2
+drop table t1;
+drop tables t3, t1;
+
+--echo # Rename of columns (ALTER TABLE .. CHANGE)
+set session debug_dbug= "+d,fk_skip_store";
+create or replace table t1(x int primary key);
+create or replace table t2(y int references t1(x));
+set session debug_dbug= @saved_debug_dbug;
+
+set session debug_dbug= "+d,fk_create_legacy_storage";
+set global innodb_eval_sql="BEGIN
+INSERT INTO SYS_FOREIGN VALUES ('test/t2_ibfk_1', 'test/t2', 'test/t1', 1);
+INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
+set session debug_dbug= @saved_debug_dbug;
+
+alter table t1 change x z int;
+
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+
+--disable_warnings
+show create table t2;
+--enable_warnings
+set global innodb_background_drop_list_empty= 1;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign_cols;
+drop tables t2, t1;
+
+set session debug_dbug= "+d,fk_skip_store";
+create or replace table t1(x int primary key);
+create or replace table t2(y int references t1(x));
+set session debug_dbug= @saved_debug_dbug;
+
+set session debug_dbug= "+d,fk_create_legacy_storage";
+set global innodb_eval_sql="BEGIN
+INSERT INTO SYS_FOREIGN VALUES ('test/t2_ibfk_1', 'test/t2', 'test/t1', 1);
+INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
+set session debug_dbug= @saved_debug_dbug;
+
+alter table t2 change y z int;
+
+set global innodb_background_drop_list_empty= 1;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign_cols;
+
+--disable_warnings
+show create table t2;
+--enable_warnings
+--error ER_ROW_IS_REFERENCED_2
+drop table t1;
+drop tables t2, t1;
+
+--echo # Rename of columns (ALTER TABLE .. RENAME COLUMN)
+set session debug_dbug= "+d,fk_skip_store";
+create or replace table t1(x int primary key);
+create or replace table t2(y int references t1(x));
+set session debug_dbug= @saved_debug_dbug;
+
+set session debug_dbug= "+d,fk_create_legacy_storage";
+set global innodb_eval_sql="BEGIN
+INSERT INTO SYS_FOREIGN VALUES ('test/t2_ibfk_1', 'test/t2', 'test/t1', 1);
+INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
+set session debug_dbug= @saved_debug_dbug;
+
+alter table t1 rename column x to z;
+
+select * from information_schema.innodb_sys_foreign;
+select * from information_schema.innodb_sys_foreign_cols;
+
+--disable_warnings
+show create table t2;
+--enable_warnings
+
+set global innodb_background_drop_list_empty= 1;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign_cols;
+--error ER_ROW_IS_REFERENCED_2
+drop table t1;
+drop tables t2, t1;
+
+set session debug_dbug= "+d,fk_skip_store";
+create or replace table t1(x int primary key);
+create or replace table t2(y int references t1(x));
+set session debug_dbug= @saved_debug_dbug;
+
+set session debug_dbug= "+d,fk_create_legacy_storage";
+set global innodb_eval_sql="BEGIN
+INSERT INTO SYS_FOREIGN VALUES ('test/t2_ibfk_1', 'test/t2', 'test/t1', 1);
+INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
+set session debug_dbug= @saved_debug_dbug;
+
+alter table t2 rename column y to z;
+
+set global innodb_background_drop_list_empty= 1;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign_cols;
+
+--disable_warnings
+show create table t2;
+--enable_warnings
+
+--error ER_ROW_IS_REFERENCED_2
+drop table t1;
+drop tables t2, t1;
+
+--echo # Drop column
+set session debug_dbug= "+d,fk_skip_store";
+create or replace table t1(a int primary key, x int unique);
+create or replace table t2(y int references t1(x), b int);
+set session debug_dbug= @saved_debug_dbug;
+
+set session debug_dbug= "+d,fk_create_legacy_storage";
+set global innodb_eval_sql="BEGIN
+INSERT INTO SYS_FOREIGN VALUES ('test/t2_ibfk_1', 'test/t2', 'test/t1', 1);
+INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
+set session debug_dbug= @saved_debug_dbug;
+
+--error ER_CANT_CREATE_TABLE
+alter table t1 drop column x, algorithm=copy;
+--error ER_CANT_CREATE_TABLE
+alter table t1 change x x char(10);
+--error ER_DROP_INDEX_FK
+alter table t1 drop column x;
+--error ER_WRONG_FK_DEF
+alter table t2 drop column y;
+
+set global innodb_background_drop_list_empty= 1;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign;
+--error ER_BAD_TABLE_ERROR
+select * from information_schema.innodb_sys_foreign_cols;
+
+--error ER_ROW_IS_REFERENCED_2
+drop table t1;
+drop tables t2, t1;
+
+--enable_warnings
+set session debug_dbug= @saved_debug_dbug;
+set global innodb_eval_sql= default;
+set default_storage_engine= default;

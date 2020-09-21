@@ -1118,6 +1118,7 @@ static ulint btr_node_ptr_max_size(const dict_index_t* index)
 		if (UNIV_UNLIKELY(!field_max_size)) {
 			switch (col->mtype) {
 			case DATA_VARCHAR:
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
 				if (!comp
 				    && (!strcmp(index->table->name.m_name,
 						"SYS_FOREIGN")
@@ -1125,6 +1126,7 @@ static ulint btr_node_ptr_max_size(const dict_index_t* index)
 						   "SYS_FOREIGN_COLS"))) {
 					break;
 				}
+#endif
 				/* fall through */
 			case DATA_VARMYSQL:
 			case DATA_CHAR:
@@ -1147,6 +1149,23 @@ static ulint btr_node_ptr_max_size(const dict_index_t* index)
 				continue;
 			}
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+			/* SYS_FOREIGN.ID is defined as CHAR in the
+			InnoDB internal SQL parser, which translates
+			into the incorrect VARCHAR(0).  InnoDB does
+			not enforce maximum lengths of columns, so
+			that is why any data can be inserted in the
+			first place.
+
+			Likewise, SYS_FOREIGN.FOR_NAME,
+			SYS_FOREIGN.REF_NAME, SYS_FOREIGN_COLS.ID, are
+			defined as CHAR, and also they are part of a key. */
+
+			ut_ad(!strcmp(index->table->name.m_name,
+				      "SYS_FOREIGN")
+			      || !strcmp(index->table->name.m_name,
+					 "SYS_FOREIGN_COLS"));
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 			ut_ad(!comp);
 			ut_ad(col->mtype == DATA_VARCHAR);
 

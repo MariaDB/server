@@ -233,6 +233,7 @@ enum dict_fld_sys_fields_enum {
 	DICT_FLD__SYS_FIELDS__COL_NAME		= 4,
 	DICT_NUM_FIELDS__SYS_FIELDS		= 5
 };
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
 /* The columns in SYS_FOREIGN */
 enum dict_col_sys_foreign_enum {
 	DICT_COL__SYS_FOREIGN__ID		= 0,
@@ -275,6 +276,8 @@ enum dict_fld_sys_foreign_cols_enum {
 	DICT_FLD__SYS_FOREIGN_COLS__REF_COL_NAME	= 5,
 	DICT_NUM_FIELDS__SYS_FOREIGN_COLS		= 6
 };
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
+
 /* The columns in SYS_VIRTUAL */
 enum dict_col_sys_virtual_enum {
 	DICT_COL__SYS_VIRTUAL__TABLE_ID		= 0,

@@ -1877,7 +1877,7 @@ innobase_fts_check_doc_id_col(
 /** Check whether the table is empty.
 @param[in]	table	table to be checked
 @return true if table is empty */
-static bool innobase_table_is_empty(const dict_table_t *table)
+bool innobase_table_is_empty(const dict_table_t *table)
 {
   dict_index_t *clust_index= dict_table_get_first_index(table);
   mtr_t mtr;
@@ -7181,6 +7181,72 @@ err_exit:
 	DBUG_RETURN(true);
 }
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+static ibool
+innobase_drop_column_check_legacy_step(
+	/*=================*/
+	void* row,	/*!< in: sel_node_t* */
+	void* user_arg) /*!< out: bool found */
+{
+	bool&	    found = *(bool*)user_arg;
+	sel_node_t* node  = static_cast<sel_node_t*>(row);
+	que_node_t* exp	  = node->select_list;
+	found		  = true;
+	ut_a(!que_node_get_next(exp));
+	return 0;
+}
+
+static dberr_t
+innobase_drop_column_check_legacy_fk(trx_t* trx, const char* table_name,
+				     const char* col_name, bool& found)
+{
+	ut_ad(DB_SUCCESS == fk_legacy_storage_exists(false));
+
+	static const char sql_check[]
+		= "PROCEDURE FK_PROC () IS\n"
+		  "fk_id CHAR;\n"
+		  "DECLARE FUNCTION innobase_drop_column_check_legacy_step;\n"
+
+		  "DECLARE CURSOR c IS"
+		  " SELECT ID FROM SYS_FOREIGN"
+		  " WHERE REF_NAME = :ref_name;\n"
+
+		  "DECLARE CURSOR c2 IS"
+		  " SELECT FOR_COL_NAME FROM SYS_FOREIGN_COLS"
+		  " WHERE ID = fk_id AND REF_COL_NAME = :ref_col_name;\n"
+
+		  "BEGIN\n"
+		  "OPEN c;\n"
+		  "WHILE 1 = 1 LOOP\n"
+		  "  FETCH c INTO fk_id;\n"
+		  "  IF (SQL % NOTFOUND) THEN\n"
+		  "    EXIT;\n"
+		  "  END IF;\n"
+		  "  OPEN c2;\n"
+		  "  FETCH c2 INTO innobase_drop_column_check_legacy_step();\n"
+		  "  CLOSE c2;\n"
+		  "END LOOP;\n"
+		  "CLOSE c;\n"
+		  "END;\n";
+
+	pars_info_t* info = pars_info_create();
+	if (!info) {
+		return DB_OUT_OF_MEMORY;
+	}
+	pars_info_bind_function(info, "innobase_drop_column_check_legacy_step",
+				innobase_drop_column_check_legacy_step, &found);
+	pars_info_add_str_literal(info, "ref_name", table_name);
+	pars_info_add_str_literal(info, "ref_col_name", col_name);
+
+	dberr_t err = que_eval_sql(info, sql_check, false, trx);
+	if (err != DB_SUCCESS) {
+		return err;
+	}
+
+	return DB_SUCCESS;
+}
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
+
 /* Check whether an index is needed for the foreign key constraint.
 If so, if it is dropped, is there an equivalent index can play its role.
 @return true if the index is needed and can't be dropped */
@@ -7233,6 +7299,22 @@ innobase_check_foreign_key_index(
 			return(true);
 		}
 	}
+
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+	if (DB_SUCCESS == fk_legacy_storage_exists(false)) {
+		bool found = false;
+		// NB: foreign keys always reference index by first field
+		if (DB_SUCCESS != innobase_drop_column_check_legacy_fk(
+			trx, indexed_table->name.m_name, index->fields[0].name,
+			found)) {
+			return false;
+		}
+		if (found) {
+			trx->error_info = index;
+			return (true);
+		}
+	}
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 
 	fks = &indexed_table->foreign_set;
 
@@ -8901,7 +8983,50 @@ err_exit:
 	}
 
 rename_foreign:
-	trx->op_info = "renaming column in SYS_FOREIGN_COLS";
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+	error = fk_legacy_storage_exists(false);
+	if (error == DB_CORRUPTION) {
+		goto err_exit;
+	}
+	if (error == DB_SUCCESS) {
+		trx->op_info = "renaming column in SYS_FOREIGN_COLS";
+
+		static const char sql_rename_ref[]
+			= "PROCEDURE FETCH_PROC () IS\n"
+			"fk_id CHAR;\n"
+
+			"DECLARE CURSOR c IS"
+			" SELECT ID FROM SYS_FOREIGN"
+			" WHERE REF_NAME = :ref_name;\n"
+
+			"BEGIN\n"
+			"OPEN c;\n"
+			"WHILE 1 = 1 LOOP\n"
+			"  FETCH c INTO fk_id;\n"
+			"  IF (SQL % NOTFOUND) THEN\n"
+			"    EXIT;\n"
+			"  END IF;\n"
+			"  UPDATE SYS_FOREIGN_COLS"
+			"    SET REF_COL_NAME = :new"
+			"    WHERE ID = fk_id AND REF_COL_NAME = :old;\n"
+			"END LOOP;\n"
+			"CLOSE c;\n"
+			"END;\n";
+
+		pars_info_t* info = pars_info_create();
+
+		pars_info_add_str_literal(info, "ref_name",
+					  ctx.old_table->name.m_name);
+		pars_info_add_str_literal(info, "old", from);
+		pars_info_add_str_literal(info, "new", to);
+
+		error = que_eval_sql(info, sql_rename_ref, false, trx);
+
+		if (error != DB_SUCCESS) {
+			goto err_exit;
+		}
+	}
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 
 	std::set<dict_foreign_t*> fk_evict;
 	bool		foreign_modified;

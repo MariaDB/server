@@ -463,6 +463,7 @@ dict_foreign_replace_index(
 					to use table->col_names */
 	const dict_index_t*	index)	/*!< in: index to be replaced */
 	MY_ATTRIBUTE((nonnull(1,3), warn_unused_result));
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
 /**********************************************************************//**
 Parses the CONSTRAINT id's to be dropped in an ALTER TABLE statement.
 @return DB_SUCCESS or DB_CANNOT_DROP_CONSTRAINT if syntax error or the
@@ -479,6 +480,7 @@ dict_foreign_parse_drop_constraints(
 	const char***	constraints_to_drop)	/*!< out: id's of the
 						constraints to drop */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 /**********************************************************************//**
 Returns a table object and increments its open handle count.
 NOTE! This is a high-level function to be used mainly from outside the

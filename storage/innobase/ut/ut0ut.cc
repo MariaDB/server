@@ -468,9 +468,13 @@ ut_strerr(
 		return ("File system does not support punch hole (trim) operation.");
 	case DB_PAGE_CORRUPTED:
 		return("Page read from tablespace is corrupted.");
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+	case DB_LEGACY_FK:
+		return ("Table requires foreign keys upgrade.");
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 
-	/* do not add default: in order to produce a warning if new code
-	is added to the enum but not added here */
+		/* do not add default: in order to produce a warning if new code
+		is added to the enum but not added here */
 	}
 
 	/* we abort here because if unknown error code is given, this could

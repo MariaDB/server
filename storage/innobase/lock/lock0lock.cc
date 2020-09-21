@@ -6436,3 +6436,121 @@ lock_update_split_and_merge(
 
 	lock_sys.mutex_unlock();
 }
+
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+bool innobase_table_is_empty(const dict_table_t *table);
+
+void
+lock_release(
+/*============================*/
+	lock_t*	lock)	/*!< in/out: waiting lock request */
+{
+	// FIXME: assert lock->trx->mutex locked
+
+	lock->trx->lock.cancel = true;
+
+	if (lock_get_type_low(lock) == LOCK_REC) {
+
+		lock_rec_dequeue_from_page(lock);
+	} else {
+		ut_ad(lock_get_type_low(lock) & LOCK_TABLE);
+
+		if (lock->trx->autoinc_locks != NULL) {
+			/* Release the transaction's AUTOINC locks. */
+			lock_release_autoinc_locks(lock->trx);
+		}
+
+		lock_table_dequeue(lock);
+		/* Remove the lock from table lock vector too. */
+		lock_trx_table_locks_remove(lock);
+	}
+
+	lock->trx->lock.cancel = false;
+}
+
+void
+fk_release_locks(dict_table_t* table)
+{
+	ut_ad(innobase_table_is_empty(table));
+	ut_ad(lock_table_has_locks(table));
+	if (table->n_rec_locks == 0) {
+		goto skip_rec_locks;
+	}
+	for (dict_index_t* index = dict_table_get_first_index(table); index;
+	     index		 = dict_table_get_next_index(index)) {
+		mtr_t	     mtr;
+		btr_pcur_t   pcur;
+		buf_block_t* block;
+		page_cur_t*  cur;
+		const rec_t* rec;
+		bool	     next_page = false;
+
+		mtr.start();
+		btr_pcur_open_at_index_side(true, index, BTR_SEARCH_LEAF,
+					    &pcur, true, 0, &mtr);
+		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
+		if (!rec_is_metadata(btr_pcur_get_rec(&pcur), *index))
+			btr_pcur_move_to_prev_on_page(&pcur);
+	scan_leaf:
+		cur = btr_pcur_get_page_cur(&pcur);
+		page_cur_move_to_next(cur);
+	next_page:
+		if (next_page) {
+			uint32_t next_page_no
+				= btr_page_get_next(page_cur_get_page(cur));
+			if (next_page_no == FIL_NULL) {
+				mtr.commit();
+				continue;
+			}
+
+			next_page = false;
+			block	  = page_cur_get_block(cur);
+			block	  = btr_block_get(*index, next_page_no,
+						  BTR_SEARCH_LEAF, false, &mtr);
+			btr_leaf_page_release(page_cur_get_block(cur),
+					      BTR_SEARCH_LEAF, &mtr);
+			page_cur_set_before_first(block, cur);
+			page_cur_move_to_next(cur);
+		}
+
+		rec = page_cur_get_rec(cur);
+		if (rec_get_deleted_flag(rec, dict_table_is_comp(table)))
+			;
+		else if (!page_rec_is_supremum(rec)) {
+			ut_ad(0);
+			mtr.commit();
+			return;
+		} else {
+			lock_t*	    lock;
+			const ulint heap_no = PAGE_HEAP_NO_SUPREMUM;
+			lock_sys.mutex_lock();
+			for (lock = lock_rec_get_first(&lock_sys.rec_hash,
+						       cur->block, heap_no);
+			     lock != NULL;) {
+				ut_ad(lock->index == index);
+				lock_t* drop = lock;
+				lock = lock_rec_get_next(heap_no, lock);
+				lock_rec_discard(drop);
+			}
+			lock_sys.mutex_unlock();
+			next_page = true;
+			goto next_page;
+		}
+		goto scan_leaf;
+	}
+	skip_rec_locks:
+	if (UT_LIST_GET_LEN(table->locks) > 0) {
+		lock_sys.mutex_lock();
+		for (lock_t *lock = UT_LIST_GET_FIRST(table->locks);
+			lock;
+			lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock)) {
+			ut_ad(lock->type() == LOCK_TABLE);
+			ut_ad(lock->un_member.tab_lock.table == table);
+			lock->trx->mutex.wr_lock();
+			lock_release(lock);
+			lock->trx->mutex.wr_unlock();
+		}
+		lock_sys.mutex_unlock();
+	}
+}
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
