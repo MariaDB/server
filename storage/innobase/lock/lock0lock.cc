@@ -1640,7 +1640,13 @@ lock_rec_lock(
   ut_ad(!trx->dict_operation_lock_mode ||
         (strstr(index->table->name.m_name, "/FTS_") &&
          strstr(index->table->name.m_name, "_CONFIG") + sizeof("_CONFIG") ==
-         index->table->name.m_name + strlen(index->table->name.m_name) + 1));
+         index->table->name.m_name + strlen(index->table->name.m_name) + 1) ||
+         !strcmp(index->table->name.m_name,"SYS_TABLES") ||
+         !strcmp(index->table->name.m_name,"SYS_INDEXES") ||
+         !strcmp(index->table->name.m_name,"SYS_FIELDS") ||
+         !strcmp(index->table->name.m_name,"SYS_COLUMNS") ||
+         !strcmp(index->table->name.m_name,"SYS_VIRTUAL") ||
+         !memcmp(index->table->name.m_name, C_STRING_WITH_LEN("SYS_FOREIGN")));
   MONITOR_ATOMIC_INC(MONITOR_NUM_RECLOCK_REQ);
   const page_id_t id{block->page.id()};
   LockGuard g{lock_sys.rec_hash, id};
@@ -3484,7 +3490,13 @@ lock_t *lock_table_create(dict_table_t *table, unsigned type_mode, trx_t *trx,
 	ut_ad(!trx->dict_operation_lock_mode
 	      || (strstr(table->name.m_name, "/FTS_")
 		  && strstr(table->name.m_name, "_CONFIG") + sizeof("_CONFIG")
-		  == table->name.m_name + strlen(table->name.m_name) + 1));
+		  == table->name.m_name + strlen(table->name.m_name) + 1)
+              || !strcmp(table->name.m_name,"SYS_TABLES")
+              || !strcmp(table->name.m_name,"SYS_INDEXES")
+              || !strcmp(table->name.m_name,"SYS_FIELDS")
+              || !strcmp(table->name.m_name,"SYS_COLUMNS")
+              || !strcmp(table->name.m_name,"SYS_VIRTUAL")
+              || !memcmp(table->name.m_name, C_STRING_WITH_LEN("SYS_FOREIGN")));
 
 	switch (LOCK_MODE_MASK & type_mode) {
 	case LOCK_AUTO_INC:
@@ -3964,8 +3976,6 @@ static void lock_table_dequeue(lock_t *in_lock, bool owns_wait_mutex)
 dberr_t lock_table_for_trx(dict_table_t *table, trx_t *trx, lock_mode mode,
                            bool no_wait)
 {
-  ut_ad(!dict_sys.frozen());
-
   mem_heap_t *heap= mem_heap_create(512);
   sel_node_t *node= sel_node_create(heap);
   que_thr_t *thr= pars_complete_graph_for_exec(node, trx, heap, nullptr);
@@ -4071,16 +4081,28 @@ dberr_t lock_table_children(dict_table_t *table, trx_t *trx)
 @retval DB_SUCCESS on success */
 dberr_t lock_sys_tables(trx_t *trx)
 {
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+  bool fk_locked= false;
+  if (dict_sys.sys_foreign || dict_sys.sys_foreign_cols)
+  {
+    dict_sys.fk_lock();
+    fk_locked= true;
+  }
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
   dberr_t err;
   if (!(err= lock_table_for_trx(dict_sys.sys_tables, trx, LOCK_X)) &&
       !(err= lock_table_for_trx(dict_sys.sys_columns, trx, LOCK_X)) &&
       !(err= lock_table_for_trx(dict_sys.sys_indexes, trx, LOCK_X)) &&
       !(err= lock_table_for_trx(dict_sys.sys_fields, trx, LOCK_X)))
   {
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
     if (dict_sys.sys_foreign)
       err= lock_table_for_trx(dict_sys.sys_foreign, trx, LOCK_X);
     if (!err && dict_sys.sys_foreign_cols)
       err= lock_table_for_trx(dict_sys.sys_foreign_cols, trx, LOCK_X);
+    if (fk_locked)
+      dict_sys.fk_unlock();
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
     if (!err && dict_sys.sys_virtual)
       err= lock_table_for_trx(dict_sys.sys_virtual, trx, LOCK_X);
   }
@@ -6969,3 +6991,7 @@ void lock_sys_t::deadlock_check()
   if (acquired)
     wr_unlock();
 }
+
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+bool innobase_table_is_empty(const dict_table_t *table);
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */

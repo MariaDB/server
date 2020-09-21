@@ -113,7 +113,8 @@ static const char *handler_error_messages[]=
   "Cannot initialize encryption. Check that all encryption parameters have been set",
   /* 200 */
   "Local temporary space limit reached",
-  "Global temporary space limit reached"
+  "Global temporary space limit reached",
+  "Table requires foreign keys upgrade"
 };
 
 #endif /* MYSYS_MY_HANDLER_ERRORS_INCLUDED */

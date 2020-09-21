@@ -1,5 +1,7 @@
 select plugin_name,plugin_status as 'Must be ACTIVE' from information_schema.plugins where plugin_name like 'inno%' and plugin_status!='ACTIVE';
 plugin_name	Must be ACTIVE
+INNODB_SYS_FOREIGN	DISABLED
+INNODB_SYS_FOREIGN_COLS	DISABLED
 create user select_only@localhost;
 grant select on *.* to select_only@localhost;
 connect select_only,localhost,select_only;

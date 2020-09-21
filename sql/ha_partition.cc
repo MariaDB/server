@@ -9518,6 +9518,7 @@ int ha_partition::extra(enum ha_extra_function operation)
   case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
   case HA_EXTRA_BEGIN_ALTER_COPY:
   case HA_EXTRA_END_ALTER_COPY:
+  case HA_EXTRA_CHECK_LEGACY_FK:
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
   default:
   {

@@ -838,4 +838,22 @@ innobase_rename_vc_templ(
 #define ROW_READ_TRY_SEMI_CONSISTENT	1
 #define ROW_READ_DID_SEMI_CONSISTENT	2
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+struct row_drop_table_check_legacy_data
+{
+  char foreign_name[MAX_FULL_NAME_LEN + 1];
+  bool found;
+  const char *table_name;
+  bool drop_db;
+  bool drop_table;
+  row_drop_table_check_legacy_data(const char *_table_name, int sql_command);
+};
+
+dberr_t row_drop_table_check_legacy_fk(trx_t *trx,
+                                       row_drop_table_check_legacy_data &d);
+
+/** Drop SYS_FOREIGN[_COLS] tables if they are empty */
+dberr_t fk_cleanup_legacy_storage(trx_t *trx);
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
+
 #endif /* row0mysql.h */
