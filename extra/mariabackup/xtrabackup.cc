@@ -2773,7 +2773,7 @@ static bool xtrabackup_copy_logfile(bool last = false)
 	ut_a(dst_log_file != NULL);
 	ut_ad(recv_sys != NULL);
 
-	bool overwritten_block;
+	bool overwritten_block = false;
 	lsn_t	start_lsn;
 	lsn_t	end_lsn;
 
