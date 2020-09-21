@@ -232,6 +232,11 @@ static int open_table(THD* thd,
                         NULL, lock_type);
 
   if (!open_n_lock_single_table(thd, &tables, tables.lock_type, flags)) {
+    if (thd->is_error()) {
+      WSREP_WARN("Can't lock table %s.%s : %d (%s)",
+                 schema_name->str, table_name->str,
+                 thd->get_stmt_da()->sql_errno(), thd->get_stmt_da()->message());
+    }
     close_thread_tables(thd);
     my_error(ER_NO_SUCH_TABLE, MYF(0), schema_name->str, table_name->str);
     DBUG_RETURN(1);
