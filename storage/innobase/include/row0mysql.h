@@ -427,7 +427,8 @@ row_drop_table_for_mysql(
 	trx_t*			trx,
 	enum_sql_command	sqlcom,
 	bool			create_failed = false,
-	bool			nonatomic = true);
+	bool			nonatomic = true,
+	bool			is_temp_name = false);
 
 /** Drop a table after failed CREATE TABLE. */
 dberr_t row_drop_table_after_create_fail(const char* name, trx_t* trx);
@@ -978,5 +979,17 @@ innobase_rename_vc_templ(
 void
 row_wait_for_background_drop_list_empty();
 #endif /* UNIV_DEBUG */
+
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+struct row_drop_table_check_legacy_data {
+	char foreign_name[MAX_FULL_NAME_LEN + 1];
+	bool found;
+	row_drop_table_check_legacy_data() : found(false) {}
+};
+
+dberr_t
+row_drop_table_check_legacy_fk(trx_t* trx, const char* table_name,
+			       row_drop_table_check_legacy_data& d);
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 
 #endif /* row0mysql.h */

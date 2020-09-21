@@ -321,13 +321,15 @@ insert_statement_start:
 
 insert_statement:
 	insert_statement_start PARS_VALUES_TOKEN '(' exp_list ')'
-				{ $$ = pars_insert_statement(
-					static_cast<sym_node_t*>($1), $4, NULL); }
+				{ if (!($$ = pars_insert_statement(
+					static_cast<sym_node_t*>($1), $4, NULL)))
+					YYABORT; }
 	| insert_statement_start select_statement
-				{ $$ = pars_insert_statement(
+				{ if (!($$ = pars_insert_statement(
 					static_cast<sym_node_t*>($1),
 					NULL,
-					static_cast<sel_node_t*>($2)); }
+					static_cast<sel_node_t*>($2))))
+					YYABORT; }
 ;
 
 column_assignment:
@@ -472,10 +474,10 @@ fetch_statement:
 				{ $$ = pars_fetch_statement(
 					static_cast<sym_node_t*>($2),
 					static_cast<sym_node_t*>($4), NULL); }
-	| PARS_FETCH_TOKEN PARS_ID_TOKEN PARS_INTO_TOKEN user_function_call
+	| PARS_FETCH_TOKEN PARS_ID_TOKEN PARS_INTO_TOKEN user_function_call variable_list
 				{ $$ = pars_fetch_statement(
 					static_cast<sym_node_t*>($2),
-					NULL,
+					static_cast<sym_node_t*>($5),
 					static_cast<sym_node_t*>($4)); }
 ;
 

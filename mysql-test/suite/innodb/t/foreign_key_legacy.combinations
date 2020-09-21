@@ -1,0 +1,15 @@
+[COPY]
+--alter_algorithm=copy
+--skip-innodb-read-only-compressed
+
+[INPLACE]
+--alter_algorithm=inplace
+--skip-innodb-read-only-compressed
+
+[NOCOPY]
+--alter_algorithm=nocopy
+--skip-innodb-read-only-compressed
+
+[INSTANT]
+--alter_algorithm=instant
+--skip-innodb-read-only-compressed

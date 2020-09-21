@@ -583,6 +583,10 @@ struct pars_info_t {
 
 	ibool		graph_owns_us;	/*!< if TRUE (which is the default),
 					que_graph_free() will free us */
+#ifdef UNIV_DEBUG
+	bool		fatal_syntax_err;/* if false don't abort server on
+					 syntax errors */
+#endif /* UNIV_DEBUG */
 };
 
 /** User-supplied function and argument. */

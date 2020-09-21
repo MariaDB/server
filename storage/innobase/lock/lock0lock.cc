@@ -6436,3 +6436,7 @@ lock_update_split_and_merge(
 
 	lock_sys.mutex_unlock();
 }
+
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+bool innobase_table_is_empty(const dict_table_t *table);
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */

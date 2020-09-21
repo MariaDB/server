@@ -2333,7 +2333,8 @@ fetch_step(
 			if (node->into_list) {
 				sel_assign_into_var_values(node->into_list,
 							   sel_node);
-			} else {
+			}
+			if (node->func) {
 				ibool ret = (*node->func->func)(
 					sel_node, node->func->arg);
 
