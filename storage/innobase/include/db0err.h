@@ -163,6 +163,9 @@ enum dberr_t {
 
 	DB_PAGE_CORRUPTED,		/* Page read from tablespace is
 					corrupted. */
+#ifdef WITH_INNODB_LEGACY_FOREIGN_STORAGE
+	DB_LEGACY_FK,
+#endif /* WITH_INNODB_LEGACY_FOREIGN_STORAGE */
 	/* The following are partial failure codes */
 	DB_FAIL = 1000,
 	DB_OVERFLOW,

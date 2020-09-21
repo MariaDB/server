@@ -940,4 +940,16 @@ void
 row_wait_for_background_drop_list_empty();
 #endif /* UNIV_DEBUG */
 
+#ifdef WITH_INNODB_LEGACY_FOREIGN_STORAGE
+struct row_drop_table_check_legacy_data
+{
+	char foreign_name[MAX_FULL_NAME_LEN + 1];
+	bool found;
+	row_drop_table_check_legacy_data() : found(false) {}
+};
+
+dberr_t row_drop_table_check_legacy_fk(trx_t* trx, const char * table_name,
+				       row_drop_table_check_legacy_data &d);
+#endif /* WITH_INNODB_LEGACY_FOREIGN_STORAGE */
+
 #endif /* row0mysql.h */

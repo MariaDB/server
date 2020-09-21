@@ -734,7 +734,7 @@ struct TABLE_SHARE
   KEY  *key_info;			/* data of keys in database */
   FK_list foreign_keys;
   FK_list referenced_keys;
-  bool fk_handle_create(THD *thd, FK_create_vector &shares);
+  bool fk_handle_create(THD *thd, FK_create_vector &shares, FK_list *fk_add= NULL);
   void fk_revert_create(THD *thd, Table_name_set &ref_tables);
 #ifndef DBUG_OFF
   bool dbug_check_foreign_keys(THD *thd);

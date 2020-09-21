@@ -472,6 +472,10 @@ ut_strerr(
 		return ("File system does not support punch hole (trim) operation.");
 	case DB_PAGE_CORRUPTED:
 		return("Page read from tablespace is corrupted.");
+#ifdef WITH_INNODB_LEGACY_FOREIGN_STORAGE
+	case DB_LEGACY_FK:
+		return("Table requires foreign keys upgrade.");
+#endif /* WITH_INNODB_LEGACY_FOREIGN_STORAGE */
 
 	/* do not add default: in order to produce a warning if new code
 	is added to the enum but not added here */
