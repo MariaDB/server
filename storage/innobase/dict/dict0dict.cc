@@ -3661,6 +3661,7 @@ dict_table_get_highest_foreign_id(
 	DBUG_RETURN(biggest_id);
 }
 
+#ifdef WITH_INNODB_LEGACY_FOREIGN_STORAGE
 /**********************************************************************//**
 Parses the CONSTRAINT id's to be dropped in an ALTER TABLE statement.
 @return DB_SUCCESS or DB_CANNOT_DROP_CONSTRAINT if syntax error or the
@@ -3797,6 +3798,7 @@ syntax_error:
 
 	return(DB_CANNOT_DROP_CONSTRAINT);
 }
+#endif /* WITH_INNODB_LEGACY_FOREIGN_STORAGE */
 
 /*==================== END OF FOREIGN KEY PROCESSING ====================*/
 

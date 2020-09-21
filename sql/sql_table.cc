@@ -12383,15 +12383,16 @@ wsrep_error_label:
 }
 
 
-// Used in CREATE TABLE
-bool TABLE_SHARE::fk_handle_create(THD *thd, FK_create_vector &shares)
+// Used in CREATE TABLE and in FK upgrade (fk_add != NULL)
+bool TABLE_SHARE::fk_handle_create(THD *thd, FK_create_vector &shares, FK_list *fk_add)
 {
-  if (foreign_keys.is_empty())
+  FK_list &fkeys= fk_add ? *fk_add : foreign_keys;
+  if (fkeys.is_empty())
     return false;
 
   Table_name_set tables;
 
-  for (FK_info &fk: foreign_keys)
+  for (FK_info &fk: fkeys)
   {
     if (!cmp_table(fk.ref_db(), db) && !cmp_table(fk.referenced_table, table_name))
       continue; // subject table name is already prelocked by caller DDL
@@ -12448,7 +12449,7 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_create_vector &shares)
   for (FK_ddl_backup &ref: shares)
   {
     TABLE_SHARE *ref_share= ref.sa.share;
-    for (const FK_info &fk: foreign_keys)
+    for (const FK_info &fk: fkeys)
     {
       // Find keys referencing the acquired share and add them to referenced_keys
       if (cmp_table(fk.ref_db(), ref_share->db) ||
@@ -12474,7 +12475,7 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_create_vector &shares)
         my_error(ER_OUT_OF_RESOURCES, MYF(0));
         return true;
       }
-    } // for (const FK_info &fk: foreign_keys)
+    } // for (const FK_info &fk: fkeys)
 
     if (ref_share->fk_write_shadow_frm())
       return true;

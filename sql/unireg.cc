@@ -1285,6 +1285,8 @@ void Foreign_key_io::store_hint(FK_info &rk, uchar *&pos)
 
 bool Foreign_key_io::store(FK_list &foreign_keys, FK_list &referenced_keys)
 {
+  DBUG_EXECUTE_IF("fk_skip_store", return false;);
+
   ulonglong fk_count= 0, rk_count= 0;
 
   if (foreign_keys.is_empty() && referenced_keys.is_empty())

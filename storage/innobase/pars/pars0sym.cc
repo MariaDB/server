@@ -207,6 +207,11 @@ sym_tab_add_bound_lit(
 	ulint			len = 0;
 
 	blit = pars_info_get_bound_lit(sym_tab->info, name);
+#ifdef UNIV_DEBUG
+	if (!sym_tab->info->fatal_syntax_err && !blit) {
+		return NULL;
+	}
+#endif /* UNIV_DEBUG */
 	ut_a(blit);
 
 	node = static_cast<sym_node_t*>(

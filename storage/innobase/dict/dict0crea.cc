@@ -1383,6 +1383,138 @@ dict_check_if_system_table_exists(
 	return(error);
 }
 
+#ifdef WITH_INNODB_LEGACY_FOREIGN_STORAGE
+/****************************************************************//**
+Creates the foreign key constraints system tables inside InnoDB
+at server bootstrap or server start if they are not found or are
+not of the right form.
+@return DB_SUCCESS or error code */
+dberr_t
+dict_create_or_check_foreign_constraint_tables(void)
+/*================================================*/
+{
+	trx_t*		trx;
+	my_bool		srv_file_per_table_backup;
+	dberr_t		err;
+	dberr_t		sys_foreign_err;
+	dberr_t		sys_foreign_cols_err;
+
+	ut_ad(!srv_any_background_activity());
+
+	/* Note: The master thread has not been started at this point. */
+
+
+	sys_foreign_err = dict_check_if_system_table_exists(
+		"SYS_FOREIGN", DICT_NUM_FIELDS__SYS_FOREIGN + 1, 3);
+	sys_foreign_cols_err = dict_check_if_system_table_exists(
+		"SYS_FOREIGN_COLS", DICT_NUM_FIELDS__SYS_FOREIGN_COLS + 1, 1);
+
+	if (sys_foreign_err == DB_SUCCESS
+	    && sys_foreign_cols_err == DB_SUCCESS) {
+		return(DB_SUCCESS);
+	}
+
+	if (srv_read_only_mode
+	    || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO) {
+		return(DB_READ_ONLY);
+	}
+
+	trx = trx_create();
+
+	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
+
+	trx->op_info = "creating foreign key sys tables";
+
+	row_mysql_lock_data_dictionary(trx);
+
+	/* Check which incomplete table definition to drop. */
+
+	if (sys_foreign_err == DB_CORRUPTION) {
+		row_drop_table_after_create_fail("SYS_FOREIGN", trx);
+	}
+
+	if (sys_foreign_cols_err == DB_CORRUPTION) {
+		row_drop_table_after_create_fail("SYS_FOREIGN_COLS", trx);
+	}
+
+	ib::info() << "Creating foreign key constraint system tables.";
+
+	/* NOTE: in dict_load_foreigns we use the fact that
+	there are 2 secondary indexes on SYS_FOREIGN, and they
+	are defined just like below */
+
+	/* NOTE: when designing InnoDB's foreign key support in 2001, we made
+	an error and made the table names and the foreign key id of type
+	'CHAR' (internally, really a VARCHAR). We should have made the type
+	VARBINARY, like in other InnoDB system tables, to get a clean
+	design. */
+
+	srv_file_per_table_backup = srv_file_per_table;
+
+	/* We always want SYSTEM tables to be created inside the system
+	tablespace. */
+
+	srv_file_per_table = 0;
+
+	err = que_eval_sql(
+		NULL,
+		"PROCEDURE CREATE_FOREIGN_SYS_TABLES_PROC () IS\n"
+		"BEGIN\n"
+		"CREATE TABLE\n"
+		"SYS_FOREIGN(ID CHAR, FOR_NAME CHAR,"
+		" REF_NAME CHAR, N_COLS INT);\n"
+		"CREATE UNIQUE CLUSTERED INDEX ID_IND"
+		" ON SYS_FOREIGN (ID);\n"
+		"CREATE INDEX FOR_IND"
+		" ON SYS_FOREIGN (FOR_NAME);\n"
+		"CREATE INDEX REF_IND"
+		" ON SYS_FOREIGN (REF_NAME);\n"
+		"CREATE TABLE\n"
+		"SYS_FOREIGN_COLS(ID CHAR, POS INT,"
+		" FOR_COL_NAME CHAR, REF_COL_NAME CHAR);\n"
+		"CREATE UNIQUE CLUSTERED INDEX ID_IND"
+		" ON SYS_FOREIGN_COLS (ID, POS);\n"
+		"END;\n",
+		FALSE, trx);
+
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+		ib::error() << "Creation of SYS_FOREIGN and SYS_FOREIGN_COLS"
+			" failed: " << err << ". Tablespace is"
+			" full. Dropping incompletely created tables.";
+
+		ut_ad(err == DB_OUT_OF_FILE_SPACE
+		      || err == DB_TOO_MANY_CONCURRENT_TRXS);
+
+		row_drop_table_after_create_fail("SYS_FOREIGN", trx);
+		row_drop_table_after_create_fail("SYS_FOREIGN_COLS", trx);
+
+		if (err == DB_OUT_OF_FILE_SPACE) {
+			err = DB_MUST_GET_MORE_FILE_SPACE;
+		}
+	}
+
+	trx_commit_for_mysql(trx);
+
+	row_mysql_unlock_data_dictionary(trx);
+
+	trx->free();
+
+	srv_file_per_table = srv_file_per_table_backup;
+
+	/* Note: The master thread has not been started at this point. */
+	/* Confirm and move to the non-LRU part of the table LRU list. */
+	sys_foreign_err = dict_check_if_system_table_exists(
+		"SYS_FOREIGN", DICT_NUM_FIELDS__SYS_FOREIGN + 1, 3);
+	ut_a(sys_foreign_err == DB_SUCCESS);
+
+	sys_foreign_cols_err = dict_check_if_system_table_exists(
+		"SYS_FOREIGN_COLS", DICT_NUM_FIELDS__SYS_FOREIGN_COLS + 1, 1);
+	ut_a(sys_foreign_cols_err == DB_SUCCESS);
+
+	return(err);
+}
+#endif /* WITH_INNODB_LEGACY_FOREIGN_STORAGE */
+
 /** Creates the virtual column system table (SYS_VIRTUAL) inside InnoDB
 at server bootstrap or server start if the table is not found or is
 not of the right form.

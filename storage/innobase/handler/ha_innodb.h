@@ -102,6 +102,13 @@ public:
 
 	int open(const char *name, int mode, uint test_if_locked) override;
 
+#ifdef WITH_INNODB_LEGACY_FOREIGN_STORAGE
+	bool auto_repair(int error) const override
+	{
+		return (error == HA_ERR_FK_UPGRADE);
+	}
+#endif /* WITH_INNODB_LEGACY_FOREIGN_STORAGE */
+
 	handler* clone(const char *name, MEM_ROOT *mem_root) override;
 
 	int close(void) override;
@@ -743,6 +750,10 @@ private:
 
 	/** Create the internal innodb table definition. */
 	int create_table_def();
+
+#ifdef WITH_INNODB_LEGACY_FOREIGN_STORAGE
+	int check_legacy_fk();
+#endif /* WITH_INNODB_LEGACY_FOREIGN_STORAGE */
 
 	/** Connection thread handle. */
 	THD*		m_thd;

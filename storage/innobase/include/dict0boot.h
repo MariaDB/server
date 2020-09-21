@@ -225,6 +225,7 @@ enum dict_fld_sys_fields_enum {
 	DICT_FLD__SYS_FIELDS__COL_NAME		= 4,
 	DICT_NUM_FIELDS__SYS_FIELDS		= 5
 };
+#ifdef WITH_INNODB_LEGACY_FOREIGN_STORAGE
 /* The columns in SYS_FOREIGN */
 enum dict_col_sys_foreign_enum {
 	DICT_COL__SYS_FOREIGN__ID		= 0,
@@ -267,6 +268,7 @@ enum dict_fld_sys_foreign_cols_enum {
 	DICT_FLD__SYS_FOREIGN_COLS__REF_COL_NAME	= 5,
 	DICT_NUM_FIELDS__SYS_FOREIGN_COLS		= 6
 };
+#endif /* WITH_INNODB_LEGACY_FOREIGN_STORAGE */
 /* The columns in SYS_TABLESPACES */
 enum dict_col_sys_tablespaces_enum {
 	DICT_COL__SYS_TABLESPACES__SPACE		= 0,

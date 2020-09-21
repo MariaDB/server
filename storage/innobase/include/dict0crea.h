@@ -113,6 +113,17 @@ dict_create_index_tree_in_mem(
 	dict_index_t*	index,		/*!< in/out: index */
 	const trx_t*	trx);		/*!< in: InnoDB transaction handle */
 
+#ifdef WITH_INNODB_LEGACY_FOREIGN_STORAGE
+/****************************************************************//**
+Creates the foreign key constraints system tables inside InnoDB
+at server bootstrap or server start if they are not found or are
+not of the right form.
+@return DB_SUCCESS or error code */
+dberr_t
+dict_create_or_check_foreign_constraint_tables(void);
+/*================================================*/
+#endif /* WITH_INNODB_LEGACY_FOREIGN_STORAGE */
+
 /********************************************************************//**
 Generate a foreign key constraint name when it was not named by the user.
 A generated constraint has a name of the format dbname/tablename_ibfk_NUMBER,
@@ -171,6 +182,7 @@ dict_replace_tablespace_in_dictionary(
 	const char*	path,
 	trx_t*		trx);
 
+#ifdef WITH_INNODB_LEGACY_FOREIGN_STORAGE
 /********************************************************************//**
 Construct foreign key constraint defintion from data dictionary information.
 */
@@ -180,6 +192,7 @@ dict_foreign_def_get(
 /*=================*/
 	dict_foreign_t*	foreign,/*!< in: foreign */
 	trx_t*		trx);	/*!< in: trx */
+#endif /* WITH_INNODB_LEGACY_FOREIGN_STORAGE */
 
 /* Table create node structure */
 struct tab_node_t{
