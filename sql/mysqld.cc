@@ -5542,13 +5542,6 @@ int mysqld_main(int argc, char **argv)
   init_ssl();
   network_init();
 
-#ifdef _WIN32
-  if (!opt_console)
-  {
-    FreeConsole();				// Remove window
-  }
-#endif
-
 #ifdef WITH_WSREP
   // Recover and exit.
   if (wsrep_recovery)
