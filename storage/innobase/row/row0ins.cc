@@ -908,8 +908,6 @@ row_ins_foreign_fill_virtual(
 		&ext, cascade->heap);
 	n_diff = update->n_fields;
 
-	update->n_fields += n_v_fld;
-
 	if (index->table->vc_templ == NULL) {
 		/** This can occur when there is a cascading
 		delete or update after restart. */
@@ -942,7 +940,7 @@ row_ins_foreign_fill_virtual(
 			return DB_COMPUTE_VALUE_FAILED;
 		}
 
-		upd_field = upd_get_nth_field(update, n_diff);
+		upd_field = update->fields + n_diff;
 
 		upd_field->old_v_val = static_cast<dfield_t*>(
 				mem_heap_alloc(cascade->heap,
@@ -952,30 +950,27 @@ row_ins_foreign_fill_virtual(
 
 		upd_field_set_v_field_no(upd_field, i, index);
 
-		if (node->is_delete
-		    ? (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL)
-		    : (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL)) {
+		bool set_null =
+			node->is_delete
+			? (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL)
+			: (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL);
 
-			dfield_set_null(&upd_field->new_val);
+		dfield_t* new_vfield = innobase_get_computed_value(
+				update->old_vrow, col, index,
+				&vc.heap, update->heap, NULL, thd,
+				mysql_table, record, NULL,
+				set_null ? update : node->update, foreign);
+
+		if (new_vfield == NULL) {
+			return DB_COMPUTE_VALUE_FAILED;
 		}
 
-		if (!node->is_delete
-		    && (foreign->type & DICT_FOREIGN_ON_UPDATE_CASCADE)) {
+		dfield_copy(&upd_field->new_val, new_vfield);
 
-			dfield_t* new_vfield = innobase_get_computed_value(
-					update->old_vrow, col, index,
-					&vc.heap, update->heap, NULL, thd,
-					mysql_table, record, NULL,
-					node->update, foreign);
-
-			if (new_vfield == NULL) {
-				return DB_COMPUTE_VALUE_FAILED;
-			}
-
-			dfield_copy(&(upd_field->new_val), new_vfield);
-		}
-
-		n_diff++;
+		if (!dfield_datas_are_binary_equal(
+				upd_field->old_v_val,
+				&upd_field->new_val, 0))
+			n_diff++;
 	}
 
 	update->n_fields = n_diff;

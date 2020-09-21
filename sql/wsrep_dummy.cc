@@ -145,3 +145,7 @@ my_bool wsrep_thd_is_applying(const THD*)
 
 bool wsrep_thd_set_wsrep_aborter(THD*, THD*)
 { return 0;}
+
+void wsrep_report_bf_lock_wait(const THD*,
+                               unsigned long long)
+{}
