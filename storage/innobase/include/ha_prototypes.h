@@ -148,6 +148,12 @@ get_innobase_type_from_mysql_type(unsigned *unsigned_flag, const Field *field);
 const char*
 innobase_basename(
 	const char*	path_name);
+/******************************************************************//**
+Makes all characters in a NUL-terminated UTF-8 string lower case. */
+void
+innobase_casedn_str(
+/*================*/
+	char*	a);	/*!< in/out: string to put in lower case */
 
 /******************************************************************//**
 Converts an identifier to a table name. */

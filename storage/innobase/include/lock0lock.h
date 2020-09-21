@@ -544,6 +544,8 @@ lock_number_of_tables_locked(
 @return true if table has either table or record locks. */
 bool lock_table_has_locks(dict_table_t *table);
 
+bool trx_has_lock_x(const trx_t &trx, dict_table_t& table);
+
 /** Wait for a lock to be released.
 @retval DB_DEADLOCK if this transaction was chosen as the deadlock victim
 @retval DB_INTERRUPTED if the execution was interrupted by the user

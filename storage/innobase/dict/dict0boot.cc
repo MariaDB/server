@@ -209,12 +209,14 @@ dberr_t dict_boot()
 	static_assert(DICT_NUM_FIELDS__SYS_INDEXES == 10, "compatibility");
 	static_assert(DICT_NUM_COLS__SYS_FIELDS == 3, "compatibility");
 	static_assert(DICT_NUM_FIELDS__SYS_FIELDS == 5, "compatibility");
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
 	static_assert(DICT_NUM_COLS__SYS_FOREIGN == 4, "compatibility");
 	static_assert(DICT_NUM_FIELDS__SYS_FOREIGN == 6, "compatibility");
 	static_assert(DICT_NUM_FIELDS__SYS_FOREIGN_FOR_NAME == 2,
 		      "compatibility");
 	static_assert(DICT_NUM_COLS__SYS_FOREIGN_COLS == 4, "compatibility");
 	static_assert(DICT_NUM_FIELDS__SYS_FOREIGN_COLS == 6, "compatibility");
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 
 	mtr.start();
 	/* Create the hash tables etc. */

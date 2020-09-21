@@ -41,6 +41,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <sql_acl.h>
 #include <lex_ident.h>
 #include <sql_class.h>
+#include <sql_rename.h>
 #include <sql_show.h>
 #include <sql_table.h>
 #include <table_cache.h>
@@ -505,6 +506,11 @@ const struct _ft_vft_ext ft_vft_ext_result = {innobase_fts_get_version,
 					      innobase_fts_retrieve_docid,
 					      innobase_fts_count_matches};
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+static dberr_t fk_check_and_upgrade(THD *thd, uint open_flags,
+                                    dict_table_t *ib_table, TABLE *table);
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
+
 #ifdef HAVE_PSI_INTERFACE
 # define PSI_KEY(n) {&n##_key, #n, 0}
 /* Keys to register pthread mutexes in the current file with
@@ -627,7 +633,7 @@ mysql_var_check_func check_sysvar_int;
 
 // should page compression be used by default for new tables
 static MYSQL_THDVAR_BOOL(compression_default, PLUGIN_VAR_OPCMDARG,
-  "Is compression the default for new tables", 
+  "Is compression the default for new tables",
   NULL, NULL, FALSE);
 
 /** Update callback for SET [SESSION] innodb_default_encryption_key_id */
@@ -1273,6 +1279,7 @@ innobase_tc_log_recovery_done();
 #endif
 
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
 /** Ignore FOREIGN KEY constraints that would be violated by DROP DATABASE */
 static ibool innodb_drop_database_ignore_fk(void*,void*) { return false; }
 
@@ -1316,6 +1323,14 @@ static ibool innodb_drop_database_fk(void *node, void *report)
 
   return true;
 }
+
+row_drop_table_check_legacy_data::row_drop_table_check_legacy_data(
+    const char *_table_name, int sql_command) :
+    found(false), table_name(_table_name),
+    drop_db(enum_sql_command(sql_command) == SQLCOM_DROP_DB),
+    drop_table(enum_sql_command(sql_command) == SQLCOM_DROP_TABLE)
+{}
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 
 /** After DROP DATABASE executed ha_innobase::delete_table() on all
 tables that it was aware of, drop any leftover tables inside InnoDB.
@@ -1431,78 +1446,126 @@ static void innodb_drop_database(handlerton*, char *path)
     err= lock_sys_tables(trx);
   row_mysql_lock_data_dictionary(trx);
 
-  static const char drop_database[] =
-    "PROCEDURE DROP_DATABASE_PROC () IS\n"
-    "fk CHAR;\n"
-    "name CHAR;\n"
-    "tid CHAR;\n"
-    "iid CHAR;\n"
-
-    "DECLARE FUNCTION fk_report;\n"
-
-    "DECLARE CURSOR fkf IS\n"
-    "SELECT ID FROM SYS_FOREIGN WHERE ID >= :db FOR UPDATE;\n"
-
-    "DECLARE CURSOR fkr IS\n"
-    "SELECT REF_NAME,ID FROM SYS_FOREIGN WHERE REF_NAME >= :db FOR UPDATE\n"
-    "ORDER BY REF_NAME;\n"
-
-    "DECLARE CURSOR tab IS\n"
-    "SELECT ID,NAME FROM SYS_TABLES WHERE NAME >= :db FOR UPDATE;\n"
-
-    "DECLARE CURSOR idx IS\n"
-    "SELECT ID FROM SYS_INDEXES WHERE TABLE_ID = tid FOR UPDATE;\n"
-
-    "BEGIN\n"
-
-    "OPEN fkf;\n"
-    "WHILE 1 = 1 LOOP\n"
-    "  FETCH fkf INTO fk;\n"
-    "  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
-    "  IF TO_BINARY(SUBSTR(fk, 0, LENGTH(:db)))<>TO_BINARY(:db)"
-    " THEN EXIT; END IF;\n"
-    "  DELETE FROM SYS_FOREIGN_COLS WHERE TO_BINARY(ID)=TO_BINARY(fk);\n"
-    "  DELETE FROM SYS_FOREIGN WHERE CURRENT OF fkf;\n"
-    "END LOOP;\n"
-    "CLOSE fkf;\n"
-
-    "OPEN fkr;\n"
-    "FETCH fkr INTO fk_report();\n"
-    "CLOSE fkr;\n"
-
-    "OPEN tab;\n"
-    "WHILE 1 = 1 LOOP\n"
-    "  FETCH tab INTO tid,name;\n"
-    "  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
-    "  IF TO_BINARY(SUBSTR(name, 0, LENGTH(:db))) <> TO_BINARY(:db)"
-    " THEN EXIT; END IF;\n"
-    "  DELETE FROM SYS_COLUMNS WHERE TABLE_ID=tid;\n"
-    "  DELETE FROM SYS_TABLES WHERE ID=tid;\n"
-    "  OPEN idx;\n"
-    "  WHILE 1 = 1 LOOP\n"
-    "    FETCH idx INTO iid;\n"
-    "    IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
-    "    DELETE FROM SYS_FIELDS WHERE INDEX_ID=iid;\n"
-    "    DELETE FROM SYS_INDEXES WHERE CURRENT OF idx;\n"
-    "  END LOOP;\n"
-    "  CLOSE idx;\n"
-    "END LOOP;\n"
-    "CLOSE tab;\n"
-
-    "END;\n";
-
-  innodb_drop_database_fk_report report{{namebuf, len + 1}, false};
-
-  if (err == DB_SUCCESS)
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+  if (dict_sys.sys_foreign)
   {
-    pars_info_t* pinfo = pars_info_create();
-    pars_info_bind_function(pinfo, "fk_report", trx->check_foreigns
-                            ? innodb_drop_database_fk
-                            : innodb_drop_database_ignore_fk, &report);
-    pars_info_add_str_literal(pinfo, "db", namebuf);
-    err= que_eval_sql(pinfo, drop_database, trx);
-    if (err == DB_SUCCESS && report.violated)
-      err= DB_CANNOT_DROP_CONSTRAINT;
+    static const char drop_database[] =
+      "PROCEDURE DROP_DATABASE_PROC () IS\n"
+      "fk CHAR;\n"
+      "name CHAR;\n"
+      "tid CHAR;\n"
+      "iid CHAR;\n"
+
+      "DECLARE FUNCTION fk_report;\n"
+
+      "DECLARE CURSOR fkf IS\n"
+      "SELECT ID FROM SYS_FOREIGN WHERE ID >= :db FOR UPDATE;\n"
+
+      "DECLARE CURSOR fkr IS\n"
+      "SELECT REF_NAME,ID FROM SYS_FOREIGN WHERE REF_NAME >= :db FOR UPDATE\n"
+      "ORDER BY REF_NAME;\n"
+
+      "DECLARE CURSOR tab IS\n"
+      "SELECT ID,NAME FROM SYS_TABLES WHERE NAME >= :db FOR UPDATE;\n"
+
+      "DECLARE CURSOR idx IS\n"
+      "SELECT ID FROM SYS_INDEXES WHERE TABLE_ID = tid FOR UPDATE;\n"
+
+      "BEGIN\n"
+
+      "OPEN fkf;\n"
+      "WHILE 1 = 1 LOOP\n"
+      "  FETCH fkf INTO fk;\n"
+      "  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
+      "  IF TO_BINARY(SUBSTR(fk, 0, LENGTH(:db)))<>TO_BINARY(:db)"
+      " THEN EXIT; END IF;\n"
+      "  DELETE FROM SYS_FOREIGN_COLS WHERE TO_BINARY(ID)=TO_BINARY(fk);\n"
+      "  DELETE FROM SYS_FOREIGN WHERE CURRENT OF fkf;\n"
+      "END LOOP;\n"
+      "CLOSE fkf;\n"
+
+      "OPEN fkr;\n"
+      "FETCH fkr INTO fk_report();\n"
+      "CLOSE fkr;\n"
+
+      "OPEN tab;\n"
+      "WHILE 1 = 1 LOOP\n"
+      "  FETCH tab INTO tid,name;\n"
+      "  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
+      "  IF TO_BINARY(SUBSTR(name, 0, LENGTH(:db))) <> TO_BINARY(:db)"
+      " THEN EXIT; END IF;\n"
+      "  DELETE FROM SYS_COLUMNS WHERE TABLE_ID=tid;\n"
+      "  DELETE FROM SYS_TABLES WHERE ID=tid;\n"
+      "  OPEN idx;\n"
+      "  WHILE 1 = 1 LOOP\n"
+      "    FETCH idx INTO iid;\n"
+      "    IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
+      "    DELETE FROM SYS_FIELDS WHERE INDEX_ID=iid;\n"
+      "    DELETE FROM SYS_INDEXES WHERE CURRENT OF idx;\n"
+      "  END LOOP;\n"
+      "  CLOSE idx;\n"
+      "END LOOP;\n"
+      "CLOSE tab;\n"
+
+      "END;\n";
+
+    innodb_drop_database_fk_report report{{namebuf, len + 1}, false};
+
+    if (err == DB_SUCCESS)
+    {
+      pars_info_t* pinfo = pars_info_create();
+      pars_info_bind_function(pinfo, "fk_report", trx->check_foreigns
+                              ? innodb_drop_database_fk
+                              : innodb_drop_database_ignore_fk, &report);
+      pars_info_add_str_literal(pinfo, "db", namebuf);
+      err= que_eval_sql(pinfo, drop_database, trx);
+      if (err == DB_SUCCESS && report.violated)
+        err= DB_CANNOT_DROP_CONSTRAINT;
+    }
+  } else
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
+  {
+    static const char drop_database[] =
+      "PROCEDURE DROP_DATABASE_PROC () IS\n"
+      "name CHAR;\n"
+      "tid CHAR;\n"
+      "iid CHAR;\n"
+
+      "DECLARE CURSOR tab IS\n"
+      "SELECT ID,NAME FROM SYS_TABLES WHERE NAME >= :db FOR UPDATE;\n"
+
+      "DECLARE CURSOR idx IS\n"
+      "SELECT ID FROM SYS_INDEXES WHERE TABLE_ID = tid FOR UPDATE;\n"
+
+      "BEGIN\n"
+
+      "OPEN tab;\n"
+      "WHILE 1 = 1 LOOP\n"
+      "  FETCH tab INTO tid,name;\n"
+      "  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
+      "  IF TO_BINARY(SUBSTR(name, 0, LENGTH(:db))) <> TO_BINARY(:db)"
+      " THEN EXIT; END IF;\n"
+      "  DELETE FROM SYS_COLUMNS WHERE TABLE_ID=tid;\n"
+      "  DELETE FROM SYS_TABLES WHERE ID=tid;\n"
+      "  OPEN idx;\n"
+      "  WHILE 1 = 1 LOOP\n"
+      "    FETCH idx INTO iid;\n"
+      "    IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
+      "    DELETE FROM SYS_FIELDS WHERE INDEX_ID=iid;\n"
+      "    DELETE FROM SYS_INDEXES WHERE CURRENT OF idx;\n"
+      "  END LOOP;\n"
+      "  CLOSE idx;\n"
+      "END LOOP;\n"
+      "CLOSE tab;\n"
+
+      "END;\n";
+
+    if (err == DB_SUCCESS)
+    {
+      pars_info_t* pinfo = pars_info_create();
+      pars_info_add_str_literal(pinfo, "db", namebuf);
+      err= que_eval_sql(pinfo, drop_database, trx);
+    }
   }
 
   const trx_id_t trx_id= trx->id;
@@ -1869,7 +1932,7 @@ const char *thd_innodb_tmpdir(THD *thd)
 /** Obtain the InnoDB transaction of a MySQL thread.
 @param[in,out]	thd	thread handle
 @return reference to transaction pointer */
-static trx_t* thd_to_trx(THD* thd)
+trx_t* thd_to_trx(THD* thd)
 {
 	return reinterpret_cast<trx_t*>(thd_get_ha_data(thd, innodb_hton_ptr));
 }
@@ -2327,6 +2390,10 @@ convert_error_code_to_mysql(
 		return(HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE);
 	case DB_COMPUTE_VALUE_FAILED:
 		return(HA_ERR_GENERIC); // impossible
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+	case DB_LEGACY_FK:
+		return(HA_ERR_FK_UPGRADE);
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 	}
 }
 
@@ -2491,6 +2558,34 @@ innobase_basename(
 	const char*	name = base_name(path_name);
 
 	return((name) ? name : "null");
+}
+
+/******************************************************************//**
+Makes all characters in a NUL-terminated UTF-8 string lower case. */
+void
+innobase_casedn_str(
+/*================*/
+	char*	a)	/*!< in/out: string to put in lower case */
+{
+	char	par_case_name[FN_REFLEN];
+
+#ifndef _WIN32
+	/* Check for the table using lower
+	case name, including the partition
+	separator "P" */
+	system_charset_info->casedn_z(
+		a, strlen(a),
+		par_case_name, sizeof(par_case_name));
+#else
+	/* On Windows platfrom, check
+	whether there exists table name in
+	system table whose name is
+	not being normalized to lower case */
+	normalize_table_name_c_low(
+		par_case_name, sizeof(par_case_name),
+		a, false);
+#endif
+	strcpy(a, par_case_name);
 }
 
 /** Determines the current SQL statement.
@@ -2844,7 +2939,6 @@ Gets the InnoDB transaction handle for a MySQL handler object, creates
 an InnoDB transaction struct if the corresponding MySQL thread struct still
 lacks one.
 @return InnoDB transaction handle */
-static inline
 trx_t*
 check_trx_exists(
 /*=============*/
@@ -5782,7 +5876,7 @@ static void initialize_auto_increment(dict_table_t *table, const Field& field,
 @return	error code
 @retval	0	on success */
 int
-ha_innobase::open(const char* name, int, uint)
+ha_innobase::open(const char* name, int, uint open_flags)
 {
 	char			norm_name[FN_REFLEN];
 	dberr_t			err;
@@ -5895,6 +5989,15 @@ ha_innobase::open(const char* name, int, uint)
 			DBUG_RETURN(ret_err);
 		}
 	}
+
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+        err= fk_check_and_upgrade(thd, open_flags, ib_table, table);
+	if (err != DB_SUCCESS) {
+		dict_table_close(ib_table, FALSE, FALSE);
+		DBUG_RETURN(convert_error_code_to_mysql(err, ib_table->flags,
+							NULL));
+	}
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 
 	if (table->s->foreign_keys.elements
 	    || table->s->referenced_keys.elements) {
@@ -12690,29 +12793,48 @@ dict_table_t::build_name(
 		    1 = Store and compare in lower; case insensitive
 		    2 = Store as given, compare in lower; case semi-sensitive */
 	if (lower_case_table_names > 0) {
-		char	par_case_name[FN_REFLEN];
-
-#ifndef _WIN32
-		/* Check for the table using lower
-		case name, including the partition
-		separator "P" */
-		system_charset_info->casedn_z(
-			dict_name, dict_name_len,
-			par_case_name, sizeof(par_case_name));
-#else
-		/* On Windows platfrom, check
-		whether there exists table name in
-		system table whose name is
-		not being normalized to lower case */
-		normalize_table_name_c_low(
-			par_case_name, sizeof(par_case_name),
-			dict_name, false);
-#endif
-		memcpy(dict_name, par_case_name, dict_name_len);
+		innobase_casedn_str(dict_name);
 	}
 
 	return false;
 }
+
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+static int check_legacy_fk(trx_t *trx, const TABLE *table,
+                           bool lock_dict_mutex)
+{
+  char table_name[MAX_FULL_NAME_LEN + 1];
+  char *bufptr= table_name;
+  size_t len;
+
+  dberr_t err= fk_legacy_storage_exists();
+  if (err == DB_TABLE_NOT_FOUND)
+    return DB_SUCCESS;
+  if (err != DB_SUCCESS)
+    return convert_error_code_to_mysql(err, 0, NULL);
+
+  if (dict_table_t::build_name(LEX_STRING_WITH_LEN(table->s->db),
+                               LEX_STRING_WITH_LEN(table->s->table_name),
+                               bufptr, len))
+    return HA_ERR_OUT_OF_MEM;
+
+  row_drop_table_check_legacy_data data(table_name, thd_sql_command(trx->mysql_thd));
+
+  if (lock_dict_mutex)
+    dict_sys.lock(SRW_LOCK_CALL);
+  err= row_drop_table_check_legacy_fk(trx, data);
+  if (lock_dict_mutex)
+    dict_sys.unlock();
+
+  if (err != DB_SUCCESS)
+    return convert_error_code_to_mysql(err, 0, NULL);
+
+  if (data.found)
+    return HA_ERR_FK_UPGRADE;
+
+  return DB_SUCCESS;
+}
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 
 /** Create the internal innodb table.
 @param create_fk	whether to add FOREIGN KEY constraints
@@ -12732,6 +12854,15 @@ int create_table_info_t::create_table(bool create_fk, bool strict)
 	/* Our function innobase_get_mysql_key_number_for_index assumes
 	the primary key is always number 0, if it exists */
 	ut_a(primary_key_no == -1 || primary_key_no == 0);
+
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+	if (enum_sql_command(thd_sql_command(m_thd)) == SQLCOM_ALTER_TABLE) {
+		error = check_legacy_fk(m_trx, m_form, false);
+		if (error) {
+			DBUG_RETURN(error);
+		}
+	}
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 
 	error = create_table_def();
 
@@ -13719,16 +13850,54 @@ err_exit:
     DBUG_RETURN(convert_error_code_to_mysql(err, 0, NULL));
   }
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
   if (!table->no_rollback())
   {
-    if (trx->check_foreigns && delete_table_check_foreigns(*table, sqlcom))
-    {
-      err= DB_CANNOT_DROP_CONSTRAINT;
+    /*
+      Check if table is referenced by foreign tables. Normally it is tested by
+      fk_handle_drop(), but if foreign/referenced keys was not yet upgraded
+      TABLE_SHARE doesn't have them and fk_handle_drop() passes the check.
+      Here we check it against legacy storage (SYS_FOREIGN).
+    */
+    err= fk_legacy_storage_exists();
+    if (err == DB_CORRUPTION)
       goto err_exit;
-    }
 
-    err= trx->drop_table_foreign(table->name);
+    if (err == DB_TABLE_NOT_FOUND)
+      err= DB_SUCCESS;
+    else
+    {
+      ut_ad(err == DB_SUCCESS);
+      if (trx->check_foreigns)
+      {
+        row_drop_table_check_legacy_data data(table->name.m_name, sqlcom);
+        err= row_drop_table_check_legacy_fk(trx, data);
+        if (err != DB_SUCCESS)
+          goto err_exit;
+
+        if (data.found)
+        {
+          mysql_mutex_lock(&dict_foreign_err_mutex);
+          rewind(dict_foreign_err_file);
+          ut_print_timestamp(dict_foreign_err_file);
+          fputs("  Cannot drop table ", dict_foreign_err_file);
+          ut_print_name(dict_foreign_err_file, trx, table->name.m_name);
+          fputs("\nbecause it is referenced by ", dict_foreign_err_file);
+          ut_print_name(dict_foreign_err_file, trx, data.foreign_name);
+          putc('\n', dict_foreign_err_file);
+          mysql_mutex_unlock(&dict_foreign_err_mutex);
+          err= DB_CANNOT_DROP_CONSTRAINT;
+          goto err_exit;
+        } /* data.found: some table references this table (with respect of drop_db logic) */
+      } /* if (trx->check_foreigns) */
+
+      /* Drop table from legacy storage */
+      err= trx->drop_table_foreign(table->name);
+      if (err != DB_SUCCESS)
+        goto err_exit;
+    } /* err == DB_SUCCESS (legacy storage exists) */
   }
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 
   if (err == DB_SUCCESS && table_stats && index_stats)
     err= trx->drop_table_statistics(table->name);
@@ -14190,8 +14359,13 @@ ha_innobase::rename_table(
 	}
 
 	if (error == DB_SUCCESS) {
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+		if (dict_sys.sys_foreign)
+			dict_sys.fk_lock();
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 		error = lock_table_for_trx(dict_sys.sys_tables, trx, LOCK_X);
-		if (error == DB_SUCCESS) {
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+		if (error == DB_SUCCESS && dict_sys.sys_foreign) {
 			error = lock_table_for_trx(dict_sys.sys_foreign, trx,
 						   LOCK_X);
 			if (error == DB_SUCCESS) {
@@ -14200,6 +14374,9 @@ ha_innobase::rename_table(
 					trx, LOCK_X);
 			}
 		}
+		if (dict_sys.sys_foreign)
+			dict_sys.fk_unlock();
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 	}
 
 	row_mysql_lock_data_dictionary(trx);
@@ -15596,6 +15773,15 @@ ha_innobase::extra(
 		    && !high_level_read_only) {
 			log_buffer_flush_to_disk();
 		}
+		break;
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+	case HA_EXTRA_CHECK_LEGACY_FK: {
+		int ha_err = check_legacy_fk(m_prebuilt->trx, table, true);
+		if (ha_err == HA_ERR_FK_UPGRADE)
+			return HA_ERR_ROW_IS_REFERENCED;
+		return ha_err;
+	}
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 		break;
 	default:/* Do nothing */
 		;
@@ -19692,6 +19878,311 @@ static MYSQL_SYSVAR_BOOL(truncate_temporary_tablespace_now,
   "Shrink the temporary tablespace",
   NULL, innodb_trunc_temp_space_update, false);
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+#ifndef DBUG_OFF
+static char* innodb_eval_sql;
+
+/********************************************************************//**
+Helper function to push warnings from InnoDB internals to SQL-layer. */
+static void
+ib_push_warning(
+	trx_t*		trx,	/*!< in: trx */
+	dberr_t		error,	/*!< in: error code to push as warning */
+	const char	*format,/*!< in: warning message */
+	...)
+{
+	if (trx && trx->mysql_thd) {
+		THD *thd = (THD *)trx->mysql_thd;
+		va_list args;
+		char buf[4096];
+
+		va_start(args, format);
+		buf[sizeof(buf) - 1] = 0;
+		vsnprintf(buf, sizeof(buf) - 1, format, args);
+
+		push_warning_printf(
+			thd, Sql_condition::WARN_LEVEL_WARN,
+			uint(convert_error_code_to_mysql(error, 0, thd)), buf);
+		va_end(args);
+	}
+}
+
+static int innodb_eval_sql_validate(THD *thd, st_mysql_sys_var*,
+					void* save, st_mysql_value* value)
+{
+	/* We cannot do that in innodb_eval_sql because of special conditions
+	   like lock->trx->dict_operation */
+	dberr_t err = DB_SUCCESS;
+	uint retries = 10;
+	DBUG_EXECUTE_IF("fk_create_legacy_storage",
+			dict_sys.fk_lock();
+			err = dict_sys.create_or_check_sys_tables(true););
+	if (err != DB_SUCCESS) {
+		DBUG_EXECUTE_IF("fk_create_legacy_storage", dict_sys.fk_unlock(););
+		return 1;
+	}
+
+	/** Preamble to all SQL statements. */
+	static const char* sql_begin = "PROCEDURE P() IS\n";
+
+	/** Postamble to non-committing SQL statements. */
+	static const char* sql_end = "\nEND;\n";
+
+	char	*sql, *str;
+	char	buff[8192]; // size doesn't matter: val_str() reallocates
+	int len = sizeof(buff);
+
+	ut_ad(save != NULL);
+	ut_ad(value != NULL);
+
+	bool free_trx = false;
+	trx_t * trx = thd_to_trx(thd);
+	if (!trx) {
+		trx = trx_create();
+		if (!trx) {
+			my_error(ER_OUT_OF_RESOURCES, MYF(0));
+			DBUG_EXECUTE_IF("fk_create_legacy_storage", dict_sys.fk_unlock(););
+			return 1;
+		}
+		free_trx = true;
+	}
+	trx_start_if_not_started(trx, true);
+	sql = (char*) value->val_str(value, buff, &len);
+	if (!sql) {
+mem_err:
+		trx->error_state = DB_SUCCESS;
+		trx->free();
+		my_error(ER_OUT_OF_RESOURCES, MYF(0));
+		DBUG_EXECUTE_IF("fk_create_legacy_storage", dict_sys.fk_unlock(););
+		return 1;
+	}
+	str = ut_str3cat(sql_begin, sql, sql_end);
+	if (!str) {
+		goto mem_err;
+	}
+
+retry:
+	trx->op_info = "Evaluating internal SQL";
+
+	pars_info_t* info      = pars_info_create();
+	info->fatal_syntax_err = false;
+	dict_sys.lock(SRW_LOCK_CALL);
+	err	   	       = que_eval_sql(info, str, trx);
+	dict_sys.unlock();
+	DBUG_EXECUTE_IF("fk_create_legacy_storage", dict_sys.fk_unlock(););
+	if (err != DB_SUCCESS) {
+		trx->op_info = "Rollback of internal trx on innodb_eval_sql";
+		trx->dict_operation_lock_mode = true;
+		dict_sys.lock(SRW_LOCK_CALL);
+		trx->rollback();
+		dict_sys.unlock();
+		trx->dict_operation_lock_mode = 0;
+		if (err == DB_DEADLOCK && --retries) {
+			goto retry;
+		}
+		ut_free(str);
+		trx->op_info		      = "";
+		ut_a(trx->error_state == DB_SUCCESS);
+		if (free_trx) {
+			trx->free();
+		}
+		ib_push_warning(
+			trx, err,
+			(err == DB_ERROR ? "Syntax error" : ut_strerr(err)));
+		return 1;
+	}
+	ut_free(str);
+	trx_commit_for_mysql(trx);
+	if (free_trx) {
+		trx->free();
+	}
+	*static_cast<const char**>(save) = sql;
+	return 0;
+}
+
+static MYSQL_SYSVAR_STR(eval_sql,
+  innodb_eval_sql,
+  PLUGIN_VAR_OPCMDARG|PLUGIN_VAR_MEMALLOC,
+  "Evaluate internal SQL",
+  innodb_eval_sql_validate, NULL, NULL);
+#endif /* DBUG_OFF */
+
+/** Drop SYS_FOREIGN or SYS_FOREIGN_COLS table.
+@return error code or DB_SUCCESS */
+static
+dberr_t fk_drop_legacy_table(dict_table_t *table, trx_t *trx)
+{
+  dberr_t err;
+  char *tablename= NULL;
+  mem_heap_t *heap= NULL;
+  ut_ad(!table->fts);
+  ut_ad(!table->is_temporary());
+
+  ut_ad(table);
+  ut_ad(!strchr(table->name.m_name, '/'));
+  ut_ad(table->referenced_set.empty());
+  ut_ad(!table->get_ref_count());
+
+  /* Serialize data dictionary operations with dictionary mutex:
+  no deadlocks can occur then in these operations */
+
+  trx->op_info= "dropping table";
+
+  ut_ad (trx->dict_operation_lock_mode);
+  ut_ad(dict_sys.locked());
+
+  ut_ad(trx_is_started(trx));
+
+  if (!table->no_rollback())
+  {
+    if (table->space != fil_system.sys_space)
+    {
+      /* Delete the link file if used. */
+      ut_ad(!DICT_TF_HAS_DATA_DIR(table->flags));
+    }
+
+    // FIXME: is it needed? SYS_FOREIGN should not be in stats
+    dict_stats_recalc_pool_del(table->id, false);
+  }
+
+  /* Mark all indexes unavailable in the data dictionary cache
+  before starting to drop the table. */
+
+  unsigned *page_no;
+  unsigned *page_nos;
+  heap= mem_heap_create(200 +
+                        UT_LIST_GET_LEN(table->indexes) * sizeof *page_nos);
+  tablename= mem_heap_strdup(heap, table->name.m_name);
+
+  page_no= page_nos= static_cast<unsigned *>(
+      mem_heap_alloc(heap, UT_LIST_GET_LEN(table->indexes) * sizeof *page_no));
+
+  for (dict_index_t *index= dict_table_get_first_index(table); index != NULL;
+       index= dict_table_get_next_index(index))
+  {
+    index->lock.x_lock(SRW_LOCK_CALL);
+    /* Save the page numbers so that we can restore them
+    if the operation fails. */
+    *page_no++= index->page;
+    /* Mark the index unusable. */
+    index->page= FIL_NULL;
+    index->lock.x_unlock();
+  }
+
+  ut_ad(trx_has_lock_x(*trx, *table));
+  for (lock_t *lock= UT_LIST_GET_FIRST(table->locks); lock;
+       lock= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock))
+  {
+    if (lock->trx != trx)
+      lock_sys_t::cancel_lock_wait_for_trx(lock->trx);
+  }
+  err= trx->drop_table(*table);
+
+  switch (err)
+  {
+    fil_space_t *space;
+    char *filepath;
+  case DB_SUCCESS:
+    space= table->space;
+    ut_ad(!space || space->id == table->space_id);
+    /* Determine the tablespace filename before we drop
+    dict_table_t. */
+    if (DICT_TF_HAS_DATA_DIR(table->flags))
+    {
+      dict_get_and_save_data_dir_path(table);
+      ut_ad(table->data_dir_path || !space);
+      filepath=
+          space ? NULL
+                : fil_make_filepath(table->data_dir_path, table->name,
+                                    IBD, table->data_dir_path != NULL);
+    }
+    else
+    {
+      filepath= space
+                    ? NULL
+                    : fil_make_filepath(NULL, table->name, IBD, false);
+    }
+
+    trx->mod_tables.erase(table);
+
+    /* Do not attempt to drop known-to-be-missing tablespaces,
+    nor the system tablespace. */
+    if (!space)
+    {
+      fil_delete_file(filepath);
+      ut_free(filepath);
+      break;
+    }
+
+    ut_ad(!filepath);
+    ut_a(space->id == TRX_SYS_SPACE);
+    break;
+
+  case DB_OUT_OF_FILE_SPACE:
+    trx->error_state= err;
+    row_mysql_handle_errors(&err, trx, NULL, NULL);
+
+    /* raise error */
+    ut_error;
+    break;
+
+  case DB_TOO_MANY_CONCURRENT_TRXS:
+    /* Cannot even find a free slot for the
+    the undo log. We can directly exit here
+    and return the DB_TOO_MANY_CONCURRENT_TRXS
+    error. */
+
+  default:
+    /* This is some error we do not expect. Print
+    the error number and rollback the transaction */
+    ib::error() << "Unknown error code " << err
+                << " while"
+                   " dropping table: "
+                << ut_get_name(trx, tablename) << ".";
+
+    trx->error_state= DB_SUCCESS;
+    trx->rollback();
+    trx->error_state= DB_SUCCESS;
+
+    /* Mark all indexes available in the data dictionary
+    cache again. */
+
+    page_no= page_nos;
+
+    for (dict_index_t *index= dict_table_get_first_index(table); index != NULL;
+         index= dict_table_get_next_index(index))
+    {
+      index->lock.x_lock(SRW_LOCK_CALL);
+      ut_a(index->page == FIL_NULL);
+      index->page= *page_no++;
+      index->lock.x_unlock();
+    }
+  }
+
+  if (err != DB_SUCCESS && table != NULL)
+  {
+    /* Drop table has failed with error but as drop table is not
+    transaction safe we should mark the table as corrupted to avoid
+    unwarranted follow-up action on this table that can result
+    in more serious issues. */
+
+    table->corrupted= true;
+    for (dict_index_t *index= UT_LIST_GET_FIRST(table->indexes); index != NULL;
+         index= UT_LIST_GET_NEXT(indexes, index))
+    {
+      dict_set_corrupted(index, "DROP TABLE");
+    }
+  }
+
+  if (heap)
+    mem_heap_free(heap);
+
+  trx->op_info= "";
+  return err;
+}
+
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),
   MYSQL_SYSVAR(buffer_pool_size),
@@ -19839,6 +20330,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(data_file_size_debug),
   MYSQL_SYSVAR(fil_make_page_dirty_debug),
   MYSQL_SYSVAR(saved_page_number_debug),
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+  MYSQL_SYSVAR(eval_sql),
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 #endif /* UNIV_DEBUG */
 #if defined(UNIV_DEBUG) || \
     defined(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY)
@@ -19907,6 +20401,10 @@ i_s_innodb_sys_tablestats,
 i_s_innodb_sys_indexes,
 i_s_innodb_sys_columns,
 i_s_innodb_sys_fields,
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+i_s_innodb_sys_foreign,
+i_s_innodb_sys_foreign_cols,
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 i_s_innodb_sys_tablespaces,
 i_s_innodb_sys_virtual,
 i_s_innodb_tablespaces_encryption
@@ -21213,6 +21711,609 @@ buf_pool_size_align(
   }
 }
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+struct fk_legacy_data
+{
+  trx_t *trx;
+  dict_table_t *table;
+  THD *thd;
+  TABLE_SHARE *s;
+  char ref_name[MAX_FULL_NAME_LEN + 1];
+  FK_info *fk;
+  dberr_t err;
+  FK_list foreign_keys;
+  fk_legacy_data(trx_t *_t, dict_table_t *_tab, THD *_thd, TABLE_SHARE *_s)
+      : trx(_t), table(_tab), thd(_thd), s(_s), fk(NULL), err(DB_SUCCESS){};
+};
+
+static ibool fk_upgrade_create_fk(void *row,      /*!< in: sel_node_t* */
+                                  void *user_arg) /*!< in: fk_legacy_data */
+{
+  fk_legacy_data &d= *(fk_legacy_data *) user_arg;
+  d.err= DB_CANNOT_ADD_CONSTRAINT;
+  sel_node_t *node= static_cast<sel_node_t *>(row);
+  que_node_t *exp= node->select_list;
+
+  // Get foreign key ID
+  dfield_t *fld= que_node_get_val(exp);
+  char src_id[MAX_FULL_NAME_LEN + 1];
+  char dst_id[MAX_TABLE_NAME_LEN + 1];
+  char src_ref[MAX_FULL_NAME_LEN + 1];
+  ut_a(fld->len <= MAX_FULL_NAME_LEN);
+  memcpy(src_id, fld->data, fld->len);
+  src_id[fld->len]= 0;
+  Lex_ident_column id;
+  char *slash= (char *) memchr(src_id, '/', fld->len);
+
+  if (slash != NULL)
+  {
+    size_t prefix_len= slash - src_id;
+    if (prefix_len >= fld->len)
+    {
+      ib_foreign_warn(d.trx, DB_CANNOT_ADD_CONSTRAINT, d.s->table_name.str,
+                      "Upgrade table %s with foreign key %s "
+                      "constraint"
+                      " failed. Wrong foreign key ID!",
+                      d.s->table_name.str, src_id);
+      return 0;
+    }
+    /* NB: we must keep DB name in ID because otherwise
+    TABLE_SHARE::fk_handle_create() may fail with
+    ER_DUP_CONSTRAINT_NAME when it will try to push multiple
+    referenced keys into single ref_share from different databases
+    (the "ID" part without DB will be same). */
+    *slash= '_';
+  }
+
+  id.length= filename_to_tablename(src_id, dst_id, sizeof(dst_id));
+  ut_a(id.length);
+  id.str= dst_id;
+
+  for (FK_info &fk : d.s->foreign_keys)
+  {
+    if (fk.foreign_id.streq(id))
+    {
+      ib_foreign_warn(d.trx, DB_CANNOT_ADD_CONSTRAINT, d.s->table_name.str,
+                      "Upgrade table %s with foreign key %s "
+                      "constraint"
+                      " failed. Duplicate foreign key ID!",
+                      d.s->table_name.str, src_id);
+      return 0;
+    }
+  }
+
+  // Get referenced table name
+  exp= que_node_get_next(exp);
+  fld= que_node_get_val(exp);
+  ut_a(fld);
+  char dst_db[MAX_TABLE_NAME_LEN + 1];
+  char dst_table[MAX_TABLE_NAME_LEN + 1];
+  ut_a(fld->len <= MAX_FULL_NAME_LEN);
+  memcpy(src_ref, fld->data, fld->len);
+  src_ref[fld->len]= 0;
+  if (lower_case_table_names)
+  {
+    innobase_casedn_str(src_ref);
+  }
+  memcpy(d.ref_name, src_ref, fld->len + 1);
+  LEX_CSTRING db, table;
+  table.str= (const char *) memchr(src_ref, '/', fld->len);
+
+  if (table.str == NULL)
+  {
+    table= {(char *) src_ref, fld->len};
+    db= {NULL, 0};
+  }
+  else
+  {
+    table.str++;
+    size_t prefix_len= table.str - src_ref;
+    if (prefix_len >= fld->len)
+    {
+      ib_foreign_warn(d.trx, DB_CANNOT_ADD_CONSTRAINT, d.s->table_name.str,
+                      "Upgrade table %s with foreign key %s "
+                      "constraint"
+                      " failed. Wrong referenced table name!",
+                      d.s->table_name.str, src_id);
+      return 0;
+    }
+    table.length= fld->len - prefix_len;
+    db= {src_ref, prefix_len - 1};
+    src_ref[db.length]= 0;
+  }
+
+  table.length= filename_to_tablename(table.str, dst_table, sizeof(dst_table));
+  ut_a(table.length);
+  table.str= dst_table;
+
+  if (db.length)
+  {
+    db.length= filename_to_tablename(db.str, dst_db, sizeof(dst_db));
+    ut_a(db.length);
+    db.str= dst_db;
+  }
+
+  ut_a(!que_node_get_next(exp));
+  d.fk= new (&d.s->mem_root) FK_info();
+  if (!d.fk)
+  {
+    d.err= DB_OUT_OF_MEMORY;
+    return 0;
+  }
+  d.fk->foreign_id.strdup(&d.s->mem_root, id);
+  if (!d.fk->foreign_id.str)
+  {
+    d.err= DB_OUT_OF_MEMORY;
+    return 0;
+  }
+  d.fk->foreign_db= d.s->db;
+  d.fk->foreign_table= d.s->table_name;
+  if (0 != cmp_table(d.s->db, db))
+  {
+    d.fk->referenced_db.strdup(&d.s->mem_root, db);
+    if (!d.fk->referenced_db.str)
+    {
+      d.err= DB_OUT_OF_MEMORY;
+      return 0;
+    }
+  }
+  d.fk->referenced_table.strdup(&d.s->mem_root, table);
+  if (!d.fk->referenced_table.str)
+  {
+    d.err= DB_OUT_OF_MEMORY;
+    return 0;
+  }
+  d.err= DB_LEGACY_FK;
+  return 1;
+}
+
+static ibool fk_upgrade_add_col(void *row,      /*!< in: sel_node_t* */
+                                void *user_arg) /*!< in: fk_legacy_data */
+{
+  fk_legacy_data &d= *(fk_legacy_data *) user_arg;
+  if (d.err != DB_LEGACY_FK)
+  {
+    return 0;
+  }
+  sel_node_t *node= static_cast<sel_node_t *>(row);
+  que_node_t *exp= node->select_list;
+
+  // Get FOR_COL_NAME
+  dfield_t *fld= que_node_get_val(exp);
+  ut_a(fld);
+  Lex_ident_column *dst_f= new (&d.s->mem_root) Lex_ident_column();
+  if (!dst_f)
+  {
+    d.err= DB_OUT_OF_MEMORY;
+    return 0;
+  }
+  dst_f->strdup(&d.s->mem_root, {(char *) fld->data, fld->len});
+  if (!dst_f->str)
+  {
+    d.err= DB_OUT_OF_MEMORY;
+    return 0;
+  }
+
+  if (d.fk->foreign_fields.push_back(dst_f, &d.s->mem_root))
+  {
+    d.err= DB_OUT_OF_MEMORY;
+    return 0;
+  }
+
+  // Get REF_COL_NAME
+  exp= que_node_get_next(exp);
+  fld= que_node_get_val(exp);
+  ut_a(exp);
+  ut_a(fld);
+  dst_f= new (&d.s->mem_root) Lex_ident_column();
+  if (!dst_f)
+  {
+    d.err= DB_OUT_OF_MEMORY;
+    return 0;
+  }
+  dst_f->strdup(&d.s->mem_root, {(char *) fld->data, fld->len});
+  if (!dst_f->str)
+  {
+    d.err= DB_OUT_OF_MEMORY;
+    return 0;
+  }
+
+  if (d.fk->referenced_fields.push_back(dst_f, &d.s->mem_root))
+  {
+    d.err= DB_OUT_OF_MEMORY;
+    return 0;
+  }
+
+  ut_a(!que_node_get_next(exp));
+  return 1;
+}
+
+static ibool fk_upgrade_push_fk(void *row,      /*!< in: sel_node_t* */
+                                void *user_arg) /*!< in: fk_legacy_data */
+{
+  fk_legacy_data &d= *(fk_legacy_data *) user_arg;
+  if (d.err != DB_LEGACY_FK)
+  {
+    return 0;
+  }
+  // Check indexes on ref and on foreign
+  FK_info &fk= *d.fk;
+  ut_ad(fk.foreign_fields.elements < MAX_NUM_FK_COLUMNS);
+  ut_ad(fk.foreign_fields.elements == fk.referenced_fields.elements);
+  uint i= 0;
+  char norm_name[FN_REFLEN];
+  const char *column_names[MAX_NUM_FK_COLUMNS];
+  const char *ref_column_names[MAX_NUM_FK_COLUMNS];
+  dict_index_t *index;
+  List_iterator_fast<Lex_ident_column> it(fk.referenced_fields);
+  for (auto &col : fk.foreign_fields)
+  {
+    column_names[i]= col.str;
+    auto *rcol= it++;
+    ref_column_names[i++]= rcol->str;
+  }
+  index=
+      dict_foreign_find_index(d.table, NULL, column_names,
+                              fk.foreign_fields.elements, NULL, true, false);
+  if (!index)
+  {
+    ib_foreign_warn(d.trx, DB_CANNOT_ADD_CONSTRAINT, d.s->table_name.str,
+                    "Upgrade table %s with foreign key %s constraint"
+                    " failed. Foreign key index not found!",
+                    d.s->table_name.str, fk.foreign_id.str);
+    d.err= DB_CANNOT_ADD_CONSTRAINT;
+    return 0;
+  }
+  normalize_table_name(norm_name, sizeof(norm_name), d.ref_name);
+  dict_table_t *ref_table=
+      dict_table_open_on_name(norm_name, true, DICT_ERR_IGNORE_FK_NOKEY);
+  if (!ref_table)
+  {
+    ib_foreign_warn(d.trx, DB_CANNOT_ADD_CONSTRAINT, d.s->table_name.str,
+                    "Upgrade table %s with foreign key %s constraint"
+                    " failed. Could not open referenced table!",
+                    d.s->table_name.str, fk.foreign_id.str);
+    d.err= DB_CANNOT_ADD_CONSTRAINT;
+    return 0;
+  }
+  index=
+      dict_foreign_find_index(ref_table, NULL, ref_column_names,
+                              fk.foreign_fields.elements, NULL, true, false);
+  dict_table_close(ref_table, true, d.thd, NULL);
+  if (!index)
+  {
+    ib_foreign_warn(d.trx, DB_CANNOT_ADD_CONSTRAINT, d.s->table_name.str,
+                    "Upgrade table %s with foreign key %s constraint"
+                    " failed. Referenced key index not found!",
+                    d.s->table_name.str, fk.foreign_id.str);
+    d.err= DB_CANNOT_ADD_CONSTRAINT;
+    return 0;
+  }
+  if (d.foreign_keys.push_back(d.fk, &d.s->mem_root))
+  {
+    d.err= DB_OUT_OF_MEMORY;
+    return 0;
+  }
+  d.fk= NULL;
+  return 1;
+}
+
+static ibool pars_get_true(void *row
+                           __attribute__((unused)), /*!< in: sel_node_t* */
+                           void *user_arg)          /*!< in: bool do_upgrade */
+{
+  *(bool *) user_arg= true;
+  return 0;
+}
+
+/** Drop SYS_FOREIGN[_COLS] tables if they are empty */
+dberr_t fk_cleanup_legacy_storage(trx_t *trx)
+{
+  ut_ad(dict_sys.locked());
+  ut_ad(DB_SUCCESS == fk_legacy_storage_exists());
+  bool sys_foreign_empty;
+  bool sys_forcols_empty;
+  dberr_t err= DB_SUCCESS;
+  sys_foreign_empty= innobase_table_is_empty(dict_sys.sys_foreign);
+  sys_forcols_empty= innobase_table_is_empty(dict_sys.sys_foreign_cols);
+  dict_table_t *sys_foreign= dict_sys.sys_foreign;
+  dict_table_t *sys_forcols= dict_sys.sys_foreign_cols;
+  bool check_foreigns= trx->check_foreigns;
+  if (sys_foreign_empty)
+  {
+    trx->check_foreigns= false;
+    trx->dict_operation= true;
+    err= fk_drop_legacy_table(sys_foreign, trx);
+    if (err != DB_SUCCESS)
+      goto error;
+    dict_sys.sys_foreign= NULL;
+  }
+  if (sys_forcols_empty)
+  {
+    trx->check_foreigns= false;
+    trx->dict_operation= true;
+    err= fk_drop_legacy_table(sys_forcols, trx);
+    dict_sys.sys_foreign_cols= NULL;
+  }
+  ut_ad(trx_is_started(trx));
+  trx_commit_for_mysql(trx);
+  if (sys_foreign && !dict_sys.sys_foreign)
+    dict_sys.remove(sys_foreign); /* frees table object */
+  if (sys_forcols && !dict_sys.sys_foreign_cols)
+    dict_sys.remove(sys_forcols); /* frees table object */
+
+error:
+  trx->rollback();
+  trx->check_foreigns= check_foreigns;
+  return err;
+}
+
+/** Load and delete legacy foreign data from SYS_FOREIGN into TABLE_SHARE;
+ *  Update FRMs of share and referenced shares.
+@param[in]	table		dict_table_t data
+@param[in]	trx		trx_t used to eval sql code
+@param[in]	thd		THD used to handle FRM update
+@param[out]	share		foreign_keys, referenced_keys receive the data
+@return				DB_SUCCESS or error code */
+static dberr_t fk_upgrade_legacy_storage(dict_table_t *table, trx_t *trx,
+                                         THD *thd, TABLE_SHARE *share)
+{
+  pars_info_t *info;
+  fk_legacy_data d(trx, table, thd, share);
+
+  ut_ad(DB_SUCCESS == fk_legacy_storage_exists());
+
+  info= pars_info_create();
+  if (!info)
+    return DB_OUT_OF_MEMORY;
+
+  pars_info_bind_function(info, "fk_upgrade_create_fk", fk_upgrade_create_fk,
+                          &d);
+  pars_info_bind_function(info, "fk_upgrade_add_col", fk_upgrade_add_col, &d);
+  pars_info_bind_function(info, "fk_upgrade_push_fk", fk_upgrade_push_fk, &d);
+  pars_info_add_str_literal(info, "for_name", table->name.m_name);
+  static const char sql_fetch[]=
+      "PROCEDURE FETCH_PROC () IS\n"
+      "fk_id CHAR;\n"
+      "unused CHAR;\n"
+      "DECLARE FUNCTION fk_upgrade_create_fk;\n"
+      "DECLARE FUNCTION fk_upgrade_add_col;\n"
+      "DECLARE FUNCTION fk_upgrade_push_fk;\n"
+
+      "DECLARE CURSOR c IS"
+      " SELECT ID, REF_NAME FROM SYS_FOREIGN"
+      " WHERE FOR_NAME = :for_name;"
+
+      "DECLARE CURSOR c2 IS"
+      " SELECT FOR_COL_NAME, REF_COL_NAME FROM SYS_FOREIGN_COLS"
+      " WHERE ID = fk_id;"
+
+      "DECLARE CURSOR c3 IS"
+      " SELECT ID FROM SYS_FOREIGN;"
+
+      "BEGIN\n"
+      "OPEN c;\n"
+      "WHILE 1 = 1 LOOP\n"
+      "  FETCH c INTO fk_upgrade_create_fk() fk_id, unused;\n"
+      "  IF (SQL % NOTFOUND) THEN\n"
+      "    EXIT;\n"
+      "  END IF;\n"
+      "  OPEN c2;\n"
+      "  WHILE 1 = 1 LOOP\n"
+      "    FETCH c2 INTO fk_upgrade_add_col();\n"
+      "    IF (SQL % NOTFOUND) THEN\n"
+      "      CLOSE c2;\n"
+      "      OPEN c3;\n"
+      "      FETCH c3 INTO fk_upgrade_push_fk();\n"
+      "      CLOSE c3;\n"
+      "      EXIT;\n"
+      "    END IF;\n"
+      "  END LOOP;\n"
+      "END LOOP;\n"
+      "CLOSE c;\n"
+      "END;\n";
+
+  dict_sys.lock(SRW_LOCK_CALL);
+  dberr_t err= que_eval_sql(info, sql_fetch, trx);
+  dict_sys.unlock();
+  if (err != DB_SUCCESS)
+    return err;
+
+  if (d.err != DB_LEGACY_FK)
+    return d.err;
+
+  ut_ad(d.foreign_keys.elements);
+
+  // Got legacy foreign keys, update referenced shares
+  FK_table_backup fk_table_backup;
+  FK_create_vector ref_shares;
+  if (d.s->fk_handle_create(thd, ref_shares, &d.foreign_keys))
+  {
+    err= DB_ERROR;
+    goto rollback;
+  }
+
+  if (fk_table_backup.init(d.s))
+  {
+    err= DB_OUT_OF_MEMORY;
+    goto rollback;
+  }
+
+  // Push to main share. Share is already locked by Open_table_context.
+  for (FK_info &fk : d.foreign_keys)
+  {
+    if (d.s->foreign_keys.push_back(&fk, &d.s->mem_root))
+    {
+      err= DB_OUT_OF_MEMORY;
+      goto rollback;
+    }
+  }
+
+  // Update foreign FRM
+  if (d.s->fk_write_shadow_frm(thd))
+  {
+    err= DB_ERROR;
+    goto rollback;
+  }
+
+  // Update referenced FRMs
+  for (FK_ddl_backup &bak : ref_shares)
+  {
+    if (bak.sa.share->fk_install_shadow_frm())
+    {
+      // TODO: MDEV-21053 atomicity
+      err= DB_ERROR;
+      goto rollback;
+    }
+  }
+
+  if (d.s->fk_install_shadow_frm())
+  {
+    err= DB_ERROR;
+    goto rollback;
+  }
+
+  fk_table_backup.commit();
+
+  // Drop legacy foreign keys
+  static const char sql_drop[]= "PROCEDURE DROP_PROC () IS\n"
+                                "fk_id CHAR;\n"
+                                "DECLARE CURSOR c IS\n"
+                                "SELECT ID FROM SYS_FOREIGN\n"
+                                "WHERE FOR_NAME = :for_name\n"
+                                "LOCK IN SHARE MODE;\n"
+                                "BEGIN\n"
+                                "OPEN c;\n"
+                                "WHILE 1 = 1 LOOP\n"
+                                "        FETCH c INTO fk_id;\n"
+                                "        IF (SQL % NOTFOUND) THEN\n"
+                                "                EXIT;\n"
+                                "        END IF;\n"
+                                "        DELETE FROM SYS_FOREIGN_COLS\n"
+                                "        WHERE ID = fk_id;\n"
+                                "        DELETE FROM SYS_FOREIGN\n"
+                                "        WHERE ID = fk_id;\n"
+                                "END LOOP;\n"
+                                "CLOSE c;\n"
+                                "COMMIT WORK;\n"
+                                "END;\n";
+
+  info= pars_info_create();
+  // TODO: rollback the below fails in crash-safety task
+  if (!info)
+    return DB_OUT_OF_MEMORY;
+
+  pars_info_add_str_literal(info, "for_name", table->name.m_name);
+
+  dict_sys.lock(SRW_LOCK_CALL);
+  err= que_eval_sql(info, sql_drop, trx);
+  dict_sys.unlock();
+  if (err != DB_SUCCESS)
+    return err;
+
+  return DB_SUCCESS;
+
+rollback:
+  for (FK_ddl_backup &bak : ref_shares)
+  {
+    bak.rollback();
+  }
+  ut_ad(err != DB_SUCCESS);
+  return err;
+}
+
+/** Test whether legacy foreign data exists in SYS_FOREIGN
+@param[in]	table_name	Name in form of DB/TABLE_NAME
+@param[in]	trx		trx_t used to eval sql code
+@retval		DB_SUCCESS	No legacy data found
+@retval		DB_LEGACY_FK	Legacy data found
+@retval		any other	Error code */
+static dberr_t fk_check_legacy_storage(const char *table_name, trx_t *trx)
+{
+  pars_info_t *info;
+  bool do_upgrade= false;
+
+  dberr_t err= fk_legacy_storage_exists();
+  if (err == DB_TABLE_NOT_FOUND)
+    return DB_SUCCESS;
+  if (err != DB_SUCCESS)
+    return err;
+
+  info= pars_info_create();
+  if (!info)
+    return DB_OUT_OF_MEMORY;
+
+  pars_info_bind_function(info, "get_upgrade", pars_get_true, &do_upgrade);
+  pars_info_add_str_literal(info, "for_name", table_name);
+  static const char sql[]= "PROCEDURE FK_PROC () IS\n"
+                           "DECLARE FUNCTION get_upgrade;\n"
+
+                           "DECLARE CURSOR c IS"
+                           " SELECT ID FROM SYS_FOREIGN"
+                           " WHERE FOR_NAME = :for_name;"
+
+                           "BEGIN\n"
+                           "OPEN c;\n"
+                           "FETCH c INTO get_upgrade();\n"
+                           "CLOSE c;\n"
+                           "END;\n";
+
+  dict_sys.lock(SRW_LOCK_CALL);
+  err= que_eval_sql(info, sql, trx);
+  dict_sys.unlock();
+  if (err == DB_SUCCESS && do_upgrade)
+    err= DB_LEGACY_FK;
+
+  return err;
+}
+
+static dberr_t
+fk_check_and_upgrade(THD *thd, uint open_flags,
+                     dict_table_t *ib_table, TABLE *table)
+{
+  dberr_t err;
+  trx_t *trx= innobase_trx_allocate(thd);
+  if (!trx)
+    return DB_OUT_OF_MEMORY;
+
+  dict_sys.fk_lock();
+  err= fk_check_legacy_storage(ib_table->name.m_name, trx);
+  if (!(err == DB_LEGACY_FK && (open_flags & HA_OPEN_FOR_REPAIR)))
+    goto end;
+
+  err= lock_table_for_trx(dict_sys.sys_foreign, trx, LOCK_X);
+  if (err != DB_SUCCESS)
+    goto end;
+  err= lock_table_for_trx(dict_sys.sys_foreign_cols, trx, LOCK_X);
+  if (err != DB_SUCCESS)
+    goto end;
+
+  err= fk_upgrade_legacy_storage(ib_table, trx, thd, table->s);
+  if (err != DB_SUCCESS)
+    goto end;
+  err= fk_check_legacy_storage(ib_table->name.m_name, trx);
+
+  if (err == DB_LEGACY_FK)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        HA_ERR_FK_UPGRADE,
+                        "Table %s failed to upgrade foreign "
+                        "keys (index is not corrupt)!",
+                        table->s->table_name.str);
+  }
+
+end:
+  dict_sys.fk_unlock();
+
+  if (trx->state != TRX_STATE_NOT_STARTED &&
+      trx->state != TRX_STATE_COMMITTED_IN_MEMORY)
+    trx_commit_for_mysql(trx);
+  trx->error_state= DB_SUCCESS;
+  trx->free();
+  return err;
+}
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
+
 /** Load dict_foreign_t cache from TABLE_SHARE
 @param[in]	thd		THD is used to acquire share
 @param[in]	share		If NULL share is acquired by table name
@@ -21306,7 +22407,7 @@ dict_load_foreigns(THD* thd, dict_table_t* table, TABLE_SHARE* share,
 			return DB_OUT_OF_MEMORY;
 
 		if (dict_table_t::build_name(
-			    LEX_STRING_WITH_LEN(fk.referenced_db),
+			    LEX_STRING_WITH_LEN(fk.ref_db()),
 			    LEX_STRING_WITH_LEN(fk.referenced_table), bufptr,
 			    len)) {
 			return DB_CANNOT_ADD_CONSTRAINT;
@@ -21426,3 +22527,4 @@ dict_load_foreigns(THD* thd, dict_table_t* table, TABLE_SHARE* share,
 	}
 	return DB_SUCCESS;
 }
+

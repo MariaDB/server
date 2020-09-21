@@ -1757,7 +1757,7 @@ dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 
 TRANSACTIONAL_TARGET ATTRIBUTE_NOINLINE
 /** @return whether the transaction holds an exclusive lock on a table */
-static bool trx_has_lock_x(const trx_t &trx, dict_table_t& table)
+bool trx_has_lock_x(const trx_t &trx, dict_table_t& table)
 {
   ut_ad(!table.is_temporary());
 

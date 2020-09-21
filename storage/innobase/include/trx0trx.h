@@ -1028,7 +1028,9 @@ public:
   /** Try to drop the foreign key constraints for a persistent table.
   @param name        name of persistent table
   @return error code */
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
   dberr_t drop_table_foreign(const table_name_t &name);
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
   /** Try to drop the statistics for a persistent table.
   @param name        name of persistent table
   @return error code */

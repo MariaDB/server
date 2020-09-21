@@ -1312,6 +1312,7 @@ bool dict_sys_t::load_sys_tables()
   ut_ad(!srv_any_background_activity());
   bool mismatch= false;
   lock(SRW_LOCK_CALL);
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
   if (!(sys_foreign= load_table(SYS_TABLE[SYS_FOREIGN],
                                 DICT_ERR_IGNORE_FK_NOKEY)));
   else if (UT_LIST_GET_LEN(sys_foreign->indexes) == 3 &&
@@ -1335,6 +1336,7 @@ bool dict_sys_t::load_sys_tables()
     mismatch= true;
     sql_print_error("InnoDB: Invalid definition of SYS_FOREIGN_COLS");
   }
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
   if (!(sys_virtual= load_table(SYS_TABLE[SYS_VIRTUAL],
                                 DICT_ERR_IGNORE_FK_NOKEY)));
   else if (UT_LIST_GET_LEN(sys_virtual->indexes) == 1 &&
@@ -1350,22 +1352,37 @@ bool dict_sys_t::load_sys_tables()
   return mismatch;
 }
 
-dberr_t dict_sys_t::create_or_check_sys_tables()
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+dberr_t
+fk_legacy_storage_exists()
 {
-  if (sys_tables_exist())
+  if (dict_sys.sys_foreign && dict_sys.sys_foreign_cols)
+    return DB_SUCCESS;
+  if (dict_sys.sys_foreign || dict_sys.sys_foreign_cols)
+    return DB_CORRUPTION;
+  return DB_TABLE_NOT_FOUND;
+}
+
+dberr_t dict_sys_t::create_or_check_sys_tables(bool create_foreign)
+#else
+dberr_t dict_sys_t::create_or_check_sys_tables()
+#define create_foreign false
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
+{
+  if (sys_tables_exist(create_foreign))
     return DB_SUCCESS;
 
   if (srv_read_only_mode || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)
     return DB_READ_ONLY;
 
-  if (load_sys_tables())
+  if (!create_foreign && load_sys_tables())
   {
     sql_print_information("InnoDB: Set innodb_read_only=1 "
                           "or innodb_force_recovery=3 to start up");
     return DB_CORRUPTION;
   }
 
-  if (sys_tables_exist())
+  if (sys_tables_exist(create_foreign))
     return DB_SUCCESS;
 
   trx_t *trx= trx_create();
@@ -1395,9 +1412,8 @@ dberr_t dict_sys_t::create_or_check_sys_tables()
   dberr_t error;
   span<const char> tablename;
 
-  // FIXME: wrap over WITH_INNODB_FOREIGN_UPGRADE
-
-  if (!sys_foreign)
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+  if (create_foreign && !sys_foreign)
   {
     error= que_eval_sql(nullptr, "PROCEDURE CREATE_FOREIGN() IS\n"
                         "BEGIN\n"
@@ -1414,18 +1430,10 @@ dberr_t dict_sys_t::create_or_check_sys_tables()
     if (UNIV_UNLIKELY(error != DB_SUCCESS))
     {
       tablename= SYS_TABLE[SYS_FOREIGN];
-err_exit:
-      sql_print_error("InnoDB: Creation of %.*s failed: %s",
-                      int(tablename.size()), tablename.data(),
-                      ut_strerr(error));
-      trx->rollback();
-      row_mysql_unlock_data_dictionary(trx);
-      trx->free();
-      srv_file_per_table= srv_file_per_table_backup;
-      return error;
+      goto err_exit;
     }
   }
-  if (!sys_foreign_cols)
+  if (create_foreign && !sys_foreign_cols)
   {
     error= que_eval_sql(nullptr, "PROCEDURE CREATE_FOREIGN_COLS() IS\n"
                         "BEGIN\n"
@@ -1441,6 +1449,7 @@ err_exit:
       goto err_exit;
     }
   }
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
   if (!sys_virtual)
   {
     error= que_eval_sql(nullptr, "PROCEDURE CREATE_VIRTUAL() IS\n"
@@ -1453,7 +1462,17 @@ err_exit:
     if (UNIV_UNLIKELY(error != DB_SUCCESS))
     {
       tablename= SYS_TABLE[SYS_VIRTUAL];
-      goto err_exit;
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+err_exit:
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
+      sql_print_error("InnoDB: Creation of %.*s failed: %s",
+                      int(tablename.size()), tablename.data(),
+                      ut_strerr(error));
+      trx->rollback();
+      row_mysql_unlock_data_dictionary(trx);
+      trx->free();
+      srv_file_per_table= srv_file_per_table_backup;
+      return error;
     }
   }
 
@@ -1463,33 +1482,42 @@ err_exit:
   srv_file_per_table= srv_file_per_table_backup;
 
   lock(SRW_LOCK_CALL);
-  if (sys_foreign);
-  else if (!(sys_foreign= load_table(SYS_TABLE[SYS_FOREIGN])))
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+  if (create_foreign)
   {
-    tablename= SYS_TABLE[SYS_FOREIGN];
-load_fail:
-    unlock();
-    sql_print_error("InnoDB: Failed to CREATE TABLE %.*s",
-                    int(tablename.size()), tablename.data());
-    return DB_TABLE_NOT_FOUND;
-  }
-  else
-    prevent_eviction(sys_foreign);
+    if (sys_foreign);
+    else if (!(sys_foreign= load_table(SYS_TABLE[SYS_FOREIGN])))
+    {
+      tablename= SYS_TABLE[SYS_FOREIGN];
+      goto load_fail;
+    }
+    else
+      prevent_eviction(sys_foreign);
 
-  if (sys_foreign_cols);
-  else if (!(sys_foreign_cols= load_table(SYS_TABLE[SYS_FOREIGN_COLS])))
-  {
-    tablename= SYS_TABLE[SYS_FOREIGN_COLS];
-    goto load_fail;
+    if (sys_foreign_cols);
+    else if (!(sys_foreign_cols= load_table(SYS_TABLE[SYS_FOREIGN_COLS])))
+    {
+      tablename= SYS_TABLE[SYS_FOREIGN_COLS];
+      goto load_fail;
+    }
+    else
+      prevent_eviction(sys_foreign_cols);
   }
-  else
-    prevent_eviction(sys_foreign_cols);
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 
   if (sys_virtual);
   else if (!(sys_virtual= load_table(SYS_TABLE[SYS_VIRTUAL])))
   {
     tablename= SYS_TABLE[SYS_VIRTUAL];
-    goto load_fail;
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+load_fail:
+#else
+#undef create_foreign
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
+    unlock();
+    sql_print_error("InnoDB: Failed to CREATE TABLE %.*s",
+                    int(tablename.size()), tablename.data());
+    return DB_TABLE_NOT_FOUND;
   }
   else
     prevent_eviction(sys_virtual);

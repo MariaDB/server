@@ -117,6 +117,10 @@ dict_create_index_tree_in_mem(
 	dict_index_t*	index,		/*!< in/out: index */
 	const trx_t*	trx);		/*!< in: InnoDB transaction handle */
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+dberr_t fk_legacy_storage_exists();
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
+
 /********************************************************************//**
 Generate a foreign key constraint name when it was not named by the user.
 A generated constraint has a name of the format dbname/tablename_ibfk_NUMBER,

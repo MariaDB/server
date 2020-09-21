@@ -81,8 +81,6 @@ test/child	a1
 test/child	a2
 SELECT NAME FROM information_schema.INNODB_SYS_TABLES;
 NAME
-SYS_FOREIGN
-SYS_FOREIGN_COLS
 SYS_VIRTUAL
 mysql/innodb_index_stats
 mysql/innodb_table_stats
@@ -189,8 +187,6 @@ test/child	a1
 test/child	a2
 SELECT NAME FROM information_schema.INNODB_SYS_TABLES;
 NAME
-SYS_FOREIGN
-SYS_FOREIGN_COLS
 SYS_VIRTUAL
 mysql/innodb_index_stats
 mysql/innodb_table_stats
@@ -209,8 +205,6 @@ test/child	a2
 test/child	a3
 SELECT NAME FROM information_schema.INNODB_SYS_TABLES;
 NAME
-SYS_FOREIGN
-SYS_FOREIGN_COLS
 SYS_VIRTUAL
 mysql/innodb_index_stats
 mysql/innodb_table_stats
@@ -240,8 +234,6 @@ test/child	a1
 test/child	a2
 SELECT NAME FROM information_schema.INNODB_SYS_TABLES;
 NAME
-SYS_FOREIGN
-SYS_FOREIGN_COLS
 SYS_VIRTUAL
 mysql/innodb_index_stats
 mysql/innodb_table_stats
@@ -269,8 +261,6 @@ test/child	a2
 test/child	a3
 SELECT NAME FROM information_schema.INNODB_SYS_TABLES;
 NAME
-SYS_FOREIGN
-SYS_FOREIGN_COLS
 SYS_VIRTUAL
 mysql/innodb_index_stats
 mysql/innodb_table_stats

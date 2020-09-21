@@ -12462,6 +12462,21 @@ alter_copy:
                    QRMT_HANDLER | (engine_changed ? 0 : FN_IS_TMP));
   }
 
+// FIXME: is it needed? It was inside if (error), now quick_rm_table() doesn't return error
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+  if (thd->is_error() &&
+      thd->get_stmt_da()->sql_errno() == ER_ROW_IS_REFERENCED_2 &&
+      alter_info->algorithm(thd) == Alter_info::ALTER_TABLE_ALGORITHM_COPY)
+  {
+    DBUG_ASSERT(0);
+    /*
+      TODO: row_drop_table_check_legacy_fk() failed and we must revert the
+      ALTER back (depends on Atomic ALTER).
+    */
+    goto err_with_mdl;
+  }
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
+
   debug_crash_here("ddl_log_alter_after_delete_backup");
 
   quick_rm_table(thd, old_db_type, &alter_ctx.db, &backup_name,
@@ -12843,6 +12858,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   MYSQL_TIME query_start;
   DBUG_ENTER("copy_data_between_tables");
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+  if((error= from->file->extra(HA_EXTRA_CHECK_LEGACY_FK)))
+  {
+    from->file->print_error(error, MYF(0));
+    DBUG_RETURN(-1);
+  }
+  error= 1;
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
   if (!(copy= new (thd->mem_root) Copy_field[to->s->fields]))
     DBUG_RETURN(-1);
 
@@ -14019,15 +14042,16 @@ bool HA_CREATE_INFO::
 }
 
 
-// Used in CREATE TABLE
-bool TABLE_SHARE::fk_handle_create(THD *thd, FK_create_vector &shares)
+// Used in CREATE TABLE and in FK upgrade (fk_add != NULL)
+bool TABLE_SHARE::fk_handle_create(THD *thd, FK_create_vector &shares, FK_list *fk_add)
 {
-  if (foreign_keys.is_empty())
+  FK_list &fkeys= fk_add ? *fk_add : foreign_keys;
+  if (fkeys.is_empty())
     return false;
 
   mbd::set<Table_name> tables;
 
-  for (FK_info &fk: foreign_keys)
+  for (FK_info &fk: fkeys)
   {
     if (!cmp_table(fk.ref_db(), db) && !cmp_table(fk.referenced_table, table_name))
       continue; // subject table name is already prelocked by caller DDL
@@ -14082,7 +14106,7 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_create_vector &shares)
   for (FK_ddl_backup &ref: shares)
   {
     TABLE_SHARE *ref_share= ref.sa.share;
-    for (const FK_info &fk: foreign_keys)
+    for (const FK_info &fk: fkeys)
     {
       // Find keys referencing the acquired share and add them to referenced_keys
       if (cmp_table(fk.ref_db(), ref_share->db) ||
@@ -14111,7 +14135,7 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_create_vector &shares)
         my_error(ER_OUT_OF_RESOURCES, MYF(0));
         return true;
       }
-    } // for (const FK_info &fk: foreign_keys)
+    } // for (const FK_info &fk: fkeys)
 
     if (ref_share->fk_write_shadow_frm(thd))
       return true;

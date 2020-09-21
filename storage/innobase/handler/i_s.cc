@@ -5749,7 +5749,7 @@ struct st_maria_plugin	i_s_innodb_sys_fields =
 	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
-#if 0
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
 namespace Show {
 /**  SYS_FOREIGN        ********************************************/
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_SYS_FOREIGN */
@@ -5831,8 +5831,13 @@ i_s_sys_foreign_fill_table(
 	DBUG_ENTER("i_s_sys_foreign_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
+	if (!dict_sys.sys_foreign) {
+		my_error(ER_BAD_TABLE_ERROR, MYF(0), tables->schema_table_name.str);
+		DBUG_RETURN(1);
+	}
+
 	/* deny access to user without PROCESS_ACL privilege */
-	if (check_global_access(thd, PROCESS_ACL) || !dict_sys.sys_foreign) {
+	if (check_global_access(thd, PROCESS_ACL)) {
 		DBUG_RETURN(0);
 	}
 
@@ -6019,9 +6024,13 @@ i_s_sys_foreign_cols_fill_table(
 	DBUG_ENTER("i_s_sys_foreign_cols_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
+	if (!dict_sys.sys_foreign_cols) {
+		my_error(ER_BAD_TABLE_ERROR, MYF(0), tables->schema_table_name.str);
+		DBUG_RETURN(1);
+	}
+
 	/* deny access to user without PROCESS_ACL privilege */
-	if (check_global_access(thd, PROCESS_ACL)
-	    || !dict_sys.sys_foreign_cols) {
+	if (check_global_access(thd, PROCESS_ACL)) {
 		DBUG_RETURN(0);
 	}
 

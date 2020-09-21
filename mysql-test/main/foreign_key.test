@@ -4,6 +4,7 @@
 
 --source include/have_innodb.inc
 --source include/have_partition.inc
+--source include/lcase_names.inc
 
 --disable_warnings
 drop table if exists t1,t2;
@@ -334,11 +335,21 @@ drop tables t2, t1;
 --echo # Check drop table
 create or replace table t1 (id int primary key);
 create or replace table ch1 (id int, foreign key (id) references t1 (id));
-select * from t1;
-select * from ch1;
 --error ER_ROW_IS_REFERENCED_2
 drop table t1;
-drop tables ch1, t1;
+set foreign_key_checks= 0;
+drop table t1;
+set foreign_key_checks= 1;
+create or replace table t1 (id int primary key);
+# Since there is no reference hints in t1 now we cannot detect ER_ROW_IS_REFERENCED_2
+drop table t1;
+create or replace table t1 (id int primary key);
+check tables t1, ch1;
+repair tables t1, ch1;
+--error ER_ROW_IS_REFERENCED_2
+drop table t1;
+
+drop table ch1;
 
 --echo # Check drop database
 create or replace table t1 (id int primary key);

@@ -81,7 +81,9 @@ const span<const char> dict_sys_t::SYS_TABLE[]=
 {
   {C_STRING_WITH_LEN("SYS_TABLES")},{C_STRING_WITH_LEN("SYS_INDEXES")},
   {C_STRING_WITH_LEN("SYS_COLUMNS")},{C_STRING_WITH_LEN("SYS_FIELDS")},
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
   {C_STRING_WITH_LEN("SYS_FOREIGN")},{C_STRING_WITH_LEN("SYS_FOREIGN_COLS")},
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
   {C_STRING_WITH_LEN("SYS_VIRTUAL")}
 };
 
@@ -946,6 +948,8 @@ void dict_sys_t::create()
 
   mysql_mutex_init(dict_foreign_err_mutex_key, &dict_foreign_err_mutex,
                    nullptr);
+
+  fk_upgrade_lock.init();
 }
 
 
@@ -3001,6 +3005,7 @@ dict_foreign_add_to_cache(
 	DBUG_RETURN(DB_SUCCESS);
 }
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
 /*********************************************************************//**
 Scans from pointer onwards. Stops if is at the start of a copy of
 'string' where characters are compared without case sensitivity, and
@@ -3215,6 +3220,7 @@ convert_id:
 
 	return(ptr);
 }
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 
 /*********************************************************************//**
 Open a table from its database and table name, this is currently used by
@@ -3255,6 +3261,7 @@ dict_get_referenced_table(
 	return (dict_name);
 }
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
 /*********************************************************************//**
 Removes MySQL comments from an SQL string. A comment is either
 (a) '#' to the end of the line,
@@ -3366,6 +3373,7 @@ end_of_string:
 		sptr++;
 	}
 }
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 
 /*********************************************************************//**
 Finds the highest [number] for foreign key constraints of the table. Looks
@@ -3430,6 +3438,7 @@ dict_table_get_highest_foreign_id(
 	DBUG_RETURN(biggest_id);
 }
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
 /**********************************************************************//**
 Parses the CONSTRAINT id's to be dropped in an ALTER TABLE statement.
 @return DB_SUCCESS or DB_CANNOT_DROP_CONSTRAINT if syntax error or the
@@ -3571,6 +3580,7 @@ syntax_error:
 
 	return(DB_CANNOT_DROP_CONSTRAINT);
 }
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 
 /*==================== END OF FOREIGN KEY PROCESSING ====================*/
 
@@ -4455,6 +4465,7 @@ void dict_sys_t::close()
     dict_foreign_err_file = NULL;
   }
 
+  fk_upgrade_lock.destroy();
   m_initialised= false;
 }
 

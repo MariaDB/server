@@ -157,6 +157,10 @@ enum dberr_t {
 
 	DB_PAGE_CORRUPTED,		/* Page read from tablespace is
 					corrupted. */
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+	DB_LEGACY_FK,			/* Table has legacy foreign key data
+					in SYS_FOREIGN[_COLS]. */
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 	/* The following are partial failure codes */
 	DB_FAIL = 1000,
 	DB_OVERFLOW,

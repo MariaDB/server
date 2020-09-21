@@ -6,6 +6,7 @@ variable_name not in (
 'innodb_use_native_aio',            # default value depends on OS
 'innodb_log_file_mmap',             # only available on 64-bit
 'innodb_log_file_buffering',        # only available on Linux and Windows
+'innodb_eval_sql',                  # debug build only, and is only for testing
 'innodb_buffer_pool_load_pages_abort')            # debug build only, and is only for testing
 order by variable_name;
 VARIABLE_NAME	INNODB_ADAPTIVE_FLUSHING
