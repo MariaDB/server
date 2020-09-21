@@ -1,10 +1,9 @@
 #!/bin/bash
 #
-# This script is executed by "/etc/init.d/mariadb" on every (re)start.
+# This script is executed by both SysV init /etc/init.d/mariadb and
+# systemd mariadb.service on every (re)start.
 #
 # Changes to this file will be preserved when updating the Debian package.
-#
-# NOTE: This file is read only by the traditional SysV init script, not systemd.
 #
 
 source /usr/share/mysql/debian-start.inc.sh
