@@ -4,6 +4,7 @@
 
 --source include/have_innodb.inc
 --source include/have_partition.inc
+--source include/lcase_names.inc
 
 --disable_warnings
 drop table if exists t1,t2;

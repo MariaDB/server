@@ -53,8 +53,10 @@ static const char* SYSTEM_TABLE_NAME[] = {
 	"SYS_INDEXES",
 	"SYS_COLUMNS",
 	"SYS_FIELDS",
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
 	"SYS_FOREIGN",
 	"SYS_FOREIGN_COLS",
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 	"SYS_VIRTUAL"
 };
 
@@ -504,6 +506,157 @@ dict_process_sys_fields_rec(
 	return(err_msg);
 
 }
+
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+/********************************************************************//**
+This function parses a SYS_FOREIGN record and populate a dict_foreign_t
+structure with the information from the record. For detail information
+about SYS_FOREIGN fields, please refer to dict_load_foreign() function.
+@return error message, or NULL on success */
+const char*
+dict_process_sys_foreign_rec(
+/*=========================*/
+	mem_heap_t*	heap,		/*!< in/out: heap memory */
+	const rec_t*	rec,		/*!< in: current SYS_FOREIGN rec */
+	dict_foreign_t*	foreign)	/*!< out: dict_foreign_t struct
+					to be filled */
+{
+	ulint		len;
+	const byte*	field;
+
+	if (rec_get_deleted_flag(rec, 0)) {
+		return("delete-marked record in SYS_FOREIGN");
+	}
+
+	if (rec_get_n_fields_old(rec) != DICT_NUM_FIELDS__SYS_FOREIGN) {
+		return("wrong number of columns in SYS_FOREIGN record");
+	}
+
+	field = rec_get_nth_field_old(
+		rec, DICT_FLD__SYS_FOREIGN__ID, &len);
+	if (len == 0 || len == UNIV_SQL_NULL) {
+err_len:
+		return("incorrect column length in SYS_FOREIGN");
+	}
+
+	/* This receives a dict_foreign_t* that points to a stack variable.
+	So dict_foreign_free(foreign) is not used as elsewhere.
+	Since the heap used here is freed elsewhere, foreign->heap
+	is not assigned. */
+	foreign->id = mem_heap_strdupl(heap, (const char*) field, len);
+
+	rec_get_nth_field_offs_old(
+		rec, DICT_FLD__SYS_FOREIGN__DB_TRX_ID, &len);
+	if (len != DATA_TRX_ID_LEN && len != UNIV_SQL_NULL) {
+		goto err_len;
+	}
+	rec_get_nth_field_offs_old(
+		rec, DICT_FLD__SYS_FOREIGN__DB_ROLL_PTR, &len);
+	if (len != DATA_ROLL_PTR_LEN && len != UNIV_SQL_NULL) {
+		goto err_len;
+	}
+
+	/* The _lookup versions of the referenced and foreign table names
+	 are not assigned since they are not used in this dict_foreign_t */
+
+	field = rec_get_nth_field_old(
+		rec, DICT_FLD__SYS_FOREIGN__FOR_NAME, &len);
+	if (len == 0 || len == UNIV_SQL_NULL) {
+		goto err_len;
+	}
+	foreign->foreign_table_name = mem_heap_strdupl(
+		heap, (const char*) field, len);
+
+	field = rec_get_nth_field_old(
+		rec, DICT_FLD__SYS_FOREIGN__REF_NAME, &len);
+	if (len == 0 || len == UNIV_SQL_NULL) {
+		goto err_len;
+	}
+	foreign->referenced_table_name = mem_heap_strdupl(
+		heap, (const char*) field, len);
+
+	field = rec_get_nth_field_old(
+		rec, DICT_FLD__SYS_FOREIGN__N_COLS, &len);
+	if (len != 4) {
+		goto err_len;
+	}
+	uint32_t n_fields_and_type = mach_read_from_4(field);
+
+	foreign->type = n_fields_and_type >> 24 & ((1U << 6) - 1);
+	foreign->n_fields = n_fields_and_type & dict_index_t::MAX_N_FIELDS;
+
+	return(NULL);
+}
+
+/********************************************************************//**
+This function parses a SYS_FOREIGN_COLS record and extract necessary
+information from the record and return to caller.
+@return error message, or NULL on success */
+const char*
+dict_process_sys_foreign_col_rec(
+/*=============================*/
+	mem_heap_t*	heap,		/*!< in/out: heap memory */
+	const rec_t*	rec,		/*!< in: current SYS_FOREIGN_COLS rec */
+	const char**	name,		/*!< out: foreign key constraint name */
+	const char**	for_col_name,	/*!< out: referencing column name */
+	const char**	ref_col_name,	/*!< out: referenced column name
+					in referenced table */
+	ulint*		pos)		/*!< out: column position */
+{
+	ulint		len;
+	const byte*	field;
+
+	if (rec_get_deleted_flag(rec, 0)) {
+		return("delete-marked record in SYS_FOREIGN_COLS");
+	}
+
+	if (rec_get_n_fields_old(rec) != DICT_NUM_FIELDS__SYS_FOREIGN_COLS) {
+		return("wrong number of columns in SYS_FOREIGN_COLS record");
+	}
+
+	field = rec_get_nth_field_old(
+		rec, DICT_FLD__SYS_FOREIGN_COLS__ID, &len);
+	if (len == 0 || len == UNIV_SQL_NULL) {
+err_len:
+		return("incorrect column length in SYS_FOREIGN_COLS");
+	}
+	*name = mem_heap_strdupl(heap, (char*) field, len);
+
+	field = rec_get_nth_field_old(
+		rec, DICT_FLD__SYS_FOREIGN_COLS__POS, &len);
+	if (len != 4) {
+		goto err_len;
+	}
+	*pos = mach_read_from_4(field);
+
+	rec_get_nth_field_offs_old(
+		rec, DICT_FLD__SYS_FOREIGN_COLS__DB_TRX_ID, &len);
+	if (len != DATA_TRX_ID_LEN && len != UNIV_SQL_NULL) {
+		goto err_len;
+	}
+	rec_get_nth_field_offs_old(
+		rec, DICT_FLD__SYS_FOREIGN_COLS__DB_ROLL_PTR, &len);
+	if (len != DATA_ROLL_PTR_LEN && len != UNIV_SQL_NULL) {
+		goto err_len;
+	}
+
+	field = rec_get_nth_field_old(
+		rec, DICT_FLD__SYS_FOREIGN_COLS__FOR_COL_NAME, &len);
+	if (len == 0 || len == UNIV_SQL_NULL) {
+		goto err_len;
+	}
+	*for_col_name = mem_heap_strdupl(heap, (char*) field, len);
+
+	field = rec_get_nth_field_old(
+		rec, DICT_FLD__SYS_FOREIGN_COLS__REF_COL_NAME, &len);
+	if (len == 0 || len == UNIV_SQL_NULL) {
+		goto err_len;
+	}
+	*ref_col_name = mem_heap_strdupl(heap, (char*) field, len);
+
+	return(NULL);
+}
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 
 /** Check the validity of a SYS_TABLES record
 Make sure the fields are the right length and that they

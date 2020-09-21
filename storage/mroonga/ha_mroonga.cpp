@@ -553,6 +553,8 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
   case HA_EXTRA_FAKE_START_STMT:
     inspected = "HA_EXTRA_FAKE_START_STMT";
     break;
+  case HA_EXTRA_CHECK_LEGACY_FK:
+    inspected = "HA_EXTRA_CHECK_LEGACY_FK";
 #ifdef MRN_HAVE_HA_EXTRA_EXPORT
   case HA_EXTRA_EXPORT:
     inspected = "HA_EXTRA_EXPORT";

@@ -2680,13 +2680,15 @@ skip:
 
 	dberr_t err = row_drop_table_for_mysql_in_background(name);
 
-	ut_free(name);
-
 	if (err != DB_SUCCESS) {
+		ut_free(name);
 		/* If the DROP fails for some table, we return, and let the
 		main thread retry later */
 		return(n_tables + n_tables_dropped);
 	}
+
+	DEBUG_SYNC_C("background_dropped_");
+	ut_free(name);
 
 	goto loop;
 }
@@ -3296,6 +3298,66 @@ row_drop_table_from_cache(
 	return(err);
 }
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+static ibool
+row_drop_table_check_legacy_step(
+	/*=================*/
+	void* row,	/*!< in: sel_node_t* */
+	void* user_arg) /*!< in/out: row_drop_table_check_legacy_data */
+{
+	row_drop_table_check_legacy_data& d
+		= *(row_drop_table_check_legacy_data*)user_arg;
+	sel_node_t* node = static_cast<sel_node_t*>(row);
+	que_node_t* exp	 = node->select_list;
+	dfield_t*   fld	 = que_node_get_val(exp);
+	ut_a(fld->len < sizeof(d.foreign_name));
+	memcpy(d.foreign_name, fld->data, fld->len);
+	d.foreign_name[fld->len] = 0;
+	d.found			 = true;
+	ut_a(!que_node_get_next(exp));
+	return 0;
+}
+
+dberr_t
+row_drop_table_check_legacy_fk(trx_t* trx, const char* table_name,
+			       row_drop_table_check_legacy_data& d)
+{
+	ut_ad(DB_SUCCESS == fk_legacy_storage_exists(false));
+	static const char sql_check[]
+		= "PROCEDURE FK_PROC () IS\n"
+		  "DECLARE FUNCTION row_drop_table_check_legacy_step;\n"
+
+		  "DECLARE CURSOR c IS"
+		  " SELECT FOR_NAME FROM SYS_FOREIGN"
+		  " WHERE REF_NAME = :ref_name;\n"
+
+		  "BEGIN\n"
+		  "OPEN c;\n"
+		  "FETCH c INTO row_drop_table_check_legacy_step();\n"
+		  "CLOSE c;\n"
+		  "END;\n";
+
+	pars_info_t* info = pars_info_create();
+	if (!info) {
+		return DB_OUT_OF_MEMORY;
+	}
+	pars_info_bind_function(info, "row_drop_table_check_legacy_step",
+				row_drop_table_check_legacy_step, &d);
+	pars_info_add_str_literal(info, "ref_name", table_name);
+
+	dberr_t err = que_eval_sql(info, sql_check, false, trx);
+	if (err != DB_SUCCESS) {
+		return err;
+	}
+
+	return DB_SUCCESS;
+}
+
+/** Drop SYS_FOREIGN[_COLS] tables if they are empty */
+dberr_t
+fk_cleanup_legacy_storage(bool lock_dict_mutex, trx_t* trx);
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
+
 /** Drop a table for MySQL.
 If the data dictionary was not already locked by the transaction,
 the transaction will be committed.  Otherwise, the data dictionary
@@ -3314,7 +3376,8 @@ row_drop_table_for_mysql(
 	trx_t*			trx,
 	enum_sql_command	sqlcom,
 	bool			create_failed,
-	bool			nonatomic)
+	bool			nonatomic,
+	bool			is_temp_name)
 {
 	dberr_t		err;
 	dict_foreign_t*	foreign;
@@ -3363,8 +3426,9 @@ row_drop_table_for_mysql(
 
 	std::vector<pfs_os_file_t> detached_handles;
 
-	const bool is_temp_name = strstr(table->name.m_name,
-					 "/" TEMP_FILE_PREFIX);
+	if (!is_temp_name) {
+		is_temp_name = strstr(table->name.m_name, "/" TEMP_FILE_PREFIX);
+	}
 
 	if (table->is_temporary()) {
 		ut_ad(table->space == fil_system.temp_space);
@@ -3444,6 +3508,8 @@ row_drop_table_for_mysql(
 
 	if (!srv_read_only_mode && trx->check_foreigns) {
 
+		/* TODO: should be removed as this checks only the case when
+		FRM is removed (Test6 in main.drop_table_force) */
 		for (dict_foreign_set::iterator it
 			= table->referenced_set.begin();
 		     it != table->referenced_set.end();
@@ -3487,6 +3553,47 @@ row_drop_table_for_mysql(
 			}
 		}
 	}
+
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+	if (!srv_read_only_mode) {
+		row_drop_table_check_legacy_data data;
+
+		err = fk_legacy_storage_exists(false);
+		if (err == DB_CORRUPTION) {
+			goto funct_exit;
+		}
+		if (err == DB_TABLE_NOT_FOUND) {
+			err = DB_SUCCESS;
+		} else {
+			ut_ad(err == DB_SUCCESS);
+			err = row_drop_table_check_legacy_fk(
+				trx, table->name.m_name, data);
+			if (err != DB_SUCCESS) {
+				goto funct_exit;
+			}
+			if (data.found) {
+				FILE* ef = dict_foreign_err_file;
+
+				err = DB_CANNOT_DROP_CONSTRAINT;
+
+				mysql_mutex_lock(&dict_foreign_err_mutex);
+				rewind(ef);
+				ut_print_timestamp(ef);
+
+				fputs("  Cannot drop table ", ef);
+				ut_print_name(ef, trx, name);
+				fputs("\n"
+				"because it is referenced by ",
+				ef);
+				ut_print_name(ef, trx, data.foreign_name);
+				putc('\n', ef);
+				mysql_mutex_unlock(&dict_foreign_err_mutex);
+
+				goto funct_exit;
+			}
+		}
+	}
+#endif	  /* WITH_INNODB_FOREIGN_UPGRADE */
 
 	DBUG_EXECUTE_IF("row_drop_table_add_to_background", goto defer;);
 
@@ -3539,8 +3646,7 @@ defer:
 	shouldn't have to. There should never be record locks on a table
 	that is going to be dropped. */
 
-	if (table->get_ref_count() > 0 || table->n_rec_locks > 0
-	    || lock_table_has_locks(table)) {
+	if (table->get_ref_count() > 0 || lock_table_has_locks(table)) {
 		goto defer;
 	}
 
@@ -3596,10 +3702,10 @@ defer:
 
 	pars_info_add_str_literal(info, "name", name);
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
 	if (sqlcom != SQLCOM_TRUNCATE
 	    && strchr(name, '/')
-	    && dict_table_get_low("SYS_FOREIGN")
-	    && dict_table_get_low("SYS_FOREIGN_COLS")) {
+	    && (DB_SUCCESS == fk_legacy_storage_exists(false))) {
 		err = que_eval_sql(
 			info,
 			"PROCEDURE DROP_FOREIGN_PROC () IS\n"
@@ -3621,13 +3727,18 @@ defer:
 			"END LOOP;\n"
 			"CLOSE fk;\n"
 			"END;\n", FALSE, trx);
-		if (err == DB_SUCCESS) {
-			info = pars_info_create();
-			pars_info_add_str_literal(info, "name", name);
-			goto do_drop;
+		if (err != DB_SUCCESS) {
+			goto error;
 		}
-	} else {
-do_drop:
+		err = fk_cleanup_legacy_storage(false, trx);
+		if (err != DB_SUCCESS) {
+			goto error;
+		}
+		info = pars_info_create();
+		pars_info_add_str_literal(info, "name", name);
+	}
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
+	{
 		if (dict_table_get_low("SYS_VIRTUAL")) {
 			err = que_eval_sql(
 				info,
@@ -3683,6 +3794,9 @@ do_drop:
 			"END;\n", FALSE, trx) : err;
 	}
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+error:
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 	switch (err) {
 		fil_space_t* space;
 		char* filepath;
@@ -3989,6 +4103,70 @@ loop:
 	DBUG_RETURN(err);
 }
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+/****************************************************************//**
+Delete a single constraint.
+@return error code or DB_SUCCESS */
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
+dberr_t
+row_delete_constraint_low(
+/*======================*/
+	const char*	id,		/*!< in: constraint id */
+	trx_t*		trx)		/*!< in: transaction handle */
+{
+	ut_ad(DB_SUCCESS == fk_legacy_storage_exists(false));
+	pars_info_t*	info = pars_info_create();
+
+	pars_info_add_str_literal(info, "id", id);
+
+	return(que_eval_sql(info,
+			    "PROCEDURE DELETE_CONSTRAINT () IS\n"
+			    "BEGIN\n"
+			    "DELETE FROM SYS_FOREIGN_COLS WHERE ID = :id;\n"
+			    "DELETE FROM SYS_FOREIGN WHERE ID = :id;\n"
+			    "END;\n"
+			    , FALSE, trx));
+}
+
+/****************************************************************//**
+Delete a single constraint.
+@return error code or DB_SUCCESS */
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
+dberr_t
+row_delete_constraint(
+/*==================*/
+	const char*	id,		/*!< in: constraint id */
+	const char*	database_name,	/*!< in: database name, with the
+					trailing '/' */
+	mem_heap_t*	heap,		/*!< in: memory heap */
+	trx_t*		trx)		/*!< in: transaction handle */
+{
+	dberr_t	err;
+
+	/* New format constraints have ids <databasename>/<constraintname>. */
+	err = row_delete_constraint_low(
+		mem_heap_strcat(heap, database_name, id), trx);
+
+	if ((err == DB_SUCCESS) && !strchr(id, '/')) {
+		/* Old format < 4.0.18 constraints have constraint ids
+		NUMBER_NUMBER. We only try deleting them if the
+		constraint name does not contain a '/' character, otherwise
+		deleting a new format constraint named 'foo/bar' from
+		database 'baz' would remove constraint 'bar' from database
+		'foo', if it existed. */
+
+		err = row_delete_constraint_low(id, trx);
+	}
+
+	if (err != DB_SUCCESS) {
+		return err;
+	}
+
+	err = fk_cleanup_legacy_storage(false, trx);
+	return(err);
+}
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
+
 /*********************************************************************//**
 Renames a table for MySQL.
 @return error code or DB_SUCCESS */
@@ -4006,9 +4184,12 @@ row_rename_table_for_mysql(
 	ibool		dict_locked		= FALSE;
 	dberr_t		err			= DB_ERROR;
 	mem_heap_t*	heap			= NULL;
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
 	const char**	constraints_to_drop	= NULL;
 	ulint		n_constraints_to_drop	= 0;
-	ibool		old_is_tmp, new_is_tmp;
+	bool		old_is_tmp;
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
+	bool		new_is_tmp;
 	pars_info_t*	info			= NULL;
 	int		retry;
 	bool		aux_fts_rename		= false;
@@ -4032,7 +4213,9 @@ row_rename_table_for_mysql(
 
 	trx->op_info = "renaming table";
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
 	old_is_tmp = dict_table_t::is_temporary_name(old_name);
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 	new_is_tmp = dict_table_t::is_temporary_name(new_name);
 
 	dict_locked = trx->dict_operation_lock_mode == RW_X_LATCH;
@@ -4104,7 +4287,9 @@ row_rename_table_for_mysql(
 
 		goto funct_exit;
 
-	} else if (use_fk && !old_is_tmp && new_is_tmp) {
+	}
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+	else if (use_fk && !old_is_tmp && new_is_tmp) {
 		/* MySQL is doing an ALTER TABLE command and it renames the
 		original table to a temporary table name. We want to preserve
 		the original foreign key constraint definitions despite the
@@ -4121,6 +4306,7 @@ row_rename_table_for_mysql(
 			goto funct_exit;
 		}
 	}
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 
 	/* Is a foreign key check running on this table? */
 	for (retry = 0; retry < 100
@@ -4169,6 +4355,153 @@ row_rename_table_for_mysql(
 		goto end;
 	}
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+	err = fk_legacy_storage_exists(false);
+	if (err == DB_CORRUPTION) {
+		goto end;
+	}
+	if (err == DB_TABLE_NOT_FOUND) {
+		err = DB_SUCCESS;
+		goto fk_skip_rename;
+	}
+
+	if (!new_is_tmp) {
+		/* Rename all constraints. */
+		char	new_table_name[MAX_TABLE_NAME_LEN + 1];
+		char	old_table_utf8[MAX_TABLE_NAME_LEN + 1];
+		uint	errors = 0;
+
+		strncpy(old_table_utf8, old_name, MAX_TABLE_NAME_LEN);
+		old_table_utf8[MAX_TABLE_NAME_LEN] = '\0';
+		innobase_convert_to_system_charset(
+			strchr(old_table_utf8, '/') + 1,
+			strchr(old_name, '/') +1,
+			MAX_TABLE_NAME_LEN, &errors);
+
+		if (errors) {
+			/* Table name could not be converted from charset
+			my_charset_filename to UTF-8. This means that the
+			table name is already in UTF-8 (#mysql#50). */
+			strncpy(old_table_utf8, old_name, MAX_TABLE_NAME_LEN);
+			old_table_utf8[MAX_TABLE_NAME_LEN] = '\0';
+		}
+
+		info = pars_info_create();
+
+		pars_info_add_str_literal(info, "new_table_name", new_name);
+		pars_info_add_str_literal(info, "old_table_name", old_name);
+		pars_info_add_str_literal(info, "old_table_name_utf8",
+					  old_table_utf8);
+
+		strncpy(new_table_name, new_name, MAX_TABLE_NAME_LEN);
+		new_table_name[MAX_TABLE_NAME_LEN] = '\0';
+		innobase_convert_to_system_charset(
+			strchr(new_table_name, '/') + 1,
+			strchr(new_name, '/') +1,
+			MAX_TABLE_NAME_LEN, &errors);
+
+		if (errors) {
+			/* Table name could not be converted from charset
+			my_charset_filename to UTF-8. This means that the
+			table name is already in UTF-8 (#mysql#50). */
+			strncpy(new_table_name, new_name, MAX_TABLE_NAME_LEN);
+			new_table_name[MAX_TABLE_NAME_LEN] = '\0';
+		}
+
+		pars_info_add_str_literal(info, "new_table_utf8",
+					  new_table_name);
+
+		err = que_eval_sql(
+			info,
+			"PROCEDURE RENAME_CONSTRAINT_IDS () IS\n"
+			"gen_constr_prefix CHAR;\n"
+			"new_db_name CHAR;\n"
+			"foreign_id CHAR;\n"
+			"new_foreign_id CHAR;\n"
+			"old_db_name_len INT;\n"
+			"old_t_name_len INT;\n"
+			"new_db_name_len INT;\n"
+			"id_len INT;\n"
+			"offset INT;\n"
+			"found INT;\n"
+			"BEGIN\n"
+			"found := 1;\n"
+			"old_db_name_len := INSTR(:old_table_name, '/')-1;\n"
+			"new_db_name_len := INSTR(:new_table_name, '/')-1;\n"
+			"new_db_name := SUBSTR(:new_table_name, 0,\n"
+			"                      new_db_name_len);\n"
+			"old_t_name_len := LENGTH(:old_table_name);\n"
+			"gen_constr_prefix := CONCAT(:old_table_name_utf8,\n"
+			"                            '_ibfk_');\n"
+			"WHILE found = 1 LOOP\n"
+			"       SELECT ID INTO foreign_id\n"
+			"        FROM SYS_FOREIGN\n"
+			"        WHERE FOR_NAME = :old_table_name\n"
+			"         AND TO_BINARY(FOR_NAME)\n"
+			"           = TO_BINARY(:old_table_name)\n"
+			"         LOCK IN SHARE MODE;\n"
+			"       IF (SQL % NOTFOUND) THEN\n"
+			"        found := 0;\n"
+			"       ELSE\n"
+			"        UPDATE SYS_FOREIGN\n"
+			"        SET FOR_NAME = :new_table_name\n"
+			"         WHERE ID = foreign_id;\n"
+			"        id_len := LENGTH(foreign_id);\n"
+			"        IF (INSTR(foreign_id, '/') > 0) THEN\n"
+			"               IF (INSTR(foreign_id,\n"
+			"                         gen_constr_prefix) > 0)\n"
+			"               THEN\n"
+                        "                offset := INSTR(foreign_id, '_ibfk_') - 1;\n"
+			"                new_foreign_id :=\n"
+			"                CONCAT(:new_table_utf8,\n"
+			"                SUBSTR(foreign_id, offset,\n"
+			"                       id_len - offset));\n"
+			"               ELSE\n"
+			"                new_foreign_id :=\n"
+			"                CONCAT(new_db_name,\n"
+			"                SUBSTR(foreign_id,\n"
+			"                       old_db_name_len,\n"
+			"                       id_len - old_db_name_len));\n"
+			"               END IF;\n"
+			"               UPDATE SYS_FOREIGN\n"
+			"                SET ID = new_foreign_id\n"
+			"                WHERE ID = foreign_id;\n"
+			"               UPDATE SYS_FOREIGN_COLS\n"
+			"                SET ID = new_foreign_id\n"
+			"                WHERE ID = foreign_id;\n"
+			"        END IF;\n"
+			"       END IF;\n"
+			"END LOOP;\n"
+			"UPDATE SYS_FOREIGN SET REF_NAME = :new_table_name\n"
+			"WHERE REF_NAME = :old_table_name\n"
+			"  AND TO_BINARY(REF_NAME)\n"
+			"    = TO_BINARY(:old_table_name);\n"
+			"END;\n"
+			, FALSE, trx);
+
+	} else if (n_constraints_to_drop > 0) {
+		/* Drop some constraints of tmp tables. */
+
+		ulint	db_name_len = dict_get_db_name_len(old_name) + 1;
+		char*	db_name = mem_heap_strdupl(heap, old_name,
+						   db_name_len);
+		ulint	i;
+
+		for (i = 0; i < n_constraints_to_drop; i++) {
+			err = row_delete_constraint(constraints_to_drop[i],
+						    db_name, heap, trx);
+
+			if (err != DB_SUCCESS) {
+				break;
+			}
+		}
+	}
+	if (err != DB_SUCCESS) {
+		goto end;
+	}
+fk_skip_rename:
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
+
 	if ((dict_table_has_fts_index(table)
 	    || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID))
 	    && !dict_tables_have_same_db(old_name, new_name)) {
@@ -4180,6 +4513,35 @@ row_rename_table_for_mysql(
 
 end:
 	if (err != DB_SUCCESS) {
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+		if (err == DB_DUPLICATE_KEY) {
+			ib::error() << "Possible reasons:";
+			ib::error() << "(1) Table rename would cause two"
+				" FOREIGN KEY constraints to have the same"
+				" internal name in case-insensitive"
+				" comparison.";
+			ib::error() << "(2) Table "
+				<< ut_get_name(trx, new_name)
+				<< " exists in the InnoDB internal data"
+				" dictionary though MySQL is trying to rename"
+				" table " << ut_get_name(trx, old_name)
+				<< " to it. Have you deleted the .frm file and"
+				" not used DROP TABLE?";
+			ib::info() << TROUBLESHOOTING_MSG;
+			ib::error() << "If table "
+				<< ut_get_name(trx, new_name)
+				<< " is a temporary table #sql..., then"
+				" it can be that there are still queries"
+				" running on the table, and it will be dropped"
+				" automatically when the queries end. You can"
+				" drop the orphaned table inside InnoDB by"
+				" creating an InnoDB table with the same name"
+				" in another database and copying the .frm file"
+				" to the current database. Then MySQL thinks"
+				" the table exists, and DROP TABLE will"
+				" succeed.";
+		}
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 		trx->error_state = DB_SUCCESS;
 		trx->rollback();
 		trx->error_state = DB_SUCCESS;

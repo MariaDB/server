@@ -75,7 +75,7 @@ class Lex_cstring : public LEX_CSTRING, public Sql_alloc
     }
     return strdup(mem_root, _str, strlen(_str));
   }
-  bool strdup(MEM_ROOT *mem_root, const Lex_cstring &_str)
+  bool strdup(MEM_ROOT *mem_root, const Lex_cstring _str)
   {
     if (!_str.str)
     {

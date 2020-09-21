@@ -218,6 +218,8 @@ enum ha_extra_function {
   HA_EXTRA_BEGIN_ALTER_COPY,
   /** Finish writing rows during ALTER TABLE...ALGORITHM=COPY. */
   HA_EXTRA_END_ALTER_COPY,
+  HA_EXTRA_CHECK_LEGACY_FK,
+
   /** Fake the start of a statement after wsrep_load_data_splitting hack */
   HA_EXTRA_FAKE_START_STMT
 };
@@ -527,7 +529,8 @@ enum ha_base_keytype {
 #define HA_ERR_TABLESPACE_MISSING 194  /* Missing Tablespace */
 #define HA_ERR_SEQUENCE_INVALID_DATA 195
 #define HA_ERR_SEQUENCE_RUN_OUT   196
-#define HA_ERR_LAST               196  /* Copy of last error nr * */
+#define HA_ERR_FK_UPGRADE         197
+#define HA_ERR_LAST               197  /* Copy of last error nr * */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)
