@@ -45,6 +45,9 @@ extern "C" my_bool  wsrep_thd_is_BF_or_commit(void *thd_ptr, my_bool sync);
 extern "C" my_bool  wsrep_thd_is_local(void *thd_ptr, my_bool sync);
 extern "C" int  wsrep_thd_in_locking_session(void *thd_ptr);
 
+extern void wsrep_report_bf_lock_wait(THD *thd,
+                                      unsigned long long trx_id);
+
 #else /* WITH_WSREP */
 
 #define wsrep_thd_is_BF(T, S) (0)
