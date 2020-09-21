@@ -552,6 +552,11 @@ struct pars_info_t {
 					(pars_bound_lit_t*) */
 	ib_vector_t*	bound_ids;	/*!< bound ids, or NULL
 					(pars_bound_id_t*) */
+
+#ifdef UNIV_DEBUG
+	bool		fatal_syntax_err;/* if false don't abort server on
+					 syntax errors */
+#endif /* UNIV_DEBUG */
 };
 
 inline void pars_info_free(pars_info_t *info) { mem_heap_free(info->heap); }

@@ -448,6 +448,7 @@ dict_foreign_replace_index(
 					to use table->col_names */
 	const dict_index_t*	index)	/*!< in: index to be replaced */
 	MY_ATTRIBUTE((nonnull(1,3), warn_unused_result));
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
 /**********************************************************************//**
 Parses the CONSTRAINT id's to be dropped in an ALTER TABLE statement.
 @return DB_SUCCESS or DB_CANNOT_DROP_CONSTRAINT if syntax error or the
@@ -464,6 +465,7 @@ dict_foreign_parse_drop_constraints(
 	const char***	constraints_to_drop)	/*!< out: id's of the
 						constraints to drop */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 /**********************************************************************//**
 Returns a table object and increments its open handle count.
 NOTE! This is a high-level function to be used mainly from outside the
@@ -1328,6 +1330,8 @@ class dict_sys_t
 
   /** the rw-latch protecting the data dictionary cache */
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) IF_DBUG(srw_lock_debug,srw_lock) latch;
+  srw_mutex fk_upgrade_lock;
+
 public:
   /** Indexes of SYS_TABLE[] */
   enum
@@ -1336,8 +1340,10 @@ public:
     SYS_INDEXES,
     SYS_COLUMNS,
     SYS_FIELDS,
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
     SYS_FOREIGN,
     SYS_FOREIGN_COLS,
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
     SYS_VIRTUAL
   };
   /** System table names */
@@ -1357,15 +1363,26 @@ public:
   /** the SYS_FIELDS table */
   dict_table_t *sys_fields;
   /** the SYS_FOREIGN table */
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
   dict_table_t *sys_foreign;
   /** the SYS_FOREIGN_COLS table */
   dict_table_t *sys_foreign_cols;
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
+
   /** the SYS_VIRTUAL table */
   dict_table_t *sys_virtual;
 
   /** @return whether all non-hard-coded system tables exist */
-  bool sys_tables_exist() const
-  { return UNIV_LIKELY(sys_foreign && sys_foreign_cols && sys_virtual); }
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+  bool sys_tables_exist(bool create_foreign= false) const
+  {
+    return UNIV_LIKELY((bool) sys_virtual &&
+      (!create_foreign || (sys_foreign && sys_foreign_cols)));
+  }
+#else
+  bool sys_tables_exist(bool create_foreign= false) const
+  { return UNIV_LIKELY((bool) sys_virtual); }
+#endif /* !WITH_INNODB_FOREIGN_UPGRADE */
 
   /** list of persistent tables that can be evicted */
   UT_LIST_BASE_NODE_T(dict_table_t) table_LRU;
@@ -1518,6 +1535,18 @@ public:
   void unfreeze() { latch.rd_unlock(); }
 #endif
 
+  void fk_lock()
+  {
+    /* fk_lock() must be taken before lock() or freeze() to avoid order deadlocks */
+    ut_ad(!locked());
+    /* It must not be frozen by this thread as well (frozen() cannot check it) */
+    fk_upgrade_lock.wr_lock();
+  }
+  void fk_unlock()
+  {
+    fk_upgrade_lock.wr_unlock();
+  }
+
   /** Estimate the used memory occupied by the data dictionary
   table and index objects.
   @return number of bytes occupied */
@@ -1569,7 +1598,11 @@ public:
   @return whether any discrepancy with the expected definition was found */
   bool load_sys_tables();
   /** Create or check system tables on startup */
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
+  dberr_t create_or_check_sys_tables(bool create_foreign= false);
+#else
   dberr_t create_or_check_sys_tables();
+#endif
 };
 
 /** the data dictionary cache */

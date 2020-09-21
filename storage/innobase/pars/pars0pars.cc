@@ -1297,6 +1297,15 @@ pars_insert_statement(
 	if (node->values_list) {
 		pars_resolve_exp_list_variables_and_types(NULL, values_list);
 
+#ifdef UNIV_DEBUG
+		if (!pars_sym_tab_global->info->fatal_syntax_err
+		    && que_node_list_get_len(values_list)
+			       != dict_table_get_n_user_cols(
+				       table_sym->table)) {
+
+			return NULL;
+		}
+#endif /* UNIV_DEBUG */
 		ut_a(que_node_list_get_len(values_list)
 		     == dict_table_get_n_user_cols(table_sym->table));
 	}
@@ -1619,30 +1628,30 @@ pars_fetch_statement(
 	sym_node_t*	cursor_decl;
 	fetch_node_t*	node;
 
-	/* Logical XOR. */
-	ut_a(!into_list != !user_func);
+	ut_ad(into_list || user_func);
 
 	node = static_cast<fetch_node_t*>(
 		mem_heap_alloc(
 			pars_sym_tab_global->heap, sizeof(fetch_node_t)));
 
 	node->common.type = QUE_NODE_FETCH;
+	node->into_list	  = NULL;
+	node->func	  = NULL;
 
 	pars_resolve_exp_variables_and_types(NULL, cursor);
 
 	if (into_list) {
 		pars_resolve_exp_list_variables_and_types(NULL, into_list);
 		node->into_list = into_list;
-		node->func = NULL;
-	} else {
+	}
+
+	if (user_func) {
 		pars_resolve_exp_variables_and_types(NULL, user_func);
 
 		node->func = pars_info_lookup_user_func(
 			pars_sym_tab_global->info, user_func->name);
 
 		ut_a(node->func);
-
-		node->into_list = NULL;
 	}
 
 	cursor_decl = cursor->alias;
@@ -1948,8 +1957,6 @@ yyerror(
 				/*!< in: error message string */
 {
 	ut_ad(s);
-
-	ib::fatal() << "PARSER: Syntax error in SQL string";
 }
 
 /*************************************************************//**
@@ -1980,7 +1987,17 @@ pars_sql(
 	pars_sym_tab_global->next_char_pos = 0;
 	pars_sym_tab_global->info = info;
 
-	yyparse();
+	if (yyparse()) {
+#ifdef UNIV_DEBUG
+		if (info->fatal_syntax_err) {
+#endif /* UNIV_DEBUG */
+			ib::fatal() << "PARSER: Syntax error in SQL string";
+#ifdef UNIV_DEBUG
+		}
+		mem_heap_free(heap);
+		return NULL;
+#endif /* UNIV_DEBUG */
+	}
 
 	sym_node = UT_LIST_GET_FIRST(pars_sym_tab_global->sym_list);
 
@@ -2049,6 +2066,10 @@ pars_info_create(void)
 	heap = mem_heap_create(512);
 
 	info = static_cast<pars_info_t*>(mem_heap_zalloc(heap, sizeof(*info)));
+
+	if (!info) {
+		return NULL;
+	}
 
 	info->heap = heap;
 

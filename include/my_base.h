@@ -220,7 +220,8 @@ enum ha_extra_function {
   /** Start writing rows during ALTER TABLE...ALGORITHM=COPY. */
   HA_EXTRA_BEGIN_ALTER_COPY,
   /** Finish writing rows during ALTER TABLE...ALGORITHM=COPY. */
-  HA_EXTRA_END_ALTER_COPY
+  HA_EXTRA_END_ALTER_COPY,
+  HA_EXTRA_CHECK_LEGACY_FK
 };
 
 /* Compatible option, to be deleted in 6.0 */
@@ -547,7 +548,8 @@ enum ha_base_keytype {
 #define HA_ERR_COMMIT_ERROR       197
 #define HA_ERR_PARTITION_LIST     198
 #define HA_ERR_NO_ENCRYPTION      199
-#define HA_ERR_LAST               199  /* Copy of last error nr * */
+#define HA_ERR_FK_UPGRADE         200
+#define HA_ERR_LAST               200  /* Copy of last error nr * */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)

@@ -556,6 +556,8 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
   case HA_EXTRA_END_ALTER_COPY:
     inspected = "HA_EXTRA_END_ALTER_COPY";
     break;
+  case HA_EXTRA_CHECK_LEGACY_FK:
+    inspected = "HA_EXTRA_CHECK_LEGACY_FK";
 #ifdef MRN_HAVE_HA_EXTRA_EXPORT
   case HA_EXTRA_EXPORT:
     inspected = "HA_EXTRA_EXPORT";

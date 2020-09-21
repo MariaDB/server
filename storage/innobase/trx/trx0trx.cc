@@ -2232,6 +2232,7 @@ trx_start_if_not_started_xa_low(
 }
 
 /*************************************************************//**
+TODO: is it the same code as trx_start_if_not_started_xa_low()?
 Starts the transaction if it is not yet started. */
 void
 trx_start_if_not_started_low(

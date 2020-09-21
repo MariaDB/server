@@ -72,6 +72,7 @@ before transaction commit and must be rolled back explicitly are as follows:
 #include "que0que.h"
 #include "pars0pars.h"
 
+#ifdef WITH_INNODB_FOREIGN_UPGRADE
 /** Try to drop the foreign key constraints for a persistent table.
 @param name        name of persistent table
 @return error code */
@@ -112,6 +113,7 @@ dberr_t trx_t::drop_table_foreign(const table_name_t &name)
                       "CLOSE fk;\n"
                       "END;\n", this);
 }
+#endif /* WITH_INNODB_FOREIGN_UPGRADE */
 
 /** Try to drop the statistics for a persistent table.
 @param name        name of persistent table

@@ -72,6 +72,7 @@ CREATE TABLE child (id INT, parent_id INT, INDEX par_ind (parent_id), FOREIGN KE
 --remove_file $DATADIR/test/parent.frm
 
 # parent can not be dropped when there are foreign key references
+# Hint is stored in FRM
 --error ER_ROW_IS_REFERENCED_2
 drop table parent;
 
