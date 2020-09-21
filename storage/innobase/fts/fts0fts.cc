@@ -5722,22 +5722,6 @@ fts_savepoint_rollback(
 	}
 }
 
-/*********************************************************************//**
-Compare two fts_aux_table_t parent_ids.
-@return < 0 if n1 < n2, 0 if n1 == n2, > 0 if n1 > n2 */
-UNIV_INLINE
-int
-fts_check_aux_table_parent_id_cmp(
-/*==============================*/
-	const void*	p1,		/*!< in: id1 */
-	const void*	p2)		/*!< in: id2 */
-{
-	const fts_aux_table_t*	fa1 = static_cast<const fts_aux_table_t*>(p1);
-	const fts_aux_table_t*	fa2 = static_cast<const fts_aux_table_t*>(p2);
-
-	return static_cast<int>(fa1->parent_id - fa2->parent_id);
-}
-
 bool fts_check_aux_table(const char *name,
                          table_id_t *table_id,
                          index_id_t *index_id)

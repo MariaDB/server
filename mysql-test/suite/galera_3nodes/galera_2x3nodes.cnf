@@ -28,6 +28,7 @@ wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.1.#gale
 wsrep_sst_receive_address=127.0.0.2:@mysqld.1.#sst_port
 wsrep_node_incoming_address=127.0.0.1:@mysqld.1.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.1.#sst_port'
+wsrep-on=1
 
 [mysqld.2]
 #galera_port=@OPT.port
@@ -39,6 +40,7 @@ wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.2.#gale
 wsrep_sst_receive_address=127.0.0.2:@mysqld.2.#sst_port
 wsrep_node_incoming_address=127.0.0.1:@mysqld.2.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.2.#sst_port'
+wsrep-on=1
 
 [mysqld.3]
 #galera_port=@OPT.port
@@ -50,6 +52,7 @@ wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.3.#gale
 wsrep_sst_receive_address=127.0.0.2:@mysqld.3.#sst_port
 wsrep_node_incoming_address=127.0.0.1:@mysqld.3.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.3.#sst_port'
+wsrep-on=1
 
 
 [mysqld.4]
@@ -64,6 +67,7 @@ wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.4.#gale
 wsrep_sst_receive_address=127.0.0.2:@mysqld.4.#sst_port
 wsrep_node_incoming_address=127.0.0.1:@mysqld.4.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.4.#sst_port'
+wsrep-on=1
 
 [mysqld.5]
 wsrep_cluster_name=cluster2
@@ -76,6 +80,7 @@ wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.5.#gale
 wsrep_sst_receive_address=127.0.0.2:@mysqld.5.#sst_port
 wsrep_node_incoming_address=127.0.0.1:@mysqld.5.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.5.#sst_port'
+wsrep-on=1
 
 [mysqld.6]
 wsrep_cluster_name=cluster2
@@ -88,6 +93,7 @@ wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.6.#gale
 wsrep_sst_receive_address=127.0.0.2:@mysqld.6.#sst_port
 wsrep_node_incoming_address=127.0.0.1:@mysqld.6.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.6.#sst_port'
+wsrep-on=1
 
 [ENV]
 NODE_MYPORT_1= @mysqld.1.port
