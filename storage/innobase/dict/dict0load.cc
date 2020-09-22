@@ -2638,7 +2638,7 @@ static const char* dict_load_table_low(const table_name_t& name,
 		name.m_name, NULL, n_cols + n_v_col, n_v_col, flags, flags2);
 	(*table)->space_id = space_id;
 	(*table)->id = table_id;
-	(*table)->file_unreadable = false;
+	(*table)->file_unreadable = !!(flags2 & DICT_TF2_DISCARDED);
 
 	return(NULL);
 }
@@ -2692,20 +2692,14 @@ dict_get_and_save_data_dir_path(
 	ut_ad(!table->is_temporary());
 	ut_ad(!table->space || table->space->id == table->space_id);
 
-	if (!table->data_dir_path && table->space_id) {
+	if (!table->data_dir_path && table->space_id && table->space) {
 		if (!dict_mutex_own) {
 			dict_mutex_enter_for_mysql();
 		}
 
-		if (const char* p = table->space
-		    ? table->space->chain.start->name : NULL) {
-			table->flags |= (1 << DICT_TF_POS_DATA_DIR);
-			dict_save_data_dir_path(table, p);
-		} else if (char* path = dict_get_first_path(table->space_id)) {
-			table->flags |= (1 << DICT_TF_POS_DATA_DIR);
-			dict_save_data_dir_path(table, path);
-			ut_free(path);
-		}
+		table->flags |= (1 << DICT_TF_POS_DATA_DIR);
+		dict_save_data_dir_path(table,
+					table->space->chain.start->name);
 
 		if (table->data_dir_path == NULL) {
 			/* Since we did not set the table data_dir_path,

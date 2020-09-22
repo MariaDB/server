@@ -1,5 +1,4 @@
 SET @save_threads = @@GLOBAL.innodb_encryption_threads;
-SET @save_tables = @@GLOBAL.innodb_encrypt_tables;
 SET default_storage_engine = InnoDB;
 SET GLOBAL innodb_encryption_threads = 4;
 CREATE TABLE `table10_int_autoinc` (`col_int_key` int, pk int auto_increment, `col_int` int, key (`col_int_key` ),primary key (pk)) engine=innodb;
@@ -18,4 +17,3 @@ connection default;
 drop table create_or_replace_t, table1_int_autoinc, table0_int_autoinc,
 table10_int_autoinc;
 SET GLOBAL innodb_encryption_threads = @save_threads;
-SET GLOBAL innodb_encrypt_tables = @save_tables;
