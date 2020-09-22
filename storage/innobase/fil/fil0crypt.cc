@@ -1483,11 +1483,6 @@ static bool fil_crypt_find_space_to_rotate(
 {
 	/* we need iops to start rotating */
 	while (!state->should_shutdown() && !fil_crypt_alloc_iops(state)) {
-		if (state->space && state->space->is_stopping()) {
-			fil_space_release(state->space);
-			state->space = NULL;
-		}
-
 		os_event_reset(fil_crypt_threads_event);
 		os_event_wait_time(fil_crypt_threads_event, 100000);
 	}
@@ -2511,7 +2506,6 @@ fil_space_crypt_close_tablespace(
 
 		/* wakeup throttle (all) sleepers */
 		os_event_set(fil_crypt_throttle_sleep_event);
-		os_event_set(fil_crypt_threads_event);
 
 		os_thread_sleep(20000);
 		dict_mutex_enter_for_mysql();
