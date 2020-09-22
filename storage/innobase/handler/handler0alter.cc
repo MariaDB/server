@@ -7209,12 +7209,6 @@ commit_set_autoinc(
 		   && (ha_alter_info->create_info->used_fields
 		       & HA_CREATE_USED_AUTO)) {
 
-		if (dict_table_is_discarded(ctx->old_table)) {
-			my_error(ER_TABLESPACE_DISCARDED, MYF(0),
-				 old_table->s->table_name.str);
-			DBUG_RETURN(true);
-		}
-
 		/* An AUTO_INCREMENT value was supplied by the user.
 		It must be persisted to the data file. */
 		const Field*	ai	= old_table->found_next_number_field;
@@ -8411,9 +8405,15 @@ ha_innobase::commit_inplace_alter_table(
 			= static_cast<ha_innobase_inplace_ctx*>(*pctx);
 
 		DBUG_ASSERT(new_clustered == ctx->need_rebuild());
-
-		fail = commit_set_autoinc(ha_alter_info, ctx, altered_table,
-					  table);
+		if (ctx->need_rebuild()
+		    && dict_table_is_discarded(ctx->old_table)) {
+			my_error(ER_TABLESPACE_DISCARDED, MYF(0),
+				 table->s->table_name.str);
+			fail = true;
+		} else {
+			fail = commit_set_autoinc(ha_alter_info, ctx,
+						  altered_table, table);
+		}
 
 		if (fail) {
 		} else if (ctx->need_rebuild()) {
