@@ -7209,6 +7209,12 @@ commit_set_autoinc(
 		   && (ha_alter_info->create_info->used_fields
 		       & HA_CREATE_USED_AUTO)) {
 
+		if (dict_table_is_discarded(ctx->old_table)) {
+			my_error(ER_TABLESPACE_DISCARDED, MYF(0),
+				 old_table->s->table_name.str);
+			DBUG_RETURN(true);
+		}
+
 		/* An AUTO_INCREMENT value was supplied by the user.
 		It must be persisted to the data file. */
 		const Field*	ai	= old_table->found_next_number_field;
