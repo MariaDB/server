@@ -142,7 +142,7 @@ test
 Phase 7/7: Running 'FLUSH PRIVILEGES'
 OK
 DROP USER mysqltest1@'%';
-Version check failed. Got the following error when calling the 'mysql' command line client
+Version check failed. Got the following error when calling the 'mysql_upgrade' command line client
 ERROR 1045 (28000): Access denied for user 'mysqltest1'@'localhost' (using password: YES)
 FATAL ERROR: Upgrade failed
 Run mysql_upgrade with a non existing server socket
@@ -405,7 +405,7 @@ OK
 # Bug #21489398: MYSQL_UPGRADE: FATAL ERROR: UPGRADE FAILED - IMPROVE ERROR
 #
 Run mysql_upgrade with unauthorized access
-Version check failed. Got the following error when calling the 'mysql' command line client
+Version check failed. Got the following error when calling the 'mysql_upgrade' command line client
 ERROR 1045 (28000): Access denied for user 'root'@'localhost' (using password: YES)
 FATAL ERROR: Upgrade failed
 #
