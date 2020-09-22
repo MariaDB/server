@@ -2686,7 +2686,7 @@ static const char* dict_load_table_low(const table_name_t& name,
 	*table = dict_mem_table_create(
 		name.m_name, space_id, n_cols + n_v_col, n_v_col, flags, flags2);
 	(*table)->id = table_id;
-	(*table)->file_unreadable = false;
+	(*table)->file_unreadable = !!(flags2 & DICT_TF2_DISCARDED);
 
 	return(NULL);
 }
