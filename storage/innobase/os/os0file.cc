@@ -5395,6 +5395,7 @@ fallback:
 		errno = err;
 		return false;
 	case EINVAL:
+	case EOPNOTSUPP:
 		/* fall back to the code below */
 		break;
 	}
