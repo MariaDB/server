@@ -2739,7 +2739,8 @@ dict_get_and_save_data_dir_path(
 {
 	ut_ad(!dict_table_is_temporary(table));
 
-	if (!table->data_dir_path && table->space) {
+	if (!table->data_dir_path && table->space
+	    && !dict_table_is_discarded(table)) {
 		char*	path = fil_space_get_first_path(table->space);
 
 		if (!dict_mutex_own) {
