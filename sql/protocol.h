@@ -93,7 +93,7 @@ public:
   virtual ~Protocol() {}
   void init(THD* thd_arg);
 
-  enum { SEND_NUM_ROWS= 1, SEND_EOF= 2 };
+  enum { SEND_NUM_ROWS= 1, SEND_EOF= 2, SEND_FORCE_COLUMN_INFO= 4 };
   virtual bool send_result_set_metadata(List<Item> *list, uint flags);
   bool send_list_fields(List<Field> *list, const TABLE_LIST *table_list);
   bool send_result_set_row(List<Item> *row_items);

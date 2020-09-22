@@ -19200,6 +19200,8 @@ static void test_bug57058()
 static void test_bug11766854()
 {
   struct st_mysql_client_plugin *plugin;
+  if (getenv("QA_AUTH_CLIENT_SO") == NULL)
+    return; /*plugin not built.*/
 
   DBUG_ENTER("test_bug11766854");
   myheader("test_bug11766854");
@@ -20996,6 +20998,119 @@ static void test_execute_direct()
 #endif
 }
 
+static void assert_metadata_skipped_count_equals(MYSQL *mysql, int val)
+{
+  MYSQL_ROW row;
+  MYSQL_RES *result;
+  int rc= mysql_query(mysql, "SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE "
+                         "VARIABLE_NAME='Resultset_metadata_skipped'");
+  myquery(rc);
+  result= mysql_use_result(mysql);
+  mytest(result);
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(atoi(row[0]) == val);
+  mysql_free_result(result);
+}
+
+static void flush_session_status(MYSQL* mysql)
+{
+  int rc= mysql_query(mysql, "flush status");
+  myquery(rc);
+}
+
+static void exec_stmt(MYSQL_STMT* stmt)
+{
+  int rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  rc= mysql_stmt_store_result(stmt);
+  check_execute(stmt, rc);
+}
+
+static void test_cache_metadata()
+{
+  char char_val[]= "blah";
+  int int_val = 1;
+  MYSQL_BIND param= {0};
+  my_bool is_null= FALSE;
+
+
+  MYSQL_STMT* stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+  int rc= mysql_stmt_prepare(stmt, "SELECT ?", -1);
+  myquery(rc);
+
+  param.buffer= char_val;
+  param.buffer_type= MYSQL_TYPE_STRING;
+  param.is_null= &is_null;
+  param.buffer_length = 4;
+
+  rc= mysql_stmt_bind_param(stmt,&param);
+  exec_stmt(stmt);
+
+  flush_session_status(mysql);
+  /* Execute the statement again, check that metadata is skipped*/
+  exec_stmt(stmt);
+  assert_metadata_skipped_count_equals(mysql, 1);
+
+  flush_session_status(mysql);
+  /*
+    Execute the statement again, such that metadata changes,
+    (using LONG parameter in bind for "SELECT ?", instead of string.
+    Check that metadata is NOT skipped.
+  */
+  param.buffer= &int_val;
+  param.buffer_type= MYSQL_TYPE_LONG;
+  param.is_null= &is_null;
+  rc= mysql_stmt_bind_param(stmt, &param);
+  exec_stmt(stmt);
+  assert_metadata_skipped_count_equals(mysql, 0);
+  mysql_stmt_close(stmt);
+
+
+  /*
+    Test with real table, and DDL which causes column info to be
+    changed.
+  */
+  stmt= mysql_stmt_init(mysql);
+
+  rc= mysql_query(
+      mysql, "CREATE OR REPLACE TABLE t1 (a int, b bigint) engine=memory");
+  myquery(rc);
+
+  flush_session_status(mysql);
+  check_stmt(stmt);
+  rc= mysql_stmt_prepare(stmt, "SELECT * from t1", -1);
+  myquery(rc);
+
+  exec_stmt(stmt);
+  /* Metadata skipped, since already sent with COM_STMT_PREPARE result.*/
+  assert_metadata_skipped_count_equals(mysql, 1);
+
+  flush_session_status(mysql);
+  exec_stmt(stmt);
+  /* Metadata skipped again*/
+  assert_metadata_skipped_count_equals(mysql, 1);
+
+  rc= mysql_query(mysql, "ALTER TABLE t1 MODIFY b CHAR(10)");
+  myquery(rc);
+
+  /* Column metadata WILL change for the next execution due to DDL*/
+  flush_session_status(mysql);
+  exec_stmt(stmt);
+  assert_metadata_skipped_count_equals(mysql, 0);
+
+  /* On reexecution, PS column metadata will NOT change. */
+  flush_session_status(mysql);
+  exec_stmt(stmt);
+  assert_metadata_skipped_count_equals(mysql, 1);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+
+  mysql_stmt_close(stmt);
+}
+
+
 static struct my_tests_st my_tests[]= {
   { "disable_query_logs", disable_query_logs },
   { "test_view_sp_list_fields", test_view_sp_list_fields },
@@ -21292,6 +21407,7 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev18408", test_mdev18408 },
   { "test_mdev20261", test_mdev20261 },
   { "test_execute_direct", test_execute_direct },
+  { "test_cache_metadata", test_cache_metadata},
   { 0, 0 }
 };
 

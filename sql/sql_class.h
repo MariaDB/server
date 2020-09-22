@@ -929,6 +929,12 @@ typedef struct system_status_var
   ulong lost_connections;
   ulong max_statement_time_exceeded;
   /*
+   Number of times where column info was not
+   sent with prepared statement metadata.
+  */
+  ulong skip_metadata_count;
+
+  /*
     Number of statements sent from the client
   */
   ulong questions;
@@ -947,6 +953,7 @@ typedef struct system_status_var
   ulonglong table_open_cache_hits;
   ulonglong table_open_cache_misses;
   ulonglong table_open_cache_overflows;
+  ulonglong send_metadata_skips;
   double last_query_cost;
   double cpu_time, busy_time;
   uint32 threads_running;
@@ -1192,6 +1199,38 @@ public:
 
 class Server_side_cursor;
 
+/*
+  Struct to catch changes in column metadata that is sent to client. 
+  in the "result set metadata". Used to support 
+  MARIADB_CLIENT_CACHE_METADATA.
+*/
+struct send_column_info_state
+{
+  /* Last client charset (affects metadata) */
+  CHARSET_INFO *last_charset= nullptr;
+
+  /* Checksum, only used to check changes if 'immutable' is false*/
+  uint32 checksum= 0;
+
+  /*
+    Column info can only be changed by PreparedStatement::reprepare()
+ 
+    There is a class of "weird" prepared statements like SELECT ? or SELECT @a
+    that are not immutable, and depend on input parameters or user variables
+  */
+  bool immutable= false;
+
+  bool initialized= false;
+
+  /*  Used by PreparedStatement::reprepare()*/
+  void reset()
+  {
+    initialized= false;
+    checksum= 0;
+  }
+};
+
+
 /**
   @class Statement
   @brief State of a single command executed against this connection.
@@ -1281,6 +1320,8 @@ public:
 
   LEX_CSTRING db;
 
+  send_column_info_state column_info_state;
+ 
   /* This is set to 1 of last call to send_result_to_client() was ok */
   my_bool query_cache_is_applicable;
 
@@ -2381,6 +2422,8 @@ public:
 
   /* Last created prepared statement */
   Statement *last_stmt;
+  Statement *cur_stmt= 0;
+
   inline void set_last_stmt(Statement *stmt)
   { last_stmt= (is_error() ? NULL : stmt); }
   inline void clear_last_stmt() { last_stmt= NULL; }

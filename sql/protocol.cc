@@ -910,6 +910,205 @@ bool Protocol_text::store_field_metadata(const THD * thd,
   return false;
 }
 
+/*
+  MARIADB_CLIENT_CACHE_METADATA  support.
+  
+  Bulk of the code below is dedicated to detecting whether column metadata has
+  changed after prepare, or between executions of a prepared statement.
+
+  For some prepared statements, metadata can't change without going through
+  Prepared_Statement::reprepare(), which makes detecting changes easy.
+
+  Others, "SELECT ?" & Co, are more fragile, and sensitive to input parameters,
+  or user variables. Detecting metadata change for this class of PS is harder,
+  we calculate signature (hash value), and check whether this changes between
+  executions. This is a more expensive method.
+*/
+
+/*
+  Detect whether Item is a PS parameter, or user variable,
+  or SP output parameter, or a function that depends on one
+  of those.
+
+  It is not easy to detect Item changes, that affect
+  columninfo sent to the client. These changes do not go through
+  reprepare.
+
+  TODO : does not work due to MDEV-23913. One can trust nothing,
+  everything about prepared statements is fragile.
+*/
+static bool is_fragile_columnifo(Item *it)
+{
+#define MDEV_23913_FIXED 0
+#if MDEV_23913_FIXED
+  if (dynamic_cast<Item_param *>(it))
+    return true;
+
+  if (dynamic_cast<Item_func_user_var *>(it))
+    return true;
+
+  if (dynamic_cast <Item_sp_variable*>(it))
+    return true;
+
+  /* Check arguments of functions.*/
+  auto item_args= dynamic_cast<Item_args *>(it);
+  if (!item_args)
+    return false;
+  auto args= item_args->arguments();
+  auto arg_count= item_args->argument_count();
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (is_fragile_columnifo(args[i]))
+      return true;
+  }
+  return false;
+#else /* MDEV-23913 fixed*/
+  return true;
+#endif
+}
+
+#define INVALID_METADATA_CHECKSUM 0
+/*
+  Calculate signature for column info sent to the client as CRC32 over data, 
+  that goes into the column info packet.
+  We assume that if checksum does not change, then column info was not modified.
+*/
+static uint32 calc_metadata_hash(THD *thd, List<Item> *list)
+{
+  List_iterator_fast<Item> it(*list);
+  Item *item;
+  uint32 crc32_c= 0;
+  while ((item= it++))
+  {
+    Send_field field(thd, item);
+    auto field_type= item->type_handler()->field_type();
+    auto charset= item->charset_for_protocol();
+    /*
+       The data below should contain everything that influences
+       content of the column info packet.
+    */
+    LEX_CSTRING data[]=
+    {
+      field.table_name,
+      field.org_table_name,
+      field.col_name,
+      field.org_col_name,
+      field.db_name,
+      field.attr(MARIADB_FIELD_ATTR_DATA_TYPE_NAME),
+      field.attr(MARIADB_FIELD_ATTR_FORMAT_NAME),
+      {(const char *) &field.length, sizeof(field.length)},
+      {(const char *) &field.flags, sizeof(field.flags)},
+      {(const char *) &field.decimals, sizeof(field.decimals)},
+      {(const char *) &charset, sizeof(charset)},
+      {(const char *) &field_type, sizeof(field_type)},
+    };
+    for (const auto &chunk : data)
+      crc32_c= my_crc32c(crc32_c, chunk.str, chunk.length);
+  }
+
+  if (crc32_c == INVALID_METADATA_CHECKSUM)
+     return 1;
+  return crc32_c;
+}
+
+/*
+  Return if metadata columns have changed since last call to this function.
+*/
+static bool metadata_columns_changed(send_column_info_state &state, THD *thd,
+                                     List<Item> &list)
+{
+  if (!state.initialized)
+  {
+    state.initialized= true;
+    state.immutable= true;
+    Item *item;
+    List_iterator_fast<Item> it(list);
+    while ((item= it++))
+    {
+      if (is_fragile_columnifo(item))
+      {
+        state.immutable= false;
+        state.checksum= calc_metadata_hash(thd, &list);
+        break;
+      }
+    }
+    state.last_charset= thd->variables.character_set_client;
+    return true;
+  }
+  
+  /*
+    Since column info can change under our feet, we use more expensive
+    checksumming to check if column metadata has not changed since last time.
+  */
+  if (!state.immutable)
+  {
+    uint32 checksum= calc_metadata_hash(thd, &list);
+    if (checksum != state.checksum)
+    {
+      state.checksum= checksum;
+      state.last_charset= thd->variables.character_set_client;
+      return true;
+    }
+  }
+
+  /*
+    Character_set_client influences result set metadata, thus resend metadata
+    whenever it changes.
+  */
+  if (state.last_charset != thd->variables.character_set_client)
+  {
+    state.last_charset= thd->variables.character_set_client;
+    return true;
+  }
+
+  return false;
+}
+
+/* 
+  Determine whether column info must be sent to the client.
+  Skip column info, if client supports caching, and (prepared) statement
+  output fields have not changed.
+*/
+static bool should_send_column_info(THD* thd, List<Item>* list, uint flags) 
+{
+  if (!(thd->client_capabilities & MARIADB_CLIENT_CACHE_METADATA))
+  {
+    /* Client does not support abbreviated metadata.*/
+    return true;
+  }
+
+  if (!thd->cur_stmt)
+  {
+    /* Neither COM_PREPARE nor COM_EXECUTE run.*/
+    return true;
+  }
+
+  if (thd->spcont)
+  {
+    /* Always sent full metadata from inside the stored procedure.*/
+    return true;
+  }
+
+  if (flags & Protocol::SEND_FORCE_COLUMN_INFO)
+    return true;
+
+  auto &column_info_state= thd->cur_stmt->column_info_state;
+#ifndef DBUG_OFF
+  auto cmd= thd->get_command();
+#endif
+
+  DBUG_ASSERT(cmd == COM_STMT_EXECUTE || cmd == COM_STMT_PREPARE);
+  DBUG_ASSERT(cmd != COM_STMT_PREPARE || !column_info_state.initialized);
+
+  bool ret= metadata_columns_changed(column_info_state, thd, *list);
+
+  DBUG_ASSERT(cmd != COM_STMT_PREPARE || ret);
+  if (!ret)
+    thd->status_var.skip_metadata_count++;
+
+  return ret;
+}
+
 
 /**
   Send name and type of result to client.
@@ -936,30 +1135,44 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
   Protocol_text prot(thd, thd->variables.net_buffer_length);
   DBUG_ENTER("Protocol::send_result_set_metadata");
 
+  bool send_column_info= should_send_column_info(thd, list, flags);
+
   if (flags & SEND_NUM_ROWS)
-  {				// Packet with number of elements
-    uchar buff[MAX_INT_WIDTH];
+  {
+    /*
+      Packet with number of columns.
+
+      Will also have a 1 byte column info indicator, in case
+      MARIADB_CLIENT_CACHE_METADATA client capability is set.
+    */
+    uchar buff[MAX_INT_WIDTH+1];
     uchar *pos= net_store_length(buff, list->elements);
+    if (thd->client_capabilities & MARIADB_CLIENT_CACHE_METADATA)
+      *pos++= (uchar)send_column_info;
+
     DBUG_ASSERT(pos <= buff + sizeof(buff));
     if (my_net_write(&thd->net, buff, (size_t) (pos-buff)))
       DBUG_RETURN(1);
   }
 
+  if (send_column_info)
+  {
 #ifndef DBUG_OFF
-  field_handlers= (const Type_handler**) thd->alloc(sizeof(field_handlers[0]) *
-                                                    list->elements);
+    field_handlers= (const Type_handler **) thd->alloc(
+        sizeof(field_handlers[0]) * list->elements);
 #endif
 
-  for (uint pos= 0; (item=it++); pos++)
-  {
-    prot.prepare_for_resend();
-    if (prot.store_item_metadata(thd, item, pos))
-      goto err;
-    if (prot.write())
-      DBUG_RETURN(1);
+    for (uint pos= 0; (item= it++); pos++)
+    {
+      prot.prepare_for_resend();
+      if (prot.store_item_metadata(thd, item, pos))
+        goto err;
+      if (prot.write())
+        DBUG_RETURN(1);
 #ifndef DBUG_OFF
-    field_handlers[pos]= item->type_handler();
+      field_handlers[pos]= item->type_handler();
 #endif
+    }
   }
 
   if (flags & SEND_EOF)
@@ -1683,7 +1896,7 @@ bool Protocol_binary::send_out_parameters(List<Item_param> *sp_params)
   thd->server_status|= SERVER_PS_OUT_PARAMS | SERVER_MORE_RESULTS_EXISTS;
 
   /* Send meta-data. */
-  if (send_result_set_metadata(&out_param_lst, SEND_NUM_ROWS | SEND_EOF))
+  if (send_result_set_metadata(&out_param_lst, SEND_NUM_ROWS | SEND_EOF|SEND_FORCE_COLUMN_INFO))
     return TRUE;
 
   /* Send data. */

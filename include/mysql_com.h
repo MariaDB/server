@@ -304,7 +304,8 @@ enum enum_indicator_type
 #define MARIADB_CLIENT_STMT_BULK_OPERATIONS (1ULL << 34)
 /* support of extended metadata (e.g. type/format information) */
 #define MARIADB_CLIENT_EXTENDED_METADATA (1ULL << 35)
-
+/* Do not resend metadata for prepared statements, since 10.6*/
+#define MARIADB_CLIENT_CACHE_METADATA (1ULL << 36)
 #ifdef HAVE_COMPRESS
 #define CAN_CLIENT_COMPRESS CLIENT_COMPRESS
 #else
@@ -337,15 +338,16 @@ enum enum_indicator_type
                            CLIENT_PS_MULTI_RESULTS | \
                            CLIENT_SSL_VERIFY_SERVER_CERT | \
                            CLIENT_REMEMBER_OPTIONS | \
-                           MARIADB_CLIENT_PROGRESS | \
                            CLIENT_PLUGIN_AUTH | \
                            CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA | \
                            CLIENT_SESSION_TRACK |\
                            CLIENT_DEPRECATE_EOF |\
                            CLIENT_CONNECT_ATTRS |\
+                           CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS |\
+                           MARIADB_CLIENT_PROGRESS | \
                            MARIADB_CLIENT_STMT_BULK_OPERATIONS |\
                            MARIADB_CLIENT_EXTENDED_METADATA|\
-                           CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS)
+                           MARIADB_CLIENT_CACHE_METADATA)
 
 /*
   Switch off the flags that are optional and depending on build flags
