@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB
+   Copyright (c) 2008, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -8457,7 +8457,8 @@ static void test_mem_overun()
   char       buffer[10000], field[10];
   MYSQL_STMT *stmt;
   MYSQL_RES  *field_res;
-  int        rc, i, length;
+  int        rc, length;
+  unsigned   i;
 
   myheader("test_mem_overun");
 
@@ -8471,7 +8472,7 @@ static void test_mem_overun()
   strxmov(buffer, "create table t_mem_overun(", NullS);
   for (i= 0; i < 1000; i++)
   {
-    sprintf(field, "c%d int", i);
+    sprintf(field, "c%u int", i);
     strxmov(buffer, buffer, field, ", ", NullS);
   }
   length= strlen(buffer);
