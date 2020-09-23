@@ -63,29 +63,28 @@ bool buf_LRU_scan_and_free_block(ulint max_scan);
 @retval	NULL	if the free list is empty */
 buf_block_t* buf_LRU_get_free_only();
 
-/** Get a free block from the buf_pool. The block is taken off the
-free list. If free list is empty, blocks are moved from the end of the
-LRU list to the free list.
+/** Get a block from the buf_pool.free list.
+If the list is empty, blocks will be moved from the end of buf_pool.LRU
+to buf_pool.free.
 
 This function is called from a user thread when it needs a clean
 block to read in a page. Note that we only ever get a block from
 the free list. Even when we flush a page or find a page in LRU scan
 we put it to free list to be used.
 * iteration 0:
-  * get a block from free list, success:done
+  * get a block from the buf_pool.free list, success:done
   * if buf_pool.try_LRU_scan is set
-    * scan LRU up to srv_LRU_scan_depth to find a clean block
+    * scan LRU up to 100 pages to find a clean block
+      (or up to innodb_lru_scan_depth pages to do unzip_LRU eviction)
     * the above will put the block on free list
     * success:retry the free list
-  * flush one dirty page from tail of LRU to disk
-    * the above will put the block on free list
+  * flush up to innodb_lru_flush_size LRU blocks to data files
+    (until UT_LIST_GET_GEN(buf_pool.free) < innodb_lru_scan_depth)
+    * on buf_page_write_complete() the blocks will put on buf_pool.free list
     * success: retry the free list
-* iteration 1:
-  * same as iteration 0 except:
-    * scan whole LRU list
-    * scan LRU list even if buf_pool.try_LRU_scan is not set
-* iteration > 1:
-  * same as iteration 1 but sleep 10ms
+* subsequent iterations: same as iteration 0 except:
+  * scan whole LRU list
+  * scan LRU list even if buf_pool.try_LRU_scan is not set
 
 @param have_mutex  whether buf_pool.mutex is already being held
 @return the free control block, in state BUF_BLOCK_MEMORY */
