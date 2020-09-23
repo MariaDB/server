@@ -401,9 +401,7 @@ we put it to free list to be used.
 * iteration 0:
   * get a block from the buf_pool.free list, success:done
   * if buf_pool.try_LRU_scan is set
-    * scan LRU up to 100 pages to find a clean block
-      (or up to innodb_lru_scan_depth pages to do unzip_LRU eviction)
-    * the above will put the block on free list
+    * scan LRU up to 100 pages to free a clean block
     * success:retry the free list
   * flush up to innodb_lru_flush_size LRU blocks to data files
     (until UT_LIST_GET_GEN(buf_pool.free) < innodb_lru_scan_depth)
