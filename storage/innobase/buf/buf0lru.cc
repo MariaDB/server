@@ -45,6 +45,9 @@ Created 11/5/1995 Heikki Tuuri
 #include "srv0srv.h"
 #include "srv0mon.h"
 
+/** Flush this many pages in buf_LRU_get_free_block() */
+size_t innodb_lru_flush_size;
+
 /** The number of blocks from the LRU_old pointer onward, including
 the block pointed to, must be buf_pool.LRU_old_ratio/BUF_LRU_OLD_RATIO_DIV
 of the whole LRU list length, except that the tolerance defined below
@@ -52,7 +55,7 @@ is allowed. Note that the tolerance must be small enough such that for
 even the BUF_LRU_OLD_MIN_LEN long LRU list, the LRU_old pointer is not
 allowed to point to either end of the LRU list. */
 
-static const ulint BUF_LRU_OLD_TOLERANCE = 20;
+static constexpr ulint BUF_LRU_OLD_TOLERANCE = 20;
 
 /** The minimum amount of non-old blocks when the LRU_old list exists
 (that is, when there are more than BUF_LRU_OLD_MIN_LEN blocks).
@@ -398,11 +401,13 @@ we put it to free list to be used.
 * iteration 0:
   * get a block from free list, success:done
   * if buf_pool.try_LRU_scan is set
-    * scan LRU up to srv_LRU_scan_depth to find a clean block
+    * scan LRU up to 100 pages to find a clean block
+      (or up to innodb_lru_scan_depth pages to do unzip_LRU eviction)
     * the above will put the block on free list
     * success:retry the free list
-  * flush one dirty page from tail of LRU to disk
-    * the above will put the block on free list
+  * flush up to innodb_lru_flush_size LRU blocks to data files
+    (until UT_LIST_GET_GEN(buf_pool.free) < innodb_lru_scan_depth)
+    * the above will make the blocks replaceable
     * success: retry the free list
 * iteration 1:
   * same as iteration 0 except:
@@ -505,7 +510,7 @@ not_found:
 	involved (particularly in case of ROW_FORMAT=COMPRESSED pages). We
 	can do that in a separate patch sometime in future. */
 
-	if (!buf_flush_lists(srv_LRU_scan_depth, 0)) {
+	if (!buf_flush_lists(innodb_lru_flush_size, 0)) {
 		MONITOR_INC(MONITOR_LRU_SINGLE_FLUSH_FAILURE_COUNT);
 		++flush_failures;
 	}

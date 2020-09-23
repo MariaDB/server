@@ -19394,6 +19394,11 @@ static MYSQL_SYSVAR_ULONG(lru_scan_depth, srv_LRU_scan_depth,
   "How deep to scan LRU to keep it clean",
   NULL, NULL, 1024, 100, ~0UL, 0);
 
+static MYSQL_SYSVAR_SIZE_T(lru_flush_size, innodb_lru_flush_size,
+  PLUGIN_VAR_RQCMDARG,
+  "How many pages to flush on LRU eviction",
+  NULL, NULL, 100, 1, SIZE_T_MAX, 0);
+
 static MYSQL_SYSVAR_ULONG(flush_neighbors, srv_flush_neighbors,
   PLUGIN_VAR_OPCMDARG,
   "Set to 0 (don't flush neighbors from buffer pool),"
@@ -20022,6 +20027,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(defragment_fill_factor_n_recs),
   MYSQL_SYSVAR(defragment_frequency),
   MYSQL_SYSVAR(lru_scan_depth),
+  MYSQL_SYSVAR(lru_flush_size),
   MYSQL_SYSVAR(flush_neighbors),
   MYSQL_SYSVAR(checksum_algorithm),
   MYSQL_SYSVAR(log_checksums),

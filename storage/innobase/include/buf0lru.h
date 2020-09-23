@@ -34,6 +34,9 @@ Created 11/5/1995 Heikki Tuuri
 struct trx_t;
 struct fil_space_t;
 
+/** Flush this many pages in buf_LRU_get_free_block() */
+extern size_t innodb_lru_flush_size;
+
 /*#######################################################################
 These are low-level functions
 #########################################################################*/
