@@ -46,6 +46,7 @@ ON DELETE CASCADE
 ) ENGINE=InnoDB;
 INSERT INTO parent VALUES (1);
 INSERT INTO child VALUES (1,0,1);
+connection node_2;
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
 connection node_2;

@@ -21,6 +21,9 @@ INSERT INTO t1 VALUES (1, 0);
 
 --connection server_2
 --sync_with_master
+SET sql_log_bin=0;
+call mtr.add_suppression('Master command COM_REGISTER_SLAVE failed: failed registering on master, reconnecting to try again');
+SET sql_log_bin=1;
 --source include/stop_slave.inc
 --replace_result $MASTER_MYPORT MASTER_PORT
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,

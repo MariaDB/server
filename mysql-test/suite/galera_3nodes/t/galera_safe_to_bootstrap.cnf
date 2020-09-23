@@ -1,0 +1,10 @@
+!include ../galera_3nodes.cnf
+
+[mysqld.1]
+wsrep_debug=1
+
+[mysqld.2]
+wsrep_debug=1
+
+[mysqld.3]
+wsrep_debug=1

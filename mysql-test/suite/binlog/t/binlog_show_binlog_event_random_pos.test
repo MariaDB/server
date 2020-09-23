@@ -34,4 +34,9 @@ while ($pos <= $max_pos)
   --enable_query_log
 }
 
+# Testing a case where input position is greater than actual binlog file size.
+--replace_result $pos POS $max_pos MAX_POS
+--error 1220
+eval SHOW BINLOG EVENTS FROM $pos;
+
 DROP TABLE t1;

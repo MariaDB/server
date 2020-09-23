@@ -163,7 +163,7 @@ SET GLOBAL wsrep_provider=none;
 call mtr.add_suppression("WSREP: Failed to get provider options");
 SELECT @@global.wsrep_provider;
 @@global.wsrep_provider
-/usr/lib/libgalera_4_smm.so
+libgalera_smm.so
 SELECT @@global.wsrep_slave_threads;
 @@global.wsrep_slave_threads
 1
@@ -182,7 +182,7 @@ wsrep_thread_count	0
 
 SELECT @@global.wsrep_provider;
 @@global.wsrep_provider
-/usr/lib/libgalera_4_smm.so
+libgalera_smm.so
 SELECT @@global.wsrep_cluster_address;
 @@global.wsrep_cluster_address
 
@@ -212,7 +212,7 @@ EXPECT_2
 2
 SELECT @@global.wsrep_provider;
 @@global.wsrep_provider
-/usr/lib/libgalera_4_smm.so
+libgalera_smm.so
 SELECT @@global.wsrep_cluster_address;
 @@global.wsrep_cluster_address
 gcomm://
@@ -268,7 +268,4 @@ SELECT @@global.wsrep_sst_auth;
 @@global.wsrep_sst_auth
 NULL
 SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
-SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
-SET GLOBAL wsrep_cluster_address= @wsrep_cluster_address_saved;
-SET GLOBAL wsrep_provider_options= @wsrep_provider_options_saved;
 # End of test.

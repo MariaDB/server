@@ -10902,9 +10902,14 @@ ha_innobase::commit_inplace_alter_table(
 			= static_cast<ha_innobase_inplace_ctx*>(*pctx);
 
 		DBUG_ASSERT(new_clustered == ctx->need_rebuild());
-
-		fail = commit_set_autoinc(ha_alter_info, ctx, altered_table,
-					  table);
+		if (ctx->need_rebuild() && !ctx->old_table->space) {
+			my_error(ER_TABLESPACE_DISCARDED, MYF(0),
+				 table->s->table_name.str);
+			fail = true;
+		} else {
+			fail = commit_set_autoinc(ha_alter_info, ctx,
+						  altered_table, table);
+		}
 
 		if (fail) {
 		} else if (ctx->need_rebuild()) {

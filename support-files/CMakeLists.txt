@@ -30,7 +30,7 @@ ELSE()
   SET(CXXFLAGS ${CMAKE_CXX_FLAGS})
   SET(MYSQLD_USER "mysql")
   SET(ini_file_extension "cnf")
-  SET(HOSTNAME "hostname")
+  SET(HOSTNAME "uname -n")
 ENDIF()
 
 # XXX: shouldn't we just have variables for all this stuff and centralise

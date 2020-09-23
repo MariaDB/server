@@ -1,0 +1,4 @@
+# mdev-23741 sharing violation when renaming .frm file in ALTER
+CREATE TABLE t(i int);
+SET STATEMENT debug_dbug='+d,rename_sharing_violation' FOR ALTER TABLE t ADD PRIMARY KEY (i);
+DROP TABLE t;
