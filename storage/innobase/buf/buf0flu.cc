@@ -318,10 +318,9 @@ buf_flush_relocate_on_flush_list(
 /** Complete write of a file page from buf_pool.
 @param bpage   written page
 @param request write request
-@param dblwr   whether the doublewrite buffer was used
-@param evict   whether or not to evict the page from LRU list */
+@param dblwr   whether the doublewrite buffer was used */
 void buf_page_write_complete(buf_page_t *bpage, const IORequest &request,
-                             bool dblwr, bool evict)
+                             bool dblwr)
 {
   ut_ad(request.is_write());
   ut_ad(bpage->in_file());
@@ -330,7 +329,7 @@ void buf_page_write_complete(buf_page_t *bpage, const IORequest &request,
         !buf_dblwr_page_inside(bpage->id().page_no()));
 
   /* We do not need protect io_fix here by mutex to read it because
-  this and buf_page_write_complete() are the only functions where we can
+  this and buf_page_read_complete() are the only functions where we can
   change the value from BUF_IO_READ or BUF_IO_WRITE to some other
   value, and our code ensures that this is the only thread that handles
   the i/o for this block. */
@@ -352,17 +351,6 @@ void buf_page_write_complete(buf_page_t *bpage, const IORequest &request,
   buf_flush_remove(bpage);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
-  if (request.is_LRU())
-  {
-    if (!--buf_pool.n_flush_LRU)
-      mysql_cond_broadcast(&buf_pool.done_flush_LRU);
-  }
-  else
-  {
-    if (!--buf_pool.n_flush_list)
-      mysql_cond_broadcast(&buf_pool.done_flush_list);
-  }
-
   if (dblwr)
     buf_dblwr_update(*bpage);
 
@@ -374,8 +362,17 @@ void buf_page_write_complete(buf_page_t *bpage, const IORequest &request,
 
   buf_pool.stat.n_pages_written++;
 
-  if (evict)
+  if (request.is_LRU())
+  {
     buf_LRU_free_page(bpage, true);
+    if (!--buf_pool.n_flush_LRU)
+      mysql_cond_broadcast(&buf_pool.done_flush_LRU);
+  }
+  else
+  {
+    if (!--buf_pool.n_flush_list)
+      mysql_cond_broadcast(&buf_pool.done_flush_list);
+  }
 
   mysql_mutex_unlock(&buf_pool.mutex);
 }

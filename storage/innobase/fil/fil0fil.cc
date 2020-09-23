@@ -3973,7 +3973,7 @@ write_completed:
       bpage->status= buf_page_t::NORMAL;
       dblwr= false;
     }
-    buf_page_write_complete(bpage, data->type, dblwr, false);
+    buf_page_write_complete(bpage, data->type, dblwr);
     goto write_completed;
   }
 

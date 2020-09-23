@@ -69,10 +69,9 @@ buf_flush_relocate_on_flush_list(
 /** Complete write of a file page from buf_pool.
 @param bpage   written page
 @param request write request
-@param dblwr   whether the doublewrite buffer was used
-@param evict   whether or not to evict the page from LRU list */
+@param dblwr   whether the doublewrite buffer was used */
 void buf_page_write_complete(buf_page_t *bpage, const IORequest &request,
-                             bool dblwr, bool evict);
+                             bool dblwr);
 
 /** Assign the full crc32 checksum for non-compressed page.
 @param[in,out]	page	page to be updated */
