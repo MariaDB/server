@@ -1731,7 +1731,6 @@ func_exit:
 void
 btr_search_update_hash_on_insert(btr_cur_t* cursor)
 {
-	hash_table_t*	table;
 	buf_block_t*	block;
 	dict_index_t*	index;
 	const rec_t*	rec;
@@ -1798,6 +1797,7 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor)
 	}
 
 	rw_lock_t* const latch = btr_get_search_latch(index);
+	hash_table_t* const table = btr_get_search_table(index);
 	bool locked = false;
 
 	if (!page_rec_is_infimum(rec)) {
@@ -1814,7 +1814,6 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor)
 				goto function_exit;
 			}
 
-			table = btr_get_search_table(index);
 			ha_insert_for_fold(table, ins_fold, block, ins_rec);
 		}
 
@@ -1830,7 +1829,6 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor)
 			if (!btr_search_enabled || !block->index) {
 				goto function_exit;
 			}
-			table = btr_get_search_table(index);
 		}
 
 		if (!left_side) {
@@ -1851,7 +1849,6 @@ check_next_rec:
 				if (!btr_search_enabled || !block->index) {
 					goto function_exit;
 				}
-				table = btr_get_search_table(index);
 			}
 
 			ha_insert_for_fold(table, ins_fold, block, ins_rec);
@@ -1868,7 +1865,6 @@ check_next_rec:
 			if (!btr_search_enabled || !block->index) {
 				goto function_exit;
 			}
-			table = btr_get_search_table(index);
 		}
 
 		if (!left_side) {
