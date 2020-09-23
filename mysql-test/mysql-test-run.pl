@@ -2332,7 +2332,8 @@ sub environment_setup {
   $ENV{'MYSQL_EMBEDDED'}=           $exe_mysql_embedded;
   if(IS_WINDOWS)
   {
-     $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$opt_vs_config/mysql_install_db");
+     $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$opt_vs_config/mysql_install_db",
+       "$bindir/bin/mysql_install_db");
   }
 
   my $client_config_exe=
