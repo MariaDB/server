@@ -654,5 +654,31 @@ from information_schema.optimizer_trace;
 
 drop table t0, t1, t2, t3;
 
+--echo #
+--echo # MDEV-23767: IN-to-subquery conversion is not visible in optimizer trace
+--echo #
+create table t0 (a int);
+INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+set @tmp=@@in_predicate_conversion_threshold;
+set in_predicate_conversion_threshold=3;
+
+explain select * from t0 where a in (1,2,3,4,5,6);
+
+select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
+from information_schema.optimizer_trace;
+
+explain select * from t0 where a in (1,2,3,4,5,a+1);
+
+select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
+from information_schema.optimizer_trace;
+
+explain select * from t0 where a in ('1','2','3','4','5','6');
+select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
+from information_schema.optimizer_trace;
+
+set in_predicate_conversion_threshold=@tmp;
+drop table t0;
+
 --echo # End of 10.5 tests
 set optimizer_trace='enabled=off';

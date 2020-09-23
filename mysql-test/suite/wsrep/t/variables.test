@@ -160,12 +160,14 @@ SELECT @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
 
 # Reset (for mtr internal checks)
+
+--disable_query_log
 SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
+eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
 SET GLOBAL wsrep_cluster_address= @wsrep_cluster_address_saved;
 SET GLOBAL wsrep_provider_options= @wsrep_provider_options_saved;
---disable_query_log
-eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
 --enable_query_log
 
---echo # End of test.
+--source include/galera_wait_ready.inc
 
+--echo # End of test.

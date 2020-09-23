@@ -858,14 +858,14 @@ fil_mutex_enter_and_prepare_for_io(
 			this tablespace (multiple threads trying to extend
 			this tablespace).
 
-			Also, fil_space_set_recv_size() may have been invoked
-			again during the file extension while fil_system.mutex
-			was not being held by us.
+			Also, fil_space_set_recv_size_and_flags() may have been
+			invoked again during the file extension while
+			fil_system.mutex was not being held by us.
 
 			Only if space->recv_size matches what we read
 			originally, reset the field. In this way, a
 			subsequent I/O request will handle any pending
-			fil_space_set_recv_size(). */
+			fil_space_set_recv_size_and_flags(). */
 
 			if (size == space->recv_size) {
 				space->recv_size = 0;
@@ -1320,22 +1320,18 @@ fil_space_get_space(
 	return(space);
 }
 
-/** Set the recovered size of a tablespace in pages.
-@param id	tablespace ID
-@param size	recovered size in pages */
-UNIV_INTERN
-void
-fil_space_set_recv_size(ulint id, ulint size)
+void fil_space_set_recv_size_and_flags(ulint id, ulint size, uint32_t flags)
 {
-	mutex_enter(&fil_system.mutex);
-	ut_ad(size);
-	ut_ad(id < SRV_SPACE_ID_UPPER_BOUND);
-
-	if (fil_space_t* space = fil_space_get_space(id)) {
-		space->recv_size = size;
-	}
-
-	mutex_exit(&fil_system.mutex);
+  ut_ad(id < SRV_SPACE_ID_UPPER_BOUND);
+  mutex_enter(&fil_system.mutex);
+  if (fil_space_t *space= fil_space_get_space(id))
+  {
+    if (size)
+      space->recv_size= size;
+    if (flags != FSP_FLAGS_FCRC32_MASK_MARKER)
+      space->flags= flags;
+  }
+  mutex_exit(&fil_system.mutex);
 }
 
 /*******************************************************************//**

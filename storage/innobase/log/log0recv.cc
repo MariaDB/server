@@ -519,7 +519,7 @@ struct file_name_t {
 	/** Tablespace file name (FILE_MODIFY) */
 	std::string	name;
 	/** Tablespace object (NULL if not valid or not found) */
-	fil_space_t*	space;
+	fil_space_t*	space = nullptr;
 
 	/** Tablespace status. */
 	enum fil_status {
@@ -535,16 +535,19 @@ struct file_name_t {
 	fil_status	status;
 
 	/** FSP_SIZE of tablespace */
-	ulint		size;
+	ulint		size = 0;
 
 	/** Freed pages of tablespace */
 	range_set	freed_ranges;
 
+	/** Dummy flags before they have been read from the .ibd file */
+	static constexpr uint32_t initial_flags = FSP_FLAGS_FCRC32_MASK_MARKER;
+	/** FSP_SPACE_FLAGS of tablespace */
+	uint32_t	flags = initial_flags;
+
 	/** Constructor */
 	file_name_t(std::string name_, bool deleted)
-		: name(std::move(name_)), space(NULL),
-		status(deleted ? DELETED: NORMAL),
-		size(0) {}
+		: name(std::move(name_)), status(deleted ? DELETED: NORMAL) {}
 
   /** Add the freed pages */
   void add_freed_page(uint32_t page_no) { freed_ranges.add_value(page_no); }
@@ -818,14 +821,18 @@ fil_name_process(char* name, ulint len, ulint space_id, bool deleted)
 		case FIL_LOAD_OK:
 			ut_ad(space != NULL);
 
-			if (f.space == NULL || f.space == space) {
-
-				if (f.size && f.space == NULL) {
-					fil_space_set_recv_size(space->id, f.size);
+			if (!f.space) {
+				if (f.size
+				    || f.flags != f.initial_flags) {
+					fil_space_set_recv_size_and_flags(
+						space->id, f.size, f.flags);
 				}
 
-				f.name = fname.name;
 				f.space = space;
+				goto same_space;
+			} else if (f.space == space) {
+same_space:
+				f.name = fname.name;
 				f.status = file_name_t::NORMAL;
 			} else {
 				ib::error() << "Tablespace " << space_id
@@ -1130,6 +1137,8 @@ fail:
 					cksum = crc + 1;
 				}
 			});
+
+		DBUG_EXECUTE_IF("log_checksum_mismatch", { cksum = crc + 1; });
 
 		if (UNIV_UNLIKELY(crc != cksum)) {
 			ib::error() << "Invalid log block checksum."
@@ -1971,19 +1980,36 @@ same_page:
         {
           if (UNIV_UNLIKELY(rlen + last_offset > srv_page_size))
             goto record_corrupted;
-          if (UNIV_UNLIKELY(page_no == 0) && apply &&
-              last_offset <= FSP_HEADER_OFFSET + FSP_SIZE &&
-              last_offset + rlen >= FSP_HEADER_OFFSET + FSP_SIZE + 4)
+          if (UNIV_UNLIKELY(!page_no) && apply)
           {
-            recv_spaces_t::iterator it= recv_spaces.find(space_id);
-            const uint32_t size= mach_read_from_4(FSP_HEADER_OFFSET + FSP_SIZE
-                                                  + l - last_offset);
-            if (it == recv_spaces.end())
-              ut_ad(!mlog_checkpoint_lsn || space_id == TRX_SYS_SPACE ||
-                    srv_is_undo_tablespace(space_id));
-            else if (!it->second.space)
-              it->second.size= size;
-            fil_space_set_recv_size(space_id, size);
+            const bool has_size= last_offset <= FSP_HEADER_OFFSET + FSP_SIZE &&
+              last_offset + rlen >= FSP_HEADER_OFFSET + FSP_SIZE + 4;
+            const bool has_flags= last_offset <=
+              FSP_HEADER_OFFSET + FSP_SPACE_FLAGS &&
+              last_offset + rlen >= FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + 4;
+            if (has_size || has_flags)
+            {
+              recv_spaces_t::iterator it= recv_spaces.find(space_id);
+              const uint32_t size= has_size
+                ? mach_read_from_4(FSP_HEADER_OFFSET + FSP_SIZE + l -
+                                   last_offset)
+                : 0;
+              const uint32_t flags= has_flags
+                ? mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + l -
+                                   last_offset)
+                : file_name_t::initial_flags;
+              if (it == recv_spaces.end())
+                ut_ad(!mlog_checkpoint_lsn || space_id == TRX_SYS_SPACE ||
+                      srv_is_undo_tablespace(space_id));
+              else if (!it->second.space)
+              {
+                if (has_size)
+                  it->second.size= size;
+                if (has_flags)
+                  it->second.flags= flags;
+              }
+              fil_space_set_recv_size_and_flags(space_id, size, flags);
+            }
           }
           last_offset+= rlen;
           break;

@@ -22,6 +22,7 @@
 #include "sql_explain.h"
 #include "sql_parse.h"
 #include "sql_cte.h"
+#include "my_json_writer.h"
 
 
 /**
@@ -903,6 +904,10 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   if (!transform_into_subq)
     return this;
   
+  Json_writer_object trace_wrapper(thd);
+  Json_writer_object trace_conv(thd, "in_to_subquery_conversion");
+  trace_conv.add("item", this);
+
   transform_into_subq= false;
 
   List<List_item> values;
@@ -922,13 +927,29 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   uint32 length= max_length_of_left_expr();
   if (!length  || length > tmp_table_max_key_length() ||
       args[0]->cols() > tmp_table_max_key_parts())
+  {
+    trace_conv.add("done", false);
+    trace_conv.add("reason", "key is too long");
     return this;
-  
+  }
+
   for (uint i=1; i < arg_count; i++)
   {
-    if (!args[i]->const_item() || cmp_row_types(args[0], args[i]))
+    if (!args[i]->const_item())
+    {
+      trace_conv.add("done", false);
+      trace_conv.add("reason", "non-constant element in the IN-list");
       return this;
+    }
+    
+    if (cmp_row_types(args[0], args[i]))
+    {
+      trace_conv.add("done", false);
+      trace_conv.add("reason", "type mismatch");
+      return this;
+    }
   }
+  Json_writer_array trace_nested_obj(thd, "conversion");
 
   Query_arena backup;
   Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
@@ -1020,6 +1041,7 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
     goto err;
 
   parent_select->curr_tvc_name++;
+
   return sq;
 
 err:
