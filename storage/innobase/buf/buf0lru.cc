@@ -249,14 +249,8 @@ static bool buf_LRU_free_from_common_LRU_list(ulint limit)
 		buf_pool.lru_scan_itr.set(prev);
 
 		const auto accessed = bpage->is_accessed();
-		freed = bpage->ready_for_replace();
-
-		if (freed) {
-			freed = buf_LRU_free_page(bpage, true);
-			if (!freed) {
-				continue;
-			}
-
+		if (!bpage->oldest_modification()
+		    && buf_LRU_free_page(bpage, true)) {
 			if (!accessed) {
 				/* Keep track of pages that are evicted without
 				ever being accessed. This gives us a measure of
@@ -264,6 +258,7 @@ static bool buf_LRU_free_from_common_LRU_list(ulint limit)
 				++buf_pool.stat.n_ra_pages_evicted;
 			}
 
+			freed = true;
 			break;
 		}
 	}
