@@ -6387,7 +6387,7 @@ int ha_tokudb::create_txn(THD* thd, tokudb_trx_data* trx) {
             "created master %p",
             trx->all);
         trx->sp_level = trx->all;
-        trans_register_ha(thd, true, tokudb_hton);
+        trans_register_ha(thd, true, tokudb_hton, 0);
     }
     DBUG_PRINT("trans", ("starting transaction stmt"));
     if (trx->stmt) { 
@@ -6429,7 +6429,7 @@ int ha_tokudb::create_txn(THD* thd, tokudb_trx_data* trx) {
         trx->sp_level,
         trx->stmt);
     reset_stmt_progress(&trx->stmt_progress);
-    trans_register_ha(thd, false, tokudb_hton);
+    trans_register_ha(thd, false, tokudb_hton, 0);
 cleanup:
     return error;
 }
@@ -6594,7 +6594,7 @@ int ha_tokudb::start_stmt(THD* thd, thr_lock_type lock_type) {
         share->rows_from_locked_table = added_rows - deleted_rows;
     }
     transaction = trx->sub_sp_level;
-    trans_register_ha(thd, false, tokudb_hton);
+    trans_register_ha(thd, false, tokudb_hton, 0);
 cleanup:
     TOKUDB_HANDLER_DBUG_RETURN(error);
 }
