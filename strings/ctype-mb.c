@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -407,7 +407,9 @@ my_copy_fix_mb(CHARSET_INFO *cs,
                                                         src, src + src_length,
                                                         nchars, status);
   DBUG_ASSERT(well_formed_nchars <= nchars);
-  memmove(dst, src, (well_formed_length= status->m_source_end_pos - src));
+  well_formed_length= status->m_source_end_pos - src;
+  if (well_formed_length)
+    memmove(dst, src, well_formed_length);
   if (!status->m_well_formed_error_pos)
     return well_formed_length;
 
