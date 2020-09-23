@@ -862,6 +862,7 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
   }
 
   size_t size, orig_size;
+  ulint type= IORequest::WRITE;
 
   if (UNIV_UNLIKELY(!rw_lock)) /* ROW_FORMAT=COMPRESSED */
   {
@@ -896,11 +897,19 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
       page= buf_page_encrypt(space, bpage, frame ? frame : page, &size);
     }
 
+#if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
+    if (size != orig_size && space->punch_hole)
+      type|= IORequest::PUNCH_HOLE;
+#else
+      DBUG_EXECUTE_IF("ignore_punch_hole",
+                      if (size != orig_size && space->punch_hole)
+                        type|= IORequest::PUNCH_HOLE;);
+#endif
     frame= page;
   }
 
   bool use_doublewrite;
-  IORequest request(IORequest::WRITE, bpage, lru);
+  IORequest request(type, bpage, lru);
 
   ut_ad(status == bpage->status);
 
@@ -929,8 +938,6 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
     else
       buf_pool.n_flush_list++;
     use_doublewrite= false;
-    if (size != orig_size)
-      request.set_punch_hole();
     /* FIXME: pass space to fil_io() */
     fil_io(request, false, bpage->id(), bpage->zip_size(), 0,
            bpage->physical_size(), frame, bpage);

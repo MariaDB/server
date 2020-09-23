@@ -3423,11 +3423,10 @@ fil_iterate(
 			? iter.crypt_io_buffer : io_buffer;
 		byte* const writeptr = readptr;
 
-		IORequest	read_request(IORequest::READ);
-		read_request.disable_partial_io_warnings();
-
 		err = os_file_read_no_error_handling(
-			read_request, iter.file, readptr, offset, n_bytes, 0);
+			IORequest(IORequest::READ
+				  | IORequest::DISABLE_PARTIAL_IO_WARNINGS),
+			iter.file, readptr, offset, n_bytes, 0);
 		if (err != DB_SUCCESS) {
 			ib::error() << iter.filepath
 				    << ": os_file_read() failed";
@@ -3760,11 +3759,10 @@ fil_tablespace_iterate(
 
 	/* Read the first page and determine the page and zip size. */
 
-	IORequest       request(IORequest::READ);
-	request.disable_partial_io_warnings();
-
-	err = os_file_read_no_error_handling(request, file, page, 0,
-					     srv_page_size, 0);
+	err = os_file_read_no_error_handling(
+		IORequest(IORequest::READ
+			  | IORequest::DISABLE_PARTIAL_IO_WARNINGS),
+		file, page, 0, srv_page_size, 0);
 
 	if (err == DB_SUCCESS) {
 		err = callback.init(file_size, block);

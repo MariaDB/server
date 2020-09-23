@@ -342,10 +342,10 @@ buf_dblwr_init_or_load_pages(
 	buffer */
 	dberr_t		err;
 
-	IORequest       read_request(IORequest::READ);
+	constexpr IORequest read_request = IORequestRead;
 
 	err = os_file_read(
-		read_request,
+		IORequestRead,
 		file, read_buf, TRX_SYS_PAGE_NO << srv_page_size_shift,
 		srv_page_size);
 
@@ -556,13 +556,10 @@ next_page:
 		unread portion of the page is NUL. */
 		memset(read_buf, 0x0, physical_size);
 
-		IORequest	request;
-
-		request.dblwr_recover();
-
 		/* Read in the actual page from the file */
 		fil_io_t fio = fil_io(
-			request, true,
+			IORequest(IORequest::READ | IORequest::DBLWR_RECOVER),
+			true,
 			page_id, zip_size,
 			0, physical_size, read_buf, NULL);
 

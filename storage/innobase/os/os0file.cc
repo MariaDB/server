@@ -3826,9 +3826,7 @@ IORequest::punch_hole(os_file_t fh, os_offset_t off, ulint len)
 		/* If punch hole is not supported,
 		set space so that it is not used. */
 		if (err == DB_IO_NO_PUNCH_HOLE) {
-			if (m_fil_node) {
-				m_fil_node->space->punch_hole = false;
-			}
+			m_fil_node->space->punch_hole = false;
 			err = DB_SUCCESS;
 		}
 	}

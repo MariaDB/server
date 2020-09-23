@@ -182,18 +182,13 @@ static const ulint OS_FILE_OPERATION_NOT_SUPPORTED = 125;
 static const ulint OS_FILE_ERROR_MAX = 200;
 /* @} */
 
-/** Types for AIO operations @{ */
-
-/** No transformations during read/write, write as is. */
-#define IORequestRead		IORequest(IORequest::READ)
-#define IORequestWrite		IORequest(IORequest::WRITE)
-
 /**
 The I/O context that is passed down to the low level IO code */
 class IORequest
 {
 public:
-  IORequest(ulint type= READ, buf_page_t *bpage= nullptr, bool lru= false) :
+  constexpr IORequest(ulint type= READ, buf_page_t *bpage= nullptr,
+                      bool lru= false) :
     m_bpage(bpage), m_type(static_cast<uint16_t>(type)), m_LRU(lru) {}
 
 	/** Flags passed in the request, they can be ORred together. */
@@ -230,23 +225,11 @@ public:
 		return((m_type & WRITE) == WRITE);
 	}
 
-	/** Clear the punch hole flag */
-	void clear_punch_hole()
-	{
-		m_type &= uint16_t(~PUNCH_HOLE);
-	}
-
 	/** @return true if partial read warning disabled */
 	bool is_partial_io_warning_disabled() const
 		MY_ATTRIBUTE((warn_unused_result))
 	{
 		return !!(m_type & DISABLE_PARTIAL_IO_WARNINGS);
-	}
-
-	/** Disable partial read warnings */
-	void disable_partial_io_warnings()
-	{
-		m_type |= DISABLE_PARTIAL_IO_WARNINGS;
 	}
 
 	/** @return true if punch hole should be used */
@@ -263,27 +246,13 @@ public:
 		return(is_read() ^ is_write());
 	}
 
-	/** Set the punch hole flag */
-	void set_punch_hole()
-	{
-		if (is_punch_hole_supported()) {
-			m_type |= PUNCH_HOLE;
-		}
-	}
-
 	/** Set the pointer to file node for IO
 	@param[in] node			File node */
-	inline void set_fil_node(fil_node_t* node);
+	void set_fil_node(fil_node_t *node) { m_fil_node= node; }
 
 	bool operator==(const IORequest& rhs) const
 	{
 		return(m_type == rhs.m_type);
-	}
-
-	/** Note that the IO is for double write recovery. */
-	void dblwr_recover()
-	{
-		m_type |= DBLWR_RECOVER;
 	}
 
 	/** @return true if the request is from the dblwr recovery */
@@ -291,24 +260,6 @@ public:
 		MY_ATTRIBUTE((warn_unused_result))
 	{
 		return((m_type & DBLWR_RECOVER) == DBLWR_RECOVER);
-	}
-
-	/** @return true if punch hole is supported */
-	static bool is_punch_hole_supported()
-	{
-
-		/* In this debugging mode, we act as if punch hole is supported,
-		and then skip any calls to actually punch a hole here.
-		In this way, Transparent Page Compression is still being tested. */
-		DBUG_EXECUTE_IF("ignore_punch_hole",
-			return(true);
-		);
-
-#if defined(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE) || defined(_WIN32)
-		return(true);
-#else
-		return(false);
-#endif /* HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || _WIN32 */
 	}
 
 	ulint get_trim_length(ulint write_length) const
@@ -337,14 +288,16 @@ private:
 	/** File node */
 	fil_node_t*		m_fil_node= nullptr;
 
-	/** Request type bit flags */
-	uint16_t		m_type= READ;
+  /** Request type bit flags */
+  const uint16_t m_type;
 
   /** for writes, type of page flush */
-  bool m_LRU= false;
+  const bool m_LRU= false;
 };
 
-/* @} */
+constexpr IORequest IORequestRead(IORequest::READ);
+constexpr IORequest IORequestWrite(IORequest::WRITE);
+
 
 /** Sparse file size information. */
 struct os_file_size_t {

@@ -3696,15 +3696,6 @@ fil_report_invalid_page_access(const page_id_t id, const char *name,
 		<< ". Byte offset " << byte_offset << ", len " << len;
 }
 
-inline void IORequest::set_fil_node(fil_node_t* node)
-{
-	if (!node->space->punch_hole) {
-		clear_punch_hole();
-	}
-
-	m_fil_node = node;
-}
-
 /** Reads or writes data. This operation could be asynchronous (aio).
 
 @param[in,out] type	IO context
@@ -3739,9 +3730,8 @@ fil_io(
 	bool			punch_hole)
 {
 	os_offset_t		offset;
-	IORequest		req_type(type);
 
-	ut_ad(req_type.validate());
+	ut_ad(type.validate());
 
 	ut_ad(len > 0);
 	ut_ad(byte_offset < srv_page_size);
@@ -3755,7 +3745,7 @@ fil_io(
 
 	/* ibuf bitmap pages must be read in the sync AIO mode: */
 	ut_ad(recv_no_ibuf_operations
-	      || req_type.is_write()
+	      || type.is_write()
 	      || !ibuf_bitmap_page(page_id, zip_size)
 	      || sync);
 
@@ -3763,7 +3753,7 @@ fil_io(
 
 	if (sync) {
 		mode = OS_AIO_SYNC;
-	} else if (req_type.is_read()
+	} else if (type.is_read()
 		   && !recv_no_ibuf_operations
 		   && ibuf_page(page_id, zip_size, NULL)) {
 		mode = OS_AIO_IBUF;
@@ -3771,11 +3761,11 @@ fil_io(
 		mode = OS_AIO_NORMAL;
 	}
 
-	if (req_type.is_read()) {
+	if (type.is_read()) {
 
 		srv_stats.data_read.add(len);
 
-	} else if (req_type.is_write()) {
+	} else if (type.is_write()) {
 
 		ut_ad(!srv_read_only_mode
 		      || fsp_is_system_temporary(page_id.space()));
@@ -3789,7 +3779,7 @@ fil_io(
 		page_id.space());
 
 	if (!space
-	    || (req_type.is_read()
+	    || (type.is_read()
 		&& !sync
 		&& space->is_stopping()
 		&& !space->is_being_truncated)) {
@@ -3799,7 +3789,7 @@ fil_io(
 			ib::error()
 				<< "Trying to do I/O to a tablespace which"
 				" does not exist. I/O type: "
-				<< (req_type.is_read() ? "read" : "write")
+				<< (type.is_read() ? "read" : "write")
 				<< ", page: " << page_id
 				<< ", I/O length: " << len << " bytes";
 		}
@@ -3820,7 +3810,7 @@ fil_io(
 
 			fil_report_invalid_page_access(
 				page_id, space->name, byte_offset, len,
-				req_type.is_read());
+				type.is_read());
 
 		} else if (fil_is_user_tablespace_id(space->id)
 			   && node->size == 0) {
@@ -3851,7 +3841,7 @@ fil_io(
 				<< space->name
 				<< "' which exists without .ibd data file."
 				" I/O type: "
-				<< (req_type.is_read()
+				<< (type.is_read()
 				    ? "read" : "write")
 				<< ", page: "
 				<< page_id
@@ -3866,14 +3856,14 @@ fil_io(
 			/* If we can tolerate the non-existent pages, we
 			should return with DB_ERROR and let caller decide
 			what to do. */
-			node->complete_io(req_type.is_write());
+			node->complete_io(type.is_write());
 			mutex_exit(&fil_system.mutex);
 			return {DB_ERROR, nullptr};
 		}
 
 		fil_report_invalid_page_access(
 			page_id, space->name, byte_offset, len,
-			req_type.is_read());
+			type.is_read());
 	}
 
 	space->acquire_for_io();
@@ -3892,9 +3882,7 @@ fil_io(
 
 	const char* name = node->name == NULL ? space->name : node->name;
 
-	req_type.set_fil_node(node);
-
-	ut_ad(!req_type.is_write()
+	ut_ad(!type.is_write()
 	      || !fil_is_user_tablespace_id(page_id.space())
 	      || offset == page_id.page_no() * zip_size);
 
@@ -3910,6 +3898,8 @@ fil_io(
 			err = DB_SUCCESS;
 		}
 	} else {
+		IORequest req_type(type);
+		req_type.set_fil_node(node);
 		/* Queue the aio request */
 		err = os_aio(
 			req_type,
@@ -3922,10 +3912,10 @@ fil_io(
 	/* We an try to recover the page from the double write buffer if
 	the decompression fails or the page is corrupt. */
 
-	ut_a(req_type.is_dblwr_recover() || err == DB_SUCCESS);
+	ut_a(type.is_dblwr_recover() || err == DB_SUCCESS);
 	if (sync) {
 		mutex_enter(&fil_system.mutex);
-		node->complete_io(req_type.is_write());
+		node->complete_io(type.is_write());
 		mutex_exit(&fil_system.mutex);
 		ut_ad(fil_validate_skip());
 	}
