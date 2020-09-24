@@ -60,8 +60,8 @@ int main(int argc __attribute__((unused)),char *argv[])
   DO_TEST_CRC32C(1,"", 1);
   DO_TEST_CRC32C(0, "12345", 416359221);
   DO_TEST_CRC32C(1, "12345", 549473433);
-  DO_TEST_CRC32C(0, "1234567890123456789", 2366987449);
-  DO_TEST_CRC32C(0, LONG_STR, 3009234172);
+  DO_TEST_CRC32C(0, "1234567890123456789", 2366987449U);
+  DO_TEST_CRC32C(0, LONG_STR, 3009234172U);
   ok(0 == my_crc32c(0, NULL, 0), "crc32c data = NULL, length = 0");
 
   my_end(0);
