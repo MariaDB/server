@@ -2040,6 +2040,21 @@ trx_undo_report_row_operation(
 
 				err = DB_UNDO_RECORD_TOO_BIG;
 				goto err_exit;
+			} else {
+				/* Write log for clearing the unused
+				tail of the undo page. It might
+				contain some garbage from a previously
+				written record, and mtr_t::write()
+				will optimize away writes of unchanged
+				bytes. Failure to write this caused a
+				recovery failure when we avoided
+				reading the undo log page from the
+				data file and initialized it based on
+				redo log records (which included the
+				write of the previous garbage). */
+				mtr.memset(*undo_block, first_free,
+					   srv_page_size - first_free
+					   - FIL_PAGE_DATA_END, 0);
 			}
 
 			mtr_commit(&mtr);
