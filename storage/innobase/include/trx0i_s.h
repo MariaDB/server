@@ -31,6 +31,7 @@ Created July 17, 2007 Vasil Dimov
 
 #include "trx0types.h"
 #include "dict0types.h"
+#include "buf0types.h"
 
 /** The maximum amount of memory that can be consumed by innodb_trx,
 innodb_locks and innodb_lock_waits information schema tables. */
@@ -90,10 +91,8 @@ struct i_s_locks_row_t {
 					lock_get_table_name() */
 	/** index name of a record lock; NULL for table locks */
 	const char*	lock_index;
-	/** tablespace identifier of the record; 0 if !lock_index */
-	uint32_t	lock_space;
-	/** page number of the record; 0 if !lock_index */
-	uint32_t	lock_page;
+	/** page identifier of the record; (0,0) if !lock_index */
+	page_id_t	lock_page;
 	/** heap number of the record; 0 if !lock_index */
 	uint16_t	lock_rec;
 	/** lock mode corresponding to lock_mode_values_typelib */

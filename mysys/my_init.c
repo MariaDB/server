@@ -100,9 +100,6 @@ my_bool my_init(void)
   /* Initialize our mutex handling */
   my_mutex_init();
 
-  /* Initialize CPU architecture specific hardware based crc32 optimization */
-  my_checksum_init();
-
   if (my_thread_global_init())
     return 1;
 

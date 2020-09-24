@@ -477,13 +477,9 @@ void lock_sys_t::create(ulint n_cells)
 /** Calculates the fold value of a lock: used in migrating the hash table.
 @param[in]	lock	record lock object
 @return	folded value */
-static
-ulint
-lock_rec_lock_fold(
-	const lock_t*	lock)
+static ulint lock_rec_lock_fold(const lock_t *lock)
 {
-	return(lock_rec_fold(lock->un_member.rec_lock.space,
-			     lock->un_member.rec_lock.page_no));
+  return lock->un_member.rec_lock.page_id.fold();
 }
 
 
@@ -515,18 +511,6 @@ void lock_sys_t::resize(ulint n_cells)
 	HASH_MIGRATE(&old_hash, &prdt_page_hash, lock_t, hash,
 		     lock_rec_lock_fold);
 	old_hash.free();
-
-	/* need to update block->lock_hash_val */
-	mutex_enter(&buf_pool.mutex);
-	for (buf_page_t* bpage = UT_LIST_GET_FIRST(buf_pool.LRU);
-	     bpage; bpage = UT_LIST_GET_NEXT(LRU, bpage)) {
-		if (bpage->state() == BUF_BLOCK_FILE_PAGE) {
-			const page_id_t id(bpage->id());
-			reinterpret_cast<buf_block_t*>(bpage)->lock_hash_val
-				= lock_rec_hash(id.space(), id.page_no());
-		}
-	}
-	mutex_exit(&buf_pool.mutex);
 	mutex_exit(&mutex);
 }
 
@@ -620,6 +604,57 @@ lock_rec_get_insert_intention(
 
 	return(lock->type_mode & LOCK_INSERT_INTENTION);
 }
+
+#ifdef WITH_WSREP
+/** Check if both conflicting lock and other record lock are brute force
+(BF). This case is a bug so report lock information and wsrep state.
+@param[in]	lock_rec1	conflicting waiting record lock or NULL
+@param[in]	lock_rec2	other waiting record lock
+@param[in]	trx1		lock_rec1 can be NULL, trx
+*/
+static void wsrep_assert_no_bf_bf_wait(
+	const lock_t* lock_rec1,
+	const lock_t* lock_rec2,
+	const trx_t* trx1)
+{
+	ut_ad(!lock_rec1 || lock_get_type_low(lock_rec1) == LOCK_REC);
+	ut_ad(lock_get_type_low(lock_rec2) == LOCK_REC);
+
+	if (!trx1->is_wsrep() || !lock_rec2->trx->is_wsrep())
+		return;
+	if (UNIV_LIKELY(!wsrep_thd_is_BF(trx1->mysql_thd, FALSE)))
+		return;
+	if (UNIV_LIKELY(!wsrep_thd_is_BF(lock_rec2->trx->mysql_thd, FALSE)))
+		return;
+
+	mtr_t mtr;
+
+	if (lock_rec1) {
+		ib::error() << "Waiting lock on table: "
+			    << lock_rec1->index->table->name
+			    << " index: "
+			    << lock_rec1->index->name()
+			    << " that has conflicting lock ";
+		lock_rec_print(stderr, lock_rec1, mtr);
+	}
+
+	ib::error() << "Conflicting lock on table: "
+		    << lock_rec2->index->table->name
+		    << " index: "
+		    << lock_rec2->index->name()
+		    << " that has lock ";
+	lock_rec_print(stderr, lock_rec2, mtr);
+
+	ib::error() << "WSREP state: ";
+
+	wsrep_report_bf_lock_wait(trx1->mysql_thd,
+				  trx1->id);
+	wsrep_report_bf_lock_wait(lock_rec2->trx->mysql_thd,
+				  lock_rec2->trx->id);
+	/* BF-BF wait is a bug */
+	ut_error;
+}
+#endif /* WITH_WSREP */
 
 /*********************************************************************//**
 Checks if a lock request for a new lock has to wait for request lock2.
@@ -727,72 +762,9 @@ lock_rec_has_to_wait(
 	}
 
 #ifdef WITH_WSREP
-	/* if BF thread is locking and has conflict with another BF
-	   thread, we need to look at trx ordering and lock types */
-	if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)
-	    && wsrep_thd_is_BF(lock2->trx->mysql_thd, FALSE)) {
-		mtr_t mtr;
-
-		if (UNIV_UNLIKELY(wsrep_debug)) {
-			ib::info() << "BF-BF lock conflict, locking: "
-				   << for_locking;
-			lock_rec_print(stderr, lock2, mtr);
-			ib::info()
-				<< " SQL1: " << wsrep_thd_query(trx->mysql_thd)
-				<< " SQL2: "
-				<< wsrep_thd_query(lock2->trx->mysql_thd);
-		}
-
-		if ((type_mode & LOCK_MODE_MASK) == LOCK_X
-		    && (lock2->type_mode & LOCK_MODE_MASK) == LOCK_X) {
-			if (for_locking || UNIV_UNLIKELY(wsrep_debug)) {
-				/* exclusive lock conflicts are not
-				   accepted */
-				ib::info()
-					<< "BF-BF X lock conflict,mode: "
-					<< type_mode
-					<< " supremum: " << lock_is_on_supremum
-					<< "conflicts states: my "
-					<< wsrep_thd_transaction_state_str(
-						   trx->mysql_thd)
-					<< " locked "
-					<< wsrep_thd_transaction_state_str(
-						   lock2->trx->mysql_thd);
-				lock_rec_print(stderr, lock2, mtr);
-				ib::info() << " SQL1: "
-					   << wsrep_thd_query(trx->mysql_thd)
-					   << " SQL2: "
-					   << wsrep_thd_query(
-						      lock2->trx->mysql_thd);
-
-				if (for_locking) {
-					return false;
-				}
-			}
-		} else {
-			/* if lock2->index->n_uniq <=
-			   lock2->index->n_user_defined_cols
-			   operation is on uniq index
-			*/
-			if (wsrep_debug) {
-				ib::info()
-					<< "BF conflict, modes: " << type_mode
-					<< ":" << lock2->type_mode
-					<< " idx: " << lock2->index->name()
-					<< " table: "
-					<< lock2->index->table->name
-					<< " n_uniq: " << lock2->index->n_uniq
-					<< " n_user: "
-					<< lock2->index->n_user_defined_cols
-					<< " SQL1: "
-					<< wsrep_thd_query(trx->mysql_thd)
-					<< " SQL2: "
-					<< wsrep_thd_query(
-						   lock2->trx->mysql_thd);
-			}
-			return false;
-		}
-	}
+	/* There should not be two conflicting locks that are
+	brute force. If there is it is a bug. */
+	wsrep_assert_no_bf_bf_wait(NULL, lock2, trx);
 #endif /* WITH_WSREP */
 
 	return true;
@@ -859,26 +831,6 @@ lock_rec_find_set_bit(
 }
 
 /*********************************************************************//**
-Determines if there are explicit record locks on a page.
-@return an explicit record lock on the page, or NULL if there are none */
-lock_t*
-lock_rec_expl_exist_on_page(
-/*========================*/
-	ulint	space,	/*!< in: space id */
-	ulint	page_no)/*!< in: page number */
-{
-	lock_t*	lock;
-
-	lock_mutex_enter();
-	/* Only used in ibuf pages, so rec_hash is good enough */
-	lock = lock_rec_get_first_on_page_addr(&lock_sys.rec_hash,
-					       space, page_no);
-	lock_mutex_exit();
-
-	return(lock);
-}
-
-/*********************************************************************//**
 Resets the record lock bitmap to zero. NOTE: does not touch the wait_lock
 pointer in the transaction! This function is used in lock object creation
 and resetting. */
@@ -899,7 +851,7 @@ lock_rec_bitmap_reset(
 
 	ut_ad((lock_rec_get_n_bits(lock) % 8) == 0);
 
-	memset(&lock[1], 0, n_bytes);
+	memset(reinterpret_cast<void*>(&lock[1]), 0, n_bytes);
 }
 
 /*********************************************************************//**
@@ -931,35 +883,21 @@ lock_rec_get_prev(
 	ulint		heap_no)/*!< in: heap number of the record */
 {
 	lock_t*		lock;
-	ulint		space;
-	ulint		page_no;
 	lock_t*		found_lock	= NULL;
-	hash_table_t*	hash;
 
 	ut_ad(lock_mutex_own());
 	ut_ad(lock_get_type_low(in_lock) == LOCK_REC);
 
-	space = in_lock->un_member.rec_lock.space;
-	page_no = in_lock->un_member.rec_lock.page_no;
-
-	hash = lock_hash_get(in_lock->type_mode);
-
-	for (lock = lock_rec_get_first_on_page_addr(hash, space, page_no);
-	     /* No op */;
+	for (lock = lock_sys.get_first(*lock_hash_get(in_lock->type_mode),
+				       in_lock->un_member.rec_lock.page_id);
+	     lock != in_lock;
 	     lock = lock_rec_get_next_on_page(lock)) {
-
-		ut_ad(lock);
-
-		if (lock == in_lock) {
-
-			return(found_lock);
-		}
-
 		if (lock_rec_get_nth_bit(lock, heap_no)) {
-
 			found_lock = lock;
 		}
 	}
+
+	return found_lock;
 }
 
 /*============= FUNCTIONS FOR ANALYZING RECORD LOCK QUEUE ================*/
@@ -1297,8 +1235,7 @@ wsrep_print_wait_locks(
 without checking for deadlocks or conflicts.
 @param[in]	type_mode	lock mode and wait flag; type will be replaced
 				with LOCK_REC
-@param[in]	space		tablespace id
-@param[in]	page_no		index page number
+@param[in]	page_id		index page number
 @param[in]	page		R-tree index page, or NULL
 @param[in]	heap_no		record heap number in the index page
 @param[in]	index		the index tree
@@ -1312,8 +1249,7 @@ lock_rec_create_low(
 	que_thr_t*	thr,	/*!< thread owning trx */
 #endif
 	unsigned	type_mode,
-	ulint		space,
-	ulint		page_no,
+	const page_id_t	page_id,
 	const page_t*	page,
 	ulint		heap_no,
 	dict_index_t*	index,
@@ -1382,8 +1318,7 @@ lock_rec_create_low(
 	lock->trx = trx;
 	lock->type_mode = (type_mode & unsigned(~LOCK_TYPE_MASK)) | LOCK_REC;
 	lock->index = index;
-	lock->un_member.rec_lock.space = uint32_t(space);
-	lock->un_member.rec_lock.page_no = uint32_t(page_no);
+	lock->un_member.rec_lock.page_id = page_id;
 
 	if (UNIV_LIKELY(!(type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE)))) {
 		lock->un_member.rec_lock.n_bits = uint32_t(n_bytes * 8);
@@ -1451,11 +1386,8 @@ lock_rec_create_low(
 			trx_mutex_exit(c_lock->trx);
 
 			if (UNIV_UNLIKELY(wsrep_debug)) {
-				ib::info() << "WSREP: c_lock canceled "
-					   << ib::hex(c_lock->trx->id)
-					   << " SQL: "
-					   << wsrep_thd_query(
-						   c_lock->trx->mysql_thd);
+				wsrep_report_bf_lock_wait(trx->mysql_thd, trx->id);
+				wsrep_report_bf_lock_wait(c_lock->trx->mysql_thd, c_lock->trx->id);
 			}
 
 			/* have to bail out here to avoid lock_set_lock... */
@@ -1469,10 +1401,10 @@ lock_rec_create_low(
 	    == INNODB_LOCK_SCHEDULE_ALGORITHM_VATS
 	    && !thd_is_replication_slave_thread(trx->mysql_thd)) {
 		HASH_PREPEND(lock_t, hash, &lock_sys.rec_hash,
-			     lock_rec_fold(space, page_no), lock);
+			     page_id.fold(), lock);
 	} else {
 		HASH_INSERT(lock_t, hash, lock_hash_get(type_mode),
-			    lock_rec_fold(space, page_no), lock);
+			    page_id.fold(), lock);
 	}
 
 	if (!holds_trx_mutex) {
@@ -1526,19 +1458,15 @@ static
 dberr_t
 lock_rec_insert_by_trx_age(
 	lock_t	*in_lock) /*!< in: lock to be insert */{
-	ulint				space;
-	ulint				page_no;
-	ulint				rec_fold;
 	lock_t*				node;
 	lock_t*				next;
 	hash_table_t*		hash;
 	hash_cell_t*		cell;
 
-	space = in_lock->un_member.rec_lock.space;
-	page_no = in_lock->un_member.rec_lock.page_no;
-	rec_fold = lock_rec_fold(space, page_no);
+	ut_ad(!in_lock->trx->is_wsrep());
+	const page_id_t page_id(in_lock->un_member.rec_lock.page_id);
 	hash = lock_hash_get(in_lock->type_mode);
-	cell = &hash->array[hash->calc_hash(rec_fold)];
+	cell = &hash->array[hash->calc_hash(page_id.fold())];
 
 	node = (lock_t *) cell->node;
 	// If in_lock is not a wait lock, we insert it to the head of the list.
@@ -1580,9 +1508,6 @@ bool
 lock_queue_validate(
 	const lock_t	*in_lock) /*!< in: lock whose hash list is to be validated */
 {
-	ulint				space;
-	ulint				page_no;
-	ulint				rec_fold;
 	hash_table_t*		hash;
 	hash_cell_t*		cell;
 	lock_t*				next;
@@ -1592,11 +1517,9 @@ lock_queue_validate(
 		return true;
 	}
 
-	space = in_lock->un_member.rec_lock.space;
-	page_no = in_lock->un_member.rec_lock.page_no;
-	rec_fold = lock_rec_fold(space, page_no);
+	const page_id_t	page_id(in_lock->un_member.rec_lock.page_id);
 	hash = lock_hash_get(in_lock->type_mode);
-	cell = &hash->array[hash->calc_hash(rec_fold)];
+	cell = &hash->array[hash->calc_hash(page_id.fold())];
 	next = (lock_t *) cell->node;
 	while (next != NULL) {
 		// If this is a granted lock, check that there's no wait lock before it.
@@ -1754,6 +1677,36 @@ lock_rec_enqueue_waiting(
 }
 
 /*********************************************************************//**
+Looks for a suitable type record lock struct by the same trx on the same page.
+This can be used to save space when a new record lock should be set on a page:
+no new struct is needed, if a suitable old is found.
+@return lock or NULL */
+static inline
+lock_t*
+lock_rec_find_similar_on_page(
+	ulint           type_mode,      /*!< in: lock type_mode field */
+	ulint           heap_no,        /*!< in: heap number of the record */
+	lock_t*         lock,           /*!< in: lock_sys.get_first() */
+	const trx_t*    trx)            /*!< in: transaction */
+{
+	ut_ad(lock_mutex_own());
+
+	for (/* No op */;
+	     lock != NULL;
+	     lock = lock_rec_get_next_on_page(lock)) {
+
+		if (lock->trx == trx
+		    && lock->type_mode == type_mode
+		    && lock_rec_get_n_bits(lock) > heap_no) {
+
+			return(lock);
+		}
+	}
+
+	return(NULL);
+}
+
+/*********************************************************************//**
 Adds a record lock request in the record queue. The request is normally
 added as the last in the queue, but if there are no waiting lock requests
 on the record, and the request to be added is not a waiting request, we
@@ -1798,27 +1751,19 @@ lock_rec_add_to_queue(
 			= lock_rec_other_has_expl_req(
 				mode, block, false, heap_no, trx);
 #ifdef WITH_WSREP
-		if (other_lock && trx->is_wsrep() &&
-			!wsrep_thd_is_BF(trx->mysql_thd, FALSE) &&
-			!wsrep_thd_is_BF(other_lock->trx->mysql_thd, FALSE)) {
-
-			ib::info() << "WSREP BF lock conflict for my lock:\n BF:" <<
-				((wsrep_thd_is_BF(trx->mysql_thd, FALSE)) ? "BF" : "normal") << " exec: " <<
-				wsrep_thd_client_state_str(trx->mysql_thd) << " conflict: " <<
-				wsrep_thd_transaction_state_str(trx->mysql_thd) << " seqno: " <<
-				wsrep_thd_trx_seqno(trx->mysql_thd) << " SQL: " <<
-				wsrep_thd_query(trx->mysql_thd);
-			trx_t* otrx = other_lock->trx;
-			ib::info() << "WSREP other lock:\n BF:" <<
-				((wsrep_thd_is_BF(otrx->mysql_thd, FALSE)) ? "BF" : "normal") << " exec: " <<
-				wsrep_thd_client_state_str(otrx->mysql_thd) << " conflict: " <<
-				wsrep_thd_transaction_state_str(otrx->mysql_thd) << " seqno: " <<
-				wsrep_thd_trx_seqno(otrx->mysql_thd) << " SQL: " <<
-				wsrep_thd_query(otrx->mysql_thd);
-		}
-#else
-		ut_a(!other_lock);
+		if (UNIV_LIKELY_NULL(other_lock) && trx->is_wsrep()) {
+			/* Only BF transaction may be granted lock
+			before other conflicting lock request. */
+			if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)
+			    && !wsrep_thd_is_BF(other_lock->trx->mysql_thd, FALSE)) {
+				/* If it is not BF, this case is a bug. */
+				wsrep_report_bf_lock_wait(trx->mysql_thd, trx->id);
+				wsrep_report_bf_lock_wait(other_lock->trx->mysql_thd, other_lock->trx->id);
+				ut_error;
+			}
+		} else
 #endif /* WITH_WSREP */
+		ut_ad(!other_lock);
 	}
 #endif /* UNIV_DEBUG */
 
@@ -1840,11 +1785,11 @@ lock_rec_add_to_queue(
 
 	lock_t*		lock;
 	lock_t*		first_lock;
-	hash_table_t*	hash = lock_hash_get(type_mode);
 
 	/* Look for a waiting lock request on the same record or on a gap */
 
-	for (first_lock = lock = lock_rec_get_first_on_page(hash, block);
+	for (first_lock = lock = lock_sys.get_first(*lock_hash_get(type_mode),
+						    block->page.id());
 	     lock != NULL;
 	     lock = lock_rec_get_next_on_page(lock)) {
 
@@ -1923,7 +1868,7 @@ lock_rec_lock(
 
   if (lock_table_has(trx, index->table,
                      static_cast<lock_mode>(LOCK_MODE_MASK & mode)));
-  else if (lock_t *lock= lock_rec_get_first_on_page(&lock_sys.rec_hash, block))
+  else if (lock_t *lock= lock_sys.get_first(block->page.id()))
   {
     trx_mutex_enter(trx);
     if (lock_rec_get_next_on_page(lock) ||
@@ -2004,31 +1949,22 @@ lock_rec_has_to_wait_in_queue(
 	const lock_t*	wait_lock)	/*!< in: waiting record lock */
 {
 	const lock_t*	lock;
-	ulint		space;
-	ulint		page_no;
 	ulint		heap_no;
 	ulint		bit_mask;
 	ulint		bit_offset;
-	hash_table_t*	hash;
 
 	ut_ad(wait_lock);
 	ut_ad(lock_mutex_own());
 	ut_ad(lock_get_wait(wait_lock));
 	ut_ad(lock_get_type_low(wait_lock) == LOCK_REC);
 
-	space = wait_lock->un_member.rec_lock.space;
-	page_no = wait_lock->un_member.rec_lock.page_no;
 	heap_no = lock_rec_find_set_bit(wait_lock);
 
 	bit_offset = heap_no / 8;
 	bit_mask = static_cast<ulint>(1) << (heap_no % 8);
 
-	hash = lock_hash_get(wait_lock->type_mode);
-
-	for (lock = lock_rec_get_first_on_page_addr(hash, space, page_no);
-#ifdef WITH_WSREP
-	     lock &&
-#endif
+	for (lock = lock_sys.get_first(*lock_hash_get(wait_lock->type_mode),
+				       wait_lock->un_member.rec_lock.page_id);
 	     lock != wait_lock;
 	     lock = lock_rec_get_next_on_page_const(lock)) {
 		const byte*	p = (const byte*) &lock[1];
@@ -2036,24 +1972,6 @@ lock_rec_has_to_wait_in_queue(
 		if (heap_no < lock_rec_get_n_bits(lock)
 		    && (p[bit_offset] & bit_mask)
 		    && lock_has_to_wait(wait_lock, lock)) {
-#ifdef WITH_WSREP
-			if (wsrep_thd_is_BF(wait_lock->trx->mysql_thd, FALSE) &&
-			    wsrep_thd_is_BF(lock->trx->mysql_thd, FALSE)) {
-
-				if (UNIV_UNLIKELY(wsrep_debug)) {
-					mtr_t mtr;
-					ib::info() << "WSREP: waiting BF trx: " << ib::hex(wait_lock->trx->id)
-						   << " query: " << wsrep_thd_query(wait_lock->trx->mysql_thd);
-					lock_rec_print(stderr, wait_lock, mtr);
-					ib::info() << "WSREP: do not wait another BF trx: " << ib::hex(lock->trx->id)
-						   << " query: " << wsrep_thd_query(lock->trx->mysql_thd);
-					lock_rec_print(stderr, lock, mtr);
-				}
-				/* don't wait for another BF lock */
-				continue;
-			}
-#endif /* WITH_WSREP */
-
 			return(lock);
 		}
 	}
@@ -2144,9 +2062,7 @@ lock_rec_cancel(
 	trx_mutex_exit(lock->trx);
 }
 
-static
-void
-lock_grant_and_move_on_page(ulint rec_fold, ulint space, ulint page_no)
+static void lock_grant_and_move_on_page(ulint rec_fold, const page_id_t id)
 {
 	lock_t*		lock;
 	lock_t*		previous = static_cast<lock_t*>(
@@ -2155,27 +2071,25 @@ lock_grant_and_move_on_page(ulint rec_fold, ulint space, ulint page_no)
 	if (previous == NULL) {
 		return;
 	}
-	if (previous->un_member.rec_lock.space == space &&
-		previous->un_member.rec_lock.page_no == page_no) {
+	if (previous->un_member.rec_lock.page_id == id) {
 		lock = previous;
 	}
 	else {
 		while (previous->hash &&
-				(previous->hash->un_member.rec_lock.space != space ||
-				previous->hash->un_member.rec_lock.page_no != page_no)) {
-					previous = previous->hash;
+		       (previous->hash->un_member.rec_lock.page_id != id)) {
+			previous = previous->hash;
 		}
 		lock = previous->hash;
 	}
 
+	ut_ad(!lock->trx->is_wsrep());
 	ut_ad(previous->hash == lock || previous == lock);
 	/* Grant locks if there are no conflicting locks ahead.
 	 Move granted locks to the head of the list. */
 	while (lock) {
 		/* If the lock is a wait lock on this page, and it does not need to wait. */
 		if (lock_get_wait(lock)
-		    && lock->un_member.rec_lock.space == space
-		    && lock->un_member.rec_lock.page_no == page_no
+		    && lock->un_member.rec_lock.page_id == id
 		    && !lock_rec_has_to_wait_in_queue(lock)) {
 			lock_grant(lock);
 
@@ -2202,22 +2116,19 @@ to a lock. NOTE: all record locks contained in in_lock are removed.
 @param[in,out]	in_lock		record lock */
 static void lock_rec_dequeue_from_page(lock_t* in_lock)
 {
-	ulint		space;
-	ulint		page_no;
 	hash_table_t*	lock_hash;
 
 	ut_ad(lock_mutex_own());
 	ut_ad(lock_get_type_low(in_lock) == LOCK_REC);
 	/* We may or may not be holding in_lock->trx->mutex here. */
 
-	space = in_lock->un_member.rec_lock.space;
-	page_no = in_lock->un_member.rec_lock.page_no;
+	const page_id_t page_id(in_lock->un_member.rec_lock.page_id);
 
 	in_lock->index->table->n_rec_locks--;
 
 	lock_hash = lock_hash_get(in_lock->type_mode);
 
-	ulint rec_fold = lock_rec_fold(space, page_no);
+	const ulint rec_fold = page_id.fold();
 
 	HASH_DELETE(lock_t, hash, lock_hash, rec_fold, in_lock);
 	UT_LIST_REMOVE(in_lock->trx->lock.trx_locks, in_lock);
@@ -2233,20 +2144,26 @@ static void lock_rec_dequeue_from_page(lock_t* in_lock)
 		grant locks if there are no conflicting locks ahead. Stop at
 		the first X lock that is waiting or has been granted. */
 
-		for (lock_t* lock = lock_rec_get_first_on_page_addr(
-			     lock_hash, space, page_no);
+		for (lock_t* lock = lock_sys.get_first(*lock_hash, page_id);
 		     lock != NULL;
 		     lock = lock_rec_get_next_on_page(lock)) {
 
-			if (lock_get_wait(lock)
-			    && !lock_rec_has_to_wait_in_queue(lock)) {
+			if (!lock_get_wait(lock)) {
+				continue;
+			}
+			const lock_t* c = lock_rec_has_to_wait_in_queue(lock);
+			if (!c) {
 				/* Grant the lock */
 				ut_ad(lock->trx != in_lock->trx);
 				lock_grant(lock);
+#ifdef WITH_WSREP
+			} else {
+				wsrep_assert_no_bf_bf_wait(c, lock, c->trx);
+#endif /* WITH_WSREP */
 			}
 		}
 	} else {
-		lock_grant_and_move_on_page(rec_fold, space, page_no);
+		lock_grant_and_move_on_page(rec_fold, page_id);
 	}
 }
 
@@ -2259,8 +2176,6 @@ lock_rec_discard(
 					record locks which are contained
 					in this lock object are removed */
 {
-	ulint		space;
-	ulint		page_no;
 	trx_lock_t*	trx_lock;
 
 	ut_ad(lock_mutex_own());
@@ -2268,13 +2183,10 @@ lock_rec_discard(
 
 	trx_lock = &in_lock->trx->lock;
 
-	space = in_lock->un_member.rec_lock.space;
-	page_no = in_lock->un_member.rec_lock.page_no;
-
 	in_lock->index->table->n_rec_locks--;
 
 	HASH_DELETE(lock_t, hash, lock_hash_get(in_lock->type_mode),
-			    lock_rec_fold(space, page_no), in_lock);
+		    in_lock->un_member.rec_lock.page_id.fold(), in_lock);
 
 	UT_LIST_REMOVE(trx_lock->trx_locks, in_lock);
 
@@ -2286,29 +2198,19 @@ lock_rec_discard(
 Removes record lock objects set on an index page which is discarded. This
 function does not move locks, or check for waiting locks, therefore the
 lock bitmaps must already be reset when this function is called. */
-static
-void
-lock_rec_free_all_from_discard_page_low(
-/*====================================*/
-	ulint		space,
-	ulint		page_no,
-	hash_table_t*	lock_hash)
+static void lock_rec_free_all_from_discard_page_low(const page_id_t id,
+                                                    hash_table_t *lock_hash)
 {
-	lock_t*	lock;
-	lock_t*	next_lock;
+  lock_t *lock= lock_sys.get_first(*lock_hash, id);
 
-	lock = lock_rec_get_first_on_page_addr(lock_hash, space, page_no);
-
-	while (lock != NULL) {
-		ut_ad(lock_rec_find_set_bit(lock) == ULINT_UNDEFINED);
-		ut_ad(!lock_get_wait(lock));
-
-		next_lock = lock_rec_get_next_on_page(lock);
-
-		lock_rec_discard(lock);
-
-		lock = next_lock;
-	}
+  while (lock)
+  {
+    ut_ad(lock_rec_find_set_bit(lock) == ULINT_UNDEFINED);
+    ut_ad(!lock_get_wait(lock));
+    lock_t *next_lock= lock_rec_get_next_on_page(lock);
+    lock_rec_discard(lock);
+    lock= next_lock;
+  }
 }
 
 /*************************************************************//**
@@ -2320,20 +2222,10 @@ lock_rec_free_all_from_discard_page(
 /*================================*/
 	const buf_block_t*	block)	/*!< in: page to be discarded */
 {
-	ulint	space;
-	ulint	page_no;
-
-	ut_ad(lock_mutex_own());
-
-	space = block->page.id().space();
-	page_no = block->page.id().page_no();
-
-	lock_rec_free_all_from_discard_page_low(
-		space, page_no, &lock_sys.rec_hash);
-	lock_rec_free_all_from_discard_page_low(
-		space, page_no, &lock_sys.prdt_hash);
-	lock_rec_free_all_from_discard_page_low(
-		space, page_no, &lock_sys.prdt_page_hash);
+  const page_id_t page_id(block->page.id());
+  lock_rec_free_all_from_discard_page_low(page_id, &lock_sys.rec_hash);
+  lock_rec_free_all_from_discard_page_low(page_id, &lock_sys.prdt_hash);
+  lock_rec_free_all_from_discard_page_low(page_id, &lock_sys.prdt_page_hash);
 }
 
 /*============= RECORD LOCK MOVING AND INHERITING ===================*/
@@ -2600,7 +2492,7 @@ lock_move_reorganize_page(
 	lock_mutex_enter();
 
 	/* FIXME: This needs to deal with predicate lock too */
-	lock = lock_rec_get_first_on_page(&lock_sys.rec_hash, block);
+	lock = lock_sys.get_first(block->page.id());
 
 	if (lock == NULL) {
 		lock_mutex_exit();
@@ -2733,7 +2625,7 @@ lock_move_rec_list_end(
 	table to the end of the hash chain, and lock_rec_add_to_queue
 	does not reuse locks if there are waiters in the queue. */
 
-	for (lock = lock_rec_get_first_on_page(&lock_sys.rec_hash, block);
+	for (lock = lock_sys.get_first(block->page.id());
 	     lock;
 	     lock = lock_rec_get_next_on_page(lock)) {
 		const rec_t*	rec1	= rec;
@@ -2849,7 +2741,7 @@ lock_move_rec_list_start(
 
 	lock_mutex_enter();
 
-	for (lock = lock_rec_get_first_on_page(&lock_sys.rec_hash, block);
+	for (lock = lock_sys.get_first(block->page.id());
 	     lock;
 	     lock = lock_rec_get_next_on_page(lock)) {
 		const rec_t*	rec1;
@@ -2962,7 +2854,7 @@ lock_rtr_move_rec_list(
 
 	lock_mutex_enter();
 
-	for (lock = lock_rec_get_first_on_page(&lock_sys.rec_hash, block);
+	for (lock = lock_sys.get_first(block->page.id());
 	     lock;
 	     lock = lock_rec_get_next_on_page(lock)) {
 		ulint		moved = 0;
@@ -3079,10 +2971,7 @@ lock_update_merge_right(
 
 	/* there should exist no page lock on the left page,
 	otherwise, it will be blocked from merge */
-	ut_ad(!lock_rec_get_first_on_page_addr(
-		      &lock_sys.prdt_page_hash,
-		      left_block->page.id().space(),
-		      left_block->page.id().page_no()));
+	ut_ad(!lock_sys.get_first_prdt_page(left_block->page.id()));
 
 	lock_rec_free_all_from_discard_page(left_block);
 
@@ -3201,10 +3090,7 @@ lock_update_merge_left(
 
 	/* there should exist no page lock on the right page,
 	otherwise, it will be blocked from merge */
-	ut_ad(!lock_rec_get_first_on_page_addr(
-		      &lock_sys.prdt_page_hash,
-		      right_block->page.id().space(),
-		      right_block->page.id().page_no()));
+	ut_ad(!lock_sys.get_first_prdt_page(right_block->page.id()));
 
 	lock_rec_free_all_from_discard_page(right_block);
 
@@ -3252,13 +3138,13 @@ lock_update_discard(
 	const page_t*	page = block->frame;
 	const rec_t*	rec;
 	ulint		heap_no;
+	const page_id_t	page_id(block->page.id());
 
 	lock_mutex_enter();
 
-	if (lock_rec_get_first_on_page(&lock_sys.rec_hash, block)) {
-		ut_ad(!lock_rec_get_first_on_page(&lock_sys.prdt_hash, block));
-		ut_ad(!lock_rec_get_first_on_page(&lock_sys.prdt_page_hash,
-						  block));
+	if (lock_sys.get_first(page_id)) {
+		ut_ad(!lock_sys.get_first_prdt(page_id));
+		ut_ad(!lock_sys.get_first_prdt_page(page_id));
 		/* Inherit all the locks on the page to the record and
 		reset all the locks on the page */
 
@@ -3292,16 +3178,13 @@ lock_update_discard(
 			} while (heap_no != PAGE_HEAP_NO_SUPREMUM);
 		}
 
-		lock_rec_free_all_from_discard_page_low(
-			block->page.id().space(), block->page.id().page_no(),
-			&lock_sys.rec_hash);
+		lock_rec_free_all_from_discard_page_low(page_id,
+							&lock_sys.rec_hash);
 	} else {
+		lock_rec_free_all_from_discard_page_low(page_id,
+							&lock_sys.prdt_hash);
 		lock_rec_free_all_from_discard_page_low(
-			block->page.id().space(), block->page.id().page_no(),
-			&lock_sys.prdt_hash);
-		lock_rec_free_all_from_discard_page_low(
-			block->page.id().space(), block->page.id().page_no(),
-			&lock_sys.prdt_page_hash);
+			page_id, &lock_sys.prdt_page_hash);
 	}
 
 	lock_mutex_exit();
@@ -3506,11 +3389,8 @@ lock_table_create(
 			ut_list_insert(table->locks, c_lock, lock,
 				       TableLockGetNode());
 			if (UNIV_UNLIKELY(wsrep_debug)) {
-				ib::info() << "table lock BF conflict for "
-					   << ib::hex(c_lock->trx->id)
-					   << " SQL: "
-					   << wsrep_thd_query(
-						   c_lock->trx->mysql_thd);
+				wsrep_report_bf_lock_wait(trx->mysql_thd, trx->id);
+				wsrep_report_bf_lock_wait(c_lock->trx->mysql_thd, c_lock->trx->id);
 			}
 		} else {
 			ut_list_append(table->locks, lock, TableLockGetNode());
@@ -3522,6 +3402,8 @@ lock_table_create(
 			c_lock->trx->lock.was_chosen_as_deadlock_victim = TRUE;
 
 			if (UNIV_UNLIKELY(wsrep_debug)) {
+				wsrep_report_bf_lock_wait(trx->mysql_thd, trx->id);
+				wsrep_report_bf_lock_wait(c_lock->trx->mysql_thd, c_lock->trx->id);
 				wsrep_print_wait_locks(c_lock);
 			}
 
@@ -3531,14 +3413,6 @@ lock_table_create(
 			lock_cancel_waiting_and_release(
 				c_lock->trx->lock.wait_lock);
 			trx_mutex_enter(trx);
-
-			if (UNIV_UNLIKELY(wsrep_debug)) {
-				ib::info() << "WSREP: c_lock canceled "
-					   << ib::hex(c_lock->trx->id)
-					   << " SQL: "
-					   << wsrep_thd_query(
-						   c_lock->trx->mysql_thd);
-			}
 		}
 
 		trx_mutex_exit(c_lock->trx);
@@ -4073,16 +3947,10 @@ lock_grant_and_move_on_rec(
 	ulint			heap_no)
 {
 	lock_t*		lock;
-	ulint		space;
-	ulint		page_no;
-	ulint		rec_fold;
-
-	space = first_lock->un_member.rec_lock.space;
-	page_no = first_lock->un_member.rec_lock.page_no;
-	rec_fold = lock_rec_fold(space, page_no);
-
+	const page_id_t	page_id(first_lock->un_member.rec_lock.page_id);
+	const ulint	rec_fold= page_id.fold();
 	lock_t*		previous = static_cast<lock_t*>(
-		lock_sys.rec_hash.array[lock_sys.rec_hash.calc_hash(rec_fold)]
+		lock_sys.rec_hash.array[lock_sys.hash(page_id)]
 		.node);
 	if (previous == NULL) {
 		return;
@@ -4096,13 +3964,13 @@ lock_grant_and_move_on_rec(
 	    }
 		lock = previous->hash;
 	}
+	ut_ad(!lock->trx->is_wsrep());
 	/* Grant locks if there are no conflicting locks ahead.
 	 Move granted locks to the head of the list. */
 	for (;lock != NULL;) {
 
 		/* If the lock is a wait lock on this page, and it does not need to wait. */
-		if (lock->un_member.rec_lock.space == space
-			&& lock->un_member.rec_lock.page_no == page_no
+		if (lock->un_member.rec_lock.page_id == page_id
 			&& lock_rec_get_nth_bit(lock, heap_no)
 			&& lock_get_wait(lock)
 			&& !lock_rec_has_to_wait_in_queue(lock)) {
@@ -4195,12 +4063,18 @@ released:
 
 		for (lock = first_lock; lock != NULL;
 			 lock = lock_rec_get_next(heap_no, lock)) {
-			if (lock_get_wait(lock)
-				&& !lock_rec_has_to_wait_in_queue(lock)) {
-
+			if (!lock_get_wait(lock)) {
+				continue;
+			}
+			const lock_t* c = lock_rec_has_to_wait_in_queue(lock);
+			if (!c) {
 				/* Grant the lock */
 				ut_ad(trx != lock->trx);
 				lock_grant(lock);
+#ifdef WITH_WSREP
+			} else {
+				wsrep_assert_no_bf_bf_wait(c, lock, c->trx);
+#endif /* WITH_WSREP */
 			}
 		}
 	} else {
@@ -4404,19 +4278,15 @@ lock_table_print(FILE* file, const lock_t* lock)
 @param[in,out]	mtr	mini-transaction for accessing the record */
 static void lock_rec_print(FILE* file, const lock_t* lock, mtr_t& mtr)
 {
-	ulint			space;
-	ulint			page_no;
-
 	ut_ad(lock_mutex_own());
 	ut_a(lock_get_type_low(lock) == LOCK_REC);
 
-	space = lock->un_member.rec_lock.space;
-	page_no = lock->un_member.rec_lock.page_no;
+	const page_id_t page_id(lock->un_member.rec_lock.page_id);
 
-	fprintf(file, "RECORD LOCKS space id %lu page no %lu n bits %lu "
-		"index %s of table ",
-		(ulong) space, (ulong) page_no,
-		(ulong) lock_rec_get_n_bits(lock),
+	fprintf(file, "RECORD LOCKS space id %u page no %u n bits " ULINTPF
+		" index %s of table ",
+		page_id.space(), page_id.page_no(),
+		lock_rec_get_n_bits(lock),
 		lock->index->name());
 	ut_print_name(file, lock->trx, lock->index->table->name.m_name);
 	fprintf(file, " trx id " TRX_ID_FMT, trx_get_id_for_print(lock->trx));
@@ -4453,8 +4323,7 @@ static void lock_rec_print(FILE* file, const lock_t* lock, mtr_t& mtr)
 	rec_offs_init(offsets_);
 
 	mtr.start();
-	const buf_block_t* block = buf_page_try_get(page_id_t(space, page_no),
-						    &mtr);
+	const buf_block_t* block = buf_page_try_get(page_id, &mtr);
 
 	for (ulint i = 0; i < lock_rec_get_n_bits(lock); ++i) {
 
@@ -4855,24 +4724,28 @@ func_exit:
 			explicit granted lock. */
 
 #ifdef WITH_WSREP
-			if (other_lock->trx->is_wsrep()) {
-				if (!lock_get_wait(other_lock) ) {
-					ib::info() << "WSREP impl BF lock conflict for my impl lock:\n BF:" <<
-						((wsrep_thd_is_BF(impl_trx->mysql_thd, FALSE)) ? "BF" : "normal") << " exec: " <<
-						wsrep_thd_client_state_str(impl_trx->mysql_thd) << " conflict: " <<
-						wsrep_thd_transaction_state_str(impl_trx->mysql_thd) << " seqno: " <<
-						wsrep_thd_trx_seqno(impl_trx->mysql_thd) << " SQL: " <<
-						wsrep_thd_query(impl_trx->mysql_thd);
-
-					trx_t* otrx = other_lock->trx;
-
-					ib::info() << "WSREP other lock:\n BF:" <<
-						((wsrep_thd_is_BF(otrx->mysql_thd, FALSE)) ? "BF" : "normal")  << " exec: " <<
-						wsrep_thd_client_state_str(otrx->mysql_thd) << " conflict: " <<
-						wsrep_thd_transaction_state_str(otrx->mysql_thd) << " seqno: " <<
-						wsrep_thd_trx_seqno(otrx->mysql_thd) << " SQL: " <<
-						wsrep_thd_query(otrx->mysql_thd);
-				}
+			/** Galera record locking rules:
+			* If there is no other record lock to the same record, we may grant
+			the lock request.
+			* If there is other record lock but this requested record lock is
+			compatible, we may grant the lock request.
+			* If there is other record lock and it is not compatible with
+			requested lock, all normal transactions must wait.
+			* BF (brute force) additional exceptions :
+			** If BF already holds record lock for requested record, we may
+			grant new record lock even if there is conflicting record lock(s)
+			waiting on a queue.
+			** If conflicting transaction holds requested record lock,
+			we will cancel this record lock and select conflicting transaction
+			for BF abort or kill victim.
+			** If conflicting transaction is waiting for requested record lock
+			we will cancel this wait and select conflicting transaction
+			for BF abort or kill victim.
+			** There should not be two BF transactions waiting for same record lock
+			*/
+			if (other_lock->trx->is_wsrep() && !lock_get_wait(other_lock)) {
+				wsrep_report_bf_lock_wait(impl_trx->mysql_thd, impl_trx->id);
+				wsrep_report_bf_lock_wait(other_lock->trx->mysql_thd, other_lock->trx->id);
 
 				if (!lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP,
 						       block, heap_no,
@@ -4881,9 +4754,11 @@ func_exit:
 				}
 			} else
 #endif /* WITH_WSREP */
-			ut_ad(lock_get_wait(other_lock));
-			ut_ad(lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP,
-						block, heap_no, impl_trx));
+			{
+				ut_ad(lock_get_wait(other_lock));
+				ut_ad(lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP,
+						        block, heap_no, impl_trx));
+			}
 		}
 
 		mutex_exit(&impl_trx->mutex);
@@ -4915,13 +4790,20 @@ func_exit:
 					mode, block, false, heap_no,
 					lock->trx);
 #ifdef WITH_WSREP
-			ut_a(!other_lock
-			     || wsrep_thd_is_BF(lock->trx->mysql_thd, FALSE)
-			     || wsrep_thd_is_BF(other_lock->trx->mysql_thd, FALSE));
-
-#else
-			ut_a(!other_lock);
+			if (UNIV_UNLIKELY(other_lock && lock->trx->is_wsrep())) {
+				/* Only BF transaction may be granted
+				lock before other conflicting lock
+				request. */
+				if (!wsrep_thd_is_BF(lock->trx->mysql_thd, FALSE)
+				    && !wsrep_thd_is_BF(other_lock->trx->mysql_thd, FALSE)) {
+					/* If no BF, this case is a bug. */
+					wsrep_report_bf_lock_wait(lock->trx->mysql_thd, lock->trx->id);
+					wsrep_report_bf_lock_wait(other_lock->trx->mysql_thd, other_lock->trx->id);
+					ut_error;
+				}
+			} else
 #endif /* WITH_WSREP */
+			ut_ad(!other_lock);
 		} else if (lock_get_wait(lock) && !lock_rec_get_gap(lock)) {
 
 			ut_a(lock_rec_has_to_wait_in_queue(lock));
@@ -4953,13 +4835,9 @@ lock_rec_validate_page(
 	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
-	ut_ad(!lock_mutex_own());
-
 	lock_mutex_enter();
 loop:
-	lock = lock_rec_get_first_on_page_addr(
-		&lock_sys.rec_hash,
-		block->page.id().space(), block->page.id().page_no());
+	lock = lock_sys.get_first(block->page.id());
 
 	if (!lock) {
 		goto function_exit;
@@ -5031,7 +4909,7 @@ lock_rec_validate(
 /*==============*/
 	ulint		start,		/*!< in: lock_sys.rec_hash
 					bucket */
-	ib_uint64_t*	limit)		/*!< in/out: upper limit of
+	page_id_t*	limit)		/*!< in/out: upper limit of
 					(space, page_no) */
 {
 	ut_ad(lock_mutex_own());
@@ -5041,14 +4919,10 @@ lock_rec_validate(
 	     lock != NULL;
 	     lock = static_cast<const lock_t*>(HASH_GET_NEXT(hash, lock))) {
 
-		ib_uint64_t	current;
-
 		ut_ad(!trx_is_ac_nl_ro(lock->trx));
 		ut_ad(lock_get_type(lock) == LOCK_REC);
 
-		current = ut_ull_create(
-			lock->un_member.rec_lock.space,
-			lock->un_member.rec_lock.page_no);
+		page_id_t current(lock->un_member.rec_lock.page_id);
 
 		if (current > *limit) {
 			*limit = current + 1;
@@ -5061,12 +4935,7 @@ lock_rec_validate(
 
 /*********************************************************************//**
 Validate a record lock's block */
-static
-void
-lock_rec_block_validate(
-/*====================*/
-	ulint		space_id,
-	ulint		page_no)
+static void lock_rec_block_validate(const page_id_t page_id)
 {
 	/* The lock and the block that it is referring to may be freed at
 	this point. We pass BUF_GET_POSSIBLY_FREED to skip a debug check.
@@ -5081,12 +4950,12 @@ lock_rec_block_validate(
 	discard or rebuild a tablespace do hold an exclusive table
 	lock, which would conflict with any locks referring to the
 	tablespace from other transactions. */
-	if (fil_space_t* space = fil_space_acquire(space_id)) {
+	if (fil_space_t* space = fil_space_acquire(page_id.space())) {
 		dberr_t err = DB_SUCCESS;
 		mtr_start(&mtr);
 
 		block = buf_page_get_gen(
-			page_id_t(space_id, page_no),
+			page_id,
 			space->zip_size(),
 			RW_X_LATCH, NULL,
 			BUF_GET_POSSIBLY_FREED,
@@ -5095,8 +4964,7 @@ lock_rec_block_validate(
 		if (err != DB_SUCCESS) {
 			ib::error() << "Lock rec block validate failed for tablespace "
 				   << space->name
-				   << " space_id " << space_id
-				   << " page_no " << page_no << " err " << err;
+				   << page_id << " err " << err;
 		}
 
 		if (block) {
@@ -5140,13 +5008,7 @@ bool
 lock_validate()
 /*===========*/
 {
-	typedef	std::pair<ulint, ulint>		page_addr_t;
-	typedef std::set<
-		page_addr_t,
-		std::less<page_addr_t>,
-		ut_allocator<page_addr_t> >	page_addr_set;
-
-	page_addr_set	pages;
+	std::set<page_id_t> pages;
 
 	lock_mutex_enter();
 
@@ -5158,24 +5020,21 @@ lock_validate()
 	validation check. */
 
 	for (ulint i = 0; i < lock_sys.rec_hash.n_cells; i++) {
-		ib_uint64_t	limit = 0;
+		page_id_t limit(0, 0);
 
 		while (const lock_t* lock = lock_rec_validate(i, &limit)) {
 			if (lock_rec_find_set_bit(lock) == ULINT_UNDEFINED) {
 				/* The lock bitmap is empty; ignore it. */
 				continue;
 			}
-			const lock_rec_t& l = lock->un_member.rec_lock;
-			pages.insert(std::make_pair(l.space, l.page_no));
+			pages.insert(lock->un_member.rec_lock.page_id);
 		}
 	}
 
 	lock_mutex_exit();
 
-	for (page_addr_set::const_iterator it = pages.begin();
-	     it != pages.end();
-	     ++it) {
-		lock_rec_block_validate((*it).first, (*it).second);
+	for (const page_id_t page_id : pages) {
+		lock_rec_block_validate(page_id);
 	}
 
 	return(true);
@@ -6472,10 +6331,6 @@ DeadlockChecker::get_first_lock(ulint* heap_no) const
 	const lock_t*	lock = m_wait_lock;
 
 	if (lock_get_type_low(lock) == LOCK_REC) {
-		hash_table_t* lock_hash = lock->type_mode & LOCK_PREDICATE
-			? &lock_sys.prdt_hash
-			: &lock_sys.rec_hash;
-
 		/* We are only interested in records that match the heap_no. */
 		*heap_no = lock_rec_find_set_bit(lock);
 
@@ -6483,10 +6338,11 @@ DeadlockChecker::get_first_lock(ulint* heap_no) const
 		ut_ad(*heap_no != ULINT_UNDEFINED);
 
 		/* Find the locks on the page. */
-		lock = lock_rec_get_first_on_page_addr(
-			lock_hash,
-			lock->un_member.rec_lock.space,
-			lock->un_member.rec_lock.page_no);
+		lock = lock_sys.get_first(
+			lock->type_mode & LOCK_PREDICATE
+			? lock_sys.prdt_hash
+			: lock_sys.rec_hash,
+			lock->un_member.rec_lock.page_id);
 
 		/* Position on the first lock on the physical record.*/
 		if (!lock_rec_get_nth_bit(lock, *heap_no)) {

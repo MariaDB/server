@@ -28,33 +28,10 @@ Created Aug 10, 2011 Vasil Dimov
 #define ut0crc32_h
 
 #include "univ.i"
-
-/********************************************************************//**
-Initializes the data structures used by ut_crc32*(). Does not do any
-allocations, would not hurt if called twice, but would be pointless. */
-void ut_crc32_init();
-
-/** Append data to a CRC-32C checksum.
-@param crc   current checksum
-@param s     data to append to the checksum
-@param size  data length in bytes
-@return CRC-32C, using the GF(2) primitive polynomial 0x11EDC6F41,
-or 0x1EDC6F41 without the highest degree term */
-typedef uint32_t (*ut_crc32_func_t)(uint32_t crc, const byte *s, size_t size);
-
-/** Pointer to CRC32 calculation function. */
-extern ut_crc32_func_t ut_crc32_low;
-
-/** Text description of CRC32 implementation */
-extern const char*	ut_crc32_implementation;
-
-/** Compute CRC-32C over a string of bytes.
-@param s     data
-@param len   data length in bytes
-@return the CRC-32C of the data */
+#include <my_sys.h>
 static inline uint32_t ut_crc32(const byte *s, size_t size)
 {
-  return ut_crc32_low(0, s, size);
+  return my_crc32c(0, s, size);
 }
 
 #endif /* ut0crc32_h */

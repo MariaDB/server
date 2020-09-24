@@ -6361,6 +6361,9 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
   while (TRUE)
   {
     error= tmp_table->file->ha_rnd_next(tmp_table->record[0]);
+
+    if (error == HA_ERR_ABORTED_BY_USER)
+      break;
     /*
       This is a temp table that we fully own, there should be no other
       cause to stop the iteration than EOF.

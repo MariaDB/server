@@ -10,7 +10,7 @@
 
 --source include/big_test.inc
 --source include/galera_cluster.inc
---source include/have_innodb.inc
+--source include/force_restart.inc
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4
@@ -22,10 +22,13 @@
 --let $node_4=node_4
 --source include/auto_increment_offset_save.inc
 
-SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+SELECT VARIABLE_VALUE AS EXPECT_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
 --connection node_1
-CREATE TABLE t1 (f1 INTEGER);
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=INNODB;
 INSERT INTO t1 VALUES (1);
 
 --connection node_2
@@ -46,9 +49,13 @@ INSERT INTO t1 VALUES (13);
 
 --echo Shutting down server ...
 --source include/shutdown_mysqld.inc
---sleep 5
+
 
 --connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SELECT VARIABLE_VALUE AS EXPECT_3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
 INSERT INTO t1 VALUES (11);
 
 --connection node_2
@@ -59,8 +66,11 @@ INSERT INTO t1 VALUES (14);
 
 --connection node_3
 --source include/start_mysqld.inc
---sleep 5
 --source include/wait_until_connected_again.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SELECT VARIABLE_VALUE AS EXPECT_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
 INSERT INTO t1 VALUES (131);
 
@@ -73,9 +83,12 @@ INSERT INTO t1 VALUES (22);
 
 --echo Shutting down server ...
 --source include/shutdown_mysqld.inc
---sleep 5
 
 --connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SELECT VARIABLE_VALUE AS EXPECT_3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
 INSERT INTO t1 VALUES (21);
 
 --connection node_3
@@ -86,8 +99,11 @@ INSERT INTO t1 VALUES (24);
 
 --connection node_2
 --source include/start_mysqld.inc
---sleep 5
 --source include/wait_until_connected_again.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SELECT VARIABLE_VALUE AS EXPECT_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
 INSERT INTO t1 VALUES (221);
 
@@ -100,9 +116,12 @@ INSERT INTO t1 VALUES (34);
 
 --echo Shutting down server ...
 --source include/shutdown_mysqld.inc
---sleep 5
 
 --connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SELECT VARIABLE_VALUE AS EXPECT_3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
 INSERT INTO t1 VALUES (31);
 
 --connection node_2
@@ -113,8 +132,11 @@ INSERT INTO t1 VALUES (33);
 
 --connection node_4
 --source include/start_mysqld.inc
---sleep 5
 --source include/wait_until_connected_again.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+SELECT VARIABLE_VALUE AS EXPECT_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
 INSERT INTO t1 VALUES (341);
 
@@ -124,22 +146,44 @@ INSERT INTO t1 VALUES (341);
 #
 
 --connection node_1
---let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 19 FROM t1
 --source include/wait_condition.inc
 
-SELECT COUNT(*) = 19 FROM t1;
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
 
 --connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
 SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-SELECT COUNT(*) = 19 FROM t1;
+
+--let $wait_condition = SELECT COUNT(*) = 19 FROM t1
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
+
 
 --connection node_3
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
 SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-SELECT COUNT(*) = 19 FROM t1;
+
+--let $wait_condition = SELECT COUNT(*) = 19 FROM t1
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
 
 --connection node_4
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
 SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-SELECT COUNT(*) = 19 FROM t1;
+
+--let $wait_condition = SELECT COUNT(*) = 19 FROM t1
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_19 FROM t1;
+
 
 --connection node_1
 DROP TABLE t1;
@@ -158,4 +202,6 @@ CALL mtr.add_suppression("Action message in non-primary configuration from membe
 # Restore original auto_increment_offset values.
 --source include/auto_increment_offset_restore.inc
 
---source include/galera_end.inc
+--connection node_1
+--disconnect node_3
+--disconnect node_4

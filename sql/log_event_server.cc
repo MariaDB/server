@@ -1033,6 +1033,9 @@ void Query_log_event::pack_info(Protocol *protocol)
     append_identifier(protocol->thd, &buf, db, db_len);
     buf.append(STRING_WITH_LEN("; "));
   }
+
+  DBUG_ASSERT(!flags2 || flags2_inited);
+
   if (flags2 & (OPTION_NO_FOREIGN_KEY_CHECKS | OPTION_AUTO_IS_NULL |
                 OPTION_RELAXED_UNIQUE_CHECKS |
                 OPTION_NO_CHECK_CONSTRAINT_CHECKS |

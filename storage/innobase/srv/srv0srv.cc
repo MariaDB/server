@@ -55,7 +55,6 @@ Created 10/8/1995 Heikki Tuuri
 #include "lock0lock.h"
 #include "log0recv.h"
 #include "mem0mem.h"
-#include "os0proc.h"
 #include "pars0pars.h"
 #include "que0que.h"
 #include "row0mysql.h"
@@ -763,7 +762,6 @@ static void srv_init()
 	/* Initialize some INFORMATION SCHEMA internal structures */
 	trx_i_s_cache_init(trx_i_s_cache);
 
-	ut_crc32_init();
 }
 
 /*********************************************************************//**

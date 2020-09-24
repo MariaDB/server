@@ -7986,6 +7986,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
                         (alias ? alias->str : table->table.str),
                         table,
                         this, select_number));
+  DBUG_ASSERT(!is_service_select  || (table_options & TL_OPTION_SEQUENCE));
 
   if (unlikely(!table))
     DBUG_RETURN(0);				// End of memory

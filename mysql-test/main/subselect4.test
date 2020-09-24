@@ -2201,6 +2201,42 @@ SELECT * FROM t2;
 
 DROP TABLE t1, t2;
 
+--echo #
+--echo # MDEV-18335: Assertion `!error || error == 137' failed in subselect_rowid_merge_engine::init
+--echo #
+
+CREATE TABLE t1 (i1 int,v1 varchar(1),KEY (v1,i1));
+INSERT INTO t1 VALUES
+(9,'y'),(4,'q'),(0,null),(0,'p'),(null,'j');
+
+CREATE TABLE t2 (pk int);
+INSERT INTO t2 VALUES (1),(2);
+
+CREATE TABLE t3 (v2 varchar(1));
+INSERT INTO t3 VALUES
+('p'),('j'),('y'),('q');
+
+CREATE TABLE t4 (v2 varchar(1));
+INSERT INTO t4 VALUES
+('a'),('a'),('b'),('b'),('c'),('c'),
+('d'),('d'),('e'),('e'),('f'),('f'),
+('g'),('g'),('h'),('h'),('i'),('i'),
+('j'),('j'),('k'),('k'),('l'),('l'),
+('m'),('m'),('n'),('n'),('o'),('o'),
+('p'),('p'),('q'),('q'),('r'),('r'),
+('s'),('s'),('t'),('t'),('u'),('u'),('v'),('v'),
+('w'),('w'),('x'),('x'), (NULL),(NULL);
+
+SET @save_join_cache_level=@@join_cache_level;
+SET join_cache_level=0;
+
+select 1
+from t2 join t1 on
+('i','w') not in (select t1.v1,t4.v2 from t4,t1,t3 where t3.v2 = t1.v1) LIMIT ROWS EXAMINED 500;
+SET join_cache_level= @save_join_cache_level;
+
+DROP TABLE t1,t2,t3,t4;
+
 --echo # End of 10.2 tests
 
 --echo #

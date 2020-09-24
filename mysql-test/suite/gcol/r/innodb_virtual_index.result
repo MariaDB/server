@@ -255,6 +255,9 @@ ERROR 22007: Incorrect date value: '20190132' for column `test`.`t1`.`vb` at row
 SELECT * FROM t1;
 a	b	vb
 ROLLBACK;
+SELECT * FROM t1;
+a	b	vb
+1	20190132	0000-00-00
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK

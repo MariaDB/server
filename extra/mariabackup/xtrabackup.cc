@@ -2689,6 +2689,7 @@ static bool xtrabackup_copy_logfile(bool last = false)
 	ut_a(dst_log_file != NULL);
 	ut_ad(recv_sys.is_initialised());
 
+	bool overwritten_block = false;
 	lsn_t	start_lsn;
 	lsn_t	end_lsn;
 
@@ -2714,6 +2715,11 @@ static bool xtrabackup_copy_logfile(bool last = false)
 		}
 
 		if (lsn == start_lsn) {
+			overwritten_block= !recv_sys.found_corrupt_log
+				&& log_block_calc_checksum_crc32(log_sys.buf) ==
+					log_block_get_checksum(log_sys.buf)
+				&& log_block_get_hdr_no(log_sys.buf) >
+					log_block_convert_lsn_to_no(start_lsn);
 			start_lsn = 0;
 		} else {
 			mutex_enter(&recv_sys.mutex);
@@ -2724,9 +2730,13 @@ static bool xtrabackup_copy_logfile(bool last = false)
 		log_mutex_exit();
 
 		if (!start_lsn) {
-			die(recv_sys.found_corrupt_log
-			    ? "xtrabackup_copy_logfile() failed: corrupt log."
-			    : "xtrabackup_copy_logfile() failed.");
+			const char *reason = recv_sys.found_corrupt_log
+				? "corrupt log."
+				: (overwritten_block
+				   ? "redo log block is overwritten, please increase redo log size with innodb_log_file_size parameter."
+				   : "redo log block checksum does not match.");
+
+			die("xtrabackup_copy_logfile() failed: %s", reason);
 			return true;
 		}
 	} while (start_lsn == end_lsn);
@@ -4002,9 +4012,6 @@ fail:
 	ut_d(sync_check_enable());
 	/* Reset the system variables in the recovery module. */
 	trx_pool_init();
-
-	ut_crc32_init();
-	my_checksum_init();
 	recv_sys.create();
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
@@ -5377,7 +5384,6 @@ static bool xtrabackup_prepare_func(char** argv)
 
 		sync_check_init();
 		ut_d(sync_check_enable());
-		ut_crc32_init();
 		recv_sys.create();
 		log_sys.create();
 		recv_sys.recovery_on = true;

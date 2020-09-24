@@ -73,20 +73,8 @@ IF(WITH_INNOBASE_STORAGE_ENGINE)
   # We use the InnoDB code directly in case the code changes.
   ADD_DEFINITIONS("-DUNIV_INNOCHECKSUM")
 
-  # Avoid generating Hardware Capabilities due to crc32 instructions
-  IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_SYSTEM_PROCESSOR MATCHES "i386")
-    MY_CHECK_CXX_COMPILER_FLAG("-Wa,-nH")
-    IF(have_CXX__Wa__nH)
-      ADD_COMPILE_FLAGS(
-        ../storage/innobase/ut/ut0crc32.cc
-        COMPILE_FLAGS "-Wa,-nH"
-      )
-    ENDIF()
-  ENDIF()
-
   SET(INNOBASE_SOURCES
       ../storage/innobase/buf/buf0checksum.cc
-      ../storage/innobase/ut/ut0crc32.cc
       ../storage/innobase/ut/ut0ut.cc
       ../storage/innobase/buf/buf0buf.cc
       ../storage/innobase/page/page0zip.cc

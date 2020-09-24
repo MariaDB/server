@@ -57,6 +57,12 @@ asm(".arch_extension crypto");
 #define CRC32CH(crc, value) __asm__("crc32ch %w[c], %w[c], %w[v]":[c]"+r"(crc):[v]"r"(value))
 #define CRC32CB(crc, value) __asm__("crc32cb %w[c], %w[c], %w[v]":[c]"+r"(crc):[v]"r"(value))
 
+#define CRC32X(crc, value) __asm__("crc32x %w[c], %w[c], %x[v]":[c]"+r"(crc):[v]"r"(value))
+#define CRC32W(crc, value) __asm__("crc32w %w[c], %w[c], %w[v]":[c]"+r"(crc):[v]"r"(value))
+#define CRC32H(crc, value) __asm__("crc32h %w[c], %w[c], %w[v]":[c]"+r"(crc):[v]"r"(value))
+#define CRC32B(crc, value) __asm__("crc32b %w[c], %w[c], %w[v]":[c]"+r"(crc):[v]"r"(value))
+
+
 #define CRC32C3X8(buffer, ITR) \
   __asm__("crc32cx %w[c1], %w[c1], %x[v]":[c1]"+r"(crc1):[v]"r"(*((const uint64_t *)buffer + 42*1 + (ITR))));\
   __asm__("crc32cx %w[c2], %w[c2], %x[v]":[c2]"+r"(crc2):[v]"r"(*((const uint64_t *)buffer + 42*2 + (ITR))));\
@@ -72,6 +78,11 @@ asm(".arch_extension crypto");
 #define CRC32CW(crc, value) (crc) = __crc32cw((crc), (value))
 #define CRC32CH(crc, value) (crc) = __crc32ch((crc), (value))
 #define CRC32CB(crc, value) (crc) = __crc32cb((crc), (value))
+
+#define CRC32X(crc, value) (crc) = __crc32d((crc), (value))
+#define CRC32W(crc, value) (crc) = __crc32w((crc), (value))
+#define CRC32H(crc, value) (crc) = __crc32h((crc), (value))
+#define CRC32B(crc, value) (crc) = __crc32b((crc), (value))
 
 #define CRC32C3X8(buffer, ITR) \
   crc1 = __crc32cd(crc1, *((const uint64_t *)buffer + 42*1 + (ITR)));\
@@ -119,7 +130,7 @@ uint32_t crc32c_aarch64(uint32_t crc, const unsigned char *buffer, uint64_t len)
   uint32_t crc0, crc1, crc2;
   int64_t length= (int64_t)len;
 
-  crc= 0xFFFFFFFFU;
+  crc^= 0xffffffff;
 
   /* Pmull runtime check here.
    * Raspberry Pi 4 supports crc32 but doesn't support pmull (MDEV-23030).
@@ -282,16 +293,16 @@ unsigned int crc32_aarch64(unsigned int crc, const void *buf, size_t len)
   /* if start pointer is not 8 bytes aligned */
   while ((buf1 != (const uint8_t *) buf8) && len)
   {
-    crc= __crc32b(crc, *buf1++);
+    CRC32B(crc, *buf1++);
     len--;
   }
 
   for (; len >= 8; len-= 8)
-    crc= __crc32d(crc, *buf8++);
+    CRC32X(crc, *buf8++);
 
   buf1= (const uint8_t *) buf8;
   while (len--)
-    crc= __crc32b(crc, *buf1++);
+    CRC32B(crc, *buf1++);
 
   return ~crc;
 }

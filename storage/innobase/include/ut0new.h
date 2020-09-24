@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -137,13 +137,16 @@ InnoDB:
 #include "mysql/psi/psi_memory.h" /* PSI_memory_key, PSI_memory_info */
 
 #include "os0thread.h" /* os_thread_sleep() */
-#include "os0proc.h" /* os_total_large_mem_allocated */
 #include "ut0ut.h" /* ut_strcmp_functor, ut_basename_noext() */
 
 #define	OUT_OF_MEMORY_MSG \
 	"Check if you should increase the swap file or ulimits of your" \
 	" operating system. Note that on most 32-bit computers the process" \
 	" memory space is limited to 2 GB or 4 GB."
+
+/** The total amount of memory currently allocated from the operating
+system with allocate_large() */
+extern Atomic_counter<ulint> os_total_large_mem_allocated;
 
 /** Maximum number of retries to allocate memory. */
 extern const size_t	alloc_max_retries;

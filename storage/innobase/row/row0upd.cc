@@ -739,10 +739,6 @@ row_upd_build_difference_binary(
 	for purge/mvcc purpose) */
 	if (n_v_fld > 0) {
 		row_ext_t*	ext;
-		mem_heap_t*	v_heap = NULL;
-		byte*		record;
-		VCOL_STORAGE*	vcol_storage;
-
 		THD*		thd;
 
 		if (trx == NULL) {
@@ -753,9 +749,8 @@ row_upd_build_difference_binary(
 
 		ut_ad(!update->old_vrow);
 
-		innobase_allocate_row_for_vcol(thd, index, &v_heap,
-					       &mysql_table,
-					       &record, &vcol_storage);
+		ib_vcol_row vc(NULL);
+		uchar *record = vc.record(thd, index, &mysql_table);
 
 		for (uint16_t i = 0; i < n_v_fld; i++) {
 			const dict_v_col_t*     col
@@ -773,10 +768,9 @@ row_upd_build_difference_binary(
 
 			dfield_t*	vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
-				&v_heap, heap, NULL, thd, mysql_table, record,
+				&vc.heap, heap, NULL, thd, mysql_table, record,
 				NULL, NULL, NULL);
 			if (vfield == NULL) {
-				if (v_heap) mem_heap_free(v_heap);
 				*error = DB_COMPUTE_VALUE_FAILED;
 				return(NULL);
 			}
@@ -797,12 +791,6 @@ row_upd_build_difference_binary(
 				upd_field_set_v_field_no(uf, i, index);
 			}
 		}
-
-		if (v_heap) {
-			if (vcol_storage)
-				innobase_free_row_for_vcol(vcol_storage);
-			mem_heap_free(v_heap);
-		}
 	}
 
 	update->n_fields = n_diff;
@@ -821,7 +809,9 @@ containing also the reference to the external part
 @param[in,out]	len		input - length of prefix to
 fetch; output: fetched length of the prefix
 @param[in,out]	heap		heap where to allocate
-@return BLOB prefix */
+@return BLOB prefix
+@retval NULL if the record is incomplete (should only happen
+in row_vers_vc_matches_cluster() executed concurrently with another purge) */
 static
 byte*
 row_upd_ext_fetch(
@@ -836,10 +826,7 @@ row_upd_ext_fetch(
 	*len = btr_copy_externally_stored_field_prefix(
 		buf, *len, zip_size, data, local_len);
 
-	/* We should never update records containing a half-deleted BLOB. */
-	ut_a(*len);
-
-	return(buf);
+	return *len ? buf : NULL;
 }
 
 /** Replaces the new column value stored in the update vector in
@@ -850,9 +837,11 @@ the given index entry field.
 @param[in]	uf		update field
 @param[in,out]	heap		memory heap for allocating and copying
 the new value
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0 */
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@return whether the previous version was built successfully */
+MY_ATTRIBUTE((nonnull, warn_unused_result))
 static
-void
+bool
 row_upd_index_replace_new_col_val(
 	dfield_t*		dfield,
 	const dict_field_t*	field,
@@ -867,13 +856,13 @@ row_upd_index_replace_new_col_val(
 	dfield_copy_data(dfield, &uf->new_val);
 
 	if (dfield_is_null(dfield)) {
-		return;
+		return true;
 	}
 
 	len = dfield_get_len(dfield);
 	data = static_cast<const byte*>(dfield_get_data(dfield));
 
-	if (field && field->prefix_len > 0) {
+	if (field->prefix_len > 0) {
 		ibool		fetch_ext = dfield_is_ext(dfield)
 			&& len < (ulint) field->prefix_len
 			+ BTR_EXTERN_FIELD_REF_SIZE;
@@ -885,6 +874,9 @@ row_upd_index_replace_new_col_val(
 
 			data = row_upd_ext_fetch(data, l, zip_size,
 						 &len, heap);
+			if (UNIV_UNLIKELY(!data)) {
+				return false;
+			}
 		}
 
 		len = dtype_get_at_most_n_mbchars(col->prtype,
@@ -898,7 +890,7 @@ row_upd_index_replace_new_col_val(
 			dfield_dup(dfield, heap);
 		}
 
-		return;
+		return true;
 	}
 
 	switch (uf->orig_len) {
@@ -937,6 +929,8 @@ row_upd_index_replace_new_col_val(
 		dfield_set_ext(dfield);
 		break;
 	}
+
+	return true;
 }
 
 /** Apply an update vector to an metadata entry.
@@ -983,8 +977,11 @@ row_upd_index_replace_metadata(
 
 		f -= f > first;
 		const dict_field_t* field = dict_index_get_nth_field(index, f);
-		row_upd_index_replace_new_col_val(dfield, field, field->col,
-						  uf, heap, zip_size);
+		if (!row_upd_index_replace_new_col_val(dfield, field,
+						       field->col,
+						       uf, heap, zip_size)) {
+			ut_error;
+		}
 	}
 
 	ut_ad(found_mblob);
@@ -1035,69 +1032,58 @@ row_upd_index_replace_new_col_vals_index_pos(
 				update, i, false);
 		}
 
-		if (uf) {
-			row_upd_index_replace_new_col_val(
-				dtuple_get_nth_field(entry, i),
-				field, col, uf, heap, zip_size);
+		if (uf && UNIV_UNLIKELY(!row_upd_index_replace_new_col_val(
+						dtuple_get_nth_field(entry, i),
+						field, col, uf, heap,
+						zip_size))) {
+			ut_error;
 		}
 	}
 }
 
-/***********************************************************//**
-Replaces the new column values stored in the update vector to the index entry
-given. */
-void
-row_upd_index_replace_new_col_vals(
-/*===============================*/
-	dtuple_t*	entry,	/*!< in/out: index entry where replaced;
-				the clustered index record must be
-				covered by a lock or a page latch to
-				prevent deletion (rollback or purge) */
-	dict_index_t*	index,	/*!< in: index; NOTE that this may also be a
-				non-clustered index */
-	const upd_t*	update,	/*!< in: an update vector built for the
-				CLUSTERED index so that the field number in
-				an upd_field is the clustered index position */
-	mem_heap_t*	heap)	/*!< in: memory heap for allocating and
-				copying the new values */
+/** Replace the new column values stored in the update vector,
+during trx_undo_prev_version_build().
+@param entry   clustered index tuple where the values are replaced
+               (the clustered index leaf page latch must be held)
+@param index   clustered index
+@param update  update vector for the clustered index
+@param heap    memory heap for allocating and copying values
+@return whether the previous version was built successfully */
+bool
+row_upd_index_replace_new_col_vals(dtuple_t *entry, const dict_index_t &index,
+                                   const upd_t *update, mem_heap_t *heap)
 {
-	ulint			i;
-	const dict_index_t*	clust_index
-		= dict_table_get_first_index(index->table);
-	const ulint zip_size = index->table->space->zip_size();
+  ut_ad(index.is_primary());
+  const ulint zip_size= index.table->space->zip_size();
 
-	ut_ad(!index->table->skip_alter_undo);
+  ut_ad(!index.table->skip_alter_undo);
+  dtuple_set_info_bits(entry, update->info_bits);
 
-	dtuple_set_info_bits(entry, update->info_bits);
+  for (ulint i= 0; i < index.n_fields; i++)
+  {
+   const dict_field_t *field= &index.fields[i];
+   const dict_col_t* col= dict_field_get_col(field);
+   const upd_field_t *uf;
 
-	for (i = 0; i < dict_index_get_n_fields(index); i++) {
-		const dict_field_t*	field;
-		const dict_col_t*	col;
-		const upd_field_t*	uf;
+   if (col->is_virtual())
+   {
+     const dict_v_col_t *vcol= reinterpret_cast<const dict_v_col_t*>(col);
+     uf= upd_get_field_by_field_no(update, vcol->v_pos, true);
+   }
+   else
+     uf= upd_get_field_by_field_no(update, static_cast<uint16_t>
+                                   (dict_col_get_clust_pos(col, &index)),
+                                   false);
 
-		field = dict_index_get_nth_field(index, i);
-		col = dict_field_get_col(field);
-		if (col->is_virtual()) {
-			const dict_v_col_t*	vcol = reinterpret_cast<
-							const dict_v_col_t*>(
-								col);
+   if (!uf)
+     continue;
 
-			uf = upd_get_field_by_field_no(
-				update, vcol->v_pos, true);
-		} else {
-			uf = upd_get_field_by_field_no(
-				update, static_cast<uint16_t>(
-					dict_col_get_clust_pos(
-						col, clust_index)),
-				false);
-		}
+   if (!row_upd_index_replace_new_col_val(dtuple_get_nth_field(entry, i),
+                                          field, col, uf, heap, zip_size))
+     return false;
+  }
 
-		if (uf) {
-			row_upd_index_replace_new_col_val(
-				dtuple_get_nth_field(entry, i),
-				field, col, uf, heap, zip_size);
-		}
-	}
+  return true;
 }
 
 /** Replaces the virtual column values stored in the update vector.
@@ -1794,23 +1780,19 @@ row_upd_eval_new_vals(
 @param[in,out]	node		row update node
 @param[in]	update		an update vector if it is update
 @param[in]	thd		mysql thread handle
-@param[in,out]	mysql_table	mysql table object */
+@param[in,out]	mysql_table	mysql table object
+@return true if success
+	false if virtual column value computation fails. */
 static
-void
+bool
 row_upd_store_v_row(
 	upd_node_t*	node,
 	const upd_t*	update,
 	THD*		thd,
 	TABLE*		mysql_table)
 {
-	mem_heap_t*	heap = NULL;
 	dict_index_t*	index = dict_table_get_first_index(node->table);
-        byte*           record= 0;
-	VCOL_STORAGE	*vcol_storage= 0;
-
-	if (!update)
-	  innobase_allocate_row_for_vcol(thd, index, &heap, &mysql_table,
-					 &record, &vcol_storage);
+	ib_vcol_row	vc(NULL);
 
 	for (ulint col_no = 0; col_no < dict_table_get_n_v_cols(node->table);
 	     col_no++) {
@@ -1860,33 +1842,37 @@ row_upd_store_v_row(
 						dfield_dup(dfield, node->heap);
 					}
 				} else {
+					uchar *record = vc.record(thd, index,
+								  &mysql_table);
 					/* Need to compute, this happens when
 					deleting row */
-					innobase_get_computed_value(
-						node->row, col, index,
-						&heap, node->heap, NULL,
-						thd, mysql_table, record, NULL,
-						NULL, NULL);
+					dfield_t* vfield =
+						innobase_get_computed_value(
+							node->row, col, index,
+							&vc.heap, node->heap,
+							NULL, thd, mysql_table,
+							record, NULL, NULL,
+							NULL);
+					if (vfield == NULL) {
+						return false;
+					}
 				}
 			}
 		}
 	}
 
-	if (heap) {
-		if (vcol_storage)
-			innobase_free_row_for_vcol(vcol_storage);
-		mem_heap_free(heap);
-	}
-
+	return true;
 }
 
 /** Stores to the heap the row on which the node->pcur is positioned.
 @param[in]	node		row update node
 @param[in]	thd		mysql thread handle
 @param[in,out]	mysql_table	NULL, or mysql table object when
-				user thread invokes dml */
+				user thread invokes dml
+@return false if virtual column value computation fails
+	true otherwise. */
 static
-void
+bool
 row_upd_store_row(
 	upd_node_t*	node,
 	THD*		thd,
@@ -1930,8 +1916,12 @@ row_upd_store_row(
 			      NULL, NULL, NULL, ext, node->heap);
 
 	if (node->table->n_v_cols) {
-		row_upd_store_v_row(node, node->is_delete ? NULL : node->update,
+		bool ok = row_upd_store_v_row(node,
+				    node->is_delete ? NULL : node->update,
 				    thd, mysql_table);
+		if (!ok) {
+			return false;
+		}
 	}
 
 	if (node->is_delete == PLAIN_DELETE) {
@@ -1946,6 +1936,7 @@ row_upd_store_row(
 	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
+	return true;
 }
 
 /***********************************************************//**
@@ -2114,7 +2105,7 @@ row_upd_sec_index_entry(
 #ifdef UNIV_DEBUG
 		mtr_commit(&mtr);
 		mtr_start(&mtr);
-		ut_ad(btr_validate_index(index, 0));
+		ut_ad(btr_validate_index(index, 0) == DB_SUCCESS);
 		ut_ad(0);
 #endif /* UNIV_DEBUG */
 		break;
@@ -2677,9 +2668,12 @@ row_upd_del_mark_clust_rec(
 	/* Store row because we have to build also the secondary index
 	entries */
 
-	row_upd_store_row(node, trx->mysql_thd,
+	if (!row_upd_store_row(node, trx->mysql_thd,
 			  thr->prebuilt  && thr->prebuilt->table == node->table
-			  ? thr->prebuilt->m_mysql_table : NULL);
+			  ? thr->prebuilt->m_mysql_table : NULL)) {
+		err = DB_COMPUTE_VALUE_FAILED;
+		return err;
+	}
 
 	/* Mark the clustered index record deleted; we do not have to check
 	locks, because we assume that we have an x-lock on the record */
@@ -2896,8 +2890,11 @@ row_upd_clust_step(
 		goto exit_func;
 	}
 
-	row_upd_store_row(node, trx->mysql_thd,
-			  thr->prebuilt ? thr->prebuilt->m_mysql_table : NULL);
+	if(!row_upd_store_row(node, trx->mysql_thd,
+			thr->prebuilt ? thr->prebuilt->m_mysql_table : NULL)) {
+		err = DB_COMPUTE_VALUE_FAILED;
+		goto exit_func;
+	}
 
 	if (row_upd_changes_ord_field_binary(index, node->update, thr,
 					     node->row, node->ext)) {

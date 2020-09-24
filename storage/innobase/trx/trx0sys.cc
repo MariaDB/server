@@ -158,7 +158,7 @@ trx_sysf_create(
 	compile_time_assert(TRX_SYS_SPACE == 0);
 
 	/* Create the trx sys file block in a new allocated file segment */
-	block = fseg_create(fil_system.sys_space, 0,
+	block = fseg_create(fil_system.sys_space,
 			    TRX_SYS + TRX_SYS_FSEG_HEADER,
 			    mtr);
 	buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);

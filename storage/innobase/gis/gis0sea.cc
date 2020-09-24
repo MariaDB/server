@@ -298,8 +298,9 @@ rtr_pcur_getnext_from_path(
 			    && mode != PAGE_CUR_RTREE_LOCATE) {
 				ut_ad(rtr_info->thr);
 				lock_place_prdt_page_lock(
-					index->table->space_id,
-					next_page_no, index,
+					page_id_t(block->page.id().space(),
+						  next_page_no),
+					index,
 					rtr_info->thr);
 			}
 			new_split = true;
@@ -1528,7 +1529,6 @@ rtr_copy_buf(
 	ut_d(matches->block.in_withdraw_list = block->in_withdraw_list);
 
 	/* Skip buf_block_t::lock */
-	matches->block.lock_hash_val = block->lock_hash_val;
 	matches->block.modify_clock = block->modify_clock;
 #ifdef BTR_CUR_HASH_ADAPT
 	matches->block.n_hash_helps = block->n_hash_helps;
@@ -1690,7 +1690,6 @@ rtr_cur_search_with_match(
 	const rec_t*	best_rec;
 	const rec_t*	last_match_rec = NULL;
 	bool		match_init = false;
-	ulint		space = block->page.id().space();
 	page_cur_mode_t	orig_mode = mode;
 	const rec_t*	first_rec = NULL;
 
@@ -1871,7 +1870,11 @@ rtr_cur_search_with_match(
 						/* Lock the page, preventing it
 						from being shrunk */
 						lock_place_prdt_page_lock(
-							space, page_no, index,
+							page_id_t(block->page
+								  .id()
+								  .space(),
+								  page_no),
+							index,
 							rtr_info->thr);
 					}
 				} else {

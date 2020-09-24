@@ -45,6 +45,8 @@ typedef struct s3_info
 {
   /* Connection strings */
   LEX_CSTRING access_key, secret_key, region, bucket, host_name;
+  int port; // 0 means 'Use default'
+  my_bool use_http;
 
   /* Will be set by caller or by ma_open() */
   LEX_CSTRING database, table;

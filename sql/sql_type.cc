@@ -8820,7 +8820,10 @@ Type_handler_date_common::create_literal_item(THD *thd,
   if (tmp.is_valid_temporal() &&
       tmp.get_mysql_time()->time_type == MYSQL_TIMESTAMP_DATE &&
       !have_important_literal_warnings(&st))
-    item= new (thd->mem_root) Item_date_literal(thd, tmp.get_mysql_time());
+  {
+    Date d(&tmp);
+    item= new (thd->mem_root) Item_date_literal(thd, &d);
+  }
   literal_warn(thd, item, str, length, cs, &st, "DATE", send_error);
   return item;
 }
@@ -8839,8 +8842,10 @@ Type_handler_temporal_with_date::create_literal_item(THD *thd,
   if (tmp.is_valid_temporal() &&
       tmp.get_mysql_time()->time_type == MYSQL_TIMESTAMP_DATETIME &&
       !have_important_literal_warnings(&st))
-    item= new (thd->mem_root) Item_datetime_literal(thd, tmp.get_mysql_time(),
-                                                    st.precision);
+  {
+    Datetime dt(&tmp);
+    item= new (thd->mem_root) Item_datetime_literal(thd, &dt, st.precision);
+  }
   literal_warn(thd, item, str, length, cs, &st, "DATETIME", send_error);
   return item;
 }
@@ -8859,8 +8864,7 @@ Type_handler_time_common::create_literal_item(THD *thd,
   Time tmp(thd, &st, str, length, cs, opt);
   if (tmp.is_valid_time() &&
       !have_important_literal_warnings(&st))
-    item= new (thd->mem_root) Item_time_literal(thd, tmp.get_mysql_time(),
-                                                st.precision);
+    item= new (thd->mem_root) Item_time_literal(thd, &tmp, st.precision);
   literal_warn(thd, item, str, length, cs, &st, "TIME", send_error);
   return item;
 }

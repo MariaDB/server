@@ -251,6 +251,11 @@ static int open_table(THD* thd,
                         NULL, lock_type);
 
   if (!open_n_lock_single_table(thd, &tables, tables.lock_type, flags)) {
+    if (thd->is_error()) {
+      WSREP_WARN("Can't lock table %s.%s : %d (%s)",
+                 schema_name->str, table_name->str,
+                 thd->get_stmt_da()->sql_errno(), thd->get_stmt_da()->message());
+    }
     close_thread_tables(thd);
     my_error(ER_NO_SUCH_TABLE, MYF(0), schema_name->str, table_name->str);
     DBUG_RETURN(1);
@@ -953,7 +958,7 @@ int Wsrep_schema::update_fragment_meta(THD* thd,
 
   Wsrep_schema_impl::binlog_off binlog_off(thd);
   int error;
-  uchar key[MAX_KEY_LENGTH];
+  uchar key[MAX_KEY_LENGTH+MAX_FIELD_WIDTH];
   key_part_map key_map= 0;
   TABLE* frag_table= 0;
 
@@ -1015,7 +1020,7 @@ static int remove_fragment(THD*                  thd,
               seqno.get());
   int ret= 0;
   int error;
-  uchar key[MAX_KEY_LENGTH];
+  uchar key[MAX_KEY_LENGTH+MAX_FIELD_WIDTH];
   key_part_map key_map= 0;
 
   DBUG_ASSERT(server_id.is_undefined() == false);
@@ -1141,7 +1146,7 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
   int ret= 1;
   int error;
   TABLE* frag_table= 0;
-  uchar key[MAX_KEY_LENGTH];
+  uchar key[MAX_KEY_LENGTH+MAX_FIELD_WIDTH];
   key_part_map key_map= 0;
 
   for (std::vector<wsrep::seqno>::const_iterator i= fragments.begin();

@@ -26,6 +26,10 @@ Created May 26, 2014 Vasil Dimov
 
 #include "univ.i"
 #include <algorithm>
+/** The total amount of memory currently allocated from the operating
+system with allocate_large(). */
+Atomic_counter<ulint> os_total_large_mem_allocated;
+
 /** Maximum number of retries to allocate memory. */
 const size_t	alloc_max_retries = 60;
 

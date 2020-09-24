@@ -152,3 +152,7 @@ ulong wsrep_OSU_method_get(const THD*)
 { return 0;}
 bool wsrep_thd_set_wsrep_aborter(THD*, THD*)
 { return 0;}
+
+void wsrep_report_bf_lock_wait(const THD*,
+                               unsigned long long)
+{}

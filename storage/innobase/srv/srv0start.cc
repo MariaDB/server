@@ -76,7 +76,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "btr0defragment.h"
 #include "mysql/service_wsrep.h" /* wsrep_recovery */
 #include "trx0rseg.h"
-#include "os0proc.h"
 #include "buf0flu.h"
 #include "buf0rea.h"
 #include "dict0boot.h"
@@ -1224,7 +1223,7 @@ dberr_t srv_start(bool create_new_db)
 
 	srv_boot();
 
-	ib::info() << ut_crc32_implementation;
+	ib::info() << my_crc32c_implementation();
 
 	if (!srv_read_only_mode) {
 
@@ -1241,7 +1240,8 @@ dberr_t srv_start(bool create_new_db)
 			sprintf(srv_monitor_file_name,
 				"%s/innodb_status." ULINTPF,
 				fil_path_to_mysql_datadir,
-				os_proc_get_number());
+				static_cast<ulint>
+				(IF_WIN(GetCurrentProcessId(), getpid())));
 
 			srv_monitor_file = my_fopen(srv_monitor_file_name,
 						    O_RDWR|O_TRUNC|O_CREAT,

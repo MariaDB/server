@@ -975,8 +975,12 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         my_b_printf(body_cache, "'%s\n", print_event_info->delimiter);
 
       // flush cache
-      if ((copy_event_cache_to_file_and_reinit(&print_event_info->head_cache, result_file) ||
-          copy_event_cache_to_file_and_reinit(&print_event_info->body_cache, result_file)))
+      if ((copy_event_cache_to_file_and_reinit(&print_event_info->head_cache,
+                                               result_file) ||
+           copy_event_cache_to_file_and_reinit(&print_event_info->body_cache,
+                                               result_file) ||
+           copy_event_cache_to_file_and_reinit(&print_event_info->tail_cache,
+                                               result_file)))
         return 1;
     }
   }

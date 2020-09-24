@@ -168,7 +168,6 @@ PRIMARY KEY  (store_id),
 UNIQUE KEY idx_unique_manager (manager_staff_id),
 CONSTRAINT fk_store_staff FOREIGN KEY (manager_staff_id) REFERENCES staff (staff_id) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB;
-SET FOREIGN_KEY_CHECKS=DEFAULT;
 LOCK TABLE staff WRITE;
 UNLOCK TABLES;
 DROP TABLES staff, store;
@@ -737,6 +736,17 @@ t2	CREATE TABLE `t2` (
 CREATE TABLE t2 (f1 INT NOT NULL)ENGINE=InnoDB;
 ERROR 42S01: Table 't2' already exists
 DROP TABLE t2, t1;
+#
+# MDEV-23685 SIGSEGV on ADD FOREIGN KEY after failed attempt
+# to create unique key on virtual column
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT AS (a)) ENGINE=InnODB;
+INSERT INTO t1 (pk,a) VALUES (1,10),(2,10);
+ALTER TABLE t1 ADD UNIQUE INDEX ind9 (b), LOCK=SHARED;
+ERROR 23000: Duplicate entry '10' for key 'ind9'
+SET FOREIGN_KEY_CHECKS= 0;
+ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (pk);
+DROP TABLE t1;
 # End of 10.2 tests
 CREATE TABLE t1 (a GEOMETRY, INDEX(a(8)),
 FOREIGN KEY (a) REFERENCES x (xx)) ENGINE=InnoDB;

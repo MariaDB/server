@@ -1786,7 +1786,6 @@ copy_back()
 
 	srv_max_n_threads = 1000;
 	sync_check_init();
-	ut_crc32_init();
 
 	/* copy undo tablespaces */
 

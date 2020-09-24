@@ -32,6 +32,7 @@
 #cmakedefine USE_FAST_MATH
 #cmakedefine TFM_TIMING_RESISTANT
 #cmakedefine HAVE_INTEL_RDSEED
+#cmakedefine HAVE_INTEL_RDRAND
 #cmakedefine USE_INTEL_SPEEDUP
 #cmakedefine USE_FAST_MATH
 #cmakedefine WOLFSSL_X86_64_BUILD

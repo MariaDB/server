@@ -652,8 +652,7 @@ rtr_adjust_upper_level(
 	new_prdt.op = 0;
 
 	lock_prdt_update_parent(block, new_block, &prdt, &new_prdt,
-				index->table->space_id,
-				page_cursor->block->page.id().page_no());
+				page_cursor->block->page.id());
 
 	mem_heap_free(heap);
 
@@ -881,8 +880,6 @@ rtr_page_split_and_insert(
 	buf_block_t*		block;
 	page_t*			page;
 	page_t*			new_page;
-	ulint			page_no;
-	ulint			hint_page_no;
 	buf_block_t*		new_block;
 	page_zip_des_t*		page_zip;
 	page_zip_des_t*		new_page_zip;
@@ -931,7 +928,7 @@ func_start:
 	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(page_get_n_recs(page) >= 1);
 
-	page_no = block->page.id().page_no();
+	const page_id_t page_id(block->page.id());
 
 	if (!page_has_prev(page) && !page_is_leaf(page)) {
 		first_rec = page_rec_get_next(
@@ -969,10 +966,9 @@ func_start:
 					   static_cast<uchar*>(first_rec));
 
 	/* Allocate a new page to the index */
-	hint_page_no = page_no + 1;
 	const uint16_t page_level = btr_page_get_level(page);
-	new_block = btr_page_alloc(cursor->index, hint_page_no, FSP_UP,
-				   page_level, mtr, mtr);
+	new_block = btr_page_alloc(cursor->index, page_id.page_no() + 1,
+				   FSP_UP, page_level, mtr, mtr);
 	if (!new_block) {
 		return NULL;
 	}
@@ -1155,8 +1151,7 @@ after_insert:
 
 	/* Check any predicate locks need to be moved/copied to the
 	new page */
-	lock_prdt_update_split(new_block, &prdt, &new_prdt,
-			       cursor->index->table->space_id, page_no);
+	lock_prdt_update_split(new_block, &prdt, &new_prdt, page_id);
 
 	/* Adjust the upper level. */
 	rtr_adjust_upper_level(cursor, flags, block, new_block,

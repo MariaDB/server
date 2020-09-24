@@ -699,10 +699,10 @@ fill_innodb_locks_from_cache(
 			OK(field_store_string(fields[IDX_LOCK_INDEX],
 					      row->lock_index));
 			OK(fields[IDX_LOCK_SPACE]->store(
-				   row->lock_space, true));
+				   row->lock_page.space(), true));
 			fields[IDX_LOCK_SPACE]->set_notnull();
 			OK(fields[IDX_LOCK_PAGE]->store(
-				   row->lock_page, true));
+				   row->lock_page.page_no(), true));
 			fields[IDX_LOCK_PAGE]->set_notnull();
 			OK(fields[IDX_LOCK_REC]->store(
 				   row->lock_rec, true));
@@ -7048,8 +7048,7 @@ i_s_tablespaces_encryption_fill_table(
 	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
 	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
 		if (space->purpose == FIL_TYPE_TABLESPACE
-		    && !space->is_stopping()) {
-			space->acquire();
+		    && space->acquire()) {
 			mutex_exit(&fil_system.mutex);
 			if (int err = i_s_dict_fill_tablespaces_encryption(
 				    thd, space, tables->table)) {

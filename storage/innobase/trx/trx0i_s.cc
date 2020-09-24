@@ -394,13 +394,11 @@ i_s_locks_row_validate(
 	if (!row->lock_index) {
 		/* table lock */
 		ut_ad(!row->lock_data);
-		ut_ad(!row->lock_space);
-		ut_ad(!row->lock_page);
+		ut_ad(row->lock_page == page_id_t(0, 0));
 		ut_ad(!row->lock_rec);
 	} else {
 		/* record lock */
 		/* row->lock_data == NULL if buf_page_try_get() == NULL */
-		ut_ad(row->lock_page);
 	}
 
 	return(TRUE);
@@ -631,9 +629,7 @@ fill_lock_data(
 
 	mtr_start(&mtr);
 
-	block = buf_page_try_get(page_id_t(lock->un_member.rec_lock.space,
-					   lock->un_member.rec_lock.page_no),
-				 &mtr);
+	block = buf_page_try_get(lock->un_member.rec_lock.page_id, &mtr);
 
 	if (block == NULL) {
 
@@ -754,8 +750,7 @@ static bool fill_locks_row(
 			return false;
 		}
 
-		row->lock_space = lock->un_member.rec_lock.space;
-		row->lock_page = lock->un_member.rec_lock.page_no;
+		row->lock_page = lock->un_member.rec_lock.page_id;
 		row->lock_rec = heap_no;
 
 		if (!fill_lock_data(&row->lock_data, lock, heap_no, cache)) {
@@ -766,8 +761,7 @@ static bool fill_locks_row(
 	} else {
 		row->lock_index = NULL;
 
-		row->lock_space = 0;
-		row->lock_page = 0;
+		row->lock_page = page_id_t(0, 0);
 		row->lock_rec = 0;
 
 		row->lock_data = NULL;
@@ -831,13 +825,9 @@ fold_lock(
 	switch (lock_get_type(lock)) {
 	case LOCK_REC:
 		ut_a(heap_no != 0xFFFF);
-
 		ret = ut_fold_ulint_pair((ulint) lock->trx->id,
-					 lock->un_member.rec_lock.space);
-
-		ret = ut_fold_ulint_pair(ret,
-					 lock->un_member.rec_lock.page_no);
-
+					 lock->un_member.rec_lock.page_id.
+					 fold());
 		ret = ut_fold_ulint_pair(ret, heap_no);
 
 		break;
@@ -880,8 +870,7 @@ locks_row_eq_lock(
 		ut_a(heap_no != 0xFFFF);
 
 		return(row->lock_trx_id == lock->trx->id
-		       && row->lock_space == lock->un_member.rec_lock.space
-		       && row->lock_page == lock->un_member.rec_lock.page_no
+		       && row->lock_page == lock->un_member.rec_lock.page_id
 		       && row->lock_rec == heap_no);
 
 	case LOCK_TABLE:
@@ -1477,8 +1466,8 @@ trx_i_s_create_lock_id(
 		res_len = snprintf(lock_id, lock_id_size,
 				   TRX_ID_FMT
 				   ":%u:%u:%u",
-				   row->lock_trx_id, row->lock_space,
-				   row->lock_page, row->lock_rec);
+				   row->lock_trx_id, row->lock_page.space(),
+				   row->lock_page.page_no(), row->lock_rec);
 	} else {
 		/* table lock */
 		res_len = snprintf(lock_id, lock_id_size,

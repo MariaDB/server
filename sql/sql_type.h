@@ -1201,6 +1201,13 @@ public:
   }
   // End of constuctors
 
+  bool copy_valid_value_to_mysql_time(MYSQL_TIME *ltime) const
+  {
+    DBUG_ASSERT(is_valid_temporal());
+    *ltime= *this;
+    return false;
+  }
+
   longlong to_longlong() const
   {
     if (!is_valid_temporal())
@@ -1867,6 +1874,11 @@ public:
   {
     return is_valid_time() ? Temporal::to_packed() : 0;
   }
+  longlong valid_time_to_packed() const
+  {
+    DBUG_ASSERT(is_valid_time_slow());
+    return Temporal::to_packed();
+  }
   long fraction_remainder(uint dec) const
   {
     DBUG_ASSERT(is_valid_time());
@@ -2041,6 +2053,11 @@ public:
   {
     return ::check_date_with_warn(thd, this, flags, MYSQL_TIMESTAMP_ERROR);
   }
+  bool check_date_with_warn(THD *thd)
+  {
+    return ::check_date_with_warn(thd, this, Temporal::sql_mode_for_dates(thd),
+                                  MYSQL_TIMESTAMP_ERROR);
+  }
   static date_conv_mode_t comparison_flags_for_get_date()
   { return TIME_INVALID_DATES | TIME_FUZZY_DATES; }
 };
@@ -2109,10 +2126,36 @@ public:
     datetime_to_date(this);
     DBUG_ASSERT(is_valid_date_slow());
   }
+  explicit Date(const Temporal_hybrid *from)
+  {
+    from->copy_valid_value_to_mysql_time(this);
+    DBUG_ASSERT(is_valid_date_slow());
+  }
   bool is_valid_date() const
   {
     DBUG_ASSERT(is_valid_value_slow());
     return time_type == MYSQL_TIMESTAMP_DATE;
+  }
+  bool check_date(date_conv_mode_t flags, int *warnings) const
+  {
+    DBUG_ASSERT(is_valid_date_slow());
+    return ::check_date(this, (year || month || day),
+                        ulonglong(flags & TIME_MODE_FOR_XXX_TO_DATE),
+                        warnings);
+  }
+  bool check_date(THD *thd, int *warnings) const
+  {
+    return check_date(Temporal::sql_mode_for_dates(thd), warnings);
+  }
+  bool check_date(date_conv_mode_t flags) const
+  {
+    int dummy; /* unused */
+    return check_date(flags, &dummy);
+  }
+  bool check_date(THD *thd) const
+  {
+    int dummy;
+    return check_date(Temporal::sql_mode_for_dates(thd), &dummy);
   }
   const MYSQL_TIME *get_mysql_time() const
   {
@@ -2156,6 +2199,11 @@ public:
     return Temporal_with_date::yearweek(week_behaviour);
   }
 
+  longlong valid_date_to_packed() const
+  {
+    DBUG_ASSERT(is_valid_date_slow());
+    return Temporal::to_packed();
+  }
   longlong to_longlong() const
   {
     return is_valid_date() ? (longlong) TIME_to_ulonglong_date(this) : 0LL;
@@ -2342,6 +2390,16 @@ public:
   {
     round(thd, dec, time_round_mode_t(fuzzydate), warn);
   }
+  explicit Datetime(const Temporal_hybrid *from)
+  {
+    from->copy_valid_value_to_mysql_time(this);
+    DBUG_ASSERT(is_valid_datetime_slow());
+  }
+  explicit Datetime(const MYSQL_TIME *from)
+  {
+    *(static_cast<MYSQL_TIME*>(this))= *from;
+    DBUG_ASSERT(is_valid_datetime_slow());
+  }
 
   bool is_valid_datetime() const
   {
@@ -2363,6 +2421,10 @@ public:
   {
     int dummy; /* unused */
     return check_date(flags, &dummy);
+  }
+  bool check_date(THD *thd) const
+  {
+    return check_date(Temporal::sql_mode_for_dates(thd));
   }
   bool hhmmssff_is_zero() const
   {
@@ -2471,6 +2533,11 @@ public:
   longlong to_packed() const
   {
     return is_valid_datetime() ? Temporal::to_packed() : 0;
+  }
+  longlong valid_datetime_to_packed() const
+  {
+    DBUG_ASSERT(is_valid_datetime_slow());
+    return Temporal::to_packed();
   }
   long fraction_remainder(uint dec) const
   {

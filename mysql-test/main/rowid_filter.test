@@ -377,6 +377,7 @@ select
   'filler-data-filler-data'
 from
   t11 A, t10 B;
+analyze table t1 persistent for all;
 
 --echo # This must not use rowid_filter with key=el_index|el_index_60:
 explain

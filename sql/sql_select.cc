@@ -729,8 +729,9 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
   if (type != SYSTEM_TIME_UNSPECIFIED && type != SYSTEM_TIME_ALL)
   {
     DBUG_ASSERT(type == SYSTEM_TIME_AS_OF);
+    Datetime dt(&in.ltime);
     start.item= new (thd->mem_root)
-        Item_datetime_literal(thd, &in.ltime, TIME_SECOND_PART_DIGITS);
+        Item_datetime_literal(thd, &dt, TIME_SECOND_PART_DIGITS);
     if (!start.item)
       return true;
   }
@@ -794,15 +795,17 @@ Item* period_get_condition(THD *thd, TABLE_LIST *table, SELECT_LEX *select,
     {
     case SYSTEM_TIME_UNSPECIFIED:
     case SYSTEM_TIME_HISTORY:
+    {
       thd->variables.time_zone->gmt_sec_to_TIME(&max_time, TIMESTAMP_MAX_VALUE);
       max_time.second_part= TIME_MAX_SECOND_PART;
-      curr= newx Item_datetime_literal(thd, &max_time, TIME_SECOND_PART_DIGITS);
+      Datetime dt(&max_time);
+      curr= newx Item_datetime_literal(thd, &dt, TIME_SECOND_PART_DIGITS);
       if (conds->type == SYSTEM_TIME_UNSPECIFIED)
         cond1= newx Item_func_eq(thd, conds->field_end, curr);
       else
         cond1= newx Item_func_lt(thd, conds->field_end, curr);
       break;
-      break;
+    }
     case SYSTEM_TIME_AS_OF:
       cond1= newx Item_func_le(thd, conds->field_start, conds->start.item);
       cond2= newx Item_func_gt(thd, conds->field_end, conds->start.item);
@@ -1134,6 +1137,8 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   proc_param= proc_param_init;
   tables_list= tables_init;
   select_lex= select_lex_arg;
+  DBUG_PRINT("info", ("select %p (%u) = JOIN %p",
+                      select_lex, select_lex->select_number, this));
   select_lex->join= this;
   join_list= &select_lex->top_join_list;
   union_part= unit_arg->is_unit_op();
@@ -4478,6 +4483,9 @@ int
 JOIN::destroy()
 {
   DBUG_ENTER("JOIN::destroy");
+
+  DBUG_PRINT("info", ("select %p (%u) <> JOIN %p",
+                      select_lex, select_lex->select_number, this));
   select_lex->join= 0;
 
   cond_equal= 0;
@@ -23705,6 +23713,9 @@ check_reverse_order:
     }
     else if (select && select->quick)
       select->quick->need_sorted_output();
+
+    tab->read_record.unlock_row= (tab->type == JT_EQ_REF) ?
+                                 join_read_key_unlock_row : rr_unlock_row;
 
   } // QEP has been modified
 

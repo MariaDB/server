@@ -136,9 +136,11 @@ static inline size_t wsrep_fragments_certified_for_stmt(THD* thd)
 
 static inline int wsrep_start_transaction(THD* thd, wsrep_trx_id_t trx_id)
 {
-  return (thd->wsrep_cs().state() != wsrep::client_state::s_none  ?
-          thd->wsrep_cs().start_transaction(wsrep::transaction_id(trx_id)) :
-          0);
+  if (thd->wsrep_cs().state() != wsrep::client_state::s_none) {
+    if (wsrep_is_active(thd) == false)
+      return thd->wsrep_cs().start_transaction(wsrep::transaction_id(trx_id));
+  }
+  return 0;
 }
 
 /**/

@@ -1,11 +1,5 @@
 --source include/galera_cluster.inc
---source include/have_innodb.inc
-#
-# 1. Create different inconsistencies on nodes 2 and 3
-#
---connection node_2
-SET wsrep_on=OFF;
-DROP SCHEMA test;
+--source include/force_restart.inc
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
@@ -16,15 +10,23 @@ DROP SCHEMA test;
 --let $node_3=node_3
 --source ../galera/include/auto_increment_offset_save.inc
 
+#
+# 1. Create different inconsistencies on nodes 2 and 3
+#
+--connection node_2
 SET wsrep_on=OFF;
-CREATE TABLE test.t1 (f1 INTEGER);
+DROP SCHEMA test;
+
+--connection node_3
+SET SESSION wsrep_on=OFF;
+CREATE TABLE test.t1 (f1 INTEGER) engine=innodb;
 #
 # 2. The following should generate different errors on nodes 2 and 3 and 
 #    trigger voting with 3 different votes. node_1 should remain alone
 #    in the cluster.
 #
 --connection node_1
-CREATE TABLE test.t1 (f1 INTEGER);
+CREATE TABLE test.t1 (f1 INTEGER) engine=innodb;
 
 --let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc

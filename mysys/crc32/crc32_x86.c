@@ -1,545 +1,358 @@
-/******************************************************
-Copyright (c) 2017 Percona LLC and/or its affiliates.
+/* Copyright (c) 2020 MariaDB
 
-CRC32 using Intel's PCLMUL instruction.
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
 
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; version 2 of the License.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+/*
+  Implementation of CRC32 (Ethernet) uing Intel PCLMULQDQ
+  Ported from Intels work, see https://github.com/intel/soft-crc
+*/
 
-*******************************************************/
+/*******************************************************************************
+ Copyright (c) 2009-2018, Intel Corporation
 
-/* crc-intel-pclmul.c - Intel PCLMUL accelerated CRC implementation
- * Copyright (C) 2016 Jussi Kivilinna <jussi.kivilinna@iki.fi>
- *
- * This file is part of Libgcrypt.
- *
- * Libgcrypt is free software; you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as
- * published by the Free Software Foundation; either version 2.1 of
- * the License, or (at your option) any later version.
- *
- * Libgcrypt is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
- *
- */
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
+
+     * Redistributions of source code must retain the above copyright notice,
+       this list of conditions and the following disclaimer.
+     * Redistributions in binary form must reproduce the above copyright
+       notice, this list of conditions and the following disclaimer in the
+       documentation and/or other materials provided with the distribution.
+     * Neither the name of Intel Corporation nor the names of its contributors
+       may be used to endorse or promote products derived from this software
+       without specific prior written permission.
+
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE
+ FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*******************************************************************************/
+
 
 #include <my_global.h>
+#include <my_compiler.h>
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <stddef.h>
 
-#  define U64_C(c) (c ## UL)
-
-typedef uint32_t u32;
-typedef uint16_t u16;
-typedef uint64_t u64;
-#ifndef byte
-typedef uint8_t byte;
+#if defined(__GNUC__)
+#include <x86intrin.h>
+#include <cpuid.h>
+#elif defined(_MSC_VER)
+#include <intrin.h>
+#else
+#error "unknown compiler"
 #endif
 
-# define _gcry_bswap32 __builtin_bswap32
-
-#if __GNUC__ >= 4 && defined(__x86_64__)
-
-#if defined(_GCRY_GCC_VERSION) && _GCRY_GCC_VERSION >= 40400 /* 4.4 */
-/* Prevent compiler from issuing SSE instructions between asm blocks. */
-#  pragma GCC target("no-sse")
-#endif
-
-
-#define ALIGNED_16 __attribute__ ((aligned (16)))
-
-
-struct u16_unaligned_s
+static int has_sse42_and_pclmul(uint32_t recx)
 {
-  u16 a;
-} __attribute__((packed, aligned (1), may_alias));
-
-
-/* Constants structure for generic reflected/non-reflected CRC32 CLMUL
- * functions. */
-struct crc32_consts_s
-{
-  /* k: { x^(32*17), x^(32*15), x^(32*5), x^(32*3), x^(32*2), 0 } mod P(x) */
-  u64 k[6];
-  /* my_p: { floor(x^64 / P(x)), P(x) } */
-  u64 my_p[2];
-};
-
-
-/* CLMUL constants for CRC32 and CRC32RFC1510. */
-static const struct crc32_consts_s crc32_consts ALIGNED_16 =
-{
-  { /* k[6] = reverse_33bits( x^(32*y) mod P(x) ) */
-    U64_C(0x154442bd4), U64_C(0x1c6e41596), /* y = { 17, 15 } */
-    U64_C(0x1751997d0), U64_C(0x0ccaa009e), /* y = { 5, 3 } */
-    U64_C(0x163cd6124), 0                   /* y = 2 */
-  },
-  { /* my_p[2] = reverse_33bits ( { floor(x^64 / P(x)), P(x) } ) */
-    U64_C(0x1f7011641), U64_C(0x1db710641)
-  }
-};
-
-/* Common constants for CRC32 algorithms. */
-static const byte crc32_refl_shuf_shift[3 * 16] ALIGNED_16 =
-  {
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-  };
-static const byte crc32_partial_fold_input_mask[16 + 16] ALIGNED_16 =
-  {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-  };
-static const u64 crc32_merge9to15_shuf[15 - 9 + 1][2] ALIGNED_16 =
-  {
-    { U64_C(0x0706050403020100), U64_C(0xffffffffffffff0f) }, /* 9 */
-    { U64_C(0x0706050403020100), U64_C(0xffffffffffff0f0e) },
-    { U64_C(0x0706050403020100), U64_C(0xffffffffff0f0e0d) },
-    { U64_C(0x0706050403020100), U64_C(0xffffffff0f0e0d0c) },
-    { U64_C(0x0706050403020100), U64_C(0xffffff0f0e0d0c0b) },
-    { U64_C(0x0706050403020100), U64_C(0xffff0f0e0d0c0b0a) },
-    { U64_C(0x0706050403020100), U64_C(0xff0f0e0d0c0b0a09) }, /* 15 */
-  };
-static const u64 crc32_merge5to7_shuf[7 - 5 + 1][2] ALIGNED_16 =
-  {
-    { U64_C(0xffffff0703020100), U64_C(0xffffffffffffffff) }, /* 5 */
-    { U64_C(0xffff070603020100), U64_C(0xffffffffffffffff) },
-    { U64_C(0xff07060503020100), U64_C(0xffffffffffffffff) }, /* 7 */
-  };
-
-/* PCLMUL functions for reflected CRC32. */
-static inline void
-crc32_reflected_bulk (u32 *pcrc, const byte *inbuf, size_t inlen,
-		      const struct crc32_consts_s *consts)
-{
-  if (inlen >= 8 * 16)
-    {
-      asm volatile ("movd %[crc], %%xmm4\n\t"
-		    "movdqu %[inbuf_0], %%xmm0\n\t"
-		    "movdqu %[inbuf_1], %%xmm1\n\t"
-		    "movdqu %[inbuf_2], %%xmm2\n\t"
-		    "movdqu %[inbuf_3], %%xmm3\n\t"
-		    "pxor %%xmm4, %%xmm0\n\t"
-		    :
-		    : [inbuf_0] "m" (inbuf[0 * 16]),
-		      [inbuf_1] "m" (inbuf[1 * 16]),
-		      [inbuf_2] "m" (inbuf[2 * 16]),
-		      [inbuf_3] "m" (inbuf[3 * 16]),
-		      [crc] "m" (*pcrc)
-		    );
-
-      inbuf += 4 * 16;
-      inlen -= 4 * 16;
-
-      asm volatile ("movdqa %[k1k2], %%xmm4\n\t"
-		    :
-		    : [k1k2] "m" (consts->k[1 - 1])
-		    );
-
-      /* Fold by 4. */
-      while (inlen >= 4 * 16)
-	{
-	  asm volatile ("movdqu %[inbuf_0], %%xmm5\n\t"
-			"movdqa %%xmm0, %%xmm6\n\t"
-			"pclmulqdq $0x00, %%xmm4, %%xmm0\n\t"
-			"pclmulqdq $0x11, %%xmm4, %%xmm6\n\t"
-			"pxor %%xmm5, %%xmm0\n\t"
-			"pxor %%xmm6, %%xmm0\n\t"
-
-			"movdqu %[inbuf_1], %%xmm5\n\t"
-			"movdqa %%xmm1, %%xmm6\n\t"
-			"pclmulqdq $0x00, %%xmm4, %%xmm1\n\t"
-			"pclmulqdq $0x11, %%xmm4, %%xmm6\n\t"
-			"pxor %%xmm5, %%xmm1\n\t"
-			"pxor %%xmm6, %%xmm1\n\t"
-
-			"movdqu %[inbuf_2], %%xmm5\n\t"
-			"movdqa %%xmm2, %%xmm6\n\t"
-			"pclmulqdq $0x00, %%xmm4, %%xmm2\n\t"
-			"pclmulqdq $0x11, %%xmm4, %%xmm6\n\t"
-			"pxor %%xmm5, %%xmm2\n\t"
-			"pxor %%xmm6, %%xmm2\n\t"
-
-			"movdqu %[inbuf_3], %%xmm5\n\t"
-			"movdqa %%xmm3, %%xmm6\n\t"
-			"pclmulqdq $0x00, %%xmm4, %%xmm3\n\t"
-			"pclmulqdq $0x11, %%xmm4, %%xmm6\n\t"
-			"pxor %%xmm5, %%xmm3\n\t"
-			"pxor %%xmm6, %%xmm3\n\t"
-			:
-			: [inbuf_0] "m" (inbuf[0 * 16]),
-			  [inbuf_1] "m" (inbuf[1 * 16]),
-			  [inbuf_2] "m" (inbuf[2 * 16]),
-			  [inbuf_3] "m" (inbuf[3 * 16])
-			);
-
-	  inbuf += 4 * 16;
-	  inlen -= 4 * 16;
-	}
-
-      asm volatile ("movdqa %[k3k4], %%xmm6\n\t"
-		    "movdqa %[my_p], %%xmm5\n\t"
-		    :
-		    : [k3k4] "m" (consts->k[3 - 1]),
-		      [my_p] "m" (consts->my_p[0])
-		    );
-
-      /* Fold 4 to 1. */
-
-      asm volatile ("movdqa %%xmm0, %%xmm4\n\t"
-		    "pclmulqdq $0x00, %%xmm6, %%xmm0\n\t"
-		    "pclmulqdq $0x11, %%xmm6, %%xmm4\n\t"
-		    "pxor %%xmm1, %%xmm0\n\t"
-		    "pxor %%xmm4, %%xmm0\n\t"
-
-		    "movdqa %%xmm0, %%xmm4\n\t"
-		    "pclmulqdq $0x00, %%xmm6, %%xmm0\n\t"
-		    "pclmulqdq $0x11, %%xmm6, %%xmm4\n\t"
-		    "pxor %%xmm2, %%xmm0\n\t"
-		    "pxor %%xmm4, %%xmm0\n\t"
-
-		    "movdqa %%xmm0, %%xmm4\n\t"
-		    "pclmulqdq $0x00, %%xmm6, %%xmm0\n\t"
-		    "pclmulqdq $0x11, %%xmm6, %%xmm4\n\t"
-		    "pxor %%xmm3, %%xmm0\n\t"
-		    "pxor %%xmm4, %%xmm0\n\t"
-		    :
-		    :
-		    );
-    }
-  else
-    {
-      asm volatile ("movd %[crc], %%xmm1\n\t"
-		    "movdqu %[inbuf], %%xmm0\n\t"
-		    "movdqa %[k3k4], %%xmm6\n\t"
-		    "pxor %%xmm1, %%xmm0\n\t"
-		    "movdqa %[my_p], %%xmm5\n\t"
-		    :
-		    : [inbuf] "m" (*inbuf),
-		      [crc] "m" (*pcrc),
-		      [k3k4] "m" (consts->k[3 - 1]),
-		      [my_p] "m" (consts->my_p[0])
-		    );
-
-      inbuf += 16;
-      inlen -= 16;
-    }
-
-  /* Fold by 1. */
-  if (inlen >= 16)
-    {
-      while (inlen >= 16)
-	{
-	  /* Load next block to XMM2. Fold XMM0 to XMM0:XMM1. */
-	  asm volatile ("movdqu %[inbuf], %%xmm2\n\t"
-			"movdqa %%xmm0, %%xmm1\n\t"
-			"pclmulqdq $0x00, %%xmm6, %%xmm0\n\t"
-			"pclmulqdq $0x11, %%xmm6, %%xmm1\n\t"
-			"pxor %%xmm2, %%xmm0\n\t"
-			"pxor %%xmm1, %%xmm0\n\t"
-			:
-			: [inbuf] "m" (*inbuf)
-			);
-
-	  inbuf += 16;
-	  inlen -= 16;
-	}
-    }
-
-  /* Partial fold. */
-  if (inlen)
-    {
-      /* Load last input and add padding zeros. */
-      asm volatile ("movdqu %[shr_shuf], %%xmm3\n\t"
-		    "movdqu %[shl_shuf], %%xmm4\n\t"
-		    "movdqu %[mask], %%xmm2\n\t"
-
-		    "movdqa %%xmm0, %%xmm1\n\t"
-		    "pshufb %%xmm4, %%xmm0\n\t"
-		    "movdqu %[inbuf], %%xmm4\n\t"
-		    "pshufb %%xmm3, %%xmm1\n\t"
-		    "pand %%xmm4, %%xmm2\n\t"
-		    "por %%xmm1, %%xmm2\n\t"
-
-		    "movdqa %%xmm0, %%xmm1\n\t"
-		    "pclmulqdq $0x00, %%xmm6, %%xmm0\n\t"
-		    "pclmulqdq $0x11, %%xmm6, %%xmm1\n\t"
-		    "pxor %%xmm2, %%xmm0\n\t"
-		    "pxor %%xmm1, %%xmm0\n\t"
-		    :
-		    : [inbuf] "m" (*(inbuf - 16 + inlen)),
-		      [mask] "m" (crc32_partial_fold_input_mask[inlen]),
-		      [shl_shuf] "m" (crc32_refl_shuf_shift[inlen]),
-		      [shr_shuf] "m" (crc32_refl_shuf_shift[inlen + 16])
-		    );
-
-      inbuf += inlen;
-      inlen -= inlen;
-    }
-
-  /* Final fold. */
-  asm volatile (/* reduce 128-bits to 96-bits */
-		"movdqa %%xmm0, %%xmm1\n\t"
-		"pclmulqdq $0x10, %%xmm6, %%xmm0\n\t"
-		"psrldq $8, %%xmm1\n\t"
-		"pxor %%xmm1, %%xmm0\n\t"
-
-		/* reduce 96-bits to 64-bits */
-		"pshufd $0xfc, %%xmm0, %%xmm1\n\t" /* [00][00][00][x] */
-		"pshufd $0xf9, %%xmm0, %%xmm0\n\t" /* [00][00][x>>64][x>>32] */
-		"pclmulqdq $0x00, %[k5], %%xmm1\n\t" /* [00][00][xx][xx] */
-		"pxor %%xmm1, %%xmm0\n\t" /* top 64-bit are zero */
-
-		/* barrett reduction */
-		"pshufd $0xf3, %%xmm0, %%xmm1\n\t" /* [00][00][x>>32][00] */
-		"pslldq $4, %%xmm0\n\t" /* [??][x>>32][??][??] */
-		"pclmulqdq $0x00, %%xmm5, %%xmm1\n\t" /* [00][xx][xx][00] */
-		"pclmulqdq $0x10, %%xmm5, %%xmm1\n\t" /* [00][xx][xx][00] */
-		"pxor %%xmm1, %%xmm0\n\t"
-
-		/* store CRC */
-		"pextrd $2, %%xmm0, %[out]\n\t"
-		: [out] "=m" (*pcrc)
-		: [k5] "m" (consts->k[5 - 1])
-	        );
-}
-
-static inline void
-crc32_reflected_less_than_16 (u32 *pcrc, const byte *inbuf, size_t inlen,
-			      const struct crc32_consts_s *consts)
-{
-  if (inlen < 4)
-    {
-      u32 crc = *pcrc;
-      u32 data;
-
-      asm volatile ("movdqa %[my_p], %%xmm5\n\t"
-		    :
-		    : [my_p] "m" (consts->my_p[0])
-		    );
-
-      if (inlen == 1)
-	{
-	  data = inbuf[0];
-	  data ^= crc;
-	  data <<= 24;
-	  crc >>= 8;
-	}
-      else if (inlen == 2)
-	{
-	  data = ((const struct u16_unaligned_s *)inbuf)->a;
-	  data ^= crc;
-	  data <<= 16;
-	  crc >>= 16;
-	}
-      else
-	{
-	  data = ((const struct u16_unaligned_s *)inbuf)->a;
-	  data |= ((u32) inbuf[2]) << 16;
-	  data ^= crc;
-	  data <<= 8;
-	  crc >>= 24;
-	}
-
-      /* Barrett reduction */
-      asm volatile ("movd %[in], %%xmm0\n\t"
-		    "movd %[crc], %%xmm1\n\t"
-
-		    "pclmulqdq $0x00, %%xmm5, %%xmm0\n\t" /* [00][00][xx][xx] */
-		    "psllq $32, %%xmm1\n\t"
-		    "pshufd $0xfc, %%xmm0, %%xmm0\n\t" /* [00][00][00][x] */
-		    "pclmulqdq $0x10, %%xmm5, %%xmm0\n\t" /* [00][00][xx][xx] */
-		    "pxor %%xmm1, %%xmm0\n\t"
-
-		    "pextrd $1, %%xmm0, %[out]\n\t"
-		    : [out] "=m" (*pcrc)
-		    : [in] "rm" (data),
-		      [crc] "rm" (crc)
-		    );
-    }
-  else if (inlen == 4)
-    {
-      /* Barrett reduction */
-      asm volatile ("movd %[crc], %%xmm1\n\t"
-		    "movd %[in], %%xmm0\n\t"
-		    "movdqa %[my_p], %%xmm5\n\t"
-		    "pxor %%xmm1, %%xmm0\n\t"
-
-		    "pclmulqdq $0x00, %%xmm5, %%xmm0\n\t" /* [00][00][xx][xx] */
-		    "pshufd $0xfc, %%xmm0, %%xmm0\n\t" /* [00][00][00][x] */
-		    "pclmulqdq $0x10, %%xmm5, %%xmm0\n\t" /* [00][00][xx][xx] */
-
-		    "pextrd $1, %%xmm0, %[out]\n\t"
-		    : [out] "=m" (*pcrc)
-		    : [in] "m" (*inbuf),
-		      [crc] "m" (*pcrc),
-		      [my_p] "m" (consts->my_p[0])
-		    );
-    }
-  else
-    {
-      asm volatile ("movdqu %[shuf], %%xmm4\n\t"
-		    "movd %[crc], %%xmm1\n\t"
-		    "movdqa %[my_p], %%xmm5\n\t"
-		    "movdqa %[k3k4], %%xmm6\n\t"
-		    :
-		    : [shuf] "m" (crc32_refl_shuf_shift[inlen]),
-		      [crc] "m" (*pcrc),
-		      [my_p] "m" (consts->my_p[0]),
-		      [k3k4] "m" (consts->k[3 - 1])
-		    );
-
-      if (inlen >= 8)
-	{
-	  asm volatile ("movq %[inbuf], %%xmm0\n\t"
-			:
-			: [inbuf] "m" (*inbuf)
-			);
-	  if (inlen > 8)
-	    {
-	      asm volatile (/*"pinsrq $1, %[inbuf_tail], %%xmm0\n\t"*/
-			    "movq %[inbuf_tail], %%xmm2\n\t"
-			    "punpcklqdq %%xmm2, %%xmm0\n\t"
-			    "pshufb %[merge_shuf], %%xmm0\n\t"
-			    :
-			    : [inbuf_tail] "m" (inbuf[inlen - 8]),
-			      [merge_shuf] "m"
-				(*crc32_merge9to15_shuf[inlen - 9])
-			    );
-	    }
-	}
-      else
-	{
-	  asm volatile ("movd %[inbuf], %%xmm0\n\t"
-			"pinsrd $1, %[inbuf_tail], %%xmm0\n\t"
-			"pshufb %[merge_shuf], %%xmm0\n\t"
-			:
-			: [inbuf] "m" (*inbuf),
-			  [inbuf_tail] "m" (inbuf[inlen - 4]),
-			  [merge_shuf] "m"
-			    (*crc32_merge5to7_shuf[inlen - 5])
-			);
-	}
-
-      /* Final fold. */
-      asm volatile ("pxor %%xmm1, %%xmm0\n\t"
-		    "pshufb %%xmm4, %%xmm0\n\t"
-
-		    /* reduce 128-bits to 96-bits */
-		    "movdqa %%xmm0, %%xmm1\n\t"
-		    "pclmulqdq $0x10, %%xmm6, %%xmm0\n\t"
-		    "psrldq $8, %%xmm1\n\t"
-		    "pxor %%xmm1, %%xmm0\n\t" /* top 32-bit are zero */
-
-		    /* reduce 96-bits to 64-bits */
-		    "pshufd $0xfc, %%xmm0, %%xmm1\n\t" /* [00][00][00][x] */
-		    "pshufd $0xf9, %%xmm0, %%xmm0\n\t" /* [00][00][x>>64][x>>32] */
-		    "pclmulqdq $0x00, %[k5], %%xmm1\n\t" /* [00][00][xx][xx] */
-		    "pxor %%xmm1, %%xmm0\n\t" /* top 64-bit are zero */
-
-		    /* barrett reduction */
-		    "pshufd $0xf3, %%xmm0, %%xmm1\n\t" /* [00][00][x>>32][00] */
-		    "pslldq $4, %%xmm0\n\t" /* [??][x>>32][??][??] */
-		    "pclmulqdq $0x00, %%xmm5, %%xmm1\n\t" /* [00][xx][xx][00] */
-		    "pclmulqdq $0x10, %%xmm5, %%xmm1\n\t" /* [00][xx][xx][00] */
-		    "pxor %%xmm1, %%xmm0\n\t"
-
-		    /* store CRC */
-		    "pextrd $2, %%xmm0, %[out]\n\t"
-		    : [out] "=m" (*pcrc)
-		    : [k5] "m" (consts->k[5 - 1])
-		    );
-    }
-}
-
-void
-crc32_intel_pclmul (u32 *pcrc, const byte *inbuf, size_t inlen)
-{
-  const struct crc32_consts_s *consts = &crc32_consts;
-#if defined(__x86_64__) && defined(__WIN64__)
-  char win64tmp[2 * 16];
-
-  /* XMM6-XMM7 need to be restored after use. */
-  asm volatile ("movdqu %%xmm6, 0*16(%0)\n\t"
-                "movdqu %%xmm7, 1*16(%0)\n\t"
-                :
-                : "r" (win64tmp)
-                : "memory");
-#endif
-
-  if (!inlen)
-    return;
-
-  if (inlen >= 16)
-    crc32_reflected_bulk(pcrc, inbuf, inlen, consts);
-  else
-    crc32_reflected_less_than_16(pcrc, inbuf, inlen, consts);
-
-#if defined(__x86_64__) && defined(__WIN64__)
-  /* Restore used registers. */
-  asm volatile("movdqu 0*16(%0), %%xmm6\n\t"
-               "movdqu 1*16(%0), %%xmm7\n\t"
-               :
-               : "r" (win64tmp)
-               : "memory");
-#endif
+  /* 1 << 20 is SSE42, 1 << 1 is PCLMULQDQ */
+#define bits_SSE42_AND_PCLMUL (1 << 20 | 1 << 1)
+  return (recx & bits_SSE42_AND_PCLMUL) == bits_SSE42_AND_PCLMUL;
 }
 
 #ifdef __GNUC__
 int crc32_pclmul_enabled(void)
 {
-  int eax, ecx;
-  /* We assume that the CPUID instruction and its parameter 1 are available.
-  We do not support any precursors of the Intel 80486. */
-  asm("cpuid" : "=a"(eax), "=c"(ecx) : "0"(1) : "ebx", "edx");
-  return !(~ecx & (1 << 19 | 1 << 1));
+  uint32_t reax= 0, rebx= 0, recx= 0, redx= 0;
+  __cpuid(1, reax, rebx, recx, redx);
+  return has_sse42_and_pclmul(recx);
 }
-#elif 0 /* defined _MSC_VER */ /* FIXME: implement the pclmul interface */
-#include <intrin.h>
+#elif defined(_MSC_VER)
 int crc32_pclmul_enabled(void)
 {
-  /* We assume that the CPUID instruction and its parameter 1 are available.
-  We do not support any precursors of the Intel 80486. */
   int regs[4];
   __cpuid(regs, 1);
-  return !(~regs[2] & (1 << 19 | 1 << 1));
-}
-#else
-int crc32_pclmul_enabled(void)
-{
-  return 0;
+  return has_sse42_and_pclmul(regs[2]);
 }
 #endif
 
+/**
+ * @brief Shifts left 128 bit register by specified number of bytes
+ *
+ * @param reg 128 bit value
+ * @param num number of bytes to shift left \a reg by (0-16)
+ *
+ * @return \a reg << (\a num * 8)
+ */
+static inline __m128i xmm_shift_left(__m128i reg, const unsigned int num)
+{
+  static const MY_ALIGNED(16) uint8_t crc_xmm_shift_tab[48]= {
+      0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+      0xff, 0xff, 0xff, 0xff, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+      0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0xff, 0xff, 0xff, 0xff,
+      0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+
+  const __m128i *p= (const __m128i *) (crc_xmm_shift_tab + 16 - num);
+
+  return _mm_shuffle_epi8(reg, _mm_loadu_si128(p));
+}
+
+struct crcr_pclmulqdq_ctx
+{
+  uint64_t rk1;
+  uint64_t rk2;
+  uint64_t rk5;
+  uint64_t rk6;
+  uint64_t rk7;
+  uint64_t rk8;
+};
+
+/**
+ * @brief Performs one folding round
+ *
+ * Logically function operates as follows:
+ *     DATA = READ_NEXT_16BYTES();
+ *     F1 = LSB8(FOLD)
+ *     F2 = MSB8(FOLD)
+ *     T1 = CLMUL(F1, RK1)
+ *     T2 = CLMUL(F2, RK2)
+ *     FOLD = XOR(T1, T2, DATA)
+ *
+ * @param data_block 16 byte data block
+ * @param precomp precomputed rk1 constanst
+ * @param fold running 16 byte folded data
+ *
+ * @return New 16 byte folded data
+ */
+static inline __m128i crcr32_folding_round(const __m128i data_block,
+                                    const __m128i precomp, const __m128i fold)
+{
+  __m128i tmp0= _mm_clmulepi64_si128(fold, precomp, 0x01);
+  __m128i tmp1= _mm_clmulepi64_si128(fold, precomp, 0x10);
+
+  return _mm_xor_si128(tmp1, _mm_xor_si128(data_block, tmp0));
+}
+
+/**
+ * @brief Performs reduction from 128 bits to 64 bits
+ *
+ * @param data128 128 bits data to be reduced
+ * @param precomp rk5 and rk6 precomputed constants
+ *
+ * @return data reduced to 64 bits
+ */
+static inline __m128i crcr32_reduce_128_to_64(__m128i data128, const __m128i precomp)
+{
+  __m128i tmp0, tmp1, tmp2;
+
+  /* 64b fold */
+  tmp0= _mm_clmulepi64_si128(data128, precomp, 0x00);
+  tmp1= _mm_srli_si128(data128, 8);
+  tmp0= _mm_xor_si128(tmp0, tmp1);
+
+  /* 32b fold */
+  tmp2= _mm_slli_si128(tmp0, 4);
+  tmp1= _mm_clmulepi64_si128(tmp2, precomp, 0x10);
+
+  return _mm_xor_si128(tmp1, tmp0);
+}
+
+/**
+ * @brief Performs Barret's reduction from 64 bits to 32 bits
+ *
+ * @param data64 64 bits data to be reduced
+ * @param precomp rk7 precomputed constant
+ *
+ * @return data reduced to 32 bits
+ */
+static inline uint32_t crcr32_reduce_64_to_32(__m128i data64, const __m128i precomp)
+{
+  static const MY_ALIGNED(16) uint32_t mask1[4]= {
+      0xffffffff, 0xffffffff, 0x00000000, 0x00000000};
+  static const MY_ALIGNED(16) uint32_t mask2[4]= {
+      0x00000000, 0xffffffff, 0xffffffff, 0xffffffff};
+  __m128i tmp0, tmp1, tmp2;
+
+  tmp0= _mm_and_si128(data64, _mm_load_si128((__m128i *) mask2));
+
+  tmp1= _mm_clmulepi64_si128(tmp0, precomp, 0x00);
+  tmp1= _mm_xor_si128(tmp1, tmp0);
+  tmp1= _mm_and_si128(tmp1, _mm_load_si128((__m128i *) mask1));
+
+  tmp2= _mm_clmulepi64_si128(tmp1, precomp, 0x10);
+  tmp2= _mm_xor_si128(tmp2, tmp1);
+  tmp2= _mm_xor_si128(tmp2, tmp0);
+
+  return _mm_extract_epi32(tmp2, 2);
+}
+
+/**
+ * @brief Calculates reflected 32-bit CRC for given \a data block
+ *        by applying folding and reduction methods.
+ *
+ * Algorithm operates on 32 bit CRCs.
+ * Polynomials and initial values may need to be promoted to
+ * 32 bits where required.
+ *
+ * @param crc initial CRC value (32 bit value)
+ * @param data pointer to data block
+ * @param data_len length of \a data block in bytes
+ * @param params pointer to PCLMULQDQ CRC calculation context
+ *
+ * @return CRC for given \a data block (32 bits wide).
+ */
+static inline uint32_t crcr32_calc_pclmulqdq(const uint8_t *data, uint32_t data_len,
+                                      uint32_t crc,
+                                      const struct crcr_pclmulqdq_ctx *params)
+{
+  __m128i temp, fold, k;
+  uint32_t n;
+
+  DBUG_ASSERT(data != NULL || data_len == 0);
+  DBUG_ASSERT(params);
+
+  if (unlikely(data_len == 0))
+    return crc;
+
+  /**
+   * Get CRC init value
+   */
+  temp= _mm_insert_epi32(_mm_setzero_si128(), crc, 0);
+
+  /**
+   * -------------------------------------------------
+   * Folding all data into single 16 byte data block
+   * Assumes: \a fold holds first 16 bytes of data
+   */
+
+  if (unlikely(data_len < 32))
+  {
+    if (unlikely(data_len == 16))
+    {
+      /* 16 bytes */
+      fold= _mm_loadu_si128((__m128i *) data);
+      fold= _mm_xor_si128(fold, temp);
+      goto reduction_128_64;
+    }
+    if (unlikely(data_len < 16))
+    {
+      /* 0 to 15 bytes */
+      MY_ALIGNED(16) uint8_t buffer[16];
+
+      memset(buffer, 0, sizeof(buffer));
+      memcpy(buffer, data, data_len);
+
+      fold= _mm_load_si128((__m128i *) buffer);
+      fold= _mm_xor_si128(fold, temp);
+      if ((data_len < 4))
+      {
+        fold= xmm_shift_left(fold, 8 - data_len);
+        goto barret_reduction;
+      }
+      fold= xmm_shift_left(fold, 16 - data_len);
+      goto reduction_128_64;
+    }
+    /* 17 to 31 bytes */
+    fold= _mm_loadu_si128((__m128i *) data);
+    fold= _mm_xor_si128(fold, temp);
+    n= 16;
+    k= _mm_load_si128((__m128i *) (&params->rk1));
+    goto partial_bytes;
+  }
+
+  /**
+   * At least 32 bytes in the buffer
+   */
+
+  /**
+   * Apply CRC initial value
+   */
+  fold= _mm_loadu_si128((const __m128i *) data);
+  fold= _mm_xor_si128(fold, temp);
+
+  /**
+   * Main folding loop
+   * - the last 16 bytes is processed separately
+   */
+  k= _mm_load_si128((__m128i *) (&params->rk1));
+  for (n= 16; (n + 16) <= data_len; n+= 16)
+  {
+    temp= _mm_loadu_si128((__m128i *) &data[n]);
+    fold= crcr32_folding_round(temp, k, fold);
+  }
+
+partial_bytes:
+  if (likely(n < data_len))
+  {
+    static const MY_ALIGNED(16) uint32_t mask3[4]= {0x80808080, 0x80808080,
+                                                   0x80808080, 0x80808080};
+    static const MY_ALIGNED(16) uint8_t shf_table[32]= {
+        0x00, 0x81, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a,
+        0x8b, 0x8c, 0x8d, 0x8e, 0x8f, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05,
+        0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+    __m128i last16, a, b;
+
+    last16= _mm_loadu_si128((const __m128i *) &data[data_len - 16]);
+
+    temp= _mm_loadu_si128((const __m128i *) &shf_table[data_len & 15]);
+    a= _mm_shuffle_epi8(fold, temp);
+
+    temp= _mm_xor_si128(temp, _mm_load_si128((const __m128i *) mask3));
+    b= _mm_shuffle_epi8(fold, temp);
+    b= _mm_blendv_epi8(b, last16, temp);
+
+    /* k = rk1 & rk2 */
+    temp= _mm_clmulepi64_si128(a, k, 0x01);
+    fold= _mm_clmulepi64_si128(a, k, 0x10);
+
+    fold= _mm_xor_si128(fold, temp);
+    fold= _mm_xor_si128(fold, b);
+  }
+
+  /**
+   * -------------------------------------------------
+   * Reduction 128 -> 32
+   * Assumes: \a fold holds 128bit folded data
+   */
+reduction_128_64:
+  k= _mm_load_si128((__m128i *) (&params->rk5));
+  fold= crcr32_reduce_128_to_64(fold, k);
+
+barret_reduction:
+  k= _mm_load_si128((__m128i *) (&params->rk7));
+  n= crcr32_reduce_64_to_32(fold, k);
+  return n;
+}
+
+static const MY_ALIGNED(16) struct crcr_pclmulqdq_ctx ether_crc32_clmul= {
+    0xccaa009e,  /**< rk1 */
+    0x1751997d0, /**< rk2 */
+    0xccaa009e,  /**< rk5 */
+    0x163cd6124, /**< rk6 */
+    0x1f7011640, /**< rk7 */
+    0x1db710641  /**< rk8 */
+};
+
+/**
+ * @brief Calculates Ethernet CRC32 using PCLMULQDQ method.
+ *
+ * @param data pointer to data block to calculate CRC for
+ * @param data_len size of data block
+ *
+ * @return New CRC value
+ */
 unsigned int crc32_pclmul(unsigned int crc32, const void *buf, size_t len)
 {
-  crc32= ~crc32;
-  crc32_intel_pclmul(&crc32, buf, len);
-  return ~crc32;
+  return ~crcr32_calc_pclmulqdq(buf, (uint32_t)len, ~crc32, &ether_crc32_clmul);
 }
-#endif
