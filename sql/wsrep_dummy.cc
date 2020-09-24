@@ -158,3 +158,5 @@ my_bool wsrep_thd_is_applier(MYSQL_THD thd)
 void wsrep_report_bf_lock_wait(MYSQL_THD thd,
                                unsigned long long id)
 {}
+bool wsrep_thd_set_wsrep_aborter(THD*, THD*)
+{ return 0;}

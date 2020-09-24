@@ -117,6 +117,7 @@ extern struct wsrep_service_st {
   my_bool                     (*wsrep_thd_is_applier_func)(MYSQL_THD);
   void                        (*wsrep_report_bf_lock_wait_func)(MYSQL_THD thd,
                                                                 unsigned long long trx_id);
+  bool                        (*wsrep_thd_set_wsrep_aborter_func)(MYSQL_THD bf_thd, MYSQL_THD thd);
 } *wsrep_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -172,6 +173,7 @@ extern struct wsrep_service_st {
 #define wsrep_drupal_282555_workaround get_wsrep_drupal_282555_workaround()
 #define wsrep_recovery get_wsrep_recovery()
 #define wsrep_protocol_version get_wsrep_protocol_version()
+#define wsrep_thd_set_wsrep_aborter(T) wsrep_service->wsrep_thd_set_wsrep_aborter_func(T1, T2)
 
 #else
 
@@ -228,6 +230,8 @@ void wsrep_set_data_home_dir(const char *data_dir);
 my_bool wsrep_thd_is_applier(MYSQL_THD thd);
 void wsrep_report_bf_lock_wait(THD *thd,
                                unsigned long long trx_id);
+/* set wsrep_aborter for the target THD */
+extern "C" bool wsrep_thd_set_wsrep_aborter(MYSQL_THD bf_thd, MYSQL_THD victim_thd);
 #endif
 
 #ifdef __cplusplus

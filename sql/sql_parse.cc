@@ -8896,6 +8896,17 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
 	!wsrep_thd_is_BF(tmp, false))
     {
+#ifdef WITH_WSREP
+      DEBUG_SYNC(thd, "before_awake_no_mutex");
+      if (tmp->wsrep_aborter && tmp->wsrep_aborter != thd->thread_id)
+      {
+        /* victim is in hit list already, bail out */
+       WSREP_DEBUG("victim has wsrep aborter: %lu, skipping awake()",
+                    tmp->wsrep_aborter);
+        error= 0;
+      }
+      else
+#endif /* WITH_WSREP */
       tmp->awake(kill_signal);
       error=0;
     }

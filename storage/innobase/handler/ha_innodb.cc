@@ -19586,6 +19586,13 @@ wsrep_innobase_kill_one_trx(
 		DBUG_RETURN(0);
 	}
 
+	if (wsrep_thd_set_wsrep_aborter(bf_thd, thd))
+	{
+	  WSREP_DEBUG("innodb kill transaction skipped due to wsrep_aborter set");
+	  wsrep_thd_UNLOCK(thd);
+	  DBUG_RETURN(0);
+	}
+
 	if (wsrep_thd_exec_mode(thd) != LOCAL_STATE) {
 		WSREP_DEBUG("withdraw for BF trx: " TRX_ID_FMT ", state: %d",
 			    victim_trx->id,

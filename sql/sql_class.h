@@ -3760,6 +3760,11 @@ public:
       killed_err= 0;
       mysql_mutex_unlock(&LOCK_thd_kill);
     }
+#ifdef WITH_WSREP
+    mysql_mutex_lock(&LOCK_thd_data);
+    wsrep_aborter= 0;
+    mysql_mutex_unlock(&LOCK_thd_data);
+#endif /* WITH_WSREP */
   }
   inline void reset_kill_query()
   {
@@ -4458,6 +4463,8 @@ public:
     table updates from being replicated to other nodes via galera replication.
   */
   bool                      wsrep_ignore_table;
+  /* thread who has started kill for this THD protected by LOCK_thd_data*/
+  my_thread_id              wsrep_aborter;
   wsrep_gtid_t              wsrep_sync_wait_gtid;
   ulong                     wsrep_affected_rows;
   bool                      wsrep_replicate_GTID;
