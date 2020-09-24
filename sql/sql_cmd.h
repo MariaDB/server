@@ -93,8 +93,6 @@ enum enum_sql_command {
   SQLCOM_CREATE_ROLE, SQLCOM_DROP_ROLE, SQLCOM_GRANT_ROLE, SQLCOM_REVOKE_ROLE,
   SQLCOM_COMPOUND,
   SQLCOM_SHOW_GENERIC,
-  SQLCOM_ALTER_USER,
-  SQLCOM_SHOW_CREATE_USER,
 
   /*
     When a command is added here, be sure it's also added in mysqld.cc

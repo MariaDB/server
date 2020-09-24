@@ -2531,8 +2531,7 @@ create:
             Lex->create_view_suid= TRUE;
           }
           view_or_trigger_or_sp_or_event { }
-        | create_or_replace USER opt_if_not_exists clear_privileges grant_list
-          opt_require_clause opt_resource_options
+        | create_or_replace USER_SYM opt_if_not_exists clear_privileges grant_list
           {
             if (Lex->set_command_with_check(SQLCOM_CREATE_USER, $1 | $3))
               MYSQL_YYABORT;
@@ -7107,13 +7106,6 @@ alter:
             lex->sql_command= SQLCOM_ALTER_SERVER;
             lex->server_options.reset($3);
           } OPTIONS_SYM '(' server_options_list ')' { }
-          /* ALTER USER foo is allowed for MySQL compatibility. */
-        | ALTER opt_if_exists USER clear_privileges grant_list
-          opt_require_clause opt_resource_options
-          {
-            Lex->create_info.set($2);
-            Lex->sql_command= SQLCOM_ALTER_USER;
-          }
         ;
 
 ev_alter_on_schedule_completion:
@@ -12494,18 +12486,6 @@ show_param:
             lex->sql_command= SQLCOM_SHOW_CREATE_TRIGGER;
             lex->spname= $3;
           }
-        | CREATE USER
-          {
-            Lex->sql_command= SQLCOM_SHOW_CREATE_USER;
-            if (!(Lex->grant_user= (LEX_USER*)thd->alloc(sizeof(LEX_USER))))
-              MYSQL_YYABORT;
-            Lex->grant_user->user= current_user;
-          }
-        | CREATE USER user
-          {
-             Lex->sql_command= SQLCOM_SHOW_CREATE_USER;
-             Lex->grant_user= $3;
-          }
         | PROCEDURE_SYM STATUS_SYM wild_and_where
           {
             LEX *lex= Lex;
@@ -15056,14 +15036,14 @@ grant:
 
 grant_command:
           grant_privileges ON opt_table grant_ident TO_SYM grant_list
-          opt_require_clause opt_grant_options
+          require_clause grant_options
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_GRANT;
             lex->type= 0;
           }
         | grant_privileges ON FUNCTION_SYM grant_ident TO_SYM grant_list
-          opt_require_clause opt_grant_options
+          require_clause grant_options
           {
             LEX *lex= Lex;
             if (lex->columns.elements)
@@ -15075,7 +15055,7 @@ grant_command:
             lex->type= TYPE_ENUM_FUNCTION;
           }
         | grant_privileges ON PROCEDURE_SYM grant_ident TO_SYM grant_list
-          opt_require_clause opt_grant_options
+          require_clause grant_options
           {
             LEX *lex= Lex;
             if (lex->columns.elements)
@@ -15412,7 +15392,7 @@ column_list_id:
           }
         ;
 
-opt_require_clause:
+require_clause:
           /* empty */
         | REQUIRE_SYM require_list
           {
@@ -15432,8 +15412,24 @@ opt_require_clause:
           }
         ;
 
-resource_option:
-        MAX_QUERIES_PER_HOUR ulong_num
+grant_options:
+          /* empty */ {}
+        | WITH grant_option_list
+        ;
+
+opt_grant_option:
+          /* empty */ {}
+        | WITH GRANT OPTION { Lex->grant |= GRANT_ACL;}
+        ;
+
+grant_option_list:
+          grant_option_list grant_option {}
+        | grant_option {}
+        ;
+
+grant_option:
+          GRANT OPTION { Lex->grant |= GRANT_ACL;}
+        | MAX_QUERIES_PER_HOUR ulong_num
           {
             LEX *lex=Lex;
             lex->mqh.questions=$2;
@@ -15463,37 +15459,6 @@ resource_option:
             lex->mqh.max_statement_time= $2->val_real();
             lex->mqh.specified_limits|= USER_RESOURCES::MAX_STATEMENT_TIME;
           }
-        ;
-
-resource_option_list:
-	  resource_option_list resource_option {}
-	| resource_option {}
-        ;
-
-opt_resource_options:
-	  /* empty */ {}
-	| WITH resource_option_list
-        ;
-
-
-opt_grant_options:
-          /* empty */ {}
-        | WITH grant_option_list {}
-        ;
-
-opt_grant_option:
-          /* empty */ {}
-        | WITH GRANT OPTION { Lex->grant |= GRANT_ACL;}
-        ;
-
-grant_option_list:
-          grant_option_list grant_option {}
-        | grant_option {}
-        ;
-
-grant_option:
-          GRANT OPTION { Lex->grant |= GRANT_ACL;}
-	| resource_option {}
         ;
 
 begin:

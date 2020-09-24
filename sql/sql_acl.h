@@ -246,7 +246,6 @@ bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
 void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,
                                   const char *name);
 bool mysql_show_grants(THD *thd, LEX_USER *user);
-bool mysql_show_create_user(THD *thd, LEX_USER *user);
 int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond);
 int fill_schema_applicable_roles(THD *thd, TABLE_LIST *tables, COND *cond);
 void get_privilege_desc(char *to, uint max_length, ulong access);
@@ -254,7 +253,6 @@ void get_mqh(const char *user, const char *host, USER_CONN *uc);
 bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role);
 bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role);
 bool mysql_rename_user(THD *thd, List <LEX_USER> &list);
-int mysql_alter_user(THD *thd, List <LEX_USER> &list);
 bool mysql_revoke_all(THD *thd, List <LEX_USER> &list);
 void fill_effective_table_privileges(THD *thd, GRANT_INFO *grant,
                                      const char *db, const char *table);
