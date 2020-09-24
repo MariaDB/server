@@ -1601,7 +1601,8 @@ next:
 				if (!node->is_open()) {
 					goto next;
 				}
-				if (!node->n_pending) {
+				if (!node->n_pending
+				    && !node->n_pending_flushes) {
 					node->close();
 					goto next;
 				}
@@ -1609,7 +1610,9 @@ next:
 
 			ib::error() << "File '" << node->name
 				    << "' has " << node->n_pending
-				    << " operations";
+				    << " operations and "
+				    << node->n_pending_flushes
+				    << " flushes";
 		}
 
 		space = UT_LIST_GET_NEXT(space_list, space);
