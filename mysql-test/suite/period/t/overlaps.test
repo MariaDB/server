@@ -299,5 +299,19 @@ insert into t1 values (1,'2013-01-12','2015-11-04'),
                       (2,'2016-03-15','2024-11-09');
 
 
+--echo # MDEV-22714 Assertion `index->table->is_instant()' failed upon
+--echo # multi-update on table with WITHOUT OVERLAPS
+
+create or replace table t (a int);
+insert into t values (0),(null),(0);
+
+create or replace table t1 (f int, s date, e date, period for p(s,e),
+                            unique(f, p without overlaps));
+
+insert into t1 values (0,'2026-02-12','2036-09-16'),
+                      (null,'2025-03-09','2032-12-05');
+
+update ignore t join t1 set f = a;
+
 
 drop table t, t1;
