@@ -19098,13 +19098,13 @@ static MYSQL_SYSVAR_ULONG(page_cleaners, deprecated::innodb_page_cleaners,
 static MYSQL_SYSVAR_DOUBLE(max_dirty_pages_pct, srv_max_buf_pool_modified_pct,
   PLUGIN_VAR_RQCMDARG,
   "Percentage of dirty pages allowed in bufferpool.",
-  NULL, innodb_max_dirty_pages_pct_update, 75.0, 0, 99.999, 0);
+  NULL, innodb_max_dirty_pages_pct_update, 90.0, 0, 99.999, 0);
 
 static MYSQL_SYSVAR_DOUBLE(max_dirty_pages_pct_lwm,
   srv_max_dirty_pages_pct_lwm,
   PLUGIN_VAR_RQCMDARG,
   "Percentage of dirty pages at which flushing kicks in.",
-  NULL, innodb_max_dirty_pages_pct_lwm_update, 0, 0, 99.999, 0);
+  NULL, innodb_max_dirty_pages_pct_lwm_update, 75.0, 0, 99.999, 0);
 
 static MYSQL_SYSVAR_DOUBLE(adaptive_flushing_lwm,
   srv_adaptive_flushing_lwm,
@@ -19392,12 +19392,12 @@ static MYSQL_SYSVAR_UINT(defragment_frequency, srv_defragment_frequency,
 static MYSQL_SYSVAR_ULONG(lru_scan_depth, srv_LRU_scan_depth,
   PLUGIN_VAR_RQCMDARG,
   "How deep to scan LRU to keep it clean",
-  NULL, NULL, 1024, 100, ~0UL, 0);
+  NULL, NULL, 1536, 100, ~0UL, 0);
 
 static MYSQL_SYSVAR_SIZE_T(lru_flush_size, innodb_lru_flush_size,
   PLUGIN_VAR_RQCMDARG,
   "How many pages to flush on LRU eviction",
-  NULL, NULL, 100, 1, SIZE_T_MAX, 0);
+  NULL, NULL, 32, 1, SIZE_T_MAX, 0);
 
 static MYSQL_SYSVAR_ULONG(flush_neighbors, srv_flush_neighbors,
   PLUGIN_VAR_OPCMDARG,
