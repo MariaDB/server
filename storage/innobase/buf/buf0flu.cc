@@ -1877,12 +1877,11 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 				&abstime);
 			mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 			sleep_timeout = error == ETIMEDOUT || error == ETIME;
+			if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
+				break;
+			}
 		} else {
 			sleep_timeout = false;
-		}
-
-		if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
-			break;
 		}
 
 		if (sleep_timeout) {
@@ -1913,8 +1912,6 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 				warn_interval = 1;
 				warn_count = 0;
 			}
-
-			next_loop_time = curr_time + 1000;
 
 			/* no activity, slept enough */
 			buf_flush_lists(srv_io_capacity, LSN_MAX, &n_flushed);
@@ -1969,6 +1966,10 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 			}
 		} else {
 			n_flushed = 0;
+		}
+
+		if (!n_flushed) {
+			next_loop_time = curr_time + 1000;
 		}
 
 		ut_d(buf_flush_page_cleaner_disabled_loop());
