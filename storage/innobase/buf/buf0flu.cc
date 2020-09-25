@@ -56,8 +56,12 @@ Created 11/11/1995 Heikki Tuuri
 modification lsn */
 static constexpr ulint buf_flush_wait_flushed_sleep_time = 10000;
 
-/** Number of pages flushed through non flush_list flushes. */
+/** Number of pages flushed via LRU. Protected by buf_pool.mutex.
+Also included in buf_flush_page_count. */
 ulint buf_lru_flush_page_count;
+
+/** Number of pages flushed. Protected by buf_pool.mutex. */
+ulint buf_flush_page_count;
 
 /** Flag indicating if the page_cleaner is in active state. */
 bool buf_page_cleaner_is_active;
@@ -1360,14 +1364,6 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn)
   return count;
 }
 
-/** Gather the aggregated stats for flushing.
-@param n     number of pages flushed */
-static void buf_flush_stats(ulint n)
-{
-  DBUG_PRINT("ib_buf", ("flush completed, " ULINTPF " pages", n));
-  srv_stats.buf_pool_flushed.add(n);
-}
-
 /** Wait until a flush batch ends.
 @param[in]	lru	true=buf_pool.LRU; false=buf_pool.flush_list */
 void buf_flush_wait_batch_end(bool lru)
@@ -1434,15 +1430,17 @@ static bool buf_flush_do_batch(ulint max_n, lsn_t lsn, flush_counters_t *n)
   const auto n_flushing= --n_flush;
 
   buf_pool.try_LRU_scan= true;
+  buf_flush_page_count+= n->flushed;
+
   mysql_mutex_unlock(&buf_pool.mutex);
 
   if (!n_flushing)
     mysql_cond_broadcast(cond);
 
-  if (!srv_read_only_mode)
-    buf_dblwr_flush_buffered_writes();
+  buf_dblwr_flush_buffered_writes();
 
-  DBUG_PRINT("ib_buf", (lsn ? "flush_list completed" : "LRU flush completed"));
+  DBUG_PRINT("ib_buf", ("%s completed, " ULINTPF " pages",
+			lsn ? "flush_list" : "LRU flush", n->flushed));
   return true;
 }
 
@@ -1518,10 +1516,6 @@ bool buf_flush_lists(ulint max_n, lsn_t lsn, ulint *n_processed)
 	flush_counters_t	n;
 
 	bool success = buf_flush_do_batch(max_n, lsn, &n);
-
-	if (n.flushed) {
-		buf_flush_stats(n.flushed);
-	}
 
 	if (n_processed) {
 		*n_processed = n.flushed;
@@ -1933,8 +1927,6 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 			n_flushed = page_cleaner.slot.n_flushed_list;
 
 			if (n_flushed) {
-				buf_flush_stats(n_flushed);
-
 				MONITOR_INC_VALUE_CUMULATIVE(
 					MONITOR_FLUSH_SYNC_TOTAL_PAGE,
 					MONITOR_FLUSH_SYNC_COUNT,
@@ -1955,7 +1947,6 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 			n_flushed = page_cleaner.slot.n_flushed_list;
 
 			if (n_flushed) {
-				buf_flush_stats(n_flushed);
 				n_flushed_last += n_flushed;
 
 				MONITOR_INC_VALUE_CUMULATIVE(

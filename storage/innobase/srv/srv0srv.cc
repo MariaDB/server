@@ -1135,9 +1135,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_buffer_pool_wait_free =
 		srv_stats.buf_pool_wait_free;
 
-	export_vars.innodb_buffer_pool_pages_flushed =
-		srv_stats.buf_pool_flushed;
-
 	export_vars.innodb_buffer_pool_reads = srv_stats.buf_pool_reads;
 
 	export_vars.innodb_buffer_pool_read_ahead_rnd =

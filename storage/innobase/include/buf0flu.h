@@ -31,7 +31,10 @@ Created 11/5/1995 Heikki Tuuri
 #include "log0log.h"
 #include "buf0types.h"
 
-/** Number of pages flushed through non flush_list flushes. */
+/** Number of pages flushed. Protected by buf_pool.mutex. */
+extern ulint buf_flush_page_count;
+/** Number of pages flushed via LRU. Protected by buf_pool.mutex.
+Also included in buf_flush_page_count. */
 extern ulint buf_lru_flush_page_count;
 
 /** Flag indicating if the page_cleaner is in active state. */

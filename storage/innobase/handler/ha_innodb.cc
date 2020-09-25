@@ -887,8 +887,7 @@ static SHOW_VAR innodb_status_variables[]= {
    &export_vars.innodb_buffer_pool_pages_dirty, SHOW_SIZE_T},
   {"buffer_pool_bytes_dirty",
    &export_vars.innodb_buffer_pool_bytes_dirty, SHOW_SIZE_T},
-  {"buffer_pool_pages_flushed",
-   &export_vars.innodb_buffer_pool_pages_flushed, SHOW_SIZE_T},
+  {"buffer_pool_pages_flushed", &buf_flush_page_count, SHOW_SIZE_T},
   {"buffer_pool_pages_free",
    &export_vars.innodb_buffer_pool_pages_free, SHOW_SIZE_T},
 #ifdef UNIV_DEBUG
