@@ -2096,6 +2096,48 @@ set eq_range_index_dive_limit=default;
 drop table t1;
 
 --echo #
+--echo # MDEV-23811: Both disjunct of WHERE condition contain range conditions
+--echo #             for the same index such that the second range condition
+--echo #             fully covers the first one. Additionally one of the disjuncts
+--echo #             contains a range condition for the other index.
+--echo #
+
+create table t1 (
+  pk int primary key auto_increment, a int, b int,
+  index idx1(a), index idx2(b)
+);
+insert into t1(a,b) values
+  (5,50), (1,10), (3,30), (7,70), (8,80), (4,40), (2,20), (6,60);
+insert into t1(a,b) select a+10, b+100 from t1;
+insert into t1(a,b) select a+20, b+200 from t1;
+insert into t1(a,b) select a+30, b+300 from t1;
+insert into t1(a,b) select a,b from t1;
+
+analyze table t1;
+
+let $q1=
+select * from t1 where ((a between 3 and 4) and b < 100) or (a between 2 and 5);
+eval explain $q1;
+eval $q1;
+
+let $q2=
+select * from t1 where (a between 2 and 5) or ((a between 3 and 4) and b < 100);
+eval explain $q2;
+eval $q2;
+
+let $q3=
+select * from t1 where (a between 3 and 4) or ((a between 2 and 5) and b < 100);
+eval explain $q3;
+eval $q3;
+
+let $q4=
+select * from t1 where ((a between 2 and 5) and b < 100) or (a between 3 and 4);
+eval explain $q4;
+eval $q4;
+
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
