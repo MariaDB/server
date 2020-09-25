@@ -458,9 +458,8 @@ retry:
 #ifndef DBUG_OFF
 not_found:
 #endif
-	mysql_cond_signal(&buf_pool.do_flush_list);
-	buf_flush_wait_batch_end(true);
 	mysql_mutex_unlock(&buf_pool.mutex);
+	buf_flush_wait_batch_end_acquiring_mutex(true);
 
 	if (n_iterations > 20 && !buf_lru_free_blocks_error_printed
 	    && srv_buf_pool_old_size == srv_buf_pool_size) {
