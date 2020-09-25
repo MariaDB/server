@@ -921,17 +921,6 @@ pfs_os_file_t fil_node_t::close_to_free(bool detach_handle)
       continue;
     }
 
-    if (srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)
-    {
-      ut_ad(!space->is_in_unflushed_spaces);
-      ut_ad(fil_space_is_flushed(space));
-    }
-    else if (space->is_in_unflushed_spaces && fil_space_is_flushed(space))
-    {
-      space->is_in_unflushed_spaces= false;
-      fil_system.unflushed_spaces.remove(*space);
-    }
-
     if (fil_space_belongs_in_lru(space))
     {
       ut_ad(UT_LIST_GET_LEN(fil_system.LRU) > 0);
