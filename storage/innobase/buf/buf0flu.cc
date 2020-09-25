@@ -941,7 +941,6 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
       buf_pool.n_flush_LRU++;
     else
       buf_pool.n_flush_list++;
-    use_doublewrite= false;
     /* FIXME: pass space to fil_io() */
     fil_io(request, false, bpage->id(), bpage->zip_size(), 0,
            bpage->physical_size(), frame, bpage);
