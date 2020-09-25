@@ -1386,6 +1386,7 @@ void THD::init_for_queries()
     We don't need to call ha_enable_transaction() as we can't have
     any active transactions that has to be committed
   */
+  DBUG_ASSERT(transaction.is_empty());
   transaction.on= TRUE;
 
   reset_root_defaults(mem_root, variables.query_alloc_block_size,

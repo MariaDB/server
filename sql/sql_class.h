@@ -2630,9 +2630,13 @@ public:
       free_root(&mem_root,MYF(MY_KEEP_PREALLOC));
       DBUG_VOID_RETURN;
     }
-    my_bool is_active()
+    bool is_active()
     {
       return (all.ha_list != NULL);
+    }
+    bool is_empty()
+    {
+      return all.is_empty() && stmt.is_empty();
     }
     st_transactions()
     {
