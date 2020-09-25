@@ -444,18 +444,15 @@ retry:
 		If we are doing for the first time we'll scan only
 		tail of the LRU list otherwise we scan the whole LRU
 		list. */
-		if (!buf_LRU_scan_and_free_block(n_iterations
+		if (buf_LRU_scan_and_free_block(n_iterations
 						 ? ULINT_UNDEFINED
 						 : 100)) {
-			mysql_cond_signal(&buf_pool.do_flush_list);
-			if (n_iterations == 0) {
-				/* Tell other threads that there is no point
-				in scanning the LRU list. */
-				buf_pool.try_LRU_scan = false;
-			}
-		} else {
 			goto retry;
 		}
+
+		/* Tell other threads that there is no point
+		in scanning the LRU list. */
+		buf_pool.try_LRU_scan = false;
 	}
 
 #ifndef DBUG_OFF
