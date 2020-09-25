@@ -561,11 +561,9 @@ fil_try_to_close_file_in_LRU(
 			continue;
 		}
 
-		if (node->n_pending_flushes > 0) {
-
+		if (const auto n = node->n_pending_flushes) {
 			ib::info() << "Cannot close file " << node->name
-				<< ", because n_pending_flushes "
-				<< node->n_pending_flushes;
+				<< ", because n_pending_flushes " << n;
 		}
 
 		if (node->needs_flush) {
@@ -915,7 +913,7 @@ pfs_os_file_t fil_node_t::close_to_free(bool detach_handle)
       fil_system.unflushed_spaces.remove(*space);
     }
 
-    if (n_pending)
+    if (n_pending || n_pending_flushes)
     {
       mutex_exit(&fil_system.mutex);
       os_thread_sleep(100);
@@ -939,7 +937,6 @@ pfs_os_file_t fil_node_t::close_to_free(bool detach_handle)
       ut_ad(UT_LIST_GET_LEN(fil_system.LRU) > 0);
       UT_LIST_REMOVE(fil_system.LRU, this);
     }
-    ut_a(!n_pending_flushes);
     ut_a(!being_extended);
     if (detach_handle)
     {
@@ -982,7 +979,6 @@ std::vector<pfs_os_file_t> fil_system_t::detach(fil_space_t *space,
     temp_space= nullptr;
 
   ut_a(space->magic_n == FIL_SPACE_MAGIC_N);
-  ut_a(space->n_pending_flushes == 0);
 
   for (fil_node_t* node= UT_LIST_GET_FIRST(space->chain); node;
        node= UT_LIST_GET_NEXT(chain, node))
@@ -1003,6 +999,7 @@ std::vector<pfs_os_file_t> fil_system_t::detach(fil_space_t *space,
       handles.push_back(handle);
   }
 
+  ut_ad(space->n_pending_flushes == 0);
   return handles;
 }
 
@@ -1612,7 +1609,8 @@ next:
 				if (!node->is_open()) {
 					goto next;
 				}
-				if (!node->n_pending) {
+				if (!node->n_pending
+				    && !node->n_pending_flushes) {
 					node->close();
 					goto next;
 				}
@@ -1620,7 +1618,9 @@ next:
 
 			ib::error() << "File '" << node->name
 				    << "' has " << node->n_pending
-				    << " operations";
+				    << " operations and "
+				    << node->n_pending_flushes
+				    << " flushes";
 		}
 
 		space = UT_LIST_GET_NEXT(space_list, space);
@@ -1988,17 +1988,18 @@ fil_check_pending_io(
 
 	*node = UT_LIST_GET_FIRST(space->chain);
 
-	if (space->n_pending_flushes > 0 || (*node)->n_pending > 0) {
+	const auto f = space->n_pending_flushes;
+	const auto p = (*node)->n_pending;
 
+	if (f || p) {
 		ut_a(!(*node)->being_extended);
 
                 /* Give a warning every 10 second, starting after 1 second */
 		if ((count % 500) == 50) {
 			ib::info() << "Trying to delete"
 				" tablespace '" << space->name
-				<< "' but there are "
-				<< space->n_pending_flushes
-				<< " flushes and " << (*node)->n_pending
+				<< "' but there are " << f
+				<< " flushes and " << p
 				<< " pending i/o's on it.";
 		}
 
