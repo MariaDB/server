@@ -46,16 +46,19 @@ SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t
 
 CREATE TABLE t_db_26152751 (a INT) ENGINE=MYISAM;
 
+--sorted_result
 --replace_regex /.*\/t_db_26152751/t_db_26152751/
 SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
 
 RENAME TABLE t_db_26152751 to t_db_26152751_new;
 
+--sorted_result
 --replace_regex /.*\/t_db_26152751/t_db_26152751/
 SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
 
 RENAME TABLE t_db_26152751_new to t_db_26152751;
 
+--sorted_result
 --replace_regex /.*\/t_db_26152751/t_db_26152751/
 SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
 
