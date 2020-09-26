@@ -1608,7 +1608,7 @@ int JOIN::optimize()
     if (!(select_options & SELECT_DESCRIBE))
     {
       /* Prepare to execute the query pushed into a foreign engine */
-      res= select_lex->pushdown_select->init();
+      res= select_lex->pushdown_select->prepare();
     }
     with_two_phase_optimization= false;
   }
@@ -4632,19 +4632,7 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
   }
 
   /* Look for a table owned by an engine with the select_handler interface */
-  select_lex->select_h= select_lex->find_select_handler(thd);
-  if (select_lex->select_h)
-  {
-    /* Create a Pushdown_select object for later execution of the query */
-    if (!(select_lex->pushdown_select=
-      new (thd->mem_root) Pushdown_select(select_lex,
-                                          select_lex->select_h)))
-    {
-      delete select_lex->select_h;
-      select_lex->select_h= NULL;
-      DBUG_RETURN(TRUE);
-    }
-  }
+  select_lex->pushdown_select= select_lex->find_select_handler(thd);
 
   if ((err= join->optimize()))
   {

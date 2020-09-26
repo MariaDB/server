@@ -1334,10 +1334,8 @@ public:
   table_value_constr *tvc;
   bool in_tvc;
 
-  /* The interface employed to execute the select query by a foreign engine */
-  select_handler *select_h;
   /* The object used to organize execution of the query by a foreign engine */
-  Pushdown_select *pushdown_select;
+  select_handler *pushdown_select;
 
   /** System Versioning */
 public:
