@@ -170,9 +170,9 @@ crypt_data_scheme_locker(
 		static_cast<fil_space_crypt_t*>(scheme);
 
 	if (exit) {
-		mutex_exit(&crypt_data->mutex);
+		mysql_mutex_unlock(&crypt_data->mutex);
 	} else {
-		mutex_enter(&crypt_data->mutex);
+		mysql_mutex_lock(&crypt_data->mutex);
 	}
 }
 
@@ -234,7 +234,7 @@ fil_space_merge_crypt_data(
 	fil_space_crypt_t* dst,
 	const fil_space_crypt_t* src)
 {
-	mutex_enter(&dst->mutex);
+	mysql_mutex_lock(&dst->mutex);
 
 	/* validate that they are mergeable */
 	ut_a(src->type == CRYPT_SCHEME_UNENCRYPTED ||
@@ -248,7 +248,7 @@ fil_space_merge_crypt_data(
 	dst->min_key_version = src->min_key_version;
 	dst->keyserver_requests += src->keyserver_requests;
 
-	mutex_exit(&dst->mutex);
+	mysql_mutex_unlock(&dst->mutex);
 }
 
 /** Initialize encryption parameters from a tablespace header page.
@@ -1065,21 +1065,21 @@ static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 
 		/* 5 - publish crypt data */
 		mysql_mutex_lock(&fil_crypt_threads_mutex);
-		mutex_enter(&crypt_data->mutex);
+		mysql_mutex_lock(&crypt_data->mutex);
 		crypt_data->type = CRYPT_SCHEME_1;
 		ut_a(crypt_data->rotate_state.active_threads == 1);
 		crypt_data->rotate_state.active_threads = 0;
 		crypt_data->rotate_state.starting = false;
 
 		fil_crypt_start_converting = false;
-		mutex_exit(&crypt_data->mutex);
+		mysql_mutex_unlock(&crypt_data->mutex);
 		goto func_exit;
 	} while (0);
 
-	mutex_enter(&crypt_data->mutex);
+	mysql_mutex_lock(&crypt_data->mutex);
 	ut_a(crypt_data->rotate_state.active_threads == 1);
 	crypt_data->rotate_state.active_threads = 0;
-	mutex_exit(&crypt_data->mutex);
+	mysql_mutex_unlock(&crypt_data->mutex);
 
 	mysql_mutex_lock(&fil_crypt_threads_mutex);
 	fil_crypt_start_converting = false;
@@ -1175,7 +1175,9 @@ fil_crypt_space_needs_rotation(
 		return false;
 	}
 
-	mutex_enter(&crypt_data->mutex);
+	bool need_key_rotation = false;
+
+	mysql_mutex_lock(&crypt_data->mutex);
 
 	do {
 		/* prevent threads from starting to rotate space */
@@ -1204,25 +1206,15 @@ fil_crypt_space_needs_rotation(
 			fil_crypt_get_key_state(key_state, crypt_data);
 		}
 
-		bool need_key_rotation = fil_crypt_needs_rotation(
+		need_key_rotation = fil_crypt_needs_rotation(
 			crypt_data,
 			crypt_data->min_key_version,
 			key_state->key_version,
 			key_state->rotate_key_age);
-
-		if (need_key_rotation == false) {
-			break;
-		}
-
-		mutex_exit(&crypt_data->mutex);
-
-		return true;
 	} while (0);
 
-	mutex_exit(&crypt_data->mutex);
-
-
-	return false;
+	mysql_mutex_unlock(&crypt_data->mutex);
+	return need_key_rotation;
 }
 
 /***********************************************************************
@@ -1596,7 +1588,7 @@ fil_crypt_start_rotate_space(
 	fil_space_crypt_t *crypt_data = state->space->crypt_data;
 
 	ut_ad(crypt_data);
-	mutex_enter(&crypt_data->mutex);
+	mysql_mutex_lock(&crypt_data->mutex);
 	ut_ad(key_state->key_id == crypt_data->key_id);
 
 	if (crypt_data->rotate_state.active_threads == 0) {
@@ -1629,7 +1621,7 @@ fil_crypt_start_rotate_space(
 	state->min_key_version_found =
 		crypt_data->rotate_state.min_key_version_found;
 
-	mutex_exit(&crypt_data->mutex);
+	mysql_mutex_unlock(&crypt_data->mutex);
 }
 
 /***********************************************************************
@@ -1655,7 +1647,7 @@ fil_crypt_find_page_to_rotate(
 
 	fil_space_crypt_t *crypt_data = space->crypt_data;
 
-	mutex_enter(&crypt_data->mutex);
+	mysql_mutex_lock(&crypt_data->mutex);
 	ut_ad(key_state->key_id == crypt_data->key_id);
 
 	bool found = crypt_data->rotate_state.max_offset >=
@@ -1674,7 +1666,7 @@ fil_crypt_find_page_to_rotate(
 	}
 
 	crypt_data->rotate_state.next_offset += batch;
-	mutex_exit(&crypt_data->mutex);
+	mysql_mutex_unlock(&crypt_data->mutex);
 	return found;
 }
 
@@ -1997,10 +1989,10 @@ static void fil_crypt_complete_rotate_space(rotate_thread_t* state)
 	ut_ad(crypt_data);
 	ut_ad(state->space->referenced());
 
+	mysql_mutex_lock(&crypt_data->mutex);
+
 	/* Space might already be dropped */
 	if (!state->space->is_stopping()) {
-		mutex_enter(&crypt_data->mutex);
-
 		/**
 		* Update crypt data state with state from thread
 		*/
@@ -2037,21 +2029,18 @@ static void fil_crypt_complete_rotate_space(rotate_thread_t* state)
 			crypt_data->rotate_state.flushing = true;
 			crypt_data->min_key_version =
 				crypt_data->rotate_state.min_key_version_found;
-			mutex_exit(&crypt_data->mutex);
+			mysql_mutex_unlock(&crypt_data->mutex);
 			fil_crypt_flush_space(state);
 
-			mutex_enter(&crypt_data->mutex);
+			mysql_mutex_lock(&crypt_data->mutex);
 			crypt_data->rotate_state.flushing = false;
-			mutex_exit(&crypt_data->mutex);
-		} else {
-			mutex_exit(&crypt_data->mutex);
 		}
 	} else {
-		mutex_enter(&crypt_data->mutex);
 		ut_a(crypt_data->rotate_state.active_threads > 0);
 		crypt_data->rotate_state.active_threads--;
-		mutex_exit(&crypt_data->mutex);
 	}
+
+	mysql_mutex_unlock(&crypt_data->mutex);
 }
 
 /*********************************************************************//**
@@ -2355,19 +2344,14 @@ fil_space_crypt_close_tablespace(
 		return;
 	}
 
-	mysql_mutex_lock(&fil_crypt_threads_mutex);
-
 	time_t start = time(0);
 	time_t last = start;
 
-	mutex_enter(&crypt_data->mutex);
-	mysql_mutex_unlock(&fil_crypt_threads_mutex);
+	mysql_mutex_lock(&crypt_data->mutex);
 
-	ulint cnt = crypt_data->rotate_state.active_threads;
-	bool flushing = crypt_data->rotate_state.flushing;
-
-	while (cnt > 0 || flushing) {
-		mutex_exit(&crypt_data->mutex);
+	while (crypt_data->rotate_state.active_threads
+	       || crypt_data->rotate_state.flushing) {
+		mysql_mutex_unlock(&crypt_data->mutex);
 		/* release dict mutex so that scrub threads can release their
 		* table references */
 		dict_mutex_exit_for_mysql();
@@ -2378,25 +2362,24 @@ fil_space_crypt_close_tablespace(
 
 		os_thread_sleep(20000);
 		dict_mutex_enter_for_mysql();
-		mutex_enter(&crypt_data->mutex);
-		cnt = crypt_data->rotate_state.active_threads;
-		flushing = crypt_data->rotate_state.flushing;
+		mysql_mutex_lock(&crypt_data->mutex);
 
 		time_t now = time(0);
 
-		if (now >= last + 30) {
+		if (UNIV_UNLIKELY(now >= last + 30)) {
 			ib::warn() << "Waited "
 				   << now - start
 				   << " seconds to drop space: "
 				   << space->name << " ("
 				   << space->id << ") active threads "
-				   << cnt << "flushing="
-				   << flushing << ".";
+				   << crypt_data->rotate_state.active_threads
+				   << "flushing="
+				   << crypt_data->rotate_state.flushing << ".";
 			last = now;
 		}
 	}
 
-	mutex_exit(&crypt_data->mutex);
+	mysql_mutex_unlock(&crypt_data->mutex);
 }
 
 /*********************************************************************
@@ -2424,7 +2407,7 @@ fil_space_crypt_get_status(
 
 	if (fil_space_crypt_t* crypt_data = space->crypt_data) {
 		status->space = space->id;
-		mutex_enter(&crypt_data->mutex);
+		mysql_mutex_lock(&crypt_data->mutex);
 		status->scheme = crypt_data->type;
 		status->keyserver_requests = crypt_data->keyserver_requests;
 		status->min_key_version = crypt_data->min_key_version;
@@ -2441,7 +2424,7 @@ fil_space_crypt_get_status(
 				crypt_data->rotate_state.max_offset;
 		}
 
-		mutex_exit(&crypt_data->mutex);
+		mysql_mutex_unlock(&crypt_data->mutex);
 
 		if (srv_encrypt_tables || crypt_data->min_key_version) {
 			status->current_key_version =
