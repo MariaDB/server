@@ -59,13 +59,13 @@ UNIV_INTERN uint srv_fil_crypt_rotate_key_age;
 static mysql_cond_t fil_crypt_cond;
 
 /** Condition variable to to signal the key rotation threads */
-mysql_cond_t fil_crypt_threads_cond;
+static mysql_cond_t fil_crypt_threads_cond;
 
-/** Event for waking up threads throttle. */
+/** Condition variable waking up threads throttle. */
 static mysql_cond_t fil_crypt_throttle_sleep_cond;
 
 /** Mutex for key rotation threads. */
-static mysql_mutex_t fil_crypt_threads_mutex;
+mysql_mutex_t fil_crypt_threads_mutex;
 
 /** Variable ensuring only 1 thread at time does initial conversion */
 static bool fil_crypt_start_converting = false;
@@ -80,6 +80,17 @@ static uint n_fil_crypt_iops_allocated = 0;
 /** Statistics variables */
 static fil_crypt_stat_t crypt_stat;
 static mysql_mutex_t crypt_stat_mutex;
+
+/** Wake up the encryption threads */
+void fil_crypt_threads_signal(bool broadcast)
+{
+  mysql_mutex_lock(&fil_crypt_threads_mutex);
+  if (broadcast)
+    mysql_cond_broadcast(&fil_crypt_threads_cond);
+  else
+    mysql_cond_signal(&fil_crypt_threads_cond);
+  mysql_mutex_unlock(&fil_crypt_threads_mutex);
+}
 
 /***********************************************************************
 Check if a key needs rotation given a key_state
@@ -150,7 +161,9 @@ fil_crypt_get_latest_key_version(
 				key_version,
 				srv_fil_crypt_rotate_key_age)) {
 			if (fil_crypt_threads_inited) {
+				mysql_mutex_lock(&fil_crypt_threads_mutex);
 				mysql_cond_signal(&fil_crypt_threads_cond);
+				mysql_mutex_unlock(&fil_crypt_threads_mutex);
 			}
 		}
 	}
@@ -1354,8 +1367,8 @@ fil_crypt_realloc_iops(
 				n_fil_crypt_iops_allocated ++;
 			}
 
-			mysql_mutex_unlock(&fil_crypt_threads_mutex);
 			mysql_cond_signal(&fil_crypt_threads_cond);
+			mysql_mutex_unlock(&fil_crypt_threads_mutex);
 		}
 	} else {
 		/* see if there are more to get */
@@ -1408,8 +1421,8 @@ fil_crypt_return_iops(
 
 		n_fil_crypt_iops_allocated -= iops;
 		state->allocated_iops = 0;
-		mysql_mutex_unlock(&fil_crypt_threads_mutex);
 		mysql_cond_signal(&fil_crypt_threads_cond);
+		mysql_mutex_unlock(&fil_crypt_threads_mutex);
 	}
 
 	fil_crypt_update_total_stat(state);
@@ -2053,8 +2066,8 @@ DECLARE_THREAD(fil_crypt_thread)(void*)
 	mysql_mutex_lock(&fil_crypt_threads_mutex);
 	uint thread_no = srv_n_fil_crypt_threads_started;
 	srv_n_fil_crypt_threads_started++;
-	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 	mysql_cond_signal(&fil_crypt_cond); /* signal that we started */
+	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
 	/* state of this thread */
 	rotate_thread_t thr(thread_no);
@@ -2138,8 +2151,8 @@ DECLARE_THREAD(fil_crypt_thread)(void*)
 
 	mysql_mutex_lock(&fil_crypt_threads_mutex);
 	srv_n_fil_crypt_threads_started--;
-	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 	mysql_cond_signal(&fil_crypt_cond); /* signal that we stopped */
+	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
@@ -2252,30 +2265,27 @@ next:
 /*********************************************************************
 Adjust max key age
 @param[in]	val		New max key age */
-UNIV_INTERN
-void
-fil_crypt_set_rotate_key_age(
-	uint	val)
+void fil_crypt_set_rotate_key_age(uint val)
 {
-	mutex_enter(&fil_system.mutex);
-	srv_fil_crypt_rotate_key_age = val;
-	if (val == 0) {
-		fil_crypt_rotation_list_fill();
-	}
-	mutex_exit(&fil_system.mutex);
-	mysql_cond_broadcast(&fil_crypt_threads_cond);
+  mutex_enter(&fil_system.mutex);
+  mysql_mutex_lock(&fil_crypt_threads_mutex);
+  srv_fil_crypt_rotate_key_age= val;
+  if (val == 0)
+    fil_crypt_rotation_list_fill();
+  mutex_exit(&fil_system.mutex);
+  mysql_cond_broadcast(&fil_crypt_threads_cond);
+  mysql_mutex_unlock(&fil_crypt_threads_mutex);
 }
 
 /*********************************************************************
 Adjust rotation iops
 @param[in]	val		New max roation iops */
-UNIV_INTERN
-void
-fil_crypt_set_rotation_iops(
-	uint val)
+void fil_crypt_set_rotation_iops(uint val)
 {
-	srv_n_fil_crypt_iops = val;
-	mysql_cond_broadcast(&fil_crypt_threads_cond);
+  mysql_mutex_lock(&fil_crypt_threads_mutex);
+  srv_n_fil_crypt_iops= val;
+  mysql_cond_broadcast(&fil_crypt_threads_cond);
+  mysql_mutex_unlock(&fil_crypt_threads_mutex);
 }
 
 /*********************************************************************
@@ -2283,17 +2293,18 @@ Adjust encrypt tables
 @param[in]	val		New setting for innodb-encrypt-tables */
 void fil_crypt_set_encrypt_tables(ulong val)
 {
-	mutex_enter(&fil_system.mutex);
+  mutex_enter(&fil_system.mutex);
+  mysql_mutex_lock(&fil_crypt_threads_mutex);
 
-	srv_encrypt_tables = val;
+  srv_encrypt_tables= val;
 
-	if (srv_fil_crypt_rotate_key_age == 0) {
-		fil_crypt_rotation_list_fill();
-	}
+  if (srv_fil_crypt_rotate_key_age == 0)
+    fil_crypt_rotation_list_fill();
 
-	mutex_exit(&fil_system.mutex);
+  mutex_exit(&fil_system.mutex);
 
-	mysql_cond_broadcast(&fil_crypt_threads_cond);
+  mysql_cond_broadcast(&fil_crypt_threads_cond);
+  mysql_mutex_unlock(&fil_crypt_threads_mutex);
 }
 
 /*********************************************************************
@@ -2357,8 +2368,10 @@ fil_space_crypt_close_tablespace(
 		dict_mutex_exit_for_mysql();
 
 		/* wakeup throttle (all) sleepers */
+		mysql_mutex_lock(&fil_crypt_threads_mutex);
 		mysql_cond_broadcast(&fil_crypt_throttle_sleep_cond);
 		mysql_cond_broadcast(&fil_crypt_threads_cond);
+		mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
 		os_thread_sleep(20000);
 		dict_mutex_enter_for_mysql();

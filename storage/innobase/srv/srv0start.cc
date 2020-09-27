@@ -846,7 +846,7 @@ srv_shutdown_all_bg_threads()
 			/* b. srv error monitor thread exits automatically,
 			no need to do anything here */
 			if (srv_n_fil_crypt_threads_started) {
-				mysql_cond_broadcast(&fil_crypt_threads_cond);
+				fil_crypt_threads_signal(true);
 			}
 		}
 

@@ -1191,7 +1191,7 @@ fil_space_create(
 	mutex_exit(&fil_system.mutex);
 
 	if (rotate) {
-		mysql_cond_signal(&fil_crypt_threads_cond);
+		fil_crypt_threads_signal();
 	}
 
 	return(space);
