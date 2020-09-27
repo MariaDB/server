@@ -458,7 +458,8 @@ sync_array_wait_event(
 				/* Ensure that we will be woken up. */
 				lock->waiters.exchange(
 					1, std::memory_order_acquire);
-				int32_t l = lock->lock_word;
+				int32_t l = lock->lock_word.load(
+					std::memory_order_acquire);
 				if (l > 0) {
 					break;
 				} else if (l == 0) {

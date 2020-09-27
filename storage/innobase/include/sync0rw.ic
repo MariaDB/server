@@ -369,8 +369,7 @@ rw_lock_s_unlock_func(
 		/* wait_ex waiter exists. It may not be asleep, but we signal
 		anyway. We do not wake other waiters, because they can't
 		exist without wait_ex waiter and wait_ex waiter goes first.*/
-		mysql_cond_signal(&lock->wait_ex_cond);
-		sync_array_object_signalled();
+		lock->wakeup_wait_ex();
 	} else {
 		ut_ad(lock_word > -X_LOCK_DECR);
 		ut_ad(lock_word < X_LOCK_DECR);

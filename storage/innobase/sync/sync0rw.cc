@@ -259,19 +259,25 @@ rw_lock_free_func(
 	mysql_cond_destroy(&lock->wait_ex_cond);
 }
 
-/** Wake up non-exclusive (S or SX) waiters */
+/** Wake up pending (not enqueued) waiters */
 void rw_lock_t::wakeup_waiters()
 {
   mysql_mutex_lock(&wait_mutex);
-  const auto w= waiters;
+  const auto w= waiters.exchange(0);
   if (w)
-  {
-    waiters= 0;
     mysql_cond_broadcast(&wait_cond);
-  }
   mysql_mutex_unlock(&wait_mutex);
   if (w)
     sync_array_object_signalled();
+}
+
+/** Wake up the enqueued exclusive lock waiter */
+void rw_lock_t::wakeup_wait_ex()
+{
+  mysql_mutex_lock(&wait_mutex);
+  mysql_cond_signal(&wait_ex_cond);
+  mysql_mutex_unlock(&wait_mutex);
+  sync_array_object_signalled();
 }
 
 /******************************************************************//**
@@ -303,16 +309,17 @@ lock_loop:
 	/* Spin waiting for the writer field to become free */
 	HMT_low();
 	ulint j = i;
-	while (i < srv_n_spin_wait_rounds && lock->lock_word <= 0) {
+	for (; i < srv_n_spin_wait_rounds; i++) {
+		if (lock->lock_word > 0) {
+			goto available;
+		}
 		ut_delay(srv_spin_wait_delay);
-		i++;
 	}
 
 	HMT_medium();
-	if (i >= srv_n_spin_wait_rounds) {
-		os_thread_yield();
-	}
-
+	os_thread_yield();
+available:
+	HMT_medium();
 	spin_count += lint(i - j);
 
 	/* We try once again to obtain the lock */

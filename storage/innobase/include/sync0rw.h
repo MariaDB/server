@@ -626,8 +626,10 @@ struct rw_lock_t :
 	/** Level in the global latching order. */
 	latch_level_t	level;
 #endif /* UNIV_DEBUG */
-  /** Wake up non-exclusive (S or SX) waiters */
+  /** Wake up pending (not enqueued) waiters */
   void wakeup_waiters();
+  /** Wake up the enqueued exclusive lock waiter */
+  void wakeup_wait_ex();
 };
 #ifdef UNIV_DEBUG
 /** The structure for storing debug info of an rw-lock.  All access to this
