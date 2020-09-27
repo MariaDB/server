@@ -31,8 +31,6 @@ The read-write lock (for threads)
 Created 9/11/1995 Heikki Tuuri
 *******************************************************/
 
-#include "os0event.h"
-
 /******************************************************************//**
 Lock an rw-lock in shared mode for the current thread. If the rw-lock is
 locked in exclusive mode, or there is an exclusive lock request waiting,
@@ -371,7 +369,7 @@ rw_lock_s_unlock_func(
 		/* wait_ex waiter exists. It may not be asleep, but we signal
 		anyway. We do not wake other waiters, because they can't
 		exist without wait_ex waiter and wait_ex waiter goes first.*/
-		os_event_set(lock->wait_ex_event);
+		mysql_cond_signal(&lock->wait_ex_cond);
 		sync_array_object_signalled();
 	} else {
 		ut_ad(lock_word > -X_LOCK_DECR);
@@ -409,16 +407,8 @@ rw_lock_x_unlock_func(
 		ACQUIRE: we want waiters to be loaded after lock_word is stored */
 		lock->lock_word.fetch_add(X_LOCK_DECR,
 					  std::memory_order_acq_rel);
-
-		/* This no longer has an X-lock but it may still have
-		an SX-lock. So it is now free for S-locks by other threads.
-		We need to signal read/write waiters.
-		We do not need to signal wait_ex waiters, since they cannot
-		exist when there is a writer. */
 		if (lock->waiters) {
-			lock->waiters = 0;
-			os_event_set(lock->event);
-			sync_array_object_signalled();
+			lock->wakeup_waiters();
 		}
 	} else if (lock_word == -X_LOCK_DECR
 		   || lock_word == -(X_LOCK_DECR + X_LOCK_HALF_DECR)) {
@@ -466,14 +456,11 @@ rw_lock_sx_unlock_func(
 			lock->lock_word.fetch_add(X_LOCK_HALF_DECR,
 						  std::memory_order_acq_rel);
 
-			/* Lock is now free. May have to signal read/write
-			waiters. We do not need to signal wait_ex waiters,
+			/* We do not need to signal wait_ex waiters,
 			since they cannot exist when there is an sx-lock
 			holder. */
 			if (lock->waiters) {
-				lock->waiters = 0;
-				os_event_set(lock->event);
-				sync_array_object_signalled();
+				lock->wakeup_waiters();
 			}
 		} else {
 			/* still has x-lock */
