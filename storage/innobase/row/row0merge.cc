@@ -4036,9 +4036,7 @@ pfs_os_file_t
 row_merge_file_create_low(
 	const char*	path)
 {
-#ifdef WITH_INNODB_DISALLOW_WRITES
-	os_event_wait(srv_allow_writes_event);
-#endif /* WITH_INNODB_DISALLOW_WRITES */
+	innodb_wait_allow_writes();
 	if (!path) {
 		path = mysql_tmpdir;
 	}

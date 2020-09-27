@@ -3088,6 +3088,11 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	reset_template();
 }
 
+#ifdef WITH_INNODB_DISALLOW_WRITES
+/** Condition variable for innodb_disallow_writes */
+static mysql_cond_t allow_writes_cond;
+#endif /* WITH_INNODB_DISALLOW_WRITES */
+
 /** Free tablespace resources allocated. */
 void innobase_space_shutdown()
 {
@@ -3104,7 +3109,7 @@ void innobase_space_shutdown()
 	srv_tmp_space.shutdown();
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
-	os_event_destroy(srv_allow_writes_event);
+	mysql_cond_destroy(&allow_writes_cond);
 #endif /* WITH_INNODB_DISALLOW_WRITES */
 
 	DBUG_VOID_RETURN;
@@ -3861,6 +3866,10 @@ static int innodb_init(void* p)
 
 	/* After this point, error handling has to use
 	innodb_init_abort(). */
+
+#ifdef WITH_INNODB_DISALLOW_WRITES
+	mysql_cond_init(0, &allow_writes_cond, nullptr);
+#endif /* WITH_INNODB_DISALLOW_WRITES */
 
 #ifdef HAVE_PSI_INTERFACE
 	/* Register keys with MySQL performance schema */
@@ -19700,12 +19709,18 @@ static MYSQL_SYSVAR_ULONG(buf_dump_status_frequency, srv_buf_dump_status_frequen
   NULL, NULL, 0, 0, 100, 0);
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
-/*******************************************************
- *    innobase_disallow_writes variable definition     *
- *******************************************************/
- 
-/* Must always init to FALSE. */
-static my_bool	innobase_disallow_writes	= FALSE;
+my_bool innodb_disallow_writes;
+
+void innodb_wait_allow_writes()
+{
+  if (UNIV_UNLIKELY(innodb_disallow_writes))
+  {
+    mysql_mutex_lock(&LOCK_global_system_variables);
+    while (innodb_disallow_writes)
+      mysql_cond_wait(&allow_writes_cond, &LOCK_global_system_variables);
+    mysql_mutex_unlock(&LOCK_global_system_variables);
+  }
+}
 
 /**************************************************************************
 An "update" method for innobase_disallow_writes variable. */
@@ -19716,17 +19731,14 @@ innobase_disallow_writes_update(THD*, st_mysql_sys_var*,
 {
 	const my_bool val = *static_cast<const my_bool*>(save);
 	*static_cast<my_bool*>(var_ptr) = val;
-	ut_a(srv_allow_writes_event);
 	mysql_mutex_unlock(&LOCK_global_system_variables);
-	if (val) {
-		os_event_reset(srv_allow_writes_event);
-	} else {
-		os_event_set(srv_allow_writes_event);
+	if (!val) {
+		mysql_cond_broadcast(&allow_writes_cond);
 	}
 	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
-static MYSQL_SYSVAR_BOOL(disallow_writes, innobase_disallow_writes,
+static MYSQL_SYSVAR_BOOL(disallow_writes, innodb_disallow_writes,
   PLUGIN_VAR_NOCMDOPT,
   "Tell InnoDB to stop any writes to disk",
   NULL, innobase_disallow_writes_update, FALSE);

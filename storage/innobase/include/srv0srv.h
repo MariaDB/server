@@ -310,8 +310,10 @@ extern my_bool	srv_adaptive_flushing;
 extern my_bool	srv_flush_sync;
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
-/* When this event is reset we do not allow any file writes to take place. */
-extern os_event_t	srv_allow_writes_event;
+extern my_bool innodb_disallow_writes;
+void innodb_wait_allow_writes();
+#else
+# define innodb_wait_allow_writes() do {} while (0)
 #endif /* WITH_INNODB_DISALLOW_WRITES */
 
 /* If this flag is TRUE, then we will load the indexes' (and tables') metadata
