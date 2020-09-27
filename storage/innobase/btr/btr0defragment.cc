@@ -50,6 +50,21 @@ possible. From experimentation it seems that reduce the target size by 512 every
 time will make sure the page is compressible within a couple of iterations. */
 #define BTR_DEFRAGMENT_PAGE_REDUCTION_STEP_SIZE	512
 
+/** Item in the work queue for btr_degrament_thread. */
+struct btr_defragment_item_t
+{
+	btr_pcur_t*	pcur;		/* persistent cursor where
+					btr_defragment_n_pages should start */
+	os_event_t	event;		/* if not null, signal after work
+					is done */
+	bool		removed;	/* Mark an item as removed */
+	ulonglong	last_processed;	/* timestamp of last time this index
+					is processed by defragment thread */
+
+	btr_defragment_item_t(btr_pcur_t* pcur, os_event_t event);
+	~btr_defragment_item_t();
+};
+
 /* Work queue for defragmentation. */
 typedef std::list<btr_defragment_item_t*>	btr_defragment_wq_t;
 static btr_defragment_wq_t	btr_defragment_wq;

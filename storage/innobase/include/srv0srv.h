@@ -42,7 +42,6 @@ Created 10/10/1995 Heikki Tuuri
 #pragma once
 
 #include "log0log.h"
-#include "os0event.h"
 #include "que0types.h"
 #include "trx0types.h"
 #include "fil0fil.h"
