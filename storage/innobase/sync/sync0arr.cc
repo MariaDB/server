@@ -169,7 +169,7 @@ mutexes and read-write locks */
 sync_array_t**	sync_wait_array;
 
 /** count of how many times an object has been signalled */
-static ulint			sg_count;
+ulint sg_count;
 
 #define sync_array_exit(a)	mutex_exit(&(a)->mutex)
 #define sync_array_enter(a)	mutex_enter(&(a)->mutex)
@@ -858,15 +858,6 @@ sync_array_detect_deadlock(
 	return(true);
 }
 #endif /* UNIV_DEBUG */
-
-/**********************************************************************//**
-Increments the signalled count. */
-void
-sync_array_object_signalled()
-/*=========================*/
-{
-	++sg_count;
-}
 
 /**********************************************************************//**
 Prints warnings of long semaphore waits to stderr.
