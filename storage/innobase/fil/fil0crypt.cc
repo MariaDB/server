@@ -62,7 +62,7 @@ static os_event_t fil_crypt_event;
 mysql_cond_t fil_crypt_threads_cond;
 
 /** Event for waking up threads throttle. */
-static os_event_t fil_crypt_throttle_sleep_event;
+static mysql_cond_t fil_crypt_throttle_sleep_cond;
 
 /** Mutex for key rotation threads. */
 static mysql_mutex_t fil_crypt_threads_mutex;
@@ -79,7 +79,7 @@ static uint n_fil_crypt_iops_allocated = 0;
 
 /** Statistics variables */
 static fil_crypt_stat_t crypt_stat;
-static ib_mutex_t crypt_stat_mutex;
+static mysql_mutex_t crypt_stat_mutex;
 
 /***********************************************************************
 Check if a key needs rotation given a key_state
@@ -98,24 +98,19 @@ fil_crypt_needs_rotation(
 
 /*********************************************************************
 Init space crypt */
-UNIV_INTERN
-void
-fil_space_crypt_init()
+void fil_space_crypt_init()
 {
-	fil_crypt_throttle_sleep_event = os_event_create(0);
-
-	mutex_create(LATCH_ID_FIL_CRYPT_STAT_MUTEX, &crypt_stat_mutex);
-	memset(&crypt_stat, 0, sizeof(crypt_stat));
+  mysql_cond_init(0, &fil_crypt_throttle_sleep_cond, nullptr);
+  mysql_mutex_init(0, &crypt_stat_mutex, nullptr);
+  memset(&crypt_stat, 0, sizeof crypt_stat);
 }
 
 /*********************************************************************
 Cleanup space crypt */
-UNIV_INTERN
-void
-fil_space_crypt_cleanup()
+void fil_space_crypt_cleanup()
 {
-	os_event_destroy(fil_crypt_throttle_sleep_event);
-	mutex_free(&crypt_stat_mutex);
+  mysql_cond_destroy(&fil_crypt_throttle_sleep_cond);
+  mysql_mutex_destroy(&crypt_stat_mutex);
 }
 
 /**
@@ -1237,7 +1232,7 @@ static void
 fil_crypt_update_total_stat(
 	rotate_thread_t *state)
 {
-	mutex_enter(&crypt_stat_mutex);
+	mysql_mutex_lock(&crypt_stat_mutex);
 	crypt_stat.pages_read_from_cache +=
 		state->crypt_stat.pages_read_from_cache;
 	crypt_stat.pages_read_from_disk +=
@@ -1248,7 +1243,7 @@ fil_crypt_update_total_stat(
 	crypt_stat.estimated_iops -= state->crypt_stat.estimated_iops;
 	// add new estimate
 	crypt_stat.estimated_iops += state->estimated_max_iops;
-	mutex_exit(&crypt_stat_mutex);
+	mysql_mutex_unlock(&crypt_stat_mutex);
 
 	// make new estimate "current" estimate
 	memset(&state->crypt_stat, 0, sizeof(state->crypt_stat));
@@ -1884,9 +1879,12 @@ fil_crypt_rotate_page(
 	}
 
 	if (sleeptime_ms) {
-		os_event_reset(fil_crypt_throttle_sleep_event);
-		os_event_wait_time(fil_crypt_throttle_sleep_event,
-				   1000 * sleeptime_ms);
+		mysql_mutex_lock(&fil_crypt_threads_mutex);
+		struct timespec abstime;
+		set_timespec_nsec(abstime, 1000000ULL * sleeptime_ms);
+		mysql_cond_timedwait(&fil_crypt_throttle_sleep_cond,
+				     &fil_crypt_threads_mutex, &abstime);
+		mysql_mutex_unlock(&fil_crypt_threads_mutex);
 	}
 }
 
@@ -2376,7 +2374,7 @@ fil_space_crypt_close_tablespace(
 		dict_mutex_exit_for_mysql();
 
 		/* wakeup throttle (all) sleepers */
-		os_event_set(fil_crypt_throttle_sleep_event);
+		mysql_cond_broadcast(&fil_crypt_throttle_sleep_cond);
 		mysql_cond_broadcast(&fil_crypt_threads_cond);
 
 		os_thread_sleep(20000);
@@ -2461,9 +2459,9 @@ void
 fil_crypt_total_stat(
 	fil_crypt_stat_t *stat)
 {
-	mutex_enter(&crypt_stat_mutex);
+	mysql_mutex_lock(&crypt_stat_mutex);
 	*stat = crypt_stat;
-	mutex_exit(&crypt_stat_mutex);
+	mysql_mutex_unlock(&crypt_stat_mutex);
 }
 
 #endif /* UNIV_INNOCHECKSUM */
