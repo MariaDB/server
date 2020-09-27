@@ -55,8 +55,8 @@ UNIV_INTERN uint srv_n_fil_crypt_threads_started = 0;
 /** At this age or older a space/page will be rotated */
 UNIV_INTERN uint srv_fil_crypt_rotate_key_age;
 
-/** Event to signal FROM the key rotation threads. */
-static os_event_t fil_crypt_event;
+/** Condition variable for srv_n_fil_crypt_threads_started */
+static mysql_cond_t fil_crypt_cond;
 
 /** Condition variable to to signal the key rotation threads */
 mysql_cond_t fil_crypt_threads_cond;
@@ -2064,8 +2064,8 @@ DECLARE_THREAD(fil_crypt_thread)(void*)
 	mysql_mutex_lock(&fil_crypt_threads_mutex);
 	uint thread_no = srv_n_fil_crypt_threads_started;
 	srv_n_fil_crypt_threads_started++;
-	os_event_set(fil_crypt_event); /* signal that we started */
 	mysql_mutex_unlock(&fil_crypt_threads_mutex);
+	mysql_cond_signal(&fil_crypt_cond); /* signal that we started */
 
 	/* state of this thread */
 	rotate_thread_t thr(thread_no);
@@ -2149,8 +2149,8 @@ DECLARE_THREAD(fil_crypt_thread)(void*)
 
 	mysql_mutex_lock(&fil_crypt_threads_mutex);
 	srv_n_fil_crypt_threads_started--;
-	os_event_set(fil_crypt_event); /* signal that we stopped */
 	mysql_mutex_unlock(&fil_crypt_threads_mutex);
+	mysql_cond_signal(&fil_crypt_cond); /* signal that we stopped */
 
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
@@ -2190,11 +2190,8 @@ fil_crypt_set_thread_cnt(
 		mysql_cond_signal(&fil_crypt_threads_cond);
 	}
 
-	mysql_mutex_unlock(&fil_crypt_threads_mutex);
-
-	while(srv_n_fil_crypt_threads_started != srv_n_fil_crypt_threads) {
-		os_event_reset(fil_crypt_event);
-		os_event_wait_time(fil_crypt_event, 100000);
+	while (srv_n_fil_crypt_threads_started != srv_n_fil_crypt_threads) {
+		mysql_cond_wait(&fil_crypt_cond, &fil_crypt_threads_mutex);
 	}
 
 	/* Send a message to encryption threads that there could be
@@ -2202,6 +2199,8 @@ fil_crypt_set_thread_cnt(
 	if (srv_n_fil_crypt_threads) {
 		mysql_cond_signal(&fil_crypt_threads_cond);
 	}
+
+	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 }
 
 /** Initialize the tablespace rotation_list
@@ -2315,7 +2314,7 @@ void
 fil_crypt_threads_init()
 {
 	if (!fil_crypt_threads_inited) {
-		fil_crypt_event = os_event_create(0);
+		mysql_cond_init(0, &fil_crypt_cond, nullptr);
 		mysql_cond_init(0, &fil_crypt_threads_cond, nullptr);
 		mysql_mutex_init(0, &fil_crypt_threads_mutex, 0);
 		uint cnt = srv_n_fil_crypt_threads;
@@ -2335,7 +2334,7 @@ fil_crypt_threads_cleanup()
 		return;
 	}
 	ut_a(!srv_n_fil_crypt_threads_started);
-	os_event_destroy(fil_crypt_event);
+	mysql_cond_destroy(&fil_crypt_cond);
 	mysql_cond_destroy(&fil_crypt_threads_cond);
 	mysql_mutex_destroy(&fil_crypt_threads_mutex);
 	fil_crypt_threads_inited = false;
