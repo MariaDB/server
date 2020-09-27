@@ -1637,7 +1637,7 @@ wait_suspend_loop:
 
 	ut_ad(!srv_any_background_activity());
 	if (srv_n_fil_crypt_threads_started) {
-		os_event_set(fil_crypt_threads_event);
+		mysql_cond_broadcast(&fil_crypt_threads_cond);
 		thread_name = "fil_crypt_thread";
 		goto wait_suspend_loop;
 	}

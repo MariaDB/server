@@ -96,7 +96,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "row0row.h"
 #include "row0mysql.h"
 #include "btr0pcur.h"
-#include "os0event.h"
 #include "zlib.h"
 #include "ut0crc32.h"
 
@@ -838,9 +837,7 @@ srv_shutdown_all_bg_threads()
 		srv_purge_shutdown();
 	}
 
-	/* All threads end up waiting for certain events. Put those events
-	to the signaled state. Then the threads will exit themselves after
-	os_event_wait(). */
+	/* Signal any waiting threads. */
 	for (uint i = 0; i < 1000; ++i) {
 		/* NOTE: IF YOU CREATE THREADS IN INNODB, YOU MUST EXIT THEM
 		HERE OR EARLIER */
@@ -849,7 +846,7 @@ srv_shutdown_all_bg_threads()
 			/* b. srv error monitor thread exits automatically,
 			no need to do anything here */
 			if (srv_n_fil_crypt_threads_started) {
-				os_event_set(fil_crypt_threads_event);
+				mysql_cond_broadcast(&fil_crypt_threads_cond);
 			}
 		}
 
@@ -1965,7 +1962,7 @@ skip_monitors:
 		/* Create thread(s) that handles key rotation. This is
 		needed already here as log_preflush_pool_modified_pages
 		will flush dirty pages and that might need e.g.
-		fil_crypt_threads_event. */
+		fil_crypt_threads_cond. */
 		fil_system_enter();
 		fil_crypt_threads_init();
 		fil_system_exit();

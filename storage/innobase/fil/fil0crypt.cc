@@ -58,14 +58,14 @@ UNIV_INTERN uint srv_fil_crypt_rotate_key_age;
 /** Event to signal FROM the key rotation threads. */
 static os_event_t fil_crypt_event;
 
-/** Event to signal TO the key rotation threads. */
-UNIV_INTERN os_event_t fil_crypt_threads_event;
+/** Condition variable to to signal the key rotation threads */
+mysql_cond_t fil_crypt_threads_cond;
 
 /** Event for waking up threads throttle. */
 static os_event_t fil_crypt_throttle_sleep_event;
 
 /** Mutex for key rotation threads. */
-UNIV_INTERN ib_mutex_t fil_crypt_threads_mutex;
+static mysql_mutex_t fil_crypt_threads_mutex;
 
 /** Variable ensuring only 1 thread at time does initial conversion */
 static bool fil_crypt_start_converting = false;
@@ -154,11 +154,8 @@ fil_crypt_get_latest_key_version(
 				crypt_data->min_key_version,
 				key_version,
 				srv_fil_crypt_rotate_key_age)) {
-			/* Below event seen as NULL-pointer at startup
-			when new database was created and we create a
-			checkpoint. Only seen when debugging. */
 			if (fil_crypt_threads_inited) {
-				os_event_set(fil_crypt_threads_event);
+				mysql_cond_signal(&fil_crypt_threads_cond);
 			}
 		}
 	}
@@ -318,10 +315,10 @@ fil_space_destroy_crypt_data(
 	if (crypt_data != NULL && (*crypt_data) != NULL) {
 		fil_space_crypt_t* c;
 		if (UNIV_LIKELY(fil_crypt_threads_inited)) {
-			mutex_enter(&fil_crypt_threads_mutex);
+			mysql_mutex_lock(&fil_crypt_threads_mutex);
 			c = *crypt_data;
 			*crypt_data = NULL;
-			mutex_exit(&fil_crypt_threads_mutex);
+			mysql_mutex_unlock(&fil_crypt_threads_mutex);
 		} else {
 			ut_ad(srv_read_only_mode || !srv_was_started);
 			c = *crypt_data;
@@ -1009,27 +1006,16 @@ fil_crypt_read_crypt_data(fil_space_t* space)
 @return true if a recheck of tablespace is needed by encryption thread. */
 static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 {
-	bool recheck = false;
-
-	mutex_enter(&fil_crypt_threads_mutex);
+	mysql_mutex_lock(&fil_crypt_threads_mutex);
 
 	fil_space_crypt_t *crypt_data = space->crypt_data;
 
+	bool recheck = crypt_data && fil_crypt_start_converting;
+
 	/* If space is not encrypted and encryption is not enabled, then
 	do not continue encrypting the space. */
-	if (!crypt_data && !srv_encrypt_tables) {
-		mutex_exit(&fil_crypt_threads_mutex);
-		return false;
-	}
-
-	if (crypt_data != NULL || fil_crypt_start_converting) {
-		/* someone beat us to it */
-		if (fil_crypt_start_converting) {
-			recheck = true;
-		}
-
-		mutex_exit(&fil_crypt_threads_mutex);
-		return recheck;
+	if (crypt_data || recheck || (!crypt_data && !srv_encrypt_tables)) {
+		goto func_exit;
 	}
 
 	/* NOTE: we need to write and flush page 0 before publishing
@@ -1041,9 +1027,8 @@ static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 	crypt_data = fil_space_create_crypt_data(
 		FIL_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
 
-	if (crypt_data == NULL) {
-		mutex_exit(&fil_crypt_threads_mutex);
-		return false;
+	if (!crypt_data) {
+		goto func_exit;
 	}
 
 	crypt_data->type = CRYPT_SCHEME_UNENCRYPTED;
@@ -1057,7 +1042,7 @@ static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 	mutex_exit(&fil_system.mutex);
 
 	fil_crypt_start_converting = true;
-	mutex_exit(&fil_crypt_threads_mutex);
+	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
 	do
 	{
@@ -1084,7 +1069,7 @@ static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 		buf_flush_dirty_pages(space->id);
 
 		/* 5 - publish crypt data */
-		mutex_enter(&fil_crypt_threads_mutex);
+		mysql_mutex_lock(&fil_crypt_threads_mutex);
 		mutex_enter(&crypt_data->mutex);
 		crypt_data->type = CRYPT_SCHEME_1;
 		ut_a(crypt_data->rotate_state.active_threads == 1);
@@ -1093,9 +1078,7 @@ static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 
 		fil_crypt_start_converting = false;
 		mutex_exit(&crypt_data->mutex);
-		mutex_exit(&fil_crypt_threads_mutex);
-
-		return recheck;
+		goto func_exit;
 	} while (0);
 
 	mutex_enter(&crypt_data->mutex);
@@ -1103,10 +1086,10 @@ static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 	crypt_data->rotate_state.active_threads = 0;
 	mutex_exit(&crypt_data->mutex);
 
-	mutex_enter(&fil_crypt_threads_mutex);
+	mysql_mutex_lock(&fil_crypt_threads_mutex);
 	fil_crypt_start_converting = false;
-	mutex_exit(&fil_crypt_threads_mutex);
-
+func_exit:
+	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 	return recheck;
 }
 
@@ -1290,11 +1273,17 @@ fil_crypt_alloc_iops(
 	its status yet. */
 
 	uint max_iops = state->estimated_max_iops;
-	mutex_enter(&fil_crypt_threads_mutex);
+
+	mysql_mutex_lock(&fil_crypt_threads_mutex);
 
 	if (n_fil_crypt_iops_allocated >= srv_n_fil_crypt_iops) {
 		/* this can happen when user decreases srv_fil_crypt_iops */
-		mutex_exit(&fil_crypt_threads_mutex);
+wait:
+		struct timespec abstime;
+		set_timespec_nsec(abstime, 100000000ULL);
+		mysql_cond_timedwait(&fil_crypt_threads_cond,
+				     &fil_crypt_threads_mutex, &abstime);
+		mysql_mutex_unlock(&fil_crypt_threads_mutex);
 		return false;
 	}
 
@@ -1304,12 +1293,15 @@ fil_crypt_alloc_iops(
 		alloc = max_iops;
 	}
 
+	if (!alloc) {
+		goto wait;
+	}
+
 	n_fil_crypt_iops_allocated += alloc;
-	mutex_exit(&fil_crypt_threads_mutex);
+	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
 	state->allocated_iops = alloc;
-
-	return alloc > 0;
+	return true;
 }
 
 /***********************************************************************
@@ -1356,7 +1348,7 @@ fil_crypt_realloc_iops(
 		uint extra = state->allocated_iops - state->estimated_max_iops;
 
 		if (extra > 0) {
-			mutex_enter(&fil_crypt_threads_mutex);
+			mysql_mutex_lock(&fil_crypt_threads_mutex);
 			if (n_fil_crypt_iops_allocated < extra) {
 				/* unknown bug!
 				* crash in debug
@@ -1375,12 +1367,12 @@ fil_crypt_realloc_iops(
 				n_fil_crypt_iops_allocated ++;
 			}
 
-			os_event_set(fil_crypt_threads_event);
-			mutex_exit(&fil_crypt_threads_mutex);
+			mysql_mutex_unlock(&fil_crypt_threads_mutex);
+			mysql_cond_signal(&fil_crypt_threads_cond);
 		}
 	} else {
 		/* see if there are more to get */
-		mutex_enter(&fil_crypt_threads_mutex);
+		mysql_mutex_lock(&fil_crypt_threads_mutex);
 		if (n_fil_crypt_iops_allocated < srv_n_fil_crypt_iops) {
 			/* there are extra iops free */
 			uint extra = srv_n_fil_crypt_iops -
@@ -1401,7 +1393,7 @@ fil_crypt_realloc_iops(
 				state->allocated_iops));
 
 		}
-		mutex_exit(&fil_crypt_threads_mutex);
+		mysql_mutex_unlock(&fil_crypt_threads_mutex);
 	}
 
 	fil_crypt_update_total_stat(state);
@@ -1417,7 +1409,7 @@ fil_crypt_return_iops(
 {
 	if (state->allocated_iops > 0) {
 		uint iops = state->allocated_iops;
-		mutex_enter(&fil_crypt_threads_mutex);
+		mysql_mutex_lock(&fil_crypt_threads_mutex);
 		if (n_fil_crypt_iops_allocated < iops) {
 			/* unknown bug!
 			* crash in debug
@@ -1429,8 +1421,8 @@ fil_crypt_return_iops(
 
 		n_fil_crypt_iops_allocated -= iops;
 		state->allocated_iops = 0;
-		os_event_set(fil_crypt_threads_event);
-		mutex_exit(&fil_crypt_threads_mutex);
+		mysql_mutex_unlock(&fil_crypt_threads_mutex);
+		mysql_cond_signal(&fil_crypt_threads_cond);
 	}
 
 	fil_crypt_update_total_stat(state);
@@ -1543,23 +1535,15 @@ static bool fil_crypt_find_space_to_rotate(
 	bool*			recheck)
 {
 	/* we need iops to start rotating */
-	while (!state->should_shutdown() && !fil_crypt_alloc_iops(state)) {
-		if (state->space && state->space->is_stopping()) {
-			state->space->release();
-			state->space = NULL;
+	do {
+		if (state->should_shutdown()) {
+			if (state->space) {
+				state->space->release();
+				state->space = NULL;
+			}
+			return false;
 		}
-
-		os_event_reset(fil_crypt_threads_event);
-		os_event_wait_time(fil_crypt_threads_event, 100000);
-	}
-
-	if (state->should_shutdown()) {
-		if (state->space) {
-			state->space->release();
-			state->space = NULL;
-		}
-		return false;
-	}
+	} while (!fil_crypt_alloc_iops(state));
 
 	if (state->first) {
 		state->first = false;
@@ -2079,11 +2063,11 @@ extern "C" UNIV_INTERN
 os_thread_ret_t
 DECLARE_THREAD(fil_crypt_thread)(void*)
 {
-	mutex_enter(&fil_crypt_threads_mutex);
+	mysql_mutex_lock(&fil_crypt_threads_mutex);
 	uint thread_no = srv_n_fil_crypt_threads_started;
 	srv_n_fil_crypt_threads_started++;
 	os_event_set(fil_crypt_event); /* signal that we started */
-	mutex_exit(&fil_crypt_threads_mutex);
+	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
 	/* state of this thread */
 	rotate_thread_t thr(thread_no);
@@ -2092,27 +2076,24 @@ DECLARE_THREAD(fil_crypt_thread)(void*)
 	bool recheck = false;
 
 	while (!thr.should_shutdown()) {
-
 		key_state_t new_state;
 
-		while (!thr.should_shutdown()) {
+		mysql_mutex_lock(&fil_crypt_threads_mutex);
 
+		do {
 			/* wait for key state changes
 			* i.e either new key version of change or
 			* new rotate_key_age */
-			os_event_reset(fil_crypt_threads_event);
-
-			if (os_event_wait_time(fil_crypt_threads_event, 1000000) == 0) {
+			struct timespec abstime;
+			set_timespec_nsec(abstime, 100000000ULL);
+			if (!mysql_cond_timedwait(&fil_crypt_threads_cond,
+						  &fil_crypt_threads_mutex,
+						  &abstime)) {
 				break;
 			}
+		} while (!recheck && !thr.should_shutdown());
 
-			if (recheck) {
-				/* check recheck here, after sleep, so
-				* that we don't busy loop while when one thread is starting
-				* a space*/
-				break;
-			}
-		}
+		mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
 		recheck = false;
 		thr.first = true;      // restart from first tablespace
@@ -2168,10 +2149,10 @@ DECLARE_THREAD(fil_crypt_thread)(void*)
 		thr.space = NULL;
 	}
 
-	mutex_enter(&fil_crypt_threads_mutex);
+	mysql_mutex_lock(&fil_crypt_threads_mutex);
 	srv_n_fil_crypt_threads_started--;
 	os_event_set(fil_crypt_event); /* signal that we stopped */
-	mutex_exit(&fil_crypt_threads_mutex);
+	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */
@@ -2193,7 +2174,7 @@ fil_crypt_set_thread_cnt(
 		fil_crypt_threads_init();
 	}
 
-	mutex_enter(&fil_crypt_threads_mutex);
+	mysql_mutex_lock(&fil_crypt_threads_mutex);
 
 	if (new_cnt > srv_n_fil_crypt_threads) {
 		uint add = new_cnt - srv_n_fil_crypt_threads;
@@ -2208,10 +2189,10 @@ fil_crypt_set_thread_cnt(
 		}
 	} else if (new_cnt < srv_n_fil_crypt_threads) {
 		srv_n_fil_crypt_threads = new_cnt;
-		os_event_set(fil_crypt_threads_event);
+		mysql_cond_signal(&fil_crypt_threads_cond);
 	}
 
-	mutex_exit(&fil_crypt_threads_mutex);
+	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
 	while(srv_n_fil_crypt_threads_started != srv_n_fil_crypt_threads) {
 		os_event_reset(fil_crypt_event);
@@ -2221,7 +2202,7 @@ fil_crypt_set_thread_cnt(
 	/* Send a message to encryption threads that there could be
 	something to do. */
 	if (srv_n_fil_crypt_threads) {
-		os_event_set(fil_crypt_threads_event);
+		mysql_cond_signal(&fil_crypt_threads_cond);
 	}
 }
 
@@ -2296,7 +2277,7 @@ fil_crypt_set_rotate_key_age(
 		fil_crypt_rotation_list_fill();
 	}
 	mutex_exit(&fil_system.mutex);
-	os_event_set(fil_crypt_threads_event);
+	mysql_cond_broadcast(&fil_crypt_threads_cond);
 }
 
 /*********************************************************************
@@ -2308,7 +2289,7 @@ fil_crypt_set_rotation_iops(
 	uint val)
 {
 	srv_n_fil_crypt_iops = val;
-	os_event_set(fil_crypt_threads_event);
+	mysql_cond_broadcast(&fil_crypt_threads_cond);
 }
 
 /*********************************************************************
@@ -2326,7 +2307,7 @@ void fil_crypt_set_encrypt_tables(ulong val)
 
 	mutex_exit(&fil_system.mutex);
 
-	os_event_set(fil_crypt_threads_event);
+	mysql_cond_broadcast(&fil_crypt_threads_cond);
 }
 
 /*********************************************************************
@@ -2337,10 +2318,8 @@ fil_crypt_threads_init()
 {
 	if (!fil_crypt_threads_inited) {
 		fil_crypt_event = os_event_create(0);
-		fil_crypt_threads_event = os_event_create(0);
-		mutex_create(LATCH_ID_FIL_CRYPT_THREADS_MUTEX,
-		     &fil_crypt_threads_mutex);
-
+		mysql_cond_init(0, &fil_crypt_threads_cond, nullptr);
+		mysql_mutex_init(0, &fil_crypt_threads_mutex, 0);
 		uint cnt = srv_n_fil_crypt_threads;
 		srv_n_fil_crypt_threads = 0;
 		fil_crypt_threads_inited = true;
@@ -2359,8 +2338,8 @@ fil_crypt_threads_cleanup()
 	}
 	ut_a(!srv_n_fil_crypt_threads_started);
 	os_event_destroy(fil_crypt_event);
-	os_event_destroy(fil_crypt_threads_event);
-	mutex_free(&fil_crypt_threads_mutex);
+	mysql_cond_destroy(&fil_crypt_threads_cond);
+	mysql_mutex_destroy(&fil_crypt_threads_mutex);
 	fil_crypt_threads_inited = false;
 }
 
@@ -2379,13 +2358,13 @@ fil_space_crypt_close_tablespace(
 		return;
 	}
 
-	mutex_enter(&fil_crypt_threads_mutex);
+	mysql_mutex_lock(&fil_crypt_threads_mutex);
 
 	time_t start = time(0);
 	time_t last = start;
 
 	mutex_enter(&crypt_data->mutex);
-	mutex_exit(&fil_crypt_threads_mutex);
+	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
 	ulint cnt = crypt_data->rotate_state.active_threads;
 	bool flushing = crypt_data->rotate_state.flushing;
@@ -2398,7 +2377,7 @@ fil_space_crypt_close_tablespace(
 
 		/* wakeup throttle (all) sleepers */
 		os_event_set(fil_crypt_throttle_sleep_event);
-		os_event_set(fil_crypt_threads_event);
+		mysql_cond_broadcast(&fil_crypt_threads_cond);
 
 		os_thread_sleep(20000);
 		dict_mutex_enter_for_mysql();

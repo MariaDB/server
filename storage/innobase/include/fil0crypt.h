@@ -26,7 +26,6 @@ Created 04/01/2015 Jan Lindström
 #ifndef fil0crypt_h
 #define fil0crypt_h
 
-#include "os0event.h"
 #include "my_crypt.h"
 #include "fil0fil.h"
 
@@ -41,7 +40,8 @@ static const unsigned char CRYPT_MAGIC[MAGIC_SZ] = {
 /* This key will be used if nothing else is given */
 #define FIL_DEFAULT_ENCRYPTION_KEY ENCRYPTION_KEY_SYSTEM_DATA
 
-extern os_event_t fil_crypt_threads_event;
+/** Condition variable to to signal the key rotation threads */
+extern mysql_cond_t fil_crypt_threads_cond;
 
 /**
  * CRYPT_SCHEME_UNENCRYPTED
