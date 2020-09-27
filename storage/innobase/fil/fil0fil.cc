@@ -171,7 +171,6 @@ fil_system_t	fil_system;
 
 /** At this age or older a space/page will be rotated */
 UNIV_INTERN extern uint srv_fil_crypt_rotate_key_age;
-UNIV_INTERN extern ib_mutex_t fil_crypt_threads_mutex;
 
 /** Determine if the space id is a user tablespace id or not.
 @param[in]	space_id	Space ID to check
@@ -713,8 +712,8 @@ fil_space_extend_must_retry(
 
 	const ulint	page_size = space->physical_size();
 
-	/* fil_read_first_page() expects srv_page_size bytes.
-	fil_node_open_file() expects at least 4 * srv_page_size bytes.*/
+	/* Datafile::read_first_page() expects srv_page_size bytes.
+	fil_node_t::read_page0() expects at least 4 * srv_page_size bytes.*/
 	os_offset_t new_size = std::max(
 		os_offset_t(size - file_start_page_no) * page_size,
 		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE << srv_page_size_shift));
