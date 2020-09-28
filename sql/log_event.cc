@@ -3045,6 +3045,16 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
     fprintf(stderr, "\nError: Found Old DECIMAL (mysql-4.1 or earlier). "
             "Not enough metadata to display the value.\n");
     break;
+
+  case MYSQL_TYPE_GEOMETRY:
+    strmake(typestr, "GEOMETRY", typestr_length);
+    if (!ptr)
+      goto return_null;
+
+    length= uint4korr(ptr);
+    my_b_write_quoted(file, ptr + meta, length);
+    return length + meta;
+
   default:
     print_event_info->flush_for_error();
     fprintf(stderr,
