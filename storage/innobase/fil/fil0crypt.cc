@@ -64,8 +64,8 @@ static mysql_cond_t fil_crypt_threads_cond;
 /** Condition variable waking up threads throttle. */
 static mysql_cond_t fil_crypt_throttle_sleep_cond;
 
-/** Mutex for key rotation threads. */
-mysql_mutex_t fil_crypt_threads_mutex;
+/** Mutex for key rotation threads. Acquired before fil_system.mutex! */
+static mysql_mutex_t fil_crypt_threads_mutex;
 
 /** Variable ensuring only 1 thread at time does initial conversion */
 static bool fil_crypt_start_converting = false;
@@ -2267,8 +2267,8 @@ Adjust max key age
 @param[in]	val		New max key age */
 void fil_crypt_set_rotate_key_age(uint val)
 {
-  mutex_enter(&fil_system.mutex);
   mysql_mutex_lock(&fil_crypt_threads_mutex);
+  mutex_enter(&fil_system.mutex);
   srv_fil_crypt_rotate_key_age= val;
   if (val == 0)
     fil_crypt_rotation_list_fill();
@@ -2293,9 +2293,9 @@ Adjust encrypt tables
 @param[in]	val		New setting for innodb-encrypt-tables */
 void fil_crypt_set_encrypt_tables(ulong val)
 {
-  mutex_enter(&fil_system.mutex);
   mysql_mutex_lock(&fil_crypt_threads_mutex);
 
+  mutex_enter(&fil_system.mutex);
   srv_encrypt_tables= val;
 
   if (srv_fil_crypt_rotate_key_age == 0)
