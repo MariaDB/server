@@ -127,9 +127,8 @@ struct fts_cache_t {
 					memory buffer. FIXME: this needs to
 					be our new upgrade-capable rw-lock */
 
-	rw_lock_t	init_lock;	/*!< lock used for the cache
-					intialization, it has different
-					SYNC level as above cache lock */
+  /** cache initialization */
+  mysql_mutex_t init_lock;
 
 	ib_mutex_t	optimize_lock;	/*!< Lock for OPTIMIZE */
 
