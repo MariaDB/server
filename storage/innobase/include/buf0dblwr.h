@@ -39,16 +39,14 @@ class buf_dblwr_t
 
   /** mutex protecting the data members below */
   mysql_mutex_t	mutex;
+  /** condition variable for batch_running */
+  mysql_cond_t cond;
+  /** whether a batch is being written from the doublewrite buffer */
+  bool batch_running;
   /** first free position in write_buf measured in units of srv_page_size */
   ulint first_free;
   /** number of slots currently reserved for batch flush */
   ulint b_reserved;
-	os_event_t	b_event;/*!< event where threads wait for a
-				batch flush to end;
-				os_event_set() and os_event_reset()
-				are protected by buf_dblwr_t::mutex */
-  /** whether a batch is being written from the doublewrite buffer */
-  bool batch_running;
   /** the doublewrite buffer, aligned to srv_page_size */
   byte *write_buf;
 

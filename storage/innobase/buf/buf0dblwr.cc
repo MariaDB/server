@@ -57,7 +57,7 @@ inline void buf_dblwr_t::init(const byte *header)
   ut_ad(!b_reserved);
 
   mysql_mutex_init(buf_dblwr_mutex_key, &mutex, nullptr);
-  b_event= os_event_create("dblwr_batch_event");
+  mysql_cond_init(0, &cond, nullptr);
   block1= page_id_t(0, mach_read_from_4(header + TRX_SYS_DOUBLEWRITE_BLOCK1));
   block2= page_id_t(0, mach_read_from_4(header + TRX_SYS_DOUBLEWRITE_BLOCK2));
 
@@ -452,7 +452,7 @@ void buf_dblwr_t::close()
   /* Free the double write data structures. */
   ut_ad(!b_reserved);
 
-  os_event_destroy(b_event);
+  mysql_cond_destroy(&cond);
   aligned_free(write_buf);
   ut_free(buf_block_arr);
   mysql_mutex_destroy(&mutex);
@@ -484,7 +484,7 @@ void buf_dblwr_t::update()
     /* We can now reuse the doublewrite memory buffer: */
     first_free= 0;
     batch_running= false;
-    os_event_set(b_event);
+    mysql_cond_signal(&cond);
   }
 
   mysql_mutex_unlock(&mutex);
@@ -604,13 +604,10 @@ void buf_dblwr_t::flush_buffered_writes()
   ut_ad(!srv_read_only_mode);
   const ulint size= block_size();
 
+  mysql_mutex_lock(&mutex);
+
   for (;;)
   {
-    mysql_mutex_lock(&mutex);
-
-    /* Write first to doublewrite buffer blocks. We use synchronous
-    aio and thus know that file write has been completed when the
-    control returns. */
     if (!first_free)
     {
       mysql_mutex_unlock(&mutex);
@@ -622,13 +619,10 @@ void buf_dblwr_t::flush_buffered_writes()
 
     /* Another thread is running the batch right now. Wait for it to
     finish. */
-    int64_t sig_count= os_event_reset(b_event);
-    mysql_mutex_unlock(&mutex);
-    os_event_wait_low(b_event, sig_count);
+    mysql_cond_wait(&cond, &mutex);
   }
 
   ut_ad(first_free == b_reserved);
-
   /* Disallow anyone else to post to doublewrite buffer or to
   start another batch of flushing. */
   batch_running= true;
@@ -727,21 +721,13 @@ void buf_dblwr_t::add_to_batch(buf_page_t *bpage, bool lru, size_t size)
   ut_ad(bpage->in_file());
   const ulint buf_size= 2 * block_size();
 
+  mysql_mutex_lock(&mutex);
+
   for (;;)
   {
-    mysql_mutex_lock(&mutex);
-
     if (batch_running)
     {
-      /* This not nearly as bad as it looks. There is only page_cleaner
-      thread which does background flushing in batches therefore it is
-      unlikely to be a contention point. The only exception is when a
-      user thread is forced to do a flush batch because of a sync
-      checkpoint. */
-      int64_t sig_count= os_event_reset(b_event);
-      mysql_mutex_unlock(&mutex);
-
-      os_event_wait_low(b_event, sig_count);
+      mysql_cond_wait(&cond, &mutex);
       continue;
     }
 
@@ -751,6 +737,7 @@ void buf_dblwr_t::add_to_batch(buf_page_t *bpage, bool lru, size_t size)
 
     mysql_mutex_unlock(&mutex);
     flush_buffered_writes();
+    mysql_mutex_lock(&mutex);
   }
 
   byte *p= write_buf + srv_page_size * first_free;
@@ -764,7 +751,6 @@ void buf_dblwr_t::add_to_batch(buf_page_t *bpage, bool lru, size_t size)
   buf_block_arr[first_free++] = { bpage, lru, size };
   b_reserved++;
 
-  ut_ad(!batch_running);
   ut_ad(first_free == b_reserved);
   ut_ad(b_reserved <= buf_size);
   const auto f= first_free;
