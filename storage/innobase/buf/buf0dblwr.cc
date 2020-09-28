@@ -29,6 +29,7 @@ Created 2011/12/19
 #include "buf0checksum.h"
 #include "srv0start.h"
 #include "srv0srv.h"
+#include "sync0sync.h"
 #include "page0zip.h"
 #include "trx0sys.h"
 #include "fil0crypt.h"
@@ -95,7 +96,7 @@ static void buf_dblwr_init(const byte *doublewrite)
 	buffer. */
 	buf_size = TRX_SYS_DOUBLEWRITE_BLOCKS * TRX_SYS_DOUBLEWRITE_BLOCK_SIZE;
 
-	mutex_create(LATCH_ID_BUF_DBLWR, &buf_dblwr->mutex);
+	mysql_mutex_init(buf_dblwr_mutex_key, &buf_dblwr->mutex, nullptr);
 
 	buf_dblwr->b_event = os_event_create("dblwr_batch_event");
 	buf_dblwr->first_free = 0;
@@ -630,7 +631,7 @@ buf_dblwr_free()
 	os_event_destroy(buf_dblwr->b_event);
 	aligned_free(buf_dblwr->write_buf);
 	ut_free(buf_dblwr->buf_block_arr);
-	mutex_free(&buf_dblwr->mutex);
+	mysql_mutex_destroy(&buf_dblwr->mutex);
 	ut_free(buf_dblwr);
 	buf_dblwr = NULL;
 }
@@ -643,7 +644,7 @@ void buf_dblwr_update(const buf_page_t &bpage)
   ut_ad(!fsp_is_system_temporary(bpage.id().space()));
   ut_ad(!srv_read_only_mode);
 
-  mutex_enter(&buf_dblwr->mutex);
+  mysql_mutex_lock(&buf_dblwr->mutex);
 
   ut_ad(buf_dblwr->batch_running);
   ut_ad(buf_dblwr->b_reserved > 0);
@@ -651,10 +652,10 @@ void buf_dblwr_update(const buf_page_t &bpage)
 
   if (!--buf_dblwr->b_reserved)
   {
-    mutex_exit(&buf_dblwr->mutex);
+    mysql_mutex_unlock(&buf_dblwr->mutex);
     /* This will finish the batch. Sync data files to the disk. */
     fil_flush_file_spaces();
-    mutex_enter(&buf_dblwr->mutex);
+    mysql_mutex_lock(&buf_dblwr->mutex);
 
     /* We can now reuse the doublewrite memory buffer: */
     buf_dblwr->first_free= 0;
@@ -662,7 +663,7 @@ void buf_dblwr_update(const buf_page_t &bpage)
     os_event_set(buf_dblwr->b_event);
   }
 
-  mutex_exit(&buf_dblwr->mutex);
+  mysql_mutex_unlock(&buf_dblwr->mutex);
 }
 
 #ifdef UNIV_DEBUG
@@ -818,7 +819,7 @@ buf_dblwr_flush_buffered_writes()
 	ut_ad(!srv_read_only_mode);
 
 try_again:
-	mutex_enter(&buf_dblwr->mutex);
+	mysql_mutex_lock(&buf_dblwr->mutex);
 
 	/* Write first to doublewrite buffer blocks. We use synchronous
 	aio and thus know that file write has been completed when the
@@ -826,7 +827,7 @@ try_again:
 
 	if (buf_dblwr->first_free == 0) {
 
-		mutex_exit(&buf_dblwr->mutex);
+		mysql_mutex_unlock(&buf_dblwr->mutex);
 		return;
 	}
 
@@ -834,7 +835,7 @@ try_again:
 		/* Another thread is running the batch right now. Wait
 		for it to finish. */
 		int64_t	sig_count = os_event_reset(buf_dblwr->b_event);
-		mutex_exit(&buf_dblwr->mutex);
+		mysql_mutex_unlock(&buf_dblwr->mutex);
 
 		os_event_wait_low(buf_dblwr->b_event, sig_count);
 		goto try_again;
@@ -848,7 +849,7 @@ try_again:
 	first_free = buf_dblwr->first_free;
 
 	/* Now safe to release the mutex. */
-	mutex_exit(&buf_dblwr->mutex);
+	mysql_mutex_unlock(&buf_dblwr->mutex);
 
 	write_buf = buf_dblwr->write_buf;
 
@@ -934,7 +935,7 @@ void buf_dblwr_t::add_to_batch(buf_page_t *bpage, bool lru, size_t size)
 {
   ut_ad(bpage->in_file());
 try_again:
-  mutex_enter(&mutex);
+  mysql_mutex_lock(&mutex);
 
   if (batch_running)
   {
@@ -944,7 +945,7 @@ try_again:
     user thread is forced to do a flush batch because of a sync
     checkpoint. */
     int64_t sig_count= os_event_reset(b_event);
-    mutex_exit(&mutex);
+    mysql_mutex_unlock(&mutex);
 
     os_event_wait_low(b_event, sig_count);
     goto try_again;
@@ -953,7 +954,7 @@ try_again:
   if (first_free == TRX_SYS_DOUBLEWRITE_BLOCKS *
       TRX_SYS_DOUBLEWRITE_BLOCK_SIZE)
   {
-    mutex_exit(&mutex);
+    mysql_mutex_unlock(&mutex);
     buf_dblwr_flush_buffered_writes();
     goto try_again;
   }
@@ -978,7 +979,7 @@ try_again:
 
   const bool need_flush= first_free == TRX_SYS_DOUBLEWRITE_BLOCKS *
     TRX_SYS_DOUBLEWRITE_BLOCK_SIZE;
-  mutex_exit(&mutex);
+  mysql_mutex_unlock(&mutex);
 
   if (need_flush)
     buf_dblwr_flush_buffered_writes();
