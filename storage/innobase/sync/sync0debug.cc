@@ -731,7 +731,6 @@ LatchDebug::check_order(
 	case SYNC_FTS_BG_THREADS:
 	case SYNC_WORK_QUEUE:
 	case SYNC_FTS_TOKENIZE:
-	case SYNC_FTS_OPTIMIZE:
 	case SYNC_SEARCH_SYS:
 	case SYNC_LOCK_SYS:
 	case SYNC_LOCK_WAIT_SYS:
@@ -1234,10 +1233,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(FTS_BG_THREADS, SYNC_FTS_BG_THREADS,
 			fts_bg_threads_mutex_key);
-
-	LATCH_ADD_MUTEX(FTS_DELETE, SYNC_FTS_OPTIMIZE, fts_delete_mutex_key);
-
-	LATCH_ADD_MUTEX(FTS_DOC_ID, SYNC_FTS_OPTIMIZE, fts_doc_id_mutex_key);
 
 	LATCH_ADD_MUTEX(FTS_PLL_TOKENIZE, SYNC_FTS_TOKENIZE,
 			fts_pll_tokenize_mutex_key);

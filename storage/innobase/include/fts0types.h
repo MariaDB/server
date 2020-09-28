@@ -129,9 +129,11 @@ struct fts_cache_t
   /** cache initialization */
   mysql_mutex_t init_lock;
 
-	ib_mutex_t	deleted_lock;	/*!< Lock covering deleted_doc_ids */
+  /** protection for deleted_doc_ids */
+  mysql_mutex_t deleted_lock;
 
-	ib_mutex_t	doc_id_lock;	/*!< Lock covering Doc ID */
+  /** protection for DOC_ID */
+  mysql_mutex_t	doc_id_lock;
 
 	ib_vector_t*	deleted_doc_ids;/*!< Array of deleted doc ids, each
 					element is of type fts_update_t */

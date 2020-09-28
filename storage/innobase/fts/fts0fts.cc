@@ -286,8 +286,8 @@ fts_cache_destroy(fts_cache_t* cache)
 {
 	mysql_mutex_destroy(&cache->lock);
 	mysql_mutex_destroy(&cache->init_lock);
-	mutex_free(&cache->deleted_lock);
-	mutex_free(&cache->doc_id_lock);
+	mysql_mutex_destroy(&cache->deleted_lock);
+	mysql_mutex_destroy(&cache->doc_id_lock);
 	os_event_destroy(cache->sync->event);
 
 	if (cache->stopword_info.cached_stopword) {
@@ -580,10 +580,10 @@ fts_cache_init(
 
 	cache->total_size = 0;
 
-	mutex_enter((ib_mutex_t*) &cache->deleted_lock);
+	mysql_mutex_lock(&cache->deleted_lock);
 	cache->deleted_doc_ids = ib_vector_create(
 		cache->sync_heap, sizeof(doc_id_t), 4);
-	mutex_exit((ib_mutex_t*) &cache->deleted_lock);
+	mysql_mutex_unlock(&cache->deleted_lock);
 
 	/* Reset the cache data for all the FTS indexes. */
 	for (i = 0; i < ib_vector_size(cache->indexes); ++i) {
@@ -615,9 +615,8 @@ fts_cache_create(
 
 	mysql_mutex_init(fts_cache_lock_key, &cache->lock, nullptr);
 	mysql_mutex_init(fts_cache_init_lock_key, &cache->init_lock, nullptr);
-	mutex_create(LATCH_ID_FTS_DELETE, &cache->deleted_lock);
-
-	mutex_create(LATCH_ID_FTS_DOC_ID, &cache->doc_id_lock);
+	mysql_mutex_init(fts_delete_mutex_key, &cache->deleted_lock, nullptr);
+	mysql_mutex_init(fts_doc_id_mutex_key, &cache->doc_id_lock, nullptr);
 
 	/* This is the heap used to create the cache itself. */
 	cache->self_heap = ib_heap_allocator_create(heap);
@@ -1089,9 +1088,9 @@ fts_cache_clear(
 
 	cache->total_size = 0;
 
-	mutex_enter((ib_mutex_t*) &cache->deleted_lock);
+	mysql_mutex_lock(&cache->deleted_lock);
 	cache->deleted_doc_ids = NULL;
-	mutex_exit((ib_mutex_t*) &cache->deleted_lock);
+	mysql_mutex_unlock(&cache->deleted_lock);
 
 	mem_heap_free(static_cast<mem_heap_t*>(cache->sync_heap->arg));
 	cache->sync_heap->arg = NULL;
@@ -2557,9 +2556,9 @@ fts_get_next_doc_id(
 	}
 
 	DEBUG_SYNC_C("get_next_FTS_DOC_ID");
-	mutex_enter(&cache->doc_id_lock);
+	mysql_mutex_lock(&cache->doc_id_lock);
 	*doc_id = cache->next_doc_id++;
-	mutex_exit(&cache->doc_id_lock);
+	mysql_mutex_unlock(&cache->doc_id_lock);
 
 	return(DB_SUCCESS);
 }
@@ -2654,13 +2653,13 @@ retry:
 		cache->synced_doc_id = ut_max(cmp_doc_id, *doc_id);
 	}
 
-	mutex_enter(&cache->doc_id_lock);
+	mysql_mutex_lock(&cache->doc_id_lock);
 	/* For each sync operation, we will add next_doc_id by 1,
 	so to mark a sync operation */
 	if (cache->next_doc_id < cache->synced_doc_id + 1) {
 		cache->next_doc_id = cache->synced_doc_id + 1;
 	}
-	mutex_exit(&cache->doc_id_lock);
+	mysql_mutex_unlock(&cache->doc_id_lock);
 
 	if (cmp_doc_id > *doc_id) {
 		error = fts_update_sync_doc_id(
@@ -2802,9 +2801,9 @@ fts_add(
 
 	fts_add_doc_by_id(ftt, doc_id, row->fts_indexes);
 
-	mutex_enter(&table->fts->cache->deleted_lock);
+	mysql_mutex_lock(&table->fts->cache->deleted_lock);
 	++table->fts->cache->added;
-	mutex_exit(&table->fts->cache->deleted_lock);
+	mysql_mutex_unlock(&table->fts->cache->deleted_lock);
 
 	if (!DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID)
 	    && doc_id >= table->fts->cache->next_doc_id) {
@@ -2852,7 +2851,7 @@ fts_delete(
 	is re-established and sync-ed */
 	if (table->fts->added_synced
 	    && doc_id > cache->synced_doc_id) {
-		mutex_enter(&table->fts->cache->deleted_lock);
+		mysql_mutex_lock(&table->fts->cache->deleted_lock);
 
 		/* The Doc ID could belong to those left in
 		ADDED table from last crash. So need to check
@@ -2863,7 +2862,7 @@ fts_delete(
 			--table->fts->cache->added;
 		}
 
-		mutex_exit(&table->fts->cache->deleted_lock);
+		mysql_mutex_unlock(&table->fts->cache->deleted_lock);
 
 		/* Only if the row was really deleted. */
 		ut_a(row->state == FTS_DELETE || row->state == FTS_MODIFY);
@@ -2897,11 +2896,11 @@ fts_delete(
 	/* Increment the total deleted count, this is used to calculate the
 	number of documents indexed. */
 	if (error == DB_SUCCESS) {
-		mutex_enter(&table->fts->cache->deleted_lock);
+		mysql_mutex_lock(&table->fts->cache->deleted_lock);
 
 		++table->fts->cache->deleted;
 
-		mutex_exit(&table->fts->cache->deleted_lock);
+		mysql_mutex_unlock(&table->fts->cache->deleted_lock);
 	}
 
 	return(error);
@@ -4320,12 +4319,12 @@ end_sync:
 	we make copies of the two variables that control the trigger. These
 	variables can change behind our back and we don't want to hold the
 	lock for longer than is needed. */
-	mutex_enter(&cache->deleted_lock);
+	mysql_mutex_lock(&cache->deleted_lock);
 
 	cache->added = 0;
 	cache->deleted = 0;
 
-	mutex_exit(&cache->deleted_lock);
+	mysql_mutex_unlock(&cache->deleted_lock);
 
 	return(error);
 }
@@ -5152,27 +5151,20 @@ Append deleted doc ids to vector. */
 void
 fts_cache_append_deleted_doc_ids(
 /*=============================*/
-	const fts_cache_t*	cache,		/*!< in: cache to use */
+	fts_cache_t*		cache,		/*!< in: cache to use */
 	ib_vector_t*		vector)		/*!< in: append to this vector */
 {
-	mutex_enter(const_cast<ib_mutex_t*>(&cache->deleted_lock));
+  mysql_mutex_lock(&cache->deleted_lock);
 
-	if (cache->deleted_doc_ids == NULL) {
-		mutex_exit((ib_mutex_t*) &cache->deleted_lock);
-		return;
-	}
+  if (cache->deleted_doc_ids)
+    for (ulint i= 0; i < ib_vector_size(cache->deleted_doc_ids); ++i)
+    {
+      doc_id_t *update= static_cast<doc_id_t*>(
+        ib_vector_get(cache->deleted_doc_ids, i));
+      ib_vector_push(vector, &update);
+    }
 
-
-	for (ulint i = 0; i < ib_vector_size(cache->deleted_doc_ids); ++i) {
-		doc_id_t*	update;
-
-		update = static_cast<doc_id_t*>(
-			ib_vector_get(cache->deleted_doc_ids, i));
-
-		ib_vector_push(vector, &update);
-	}
-
-	mutex_exit((ib_mutex_t*) &cache->deleted_lock);
+  mysql_mutex_unlock(&cache->deleted_lock);
 }
 
 /*********************************************************************//**
