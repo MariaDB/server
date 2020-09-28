@@ -1589,7 +1589,7 @@ bool Protocol_text::store(Field *field)
 }
 
 
-bool Protocol_text::store(MYSQL_TIME *tm, int decimals)
+bool Protocol_text::store_datetime(MYSQL_TIME *tm, int decimals)
 {
 #ifndef DBUG_OFF
   DBUG_ASSERT(valid_handler(field_pos, PROTOCOL_SEND_DATETIME));
@@ -1807,7 +1807,7 @@ bool Protocol_binary::store(Field *field)
 }
 
 
-bool Protocol_binary::store(MYSQL_TIME *tm, int decimals)
+bool Protocol_binary::store_datetime(MYSQL_TIME *tm, int decimals)
 {
   char buff[12],*pos;
   uint length;
@@ -1841,7 +1841,7 @@ bool Protocol_binary::store_date(MYSQL_TIME *tm)
 {
   tm->hour= tm->minute= tm->second=0;
   tm->second_part= 0;
-  return Protocol_binary::store(tm, 0);
+  return Protocol_binary::store_datetime(tm, 0);
 }
 
 

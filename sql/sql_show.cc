@@ -9840,7 +9840,7 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
     thd->variables.time_zone->gmt_sec_to_TIME(&timestamp,
                                               (my_time_t)(trigger->create_time/100));
     timestamp.second_part= (trigger->create_time % 100) * 10000;
-    p->store(&timestamp, 2);
+    p->store_datetime(&timestamp, 2);
   }
   else
     p->store_null();

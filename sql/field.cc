@@ -5459,7 +5459,7 @@ bool Field_timestamp0::send(Protocol *protocol)
 {
   MYSQL_TIME ltime;
   Field_timestamp0::get_date(&ltime, date_mode_t(0));
-  return protocol->store(&ltime, 0);
+  return protocol->store_datetime(&ltime, 0);
 }
 
 
@@ -5619,7 +5619,7 @@ bool Field_timestamp_with_dec::send(Protocol *protocol)
 {
   MYSQL_TIME ltime;
   Field_timestamp::get_date(&ltime, date_mode_t(0));
-  return protocol->store(&ltime, dec);
+  return protocol->store_datetime(&ltime, dec);
 }
 
 
@@ -6906,7 +6906,7 @@ bool Field_datetime0::send(Protocol *protocol)
 {
   MYSQL_TIME tm;
   Field_datetime0::get_date(&tm, date_mode_t(0));
-  return protocol->store(&tm, 0);
+  return protocol->store_datetime(&tm, 0);
 }
 
 
@@ -7034,7 +7034,7 @@ bool Field_datetime_with_dec::send(Protocol *protocol)
 {
   MYSQL_TIME ltime;
   get_date(&ltime, date_mode_t(0));
-  return protocol->store(&ltime, dec);
+  return protocol->store_datetime(&ltime, dec);
 }
 
 

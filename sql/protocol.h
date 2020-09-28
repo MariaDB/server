@@ -138,7 +138,7 @@ public:
                          CHARSET_INFO *fromcs, CHARSET_INFO *tocs)=0;
   virtual bool store_float(float from, uint32 decimals)=0;
   virtual bool store_double(double from, uint32 decimals)=0;
-  virtual bool store(MYSQL_TIME *time, int decimals)=0;
+  virtual bool store_datetime(MYSQL_TIME *time, int decimals)=0;
   virtual bool store_date(MYSQL_TIME *time)=0;
   virtual bool store_time(MYSQL_TIME *time, int decimals)=0;
   virtual bool store(Field *field)=0;
@@ -217,7 +217,7 @@ public:
   bool store_decimal(const my_decimal *) override;
   bool store_str(const char *from, size_t length,
                  CHARSET_INFO *fromcs, CHARSET_INFO *tocs) override;
-  bool store(MYSQL_TIME *time, int decimals) override;
+  bool store_datetime(MYSQL_TIME *time, int decimals) override;
   bool store_date(MYSQL_TIME *time) override;
   bool store_time(MYSQL_TIME *time, int decimals) override;
   bool store_float(float nr, uint32 decimals) override;
@@ -265,7 +265,7 @@ public:
   bool store_decimal(const my_decimal *) override;
   bool store_str(const char *from, size_t length,
                  CHARSET_INFO *fromcs, CHARSET_INFO *tocs) override;
-  bool store(MYSQL_TIME *time, int decimals) override;
+  bool store_datetime(MYSQL_TIME *time, int decimals) override;
   bool store_date(MYSQL_TIME *time) override;
   bool store_time(MYSQL_TIME *time, int decimals) override;
   bool store_float(float nr, uint32 decimals) override;
@@ -316,7 +316,7 @@ public:
   {
     return false;
   }
-  bool store(MYSQL_TIME *, int) override { return false; }
+  bool store_datetime(MYSQL_TIME *, int) override { return false; }
   bool store_date(MYSQL_TIME *) override { return false; }
   bool store_time(MYSQL_TIME *, int) override { return false; }
   bool store_float(float, uint32) override { return false; }
