@@ -286,7 +286,6 @@ fts_cache_destroy(fts_cache_t* cache)
 {
 	mysql_mutex_destroy(&cache->lock);
 	mysql_mutex_destroy(&cache->init_lock);
-	mutex_free(&cache->optimize_lock);
 	mutex_free(&cache->deleted_lock);
 	mutex_free(&cache->doc_id_lock);
 	os_event_destroy(cache->sync->event);
@@ -617,8 +616,6 @@ fts_cache_create(
 	mysql_mutex_init(fts_cache_lock_key, &cache->lock, nullptr);
 	mysql_mutex_init(fts_cache_init_lock_key, &cache->init_lock, nullptr);
 	mutex_create(LATCH_ID_FTS_DELETE, &cache->deleted_lock);
-
-	mutex_create(LATCH_ID_FTS_OPTIMIZE, &cache->optimize_lock);
 
 	mutex_create(LATCH_ID_FTS_DOC_ID, &cache->doc_id_lock);
 

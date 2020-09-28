@@ -519,7 +519,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(fts_cache_lock),
 	PSI_KEY(fts_cache_init_lock),
 	PSI_KEY(fts_delete_mutex),
-	PSI_KEY(fts_optimize_mutex),
 	PSI_KEY(fts_doc_id_mutex),
 	PSI_KEY(log_flush_order_mutex),
 	PSI_KEY(ibuf_bitmap_mutex),
