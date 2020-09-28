@@ -114,9 +114,8 @@ struct fts_sync_t {
 	bool		in_progress;	/*!< flag whether sync is in progress.*/
 	bool		unlock_cache;	/*!< flag whether unlock cache when
 					write fts node */
-	os_event_t	event;		/*!< sync finish event;
-					only os_event_set() and os_event_wait()
-					are used */
+  /** condition variable for in_progress; used with table->fts->cache->lock */
+  mysql_cond_t cond;
 };
 
 /** The cache for the FTS system. It is a memory-based inverted index

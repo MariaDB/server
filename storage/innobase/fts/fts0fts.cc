@@ -288,7 +288,7 @@ fts_cache_destroy(fts_cache_t* cache)
 	mysql_mutex_destroy(&cache->init_lock);
 	mysql_mutex_destroy(&cache->deleted_lock);
 	mysql_mutex_destroy(&cache->doc_id_lock);
-	os_event_destroy(cache->sync->event);
+	mysql_cond_destroy(&cache->sync->cond);
 
 	if (cache->stopword_info.cached_stopword) {
 		rbt_free(cache->stopword_info.cached_stopword);
@@ -629,7 +629,7 @@ fts_cache_create(
 		mem_heap_zalloc(heap, sizeof(fts_sync_t)));
 
 	cache->sync->table = table;
-	cache->sync->event = os_event_create(0);
+	mysql_cond_init(0, &cache->sync->cond, nullptr);
 
 	/* Create the index cache vector that will hold the inverted indexes. */
 	cache->indexes = ib_vector_create(
@@ -3515,7 +3515,10 @@ fts_add_doc_by_id(
 				DBUG_EXECUTE_IF(
 					"fts_instrument_sync",
 					fts_optimize_request_sync_table(table);
-					os_event_wait(cache->sync->event);
+					mysql_mutex_lock(&cache->lock);
+					mysql_cond_wait(&cache->sync->cond,
+							&cache->lock);
+					mysql_mutex_unlock(&cache->lock);
 				);
 
 				DBUG_EXECUTE_IF(
@@ -4234,15 +4237,14 @@ fts_sync(
 	Note: we release cache lock in fts_sync_write_words() to
 	avoid long wait for the lock by other threads. */
 	while (sync->in_progress) {
-		mysql_mutex_unlock(&cache->lock);
-
 		if (wait) {
-			os_event_wait(sync->event);
+			mysql_cond_wait(&sync->cond, &cache->lock);
+			mysql_mutex_unlock(&cache->lock);
+
 		} else {
+			mysql_mutex_unlock(&cache->lock);
 			return(DB_SUCCESS);
 		}
-
-		mysql_mutex_lock(&cache->lock);
 	}
 
 	sync->unlock_cache = unlock_cache;
@@ -4312,7 +4314,7 @@ end_sync:
 
 	sync->interrupted = false;
 	sync->in_progress = false;
-	os_event_set(sync->event);
+	mysql_cond_signal(&sync->cond);
 	mysql_mutex_unlock(&cache->lock);
 
 	/* We need to check whether an optimize is required, for that
