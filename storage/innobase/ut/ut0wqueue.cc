@@ -39,9 +39,9 @@ ib_wqueue_create(void)
 		ut_malloc_nokey(sizeof(*wq)));
 
 	mysql_mutex_init(0, &wq->mutex, nullptr);
+	mysql_cond_init(0, &wq->cond, nullptr);
 
 	wq->items = ib_list_create();
-	wq->event = os_event_create(0);
 
 	return(wq);
 }
@@ -54,8 +54,8 @@ ib_wqueue_free(
 	ib_wqueue_t*	wq)	/*!< in: work queue */
 {
 	mysql_mutex_destroy(&wq->mutex);
+	mysql_cond_destroy(&wq->cond);
 	ib_list_free(wq->items);
-	os_event_destroy(wq->event);
 
 	ut_free(wq);
 }
@@ -73,91 +73,41 @@ ib_wqueue_add(ib_wqueue_t* wq, void* item, mem_heap_t* heap, bool wq_locked)
 	}
 
 	ib_list_add_last(wq->items, item, heap);
-	os_event_set(wq->event);
+	mysql_cond_signal(&wq->cond);
 
 	if (!wq_locked) {
 		mysql_mutex_unlock(&wq->mutex);
 	}
 }
 
-/****************************************************************//**
+/**
 Wait for a work item to appear in the queue.
-@return work item */
-void*
-ib_wqueue_wait(
-/*===========*/
-	ib_wqueue_t*	wq)	/*!< in: work queue */
+@param wq             work queue
+@param wait_in_usecs  timeout
+@return work item
+@retval NULL on timeout */
+void* ib_wqueue_timedwait(ib_wqueue_t *wq, ulint wait_in_usecs)
 {
-	ib_list_node_t*	node;
+  ib_list_node_t *node;
 
-	for (;;) {
-		os_event_wait(wq->event);
+  mysql_mutex_lock(&wq->mutex);
 
-		mysql_mutex_lock(&wq->mutex);
+  for (;;)
+  {
+    node= ib_list_get_first(wq->items);
+    if (node)
+    {
+      ib_list_remove(wq->items, node);
+      break;
+    }
+    struct timespec abstime;
+    set_timespec_nsec(abstime, wait_in_usecs * 1000ULL);
+    if (mysql_cond_timedwait(&wq->cond, &wq->mutex, &abstime))
+      break;
+  }
 
-		node = ib_list_get_first(wq->items);
-
-		if (node) {
-			ib_list_remove(wq->items, node);
-
-			if (!ib_list_get_first(wq->items)) {
-				/* We must reset the event when the list
-				gets emptied. */
-				os_event_reset(wq->event);
-			}
-
-			break;
-		}
-
-		mysql_mutex_unlock(&wq->mutex);
-	}
-
-	mysql_mutex_unlock(&wq->mutex);
-
-	return(node->data);
-}
-
-
-/********************************************************************
-Wait for a work item to appear in the queue for specified time. */
-void*
-ib_wqueue_timedwait(
-/*================*/
-					/* out: work item or NULL on timeout*/
-	ib_wqueue_t*	wq,		/* in: work queue */
-	ulint		wait_in_usecs)	/* in: wait time in micro seconds */
-{
-	ib_list_node_t*	node = NULL;
-
-	for (;;) {
-		ulint		error;
-		int64_t		sig_count;
-
-		mysql_mutex_lock(&wq->mutex);
-
-		node = ib_list_get_first(wq->items);
-
-		if (node) {
-			ib_list_remove(wq->items, node);
-
-			mysql_mutex_unlock(&wq->mutex);
-			break;
-		}
-
-		sig_count = os_event_reset(wq->event);
-
-		mysql_mutex_unlock(&wq->mutex);
-
-		error = os_event_wait_time_low(wq->event,
-					       (ulint) wait_in_usecs,
-					       sig_count);
-
-		if (error == OS_SYNC_TIME_EXCEEDED) {
-			break;
-		}
-	}
-
-	return(node ? node->data : NULL);
+  mysql_mutex_unlock(&wq->mutex);
+  return node ? node->data : nullptr;
 }
 
 /********************************************************************
@@ -177,14 +127,7 @@ ib_wqueue_nowait(
 
 		if (node) {
 			ib_list_remove(wq->items, node);
-
 		}
-	}
-
-	/* We must reset the event when the list
-	gets emptied. */
-	if(ib_list_is_empty(wq->items)) {
-		os_event_reset(wq->event);
 	}
 
 	mysql_mutex_unlock(&wq->mutex);
