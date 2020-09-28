@@ -2817,7 +2817,7 @@ no_fts:
 	conv_str.f_len = sizeof word;
 	conv_str.f_str = word;
 
-	rw_lock_s_lock(&cache->lock);
+	mysql_mutex_lock(&cache->lock);
 
 	for (ulint i = 0; i < ib_vector_size(cache->indexes); i++) {
 		fts_index_cache_t*      index_cache;
@@ -2829,7 +2829,7 @@ no_fts:
 				 index_cache, thd, &conv_str, tables));
 	}
 
-	rw_lock_s_unlock(&cache->lock);
+	mysql_mutex_unlock(&cache->lock);
 	dict_table_close(user_table, FALSE, FALSE);
 	rw_lock_s_unlock(&dict_sys.latch);
 

@@ -284,7 +284,7 @@ static
 void
 fts_cache_destroy(fts_cache_t* cache)
 {
-	rw_lock_free(&cache->lock);
+	mysql_mutex_destroy(&cache->lock);
 	mysql_mutex_destroy(&cache->init_lock);
 	mutex_free(&cache->optimize_lock);
 	mutex_free(&cache->deleted_lock);
@@ -614,8 +614,7 @@ fts_cache_create(
 
 	cache->cache_heap = heap;
 
-	rw_lock_create(fts_cache_rw_lock_key, &cache->lock, SYNC_FTS_CACHE);
-
+	mysql_mutex_init(fts_cache_lock_key, &cache->lock, nullptr);
 	mysql_mutex_init(fts_cache_init_lock_key, &cache->init_lock, nullptr);
 	mutex_create(LATCH_ID_FTS_DELETE, &cache->deleted_lock);
 
@@ -1114,8 +1113,8 @@ fts_get_index_cache(
 	ulint			i;
 
 #ifdef SAFE_MUTEX
-	ut_ad(rw_lock_own(&cache->lock, RW_LOCK_X)
-	      || mysql_mutex_is_owner(&cache->init_lock));
+	DBUG_ASSERT(mysql_mutex_is_owner(&cache->lock)
+		    || mysql_mutex_is_owner(&cache->init_lock));
 #endif /* SAFE_MUTEX */
 
 	for (i = 0; i < ib_vector_size(cache->indexes); ++i) {
@@ -1179,7 +1178,7 @@ fts_tokenizer_word_get(
 	fts_tokenizer_word_t*	word;
 	ib_rbt_bound_t		parent;
 
-	ut_ad(rw_lock_own(&cache->lock, RW_LOCK_X));
+	mysql_mutex_assert_owner(&cache->lock);
 
 	/* If it is a stopword, do not index it */
 	if (!fts_check_token(text,
@@ -1237,11 +1236,11 @@ fts_cache_node_add_positions(
 	byte*		ptr_start;
 	ulint		doc_id_delta;
 
-#ifdef UNIV_DEBUG
+#ifdef SAFE_MUTEX
 	if (cache) {
-		ut_ad(rw_lock_own(&cache->lock, RW_LOCK_X));
+		mysql_mutex_assert_owner(&cache->lock);
 	}
-#endif /* UNIV_DEBUG */
+#endif /* SAFE_MUTEX */
 
 	ut_ad(doc_id >= node->last_doc_id);
 
@@ -1352,7 +1351,7 @@ fts_cache_add_doc(
 		return;
 	}
 
-	ut_ad(rw_lock_own(&cache->lock, RW_LOCK_X));
+	mysql_mutex_assert_owner(&cache->lock);
 
 	n_words = rbt_size(tokens);
 
@@ -3330,7 +3329,7 @@ fts_add_doc_from_tuple(
 
                if (doc.found) {
                        mtr_commit(&mtr);
-                       rw_lock_x_lock(&table->fts->cache->lock);
+                       mysql_mutex_lock(&table->fts->cache->lock);
 
                        if (table->fts->cache->stopword_info.status
                            & STOPWORD_NOT_INIT) {
@@ -3343,7 +3342,7 @@ fts_add_doc_from_tuple(
                                get_doc->index_cache,
                                doc_id, doc.tokens);
 
-                       rw_lock_x_unlock(&table->fts->cache->lock);
+                       mysql_mutex_unlock(&table->fts->cache->lock);
 
                        if (cache->total_size > fts_max_cache_size / 5
                            || fts_need_sync) {
@@ -3495,7 +3494,7 @@ fts_add_doc_by_id(
 				btr_pcur_store_position(doc_pcur, &mtr);
 				mtr_commit(&mtr);
 
-				rw_lock_x_lock(&table->fts->cache->lock);
+				mysql_mutex_lock(&table->fts->cache->lock);
 
 				if (table->fts->cache->stopword_info.status
 				    & STOPWORD_NOT_INIT) {
@@ -3515,7 +3514,7 @@ fts_add_doc_by_id(
 					need_sync = true;
 				}
 
-				rw_lock_x_unlock(&table->fts->cache->lock);
+				mysql_mutex_unlock(&table->fts->cache->lock);
 
 				DBUG_EXECUTE_IF(
 					"fts_instrument_sync",
@@ -3957,7 +3956,7 @@ fts_sync_write_words(
 			/*FIXME: we need to handle the error properly. */
 			if (error == DB_SUCCESS) {
 				if (unlock_cache) {
-					rw_lock_x_unlock(
+					mysql_mutex_unlock(
 						&table->fts->cache->lock);
 				}
 
@@ -3975,7 +3974,7 @@ fts_sync_write_words(
 				);
 
 				if (unlock_cache) {
-					rw_lock_x_lock(
+					mysql_mutex_lock(
 						&table->fts->cache->lock);
 				}
 			}
@@ -4134,7 +4133,7 @@ fts_sync_commit(
 	fts_cache_clear(cache);
 	DEBUG_SYNC_C("fts_deleted_doc_ids_clear");
 	fts_cache_init(cache);
-	rw_lock_x_unlock(&cache->lock);
+	mysql_mutex_unlock(&cache->lock);
 
 	if (UNIV_LIKELY(error == DB_SUCCESS)) {
 		fts_sql_commit(trx);
@@ -4203,7 +4202,7 @@ fts_sync_rollback(
 		}
 	}
 
-	rw_lock_x_unlock(&cache->lock);
+	mysql_mutex_unlock(&cache->lock);
 
 	fts_sql_rollback(trx);
 
@@ -4233,13 +4232,13 @@ fts_sync(
 	dberr_t		error = DB_SUCCESS;
 	fts_cache_t*	cache = sync->table->fts->cache;
 
-	rw_lock_x_lock(&cache->lock);
+	mysql_mutex_lock(&cache->lock);
 
 	/* Check if cache is being synced.
 	Note: we release cache lock in fts_sync_write_words() to
 	avoid long wait for the lock by other threads. */
 	while (sync->in_progress) {
-		rw_lock_x_unlock(&cache->lock);
+		mysql_mutex_unlock(&cache->lock);
 
 		if (wait) {
 			os_event_wait(sync->event);
@@ -4247,7 +4246,7 @@ fts_sync(
 			return(DB_SUCCESS);
 		}
 
-		rw_lock_x_lock(&cache->lock);
+		mysql_mutex_lock(&cache->lock);
 	}
 
 	sync->unlock_cache = unlock_cache;
@@ -4313,12 +4312,12 @@ end_sync:
 		fts_sync_rollback(sync);
 	}
 
-	rw_lock_x_lock(&cache->lock);
+	mysql_mutex_lock(&cache->lock);
 
 	sync->interrupted = false;
 	sync->in_progress = false;
 	os_event_set(sync->event);
-	rw_lock_x_unlock(&cache->lock);
+	mysql_mutex_unlock(&cache->lock);
 
 	/* We need to check whether an optimize is required, for that
 	we make copies of the two variables that control the trigger. These
@@ -4779,11 +4778,11 @@ fts_init_doc_id(
 {
 	doc_id_t	max_doc_id = 0;
 
-	rw_lock_x_lock(&table->fts->cache->lock);
+	mysql_mutex_lock(&table->fts->cache->lock);
 
 	/* Return if the table is already initialized for DOC ID */
 	if (table->fts->cache->first_doc_id != FTS_NULL_DOC_ID) {
-		rw_lock_x_unlock(&table->fts->cache->lock);
+		mysql_mutex_unlock(&table->fts->cache->lock);
 		return(0);
 	}
 
@@ -4804,7 +4803,7 @@ fts_init_doc_id(
 
 	table->fts->cache->first_doc_id = max_doc_id;
 
-	rw_lock_x_unlock(&table->fts->cache->lock);
+	mysql_mutex_unlock(&table->fts->cache->lock);
 
 	ut_ad(max_doc_id > 0);
 
@@ -5136,12 +5135,8 @@ fts_cache_find_word(
 {
 	ib_rbt_bound_t		parent;
 	const ib_vector_t*	nodes = NULL;
-#ifdef UNIV_DEBUG
-	dict_table_t*		table = index_cache->index->table;
-	fts_cache_t*		cache = table->fts->cache;
 
-	ut_ad(rw_lock_own(&cache->lock, RW_LOCK_X));
-#endif /* UNIV_DEBUG */
+	mysql_mutex_assert_owner(&index_cache->index->table->fts->cache->lock);
 
 	/* Lookup the word in the rb tree */
 	if (rbt_search(index_cache->words, &parent, text) == 0) {
@@ -6232,7 +6227,7 @@ fts_init_index(
 
 	/* First check cache->get_docs is initialized */
 	if (!has_cache_lock) {
-		rw_lock_x_lock(&cache->lock);
+		mysql_mutex_lock(&cache->lock);
 	}
 
 	mysql_mutex_lock(&cache->init_lock);
@@ -6289,7 +6284,7 @@ fts_init_index(
 
 func_exit:
 	if (!has_cache_lock) {
-		rw_lock_x_unlock(&cache->lock);
+		mysql_mutex_unlock(&cache->lock);
 	}
 
 	if (need_init) {

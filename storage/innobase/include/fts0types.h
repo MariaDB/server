@@ -122,11 +122,10 @@ struct fts_sync_t {
 /** The cache for the FTS system. It is a memory-based inverted index
 that new entries are added to, until it grows over the configured maximum
 size, at which time its contents are written to the INDEX table. */
-struct fts_cache_t {
-	rw_lock_t	lock;		/*!< lock protecting all access to the
-					memory buffer. FIXME: this needs to
-					be our new upgrade-capable rw-lock */
-
+struct fts_cache_t
+{
+  /** lock protecting all access to the memory buffer */
+  mysql_mutex_t lock;
   /** cache initialization */
   mysql_mutex_t init_lock;
 

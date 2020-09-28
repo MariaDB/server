@@ -241,7 +241,6 @@ enum latch_level_t {
 	SYNC_DICT_HEADER,
 	SYNC_STATS_AUTO_RECALC,
 	SYNC_DICT,
-	SYNC_FTS_CACHE,
 
 	SYNC_DICT_OPERATION,
 
@@ -315,7 +314,6 @@ enum latch_id_t {
 	LATCH_ID_DICT_OPERATION,
 	LATCH_ID_CHECKPOINT,
 	LATCH_ID_FIL_SPACE,
-	LATCH_ID_FTS_CACHE,
 	LATCH_ID_TRX_I_S_CACHE,
 	LATCH_ID_TRX_PURGE,
 	LATCH_ID_IBUF_INDEX_TREE,
@@ -984,7 +982,6 @@ struct sync_checker : public sync_check_functor_t
 			case SYNC_FSP:
 			case SYNC_DICT:
 			case SYNC_DICT_OPERATION:
-			case SYNC_FTS_CACHE:
 			case SYNC_NO_ORDER_CHECK:
 				return(false);
 			default:
