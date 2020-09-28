@@ -34,8 +34,6 @@ Created 2011/12/19 Inaam Rana
 
 /** Doublewrite system */
 extern buf_dblwr_t*	buf_dblwr;
-/** Set to TRUE when the doublewrite buffer is being created */
-extern ibool		buf_dblwr_being_created;
 
 /** Create the doublewrite buffer if the doublewrite buffer header
 is not present in the TRX_SYS page.

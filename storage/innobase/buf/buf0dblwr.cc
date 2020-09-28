@@ -40,9 +40,6 @@ using st_::span;
 /** The doublewrite buffer */
 buf_dblwr_t*	buf_dblwr = NULL;
 
-/** Set to TRUE when the doublewrite buffer is being created */
-ibool	buf_dblwr_being_created = FALSE;
-
 #define TRX_SYS_DOUBLEWRITE_BLOCKS 2
 
 /****************************************************************//**
@@ -138,7 +135,6 @@ buf_dblwr_create()
 
 start_again:
 	mtr.start();
-	buf_dblwr_being_created = TRUE;
 
 	buf_block_t *trx_sys_block = buf_dblwr_trx_sys_get(&mtr);
 
@@ -151,7 +147,6 @@ start_again:
 		buf_dblwr_init(TRX_SYS_DOUBLEWRITE + trx_sys_block->frame);
 
 		mtr.commit();
-		buf_dblwr_being_created = FALSE;
 		return(true);
 	} else {
 		if (UT_LIST_GET_FIRST(fil_system.sys_space->chain)->size
@@ -301,7 +296,6 @@ too_small:
 
 	/* Flush the modified pages to disk and make a checkpoint */
 	log_make_checkpoint();
-	buf_dblwr_being_created = FALSE;
 
 	/* Remove doublewrite pages from LRU */
 	buf_pool_invalidate();
