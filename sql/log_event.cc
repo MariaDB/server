@@ -2999,13 +2999,20 @@ log_event_print_value(IO_CACHE *file, const uchar *ptr,
                 "Not enough metadata to display the value. ");
     break;
 
+  case MYSQL_TYPE_GEOMETRY:
+    strmake(typestr, "GEOMETRY", typestr_length);
+    if (!ptr)
+      goto return_null;
+
+    length= uint4korr(ptr);
+    my_b_write_quoted(file, ptr + meta, length);
+    return length + meta;
+
   default:
     {
-      char tmp[5];
-      my_snprintf(tmp, sizeof(tmp), "%04x", meta);
-      my_b_printf(file,
-                  "!! Don't know how to handle column type=%d meta=%d (%s)",
-                  type, meta, tmp);
+      fprintf(stderr,
+              "\nError: Don't know how to handle column type: %d meta: %d (%04x)\n",
+              type, meta, meta);
     }
     break;
   }

@@ -1166,7 +1166,7 @@ static int check_version_match(void)
       extract_variable_from_show(&ds_version, version_str))
   {
     print_error("Version check failed. Got the following error when calling "
-                "the 'mysql_upgrade' command line client", &ds_version);
+                "the 'mysql' command line client", &ds_version);
     dynstr_free(&ds_version);
     return 1;                                   /* Query failed */
   }
