@@ -198,9 +198,8 @@ struct fts_slot_t {
 struct fts_msg_del_t {
 	dict_table_t*	table;		/*!< The table to remove */
 
-	os_event_t	event;		/*!< Event to synchronize acknowledgement
-					of receipt and processing of the
-					this message by the consumer */
+	/** condition variable to signal mesasge consumption */
+	mysql_cond_t cond;
 };
 
 /** The FTS optimize message work queue message type. */
@@ -2578,7 +2577,6 @@ fts_optimize_remove_table(
 	dict_table_t*	table)			/*!< in: table to remove */
 {
 	fts_msg_t*	msg;
-	os_event_t	event;
 	fts_msg_del_t*	remove;
 
 	/* if the optimize system not yet initialized, return */
@@ -2602,29 +2600,22 @@ fts_optimize_remove_table(
 
 	msg = fts_optimize_create_msg(FTS_MSG_DEL_TABLE, NULL);
 
-	/* We will wait on this event until signalled by the consumer. */
-	event = os_event_create(0);
-
 	remove = static_cast<fts_msg_del_t*>(
 		mem_heap_alloc(msg->heap, sizeof(*remove)));
 
 	remove->table = table;
-	remove->event = event;
+	mysql_cond_init(0, &remove->cond, nullptr);
 	msg->ptr = remove;
 
 	ut_ad(!mutex_own(&dict_sys.mutex));
 
 	add_msg(msg, true);
 
+	mysql_cond_wait(&remove->cond, &fts_optimize_wq->mutex);
+	ut_ad(!table->fts->in_queue);
 	mysql_mutex_unlock(&fts_optimize_wq->mutex);
 
-	os_event_wait(event);
-
-	os_event_destroy(event);
-
-	ut_d(mysql_mutex_lock(&fts_optimize_wq->mutex));
-	ut_ad(!table->fts->in_queue);
-	ut_d(mysql_mutex_unlock(&fts_optimize_wq->mutex));
+	mysql_cond_destroy(&remove->cond);
 }
 
 /** Send sync fts cache for the table.
@@ -2688,9 +2679,10 @@ static bool fts_optimize_new_table(dict_table_t* table)
 }
 
 /** Remove a table from fts_slots if it exists.
-@param[in,out]	table	table to be removed from fts_slots */
-static bool fts_optimize_del_table(const dict_table_t* table)
+@param remove	table to be removed from fts_slots */
+static bool fts_optimize_del_table(fts_msg_del_t *remove)
 {
+	const dict_table_t* table = remove->table;
 	ut_ad(table);
 	for (ulint i = 0; i < ib_vector_size(fts_slots); ++i) {
 		fts_slot_t*	slot;
@@ -2704,13 +2696,17 @@ static bool fts_optimize_del_table(const dict_table_t* table)
 			}
 
 			mysql_mutex_lock(&fts_optimize_wq->mutex);
-			slot->table->fts->in_queue = false;
+			table->fts->in_queue = false;
+			mysql_cond_signal(&remove->cond);
 			mysql_mutex_unlock(&fts_optimize_wq->mutex);
 			slot->table = NULL;
 			return true;
 		}
 	}
 
+	mysql_mutex_lock(&fts_optimize_wq->mutex);
+	mysql_cond_signal(&remove->cond);
+	mysql_mutex_unlock(&fts_optimize_wq->mutex);
 	return false;
 }
 
@@ -2879,14 +2875,9 @@ static void fts_optimize_callback(void *)
 			case FTS_MSG_DEL_TABLE:
 				if (fts_optimize_del_table(
 					    static_cast<fts_msg_del_t*>(
-						    msg->ptr)->table)) {
+						    msg->ptr))) {
 					--n_tables;
 				}
-
-				/* Signal the producer that we have
-				removed the table. */
-				os_event_set(
-					((fts_msg_del_t*) msg->ptr)->event);
 				break;
 
 			case FTS_MSG_SYNC_TABLE:
