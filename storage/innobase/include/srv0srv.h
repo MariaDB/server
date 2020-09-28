@@ -74,8 +74,7 @@ struct srv_stats_t
 	/** Amount of data written to the log files in bytes */
 	lsn_ctr_1_t		os_log_written;
 
-	/** Number of writes being done to the log files.
-	Protected by log_sys.write_mutex. */
+	/** Number of writes being done to the log files */
 	ulint_ctr_1_t		os_log_pending_writes;
 
 	/** We increase this counter, when we don't have enough

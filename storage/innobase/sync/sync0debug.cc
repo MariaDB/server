@@ -466,7 +466,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_RECV);
 	LEVEL_MAP_INSERT(SYNC_LOG_FLUSH_ORDER);
 	LEVEL_MAP_INSERT(SYNC_LOG);
-	LEVEL_MAP_INSERT(SYNC_LOG_WRITE);
 	LEVEL_MAP_INSERT(SYNC_PURGE_QUEUE);
 	LEVEL_MAP_INSERT(SYNC_TRX_SYS_HEADER);
 	LEVEL_MAP_INSERT(SYNC_REC_LOCK);
@@ -743,7 +742,6 @@ LatchDebug::check_order(
 	case SYNC_FTS_CACHE:
 	case SYNC_FTS_CACHE_INIT:
 	case SYNC_LOG:
-	case SYNC_LOG_WRITE:
 	case SYNC_LOG_FLUSH_ORDER:
 	case SYNC_SEARCH_SYS:
 	case SYNC_LOCK_SYS:
@@ -1267,8 +1265,6 @@ sync_latch_meta_init()
 			ibuf_pessimistic_insert_mutex_key);
 
 	LATCH_ADD_MUTEX(LOG_SYS, SYNC_LOG, log_sys_mutex_key);
-
-	LATCH_ADD_MUTEX(LOG_WRITE, SYNC_LOG_WRITE, log_sys_write_mutex_key);
 
 	LATCH_ADD_MUTEX(LOG_FLUSH_ORDER, SYNC_LOG_FLUSH_ORDER,
 			log_flush_order_mutex_key);
