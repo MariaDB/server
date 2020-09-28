@@ -329,8 +329,7 @@ void buf_page_write_complete(buf_page_t *bpage, const IORequest &request,
   ut_ad(request.is_write());
   ut_ad(bpage->in_file());
   ut_ad(bpage->io_fix() == BUF_IO_WRITE);
-  ut_ad(bpage->id().space() != TRX_SYS_SPACE ||
-        !buf_dblwr_page_inside(bpage->id().page_no()));
+  ut_ad(!buf_dblwr.is_inside(bpage->id()));
 
   /* We do not need protect io_fix here by mutex to read it because
   this and buf_page_read_complete() are the only functions where we can
@@ -356,7 +355,10 @@ void buf_page_write_complete(buf_page_t *bpage, const IORequest &request,
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
   if (dblwr)
-    buf_dblwr_update(*bpage);
+  {
+    ut_ad(!fsp_is_system_temporary(bpage->id().space()));
+    buf_dblwr.update();
+  }
 
   /* Because this thread which does the unlocking might not be the same that
   did the locking, we use a pass value != 0 in unlock, which simply
@@ -932,7 +934,7 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
         buf_pool.n_flush_LRU++;
       else
         buf_pool.n_flush_list++;
-      buf_dblwr->add_to_batch(bpage, lru, size);
+      buf_dblwr.add_to_batch(bpage, lru, size);
       break;
     }
     /* fall through */
@@ -1436,7 +1438,7 @@ static bool buf_flush_do_batch(ulint max_n, lsn_t lsn, flush_counters_t *n)
   if (!n_flushing)
     mysql_cond_broadcast(cond);
 
-  buf_dblwr_flush_buffered_writes();
+  buf_dblwr.flush_buffered_writes();
 
   DBUG_PRINT("ib_buf", ("%s completed, " ULINTPF " pages",
 			lsn ? "flush_list" : "LRU flush", n->flushed));

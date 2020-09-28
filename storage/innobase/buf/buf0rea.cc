@@ -286,10 +286,10 @@ buf_read_page_low(
 
 	*err = DB_SUCCESS;
 
-	if (!page_id.space() && buf_dblwr_page_inside(page_id.page_no())) {
-
+	if (buf_dblwr.is_inside(page_id)) {
 		ib::error() << "Trying to read doublewrite buffer page "
 			<< page_id;
+		ut_ad(0);
 		return(0);
 	}
 

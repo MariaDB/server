@@ -1715,7 +1715,7 @@ file_checked:
 
 	/* Create the doublewrite buffer to a new tablespace */
 	if (!srv_read_only_mode && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
-	    && !buf_dblwr_create()) {
+	    && !buf_dblwr.create()) {
 		return(srv_init_abort(DB_ERROR));
 	}
 
@@ -2056,7 +2056,8 @@ void innodb_shutdown()
 
 	ut_ad(dict_sys.is_initialised() || !srv_was_started);
 	ut_ad(trx_sys.is_initialised() || !srv_was_started);
-	ut_ad(buf_dblwr || !srv_was_started || srv_read_only_mode
+	ut_ad(buf_dblwr.is_initialised() || !srv_was_started
+	      || srv_read_only_mode
 	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 	ut_ad(lock_sys.is_initialised() || !srv_was_started);
 	ut_ad(log_sys.is_initialised() || !srv_was_started);
@@ -2085,9 +2086,7 @@ void innodb_shutdown()
 	log_sys.close();
 	purge_sys.close();
 	trx_sys.close();
-	if (buf_dblwr) {
-		buf_dblwr_free();
-	}
+	buf_dblwr.close();
 	lock_sys.close();
 	trx_pool_close();
 

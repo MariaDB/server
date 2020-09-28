@@ -4202,7 +4202,7 @@ dberr_t buf_page_read_complete(buf_page_t *bpage, const fil_node_t &node)
 {
   const page_id_t id(bpage->id());
   ut_ad(bpage->in_file());
-  ut_ad(id.space() || !buf_dblwr_page_inside(id.page_no()));
+  ut_ad(!buf_dblwr.is_inside(id));
   ut_ad(id.space() == node.space->id);
   ut_ad(bpage->zip_size() == node.space->zip_size());
 

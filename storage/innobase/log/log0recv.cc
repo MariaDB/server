@@ -3486,7 +3486,7 @@ completed:
 		recv_sys.parse_start_lsn = checkpoint_lsn;
 
 		if (srv_operation == SRV_OPERATION_NORMAL) {
-			buf_dblwr_process();
+			buf_dblwr.recover();
 		}
 
 		ut_ad(srv_force_recovery <= SRV_FORCE_NO_UNDO_LOG_SCAN);
@@ -3652,7 +3652,7 @@ byte *recv_dblwr_t::find_page(const page_id_t page_id,
     if (lsn <= max_lsn ||
         !validate_page(page_id, page, space, tmp_buf))
     {
-      /* Mark processed for subsequent iterations in buf_dblwr_process() */
+      /* Mark processed for subsequent iterations in buf_dblwr_t::recover() */
       memset(page + FIL_PAGE_LSN, 0, 8);
       continue;
     }

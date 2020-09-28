@@ -3426,9 +3426,7 @@ xb_data_files_close()
 {
 	ut_ad(!os_thread_count);
 	fil_close_all_files();
-	if (buf_dblwr) {
-		buf_dblwr_free();
-	}
+	buf_dblwr.close();
 }
 
 /***********************************************************************

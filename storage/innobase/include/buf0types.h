@@ -37,8 +37,6 @@ struct buf_block_t;
 struct buf_pool_stat_t;
 /** Buffer pool buddy statistics struct */
 struct buf_buddy_stat_t;
-/** Doublewrite memory struct */
-struct buf_dblwr_t;
 
 /** A buffer frame. @see page_t */
 typedef	byte	buf_frame_t;

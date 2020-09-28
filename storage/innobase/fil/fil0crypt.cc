@@ -1919,8 +1919,7 @@ fil_crypt_rotate_pages(
 		* real pages, they will be updated anyway when the
 		* real page is updated
 		*/
-		if (space == TRX_SYS_SPACE &&
-		    buf_dblwr_page_inside(state->offset)) {
+		if (buf_dblwr.is_inside(page_id_t(space, state->offset))) {
 			continue;
 		}
 
