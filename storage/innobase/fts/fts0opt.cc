@@ -2560,13 +2560,13 @@ void fts_optimize_add_table(dict_table_t* table)
 
 	msg = fts_optimize_create_msg(FTS_MSG_ADD_TABLE, table);
 
-	mutex_enter(&fts_optimize_wq->mutex);
+	mysql_mutex_lock(&fts_optimize_wq->mutex);
 
 	add_msg(msg, true);
 
 	table->fts->in_queue = true;
 
-	mutex_exit(&fts_optimize_wq->mutex);
+	mysql_mutex_unlock(&fts_optimize_wq->mutex);
 }
 
 /**********************************************************************//**
@@ -2593,10 +2593,10 @@ fts_optimize_remove_table(
 		return;
 	}
 
-	mutex_enter(&fts_optimize_wq->mutex);
+	mysql_mutex_lock(&fts_optimize_wq->mutex);
 
 	if (!table->fts->in_queue) {
-		mutex_exit(&fts_optimize_wq->mutex);
+		mysql_mutex_unlock(&fts_optimize_wq->mutex);
 		return;
 	}
 
@@ -2616,15 +2616,15 @@ fts_optimize_remove_table(
 
 	add_msg(msg, true);
 
-	mutex_exit(&fts_optimize_wq->mutex);
+	mysql_mutex_unlock(&fts_optimize_wq->mutex);
 
 	os_event_wait(event);
 
 	os_event_destroy(event);
 
-	ut_d(mutex_enter(&fts_optimize_wq->mutex));
+	ut_d(mysql_mutex_lock(&fts_optimize_wq->mutex));
 	ut_ad(!table->fts->in_queue);
-	ut_d(mutex_exit(&fts_optimize_wq->mutex));
+	ut_d(mysql_mutex_unlock(&fts_optimize_wq->mutex));
 }
 
 /** Send sync fts cache for the table.
@@ -2647,13 +2647,13 @@ fts_optimize_request_sync_table(
 
 	fts_msg_t* msg = fts_optimize_create_msg(FTS_MSG_SYNC_TABLE, table);
 
-	mutex_enter(&fts_optimize_wq->mutex);
+	mysql_mutex_lock(&fts_optimize_wq->mutex);
 
 	add_msg(msg, true);
 
 	table->fts->sync_message = true;
 
-	mutex_exit(&fts_optimize_wq->mutex);
+	mysql_mutex_unlock(&fts_optimize_wq->mutex);
 }
 
 /** Add a table to fts_slots if it doesn't already exist. */
@@ -2703,9 +2703,9 @@ static bool fts_optimize_del_table(const dict_table_t* table)
 					<< table->name;
 			}
 
-			mutex_enter(&fts_optimize_wq->mutex);
+			mysql_mutex_lock(&fts_optimize_wq->mutex);
 			slot->table->fts->in_queue = false;
-			mutex_exit(&fts_optimize_wq->mutex);
+			mysql_mutex_unlock(&fts_optimize_wq->mutex);
 			slot->table = NULL;
 			return true;
 		}
@@ -2796,9 +2796,9 @@ static void fts_optimize_sync_table(dict_table_t *table,
     fts_sync_table(sync_table, false);
     if (process_message)
     {
-      mutex_enter(&fts_optimize_wq->mutex);
+      mysql_mutex_lock(&fts_optimize_wq->mutex);
       sync_table->fts->sync_message = false;
-      mutex_exit(&fts_optimize_wq->mutex);
+      mysql_mutex_unlock(&fts_optimize_wq->mutex);
     }
   }
 
@@ -3022,17 +3022,15 @@ fts_optimize_shutdown()
 @param[in]	table	table to be synced */
 void fts_sync_during_ddl(dict_table_t* table)
 {
-  mutex_enter(&fts_optimize_wq->mutex);
-  if (!table->fts->sync_message)
-  {
-    mutex_exit(&fts_optimize_wq->mutex);
+  mysql_mutex_lock(&fts_optimize_wq->mutex);
+  const auto sync_message= table->fts->sync_message;
+  mysql_mutex_unlock(&fts_optimize_wq->mutex);
+  if (!sync_message)
     return;
-  }
 
-  mutex_exit(&fts_optimize_wq->mutex);
   fts_sync_table(table, false);
 
-  mutex_enter(&fts_optimize_wq->mutex);
+  mysql_mutex_lock(&fts_optimize_wq->mutex);
   table->fts->sync_message = false;
-  mutex_exit(&fts_optimize_wq->mutex);
+  mysql_mutex_unlock(&fts_optimize_wq->mutex);
 }
