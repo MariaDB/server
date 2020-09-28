@@ -450,16 +450,6 @@ UNIV_INTERN uint srv_simulate_comp_failures;
 /** Buffer pool dump status frequence in percentages */
 UNIV_INTERN ulong srv_buf_dump_status_frequency;
 
-/** Acquire the system_mutex. */
-#define srv_sys_mutex_enter() do {			\
-	mutex_enter(&srv_sys.mutex);			\
-} while (0)
-
-/** Release the system mutex. */
-#define srv_sys_mutex_exit() do {			\
-	mutex_exit(&srv_sys.mutex);			\
-} while (0)
-
 /*
 	IMPLEMENTATION OF THE SERVER MAIN PROGRAM
 	=========================================
@@ -539,8 +529,6 @@ struct srv_sys_t{
 	UT_LIST_BASE_NODE_T(que_thr_t)
 			tasks;			/*!< task queue */
 
-	ib_mutex_t	mutex;			/*!< variable protecting the
-						fields below. */
 	srv_stats_t::ulint_ctr_1_t
 			activity_count;		/*!< For tracking server
 						activity */
@@ -718,8 +706,6 @@ static void srv_init()
 	srv_thread_pool_init();
 
 	if (!srv_read_only_mode) {
-		mutex_create(LATCH_ID_SRV_SYS, &srv_sys.mutex);
-
 		mutex_create(LATCH_ID_SRV_SYS_TASKS, &srv_sys.tasks_mutex);
 
 		UT_LIST_INIT(srv_sys.tasks, &que_thr_t::queue);
@@ -757,7 +743,6 @@ srv_free(void)
 	mutex_free(&page_zip_stat_per_index_mutex);
 
 	if (!srv_read_only_mode) {
-		mutex_free(&srv_sys.mutex);
 		mutex_free(&srv_sys.tasks_mutex);
 	}
 
@@ -1486,7 +1471,6 @@ void
 srv_wake_purge_thread_if_not_active()
 {
 	ut_ad(!srv_read_only_mode);
-	ut_ad(!mutex_own(&srv_sys.mutex));
 
 	if (purge_sys.enabled() && !purge_sys.paused()
 	    && trx_sys.rseg_history_len) {
