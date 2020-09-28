@@ -8615,7 +8615,8 @@ static void test_mem_overun()
   char       buffer[10000], field[10];
   MYSQL_STMT *stmt;
   MYSQL_RES  *field_res;
-  int        rc, i, length;
+  int        rc, length;
+  unsigned   i;
 
   myheader("test_mem_overun");
 
@@ -8629,7 +8630,7 @@ static void test_mem_overun()
   strxmov(buffer, "create table t_mem_overun(", NullS);
   for (i= 0; i < 1000; i++)
   {
-    sprintf(field, "c%d int", i);
+    sprintf(field, "c%u int", i);
     strxmov(buffer, buffer, field, ", ", NullS);
   }
   length= strlen(buffer);
