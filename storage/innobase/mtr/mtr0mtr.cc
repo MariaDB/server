@@ -419,12 +419,12 @@ void mtr_t::commit()
       start_lsn= m_commit_lsn;
 
     if (m_made_dirty)
-      log_flush_order_mutex_enter();
+      mysql_mutex_lock(&log_sys.flush_order_mutex);
 
     /* It is now safe to release the log mutex because the
     flush_order mutex will ensure that we are the first one
     to insert into the flush list. */
-    log_mutex_exit();
+    mysql_mutex_unlock(&log_sys.mutex);
 
     if (m_freed_pages)
     {
@@ -456,7 +456,7 @@ void mtr_t::commit()
                                      (ReleaseBlocks(start_lsn, m_commit_lsn,
                                                     m_memo)));
     if (m_made_dirty)
-      log_flush_order_mutex_exit();
+      mysql_mutex_unlock(&log_sys.flush_order_mutex);
 
     m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>());
   }
@@ -469,12 +469,12 @@ void mtr_t::commit()
 /** Commit a mini-transaction that did not modify any pages,
 but generated some redo log on a higher level, such as
 FILE_MODIFY records and an optional FILE_CHECKPOINT marker.
-The caller must invoke log_mutex_enter() and log_mutex_exit().
+The caller must hold log_sys.mutex.
 This is to be used at log_checkpoint().
 @param[in]	checkpoint_lsn		log checkpoint LSN, or 0 */
 void mtr_t::commit_files(lsn_t checkpoint_lsn)
 {
-	ut_ad(log_mutex_own());
+	mysql_mutex_assert_owner(&log_sys.mutex);
 	ut_ad(is_active());
 	ut_ad(!is_inside_ibuf());
 	ut_ad(m_log_mode == MTR_LOG_ALL);
@@ -630,7 +630,7 @@ inline ulint mtr_t::prepare_write()
 	if (UNIV_UNLIKELY(m_log_mode != MTR_LOG_ALL)) {
 		ut_ad(m_log_mode == MTR_LOG_NO_REDO);
 		ut_ad(m_log.size() == 0);
-		log_mutex_enter();
+		mysql_mutex_lock(&log_sys.mutex);
 		m_commit_lsn = log_sys.get_lsn();
 		return 0;
 	}
@@ -649,7 +649,7 @@ inline ulint mtr_t::prepare_write()
 		space = NULL;
 	}
 
-	log_mutex_enter();
+	mysql_mutex_lock(&log_sys.mutex);
 
 	if (fil_names_write_if_was_clean(space)) {
 		len = m_log.size();
@@ -674,7 +674,7 @@ inline ulint mtr_t::prepare_write()
 inline lsn_t mtr_t::finish_write(ulint len)
 {
 	ut_ad(m_log_mode == MTR_LOG_ALL);
-	ut_ad(log_mutex_own());
+	mysql_mutex_assert_owner(&log_sys.mutex);
 	ut_ad(m_log.size() == len);
 	ut_ad(len > 0);
 

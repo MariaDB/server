@@ -1936,23 +1936,23 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_PENDING_CHECKPOINT_WRITE:
-		mutex_enter(&log_sys.mutex);
+		mysql_mutex_lock(&log_sys.mutex);
 		value = static_cast<mon_type_t>(
 		    log_sys.n_pending_checkpoint_writes);
-		mutex_exit(&log_sys.mutex);
+		mysql_mutex_unlock(&log_sys.mutex);
 		break;
 
 	case MONITOR_LOG_IO:
-		mutex_enter(&log_sys.mutex);
+		mysql_mutex_lock(&log_sys.mutex);
 		value = static_cast<mon_type_t>(log_sys.n_log_ios);
-		mutex_exit(&log_sys.mutex);
+		mysql_mutex_unlock(&log_sys.mutex);
 		break;
 
 	case MONITOR_LSN_CHECKPOINT_AGE:
-		mutex_enter(&log_sys.mutex);
+		mysql_mutex_lock(&log_sys.mutex);
 		value = static_cast<mon_type_t>(log_sys.get_lsn()
 						- log_sys.last_checkpoint_lsn);
-		mutex_exit(&log_sys.mutex);
+		mysql_mutex_unlock(&log_sys.mutex);
 		break;
 
 	case MONITOR_OVLD_BUF_OLDEST_LSN:

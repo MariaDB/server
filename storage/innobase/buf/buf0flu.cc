@@ -149,7 +149,7 @@ static void buf_flush_validate_skip()
 void buf_flush_insert_into_flush_list(buf_block_t* block, lsn_t lsn)
 {
 	mysql_mutex_assert_not_owner(&buf_pool.mutex);
-	ut_ad(log_flush_order_mutex_own());
+	mysql_mutex_assert_owner(&log_sys.flush_order_mutex);
 	ut_ad(lsn);
 
 	mysql_mutex_lock(&buf_pool.flush_list_mutex);

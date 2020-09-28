@@ -1841,7 +1841,7 @@ for the first time since the latest fil_names_clear().
 @return whether any FILE_MODIFY record was written */
 inline bool fil_names_write_if_was_clean(fil_space_t* space)
 {
-	ut_ad(log_mutex_own());
+	mysql_mutex_assert_owner(&log_sys.mutex);
 
 	if (space == NULL) {
 		return(false);
