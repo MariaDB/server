@@ -690,9 +690,9 @@ static my_bool trx_roll_count_callback(rw_trx_hash_element_t *element,
 void trx_roll_report_progress()
 {
 	time_t now = time(NULL);
-	mutex_enter(&recv_sys.mutex);
+	mysql_mutex_lock(&recv_sys.mutex);
 	bool report = recv_sys.report(now);
-	mutex_exit(&recv_sys.mutex);
+	mysql_mutex_unlock(&recv_sys.mutex);
 
 	if (report) {
 		trx_roll_count_callback_arg arg;

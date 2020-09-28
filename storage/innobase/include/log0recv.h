@@ -208,7 +208,7 @@ struct page_recv_t
 struct recv_sys_t
 {
   /** mutex protecting apply_log_recs and page_recv_t::state */
-  ib_mutex_t mutex;
+  mysql_mutex_t mutex;
   /** whether we are applying redo log records during crash recovery */
   bool recovery_on;
   /** whether recv_recover_page(), invoked from buf_page_read_complete(),

@@ -2730,9 +2730,9 @@ static bool xtrabackup_copy_logfile(bool last = false)
 					log_block_convert_lsn_to_no(start_lsn);
 			start_lsn = 0;
 		} else {
-			mutex_enter(&recv_sys.mutex);
+			mysql_mutex_lock(&recv_sys.mutex);
 			start_lsn = xtrabackup_copy_log(start_lsn, lsn, last);
-			mutex_exit(&recv_sys.mutex);
+			mysql_mutex_unlock(&recv_sys.mutex);
 		}
 
 		mysql_mutex_unlock(&log_sys.mutex);

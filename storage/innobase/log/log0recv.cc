@@ -54,6 +54,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "buf0rea.h"
 #include "srv0srv.h"
 #include "srv0start.h"
+#include "sync0sync.h"
 #include "fil0pagecompress.h"
 
 /** Read-ahead area in applying log records to file pages */
@@ -612,7 +613,7 @@ public:
 	@return whether the state was changed */
 	bool add(const page_id_t page_id, lsn_t lsn)
 	{
-		ut_ad(mutex_own(&recv_sys.mutex));
+		mysql_mutex_assert_owner(&recv_sys.mutex);
 		const init init = { lsn, false };
 		std::pair<map::iterator, bool> p = inits.insert(
 			map::value_type(page_id, init));
@@ -631,7 +632,7 @@ public:
 	not valid after releasing recv_sys.mutex. */
 	init& last(page_id_t page_id)
 	{
-		ut_ad(mutex_own(&recv_sys.mutex));
+		mysql_mutex_assert_owner(&recv_sys.mutex);
 		return inits.find(page_id)->second;
 	}
 
@@ -641,7 +642,7 @@ public:
 	@return whether page_id will be freed or initialized after lsn */
 	bool will_avoid_read(page_id_t page_id, lsn_t lsn) const
 	{
-		ut_ad(mutex_own(&recv_sys.mutex));
+		mysql_mutex_assert_owner(&recv_sys.mutex);
 		auto i= inits.find(page_id);
 		return i != inits.end() && i->second.lsn > lsn;
 	}
@@ -649,7 +650,7 @@ public:
 	/** At the end of each recovery batch, reset the 'created' flags. */
 	void reset()
 	{
-		ut_ad(mutex_own(&recv_sys.mutex));
+		mysql_mutex_assert_owner(&recv_sys.mutex);
 		ut_ad(recv_no_ibuf_operations);
 		for (map::value_type& i : inits) {
 			i.second.created = false;
@@ -662,7 +663,7 @@ public:
 	@param[in,out]	mtr	dummy mini-transaction */
 	void mark_ibuf_exist(mtr_t& mtr)
 	{
-		ut_ad(mutex_own(&recv_sys.mutex));
+		mysql_mutex_assert_owner(&recv_sys.mutex);
 		mtr.start();
 
 		for (const map::value_type& i : inits) {
@@ -693,12 +694,12 @@ public:
 					mtr.start();
 					continue;
 				}
-				mutex_exit(&recv_sys.mutex);
+				mysql_mutex_unlock(&recv_sys.mutex);
 				block->page.ibuf_exist = ibuf_page_exists(
 					block->page.id(), block->zip_size());
 				mtr.commit();
 				mtr.start();
-				mutex_enter(&recv_sys.mutex);
+				mysql_mutex_lock(&recv_sys.mutex);
 			}
 		}
 
@@ -721,7 +722,7 @@ inline void recv_sys_t::trim(const page_id_t page_id, lsn_t lsn)
 	DBUG_LOG("ib_log",
 		 "discarding log beyond end of tablespace "
 		 << page_id << " before LSN " << lsn);
-	ut_ad(mutex_own(&mutex));
+	mysql_mutex_assert_owner(&mutex);
 	for (recv_sys_t::map::iterator p = pages.lower_bound(page_id);
 	     p != pages.end() && p->first.space() == page_id.space();) {
 		recv_sys_t::map::iterator r = p++;
@@ -912,9 +913,9 @@ void recv_sys_t::close()
   if (is_initialised())
   {
     dblwr.pages.clear();
-    ut_d(mutex_enter(&mutex));
+    ut_d(mysql_mutex_lock(&mutex));
     clear();
-    ut_d(mutex_exit(&mutex));
+    ut_d(mysql_mutex_unlock(&mutex));
 
     if (buf)
     {
@@ -923,7 +924,7 @@ void recv_sys_t::close()
     }
 
     last_stored_lsn= 0;
-    mutex_free(&mutex);
+    mysql_mutex_destroy(&mutex);
   }
 
   recv_spaces.clear();
@@ -937,7 +938,7 @@ void recv_sys_t::create()
 {
 	ut_ad(this == &recv_sys);
 	ut_ad(!is_initialised());
-	mutex_create(LATCH_ID_RECV_SYS, &mutex);
+	mysql_mutex_init(recv_sys_mutex_key, &mutex, nullptr);
 
 	apply_log_recs = false;
 	apply_batch_on = false;
@@ -965,7 +966,7 @@ void recv_sys_t::create()
 /** Clear a fully processed set of stored redo log records. */
 inline void recv_sys_t::clear()
 {
-  ut_ad(mutex_own(&mutex));
+  mysql_mutex_assert_owner(&mutex);
   apply_log_recs= false;
   apply_batch_on= false;
   ut_ad(!after_apply || !UT_LIST_GET_LAST(blocks));
@@ -987,7 +988,7 @@ void recv_sys_t::debug_free()
 {
   ut_ad(this == &recv_sys);
   ut_ad(is_initialised());
-  mutex_enter(&mutex);
+  mysql_mutex_lock(&mutex);
 
   recovery_on= false;
   pages.clear();
@@ -995,12 +996,12 @@ void recv_sys_t::debug_free()
 
   buf= nullptr;
 
-  mutex_exit(&mutex);
+  mysql_mutex_unlock(&mutex);
 }
 
 inline void *recv_sys_t::alloc(size_t len)
 {
-  ut_ad(mutex_own(&mutex));
+  mysql_mutex_assert_owner(&mutex);
   ut_ad(len);
   ut_ad(len <= srv_page_size);
 
@@ -1044,7 +1045,7 @@ inline void recv_sys_t::free(const void *data)
 {
   ut_ad(!ut_align_offset(data, ALIGNMENT));
   data= page_align(data);
-  ut_ad(mutex_own(&mutex));
+  mysql_mutex_assert_owner(&mutex);
 
   /* MDEV-14481 FIXME: To prevent race condition with buf_pool.resize(),
   we must acquire and hold the buffer pool mutex here. */
@@ -1623,7 +1624,7 @@ inline bool page_recv_t::trim(lsn_t start_lsn)
 
 inline void page_recv_t::recs_t::clear()
 {
-  ut_ad(mutex_own(&recv_sys.mutex));
+  mysql_mutex_assert_owner(&recv_sys.mutex);
   for (const log_rec_t *l= head; l; )
   {
     const log_rec_t *next= l->next;
@@ -1653,7 +1654,7 @@ inline void recv_sys_t::add(const page_id_t page_id,
                             lsn_t start_lsn, lsn_t lsn, const byte *l,
                             size_t len)
 {
-  ut_ad(mutex_own(&mutex));
+  mysql_mutex_assert_owner(&mutex);
   std::pair<map::iterator, bool> p= pages.emplace(map::value_type
                                                   (page_id, page_recv_t()));
   page_recv_t& recs= p.first->second;
@@ -1740,7 +1741,7 @@ or corruption was noticed */
 bool recv_sys_t::parse(lsn_t checkpoint_lsn, store_t *store, bool apply)
 {
   mysql_mutex_assert_owner(&log_sys.mutex);
-  ut_ad(mutex_own(&mutex));
+  mysql_mutex_assert_owner(&mutex);
   ut_ad(parse_start_lsn);
   ut_ad(log_sys.is_physical());
 
@@ -2213,7 +2214,7 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 			      fil_space_t* space = NULL,
 			      mlog_init_t::init* init = NULL)
 {
-	ut_ad(mutex_own(&recv_sys.mutex));
+	mysql_mutex_assert_owner(&recv_sys.mutex);
 	ut_ad(recv_sys.apply_log_recs);
 	ut_ad(recv_needed_recovery);
 	ut_ad(!init || init->created);
@@ -2233,7 +2234,7 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 
 	p->second.state = page_recv_t::RECV_BEING_PROCESSED;
 
-	mutex_exit(&recv_sys.mutex);
+	mysql_mutex_unlock(&recv_sys.mutex);
 
 	byte *frame = UNIV_LIKELY_NULL(block->page.zip.data)
 		? block->page.zip.data
@@ -2391,7 +2392,7 @@ set_start_lsn:
 
 	time_t now = time(NULL);
 
-	mutex_enter(&recv_sys.mutex);
+	mysql_mutex_lock(&recv_sys.mutex);
 
 	if (recv_max_page_lsn < page_lsn) {
 		recv_max_page_lsn = page_lsn;
@@ -2413,14 +2414,14 @@ This function should only be called when innodb_force_recovery is set.
 @param page_id  corrupted page identifier */
 ATTRIBUTE_COLD void recv_sys_t::free_corrupted_page(page_id_t page_id)
 {
-  mutex_enter(&mutex);
+  mysql_mutex_lock(&mutex);
   map::iterator p= pages.find(page_id);
   if (p != pages.end())
   {
     p->second.log.clear();
     pages.erase(p);
   }
-  mutex_exit(&mutex);
+  mysql_mutex_unlock(&mutex);
 }
 
 /** Apply any buffered redo log to a page that was just read from a data file.
@@ -2444,7 +2445,7 @@ void recv_recover_page(fil_space_t* space, buf_page_t* bpage)
 	rw_lock_x_lock(&block->lock);
 	mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
 
-	mutex_enter(&recv_sys.mutex);
+	mysql_mutex_lock(&recv_sys.mutex);
 	if (recv_sys.apply_log_recs) {
 		recv_sys_t::map::iterator p = recv_sys.pages.find(bpage->id());
 		if (p != recv_sys.pages.end()
@@ -2458,7 +2459,7 @@ void recv_recover_page(fil_space_t* space, buf_page_t* bpage)
 
 	mtr.commit();
 func_exit:
-	mutex_exit(&recv_sys.mutex);
+	mysql_mutex_unlock(&recv_sys.mutex);
 	ut_ad(mtr.has_committed());
 }
 
@@ -2486,10 +2487,10 @@ static void recv_read_in_area(page_id_t page_id)
 	}
 
 	if (p != page_nos) {
-		mutex_exit(&recv_sys.mutex);
+		mysql_mutex_unlock(&recv_sys.mutex);
 		buf_read_recv_pages(FALSE, page_id.space(), page_nos,
 				    ulint(p - page_nos));
-		mutex_enter(&recv_sys.mutex);
+		mysql_mutex_lock(&recv_sys.mutex);
 	}
 }
 
@@ -2503,7 +2504,7 @@ inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
                                             map::iterator &p, mtr_t &mtr,
                                             buf_block_t *b)
 {
-  ut_ad(mutex_own(&mutex));
+  mysql_mutex_assert_owner(&mutex);
   ut_ad(p->first == page_id);
   page_recv_t &recs= p->second;
   ut_ad(recs.state == page_recv_t::RECV_WILL_NOT_READ);
@@ -2554,7 +2555,7 @@ buf_block_t *recv_sys_t::recover_low(const page_id_t page_id)
   buf_block_t *free_block= buf_LRU_get_free_block(false);
   buf_block_t *block= nullptr;
 
-  mutex_enter(&mutex);
+  mysql_mutex_lock(&mutex);
   map::iterator p= pages.find(page_id);
 
   if (p != pages.end() && p->second.state == page_recv_t::RECV_WILL_NOT_READ)
@@ -2564,7 +2565,7 @@ buf_block_t *recv_sys_t::recover_low(const page_id_t page_id)
     ut_ad(!block || block == free_block);
   }
 
-  mutex_exit(&mutex);
+  mysql_mutex_unlock(&mutex);
   if (UNIV_UNLIKELY(!block))
     buf_pool.free_block(free_block);
   return block;
@@ -2578,18 +2579,18 @@ void recv_sys_t::apply(bool last_batch)
         srv_operation == SRV_OPERATION_RESTORE ||
         srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 
-  mutex_enter(&mutex);
+  mysql_mutex_lock(&mutex);
 
   while (apply_batch_on)
   {
     bool abort= found_corrupt_log;
-    mutex_exit(&mutex);
+    mysql_mutex_unlock(&mutex);
 
     if (abort)
       return;
 
     os_thread_sleep(500000);
-    mutex_enter(&mutex);
+    mysql_mutex_lock(&mutex);
   }
 
 #ifdef SAFE_MUTEX
@@ -2639,9 +2640,9 @@ void recv_sys_t::apply(bool last_batch)
       case page_recv_t::RECV_WILL_NOT_READ:
         if (UNIV_LIKELY(!!recover_low(page_id, p, mtr, free_block)))
         {
-          mutex_exit(&mutex);
+          mysql_mutex_unlock(&mutex);
           free_block= buf_LRU_get_free_block(false);
-          mutex_enter(&mutex);
+          mysql_mutex_lock(&mutex);
 next_page:
           p= pages.lower_bound(page_id);
         }
@@ -2683,26 +2684,26 @@ next_page:
       if (found_corrupt_fs && !srv_force_recovery)
         ib::info() << "Set innodb_force_recovery=1 to ignore corrupted pages.";
 
-      mutex_exit(&mutex);
+      mysql_mutex_unlock(&mutex);
 
       if (abort)
         return;
       os_thread_sleep(500000);
-      mutex_enter(&mutex);
+      mysql_mutex_lock(&mutex);
     }
   }
 
   if (!last_batch)
   {
     /* Flush all the file pages to disk and invalidate them in buf_pool */
-    mutex_exit(&mutex);
+    mysql_mutex_unlock(&mutex);
     mysql_mutex_unlock(&log_sys.mutex);
 
     buf_flush_sync();
     buf_pool_invalidate();
 
     mysql_mutex_lock(&log_sys.mutex);
-    mutex_enter(&mutex);
+    mysql_mutex_lock(&mutex);
     mlog_init.reset();
   }
   else
@@ -2711,7 +2712,7 @@ next_page:
 
   ut_d(after_apply= true);
   clear();
-  mutex_exit(&mutex);
+  mysql_mutex_unlock(&mutex);
 }
 
 /** Check whether the number of read redo log blocks exceeds the maximum.
@@ -2978,7 +2979,7 @@ static bool recv_scan_log_recs(
 
 	*group_scanned_lsn = scanned_lsn;
 
-	mutex_enter(&recv_sys.mutex);
+	mysql_mutex_lock(&recv_sys.mutex);
 
 	if (more_data && !recv_sys.found_corrupt_log) {
 		/* Try to parse more log records */
@@ -3009,7 +3010,7 @@ static bool recv_scan_log_recs(
 	}
 
 func_exit:
-	mutex_exit(&recv_sys.mutex);
+	mysql_mutex_unlock(&recv_sys.mutex);
 	return(finished);
 }
 
@@ -3031,7 +3032,7 @@ recv_group_scan_log_recs(
 	DBUG_ENTER("recv_group_scan_log_recs");
 	DBUG_ASSERT(!last_phase || recv_sys.mlog_checkpoint_lsn > 0);
 
-	mutex_enter(&recv_sys.mutex);
+	mysql_mutex_lock(&recv_sys.mutex);
 	recv_sys.len = 0;
 	recv_sys.recovered_offset = 0;
 	recv_sys.clear();
@@ -3040,7 +3041,7 @@ recv_group_scan_log_recs(
 	recv_sys.recovered_lsn = *contiguous_lsn;
 	recv_sys.scanned_checkpoint_no = 0;
 	ut_ad(recv_max_page_lsn == 0);
-	mutex_exit(&recv_sys.mutex);
+	mysql_mutex_unlock(&recv_sys.mutex);
 
 	lsn_t	start_lsn;
 	lsn_t	end_lsn;
@@ -3131,7 +3132,7 @@ recv_validate_tablespace(bool rescan, bool& missing_tablespace)
 {
 	dberr_t err = DB_SUCCESS;
 
-	mutex_enter(&recv_sys.mutex);
+	mysql_mutex_lock(&recv_sys.mutex);
 
 	for (recv_sys_t::map::iterator p = recv_sys.pages.begin();
 	     p != recv_sys.pages.end();) {
@@ -3164,7 +3165,7 @@ next:
 
 	if (err != DB_SUCCESS) {
 func_exit:
-		mutex_exit(&recv_sys.mutex);
+		mysql_mutex_unlock(&recv_sys.mutex);
 		return(err);
 	}
 
@@ -3555,12 +3556,9 @@ completed:
 
 	log_sys.next_checkpoint_no = ++checkpoint_no;
 
-	mutex_enter(&recv_sys.mutex);
-
+	mysql_mutex_lock(&recv_sys.mutex);
 	recv_sys.apply_log_recs = true;
-
-	mutex_exit(&recv_sys.mutex);
-
+	mysql_mutex_unlock(&recv_sys.mutex);
 	mysql_mutex_unlock(&log_sys.mutex);
 
 	recv_lsn_checks_on = true;
