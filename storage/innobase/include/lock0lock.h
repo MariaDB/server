@@ -735,9 +735,8 @@ public:
   /** page locks for SPATIAL INDEX */
   hash_table_t prdt_page_hash;
 
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	LockMutex	wait_mutex;		/*!< Mutex protecting the
-						next two fields */
+  /** Mutex protecting waiting_threads, last_slot */
+  MY_ALIGNED(CACHE_LINE_SIZE) mysql_mutex_t wait_mutex;
 	srv_slot_t*	waiting_threads;	/*!< Array  of user threads
 						suspended while waiting for
 						locks within InnoDB, protected
@@ -956,19 +955,6 @@ extern lock_sys_t lock_sys;
 /** Release the lock_sys.mutex. */
 #define lock_mutex_exit() do {			\
 	lock_sys.mutex.exit();			\
-} while (0)
-
-/** Test if lock_sys.wait_mutex is owned. */
-#define lock_wait_mutex_own() (lock_sys.wait_mutex.is_owned())
-
-/** Acquire the lock_sys.wait_mutex. */
-#define lock_wait_mutex_enter() do {		\
-	mutex_enter(&lock_sys.wait_mutex);	\
-} while (0)
-
-/** Release the lock_sys.wait_mutex. */
-#define lock_wait_mutex_exit() do {		\
-	lock_sys.wait_mutex.exit();		\
 } while (0)
 
 #ifdef WITH_WSREP

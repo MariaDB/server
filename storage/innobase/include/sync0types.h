@@ -141,10 +141,10 @@ V
 File system pages
 |
 V
-lock_sys_wait_mutex			Mutex protecting lock timeout data
+lock_sys.wait_mutex			Mutex protecting lock timeout data
 |
 V
-lock_sys_mutex				Mutex protecting lock_sys_t
+lock_sys.mutex				Mutex protecting lock_sys_t
 |
 V
 trx_sys.mutex				Mutex protecting trx_sys.trx_list
@@ -207,7 +207,6 @@ enum latch_level_t {
 	SYNC_READ_VIEW,
 	SYNC_TRX_SYS,
 	SYNC_LOCK_SYS,
-	SYNC_LOCK_WAIT_SYS,
 
 	SYNC_INDEX_ONLINE_LOG,
 
@@ -291,7 +290,6 @@ enum latch_id_t {
 	LATCH_ID_TRX_POOL_MANAGER,
 	LATCH_ID_TRX,
 	LATCH_ID_LOCK_SYS,
-	LATCH_ID_LOCK_SYS_WAIT,
 	LATCH_ID_TRX_SYS,
 	LATCH_ID_SRV_SYS,
 	LATCH_ID_SRV_SYS_TASKS,

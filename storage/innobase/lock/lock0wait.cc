@@ -45,7 +45,7 @@ void
 lock_wait_table_print(void)
 /*=======================*/
 {
-	ut_ad(lock_wait_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
 
 	const srv_slot_t*	slot = lock_sys.waiting_threads;
 
@@ -75,7 +75,7 @@ lock_wait_table_release_slot(
 	srv_slot_t*	upper = lock_sys.waiting_threads + srv_max_n_threads;
 #endif /* UNIV_DEBUG */
 
-	lock_wait_mutex_enter();
+	mysql_mutex_lock(&lock_sys.wait_mutex);
 
 	ut_ad(slot->in_use);
 	ut_ad(slot->thr != NULL);
@@ -120,7 +120,7 @@ lock_wait_table_release_slot(
 	ut_ad(lock_sys.last_slot >= lock_sys.waiting_threads);
 	ut_ad(lock_sys.last_slot <= upper);
 
-	lock_wait_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.wait_mutex);
 }
 
 /*********************************************************************//**
@@ -137,7 +137,7 @@ lock_wait_table_reserve_slot(
 	ulint		i;
 	srv_slot_t*	slot;
 
-	ut_ad(lock_wait_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
 	ut_ad(trx_mutex_own(thr_get_trx(thr)));
 
 	slot = lock_sys.waiting_threads;
@@ -249,7 +249,7 @@ lock_wait_suspend_thread(
 	innodb_lock_wait_timeout, because trx->mysql_thd == NULL. */
 	lock_wait_timeout = trx_lock_wait_timeout_get(trx);
 
-	lock_wait_mutex_enter();
+	mysql_mutex_lock(&lock_sys.wait_mutex);
 
 	trx_mutex_enter(trx);
 
@@ -268,7 +268,7 @@ lock_wait_suspend_thread(
 			trx->lock.was_chosen_as_deadlock_victim = false;
 		}
 
-		lock_wait_mutex_exit();
+		mysql_mutex_unlock(&lock_sys.wait_mutex);
 		trx_mutex_exit(trx);
 		return;
 	}
@@ -277,7 +277,7 @@ lock_wait_suspend_thread(
 
 	slot = lock_wait_table_reserve_slot(thr, lock_wait_timeout);
 
-	lock_wait_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.wait_mutex);
 	trx_mutex_exit(trx);
 
 	ulonglong start_time = 0;
@@ -441,7 +441,7 @@ lock_wait_check_and_cancel(
 	const srv_slot_t*	slot)	/*!< in: slot reserved by a user
 					thread when the wait started */
 {
-	ut_ad(lock_wait_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
 	ut_ad(slot->in_use);
 	ut_ad(slot->suspended);
 
@@ -486,7 +486,7 @@ lock_wait_check_and_cancel(
 /** A task which wakes up threads whose lock wait may have lasted too long */
 void lock_wait_timeout_task(void*)
 {
-  lock_wait_mutex_enter();
+  mysql_mutex_lock(&lock_sys.wait_mutex);
 
   /* Check all slots for user threads that are waiting
   on locks, and if they have exceeded the time limit. */
@@ -509,5 +509,5 @@ void lock_wait_timeout_task(void*)
   else
     lock_sys.timeout_timer_active= false;
 
-  lock_wait_mutex_exit();
+  mysql_mutex_unlock(&lock_sys.wait_mutex);
 }

@@ -42,6 +42,7 @@ Created 5/7/1996 Heikki Tuuri
 #include "row0mysql.h"
 #include "row0vers.h"
 #include "pars0pars.h"
+#include "sync0sync.h"
 
 #include <set>
 
@@ -460,8 +461,7 @@ void lock_sys_t::create(ulint n_cells)
 
 	mutex_create(LATCH_ID_LOCK_SYS, &mutex);
 
-	mutex_create(LATCH_ID_LOCK_SYS_WAIT, &wait_mutex);
-
+	mysql_mutex_init(lock_wait_mutex_key, &wait_mutex, nullptr);
 
 	rec_hash.create(n_cells);
 	prdt_hash.create(n_cells);
@@ -532,7 +532,7 @@ void lock_sys_t::close()
 	prdt_page_hash.free();
 
 	mutex_destroy(&mutex);
-	mutex_destroy(&wait_mutex);
+	mysql_mutex_destroy(&wait_mutex);
 
 	for (ulint i = srv_max_n_threads; i--; ) {
 		if (os_event_t& event = waiting_threads[i].event) {
