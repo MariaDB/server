@@ -517,12 +517,12 @@ class rw_trx_hash_t
     ut_ad(!trx->read_only || !trx->rsegs.m_redo.rseg);
     ut_ad(!trx_is_autocommit_non_locking(trx));
     /* trx->state can be anything except TRX_STATE_NOT_STARTED */
-    mutex_enter(&trx->mutex);
+    mysql_mutex_lock(&trx->mutex);
     ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
           trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY) ||
           trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED) ||
           trx_state_eq(trx, TRX_STATE_PREPARED));
-    mutex_exit(&trx->mutex);
+    mysql_mutex_unlock(&trx->mutex);
   }
 
 
@@ -657,9 +657,9 @@ public:
             trx->mutex is released, and it will have to be rechecked
             by the caller after reacquiring the mutex.
           */
-          trx_mutex_enter(trx);
+          mysql_mutex_lock(&trx->mutex);
           const trx_state_t state= trx->state;
-          trx_mutex_exit(trx);
+          mysql_mutex_unlock(&trx->mutex);
           if (state == TRX_STATE_COMMITTED_IN_MEMORY)
             trx= NULL;
           else

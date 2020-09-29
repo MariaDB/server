@@ -462,7 +462,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_PURGE_QUEUE);
 	LEVEL_MAP_INSERT(SYNC_TRX_SYS_HEADER);
 	LEVEL_MAP_INSERT(SYNC_REC_LOCK);
-	LEVEL_MAP_INSERT(SYNC_TRX);
 	LEVEL_MAP_INSERT(SYNC_RW_TRX_HASH_ELEMENT);
 	LEVEL_MAP_INSERT(SYNC_READ_VIEW);
 	LEVEL_MAP_INSERT(SYNC_TRX_SYS);
@@ -769,17 +768,6 @@ LatchDebug::check_order(
 			basic_check(latches, level, level);
 		}
 
-		break;
-
-	case SYNC_TRX:
-
-		/* Either the thread must own the lock_sys.mutex, or
-		it is allowed to own only ONE trx_t::mutex. */
-
-		if (less(latches, level) != NULL) {
-			basic_check(latches, level, level - 1);
-			mysql_mutex_assert_owner(&lock_sys.mutex);
-		}
 		break;
 
 	case SYNC_REC_LOCK:
@@ -1280,8 +1268,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(TRX_POOL_MANAGER, SYNC_POOL_MANAGER,
 			trx_pool_manager_mutex_key);
-
-	LATCH_ADD_MUTEX(TRX, SYNC_TRX, trx_mutex_key);
 
 	LATCH_ADD_MUTEX(TRX_SYS, SYNC_TRX_SYS, trx_sys_mutex_key);
 

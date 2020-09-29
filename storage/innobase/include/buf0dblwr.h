@@ -67,6 +67,9 @@ class buf_dblwr_t
   @param header   doublewrite page header in the TRX_SYS page */
   inline void init(const byte *header);
 
+  /** Flush possible buffered writes to persistent storage. */
+  bool flush_buffered_writes(const ulint size);
+
 public:
   /** Create or restore the doublewrite buffer in the TRX_SYS page.
   @return whether the operation succeeded */

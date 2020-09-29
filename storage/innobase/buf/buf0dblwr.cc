@@ -484,7 +484,7 @@ void buf_dblwr_t::update()
     /* We can now reuse the doublewrite memory buffer: */
     first_free= 0;
     batch_running= false;
-    mysql_cond_signal(&cond);
+    mysql_cond_broadcast(&cond);
   }
 
   mysql_mutex_unlock(&mutex);
@@ -588,37 +588,17 @@ buf_dblwr_check_block(
 	buf_dblwr_assert_on_corrupt_block(block);
 }
 
-/** Flush possible buffered writes to persistent storage.
-It is very important to call this function after a batch of writes has been
-posted, and also when we may have to wait for a page latch!
-Otherwise a deadlock of threads can occur. */
-void buf_dblwr_t::flush_buffered_writes()
+bool buf_dblwr_t::flush_buffered_writes(const ulint size)
 {
-  if (!is_initialised() || !srv_use_doublewrite_buf)
-  {
-    os_aio_wait_until_no_pending_writes();
-    fil_flush_file_spaces();
-    return;
-  }
-
-  ut_ad(!srv_read_only_mode);
-  const ulint size= block_size();
-
-  mysql_mutex_lock(&mutex);
+  mysql_mutex_assert_owner(&mutex);
+  ut_ad(size == block_size());
 
   for (;;)
   {
     if (!first_free)
-    {
-      mysql_mutex_unlock(&mutex);
-      return;
-    }
-
+      return false;
     if (!batch_running)
       break;
-
-    /* Another thread is running the batch right now. Wait for it to
-    finish. */
     mysql_cond_wait(&cond, &mutex);
   }
 
@@ -709,6 +689,29 @@ void buf_dblwr_t::flush_buffered_writes()
     fil_io(IORequest(IORequest::WRITE, bpage, e.lru), false,
            bpage->id(), bpage->zip_size(), 0, e_size, frame, bpage);
   }
+
+  return true;
+}
+
+/** Flush possible buffered writes to persistent storage.
+It is very important to call this function after a batch of writes has been
+posted, and also when we may have to wait for a page latch!
+Otherwise a deadlock of threads can occur. */
+void buf_dblwr_t::flush_buffered_writes()
+{
+  if (!is_initialised() || !srv_use_doublewrite_buf)
+  {
+    os_aio_wait_until_no_pending_writes();
+    fil_flush_file_spaces();
+    return;
+  }
+
+  ut_ad(!srv_read_only_mode);
+  const ulint size= block_size();
+
+  mysql_mutex_lock(&mutex);
+  if (!flush_buffered_writes(size))
+    mysql_mutex_unlock(&mutex);
 }
 
 /** Schedule a page write. If the doublewrite memory buffer is full,
@@ -735,9 +738,8 @@ void buf_dblwr_t::add_to_batch(buf_page_t *bpage, bool lru, size_t size)
     if (first_free != buf_size)
       break;
 
-    mysql_mutex_unlock(&mutex);
-    flush_buffered_writes();
-    mysql_mutex_lock(&mutex);
+    if (flush_buffered_writes(buf_size / 2))
+      mysql_mutex_lock(&mutex);
   }
 
   byte *p= write_buf + srv_page_size * first_free;
@@ -753,9 +755,6 @@ void buf_dblwr_t::add_to_batch(buf_page_t *bpage, bool lru, size_t size)
 
   ut_ad(first_free == b_reserved);
   ut_ad(b_reserved <= buf_size);
-  const auto f= first_free;
-  mysql_mutex_unlock(&mutex);
-
-  if (f == buf_size)
-    flush_buffered_writes();
+  if (first_free != buf_size || !flush_buffered_writes(buf_size / 2))
+    mysql_mutex_unlock(&mutex);
 }

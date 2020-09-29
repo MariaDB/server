@@ -4675,7 +4675,7 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
 #endif /* WITH_WSREP */
     mysql_mutex_lock(&lock_sys.mutex);
     trx_sys.trx_list.freeze();
-    trx_mutex_enter(trx);
+    mysql_mutex_lock(&trx->mutex);
     /* It is possible that innobase_close_connection() is concurrently
     being executed on our victim. Even if the trx object is later
     reused for another client connection or a background transaction,
@@ -4695,7 +4695,7 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
     else if (lock_t *lock= trx->lock.wait_lock)
       lock_cancel_waiting_and_release(lock);
     mysql_mutex_unlock(&lock_sys.mutex);
-    trx_mutex_exit(trx);
+    mysql_mutex_unlock(&trx->mutex);
   }
 
   DBUG_VOID_RETURN;
@@ -18701,7 +18701,7 @@ wsrep_innobase_kill_one_trx(THD* bf_thd, trx_t *victim_trx,
 	ut_ad(bf_thd);
 	ut_ad(victim_trx);
 	mysql_mutex_assert_owner(&lock_sys.mutex);
-	ut_ad(trx_mutex_own(victim_trx));
+	mysql_mutex_assert_owner(&victim_trx->mutex);
 
 	DBUG_ENTER("wsrep_innobase_kill_one_trx");
 
@@ -18804,10 +18804,10 @@ wsrep_abort_transaction(
 
 	if (victim_trx) {
 		mysql_mutex_lock(&lock_sys.mutex);
-		trx_mutex_enter(victim_trx);
+		mysql_mutex_lock(&victim_trx->mutex);
 		int rcode= wsrep_innobase_kill_one_trx(bf_thd,
 						       victim_trx, signal);
-		trx_mutex_exit(victim_trx);
+		mysql_mutex_unlock(&victim_trx->mutex);
 		mysql_mutex_unlock(&lock_sys.mutex);
 		DBUG_RETURN(rcode);
 	} else {

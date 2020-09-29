@@ -153,7 +153,7 @@ inline void trx_t::rollback_low(trx_savept_t *savept)
 @return error code or DB_SUCCESS */
 dberr_t trx_t::rollback(trx_savept_t *savept)
 {
-  ut_ad(!trx_mutex_own(this));
+  mysql_mutex_assert_not_owner(&mutex);
   if (state == TRX_STATE_NOT_STARTED)
   {
     error_state= DB_SUCCESS;
@@ -723,10 +723,10 @@ static my_bool trx_rollback_recovered_callback(rw_trx_hash_element_t *element,
   mutex_enter(&element->mutex);
   if (trx_t *trx= element->trx)
   {
-    mutex_enter(&trx->mutex);
+    mysql_mutex_lock(&trx->mutex);
     if (trx_state_eq(trx, TRX_STATE_ACTIVE) && trx->is_recovered)
       trx_list->push_back(trx);
-    mutex_exit(&trx->mutex);
+    mysql_mutex_unlock(&trx->mutex);
   }
   mutex_exit(&element->mutex);
   return 0;
@@ -768,10 +768,10 @@ void trx_rollback_recovered(bool all)
     trx_list.pop_back();
 
     ut_ad(trx);
-    ut_d(trx_mutex_enter(trx));
+    ut_d(mysql_mutex_lock(&trx->mutex));
     ut_ad(trx->is_recovered);
     ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
-    ut_d(trx_mutex_exit(trx));
+    ut_d(mysql_mutex_unlock(&trx->mutex));
 
     if (srv_shutdown_state != SRV_SHUTDOWN_NONE && !srv_undo_sources &&
         srv_fast_shutdown)
@@ -865,7 +865,7 @@ trx_roll_graph_build(
 	que_fork_t*	fork;
 	que_thr_t*	thr;
 
-	ut_ad(trx_mutex_own(trx));
+	mysql_mutex_assert_owner(&trx->mutex);
 
 	heap = mem_heap_create(512);
 	fork = que_fork_create(NULL, NULL, QUE_FORK_ROLLBACK, heap);
@@ -891,7 +891,7 @@ trx_rollback_start(
 					partial undo), 0 if we are rolling back
 					the entire transaction */
 {
-	ut_ad(trx_mutex_own(trx));
+	mysql_mutex_assert_owner(&trx->mutex);
 
 	/* Initialize the rollback field in the transaction */
 
@@ -959,7 +959,7 @@ trx_rollback_step(
 
 		trx = thr_get_trx(thr);
 
-		trx_mutex_enter(trx);
+		mysql_mutex_lock(&trx->mutex);
 
 		node->state = ROLL_NODE_WAIT;
 
@@ -971,7 +971,7 @@ trx_rollback_step(
 
 		node->undo_thr = trx_rollback_start(trx, roll_limit);
 
-		trx_mutex_exit(trx);
+		mysql_mutex_unlock(&trx->mutex);
 
 	} else {
 		ut_ad(node->state == ROLL_NODE_WAIT);
