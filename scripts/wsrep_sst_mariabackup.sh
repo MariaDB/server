@@ -196,19 +196,33 @@ get_transfer()
                 tcmd="nc -l -p ${TSST_PORT}"
             fi
         else
+            # Check to see if netcat supports the '-N' flag.
+            #      -N Shutdown the network socket after EOF on stdin
+            # If it supports the '-N' flag, then we need to use the '-N'
+            # flag, otherwise the transfer will stay open after the file
+            # transfer and cause the command to timeout.
+            # Older versions of netcat did not need this flag and will
+            # return an error if the flag is used.
+            #
+            tcmd_extra=""
+            if nc -h 2>&1 | grep -qw -- -N; then
+                tcmd_extra+=" -N "
+		wsrep_log_info "Using nc -N"
+            fi
+
+            # netcat doesn't understand [] around IPv6 address
             if nc -h 2>&1 | grep -q ncat;then
                 # Ncat
-                tcmd="nc ${REMOTEIP} ${TSST_PORT}"
+		wsrep_log_info "Using Ncat as streamer"
+                tcmd="nc ${tcmd_extra} ${REMOTEIP//[\[\]]/} ${TSST_PORT}"
             elif nc -h 2>&1 | grep -q -- '-d\>';then
                 # Debian netcat
-                if nc -h 2>&1 | grep -q -- '-N\>';then
-                   tcmd="nc -N ${REMOTEIP} ${TSST_PORT}"
-                else
-                   tcmd="nc ${REMOTEIP} ${TSST_PORT}"
-                fi
+		wsrep_log_info "Using Debian netcat as streamer"
+                tcmd="nc ${tcmd_extra} ${REMOTEIP//[\[\]]/} ${TSST_PORT}"
             else
                 # traditional netcat
-                tcmd="nc -q0 ${REMOTEIP} ${TSST_PORT}"
+		wsrep_log_info "Using traditional netcat as streamer"
+                tcmd="nc -q0 ${tcmd_extra} ${REMOTEIP//[\[\]]/} ${TSST_PORT}"
             fi
         fi
     else
