@@ -510,7 +510,7 @@ row_ins_cascade_calc_update_vec(
 
 	n_fields_updated = 0;
 
-	*fts_col_affected = FALSE;
+	*fts_col_affected = foreign->affects_fulltext();
 
 	if (table->fts) {
 		doc_id_pos = dict_table_get_nth_col_pos(
@@ -629,16 +629,6 @@ row_ins_cascade_calc_update_vec(
 							  pad, pad_len);
 					dfield_set_data(&ufield->new_val,
 							padded_data, min_size);
-				}
-
-				/* Check whether the current column has
-				FTS index on it */
-				if (table->fts
-				    && dict_table_is_fts_column(
-					table->fts->indexes,
-					dict_col_get_no(col))
-					!= ULINT_UNDEFINED) {
-					*fts_col_affected = TRUE;
 				}
 
 				/* If Doc ID is updated, check whether the
@@ -977,7 +967,6 @@ row_ins_foreign_check_on_constraint(
 	upd_t*		update;
 	ulint		n_to_update;
 	dberr_t		err;
-	ulint		i;
 	trx_t*		trx;
 	mem_heap_t*	tmp_heap	= NULL;
 	doc_id_t	doc_id = FTS_NULL_DOC_ID;
@@ -1191,7 +1180,7 @@ row_ins_foreign_check_on_constraint(
 		UNIV_MEM_INVALID(update->fields,
 				 update->n_fields * sizeof *update->fields);
 
-		for (i = 0; i < foreign->n_fields; i++) {
+		for (ulint i = 0; i < foreign->n_fields; i++) {
 			upd_field_t*	ufield = &update->fields[i];
 
 			ufield->field_no = dict_table_get_nth_col_pos(
@@ -1200,32 +1189,14 @@ row_ins_foreign_check_on_constraint(
 			ufield->orig_len = 0;
 			ufield->exp = NULL;
 			dfield_set_null(&ufield->new_val);
-
-			if (table->fts && dict_table_is_fts_column(
-				table->fts->indexes,
-				dict_index_get_nth_col_no(index, i))
-				!= ULINT_UNDEFINED) {
-				fts_col_affacted = TRUE;
-			}
 		}
 
-		if (fts_col_affacted) {
+		if (foreign->affects_fulltext()) {
 			fts_trx_add_op(trx, table, doc_id, FTS_DELETE, NULL);
 		}
-	} else if (table->fts && cascade->is_delete) {
-		/* DICT_FOREIGN_ON_DELETE_CASCADE case */
-		for (i = 0; i < foreign->n_fields; i++) {
-			if (table->fts && dict_table_is_fts_column(
-				table->fts->indexes,
-				dict_index_get_nth_col_no(index, i))
-				!= ULINT_UNDEFINED) {
-				fts_col_affacted = TRUE;
-			}
-		}
-
-		if (fts_col_affacted) {
-			fts_trx_add_op(trx, table, doc_id, FTS_DELETE, NULL);
-		}
+	} else if (table->fts && cascade->is_delete
+		   && foreign->affects_fulltext()) {
+		fts_trx_add_op(trx, table, doc_id, FTS_DELETE, NULL);
 	}
 
 	if (!node->is_delete

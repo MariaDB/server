@@ -853,3 +853,22 @@ operator<< (std::ostream& out, const dict_foreign_set& fk_set)
 	return(out);
 }
 
+/** Check whether fulltext index gets affected by foreign
+key constraint. */
+bool dict_foreign_t::affects_fulltext() const
+{
+  if (foreign_table == referenced_table || !foreign_table->fts)
+    return false;
+
+  for (ulint i = 0; i < n_fields; i++)
+  {
+    if (dict_table_is_fts_column(
+          foreign_table->fts->indexes,
+          dict_index_get_nth_col_no(foreign_index, i))
+        != ULINT_UNDEFINED)
+      return true;
+  }
+
+  return false;
+}
+
