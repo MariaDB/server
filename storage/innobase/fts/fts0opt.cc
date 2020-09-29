@@ -58,8 +58,9 @@ static const ulint FTS_OPTIMIZE_INTERVAL_IN_SECS = 300;
 /** Server is shutting down, so does we exiting the optimize thread */
 static bool fts_opt_start_shutdown = false;
 
-/** Event to wait for shutdown of the optimize thread */
-static os_event_t fts_opt_shutdown_event = NULL;
+/** Condition variable for shutting down the optimize thread.
+Protected by fts_optimize_wq->mutex. */
+static mysql_cond_t fts_opt_shutdown_cond;
 
 /** Initial size of nodes in fts_word_t. */
 static const ulint FTS_WORD_NODES_INIT_SIZE = 64;
@@ -2530,9 +2531,9 @@ fts_optimize_create_msg(
 }
 
 /** Add message to wqueue, signal thread pool*/
-static void add_msg(fts_msg_t *msg, bool wq_locked= false)
+static void add_msg(fts_msg_t *msg)
 {
-  ib_wqueue_add(fts_optimize_wq, msg, msg->heap, wq_locked);
+  ib_wqueue_add(fts_optimize_wq, msg, msg->heap, true);
   srv_thread_pool->submit_task(&task);
 }
 
@@ -2562,7 +2563,7 @@ void fts_optimize_add_table(dict_table_t* table)
 
 	mysql_mutex_lock(&fts_optimize_wq->mutex);
 
-	add_msg(msg, true);
+	add_msg(msg);
 
 	table->fts->in_queue = true;
 
@@ -2595,7 +2596,7 @@ fts_optimize_remove_table(
     mysql_cond_init(0, &cond, nullptr);
     msg->ptr= new(mem_heap_alloc(msg->heap, sizeof(fts_msg_del_t)))
       fts_msg_del_t{table, &cond};
-    add_msg(msg, true);
+    add_msg(msg);
     mysql_cond_wait(&cond, &fts_optimize_wq->mutex);
     mysql_cond_destroy(&cond);
     ut_ad(!table->fts->in_queue);
@@ -2615,18 +2616,17 @@ fts_optimize_request_sync_table(
 		return;
 	}
 
+	mysql_mutex_lock(&fts_optimize_wq->mutex);
+
 	/* FTS optimizer thread is already exited */
 	if (fts_opt_start_shutdown) {
 		ib::info() << "Try to sync table " << table->name
 			<< " after FTS optimize thread exiting.";
+		mysql_mutex_unlock(&fts_optimize_wq->mutex);
 		return;
 	}
 
-	fts_msg_t* msg = fts_optimize_create_msg(FTS_MSG_SYNC_TABLE, table);
-
-	mysql_mutex_lock(&fts_optimize_wq->mutex);
-
-	add_msg(msg, true);
+	add_msg(fts_optimize_create_msg(FTS_MSG_SYNC_TABLE, table));
 
 	table->fts->sync_message = true;
 
@@ -2901,13 +2901,11 @@ static void fts_optimize_callback(void *)
 	ib_vector_free(fts_slots);
 	fts_slots = NULL;
 
-	ib_wqueue_free(fts_optimize_wq);
-	fts_optimize_wq = NULL;
+	mysql_mutex_lock(&fts_optimize_wq->mutex);
+	mysql_cond_signal(&fts_opt_shutdown_cond);
+	mysql_mutex_unlock(&fts_optimize_wq->mutex);
 
-	innobase_destroy_background_thd(fts_opt_thd);
 	ib::info() << "FTS optimize thread exiting.";
-
-	os_event_set(fts_opt_shutdown_event);
 }
 
 /**********************************************************************//**
@@ -2955,7 +2953,7 @@ fts_optimize_init(void)
 	}
 	mutex_exit(&dict_sys.mutex);
 
-	fts_opt_shutdown_event = os_event_create(0);
+	mysql_cond_init(0, &fts_opt_shutdown_cond, nullptr);
 	last_check_sync_time = time(NULL);
 }
 
@@ -2965,12 +2963,10 @@ fts_optimize_shutdown()
 {
 	ut_ad(!srv_read_only_mode);
 
-	fts_msg_t*	msg;
-
 	/* If there is an ongoing activity on dictionary, such as
 	srv_master_evict_from_table_cache(), wait for it */
 	dict_mutex_enter_for_mysql();
-
+	mysql_mutex_lock(&fts_optimize_wq->mutex);
 	/* Tells FTS optimizer system that we are exiting from
 	optimizer thread, message send their after will not be
 	processed */
@@ -2983,14 +2979,17 @@ fts_optimize_shutdown()
 	timer->disarm();
 	task_group.cancel_pending(&task);
 
-	msg = fts_optimize_create_msg(FTS_MSG_STOP, NULL);
+	add_msg(fts_optimize_create_msg(FTS_MSG_STOP, nullptr));
 
-	add_msg(msg);
-
-	os_event_wait(fts_opt_shutdown_event);
-
-	os_event_destroy(fts_opt_shutdown_event);
+	mysql_cond_wait(&fts_opt_shutdown_cond, &fts_optimize_wq->mutex);
+	innobase_destroy_background_thd(fts_opt_thd);
 	fts_opt_thd = NULL;
+	mysql_cond_destroy(&fts_opt_shutdown_cond);
+	mysql_mutex_unlock(&fts_optimize_wq->mutex);
+
+	ib_wqueue_free(fts_optimize_wq);
+	fts_optimize_wq = NULL;
+
 	delete timer;
 	timer = NULL;
 }
