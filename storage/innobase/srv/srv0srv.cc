@@ -152,7 +152,7 @@ ulong	innodb_compression_algorithm;
 /** Used by SET GLOBAL innodb_master_thread_disabled_debug = X. */
 my_bool	srv_master_thread_disabled_debug;
 /** Event used to inform that master thread is disabled. */
-static os_event_t	srv_master_thread_disabled_event;
+static mysql_cond_t srv_master_thread_disabled_cond;
 #endif /* UNIV_DEBUG */
 
 /*------------------------- LOG FILES ------------------------ */
@@ -712,7 +712,7 @@ static void srv_init()
 	}
 
 	need_srv_free = true;
-	ut_d(srv_master_thread_disabled_event = os_event_create(0));
+	ut_d(mysql_cond_init(0, &srv_master_thread_disabled_cond, nullptr));
 
 	/* page_zip_stat_per_index_mutex is acquired from:
 	1. page_zip_compress() (after SYNC_FSP)
@@ -746,7 +746,7 @@ srv_free(void)
 		mutex_free(&srv_sys.tasks_mutex);
 	}
 
-	ut_d(os_event_destroy(srv_master_thread_disabled_event));
+	ut_d(mysql_cond_destroy(&srv_master_thread_disabled_cond));
 
 	trx_i_s_cache_free(trx_i_s_cache);
 	srv_thread_pool_end();
@@ -1645,26 +1645,17 @@ srv_shutdown_print_master_pending(
 
 #ifdef UNIV_DEBUG
 /** Waits in loop as long as master thread is disabled (debug) */
-static
-void
-srv_master_do_disabled_loop(void)
+static void srv_master_do_disabled_loop()
 {
-	if (!srv_master_thread_disabled_debug) {
-		/* We return here to avoid changing op_info. */
-		return;
-	}
-
-	srv_main_thread_op_info = "disabled";
-
-	while (srv_master_thread_disabled_debug) {
-		os_event_set(srv_master_thread_disabled_event);
-		if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
-			break;
-		}
-		os_thread_sleep(100000);
-	}
-
-	srv_main_thread_op_info = "";
+  if (!srv_master_thread_disabled_debug)
+    return;
+  srv_main_thread_op_info = "disabled";
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  while (srv_master_thread_disabled_debug)
+    mysql_cond_wait(&srv_master_thread_disabled_cond,
+                    &LOCK_global_system_variables);
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  srv_main_thread_op_info = "";
 }
 
 /** Disables master thread. It's used by:
@@ -1672,22 +1663,22 @@ srv_master_do_disabled_loop(void)
 @param[in]	save		immediate result from check function */
 void
 srv_master_thread_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
-					const void* save)
+                                        const void* save)
 {
-	/* This method is protected by mutex, as every SET GLOBAL .. */
-	ut_ad(srv_master_thread_disabled_event != NULL);
+  mysql_mutex_assert_owner(&LOCK_global_system_variables);
+  const bool disable= *static_cast<const my_bool*>(save);
+  srv_master_thread_disabled_debug= disable;
+  if (!disable)
+    mysql_cond_signal(&srv_master_thread_disabled_cond);
+}
 
-	const bool disable = *static_cast<const my_bool*>(save);
-
-	const int64_t sig_count = os_event_reset(
-		srv_master_thread_disabled_event);
-
-	srv_master_thread_disabled_debug = disable;
-
-	if (disable) {
-		os_event_wait_low(
-			srv_master_thread_disabled_event, sig_count);
-	}
+/** Enable the master thread on shutdown. */
+void srv_master_thread_enable()
+{
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  srv_master_thread_disabled_debug= FALSE;
+  mysql_cond_signal(&srv_master_thread_disabled_cond);
+  mysql_mutex_unlock(&LOCK_global_system_variables);
 }
 #endif /* UNIV_DEBUG */
 

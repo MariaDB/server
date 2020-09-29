@@ -829,7 +829,7 @@ srv_shutdown_all_bg_threads()
 {
 	ut_ad(!srv_undo_sources);
 	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
-
+	ut_d(srv_master_thread_enable());
 	lock_sys.timeout_timer.reset();
 	srv_master_timer.reset();
 
@@ -1979,6 +1979,7 @@ skip_monitors:
 /** Shut down background threads that can generate undo log. */
 void srv_shutdown_bg_undo_sources()
 {
+	ut_d(srv_master_thread_enable());
 	if (srv_undo_sources) {
 		ut_ad(!srv_read_only_mode);
 		srv_shutdown_state = SRV_SHUTDOWN_INITIATED;

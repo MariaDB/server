@@ -738,6 +738,9 @@ void srv_init_purge_tasks();
 void
 srv_master_thread_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
 					const void* save);
+
+/** Enable the master thread on shutdown. */
+void srv_master_thread_enable();
 #endif /* UNIV_DEBUG */
 
 /** Status variables to be passed to MySQL */
