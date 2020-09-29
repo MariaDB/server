@@ -18,6 +18,33 @@
 
 #include "filesort.h"
 
+class Unique : public Sql_alloc {
+public:
+
+  virtual void reset() = 0;
+  virtual bool unique_add(void *ptr, uint size_arg) = 0;
+  virtual ~Unique() {};
+
+  virtual void close_for_expansion() = 0;
+
+  virtual bool get(TABLE *table) = 0;
+  virtual bool walk(TABLE *table, tree_walk_action action, void *walk_action_arg)= 0;
+  
+  virtual SORT_INFO *get_sort() = 0;
+
+  virtual ulong get_n_elements() = 0;
+  virtual size_t get_max_in_memory_size() const = 0;
+  virtual bool is_in_memory() = 0;
+
+  // This will be renamed:
+  virtual ulong elements_in_tree() = 0;
+
+  // These will be removed:
+  virtual uint get_size() const = 0;
+  virtual bool is_packed() = 0;
+  virtual uint get_full_size() const = 0;
+};
+
 /*
    Unique -- class for unique (removing of duplicates).
    Puts all values to the TREE. If the tree becomes too big,
@@ -26,8 +53,7 @@
    memory simultaneously with iteration, so it should be ~2-3x faster.
  */
 
-class Unique :public Sql_alloc
-{
+class Unique_impl : public Unique {
   DYNAMIC_ARRAY file_ptrs;
   ulong max_elements;   /* Total number of elements that will be stored in-memory */
   size_t max_in_memory_size;
@@ -69,11 +95,14 @@ class Unique :public Sql_alloc
 
 public:
   ulong elements;
+  ulong get_n_elements() override { return elements; }
   SORT_INFO sort;
-  Unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
+  SORT_INFO *get_sort() override { return &sort; }
+
+  Unique_impl(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
          uint size_arg, size_t max_in_memory_size_arg,
          uint min_dupl_count_arg= 0);
-  virtual ~Unique();
+  virtual ~Unique_impl();
   ulong elements_in_tree() { return tree.elements_in_tree; }
 
   /*
@@ -84,7 +113,7 @@ public:
       size                     length of the key
   */
 
-  inline bool unique_add(void *ptr, uint size_arg)
+  bool unique_add(void *ptr, uint size_arg) override
   {
     DBUG_ENTER("unique_add");
     DBUG_PRINT("info", ("tree %u - %lu", tree.elements_in_tree, max_elements));
@@ -132,10 +161,10 @@ public:
     return (int) (sizeof(uint)*(1 + nkeys/max_elems_in_tree));
   }
 
-  void reset();
+  void reset() override;
   bool walk(TABLE *table, tree_walk_action action, void *walk_action_arg);
 
-  uint get_size() const { return size; }
+  uint get_size() const override { return size; }
   uint get_full_size() const { return full_size; }
   size_t get_max_in_memory_size() const { return max_in_memory_size; }
   bool is_count_stored() { return with_counters; }
@@ -145,13 +174,13 @@ public:
   // returns TRUE if the unique tree stores packed values
   virtual bool is_packed() { return false; }
 
-  friend int unique_write_to_file(uchar* key, element_count count, Unique *unique);
-  friend int unique_write_to_ptrs(uchar* key, element_count count, Unique *unique);
+  friend int unique_write_to_file(uchar* key, element_count count, Unique_impl *unique);
+  friend int unique_write_to_ptrs(uchar* key, element_count count, Unique_impl *unique);
 
   friend int unique_write_to_file_with_count(uchar* key, element_count count,
-                                             Unique *unique);
+                                             Unique_impl *unique);
   friend int unique_intersect_write_to_ptrs(uchar* key, element_count count,
-				            Unique *unique);
+				            Unique_impl *unique);
 };
 
 
@@ -162,7 +191,7 @@ public:
   inside the tree.
 */
 
-class Unique_packed : public Unique
+class Unique_packed : public Unique_impl
 {
 protected:
   public:

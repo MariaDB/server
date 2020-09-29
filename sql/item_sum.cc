@@ -1178,7 +1178,7 @@ void Aggregator_distinct::endup()
   {
     DBUG_ASSERT(item_sum->fixed == 1);
     Item_sum_count *sum= (Item_sum_count *)item_sum;
-    if (tree && tree->elements == 0)
+    if (tree && tree->get_n_elements() == 0)
     {
       /* everything fits in memory */
       sum->count= (longlong) tree->elements_in_tree();
@@ -4948,7 +4948,7 @@ Unique* Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
   if (allow_packing)
    return new Unique_packed(comp_func, comp_func_fixed_arg, size_arg,
                              max_in_memory_size_arg, min_dupl_count_arg);
-  return new Unique(comp_func, comp_func_fixed_arg, size_arg,
+  return new Unique_impl(comp_func, comp_func_fixed_arg, size_arg,
                     max_in_memory_size_arg, min_dupl_count_arg);
 
 }

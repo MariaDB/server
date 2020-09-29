@@ -702,7 +702,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       clause.  Instead of deleting the rows, first mark them deleted.
     */
     ha_rows tmplimit=limit;
-    deltempfile= new (thd->mem_root) Unique (refpos_order_cmp, table->file,
+    deltempfile= new (thd->mem_root) Unique_impl (refpos_order_cmp, table->file,
                                              table->file->ref_length,
                                              MEM_STRIP_BUF_SIZE);
 
@@ -727,7 +727,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     end_read_record(&info);
     if (unlikely(deltempfile->get(table)) ||
         unlikely(table->file->ha_index_or_rnd_end()) ||
-        unlikely(init_read_record(&info, thd, table, 0, &deltempfile->sort, 0,
+        unlikely(init_read_record(&info, thd, table, 0, deltempfile->get_sort(), 0,
                                   1, false)))
     {
       error= 1;
@@ -1269,7 +1269,7 @@ multi_delete::initialize_tables(JOIN *join)
   for (;walk ;walk= walk->next_local)
   {
     TABLE *table=walk->table;
-    *tempfiles_ptr++= new (thd->mem_root) Unique (refpos_order_cmp, table->file,
+    *tempfiles_ptr++= new (thd->mem_root) Unique_impl (refpos_order_cmp, table->file,
                                                   table->file->ref_length,
                                                   MEM_STRIP_BUF_SIZE);
   }
@@ -1452,7 +1452,7 @@ int multi_delete::do_deletes()
     if (unlikely(tempfiles[counter]->get(table)))
       DBUG_RETURN(1);
 
-    local_error= do_table_deletes(table, &tempfiles[counter]->sort,
+    local_error= do_table_deletes(table, tempfiles[counter]->get_sort(),
                                   thd->lex->ignore);
 
     if (unlikely(thd->killed) && likely(!local_error))

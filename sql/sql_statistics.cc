@@ -1732,7 +1732,7 @@ public:
     }
 
     tree_key_length= table_field->pack_length();
-    tree= new Unique((qsort_cmp2) simple_str_key_cmp, (void*) table_field,
+    tree= new Unique_impl((qsort_cmp2) simple_str_key_cmp, (void*) table_field,
                      tree_key_length, max_heap_table_size, 1);
 
     return tree == NULL;
@@ -1858,7 +1858,7 @@ public:
   bool setup(THD *thd, size_t max_heap_table_size)
   {
     tree_key_length= sizeof(ulonglong);
-    tree= new Unique((qsort_cmp2) simple_ulonglong_key_cmp,
+    tree= new Unique_impl((qsort_cmp2) simple_ulonglong_key_cmp,
                      (void*) &tree_key_length,
                      tree_key_length, max_heap_table_size, 1);
     return tree == NULL;
