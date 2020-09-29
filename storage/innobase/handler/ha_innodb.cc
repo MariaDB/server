@@ -14525,90 +14525,64 @@ ha_innobase::analyze(THD*, HA_CHECK_OPT*)
 /*****************************************************************//**
 Defragment table.
 @return	error number */
-inline int ha_innobase::defragment_table(const char *name)
+inline int ha_innobase::defragment_table()
 {
-	char		norm_name[FN_REFLEN];
-	dict_table_t*	table = NULL;
-	dict_index_t*	index = NULL;
-	int		ret = 0;
-	dberr_t		err = DB_SUCCESS;
+  for (dict_index_t *index= dict_table_get_first_index(m_prebuilt->table);
+       index; index= dict_table_get_next_index(index))
+  {
+    if (index->is_corrupted() || index->is_spatial())
+      continue;
 
-	normalize_table_name(norm_name, name);
+    if (index->page == FIL_NULL)
+    {
+      /* Do not defragment auxiliary tables related to FULLTEXT INDEX. */
+      ut_ad(index->type & DICT_FTS);
+      continue;
+    }
 
-	table = dict_table_open_on_name(norm_name, FALSE,
-		FALSE, DICT_ERR_IGNORE_FK_NOKEY);
+    if (btr_defragment_find_index(index))
+    {
+      // We borrow this error code. When the same index is already in
+      // the defragmentation queue, issuing another defragmentation
+      // only introduces overhead. We return an error here to let the
+      // user know this is not necessary. Note that this will fail a
+      // query that's trying to defragment a full table if one of the
+      // indicies in that table is already in defragmentation.  We
+      // choose this behavior so user is aware of this rather than
+      // silently defragment other indicies of that table.
+      return ER_SP_ALREADY_EXISTS;
+    }
 
-	for (index = dict_table_get_first_index(table); index;
-	     index = dict_table_get_next_index(index)) {
+    btr_pcur_t pcur;
+    pcur.btr_cur.index = nullptr;
+    btr_pcur_init(&pcur);
 
-		if (index->is_corrupted()) {
-			continue;
-		}
+    mtr_t mtr;
+    mtr.start();
+    if (dberr_t err= btr_pcur_open_at_index_side(true, index,
+                                                 BTR_SEARCH_LEAF, &pcur,
+                                                 true, 0, &mtr))
+    {
+      mtr.commit();
+      return convert_error_code_to_mysql(err, 0, m_user_thd);
+    }
+    else if (btr_pcur_get_block(&pcur)->page.id().page_no() == index->page)
+    {
+      mtr.commit();
+      continue;
+    }
 
-		if (dict_index_is_spatial(index)) {
-			/* Do not try to defragment spatial indexes,
-			because doing it properly would require
-			appropriate logic around the SSN (split
-			sequence number). */
-			continue;
-		}
+    btr_pcur_move_to_next(&pcur, &mtr);
+    btr_pcur_store_position(&pcur, &mtr);
+    mtr.commit();
+    ut_ad(pcur.btr_cur.index == index);
+    const bool interrupted= btr_defragment_add_index(&pcur, m_user_thd);
+    btr_pcur_free(&pcur);
+    if (interrupted)
+      return ER_QUERY_INTERRUPTED;
+  }
 
-		if (index->page == FIL_NULL) {
-			/* Do not defragment auxiliary tables related
-			to FULLTEXT INDEX. */
-			ut_ad(index->type & DICT_FTS);
-			continue;
-		}
-
-		if (btr_defragment_find_index(index)) {
-			// We borrow this error code. When the same index is
-			// already in the defragmentation queue, issue another
-			// defragmentation only introduces overhead. We return
-			// an error here to let the user know this is not
-			// necessary. Note that this will fail a query that's
-			// trying to defragment a full table if one of the
-			// indicies in that table is already in defragmentation.
-			// We choose this behavior so user is aware of this
-			// rather than silently defragment other indicies of
-			// that table.
-			ret = ER_SP_ALREADY_EXISTS;
-			break;
-		}
-
-		os_event_t event = btr_defragment_add_index(index, &err);
-
-		if (err != DB_SUCCESS) {
-			push_warning_printf(
-				current_thd,
-				Sql_condition::WARN_LEVEL_WARN,
-				ER_NO_SUCH_TABLE,
-				"Table %s is encrypted but encryption service or"
-				" used key_id is not available. "
-				" Can't continue checking table.",
-				index->table->name.m_name);
-
-			ret = convert_error_code_to_mysql(err, 0, current_thd);
-			break;
-		}
-
-		if (event) {
-			while(os_event_wait_time(event, 1000000)) {
-				if (thd_killed(current_thd)) {
-					btr_defragment_remove_index(index);
-					ret = ER_QUERY_INTERRUPTED;
-					break;
-				}
-			}
-			os_event_destroy(event);
-		}
-
-		if (ret) {
-			break;
-		}
-	}
-
-	dict_table_close(table, FALSE, FALSE);
-	return ret;
+  return 0;
 }
 
 /**********************************************************************//**
@@ -14632,8 +14606,10 @@ ha_innobase::optimize(
 	calls to OPTIMIZE, which is undesirable. */
 	bool try_alter = true;
 
-	if (!m_prebuilt->table->is_temporary() && srv_defragment) {
-		int err = defragment_table(m_prebuilt->table->name.m_name);
+	if (!m_prebuilt->table->is_temporary()
+	    && m_prebuilt->table->is_readable()
+	    && srv_defragment) {
+		int err = defragment_table();
 
 		if (err == 0) {
 			try_alter = false;
