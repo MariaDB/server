@@ -886,9 +886,9 @@ struct export_var_t{
 
 /** Thread slot in the thread table.  */
 struct srv_slot_t{
-	ibool		in_use;			/*!< TRUE if this slot
+	bool		in_use;			/*!< true if this slot
 						is in use */
-	ibool		suspended;		/*!< TRUE if the thread is
+	bool		suspended;		/*!< true if the thread is
 						waiting for the event of this
 						slot */
  	/** time(NULL) when the thread was suspended.
@@ -904,9 +904,9 @@ struct srv_slot_t{
 						Initialized by
 						lock_wait_table_reserve_slot()
 						for lock wait */
-	os_event_t	event;			/*!< event used in suspending
-						the thread when it has nothing
-						to do */
+	mysql_cond_t	cond;			/*!< condition variable for
+						waking up suspended thread,
+						under lock_sys.mutex */
 	que_thr_t*	thr;			/*!< suspended query thread
 						(only used for user threads) */
 };

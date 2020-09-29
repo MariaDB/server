@@ -458,6 +458,9 @@ void lock_sys_t::create(ulint n_cells)
 	waiting_threads = static_cast<srv_slot_t*>
 		(ut_zalloc_nokey(srv_max_n_threads * sizeof *waiting_threads));
 	last_slot = waiting_threads;
+	for (ulint i = srv_max_n_threads; i--; ) {
+		mysql_cond_init(0, &waiting_threads[i].cond, nullptr);
+	}
 
 	mysql_mutex_init(lock_mutex_key, &mutex, nullptr);
 	mysql_mutex_init(lock_wait_mutex_key, &wait_mutex, nullptr);
@@ -534,9 +537,7 @@ void lock_sys_t::close()
 	mysql_mutex_destroy(&wait_mutex);
 
 	for (ulint i = srv_max_n_threads; i--; ) {
-		if (os_event_t& event = waiting_threads[i].event) {
-			os_event_destroy(event);
-		}
+		mysql_cond_destroy(&waiting_threads[i].cond);
 	}
 
 	ut_free(waiting_threads);

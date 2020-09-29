@@ -731,17 +731,9 @@ public:
   MY_ALIGNED(CACHE_LINE_SIZE) mysql_mutex_t wait_mutex;
 	srv_slot_t*	waiting_threads;	/*!< Array  of user threads
 						suspended while waiting for
-						locks within InnoDB, protected
-						by the lock_sys.wait_mutex;
-						os_event_set() and
-						os_event_reset() on
-						waiting_threads[]->event
-						are protected by
-						trx_t::mutex */
+						locks within InnoDB */
 	srv_slot_t*	last_slot;		/*!< highest slot ever used
-						in the waiting_threads array,
-						protected by
-						lock_sys.wait_mutex */
+						in the waiting_threads array */
 
 	ulint		n_lock_max_wait_time;	/*!< Max wait time */
 

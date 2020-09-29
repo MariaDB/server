@@ -144,17 +144,10 @@ lock_wait_table_reserve_slot(
 
 	for (i = srv_max_n_threads; i--; ++slot) {
 		if (!slot->in_use) {
-			slot->in_use = TRUE;
+			slot->in_use = true;
 			slot->thr = thr;
 			slot->thr->slot = slot;
-
-			if (slot->event == NULL) {
-				slot->event = os_event_create(0);
-				ut_a(slot->event);
-			}
-
-			os_event_reset(slot->event);
-			slot->suspended = TRUE;
+			slot->suspended = true;
 			slot->suspend_time = time(NULL);
 			slot->wait_timeout = wait_timeout;
 
@@ -336,7 +329,9 @@ lock_wait_suspend_thread(
 		thd_wait_begin(trx->mysql_thd, THD_WAIT_TABLE_LOCK);
 	}
 
-	os_event_wait(slot->event);
+	mysql_mutex_lock(&lock_sys.mutex);
+	mysql_cond_wait(&slot->cond, &lock_sys.mutex);
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	thd_wait_end(trx->mysql_thd);
 
@@ -427,7 +422,7 @@ lock_wait_release_thread_if_suspended(
 			trx->lock.was_chosen_as_deadlock_victim = false;
 		}
 
-		os_event_set(thr->slot->event);
+		mysql_cond_signal(&thr->slot->cond);
 	}
 }
 
