@@ -195,11 +195,12 @@ struct fts_slot_t {
 };
 
 /** A table remove message for the FTS optimize thread. */
-struct fts_msg_del_t {
-	dict_table_t*	table;		/*!< The table to remove */
-
-	/** condition variable to signal mesasge consumption */
-	mysql_cond_t cond;
+struct fts_msg_del_t
+{
+  /** the table to remove */
+  dict_table_t *table;
+  /** condition variable to signal message consumption */
+  mysql_cond_t *cond;
 };
 
 /** The FTS optimize message work queue message type. */
@@ -2576,46 +2577,31 @@ fts_optimize_remove_table(
 /*======================*/
 	dict_table_t*	table)			/*!< in: table to remove */
 {
-	fts_msg_t*	msg;
-	fts_msg_del_t*	remove;
+  if (!fts_optimize_wq)
+    return;
 
-	/* if the optimize system not yet initialized, return */
-	if (!fts_optimize_wq) {
-		return;
-	}
+  mysql_mutex_lock(&fts_optimize_wq->mutex);
 
-	/* FTS optimizer thread is already exited */
-	if (fts_opt_start_shutdown) {
-		ib::info() << "Try to remove table " << table->name
-			<< " after FTS optimize thread exiting.";
-		return;
-	}
+  /* FTS optimizer thread is already exited */
+  if (fts_opt_start_shutdown)
+     ib::info() << "Try to remove table " << table->name
+                << " after FTS optimize thread exiting.";
+  else if (table->fts->in_queue)
+  {
+    ut_ad(!mutex_own(&dict_sys.mutex));
 
-	mysql_mutex_lock(&fts_optimize_wq->mutex);
+    fts_msg_t *msg= fts_optimize_create_msg(FTS_MSG_DEL_TABLE, nullptr);
+    mysql_cond_t cond;
+    mysql_cond_init(0, &cond, nullptr);
+    msg->ptr= new(mem_heap_alloc(msg->heap, sizeof(fts_msg_del_t)))
+      fts_msg_del_t{table, &cond};
+    add_msg(msg, true);
+    mysql_cond_wait(&cond, &fts_optimize_wq->mutex);
+    mysql_cond_destroy(&cond);
+    ut_ad(!table->fts->in_queue);
+  }
 
-	if (!table->fts->in_queue) {
-		mysql_mutex_unlock(&fts_optimize_wq->mutex);
-		return;
-	}
-
-	msg = fts_optimize_create_msg(FTS_MSG_DEL_TABLE, NULL);
-
-	remove = static_cast<fts_msg_del_t*>(
-		mem_heap_alloc(msg->heap, sizeof(*remove)));
-
-	remove->table = table;
-	mysql_cond_init(0, &remove->cond, nullptr);
-	msg->ptr = remove;
-
-	ut_ad(!mutex_own(&dict_sys.mutex));
-
-	add_msg(msg, true);
-
-	mysql_cond_wait(&remove->cond, &fts_optimize_wq->mutex);
-	ut_ad(!table->fts->in_queue);
-	mysql_mutex_unlock(&fts_optimize_wq->mutex);
-
-	mysql_cond_destroy(&remove->cond);
+  mysql_mutex_unlock(&fts_optimize_wq->mutex);
 }
 
 /** Send sync fts cache for the table.
@@ -2697,7 +2683,7 @@ static bool fts_optimize_del_table(fts_msg_del_t *remove)
 
 			mysql_mutex_lock(&fts_optimize_wq->mutex);
 			table->fts->in_queue = false;
-			mysql_cond_signal(&remove->cond);
+			mysql_cond_signal(remove->cond);
 			mysql_mutex_unlock(&fts_optimize_wq->mutex);
 			slot->table = NULL;
 			return true;
@@ -2705,7 +2691,7 @@ static bool fts_optimize_del_table(fts_msg_del_t *remove)
 	}
 
 	mysql_mutex_lock(&fts_optimize_wq->mutex);
-	mysql_cond_signal(&remove->cond);
+	mysql_cond_signal(remove->cond);
 	mysql_mutex_unlock(&fts_optimize_wq->mutex);
 	return false;
 }
