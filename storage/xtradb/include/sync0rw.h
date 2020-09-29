@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -763,13 +764,6 @@ struct rw_lock_t {
         /* last s-lock file/line is not guaranteed to be correct */
 	const char*	last_s_file_name;/*!< File name where last s-locked */
 	const char*	last_x_file_name;/*!< File name where last x-locked */
-	ibool		writer_is_wait_ex;
-				/*!< This is TRUE if the writer field is
-				RW_LOCK_WAIT_EX; this field is located far
-				from the memory update hotspot fields which
-				are at the start of this struct, thus we can
-				peek this field without causing much memory
-				bus traffic */
 	unsigned	cline:14;	/*!< Line where created */
 	unsigned	last_s_line:14;	/*!< Line number where last time s-locked */
 	unsigned	last_x_line:14;	/*!< Line number where last time x-locked */
