@@ -70,9 +70,9 @@ typedef std::list<btr_defragment_item_t*>	btr_defragment_wq_t;
 static btr_defragment_wq_t	btr_defragment_wq;
 
 /* Mutex protecting the defragmentation work queue.*/
-ib_mutex_t		btr_defragment_mutex;
+static mysql_mutex_t btr_defragment_mutex;
 #ifdef UNIV_PFS_MUTEX
-UNIV_INTERN mysql_pfs_key_t	btr_defragment_mutex_key;
+mysql_pfs_key_t btr_defragment_mutex_key;
 #endif /* UNIV_PFS_MUTEX */
 
 /* Number of compression failures caused by defragmentation since server
@@ -135,7 +135,8 @@ void
 btr_defragment_init()
 {
 	srv_defragment_interval = 1000000000ULL / srv_defragment_frequency;
-	mutex_create(LATCH_ID_BTR_DEFRAGMENT_MUTEX, &btr_defragment_mutex);
+	mysql_mutex_init(btr_defragment_mutex_key, &btr_defragment_mutex,
+			 nullptr);
 	defragment_chunk_state.m_item = 0;
 	btr_defragment_timer = srv_thread_pool->create_timer(submit_defragment_task);
 	btr_defragment_active = true;
@@ -151,15 +152,15 @@ btr_defragment_shutdown()
 	delete btr_defragment_timer;
 	btr_defragment_timer = 0;
 	task_group.cancel_pending(&btr_defragment_task);
-	mutex_enter(&btr_defragment_mutex);
+	mysql_mutex_lock(&btr_defragment_mutex);
 	std::list< btr_defragment_item_t* >::iterator iter = btr_defragment_wq.begin();
 	while(iter != btr_defragment_wq.end()) {
 		btr_defragment_item_t* item = *iter;
 		iter = btr_defragment_wq.erase(iter);
 		delete item;
 	}
-	mutex_exit(&btr_defragment_mutex);
-	mutex_free(&btr_defragment_mutex);
+	mysql_mutex_unlock(&btr_defragment_mutex);
+	mysql_mutex_destroy(&btr_defragment_mutex);
 	btr_defragment_active = false;
 }
 
@@ -174,7 +175,7 @@ bool
 btr_defragment_find_index(
 	dict_index_t*	index)	/*!< Index to find. */
 {
-	mutex_enter(&btr_defragment_mutex);
+	mysql_mutex_lock(&btr_defragment_mutex);
 	for (std::list< btr_defragment_item_t* >::iterator iter = btr_defragment_wq.begin();
 	     iter != btr_defragment_wq.end();
 	     ++iter) {
@@ -183,11 +184,11 @@ btr_defragment_find_index(
 		btr_cur_t* cursor = btr_pcur_get_btr_cur(pcur);
 		dict_index_t* idx = btr_cur_get_index(cursor);
 		if (index->id == idx->id) {
-			mutex_exit(&btr_defragment_mutex);
+			mysql_mutex_unlock(&btr_defragment_mutex);
 			return true;
 		}
 	}
-	mutex_exit(&btr_defragment_mutex);
+	mysql_mutex_unlock(&btr_defragment_mutex);
 	return false;
 }
 
@@ -234,13 +235,13 @@ btr_defragment_add_index(
 	mtr_commit(&mtr);
 	dict_stats_empty_defrag_summary(index);
 	btr_defragment_item_t*	item = new btr_defragment_item_t(pcur, event);
-	mutex_enter(&btr_defragment_mutex);
+	mysql_mutex_lock(&btr_defragment_mutex);
 	btr_defragment_wq.push_back(item);
 	if(btr_defragment_wq.size() == 1){
 		/* Kick off defragmentation work */
 		btr_defragment_start();
 	}
-	mutex_exit(&btr_defragment_mutex);
+	mysql_mutex_unlock(&btr_defragment_mutex);
 	return event;
 }
 
@@ -252,7 +253,7 @@ void
 btr_defragment_remove_table(
 	dict_table_t*	table)	/*!< Index to be removed. */
 {
-	mutex_enter(&btr_defragment_mutex);
+	mysql_mutex_lock(&btr_defragment_mutex);
 	for (std::list< btr_defragment_item_t* >::iterator iter = btr_defragment_wq.begin();
 	     iter != btr_defragment_wq.end();
 	     ++iter) {
@@ -264,7 +265,7 @@ btr_defragment_remove_table(
 			item->removed = true;
 		}
 	}
-	mutex_exit(&btr_defragment_mutex);
+	mysql_mutex_unlock(&btr_defragment_mutex);
 }
 
 /******************************************************************//**
@@ -274,7 +275,7 @@ void
 btr_defragment_remove_index(
 	dict_index_t*	index)	/*!< Index to be removed. */
 {
-	mutex_enter(&btr_defragment_mutex);
+	mysql_mutex_lock(&btr_defragment_mutex);
 	for (std::list< btr_defragment_item_t* >::iterator iter = btr_defragment_wq.begin();
 	     iter != btr_defragment_wq.end();
 	     ++iter) {
@@ -288,7 +289,7 @@ btr_defragment_remove_index(
 			break;
 		}
 	}
-	mutex_exit(&btr_defragment_mutex);
+	mysql_mutex_unlock(&btr_defragment_mutex);
 }
 
 /******************************************************************//**
@@ -303,7 +304,7 @@ void
 btr_defragment_remove_item(
 	btr_defragment_item_t*	item) /*!< Item to be removed. */
 {
-	mutex_enter(&btr_defragment_mutex);
+	mysql_mutex_lock(&btr_defragment_mutex);
 	for (std::list< btr_defragment_item_t* >::iterator iter = btr_defragment_wq.begin();
 	     iter != btr_defragment_wq.end();
 	     ++iter) {
@@ -313,7 +314,7 @@ btr_defragment_remove_item(
 			break;
 		}
 	}
-	mutex_exit(&btr_defragment_mutex);
+	mysql_mutex_unlock(&btr_defragment_mutex);
 }
 
 /******************************************************************//**
@@ -332,14 +333,14 @@ btr_defragment_get_item()
 		return NULL;
 		//return nullptr;
 	}
-	mutex_enter(&btr_defragment_mutex);
+	mysql_mutex_lock(&btr_defragment_mutex);
 	std::list< btr_defragment_item_t* >::iterator iter = btr_defragment_wq.begin();
 	if (iter == btr_defragment_wq.end()) {
 		iter = btr_defragment_wq.begin();
 	}
 	btr_defragment_item_t* item = *iter;
 	iter++;
-	mutex_exit(&btr_defragment_mutex);
+	mysql_mutex_unlock(&btr_defragment_mutex);
 	return item;
 }
 
