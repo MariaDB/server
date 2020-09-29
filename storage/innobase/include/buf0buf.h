@@ -32,10 +32,12 @@ Created 11/5/1995 Heikki Tuuri
 
 #include "fil0fil.h"
 #include "mtr0types.h"
-#include "buf0types.h"
 #include "span.h"
 #include "assume_aligned.h"
-#ifndef UNIV_INNOCHECKSUM
+#ifdef UNIV_INNOCHECKSUM
+# include "buf0types.h"
+#else /* UNIV_INNOCHECKSUM */
+#include "buf0dblwr.h"
 #include "hash0hash.h"
 #include "ut0byte.h"
 #include "page0types.h"
@@ -1937,6 +1939,14 @@ public:
 
   /** signalled to wake up the page_cleaner; protected by flush_list_mutex */
   mysql_cond_t do_flush_list;
+
+  /** Wake up the page cleaner */
+  void wake_page_cleaner()
+  {
+    ut_ad(!srv_read_only_mode);
+    mysql_cond_signal(&do_flush_list);
+    buf_dblwr.wake();
+  }
 
   // n_flush_LRU + n_flush_list is approximately COUNT(io_fix()==BUF_IO_WRITE)
   // in flush_list

@@ -1644,7 +1644,7 @@ wait_suspend_loop:
 
 	if (buf_page_cleaner_is_active) {
 		thread_name = "page cleaner thread";
-		mysql_cond_signal(&buf_pool.do_flush_list);
+		buf_pool.wake_page_cleaner();
 		goto wait_suspend_loop;
 	}
 

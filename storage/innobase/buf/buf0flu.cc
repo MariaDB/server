@@ -1459,7 +1459,7 @@ static void buf_flush_request_force(lsn_t lsn)
     if (lsn > o)
       break;
 
-  mysql_cond_signal(&buf_pool.do_flush_list);
+  buf_pool.wake_page_cleaner();
 }
 
 /** Wait until a flush batch of the given lsn ends

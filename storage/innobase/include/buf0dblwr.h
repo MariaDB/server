@@ -120,6 +120,9 @@ public:
     const uint32_t size= block_size();
     return id < block1 + size || (id >= block2 && id < block2 + size);
   }
+
+  /** Wake up flush_buffered_writes() in case a signal was lost. */
+  void wake() { if (is_initialised()) mysql_cond_signal(&cond); }
 };
 
 /** The doublewrite buffer */
