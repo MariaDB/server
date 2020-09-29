@@ -48,6 +48,8 @@ wsrep_flow_control_paused_ns	#
 wsrep_flow_control_paused	#
 wsrep_flow_control_sent	#
 wsrep_flow_control_recv	#
+wsrep_flow_control_active	#
+wsrep_flow_control_requested	#
 wsrep_cert_deps_distance	#
 wsrep_apply_oooe	#
 wsrep_apply_oool	#
@@ -63,6 +65,7 @@ wsrep_cert_interval	#
 wsrep_open_transactions	#
 wsrep_open_connections	#
 wsrep_incoming_addresses	#
+wsrep_debug_sync_waiters	#
 wsrep_applier_thread_count	#
 wsrep_cluster_capabilities	#
 wsrep_cluster_conf_id	#
@@ -109,6 +112,8 @@ wsrep_flow_control_paused_ns	#
 wsrep_flow_control_paused	#
 wsrep_flow_control_sent	#
 wsrep_flow_control_recv	#
+wsrep_flow_control_active	#
+wsrep_flow_control_requested	#
 wsrep_cert_deps_distance	#
 wsrep_apply_oooe	#
 wsrep_apply_oool	#
@@ -124,6 +129,7 @@ wsrep_cert_interval	#
 wsrep_open_transactions	#
 wsrep_open_connections	#
 wsrep_incoming_addresses	#
+wsrep_debug_sync_waiters	#
 wsrep_applier_thread_count	#
 wsrep_cluster_capabilities	#
 wsrep_cluster_conf_id	#

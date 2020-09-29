@@ -8498,28 +8498,39 @@ public:
   @details
     The function computes the values of the virtual columns of the table and
     stores them in the table record buffer.
+    This will be done even if is_error() is set either when function was called
+    or by calculating the virtual function, as most calls to this
+    function doesn't check the result. We also want to ensure that as many
+    fields as possible has the right value so that we can optionally
+    return the partly-faulty-row from a storage engine with a virtual
+    field that gives an error on storage for an existing row.
+
+  @todo
+    Ensure that all caller checks the value of this function and
+    either properly ignores it (and resets the error) or sends the
+    error forward to the caller.
 
   @retval
     0    Success
   @retval
-    >0   Error occurred when storing a virtual field value
+    >0   Error occurred when storing a virtual field value or potentially
+         is_error() was set when function was called.
 */
 
 int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
 {
   DBUG_ENTER("TABLE::update_virtual_fields");
-  DBUG_PRINT("enter", ("update_mode: %d", update_mode));
+  DBUG_PRINT("enter", ("update_mode: %d  is_error: %d", update_mode,
+                       in_use->is_error()));
   Field **vfield_ptr, *vf;
   Query_arena backup_arena;
   Turn_errors_to_warnings_handler Suppress_errors;
-  int error;
   bool handler_pushed= 0, update_all_columns= 1;
   DBUG_ASSERT(vfield);
 
   if (h->keyread_enabled())
     DBUG_RETURN(0);
 
-  error= 0;
   in_use->set_n_backup_active_arena(expr_arena, &backup_arena);
 
   /* When reading or deleting row, ignore errors from virtual columns */
@@ -8542,7 +8553,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
   }
 
   /* Iterate over virtual fields in the table */
-  for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
+  for (vfield_ptr= vfield; *vfield_ptr ; vfield_ptr++)
   {
     vf= (*vfield_ptr);
     Virtual_column_info *vcol_info= vf->vcol_info;
@@ -8593,8 +8604,7 @@ int TABLE::update_virtual_fields(handler *h, enum_vcol_update_mode update_mode)
       int field_error __attribute__((unused)) = 0;
       /* Compute the actual value of the virtual fields */
       DBUG_FIX_WRITE_SET(vf);
-      if (vcol_info->expr->save_in_field(vf, 0))
-        field_error= error= 1;
+      field_error= vcol_info->expr->save_in_field(vf, 0);
       DBUG_RESTORE_WRITE_SET(vf);
       DBUG_PRINT("info", ("field '%s' - updated  error: %d",
                           vf->field_name.str, field_error));

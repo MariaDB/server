@@ -378,6 +378,50 @@ DROP TABLE federated.t1, federated.t2, federated.t3, federated.t4;
 connection slave;
 DROP TABLE federated.t1, federated.t2;
 connection default;
+#
+# MDEV-23778: Derived handler used for big derived tables
+#
+connection slave;
+CREATE TABLE federated.t1 (
+a varchar(100) NOT NULL default '123'
+)
+DEFAULT CHARSET=latin1;
+CREATE TABLE federated.t2 LIKE federated.t1;
+BEGIN NOT ATOMIC
+DECLARE i INT DEFAULT 0;
+START TRANSACTION;
+WHILE i < 70000 DO
+INSERT INTO federated.t1 VALUES (i);
+SET i = i + 1;
+END WHILE;
+COMMIT;
+END
+$$
+connection master;
+CREATE TABLE federated.t1 (
+a varchar(100) NOT NULL default '123'
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1';
+CREATE TABLE federated.t2 (
+a varchar(100) NOT NULL default '123'
+)
+ENGINE="FEDERATED" DEFAULT CHARSET=latin1
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t2';
+SELECT COUNT(DISTINCT a) FROM federated.t1;
+COUNT(DISTINCT a)
+70000
+INSERT INTO federated.t2
+SELECT * FROM (SELECT * FROM federated.t1 LIMIT 100) dt;
+SELECT COUNT(DISTINCT a) FROM federated.t2;
+COUNT(DISTINCT a)
+100
+TRUNCATE TABLE federated.t2;
+INSERT INTO federated.t2
+SELECT * FROM (SELECT * FROM federated.t1 LIMIT 70000) dt;
+SELECT COUNT(DISTINCT a) FROM federated.t2;
+COUNT(DISTINCT a)
+70000
 set global federated_pushdown=0;
 connection master;
 DROP TABLE IF EXISTS federated.t1;

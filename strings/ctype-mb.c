@@ -406,7 +406,9 @@ my_copy_fix_mb(CHARSET_INFO *cs,
   well_formed_nchars= my_ci_well_formed_char_length(cs, src, src + src_length,
                                                         nchars, status);
   DBUG_ASSERT(well_formed_nchars <= nchars);
-  memmove(dst, src, (well_formed_length= status->m_source_end_pos - src));
+  well_formed_length= status->m_source_end_pos - src;
+  if (well_formed_length)
+    memmove(dst, src, well_formed_length);
   if (!status->m_well_formed_error_pos)
     return well_formed_length;
 
