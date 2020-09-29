@@ -658,7 +658,7 @@ row_merge_buf_add(
 					*doc_id % fts_sort_pll_degree);
 
 				/* Add doc item to fts_doc_list */
-				mutex_enter(&psort_info[bucket].mutex);
+				mysql_mutex_lock(&psort_info[bucket].mutex);
 
 				if (psort_info[bucket].error == DB_SUCCESS) {
 					UT_LIST_ADD_LAST(
@@ -670,7 +670,7 @@ row_merge_buf_add(
 					ut_free(doc_item);
 				}
 
-				mutex_exit(&psort_info[bucket].mutex);
+				mysql_mutex_unlock(&psort_info[bucket].mutex);
 
 				/* Sleep when memory used exceeds limit*/
 				while (psort_info[bucket].memory_used
@@ -1699,9 +1699,7 @@ row_merge_read_clustered_index(
 	doc_id_t		doc_id = 0;
 	doc_id_t		max_doc_id = 0;
 	ibool			add_doc_id = FALSE;
-	os_event_t		fts_parallel_sort_event = NULL;
-	ibool			fts_pll_sort = FALSE;
-	int64_t			sig_count = 0;
+	mysql_cond_t*		fts_parallel_sort_cond = nullptr;
 	index_tuple_info_t**	sp_tuples = NULL;
 	mem_heap_t*		sp_heap = NULL;
 	ulint			num_spatial = 0;
@@ -1777,10 +1775,9 @@ row_merge_read_clustered_index(
 				ut_ad(doc_id > 0);
 			}
 
-			fts_pll_sort = TRUE;
 			row_fts_start_psort(psort_info);
-			fts_parallel_sort_event =
-				 psort_info[0].psort_common->sort_event;
+			fts_parallel_sort_cond =
+				 &psort_info[0].psort_common->sort_cond;
 		} else {
 			if (dict_index_is_spatial(index[i])) {
 				num_spatial++;
@@ -2746,7 +2743,7 @@ all_done:
 #ifdef FTS_INTERNAL_DIAG_PRINT
 	DEBUG_FTS_SORT_PRINT("FTS_SORT: Complete Scan Table\n");
 #endif
-	if (fts_pll_sort) {
+	if (UNIV_LIKELY_NULL(fts_parallel_sort_cond)) {
 wait_again:
                 /* Check if error occurs in child thread */
 		for (ulint j = 0; j < fts_sort_pll_degree; j++) {
@@ -2767,14 +2764,15 @@ wait_again:
 		}
 
 		/* Now wait all children to report back to be completed */
-		os_event_wait_time_low(fts_parallel_sort_event,
-				       1000000, sig_count);
+		timespec abstime;
+		set_timespec(abstime, 1);
+		mysql_mutex_lock(&psort_info[0].mutex);
+		mysql_cond_timedwait(fts_parallel_sort_cond,
+				     &psort_info[0].mutex, &abstime);
+		mysql_mutex_unlock(&psort_info[0].mutex);
 
 		for (ulint i = 0; i < fts_sort_pll_degree; i++) {
-			if (psort_info[i].child_status != FTS_CHILD_COMPLETE
-			    && psort_info[i].child_status != FTS_CHILD_EXITING) {
-				sig_count = os_event_reset(
-					fts_parallel_sort_event);
+			if (!psort_info[i].child_status) {
 				goto wait_again;
 			}
 		}
