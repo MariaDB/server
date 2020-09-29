@@ -157,8 +157,6 @@ synchronized defragmentation. */
 os_event_t
 btr_defragment_add_index(
 	dict_index_t*	index,	/*!< index to be added  */
-	bool		async,	/*!< whether this is an async
-				defragmentation */
 	dberr_t*	err)	/*!< out: error code */
 {
 	mtr_t mtr;
@@ -191,10 +189,7 @@ btr_defragment_add_index(
 		return NULL;
 	}
 	btr_pcur_t* pcur = btr_pcur_create_for_mysql();
-	os_event_t event = NULL;
-	if (!async) {
-		event = os_event_create(0);
-	}
+	os_event_t event = os_event_create(0);
 	btr_pcur_open_at_index_side(true, index, BTR_SEARCH_LEAF, pcur,
 				    true, 0, &mtr);
 	btr_pcur_move_to_next(pcur, &mtr);
