@@ -33,7 +33,7 @@ Created 2012-08-21 Sunny Bains
 #include "sync0sync.h"
 #include "sync0debug.h"
 #include "srv0start.h"
-#include "fil0fil.h"
+#include "lock0lock.h"
 
 #include <vector>
 #include <string>
@@ -467,7 +467,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_RW_TRX_HASH_ELEMENT);
 	LEVEL_MAP_INSERT(SYNC_READ_VIEW);
 	LEVEL_MAP_INSERT(SYNC_TRX_SYS);
-	LEVEL_MAP_INSERT(SYNC_LOCK_SYS);
 	LEVEL_MAP_INSERT(SYNC_INDEX_ONLINE_LOG);
 	LEVEL_MAP_INSERT(SYNC_IBUF_BITMAP);
 	LEVEL_MAP_INSERT(SYNC_IBUF_BITMAP_MUTEX);
@@ -729,7 +728,6 @@ LatchDebug::check_order(
 	case SYNC_FTS_BG_THREADS:
 	case SYNC_FTS_TOKENIZE:
 	case SYNC_SEARCH_SYS:
-	case SYNC_LOCK_SYS:
 	case SYNC_RW_TRX_HASH_ELEMENT:
 	case SYNC_READ_VIEW:
 	case SYNC_TRX_SYS:
@@ -782,17 +780,17 @@ LatchDebug::check_order(
 
 		if (less(latches, level) != NULL) {
 			basic_check(latches, level, level - 1);
-			ut_a(find(latches, SYNC_LOCK_SYS) != 0);
+			mysql_mutex_assert_owner(&lock_sys.mutex);
 		}
 		break;
 
 	case SYNC_REC_LOCK:
-
-		if (find(latches, SYNC_LOCK_SYS) != 0) {
-			basic_check(latches, level, SYNC_REC_LOCK - 1);
-		} else {
+		basic_check(latches, level, SYNC_REC_LOCK - 1);
+#ifdef SAFE_MUTEX
+		if (!mysql_mutex_is_owner(&lock_sys.mutex)) {
 			basic_check(latches, level, SYNC_REC_LOCK);
 		}
+#endif /* SAFE_MUTEX */
 		break;
 
 	case SYNC_IBUF_BITMAP:
@@ -1289,8 +1287,6 @@ sync_latch_meta_init()
 			trx_pool_manager_mutex_key);
 
 	LATCH_ADD_MUTEX(TRX, SYNC_TRX, trx_mutex_key);
-
-	LATCH_ADD_MUTEX(LOCK_SYS, SYNC_LOCK_SYS, lock_mutex_key);
 
 	LATCH_ADD_MUTEX(TRX_SYS, SYNC_TRX_SYS, trx_sys_mutex_key);
 

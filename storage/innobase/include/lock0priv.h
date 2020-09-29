@@ -629,7 +629,7 @@ inline void lock_set_lock_and_trx_wait(lock_t* lock, trx_t* trx)
 	ut_ad(lock);
 	ut_ad(lock->trx == trx);
 	ut_ad(trx->lock.wait_lock == NULL);
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_ad(trx_mutex_own(trx));
 
 	trx->lock.wait_lock = lock;
@@ -641,7 +641,7 @@ inline void lock_set_lock_and_trx_wait(lock_t* lock, trx_t* trx)
 inline void lock_reset_lock_and_trx_wait(lock_t* lock)
 {
 	ut_ad(lock_get_wait(lock));
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_ad(lock->trx->lock.wait_lock == NULL
 	      || lock->trx->lock.wait_lock == lock);
 	lock->trx->lock.wait_lock = NULL;
