@@ -1051,8 +1051,17 @@ static const char **init_default_directories(MEM_ROOT *alloc)
 
 #endif
 
-  if ((env= getenv("MYSQL_HOME")))
+  /* 
+    If value of $MARIADB_HOME environment variable name is NULL, check
+    for $MYSQL_HOME
+  */
+  if ((env= getenv("MARIADB_HOME")))
     errors += add_directory(alloc, env, dirs);
+  else
+  {
+    if ((env= getenv("MYSQL_HOME")))
+      errors += add_directory(alloc, env, dirs);
+  }
 
   /* Placeholder for --defaults-extra-file=<path> */
   errors += add_directory(alloc, "", dirs);
