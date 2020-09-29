@@ -4930,7 +4930,7 @@ mysql_execute_command(THD *thd)
       {
         if (!lex->tmp_table() &&
            (!thd->is_current_stmt_binlog_format_row() ||
-	    !thd->find_temporary_table(table)))
+	    !is_temporary_table(table)))
         {
           WSREP_TO_ISOLATION_BEGIN(NULL, NULL, all_tables);
           break;

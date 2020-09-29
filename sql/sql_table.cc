@@ -2131,8 +2131,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
     {
       LEX_CSTRING db_name= table->db;
       LEX_CSTRING table_name= table->table_name;
-      if (table->open_type == OT_BASE_ONLY ||
-          !thd->find_temporary_table(table))
+      if (!is_temporary_table(table))
         (void) delete_statistics_for_table(thd, &db_name, &table_name);
     }
   }
