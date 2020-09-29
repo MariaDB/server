@@ -1,0 +1,37 @@
+# The test verifies server binlog-based recovery.
+#
+# MDEV-23832 checksum error at server binlog recovery should not crash
+
+# The test logic really requires --log-bin.
+--source include/have_binlog_format_mixed.inc
+--source include/have_debug.inc
+
+--let $do_checksum = `SELECT @@global.master_verify_checksum`
+--let $debug_dbug_saved = `SELECT @@global.debug_dbug`
+--let $binlog_checksum = `SELECT @@global.binlog_checksum`
+set @@global.binlog_checksum = CRC32;
+
+call mtr.add_suppression("Replication event checksum verification failed");
+call mtr.add_suppression("Error in Log_event::read_log_event");
+
+# Proof of no crash follows.
+# There's no need for actual bin-loggable queries to the server
+--let $restart_parameters=  --master_verify_checksum=ON --debug_dbug="+d,corrupt_read_log_event_char"
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
+--let $restart_parameters=
+--let $shutdown_timeout=
+
+#
+# Cleanup
+
+--replace_regex /= .*/= VALUE/
+--eval set @@global.debug_dbug = "$debug_dbug_saved"
+
+--replace_result $do_checksum DO_CHECKSUM
+--eval set @@global.master_verify_checksum = $do_checksum
+--replace_result $binlog_checksum BINLOG_CHECKSUM
+--eval set @@global.binlog_checksum = $binlog_checksum
+#
+--echo # EOF the test
+#
