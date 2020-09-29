@@ -1675,10 +1675,13 @@ srv_master_thread_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
 /** Enable the master thread on shutdown. */
 void srv_master_thread_enable()
 {
-  mysql_mutex_lock(&LOCK_global_system_variables);
-  srv_master_thread_disabled_debug= FALSE;
-  mysql_cond_signal(&srv_master_thread_disabled_cond);
-  mysql_mutex_unlock(&LOCK_global_system_variables);
+  if (srv_master_thread_disabled_debug)
+  {
+    mysql_mutex_lock(&LOCK_global_system_variables);
+    srv_master_thread_disabled_debug= FALSE;
+    mysql_cond_signal(&srv_master_thread_disabled_cond);
+    mysql_mutex_unlock(&LOCK_global_system_variables);
+  }
 }
 #endif /* UNIV_DEBUG */
 
