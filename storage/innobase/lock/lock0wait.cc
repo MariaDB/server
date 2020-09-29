@@ -53,10 +53,9 @@ lock_wait_table_print(void)
 
 		fprintf(stderr,
 			"Slot %lu:"
-			" in use %lu, susp %lu, timeout %lu, time %lu\n",
+			" in use %lu, timeout %lu, time %lu\n",
 			(ulong) i,
 			(ulong) slot->in_use,
-			(ulong) slot->suspended,
 			slot->wait_timeout,
 			(ulong) difftime(time(NULL), slot->suspend_time));
 	}
@@ -147,7 +146,6 @@ lock_wait_table_reserve_slot(
 			slot->in_use = true;
 			slot->thr = thr;
 			slot->thr->slot = slot;
-			slot->suspended = true;
 			slot->suspend_time = time(NULL);
 			slot->wait_timeout = wait_timeout;
 
@@ -438,7 +436,6 @@ lock_wait_check_and_cancel(
 {
 	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
 	ut_ad(slot->in_use);
-	ut_ad(slot->suspended);
 
 	double wait_time = difftime(time(NULL), slot->suspend_time);
 	trx_t* trx = thr_get_trx(slot->thr);

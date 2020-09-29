@@ -891,9 +891,6 @@ struct export_var_t{
 struct srv_slot_t{
 	bool		in_use;			/*!< true if this slot
 						is in use */
-	bool		suspended;		/*!< true if the thread is
-						waiting for the event of this
-						slot */
  	/** time(NULL) when the thread was suspended.
  	FIXME: Use my_interval_timer() or similar, to avoid bogus
  	timeouts in lock_wait_check_and_cancel() or lock_wait_suspend_thread()
