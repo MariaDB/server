@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -46,10 +46,6 @@ typedef LPTHREAD_START_ROUTINE	os_thread_func_t;
 
 /** Macro for specifying a Windows thread start function. */
 #define DECLARE_THREAD(func)	WINAPI func
-
-#define os_thread_create(f,a,i)	\
-	os_thread_create_func(f, a, i)
-
 #else
 
 typedef pthread_t		os_thread_t;
@@ -60,8 +56,6 @@ extern "C"  { typedef void*	(*os_thread_func_t)(void*); }
 
 /** Macro for specifying a POSIX thread start function. */
 #define DECLARE_THREAD(func)	func
-#define os_thread_create(f,a,i)	os_thread_create_func(f, a, i)
-
 #endif /* _WIN32 */
 
 /* Define a function pointer type to use in a typecast */
@@ -98,28 +92,10 @@ NOTE: We count the number of threads in os_thread_exit(). A created
 thread should always use that to exit so thatthe thread count will be
 decremented.
 We do not return an error code because if there is one, we crash here. */
-os_thread_t
-os_thread_create_func(
-/*==================*/
-	os_thread_func_t	func,		/*!< in: pointer to function
-						from which to start */
-	void*			arg,		/*!< in: argument to start
-						function */
-	os_thread_id_t*		thread_id);	/*!< out: id of the created
-						thread, or NULL */
+os_thread_t os_thread_create(os_thread_func_t func, void *arg= nullptr);
 
-/** Waits until the specified thread completes and joins it.
-Its return value is ignored.
-@param[in,out]	thread	thread to join */
-void
-os_thread_join(
-	os_thread_id_t	thread);
-
-/** Exits the current thread.
-@param[in]	detach	if true, the thread will be detached right before
-exiting. If false, another thread is responsible for joining this thread */
-ATTRIBUTE_NORETURN ATTRIBUTE_COLD
-void os_thread_exit(bool detach = true);
+/** Detach and terminate the current thread. */
+ATTRIBUTE_NORETURN void os_thread_exit();
 
 /*****************************************************************//**
 Returns the thread identifier of current thread.

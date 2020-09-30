@@ -2872,7 +2872,7 @@ void buf_flush_page_cleaner_init()
 	page_cleaner.is_running = true;
 
 	buf_page_cleaner_is_active = true;
-	os_thread_create(buf_flush_page_cleaner, NULL, NULL);
+	os_thread_create(buf_flush_page_cleaner);
 }
 
 /** Synchronously flush dirty blocks.

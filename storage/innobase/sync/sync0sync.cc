@@ -80,7 +80,6 @@ mysql_pfs_key_t	trx_pool_manager_mutex_key;
 mysql_pfs_key_t	lock_mutex_key;
 mysql_pfs_key_t	lock_wait_mutex_key;
 mysql_pfs_key_t	trx_sys_mutex_key;
-mysql_pfs_key_t	srv_sys_mutex_key;
 mysql_pfs_key_t	srv_threads_mutex_key;
 mysql_pfs_key_t	event_mutex_key;
 mysql_pfs_key_t	event_manager_mutex_key;

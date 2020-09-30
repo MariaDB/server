@@ -3577,7 +3577,7 @@ completed:
 		/* Spawn the background thread to flush dirty pages
 		from the buffer pools. */
 		recv_writer_thread_active = true;
-		os_thread_create(recv_writer_thread, 0, 0);
+		os_thread_create(recv_writer_thread);
 
 		if (rescan) {
 			contiguous_lsn = checkpoint_lsn;

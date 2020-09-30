@@ -2219,11 +2219,10 @@ fil_crypt_set_thread_cnt(
 		uint add = new_cnt - srv_n_fil_crypt_threads;
 		srv_n_fil_crypt_threads = new_cnt;
 		for (uint i = 0; i < add; i++) {
-			os_thread_id_t rotation_thread_id;
-			os_thread_create(fil_crypt_thread, NULL, &rotation_thread_id);
 			ib::info() << "Creating #"
 				   << i+1 << " encryption thread id "
-				   << os_thread_pf(rotation_thread_id)
+				   << os_thread_pf(
+					   os_thread_create(fil_crypt_thread))
 				   << " total threads " << new_cnt << ".";
 		}
 	} else if (new_cnt < srv_n_fil_crypt_threads) {

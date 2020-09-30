@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -78,23 +78,6 @@ ib_wqueue_add(ib_wqueue_t* wq, void* item, mem_heap_t* heap,
 @param wq wait queue
 @return whether the queue is empty */
 bool ib_wqueue_is_empty(ib_wqueue_t* wq);
-
-/****************************************************************//**
-Wait for a work item to appear in the queue.
-@return work item */
-void*
-ib_wqueue_wait(
-/*===========*/
-	ib_wqueue_t*	wq);		/*!< in: work queue */
-
-/********************************************************************
-Wait for a work item to appear in the queue for specified time. */
-void*
-ib_wqueue_timedwait(
-/*================*/
-					/* out: work item or NULL on timeout*/
-	ib_wqueue_t*	wq,		/* in: work queue */
-	ulint		wait_in_usecs); /* in: wait time in micro seconds */
 
 /********************************************************************
 Return first item on work queue or NULL if queue is empty

@@ -1893,7 +1893,7 @@ file_checked:
 
 			/* Rollback incomplete non-DDL transactions */
 			trx_rollback_is_active = true;
-			os_thread_create(trx_rollback_all_recovered, 0, 0);
+			os_thread_create(trx_rollback_all_recovered);
 		}
 	}
 

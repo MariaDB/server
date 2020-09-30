@@ -542,7 +542,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(buf_dblwr_mutex),
 	PSI_KEY(trx_pool_mutex),
 	PSI_KEY(trx_pool_manager_mutex),
-	PSI_KEY(srv_sys_mutex),
 	PSI_KEY(lock_mutex),
 	PSI_KEY(lock_wait_mutex),
 	PSI_KEY(trx_mutex),
