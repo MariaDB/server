@@ -9,8 +9,6 @@
 --loose-innodb-lock-waits
 --loose-innodb-sys-columns
 --loose-innodb-sys-fields
---loose-innodb-sys-foreign
---loose-innodb-sys-foreign-cols
 --loose-innodb-sys-tables
 --loose-innodb-sys-tablestats
 --loose-innodb-mutexes

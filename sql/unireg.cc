@@ -1427,9 +1427,7 @@ bool Foreign_key_io::parse(THD *thd, TABLE_SHARE *s, LEX_CUSTRING& image)
                         "Foreign_key_io failed to read reference hints count");
     return true;
   }
-  // Resolve hints to referenced keys for non-temporary shares
-  if (s->tmp_table)
-    return false;
+
   for (uint i= 0; i < rk_count; ++i)
   {
     if (read_string(hint_db, &s->mem_root, p))
@@ -1441,7 +1439,9 @@ bool Foreign_key_io::parse(THD *thd, TABLE_SHARE *s, LEX_CUSTRING& image)
     if (s->tmp_table || s->open_flags & GTS_FK_SHALLOW_HINTS)
     {
       /* For DROP TABLE we don't need full reference resolution. We just need
-         to know if anything from the outside references the dropped table. */
+         to know if anything from the outside references the dropped table.
+         Temporary share may have FK columns renamed so we can't resolve by
+         column names.*/
       FK_info *dst= new (&s->mem_root) FK_info;
       dst->foreign_db= hint_db;
       dst->foreign_table= hint_table;

@@ -262,6 +262,8 @@ char*
 mem_heap_strdupl(mem_heap_t* heap, const char* str, size_t len)
 {
 	char*	s = static_cast<char*>(mem_heap_alloc(heap, len + 1));
+	if (!s)
+		return NULL;
 	s[len] = 0;
 	return(static_cast<char*>(memcpy(s, str, len)));
 }

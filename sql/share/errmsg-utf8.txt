@@ -4764,21 +4764,15 @@ ER_INCORRECT_GLOBAL_LOCAL_VAR
         spa "Variable '%-.192s' es una %s variable"
         swe "Variabel '%-.192s' är av typ %s"
 ER_WRONG_FK_DEF 42000 
-        eng "Incorrect foreign key definition for '%-.192s': %s"
-        ger "Falsche Fremdschlüssel-Definition für '%-.192s': %s"
-        jpn "外部キー '%-.192s' の定義の不正: %s"
-        nla "Incorrecte foreign key definitie voor '%-.192s': %s"
-        por "Definição errada da chave estrangeira para '%-.192s': %s"
-        spa "Equivocada definición de llave extranjera para '%-.192s': %s"
-        swe "Felaktig FOREIGN KEY-definition för '%-.192s': %s"
-ER_KEY_REF_DO_NOT_MATCH_TABLE_REF  
-        eng "Key reference and table reference don't match"
-        ger "Schlüssel- und Tabellenverweis passen nicht zusammen"
-        jpn "外部キーの参照表と定義が一致しません。"
-        nla "Sleutel- en tabelreferentie komen niet overeen"
-        por "Referência da chave e referência da tabela não coincidem"
-        spa "Referencia de llave y referencia de tabla no coinciden"
-        swe "Nyckelreferensen och tabellreferensen stämmer inte överens"
+        eng "Incorrect foreign key definition for '%-.192s'"
+        ger "Falsche Fremdschlüssel-Definition für '%-.192s'"
+        jpn "外部キー '%-.192s' の定義の不正"
+        nla "Incorrecte foreign key definitie voor '%-.192s'"
+        por "Definição errada da chave estrangeira para '%-.192s'"
+        spa "Equivocada definición de llave extranjera para '%-.192s'"
+        swe "Felaktig FOREIGN KEY-definition för '%-.192s'"
+ER_UNUSED_29
+        eng "You should never see it"
 ER_OPERAND_COLUMNS 21000 
         eng "Operand should contain %d column(s)"
         ger "Operand sollte %d Spalte(n) enthalten"
@@ -6925,8 +6919,8 @@ ER_FK_NO_INDEX_CHILD
 ER_FK_NO_INDEX_PARENT
         eng "Failed to add the foreign key constaint. Missing index for constraint '%s' in the referenced table '%s'"
 
-ER_FK_FAIL_ADD_SYSTEM
-        eng "Failed to add the foreign key constraint '%s' to system tables"
+ER_UNUSED_28
+        eng "You should never see it"
 
 ER_FK_CANNOT_OPEN_PARENT
         eng "Failed to open the referenced table '%s'"

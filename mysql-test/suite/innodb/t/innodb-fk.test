@@ -155,7 +155,7 @@ CREATE TABLE `kg_test2`.`person2` (
 `Id` INT(11) NOT NULL AUTO_INCREMENT,
 `Name` VARCHAR(50) NOT NULL,
 PRIMARY KEY (`Id`),
-CONSTRAINT `fk_person_group` FOREIGN KEY (`Id`) REFERENCES  `kg_test1`.`group` (`Id`)
+CONSTRAINT `fk_person_group2` FOREIGN KEY (`Id`) REFERENCES  `kg_test1`.`group` (`Id`)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8;
 
 show create table `kg_test2`.`person2`;

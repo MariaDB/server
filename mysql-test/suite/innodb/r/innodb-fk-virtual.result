@@ -74,7 +74,7 @@ select * from b;
 cola	v_cola	p_cola	c_cola
 10	2	2	12
 insert into b(cola, v_cola, p_cola) values (10,1,1);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`b`, CONSTRAINT `p_cola_fk` FOREIGN KEY (`p_cola`) REFERENCES `a` (`p_cola`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`b`, CONSTRAINT `p_cola_fk` FOREIGN KEY (`p_cola`) REFERENCES `a` (`p_cola`) ON DELETE NO ACTION ON UPDATE NO ACTION)
 delete from a;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`b`, CONSTRAINT `c_cola_fk` FOREIGN KEY (`c_cola`) REFERENCES `a` (`cola`))
 select * from a;
