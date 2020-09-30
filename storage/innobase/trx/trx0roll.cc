@@ -673,7 +673,7 @@ struct trx_roll_count_callback_arg
 static my_bool trx_roll_count_callback(rw_trx_hash_element_t *element,
                                        trx_roll_count_callback_arg *arg)
 {
-  mutex_enter(&element->mutex);
+  mysql_mutex_lock(&element->mutex);
   if (trx_t *trx= element->trx)
   {
     if (trx->is_recovered && trx_state_eq(trx, TRX_STATE_ACTIVE))
@@ -682,7 +682,7 @@ static my_bool trx_roll_count_callback(rw_trx_hash_element_t *element,
       arg->n_rows+= trx->undo_no;
     }
   }
-  mutex_exit(&element->mutex);
+  mysql_mutex_unlock(&element->mutex);
   return 0;
 }
 
@@ -720,7 +720,7 @@ void trx_roll_report_progress()
 static my_bool trx_rollback_recovered_callback(rw_trx_hash_element_t *element,
                                                std::vector<trx_t*> *trx_list)
 {
-  mutex_enter(&element->mutex);
+  mysql_mutex_lock(&element->mutex);
   if (trx_t *trx= element->trx)
   {
     mysql_mutex_lock(&trx->mutex);
@@ -728,7 +728,7 @@ static my_bool trx_rollback_recovered_callback(rw_trx_hash_element_t *element,
       trx_list->push_back(trx);
     mysql_mutex_unlock(&trx->mutex);
   }
-  mutex_exit(&element->mutex);
+  mysql_mutex_unlock(&element->mutex);
   return 0;
 }
 

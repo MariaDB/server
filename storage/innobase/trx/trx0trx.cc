@@ -2065,7 +2065,7 @@ static my_bool trx_recover_for_mysql_callback(rw_trx_hash_element_t *element,
   trx_recover_for_mysql_callback_arg *arg)
 {
   DBUG_ASSERT(arg->len > 0);
-  mutex_enter(&element->mutex);
+  mysql_mutex_lock(&element->mutex);
   if (trx_t *trx= element->trx)
   {
     /*
@@ -2091,7 +2091,7 @@ static my_bool trx_recover_for_mysql_callback(rw_trx_hash_element_t *element,
       }
     }
   }
-  mutex_exit(&element->mutex);
+  mysql_mutex_unlock(&element->mutex);
   /* Do not terminate upon reaching arg->len; count all transactions */
   return false;
 }
@@ -2100,13 +2100,13 @@ static my_bool trx_recover_for_mysql_callback(rw_trx_hash_element_t *element,
 static my_bool trx_recover_reset_callback(rw_trx_hash_element_t *element,
   void*)
 {
-  mutex_enter(&element->mutex);
+  mysql_mutex_lock(&element->mutex);
   if (trx_t *trx= element->trx)
   {
     if (trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED))
       trx->state= TRX_STATE_PREPARED;
   }
-  mutex_exit(&element->mutex);
+  mysql_mutex_unlock(&element->mutex);
   return false;
 }
 
@@ -2155,7 +2155,7 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
   trx_get_trx_by_xid_callback_arg *arg)
 {
   my_bool found= 0;
-  mutex_enter(&element->mutex);
+  mysql_mutex_lock(&element->mutex);
   if (trx_t *trx= element->trx)
   {
     mysql_mutex_lock(&trx->mutex);
@@ -2177,7 +2177,7 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
     }
     mysql_mutex_unlock(&trx->mutex);
   }
-  mutex_exit(&element->mutex);
+  mysql_mutex_unlock(&element->mutex);
   return found;
 }
 
