@@ -6,7 +6,7 @@ create table t1 (f1 int primary key) engine=InnoDB;
 create table t2 (f1 int primary key,
 constraint c1 foreign key (f1) references t1(f1),
 constraint c1 foreign key (f1) references t1(f1)) engine=InnoDB;
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Duplicate FOREIGN KEY constraint name 'c1'
 create table t2 (f1 int primary key,
 constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
 alter table t2 add constraint c1 foreign key (f1) references t1(f1);
@@ -180,19 +180,19 @@ CREATE DATABASE best default character set latin1;
 CREATE TABLE t3 (a INT PRIMARY KEY,
 CONSTRAINT t2_ibfk_1 FOREIGN KEY (a) REFERENCES t1(a)) ENGINE=InnoDB;
 CREATE TABLE best.t2 (a INT PRIMARY KEY, b TEXT, FULLTEXT INDEX(b),
-FOREIGN KEY t2_ibfk_1 (a) REFERENCES test.t1(a)) ENGINE=InnoDB;
+FOREIGN KEY (a) REFERENCES test.t1(a)) ENGINE=InnoDB;
 RENAME TABLE best.t2 TO test.t2;
-ERROR 42S01: Table 't2' already exists
-SHOW CREATE TABLE best.t2;
+SHOW CREATE TABLE test.t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) NOT NULL,
   `b` text DEFAULT NULL,
   PRIMARY KEY (`a`),
   FULLTEXT KEY `b` (`b`),
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `test`.`t1` (`a`)
+  CONSTRAINT `fk_t2` FOREIGN KEY (`a`) REFERENCES `t1` (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP DATABASE best;
+DROP TABLE t2;
 #
 # MDEV-17541 KILL QUERY during lock wait in FOREIGN KEY check hangs
 #
@@ -215,8 +215,8 @@ DROP TABLE t3,t1;
 # MDEV-18222 InnoDB: Failing assertion: heap->magic_n == MEM_BLOCK_MAGIC_N
 # or ASAN heap-use-after-free in dict_foreign_remove_from_cache upon CHANGE COLUMN
 #
-CREATE TABLE t1 (a INT, UNIQUE(a), KEY(a)) ENGINE=InnoDB;
-ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (a);
+CREATE TABLE t1 (a INT, UNIQUE(a), KEY(a), c INT) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FOREIGN KEY (c) REFERENCES t1 (a);
 SET SESSION FOREIGN_KEY_CHECKS = OFF;
 ALTER TABLE t1 CHANGE COLUMN a a TIME NOT NULL;
 ALTER TABLE t1 ADD pk INT NOT NULL AUTO_INCREMENT PRIMARY KEY;
@@ -360,14 +360,14 @@ update t1 set data=10 where pk+1>10;
 show status like '%opened_tab%';
 Variable_name	Value
 Opened_table_definitions	5
-Opened_tables	4
+Opened_tables	5
 flush tables;
 flush status;
 update t2 set t1_pk=11 where t1_pk+1>10;
 show status like '%opened_tab%';
 Variable_name	Value
-Opened_table_definitions	4
-Opened_tables	4
+Opened_table_definitions	5
+Opened_tables	5
 flush tables;
 flush status;
 lock tables t1 write;
@@ -394,7 +394,7 @@ foo()
 show status like '%opened_tab%';
 Variable_name	Value
 Opened_table_definitions	6
-Opened_tables	5
+Opened_tables	6
 drop function foo;
 drop table t2, t1;
 CREATE TABLE t1 (pk INT, a INT, PRIMARY KEY (pk)) ENGINE=InnoDB;
@@ -884,3 +884,97 @@ create or replace table t2 (pk int primary key, a varchar(4096) unique, foreign 
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 drop table t1;
 # End of 10.5 tests
+#
+# Bug #20762798 FK DDL: CRASH IN DICT_FOREIGN_REMOVE_FROM_CACHE
+#
+create table t1(a int, b int, key(a),key(b))engine=innodb;
+create table t2(a int, b int, key(a),key(b))engine=innodb;
+alter table t2 add constraint b foreign key (b) references t1(a);
+alter table t1 add constraint b1 foreign key (b) references t2(a);
+alter table t2 add constraint b1 foreign key (b) references t1(a);
+alter table t2 drop foreign key b;
+alter table t1 drop foreign key b1;
+drop table t2;
+drop table t1;
+set global innodb_file_per_table = 1;
+drop table if exists b;
+drop database if exists bug_fk;
+create database bug_fk;
+use bug_fk;
+CREATE TABLE b (
+b int unsigned NOT NULL,
+d1 datetime NOT NULL,
+PRIMARY KEY (b,d1)
+) ENGINE=InnoDB;
+CREATE TABLE c (
+b int unsigned NOT NULL,
+d1 datetime NOT NULL,
+d2 datetime NOT NULL,
+PRIMARY KEY (b,d1),
+CONSTRAINT b_fk FOREIGN KEY (b) REFERENCES b (b)
+) ENGINE=InnoDB;
+insert into b values (1, '1980-01-01 00:00:00');
+insert into c values (1, '1980-01-01 00:00:00', '1980-01-01 00:00:00');
+delete from b;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`bug_fk`.`c`, CONSTRAINT `b_fk` FOREIGN KEY (`b`) REFERENCES `b` (`b`))
+update c set b= 2;
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`bug_fk`.`c`, CONSTRAINT `b_fk` FOREIGN KEY (`b`) REFERENCES `b` (`b`))
+show warnings;
+Level	Code	Message
+Error	1452	Cannot add or update a child row: a foreign key constraint fails (`bug_fk`.`c`, CONSTRAINT `b_fk` FOREIGN KEY (`b`) REFERENCES `b` (`b`))
+set foreign_key_checks = 0;
+DROP TABLE IF EXISTS b;
+show create table c;
+Table	Create Table
+c	CREATE TABLE `c` (
+  `b` int(10) unsigned NOT NULL,
+  `d1` datetime NOT NULL,
+  `d2` datetime NOT NULL,
+  PRIMARY KEY (`b`,`d1`),
+  CONSTRAINT `b_fk` FOREIGN KEY (`b`) REFERENCES `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+CREATE TABLE b (
+b bigint unsigned NOT NULL,
+d1 date NOT NULL,
+PRIMARY KEY (b,d1)
+) ENGINE=InnoDB;
+show warnings;
+Level	Code	Message
+DROP TABLE IF EXISTS d;
+Warnings:
+Note	1051	Unknown table 'bug_fk.d'
+CREATE TABLE d (
+b bigint unsigned NOT NULL,
+d1 date NOT NULL,
+PRIMARY KEY (b,d1),
+CONSTRAINT bd_fk FOREIGN KEY (b) REFERENCES b (b)
+) ENGINE=InnoDB;
+show warnings;
+Level	Code	Message
+set foreign_key_checks = 1;
+show create table c;
+Table	Create Table
+c	CREATE TABLE `c` (
+  `b` int(10) unsigned NOT NULL,
+  `d1` datetime NOT NULL,
+  `d2` datetime NOT NULL,
+  PRIMARY KEY (`b`,`d1`),
+  CONSTRAINT `b_fk` FOREIGN KEY (`b`) REFERENCES `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+show create table d;
+Table	Create Table
+d	CREATE TABLE `d` (
+  `b` bigint(20) unsigned NOT NULL,
+  `d1` date NOT NULL,
+  PRIMARY KEY (`b`,`d1`),
+  CONSTRAINT `bd_fk` FOREIGN KEY (`b`) REFERENCES `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+update c set b= 2;
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`bug_fk`.`c`, CONSTRAINT `b_fk` FOREIGN KEY (`b`) REFERENCES `b` (`b`))
+insert into c values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:00');
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`bug_fk`.`c`, CONSTRAINT `b_fk` FOREIGN KEY (`b`) REFERENCES `b` (`b`))
+insert into b values (2, '1980-01-01 00:00:00');
+insert into c values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:00');
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`bug_fk`.`c`, CONSTRAINT `b_fk` FOREIGN KEY (`b`) REFERENCES `b` (`b`))
+insert into d values (2, '1980-01-01 00:00:00');
+drop database bug_fk;

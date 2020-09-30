@@ -8,7 +8,7 @@
 --echo #
 
 create table t1 (f1 int primary key) engine=InnoDB;
---error ER_CANT_CREATE_TABLE
+--error ER_DUP_CONSTRAINT_NAME
 create table t2 (f1 int primary key,
 constraint c1 foreign key (f1) references t1(f1),
 constraint c1 foreign key (f1) references t1(f1)) engine=InnoDB;
@@ -159,12 +159,11 @@ CREATE DATABASE best default character set latin1;
 CREATE TABLE t3 (a INT PRIMARY KEY,
 CONSTRAINT t2_ibfk_1 FOREIGN KEY (a) REFERENCES t1(a)) ENGINE=InnoDB;
 CREATE TABLE best.t2 (a INT PRIMARY KEY, b TEXT, FULLTEXT INDEX(b),
-FOREIGN KEY t2_ibfk_1 (a) REFERENCES test.t1(a)) ENGINE=InnoDB;
---replace_regex /Table '.*t2'/Table 't2'/
---error ER_TABLE_EXISTS_ERROR
+FOREIGN KEY (a) REFERENCES test.t1(a)) ENGINE=InnoDB;
 RENAME TABLE best.t2 TO test.t2;
-SHOW CREATE TABLE best.t2;
+SHOW CREATE TABLE test.t2;
 DROP DATABASE best;
+DROP TABLE t2;
 
 --echo #
 --echo # MDEV-17541 KILL QUERY during lock wait in FOREIGN KEY check hangs
@@ -202,8 +201,8 @@ DROP TABLE t3,t1;
 --echo # MDEV-18222 InnoDB: Failing assertion: heap->magic_n == MEM_BLOCK_MAGIC_N
 --echo # or ASAN heap-use-after-free in dict_foreign_remove_from_cache upon CHANGE COLUMN
 --echo #
-CREATE TABLE t1 (a INT, UNIQUE(a), KEY(a)) ENGINE=InnoDB;
-ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (a);
+CREATE TABLE t1 (a INT, UNIQUE(a), KEY(a), c INT) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FOREIGN KEY (c) REFERENCES t1 (a);
 SET SESSION FOREIGN_KEY_CHECKS = OFF;
 ALTER TABLE t1 CHANGE COLUMN a a TIME NOT NULL;
 ALTER TABLE t1 ADD pk INT NOT NULL AUTO_INCREMENT PRIMARY KEY;
@@ -866,3 +865,116 @@ drop table t1;
 --echo # End of 10.5 tests
 
 --source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # Bug #20762798 FK DDL: CRASH IN DICT_FOREIGN_REMOVE_FROM_CACHE
+--echo #
+
+create table t1(a int, b int, key(a),key(b))engine=innodb;
+create table t2(a int, b int, key(a),key(b))engine=innodb;
+
+alter table t2 add constraint b foreign key (b) references t1(a);
+alter table t1 add constraint b1 foreign key (b) references t2(a);
+
+alter table t2 add constraint b1 foreign key (b) references t1(a);
+
+alter table t2 drop foreign key b;
+alter table t1 drop foreign key b1;
+
+drop table t2;
+drop table t1;
+
+#
+# MDEV-10083: Orphan ibd file when playing with foreign keys
+#
+--disable_query_log
+SET @start_global_fpt = @@global.innodb_file_per_table;
+SET @start_global_fkc = @@global.foreign_key_checks;
+--enable_query_log
+
+set global innodb_file_per_table = 1;
+
+--disable_warnings
+drop table if exists b;
+drop database if exists bug_fk;
+--enable_warnings
+
+let $MYSQLD_DATADIR = `select @@datadir`;
+
+create database bug_fk;
+use bug_fk;
+
+CREATE TABLE b (
+  b int unsigned NOT NULL,
+  d1 datetime NOT NULL,
+  PRIMARY KEY (b,d1)
+) ENGINE=InnoDB;
+
+CREATE TABLE c (
+  b int unsigned NOT NULL,
+  d1 datetime NOT NULL,
+  d2 datetime NOT NULL,
+  PRIMARY KEY (b,d1),
+  CONSTRAINT b_fk FOREIGN KEY (b) REFERENCES b (b)
+) ENGINE=InnoDB;
+
+insert into b values (1, '1980-01-01 00:00:00');
+insert into c values (1, '1980-01-01 00:00:00', '1980-01-01 00:00:00');
+--error ER_ROW_IS_REFERENCED_2
+delete from b;
+--error ER_NO_REFERENCED_ROW_2
+update c set b= 2;
+
+show warnings;
+
+set foreign_key_checks = 0;
+
+DROP TABLE IF EXISTS b;
+
+show create table c;
+
+#
+# Note that column b has different type in parent table
+#
+CREATE TABLE b (
+  b bigint unsigned NOT NULL,
+  d1 date NOT NULL,
+  PRIMARY KEY (b,d1)
+) ENGINE=InnoDB;
+
+show warnings;
+
+DROP TABLE IF EXISTS d;
+
+CREATE TABLE d (
+  b bigint unsigned NOT NULL,
+  d1 date NOT NULL,
+  PRIMARY KEY (b,d1),
+  CONSTRAINT bd_fk FOREIGN KEY (b) REFERENCES b (b)
+) ENGINE=InnoDB;
+
+show warnings;
+
+set foreign_key_checks = 1;
+
+show create table c;
+show create table d;
+
+--error ER_NO_REFERENCED_ROW_2
+update c set b= 2;
+--error ER_NO_REFERENCED_ROW_2
+insert into c values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:00');
+insert into b values (2, '1980-01-01 00:00:00');
+--error ER_NO_REFERENCED_ROW_2
+insert into c values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:00');
+insert into d values (2, '1980-01-01 00:00:00');
+
+#
+# Cleanup
+#
+--disable_query_log
+SET @@global.innodb_file_per_table = @start_global_fpt;
+SET @@global.foreign_key_checks = @start_global_fkc;
+--enable_query_log
+
+drop database bug_fk;

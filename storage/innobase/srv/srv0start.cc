@@ -1813,11 +1813,7 @@ skip_monitors:
 		}
 	}
 
-	/* Create the SYS_FOREIGN and SYS_FOREIGN_COLS system tables */
-	err = dict_create_or_check_foreign_constraint_tables();
-	if (err == DB_SUCCESS) {
-		err = dict_create_or_check_sys_virtual();
-	}
+	err = dict_create_or_check_sys_virtual();
 	switch (err) {
 	case DB_SUCCESS:
 		break;

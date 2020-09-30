@@ -807,6 +807,7 @@ public:
 					current operation, or an empty
 					string */
 	uint		isolation_level;/*!< TRX_ISO_REPEATABLE_READ, ... */
+	// TODO: remove check_foreigns?
 	bool		check_foreigns;	/*!< normally TRUE, but if the user
 					wants to suppress foreign key checks,
 					(in table imports, for example) we

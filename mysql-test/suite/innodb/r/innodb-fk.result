@@ -30,7 +30,7 @@ drop table t1;
 create table t1 (f1 int primary key) engine=innodb;
 # restart
 delete from t1 where f1 = 29;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`fk_29`, CONSTRAINT `pc29` FOREIGN KEY (`f1`) REFERENCES `t1` (`f1`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`fk_29`, CONSTRAINT `pc29` FOREIGN KEY (`f1`) REFERENCES `t1` (`f1`) ON DELETE NO ACTION ON UPDATE NO ACTION)
 select * from fk_29;
 f1
 29
@@ -96,7 +96,7 @@ CREATE TABLE `kg_test2`.`person2` (
 `Id` INT(11) NOT NULL AUTO_INCREMENT,
 `Name` VARCHAR(50) NOT NULL,
 PRIMARY KEY (`Id`),
-CONSTRAINT `fk_person_group` FOREIGN KEY (`Id`) REFERENCES  `kg_test1`.`group` (`Id`)
+CONSTRAINT `fk_person_group2` FOREIGN KEY (`Id`) REFERENCES  `kg_test1`.`group` (`Id`)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8;
 show create table `kg_test2`.`person2`;
 Table	Create Table
@@ -104,7 +104,7 @@ person2	CREATE TABLE `person2` (
   `Id` int(11) NOT NULL AUTO_INCREMENT,
   `Name` varchar(50) NOT NULL,
   PRIMARY KEY (`Id`),
-  CONSTRAINT `fk_person_group` FOREIGN KEY (`Id`) REFERENCES `kg_test1`.`group` (`Id`)
+  CONSTRAINT `fk_person_group2` FOREIGN KEY (`Id`) REFERENCES `kg_test1`.`group` (`Id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8
 SHOW WARNINGS;
 Level	Code	Message

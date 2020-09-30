@@ -22,6 +22,4 @@
 --loose-enable-innodb_sys_indexes
 --loose-enable-innodb_sys_columns
 --loose-enable-innodb_sys_fields
---loose-enable-innodb_sys_foreign
---loose-enable-innodb_sys_foreign_cols
 --loose-enable-innodb_sys_tablespaces

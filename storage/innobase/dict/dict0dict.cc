@@ -1145,11 +1145,7 @@ dict_table_open_on_name(
 	ut_ad(table_name);
 	dict_sys.assert_locked();
 
-	table = dict_table_check_if_in_cache_low(table_name);
-
-	if (table == NULL) {
-		table = dict_load_table(table_name, ignore_err);
-	}
+	table = dict_load_table(table_name, ignore_err);
 
 	ut_ad(!table || table->cached);
 
@@ -3056,6 +3052,7 @@ dict_foreign_add_to_cache(
 	dict_foreign_t*	for_in_cache		= NULL;
 	dict_index_t*	index;
 	ibool		added_to_referenced_list= FALSE;
+	ibool		added_to_foreign_list	= FALSE;
 	FILE*		ef			= dict_foreign_err_file;
 
 	DBUG_ENTER("dict_foreign_add_to_cache");
@@ -3079,10 +3076,16 @@ dict_foreign_add_to_cache(
 	}
 
 	if (for_in_cache) {
-		dict_foreign_free(foreign);
+		if (foreign != for_in_cache) {
+			if (for_table != for_in_cache->foreign_table) {
+				dict_foreign_remove_from_cache(for_in_cache);
+				for_in_cache = foreign;
+			} else {
+				dict_foreign_free(foreign);
+			}
+		}
 	} else {
 		for_in_cache = foreign;
-
 	}
 
 	if (ref_table && !for_in_cache->referenced_table) {
@@ -3169,17 +3172,23 @@ dict_foreign_add_to_cache(
 
 		ut_a(ret.second);	/* second is true if the insertion
 					took place */
+		added_to_foreign_list = true;
 	}
 
 	/* We need to move the table to the non-LRU end of the table LRU
 	list. Otherwise it will be evicted from the cache. */
 
-	if (ref_table != NULL) {
+	if (ref_table != NULL && added_to_referenced_list) {
 		dict_sys.prevent_eviction(ref_table);
 	}
 
-	if (for_table != NULL) {
+	if (for_table != NULL && added_to_foreign_list) {
 		dict_sys.prevent_eviction(for_table);
+	}
+
+	if (!for_in_cache->v_cols
+	    && (added_to_foreign_list || added_to_referenced_list)) {
+		dict_mem_foreign_fill_vcol_set(for_in_cache);
 	}
 
 	ut_ad(dict_lru_validate());
@@ -3401,6 +3410,92 @@ convert_id:
 	return(ptr);
 }
 
+bool
+dict_table_t::build_name(
+	const char*    database_name,	  /*!< in: table db name */
+	ulint	       database_name_len, /*!< in: db name length */
+	const char*    table_name,	  /*!< in: table name */
+	ulint	       table_name_len,	  /*!< in: table name length */
+	char *&dict_name,
+	ulint &dict_name_len,
+	mem_heap_t*    alloc,
+	CHARSET_INFO*  cs_db,
+	CHARSET_INFO*  cs_table) /*!< in: table name charset */
+{
+	char		db_name[MAX_DATABASE_NAME_LEN];
+	char		tbl_name[MAX_TABLE_NAME_LEN];
+	CHARSET_INFO*	to_cs = &my_charset_filename;
+	uint		errors;
+	ut_ad(database_name);
+	ut_ad(database_name_len);
+	ut_ad(table_name);
+	ut_ad(table_name_len);
+
+	if (!strncmp(table_name, srv_mysql50_table_name_prefix,
+		     sizeof(srv_mysql50_table_name_prefix) - 1)) {
+		/* This is a pre-5.1 table name
+		containing chars other than [A-Za-z0-9].
+		Discard the prefix and use raw UTF-8 encoding. */
+		table_name += sizeof(srv_mysql50_table_name_prefix) - 1;
+		table_name_len -= sizeof(srv_mysql50_table_name_prefix) - 1;
+
+		to_cs = system_charset_info;
+	}
+
+	if (cs_table != to_cs) {
+		table_name_len = strconvert(cs_table, table_name,
+					    table_name_len, to_cs, tbl_name,
+					    MAX_TABLE_NAME_LEN, &errors);
+		if (errors > 0) {
+			return true;
+		}
+		table_name = tbl_name;
+	}
+
+	if (!strncmp(database_name, srv_mysql50_table_name_prefix,
+		     sizeof(srv_mysql50_table_name_prefix) - 1)) {
+		database_name += sizeof(srv_mysql50_table_name_prefix) - 1;
+		database_name_len -= sizeof(srv_mysql50_table_name_prefix) - 1;
+		to_cs = system_charset_info;
+	} else {
+		to_cs = &my_charset_filename;
+	}
+
+	if (cs_db != to_cs) {
+		database_name_len = strconvert(
+			cs_table, database_name, database_name_len, to_cs,
+			db_name, MAX_DATABASE_NAME_LEN, &errors);
+		if (errors > 0) {
+			return true;
+		}
+		database_name = db_name;
+	}
+
+	dict_name_len = database_name_len + table_name_len + 1;
+
+	/* Copy database_name, '/', table_name, '\0' */
+	if (alloc) {
+		dict_name = static_cast<char*>(
+			mem_heap_alloc(alloc, dict_name_len + 1));
+		if (!dict_name) {
+			return true;
+		}
+	}
+	memcpy(dict_name, database_name, database_name_len);
+	dict_name[database_name_len] = '/';
+	memcpy(dict_name + database_name_len + 1, table_name,
+	       table_name_len + 1);
+
+	/* Values;  0 = Store and compare as given; case sensitive
+		    1 = Store and compare in lower; case insensitive
+		    2 = Store as given, compare in lower; case semi-sensitive */
+	if (innobase_get_lower_case_table_names() == 1) {
+		innobase_casedn_str(dict_name);
+	}
+
+	return false;
+}
+
 /*********************************************************************//**
 Open a table from its database and table name, this is currently used by
 foreign constraint parser to get the referenced table.
@@ -3417,80 +3512,40 @@ dict_get_referenced_table(
 	mem_heap_t*    heap,		  /*!< in/out: heap memory */
 	CHARSET_INFO*  from_cs)		  /*!< in: table name charset */
 {
-	char*		ref;
-	char		db_name[MAX_DATABASE_NAME_LEN];
-	char		tbl_name[MAX_TABLE_NAME_LEN];
-	CHARSET_INFO*	to_cs = &my_charset_filename;
-	uint		errors;
+	char*	      dict_name;
+	ulint	      dict_name_len;
+	CHARSET_INFO* db_cs = from_cs;
 	ut_ad(database_name || name);
 	ut_ad(table_name);
 
-	if (!strncmp(table_name, srv_mysql50_table_name_prefix,
-		     sizeof(srv_mysql50_table_name_prefix) - 1)) {
-		/* This is a pre-5.1 table name
-		containing chars other than [A-Za-z0-9].
-		Discard the prefix and use raw UTF-8 encoding. */
-		table_name += sizeof(srv_mysql50_table_name_prefix) - 1;
-		table_name_len -= sizeof(srv_mysql50_table_name_prefix) - 1;
-
-		to_cs = system_charset_info;
-	}
-
-	table_name_len = strconvert(from_cs, table_name, table_name_len, to_cs,
-				    tbl_name, MAX_TABLE_NAME_LEN, &errors);
-	table_name     = tbl_name;
-
-	if (database_name) {
-		to_cs = &my_charset_filename;
-		if (!strncmp(database_name, srv_mysql50_table_name_prefix,
-			     sizeof(srv_mysql50_table_name_prefix) - 1)) {
-			database_name
-				+= sizeof(srv_mysql50_table_name_prefix) - 1;
-			database_name_len
-				-= sizeof(srv_mysql50_table_name_prefix) - 1;
-			to_cs = system_charset_info;
-		}
-
-		database_name_len = strconvert(
-			from_cs, database_name, database_name_len, to_cs,
-			db_name, MAX_DATABASE_NAME_LEN, &errors);
-		database_name = db_name;
-	} else {
+	if (!database_name) {
 		/* Use the database name of the foreign key table */
 
 		database_name = name;
 		database_name_len = dict_get_db_name_len(name);
+		db_cs		  = &my_charset_filename;
 	}
 
-	/* Copy database_name, '/', table_name, '\0' */
-	ref = static_cast<char*>(mem_heap_alloc(
-		heap, database_name_len + table_name_len + 2));
-	memcpy(ref, database_name, database_name_len);
-	ref[database_name_len] = '/';
-	memcpy(ref + database_name_len + 1, table_name, table_name_len + 1);
+	if (dict_table_t::build_name(database_name, database_name_len,
+				     table_name, table_name_len, dict_name,
+				     dict_name_len, heap, from_cs, db_cs)) {
+		return NULL;
+	}
 
 	/* Values;  0 = Store and compare as given; case sensitive
 	            1 = Store and compare in lower; case insensitive
 	            2 = Store as given, compare in lower; case semi-sensitive */
 	if (innobase_get_lower_case_table_names() == 2) {
-		innobase_casedn_str(ref);
-		*table = dict_table_get_low(ref);
-		memcpy(ref, database_name, database_name_len);
-		ref[database_name_len] = '/';
-		memcpy(ref + database_name_len + 1, table_name, table_name_len + 1);
+		char buf[MAX_FULL_NAME_LEN];
+		memcpy(buf, dict_name, dict_name_len + 1);
+		innobase_casedn_str(buf);
+		*table = dict_table_get_low(buf);
 
 	} else {
-#ifndef _WIN32
-		if (innobase_get_lower_case_table_names() == 1) {
-			innobase_casedn_str(ref);
-		}
-#else
-		innobase_casedn_str(ref);
-#endif /* !_WIN32 */
-		*table = dict_table_get_low(ref);
+		*table = dict_table_get_low(dict_name);
 	}
 
-	return(ref);
+	return (dict_name);
 }
 
 /*********************************************************************//**

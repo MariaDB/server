@@ -44,10 +44,6 @@ create sql security invoker view i_sys_columns as select * from information_sche
 create sql security definer view d_sys_columns as select * from information_schema.innodb_sys_columns;
 create sql security invoker view i_sys_fields as select * from information_schema.innodb_sys_fields;
 create sql security definer view d_sys_fields as select * from information_schema.innodb_sys_fields;
-create sql security invoker view i_sys_foreign as select * from information_schema.innodb_sys_foreign;
-create sql security definer view d_sys_foreign as select * from information_schema.innodb_sys_foreign;
-create sql security invoker view i_sys_foreign_cols as select * from information_schema.innodb_sys_foreign_cols;
-create sql security definer view d_sys_foreign_cols as select * from information_schema.innodb_sys_foreign_cols;
 create sql security invoker view i_sys_indexes as select * from information_schema.innodb_sys_indexes;
 create sql security definer view d_sys_indexes as select * from information_schema.innodb_sys_indexes;
 create sql security invoker view i_sys_tables as select * from information_schema.innodb_sys_tables;
@@ -197,20 +193,6 @@ ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) 
 select count(*) > -1 from i_sys_fields;
 ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
 select count(*) > -1 from d_sys_fields;
-count(*) > -1
-1
-select count(*) > -1 from information_schema.innodb_sys_foreign;
-ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
-select count(*) > -1 from i_sys_foreign;
-ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
-select count(*) > -1 from d_sys_foreign;
-count(*) > -1
-1
-select count(*) > -1 from information_schema.innodb_sys_foreign_cols;
-ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
-select count(*) > -1 from i_sys_foreign_cols;
-ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
-select count(*) > -1 from d_sys_foreign_cols;
 count(*) > -1
 1
 select count(*) > -1 from information_schema.innodb_sys_indexes;

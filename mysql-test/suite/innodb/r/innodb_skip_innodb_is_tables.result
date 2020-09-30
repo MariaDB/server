@@ -347,14 +347,6 @@ select * from information_schema.innodb_sys_fields;
 INDEX_ID	NAME	POS
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_sys_fields but the InnoDB storage engine is not installed
-select * from information_schema.innodb_sys_foreign;
-ID	FOR_NAME	REF_NAME	N_COLS	TYPE
-Warnings:
-Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_sys_foreign but the InnoDB storage engine is not installed
-select * from information_schema.innodb_sys_foreign_cols;
-ID	FOR_COL_NAME	REF_COL_NAME	POS
-Warnings:
-Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_sys_foreign_cols but the InnoDB storage engine is not installed
 select * from information_schema.innodb_sys_tablespaces;
 SPACE	NAME	FLAG	ROW_FORMAT	PAGE_SIZE	FILENAME	FS_BLOCK_SIZE	FILE_SIZE	ALLOCATED_SIZE
 Warnings:

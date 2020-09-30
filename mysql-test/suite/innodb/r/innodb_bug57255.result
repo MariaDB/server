@@ -8,3 +8,4 @@ DELETE FROM A where id = 1;
 DROP TABLE C;
 DROP TABLE B;
 DROP TABLE A;
+flush tables;

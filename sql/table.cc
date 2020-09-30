@@ -9514,20 +9514,28 @@ FK_info * FK_info::clone(MEM_ROOT *mem_root) const
 }
 
 
-Table_name FK_info::for_table(MEM_ROOT *mem_root) const
+Table_name FK_info::for_table(MEM_ROOT *mem_root, bool copy) const
 {
   Table_name result(foreign_db, foreign_table);
   if (lower_case_table_names)
     result.lowercase(mem_root);
+  else if (copy)
+  {
+    result.strdup(mem_root);
+  }
   return result;
 }
 
 
-Table_name FK_info::ref_table(MEM_ROOT *mem_root) const
+Table_name FK_info::ref_table(MEM_ROOT *mem_root, bool copy) const
 {
   Table_name result(ref_db(), referenced_table);
   if (lower_case_table_names)
     result.lowercase(mem_root);
+  else if (copy)
+  {
+    result.strdup(mem_root);
+  }
   return result;
 }
 
