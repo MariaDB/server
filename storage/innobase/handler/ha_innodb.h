@@ -972,3 +972,26 @@ int innobase_rollback_by_xid(handlerton* hton, XID* xid);
 
 /** Free tablespace resources allocated. */
 void innobase_space_shutdown();
+
+/*************************************************************//**
+Set foreign key options
+@return true if successfully set */
+MY_ATTRIBUTE((nonnull, warn_unused_result))
+bool
+innobase_set_foreign_key_option(
+/*============================*/
+	dict_foreign_t*	foreign,	/*!< in:InnoDB Foreign key */
+	FK_info*	fk_key);	/*!< in: Foreign key info from
+					MySQL */
+
+dberr_t
+dict_load_foreigns(
+/*===============*/
+	dict_table_t*		table,
+	TABLE_SHARE*		share,
+	const char**		col_names,	/*!< in: column names, or NULL
+						to use table->col_names */
+	bool			check_charsets,	/*!< in: whether to check
+						charset compatibility */
+	dict_err_ignore_t	ignore_err)	/*!< in: error to be ignored */
+	MY_ATTRIBUTE((warn_unused_result));

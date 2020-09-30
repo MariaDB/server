@@ -45,14 +45,17 @@ connection default;
 SET DEBUG_SYNC='now WAIT_FOR fk';
 SET foreign_key_checks=0;
 TRUNCATE TABLE parent;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SET DEBUG_SYNC='now SIGNAL go';
 connection dml;
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`child`, CONSTRAINT `fk_child` FOREIGN KEY (`a`) REFERENCES `parent` (`a`) ON UPDATE CASCADE)
 SELECT * FROM parent;
 a
+3
+5
 SELECT * FROM child;
 a
 3
+5
 disconnect dml;
 connection default;
 SET DEBUG_SYNC = RESET;

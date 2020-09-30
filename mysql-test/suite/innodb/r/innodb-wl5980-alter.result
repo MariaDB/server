@@ -20,14 +20,6 @@ CREATE TABLE t1c (c1 INT PRIMARY KEY, c2 INT, c3 INT, INDEX(c2), INDEX(c3),
 CONSTRAINT t1c2 FOREIGN KEY (c2) REFERENCES t1(c2),
 CONSTRAINT t1c3 FOREIGN KEY (c3) REFERENCES t1p(c2))
 ENGINE=InnoDB DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir';
-CREATE TABLE sys_foreign SELECT i.*
-FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN i
-WHERE FOR_NAME LIKE 'test/t%';
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-ID	FOR_COL_NAME	REF_COL_NAME	POS
-test/t1c2	c2	c2	0
-test/t1c3	c3	c2	0
 SELECT i.NAME,i.POS,i.MTYPE,i.PRTYPE,i.LEN
 FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS i
 INNER JOIN sys_tables st ON i.TABLE_ID=st.TABLE_ID;
@@ -40,11 +32,6 @@ INNER JOIN sys_indexes si ON i.INDEX_ID=si.INDEX_ID;
 NAME	POS	NAME
 PRIMARY	0	c1
 c2	0	c2
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-ID	FOR_COL_NAME	REF_COL_NAME	POS
-test/t1c2	c2	c2	0
-test/t1c3	c3	c2	0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -66,8 +53,6 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir/'
 ### files in MYSQL_DATA_DIR/test
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -93,17 +78,10 @@ INNER JOIN sys_indexes si ON i.INDEX_ID=si.INDEX_ID;
 NAME	POS	NAME
 PRIMARY	0	c1
 c2	0	c2
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-ID	FOR_COL_NAME	REF_COL_NAME	POS
-test/t1c2	c2	c2	0
-test/t1c3	c3	c2	0
 ALTER TABLE t1 CHANGE c2 c2 INT AFTER c1;
 ALTER TABLE t1 CHANGE c1 c1 INT FIRST;
 ### files in MYSQL_DATA_DIR/test
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -129,16 +107,9 @@ INNER JOIN sys_indexes si ON i.INDEX_ID=si.INDEX_ID;
 NAME	POS	NAME
 PRIMARY	0	c1
 c2	0	c2
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-ID	FOR_COL_NAME	REF_COL_NAME	POS
-test/t1c2	c2	c2	0
-test/t1c3	c3	c2	0
 ALTER TABLE t1 CHANGE C2 c3 INT;
 ### files in MYSQL_DATA_DIR/test
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -164,16 +135,9 @@ INNER JOIN sys_indexes si ON i.INDEX_ID=si.INDEX_ID;
 NAME	POS	NAME
 PRIMARY	0	c1
 c2	0	c3
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-ID	FOR_COL_NAME	REF_COL_NAME	POS
-test/t1c2	c2	c3	0
-test/t1c3	c3	c2	0
 ALTER TABLE t1 CHANGE c3 C INT;
 ### files in MYSQL_DATA_DIR/test
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -199,16 +163,9 @@ INNER JOIN sys_indexes si ON i.INDEX_ID=si.INDEX_ID;
 NAME	POS	NAME
 PRIMARY	0	c1
 c2	0	C
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-ID	FOR_COL_NAME	REF_COL_NAME	POS
-test/t1c2	c2	C	0
-test/t1c3	c3	c2	0
 ALTER TABLE t1 CHANGE C Cöŀumň_TWO INT;
 ### files in MYSQL_DATA_DIR/test
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -222,11 +179,6 @@ t1p.ibd
 ### files in MYSQL_TMP_DIR/alt_dir/test
 t1.ibd
 t1c.ibd
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-ID	FOR_COL_NAME	REF_COL_NAME	POS
-test/t1c2	c2	Cöŀumň_TWO	0
-test/t1c3	c3	c2	0
 SELECT i.NAME,i.POS,i.MTYPE,i.PRTYPE,i.LEN
 FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS i
 INNER JOIN sys_tables st ON i.TABLE_ID=st.TABLE_ID;
@@ -239,18 +191,11 @@ INNER JOIN sys_indexes si ON i.INDEX_ID=si.INDEX_ID;
 NAME	POS	NAME
 PRIMARY	0	c1
 c2	0	Cöŀumň_TWO
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-ID	FOR_COL_NAME	REF_COL_NAME	POS
-test/t1c2	c2	Cöŀumň_TWO	0
-test/t1c3	c3	c2	0
 ALTER TABLE t1 CHANGE cöĿǖmň_two c3 INT;
 ERROR 42S22: Unknown column 'cöĿǖmň_two' in 't1'
 ALTER TABLE t1 CHANGE cÖĿUMŇ_two c3 INT, RENAME TO t3;
 ### files in MYSQL_DATA_DIR/test
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -297,8 +242,6 @@ ALTER TABLE t3 CHANGE c3
 `1234567890123456789012345678901234567890123456789012345678901234` INT;
 ### files in MYSQL_DATA_DIR/test
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -334,8 +277,6 @@ ALTER TABLE t3 CHANGE
 `倀倁倂倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借倠倡倢倣値倥倦倧倨倩倪倫倬倭倮倯倰倱倲倳倴倵倶倷倸倹债倻值倽倾ä` INT;
 ### files in MYSQL_DATA_DIR/test
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -354,8 +295,6 @@ ALTER TABLE t3 CHANGE
 c3 INT;
 ### files in MYSQL_DATA_DIR/test
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -376,8 +315,6 @@ ERROR HY000: Invalid utf8mb4 character string: '\xF0\x9F\x98\xB2'
 ALTER TABLE t3 RENAME TO t2;
 ### files in MYSQL_DATA_DIR/test
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -413,8 +350,6 @@ NAME	NAME
 test/t1	test/t1
 ### files in MYSQL_DATA_DIR/test
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -440,11 +375,6 @@ INNER JOIN sys_indexes si ON i.INDEX_ID=si.INDEX_ID;
 NAME	POS	NAME
 PRIMARY	0	c1
 c2	0	c3
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-ID	FOR_COL_NAME	REF_COL_NAME	POS
-test/t1c2	c2	c3	0
-test/t1c3	c3	c2	0
 ALTER TABLE t1 DROP INDEX c2;
 ERROR HY000: Cannot drop index 'c2': needed in a foreign key constraint
 ALTER TABLE t1 DROP INDEX c4;
@@ -488,8 +418,6 @@ t1c	CREATE TABLE `t1c` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir/'
 ### files in MYSQL_DATA_DIR/test
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -513,11 +441,6 @@ INNER JOIN sys_indexes si ON i.INDEX_ID=si.INDEX_ID;
 NAME	POS	NAME
 PRIMARY	0	c1
 c2	0	c3
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-ID	FOR_COL_NAME	REF_COL_NAME	POS
-test/t1c2	c2	c3	0
-test/t1c3	c3	c2	0
 CREATE TABLE t1p (c1 INT PRIMARY KEY, c2 INT, INDEX(c2))
 ENGINE=InnoDB DATA DIRECTORY='MYSQL_TMP_DIR/alt_dir';
 ALTER TABLE t1c DROP INDEX C2, DROP INDEX C3;
@@ -528,8 +451,6 @@ SET foreign_key_checks=0;
 ALTER TABLE t1c DROP INDEX C3;
 ### files in MYSQL_DATA_DIR/test
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -568,16 +489,9 @@ INNER JOIN sys_indexes si ON i.INDEX_ID=si.INDEX_ID;
 NAME	POS	NAME
 PRIMARY	0	c1
 c2	0	c3
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-ID	FOR_COL_NAME	REF_COL_NAME	POS
-test/t1c2	c2	c3	0
-test/t1c3	c3	c2	0
 ALTER TABLE t1c DROP FOREIGN KEY t1C3;
 ### files in MYSQL_DATA_DIR/test
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -614,15 +528,9 @@ INNER JOIN sys_indexes si ON i.INDEX_ID=si.INDEX_ID;
 NAME	POS	NAME
 PRIMARY	0	c1
 c2	0	c3
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-ID	FOR_COL_NAME	REF_COL_NAME	POS
-test/t1c2	c2	c3	0
 ALTER TABLE t1c DROP INDEX c2, DROP FOREIGN KEY t1C2;
 ### files in MYSQL_DATA_DIR/test
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -657,14 +565,9 @@ INNER JOIN sys_indexes si ON i.INDEX_ID=si.INDEX_ID;
 NAME	POS	NAME
 PRIMARY	0	c1
 c2	0	c3
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-ID	FOR_COL_NAME	REF_COL_NAME	POS
 ALTER TABLE t1 DROP INDEX c2, CHANGE c3 c2 INT;
 ### files in MYSQL_DATA_DIR/test
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -690,9 +593,6 @@ SELECT si.NAME,i.POS,i.NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS i
 INNER JOIN sys_indexes si ON i.INDEX_ID=si.INDEX_ID;
 NAME	POS	NAME
 PRIMARY	0	c1
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-ID	FOR_COL_NAME	REF_COL_NAME	POS
 CREATE TABLE t1o LIKE t1;
 ALTER TABLE t1 ADD FULLTEXT INDEX (ct),
 CHANGE c1 pk INT, ALTER c2 SET DEFAULT 42, RENAME TO tt,
@@ -714,8 +614,6 @@ FTS_AUX_CONFIG.isl
 FTS_AUX_DELETED.isl
 FTS_AUX_DELETED_CACHE.isl
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -750,9 +648,6 @@ NAME	POS	MTYPE	PRTYPE	LEN
 SELECT si.NAME,i.POS,i.NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS i
 INNER JOIN sys_indexes si ON i.INDEX_ID=si.INDEX_ID;
 NAME	POS	NAME
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-ID	FOR_COL_NAME	REF_COL_NAME	POS
 SHOW CREATE TABLE tt;
 Table	Create Table
 tt	CREATE TABLE `tt` (
@@ -809,8 +704,6 @@ FTS_AUX_CONFIG.ibd
 FTS_AUX_DELETED.ibd
 FTS_AUX_DELETED_CACHE.ibd
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -871,8 +764,6 @@ FTS_AUX_CONFIG.ibd
 FTS_AUX_DELETED.ibd
 FTS_AUX_DELETED_CACHE.ibd
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -927,8 +818,6 @@ FTS_AUX_CONFIG.ibd
 FTS_AUX_DELETED.ibd
 FTS_AUX_DELETED_CACHE.ibd
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -984,8 +873,6 @@ FTS_AUX_CONFIG.ibd
 FTS_AUX_DELETED.ibd
 FTS_AUX_DELETED_CACHE.ibd
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -1050,8 +937,6 @@ FTS_AUX_CONFIG.ibd
 FTS_AUX_DELETED.ibd
 FTS_AUX_DELETED_CACHE.ibd
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -1119,8 +1004,6 @@ FTS_AUX_CONFIG.ibd
 FTS_AUX_DELETED.ibd
 FTS_AUX_DELETED_CACHE.ibd
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -1185,8 +1068,6 @@ FTS_AUX_CONFIG.ibd
 FTS_AUX_DELETED.ibd
 FTS_AUX_DELETED_CACHE.ibd
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -1243,8 +1124,6 @@ FTS_AUX_CONFIG.ibd
 FTS_AUX_DELETED.ibd
 FTS_AUX_DELETED_CACHE.ibd
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -1299,8 +1178,6 @@ FTS_AUX_CONFIG.isl
 FTS_AUX_DELETED.isl
 FTS_AUX_DELETED_CACHE.isl
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -1355,8 +1232,6 @@ FTS_AUX_CONFIG.ibd
 FTS_AUX_DELETED.ibd
 FTS_AUX_DELETED_CACHE.ibd
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -1417,8 +1292,6 @@ FTS_AUX_CONFIG.isl
 FTS_AUX_DELETED.isl
 FTS_AUX_DELETED_CACHE.isl
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -1454,13 +1327,11 @@ t1o	CREATE TABLE `t1o` (
   `ct` text DEFAULT NULL,
   PRIMARY KEY (`foo_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-DROP TABLE t1c, t1p, sys_tables, sys_indexes, sys_foreign;
+DROP TABLE t1c, t1p, sys_tables, sys_indexes;
 CREATE TABLE sys_tables SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES
 WHERE NAME='test/t1o';
 CREATE TABLE sys_indexes SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES i
 INNER JOIN sys_tables st ON i.TABLE_ID=st.TABLE_ID;
-CREATE TABLE sys_foreign SELECT i.*
-FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN i WHERE FOR_NAME='test/t1o';
 SELECT i.NAME,i.POS,i.MTYPE,i.PRTYPE,i.LEN
 FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS i
 INNER JOIN sys_tables st ON i.TABLE_ID=st.TABLE_ID;
@@ -1472,9 +1343,6 @@ SELECT si.NAME,i.POS,i.NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS i
 INNER JOIN sys_indexes si ON i.INDEX_ID=si.INDEX_ID;
 NAME	POS	NAME
 PRIMARY	0	foo_id
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-ID	FOR_COL_NAME	REF_COL_NAME	POS
 ALTER TABLE t1o ADD UNIQUE INDEX FTS_DOC_ID_INDEX(foo_id);
 ### files in MYSQL_DATA_DIR/test
 FTS_AUX_INDEX_1.isl
@@ -1489,8 +1357,6 @@ FTS_AUX_CONFIG.isl
 FTS_AUX_DELETED.isl
 FTS_AUX_DELETED_CACHE.isl
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -1538,8 +1404,6 @@ FTS_AUX_CONFIG.ibd
 FTS_AUX_DELETED.ibd
 FTS_AUX_DELETED_CACHE.ibd
 db.opt
-sys_foreign.frm
-sys_foreign.ibd
 sys_indexes.frm
 sys_indexes.ibd
 sys_tables.frm
@@ -1579,13 +1443,10 @@ NAME	POS	NAME
 PRIMARY	0	FTS_DOC_ID
 FTS_DOC_ID_INDEX	0	FTS_DOC_ID
 ct	0	ct
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-ID	FOR_COL_NAME	REF_COL_NAME	POS
 #
 # Cleanup
 #
-DROP TABLE tt, t1o, sys_tables, sys_indexes, sys_foreign;
+DROP TABLE tt, t1o, sys_tables, sys_indexes;
 ### files in MYSQL_DATA_DIR/test
 db.opt
 ### files in MYSQL_TMP_DIR/alt_dir/test

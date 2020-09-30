@@ -169,6 +169,36 @@ create table t2 (id int references t1(id)) select id from t1;
 flush tables;
 drop table t2, t1;
 
+create database D;
+create table D.T1(id int primary key);
+create table t2(id int primary key, f1 int references D.T1(id));
+select * from D.T1;
+drop table t2;
+flush tables;
+drop table D.T1;
+drop database D;
+
+--echo # Check duplicate id
+create or replace table t1 (id int primary key) engine innodb;
+--error ER_DUP_CONSTRAINT_NAME
+create or replace table t2 (id2 int,
+  constraint c foreign key (id2) references t1 (id),
+  constraint c foreign key (id2) references t1 (id));
+
+create or replace table t2 (id2 int, constraint c foreign key (id2) references t1 (id));
+--error ER_DUP_CONSTRAINT_NAME
+alter table t2 add constraint c foreign key (id2) references t1 (id);
+--error ER_DUP_CONSTRAINT_NAME
+create or replace table t3 (id2 int, constraint c foreign key (id2) references t1 (id));
+create or replace table t3 (id2 int, constraint C foreign key (id2) references t1 (id));
+create or replace table t3 (id2 int);
+--error ER_DUP_CONSTRAINT_NAME
+alter table t2 add constraint c foreign key (id2) references t1 (id);
+alter table t2 add constraint fk_t3 foreign key (id2) references t1 (id);
+--error ER_DUP_CONSTRAINT_NAME
+alter table t3 add foreign key (id2) references t1 (id);
+drop tables t3, t2, t1;
+
 --echo # Check rename column, lock tables
 create or replace table t1 (id int primary key);
 create or replace table t2 (id int primary key);
@@ -306,6 +336,14 @@ alter table t2 drop foreign key fk;
 drop tables t1, t2;
 
 --echo # Check self-references
+--error ER_WRONG_FK_DEF
+create or replace table t1 (f1 integer primary key references t1(f1));
+--error ER_WRONG_FK_DEF
+create or replace table t1 (f1 integer primary key, foreign key (f1) references t1(f1));
+create or replace table t1 (f1 integer primary key);
+--error ER_WRONG_FK_DEF
+alter table t1 add constraint c1 foreign key (f1) references t1(f1);
+
 create or replace table t1 (id int primary key, id2 int references t1 (id));
 flush tables t1;
 show create table t1;

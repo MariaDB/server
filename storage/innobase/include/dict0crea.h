@@ -113,15 +113,6 @@ dict_create_index_tree_in_mem(
 	dict_index_t*	index,		/*!< in/out: index */
 	const trx_t*	trx);		/*!< in: InnoDB transaction handle */
 
-/****************************************************************//**
-Creates the foreign key constraints system tables inside InnoDB
-at server bootstrap or server start if they are not found or are
-not of the right form.
-@return DB_SUCCESS or error code */
-dberr_t
-dict_create_or_check_foreign_constraint_tables(void);
-/*================================================*/
-
 /********************************************************************//**
 Generate a foreign key constraint name when it was not named by the user.
 A generated constraint has a name of the format dbname/tablename_ibfk_NUMBER,
@@ -135,24 +126,6 @@ dict_create_add_foreign_id(
 					generation; incremented if used */
 	const char*	name,		/*!< in: table name */
 	dict_foreign_t*	foreign);	/*!< in/out: foreign key */
-
-/** Adds the given set of foreign key objects to the dictionary tables
-in the database. This function does not modify the dictionary cache. The
-caller must ensure that all foreign key objects contain a valid constraint
-name in foreign->id.
-@param[in]	local_fk_set	set of foreign key objects, to be added to
-the dictionary tables
-@param[in]	table		table to which the foreign key objects in
-local_fk_set belong to
-@param[in,out]	trx		transaction
-@return error code or DB_SUCCESS */
-dberr_t
-dict_create_add_foreigns_to_dictionary(
-/*===================================*/
-	const dict_foreign_set&	local_fk_set,
-	const dict_table_t*	table,
-	trx_t*			trx)
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Check if a foreign constraint is on columns server as base columns
 of any stored column. This is to prevent creating SET NULL or CASCADE
@@ -197,17 +170,6 @@ dict_replace_tablespace_in_dictionary(
 	ulint		flags,
 	const char*	path,
 	trx_t*		trx);
-
-/********************************************************************//**
-Add a foreign key definition to the data dictionary tables.
-@return error code or DB_SUCCESS */
-dberr_t
-dict_create_add_foreign_to_dictionary(
-/*==================================*/
-	const char*		name,	/*!< in: table name */
-	const dict_foreign_t*	foreign,/*!< in: foreign key */
-	trx_t*			trx)	/*!< in/out: dictionary transaction */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /********************************************************************//**
 Construct foreign key constraint defintion from data dictionary information.

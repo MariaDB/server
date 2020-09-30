@@ -1598,12 +1598,12 @@ disconnect b;
 
 set foreign_key_checks=0;
 create table t2 (a int primary key, b int, foreign key (b) references t1(a)) engine = innodb;
-# Embedded server doesn't chdir to data directory
---replace_result $MYSQLTEST_VARDIR . master-data/ ''
---error ER_CANT_CREATE_TABLE
 create table t1(a char(10) primary key, b varchar(20)) engine = innodb;
 set foreign_key_checks=1;
-drop table t2;
+insert into t1 values (1, 1);
+--error ER_NO_REFERENCED_ROW_2
+insert into t2 values (1, 1);
+drop tables t2, t1;
 
 # test that FKs between different charsets are not accepted in CREATE even
 # when f_k_c is 0
@@ -1617,15 +1617,6 @@ create table t2 (a varchar(10), foreign key (a) references t1(a)) engine = innod
 set foreign_key_checks=1;
 drop table t1;
 
-# test that invalid datatype conversions with ALTER are not allowed
-
-set foreign_key_checks=0;
-create table t2 (a varchar(10), foreign key (a) references t1(a)) engine = innodb;
-create table t1(a varchar(10) primary key) engine = innodb;
-alter table t1 modify column a int;
-set foreign_key_checks=1;
-drop table t2,t1;
-
 # test that charset conversions with ALTER are allowed when f_k_c is 0
 
 set foreign_key_checks=0;
@@ -1634,19 +1625,6 @@ create table t1(a varchar(10) primary key) engine = innodb DEFAULT CHARSET=latin
 alter table t1 convert to character set utf8;
 set foreign_key_checks=1;
 drop table t2,t1;
-
-# test that RENAME does not allow invalid charsets when f_k_c is 0
-
-call mtr.add_suppression("\\[Warning\\] InnoDB: In ALTER TABLE `test`.`t1` has or is referenced in foreign key constraints which are not compatible with the new table definition.");
-set foreign_key_checks=0;
-create table t2 (a varchar(10), foreign key (a) references t1(a)) engine = innodb DEFAULT CHARSET=latin1;
-create table t3(a varchar(10) primary key) engine = innodb DEFAULT CHARSET=utf8;
-# Embedded server doesn't chdir to data directory
---replace_result $MYSQLD_DATADIR ./ master-data/ ''
--- error 1025
-rename table t3 to t1;
-set foreign_key_checks=1;
-drop table t2,t3;
 
 # test that foreign key errors are reported correctly (Bug #15550)
 

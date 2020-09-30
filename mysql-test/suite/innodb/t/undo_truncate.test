@@ -84,7 +84,7 @@ drop PROCEDURE populate_t2;
 # Truncation will normally not occur with innodb_page_size=64k,
 # and occasionally not with innodb_page_size=32k,
 # because the undo log will not grow enough.
-if (`select @@innodb_page_size IN (4096,8192,16384)`)
+if (`select @@innodb_page_size IN (8192,16384)`)
 {
   let $wait_condition = (SELECT variable_value!=@trunc_start
                          FROM information_schema.global_status
@@ -109,7 +109,7 @@ EOF
 if ($size1 == $size2)
 {
   # This fails for innodb_page_size=64k, occasionally also for 32k.
-  if (`select @@innodb_page_size IN (4096,8192,16384)`)
+  if (`select @@innodb_page_size IN (8192,16384)`)
   {
     echo Truncation did not happen: $size1;
   }
