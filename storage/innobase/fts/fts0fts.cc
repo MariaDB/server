@@ -5723,7 +5723,7 @@ fts parent table id and index id.
 				index id */
 static void fil_get_fts_spaces(fts_space_set_t& fts_space_set)
 {
-  mutex_enter(&fil_system.mutex);
+  mysql_mutex_lock(&fil_system.mutex);
 
   for (fil_space_t *space= UT_LIST_GET_FIRST(fil_system.space_list);
        space;
@@ -5737,7 +5737,7 @@ static void fil_get_fts_spaces(fts_space_set_t& fts_space_set)
       fts_space_set.insert(std::make_pair(table_id, index_id));
   }
 
-  mutex_exit(&fil_system.mutex);
+  mysql_mutex_unlock(&fil_system.mutex);
 }
 
 /** Check whether the parent table id and index id of fts auxilary

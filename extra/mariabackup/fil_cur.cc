@@ -90,7 +90,7 @@ xb_fil_node_close_file(
 {
 	ibool	ret;
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 
 	ut_ad(node);
 	ut_a(node->n_pending == 0);
@@ -99,7 +99,7 @@ xb_fil_node_close_file(
 
 	if (!node->is_open()) {
 
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 
 		return;
 	}
@@ -121,7 +121,7 @@ xb_fil_node_close_file(
 		UT_LIST_REMOVE(fil_system.LRU, node);
 	}
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 }
 
 /************************************************************************
@@ -180,7 +180,7 @@ xb_fil_cur_open(
 
 			return(XB_FIL_CUR_SKIP);
 		}
-		mutex_enter(&fil_system.mutex);
+		mysql_mutex_lock(&fil_system.mutex);
 
 		fil_system.n_open++;
 
@@ -191,7 +191,7 @@ xb_fil_cur_open(
 			UT_LIST_ADD_FIRST(fil_system.LRU, node);
 		}
 
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 	}
 
 	ut_ad(node->is_open());
@@ -251,12 +251,12 @@ xb_fil_cur_open(
 	    && os_file_read(IORequestRead,
 			    node->handle, cursor->buf, 0,
 			    cursor->page_size) == DB_SUCCESS) {
-		mutex_enter(&fil_system.mutex);
+		mysql_mutex_lock(&fil_system.mutex);
 		if (!node->space->crypt_data) {
 			node->space->crypt_data = fil_space_read_crypt_data(
 				node->space->zip_size(), cursor->buf);
 		}
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 	}
 
 	cursor->space_size = (ulint)(cursor->statinfo.st_size

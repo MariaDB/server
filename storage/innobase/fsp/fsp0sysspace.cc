@@ -910,9 +910,9 @@ SysTablespace::open_or_create(
 				name(), SRV_TMP_SPACE_ID, flags(),
 				FIL_TYPE_TEMPORARY, NULL);
 
-			mutex_enter(&fil_system.mutex);
+			mysql_mutex_lock(&fil_system.mutex);
 			fil_system.temp_space = space;
-			mutex_exit(&fil_system.mutex);
+			mysql_mutex_unlock(&fil_system.mutex);
 			if (!space) {
 				return DB_ERROR;
 			}
@@ -925,9 +925,9 @@ SysTablespace::open_or_create(
 				name(), TRX_SYS_SPACE, it->flags(),
 				FIL_TYPE_TABLESPACE, NULL);
 
-			mutex_enter(&fil_system.mutex);
+			mysql_mutex_lock(&fil_system.mutex);
 			fil_system.sys_space = space;
-			mutex_exit(&fil_system.mutex);
+			mysql_mutex_unlock(&fil_system.mutex);
 			if (!space) {
 				return DB_ERROR;
 			}

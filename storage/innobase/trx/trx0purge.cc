@@ -702,9 +702,9 @@ not_free:
 		mtr.set_named_space(purge_sys.truncate.current);
 		mtr.trim_pages(page_id_t(space.id, size));
 		fsp_header_init(purge_sys.truncate.current, size, &mtr);
-		mutex_enter(&fil_system.mutex);
+		mysql_mutex_lock(&fil_system.mutex);
 		purge_sys.truncate.current->size = file->size = size;
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 
 		buf_block_t* sys_header = trx_sysf_get(&mtr);
 
@@ -780,12 +780,12 @@ not_free:
 
 		/* In MDEV-8319 (10.5) we will PUNCH_HOLE the garbage
 		(with write-ahead logging). */
-		mutex_enter(&fil_system.mutex);
+		mysql_mutex_lock(&fil_system.mutex);
 		ut_ad(&space == purge_sys.truncate.current);
 		ut_ad(space.is_being_truncated);
 		purge_sys.truncate.current->set_stopping(false);
 		purge_sys.truncate.current->is_being_truncated = false;
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 
 		if (purge_sys.rseg != NULL
 		    && purge_sys.rseg->last_page_no == FIL_NULL) {

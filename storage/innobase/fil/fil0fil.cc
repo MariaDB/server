@@ -253,7 +253,7 @@ fil_space_get_by_id(
 	fil_space_t*	space;
 
 	ut_ad(fil_system.is_initialised());
-	ut_ad(mutex_own(&fil_system.mutex));
+	mysql_mutex_assert_owner(&fil_system.mutex);
 
 	HASH_SEARCH(hash, &fil_system.spaces, id,
 		    fil_space_t*, space,
@@ -276,9 +276,9 @@ fil_space_t*
 fil_space_get(
 	ulint	id)
 {
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 	fil_space_t*	space = fil_space_get_by_id(id);
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 	return(space);
 }
 
@@ -291,7 +291,7 @@ fil_space_is_flushed(
 /*=================*/
 	fil_space_t*	space)	/*!< in: space */
 {
-	ut_ad(mutex_own(&fil_system.mutex));
+	mysql_mutex_assert_owner(&fil_system.mutex);
 
 	for (const fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
 	     node != NULL;
@@ -382,13 +382,13 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 
 	node->atomic_write = atomic_write;
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 	this->size += size;
 	UT_LIST_ADD_LAST(chain, node);
 	if (node->is_open()) {
 		fil_system.n_open++;
 	}
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 
 	return node;
 }
@@ -402,7 +402,7 @@ static bool fil_node_open_file(fil_node_t* node)
 	bool		read_only_mode;
 	fil_space_t*	space = node->space;
 
-	ut_ad(mutex_own(&fil_system.mutex));
+	mysql_mutex_assert_owner(&fil_system.mutex);
 	ut_a(node->n_pending == 0);
 	ut_a(!node->is_open());
 
@@ -500,7 +500,7 @@ pfs_os_file_t fil_node_t::detach()
 
 void fil_node_t::prepare_to_close_or_detach()
 {
-  ut_ad(mutex_own(&fil_system.mutex));
+  mysql_mutex_assert_owner(&fil_system.mutex);
   ut_a(is_open());
   ut_a(n_pending == 0);
   ut_a(n_pending_flushes == 0);
@@ -535,7 +535,7 @@ fil_try_to_close_file_in_LRU(
 {
 	fil_node_t*	node;
 
-	ut_ad(mutex_own(&fil_system.mutex));
+	mysql_mutex_assert_owner(&fil_system.mutex);
 
 	if (print_info) {
 		ib::info() << "fil_sys open file LRU len "
@@ -583,7 +583,7 @@ fil_try_to_close_file_in_LRU(
 @param[in]	metadata	whether to update file system metadata */
 static void fil_flush_low(fil_space_t* space, bool metadata = false)
 {
-	ut_ad(mutex_own(&fil_system.mutex));
+	mysql_mutex_assert_owner(&fil_system.mutex);
 	ut_ad(!space->is_stopping());
 
 	if (srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC) {
@@ -631,11 +631,11 @@ static void fil_flush_low(fil_space_t* space, bool metadata = false)
 		node->n_pending_flushes++;
 		node->needs_flush = false;
 
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 
 		os_file_flush(node->handle);
 
-		mutex_enter(&fil_system.mutex);
+		mysql_mutex_lock(&fil_system.mutex);
 
 		node->n_pending_flushes--;
 #ifdef _WIN32
@@ -670,7 +670,7 @@ fil_space_extend_must_retry(
 	ulint		size,
 	bool*		success)
 {
-	ut_ad(mutex_own(&fil_system.mutex));
+	mysql_mutex_assert_owner(&fil_system.mutex);
 	ut_ad(UT_LIST_GET_LAST(space->chain) == node);
 	ut_ad(size >= FIL_IBD_FILE_INITIAL_SIZE);
 
@@ -686,7 +686,7 @@ fil_space_extend_must_retry(
 		for it to finish.
 		It'd have been better to use event driven mechanism but
 		the entire module is peppered with polling stuff. */
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 		os_thread_sleep(100000);
 		return(true);
 	}
@@ -702,7 +702,7 @@ fil_space_extend_must_retry(
 	/* At this point it is safe to release fil_system.mutex. No
 	other thread can rename, delete, close or extend the file because
 	we have set the node->being_extended flag. */
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 
 	ut_ad(size >= space->size);
 
@@ -734,7 +734,7 @@ fil_space_extend_must_retry(
 		last_page_no = ulint(fsize / page_size)
 			+ file_start_page_no;
 	}
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 
 	ut_a(node->being_extended);
 	node->being_extended = false;
@@ -780,7 +780,7 @@ fil_mutex_enter_and_prepare_for_io(
 	ulint	space_id)	/*!< in: space id */
 {
 	for (ulint count = 0;;) {
-		mutex_enter(&fil_system.mutex);
+		mysql_mutex_lock(&fil_system.mutex);
 
 		fil_space_t*	space = fil_space_get_by_id(space_id);
 
@@ -818,14 +818,14 @@ fil_mutex_enter_and_prepare_for_io(
 						<< ") files stay open)";
 					break;
 				} else {
-					mutex_exit(&fil_system.mutex);
+					mysql_mutex_unlock(&fil_system.mutex);
 					os_thread_sleep(20000);
 					/* Flush tablespaces so that we can
 					close modified files in the LRU list */
 					fil_flush_file_spaces();
 
 					count++;
-					mutex_enter(&fil_system.mutex);
+					mysql_mutex_lock(&fil_system.mutex);
 					continue;
 				}
 			}
@@ -840,7 +840,7 @@ fil_mutex_enter_and_prepare_for_io(
 				continue;
 			}
 
-			ut_ad(mutex_own(&fil_system.mutex));
+			mysql_mutex_assert_owner(&fil_system.mutex);
 			/* Crash recovery requires the file extension
 			to succeed. */
 			ut_a(success);
@@ -891,14 +891,14 @@ fil_space_extend(
 			 space, UT_LIST_GET_LAST(space->chain), size,
 			 &success));
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 	return(success);
 }
 
 /** Prepare to free a file from fil_system. */
 pfs_os_file_t fil_node_t::close_to_free(bool detach_handle)
 {
-  ut_ad(mutex_own(&fil_system.mutex));
+  mysql_mutex_assert_owner(&fil_system.mutex);
   ut_a(magic_n == FIL_NODE_MAGIC_N);
   ut_a(!being_extended);
 
@@ -913,9 +913,9 @@ pfs_os_file_t fil_node_t::close_to_free(bool detach_handle)
 
     if (n_pending || n_pending_flushes)
     {
-      mutex_exit(&fil_system.mutex);
+      mysql_mutex_unlock(&fil_system.mutex);
       os_thread_sleep(100);
-      mutex_enter(&fil_system.mutex);
+      mysql_mutex_lock(&fil_system.mutex);
       continue;
     }
 
@@ -944,7 +944,7 @@ pfs_os_file_t fil_node_t::close_to_free(bool detach_handle)
 std::vector<pfs_os_file_t> fil_system_t::detach(fil_space_t *space,
                                                 bool detach_handle)
 {
-  ut_ad(mutex_own(&fil_system.mutex));
+  mysql_mutex_assert_owner(&fil_system.mutex);
   HASH_DELETE(fil_space_t, hash, &spaces, space->id, space);
 
   if (space->is_in_unflushed_spaces)
@@ -1041,14 +1041,14 @@ fil_space_free(
 {
 	ut_ad(id != TRX_SYS_SPACE);
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 	fil_space_t*	space = fil_space_get_by_id(id);
 
 	if (space != NULL) {
 		fil_system.detach(space);
 	}
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 
 	if (space != NULL) {
 		if (x_latched) {
@@ -1103,7 +1103,7 @@ fil_space_create(
 
 	DBUG_EXECUTE_IF("fil_space_create_failure", return(NULL););
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 
 	space = fil_space_get_by_id(id);
 
@@ -1112,7 +1112,7 @@ fil_space_create(
 			<< "' with id " << id
 			<< " to the tablespace memory cache, but tablespace '"
 			<< space->name << "' already exists in the cache!";
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 		return(NULL);
 	}
 
@@ -1188,7 +1188,7 @@ fil_space_create(
 		space->is_in_rotation_list = true;
 	}
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 
 	if (rotate) {
 		fil_crypt_threads_signal();
@@ -1210,7 +1210,7 @@ fil_assign_new_space_id(
 	ulint	id;
 	bool	success;
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 
 	id = *space_id;
 
@@ -1242,7 +1242,7 @@ fil_assign_new_space_id(
 		*space_id = ULINT_UNDEFINED;
 	}
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 
 	return(success);
 }
@@ -1253,7 +1253,7 @@ fil_assign_new_space_id(
 @retval	NULL	if the tablespace does not exist or cannot be read */
 fil_space_t* fil_system_t::read_page0(ulint id)
 {
-	mutex_exit(&mutex);
+	mysql_mutex_unlock(&mutex);
 
 	ut_ad(id != 0);
 
@@ -1308,7 +1308,7 @@ fil_space_get_space(
 void fil_space_set_recv_size_and_flags(ulint id, ulint size, uint32_t flags)
 {
   ut_ad(id < SRV_SPACE_ID_UPPER_BOUND);
-  mutex_enter(&fil_system.mutex);
+  mysql_mutex_lock(&fil_system.mutex);
   if (fil_space_t *space= fil_space_get_space(id))
   {
     if (size)
@@ -1316,7 +1316,7 @@ void fil_space_set_recv_size_and_flags(ulint id, ulint size, uint32_t flags)
     if (flags != FSP_FLAGS_FCRC32_MASK_MARKER)
       space->flags= flags;
   }
-  mutex_exit(&fil_system.mutex);
+  mysql_mutex_unlock(&fil_system.mutex);
 }
 
 /*******************************************************************//**
@@ -1332,13 +1332,13 @@ fil_space_get_size(
 	ulint		size;
 
 	ut_ad(fil_system.is_initialised());
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 
 	space = fil_space_get_space(id);
 
 	size = space ? space->size : 0;
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 
 	return(size);
 }
@@ -1349,7 +1349,7 @@ bool fil_space_t::open()
 {
 	ut_ad(fil_system.is_initialised());
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 	ut_ad(this == fil_system.temp_space
 	      || srv_operation == SRV_OPERATION_BACKUP
 	      || srv_operation == SRV_OPERATION_RESTORE
@@ -1359,12 +1359,12 @@ bool fil_space_t::open()
 	     node != NULL;
 	     node = UT_LIST_GET_NEXT(chain, node)) {
 		if (!node->is_open() && !fil_node_open_file(node)) {
-			mutex_exit(&fil_system.mutex);
+			mysql_mutex_unlock(&fil_system.mutex);
 			return false;
 		}
 	}
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 	return true;
 }
 
@@ -1375,7 +1375,7 @@ void fil_space_t::close()
 		return;
 	}
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 	ut_ad(this == fil_system.temp_space
 	      || srv_operation == SRV_OPERATION_BACKUP
 	      || srv_operation == SRV_OPERATION_RESTORE
@@ -1389,7 +1389,7 @@ void fil_space_t::close()
 		}
 	}
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 }
 
 void fil_system_t::create(ulint hash_size)
@@ -1407,7 +1407,7 @@ void fil_system_t::create(ulint hash_size)
 
 	ut_ad(hash_size > 0);
 
-	mutex_create(LATCH_ID_FIL_SYSTEM, &mutex);
+	mysql_mutex_init(fil_system_mutex_key, &mutex, nullptr);
 
 	spaces.create(hash_size);
 
@@ -1487,7 +1487,7 @@ void fil_system_t::close()
   {
     m_initialised= false;
     spaces.free();
-    mutex_free(&mutex);
+    mysql_mutex_destroy(&mutex);
     fil_space_crypt_cleanup();
   }
 
@@ -1509,7 +1509,7 @@ fil_open_system_tablespace_files()
 {
 	fil_space_t*	space;
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 
 	for (space = UT_LIST_GET_FIRST(fil_system.space_list);
 	     space != NULL;
@@ -1557,7 +1557,7 @@ fil_open_system_tablespace_files()
 		}
 	}
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 }
 
 /** Close all tablespace files at shutdown */
@@ -1575,7 +1575,7 @@ void fil_close_all_files()
 	      || UT_LIST_GET_LEN(fil_system.named_spaces) == 0);
 	fil_flush_file_spaces();
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 
 	for (space = UT_LIST_GET_FIRST(fil_system.space_list); space; ) {
 		fil_node_t*	node;
@@ -1591,9 +1591,9 @@ next:
 			}
 
 			for (ulint count = 10000; count--; ) {
-				mutex_exit(&fil_system.mutex);
+				mysql_mutex_unlock(&fil_system.mutex);
 				os_thread_sleep(100);
-				mutex_enter(&fil_system.mutex);
+				mysql_mutex_lock(&fil_system.mutex);
 				if (!node->is_open()) {
 					goto next;
 				}
@@ -1613,10 +1613,12 @@ next:
 
 		space = UT_LIST_GET_NEXT(space_list, space);
 		fil_system.detach(prev_space);
+		mysql_mutex_unlock(&fil_system.mutex);
 		fil_space_free_low(prev_space);
+		mysql_mutex_lock(&fil_system.mutex);
 	}
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 
 	ut_ad(srv_fast_shutdown == 2
 	      || !srv_was_started
@@ -1635,14 +1637,14 @@ fil_set_max_space_id_if_bigger(
 		ib::fatal() << "Max tablespace id is too high, " << max_id;
 	}
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 
 	if (fil_system.max_assigned_id < max_id) {
 
 		fil_system.max_assigned_id = max_id;
 	}
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 }
 
 /** Write the flushed LSN to the page header of the first page in the
@@ -1698,7 +1700,7 @@ fil_space_t* fil_space_acquire_low(ulint id, bool silent)
 {
 	fil_space_t*	space;
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 
 	space = fil_space_get_by_id(id);
 
@@ -1711,7 +1713,7 @@ fil_space_t* fil_space_acquire_low(ulint id, bool silent)
 		space = NULL;
 	}
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 
 	return(space);
 }
@@ -1724,7 +1726,7 @@ when it could be dropped concurrently.
 fil_space_t*
 fil_space_acquire_for_io(ulint id)
 {
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 
 	fil_space_t* space = fil_space_get_by_id(id);
 
@@ -1732,7 +1734,7 @@ fil_space_acquire_for_io(ulint id)
 		space->acquire_for_io();
 	}
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 
 	return(space);
 }
@@ -1934,7 +1936,7 @@ fil_op_replay_rename(
 @return 0 if no operations else count + 1. */
 static ulint fil_check_pending_ops(const fil_space_t* space, ulint count)
 {
-	ut_ad(mutex_own(&fil_system.mutex));
+	mysql_mutex_assert_owner(&fil_system.mutex);
 
 	if (!space) {
 		return 0;
@@ -1967,7 +1969,7 @@ fil_check_pending_io(
 	fil_node_t**	node,		/*!< out: Node in space list */
 	ulint		count)		/*!< in: number of attempts so far */
 {
-	ut_ad(mutex_own(&fil_system.mutex));
+	mysql_mutex_assert_owner(&fil_system.mutex);
 	ut_ad(!space->referenced());
 
 	/* The following code must change when InnoDB supports
@@ -2011,14 +2013,14 @@ fil_check_pending_operations(
 	ulint		count = 0;
 
 	ut_a(!is_system_tablespace(id));
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 	fil_space_t* sp = fil_space_get_by_id(id);
 
 	if (sp) {
 		if (sp->crypt_data && sp->acquire()) {
-			mutex_exit(&fil_system.mutex);
+			mysql_mutex_unlock(&fil_system.mutex);
 			fil_space_crypt_close_tablespace(sp);
-			mutex_enter(&fil_system.mutex);
+			mysql_mutex_lock(&fil_system.mutex);
 			sp->release();
 		}
 		sp->set_stopping(true);
@@ -2029,7 +2031,7 @@ fil_check_pending_operations(
 	do {
 		count = fil_check_pending_ops(sp, count);
 
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 
 		if (count) {
 			os_thread_sleep(20000); // Wait 0.02 seconds
@@ -2037,7 +2039,7 @@ fil_check_pending_operations(
 			return nullptr;
 		}
 
-		mutex_enter(&fil_system.mutex);
+		mysql_mutex_lock(&fil_system.mutex);
 
 		sp = fil_space_get_by_id(id);
 	} while (count);
@@ -2057,18 +2059,18 @@ fil_check_pending_operations(
 			*path = mem_strdup(node->name);
 		}
 
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 
 		if (count == 0) {
 			break;
 		}
 
 		os_thread_sleep(20000);         // Wait 0.02 seconds
-		mutex_enter(&fil_system.mutex);
+		mysql_mutex_lock(&fil_system.mutex);
 		sp = fil_space_get_by_id(id);
 
 		if (!sp) {
-			mutex_exit(&fil_system.mutex);
+			mysql_mutex_unlock(&fil_system.mutex);
 			break;
 		}
 	}
@@ -2133,9 +2135,9 @@ bool fil_table_accessible(const dict_table_t* table)
 		return(false);
 	}
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 	bool accessible = table->space && !table->space->is_stopping();
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 	ut_ad(accessible || dict_table_is_file_per_table(table));
 	return accessible;
 }
@@ -2218,7 +2220,7 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists,
 		RemoteDatafile::delete_link_file(space->name);
 	}
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 
 	/* Double check the sanity of pending ops after reacquiring
 	the fil_system::mutex. */
@@ -2231,7 +2233,7 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists,
 		if (detached_handles) {
 			*detached_handles = std::move(handles);
 		}
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 
 		mysql_mutex_lock(&log_sys.mutex);
 
@@ -2253,7 +2255,7 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists,
 			err = DB_IO_ERROR;
 		}
 	} else {
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 		err = DB_TABLESPACE_NOT_FOUND;
 	}
 
@@ -2423,7 +2425,7 @@ fil_rename_tablespace_check(
 	a possibly existing tablespace that is associated with the
 	new tablespace file. */
 retry:
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
 	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
 		ulint id = space->id;
@@ -2433,7 +2435,7 @@ retry:
 			       UT_LIST_GET_FIRST(space->chain)->name)) {
 			ib::info() << "TRUNCATE rollback: " << id
 				<< "," << new_path;
-			mutex_exit(&fil_system.mutex);
+			mysql_mutex_unlock(&fil_system.mutex);
 			dberr_t err = fil_delete_tablespace(id);
 			if (err != DB_SUCCESS) {
 				return err;
@@ -2441,7 +2443,7 @@ retry:
 			goto retry;
 		}
 	}
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 	fil_delete_file(new_path);
 
 	return(DB_SUCCESS);
@@ -2488,7 +2490,7 @@ fil_rename_tablespace(
 
 	ut_ad(strchr(new_name, '/') != NULL);
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 
 	space = fil_space_get_by_id(id);
 
@@ -2497,7 +2499,7 @@ fil_rename_tablespace(
 			<< " in the tablespace memory cache, though the file '"
 			<< old_path
 			<< "' in a rename operation should have that id.";
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 		return(false);
 	}
 
@@ -2507,7 +2509,7 @@ fil_rename_tablespace(
 	node = UT_LIST_GET_FIRST(space->chain);
 	ut_a(space->acquire());
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 
 	char*	new_file_name = new_path_in == NULL
 		? fil_make_filepath(NULL, new_name, IBD, false)
@@ -2526,7 +2528,7 @@ fil_rename_tablespace(
 
 	/* log_sys.mutex is above fil_system.mutex in the latching order */
 	mysql_mutex_assert_owner(&log_sys.mutex);
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 	space->release();
 	ut_ad(space->name == old_space_name);
 	ut_ad(node->name == old_file_name);
@@ -2560,7 +2562,7 @@ skip_second_rename:
 		old_space_name = new_space_name;
 	}
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 
 	ut_free(old_file_name);
 	ut_free(old_space_name);
@@ -2824,7 +2826,7 @@ fil_ibd_open(
 	const char*		path_in,
 	dberr_t*		err)
 {
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 	if (fil_space_t* space = fil_space_get_by_id(id)) {
 		if (strcmp(space->name, tablename.m_name)) {
 			table_name_t space_name;
@@ -2837,7 +2839,7 @@ fil_ibd_open(
 			if (err) *err = DB_TABLESPACE_EXISTS;
 		} else if (err) *err = DB_SUCCESS;
 
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 
 		if (space && validate && !srv_read_only_mode) {
 			fsp_flags_try_adjust(space,
@@ -2846,7 +2848,7 @@ fil_ibd_open(
 
 		return space;
 	}
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 
 	bool		dict_filepath_same_as_default = false;
 	bool		link_file_found = false;
@@ -3172,7 +3174,7 @@ fil_space_read_name_and_filepath(
 	*name = NULL;
 	*filepath = NULL;
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 
 	fil_space_t*	space = fil_space_get_by_id(space_id);
 
@@ -3185,7 +3187,7 @@ fil_space_read_name_and_filepath(
 		success = true;
 	}
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 
 	return(success);
 }
@@ -3365,9 +3367,9 @@ fil_ibd_load(
 {
 	/* If the a space is already in the file system cache with this
 	space ID, then there is nothing to do. */
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 	space = fil_space_get_by_id(space_id);
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 
 	if (space != NULL) {
 		/* Compare the filename we are trying to open with the
@@ -3593,7 +3595,7 @@ fil_space_for_table_exists_in_mem(
 {
 	const ulint	expected_flags = dict_tf_to_fsp_flags(table_flags);
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 	if (fil_space_t* space = fil_space_get_by_id(id)) {
 		ulint tf = expected_flags & ~FSP_FLAGS_MEM_MASK;
 		ulint sf = space->flags & ~FSP_FLAGS_MEM_MASK;
@@ -3618,7 +3620,7 @@ fil_space_for_table_exists_in_mem(
 		FSP_SPACE_FLAGS will not be written back here. */
 		space->flags = (space->flags & ~FSP_FLAGS_MEM_MASK)
 			| (expected_flags & FSP_FLAGS_MEM_MASK);
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 		if (!srv_read_only_mode) {
 			fsp_flags_try_adjust(space, expected_flags
 					     & ~FSP_FLAGS_MEM_MASK);
@@ -3627,7 +3629,7 @@ fil_space_for_table_exists_in_mem(
 	}
 
 func_exit:
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 	return NULL;
 }
 
@@ -3649,7 +3651,7 @@ fil_node_prepare_for_io(
 	fil_space_t*	space)	/*!< in: space */
 {
 	ut_ad(node && space);
-	ut_ad(mutex_own(&fil_system.mutex));
+	mysql_mutex_assert_owner(&fil_system.mutex);
 
 	if (fil_system.n_open > srv_max_n_open_files + 5) {
 		ib::warn() << "Open files " << fil_system.n_open
@@ -3773,7 +3775,7 @@ fil_io(
 		&& space->is_stopping()
 		&& !space->is_being_truncated)) {
 
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 		if (!ignore) {
 			ib::error()
 				<< "Trying to do I/O to a tablespace which"
@@ -3793,7 +3795,7 @@ fil_io(
 
 		if (node == NULL) {
 			if (ignore) {
-				mutex_exit(&fil_system.mutex);
+				mysql_mutex_unlock(&fil_system.mutex);
 				return {DB_ERROR, nullptr};
 			}
 
@@ -3822,7 +3824,7 @@ fil_io(
 	/* Open file if closed */
 	if (UNIV_UNLIKELY(!fil_node_prepare_for_io(node, space))) {
 		ut_ad(fil_is_user_tablespace_id(space->id));
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 
 		if (!ignore) {
 			ib::error()
@@ -3846,7 +3848,7 @@ fil_io(
 			should return with DB_ERROR and let caller decide
 			what to do. */
 			node->complete_io(type.is_write());
-			mutex_exit(&fil_system.mutex);
+			mysql_mutex_unlock(&fil_system.mutex);
 			return {DB_ERROR, nullptr};
 		}
 
@@ -3857,7 +3859,7 @@ fil_io(
 
 	space->acquire_for_io();
 	/* Now we have made the changes in the data structures of fil_system */
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 
 	if (!zip_size) zip_size = srv_page_size;
 
@@ -3903,9 +3905,9 @@ fil_io(
 
 	ut_a(type.is_dblwr_recover() || err == DB_SUCCESS);
 	if (sync) {
-		mutex_enter(&fil_system.mutex);
+		mysql_mutex_lock(&fil_system.mutex);
 		node->complete_io(type.is_write());
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 		ut_ad(fil_validate_skip());
 	}
 	return {err, node};
@@ -3936,9 +3938,9 @@ void fil_aio_callback(os_aio_userdata_t *data)
     ut_ad(data->type.is_write());
     ut_ad(!srv_read_only_mode);
 write_completed:
-    mutex_enter(&fil_system.mutex);
+    mysql_mutex_lock(&fil_system.mutex);
     node->complete_io(true);
-    mutex_exit(&fil_system.mutex);
+    mysql_mutex_unlock(&fil_system.mutex);
     node->space->release_for_io();
     return;
   }
@@ -3974,9 +3976,9 @@ write_completed:
                 << " from file '" << node->name << "': " << err;
   }
 
-  mutex_enter(&fil_system.mutex);
+  mysql_mutex_lock(&fil_system.mutex);
   node->complete_io();
-  mutex_exit(&fil_system.mutex);
+  mysql_mutex_unlock(&fil_system.mutex);
   node->space->release_for_io();
 }
 
@@ -3989,7 +3991,7 @@ fil_flush(
 	ulint	space_id)	/*!< in: file space id (this can be a group of
 				log files or a tablespace of the database) */
 {
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 
 	if (fil_space_t* space = fil_space_get_by_id(space_id)) {
 		if (space->purpose != FIL_TYPE_TEMPORARY
@@ -3998,7 +4000,7 @@ fil_flush(
 		}
 	}
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 }
 
 /** Flush a tablespace.
@@ -4011,11 +4013,11 @@ fil_flush(fil_space_t* space)
 	      || space->purpose == FIL_TYPE_IMPORT);
 
 	if (!space->is_stopping()) {
-		mutex_enter(&fil_system.mutex);
+		mysql_mutex_lock(&fil_system.mutex);
 		if (!space->is_stopping()) {
 			fil_flush_low(space);
 		}
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 	}
 }
 
@@ -4026,12 +4028,12 @@ void fil_flush_file_spaces()
 	ulint*		space_ids;
 	ulint		n_space_ids;
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 
 	n_space_ids = fil_system.unflushed_spaces.size();
 	if (n_space_ids == 0) {
 
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 		return;
 	}
 
@@ -4050,7 +4052,7 @@ void fil_flush_file_spaces()
 		}
 	}
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 
 	/* Flush the spaces.  It will not hurt to call fil_flush() on
 	a non-existing space id. */
@@ -4086,7 +4088,7 @@ struct	Check {
 	@return		number of open file nodes */
 	static ulint validate(const fil_space_t* space)
 	{
-		ut_ad(mutex_own(&fil_system.mutex));
+		mysql_mutex_assert_owner(&fil_system.mutex);
 		Check	check;
 		ut_list_validate(space->chain, check);
 		ut_a(space->size == check.size);
@@ -4116,7 +4118,7 @@ bool fil_validate()
 	fil_node_t*	fil_node;
 	ulint		n_open		= 0;
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 
 	for (fil_space_t *space = UT_LIST_GET_FIRST(fil_system.space_list);
 	     space != NULL;
@@ -4138,7 +4140,7 @@ bool fil_validate()
 		ut_a(fil_space_belongs_in_lru(fil_node->space));
 	}
 
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 
 	return(true);
 }
@@ -4187,7 +4189,7 @@ void
 fil_space_validate_for_mtr_commit(
 	const fil_space_t*	space)
 {
-	ut_ad(!mutex_own(&fil_system.mutex));
+	mysql_mutex_assert_not_owner(&fil_system.mutex);
 	ut_ad(space != NULL);
 	ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
 	ut_ad(!is_predefined_tablespace(space->id));

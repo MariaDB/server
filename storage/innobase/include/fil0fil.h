@@ -1279,7 +1279,8 @@ public:
   std::vector<pfs_os_file_t> detach(fil_space_t *space,
                                     bool detach_handle= false);
 
-	ib_mutex_t	mutex;		/*!< The mutex protecting the cache */
+  /** the mutex protecting most data fields, and some fields of fil_space_t */
+  mysql_mutex_t mutex;
 	fil_space_t*	sys_space;	/*!< The innodb_system tablespace */
 	fil_space_t*	temp_space;	/*!< The innodb_temporary tablespace */
   /** Map of fil_space_t::id to fil_space_t* */
@@ -1348,7 +1349,7 @@ extern fil_system_t	fil_system;
 /** Update the data structures on I/O completion */
 inline void fil_node_t::complete_io(bool write)
 {
-  ut_ad(mutex_own(&fil_system.mutex));
+  mysql_mutex_assert_owner(&fil_system.mutex);
 
   if (write)
   {
@@ -1808,11 +1809,6 @@ fil_space_read_name_and_filepath(
 char*
 fil_path_to_space_name(
 	const char*	filename);
-
-/** Acquire the fil_system mutex. */
-#define fil_system_enter()	mutex_enter(&fil_system.mutex)
-/** Release the fil_system mutex. */
-#define fil_system_exit()	mutex_exit(&fil_system.mutex)
 
 /*******************************************************************//**
 Returns the table space by a given id, NULL if not found. */

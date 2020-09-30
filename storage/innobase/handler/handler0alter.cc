@@ -10279,7 +10279,7 @@ commit_cache_norebuild(
 		if (fil_space_t* space = ctx->new_table->space) {
 			bool update = !(space->flags
 					& FSP_FLAGS_MASK_PAGE_COMPRESSION);
-			mutex_enter(&fil_system.mutex);
+			mysql_mutex_lock(&fil_system.mutex);
 			space->flags &= ~FSP_FLAGS_MASK_MEM_COMPRESSION_LEVEL;
 			space->flags |= ctx->page_compression_level
 				<< FSP_FLAGS_MEM_COMPRESSION_LEVEL;
@@ -10291,7 +10291,7 @@ commit_cache_norebuild(
 					|= innodb_compression_algorithm
 					<< FSP_FLAGS_FCRC32_POS_COMPRESSED_ALGO;
 			}
-			mutex_exit(&fil_system.mutex);
+			mysql_mutex_unlock(&fil_system.mutex);
 
 			if (update) {
 				/* Maybe we should introduce an undo
