@@ -77,14 +77,6 @@ ib_wqueue_add(ib_wqueue_t* wq, void* item, mem_heap_t* heap,
 @return whether the queue is empty */
 bool ib_wqueue_is_empty(ib_wqueue_t* wq);
 
-/**
-Wait for a work item to appear in the queue.
-@param wq             work queue
-@param wait_in_usecs  timeout
-@return work item
-@retval NULL on timeout */
-void* ib_wqueue_timedwait(ib_wqueue_t *wq, ulint wait_in_usecs);
-
 /********************************************************************
 Return first item on work queue or NULL if queue is empty
 @return work item or NULL */

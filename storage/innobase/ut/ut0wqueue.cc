@@ -80,36 +80,6 @@ ib_wqueue_add(ib_wqueue_t* wq, void* item, mem_heap_t* heap, bool wq_locked)
 	}
 }
 
-/**
-Wait for a work item to appear in the queue.
-@param wq             work queue
-@param wait_in_usecs  timeout
-@return work item
-@retval NULL on timeout */
-void* ib_wqueue_timedwait(ib_wqueue_t *wq, ulint wait_in_usecs)
-{
-  ib_list_node_t *node;
-
-  mysql_mutex_lock(&wq->mutex);
-
-  for (;;)
-  {
-    node= ib_list_get_first(wq->items);
-    if (node)
-    {
-      ib_list_remove(wq->items, node);
-      break;
-    }
-    struct timespec abstime;
-    set_timespec_nsec(abstime, wait_in_usecs * 1000ULL);
-    if (mysql_cond_timedwait(&wq->cond, &wq->mutex, &abstime))
-      break;
-  }
-
-  mysql_mutex_unlock(&wq->mutex);
-  return node ? node->data : nullptr;
-}
-
 /********************************************************************
 Return first item on work queue or NULL if queue is empty
 @return work item or NULL */
