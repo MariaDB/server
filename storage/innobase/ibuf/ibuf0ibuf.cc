@@ -234,14 +234,15 @@ type, counter, and some flags. */
 					format or later */
 
 
-/** The mutex used to block pessimistic inserts to ibuf trees */
-static ib_mutex_t	ibuf_pessimistic_insert_mutex;
-
-/** The mutex protecting the insert buffer structs */
-static ib_mutex_t	ibuf_mutex;
-
-/** The mutex protecting the insert buffer bitmaps */
-static ib_mutex_t	ibuf_bitmap_mutex;
+#ifndef SAFE_MUTEX
+static
+#endif /* SAFE_MUTEX */
+/** The mutex protecting the insert buffer */
+mysql_mutex_t ibuf_mutex,
+	/** The mutex covering pessimistic inserts into the change buffer */
+	ibuf_pessimistic_insert_mutex,
+	/** mutex covering all change buffer bitmap pages */
+	ibuf_bitmap_mutex;
 
 /** The area in pages from which contract looks for page numbers for merge */
 const ulint		IBUF_MERGE_AREA = 8;
@@ -340,7 +341,7 @@ static buf_block_t *ibuf_tree_root_get(mtr_t *mtr)
 	buf_block_t*	block;
 
 	ut_ad(ibuf_inside(mtr));
-	ut_ad(mutex_own(&ibuf_mutex));
+	mysql_mutex_assert_owner(&ibuf_mutex);
 
 	mtr_sx_lock_index(ibuf.index, mtr);
 
@@ -368,11 +369,9 @@ ibuf_close(void)
 		return;
 	}
 
-	mutex_free(&ibuf_pessimistic_insert_mutex);
-
-	mutex_free(&ibuf_mutex);
-
-	mutex_free(&ibuf_bitmap_mutex);
+	mysql_mutex_destroy(&ibuf_pessimistic_insert_mutex);
+	mysql_mutex_destroy(&ibuf_mutex);
+	mysql_mutex_destroy(&ibuf_bitmap_mutex);
 
 	dict_table_t*	ibuf_table = ibuf.index->table;
 	rw_lock_free(&ibuf.index->lock);
@@ -390,7 +389,7 @@ ibuf_size_update(
 /*=============*/
 	const page_t*	root)	/*!< in: ibuf tree root */
 {
-	ut_ad(mutex_own(&ibuf_mutex));
+	mysql_mutex_assert_owner(&ibuf_mutex);
 
 	ibuf.free_list_len = flst_get_len(root + PAGE_HEADER
 					   + PAGE_BTR_IBUF_FREE_LIST);
@@ -435,14 +434,12 @@ ibuf_init_at_db_start(void)
 	ibuf.max_size = ((buf_pool_get_curr_size() >> srv_page_size_shift)
 			  * CHANGE_BUFFER_DEFAULT_SIZE) / 100;
 
-	mutex_create(LATCH_ID_IBUF, &ibuf_mutex);
+	mysql_mutex_init(ibuf_mutex_key, &ibuf_mutex, nullptr);
+	mysql_mutex_init(ibuf_bitmap_mutex_key, &ibuf_bitmap_mutex, nullptr);
+	mysql_mutex_init(ibuf_pessimistic_insert_mutex_key,
+			 &ibuf_pessimistic_insert_mutex, nullptr);
 
-	mutex_create(LATCH_ID_IBUF_BITMAP, &ibuf_bitmap_mutex);
-
-	mutex_create(LATCH_ID_IBUF_PESSIMISTIC_INSERT,
-		     &ibuf_pessimistic_insert_mutex);
-
-	mutex_enter(&ibuf_mutex);
+	mysql_mutex_lock(&ibuf_mutex);
 
 	fseg_n_reserved_pages(*header_page,
 			      IBUF_HEADER + IBUF_TREE_SEG_HEADER
@@ -465,7 +462,7 @@ ibuf_init_at_db_start(void)
 	}
 
 	ibuf_size_update(root);
-	mutex_exit(&ibuf_mutex);
+	mysql_mutex_unlock(&ibuf_mutex);
 
 	ibuf.empty = page_is_empty(root);
 	mtr.commit();
@@ -516,9 +513,9 @@ ibuf_max_size_update(
 {
 	ulint	new_size = ((buf_pool_get_curr_size() >> srv_page_size_shift)
 			    * new_val) / 100;
-	mutex_enter(&ibuf_mutex);
+	mysql_mutex_lock(&ibuf_mutex);
 	ibuf.max_size = new_size;
-	mutex_exit(&ibuf_mutex);
+	mysql_mutex_unlock(&ibuf_mutex);
 }
 
 # ifdef UNIV_DEBUG
@@ -915,7 +912,7 @@ ibuf_update_free_bits_for_two_pages_low(
 	the bitmap mutex to prevent a deadlock with a similar operation
 	performed by another OS thread. */
 
-	mutex_enter(&ibuf_bitmap_mutex);
+	mysql_mutex_lock(&ibuf_bitmap_mutex);
 
 	state = ibuf_index_page_calc_free(block1);
 
@@ -925,7 +922,7 @@ ibuf_update_free_bits_for_two_pages_low(
 
 	ibuf_set_free_bits_low(block2, state, mtr);
 
-	mutex_exit(&ibuf_bitmap_mutex);
+	mysql_mutex_unlock(&ibuf_bitmap_mutex);
 }
 
 /** Returns TRUE if the page is one of the fixed address ibuf pages.
@@ -1797,7 +1794,7 @@ dare to start a pessimistic insert to the insert buffer.
 @return whether enough free pages in list */
 static inline bool ibuf_data_enough_free_for_insert()
 {
-	ut_ad(mutex_own(&ibuf_mutex));
+	mysql_mutex_assert_owner(&ibuf_mutex);
 
 	/* We want a big margin of free pages, because a B-tree can sometimes
 	grow in size also if records are deleted from it, as the node pointers
@@ -1817,7 +1814,7 @@ ibool
 ibuf_data_too_much_free(void)
 /*=========================*/
 {
-	ut_ad(mutex_own(&ibuf_mutex));
+	mysql_mutex_assert_owner(&ibuf_mutex);
 
 	return(ibuf.free_list_len >= 3 + (ibuf.size / 2) + 3 * ibuf.height);
 }
@@ -1858,7 +1855,7 @@ static bool ibuf_add_free_page()
 
 	ut_ad(rw_lock_get_x_lock_count(&block->lock) == 1);
 	ibuf_enter(&mtr);
-	mutex_enter(&ibuf_mutex);
+	mysql_mutex_lock(&ibuf_mutex);
 
 	buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE_NEW);
 
@@ -1880,7 +1877,7 @@ static bool ibuf_add_free_page()
 	const page_id_t page_id(block->page.id());
 	buf_block_t* bitmap_page = ibuf_bitmap_get_map_page(page_id, 0, &mtr);
 
-	mutex_exit(&ibuf_mutex);
+	mysql_mutex_unlock(&ibuf_mutex);
 
 	ibuf_bitmap_page_set_bits<IBUF_BITMAP_IBUF>(bitmap_page, page_id,
 						    srv_page_size, true,
@@ -1914,13 +1911,13 @@ ibuf_remove_free_page(void)
 
 	/* Prevent pessimistic inserts to insert buffer trees for a while */
 	ibuf_enter(&mtr);
-	mutex_enter(&ibuf_pessimistic_insert_mutex);
-	mutex_enter(&ibuf_mutex);
+	mysql_mutex_lock(&ibuf_pessimistic_insert_mutex);
+	mysql_mutex_lock(&ibuf_mutex);
 
 	if (!ibuf_data_too_much_free()) {
 
-		mutex_exit(&ibuf_mutex);
-		mutex_exit(&ibuf_pessimistic_insert_mutex);
+		mysql_mutex_unlock(&ibuf_mutex);
+		mysql_mutex_unlock(&ibuf_pessimistic_insert_mutex);
 
 		ibuf_mtr_commit(&mtr);
 
@@ -1931,7 +1928,7 @@ ibuf_remove_free_page(void)
 
 	buf_block_t* root = ibuf_tree_root_get(&mtr2);
 
-	mutex_exit(&ibuf_mutex);
+	mysql_mutex_unlock(&ibuf_mutex);
 
 	page_no = flst_get_last(PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST
 				+ root->frame).page;
@@ -1957,7 +1954,7 @@ ibuf_remove_free_page(void)
 
 	ibuf_enter(&mtr);
 
-	mutex_enter(&ibuf_mutex);
+	mysql_mutex_lock(&ibuf_mutex);
 
 	root = ibuf_tree_root_get(&mtr);
 
@@ -1972,7 +1969,7 @@ ibuf_remove_free_page(void)
 	flst_remove(root, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST,
 		    block, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE, &mtr);
 
-	mutex_exit(&ibuf_pessimistic_insert_mutex);
+	mysql_mutex_unlock(&ibuf_pessimistic_insert_mutex);
 
 	ibuf.seg_size--;
 	ibuf.free_list_len--;
@@ -1982,7 +1979,7 @@ ibuf_remove_free_page(void)
 
 	buf_block_t* bitmap_page = ibuf_bitmap_get_map_page(page_id, 0, &mtr);
 
-	mutex_exit(&ibuf_mutex);
+	mysql_mutex_unlock(&ibuf_mutex);
 
 	ibuf_bitmap_page_set_bits<IBUF_BITMAP_IBUF>(
 		bitmap_page, page_id, srv_page_size, false, &mtr);
@@ -2007,9 +2004,9 @@ ibuf_free_excess_pages(void)
 
 		ibool	too_much_free;
 
-		mutex_enter(&ibuf_mutex);
+		mysql_mutex_lock(&ibuf_mutex);
 		too_much_free = ibuf_data_too_much_free();
-		mutex_exit(&ibuf_mutex);
+		mysql_mutex_unlock(&ibuf_mutex);
 
 		if (!too_much_free) {
 			return;
@@ -3254,16 +3251,16 @@ ibuf_insert_low(
 
 	if (BTR_LATCH_MODE_WITHOUT_INTENTION(mode) == BTR_MODIFY_TREE) {
 		for (;;) {
-			mutex_enter(&ibuf_pessimistic_insert_mutex);
-			mutex_enter(&ibuf_mutex);
+			mysql_mutex_lock(&ibuf_pessimistic_insert_mutex);
+			mysql_mutex_lock(&ibuf_mutex);
 
 			if (UNIV_LIKELY(ibuf_data_enough_free_for_insert())) {
 
 				break;
 			}
 
-			mutex_exit(&ibuf_mutex);
-			mutex_exit(&ibuf_pessimistic_insert_mutex);
+			mysql_mutex_unlock(&ibuf_mutex);
+			mysql_mutex_unlock(&ibuf_pessimistic_insert_mutex);
 
 			if (!ibuf_add_free_page()) {
 
@@ -3311,8 +3308,8 @@ ibuf_insert_low(
 
 fail_exit:
 		if (BTR_LATCH_MODE_WITHOUT_INTENTION(mode) == BTR_MODIFY_TREE) {
-			mutex_exit(&ibuf_mutex);
-			mutex_exit(&ibuf_pessimistic_insert_mutex);
+			mysql_mutex_unlock(&ibuf_mutex);
+			mysql_mutex_unlock(&ibuf_pessimistic_insert_mutex);
 		}
 
 		err = DB_STRONG_FAIL;
@@ -3445,9 +3442,9 @@ commit_exit:
 				&dummy_big_rec, 0, thr, &mtr);
 		}
 
-		mutex_exit(&ibuf_pessimistic_insert_mutex);
+		mysql_mutex_unlock(&ibuf_pessimistic_insert_mutex);
 		ibuf_size_update(root);
-		mutex_exit(&ibuf_mutex);
+		mysql_mutex_unlock(&ibuf_mutex);
 		ibuf.empty = page_is_empty(root);
 
 		block = btr_cur_get_block(cursor);
@@ -4117,13 +4114,13 @@ bool ibuf_delete_rec(ulint space, ulint page_no, btr_pcur_t* pcur,
 	ibuf_btr_pcur_commit_specify_mtr(pcur, mtr);
 
 	ibuf_mtr_start(mtr);
-	mutex_enter(&ibuf_mutex);
+	mysql_mutex_lock(&ibuf_mutex);
 
 	if (!ibuf_restore_pos(space, page_no, search_tuple,
 			      BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
 			      pcur, mtr)) {
 
-		mutex_exit(&ibuf_mutex);
+		mysql_mutex_unlock(&ibuf_mutex);
 		ut_ad(mtr->has_committed());
 		goto func_exit;
 	}
@@ -4135,7 +4132,7 @@ bool ibuf_delete_rec(ulint space, ulint page_no, btr_pcur_t* pcur,
 	ut_a(err == DB_SUCCESS);
 
 	ibuf_size_update(root);
-	mutex_exit(&ibuf_mutex);
+	mysql_mutex_unlock(&ibuf_mutex);
 
 	ibuf.empty = page_is_empty(root);
 	ibuf_btr_pcur_commit_specify_mtr(pcur, mtr);
@@ -4600,11 +4597,11 @@ ibuf_is_empty(void)
 
 	ibuf_mtr_start(&mtr);
 
-	ut_d(mutex_enter(&ibuf_mutex));
+	ut_d(mysql_mutex_lock(&ibuf_mutex));
 	const buf_block_t* root = ibuf_tree_root_get(&mtr);
 	bool is_empty = page_is_empty(root->frame);
 	ut_a(is_empty == ibuf.empty);
-	ut_d(mutex_exit(&ibuf_mutex));
+	ut_d(mysql_mutex_unlock(&ibuf_mutex));
 	ibuf_mtr_commit(&mtr);
 
 	return(is_empty);
@@ -4617,7 +4614,7 @@ ibuf_print(
 /*=======*/
 	FILE*	file)	/*!< in: file where to print */
 {
-	mutex_enter(&ibuf_mutex);
+	mysql_mutex_lock(&ibuf_mutex);
 
 	fprintf(file,
 		"Ibuf: size " ULINTPF ", free list len " ULINTPF ","
@@ -4633,7 +4630,7 @@ ibuf_print(
 	fputs("discarded operations:\n ", file);
 	ibuf_print_ops(ibuf.n_discarded_ops, file);
 
-	mutex_exit(&ibuf_mutex);
+	mysql_mutex_unlock(&ibuf_mutex);
 }
 
 /** Check the insert buffer bitmaps on IMPORT TABLESPACE.
@@ -4673,7 +4670,7 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 		return(DB_TABLE_NOT_FOUND);
 	}
 
-	mutex_enter(&ibuf_mutex);
+	mysql_mutex_lock(&ibuf_mutex);
 
 	/* The two bitmap pages (allocation bitmap and ibuf bitmap) repeat
 	every page_size pages. For example if page_size is 16 KiB, then the
@@ -4683,7 +4680,7 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 
 	for (page_no = 0; page_no < size; page_no += physical_size) {
 		if (trx_is_interrupted(trx)) {
-			mutex_exit(&ibuf_mutex);
+			mysql_mutex_unlock(&ibuf_mutex);
 			return(DB_INTERRUPTED);
 		}
 
@@ -4696,7 +4693,7 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 		buf_block_t* bitmap_page = ibuf_bitmap_get_map_page(
 			page_id_t(space->id, page_no), zip_size, &mtr);
 		if (!bitmap_page) {
-			mutex_exit(&ibuf_mutex);
+			mysql_mutex_unlock(&ibuf_mutex);
 			mtr.commit();
 			return DB_CORRUPTION;
 		}
@@ -4733,7 +4730,7 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 				    bitmap_page->frame, cur_page_id, zip_size,
 				    IBUF_BITMAP_IBUF, &mtr)) {
 
-				mutex_exit(&ibuf_mutex);
+				mysql_mutex_unlock(&ibuf_mutex);
 				ibuf_exit(&mtr);
 				mtr_commit(&mtr);
 
@@ -4772,7 +4769,7 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 		mtr_commit(&mtr);
 	}
 
-	mutex_exit(&ibuf_mutex);
+	mysql_mutex_unlock(&ibuf_mutex);
 	return(DB_SUCCESS);
 }
 

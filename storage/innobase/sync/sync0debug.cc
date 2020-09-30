@@ -466,11 +466,9 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_TRX_SYS);
 	LEVEL_MAP_INSERT(SYNC_INDEX_ONLINE_LOG);
 	LEVEL_MAP_INSERT(SYNC_IBUF_BITMAP);
-	LEVEL_MAP_INSERT(SYNC_IBUF_BITMAP_MUTEX);
 	LEVEL_MAP_INSERT(SYNC_IBUF_TREE_NODE);
 	LEVEL_MAP_INSERT(SYNC_IBUF_TREE_NODE_NEW);
 	LEVEL_MAP_INSERT(SYNC_IBUF_INDEX_TREE);
-	LEVEL_MAP_INSERT(SYNC_IBUF_MUTEX);
 	LEVEL_MAP_INSERT(SYNC_FSP_PAGE);
 	LEVEL_MAP_INSERT(SYNC_FSP);
 	LEVEL_MAP_INSERT(SYNC_EXTERN_STORAGE);
@@ -484,7 +482,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_TREE_NODE_FROM_HASH);
 	LEVEL_MAP_INSERT(SYNC_TREE_NODE_NEW);
 	LEVEL_MAP_INSERT(SYNC_INDEX_TREE);
-	LEVEL_MAP_INSERT(SYNC_IBUF_PESS_INSERT_MUTEX);
 	LEVEL_MAP_INSERT(SYNC_IBUF_HEADER);
 	LEVEL_MAP_INSERT(SYNC_DICT_HEADER);
 	LEVEL_MAP_INSERT(SYNC_STATS_AUTO_RECALC);
@@ -704,6 +701,11 @@ LatchDebug::check_order(
 	unnecessary assertion failures below. */
 
 	switch (level) {
+#ifdef SAFE_MUTEX
+		extern mysql_mutex_t ibuf_mutex;
+		extern mysql_mutex_t ibuf_pessimistic_insert_mutex;
+		extern mysql_mutex_t ibuf_bitmap_mutex;
+#endif /* SAFE_MUTEX */
 	case SYNC_NO_ORDER_CHECK:
 	case SYNC_EXTERN_STORAGE:
 	case SYNC_TREE_NODE_FROM_HASH:
@@ -727,7 +729,6 @@ LatchDebug::check_order(
 	case SYNC_RW_TRX_HASH_ELEMENT:
 	case SYNC_READ_VIEW:
 	case SYNC_TRX_SYS:
-	case SYNC_IBUF_BITMAP_MUTEX:
 	case SYNC_REDO_RSEG:
 	case SYNC_NOREDO_RSEG:
 	case SYNC_PURGE_LATCH:
@@ -736,7 +737,6 @@ LatchDebug::check_order(
 	case SYNC_DICT_HEADER:
 	case SYNC_TRX_I_S_RWLOCK:
 	case SYNC_TRX_I_S_LAST_READ:
-	case SYNC_IBUF_MUTEX:
 	case SYNC_INDEX_ONLINE_LOG:
 	case SYNC_STATS_AUTO_RECALC:
 	case SYNC_POOL:
@@ -783,19 +783,16 @@ LatchDebug::check_order(
 		/* Either the thread must own the master mutex to all
 		the bitmap pages, or it is allowed to latch only ONE
 		bitmap page. */
-
-		if (find(latches, SYNC_IBUF_BITMAP_MUTEX) != 0) {
-
-			basic_check(latches, level, SYNC_IBUF_BITMAP - 1);
-
-		} else if (!srv_is_being_started) {
-
+		basic_check(latches, level, SYNC_IBUF_BITMAP - 1);
+#ifdef SAFE_MUTEX
+		if (!srv_is_being_started
+		    && !mysql_mutex_is_owner(&ibuf_bitmap_mutex)) {
 			/* This is violated during trx_sys_create_rsegs()
 			when creating additional rollback segments during
 			upgrade. */
-
 			basic_check(latches, level, SYNC_IBUF_BITMAP);
 		}
+#endif /* SAFE_MUTEX */
 		break;
 
 	case SYNC_FSP_PAGE:
@@ -860,9 +857,10 @@ LatchDebug::check_order(
 		buffer while only holding the tablespace x-latch. These
 		pre-allocated new pages may only be used while holding
 		ibuf_mutex, in btr_page_alloc_for_ibuf(). */
-
-		ut_a(find(latches, SYNC_IBUF_MUTEX) != 0
+#ifdef SAFE_MUTEX
+		ut_a(mysql_mutex_is_owner(&ibuf_mutex)
 		     || find(latches, SYNC_FSP) != 0);
+#endif
 		break;
 
 	case SYNC_IBUF_INDEX_TREE:
@@ -874,17 +872,11 @@ LatchDebug::check_order(
 		}
 		break;
 
-	case SYNC_IBUF_PESS_INSERT_MUTEX:
-
-		basic_check(latches, level, SYNC_FSP - 1);
-		ut_a(find(latches, SYNC_IBUF_MUTEX) == 0);
-		break;
-
 	case SYNC_IBUF_HEADER:
 
 		basic_check(latches, level, SYNC_FSP - 1);
-		ut_a(find(latches, SYNC_IBUF_MUTEX) == NULL);
-		ut_a(find(latches, SYNC_IBUF_PESS_INSERT_MUTEX) == NULL);
+		mysql_mutex_assert_not_owner(&ibuf_mutex);
+		mysql_mutex_assert_not_owner(&ibuf_pessimistic_insert_mutex);
 		break;
 
 	case SYNC_DICT:
@@ -1211,14 +1203,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(FTS_BG_THREADS, SYNC_FTS_BG_THREADS,
 			fts_bg_threads_mutex_key);
-
-	LATCH_ADD_MUTEX(IBUF_BITMAP, SYNC_IBUF_BITMAP_MUTEX,
-			ibuf_bitmap_mutex_key);
-
-	LATCH_ADD_MUTEX(IBUF, SYNC_IBUF_MUTEX, ibuf_mutex_key);
-
-	LATCH_ADD_MUTEX(IBUF_PESSIMISTIC_INSERT, SYNC_IBUF_PESS_INSERT_MUTEX,
-			ibuf_pessimistic_insert_mutex_key);
 
 	LATCH_ADD_MUTEX(MUTEX_LIST, SYNC_NO_ORDER_CHECK, mutex_list_mutex_key);
 
