@@ -161,9 +161,7 @@ fil_crypt_get_latest_key_version(
 				key_version,
 				srv_fil_crypt_rotate_key_age)) {
 			if (fil_crypt_threads_inited) {
-				mysql_mutex_lock(&fil_crypt_threads_mutex);
-				mysql_cond_signal(&fil_crypt_threads_cond);
-				mysql_mutex_unlock(&fil_crypt_threads_mutex);
+				fil_crypt_threads_signal();
 			}
 		}
 	}
@@ -1127,6 +1125,7 @@ struct rotate_thread_t {
 
 	/** @return whether this thread should terminate */
 	bool should_shutdown() const {
+		mysql_mutex_assert_owner(&fil_crypt_threads_mutex);
 		switch (srv_shutdown_state) {
 		case SRV_SHUTDOWN_NONE:
 			return thread_no >= srv_n_fil_crypt_threads;
@@ -1156,14 +1155,12 @@ fil_crypt_space_needs_rotation(
 	key_state_t*		key_state,
 	bool*			recheck)
 {
+	mysql_mutex_assert_not_owner(&fil_crypt_threads_mutex);
+
 	fil_space_t* space = state->space;
 
-	/* Make sure that tablespace is normal tablespace */
-	if (space->purpose != FIL_TYPE_TABLESPACE) {
-		return false;
-	}
-
 	ut_ad(space->referenced());
+	ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
 
 	fil_space_crypt_t *crypt_data = space->crypt_data;
 
@@ -1261,11 +1258,9 @@ Allocate iops to thread from global setting,
 used before starting to rotate a space.
 @param[in,out]		state		Rotation state
 @return true if allocation succeeded, false if failed */
-static
-bool
-fil_crypt_alloc_iops(
-	rotate_thread_t *state)
+static bool fil_crypt_alloc_iops(rotate_thread_t *state)
 {
+	mysql_mutex_assert_owner(&fil_crypt_threads_mutex);
 	ut_ad(state->allocated_iops == 0);
 
 	/* We have not yet selected the space to rotate, thus
@@ -1274,16 +1269,10 @@ fil_crypt_alloc_iops(
 
 	uint max_iops = state->estimated_max_iops;
 
-	mysql_mutex_lock(&fil_crypt_threads_mutex);
-
 	if (n_fil_crypt_iops_allocated >= srv_n_fil_crypt_iops) {
-		/* this can happen when user decreases srv_fil_crypt_iops */
 wait:
-		timespec abstime;
-		set_timespec_nsec(abstime, 100000000ULL); /* 0.1s */
-		mysql_cond_timedwait(&fil_crypt_threads_cond,
-				     &fil_crypt_threads_mutex, &abstime);
-		mysql_mutex_unlock(&fil_crypt_threads_mutex);
+		mysql_cond_wait(&fil_crypt_threads_cond,
+				&fil_crypt_threads_mutex);
 		return false;
 	}
 
@@ -1298,20 +1287,16 @@ wait:
 	}
 
 	n_fil_crypt_iops_allocated += alloc;
-	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
 	state->allocated_iops = alloc;
 	return true;
 }
 
-/***********************************************************************
-Reallocate iops to thread,
-used when inside a space
-@param[in,out]		state		Rotation state */
-static
-void
-fil_crypt_realloc_iops(
-	rotate_thread_t *state)
+/**
+Reallocate iops to thread when processing a tablespace
+@param[in,out]		state		Rotation state
+@return whether the thread should continue running */
+static bool fil_crypt_realloc_iops(rotate_thread_t *state)
 {
 	ut_a(state->allocated_iops > 0);
 
@@ -1331,7 +1316,8 @@ fil_crypt_realloc_iops(
 			state->estimated_max_iops,
 			1000000 / avg_wait_time_us));
 
-		state->estimated_max_iops = uint(1000000 / avg_wait_time_us);
+		state->estimated_max_iops = std::max(
+			1U, uint(1000000 / avg_wait_time_us));
 		state->cnt_waited = 0;
 		state->sum_waited_us = 0;
 	} else {
@@ -1343,89 +1329,59 @@ fil_crypt_realloc_iops(
 			    / (state->batch ? state->batch : 1)));
 	}
 
-	if (state->estimated_max_iops <= state->allocated_iops) {
-		/* return extra iops */
-		uint extra = state->allocated_iops - state->estimated_max_iops;
+	ut_ad(state->estimated_max_iops);
 
-		if (extra > 0) {
-			mysql_mutex_lock(&fil_crypt_threads_mutex);
-			if (n_fil_crypt_iops_allocated < extra) {
-				/* unknown bug!
-				* crash in debug
-				* keep n_fil_crypt_iops_allocated unchanged
-				* in release */
-				ut_ad(0);
-				extra = 0;
-			}
-			n_fil_crypt_iops_allocated -= extra;
-			state->allocated_iops -= extra;
+	mysql_mutex_lock(&fil_crypt_threads_mutex);
 
-			if (state->allocated_iops == 0) {
-				/* no matter how slow io system seems to be
-				* never decrease allocated_iops to 0... */
-				state->allocated_iops ++;
-				n_fil_crypt_iops_allocated ++;
-			}
-
-			mysql_cond_signal(&fil_crypt_threads_cond);
-			mysql_mutex_unlock(&fil_crypt_threads_mutex);
-		}
-	} else {
-		/* see if there are more to get */
-		mysql_mutex_lock(&fil_crypt_threads_mutex);
-		if (n_fil_crypt_iops_allocated < srv_n_fil_crypt_iops) {
-			/* there are extra iops free */
-			uint extra = srv_n_fil_crypt_iops -
-				n_fil_crypt_iops_allocated;
-			if (state->allocated_iops + extra >
-			    state->estimated_max_iops) {
-				/* but don't alloc more than our max */
-				extra = state->estimated_max_iops -
-					state->allocated_iops;
-			}
-			n_fil_crypt_iops_allocated += extra;
-			state->allocated_iops += extra;
-
-			DBUG_PRINT("ib_crypt",
-				("thr_no: %u increased iops from %u to %u.",
-				state->thread_no,
-				state->allocated_iops - extra,
-				state->allocated_iops));
-
-		}
+	if (state->should_shutdown()) {
 		mysql_mutex_unlock(&fil_crypt_threads_mutex);
+		return false;
+	}
+
+	if (state->allocated_iops > state->estimated_max_iops) {
+		/* release iops */
+		uint extra = state->allocated_iops - state->estimated_max_iops;
+		state->allocated_iops = state->estimated_max_iops;
+		ut_ad(n_fil_crypt_iops_allocated >= extra);
+		n_fil_crypt_iops_allocated -= extra;
+		mysql_cond_broadcast(&fil_crypt_threads_cond);
+	} else if (srv_n_fil_crypt_iops > n_fil_crypt_iops_allocated) {
+		/* there are extra iops free */
+		uint add = srv_n_fil_crypt_iops - n_fil_crypt_iops_allocated;
+		if (state->allocated_iops + add > state->estimated_max_iops) {
+			/* but don't alloc more than our max */
+			add= state->estimated_max_iops - state->allocated_iops;
+		}
+		n_fil_crypt_iops_allocated += add;
+		state->allocated_iops += add;
+
+		DBUG_PRINT("ib_crypt",
+			   ("thr_no: %u increased iops from %u to %u.",
+			    state->thread_no,
+			    state->allocated_iops - add,
+			    state->allocated_iops));
 	}
 
 	fil_crypt_update_total_stat(state);
+	mysql_mutex_unlock(&fil_crypt_threads_mutex);
+	return true;
 }
 
-/***********************************************************************
-Return allocated iops to global
+/** Release allocated iops.
 @param[in,out]		state		Rotation state */
-static
-void
-fil_crypt_return_iops(
-	rotate_thread_t *state)
+static void fil_crypt_return_iops(rotate_thread_t *state)
 {
-	if (state->allocated_iops > 0) {
-		uint iops = state->allocated_iops;
-		mysql_mutex_lock(&fil_crypt_threads_mutex);
-		if (n_fil_crypt_iops_allocated < iops) {
-			/* unknown bug!
-			* crash in debug
-			* keep n_fil_crypt_iops_allocated unchanged
-			* in release */
-			ut_ad(0);
-			iops = 0;
-		}
+  mysql_mutex_assert_owner(&fil_crypt_threads_mutex);
 
-		n_fil_crypt_iops_allocated -= iops;
-		state->allocated_iops = 0;
-		mysql_cond_signal(&fil_crypt_threads_cond);
-		mysql_mutex_unlock(&fil_crypt_threads_mutex);
-	}
+  if (uint iops = state->allocated_iops)
+  {
+    ut_ad(n_fil_crypt_iops_allocated >= iops);
+    n_fil_crypt_iops_allocated-= iops;
+    state->allocated_iops= 0;
+    mysql_cond_broadcast(&fil_crypt_threads_cond);
+  }
 
-	fil_crypt_update_total_stat(state);
+  fil_crypt_update_total_stat(state);
 }
 
 /** Return the next tablespace from rotation_list.
@@ -1528,7 +1484,8 @@ next:
 @param[in,out]	key_state	Key state
 @param[in,out]	state		Rotation state
 @param[in,out]	recheck		recheck of the tablespace is needed or
-				still encryption thread does write page 0 */
+				still encryption thread does write page 0
+@return whether the thread should keep running */
 static bool fil_crypt_find_space_to_rotate(
 	key_state_t*		key_state,
 	rotate_thread_t*	state,
@@ -1557,6 +1514,7 @@ static bool fil_crypt_find_space_to_rotate(
 				      key_state->key_version != 0);
 
 	while (!state->should_shutdown() && state->space) {
+		mysql_mutex_unlock(&fil_crypt_threads_mutex);
 		/* If there is no crypt data and we have not yet read
 		page 0 for this tablespace, we need to read it before
 		we can continue. */
@@ -1569,11 +1527,13 @@ static bool fil_crypt_find_space_to_rotate(
 			/* init state->min_key_version_found before
 			* starting on a space */
 			state->min_key_version_found = key_state->key_version;
+			mysql_mutex_lock(&fil_crypt_threads_mutex);
 			return true;
 		}
 
 		state->space = fil_space_next(state->space, *recheck,
 					      key_state->key_version != 0);
+		mysql_mutex_lock(&fil_crypt_threads_mutex);
 	}
 
 	if (state->space) {
@@ -1583,9 +1543,7 @@ static bool fil_crypt_find_space_to_rotate(
 
 	/* no work to do; release our allocation of I/O capacity */
 	fil_crypt_return_iops(state);
-
-	return false;
-
+	return true;
 }
 
 /***********************************************************************
@@ -2058,72 +2016,59 @@ static void fil_crypt_complete_rotate_space(rotate_thread_t* state)
 /*********************************************************************//**
 A thread which monitors global key state and rotates tablespaces accordingly
 @return a dummy parameter */
-extern "C" UNIV_INTERN
-os_thread_ret_t
-DECLARE_THREAD(fil_crypt_thread)(void*)
+static os_thread_ret_t DECLARE_THREAD(fil_crypt_thread)(void*)
 {
 	mysql_mutex_lock(&fil_crypt_threads_mutex);
-	uint thread_no = srv_n_fil_crypt_threads_started;
-	srv_n_fil_crypt_threads_started++;
+	rotate_thread_t thr(srv_n_fil_crypt_threads_started++);
 	mysql_cond_signal(&fil_crypt_cond); /* signal that we started */
-	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
-	/* state of this thread */
-	rotate_thread_t thr(thread_no);
+	if (!thr.should_shutdown()) {
+		/* if we find a tablespace that is starting, skip over it
+		and recheck it later */
+		bool recheck = false;
 
-	/* if we find a space that is starting, skip over it and recheck it later */
-	bool recheck = false;
-
-	while (!thr.should_shutdown()) {
-		key_state_t new_state;
-
-		mysql_mutex_lock(&fil_crypt_threads_mutex);
-
-		do {
+wait_for_work:
+		if (!recheck && !thr.should_shutdown()) {
 			/* wait for key state changes
 			* i.e either new key version of change or
 			* new rotate_key_age */
-			timespec abstime;
-			set_timespec_nsec(abstime, 100000000ULL); /* 0.1s */
-			if (!mysql_cond_timedwait(&fil_crypt_threads_cond,
-						  &fil_crypt_threads_mutex,
-						  &abstime)) {
-				break;
-			}
-		} while (!recheck && !thr.should_shutdown());
-
-		mysql_mutex_unlock(&fil_crypt_threads_mutex);
+			mysql_cond_wait(&fil_crypt_threads_cond,
+					&fil_crypt_threads_mutex);
+		}
 
 		recheck = false;
 		thr.first = true;      // restart from first tablespace
 
+		key_state_t new_state;
+
 		/* iterate all spaces searching for those needing rotation */
-		while (!thr.should_shutdown() &&
-		       fil_crypt_find_space_to_rotate(&new_state, &thr, &recheck)) {
+		while (fil_crypt_find_space_to_rotate(&new_state, &thr,
+						      &recheck)) {
+			if (!thr.space) {
+				goto wait_for_work;
+			}
 
 			/* we found a space to rotate */
+			mysql_mutex_unlock(&fil_crypt_threads_mutex);
 			fil_crypt_start_rotate_space(&new_state, &thr);
 
 			/* iterate all pages (cooperativly with other threads) */
-			while (!thr.should_shutdown() &&
-			       fil_crypt_find_page_to_rotate(&new_state, &thr)) {
-
-				if (!thr.space->is_stopping()) {
-					/* rotate a (set) of pages */
-					fil_crypt_rotate_pages(&new_state, &thr);
-				}
+			while (fil_crypt_find_page_to_rotate(&new_state, &thr)) {
 
 				/* If space is marked as stopping, release
 				space and stop rotation. */
 				if (thr.space->is_stopping()) {
 					fil_crypt_complete_rotate_space(&thr);
 					thr.space->release();
-					thr.space = NULL;
+					thr.space = nullptr;
 					break;
 				}
 
+				fil_crypt_rotate_pages(&new_state, &thr);
 				/* realloc iops */
-				fil_crypt_realloc_iops(&thr);
+				if (!fil_crypt_realloc_iops(&thr)) {
+					break;
+				}
 			}
 
 			/* complete rotation */
@@ -2134,21 +2079,18 @@ DECLARE_THREAD(fil_crypt_thread)(void*)
 			/* force key state refresh */
 			new_state.key_id = 0;
 
-			/* return iops */
+			mysql_mutex_lock(&fil_crypt_threads_mutex);
+			/* release iops */
 			fil_crypt_return_iops(&thr);
+		}
+
+		if (thr.space) {
+			thr.space->release();
+			thr.space = nullptr;
 		}
 	}
 
-	/* return iops if shutting down */
 	fil_crypt_return_iops(&thr);
-
-	/* release current space if shutting down */
-	if (thr.space) {
-		thr.space->release();
-		thr.space = NULL;
-	}
-
-	mysql_mutex_lock(&fil_crypt_threads_mutex);
 	srv_n_fil_crypt_threads_started--;
 	mysql_cond_signal(&fil_crypt_cond); /* signal that we stopped */
 	mysql_mutex_unlock(&fil_crypt_threads_mutex);
@@ -2187,19 +2129,14 @@ fil_crypt_set_thread_cnt(
 		}
 	} else if (new_cnt < srv_n_fil_crypt_threads) {
 		srv_n_fil_crypt_threads = new_cnt;
-		mysql_cond_signal(&fil_crypt_threads_cond);
+		mysql_cond_broadcast(&fil_crypt_threads_cond);
 	}
 
 	while (srv_n_fil_crypt_threads_started != srv_n_fil_crypt_threads) {
 		mysql_cond_wait(&fil_crypt_cond, &fil_crypt_threads_mutex);
 	}
 
-	/* Send a message to encryption threads that there could be
-	something to do. */
-	if (srv_n_fil_crypt_threads) {
-		mysql_cond_signal(&fil_crypt_threads_cond);
-	}
-
+	mysql_cond_broadcast(&fil_crypt_threads_cond);
 	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 }
 
