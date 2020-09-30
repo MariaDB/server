@@ -1522,7 +1522,9 @@ bool Foreign_key_io::parse(THD *thd, LEX_CUSTRING& image)
     if (shallow_hints)
     {
       /* For DROP TABLE we don't need full reference resolution. We just need
-         to know if anything from the outside references the dropped table. */
+         to know if anything from the outside references the dropped table.
+         Temporary share may have FK columns renamed so we can't resolve by
+         column names.*/
       FK_info *dst= new (&s->mem_root) FK_info;
       dst->foreign_db= hint_db;
       dst->foreign_table= hint_table;
@@ -1601,7 +1603,10 @@ bool TABLE_SHARE::fk_resolve_referenced_keys(THD *thd, TABLE_SHARE *from)
   {
     DBUG_ASSERT(rk.foreign_id.length);
     if (!ids.insert(rk.foreign_id, &inserted))
+    {
+      my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "FOREIGN KEY", rk.foreign_id.str);
       return true;
+    }
 
     DBUG_ASSERT(inserted);
   }
@@ -1613,7 +1618,10 @@ bool TABLE_SHARE::fk_resolve_referenced_keys(THD *thd, TABLE_SHARE *from)
 
     DBUG_ASSERT(fk.foreign_id.length);
     if (!ids.insert(fk.foreign_id, &inserted))
+    {
+      my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "FOREIGN KEY", fk.foreign_id.str);
       return true;
+    }
 
     if (!inserted)
     {
@@ -1632,10 +1640,11 @@ bool TABLE_SHARE::fk_resolve_referenced_keys(THD *thd, TABLE_SHARE *from)
       }
       if (i == fields)
       {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_CANNOT_ADD_FOREIGN,
-                            "Missing field `%s` hint table `%s.%s` refers to",
-                            fld.str, from->db.str, from->table_name.str);
-        return true;
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NO_REFERENCED_ROW_2,
+                            "`%s.%s` is missing field `%s` referenced by foreign key `%s` in `%s.%s`",
+                            db.str, table_name.str, fld.str, fk.foreign_id.str,
+                            from->db.str, from->table_name.str);
+        continue;
       }
     }
     FK_info *dst= fk.clone(&mem_root);

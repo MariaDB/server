@@ -30,7 +30,7 @@ drop table t1;
 create table t1 (f1 int primary key) engine=innodb;
 # restart
 delete from t1 where f1 = 29;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`fk_29`, CONSTRAINT `pc29` FOREIGN KEY (`f1`) REFERENCES `t1` (`f1`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`fk_29`, CONSTRAINT `pc29` FOREIGN KEY (`f1`) REFERENCES `t1` (`f1`) ON DELETE NO ACTION ON UPDATE NO ACTION)
 select * from fk_29;
 f1
 29
@@ -96,7 +96,7 @@ CREATE TABLE `kg_test2`.`person2` (
 `Id` INT(11) NOT NULL AUTO_INCREMENT,
 `Name` VARCHAR(50) NOT NULL,
 PRIMARY KEY (`Id`),
-CONSTRAINT `fk_person_group` FOREIGN KEY (`Id`) REFERENCES  `kg_test1`.`group` (`Id`)
+CONSTRAINT `fk_person_group2` FOREIGN KEY (`Id`) REFERENCES  `kg_test1`.`group` (`Id`)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8;
 show create table `kg_test2`.`person2`;
 Table	Create Table
@@ -104,7 +104,7 @@ person2	CREATE TABLE `person2` (
   `Id` int(11) NOT NULL AUTO_INCREMENT,
   `Name` varchar(50) NOT NULL,
   PRIMARY KEY (`Id`),
-  CONSTRAINT `fk_person_group` FOREIGN KEY (`Id`) REFERENCES `kg_test1`.`group` (`Id`)
+  CONSTRAINT `fk_person_group2` FOREIGN KEY (`Id`) REFERENCES `kg_test1`.`group` (`Id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 SHOW WARNINGS;
 Level	Code	Message
@@ -211,9 +211,6 @@ call mtr.add_suppression("InnoDB: In ALTER TABLE `test`.`t1` has or is reference
 CREATE TABLE t1 (a VARCHAR(10) NOT NULL PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t1_fk (a VARCHAR(40), KEY a (a), FULLTEXT KEY(a), CONSTRAINT fk FOREIGN KEY(a) REFERENCES t1 (a) ON UPDATE CASCADE) ENGINE=InnoDB;
 ALTER TABLE t1 RENAME TO tm1, ALGORITHM=COPY;
-SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN;
-ID	FOR_NAME	REF_NAME	N_COLS	TYPE
-test/fk	test/t1_fk	test/t1	1	4
 SET FOREIGN_KEY_CHECKS=0;
 CREATE TABLE t1 (c1 BIGINT NOT NULL, c2 BIGINT NOT NULL, PRIMARY KEY(c1), UNIQUE KEY(c2)) ENGINE=MEMORY;
 ALTER TABLE t1 ENGINE=InnoDB, ALGORITHM=COPY;

@@ -23,7 +23,5 @@ select * from information_schema.innodb_sys_tablestats;
 select * from information_schema.innodb_sys_indexes;
 select * from information_schema.innodb_sys_columns;
 select * from information_schema.innodb_sys_fields;
-select * from information_schema.innodb_sys_foreign;
-select * from information_schema.innodb_sys_foreign_cols;
 select * from information_schema.innodb_sys_tablespaces;
 select * from information_schema.innodb_tablespaces_encryption;

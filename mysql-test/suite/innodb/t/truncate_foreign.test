@@ -53,6 +53,7 @@ send INSERT INTO child SET a=5;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR fk';
 SET foreign_key_checks=0, innodb_lock_wait_timeout=0;
+# NB: child now prelocks parent
 --error ER_LOCK_WAIT_TIMEOUT
 TRUNCATE TABLE parent;
 SET DEBUG_SYNC='now SIGNAL go';
@@ -94,7 +95,6 @@ INSERT INTO t1 VALUES (1,1);
 CREATE TABLE t2(f1 INT PRIMARY KEY)ENGINE=InnoDB;
 LOCK TABLES t1 WRITE;
 SET FOREIGN_KEY_CHECKS=1;
---error ER_CANNOT_ADD_FOREIGN
 TRUNCATE t1;
 # Whether TRUNCATE succeeds or fails, it will reload FOREIGN KEY constraints.
 # As a result, ha_innobase::referenced_by_foreign_key() will retun TRUE
@@ -104,9 +104,9 @@ INSERT INTO t1 VALUES (2,2);
 SELECT * FROM t1;
 UNLOCK TABLES;
 --error ER_NO_REFERENCED_ROW_2
-INSERT INTO t1 VALUES (2,2);
+INSERT INTO t1 VALUES (3,3);
 SET FOREIGN_KEY_CHECKS=0;
-INSERT INTO t1 VALUES (2,2);
+INSERT INTO t1 VALUES (4,4);
 SELECT * FROM t1;
 DROP TABLE t2, t1;
 

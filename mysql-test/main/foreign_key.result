@@ -185,6 +185,25 @@ Table	Op	Msg_type	Msg_text
 Test_MariaDB.T1	check	status	OK
 drop table Test_MariaDB.T1;
 drop database Test_MariaDB;
+# Check duplicate id
+create or replace table t1 (id int primary key) engine innodb;
+create or replace table t2 (id2 int,
+constraint c foreign key (id2) references t1 (id),
+constraint c foreign key (id2) references t1 (id));
+ERROR HY000: Duplicate FOREIGN KEY constraint name 'c'
+create or replace table t2 (id2 int, constraint c foreign key (id2) references t1 (id));
+alter table t2 add constraint c foreign key (id2) references t1 (id);
+ERROR HY000: Duplicate FOREIGN KEY constraint name 'c'
+create or replace table t3 (id2 int, constraint c foreign key (id2) references t1 (id));
+ERROR HY000: Duplicate FOREIGN KEY constraint name 'c'
+create or replace table t3 (id2 int, constraint C foreign key (id2) references t1 (id));
+create or replace table t3 (id2 int);
+alter table t2 add constraint c foreign key (id2) references t1 (id);
+ERROR HY000: Duplicate FOREIGN KEY constraint name 'c'
+alter table t2 add constraint t3_ibfk_1 foreign key (id2) references t1 (id);
+alter table t3 add foreign key (id2) references t1 (id);
+ERROR HY000: Duplicate FOREIGN KEY constraint name 't3_ibfk_1'
+drop tables t3, t2, t1;
 # Check rename column, lock tables
 create or replace table t1 (id int primary key);
 create or replace table t2 (id int primary key);
@@ -348,6 +367,8 @@ test.t2	check	status	OK
 test.t3	check	Note	Found 1 referenced keys
 test.t3	check	status	OK
 alter table yt4 rename to zt4, algorithm=copy;
+Warnings:
+Warning	1451	Cannot delete or update a parent row: a foreign key constraint fails
 select * from t1, t2, t3;
 id	id	id
 check tables t1, t2, t3;
@@ -629,6 +650,13 @@ set foreign_key_checks= 1;
 alter table t2 drop foreign key fk, drop key fk;
 drop tables t2, t1;
 # Check self-references
+create or replace table t1 (f1 integer primary key references t1(f1));
+ERROR 42000: Incorrect foreign key definition for 'f1': foreign key references itself
+create or replace table t1 (f1 integer primary key, foreign key (f1) references t1(f1));
+ERROR 42000: Incorrect foreign key definition for 'f1': foreign key references itself
+create or replace table t1 (f1 integer primary key);
+alter table t1 add constraint c1 foreign key (f1) references t1(f1);
+ERROR 42000: Incorrect foreign key definition for 'f1': foreign key references itself
 create or replace table t1 (id int primary key, id2 int references t1 (id));
 check tables t1;
 Table	Op	Msg_type	Msg_text

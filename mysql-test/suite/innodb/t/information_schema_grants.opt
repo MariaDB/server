@@ -22,8 +22,6 @@
 --enable-plugin-innodb-sys-indexes
 --enable-plugin-innodb-sys-columns
 --enable-plugin-innodb-sys-fields
---enable-plugin-innodb-sys-foreign
---enable-plugin-innodb-sys-foreign-cols
 --enable-plugin-innodb-sys-tablespaces
 --enable-plugin-innodb-sys-virtual
 --enable-plugin-innodb-tablespaces-encryption

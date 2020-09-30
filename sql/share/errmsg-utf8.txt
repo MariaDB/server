@@ -5498,17 +5498,8 @@ ER_WRONG_FK_DEF 42000
         spa "Definición de clave foránea incorrecta para '%-.192s': %s"
         sw "Ufafanuzi wa ufunguo wa kigeni usio sahihi wa '%-.192s': %s"
         swe "Felaktig FOREIGN KEY-definition för '%-.192s': %s"
-ER_KEY_REF_DO_NOT_MATCH_TABLE_REF  
-        chi "索引参考和表参考不匹配"
-        eng "Key reference and table reference don't match"
-        ger "Schlüssel- und Tabellenverweis passen nicht zusammen"
-        geo "გასაღების მიმართვა და ცხრილის მიმართვა ერთმანეთს არ ემთხვევა"
-        jpn "外部キーの参照表と定義が一致しません。"
-        nla "Sleutel- en tabelreferentie komen niet overeen"
-        por "Referência da chave e referência da tabela não coincidem"
-        spa "La referencia de clave y la referencia de tabla no coinciden"
-        sw "Marejeleo ya funguo na marejeleo ya jedwali hayalingani"
-        swe "Nyckelreferensen och tabellreferensen stämmer inte överens"
+ER_UNUSED_31
+        eng "You should never see it"
 ER_OPERAND_COLUMNS 21000 
         chi "操作数应包含%d列"
         eng "Operand should contain %d column(s)"
@@ -9777,11 +9768,8 @@ ER_FK_NO_INDEX_PARENT
         spa "Falta índice para restricción '%s.%s' en la tabla referenciada '%s'"
         sw "Faharasa haipo ya kizuizi '%s.%s' katika jedwali la marejeleo '%s'"
 
-ER_FK_FAIL_ADD_SYSTEM
-        chi "无法将外键约束'%s'添加到系统表"
-        eng "Failed to add the foreign key constraint '%s' to system tables"
-        spa "No pude añadir la restricción de clave foránea '%s' a las tablas del sistema"
-        sw "Imeshindwa kuongeza kizuizi cha ufunguo wa kigeni '%s' kwenye jedwali la mfumo"
+ER_UNUSED_32
+        eng "You should never see it"
 
 ER_FK_CANNOT_OPEN_PARENT
         chi "无法打开引用的表'%s'"

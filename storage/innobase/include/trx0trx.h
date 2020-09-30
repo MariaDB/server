@@ -791,7 +791,8 @@ public:
   detecting write/write conflicts and disabling "semi-consistent read" */
   unsigned snapshot_isolation:1;
   /** normally set; "SET foreign_key_checks=0" can be issued to suppress
-  foreign key checks, in table imports, for example */
+  foreign key checks, in table imports, for example
+  TODO: remove check_foreigns? */
   unsigned check_foreigns:1;
   /** normally set; "SET unique_checks=0, foreign_key_checks=0"
   enables bulk insert into an empty table */

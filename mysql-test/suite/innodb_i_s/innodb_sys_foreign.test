@@ -1,3 +1,0 @@
---source include/have_innodb.inc
-
-SHOW CREATE TABLE INFORMATION_SCHEMA.INNODB_SYS_FOREIGN;
