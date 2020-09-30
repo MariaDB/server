@@ -56,8 +56,6 @@ extern struct st_maria_plugin	i_s_innodb_sys_tablestats;
 extern struct st_maria_plugin	i_s_innodb_sys_indexes;
 extern struct st_maria_plugin	i_s_innodb_sys_columns;
 extern struct st_maria_plugin	i_s_innodb_sys_fields;
-extern struct st_maria_plugin	i_s_innodb_sys_foreign;
-extern struct st_maria_plugin	i_s_innodb_sys_foreign_cols;
 extern struct st_maria_plugin	i_s_innodb_sys_tablespaces;
 extern struct st_maria_plugin	i_s_innodb_sys_virtual;
 extern struct st_maria_plugin	i_s_innodb_tablespaces_encryption;

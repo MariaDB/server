@@ -439,8 +439,10 @@ public:
   bool fk_prepare_rename(THD *thd, TABLE *table, Create_field *def,
                          mbd::set<FK_table_to_lock> &fk_tables_to_lock);
   bool fk_handle_alter(THD *thd);
+  bool fk_check_foreign_id(THD *thd);
   void fk_release_locks(THD *thd);
 
+  // Backup for the table we altering. NB: auto-rollback if not committed.
   FK_table_backup fk_table_backup;
   // NB: share is owned and released by fk_shares
   mbd::map<TABLE_SHARE *, FK_ref_backup> fk_ref_backup;

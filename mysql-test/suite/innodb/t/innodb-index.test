@@ -221,10 +221,10 @@ show create table t4;
 # Embedded server doesn't chdir to data directory
 --replace_result $MYSQLD_DATADIR ./ master-data/ ''
 # a foreign key 'test/dc' already exists
---error ER_CANT_CREATE_TABLE
+--error ER_DUP_CONSTRAINT_NAME
 alter table t3 add constraint dc foreign key (a) references t1(a);
 SET FOREIGN_KEY_CHECKS=0;
---error ER_FK_FAIL_ADD_SYSTEM
+--error ER_DUP_CONSTRAINT_NAME
 alter table t3 add constraint dc foreign key (a) references t1(a);
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
 show create table t3;
