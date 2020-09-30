@@ -175,6 +175,25 @@ Table	Op	Msg_type	Msg_text
 D.T1	check	status	OK
 drop table D.T1;
 drop database D;
+# Check duplicate id
+create or replace table t1 (id int primary key) engine innodb;
+create or replace table t2 (id2 int,
+constraint c foreign key (id2) references t1 (id),
+constraint c foreign key (id2) references t1 (id));
+ERROR HY000: Duplicate FOREIGN KEY constraint name 'c'
+create or replace table t2 (id2 int, constraint c foreign key (id2) references t1 (id));
+alter table t2 add constraint c foreign key (id2) references t1 (id);
+ERROR HY000: Duplicate FOREIGN KEY constraint name 'c'
+create or replace table t3 (id2 int, constraint c foreign key (id2) references t1 (id));
+ERROR HY000: Duplicate FOREIGN KEY constraint name 'c'
+create or replace table t3 (id2 int, constraint C foreign key (id2) references t1 (id));
+create or replace table t3 (id2 int);
+alter table t2 add constraint c foreign key (id2) references t1 (id);
+ERROR HY000: Duplicate FOREIGN KEY constraint name 'c'
+alter table t2 add constraint fk_t3 foreign key (id2) references t1 (id);
+alter table t3 add foreign key (id2) references t1 (id);
+ERROR HY000: Duplicate FOREIGN KEY constraint name 'fk_t3'
+drop tables t3, t2, t1;
 # Check rename column, lock tables
 create or replace table t1 (id int primary key);
 create or replace table t2 (id int primary key);
@@ -491,6 +510,13 @@ ERROR 42000: Incorrect foreign key definition for 'id': foreign field not found
 alter table t2 drop foreign key fk;
 drop tables t1, t2;
 # Check self-references
+create or replace table t1 (f1 integer primary key references t1(f1));
+ERROR 42000: Incorrect foreign key definition for 'f1': foreign key references itself
+create or replace table t1 (f1 integer primary key, foreign key (f1) references t1(f1));
+ERROR 42000: Incorrect foreign key definition for 'f1': foreign key references itself
+create or replace table t1 (f1 integer primary key);
+alter table t1 add constraint c1 foreign key (f1) references t1(f1);
+ERROR 42000: Incorrect foreign key definition for 'f1': foreign key references itself
 create or replace table t1 (id int primary key, id2 int references t1 (id));
 check tables t1;
 Table	Op	Msg_type	Msg_text

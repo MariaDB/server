@@ -34,11 +34,6 @@ Created 4/24/1996 Heikki Tuuri
 #include "mem0mem.h"
 #include "btr0types.h"
 
-#include <deque>
-
-/** A stack of table names related through foreign key constraints */
-typedef std::deque<const char*, ut_allocator<const char*> >	dict_names_t;
-
 /** enum that defines all system table IDs. @see SYSTEM_TABLE_NAME[] */
 enum dict_system_id_t {
 	SYS_TABLES = 0,
@@ -112,33 +107,6 @@ void
 dict_load_sys_table(
 /*================*/
 	dict_table_t*	table);	/*!< in: system table */
-/***********************************************************************//**
-Loads foreign key constraints where the table is either the foreign key
-holder or where the table is referenced by a foreign key. Adds these
-constraints to the data dictionary.
-
-The foreign key constraint is loaded only if the referenced table is also
-in the dictionary cache.  If the referenced table is not in dictionary
-cache, then it is added to the output parameter (fk_tables).
-
-@return DB_SUCCESS or error code */
-dberr_t
-dict_load_foreigns(
-/*===============*/
-	const char*		table_name,	/*!< in: table name */
-	const char**		col_names,	/*!< in: column names, or NULL
-						to use table->col_names */
-	bool			check_recursive,/*!< in: Whether to check
-						recursive load of tables
-						chained by FK */
-	bool			check_charsets,	/*!< in: whether to check
-						charset compatibility */
-	dict_err_ignore_t	ignore_err,	/*!< in: error to be ignored */
-	dict_names_t&		fk_tables)	/*!< out: stack of table names
-						which must be loaded
-						subsequently to load all the
-						foreign key constraints. */
-	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
 /********************************************************************//**
 This function opens a system table, and return the first record.
@@ -228,31 +196,4 @@ dict_process_sys_fields_rec(
 	ulint*		pos,		/*!< out: Field position */
 	index_id_t*	index_id,	/*!< out: current index id */
 	index_id_t	last_id);	/*!< in: previous index id */
-/********************************************************************//**
-This function parses a SYS_FOREIGN record and populate a dict_foreign_t
-structure with the information from the record. For detail information
-about SYS_FOREIGN fields, please refer to dict_load_foreign() function
-@return error message, or NULL on success */
-const char*
-dict_process_sys_foreign_rec(
-/*=========================*/
-	mem_heap_t*	heap,		/*!< in/out: heap memory */
-	const rec_t*	rec,		/*!< in: current SYS_FOREIGN rec */
-	dict_foreign_t*	foreign);	/*!< out: dict_foreign_t to be
-					filled */
-/********************************************************************//**
-This function parses a SYS_FOREIGN_COLS record and extract necessary
-information from the record and return to caller.
-@return error message, or NULL on success */
-const char*
-dict_process_sys_foreign_col_rec(
-/*=============================*/
-	mem_heap_t*	heap,		/*!< in/out: heap memory */
-	const rec_t*	rec,		/*!< in: current SYS_FOREIGN_COLS rec */
-	const char**	name,		/*!< out: foreign key constraint name */
-	const char**	for_col_name,	/*!< out: referencing column name */
-	const char**	ref_col_name,	/*!< out: referenced column name
-					in referenced table */
-	ulint*		pos);		/*!< out: column position */
-
 #endif

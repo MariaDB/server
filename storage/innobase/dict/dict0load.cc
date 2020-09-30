@@ -44,6 +44,7 @@ Created 4/24/1996 Heikki Tuuri
 #include "srv0start.h"
 #include "srv0srv.h"
 #include "fts0opt.h"
+#include "ha_innodb.h"
 
 /** Following are the InnoDB system tables. The positions in
 this array are referenced by enum dict_system_table_id. */
@@ -60,17 +61,11 @@ static const char* SYSTEM_TABLE_NAME[] = {
 /** Loads a table definition and also all its index definitions.
 
 Loads those foreign key constraints whose referenced table is already in
-dictionary cache.  If a foreign key constraint is not loaded, then the
-referenced table is pushed into the output stack (fk_tables), if it is not
-NULL.  These tables must be subsequently loaded so that all the foreign
-key constraints are loaded into memory.
+dictionary cache.
 
 @param[in]	name		Table name in the db/tablename format
 @param[in]	ignore_err	Error to be ignored when loading table
 				and its index definition
-@param[out]	fk_tables	Related table names that must also be
-				loaded to ensure that all foreign key
-				constraints are loaded.
 @return table, NULL if does not exist; if the table is stored in an
 .ibd file, but the file does not exist, then we set the
 file_unreadable flag in the table object we return */
@@ -78,8 +73,7 @@ static
 dict_table_t*
 dict_load_table_one(
 	const table_name_t&	name,
-	dict_err_ignore_t	ignore_err,
-	dict_names_t&		fk_tables);
+	dict_err_ignore_t	ignore_err);
 
 /** Load a table definition from a SYS_TABLES record to dict_table_t.
 Do not load any columns or indexes.
@@ -509,155 +503,6 @@ dict_process_sys_fields_rec(
 
 	return(err_msg);
 
-}
-
-/********************************************************************//**
-This function parses a SYS_FOREIGN record and populate a dict_foreign_t
-structure with the information from the record. For detail information
-about SYS_FOREIGN fields, please refer to dict_load_foreign() function.
-@return error message, or NULL on success */
-const char*
-dict_process_sys_foreign_rec(
-/*=========================*/
-	mem_heap_t*	heap,		/*!< in/out: heap memory */
-	const rec_t*	rec,		/*!< in: current SYS_FOREIGN rec */
-	dict_foreign_t*	foreign)	/*!< out: dict_foreign_t struct
-					to be filled */
-{
-	ulint		len;
-	const byte*	field;
-
-	if (rec_get_deleted_flag(rec, 0)) {
-		return("delete-marked record in SYS_FOREIGN");
-	}
-
-	if (rec_get_n_fields_old(rec) != DICT_NUM_FIELDS__SYS_FOREIGN) {
-		return("wrong number of columns in SYS_FOREIGN record");
-	}
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_FOREIGN__ID, &len);
-	if (len == 0 || len == UNIV_SQL_NULL) {
-err_len:
-		return("incorrect column length in SYS_FOREIGN");
-	}
-
-	/* This receives a dict_foreign_t* that points to a stack variable.
-	So dict_foreign_free(foreign) is not used as elsewhere.
-	Since the heap used here is freed elsewhere, foreign->heap
-	is not assigned. */
-	foreign->id = mem_heap_strdupl(heap, (const char*) field, len);
-
-	rec_get_nth_field_offs_old(
-		rec, DICT_FLD__SYS_FOREIGN__DB_TRX_ID, &len);
-	if (len != DATA_TRX_ID_LEN && len != UNIV_SQL_NULL) {
-		goto err_len;
-	}
-	rec_get_nth_field_offs_old(
-		rec, DICT_FLD__SYS_FOREIGN__DB_ROLL_PTR, &len);
-	if (len != DATA_ROLL_PTR_LEN && len != UNIV_SQL_NULL) {
-		goto err_len;
-	}
-
-	/* The _lookup versions of the referenced and foreign table names
-	 are not assigned since they are not used in this dict_foreign_t */
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_FOREIGN__FOR_NAME, &len);
-	if (len == 0 || len == UNIV_SQL_NULL) {
-		goto err_len;
-	}
-	foreign->foreign_table_name = mem_heap_strdupl(
-		heap, (const char*) field, len);
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_FOREIGN__REF_NAME, &len);
-	if (len == 0 || len == UNIV_SQL_NULL) {
-		goto err_len;
-	}
-	foreign->referenced_table_name = mem_heap_strdupl(
-		heap, (const char*) field, len);
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_FOREIGN__N_COLS, &len);
-	if (len != 4) {
-		goto err_len;
-	}
-	uint32_t n_fields_and_type = mach_read_from_4(field);
-
-	foreign->type = n_fields_and_type >> 24 & ((1U << 6) - 1);
-	foreign->n_fields = n_fields_and_type & dict_index_t::MAX_N_FIELDS;
-
-	return(NULL);
-}
-
-/********************************************************************//**
-This function parses a SYS_FOREIGN_COLS record and extract necessary
-information from the record and return to caller.
-@return error message, or NULL on success */
-const char*
-dict_process_sys_foreign_col_rec(
-/*=============================*/
-	mem_heap_t*	heap,		/*!< in/out: heap memory */
-	const rec_t*	rec,		/*!< in: current SYS_FOREIGN_COLS rec */
-	const char**	name,		/*!< out: foreign key constraint name */
-	const char**	for_col_name,	/*!< out: referencing column name */
-	const char**	ref_col_name,	/*!< out: referenced column name
-					in referenced table */
-	ulint*		pos)		/*!< out: column position */
-{
-	ulint		len;
-	const byte*	field;
-
-	if (rec_get_deleted_flag(rec, 0)) {
-		return("delete-marked record in SYS_FOREIGN_COLS");
-	}
-
-	if (rec_get_n_fields_old(rec) != DICT_NUM_FIELDS__SYS_FOREIGN_COLS) {
-		return("wrong number of columns in SYS_FOREIGN_COLS record");
-	}
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_FOREIGN_COLS__ID, &len);
-	if (len == 0 || len == UNIV_SQL_NULL) {
-err_len:
-		return("incorrect column length in SYS_FOREIGN_COLS");
-	}
-	*name = mem_heap_strdupl(heap, (char*) field, len);
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_FOREIGN_COLS__POS, &len);
-	if (len != 4) {
-		goto err_len;
-	}
-	*pos = mach_read_from_4(field);
-
-	rec_get_nth_field_offs_old(
-		rec, DICT_FLD__SYS_FOREIGN_COLS__DB_TRX_ID, &len);
-	if (len != DATA_TRX_ID_LEN && len != UNIV_SQL_NULL) {
-		goto err_len;
-	}
-	rec_get_nth_field_offs_old(
-		rec, DICT_FLD__SYS_FOREIGN_COLS__DB_ROLL_PTR, &len);
-	if (len != DATA_ROLL_PTR_LEN && len != UNIV_SQL_NULL) {
-		goto err_len;
-	}
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_FOREIGN_COLS__FOR_COL_NAME, &len);
-	if (len == 0 || len == UNIV_SQL_NULL) {
-		goto err_len;
-	}
-	*for_col_name = mem_heap_strdupl(heap, (char*) field, len);
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_FOREIGN_COLS__REF_COL_NAME, &len);
-	if (len == 0 || len == UNIV_SQL_NULL) {
-		goto err_len;
-	}
-	*ref_col_name = mem_heap_strdupl(heap, (char*) field, len);
-
-	return(NULL);
 }
 
 /** Check the validity of a SYS_TABLES record
@@ -2344,9 +2189,7 @@ a foreign key references columns in this table.
 flag in the table object we return. */
 dict_table_t* dict_load_table(const char* name, dict_err_ignore_t ignore_err)
 {
-	dict_names_t			fk_list;
 	dict_table_t*			result;
-	dict_names_t::iterator		i;
 
 	DBUG_ENTER("dict_load_table");
 	DBUG_PRINT("dict_load_table", ("loading table: '%s'", name));
@@ -2357,14 +2200,7 @@ dict_table_t* dict_load_table(const char* name, dict_err_ignore_t ignore_err)
 
 	if (!result) {
 		result = dict_load_table_one(const_cast<char*>(name),
-					     ignore_err, fk_list);
-		while (!fk_list.empty()) {
-			if (!dict_table_check_if_in_cache_low(fk_list.front()))
-				dict_load_table_one(
-					const_cast<char*>(fk_list.front()),
-					ignore_err, fk_list);
-			fk_list.pop_front();
-		}
+					     ignore_err);
 	}
 
 	DBUG_RETURN(result);
@@ -2448,17 +2284,11 @@ dict_load_tablespace(
 /** Loads a table definition and also all its index definitions.
 
 Loads those foreign key constraints whose referenced table is already in
-dictionary cache.  If a foreign key constraint is not loaded, then the
-referenced table is pushed into the output stack (fk_tables), if it is not
-NULL.  These tables must be subsequently loaded so that all the foreign
-key constraints are loaded into memory.
+dictionary cache.
 
 @param[in]	name		Table name in the db/tablename format
 @param[in]	ignore_err	Error to be ignored when loading table
 				and its index definition
-@param[out]	fk_tables	Related table names that must also be
-				loaded to ensure that all foreign key
-				constraints are loaded.
 @return table, NULL if does not exist; if the table is stored in an
 .ibd file, but the file does not exist, then we set the
 file_unreadable flag in the table object we return */
@@ -2466,8 +2296,7 @@ static
 dict_table_t*
 dict_load_table_one(
 	const table_name_t&	name,
-	dict_err_ignore_t	ignore_err,
-	dict_names_t&		fk_tables)
+	dict_err_ignore_t	ignore_err)
 {
 	dberr_t		err;
 	dict_table_t*	sys_tables;
@@ -2639,24 +2468,7 @@ corrupted:
 	all indexes were loaded. */
 	if (!table->is_readable()) {
 		/* Don't attempt to load the indexes from disk. */
-	} else if (err == DB_SUCCESS) {
-		err = dict_load_foreigns(table->name.m_name, NULL,
-					 true, true,
-					 ignore_err, fk_tables);
-
-		if (err != DB_SUCCESS) {
-			ib::warn() << "Load table " << table->name
-				<< " failed, the table has missing"
-				" foreign key indexes. Turn off"
-				" 'foreign_key_checks' and try again.";
-
-			dict_sys.remove(table);
-			table = NULL;
-		} else {
-			dict_mem_table_fill_foreign_vcol_set(table);
-			table->fk_max_recusive_level = 0;
-		}
-	} else {
+	} else if (err != DB_SUCCESS) {
 		dict_index_t*   index;
 
 		/* Make sure that at least the clustered index was loaded.
@@ -2822,487 +2634,6 @@ dict_load_sys_table(
 	dict_load_indexes(table, heap, DICT_ERR_IGNORE_NONE);
 
 	mem_heap_free(heap);
-}
-
-/********************************************************************//**
-Loads foreign key constraint col names (also for the referenced table).
-Members that must be set (and valid) in foreign:
-foreign->heap
-foreign->n_fields
-foreign->id ('\0'-terminated)
-Members that will be created and set by this function:
-foreign->foreign_col_names[i]
-foreign->referenced_col_names[i]
-(for i=0..foreign->n_fields-1) */
-static
-void
-dict_load_foreign_cols(
-/*===================*/
-	dict_foreign_t*	foreign)/*!< in/out: foreign constraint object */
-{
-	dict_table_t*	sys_foreign_cols;
-	dict_index_t*	sys_index;
-	btr_pcur_t	pcur;
-	dtuple_t*	tuple;
-	dfield_t*	dfield;
-	const rec_t*	rec;
-	const byte*	field;
-	ulint		len;
-	ulint		i;
-	mtr_t		mtr;
-	size_t		id_len;
-
-	dict_sys.assert_locked();
-
-	id_len = strlen(foreign->id);
-
-	foreign->foreign_col_names = static_cast<const char**>(
-		mem_heap_alloc(foreign->heap,
-			       foreign->n_fields * sizeof(void*)));
-
-	foreign->referenced_col_names = static_cast<const char**>(
-		mem_heap_alloc(foreign->heap,
-			       foreign->n_fields * sizeof(void*)));
-
-	mtr_start(&mtr);
-
-	sys_foreign_cols = dict_table_get_low("SYS_FOREIGN_COLS");
-
-	sys_index = UT_LIST_GET_FIRST(sys_foreign_cols->indexes);
-	ut_ad(!dict_table_is_comp(sys_foreign_cols));
-
-	tuple = dtuple_create(foreign->heap, 1);
-	dfield = dtuple_get_nth_field(tuple, 0);
-
-	dfield_set_data(dfield, foreign->id, id_len);
-	dict_index_copy_types(tuple, sys_index, 1);
-
-	btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
-				  BTR_SEARCH_LEAF, &pcur, &mtr);
-	for (i = 0; i < foreign->n_fields; i++) {
-
-		rec = btr_pcur_get_rec(&pcur);
-
-		ut_a(btr_pcur_is_on_user_rec(&pcur));
-		ut_a(!rec_get_deleted_flag(rec, 0));
-
-		field = rec_get_nth_field_old(
-			rec, DICT_FLD__SYS_FOREIGN_COLS__ID, &len);
-
-		if (len != id_len || memcmp(foreign->id, field, len)) {
-			const rec_t*	pos;
-			ulint		pos_len;
-			const rec_t*	for_col_name;
-			ulint		for_col_name_len;
-			const rec_t*	ref_col_name;
-			ulint		ref_col_name_len;
-
-			pos = rec_get_nth_field_old(
-				rec, DICT_FLD__SYS_FOREIGN_COLS__POS,
-				&pos_len);
-
-			for_col_name = rec_get_nth_field_old(
-				rec, DICT_FLD__SYS_FOREIGN_COLS__FOR_COL_NAME,
-				&for_col_name_len);
-
-			ref_col_name = rec_get_nth_field_old(
-				rec, DICT_FLD__SYS_FOREIGN_COLS__REF_COL_NAME,
-				&ref_col_name_len);
-
-			ib::fatal	sout;
-
-			sout << "Unable to load column names for foreign"
-				" key '" << foreign->id
-				<< "' because it was not found in"
-				" InnoDB internal table SYS_FOREIGN_COLS. The"
-				" closest entry we found is:"
-				" (ID='";
-			sout.write(field, len);
-			sout << "', POS=" << mach_read_from_4(pos)
-				<< ", FOR_COL_NAME='";
-			sout.write(for_col_name, for_col_name_len);
-			sout << "', REF_COL_NAME='";
-			sout.write(ref_col_name, ref_col_name_len);
-			sout << "')";
-		}
-
-		field = rec_get_nth_field_old(
-			rec, DICT_FLD__SYS_FOREIGN_COLS__POS, &len);
-		ut_a(len == 4);
-		ut_a(i == mach_read_from_4(field));
-
-		field = rec_get_nth_field_old(
-			rec, DICT_FLD__SYS_FOREIGN_COLS__FOR_COL_NAME, &len);
-		foreign->foreign_col_names[i] = mem_heap_strdupl(
-			foreign->heap, (char*) field, len);
-
-		field = rec_get_nth_field_old(
-			rec, DICT_FLD__SYS_FOREIGN_COLS__REF_COL_NAME, &len);
-		foreign->referenced_col_names[i] = mem_heap_strdupl(
-			foreign->heap, (char*) field, len);
-
-		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
-	}
-
-	btr_pcur_close(&pcur);
-	mtr_commit(&mtr);
-}
-
-/***********************************************************************//**
-Loads a foreign key constraint to the dictionary cache. If the referenced
-table is not yet loaded, it is added in the output parameter (fk_tables).
-@return DB_SUCCESS or error code */
-static MY_ATTRIBUTE((nonnull(1), warn_unused_result))
-dberr_t
-dict_load_foreign(
-/*==============*/
-	const char*		id,
-				/*!< in: foreign constraint id, must be
-				'\0'-terminated */
-	const char**		col_names,
-				/*!< in: column names, or NULL
-				to use foreign->foreign_table->col_names */
-	bool			check_recursive,
-				/*!< in: whether to record the foreign table
-				parent count to avoid unlimited recursive
-				load of chained foreign tables */
-	bool			check_charsets,
-				/*!< in: whether to check charset
-				compatibility */
-	dict_err_ignore_t	ignore_err,
-				/*!< in: error to be ignored */
-	dict_names_t&	fk_tables)
-				/*!< out: the foreign key constraint is added
-				to the dictionary cache only if the referenced
-				table is already in cache.  Otherwise, the
-				foreign key constraint is not added to cache,
-				and the referenced table is added to this
-				stack. */
-{
-	dict_foreign_t*	foreign;
-	dict_table_t*	sys_foreign;
-	btr_pcur_t	pcur;
-	dict_index_t*	sys_index;
-	dtuple_t*	tuple;
-	mem_heap_t*	heap2;
-	dfield_t*	dfield;
-	const rec_t*	rec;
-	const byte*	field;
-	ulint		len;
-	mtr_t		mtr;
-	dict_table_t*	for_table;
-	dict_table_t*	ref_table;
-	size_t		id_len;
-
-	DBUG_ENTER("dict_load_foreign");
-	DBUG_PRINT("dict_load_foreign",
-		   ("id: '%s', check_recursive: %d", id, check_recursive));
-
-	dict_sys.assert_locked();
-
-	id_len = strlen(id);
-
-	heap2 = mem_heap_create(1000);
-
-	mtr_start(&mtr);
-
-	sys_foreign = dict_table_get_low("SYS_FOREIGN");
-
-	sys_index = UT_LIST_GET_FIRST(sys_foreign->indexes);
-	ut_ad(!dict_table_is_comp(sys_foreign));
-
-	tuple = dtuple_create(heap2, 1);
-	dfield = dtuple_get_nth_field(tuple, 0);
-
-	dfield_set_data(dfield, id, id_len);
-	dict_index_copy_types(tuple, sys_index, 1);
-
-	btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
-				  BTR_SEARCH_LEAF, &pcur, &mtr);
-	rec = btr_pcur_get_rec(&pcur);
-
-	if (!btr_pcur_is_on_user_rec(&pcur)
-	    || rec_get_deleted_flag(rec, 0)) {
-		/* Not found */
-
-		ib::error() << "Cannot load foreign constraint " << id
-			<< ": could not find the relevant record in "
-			<< "SYS_FOREIGN";
-
-		btr_pcur_close(&pcur);
-		mtr_commit(&mtr);
-		mem_heap_free(heap2);
-
-		DBUG_RETURN(DB_ERROR);
-	}
-
-	field = rec_get_nth_field_old(rec, DICT_FLD__SYS_FOREIGN__ID, &len);
-
-	/* Check if the id in record is the searched one */
-	if (len != id_len || memcmp(id, field, len)) {
-		{
-			ib::error	err;
-			err << "Cannot load foreign constraint " << id
-				<< ": found ";
-			err.write(field, len);
-			err << " instead in SYS_FOREIGN";
-		}
-
-		btr_pcur_close(&pcur);
-		mtr_commit(&mtr);
-		mem_heap_free(heap2);
-
-		DBUG_RETURN(DB_ERROR);
-	}
-
-	/* Read the table names and the number of columns associated
-	with the constraint */
-
-	mem_heap_free(heap2);
-
-	foreign = dict_mem_foreign_create();
-
-	uint32_t n_fields_and_type = mach_read_from_4(
-		rec_get_nth_field_old(
-			rec, DICT_FLD__SYS_FOREIGN__N_COLS, &len));
-
-	ut_a(len == 4);
-
-	/* We store the type in the bits 24..29 of n_fields_and_type. */
-
-	foreign->type = (n_fields_and_type >> 24) & ((1U << 6) - 1);
-	foreign->n_fields = n_fields_and_type & dict_index_t::MAX_N_FIELDS;
-
-	foreign->id = mem_heap_strdupl(foreign->heap, id, id_len);
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_FOREIGN__FOR_NAME, &len);
-
-	foreign->foreign_table_name = mem_heap_strdupl(
-		foreign->heap, (char*) field, len);
-	dict_mem_foreign_table_name_lookup_set(foreign, TRUE);
-
-	const ulint foreign_table_name_len = len;
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_FOREIGN__REF_NAME, &len);
-	foreign->referenced_table_name = mem_heap_strdupl(
-		foreign->heap, (char*) field, len);
-	dict_mem_referenced_table_name_lookup_set(foreign, TRUE);
-
-	btr_pcur_close(&pcur);
-	mtr_commit(&mtr);
-
-	dict_load_foreign_cols(foreign);
-
-	ref_table = dict_table_check_if_in_cache_low(
-		foreign->referenced_table_name_lookup);
-	for_table = dict_table_check_if_in_cache_low(
-		foreign->foreign_table_name_lookup);
-
-	if (!for_table) {
-		/* To avoid recursively loading the tables related through
-		the foreign key constraints, the child table name is saved
-		here.  The child table will be loaded later, along with its
-		foreign key constraint. */
-
-		ut_a(ref_table != NULL);
-		fk_tables.push_back(
-			mem_heap_strdupl(ref_table->heap,
-					 foreign->foreign_table_name_lookup,
-					 foreign_table_name_len));
-
-		dict_foreign_remove_from_cache(foreign);
-		DBUG_RETURN(DB_SUCCESS);
-	}
-
-	ut_a(for_table || ref_table);
-
-	/* Note that there may already be a foreign constraint object in
-	the dictionary cache for this constraint: then the following
-	call only sets the pointers in it to point to the appropriate table
-	and index objects and frees the newly created object foreign.
-	Adding to the cache should always succeed since we are not creating
-	a new foreign key constraint but loading one from the data
-	dictionary. */
-
-	DBUG_RETURN(dict_foreign_add_to_cache(foreign, col_names,
-					      check_charsets,
-					      ignore_err));
-}
-
-/***********************************************************************//**
-Loads foreign key constraints where the table is either the foreign key
-holder or where the table is referenced by a foreign key. Adds these
-constraints to the data dictionary.
-
-The foreign key constraint is loaded only if the referenced table is also
-in the dictionary cache.  If the referenced table is not in dictionary
-cache, then it is added to the output parameter (fk_tables).
-
-@return DB_SUCCESS or error code */
-dberr_t
-dict_load_foreigns(
-	const char*		table_name,	/*!< in: table name */
-	const char**		col_names,	/*!< in: column names, or NULL
-						to use table->col_names */
-	bool			check_recursive,/*!< in: Whether to check
-						recursive load of tables
-						chained by FK */
-	bool			check_charsets,	/*!< in: whether to check
-						charset compatibility */
-	dict_err_ignore_t	ignore_err,	/*!< in: error to be ignored */
-	dict_names_t&		fk_tables)
-						/*!< out: stack of table
-						names which must be loaded
-						subsequently to load all the
-						foreign key constraints. */
-{
-	ulint		tuple_buf[(DTUPLE_EST_ALLOC(1) + sizeof(ulint) - 1)
-				/ sizeof(ulint)];
-	btr_pcur_t	pcur;
-	dtuple_t*	tuple;
-	dfield_t*	dfield;
-	dict_index_t*	sec_index;
-	dict_table_t*	sys_foreign;
-	const rec_t*	rec;
-	const byte*	field;
-	ulint		len;
-	dberr_t		err;
-	mtr_t		mtr;
-
-	DBUG_ENTER("dict_load_foreigns");
-
-	dict_sys.assert_locked();
-
-	sys_foreign = dict_table_get_low("SYS_FOREIGN");
-
-	if (sys_foreign == NULL) {
-		/* No foreign keys defined yet in this database */
-
-		ib::info() << "No foreign key system tables in the database";
-		DBUG_RETURN(DB_ERROR);
-	}
-
-	ut_ad(!dict_table_is_comp(sys_foreign));
-	mtr_start(&mtr);
-
-	/* Get the secondary index based on FOR_NAME from table
-	SYS_FOREIGN */
-
-	sec_index = dict_table_get_next_index(
-		dict_table_get_first_index(sys_foreign));
-	ut_ad(!dict_index_is_clust(sec_index));
-start_load:
-
-	tuple = dtuple_create_from_mem(tuple_buf, sizeof(tuple_buf), 1, 0);
-	dfield = dtuple_get_nth_field(tuple, 0);
-
-	dfield_set_data(dfield, table_name, strlen(table_name));
-	dict_index_copy_types(tuple, sec_index, 1);
-
-	btr_pcur_open_on_user_rec(sec_index, tuple, PAGE_CUR_GE,
-				  BTR_SEARCH_LEAF, &pcur, &mtr);
-loop:
-	rec = btr_pcur_get_rec(&pcur);
-
-	if (!btr_pcur_is_on_user_rec(&pcur)) {
-		/* End of index */
-
-		goto load_next_index;
-	}
-
-	/* Now we have the record in the secondary index containing a table
-	name and a foreign constraint ID */
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_FOREIGN_FOR_NAME__NAME, &len);
-
-	/* Check if the table name in the record is the one searched for; the
-	following call does the comparison in the latin1_swedish_ci
-	charset-collation, in a case-insensitive way. */
-
-	if (0 != cmp_data_data(dfield_get_type(dfield)->mtype,
-			       dfield_get_type(dfield)->prtype,
-			       static_cast<const byte*>(
-				       dfield_get_data(dfield)),
-			       dfield_get_len(dfield),
-			       field, len)) {
-
-		goto load_next_index;
-	}
-
-	/* Since table names in SYS_FOREIGN are stored in a case-insensitive
-	order, we have to check that the table name matches also in a binary
-	string comparison. On Unix, MySQL allows table names that only differ
-	in character case.  If lower_case_table_names=2 then what is stored
-	may not be the same case, but the previous comparison showed that they
-	match with no-case.  */
-
-	if (rec_get_deleted_flag(rec, 0)) {
-		goto next_rec;
-	}
-
-	if (innobase_get_lower_case_table_names() != 2
-	    && memcmp(field, table_name, len)) {
-		goto next_rec;
-	}
-
-	/* Now we get a foreign key constraint id */
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_FOREIGN_FOR_NAME__ID, &len);
-
-	/* Copy the string because the page may be modified or evicted
-	after mtr_commit() below. */
-	char	fk_id[MAX_TABLE_NAME_LEN + 1];
-
-	ut_a(len <= MAX_TABLE_NAME_LEN);
-	memcpy(fk_id, field, len);
-	fk_id[len] = '\0';
-
-	btr_pcur_store_position(&pcur, &mtr);
-
-	mtr_commit(&mtr);
-
-	/* Load the foreign constraint definition to the dictionary cache */
-
-	err = dict_load_foreign(fk_id, col_names,
-				check_recursive, check_charsets, ignore_err,
-				fk_tables);
-
-	if (err != DB_SUCCESS) {
-		btr_pcur_close(&pcur);
-
-		DBUG_RETURN(err);
-	}
-
-	mtr_start(&mtr);
-
-	btr_pcur_restore_position(BTR_SEARCH_LEAF, &pcur, &mtr);
-next_rec:
-	btr_pcur_move_to_next_user_rec(&pcur, &mtr);
-
-	goto loop;
-
-load_next_index:
-	btr_pcur_close(&pcur);
-	mtr_commit(&mtr);
-
-	sec_index = dict_table_get_next_index(sec_index);
-
-	if (sec_index != NULL) {
-
-		mtr_start(&mtr);
-
-		/* Switch to scan index on REF_NAME, fk_max_recusive_level
-		already been updated when scanning FOR_NAME index, no need to
-		update again */
-		check_recursive = FALSE;
-
-		goto start_load;
-	}
-
-	DBUG_RETURN(DB_SUCCESS);
 }
 
 /***********************************************************************//**

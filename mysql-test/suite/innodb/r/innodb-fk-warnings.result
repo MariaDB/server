@@ -1,25 +1,3 @@
-CREATE TABLE t1 (
-id int(11) NOT NULL PRIMARY KEY,
-a int(11) NOT NULL,
-b int(11) NOT NULL,
-c int not null,
-CONSTRAINT test FOREIGN KEY (b) REFERENCES t1 (id)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-CREATE TABLE t2 (
-id int(11) NOT NULL PRIMARY KEY,
-a int(11) NOT NULL,
-b int(11) NOT NULL,
-c int not null,
-CONSTRAINT mytest FOREIGN KEY (c) REFERENCES t1(id),
-CONSTRAINT test FOREIGN KEY (b) REFERENCES t2 (id)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-ERROR HY000: Can't create table `test`.`t2` (errno: 121 "Duplicate key on write or update")
-show warnings;
-Level	Code	Message
-Warning	121	Create or Alter table `test`.`t2` with foreign key constraint failed. Foreign key constraint `test`.`test` already exists on data dictionary. Foreign key constraint names need to be unique in database. Error in foreign key definition: CONSTRAINT `test` FOREIGN KEY (`b`) REFERENCES `test`.`t2` (`id`).
-Error	1005	Can't create table `test`.`t2` (errno: 121 "Duplicate key on write or update")
-Warning	1022	Can't write; duplicate key in table 't2'
-drop table t1;
 create table t1(a int) engine=innodb;
 create table t2(a int, constraint a foreign key a (a) references t1(a)) engine=innodb;
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
@@ -41,19 +19,16 @@ drop table t1;
 create table t1(a int not null primary key, b int) engine=innodb;
 create table t2(a int, b int, constraint a foreign key a (a) references t1(a),
 constraint a foreign key a (a) references t1(b)) engine=innodb;
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Duplicate FOREIGN KEY constraint name 'a'
 show warnings;
 Level	Code	Message
-Error	1005	Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
-Warning	1215	Cannot add foreign key constraint for `t2`
+Error	1826	Duplicate FOREIGN KEY constraint name 'a'
 create table t2(a int, b int, constraint a foreign key a (a) references t1(a)) engine=innodb;
 alter table t2 add constraint b foreign key (b) references t2(b);
-ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR 42000: Incorrect foreign key definition for 'b': foreign key references itself
 show warnings;
 Level	Code	Message
-Warning	150	Alter  table `test`.`t2` with foreign key `b` constraint failed. There is no index in the referenced table where the referenced columns appear as the first columns.
-Error	1005	Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
-Warning	1215	Cannot add foreign key constraint for `t2`
+Error	1239	Incorrect foreign key definition for 'b': foreign key references itself
 drop table t2, t1;
 create table t1 (f1 integer primary key) engine=innodb;
 alter table t1 add constraint c1 foreign key (f1) references t11(f1);
@@ -91,26 +66,24 @@ Warning	1215	Cannot add foreign key constraint for `t1`
 drop table t1;
 create table t1(a int not null primary key, b int, key(b)) engine=innodb;
 alter table t1 add foreign key(a,b) references t1(a);
-ERROR 42000: Incorrect foreign key definition for 'foreign key without name': Key reference and table reference don't match
+ERROR 42000: Incorrect foreign key definition for 'foreign key without name': foreign-referenced fields count mismatch
 show warnings;
 Level	Code	Message
-Error	1239	Incorrect foreign key definition for 'foreign key without name': Key reference and table reference don't match
+Error	1239	Incorrect foreign key definition for 'foreign key without name': foreign-referenced fields count mismatch
 drop table t1;
 create table t1(a int not null primary key, b int, key(b)) engine=innodb;
 alter table t1 add foreign key(a) references t1(a,b);
-ERROR 42000: Incorrect foreign key definition for 'foreign key without name': Key reference and table reference don't match
+ERROR 42000: Incorrect foreign key definition for 'foreign key without name': foreign-referenced fields count mismatch
 show warnings;
 Level	Code	Message
-Error	1239	Incorrect foreign key definition for 'foreign key without name': Key reference and table reference don't match
+Error	1239	Incorrect foreign key definition for 'foreign key without name': foreign-referenced fields count mismatch
 drop table t1;
 create table t1 (f1 integer not null primary key) engine=innodb;
 alter table t1 add constraint c1 foreign key (f1) references t1(f1) on update set null;
-ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR 42000: Incorrect foreign key definition for 'f1': foreign key references itself
 show warnings;
 Level	Code	Message
-Warning	150	Alter  table `test`.`t1` with foreign key `c1` constraint failed. You have defined a SET NULL condition but column 'f1' is defined as NOT NULL.
-Error	1005	Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
-Warning	1215	Cannot add foreign key constraint for `t1`
+Error	1239	Incorrect foreign key definition for 'f1': foreign key references itself
 create table t2(a int not null, foreign key(a) references t1(f1) on delete set null) engine=innodb;
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 show warnings;

@@ -288,22 +288,43 @@ bool foreign_key_prefix(Key *a, Key *b)
 /*
   @brief
   Check if the foreign key options are compatible with the specification
-  of the columns on which the key is created
+  of the columns on which the key is created.
+
+  Check self-references for self-column pointing.
 
   @retval
     FALSE   The foreign key options are compatible with key columns
   @retval
     TRUE    Otherwise
 */
-bool Foreign_key::validate(List<Create_field> &table_fields)
+bool Foreign_key::validate(const LEX_CSTRING &db, const LEX_CSTRING &table_name,
+                           List<Create_field> &table_fields, bool &self_ref)
 {
   Create_field  *sql_field;
-  Key_part_spec *column;
-  List_iterator<Key_part_spec> cols(columns);
-  List_iterator<Create_field> it(table_fields);
+  Key_part_spec *column, *rcol;
+  List_iterator_fast<Key_part_spec> cols(columns);
+  List_iterator_fast<Key_part_spec> rcols(ref_columns);
+  List_iterator_fast<Create_field> it(table_fields);
+  // NB: self-references may have no ref_table
+  self_ref= !ref_table.str || ((!ref_db.str || 0 == cmp_table(db, ref_db)) &&
+                               0 == cmp_table(table_name, ref_table));
   DBUG_ENTER("Foreign_key::validate");
+  const char *nam= constraint_name.str ? constraint_name.str : name.str;
+  if (columns.elements != ref_columns.elements)
+  {
+    my_error(ER_WRONG_FK_DEF, MYF(0), (nam ? nam : "foreign key without name"),
+             "foreign-referenced fields count mismatch");
+    DBUG_RETURN(TRUE);
+  }
   while ((column= cols++))
   {
+    rcol= rcols++;
+    if (self_ref && 0 == cmp_ident(column->field_name, rcol->field_name))
+    {
+      my_error(ER_WRONG_FK_DEF, MYF(0), rcol->field_name.str,
+               "foreign key references itself");
+      DBUG_RETURN(TRUE);
+    }
     it.rewind();
     while ((sql_field= it++) &&
            lex_string_cmp(system_charset_info,
@@ -6209,7 +6230,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 
       replicated_tables_count++;
 
-      if (tbl->prelocking_placeholder != TABLE_LIST::PRELOCK_FK)
+      if (tbl->prelocking_placeholder < TABLE_LIST::PRELOCK_FK)
       {
         if (tbl->lock_type <= TL_READ_NO_INSERT)
           has_read_tables= true;

@@ -83,8 +83,6 @@ SET FOREIGN_KEY_CHECKS= OFF;
 CREATE TABLE t1 (f2 INT, f4 INT, KEY(f2), FOREIGN KEY (f4) REFERENCES t3 (f4)) ENGINE=InnoDB;
 SET FOREIGN_KEY_CHECKS= ON;
 CREATE TABLE t2 (f2 INT, FOREIGN KEY(f2) REFERENCES t1 (f2)) ENGINE=InnoDB;
-CREATE TABLE t3 (a INT) ENGINE=InnoDB;
-ERROR HY000: Can't create table `test`.`t3` (errno: 150 "Foreign key constraint is incorrectly formed")
 ALTER TABLE t1 RENAME TO t3;
 ERROR 42S02: Table 'test.t3' doesn't exist
 SET FOREIGN_KEY_CHECKS= OFF;

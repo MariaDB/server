@@ -23,6 +23,5 @@ parent
 alter table parent row_format=dynamic;
 Warnings:
 Warning	1215	Reference hint to non-existent table `bug.child` skipped
-Warning	1088	failed to load FOREIGN KEY constraints
 drop table parent;
 drop database bug;

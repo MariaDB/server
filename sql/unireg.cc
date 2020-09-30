@@ -1464,7 +1464,9 @@ bool Foreign_key_io::parse(THD *thd, TABLE_SHARE *s, LEX_CUSTRING& image)
     if (shallow_hints)
     {
       /* For DROP TABLE we don't need full reference resolution. We just need
-         to know if anything from the outside references the dropped table. */
+         to know if anything from the outside references the dropped table.
+         Temporary share may have FK columns renamed so we can't resolve by
+         column names.*/
       FK_info *dst= new (&s->mem_root) FK_info;
       dst->foreign_db= hint_db;
       dst->foreign_table= hint_table;

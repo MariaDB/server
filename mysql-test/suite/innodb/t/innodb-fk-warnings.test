@@ -1,35 +1,6 @@
 --source include/have_innodb.inc
 
 #
-# MDEV-8524: Improve error messaging when there is duplicate key or foreign key names
-#
-CREATE TABLE t1 (
-  id int(11) NOT NULL PRIMARY KEY,
-  a int(11) NOT NULL,
-  b int(11) NOT NULL,
-  c int not null,
-  CONSTRAINT test FOREIGN KEY (b) REFERENCES t1 (id)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-#
-# Below create table fails because constraint name test
-# is reserved for above table.
-#
---error ER_CANT_CREATE_TABLE
-CREATE TABLE t2 (
-  id int(11) NOT NULL PRIMARY KEY,
-  a int(11) NOT NULL,
-  b int(11) NOT NULL,
-  c int not null,
-  CONSTRAINT mytest FOREIGN KEY (c) REFERENCES t1(id),
-  CONSTRAINT test FOREIGN KEY (b) REFERENCES t2 (id)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-show warnings;
-
-drop table t1;
-
-#
 # MDEV-6697: Improve foreign keys warnings/errors
 #
 
@@ -49,12 +20,12 @@ show warnings;
 drop table t1;
 
 create table t1(a int not null primary key, b int) engine=innodb;
---error ER_CANT_CREATE_TABLE
+--error ER_DUP_CONSTRAINT_NAME
 create table t2(a int, b int, constraint a foreign key a (a) references t1(a),
 constraint a foreign key a (a) references t1(b)) engine=innodb;
 show warnings;
 create table t2(a int, b int, constraint a foreign key a (a) references t1(a)) engine=innodb;
---error ER_CANT_CREATE_TABLE
+--error ER_WRONG_FK_DEF
 alter table t2 add constraint b foreign key (b) references t2(b);
 show warnings;
 drop table t2, t1;
@@ -115,7 +86,7 @@ drop table t1;
 # ON UPDATE/DELETE SET NULL on NOT NULL column
 #
 create table t1 (f1 integer not null primary key) engine=innodb;
---error ER_CANT_CREATE_TABLE
+--error ER_WRONG_FK_DEF
 alter table t1 add constraint c1 foreign key (f1) references t1(f1) on update set null;
 show warnings;
 --error ER_CANT_CREATE_TABLE

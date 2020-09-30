@@ -4779,14 +4779,8 @@ ER_WRONG_FK_DEF 42000
         por "Definição errada da chave estrangeira para '%-.192s': %s"
         spa "Equivocada definición de llave extranjera para '%-.192s': %s"
         swe "Felaktig FOREIGN KEY-definition för '%-.192s': %s"
-ER_KEY_REF_DO_NOT_MATCH_TABLE_REF  
-        eng "Key reference and table reference don't match"
-        ger "Schlüssel- und Tabellenverweis passen nicht zusammen"
-        jpn "外部キーの参照表と定義が一致しません。"
-        nla "Sleutel- en tabelreferentie komen niet overeen"
-        por "Referência da chave e referência da tabela não coincidem"
-        spa "Referencia de llave y referencia de tabla no coinciden"
-        swe "Nyckelreferensen och tabellreferensen stämmer inte överens"
+ER_UNUSED_29
+        eng "You should never see it"
 ER_OPERAND_COLUMNS 21000 
         eng "Operand should contain %d column(s)"
         ger "Operand sollte %d Spalte(n) enthalten"
@@ -6934,8 +6928,8 @@ ER_FK_NO_INDEX_CHILD
 ER_FK_NO_INDEX_PARENT
         eng "Failed to add the foreign key constaint. Missing index for constraint '%s' in the referenced table '%s'"
 
-ER_FK_FAIL_ADD_SYSTEM
-        eng "Failed to add the foreign key constraint '%s' to system tables"
+ER_UNUSED_28
+        eng "You should never see it"
 
 ER_FK_CANNOT_OPEN_PARENT
         eng "Failed to open the referenced table '%s'"
