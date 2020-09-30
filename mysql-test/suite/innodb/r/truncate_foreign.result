@@ -81,22 +81,21 @@ ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (a), ALGORITHM=COPY;
 INSERT INTO t1 VALUES (1,1);
 CREATE TABLE t2(f1 INT PRIMARY KEY)ENGINE=InnoDB;
 LOCK TABLES t1 WRITE;
+Warnings:
+Warning	1452	`test.t2` is missing field `a` referenced by foreign key `t1_ibfk_1` in `test.t1`
 SET FOREIGN_KEY_CHECKS=1;
 TRUNCATE t1;
-ERROR HY000: Cannot add foreign key constraint for `t1`
 INSERT INTO t1 VALUES (2,2);
 ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t2` (`a`))
 SELECT * FROM t1;
 pk	a
-1	1
 UNLOCK TABLES;
-INSERT INTO t1 VALUES (2,2);
+INSERT INTO t1 VALUES (3,3);
 ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t2` (`a`))
 SET FOREIGN_KEY_CHECKS=0;
-INSERT INTO t1 VALUES (2,2);
+INSERT INTO t1 VALUES (4,4);
 SELECT * FROM t1;
 pk	a
-1	1
-2	2
+4	4
 DROP TABLE t2, t1;
 # End of 10.6 tests

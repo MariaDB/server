@@ -193,7 +193,7 @@ drop table rename_column_and_index;
 create table t1 (f1 int, f2 int, f3 int);
 create table t2 (f2 int primary key);
 alter table t1 add foreign key f (f2) references t2(f2);
-alter table t1 add foreign key (f2) references t1(f2), add key (f3), add key (f1);
+alter table t1 add foreign key (f1) references t1(f2), add key (f3), add key (f1);
 drop tables t1, t2;
 
 --echo #

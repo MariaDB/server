@@ -22,13 +22,6 @@ CREATE TABLE t1c (c1 INT PRIMARY KEY, c2 INT, c3 INT, INDEX(c2), INDEX(c3),
 		  CONSTRAINT t1c3 FOREIGN KEY (c3) REFERENCES t1p(c2))
 ENGINE=InnoDB;
 
-CREATE TABLE sys_foreign SELECT i.*
-FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN i
-WHERE FOR_NAME LIKE 'test/t%';
-
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-
 -- source suite/innodb/include/innodb_dict.inc
 
 SHOW CREATE TABLE t1;
@@ -52,9 +45,6 @@ ALTER TABLE t1 CHANGE c3 C INT;
 -- source suite/innodb/include/innodb_dict.inc
 
 ALTER TABLE t1 CHANGE C Cöŀumň_TWO INT;
-
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
 
 -- source suite/innodb/include/innodb_dict.inc
 
@@ -360,7 +350,7 @@ DROP INDEX ct, ALGORITHM=INPLACE;
 
 SHOW CREATE TABLE t1o;
 
-DROP TABLE t1c, t1p, sys_tables, sys_indexes, sys_foreign;
+DROP TABLE t1c, t1p, sys_tables, sys_indexes;
 
 # Check the internal schemata of tt, t1o.
 
@@ -368,8 +358,6 @@ CREATE TABLE sys_tables SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES
 WHERE NAME='test/t1o';
 CREATE TABLE sys_indexes SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES i
 INNER JOIN sys_tables st ON i.TABLE_ID=st.TABLE_ID;
-CREATE TABLE sys_foreign SELECT i.*
-FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN i WHERE FOR_NAME='test/t1o';
 
 -- source suite/innodb/include/innodb_dict.inc
 
@@ -393,7 +381,7 @@ INNER JOIN sys_tables st ON i.TABLE_ID=st.TABLE_ID;
 
 -- source suite/innodb/include/innodb_dict.inc
 
-DROP TABLE tt, t1o, sys_tables, sys_indexes, sys_foreign;
+DROP TABLE tt, t1o, sys_tables, sys_indexes;
 
 CREATE TABLE t (t TEXT, FULLTEXT(t)) ENGINE=InnoDB;
 DROP INDEX t ON t;
@@ -454,10 +442,6 @@ SELECT F.NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS F INNER JOIN
   INFORMATION_SCHEMA.INNODB_SYS_INDEXES I ON F.INDEX_ID=I.INDEX_ID INNER JOIN
   INFORMATION_SCHEMA.INNODB_SYS_TABLES T ON I.TABLE_ID=T.TABLE_ID
   WHERE T.NAME='test/t1' AND I.NAME='PRIMARY';
-
-SELECT C.REF_COL_NAME, C.FOR_COL_NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS C INNER JOIN
-  INFORMATION_SCHEMA.INNODB_SYS_FOREIGN F ON C.ID=F.ID
-  WHERE F.FOR_NAME='test/t2';
 
 DROP TABLE t2, t1;
 --echo # virtual columns case too

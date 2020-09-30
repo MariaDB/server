@@ -3081,21 +3081,10 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     if (key->foreign)
     {
       Foreign_key *fk_key= (Foreign_key*) key;
-      if (!fk_key->ignore && fk_key->validate(alter_info->create_list))
+      bool self_ref;
+      if (!fk_key->ignore && fk_key->validate(table_name.db, table_name.name,
+                                              alter_info->create_list, self_ref))
         DBUG_RETURN(TRUE);
-      if (fk_key->ref_columns.elements)
-      {
-        if (fk_key->ref_columns.elements != fk_key->columns.elements)
-        {
-          my_error(ER_WRONG_FK_DEF, MYF(0),
-                  (fk_key->name.str ? fk_key->name.str :
-                                      "foreign key without name"),
-                  ER_THD(thd, ER_KEY_REF_DO_NOT_MATCH_TABLE_REF));
-          DBUG_RETURN(TRUE);
-        }
-      }
-      else
-        fk_key->ref_columns.append(&fk_key->columns);
     }
     (*key_count)++;
     tmp=file->max_key_parts();
@@ -9464,28 +9453,21 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       if (key->foreign)
       {
         Foreign_key *fk= static_cast<Foreign_key*>(key);
-        if (fk->validate(new_create_list))
+        bool self_ref;
+        if (fk->validate(alter_ctx->new_db, alter_ctx->new_name, new_create_list, self_ref))
           goto err;
-        // self-references have no ref_table and ref_db
-        DBUG_ASSERT(fk->ref_table.str || fk->ref_db.str);
-        if (fk->ref_table.str)
+        if (!self_ref)
         {
           Table_name t(fk->ref_db.str ? fk->ref_db : table->s->db,
                        fk->ref_table);
           if (lower_case_table_names)
             t.lowercase(thd->mem_root);
-          if (0 != cmp_table(t.db, table->s->db) ||
-              0 != cmp_table(t.name, table->s->table_name))
-          {
-            if (alter_ctx->fk_added.push_back({t, fk}))
-              goto err;
-            const FK_table_to_lock *x= fk_tables_to_lock.insert(t);
-            if (!x)
-              goto err;
-            const_cast<FK_table_to_lock *>(x)->fail= true;
-          }
-          else if (alter_ctx->fk_added.push_back({Table_name(), fk}))
+          if (alter_ctx->fk_added.push_back({t, fk}))
             goto err;
+          const FK_table_to_lock *x= fk_tables_to_lock.insert(t);
+          if (!x)
+            goto err;
+          const_cast<FK_table_to_lock *>(x)->fail= true;
         }
         if (key->name.str)
         {
@@ -11593,6 +11575,14 @@ do_continue:;
 
   /* Remember that we have not created table in storage engine yet. */
   no_ha_table= true;
+
+  /*
+     Check for duplicate foreign id.
+     NB: we cannot do this in mysql_prepare_alter_table() because we must generate
+     default ids first (mysql_prepare_create_table()).
+  */
+  if (alter_ctx.fk_added.size() && alter_ctx.fk_check_foreign_id(thd))
+    goto err_new_table_cleanup;
 
   if (alter_info->algorithm(thd) != Alter_info::ALTER_TABLE_ALGORITHM_COPY)
   {
@@ -13777,6 +13767,21 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_create_vector &shares)
           cmp_table(fk.referenced_table, ref_share->table_name))
         continue;
 
+      // Check for duplicated id
+      for (const FK_info &rk: ref_share->referenced_keys)
+      {
+        /* Constraint ids may be same in different databases */
+        if (cmp_table(fk.foreign_db, rk.foreign_db))
+          continue;
+        DBUG_ASSERT(rk.foreign_id.str);
+        if (0 == rk.foreign_id.cmp(fk.foreign_id))
+        {
+          my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "FOREIGN KEY",
+                   fk.foreign_id.str);
+          return true;
+        }
+      }
+
       FK_info *dst= fk.clone(&ref_share->mem_root);
       if (!dst ||
           ref_share->referenced_keys.push_back(dst, &ref_share->mem_root))
@@ -13793,6 +13798,20 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_create_vector &shares)
   return false;
 }
 
+/**
+  @brief  Used in ALTER TABLE. Prepares data for conducting update on relates shares
+  foreign_keys/referenced_keys which is done by fk_handle_alter().
+
+  Updates table's share as well. This is needed for prepare_create_table() and
+  for InnoDB engine which doesn't flush foreign cache on inplace alter.
+
+
+  @param[in]    def               Rename column action
+  @param[out]   fk_tables_to_lock Referenced/foreign tables to be locked by
+                                  mysql_prepare_alter_table()
+
+  @return                         Error status
+*/
 
 /** 1. Check referenced fields existence and type compatibility.
 
@@ -14301,6 +14320,45 @@ bool Alter_table_ctx::fk_handle_alter(THD *thd)
       return true;
   }
 
+  return false;
+}
+
+
+bool Alter_table_ctx::fk_check_foreign_id(THD *thd)
+{
+  for (const FK_add_new &new_fk: fk_added)
+  {
+    auto i= fk_shares.find(new_fk.ref);
+    if (i == fk_shares.end())
+    {
+      DBUG_ASSERT(!thd->variables.check_foreign());
+      continue;
+    }
+    TABLE_SHARE *s= i->second.share;
+    for (const FK_info &rk: s->referenced_keys)
+    {
+      DBUG_ASSERT(rk.foreign_id.str);
+      if (0 == rk.foreign_id.cmp(new_fk.fk->constraint_name))
+      {
+        bool found= false;
+        for (const FK_drop_old &dropped: fk_dropped)
+        {
+          if (s->cmp_db_table(dropped.ref.db, dropped.ref.name))
+            continue;
+          if (0 == dropped.fk->foreign_id.cmp(new_fk.fk->constraint_name))
+          {
+            found= true;
+            break;
+          }
+        }
+        if (found)
+          break;
+        my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "FOREIGN KEY",
+                 rk.foreign_id.str);
+        return true;
+      }
+    }
+  }
   return false;
 }
 

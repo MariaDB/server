@@ -5749,6 +5749,7 @@ struct st_maria_plugin	i_s_innodb_sys_fields =
 	MariaDB_PLUGIN_MATURITY_STABLE
 };
 
+#if 0
 namespace Show {
 /**  SYS_FOREIGN        ********************************************/
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_SYS_FOREIGN */
@@ -6132,6 +6133,7 @@ struct st_maria_plugin	i_s_innodb_sys_foreign_cols =
 	i_s_version, nullptr, nullptr, PACKAGE_VERSION,
 	MariaDB_PLUGIN_MATURITY_STABLE
 };
+#endif
 
 namespace Show {
 /**  SYS_TABLESPACES    ********************************************/

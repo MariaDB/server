@@ -4040,6 +4040,8 @@ dberr_t lock_table_children(dict_table_t *table, trx_t *trx)
   for (auto f : table->referenced_set)
     if (dict_table_t *child= f->foreign_table)
     {
+      if (!child->get_ref_count() && child->can_be_evicted)
+        continue;
       if (std::find_if(children.begin(), children.end(),
                        [&](const table_mdl &c){ return c.table == child; }) !=
           children.end())

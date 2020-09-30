@@ -70,12 +70,6 @@ create sql security definer view d_sys_columns as select * from information_sche
 create sql security invoker view i_sys_fields as select * from information_schema.innodb_sys_fields;
 create sql security definer view d_sys_fields as select * from information_schema.innodb_sys_fields;
 
-create sql security invoker view i_sys_foreign as select * from information_schema.innodb_sys_foreign;
-create sql security definer view d_sys_foreign as select * from information_schema.innodb_sys_foreign;
-
-create sql security invoker view i_sys_foreign_cols as select * from information_schema.innodb_sys_foreign_cols;
-create sql security definer view d_sys_foreign_cols as select * from information_schema.innodb_sys_foreign_cols;
-
 create sql security invoker view i_sys_indexes as select * from information_schema.innodb_sys_indexes;
 create sql security definer view d_sys_indexes as select * from information_schema.innodb_sys_indexes;
 
@@ -214,18 +208,6 @@ select count(*) > -1 from information_schema.innodb_sys_fields;
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 select count(*) > -1 from i_sys_fields;
 select count(*) > -1 from d_sys_fields;
-
---error ER_SPECIFIC_ACCESS_DENIED_ERROR
-select count(*) > -1 from information_schema.innodb_sys_foreign;
---error ER_SPECIFIC_ACCESS_DENIED_ERROR
-select count(*) > -1 from i_sys_foreign;
-select count(*) > -1 from d_sys_foreign;
-
---error ER_SPECIFIC_ACCESS_DENIED_ERROR
-select count(*) > -1 from information_schema.innodb_sys_foreign_cols;
---error ER_SPECIFIC_ACCESS_DENIED_ERROR
-select count(*) > -1 from i_sys_foreign_cols;
-select count(*) > -1 from d_sys_foreign_cols;
 
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 select count(*) > -1 from information_schema.innodb_sys_indexes;
