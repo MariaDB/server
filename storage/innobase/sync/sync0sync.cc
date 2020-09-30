@@ -48,7 +48,6 @@ mysql_pfs_key_t	fil_system_mutex_key;
 mysql_pfs_key_t	flush_list_mutex_key;
 mysql_pfs_key_t	fts_bg_threads_mutex_key;
 mysql_pfs_key_t	fts_delete_mutex_key;
-mysql_pfs_key_t	fts_optimize_mutex_key;
 mysql_pfs_key_t	fts_doc_id_mutex_key;
 mysql_pfs_key_t	fts_pll_tokenize_mutex_key;
 mysql_pfs_key_t	hash_table_mutex_key;

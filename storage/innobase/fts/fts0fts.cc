@@ -286,7 +286,6 @@ fts_cache_destroy(fts_cache_t* cache)
 {
 	rw_lock_free(&cache->lock);
 	rw_lock_free(&cache->init_lock);
-	mutex_free(&cache->optimize_lock);
 	mutex_free(&cache->deleted_lock);
 	mutex_free(&cache->doc_id_lock);
 	os_event_destroy(cache->sync->event);
@@ -622,8 +621,6 @@ fts_cache_create(
 		SYNC_FTS_CACHE_INIT);
 
 	mutex_create(LATCH_ID_FTS_DELETE, &cache->deleted_lock);
-
-	mutex_create(LATCH_ID_FTS_OPTIMIZE, &cache->optimize_lock);
 
 	mutex_create(LATCH_ID_FTS_DOC_ID, &cache->doc_id_lock);
 
