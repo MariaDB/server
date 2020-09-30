@@ -1521,7 +1521,7 @@ static void flush_buffer_pool()
   while (flush_list_length())
   {
     buf_flush_lists(ULINT_UNDEFINED, LSN_MAX);
-    struct timespec abstime;
+    timespec abstime;
 
     if (buf_pool.n_flush_list)
     {
