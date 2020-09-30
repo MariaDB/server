@@ -547,7 +547,7 @@ public:
   byte *flush_buf;
   /** recommended maximum size of buf, after which the buffer is flushed */
   size_t max_buf_free;
-  /** Log file stuff. Protected by mutex or write_mutex. */
+  /** Log file stuff. Protected by mutex. */
   struct file {
     /** format of the redo log: e.g., FORMAT_10_5 */
     uint32_t				format;
