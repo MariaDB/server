@@ -1395,6 +1395,8 @@ dberr_t dict_sys_t::create_or_check_sys_tables()
   dberr_t error;
   span<const char> tablename;
 
+  // FIXME: wrap over WITH_INNODB_FOREIGN_UPGRADE
+
   if (!sys_foreign)
   {
     error= que_eval_sql(nullptr, "PROCEDURE CREATE_FOREIGN() IS\n"
@@ -1724,40 +1726,4 @@ dict_foreigns_has_s_base_col(
 	}
 
 	return(false);
-}
-
-/** Adds the given set of foreign key objects to the dictionary tables
-in the database. This function does not modify the dictionary cache. The
-caller must ensure that all foreign key objects contain a valid constraint
-name in foreign->id.
-@param[in]	local_fk_set	set of foreign key objects, to be added to
-the dictionary tables
-@param[in]	table		table to which the foreign key objects in
-local_fk_set belong to
-@param[in,out]	trx		transaction
-@return error code or DB_SUCCESS */
-dberr_t
-dict_create_add_foreigns_to_dictionary(
-/*===================================*/
-	const dict_foreign_set&	local_fk_set,
-	const dict_table_t*	table,
-	trx_t*			trx)
-{
-  ut_ad(dict_sys.locked());
-
-  if (!dict_sys.sys_foreign)
-  {
-    sql_print_error("InnoDB: Table SYS_FOREIGN not found"
-                    " in internal data dictionary");
-    return DB_ERROR;
-  }
-
-  for (auto fk : local_fk_set)
-    if (!fk->check_fk_constraint_valid())
-      return DB_CANNOT_ADD_CONSTRAINT;
-    else if (dberr_t error= dict_create_add_foreign_to_dictionary
-             (table->name.m_name, fk, trx))
-      return error;
-
-  return DB_SUCCESS;
 }

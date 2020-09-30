@@ -925,3 +925,26 @@ ib_push_frm_error(
 @return true if index column length exceeds limit */
 MY_ATTRIBUTE((warn_unused_result))
 bool too_big_key_part_length(size_t max_field_len, const KEY& key);
+/*************************************************************//**
+Set foreign key options
+@return true if successfully set */
+MY_ATTRIBUTE((nonnull, warn_unused_result))
+bool
+innobase_set_foreign_key_option(
+/*============================*/
+	dict_foreign_t*	foreign,	/*!< in:InnoDB Foreign key */
+	FK_info*	fk_key);	/*!< in: Foreign key info from
+					MySQL */
+
+dberr_t
+dict_load_foreigns(
+/*===============*/
+	THD*			thd,
+	dict_table_t*		table,
+	TABLE_SHARE*		share,
+	const char**		col_names,	/*!< in: column names, or NULL
+						to use table->col_names */
+	bool			check_charsets,	/*!< in: whether to check
+						charset compatibility */
+	dict_err_ignore_t	ignore_err)	/*!< in: error to be ignored */
+	MY_ATTRIBUTE((warn_unused_result));

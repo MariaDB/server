@@ -272,3 +272,34 @@ SET FOREIGN_KEY_CHECKS=DEFAULT;
 --error ER_CANT_CREATE_TABLE
 CREATE TABLE t1(a SERIAL) ENGINE=InnoDB ROW_FORMAT=COMPRESSED PAGE_COMPRESSED=1;
 SHOW WARNINGS;
+
+--echo #
+--echo # MDEV-21052 InnoDB foreign key refactoring for TABLE_SHARE::foreign_keys
+--echo #
+create table t1 (a int primary key) engine=innodb;
+create table t2 (b int primary key, a int references t1(a)) engine=innodb;
+insert t1 values (1);
+flush tables;
+
+connect con1,localhost,root;
+set debug_sync='fk_before_dict_load_foreigns signal g1 wait_for g2';
+send insert t2 values (1, 1);
+connection default;
+let $conn=`select connection_id()`;
+set debug_sync='before_execute_sql_command wait_for g1';
+send alter table t1 rename column a to x;
+
+connect con2,localhost,root;
+let $wait_condition= select 1 from information_schema.processlist
+where state='Opening tables' and info like 'alter table t1 rename column %';
+source include/wait_condition.inc;
+set debug_sync='now signal g2';
+disconnect con2;
+
+connection con1;
+reap;
+disconnect con1;
+connection default;
+reap;
+drop tables t2, t1;
+set debug_sync='reset';

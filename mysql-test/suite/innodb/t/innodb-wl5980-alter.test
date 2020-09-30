@@ -38,13 +38,6 @@ eval CREATE TABLE t1c (c1 INT PRIMARY KEY, c2 INT, c3 INT, INDEX(c2), INDEX(c3),
 		  CONSTRAINT t1c3 FOREIGN KEY (c3) REFERENCES t1p(c2))
 ENGINE=InnoDB $data_directory_clause;
 
-CREATE TABLE sys_foreign SELECT i.*
-FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN i
-WHERE FOR_NAME LIKE 'test/t%';
-
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
-
 -- source suite/innodb/include/innodb_dict.inc
 
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
@@ -125,9 +118,6 @@ ALTER TABLE t1 CHANGE C Cöŀumň_TWO INT;
 --replace_regex $regexp
 --cat_file $MYSQL_DATA_DIR.files.txt
 --remove_file $MYSQL_DATA_DIR.files.txt
-
-SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS i
-INNER JOIN sys_foreign sf ON i.ID = sf.ID;
 
 -- source suite/innodb/include/innodb_dict.inc
 
@@ -638,7 +628,7 @@ DROP INDEX ct, LOCK=NONE;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 SHOW CREATE TABLE t1o;
 
-DROP TABLE t1c, t1p, sys_tables, sys_indexes, sys_foreign;
+DROP TABLE t1c, t1p, sys_tables, sys_indexes;
 
 # Check the internal schemata of tt, t1o.
 
@@ -646,8 +636,6 @@ CREATE TABLE sys_tables SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES
 WHERE NAME='test/t1o';
 CREATE TABLE sys_indexes SELECT i.* FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES i
 INNER JOIN sys_tables st ON i.TABLE_ID=st.TABLE_ID;
-CREATE TABLE sys_foreign SELECT i.*
-FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN i WHERE FOR_NAME='test/t1o';
 
 -- source suite/innodb/include/innodb_dict.inc
 
@@ -693,7 +681,7 @@ INNER JOIN sys_tables st ON i.TABLE_ID=st.TABLE_ID;
 --echo # Cleanup
 --echo #
 
-DROP TABLE tt, t1o, sys_tables, sys_indexes, sys_foreign;
+DROP TABLE tt, t1o, sys_tables, sys_indexes;
 
 --echo ### files in MYSQL_DATA_DIR/test
 --list_files_write_file $MYSQL_DATA_DIR.files.txt $MYSQL_DATA_DIR/test

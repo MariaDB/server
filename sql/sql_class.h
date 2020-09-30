@@ -521,22 +521,30 @@ public:
       return cmp_table(name, rhs.name);
     return 0;
   }
-  bool lowercase(MEM_ROOT *mem_root)
+  bool strdup(MEM_ROOT *mem_root)
   {
     if (db.length)
     {
       db.str= (const char *) memdup_root(mem_root, db.str, db.length + 1);
       if (unlikely(!db.str))
         return true;
-      my_casedn_str_8bit(system_charset_info, (char *)db.str);
     }
     if (name.length)
     {
       name.str= (const char *) memdup_root(mem_root, name.str, name.length + 1);
       if (unlikely(!name.str))
         return true;
-      my_casedn_str_8bit(system_charset_info, (char *)name.str);
     }
+    return false;
+  }
+  bool lowercase(MEM_ROOT *mem_root)
+  {
+    if (strdup(mem_root))
+      return true;
+    if (db.length)
+      my_casedn_str_8bit(system_charset_info, (char *)db.str);
+    if (name.length)
+      my_casedn_str_8bit(system_charset_info, (char *)name.str);
     return false;
   }
   // NB: needed for std::set
@@ -808,7 +816,8 @@ public:
   Key *clone(MEM_ROOT *mem_root) const override
   { return new (mem_root) Foreign_key(*this, mem_root); }
   /* Used to validate foreign key options */
-  bool validate(List<Create_field> &table_fields);
+  bool validate(const LEX_CSTRING &db, const LEX_CSTRING &table_name,
+                List<Create_field> &table_fields, bool &self_ref);
 };
 
 typedef struct st_mysql_lock

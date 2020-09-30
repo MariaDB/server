@@ -2073,7 +2073,11 @@ class FK_info : public Sql_alloc
 {
 public:
   Lex_ident_column foreign_id;
-  // TODO: use Table_name
+  /*
+    TODO: use Table_name. NB: the below names are in original case.
+    The share MUST be acquried in case according to lower_case_table_names.
+    Use for_table(), ref_table() for that (TODO: limit interface).
+  */
   Lex_ident_db foreign_db;
   Lex_ident_table foreign_table;
   Lex_ident_db referenced_db;
@@ -2208,8 +2212,8 @@ public:
   }
   bool assign(Foreign_key &fk, Table_name table);
   FK_info * clone(MEM_ROOT *mem_root) const;
-  Table_name for_table(MEM_ROOT *mem_root) const;
-  Table_name ref_table(MEM_ROOT *mem_root) const;
+  Table_name for_table(MEM_ROOT *mem_root, bool copy= false) const;
+  Table_name ref_table(MEM_ROOT *mem_root, bool copy= false) const;
   void print(String &out);
 
   bool get_referenced_share(THD *thd, Share_map *ref_shares, myf MyFlags) const;
@@ -2553,7 +2557,7 @@ struct TABLE_LIST
 
   enum prelocking_types
   {
-    PRELOCK_NONE, PRELOCK_ROUTINE, PRELOCK_FK
+    PRELOCK_NONE, PRELOCK_ROUTINE, PRELOCK_FK, PRELOCK_RK
   };
 
   /**
@@ -2623,9 +2627,6 @@ struct TABLE_LIST
                 OT_BASE_ONLY);
     belong_to_view= belong_to_view_arg;
     trg_event_map= trg_event_map_arg;
-    /* MDL is enough for read-only FK checks, we don't need the table */
-    if (prelocking_type == PRELOCK_FK && lock_type < TL_FIRST_WRITE)
-      open_strategy= OPEN_STUB;
 
     **last_ptr= this;
     prev_global= *last_ptr;

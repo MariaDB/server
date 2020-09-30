@@ -243,3 +243,24 @@ Level	Code	Message
 Warning	140	InnoDB: PAGE_COMPRESSED table can't have ROW_TYPE=COMPRESSED
 Error	1005	Can't create table `test`.`t1` (errno: 140 "Wrong create options")
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+#
+# MDEV-21052 InnoDB foreign key refactoring for TABLE_SHARE::foreign_keys
+#
+create table t1 (a int primary key) engine=innodb;
+create table t2 (b int primary key, a int references t1(a)) engine=innodb;
+insert t1 values (1);
+flush tables;
+connect con1,localhost,root;
+set debug_sync='fk_before_dict_load_foreigns signal g1 wait_for g2';
+insert t2 values (1, 1);
+connection default;
+set debug_sync='before_execute_sql_command wait_for g1';
+alter table t1 rename column a to x;
+connect con2,localhost,root;
+set debug_sync='now signal g2';
+disconnect con2;
+connection con1;
+disconnect con1;
+connection default;
+drop tables t2, t1;
+set debug_sync='reset';

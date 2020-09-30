@@ -1059,6 +1059,7 @@ dict_table_open_on_name(
     dict_sys.lock(SRW_LOCK_CALL);
   }
 
+  // FIXME: prev patch removed dict_table_check_if_in_cache_low()
   table= dict_sys.load_table(name, ignore_err);
 
   if (table)
@@ -2855,6 +2856,7 @@ dict_foreign_add_to_cache(
 	dict_foreign_t*	for_in_cache		= NULL;
 	dict_index_t*	index;
 	ibool		added_to_referenced_list= FALSE;
+	ibool		added_to_foreign_list	= FALSE;
 	FILE*		ef			= dict_foreign_err_file;
 
 	DBUG_ENTER("dict_foreign_add_to_cache");
@@ -2880,10 +2882,16 @@ dict_foreign_add_to_cache(
 	}
 
 	if (for_in_cache) {
-		dict_foreign_free(foreign);
+		if (foreign != for_in_cache) {
+			if (for_table != for_in_cache->foreign_table) {
+				dict_foreign_remove_from_cache(for_in_cache);
+				for_in_cache = foreign;
+			} else {
+				dict_foreign_free(foreign);
+			}
+		}
 	} else {
 		for_in_cache = foreign;
-
 	}
 
 	if (ref_table && !for_in_cache->referenced_table) {
@@ -2970,17 +2978,23 @@ dict_foreign_add_to_cache(
 
 		ut_a(ret.second);	/* second is true if the insertion
 					took place */
+		added_to_foreign_list = true;
 	}
 
 	/* We need to move the table to the non-LRU end of the table LRU
 	list. Otherwise it will be evicted from the cache. */
 
-	if (ref_table != NULL) {
+	if (ref_table != NULL && added_to_referenced_list) {
 		dict_sys.prevent_eviction(ref_table);
 	}
 
-	if (for_table != NULL) {
+	if (for_table != NULL && added_to_foreign_list) {
 		dict_sys.prevent_eviction(for_table);
+	}
+
+	if (!for_in_cache->v_cols
+	    && (added_to_foreign_list || added_to_referenced_list)) {
+		dict_mem_foreign_fill_vcol_set(for_in_cache);
 	}
 
 	ut_ad(dict_lru_validate());
@@ -3215,73 +3229,30 @@ dict_get_referenced_table(
 	const char*    table_name,	  /*!< in: table name */
 	ulint	       table_name_len,	  /*!< in: table name length */
 	dict_table_t** table,		  /*!< out: table object or NULL */
-	mem_heap_t*    heap,		  /*!< in/out: heap memory */
-	CHARSET_INFO*  from_cs)		  /*!< in: table name charset */
+	mem_heap_t*    heap)		  /*!< in/out: heap memory */
 {
-	char		db_name[MAX_DATABASE_NAME_LEN];
-	char		tbl_name[MAX_TABLE_NAME_LEN];
-	CHARSET_INFO*	to_cs = &my_charset_filename;
-	uint		errors;
+	char*	      dict_name;
+	ulint	      dict_name_len;
 	ut_ad(database_name || name);
 	ut_ad(table_name);
 
-	if (!strncmp(table_name, srv_mysql50_table_name_prefix,
-		     sizeof(srv_mysql50_table_name_prefix) - 1)) {
-		/* This is a pre-5.1 table name
-		containing chars other than [A-Za-z0-9].
-		Discard the prefix and use raw UTF-8 encoding. */
-		table_name += sizeof(srv_mysql50_table_name_prefix) - 1;
-		table_name_len -= sizeof(srv_mysql50_table_name_prefix) - 1;
-
-		to_cs = system_charset_info;
-	}
-
-	table_name_len = strconvert(from_cs, table_name, table_name_len, to_cs,
-				    tbl_name, MAX_TABLE_NAME_LEN, &errors);
-	table_name     = tbl_name;
-
-	if (database_name) {
-		to_cs = &my_charset_filename;
-		if (!strncmp(database_name, srv_mysql50_table_name_prefix,
-			     sizeof(srv_mysql50_table_name_prefix) - 1)) {
-			database_name
-				+= sizeof(srv_mysql50_table_name_prefix) - 1;
-			database_name_len
-				-= sizeof(srv_mysql50_table_name_prefix) - 1;
-			to_cs = system_charset_info;
-		}
-
-		database_name_len = strconvert(
-			from_cs, database_name, database_name_len, to_cs,
-			db_name, MAX_DATABASE_NAME_LEN, &errors);
-		database_name = db_name;
-	} else {
+	if (!database_name) {
 		/* Use the database name of the foreign key table */
 
 		database_name = name;
 		database_name_len = dict_get_db_name_len(name);
 	}
 
-	/* Copy database_name, '/', table_name, '\0' */
-	Identifier_chain2 ident({database_name, database_name_len},
-				{table_name, table_name_len});
-	size_t ref_nbytes= (database_name_len + table_name_len) *
-			system_charset_info->casedn_multiply() + 2;
-	char *ref = static_cast<char*>(mem_heap_alloc(heap, ref_nbytes));
-
-	/* Values;  0 = Store and compare as given; case sensitive
-	            1 = Store and compare in lower; case insensitive
-	            2 = Store as given, compare in lower; case semi-sensitive */
-
-	size_t len= ident.make_sep_name_opt_casedn(ref, ref_nbytes,
-					'/', lower_case_table_names > 0);
-	*table = dict_sys.load_table({ref, len});
-
-	if (lower_case_table_names == 2) {
-		ident.make_sep_name_opt_casedn(ref, ref_nbytes, '/', false);
+       /* FIXME: recheck build_name() for replaced hunk of code. */
+	if (dict_table_t::build_name(database_name, database_name_len,
+				     table_name, table_name_len, dict_name,
+				     dict_name_len, heap)) {
+		return NULL;
 	}
 
-	return(ref);
+	*table = dict_sys.load_table({dict_name, dict_name_len});
+
+	return (dict_name);
 }
 
 /*********************************************************************//**
