@@ -849,7 +849,7 @@ static void start_query_killer()
   mysql_mutex_init(0, &kill_query_thread_mutex, nullptr);
   mysql_cond_init(0, &kill_query_thread_stop, nullptr);
   mysql_cond_init(0, &kill_query_thread_stopped, nullptr);
-  os_thread_create(kill_query_thread, nullptr, nullptr);
+  os_thread_create(kill_query_thread);
 }
 
 static void stop_query_killer()

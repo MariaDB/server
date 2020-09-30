@@ -1988,7 +1988,7 @@ void buf_flush_page_cleaner_init()
 {
   ut_ad(!buf_page_cleaner_is_active);
   buf_page_cleaner_is_active= true;
-  os_thread_create(buf_flush_page_cleaner, nullptr, nullptr);
+  os_thread_create(buf_flush_page_cleaner);
 }
 
 /** Synchronously flush dirty blocks.

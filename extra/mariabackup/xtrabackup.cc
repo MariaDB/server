@@ -4046,9 +4046,6 @@ fail:
 	/* definition from recv_recovery_from_checkpoint_start() */
 	ulint		max_cp_field;
 
-	/* start back ground thread to copy newer log */
-	os_thread_id_t log_copying_thread_id;
-
 	/* get current checkpoint_lsn */
 	/* Look for the latest checkpoint from any of the log groups */
 
@@ -4138,14 +4135,11 @@ reread_log_header:
 	log_copying_running = true;
 	/* start io throttle */
 	if(xtrabackup_throttle) {
-		os_thread_id_t io_watching_thread_id;
-
 		io_ticket = xtrabackup_throttle;
 		wait_throttle = os_event_create(0);
 		io_watching_thread_running = true;
 
-		os_thread_create(io_watching_thread, NULL,
-				 &io_watching_thread_id);
+		os_thread_create(io_watching_thread);
 	}
 
 	/* Populate fil_system with tablespaces to copy */
@@ -4168,7 +4162,7 @@ fail_before_log_copying_thread_start:
 	DBUG_MARIABACKUP_EVENT("before_innodb_log_copy_thread_started",0);
 
 	log_copying_stop = os_event_create(0);
-	os_thread_create(log_copying_thread, NULL, &log_copying_thread_id);
+	os_thread_create(log_copying_thread);
 
 	/* FLUSH CHANGED_PAGE_BITMAPS call */
 	if (!flush_changed_page_bitmaps()) {
@@ -4209,8 +4203,8 @@ fail_before_log_copying_thread_start:
 		data_threads[i].num = i+1;
 		data_threads[i].count = &count;
 		data_threads[i].count_mutex = &count_mutex;
-		os_thread_create(data_copy_thread_func, data_threads + i,
-				 &data_threads[i].id);
+		data_threads[i].id = os_thread_create(data_copy_thread_func,
+						      data_threads + i);
 	}
 
 	/* Wait for threads to exit */
