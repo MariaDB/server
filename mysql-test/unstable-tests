@@ -184,6 +184,7 @@ main.rowid_filter                       : Modified in 10.4.13
 main.rowid_filter_innodb                : MDEV-20538 - Wrong result; modified in 10.4.13
 main.rowid_filter_myisam                : Added in 10.4.14
 main.rpl_mysql_upgrade_slave_repo_check : Added in 10.4.13
+main.rowid_filter_innodb_debug          : MDEV-22761 - Added in 10.4.15
 main.select                             : MDEV-20532 - Floating point differences
 main.select_jcl6                        : MDEV-20532 - Floating point differences
 main.select_pkeycache                   : MDEV-20532 - Floating point differences

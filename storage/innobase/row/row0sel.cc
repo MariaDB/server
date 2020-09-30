@@ -3900,7 +3900,7 @@ exhausted:
 
 /*********************************************************************//**
 Check a pushed-down index condition.
-@return CHECK_NEG, CHECK_POS, or CHECK_OUT_OF_RANGE */
+@return CHECK_ABORTED_BY_USER, CHECK_NEG, CHECK_POS, or CHECK_OUT_OF_RANGE */
 static
 check_result_t
 row_search_idx_cond_check(
@@ -3975,6 +3975,8 @@ row_search_idx_cond_check(
                                ut_ad(len == DATA_ROW_ID_LEN);
                                memcpy(prebuilt->row_id, data, DATA_ROW_ID_LEN);
                         }
+                        DEBUG_SYNC_C("row_search_pre_rowid_filter_check");
+
                         result = handler_rowid_filter_check(prebuilt->pk_filter);
                         switch (result) {
                         case CHECK_NEG:
@@ -3986,7 +3988,7 @@ row_search_idx_cond_check(
                         case CHECK_POS:
                                 break;
                         default:
-                                ut_error;
+                                return(result);
                         }
 		}
 		/* Convert the remaining fields to MySQL format.
