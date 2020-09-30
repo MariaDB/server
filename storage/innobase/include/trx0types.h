@@ -135,7 +135,6 @@ typedef	byte	trx_undo_rec_t;
 
 /* @} */
 
-typedef ib_mutex_t RsegMutex;
 typedef ib_mutex_t PQMutex;
 
 typedef std::vector<trx_id_t, ut_allocator<trx_id_t> >	trx_ids_t;

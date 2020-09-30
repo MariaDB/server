@@ -472,8 +472,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_TRX_UNDO_PAGE);
 	LEVEL_MAP_INSERT(SYNC_RSEG_HEADER);
 	LEVEL_MAP_INSERT(SYNC_RSEG_HEADER_NEW);
-	LEVEL_MAP_INSERT(SYNC_NOREDO_RSEG);
-	LEVEL_MAP_INSERT(SYNC_REDO_RSEG);
 	LEVEL_MAP_INSERT(SYNC_PURGE_LATCH);
 	LEVEL_MAP_INSERT(SYNC_TREE_NODE);
 	LEVEL_MAP_INSERT(SYNC_TREE_NODE_FROM_HASH);
@@ -723,8 +721,6 @@ LatchDebug::check_order(
 	case SYNC_MONITOR_MUTEX:
 	case SYNC_SEARCH_SYS:
 	case SYNC_READ_VIEW:
-	case SYNC_REDO_RSEG:
-	case SYNC_NOREDO_RSEG:
 	case SYNC_PURGE_LATCH:
 	case SYNC_PURGE_QUEUE:
 	case SYNC_DICT_OPERATION:
@@ -805,15 +801,10 @@ LatchDebug::check_order(
 		The purge thread can read the UNDO pages without any covering
 		mutex. */
 
-		ut_a(find(latches, SYNC_REDO_RSEG) != 0
-		     || find(latches, SYNC_NOREDO_RSEG) != 0
-		     || basic_check(latches, level, level - 1));
+		ut_a(basic_check(latches, level, level - 1));
 		break;
 
 	case SYNC_RSEG_HEADER:
-
-		ut_a(find(latches, SYNC_REDO_RSEG) != 0
-		     || find(latches, SYNC_NOREDO_RSEG) != 0);
 		break;
 
 	case SYNC_RSEG_HEADER_NEW:
@@ -1200,10 +1191,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(RECALC_POOL, SYNC_STATS_AUTO_RECALC,
 			recalc_pool_mutex_key);
-
-	LATCH_ADD_MUTEX(REDO_RSEG, SYNC_REDO_RSEG, redo_rseg_mutex_key);
-
-	LATCH_ADD_MUTEX(NOREDO_RSEG, SYNC_NOREDO_RSEG, noredo_rseg_mutex_key);
 
 #ifdef UNIV_DEBUG
 	/* Mutex names starting with '.' are not tracked. They are assumed

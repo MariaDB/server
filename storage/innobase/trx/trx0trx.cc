@@ -886,12 +886,12 @@ static trx_rseg_t* trx_assign_rseg_low()
 		/* By now we have only selected the rseg but not marked it
 		allocated. By marking it allocated we are ensuring that it will
 		never be selected for UNDO truncate purge. */
-		mutex_enter(&rseg->mutex);
+		mysql_mutex_lock(&rseg->mutex);
 		if (!rseg->skip_allocation) {
 			rseg->trx_ref_count++;
 			allocated = true;
 		}
-		mutex_exit(&rseg->mutex);
+		mysql_mutex_unlock(&rseg->mutex);
 	} while (!allocated);
 
 	ut_ad(rseg->trx_ref_count > 0);
@@ -1024,7 +1024,7 @@ trx_serialise(trx_t* trx)
 {
 	trx_rseg_t *rseg = trx->rsegs.m_redo.rseg;
 	ut_ad(rseg);
-	ut_ad(mutex_own(&rseg->mutex));
+	mysql_mutex_assert_owner(&rseg->mutex);
 
 	if (rseg->last_page_no == FIL_NULL) {
 		mutex_enter(&purge_sys.pq_mutex);
@@ -1072,9 +1072,9 @@ trx_write_serialisation_history(
 		temp_mtr.start();
 		temp_mtr.set_log_mode(MTR_LOG_NO_REDO);
 
-		mutex_enter(&trx->rsegs.m_noredo.rseg->mutex);
+		mysql_mutex_lock(&trx->rsegs.m_noredo.rseg->mutex);
 		trx_undo_set_state_at_finish(undo, &temp_mtr);
-		mutex_exit(&trx->rsegs.m_noredo.rseg->mutex);
+		mysql_mutex_unlock(&trx->rsegs.m_noredo.rseg->mutex);
 		temp_mtr.commit();
 	}
 
@@ -1095,7 +1095,7 @@ trx_write_serialisation_history(
 	ut_ad(!trx->read_only);
 	ut_ad(!undo || undo->rseg == rseg);
 	ut_ad(!old_insert || old_insert->rseg == rseg);
-	mutex_enter(&rseg->mutex);
+	mysql_mutex_lock(&rseg->mutex);
 
 	/* Assign the transaction serialisation number and add any
 	undo log to the purge queue. */
@@ -1110,7 +1110,7 @@ trx_write_serialisation_history(
 		trx_purge_add_undo_to_history(trx, undo, mtr);
 	}
 
-	mutex_exit(&rseg->mutex);
+	mysql_mutex_unlock(&rseg->mutex);
 
 	MONITOR_INC(MONITOR_TRX_COMMIT_UNDO);
 }
@@ -1399,10 +1399,10 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
 
   if (trx_rseg_t *rseg= rsegs.m_redo.rseg)
   {
-    mutex_enter(&rseg->mutex);
+    mysql_mutex_lock(&rseg->mutex);
     ut_ad(rseg->trx_ref_count > 0);
     --rseg->trx_ref_count;
-    mutex_exit(&rseg->mutex);
+    mysql_mutex_unlock(&rseg->mutex);
 
     if (trx_undo_t *&insert= rsegs.m_redo.old_insert)
     {
@@ -1963,9 +1963,9 @@ trx_prepare_low(trx_t* trx)
 		mtr.start();
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 
-		mutex_enter(&undo->rseg->mutex);
+		mysql_mutex_lock(&undo->rseg->mutex);
 		trx_undo_set_state_at_prepare(trx, undo, false, &mtr);
-		mutex_exit(&undo->rseg->mutex);
+		mysql_mutex_unlock(&undo->rseg->mutex);
 
 		mtr.commit();
 	}
@@ -1987,9 +1987,9 @@ trx_prepare_low(trx_t* trx)
 	structure define the transaction as prepared in the file-based
 	world, at the serialization point of lsn. */
 
-	mutex_enter(&rseg->mutex);
+	mysql_mutex_lock(&rseg->mutex);
 	trx_undo_set_state_at_prepare(trx, undo, false, &mtr);
-	mutex_exit(&rseg->mutex);
+	mysql_mutex_unlock(&rseg->mutex);
 
 	/* Make the XA PREPARE durable. */
 	mtr.commit();

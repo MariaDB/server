@@ -107,7 +107,7 @@ inline bool TrxUndoRsegsIterator::set_next()
 
 	purge_sys.rseg = *m_iter++;
 	mutex_exit(&purge_sys.pq_mutex);
-	mutex_enter(&purge_sys.rseg->mutex);
+	mysql_mutex_lock(&purge_sys.rseg->mutex);
 
 	ut_a(purge_sys.rseg->last_page_no != FIL_NULL);
 	ut_ad(purge_sys.rseg->last_trx_no() == m_rsegs.trx_no());
@@ -123,7 +123,7 @@ inline bool TrxUndoRsegsIterator::set_next()
 	purge_sys.hdr_offset = purge_sys.rseg->last_offset;
 	purge_sys.hdr_page_no = purge_sys.rseg->last_page_no;
 
-	mutex_exit(&purge_sys.rseg->mutex);
+	mysql_mutex_unlock(&purge_sys.rseg->mutex);
 
 	return(true);
 }
@@ -355,7 +355,7 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 	mtr_t		mtr;
 
 	mtr.start();
-	mutex_enter(&rseg->mutex);
+	mysql_mutex_lock(&rseg->mutex);
 
 	buf_block_t* rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
 	buf_block_t* block = trx_undo_page_get(
@@ -372,12 +372,12 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 	while (!fseg_free_step_not_header(
 		       TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER
 		       + block->frame, &mtr)) {
-		mutex_exit(&rseg->mutex);
+		mysql_mutex_unlock(&rseg->mutex);
 
 		mtr.commit();
 		mtr.start();
 
-		mutex_enter(&rseg->mutex);
+		mysql_mutex_lock(&rseg->mutex);
 
 		rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
 
@@ -418,7 +418,7 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 
 	rseg->curr_size -= seg_size;
 
-	mutex_exit(&(rseg->mutex));
+	mysql_mutex_unlock(&rseg->mutex);
 
 	mtr_commit(&mtr);
 }
@@ -439,7 +439,7 @@ trx_purge_truncate_rseg_history(
 
 	mtr.start();
 	ut_ad(rseg.is_persistent());
-	mutex_enter(&rseg.mutex);
+	mysql_mutex_lock(&rseg.mutex);
 
 	buf_block_t* rseg_hdr = trx_rsegf_get(rseg.space, rseg.page_no, &mtr);
 
@@ -451,7 +451,7 @@ trx_purge_truncate_rseg_history(
 loop:
 	if (hdr_addr.page == FIL_NULL) {
 func_exit:
-		mutex_exit(&rseg.mutex);
+		mysql_mutex_unlock(&rseg.mutex);
 		mtr.commit();
 		return;
 	}
@@ -484,7 +484,7 @@ func_exit:
 
 		/* We can free the whole log segment */
 
-		mutex_exit(&rseg.mutex);
+		mysql_mutex_unlock(&rseg.mutex);
 		mtr.commit();
 
 		/* calls the trx_purge_remove_log_hdr()
@@ -495,12 +495,12 @@ func_exit:
 		trx_purge_remove_log_hdr(rseg_hdr, block, hdr_addr.boffset,
 					 &mtr);
 
-		mutex_exit(&rseg.mutex);
+		mysql_mutex_unlock(&rseg.mutex);
 		mtr.commit();
 	}
 
 	mtr.start();
-	mutex_enter(&rseg.mutex);
+	mysql_mutex_lock(&rseg.mutex);
 
 	rseg_hdr = trx_rsegf_get(rseg.space, rseg.page_no, &mtr);
 
@@ -632,11 +632,11 @@ static void trx_purge_truncate_history()
 			if (!rseg || rseg->space != &space) {
 				continue;
 			}
-			mutex_enter(&rseg->mutex);
+			mysql_mutex_lock(&rseg->mutex);
 			ut_ad(rseg->skip_allocation);
 			if (rseg->trx_ref_count) {
 not_free:
-				mutex_exit(&rseg->mutex);
+				mysql_mutex_unlock(&rseg->mutex);
 				return;
 			}
 
@@ -664,7 +664,7 @@ not_free:
 				}
 			}
 
-			mutex_exit(&rseg->mutex);
+			mysql_mutex_unlock(&rseg->mutex);
 		}
 
 		ib::info() << "Truncating " << file->name;
@@ -833,7 +833,7 @@ static void trx_purge_rseg_get_next_history_log(
 	trx_id_t	trx_no;
 	mtr_t		mtr;
 
-	mutex_enter(&purge_sys.rseg->mutex);
+	mysql_mutex_lock(&purge_sys.rseg->mutex);
 
 	ut_a(purge_sys.rseg->last_page_no != FIL_NULL);
 
@@ -866,7 +866,7 @@ static void trx_purge_rseg_get_next_history_log(
 		purge_sys.rseg->last_page_no = FIL_NULL;
 	}
 
-	mutex_exit(&purge_sys.rseg->mutex);
+	mysql_mutex_unlock(&purge_sys.rseg->mutex);
 	mtr.commit();
 
 	if (empty) {
@@ -887,7 +887,7 @@ static void trx_purge_rseg_get_next_history_log(
 
 	mtr_commit(&mtr);
 
-	mutex_enter(&purge_sys.rseg->mutex);
+	mysql_mutex_lock(&purge_sys.rseg->mutex);
 
 	purge_sys.rseg->last_page_no = prev_log_addr.page;
 	purge_sys.rseg->last_offset = prev_log_addr.boffset;
@@ -905,7 +905,7 @@ static void trx_purge_rseg_get_next_history_log(
 
 	mutex_exit(&purge_sys.pq_mutex);
 
-	mutex_exit(&purge_sys.rseg->mutex);
+	mysql_mutex_unlock(&purge_sys.rseg->mutex);
 }
 
 /** Position the purge sys "iterator" on the undo record to use for purging. */
