@@ -445,17 +445,14 @@ struct dbug_thread_param_t
 	const char *query;
 	int expect_err;
 	int expect_errno;
-	os_event_t done_event;
 };
 
 
 /* Thread procedure used in dbug_start_query_thread. */
-extern "C"
-os_thread_ret_t
-DECLARE_THREAD(dbug_execute_in_new_connection)(void *arg)
+static void *dbug_execute_in_new_connection(void *arg)
 {
 	mysql_thread_init();
-	dbug_thread_param_t *par= (dbug_thread_param_t *)arg;
+	dbug_thread_param_t *par= static_cast<dbug_thread_param_t*>(arg);
 	int err = mysql_query(par->con, par->query);
 	int err_no = mysql_errno(par->con);
 	if(par->expect_err != err)
@@ -472,12 +469,11 @@ DECLARE_THREAD(dbug_execute_in_new_connection)(void *arg)
 	}
 	mysql_close(par->con);
 	mysql_thread_end();
-	os_event_t done = par->done_event;
 	delete par;
-	os_event_set(done);
-	os_thread_exit();
-	return os_thread_ret_t(0);
+	return nullptr;
 }
+
+static pthread_t dbug_alter_thread;
 
 /*
 Execute query from a new connection, in own thread.
@@ -490,7 +486,7 @@ Execute query from a new connection, in own thread.
 @param expected_errno - if not 0, and query finished with error,
 	expected mysql_errno()
 */
-static os_event_t dbug_start_query_thread(
+static void dbug_start_query_thread(
 	const char *query,
 	const char *wait_state,
 	int expected_err,
@@ -501,12 +497,13 @@ static os_event_t dbug_start_query_thread(
 	par->query = query;
 	par->expect_err = expected_err;
 	par->expect_errno = expected_errno;
-	par->done_event = os_event_create(0);
 	par->con =  xb_mysql_connect();
-	os_thread_create(dbug_execute_in_new_connection, par, 0);
+
+	mysql_thread_create(0, &dbug_alter_thread, nullptr,
+			    dbug_execute_in_new_connection, par);
 
 	if (!wait_state)
-		return par->done_event;
+		return;
 
 	char q[256];
 	snprintf(q, sizeof(q),
@@ -528,10 +525,7 @@ static os_event_t dbug_start_query_thread(
 end:
 	msg("query '%s' on connection %lu reached state '%s'", query,
 	mysql_thread_id(par->con), wait_state);
-	return par->done_event;
 }
-
-os_event_t dbug_alter_thread_done;
 #endif
 
 void mdl_lock_all()
@@ -4194,7 +4188,6 @@ fail_before_log_copying_thread_start:
 		mdl_lock_all();
 
 		DBUG_EXECUTE_IF("check_mdl_lock_works",
-			dbug_alter_thread_done =
 			dbug_start_query_thread("ALTER TABLE test.t ADD COLUMN mdl_lock_column int",
 				"Waiting for table metadata lock", 0, 0););
 	}
@@ -4244,9 +4237,7 @@ fail_before_log_copying_thread_start:
 		backup_release();
 
 		DBUG_EXECUTE_IF("check_mdl_lock_works",
-			os_event_wait(dbug_alter_thread_done);
-			os_event_destroy(dbug_alter_thread_done);
-		);
+				pthread_join(dbug_alter_thread, nullptr););
 
 		if (ok) {
 			backup_finish();
