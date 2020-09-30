@@ -1863,8 +1863,8 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 			const ulint sleep_ms = std::min<ulint>(next_loop_time
 							       - curr_time,
 							       1000);
-			struct timespec abstime;
-			set_timespec_nsec(abstime, sleep_ms * 1000000ULL);
+			timespec abstime;
+			set_timespec_nsec(abstime, 1000000ULL * sleep_ms);
 			mysql_mutex_lock(&buf_pool.flush_list_mutex);
 			const auto error = mysql_cond_timedwait(
 				&buf_pool.do_flush_list,
