@@ -1,6 +1,7 @@
 # This test can't be run with running server (--extern) as this uses
 # load_file() on a file in the tree.
 #
+--source include/have_innodb.inc
 
 #
 # Basic cleanup
@@ -735,6 +736,25 @@ INSERT INTO t1 VALUES ();
 SELECT LENGTH(a), LENGTH(DEFAULT(a)) FROM t1;
 DROP TABLE t1;
 
+--echo #
+--echo # ASAN heap-use-after-free in my_hash_sort_bin or ER_KEY_NOT_FOUND
+--echo # upon INSERT into table with long unique blob
+--echo #
+
+# Note that this test worked with myisam as it caches blobs differently than
+# InnoDB
+
+SET @save_sql_mode=@@sql_mode;
+SET SQL_MODE='STRICT_ALL_TABLES';
+
+CREATE TABLE t1 (a INT, b BLOB) ENGINE=innodb;
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+CREATE TABLE t2 (c BIT, d BLOB, UNIQUE(d)) ENGINE=innodb;
+--error ER_DATA_TOO_LONG
+INSERT INTO t2 SELECT * FROM t1;
+select * from t2;
+DROP TABLE t1, t2;
+SET @@sql_mode=@save_sql_mode;
 
 --echo #
 --echo # End of 10.4 test

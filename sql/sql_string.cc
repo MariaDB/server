@@ -858,7 +858,7 @@ int sortcmp(const String *s,const String *t, CHARSET_INFO *cs)
 int stringcmp(const String *s,const String *t)
 {
   uint32 s_len=s->length(),t_len=t->length(),len=MY_MIN(s_len,t_len);
-  int cmp= memcmp(s->ptr(), t->ptr(), len);
+  int cmp= len ? memcmp(s->ptr(), t->ptr(), len) : 0;
   return (cmp) ? cmp : (int) (s_len - t_len);
 }
 

@@ -426,8 +426,8 @@ SET @old_dbug= @@GLOBAL.debug_dbug;
 SET @@GLOBAL.debug_dbug="+d,rpl_parallel_simulate_wait_at_retry";
 --source include/start_slave.inc
 
---echo # Make sure the 2nd seqno_1001 worker has gotten to waiting
---let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE '%debug sync point: now%';
+--echo # Make sure both workers are waiting at their sync points
+--let $wait_condition= SELECT count(*)=2 FROM information_schema.processlist WHERE state LIKE '%debug sync point%';
 --source include/wait_condition.inc
 
 

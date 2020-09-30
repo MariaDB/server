@@ -188,7 +188,7 @@ private:
 
 
 static int commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans,
-                              bool is_real_trans, bool rw_trans);
+                              bool is_real_trans);
 
 
 static plugin_ref ha_default_plugin(THD *thd)
@@ -1621,8 +1621,36 @@ int ha_commit_trans(THD *thd, bool all)
   /* rw_trans is TRUE when we in a transaction changing data */
   bool rw_trans= is_real_trans &&
                  (rw_ha_count > (thd->is_current_stmt_binlog_disabled()?0U:1U));
+  MDL_request mdl_backup;
   DBUG_PRINT("info", ("is_real_trans: %d  rw_trans:  %d  rw_ha_count: %d",
                       is_real_trans, rw_trans, rw_ha_count));
+
+  if (rw_trans)
+  {
+    /*
+      Acquire a metadata lock which will ensure that COMMIT is blocked
+      by an active FLUSH TABLES WITH READ LOCK (and vice versa:
+      COMMIT in progress blocks FTWRL).
+
+      We allow the owner of FTWRL to COMMIT; we assume that it knows
+      what it does.
+    */
+    MDL_REQUEST_INIT(&mdl_backup, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+                     MDL_EXPLICIT);
+
+    if (!WSREP(thd))
+    {
+      if (thd->mdl_context.acquire_lock(&mdl_backup,
+                                        thd->variables.lock_wait_timeout))
+      {
+        my_error(ER_ERROR_DURING_COMMIT, MYF(0), 1);
+        ha_rollback_trans(thd, all);
+        DBUG_RETURN(1);
+      }
+      thd->backup_commit_lock= &mdl_backup;
+    }
+    DEBUG_SYNC(thd, "ha_commit_trans_after_acquire_commit_lock");
+  }
 
   if (rw_trans &&
       opt_readonly &&
@@ -1663,7 +1691,7 @@ int ha_commit_trans(THD *thd, bool all)
       // Here, the call will not commit inside InnoDB. It is only working
       // around closing thd->transaction.stmt open by TR_table::open().
       if (all)
-        commit_one_phase_2(thd, false, &thd->transaction->stmt, false, false);
+        commit_one_phase_2(thd, false, &thd->transaction->stmt, false);
     }
   }
 #endif
@@ -1683,7 +1711,7 @@ int ha_commit_trans(THD *thd, bool all)
       goto wsrep_err;
     }
 #endif /* WITH_WSREP */
-    error= ha_commit_one_phase(thd, all, rw_trans);
+    error= ha_commit_one_phase(thd, all);
 #ifdef WITH_WSREP
     // Here in case of error we must return 2 for inconsistency
     if (run_wsrep_hooks && !error)
@@ -1720,7 +1748,7 @@ int ha_commit_trans(THD *thd, bool all)
 
   if (!is_real_trans)
   {
-    error= commit_one_phase_2(thd, all, trans, is_real_trans, rw_trans);
+    error= commit_one_phase_2(thd, all, trans, is_real_trans);
     goto done;
   }
 
@@ -1754,7 +1782,7 @@ int ha_commit_trans(THD *thd, bool all)
   DEBUG_SYNC(thd, "ha_commit_trans_after_log_and_order");
   DBUG_EXECUTE_IF("crash_commit_after_log", DBUG_SUICIDE(););
 
-  error= commit_one_phase_2(thd, all, trans, is_real_trans, rw_trans) ? 2 : 0;
+  error= commit_one_phase_2(thd, all, trans, is_real_trans) ? 2 : 0;
 #ifdef WITH_WSREP
   if (run_wsrep_hooks &&
       (error || (error = wsrep_after_commit(thd, all))))
@@ -1828,6 +1856,17 @@ err:
                 thd->rgi_slave->is_parallel_exec);
   }
 end:
+  if (mdl_backup.ticket)
+  {
+    /*
+      We do not always immediately release transactional locks
+      after ha_commit_trans() (see uses of ha_enable_transaction()),
+      thus we release the commit blocker lock as soon as it's
+      not needed.
+    */
+    thd->mdl_context.release_lock(mdl_backup.ticket);
+  }
+  thd->backup_commit_lock= 0;
 #ifdef WITH_WSREP
   if (wsrep_is_active(thd) && is_real_trans && !error &&
       (rw_ha_count == 0 || all) &&
@@ -1842,8 +1881,8 @@ end:
 
 /**
   @note
-  This function does not care about global read lock. A caller should.
-  However backup locks are handled in commit_one_phase_2.
+  This function does not care about global read lock or backup locks,
+  the caller should.
 
   @param[in]  all  Is set in case of explicit commit
                    (COMMIT statement), or implicit commit
@@ -1852,7 +1891,7 @@ end:
                    autocommit=1.
 */
 
-int ha_commit_one_phase(THD *thd, bool all, bool rw_trans)
+int ha_commit_one_phase(THD *thd, bool all)
 {
   THD_TRANS *trans=all ? &thd->transaction->all : &thd->transaction->stmt;
   /*
@@ -1878,47 +1917,20 @@ int ha_commit_one_phase(THD *thd, bool all, bool rw_trans)
     if ((res= thd->wait_for_prior_commit()))
       DBUG_RETURN(res);
   }
-  res= commit_one_phase_2(thd, all, trans, is_real_trans, rw_trans);
+  res= commit_one_phase_2(thd, all, trans, is_real_trans);
   DBUG_RETURN(res);
 }
 
 
 static int
-commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans,
-                   bool rw_trans)
+commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
 {
   int error= 0;
   uint count= 0;
   Ha_trx_info *ha_info= trans->ha_list, *ha_info_next;
-  MDL_request mdl_request;
-  mdl_request.ticket= 0;
   DBUG_ENTER("commit_one_phase_2");
   if (is_real_trans)
     DEBUG_SYNC(thd, "commit_one_phase_2");
-
-  if (rw_trans)
-  {
-    /*
-      Acquire a metadata lock which will ensure that COMMIT is blocked
-      by an active FLUSH TABLES WITH READ LOCK (and vice versa:
-      COMMIT in progress blocks FTWRL).
-
-      We allow the owner of FTWRL to COMMIT; we assume that it knows
-      what it does.
-    */
-    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
-                     MDL_EXPLICIT);
-
-    if (!WSREP(thd) &&
-      thd->mdl_context.acquire_lock(&mdl_request,
-                                    thd->variables.lock_wait_timeout))
-    {
-      my_error(ER_ERROR_DURING_COMMIT, MYF(0), 1);
-      ha_rollback_trans(thd, all);
-      DBUG_RETURN(1);
-    }
-    DEBUG_SYNC(thd, "ha_commit_trans_after_acquire_commit_lock");
-  }
 
   if (ha_info)
   {
@@ -1947,16 +1959,6 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans,
         query_cache.invalidate(thd, thd->transaction->changed_tables);
 #endif
     }
-  }
-  if (mdl_request.ticket)
-  {
-    /*
-      We do not always immediately release transactional locks
-      after ha_commit_trans() (see uses of ha_enable_transaction()),
-      thus we release the commit blocker lock as soon as it's
-      not needed.
-    */
-    thd->mdl_context.release_lock(mdl_request.ticket);
   }
 
   /* Free resources and perform other cleanup even for 'empty' transactions. */

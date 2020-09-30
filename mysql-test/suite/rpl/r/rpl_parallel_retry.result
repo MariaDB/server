@@ -372,7 +372,7 @@ connection server_2;
 SET @old_dbug= @@GLOBAL.debug_dbug;
 SET @@GLOBAL.debug_dbug="+d,rpl_parallel_simulate_wait_at_retry";
 include/start_slave.inc
-# Make sure the 2nd seqno_1001 worker has gotten to waiting
+# Make sure both workers are waiting at their sync points
 # Signal to the 1st to proceed after it has reached termination state
 SET @@DEBUG_SYNC='now SIGNAL proceed_by_1000';
 connection spoiler_21;

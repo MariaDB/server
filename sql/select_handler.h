@@ -41,12 +41,24 @@ class select_handler
     The table is actually never filled. Only its record buffer is used.
   */
   TABLE *table;
+  List<Item> result_columns;
 
-  select_handler(THD *thd_arg, handlerton *ht_arg)
-    : thd(thd_arg), ht(ht_arg), table(0) {}
+  bool is_analyze;
 
-  virtual ~select_handler() {}
+  bool send_result_set_metadata();
+  bool send_data();
 
+  select_handler(THD *thd_arg, handlerton *ht_arg);
+
+  virtual ~select_handler();
+
+  int execute();
+
+  virtual bool prepare();
+
+  static TABLE *create_tmp_table(THD *thd, SELECT_LEX *sel);
+
+protected:
   /*
     Functions to scan the select result set.
     All these returns 0 if ok, error code in case of error.
@@ -67,6 +79,8 @@ class select_handler
 
   /* Report errors */
   virtual void print_error(int error, myf errflag);
+
+  bool send_eof();
 };
 
 #endif /* SELECT_HANDLER_INCLUDED */

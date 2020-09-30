@@ -688,6 +688,8 @@ my_bool mi_killed_in_mariadb(MI_INFO *info)
 
 static int compute_vcols(MI_INFO *info, uchar *record, int keynum)
 {
+  /* This mutex is needed for parallel repair */
+  mysql_mutex_lock(&info->s->intern_lock);
   TABLE *table= (TABLE*)(info->external_ref);
   table->move_fields(table->field, record, table->field[0]->record_ptr());
   if (keynum == -1) // update all vcols
@@ -695,6 +697,7 @@ static int compute_vcols(MI_INFO *info, uchar *record, int keynum)
     int error= table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
     if (table->update_virtual_fields(table->file, VCOL_UPDATE_INDEXED))
       error= 1;
+    mysql_mutex_unlock(&info->s->intern_lock);
     return error;
   }
   // update only one key
@@ -703,9 +706,10 @@ static int compute_vcols(MI_INFO *info, uchar *record, int keynum)
   for (; kp < end; kp++)
   {
     Field *f= table->field[kp->fieldnr - 1];
-    if (f->vcol_info)
+    if (f->vcol_info && !f->vcol_info->stored_in_db)
       table->update_virtual_field(f);
   }
+  mysql_mutex_unlock(&info->s->intern_lock);
   return 0;
 }
 
@@ -722,7 +726,7 @@ ha_myisam::ha_myisam(handlerton *hton, TABLE_SHARE *table_arg)
                   HA_CAN_INSERT_DELAYED | HA_CAN_BIT_FIELD | HA_CAN_RTREEKEYS |
                   HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT | HA_CAN_REPAIR |
                   HA_CAN_TABLES_WITHOUT_ROLLBACK),
-   can_enable_indexes(1)
+   can_enable_indexes(0)
 {}
 
 handler *ha_myisam::clone(const char *name __attribute__((unused)),
@@ -956,7 +960,7 @@ void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
   if (!table->vfield)
     return;
 
-  if  (file->s->base.reclength == file->s->vreclength)
+  if (file->s->base.reclength == file->s->vreclength)
   {
     bool indexed_vcols= false;
     ulong new_vreclength= file->s->vreclength;
@@ -964,7 +968,8 @@ void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
     {
       if (!(*vf)->stored_in_db())
       {
-        uint vf_end= (*vf)->offset(table->record[0]) + (*vf)->pack_length_in_rec();
+        uint vf_end= ((*vf)->offset(table->record[0]) +
+                      (*vf)->pack_length_in_rec());
         set_if_bigger(new_vreclength, vf_end);
         indexed_vcols|= ((*vf)->flags & PART_KEY_FLAG) != 0;
       }
@@ -982,7 +987,8 @@ void ha_myisam::restore_vcos_after_repair()
 {
   if (file->s->base.reclength < file->s->vreclength)
   {
-    table->move_fields(table->field, table->record[0], table->field[0]->record_ptr());
+    table->move_fields(table->field, table->record[0],
+                       table->field[0]->record_ptr());
     table->default_column_bitmaps();
   }
 }
@@ -1723,6 +1729,7 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
   THD *thd= table->in_use;
   ulong size= MY_MIN(thd->variables.read_buff_size,
                      (ulong) (table->s->avg_row_length*rows));
+  bool index_disabled= 0;
   DBUG_PRINT("info",("start_bulk_insert: rows %lu size %lu",
                      (ulong) rows, size));
 
@@ -1746,6 +1753,7 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
     if (file->open_flag & HA_OPEN_INTERNAL_TABLE)
     {
       file->update|= HA_STATE_CHANGED;
+      index_disabled= file->s->base.keys > 0;
       mi_clear_all_keys_active(file->s->state.key_map);
     }
     else
@@ -1776,6 +1784,7 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
             table->key_info[i].algorithm != HA_KEY_ALG_LONG_HASH)
         {
           mi_clear_key_active(share->state.key_map, i);
+          index_disabled= 1;
           file->update|= HA_STATE_CHANGED;
           file->create_unique_index_by_sort= all_keys;
         }
@@ -1783,12 +1792,15 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
     }
   }
   else
+  {
     if (!file->bulk_insert &&
         (!rows || rows >= MI_MIN_ROWS_TO_USE_BULK_INSERT))
     {
       mi_init_bulk_insert(file, (size_t) thd->variables.bulk_insert_buff_size,
                           rows);
     }
+  }
+  can_enable_indexes= index_disabled;
   DBUG_VOID_RETURN;
 }
 
@@ -1840,6 +1852,7 @@ int ha_myisam::end_bulk_insert()
         file->s->state.changed&= ~(STATE_CRASHED|STATE_CRASHED_ON_REPAIR);
       }
     }
+    can_enable_indexes= 0;
   }
   DBUG_PRINT("exit", ("first_error: %d", first_error));
   DBUG_RETURN(first_error);

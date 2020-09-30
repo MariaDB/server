@@ -1,4 +1,4 @@
-#!/usr/bin/env perl -w
+#!/usr/bin/perl
 
 # mariadb-report v4.0 Oct 23 2015
 # renamed to from mysqlreport in 2020
