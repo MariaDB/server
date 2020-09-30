@@ -868,7 +868,6 @@ constexpr const char* const auto_event_names[] =
   "lexyy",
   "lock0lock",
   "mem0mem",
-  "os0event",
   "os0file",
   "pars0lex",
   "rem0rec",

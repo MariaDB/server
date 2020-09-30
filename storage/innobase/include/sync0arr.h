@@ -24,10 +24,11 @@ The wait array used in synchronization primitives
 Created 9/5/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef sync0arr_h
-#define sync0arr_h
-
+#pragma once
 #include "univ.i"
+
+#undef rw_lock_t
+struct rw_lock_t;
 
 /** Synchronization wait array cell */
 struct sync_cell_t;
@@ -45,7 +46,7 @@ instance until we can reserve an empty cell of it.
 UNIV_INLINE
 sync_array_t*
 sync_array_get_and_reserve_cell(
-	void*		object,	/*!< in: pointer to the object to wait for */
+	rw_lock_t*	latch,	/*!< in: latch to wait for */
 	ulint		type,	/*!< in: lock request type */
 	const char*	file,	/*!< in: file where requested */
 	unsigned	line,	/*!< in: line where requested */
@@ -56,7 +57,7 @@ The event of the cell is reset to nonsignalled state. */
 sync_cell_t*
 sync_array_reserve_cell(
 	sync_array_t*	arr,	/*!< in: wait array */
-	void*		object, /*!< in: pointer to the object to wait for */
+	rw_lock_t*	latch, /*!< in: latch to wait for */
 	ulint		type,	/*!< in: lock request type */
 	const char*	file,	/*!< in: file where requested */
 	unsigned	line);	/*!< in: line where requested */
@@ -83,13 +84,11 @@ sync_array_free_cell(
 extern ulint sg_count;
 #define sync_array_object_signalled() ++sg_count
 
-/**********************************************************************//**
-Prints warnings of long semaphore waits to stderr.
-@return TRUE if fatal semaphore wait threshold was exceeded */
-ibool
-sync_array_print_long_waits(
-	os_thread_id_t*	waiter,	/*!< out: longest waiting thread */
-	const void**	sema);	/*!< out: longest-waited-for semaphore */
+/** Log warnings of long semaphore waits to stderr.
+@param[out] waiter  longest-waiting thread
+@param[out] l       longest-waited-for latch
+@return whether fatal semaphore wait threshold was exceeded */
+bool sync_array_print_long_waits(os_thread_id_t *waiter, const rw_lock_t **l);
 
 /**********************************************************************//**
 Prints info of the wait array. */
@@ -103,11 +102,6 @@ void sync_array_init();
 /** Destroy the sync array wait sub-system. */
 void sync_array_close();
 
-/**********************************************************************//**
-Get an instance of the sync wait array. */
-UNIV_INLINE
-sync_array_t*
-sync_array_get();
 /**********************************************************************//**
 Prints info of the wait array without using any mutexes/semaphores. */
 UNIV_INTERN
@@ -125,5 +119,3 @@ sync_array_get_nth_cell(
 	ulint		n);	/*!< in: index */
 
 #include "sync0arr.ic"
-
-#endif /* sync0arr_h */
