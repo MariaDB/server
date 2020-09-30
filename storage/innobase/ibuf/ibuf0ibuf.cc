@@ -4457,7 +4457,10 @@ ibuf_merge_or_delete_for_page(
 				/* No changes are buffered for this page. */
 				space->release();
 				if (UNIV_UNLIKELY(srv_shutdown_state)
-				    && !srv_fast_shutdown) {
+				    && !srv_fast_shutdown
+				    && (!block
+					|| btr_page_get_index_id(block->frame)
+					!= DICT_IBUF_ID_MIN + IBUF_SPACE_ID)) {
 					/* Prevent an infinite loop on slow
 					shutdown, in case the bitmap bits are
 					wrongly clear even though buffered
