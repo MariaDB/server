@@ -515,7 +515,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(recalc_pool_mutex),
 	PSI_KEY(fil_system_mutex),
 	PSI_KEY(flush_list_mutex),
-	PSI_KEY(fts_bg_threads_mutex),
 	PSI_KEY(fts_cache_lock),
 	PSI_KEY(fts_cache_init_lock),
 	PSI_KEY(fts_delete_mutex),
