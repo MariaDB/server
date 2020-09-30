@@ -1279,8 +1279,8 @@ fil_crypt_alloc_iops(
 	if (n_fil_crypt_iops_allocated >= srv_n_fil_crypt_iops) {
 		/* this can happen when user decreases srv_fil_crypt_iops */
 wait:
-		struct timespec abstime;
-		set_timespec_nsec(abstime, 100000000ULL);
+		timespec abstime;
+		set_timespec_nsec(abstime, 100000000ULL); /* 0.1s */
 		mysql_cond_timedwait(&fil_crypt_threads_cond,
 				     &fil_crypt_threads_mutex, &abstime);
 		mysql_mutex_unlock(&fil_crypt_threads_mutex);
@@ -1885,7 +1885,7 @@ fil_crypt_rotate_page(
 
 	if (sleeptime_ms) {
 		mysql_mutex_lock(&fil_crypt_threads_mutex);
-		struct timespec abstime;
+		timespec abstime;
 		set_timespec_nsec(abstime, 1000000ULL * sleeptime_ms);
 		mysql_cond_timedwait(&fil_crypt_throttle_sleep_cond,
 				     &fil_crypt_threads_mutex, &abstime);
@@ -2083,8 +2083,8 @@ DECLARE_THREAD(fil_crypt_thread)(void*)
 			/* wait for key state changes
 			* i.e either new key version of change or
 			* new rotate_key_age */
-			struct timespec abstime;
-			set_timespec_nsec(abstime, 100000000ULL);
+			timespec abstime;
+			set_timespec_nsec(abstime, 100000000ULL); /* 0.1s */
 			if (!mysql_cond_timedwait(&fil_crypt_threads_cond,
 						  &fil_crypt_threads_mutex,
 						  &abstime)) {
