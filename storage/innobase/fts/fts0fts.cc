@@ -3516,7 +3516,9 @@ fts_add_doc_by_id(
 					"fts_instrument_sync",
 					fts_optimize_request_sync_table(table);
 					mysql_mutex_lock(&cache->lock);
-					mysql_cond_wait(&cache->sync->cond,
+					if (cache->sync->in_progress)
+						mysql_cond_wait(
+							&cache->sync->cond,
 							&cache->lock);
 					mysql_mutex_unlock(&cache->lock);
 				);
@@ -4314,7 +4316,7 @@ end_sync:
 
 	sync->interrupted = false;
 	sync->in_progress = false;
-	mysql_cond_signal(&sync->cond);
+	mysql_cond_broadcast(&sync->cond);
 	mysql_mutex_unlock(&cache->lock);
 
 	/* We need to check whether an optimize is required, for that
