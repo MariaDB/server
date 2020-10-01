@@ -2304,7 +2304,7 @@ fil_space_crypt_close_tablespace(
 		mysql_mutex_unlock(&crypt_data->mutex);
 		/* release dict mutex so that scrub threads can release their
 		* table references */
-		dict_mutex_exit_for_mysql();
+		mysql_mutex_unlock(&dict_sys.mutex);
 
 		/* wakeup throttle (all) sleepers */
 		mysql_mutex_lock(&fil_crypt_threads_mutex);
@@ -2313,7 +2313,7 @@ fil_space_crypt_close_tablespace(
 		mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
 		os_thread_sleep(20000);
-		dict_mutex_enter_for_mysql();
+		mysql_mutex_lock(&dict_sys.mutex);
 		mysql_mutex_lock(&crypt_data->mutex);
 
 		time_t now = time(0);

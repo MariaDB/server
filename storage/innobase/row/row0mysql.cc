@@ -3984,7 +3984,7 @@ loop:
 		/* The dict_table_t object must not be accessed before
 		dict_table_open() or after dict_table_close(). But this is OK
 		if we are holding, the dict_sys.mutex. */
-		ut_ad(mutex_own(&dict_sys.mutex));
+		mysql_mutex_assert_owner(&dict_sys.mutex);
 
 		/* Disable statistics on the found table. */
 		if (!dict_stats_stop_bg(table)) {

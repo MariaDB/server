@@ -236,10 +236,10 @@ dict_stats_persistent_storage_check(
 	dberr_t		ret;
 
 	if (!caller_has_dict_sys_mutex) {
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 	}
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	/* first check table_stats */
 	ret = dict_table_schema_check(&table_stats_schema, errstr,
@@ -251,7 +251,7 @@ dict_stats_persistent_storage_check(
 	}
 
 	if (!caller_has_dict_sys_mutex) {
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 	}
 
 	if (ret != DB_SUCCESS && ret != DB_STATS_DO_NOT_EXIST) {
@@ -786,7 +786,7 @@ dict_table_t*
 dict_stats_snapshot_create(
 	dict_table_t*	table)
 {
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 
 	rw_lock_s_lock(&table->stats_latch);
 
@@ -805,7 +805,7 @@ dict_stats_snapshot_create(
 
 	rw_lock_s_unlock(&table->stats_latch);
 
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 
 	return(t);
 }
@@ -2937,7 +2937,7 @@ dict_stats_fetch_from_ps(
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
 
-	ut_ad(!mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_not_owner(&dict_sys.mutex);
 
 	/* Initialize all stats to dummy values before fetching because if
 	the persistent storage contains incomplete stats (e.g. missing stats
@@ -3073,7 +3073,7 @@ dict_stats_update_for_index(
 {
 	DBUG_ENTER("dict_stats_update_for_index");
 
-	ut_ad(!mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_not_owner(&dict_sys.mutex);
 
 	if (dict_stats_is_persistent_enabled(index->table)) {
 
@@ -3124,7 +3124,7 @@ dict_stats_update(
 					the persistent statistics
 					storage */
 {
-	ut_ad(!mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_not_owner(&dict_sys.mutex);
 
 	if (!table->is_readable()) {
 		return (dict_stats_report_error(table));
@@ -3359,7 +3359,7 @@ dict_stats_drop_index(
 	pars_info_t*	pinfo;
 	dberr_t		ret;
 
-	ut_ad(!mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_not_owner(&dict_sys.mutex);
 
 	/* skip indexes whose table names do not contain a database name
 	e.g. if we are dropping an index from SYS_TABLES */

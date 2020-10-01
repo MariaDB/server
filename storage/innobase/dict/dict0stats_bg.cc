@@ -147,7 +147,7 @@ void dict_stats_update_if_needed_func(dict_table_t *table)
 #endif
 {
 	ut_ad(table->stat_initialized);
-	ut_ad(!mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_not_owner(&dict_sys.mutex);
 
 	ulonglong	counter = table->stat_modified_counter++;
 	ulonglong	n_rows = dict_table_get_n_rows(table);
@@ -240,7 +240,7 @@ dict_stats_recalc_pool_del(
 	const dict_table_t*	table)	/*!< in: table to remove */
 {
 	ut_ad(!srv_read_only_mode);
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	mutex_enter(&recalc_pool_mutex);
 
@@ -345,28 +345,28 @@ next_table_id:
 
 	dict_table_t*	table;
 
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 
 	table = dict_table_open_on_id(table_id, TRUE, DICT_TABLE_OP_NORMAL);
 
 	if (table == NULL) {
 		/* table does not exist, must have been DROPped
 		after its id was enqueued */
-		mutex_exit(&dict_sys.mutex);
-		goto next_table_id;
+		goto no_table;
 	}
 
 	ut_ad(!table->is_temporary());
 
 	if (!fil_table_accessible(table)) {
 		dict_table_close(table, TRUE, FALSE);
-		mutex_exit(&dict_sys.mutex);
+no_table:
+		mysql_mutex_unlock(&dict_sys.mutex);
 		goto next_table_id;
 	}
 
 	table->stats_bg_flag |= BG_STAT_IN_PROGRESS;
 
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 
 	/* time() could be expensive, the current function
 	is called once every time a table has been changed more than 10% and
@@ -391,13 +391,13 @@ next_table_id:
 		ret = true;
 	}
 
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 
 	table->stats_bg_flag = BG_STAT_NONE;
 
 	dict_table_close(table, TRUE, FALSE);
 
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 	return ret;
 }
 

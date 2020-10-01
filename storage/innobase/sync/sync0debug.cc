@@ -463,7 +463,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_IBUF_HEADER);
 	LEVEL_MAP_INSERT(SYNC_DICT_HEADER);
 	LEVEL_MAP_INSERT(SYNC_STATS_AUTO_RECALC);
-	LEVEL_MAP_INSERT(SYNC_DICT);
 	LEVEL_MAP_INSERT(SYNC_DICT_OPERATION);
 	LEVEL_MAP_INSERT(SYNC_TRX_I_S_RWLOCK);
 	LEVEL_MAP_INSERT(SYNC_LEVEL_VARYING);
@@ -817,10 +816,6 @@ LatchDebug::check_order(
 		mysql_mutex_assert_not_owner(&ibuf_pessimistic_insert_mutex);
 		break;
 
-	case SYNC_DICT:
-		basic_check(latches, level, SYNC_DICT);
-		break;
-
 	case SYNC_UNKNOWN:
 	case SYNC_LEVEL_VARYING:
 	case RW_LOCK_X:
@@ -1131,8 +1126,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(DICT_FOREIGN_ERR, SYNC_NO_ORDER_CHECK,
 			dict_foreign_err_mutex_key);
-
-	LATCH_ADD_MUTEX(DICT_SYS, SYNC_DICT, dict_sys_mutex_key);
 
 	LATCH_ADD_MUTEX(MUTEX_LIST, SYNC_NO_ORDER_CHECK, mutex_list_mutex_key);
 

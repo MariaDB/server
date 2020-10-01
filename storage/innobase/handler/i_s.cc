@@ -1354,7 +1354,7 @@ i_s_cmp_per_index_fill_low(
 	page_zip_stat_per_index_t		snap (page_zip_stat_per_index);
 	mysql_mutex_unlock(&page_zip_stat_per_index_mutex);
 
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 
 	page_zip_stat_per_index_t::iterator	iter;
 	ulint					i;
@@ -1412,13 +1412,13 @@ i_s_cmp_per_index_fill_low(
 		contents of INFORMATION_SCHEMA.innodb_cmp_per_index being
 		inconsistent, but it is an acceptable compromise. */
 		if (i == 1000) {
-			mutex_exit(&dict_sys.mutex);
+			mysql_mutex_unlock(&dict_sys.mutex);
 			i = 0;
-			mutex_enter(&dict_sys.mutex);
+			mysql_mutex_lock(&dict_sys.mutex);
 		}
 	}
 
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 
 	if (reset) {
 		page_zip_reset_stat_per_index();
@@ -2988,9 +2988,7 @@ i_s_fts_index_table_fill_selected(
 		}
 	}
 
-	mutex_enter(&dict_sys.mutex);
-	que_graph_free(graph);
-	mutex_exit(&dict_sys.mutex);
+	fts_que_graph_free(graph);
 
 	trx->free();
 
@@ -4011,7 +4009,7 @@ i_s_innodb_buffer_page_fill(
 		if (page_info->page_type == I_S_PAGE_TYPE_INDEX) {
 			bool ret = false;
 
-			mutex_enter(&dict_sys.mutex);
+			mysql_mutex_lock(&dict_sys.mutex);
 
 			const dict_index_t* index =
 				dict_index_get_if_in_cache_low(
@@ -4036,7 +4034,7 @@ i_s_innodb_buffer_page_fill(
 						system_charset_info);
 			}
 
-			mutex_exit(&dict_sys.mutex);
+			mysql_mutex_unlock(&dict_sys.mutex);
 
 			OK(ret);
 
@@ -4515,7 +4513,7 @@ i_s_innodb_buf_page_lru_fill(
 		if (page_info->page_type == I_S_PAGE_TYPE_INDEX) {
 			bool ret = false;
 
-			mutex_enter(&dict_sys.mutex);
+			mysql_mutex_lock(&dict_sys.mutex);
 
 			const dict_index_t* index =
 				dict_index_get_if_in_cache_low(
@@ -4540,7 +4538,7 @@ i_s_innodb_buf_page_lru_fill(
 						system_charset_info);
 			}
 
-			mutex_exit(&dict_sys.mutex);
+			mysql_mutex_unlock(&dict_sys.mutex);
 
 			OK(ret);
 
@@ -4861,7 +4859,7 @@ i_s_sys_tables_fill_table(
 	}
 
 	heap = mem_heap_create(1000);
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 	mtr_start(&mtr);
 
 	rec = dict_startscan_system(&pcur, &mtr, SYS_TABLES);
@@ -4875,7 +4873,7 @@ i_s_sys_tables_fill_table(
 		err_msg = dict_process_sys_tables_rec_and_mtr_commit(
 			heap, rec, &table_rec, false, &mtr);
 
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 
 		if (!err_msg) {
 			i_s_dict_fill_sys_tables(thd, table_rec,
@@ -4893,13 +4891,13 @@ i_s_sys_tables_fill_table(
 		mem_heap_empty(heap);
 
 		/* Get the next record */
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 		mtr_start(&mtr);
 		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
 	mtr_commit(&mtr);
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
@@ -5102,7 +5100,7 @@ i_s_sys_tables_fill_table_stats(
 
 	heap = mem_heap_create(1000);
 	rw_lock_s_lock(&dict_sys.latch);
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 	mtr_start(&mtr);
 
 	rec = dict_startscan_system(&pcur, &mtr, SYS_TABLES);
@@ -5117,7 +5115,7 @@ i_s_sys_tables_fill_table_stats(
 			heap, rec, &table_rec, true, &mtr);
 
 		ulint ref_count = table_rec ? table_rec->get_ref_count() : 0;
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 
 		DBUG_EXECUTE_IF("test_sys_tablestats", {
 			if (strcmp("test/t1", table_rec->name.m_name) == 0 ) {
@@ -5140,14 +5138,14 @@ i_s_sys_tables_fill_table_stats(
 
 		/* Get the next record */
 		rw_lock_s_lock(&dict_sys.latch);
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 
 		mtr_start(&mtr);
 		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
 	mtr_commit(&mtr);
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 	rw_lock_s_unlock(&dict_sys.latch);
 	mem_heap_free(heap);
 
@@ -5342,7 +5340,7 @@ i_s_sys_indexes_fill_table(
 	}
 
 	heap = mem_heap_create(1000);
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 	mtr_start(&mtr);
 
 	/* Start scan the SYS_INDEXES table */
@@ -5364,7 +5362,7 @@ i_s_sys_indexes_fill_table(
 		space_id = space_id == 4 ? mach_read_from_4(field)
 			: ULINT_UNDEFINED;
 		mtr_commit(&mtr);
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 
 		if (!err_msg) {
 			if (int err = i_s_dict_fill_sys_indexes(
@@ -5382,13 +5380,13 @@ i_s_sys_indexes_fill_table(
 		mem_heap_empty(heap);
 
 		/* Get the next record */
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 		mtr_start(&mtr);
 		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
 	mtr_commit(&mtr);
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
@@ -5561,7 +5559,7 @@ i_s_sys_columns_fill_table(
 	}
 
 	heap = mem_heap_create(1000);
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 	mtr_start(&mtr);
 
 	rec = dict_startscan_system(&pcur, &mtr, SYS_COLUMNS);
@@ -5579,7 +5577,7 @@ i_s_sys_columns_fill_table(
 						       &nth_v_col);
 
 		mtr_commit(&mtr);
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 
 		if (!err_msg) {
 			i_s_dict_fill_sys_columns(thd, table_id, col_name,
@@ -5594,13 +5592,13 @@ i_s_sys_columns_fill_table(
 		mem_heap_empty(heap);
 
 		/* Get the next record */
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 		mtr_start(&mtr);
 		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
 	mtr_commit(&mtr);
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
@@ -5754,7 +5752,7 @@ i_s_sys_virtual_fill_table(
 		DBUG_RETURN(0);
 	}
 
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 	mtr_start(&mtr);
 
 	rec = dict_startscan_system(&pcur, &mtr, SYS_VIRTUAL);
@@ -5770,7 +5768,7 @@ i_s_sys_virtual_fill_table(
 						       &base_pos);
 
 		mtr_commit(&mtr);
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 
 		if (!err_msg) {
 			i_s_dict_fill_sys_virtual(thd, table_id, pos, base_pos,
@@ -5782,13 +5780,13 @@ i_s_sys_virtual_fill_table(
 		}
 
 		/* Get the next record */
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 		mtr_start(&mtr);
 		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
 	mtr_commit(&mtr);
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 
 	DBUG_RETURN(0);
 }
@@ -5940,7 +5938,7 @@ i_s_sys_fields_fill_table(
 	}
 
 	heap = mem_heap_create(1000);
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 	mtr_start(&mtr);
 
 	/* will save last index id so that we know whether we move to
@@ -5961,7 +5959,7 @@ i_s_sys_fields_fill_table(
 						      &pos, &index_id, last_id);
 
 		mtr_commit(&mtr);
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 
 		if (!err_msg) {
 			i_s_dict_fill_sys_fields(thd, index_id, &field_rec,
@@ -5976,13 +5974,13 @@ i_s_sys_fields_fill_table(
 		mem_heap_empty(heap);
 
 		/* Get the next record */
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 		mtr_start(&mtr);
 		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
 	mtr_commit(&mtr);
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
@@ -6144,7 +6142,7 @@ i_s_sys_foreign_fill_table(
 	}
 
 	heap = mem_heap_create(1000);
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 	mtr_start(&mtr);
 
 	rec = dict_startscan_system(&pcur, &mtr, SYS_FOREIGN);
@@ -6158,7 +6156,7 @@ i_s_sys_foreign_fill_table(
 		err_msg = dict_process_sys_foreign_rec(heap, rec, &foreign_rec);
 
 		mtr_commit(&mtr);
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 
 		if (!err_msg) {
 			i_s_dict_fill_sys_foreign(thd, &foreign_rec,
@@ -6173,12 +6171,12 @@ i_s_sys_foreign_fill_table(
 
 		/* Get the next record */
 		mtr_start(&mtr);
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
 	mtr_commit(&mtr);
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
@@ -6336,7 +6334,7 @@ i_s_sys_foreign_cols_fill_table(
 	}
 
 	heap = mem_heap_create(1000);
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 	mtr_start(&mtr);
 
 	rec = dict_startscan_system(&pcur, &mtr, SYS_FOREIGN_COLS);
@@ -6353,7 +6351,7 @@ i_s_sys_foreign_cols_fill_table(
 			heap, rec, &name, &for_col_name, &ref_col_name, &pos);
 
 		mtr_commit(&mtr);
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 
 		if (!err_msg) {
 			i_s_dict_fill_sys_foreign_cols(
@@ -6368,13 +6366,13 @@ i_s_sys_foreign_cols_fill_table(
 		mem_heap_empty(heap);
 
 		/* Get the next record */
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 		mtr_start(&mtr);
 		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
 	mtr_commit(&mtr);
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
@@ -6626,7 +6624,7 @@ i_s_sys_tablespaces_fill_table(
 	}
 
 	heap = mem_heap_create(1000);
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 	mtr_start(&mtr);
 
 	for (rec = dict_startscan_system(&pcur, &mtr, SYS_TABLESPACES);
@@ -6643,7 +6641,7 @@ i_s_sys_tablespaces_fill_table(
 			heap, rec, &space, &name, &flags);
 
 		mtr_commit(&mtr);
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 
 		if (!err_msg) {
 			i_s_dict_fill_sys_tablespaces(
@@ -6658,12 +6656,12 @@ i_s_sys_tablespaces_fill_table(
 		mem_heap_empty(heap);
 
 		/* Get the next record */
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 		mtr_start(&mtr);
 	}
 
 	mtr_commit(&mtr);
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
@@ -6807,7 +6805,7 @@ i_s_sys_datafiles_fill_table(
 	}
 
 	heap = mem_heap_create(1000);
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 	mtr_start(&mtr);
 
 	rec = dict_startscan_system(&pcur, &mtr, SYS_DATAFILES);
@@ -6822,7 +6820,7 @@ i_s_sys_datafiles_fill_table(
 			heap, rec, &space, &path);
 
 		mtr_commit(&mtr);
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 
 		if (!err_msg) {
 			i_s_dict_fill_sys_datafiles(
@@ -6836,13 +6834,13 @@ i_s_sys_datafiles_fill_table(
 		mem_heap_empty(heap);
 
 		/* Get the next record */
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 		mtr_start(&mtr);
 		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
 	mtr_commit(&mtr);
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);

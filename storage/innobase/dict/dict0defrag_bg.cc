@@ -151,7 +151,7 @@ dict_stats_defrag_pool_del(
 {
 	ut_a((table && !index) || (!table && index));
 	ut_ad(!srv_read_only_mode);
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	mutex_enter(&defrag_pool_mutex);
 
@@ -193,7 +193,7 @@ dict_stats_process_entry_from_defrag_pool()
 
 	dict_table_t*	table;
 
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 
 	/* If the table is no longer cached, we've already lost the in
 	memory stats so there's nothing really to write to disk. */
@@ -208,11 +208,11 @@ dict_stats_process_entry_from_defrag_pool()
 		if (table) {
 			dict_table_close(table, TRUE, FALSE);
 		}
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 		return;
 	}
 
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 	dict_stats_save_defrag_stats(index);
 	dict_table_close(table, FALSE, FALSE);
 }

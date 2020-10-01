@@ -379,9 +379,9 @@ extern bool		fts_need_sync;
 
 #define	fts_que_graph_free(graph)			\
 do {							\
-	mutex_enter(&dict_sys.mutex);			\
+	mysql_mutex_lock(&dict_sys.mutex);		\
 	que_graph_free(graph);				\
-	mutex_exit(&dict_sys.mutex);			\
+	mysql_mutex_unlock(&dict_sys.mutex);		\
 } while (0)
 
 /******************************************************************//**

@@ -1411,7 +1411,7 @@ row_import::set_root_by_heuristic() UNIV_NOTHROW
 			" the tablespace has " << m_n_indexes << " indexes";
 	}
 
-	dict_mutex_enter_for_mysql();
+	mysql_mutex_lock(&dict_sys.mutex);
 
 	ulint	i = 0;
 	dberr_t	err = DB_SUCCESS;
@@ -1452,7 +1452,7 @@ row_import::set_root_by_heuristic() UNIV_NOTHROW
 		}
 	}
 
-	dict_mutex_exit_for_mysql();
+	mysql_mutex_unlock(&dict_sys.mutex);
 
 	return(err);
 }
@@ -2397,14 +2397,14 @@ row_import_set_sys_max_row_id(
 		/* Update the system row id if the imported index row id is
 		greater than the max system row id. */
 
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 
 		if (row_id >= dict_sys.row_id) {
 			dict_sys.row_id = row_id + 1;
 			dict_hdr_flush_row_id();
 		}
 
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 	}
 }
 

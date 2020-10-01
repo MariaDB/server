@@ -615,10 +615,10 @@ trx_resurrect_table_locks(
 		if (dict_table_t* table = dict_table_open_on_id(
 			    *i, FALSE, DICT_TABLE_OP_LOAD_TABLESPACE)) {
 			if (!table->is_readable()) {
-				mutex_enter(&dict_sys.mutex);
+				mysql_mutex_lock(&dict_sys.mutex);
 				dict_table_close(table, TRUE, FALSE);
 				dict_sys.remove(table);
-				mutex_exit(&dict_sys.mutex);
+				mysql_mutex_unlock(&dict_sys.mutex);
 				continue;
 			}
 
@@ -1233,11 +1233,11 @@ trx_update_mod_tables_timestamp(
 	const time_t now = time(NULL);
 
 	trx_mod_tables_t::const_iterator	end = trx->mod_tables.end();
-#ifdef UNIV_DEBUG
+#if defined SAFE_MUTEX && defined UNIV_DEBUG
 	const bool preserve_tables = !innodb_evict_tables_on_commit_debug
 		|| trx->is_recovered /* avoid trouble with XA recovery */
 # if 1 /* if dict_stats_exec_sql() were not playing dirty tricks */
-		|| mutex_own(&dict_sys.mutex)
+		|| mysql_mutex_is_owner(&dict_sys.mutex)
 # else /* this would be more proper way to do it */
 		|| trx->dict_operation_lock_mode || trx->dict_operation
 # endif
@@ -1258,7 +1258,7 @@ trx_update_mod_tables_timestamp(
 		intrusive. */
 		dict_table_t* table = it->first;
 		table->update_time = now;
-#ifdef UNIV_DEBUG
+#if defined SAFE_MUTEX && defined UNIV_DEBUG
 		if (preserve_tables || table->get_ref_count()
 		    || UT_LIST_GET_LEN(table->locks)) {
 			/* do not evict when committing DDL operations
@@ -1268,7 +1268,7 @@ trx_update_mod_tables_timestamp(
 		}
 		/* recheck while holding the mutex that blocks
 		table->acquire() */
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 		mysql_mutex_lock(&lock_sys.mutex);
 		const bool do_evict = !table->get_ref_count()
 			&& !UT_LIST_GET_LEN(table->locks);
@@ -1276,7 +1276,7 @@ trx_update_mod_tables_timestamp(
 		if (do_evict) {
 			dict_sys.remove(table, true);
 		}
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 #endif
 	}
 

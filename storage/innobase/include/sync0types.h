@@ -215,7 +215,6 @@ enum latch_level_t {
 	SYNC_IBUF_HEADER,
 	SYNC_DICT_HEADER,
 	SYNC_STATS_AUTO_RECALC,
-	SYNC_DICT,
 
 	SYNC_DICT_OPERATION,
 
@@ -239,7 +238,6 @@ up its meta-data. See sync0debug.c. */
 enum latch_id_t {
 	LATCH_ID_NONE = 0,
 	LATCH_ID_DICT_FOREIGN_ERR,
-	LATCH_ID_DICT_SYS,
 	LATCH_ID_FILE_FORMAT_MAX,
 	LATCH_ID_LIST,
 	LATCH_ID_MUTEX_LIST,
@@ -924,7 +922,6 @@ struct sync_checker : public sync_check_functor_t
 		if (some_allowed) {
 			switch (level) {
 			case SYNC_FSP:
-			case SYNC_DICT:
 			case SYNC_DICT_OPERATION:
 			case SYNC_NO_ORDER_CHECK:
 				return(false);

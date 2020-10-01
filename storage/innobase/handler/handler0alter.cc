@@ -484,7 +484,7 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 	DBUG_ASSERT(table.n_cols + table.n_dropped() >= n_cols + n_dropped());
 	DBUG_ASSERT(!table.persistent_autoinc
 		    || persistent_autoinc == table.persistent_autoinc);
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	{
 		const char* end = table.col_names;
@@ -2588,7 +2588,7 @@ innobase_init_foreign(
 	ulint		referenced_num_field)	/*!< in: number of referenced
 						columns */
 {
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
         if (constraint_name) {
                 ulint   db_len;
@@ -2992,7 +2992,7 @@ innobase_get_foreign_key_info(
 
 		add_fk[num_fk] = dict_mem_foreign_create();
 
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 
 		referenced_table_name = dict_get_referenced_table(
 			table->name.m_name,
@@ -3008,7 +3008,7 @@ innobase_get_foreign_key_info(
 				referenced_table = NULL;);
 
 		if (!referenced_table && trx->check_foreigns) {
-			mutex_exit(&dict_sys.mutex);
+			mysql_mutex_unlock(&dict_sys.mutex);
 			my_error(ER_FK_CANNOT_OPEN_PARENT,
 				 MYF(0), fk_key->ref_table.str);
 
@@ -3041,7 +3041,7 @@ innobase_get_foreign_key_info(
 				/* Check whether there exist such
 				index in the the index create clause */
 				if (!referenced_index) {
-					mutex_exit(&dict_sys.mutex);
+					mysql_mutex_unlock(&dict_sys.mutex);
 					my_error(ER_FK_NO_INDEX_PARENT, MYF(0),
 						 fk_key->name.str
 						 ? fk_key->name.str : "",
@@ -3056,7 +3056,7 @@ innobase_get_foreign_key_info(
 		} else {
 			/* Not possible to add a foreign key without a
 			referenced column */
-			mutex_exit(&dict_sys.mutex);
+			mysql_mutex_unlock(&dict_sys.mutex);
 			my_error(ER_CANNOT_ADD_FOREIGN, MYF(0),
 				 fk_key->ref_table.str);
 			goto err_exit;
@@ -3068,7 +3068,7 @@ innobase_get_foreign_key_info(
 			    num_col, referenced_table_name,
 			    referenced_table, referenced_index,
 			    referenced_column_names, referenced_num_col)) {
-			mutex_exit(&dict_sys.mutex);
+			mysql_mutex_unlock(&dict_sys.mutex);
 			my_error(
 				ER_DUP_CONSTRAINT_NAME,
 				MYF(0),
@@ -3076,7 +3076,7 @@ innobase_get_foreign_key_info(
 			goto err_exit;
 		}
 
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 
 		correct_option = innobase_set_foreign_key_option(
 			add_fk[num_fk], fk_key);
@@ -4020,7 +4020,7 @@ online_retry_drop_indexes_low(
 	dict_table_t*	table,	/*!< in/out: table */
 	trx_t*		trx)	/*!< in/out: transaction */
 {
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 	ut_ad(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
 
@@ -4057,9 +4057,9 @@ online_retry_drop_indexes(
 		trx->free();
 	}
 
-	ut_d(mutex_enter(&dict_sys.mutex));
+	ut_d(mysql_mutex_lock(&dict_sys.mutex));
 	ut_d(dict_table_check_for_dup_indexes(table, CHECK_ALL_COMPLETE));
-	ut_d(mutex_exit(&dict_sys.mutex));
+	ut_d(mysql_mutex_unlock(&dict_sys.mutex));
 	ut_ad(!table->drop_aborted);
 }
 
@@ -4134,7 +4134,7 @@ innobase_check_foreigns_low(
 	bool			drop)
 {
 	dict_foreign_t*	foreign;
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	/* Check if any FOREIGN KEY constraints are defined on this
 	column. */
@@ -6750,7 +6750,7 @@ new_clustered_failed:
 			table. The new_table must be in the data
 			dictionary cache, because we are still holding
 			the dict_sys.mutex. */
-			ut_ad(mutex_own(&dict_sys.mutex));
+			mysql_mutex_assert_owner(&dict_sys.mutex);
 			temp_table = dict_table_open_on_name(
 				ctx->new_table->name.m_name, TRUE, FALSE,
 				DICT_ERR_IGNORE_NONE);
@@ -7074,10 +7074,10 @@ error_handling:
 	case DB_SUCCESS:
 		ut_a(!dict_locked);
 
-		ut_d(mutex_enter(&dict_sys.mutex));
+		ut_d(mysql_mutex_lock(&dict_sys.mutex));
 		ut_d(dict_table_check_for_dup_indexes(
 			     user_table, CHECK_PARTIAL_OK));
-		ut_d(mutex_exit(&dict_sys.mutex));
+		ut_d(mysql_mutex_unlock(&dict_sys.mutex));
 		DBUG_RETURN(false);
 	case DB_TABLESPACE_EXISTS:
 		my_error(ER_TABLESPACE_EXISTS, MYF(0), "(unknown)");
@@ -7495,10 +7495,10 @@ ha_innobase::prepare_inplace_alter_table(
 	}
 #endif /* UNIV_DEBUG */
 
-	ut_d(mutex_enter(&dict_sys.mutex));
+	ut_d(mysql_mutex_lock(&dict_sys.mutex));
 	ut_d(dict_table_check_for_dup_indexes(
 		     m_prebuilt->table, CHECK_ABORTED_OK));
-	ut_d(mutex_exit(&dict_sys.mutex));
+	ut_d(mysql_mutex_unlock(&dict_sys.mutex));
 
 	if (!(ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)) {
 		/* Nothing to do */
@@ -8451,10 +8451,10 @@ oom:
 		KEY*	dup_key;
 	all_done:
 	case DB_SUCCESS:
-		ut_d(mutex_enter(&dict_sys.mutex));
+		ut_d(mysql_mutex_lock(&dict_sys.mutex));
 		ut_d(dict_table_check_for_dup_indexes(
 			     m_prebuilt->table, CHECK_PARTIAL_OK));
-		ut_d(mutex_exit(&dict_sys.mutex));
+		ut_d(mysql_mutex_unlock(&dict_sys.mutex));
 		/* prebuilt->table->n_ref_count can be anything here,
 		given that we hold at most a shared lock on the table. */
 		goto ok_exit;
@@ -8622,7 +8622,7 @@ operation.
 static
 ulint innobase_get_uncommitted_fts_indexes(const dict_table_t* table)
 {
-  ut_ad(mutex_own(&dict_sys.mutex));
+  mysql_mutex_assert_owner(&dict_sys.mutex);
   dict_index_t*	index = dict_table_get_first_index(table);
   ulint n_uncommitted_fts = 0;
 
@@ -9589,7 +9589,7 @@ innobase_update_foreign_cache(
 
 	DBUG_ENTER("innobase_update_foreign_cache");
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	user_table = ctx->old_table;
 
