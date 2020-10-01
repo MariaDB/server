@@ -203,8 +203,6 @@ rw_lock_create_func(
 	lock->writer_thread= 0;
 
 #ifdef UNIV_DEBUG
-	lock->m_rw_lock = true;
-
 	UT_LIST_INIT(lock->debug_list, &rw_lock_debug_t::list);
 
 	lock->m_id = sync_latch_get_id(sync_latch_get_name(level));

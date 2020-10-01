@@ -38,7 +38,6 @@ Created 12/15/2009	Jimmy Yang
 
 #include <stdint.h>
 #include "my_atomic.h"
-#include "my_atomic_wrapper.h"
 
 /** Possible status values for "mon_status" in "struct monitor_value" */
 enum monitor_running_status {
