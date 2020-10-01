@@ -221,8 +221,6 @@ enum latch_level_t {
 
 	SYNC_DICT_OPERATION,
 
-	SYNC_TRX_I_S_LAST_READ,
-
 	SYNC_TRX_I_S_RWLOCK,
 
 	/** Level is varying. Only used with buffer pool page locks, which
@@ -242,7 +240,6 @@ enum latch_level_t {
 up its meta-data. See sync0debug.c. */
 enum latch_id_t {
 	LATCH_ID_NONE = 0,
-	LATCH_ID_CACHE_LAST_READ,
 	LATCH_ID_DICT_FOREIGN_ERR,
 	LATCH_ID_DICT_SYS,
 	LATCH_ID_FILE_FORMAT_MAX,

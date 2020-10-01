@@ -466,7 +466,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_STATS_AUTO_RECALC);
 	LEVEL_MAP_INSERT(SYNC_DICT);
 	LEVEL_MAP_INSERT(SYNC_DICT_OPERATION);
-	LEVEL_MAP_INSERT(SYNC_TRX_I_S_LAST_READ);
 	LEVEL_MAP_INSERT(SYNC_TRX_I_S_RWLOCK);
 	LEVEL_MAP_INSERT(SYNC_LEVEL_VARYING);
 	LEVEL_MAP_INSERT(SYNC_NO_ORDER_CHECK);
@@ -708,7 +707,6 @@ LatchDebug::check_order(
 	case SYNC_DICT_OPERATION:
 	case SYNC_DICT_HEADER:
 	case SYNC_TRX_I_S_RWLOCK:
-	case SYNC_TRX_I_S_LAST_READ:
 	case SYNC_INDEX_ONLINE_LOG:
 	case SYNC_STATS_AUTO_RECALC:
 	case SYNC_BUF_PAGE_HASH:
@@ -1132,9 +1130,6 @@ sync_latch_meta_init()
 
 	/* The latches should be ordered on latch_id_t. So that we can
 	index directly into the vector to update and fetch meta-data. */
-
-	LATCH_ADD_MUTEX(CACHE_LAST_READ, SYNC_TRX_I_S_LAST_READ,
-			cache_last_read_mutex_key);
 
 	LATCH_ADD_MUTEX(DICT_FOREIGN_ERR, SYNC_NO_ORDER_CHECK,
 			dict_foreign_err_mutex_key);

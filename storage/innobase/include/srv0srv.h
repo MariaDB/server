@@ -653,8 +653,7 @@ void
 srv_export_innodb_status(void);
 /*==========================*/
 /*******************************************************************//**
-Get current server activity count. We don't hold srv_sys::mutex while
-reading this value as it is only used in heuristics.
+Get current server activity count.
 @return activity count. */
 ulint
 srv_get_activity_count(void);

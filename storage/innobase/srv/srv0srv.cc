@@ -564,16 +564,6 @@ and/or load it during startup. */
 char	srv_buffer_pool_dump_at_shutdown = TRUE;
 char	srv_buffer_pool_load_at_startup = TRUE;
 
-/** Slot index in the srv_sys.sys_threads array for the master thread. */
-#define SRV_MASTER_SLOT 0
-
-/** Slot index in the srv_sys.sys_threads array for the purge thread. */
-#define SRV_PURGE_SLOT 1
-
-/** Slot index in the srv_sys.sys_threads array from which purge workers start.
-  */
-#define SRV_WORKER_SLOTS_START 2
-
 #ifdef HAVE_PSI_STAGE_INTERFACE
 /** Performance schema stage event for monitoring ALTER TABLE progress
 everything after flush log_make_checkpoint(). */
@@ -1541,8 +1531,7 @@ void purge_sys_t::resume()
 }
 
 /*******************************************************************//**
-Get current server activity count. We don't hold srv_sys::mutex while
-reading this value as it is only used in heuristics.
+Get current server activity count.
 @return activity count. */
 ulint
 srv_get_activity_count(void)
