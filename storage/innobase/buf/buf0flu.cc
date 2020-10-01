@@ -2045,9 +2045,8 @@ static void buf_flush_validate_low()
 		ut_ad(om > 0);
 
 		bpage = UT_LIST_GET_NEXT(list, bpage);
-#if 0 // FIXME: priority_queue
-		ut_ad(!bpage || om >= bpage->oldest_modification());
-#endif
+		ut_ad(!bpage || recv_recovery_is_on()
+		      || om >= bpage->oldest_modification());
 	}
 }
 

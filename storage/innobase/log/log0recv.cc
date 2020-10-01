@@ -2693,22 +2693,29 @@ next_page:
     }
   }
 
-  if (!last_batch)
-  {
-    /* Flush all the file pages to disk and invalidate them in buf_pool */
-    mysql_mutex_unlock(&mutex);
-    mysql_mutex_unlock(&log_sys.mutex);
-
-    buf_flush_sync();
-    buf_pool_invalidate();
-
-    mysql_mutex_lock(&log_sys.mutex);
-    mysql_mutex_lock(&mutex);
-    mlog_init.reset();
-  }
-  else
+  if (last_batch)
     /* We skipped this in buf_page_create(). */
     mlog_init.mark_ibuf_exist(mtr);
+  else
+  {
+    mlog_init.reset();
+    mysql_mutex_unlock(&log_sys.mutex);
+  }
+
+  mysql_mutex_assert_not_owner(&log_sys.mutex);
+  mysql_mutex_unlock(&mutex);
+
+  /* For last_batch, we could avoid the flush if we sorted the
+  buf_pool.flush_list here. */
+  buf_flush_sync();
+
+  if (!last_batch)
+  {
+    buf_pool_invalidate();
+    mysql_mutex_lock(&log_sys.mutex);
+  }
+
+  mysql_mutex_lock(&mutex);
 
   ut_d(after_apply= true);
   clear();
