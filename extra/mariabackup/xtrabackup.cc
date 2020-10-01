@@ -2721,7 +2721,7 @@ static bool xtrabackup_copy_logfile(bool last = false)
 		}
 
 		if (lsn == start_lsn) {
-			overwritten_block= !recv_sys.found_corrupt_log
+			overwritten_block= !recv_sys.is_corrupt_log()
 				&& log_block_calc_checksum_crc32(log_sys.buf) ==
 					log_block_get_checksum(log_sys.buf)
 				&& log_block_get_hdr_no(log_sys.buf) >
@@ -2734,7 +2734,7 @@ static bool xtrabackup_copy_logfile(bool last = false)
 		}
 
 		if (!start_lsn) {
-			const char *reason = recv_sys.found_corrupt_log
+			const char *reason = recv_sys.is_corrupt_log()
 				? "corrupt log."
 				: (overwritten_block
 				   ? "redo log block is overwritten, please increase redo log size with innodb_log_file_size parameter."

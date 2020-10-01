@@ -1503,8 +1503,8 @@ file_checked:
 
 			recv_sys.apply(true);
 
-			if (recv_sys.found_corrupt_log
-			    || recv_sys.found_corrupt_fs) {
+			if (recv_sys.is_corrupt_log()
+			    || recv_sys.is_corrupt_fs()) {
 				return(srv_init_abort(DB_CORRUPTION));
 			}
 

@@ -3970,7 +3970,7 @@ write_completed:
   if (dberr_t err= buf_page_read_complete(bpage, *node))
   {
     if (recv_recovery_is_on() && !srv_force_recovery)
-      recv_sys.found_corrupt_fs= true;
+      recv_sys.set_corrupt_fs();
 
     ib::error() << "Failed to read page " << id.page_no()
                 << " from file '" << node->name << "': " << err;
