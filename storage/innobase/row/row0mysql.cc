@@ -2908,7 +2908,7 @@ row_discard_tablespace_foreign_key_checks(
 	/* We only allow discarding a referenced table if
 	FOREIGN_KEY_CHECKS is set to 0 */
 
-	mutex_enter(&dict_foreign_err_mutex);
+	mysql_mutex_lock(&dict_foreign_err_mutex);
 
 	rewind(ef);
 
@@ -2921,7 +2921,7 @@ row_discard_tablespace_foreign_key_checks(
 	ut_print_name(ef, trx, foreign->foreign_table_name);
 	putc('\n', ef);
 
-	mutex_exit(&dict_foreign_err_mutex);
+	mysql_mutex_unlock(&dict_foreign_err_mutex);
 
 	return(DB_CANNOT_DROP_CONSTRAINT);
 }
@@ -3443,7 +3443,7 @@ row_drop_table_for_mysql(
 
 				err = DB_CANNOT_DROP_CONSTRAINT;
 
-				mutex_enter(&dict_foreign_err_mutex);
+				mysql_mutex_lock(&dict_foreign_err_mutex);
 				rewind(ef);
 				ut_print_timestamp(ef);
 
@@ -3454,7 +3454,7 @@ row_drop_table_for_mysql(
 				ut_print_name(ef, trx,
 					      foreign->foreign_table_name);
 				putc('\n', ef);
-				mutex_exit(&dict_foreign_err_mutex);
+				mysql_mutex_unlock(&dict_foreign_err_mutex);
 
 				goto funct_exit;
 			}

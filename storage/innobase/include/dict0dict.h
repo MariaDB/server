@@ -1396,8 +1396,7 @@ constraint */
 /* Buffers for storing detailed information about the latest foreign key
 and unique key errors */
 extern FILE*		dict_foreign_err_file;
-extern ib_mutex_t	dict_foreign_err_mutex; /* mutex protecting the
-						foreign key error messages */
+extern mysql_mutex_t dict_foreign_err_mutex;
 
 /** InnoDB data dictionary cache */
 class dict_sys_t

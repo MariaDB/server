@@ -21435,13 +21435,13 @@ ib_foreign_warn(trx_t*	    trx,   /*!< in: trx */
 	vsprintf(buf, format, args);
 	va_end(args);
 
-	mutex_enter(&dict_foreign_err_mutex);
+	mysql_mutex_lock(&dict_foreign_err_mutex);
 	rewind(ef);
 	ut_print_timestamp(ef);
 	fprintf(ef, " Error in foreign key constraint of table %s:\n",
 		table_name);
 	fputs(buf, ef);
-	mutex_exit(&dict_foreign_err_mutex);
+	mysql_mutex_unlock(&dict_foreign_err_mutex);
 
 	if (trx && trx->mysql_thd) {
 		THD* thd = (THD*)trx->mysql_thd;

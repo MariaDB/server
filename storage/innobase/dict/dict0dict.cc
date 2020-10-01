@@ -168,7 +168,7 @@ dict_lru_validate(void);
 and unique key errors. Only created if !srv_read_only_mode */
 FILE*	dict_foreign_err_file		= NULL;
 /* mutex protecting the foreign and unique error buffers */
-ib_mutex_t	dict_foreign_err_mutex;
+mysql_mutex_t dict_foreign_err_mutex;
 
 /********************************************************************//**
 Checks if the database name in two table names is the same.
@@ -1045,7 +1045,8 @@ void dict_sys_t::create()
     ut_a(dict_foreign_err_file);
   }
 
-  mutex_create(LATCH_ID_DICT_FOREIGN_ERR, &dict_foreign_err_mutex);
+  mysql_mutex_init(dict_foreign_err_mutex_key, &dict_foreign_err_mutex,
+                   nullptr);
 }
 
 /** Acquire a reference to a cached table. */
@@ -2956,7 +2957,7 @@ dict_foreign_error_report(
 	const char*	msg)	/*!< in: the error message */
 {
 	std::string fk_str;
-	mutex_enter(&dict_foreign_err_mutex);
+	mysql_mutex_lock(&dict_foreign_err_mutex);
 	dict_foreign_error_report_low(file, fk->foreign_table_name);
 	fputs(msg, file);
 	fputs(" Constraint:\n", file);
@@ -2968,7 +2969,7 @@ dict_foreign_error_report(
 			" %s\n%s\n", fk->foreign_index->name(),
 			FOREIGN_KEY_CONSTRAINTS_MSG);
 	}
-	mutex_exit(&dict_foreign_err_mutex);
+	mysql_mutex_unlock(&dict_foreign_err_mutex);
 }
 
 /**********************************************************************//**
@@ -3705,7 +3706,7 @@ loop:
 		if (!srv_read_only_mode) {
 			FILE*	ef = dict_foreign_err_file;
 
-			mutex_enter(&dict_foreign_err_mutex);
+			mysql_mutex_lock(&dict_foreign_err_mutex);
 			rewind(ef);
 			ut_print_timestamp(ef);
 			fputs(" Error in dropping of a foreign key"
@@ -3714,7 +3715,7 @@ loop:
 			fprintf(ef, ",\nin SQL command\n%s"
 				"\nCannot find a constraint with the"
 				" given id %s.\n", str, id);
-			mutex_exit(&dict_foreign_err_mutex);
+			mysql_mutex_unlock(&dict_foreign_err_mutex);
 		}
 
 		ut_free(str);
@@ -3728,7 +3729,7 @@ syntax_error:
 	if (!srv_read_only_mode) {
 		FILE*	ef = dict_foreign_err_file;
 
-		mutex_enter(&dict_foreign_err_mutex);
+		mysql_mutex_lock(&dict_foreign_err_mutex);
 		rewind(ef);
 		ut_print_timestamp(ef);
 		fputs(" Syntax error in dropping of a"
@@ -3736,7 +3737,7 @@ syntax_error:
 		ut_print_name(ef, NULL, table->name.m_name);
 		fprintf(ef, ",\n"
 			"close to:\n%s\n in SQL command\n%s\n", ptr, str);
-		mutex_exit(&dict_foreign_err_mutex);
+		mysql_mutex_unlock(&dict_foreign_err_mutex);
 	}
 
 	ut_free(str);
@@ -4946,7 +4947,7 @@ void dict_sys_t::close()
   mysql_mutex_destroy(&mutex);
   rw_lock_free(&latch);
 
-  mutex_free(&dict_foreign_err_mutex);
+  mysql_mutex_destroy(&dict_foreign_err_mutex);
 
   if (dict_foreign_err_file)
   {

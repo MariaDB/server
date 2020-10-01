@@ -236,7 +236,6 @@ enum latch_level_t {
 up its meta-data. See sync0debug.c. */
 enum latch_id_t {
 	LATCH_ID_NONE = 0,
-	LATCH_ID_DICT_FOREIGN_ERR,
 	LATCH_ID_FILE_FORMAT_MAX,
 	LATCH_ID_LIST,
 	LATCH_ID_MUTEX_LIST,

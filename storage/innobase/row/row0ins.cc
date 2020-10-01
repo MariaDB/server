@@ -721,7 +721,7 @@ row_ins_foreign_trx_print(
 	heap_size = mem_heap_get_size(trx->lock.lock_heap);
 	mysql_mutex_unlock(&lock_sys.mutex);
 
-	mutex_enter(&dict_foreign_err_mutex);
+	mysql_mutex_lock(&dict_foreign_err_mutex);
 	rewind(dict_foreign_err_file);
 	ut_print_timestamp(dict_foreign_err_file);
 	fputs(" Transaction:\n", dict_foreign_err_file);
@@ -729,7 +729,7 @@ row_ins_foreign_trx_print(
 	trx_print_low(dict_foreign_err_file, trx, 600,
 		      n_rec_locks, n_trx_locks, heap_size);
 
-	ut_ad(mutex_own(&dict_foreign_err_mutex));
+	mysql_mutex_assert_owner(&dict_foreign_err_mutex);
 }
 
 /*********************************************************************//**
@@ -787,7 +787,7 @@ row_ins_foreign_report_err(
 	}
 	putc('\n', ef);
 
-	mutex_exit(&dict_foreign_err_mutex);
+	mysql_mutex_unlock(&dict_foreign_err_mutex);
 }
 
 /*********************************************************************//**
@@ -853,7 +853,7 @@ row_ins_foreign_report_add_err(
 	}
 	putc('\n', ef);
 
-	mutex_exit(&dict_foreign_err_mutex);
+	mysql_mutex_unlock(&dict_foreign_err_mutex);
 }
 
 /*********************************************************************//**
@@ -1637,7 +1637,7 @@ row_ins_check_foreign_constraint(
 			err = DB_ROW_IS_REFERENCED;
 		}
 
-		mutex_exit(&dict_foreign_err_mutex);
+		mysql_mutex_unlock(&dict_foreign_err_mutex);
 		goto exit_func;
 	}
 

@@ -1648,7 +1648,7 @@ dict_foreign_eval_sql(
 	error = que_eval_sql(info, sql, FALSE, trx);
 
 	if (error == DB_DUPLICATE_KEY) {
-		mutex_enter(&dict_foreign_err_mutex);
+		mysql_mutex_lock(&dict_foreign_err_mutex);
 		rewind(ef);
 		ut_print_timestamp(ef);
 		fputs(" Error in foreign key constraint creation for table ",
@@ -1668,7 +1668,7 @@ dict_foreign_eval_sql(
 		      "explicitly with unique names.\n",
 		      ef);
 
-		mutex_exit(&dict_foreign_err_mutex);
+		mysql_mutex_unlock(&dict_foreign_err_mutex);
 
 		return(error);
 	}
@@ -1677,7 +1677,7 @@ dict_foreign_eval_sql(
 		ib::error() << "Foreign key constraint creation failed: "
 			<< error;
 
-		mutex_enter(&dict_foreign_err_mutex);
+		mysql_mutex_lock(&dict_foreign_err_mutex);
 		ut_print_timestamp(ef);
 		fputs(" Internal error in foreign key constraint creation"
 		      " for table ", ef);
@@ -1685,7 +1685,7 @@ dict_foreign_eval_sql(
 		fputs(".\n"
 		      "See the MySQL .err log in the datadir"
 		      " for more information.\n", ef);
-		mutex_exit(&dict_foreign_err_mutex);
+		mysql_mutex_unlock(&dict_foreign_err_mutex);
 
 		return(error);
 	}
