@@ -246,6 +246,16 @@ void Wsrep_client_service::will_replay()
   mysql_mutex_unlock(&LOCK_wsrep_replaying);
 }
 
+void Wsrep_client_service::signal_replayed()
+{
+  DBUG_ASSERT(m_thd == current_thd);
+  mysql_mutex_lock(&LOCK_wsrep_replaying);
+  --wsrep_replaying;
+  DBUG_ASSERT(wsrep_replaying >= 0);
+  mysql_cond_broadcast(&COND_wsrep_replaying);
+  mysql_mutex_unlock(&LOCK_wsrep_replaying);
+}
+
 enum wsrep::provider::status Wsrep_client_service::replay()
 {
 
@@ -274,12 +284,13 @@ enum wsrep::provider::status Wsrep_client_service::replay()
   }
 
   delete replayer_thd;
-
-  mysql_mutex_lock(&LOCK_wsrep_replaying);
-  --wsrep_replaying;
-  mysql_cond_broadcast(&COND_wsrep_replaying);
-  mysql_mutex_unlock(&LOCK_wsrep_replaying);
   DBUG_RETURN(ret);
+}
+
+enum wsrep::provider::status Wsrep_client_service::replay_unordered()
+{
+  DBUG_ASSERT(0);
+  return wsrep::provider::error_not_implemented;
 }
 
 void Wsrep_client_service::wait_for_replayers(wsrep::unique_lock<wsrep::mutex>& lock)
@@ -299,6 +310,12 @@ void Wsrep_client_service::wait_for_replayers(wsrep::unique_lock<wsrep::mutex>& 
   }
   mysql_mutex_unlock(&LOCK_wsrep_replaying);
   lock.lock();
+}
+
+enum wsrep::provider::status Wsrep_client_service::commit_by_xid()
+{
+  DBUG_ASSERT(0);
+  return wsrep::provider::error_not_implemented;
 }
 
 void Wsrep_client_service::debug_sync(const char* sync_point)
