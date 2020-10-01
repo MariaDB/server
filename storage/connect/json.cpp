@@ -425,7 +425,7 @@ char *ParseString(PGLOBAL g, int& i, STRG& src)
   int    n = 0, len = src.len;
 
   // Be sure of memory availability
-  if (len + 1 - i > (signed)((PPOOLHEADER)g->Sarea)->FreeBlk) {
+  if ((unsigned)(len + 1 - i) > ((PPOOLHEADER)g->Sarea)->FreeBlk) {
     strcpy(g->Message, "ParseString: Out of memory");
     return NULL;
     } // endif len

@@ -28,7 +28,7 @@
 */
 
 /****************************************************************************/
-/*  Author: Olivier Bertrand  --  bertrandop@gmail.com  --  2004-2015       */
+/*  Author: Olivier Bertrand  --  bertrandop@gmail.com  --  2004-2020       */
 /****************************************************************************/
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation        // gcc: Class implementation
@@ -58,8 +58,8 @@ PCONNECT user_connect::to_users= NULL;
 /****************************************************************************/
 /*  Get the work_size SESSION variable value .                              */
 /****************************************************************************/
-uint GetWorkSize(void);
-void SetWorkSize(uint);
+ulong GetWorkSize(void);
+void  SetWorkSize(ulong);
 
 /* -------------------------- class user_connect -------------------------- */
 
@@ -97,14 +97,14 @@ user_connect::~user_connect()
 bool user_connect::user_init()
 {
   // Initialize Plug-like environment
-  uint      worksize= GetWorkSize();
+  ulong     worksize= GetWorkSize();
   PACTIVITY ap= NULL;
   PDBUSER   dup= NULL;
 
   // Areasize= 64M because of VEC tables. Should be parameterisable
 //g= PlugInit(NULL, 67108864);
 //g= PlugInit(NULL, 134217728);  // 128M was because of old embedded tests
-  g= PlugInit(NULL, worksize);
+  g= PlugInit(NULL, (size_t)worksize);
 
   // Check whether the initialization is complete
   if (!g || !g->Sarea || PlugSubSet(g->Sarea, g->Sarea_Size)
@@ -157,15 +157,16 @@ void user_connect::SetHandler(ha_connect *hc)
 bool user_connect::CheckCleanup(bool force)
 {
   if (thdp->query_id > last_query_id || force) {
-    uint worksize= GetWorkSize(), size = g->Sarea_Size;
+		ulong worksize = GetWorkSize();
+		size_t size = g->Sarea_Size;
 
     PlugCleanup(g, true);
 
-    if (size != worksize) {
+    if (size != (size_t)worksize) {
 			FreeSarea(g);
 
       // Check whether the work area could be allocated
-      if (AllocSarea(g, worksize)) {
+      if (AllocSarea(g, (size_t)worksize)) {
 				AllocSarea(g, size);
         SetWorkSize(g->Sarea_Size);       // Was too big
       } // endif sarea

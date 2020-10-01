@@ -177,8 +177,8 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
   bool mgo = (GetTypeID(topt->type) == TAB_MONGO);
   PCSZ level = GetStringTableOption(g, topt, "Level", NULL);
 
-  if (level) {
-    lvl = atoi(level);
+	if (level = GetStringTableOption(g, topt, "Depth", level)) {
+		lvl = atoi(level);
     lvl = (lvl > 16) ? 16 : lvl;
   } else
     lvl = 0;

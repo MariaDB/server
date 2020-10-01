@@ -1,7 +1,7 @@
 /***********************************************************************/
 /*  GLOBAL.H: Declaration file used by all CONNECT implementations.    */
 /*  (C) Copyright MariaDB Corporation Ab                 							 */
-/*  Author Olivier Bertrand                              1993-2018     */
+/*  Author Olivier Bertrand                              1993-2020     */
 /***********************************************************************/
 
 /***********************************************************************/
@@ -112,8 +112,8 @@ extern "C" {
 /***********************************************************************/
 #include "os.h"
 
-typedef uint  OFFSET;
-typedef char  NAME[9];
+typedef size_t OFFSET;
+typedef char   NAME[9];
 
 typedef struct {
   ushort Length;
@@ -136,7 +136,7 @@ typedef struct _parm     *PPARM;
 /***********************************************************************/
 typedef struct {               /* Plug Area SubAlloc header            */
   OFFSET To_Free;              /* Offset of next free block            */
-  uint   FreeBlk;              /* Size of remaining free memory        */
+  size_t FreeBlk;              /* Size of remaining free memory        */
   } POOLHEADER, *PPOOLHEADER;
 
 /***********************************************************************/
@@ -188,7 +188,7 @@ typedef struct _parm {
 /***********************************************************************/
 typedef struct _global {            /* Global structure                */
   void     *Sarea;                  /* Points to work area             */
-  uint      Sarea_Size;             /* Work area size                  */
+  size_t    Sarea_Size;             /* Work area size                  */
 	PACTIVITY Activityp;
   char      Message[MAX_STR];
 	ulong     More;										/* Used by jsonudf                 */
@@ -210,16 +210,16 @@ DllExport char   *PlugReadMessage(PGLOBAL, int, char *);
 DllExport char   *PlugGetMessage(PGLOBAL, int);
 #endif   // XMSG  || NEWMSG
 #if defined(__WIN__)
-DllExport short   GetLineLength(PGLOBAL);  // Console line length
+DllExport short   GetLineLength(PGLOBAL);   // Console line length
 #endif   // __WIN__
-DllExport PGLOBAL PlugInit(LPCSTR, uint);  // Plug global initialization
-DllExport int     PlugExit(PGLOBAL);       // Plug global termination
+DllExport PGLOBAL PlugInit(LPCSTR, size_t); // Plug global initialization
+DllExport int     PlugExit(PGLOBAL);        // Plug global termination
 DllExport LPSTR   PlugRemoveType(LPSTR, LPCSTR);
 DllExport LPCSTR  PlugSetPath(LPSTR to, LPCSTR prefix, LPCSTR name, LPCSTR dir);
 DllExport BOOL    PlugIsAbsolutePath(LPCSTR path);
-DllExport bool    AllocSarea(PGLOBAL, uint);
+DllExport bool    AllocSarea(PGLOBAL, size_t);
 DllExport void    FreeSarea(PGLOBAL);
-DllExport BOOL    PlugSubSet(void *, uint);
+DllExport BOOL    PlugSubSet(void *, size_t);
 DllExport void   *PlugSubAlloc(PGLOBAL, void *, size_t);
 DllExport char   *PlugDup(PGLOBAL g, const char *str);
 DllExport void   *MakePtr(void *, OFFSET);

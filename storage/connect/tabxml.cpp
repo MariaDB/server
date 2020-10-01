@@ -150,7 +150,8 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
     return NULL;
   } else {
     lvl = GetIntegerTableOption(g, topt, "Level", 0);
-    lvl = (lvl < 0) ? 0 : (lvl > 16) ? 16 : lvl;
+		lvl = GetIntegerTableOption(g, topt, "Depth", lvl);
+		lvl = (lvl < 0) ? 0 : (lvl > 16) ? 16 : lvl;
   } // endif fn
 
   if (trace(1))

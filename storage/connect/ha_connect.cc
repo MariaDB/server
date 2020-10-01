@@ -170,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0001 November 12, 2019";
+       char version[]= "Version 1.07.0001 September 30, 2020";
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0001 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -254,8 +254,8 @@ TYPCONV GetTypeConv(void);
 char   *GetJsonNull(void);
 uint    GetJsonGrpSize(void);
 char   *GetJavaWrapper(void);
-uint    GetWorkSize(void);
-void    SetWorkSize(uint);
+ulong   GetWorkSize(void);
+void    SetWorkSize(ulong);
 extern "C" const char *msglang(void);
 
 static char *strz(PGLOBAL g, LEX_STRING &ls);
@@ -348,10 +348,10 @@ static MYSQL_THDVAR_ENUM(
   &usetemp_typelib);               // typelib
 
 // Size used for g->Sarea_Size
-static MYSQL_THDVAR_UINT(work_size,
+static MYSQL_THDVAR_ULONG(work_size,
        PLUGIN_VAR_RQCMDARG, 
        "Size of the CONNECT work area.",
-       NULL, NULL, SZWORK, SZWMIN, UINT_MAX, 1);
+       NULL, NULL, SZWORK, SZWMIN, ULONG_MAX, 1);
 
 // Size used when converting TEXT columns to VARCHAR
 static MYSQL_THDVAR_INT(conv_size,
@@ -461,8 +461,8 @@ char *GetJsonNull(void)
 	{return connect_hton ? THDVAR(current_thd, json_null) : NULL;}
 uint GetJsonGrpSize(void)
   {return connect_hton ? THDVAR(current_thd, json_grp_size) : 10;}
-uint GetWorkSize(void) {return THDVAR(current_thd, work_size);}
-void SetWorkSize(uint) 
+ulong GetWorkSize(void) {return THDVAR(current_thd, work_size);}
+void SetWorkSize(ulong) 
 {
   // Changing the session variable value seems to be impossible here
   // and should be done in a check function 
@@ -5326,7 +5326,12 @@ static bool add_field(String *sql, const char *field_name, int typ, int len,
                       int dec, char *key, uint tm, const char *rem, char *dft,
                       char *xtra, char *fmt, int flag, bool dbf, char v)
 {
-  char var= (len > 255) ? 'V' : v;
+#if defined(DEVELOPMENT)
+	// Some client programs regard CHAR(36) as GUID
+  char var= (len > 255 || len == 36) ? 'V' : v;
+#else
+	char var = (len > 255) ? 'V' : v;
+#endif
   bool q, error= false;
   const char *type= PLGtoMYSQLtype(typ, dbf, var);
 

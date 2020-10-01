@@ -25,7 +25,7 @@
 #else
 #define PUSH_WARNING(M) htrc(M)
 #endif
-#define M 7
+#define M 9
 
 bool  IsNum(PSZ s);
 char *NextChr(PSZ s, char sep);
@@ -4423,13 +4423,15 @@ char *json_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	fn = MakePSZ(g, args, 0);
 
 	if (args->arg_count > 1) {
-		int    len, pretty, pty = 3;
+		int    len, pretty = 3, pty = 3;
 		PJSON  jsp;
 		PJVAL  jvp = NULL;
 
-		pretty = (args->arg_type[1] == INT_RESULT) ? (int)*(longlong*)args->args[1]
-					 : (args->arg_count > 2 && args->arg_type[2] == INT_RESULT)
-					 ? (int)*(longlong*)args->args[2] : 3;
+		for (unsigned int i = 1; i < args->arg_count; i++)
+			if (args->arg_type[i] == INT_RESULT && *(longlong*)args->args[i] < 4) {
+				pretty = (int) * (longlong*)args->args[i];
+				break;
+			} // endif type
 
 		/*******************************************************************************/
 		/*  Parse the json file and allocate its tree structure.                       */
@@ -5626,20 +5628,19 @@ my_bool jbin_file_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} else if (args->arg_type[0] != STRING_RESULT || !args->args[0]) {
 		strcpy(message, "First argument must be a constant string (file name)");
 		return true;
-	} else if (args->arg_count > 1 &&	args->arg_type[1] != STRING_RESULT) {
-		strcpy(message, "Second argument is not a string (path)");
-		return true;
-	} else if (args->arg_count > 2 &&	args->arg_type[2] != INT_RESULT) {
-		strcpy(message, "Third argument is not an integer (pretty)");
-		return true;
-	} else if (args->arg_count > 3) {
-		if (args->arg_type[3] != INT_RESULT) {
-			strcpy(message, "Fourth argument is not an integer (memory)");
-			return true;
-		} else
-			more += (ulong)*(longlong*)args->args[3];
-
 	} // endifs
+
+	for (unsigned int i = 1; i < args->arg_count; i++) {
+		if (!(args->arg_type[i] == INT_RESULT || args->arg_type[i] == STRING_RESULT)) {
+			sprintf(message, "Argument %d is not an integer or a string (pretty or path)", i);
+			return true;
+		} // endif arg_type
+
+		// Take care of eventual memory argument
+		if (args->arg_type[i] == INT_RESULT && args->args[i])
+			more += (ulong) * (longlong*)args->args[i];
+
+	} // endfor i
 
 	initid->maybe_null = 1;
 	CalcLen(args, false, reslen, memlen);
@@ -5654,7 +5655,7 @@ char *jbin_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
 {
 	char   *fn;
-	int     pretty, len = 0, pty = 3;
+	int     pretty = 3, len = 0, pty = 3;
 	PJSON   jsp;
 	PJVAL   jvp = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -5666,7 +5667,12 @@ char *jbin_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	PlugSubSet(g->Sarea, g->Sarea_Size);
 	g->Xchk = NULL;
 	fn = MakePSZ(g, args, 0);
-	pretty = (args->arg_count > 2 && args->args[2]) ? (int)*(longlong*)args->args[2] : 3;
+
+	for (unsigned int i = 1; i < args->arg_count; i++)
+		if (args->arg_type[i] == INT_RESULT && *(longlong*)args->args[i] < 4) {
+			pretty = (int) * (longlong*)args->args[i];
+			break;
+		} // endif type
 
 	/*********************************************************************************/
 	/*  Parse the json file and allocate its tree structure.                         */
