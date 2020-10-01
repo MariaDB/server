@@ -30,8 +30,9 @@ Debug checks for latches.
 Created 2012-08-21 Sunny Bains
 *******************************************************/
 
-#include "sync0sync.h"
 #include "sync0debug.h"
+#include "sync0sync.h"
+#include "sync0arr.h"
 #include "srv0start.h"
 #include "lock0lock.h"
 

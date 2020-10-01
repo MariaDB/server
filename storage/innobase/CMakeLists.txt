@@ -162,7 +162,6 @@ SET(INNOBASE_SOURCES
 	include/ha0storage.ic
 	include/handler0alter.h
 	include/hash0hash.h
-	include/ib0mutex.h
 	include/ibuf0ibuf.h
 	include/ibuf0ibuf.ic
 	include/ibuf0types.h
@@ -268,7 +267,6 @@ SET(INNOBASE_SOURCES
 	include/ut0lst.h
 	include/ut0mem.h
 	include/ut0mem.ic
-	include/ut0mutex.h
 	include/ut0new.h
 	include/ut0pool.h
 	include/ut0rbt.h

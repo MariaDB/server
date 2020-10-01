@@ -24,9 +24,7 @@ Transaction system
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#ifndef trx0sys_h
-#define trx0sys_h
-
+#pragma once
 #include "buf0buf.h"
 #include "fil0fil.h"
 #include "trx0types.h"
@@ -41,6 +39,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0xa.h"
 #endif /* WITH_WSREP */
 #include "ilist.h"
+#include "my_cpu.h"
 
 #ifdef UNIV_PFS_MUTEX
 extern mysql_pfs_key_t trx_sys_mutex_key;
@@ -1227,5 +1226,3 @@ private:
 
 /** The transaction system */
 extern trx_sys_t trx_sys;
-
-#endif

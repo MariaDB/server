@@ -63,6 +63,7 @@ Created 10/8/1995 Heikki Tuuri
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "sync0sync.h"
+#include "sync0arr.h"
 #include "trx0i_s.h"
 #include "trx0purge.h"
 #include "ut0crc32.h"

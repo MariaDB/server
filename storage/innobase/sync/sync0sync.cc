@@ -34,7 +34,7 @@ Created 9/5/1995 Heikki Tuuri
 
 #include "sync0rw.h"
 #include "sync0sync.h"
-#include "ut0mutex.h"
+#include "sync0arr.h"
 
 #ifdef UNIV_PFS_MUTEX
 mysql_pfs_key_t	buf_pool_mutex_key;
@@ -101,9 +101,6 @@ mysql_pfs_key_t	fts_cache_init_lock_key;
 mysql_pfs_key_t trx_i_s_cache_lock_key;
 mysql_pfs_key_t	trx_purge_latch_key;
 #endif /* UNIV_PFS_RWLOCK */
-
-/** For monitoring active mutexes */
-MutexMonitor	mutex_monitor;
 
 /**
 Prints wait info of the sync system.
@@ -194,63 +191,4 @@ sync_mutex_to_string(
 	    << "created " << created;
 
 	return(msg.str());
-}
-
-/** Enable the mutex monitoring */
-void
-MutexMonitor::enable()
-{
-	/** Note: We don't add any latch meta-data after startup. Therefore
-	there is no need to use a mutex here. */
-
-	LatchMetaData::iterator	end = latch_meta.end();
-
-	for (LatchMetaData::iterator it = latch_meta.begin(); it != end; ++it) {
-
-		if (*it != NULL) {
-			(*it)->get_counter()->enable();
-		}
-	}
-}
-
-/** Disable the mutex monitoring */
-void
-MutexMonitor::disable()
-{
-	/** Note: We don't add any latch meta-data after startup. Therefore
-	there is no need to use a mutex here. */
-
-	LatchMetaData::iterator	end = latch_meta.end();
-
-	for (LatchMetaData::iterator it = latch_meta.begin(); it != end; ++it) {
-
-		if (*it != NULL) {
-			(*it)->get_counter()->disable();
-		}
-	}
-}
-
-/** Reset the mutex monitoring counters */
-void
-MutexMonitor::reset()
-{
-	/** Note: We don't add any latch meta-data after startup. Therefore
-	there is no need to use a mutex here. */
-
-	LatchMetaData::iterator	end = latch_meta.end();
-
-	for (LatchMetaData::iterator it = latch_meta.begin(); it != end; ++it) {
-
-		if (*it != NULL) {
-			(*it)->get_counter()->reset();
-		}
-	}
-
-	mysql_mutex_lock(&rw_lock_list_mutex);
-
-	for (rw_lock_t& rw_lock : rw_lock_list) {
-		rw_lock.count_os_wait = 0;
-	}
-
-	mysql_mutex_unlock(&rw_lock_list_mutex);
 }
