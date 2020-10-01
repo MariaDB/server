@@ -47,7 +47,7 @@ my_bool		srv_sync_debug;
 /** The global mutex which protects debug info lists of all rw-locks.
 To modify the debug info list of an rw-lock, this mutex has to be
 acquired in addition to the mutex protecting the lock. */
-static SysMutex		rw_lock_debug_mutex;
+static mysql_mutex_t rw_lock_debug_mutex;
 
 /** The latch held by a thread */
 struct Latched {
@@ -329,8 +329,7 @@ struct LatchDebug {
 	}
 
 	/** Initialise the debug data structures */
-	static void init()
-		UNIV_NOTHROW;
+	static void init() { mysql_mutex_init(0, &rw_lock_debug_mutex, 0); }
 
 	/** Shutdown the latch debug checking */
 	static void shutdown()
@@ -1061,14 +1060,6 @@ static void sync_check_enable()
 	LatchDebug::create_instance();
 }
 
-/** Initialise the debug data structures */
-void
-LatchDebug::init()
-	UNIV_NOTHROW
-{
-	mutex_create(LATCH_ID_RW_LOCK_DEBUG, &rw_lock_debug_mutex);
-}
-
 /** Shutdown the latch debug checking
 
 Note: We don't enforce any synchronisation checks. The caller must ensure
@@ -1077,7 +1068,7 @@ void
 LatchDebug::shutdown()
 	UNIV_NOTHROW
 {
-	mutex_free(&rw_lock_debug_mutex);
+	mysql_mutex_destroy(&rw_lock_debug_mutex);
 
 	ut_a(s_initialized);
 
@@ -1096,14 +1087,14 @@ mutex. */
 void
 rw_lock_debug_mutex_enter()
 {
-	mutex_enter(&rw_lock_debug_mutex);
+  mysql_mutex_lock(&rw_lock_debug_mutex);
 }
 
 /** Releases the debug mutex. */
 void
 rw_lock_debug_mutex_exit()
 {
-	mutex_exit(&rw_lock_debug_mutex);
+  mysql_mutex_unlock(&rw_lock_debug_mutex);
 }
 #endif /* UNIV_DEBUG */
 
@@ -1124,22 +1115,10 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(MUTEX_LIST, SYNC_NO_ORDER_CHECK, mutex_list_mutex_key);
 
-#ifdef UNIV_DEBUG
-	/* Mutex names starting with '.' are not tracked. They are assumed
-	to be diagnostic mutexes used in debugging. */
-	latch_meta[LATCH_ID_RW_LOCK_DEBUG] =
-		LATCH_ADD_MUTEX(RW_LOCK_DEBUG,
-			SYNC_NO_ORDER_CHECK,
-			rw_lock_debug_mutex_key);
-#endif /* UNIV_DEBUG */
-
 	LATCH_ADD_MUTEX(RW_LOCK_LIST, SYNC_NO_ORDER_CHECK,
 			rw_lock_list_mutex_key);
 
 	LATCH_ADD_MUTEX(RW_LOCK_MUTEX, SYNC_NO_ORDER_CHECK, rw_lock_mutex_key);
-
-	LATCH_ADD_MUTEX(SRV_INNODB_MONITOR, SYNC_NO_ORDER_CHECK,
-			srv_innodb_monitor_mutex_key);
 
 #ifndef PFS_SKIP_EVENT_MUTEX
 	LATCH_ADD_MUTEX(EVENT_MANAGER, SYNC_NO_ORDER_CHECK,
@@ -1153,9 +1132,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(SYNC_ARRAY_MUTEX, SYNC_NO_ORDER_CHECK,
 			sync_array_mutex_key);
-
-	LATCH_ADD_MUTEX(ROW_DROP_LIST, SYNC_NO_ORDER_CHECK,
-			row_drop_list_mutex_key);
 
 	// Add the RW locks
 	LATCH_ADD_RWLOCK(BTR_SEARCH, SYNC_SEARCH_SYS, btr_search_latch_key);

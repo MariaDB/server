@@ -396,7 +396,7 @@ const char* srv_io_thread_function[SRV_MAX_N_IO_THREADS];
 
 static time_t	srv_last_monitor_time;
 
-static ib_mutex_t	srv_innodb_monitor_mutex;
+static mysql_mutex_t srv_innodb_monitor_mutex;
 
 /** Mutex protecting page_zip_stat_per_index */
 mysql_mutex_t page_zip_stat_per_index_mutex;
@@ -690,7 +690,8 @@ static bool need_srv_free;
 /** Initialize the server. */
 static void srv_init()
 {
-	mutex_create(LATCH_ID_SRV_INNODB_MONITOR, &srv_innodb_monitor_mutex);
+	mysql_mutex_init(srv_innodb_monitor_mutex_key,
+			 &srv_innodb_monitor_mutex, nullptr);
 	srv_thread_pool_init();
 	mysql_mutex_init(srv_threads_mutex_key, &srv_sys.tasks_mutex, nullptr);
 	UT_LIST_INIT(srv_sys.tasks, &que_thr_t::queue);
@@ -716,7 +717,7 @@ srv_free(void)
 		return;
 	}
 
-	mutex_free(&srv_innodb_monitor_mutex);
+	mysql_mutex_destroy(&srv_innodb_monitor_mutex);
 	mysql_mutex_destroy(&page_zip_stat_per_index_mutex);
 	mysql_mutex_destroy(&srv_sys.tasks_mutex);
 
@@ -745,14 +746,14 @@ void
 srv_refresh_innodb_monitor_stats(void)
 /*==================================*/
 {
-	mutex_enter(&srv_innodb_monitor_mutex);
+	mysql_mutex_lock(&srv_innodb_monitor_mutex);
 
 	time_t current_time = time(NULL);
 
 	if (difftime(current_time, srv_last_monitor_time) <= 60) {
 		/* We referesh InnoDB Monitor values so that averages are
 		printed from at most 60 last seconds */
-		mutex_exit(&srv_innodb_monitor_mutex);
+		mysql_mutex_unlock(&srv_innodb_monitor_mutex);
 		return;
 	}
 
@@ -779,7 +780,7 @@ srv_refresh_innodb_monitor_stats(void)
 	srv_n_system_rows_deleted_old = srv_stats.n_system_rows_deleted;
 	srv_n_system_rows_read_old = srv_stats.n_system_rows_read;
 
-	mutex_exit(&srv_innodb_monitor_mutex);
+	mysql_mutex_unlock(&srv_innodb_monitor_mutex);
 }
 
 /******************************************************************//**
@@ -801,7 +802,7 @@ srv_printf_innodb_monitor(
 	time_t	current_time;
 	ibool	ret;
 
-	mutex_enter(&srv_innodb_monitor_mutex);
+	mysql_mutex_lock(&srv_innodb_monitor_mutex);
 
 	current_time = time(NULL);
 
@@ -1014,7 +1015,7 @@ srv_printf_innodb_monitor(
 	fputs("----------------------------\n"
 	      "END OF INNODB MONITOR OUTPUT\n"
 	      "============================\n", file);
-	mutex_exit(&srv_innodb_monitor_mutex);
+	mysql_mutex_unlock(&srv_innodb_monitor_mutex);
 	fflush(file);
 
 	return(ret);
@@ -1050,7 +1051,7 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_mem_dictionary = dict_sys.rough_size();
 
-	mutex_enter(&srv_innodb_monitor_mutex);
+	mysql_mutex_lock(&srv_innodb_monitor_mutex);
 
 	export_vars.innodb_data_pending_reads =
 		ulint(MONITOR_VALUE(MONITOR_OS_PENDING_READS));
@@ -1252,7 +1253,7 @@ srv_export_innodb_status(void)
 			srv_stats.key_rotation_list_length;
 	}
 
-	mutex_exit(&srv_innodb_monitor_mutex);
+	mysql_mutex_unlock(&srv_innodb_monitor_mutex);
 
 	mysql_mutex_lock(&log_sys.mutex);
 	export_vars.innodb_lsn_current = log_sys.get_lsn();
