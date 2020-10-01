@@ -2604,9 +2604,13 @@ fts_optimize_remove_table(
 
 	os_event_destroy(event);
 
-	ut_d(mutex_enter(&fts_optimize_wq->mutex));
-	ut_ad(!table->fts->in_queue);
-	ut_d(mutex_exit(&fts_optimize_wq->mutex));
+#ifdef UNIV_DEBUG
+	if (!fts_opt_start_shutdown) {
+		mutex_enter(&fts_optimize_wq->mutex);
+		ut_ad(!table->fts->in_queue);
+		mutex_exit(&fts_optimize_wq->mutex);
+	}
+#endif /* UNIV_DEBUG */
 }
 
 /** Send sync fts cache for the table.

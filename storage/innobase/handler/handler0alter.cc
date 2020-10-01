@@ -7253,6 +7253,12 @@ err_exit:
 	}
 	trx_commit_for_mysql(ctx->prebuilt->trx);
 
+	for (uint i = 0; i < ctx->num_to_add_fk; i++) {
+		if (ctx->add_fk[i]) {
+			dict_foreign_free(ctx->add_fk[i]);
+		}
+	}
+
 	delete ctx;
 	ha_alter_info->handler_ctx = NULL;
 

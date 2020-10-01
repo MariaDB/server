@@ -406,6 +406,20 @@ Opened_table_definitions	5
 Opened_tables	5
 drop function foo;
 drop table t2, t1;
+CREATE TABLE t1 (pk INT, a INT, PRIMARY KEY (pk)) ENGINE=InnoDB;
+XA START 'xid';
+INSERT INTO t1 VALUES (1,2);
+CREATE TABLE x AS SELECT * FROM t1;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
+connect  con1,localhost,root,,test;
+SET foreign_key_checks= OFF, innodb_lock_wait_timeout= 1;
+ALTER TABLE t1 ADD FOREIGN KEY f (a) REFERENCES t1 (pk), LOCK=EXCLUSIVE;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect con1;
+connection default;
+XA END 'xid';
+XA ROLLBACK 'xid';
+DROP TABLE t1;
 # Start of 10.2 tests
 #
 # MDEV-13246 Stale rows despite ON DELETE CASCADE constraint
