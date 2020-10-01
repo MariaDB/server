@@ -524,7 +524,7 @@ in a traditional Unix implementation. */
 
 /** The server system struct */
 struct srv_sys_t{
-	ib_mutex_t	tasks_mutex;		/*!< variable protecting the
+	mysql_mutex_t	tasks_mutex;		/*!< variable protecting the
 						tasks queue */
 	UT_LIST_BASE_NODE_T(que_thr_t)
 			tasks;			/*!< task queue */
@@ -694,12 +694,8 @@ static void srv_init()
 {
 	mutex_create(LATCH_ID_SRV_INNODB_MONITOR, &srv_innodb_monitor_mutex);
 	srv_thread_pool_init();
-
-	if (!srv_read_only_mode) {
-		mutex_create(LATCH_ID_SRV_SYS_TASKS, &srv_sys.tasks_mutex);
-
-		UT_LIST_INIT(srv_sys.tasks, &que_thr_t::queue);
-	}
+	mysql_mutex_init(srv_threads_mutex_key, &srv_sys.tasks_mutex, nullptr);
+	UT_LIST_INIT(srv_sys.tasks, &que_thr_t::queue);
 
 	need_srv_free = true;
 	ut_d(mysql_cond_init(0, &srv_master_thread_disabled_cond, nullptr));
@@ -724,10 +720,7 @@ srv_free(void)
 
 	mutex_free(&srv_innodb_monitor_mutex);
 	mysql_mutex_destroy(&page_zip_stat_per_index_mutex);
-
-	if (!srv_read_only_mode) {
-		mutex_free(&srv_sys.tasks_mutex);
-	}
+	mysql_mutex_destroy(&srv_sys.tasks_mutex);
 
 	ut_d(mysql_cond_destroy(&srv_master_thread_disabled_cond));
 
@@ -1928,18 +1921,18 @@ static bool srv_task_execute()
 	ut_ad(!srv_read_only_mode);
 	ut_ad(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
 
-	mutex_enter(&srv_sys.tasks_mutex);
+	mysql_mutex_lock(&srv_sys.tasks_mutex);
 
 	if (que_thr_t* thr = UT_LIST_GET_FIRST(srv_sys.tasks)) {
 		ut_a(que_node_get_type(thr->child) == QUE_NODE_PURGE);
 		UT_LIST_REMOVE(srv_sys.tasks, thr);
-		mutex_exit(&srv_sys.tasks_mutex);
+		mysql_mutex_unlock(&srv_sys.tasks_mutex);
 		que_run_threads(thr);
 		return true;
 	}
 
 	ut_ad(UT_LIST_GET_LEN(srv_sys.tasks) == 0);
-	mutex_exit(&srv_sys.tasks_mutex);
+	mysql_mutex_unlock(&srv_sys.tasks_mutex);
 	return false;
 }
 
@@ -2176,11 +2169,11 @@ srv_que_task_enqueue_low(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	ut_ad(!srv_read_only_mode);
-	mutex_enter(&srv_sys.tasks_mutex);
+	mysql_mutex_lock(&srv_sys.tasks_mutex);
 
 	UT_LIST_ADD_LAST(srv_sys.tasks, thr);
 
-	mutex_exit(&srv_sys.tasks_mutex);
+	mysql_mutex_unlock(&srv_sys.tasks_mutex);
 }
 
 #ifdef UNIV_DEBUG
@@ -2191,11 +2184,11 @@ ulint srv_get_task_queue_length()
 
 	ut_ad(!srv_read_only_mode);
 
-	mutex_enter(&srv_sys.tasks_mutex);
+	mysql_mutex_lock(&srv_sys.tasks_mutex);
 
 	n_tasks = UT_LIST_GET_LEN(srv_sys.tasks);
 
-	mutex_exit(&srv_sys.tasks_mutex);
+	mysql_mutex_unlock(&srv_sys.tasks_mutex);
 
 	return(n_tasks);
 }

@@ -1162,8 +1162,6 @@ sync_latch_meta_init()
 	LATCH_ADD_MUTEX(SRV_MONITOR_FILE, SYNC_NO_ORDER_CHECK,
 			srv_monitor_file_mutex_key);
 
-	LATCH_ADD_MUTEX(SRV_SYS_TASKS, SYNC_ANY_LATCH, srv_threads_mutex_key);
-
 #ifndef PFS_SKIP_EVENT_MUTEX
 	LATCH_ADD_MUTEX(EVENT_MANAGER, SYNC_NO_ORDER_CHECK,
 			event_manager_mutex_key);
