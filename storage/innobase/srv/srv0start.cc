@@ -1166,10 +1166,13 @@ dberr_t srv_start(bool create_new_db)
 	ib::info() << my_crc32c_implementation();
 
 	if (!srv_read_only_mode) {
+		mysql_mutex_init(srv_monitor_file_mutex_key,
+				 &srv_monitor_file_mutex, nullptr);
+		mysql_mutex_init(srv_misc_tmpfile_mutex_key,
+				 &srv_misc_tmpfile_mutex, nullptr);
+	}
 
-		mutex_create(LATCH_ID_SRV_MONITOR_FILE,
-			     &srv_monitor_file_mutex);
-
+	if (!srv_read_only_mode) {
 		if (srv_innodb_status) {
 
 			srv_monitor_file_name = static_cast<char*>(
@@ -1204,9 +1207,6 @@ dberr_t srv_start(bool create_new_db)
 				err = DB_ERROR;
 			}
 		}
-
-		mutex_create(LATCH_ID_SRV_MISC_TMPFILE,
-			     &srv_misc_tmpfile_mutex);
 
 		srv_misc_tmpfile = os_file_create_tmpfile();
 
@@ -2076,8 +2076,8 @@ void innodb_shutdown()
 	trx_pool_close();
 
 	if (!srv_read_only_mode) {
-		mutex_free(&srv_monitor_file_mutex);
-		mutex_free(&srv_misc_tmpfile_mutex);
+		mysql_mutex_destroy(&srv_monitor_file_mutex);
+		mysql_mutex_destroy(&srv_misc_tmpfile_mutex);
 	}
 
 	dict_sys.close();

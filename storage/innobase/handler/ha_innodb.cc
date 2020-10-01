@@ -15809,7 +15809,7 @@ innodb_show_status(
 	char*	str;
 	size_t	flen;
 
-	mutex_enter(&srv_monitor_file_mutex);
+	mysql_mutex_lock(&srv_monitor_file_mutex);
 	rewind(srv_monitor_file);
 
 	srv_printf_innodb_monitor(srv_monitor_file, FALSE,
@@ -15836,7 +15836,7 @@ innodb_show_status(
 
 	if (!(str = (char*) my_malloc(PSI_INSTRUMENT_ME,
 		      usable_len + 1, MYF(0)))) {
-		mutex_exit(&srv_monitor_file_mutex);
+		mysql_mutex_unlock(&srv_monitor_file_mutex);
 		DBUG_RETURN(1);
 	}
 
@@ -15864,7 +15864,7 @@ innodb_show_status(
 		flen = fread(str, 1, MAX_STATUS_SIZE - 1, srv_monitor_file);
 	}
 
-	mutex_exit(&srv_monitor_file_mutex);
+	mysql_mutex_unlock(&srv_monitor_file_mutex);
 
 	ret_val= stat_print(
 		thd, innobase_hton_name,

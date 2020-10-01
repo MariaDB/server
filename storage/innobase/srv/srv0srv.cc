@@ -401,15 +401,13 @@ static ib_mutex_t	srv_innodb_monitor_mutex;
 /** Mutex protecting page_zip_stat_per_index */
 mysql_mutex_t page_zip_stat_per_index_mutex;
 
-/* Mutex for locking srv_monitor_file. Not created if srv_read_only_mode */
-ib_mutex_t	srv_monitor_file_mutex;
+/** Mutex for locking srv_monitor_file */
+mysql_mutex_t srv_monitor_file_mutex;
 
 /** Temporary file for innodb monitor output */
 FILE*	srv_monitor_file;
-/** Mutex for locking srv_misc_tmpfile. Not created if srv_read_only_mode.
-This mutex has a very low rank; threads reserving it should not
-acquire any further latches or sleep before releasing this one. */
-ib_mutex_t	srv_misc_tmpfile_mutex;
+/** Mutex for locking srv_misc_tmpfile */
+mysql_mutex_t srv_misc_tmpfile_mutex;
 /** Temporary file for miscellanous diagnostic output */
 FILE*	srv_misc_tmpfile;
 
@@ -1326,7 +1324,7 @@ void srv_monitor_task(void*)
 		mutexes in read-only-mode */
 
 		if (!srv_read_only_mode && srv_innodb_status) {
-			mutex_enter(&srv_monitor_file_mutex);
+			mysql_mutex_lock(&srv_monitor_file_mutex);
 			rewind(srv_monitor_file);
 			if (!srv_printf_innodb_monitor(srv_monitor_file,
 						MUTEX_NOWAIT(monitor_state.mutex_skipped),
@@ -1337,7 +1335,7 @@ void srv_monitor_task(void*)
 			}
 
 			os_file_set_eof(srv_monitor_file);
-			mutex_exit(&srv_monitor_file_mutex);
+			mysql_mutex_unlock(&srv_monitor_file_mutex);
 		}
 	}
 

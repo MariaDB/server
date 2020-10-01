@@ -1141,12 +1141,6 @@ sync_latch_meta_init()
 	LATCH_ADD_MUTEX(SRV_INNODB_MONITOR, SYNC_NO_ORDER_CHECK,
 			srv_innodb_monitor_mutex_key);
 
-	LATCH_ADD_MUTEX(SRV_MISC_TMPFILE, SYNC_ANY_LATCH,
-			srv_misc_tmpfile_mutex_key);
-
-	LATCH_ADD_MUTEX(SRV_MONITOR_FILE, SYNC_NO_ORDER_CHECK,
-			srv_monitor_file_mutex_key);
-
 #ifndef PFS_SKIP_EVENT_MUTEX
 	LATCH_ADD_MUTEX(EVENT_MANAGER, SYNC_NO_ORDER_CHECK,
 			event_manager_mutex_key);

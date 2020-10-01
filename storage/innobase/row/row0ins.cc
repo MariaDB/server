@@ -682,7 +682,7 @@ row_ins_set_detailed(
 {
 	ut_ad(!srv_read_only_mode);
 
-	mutex_enter(&srv_misc_tmpfile_mutex);
+	mysql_mutex_lock(&srv_misc_tmpfile_mutex);
 	rewind(srv_misc_tmpfile);
 
 	if (os_file_set_eof(srv_misc_tmpfile)) {
@@ -696,7 +696,7 @@ row_ins_set_detailed(
 		trx_set_detailed_error(trx, "temp file operation failed");
 	}
 
-	mutex_exit(&srv_misc_tmpfile_mutex);
+	mysql_mutex_unlock(&srv_misc_tmpfile_mutex);
 }
 
 /*********************************************************************//**
