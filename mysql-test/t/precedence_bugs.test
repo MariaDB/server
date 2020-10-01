@@ -1,0 +1,10 @@
+
+--echo #
+--echo # MDEV-23656 view: removal of parentheses results in wrong result
+--echo #
+create table t1 (a int, b decimal(10,2));
+insert into t1 values (1, 10.2);
+create view v1 as select avg(b) / (2 + a) from t1;
+query_vertical show create view v1;
+drop view v1;
+drop table t1;
