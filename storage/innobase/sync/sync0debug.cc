@@ -375,18 +375,6 @@ private:
 	void print_latches(const Latches* latches) const
 		UNIV_NOTHROW;
 
-	/** Special handling for the RTR mutexes. We need to add proper
-	levels for them if possible.
-	@param[in]	latch		Latch to check
-	@return true if it is a an _RTR_ mutex */
-	bool is_rtr_mutex(const latch_t* latch) const
-		UNIV_NOTHROW
-	{
-		return(latch->get_id() == LATCH_ID_RTR_ACTIVE_MUTEX
-		       || latch->get_id() == LATCH_ID_RTR_PATH_MUTEX
-		       || latch->get_id() == LATCH_ID_RTR_MATCH_MUTEX);
-	}
-
 private:
 	/** Comparator for the Levels . */
 	struct latch_level_less
@@ -724,31 +712,8 @@ LatchDebug::check_order(
 	case SYNC_INDEX_ONLINE_LOG:
 	case SYNC_STATS_AUTO_RECALC:
 	case SYNC_BUF_PAGE_HASH:
-		basic_check(latches, level, level);
-		break;
-
 	case SYNC_ANY_LATCH:
-
-		/* Temporary workaround for LATCH_ID_RTR_*_MUTEX */
-		if (is_rtr_mutex(latch)) {
-
-			const Latched*	latched = less(latches, level);
-
-			if (latched == NULL
-			    || (latched != NULL
-				&& is_rtr_mutex(latched->m_latch))) {
-
-				/* No violation */
-				break;
-
-			}
-
-			crash(latches, latched, level);
-
-		} else {
-			basic_check(latches, level, level);
-		}
-
+		basic_check(latches, level, level);
 		break;
 
 	case SYNC_REC_LOCK:
@@ -1189,13 +1154,6 @@ sync_latch_meta_init()
 			SYNC_NO_ORDER_CHECK,
 			rw_lock_debug_mutex_key);
 #endif /* UNIV_DEBUG */
-
-	LATCH_ADD_MUTEX(RTR_ACTIVE_MUTEX, SYNC_ANY_LATCH,
-			rtr_active_mutex_key);
-
-	LATCH_ADD_MUTEX(RTR_MATCH_MUTEX, SYNC_ANY_LATCH, rtr_match_mutex_key);
-
-	LATCH_ADD_MUTEX(RTR_PATH_MUTEX, SYNC_ANY_LATCH, rtr_path_mutex_key);
 
 	LATCH_ADD_MUTEX(RW_LOCK_LIST, SYNC_NO_ORDER_CHECK,
 			rw_lock_list_mutex_key);
