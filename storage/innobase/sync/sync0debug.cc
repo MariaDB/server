@@ -1115,9 +1115,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(MUTEX_LIST, SYNC_NO_ORDER_CHECK, mutex_list_mutex_key);
 
-	LATCH_ADD_MUTEX(RW_LOCK_LIST, SYNC_NO_ORDER_CHECK,
-			rw_lock_list_mutex_key);
-
 	LATCH_ADD_MUTEX(RW_LOCK_MUTEX, SYNC_NO_ORDER_CHECK, rw_lock_mutex_key);
 
 #ifndef PFS_SKIP_EVENT_MUTEX
@@ -1215,7 +1212,7 @@ sync_check_init()
 
 	/* create the mutex to protect rw_lock list. */
 
-	mutex_create(LATCH_ID_RW_LOCK_LIST, &rw_lock_list_mutex);
+	mysql_mutex_init(rw_lock_list_mutex_key, &rw_lock_list_mutex, nullptr);
 
 	ut_d(LatchDebug::init());
 
@@ -1230,7 +1227,7 @@ sync_check_close()
 {
 	ut_d(LatchDebug::shutdown());
 
-	mutex_free(&rw_lock_list_mutex);
+	mysql_mutex_destroy(&rw_lock_list_mutex);
 
 	sync_array_close();
 

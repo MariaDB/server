@@ -7203,8 +7203,8 @@ i_s_innodb_mutexes_fill_table(
 	{
 		struct Locking
 		{
-			Locking() { mutex_enter(&rw_lock_list_mutex); }
-			~Locking() { mutex_exit(&rw_lock_list_mutex); }
+			Locking() { mysql_mutex_lock(&rw_lock_list_mutex); }
+			~Locking() { mysql_mutex_unlock(&rw_lock_list_mutex); }
 		} locking;
 
 		char lock_name[sizeof "buf0dump.cc:12345"];

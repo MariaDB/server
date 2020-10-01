@@ -34,7 +34,7 @@ Created 9/11/1995 Heikki Tuuri
 #ifndef sync0rw_h
 #define sync0rw_h
 
-#include "ut0mutex.h"
+#include "srv0mon.h"
 #include "ut0counter.h"
 #include "ilist.h"
 
@@ -107,7 +107,7 @@ struct rw_lock_debug_t;
 #endif /* UNIV_DEBUG */
 
 extern ilist<rw_lock_t> rw_lock_list;
-extern ib_mutex_t			rw_lock_list_mutex;
+extern mysql_mutex_t rw_lock_list_mutex;
 
 /** Counters for RW locks. */
 extern rw_lock_stats_t	rw_lock_stats;

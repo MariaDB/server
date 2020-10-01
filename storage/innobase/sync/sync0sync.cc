@@ -34,6 +34,7 @@ Created 9/5/1995 Heikki Tuuri
 
 #include "sync0rw.h"
 #include "sync0sync.h"
+#include "ut0mutex.h"
 
 #ifdef UNIV_PFS_MUTEX
 mysql_pfs_key_t	buf_pool_mutex_key;
@@ -245,11 +246,11 @@ MutexMonitor::reset()
 		}
 	}
 
-	mutex_enter(&rw_lock_list_mutex);
+	mysql_mutex_lock(&rw_lock_list_mutex);
 
 	for (rw_lock_t& rw_lock : rw_lock_list) {
 		rw_lock.count_os_wait = 0;
 	}
 
-	mutex_exit(&rw_lock_list_mutex);
+	mysql_mutex_unlock(&rw_lock_list_mutex);
 }

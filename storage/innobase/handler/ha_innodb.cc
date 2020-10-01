@@ -115,7 +115,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "trx0trx.h"
 #include "fil0pagecompress.h"
 #include "ut0mem.h"
-#include "ut0mutex.h"
 #include "row0ext.h"
 
 #include <limits>
@@ -16115,7 +16114,7 @@ innodb_show_rwlock_status(
 
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	mutex_enter(&rw_lock_list_mutex);
+	mysql_mutex_lock(&rw_lock_list_mutex);
 
 	for (const rw_lock_t& rw_lock : rw_lock_list) {
 
@@ -16151,7 +16150,7 @@ innodb_show_rwlock_status(
 			       buf1, static_cast<uint>(buf1len),
 			       buf2, static_cast<uint>(buf2len))) {
 
-			mutex_exit(&rw_lock_list_mutex);
+			mysql_mutex_unlock(&rw_lock_list_mutex);
 
 			DBUG_RETURN(1);
 		}
@@ -16179,13 +16178,13 @@ innodb_show_rwlock_status(
 			       buf1, static_cast<uint>(buf1len),
 			       buf2, static_cast<uint>(buf2len))) {
 
-			mutex_exit(&rw_lock_list_mutex);
+			mysql_mutex_unlock(&rw_lock_list_mutex);
 
 			DBUG_RETURN(1);
 		}
 	}
 
-	mutex_exit(&rw_lock_list_mutex);
+	mysql_mutex_unlock(&rw_lock_list_mutex);
 
 	DBUG_RETURN(0);
 }

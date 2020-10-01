@@ -32,6 +32,8 @@ Created 9/11/1995 Heikki Tuuri
 *******************************************************/
 
 #include "sync0rw.h"
+#include "sync0arr.h"
+#include "srv0srv.h"
 #include "my_cpu.h"
 #include <my_sys.h>
 
@@ -134,7 +136,7 @@ rw_lock_stats_t		rw_lock_stats;
 
 /* The global list of rw-locks */
 ilist<rw_lock_t> rw_lock_list;
-ib_mutex_t		rw_lock_list_mutex;
+mysql_mutex_t rw_lock_list_mutex;
 
 #ifdef UNIV_DEBUG
 /******************************************************************//**
@@ -229,9 +231,9 @@ rw_lock_create_func(
 
 	ut_d(lock->created = true);
 
-	mutex_enter(&rw_lock_list_mutex);
+	mysql_mutex_lock(&rw_lock_list_mutex);
 	rw_lock_list.push_front(*lock);
-	mutex_exit(&rw_lock_list_mutex);
+	mysql_mutex_unlock(&rw_lock_list_mutex);
 }
 
 /******************************************************************//**
@@ -248,11 +250,11 @@ rw_lock_free_func(
 
 	ut_d(lock->created = false);
 
-	mutex_enter(&rw_lock_list_mutex);
+	mysql_mutex_lock(&rw_lock_list_mutex);
 
 	rw_lock_list.remove(*lock);
 
-	mutex_exit(&rw_lock_list_mutex);
+	mysql_mutex_unlock(&rw_lock_list_mutex);
 
 	mysql_mutex_destroy(&lock->wait_mutex);
 	mysql_cond_destroy(&lock->wait_cond);
@@ -1106,7 +1108,7 @@ rw_lock_list_print_info(
 {
 	ulint		count = 0;
 
-	mutex_enter(&rw_lock_list_mutex);
+	mysql_mutex_lock(&rw_lock_list_mutex);
 
 	fputs("-------------\n"
 	      "RW-LATCH INFO\n"
@@ -1142,7 +1144,7 @@ rw_lock_list_print_info(
 	}
 
 	fprintf(file, "Total number of rw-locks " ULINTPF "\n", count);
-	mutex_exit(&rw_lock_list_mutex);
+	mysql_mutex_unlock(&rw_lock_list_mutex);
 }
 
 /*********************************************************************//**
