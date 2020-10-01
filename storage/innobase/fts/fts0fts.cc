@@ -4241,8 +4241,6 @@ fts_sync(
 	while (sync->in_progress) {
 		if (wait) {
 			mysql_cond_wait(&sync->cond, &cache->lock);
-			mysql_mutex_unlock(&cache->lock);
-
 		} else {
 			mysql_mutex_unlock(&cache->lock);
 			return(DB_SUCCESS);
