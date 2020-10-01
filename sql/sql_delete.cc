@@ -339,11 +339,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (thd->lex->handle_list_of_derived(table_list, DT_PREPARE))
     DBUG_RETURN(TRUE);
 
-  if (!table_list->single_table_updatable())
+  if (!table_list->single_table_updatable(thd))
   {
      my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "DELETE");
      DBUG_RETURN(TRUE);
   }
+
   if (!(table= table_list->table) || !table->is_created())
   {
       my_error(ER_VIEW_DELETE_MERGE_VIEW, MYF(0),
@@ -1022,7 +1023,7 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list, Item **conds,
       setup_conds(thd, table_list, select_lex->leaf_tables, conds) ||
       setup_ftfuncs(select_lex))
     DBUG_RETURN(TRUE);
-  if (!table_list->single_table_updatable() ||
+  if (!table_list->single_table_updatable(thd) ||
       check_key_in_view(thd, table_list))
   {
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "DELETE");
@@ -1121,7 +1122,7 @@ int mysql_multi_delete_prepare(THD *thd)
        DBUG_RETURN(TRUE);
     }
 
-    if (!target_tbl->correspondent_table->single_table_updatable() ||
+    if (!target_tbl->correspondent_table->single_table_updatable(thd) ||
         check_key_in_view(thd, target_tbl->correspondent_table))
     {
       my_error(ER_NON_UPDATABLE_TABLE, MYF(0),
@@ -1181,12 +1182,12 @@ multi_delete::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   DBUG_RETURN(0);
 }
 
-void multi_delete::prepare_to_read_rows()
+void multi_delete::prepare_to_read_rows(THD *thd)
 {
   /* see multi_update::prepare_to_read_rows() */
   for (TABLE_LIST *walk= delete_tables; walk; walk= walk->next_local)
   {
-    TABLE_LIST *tbl= walk->correspondent_table->find_table_for_update();
+    TABLE_LIST *tbl= walk->correspondent_table->find_table_for_update(thd);
     tbl->table->mark_columns_needed_for_delete();
   }
 }
@@ -1206,7 +1207,7 @@ multi_delete::initialize_tables(JOIN *join)
   delete_while_scanning= true;
   for (walk= delete_tables; walk; walk= walk->next_local)
   {
-    TABLE_LIST *tbl= walk->correspondent_table->find_table_for_update();
+    TABLE_LIST *tbl= walk->correspondent_table->find_table_for_update(thd);
     tables_to_delete_from|= tbl->table->map;
     if (delete_while_scanning &&
         unique_table(thd, tbl, join->tables_list, 0))

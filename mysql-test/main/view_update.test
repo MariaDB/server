@@ -1,0 +1,241 @@
+create table t1 (a int) engine=myisam;
+insert into t1 values (3), (8), (7), (1), (4);
+--echo # full update of mergeable view v1
+create view v1 as select * from t1;
+let $q=
+update v1 set a=10;
+eval explain $q;
+eval $q;
+select * from t1;
+let $q=
+update v1 set a=14;
+eval explain $q;
+eval $q;
+select * from t1;
+--echo # update with limit of mergeable view v1
+let $q=
+update v1 set v1.a=18 limit 3;
+eval explain $q;
+eval $q;
+select * from t1;
+--echo # partial update of mergeable view v1
+let $q=
+update v1 set v1.a=2 where a<18;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v1;
+--echo # partial update of mergeable v1 defined as
+--echo # full select from  mergeable derived table dt1
+create view v1 as select * from (select * from t1) dt1;
+let $q=
+update v1 set v1.a=22 where a>16;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v1;
+--echo # full update of mergeable v1 defined as
+--echo # partial select from  mergeable derived table dt1
+create view v1 as select * from (select * from t1) dt1 where dt1.a > 20;
+let $q=
+update v1 set v1.a=24;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v1;
+update t1 set a=26 limit 1;
+select * from t1;
+--echo # partial update of mergeable v1 defined as
+--echo # partial select from  mergeable derived table dt1
+create view v1 as select * from (select * from t1) dt1 where dt1.a < 25;
+let $q=
+update v1 set v1.a=15 where v1.a > 2;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v1;
+
+create view v1 as select * from t1;
+
+--echo # partial update of mergeable v2 defined as
+--echo # full select from mergeable view v1
+create view v2 as select * from v1;
+let $q=
+update v2 set v2.a=17 where v2.a between 10 and 20;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v2;
+--echo # full update of mergeable v2 defined as
+--echo # partial select from  mergeable view v1
+create view v2 as select * from v1 where v1.a > 10;
+let $q=
+update v2 set v2.a=23;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v2;
+
+update t1 set a=28 limit 1;
+select * from t1;
+--echo # partial update of mergeable cte1 defined as
+--echo # partial select from  mergeable view v1
+create view v2 as select * from v1 where v1.a < 27;
+let $q=
+update v2 set v2.a=19 where v2.a > 2;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v2;
+drop view v1;
+--echo # partial update of mergeable v1 defined as
+--echo # full select from mergeable cte1
+create view v1 as with cte1 as (select * from t1) select * from cte1;
+let $q=
+update v1 set v1.a=11 where v1.a between 10 and 20;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v1;
+--echo # full update of mergeable v1 defined as
+--echo # partial select from  mergeable cte1
+create view v1 as
+  with cte1 as (select * from t1)select * from cte1 where cte1.a > 10;
+let $q=
+update v1 set v1.a=21;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v1;
+update t1 set a=29 limit 1;
+select * from t1;
+--echo # partial update of mergeable v1 defined as
+--echo # partial select from  mergeable embedded cte1
+create view v1 as
+  with cte1 as (select * from t1) select * from cte1 where cte1.a < 27;
+let $q=
+update v1 set v1.a=13 where v1.a > 2;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v1;
+
+delete from t1;
+insert into t1 values (3), (8), (7), (1), (4), (3), (5), (2);
+
+--echo # partial update of mergeable v1 defined as
+--echo # partial select from  mergeable dt2 that uses mergeable dt1
+create view v1 as
+  (select *
+   from (select * from (select * from t1) dt1 where dt1.a > 1) dt2
+   where dt2.a < 8);
+let $q=
+update v1 set v1.a=v1.a+1 where v1.a between 4 and 6;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v1;
+--echo # partial update of mergeable v1 defined as
+--echo # partial select from  mergeable dt1 that uses mergeable cte1
+create view v1 as
+  (select *
+   from (with cte1 as (select * from t1)
+         select * from cte1 where cte1.a < 8) dt1
+   where dt1.a > 1);
+let $q=
+update v1 set v1.a=v1.a-1 where v1.a between 5 and 7;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v1;
+--echo # partial update of mergeable v2 defined as
+--echo # partial select from  mergeable dt1 that uses mergeable view v1
+create view v1 as select * from t1;
+create view v2 as
+  select *
+  from (select * from v1 where v1.a < 8) dt1
+  where dt1.a > 2;
+let $q=
+update v2 set v2.a=v2.a+1 where v2.a between 2 and 5;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v2;
+drop view v1;
+--echo # partial update of mergeable v1 defined as
+--echo # partial select from  mergeable cte1 that uses mergeable dt1
+create view v1 as
+  with cte1 as
+    (select * from (select * from t1) dt1 where dt1.a > 2)
+  select * from cte1 where cte1.a < 6;
+let $q=
+update v1 set v1.a=v1.a-1 where v1.a between 4 and 7;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v1;
+--echo # partial update of mergeable v1 defined as
+--echo # partial select from  mergeable cte2 that uses mergeable cte1
+create view v1 as
+  with cte2 as
+    (with cte1 as (select * from t1)
+     select * from cte1 where cte1.a > 3)
+  select * from cte2 where cte2.a < 10;
+let $q=
+update v1 set v1.a=v1.a+1 where v1.a between 4 and 7;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v1;
+--echo # partial update of mergeable v2 defined as
+--echo # partial select from  mergeable cte1 that uses mergeable v1
+create view v1 as select a from t1;
+create view v2 as
+  with cte1 as
+    (select * from v1 where v1.a > 1)
+  select * from cte1 where cte1.a < 7;
+let $q=
+update v2 set v2.a=v2.a-1 where v2.a between 2 and 4;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v2;
+drop view v1;
+--echo # partial update of mergeable v2 defined as
+--echo # partial select from  mergeable v1 that uses mergeable dt1
+create view v1 as select * from (select * from t1) dt1 where dt1.a > 2;
+create view v2 as select * from v1 where v1.a < 6;
+let $q=
+update v2 set v2.a=v2.a+1 where v2.a between 4 and 5;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v2;
+drop view v1;
+--echo # partial update of mergeable v2 defined as
+--echo # partial select from  mergeable v1 that uses mergeable cte1
+create view v1 as
+  with cte1 as (select * from t1) select * from cte1 where cte1.a > 1;
+create view v2 as select * from v1 where v1.a < 6;
+let $q=
+update v2 set v2.a=v2.a-1 where v2.a between 2 and 5;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v2;
+drop view v1;
+--echo # partial update of mergeable v3 defined as
+--echo # partial select from  mergeable v2 that uses mergeable v1
+create view v1 as select a from t1;
+create view v2 as select * from v1 where v1.a > 3;
+create view v3 as select * from v2 where v2.a < 8;
+let $q=
+update v3 set v3.a=v3.a+1 where v3.a between 5 and 10;
+eval explain $q;
+eval $q;
+select * from t1;
+drop view v3;
+drop view v2;
+drop view v1;
+
+drop table t1;

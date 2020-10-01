@@ -1,0 +1,916 @@
+create table t1 (a int) engine=myisam;
+create table t2 (b int) engine=myisam;
+create table t3 (c int, d int) engine=myisam;
+insert into t1 values (3), (8), (7), (1), (4), (3), (5), (2);
+insert into t2 values (5), (10), (3), (9), (2), (2), (4), (6), (1);
+
+select * from t1;
+select * from t2;
+--echo # multi-table update of mergeable cte1
+--echo # and mergeable derived table dt1
+let $qs=
+with cte1 as (select a from t1 where a > 1)
+select * from cte1, (select b from t2 where b < 6) as dt1
+where cte1.a=dt1.b;
+eval explain $qs;
+eval $qs;
+let $qu=
+with cte1 as (select a from t1 where a > 1)
+update cte1, (select b from t2 where b < 6) as dt1
+set a=a+1, b=b+1 where cte1.a=dt1.b;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+--echo # multi-table update of mergeable cte1
+--echo # and mergeable cte2
+let $qs=
+with
+  cte1 as (select a from t1 where a > 1),
+  cte2 as (select * from t2 where b < 9)
+select * from cte1, cte2 where cte1.a=cte2.b;
+eval explain $qs;
+eval $qs;
+let $qu=
+with
+  cte1 as (select a from t1 where a > 1),
+  cte2 as (select * from t2 where b < 9)
+update cte1, cte2
+set cte1.a=cte1.a-1, cte2.b=cte2.b-1 where cte1.a=cte2.b;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+--echo # multi-table update of mergeable cte1
+--echo # and mergeable view v1
+create view v1 as select * from t2 where b < 5;
+let $qs=
+with cte1 as (select a from t1 where a > 1)
+select * from cte1, v1 where cte1.a=v1.b;
+eval explain $qs;
+eval $qs;
+let $qu=
+with cte1 as (select a from t1 where a > 1)
+update cte1, v1
+set cte1.a=cte1.a+2, v1.b=v1.b+2 where cte1.a=v1.b;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+drop view v1;
+
+delete from t1;
+delete from t2;
+insert into t1 values (3), (8), (7), (1), (4), (3), (5), (2);
+insert into t2 values (5), (10), (3), (9), (2), (2), (4), (6), (1);
+
+select * from t1;
+select * from t2;
+--echo # multi-table update of mergeable cte1
+--echo # and non-mergeable derived table dt1
+let $qs=
+with cte1 as (select a from t1 where a > 1)
+select * from cte1, (select b from t2 where b < 6 group by b) as dt1
+where cte1.a=dt1.b;
+eval explain $qs;
+eval $qs;
+let $qu=
+with cte1 as (select a from t1 where a > 1)
+update cte1, (select b from t2 where b < 6 group by b) as dt1
+set a=a+1 where cte1.a=dt1.b;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+--echo # multi-table update of mergeable cte1
+--echo # and non-mergeable cte2
+let $qs=
+with cte1 as (select a from t1 where a > 1),
+     cte2 as (select * from t2 where b < 9 group by b)
+select * from cte1, cte2 where cte1.a=cte2.b;
+eval explain $qs;
+eval $qs;
+let $qu=
+with cte1 as (select a from t1 where a > 1),
+     cte2 as (select * from t2 where b < 9 group by b)
+update cte1, cte2
+set cte1.a=cte1.a-1 where cte1.a=cte2.b;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+--echo # multi-table update of mergeable cte1
+--echo # and non-mergeable view v1
+create view v1 as select * from t2 where b < 5 group by b;
+let $qs=
+with cte1 as (select a from t1 where a > 1)
+select * from cte1, v1 where cte1.a=v1.b;
+eval explain $qs;
+eval $qs;
+let $qu=
+with cte1 as (select a from t1 where a > 1)
+update cte1, v1
+set cte1.a=cte1.a+2 where cte1.a=v1.b;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+drop view v1;
+
+delete from t1;
+delete from t2;
+insert into t1 values (3), (8), (7), (1), (4), (3), (5), (2);
+insert into t2 values (5), (10), (3), (9), (2), (2), (4), (6), (1);
+
+--echo # update of mergeable cte1 specified as join of
+--echo # mergeable derived table dt1 and mergeable derived table dt2
+let $qu=
+with cte1 as
+  (select * from
+    (select a from t1 where a > 1) as dt1,
+    (select b from t2 where b < 6) as dt2
+   where dt1.a=dt2.b)
+update cte1
+set cte1.a=cte1.a+1, cte1.b=cte1.b+1;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+--echo # update of mergeable cte2 specified as join of
+--echo # mergeable derived table dt1 and mergeable cte1
+let $qu=
+with cte2 as
+  (with cte1 as (select b from t2 where b < 9)
+   select * from
+    (select a from t1 where a > 1) as dt1, cte1
+   where dt1.a=cte1.b)
+update cte2
+set cte2.a=cte2.a-1, cte2.b=cte2.b-1;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+--echo # update of mergeable cte1 specified as join of
+--echo # mergeable derived table dt1 and mergeable view v1
+create view v1 as select b from t2 where b < 5;
+let $qu=
+with cte1 as
+  (select * from
+    (select a from t1 where a > 1) as dt1, v1
+   where dt1.a=v1.b)
+update cte1
+set cte1.a=cte1.a+1, cte1.b=cte1.b+1;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+drop view v1;
+--echo # update of mergeable cte3 specified as join of
+--echo # mergeable cte1 and mergeable cte2
+let $qu=
+with cte3 as
+  (with cte1 as (select a from t1 where a > 1),
+        cte2 as (select b from t2 where b < 6)
+   select * from cte1, cte2 where cte1.a=cte2.b)
+update cte3
+set cte3.a=cte3.a-1, cte3.b=cte3.b-1;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+--echo # update of mergeable cte2 specified as join of
+--echo # mergeable cte1 and mergeable view v1
+create view v1 as select b from t2 where b < 5;
+let $qu=
+with cte2 as
+  (with cte1 as (select a from t1 where a > 1)
+   select * from cte1, v1 where cte1.a=v1.b)
+update cte2
+set cte2.a=cte2.a+1, cte2.b=cte2.b+1;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+drop view v1;
+--echo # update of mergeable cte1 specified as join of
+--echo # mergeable view v1 and mergeable view v2
+create view v1 as select a from t1 where a > 1;
+create view v2 as select b from t2 where b < 5;
+let $qu=
+with cte1 as
+ (select * from v1, v2 where v1.a=v2.b)
+update cte1
+set cte1.a=cte1.a-1, cte1.b=cte1.b-1;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+drop view v1;
+drop view v2;
+
+delete from t1;
+delete from t2;
+insert into t1 values (3), (8), (7), (1), (4), (3), (5), (2);
+insert into t2 values (5), (10), (3), (9), (2), (2), (4), (6), (1);
+
+--echo # update of mergeable cte1 specified as join of
+--echo # mergeable derived table dt1 and non-mergeable derived table dt2
+let $qu=
+with cte1 as
+  (select * from
+    (select a from t1 where a > 1) as dt1,
+    (select b from t2 where b < 6 group by b) as dt2
+   where dt1.a=dt2.b)
+update cte1
+set cte1.a=cte1.a+1;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+--echo # update of mergeable cte2 specified as join of
+--echo # mergeable derived table dt1 and non-mergeable cte1
+let $qu=
+with cte2 as
+  (with cte1 as (select b from t2 where b < 9 group by b)
+   select * from
+    (select a from t1 where a > 1) as dt1, cte1
+   where dt1.a=cte1.b)
+update cte2
+set cte2.a=cte2.a-1;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+--echo # update of mergeable cte1 specified as join of
+--echo # mergeable derived table dt1 and non-mergeable view v1
+create view v1 as select b from t2 where b < 5 group by b;
+let $qu=
+with cte1 as
+  (select * from
+    (select a from t1 where a > 1) as dt1, v1
+   where dt1.a=v1.b)
+update cte1
+set cte1.a=cte1.a+1;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+drop view v1;
+--echo # update of mergeable cte2 specified as join of
+--echo # mergeable cte1 and non-mergeable dt1
+let $qu=
+with cte2 as
+  (with cte1 as (select a from t1 where a > 1)
+   select * from
+     cte1, (select b from t2 where b < 7 group by b) dt1
+   where cte1.a=dt1.b)
+update cte2
+set cte2.a=cte2.a-1;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+--echo # update of mergeable cte3 specified as join of
+--echo # mergeable cte1 and non-mergeable cte2
+let $qu=
+with cte3 as
+  (with cte1 as (select a from t1 where a > 1),
+        cte2 as (select b from t2 where b < 6 group by b)
+   select * from cte1, cte2 where cte1.a=cte2.b)
+update cte3
+set cte3.a=cte3.a+1;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+--echo # update of mergeable cte2 specified as join of
+--echo # mergeable cte1 and non-mergeable view v1
+create view v1 as select b from t2 where b < 7 group by b;
+let $qu=
+with cte2 as
+  (with cte1 as (select a from t1 where a > 1)
+   select * from cte1, v1 where cte1.a=v1.b)
+update cte2
+set cte2.a=cte2.a-1;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+drop view v1;
+--echo # update of mergeable cte1 specified as join of
+--echo # mergeable view v1 and non-mergeable derived table dt1
+create view v1 as select a from t1 where a > 1;
+let $qu=
+with cte1 as
+ (select * from
+    v1, (select b from t2 where b < 6 group by b) dt1
+  where v1.a=dt1.b)
+update cte1
+set cte1.a=cte1.a+1;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+drop view v1;
+--echo # update of mergeable cte2 specified as join of
+--echo # mergeable view v1 and non-mergeable cte1
+create view v1 as select a from t1 where a > 1;
+let $qu=
+with cte2 as
+  (with cte1 as (select b from t2 where b < 7 group by b)
+   select * from v1, cte1 where v1.a=cte1.b)
+update cte2
+set cte2.a=cte2.a-1;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+drop view v1;
+--echo # update of mergeable cte1 specified as join of
+--echo # mergeable view v1 and non-mergeable view v2
+create view v1 as select a from t1 where a > 1;
+create view v2 as select b from t2 where b < 5 group by b;
+let $qu=
+with cte1 as
+ (select * from v1, v2 where v1.a=v2.b)
+update cte1
+set cte1.a=cte1.a+1;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+drop view v1;
+drop view v2;
+
+delete from t1;
+delete from t2;
+delete from t3;
+insert into t1 values (3), (6), (7), (1), (4), (3), (5), (2);
+insert into t2 values (5), (7), (3), (9), (2), (2), (4), (6), (1);
+insert into t3 values
+(4,2), (9,3), (2,1), (3,1), (2,3), (7,1), (1,1), (4,1), (5,2), (6,1);
+select * from t1;
+select * from t2;
+select * from t3;
+--echo # update of join of mergeable cte1,
+--echo # mergeable derived table dt1 and mergeable derived table dt2
+let $qs=
+with cte1 as (select * from t1 where t1.a > 2)
+select a,b,c,d1 from
+  cte1,
+  (select * from t2 where t2.b < 5) dt1,
+  (select c, d+1 as d1 from t3 where t3.d = 1) dt2
+where cte1.a=dt1.b and dt1.b=dt2.c;
+eval explain $qs;
+eval $qs;
+let $qu=
+with cte1 as (select * from t1 where t1.a > 2)
+update
+  cte1,
+  (select * from t2 where t2.b < 5) dt1,
+  (select c, d+1 as d1 from t3 where t3.d = 1) dt2
+set cte1.a=cte1.a+1, dt1.b=dt1.b+1, dt2.c=dt2.c-dt2.d1
+where cte1.a=dt1.b and dt1.b=dt2.c;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+select * from t3;
+--echo # update of join of mergeable cte1,
+--echo # mergeable derived table dt1 and mergeable cte2
+let $qs=
+with
+  cte1 as (select * from t1 where t1.a > 5),
+  cte2 as (select c, d+1 as d1 from t3 where t3.d < 3)
+select a,b,c,d1 from
+  cte1,
+  (select * from t2 where t2.b < 10) dt1,
+  cte2
+where cte1.a=dt1.b and dt1.b=cte2.c;
+eval explain $qs;
+eval $qs;
+let $qu=
+with
+  cte1 as (select * from t1 where t1.a > 5),
+  cte2 as (select c, d+1 as d1 from t3 where t3.d < 3)
+update
+  cte1,
+  (select * from t2 where t2.b < 10) dt1,
+  cte2
+set cte1.a=cte1.a-1, dt1.b=dt1.b-1, cte2.c=cte2.c+cte2.d1
+where cte1.a=dt1.b and dt1.b=cte2.c;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+select * from t3;
+--echo # update of join of mergeable cte1,
+--echo # mergeable derived table dt1 and mergeable view v1
+create view v1 as select c, d+1 as d1 from t3 where t3.d in (1,2);
+let $qs=
+with cte1 as (select * from t1 where t1.a < 3)
+select a,b,c,d1 from
+  cte1,
+  (select * from t2 where t2.b < 5) dt1,
+  v1
+where cte1.a=dt1.b and dt1.b=v1.c;
+eval explain $qs;
+eval $qs;
+let $qu=
+with cte1 as (select * from t1 where t1.a < 3)
+update
+  cte1,
+  (select * from t2 where t2.b < 5) dt1,
+  v1
+set cte1.a=cte1.a+1, dt1.b=dt1.b+1, v1.c=v1.c+v1.d1
+where cte1.a=dt1.b and dt1.b=v1.c;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+select * from t3;
+drop view v1;
+
+delete from t1;
+delete from t2;
+delete from t3;
+insert into t1 values (3), (6), (7), (1), (4), (3), (5), (2);
+insert into t2 values (5), (7), (3), (9), (2), (2), (4), (6), (1);
+insert into t3 values
+(4,2), (9,3), (2,1), (3,1), (2,3), (7,1), (1,1), (4,1), (5,2), (6,1);
+select * from t1;
+select * from t2;
+select * from t3;
+
+--echo # update of join of mergeable cte1,
+--echo # mergeable cte2 and mergeable derived table dt1
+let $qs=
+with
+  cte1 as (select * from t1 where t1.a > 2),
+  cte2 as (select * from t2 where t2.b < 5)
+select a,b,c,d1 from
+  cte1,
+  cte2,
+  (select c, d+1 as d1 from t3 where t3.d = 1) dt1
+where cte1.a=cte2.b and cte2.b=dt1.c;
+eval explain $qs;
+eval $qs;
+let $qu=
+with
+  cte1 as (select * from t1 where t1.a > 2),
+  cte2 as (select * from t2 where t2.b < 5)
+update
+  cte1,
+  cte2,
+  (select c, d+1 as d1 from t3 where t3.d = 1) dt1
+set cte1.a=cte1.a+1, cte2.b=cte2.b+1, dt1.c=dt1.c-dt1.d1
+where cte1.a=cte2.b and cte2.b=dt1.c;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+select * from t3;
+--echo # update of join of mergeable cte1,
+--echo # mergeable cte2 and mergeable cte3
+let $qs=
+with
+  cte1 as (select * from t1 where t1.a > 5),
+  cte2 as (select * from t2 where t2.b < 10),
+  cte3 as (select c, d+1 as d1 from t3 where t3.d < 3)
+select a,b,c,d1 from
+  cte1,
+  cte2,
+  cte3
+where cte1.a=cte2.b and cte2.b=cte3.c;
+eval explain $qs;
+eval $qs;
+let $qu=
+with
+  cte1 as (select * from t1 where t1.a > 5),
+  cte2 as (select * from t2 where t2.b < 10),
+  cte3 as (select c, d+1 as d1 from t3 where t3.d < 3)
+update
+  cte1,
+  cte2,
+  cte3
+set cte1.a=cte1.a-1, cte2.b=cte2.b-1, cte3.c=cte3.c+cte3.d1
+where cte1.a=cte2.b and cte2.b=cte3.c;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+select * from t3;
+--echo # update of join of mergeable cte1,
+--echo # mergeable cte2 and mergeable view v1
+create view v1 as select c, d+1 as d1 from t3 where t3.d in (1,2);
+let $qs=
+with
+  cte1 as (select * from t1 where t1.a < 3),
+  cte2 as (select * from t2 where t2.b < 5)
+select a,b,c,d1 from
+  cte1,
+  cte2,
+  v1
+where cte1.a=cte2.b and cte2.b=v1.c;
+eval explain $qs;
+eval $qs;
+let $qu=
+with
+  cte1 as (select * from t1 where t1.a < 3),
+  cte2 as (select * from t2 where t2.b < 5)
+update
+  cte1,
+  cte2,
+  v1
+set cte1.a=cte1.a+1, cte2.b=cte2.b+1, v1.c=v1.c+v1.d1
+where cte1.a=cte2.b and cte2.b=v1.c;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+select * from t3;
+drop view v1;
+
+delete from t1;
+delete from t2;
+delete from t3;
+insert into t1 values (3), (6), (7), (1), (4), (3), (5), (2);
+insert into t2 values (5), (7), (3), (9), (2), (2), (4), (6), (1);
+insert into t3 values
+(4,2), (9,3), (2,1), (3,1), (2,3), (7,1), (1,1), (4,1), (5,2), (6,1);
+select * from t1;
+select * from t2;
+select * from t3;
+
+--echo # update of join of mergeable cte1,
+--echo # mergeable view v1 and mergeable derived table dt1
+create view v1 as (select * from t2 where t2.b < 5);
+let $qs=
+with cte1 as (select * from t1 where t1.a > 2)
+select a,b,c,d1 from
+  cte1,
+  v1,
+  (select c, d+1 as d1 from t3 where t3.d = 1) dt1
+where cte1.a=v1.b and v1.b=dt1.c;
+eval explain $qs;
+eval $qs;
+let $qu=
+with cte1 as (select * from t1 where t1.a > 2)
+update
+  cte1,
+  v1,
+  (select c, d+1 as d1 from t3 where t3.d = 1) dt1
+set cte1.a=cte1.a+1, v1.b=v1.b+1, dt1.c=dt1.c-dt1.d1
+where cte1.a=v1.b and v1.b=dt1.c;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+select * from t3;
+drop view v1;
+--echo # update of join of mergeable cte1,
+--echo # mergeable view v1 and mergeable cte2
+create view v1 as select * from t2 where t2.b < 10;
+let $qs=
+with
+  cte1 as (select * from t1 where t1.a > 5),
+  cte2 as (select c, d+1 as d1 from t3 where t3.d < 3)
+select a,b,c,d1 from
+  cte1,
+  v1,
+  cte2
+where cte1.a=v1.b and v1.b=cte2.c;
+eval explain $qs;
+eval $qs;
+let $qu=
+with
+  cte1 as (select * from t1 where t1.a > 5),
+  cte2 as (select c, d+1 as d1 from t3 where t3.d < 3)
+update
+  cte1,
+  v1,
+  cte2
+set cte1.a=cte1.a-1, v1.b=v1.b-1, cte2.c=cte2.c+cte2.d1
+where cte1.a=v1.b and v1.b=cte2.c;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+select * from t3;
+drop view v1;
+--echo # update of join of mergeable cte1,
+--echo # mergeable view v1 and mergeable view v2
+create view v1 as select * from t2 where t2.b < 5;
+create view v2 as select c, d+1 as d1 from t3 where t3.d in (1,2);
+let $qs=
+with cte1 as (select * from t1 where t1.a < 3)
+select a,b,c,d1 from
+  cte1,
+  v1,
+  v2
+where cte1.a=v1.b and v1.b=v2.c;
+eval explain $qs;
+eval $qs;
+let $qu=
+with cte1 as (select * from t1 where t1.a < 3)
+update
+  cte1,
+  v1,
+  v2
+set cte1.a=cte1.a+1, v1.b=v1.b+1, v2.c=v2.c+v2.d1
+where cte1.a=v1.b and v1.b=v2.c;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+select * from t3;
+drop view v1;
+drop view v2;
+
+delete from t1;
+delete from t2;
+delete from t3;
+insert into t1 values (3), (6), (7), (1), (4), (3), (5), (2);
+insert into t2 values (5), (7), (3), (9), (2), (2), (4), (6), (1);
+insert into t3 values
+(4,2), (9,3), (2,1), (3,1), (2,3), (7,1), (1,1), (4,1), (5,2), (6,1);
+select * from t1;
+select * from t2;
+select * from t3;
+
+--echo # update of join of mergeable cte1,
+--echo # non-mergeable derived table dt1 and mergeable derived table dt2
+let $qs=
+with cte1 as (select * from t1 where t1.a > 2)
+select a,b,c,d1 from
+  cte1,
+  (select * from t2 where t2.b < 5 group by b) dt1,
+  (select c, d+1 as d1 from t3 where t3.d = 1) dt2
+where cte1.a=dt1.b and dt1.b=dt2.c;
+eval explain $qs;
+eval $qs;
+let $qu=
+with cte1 as (select * from t1 where t1.a > 2)
+update
+  cte1,
+  (select * from t2 where t2.b < 5 group by b) dt1,
+  (select c, d+1 as d1 from t3 where t3.d = 1) dt2
+set cte1.a=cte1.a+1, dt2.c=dt2.c-dt2.d1
+where cte1.a=dt1.b and dt1.b=dt2.c;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+select * from t3;
+--echo # update of join of mergeable cte1,
+--echo # non-mergeable derived table dt1 and mergeable cte2
+let $qs=
+with
+  cte1 as (select * from t1 where t1.a > 5),
+  cte2 as (select c, d+1 as d1 from t3 where t3.d < 3)
+select a,b,c,d1 from
+  cte1,
+  (select * from t2 where t2.b < 10 group by b) dt1,
+  cte2
+where cte1.a=dt1.b and dt1.b=cte2.c;
+eval explain $qs;
+eval $qs;
+let $qu=
+with
+  cte1 as (select * from t1 where t1.a > 5),
+  cte2 as (select c, d+1 as d1 from t3 where t3.d < 3)
+update
+  cte1,
+  (select * from t2 where t2.b < 10 group by b) dt1,
+  cte2
+set cte1.a=cte1.a-1, cte2.c=cte2.c+cte2.d1
+where cte1.a=dt1.b and dt1.b=cte2.c;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+select * from t3;
+--echo # update of join of mergeable cte1,
+--echo # non-mergeable derived table dt1 and mergeable view v1
+create view v1 as select c, d+1 as d1 from t3 where t3.d in (1,2);
+let $qs=
+with cte1 as (select * from t1 where t1.a < 3)
+select a,b,c,d1 from
+  cte1,
+  (select * from t2 where t2.b < 5 group by b) dt1,
+  v1
+where cte1.a=dt1.b and dt1.b=v1.c;
+eval explain $qs;
+eval $qs;
+let $qu=
+with cte1 as (select * from t1 where t1.a < 3)
+update
+  cte1,
+  (select * from t2 where t2.b < 5 group by b) dt1,
+  v1
+set cte1.a=cte1.a+1, v1.c=v1.c+v1.d1
+where cte1.a=dt1.b and dt1.b=v1.c;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+select * from t3;
+drop view v1;
+
+delete from t1;
+delete from t2;
+delete from t3;
+insert into t1 values (3), (6), (7), (1), (4), (3), (5), (2);
+insert into t2 values (5), (7), (3), (9), (2), (2), (4), (6), (1);
+insert into t3 values
+(4,2), (9,3), (2,1), (3,1), (2,3), (7,1), (1,1), (4,1), (5,2), (6,1);
+select * from t1;
+select * from t2;
+select * from t3;
+
+--echo # update of join of mergeable cte1,
+--echo # non-mergeable cte2 and mergeable derived table dt1
+let $qs=
+with
+  cte1 as (select * from t1 where t1.a > 2),
+  cte2 as (select * from t2 where t2.b < 5 group by b)
+select a,b,c,d1 from
+  cte1,
+  cte2,
+  (select c, d+1 as d1 from t3 where t3.d = 1) dt1
+where cte1.a=cte2.b and cte2.b=dt1.c;
+eval explain $qs;
+eval $qs;
+let $qu=
+with
+  cte1 as (select * from t1 where t1.a > 2),
+  cte2 as (select * from t2 where t2.b < 5 group by b)
+update
+  cte1,
+  cte2,
+  (select c, d+1 as d1 from t3 where t3.d = 1) dt1
+set cte1.a=cte1.a+1, dt1.c=dt1.c-dt1.d1
+where cte1.a=cte2.b and cte2.b=dt1.c;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+select * from t3;
+--echo # update of join of mergeable cte1,
+--echo # non-mergeable cte2 and mergeable cte3
+let $qs=
+with
+  cte1 as (select * from t1 where t1.a > 5),
+  cte2 as (select * from t2 where t2.b < 10 group by b),
+  cte3 as (select c, d+1 as d1 from t3 where t3.d < 3)
+select a,b,c,d1 from
+  cte1,
+  cte2,
+  cte3
+where cte1.a=cte2.b and cte2.b=cte3.c;
+eval explain $qs;
+eval $qs;
+let $qu=
+with
+  cte1 as (select * from t1 where t1.a > 5),
+  cte2 as (select * from t2 where t2.b < 10 group by b),
+  cte3 as (select c, d+1 as d1 from t3 where t3.d < 3)
+update
+  cte1,
+  cte2,
+  cte3
+set cte1.a=cte1.a-1, cte3.c=cte3.c+cte3.d1
+where cte1.a=cte2.b and cte2.b=cte3.c;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+select * from t3;
+--echo # update of join of mergeable cte1,
+--echo # non-mergeable cte2 and mergeable view v1
+create view v1 as select c, d+1 as d1 from t3 where t3.d in (1,2);
+let $qs=
+with
+  cte1 as (select * from t1 where t1.a < 3),
+  cte2 as (select * from t2 where t2.b < 5 group by b)
+select a,b,c,d1 from
+  cte1,
+  cte2,
+  v1
+where cte1.a=cte2.b and cte2.b=v1.c;
+eval explain $qs;
+eval $qs;
+let $qu=
+with
+  cte1 as (select * from t1 where t1.a < 3),
+  cte2 as (select * from t2 where t2.b < 5 group by b)
+update
+  cte1,
+  cte2,
+  v1
+set cte1.a=cte1.a+1, v1.c=v1.c+v1.d1
+where cte1.a=cte2.b and cte2.b=v1.c;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+select * from t3;
+drop view v1;
+
+delete from t1;
+delete from t2;
+delete from t3;
+insert into t1 values (3), (6), (7), (1), (4), (3), (5), (2);
+insert into t2 values (5), (7), (3), (9), (2), (2), (4), (6), (1);
+insert into t3 values
+(4,2), (9,3), (2,1), (3,1), (2,3), (7,1), (1,1), (4,1), (5,2), (6,1);
+select * from t1;
+select * from t2;
+select * from t3;
+
+--echo # update of join of mergeable cte1,
+--echo # non-mergeable view v1 and mergeable derived table dt1
+create view v1 as (select * from t2 where t2.b < 5 group by b);
+let $qs=
+with cte1 as (select * from t1 where t1.a > 2)
+select a,b,c,d1 from
+  cte1,
+  v1,
+  (select c, d+1 as d1 from t3 where t3.d = 1) dt1
+where cte1.a=v1.b and v1.b=dt1.c;
+eval explain $qs;
+eval $qs;
+let $qu=
+with cte1 as (select * from t1 where t1.a > 2)
+update
+  cte1,
+  v1,
+  (select c, d+1 as d1 from t3 where t3.d = 1) dt1
+set cte1.a=cte1.a+1, dt1.c=dt1.c-dt1.d1
+where cte1.a=v1.b and v1.b=dt1.c;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+select * from t3;
+drop view v1;
+--echo # update of join of mergeable cte1,
+--echo # non-mergeable view v1 and mergeable cte2
+create view v1 as select * from t2 where t2.b < 10 group by b;
+let $qs=
+with
+  cte1 as (select * from t1 where t1.a > 5),
+  cte2 as (select c, d+1 as d1 from t3 where t3.d < 3)
+select a,b,c,d1 from
+  cte1,
+  v1,
+  cte2
+where cte1.a=v1.b and v1.b=cte2.c;
+eval explain $qs;
+eval $qs;
+let $qu=
+with
+  cte1 as (select * from t1 where t1.a > 5),
+  cte2 as (select c, d+1 as d1 from t3 where t3.d < 3)
+update
+  cte1,
+  v1,
+  cte2
+set cte1.a=cte1.a-1, cte2.c=cte2.c+cte2.d1
+where cte1.a=v1.b and v1.b=cte2.c;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+select * from t3;
+drop view v1;
+--echo # update of join of mergeable cte1,
+--echo # non-mergeable view v1 and mergeable view v2
+create view v1 as select * from t2 where t2.b < 5 group by b;
+create view v2 as select c, d+1 as d1 from t3 where t3.d in (1,2);
+let $qs=
+with cte1 as (select * from t1 where t1.a < 3)
+select a,b,c,d1 from
+  cte1,
+  v1,
+  v2
+where cte1.a=v1.b and v1.b=v2.c;
+eval explain $qs;
+eval $qs;
+let $qu=
+with cte1 as (select * from t1 where t1.a < 3)
+update
+  cte1,
+  v1,
+  v2
+set cte1.a=cte1.a+1, v2.c=v2.c+v2.d1
+where cte1.a=v1.b and v1.b=v2.c;
+eval explain $qu;
+eval $qu;
+select * from t1;
+select * from t2;
+select * from t3;
+drop view v1;
+drop view v2;
+
+drop table t1,t2,t3;

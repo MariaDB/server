@@ -4357,14 +4357,11 @@ public:
         to resolve all CTE names as we don't need this message to be thrown
         for any CTE references.
       */
-      if (!lex->with_clauses_list)
+      if (!lex->with_cte_resolution)
       {
         my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
         return TRUE;
       }
-      /* This will allow to throw an error later for non-CTE references */
-      to->str= NULL;
-      to->length= 0;
       return FALSE;
     }
 
@@ -5384,7 +5381,7 @@ public:
   virtual void update_used_tables() {}
 
   /* this method is called just before the first row of the table can be read */
-  virtual void prepare_to_read_rows() {}
+  virtual void prepare_to_read_rows(THD *thd) {}
 
   void remove_offset_limit()
   {
@@ -6595,7 +6592,7 @@ public:
   bool send_eof();
   inline ha_rows num_deleted() const { return deleted; }
   virtual void abort_result_set();
-  void prepare_to_read_rows();
+  void prepare_to_read_rows(THD *thd);
 };
 
 
@@ -6603,6 +6600,7 @@ class multi_update :public select_result_interceptor
 {
   TABLE_LIST *all_tables; /* query/update command tables */
   List<TABLE_LIST> *leaves;     /* list of leves of join table tree */
+  List<TABLE_LIST> updated_leaves;
   TABLE_LIST *update_tables;
   TABLE **tmp_tables, *main_table, *table_to_update;
   TMP_TABLE_PARAM *tmp_table_param;
@@ -6640,6 +6638,7 @@ public:
 	       List<Item> *fields, List<Item> *values,
 	       enum_duplicates handle_duplicates, bool ignore);
   ~multi_update();
+  bool init(THD *thd);
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   int send_data(List<Item> &items);
   bool initialize_tables (JOIN *join);
@@ -6650,7 +6649,7 @@ public:
   inline ha_rows num_updated() const { return updated; }
   virtual void abort_result_set();
   void update_used_tables();
-  void prepare_to_read_rows();
+  void prepare_to_read_rows(THD *thd);
 };
 
 class my_var_sp;

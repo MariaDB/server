@@ -345,7 +345,7 @@ drop view v1,v2,v3,v4;
 create view v1(a) as 
 with t as (select a from t1 where b >= 'c') 
   select t.a from t2,t where t2.c=t.a;
---error ER_NON_UPDATABLE_TABLE
+# --error ER_NON_UPDATABLE_TABLE
 update v1 set a=0 where a > 4;
 drop view v1;
 

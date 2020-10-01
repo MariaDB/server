@@ -969,7 +969,7 @@ public:
   {
     return reinterpret_cast<st_select_lex*>(slave);
   }
-  void set_with_clause(With_clause *with_cl);
+  void set_with_clause(LEX *lex, With_clause *with_cl);
   st_select_lex_unit* next_unit()
   {
     return reinterpret_cast<st_select_lex_unit*>(next);
@@ -1762,6 +1762,16 @@ public:
   */
   void add_to_query_tables(TABLE_LIST *table)
   {
+    if (table->derived)
+    {
+      TABLE_LIST *first_local= table->derived->first_select()->table_list.first;
+      if (first_local)
+      {
+        *(table->prev_global= first_local->prev_global)= table;
+        *(first_local->prev_global= &table->next_global)= first_local;
+        return;
+      }
+    }
     *(table->prev_global= query_tables_last)= table;
     query_tables_last= &table->next_global;
   }
@@ -3132,6 +3142,9 @@ public:
 };
 
 
+class Query_name;
+
+
 struct LEX: public Query_tables_list
 {
   SELECT_LEX_UNIT unit;                         /* most upper unit */
@@ -3154,6 +3167,7 @@ public:
      with clause in the current statement
   */
   With_clause **with_clauses_list_last_next;
+  bool all_cte_resolved;
   /*
     When a copy of a with element is parsed this is set to the offset of
     the with element in the input string, otherwise it's set to 0
@@ -3372,6 +3386,7 @@ public:
   */
   uint8 derived_tables;
   uint8 context_analysis_only;
+  bool with_cte_resolution;
   bool local_file;
   bool check_exists;
   bool autocommit;
@@ -3470,6 +3485,8 @@ public:
     (see Item_field::fix_fields()). 
   */
   bool use_only_table_context;
+
+  bool skip_access_check;
 
   /*
     Reference to a struct that contains information in various commands
@@ -4524,7 +4541,7 @@ public:
   bool insert_select_hack(SELECT_LEX *sel);
   SELECT_LEX *create_priority_nest(SELECT_LEX *first_in_nest);
 
-  bool set_main_unit(st_select_lex_unit *u)
+  bool set_main_unit(LEX *lex, st_select_lex_unit *u)
   {
     unit.options= u->options;
     unit.uncacheable= u->uncacheable;
@@ -4532,7 +4549,7 @@ public:
     unit.first_select()->options|= builtin_select.options;
     unit.fake_select_lex= u->fake_select_lex;
     unit.union_distinct= u->union_distinct;
-    unit.set_with_clause(u->with_clause);
+    unit.set_with_clause(lex, u->with_clause);
     builtin_select.exclude_from_global();
     return false;
   }
@@ -4675,6 +4692,15 @@ public:
                               const LEX_CSTRING *constraint_name,
                               Table_ident *ref_table_name,
                               DDL_options ddl_options);
+
+  bool check_dependencies_in_with_clauses();
+  bool resolve_references_to_cte_in_hanging_cte(TABLE_LIST **start_ptr);
+  bool check_cte_dependencies_and_resolve_references();
+  bool resolve_and_order_references_to_cte(TABLE_LIST *tables,
+                                           TABLE_LIST **tables_last,
+                                           TABLE_LIST **last_ordered);
+  void reorder_table_list(TABLE_LIST *tables, TABLE_LIST **start_ptr);
+
 };
 
 

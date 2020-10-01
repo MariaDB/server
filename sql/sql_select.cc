@@ -1154,11 +1154,22 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     Affects only materialized derived tables.
   */
   /* Check that all tables, fields, conds and order are ok */
-  if (!(select_options & OPTION_SETUP_TABLES_DONE) &&
-      setup_tables_and_check_access(thd, &select_lex->context, join_list,
-                                    tables_list, select_lex->leaf_tables,
-                                    FALSE, SELECT_ACL, SELECT_ACL, FALSE))
-      DBUG_RETURN(-1);
+  if (!(select_options & OPTION_SETUP_TABLES_DONE))
+  {
+    if (thd->lex->skip_access_check)
+    {
+      if (setup_tables(thd, &select_lex->context, join_list, tables_list,
+                       select_lex->leaf_tables, FALSE, FALSE))
+        DBUG_RETURN(-1);
+    }
+    else
+    {
+      if (setup_tables_and_check_access(thd, &select_lex->context, join_list,
+                                        tables_list, select_lex->leaf_tables,
+                                        FALSE, SELECT_ACL, SELECT_ACL, FALSE))
+        DBUG_RETURN(-1);
+    }
+  }
 
   /*
     Permanently remove redundant parts from the query if
@@ -2232,7 +2243,7 @@ JOIN::optimize_inner()
   
   /* Calculate how to do the join */
   THD_STAGE_INFO(thd, stage_statistics);
-  result->prepare_to_read_rows();
+  result->prepare_to_read_rows(thd);
   if (unlikely(make_join_statistics(this, select_lex->leaf_tables,
                                     &keyuse)) ||
       unlikely(thd->is_fatal_error))

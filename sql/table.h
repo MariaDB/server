@@ -1306,6 +1306,7 @@ public:
   MY_BITMAP     def_rpl_write_set;
   MY_BITMAP     eq_join_set;         /* used to mark equi-joined fields */
   MY_BITMAP     cond_set;   /* used to mark fields from sargable conditions*/
+  MY_BITMAP     value_set;
   /* Active column sets */
   MY_BITMAP     *read_set, *write_set, *rpl_write_set;
   /* On INSERT: fields that the user specified a value for */
@@ -1690,7 +1691,6 @@ public:
   best_range_rowid_filter_for_partial_join(uint access_key_no,
                                            double records,
                                            double access_cost_factor);
-
   /**
     System Versioning support
    */
@@ -2100,6 +2100,20 @@ struct vers_select_conds_t
 
 struct LEX;
 class Index_hint;
+
+
+struct TABLE_CHAIN
+{
+  TABLE_CHAIN() {}
+
+  TABLE_LIST **start_pos;
+  TABLE_LIST ** end_pos;
+
+  void set_start_pos(TABLE_LIST **pos) { start_pos= pos; }
+  void set_end_pos(TABLE_LIST **pos) { end_pos= pos; }
+};
+
+
 struct TABLE_LIST
 {
   TABLE_LIST() {}                          /* Remove gcc warning */
@@ -2187,6 +2201,7 @@ struct TABLE_LIST
   TABLE_LIST *next_local;
   /* link in a global list of all queries tables */
   TABLE_LIST *next_global, **prev_global;
+  TABLE_LIST *next_ordered;
   LEX_CSTRING   db;
   LEX_CSTRING   table_name;
   LEX_CSTRING   schema_table_name;
@@ -2434,9 +2449,13 @@ struct TABLE_LIST
   /* call back function for asking handler about caching in query cache */
   qc_engine_callback callback_func;
   thr_lock_type lock_type;
+  enum_mdl_type mdl_type;
+  ulong         table_options;
+  bool          is_mdl_request_type_to_be_set;
   uint		outer_join;		/* Which join type */
   uint		shared;			/* Used in multi-upd */
   bool          updatable;		/* VIEW/TABLE can be updated now */
+  bool          single_table_update;
   bool		straight;		/* optimize with prev table */
   bool          updating;               /* for replicate-do/ignore table */
   bool		force_index;		/* prefer index over table scan */
@@ -2612,10 +2631,10 @@ struct TABLE_LIST
        This is used for single-table UPDATE/DELETE when they are modifying a
        single-table VIEW.
   */
-  TABLE_LIST *find_table_for_update()
+  TABLE_LIST *find_table_for_update(THD *thd)
   {
     TABLE_LIST *tbl= this;
-    while(!tbl->is_multitable() && tbl->single_table_updatable() &&
+    while(!tbl->is_multitable() && tbl->single_table_updatable(thd) &&
         tbl->merge_underlying_list)
     {
       tbl= tbl->merge_underlying_list;
@@ -2737,6 +2756,7 @@ struct TABLE_LIST
                                       (derived ? DTYPE_MASK : DTYPE_VIEW)) |
                                      DTYPE_TABLE | DTYPE_MATERIALIZE);
     set_check_materialized();
+    field_translation= 0;
     DBUG_VOID_RETURN;
   }
   bool is_multitable() const { return (derived_type & DTYPE_MULTITABLE); }
@@ -2744,9 +2764,9 @@ struct TABLE_LIST
   {
     derived_type|= DTYPE_MULTITABLE;
   }
-  bool set_as_with_table(THD *thd, With_element *with_elem);
   void reset_const_table();
   bool handle_derived(LEX *lex, uint phases);
+  void propagate_properties_for_mergeable_derived();
 
   /**
      @brief True if this TABLE_LIST represents an anonymous derived table,
@@ -2776,7 +2796,7 @@ struct TABLE_LIST
   int fetch_number_of_rows();
   bool change_refs_to_fields();
 
-  bool single_table_updatable();
+  bool single_table_updatable(THD *thd);
 
   bool is_inner_table_of_outer_join()
   {
@@ -2826,7 +2846,7 @@ class Item;
 class Field_iterator: public Sql_alloc
 {
 public:
-  Field_iterator() {}                         /* Remove gcc warning */
+  Field_iterator() {}                    /* Remove gcc warning */
   virtual ~Field_iterator() {}
   virtual void set(TABLE_LIST *)= 0;
   virtual void next()= 0;
@@ -2845,9 +2865,10 @@ public:
 class Field_iterator_table: public Field_iterator
 {
   Field **ptr;
+  TABLE_LIST *table;
 public:
-  Field_iterator_table() :ptr(0) {}
-  void set(TABLE_LIST *table) { ptr= table->table->field; }
+  Field_iterator_table() :ptr(0), table(0) {}
+  void set(TABLE_LIST *tl) { table= tl; ptr= tl->table->field; }
   void set_table(TABLE *table) { ptr= table->field; }
   void next() { ptr++; }
   bool end_of_fields() { return *ptr == 0; }

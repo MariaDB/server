@@ -4139,7 +4139,7 @@ partititon_err:
   /* Allocate bitmaps */
 
   bitmap_size= share->column_bitmap_size;
-  bitmap_count= 7;
+  bitmap_count= 8;
   if (share->virtual_fields)
     bitmap_count++;
 
@@ -4164,6 +4164,9 @@ partititon_err:
                  (my_bitmap_map*) bitmaps, share->fields, FALSE);
   bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->cond_set,
+                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+  bitmaps+= bitmap_size;
+  my_bitmap_init(&outparam->value_set,
                  (my_bitmap_map*) bitmaps, share->fields, FALSE);
   bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->def_rpl_write_set,
@@ -5609,7 +5612,7 @@ bool TABLE_LIST::setup_underlying(THD *thd)
 {
   DBUG_ENTER("TABLE_LIST::setup_underlying");
 
-  if (!view || (!field_translation && merge_underlying_list))
+  if (!field_translation && merge_underlying_list)
   {
     SELECT_LEX *select= get_single_select();
 
@@ -5722,141 +5725,163 @@ bool TABLE_LIST::prep_where(THD *thd, Item **conds,
   @return Result of the check.
 */
 
-bool TABLE_LIST::single_table_updatable()
+bool TABLE_LIST::single_table_updatable(THD *thd)
 {
-  if (!updatable)
+  if (!updatable ||
+      (is_derived() && !optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE)))
     return false;
-  if (view && view->first_select_lex()->table_list.elements == 1)
+  if (is_view_or_derived() &&
+      get_unit()->first_select()->table_list.elements == 1)
   {
     /*
       We need to check deeply only single table views. Multi-table views
       will be turned to multi-table updates and then checked by leaf tables
     */
-    return (((TABLE_LIST *)view->first_select_lex()->table_list.first)->
-            single_table_updatable());
+    TABLE_LIST *first= (TABLE_LIST *)get_unit()->first_select()->table_list.first;
+    bool res= first->single_table_updatable(thd);
+    return res;
   }
   return true;
 }
 
 
-/*
-  Merge ON expressions for a view
+/**
+  Return merged WHERE clause and join conditions for a view
 
-  SYNOPSIS
-    merge_on_conds()
-    thd             thread handle
-    table           table for the VIEW
-    is_cascaded     TRUE <=> merge ON expressions from underlying views
+  @param thd          thread handle
+  @param table        table for the VIEW
+  @param[out] pcond   Pointer to the built condition (NULL if none)
 
-  DESCRIPTION
-    This function returns the result of ANDing the ON expressions
-    of the given view and all underlying views. The ON expressions
-    of the underlying views are added only if is_cascaded is TRUE.
+  This function returns the result of ANDing the WHERE clause and the
+  join conditions of the given view.
 
-  RETURN
-    Pointer to the built expression if there is any.
-    Otherwise and in the case of a failure NULL is returned.
+  @returns  false for success, true for error
 */
 
-static Item *
-merge_on_conds(THD *thd, TABLE_LIST *table, bool is_cascaded)
+static bool merge_join_conditions(THD *thd, TABLE_LIST *table, Item **pcond)
 {
-  DBUG_ENTER("merge_on_conds");
-
-  Item *cond= NULL;
-  DBUG_PRINT("info", ("alias: %s", table->alias.str));
-  if (table->on_expr)
-    cond= table->on_expr->copy_andor_structure(thd);
-  if (!table->view)
-    DBUG_RETURN(cond);
-  for (TABLE_LIST *tbl=
-         (TABLE_LIST*)table->view->first_select_lex()->table_list.first;
-       tbl;
-       tbl= tbl->next_local)
+  DBUG_ENTER("merge_join_conditions");
+  *pcond = NULL;
+  DBUG_PRINT("info", ("alias: %s", table->alias));
+  if (table->where)
   {
-    if (tbl->view && !is_cascaded)
-      continue;
-    cond= and_conds(thd, cond, merge_on_conds(thd, tbl, is_cascaded));
+    if (!(*pcond = table->where->copy_andor_structure(thd)))
+      DBUG_RETURN(true); /* purecov: inspected */
   }
-  DBUG_RETURN(cond);
+  else if (table->on_expr)
+  {
+    if (!(*pcond = table->on_expr->copy_andor_structure(thd)))
+      DBUG_RETURN(true); /* purecov: inspected */
+  }
+  if (!table->nested_join && !table->is_merged_derived())
+    DBUG_RETURN(false);
+  List<TABLE_LIST> *join_list= table->is_merged_derived() ?
+                               table->get_unit()->first_select()->join_list :
+                               &table->nested_join->join_list;
+  List_iterator<TABLE_LIST> li(*join_list);
+  while (TABLE_LIST *tbl = li++)
+  {
+    if (tbl->is_view())
+      continue;
+    Item *cond;
+    if (merge_join_conditions(thd, tbl, &cond))
+      DBUG_RETURN(true); /* purecov: inspected */
+    if (cond && !(*pcond = and_conds(thd, *pcond, cond)))
+      DBUG_RETURN(true); /* purecov: inspected */
+  }
+  DBUG_RETURN(false);
 }
 
 
-/*
+/**
   Prepare check option expression of table
 
-  SYNOPSIS
-    TABLE_LIST::prep_check_option()
-    thd             - thread handler
-    check_opt_type  - WITH CHECK OPTION type (VIEW_CHECK_NONE,
-                      VIEW_CHECK_LOCAL, VIEW_CHECK_CASCADED)
-                      we use this parameter instead of direct check of
-                      effective_with_check to change type of underlying
-                      views to VIEW_CHECK_CASCADED if outer view have
-                      such option and prevent processing of underlying
-                      view check options if outer view have just
-                      VIEW_CHECK_LOCAL option.
+  @param thd            thread handler
+  @param is_cascaded     True if parent view requests that this view's
+  filtering condition be treated as WITH CASCADED CHECK OPTION; this is for
+  recursive calls; user code should omit this argument.
 
-  NOTE
-    This method builds check option condition to use it later on
-    every call (usual execution or every SP/PS call).
-    This method have to be called after WHERE preparation
-    (TABLE_LIST::prep_where)
+  @details
 
-  RETURN
-    FALSE - OK
-    TRUE  - error
+  This function builds check option condition for use in regular execution or
+  subsequent SP/PS executions.
+
+  This function must be called after the WHERE clause and join condition
+  of this and all underlying derived tables/views have been resolved.
+
+  The function will always call itself recursively for all underlying views
+  and base tables.
+
+  On first invocation, the check option condition is built bottom-up in
+  statement mem_root, and check_option_processed is set true.
+
+  On subsequent executions, check_option_processed is true and no
+  expression building is necessary. However, the function needs to assure that
+  the expression is resolved by calling fix_fields() on it.
+
+  @returns false if success, true if error
 */
 
 bool TABLE_LIST::prep_check_option(THD *thd, uint8 check_opt_type)
 {
   DBUG_ENTER("TABLE_LIST::prep_check_option");
-  bool is_cascaded= check_opt_type == VIEW_CHECK_CASCADED;
-  TABLE_LIST *merge_underlying_list= view->first_select_lex()->get_table_list();
-  for (TABLE_LIST *tbl= merge_underlying_list; tbl; tbl= tbl->next_local)
+  DBUG_ASSERT(is_view_or_derived());
+
+  /*
+    True if conditions of underlying views should be treated as WITH CASCADED
+    CHECK OPTION
+  */
+  for (TABLE_LIST *tbl = merge_underlying_list; tbl; tbl = tbl->next_local)
   {
-    /* see comment of check_opt_type parameter */
-    if (tbl->view && tbl->prep_check_option(thd, (is_cascaded ?
-                                                  VIEW_CHECK_CASCADED :
-                                                  VIEW_CHECK_NONE)))
-      DBUG_RETURN(TRUE);
+    if (!tbl->is_view_or_derived())
+      continue;
+    uint8 next_check_opt_type= tbl->with_check;
+    if (tbl->is_derived() || check_opt_type == VIEW_CHECK_CASCADED)
+      next_check_opt_type= check_opt_type;
+    if (tbl->is_view() &&
+        tbl->prep_check_option(thd, next_check_opt_type))
+      DBUG_RETURN(true); /* purecov: inspected */
   }
 
-  if (check_opt_type && !check_option_processed)
+  if (check_opt_type != VIEW_CHECK_NONE && !check_option_processed)
   {
     Query_arena *arena= thd->stmt_arena, backup;
     arena= thd->activate_stmt_arena_if_needed(&backup);  // For easier test
 
-    if (where)
+    if (merge_join_conditions(thd, this, &check_option))
+      DBUG_RETURN(true);
+
+    for (TABLE_LIST *tbl = merge_underlying_list; tbl; tbl = tbl->next_local)
     {
-      check_option= where->copy_andor_structure(thd);
+      if (tbl->check_option &&
+          !(check_option = and_conds(thd, check_option, tbl->check_option)))
+        DBUG_RETURN(true); /* purecov: inspected */
     }
-    if (is_cascaded)
+
+    if (check_option)
     {
-      for (TABLE_LIST *tbl= merge_underlying_list; tbl; tbl= tbl->next_local)
+      Item *clone= check_option->build_clone(thd);
+  //  DBUG_ASSERT(clone);
+      if (clone)
       {
-        if (tbl->check_option)
-          check_option= and_conds(thd, check_option, tbl->check_option);
+        check_option= clone;
+        check_option->cleanup();
       }
     }
-    check_option= and_conds(thd, check_option,
-                            merge_on_conds(thd, this, is_cascaded));
-
     if (arena)
       thd->restore_active_arena(arena, &backup);
-    check_option_processed= TRUE;
-
+    check_option_processed= true;
   }
 
-  if (check_option)
-  {
-    const char *save_where= thd->where;
-    thd->where= "check option";
+  if (check_option) {
+    const char *save_where = thd->where;
+    thd->where = "check option";
     if (check_option->fix_fields_if_needed_for_bool(thd, &check_option))
-      DBUG_RETURN(TRUE);
-    thd->where= save_where;
+      DBUG_RETURN(true); /* purecov: inspected */
+    thd->where = save_where;
   }
-  DBUG_RETURN(FALSE);
+
+  DBUG_RETURN(false);
 }
 
 
@@ -6470,6 +6495,8 @@ void TABLE_LIST::set_check_merged()
               !derived->first_select()->exclude_from_table_unique_test ||
               derived->outer_select()->
               exclude_from_table_unique_test);
+  if (is_derived())
+    grant.privilege= ALL_KNOWN_ACL;
 }
 #endif
 
@@ -6654,7 +6681,7 @@ LEX_CSTRING *Field_iterator_table::name()
 
 Item *Field_iterator_table::create_item(THD *thd)
 {
-  SELECT_LEX *select= thd->lex->current_select;
+  SELECT_LEX *select= table->select_lex;
 
   Item_field *item= new (thd->mem_root) Item_field(thd, &select->context, *ptr);
   DBUG_ASSERT(strlen(item->name.str) == item->name.length);
@@ -6715,9 +6742,14 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   {
     DBUG_RETURN(field);
   }
-  Name_resolution_context *context= (view->view ?
-                                     &view->view->first_select_lex()->context:
-                                     &thd->lex->first_select_lex()->context);
+  Name_resolution_context *context;
+  if (view->is_view())
+    context= &view->view->first_select_lex()->context;
+  else if (view->is_derived())
+    context= &view->derived->first_select()->context;
+  else
+    context= &thd->lex->first_select_lex()->context;
+
   Item *item= (new (thd->mem_root)
                Item_direct_view_ref(thd, context, field_ref, view->alias,
                                     *name, view));
@@ -6788,7 +6820,10 @@ void Field_iterator_table_ref::set_field_iterator()
                        table_ref->alias.str));
   }
   /* This is a merge view, so use field_translation. */
-  else if (table_ref->field_translation)
+  else if (table_ref->field_translation &&
+           !(table_ref->is_view_or_derived() &&
+             table_ref->select_lex->master_unit()->
+             thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE))
   {
     DBUG_ASSERT(table_ref->is_merged_derived());
     field_it= &view_field_it;
@@ -6798,7 +6833,7 @@ void Field_iterator_table_ref::set_field_iterator()
   /* This is a base table or stored view. */
   else
   {
-    DBUG_ASSERT(table_ref->table || table_ref->view);
+    DBUG_ASSERT(table_ref->table || table_ref->view || table_ref->is_merged_derived());
     field_it= &table_field_it;
     DBUG_PRINT("info", ("field_it for '%s' is Field_iterator_table",
                         table_ref->alias.str));
@@ -6841,7 +6876,11 @@ const char *Field_iterator_table_ref::get_table_name()
   if (table_ref->view)
     return table_ref->view_name.str;
   if (table_ref->is_derived())
+  {
+    if (table_ref->is_merged_derived())
+      return table_ref->alias.str;
     return table_ref->table->s->table_name.str;
+  }
   else if (table_ref->is_natural_join)
     return natural_join_it.column_ref()->safe_table_name();
 
@@ -6856,6 +6895,8 @@ const char *Field_iterator_table_ref::get_db_name()
 {
   if (table_ref->view)
     return table_ref->view_db.str;
+  if (table_ref->is_merged_derived())
+    return 0;
   else if (table_ref->is_natural_join)
     return natural_join_it.column_ref()->safe_db_name();
 
@@ -9180,13 +9221,14 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
     /* A subquery might be forced to be materialized due to a side-effect. */
     if (!is_materialized_derived() && first_select->is_mergeable() &&
         optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE) &&
-        !thd->lex->can_not_use_merged() &&
-        !(thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
-          thd->lex->sql_command == SQLCOM_DELETE_MULTI) &&
+        (!thd->lex->can_not_use_merged() || is_derived()) &&
         !is_recursive_with_table())
       set_merged_derived();
     else
+    {
+      merge_underlying_list= 0;
       set_materialized_derived();
+    }
   }
   /*
     Derived tables/view are materialized prior to UPDATE, thus we can skip
@@ -9196,7 +9238,34 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
   {
     set_check_materialized();
   }
+  else if ((is_derived()) &&
+           (updatable= unit->first_select()->is_mergeable()))
+  {
+    List_iterator<Item> it(first_select->item_list);
+    Item *item;
+    bool updatable_field= false;
+    while ((item= it++))
+    {
+      if (item->real_item()->type() == Item::FIELD_ITEM)
+        updatable_field= true;
+    }
+    bool underlying_updatable_table= false;
+      for (TABLE_LIST *tbl= unit->first_select()->table_list.first;
+         tbl; tbl= tbl->next_local)
+    {
+      if ((tbl->is_view() && !tbl->updatable_view) ||
+          (tbl->is_derived() && !tbl->updatable) ||
+          !tbl->updatable || tbl->schema_table)
+	continue;
+      underlying_updatable_table= true;
+      break;
+    }
+    updatable= underlying_updatable_table && updatable_field;
+  }
 
+  int rc= 0;
+  if (!thd->lex->can_use_merged())
+    merge_underlying_list= 0;
   /*
     Create field translation for mergeable derived tables/views.
     For derived tables field translation can be created only after
@@ -9207,10 +9276,10 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
     if (is_view() ||
         (unit->prepared &&
 	!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)))
-      create_field_translation(thd);
+      rc= create_field_translation(thd);
   }
 
-  return FALSE;
+  return MY_TEST(rc);
 }
 
 

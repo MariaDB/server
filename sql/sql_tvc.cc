@@ -730,7 +730,7 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
 
   wrapper_sl->where= 0;
   wrapper_sl->set_braces(false);
-  derived_unit->set_with_clause(0);
+  derived_unit->set_with_clause(lex, 0);
 
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -997,7 +997,7 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
 
   sq_select->where= 0;
   sq_select->set_braces(false);
-  derived_unit->set_with_clause(0);
+  derived_unit->set_with_clause(thd->lex, 0);
 
   /* Create IN subquery predicate */
   sq_select->parsing_place= parent_select->parsing_place;

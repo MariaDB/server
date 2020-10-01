@@ -382,10 +382,6 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
     DBUG_RETURN(FALSE);
   }
 
-  if (thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
-      thd->lex->sql_command == SQLCOM_DELETE_MULTI)
-    thd->save_prep_leaf_list= TRUE;
-
   arena= thd->activate_stmt_arena_if_needed(&backup);  // For easier test
 
   if (!derived->merged_for_insert || 
@@ -531,7 +527,7 @@ bool mysql_derived_merge_for_insert(THD *thd, LEX *lex, TABLE_LIST *derived)
                       derived->merged_for_insert,
                       derived->is_materialized_derived(),
                       derived->is_multitable(),
-                      derived->single_table_updatable(),
+                      derived->single_table_updatable(thd),
                       derived->merge_underlying_list != 0));
   if (derived->merged_for_insert)
     DBUG_RETURN(FALSE);
@@ -544,17 +540,32 @@ bool mysql_derived_merge_for_insert(THD *thd, LEX *lex, TABLE_LIST *derived)
     DBUG_RETURN(FALSE);
   if (!derived->is_multitable())
   {
-    if (!derived->single_table_updatable())
+    if (!derived->is_view() ||
+        !derived->single_table_updatable(thd) ||
+        derived->merge_underlying_list->is_derived())
       DBUG_RETURN(derived->create_field_translation(thd));
     if (derived->merge_underlying_list)
     {
       derived->table= derived->merge_underlying_list->table;
       derived->schema_table= derived->merge_underlying_list->schema_table;
       derived->merged_for_insert= TRUE;
-      DBUG_ASSERT(derived->table);
     }
   }
   DBUG_RETURN(FALSE);
+}
+
+
+void TABLE_LIST::propagate_properties_for_mergeable_derived()
+{
+  for (TABLE_LIST *tbl= derived->first_select()->table_list.first;
+       tbl;
+       tbl= tbl->next_local)
+  {
+    tbl->lock_type= lock_type;
+    if (!tbl->mdl_request.ticket)
+      tbl->mdl_request.set_type(mdl_request.type);
+    tbl->updating= updating;
+  }
 }
 
 
@@ -589,8 +600,6 @@ bool mysql_derived_init(THD *thd, LEX *lex, TABLE_LIST *derived)
     DBUG_RETURN(FALSE);
 
   bool res= derived->init_derived(thd, TRUE);
-
-  derived->updatable= derived->updatable && derived->is_view();
 
   DBUG_RETURN(res);
 }
@@ -754,6 +763,12 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
         break;
       }
     }
+    if (derived->is_recursive_with_table() &&
+        derived->is_with_table_recursive_reference())
+    {
+      derived->table->grant.privilege= SELECT_ACL;
+      derived->grant.privilege= SELECT_ACL;
+    }
     DBUG_RETURN(FALSE);
   }
 
@@ -827,8 +842,14 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     Depending on the result field translation will or will not
     be created.
   */
-  if (derived->init_derived(thd, FALSE))
-    goto exit;
+  if (derived->is_merged_derived())
+  {
+    if ((derived->is_view() ||
+         (derived->get_unit()->prepared &&
+          !(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW))) &&
+        derived->create_field_translation(thd))
+      goto exit;
+  }
 
   /*
     Temp table is created so that it hounours if UNION without ALL is to be 
@@ -920,8 +941,17 @@ exit:
     {
       DBUG_ASSERT(derived->is_derived());
       DBUG_ASSERT(derived->is_anonymous_derived_table());
-      table->grant.privilege= SELECT_ACL;
-      derived->grant.privilege= SELECT_ACL;
+      if (derived->is_materialized_derived())
+      {
+        table->grant.privilege= SELECT_ACL;
+        derived->grant.privilege= SELECT_ACL;
+      }
+      else
+      {
+        if (table->grant.privilege == NO_ACL)
+          table->grant.privilege= VIEW_ANY_ACL;
+        table->grant= derived->grant;
+      }
     }
 #endif
     /* Add new temporary table to list of open derived tables */

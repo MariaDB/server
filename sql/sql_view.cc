@@ -34,7 +34,7 @@
 #include "sp_cache.h"
 #include "datadict.h"   // dd_frm_is_view()
 #include "sql_derived.h"
-#include "sql_cte.h"    // check_dependencies_in_with_clauses()
+#include "sql_cte.h"    // check_cte_dependencies_and_resolve_references()
 #include "opt_trace.h"
 #include "wsrep_mysqld.h"
 
@@ -428,12 +428,6 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
   lex->link_first_table_back(view, link_to_local);
   view->open_type= OT_BASE_ONLY;
-
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
-  {
-    res= TRUE;
-    goto err_no_relink;
-  }
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
@@ -1104,6 +1098,7 @@ loop_out:
     goto err;   
   }
 
+#if 0
   /*
     Check that table of main select do not used in subqueries.
 
@@ -1123,6 +1118,7 @@ loop_out:
   {
     view->updatable_view= 0;
   }
+#endif
 
   if (view->with_check != VIEW_CHECK_NONE &&
       !view->updatable_view)
@@ -1416,9 +1412,6 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     TABLE_LIST *view_tables_tail= 0;
     TABLE_LIST *tbl;
     Security_context *security_ctx= 0;
-
-    if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
-      goto err;
 
     /*
       Check rights to run commands which show underlying tables.

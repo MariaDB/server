@@ -1183,7 +1183,7 @@ unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
 {
   TABLE_LIST *dup;
 
-  table= table->find_table_for_update();
+  table= table->find_table_for_update(thd);
 
   if (table->table &&
       table->table->file->ha_table_flags() & HA_CAN_MULTISTEP_MERGE)
@@ -3568,7 +3568,18 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
   if (tables->derived)
   {
     if (!tables->view)
+    {
+      if (!tables->is_derived())
+        tables->set_derived();
+      st_select_lex *sl= tables->derived->first_select();
+      if (sl->is_mergeable())
+      {
+	tables->merge_underlying_list= sl->table_list.first;
+        tables->propagate_properties_for_mergeable_derived();
+        tables->where= sl->where;
+      }
       goto end;
+    }
     /*
       We restore view's name and database wiped out by derived tables
       processing and fall back to standard open process in order to
@@ -3578,33 +3589,15 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
     tables->db= tables->view_db;
     tables->table_name= tables->view_name;
   }
-  else if (tables->select_lex) 
+  else if (tables->select_lex)
   {
-    /*
-      Check whether 'tables' refers to a table defined in a with clause.
-      If so set the reference to the definition in tables->with.
-    */ 
-    if (!tables->with)
-      tables->with= tables->select_lex->find_table_def_in_with_clauses(tables);
-    /*
-      If 'tables' is defined in a with clause set the pointer to the
-      specification from its definition in tables->derived.
-    */
     if (tables->with)
     {
-      if (tables->is_recursive_with_table() &&
-          !tables->is_with_table_recursive_reference())
-      {
-        tables->with->rec_outer_references++;
-        With_element *with_elem= tables->with;
-        while ((with_elem= with_elem->get_next_mutually_recursive()) !=
-               tables->with)
-	  with_elem->rec_outer_references++;
-      }
-      if (tables->set_as_with_table(thd, tables->with))
+      if (!(tables->derived= tables->with->clone_parsed_spec(thd->lex, tables)))
         DBUG_RETURN(1);
-      else
-        goto end;
+      tables->derived->first_select()->set_linkage(DERIVED_TABLE_TYPE);
+      tables->select_lex->add_statistics(tables->derived);
+      goto end;
     }
   }
 
@@ -5168,13 +5161,13 @@ bool open_and_lock_tables(THD *thd, const DDL_options_st &options,
   /* Don't read statistics tables when opening internal tables */
   if (!(flags & MYSQL_OPEN_IGNORE_LOGGING_FORMAT))
     (void) read_statistics_for_tables_if_needed(thd, tables);
-  
+
   if (derived)
   {
     if (mysql_handle_derived(thd->lex, DT_INIT))
       goto err;
     if (thd->prepare_derived_at_open &&
-        (mysql_handle_derived(thd->lex, DT_PREPARE)))
+      (mysql_handle_derived(thd->lex, DT_PREPARE)))
       goto err;
   }
 
@@ -6287,8 +6280,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
       when table_ref->field_translation != NULL.
       */
     if (table_ref->table && !table_ref->view &&
-        (!table_ref->is_merged_derived() ||
-         (!table_ref->is_multitable() && table_ref->merged_for_insert)))
+        !table_ref->is_merged_derived())
     {
 
       found= find_field_in_table(thd, table_ref->table, name, length,
@@ -8017,7 +8009,7 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
           (table->grant.privilege & SELECT_ACL)) ||
 	  ((!tables->is_non_derived() && 
 	    (tables->grant.privilege & SELECT_ACL)))) &&
-        !any_privileges)
+	 !any_privileges)
     {
       field_iterator.set(tables);
       if (check_grant_all_columns(thd, SELECT_ACL, &field_iterator))
@@ -8082,7 +8074,8 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         temporary table. Thus in this case we can be sure that 'item' is an
         Item_field.
       */
-      if (any_privileges && !tables->is_with_table() && !tables->is_derived())
+      if (any_privileges && !tables->is_with_table() && !tables->is_derived() &&
+          !thd->lex->can_use_merged())
       {
         DBUG_ASSERT((tables->field_translation == NULL && table) ||
                     tables->is_natural_join);
@@ -8304,7 +8297,7 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
 
   for (table= tables; table; table= table->next_local)
   {
-    if (select_lex == thd->lex->first_select_lex() &&
+    if (select_lex != thd->lex->first_select_lex() &&
         select_lex->first_cond_optimization &&
         table->merged_for_insert &&
         table->prepare_where(thd, conds, FALSE))

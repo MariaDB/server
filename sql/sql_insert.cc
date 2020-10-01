@@ -121,7 +121,8 @@ static int binlog_show_create_table(THD *thd, TABLE *table,
   @returns false if success.
 */
 
-static bool check_view_single_update(List<Item> &fields, List<Item> *values,
+static bool check_view_single_update(THD *thd,
+                                     List<Item> &fields, List<Item> *values,
                                      TABLE_LIST *view, table_map *map,
                                      bool insert)
 {
@@ -171,13 +172,17 @@ static bool check_view_single_update(List<Item> &fields, List<Item> *values,
   */
   tbl->table->insert_values= view->table->insert_values;
   view->table= tbl->table;
-  if (!tbl->single_table_updatable())
+  if (!tbl->single_table_updatable(thd))
   {
     if (insert)
       my_error(ER_NON_INSERTABLE_TABLE, MYF(0), view->alias.str, "INSERT");
     else
       my_error(ER_NON_UPDATABLE_TABLE, MYF(0), view->alias.str, "UPDATE");
     return TRUE;
+  }
+  else if (tbl->is_derived() && insert)
+  {
+    my_error(ER_NON_INSERTABLE_TABLE, MYF(0), view->alias.str, "INSERT");
   }
   *map= tables;
 
@@ -214,7 +219,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
   TABLE *table= table_list->table;
   DBUG_ENTER("check_insert_fields");
 
-  if (!table_list->single_table_updatable())
+  if (!table_list->single_table_updatable(thd))
   {
     my_error(ER_NON_INSERTABLE_TABLE, MYF(0), table_list->alias.str, "INSERT");
     DBUG_RETURN(-1);
@@ -286,7 +291,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
 
     if (table_list->is_view() && table_list->is_merged_derived())
     {
-      if (check_view_single_update(fields,
+      if (check_view_single_update(thd, fields,
                                    fields_and_values_from_different_maps ?
                                    (List<Item>*) 0 : &values,
                                    table_list, map, true))
@@ -392,7 +397,7 @@ static int check_update_fields(THD *thd, TABLE_LIST *insert_table_list,
 
   if (insert_table_list->is_view() &&
       insert_table_list->is_merged_derived() &&
-      check_view_single_update(update_fields,
+      check_view_single_update(thd, update_fields,
                                fields_and_values_from_different_maps ?
                                (List<Item>*) 0 : &update_values,
                                insert_table_list, map, false))
@@ -1462,7 +1467,7 @@ static bool mysql_prepare_insert_check_table(THD *thd, TABLE_LIST *table_list,
   bool insert_into_view= (table_list->view != 0);
   DBUG_ENTER("mysql_prepare_insert_check_table");
 
-  if (!table_list->single_table_updatable())
+  if (!table_list->single_table_updatable(thd) || table_list->is_derived())
   {
     my_error(ER_NON_INSERTABLE_TABLE, MYF(0), table_list->alias.str, "INSERT");
     DBUG_RETURN(TRUE);
@@ -1576,11 +1581,11 @@ bool mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
   DBUG_ASSERT (!select_insert || !values);
 
   if (mysql_handle_derived(thd->lex, DT_INIT))
-    DBUG_RETURN(TRUE); 
+    DBUG_RETURN(TRUE);
   if (table_list->handle_derived(thd->lex, DT_MERGE_FOR_INSERT))
-    DBUG_RETURN(TRUE); 
+    DBUG_RETURN(TRUE);
   if (thd->lex->handle_list_of_derived(table_list, DT_PREPARE))
-    DBUG_RETURN(TRUE); 
+    DBUG_RETURN(TRUE);
 
   if (duplic == DUP_UPDATE)
   {

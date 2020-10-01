@@ -56,11 +56,43 @@ bool With_clause::add_with_element(With_element *elem)
 }
 
 
-void  st_select_lex_unit::set_with_clause(With_clause *with_cl)
+void With_clause::move_tables_to_end(LEX *lex)
+{
+  if (tables_start_pos == tables_end_pos ||
+      tables_end_pos == lex->query_tables_last)
+    return;
+  TABLE_LIST *first_tbl= *tables_start_pos;
+  DBUG_ASSERT (first_tbl);
+  TABLE_LIST *next_tbl= *tables_end_pos;
+  DBUG_ASSERT(next_tbl);
+  /* Exclude the tables of the with clause from global list */
+  *(next_tbl->prev_global= tables_start_pos)= next_tbl;
+  /* Attach the tables of the with_clause to the very end of global list */
+  *(first_tbl->prev_global= lex->query_tables_last)= first_tbl;
+  *(lex->query_tables_last= tables_end_pos)= 0;
+  for (With_element *with_elem= with_list.first;
+       with_elem; with_elem= with_elem->next)
+  {
+    if (with_elem->head->tables_pos.start_pos != tables_start_pos)
+      break;
+    with_elem->head->tables_pos.set_start_pos(first_tbl->prev_global);
+    if (with_elem->head->tables_pos.end_pos != tables_start_pos)
+      break;
+    with_elem->head->tables_pos.set_end_pos(first_tbl->prev_global);
+  }
+  tables_start_pos= first_tbl->prev_global;
+  tables_end_pos= lex->query_tables_last;
+}
+
+
+void st_select_lex_unit::set_with_clause(LEX *lex, With_clause *with_cl)
 { 
   with_clause= with_cl;
   if (with_clause)
+  {
     with_clause->set_owner(this);
+    with_clause->move_tables_to_end(lex);
+  }
 }
 
 
@@ -84,7 +116,8 @@ void  st_select_lex_unit::set_with_clause(With_clause *with_cl)
     true    on failure
 */
 
-bool check_dependencies_in_with_clauses(With_clause *with_clauses_list)
+
+bool LEX::check_dependencies_in_with_clauses()
 {
   for (With_clause *with_clause= with_clauses_list;
        with_clause;
@@ -96,6 +129,216 @@ bool check_dependencies_in_with_clauses(With_clause *with_clauses_list)
       return true;
     with_clause->move_anchors_ahead();
   }
+  return false;
+}
+
+
+bool
+LEX::resolve_references_to_cte_in_hanging_cte(TABLE_LIST **start_ptr)
+{
+  for (With_clause *with_clause= with_clauses_list;
+       with_clause; with_clause= with_clause->next_with_clause)
+  {
+    for (With_element *with_elem= with_clause->with_list.first;
+         with_elem; with_elem= with_elem->next)
+    {
+      if (!with_elem->is_referenced())
+      {
+        TABLE_LIST *cte_last_ordered= 0;
+        TABLE_LIST *first_tbl=
+                     with_elem->spec->first_select()->table_list.first;
+        TABLE_LIST **with_elem_end_pos= with_elem->head->tables_pos.end_pos;
+        if (resolve_and_order_references_to_cte(first_tbl,
+                                                with_elem_end_pos,
+                                                &cte_last_ordered))
+          return true;
+        reorder_table_list(first_tbl, start_ptr);
+        start_ptr= &cte_last_ordered->next_global;
+      }
+    }
+  }
+  return false;
+}
+
+
+bool LEX::resolve_and_order_references_to_cte(TABLE_LIST *tables,
+                                              TABLE_LIST **tables_last,
+                                              TABLE_LIST **last_ordered)
+{
+  TABLE_LIST *with_elem_first_tbl= 0;
+  TABLE_LIST **with_elem_end_pos= 0;
+  With_element *with_elem= 0;
+  bool rc= false;
+  Query_arena backup;
+  Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
+
+  for (TABLE_LIST *tbl= tables;
+       tbl != *tables_last;
+       tbl= tbl->next_global)
+  {
+    if (tbl->next_ordered || tbl == *last_ordered)
+      continue;
+    if (!*last_ordered)
+      *last_ordered= tbl;
+    else
+      *last_ordered= (*last_ordered)->next_ordered= tbl;
+    if (!tbl->db.str && !tbl->with)
+      tbl->with= tbl->select_lex->find_table_def_in_with_clauses(tbl);
+    if (!tbl->with)
+    {
+      if (!tbl->db.str)
+      {
+        if (!thd->db.str)
+        {
+          my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
+          rc= true;
+          goto err;
+        }
+        if (copy_db_to(&tbl->db))
+	{
+          rc= true;
+          goto err;
+        }
+        if (!(tbl->table_options & TL_OPTION_ALIAS))
+          MDL_REQUEST_INIT(&tbl->mdl_request, MDL_key::TABLE, tbl->db.str,
+                           tbl->table_name.str, tbl->mdl_type, MDL_TRANSACTION);
+        if (tbl->is_mdl_request_type_to_be_set)
+	{
+          tbl->mdl_request.set_type((tbl->lock_type >= TL_WRITE_ALLOW_WRITE) ?
+                                     MDL_SHARED_WRITE : MDL_SHARED_READ);
+          tbl->is_mdl_request_type_to_be_set= false;
+        }
+      }
+      continue;
+    }
+    with_elem= tbl->with;
+    if (tbl->is_recursive_with_table() &&
+        !tbl->is_with_table_recursive_reference())
+    {
+      tbl->with->rec_outer_references++;
+      while ((with_elem= with_elem->get_next_mutually_recursive()) !=
+             tbl->with)
+	with_elem->rec_outer_references++;
+    }
+    if (!with_elem->is_used_in_query || with_elem->is_recursive)
+    {
+      tbl->derived= with_elem->spec;
+      if (tbl->derived != tbl->select_lex->master_unit() &&
+          !with_elem->is_recursive &&
+          !tbl->is_with_table_recursive_reference())
+      {
+        tbl->derived->move_as_slave(tbl->select_lex);
+      }
+      with_elem->is_used_in_query= true;
+    }
+    else
+      tbl->derived= 0;
+    tbl->db.str= empty_c_string;
+    tbl->db.length= 0;
+    tbl->schema_table= 0;
+    MDL_REQUEST_INIT(&tbl->mdl_request, MDL_key::TABLE, tbl->db.str,
+                     tbl->table_name.str, tbl->mdl_type, MDL_TRANSACTION);
+    if (tbl->is_mdl_request_type_to_be_set)
+    {
+      tbl->mdl_request.set_type((tbl->lock_type >= TL_WRITE_ALLOW_WRITE) ?
+                                 MDL_SHARED_WRITE : MDL_SHARED_READ);
+      tbl->is_mdl_request_type_to_be_set= false;
+    }
+    if (tbl->derived)
+    {
+      tbl->derived->first_select()->set_linkage(DERIVED_TABLE_TYPE);
+      tbl->select_lex->add_statistics(tbl->derived);
+    }
+    if (tbl->with->is_recursive && tbl->is_with_table_recursive_reference())
+      continue;
+    with_elem->inc_references();
+    if (tbl->derived)
+    {
+      with_elem_first_tbl= tbl->derived->first_select()->table_list.first;
+      with_elem_end_pos= with_elem->head->tables_pos.end_pos;
+      if (with_elem_first_tbl &&
+          resolve_and_order_references_to_cte(with_elem_first_tbl,
+                                              with_elem_end_pos,
+                                              last_ordered))
+      {
+        rc= true;
+        goto err;
+      }
+    }
+  }
+err:
+  if (arena)
+  thd->restore_active_arena(arena, &backup);
+  return rc;
+}
+
+
+void LEX::reorder_table_list(TABLE_LIST *tables, TABLE_LIST **start_ptr)
+{
+  TABLE_LIST *next_ordered= 0;
+  TABLE_LIST **last_chunk_next_ptr= start_ptr;
+  bool is_first_chunk= true;
+  for (TABLE_LIST *tbl= tables; tbl; tbl= next_ordered)
+  {
+    TABLE_LIST *chunk_first= tbl;
+    for (next_ordered= tbl->next_ordered;
+         next_ordered && next_ordered == tbl->next_global;
+         next_ordered= tbl->next_ordered)
+    {
+      tbl= next_ordered;
+    }
+    TABLE_LIST *chunk_last= tbl;
+    if (is_first_chunk && *last_chunk_next_ptr == chunk_first)
+    {
+      /* The first chunk is in place */
+    }
+    else
+    {
+      TABLE_LIST *next_tbl= tbl->next_global;
+
+      /* Exclude chunk_first..chunk_last from global list */
+      if (next_tbl)
+        *(next_tbl->prev_global= chunk_first->prev_global)= next_tbl;
+      else
+        *(query_tables_last= chunk_first->prev_global)= 0;
+
+      next_tbl= *last_chunk_next_ptr;
+      /*
+        Include chunk_first..chunk_last before next_tbl if it's not 0 and
+        at the end of the list otherwise
+      */
+      if (next_tbl)
+        *(next_tbl->prev_global= &chunk_last->next_global)= next_tbl;
+      else
+        *(query_tables_last= &chunk_last->next_global)= 0;
+      *(chunk_first->prev_global= last_chunk_next_ptr)= chunk_first;
+    }
+    last_chunk_next_ptr= &chunk_last->next_global;
+    is_first_chunk= false;
+  }
+}
+
+
+bool
+LEX::check_cte_dependencies_and_resolve_references()
+{
+  if (check_dependencies_in_with_clauses())
+    return true;
+  if (!with_cte_resolution)
+    return false;
+  TABLE_LIST *last_ordered= 0;
+  TABLE_LIST *first_tbl= query_tables;
+  if (resolve_and_order_references_to_cte(first_tbl,
+                                          query_tables_last,
+                                          &last_ordered))
+    return true;
+  reorder_table_list(first_tbl, &query_tables);
+  TABLE_LIST **start_ptr= last_ordered ? &last_ordered->next_global :
+                                         &query_tables;
+  if (*start_ptr &&
+      resolve_references_to_cte_in_hanging_cte(start_ptr))
+    return true;
+  all_cte_resolved= true;
   return false;
 }
 
@@ -138,10 +381,11 @@ bool With_clause::check_dependencies()
          elem != with_elem;
          elem= elem->next)
     {
-      if (lex_string_cmp(system_charset_info, with_elem->query_name,
-                         elem->query_name) == 0)
+      if (lex_string_cmp(system_charset_info, with_elem->get_name(),
+                         elem->get_name()) == 0)
       {
-	my_error(ER_DUP_QUERY_NAME, MYF(0), with_elem->query_name->str);
+	my_error(ER_DUP_QUERY_NAME, MYF(0),
+                 with_elem->get_name_str());
 	return true;
       }
     }
@@ -248,11 +492,12 @@ With_element *With_clause::find_table_def(TABLE_LIST *table,
        with_elem != barrier;
        with_elem= with_elem->next)
   {
-    if (my_strcasecmp(system_charset_info, with_elem->query_name->str,
+	if (my_strcasecmp(system_charset_info, with_elem->get_name_str(),
 		      table->table_name.str) == 0 &&
         !table->is_fqtn)
     {
       table->set_derived();
+      with_elem->referenced= true;
       return with_elem;
     }
   }
@@ -609,7 +854,7 @@ bool With_clause::check_anchors()
       if (elem == with_elem)
       {
         my_error(ER_RECURSIVE_WITHOUT_ANCHORS, MYF(0),
-        with_elem->query_name->str);
+                 with_elem->get_name_str());
         return true;
       }
     }
@@ -642,7 +887,7 @@ bool With_clause::check_anchors()
         if (elem->work_dep_map & elem->get_elem_map())
 	{
           my_error(ER_UNACCEPTABLE_MUTUAL_RECURSION, MYF(0),
-          with_elem->query_name->str);
+	           with_elem->get_name_str());
           return true;
 	}
       }
@@ -827,14 +1072,17 @@ bool With_element::set_unparsed_spec(THD *thd,
      NULL - otherwise
 */
 
-st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
+st_select_lex_unit *With_element::clone_parsed_spec(LEX *old_lex,
                                                     TABLE_LIST *with_table)
 {
+  THD *thd= old_lex->thd;
   LEX *lex;
   st_select_lex_unit *res= NULL; 
   Query_arena backup;
   Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
   bool has_tmp_tables;
+  uint i= 0;
+
 
   if (!(lex= (LEX*) new(thd->mem_root) st_lex_local))
   {
@@ -842,14 +1090,12 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
       thd->restore_active_arena(arena, &backup);
     return res;
   }
-  LEX *old_lex= thd->lex;
   thd->lex= lex;
 
   bool parse_status= false;
   Parser_state parser_state;
-  TABLE_LIST *spec_tables;
-  TABLE_LIST *spec_tables_tail;
   st_select_lex *with_select;
+  st_select_lex *end_sl;
 
   char save_end= unparsed_spec.str[unparsed_spec.length];
   ((char*) &unparsed_spec.str[unparsed_spec.length])[0]= '\0';
@@ -866,6 +1112,7 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
   lex->spname= old_lex->spname;
   lex->spcont= old_lex->spcont;
   lex->sp_chistics= old_lex->sp_chistics;
+  lex->with_cte_resolution= true;
 
   lex->stmt_lex= old_lex;
   parse_status= parse_sql(thd, &parser_state, 0);
@@ -875,48 +1122,63 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
   if (parse_status)
     goto err;
 
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
-    goto err;
-
-  spec_tables= lex->query_tables;
-  spec_tables_tail= 0;
-  has_tmp_tables= thd->has_temporary_tables();
-  for (TABLE_LIST *tbl= spec_tables;
-       tbl;
-       tbl= tbl->next_global)
+  if (lex->query_tables)
   {
-    if (has_tmp_tables && !tbl->derived && !tbl->schema_table &&
-        thd->open_temporary_table(tbl))
-      goto err;
-    spec_tables_tail= tbl;
-  }
-  if (check_table_access(thd, SELECT_ACL, spec_tables, FALSE, UINT_MAX, FALSE))
-    goto err;
-  if (spec_tables)
-  {
-    if (with_table->next_global)
+    head->tables_pos.set_start_pos(&with_table->next_global);
+    head->tables_pos.set_end_pos(lex->query_tables_last);
+    TABLE_LIST *next_tbl= with_table->next_global;
+    if (next_tbl)
     {
-      spec_tables_tail->next_global= with_table->next_global;
-      with_table->next_global->prev_global= &spec_tables_tail->next_global;
+      *(lex->query_tables->prev_global= next_tbl->prev_global)=
+        lex->query_tables;
+      *(next_tbl->prev_global= lex->query_tables_last)= next_tbl;
     }
     else
     {
-      old_lex->query_tables_last= &spec_tables_tail->next_global;
+      *(lex->query_tables->prev_global= old_lex->query_tables_last)=
+        lex->query_tables;
+      old_lex->query_tables_last= lex->query_tables_last;
     }
-    spec_tables->prev_global= &with_table->next_global;
-    with_table->next_global= spec_tables;
   }
+
   res= &lex->unit;
   
   lex->unit.include_down(with_table->select_lex);
-  lex->unit.set_slave(with_select); 
+  lex->unit.set_slave(with_select);
+  end_sl= lex->all_selects_list;
+  while (end_sl->next_select_in_list())
+    end_sl= end_sl->next_select_in_list();
   old_lex->all_selects_list=
     (st_select_lex*) (lex->all_selects_list->
 		      insert_chain_before(
 			(st_select_lex_node **) &(old_lex->all_selects_list),
-                        with_select));
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
+                        end_sl));
+  if (lex->check_cte_dependencies_and_resolve_references())
+  {
     res= NULL;
+    goto err;
+  }
+
+  has_tmp_tables= thd->has_temporary_tables();
+  for (TABLE_LIST *tbl= *head->tables_pos.start_pos;
+       tbl != *head->tables_pos.end_pos;
+       tbl= tbl->next_global, i++)
+  {
+    if (has_tmp_tables && !tbl->derived && !tbl->schema_table &&
+        thd->open_temporary_table(tbl))
+    {
+      res= NULL;
+      goto err;
+    }
+  }
+
+  if (i && check_table_access(thd, SELECT_ACL, *head->tables_pos.start_pos,
+                              FALSE, i, FALSE))
+  {
+    res= NULL;
+    goto err;
+  }
+
   lex->sphead= NULL;    // in order not to delete lex->sphead
   lex_end(lex);
 err:
@@ -1128,57 +1390,6 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
 }
 
 
-/**
-   @brief
-     Set the specifying unit in this reference to a with table  
-     
-  @details  
-    The method assumes that the given element with_elem defines the table T
-    this table reference refers to.
-    If this is the first reference to T the method just sets its specification
-    in the field 'derived' as the unit that yields T. Otherwise the method  
-    first creates a clone specification and sets rather this clone in this field.
- 
-  @retval
-    false   on success
-    true    on failure
-*/    
-
-bool TABLE_LIST::set_as_with_table(THD *thd, With_element *with_elem)
-{
-  if (table)
-  {
-    /*
-      This table was prematurely identified as a temporary table.
-      We correct it here, but it's not a nice solution in the case
-      when the temporary table with this name is not used anywhere
-      else in the query.
-    */
-    thd->mark_tmp_table_as_free_for_reuse(table);
-    table= 0;
-  }
-  with= with_elem;
-  schema_table= NULL;
-  if (!with_elem->is_referenced() || with_elem->is_recursive)
-  {
-    derived= with_elem->spec;
-    if (derived != select_lex->master_unit() &&
-        !with_elem->is_recursive &&
-        !is_with_table_recursive_reference())
-    {
-       derived->move_as_slave(select_lex);
-    }
-  }
-  else 
-  {
-    if(!(derived= with_elem->clone_parsed_spec(thd, this)))
-      return true;
-  }
-  derived->first_select()->set_linkage(DERIVED_TABLE_TYPE);
-  select_lex->add_statistics(derived);
-  with_elem->inc_references();
-  return false;
-}
 
 
 bool TABLE_LIST::is_recursive_with_table()
@@ -1280,7 +1491,7 @@ bool st_select_lex::check_unrestricted_recursive(bool only_standard_compliant)
   if (only_standard_compliant && with_elem->is_unrestricted())
   {
     my_error(ER_NOT_STANDARD_COMPLIANT_RECURSIVE,
-	     MYF(0), with_elem->query_name->str);
+             MYF(0), with_elem->get_name_str());
     return true;
   }
 
@@ -1497,7 +1708,8 @@ static void list_strlex_print(THD *thd, String *str, List<Lex_ident_sys> *list)
 
 void With_element::print(THD *thd, String *str, enum_query_type query_type)
 {
-  str->append(query_name);
+  str->append(get_name());
+
   if (column_list.elements)
   {
     List_iterator_fast<Lex_ident_sys> li(column_list);

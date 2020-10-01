@@ -3366,6 +3366,7 @@ mysql_execute_command(THD *thd)
     already.
   */
   DBUG_ASSERT(! thd->transaction_rollback_request || thd->in_sub_stmt);
+
   /*
     In many cases first table of main SELECT_LEX have special meaning =>
     check that it is first table in global list and relink it first in 
@@ -3410,9 +3411,6 @@ mysql_execute_command(THD *thd)
     if (all_tables)
       thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
   }
-
-  if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
-    DBUG_RETURN(1);
 
 #ifdef HAVE_REPLICATION
   if (unlikely(thd->slave_thread))
@@ -6903,7 +6901,7 @@ bool check_one_table_access(THD *thd, privilege_t privilege,
                             UINT_MAX, FALSE)))
       return 1;
   }
-  return 0;
+ return 0;
 }
 
 
@@ -8183,7 +8181,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     ptr->is_fqtn= TRUE;
     ptr->db= table->db;
   }
-  else if (lex->copy_db_to(&ptr->db))
+  else if (!lex->with_cte_resolution && lex->copy_db_to(&ptr->db))
     DBUG_RETURN(0);
   else
     ptr->is_fqtn= FALSE;
@@ -8200,7 +8198,9 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   }
       
   ptr->table_name= table->table;
-  ptr->lock_type=   lock_type;
+  ptr->lock_type= lock_type;
+  ptr->mdl_type= mdl_type;
+  ptr->table_options= table_options;
   ptr->updating=    MY_TEST(table_options & TL_OPTION_UPDATING);
   /* TODO: remove TL_OPTION_FORCE_INDEX as it looks like it's not used */
   ptr->force_index= MY_TEST(table_options & TL_OPTION_FORCE_INDEX);
@@ -8871,8 +8871,11 @@ void st_select_lex::set_lock_for_tables(thr_lock_type lock_type, bool for_update
   {
     tables->lock_type= lock_type;
     tables->updating=  for_update;
-    tables->mdl_request.set_type((lock_type >= TL_WRITE_ALLOW_WRITE) ?
-                                 MDL_SHARED_WRITE : MDL_SHARED_READ);
+    if (!tables->db.str)
+      tables->is_mdl_request_type_to_be_set= true;
+    else
+      tables->mdl_request.set_type((lock_type >= TL_WRITE_ALLOW_WRITE) ?
+                                   MDL_SHARED_WRITE : MDL_SHARED_READ);
   }
   DBUG_VOID_RETURN;
 }

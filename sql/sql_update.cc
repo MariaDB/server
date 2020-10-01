@@ -401,9 +401,17 @@ int mysql_update(THD *thd,
   if (open_tables(thd, &table_list, &table_count, 0))
     DBUG_RETURN(1);
 
-  /* Prepare views so they are handled correctly */
-  if (mysql_handle_derived(thd->lex, DT_INIT))
+  for (TABLE_LIST *tbl= thd->lex->query_tables; tbl; tbl= tbl->next_global)
+  {
+    if (tbl->handle_derived(thd->lex, DT_INIT))
+      DBUG_RETURN(1);
+  }
+
+  if (!table_list->is_multitable() && !table_list->single_table_updatable(thd))
+  {
+    my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "UPDATE");
     DBUG_RETURN(1);
+  }
 
   if (table_list->has_period() && table_list->is_view_or_derived())
   {
@@ -411,9 +419,13 @@ int mysql_update(THD *thd,
     DBUG_RETURN(TRUE);
   }
 
-  if (((update_source_table=unique_table(thd, table_list,
-                                        table_list->next_global, 0)) ||
-        table_list->is_multitable()))
+  table_list->single_table_update= table_list->single_table_updatable(thd);
+
+  if ((update_source_table= unique_table(thd, table_list,
+                                         table_list->next_global, 0)) ||
+        table_list->is_multitable() ||
+        (table_list->single_table_update &&
+         (update_source_table= table_list->find_table_for_update(thd))))
   {
     DBUG_ASSERT(update_source_table || table_list->view != 0);
     DBUG_PRINT("info", ("Switch to multi-update"));
@@ -435,7 +447,7 @@ int mysql_update(THD *thd,
 
   table= table_list->table;
 
-  if (!table_list->single_table_updatable())
+  if (!table_list->single_table_updatable(thd))
   {
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "UPDATE");
     DBUG_RETURN(1);
@@ -1402,7 +1414,7 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
     We do not call DT_MERGE_FOR_INSERT because it has no sense for simple
     (not multi-) update
   */
-  if (mysql_handle_derived(thd->lex, DT_PREPARE))
+  if (table_list->handle_derived(thd->lex, DT_PREPARE))
     DBUG_RETURN(TRUE);
 
   if (setup_tables_and_check_access(thd, &select_lex->context, 
@@ -1680,10 +1692,16 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
 
   done= true;
 
-  if (mysql_handle_derived(lex, DT_INIT) ||
-      mysql_handle_derived(lex, DT_MERGE_FOR_INSERT) ||
-      mysql_handle_derived(lex, DT_PREPARE))
+  if (!table_list->single_table_update &&
+      select_lex->handle_derived(lex, DT_INIT))
     DBUG_RETURN(1);
+   lex->skip_access_check= true;
+   if (select_lex->handle_derived(lex, DT_PREPARE))
+   {
+     lex->skip_access_check= false;
+     DBUG_RETURN(1);
+   }
+   lex->skip_access_check= false;
 
   /*
     setup_tables() need for VIEWs. JOIN::prepare() will call setup_tables()
@@ -1691,12 +1709,8 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
     call in setup_tables()).
   */
 
-  if (setup_tables_and_check_access(thd, &select_lex->context,
-        &select_lex->top_join_list, table_list, select_lex->leaf_tables,
-        FALSE, UPDATE_ACL, SELECT_ACL, FALSE))
-    DBUG_RETURN(1);
-
-  if (select_lex->handle_derived(thd->lex, DT_MERGE))
+  if (setup_tables(thd, &select_lex->context, &select_lex->top_join_list,
+                   table_list, select_lex->leaf_tables, FALSE, TRUE))
     DBUG_RETURN(1);
 
   List<Item> *fields= &lex->first_select_lex()->item_list;
@@ -1706,7 +1720,7 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
 
   // Check if we have a view in the list ...
   for (tl= table_list; tl ; tl= tl->next_local)
-    if (tl->view)
+    if (tl->view || tl->is_merged_derived())
       break;
   // ... and pass this knowlage in check_fields call
   if (check_fields(thd, table_list, *fields, tl != NULL ))
@@ -1732,7 +1746,7 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
     /* if table will be updated then check that it is unique */
     if (table->map & tables_for_update)
     {
-      if (!tl->single_table_updatable() || check_key_in_view(thd, tl))
+      if (!tl->single_table_updatable(thd) || check_key_in_view(thd, tl))
       {
         my_error(ER_NON_UPDATABLE_TABLE, MYF(0),
                  tl->top_table()->alias.str, "UPDATE");
@@ -1790,6 +1804,7 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
       DBUG_RETURN(TRUE);
   }
 
+#if 0
   /* check single table update for view compound from several tables */
   for (tl= table_list; tl; tl= tl->next_local)
   {
@@ -1803,6 +1818,7 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
       DBUG_RETURN(1);
     }
   }
+#endif
 
   DBUG_RETURN(0);
 }
@@ -1887,9 +1903,6 @@ int mysql_multi_update_prepare(THD *thd)
   */
   lex->first_select_lex()->exclude_from_table_unique_test= FALSE;
 
-  if (lex->save_prep_leaf_tables())
-    DBUG_RETURN(TRUE);
- 
   DBUG_RETURN (FALSE);
 }
 
@@ -1914,11 +1927,19 @@ bool mysql_multi_update(THD *thd, TABLE_LIST *table_list, List<Item> *fields,
     DBUG_RETURN(TRUE);
   }
 
+  if ((*result)->init(thd))
+    DBUG_RETURN(1);
+
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
   List<Item> total_list;
 
+  if (setup_tables(thd, &select_lex->context, &select_lex->top_join_list,
+                   table_list, select_lex->leaf_tables, FALSE, FALSE))
+    DBUG_RETURN(1);
+
   if (select_lex->vers_setup_conds(thd, table_list))
     DBUG_RETURN(1);
+
 
   res= mysql_select(thd,
                     table_list, total_list, conds,
@@ -1957,6 +1978,20 @@ multi_update::multi_update(THD *thd_arg, TABLE_LIST *table_list,
 {
 }
 
+bool multi_update::init(THD *thd)
+{
+  table_map tables_to_update= get_table_map(fields);
+  List_iterator_fast<TABLE_LIST> li(*leaves);
+  TABLE_LIST *tbl;
+  while ((tbl =li++))
+  {
+    if (!(tbl->table->map & tables_to_update))
+      continue;
+    if (updated_leaves.push_back(tbl, thd->mem_root))
+      return true;
+  }
+  return false;
+}
 
 /*
   Connect fields with tables and create list of tables that are updated
@@ -1974,7 +2009,7 @@ int multi_update::prepare(List<Item> &not_used_values,
   List_iterator_fast<Item> value_it(*values);
   uint i, max_fields;
   uint leaf_table_count= 0;
-  List_iterator<TABLE_LIST> ti(*leaves);
+  List_iterator<TABLE_LIST> ti(updated_leaves);
   DBUG_ENTER("multi_update::prepare");
 
   if (prepared)
@@ -2000,16 +2035,10 @@ int multi_update::prepare(List<Item> &not_used_values,
   */
   while ((table_ref= ti++))
   {
-    if (table_ref->is_jtbm())
-      continue;
-
     TABLE *table= table_ref->table;
-    if (tables_to_update & table->map)
-    {
-      DBUG_ASSERT(table->read_set == &table->def_read_set);
-      table->read_set= &table->tmp_set;
-      bitmap_clear_all(table->read_set);
-    }
+    DBUG_ASSERT(table->read_set == &table->def_read_set);
+    table->read_set= &table->value_set;
+    bitmap_clear_all(table->read_set);
   }
 
   /*
@@ -2023,16 +2052,10 @@ int multi_update::prepare(List<Item> &not_used_values,
   ti.rewind();
   while ((table_ref= ti++))
   {
-    if (table_ref->is_jtbm())
-      continue;
-
     TABLE *table= table_ref->table;
-    if (tables_to_update & table->map)
-    {
-      table->read_set= &table->def_read_set;
-      bitmap_union(table->read_set, &table->tmp_set);
-      table->file->prepare_for_insert(1);
-    }
+    table->read_set= &table->def_read_set;
+    bitmap_union(table->read_set, &table->value_set);
+    table->file->prepare_for_insert(1);
   }
   if (unlikely(error))
     DBUG_RETURN(1);    
@@ -2047,25 +2070,26 @@ int multi_update::prepare(List<Item> &not_used_values,
   ti.rewind();
   while ((table_ref= ti++))
   {
-    /* TODO: add support of view of join support */
+    TABLE *table=table_ref->table;
+    TABLE_LIST *tl= (TABLE_LIST*) thd->memdup(table_ref,
+					      sizeof(*tl));
+    if (!tl)
+      DBUG_RETURN(1);
+    update.link_in_list(tl, &tl->next_local);
+    tl->shared= table_count++;
+    table->no_keyread=1;
+    table->covering_keys.clear_all();
+    table->pos_in_table_list= tl;
+    table->prepare_triggers_for_update_stmt_or_event();
+    table->reset_default_fields();
+  }
+
+  List_iterator_fast<TABLE_LIST> li(*leaves);
+  while ((table_ref= li++))
+  {
     if (table_ref->is_jtbm())
       continue;
-    TABLE *table=table_ref->table;
     leaf_table_count++;
-    if (tables_to_update & table->map)
-    {
-      TABLE_LIST *tl= (TABLE_LIST*) thd->memdup(table_ref,
-						sizeof(*tl));
-      if (!tl)
-	DBUG_RETURN(1);
-      update.link_in_list(tl, &tl->next_local);
-      tl->shared= table_count++;
-      table->no_keyread=1;
-      table->covering_keys.clear_all();
-      table->pos_in_table_list= tl;
-      table->prepare_triggers_for_update_stmt_or_event();
-      table->reset_default_fields();
-    }
   }
 
   table_count=  update.elements;
@@ -2126,7 +2150,7 @@ void multi_update::update_used_tables()
   }
 }
 
-void multi_update::prepare_to_read_rows()
+void multi_update::prepare_to_read_rows(THD *thd)
 {
   /*
     update column maps now. it cannot be done in ::prepare() before the
@@ -2196,7 +2220,7 @@ static bool safe_update_on_fly(THD *thd, JOIN_TAB *join_tab,
   case JT_REF_OR_NULL:
     return !is_key_used(table, join_tab->ref.key, table->write_set);
   case JT_ALL:
-    if (bitmap_is_overlapping(&table->tmp_set, table->write_set))
+    if (bitmap_is_overlapping(&table->value_set, table->write_set))
       return FALSE;
     /* If range search on index */
     if (join_tab->quick)
@@ -2227,6 +2251,7 @@ bool
 multi_update::initialize_tables(JOIN *join)
 {
   TABLE_LIST *table_ref;
+  table_map all_tables_to_update= get_table_map(fields);
   DBUG_ENTER("initialize_tables");
 
   if (unlikely((thd->variables.option_bits & OPTION_SAFE_UPDATES) &&
@@ -2249,6 +2274,8 @@ multi_update::initialize_tables(JOIN *join)
   for (table_ref= update_tables; table_ref; table_ref= table_ref->next_local)
   {
     TABLE *table=table_ref->table;
+    if (!(table->map & all_tables_to_update))
+      continue;
     uint cnt= table_ref->shared;
     List<Item> temp_fields;
     ORDER     group;
@@ -2459,11 +2486,14 @@ multi_update::~multi_update()
 int multi_update::send_data(List<Item> &not_used_values)
 {
   TABLE_LIST *cur_table;
+  table_map all_tables_to_update= get_table_map(fields);
   DBUG_ENTER("multi_update::send_data");
 
   for (cur_table= update_tables; cur_table; cur_table= cur_table->next_local)
   {
     TABLE *table= cur_table->table;
+    if (!(table->map & all_tables_to_update))
+      continue;
     uint offset= cur_table->shared;
     /*
       Check if we are using outer join and we didn't find the row
@@ -2682,6 +2712,7 @@ void multi_update::abort_result_set()
 int multi_update::do_updates()
 {
   TABLE_LIST *cur_table;
+  table_map all_tables_to_update= get_table_map(fields);
   int local_error= 0;
   ha_rows org_updated;
   TABLE *table, *tmp_table, *err_table;
@@ -2710,8 +2741,12 @@ int multi_update::do_updates()
     uint offset= cur_table->shared;
 
     table = cur_table->table;
+    if (!(table->map & all_tables_to_update))
+      continue;
     if (table == table_to_update)
+    {
       continue;					// Already updated
+    }
     org_updated= updated;
     tmp_table= tmp_tables[cur_table->shared];
     tmp_table->file->extra(HA_EXTRA_CACHE);	// Change to read cache

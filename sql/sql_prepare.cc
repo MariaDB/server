@@ -1392,7 +1392,7 @@ static int mysql_test_update(Prepared_statement *stmt,
   if (table_list->handle_derived(thd->lex, DT_PREPARE))
     goto error;
 
-  if (!table_list->single_table_updatable())
+  if (!table_list->single_table_updatable(thd))
   {
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "UPDATE");
     goto error;
@@ -1470,7 +1470,7 @@ static bool mysql_test_delete(Prepared_statement *stmt,
   if (mysql_handle_derived(thd->lex, DT_PREPARE))
     goto error;
 
-  if (!table_list->single_table_updatable())
+  if (!table_list->single_table_updatable(thd))
   {
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "DELETE");
     goto error;
@@ -2302,9 +2302,6 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   /* Reset warning count for each query that uses tables */
   if (tables)
     thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
-
-  if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
-    goto error;
 
   if (sql_command_flags[sql_command] & CF_HA_CLOSE)
     mysql_ha_rm_tables(thd, tables);

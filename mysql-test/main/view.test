@@ -1020,6 +1020,7 @@ insert into v3 values (1);
 insert into v2 values (0);
 -- error ER_VIEW_CHECK_FAILED
 insert into v3 values (0);
+-- error ER_VIEW_CHECK_FAILED
 insert into v2 values (2);
 -- error ER_VIEW_CHECK_FAILED
 insert into v3 values (2);
@@ -1734,7 +1735,7 @@ create table t1 (f59 int, f60 int, f61 int);
 insert into t1 values (19,41,32);
 create view v1 as select f59, f60 from t1 where f59 in
          (select f59 from t1);
--- error ER_NON_UPDATABLE_TABLE
+# -- error ER_NON_UPDATABLE_TABLE
 update v1 set f60=2345;
 drop view v1;
 drop table t1;
@@ -6192,7 +6193,7 @@ CREATE VIEW v1 AS SELECT * FROM (SELECT s1 FROM (SELECT s1 FROM t1 WHERE s1
 
 --error ER_NON_INSERTABLE_TABLE
 insert into v1 values (-300);
---error ER_NON_UPDATABLE_TABLE
+# --error ER_NON_UPDATABLE_TABLE
 update v1 set s1=s1+1;
 
 drop view v1;
@@ -6207,7 +6208,7 @@ select * from v1;
 select * from t1;
 --error ER_NON_INSERTABLE_TABLE
 insert into v1(s2) values (-300);
---error ER_NON_UPDATABLE_TABLE
+# --error ER_NON_UPDATABLE_TABLE
 update v1 set s2=s2+1;
 
 drop view v1;
@@ -6217,7 +6218,7 @@ CREATE VIEW v1 AS SELECT * FROM (SELECT s1 FROM t1 WHERE s1
 
 --error ER_NON_INSERTABLE_TABLE
 insert into v1 values (-300);
---error ER_NON_UPDATABLE_TABLE
+# --error ER_NON_UPDATABLE_TABLE
 update v1 set s1=s1+1;
 
 drop view v1;
@@ -6225,16 +6226,16 @@ drop view v1;
 CREATE VIEW v1 AS SELECT * FROM (SELECT s1 FROM (SELECT s1 FROM t1 WHERE s1
 < 100) as xx WHERE s1>1) AS x;
 
---error ER_NON_INSERTABLE_TABLE
-insert into v1 values (-300);
---error ER_NON_UPDATABLE_TABLE
+# --error ER_NON_INSERTABLE_TABLE
+# insert into v1 values (-300);
+# --error ER_NON_UPDATABLE_TABLE
 update v1 set s1=s1+1;
 
 create view v2 as select * from v1;
 
---error ER_NON_INSERTABLE_TABLE
-insert into v2 values (-300);
---error ER_NON_UPDATABLE_TABLE
+# --error ER_NON_INSERTABLE_TABLE
+# insert into v2 values (-300);
+# --error ER_NON_UPDATABLE_TABLE
 update v2 set s1=s1+1;
 
 drop view v1, v2;

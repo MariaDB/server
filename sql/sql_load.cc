@@ -403,7 +403,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
                                     INSERT_ACL | UPDATE_ACL, FALSE))
      DBUG_RETURN(-1);
   if (!table_list->table ||               // do not suport join view
-      !table_list->single_table_updatable() || // and derived tables
+      !table_list->single_table_updatable(thd) || // and derived tables
       check_key_in_view(thd, table_list))
   {
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias.str, "LOAD");

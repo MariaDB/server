@@ -1227,6 +1227,7 @@ void LEX::start(THD *thd_arg)
   curr_with_clause= 0;
   with_clauses_list= 0;
   with_clauses_list_last_next= &with_clauses_list;
+  all_cte_resolved= 0;
   clone_spec_offset= 0;
   create_view= NULL;
   field_list.empty();
@@ -1249,6 +1250,7 @@ void LEX::start(THD *thd_arg)
   explain_json= false;
   context_analysis_only= 0;
   derived_tables= 0;
+  with_cte_resolution= false;
   safe_to_cache_query= 1;
   parsing_options.reset();
   empty_field_list_on_rset= 0;
@@ -1267,6 +1269,7 @@ void LEX::start(THD *thd_arg)
   selects_allow_into= FALSE;
   selects_allow_procedure= FALSE;
   use_only_table_context= FALSE;
+  skip_access_check= false;
   parse_vcol_expr= FALSE;
   check_exists= FALSE;
   create_info.lex_start();
@@ -8859,6 +8862,8 @@ bool LEX::check_main_unit_semantics()
   if (unit.set_nest_level(0) ||
       unit.check_parameters(first_select_lex()))
     return TRUE;
+  if (check_cte_dependencies_and_resolve_references())
+    return TRUE;
   return FALSE;
 }
 
@@ -9551,8 +9556,13 @@ void st_select_lex::add_statistics(SELECT_LEX_UNIT *unit)
 bool LEX::main_select_push()
 {
   DBUG_ENTER("LEX::main_select_push");
+#if 0
   current_select_number= 1;
   builtin_select.select_number= 1;
+#else
+  current_select_number= ++thd->lex->stmt_lex->current_select_number;
+  builtin_select.select_number= current_select_number;
+#endif
   if (push_select(&builtin_select))
     DBUG_RETURN(TRUE);
   DBUG_RETURN(FALSE);
@@ -9648,7 +9658,7 @@ bool LEX::insert_select_hack(SELECT_LEX *sel)
     builtin_select.link_prev= NULL; // indicator of removal
   }
 
-  if (set_main_unit(sel->master_unit()))
+  if (set_main_unit(this, sel->master_unit()))
     return true;
 
   DBUG_ASSERT(builtin_select.table_list.elements == 1);
@@ -10046,7 +10056,7 @@ TABLE_LIST *LEX::parsed_derived_table(SELECT_LEX_UNIT *unit,
 bool LEX::parsed_create_view(SELECT_LEX_UNIT *unit, int check)
 {
   SQL_I_List<TABLE_LIST> *save= &first_select_lex()->table_list;
-  if (set_main_unit(unit))
+  if (set_main_unit(this, unit))
     return true;
   if (check_main_unit_semantics())
     return true;
@@ -10070,7 +10080,7 @@ bool LEX::select_finalize(st_select_lex_unit *expr)
   sql_command= SQLCOM_SELECT;
   selects_allow_into= TRUE;
   selects_allow_procedure= TRUE;
-  if (set_main_unit(expr))
+  if (set_main_unit(this, expr))
     return true;
   return check_main_unit_semantics();
 }
@@ -10377,7 +10387,7 @@ void st_select_lex::pushdown_cond_into_where_clause(THD *thd, Item *cond,
     above are marked with NO_EXTRACTION_FL.
 
   @note
-    This method is called for pushdown into materialized
+    This mesthod is called for pushdown into materialized
     derived tables/views/IN subqueries optimization.
 */
 

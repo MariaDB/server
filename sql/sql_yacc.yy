@@ -268,6 +268,8 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   class sp_head *sphead;
   class sp_name *spname;
   class sp_variable *spvar;
+/*  class Query_name *query_name; */
+  class With_element_head *with_element_head;
   class With_clause *with_clause;
   class Virtual_column_info *virtual_column;
 
@@ -1747,9 +1749,11 @@ End SQL_MODE_ORACLE_SPECIFIC */
         '-' '+' '*' '/' '%' '(' ')'
         ',' '!' '{' '}' '&' '|'
 
-%type <with_clause> with_clause
+%type <with_clause> with_clause opt_with_clause
 
-%type <lex_str_ptr> query_name
+/* %type <query_name> query_name*/
+/* %type <lex_str_ptr> query_name */
+%type <with_element_head> with_element_head
 
 %type <ident_sys_list>
         comma_separated_ident_list
@@ -3741,6 +3745,8 @@ expr_lex:
             $$= $<expr_lex>1;
             $$->sp_lex_in_use= true;
             $$->set_item($2);
+            if ($$->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
             if ($$->sphead->restore_lex(thd))
               MYSQL_YYABORT;
           }
@@ -4628,7 +4634,7 @@ create_select_query_expression:
         | LEFT_PAREN_WITH with_clause query_expression_no_with_clause ')'
           {
             SELECT_LEX *first_select= $3->first_select();
-            $3->set_with_clause($2);
+            $3->set_with_clause(Lex, $2);
             $2->attach_to(first_select);
             if (Lex->parsed_insert_select(first_select))
               MYSQL_YYABORT;
@@ -8524,7 +8530,7 @@ select:
           opt_procedure_or_into
           {
             Lex->pop_select();
-            $1->set_with_clause(NULL);
+            $1->set_with_clause(Lex, NULL);
             if (Lex->select_finalize($1, $3))
               MYSQL_YYABORT;
           }
@@ -8538,7 +8544,7 @@ select:
           opt_procedure_or_into
           {
             Lex->pop_select();
-            $2->set_with_clause($1);
+            $2->set_with_clause(Lex, $1);
             $1->attach_to($2->first_select());
             if (Lex->select_finalize($2, $4))
               MYSQL_YYABORT;
@@ -8574,7 +8580,7 @@ select_into:
               MYSQL_YYABORT;
             if ($4)
               unit= Lex->add_tail_to_query_expression_body(unit, $4);
-            unit->set_with_clause($1);
+            unit->set_with_clause(Lex, $1);
             $1->attach_to($2);
             if (Lex->select_finalize(unit))
               MYSQL_YYABORT;
@@ -8698,13 +8704,13 @@ select_into_query_specification:
 query_expression:
           query_expression_no_with_clause
           {
-            $1->set_with_clause(NULL);
+            $1->set_with_clause(Lex, NULL);
             $$= $1;
           }
         | with_clause
           query_expression_no_with_clause
           {
-            $2->set_with_clause($1);
+            $2->set_with_clause(Lex, $1);
             $1->attach_to($2->first_select());
             $$= $2;
           }
@@ -8883,7 +8889,7 @@ subquery:
           }
         | '(' with_clause query_expression_no_with_clause ')'
           {
-            $3->set_with_clause($2);
+            $3->set_with_clause(Lex, $2);
             $2->attach_to($3->first_select());
             if (!($$= Lex->parsed_subselect($3)))
               YYABORT;
@@ -13094,7 +13100,7 @@ update_table_list:
 /* Update rows in a table */
 
 update:
-          UPDATE_SYM
+          opt_with_clause UPDATE_SYM
           {
             LEX *lex= Lex;
             if (Lex->main_select_push())
@@ -13109,24 +13115,23 @@ update:
             SELECT_LEX *slex= Lex->first_select_lex();
             if (slex->table_list.elements > 1)
               Lex->sql_command= SQLCOM_UPDATE_MULTI;
-            else if (slex->get_table_list()->derived)
-            {
-              /* it is single table update and it is update of derived table */
-              my_error(ER_NON_UPDATABLE_TABLE, MYF(0),
-                       slex->get_table_list()->alias.str, "UPDATE");
-              MYSQL_YYABORT;
-            }
             /*
               In case of multi-update setting write lock for all tables may
               be too pessimistic. We will decrease lock level if possible in
               mysql_multi_update().
             */
-            slex->set_lock_for_tables($3, slex->table_list.elements == 1);
+            slex->set_lock_for_tables($4, slex->table_list.elements == 1);
+            if ($1)
+            {
+              st_select_lex_unit *unit= Lex->current_select->master_unit();
+              unit->set_with_clause(Lex, $1);
+              $1->attach_to(unit->first_select());
+            }
           }
           opt_where_clause opt_order_clause delete_limit_clause
           {
-            if ($10)
-              Select->order_list= *($10);
+            if ($11)
+              Select->order_list= *($11);
           } stmt_end {}
         ;
 
@@ -13167,7 +13172,7 @@ opt_low_priority:
 /* Delete rows from a table */
 
 delete:
-          DELETE_SYM
+          opt_with_clause DELETE_SYM
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_DELETE;
@@ -13178,6 +13183,12 @@ delete:
             mysql_init_select(lex);
             lex->ignore= 0;
             lex->first_select_lex()->order_list.empty();
+            if ($1)
+            {
+              st_select_lex_unit *unit= Lex->current_select->master_unit();
+              unit->set_with_clause(Lex, $1);
+              $1->attach_to(unit->first_select());
+            }
           }
           delete_part2
           { }
@@ -13224,6 +13235,9 @@ delete_single_table_for_period:
             if ($2)
               Lex->last_table()->period_conditions= Lex->period_conditions;
           }
+/*
+        | FROM table_primary_derived
+*/
         ;
 
 single_multi:
@@ -14780,15 +14794,22 @@ temporal_literal:
           }
         ;
 
+opt_with_clause:
+          /* empty */ { $$= 0; }
+          | with_clause { $$= $1; }
+        ;
+
 with_clause:
           WITH opt_recursive
           {
              LEX *lex= Lex;
              With_clause *with_clause=
              new With_clause($2, Lex->curr_with_clause);
+             with_clause->set_tables_start_pos(lex->query_tables_last);
              if (unlikely(with_clause == NULL))
                MYSQL_YYABORT;
              lex->derived_tables|= DERIVED_WITH;
+             lex->with_cte_resolution= true;
              lex->curr_with_clause= with_clause;
              with_clause->add_to_list(Lex->with_clauses_list_last_next);
              if (lex->current_select &&
@@ -14798,6 +14819,7 @@ with_clause:
           with_list
           {
             $$= Lex->curr_with_clause;
+            Lex->curr_with_clause->set_tables_end_pos(Lex->query_tables_last);
             Lex->curr_with_clause= Lex->curr_with_clause->pop();
           } 
         ;
@@ -14816,7 +14838,7 @@ with_list:
 
 
 with_list_element:
-	  query_name
+          with_element_head
 	  opt_with_column_list 
           AS '(' query_expression ')' opt_cycle
  	  {
@@ -14830,6 +14852,7 @@ with_list_element:
             if (elem->set_unparsed_spec(thd, spec_start, $6.pos(),
                                         spec_start - query_start))
               MYSQL_YYABORT;
+            elem->set_tables_end_pos(lex->query_tables_last);
             if ($7)
             {
               elem->set_cycle_list($7);
@@ -14894,12 +14917,15 @@ comma_separated_ident_list:
         ;
 
 
-query_name: 
+with_element_head:
           ident
           {
-            $$= (LEX_CSTRING *) thd->memdup(&$1, sizeof(LEX_CSTRING));
-            if (unlikely($$ == NULL))
+            LEX_CSTRING *name=
+              (LEX_CSTRING *) thd->memdup(&$1, sizeof(LEX_CSTRING));
+            $$= new (thd->mem_root) With_element_head(name);
+            if (unlikely(name == NULL || $$ == NULL))
               MYSQL_YYABORT;
+            $$->tables_pos.set_start_pos(Lex->query_tables_last);
           }
         ;
 

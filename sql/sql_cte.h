@@ -23,6 +23,20 @@
 class select_unit;
 struct st_unit_ctxt_elem;
 
+class With_element_head : public Sql_alloc
+{
+  LEX_CSTRING *query_name;
+public:
+  TABLE_CHAIN tables_pos;
+  With_element_head(LEX_CSTRING *name)
+    : query_name(name)
+  {
+    tables_pos.set_start_pos(0);
+    tables_pos.set_end_pos(0);
+  }
+  friend class With_element;
+};
+
 
 /**
   @class With_element
@@ -85,6 +99,10 @@ private:
     subqueries and specifications of other with elements).
   */ 
   uint references;
+  bool referenced;
+
+  bool is_used_in_query;
+
   /* 
     Unparsed specification of the query that specifies this element.
     It used to build clones of the specification if they are needed.
@@ -98,13 +116,10 @@ private:
 
   /* Return the map where 1 is set only in the position for this element */
   table_map get_elem_map() { return (table_map) 1 << number; }
- 
+
 public:
-  /*
-    The name of the table introduced by this with elememt. The name
-     can be used in FROM lists of the queries in the scope of the element.
-  */
-  LEX_CSTRING *query_name;
+  With_element_head *head;
+
   /*
     Optional list of column names to name the columns of the table introduced
     by this with element. It is used in the case when the names are not
@@ -163,17 +178,26 @@ public:
   /* List of derived tables containing recursive references to this CTE */
   SQL_I_List<TABLE_LIST> derived_with_rec_ref;
 
-  With_element(LEX_CSTRING *name,
+  With_element(With_element_head *h,
                List <Lex_ident_sys> list,
                st_select_lex_unit *unit)
     : next(NULL), base_dep_map(0), derived_dep_map(0),
       sq_dep_map(0), work_dep_map(0), mutually_recursive(0),
       top_level_dep_map(0), sq_rec_ref(NULL),
       next_mutually_recursive(NULL), references(0), 
-      query_name(name), column_list(list), cycle_list(0), spec(unit),
+      referenced(false), is_used_in_query(false),
+      head(h), column_list(list), cycle_list(0), spec(unit),
       is_recursive(false), rec_outer_references(0), with_anchor(false),
       level(0), rec_result(NULL)
   { unit->with_element= this; }
+
+  LEX_CSTRING *get_name() { return head->query_name; }
+  const char *get_name_str() { return get_name()->str; }
+
+  void set_tables_start_pos(TABLE_LIST **pos)
+  { head->tables_pos.set_start_pos(pos); }
+  void set_tables_end_pos(TABLE_LIST **pos)
+  { head->tables_pos.set_end_pos(pos); }
 
   bool check_dependencies_in_spec();
   
@@ -196,14 +220,16 @@ public:
   bool check_dependency_on(With_element *with_elem)
   { return base_dep_map & with_elem->get_elem_map(); }
 
+
+
   TABLE_LIST *find_first_sq_rec_ref_in_select(st_select_lex *sel);
 
   bool set_unparsed_spec(THD *thd, const char *spec_start, const char *spec_end,
                          my_ptrdiff_t spec_offset);
 
-  st_select_lex_unit *clone_parsed_spec(THD *thd, TABLE_LIST *with_table);
+  st_select_lex_unit *clone_parsed_spec(LEX *old_lex, TABLE_LIST *with_table);
 
-  bool is_referenced() { return references != 0; }
+  bool is_referenced() { return referenced; }
 
   void inc_references() { references++; }
 
@@ -263,6 +289,13 @@ public:
   void set_cycle_list(List<Lex_ident_sys> *cycle_list_arg);
 
   friend class With_clause;
+
+  friend
+  bool LEX::resolve_and_order_references_to_cte(TABLE_LIST *tables,
+                                                TABLE_LIST **tables_last,
+                                                TABLE_LIST **last_ordered);
+  friend
+  bool LEX::resolve_references_to_cte_in_hanging_cte(TABLE_LIST **start_ptr);
 };
 
 const uint max_number_of_elements_in_with_clause= sizeof(table_map)*8;
@@ -294,6 +327,10 @@ private:
     in the current statement
   */
   With_clause *next_with_clause;
+
+  TABLE_LIST **tables_start_pos;
+  TABLE_LIST **tables_end_pos;
+
   /* Set to true if dependencies between with elements have been checked */
   bool dependencies_are_checked;
   /* 
@@ -341,6 +378,13 @@ public:
   void attach_to(st_select_lex *select_lex);
 
   With_clause *pop() { return embedding_with_clause; }
+
+  void set_tables_start_pos(TABLE_LIST **table_pos)
+  { tables_start_pos= table_pos; }
+  void set_tables_end_pos(TABLE_LIST **table_pos)
+  { tables_end_pos= table_pos; }
+
+  void move_tables_to_end(LEX *lex);
       
   bool check_dependencies();
 
@@ -360,9 +404,8 @@ public:
 
   friend class With_element;
 
-  friend
-  bool
-  check_dependencies_in_with_clauses(With_clause *with_clauses_list);
+  friend bool LEX::check_dependencies_in_with_clauses();
+  friend bool LEX::resolve_references_to_cte_in_hanging_cte(TABLE_LIST**);
 };
 
 inline

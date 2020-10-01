@@ -1114,13 +1114,13 @@ ERROR 44000: CHECK OPTION failed `test`.`v2`
 insert into v3 values (0);
 ERROR 44000: CHECK OPTION failed `test`.`v3`
 insert into v2 values (2);
+ERROR 44000: CHECK OPTION failed `test`.`v2`
 insert into v3 values (2);
 ERROR 44000: CHECK OPTION failed `test`.`v3`
 select * from t1;
 a
 1
 1
-2
 drop view v3,v2,v1;
 drop table t1;
 create table t1 (a int, primary key (a));
@@ -1955,7 +1955,6 @@ insert into t1 values (19,41,32);
 create view v1 as select f59, f60 from t1 where f59 in
 (select f59 from t1);
 update v1 set f60=2345;
-ERROR HY000: The target table v1 of the UPDATE is not updatable
 drop view v1;
 drop table t1;
 create table t1 (s1 int);
@@ -6490,56 +6489,47 @@ CREATE VIEW v1 AS SELECT * FROM (SELECT s1 FROM (SELECT s1 FROM t1 WHERE s1
 insert into v1 values (-300);
 ERROR HY000: The target table v1 of the INSERT is not insertable-into
 update v1 set s1=s1+1;
-ERROR HY000: The target table v1 of the UPDATE is not updatable
 drop view v1;
 CREATE VIEW v1 AS SELECT s1,s2 FROM (SELECT s1 as s2 FROM t1 WHERE s1 <
 100) x, t1 WHERE t1.s1=x.s2;
 select * from v1;
 s1	s2
 1	1
-2	2
 3	3
+4	4
 -200	-200
 insert into v1 (s1) values (-300);
 update v1 set s1=s1+1;
 select * from v1;
 s1	s2
 2	2
-3	3
 4	4
+5	5
 -199	-199
 -299	-299
 select * from t1;
 s1
 2
-3
 4
+5
 200
 -199
 -299
 insert into v1(s2) values (-300);
 ERROR HY000: The target table v1 of the INSERT is not insertable-into
 update v1 set s2=s2+1;
-ERROR HY000: The target table v1 of the UPDATE is not updatable
 drop view v1;
 CREATE VIEW v1 AS SELECT * FROM (SELECT s1 FROM t1 WHERE s1
 < 100) AS x;
 insert into v1 values (-300);
 ERROR HY000: The target table v1 of the INSERT is not insertable-into
 update v1 set s1=s1+1;
-ERROR HY000: The target table v1 of the UPDATE is not updatable
 drop view v1;
 CREATE VIEW v1 AS SELECT * FROM (SELECT s1 FROM (SELECT s1 FROM t1 WHERE s1
 < 100) as xx WHERE s1>1) AS x;
-insert into v1 values (-300);
-ERROR HY000: The target table v1 of the INSERT is not insertable-into
 update v1 set s1=s1+1;
-ERROR HY000: The target table v1 of the UPDATE is not updatable
 create view v2 as select * from v1;
-insert into v2 values (-300);
-ERROR HY000: The target table v2 of the INSERT is not insertable-into
 update v2 set s1=s1+1;
-ERROR HY000: The target table v2 of the UPDATE is not updatable
 drop view v1, v2;
 drop table t1;
 #
@@ -6554,7 +6544,7 @@ INSERT INTO t3 VALUES (1),(8);
 CREATE VIEW v1 AS SELECT * FROM t1 LEFT JOIN ( SELECT t2.* FROM t2 INNER JOIN t3 ON ( k = j ) ) AS alias1 ON ( i = j );
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `test`.`t1`.`i` AS `i`,`alias1`.`j` AS `j` from (`test`.`t1` left join (select `test`.`t2`.`j` AS `j` from (`test`.`t2` join `test`.`t3` on(`test`.`t3`.`k` = `test`.`t2`.`j`))) `alias1` on(`test`.`t1`.`i` = `alias1`.`j`))	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`i` AS `i`,`alias1`.`j` AS `j` from (`t1` left join (select `t2`.`j` AS `j` from (`t2` join `t3` on(`t3`.`k` = `t2`.`j`))) `alias1` on(`t1`.`i` = `alias1`.`j`))	latin1	latin1_swedish_ci
 SELECT * FROM t1 LEFT JOIN ( SELECT t2.* FROM t2 INNER JOIN t3 ON ( k = j ) ) AS alias1 ON ( i = j );
 i	j
 3	NULL
@@ -6637,7 +6627,7 @@ CREATE VIEW v AS SELECT * FROM ( SELECT * FROM t ) sq;
 DROP TABLE IF EXISTS t;
 SHOW CREATE VIEW v;
 View	Create View	character_set_client	collation_connection
-v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select `sq`.`i` AS `i` from (select `test`.`t`.`i` AS `i` from `test`.`t`) `sq`	latin1	latin1_swedish_ci
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select `sq`.`i` AS `i` from (select `test`.`t`.`i` AS `i` from `t`) `sq`	latin1	latin1_swedish_ci
 Warnings:
 Warning	1356	View 'test.v' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 DROP VIEW v;
@@ -6712,7 +6702,7 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `testalias`.`testcase` AS `testcase` from (select case when 1 in (select `test`.`t1`.`a` from `test`.`t1` where `test`.`t1`.`a` < 2) then 1 end AS `testcase`) `testalias`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `testalias`.`testcase` AS `testcase` from (select case when 1 in (select `t1`.`a` from `t1` where `t1`.`a` < 2) then 1 end AS `testcase`) `testalias`	latin1	latin1_swedish_ci
 SELECT * FROM v1;
 testcase
 1
