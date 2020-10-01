@@ -1072,7 +1072,7 @@ static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 		mtr.commit();
 
 		/* 4 - sync tablespace before publishing crypt data */
-		buf_flush_dirty_pages(space->id);
+		while (buf_flush_dirty_pages(space->id));
 
 		/* 5 - publish crypt data */
 		mysql_mutex_lock(&fil_crypt_threads_mutex);
@@ -1909,9 +1909,15 @@ fil_crypt_flush_space(
 	lsn_t end_lsn = crypt_data->rotate_state.end_lsn;
 
 	if (end_lsn > 0 && !space->is_stopping()) {
-		ulint sum_pages = 0; // FIXME: determine this!
+		ulint sum_pages = 0;
 		const ulonglong start = my_interval_timer();
-		buf_flush_dirty_pages(state->space->id);
+		do {
+			ulint n_dirty= buf_flush_dirty_pages(state->space->id);
+			if (!n_dirty) {
+				break;
+			}
+			sum_pages += n_dirty;
+		} while (!space->is_stopping());
 
 		if (sum_pages) {
 			const ulonglong end = my_interval_timer();

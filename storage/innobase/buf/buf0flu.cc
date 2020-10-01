@@ -232,34 +232,29 @@ void buf_flush_remove_pages(ulint id)
   mysql_mutex_unlock(&buf_pool.mutex);
 }
 
-/** Flush all the dirty pages that belong to a given tablespace.
-The pages will remain in the LRU list and will be evicted from the LRU list
-as they age and move towards the tail of the LRU list.
-@param[in]	id		tablespace identifier */
-void buf_flush_dirty_pages(ulint id)
+/** Try to flush all the dirty pages that belong to a given tablespace.
+@param id    tablespace identifier
+@return number dirty pages that there were for this tablespace */
+ulint buf_flush_dirty_pages(ulint id)
 {
   ut_ad(!sync_check_iterate(dict_sync_check()));
 
-  for (;;)
+  ulint n= 0;
+
+  mysql_mutex_lock(&buf_pool.flush_list_mutex);
+
+  for (buf_page_t *bpage= UT_LIST_GET_FIRST(buf_pool.flush_list); bpage;
+       bpage= UT_LIST_GET_NEXT(list, bpage))
   {
-    ulint n= 0;
-
-    mysql_mutex_lock(&buf_pool.flush_list_mutex);
-
-    for (buf_page_t *bpage= UT_LIST_GET_FIRST(buf_pool.flush_list); bpage;
-         bpage= UT_LIST_GET_NEXT(list, bpage))
-    {
-      ut_ad(bpage->in_file());
-      ut_ad(bpage->oldest_modification());
-      if (id == bpage->id().space())
-        n++;
-    }
-    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-    if (!n)
-      return;
-
-    buf_flush_lists(ULINT_UNDEFINED, LSN_MAX);
+    ut_ad(bpage->in_file());
+    ut_ad(bpage->oldest_modification());
+    if (id == bpage->id().space())
+      n++;
   }
+  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+  if (n)
+    buf_flush_lists(ULINT_UNDEFINED, LSN_MAX);
+  return n;
 }
 
 /*******************************************************************//**

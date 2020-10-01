@@ -525,17 +525,24 @@ row_quiesce_table_start(
 	}
 
 	for (ulint count = 0;
-	     ibuf_merge_space(table->space_id) != 0
-	     && !trx_is_interrupted(trx);
+	     ibuf_merge_space(table->space_id);
 	     ++count) {
+		if (trx_is_interrupted(trx)) {
+			goto aborted;
+		}
 		if (!(count % 20)) {
 			ib::info() << "Merging change buffer entries for "
 				<< table->name;
 		}
 	}
 
+	while (buf_flush_dirty_pages(table->space_id)) {
+		if (trx_is_interrupted(trx)) {
+			goto aborted;
+		}
+	}
+
 	if (!trx_is_interrupted(trx)) {
-		buf_flush_dirty_pages(table->space_id);
 		/* Ensure that all asynchronous IO is completed. */
 		os_aio_wait_until_no_pending_writes();
 		fil_flush(table->space_id);
@@ -549,6 +556,7 @@ row_quiesce_table_start(
 				<< " flushed to disk";
 		}
 	} else {
+aborted:
 		ib::warn() << "Quiesce aborted!";
 	}
 

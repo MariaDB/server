@@ -2098,7 +2098,7 @@ void fil_close_tablespace(ulint id)
 	Thus we can clean the tablespace out of buf_pool
 	completely and permanently. The flag stop_new_ops also prevents
 	fil_flush() from being applied to this tablespace. */
-	buf_flush_dirty_pages(id);
+	while (buf_flush_dirty_pages(id));
 	/* Ensure that all asynchronous IO is completed. */
 	os_aio_wait_until_no_pending_writes();
 	fil_flush(id);

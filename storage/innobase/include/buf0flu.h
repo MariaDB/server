@@ -54,9 +54,11 @@ the list as they age towards the tail of the LRU.
 @param id    tablespace identifier */
 void buf_flush_remove_pages(ulint id);
 
-/** Flush all the dirty pages that belong to a given tablespace.
-@param id    tablespace identifier */
-void buf_flush_dirty_pages(ulint id);
+/** Try to flush all the dirty pages that belong to a given tablespace.
+@param id    tablespace identifier
+@return number dirty pages that there were for this tablespace */
+ulint buf_flush_dirty_pages(ulint id)
+	MY_ATTRIBUTE((warn_unused_result));
 
 /*******************************************************************//**
 Relocates a buffer control block on the flush_list.
