@@ -1025,7 +1025,7 @@ trx_serialise(trx_t* trx)
 	mysql_mutex_assert_owner(&rseg->mutex);
 
 	if (rseg->last_page_no == FIL_NULL) {
-		mutex_enter(&purge_sys.pq_mutex);
+		mysql_mutex_lock(&purge_sys.pq_mutex);
 	}
 
 	trx_sys.assign_new_trx_no(trx);
@@ -1037,7 +1037,7 @@ trx_serialise(trx_t* trx)
 	if (rseg->last_page_no == FIL_NULL) {
 		purge_sys.purge_queue.push(TrxUndoRsegs(trx->rw_trx_hash_element->no,
 							*rseg));
-		mutex_exit(&purge_sys.pq_mutex);
+		mysql_mutex_unlock(&purge_sys.pq_mutex);
 	}
 }
 

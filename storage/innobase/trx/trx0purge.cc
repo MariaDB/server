@@ -76,7 +76,7 @@ Executed in the purge coordinator thread.
 @return whether anything is to be purged */
 inline bool TrxUndoRsegsIterator::set_next()
 {
-	mutex_enter(&purge_sys.pq_mutex);
+	mysql_mutex_lock(&purge_sys.pq_mutex);
 
 	/* Only purge consumes events from the priority queue, user
 	threads only produce the events. */
@@ -99,14 +99,14 @@ inline bool TrxUndoRsegsIterator::set_next()
 	} else {
 		/* Queue is empty, reset iterator. */
 		purge_sys.rseg = NULL;
-		mutex_exit(&purge_sys.pq_mutex);
+		mysql_mutex_unlock(&purge_sys.pq_mutex);
 		m_rsegs = NullElement;
 		m_iter = m_rsegs.begin();
 		return false;
 	}
 
 	purge_sys.rseg = *m_iter++;
-	mutex_exit(&purge_sys.pq_mutex);
+	mysql_mutex_unlock(&purge_sys.pq_mutex);
 	mysql_mutex_lock(&purge_sys.rseg->mutex);
 
 	ut_a(purge_sys.rseg->last_page_no != FIL_NULL);
@@ -173,9 +173,9 @@ void purge_sys_t::create()
   hdr_page_no= 0;
   hdr_offset= 0;
   rw_lock_create(trx_purge_latch_key, &latch, SYNC_PURGE_LATCH);
-  mutex_create(LATCH_ID_PURGE_SYS_PQ, &pq_mutex);
-  truncate.current= NULL;
-  truncate.last= NULL;
+  mysql_mutex_init(purge_sys_pq_mutex_key, &pq_mutex, nullptr);
+  truncate.current= nullptr;
+  truncate.last= nullptr;
   heap= mem_heap_create(4096);
 }
 
@@ -194,7 +194,7 @@ void purge_sys_t::close()
   trx->state= TRX_STATE_NOT_STARTED;
   trx->free();
   rw_lock_free(&latch);
-  mutex_free(&pq_mutex);
+  mysql_mutex_destroy(&pq_mutex);
   mem_heap_free(heap);
   heap= nullptr;
 }
@@ -517,7 +517,7 @@ static void trx_purge_cleanse_purge_queue(const fil_space_t& space)
 	typedef	std::vector<TrxUndoRsegs>	purge_elem_list_t;
 	purge_elem_list_t			purge_elem_list;
 
-	mutex_enter(&purge_sys.pq_mutex);
+	mysql_mutex_lock(&purge_sys.pq_mutex);
 
 	/* Remove rseg instances that are in the purge queue before we start
 	truncate of corresponding UNDO truncate. */
@@ -544,7 +544,7 @@ static void trx_purge_cleanse_purge_queue(const fil_space_t& space)
 		}
 	}
 
-	mutex_exit(&purge_sys.pq_mutex);
+	mysql_mutex_unlock(&purge_sys.pq_mutex);
 }
 
 /**
@@ -899,11 +899,11 @@ static void trx_purge_rseg_get_next_history_log(
 	than the events that Purge produces. ie. Purge can never produce
 	events from an empty rollback segment. */
 
-	mutex_enter(&purge_sys.pq_mutex);
+	mysql_mutex_lock(&purge_sys.pq_mutex);
 
 	purge_sys.purge_queue.push(*purge_sys.rseg);
 
-	mutex_exit(&purge_sys.pq_mutex);
+	mysql_mutex_unlock(&purge_sys.pq_mutex);
 
 	mysql_mutex_unlock(&purge_sys.rseg->mutex);
 }
