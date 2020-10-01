@@ -7177,29 +7177,6 @@ i_s_innodb_mutexes_fill_table(
 		DBUG_RETURN(0);
 	}
 
-	// mutex_enter(&mutex_list_mutex);
-
-#ifdef JAN_TODO_FIXME
-	ib_mutex_t*	mutex;
-	for (mutex = UT_LIST_GET_FIRST(os_mutex_list); mutex != NULL;
-	     mutex = UT_LIST_GET_NEXT(list, mutex)) {
-		if (mutex->count_os_wait == 0) {
-			continue;
-		}
-
-		OK(field_store_string(fields[MUTEXES_NAME], mutex->cmutex_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE],
-				      innobase_basename(mutex->cfile_name)));
-		OK(fields[MUTEXES_CREATE_LINE]->store(lock->cline, true));
-		fields[MUTEXES_CREATE_LINE]->set_notnull();
-		OK(fields[MUTEXES_OS_WAITS]->store(lock->count_os_wait, true));
-		fields[MUTEXES_OS_WAITS]->set_notnull();
-		OK(schema_table_store_record(thd, tables->table));
-	}
-
-	mutex_exit(&mutex_list_mutex);
-#endif /* JAN_TODO_FIXME */
-
 	{
 		struct Locking
 		{

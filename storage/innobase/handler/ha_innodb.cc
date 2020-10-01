@@ -16059,37 +16059,6 @@ ShowStatus::to_string(
 	return(true);
 }
 
-/** Implements the SHOW MUTEX STATUS command, for mutexes.
-@param[in,out]	hton		the innodb handlerton
-@param[in,out]	thd		the MySQL query thread of the caller
-@param[in,out]	stat_print	function for printing statistics
-@return 0 on success. */
-static
-int
-innodb_show_mutex_status(
-	handlerton*
-#ifdef DBUG_ASSERT_EXISTS
-	hton
-#endif
-	,
-	THD*		thd,
-	stat_print_fn*	stat_print)
-{
-	DBUG_ENTER("innodb_show_mutex_status");
-
-	ShowStatus	collector;
-
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
-	mutex_monitor.iterate(collector);
-
-	if (!collector.to_string(thd, stat_print)) {
-		DBUG_RETURN(1);
-	}
-
-	DBUG_RETURN(0);
-}
-
 /** Implements the SHOW MUTEX STATUS command.
 @param[in,out]	hton		the innodb handlerton
 @param[in,out]	thd		the MySQL query thread of the caller
@@ -16189,27 +16158,6 @@ innodb_show_rwlock_status(
 	DBUG_RETURN(0);
 }
 
-/** Implements the SHOW MUTEX STATUS command.
-@param[in,out]	hton		the innodb handlerton
-@param[in,out]	thd		the MySQL query thread of the caller
-@param[in,out]	stat_print	function for printing statistics
-@return 0 on success. */
-static
-int
-innodb_show_latch_status(
-	handlerton*	hton,
-	THD*		thd,
-	stat_print_fn*	stat_print)
-{
-	int	ret = innodb_show_mutex_status(hton, thd, stat_print);
-
-	if (ret != 0) {
-		return(ret);
-	}
-
-	return(innodb_show_rwlock_status(hton, thd, stat_print));
-}
-
 /************************************************************************//**
 Return 0 on success and non-zero on failure. Note: the bool return type
 seems to be abused here, should be an int. */
@@ -16231,7 +16179,7 @@ innobase_show_status(
 		return(innodb_show_status(hton, thd, stat_print) != 0);
 
 	case HA_ENGINE_MUTEX:
-		return(innodb_show_latch_status(hton, thd, stat_print) != 0);
+		return innodb_show_rwlock_status(hton, thd, stat_print) != 0;
 
 	case HA_ENGINE_LOGS:
 		/* Not handled */
@@ -17528,11 +17476,6 @@ innodb_monitor_set_option(
 			srv_mon_process_existing_counter(
 				monitor_id, MONITOR_TURN_ON);
 		}
-
-		if (MONITOR_IS_ON(MONITOR_LATCHES)) {
-
-			mutex_monitor.enable();
-		}
 		break;
 
 	case MONITOR_TURN_OFF:
@@ -17543,25 +17486,14 @@ innodb_monitor_set_option(
 
 		MONITOR_OFF(monitor_id);
 		MONITOR_SET_OFF(monitor_id);
-
-		if (!MONITOR_IS_ON(MONITOR_LATCHES)) {
-
-			mutex_monitor.disable();
-		}
 		break;
 
 	case MONITOR_RESET_VALUE:
 		srv_mon_reset(monitor_id);
-
-		if (monitor_id == (MONITOR_LATCHES)) {
-
-			mutex_monitor.reset();
-		}
 		break;
 
 	case MONITOR_RESET_ALL_VALUE:
 		srv_mon_reset_all(monitor_id);
-		mutex_monitor.reset();
 		break;
 
 	default:

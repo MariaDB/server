@@ -434,10 +434,6 @@ enum monitor_id_t {
 	MONITOR_ICP_OUT_OF_RANGE,
 	MONITOR_ICP_MATCH,
 
-	/* Mutex/RW-Lock related counters */
-	MONITOR_MODULE_LATCHES,
-	MONITOR_LATCHES,
-
 	/* This is used only for control system to turn
 	on/off and reset all monitor counters */
 	MONITOR_ALL_COUNTER,
