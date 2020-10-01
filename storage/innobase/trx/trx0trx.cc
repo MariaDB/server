@@ -252,49 +252,47 @@ struct TrxFactory {
 };
 
 /** The lock strategy for TrxPool */
-struct TrxPoolLock {
-	TrxPoolLock() { }
+class TrxPoolLock
+{
+  mysql_mutex_t mutex;
 
-	/** Create the mutex */
-	void create()
-	{
-		mutex_create(LATCH_ID_TRX_POOL, &m_mutex);
-	}
+public:
+  /** Create the mutex */
+  void create()
+  {
+    mysql_mutex_init(trx_pool_mutex_key, &mutex, nullptr);
+  }
 
-	/** Acquire the mutex */
-	void enter() { mutex_enter(&m_mutex); }
+  /** Acquire the mutex */
+  void enter() { mysql_mutex_lock(&mutex); }
 
-	/** Release the mutex */
-	void exit() { mutex_exit(&m_mutex); }
+  /** Release the mutex */
+  void exit() { mysql_mutex_unlock(&mutex); }
 
-	/** Free the mutex */
-	void destroy() { mutex_free(&m_mutex); }
-
-	/** Mutex to use */
-	ib_mutex_t	m_mutex;
+  /** Free the mutex */
+  void destroy() { mysql_mutex_destroy(&mutex); }
 };
 
 /** The lock strategy for the TrxPoolManager */
-struct TrxPoolManagerLock {
-	TrxPoolManagerLock() { }
+class TrxPoolManagerLock
+{
+  mysql_mutex_t mutex;
 
-	/** Create the mutex */
-	void create()
-	{
-		mutex_create(LATCH_ID_TRX_POOL_MANAGER, &m_mutex);
-	}
+public:
+  /** Create the mutex */
+  void create()
+  {
+    mysql_mutex_init(trx_pool_manager_mutex_key, &mutex, nullptr);
+  }
 
-	/** Acquire the mutex */
-	void enter() { mutex_enter(&m_mutex); }
+  /** Acquire the mutex */
+  void enter() { mysql_mutex_lock(&mutex); }
 
-	/** Release the mutex */
-	void exit() { mutex_exit(&m_mutex); }
+  /** Release the mutex */
+  void exit() { mysql_mutex_unlock(&mutex); }
 
-	/** Free the mutex */
-	void destroy() { mutex_free(&m_mutex); }
-
-	/** Mutex to use */
-	ib_mutex_t	m_mutex;
+  /** Free the mutex */
+  void destroy() { mysql_mutex_destroy(&mutex); }
 };
 
 /** Use explicit mutexes for the trx_t pool and its manager. */
