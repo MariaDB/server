@@ -93,7 +93,6 @@ extern mysql_pfs_key_t	event_manager_mutex_key;
 extern mysql_pfs_key_t	sync_array_mutex_key;
 extern mysql_pfs_key_t	thread_mutex_key;
 extern mysql_pfs_key_t  row_drop_list_mutex_key;
-extern mysql_pfs_key_t	read_view_mutex_key;
 #endif /* UNIV_PFS_MUTEX */
 
 #ifdef UNIV_PFS_RWLOCK
