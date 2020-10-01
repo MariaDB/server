@@ -578,12 +578,6 @@ struct rw_lock_t :
 	/** number of granted SX locks. */
 	volatile ulint	sx_recursive;
 
-	/** This is TRUE if the writer field is RW_LOCK_X_WAIT; this field
-	is located far from the memory update hotspot fields which are at
-	the start of this struct, thus we can peek this field without
-	causing much memory bus traffic */
-	bool		writer_is_wait_ex;
-
 	/** The value is typically set to thread id of a writer thread making
 	normal rw_locks recursive. In case of asynchronous IO, when a non-zero
 	value of 'pass' is passed then we keep the lock non-recursive.

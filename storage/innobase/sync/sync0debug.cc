@@ -506,7 +506,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_DICT);
 	LEVEL_MAP_INSERT(SYNC_FTS_CACHE);
 	LEVEL_MAP_INSERT(SYNC_DICT_OPERATION);
-	LEVEL_MAP_INSERT(SYNC_TRX_I_S_LAST_READ);
 	LEVEL_MAP_INSERT(SYNC_TRX_I_S_RWLOCK);
 	LEVEL_MAP_INSERT(SYNC_RECV_WRITER);
 	LEVEL_MAP_INSERT(SYNC_LEVEL_VARYING);
@@ -764,7 +763,6 @@ LatchDebug::check_order(
 	case SYNC_DICT_OPERATION:
 	case SYNC_DICT_HEADER:
 	case SYNC_TRX_I_S_RWLOCK:
-	case SYNC_TRX_I_S_LAST_READ:
 	case SYNC_IBUF_MUTEX:
 	case SYNC_INDEX_ONLINE_LOG:
 	case SYNC_STATS_AUTO_RECALC:
@@ -1253,9 +1251,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(BUF_POOL, SYNC_BUF_POOL, buf_pool_mutex_key);
 
-	LATCH_ADD_MUTEX(CACHE_LAST_READ, SYNC_TRX_I_S_LAST_READ,
-			cache_last_read_mutex_key);
-
 	LATCH_ADD_MUTEX(DICT_FOREIGN_ERR, SYNC_NO_ORDER_CHECK,
 			dict_foreign_err_mutex_key);
 
@@ -1269,9 +1264,6 @@ sync_latch_meta_init()
 			fts_bg_threads_mutex_key);
 
 	LATCH_ADD_MUTEX(FTS_DELETE, SYNC_FTS_OPTIMIZE, fts_delete_mutex_key);
-
-	LATCH_ADD_MUTEX(FTS_OPTIMIZE, SYNC_FTS_OPTIMIZE,
-			fts_optimize_mutex_key);
 
 	LATCH_ADD_MUTEX(FTS_DOC_ID, SYNC_FTS_OPTIMIZE, fts_doc_id_mutex_key);
 
