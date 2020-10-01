@@ -1127,9 +1127,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(EVENT_MUTEX, SYNC_NO_ORDER_CHECK, event_mutex_key);
 
-	LATCH_ADD_MUTEX(SYNC_ARRAY_MUTEX, SYNC_NO_ORDER_CHECK,
-			sync_array_mutex_key);
-
 	// Add the RW locks
 	LATCH_ADD_RWLOCK(BTR_SEARCH, SYNC_SEARCH_SYS, btr_search_latch_key);
 

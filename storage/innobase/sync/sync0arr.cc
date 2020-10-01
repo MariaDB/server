@@ -126,7 +126,7 @@ struct sync_array_t {
 	ulint		n_cells;	/*!< number of cells in the
 					wait array */
 	sync_cell_t*	array;		/*!< pointer to wait array */
-	SysMutex	mutex;		/*!< System mutex protecting the
+	mysql_mutex_t	mutex;		/*!< System mutex protecting the
 					data structure.  As this data
 					structure is used in constructing
 					the database mutex, to prevent
@@ -151,8 +151,8 @@ static sync_array_t**	sync_wait_array;
 /** count of how many times an object has been signalled */
 ulint sg_count;
 
-#define sync_array_exit(a)	mutex_exit(&(a)->mutex)
-#define sync_array_enter(a)	mutex_enter(&(a)->mutex)
+#define sync_array_exit(a)	mysql_mutex_unlock(&(a)->mutex)
+#define sync_array_enter(a)	mysql_mutex_lock(&(a)->mutex)
 
 #include "ut0counter.h"
 sync_array_t* sync_array_get()
@@ -199,7 +199,7 @@ sync_array_t::sync_array_t(ulint num_cells)
 	memset(array, 0x0, sizeof(sync_cell_t) * n_cells);
 
 	/* Then create the mutex to protect the wait array */
-	mutex_create(LATCH_ID_SYNC_ARRAY_MUTEX, &mutex);
+	mysql_mutex_init(0, &mutex, nullptr);
 }
 
 /** Validate the integrity of the wait array. Check
@@ -239,7 +239,7 @@ sync_array_t::~sync_array_t()
 
 	/* Release the mutex protecting the wait array */
 
-	mutex_free(&mutex);
+	mysql_mutex_destroy(&mutex);
 
 	UT_DELETE_ARRAY(array);
 }
