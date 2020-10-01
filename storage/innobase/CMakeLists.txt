@@ -238,7 +238,6 @@ SET(INNOBASE_SOURCES
 	include/sync0arr.h
 	include/sync0arr.ic
 	include/sync0debug.h
-	include/sync0policy.h
 	include/sync0rw.h
 	include/sync0rw.ic
 	include/sync0sync.h

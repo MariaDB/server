@@ -95,11 +95,6 @@ typedef std::vector<Latched, ut_allocator<Latched> > Latches;
 
 /** The deadlock detector. */
 struct LatchDebug {
-
-	/** Debug mutex for control structures, should not be tracked
-	by this module. */
-	typedef OSMutex Mutex;
-
 	/** Comparator for the ThreadMap. */
 	struct os_thread_id_less
 		: public std::binary_function<
@@ -130,11 +125,7 @@ struct LatchDebug {
 		UNIV_NOTHROW;
 
 	/** Destructor */
-	~LatchDebug()
-		UNIV_NOTHROW
-	{
-		m_mutex.destroy();
-	}
+	~LatchDebug() { mysql_mutex_destroy(&m_mutex); }
 
 	/** Create a new instance if one doesn't exist else return
 	the existing one.
@@ -352,11 +343,10 @@ struct LatchDebug {
 		s_instance = UT_NEW_NOKEY(LatchDebug());
 	}
 
-private:
-	/** Disable copying */
-	LatchDebug(const LatchDebug&);
-	LatchDebug& operator=(const LatchDebug&);
+	LatchDebug(const LatchDebug&) = delete;
+	LatchDebug& operator=(const LatchDebug&) = delete;
 
+private:
 	/** Adds a latch and its level in the thread level array. Allocates
 	the memory for the array if called first time for this OS thread.
 	Makes the checks against other latch levels stored in the array
@@ -375,7 +365,6 @@ private:
 	void print_latches(const Latches* latches) const
 		UNIV_NOTHROW;
 
-private:
 	/** Comparator for the Levels . */
 	struct latch_level_less
 		: public std::binary_function<
@@ -401,7 +390,7 @@ private:
 		Levels;
 
 	/** Mutex protecting the deadlock detector data structures. */
-	Mutex			m_mutex;
+	mysql_mutex_t		m_mutex;
 
 	/** Thread specific data. Protected by m_mutex. */
 	ThreadMap		m_threads;
@@ -431,7 +420,7 @@ do {									\
 /** Setup the mapping from level ID to level name mapping */
 LatchDebug::LatchDebug()
 {
-	m_mutex.init();
+	mysql_mutex_init(0, &m_mutex, nullptr);
 
 	LEVEL_MAP_INSERT(SYNC_UNKNOWN);
 	LEVEL_MAP_INSERT(RW_LOCK_SX);
@@ -439,7 +428,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(RW_LOCK_S);
 	LEVEL_MAP_INSERT(RW_LOCK_X);
 	LEVEL_MAP_INSERT(RW_LOCK_NOT_LOCKED);
-	LEVEL_MAP_INSERT(SYNC_MONITOR_MUTEX);
 	LEVEL_MAP_INSERT(SYNC_ANY_LATCH);
 	LEVEL_MAP_INSERT(SYNC_BUF_PAGE_HASH);
 	LEVEL_MAP_INSERT(SYNC_SEARCH_SYS);
@@ -584,7 +572,7 @@ Latches*
 LatchDebug::thread_latches(bool add)
 	UNIV_NOTHROW
 {
-	m_mutex.enter();
+	mysql_mutex_lock(&m_mutex);
 
 	os_thread_id_t		thread_id = os_thread_get_curr_id();
 	ThreadMap::iterator	lb = m_threads.lower_bound(thread_id);
@@ -594,16 +582,13 @@ LatchDebug::thread_latches(bool add)
 
 		Latches*	latches = lb->second;
 
-		m_mutex.exit();
+		mysql_mutex_unlock(&m_mutex);
 
 		return(latches);
 
 	} else if (!add) {
-
-		m_mutex.exit();
-
+		mysql_mutex_unlock(&m_mutex);
 		return(NULL);
-
 	} else {
 		typedef ThreadMap::value_type value_type;
 
@@ -614,8 +599,7 @@ LatchDebug::thread_latches(bool add)
 		latches->reserve(32);
 
 		m_threads.insert(lb, value_type(thread_id, latches));
-
-		m_mutex.exit();
+		mysql_mutex_unlock(&m_mutex);
 
 		return(latches);
 	}
@@ -698,7 +682,6 @@ LatchDebug::check_order(
 
 		/* Fall through */
 
-	case SYNC_MONITOR_MUTEX:
 	case SYNC_SEARCH_SYS:
 	case SYNC_PURGE_LATCH:
 	case SYNC_DICT_OPERATION:
@@ -875,17 +858,12 @@ LatchDebug::unlock(const latch_t* latch)
 			This could be expensive. */
 
 			if (latches->empty()) {
-
-				m_mutex.enter();
-
-				os_thread_id_t	thread_id;
-
+				os_thread_id_t thread_id;
 				thread_id = os_thread_get_curr_id();
 
+				mysql_mutex_lock(&m_mutex);
 				m_threads.erase(thread_id);
-
-				m_mutex.exit();
-
+				mysql_mutex_unlock(&m_mutex);
 				UT_DELETE(latches);
 			}
 
@@ -1114,20 +1092,6 @@ sync_latch_meta_init()
 	/* The latches should be ordered on latch_id_t. So that we can
 	index directly into the vector to update and fetch meta-data. */
 
-	LATCH_ADD_MUTEX(MUTEX_LIST, SYNC_NO_ORDER_CHECK, mutex_list_mutex_key);
-
-	LATCH_ADD_MUTEX(RW_LOCK_MUTEX, SYNC_NO_ORDER_CHECK, rw_lock_mutex_key);
-
-#ifndef PFS_SKIP_EVENT_MUTEX
-	LATCH_ADD_MUTEX(EVENT_MANAGER, SYNC_NO_ORDER_CHECK,
-			event_manager_mutex_key);
-#else
-	LATCH_ADD_MUTEX(EVENT_MANAGER, SYNC_NO_ORDER_CHECK,
-			PFS_NOT_INSTRUMENTED);
-#endif /* !PFS_SKIP_EVENT_MUTEX */
-
-	LATCH_ADD_MUTEX(EVENT_MUTEX, SYNC_NO_ORDER_CHECK, event_mutex_key);
-
 	// Add the RW locks
 	LATCH_ADD_RWLOCK(BTR_SEARCH, SYNC_SEARCH_SYS, btr_search_latch_key);
 
@@ -1156,9 +1120,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_RWLOCK(DICT_TABLE_STATS, SYNC_INDEX_TREE,
 			 dict_table_stats_key);
-
-	LATCH_ADD_MUTEX(SYNC_DEBUG_MUTEX, SYNC_NO_ORDER_CHECK,
-			PFS_NOT_INSTRUMENTED);
 
 	latch_id_t	id = LATCH_ID_NONE;
 
