@@ -399,7 +399,7 @@ static time_t	srv_last_monitor_time;
 static ib_mutex_t	srv_innodb_monitor_mutex;
 
 /** Mutex protecting page_zip_stat_per_index */
-ib_mutex_t	page_zip_stat_per_index_mutex;
+mysql_mutex_t page_zip_stat_per_index_mutex;
 
 /* Mutex for locking srv_monitor_file. Not created if srv_read_only_mode */
 ib_mutex_t	srv_monitor_file_mutex;
@@ -704,15 +704,8 @@ static void srv_init()
 	need_srv_free = true;
 	ut_d(mysql_cond_init(0, &srv_master_thread_disabled_cond, nullptr));
 
-	/* page_zip_stat_per_index_mutex is acquired from:
-	1. page_zip_compress() (after SYNC_FSP)
-	2. page_zip_decompress()
-	3. i_s_cmp_per_index_fill_low() (where SYNC_DICT is acquired)
-	4. innodb_cmp_per_index_update(), no other latches
-	since we do not acquire any other latches while holding this mutex,
-	it can have very low level. We pick SYNC_ANY_LATCH for it. */
-	mutex_create(LATCH_ID_PAGE_ZIP_STAT_PER_INDEX,
-		     &page_zip_stat_per_index_mutex);
+	mysql_mutex_init(page_zip_stat_per_index_mutex_key,
+			 &page_zip_stat_per_index_mutex, nullptr);
 
 	/* Initialize some INFORMATION SCHEMA internal structures */
 	trx_i_s_cache_init(trx_i_s_cache);
@@ -730,7 +723,7 @@ srv_free(void)
 	}
 
 	mutex_free(&srv_innodb_monitor_mutex);
-	mutex_free(&page_zip_stat_per_index_mutex);
+	mysql_mutex_destroy(&page_zip_stat_per_index_mutex);
 
 	if (!srv_read_only_mode) {
 		mutex_free(&srv_sys.tasks_mutex);

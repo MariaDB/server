@@ -1350,9 +1350,9 @@ i_s_cmp_per_index_fill_low(
 
 	/* Create a snapshot of the stats so we do not bump into lock
 	order violations with dict_sys.mutex below. */
-	mutex_enter(&page_zip_stat_per_index_mutex);
+	mysql_mutex_lock(&page_zip_stat_per_index_mutex);
 	page_zip_stat_per_index_t		snap (page_zip_stat_per_index);
-	mutex_exit(&page_zip_stat_per_index_mutex);
+	mysql_mutex_unlock(&page_zip_stat_per_index_mutex);
 
 	mutex_enter(&dict_sys.mutex);
 

@@ -2194,9 +2194,9 @@ dict_index_remove_from_cache_low(
 
 	/* The index is being dropped, remove any compression stats for it. */
 	if (!lru_evict && DICT_TF_GET_ZIP_SSIZE(index->table->flags)) {
-		mutex_enter(&page_zip_stat_per_index_mutex);
+		mysql_mutex_lock(&page_zip_stat_per_index_mutex);
 		page_zip_stat_per_index.erase(index->id);
-		mutex_exit(&page_zip_stat_per_index_mutex);
+		mysql_mutex_unlock(&page_zip_stat_per_index_mutex);
 	}
 
 	/* Remove the index from affected virtual column index list */

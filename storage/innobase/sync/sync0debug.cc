@@ -1166,9 +1166,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(SRV_SYS_TASKS, SYNC_ANY_LATCH, srv_threads_mutex_key);
 
-	LATCH_ADD_MUTEX(PAGE_ZIP_STAT_PER_INDEX, SYNC_ANY_LATCH,
-			page_zip_stat_per_index_mutex_key);
-
 #ifndef PFS_SKIP_EVENT_MUTEX
 	LATCH_ADD_MUTEX(EVENT_MANAGER, SYNC_NO_ORDER_CHECK,
 			event_manager_mutex_key);
