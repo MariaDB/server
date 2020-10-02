@@ -7692,6 +7692,8 @@ alter_list_item:
         | ALTER opt_column field_ident SET DEFAULT column_default_expr
           {
             LEX *lex=Lex;
+            if (check_expression($6, $3.str, VCOL_DEFAULT))
+              MYSQL_YYABORT;
             Alter_column *ac= new (thd->mem_root) Alter_column($3.str,$6);
             if (ac == NULL)
               MYSQL_YYABORT;
