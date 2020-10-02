@@ -46,9 +46,6 @@ struct ib_wqueue_t
 	ib_mutex_t	mutex;
 	/** Work item list */
 	ib_list_t*	items;
-	/** event we use to signal additions to list;
-	os_event_set() and os_event_reset() are protected by the mutex */
-	os_event_t	event;
 };
 
 /****************************************************************//**

@@ -44,7 +44,6 @@ ib_wqueue_create(void)
 	mutex_create(LATCH_ID_WORK_QUEUE, &wq->mutex);
 
 	wq->items = ib_list_create();
-	wq->event = os_event_create(0);
 
 	return(wq);
 }
@@ -58,7 +57,6 @@ ib_wqueue_free(
 {
 	mutex_free(&wq->mutex);
 	ib_list_free(wq->items);
-	os_event_destroy(wq->event);
 
 	ut_free(wq);
 }
@@ -76,7 +74,6 @@ ib_wqueue_add(ib_wqueue_t* wq, void* item, mem_heap_t* heap, bool wq_locked)
 	}
 
 	ib_list_add_last(wq->items, item, heap);
-	os_event_set(wq->event);
 
 	if (!wq_locked) {
 		mutex_exit(&wq->mutex);
@@ -100,14 +97,7 @@ ib_wqueue_nowait(
 
 		if (node) {
 			ib_list_remove(wq->items, node);
-
 		}
-	}
-
-	/* We must reset the event when the list
-	gets emptied. */
-	if(ib_list_is_empty(wq->items)) {
-		os_event_reset(wq->event);
 	}
 
 	mutex_exit(&wq->mutex);
