@@ -452,7 +452,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(RW_LOCK_S);
 	LEVEL_MAP_INSERT(RW_LOCK_X);
 	LEVEL_MAP_INSERT(RW_LOCK_NOT_LOCKED);
-	LEVEL_MAP_INSERT(SYNC_MONITOR_MUTEX);
 	LEVEL_MAP_INSERT(SYNC_ANY_LATCH);
 	LEVEL_MAP_INSERT(SYNC_DOUBLEWRITE);
 	LEVEL_MAP_INSERT(SYNC_BUF_FLUSH_LIST);
@@ -737,7 +736,6 @@ LatchDebug::check_order(
 
 		/* Fall through */
 
-	case SYNC_MONITOR_MUTEX:
 	case SYNC_RECV:
 	case SYNC_FTS_BG_THREADS:
 	case SYNC_WORK_QUEUE:
@@ -1244,7 +1242,7 @@ void
 sync_latch_meta_init()
 	UNIV_NOTHROW
 {
-	latch_meta.resize(LATCH_ID_MAX);
+	latch_meta.resize(LATCH_ID_MAX + 1);
 
 	/* The latches should be ordered on latch_id_t. So that we can
 	index directly into the vector to update and fetch meta-data. */
@@ -1283,8 +1281,6 @@ sync_latch_meta_init()
 	LATCH_ADD_MUTEX(LOG_FLUSH_ORDER, SYNC_LOG_FLUSH_ORDER,
 			log_flush_order_mutex_key);
 
-	LATCH_ADD_MUTEX(MUTEX_LIST, SYNC_NO_ORDER_CHECK, mutex_list_mutex_key);
-
 	LATCH_ADD_MUTEX(PAGE_CLEANER, SYNC_PAGE_CLEANER,
 			page_cleaner_mutex_key);
 
@@ -1321,8 +1317,6 @@ sync_latch_meta_init()
 	LATCH_ADD_MUTEX(RW_LOCK_LIST, SYNC_NO_ORDER_CHECK,
 			rw_lock_list_mutex_key);
 
-	LATCH_ADD_MUTEX(RW_LOCK_MUTEX, SYNC_NO_ORDER_CHECK, rw_lock_mutex_key);
-
 	LATCH_ADD_MUTEX(SRV_INNODB_MONITOR, SYNC_NO_ORDER_CHECK,
 			srv_innodb_monitor_mutex_key);
 
@@ -1352,16 +1346,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(PAGE_ZIP_STAT_PER_INDEX, SYNC_ANY_LATCH,
 			page_zip_stat_per_index_mutex_key);
-
-#ifndef PFS_SKIP_EVENT_MUTEX
-	LATCH_ADD_MUTEX(EVENT_MANAGER, SYNC_NO_ORDER_CHECK,
-			event_manager_mutex_key);
-#else
-	LATCH_ADD_MUTEX(EVENT_MANAGER, SYNC_NO_ORDER_CHECK,
-			PFS_NOT_INSTRUMENTED);
-#endif /* !PFS_SKIP_EVENT_MUTEX */
-
-	LATCH_ADD_MUTEX(EVENT_MUTEX, SYNC_NO_ORDER_CHECK, event_mutex_key);
 
 	LATCH_ADD_MUTEX(SYNC_ARRAY_MUTEX, SYNC_NO_ORDER_CHECK,
 			sync_array_mutex_key);
@@ -1408,12 +1392,7 @@ sync_latch_meta_init()
 	LATCH_ADD_RWLOCK(DICT_TABLE_STATS, SYNC_INDEX_TREE,
 			 dict_table_stats_key);
 
-	LATCH_ADD_MUTEX(SYNC_DEBUG_MUTEX, SYNC_NO_ORDER_CHECK,
-			PFS_NOT_INSTRUMENTED);
-
 	/* JAN: TODO: Add PFS instrumentation */
-	LATCH_ADD_MUTEX(SCRUB_STAT_MUTEX, SYNC_NO_ORDER_CHECK,
-			PFS_NOT_INSTRUMENTED);
 	LATCH_ADD_MUTEX(DEFRAGMENT_MUTEX, SYNC_NO_ORDER_CHECK,
 			PFS_NOT_INSTRUMENTED);
 	LATCH_ADD_MUTEX(BTR_DEFRAGMENT_MUTEX, SYNC_NO_ORDER_CHECK,

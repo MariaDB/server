@@ -43,9 +43,6 @@ Created 9/5/1995 Heikki Tuuri
 instrumentation due to their large number of instances. */
 # define PFS_SKIP_BUFFER_MUTEX_RWLOCK
 
-/* By default, event->mutex will also be excluded from instrumentation */
-# define PFS_SKIP_EVENT_MUTEX
-
 #endif /* UNIV_PFS_MUTEX || UNIV_PFS_RWLOCK */
 
 #ifdef UNIV_PFS_MUTEX
@@ -65,7 +62,6 @@ extern mysql_pfs_key_t	ibuf_pessimistic_insert_mutex_key;
 extern mysql_pfs_key_t	log_sys_mutex_key;
 extern mysql_pfs_key_t	log_cmdq_mutex_key;
 extern mysql_pfs_key_t	log_flush_order_mutex_key;
-extern mysql_pfs_key_t	mutex_list_mutex_key;
 extern mysql_pfs_key_t	recalc_pool_mutex_key;
 extern mysql_pfs_key_t	page_cleaner_mutex_key;
 extern mysql_pfs_key_t	purge_sys_pq_mutex_key;
@@ -81,7 +77,6 @@ extern mysql_pfs_key_t page_zip_stat_per_index_mutex_key;
 extern mysql_pfs_key_t	rw_lock_debug_mutex_key;
 # endif /* UNIV_DEBUG */
 extern mysql_pfs_key_t	rw_lock_list_mutex_key;
-extern mysql_pfs_key_t	rw_lock_mutex_key;
 extern mysql_pfs_key_t	srv_innodb_monitor_mutex_key;
 extern mysql_pfs_key_t	srv_misc_tmpfile_mutex_key;
 extern mysql_pfs_key_t	srv_monitor_file_mutex_key;
@@ -93,8 +88,6 @@ extern mysql_pfs_key_t	lock_mutex_key;
 extern mysql_pfs_key_t	lock_wait_mutex_key;
 extern mysql_pfs_key_t	trx_sys_mutex_key;
 extern mysql_pfs_key_t	srv_threads_mutex_key;
-extern mysql_pfs_key_t	event_mutex_key;
-extern mysql_pfs_key_t	event_manager_mutex_key;
 extern mysql_pfs_key_t	sync_array_mutex_key;
 extern mysql_pfs_key_t	thread_mutex_key;
 extern mysql_pfs_key_t  row_drop_list_mutex_key;

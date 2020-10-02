@@ -522,7 +522,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(ibuf_mutex),
 	PSI_KEY(ibuf_pessimistic_insert_mutex),
 	PSI_KEY(log_sys_mutex),
-	PSI_KEY(mutex_list_mutex),
 	PSI_KEY(page_zip_stat_per_index_mutex),
 	PSI_KEY(purge_sys_pq_mutex),
 	PSI_KEY(recv_sys_mutex),
@@ -533,7 +532,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(rw_lock_debug_mutex),
 #  endif /* UNIV_DEBUG */
 	PSI_KEY(rw_lock_list_mutex),
-	PSI_KEY(rw_lock_mutex),
 	PSI_KEY(srv_innodb_monitor_mutex),
 	PSI_KEY(srv_misc_tmpfile_mutex),
 	PSI_KEY(srv_monitor_file_mutex),
@@ -544,9 +542,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(lock_wait_mutex),
 	PSI_KEY(trx_mutex),
 	PSI_KEY(srv_threads_mutex),
-#  ifndef PFS_SKIP_EVENT_MUTEX
-	PSI_KEY(event_mutex),
-#  endif /* PFS_SKIP_EVENT_MUTEX */
 	PSI_KEY(rtr_active_mutex),
 	PSI_KEY(rtr_match_mutex),
 	PSI_KEY(rtr_path_mutex),
