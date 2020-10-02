@@ -59,6 +59,7 @@
 #include "sql_show.h"                        // append_identifier
 #include "sql_admin.h"                       // SQL_ADMIN_MSG_TEXT_SIZE
 #include "sql_select.h"
+#include "ddl_log.h"
 
 #include "debug_sync.h"
 
