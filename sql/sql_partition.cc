@@ -68,6 +68,7 @@
 #include "sql_alter.h"                  // Alter_table_ctx
 #include "sql_select.h"
 #include "sql_tablespace.h"             // check_tablespace_name
+#include "ddl_log.h"
 #include "tztime.h"                     // my_tz_OFFSET0
 
 #include <algorithm>
