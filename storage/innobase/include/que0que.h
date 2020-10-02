@@ -35,9 +35,6 @@ Created 5/27/1996 Heikki Tuuri
 #include "row0types.h"
 #include "pars0types.h"
 
-/** Mutex protecting the query threads. */
-extern ib_mutex_t	que_thr_mutex;
-
 /***********************************************************************//**
 Creates a query graph fork node.
 @return own: fork node */
