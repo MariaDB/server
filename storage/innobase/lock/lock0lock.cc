@@ -2021,12 +2021,11 @@ static void lock_grant_after_reset(lock_t* lock)
 }
 
 /** Grant a lock to a waiting lock request and release the waiting transaction. */
-static void lock_grant(lock_t* lock)
+static void lock_grant(lock_t *lock)
 {
-	lock_reset_lock_and_trx_wait(lock);
-	mysql_mutex_lock(&lock->trx->mutex);
-	lock_grant_after_reset(lock);
-	mysql_mutex_unlock(&lock->trx->mutex);
+  mysql_mutex_lock(&lock->trx->mutex);
+  lock_grant_have_trx_mutex(lock);
+  mysql_mutex_unlock(&lock->trx->mutex);
 }
 
 /*************************************************************//**
@@ -2047,13 +2046,13 @@ lock_rec_cancel(
 	/* Reset the bit (there can be only one set bit) in the lock bitmap */
 	lock_rec_reset_nth_bit(lock, lock_rec_find_set_bit(lock));
 
+	mysql_mutex_lock(&lock->trx->mutex);
+
 	/* Reset the wait flag and the back pointer to lock in trx */
 
 	lock_reset_lock_and_trx_wait(lock);
 
 	/* The following function releases the trx from lock wait */
-
-	mysql_mutex_lock(&lock->trx->mutex);
 
 	thr = que_thr_end_lock_wait(lock->trx);
 
@@ -2403,7 +2402,9 @@ lock_rec_move_low(
 		lock_rec_reset_nth_bit(lock, donator_heap_no);
 
 		if (type_mode & LOCK_WAIT) {
+			mysql_mutex_lock(&lock->trx->mutex);
 			lock_reset_lock_and_trx_wait(lock);
+			mysql_mutex_unlock(&lock->trx->mutex);
 		}
 
 		/* Note that we FIRST reset the bit, and then set the lock:
@@ -2520,8 +2521,9 @@ lock_move_reorganize_page(
 		lock_rec_bitmap_reset(lock);
 
 		if (lock_get_wait(lock)) {
-
+			mysql_mutex_lock(&lock->trx->mutex);
 			lock_reset_lock_and_trx_wait(lock);
+			mysql_mutex_unlock(&lock->trx->mutex);
 		}
 
 		lock = lock_rec_get_next_on_page(lock);
@@ -2697,7 +2699,9 @@ lock_move_rec_list_end(
 				ut_ad(!page_rec_is_metadata(orec));
 
 				if (type_mode & LOCK_WAIT) {
+					mysql_mutex_lock(&lock->trx->mutex);
 					lock_reset_lock_and_trx_wait(lock);
+					mysql_mutex_unlock(&lock->trx->mutex);
 				}
 
 				lock_rec_add_to_queue(
@@ -2795,7 +2799,9 @@ lock_move_rec_list_start(
 				ut_ad(!page_rec_is_metadata(prev));
 
 				if (type_mode & LOCK_WAIT) {
+					mysql_mutex_lock(&lock->trx->mutex);
 					lock_reset_lock_and_trx_wait(lock);
+					mysql_mutex_unlock(&lock->trx->mutex);
 				}
 
 				lock_rec_add_to_queue(
@@ -2891,7 +2897,9 @@ lock_rtr_move_rec_list(
 			if (rec1_heap_no < lock->un_member.rec_lock.n_bits
 			    && lock_rec_reset_nth_bit(lock, rec1_heap_no)) {
 				if (type_mode & LOCK_WAIT) {
+					mysql_mutex_lock(&lock->trx->mutex);
 					lock_reset_lock_and_trx_wait(lock);
+					mysql_mutex_unlock(&lock->trx->mutex);
 				}
 
 				lock_rec_add_to_queue(
