@@ -1355,7 +1355,7 @@ bool LOGGER::slow_log_print(THD *thd, const char *query, size_t query_length,
     my_hrtime_t current_time= { hrtime_from_time(thd->start_time) +
                                 thd->start_time_sec_part + query_utime };
 
-    if (!query)
+    if (!query || thd->get_command() == COM_STMT_PREPARE)
     {
       is_command= TRUE;
       query= command_name[thd->get_command()].str;

@@ -14679,3 +14679,40 @@ maria_declare_plugin(mysql_password)
   MariaDB_PLUGIN_MATURITY_STABLE                /* Maturity         */
 }
 maria_declare_plugin_end;
+
+
+/*
+  Exporting functions that allow plugins to do server-style
+  host/user matching. Used in server_audit2 plugin.
+*/
+extern "C" int maria_compare_hostname(
+                  const char *wild_host, long wild_ip, long ip_mask,
+                  const char *host, const char *ip)
+{
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  acl_host_and_ip h;
+  h.hostname= (char *) wild_host;
+  h.ip= wild_ip;
+  h.ip_mask= ip_mask;
+
+  return compare_hostname(&h, host, ip);
+#else
+  return 0;
+#endif
+}
+
+
+extern "C" void maria_update_hostname(
+                  const char **wild_host, long *wild_ip, long *ip_mask,
+                  const char *host)
+{
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  acl_host_and_ip h;
+  update_hostname(&h, host);
+  *wild_host= h.hostname;
+  *wild_ip= h.ip;
+  *ip_mask= h.ip_mask;
+#endif
+}
+
+

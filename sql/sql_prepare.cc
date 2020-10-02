@@ -2618,6 +2618,15 @@ void mysqld_stmt_prepare(THD *thd, const char *packet, uint packet_length)
 
   if (stmt->prepare(packet, packet_length))
   {
+    /*
+       Prepare failed and stmt will be freed.
+       Now we have to save the query_string in the so the
+       audit plugin later gets the meaningful notification.
+    */
+    if (alloc_query(thd, stmt->query_string.str(), stmt->query_string.length()))
+    {
+      thd->set_query(0, 0);
+    }
     /* Statement map deletes statement on erase */
     thd->stmt_map.erase(stmt);
     thd->clear_last_stmt();
@@ -2752,6 +2761,7 @@ bool Lex_prepared_stmt::get_dynamic_sql_string(THD *thd,
 void mysql_sql_stmt_prepare(THD *thd)
 {
   LEX *lex= thd->lex;
+  CSET_STRING orig_query= thd->query_string;
   const LEX_CSTRING *name= &lex->prepared_stmt.name();
   Prepared_statement *stmt;
   LEX_CSTRING query;
@@ -2822,7 +2832,16 @@ void mysql_sql_stmt_prepare(THD *thd)
                                          thd->m_statement_psi,
                                          stmt->name.str, stmt->name.length);
 
-  if (stmt->prepare(query.str, (uint) query.length))
+  bool res= stmt->prepare(query.str, (uint) query.length);
+  /*
+    stmt->prepare() sets thd->query_string with the prepared
+    query, so the audit plugin gets adequate notification with the
+    mysqld_stmt_* set of functions.
+    But here we should restore the original query so it's mentioned in
+    logs properly.
+  */
+  thd->set_query(orig_query);
+  if (res)
   {
     /* Statement map deletes the statement on erase */
     thd->stmt_map.erase(stmt);
@@ -2841,6 +2860,7 @@ void mysql_sql_stmt_prepare(THD *thd)
 void mysql_sql_stmt_execute_immediate(THD *thd)
 {
   LEX *lex= thd->lex;
+  CSET_STRING orig_query= thd->query_string;
   Prepared_statement *stmt;
   LEX_CSTRING query;
   DBUG_ENTER("mysql_sql_stmt_execute_immediate");
@@ -2889,6 +2909,14 @@ void mysql_sql_stmt_execute_immediate(THD *thd)
   thd->free_items();
   thd->free_list= free_list_backup;
 
+  /*
+    stmt->execute_immediately() sets thd->query_string with the executed
+    query, so the audit plugin gets adequate notification with the
+    mysqld_stmt_* set of functions.
+    But here we should restore the original query so it's mentioned in
+    logs properly.
+  */
+  thd->set_query_inner(orig_query);
   stmt->lex->restore_set_statement_var();
   delete stmt;
   DBUG_VOID_RETURN;
@@ -3205,6 +3233,13 @@ static void mysql_stmt_execute_common(THD *thd,
   if (!(stmt= find_prepared_statement(thd, stmt_id)))
   {
     char llbuf[22];
+    /*
+      Did not find the statement with the provided stmt_id.
+      Set thd->query_string with the stmt_id so the
+      audit plugin gets the meaningful notification.
+    */
+    if (alloc_query(thd, llbuf, strlen(llbuf)))
+      thd->set_query(0, 0);
     my_error(ER_UNKNOWN_STMT_HANDLER, MYF(0), static_cast<int>(sizeof(llbuf)),
              llstr(stmt_id, llbuf), "mysqld_stmt_execute");
     DBUG_VOID_RETURN;
@@ -3969,6 +4004,19 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     DBUG_RETURN(TRUE);
   }
 
+  /*
+    We'd like to have thd->query to be set to the actual query
+    after the function ends.
+    This value will be sent to audit plugins later.
+    As the statement is created, the query will be stored
+    in statement's arena. Normally the statement lives longer than
+    the end of this query, so we can just set thd->query_string to
+    be the stmt->query_string.
+    Though errors can result in statement to be freed. These cases
+    should be handled appropriately.
+  */
+  stmt_backup.query_string= thd->query_string;
+
   old_stmt_arena= thd->stmt_arena;
   thd->stmt_arena= this;
 
@@ -4503,6 +4551,15 @@ Prepared_statement::reprepare()
       it's failed, we need to return all the warnings to the user.
     */
     thd->get_stmt_da()->clear_warning_info(thd->query_id);
+  }
+  else
+  {
+    /*
+       Prepare failed and the 'copy' will be freed.
+       Now we have to restore the query_string in the so the
+       audit plugin later gets the meaningful notification.
+    */
+    thd->set_query(query(), query_length());
   }
   return error;
 }
@@ -5127,7 +5184,7 @@ public:
 
   Protocol_local(THD *thd_arg, ulong prealloc= 0) :
     Protocol_text(thd_arg, prealloc),
-      cur_data(0), first_data(0), data_tail(&first_data)
+      cur_data(0), first_data(0), data_tail(&first_data), alloc(0)
     {}
  
 protected:
