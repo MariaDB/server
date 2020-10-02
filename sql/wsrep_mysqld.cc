@@ -46,6 +46,7 @@
 #include <cstdlib>
 #include <string>
 #include "log_event.h"
+#include "sql_connect.h"
 
 #include <sstream>
 
@@ -2441,10 +2442,12 @@ static my_bool kill_remaining_threads(THD *thd, THD *caller_thd)
   if (is_client_connection(thd) &&
       !abort_replicated(thd)    &&
       !is_replaying_connection(thd) &&
+      thd_is_connection_alive(thd) &&
       thd != caller_thd)
   {
+
     WSREP_INFO("killing local connection: %lld", (longlong) thd->thread_id);
-    close_connection(thd, 0);
+    close_connection(thd);
   }
 #endif
   return 0;
