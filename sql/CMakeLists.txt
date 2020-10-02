@@ -122,10 +122,12 @@ SET (SQL_SOURCE
                group_by_handler.cc derived_handler.cc select_handler.cc
                sql_statistics.cc sql_string.cc lex_string.h
                sql_table.cc sql_test.cc sql_trigger.cc sql_udf.cc sql_union.cc
+               ddl_log.cc ddl_log.h
                sql_update.cc sql_view.cc strfunc.cc table.cc thr_malloc.cc 
                sql_time.cc tztime.cc unireg.cc item_xmlfunc.cc 
                uniques.cc
-               rpl_tblmap.cc sql_binlog.cc event_scheduler.cc event_data_objects.cc
+               rpl_tblmap.cc sql_binlog.cc event_scheduler.cc
+               event_data_objects.cc
                event_queue.cc event_db_repository.cc 
                sql_tablespace.cc events.cc ../sql-common/my_user.c 
                partition_info.cc rpl_utility.cc rpl_utility_server.cc

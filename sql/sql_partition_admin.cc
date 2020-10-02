@@ -32,6 +32,7 @@
 #include "ha_partition.h"                   // ha_partition
 #endif
 #include "sql_base.h"                       // open_and_lock_tables
+#include "ddl_log.h"
 
 #ifndef WITH_PARTITION_STORAGE_ENGINE
 
