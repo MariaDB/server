@@ -58,8 +58,8 @@ PCONNECT user_connect::to_users= NULL;
 /****************************************************************************/
 /*  Get the work_size SESSION variable value .                              */
 /****************************************************************************/
-ulong GetWorkSize(void);
-void  SetWorkSize(ulong);
+size_t GetWorkSize(void);
+void  SetWorkSize(size_t);
 
 /* -------------------------- class user_connect -------------------------- */
 
@@ -97,7 +97,7 @@ user_connect::~user_connect()
 bool user_connect::user_init()
 {
   // Initialize Plug-like environment
-  ulong     worksize= GetWorkSize();
+  size_t    worksize= GetWorkSize();
   PACTIVITY ap= NULL;
   PDBUSER   dup= NULL;
 
@@ -157,16 +157,16 @@ void user_connect::SetHandler(ha_connect *hc)
 bool user_connect::CheckCleanup(bool force)
 {
   if (thdp->query_id > last_query_id || force) {
-		ulong worksize = GetWorkSize();
+		size_t worksize = GetWorkSize();
 		size_t size = g->Sarea_Size;
 
     PlugCleanup(g, true);
 
-    if (size != (size_t)worksize) {
+    if (size != worksize) {
 			FreeSarea(g);
 
       // Check whether the work area could be allocated
-      if (AllocSarea(g, (size_t)worksize)) {
+      if (AllocSarea(g, worksize)) {
 				AllocSarea(g, size);
         SetWorkSize(g->Sarea_Size);       // Was too big
       } // endif sarea

@@ -170,9 +170,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0001 September 30, 2020";
+       char version[]= "Version 1.07.0002 October 03, 2020";
 #if defined(__WIN__)
-       char compver[]= "Version 1.07.0001 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !__WIN__
        char slash= '/';
@@ -254,8 +254,8 @@ TYPCONV GetTypeConv(void);
 char   *GetJsonNull(void);
 uint    GetJsonGrpSize(void);
 char   *GetJavaWrapper(void);
-ulong   GetWorkSize(void);
-void    SetWorkSize(ulong);
+size_t  GetWorkSize(void);
+void    SetWorkSize(size_t);
 extern "C" const char *msglang(void);
 
 static char *strz(PGLOBAL g, LEX_STRING &ls);
@@ -347,11 +347,19 @@ static MYSQL_THDVAR_ENUM(
   1,                               // def (AUTO)
   &usetemp_typelib);               // typelib
 
+#ifdef _WIN64
+// Size used for g->Sarea_Size
+static MYSQL_THDVAR_ULONGLONG(work_size,
+	PLUGIN_VAR_RQCMDARG,
+	"Size of the CONNECT work area.",
+	NULL, NULL, SZWORK, SZWMIN, ULONGLONG_MAX, 1);
+#else
 // Size used for g->Sarea_Size
 static MYSQL_THDVAR_ULONG(work_size,
-       PLUGIN_VAR_RQCMDARG, 
-       "Size of the CONNECT work area.",
-       NULL, NULL, SZWORK, SZWMIN, ULONG_MAX, 1);
+  PLUGIN_VAR_RQCMDARG, 
+  "Size of the CONNECT work area.",
+  NULL, NULL, SZWORK, SZWMIN, ULONG_MAX, 1);
+#endif
 
 // Size used when converting TEXT columns to VARCHAR
 static MYSQL_THDVAR_INT(conv_size,
@@ -461,8 +469,8 @@ char *GetJsonNull(void)
 	{return connect_hton ? THDVAR(current_thd, json_null) : NULL;}
 uint GetJsonGrpSize(void)
   {return connect_hton ? THDVAR(current_thd, json_grp_size) : 10;}
-ulong GetWorkSize(void) {return THDVAR(current_thd, work_size);}
-void SetWorkSize(ulong) 
+size_t GetWorkSize(void) {return (size_t)THDVAR(current_thd, work_size);}
+void SetWorkSize(size_t) 
 {
   // Changing the session variable value seems to be impossible here
   // and should be done in a check function 
@@ -472,7 +480,8 @@ void SetWorkSize(ulong)
 
 #if defined(JAVA_SUPPORT)
 char *GetJavaWrapper(void)
-{return connect_hton ? THDVAR(current_thd, java_wrapper) : (char*)"wrappers/JdbcInterface";}
+{return connect_hton ? THDVAR(current_thd, java_wrapper)
+	                   : (char*)"wrappers/JdbcInterface";}
 #endif   // JAVA_SUPPORT
 
 #if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
@@ -7376,7 +7385,7 @@ maria_declare_plugin(connect)
   0x0107,                                       /* version number (1.07) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.07.0001",                                  /* string version */
+  "1.07.0002",                                  /* string version */
 	MariaDB_PLUGIN_MATURITY_STABLE                /* maturity */
 }
 maria_declare_plugin_end;
