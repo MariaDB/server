@@ -54,6 +54,7 @@
 #include "mysqld.h"
 
 #include <algorithm>
+#include <set>
 
 #define my_net_write ma_net_write
 #define net_flush ma_net_flush
@@ -118,6 +119,9 @@ static enum_base64_output_mode opt_base64_output_mode= BASE64_OUTPUT_UNSPEC;
 static char *opt_base64_output_mode_str= NullS;
 static char* database= 0;
 static char* table= 0;
+static std::set<std::string> filter_databases;
+static std::set<std::string> filter_tables;
+
 static my_bool force_opt= 0, short_form= 0, remote_opt= 0;
 static my_bool print_row_count= 0, print_row_event_positions= 0;
 static my_bool print_row_count_used= 0, print_row_event_positions_used= 0;
@@ -734,8 +738,8 @@ static void convert_path_to_forward_slashes(char *fname)
 
 
 /**
-  Indicates whether the given database should be filtered out,
-  according to the --database=X option.
+  Indicates whether the given databases should be filtered out,
+  according to the --database=X or --databases=X1,X2,X3 option.
 
   @param log_dbname Name of database.
 
@@ -744,9 +748,12 @@ static void convert_path_to_forward_slashes(char *fname)
 */
 static bool shall_skip_database(const char *log_dbname)
 {
-  return one_database &&
-         (log_dbname != NULL) &&
-         strcmp(log_dbname, database);
+  if(log_dbname == NULL)
+    return false;
+
+  if (one_database)
+    return filter_databases.count(log_dbname) == 0;
+  return false;
 }
 
 
@@ -817,8 +824,8 @@ print_skip_replication_statement(PRINT_EVENT_INFO *pinfo, const Log_event *ev)
 }
 
 /**
-  Indicates whether the given table should be filtered out,
-  according to the --table=X option.
+  Indicates whether the given tables should be filtered out,
+  according to the --table=X or --table=X0,X1,X2 option.
 
   @param log_tblname Name of table.
 
@@ -827,9 +834,12 @@ print_skip_replication_statement(PRINT_EVENT_INFO *pinfo, const Log_event *ev)
 */
 static bool shall_skip_table(const char *log_tblname)
 {
-  return one_table &&
-         (log_tblname != NULL) &&
-         strcmp(log_tblname, table);
+  if(log_tblname == NULL)
+    return false;
+
+  if (one_table)
+    return filter_tables.count(log_tblname) == 0;
+  return false;
 }
 
 
@@ -915,7 +925,7 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
   char ll_buff[21];
   bool result= 0;
 
-  if (opt_flashback)
+  if (opt_flashback && !skip_event)
   {
     Rows_log_event *e= (Rows_log_event*) ev;
     // The last Row_log_event will be the first event in Flashback
@@ -969,19 +979,44 @@ static bool print_row_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
     */
     if (skip_event)
     {
-      // append END-MARKER(') with delimiter
-      IO_CACHE *const body_cache= &print_event_info->body_cache;
-      if (my_b_tell(body_cache))
-        my_b_printf(body_cache, "'%s\n", print_event_info->delimiter);
+      if (!opt_flashback) {
+        // append END-MARKER(') with delimiter
+        IO_CACHE *const body_cache= &print_event_info->body_cache;
+        if (my_b_tell(body_cache))
+          my_b_printf(body_cache, "'%s\n", print_event_info->delimiter);
 
-      // flush cache
-      if ((copy_event_cache_to_file_and_reinit(&print_event_info->head_cache,
-                                               result_file) ||
-           copy_event_cache_to_file_and_reinit(&print_event_info->body_cache,
-                                               result_file) ||
-           copy_event_cache_to_file_and_reinit(&print_event_info->tail_cache,
-                                               result_file)))
-        return 1;
+        // flush cache
+        if ((copy_event_cache_to_file_and_reinit(&print_event_info->head_cache,
+                                                 result_file) ||
+             copy_event_cache_to_file_and_reinit(&print_event_info->body_cache,
+                                                 result_file) ||
+             copy_event_cache_to_file_and_reinit(&print_event_info->tail_cache,
+                                                 result_file)))
+          return 1;
+      }else if(opt_flashback && events_in_stmt.elements > 0){
+        /*
+          Events stored in events_in_stmt need to be taken into account.
+          These events were not skipped, so we got their base64 result and saved to ev->output_buf.
+        */
+        Log_event *e= NULL;
+
+        // Print the row_event from the last one to the first one
+        for (uint i= events_in_stmt.elements; i > 0; --i)
+        {
+          e= *(dynamic_element(&events_in_stmt, i - 1, Log_event**));
+          result= result || print_base64(print_event_info, e);
+        }
+        // Copy all output into the Log_event
+        ev->output_buf.copy(e->output_buf);
+        // All events in the events_in_stmt should be deleted. ev not be appended to events_in_stmt
+        for (uint i= 0; i < events_in_stmt.elements; ++i)
+        {
+          e= *(dynamic_element(&events_in_stmt, i, Log_event**));
+          delete e;
+        }
+        reset_dynamic(&events_in_stmt);
+        return result;
+      }
     }
   }
 
@@ -1486,9 +1521,12 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
                           e->get_flags(Rows_log_event::STMT_END_F)))
         goto err;
       DBUG_PRINT("info", ("is_stmt_end: %d", (int) is_stmt_end));
+      Table_map_log_event *ignored_map= 
+        print_event_info->m_table_map_ignored.get_table(e->get_table_id());
+      bool skip_event= (ignored_map != NULL);
       if (is_stmt_end)
         print_event_info->found_row_event= 0;
-      else if (opt_flashback)
+      else if (opt_flashback && !skip_event)
         destroy_evt= FALSE;
       break;
     }
@@ -1502,7 +1540,10 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
                           e->get_flags(Old_rows_log_event::STMT_END_F)))
         goto err;
       DBUG_PRINT("info", ("is_stmt_end: %d", (int) is_stmt_end));
-      if (!is_stmt_end && opt_flashback)
+      Table_map_log_event *ignored_map= 
+        print_event_info->m_table_map_ignored.get_table(e->get_table_id());
+      bool skip_event= (ignored_map != NULL);
+      if (!is_stmt_end && opt_flashback && !skip_event)
         destroy_evt= FALSE;
       break;
     }
@@ -1600,7 +1641,8 @@ static struct my_option my_options[] =
   {"character-sets-dir", OPT_CHARSETS_DIR,
    "Directory for character set files.", &charsets_dir,
    &charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"database", 'd', "List entries for just this database (local log only).",
+  {"database", 'd', "List entries for just these databases (local log only)."
+   "Give the database names in a comma separated list.",
    &database, &database, 0, GET_STR_ALLOC, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
 #ifndef DBUG_OFF
@@ -1753,7 +1795,8 @@ static struct my_option my_options[] =
    &stop_position, &stop_position, 0, GET_ULL,
    REQUIRED_ARG, (longlong)(~(my_off_t)0), BIN_LOG_HEADER_SIZE,
    (ulonglong)(~(my_off_t)0), 0, 0, 0},
-  {"table", 'T', "List entries for just this table (local log only).",
+  {"table", 'T', "List entries for just these tables (local log only)."
+   "Give the table names in a comma separated list.",
    &table, &table, 0, GET_STR_ALLOC, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
   {"to-last-log", 't', "Requires -R. Will not stop at the end of the \
@@ -1961,6 +2004,11 @@ get_one_option(const struct my_option *opt, char *argument, const char *)
     break;
   case 'd':
     one_database = 1;
+    for (char *p = database;; p = NULL) {
+      char *q = strtok(p, ",");
+      if (q == NULL) break;
+      filter_databases.insert(q);
+    }
     break;
   case 'p':
     if (argument == disabled_my_option)
@@ -1982,6 +2030,11 @@ get_one_option(const struct my_option *opt, char *argument, const char *)
     break;
   case 'T':
     one_table= 1;
+    for (char *p = table;; p = NULL) {
+      char *q = strtok(p, ",");
+      if (q == NULL) break;
+      filter_tables.insert(q);
+    }
     break;
   case OPT_MYSQL_PROTOCOL:
     if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
