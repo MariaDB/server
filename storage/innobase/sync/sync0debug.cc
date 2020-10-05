@@ -472,7 +472,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_PAGE_CLEANER);
 	LEVEL_MAP_INSERT(SYNC_PURGE_QUEUE);
 	LEVEL_MAP_INSERT(SYNC_TRX_SYS_HEADER);
-	LEVEL_MAP_INSERT(SYNC_REC_LOCK);
 	LEVEL_MAP_INSERT(SYNC_THREADS);
 	LEVEL_MAP_INSERT(SYNC_TRX);
 	LEVEL_MAP_INSERT(SYNC_TRX_SYS);
@@ -840,15 +839,6 @@ LatchDebug::check_order(
 		if (less(latches, level) != NULL) {
 			basic_check(latches, level, level - 1);
 			ut_a(find(latches, SYNC_BUF_POOL) != 0);
-		}
-		break;
-
-	case SYNC_REC_LOCK:
-
-		if (find(latches, SYNC_LOCK_SYS) != 0) {
-			basic_check(latches, level, SYNC_REC_LOCK - 1);
-		} else {
-			basic_check(latches, level, SYNC_REC_LOCK);
 		}
 		break;
 
