@@ -1791,7 +1791,7 @@ sub command_line_setup {
   # --------------------------------------------------------------------------
   # Gcov flag
   # --------------------------------------------------------------------------
-  if ( ($opt_gcov or $opt_gprof) and ! $source_dist )
+  if ( ($opt_gcov or $opt_gprof) and (! $source_dist or -d $ENV{MTR_BINDIR}))
   {
     mtr_error("Coverage test needs the source - please use source dist");
   }
