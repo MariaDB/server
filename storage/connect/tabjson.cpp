@@ -177,7 +177,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
   bool mgo = (GetTypeID(topt->type) == TAB_MONGO);
   PCSZ level = GetStringTableOption(g, topt, "Level", NULL);
 
-	if (level = GetStringTableOption(g, topt, "Depth", level)) {
+	if ((level = GetStringTableOption(g, topt, "Depth", level))) {
 		lvl = atoi(level);
     lvl = (lvl > 16) ? 16 : lvl;
   } else
@@ -254,12 +254,14 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 
     jsp = (tjsp->GetDoc()) ? tjsp->GetDoc()->GetValue(0) : NULL;
   } else {
-    if (!(tdp->Lrecl = GetIntegerTableOption(g, topt, "Lrecl", 0)))
-      if (!mgo) {
-        sprintf(g->Message, "LRECL must be specified for pretty=%d", tdp->Pretty);
-        return 0;
-      } else
-        tdp->Lrecl = 8192;       // Should be enough
+		if (!((tdp->Lrecl = GetIntegerTableOption(g, topt, "Lrecl", 0)))) {
+			if (!mgo) {
+				sprintf(g->Message, "LRECL must be specified for pretty=%d", tdp->Pretty);
+				return 0;
+			} else
+				tdp->Lrecl = 8192;       // Should be enough
+
+		} // endif Lrecl
 
     tdp->Ending = GetIntegerTableOption(g, topt, "Ending", CRLF);
 
@@ -1329,7 +1331,7 @@ bool JSONCOL::ParseJpath(PGLOBAL g)
 {
   char *p, *p1 = NULL, *p2 = NULL, *pbuf = NULL;
   int   i;
-  bool  a, mul = false;
+  bool  a;
 
   if (Parsed)
     return false;                       // Already done
@@ -1487,8 +1489,8 @@ PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp)
     strcpy(g->Message, "Cannot make Json for a numeric column");
     Value->Reset();
 	} else if (Value->GetType() == TYPE_BIN) {
-		if (Value->GetClen() >= sizeof(BSON)) {
-			ULONG len = Tjp->Lrecl ? Tjp->Lrecl : 500;
+		if ((unsigned)Value->GetClen() >= sizeof(BSON)) {
+			ulong len = Tjp->Lrecl ? Tjp->Lrecl : 500;
 			PBSON bsp = JbinAlloc(g, NULL, len, jsp);
 
 			strcat(bsp->Msg, " column");
@@ -1570,7 +1572,6 @@ void JSONCOL::ReadColumn(PGLOBAL g)
 PVAL JSONCOL::GetColumnValue(PGLOBAL g, PJSON row, int i)
   {
   int   n = Nod - 1;
-  bool  expd = false;
   PJAR  arp;
   PJVAL val = NULL;
 
@@ -2130,13 +2131,15 @@ int TDBJSON::Cardinality(PGLOBAL g)
   {
   if (!g)
     return (Xcol || Multiple) ? 0 : 1;
-  else if (Cardinal < 0)
-    if (!Multiple) {
-      if (MakeDocument(g) == RC_OK)
-        Cardinal = Doc->size();
+	else if (Cardinal < 0) {
+		if (!Multiple) {
+			if (MakeDocument(g) == RC_OK)
+				Cardinal = Doc->size();
 
-    } else
-      return 10;
+		} else
+			return 10;
+
+	} // endif Cardinal
 
   return Cardinal;
   } // end of Cardinality
