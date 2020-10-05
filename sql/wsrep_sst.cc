@@ -1824,6 +1824,35 @@ static int sst_donate_other (const char*        method,
   return arg.err;
 }
 
+/* return true if character can be a part of a filename */
+static bool filename_char(int const c)
+{
+  return isalnum(c) || (c == '-') || (c == '_') || (c == '.');
+}
+
+/* return true if character can be a part of an address string */
+static bool address_char(int const c)
+{
+  return filename_char(c) ||
+         (c == ':') || (c == '[') || (c == ']') || (c == '/');
+}
+
+static bool check_request_str(const char* const str,
+                              bool (*check) (int c))
+{
+  for (size_t i(0); str[i] != '\0'; ++i)
+  {
+    if (!check(str[i]))
+    {
+      WSREP_WARN("Illegal character in state transfer request: %i (%c).",
+                 str[i], str[i]);
+      return true;
+    }
+  }
+
+  return false;
+}
+
 int wsrep_sst_donate(const std::string& msg,
                      const wsrep::gtid& current_gtid,
                      const bool         bypass)
@@ -1835,7 +1864,20 @@ int wsrep_sst_donate(const std::string& msg,
 
   const char* method= msg.data();
   size_t method_len= strlen (method);
+
+  if (check_request_str(method, filename_char))
+  {
+    WSREP_ERROR("Bad SST method name. SST canceled.");
+    return WSREP_CB_FAILURE;
+  }
+
   const char* data= method + method_len + 1;
+
+  if (check_request_str(data, address_char))
+  {
+    WSREP_ERROR("Bad SST address string. SST canceled.");
+    return WSREP_CB_FAILURE;
+  }
 
   wsp::env env(NULL);
   if (env.error())
