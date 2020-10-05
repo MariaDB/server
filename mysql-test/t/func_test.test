@@ -36,14 +36,6 @@ explain extended select - a from t1;
 drop table t1;
 
 #
-# Wrong usage of functions
-#
-
-select 5 between 0 and 10 between 0 and 1,(5 between 0 and 10) between 0 and 1;
-select 1 and 2 between 2 and 10, 2 between 2 and 10 and 1;
-select 1 and 0 or 2, 2 or 1 and 0;
-
-#
 # Coercibility
 #
 select _koi8r'a' = _koi8r'A';

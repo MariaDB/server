@@ -82,8 +82,9 @@ enum precedence {
   XOR_PRECEDENCE,       // XOR
   AND_PRECEDENCE,       // AND, &&
   NOT_PRECEDENCE,       // NOT (unless HIGH_NOT_PRECEDENCE)
-  BETWEEN_PRECEDENCE,   // BETWEEN, CASE, WHEN, THEN, ELSE
-  CMP_PRECEDENCE,       // =, <=>, >=, >, <=, <, <>, !=, IS, LIKE, REGEXP, IN
+  CMP_PRECEDENCE,       // =, <=>, >=, >, <=, <, <>, !=, IS
+  BETWEEN_PRECEDENCE,   // BETWEEN
+  IN_PRECEDENCE,        // IN, LIKE, REGEXP
   BITOR_PRECEDENCE,     // |
   BITAND_PRECEDENCE,    // &
   SHIFT_PRECEDENCE,     // <<, >>
@@ -1381,6 +1382,8 @@ public:
     mysql_register_view().
   */
   virtual enum precedence precedence() const { return DEFAULT_PRECEDENCE; }
+  enum precedence higher_precedence() const
+  { return (enum precedence)(precedence() + 1); }
   void print_parenthesised(String *str, enum_query_type query_type,
                            enum precedence parent_prec);
   /**

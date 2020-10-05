@@ -2312,7 +2312,7 @@ longlong Item_func_between::val_int()
 
 void Item_func_between::print(String *str, enum_query_type query_type)
 {
-  args[0]->print_parenthesised(str, query_type, precedence());
+  args[0]->print_parenthesised(str, query_type, higher_precedence());
   if (negated)
     str->append(STRING_WITH_LEN(" not"));
   str->append(STRING_WITH_LEN(" between "));
@@ -3375,15 +3375,15 @@ void Item_func_case::print(String *str, enum_query_type query_type)
   for (uint i= first_expr_num + 1 ; i < nwhens + first_expr_num + 1; i++)
   {
     str->append(STRING_WITH_LEN("when "));
-    args[i]->print_parenthesised(str, query_type, precedence());
+    args[i]->print(str, query_type);
     str->append(STRING_WITH_LEN(" then "));
-    args[i+nwhens]->print_parenthesised(str, query_type, precedence());
+    args[i+nwhens]->print(str, query_type);
     str->append(' ');
   }
   if (else_expr_num != -1)
   {
     str->append(STRING_WITH_LEN("else "));
-    args[else_expr_num]->print_parenthesised(str, query_type, precedence());
+    args[else_expr_num]->print(str, query_type);
     str->append(' ');
   }
   str->append(STRING_WITH_LEN("end"));
@@ -5243,12 +5243,14 @@ void Item_func_like::print(String *str, enum_query_type query_type)
     str->append(STRING_WITH_LEN(" not "));
   str->append(func_name());
   str->append(' ');
-  args[1]->print_parenthesised(str, query_type, precedence());
   if (escape_used_in_parsing)
   {
+    args[1]->print_parenthesised(str, query_type, precedence());
     str->append(STRING_WITH_LEN(" escape "));
-    escape_item->print(str, query_type);
+    escape_item->print_parenthesised(str, query_type, higher_precedence());
   }
+  else
+    args[1]->print_parenthesised(str, query_type, higher_precedence());
 }
 
 
