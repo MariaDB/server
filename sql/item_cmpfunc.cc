@@ -4153,8 +4153,11 @@ void Item_func_in::fix_after_pullout(st_select_lex *new_parent, Item **ref,
   eval_not_null_tables(NULL);
 }
 
-static int srtcmp_in(CHARSET_INFO *cs, const String *x,const String *y)
+static int srtcmp_in(const void *cs_, const void *x_, const void *y_)
 {
+  const CHARSET_INFO *cs= static_cast<const CHARSET_INFO *>(cs_);
+  const String *x= static_cast<const String *>(x_);
+  const String *y= static_cast<const String *>(y_);
   return cs->coll->strnncollsp(cs,
                                (uchar *) x->ptr(),x->length(),
                                (uchar *) y->ptr(),y->length());
