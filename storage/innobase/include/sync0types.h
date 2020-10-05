@@ -192,8 +192,6 @@ enum latch_level_t {
 
 	SYNC_BUF_FLUSH_LIST,
 
-	SYNC_BUF_PAGE_HASH,
-
 	SYNC_BUF_POOL,
 
 	SYNC_POOL,
