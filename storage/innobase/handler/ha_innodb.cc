@@ -326,22 +326,6 @@ static TYPELIB innodb_default_row_format_typelib = {
 	NULL
 };
 
-/** Possible values of the parameter innodb_lock_schedule_algorithm */
-static const char* innodb_lock_schedule_algorithm_names[] = {
-	"fcfs",
-	"vats",
-	NullS
-};
-
-/** Used to define an enumerate type of the system variable
-innodb_lock_schedule_algorithm. */
-static TYPELIB innodb_lock_schedule_algorithm_typelib = {
-	array_elements(innodb_lock_schedule_algorithm_names) - 1,
-	"innodb_lock_schedule_algorithm_typelib",
-	innodb_lock_schedule_algorithm_names,
-	NULL
-};
-
 /** Names of allowed values of innodb_flush_method */
 const char* innodb_flush_method_names[] = {
 	"fsync",
@@ -1398,18 +1382,6 @@ innodb_page_size_validate(
 	}
 
 	DBUG_RETURN(0);
-}
-
-/******************************************************************//**
-Returns true if the thread is the replication thread on the slave
-server.
-@return true if thd is the replication thread */
-ibool
-thd_is_replication_slave_thread(
-/*============================*/
-	THD*	thd)	/*!< in: thread handle */
-{
-	return thd && ((ibool) thd_slave_thread(thd));
 }
 
 /******************************************************************//**
@@ -3204,15 +3176,6 @@ static int innodb_init_params()
 			<< innobase_buffer_pool_size;
 		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
-
-#ifdef WITH_WSREP
-	/* Currently, Galera does not support VATS lock schedule algorithm. */
-	if (innodb_lock_schedule_algorithm == INNODB_LOCK_SCHEDULE_ALGORITHM_VATS
-	    && global_system_variables.wsrep_on) {
-		ib::info() << "For Galera, using innodb_lock_schedule_algorithm=fcfs";
-		innodb_lock_schedule_algorithm = INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS;
-	}
-#endif /* WITH_WSREP */
 
 #ifndef HAVE_LZ4
 	if (innodb_compression_algorithm == PAGE_LZ4_ALGORITHM) {
@@ -18930,18 +18893,6 @@ static MYSQL_SYSVAR_ULONG(doublewrite_batch_size, srv_doublewrite_batch_size,
   NULL, NULL, 120, 1, 127, 0);
 #endif /* defined UNIV_DEBUG || defined UNIV_PERF_DEBUG */
 
-static MYSQL_SYSVAR_ENUM(lock_schedule_algorithm, innodb_lock_schedule_algorithm,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "The algorithm Innodb uses for deciding which locks to grant next when"
-  " a lock is released. Possible values are"
-  " FCFS"
-  " grant the locks in First-Come-First-Served order;"
-  " VATS"
-  " use the Variance-Aware-Transaction-Scheduling algorithm, which"
-  " uses an Eldest-Transaction-First heuristic.",
-  NULL, NULL, INNODB_LOCK_SCHEDULE_ALGORITHM_FCFS,
-  &innodb_lock_schedule_algorithm_typelib);
-
 static MYSQL_SYSVAR_STR(buffer_pool_filename, srv_buf_dump_filename,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
   "Filename to/from which to dump/load the InnoDB buffer pool",
@@ -19639,7 +19590,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(ft_num_word_optimize),
   MYSQL_SYSVAR(ft_sort_pll_degree),
   MYSQL_SYSVAR(force_load_corrupted),
-  MYSQL_SYSVAR(lock_schedule_algorithm),
   MYSQL_SYSVAR(lock_wait_timeout),
   MYSQL_SYSVAR(deadlock_detect),
   MYSQL_SYSVAR(page_size),

@@ -5037,15 +5037,6 @@ extern "C" enum enum_server_command thd_current_command(MYSQL_THD thd)
   return thd->get_command();
 }
 
-
-extern "C" int thd_slave_thread(const MYSQL_THD thd)
-{
-  return(thd->slave_thread);
-}
-
-
-
-
 /* Returns high resolution timestamp for the start
   of the current query. */
 extern "C" unsigned long long thd_start_utime(const MYSQL_THD thd)

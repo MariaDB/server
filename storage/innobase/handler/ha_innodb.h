@@ -530,12 +530,6 @@ the definitions are bracketed with #ifdef INNODB_COMPATIBILITY_HOOKS */
 
 extern "C" {
 
-/** Check if a user thread is a replication slave thread
-@param thd user thread
-@retval 0 the user thread is not a replication slave thread
-@retval 1 the user thread is a replication slave thread */
-int thd_slave_thread(const MYSQL_THD thd);
-
 /** Check if a user thread is running a non-transactional update
 @param thd user thread
 @retval 0 the user thread is not running a non-transactional update

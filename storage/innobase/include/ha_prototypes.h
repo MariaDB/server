@@ -109,15 +109,6 @@ innobase_convert_name(
 	THD*		thd);	/*!< in: MySQL connection thread, or NULL */
 
 /******************************************************************//**
-Returns true if the thread is the replication thread on the slave
-server.
-@return true if thd is the replication thread */
-ibool
-thd_is_replication_slave_thread(
-/*============================*/
-	THD*	thd);	/*!< in: thread handle */
-
-/******************************************************************//**
 Returns true if the transaction this thread is processing has edited
 non-transactional tables. Used by the deadlock detector when deciding
 which transaction to rollback in case of a deadlock - we try to avoid
