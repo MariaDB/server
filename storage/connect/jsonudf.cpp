@@ -1076,6 +1076,7 @@ my_bool JSNX::AddPath(void)
 
 /* --------------------------------- JSON UDF ---------------------------------- */
 
+#if 0 // Moved to json.h
 // BSON size should be equal on Linux and Windows
 #define BMX 255
 typedef struct BSON *PBSON;
@@ -1094,11 +1095,12 @@ struct BSON {
 	PJSON   Jsp;
 	PBSON   Bsp;
 }; // end of struct BSON
+#endif // 0
 
 /*********************************************************************************/
 /*  Allocate and initialize a BSON structure.                                    */
 /*********************************************************************************/
-static PBSON JbinAlloc(PGLOBAL g, UDF_ARGS *args, ulong len, PJSON jsp)
+PBSON JbinAlloc(PGLOBAL g, UDF_ARGS *args, ulong len, PJSON jsp)
 {
 	PBSON bsp = (PBSON)PlgDBSubAlloc(g, NULL, sizeof(BSON));
 
@@ -1111,7 +1113,7 @@ static PBSON JbinAlloc(PGLOBAL g, UDF_ARGS *args, ulong len, PJSON jsp)
 		bsp->Reslen = len;
 		bsp->Changed = false;
 		bsp->Top = bsp->Jsp = jsp;
-		bsp->Bsp = (IsJson(args, 0) == 3) ? (PBSON)args->args[0] : NULL;
+		bsp->Bsp = (args && IsJson(args, 0) == 3) ? (PBSON)args->args[0] : NULL;
 	} else
 		PUSH_WARNING(g->Message);
 
@@ -1422,7 +1424,7 @@ static int IsJson(UDF_ARGS *args, uint i, bool b)
 		n = 2;					   //	arg is a json file name
 	} else if (b) {
 		char   *sap;
-		PGLOBAL g = PlugInit(NULL, args->lengths[i] * M + 1024);
+		PGLOBAL g = PlugInit(NULL, (size_t)args->lengths[i] * M + 1024);
 
 		JsonSubSet(g);
 		sap = MakePSZ(g, args, i);
@@ -5763,7 +5765,7 @@ char *json_serialize(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			// Keep result of constant function
 			g->Xchk = (initid->const_item) ? str : NULL;
 		} else {
-			*error = 1;
+			// *error = 1;
 			str = strcpy(result, "Argument is not a Jbin tree");
 		} // endif
 

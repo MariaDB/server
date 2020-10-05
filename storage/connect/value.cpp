@@ -2251,6 +2251,15 @@ void BINVAL::SetBinValue(void *p)
 } // end of SetBinValue
 
 /***********************************************************************/
+/*  BINVAL SetBinValue: fill string with len bytes.                    */
+/***********************************************************************/
+void BINVAL::SetBinValue(void* p, ulong len)
+{
+	memcpy(Binp, p, len);
+	Len = len;
+} // end of SetBinValue
+
+/***********************************************************************/
 /*  GetBinValue: fill a buffer with the internal binary value.         */
 /*  This function checks whether the buffer length is enough and       */
 /*  returns true if not. Actual filling occurs only if go is true.     */

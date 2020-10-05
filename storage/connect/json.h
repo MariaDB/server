@@ -1,10 +1,11 @@
 /**************** json H Declares Source Code File (.H) ****************/
 /*  Name: json.h   Version 1.2                                         */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2017  */
+/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2020  */
 /*                                                                     */
 /*  This file contains the JSON classes declares.                      */
 /***********************************************************************/
+#include <mysql_com.h>
 #include "value.h"
 
 #if defined(_DEBUG)
@@ -43,6 +44,27 @@ typedef struct {
   char *str;
   int   len;
   } STRG, *PSG;
+
+// BSON size should be equal on Linux and Windows
+#define BMX 255
+typedef struct BSON* PBSON;
+
+/***********************************************************************/
+/*  Structure used to return binary json to Json UDF functions.        */
+/***********************************************************************/
+struct BSON {
+	char    Msg[BMX + 1];
+	char   *Filename;
+	PGLOBAL G;
+	int     Pretty;
+	ulong   Reslen;
+	my_bool Changed;
+	PJSON   Top;
+	PJSON   Jsp;
+	PBSON   Bsp;
+}; // end of struct BSON
+
+PBSON JbinAlloc(PGLOBAL g, UDF_ARGS* args, ulong len, PJSON jsp);
 
 char *NextChr(PSZ s, char sep);
 char *GetJsonNull(void);

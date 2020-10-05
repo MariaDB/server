@@ -1586,6 +1586,9 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
 
   chset= (char *)fp->charset()->name;
 
+	if (!strcmp(chset, "binary"))
+		v = 'B';		// Binary string
+
   switch (fp->type()) {
     case MYSQL_TYPE_BLOB:
     case MYSQL_TYPE_VARCHAR:
@@ -1595,7 +1598,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     default:
       pcf->Type= MYSQLtoPLG(fp->type(), &v);
       break;
-    } // endswitch SQL type
+  } // endswitch SQL type
 
   switch (pcf->Type) {
     case TYPE_STRING:
@@ -1649,7 +1652,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
       break;
     default:
       break;
-    } // endswitch type
+  } // endswitch type
 
   if (fp->flags & UNSIGNED_FLAG)
     pcf->Flags |= U_UNSIGNED;
@@ -2222,7 +2225,7 @@ int ha_connect::MakeRecord(char *buf)
 					case TYPE_BIN:
 						p= value->GetCharValue();
 						charset= &my_charset_bin;
-						rc= fp->store(p, strlen(p), charset, CHECK_FIELD_WARN);
+						rc= fp->store(p, value->GetSize(), charset, CHECK_FIELD_WARN);
 						break;
           case TYPE_DOUBLE:
             rc= fp->store(value->GetFloatValue());
