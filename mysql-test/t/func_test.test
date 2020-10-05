@@ -142,15 +142,6 @@ select mod(NULL, 2.0)       as 'NULL';
 
 
 #
-# Bug#6726: NOT BETWEEN parse failure
-#
-create table t1 (a int, b int);
-insert into t1 values (1,2), (2,3), (3,4), (4,5);
-select * from t1 where a not between 1 and 2;
-select * from t1 where a not between 1 and 2 and b not between 3 and 4;
-drop table t1;
-
-#
 # Test for bug #12791: one of the arguments of LEAST/GREATEST is NULL
 #
 
