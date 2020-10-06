@@ -10403,7 +10403,8 @@ binlog_checksum_update(MYSQL_THD thd, struct st_mysql_sys_var *var,
 }
 
 
-static int show_binlog_vars(THD *thd, SHOW_VAR *var, char *buff)
+static int show_binlog_vars(THD *thd, SHOW_VAR *var, void *,
+                            system_status_var *status_var, enum_var_type)
 {
   mysql_bin_log.set_status_variables(thd);
   var->type= SHOW_ARRAY;

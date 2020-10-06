@@ -131,8 +131,8 @@ extern const char* wsrep_provider_name;
 extern const char* wsrep_provider_version;
 extern const char* wsrep_provider_vendor;
 
-int  wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff,
-                       enum enum_var_type scope);
+int  wsrep_show_status(THD *thd, SHOW_VAR *var, void *buff,
+                       system_status_var *status_var, enum_var_type scope);
 int  wsrep_init();
 void wsrep_deinit(bool free_options);
 

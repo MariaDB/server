@@ -726,8 +726,8 @@ static int show_var_cmp(const void *var1, const void *var2)
   return strcasecmp(((SHOW_VAR*)var1)->name, ((SHOW_VAR*)var2)->name);
 }
 
-int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff,
-                       enum enum_var_type scope)
+int wsrep_show_status (THD *thd, SHOW_VAR *var, void *buff,
+                       system_status_var *, enum_var_type scope)
 {
   uint i, maxi= SHOW_VAR_FUNC_BUFF_SIZE / sizeof(*var) - 1;
   SHOW_VAR *v= (SHOW_VAR *)buff;
