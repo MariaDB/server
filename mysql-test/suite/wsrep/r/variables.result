@@ -1,3 +1,4 @@
+call mtr.add_suppression("WSREP: Initial position was provided by configuration or SST, avoiding override");
 SET @wsrep_provider_options_saved= @@global.wsrep_provider_options;
 SET @wsrep_cluster_address_saved= @@global.wsrep_cluster_address;
 
@@ -38,6 +39,7 @@ wsrep_commit_oooe	#
 wsrep_commit_oool	#
 wsrep_commit_window	#
 wsrep_connected	#
+wsrep_debug_sync_waiters	#
 wsrep_flow_control_paused	#
 wsrep_flow_control_paused_ns	#
 wsrep_flow_control_recv	#
@@ -85,9 +87,6 @@ wsrep_local_state_comment	#
 SHOW STATUS LIKE 'x';
 Variable_name	Value
 SET GLOBAL wsrep_provider=none;
-#
-# MDEV#6079: xtrabackup SST failing with maria-10.0-galera
-#
 
 SHOW STATUS LIKE 'wsrep_local_state_uuid';
 Variable_name	Value
@@ -141,14 +140,15 @@ wsrep_thread_count	0
 # applier/rollbacker threads.
 SET GLOBAL wsrep_cluster_address= 'gcomm://';
 # Wait for applier thread to get created 1.
-SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
-VARIABLE_VALUE
+# Wait for applier thread to get created 2.
+SELECT VARIABLE_VALUE AS EXPECT_1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+EXPECT_1
 1
-SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
-VARIABLE_VALUE
+SELECT VARIABLE_VALUE AS EXPECT_1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
+EXPECT_1
 1
-SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
-VARIABLE_VALUE
+SELECT VARIABLE_VALUE AS EXPECT_2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
+EXPECT_2
 2
 SELECT @@global.wsrep_provider;
 @@global.wsrep_provider
@@ -169,14 +169,14 @@ wsrep_thread_count	2
 SET @wsrep_slave_threads_saved= @@global.wsrep_slave_threads;
 SET GLOBAL wsrep_slave_threads= 10;
 # Wait for 9 applier threads to get created.
-SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
-VARIABLE_VALUE
+SELECT VARIABLE_VALUE AS EXPECT_10 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+EXPECT_10
 10
-SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
-VARIABLE_VALUE
+SELECT VARIABLE_VALUE AS EXPECT_1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
+EXPECT_1
 1
-SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
-VARIABLE_VALUE
+SELECT VARIABLE_VALUE AS EXPECT_11 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
+EXPECT_11
 11
 SHOW STATUS LIKE 'threads_connected';
 Variable_name	Value
@@ -208,8 +208,4 @@ SELECT @@global.wsrep_sst_auth;
 @@global.wsrep_sst_auth
 NULL
 SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
-SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
-SET GLOBAL wsrep_provider= none;
-SET GLOBAL wsrep_cluster_address= @wsrep_cluster_address_saved;
-SET GLOBAL wsrep_provider_options= @wsrep_provider_options_saved;
 # End of test.

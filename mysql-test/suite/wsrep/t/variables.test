@@ -1,5 +1,9 @@
 --source include/have_wsrep.inc
 --source include/force_restart.inc
+--source include/have_innodb.inc
+--source include/galera_have_debug_sync.inc
+
+call mtr.add_suppression("WSREP: Initial position was provided by configuration or SST, avoiding override");
 
 SET @wsrep_provider_options_saved= @@global.wsrep_provider_options;
 SET @wsrep_cluster_address_saved= @@global.wsrep_cluster_address;
@@ -50,15 +54,11 @@ SHOW STATUS LIKE 'x';
 # Reset it back.
 SET GLOBAL wsrep_provider=none;
 
---echo #
---echo # MDEV#6079: xtrabackup SST failing with maria-10.0-galera
---echo #
-
 --disable_query_log
 eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
 --enable_query_log
 
-# The following 2 variables are used in innobackupex during xtrabackup-based
+# The following 2 variables are used by mariabackup
 # SST.
 --echo
 --replace_column 2 #
@@ -109,12 +109,13 @@ SET GLOBAL wsrep_cluster_address= 'gcomm://';
 --let $wait_timeout=600
 --let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
 --source include/wait_condition.inc
+--echo # Wait for applier thread to get created 2.
 --let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
 --source include/wait_condition.inc
 
-SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
-SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
-SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
+SELECT VARIABLE_VALUE AS EXPECT_1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+SELECT VARIABLE_VALUE AS EXPECT_1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
+SELECT VARIABLE_VALUE AS EXPECT_2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
 
 --replace_regex /.*libgalera_smm.*/libgalera_smm.so/
 SELECT @@global.wsrep_provider;
@@ -131,9 +132,9 @@ SET GLOBAL wsrep_slave_threads= 10;
 --let $wait_condition = SELECT VARIABLE_VALUE = 10 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
 --source include/wait_condition.inc
 
-SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
-SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
-SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
+SELECT VARIABLE_VALUE AS EXPECT_10 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+SELECT VARIABLE_VALUE AS EXPECT_1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
+SELECT VARIABLE_VALUE AS EXPECT_11 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
 
 SHOW STATUS LIKE 'threads_connected';
 
@@ -165,10 +166,14 @@ SELECT @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
 
 # Reset (for mtr internal checks)
+--disable_query_log
 SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
-SET GLOBAL wsrep_provider= none;
+eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
 SET GLOBAL wsrep_cluster_address= @wsrep_cluster_address_saved;
 SET GLOBAL wsrep_provider_options= @wsrep_provider_options_saved;
+--enable_query_log
+
+--source include/galera_wait_ready.inc
 
 --echo # End of test.
 
