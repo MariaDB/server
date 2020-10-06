@@ -1820,6 +1820,16 @@ sub command_line_setup {
     $opt_shutdown_timeout= 24 * 60;
     # One day for PID file creation (this is given in seconds not minutes)
     $opt_start_timeout= 24 * 60 * 60;
+    if ($opt_rr && open(my $fh, '<', '/proc/sys/kernel/perf_event_paranoid'))
+    {
+      my $perf_event_paranoid= <$fh>;
+      close $fh;
+      chomp $perf_event_paranoid;
+      if ($perf_event_paranoid == 0)
+      {
+        mtr_error("rr requires kernel.perf_event_paranoid set to 1");
+      }
+    }
   }
 
   # --------------------------------------------------------------------------
