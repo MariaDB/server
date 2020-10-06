@@ -4926,13 +4926,16 @@ public:
 #endif
 #if defined(MYSQL_SERVER) 
   static bool binlog_row_logging_function(THD *thd, TABLE *table,
+                                          MYSQL_BIN_LOG *bin_log,
+                                          binlog_cache_mngr *cache_mngr,
                                           bool is_transactional,
                                           const uchar *before_record
                                           __attribute__((unused)),
                                           const uchar *after_record)
   {
     DBUG_ASSERT(!table->versioned(VERS_TRX_ID));
-    return thd->binlog_write_row(table, is_transactional, after_record);
+    return thd->binlog_write_row(table, bin_log, cache_mngr, is_transactional,
+                                 after_record);
   }
 #endif
 
@@ -5009,12 +5012,14 @@ public:
 
 #ifdef MYSQL_SERVER
   static bool binlog_row_logging_function(THD *thd, TABLE *table,
+                                          MYSQL_BIN_LOG *bin_log,
+                                          binlog_cache_mngr *cache_mngr,
                                           bool is_transactional,
                                           const uchar *before_record,
                                           const uchar *after_record)
   {
     DBUG_ASSERT(!table->versioned(VERS_TRX_ID));
-    return thd->binlog_update_row(table, is_transactional,
+    return thd->binlog_update_row(table, bin_log, cache_mngr, is_transactional,
                                   before_record, after_record);
   }
 #endif
@@ -5098,13 +5103,15 @@ public:
 #endif
 #ifdef MYSQL_SERVER
   static bool binlog_row_logging_function(THD *thd, TABLE *table,
+                                          MYSQL_BIN_LOG *bin_log,
+                                          binlog_cache_mngr *cache_mngr,
                                           bool is_transactional,
                                           const uchar *before_record,
                                           const uchar *after_record
                                           __attribute__((unused)))
   {
     DBUG_ASSERT(!table->versioned(VERS_TRX_ID));
-    return thd->binlog_delete_row(table, is_transactional,
+    return thd->binlog_delete_row(table, bin_log, cache_mngr, is_transactional,
                                   before_record);
   }
 #endif

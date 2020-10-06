@@ -7249,7 +7249,6 @@ int handler::binlog_log_row(TABLE *table,
                             const uchar *after_record,
                             Log_func *log_func)
 {
-  bool error;
   THD *thd= table->in_use;
   DBUG_ENTER("binlog_log_row");
 
@@ -7257,8 +7256,21 @@ int handler::binlog_log_row(TABLE *table,
       thd->binlog_write_table_maps())
     DBUG_RETURN(HA_ERR_RBR_LOGGING_FAILED);
 
-  error= (*log_func)(thd, table, row_logging_has_trans,
-                     before_record, after_record);
+  DBUG_ASSERT(thd->is_current_stmt_binlog_format_row());
+  DBUG_ASSERT((WSREP_NNULL(thd) && wsrep_emulate_bin_log)
+              || mysql_bin_log.is_open());
+
+  auto *cache_mngr= thd->binlog_setup_trx_data();
+  if (cache_mngr == NULL)
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+
+  bool is_trans= row_logging_has_trans;
+  /* Ensure that all events in a GTID group are in the same cache */
+  if (thd->variables.option_bits & OPTION_GTID_BEGIN)
+    is_trans= 1;
+
+  bool error= (*log_func)(thd, table, &mysql_bin_log, cache_mngr,
+                          is_trans, before_record, after_record);
   DBUG_RETURN(error ? HA_ERR_RBR_LOGGING_FAILED : 0);
 }
 
