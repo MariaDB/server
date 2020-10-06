@@ -243,7 +243,8 @@ size_t Wsrep_client_service::bytes_generated() const
   if (cache)
   {
     size_t pending_rows_event_length= 0;
-    if (Rows_log_event* ev= m_thd->binlog_get_pending_rows_event(true))
+    auto *cache_mngr= m_thd->binlog_get_cache_mngr();
+    if (auto* ev= binlog_get_pending_rows_event(cache_mngr, true))
     {
       pending_rows_event_length= ev->get_data_size();
     }
