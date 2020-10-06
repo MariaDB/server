@@ -2088,7 +2088,7 @@ binlog_truncate_trx_cache(THD *thd, binlog_cache_mngr *cache_mngr, bool all)
   else
     cache_mngr->trx_cache.restore_prev_position();
 
-  DBUG_ASSERT(thd->binlog_get_pending_rows_event(is_transactional) == NULL);
+  DBUG_ASSERT(cache_mngr->trx_cache.pending() == NULL);
   DBUG_RETURN(error);
 }
 
@@ -6282,16 +6282,16 @@ binlog_cache_mngr *THD::binlog_get_cache_mngr() const
   is @c true, the pending event is returned from the transactional cache.
   Otherwise from the non-transactional cache.
 
-  @param is_transactional  @c true indicates a transactional cache,
+  @param cache_mngr        cache manager to return pending row from
+  @param use_trans_cache   @c true indicates a transactional cache,
                            otherwise @c false a non-transactional.
   @return
     The row event if any. 
 */
-Rows_log_event*
-THD::binlog_get_pending_rows_event(bool is_transactional) const
+Rows_log_event* binlog_get_pending_rows_event(binlog_cache_mngr *cache_mngr,
+                                              bool use_trans_cache)
 {
   Rows_log_event* rows= NULL;
-  binlog_cache_mngr *const cache_mngr= binlog_get_cache_mngr();
 
   /*
     This is less than ideal, but here's the story: If there is no cache_mngr,
@@ -6299,13 +6299,34 @@ THD::binlog_get_pending_rows_event(bool is_transactional) const
     is set up there). In that case, we just return NULL.
    */
   if (cache_mngr)
-  {
-    binlog_cache_data *cache_data=
-      cache_mngr->get_binlog_cache_data(use_trans_cache(this, is_transactional));
+    rows= cache_mngr->get_binlog_cache_data(use_trans_cache)->pending();
+  return rows;
+}
 
-    rows= cache_data->pending();
+int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
+                                    bool is_transactional,
+                                    MYSQL_BIN_LOG *bin_log,
+                                    binlog_cache_mngr *cache_mngr,
+                                    bool use_trans_cache)
+{
+  /*
+    Mark the event as the last event of a statement if the stmt_end
+    flag is set.
+  */
+  int error= 0;
+  auto *pending= cache_mngr->get_binlog_cache_data(use_trans_cache)->pending();
+  if (pending)
+  {
+    if (stmt_end)
+    {
+      pending->set_flags(Rows_log_event::STMT_END_F);
+      thd->reset_binlog_for_next_statement();
+    }
+
+    error= bin_log->flush_and_set_pending_rows_event(thd, 0, cache_mngr,
+                                                     is_transactional);
   }
-  return (rows);
+  return error;
 }
 
 /**
@@ -6315,18 +6336,18 @@ THD::binlog_get_pending_rows_event(bool is_transactional) const
   into the non-transactional cache.
 
   @param evt               a pointer to the row event.
-  @param is_transactional  @c true indicates a transactional cache,
+  @param use_trans_cache   @c true indicates a transactional cache,
                            otherwise @c false a non-transactional.
 */
 void
-THD::binlog_set_pending_rows_event(Rows_log_event* ev, bool is_transactional)
+THD::binlog_set_pending_rows_event(Rows_log_event* ev, bool use_trans_cache)
 {
   binlog_cache_mngr *const cache_mngr= binlog_setup_trx_data();
 
   DBUG_ASSERT(cache_mngr);
 
   binlog_cache_data *cache_data=
-    cache_mngr->get_binlog_cache_data(use_trans_cache(this, is_transactional));
+    cache_mngr->get_binlog_cache_data(use_trans_cache);
 
   cache_data->set_pending(ev);
 }
@@ -6375,18 +6396,18 @@ MYSQL_BIN_LOG::remove_pending_rows_event(THD *thd, bool is_transactional)
 int
 MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
                                                 Rows_log_event* event,
+                                                binlog_cache_mngr *cache_mngr,
                                                 bool is_transactional)
 {
   DBUG_ENTER("MYSQL_BIN_LOG::flush_and_set_pending_rows_event(event)");
   DBUG_ASSERT(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open());
   DBUG_PRINT("enter", ("event: %p", event));
 
-  binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
-
   DBUG_ASSERT(cache_mngr);
 
+  bool should_use_trans_cache= use_trans_cache(thd, is_transactional);
   binlog_cache_data *cache_data=
-    cache_mngr->get_binlog_cache_data(use_trans_cache(thd, is_transactional));
+    cache_mngr->get_binlog_cache_data(should_use_trans_cache);
 
   DBUG_PRINT("info", ("cache_mngr->pending(): %p", cache_data->pending()));
 
@@ -6415,7 +6436,7 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
     delete pending;
   }
 
-  thd->binlog_set_pending_rows_event(event, is_transactional);
+  thd->binlog_set_pending_rows_event(event, should_use_trans_cache);
 
   DBUG_RETURN(0);
 }
