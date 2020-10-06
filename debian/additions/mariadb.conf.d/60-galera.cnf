@@ -6,11 +6,11 @@
 
 [galera]
 # Mandatory settings
-#wsrep_on = ON
-#wsrep_provider =
-#wsrep_cluster_address =
-#binlog_format = row
-#default_storage_engine = InnoDB
+#wsrep_on                 = ON
+#wsrep_cluster_name       = "MariaDB Galera Cluster"
+#wsrep_cluster_address    = gcomm://
+#binlog_format            = row
+#default_storage_engine   = InnoDB
 #innodb_autoinc_lock_mode = 2
 
 # Allow server to accept connections on all interfaces.

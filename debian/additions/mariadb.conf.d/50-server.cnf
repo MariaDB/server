@@ -82,6 +82,7 @@ expire_logs_days        = 10
 #ssl-ca = /etc/mysql/cacert.pem
 #ssl-cert = /etc/mysql/server-cert.pem
 #ssl-key = /etc/mysql/server-key.pem
+#require-secure-transport = on
 
 #
 # * Character sets
