@@ -1995,8 +1995,9 @@ int TDBJSON::MakeNewDoc(PGLOBAL g)
 /***********************************************************************/
 int TDBJSON::MakeDocument(PGLOBAL g)
   {
-  char   *p, *memory, *objpath, *key = NULL;
+  char   *p, *p1, *p2, *memory, *objpath, *key = NULL;
   int     len, i = 0;
+	my_bool a;
   MODE    mode = Mode;
   PJSON   jsp;
   PJOB    objp = NULL;
@@ -2039,22 +2040,39 @@ int TDBJSON::MakeDocument(PGLOBAL g)
   if ((objpath = PlugDup(g, Objname))) {
     if (*objpath == '$') objpath++;
     if (*objpath == '.') objpath++;
+		p1 = p2 = NULL;
 
     /*********************************************************************/
     /*  Find the table in the tree structure.                            */
     /*********************************************************************/
-    for (; jsp && objpath; objpath = p) {
-      if ((p = strchr(objpath, Sep)))
-        *p++ = 0;
+    for (p = objpath; jsp && p; p = (p2 ? p2 : NULL)) {
+			a = (p1 != NULL);
+			p1 = strchr(p, '[');
+			p2 = strchr(p, '.');
 
-      if (*objpath != '[' && !IsNum(objpath)) {
-        // objpass is a key
+			if (!p2)
+				p2 = p1;
+			else if (p1) {
+				if (p1 < p2)
+					p2 = p1;
+				else if (p1 == p2 + 1)
+					*p2++ = 0;		 // Old syntax .[
+				else
+					p1 = NULL;
+
+			}	// endif p1
+
+			if (p2)
+				*p2++ = 0;
+
+      if (!a && *p && *p != '[' && !IsNum(p)) {
+        // obj is a key
         if (jsp->GetType() != TYPE_JOB) {
           strcpy(g->Message, "Table path does not match the json file");
           return RC_FX;
         } // endif Type
 
-        key = objpath;
+        key = p;
         objp = jsp->GetObject();
         arp = NULL;
         val = objp->GetValue(key);
@@ -2065,15 +2083,15 @@ int TDBJSON::MakeDocument(PGLOBAL g)
         } // endif val
 
       } else {
-        if (*objpath == '[') {
+        if (*p == '[') {
           // Old style
-          if (objpath[strlen(objpath) - 1] != ']') {
-            sprintf(g->Message, "Invalid Table path %s", Objname);
+          if (p[strlen(p) - 1] != ']') {
+            sprintf(g->Message, "Invalid Table path near %s", p);
             return RC_FX;
           } else
-            objpath++;
+            p++;
 
-        } // endif objpath
+        } // endif p
 
         if (jsp->GetType() != TYPE_JAR) {
           strcpy(g->Message, "Table path does not match the json file");
@@ -2082,7 +2100,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
 
         arp = jsp->GetArray();
         objp = NULL;
-        i = atoi(objpath) - B;
+        i = atoi(p) - B;
         val = arp->GetValue(i);
 
         if (!val) {
@@ -2093,7 +2111,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
       } // endif
 
       jsp = val->GetJson();
-    } // endfor objpath
+    } // endfor p
 
   } // endif objpath
 
