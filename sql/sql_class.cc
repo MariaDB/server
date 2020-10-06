@@ -6899,6 +6899,32 @@ bool THD::binlog_table_should_be_logged(const LEX_CSTRING *db)
            binlog_filter->db_ok(db->str)));
 }
 
+struct RowsEventFactory
+{
+  int type_code;
+
+  Rows_log_event *(*create)(THD*, TABLE*, ulong, bool is_transactional);
+};
+
+/**
+ Creates RowsEventFactory, responsible for creating Rows_log_event descendant.
+ @tparam RowsEventT is a type which will be constructed by
+                    RowsEventFactory::create.
+ @return a RowsEventFactory object with type_code equal to RowsEventT::TYPE_CODE
+         and create containing pointer to a RowsEventT constructor callback.
+ */
+template<class RowsEventT>
+static RowsEventFactory binlog_get_rows_event_creator()
+{
+  return { RowsEventT::TYPE_CODE,
+           [](THD* thd, TABLE* table, ulong flags, bool is_transactional)
+           -> Rows_log_event*
+           {
+             return new RowsEventT(thd, table, flags, is_transactional);
+           }
+         };
+}
+
 /*
   Template member function for ensuring that there is an rows log
   event of the apropriate type before proceeding.
@@ -6920,31 +6946,25 @@ bool THD::binlog_table_should_be_logged(const LEX_CSTRING *db)
     If error, NULL.
  */
 
-template <class RowsEventT> Rows_log_event*
-THD::binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
-                                       size_t needed,
-                                       bool is_transactional,
-                                       RowsEventT *hint __attribute__((unused)))
+Rows_log_event*
+binlog_prepare_pending_rows_event(THD *thd, TABLE* table,
+                                  MYSQL_BIN_LOG *bin_log,
+                                  binlog_cache_mngr *cache_mngr,
+                                  uint32 serv_id, size_t needed,
+                                  bool is_transactional,
+                                  RowsEventFactory event_factory)
 {
   DBUG_ENTER("binlog_prepare_pending_rows_event");
   /* Pre-conditions */
   DBUG_ASSERT(table->s->table_map_id != ~0UL);
 
-  /* Fetch the type code for the RowsEventT template parameter */
-  int const general_type_code= RowsEventT::TYPE_CODE;
-
-  /* Ensure that all events in a GTID group are in the same cache */
-  if (variables.option_bits & OPTION_GTID_BEGIN)
-    is_transactional= 1;
-
   /*
     There is no good place to set up the transactional data, so we
     have to do it here.
   */
-  if (binlog_setup_trx_data() == NULL)
-    DBUG_RETURN(NULL);
-
-  Rows_log_event* pending= binlog_get_pending_rows_event(is_transactional);
+  Rows_log_event* pending= binlog_get_pending_rows_event(cache_mngr,
+                                                         use_trans_cache(thd,
+                                                             is_transactional));
 
   if (unlikely(pending && !pending->is_valid()))
     DBUG_RETURN(NULL);
@@ -6962,14 +6982,14 @@ THD::binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
   if (!pending ||
       pending->server_id != serv_id ||
       pending->get_table_id() != table->s->table_map_id ||
-      pending->get_general_type_code() != general_type_code ||
+      pending->get_general_type_code() != event_factory.type_code ||
       pending->get_data_size() + needed > opt_binlog_rows_event_max_size ||
       pending->read_write_bitmaps_cmp(table) == FALSE)
   {
     /* Create a new RowsEventT... */
     Rows_log_event* const
-        ev= new RowsEventT(this, table, table->s->table_map_id,
-                           is_transactional);
+        ev= event_factory.create(thd, table, table->s->table_map_id,
+                                 is_transactional);
     if (unlikely(!ev))
       DBUG_RETURN(NULL);
     ev->server_id= serv_id; // I don't like this, it's too easy to forget.
@@ -6977,9 +6997,8 @@ THD::binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
       flush the pending event and replace it with the newly created
       event...
     */
-    if (unlikely(
-        mysql_bin_log.flush_and_set_pending_rows_event(this, ev,
-                                                       is_transactional)))
+    if (unlikely(bin_log->flush_and_set_pending_rows_event(thd, ev, cache_mngr,
+                                                           is_transactional)))
     {
       delete ev;
       DBUG_RETURN(NULL);
@@ -7114,13 +7133,10 @@ CPP_UNNAMED_NS_START
 
 CPP_UNNAMED_NS_END
 
-int THD::binlog_write_row(TABLE* table, bool is_trans,
+int THD::binlog_write_row(TABLE* table, MYSQL_BIN_LOG *bin_log,
+                          binlog_cache_mngr *cache_mngr, bool is_trans,
                           uchar const *record)
 {
-
-  DBUG_ASSERT(is_current_stmt_binlog_format_row());
-  DBUG_ASSERT((WSREP_NNULL(this) && wsrep_emulate_bin_log) ||
-              mysql_bin_log.is_open());
   /*
     Pack records into format for transfer. We are allocating more
     memory than needed, but that doesn't matter.
@@ -7134,21 +7150,14 @@ int THD::binlog_write_row(TABLE* table, bool is_trans,
 
   size_t const len= pack_row(table, table->rpl_write_set, row_data, record);
 
-  /* Ensure that all events in a GTID group are in the same cache */
-  if (variables.option_bits & OPTION_GTID_BEGIN)
-    is_trans= 1;
+  auto creator= binlog_should_compress(len) ?
+              binlog_get_rows_event_creator<Write_rows_compressed_log_event>() :
+              binlog_get_rows_event_creator<Write_rows_log_event>();
 
-  Rows_log_event* ev;
-  if (binlog_should_compress(len))
-    ev =
-    binlog_prepare_pending_rows_event(table, variables.server_id,
-                                      len, is_trans,
-                                      static_cast<Write_rows_compressed_log_event*>(0));
-  else
-    ev =
-    binlog_prepare_pending_rows_event(table, variables.server_id,
-                                      len, is_trans,
-                                      static_cast<Write_rows_log_event*>(0));
+  auto *ev= binlog_prepare_pending_rows_event(this, table,
+                                              &mysql_bin_log, cache_mngr,
+                                              variables.server_id,
+                                              len, is_trans, creator);
 
   if (unlikely(ev == 0))
     return HA_ERR_OUT_OF_MEM;
@@ -7156,14 +7165,11 @@ int THD::binlog_write_row(TABLE* table, bool is_trans,
   return ev->add_row_data(row_data, len);
 }
 
-int THD::binlog_update_row(TABLE* table, bool is_trans,
+int THD::binlog_update_row(TABLE* table,  MYSQL_BIN_LOG *bin_log,
+                           binlog_cache_mngr *cache_mngr, bool is_trans,
                            const uchar *before_record,
                            const uchar *after_record)
 {
-  DBUG_ASSERT(is_current_stmt_binlog_format_row());
-  DBUG_ASSERT((WSREP_NNULL(this) && wsrep_emulate_bin_log) ||
-              mysql_bin_log.is_open());
-
   /**
     Save a reference to the original read bitmaps
     We will need this to restore the bitmaps at the end as
@@ -7196,11 +7202,6 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
                                      before_record);
   size_t const after_size= pack_row(table, table->rpl_write_set, after_row,
                                     after_record);
-
-  /* Ensure that all events in a GTID group are in the same cache */
-  if (variables.option_bits & OPTION_GTID_BEGIN)
-    is_trans= 1;
-
   /*
     Don't print debug messages when running valgrind since they can
     trigger false warnings.
@@ -7212,17 +7213,14 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
   DBUG_DUMP("after_row",     after_row, after_size);
 #endif
 
-  Rows_log_event* ev;
-  if(binlog_should_compress(before_size + after_size))
-    ev =
-      binlog_prepare_pending_rows_event(table, variables.server_id,
-                                      before_size + after_size, is_trans,
-                                      static_cast<Update_rows_compressed_log_event*>(0));
-  else
-    ev =
-      binlog_prepare_pending_rows_event(table, variables.server_id,
-                                      before_size + after_size, is_trans,
-                                      static_cast<Update_rows_log_event*>(0));
+  auto creator= binlog_should_compress(before_size + after_size) ?
+             binlog_get_rows_event_creator<Update_rows_compressed_log_event>() :
+             binlog_get_rows_event_creator<Update_rows_log_event>();
+  auto *ev= binlog_prepare_pending_rows_event(this, table,
+                                              &mysql_bin_log, cache_mngr,
+                                              variables.server_id,
+                                              before_size + after_size,
+                                              is_trans, creator);
 
   if (unlikely(ev == 0))
     return HA_ERR_OUT_OF_MEM;
@@ -7237,12 +7235,10 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
 
 }
 
-int THD::binlog_delete_row(TABLE* table, bool is_trans, 
+int THD::binlog_delete_row(TABLE* table, MYSQL_BIN_LOG *bin_log,
+                           binlog_cache_mngr *cache_mngr, bool is_trans,
                            uchar const *record)
 {
-  DBUG_ASSERT(is_current_stmt_binlog_format_row());
-  DBUG_ASSERT((WSREP_NNULL(this) && wsrep_emulate_bin_log) ||
-              mysql_bin_log.is_open());
   /**
     Save a reference to the original read bitmaps
     We will need this to restore the bitmaps at the end as
@@ -7273,21 +7269,13 @@ int THD::binlog_delete_row(TABLE* table, bool is_trans,
   DBUG_DUMP("table->read_set", (uchar*) table->read_set->bitmap, (table->s->fields + 7) / 8);
   size_t const len= pack_row(table, table->read_set, row_data, record);
 
-  /* Ensure that all events in a GTID group are in the same cache */
-  if (variables.option_bits & OPTION_GTID_BEGIN)
-    is_trans= 1;
-
-  Rows_log_event* ev;
-  if(binlog_should_compress(len))
-    ev =
-      binlog_prepare_pending_rows_event(table, variables.server_id,
-                                      len, is_trans,
-                                      static_cast<Delete_rows_compressed_log_event*>(0));
-  else
-    ev =
-      binlog_prepare_pending_rows_event(table, variables.server_id,
-                                      len, is_trans,
-                                      static_cast<Delete_rows_log_event*>(0));
+  auto creator= binlog_should_compress(len) ?
+             binlog_get_rows_event_creator<Delete_rows_compressed_log_event>() :
+             binlog_get_rows_event_creator<Delete_rows_log_event>();
+  auto *ev= binlog_prepare_pending_rows_event(this, table,
+                                              &mysql_bin_log, cache_mngr,
+                                              variables.server_id,
+                                              len, is_trans, creator);
 
   if (unlikely(ev == 0))
     return HA_ERR_OUT_OF_MEM;
@@ -7404,22 +7392,14 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
   if (variables.option_bits & OPTION_GTID_BEGIN)
     is_transactional= 1;
 
-  /*
-    Mark the event as the last event of a statement if the stmt_end
-    flag is set.
-  */
-  int error= 0;
-  if (Rows_log_event *pending= binlog_get_pending_rows_event(is_transactional))
-  {
-    if (stmt_end)
-    {
-      pending->set_flags(Rows_log_event::STMT_END_F);
-      reset_binlog_for_next_statement();
-    }
-    error= mysql_bin_log.flush_and_set_pending_rows_event(this, 0,
-                                                          is_transactional);
-  }
+  auto *cache_mngr= binlog_get_cache_mngr();
+  if (!cache_mngr)
+    DBUG_RETURN(0);
 
+  int error=
+    ::binlog_flush_pending_rows_event(this, stmt_end, is_transactional,
+                                      &mysql_bin_log, cache_mngr,
+                                      use_trans_cache(this, is_transactional));
   DBUG_RETURN(error);
 }
 
