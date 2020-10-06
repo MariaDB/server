@@ -649,7 +649,11 @@ given at all. */
 #define HA_CREATE_PRINT_ALL_OPTIONS       (1UL << 26)
 
 typedef ulonglong alter_table_operations;
-typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
+
+class MYSQL_BIN_LOG;
+class binlog_cache_mngr;
+typedef bool Log_func(THD*, TABLE*, MYSQL_BIN_LOG *, binlog_cache_mngr *, bool,
+                      const uchar*, const uchar*);
 
 /*
   These flags are set by the parser and describes the type of
@@ -5348,11 +5352,6 @@ inline const LEX_CSTRING *table_case_name(HA_CREATE_INFO *info, const LEX_CSTRIN
   return ((lower_case_table_names == 2 && info->alias.str) ? &info->alias : name);
 }
 
-typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
-int binlog_log_row(TABLE* table,
-                   const uchar *before_record,
-                   const uchar *after_record,
-                   Log_func *log_func);
 
 /**
   @def MYSQL_TABLE_IO_WAIT

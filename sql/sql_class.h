@@ -2900,11 +2900,14 @@ public:
   */
   void binlog_start_trans_and_stmt();
   void binlog_set_stmt_begin();
-  int binlog_write_row(TABLE* table, bool is_transactional,
+  int binlog_write_row(TABLE* table, MYSQL_BIN_LOG *bin_log,
+                       binlog_cache_mngr *cache_mngr, bool is_transactional,
                        const uchar *buf);
-  int binlog_delete_row(TABLE* table, bool is_transactional,
+  int binlog_delete_row(TABLE* table,  MYSQL_BIN_LOG *bin_log,
+                        binlog_cache_mngr *cache_mngr, bool is_transactional,
                         const uchar *buf);
-  int binlog_update_row(TABLE* table, bool is_transactional,
+  int binlog_update_row(TABLE* table, MYSQL_BIN_LOG *bin_log,
+                        binlog_cache_mngr *cache_mngr, bool is_transactional,
                         const uchar *old_data, const uchar *new_data);
   bool prepare_handlers_for_update(uint flag);
   bool binlog_write_annotated_row(Log_event_writer *writer);
@@ -2919,13 +2922,7 @@ public:
     Member functions to handle pending event for row-level logging.
   */
   binlog_cache_mngr *binlog_get_cache_mngr() const;
-  template <class RowsEventT> Rows_log_event*
-    binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
-                                      size_t needed,
-                                      bool is_transactional,
-                                      RowsEventT* hint);
-  Rows_log_event* binlog_get_pending_rows_event(bool is_transactional) const;
-  void binlog_set_pending_rows_event(Rows_log_event* ev, bool is_transactional);
+  void binlog_set_pending_rows_event(Rows_log_event* ev, bool use_trans_cache);
   inline int binlog_flush_pending_rows_event(bool stmt_end)
   {
     return (binlog_flush_pending_rows_event(stmt_end, FALSE) || 
@@ -2937,7 +2934,8 @@ public:
   bool binlog_need_stmt_format(bool is_transactional) const
   {
     return log_current_statement() &&
-           !binlog_get_pending_rows_event(is_transactional);
+           !binlog_get_pending_rows_event(binlog_get_cache_mngr(),
+              use_trans_cache(this, is_transactional));
   }
 
   bool binlog_for_noop_dml(bool transactional_table);
