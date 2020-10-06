@@ -1611,22 +1611,48 @@ lock_rec_insert_by_trx_age(
 	cell = hash_get_nth_cell(hash,
 				 hash_calc_hash(rec_fold, hash));
 
-	node = (lock_t *) cell->node;
-	// If in_lock is not a wait lock, we insert it to the head of the list.
+	node = static_cast<lock_t*>(cell->node);
+	// If lock queue is empty or this lock request does not need
+	// to wait or has higher priority than first waiting lock
+	// request we move this lock request to front of wait
+	// queue. This lock reqeust can be granted if it was
+	// wait lock. Note that granted locks have higher priority.
 	if (node == NULL || !lock_get_wait(in_lock) || has_higher_priority(in_lock, node)) {
 		cell->node = in_lock;
 		in_lock->hash = node;
 		if (lock_get_wait(in_lock)) {
+			ut_ad(node ? lock_get_wait(node) : 1);
 			lock_grant_have_trx_mutex(in_lock);
 			return DB_SUCCESS_LOCKED_REC;
 		}
 		return DB_SUCCESS;
 	}
-	while (node != NULL && has_higher_priority((lock_t *) node->hash,
-						   in_lock)) {
-		node = (lock_t *) node->hash;
+
+	// Find correct place for this lock request in a lock wait
+	// queue.
+	// Rules:
+	// (1) If lock request on queue is already granted and
+	// this new lock request is compatible we can move new
+	// lock request to front of the queue.
+	// (2) If lock request on queue is already granted and
+	// this new lock request is not compatible we must
+	// add this new lock request after it.
+	// (3) If lock request is not granted but it has higher
+	// priority compared to this new lock request, this
+	// new one must be added after it.
+	// (4) When there is either no more lock request on the
+	// queue or this new lock request has higher priority
+	// we can add new lock request before found waiting
+	// lock request in the queue or at the end of queue.
+	while (node != NULL
+		&& (has_higher_priority(static_cast<lock_t *>(node->hash), in_lock)
+		    || (node->hash && !lock_get_wait(static_cast<lock_t *>(node->hash))))) {
+		node= node->hash;
 	}
-	next = (lock_t *) node->hash;
+
+	ut_ad(node->hash ? lock_get_wait(static_cast<lock_t *>(node->hash)) : 1 );
+
+	next = static_cast<lock_t *>(node->hash);
 	node->hash = in_lock;
 	in_lock->hash = next;
 
@@ -1635,7 +1661,7 @@ lock_rec_insert_by_trx_age(
 		if (cell->node != in_lock) {
 			// Move it to the front of the queue
 			node->hash = in_lock->hash;
-			next = (lock_t *) cell->node;
+			next = static_cast<lock_t *>(cell->node);
 			cell->node = in_lock;
 			in_lock->hash = next;
 		}
@@ -2306,11 +2332,11 @@ lock_grant_and_move_on_page(ulint rec_fold, ulint space, ulint page_no)
 		lock = previous->hash;
 	}
 
-	ut_ad(!lock->trx->is_wsrep());
 	ut_ad(previous->hash == lock || previous == lock);
 	/* Grant locks if there are no conflicting locks ahead.
 	 Move granted locks to the head of the list. */
 	while (lock) {
+		ut_ad(!lock->trx->is_wsrep());
 		/* If the lock is a wait lock on this page, and it does not need to wait. */
 		if (lock_get_wait(lock)
 		    && lock->un_member.rec_lock.space == space
