@@ -726,6 +726,7 @@ public:
 #if !defined(MYSQL_CLIENT)
 
   int flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
+                                       binlog_cache_mngr *cache_mngr,
                                        bool is_transactional);
   int remove_pending_rows_event(THD *thd, bool is_transactional);
 
@@ -1176,6 +1177,13 @@ File open_binlog(IO_CACHE *log, const char *log_file_name,
 void make_default_log_name(char **out, const char* log_ext, bool once);
 void binlog_reset_cache(THD *thd);
 bool write_annotated_row(THD *thd);
+int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
+                                    bool is_transactional,
+                                    MYSQL_BIN_LOG *bin_log,
+                                    binlog_cache_mngr *cache_mngr,
+                                    bool use_trans_cache);
+Rows_log_event* binlog_get_pending_rows_event(binlog_cache_mngr *cache_mngr,
+                                              bool use_trans_cache);
 
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
 extern handlerton *binlog_hton;
