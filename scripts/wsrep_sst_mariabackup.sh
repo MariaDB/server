@@ -188,16 +188,23 @@ get_transfer()
             if nc -h 2>&1 | grep -q ncat;then 
                 # Ncat
                 tcmd="nc -l ${TSST_PORT}"
-            elif nc -h 2>&1 | grep -q -- '-d\>';then
+            elif nc -h 2>&1 | grep -qw -- '-d\>';then
                 # Debian netcat
-                tcmd="nc -dl ${TSST_PORT}"
+                if [ $WSREP_SST_OPT_HOST_IPv6 -eq 1 ];then
+                    # When host is not explicitly specified (when only the port
+                    # is specified) netcat can only bind to an IPv4 address if
+                    # the "-6" option is not explicitly specified:
+                    tcmd="nc -dl -6 ${TSST_PORT}"
+                else
+                    tcmd="nc -dl ${TSST_PORT}"
+                fi
             else
                 # traditional netcat
                 tcmd="nc -l -p ${TSST_PORT}"
             fi
         else
             # Check to see if netcat supports the '-N' flag.
-            #      -N Shutdown the network socket after EOF on stdin
+            # -N Shutdown the network socket after EOF on stdin
             # If it supports the '-N' flag, then we need to use the '-N'
             # flag, otherwise the transfer will stay open after the file
             # transfer and cause the command to timeout.
@@ -206,23 +213,23 @@ get_transfer()
             #
             tcmd_extra=""
             if nc -h 2>&1 | grep -qw -- -N; then
-                tcmd_extra+=" -N "
+                tcmd_extra+="-N"
 		wsrep_log_info "Using nc -N"
             fi
 
             # netcat doesn't understand [] around IPv6 address
             if nc -h 2>&1 | grep -q ncat;then
                 # Ncat
-		wsrep_log_info "Using Ncat as streamer"
-                tcmd="nc ${tcmd_extra} ${REMOTEIP//[\[\]]/} ${TSST_PORT}"
-            elif nc -h 2>&1 | grep -q -- '-d\>';then
+                wsrep_log_info "Using Ncat as streamer"
+                tcmd="nc ${tcmd_extra} ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            elif nc -h 2>&1 | grep -qw -- '-d\>';then
                 # Debian netcat
-		wsrep_log_info "Using Debian netcat as streamer"
-                tcmd="nc ${tcmd_extra} ${REMOTEIP//[\[\]]/} ${TSST_PORT}"
+                wsrep_log_info "Using Debian netcat as streamer"
+                tcmd="nc ${tcmd_extra} ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
             else
                 # traditional netcat
-		wsrep_log_info "Using traditional netcat as streamer"
-                tcmd="nc -q0 ${tcmd_extra} ${REMOTEIP//[\[\]]/} ${TSST_PORT}"
+                wsrep_log_info "Using traditional netcat as streamer"
+                tcmd="nc -q0 ${tcmd_extra} ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
             fi
         fi
     else
@@ -540,25 +547,11 @@ kill_xtrabackup()
 
 setup_ports()
 {
+    SST_PORT=${WSREP_SST_OPT_ADDR_PORT}
     if [[ "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
-        if [ "${WSREP_SST_OPT_ADDR#\[}" != "$WSREP_SST_OPT_ADDR" ]; then
-            remain=$(echo $WSREP_SST_OPT_ADDR | awk -F '\\][:/]' '{ print $2 }')
-            REMOTEIP=$(echo $WSREP_SST_OPT_ADDR | awk -F '\\]:' '{ print $1 }')"]"
-            SST_PORT=$(echo $remain | awk -F '[:/]' '{ print $1 }')
-            lsn=$(echo $remain | awk -F '[:/]' '{ print $3 }')
-            sst_ver=$(echo $remain | awk -F '[:/]' '{ print $4 }')
-        else
-            SST_PORT=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $2 }')
-            REMOTEIP=$(echo $WSREP_SST_OPT_ADDR | awk -F ':' '{ print $1 }')
-            lsn=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $4 }')
-            sst_ver=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $5 }')
-        fi
-    else
-        if [ "${WSREP_SST_OPT_ADDR#\[}" != "$WSREP_SST_OPT_ADDR" ]; then
-            SST_PORT=$(echo ${WSREP_SST_OPT_ADDR} | awk -F '\\]:' '{ print $2 }')
-        else
-            SST_PORT=$(echo ${WSREP_SST_OPT_ADDR} | awk -F ':' '{ print $2 }')
-        fi
+        REMOTEIP=${WSREP_SST_OPT_HOST}
+        lsn=${WSREP_SST_OPT_LSN}
+        sst_ver=${WSREP_SST_OPT_SST_VER}
     fi
 }
 

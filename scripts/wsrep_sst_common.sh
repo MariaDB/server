@@ -49,19 +49,29 @@ case "$1" in
             readonly WSREP_SST_OPT_HOST_UNESCAPED=${addr_no_bracket%%\]*}
             readonly WSREP_SST_OPT_HOST="[${WSREP_SST_OPT_HOST_UNESCAPED}]"
             readonly WSREP_SST_OPT_HOST_ESCAPED="\\[${WSREP_SST_OPT_HOST_UNESCAPED}\\]"
+            readonly WSREP_SST_OPT_HOST_IPv6=1
             ;;
         *)
             readonly WSREP_SST_OPT_HOST=${WSREP_SST_OPT_ADDR%%[:/]*}
             readonly WSREP_SST_OPT_HOST_UNESCAPED=$WSREP_SST_OPT_HOST
             readonly WSREP_SST_OPT_HOST_ESCAPED=$WSREP_SST_OPT_HOST
+            readonly WSREP_SST_OPT_HOST_IPv6=0
             ;;
         esac
         remain=${WSREP_SST_OPT_ADDR#${WSREP_SST_OPT_HOST_ESCAPED}}
         remain=${remain#:}
         readonly WSREP_SST_OPT_ADDR_PORT=${remain%%/*}
-        remain=${remain#*/}
-        readonly WSREP_SST_OPT_MODULE=${remain%%/*}
-        readonly WSREP_SST_OPT_PATH=${WSREP_SST_OPT_ADDR#*/}
+        if [ "${remain#*/}" != "${remain}" ]; then
+           readonly WSREP_SST_OPT_PATH=${remain#*/}
+        else
+           readonly WSREP_SST_OPT_PATH=""
+        fi
+        remain=${WSREP_SST_OPT_PATH}
+        if [ "${remain%%/*}" != "${remain}" ]; then
+            readonly WSREP_SST_OPT_MODULE=${remain%%/*}
+        else
+            readonly WSREP_SST_OPT_MODULE=""
+        fi
         remain=${WSREP_SST_OPT_PATH#*/}
         if [ "$remain" != "${WSREP_SST_OPT_PATH}" ]; then
             readonly WSREP_SST_OPT_LSN=${remain%%/*}

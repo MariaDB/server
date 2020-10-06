@@ -11,8 +11,6 @@
 ##############################################################################
 
 galera_gtid_2_cluster : MDEV-23775 Galera test failure on galera_3nodes.galera_gtid_2_cluster
-galera_ipv6_mariabackup : MDEV-21770 galera_3nodes.galera_ipv6_mariabackup fails
-galera_ipv6_mariabackup_section : MDEV-21770 galera_3nodes.galera_ipv6_mariabackup fails
 galera_ipv6_mysqldump : MDEV-23576 galera_3nodes.galera_ipv6_mysqldump MTR failed: WSREP_SST: [ERROR] rsync daemon port '16008' has been taken
 galera_ipv6_rsync : MDEV-23581 galera_3nodes.galera_ipv6_rsync MTR failed: WSREP_SST: [ERROR] rsync daemon port '16008' has been taken
 galera_ipv6_rsync_section : MDEV-23580 galera_3nodes.galera_ipv6_rsync_section MTR failed: WSREP_SST: [ERROR] rsync daemon port '16008' has been taken
