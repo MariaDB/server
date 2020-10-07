@@ -5723,7 +5723,7 @@ ER_SP_RECURSION_LIMIT
         ger "Rekursionsgrenze %d (durch Variable max_sp_recursion_depth gegeben) wurde für Routine %.192s überschritten"
 ER_SP_PROC_TABLE_CORRUPT
         eng "Failed to load routine %-.192s (internal code %d). For more details, run SHOW WARNINGS"
-        ger "Fehler beim Laden der Routine %-.192s (interner Code %d). Weitere Informationen finden Sie unter SHOW WARNINGS"
+        ger "Routine %-.192s (interner Code %d) konnte nicht geladen werden. Weitere Einzelheiten erhalten Sie, wenn Sie SHOW WARNINGS ausführen"
         ukr "Невдала спроба завантажити процедуру %-.192s (внутрішний код %d). Для отримання детальної інформації використовуйте SHOW WARNINGS"
 ER_SP_WRONG_NAME 42000
         eng "Incorrect routine name '%-.192s'"
