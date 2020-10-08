@@ -1,0 +1,50 @@
+#
+# MDEV-23623 - trans_commit_stmt(THD*): Assertion
+# `thd->in_active_multi_stmt_transaction() ||
+# thd->m_transaction_psi == __null' failed
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY AUTO_INCREMENT, f2 CHAR(255)) ENGINE=InnoDB;
+INSERT INTO t1 (f2) VALUES ('a');
+INSERT INTO t1 (f2) VALUES ('b');
+INSERT INTO t1 (f2) VALUES ('c');
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+SET SESSION wsrep_sync_wait = 0;
+--let $galera_sync_point = after_certify_apply_monitor_enter
+--source include/galera_set_sync_point.inc
+
+--connection node_2
+SET SESSION wsrep_retry_autocommit = 0;
+SET SESSION wsrep_trx_fragment_size = 64;
+--send DELETE FROM t1 ORDER BY f1 DESC LIMIT 2;
+
+--connection node_2a
+--source include/galera_wait_sync_point.inc
+
+#
+# This is going to cause a certification
+# failure on node_2 
+#
+--connection node_1
+INSERT INTO t1 (f2) VALUES ('d'),('e');
+
+--connection node_2a
+--source include/galera_signal_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+--reap
+
+#
+# Assertion would happen when the following
+# DROP TABLE is applied on node_2
+#
+--connection node_1
+DROP TABLE t1;
