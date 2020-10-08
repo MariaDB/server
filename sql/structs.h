@@ -874,7 +874,12 @@ public:
   Timeval(my_time_t sec, ulong usec)
   {
     tv_sec= sec;
+/* apple timeval tv_usec is __darwin_suseconds_t aka int */
+#ifdef __APPLE__
+    tv_usec= static_cast<int>(usec);
+#else
     tv_usec= usec;
+#endif
   }
   explicit Timeval(const timeval &tv)
    :timeval(tv)
