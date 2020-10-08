@@ -1245,10 +1245,11 @@ static bool buf_flush_check_neighbor(const page_id_t id,
 /** Check which neighbors of a page can be flushed from the buf_pool.
 @param space       tablespace
 @param id          page identifier of a dirty page
+@param contiguous  whether to consider contiguous areas of pages
 @param flush       LRU or FLUSH_LIST
 @return last page number that can be flushed */
 static page_id_t buf_flush_check_neighbors(const fil_space_t &space,
-                                           page_id_t &id,
+                                           page_id_t &id, bool contiguous,
                                            IORequest::flush_t flush)
 {
   ut_ad(id.page_no() < space.size);
@@ -1263,6 +1264,13 @@ static page_id_t buf_flush_check_neighbors(const fil_space_t &space,
   page_id_t high= low + buf_flush_area;
   high.set_page_no(std::min(high.page_no(),
                             static_cast<uint32_t>(space.committed_size - 1)));
+
+  if (!contiguous)
+  {
+    high= std::max(id + 1, high);
+    id= low;
+    return high;
+  }
 
   /* Determine the contiguous dirty area around id. */
   const ulint id_fold= id.fold();
@@ -1379,13 +1387,18 @@ buf_flush_try_neighbors(
         /* Flush the freed ranges while flushing the neighbors */
         buf_flush_freed_pages(space);
 
+	const auto neighbors= srv_flush_neighbors;
+
 	page_id_t id = page_id;
-	page_id_t high = (srv_flush_neighbors != 1
+	page_id_t high = (!neighbors
 			  || UT_LIST_GET_LEN(buf_pool.LRU)
 			  < BUF_LRU_OLD_MIN_LEN
 			  || !space->is_rotational())
 		? id + 1 /* Flush the minimum. */
-		: buf_flush_check_neighbors(*space, id, flush);
+		: buf_flush_check_neighbors(*space, id, neighbors == 1, flush);
+
+	ut_ad(page_id >= id);
+	ut_ad(page_id < high);
 
 	for (; id < high; ++id) {
 		buf_page_t*	bpage;
