@@ -4453,9 +4453,12 @@ row_search_mvcc(
 					switch (row_search_idx_cond_check(
 							buf, prebuilt,
 							rec, offsets)) {
+					case CHECK_ABORTED_BY_USER:
+						err = DB_INTERRUPTED;
+						mtr.commit();
+						goto func_exit;
 					case CHECK_NEG:
 					case CHECK_OUT_OF_RANGE:
-                                        case CHECK_ABORTED_BY_USER:
                                         case CHECK_ERROR:
 						goto shortcut_mismatch;
 					case CHECK_POS:
@@ -5239,9 +5242,11 @@ no_gap_lock:
 						buf, prebuilt, rec, offsets)) {
 				case CHECK_NEG:
 					goto next_rec;
-				case CHECK_OUT_OF_RANGE:
                                 case CHECK_ABORTED_BY_USER:
-                                case CHECK_ERROR:
+					err = DB_INTERRUPTED;
+					goto idx_cond_failed;
+				case CHECK_OUT_OF_RANGE:
+				case CHECK_ERROR:
 					err = DB_RECORD_NOT_FOUND;
 					goto idx_cond_failed;
 				case CHECK_POS:
