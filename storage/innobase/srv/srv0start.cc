@@ -2076,8 +2076,9 @@ void innodb_preshutdown()
     better prevent any further changes from being buffered. */
     innodb_change_buffering= 0;
 
-    while (trx_sys.any_active_transactions())
-      os_thread_sleep(1000);
+    if (trx_sys.is_initialised())
+      while (trx_sys.any_active_transactions())
+        os_thread_sleep(1000);
   }
   srv_shutdown_bg_undo_sources();
   srv_purge_shutdown();
