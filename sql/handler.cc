@@ -5519,6 +5519,7 @@ extern "C" enum icp_result handler_index_cond_check(void* h_arg)
   THD *thd= h->table->in_use;
   enum icp_result res;
 
+  DEBUG_SYNC(thd, "handler_index_cond_check");
   enum thd_kill_levels abort_at= h->has_transactions() ?
     THD_ABORT_SOFTLY : THD_ABORT_ASAP;
   if (thd_kill_level(thd) > abort_at)
