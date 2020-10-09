@@ -6015,6 +6015,7 @@ extern "C" check_result_t handler_index_cond_check(void* h_arg)
   THD *thd= h->table->in_use;
   check_result_t res;
 
+  DEBUG_SYNC(thd, "handler_index_cond_check");
   enum thd_kill_levels abort_at= h->has_transactions() ?
     THD_ABORT_SOFTLY : THD_ABORT_ASAP;
   if (thd_kill_level(thd) > abort_at)
@@ -6048,6 +6049,7 @@ check_result_t handler_rowid_filter_check(void *h_arg)
   if (!h->pushed_idx_cond)
   {
     THD *thd= h->table->in_use;
+    DEBUG_SYNC(thd, "handler_rowid_filter_check");
     enum thd_kill_levels abort_at= h->has_transactions() ?
       THD_ABORT_SOFTLY : THD_ABORT_ASAP;
     if (thd_kill_level(thd) > abort_at)

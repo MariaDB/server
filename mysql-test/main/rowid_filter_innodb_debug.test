@@ -1,6 +1,9 @@
---source include/have_debug.inc
---source include/have_debug_sync.inc
 --source include/have_innodb.inc
+
+set default_storage_engine=innodb;
+--source include/rowid_filter_debug_kill.inc
+set default_storage_engine=default;
+
 --source include/default_optimizer_switch.inc
 --source include/count_sessions.inc
 
@@ -15,6 +18,7 @@ set optimizer_switch='rowid_filter=on';
 
 --echo #
 --echo # MDEV-22761 KILL QUERY during rowid_filter, crashes
+--echo # (The smaller testcase)
 --echo #
 
 CREATE TABLE t1 (a INT, b INT, INDEX(a), INDEX(b)) ENGINE=InnoDB;
@@ -22,7 +26,7 @@ INSERT INTO t1 VALUES (0,0),(1,0),(-1,1), (-2,1), (-2,3), (-3,4), (-2,4);
 
 let $ID= `SELECT @id := CONNECTION_ID()`;
 
-set debug_sync='row_search_pre_rowid_filter_check SIGNAL killme WAIT_FOR go';
+set debug_sync='handler_rowid_filter_check SIGNAL killme WAIT_FOR go';
 send SELECT * FROM t1 WHERE a > 0 AND b=0;
 
 connect (con1, localhost, root,,);
@@ -33,6 +37,7 @@ kill query @id;
 set debug_sync='now SIGNAL go';
 
 connection default;
+--error ER_QUERY_INTERRUPTED
 reap;
 set debug_sync='RESET';
 

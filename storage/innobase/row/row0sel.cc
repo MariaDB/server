@@ -3975,8 +3975,6 @@ row_search_idx_cond_check(
                                ut_ad(len == DATA_ROW_ID_LEN);
                                memcpy(prebuilt->row_id, data, DATA_ROW_ID_LEN);
                         }
-                        DEBUG_SYNC_C("row_search_pre_rowid_filter_check");
-
                         result = handler_rowid_filter_check(prebuilt->pk_filter);
                         switch (result) {
                         case CHECK_NEG:
@@ -5301,8 +5299,10 @@ locks_ok_del_marked:
 			row_unlock_for_mysql(prebuilt, TRUE);
 		}
 		goto next_rec;
-	case CHECK_OUT_OF_RANGE:
         case CHECK_ABORTED_BY_USER:
+		err = DB_INTERRUPTED;
+		goto idx_cond_failed;
+	case CHECK_OUT_OF_RANGE:
         case CHECK_ERROR:
 		err = DB_RECORD_NOT_FOUND;
 		goto idx_cond_failed;
