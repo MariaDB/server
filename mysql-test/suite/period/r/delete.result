@@ -176,6 +176,8 @@ delete from t for portion of othertime from '2000-01-01' to '2018-01-01';
 ERROR HY000: Period `othertime` is not found in table
 delete from t for portion of system_time from '2000-01-01' to '2018-01-01';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'of system_time from '2000-01-01' to '2018-01-01'' at line 1
+delete from t for portion of apptime from s to e;
+ERROR HY000: Expression in FOR PORTION OF must be constant
 create or replace table t (id int, str text, s date, e date,
 period for apptime(s,e));
 insert into t values(1, 'data', '1999-01-01', '2018-12-12');
