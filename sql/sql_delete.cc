@@ -357,6 +357,16 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (mysql_prepare_delete(thd, table_list, &conds, &delete_while_scanning))
     DBUG_RETURN(TRUE);
 
+  if (table_list->has_period())
+  {
+    if (!table_list->period_conditions.start.item->const_item()
+        || !table_list->period_conditions.end.item->const_item())
+    {
+      my_error(ER_NOT_CONSTANT_EXPRESSION, MYF(0), "FOR PORTION OF");
+      DBUG_RETURN(true);
+    }
+  }
+
   if (delete_history)
     table->vers_write= false;
 
