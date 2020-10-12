@@ -921,7 +921,7 @@ int ha_partition::drop_partitions(const char *path)
           DBUG_PRINT("info", ("Drop subpartition %s", part_name_buff));
           if (unlikely((ret_error= file->delete_table(part_name_buff))))
             error= ret_error;
-          if (unlikely(deactivate_ddl_log_entry(sub_elem->log_entry->
+          if (unlikely(ddl_log_increment_phase(sub_elem->log_entry->
                                                 entry_pos)))
             error= 1;
         } while (++j < num_subparts);
@@ -938,7 +938,7 @@ int ha_partition::drop_partitions(const char *path)
           DBUG_PRINT("info", ("Drop partition %s", part_name_buff));
           if (unlikely((ret_error= file->delete_table(part_name_buff))))
             error= ret_error;
-          if (unlikely(deactivate_ddl_log_entry(part_elem->log_entry->
+          if (unlikely(ddl_log_increment_phase(part_elem->log_entry->
                                                 entry_pos)))
             error= 1;
         }
@@ -949,7 +949,7 @@ int ha_partition::drop_partitions(const char *path)
         part_elem->part_state= PART_IS_DROPPED;
     }
   } while (++i < num_parts);
-  (void) sync_ddl_log();
+  (void) ddl_log_sync();
   DBUG_RETURN(error);
 }
 
@@ -1030,7 +1030,7 @@ int ha_partition::rename_partitions(const char *path)
           DBUG_PRINT("info", ("Delete subpartition %s", norm_name_buff));
           if (unlikely((ret_error= file->delete_table(norm_name_buff))))
             error= ret_error;
-          else if (unlikely(deactivate_ddl_log_entry(sub_elem->log_entry->
+          else if (unlikely(ddl_log_increment_phase(sub_elem->log_entry->
                                                      entry_pos)))
             error= 1;
           else
@@ -1051,7 +1051,7 @@ int ha_partition::rename_partitions(const char *path)
           DBUG_PRINT("info", ("Delete partition %s", norm_name_buff));
           if (unlikely((ret_error= file->delete_table(norm_name_buff))))
             error= ret_error;
-          else if (unlikely(deactivate_ddl_log_entry(part_elem->log_entry->
+          else if (unlikely(ddl_log_increment_phase(part_elem->log_entry->
                                                      entry_pos)))
             error= 1;
           else
@@ -1059,7 +1059,7 @@ int ha_partition::rename_partitions(const char *path)
         }
       }
     } while (++i < temp_partitions);
-    (void) sync_ddl_log();
+    (void) ddl_log_sync();
   }
   i= 0;
   do
@@ -1112,10 +1112,10 @@ int ha_partition::rename_partitions(const char *path)
             DBUG_PRINT("info", ("Delete subpartition %s", norm_name_buff));
             if (unlikely((ret_error= file->delete_table(norm_name_buff))))
               error= ret_error;
-            else if (unlikely(deactivate_ddl_log_entry(sub_elem->log_entry->
+            else if (unlikely(ddl_log_increment_phase(sub_elem->log_entry->
                                                        entry_pos)))
               error= 1;
-            (void) sync_ddl_log();
+            (void) ddl_log_sync();
           }
           file= m_new_file[part];
           if (unlikely((ret_error=
@@ -1130,7 +1130,7 @@ int ha_partition::rename_partitions(const char *path)
           if (unlikely((ret_error= file->ha_rename_table(part_name_buff,
                                                          norm_name_buff))))
             error= ret_error;
-          else if (unlikely(deactivate_ddl_log_entry(sub_elem->log_entry->
+          else if (unlikely(ddl_log_increment_phase(sub_elem->log_entry->
                                                      entry_pos)))
             error= 1;
           else
@@ -1159,10 +1159,10 @@ int ha_partition::rename_partitions(const char *path)
             DBUG_PRINT("info", ("Delete partition %s", norm_name_buff));
             if (unlikely((ret_error= file->delete_table(norm_name_buff))))
               error= ret_error;
-            else if (unlikely(deactivate_ddl_log_entry(part_elem->log_entry->
+            else if (unlikely(ddl_log_increment_phase(part_elem->log_entry->
                                                        entry_pos)))
               error= 1;
-            (void) sync_ddl_log();
+            (void) ddl_log_sync();
           }
           file= m_new_file[i];
           DBUG_PRINT("info", ("Rename partition from %s to %s",
@@ -1170,7 +1170,7 @@ int ha_partition::rename_partitions(const char *path)
           if (unlikely((ret_error= file->ha_rename_table(part_name_buff,
                                                          norm_name_buff))))
             error= ret_error;
-          else if (unlikely(deactivate_ddl_log_entry(part_elem->log_entry->
+          else if (unlikely(ddl_log_increment_phase(part_elem->log_entry->
                                                      entry_pos)))
             error= 1;
           else
@@ -1179,7 +1179,7 @@ int ha_partition::rename_partitions(const char *path)
       }
     }
   } while (++i < num_parts);
-  (void) sync_ddl_log();
+  (void) ddl_log_sync();
   DBUG_RETURN(error);
 }
 
