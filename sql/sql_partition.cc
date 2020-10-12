@@ -6168,7 +6168,7 @@ static void release_part_info_log_entries(DDL_LOG_MEMORY_ENTRY *log_entry)
 
   while (log_entry)
   {
-    release_ddl_log_memory_entry(log_entry);
+    ddl_log_release_memory_entry(log_entry);
     log_entry= log_entry->next_active_log_entry;
   }
   DBUG_VOID_RETURN;
@@ -6212,7 +6212,7 @@ static bool write_log_replace_delete_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
   ddl_log_entry.name= to_path;
   if (replace_flag)
     ddl_log_entry.from_name= from_path;
-  if (write_ddl_log_entry(&ddl_log_entry, &log_entry))
+  if (ddl_log_write_entry(&ddl_log_entry, &log_entry))
   {
     DBUG_RETURN(TRUE);
   }
@@ -6289,7 +6289,7 @@ static bool write_log_changed_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
             ddl_log_entry.action_type= DDL_LOG_REPLACE_ACTION;
           else
             ddl_log_entry.action_type= DDL_LOG_RENAME_ACTION;
-          if (write_ddl_log_entry(&ddl_log_entry, &log_entry))
+          if (ddl_log_write_entry(&ddl_log_entry, &log_entry))
           {
             DBUG_RETURN(TRUE);
           }
@@ -6316,7 +6316,7 @@ static bool write_log_changed_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
           ddl_log_entry.action_type= DDL_LOG_REPLACE_ACTION;
         else
           ddl_log_entry.action_type= DDL_LOG_RENAME_ACTION;
-        if (write_ddl_log_entry(&ddl_log_entry, &log_entry))
+        if (ddl_log_write_entry(&ddl_log_entry, &log_entry))
         {
           DBUG_RETURN(TRUE);
         }
@@ -6392,7 +6392,7 @@ static bool write_log_dropped_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
                                        sub_elem->partition_name, name_variant))
             DBUG_RETURN(TRUE);
           ddl_log_entry.name= tmp_path;
-          if (write_ddl_log_entry(&ddl_log_entry, &log_entry))
+          if (ddl_log_write_entry(&ddl_log_entry, &log_entry))
           {
             DBUG_RETURN(TRUE);
           }
@@ -6411,7 +6411,7 @@ static bool write_log_dropped_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
                                   TRUE))
           DBUG_RETURN(TRUE);
         ddl_log_entry.name= tmp_path;
-        if (write_ddl_log_entry(&ddl_log_entry, &log_entry))
+        if (ddl_log_write_entry(&ddl_log_entry, &log_entry))
         {
           DBUG_RETURN(TRUE);
         }
@@ -6473,7 +6473,7 @@ static bool write_log_drop_shadow_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
                                   (const char*)shadow_path, FALSE))
     goto error;
   log_entry= part_info->first_log_entry;
-  if (write_execute_ddl_log_entry(log_entry->entry_pos,
+  if (ddl_log_write_execute_entry(log_entry->entry_pos,
                                     FALSE, &exec_log_entry))
     goto error;
   mysql_mutex_unlock(&LOCK_gdl);
@@ -6520,7 +6520,7 @@ static bool write_log_rename_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
     goto error;
   log_entry= part_info->first_log_entry;
   part_info->frm_log_entry= log_entry;
-  if (write_execute_ddl_log_entry(log_entry->entry_pos,
+  if (ddl_log_write_execute_entry(log_entry->entry_pos,
                                     FALSE, &exec_log_entry))
     goto error;
   release_part_info_log_entries(old_first_log_entry);
@@ -6575,7 +6575,7 @@ static bool write_log_drop_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
     goto error;
   log_entry= part_info->first_log_entry;
   part_info->frm_log_entry= log_entry;
-  if (write_execute_ddl_log_entry(log_entry->entry_pos,
+  if (ddl_log_write_execute_entry(log_entry->entry_pos,
                                     FALSE, &exec_log_entry))
     goto error;
   release_part_info_log_entries(old_first_log_entry);
@@ -6634,7 +6634,7 @@ static bool write_log_add_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
     goto error;
   log_entry= part_info->first_log_entry;
 
-  if (write_execute_ddl_log_entry(log_entry->entry_pos,
+  if (ddl_log_write_execute_entry(log_entry->entry_pos,
                                   FALSE,
                                   /* Reuse the old execute ddl_log_entry */
                                   &exec_log_entry))
@@ -6704,7 +6704,7 @@ static bool write_log_final_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   log_entry= part_info->first_log_entry;
   part_info->frm_log_entry= log_entry;
   /* Overwrite the revert execute log entry with this retry execute entry */
-  if (write_execute_ddl_log_entry(log_entry->entry_pos,
+  if (ddl_log_write_execute_entry(log_entry->entry_pos,
                                     FALSE, &exec_log_entry))
     goto error;
   release_part_info_log_entries(old_first_log_entry);
@@ -6741,7 +6741,7 @@ static void write_log_completed(ALTER_PARTITION_PARAM_TYPE *lpt,
 
   DBUG_ASSERT(log_entry);
   mysql_mutex_lock(&LOCK_gdl);
-  if (write_execute_ddl_log_entry(0UL, TRUE, &log_entry))
+  if (ddl_log_write_execute_entry(0UL, TRUE, &log_entry))
   {
     /*
       Failed to write, Bad...
@@ -6891,7 +6891,7 @@ static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
   }
 
   if (part_info->first_log_entry &&
-      execute_ddl_log_entry(thd, part_info->first_log_entry->entry_pos))
+      ddl_log_execute_entry(thd, part_info->first_log_entry->entry_pos))
   {
     /*
       We couldn't recover from error, most likely manual interaction

@@ -768,8 +768,8 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
         lpt->table->file->ha_create_partitioning_metadata(path, shadow_path,
                                                           CHF_DELETE_FLAG) ||
-        deactivate_ddl_log_entry(part_info->frm_log_entry->entry_pos) ||
-        (sync_ddl_log(), FALSE) ||
+        ddl_log_increment_phase(part_info->frm_log_entry->entry_pos) ||
+        (ddl_log_sync(), FALSE) ||
         mysql_file_rename(key_file_frm,
                           shadow_frm_name, frm_name, MYF(MY_WME)) ||
         lpt->table->file->ha_create_partitioning_metadata(path, shadow_path,
@@ -816,9 +816,9 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 
 err:
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    deactivate_ddl_log_entry(part_info->frm_log_entry->entry_pos);
+    ddl_log_increment_phase(part_info->frm_log_entry->entry_pos);
     part_info->frm_log_entry= NULL;
-    (void) sync_ddl_log();
+    (void) ddl_log_sync();
 #endif
     ;
   }

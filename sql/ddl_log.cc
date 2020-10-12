@@ -146,9 +146,9 @@ static bool write_ddl_log_file_entry(uint entry_no)
 */
 
 
-static bool sync_ddl_log_file()
+static bool ddl_log_sync_file()
 {
-  DBUG_ENTER("sync_ddl_log_file");
+  DBUG_ENTER("ddl_log_sync_file");
   DBUG_RETURN(mysql_file_sync(global_ddl_log.file_id, MYF(MY_WME)));
 }
 
@@ -179,7 +179,7 @@ static bool write_ddl_log_header()
     sql_print_error("Error writing ddl log header");
     DBUG_RETURN(TRUE);
   }
-  DBUG_RETURN(sync_ddl_log_file());
+  DBUG_RETURN(ddl_log_sync_file());
 }
 
 
@@ -408,9 +408,9 @@ end:
     @retval FALSE       Success
 */
 
-static bool sync_ddl_log_no_lock()
+static bool ddl_log_sync_no_lock()
 {
-  DBUG_ENTER("sync_ddl_log_no_lock");
+  DBUG_ENTER("ddl_log_sync_no_lock");
 
   mysql_mutex_assert_owner(&LOCK_gdl);
   if ((!global_ddl_log.recovery_phase) &&
@@ -418,7 +418,7 @@ static bool sync_ddl_log_no_lock()
   {
     DBUG_RETURN(TRUE);
   }
-  DBUG_RETURN(sync_ddl_log_file());
+  DBUG_RETURN(ddl_log_sync_file());
 }
 
 
@@ -449,10 +449,10 @@ static bool sync_ddl_log_no_lock()
     @retval FALSE     Success
 */
 
-static bool deactivate_ddl_log_entry_no_lock(uint entry_no)
+static bool ddl_log_increment_phase_no_lock(uint entry_no)
 {
   uchar *file_entry_buf= (uchar*)global_ddl_log.file_entry_buf;
-  DBUG_ENTER("deactivate_ddl_log_entry_no_lock");
+  DBUG_ENTER("ddl_log_increment_phase_no_lock");
 
   mysql_mutex_assert_owner(&LOCK_gdl);
   if (!read_ddl_log_file_entry(entry_no))
@@ -585,9 +585,9 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
               break;
           }
         }
-        if ((deactivate_ddl_log_entry_no_lock(ddl_log_entry->entry_pos)))
+        if ((ddl_log_increment_phase_no_lock(ddl_log_entry->entry_pos)))
           break;
-        (void) sync_ddl_log_no_lock();
+        (void) ddl_log_sync_no_lock();
         error= 0;
         if (ddl_log_entry->action_type == DDL_LOG_DELETE_ACTION)
           break;
@@ -621,9 +621,9 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
                                   ddl_log_entry->name))
           break;
       }
-      if ((deactivate_ddl_log_entry_no_lock(ddl_log_entry->entry_pos)))
+      if ((ddl_log_increment_phase_no_lock(ddl_log_entry->entry_pos)))
         break;
-      (void) sync_ddl_log_no_lock();
+      (void) ddl_log_sync_no_lock();
       error= FALSE;
       break;
     }
@@ -646,7 +646,7 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
           file_entry_buf[DDL_LOG_PHASE_POS]--;
           if (write_ddl_log_file_entry(ddl_log_entry->entry_pos))
             break;
-          if (sync_ddl_log_no_lock())
+          if (ddl_log_sync_no_lock())
             break;
           /* fall through */
         case EXCH_PHASE_FROM_TO_NAME:
@@ -657,7 +657,7 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
           file_entry_buf[DDL_LOG_PHASE_POS]--;
           if (write_ddl_log_file_entry(ddl_log_entry->entry_pos))
             break;
-          if (sync_ddl_log_no_lock())
+          if (ddl_log_sync_no_lock())
             break;
           /* fall through */
         case EXCH_PHASE_NAME_TO_TEMP:
@@ -668,7 +668,7 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
           file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]= DDL_IGNORE_LOG_ENTRY_CODE;
           if (write_ddl_log_file_entry(ddl_log_entry->entry_pos))
             break;
-          if (sync_ddl_log_no_lock())
+          if (ddl_log_sync_no_lock())
             break;
           error= FALSE;
           break;
@@ -752,11 +752,11 @@ static bool get_free_ddl_log_entry(DDL_LOG_MEMORY_ENTRY **active_entry,
     @retval FALSE              Success
 */
 
-static bool execute_ddl_log_entry_no_lock(THD *thd, uint first_entry)
+static bool ddl_log_execute_entry_no_lock(THD *thd, uint first_entry)
 {
   DDL_LOG_ENTRY ddl_log_entry;
   uint read_entry= first_entry;
-  DBUG_ENTER("execute_ddl_log_entry_no_lock");
+  DBUG_ENTER("ddl_log_execute_entry_no_lock");
 
   mysql_mutex_assert_owner(&LOCK_gdl);
   do
@@ -803,11 +803,11 @@ static bool execute_ddl_log_entry_no_lock(THD *thd, uint first_entry)
     @retval FALSE              Success
 */
 
-bool write_ddl_log_entry(DDL_LOG_ENTRY *ddl_log_entry,
+bool ddl_log_write_entry(DDL_LOG_ENTRY *ddl_log_entry,
                          DDL_LOG_MEMORY_ENTRY **active_entry)
 {
   bool error, write_header;
-  DBUG_ENTER("write_ddl_log_entry");
+  DBUG_ENTER("ddl_log_write_entry");
 
   mysql_mutex_assert_owner(&LOCK_gdl);
   if (init_ddl_log())
@@ -840,12 +840,12 @@ bool write_ddl_log_entry(DDL_LOG_ENTRY *ddl_log_entry,
   }
   if (write_header && likely(!error))
   {
-    (void) sync_ddl_log_no_lock();
+    (void) ddl_log_sync_no_lock();
     if (write_ddl_log_header())
       error= TRUE;
   }
   if (unlikely(error))
-    release_ddl_log_memory_entry(*active_entry);
+    ddl_log_release_memory_entry(*active_entry);
   DBUG_RETURN(error);
 }
 
@@ -876,13 +876,13 @@ bool write_ddl_log_entry(DDL_LOG_ENTRY *ddl_log_entry,
     @retval FALSE                  Success
 */
 
-bool write_execute_ddl_log_entry(uint first_entry,
+bool ddl_log_write_execute_entry(uint first_entry,
                                  bool complete,
                                  DDL_LOG_MEMORY_ENTRY **active_entry)
 {
   bool write_header= FALSE;
   char *file_entry_buf= (char*)global_ddl_log.file_entry_buf;
-  DBUG_ENTER("write_execute_ddl_log_entry");
+  DBUG_ENTER("ddl_log_write_execute_entry");
 
   mysql_mutex_assert_owner(&LOCK_gdl);
   if (init_ddl_log())
@@ -897,7 +897,7 @@ bool write_execute_ddl_log_entry(uint first_entry,
       any log entries before, we are only here to write the execute
       entry to indicate it is done.
     */
-    (void) sync_ddl_log_no_lock();
+    (void) ddl_log_sync_no_lock();
     file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]= (char)DDL_LOG_EXECUTE_CODE;
   }
   else
@@ -919,15 +919,15 @@ bool write_execute_ddl_log_entry(uint first_entry,
   if (write_ddl_log_file_entry((*active_entry)->entry_pos))
   {
     sql_print_error("Error writing execute entry in ddl log");
-    release_ddl_log_memory_entry(*active_entry);
+    ddl_log_release_memory_entry(*active_entry);
     DBUG_RETURN(TRUE);
   }
-  (void) sync_ddl_log_no_lock();
+  (void) ddl_log_sync_no_lock();
   if (write_header)
   {
     if (write_ddl_log_header())
     {
-      release_ddl_log_memory_entry(*active_entry);
+      ddl_log_release_memory_entry(*active_entry);
       DBUG_RETURN(TRUE);
     }
   }
@@ -938,7 +938,7 @@ bool write_execute_ddl_log_entry(uint first_entry,
 /**
   Deactivate an individual entry.
 
-  @details see deactivate_ddl_log_entry_no_lock.
+  @details see ddl_log_increment_phase_no_lock.
 
   @param entry_no     Entry position of record to change
 
@@ -947,13 +947,13 @@ bool write_execute_ddl_log_entry(uint first_entry,
     @retval FALSE     Success
 */
 
-bool deactivate_ddl_log_entry(uint entry_no)
+bool ddl_log_increment_phase(uint entry_no)
 {
   bool error;
-  DBUG_ENTER("deactivate_ddl_log_entry");
+  DBUG_ENTER("ddl_log_increment_phase");
 
   mysql_mutex_lock(&LOCK_gdl);
-  error= deactivate_ddl_log_entry_no_lock(entry_no);
+  error= ddl_log_increment_phase_no_lock(entry_no);
   mysql_mutex_unlock(&LOCK_gdl);
   DBUG_RETURN(error);
 }
@@ -967,13 +967,13 @@ bool deactivate_ddl_log_entry(uint entry_no)
     @retval FALSE       Success
 */
 
-bool sync_ddl_log()
+bool ddl_log_sync()
 {
   bool error;
-  DBUG_ENTER("sync_ddl_log");
+  DBUG_ENTER("ddl_log_sync");
 
   mysql_mutex_lock(&LOCK_gdl);
-  error= sync_ddl_log_no_lock();
+  error= ddl_log_sync_no_lock();
   mysql_mutex_unlock(&LOCK_gdl);
 
   DBUG_RETURN(error);
@@ -985,12 +985,12 @@ bool sync_ddl_log()
   @param log_memory_entry                Log memory entry to release
 */
 
-void release_ddl_log_memory_entry(DDL_LOG_MEMORY_ENTRY *log_entry)
+void ddl_log_release_memory_entry(DDL_LOG_MEMORY_ENTRY *log_entry)
 {
   DDL_LOG_MEMORY_ENTRY *first_free= global_ddl_log.first_free;
   DDL_LOG_MEMORY_ENTRY *next_log_entry= log_entry->next_log_entry;
   DDL_LOG_MEMORY_ENTRY *prev_log_entry= log_entry->prev_log_entry;
-  DBUG_ENTER("release_ddl_log_memory_entry");
+  DBUG_ENTER("ddl_log_release_memory_entry");
 
   mysql_mutex_assert_owner(&LOCK_gdl);
   global_ddl_log.first_free= log_entry;
@@ -1018,13 +1018,13 @@ void release_ddl_log_memory_entry(DDL_LOG_MEMORY_ENTRY *log_entry)
     @retval FALSE              Success
 */
 
-bool execute_ddl_log_entry(THD *thd, uint first_entry)
+bool ddl_log_execute_entry(THD *thd, uint first_entry)
 {
   bool error;
-  DBUG_ENTER("execute_ddl_log_entry");
+  DBUG_ENTER("ddl_log_execute_entry");
 
   mysql_mutex_lock(&LOCK_gdl);
-  error= execute_ddl_log_entry_no_lock(thd, first_entry);
+  error= ddl_log_execute_entry_no_lock(thd, first_entry);
   mysql_mutex_unlock(&LOCK_gdl);
   DBUG_RETURN(error);
 }
@@ -1050,14 +1050,14 @@ static void close_ddl_log()
   Execute the ddl log at recovery of MySQL Server.
 */
 
-void execute_ddl_log_recovery()
+void ddl_log_execute_recovery()
 {
   uint num_entries, i;
   THD *thd, *original_thd;
   DDL_LOG_ENTRY ddl_log_entry;
   char file_name[FN_REFLEN];
   static char recover_query_string[]= "INTERNAL DDL LOG RECOVER IN PROGRESS";
-  DBUG_ENTER("execute_ddl_log_recovery");
+  DBUG_ENTER("ddl_log_execute_recovery");
 
   /*
     Initialise global_ddl_log struct
@@ -1092,7 +1092,7 @@ void execute_ddl_log_recovery()
     }
     if (ddl_log_entry.entry_type == DDL_LOG_EXECUTE_CODE)
     {
-      if (execute_ddl_log_entry_no_lock(thd, ddl_log_entry.next_entry))
+      if (ddl_log_execute_entry_no_lock(thd, ddl_log_entry.next_entry))
       {
         /* Real unpleasant scenario but we continue anyways.  */
         continue;
@@ -1115,11 +1115,11 @@ void execute_ddl_log_recovery()
   Release all memory allocated to the ddl log.
 */
 
-void release_ddl_log()
+void ddl_log_release()
 {
   DDL_LOG_MEMORY_ENTRY *free_list;
   DDL_LOG_MEMORY_ENTRY *used_list;
-  DBUG_ENTER("release_ddl_log");
+  DBUG_ENTER("ddl_log_release");
 
   if (!global_ddl_log.do_release)
     DBUG_VOID_RETURN;
