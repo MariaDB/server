@@ -30,7 +30,7 @@
 #include "parse_file.h"   // File_parser_dummy_hook
 #include "sql_db.h"       // my_dboptions_cache_free
                           // my_dboptions_cache_init
-#include "sql_table.h"    // release_ddl_log, execute_ddl_log_recovery
+#include "sql_table.h"    // ddl_log_release, ddl_log_execute_recovery
 #include "sql_connect.h"  // free_max_user_conn, init_max_user_conn,
                           // handle_one_connection
 #include "thread_cache.h"
@@ -1963,7 +1963,7 @@ static void clean_up(bool print_message)
     my_bitmap_free(&slave_error_mask);
 #endif
   stop_handle_manager();
-  release_ddl_log();
+  ddl_log_release();
 
   logger.cleanup_base();
 
@@ -5591,7 +5591,7 @@ int mysqld_main(int argc, char **argv)
 
   initialize_information_schema_acl();
 
-  execute_ddl_log_recovery();
+  ddl_log_execute_recovery();
 
   /*
     Change EVENTS_ORIGINAL to EVENTS_OFF (the default value) as there is no

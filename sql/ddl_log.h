@@ -95,17 +95,17 @@ typedef struct st_ddl_log_memory_entry
 } DDL_LOG_MEMORY_ENTRY;
 
 
-bool write_ddl_log_entry(DDL_LOG_ENTRY *ddl_log_entry,
+bool ddl_log_write_entry(DDL_LOG_ENTRY *ddl_log_entry,
                            DDL_LOG_MEMORY_ENTRY **active_entry);
-bool write_execute_ddl_log_entry(uint first_entry,
+bool ddl_log_write_execute_entry(uint first_entry,
                                    bool complete,
                                    DDL_LOG_MEMORY_ENTRY **active_entry);
-bool deactivate_ddl_log_entry(uint entry_no);
-void release_ddl_log_memory_entry(DDL_LOG_MEMORY_ENTRY *log_entry);
-bool sync_ddl_log();
-void release_ddl_log();
-void execute_ddl_log_recovery();
-bool execute_ddl_log_entry(THD *thd, uint first_entry);
+bool ddl_log_increment_phase(uint entry_no);
+void ddl_log_release_memory_entry(DDL_LOG_MEMORY_ENTRY *log_entry);
+bool ddl_log_sync();
+void ddl_log_release();
+void ddl_log_execute_recovery();
+bool ddl_log_execute_entry(THD *thd, uint first_entry);
 
 extern mysql_mutex_t LOCK_gdl;
 #endif /* DDL_LOG_INCLUDED */

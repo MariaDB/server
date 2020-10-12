@@ -372,12 +372,12 @@ static bool exchange_name_with_ddl_log(THD *thd,
   */
   DBUG_EXECUTE_IF("exchange_partition_fail_1", goto err_no_action_written;);
   DBUG_EXECUTE_IF("exchange_partition_abort_1", DBUG_SUICIDE(););
-  if (unlikely(write_ddl_log_entry(&exchange_entry, &log_entry)))
+  if (unlikely(ddl_log_write_entry(&exchange_entry, &log_entry)))
     goto err_no_action_written;
 
   DBUG_EXECUTE_IF("exchange_partition_fail_2", goto err_no_execute_written;);
   DBUG_EXECUTE_IF("exchange_partition_abort_2", DBUG_SUICIDE(););
-  if (unlikely(write_execute_ddl_log_entry(log_entry->entry_pos, FALSE,
+  if (unlikely(ddl_log_write_execute_entry(log_entry->entry_pos, FALSE,
                                             &exec_log_entry)))
     goto err_no_execute_written;
   /* ddl_log is written and synced */
@@ -404,7 +404,7 @@ static bool exchange_name_with_ddl_log(THD *thd,
   }
   DBUG_EXECUTE_IF("exchange_partition_fail_4", goto err_rename;);
   DBUG_EXECUTE_IF("exchange_partition_abort_4", DBUG_SUICIDE(););
-  if (unlikely(deactivate_ddl_log_entry(log_entry->entry_pos)))
+  if (unlikely(ddl_log_increment_phase(log_entry->entry_pos)))
     goto err_rename;
 
   /* call rename table from partition to table */
@@ -421,7 +421,7 @@ static bool exchange_name_with_ddl_log(THD *thd,
   }
   DBUG_EXECUTE_IF("exchange_partition_fail_6", goto err_rename;);
   DBUG_EXECUTE_IF("exchange_partition_abort_6", DBUG_SUICIDE(););
-  if (unlikely(deactivate_ddl_log_entry(log_entry->entry_pos)))
+  if (unlikely(ddl_log_increment_phase(log_entry->entry_pos)))
     goto err_rename;
 
   /* call rename table from tmp-nam to partition */
@@ -438,7 +438,7 @@ static bool exchange_name_with_ddl_log(THD *thd,
   }
   DBUG_EXECUTE_IF("exchange_partition_fail_8", goto err_rename;);
   DBUG_EXECUTE_IF("exchange_partition_abort_8", DBUG_SUICIDE(););
-  if (unlikely(deactivate_ddl_log_entry(log_entry->entry_pos)))
+  if (unlikely(ddl_log_increment_phase(log_entry->entry_pos)))
     goto err_rename;
 
   /* The exchange is complete and ddl_log is deactivated */
@@ -454,15 +454,15 @@ err_rename:
     will log to the error log about the failures...
   */
   /* execute the ddl log entry to revert the renames */
-  (void) execute_ddl_log_entry(current_thd, log_entry->entry_pos);
+  (void) ddl_log_execute_entry(current_thd, log_entry->entry_pos);
   mysql_mutex_lock(&LOCK_gdl);
   /* mark the execute log entry done */
-  (void) write_execute_ddl_log_entry(0, TRUE, &exec_log_entry);
+  (void) ddl_log_write_execute_entry(0, TRUE, &exec_log_entry);
   /* release the execute log entry */
-  (void) release_ddl_log_memory_entry(exec_log_entry);
+  (void) ddl_log_release_memory_entry(exec_log_entry);
 err_no_execute_written:
   /* release the action log entry */
-  (void) release_ddl_log_memory_entry(log_entry);
+  (void) ddl_log_release_memory_entry(log_entry);
 err_no_action_written:
   mysql_mutex_unlock(&LOCK_gdl);
   delete file;
