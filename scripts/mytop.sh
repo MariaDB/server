@@ -6,7 +6,7 @@
 
 =head1 NAME
 
-mytop - display MariaDB server performance info like `top'
+mytop - display MariaDB/MySQL server performance info like `top'
 
 =cut
 
@@ -241,16 +241,17 @@ my $BOLD   = BOLD()    || '';
 my $dsn;
 
 ## Socket takes precedence.
-
+my $prefix= 'mysql';
 if (eval {DBI->install_driver("MariaDB")}) {
   $dsn = "DBI:MariaDB:database=$config{db};mariadb_read_default_group=mytop;";
+  $prefix= 'mariadb'
 } else {
   $dsn = "DBI:mysql:database=$config{db};mysql_read_default_group=mytop;";
 }
 
 if ($config{socket} and -S $config{socket})
 {
-    $dsn .= "mariadb_socket=$config{socket}";
+  $dsn .= "${prefix}_socket=$config{socket}";
 }
 else
 {
@@ -272,7 +273,7 @@ my $dbh = DBI->connect($dsn, $config{user}, $config{pass},
 if (not ref $dbh)
 {
     my $Error = <<EODIE
-Cannot connect to MariaDB server. Please check the:
+Cannot connect to MariaDB/MySQL server. Please check the:
 
   * database you specified "$config{db}" (default is "")
   * username you specified "$config{user}" (default is "root")
@@ -2284,8 +2285,8 @@ Default: unset.
 
 =item B<-S> or B<--socket> I</path/to/socket>
 
-If you're running B<mytop> on the same host as MariaDB, you may wish to
-have it use the MariaDB socket directly rather than a standard TCP/IP
+If you're running B<mytop> on the same host as MariaDB/MySQL, you may wish to
+have it use the MariaDB/MySQL socket directly rather than a standard TCP/IP
 connection. If you do,just specify one.
 
 Note that specifying a socket will make B<mytop> ignore any host
