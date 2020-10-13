@@ -1368,12 +1368,19 @@ static int mysql_test_update(Prepared_statement *stmt,
       open_tables(thd, &table_list, &table_count, MYSQL_OPEN_FORCE_SHARED_MDL))
     goto error;
 
-  if (mysql_handle_derived(thd->lex, DT_INIT))
-    goto error;
+  for (TABLE_LIST *tbl= thd->lex->query_tables; tbl; tbl= tbl->next_global)
+  {
+    if (tbl->handle_derived(thd->lex, DT_INIT))
+      DBUG_RETURN(1);
+  }
 
-  if (((update_source_table= unique_table(thd, table_list,
-                                          table_list->next_global, 0)) ||
-        table_list->is_multitable()))
+  table_list->single_table_update= table_list->single_table_updatable(thd);
+
+  if ((update_source_table= unique_table(thd, table_list,
+					 table_list->next_global, 0)) ||
+      table_list->is_multitable() ||
+      (table_list->single_table_update &&
+       (update_source_table= table_list->find_table_for_update(thd))))
   {
     DBUG_ASSERT(update_source_table || table_list->view != 0);
     DBUG_PRINT("info", ("Switch to multi-update"));

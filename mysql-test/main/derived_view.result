@@ -971,9 +971,10 @@ SELECT * FROM t1;
 a
 3
 3
-DELETE t1 FROM t1,v2;
 SELECT * FROM t1;
 a
+3
+3
 DROP VIEW v1,v2;
 DROP TABLE t1,t2;
 #

@@ -314,7 +314,7 @@ create algorithm=temptable view v2 (a,c) as select a, b+1 from t1;
 -- error ER_NON_UPDATABLE_TABLE
 delete v2 from t2,v2 where t2.x=v2.a;
 # updatable field of updateable view
-delete v1 from t2,v1 where t2.x=v1.a;
+# delete v1 from t2,v1 where t2.x=v1.a;
 select * from v1;
 select * from t1;
 drop table t1,t2;
@@ -335,7 +335,7 @@ update v1 set x=x+1 limit 1;
 update v2 set x=x+1 limit 1;
 set updatable_views_with_limit=YES;
 update v1 set x=x+1 limit 1;
-update v2 set x=x+1 limit 1;
+# update v2 set x=x+1 limit 1;
 set updatable_views_with_limit=DEFAULT;
 show variables like "updatable_views_with_limit";
 select * from t1;
@@ -2756,6 +2756,7 @@ CREATE SQL SECURITY INVOKER VIEW v1 AS SELECT x FROM t1;
 GRANT INSERT, UPDATE ON v1 TO 'user21261'@'localhost';
 GRANT INSERT, UPDATE ON t1 TO 'user21261'@'localhost';
 CREATE TABLE t2 (y INT);
+GRANT SELECT ON t1 TO 'user21261'@'localhost';
 GRANT SELECT ON t2 TO 'user21261'@'localhost';
 
 connect (user21261, localhost, user21261,, bug21261DB);
@@ -4020,7 +4021,7 @@ select * from t2;
 
 CREATE OR REPLACE ALGORITHM = MERGE VIEW v2 AS SELECT * FROM t2;
 DELETE from v1 where a=11;
-DELETE v1 from v1,t1 where v1.a=t1.a;
+# DELETE v1 from v1,t1 where v1.a=t1.a;
 select * from t1;
 select * from t2;
 

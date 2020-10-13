@@ -6820,10 +6820,7 @@ void Field_iterator_table_ref::set_field_iterator()
                        table_ref->alias.str));
   }
   /* This is a merge view, so use field_translation. */
-  else if (table_ref->field_translation &&
-           !(table_ref->is_view_or_derived() &&
-             table_ref->select_lex->master_unit()->
-             thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE))
+  else if (table_ref->field_translation)
   {
     DBUG_ASSERT(table_ref->is_merged_derived());
     field_it= &view_field_it;
