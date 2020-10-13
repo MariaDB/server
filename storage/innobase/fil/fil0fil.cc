@@ -605,6 +605,14 @@ static bool fil_node_open_file(fil_node_t* node)
 
 	const bool first_time_open = node->size == 0;
 
+	bool o_direct_possible = !FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags);
+	if (const ulint ssize = FSP_FLAGS_GET_ZIP_SSIZE(space->flags)) {
+		compile_time_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096);
+		if (ssize < 3) {
+			o_direct_possible = false;
+		}
+	}
+
 	if (first_time_open
 	    || (space->purpose == FIL_TYPE_TABLESPACE
 		&& node == UT_LIST_GET_FIRST(space->chain)
@@ -623,7 +631,12 @@ retry:
 			node->is_raw_disk
 			? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
 			: OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
-			OS_FILE_AIO, OS_DATA_FILE, read_only_mode, &success);
+			OS_FILE_AIO,
+			o_direct_possible
+			? OS_DATA_FILE
+			: OS_DATA_FILE_NO_O_DIRECT,
+			read_only_mode,
+			&success);
 
 		if (!success) {
 			/* The following call prints an error message */
@@ -654,7 +667,12 @@ retry:
 			node->is_raw_disk
 			? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
 			: OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
-			OS_FILE_AIO, OS_DATA_FILE, read_only_mode, &success);
+			OS_FILE_AIO,
+			o_direct_possible
+			? OS_DATA_FILE
+			: OS_DATA_FILE_NO_O_DIRECT,
+			read_only_mode,
+			&success);
 	}
 
 	if (space->purpose != FIL_TYPE_LOG) {
