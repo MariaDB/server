@@ -7129,16 +7129,17 @@ int handler::ha_write_row(const uchar *buf)
   if ((error= ha_check_overlaps(NULL, buf)))
     DBUG_RETURN(error);
 
-  MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
-  mark_trx_read_write();
-  increment_statistics(&SSV::ha_write_count);
-
   if (table->s->long_unique_table && this == table->file)
   {
     DBUG_ASSERT(inited == NONE || lookup_handler != this);
     if ((error= check_duplicate_long_entries(buf)))
       DBUG_RETURN(error);
   }
+
+  MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
+  mark_trx_read_write();
+  increment_statistics(&SSV::ha_write_count);
+
   TABLE_IO_WAIT(tracker, PSI_TABLE_WRITE_ROW, MAX_KEY, error,
                       { error= write_row(buf); })
 
@@ -7181,10 +7182,6 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   uint saved_status= table->status;
   error= ha_check_overlaps(old_data, new_data);
 
-  MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
-  mark_trx_read_write();
-  increment_statistics(&SSV::ha_update_count);
-
   if (!error && table->s->long_unique_table && this == table->file)
     error= check_duplicate_long_entries_update(new_data);
   table->status= saved_status;
@@ -7192,6 +7189,9 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   if (error)
     return error;
 
+  MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
+  mark_trx_read_write();
+  increment_statistics(&SSV::ha_update_count);
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_UPDATE_ROW, active_index, 0,
                       { error= update_row(old_data, new_data);})
