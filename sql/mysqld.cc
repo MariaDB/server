@@ -5194,7 +5194,7 @@ static int init_server_components()
   if (log_output_options & LOG_NONE)
   {
     /*
-      Issue a warining if there were specified additional options to the
+      Issue a warning if there were specified additional options to the
       log-output along with NONE. Probably this wasn't what user wanted.
     */
     if ((log_output_options & LOG_NONE) && (log_output_options & ~LOG_NONE))
