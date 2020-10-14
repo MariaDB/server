@@ -3058,7 +3058,8 @@ void MYSQL_QUERY_LOG::reopen_file()
     TRUE - error occurred
 */
 
-bool MYSQL_QUERY_LOG::write(time_t event_time, const char *user_host, size_t user_host_len, my_thread_id thread_id_arg,
+bool MYSQL_QUERY_LOG::write(time_t event_time, const char *user_host,
+                            size_t user_host_len, my_thread_id thread_id_arg,
                             const char *command_type, size_t command_type_len,
                             const char *sql_text, size_t sql_text_len)
 {
@@ -3159,7 +3160,8 @@ err:
 */
 
 bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
-                            const char *user_host, size_t user_host_len, ulonglong query_utime,
+                            const char *user_host, size_t user_host_len,
+                            ulonglong query_utime,
                             ulonglong lock_utime, bool is_command,
                             const char *sql_text, size_t sql_text_len)
 {
@@ -3198,7 +3200,7 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
           my_b_write(&log_file, (uchar*) user_host, user_host_len) ||
           my_b_write(&log_file, (uchar*) "\n", 1))
         goto err;
-    
+
     /* For slow query log */
     sprintf(query_time_buff, "%.6f", ulonglong2double(query_utime)/1000000.0);
     sprintf(lock_time_buff,  "%.6f", ulonglong2double(lock_utime)/1000000.0);
@@ -7521,7 +7523,8 @@ bool MYSQL_BIN_LOG::write_incident(THD *thd)
 }
 
 void
-MYSQL_BIN_LOG::write_binlog_checkpoint_event_already_locked(const char *name_arg, uint len)
+MYSQL_BIN_LOG::
+write_binlog_checkpoint_event_already_locked(const char *name_arg, uint len)
 {
   my_off_t offset;
   Binlog_checkpoint_log_event ev(name_arg, len);
@@ -10441,7 +10444,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
 #endif
 
   if (! fdle->is_valid() ||
-      (do_xa && my_hash_init(key_memory_binlog_recover_exec, &xids, &my_charset_bin, TC_LOG_PAGE_SIZE/3, 0,
+      (do_xa && my_hash_init(key_memory_binlog_recover_exec, &xids,
+                             &my_charset_bin, TC_LOG_PAGE_SIZE/3, 0,
                              sizeof(my_xid), 0, 0, MYF(0))))
     goto err1;
 
