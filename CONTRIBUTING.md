@@ -10,6 +10,7 @@ MariaDB Server has a vibrant community contributing in a wide range of areas. Th
 -   [maria-docs mailing list](http://launchpad.net/~maria-docs)
 -   ircs://chat.freenode.net/maria ([see the IRC page on the Knowledge Base](https://mariadb.com/kb/en/meta/irc-chat-servers-and-zulip-instance/)  for help with IRC).
 -   The MariaDB Foundation and MariaDB Corporation have a presence on Reddit, Twitter, Facebook and Google Plus. See the  [social media page](https://mariadb.com/kb/en/mariadb/social-media/).
+-   Engage with the MaroaDB Foundation according to [oovernance rules](GOVERNANCE.md)
 
 ### Help document MariaDB
 ----
