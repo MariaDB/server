@@ -2056,7 +2056,9 @@ bool Trigger::change_on_table_name(void* param_arg)
   @param[in,out] thd Thread context
   @param[in] db Old database of subject table
   @param[in] old_alias Old alias of subject table
-  @param[in] old_table Old name of subject table
+  @param[in] old_table Old name of subject table. The difference between
+             old_table and old_alias is that in case of lower_case_table_names
+             old_table == lowercase(old_alias)
   @param[in] new_db New database for subject table
   @param[in] new_table New name of subject table
 

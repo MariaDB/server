@@ -2638,6 +2638,7 @@ public:
 
 #ifndef MYSQL_CLIENT
   binlog_cache_mngr *  binlog_setup_trx_data();
+  ulonglong binlog_xid;           /* binlog request storing of xid */
 
   /*
     Public interface to write RBR events to the binlog

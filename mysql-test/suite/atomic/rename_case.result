@@ -1,0 +1,52 @@
+create database test2;
+#
+# Testing rename error in different places
+#
+create table t1 (a int);
+create table T2 (b int);
+create table t3 (c int);
+create table T4 (d int);
+insert into t1 values(1);
+insert into T2 values(2);
+insert into t3 values(3);
+insert into T4 values(4);
+create temporary table tmp1 (a int);
+create temporary table tmp2 (b int);
+create temporary table tmp3 (c int);
+create temporary table tmp4 (d int);
+insert into tmp1 values(11);
+insert into tmp2 values(22);
+insert into tmp3 values(33);
+insert into tmp4 values(44);
+rename table t3 to T4, t1 to t5, T2 to t1, t5 to T2;
+ERROR 42S01: Table 'T4' already exists
+rename table t1 to t5, t3 to T4, T2 to t1, t5 to T2;
+ERROR 42S01: Table 'T4' already exists
+rename table t1 to t5, T2 to t1, t3 to T4, t5 to T2;
+ERROR 42S01: Table 'T4' already exists
+rename table t1 to t5, T2 to t1, t5 to T2, t3 to T4;
+ERROR 42S01: Table 'T4' already exists
+# Try failed rename using two databases
+rename table test.t1 to test2.t5, test.T2 to test.t1, t5 to test.T2;
+ERROR 42S02: Table 'test.t5' doesn't exist
+select t1.a+T2.b+t3.c+T4.d from t1,T2,t3,T4;
+t1.a+T2.b+t3.c+T4.d
+10
+select * from t5;
+ERROR 42S02: Table 'test.t5' doesn't exist
+T2.MYD
+T2.MYI
+T2.frm
+T4.MYD
+T4.MYI
+T4.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t3.MYD
+t3.MYI
+t3.frm
+# Cleanup
+drop table t1,T2,t3,T4;
+drop database test2;

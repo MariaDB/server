@@ -575,7 +575,7 @@ char log_error_file[FN_REFLEN], glob_hostname[FN_REFLEN], *opt_log_basename;
 char mysql_real_data_home[FN_REFLEN],
      lc_messages_dir[FN_REFLEN], reg_ext[FN_EXTLEN],
      mysql_charsets_dir[FN_REFLEN],
-     *opt_init_file, *opt_tc_log_file;
+     *opt_init_file, *opt_tc_log_file, *opt_ddl_recovery_file;
 char *lc_messages_dir_ptr= lc_messages_dir, *log_error_file_ptr;
 char mysql_unpacked_real_data_home[FN_REFLEN];
 size_t mysql_unpacked_real_data_home_len;
@@ -5186,6 +5186,9 @@ static int init_server_components()
   }
 #endif
 
+  if (ddl_log_initialize())
+    unireg_abort(1);
+
   tc_log= get_tc_log_implementation();
 
   if (tc_log->open(opt_bin_log ? opt_bin_logname : opt_tc_log_file))
@@ -5195,9 +5198,7 @@ static int init_server_components()
   }
 
   if (ha_recover(0))
-  {
     unireg_abort(1);
-  }
 
   if (opt_bin_log)
   {
@@ -5591,7 +5592,8 @@ int mysqld_main(int argc, char **argv)
 
   initialize_information_schema_acl();
 
-  ddl_log_execute_recovery();
+  if (ddl_log_execute_recovery() > 0)
+    unireg_abort(1);
 
   /*
     Change EVENTS_ORIGINAL to EVENTS_OFF (the default value) as there is no
@@ -6370,6 +6372,10 @@ struct my_option my_long_options[]=
    "The location and name to use for the file that keeps a list of the last "
    "relay logs",
    &opt_relaylog_index_name, &opt_relaylog_index_name, 0, GET_STR,
+   REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"log-ddl-recovery", 0,
+   "Path to file used for recovery of DDL statements after a crash",
+   &opt_ddl_recovery_file, &opt_ddl_recovery_file, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"log-isam", OPT_ISAM_LOG, "Log all MyISAM changes to file.",
    &myisam_log_filename, &myisam_log_filename, 0, GET_STR,
@@ -7493,6 +7499,7 @@ static int mysql_init_variables(void)
   opt_logname= opt_binlog_index_name= opt_slow_logname= 0;
   opt_log_basename= 0;
   opt_tc_log_file= (char *)"tc.log";      // no hostname in tc_log file name !
+  opt_ddl_recovery_file= (char *) "ddl_recovery.log";
   opt_secure_auth= 0;
   opt_bootstrap= opt_myisam_log= 0;
   disable_log_notes= 0;

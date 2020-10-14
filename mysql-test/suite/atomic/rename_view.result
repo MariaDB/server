@@ -1,0 +1,23 @@
+"engine: crash point: ddl_log_rename_before_rename_view  position: 1"
+"engine: crash point: ddl_log_rename_before_rename_view  position: 2"
+"engine: crash point: ddl_log_rename_before_rename_view  position: 3"
+"engine: crash point: ddl_log_rename_before_rename_view  position: 4"
+"engine: crash point: ddl_log_rename_before_rename_view  position: 5"
+"engine: crash point: ddl_log_rename_after_rename_view  position: 1"
+"engine: crash point: ddl_log_rename_after_rename_view  position: 2"
+"engine: crash point: ddl_log_rename_after_rename_view  position: 3"
+"engine: crash point: ddl_log_rename_after_rename_view  position: 4"
+"engine: crash point: ddl_log_rename_after_rename_view  position: 5"
+"engine: crash point: rename_view_after_rename_schema_file  position: 1"
+"engine: crash point: rename_view_after_rename_schema_file  position: 2"
+"engine: crash point: rename_view_after_rename_schema_file  position: 3"
+"engine: crash point: rename_view_after_rename_schema_file  position: 4"
+"engine: crash point: rename_view_after_rename_schema_file  position: 5"
+"engine: crash point: definition_file_after_create  position: 1"
+"engine: crash point: definition_file_after_create  position: 2"
+"engine: crash point: definition_file_after_create  position: 3"
+"engine: crash point: definition_file_after_create  position: 4"
+"engine: crash point: definition_file_after_create  position: 5"
+#
+# At last check that rename works when there is no crash
+#

@@ -467,6 +467,9 @@ The following specify which files/extra groups are read (specified before remain
  ALWAYS use row-based binary logging, the security issues
  do not exist and the binary logging cannot break, so you
  can safely set this to TRUE
+ --log-ddl-recovery=name 
+ Path to file used for recovery of DDL statements after a
+ crash
  --log-disabled-statements=name 
  Don't log certain types of statements to general log. Any
  combination of: slave, sp
@@ -1568,6 +1571,7 @@ log-bin-compress FALSE
 log-bin-compress-min-len 256
 log-bin-index (No default value)
 log-bin-trust-function-creators FALSE
+log-ddl-recovery ddl_recovery.log
 log-disabled-statements sp
 log-error 
 log-isam myisam.log

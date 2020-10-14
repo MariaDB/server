@@ -1294,6 +1294,15 @@ bool Query_log_event::write()
     int3store(start, when_sec_part);
     start+= 3;
   }
+
+  /* xid's is used with ddl_log handling */
+  if (thd && thd->binlog_xid)
+  {
+    *start++= Q_XID;
+    int8store(start, thd->query_id);
+    start+= 8;
+  }
+
   /*
     NOTE: When adding new status vars, please don't forget to update
     the MAX_SIZE_LOG_EVENT_STATUS in log_event.h and update the function

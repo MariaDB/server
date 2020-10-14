@@ -2725,7 +2725,7 @@ const char *get_canonical_filename(handler *file, const char *path,
                                    char *tmp_path)
 {
   uint i;
-  if (lower_case_table_names != 2 || (file->ha_table_flags() & HA_FILE_BASED))
+  if (!file->needs_lower_case_filenames())
     return path;
 
   for (i= 0; i <= mysql_tmpdir_list.max; i++)

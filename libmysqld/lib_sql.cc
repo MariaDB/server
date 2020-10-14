@@ -640,7 +640,11 @@ int init_embedded_server(int argc, char **argv, char **groups)
     }
   }
 
-  ddl_log_execute_recovery();
+  if (ddl_log_execute_recovery() > 0)
+  {
+    mysql_server_end();
+    return 1;
+  }
   mysql_embedded_init= 1;
   return 0;
 }

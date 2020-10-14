@@ -39,6 +39,7 @@
 #include "rpl_rli.h"
 #include "sql_audit.h"
 #include "mysqld.h"
+#include "ddl_log.h"
 
 #include <my_dir.h>
 #include <m_ctype.h>				// For test_if_number
@@ -10485,6 +10486,20 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
         }
         break;
       }
+      case QUERY_EVENT:
+      {
+        Query_log_event *query_ev= (Query_log_event*) ev;
+        if (do_xa && query_ev->xid)
+        {
+          DBUG_ASSERT(sizeof(query_ev->xid) == sizeof(my_xid));
+          uchar *x= (uchar *) memdup_root(&mem_root,
+                                          (uchar*) &query_ev->xid,
+                                          sizeof(query_ev->xid));
+          if (!x || my_hash_insert(&xids, x))
+            goto err2;
+        }
+        break;
+      }
       case BINLOG_CHECKPOINT_EVENT:
         if (first_round && do_xa)
         {
@@ -10624,6 +10639,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   if (do_xa)
   {
     if (ha_recover(&xids))
+      goto err2;
+    if (ddl_log_close_binlogged_events(&xids))
       goto err2;
 
     free_root(&mem_root, MYF(0));

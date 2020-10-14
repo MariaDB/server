@@ -8089,8 +8089,9 @@ void handle_error(struct st_command *command,
                   const char *err_sqlstate, DYNAMIC_STRING *ds)
 {
   int i;
-
   DBUG_ENTER("handle_error");
+
+  var_set_int("$errno", err_errno);
 
   command->used_replace= 1;
   if (command->require_file)
@@ -9687,10 +9688,28 @@ int main(int argc, char **argv)
           report_or_die("Parsing is already enabled");
         break;
       case Q_DIE:
+      {
+        char message[160];
+        const char *msg;
+        DYNAMIC_STRING ds_echo;
+
+        if (command->first_argument[0])
+        {
+          /* Evaluate variables in the message */
+          init_dynamic_string(&ds_echo, "", command->query_len, 256);
+          do_eval(&ds_echo, command->first_argument, command->end, FALSE);
+          strmake(message, ds_echo.str, MY_MIN(sizeof(message)-1,
+                                               ds_echo.length));
+          dynstr_free(&ds_echo);
+          msg= message;
+        }
+        else
+          msg= "Explicit --die command executed";
+
         /* Abort test with error code and error message */
-        die("%s", command->first_argument[0] ? command->first_argument :
-            "Explicit --die command executed");
+        die("%s", msg);
         break;
+      }
       case Q_EXIT:
         /* Stop processing any more commands */
         abort_flag= 1;
