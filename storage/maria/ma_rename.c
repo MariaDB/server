@@ -40,7 +40,8 @@ int maria_rename(const char *old_name, const char *new_name)
 #endif
   MARIA_HA *info;
   MARIA_SHARE *share;
-  myf sync_dir;
+  myf sync_dir= 0;
+  my_bool ddl_recovery= 0;
   DBUG_ENTER("maria_rename");
 
 #ifdef EXTRA_DEBUG
@@ -49,7 +50,28 @@ int maria_rename(const char *old_name, const char *new_name)
 #endif
   /** @todo LOCK take X-lock on table */
   if (!(info= maria_open(old_name, O_RDWR, HA_OPEN_FOR_REPAIR, 0)))
-    DBUG_RETURN(my_errno);
+  {
+    int error= my_errno;
+    /*
+      Check if we are in recovery from a rename that failed in the middle
+      and we are now renaming things back.
+    */
+    if (error == ENOENT)
+    {
+      char *index_file= from;
+      char *data_file= to;
+      fn_format(index_file, old_name, "", MARIA_NAME_IEXT,
+                MY_UNPACK_FILENAME | MY_APPEND_EXT);
+      fn_format(data_file, old_name, "", MARIA_NAME_DEXT,
+                MY_UNPACK_FILENAME | MY_APPEND_EXT);
+      if (!access(data_file, F_OK) && access(index_file, F_OK))
+      {
+        ddl_recovery= 1;
+        goto forced_rename;
+      }
+    }
+    DBUG_RETURN(error);
+  }
   share= info->s;
 #ifdef USE_RAID
   raid_type =      share->base.raid_type;
@@ -62,13 +84,12 @@ int maria_rename(const char *old_name, const char *new_name)
     this is important; make sure transactionality has been re-enabled.
   */
   DBUG_ASSERT(share->now_transactional == share->base.born_transactional);
-  sync_dir= (share->now_transactional && !share->temporary &&
-             !maria_in_recovery) ? MY_SYNC_DIR : 0;
-  if (sync_dir)
+  if (share->now_transactional && !share->temporary && !maria_in_recovery)
   {
     LSN lsn;
     LEX_CUSTRING log_array[TRANSLOG_INTERNAL_PARTS + 2];
     size_t old_name_len= strlen(old_name)+1, new_name_len= strlen(new_name)+1;
+    sync_dir= MY_SYNC_DIR;
     log_array[TRANSLOG_INTERNAL_PARTS + 0].str= (uchar*)old_name;
     log_array[TRANSLOG_INTERNAL_PARTS + 0].length= old_name_len;
     log_array[TRANSLOG_INTERNAL_PARTS + 1].str= (uchar*)new_name;
@@ -106,6 +127,7 @@ int maria_rename(const char *old_name, const char *new_name)
   _ma_reset_state(info);
   maria_close(info);
 
+forced_rename:
   /*
     This code is written so that it should be possible to re-run a
     failed rename (even if there is a server crash in between the
@@ -121,7 +143,8 @@ int maria_rename(const char *old_name, const char *new_name)
   if (mysql_file_rename_with_symlink(key_file_dfile, from, to,
                                      MYF(MY_WME | sync_dir)))
     data_file_rename_error= my_errno;
-  if (data_file_rename_error && data_file_rename_error != ENOENT)
+  if (data_file_rename_error && data_file_rename_error != ENOENT &&
+      !ddl_recovery)
   {
     /*
       Now we have a renamed index file and a non-renamed data file, try to

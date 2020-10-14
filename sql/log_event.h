@@ -319,6 +319,7 @@ class String;
 #define Q_INVOKER 11
 
 #define Q_HRNOW 128
+#define Q_XID   129
 
 /* Intvar event post-header */
 
@@ -2118,6 +2119,8 @@ public:
     statement, for other query statements, this will be zero.
   */
   ulonglong table_map_for_update;
+  /* Xid for the event, if such exists */
+  ulonglong xid;
   /*
     Holds the original length of a Query_log_event that comes from a
     master of version < 5.0 (i.e., binlog_version < 4). When the IO
