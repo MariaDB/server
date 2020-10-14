@@ -113,7 +113,7 @@ ROLLBACK/*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=#/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0/*!*/;
@@ -129,7 +129,7 @@ CREATE DATABASE test1
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-2 ddl
 /*!100001 SET @@session.gtid_seq_no=2*//*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 CREATE DATABASE test2
 /*!*/;
@@ -137,7 +137,7 @@ CREATE DATABASE test2
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-3 ddl
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 CREATE DATABASE test3
 /*!*/;
@@ -164,7 +164,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -191,7 +191,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -218,7 +218,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -260,7 +260,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 6
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -287,7 +287,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -316,7 +316,7 @@ START TRANSACTION
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -351,7 +351,7 @@ ROLLBACK/*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=#/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0/*!*/;
@@ -394,7 +394,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -407,7 +407,7 @@ START TRANSACTION
 # at #
 # at #
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -420,7 +420,7 @@ START TRANSACTION
 # at #
 # at #
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -450,7 +450,7 @@ START TRANSACTION
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -463,7 +463,7 @@ START TRANSACTION
 # at #
 # at #
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -476,7 +476,7 @@ START TRANSACTION
 # at #
 # at #
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -510,7 +510,7 @@ ROLLBACK/*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=#/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0/*!*/;
@@ -526,7 +526,7 @@ CREATE DATABASE test1
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-2 ddl
 /*!100001 SET @@session.gtid_seq_no=2*//*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 CREATE DATABASE test2
 /*!*/;
@@ -534,7 +534,7 @@ CREATE DATABASE test2
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-3 ddl
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 CREATE DATABASE test3
 /*!*/;
@@ -559,7 +559,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -584,7 +584,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -609,7 +609,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -647,7 +647,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 6
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -672,7 +672,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -697,7 +697,7 @@ START TRANSACTION
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -736,7 +736,7 @@ ROLLBACK/*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=#/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0/*!*/;
@@ -752,7 +752,7 @@ CREATE DATABASE test1
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-2 ddl
 /*!100001 SET @@session.gtid_seq_no=2*//*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 CREATE DATABASE test2
 /*!*/;
@@ -760,7 +760,7 @@ CREATE DATABASE test2
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-3 ddl
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 CREATE DATABASE test3
 /*!*/;
@@ -787,7 +787,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -814,7 +814,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -841,7 +841,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -883,7 +883,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 6
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -910,7 +910,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -939,7 +939,7 @@ START TRANSACTION
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -974,7 +974,7 @@ ROLLBACK/*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=#/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0/*!*/;
@@ -1017,7 +1017,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -1030,7 +1030,7 @@ START TRANSACTION
 # at #
 # at #
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -1043,7 +1043,7 @@ START TRANSACTION
 # at #
 # at #
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -1073,7 +1073,7 @@ START TRANSACTION
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -1086,7 +1086,7 @@ START TRANSACTION
 # at #
 # at #
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -1099,7 +1099,7 @@ START TRANSACTION
 # at #
 # at #
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -1133,7 +1133,7 @@ ROLLBACK/*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=#/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0/*!*/;
@@ -1149,7 +1149,7 @@ CREATE DATABASE test1
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-2 ddl
 /*!100001 SET @@session.gtid_seq_no=2*//*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 CREATE DATABASE test2
 /*!*/;
@@ -1157,7 +1157,7 @@ CREATE DATABASE test2
 #010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-3 ddl
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 CREATE DATABASE test3
 /*!*/;
@@ -1181,7 +1181,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -1205,7 +1205,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -1229,7 +1229,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -1266,7 +1266,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 6
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -1290,7 +1290,7 @@ START TRANSACTION
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -1314,7 +1314,7 @@ START TRANSACTION
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;

@@ -1820,9 +1820,10 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
   {
     if (print_header(file, print_event_info, FALSE) ||
         my_b_printf(file,
-                    "\t%s\tthread_id=%lu\texec_time=%lu\terror_code=%d\n",
+                    "\t%s\tthread_id=%lu\texec_time=%lu\terror_code=%d"
+                    "\txid=%lu\n",
                     get_type_str(), (ulong) thread_id, (ulong) exec_time,
-                    error_code))
+                    error_code, (ulong) xid))
       goto err;
   }
 

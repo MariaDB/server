@@ -37,6 +37,7 @@
 #include "sql_cte.h"    // check_dependencies_in_with_clauses()
 #include "opt_trace.h"
 #include "wsrep_mysqld.h"
+#include "debug_sync.h" // debug_crash_here
 
 #define MD5_BUFF_LENGTH 33
 
@@ -2175,7 +2176,8 @@ bool
 mysql_rename_view(THD *thd,
                   const LEX_CSTRING *new_db,
                   const LEX_CSTRING *new_name,
-                  TABLE_LIST *view)
+                  const LEX_CSTRING *old_db,
+                  const LEX_CSTRING *old_name)
 {
   LEX_CSTRING pathstr;
   File_parser *parser;
@@ -2185,7 +2187,7 @@ mysql_rename_view(THD *thd,
 
   pathstr.str= (char *) path_buff;
   pathstr.length= build_table_filename(path_buff, sizeof(path_buff) - 1,
-                                       view->db.str, view->table_name.str,
+                                       old_db->str, old_name->str,
                                        reg_ext, 0);
 
   if ((parser= sql_parse_prepare(&pathstr, thd->mem_root, 1)) && 
@@ -2212,9 +2214,10 @@ mysql_rename_view(THD *thd,
       goto err;
 
     /* rename view and it's backups */
-    if (rename_in_schema_file(thd, view->db.str, view->table_name.str,
+    if (rename_in_schema_file(thd, old_db->str, old_name->str,
                               new_db->str, new_name->str))
       goto err;
+    debug_crash_here("rename_view_after_rename_schema_file");
 
     dir.str= dir_buff;
     dir.length= build_table_filename(dir_buff, sizeof(dir_buff) - 1,
@@ -2231,16 +2234,25 @@ mysql_rename_view(THD *thd,
                                    (uchar*)&view_def, view_parameters))
     {
       /* restore renamed view in case of error */
-      rename_in_schema_file(thd, new_db->str, new_name->str, view->db.str,
-                            view->table_name.str);
+      rename_in_schema_file(thd, new_db->str, new_name->str, old_db->str,
+                            old_name->str);
       goto err;
     }
-  } else
+  }
+  else
     DBUG_RETURN(1);  
 
   /* remove cache entries */
-  query_cache_invalidate3(thd, view, 0);
-  sp_cache_invalidate();
+  {
+    char key[NAME_LEN*2+1], *ptr;
+    memcpy(key, old_db->str, old_db->length);
+    ptr= key+ old_db->length;
+    *ptr++= 0;
+    memcpy(key, old_name->str, old_name->length);
+    ptr= key+ old_db->length;
+    *ptr++= 0;
+    query_cache.invalidate(thd, key, (size_t) (ptr-key), 0);
+  }
   error= FALSE;
 
 err:

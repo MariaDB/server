@@ -175,6 +175,7 @@ our $opt_vs_config = $ENV{'MTR_VS_CONFIG'};
 my @DEFAULT_SUITES= qw(
     main-
     archive-
+    atomic-
     binlog-
     binlog_encryption-
     client-
@@ -4356,6 +4357,7 @@ sub extract_warning_lines ($$) {
      qr/Slave SQL thread retried transaction/,
      qr/Slave \(additional info\)/,
      qr/Incorrect information in file/,
+     qr/Simulating error for/,
      qr/Slave I\/O: Get master SERVER_ID failed with error:.*/,
      qr/Slave I\/O: Get master clock failed with error:.*/,
      qr/Slave I\/O: Get master COLLATION_SERVER failed with error:.*/,

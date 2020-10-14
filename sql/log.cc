@@ -39,6 +39,7 @@
 #include "rpl_rli.h"
 #include "sql_audit.h"
 #include "mysqld.h"
+#include "ddl_log.h"
 
 #include <my_dir.h>
 #include <m_ctype.h>				// For test_if_number
@@ -10454,12 +10455,23 @@ start_binlog_background_thread()
 }
 
 
+/*
+  Execute recovery of the binary log
+
+  @param do_xa
+         if true:  Collect all Xid events and call ha_recover().
+         if false: Collect only Xid events from Query events. This is
+                   used to disable entries in the ddl recovery log that
+                   are found in the binary log (and thus already executed and
+                   logged and thus don't have to be redone).
+*/
+
 int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
                            IO_CACHE *first_log,
                            Format_description_log_event *fdle, bool do_xa)
 {
   Log_event *ev= NULL;
-  HASH xids;
+  HASH xids, ddl_log_ids;
   MEM_ROOT mem_root;
   char binlog_checkpoint_name[FN_REFLEN];
   bool binlog_checkpoint_found;
@@ -10472,16 +10484,19 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   bool last_gtid_standalone= false;
   bool last_gtid_valid= false;
 #endif
+  DBUG_ENTER("TC_LOG_BINLOG::recover");
 
   if (! fdle->is_valid() ||
-      (do_xa && my_hash_init(key_memory_binlog_recover_exec, &xids,
-                             &my_charset_bin, TC_LOG_PAGE_SIZE/3, 0,
-                             sizeof(my_xid), 0, 0, MYF(0))))
+      (my_hash_init(key_memory_binlog_recover_exec, &xids,
+                    &my_charset_bin, TC_LOG_PAGE_SIZE/3, 0,
+                    sizeof(my_xid), 0, 0, MYF(0))) ||
+      (my_hash_init(key_memory_binlog_recover_exec, &ddl_log_ids,
+                    &my_charset_bin, 64, 0,
+                    sizeof(my_xid), 0, 0, MYF(0))))
     goto err1;
 
-  if (do_xa)
-    init_alloc_root(key_memory_binlog_recover_exec, &mem_root,
-                    TC_LOG_PAGE_SIZE, TC_LOG_PAGE_SIZE, MYF(0));
+  init_alloc_root(key_memory_binlog_recover_exec, &mem_root,
+                  TC_LOG_PAGE_SIZE, TC_LOG_PAGE_SIZE, MYF(0));
 
   fdle->flags&= ~LOG_EVENT_BINLOG_IN_USE_F; // abort on the first error
 
@@ -10512,6 +10527,20 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
           uchar *x= (uchar *) memdup_root(&mem_root, (uchar*) &xev->xid,
                                           sizeof(xev->xid));
           if (!x || my_hash_insert(&xids, x))
+            goto err2;
+        }
+        break;
+      }
+      case QUERY_EVENT:
+      {
+        Query_log_event *query_ev= (Query_log_event*) ev;
+        if (query_ev->xid)
+        {
+          DBUG_ASSERT(sizeof(query_ev->xid) == sizeof(my_xid));
+          uchar *x= (uchar *) memdup_root(&mem_root,
+                                          (uchar*) &query_ev->xid,
+                                          sizeof(query_ev->xid));
+          if (!x || my_hash_insert(&ddl_log_ids, x))
             goto err2;
         }
         break;
@@ -10597,8 +10626,6 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
       ev= NULL;
     }
 
-    if (!do_xa)
-      break;
     /*
       If the last binlog checkpoint event points to an older log, we have to
       scan all logs from there also, to get all possible XIDs to recover.
@@ -10656,11 +10683,13 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   {
     if (ha_recover(&xids))
       goto err2;
-
-    free_root(&mem_root, MYF(0));
-    my_hash_free(&xids);
   }
-  return 0;
+  if (ddl_log_close_binlogged_events(&ddl_log_ids))
+    goto err2;
+  free_root(&mem_root, MYF(0));
+  my_hash_free(&xids);
+  my_hash_free(&ddl_log_ids);
+  DBUG_RETURN(0);
 
 err2:
   delete ev;
@@ -10669,17 +10698,16 @@ err2:
     end_io_cache(&log);
     mysql_file_close(file, MYF(MY_WME));
   }
-  if (do_xa)
-  {
-    free_root(&mem_root, MYF(0));
-    my_hash_free(&xids);
-  }
+  free_root(&mem_root, MYF(0));
+  my_hash_free(&xids);
+  my_hash_free(&ddl_log_ids);
+
 err1:
   sql_print_error("Crash recovery failed. Either correct the problem "
                   "(if it's, for example, out of memory error) and restart, "
                   "or delete (or rename) binary log and start mysqld with "
                   "--tc-heuristic-recover={commit|rollback}");
-  return 1;
+  DBUG_RETURN(1);
 }
 
 

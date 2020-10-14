@@ -5100,6 +5100,17 @@ public:
                                          const KEY_PART_INFO &old_part,
                                          const KEY_PART_INFO &new_part) const;
 
+
+/*
+  If lower_case_table_names == 2 (case-preserving but case-insensitive
+  file system) and the storage is not HA_FILE_BASED, we need to provide
+  a lowercase file name for the engine.
+*/
+  inline bool needs_lower_case_filenames()
+  {
+    return (lower_case_table_names == 2 && !(ha_table_flags() & HA_FILE_BASED));
+  }
+
 protected:
   Handler_share *get_ha_share_ptr();
   void set_ha_share_ptr(Handler_share *arg_ha_share);

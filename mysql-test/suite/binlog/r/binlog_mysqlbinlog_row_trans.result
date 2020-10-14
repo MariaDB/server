@@ -142,7 +142,7 @@ ROLLBACK/*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 use `test`/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=#/*!*/;
@@ -162,7 +162,7 @@ c2 VARCHAR(20)
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-2 ddl
 /*!100001 SET @@session.gtid_seq_no=2*//*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 CREATE TABLE t2 (
 c1 INT,
@@ -242,7 +242,7 @@ COMMIT/*!*/;
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-4 ddl
 /*!100001 SET @@session.gtid_seq_no=4*//*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 TRUNCATE TABLE t1
 /*!*/;
@@ -250,7 +250,7 @@ TRUNCATE TABLE t1
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-5 ddl
 /*!100001 SET @@session.gtid_seq_no=5*//*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 TRUNCATE TABLE t1
 /*!*/;
@@ -280,7 +280,7 @@ START TRANSACTION
 ###   @2='varchar-3' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -319,7 +319,7 @@ START TRANSACTION
 ###   @2='varchar-3' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -341,7 +341,7 @@ START TRANSACTION
 ###   @2='varchar-2' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
 # Number of rows: 1
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -418,7 +418,7 @@ COMMIT/*!*/;
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-10 ddl
 /*!100001 SET @@session.gtid_seq_no=10*//*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 TRUNCATE TABLE t1
 /*!*/;
@@ -426,7 +426,7 @@ TRUNCATE TABLE t1
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-11 ddl
 /*!100001 SET @@session.gtid_seq_no=11*//*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 TRUNCATE TABLE t2
 /*!*/;
@@ -456,7 +456,7 @@ START TRANSACTION
 ###   @2='varchar-3' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -495,7 +495,7 @@ START TRANSACTION
 ###   @2='varchar-3' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
 # Number of rows: 3
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -517,7 +517,7 @@ START TRANSACTION
 ###   @2='varchar-2' /* VARSTRING(20) meta=20 nullable=1 is_null=0 */
 # Number of rows: 1
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -525,7 +525,7 @@ COMMIT
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-15 ddl
 /*!100001 SET @@session.gtid_seq_no=15*//*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 TRUNCATE TABLE t1
 /*!*/;
@@ -533,7 +533,7 @@ TRUNCATE TABLE t1
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-16 ddl
 /*!100001 SET @@session.gtid_seq_no=16*//*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 TRUNCATE TABLE t2
 /*!*/;

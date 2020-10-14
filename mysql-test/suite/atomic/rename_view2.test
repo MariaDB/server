@@ -1,0 +1,89 @@
+--source include/have_debug.inc
+--source include/not_valgrind.inc
+
+#
+# Testing of atomic rename of view when creating of definition file fails
+# and we crash after the last rename entry has been disabled.
+# This is not possible to test with rename_view.test, which is why
+# we have a separate test for this case
+#
+
+let $crash_count=1;
+let $crash_points='ddl_log_rename_after_disable_entry';
+
+# Number of renames in the tested statement
+let $renames=5;
+
+let $old_debug=`select @@debug_dbug`;
+
+let $e=0;
+
+--disable_query_log
+create table t1 (a int not null);
+create table t2 (b int not null);
+create table t3 (c int not null);
+create table t4 (d int not null);
+insert into t1 values(1);
+insert into t2 values(2);
+insert into t3 values(3);
+insert into t4 values(4);
+create view v1 as select t1.a from t1;
+create view v2 as select t2.b from t2;
+create view v3 as select t3.c from t3;
+create view v4 as select t4.d from t4;
+flush tables;
+
+let $c=0;
+while ($c < $crash_count)
+{
+  inc $c;
+  let $crash=`select ELT($c, $crash_points)`;
+  let $r=0;
+  while ($r < $renames)
+  {
+    inc $r;
+    echo "engine: crash point: $crash  position: $r";
+
+    --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+    --disable_reconnect
+    --eval set @@debug_dbug="+d,$crash,definition_file_simulate_write_error",@debuge_crash_counter=1;
+    --eval set @@debug_dbug="+d,definition_file_simulate_write_error",@debug_error_counter=$r;
+
+    let $errno=0;
+    --error 0,3,2013
+    rename table v1 to v5, v2 to v1, v5 to v2, v4 to v5, v3 to v4;
+    let $error=$errno;
+    --enable_reconnect
+    --source include/wait_until_connected_again.inc
+    --disable_query_log
+    --eval set @@debug_dbug="$old_debug"
+
+    if ($error == 0)
+    {
+      echo "No crash!";
+      # No crash, rename things back
+      rename table v4 to v3, v5 to v4, v2 to v5, v1 to v2, v5 to v1;
+    }
+
+    # Ensure that the tables are back to original
+    let $res=`select v1.a+v2.b+v3.c+v4.d from v1,v2,v3,v4`;
+    if ($res != 10)
+    {
+      die "Got result $res when 10 was expected";
+    }
+  }
+}
+
+--echo #
+--echo # At last check that rename works when there is no crash
+--echo #
+
+rename table v1 to v5, v2 to v1, v5 to v2, v4 to v5, v3 to v4;
+let $res=`select (select sum(v1.b) from v1)+ (select sum(v2.a) from v2) + (select sum(v4.c) from v4)+ (select sum(v5.d) from v5)`;
+if ($res != 10)
+{
+  die "Got result $res when 10 was expected";
+}
+drop view v1,v2,v4,v5;
+drop table t1,t2,t3,t4;
+--enable_query_log

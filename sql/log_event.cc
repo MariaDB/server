@@ -1373,6 +1373,7 @@ code_name(int code)
   case Q_TABLE_MAP_FOR_UPDATE_CODE: return "Q_TABLE_MAP_FOR_UPDATE_CODE";
   case Q_MASTER_DATA_WRITTEN_CODE: return "Q_MASTER_DATA_WRITTEN_CODE";
   case Q_HRNOW: return "Q_HRNOW";
+  case Q_XID: return "XID";
   }
   sprintf(buf, "CODE#%d", code);
   return buf;
@@ -1421,7 +1422,7 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
    flags2_inited(0), sql_mode_inited(0), charset_inited(0), flags2(0),
    auto_increment_increment(1), auto_increment_offset(1),
    time_zone_len(0), lc_time_names_number(0), charset_database_number(0),
-   table_map_for_update(0), master_data_written(0)
+   table_map_for_update(0), xid(0), master_data_written(0)
 {
   ulong data_len;
   uint32 tmp;
@@ -1603,6 +1604,13 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
       CHECK_SPACE(pos, end, 3);
       when_sec_part= uint3korr(pos);
       pos+= 3;
+      break;
+    }
+    case Q_XID:
+    {
+      CHECK_SPACE(pos, end, 8);
+      xid= uint8korr(pos);
+      pos+= 8;
       break;
     }
     default:

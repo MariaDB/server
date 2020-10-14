@@ -355,13 +355,14 @@ static bool exchange_name_with_ddl_log(THD *thd,
     DBUG_RETURN(TRUE);
 
   /* prepare the action entry */
+  bzero(&exchange_entry, sizeof(exchange_entry));
   exchange_entry.entry_type=   DDL_LOG_ENTRY_CODE;
   exchange_entry.action_type=  DDL_LOG_EXCHANGE_ACTION;
-  exchange_entry.next_entry=   0;
-  exchange_entry.name=         name;
-  exchange_entry.from_name=    from_name;
-  exchange_entry.tmp_name=     tmp_name;
-  exchange_entry.handler_name= ha_resolve_storage_engine_name(ht);
+  lex_string_set(&exchange_entry.name,         name);
+  lex_string_set(&exchange_entry.from_name,    from_name);
+  lex_string_set(&exchange_entry.tmp_name,     tmp_name);
+  lex_string_set(&exchange_entry.handler_name,
+                 ha_resolve_storage_engine_name(ht));
   exchange_entry.phase=        EXCH_PHASE_NAME_TO_TEMP;
 
   mysql_mutex_lock(&LOCK_gdl);
@@ -377,8 +378,8 @@ static bool exchange_name_with_ddl_log(THD *thd,
 
   DBUG_EXECUTE_IF("exchange_partition_fail_2", goto err_no_execute_written;);
   DBUG_EXECUTE_IF("exchange_partition_abort_2", DBUG_SUICIDE(););
-  if (unlikely(ddl_log_write_execute_entry(log_entry->entry_pos, FALSE,
-                                            &exec_log_entry)))
+  if (unlikely(ddl_log_write_execute_entry(log_entry->entry_pos,
+                                           &exec_log_entry)))
     goto err_no_execute_written;
   /* ddl_log is written and synced */
 
@@ -457,7 +458,7 @@ err_rename:
   (void) ddl_log_execute_entry(current_thd, log_entry->entry_pos);
   mysql_mutex_lock(&LOCK_gdl);
   /* mark the execute log entry done */
-  (void) ddl_log_write_execute_entry(0, TRUE, &exec_log_entry);
+  (void) ddl_log_disable_execute_entry(&exec_log_entry);
   /* release the execute log entry */
   (void) ddl_log_release_memory_entry(exec_log_entry);
 err_no_execute_written:

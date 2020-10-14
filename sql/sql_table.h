@@ -77,6 +77,10 @@ uint build_table_filename(char *buff, size_t bufflen, const char *db,
                           const char *table, const char *ext, uint flags);
 uint build_table_shadow_filename(char *buff, size_t bufflen,
                                  ALTER_PARTITION_PARAM_TYPE *lpt);
+void build_lower_case_table_filename(char *buff, size_t bufflen,
+                                     const LEX_CSTRING *db,
+                                     const LEX_CSTRING *table,
+                                     uint flags);
 uint build_tmptable_filename(THD* thd, char *buff, size_t bufflen);
 bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
                         Table_specification_st *create_info,

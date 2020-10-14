@@ -565,13 +565,16 @@ uint build_table_filename(char *buff, size_t bufflen, const char *db,
     (void) tablename_to_filename(table_name, tbbuff, sizeof(tbbuff));
 
   char *end = buff + bufflen;
-  /* Don't add FN_ROOTDIR if mysql_data_home already includes it */
-  char *pos = strnmov(buff, mysql_data_home, bufflen);
-  size_t rootdir_len= strlen(FN_ROOTDIR);
-  if (pos - rootdir_len >= buff &&
-      memcmp(pos - rootdir_len, FN_ROOTDIR, rootdir_len) != 0)
-    pos= strnmov(pos, FN_ROOTDIR, end - pos);
-  pos= strxnmov(pos, end - pos, dbbuff, FN_ROOTDIR, NullS);
+  char *pos= strnmov(buff, mysql_data_home, bufflen-3);
+  /*
+    Add FN_LIBCHAR if mysql_data_home does not include it
+    In most cases mysql_data_home is just '.'
+  */
+  if (pos[-1] != FN_LIBCHAR)
+    *pos++= FN_LIBCHAR;
+  pos= strxnmov(pos, end - 2 - pos, dbbuff,NullS);
+  *pos++= FN_LIBCHAR;
+  *pos= 0;
 #ifdef USE_SYMDIR
   if (!(flags & SKIP_SYMDIR_ACCESS))
   {
@@ -619,6 +622,31 @@ uint build_tmptable_filename(THD* thd, char *buff, size_t bufflen)
   size_t length= unpack_filename(buff, buff);
   DBUG_PRINT("exit", ("buff: '%s'", buff));
   DBUG_RETURN((uint)length);
+}
+
+/*
+  Create lower case paths for engines that requires them
+*/
+
+void build_lower_case_table_filename(char *buff, size_t bufflen,
+                                     const LEX_CSTRING *db,
+                                     const LEX_CSTRING *table,
+                                     uint flags)
+{
+  char table_name[SAFE_NAME_LEN+1], db_name[SAFE_NAME_LEN+1];
+
+  DBUG_ASSERT(db->length <= SAFE_NAME_LEN && table->length <= SAFE_NAME_LEN);
+
+  memcpy(db_name, db->str, db->length);
+  db_name[db->length]= 0;
+  my_casedn_str(files_charset_info, db_name);
+
+  memcpy(table_name, table->str, table->length);
+  table_name[table->length]= 0;
+  my_casedn_str(files_charset_info, table_name);
+
+  build_table_filename(buff, bufflen, db_name, table_name, "",
+                       flags & FN_IS_TMP);
 }
 
 
@@ -4703,10 +4731,8 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
                    const LEX_CSTRING *new_name, uint flags)
 {
   THD *thd= current_thd;
-  char from[FN_REFLEN + 1], to[FN_REFLEN + 1],
-    lc_from[FN_REFLEN + 1], lc_to[FN_REFLEN + 1];
+  char from[FN_REFLEN], to[FN_REFLEN], lc_from[FN_REFLEN], lc_to[FN_REFLEN];
   char *from_base= from, *to_base= to;
-  char tmp_name[SAFE_NAME_LEN+1], tmp_db_name[SAFE_NAME_LEN+1];
   handler *file;
   int error=0;
   ulonglong save_bits= thd->variables.option_bits;
@@ -4728,37 +4754,20 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
   length= build_table_filename(to, sizeof(to) - 1, new_db->str,
                                new_name->str, "", flags & FN_TO_IS_TMP);
   // Check if we hit FN_REFLEN bytes along with file extension.
-  if (length+reg_ext_length > FN_REFLEN)
+  if (length+reg_ext_length >= FN_REFLEN)
   {
     my_error(ER_IDENT_CAUSES_TOO_LONG_PATH, MYF(0), (int) sizeof(to)-1, to);
     DBUG_RETURN(TRUE);
   }
 
-  /*
-    If lower_case_table_names == 2 (case-preserving but case-insensitive
-    file system) and the storage is not HA_FILE_BASED, we need to provide
-    a lowercase file name, but we leave the .frm in mixed case.
-   */
-  if (lower_case_table_names == 2 && file &&
-      !(file->ha_table_flags() & HA_FILE_BASED))
+  if (file->needs_lower_case_filenames())
   {
-    strmov(tmp_name, old_name->str);
-    my_casedn_str(files_charset_info, tmp_name);
-    strmov(tmp_db_name, old_db->str);
-    my_casedn_str(files_charset_info, tmp_db_name);
-
-    build_table_filename(lc_from, sizeof(lc_from) - 1, tmp_db_name, tmp_name,
-                         "", flags & FN_FROM_IS_TMP);
+    build_lower_case_table_filename(lc_from, sizeof(lc_from) -1,
+                                    old_db, old_name, flags & FN_FROM_IS_TMP);
+    build_lower_case_table_filename(lc_to, sizeof(lc_from) -1,
+                                    new_db, new_name, flags & FN_TO_IS_TMP);
     from_base= lc_from;
-
-    strmov(tmp_name, new_name->str);
-    my_casedn_str(files_charset_info, tmp_name);
-    strmov(tmp_db_name, new_db->str);
-    my_casedn_str(files_charset_info, tmp_db_name);
-
-    build_table_filename(lc_to, sizeof(lc_to) - 1, tmp_db_name, tmp_name, "",
-                         flags & FN_TO_IS_TMP);
-    to_base= lc_to;
+    to_base=   lc_to;
   }
 
   if (flags & NO_HA_TABLE)
