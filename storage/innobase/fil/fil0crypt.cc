@@ -1080,20 +1080,8 @@ static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 
 		mtr.commit();
 
-		/* record lsn of update */
-		lsn_t end_lsn = mtr.commit_lsn();
-
 		/* 4 - sync tablespace before publishing crypt data */
-
-		bool success = false;
-		ulint sum_pages = 0;
-
-		do {
-			ulint n_pages = 0;
-			success = buf_flush_lists(ULINT_MAX, end_lsn, &n_pages);
-			buf_flush_wait_batch_end(false);
-			sum_pages += n_pages;
-		} while (!success);
+		while (buf_flush_dirty_pages(space->id));
 
 		/* 5 - publish crypt data */
 		mutex_enter(&fil_crypt_threads_mutex);
@@ -1156,7 +1144,6 @@ struct rotate_thread_t {
 		case SRV_SHUTDOWN_CLEANUP:
 		case SRV_SHUTDOWN_INITIATED:
 			return true;
-		case SRV_SHUTDOWN_FLUSH_PHASE:
 		case SRV_SHUTDOWN_LAST_PHASE:
 			break;
 		}
@@ -1945,8 +1932,7 @@ fil_crypt_rotate_pages(
 		* real pages, they will be updated anyway when the
 		* real page is updated
 		*/
-		if (space == TRX_SYS_SPACE &&
-		    buf_dblwr_page_inside(state->offset)) {
+		if (buf_dblwr.is_inside(page_id_t(space, state->offset))) {
 			continue;
 		}
 
@@ -1978,20 +1964,19 @@ fil_crypt_flush_space(
 	lsn_t end_lsn = crypt_data->rotate_state.end_lsn;
 
 	if (end_lsn > 0 && !space->is_stopping()) {
-		bool success = false;
-		ulint n_pages = 0;
 		ulint sum_pages = 0;
 		const ulonglong start = my_interval_timer();
-
 		do {
-			success = buf_flush_lists(ULINT_MAX, end_lsn, &n_pages);
-			buf_flush_wait_batch_end(false);
-			sum_pages += n_pages;
-		} while (!success && !space->is_stopping());
+			ulint n_dirty= buf_flush_dirty_pages(state->space->id);
+			if (!n_dirty) {
+				break;
+			}
+			sum_pages += n_dirty;
+		} while (!space->is_stopping());
 
-		const ulonglong end = my_interval_timer();
+		if (sum_pages) {
+			const ulonglong end = my_interval_timer();
 
-		if (sum_pages && end > start) {
 			state->cnt_waited += sum_pages;
 			state->sum_waited_us += (end - start) / 1000;
 

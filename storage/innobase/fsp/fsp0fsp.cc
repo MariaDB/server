@@ -553,10 +553,17 @@ void fsp_header_init(fil_space_t* space, ulint size, mtr_t* mtr)
 	const page_id_t page_id(space->id, 0);
 	const ulint zip_size = space->zip_size();
 
+	buf_block_t *free_block = buf_LRU_get_free_block(false);
+
 	mtr_x_lock_space(space, mtr);
 
-	buf_block_t* block = buf_page_create(space, 0, zip_size, mtr);
+	buf_block_t* block = buf_page_create(space, 0, zip_size, mtr,
+					     free_block);
 	buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
+
+	if (UNIV_UNLIKELY(block != free_block)) {
+		buf_pool.free_block(free_block);
+	}
 
 	space->size_in_header = size;
 	space->free_len = 0;
@@ -874,11 +881,14 @@ fsp_fill_free_list(
 			pages should be ignored. */
 
 			if (i > 0) {
+				buf_block_t *f= buf_LRU_get_free_block(false);
 				block= buf_page_create(
 					space, static_cast<uint32_t>(i),
-					zip_size, mtr);
-
+					zip_size, mtr, f);
 				buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
+				if (UNIV_UNLIKELY(block != f)) {
+					buf_pool.free_block(f);
+				}
 				fsp_init_file_page(space, block, mtr);
 				mtr->write<2>(*block,
 					      FIL_PAGE_TYPE + block->frame,
@@ -886,13 +896,16 @@ fsp_fill_free_list(
 			}
 
 			if (space->purpose != FIL_TYPE_TEMPORARY) {
+				buf_block_t *f= buf_LRU_get_free_block(false);
 				block = buf_page_create(
 					space,
 					static_cast<uint32_t>(
 						i + FSP_IBUF_BITMAP_OFFSET),
-					zip_size, mtr);
+					zip_size, mtr, f);
 				buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
-
+				if (UNIV_UNLIKELY(block != f)) {
+					buf_pool.free_block(f);
+				}
 				fsp_init_file_page(space, block, mtr);
 				mtr->write<2>(*block,
 					      block->frame + FIL_PAGE_TYPE,
@@ -1042,8 +1055,11 @@ static
 buf_block_t*
 fsp_page_create(fil_space_t *space, page_no_t offset, mtr_t *mtr)
 {
+  buf_block_t *free_block= buf_LRU_get_free_block(false);
   buf_block_t *block= buf_page_create(space, static_cast<uint32_t>(offset),
-				      space->zip_size(), mtr);
+                                      space->zip_size(), mtr, free_block);
+  if (UNIV_UNLIKELY(block != free_block))
+    buf_pool.free_block(free_block);
   fsp_init_file_page(space, block, mtr);
   return block;
 }

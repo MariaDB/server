@@ -153,9 +153,6 @@ static ulint	os_innodb_umask	= 0;
 #endif /* _WIN32 */
 
 
-/** Flag indicating if the page_cleaner is in active state. */
-extern bool buf_page_cleaner_is_active;
-
 #ifdef WITH_INNODB_DISALLOW_WRITES
 #define WAIT_ALLOW_WRITES() os_event_wait(srv_allow_writes_event)
 #else
@@ -3829,9 +3826,7 @@ IORequest::punch_hole(os_file_t fh, os_offset_t off, ulint len)
 		/* If punch hole is not supported,
 		set space so that it is not used. */
 		if (err == DB_IO_NO_PUNCH_HOLE) {
-			if (m_fil_node) {
-				m_fil_node->space->punch_hole = false;
-			}
+			m_fil_node->space->punch_hole = false;
 			err = DB_SUCCESS;
 		}
 	}

@@ -76,6 +76,6 @@ SET GLOBAL innodb_fast_shutdown=0;
 --let $restart_parameters=
 --source include/restart_mysqld.inc
 CHECK TABLE t1;
-replace_regex /.*operations:.* (insert.*), delete \d.*discarded .*/\1/;
+replace_regex /.*operations:.* insert [1-9][0-9]*, delete mark [1-9][0-9]*, delete \d.*discarded .*//;
 SHOW ENGINE INNODB STATUS;
 DROP TABLE t1;

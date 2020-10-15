@@ -262,7 +262,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	or in trx_rollback_recovered() in slow shutdown.
 
 	Before any transaction-generating background threads or the
-	purge have been started, recv_recovery_rollback_active() can
+	purge have been started, we can
 	start transactions in row_merge_drop_temp_indexes() and
 	fts_drop_orphaned_tables(), and roll back recovered transactions.
 
@@ -680,7 +680,7 @@ not_free:
 		mini-transaction commit and the server was killed, then
 		discarding the to-be-trimmed pages without flushing would
 		break crash recovery. So, we cannot avoid the write. */
-		buf_LRU_flush_or_remove_pages(space.id, true);
+		while (buf_flush_dirty_pages(space.id));
 
 		log_free_check();
 

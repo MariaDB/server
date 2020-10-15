@@ -171,7 +171,6 @@ fil_system_t	fil_system;
 
 /** At this age or older a space/page will be rotated */
 UNIV_INTERN extern uint srv_fil_crypt_rotate_key_age;
-UNIV_INTERN extern ib_mutex_t fil_crypt_threads_mutex;
 
 /** Determine if the space id is a user tablespace id or not.
 @param[in]	space_id	Space ID to check
@@ -713,8 +712,8 @@ fil_space_extend_must_retry(
 
 	const ulint	page_size = space->physical_size();
 
-	/* fil_read_first_page() expects srv_page_size bytes.
-	fil_node_open_file() expects at least 4 * srv_page_size bytes.*/
+	/* Datafile::read_first_page() expects srv_page_size bytes.
+	fil_node_t::read_page0() expects at least 4 * srv_page_size bytes.*/
 	os_offset_t new_size = std::max(
 		os_offset_t(size - file_start_page_no) * page_size,
 		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE << srv_page_size_shift));
@@ -2097,7 +2096,10 @@ void fil_close_tablespace(ulint id)
 	Thus we can clean the tablespace out of buf_pool
 	completely and permanently. The flag stop_new_ops also prevents
 	fil_flush() from being applied to this tablespace. */
-	buf_LRU_flush_or_remove_pages(id, true);
+	while (buf_flush_dirty_pages(id));
+	/* Ensure that all asynchronous IO is completed. */
+	os_aio_wait_until_no_pending_writes();
+	fil_flush(id);
 
 	/* If the free is successful, the X lock will be released before
 	the space memory data structure is freed. */
@@ -2186,7 +2188,7 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists,
 	::stop_new_ops flag in fil_io(). */
 
 	err = DB_SUCCESS;
-	buf_LRU_flush_or_remove_pages(id, false);
+	buf_flush_remove_pages(id);
 
 	/* If it is a delete then also delete any generated files, otherwise
 	when we drop the database the remove directory will fail. */
@@ -3683,15 +3685,6 @@ fil_report_invalid_page_access(const page_id_t id, const char *name,
 		<< ". Byte offset " << byte_offset << ", len " << len;
 }
 
-inline void IORequest::set_fil_node(fil_node_t* node)
-{
-	if (!node->space->punch_hole) {
-		clear_punch_hole();
-	}
-
-	m_fil_node = node;
-}
-
 /** Reads or writes data. This operation could be asynchronous (aio).
 
 @param[in,out] type	IO context
@@ -3726,9 +3719,8 @@ fil_io(
 	bool			punch_hole)
 {
 	os_offset_t		offset;
-	IORequest		req_type(type);
 
-	ut_ad(req_type.validate());
+	ut_ad(type.validate());
 
 	ut_ad(len > 0);
 	ut_ad(byte_offset < srv_page_size);
@@ -3742,7 +3734,7 @@ fil_io(
 
 	/* ibuf bitmap pages must be read in the sync AIO mode: */
 	ut_ad(recv_no_ibuf_operations
-	      || req_type.is_write()
+	      || type.is_write()
 	      || !ibuf_bitmap_page(page_id, zip_size)
 	      || sync);
 
@@ -3750,7 +3742,7 @@ fil_io(
 
 	if (sync) {
 		mode = OS_AIO_SYNC;
-	} else if (req_type.is_read()
+	} else if (type.is_read()
 		   && !recv_no_ibuf_operations
 		   && ibuf_page(page_id, zip_size, NULL)) {
 		mode = OS_AIO_IBUF;
@@ -3758,11 +3750,11 @@ fil_io(
 		mode = OS_AIO_NORMAL;
 	}
 
-	if (req_type.is_read()) {
+	if (type.is_read()) {
 
 		srv_stats.data_read.add(len);
 
-	} else if (req_type.is_write()) {
+	} else if (type.is_write()) {
 
 		ut_ad(!srv_read_only_mode
 		      || fsp_is_system_temporary(page_id.space()));
@@ -3776,7 +3768,7 @@ fil_io(
 		page_id.space());
 
 	if (!space
-	    || (req_type.is_read()
+	    || (type.is_read()
 		&& !sync
 		&& space->is_stopping()
 		&& !space->is_being_truncated)) {
@@ -3786,7 +3778,7 @@ fil_io(
 			ib::error()
 				<< "Trying to do I/O to a tablespace which"
 				" does not exist. I/O type: "
-				<< (req_type.is_read() ? "read" : "write")
+				<< (type.is_read() ? "read" : "write")
 				<< ", page: " << page_id
 				<< ", I/O length: " << len << " bytes";
 		}
@@ -3807,7 +3799,7 @@ fil_io(
 
 			fil_report_invalid_page_access(
 				page_id, space->name, byte_offset, len,
-				req_type.is_read());
+				type.is_read());
 
 		} else if (fil_is_user_tablespace_id(space->id)
 			   && node->size == 0) {
@@ -3838,7 +3830,7 @@ fil_io(
 				<< space->name
 				<< "' which exists without .ibd data file."
 				" I/O type: "
-				<< (req_type.is_read()
+				<< (type.is_read()
 				    ? "read" : "write")
 				<< ", page: "
 				<< page_id
@@ -3853,14 +3845,14 @@ fil_io(
 			/* If we can tolerate the non-existent pages, we
 			should return with DB_ERROR and let caller decide
 			what to do. */
-			node->complete_io(req_type.is_write());
+			node->complete_io(type.is_write());
 			mutex_exit(&fil_system.mutex);
 			return {DB_ERROR, nullptr};
 		}
 
 		fil_report_invalid_page_access(
 			page_id, space->name, byte_offset, len,
-			req_type.is_read());
+			type.is_read());
 	}
 
 	space->acquire_for_io();
@@ -3879,9 +3871,7 @@ fil_io(
 
 	const char* name = node->name == NULL ? space->name : node->name;
 
-	req_type.set_fil_node(node);
-
-	ut_ad(!req_type.is_write()
+	ut_ad(!type.is_write()
 	      || !fil_is_user_tablespace_id(page_id.space())
 	      || offset == page_id.page_no() * zip_size);
 
@@ -3897,6 +3887,8 @@ fil_io(
 			err = DB_SUCCESS;
 		}
 	} else {
+		IORequest req_type(type);
+		req_type.set_fil_node(node);
 		/* Queue the aio request */
 		err = os_aio(
 			req_type,
@@ -3909,10 +3901,10 @@ fil_io(
 	/* We an try to recover the page from the double write buffer if
 	the decompression fails or the page is corrupt. */
 
-	ut_a(req_type.is_dblwr_recover() || err == DB_SUCCESS);
+	ut_a(type.is_dblwr_recover() || err == DB_SUCCESS);
 	if (sync) {
 		mutex_enter(&fil_system.mutex);
-		node->complete_io(req_type.is_write());
+		node->complete_io(type.is_write());
 		mutex_exit(&fil_system.mutex);
 		ut_ad(fil_validate_skip());
 	}
@@ -3960,7 +3952,7 @@ write_completed:
       bpage->status= buf_page_t::NORMAL;
       dblwr= false;
     }
-    buf_page_write_complete(bpage, data->type, dblwr, false);
+    buf_page_write_complete(bpage, data->type, dblwr);
     goto write_completed;
   }
 

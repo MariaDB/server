@@ -140,30 +140,8 @@ UNIV_INTERN uint	srv_sys_space_size_debug;
 UNIV_INTERN bool	srv_log_file_created;
 #endif /* UNIV_DEBUG */
 
-/** Bit flags for tracking background thread creation. They are used to
-determine which threads need to be stopped if we need to abort during
-the initialisation step. */
-enum srv_start_state_t {
-	/** No thread started */
-	SRV_START_STATE_NONE = 0,		/*!< No thread started */
-	/** lock_wait_timeout timer task started */
-	SRV_START_STATE_LOCK_SYS = 1,
-	/** buf_flush_page_cleaner_coordinator,
-	buf_flush_page_cleaner_worker started */
-	SRV_START_STATE_IO = 2,
-	/** srv_error_monitor_thread, srv_print_monitor_task started */
-	SRV_START_STATE_MONITOR = 4,
-	/** srv_master_thread started */
-	SRV_START_STATE_MASTER = 8,
-	/** srv_purge_coordinator_thread, srv_worker_thread started */
-	SRV_START_STATE_PURGE = 16,
-	/** fil_crypt_thread,
-	(all background threads that can generate redo log but not undo log */
-	SRV_START_STATE_REDO = 32
-};
-
-/** Track server thrd starting phases */
-static ulint	srv_start_state;
+/** whether some background threads that create redo log have been started */
+static bool srv_started_redo;
 
 /** At a shutdown this value climbs from SRV_SHUTDOWN_NONE to
 SRV_SHUTDOWN_CLEANUP and then to SRV_SHUTDOWN_LAST_PHASE, and so on */
@@ -844,30 +822,6 @@ srv_open_tmp_tablespace(bool create_new_db)
 	return(err);
 }
 
-/****************************************************************//**
-Set state to indicate start of particular group of threads in InnoDB. */
-UNIV_INLINE
-void
-srv_start_state_set(
-/*================*/
-	srv_start_state_t state)	/*!< in: indicate current state of
-					thread startup */
-{
-	srv_start_state |= ulint(state);
-}
-
-/****************************************************************//**
-Check if following group of threads is started.
-@return true if started */
-UNIV_INLINE
-bool
-srv_start_state_is_set(
-/*===================*/
-	srv_start_state_t state)	/*!< in: state to check for */
-{
-	return(srv_start_state & ulint(state));
-}
-
 /**
 Shutdown all background threads created by InnoDB. */
 static
@@ -899,11 +853,11 @@ srv_shutdown_all_bg_threads()
 			}
 		}
 
-		if (srv_start_state_is_set(SRV_START_STATE_IO)) {
+		if (buf_page_cleaner_is_active) {
 			ut_ad(!srv_read_only_mode);
 
-			/* e. Exit the i/o threads */
-			os_event_set(buf_flush_event);
+			/* e. Exit the buf_flush_page_cleaner */
+			mysql_cond_signal(&buf_pool.do_flush_list);
 		}
 
 		if (!os_thread_count) {
@@ -1145,8 +1099,7 @@ dberr_t srv_start(bool create_new_db)
 		|| srv_force_recovery > SRV_FORCE_NO_IBUF_MERGE
 		|| srv_sys_space.created_new_raw();
 
-	/* Reset the start state. */
-	srv_start_state = SRV_START_STATE_NONE;
+	srv_started_redo = false;
 
 	compile_time_assert(sizeof(ulint) == sizeof(void*));
 
@@ -1328,7 +1281,7 @@ dberr_t srv_start(bool create_new_db)
 
 	if (!srv_read_only_mode) {
 		buf_flush_page_cleaner_init();
-		srv_start_state_set(SRV_START_STATE_IO);
+		ut_ad(buf_page_cleaner_is_active);
 	}
 
 	srv_startup_is_before_trx_rollback_phase = !create_new_db;
@@ -1377,10 +1330,9 @@ dberr_t srv_start(bool create_new_db)
 
 	std::string logfile0;
 	if (create_new_db) {
-
+		flushed_lsn = log_sys.get_lsn();
+		log_sys.set_flushed_lsn(flushed_lsn);
 		buf_flush_sync();
-
-		flushed_lsn = log_get_lsn();
 
 		err = create_log_file(flushed_lsn, logfile0);
 
@@ -1652,10 +1604,7 @@ file_checked:
 			}
 		}
 
-		/* recv_recovery_from_checkpoint_finish needs trx lists which
-		are initialized in trx_lists_init_at_db_start(). */
-
-		recv_recovery_from_checkpoint_finish();
+		recv_sys.debug_free();
 
 		if (srv_operation == SRV_OPERATION_RESTORE
 		    || srv_operation == SRV_OPERATION_RESTORE_EXPORT) {
@@ -1757,7 +1706,7 @@ file_checked:
 
 	/* Create the doublewrite buffer to a new tablespace */
 	if (!srv_read_only_mode && srv_force_recovery < SRV_FORCE_NO_TRX_UNDO
-	    && !buf_dblwr_create()) {
+	    && !buf_dblwr.create()) {
 		return(srv_init_abort(DB_ERROR));
 	}
 
@@ -1896,9 +1845,6 @@ file_checked:
 		srv_start_periodic_timer(srv_error_monitor_timer, srv_error_monitor_task, 1000);
 		srv_start_periodic_timer(srv_monitor_timer, srv_monitor_task, 5000);
 
-		srv_start_state |= SRV_START_STATE_LOCK_SYS
-			| SRV_START_STATE_MONITOR;
-
 #ifndef DBUG_OFF
 skip_monitors:
 #endif
@@ -1957,7 +1903,6 @@ skip_monitors:
 		srv_init_purge_tasks();
 		purge_sys.coordinator_startup();
 		srv_wake_purge_thread_if_not_active();
-		srv_start_state_set(SRV_START_STATE_PURGE);
 	}
 
 	srv_is_being_started = false;
@@ -2016,7 +1961,7 @@ skip_monitors:
 		/* Initialize online defragmentation. */
 		btr_defragment_init();
 
-		srv_start_state |= SRV_START_STATE_REDO;
+		srv_started_redo = true;
 	}
 
 	return(DB_SUCCESS);
@@ -2103,7 +2048,8 @@ void innodb_shutdown()
 
 	ut_ad(dict_sys.is_initialised() || !srv_was_started);
 	ut_ad(trx_sys.is_initialised() || !srv_was_started);
-	ut_ad(buf_dblwr || !srv_was_started || srv_read_only_mode
+	ut_ad(buf_dblwr.is_initialised() || !srv_was_started
+	      || srv_read_only_mode
 	      || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
 	ut_ad(lock_sys.is_initialised() || !srv_was_started);
 	ut_ad(log_sys.is_initialised() || !srv_was_started);
@@ -2111,7 +2057,7 @@ void innodb_shutdown()
 
 	dict_stats_deinit();
 
-	if (srv_start_state_is_set(SRV_START_STATE_REDO)) {
+	if (srv_started_redo) {
 		ut_ad(!srv_read_only_mode);
 		/* srv_shutdown_bg_undo_sources() already invoked
 		fts_optimize_shutdown(); dict_stats_shutdown(); */
@@ -2132,9 +2078,7 @@ void innodb_shutdown()
 	log_sys.close();
 	purge_sys.close();
 	trx_sys.close();
-	if (buf_dblwr) {
-		buf_dblwr_free();
-	}
+	buf_dblwr.close();
 	lock_sys.close();
 	trx_pool_close();
 
@@ -2161,7 +2105,7 @@ void innodb_shutdown()
 			   << "; transaction id " << trx_sys.get_max_trx_id();
 	}
 	srv_thread_pool_end();
-	srv_start_state = SRV_START_STATE_NONE;
+	srv_started_redo = false;
 	srv_was_started = false;
 	srv_start_has_been_called = false;
 }

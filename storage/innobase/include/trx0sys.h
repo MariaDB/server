@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -340,9 +340,6 @@ FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID. */
 constexpr uint32_t TRX_SYS_DOUBLEWRITE_MAGIC_N= 536853855;
 /** Contents of TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED */
 constexpr uint32_t TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N= 1783657386;
-
-/** Size of the doublewrite block in pages */
-#define TRX_SYS_DOUBLEWRITE_BLOCK_SIZE	FSP_EXTENT_SIZE
 /* @} */
 
 trx_t* current_trx();

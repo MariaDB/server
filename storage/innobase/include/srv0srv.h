@@ -100,10 +100,6 @@ struct srv_stats_t
 	need to make a flush, in order to be able to read or create a page. */
 	ulint_ctr_1_t		buf_pool_wait_free;
 
-	/** Count the number of pages that were written from buffer
-	pool to the disk */
-	ulint_ctr_1_t		buf_pool_flushed;
-
 	/** Number of buffer pool reads that led to the reading of
 	a disk page */
 	ulint_ctr_1_t		buf_pool_reads;
@@ -409,7 +405,6 @@ extern unsigned long long	srv_stats_modified_counter;
 extern my_bool			srv_stats_sample_traditional;
 
 extern my_bool	srv_use_doublewrite_buf;
-extern ulong	srv_doublewrite_batch_size;
 extern ulong	srv_checksum_algorithm;
 
 extern double	srv_max_buf_pool_modified_pct;
@@ -764,7 +759,6 @@ struct export_var_t{
 	ulint innodb_buffer_pool_read_requests;	/*!< buf_pool.stat.n_page_gets */
 	ulint innodb_buffer_pool_reads;		/*!< srv_buf_pool_reads */
 	ulint innodb_buffer_pool_wait_free;	/*!< srv_buf_pool_wait_free */
-	ulint innodb_buffer_pool_pages_flushed;	/*!< srv_buf_pool_flushed */
 	ulint innodb_buffer_pool_write_requests;/*!< srv_buf_pool_write_requests */
 	ulint innodb_buffer_pool_read_ahead_rnd;/*!< srv_read_ahead_rnd */
 	ulint innodb_buffer_pool_read_ahead;	/*!< srv_read_ahead */

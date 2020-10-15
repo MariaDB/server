@@ -386,30 +386,15 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_FLUSH_ADAPTIVE_AVG_TIME_SLOT},
 
-	{"buffer_LRU_batch_flush_avg_time_slot", "buffer",
-	 "Avg time (ms) spent for LRU batch flushing recently per slot.",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_LRU_BATCH_FLUSH_AVG_TIME_SLOT},
-
 	{"buffer_flush_adaptive_avg_time_thread", "buffer",
 	 "Avg time (ms) spent for adaptive flushing recently per thread.",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_FLUSH_ADAPTIVE_AVG_TIME_THREAD},
 
-	{"buffer_LRU_batch_flush_avg_time_thread", "buffer",
-	 "Avg time (ms) spent for LRU batch flushing recently per thread.",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_LRU_BATCH_FLUSH_AVG_TIME_THREAD},
-
 	{"buffer_flush_adaptive_avg_time_est", "buffer",
 	 "Estimated time (ms) spent for adaptive flushing recently.",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_FLUSH_ADAPTIVE_AVG_TIME_EST},
-
-	{"buffer_LRU_batch_flush_avg_time_est", "buffer",
-	 "Estimated time (ms) spent for LRU batch flushing recently.",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_LRU_BATCH_FLUSH_AVG_TIME_EST},
 
 	{"buffer_flush_avg_time", "buffer",
 	 "Avg time (ms) spent for flushing recently.",
@@ -420,11 +405,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 "Number of adaptive flushes passed during the recent Avg period.",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_FLUSH_ADAPTIVE_AVG_PASS},
-
-	{"buffer_LRU_batch_flush_avg_pass", "buffer",
-	 "Number of LRU batch flushes passed during the recent Avg period.",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_LRU_BATCH_FLUSH_AVG_PASS},
 
 	{"buffer_flush_avg_pass", "buffer",
 	 "Number of flushes passed during the recent Avg period.",
@@ -561,23 +541,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 "Pages queued as an LRU batch",
 	 MONITOR_SET_MEMBER, MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE,
 	 MONITOR_LRU_BATCH_EVICT_PAGES},
-
-	/* Cumulative counter for single page LRU scans */
-	{"buffer_LRU_single_flush_scanned", "buffer",
-	 "Total pages scanned as part of single page LRU flush",
-	 MONITOR_SET_OWNER,
-	 MONITOR_LRU_SINGLE_FLUSH_SCANNED_NUM_CALL,
-	 MONITOR_LRU_SINGLE_FLUSH_SCANNED},
-
-	{"buffer_LRU_single_flush_num_scan", "buffer",
-	 "Number of times single page LRU flush is called",
-	 MONITOR_SET_MEMBER, MONITOR_LRU_SINGLE_FLUSH_SCANNED,
-	 MONITOR_LRU_SINGLE_FLUSH_SCANNED_NUM_CALL},
-
-	{"buffer_LRU_single_flush_scanned_per_call", "buffer",
-	 "Page scanned per single LRU flush",
-	 MONITOR_SET_MEMBER, MONITOR_LRU_SINGLE_FLUSH_SCANNED,
-	 MONITOR_LRU_SINGLE_FLUSH_SCANNED_PER_CALL},
 
 	{"buffer_LRU_single_flush_failure_count", "Buffer",
 	 "Number of times attempt to flush a single page from LRU failed",
@@ -1468,7 +1431,8 @@ srv_mon_set_module_control(
 	ibool	set_current_module = FALSE;
 
 	ut_a(module_id <= NUM_MONITOR);
-	ut_a(UT_ARR_SIZE(innodb_counter_info) == NUM_MONITOR);
+	compile_time_assert(array_elements(innodb_counter_info)
+			    == NUM_MONITOR);
 
 	/* The module_id must be an ID of MONITOR_MODULE type */
 	ut_a(innodb_counter_info[module_id].monitor_type & MONITOR_MODULE);

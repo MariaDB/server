@@ -276,13 +276,13 @@ buf_dump(
 	ulint			n_pages;
 	ulint			j;
 
-	mutex_enter(&buf_pool.mutex);
+	mysql_mutex_lock(&buf_pool.mutex);
 
 	n_pages = UT_LIST_GET_LEN(buf_pool.LRU);
 
 	/* skip empty buffer pools */
 	if (n_pages == 0) {
-		mutex_exit(&buf_pool.mutex);
+		mysql_mutex_unlock(&buf_pool.mutex);
 		goto done;
 	}
 
@@ -310,7 +310,7 @@ buf_dump(
 					       n_pages * sizeof(*dump)));
 
 	if (dump == NULL) {
-		mutex_exit(&buf_pool.mutex);
+		mysql_mutex_unlock(&buf_pool.mutex);
 		fclose(f);
 		buf_dump_status(STATUS_ERR,
 				"Cannot allocate " ULINTPF " bytes: %s",
@@ -335,7 +335,7 @@ buf_dump(
 		dump[j++] = id;
 	}
 
-	mutex_exit(&buf_pool.mutex);
+	mysql_mutex_unlock(&buf_pool.mutex);
 
 	ut_a(j <= n_pages);
 	n_pages = j;

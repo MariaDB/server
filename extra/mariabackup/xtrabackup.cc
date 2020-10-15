@@ -3426,9 +3426,7 @@ xb_data_files_close()
 {
 	ut_ad(!os_thread_count);
 	fil_close_all_files();
-	if (buf_dblwr) {
-		buf_dblwr_free();
-	}
+	buf_dblwr.close();
 }
 
 /***********************************************************************
@@ -4017,7 +4015,6 @@ fail:
         }
 	srv_thread_pool_init();
 	sync_check_init();
-	ut_d(sync_check_enable());
 	/* Reset the system variables in the recovery module. */
 	trx_pool_init();
 	recv_sys.create();
@@ -5385,7 +5382,6 @@ static bool xtrabackup_prepare_func(char** argv)
 		}
 
 		sync_check_init();
-		ut_d(sync_check_enable());
 		recv_sys.create();
 		log_sys.create();
 		recv_sys.recovery_on = true;

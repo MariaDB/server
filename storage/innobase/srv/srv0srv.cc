@@ -342,11 +342,6 @@ my_bool	srv_stats_sample_traditional;
 
 my_bool	srv_use_doublewrite_buf;
 
-/** innodb_doublewrite_batch_size (a debug parameter) specifies the
-number of pages to use in LRU and flush_list batch flushing.
-The rest of the doublewrite buffer is used for single-page flushing. */
-ulong	srv_doublewrite_batch_size = 120;
-
 /** innodb_sync_spin_loops */
 ulong	srv_n_spin_wait_rounds;
 /** innodb_spin_wait_delay */
@@ -707,9 +702,6 @@ static void srv_init()
 	if (!srv_read_only_mode) {
 		mutex_create(LATCH_ID_SRV_SYS_TASKS, &srv_sys.tasks_mutex);
 
-
-		buf_flush_event = os_event_create("buf_flush_event");
-
 		UT_LIST_INIT(srv_sys.tasks, &que_thr_t::queue);
 	}
 
@@ -755,7 +747,6 @@ srv_free(void)
 
 	if (!srv_read_only_mode) {
 		mutex_free(&srv_sys.tasks_mutex);
-		os_event_destroy(buf_flush_event);
 	}
 
 	ut_d(os_event_destroy(srv_master_thread_disabled_event));
@@ -1118,9 +1109,6 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_buffer_pool_wait_free =
 		srv_stats.buf_pool_wait_free;
-
-	export_vars.innodb_buffer_pool_pages_flushed =
-		srv_stats.buf_pool_flushed;
 
 	export_vars.innodb_buffer_pool_reads = srv_stats.buf_pool_reads;
 
@@ -1871,10 +1859,6 @@ srv_master_do_idle_tasks(void)
 	log_checkpoint();
 	MONITOR_INC_TIME_IN_MICRO_SECS(MONITOR_SRV_CHECKPOINT_MICROSECOND,
 				       counter_time);
-
-	/* This is a workaround to avoid the InnoDB hang when OS datetime
-	changed backwards.*/
-	os_event_set(buf_flush_event);
 }
 
 /**

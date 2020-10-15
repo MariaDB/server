@@ -261,9 +261,9 @@ void btr_search_disable()
 void btr_search_enable(bool resize)
 {
 	if (!resize) {
-		mutex_enter(&buf_pool.mutex);
+		mysql_mutex_lock(&buf_pool.mutex);
 		bool changed = srv_buf_pool_old_size != srv_buf_pool_size;
-		mutex_exit(&buf_pool.mutex);
+		mysql_mutex_unlock(&buf_pool.mutex);
 		if (changed) {
 			return;
 		}
@@ -2133,7 +2133,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 
 	rec_offs_init(offsets_);
 
-	mutex_enter(&buf_pool.mutex);
+	mysql_mutex_lock(&buf_pool.mutex);
 
 	auto &part = btr_search_sys.parts[hash_table_id];
 
@@ -2144,7 +2144,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 		give other queries a chance to run. */
 		if ((i != 0) && ((i % chunk_size) == 0)) {
 
-			mutex_exit(&buf_pool.mutex);
+			mysql_mutex_unlock(&buf_pool.mutex);
 			btr_search_x_unlock_all();
 
 			os_thread_yield();
@@ -2156,7 +2156,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 				goto func_exit;
 			}
 
-			mutex_enter(&buf_pool.mutex);
+			mysql_mutex_lock(&buf_pool.mutex);
 
 			ulint curr_cell_count = part.table.n_cells;
 
@@ -2252,7 +2252,7 @@ state_ok:
 		/* We release search latches every once in a while to
 		give other queries a chance to run. */
 		if (i != 0) {
-			mutex_exit(&buf_pool.mutex);
+			mysql_mutex_unlock(&buf_pool.mutex);
 			btr_search_x_unlock_all();
 
 			os_thread_yield();
@@ -2264,7 +2264,7 @@ state_ok:
 				goto func_exit;
 			}
 
-			mutex_enter(&buf_pool.mutex);
+			mysql_mutex_lock(&buf_pool.mutex);
 
 			ulint curr_cell_count = part.table.n_cells;
 
@@ -2285,7 +2285,7 @@ state_ok:
 		}
 	}
 
-	mutex_exit(&buf_pool.mutex);
+	mysql_mutex_unlock(&buf_pool.mutex);
 func_exit:
 	btr_search_x_unlock_all();
 

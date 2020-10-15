@@ -27,8 +27,7 @@ Created 11/17/1995 Heikki Tuuri
 #ifndef buf0types_h
 #define buf0types_h
 
-#include "os0event.h"
-#include "ut0ut.h"
+#include "univ.i"
 
 /** Buffer page (uncompressed or compressed) */
 class buf_page_t;
@@ -38,8 +37,6 @@ struct buf_block_t;
 struct buf_pool_stat_t;
 /** Buffer pool buddy statistics struct */
 struct buf_buddy_stat_t;
-/** Doublewrite memory struct */
-struct buf_dblwr_t;
 
 /** A buffer frame. @see page_t */
 typedef	byte	buf_frame_t;
@@ -193,10 +190,6 @@ extern const byte field_ref_zero[UNIV_PAGE_SIZE_MAX];
 #include "ut0mutex.h"
 #include "sync0rw.h"
 #include "rw_lock.h"
-
-typedef ib_mutex_t BufPoolMutex;
-typedef ib_mutex_t FlushListMutex;
-typedef rw_lock_t BPageLock;
 
 class page_hash_latch : public rw_lock
 {

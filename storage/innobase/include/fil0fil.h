@@ -33,6 +33,7 @@ Created 10/25/1995 Heikki Tuuri
 
 #ifndef UNIV_INNOCHECKSUM
 
+#include "buf0dblwr.h"
 #include "hash0hash.h"
 #include "log0recv.h"
 #include "dict0types.h"
@@ -92,7 +93,6 @@ inline bool srv_is_undo_tablespace(ulint space_id)
     space_id < srv_undo_space_id_start + srv_undo_tablespaces_open;
 }
 
-extern struct buf_dblwr_t* buf_dblwr;
 class page_id_t;
 
 /** Structure containing encryption specification */
@@ -415,12 +415,12 @@ public:
 
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
 
-	/** @return whether doublewrite buffering is needed */
-	bool use_doublewrite() const
-	{
-		return !atomic_write_supported
-			&& srv_use_doublewrite_buf && buf_dblwr;
-	}
+  /** @return whether doublewrite buffering is needed */
+  bool use_doublewrite() const
+  {
+    return !atomic_write_supported && srv_use_doublewrite_buf &&
+      buf_dblwr.is_initialised();
+  }
 
 	/** Append a file to the chain of files of a space.
 	@param[in]	name		file name of a file that is not open

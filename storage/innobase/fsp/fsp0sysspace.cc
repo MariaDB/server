@@ -559,7 +559,7 @@ SysTablespace::read_lsn_and_check_flags(lsn_t* flushed_lsn)
 	ut_a(it->order() == 0);
 
 	if (srv_operation == SRV_OPERATION_NORMAL) {
-		buf_dblwr_init_or_load_pages(it->handle(), it->filepath());
+		buf_dblwr.init_or_load_pages(it->handle(), it->filepath());
 	}
 
 	/* Check the contents of the first page of the

@@ -121,7 +121,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
 
   const ulint fold= page_id.fold();
 
-  mutex_enter(&buf_pool.mutex);
+  mysql_mutex_lock(&buf_pool.mutex);
 
   /* We must acquire hash_lock this early to prevent
   a race condition with buf_pool_t::watch_remove() */
@@ -239,11 +239,11 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     buf_LRU_add_block(bpage, true/* to old blocks */);
   }
 
-  mutex_exit(&buf_pool.mutex);
+  mysql_mutex_unlock(&buf_pool.mutex);
   buf_pool.n_pend_reads++;
   goto func_exit_no_mutex;
 func_exit:
-  mutex_exit(&buf_pool.mutex);
+  mysql_mutex_unlock(&buf_pool.mutex);
 func_exit_no_mutex:
   if (mode == BUF_READ_IBUF_PAGES_ONLY)
     ibuf_mtr_commit(&mtr);
@@ -286,10 +286,10 @@ buf_read_page_low(
 
 	*err = DB_SUCCESS;
 
-	if (!page_id.space() && buf_dblwr_page_inside(page_id.page_no())) {
-
+	if (buf_dblwr.is_inside(page_id)) {
 		ib::error() << "Trying to read doublewrite buffer page "
 			<< page_id;
+		ut_ad(0);
 		return(0);
 	}
 

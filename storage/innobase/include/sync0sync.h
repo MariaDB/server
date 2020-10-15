@@ -63,7 +63,6 @@ extern mysql_pfs_key_t	log_sys_mutex_key;
 extern mysql_pfs_key_t	log_cmdq_mutex_key;
 extern mysql_pfs_key_t	log_flush_order_mutex_key;
 extern mysql_pfs_key_t	recalc_pool_mutex_key;
-extern mysql_pfs_key_t	page_cleaner_mutex_key;
 extern mysql_pfs_key_t	purge_sys_pq_mutex_key;
 extern mysql_pfs_key_t	recv_sys_mutex_key;
 extern mysql_pfs_key_t	rtr_active_mutex_key;
