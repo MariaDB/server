@@ -212,12 +212,12 @@ but not written to disk yet. The block with the oldest modification
 which has not yet been written to disk is at the end of the chain.
 The access to this list is protected by buf_pool.flush_list_mutex.
 
-The chain of unmodified compressed blocks (buf_pool.zip_clean)
-contains the control blocks (buf_page_t) of those compressed pages
+The control blocks for uncompressed pages are accessible via
+buf_block_t objects that are reachable via buf_pool.chunks[].
+The control blocks (buf_page_t) of those ROW_FORMAT=COMPRESSED pages
 that are not in buf_pool.flush_list and for which no uncompressed
-page has been allocated in the buffer pool.  The control blocks for
-uncompressed pages are accessible via buf_block_t objects that are
-reachable via buf_pool.chunks[].
+page has been allocated in buf_pool are only accessible via
+buf_pool.LRU.
 
 The chains of free memory blocks (buf_pool.zip_free[]) are used by
 the buddy allocator (buf0buddy.cc) to keep track of currently unused
@@ -1553,8 +1553,6 @@ bool buf_pool_t::create()
   withdraw_target= 0;
   UT_LIST_INIT(flush_list, &buf_page_t::list);
   UT_LIST_INIT(unzip_LRU, &buf_block_t::unzip_LRU);
-
-  ut_d(UT_LIST_INIT(zip_clean, &buf_page_t::list));
 
   for (size_t i= 0; i < UT_ARR_SIZE(zip_free); ++i)
     UT_LIST_INIT(zip_free[i], &buf_buddy_free_t::list);
@@ -3364,10 +3362,7 @@ evict_from_pool:
 		/* Set after buf_relocate(). */
 		block->page.set_buf_fix_count(1);
 
-		if (!block->page.oldest_modification()) {
-			ut_d(UT_LIST_REMOVE(buf_pool.zip_clean, &block->page));
-		} else {
-			/* Relocate buf_pool.flush_list. */
+		if (block->page.oldest_modification()) {
 			buf_flush_relocate_on_flush_list(bpage, &block->page);
 		}
 
@@ -3870,10 +3865,6 @@ loop:
 
       if (block->page.oldest_modification() > 0)
         buf_flush_relocate_on_flush_list(&block->page, &free_block->page);
-#ifdef UNIV_DEBUG
-      else
-        UT_LIST_REMOVE(buf_pool.zip_clean, &block->page);
-#endif
 
       free_block->page.set_state(BUF_BLOCK_FILE_PAGE);
       buf_unzip_LRU_add_block(free_block, FALSE);
@@ -4474,8 +4465,8 @@ void buf_pool_t::validate()
 		for (j = chunk->size; j--; block++) {
 			switch (block->page.state()) {
 			case BUF_BLOCK_ZIP_PAGE:
-				/* These should only occur on
-				zip_clean, zip_free[], or flush_list. */
+				/* This kind of block descriptors should
+				be allocated by malloc() only. */
 				ut_error;
 				break;
 
@@ -4497,34 +4488,6 @@ void buf_pool_t::validate()
 
 			}
 		}
-	}
-
-	/* Check clean compressed-only blocks. */
-
-	for (buf_page_t* b = UT_LIST_GET_FIRST(zip_clean); b;
-	     b = UT_LIST_GET_NEXT(list, b)) {
-		ut_ad(b->state() == BUF_BLOCK_ZIP_PAGE);
-		ut_ad(!b->oldest_modification());
-		switch (b->io_fix()) {
-		case BUF_IO_NONE:
-		case BUF_IO_PIN:
-			/* All clean blocks should be I/O-unfixed. */
-			break;
-		case BUF_IO_READ:
-			/* In buf_LRU_free_page(), we temporarily set
-			b->io_fix = BUF_IO_READ for a newly allocated
-			control block in order to prevent
-			buf_page_get_gen() from decompressing the block. */
-			break;
-		default:
-			ut_error;
-			break;
-		}
-
-		const page_id_t id = b->id();
-		ut_ad(page_hash_get_low(id, id.fold()) == b);
-		n_lru++;
-		n_zip++;
 	}
 
 	/* Check dirty blocks. */
@@ -4565,7 +4528,7 @@ void buf_pool_t::validate()
 			<< " zip " << n_zip << ". Aborting...";
 	}
 
-	ut_ad(UT_LIST_GET_LEN(LRU) == n_lru);
+	ut_ad(UT_LIST_GET_LEN(LRU) >= n_lru);
 
 	if (curr_size == old_size
 	    && UT_LIST_GET_LEN(free) != n_free) {
@@ -4692,66 +4655,18 @@ void buf_pool_t::print()
 /** @return the number of latched pages in the buffer pool */
 ulint buf_get_latched_pages_number()
 {
-	buf_page_t*	b;
-	ulint		i;
-	ulint		fixed_pages_number = 0;
+  ulint fixed_pages_number= 0;
 
-	mutex_enter(&buf_pool.mutex);
+  mutex_enter(&buf_pool.mutex);
 
-	auto chunk = buf_pool.chunks;
+  for (buf_page_t *b= UT_LIST_GET_FIRST(buf_pool.LRU); b;
+       b= UT_LIST_GET_NEXT(LRU, b))
+    if (b->in_file() && (b->buf_fix_count() || b->io_fix() != BUF_IO_NONE))
+      fixed_pages_number++;
 
-	for (i = buf_pool.n_chunks; i--; chunk++) {
-		buf_block_t* block= chunk->blocks;
+  mutex_exit(&buf_pool.mutex);
 
-		for (auto j= chunk->size; j--; block++) {
-			if (block->page.state() == BUF_BLOCK_FILE_PAGE
-			    && (block->page.buf_fix_count()
-				|| block->page.io_fix() != BUF_IO_NONE)) {
-
-				fixed_pages_number++;
-			}
-		}
-	}
-
-	/* Traverse the lists of clean and dirty compressed-only blocks. */
-
-	for (b = UT_LIST_GET_FIRST(buf_pool.zip_clean); b;
-	     b = UT_LIST_GET_NEXT(list, b)) {
-		ut_a(b->state() == BUF_BLOCK_ZIP_PAGE);
-		ut_a(!b->oldest_modification());
-		ut_a(b->io_fix() != BUF_IO_WRITE);
-
-		if (b->buf_fix_count() || b->io_fix() != BUF_IO_NONE) {
-			fixed_pages_number++;
-		}
-	}
-
-	mutex_enter(&buf_pool.flush_list_mutex);
-	for (b = UT_LIST_GET_FIRST(buf_pool.flush_list); b;
-	     b = UT_LIST_GET_NEXT(list, b)) {
-		ut_ad(b->oldest_modification());
-
-		switch (b->state()) {
-		case BUF_BLOCK_ZIP_PAGE:
-			if (b->buf_fix_count() || b->io_fix() != BUF_IO_NONE) {
-				fixed_pages_number++;
-			}
-			continue;
-		case BUF_BLOCK_FILE_PAGE:
-			/* uncompressed page */
-			continue;
-		case BUF_BLOCK_NOT_USED:
-		case BUF_BLOCK_MEMORY:
-		case BUF_BLOCK_REMOVE_HASH:
-			break;
-		}
-		ut_error;
-	}
-
-	mutex_exit(&buf_pool.flush_list_mutex);
-	mutex_exit(&buf_pool.mutex);
-
-	return(fixed_pages_number);
+  return fixed_pages_number;
 }
 #endif /* UNIV_DEBUG */
 

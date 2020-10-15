@@ -455,40 +455,6 @@ void buf_LRU_flush_or_remove_pages(ulint id, bool flush, ulint first)
 	}
 }
 
-#ifdef UNIV_DEBUG
-/********************************************************************//**
-Insert a compressed block into buf_pool.zip_clean in the LRU order. */
-void
-buf_LRU_insert_zip_clean(
-/*=====================*/
-	buf_page_t*	bpage)	/*!< in: pointer to the block in question */
-{
-	ut_ad(mutex_own(&buf_pool.mutex));
-	ut_ad(bpage->state() == BUF_BLOCK_ZIP_PAGE);
-	ut_ad(!bpage->oldest_modification());
-
-	/* Find the first successor of bpage in the LRU list
-	that is in the zip_clean list. */
-	buf_page_t*	b = bpage;
-
-	do {
-		b = UT_LIST_GET_NEXT(LRU, b);
-	} while (b && (b->state() != BUF_BLOCK_ZIP_PAGE
-		       || b->oldest_modification()));
-
-	/* Insert bpage before b, i.e., after the predecessor of b. */
-	if (b != NULL) {
-		b = UT_LIST_GET_PREV(list, b);
-	}
-
-	if (b != NULL) {
-		UT_LIST_INSERT_AFTER(buf_pool.zip_clean, b, bpage);
-	} else {
-		UT_LIST_ADD_FIRST(buf_pool.zip_clean, bpage);
-	}
-}
-#endif /* UNIV_DEBUG */
-
 /** Try to free an uncompressed page of a compressed block from the unzip
 LRU list.  The compressed page is preserved, and it need not be clean.
 @param[in]	scan_all	true=scan the whole list;
@@ -1272,12 +1238,7 @@ func_exit:
 			buf_LRU_add_block(b, b->old);
 		}
 
-		if (!b->oldest_modification()) {
-#ifdef UNIV_DEBUG
-			buf_LRU_insert_zip_clean(b);
-#endif /* UNIV_DEBUG */
-		} else {
-			/* Relocate on buf_pool.flush_list. */
+		if (b->oldest_modification()) {
 			buf_flush_relocate_on_flush_list(bpage, b);
 		}
 
@@ -1480,9 +1441,6 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 		ut_a(bpage->zip.ssize);
 		ut_ad(!bpage->oldest_modification());
 
-#ifdef UNIV_DEBUG
-		UT_LIST_REMOVE(buf_pool.zip_clean, bpage);
-#endif /* UNIV_DEBUG */
 		hash_lock->write_unlock();
 		buf_pool_mutex_exit_forbid();
 

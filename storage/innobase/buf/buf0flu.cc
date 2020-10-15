@@ -440,12 +440,6 @@ void buf_flush_remove(buf_page_t* bpage)
 	because we assert on it in buf_flush_block_cmp(). */
 	bpage->clear_oldest_modification();
 
-#ifdef UNIV_DEBUG
-	if (bpage->state() == BUF_BLOCK_ZIP_PAGE) {
-		buf_LRU_insert_zip_clean(bpage);
-	}
-#endif /* UNIV_DEBUG */
-
 	buf_pool.stat.flush_list_bytes -= bpage->physical_size();
 
 #ifdef UNIV_DEBUG
