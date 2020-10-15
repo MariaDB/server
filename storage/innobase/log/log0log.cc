@@ -1555,14 +1555,6 @@ loop:
 	ut_ad(log_sys.is_initialised() || !srv_was_started);
 	ut_ad(fil_system.is_initialised() || !srv_was_started);
 
-	if (!srv_read_only_mode) {
-		if (recv_sys.flush_start) {
-			/* This is in case recv_writer_thread was never
-			started, or buf_flush_page_cleaner
-			failed to notice its termination. */
-			os_event_set(recv_sys.flush_start);
-		}
-	}
 #define COUNT_INTERVAL 600U
 #define CHECK_INTERVAL 100000U
 	os_thread_sleep(CHECK_INTERVAL);

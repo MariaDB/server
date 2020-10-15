@@ -903,13 +903,6 @@ srv_shutdown_all_bg_threads()
 			ut_ad(!srv_read_only_mode);
 
 			/* e. Exit the i/o threads */
-			if (recv_sys.flush_start != NULL) {
-				os_event_set(recv_sys.flush_start);
-			}
-			if (recv_sys.flush_end != NULL) {
-				os_event_set(recv_sys.flush_end);
-			}
-
 			os_event_set(buf_flush_event);
 		}
 
@@ -1208,7 +1201,6 @@ dberr_t srv_start(bool create_new_db)
 			    + 1 /* buf_dump_thread */
 			    + 1 /* dict_stats_thread */
 			    + 1 /* fts_optimize_thread */
-			    + 1 /* recv_writer_thread */
 			    + 1 /* trx_rollback_all_recovered */
 			    + 128 /* added as margin, for use of
 				  InnoDB Memcached etc. */
@@ -1336,11 +1328,6 @@ dberr_t srv_start(bool create_new_db)
 
 	if (!srv_read_only_mode) {
 		buf_flush_page_cleaner_init();
-
-#ifdef UNIV_LINUX
-		/* Wait for the setpriority() call to finish. */
-		os_event_wait(recv_sys.flush_end);
-#endif /* UNIV_LINUX */
 		srv_start_state_set(SRV_START_STATE_IO);
 	}
 
@@ -1679,7 +1666,6 @@ file_checked:
 			InnoDB files is needed. */
 			ut_ad(!srv_force_recovery);
 			ut_ad(recv_no_log_write);
-			buf_flush_sync();
 			err = fil_write_flushed_lsn(log_get_lsn());
 			DBUG_ASSERT(!buf_pool.any_io_pending());
 			log_sys.log.close_file();
@@ -1975,11 +1961,6 @@ skip_monitors:
 	}
 
 	srv_is_being_started = false;
-
-	if (!srv_read_only_mode) {
-		/* wake main loop of page cleaner up */
-		os_event_set(buf_flush_event);
-	}
 
 	if (srv_print_verbose_log) {
 		ib::info() << INNODB_VERSION_STR

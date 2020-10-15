@@ -525,7 +525,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(page_zip_stat_per_index_mutex),
 	PSI_KEY(purge_sys_pq_mutex),
 	PSI_KEY(recv_sys_mutex),
-	PSI_KEY(recv_writer_mutex),
 	PSI_KEY(redo_rseg_mutex),
 	PSI_KEY(noredo_rseg_mutex),
 #  ifdef UNIV_DEBUG
@@ -579,7 +578,6 @@ performance schema instrumented if "UNIV_PFS_THREAD"
 is defined */
 static PSI_thread_info	all_innodb_threads[] = {
 	PSI_KEY(page_cleaner_thread),
-	PSI_KEY(recv_writer_thread),
 	PSI_KEY(trx_rollback_clean_thread),
 	PSI_KEY(thread_pool_thread)
 };

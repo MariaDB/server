@@ -2535,40 +2535,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 		" page cleaner thread priority can be changed."
 		" See the man page of setpriority().";
 	}
-	/* Signal that setpriority() has been attempted. */
-	os_event_set(recv_sys.flush_end);
 #endif /* UNIV_LINUX */
-
-	do {
-		/* treat flushing requests during recovery. */
-		ulint	n_flushed_lru = 0;
-		ulint	n_flushed_list = 0;
-
-		os_event_wait(recv_sys.flush_start);
-
-		if (!recv_writer_thread_active) {
-			break;
-		}
-
-		if (recv_sys.flush_lru) {
-			/* Flush pages from end of LRU if required */
-			pc_request(0, LSN_MAX);
-			while (pc_flush_slot() > 0) {}
-			pc_wait_finished(&n_flushed_lru, &n_flushed_list);
-		} else {
-			/* Flush all pages */
-			do {
-				pc_request(ULINT_MAX, LSN_MAX);
-				while (pc_flush_slot() > 0) {}
-			} while (!pc_wait_finished(&n_flushed_lru,
-						   &n_flushed_list));
-		}
-
-		os_event_reset(recv_sys.flush_start);
-		os_event_set(recv_sys.flush_end);
-	} while (recv_writer_thread_active);
-
-	os_event_wait(buf_flush_event);
 
 	ulint	ret_sleep = 0;
 	ulint	n_evicted = 0;
