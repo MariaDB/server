@@ -345,7 +345,7 @@ public:
   void qs_append(const char *str, size_t len);
   void qs_append_hex(const char *str, uint32 len);
   void qs_append(double d);
-  void qs_append(double *d);
+  void qs_append(const double *d);
   inline void qs_append(const char c)
   {
      Ptr[str_length]= c;

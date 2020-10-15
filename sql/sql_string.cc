@@ -767,10 +767,10 @@ void Static_binary_string::qs_append(double d)
                        NULL);
 }
 
-void Static_binary_string::qs_append(double *d)
+void Static_binary_string::qs_append(const double *d)
 {
   double ld;
-  float8get(ld, (char*) d);
+  float8get(ld, (const char*) d);
   qs_append(ld);
 }
 
