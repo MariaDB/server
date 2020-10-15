@@ -415,15 +415,6 @@ public:
 
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
 
-  /** Clamp a page number for batched I/O, such as read-ahead.
-  @param offset   page number limit
-  @return offset clamped to the tablespace size */
-  ulint max_page_number_for_io(ulint offset) const
-  {
-    const ulint limit= committed_size;
-    return limit > offset ? offset : limit;
-  }
-
 	/** @return whether doublewrite buffering is needed */
 	bool use_doublewrite() const
 	{
