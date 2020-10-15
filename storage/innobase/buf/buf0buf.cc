@@ -2768,7 +2768,7 @@ buf_zip_decompress(
 	ulint		size = page_zip_get_size(&block->page.zip);
 	/* The tablespace will not be found if this function is called
 	during IMPORT. */
-	fil_space_t* space= fil_space_acquire_for_io(block->page.id().space());
+	fil_space_t* space= fil_space_t::get_for_io(block->page.id().space());
 	const unsigned key_version = mach_read_from_4(
 		frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 	fil_space_crypt_t* crypt_data = space ? space->crypt_data : NULL;
@@ -3034,10 +3034,9 @@ buf_page_get_low(
 		/* fall through */
 	case BUF_GET:
 	case BUF_GET_IF_IN_POOL_OR_WATCH:
-		fil_space_t* s = fil_space_acquire_for_io(page_id.space());
+		fil_space_t* s = fil_space_get(page_id.space());
 		ut_ad(s);
 		ut_ad(s->zip_size() == zip_size);
-		s->release_for_io();
 	}
 #endif /* UNIV_DEBUG */
 
@@ -3107,7 +3106,7 @@ lookup:
 		}
 
 		/* The call path is buf_read_page() ->
-		buf_read_page_low() (fil_io()) ->
+		buf_read_page_low() (fil_space_t::io()) ->
 		buf_page_read_complete() ->
 		buf_decrypt_after_read(). Here fil_space_t* is used
 		and we decrypt -> buf_page_check_corrupt() where page
@@ -3161,8 +3160,7 @@ lookup:
 			asserting. */
 			if (page_id.space() == TRX_SYS_SPACE) {
 			} else if (page_id.space() == SRV_TMP_SPACE_ID) {
-			} else if (fil_space_t* space
-				   = fil_space_acquire_for_io(
+			} else if (fil_space_t* space= fil_space_t::get_for_io(
 					   page_id.space())) {
 				bool set = dict_set_corrupted_by_space(space);
 				space->release_for_io();
@@ -3376,8 +3374,8 @@ re_evict:
 	if (mode != BUF_GET_IF_IN_POOL
 	    && mode != BUF_GET_IF_IN_POOL_OR_WATCH) {
 	} else if (!ibuf_debug) {
-	} else if (fil_space_t* space =
-		   fil_space_acquire_for_io(page_id.space())) {
+	} else if (fil_space_t* space
+		   = fil_space_t::get_for_io(page_id.space())) {
 		/* Try to evict the block from the buffer pool, to use the
 		insert buffer (change buffer) as much as possible. */
 
@@ -4868,18 +4866,5 @@ std::ostream& operator<<(std::ostream &out, const page_id_t page_id)
   out << "[page id: space=" << page_id.space()
       << ", page number=" << page_id.page_no() << "]";
   return out;
-}
-
-/**
-Calculate the length of trim (punch_hole) operation.
-@param[in]	bpage		Page control block
-@param[in]	write_length	Write length
-@return length of the trim or zero. */
-ulint
-buf_page_get_trim_length(
-	const buf_page_t*	bpage,
-	ulint			write_length)
-{
-	return bpage->physical_size() - write_length;
 }
 #endif /* !UNIV_INNOCHECKSUM */

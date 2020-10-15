@@ -975,8 +975,7 @@ static inline
 void
 fil_crypt_read_crypt_data(fil_space_t* space)
 {
-	if (space->crypt_data || space->size
-	    || !fil_space_get_size(space->id)) {
+	if (space->crypt_data || space->size || !space->get_size()) {
 		/* The encryption metadata has already been read, or
 		the tablespace is not encrypted and the file has been
 		opened already, or the file cannot be accessed,
@@ -2246,15 +2245,9 @@ static void fil_crypt_rotation_list_fill()
 		}
 
 		/* Ensure that crypt_data has been initialized. */
-		if (!space->size) {
-			ut_d(const fil_space_t* s=)
-			        fil_system.read_page0(space->id);
-			ut_ad(!s || s == space);
-			if (!space->size) {
-				/* Page 0 was not loaded.
-				Skip this tablespace. */
-				goto next;
-			}
+		if (!space->get_size()) {
+			/* Page 0 was not loaded. Skip this tablespace. */
+			goto next;
 		}
 
 		/* Skip ENCRYPTION!=DEFAULT tablespaces. */

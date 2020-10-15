@@ -52,10 +52,10 @@ class buf_dblwr_t
 
   struct element
   {
-    /** block descriptor */
-    buf_page_t *bpage;
-    /** true=buf_pool.flush_list, false=buf_pool.LRU */
-    bool lru;
+    /** tablespace */
+    fil_space_t *space;
+    /** asynchronous write request */
+    IORequest request;
     /** payload size in bytes */
     size_t size;
   };
@@ -103,10 +103,11 @@ public:
 
   /** Schedule a page write. If the doublewrite memory buffer is full,
   flush_buffered_writes() will be invoked to make space.
-  @param bpage      buffer pool page to be written
-  @param lru        true=buf_pool.LRU; false=buf_pool.flush_list
+  @param space      tablespace
+  @param request    asynchronous write request
   @param size       payload size in bytes */
-  void add_to_batch(buf_page_t *bpage, bool lru, size_t size);
+  void add_to_batch(fil_space_t *space, const IORequest &request,
+                    size_t size) MY_ATTRIBUTE((nonnull));
 
   /** Determine whether the doublewrite buffer is initialized */
   bool is_initialised() const

@@ -7044,6 +7044,7 @@ i_s_tablespaces_encryption_fill_table(
 	}
 
 	mutex_enter(&fil_system.mutex);
+	fil_system.freeze_space_list++;
 
 	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
 	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
@@ -7060,6 +7061,7 @@ i_s_tablespaces_encryption_fill_table(
 		}
 	}
 
+	fil_system.freeze_space_list--;
 	mutex_exit(&fil_system.mutex);
 	DBUG_RETURN(0);
 }

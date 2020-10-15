@@ -978,6 +978,15 @@ public:
     return zip.ssize ? (UNIV_ZIP_SIZE_MIN >> 1) << zip.ssize : 0;
   }
 
+  /** @return the byte offset of the page within a file */
+  os_offset_t physical_offset() const
+  {
+    os_offset_t o= id().page_no();
+    return zip.ssize
+      ? o << (zip.ssize + (UNIV_ZIP_SIZE_SHIFT_MIN - 1))
+      : o << srv_page_size_shift;
+  }
+
   /** @return whether the block is mapped to a data file */
   bool in_file() const
   {

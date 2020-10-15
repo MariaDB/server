@@ -777,6 +777,11 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
 {
   ut_ad(bpage->in_file());
   ut_ad(bpage->ready_for_flush());
+  ut_ad((space->purpose == FIL_TYPE_TEMPORARY) ==
+        (space == fil_system.temp_space));
+  ut_ad(space->purpose == FIL_TYPE_TABLESPACE ||
+        space->atomic_write_supported);
+  ut_ad(space->pending_io());
 
   rw_lock_t *rw_lock;
 
@@ -801,11 +806,6 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
   Apart from possible rw_lock protection, bpage is also protected by
   io_fix and oldest_modification()!=0. Thus, it cannot be relocated in
   the buffer pool or removed from flush_list or LRU_list. */
-
-  ut_ad((space->purpose == FIL_TYPE_TEMPORARY) ==
-        (space == fil_system.temp_space));
-  ut_ad(space->purpose == FIL_TYPE_TABLESPACE ||
-        space->atomic_write_supported);
 
   DBUG_PRINT("ib_buf", ("%s %u page %u:%u",
                         lru ? "LRU" : "flush_list",
@@ -845,82 +845,66 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
     }
   }
 
-  size_t size, orig_size;
-  ulint type= IORequest::WRITE;
-
-  if (UNIV_UNLIKELY(!rw_lock)) /* ROW_FORMAT=COMPRESSED */
-  {
-    ut_ad(!space->full_crc32());
-    ut_ad(!space->is_compressed()); /* not page_compressed */
-    orig_size= size= bpage->zip_size();
-    if (status != buf_page_t::FREED)
-    {
-      buf_flush_update_zip_checksum(frame, orig_size);
-      frame= buf_page_encrypt(space, bpage, frame, &size);
-    }
-    ut_ad(size == bpage->zip_size());
-  }
+  if (status == buf_page_t::FREED)
+    buf_release_freed_page(&block->page);
   else
   {
-    byte *page= block->frame;
-    orig_size= size= block->physical_size();
+    space->reacquire_for_io();
+    ut_ad(status == buf_page_t::NORMAL || status == buf_page_t::INIT_ON_FLUSH);
+    size_t size, orig_size;
+    IORequest::Type type= lru ? IORequest::WRITE_LRU : IORequest::WRITE_ASYNC;
 
-    if (status == buf_page_t::FREED);
-    else if (space->full_crc32())
+    if (UNIV_UNLIKELY(!rw_lock)) /* ROW_FORMAT=COMPRESSED */
     {
-      /* innodb_checksum_algorithm=full_crc32 is not implemented for
-      ROW_FORMAT=COMPRESSED pages. */
-      ut_ad(!frame);
-      page= buf_page_encrypt(space, bpage, page, &size);
-      buf_flush_init_for_writing(block, page, nullptr, true);
+      ut_ad(!space->full_crc32());
+      ut_ad(!space->is_compressed()); /* not page_compressed */
+      orig_size= size= bpage->zip_size();
+      buf_flush_update_zip_checksum(frame, size);
+      frame= buf_page_encrypt(space, bpage, frame, &size);
+      ut_ad(size == bpage->zip_size());
     }
     else
     {
-      buf_flush_init_for_writing(block, page, frame ? &bpage->zip : nullptr,
-                                 false);
-      page= buf_page_encrypt(space, bpage, frame ? frame : page, &size);
-    }
+      byte *page= block->frame;
+      orig_size= size= block->physical_size();
+
+      if (space->full_crc32())
+      {
+        /* innodb_checksum_algorithm=full_crc32 is not implemented for
+        ROW_FORMAT=COMPRESSED pages. */
+        ut_ad(!frame);
+	page= buf_page_encrypt(space, bpage, page, &size);
+	buf_flush_init_for_writing(block, page, nullptr, true);
+      }
+      else
+      {
+        buf_flush_init_for_writing(block, page, frame ? &bpage->zip : nullptr,
+                                   false);
+        page= buf_page_encrypt(space, bpage, frame ? frame : page, &size);
+      }
 
 #if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
-    if (size != orig_size && space->punch_hole)
-      type|= IORequest::PUNCH_HOLE;
+      if (size != orig_size && space->punch_hole)
+        type= lru ? IORequest::PUNCH_LRU : IORequest::PUNCH;
 #else
       DBUG_EXECUTE_IF("ignore_punch_hole",
                       if (size != orig_size && space->punch_hole)
-                        type|= IORequest::PUNCH_HOLE;);
+                        type= lru ? IORequest::PUNCH_LRU : IORequest::PUNCH;);
 #endif
-    frame= page;
-  }
-
-  IORequest request(type, bpage, lru);
-
-  ut_ad(status == bpage->status);
-
-  switch (status) {
-  default:
-    ut_ad(status == buf_page_t::FREED);
-    buf_release_freed_page(bpage);
-    break;
-  case buf_page_t::NORMAL:
-    if (space->use_doublewrite())
-    {
-      ut_ad(!srv_read_only_mode);
-      if (lru)
-        buf_pool.n_flush_LRU++;
-      else
-        buf_pool.n_flush_list++;
-      buf_dblwr.add_to_batch(bpage, lru, size);
-      break;
+      frame=page;
     }
-    /* fall through */
-  case buf_page_t::INIT_ON_FLUSH:
+
+    ut_ad(status == bpage->status);
+
     if (lru)
       buf_pool.n_flush_LRU++;
     else
       buf_pool.n_flush_list++;
-    /* FIXME: pass space to fil_io() */
-    fil_io(request, false, bpage->id(), bpage->zip_size(), 0,
-           bpage->physical_size(), frame, bpage);
+    if (status != buf_page_t::NORMAL || !space->use_doublewrite())
+      space->io(IORequest(type, bpage),
+                bpage->physical_offset(), size, frame, bpage);
+    else
+      buf_dblwr.add_to_batch(space, IORequest(type, bpage), size);
   }
 
   /* Increment the I/O operation count used for selecting LRU policy. */
@@ -968,8 +952,7 @@ static page_id_t buf_flush_check_neighbors(const fil_space_t &space,
     ? static_cast<uint32_t>(s) : read_ahead;
   page_id_t low= id - (id.page_no() % buf_flush_area);
   page_id_t high= low + buf_flush_area;
-  high.set_page_no(std::min(high.page_no(),
-                            static_cast<uint32_t>(space.committed_size - 1)));
+  high.set_page_no(std::min(high.page_no(), space.last_page_number()));
 
   if (!contiguous)
   {
@@ -1013,13 +996,12 @@ static page_id_t buf_flush_check_neighbors(const fil_space_t &space,
   return i;
 }
 
+MY_ATTRIBUTE((nonnull))
 /** Write punch-hole or zeroes of the freed ranges when
 innodb_immediate_scrub_data_uncompressed from the freed ranges.
-@param[in]	space		tablespace which contains freed ranges
-@param[in]	freed_ranges	freed ranges of the page to be flushed */
+@param space   tablespace which may contain ranges of freed pages */
 static void buf_flush_freed_pages(fil_space_t *space)
 {
-  ut_ad(space != NULL);
   const bool punch_hole= space->punch_hole;
   if (!srv_immediate_scrub_data_uncompressed && !punch_hole)
     return;
@@ -1038,27 +1020,24 @@ static void buf_flush_freed_pages(fil_space_t *space)
 
   for (const auto &range : freed_ranges)
   {
-    ulint page_size= space->zip_size();
-    if (!page_size)
-      page_size= srv_page_size;
+    const ulint physical_size= space->physical_size();
 
     if (punch_hole)
     {
-      const auto len= (range.last - range.first + 1) * page_size;
-      const page_id_t page_id(space->id, range.first);
-      fil_io_t fio= fil_io(IORequestWrite, true, page_id, space->zip_size(),
-                           0, len, nullptr, nullptr, false, true);
-      if (fio.node)
-        fio.node->space->release_for_io();
+      space->reacquire_for_io();
+      space->io(IORequest(IORequest::PUNCH_RANGE),
+                          os_offset_t{range.first} * physical_size,
+                          (range.last - range.first + 1) * physical_size,
+                          nullptr);
     }
     else if (srv_immediate_scrub_data_uncompressed)
     {
-      for (auto i= range.first; i <= range.last; i++)
+      for (os_offset_t i= range.first; i <= range.last; i++)
       {
-        const page_id_t page_id(space->id, i);
-        fil_io(IORequestWrite, false, page_id, space->zip_size(), 0,
-               space->zip_size() ? space->zip_size() : srv_page_size,
-               const_cast<byte*>(field_ref_zero), nullptr, false, false);
+        space->reacquire_for_io();
+        space->io(IORequest(IORequest::WRITE_ASYNC),
+                  i * physical_size, physical_size,
+                  const_cast<byte*>(field_ref_zero));
       }
     }
     buf_pool.stat.n_pages_written+= (range.last - range.first + 1);
@@ -1088,7 +1067,8 @@ static ulint buf_flush_try_neighbors(fil_space_t *space,
   ut_ad(page_id >= id);
   ut_ad(page_id < high);
 
-  for (ulint id_fold= id.fold(); id < high; ++id, ++id_fold)
+  for (ulint id_fold= id.fold(); id < high && !space->is_stopping();
+       ++id, ++id_fold)
   {
     if (count + n_flushed >= n_to_flush)
     {
@@ -1185,7 +1165,7 @@ static ulint buf_free_from_unzip_LRU_list_batch(ulint max)
 @retval nullptr if the pages for this tablespace should be discarded */
 static fil_space_t *buf_flush_space(const uint32_t id)
 {
-  fil_space_t *space= fil_space_acquire_for_io(id);
+  fil_space_t *space= fil_space_t::get_for_io(id);
   if (space)
     buf_flush_freed_pages(space);
   return space;
@@ -1198,6 +1178,37 @@ struct flush_counters_t
   /** number of clean pages evicted */
   ulint evicted;
 };
+
+/** Try to discard a dirty page.
+@param bpage      dirty page whose tablespace is not accessible */
+static void buf_flush_discard_page(buf_page_t *bpage)
+{
+  mysql_mutex_assert_owner(&buf_pool.mutex);
+  mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
+  ut_ad(bpage->in_file());
+  ut_ad(bpage->oldest_modification());
+
+  rw_lock_t *rw_lock;
+
+  if (bpage->state() != BUF_BLOCK_FILE_PAGE)
+    rw_lock= nullptr;
+  else
+  {
+    rw_lock= &reinterpret_cast<buf_block_t*>(bpage)->lock;
+    if (!rw_lock_sx_lock_nowait(rw_lock, 0))
+      return;
+  }
+
+  bpage->status= buf_page_t::NORMAL;
+  mysql_mutex_lock(&buf_pool.flush_list_mutex);
+  buf_flush_remove(bpage);
+  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+
+  if (rw_lock)
+    rw_lock_sx_unlock(rw_lock);
+
+  buf_LRU_free_page(bpage, true);
+}
 
 /** Flush dirty blocks from the end of the LRU list.
 @param max   maximum number of blocks to make available in buf_pool.free
@@ -1214,6 +1225,9 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n)
   const auto neighbors= UT_LIST_GET_LEN(buf_pool.LRU) < BUF_LRU_OLD_MIN_LEN
     ? 0 : srv_flush_neighbors;
   fil_space_t *space= nullptr;
+  uint32_t last_space_id= FIL_NULL;
+  static_assert(FIL_NULL > SRV_TMP_SPACE_ID, "consistency");
+  static_assert(FIL_NULL > SRV_SPACE_ID_UPPER_BOUND, "consistency");
 
   for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.LRU);
        bpage && n->flushed + n->evicted < max &&
@@ -1239,13 +1253,25 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n)
       const uint32_t space_id= page_id.space();
       if (!space || space->id != space_id)
       {
-        if (space)
-          space->release_for_io();
-        space= buf_flush_space(space_id);
-        if (!space)
-          continue;
+        if (last_space_id != space_id)
+        {
+          if (space)
+            space->release_for_io();
+          space= buf_flush_space(space_id);
+          last_space_id= space_id;
+        }
+        else
+          ut_ad(!space);
       }
-      if (neighbors && space->is_rotational())
+      else if (space->is_stopping())
+      {
+        space->release_for_io();
+        space= nullptr;
+      }
+
+      if (!space)
+        buf_flush_discard_page(bpage);
+      else if (neighbors && space->is_rotational())
       {
         mysql_mutex_unlock(&buf_pool.mutex);
         n->flushed+= buf_flush_try_neighbors(space, page_id, neighbors == 1,
@@ -1323,6 +1349,9 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn)
   const auto neighbors= UT_LIST_GET_LEN(buf_pool.LRU) < BUF_LRU_OLD_MIN_LEN
     ? 0 : srv_flush_neighbors;
   fil_space_t *space= nullptr;
+  uint32_t last_space_id= FIL_NULL;
+  static_assert(FIL_NULL > SRV_TMP_SPACE_ID, "consistency");
+  static_assert(FIL_NULL > SRV_SPACE_ID_UPPER_BOUND, "consistency");
 
   /* Start from the end of the list looking for a suitable block to be
   flushed. */
@@ -1356,17 +1385,29 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn)
       const uint32_t space_id= page_id.space();
       if (!space || space->id != space_id)
       {
-        if (space)
-          space->release_for_io();
-        space= buf_flush_space(space_id);
-        if (!space)
-          continue;
+        if (last_space_id != space_id)
+        {
+          if (space)
+            space->release_for_io();
+          space= buf_flush_space(space_id);
+          last_space_id= space_id;
+        }
+        else
+          ut_ad(!space);
       }
-      if (neighbors && space->is_rotational())
+      else if (space->is_stopping())
+      {
+        space->release_for_io();
+        space= nullptr;
+      }
+
+      if (!space)
+        buf_flush_discard_page(bpage);
+      else if (neighbors && space->is_rotational())
       {
         mysql_mutex_unlock(&buf_pool.mutex);
         count+= buf_flush_try_neighbors(space, page_id, neighbors == 1,
-                                             false, count, max_n);
+                                        false, count, max_n);
 reacquire_mutex:
         mysql_mutex_lock(&buf_pool.mutex);
       }
@@ -1466,10 +1507,9 @@ ulint buf_flush_lists(ulint max_n, lsn_t lsn)
   while not holding buf_pool.flush_list_mutex */
   if (running || !UT_LIST_GET_LEN(buf_pool.flush_list))
   {
+    if (!running)
+      mysql_cond_broadcast(cond);
     mysql_mutex_unlock(&buf_pool.mutex);
-    if (running)
-      return 0;
-    mysql_cond_broadcast(cond);
     return 0;
   }
   n_flush++;

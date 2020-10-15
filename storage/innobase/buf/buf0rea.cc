@@ -261,26 +261,23 @@ flag is cleared and the x-lock released by an i/o-handler thread.
 @param[out] err		DB_SUCCESS or DB_TABLESPACE_DELETED
 			if we are trying
 			to read from a non-existent tablespace
+@param[in,out] space	tablespace
 @param[in] sync		true if synchronous aio is desired
 @param[in] mode		BUF_READ_IBUF_PAGES_ONLY, ...,
 @param[in] page_id	page id
 @param[in] zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in] unzip	true=request uncompressed page
-@param[in] ignore	whether to ignore out-of-bounds page_id
-@return 1 if a read request was queued, 0 if the page already resided
-in buf_pool, or if the page is in the doublewrite buffer blocks in
-which case it is never read into the pool, or if the tablespace does
-not exist or is being dropped */
+@return whether a read request was queued */
 static
-ulint
+bool
 buf_read_page_low(
 	dberr_t*		err,
+	fil_space_t*		space,
 	bool			sync,
 	ulint			mode,
 	const page_id_t		page_id,
 	ulint			zip_size,
-	bool			unzip,
-	bool			ignore = false)
+	bool			unzip)
 {
 	buf_page_t*	bpage;
 
@@ -290,17 +287,22 @@ buf_read_page_low(
 		ib::error() << "Trying to read doublewrite buffer page "
 			<< page_id;
 		ut_ad(0);
-		return(0);
+nothing_read:
+		space->release_for_io();
+		return false;
 	}
 
-	if (ibuf_bitmap_page(page_id, zip_size) || trx_sys_hdr_page(page_id)) {
+	if (sync) {
+	} else if (trx_sys_hdr_page(page_id)
+		   || ibuf_bitmap_page(page_id, zip_size)
+		   || (!recv_no_ibuf_operations
+		       && ibuf_page(page_id, zip_size, nullptr))) {
 
 		/* Trx sys header is so low in the latching order that we play
 		safe and do not leave the i/o-completion to an asynchronous
-		i/o-thread. Ibuf bitmap pages must always be read with
+		i/o-thread. Change buffer pages must always be read with
 		syncronous i/o, to make sure they do not get involved in
 		thread deadlocks. */
-
 		sync = true;
 	}
 
@@ -311,19 +313,18 @@ buf_read_page_low(
 	bpage = buf_page_init_for_read(mode, page_id, zip_size, unzip);
 
 	if (bpage == NULL) {
+		goto nothing_read;
+	}
 
-		return(0);
+	ut_ad(bpage->in_file());
+
+	if (sync) {
+		thd_wait_begin(nullptr, THD_WAIT_DISKIO);
 	}
 
 	DBUG_LOG("ib_buf",
 		 "read page " << page_id << " zip_size=" << zip_size
 		 << " unzip=" << unzip << ',' << (sync ? "sync" : "async"));
-
-	ut_ad(bpage->in_file());
-
-	if (sync) {
-		thd_wait_begin(NULL, THD_WAIT_DISKIO);
-	}
 
 	void*	dst;
 
@@ -335,20 +336,18 @@ buf_read_page_low(
 		dst = ((buf_block_t*) bpage)->frame;
 	}
 
-	fil_io_t fio = fil_io(
-		IORequestRead, sync, page_id, zip_size, 0,
-		zip_size ? zip_size : srv_page_size,
-		dst, bpage, ignore);
+	const ulint len = zip_size ? zip_size : srv_page_size;
 
+	auto fio = space->io(IORequest(sync
+				       ? IORequest::READ_SYNC
+				       : IORequest::READ_ASYNC),
+			     page_id.page_no() * len, len, dst, bpage);
 	*err= fio.err;
 
 	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
-		if (ignore || fio.err == DB_TABLESPACE_DELETED) {
+		if (!sync || fio.err == DB_TABLESPACE_DELETED) {
 			buf_pool.corrupted_evict(bpage);
-			if (sync && fio.node) {
-				fio.node->space->release_for_io();
-			}
-			return(0);
+			return false;
 		}
 
 		ut_error;
@@ -357,16 +356,16 @@ buf_read_page_low(
 	if (sync) {
 		thd_wait_end(NULL);
 
-		/* The i/o was already completed in fil_io() */
+		/* The i/o was already completed in space->io() */
 		*err = buf_page_read_complete(bpage, *fio.node);
-		fio.node->space->release_for_io();
+		space->release_for_io();
 
 		if (*err != DB_SUCCESS) {
-			return(0);
+			return false;
 		}
 	}
 
-	return(1);
+	return true;
 }
 
 /** Applies a random read-ahead in buf_pool if there are at least a threshold
@@ -411,7 +410,7 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
   ulint count= 5 + buf_read_ahead_area / 8;
   const page_id_t low= page_id - (page_id.page_no() % buf_read_ahead_area);
   page_id_t high= low + buf_read_ahead_area;
-  high.set_page_no(std::min(high.page_no(), space->committed_size - 1));
+  high.set_page_no(std::min(high.page_no(), space->last_page_number()));
 
   /* Count how many blocks in the area have been recently accessed,
   that is, reside near the start of the LRU list. */
@@ -427,10 +426,14 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
       goto read_ahead;
   }
 
+no_read_ahead:
   space->release();
   return 0;
 
 read_ahead:
+  if (!space->acquire_for_io())
+    goto no_read_ahead;
+
   /* Read all the suitable blocks within the area */
   const ulint ibuf_mode= ibuf ? BUF_READ_IBUF_PAGES_ONLY : BUF_READ_ANY_PAGE;
 
@@ -441,13 +444,16 @@ read_ahead:
     if (space->is_stopping())
       break;
     dberr_t err;
-    count+= buf_read_page_low(&err, false, ibuf_mode, i, zip_size, false);
+    space->reacquire_for_io();
+    if (buf_read_page_low(&err, space, false, ibuf_mode, i, zip_size, false))
+      count++;
   }
 
   if (count)
     DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
 			  count, space->chain.start->name,
 			  low.page_no()));
+  space->release_for_io();
   space->release();
 
   /* Read ahead is considered one I/O operation for the purpose of
@@ -472,41 +478,49 @@ after decryption normal page checksum does not match.
 @retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
 dberr_t buf_read_page(const page_id_t page_id, ulint zip_size)
 {
-	dberr_t		err = DB_SUCCESS;
+  fil_space_t *space= fil_space_acquire(page_id.space());
+  if (!space)
+  {
+    ib::info() << "trying to read page " << page_id
+               << " in nonexisting or being-dropped tablespace";
+    return DB_TABLESPACE_DELETED;
+  }
+  else if (!space->acquire_for_io())
+  {
+    ib::warn() << "unable to read " << page_id << " from tablespace "
+               << space->name;
+    space->release();
+    return DB_PAGE_CORRUPTED;
+  }
 
-	ulint count = buf_read_page_low(
-		&err, true, BUF_READ_ANY_PAGE, page_id, zip_size, false);
+  space->release();
 
-	srv_stats.buf_pool_reads.add(count);
+  dberr_t err;
+  if (buf_read_page_low(&err, space, true, BUF_READ_ANY_PAGE,
+			page_id, zip_size, false))
+    srv_stats.buf_pool_reads.add(1);
 
-	if (err == DB_TABLESPACE_DELETED) {
-		ib::info() << "trying to read page " << page_id
-			<< " in nonexisting or being-dropped tablespace";
-	}
-
-	/* Increment number of I/O operations used for LRU policy. */
-	buf_LRU_stat_inc_io();
-
-	return(err);
+  buf_LRU_stat_inc_io();
+  return err;
 }
 
 /** High-level function which reads a page asynchronously from a file to the
 buffer buf_pool if it is not already there. Sets the io_fix flag and sets
 an exclusive lock on the buffer frame. The flag is cleared and the x-lock
 released by the i/o-handler thread.
+@param[in,out]	space		tablespace
 @param[in]	page_id		page id
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	sync		true if synchronous aio is desired */
-void
-buf_read_page_background(const page_id_t page_id, ulint zip_size, bool sync)
+void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
+			      ulint zip_size, bool sync)
 {
-	ulint		count;
 	dberr_t		err;
 
-	count = buf_read_page_low(
-		&err, sync,
-		BUF_READ_ANY_PAGE,
-		page_id, zip_size, false, true);
+	if (buf_read_page_low(&err, space, sync, BUF_READ_ANY_PAGE,
+			      page_id, zip_size, false)) {
+		srv_stats.buf_pool_reads.add(1);
+	}
 
 	switch (err) {
 	case DB_SUCCESS:
@@ -527,8 +541,6 @@ buf_read_page_background(const page_id_t page_id, ulint zip_size, bool sync)
 		ib::fatal() << "Error " << err << " in background read of "
 			<< page_id;
 	}
-
-	srv_stats.buf_pool_reads.add(count);
 
 	/* We do not increment number of I/O operations used for LRU policy
 	here (buf_LRU_stat_inc_io()). We use this in heuristics to decide
@@ -598,10 +610,19 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
   fil_space_t *space= fil_space_acquire(page_id.space());
   if (!space)
     return 0;
-  if (high_1.page_no() >= space->committed_size)
+  else
+  {
+    bool ok= space->acquire_for_io();
+    space->release();
+    if (!ok)
+      return 0;
+  }
+
+  if (high_1.page_no() > space->last_page_number())
   {
     /* The area is not whole. */
-    space->release();
+fail:
+    space->release_for_io();
     return 0;
   }
 
@@ -628,8 +649,7 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
       {
 hard_fail:
         hash_lock->read_unlock();
-        space->release();
-        return 0;
+	goto fail;
       }
       const byte *f;
       switch (UNIV_EXPECT(bpage->state(), BUF_BLOCK_FILE_PAGE)) {
@@ -661,7 +681,7 @@ hard_fail:
       if (id != new_low && id != new_high_1)
         /* This is not a border page of the area: return */
         goto hard_fail;
-      if (new_high_1.page_no() >= space->committed_size)
+      if (new_high_1.page_no() > space->last_page_number())
         /* The area is not whole */
         goto hard_fail;
     }
@@ -671,8 +691,7 @@ failed:
       hash_lock->read_unlock();
       if (--count)
         continue;
-      space->release();
-      return 0;
+      goto fail;
     }
 
     const unsigned accessed= bpage->is_accessed();
@@ -702,7 +721,8 @@ failed:
     if (space->is_stopping())
       break;
     dberr_t err;
-    count+= buf_read_page_low(&err, false, ibuf_mode, new_low, zip_size,
+    space->reacquire_for_io();
+    count+= buf_read_page_low(&err, space, false, ibuf_mode, new_low, zip_size,
                               false);
   }
 
@@ -710,7 +730,7 @@ failed:
     DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
                           count, space->chain.start->name,
                           new_low.page_no()));
-  space->release();
+  space->release_for_io();
 
   /* Read ahead is considered one I/O operation for the purpose of
   LRU policy decision. */
@@ -721,23 +741,18 @@ failed:
 }
 
 /** Issues read requests for pages which recovery wants to read in.
-@param[in]	sync		true if the caller wants this function to wait
-for the highest address page to get read in, before this function returns
 @param[in]	space_id	tablespace id
 @param[in]	page_nos	array of page numbers to read, with the
 highest page number the last in the array
 @param[in]	n		number of page numbers in the array */
-void buf_read_recv_pages(bool sync, ulint space_id, const uint32_t *page_nos,
-                         ulint n)
+void buf_read_recv_pages(ulint space_id, const uint32_t* page_nos, ulint n)
 {
-	fil_space_t*		space	= fil_space_get(space_id);
+	fil_space_t* space = fil_space_t::get_for_io(space_id);
 
-	if (space == NULL) {
-		/* The tablespace is missing: do nothing */
+	if (!space) {
+		/* The tablespace is missing or unreadable: do nothing */
 		return;
 	}
-
-	fil_space_open_if_needed(space);
 
 	const ulint zip_size = space->zip_size();
 
@@ -769,9 +784,10 @@ void buf_read_recv_pages(bool sync, ulint space_id, const uint32_t *page_nos,
 		}
 
 		dberr_t err;
-		buf_read_page_low(
-			&err, sync && i + 1 == n,
-			BUF_READ_ANY_PAGE, cur_page_id, zip_size, true);
+		space->reacquire_for_io();
+		buf_read_page_low(&err, space, false,
+				  BUF_READ_ANY_PAGE, cur_page_id, zip_size,
+				  true);
 
 		if (err == DB_DECRYPTION_FAILED || err == DB_PAGE_CORRUPTED) {
 			ib::error() << "Recovery failed to read or decrypt "
@@ -779,5 +795,8 @@ void buf_read_recv_pages(bool sync, ulint space_id, const uint32_t *page_nos,
 		}
 	}
 
-	DBUG_PRINT("ib_buf", ("recovery read-ahead (%u pages)", n));
+
+        DBUG_PRINT("ib_buf", ("recovery read (%u pages) for %s", n,
+			      space->chain.start->name));
+	space->release_for_io();
 }

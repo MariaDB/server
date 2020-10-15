@@ -3304,21 +3304,34 @@ upd_sys:
 
 /**
 Prefetch siblings of the leaf for the pessimistic operation.
-@param block	leaf page */
-static void btr_cur_prefetch_siblings(const buf_block_t* block)
+@param block	leaf page
+@param index    index of the page */
+static void btr_cur_prefetch_siblings(const buf_block_t *block,
+                                      const dict_index_t *index)
 {
-  const page_t *page= block->frame;
-  ut_ad(page_is_leaf(page));
+  ut_ad(page_is_leaf(block->frame));
 
+  if (index->is_ibuf())
+    return;
+
+  const page_t *page= block->frame;
   uint32_t prev= mach_read_from_4(my_assume_aligned<4>(page + FIL_PAGE_PREV));
   uint32_t next= mach_read_from_4(my_assume_aligned<4>(page + FIL_PAGE_NEXT));
 
   if (prev != FIL_NULL)
-    buf_read_page_background(page_id_t(block->page.id().space(), prev),
+  {
+    ut_a(index->table->space->acquire_for_io());
+    buf_read_page_background(index->table->space,
+                             page_id_t(block->page.id().space(), prev),
                              block->zip_size(), false);
+  }
   if (next != FIL_NULL)
-    buf_read_page_background(page_id_t(block->page.id().space(), next),
+  {
+    ut_a(index->table->space->acquire_for_io());
+    buf_read_page_background(index->table->space,
+                             page_id_t(block->page.id().space(), next),
                              block->zip_size(), false);
+  }
 }
 
 /*************************************************************//**
@@ -3436,8 +3449,8 @@ fail:
 
 		/* prefetch siblings of the leaf for the pessimistic
 		operation, if the page is leaf. */
-		if (page_is_leaf(page) && !index->is_ibuf()) {
-			btr_cur_prefetch_siblings(block);
+		if (page_is_leaf(page)) {
+			btr_cur_prefetch_siblings(block, index);
 		}
 fail_err:
 
@@ -4575,7 +4588,7 @@ any_extern:
 
 		/* prefetch siblings of the leaf for the pessimistic
 		operation. */
-		btr_cur_prefetch_siblings(block);
+		btr_cur_prefetch_siblings(block, index);
 
 		return(DB_OVERFLOW);
 	}
@@ -4766,10 +4779,10 @@ func_exit:
 		}
 	}
 
-	if (err != DB_SUCCESS && !index->is_ibuf()) {
+	if (err != DB_SUCCESS) {
 		/* prefetch siblings of the leaf for the pessimistic
 		operation. */
-		btr_cur_prefetch_siblings(block);
+		btr_cur_prefetch_siblings(block, index);
 	}
 
 	return(err);
@@ -5584,7 +5597,7 @@ btr_cur_optimistic_delete_func(
 	} else {
 		/* prefetch siblings of the leaf for the pessimistic
 		operation. */
-		btr_cur_prefetch_siblings(block);
+		btr_cur_prefetch_siblings(block, cursor->index);
 	}
 
 func_exit:

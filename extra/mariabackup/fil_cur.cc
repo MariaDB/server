@@ -93,7 +93,6 @@ xb_fil_node_close_file(
 	mutex_enter(&fil_system.mutex);
 
 	ut_ad(node);
-	ut_a(node->n_pending == 0);
 	ut_a(node->n_pending_flushes == 0);
 	ut_a(!node->being_extended);
 
@@ -108,20 +107,10 @@ xb_fil_node_close_file(
 	ut_a(ret);
 
 	node->handle = OS_FILE_CLOSED;
+	mutex_exit(&fil_system.mutex);
 
 	ut_a(fil_system.n_open > 0);
 	fil_system.n_open--;
-
-	if (node->space->purpose == FIL_TYPE_TABLESPACE &&
-	    fil_is_user_tablespace_id(node->space->id)) {
-
-		ut_a(UT_LIST_GET_LEN(fil_system.LRU) > 0);
-
-		/* The node is in the LRU list, remove it */
-		UT_LIST_REMOVE(fil_system.LRU, node);
-	}
-
-	mutex_exit(&fil_system.mutex);
 }
 
 /************************************************************************
@@ -180,18 +169,8 @@ xb_fil_cur_open(
 
 			return(XB_FIL_CUR_SKIP);
 		}
-		mutex_enter(&fil_system.mutex);
 
 		fil_system.n_open++;
-
-		if (node->space->purpose == FIL_TYPE_TABLESPACE &&
-		    fil_is_user_tablespace_id(node->space->id)) {
-
-			/* Put the node to the LRU list */
-			UT_LIST_ADD_FIRST(fil_system.LRU, node);
-		}
-
-		mutex_exit(&fil_system.mutex);
 	}
 
 	ut_ad(node->is_open());
@@ -427,7 +406,7 @@ xb_fil_cur_read(
 	retry_count = 10;
 	ret = XB_FIL_CUR_SUCCESS;
 
-	fil_space_t *space = fil_space_acquire_for_io(cursor->space_id);
+	fil_space_t *space = fil_space_t::get_for_io(cursor->space_id);
 
 	if (!space) {
 		return XB_FIL_CUR_ERROR;

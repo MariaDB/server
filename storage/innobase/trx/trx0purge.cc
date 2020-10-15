@@ -584,11 +584,10 @@ static void trx_purge_truncate_history()
 				     : 0, j = i;; ) {
 				ulint space_id = srv_undo_space_id_start + i;
 				ut_ad(srv_is_undo_tablespace(space_id));
+				fil_space_t* space= fil_space_get(space_id);
 
-				if (fil_space_get_size(space_id)
-				    > threshold) {
-					purge_sys.truncate.current
-						= fil_space_get(space_id);
+				if (space && space->get_size() > threshold) {
+					purge_sys.truncate.current = space;
 					break;
 				}
 

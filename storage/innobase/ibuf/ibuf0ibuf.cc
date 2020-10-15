@@ -2300,7 +2300,7 @@ static void ibuf_read_merge_pages(const uint32_t* space_ids,
 
 	for (ulint i = 0; i < n_stored; i++) {
 		const ulint space_id = space_ids[i];
-		fil_space_t* s = fil_space_acquire_for_io(space_id);
+		fil_space_t* s = fil_space_t::get_for_io(space_id);
 		if (!s) {
 tablespace_deleted:
 			/* The tablespace was not found: remove all
@@ -4631,26 +4631,14 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 
 	const unsigned zip_size = space->zip_size();
 	const unsigned physical_size = space->physical_size();
-	/* fil_space_t::size and fil_space_t::free_limit would still be 0
-	at this point. So, we will have to read page 0. */
-	ut_ad(!space->free_limit);
-	ut_ad(!space->size);
+
+	uint32_t size= std::min(space->free_limit, space->size);
+
+	if (size == 0) {
+		return(DB_TABLE_NOT_FOUND);
+	}
 
 	mtr_t mtr;
-	uint32_t size;
-	mtr.start();
-	if (buf_block_t* sp = buf_page_get(page_id_t(space->id, 0),
-					   zip_size,
-					   RW_S_LATCH, &mtr)) {
-		size = std::min(
-			mach_read_from_4(FSP_HEADER_OFFSET + FSP_FREE_LIMIT
-					 + sp->frame),
-			mach_read_from_4(FSP_HEADER_OFFSET + FSP_SIZE
-					 + sp->frame));
-	} else {
-		size = 0;
-	}
-	mtr.commit();
 
 	mutex_enter(&ibuf_mutex);
 

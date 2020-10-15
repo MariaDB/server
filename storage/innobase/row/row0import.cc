@@ -3424,8 +3424,7 @@ fil_iterate(
 		byte* const writeptr = readptr;
 
 		err = os_file_read_no_error_handling(
-			IORequest(IORequest::READ
-				  | IORequest::DISABLE_PARTIAL_IO_WARNINGS),
+			IORequestReadPartial,
 			iter.file, readptr, offset, n_bytes, 0);
 		if (err != DB_SUCCESS) {
 			ib::error() << iter.filepath
@@ -3664,9 +3663,7 @@ not_encrypted:
 
 		/* A page was updated in the set, write back to disk. */
 		if (updated) {
-			IORequest       write_request(IORequest::WRITE);
-
-			err = os_file_write(write_request,
+			err = os_file_write(IORequestWrite,
 					    iter.filepath, iter.file,
 					    writeptr, offset, n_bytes);
 
@@ -3759,10 +3756,8 @@ fil_tablespace_iterate(
 
 	/* Read the first page and determine the page and zip size. */
 
-	err = os_file_read_no_error_handling(
-		IORequest(IORequest::READ
-			  | IORequest::DISABLE_PARTIAL_IO_WARNINGS),
-		file, page, 0, srv_page_size, 0);
+	err = os_file_read_no_error_handling(IORequestReadPartial,
+					     file, page, 0, srv_page_size, 0);
 
 	if (err == DB_SUCCESS) {
 		err = callback.init(file_size, block);

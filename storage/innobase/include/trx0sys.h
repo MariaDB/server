@@ -46,10 +46,9 @@ Created 3/26/1996 Heikki Tuuri
 /** Checks if a page address is the trx sys header page.
 @param[in]	page_id	page id
 @return true if trx sys header page */
-inline bool trx_sys_hdr_page(const page_id_t& page_id)
+inline bool trx_sys_hdr_page(const page_id_t page_id)
 {
-	return(page_id.space() == TRX_SYS_SPACE
-	       && page_id.page_no() == TRX_SYS_PAGE_NO);
+  return page_id == page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO);
 }
 
 /*****************************************************************//**
