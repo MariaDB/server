@@ -4325,7 +4325,7 @@ release_page:
   if (bpage->state() == BUF_BLOCK_FILE_PAGE && !recv_no_ibuf_operations &&
       (!id.space() || !is_predefined_tablespace(id.space())) &&
       fil_page_get_type(frame) == FIL_PAGE_INDEX &&
-      page_is_leaf(frame) && ibuf_page_exists(id, bpage->zip_size()))
+      page_is_leaf(frame))
     bpage->ibuf_exist= true;
 
   if (UNIV_UNLIKELY(MONITOR_IS_ON(MONITOR_MODULE_BUF_PAGE)))
