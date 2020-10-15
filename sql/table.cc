@@ -2367,7 +2367,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 	comment_pos+=   comment_length;
       }
 
-      if ((uchar) strpos[13] == (uchar) MYSQL_TYPE_VIRTUAL)
+      if ((uchar) strpos[13] == (uchar) MYSQL_TYPE_VIRTUAL
+          && likely(share->mysql_version >= 100000))
       {
         /*
           MariaDB version 10.0 version.
@@ -2417,7 +2418,18 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         interval_nr=  (uint) strpos[12];
         enum_field_types field_type= (enum_field_types) strpos[13];
         if (!(handler= Type_handler::get_handler_by_real_type(field_type)))
-          goto err; // Not supported field type
+        {
+          if (field_type == 245 &&
+              share->mysql_version >= 50700) // a.k.a MySQL 5.7 JSON
+          {
+            share->incompatible_version|= HA_CREATE_USED_ENGINE;
+            const LEX_CSTRING mysql_json{STRING_WITH_LEN("MYSQL_JSON")};
+            handler= Type_handler::handler_by_name_or_error(thd, mysql_json);
+          }
+
+          if (!handler)
+            goto err; // Not supported field type
+        }
         handler= handler->type_handler_frm_unpack(strpos);
         if (handler->Column_definition_attributes_frm_unpack(&attr, share,
                                                              strpos,
