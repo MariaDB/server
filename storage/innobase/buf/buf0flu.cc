@@ -236,134 +236,6 @@ static void buf_flush_validate_skip()
 }
 #endif /* UNIV_DEBUG */
 
-/******************************************************************//**
-Insert a block in the flush_rbt and returns a pointer to its
-predecessor or NULL if no predecessor. The ordering is maintained
-on the basis of the <oldest_modification, space, offset> key.
-@return pointer to the predecessor or NULL if no predecessor. */
-static
-buf_page_t*
-buf_flush_insert_in_flush_rbt(
-/*==========================*/
-	buf_page_t*	bpage)	/*!< in: bpage to be inserted. */
-{
-	const ib_rbt_node_t*	c_node;
-	const ib_rbt_node_t*	p_node;
-	buf_page_t*		prev = NULL;
-
-	ut_ad(srv_shutdown_state != SRV_SHUTDOWN_FLUSH_PHASE);
-	ut_ad(mutex_own(&buf_pool.flush_list_mutex));
-
-	/* Insert this buffer into the rbt. */
-	c_node = rbt_insert(buf_pool.flush_rbt, &bpage, &bpage);
-	ut_a(c_node != NULL);
-
-	/* Get the predecessor. */
-	p_node = rbt_prev(buf_pool.flush_rbt, c_node);
-
-	if (p_node != NULL) {
-		buf_page_t**	value;
-		value = rbt_value(buf_page_t*, p_node);
-		prev = *value;
-		ut_a(prev != NULL);
-	}
-
-	return(prev);
-}
-
-/*********************************************************//**
-Delete a bpage from the flush_rbt. */
-static
-void
-buf_flush_delete_from_flush_rbt(
-/*============================*/
-	buf_page_t*	bpage)	/*!< in: bpage to be removed. */
-{
-	ut_ad(mutex_own(&buf_pool.flush_list_mutex));
-
-#ifdef UNIV_DEBUG
-	ibool ret =
-#endif /* UNIV_DEBUG */
-	rbt_delete(buf_pool.flush_rbt, &bpage);
-
-	ut_ad(ret);
-}
-
-/*****************************************************************//**
-Compare two modified blocks in the buffer pool. The key for comparison
-is:
-key = <oldest_modification, space, offset>
-This comparison is used to maintian ordering of blocks in the
-buf_pool.flush_rbt.
-Note that for the purpose of flush_rbt, we only need to order blocks
-on the oldest_modification. The other two fields are used to uniquely
-identify the blocks.
-@return < 0 if b2 < b1, 0 if b2 == b1, > 0 if b2 > b1 */
-static
-int
-buf_flush_block_cmp(
-/*================*/
-	const void*	p1,		/*!< in: block1 */
-	const void*	p2)		/*!< in: block2 */
-{
-	const buf_page_t* b1 = *static_cast<const buf_page_t*const*>(p1);
-	const buf_page_t* b2 = *static_cast<const buf_page_t*const*>(p2);
-
-	ut_ad(b1 != NULL);
-	ut_ad(b2 != NULL);
-
-	ut_ad(mutex_own(&buf_pool.flush_list_mutex));
-
-	const lsn_t m1 = b1->oldest_modification(),
-		m2 = b2->oldest_modification();
-
-	ut_ad(m1);
-	ut_ad(m2);
-
-	if (m2 > m1) {
-		return(1);
-	} else if (m2 < m1) {
-		return(-1);
-	}
-
-	if (b2->id() > b1->id()) {
-		return 1;
-	}
-	if (b2->id() < b1->id()) {
-		return -1;
-	}
-	return 0;
-}
-
-/********************************************************************//**
-Initialize the red-black tree to speed up insertions into the flush_list
-during recovery process. Should be called at the start of recovery
-process before any page has been read/written. */
-void
-buf_flush_init_flush_rbt(void)
-/*==========================*/
-{
-	mutex_enter(&buf_pool.flush_list_mutex);
-	ut_ad(buf_pool.flush_rbt == NULL);
-	/* Create red black tree for speedy insertions in flush list. */
-	buf_pool.flush_rbt = rbt_create(
-		sizeof(buf_page_t*), buf_flush_block_cmp);
-	mutex_exit(&buf_pool.flush_list_mutex);
-}
-
-/********************************************************************//**
-Frees up the red-black tree. */
-void
-buf_flush_free_flush_rbt(void)
-/*==========================*/
-{
-	mutex_enter(&buf_pool.flush_list_mutex);
-	ut_d(buf_flush_validate_low());
-	rbt_free(buf_pool.flush_rbt);
-	buf_pool.flush_rbt = NULL;
-	mutex_exit(&buf_pool.flush_list_mutex);
-}
-
 /** Insert a modified block into the flush list.
 @param[in,out]	block	modified block
 @param[in]	lsn	oldest modification */
@@ -380,32 +252,7 @@ void buf_flush_insert_into_flush_list(buf_block_t* block, lsn_t lsn)
 			   block->physical_size());
 	incr_flush_list_size_in_bytes(block);
 
-	if (UNIV_LIKELY_NULL(buf_pool.flush_rbt)) {
-		ut_ad(srv_shutdown_state != SRV_SHUTDOWN_FLUSH_PHASE);
-		/* The field in_LRU_list is protected by buf_pool.mutex, which
-		we are not holding.  However, while a block is in the flush
-		list, it is dirty and cannot be discarded, not from the
-		page_hash or from the LRU list.  At most, the uncompressed
-		page frame of a compressed block may be discarded or created
-		(copying the block->page to or from a buf_page_t that is
-		dynamically allocated from buf_buddy_alloc()).  Because those
-		transitions hold buf_pool.flush_list_mutex (via
-		buf_flush_relocate_on_flush_list()), there is no possibility
-		of a race condition in the assertions below. */
-		ut_ad(block->page.in_LRU_list);
-		/* buf_buddy_block_register() will take a block in the
-		BUF_BLOCK_MEMORY state, not a file page. */
-		ut_ad(!block->page.in_zip_hash);
-
-		if (buf_page_t* prev_b =
-		    buf_flush_insert_in_flush_rbt(&block->page)) {
-			UT_LIST_INSERT_AFTER(buf_pool.flush_list, prev_b, &block->page);
-			goto func_exit;
-		}
-	}
-
 	UT_LIST_ADD_FIRST(buf_pool.flush_list, &block->page);
-func_exit:
 	ut_d(buf_flush_validate_skip());
 	mutex_exit(&buf_pool.flush_list_mutex);
 }
@@ -430,14 +277,6 @@ void buf_flush_remove(buf_page_t* bpage)
 	the bpage from flush list. */
 	buf_pool.flush_hp.adjust(bpage);
 	UT_LIST_REMOVE(buf_pool.flush_list, bpage);
-
-	/* If the flush_rbt is active then delete from there as well. */
-	if (UNIV_LIKELY_NULL(buf_pool.flush_rbt)) {
-		buf_flush_delete_from_flush_rbt(bpage);
-	}
-
-	/* Must be done after we have removed it from the flush_rbt
-	because we assert on it in buf_flush_block_cmp(). */
 	bpage->clear_oldest_modification();
 
 	buf_pool.stat.flush_list_bytes -= bpage->physical_size();
@@ -467,7 +306,6 @@ buf_flush_relocate_on_flush_list(
 	buf_page_t*	dpage)	/*!< in/out: destination block */
 {
 	buf_page_t*	prev;
-	buf_page_t*	prev_b = NULL;
 
 	ut_ad(mutex_own(&buf_pool.mutex));
 	mutex_enter(&buf_pool.flush_list_mutex);
@@ -481,19 +319,10 @@ buf_flush_relocate_on_flush_list(
 	having the buf_pool mutex. */
 	ut_ad(dpage->oldest_modification());
 
-	/* If recovery is active we must swap the control blocks in
-	the flush_rbt as well. */
-	if (UNIV_LIKELY_NULL(buf_pool.flush_rbt)) {
-		buf_flush_delete_from_flush_rbt(bpage);
-		prev_b = buf_flush_insert_in_flush_rbt(dpage);
-	}
-
 	/* Important that we adjust the hazard pointer before removing
 	the bpage from the flush list. */
 	buf_pool.flush_hp.adjust(bpage);
 
-	/* Must be done after we have removed it from the flush_rbt
-	because we assert on it in buf_flush_block_cmp(). */
 	bpage->clear_oldest_modification();
 
 	prev = UT_LIST_GET_PREV(list, bpage);
@@ -506,9 +335,6 @@ buf_flush_relocate_on_flush_list(
 		UT_LIST_ADD_FIRST(buf_pool.flush_list, dpage);
 	}
 
-	/* Just an extra check. Previous in flush_list
-	should be the same control block as in flush_rbt. */
-	ut_a(!buf_pool.flush_rbt || prev_b == prev);
 	ut_d(buf_flush_validate_low());
 	mutex_exit(&buf_pool.flush_list_mutex);
 }
@@ -2889,20 +2715,12 @@ struct	Check {
 static void buf_flush_validate_low()
 {
 	buf_page_t*		bpage;
-	const ib_rbt_node_t*	rnode = NULL;
 
 	ut_ad(mutex_own(&buf_pool.flush_list_mutex));
 
 	ut_list_validate(buf_pool.flush_list, Check());
 
 	bpage = UT_LIST_GET_FIRST(buf_pool.flush_list);
-
-	/* If we are in recovery mode i.e.: flush_rbt != NULL
-	then each block in the flush_list must also be present
-	in the flush_rbt. */
-	if (UNIV_LIKELY_NULL(buf_pool.flush_rbt)) {
-		rnode = rbt_first(buf_pool.flush_rbt);
-	}
 
 	while (bpage != NULL) {
 		const lsn_t	om = bpage->oldest_modification();
@@ -2912,29 +2730,14 @@ static void buf_flush_validate_low()
 		original descriptor can have this state and still be
 		in the flush list waiting to acquire the
 		buf_pool.flush_list_mutex to complete the relocation. */
-		ut_a(bpage->in_file()
-		     || bpage->state() == BUF_BLOCK_REMOVE_HASH);
-		ut_a(om > 0);
-
-		if (UNIV_LIKELY_NULL(buf_pool.flush_rbt)) {
-			buf_page_t**	prpage;
-
-			ut_a(rnode != NULL);
-			prpage = rbt_value(buf_page_t*, rnode);
-
-			ut_a(*prpage != NULL);
-			ut_a(*prpage == bpage);
-			rnode = rbt_next(buf_pool.flush_rbt, rnode);
-		}
+		ut_ad(bpage->in_file()
+		      || bpage->state() == BUF_BLOCK_REMOVE_HASH);
+		ut_ad(om > 0);
 
 		bpage = UT_LIST_GET_NEXT(list, bpage);
-
-		ut_a(!bpage || om >= bpage->oldest_modification());
+		ut_ad(!bpage || recv_recovery_is_on()
+		      || om >= bpage->oldest_modification());
 	}
-
-	/* By this time we must have exhausted the traversal of
-	flush_rbt (if active) as well. */
-	ut_a(rnode == NULL);
 }
 
 /** Validate the flush list. */

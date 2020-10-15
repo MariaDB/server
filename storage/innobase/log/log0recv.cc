@@ -2684,6 +2684,8 @@ void recv_sys_t::apply(bool last_batch)
   ut_ad(!log_mutex_own());
   mutex_exit(&mutex);
 
+  /* Instead of flushing, last_batch could sort the buf_pool.flush_list
+  in ascending order of buf_page_t::oldest_modification. */
   buf_flush_wait_LRU_batch_end();
   buf_flush_sync();
 
@@ -3271,10 +3273,6 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	ut_ad(UT_LIST_GET_LEN(buf_pool.unzip_LRU) == 0);
 	ut_d(mutex_exit(&buf_pool.flush_list_mutex));
 
-	/* Initialize red-black tree for fast insertions into the
-	flush_list during recovery process. */
-	buf_flush_init_flush_rbt();
-
 	if (srv_force_recovery >= SRV_FORCE_NO_LOG_REDO) {
 
 		ib::info() << "innodb_force_recovery=6 skips redo log apply";
@@ -3567,8 +3565,6 @@ void recv_recovery_from_checkpoint_finish()
 
 	recv_sys.debug_free();
 
-	/* Free up the flush_rbt. */
-	buf_flush_free_flush_rbt();
 	/* Enable innodb_sync_debug checks */
 	ut_d(sync_check_enable());
 }
