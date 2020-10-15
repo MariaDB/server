@@ -978,7 +978,7 @@ static SHOW_VAR innodb_status_variables[]= {
   {"system_rows_read", &export_vars.innodb_system_rows_read, SHOW_SIZE_T},
   {"system_rows_updated", &export_vars.innodb_system_rows_updated,
    SHOW_SIZE_T},
-  {"num_open_files", &export_vars.innodb_num_open_files, SHOW_SIZE_T},
+  {"num_open_files", &fil_system.n_open, SHOW_SIZE_T},
   {"truncated_status_writes", &export_vars.innodb_truncated_status_writes,
    SHOW_SIZE_T},
   {"available_undo_logs", &srv_available_undo_logs, SHOW_ULONG},
