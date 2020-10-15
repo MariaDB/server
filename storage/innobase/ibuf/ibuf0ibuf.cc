@@ -934,8 +934,7 @@ ibuf_update_free_bits_for_two_pages_low(
 @return TRUE if a fixed address ibuf i/o page */
 inline bool ibuf_fixed_addr_page(const page_id_t page_id, ulint zip_size)
 {
-	return((page_id.space() == IBUF_SPACE_ID
-		&& page_id.page_no() == IBUF_TREE_ROOT_PAGE_NO)
+	return(page_id == page_id_t(IBUF_SPACE_ID, IBUF_TREE_ROOT_PAGE_NO)
 	       || ibuf_bitmap_page(page_id, zip_size));
 }
 

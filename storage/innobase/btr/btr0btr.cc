@@ -1049,7 +1049,7 @@ btr_create(
 			return(FIL_NULL);
 		}
 
-		ut_ad(block->page.id().page_no() == IBUF_TREE_ROOT_PAGE_NO);
+		ut_ad(block->page.id() == page_id_t(0,IBUF_TREE_ROOT_PAGE_NO));
 
 		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE_NEW);
 
