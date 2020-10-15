@@ -411,8 +411,7 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
   ulint count= 5 + buf_read_ahead_area / 8;
   const page_id_t low= page_id - (page_id.page_no() % buf_read_ahead_area);
   page_id_t high= low + buf_read_ahead_area;
-  high.set_page_no(std::min(high.page_no(),
-                            static_cast<uint32_t>(space->committed_size - 1)));
+  high.set_page_no(std::min(high.page_no(), space->committed_size - 1));
 
   /* Count how many blocks in the area have been recently accessed,
   that is, reside near the start of the LRU list. */
@@ -723,13 +722,9 @@ for the highest address page to get read in, before this function returns
 @param[in]	space_id	tablespace id
 @param[in]	page_nos	array of page numbers to read, with the
 highest page number the last in the array
-@param[in]	n_stored	number of page numbers in the array */
-void
-buf_read_recv_pages(
-	bool		sync,
-	ulint		space_id,
-	const ulint*	page_nos,
-	ulint		n_stored)
+@param[in]	n		number of page numbers in the array */
+void buf_read_recv_pages(bool sync, ulint space_id, const uint32_t *page_nos,
+                         ulint n)
 {
 	fil_space_t*		space	= fil_space_get(space_id);
 
@@ -742,11 +737,10 @@ buf_read_recv_pages(
 
 	const ulint zip_size = space->zip_size();
 
-	for (ulint i = 0; i < n_stored; i++) {
+	for (ulint i = 0; i < n; i++) {
 
 		/* Ignore if the page already present in freed ranges. */
-		if (space->freed_ranges.contains(
-			static_cast<uint32_t>(page_nos[i]))) {
+		if (space->freed_ranges.contains(page_nos[i])) {
 			continue;
 		}
 
@@ -772,7 +766,7 @@ buf_read_recv_pages(
 
 		dberr_t err;
 		buf_read_page_low(
-			&err, sync && i + 1 == n_stored,
+			&err, sync && i + 1 == n,
 			BUF_READ_ANY_PAGE, cur_page_id, zip_size, true);
 
 		if (err == DB_DECRYPTION_FAILED || err == DB_PAGE_CORRUPTED) {
@@ -781,6 +775,5 @@ buf_read_recv_pages(
 		}
 	}
 
-	DBUG_PRINT("ib_buf", ("recovery read-ahead (%u pages)",
-			      unsigned(n_stored)));
+	DBUG_PRINT("ib_buf", ("recovery read-ahead (%u pages)", n));
 }

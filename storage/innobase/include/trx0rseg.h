@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,7 +37,7 @@ Created 3/26/1996 Heikki Tuuri
 @return rollback segment header, page x-latched */
 UNIV_INLINE
 buf_block_t*
-trx_rsegf_get(fil_space_t* space, ulint page_no, mtr_t* mtr);
+trx_rsegf_get(fil_space_t* space, uint32_t page_no, mtr_t* mtr);
 
 /** Gets a newly created rollback segment header.
 @param[in]	space		space where placed
@@ -48,7 +48,7 @@ UNIV_INLINE
 buf_block_t*
 trx_rsegf_get_new(
 	ulint			space,
-	ulint			page_no,
+	uint32_t		page_no,
 	mtr_t*			mtr);
 
 /** Create a rollback segment header.
@@ -106,10 +106,10 @@ struct trx_rseg_t {
 	fil_space_t*			space;
 
 	/** page number of the rollback segment header */
-	ulint				page_no;
+	uint32_t			page_no;
 
 	/** current size in pages */
-	ulint				curr_size;
+	uint32_t			curr_size;
 
 	/*--------------------------------------------------------*/
 	/* Fields for undo logs */

@@ -3099,7 +3099,7 @@ xb_load_single_table_tablespace(
 
 		ut_a(space != NULL);
 
-		space->add(file->filepath(), OS_FILE_CLOSED, ulint(n_pages),
+		space->add(file->filepath(), OS_FILE_CLOSED, uint32_t(n_pages),
 			   false, false);
 		/* by opening the tablespace we forcing node and space objects
 		in the cache to be populated with fields from space header */
@@ -4901,7 +4901,7 @@ xtrabackup_apply_delta(
 						space->chain);
 					bool fail = !strcmp(n->name, dst_path)
 						&& !fil_space_extend(
-							space, (ulint)n_pages);
+							space, uint32_t(n_pages));
 					if (fail) goto error;
 				}
 			}

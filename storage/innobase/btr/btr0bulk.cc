@@ -43,7 +43,6 @@ PageBulk::init()
 {
 	buf_block_t*	new_block;
 	page_t*		new_page;
-	ulint		new_page_no;
 
 	ut_ad(m_heap == NULL);
 	m_heap = mem_heap_create(1000);
@@ -81,7 +80,7 @@ PageBulk::init()
 		alloc_mtr.commit();
 
 		new_page = buf_block_get_frame(new_block);
-		new_page_no = page_get_page_no(new_page);
+		m_page_no = new_block->page.id().page_no();
 
 		byte* index_id = my_assume_aligned<2>
 			(PAGE_HEADER + PAGE_INDEX_ID + new_page);
@@ -108,8 +107,7 @@ PageBulk::init()
 					  false, &m_mtr);
 
 		new_page = buf_block_get_frame(new_block);
-		new_page_no = page_get_page_no(new_page);
-		ut_ad(m_page_no == new_page_no);
+		ut_ad(new_block->page.id().page_no() == m_page_no);
 
 		ut_ad(page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW);
 
@@ -125,7 +123,6 @@ PageBulk::init()
 
 	m_block = new_block;
 	m_page = new_page;
-	m_page_no = new_page_no;
 	m_cur_rec = page_get_infimum_rec(new_page);
 	ut_ad(m_is_comp == !!page_is_comp(new_page));
 	m_free_space = page_get_free_space_of_empty(m_is_comp);
@@ -1163,7 +1160,7 @@ if no error occurs.
 dberr_t
 BtrBulk::finish(dberr_t	err)
 {
-	ulint		last_page_no = FIL_NULL;
+	uint32_t last_page_no = FIL_NULL;
 
 	ut_ad(!m_index->table->is_temporary());
 

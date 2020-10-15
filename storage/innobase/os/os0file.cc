@@ -4501,9 +4501,9 @@ corrupted:
 		? ULINT_UNDEFINED
 		: mach_read_from_4(FIL_PAGE_SPACE_ID + page);
 	ulint flags = fsp_header_get_flags(page);
-	const ulint size = fsp_header_get_field(page, FSP_SIZE);
-	const ulint free_limit = fsp_header_get_field(page, FSP_FREE_LIMIT);
-	const ulint free_len = flst_get_len(FSP_HEADER_OFFSET + FSP_FREE
+	const uint32_t size = fsp_header_get_field(page, FSP_SIZE);
+	const uint32_t free_limit = fsp_header_get_field(page, FSP_FREE_LIMIT);
+	const uint32_t free_len = flst_get_len(FSP_HEADER_OFFSET + FSP_FREE
 					    + page);
 	if (!fil_space_t::is_valid_flags(flags, space->id)) {
 		ulint cflags = fsp_flags_convert_from_101(flags);
@@ -4565,7 +4565,7 @@ invalid:
 		space->flags = (space->flags & FSP_FLAGS_MEM_MASK) | flags;
 
 		space->punch_hole = space->is_compressed();
-		this->size = ulint(size_bytes / psize);
+		this->size = uint32_t(size_bytes / psize);
 		space->committed_size = space->size += this->size;
 	} else if (space->id != TRX_SYS_SPACE || space->size_in_header) {
 		/* If this is not the first-time open, do nothing.

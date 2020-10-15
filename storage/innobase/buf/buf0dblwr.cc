@@ -125,7 +125,7 @@ too_small:
 
   byte *fseg_header= TRX_SYS_DOUBLEWRITE + TRX_SYS_DOUBLEWRITE_FSEG +
     trx_sys_block->frame;
-  for (ulint prev_page_no= 0, i= 0; i < 2 * size + FSP_EXTENT_SIZE / 2; i++)
+  for (uint32_t prev_page_no= 0, i= 0; i < 2 * size + FSP_EXTENT_SIZE / 2; i++)
   {
     buf_block_t *new_block= fseg_alloc_free_page(fseg_header, prev_page_no + 1,
                                                  FSP_UP, &mtr);
@@ -335,7 +335,7 @@ void buf_dblwr_t::recover()
   if (!is_initialised())
     return;
 
-  ulint page_no_dblwr= 0;
+  uint32_t page_no_dblwr= 0;
   byte *read_buf= static_cast<byte*>(aligned_malloc(3 * srv_page_size,
                                                     srv_page_size));
   byte *const buf= read_buf + srv_page_size;
@@ -344,7 +344,7 @@ void buf_dblwr_t::recover()
        i != recv_sys.dblwr.pages.end(); ++i, ++page_no_dblwr)
   {
     byte *page= *i;
-    const ulint page_no= page_get_page_no(page);
+    const uint32_t page_no= page_get_page_no(page);
     if (!page_no) /* recovered via Datafile::restore_from_doublewrite() */
       continue;
 

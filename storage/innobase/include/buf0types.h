@@ -122,10 +122,9 @@ public:
   /** Constructor from (space, page_no).
   @param[in]	space	tablespace id
   @param[in]	page_no	page number */
-  page_id_t(ulint space, ulint page_no) : m_id(uint64_t{space} << 32 | page_no)
+  page_id_t(ulint space, uint32_t page_no) : m_id(uint64_t{space} << 32 | page_no)
   {
     ut_ad(space <= 0xFFFFFFFFU);
-    ut_ad(page_no <= 0xFFFFFFFFU);
   }
 
   page_id_t(uint64_t id) : m_id(id) {}
@@ -167,9 +166,8 @@ public:
 
   /** Reset the page number only.
   @param[in]	page_no	page number */
-  void set_page_no(ulint page_no)
+  void set_page_no(uint32_t page_no)
   {
-    ut_ad(page_no <= 0xFFFFFFFFU);
     m_id= (m_id & ~uint64_t{0} << 32) | page_no;
   }
 

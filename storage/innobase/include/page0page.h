@@ -568,7 +568,7 @@ page_get_middle_rec(
 Gets the page number.
 @return page number */
 UNIV_INLINE
-ulint
+uint32_t
 page_get_page_no(
 /*=============*/
 	const page_t*	page);	/*!< in: page */
@@ -577,7 +577,7 @@ page_get_page_no(
 Gets the tablespace identifier.
 @return space id */
 UNIV_INLINE
-ulint
+uint32_t
 page_get_space_id(
 /*==============*/
 	const page_t*	page);	/*!< in: page */

@@ -354,8 +354,8 @@ static bool fil_comp_algo_validate(const fil_space_t* space)
 or ULINT_MAX for unlimited
 @return file object */
 fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
-			     ulint size, bool is_raw, bool atomic_write,
-			     ulint max_pages)
+			     uint32_t size, bool is_raw, bool atomic_write,
+			     uint32_t max_pages)
 {
 	fil_node_t*	node;
 
@@ -668,7 +668,7 @@ bool
 fil_space_extend_must_retry(
 	fil_space_t*	space,
 	fil_node_t*	node,
-	ulint		size,
+	uint32_t	size,
 	bool*		success)
 {
 	ut_ad(mutex_own(&fil_system.mutex));
@@ -707,10 +707,10 @@ fil_space_extend_must_retry(
 
 	ut_ad(size >= space->size);
 
-	ulint		last_page_no		= space->size;
-	const ulint	file_start_page_no	= last_page_no - node->size;
+	uint32_t	last_page_no		= space->size;
+	const uint32_t	file_start_page_no	= last_page_no - node->size;
 
-	const ulint	page_size = space->physical_size();
+	const unsigned	page_size = space->physical_size();
 
 	/* Datafile::read_first_page() expects srv_page_size bytes.
 	fil_node_t::read_page0() expects at least 4 * srv_page_size bytes.*/
@@ -732,7 +732,7 @@ fil_space_extend_must_retry(
 		os_offset_t	fsize = os_file_get_size(node->handle);
 		ut_a(fsize != os_offset_t(-1));
 
-		last_page_no = ulint(fsize / page_size)
+		last_page_no = uint32_t(fsize / page_size)
 			+ file_start_page_no;
 	}
 	mutex_enter(&fil_system.mutex);
@@ -741,11 +741,11 @@ fil_space_extend_must_retry(
 	node->being_extended = false;
 	ut_a(last_page_no - file_start_page_no >= node->size);
 
-	ulint file_size = last_page_no - file_start_page_no;
+	uint32_t file_size = last_page_no - file_start_page_no;
 	space->size += file_size - node->size;
 	node->size = file_size;
-	const ulint pages_in_MiB = node->size
-		& ~ulint((1U << (20U - srv_page_size_shift)) - 1);
+	const uint32_t pages_in_MiB = node->size
+		& ~uint32_t((1U << (20U - srv_page_size_shift)) - 1);
 
 	node->complete_io();
 
@@ -832,7 +832,7 @@ fil_mutex_enter_and_prepare_for_io(
 			}
 		}
 
-		ulint size = space->recv_size;
+		uint32_t size = space->recv_size;
 		if (UNIV_UNLIKELY(size != 0)) {
 			ut_ad(node);
 			bool	success;
@@ -877,10 +877,7 @@ fil_mutex_enter_and_prepare_for_io(
 @param[in,out]	space	tablespace
 @param[in]	size	desired size in pages
 @return whether the tablespace is at least as big as requested */
-bool
-fil_space_extend(
-	fil_space_t*	space,
-	ulint		size)
+bool fil_space_extend(fil_space_t *space, uint32_t size)
 {
 	ut_ad(!srv_read_only_mode || space->purpose == FIL_TYPE_TEMPORARY);
 
@@ -1305,7 +1302,7 @@ fil_space_get_space(
 	return(space);
 }
 
-void fil_space_set_recv_size_and_flags(ulint id, ulint size, uint32_t flags)
+void fil_space_set_recv_size_and_flags(ulint id, uint32_t size, uint32_t flags)
 {
   ut_ad(id < SRV_SPACE_ID_UPPER_BOUND);
   mutex_enter(&fil_system.mutex);
@@ -2589,7 +2586,7 @@ fil_ibd_create(
 	const char*	name,
 	const char*	path,
 	ulint		flags,
-	ulint		size,
+	uint32_t	size,
 	fil_encryption_t mode,
 	uint32_t	key_id,
 	dberr_t*	err)
@@ -3554,7 +3551,7 @@ void fsp_flags_try_adjust(fil_space_t* space, ulint flags)
 	if (buf_block_t* b = buf_page_get(
 		    page_id_t(space->id, 0), space->zip_size(),
 		    RW_X_LATCH, &mtr)) {
-		ulint f = fsp_header_get_flags(b->frame);
+		uint32_t f = fsp_header_get_flags(b->frame);
 		if (fil_space_t::full_crc32(f)) {
 			goto func_exit;
 		}

@@ -85,8 +85,8 @@ struct fil_space_rotate_state_t
 {
 	time_t start_time;	/*!< time when rotation started */
 	ulint active_threads;	/*!< active threads in space */
-	ulint next_offset;	/*!< next "free" offset */
-	ulint max_offset;	/*!< max offset needing to be rotated */
+	uint32_t next_offset;	/*!< next "free" offset */
+	uint32_t max_offset;	/*!< max offset needing to be rotated */
 	uint  min_key_version_found; /*!< min key version found but not
 				     rotated */
 	lsn_t end_lsn;		/*!< max lsn created when rotating this

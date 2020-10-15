@@ -316,11 +316,9 @@ inline uint32_t fsp_header_get_field(const page_t* page, ulint field)
 /** Read the flags from the tablespace header page.
 @param[in]	page	first page of a tablespace
 @return the contents of FSP_SPACE_FLAGS */
-inline
-ulint
-fsp_header_get_flags(const page_t* page)
+inline uint32_t fsp_header_get_flags(const page_t *page)
 {
-	return(fsp_header_get_field(page, FSP_SPACE_FLAGS));
+  return fsp_header_get_field(page, FSP_SPACE_FLAGS);
 }
 
 /** Get the byte offset of encryption information in page 0.
@@ -359,7 +357,7 @@ fsp_header_init_fields(
 @param[in,out]	space	tablespace
 @param[in]	size	current size in blocks
 @param[in,out]	mtr	mini-transaction */
-void fsp_header_init(fil_space_t* space, ulint size, mtr_t* mtr)
+void fsp_header_init(fil_space_t* space, uint32_t size, mtr_t* mtr)
 	MY_ATTRIBUTE((nonnull));
 
 /** Create a new segment.
@@ -411,7 +409,7 @@ buf_block_t*
 fseg_alloc_free_page_general(
 /*=========================*/
 	fseg_header_t*	seg_header,/*!< in/out: segment header */
-	ulint		hint,	/*!< in: hint of which page would be
+	uint32_t	hint,	/*!< in: hint of which page would be
 				desirable */
 	byte		direction,/*!< in: if the new page is needed because
 				of an index page split, and records are
@@ -473,7 +471,7 @@ fsp_reserve_free_extents(
 	ulint		n_ext,
 	fsp_reserve_t	alloc_type,
 	mtr_t*		mtr,
-	ulint		n_pages = 2);
+	uint32_t	n_pages = 2);
 
 /** Free a page in a file segment.
 @param[in,out]	seg_header	file segment header
@@ -484,7 +482,7 @@ void
 fseg_free_page(
 	fseg_header_t*	seg_header,
 	fil_space_t*	space,
-	ulint		offset,
+	uint32_t	offset,
 	mtr_t*		mtr);
 /** Determine whether a page is free.
 @param[in,out]	space	tablespace
@@ -736,7 +734,7 @@ inline ulint xdes_calc_descriptor_index(ulint zip_size, ulint offset)
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	offset		page offset
 @return descriptor page offset */
-inline ulint xdes_calc_descriptor_page(ulint zip_size, ulint offset)
+inline uint32_t xdes_calc_descriptor_page(ulint zip_size, uint32_t offset)
 {
 	compile_time_assert(UNIV_PAGE_SIZE_MAX > XDES_ARR_OFFSET
 			    + (UNIV_PAGE_SIZE_MAX / FSP_EXTENT_SIZE_MAX)
@@ -754,8 +752,8 @@ inline ulint xdes_calc_descriptor_page(ulint zip_size, ulint offset)
 	ut_ad(!zip_size
 	      || zip_size > XDES_ARR_OFFSET
 	      + (zip_size / FSP_EXTENT_SIZE) * XDES_SIZE);
-	return ut_2pow_round<ulint>(offset,
-				    zip_size ? zip_size : srv_page_size);
+	return ut_2pow_round(offset,
+			     uint32_t(zip_size ? zip_size : srv_page_size));
 }
 
 #endif /* UNIV_INNOCHECKSUM */

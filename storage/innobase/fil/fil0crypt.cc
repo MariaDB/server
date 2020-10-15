@@ -1122,7 +1122,7 @@ struct rotate_thread_t {
 	uint thread_no;
 	bool first;		    /*!< is position before first space */
 	fil_space_t* space;	    /*!< current space or NULL */
-	ulint offset;		    /*!< current offset */
+	uint32_t offset;	    /*!< current page number */
 	ulint batch;		    /*!< #pages to rotate */
 	uint  min_key_version_found;/*!< min key version found but not rotated */
 	lsn_t end_lsn;		    /*!< max lsn when rotating this space */
@@ -1694,7 +1694,7 @@ fil_crypt_find_page_to_rotate(
 		}
 	}
 
-	crypt_data->rotate_state.next_offset += batch;
+	crypt_data->rotate_state.next_offset += uint32_t(batch);
 	mutex_exit(&crypt_data->mutex);
 	return found;
 }
@@ -1716,7 +1716,7 @@ static
 buf_block_t*
 fil_crypt_get_page_throttle_func(
 	rotate_thread_t*	state,
-	ulint 			offset,
+	uint32_t		offset,
 	mtr_t*			mtr,
 	ulint*			sleeptime_ms,
 	const char*		file,
@@ -1792,7 +1792,7 @@ fil_crypt_rotate_page(
 {
 	fil_space_t*space = state->space;
 	ulint space_id = space->id;
-	ulint offset = state->offset;
+	uint32_t offset = state->offset;
 	ulint sleeptime_ms = 0;
 	fil_space_crypt_t *crypt_data = space->crypt_data;
 
@@ -1916,9 +1916,9 @@ fil_crypt_rotate_pages(
 	const key_state_t*	key_state,
 	rotate_thread_t*	state)
 {
-	ulint space = state->space->id;
-	ulint end = std::min(state->offset + state->batch,
-			     state->space->free_limit);
+	ulint space_id = state->space->id;
+	uint32_t end = std::min(state->offset + uint32_t(state->batch),
+				state->space->free_limit);
 
 	ut_ad(state->space->referenced());
 
@@ -1932,7 +1932,7 @@ fil_crypt_rotate_pages(
 		* real pages, they will be updated anyway when the
 		* real page is updated
 		*/
-		if (buf_dblwr.is_inside(page_id_t(space, state->offset))) {
+		if (buf_dblwr.is_inside(page_id_t(space_id, state->offset))) {
 			continue;
 		}
 

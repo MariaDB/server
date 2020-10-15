@@ -562,7 +562,7 @@ err_exit:
 
   if (create)
   {
-    space->size= file->size= ulint(size >> srv_page_size_shift);
+    space->size= file->size= uint32_t(size >> srv_page_size_shift);
     space->size_in_header= SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
     space->committed_size= SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
   }
@@ -1423,7 +1423,8 @@ file_checked:
 		ut_ad(fil_system.sys_space->id == 0);
 		compile_time_assert(TRX_SYS_SPACE == 0);
 		compile_time_assert(IBUF_SPACE_ID == 0);
-		fsp_header_init(fil_system.sys_space, sum_of_new_sizes, &mtr);
+		fsp_header_init(fil_system.sys_space,
+				uint32_t(sum_of_new_sizes), &mtr);
 
 		ulint ibuf_root = btr_create(
 			DICT_CLUSTERED | DICT_IBUF, fil_system.sys_space,
@@ -1545,7 +1546,8 @@ file_checked:
 				mtr.write<4>(*block,
 					     FSP_HEADER_OFFSET + FSP_SIZE
 					     + block->frame, size);
-				fil_system.sys_space->size_in_header = size;
+				fil_system.sys_space->size_in_header
+					= uint32_t(size);
 				mtr.commit();
 				/* Immediately write the log record about
 				increased tablespace size to disk, so that it

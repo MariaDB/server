@@ -799,7 +799,7 @@ struct btr_path_t {
 	ulint	n_recs;
 
 	/** Number of the page containing the record. */
-	ulint	page_no;
+	uint32_t page_no;
 
 	/** Level of the page. If later we fetch the page under page_no
 	and it is no different level then we know that the tree has been

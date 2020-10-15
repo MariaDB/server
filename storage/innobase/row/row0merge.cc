@@ -1999,18 +1999,14 @@ end_of_index:
 					goto write_buffers;
 				}
 			} else {
-				ulint		next_page_no;
-				buf_block_t*	block;
-
-				next_page_no = btr_page_get_next(
+				uint32_t next_page_no = btr_page_get_next(
 					page_cur_get_page(cur));
 
 				if (next_page_no == FIL_NULL) {
 					goto end_of_index;
 				}
 
-				block = page_cur_get_block(cur);
-				block = btr_block_get(
+				buf_block_t* block = btr_block_get(
 					*clust_index, next_page_no,
 					RW_S_LATCH, false, &mtr);
 

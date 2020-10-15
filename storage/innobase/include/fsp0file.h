@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -68,7 +68,7 @@ public:
 		/* No op */
 	}
 
-	Datafile(const char* name, ulint flags, ulint size, ulint order)
+	Datafile(const char* name, ulint flags, uint32_t size, ulint order)
 		:
 		m_name(mem_strdup(name)),
 		m_filepath(),
@@ -431,7 +431,7 @@ private:
 
 	/** size in megabytes or pages; converted from megabytes to
 	pages in SysTablespace::normalize_size() */
-	ulint			m_size;
+	uint32_t		m_size;
 
 	/** ordinal position of this datafile in the tablespace */
 	ulint			m_order;

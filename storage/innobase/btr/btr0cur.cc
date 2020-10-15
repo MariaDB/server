@@ -770,20 +770,16 @@ btr_cur_optimistic_latch_leaves(
 	unsigned	line,
 	mtr_t*		mtr)
 {
-	rw_lock_type_t	mode;
-	ulint		left_page_no;
-	ulint		curr_page_no;
-
 	switch (*latch_mode) {
+	default:
+		ut_error;
+		return(false);
 	case BTR_SEARCH_LEAF:
 	case BTR_MODIFY_LEAF:
 		return(buf_page_optimistic_get(*latch_mode, block,
 				modify_clock, file, line, mtr));
 	case BTR_SEARCH_PREV:
 	case BTR_MODIFY_PREV:
-		mode = *latch_mode == BTR_SEARCH_PREV
-			? RW_S_LATCH : RW_X_LATCH;
-
 		if (block->page.state() != BUF_BLOCK_FILE_PAGE) {
 			return(false);
 		}
@@ -793,12 +789,14 @@ btr_cur_optimistic_latch_leaves(
 		rw_lock_s_lock(&block->lock);
 		if (block->modify_clock != modify_clock) {
 			rw_lock_s_unlock(&block->lock);
-
-			goto unpin_failed;
+			break;
 		}
-		curr_page_no = block->page.id().page_no();
-		left_page_no = btr_page_get_prev(block->frame);
+		const uint32_t curr_page_no = block->page.id().page_no();
+		const uint32_t left_page_no = btr_page_get_prev(block->frame);
 		rw_lock_s_unlock(&block->lock);
+
+		const rw_lock_type_t mode = *latch_mode == BTR_SEARCH_PREV
+			? RW_S_LATCH : RW_X_LATCH;
 
 		if (left_page_no != FIL_NULL) {
 			dberr_t	err = DB_SUCCESS;
@@ -818,7 +816,7 @@ btr_cur_optimistic_latch_leaves(
 				/* release the left block */
 				btr_leaf_page_release(
 					cursor->left_block, mode, mtr);
-				goto unpin_failed;
+				break;
 			}
 		} else {
 			cursor->left_block = NULL;
@@ -841,15 +839,11 @@ btr_cur_optimistic_latch_leaves(
 			btr_leaf_page_release(cursor->left_block,
 					      mode, mtr);
 		}
-unpin_failed:
-		/* unpin the block */
-		buf_block_buf_fix_dec(block);
-		return(false);
-
-	default:
-		ut_error;
-		return(false);
 	}
+
+	/* unpin the block */
+	buf_block_buf_fix_dec(block);
+	return false;
 }
 
 /**
@@ -1713,7 +1707,7 @@ retry_page_get:
 
 	if (retrying_for_search_prev && height != 0) {
 		/* also latch left sibling */
-		ulint		left_page_no;
+		uint32_t	left_page_no;
 		buf_block_t*	get_block;
 
 		ut_ad(rw_latch == RW_NO_LATCH);
@@ -7026,7 +7020,7 @@ btr_cur_unmark_extern_fields(
 Returns the length of a BLOB part stored on the header page.
 @return part length */
 static
-ulint
+uint32_t
 btr_blob_get_part_len(
 /*==================*/
 	const byte*	blob_header)	/*!< in: blob header */
@@ -7038,7 +7032,7 @@ btr_blob_get_part_len(
 Returns the page number where the next BLOB part is stored.
 @return page number or FIL_NULL if no more pages */
 static
-ulint
+uint32_t
 btr_blob_get_next_page_no(
 /*======================*/
 	const byte*	blob_header)	/*!< in: blob header */
@@ -7118,12 +7112,13 @@ struct btr_blob_log_check_t {
 	{
 		dict_index_t*	index = m_pcur->index();
 		ulint		offs = 0;
-		ulint		page_no = ULINT_UNDEFINED;
+		uint32_t	page_no = FIL_NULL;
 
 		if (UNIV_UNLIKELY(m_op == BTR_STORE_INSERT_BULK)) {
 			offs = page_offset(*m_rec);
 			page_no = (*m_block)->page.id().page_no();
 			buf_block_buf_fix_inc(*m_block, __FILE__, __LINE__);
+			ut_ad(page_no != FIL_NULL);
 		} else {
 			btr_pcur_store_position(m_pcur, m_mtr);
 		}
@@ -7140,7 +7135,7 @@ struct btr_blob_log_check_t {
 		m_mtr->set_log_mode(log_mode);
 		index->set_modified(*m_mtr);
 
-		if (UNIV_UNLIKELY(m_op == BTR_STORE_INSERT_BULK)) {
+		if (UNIV_UNLIKELY(page_no != FIL_NULL)) {
 			m_pcur->btr_cur.page_cur.block = btr_block_get(
 				*index, page_no, RW_X_LATCH, false, m_mtr);
 			m_pcur->btr_cur.page_cur.rec
@@ -7203,14 +7198,10 @@ btr_store_big_rec_extern_fields(
 					committed and restarted. */
 	enum blob_op	op)		/*! in: operation code */
 {
-	ulint		rec_page_no;
 	byte*		field_ref;
 	ulint		extern_len;
 	ulint		store_len;
-	ulint		page_no;
 	ulint		space_id;
-	ulint		prev_page_no;
-	ulint		hint_page_no;
 	ulint		i;
 	mtr_t		mtr;
 	mem_heap_t*	heap = NULL;
@@ -7234,7 +7225,6 @@ btr_store_big_rec_extern_fields(
 				      &rec, op);
 	page_zip = buf_block_get_page_zip(rec_block);
 	space_id = rec_block->page.id().space();
-	rec_page_no = rec_block->page.id().page_no();
 	ut_a(fil_page_index_page_check(page_align(rec))
 	     || op == BTR_STORE_INSERT_BULK);
 
@@ -7297,7 +7287,7 @@ btr_store_big_rec_extern_fields(
 		MEM_CHECK_DEFINED(big_rec_vec->fields[i].data, extern_len);
 		ut_a(extern_len > 0);
 
-		prev_page_no = FIL_NULL;
+		uint32_t prev_page_no = FIL_NULL;
 
 		if (page_zip) {
 			int	err = deflateReset(&c_stream);
@@ -7323,7 +7313,6 @@ btr_store_big_rec_extern_fields(
 					rec, offsets, field_no);
 
 				page_zip = buf_block_get_page_zip(rec_block);
-				rec_page_no = rec_block->page.id().page_no();
 			}
 
 			mtr.start();
@@ -7333,10 +7322,9 @@ btr_store_big_rec_extern_fields(
 			buf_page_get(rec_block->page.id(),
 				     rec_block->zip_size(), RW_X_LATCH, &mtr);
 
-			if (prev_page_no == FIL_NULL) {
-				hint_page_no = 1 + rec_page_no;
-			} else {
-				hint_page_no = prev_page_no + 1;
+			uint32_t hint_prev = prev_page_no;
+			if (hint_prev == FIL_NULL) {
+				hint_prev = rec_block->page.id().page_no();
 			}
 
 			if (!fsp_reserve_free_extents(&r_extents,
@@ -7347,14 +7335,14 @@ btr_store_big_rec_extern_fields(
 				goto func_exit;
 			}
 
-			block = btr_page_alloc(index, hint_page_no, FSP_NO_DIR,
-					       0, &mtr, &mtr);
+			block = btr_page_alloc(index, hint_prev + 1,
+					       FSP_NO_DIR, 0, &mtr, &mtr);
 
 			index->table->space->release_free_extents(r_extents);
 
 			ut_a(block != NULL);
 
-			page_no = block->page.id().page_no();
+			const uint32_t page_no = block->page.id().page_no();
 
 			if (prev_page_no != FIL_NULL) {
 				buf_block_t*	prev_block;
@@ -7632,12 +7620,12 @@ btr_free_externally_stored_field(
 					X-latch to the index tree */
 {
 	page_t*		page;
-	const ulint	space_id	= mach_read_from_4(
+	const uint32_t	space_id	= mach_read_from_4(
 		field_ref + BTR_EXTERN_SPACE_ID);
-	const ulint	start_page	= mach_read_from_4(
+	const uint32_t	start_page	= mach_read_from_4(
 		field_ref + BTR_EXTERN_PAGE_NO);
-	ulint		page_no;
-	ulint		next_page_no;
+	uint32_t	page_no;
+	uint32_t	next_page_no;
 	mtr_t		mtr;
 
 	ut_ad(index->is_primary());
@@ -7870,10 +7858,9 @@ btr_copy_blob_prefix(
 /*=================*/
 	byte*		buf,	/*!< out: the externally stored part of
 				the field, or a prefix of it */
-	ulint		len,	/*!< in: length of buf, in bytes */
-	ulint		space_id,/*!< in: space id of the BLOB pages */
-	ulint		page_no,/*!< in: page number of the first BLOB page */
-	ulint		offset)	/*!< in: offset on the first BLOB page */
+	uint32_t	len,	/*!< in: length of buf, in bytes */
+	page_id_t	id,	/*!< in: page identifier of the first BLOB page */
+	uint32_t	offset)	/*!< in: offset on the first BLOB page */
 {
 	ulint	copied_len	= 0;
 
@@ -7887,8 +7874,7 @@ btr_copy_blob_prefix(
 
 		mtr_start(&mtr);
 
-		block = buf_page_get(page_id_t(space_id, page_no),
-				     0, RW_S_LATCH, &mtr);
+		block = buf_page_get(id, 0, RW_S_LATCH, &mtr);
 		buf_block_dbg_add_level(block, SYNC_EXTERN_STORAGE);
 		page = buf_block_get_frame(block);
 
@@ -7902,11 +7888,11 @@ btr_copy_blob_prefix(
 		       blob_header + BTR_BLOB_HDR_SIZE, copy_len);
 		copied_len += copy_len;
 
-		page_no = btr_blob_get_next_page_no(blob_header);
+		id.set_page_no(btr_blob_get_next_page_no(blob_header));
 
 		mtr_commit(&mtr);
 
-		if (page_no == FIL_NULL || copy_len != part_len) {
+		if (id.page_no() == FIL_NULL || copy_len != part_len) {
 			MEM_CHECK_DEFINED(buf, copied_len);
 			return(copied_len);
 		}
@@ -7927,18 +7913,16 @@ by a lock or a page latch.
 or a prefix of it
 @param[in]	len		length of buf, in bytes
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size
-@param[in]	space_id	space id of the BLOB pages
-@param[in]	offset		offset on the first BLOB page
+@param[in]	id		page identifier of the BLOB pages
 @return number of bytes written to buf */
 static
 ulint
 btr_copy_zblob_prefix(
 	byte*			buf,
-	ulint			len,
+	uint32_t		len,
 	ulint			zip_size,
-	ulint			space_id,
-	ulint			page_no,
-	ulint			offset)
+	page_id_t		id,
+	uint32_t		offset)
 {
 	ulint		page_type = FIL_PAGE_TYPE_ZBLOB;
 	mem_heap_t*	heap;
@@ -7957,25 +7941,23 @@ btr_copy_zblob_prefix(
 
 	ut_ad(zip_size);
 	ut_ad(ut_is_2pow(zip_size));
-	ut_ad(space_id);
+	ut_ad(id.space());
 
 	err = inflateInit(&d_stream);
 	ut_a(err == Z_OK);
 
 	for (;;) {
 		buf_page_t*	bpage;
-		ulint		next_page_no;
+		uint32_t	next_page_no;
 
 		/* There is no latch on bpage directly.  Instead,
 		bpage is protected by the B-tree page latch that
 		is being held on the clustered index record, or,
 		in row_merge_copy_blobs(), by an exclusive table lock. */
-		bpage = buf_page_get_zip(page_id_t(space_id, page_no),
-					 zip_size);
+		bpage = buf_page_get_zip(id, zip_size);
 
 		if (UNIV_UNLIKELY(!bpage)) {
-			ib::error() << "Cannot load compressed BLOB "
-				<< page_id_t(space_id, page_no);
+			ib::error() << "Cannot load compressed BLOB " << id;
 			goto func_exit;
 		}
 
@@ -7984,8 +7966,7 @@ btr_copy_zblob_prefix(
 
 			ib::error() << "Unexpected type "
 				<< fil_page_get_type(bpage->zip.data)
-				<< " of compressed BLOB page "
-				<< page_id_t(space_id, page_no);
+				<< " of compressed BLOB page " << id;
 
 			ut_ad(0);
 			goto end_of_blob;
@@ -8020,7 +8001,7 @@ btr_copy_zblob_prefix(
 		default:
 inflate_error:
 			ib::error() << "inflate() of compressed BLOB page "
-				<< page_id_t(space_id, page_no)
+				<< id
 				<< " returned " << err
 				<< " (" << d_stream.msg << ")";
 
@@ -8032,8 +8013,7 @@ inflate_error:
 			if (!d_stream.avail_in) {
 				ib::error()
 					<< "Unexpected end of compressed "
-					<< "BLOB page "
-					<< page_id_t(space_id, page_no);
+					<< "BLOB page " << id;
 			} else {
 				err = inflate(&d_stream, Z_FINISH);
 				switch (err) {
@@ -8055,7 +8035,7 @@ end_of_blob:
 		/* On other BLOB pages except the first
 		the BLOB header always is at the page header: */
 
-		page_no = next_page_no;
+		id.set_page_no(next_page_no);
 		offset = FIL_PAGE_NEXT;
 		page_type = FIL_PAGE_TYPE_ZBLOB2;
 	}
@@ -8074,31 +8054,24 @@ by a lock or a page latch.
 field, or a prefix of it
 @param[in]	len		length of buf, in bytes
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	space_id	space id of the first BLOB page
-@param[in]	page_no		page number of the first BLOB page
+@param[in]	id		page identifier of the first BLOB page
 @param[in]	offset		offset on the first BLOB page
 @return number of bytes written to buf */
 static
 ulint
 btr_copy_externally_stored_field_prefix_low(
 	byte*			buf,
-	ulint			len,
+	uint32_t		len,
 	ulint			zip_size,
-	ulint			space_id,
-	ulint			page_no,
-	ulint			offset)
+	page_id_t		id,
+	uint32_t		offset)
 {
-	if (len == 0) {
-		return(0);
-	}
+  if (len == 0)
+    return 0;
 
-	if (zip_size) {
-		return(btr_copy_zblob_prefix(buf, len, zip_size,
-					     space_id, page_no, offset));
-	} else {
-		return(btr_copy_blob_prefix(buf, len, space_id,
-					    page_no, offset));
-	}
+  return zip_size
+    ? btr_copy_zblob_prefix(buf, len, zip_size, id, offset)
+    : btr_copy_blob_prefix(buf, len, id, offset);
 }
 
 /** Copies the prefix of an externally stored field of a record.
@@ -8120,10 +8093,6 @@ btr_copy_externally_stored_field_prefix(
 	const byte*		data,
 	ulint			local_len)
 {
-	ulint	space_id;
-	ulint	page_no;
-	ulint	offset;
-
 	ut_a(local_len >= BTR_EXTERN_FIELD_REF_SIZE);
 
 	local_len -= BTR_EXTERN_FIELD_REF_SIZE;
@@ -8146,17 +8115,18 @@ btr_copy_externally_stored_field_prefix(
 		return(0);
 	}
 
-	space_id = mach_read_from_4(data + BTR_EXTERN_SPACE_ID);
-
-	page_no = mach_read_from_4(data + BTR_EXTERN_PAGE_NO);
-
-	offset = mach_read_from_4(data + BTR_EXTERN_OFFSET);
+	uint32_t space_id = mach_read_from_4(data + BTR_EXTERN_SPACE_ID);
+	uint32_t page_no = mach_read_from_4(data + BTR_EXTERN_PAGE_NO);
+	uint32_t offset = mach_read_from_4(data + BTR_EXTERN_OFFSET);
+	len -= local_len;
 
 	return(local_len
 	       + btr_copy_externally_stored_field_prefix_low(buf + local_len,
-							     len - local_len,
+							     uint32_t(len),
 							     zip_size,
-							     space_id, page_no,
+							     page_id_t(
+								     space_id,
+								     page_no),
 							     offset));
 }
 
@@ -8178,26 +8148,24 @@ btr_copy_externally_stored_field(
 	ulint			local_len,
 	mem_heap_t*		heap)
 {
-	ulint	space_id;
-	ulint	page_no;
-	ulint	offset;
-	ulint	extern_len;
 	byte*	buf;
 
 	ut_a(local_len >= BTR_EXTERN_FIELD_REF_SIZE);
 
 	local_len -= BTR_EXTERN_FIELD_REF_SIZE;
 
-	space_id = mach_read_from_4(data + local_len + BTR_EXTERN_SPACE_ID);
-
-	page_no = mach_read_from_4(data + local_len + BTR_EXTERN_PAGE_NO);
-
-	offset = mach_read_from_4(data + local_len + BTR_EXTERN_OFFSET);
+	uint32_t space_id = mach_read_from_4(data + local_len
+					     + BTR_EXTERN_SPACE_ID);
+	uint32_t page_no = mach_read_from_4(data + local_len
+					    + BTR_EXTERN_PAGE_NO);
+	uint32_t offset = mach_read_from_4(data + local_len
+					   + BTR_EXTERN_OFFSET);
 
 	/* Currently a BLOB cannot be bigger than 4 GB; we
 	leave the 4 upper bytes in the length field unused */
 
-	extern_len = mach_read_from_4(data + local_len + BTR_EXTERN_LEN + 4);
+	uint32_t extern_len = mach_read_from_4(data + local_len
+					       + BTR_EXTERN_LEN + 4);
 
 	buf = (byte*) mem_heap_alloc(heap, local_len + extern_len);
 
@@ -8206,8 +8174,10 @@ btr_copy_externally_stored_field(
 		+ btr_copy_externally_stored_field_prefix_low(buf + local_len,
 							      extern_len,
 							      zip_size,
-							      space_id,
-							      page_no, offset);
+							      page_id_t(
+								      space_id,
+								      page_no),
+							      offset);
 
 	return(buf);
 }

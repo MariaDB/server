@@ -237,8 +237,8 @@ trx_undo_get_next_rec_from_next_page(buf_block_t *&block, uint32_t page_no,
       mach_read_from_2(block->frame + offset + TRX_UNDO_NEXT_LOG))
     return NULL;
 
-  ulint next= flst_get_next_addr(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE +
-                                 block->frame).page;
+  uint32_t next= flst_get_next_addr(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE +
+				    block->frame).page;
   if (next == FIL_NULL)
     return NULL;
 

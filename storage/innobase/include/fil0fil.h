@@ -335,21 +335,21 @@ struct fil_space_t
 	fil_type_t	purpose;/*!< purpose */
 	UT_LIST_BASE_NODE_T(fil_node_t) chain;
 				/*!< base node for the file chain */
-	ulint		size;	/*!< tablespace file size in pages;
+	uint32_t	size;	/*!< tablespace file size in pages;
 				0 if not known yet */
-	ulint		size_in_header;
+	uint32_t	size_in_header;
 				/* FSP_SIZE in the tablespace header;
 				0 if not known yet */
-	ulint		free_len;
+	uint32_t	free_len;
 				/*!< length of the FSP_FREE list */
-	ulint		free_limit;
+	uint32_t	free_limit;
 				/*!< contents of FSP_FREE_LIMIT */
-	ulint		recv_size;
+	uint32_t	recv_size;
 				/*!< recovered tablespace size in pages;
 				0 if no size change was read from the redo log,
 				or if the size change was implemented */
   /** the committed size of the tablespace in pages */
-  Atomic_relaxed<ulint> committed_size;
+  Atomic_relaxed<uint32_t> committed_size;
 	ulint		n_reserved_extents;
 				/*!< number of reserved free extents for
 				ongoing operations like B-tree page split */
@@ -370,7 +370,7 @@ private:
 
   /** Flag in n_pending_ops that indicates that the tablespace is being
   deleted, and no further operations should be performed */
-  static const size_t STOP_NEW_OPS= ~(~size_t(0) >> 1);
+  static constexpr uint32_t STOP_NEW_OPS= ~(~uint32_t(0) >> 1);
 public:
 	/** Number of pending block read or write operations
 	(when a write is imminent or a read has recently completed).
@@ -429,11 +429,11 @@ public:
 	@param[in]	is_raw		whether this is a raw device
 	@param[in]	atomic_write	true if atomic write could be enabled
 	@param[in]	max_pages	maximum number of pages in file,
-	or ULINT_MAX for unlimited
+	or UINT32_MAX for unlimited
 	@return file object */
 	fil_node_t* add(const char* name, pfs_os_file_t handle,
-			ulint size, bool is_raw, bool atomic_write,
-			ulint max_pages = ULINT_MAX);
+			uint32_t size, bool is_raw, bool atomic_write,
+			uint32_t max_pages = UINT32_MAX);
 #ifdef UNIV_DEBUG
 	/** Assert that the mini-transaction is compatible with
 	updating an allocation bitmap page.
@@ -886,18 +886,18 @@ struct fil_node_t {
 	/** size of the file in database pages (0 if not known yet);
 	the possible last incomplete megabyte may be ignored
 	if space->id == 0 */
-	ulint		size;
+	uint32_t	size;
 	/** initial size of the file in database pages;
 	FIL_IBD_FILE_INITIAL_SIZE by default */
-	ulint		init_size;
+	uint32_t	init_size;
 	/** maximum size of the file in database pages (0 if unlimited) */
-	ulint		max_size;
+	uint32_t	max_size;
 	/** count of pending i/o's; is_open must be true if nonzero */
 	ulint		n_pending;
 	/** count of pending flushes; is_open must be true if nonzero */
 	ulint		n_pending_flushes;
 	/** whether the file is currently being extended */
-	bool		being_extended;
+	Atomic_relaxed<bool> being_extended;
 	/** whether this file had writes after lasy fsync() */
 	bool		needs_flush;
 	/** link to other files in this tablespace */
@@ -962,8 +962,8 @@ inline void fil_space_t::set_imported()
 
 inline bool fil_space_t::is_rotational() const
 {
-	for (const fil_node_t* node = UT_LIST_GET_FIRST(chain);
-	     node != NULL; node = UT_LIST_GET_NEXT(chain, node)) {
+	for (const fil_node_t* node = UT_LIST_GET_FIRST(chain); node;
+	     node = UT_LIST_GET_NEXT(chain, node)) {
 		if (!node->on_ssd) {
 			return true;
 		}
@@ -1379,7 +1379,7 @@ Error messages are issued to the server log.
 @param[in]	id		tablespace identifier
 @param[in]	flags		tablespace flags
 @param[in]	purpose		tablespace purpose
-@param[in,out]	crypt_data	encryption information
+@param[in,out] crypt_data	encryption information
 @param[in]	mode		encryption mode
 @return pointer to created tablespace, to be filled in with fil_space_t::add()
 @retval NULL on failure (such as when the same tablespace exists) */
@@ -1418,8 +1418,8 @@ fil_space_free(
 @param	id	tablespace ID
 @param	size	recovered size in pages
 @param	flags	tablespace flags */
-UNIV_INTERN
-void fil_space_set_recv_size_and_flags(ulint id, ulint size, uint32_t flags);
+void fil_space_set_recv_size_and_flags(ulint id, uint32_t size,
+                                       uint32_t flags);
 
 /*******************************************************************//**
 Returns the size of the space in pages. The tablespace must be cached in the
@@ -1576,7 +1576,7 @@ fil_ibd_create(
 	const char*	name,
 	const char*	path,
 	ulint		flags,
-	ulint		size,
+	uint32_t	size,
 	fil_encryption_t mode,
 	uint32_t	key_id,
 	dberr_t*	err)
@@ -1688,10 +1688,7 @@ fil_space_for_table_exists_in_mem(
 @param[in,out]	space	tablespace
 @param[in]	size	desired size in pages
 @return whether the tablespace is at least as big as requested */
-bool
-fil_space_extend(
-	fil_space_t*	space,
-	ulint		size);
+bool fil_space_extend(fil_space_t *space, uint32_t size);
 
 struct fil_io_t
 {

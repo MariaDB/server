@@ -1109,7 +1109,7 @@ re_scan:
 
 			/* MDEV-14059 FIXME: why re-latch the block?
 			pcur is already positioned on it! */
-			ulint		page_no = page_get_page_no(
+			uint32_t page_no = page_get_page_no(
 				btr_pcur_get_page(pcur));
 
 			cur_block = buf_page_get_gen(

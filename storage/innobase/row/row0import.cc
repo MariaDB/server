@@ -528,7 +528,7 @@ protected:
 	/** Check if the page is marked as free in the extent descriptor.
 	@param page_no page number to check in the extent descriptor.
 	@return true if the page is marked as free */
-	bool is_free(ulint page_no) const UNIV_NOTHROW
+	bool is_free(uint32_t page_no) const UNIV_NOTHROW
 	{
 		ut_a(xdes_calc_descriptor_page(get_zip_size(), page_no)
 		     == m_xdes_page_no);
@@ -3437,7 +3437,7 @@ fil_iterate(
 		os_offset_t	page_off = offset;
 		ulint		n_pages_read = n_bytes / size;
 		/* This block is not attached to buf_pool */
-		block->page.id_.set_page_no(ulint(page_off / size));
+		block->page.id_.set_page_no(uint32_t(page_off / size));
 
 		for (ulint i = 0; i < n_pages_read;
 		     ++block->page.id_,
@@ -3859,7 +3859,6 @@ row_import_for_mysql(
 	trx_t*		trx;
 	ib_uint64_t	autoinc = 0;
 	char*		filepath = NULL;
-	ulint		space_flags MY_ATTRIBUTE((unused));
 
 	/* The caller assured that this is not read_only_mode and that no
 	temorary tablespace is being imported. */
@@ -3978,9 +3977,6 @@ row_import_for_mysql(
 				err = cfg.set_root_by_heuristic();
 			}
 		}
-
-		space_flags = fetchIndexRootPages.get_space_flags();
-
 	} else {
 		rw_lock_s_unlock(&dict_sys.latch);
 	}

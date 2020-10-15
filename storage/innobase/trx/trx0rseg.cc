@@ -391,7 +391,7 @@ trx_rseg_mem_free(trx_rseg_t* rseg)
 @param[in]	page_no		page number of the segment header */
 static
 trx_rseg_t*
-trx_rseg_mem_create(ulint id, fil_space_t* space, ulint page_no)
+trx_rseg_mem_create(ulint id, fil_space_t* space, uint32_t page_no)
 {
 	trx_rseg_t* rseg = static_cast<trx_rseg_t*>(
 		ut_zalloc_nokey(sizeof *rseg));
@@ -418,12 +418,12 @@ trx_rseg_mem_create(ulint id, fil_space_t* space, ulint page_no)
 @param[in,out]  max_trx_id      maximum observed transaction identifier
 @param[in]      rseg_header     rollback segment header
 @return the combined size of undo log segments in pages */
-static ulint trx_undo_lists_init(trx_rseg_t *rseg, trx_id_t &max_trx_id,
-                                 const buf_block_t *rseg_header)
+static uint32_t trx_undo_lists_init(trx_rseg_t *rseg, trx_id_t &max_trx_id,
+				    const buf_block_t *rseg_header)
 {
   ut_ad(srv_force_recovery < SRV_FORCE_NO_UNDO_LOG_SCAN);
 
-  ulint size= 0;
+  uint32_t size= 0;
 
   for (ulint i= 0; i < TRX_RSEG_N_SLOTS; i++)
   {

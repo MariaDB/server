@@ -719,9 +719,9 @@ static void buf_page_check_lsn(bool check_lsn, const byte* read_buf)
 		phase it makes no sense to spam the log with error messages. */
 		if (current_lsn < page_lsn) {
 
-			const ulint	space_id = mach_read_from_4(
+			const uint32_t space_id = mach_read_from_4(
 				read_buf + FIL_PAGE_SPACE_ID);
-			const ulint	page_no = mach_read_from_4(
+			const uint32_t page_no = mach_read_from_4(
 				read_buf + FIL_PAGE_OFFSET);
 
 			ib::error() << "Page " << page_id_t(space_id, page_no)

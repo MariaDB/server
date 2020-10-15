@@ -535,7 +535,7 @@ struct file_name_t {
 	fil_status	status;
 
 	/** FSP_SIZE of tablespace */
-	ulint		size = 0;
+	uint32_t	size = 0;
 
 	/** Freed pages of tablespace */
 	range_set	freed_ranges;
@@ -2467,12 +2467,12 @@ page number.
 @param[in]	page_id	page id */
 static void recv_read_in_area(page_id_t page_id)
 {
-	ulint	page_nos[RECV_READ_AHEAD_AREA];
+	uint32_t page_nos[RECV_READ_AHEAD_AREA];
 	compile_time_assert(ut_is_2pow(RECV_READ_AHEAD_AREA));
 	page_id.set_page_no(ut_2pow_round(page_id.page_no(),
 					  RECV_READ_AHEAD_AREA));
 	const ulint up_limit = page_id.page_no() + RECV_READ_AHEAD_AREA;
-	ulint*	p = page_nos;
+	uint32_t* p = page_nos;
 
 	for (recv_sys_t::map::iterator i= recv_sys.pages.lower_bound(page_id);
 	     i != recv_sys.pages.end()

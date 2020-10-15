@@ -489,8 +489,8 @@ buf_load()
 	page_id_t*	dump;
 	ulint		dump_n;
 	ulint		i;
-	ulint		space_id;
-	ulint		page_no;
+	uint32_t	space_id;
+	uint32_t	page_no;
 	int		fscanf_ret;
 
 	/* Ignore any leftovers from before */
@@ -514,7 +514,7 @@ buf_load()
 	This file is tiny (approx 500KB per 1GB buffer pool), reading it
 	two times is fine. */
 	dump_n = 0;
-	while (fscanf(f, ULINTPF "," ULINTPF, &space_id, &page_no) == 2
+	while (fscanf(f, "%u,%u", &space_id, &page_no) == 2
 	       && !SHUTTING_DOWN()) {
 		dump_n++;
 	}
@@ -565,8 +565,7 @@ buf_load()
 	export_vars.innodb_buffer_pool_load_incomplete = 1;
 
 	for (i = 0; i < dump_n && !SHUTTING_DOWN(); i++) {
-		fscanf_ret = fscanf(f, ULINTPF "," ULINTPF,
-				    &space_id, &page_no);
+		fscanf_ret = fscanf(f, "%u,%u", &space_id, &page_no);
 
 		if (fscanf_ret != 2) {
 			if (feof(f)) {
@@ -588,9 +587,8 @@ buf_load()
 			fclose(f);
 			buf_load_status(STATUS_ERR,
 					"Error parsing '%s': bogus"
-					" space,page " ULINTPF "," ULINTPF
-					" at line " ULINTPF ","
-					" unable to load buffer pool",
+					" space,page %u,%u at line " ULINTPF
+					", unable to load buffer pool",
 					full_filename,
 					space_id, page_no,
 					i);

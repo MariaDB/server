@@ -17452,20 +17452,8 @@ innodb_change_buffer_max_size_update(THD*, st_mysql_sys_var*, void*,
 }
 
 #ifdef UNIV_DEBUG
-static ulong srv_fil_make_page_dirty_debug = 0;
-static ulong srv_saved_page_number_debug = 0;
-
-/****************************************************************//**
-Save an InnoDB page number. */
-static
-void
-innodb_save_page_no(THD*, st_mysql_sys_var*, void*, const void* save)
-{
-	srv_saved_page_number_debug = *static_cast<const ulong*>(save);
-
-	ib::info() << "Saving InnoDB page number: "
-		<< srv_saved_page_number_debug;
-}
+static uint srv_fil_make_page_dirty_debug = 0;
+static uint srv_saved_page_number_debug;
 
 /****************************************************************//**
 Make the first page of given user tablespace dirty. */
@@ -17474,7 +17462,7 @@ void
 innodb_make_page_dirty(THD*, st_mysql_sys_var*, void*, const void* save)
 {
 	mtr_t		mtr;
-	ulong		space_id = *static_cast<const ulong*>(save);
+	uint		space_id = *static_cast<const uint*>(save);
 	mysql_mutex_unlock(&LOCK_global_system_variables);
 	fil_space_t*	space = fil_space_acquire_silent(space_id);
 
@@ -19195,11 +19183,11 @@ static MYSQL_SYSVAR_BOOL(log_optimize_ddl, deprecated::innodb_log_optimize_ddl,
   PLUGIN_VAR_OPCMDARG,
   innodb_deprecated_ignored, NULL, innodb_log_optimize_ddl_warn, FALSE);
 
-static MYSQL_SYSVAR_ULONG(autoextend_increment,
+static MYSQL_SYSVAR_UINT(autoextend_increment,
   sys_tablespace_auto_extend_increment,
   PLUGIN_VAR_RQCMDARG,
   "Data file autoextend increment in megabytes",
-  NULL, NULL, 64L, 1L, 1000L, 0);
+  NULL, NULL, 64, 1, 1000, 0);
 
 /** Validate the requested buffer pool size.  Also, reserve the necessary
 memory needed for buffer pool resize.
@@ -19808,15 +19796,15 @@ static MYSQL_SYSVAR_UINT(data_file_size_debug,
   "InnoDB system tablespace size to be set in recovery.",
   NULL, NULL, 0, 0, 256U << 20, 0);
 
-static MYSQL_SYSVAR_ULONG(fil_make_page_dirty_debug,
+static MYSQL_SYSVAR_UINT(fil_make_page_dirty_debug,
   srv_fil_make_page_dirty_debug, PLUGIN_VAR_OPCMDARG,
   "Make the first page of the given tablespace dirty.",
   NULL, innodb_make_page_dirty, 0, 0, UINT_MAX32, 0);
 
-static MYSQL_SYSVAR_ULONG(saved_page_number_debug,
+static MYSQL_SYSVAR_UINT(saved_page_number_debug,
   srv_saved_page_number_debug, PLUGIN_VAR_OPCMDARG,
   "An InnoDB page number.",
-  NULL, innodb_save_page_no, 0, 0, UINT_MAX32, 0);
+  NULL, NULL, 0, 0, UINT_MAX32, 0);
 
 static MYSQL_SYSVAR_BOOL(disable_resize_buffer_pool_debug,
   buf_disable_resize_buffer_pool_debug, PLUGIN_VAR_NOCMDARG,
