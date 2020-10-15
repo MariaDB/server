@@ -2167,7 +2167,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
 
       for (int i=0; i < got; i ++)
       {
-        my_xid x= IF_WSREP(WSREP_ON && wsrep_is_wsrep_xid(&info->list[i]) ?
+        my_xid x= IF_WSREP(wsrep_is_wsrep_xid(&info->list[i]) ?
                            wsrep_xid_seqno(&info->list[i]) :
                            info->list[i].get_my_xid(),
                            info->list[i].get_my_xid());
