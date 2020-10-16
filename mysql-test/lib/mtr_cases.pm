@@ -745,7 +745,7 @@ sub collect_one_test_case {
     if ( $enable_disabled )
     {
       # User has selected to run all disabled tests
-      mtr_report(" - $tinfo->{name} wil be run although it's been disabled\n",
+      mtr_report(" - $tinfo->{name} will be run although it's been disabled\n",
 		 "  due to '$disable'");
     }
     else
