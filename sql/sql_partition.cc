@@ -7487,11 +7487,11 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
         ERROR_INJECT_CRASH("crash_change_partition_2") ||
         ERROR_INJECT_ERROR("fail_change_partition_2") ||
-        (close_table_on_failure= TRUE, FALSE) ||
         write_log_add_change_partition(lpt) ||
         ERROR_INJECT_CRASH("crash_change_partition_3") ||
         ERROR_INJECT_ERROR("fail_change_partition_3") ||
         mysql_change_partitions(lpt) ||
+        (close_table_on_failure= TRUE, FALSE) ||
         ERROR_INJECT_CRASH("crash_change_partition_4") ||
         ERROR_INJECT_ERROR("fail_change_partition_4") ||
         wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
