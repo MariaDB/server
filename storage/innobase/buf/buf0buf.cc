@@ -3827,7 +3827,6 @@ loop:
       if (block->page.io_fix() != BUF_IO_NONE)
       {
         hash_lock->write_unlock();
-        buf_LRU_block_free_non_file_page(free_block);
         mysql_mutex_unlock(&buf_pool.mutex);
         goto loop;
       }
