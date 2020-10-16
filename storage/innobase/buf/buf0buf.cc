@@ -3854,6 +3854,13 @@ loop:
 
     mtr_memo_push(mtr, block, MTR_MEMO_PAGE_X_FIX);
 
+    if (block->page.ibuf_exist)
+    {
+      if (!recv_recovery_is_on())
+        ibuf_merge_or_delete_for_page(nullptr, page_id, zip_size, true);
+      block->page.ibuf_exist= false;
+    }
+
     return block;
   }
 
