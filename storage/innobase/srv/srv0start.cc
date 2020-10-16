@@ -1463,6 +1463,9 @@ file_checked:
 			if (err != DB_SUCCESS) {
 				return srv_init_abort(err);
 			}
+			if (srv_operation == SRV_OPERATION_RESTORE) {
+				break;
+			}
 			trx_lists_init_at_db_start();
 			break;
 		case SRV_OPERATION_RESTORE_DELTA:
