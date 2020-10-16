@@ -942,7 +942,7 @@ public:
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   bool eq(const Item *item, bool binary_cmp) const;
   void print(String *str, enum_query_type query_type);
-  enum precedence precedence() const { return ADDINTERVAL_PRECEDENCE; }
+  enum precedence precedence() const { return INTERVAL_PRECEDENCE; }
   bool need_parentheses_in_default() { return true; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_date_add_interval>(thd, mem_root, this); }
