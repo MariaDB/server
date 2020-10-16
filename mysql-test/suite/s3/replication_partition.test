@@ -7,6 +7,12 @@
 --source create_database.inc
 
 sync_slave_with_master;
+
+if (`select @@s3_slave_ignore_updates <> 1`)
+{
+  die "Slave is not configured with s3-slave-ignore-updates=1";
+}
+
 let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_result $database database
 --eval use $database
@@ -65,20 +71,8 @@ sync_slave_with_master;
 select sum(c1)+0 from t1;
 stop slave;
 
-# .frm amd .par files should not exists on the salve as it has just seen the
-# ALTER TABLE which cased the removal of the .frm and .par files. The table
-# from the above "select sum()" came from table cache and was used as it's
-# id matches the one in S3
---error 1
---file_exists $MYSQLD_DATADIR/$database/t1.frm
---error 1
---file_exists $MYSQLD_DATADIR/$database/t1.par
-# Flushing the table cache will force the .frm and .par files to be
-# re-generated
-flush tables;
-select sum(c1)+0 from t1;
---file_exists $MYSQLD_DATADIR/$database/t1.frm
---file_exists $MYSQLD_DATADIR/$database/t1.par
+# Ensure the slave is using the new table
+show create table t1;
 
 connection master;
 drop table t1;

@@ -2,6 +2,11 @@
 plugin-maturity = alpha
 plugin-load-add=@ENV.HA_S3_SO
 s3=ON
+s3-slave-ignore-updates=1
+
+# You can change the following when running the tests against
+# your own S3 setup
+
 #s3-host-name=s3.amazonaws.com
 #s3-protocol-version=Amazon
 #s3-bucket=MariaDB

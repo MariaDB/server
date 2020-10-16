@@ -1,0 +1,13 @@
+#
+# MDEV-23248 Server crashes in mi_extra /
+# ha_partition::loop_extra_alter upon REORGANIZE
+#
+CREATE TABLE t1 (a INT, b INT) ENGINE=MyISAM PARTITION BY RANGE (a) SUBPARTITION BY HASH (a) SUBPARTITIONS 70 (PARTITION p1 VALUES LESS THAN (100), PARTITION p2 VALUES LESS THAN MAXVALUE);
+INSERT INTO t1 SELECT 4, 6 FROM seq_1_to_131072;
+UPDATE t1 SET a = 7;
+set @org_debug=@@debug_dbug;
+set @@debug_dbug="+d,debug_abort_copy_partitions";
+ALTER TABLE t1 REORGANIZE PARTITION p1,p2 INTO (PARTITION p1 VALUES LESS THAN (5), PARTITION p2 VALUES LESS THAN MAXVALUE);
+ERROR 42000: Table 't1' uses an extension that doesn't exist in this MariaDB version
+set @@debug_dbug=@org_debug;
+DROP TABLE t1;

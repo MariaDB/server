@@ -1,3 +1,0 @@
-replication_partition : MDEV-23730: Server crashes in ha_maria::extra
-replication_mixed     : MDEV-23770: Replication failure
-replication_stmt      : MDEV-23770: Replication failure

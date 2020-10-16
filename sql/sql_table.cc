@@ -9739,6 +9739,22 @@ static int create_table_for_inplace_alter(THD *thd,
 }
 
 
+/*
+  log query if slave thread and send my_ok()
+
+  Help function for mysql_alter_table()
+*/
+
+static bool log_and_ok(THD *thd)
+{
+  if (thd->slave_thread &&
+      write_bin_log(thd, true, thd->query(), thd->query_length()))
+    return(true);
+  my_ok(thd);
+  return(0);
+}
+
+
 /**
   Alter table
 
@@ -9873,10 +9889,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     table_list->mdl_request.type= MDL_EXCLUSIVE;
     /* This will only drop the .frm file and local tables, not shared ones */
     error= mysql_rm_table(thd, table_list, 1, 0, 0, 1);
-    if (write_bin_log(thd, true, thd->query(), thd->query_length()) || error)
-      DBUG_RETURN(true);
-    my_ok(thd);
-    DBUG_RETURN(0);
+    DBUG_RETURN(log_and_ok(thd));
   }
 
   /*
@@ -9908,15 +9921,13 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
           the statement as this slave may not have the table shared
         */
         thd->clear_error();
-        if (thd->slave_thread &&
-            write_bin_log(thd, true, thd->query(), thd->query_length()))
-          DBUG_RETURN(true);
-        my_ok(thd);
-        DBUG_RETURN(0);
+        DBUG_RETURN(log_and_ok(thd));
       }
     }
     DBUG_RETURN(true);
   }
+
+  table= table_list->table;
 
 #ifdef WITH_WSREP
   if (WSREP(thd) &&
@@ -9929,7 +9940,6 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   DEBUG_SYNC(thd, "alter_table_after_open_tables");
 
-  table= table_list->table;
   if (table->versioned())
   {
     if (handlerton *hton1= create_info->db_type)
@@ -9968,12 +9978,17 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   Alter_table_ctx alter_ctx(thd, table_list, tables_opened, new_db, new_name);
   mdl_ticket= table->mdl_ticket;
 
+  /*
+    We have to do a check also after table is opened as there could be no
+    ENGINE= on the command line or the table could a partitioned S3 table.
+  */
   if (table->file->check_if_updates_are_ignored("ALTER"))
   {
     /*
       Table is a shared table. Remove the .frm file. Discovery will create
       a new one if needed.
     */
+    table->s->tdc->flushed= 1;         // Force close of all instances
     if (thd->mdl_context.upgrade_shared_lock(mdl_ticket,
                                              MDL_EXCLUSIVE,
                                              thd->variables.lock_wait_timeout))
