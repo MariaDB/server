@@ -574,7 +574,7 @@ public:
   longlong val_int();
   enum Functype functype() const { return NOT_FUNC; }
   const char *func_name() const { return "not"; }
-  enum precedence precedence() const { return BANG_PRECEDENCE; }
+  enum precedence precedence() const { return NEG_PRECEDENCE; }
   Item *neg_transformer(THD *thd);
   bool fix_fields(THD *, Item **);
   virtual void print(String *str, enum_query_type query_type);
