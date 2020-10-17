@@ -6418,7 +6418,7 @@ Examples:
 
 alias
 main.alias              'main' is the name of the suite for the 't' directory.
-rpl.rpl_invoked_features,mix,xtradb_plugin
+rpl.rpl_invoked_features,mix,innodb
 suite/rpl/t/rpl.rpl_invoked_features
 
 Options to control what engine/variation to run:
