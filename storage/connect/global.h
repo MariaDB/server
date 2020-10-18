@@ -89,14 +89,10 @@ extern "C" {
 #define PAT_LOG       "log"
 
 #if defined(UNIX) || defined(LINUX) || defined(UNIV_LINUX)
-  /*********************************************************************/
-  /*  printf does not accept null pointer for %s target.               */
-  /*********************************************************************/
+  // printf does not accept null pointer for %s target
   #define SVP(S)  ((S) ? S : "<null>")
 #else
-  /*********************************************************************/
-  /*  printf accepts null pointer for %s target.                       */
-  /*********************************************************************/
+  //  printf accepts null pointer for %s target
   #define SVP(S)  S
 #endif
 
@@ -112,9 +108,6 @@ extern "C" {
 /***********************************************************************/
 #include "os.h"
 
-typedef size_t OFFSET;
-typedef char   NAME[9];
-
 typedef struct {
   ushort Length;
   char   String[2];
@@ -127,6 +120,7 @@ typedef struct _global   *PGLOBAL;
 typedef struct _globplg  *PGS;
 typedef struct _activity *PACTIVITY;
 typedef struct _parm     *PPARM;
+typedef char   NAME[9];
 
 /***********************************************************************/
 /* Segment Sub-Allocation block structure declares.                    */
@@ -135,7 +129,7 @@ typedef struct _parm     *PPARM;
 /* restore them if needed. This scheme implies that no SubFree be used */
 /***********************************************************************/
 typedef struct {               /* Plug Area SubAlloc header            */
-  OFFSET To_Free;              /* Offset of next free block            */
+  size_t To_Free;              /* Offset of next free block            */
   size_t FreeBlk;              /* Size of remaining free memory        */
   } POOLHEADER, *PPOOLHEADER;
 
@@ -190,9 +184,10 @@ typedef struct _global {            /* Global structure                */
   void     *Sarea;                  /* Points to work area             */
   size_t    Sarea_Size;             /* Work area size                  */
 	PACTIVITY Activityp;
-  char      Message[MAX_STR];
+  char      Message[MAX_STR];				/* Message (result, error, trace)  */
 	ulong     More;										/* Used by jsonudf                 */
-	int       Createas;               /* To pass multi to ext tables     */
+	size_t    Saved_Size;             /* Saved work area to_free         */
+	bool      Createas;               /* To pass multi to ext tables     */
   void     *Xchk;                   /* indexes in create/alter         */
   short     Alchecked;              /* Checked for ALTER               */
   short     Mrr;                    /* True when doing mrr             */
@@ -222,7 +217,6 @@ DllExport void    FreeSarea(PGLOBAL);
 DllExport BOOL    PlugSubSet(void *, size_t);
 DllExport void   *PlugSubAlloc(PGLOBAL, void *, size_t);
 DllExport char   *PlugDup(PGLOBAL g, const char *str);
-DllExport void   *MakePtr(void *, OFFSET);
 DllExport void    htrc(char const *fmt, ...);
 DllExport void    xtrc(uint, char const* fmt, ...);
 DllExport uint    GetTraceValue(void);
@@ -232,8 +226,24 @@ DllExport uint    GetTraceValue(void);
 #endif
 
 /***********************************************************************/
-/*  Non exported routine declarations.                                 */
+/*  Inline routine definitions.                                        */
 /***********************************************************************/
-//void *PlugSubAlloc(PGLOBAL, void *, size_t);	 // Does throw
+/***********************************************************************/
+/* This routine makes a pointer from an offset to a memory pointer.    */
+/***********************************************************************/
+inline void* MakePtr(void* memp, size_t offset) {
+	// return ((offset == 0) ? NULL : &((char*)memp)[offset]);
+	return (!offset) ? NULL : (char *)memp + offset;
+} /* end of MakePtr */
+
+/***********************************************************************/
+/* This routine makes an offset from a pointer new format.             */
+/***********************************************************************/
+inline size_t MakeOff(void* memp, void* ptr) {
+#if defined(_DEBUG)
+	assert(ptr > memp);
+#endif   // _DEBUG
+	return ((!ptr) ? 0 : (size_t)((char*)ptr - (size_t)memp));
+} /* end of MakeOff */
 
 /*-------------------------- End of Global.H --------------------------*/

@@ -158,16 +158,16 @@ bool user_connect::CheckCleanup(bool force)
 {
   if (thdp->query_id > last_query_id || force) {
 		size_t worksize = GetWorkSize();
-		size_t size = g->Sarea_Size;
 
     PlugCleanup(g, true);
 
-    if (size != worksize) {
+    if (worksize != g->Sarea_Size) {
 			FreeSarea(g);
+			g->Saved_Size = g->Sarea_Size;
 
       // Check whether the work area could be allocated
       if (AllocSarea(g, worksize)) {
-				AllocSarea(g, size);
+				AllocSarea(g, g->Saved_Size);
         SetWorkSize(g->Sarea_Size);       // Was too big
       } // endif sarea
 
@@ -175,10 +175,11 @@ bool user_connect::CheckCleanup(bool force)
 
     PlugSubSet(g->Sarea, g->Sarea_Size);
     g->Xchk = NULL;
-    g->Createas = 0;
+    g->Createas = false;
     g->Alchecked = 0;
     g->Mrr = 0;
 		g->More = 0;
+		g->Saved_Size = 0;
 		last_query_id= thdp->query_id;
 
     if (trace(65) && !force)

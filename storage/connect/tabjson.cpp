@@ -52,18 +52,9 @@
 /*  External functions.                                                */
 /***********************************************************************/
 USETEMP UseTemp(void);
+bool    JsonAllPath(void);
+int     GetDefaultDepth(void);
 char   *GetJsonNull(void);
-
-//typedef struct _jncol {
-//  struct _jncol *Next;
-//  char *Name;
-//  char *Fmt;
-//  int   Type;
-//  int   Len;
-//  int   Scale;
-//  bool  Cbn;
-//  bool  Found;
-//} JCOL, *PJCL;
 
 /***********************************************************************/
 /* JSONColumns: construct the result blocks containing the description */
@@ -167,23 +158,20 @@ JSONDISC::JSONDISC(PGLOBAL g, uint *lg)
   jsp = NULL;
   row = NULL;
   sep = NULL;
-  i = n = bf = ncol = lvl = 0;
-  all = false;
+  i = n = bf = ncol = lvl = sz = 0;
+  all = strfy = false;
 } // end of JSONDISC constructor
 
 int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 {
   char filename[_MAX_PATH];
   bool mgo = (GetTypeID(topt->type) == TAB_MONGO);
-  PCSZ level = GetStringTableOption(g, topt, "Level", NULL);
 
-	if ((level = GetStringTableOption(g, topt, "Depth", level))) {
-		lvl = atoi(level);
-    lvl = (lvl > 16) ? 16 : lvl;
-  } else
-    lvl = 0;
-
-  sep = GetStringTableOption(g, topt, "Separator", ".");
+	lvl = GetIntegerTableOption(g, topt, "Level", GetDefaultDepth());
+	lvl = GetIntegerTableOption(g, topt, "Depth", lvl);
+	sep = GetStringTableOption(g, topt, "Separator", ".");
+	sz = GetIntegerTableOption(g, topt, "Jsize", 1024);
+	strfy = GetBooleanTableOption(g, topt, "Stringify", false);
 
   /*********************************************************************/
   /*  Open the input file.                                             */
@@ -306,7 +294,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
     // Allocate the parse work memory
     PGLOBAL G = (PGLOBAL)PlugSubAlloc(g, NULL, sizeof(GLOBAL));
     memset(G, 0, sizeof(GLOBAL));
-    G->Sarea_Size = tdp->Lrecl * 10;
+    G->Sarea_Size = (size_t)tdp->Lrecl * 10;
     G->Sarea = PlugSubAlloc(g, NULL, G->Sarea_Size);
     PlugSubSet(G->Sarea, G->Sarea_Size);
     G->jump_level = 0;
@@ -403,7 +391,10 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
   PJAR   jar;
 
   if ((valp = jvp ? jvp->GetValue() : NULL)) {
-    jcol.Type = valp->GetType();
+		if (JsonAllPath() && !fmt[bf])
+			strcat(fmt, colname);
+
+		jcol.Type = valp->GetType();
     jcol.Len = valp->GetValLen();
     jcol.Scale = valp->GetValPrec();
     jcol.Cbn = valp->IsNull();
@@ -482,8 +473,16 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
     } // endswitch Type
 
   } else if (lvl >= 0) {
-    jcol.Type = TYPE_STRING;
-    jcol.Len = 256;
+		if (strfy) {
+			if (!fmt[bf])
+				strcat(fmt, colname);
+
+			strcat(fmt, ".*");
+		}	else if (JsonAllPath() && !fmt[bf])
+			strcat(fmt, colname);
+
+		jcol.Type = TYPE_STRING;
+    jcol.Len = sz;
     jcol.Scale = 0;
     jcol.Cbn = true;
   } else
@@ -2040,7 +2039,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
   if ((objpath = PlugDup(g, Objname))) {
     if (*objpath == '$') objpath++;
     if (*objpath == '.') objpath++;
-		p1 = p2 = NULL;
+		p1 = (*objpath == '[') ? objpath++ : NULL;
 
     /*********************************************************************/
     /*  Find the table in the tree structure.                            */

@@ -158,13 +158,14 @@ PGLOBAL PlugInit(LPCSTR Language, size_t worksize)
 	} // end try/catch
 
 	g->Sarea = NULL;
-	g->Createas = 0;
+	g->Createas = false;
 	g->Alchecked = 0;
 	g->Mrr = 0;
 	g->Activityp = NULL;
 	g->Xchk = NULL;
 	g->N = 0;
 	g->More = 0;
+	g->Saved_Size = 0;
 	strcpy(g->Message, "");
 
 	/*******************************************************************/
@@ -528,7 +529,7 @@ BOOL PlugSubSet(void *memp, size_t size)
   {
   PPOOLHEADER pph = (PPOOLHEADER)memp;
 
-  pph->To_Free = (OFFSET)sizeof(POOLHEADER);
+  pph->To_Free = (size_t)sizeof(POOLHEADER);
   pph->FreeBlk = size - pph->To_Free;
   return FALSE;
   } /* end of PlugSubSet */
@@ -580,7 +581,7 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
   /*  Do the suballocation the simplest way.                           */
   /*********************************************************************/
   memp = MakePtr(memp, pph->To_Free); /* Points to suballocated block  */
-  pph->To_Free += (OFFSET)size;       /* New offset of pool free block */
+  pph->To_Free += size;               /* New offset of pool free block */
   pph->FreeBlk -= size;               /* New size   of pool free block */
 
   if (trace(16))
@@ -605,40 +606,4 @@ char *PlugDup(PGLOBAL g, const char *str)
 
   } // end of PlugDup 
 
-#if 0
-/***********************************************************************/
-/* This routine suballocate a copy of the passed string.               */
-/***********************************************************************/
-char *PlugDup(PGLOBAL g, const char *str)
-  {
-  char  *buf;
-  size_t len;
-
-  if (str && (len = strlen(str))) {
-    buf = (char*)PlugSubAlloc(g, NULL, len + 1);
-    strcpy(buf, str);
-  } else
-    buf = NULL;
-
-  return(buf);
-  } /* end of PlugDup */
-#endif // 0
-
-/***********************************************************************/
-/* This routine makes a pointer from an offset to a memory pointer.    */
-/***********************************************************************/
-void *MakePtr(void *memp, OFFSET offset)
-  {
-  return ((offset == 0) ? NULL : &((char *)memp)[offset]);
-  } /* end of MakePtr */
-
-/***********************************************************************/
-/* This routine makes an offset from a pointer new format.             */
-/***********************************************************************/
-#if 0
-OFFSET MakeOff(void *memp, void *ptr)
-  {
-  return ((!ptr) ? 0 : (OFFSET)((char *)ptr - (char *)memp));
-  } /* end of MakeOff */
-#endif
 /*--------------------- End of PLUGUTIL program -----------------------*/
