@@ -48,3 +48,13 @@ character_set_client	latin1
 collation_connection	latin1_swedish_ci
 drop view v1;
 drop table t1;
+#
+# MDEV-17408 VIEW is incorrectly defined for a combination of = and BETWEEN
+#
+create view v1 as select 1 like (now() between '2000-01-01' and '2012-12-12' );
+show create view v1;
+View	v1
+Create View	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 1 like (current_timestamp() between '2000-01-01' and '2012-12-12') AS `1 like (now() between '2000-01-01' and '2012-12-12' )`
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+drop view v1;

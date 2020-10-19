@@ -32,3 +32,10 @@ create view v1 as select avg(b) / (2 + a) from t1;
 query_vertical show create view v1;
 drop view v1;
 drop table t1;
+
+--echo #
+--echo # MDEV-17408 VIEW is incorrectly defined for a combination of = and BETWEEN
+--echo #
+create view v1 as select 1 like (now() between '2000-01-01' and '2012-12-12' );
+query_vertical show create view v1;
+drop view v1;
