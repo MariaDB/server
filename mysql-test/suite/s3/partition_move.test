@@ -1,8 +1,3 @@
-if (`SELECT @@s3_host_name <> "s3.amazonaws.com"`)
-{
-  skip The test is disabled for emulator environment due to MDEV-23648;
-}
-
 --source include/have_partition.inc
 --source include/have_innodb.inc
 --source include/have_s3.inc
