@@ -609,6 +609,27 @@ ERROR 22007: Incorrect date value: 'foo' for column `test`.`t2`.`b` at row 1
 drop prepare stmt;
 drop procedure pr;
 drop table t1, t2;
+#
+# MDEV-23799 CREATE .. SELECT wrong result on join versioned table
+#
+create or replace table x (id Int) with system versioning;
+create or replace table x_p (elementId Int, pkey varchar(20), pvalue varchar(20)) with system versioning;
+insert into x values (1), (2), (3);
+insert into x_p values (1, 'gender', 'male');
+insert into x_p values (2, 'gender', 'female');
+insert into x_p values (3, 'gender', 'male');
+create table tmp1
+select xgender.pvalue as gender, xtitle.pvalue as title
+from x
+left join x_p as xgender on x.id = xgender.elementId and xgender.pkey = 'gender'
+    left join x_p as xtitle on x.id = xtitle.elementId and xtitle.pkey = 'title';
+select * from tmp1;
+gender	title
+male	NULL
+female	NULL
+male	NULL
+drop table tmp1;
+drop tables x, x_p;
 call verify_trt_dummy(34);
 No	A	B	C	D
 1	1	1	1	1
