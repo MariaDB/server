@@ -16332,8 +16332,7 @@ struct ShowStatus {
 		/** Collect the latch metrics. Ignore entries where the
 		spins and waits are zero.
 		@param[in]	count		The latch metrics */
-		void operator()(Count* count)
-			UNIV_NOTHROW
+		void operator()(Count* count) const UNIV_NOTHROW
 		{
 			if (count->m_spins > 0 || count->m_waits > 0) {
 
@@ -16361,13 +16360,8 @@ struct ShowStatus {
 	bool operator()(latch_meta_t& latch_meta)
 		UNIV_NOTHROW
 	{
-		latch_meta_t::CounterType*	counter;
-
-		counter = latch_meta.get_counter();
-
-		GetCount	get_count(latch_meta.get_name(), &m_values);
-
-		counter->iterate(get_count);
+		latch_meta.get_counter()->iterate(
+			GetCount(latch_meta.get_name(), &m_values));
 
 		return(true);
 	}

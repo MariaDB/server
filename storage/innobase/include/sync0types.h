@@ -659,10 +659,10 @@ public:
 	}
 
 	/** Iterate over the counters */
-	template <typename Callback>
-	void iterate(Callback& callback) const
-		UNIV_NOTHROW
+	template<typename C> void iterate(const C& callback) UNIV_NOTHROW
 	{
+		m_mutex.enter();
+
 		Counters::const_iterator	end = m_counters.end();
 
 		for (Counters::const_iterator it = m_counters.begin();
@@ -671,6 +671,8 @@ public:
 
 			callback(*it);
 		}
+
+		m_mutex.exit();
 	}
 
 	/** Disable the monitoring */
