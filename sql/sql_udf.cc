@@ -654,6 +654,12 @@ enum drop_udf_result mysql_drop_function(THD *thd, const LEX_STRING *udf_name)
   udf_func *udf;
   DBUG_ENTER("mysql_drop_function");
 
+  if (thd->locked_tables_mode)
+  {
+    my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
+    DBUG_RETURN(UDF_DEL_RESULT_ERROR);
+  }
+
   if (!(table= open_udf_func_table(thd)))
     DBUG_RETURN(UDF_DEL_RESULT_ERROR);
 
