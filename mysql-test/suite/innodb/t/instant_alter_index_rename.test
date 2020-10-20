@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
+--source include/have_sequence.inc
 
 delimiter |;
 create function get_index_id(tbl_id int, index_name char(100))
@@ -207,3 +208,22 @@ CHECK TABLE t1 EXTENDED ;
 DROP TABLE t1;
 
 DROP FUNCTION get_index_id;
+
+--echo #
+--echo # MDEV-23356 InnoDB: Failing assertion: field->col->mtype == type, crash or ASAN failures in row_sel_convert_mysql_key_to_innobase, InnoDB indexes are inconsistent after INDEX changes
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, c CHAR(8),
+  KEY ind1(c), KEY ind2(b)) ENGINE=InnoDB STATS_PERSISTENT=1;
+
+INSERT INTO t1 SELECT 1, 1, 'a' FROM seq_1_to_100;
+
+SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
+
+ALTER TABLE t1 DROP INDEX ind2, ADD INDEX ind3(b),
+  DROP INDEX ind1, ADD INDEX ind2(c);
+
+SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
+
+UPDATE t1 SET a = 1 WHERE c = 'foo';
+DROP TABLE t1;

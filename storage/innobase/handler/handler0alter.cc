@@ -57,6 +57,8 @@ Smart ALTER TABLE
 #include "ha_innodb.h"
 #include "ut0stage.h"
 #include "span.h"
+#include <thread>
+#include <sstream>
 
 using st_::span;
 /** File format constraint for ALTER TABLE */
@@ -7450,22 +7452,28 @@ innobase_rename_index_cache(dict_index_t* index, const char* new_name)
 /** Rename the index name in cache.
 @param[in]	ctx		alter context
 @param[in]	ha_alter_info	Data used during inplace alter. */
-static void innobase_rename_indexes_cache(
-	const ha_innobase_inplace_ctx*	ctx,
-	const Alter_inplace_info*	ha_alter_info)
+static void
+innobase_rename_indexes_cache(const ha_innobase_inplace_ctx *ctx,
+                              const Alter_inplace_info *ha_alter_info)
 {
-	DBUG_ASSERT(ha_alter_info->handler_flags & ALTER_RENAME_INDEX);
+  DBUG_ASSERT(ha_alter_info->handler_flags & ALTER_RENAME_INDEX);
 
-	for (const Alter_inplace_info::Rename_key_pair& pair :
-	     ha_alter_info->rename_keys) {
-		dict_index_t* index = dict_table_get_index_on_name(
-		    ctx->old_table, pair.old_key->name.str);
-		ut_ad(index);
+  std::vector<std::pair<dict_index_t *, const char *>> rename_info;
+  rename_info.reserve(ha_alter_info->rename_keys.size());
 
-		innobase_rename_index_cache(index, pair.new_key->name.str);
-	}
+  for (const Alter_inplace_info::Rename_key_pair &pair :
+       ha_alter_info->rename_keys)
+  {
+    dict_index_t *index=
+        dict_table_get_index_on_name(ctx->old_table, pair.old_key->name.str);
+    ut_ad(index);
+
+    rename_info.emplace_back(index, pair.new_key->name.str);
+  }
+
+  for (const auto &pair : rename_info)
+    innobase_rename_index_cache(pair.first, pair.second);
 }
-
 
 /** Fill the stored column information in s_cols list.
 @param[in]	altered_table	mysql table object
@@ -10600,11 +10608,18 @@ alter_stats_norebuild(
 		}
 	}
 
-	for (const Alter_inplace_info::Rename_key_pair& pair :
-	     ha_alter_info->rename_keys) {
+	for (size_t i = 0; i < ha_alter_info->rename_keys.size(); i++) {
+		const Alter_inplace_info::Rename_key_pair& pair
+			= ha_alter_info->rename_keys[i];
+
+		std::stringstream ss;
+		ss << TEMP_FILE_PREFIX_INNODB << std::this_thread::get_id()
+		   << i;
+		auto tmp_name = ss.str();
+
 		dberr_t err = dict_stats_rename_index(ctx->new_table,
 						      pair.old_key->name.str,
-						      pair.new_key->name.str);
+						      tmp_name.c_str());
 
 		if (err != DB_SUCCESS) {
 			push_warning_printf(
@@ -10616,6 +10631,34 @@ alter_stats_norebuild(
 				" statistics storage: %s",
 				ctx->new_table->name.m_name,
 				pair.old_key->name.str,
+				tmp_name.c_str(),
+				ut_strerr(err));
+		}
+	}
+
+	for (size_t i = 0; i < ha_alter_info->rename_keys.size(); i++) {
+		const Alter_inplace_info::Rename_key_pair& pair
+			= ha_alter_info->rename_keys[i];
+
+		std::stringstream ss;
+		ss << TEMP_FILE_PREFIX_INNODB << std::this_thread::get_id()
+		   << i;
+		auto tmp_name = ss.str();
+
+		dberr_t err = dict_stats_rename_index(ctx->new_table,
+						      tmp_name.c_str(),
+						      pair.new_key->name.str);
+
+		if (err != DB_SUCCESS) {
+			push_warning_printf(
+				thd,
+				Sql_condition::WARN_LEVEL_WARN,
+				ER_ERROR_ON_RENAME,
+				"Error renaming an index of table '%s'"
+				" from '%s' to '%s' in InnoDB persistent"
+				" statistics storage: %s",
+				ctx->new_table->name.m_name,
+				tmp_name.c_str(),
 				pair.new_key->name.str,
 				ut_strerr(err));
 		}
