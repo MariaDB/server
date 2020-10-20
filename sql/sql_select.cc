@@ -695,7 +695,7 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
 
 void vers_select_conds_t::print(String *str, enum_query_type query_type) const
 {
-  switch (type) {
+  switch (orig_type) {
   case SYSTEM_TIME_UNSPECIFIED:
     break;
   case SYSTEM_TIME_AS_OF:
