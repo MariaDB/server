@@ -324,4 +324,15 @@ insert into t1 values (1),(2);
 
 update t join t1 set s = '2020-01-01';
 
+
+--echo # MDEV-22608 ASAN use-after-poison in TABLE::check_period_overlaps
+
+create or replace table t1 (s date, e date, b bit, period for p(s,e),
+                            unique(b, p without overlaps)) engine=myisam;
+insert into t1 values ('2024-12-21','2034-06-29',0),
+                      ('2024-12-21','2034-06-29',1);
+--error ER_DUP_ENTRY
+update t1 set b = 1;
+
+
 drop table t, t1;
