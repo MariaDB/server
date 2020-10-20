@@ -6947,7 +6947,7 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
   uchar *record_buffer= lookup_buffer + table_share->max_unique_length
                                       + table_share->null_fields;
 
-  // Needs to compare record refs later is old_row_found()
+  // Needed to compare record refs later
   if (is_update)
     position(old_data);
 
@@ -7003,12 +7003,8 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
       /* In case of update it could happen that the nearest neighbour is
          a record we are updating. It means, that there are no overlaps
          from this side.
-
-         An assumption is made that during update we always have the last
-         fetched row in old_data. Therefore, comparing ref's is enough
       */
       DBUG_ASSERT(lookup_handler != this);
-      DBUG_ASSERT(inited != NONE);
       DBUG_ASSERT(ref_length == lookup_handler->ref_length);
 
       lookup_handler->position(record_buffer);

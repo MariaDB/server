@@ -313,5 +313,15 @@ insert into t1 values (0,'2026-02-12','2036-09-16'),
 
 update ignore t join t1 set f = a;
 
+--echo # MDEV-22639  Assertion `inited != NONE' failed in
+--echo # handler::ha_check_overlaps upon multi-table update
+
+create or replace table t (f int, s date, e date, period for p(s,e),
+                           unique(f, p without overlaps)) engine=myisam;
+insert into t values (1,'1988-08-25','2024-03-06');
+create or replace table t1 (a int) engine=myisam;
+insert into t1 values (1),(2);
+
+update t join t1 set s = '2020-01-01';
 
 drop table t, t1;
