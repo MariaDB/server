@@ -766,9 +766,6 @@ struct dict_v_col_t{
 	/** column pos in table */
 	unsigned		v_pos:10;
 
-	/** number of indexes */
-	unsigned		n_v_indexes:12;
-
 	/** Virtual index list, and column position in the index */
 	std::forward_list<dict_v_idx_t, ut_allocator<dict_v_idx_t> >
 	v_indexes;
@@ -777,21 +774,17 @@ struct dict_v_col_t{
   @param index  index to be detached from */
   void detach(const dict_index_t &index)
   {
-    if (!n_v_indexes) return;
+    if (v_indexes.empty()) return;
     auto i= v_indexes.before_begin();
-    ut_d(unsigned n= 0);
     do {
       auto prev = i++;
       if (i == v_indexes.end())
       {
-        ut_ad(n == n_v_indexes);
         return;
       }
-      ut_ad(++n <= n_v_indexes);
       if (i->index == &index)
       {
         v_indexes.erase_after(prev);
-        n_v_indexes--;
         return;
       }
     }

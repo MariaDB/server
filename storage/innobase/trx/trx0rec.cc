@@ -230,19 +230,34 @@ trx_undo_log_v_idx(
 {
 	ut_ad(pos < table->n_v_def);
 	dict_v_col_t*	vcol = dict_table_get_nth_v_col(table, pos);
-	ulint		n_idx = vcol->n_v_indexes;
 	byte*		old_ptr;
 
-	ut_ad(n_idx > 0);
+	ut_ad(!vcol->v_indexes.empty());
 
 	/* Size to reserve, max 5 bytes for each index id and position, plus
 	5 bytes for num of indexes, 2 bytes for write total length.
 	1 byte for undo log record format version marker */
-	ulint		size = n_idx * (5 + 5) + 5 + 2 + (first_v_col ? 1 : 0);
+	ulint		size = 5 + 2 + (first_v_col ? 1 : 0);
+	const ulint	avail = trx_undo_left(undo_block, ptr);
 
-	if (trx_undo_left(undo_block, ptr) < size) {
+	if (avail < size) {
 		return(NULL);
 	}
+
+	size = 0;
+	ulint n_idx = 0;
+	for (const auto& v_index : vcol->v_indexes) {
+		n_idx++;
+		/* FIXME: index->id is 64 bits! */
+		size += mach_get_compressed_size(uint32_t(v_index.index->id));
+		size += mach_get_compressed_size(v_index.nth_field);
+	}
+	size += 2 + mach_get_compressed_size(n_idx);
+
+	if (avail < size) {
+		return(NULL);
+	}
+
 
 	if (first_v_col) {
 		/* write the version marker */
@@ -259,7 +274,8 @@ trx_undo_log_v_idx(
 
 	for (const auto& v_index : vcol->v_indexes) {
 		ptr += mach_write_compressed(
-			ptr, static_cast<ulint>(v_index.index->id));
+			/* FIXME: index->id is 64 bits! */
+			ptr, uint32_t(v_index.index->id));
 
 		ptr += mach_write_compressed(ptr, v_index.nth_field);
 	}

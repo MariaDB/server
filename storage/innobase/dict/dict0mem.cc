@@ -425,7 +425,6 @@ dict_mem_table_add_v_col(
 
 	/* Initialize the index list for virtual columns */
 	ut_ad(v_col->v_indexes.empty());
-	v_col->n_v_indexes = 0;
 
 	return(v_col);
 }

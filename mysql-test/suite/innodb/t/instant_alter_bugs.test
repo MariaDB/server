@@ -436,4 +436,23 @@ CREATE TABLE t (pk SERIAL, b TEXT CHARACTER SET utf8) ENGINE=InnoDB;
 ALTER TABLE t MODIFY b TEXT CHARACTER SET utf8mb4 FIRST;
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-23672 Assertion `v.v_indexes.empty()' failed in dict_table_t::instant_column
+--echo #
+create table t1 (
+    col_int integer,
+    col_text text not null,
+    col_int_g integer generated always as (col_int) unique,
+    col_text_g text generated always as (substr(col_text,1,499)) )
+engine innodb row_format = redundant;
+insert into t1 values (0, 'a', default, default);
+insert into t1 values (null, 'b', default, default);
+alter table t1 modify column col_text text null, algorithm = instant;
+insert into t1 values (1, null, default, default);
+insert into t1 values (null, null, default, default);
+update t1 set col_text= 'd';
+select * from t1;
+check table t1;
+drop table t1;
+
 SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;
