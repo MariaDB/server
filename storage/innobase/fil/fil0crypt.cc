@@ -407,6 +407,8 @@ fil_space_crypt_t::write_page0(
 	mlog_write_ulint(page + offset + MAGIC_SZ + 2 + len + 8, encryption,
 		MLOG_1BYTE, mtr);
 
+	DBUG_EXECUTE_IF("ib_do_not_log_crypt_data", return;);
+
 	byte* log_ptr = mlog_open(mtr, 11 + 17 + len);
 
 	if (log_ptr != NULL) {
