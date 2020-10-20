@@ -127,7 +127,7 @@ ERROR HY000: Period `p` is not found in table
 create or replace table t(id int, s date, e date,
 period for p(s,e),
 primary key(id, s, p without overlaps));
-ERROR HY000: Key `(null)` cannot explicitly include column `s`
+ERROR HY000: Key `PRIMARY` cannot explicitly include column `s`
 create or replace table t(id int, s date, e date,
 period for p(s,e),
 primary key(id));
