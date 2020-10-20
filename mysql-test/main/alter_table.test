@@ -2530,5 +2530,17 @@ unlock tables;
 drop table t1;
 
 --echo #
+--echo # MDEV-23852 alter table rename column to uppercase doesn't work
+--echo #
+create table t1 (abc int);
+alter table t1 rename column abc to Abc, algorithm=copy;
+show create table t1;
+alter table t1 rename column abc to ABc, algorithm=inplace;
+show create table t1;
+alter table t1 rename column abc to ABC;
+show create table t1;
+drop table t1;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
