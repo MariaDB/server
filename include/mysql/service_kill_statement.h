@@ -41,6 +41,7 @@ extern "C" {
 
 enum thd_kill_levels {
   THD_IS_NOT_KILLED=0,
+  THD_WSREP_MARK_VICTIM=10,
   THD_ABORT_SOFTLY=50, /**< abort when possible, don't leave tables corrupted */
   THD_ABORT_ASAP=100,  /**< abort asap */
 };

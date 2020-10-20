@@ -8869,6 +8869,35 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
   DBUG_ENTER("kill_one_thread");
   DBUG_PRINT("enter", ("id: %lld  signal: %u", id, (uint) kill_signal));
 
+  /* first mark wsrep victim to avoid conflict with possible ongoing BF abort */
+  if (WSREP(thd) )
+  {
+    if (id && (tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY)))
+    {
+      if (tmp->wsrep_aborter)
+      {
+        /* victim is in hit list already, bail out */
+       WSREP_DEBUG("victim has wsrep aborter: %lu, skipping awake()",
+                    tmp->wsrep_aborter);
+        DBUG_RETURN(0);
+      }
+      else
+      {
+        /*
+           let go LOCK_thd_data and mark victim for abort by us,
+           with no mutexes held. We initiate victim marking from innodb
+           to use same mutex locking protocol as innodb high priority transactions
+
+           it is still possible that some other thread gets in front of us
+           and marks this victim, we will see who is the actual killer thread
+           before we would call THD::awake()
+         */
+        mysql_mutex_unlock(&tmp->LOCK_thd_data);
+        ha_kill_query(tmp, THD_WSREP_MARK_VICTIM);
+      }
+    }
+  }
+  /* continue with the usual victim kill procecedure */
   if (id && (tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY)))
   {
     /*
@@ -8898,7 +8927,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
     {
 #ifdef WITH_WSREP
       DEBUG_SYNC(thd, "before_awake_no_mutex");
-      if (tmp->wsrep_aborter && tmp->wsrep_aborter != thd->thread_id)
+      if (tmp->wsrep_aborter && tmp->wsrep_aborter != tmp->thread_id)
       {
         /* victim is in hit list already, bail out */
        WSREP_DEBUG("victim has wsrep aborter: %lu, skipping awake()",

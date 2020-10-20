@@ -95,6 +95,7 @@ int encryption_scheme_decrypt(const unsigned char* src, unsigned int slen,
                               unsigned int i32_2, unsigned long long i64);
 enum thd_kill_levels {
   THD_IS_NOT_KILLED=0,
+  THD_WSREP_MARK_VICTIM=10,
   THD_ABORT_SOFTLY=50,
   THD_ABORT_ASAP=100,
 };

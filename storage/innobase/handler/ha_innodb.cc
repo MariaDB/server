@@ -5153,10 +5153,40 @@ UNIV_INTERN void lock_cancel_waiting_and_release(lock_t* lock);
 
 /** Cancel any pending lock request associated with the current THD.
 @sa THD::awake() @sa ha_kill_query() */
-static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels)
+static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels level)
 {
 	DBUG_ENTER("innobase_kill_query");
 #ifdef WITH_WSREP
+	if (level == THD_WSREP_MARK_VICTIM)
+	{
+		if (trx_t *trx= thd_to_trx(thd))
+		{
+			/*
+			  not a direct kill, but just marking the victim for
+			  later aborting locking mutexes in agreed locking
+			  order, last to lock is victim thd LOCK_thd_data
+			  mutex victim thd's wsrep_aborter is set while holding
+			  all mutexes. We miss to see if victim was already
+			  marked for abort by some other killer but that does
+			  not matter here.
+			  Finally releasing all mutexes in reverse order
+			*/
+			lock_mutex_enter();
+			trx_sys_mutex_enter();
+			trx_mutex_enter(trx);
+			wsrep_thd_LOCK(thd);
+			if (wsrep_thd_set_wsrep_aborter(thd, thd))
+			{
+				WSREP_DEBUG("innodb kill transaction skipped");
+			}
+			wsrep_thd_UNLOCK(thd);
+			trx_mutex_exit(trx);
+			trx_sys_mutex_exit();
+			lock_mutex_exit();
+			DBUG_VOID_RETURN;
+		}
+		else DBUG_VOID_RETURN;
+	}
 	if (wsrep_thd_get_conflict_state(thd) != NO_CONFLICT) {
 		/* if victim has been signaled by BF thread and/or aborting
 		   is already progressing, following query aborting is not necessary
