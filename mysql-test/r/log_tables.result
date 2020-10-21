@@ -380,6 +380,14 @@ slow_log
 slow_log_new
 drop table slow_log_new, general_log_new;
 use test;
+SET GLOBAL LOG_OUTPUT = 'FILE';
+SET GLOBAL slow_query_log = 1;
+SET GLOBAL general_log = 1;
+ALTER TABLE mysql.slow_log ADD COLUMN comment_text TEXT NOT NULL;
+ALTER TABLE mysql.general_log ADD COLUMN comment_text TEXT NOT NULL;
+SET GLOBAL LOG_OUTPUT = 'NONE';
+ALTER TABLE mysql.slow_log DROP COLUMN comment_text;
+ALTER TABLE mysql.general_log DROP COLUMN comment_text;
 SET GLOBAL LOG_OUTPUT = 'TABLE';
 SET GLOBAL general_log = 0;
 FLUSH LOGS;

@@ -496,7 +496,7 @@ row_ins_cascade_calc_update_vec(
 
 	n_fields_updated = 0;
 
-	bool affects_fulltext = false;
+	bool affects_fulltext = foreign->affects_fulltext();
 
 	if (table->fts) {
 		doc_id_pos = dict_table_get_nth_col_pos(
@@ -615,17 +615,6 @@ row_ins_cascade_calc_update_vec(
 							  pad, pad_len);
 					dfield_set_data(&ufield->new_val,
 							padded_data, min_size);
-				}
-
-				/* Check whether the current column has
-				FTS index on it */
-				if (table->fts
-				    && dict_table_is_fts_column(
-					table->fts->indexes,
-					dict_col_get_no(col),
-					dict_col_is_virtual(col))
-					!= ULINT_UNDEFINED) {
-					affects_fulltext = true;
 				}
 
 				/* If Doc ID is updated, check whether the
@@ -1257,8 +1246,6 @@ row_ins_foreign_check_on_constraint(
 			      update->n_fields * sizeof *update->fields);
 #endif /* HAVE_valgrind_or_MSAN */
 
-		bool affects_fulltext = false;
-
 		for (ulint i = 0; i < foreign->n_fields; i++) {
 			upd_field_t*	ufield = &update->fields[i];
 			ulint		col_no = dict_index_get_nth_col_no(
@@ -1274,19 +1261,9 @@ row_ins_foreign_check_on_constraint(
 			ufield->orig_len = 0;
 			ufield->exp = NULL;
 			dfield_set_null(&ufield->new_val);
-
-			if (!affects_fulltext
-			    && table->fts && dict_table_is_fts_column(
-				    table->fts->indexes,
-				    dict_index_get_nth_col_no(index, i),
-				    dict_col_is_virtual(
-					    dict_index_get_nth_col(index, i)))
-			    != ULINT_UNDEFINED) {
-				affects_fulltext = true;
-			}
 		}
 
-		if (affects_fulltext) {
+		if (foreign->affects_fulltext()) {
 			fts_trx_add_op(trx, table, doc_id, FTS_DELETE, NULL);
 		}
 
@@ -1300,25 +1277,9 @@ row_ins_foreign_check_on_constraint(
 				goto nonstandard_exit_func;
 			}
 		}
-	} else if (table->fts && cascade->is_delete) {
-		/* DICT_FOREIGN_ON_DELETE_CASCADE case */
-		bool affects_fulltext = false;
-
-		for (ulint i = 0; i < foreign->n_fields; i++) {
-			if (dict_table_is_fts_column(
-				table->fts->indexes,
-				dict_index_get_nth_col_no(index, i),
-				dict_col_is_virtual(
-					dict_index_get_nth_col(index, i)))
-			    != ULINT_UNDEFINED) {
-				affects_fulltext = true;
-				break;
-			}
-		}
-
-		if (affects_fulltext) {
-			fts_trx_add_op(trx, table, doc_id, FTS_DELETE, NULL);
-		}
+	} else if (table->fts && cascade->is_delete
+		   && foreign->affects_fulltext()) {
+		fts_trx_add_op(trx, table, doc_id, FTS_DELETE, NULL);
 	}
 
 	if (!node->is_delete

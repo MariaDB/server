@@ -6546,7 +6546,7 @@ Options for debugging the product
   debug-server          Use debug version of server, but without turning on
                         tracing
   debugger=NAME         Start mysqld in the selected debugger
-  gdb                   Start the mysqld(s) in gdb
+  gdb[=gdb_arguments]   Start the mysqld(s) in gdb
   manual-debug          Let user manually start mysqld in debugger, before
                         running test(s)
   manual-gdb            Let user manually start mysqld in gdb, before running

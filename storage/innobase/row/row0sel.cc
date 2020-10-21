@@ -4024,7 +4024,7 @@ row_sel_try_search_shortcut_for_mysql(
 
 /*********************************************************************//**
 Check a pushed-down index condition.
-@return ICP_NO_MATCH, ICP_MATCH, or ICP_OUT_OF_RANGE */
+@return ICP_ABORTED_BY_USER, ICP_NO_MATCH, ICP_MATCH, or ICP_OUT_OF_RANGE */
 static
 ICP_RESULT
 row_search_idx_cond_check(
@@ -4551,10 +4551,13 @@ row_search_mvcc(
 					switch (row_search_idx_cond_check(
 							buf, prebuilt,
 							rec, offsets)) {
+                                        case ICP_ABORTED_BY_USER:
+						mtr_commit(&mtr);
+						err = DB_INTERRUPTED;
+						goto unlock_and_exit;
+                                        case ICP_ERROR:
 					case ICP_NO_MATCH:
 					case ICP_OUT_OF_RANGE:
-                                        case ICP_ABORTED_BY_USER:
-                                        case ICP_ERROR:
 						goto shortcut_mismatch;
 					case ICP_MATCH:
 						goto shortcut_match;
@@ -4582,14 +4585,11 @@ row_search_mvcc(
 
 			shortcut_match:
 				mtr.commit();
-
+				err = DB_SUCCESS;
+			unlock_and_exit:
 				/* NOTE that we do NOT store the cursor
 				position */
-
-				err = DB_SUCCESS;
-
 				rw_lock_s_unlock(latch);
-
 				goto func_exit;
 
 			case SEL_EXHAUSTED:
@@ -4597,13 +4597,7 @@ row_search_mvcc(
 				mtr.commit();
 
 				err = DB_RECORD_NOT_FOUND;
-
-				rw_lock_s_unlock(latch);
-
-				/* NOTE that we do NOT store the cursor
-				position */
-
-				goto func_exit;
+				goto unlock_and_exit;
 
 			case SEL_RETRY:
 				break;
@@ -5336,8 +5330,10 @@ no_gap_lock:
 						buf, prebuilt, rec, offsets)) {
 				case ICP_NO_MATCH:
 					goto next_rec;
-				case ICP_OUT_OF_RANGE:
                                 case ICP_ABORTED_BY_USER:
+					err = DB_INTERRUPTED;
+					goto idx_cond_failed;
+				case ICP_OUT_OF_RANGE:
                                 case ICP_ERROR:
 					err = DB_RECORD_NOT_FOUND;
 					goto idx_cond_failed;
@@ -5396,9 +5392,11 @@ locks_ok_del_marked:
 			row_unlock_for_mysql(prebuilt, TRUE);
 		}
 		goto next_rec;
+	case ICP_ABORTED_BY_USER:
+		err = DB_INTERRUPTED;
+		goto idx_cond_failed;
 	case ICP_OUT_OF_RANGE:
-        case ICP_ABORTED_BY_USER:
-        case ICP_ERROR:
+	case ICP_ERROR:
 		err = DB_RECORD_NOT_FOUND;
 		goto idx_cond_failed;
 	case ICP_MATCH:

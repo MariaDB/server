@@ -96,6 +96,28 @@ operator<<(
 	return(s << ut_get_name(NULL, table_name.m_name));
 }
 
+/** @return whether a table belongs to a system database */
+static bool dict_mem_table_is_system(char *name)
+{
+	/* table has the following format: database/table
+	and some system table are of the form SYS_* */
+	if (strchr(name, '/')) {
+		size_t table_len = strlen(name);
+		const char *system_db;
+		int i = 0;
+		while ((system_db = innobase_system_databases[i++])
+			&& (system_db != NullS)) {
+			size_t len = strlen(system_db);
+			if (table_len > len && !strncmp(name, system_db, len)) {
+				return true;
+			}
+		}
+		return false;
+	} else {
+		return true;
+	}
+}
+
 /**********************************************************************//**
 Creates a table memory object.
 @return own: table object */
@@ -1195,31 +1217,20 @@ operator<< (std::ostream& out, const dict_foreign_set& fk_set)
 	return(out);
 }
 
-/****************************************************************//**
-Determines if a table belongs to a system database
-@return */
-bool
-dict_mem_table_is_system(
-/*================*/
-	char	*name)		/*!< in: table name */
+/** Check whether fulltext index gets affected by foreign
+key constraint. */
+bool dict_foreign_t::affects_fulltext() const
 {
-	ut_ad(name);
+  if (foreign_table == referenced_table || !foreign_table->fts)
+    return false;
 
-	/* table has the following format: database/table
-	and some system table are of the form SYS_* */
-	if (strchr(name, '/')) {
-		size_t table_len = strlen(name);
-		const char *system_db;
-		int i = 0;
-		while ((system_db = innobase_system_databases[i++])
-			&& (system_db != NullS)) {
-			size_t len = strlen(system_db);
-			if (table_len > len && !strncmp(name, system_db, len)) {
-				return true;
-			}
-		}
-		return false;
-	} else {
-		return true;
-	}
+  for (ulint i= 0; i < n_fields; i++)
+  {
+    const dict_col_t *col= dict_index_get_nth_col(foreign_index, i);
+    if (dict_table_is_fts_column(foreign_table->fts->indexes, col->ind,
+                                 col->is_virtual()) != ULINT_UNDEFINED)
+      return true;
+  }
+
+  return false;
 }

@@ -314,14 +314,6 @@ dict_mem_table_create(
 	ulint		n_v_cols,	/*!< in: number of virtual columns */
 	ulint		flags,		/*!< in: table flags */
 	ulint		flags2);	/*!< in: table flags2 */
-/**********************************************************************//**
-Determines if a table belongs to a system database
-@return */
-UNIV_INTERN
-bool
-dict_mem_table_is_system(
-/*==================*/
-	char	*name);		/*!< in: table name */
 /****************************************************************//**
 Free a table memory object. */
 void
@@ -1214,6 +1206,10 @@ struct dict_foreign_t{
 
 	dict_vcol_set*	v_cols;		/*!< set of virtual columns affected
 					by foreign key constraint. */
+
+	/** Check whether the fulltext index gets affected by
+	foreign key constraint */
+	bool affects_fulltext() const;
 };
 
 std::ostream&
