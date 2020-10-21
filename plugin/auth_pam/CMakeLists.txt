@@ -5,6 +5,30 @@ CHECK_INCLUDE_FILES (security/pam_ext.h  HAVE_PAM_EXT_H)
 CHECK_INCLUDE_FILES (security/pam_appl.h HAVE_PAM_APPL_H)
 CHECK_FUNCTION_EXISTS (strndup HAVE_STRNDUP)
 
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR})
+
+# Check whether getgrouplist uses git_t for second and third arguments.
+SET(CMAKE_REQUIRED_FLAGS -Werror)
+CHECK_C_SOURCE_COMPILES(
+"
+#ifdef HAVE_GRP_H
+#include <grp.h>
+#endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+int main() {
+  char *arg_1;
+  gid_t arg_2, arg_3;
+  int arg_4;
+  (void)getgrouplist(arg_1,arg_2,&arg_3,arg_4);
+  return 0;
+}
+"
+HAVE_POSIX_GETGROUPLIST
+)
+SET(CMAKE_REQUIRED_FLAGS)
+
 SET(CMAKE_REQUIRED_LIBRARIES pam)
 CHECK_FUNCTION_EXISTS(pam_syslog HAVE_PAM_SYSLOG)
 SET(CMAKE_REQUIRED_LIBRARIES)
@@ -36,3 +60,5 @@ IF(HAVE_PAM_APPL_H)
   ENDIF()
 ENDIF(HAVE_PAM_APPL_H)
 
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmake
+               ${CMAKE_CURRENT_BINARY_DIR}/config_auth_pam.h)

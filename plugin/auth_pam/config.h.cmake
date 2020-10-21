@@ -1,0 +1,1 @@
+#cmakedefine HAVE_POSIX_GETGROUPLIST 1
