@@ -3630,10 +3630,17 @@ public:
     return server_status & SERVER_STATUS_IN_TRANS;
   }
   void give_protection_error();
+  /*
+    Give an error if any of the following is true for this connection
+    - BACKUP STAGE is active
+    - FLUSH TABLE WITH READ LOCK is active
+    - BACKUP LOCK table_name is active
+  */
   inline bool has_read_only_protection()
   {
     if (current_backup_stage == BACKUP_FINISHED &&
-        !global_read_lock.is_acquired())
+        !global_read_lock.is_acquired() &&
+        !mdl_backup_lock)
       return FALSE;
     give_protection_error();
     return TRUE;

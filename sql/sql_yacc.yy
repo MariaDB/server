@@ -14868,6 +14868,8 @@ backup_statements:
         }
 	| LOCK_SYM
           {
+            if (unlikely(Lex->sphead))
+              my_yyabort_error((ER_SP_BADSTATEMENT, MYF(0), "BACKUP LOCK"));
             if (Lex->main_select_push())
               MYSQL_YYABORT;
           }
@@ -14881,6 +14883,8 @@ backup_statements:
           }
         | UNLOCK_SYM
           {
+            if (unlikely(Lex->sphead))
+              my_yyabort_error((ER_SP_BADSTATEMENT, MYF(0), "BACKUP UNLOCK"));
 	    /* Table list is empty for unlock */
             Lex->sql_command= SQLCOM_BACKUP_LOCK;
           }
