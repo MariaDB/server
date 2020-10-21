@@ -3567,8 +3567,9 @@ void fsp_flags_try_adjust(fil_space_t* space, ulint flags)
 				<< " to " << ib::hex(flags);
 		}
 		mtr.set_named_space(space);
-		mtr.write<4>(*b, FSP_HEADER_OFFSET + FSP_SPACE_FLAGS
-			     + b->frame, flags);
+		mtr.write<4,mtr_t::FORCED>(*b,
+					   FSP_HEADER_OFFSET + FSP_SPACE_FLAGS
+					   + b->frame, flags);
 	}
 func_exit:
 	mtr.commit();

@@ -10316,13 +10316,15 @@ commit_cache_norebuild(
 					    page_id_t(space->id, 0),
 					    space->zip_size(),
 					    RW_X_LATCH, &mtr)) {
-					mtr.set_named_space(space);
-					mtr.write<4,mtr_t::MAYBE_NOP>(
-						*b,
-						FSP_HEADER_OFFSET
-						+ FSP_SPACE_FLAGS + b->frame,
-						space->flags
-						& ~FSP_FLAGS_MEM_MASK);
+					byte* f = FSP_HEADER_OFFSET
+						+ FSP_SPACE_FLAGS + b->frame;
+					const auto sf = space->flags
+						& ~FSP_FLAGS_MEM_MASK;
+					if (mach_read_from_4(f) != sf) {
+						mtr.set_named_space(space);
+						mtr.write<4,mtr_t::FORCED>(
+							*b, f, sf);
+					}
 				}
 				mtr.commit();
 			}

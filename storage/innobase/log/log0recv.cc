@@ -2929,8 +2929,8 @@ static bool recv_scan_log_recs(
 				}
 
 				ib::info() << "Starting crash recovery from"
-					" checkpoint LSN="
-					<< recv_sys.scanned_lsn;
+					" checkpoint LSN=" << checkpoint_lsn
+					   << "," << recv_sys.scanned_lsn;
 			}
 
 			/* We were able to find more log data: add it to the

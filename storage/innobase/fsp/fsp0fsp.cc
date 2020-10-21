@@ -582,10 +582,11 @@ void fsp_header_init(fil_space_t* space, uint32_t size, mtr_t* mtr)
 				   + block->frame, size);
 	ut_ad(0 == mach_read_from_4(FSP_HEADER_OFFSET + FSP_FREE_LIMIT
 				    + block->frame));
-	mtr->write<4,mtr_t::MAYBE_NOP>(*block,
-				       FSP_HEADER_OFFSET + FSP_SPACE_FLAGS
-				       + block->frame,
-				       space->flags & ~FSP_FLAGS_MEM_MASK);
+	if (auto f = space->flags & ~FSP_FLAGS_MEM_MASK) {
+		mtr->write<4,mtr_t::FORCED>(*block,
+					    FSP_HEADER_OFFSET + FSP_SPACE_FLAGS
+					    + block->frame, f);
+	}
 	ut_ad(0 == mach_read_from_4(FSP_HEADER_OFFSET + FSP_FRAG_N_USED
 				    + block->frame));
 
