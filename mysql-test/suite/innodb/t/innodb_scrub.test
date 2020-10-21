@@ -22,5 +22,7 @@ let SEARCH_FILE= $MYSQLD_DATADIR/test/t1.ibd;
 -- source include/search_pattern_in_file.inc
 DELETE FROM t1;
 -- source include/wait_all_purged.inc
+FLUSH TABLE t1 FOR EXPORT;
+UNLOCK TABLES;
 -- source include/search_pattern_in_file.inc
 DROP TABLE t1;

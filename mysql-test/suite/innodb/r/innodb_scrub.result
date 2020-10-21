@@ -6,5 +6,7 @@ UNLOCK TABLES;
 FOUND 500500 /unicycle|repairman/ in t1.ibd
 DELETE FROM t1;
 InnoDB		0 transactions not purged
+FLUSH TABLE t1 FOR EXPORT;
+UNLOCK TABLES;
 NOT FOUND /unicycle|repairman/ in t1.ibd
 DROP TABLE t1;

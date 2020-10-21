@@ -438,6 +438,8 @@ read_ahead:
   {
     if (ibuf_bitmap_page(i, zip_size))
       continue;
+    if (space->is_stopping())
+      break;
     dberr_t err;
     count+= buf_read_page_low(&err, false, ibuf_mode, i, zip_size, false);
   }
@@ -697,6 +699,8 @@ failed:
   {
     if (ibuf_bitmap_page(new_low, zip_size))
       continue;
+    if (space->is_stopping())
+      break;
     dberr_t err;
     count+= buf_read_page_low(&err, false, ibuf_mode, new_low, zip_size,
                               false);

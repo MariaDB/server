@@ -1567,8 +1567,18 @@ public:
 
   /**
   @return the smallest oldest_modification lsn for any page
-  @retval 0 if all modified persistent pages have been flushed */
-  lsn_t get_oldest_modification();
+  @retval empty_lsn if all modified persistent pages have been flushed */
+  lsn_t get_oldest_modification(lsn_t empty_lsn)
+  {
+    mysql_mutex_assert_owner(&flush_list_mutex);
+    const buf_page_t *bpage= UT_LIST_GET_LAST(flush_list);
+#if 1 /* MDEV-12227 FIXME: remove this loop */
+    for (; bpage && fsp_is_system_temporary(bpage->id().space());
+         bpage= UT_LIST_GET_PREV(list, bpage))
+      ut_ad(bpage->oldest_modification());
+#endif
+    return bpage ? bpage->oldest_modification() : empty_lsn;
+  }
 
   /** Determine if a buffer block was created by chunk_t::create().
   @param block  block descriptor (not dereferenced)

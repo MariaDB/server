@@ -273,6 +273,11 @@ dict_boot(void)
 	dict_sys.row_id = DICT_HDR_ROW_ID_WRITE_MARGIN
 		+ ut_uint64_align_up(mach_read_from_8(dict_hdr + DICT_HDR_ROW_ID),
 				     DICT_HDR_ROW_ID_WRITE_MARGIN);
+	if (ulint max_space_id = mach_read_from_4(dict_hdr
+						  + DICT_HDR_MAX_SPACE_ID)) {
+		max_space_id--;
+		fil_assign_new_space_id(&max_space_id);
+	}
 
 	/* Insert into the dictionary cache the descriptions of the basic
 	system tables */
