@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2007, 2020, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -146,6 +146,8 @@ struct fts_query_t {
 					fts_word_freq_t */
 
 	bool		multi_exist;	/*!< multiple FTS_EXIST oper */
+	byte		visiting_sub_exp; /*!< count of nested
+					fts_ast_visit_sub_exp() */
 };
 
 /** For phrase matching, first we collect the documents and the positions
@@ -2856,6 +2858,8 @@ fts_query_get_token(
 	return(new_ptr);
 }
 
+static dberr_t fts_ast_visit_sub_exp(fts_ast_node_t*, fts_ast_callback, void*);
+
 /*****************************************************************//**
 Visit every node of the AST. */
 static
@@ -2945,7 +2949,7 @@ Process (nested) sub-expression, create a new result set to store the
 sub-expression result by processing nodes under current sub-expression
 list. Merge the sub-expression result with that of parent expression list.
 @return DB_SUCCESS if all  well */
-UNIV_INTERN
+static
 dberr_t
 fts_ast_visit_sub_exp(
 /*==================*/
@@ -2964,6 +2968,14 @@ fts_ast_visit_sub_exp(
 	DBUG_ENTER("fts_ast_visit_sub_exp");
 
 	ut_a(node->type == FTS_AST_SUBEXP_LIST);
+
+	/* To avoid stack overflow, we limit the mutual recursion
+	depth between fts_ast_visit(), fts_query_visitor() and
+	fts_ast_visit_sub_exp(). */
+	if (query->visiting_sub_exp++ > 31) {
+		query->error = DB_OUT_OF_MEMORY;
+		DBUG_RETURN(query->error);
+	}
 
 	cur_oper = query->oper;
 
@@ -2987,6 +2999,7 @@ fts_ast_visit_sub_exp(
 	/* Reinstate parent node state */
 	query->multi_exist = multi_exist;
 	query->oper = cur_oper;
+	query->visiting_sub_exp--;
 
 	/* Merge the sub-expression result with the parent result set. */
 	subexpr_doc_ids = query->doc_ids;
