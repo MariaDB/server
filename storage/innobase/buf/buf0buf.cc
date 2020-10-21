@@ -3630,10 +3630,13 @@ buf_page_optimistic_get(
 		return FALSE;
 	}
 
-	page_hash_latch *hash_lock = buf_pool.hash_lock_get(block->page.id());
+	const page_id_t id(block->page.id());
+
+	page_hash_latch *hash_lock = buf_pool.hash_lock_get(id);
 	hash_lock->read_lock();
 
-	if (UNIV_UNLIKELY(block->page.state() != BUF_BLOCK_FILE_PAGE
+	if (UNIV_UNLIKELY(id != block->page.id()
+			  || block->page.state() != BUF_BLOCK_FILE_PAGE
 			  || block->page.io_fix() != BUF_IO_NONE)) {
 		hash_lock->read_unlock();
 		return(FALSE);
@@ -3646,8 +3649,7 @@ buf_page_optimistic_get(
 
 	buf_page_make_young_if_needed(&block->page);
 
-	ut_ad(!ibuf_inside(mtr)
-	      || ibuf_page(block->page.id(), block->zip_size(), NULL));
+	ut_ad(!ibuf_inside(mtr) || ibuf_page(id, block->zip_size(), NULL));
 
 	mtr_memo_type_t	fix_type;
 
@@ -3659,6 +3661,8 @@ buf_page_optimistic_get(
 		success = rw_lock_x_lock_func_nowait_inline(
 			&block->lock, file, line);
 	}
+
+	ut_ad(id == block->page.id());
 
 	if (!success) {
 		buf_block_buf_fix_dec(block);
