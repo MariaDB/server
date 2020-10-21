@@ -15,7 +15,6 @@
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 #include <my_global.h>
-#include <ssl_compat.h>
 
 /*
   The check is only done for OpenSSL 1.1.x.
@@ -25,13 +24,14 @@
 */
 
 #ifndef HAVE_OPENSSL11
+#include <ssl_compat.h>
 int check_openssl_compatibility()
 {
   return 0;
 }
 #else
 #include <openssl/evp.h>
-
+#include <ssl_compat.h>
 static uint testing, alloc_size, alloc_count;
 
 static void *coc_malloc(size_t size, const char *f __attribute__((unused)),
