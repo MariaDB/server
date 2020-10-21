@@ -335,4 +335,12 @@ insert into t1 values ('2024-12-21','2034-06-29',0),
 update t1 set b = 1;
 
 
+--echo # MDEV-22677 Server crashes in ha_partition::open upon update on
+--echo # partitioned HEAP table with WITHOUT OVERLAPS
+
+create or replace table t (id int, s date, e date, period for p(s,e),
+                           primary key(id, p without overlaps)
+                          ) engine=heap partition by hash(id);
+update t set id = 1;
+
 drop table t, t1;

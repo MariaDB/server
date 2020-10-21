@@ -344,4 +344,10 @@ insert into t1 values ('2024-12-21','2034-06-29',0),
 ('2024-12-21','2034-06-29',1);
 update t1 set b = 1;
 ERROR 23000: Duplicate entry '\x01-2034-06-29-2024-12-21' for key 'b'
+# MDEV-22677 Server crashes in ha_partition::open upon update on
+# partitioned HEAP table with WITHOUT OVERLAPS
+create or replace table t (id int, s date, e date, period for p(s,e),
+primary key(id, p without overlaps)
+) engine=heap partition by hash(id);
+update t set id = 1;
 drop table t, t1;
