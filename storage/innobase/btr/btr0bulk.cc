@@ -60,12 +60,10 @@ PageBulk::init()
 		alloc_mtr.start();
 		m_index->set_modified(alloc_mtr);
 
-		ulint	n_reserved;
-		bool	success;
-		success = fsp_reserve_free_extents(&n_reserved,
-						   m_index->table->space,
-						   1, FSP_NORMAL, &alloc_mtr);
-		if (!success) {
+		uint32_t n_reserved;
+		if (!fsp_reserve_free_extents(&n_reserved,
+					      m_index->table->space,
+					      1, FSP_NORMAL, &alloc_mtr)) {
 			alloc_mtr.commit();
 			m_mtr.commit();
 			return(DB_OUT_OF_FILE_SPACE);

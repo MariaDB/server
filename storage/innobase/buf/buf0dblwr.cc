@@ -363,7 +363,7 @@ void buf_dblwr_t::recover()
       continue;
     }
 
-    fil_space_t *space= fil_space_t::get_for_io(space_id);
+    fil_space_t *space= fil_space_t::get(space_id);
 
     if (!space)
       /* The tablespace that this page once belonged to does not exist */
@@ -379,7 +379,7 @@ void buf_dblwr_t::recover()
                    << " is beyond the end of tablespace " << space->name
                    << " (" << space->size << " pages)";
 next_page:
-      space->release_for_io();
+      space->release();
       continue;
     }
 
@@ -420,7 +420,7 @@ next_page:
 
     /* Write the good page from the doublewrite buffer to the intended
     position. */
-    space->reacquire_for_io();
+    space->reacquire();
     fio= space->io(IORequestWrite,
                    os_offset_t{page_id.page_no()} * physical_size,
                    physical_size, page);
@@ -506,10 +506,10 @@ static void buf_dblwr_check_page_lsn(const page_t* page, const fil_space_t& s)
 
 static void buf_dblwr_check_page_lsn(const buf_page_t &b, const byte *page)
 {
-  if (fil_space_t *space= fil_space_t::get_for_io(b.id().space()))
+  if (fil_space_t *space= fil_space_t::get(b.id().space()))
   {
     buf_dblwr_check_page_lsn(page, *space);
-    space->release_for_io();
+    space->release();
   }
 }
 
@@ -583,7 +583,7 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
   }
 #endif /* UNIV_DEBUG */
   /* Write out the first block of the doublewrite buffer */
-  ut_a(fil_system.sys_space->acquire_for_io());
+  ut_a(fil_system.sys_space->acquire());
   fil_system.sys_space->io(IORequestWrite,
                            os_offset_t{block1.page_no()} <<
                            srv_page_size_shift,
@@ -593,7 +593,7 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
   if (old_first_free > size)
   {
     /* Write out the second block of the doublewrite buffer. */
-    ut_a(fil_system.sys_space->acquire_for_io());
+    ut_a(fil_system.sys_space->acquire());
     fil_system.sys_space->io(IORequestWrite,
                              os_offset_t{block2.page_no()} <<
                              srv_page_size_shift,
@@ -687,7 +687,7 @@ void buf_dblwr_t::add_to_batch(fil_space_t *space, const IORequest &request,
   ut_ad(request.bpage);
   ut_ad(request.bpage->in_file());
   ut_ad(space->id == request.bpage->id().space());
-  ut_ad(space->pending_io());
+  ut_ad(space->referenced());
   ut_ad(!srv_read_only_mode);
 
   const ulint buf_size= 2 * block_size();

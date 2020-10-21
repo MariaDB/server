@@ -93,7 +93,6 @@ xb_fil_node_close_file(
 	mutex_enter(&fil_system.mutex);
 
 	ut_ad(node);
-	ut_a(node->n_pending_flushes == 0);
 	ut_a(!node->being_extended);
 
 	if (!node->is_open()) {
@@ -406,7 +405,7 @@ xb_fil_cur_read(
 	retry_count = 10;
 	ret = XB_FIL_CUR_SUCCESS;
 
-	fil_space_t *space = fil_space_t::get_for_io(cursor->space_id);
+	fil_space_t *space = fil_space_t::get(cursor->space_id);
 
 	if (!space) {
 		return XB_FIL_CUR_ERROR;
@@ -455,7 +454,7 @@ read_retry:
 
 	posix_fadvise(cursor->file, offset, to_read, POSIX_FADV_DONTNEED);
 func_exit:
-	space->release_for_io();
+	space->release();
 	return(ret);
 }
 

@@ -3318,20 +3318,16 @@ static void btr_cur_prefetch_siblings(const buf_block_t *block,
   uint32_t prev= mach_read_from_4(my_assume_aligned<4>(page + FIL_PAGE_PREV));
   uint32_t next= mach_read_from_4(my_assume_aligned<4>(page + FIL_PAGE_NEXT));
 
-  if (prev != FIL_NULL)
-  {
-    ut_a(index->table->space->acquire_for_io());
+  if (prev == FIL_NULL);
+  else if (index->table->space->acquire())
     buf_read_page_background(index->table->space,
                              page_id_t(block->page.id().space(), prev),
                              block->zip_size(), false);
-  }
-  if (next != FIL_NULL)
-  {
-    ut_a(index->table->space->acquire_for_io());
+  if (next == FIL_NULL);
+  else if (index->table->space->acquire())
     buf_read_page_background(index->table->space,
                              page_id_t(block->page.id().space(), next),
                              block->zip_size(), false);
-  }
 }
 
 /*************************************************************//**
@@ -3679,7 +3675,7 @@ btr_cur_pessimistic_insert(
 	dberr_t		err;
 	bool		inherit = false;
 	bool		success;
-	ulint		n_reserved	= 0;
+	uint32_t	n_reserved	= 0;
 
 	ut_ad(dtuple_check_typed(entry));
 	ut_ad(thr || !(~flags & (BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG)));
@@ -3711,7 +3707,7 @@ btr_cur_pessimistic_insert(
 		of the index tree, so that the insert will not fail because
 		of lack of space */
 
-		ulint	n_extents = cursor->tree_height / 16 + 3;
+		uint32_t n_extents = uint32_t(cursor->tree_height / 16 + 3);
 
 		success = fsp_reserve_free_extents(&n_reserved,
 						   index->table->space,
@@ -4878,8 +4874,8 @@ btr_cur_pessimistic_update(
 	dberr_t		err;
 	dberr_t		optim_err;
 	roll_ptr_t	roll_ptr;
-	ibool		was_first;
-	ulint		n_reserved	= 0;
+	bool		was_first;
+	uint32_t	n_reserved	= 0;
 
 	*offsets = NULL;
 	*big_rec = NULL;
@@ -5041,7 +5037,7 @@ btr_cur_pessimistic_update(
 		of the index tree, so that the update will not fail because
 		of lack of space */
 
-		ulint	n_extents = cursor->tree_height / 16 + 3;
+		uint32_t n_extents = uint32_t(cursor->tree_height / 16 + 3);
 
 		if (!fsp_reserve_free_extents(
 		            &n_reserved, index->table->space, n_extents,
@@ -5642,7 +5638,7 @@ btr_cur_pessimistic_delete(
 	page_zip_des_t*	page_zip;
 	dict_index_t*	index;
 	rec_t*		rec;
-	ulint		n_reserved	= 0;
+	uint32_t	n_reserved	= 0;
 	bool		success;
 	ibool		ret		= FALSE;
 	mem_heap_t*	heap;
@@ -5671,7 +5667,7 @@ btr_cur_pessimistic_delete(
 		of the index tree, so that the node pointer updates will
 		not fail because of lack of space */
 
-		ulint	n_extents = cursor->tree_height / 32 + 1;
+		uint32_t n_extents = uint32_t(cursor->tree_height / 32 + 1);
 
 		success = fsp_reserve_free_extents(&n_reserved,
 						   index->table->space,
@@ -7314,7 +7310,7 @@ btr_store_big_rec_extern_fields(
 		for (ulint blob_npages = 0;; ++blob_npages) {
 			buf_block_t*	block;
 			const ulint	commit_freq = 4;
-			ulint		r_extents;
+			uint32_t	r_extents;
 
 			ut_ad(page_align(field_ref) == page_align(rec));
 
@@ -7587,7 +7583,7 @@ static void btr_check_blob_fil_page_type(const buf_block_t& block, bool read)
   if (UNIV_LIKELY(type == FIL_PAGE_TYPE_BLOB))
     return;
   /* FIXME: take the tablespace as a parameter */
-  if (fil_space_t *space= fil_space_acquire_silent(block.page.id().space()))
+  if (fil_space_t *space= fil_space_t::get(block.page.id().space()))
   {
     /* Old versions of InnoDB did not initialize FIL_PAGE_TYPE on BLOB
     pages.  Do not print anything about the type mismatch when reading

@@ -17464,7 +17464,7 @@ innodb_make_page_dirty(THD*, st_mysql_sys_var*, void*, const void* save)
 	mtr_t		mtr;
 	uint		space_id = *static_cast<const uint*>(save);
 	mysql_mutex_unlock(&LOCK_global_system_variables);
-	fil_space_t*	space = fil_space_acquire_silent(space_id);
+	fil_space_t*	space = fil_space_t::get(space_id);
 
 	if (space == NULL) {
 func_exit_no_space:

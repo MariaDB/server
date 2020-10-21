@@ -317,7 +317,7 @@ struct fil_io_t
 {
   /** error code */
   dberr_t err;
-  /** file; node->space->release_for_io() must follow IORequestRead call */
+  /** file; node->space->release() must follow IORequestRead call */
   fil_node_t *node;
 };
 
@@ -332,13 +332,14 @@ enum fil_encryption_t
   FIL_ENCRYPTION_OFF
 };
 
-struct fil_space_t : ilist_node<unflushed_spaces_tag_t>,
-                     ilist_node<rotation_list_tag_t>
+struct fil_space_t final :
+  ilist_node<unflushed_spaces_tag_t>, ilist_node<rotation_list_tag_t>
 #else
-struct fil_space_t
+struct fil_space_t final
 #endif
 {
 #ifndef UNIV_INNOCHECKSUM
+  friend fil_node_t;
 	ulint		id;	/*!< space id */
 	hash_node_t	hash;	/*!< hash chain node */
 	char*		name;	/*!< Tablespace name */
@@ -367,39 +368,27 @@ struct fil_space_t
 				/*!< recovered tablespace size in pages;
 				0 if no size change was read from the redo log,
 				or if the size change was implemented */
-	ulint		n_reserved_extents;
+	uint32_t	n_reserved_extents;
 				/*!< number of reserved free extents for
 				ongoing operations like B-tree page split */
-	ulint		n_pending_flushes; /*!< this is positive when flushing
-				the tablespace to disk; dropping of the
-				tablespace is forbidden if this is positive */
 private:
   /** the committed size of the tablespace in pages */
   Atomic_relaxed<uint32_t> committed_size;
-  /** Number of pending buffer pool operations accessing the
-  tablespace without holding a table lock or dict_operation_lock
-  S-latch that would prevent the table (and tablespace) from being
-  dropped. An example is encryption key rotation.
-
-  The tablespace cannot be dropped while this is nonzero.
-
-  The most significant bit contains the STOP_NEW_OPS flag. */
-  Atomic_relaxed<uint32_t> n_pending_ops;
-  /** Number of pending block read or write operations
-  The tablespace object cannot be freed while this is nonzero,
-  but it can be detached from fil_system.
-
-  The most significant bit contains the CLOSING flag. */
-  std::atomic<uint32_t> n_pending_ios;
-
-  /** Flag in n_pending_ops that indicates that the tablespace is being
+  /** Number of pending operations on the file.
+  The tablespace cannot be freed while (n_pending & PENDING) != 0. */
+  std::atomic<uint32_t> n_pending;
+  /** Flag in n_pending that indicates that the tablespace is being
   deleted, and no further operations should be performed */
-  static constexpr uint32_t STOP_NEW_OPS= ~(~uint32_t(0) >> 1);
-  /** Flag in n_pending_ios that indicates that the tablespace is a candidate
+  static constexpr uint32_t STOPPING= 1U << 31;
+  /** Flag in n_pending that indicates that the tablespace is a candidate
   for being closed, and fil_node_t::is_open() can only be trusted after
   acquiring fil_system.mutex and resetting the flag */
-  static constexpr uint32_t CLOSING= STOP_NEW_OPS;
-  static constexpr uint32_t NOT_CLOSING= ~CLOSING;
+  static constexpr uint32_t CLOSING= 1U << 30;
+  /** Flag in n_pending that indicates that the tablespace needs fsync().
+  This must be the least significant flag bit; @see release_flush() */
+  static constexpr uint32_t NEEDS_FSYNC= 1U << 29;
+  /** The reference count */
+  static constexpr uint32_t PENDING= ~(STOPPING | CLOSING | NEEDS_FSYNC);
 public:
 	rw_lock_t	latch;	/*!< latch protecting the file space storage
 				allocation */
@@ -467,7 +456,7 @@ public:
 	@param[in]	n_free_now	current number of free extents
 	@param[in]	n_to_reserve	number of extents to reserve
 	@return	whether the reservation succeeded */
-	bool reserve_free_extents(ulint n_free_now, ulint n_to_reserve)
+	bool reserve_free_extents(uint32_t n_free_now, uint32_t n_to_reserve)
 	{
 		ut_ad(rw_lock_own(&latch, RW_LOCK_X));
 		if (n_reserved_extents + n_to_reserve > n_free_now) {
@@ -480,7 +469,7 @@ public:
 
 	/** Release the reserved free extents.
 	@param[in]	n_reserved	number of reserved extents */
-	void release_free_extents(ulint n_reserved)
+	void release_free_extents(uint32_t n_reserved)
 	{
 		if (!n_reserved) return;
 		ut_ad(rw_lock_own(&latch, RW_LOCK_X));
@@ -513,70 +502,91 @@ public:
   /** Close each file. Only invoked on fil_system.temp_space. */
   void close();
 
-  /** @return whether the tablespace is about to be dropped */
-  bool is_stopping() const { return n_pending_ops & STOP_NEW_OPS; }
-
-  /** @return number of references being held */
-  size_t referenced() const { return n_pending_ops & ~STOP_NEW_OPS; }
-
   /** Note that operations on the tablespace must stop or can resume */
   inline void set_stopping(bool stopping);
 
+private:
   MY_ATTRIBUTE((warn_unused_result))
-  /** @return whether a tablespace reference was successfully acquired */
-  bool acquire()
+  /** Try to acquire a tablespace reference.
+  @return the old reference count (if STOPPING is set, it was not acquired) */
+  uint32_t acquire_low()
   {
     uint32_t n= 0;
-    while (!n_pending_ops.compare_exchange_strong(n, n + 1,
-                                                  std::memory_order_acquire,
-                                                  std::memory_order_relaxed))
-      if (UNIV_UNLIKELY(n & STOP_NEW_OPS))
-        return false;
-    return true;
+    while (!n_pending.compare_exchange_strong(n, n + 1,
+                                              std::memory_order_acquire,
+                                              std::memory_order_relaxed) &&
+           !(n & STOPPING));
+    return n;
   }
-  /** Release a tablespace reference.
-  @return whether this was the last reference */
-  bool release()
-  {
-    auto n= n_pending_ops.fetch_sub(1);
-    ut_ad(n & ~STOP_NEW_OPS);
-    return (n & ~STOP_NEW_OPS) == 1;
-  }
+public:
+  MY_ATTRIBUTE((warn_unused_result))
+  /** @return whether a tablespace reference was successfully acquired */
+  inline bool acquire_if_not_stopped(bool have_mutex= false);
 
   MY_ATTRIBUTE((warn_unused_result))
   /** Acquire a tablespace reference for I/O.
   @return whether the file is usable */
-  bool acquire_for_io()
+  bool acquire()
   {
-    return UNIV_LIKELY(!(n_pending_ios.fetch_add(1, std::memory_order_acquire)&
-                         CLOSING)) ||
-      prepare_for_io();
+    uint32_t n= acquire_low();
+    if (UNIV_LIKELY(!(n & (STOPPING | CLOSING))))
+      return true;
+    return UNIV_LIKELY(!(n & STOPPING)) && prepare();
   }
 
   /** Acquire another tablespace reference for I/O. */
-  inline void reacquire_for_io();
+  inline void reacquire();
 
-  /** Release a tablespace reference for I/O. */
-  void release_for_io()
+  /** Release a tablespace reference.
+  @return whether this was the last reference */
+  bool release()
   {
-    ut_d(uint32_t n=) n_pending_ios.fetch_sub(1, std::memory_order_release);
-    ut_ad(n & NOT_CLOSING);
+    uint32_t n= n_pending.fetch_sub(1, std::memory_order_release);
+    ut_ad(n & PENDING);
+    return (n & PENDING) == 1;
   }
-  /** @return number of pending reads or writes */
-  uint32_t pending_io() const
-  { return n_pending_ios.load(std::memory_order_acquire) & NOT_CLOSING; }
 
+  /** Clear the NEEDS_FSYNC flag */
+  void clear_flush()
+  { n_pending.fetch_and(~NEEDS_FSYNC, std::memory_order_release); }
+
+private:
+  /** @return pending operations (and flags) */
+  uint32_t pending()const { return n_pending.load(std::memory_order_acquire); }
+public:
+  /** @return whether close() of the file handle has been requested */
+  bool is_closing() const { return pending() & CLOSING; }
+  /** @return whether the tablespace is going to be dropped */
+  bool is_stopping() const { return pending() & STOPPING; }
+  /** @return number of pending operations */
+  bool is_ready_to_close() const
+  { return (pending() & (PENDING | CLOSING)) == CLOSING; }
+  /** @return whether fsync() or similar is needed */
+  bool needs_flush() const { return pending() & NEEDS_FSYNC; }
+  /** @return whether fsync() or similar is needed, and the tablespace is
+  not being dropped  */
+  bool needs_flush_not_stopping() const
+  { return (pending() & (NEEDS_FSYNC | STOPPING)) == NEEDS_FSYNC; }
+
+  uint32_t referenced() const { return pending() & PENDING; }
+private:
   MY_ATTRIBUTE((warn_unused_result))
   /** Prepare to close the file handle.
-  @return number of pending operations */
+  @return number of pending operations, possibly with NEEDS_FSYNC flag */
   uint32_t set_closing()
   {
-    return n_pending_ios.fetch_or(CLOSING, std::memory_order_acquire) &
-      NOT_CLOSING;
+    return n_pending.fetch_or(CLOSING, std::memory_order_acquire) &
+      (PENDING | NEEDS_FSYNC);
   }
-  /** @return whether close() of the file handle has been requested */
-  bool is_closing() const
-  { return n_pending_ios.load(std::memory_order_acquire) & CLOSING; }
+
+public:
+  /** Try to close a file to adhere to the innodb_open_files limit.
+  @param print_info   whether to diagnose why a file cannot be closed
+  @return whether a file was closed */
+  static bool try_to_close(bool print_info);
+
+  /** Close all tablespace files at shutdown */
+  static void close_all();
 
   /** @return last_freed_lsn */
   lsn_t get_last_freed_lsn() { return last_freed_lsn; }
@@ -585,6 +595,23 @@ public:
   {
     std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
     last_freed_lsn= lsn;
+  }
+
+  /** Note that the file will need fsync().
+  @return whether this needs to be added to fil_system.unflushed_spaces */
+  bool set_needs_flush()
+  {
+    uint32_t n= 1;
+    while (!n_pending.compare_exchange_strong(n, n | NEEDS_FSYNC,
+                                              std::memory_order_acquire,
+                                              std::memory_order_relaxed))
+    {
+      ut_ad(n & PENDING);
+      if (n & (NEEDS_FSYNC | STOPPING))
+        return false;
+    }
+
+    return true;
   }
 
   /** Clear all freed ranges for undo tablespace when InnoDB
@@ -879,17 +906,19 @@ public:
                              fil_type_t purpose, fil_space_crypt_t *crypt_data,
                              fil_encryption_t mode= FIL_ENCRYPTION_DEFAULT);
 
-  /** Acquire a tablespace for reading or writing a block.
-  @param id     tablespace ID
-  @return the tablespace, or nullptr if missing or inaccessible */
-  static fil_space_t *get_for_io(ulint id);
+  MY_ATTRIBUTE((warn_unused_result))
+  /** Acquire a tablespace reference.
+  @param id      tablespace identifier
+  @return tablespace
+  @retval nullptr if the tablespace is missing or inaccessible */
+  static fil_space_t *get(ulint id);
 
   /** Add/remove the free page in the freed ranges list.
   @param[in] offset     page number to be added
   @param[in] free       true if page to be freed */
   void free_page(uint32_t offset, bool add=true)
   {
-    std::lock_guard<std::mutex>	freed_lock(freed_range_mutex);
+    std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
     if (add)
       return freed_ranges.add_value(offset);
 
@@ -902,7 +931,7 @@ public:
   /** Add the range of freed pages */
   void add_free_ranges(range_set ranges)
   {
-    std::lock_guard<std::mutex>	freed_lock(freed_range_mutex);
+    std::lock_guard<std::mutex> freed_lock(freed_range_mutex);
     freed_ranges= std::move(ranges);
   }
 
@@ -942,16 +971,28 @@ public:
   @return status and file descriptor */
   fil_io_t io(const IORequest &type, os_offset_t offset, size_t len,
               void *buf, buf_page_t *bpage= nullptr);
-  /** Flush pending writes from the file system cache to the file */
-  void flush();
+  /** Flush pending writes from the file system cache to the file. */
+  inline void flush();
+  /** Flush pending writes from the file system cache to the file. */
+  void flush_low();
 
   /** Read the first page of a data file.
   @return whether the page was found valid */
   bool read_page0();
 
+  /** Determine the next tablespace for encryption key rotation.
+  @param space    current tablespace (nullptr to start from the beginning)
+  @param recheck  whether the removal condition needs to be rechecked after
+                  encryption parameters were changed
+  @param encrypt  expected state of innodb_encrypt_tables
+  @return the next tablespace
+  @retval nullptr upon reaching the end of the iteration */
+  static inline fil_space_t *next(fil_space_t *space, bool recheck,
+                                  bool encrypt);
+
 private:
   /** @return whether the file is usable for io() */
-  ATTRIBUTE_COLD bool prepare_for_io();
+  ATTRIBUTE_COLD bool prepare(bool have_mutex= false);
 #endif /*!UNIV_INNOCHECKSUM */
 };
 
@@ -960,7 +1001,8 @@ private:
 #define	FIL_SPACE_MAGIC_N	89472
 
 /** File node of a tablespace or the log data space */
-struct fil_node_t {
+struct fil_node_t final
+{
 	/** tablespace containing this file */
 	fil_space_t*	space;
 	/** file name; protected by fil_system.mutex and log_sys.mutex. */
@@ -980,12 +1022,8 @@ struct fil_node_t {
 	uint32_t	init_size;
 	/** maximum size of the file in database pages (0 if unlimited) */
 	uint32_t	max_size;
-	/** count of pending flushes; is_open must be true if nonzero */
-	ulint		n_pending_flushes;
 	/** whether the file is currently being extended */
 	Atomic_relaxed<bool> being_extended;
-	/** whether this file had writes after lasy fsync() */
-	bool		needs_flush;
 	/** link to other files in this tablespace */
 	UT_LIST_NODE_T(fil_node_t) chain;
 
@@ -1023,7 +1061,7 @@ struct fil_node_t {
   /** Prepare to free a file from fil_system.
   @param detach_handle whether to detach instead of closing a handle
   @return detached handle or OS_FILE_CLOSED */
-  pfs_os_file_t close_to_free(bool detach_handle= false);
+  inline pfs_os_file_t close_to_free(bool detach_handle= false);
 
   /** Update the data structures on write completion */
   inline void complete_write();
@@ -1035,13 +1073,6 @@ private:
 
 /** Value of fil_node_t::magic_n */
 #define	FIL_NODE_MAGIC_N	89389
-
-inline void fil_space_t::reacquire_for_io()
-{
-  ut_d(uint32_t n=) n_pending_ios.fetch_add(1, std::memory_order_relaxed);
-  ut_ad(n & NOT_CLOSING);
-  ut_ad(UT_LIST_GET_FIRST(chain)->is_open());
-}
 
 inline void fil_space_t::set_imported()
 {
@@ -1278,15 +1309,14 @@ inline uint16_t fil_page_get_type(const byte *page)
 #ifndef UNIV_INNOCHECKSUM
 
 /** Number of pending tablespace flushes */
-extern ulint	fil_n_pending_tablespace_flushes;
+extern Atomic_counter<ulint> fil_n_pending_tablespace_flushes;
 
 /** Look up a tablespace.
 The caller should hold an InnoDB table lock or a MDL that prevents
 the tablespace from being dropped during the operation,
 or the caller should be in single-threaded crash recovery mode
 (no user connections that could drop tablespaces).
-If this is not the case, fil_space_acquire() and fil_space_t::release()
-should be used instead.
+Normally, fil_space_t::get() should be used instead.
 @param[in]	id	tablespace ID
 @return tablespace, or NULL if not found */
 fil_space_t*
@@ -1352,12 +1382,8 @@ public:
 	fil_space_t*	temp_space;	/*!< The innodb_temporary tablespace */
   /** Map of fil_space_t::id to fil_space_t* */
   hash_table_t spaces;
-	sized_ilist<fil_space_t, unflushed_spaces_tag_t> unflushed_spaces;
-					/*!< list of those
-					tablespaces whose files contain
-					unflushed writes; those spaces have
-					at least one file node where
-					needs_flush == true */
+  /** tablespaces for which fil_space_t::needs_flush() holds */
+  sized_ilist<fil_space_t, unflushed_spaces_tag_t> unflushed_spaces;
   /** number of currently open files; protected by mutex */
   ulint n_open;
 	ulint		max_assigned_id;/*!< maximum space id in the existing
@@ -1400,12 +1426,44 @@ public:
 /** The tablespace memory cache. */
 extern fil_system_t	fil_system;
 
+inline void fil_space_t::reacquire()
+{
+  ut_d(uint32_t n=) n_pending.fetch_add(1, std::memory_order_relaxed);
+  ut_d(if (mutex_own(&fil_system.mutex)) return);
+  ut_ad(n & PENDING);
+  ut_ad(UT_LIST_GET_FIRST(chain)->is_open());
+}
+
+inline bool fil_space_t::acquire_if_not_stopped(bool have_mutex)
+{
+  ut_ad(mutex_own(&fil_system.mutex) == have_mutex);
+  const uint32_t n= acquire_low();
+  if (UNIV_LIKELY(!(n & (STOPPING | CLOSING))))
+    return true;
+  return UNIV_LIKELY(!(n & CLOSING)) || prepare(have_mutex);
+}
+
 /** Note that operations on the tablespace must stop or can resume */
 inline void fil_space_t::set_stopping(bool stopping)
 {
   ut_ad(mutex_own(&fil_system.mutex));
-  ut_d(auto n=) n_pending_ops.fetch_xor(STOP_NEW_OPS);
-  ut_ad(!(n & STOP_NEW_OPS) == stopping);
+  ut_d(auto n=) n_pending.fetch_xor(STOPPING, std::memory_order_relaxed);
+  ut_ad(!(n & STOPPING) == stopping);
+}
+
+/** Flush pending writes from the file system cache to the file. */
+inline void fil_space_t::flush()
+{
+  ut_ad(!mutex_own(&fil_system.mutex));
+
+  ut_ad(purpose == FIL_TYPE_TABLESPACE || purpose == FIL_TYPE_IMPORT);
+  if (srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)
+  {
+    ut_ad(!is_in_unflushed_spaces);
+    ut_ad(!needs_flush());
+  }
+  else
+    flush_low();
 }
 
 /** @return the size in pages (0 if unreadable) */
@@ -1450,8 +1508,6 @@ fil_space_free(
 void fil_space_set_recv_size_and_flags(ulint id, uint32_t size,
                                        uint32_t flags);
 
-/** Close all tablespace files at shutdown */
-void fil_close_all_files();
 /*******************************************************************//**
 Sets the max tablespace id counter if the given number is bigger than the
 previous value. */
@@ -1468,42 +1524,6 @@ dberr_t
 fil_write_flushed_lsn(
 	lsn_t	lsn)
 MY_ATTRIBUTE((warn_unused_result));
-
-/** Acquire a tablespace when it could be dropped concurrently.
-Used by background threads that do not necessarily hold proper locks
-for concurrency control.
-@param[in]	id	tablespace ID
-@param[in]	silent	whether to silently ignore missing tablespaces
-@return	the tablespace
-@retval	NULL if missing or being deleted */
-fil_space_t* fil_space_acquire_low(ulint id, bool silent)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Acquire a tablespace when it could be dropped concurrently.
-Used by background threads that do not necessarily hold proper locks
-for concurrency control.
-@param[in]	id	tablespace ID
-@return	the tablespace
-@retval	NULL if missing or being deleted or truncated */
-inline
-fil_space_t*
-fil_space_acquire(ulint id)
-{
-	return (fil_space_acquire_low(id, false));
-}
-
-/** Acquire a tablespace that may not exist.
-Used by background threads that do not necessarily hold proper locks
-for concurrency control.
-@param[in]	id	tablespace ID
-@return	the tablespace
-@retval	NULL if missing or being deleted */
-inline
-fil_space_t*
-fil_space_acquire_silent(ulint id)
-{
-	return (fil_space_acquire_low(id, true));
-}
 
 /** Replay a file rename operation if possible.
 @param[in]	space_id	tablespace identifier

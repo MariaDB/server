@@ -288,7 +288,7 @@ buf_read_page_low(
 			<< page_id;
 		ut_ad(0);
 nothing_read:
-		space->release_for_io();
+		space->release();
 		return false;
 	}
 
@@ -358,7 +358,7 @@ nothing_read:
 
 		/* The i/o was already completed in space->io() */
 		*err = buf_page_read_complete(bpage, *fio.node);
-		space->release_for_io();
+		space->release();
 
 		if (*err != DB_SUCCESS) {
 			return false;
@@ -402,7 +402,7 @@ buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf)
   if (buf_pool.n_pend_reads > buf_pool.curr_size / BUF_READ_AHEAD_PEND_LIMIT)
     return 0;
 
-  fil_space_t* space= fil_space_acquire(page_id.space());
+  fil_space_t* space= fil_space_t::get(page_id.space());
   if (!space)
     return 0;
 
@@ -431,7 +431,7 @@ no_read_ahead:
   return 0;
 
 read_ahead:
-  if (!space->acquire_for_io())
+  if (!space->acquire_if_not_stopped())
     goto no_read_ahead;
 
   /* Read all the suitable blocks within the area */
@@ -444,7 +444,7 @@ read_ahead:
     if (space->is_stopping())
       break;
     dberr_t err;
-    space->reacquire_for_io();
+    space->reacquire();
     if (buf_read_page_low(&err, space, false, ibuf_mode, i, zip_size, false))
       count++;
   }
@@ -453,7 +453,6 @@ read_ahead:
     DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
 			  count, space->chain.start->name,
 			  low.page_no()));
-  space->release_for_io();
   space->release();
 
   /* Read ahead is considered one I/O operation for the purpose of
@@ -478,22 +477,13 @@ after decryption normal page checksum does not match.
 @retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
 dberr_t buf_read_page(const page_id_t page_id, ulint zip_size)
 {
-  fil_space_t *space= fil_space_acquire(page_id.space());
+  fil_space_t *space= fil_space_t::get(page_id.space());
   if (!space)
   {
     ib::info() << "trying to read page " << page_id
                << " in nonexisting or being-dropped tablespace";
     return DB_TABLESPACE_DELETED;
   }
-  else if (!space->acquire_for_io())
-  {
-    ib::warn() << "unable to read " << page_id << " from tablespace "
-               << space->name;
-    space->release();
-    return DB_PAGE_CORRUPTED;
-  }
-
-  space->release();
 
   dberr_t err;
   if (buf_read_page_low(&err, space, true, BUF_READ_ANY_PAGE,
@@ -607,22 +597,15 @@ buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf)
     read-ahead, as that could break the ibuf page access order */
     return 0;
 
-  fil_space_t *space= fil_space_acquire(page_id.space());
+  fil_space_t *space= fil_space_t::get(page_id.space());
   if (!space)
     return 0;
-  else
-  {
-    bool ok= space->acquire_for_io();
-    space->release();
-    if (!ok)
-      return 0;
-  }
 
   if (high_1.page_no() > space->last_page_number())
   {
     /* The area is not whole. */
 fail:
-    space->release_for_io();
+    space->release();
     return 0;
   }
 
@@ -721,7 +704,7 @@ failed:
     if (space->is_stopping())
       break;
     dberr_t err;
-    space->reacquire_for_io();
+    space->reacquire();
     count+= buf_read_page_low(&err, space, false, ibuf_mode, new_low, zip_size,
                               false);
   }
@@ -730,7 +713,7 @@ failed:
     DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
                           count, space->chain.start->name,
                           new_low.page_no()));
-  space->release_for_io();
+  space->release();
 
   /* Read ahead is considered one I/O operation for the purpose of
   LRU policy decision. */
@@ -747,7 +730,7 @@ highest page number the last in the array
 @param[in]	n		number of page numbers in the array */
 void buf_read_recv_pages(ulint space_id, const uint32_t* page_nos, ulint n)
 {
-	fil_space_t* space = fil_space_t::get_for_io(space_id);
+	fil_space_t* space = fil_space_t::get(space_id);
 
 	if (!space) {
 		/* The tablespace is missing or unreadable: do nothing */
@@ -784,7 +767,7 @@ void buf_read_recv_pages(ulint space_id, const uint32_t* page_nos, ulint n)
 		}
 
 		dberr_t err;
-		space->reacquire_for_io();
+		space->reacquire();
 		buf_read_page_low(&err, space, false,
 				  BUF_READ_ANY_PAGE, cur_page_id, zip_size,
 				  true);
@@ -798,5 +781,5 @@ void buf_read_recv_pages(ulint space_id, const uint32_t* page_nos, ulint n)
 
         DBUG_PRINT("ib_buf", ("recovery read (%u pages) for %s", n,
 			      space->chain.start->name));
-	space->release_for_io();
+	space->release();
 }

@@ -466,9 +466,9 @@ free pages available.
 @return true if we were able to make the reservation */
 bool
 fsp_reserve_free_extents(
-	ulint*		n_reserved,
+	uint32_t*	n_reserved,
 	fil_space_t*	space,
-	ulint		n_ext,
+	uint32_t	n_ext,
 	fsp_reserve_t	alloc_type,
 	mtr_t*		mtr,
 	uint32_t	n_pages = 2);

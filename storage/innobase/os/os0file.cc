@@ -4168,7 +4168,7 @@ os_aio_print(FILE*	file)
 		ULINTPF " OS file writes, "
 		ULINTPF " OS fsyncs\n",
 		log_sys.get_pending_flushes(),
-		fil_n_pending_tablespace_flushes,
+		ulint{fil_n_pending_tablespace_flushes},
 		os_n_file_reads,
 		os_n_file_writes,
 		os_n_fsyncs);

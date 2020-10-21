@@ -1641,7 +1641,7 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
 {
 	fseg_inode_t*	inode;
 	ib_id_t		seg_id;
-	ulint		n_reserved;
+	uint32_t	n_reserved;
 
 	DBUG_ENTER("fseg_create");
 
@@ -2196,7 +2196,7 @@ fseg_alloc_free_page_general(
 	fil_space_t*	space;
 	buf_block_t*	iblock;
 	buf_block_t*	block;
-	ulint		n_reserved;
+	uint32_t	n_reserved;
 
 	space_id = page_get_space_id(page_align(seg_header));
 	space = mtr_x_lock_space(space_id, mtr);
@@ -2308,64 +2308,64 @@ free pages available.
 @return true if we were able to make the reservation */
 bool
 fsp_reserve_free_extents(
-	ulint*		n_reserved,
+	uint32_t*	n_reserved,
 	fil_space_t*	space,
-	ulint		n_ext,
+	uint32_t	n_ext,
 	fsp_reserve_t	alloc_type,
 	mtr_t*		mtr,
 	uint32_t	n_pages)
 {
-	ulint		n_free_list_ext;
-	ulint		free_limit;
-	ulint		size;
-	ulint		n_free;
-	ulint		n_free_up;
 	ulint		reserve;
 	size_t		total_reserved = 0;
 
 	ut_ad(mtr);
 	*n_reserved = n_ext;
 
+	const uint32_t extent_size = FSP_EXTENT_SIZE;
+
 	mtr_x_lock_space(space, mtr);
-	const ulint physical_size = space->physical_size();
+	const unsigned physical_size = space->physical_size();
 
 	buf_block_t* header = fsp_get_header(space, mtr);
 try_again:
-	size = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SIZE + header->frame);
+	uint32_t size = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SIZE
+					 + header->frame);
 	ut_ad(size == space->size_in_header);
 
-	if (size < FSP_EXTENT_SIZE && n_pages < FSP_EXTENT_SIZE / 2) {
+	if (size < extent_size && n_pages < extent_size / 2) {
 		/* Use different rules for small single-table tablespaces */
 		*n_reserved = 0;
 		return(fsp_reserve_free_pages(space, header, size,
 					      mtr, n_pages));
 	}
 
-	n_free_list_ext = flst_get_len(FSP_HEADER_OFFSET + FSP_FREE
-				       + header->frame);
+	uint32_t n_free_list_ext = flst_get_len(FSP_HEADER_OFFSET + FSP_FREE
+						+ header->frame);
 	ut_ad(space->free_len == n_free_list_ext);
 
-	free_limit = mach_read_from_4(FSP_HEADER_OFFSET + FSP_FREE_LIMIT
-				      + header->frame);
+	uint32_t free_limit = mach_read_from_4(FSP_HEADER_OFFSET
+					       + FSP_FREE_LIMIT
+					       + header->frame);
 	ut_ad(space->free_limit == free_limit);
 
 	/* Below we play safe when counting free extents above the free limit:
 	some of them will contain extent descriptor pages, and therefore
 	will not be free extents */
 
+	uint32_t n_free_up;
+
 	if (size >= free_limit) {
-		n_free_up = (size - free_limit) / FSP_EXTENT_SIZE;
+		n_free_up = (size - free_limit) / extent_size;
+		if (n_free_up) {
+			n_free_up--;
+			n_free_up -= n_free_up / (physical_size / extent_size);
+		}
 	} else {
 		ut_ad(alloc_type == FSP_BLOB);
 		n_free_up = 0;
 	}
 
-	if (n_free_up > 0) {
-		n_free_up--;
-		n_free_up -= n_free_up / (physical_size / FSP_EXTENT_SIZE);
-	}
-
-	n_free = n_free_list_ext + n_free_up;
+	uint32_t n_free = n_free_list_ext + n_free_up;
 
 	switch (alloc_type) {
 	case FSP_NORMAL:
@@ -2373,7 +2373,7 @@ try_again:
 		and 1 extent + 0.5 % to cleaning operations; NOTE: this source
 		code is duplicated in the function below! */
 
-		reserve = 2 + ((size / FSP_EXTENT_SIZE) * 2) / 200;
+		reserve = 2 + ((size / extent_size) * 2) / 200;
 
 		if (n_free <= reserve + n_ext) {
 
@@ -2383,7 +2383,7 @@ try_again:
 	case FSP_UNDO:
 		/* We reserve 0.5 % of the space size to cleaning operations */
 
-		reserve = 1 + ((size / FSP_EXTENT_SIZE) * 1) / 200;
+		reserve = 1 + ((size / extent_size) * 1) / 200;
 
 		if (n_free <= reserve + n_ext) {
 
@@ -2435,10 +2435,12 @@ fseg_free_page_low(
 	ut_ad(iblock->frame == page_align(seg_inode));
 	ut_d(space->modify_check(*mtr));
 
+	const uint32_t extent_size = FSP_EXTENT_SIZE;
+	ut_ad(ut_is_2pow(extent_size));
 	buf_block_t* xdes;
 	xdes_t* descr = xdes_get_descriptor(space, offset, &xdes, mtr);
 
-	if (xdes_is_free(descr, offset % FSP_EXTENT_SIZE)) {
+	if (xdes_is_free(descr, offset & (extent_size - 1))) {
 		ib::fatal() << "InnoDB is trying to free page "
 			<< page_id_t(space->id, offset)
 			<< " though it is already marked as free in the"
@@ -2499,7 +2501,7 @@ fseg_free_page_low(
 		flst_add_last(iblock, static_cast<uint16_t>(FSEG_NOT_FULL
 							    + ioffset),
 			      xdes, xoffset, mtr);
-		not_full_n_used += FSP_EXTENT_SIZE - 1;
+		not_full_n_used += extent_size - 1;
 	} else {
 		ut_a(not_full_n_used > 0);
 		not_full_n_used--;
@@ -2507,7 +2509,7 @@ fseg_free_page_low(
 
 	mtr->write<4>(*iblock, p_not_full, not_full_n_used);
 
-	const ulint	bit = offset % FSP_EXTENT_SIZE;
+	const ulint	bit = offset & (extent_size - 1);
 
 	xdes_set_free<true>(*xdes, descr, bit, mtr);
 

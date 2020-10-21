@@ -781,7 +781,7 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
         (space == fil_system.temp_space));
   ut_ad(space->purpose == FIL_TYPE_TABLESPACE ||
         space->atomic_write_supported);
-  ut_ad(space->pending_io());
+  ut_ad(space->referenced());
 
   rw_lock_t *rw_lock;
 
@@ -849,7 +849,7 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
     buf_release_freed_page(&block->page);
   else
   {
-    space->reacquire_for_io();
+    space->reacquire();
     ut_ad(status == buf_page_t::NORMAL || status == buf_page_t::INIT_ON_FLUSH);
     size_t size, orig_size;
     IORequest::Type type= lru ? IORequest::WRITE_LRU : IORequest::WRITE_ASYNC;
@@ -1024,7 +1024,7 @@ static void buf_flush_freed_pages(fil_space_t *space)
 
     if (punch_hole)
     {
-      space->reacquire_for_io();
+      space->reacquire();
       space->io(IORequest(IORequest::PUNCH_RANGE),
                           os_offset_t{range.first} * physical_size,
                           (range.last - range.first + 1) * physical_size,
@@ -1034,7 +1034,7 @@ static void buf_flush_freed_pages(fil_space_t *space)
     {
       for (os_offset_t i= range.first; i <= range.last; i++)
       {
-        space->reacquire_for_io();
+        space->reacquire();
         space->io(IORequest(IORequest::WRITE_ASYNC),
                   i * physical_size, physical_size,
                   const_cast<byte*>(field_ref_zero));
@@ -1165,7 +1165,7 @@ static ulint buf_free_from_unzip_LRU_list_batch(ulint max)
 @retval nullptr if the pages for this tablespace should be discarded */
 static fil_space_t *buf_flush_space(const uint32_t id)
 {
-  fil_space_t *space= fil_space_t::get_for_io(id);
+  fil_space_t *space= fil_space_t::get(id);
   if (space)
     buf_flush_freed_pages(space);
   return space;
@@ -1256,7 +1256,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n)
         if (last_space_id != space_id)
         {
           if (space)
-            space->release_for_io();
+            space->release();
           space= buf_flush_space(space_id);
           last_space_id= space_id;
         }
@@ -1265,7 +1265,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n)
       }
       else if (space->is_stopping())
       {
-        space->release_for_io();
+        space->release();
         space= nullptr;
       }
 
@@ -1293,7 +1293,7 @@ reacquire_mutex:
   buf_pool.lru_hp.set(nullptr);
 
   if (space)
-    space->release_for_io();
+    space->release();
 
   /* We keep track of all flushes happening as part of LRU flush. When
   estimating the desired rate at which flush_list should be flushed,
@@ -1388,7 +1388,7 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn)
         if (last_space_id != space_id)
         {
           if (space)
-            space->release_for_io();
+            space->release();
           space= buf_flush_space(space_id);
           last_space_id= space_id;
         }
@@ -1397,7 +1397,7 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn)
       }
       else if (space->is_stopping())
       {
-        space->release_for_io();
+        space->release();
         space= nullptr;
       }
 
@@ -1426,7 +1426,7 @@ reacquire_mutex:
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
   if (space)
-    space->release_for_io();
+    space->release();
 
   if (scanned)
     MONITOR_INC_VALUE_CUMULATIVE(MONITOR_FLUSH_BATCH_SCANNED,

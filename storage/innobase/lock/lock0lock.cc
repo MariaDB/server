@@ -4950,7 +4950,7 @@ static void lock_rec_block_validate(const page_id_t page_id)
 	discard or rebuild a tablespace do hold an exclusive table
 	lock, which would conflict with any locks referring to the
 	tablespace from other transactions. */
-	if (fil_space_t* space = fil_space_acquire(page_id.space())) {
+	if (fil_space_t* space = fil_space_t::get(page_id.space())) {
 		dberr_t err = DB_SUCCESS;
 		mtr_start(&mtr);
 
