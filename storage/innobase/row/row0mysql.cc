@@ -2664,27 +2664,6 @@ skip:
 	goto loop;
 }
 
-/*********************************************************************//**
-Get the background drop list length. NOTE: the caller must own the
-drop list mutex!
-@return how many tables in list */
-ulint
-row_get_background_drop_list_len_low(void)
-/*======================================*/
-{
-	ulint	len;
-
-	mutex_enter(&row_drop_list_mutex);
-
-	ut_a(row_mysql_drop_list_inited);
-
-	len = UT_LIST_GET_LEN(row_mysql_drop_list);
-
-	mutex_exit(&row_drop_list_mutex);
-
-	return(len);
-}
-
 /** Drop garbage tables during recovery. */
 void
 row_mysql_drop_garbage_tables()
