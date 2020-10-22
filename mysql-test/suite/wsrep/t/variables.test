@@ -1,6 +1,7 @@
 --source include/have_wsrep.inc
 --source include/force_restart.inc
 --source include/have_innodb.inc
+--source include/galera_have_debug_sync.inc
 
 call mtr.add_suppression("WSREP: Initial position was provided by configuration or SST, avoiding override");
 
