@@ -531,6 +531,7 @@ DROP TABLE merge_t;
 
 SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '{"c":"d"}');
 SELECT JSON_MERGE_PATCH(NULL, '[1,2,3]');
+SELECT JSON_MERGE_PATCH(NULL, 'a');
 SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '[1,2,3]', '{"c":null,"d":"e"}');
 
 --error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
