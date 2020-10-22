@@ -10,6 +10,7 @@
 #
 ##############################################################################
 
+GCF-354 : MDEV-24010 galera_3nodes.GCF-354 MTR fails : WSREP has not yet prepared node for application use
 galera_gtid_2_cluster : MDEV-23775 Galera test failure on galera_3nodes.galera_gtid_2_cluster
 galera_ipv6_mariabackup : MDEV-21770 galera_3nodes.galera_ipv6_mariabackup fails
 galera_ipv6_mariabackup_section : MDEV-21770 galera_3nodes.galera_ipv6_mariabackup fails
