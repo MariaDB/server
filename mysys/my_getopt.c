@@ -1522,7 +1522,7 @@ void my_print_help(const struct my_option *options)
         count= optp->typelib->count;
         break;
       case GET_SET: 
-        typelib_help= ". Any combination of: ";
+        typelib_help= ". For name, any combination of: ";
         count= optp->typelib->count;
         break;
       case GET_FLAGSET:
@@ -1599,7 +1599,7 @@ void my_print_variables(const struct my_option *options)
       switch ((optp->var_type & GET_TYPE_MASK)) {
       case GET_SET:
         if (!(llvalue= *(ulonglong*) value))
-	  printf("%s\n", "");
+	  printf("%s\n", "(Empty set)");
 	else
         for (nr= 0; llvalue && nr < optp->typelib->count; nr++, llvalue >>=1)
 	{

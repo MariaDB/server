@@ -151,8 +151,9 @@ The following specify which files/extra groups are read (specified before remain
  Short timeout for the two-step deadlock detection (in
  microseconds)
  --default-regex-flags=name 
- Default flags for the regex library. Any combination of: 
- DOTALL, DUPNAMES, EXTENDED, EXTRA, MULTILINE, UNGREEDY
+ Default flags for the regex library. For name, any
+ combination of: DOTALL, DUPNAMES, EXTENDED, EXTRA, 
+ MULTILINE, UNGREEDY
  --default-storage-engine=name 
  The default storage engine for new tables
  --default-time-zone=name 
@@ -386,8 +387,8 @@ The following specify which files/extra groups are read (specified before remain
  not specified then 'datadir'/'log-basename'.err or the
  'pid-file' path with extension .err is used
  --log-isam[=name]   Log all MyISAM changes to file.
- --log-output=name   How logs should be written. Any combination of: NONE, 
- FILE, TABLE
+ --log-output=name   How logs should be written. For name, any combination of:
+ NONE, FILE, TABLE
  --log-queries-not-using-indexes 
  Log queries that are executed without benefit of any
  index to the slow log if it is open
@@ -401,10 +402,10 @@ The following specify which files/extra groups are read (specified before remain
  administrative statements to the slow log if it is open.
  (Defaults to on; use --skip-log-slow-admin-statements to disable.)
  --log-slow-filter=name 
- Log only certain types of queries. Any combination of: 
- admin, filesort, filesort_on_disk, full_join, full_scan, 
- query_cache, query_cache_miss, tmp_table, 
- tmp_table_on_disk
+ Log only certain types of queries. For name, any
+ combination of: admin, filesort, filesort_on_disk, 
+ full_join, full_scan, query_cache, query_cache_miss, 
+ tmp_table, tmp_table_on_disk
  --log-slow-rate-limit=# 
  Write to slow log every #th slow query. Set to 1 to log
  everything. Increase it to reduce the size of the slow or
@@ -414,8 +415,8 @@ The following specify which files/extra groups are read (specified before remain
  log if it is open.
  (Defaults to on; use --skip-log-slow-slave-statements to disable.)
  --log-slow-verbosity=name 
- Verbosity level for the slow log. Any combination of: 
- innodb, query_plan, explain
+ Verbosity level for the slow log. For name, any
+ combination of: innodb, query_plan, explain
  --log-tc=name       Path to transaction coordinator log (used for
  transactions that affect more than one storage engine,
  when binary log is disabled).
@@ -531,8 +532,8 @@ The following specify which files/extra groups are read (specified before remain
  MySQL tables
  --myisam-recover-options[=name] 
  Specifies how corrupted tables should be automatically
- repaired. Any combination of: DEFAULT, BACKUP, FORCE, 
- QUICK, BACKUP_ALL, OFF
+ repaired. For name, any combination of: DEFAULT, BACKUP, 
+ FORCE, QUICK, BACKUP_ALL, OFF
  --myisam-repair-threads=# 
  If larger than 1, when repairing a MyISAM table all
  indexes will be created in parallel, with one thread per
@@ -565,7 +566,7 @@ The following specify which files/extra groups are read (specified before remain
  See also --old-mode
  --old-alter-table   Use old, non-optimized alter table
  --old-mode=name     Used to emulate old behavior from earlier MariaDB or
- MySQL versions. Any combination of: 
+ MySQL versions. For name, any combination of: 
  NO_DUP_KEY_WARNINGS_WITH_IGNORE, NO_PROGRESS_INFO, 
  ZERO_DATE_TIME_CAST
  --old-passwords     Use old password encryption method (needed for 4.0 and
@@ -1063,8 +1064,8 @@ The following specify which files/extra groups are read (specified before remain
  --slave-type-conversions=name 
  Set of slave type conversions that are enabled. If the
  variable is empty, no conversions are allowed and it is
- expected that the types match exactly. Any combination
- of: ALL_LOSSY, ALL_NON_LOSSY
+ expected that the types match exactly. For name, any
+ combination of: ALL_LOSSY, ALL_NON_LOSSY
  --slow-launch-time=# 
  If creating the thread takes longer than this value (in
  seconds), the Slow_launch_threads counter will be
@@ -1081,8 +1082,8 @@ The following specify which files/extra groups are read (specified before remain
  --sort-buffer-size=# 
  Each thread that needs to do a sort allocates a buffer of
  this size
- --sql-mode=name     Sets the sql mode. Any combination of: REAL_AS_FLOAT, 
- PIPES_AS_CONCAT, ANSI_QUOTES, IGNORE_SPACE, 
+ --sql-mode=name     Sets the sql mode. For name, any combination of: 
+ REAL_AS_FLOAT, PIPES_AS_CONCAT, ANSI_QUOTES, IGNORE_SPACE,
  IGNORE_BAD_TABLE_OPTIONS, ONLY_FULL_GROUP_BY, 
  NO_UNSIGNED_SUBTRACTION, NO_DIR_IN_CREATE, POSTGRESQL, 
  ORACLE, MSSQL, DB2, MAXDB, NO_KEY_OPTIONS, 
@@ -1250,7 +1251,7 @@ deadlock-search-depth-long 15
 deadlock-search-depth-short 4
 deadlock-timeout-long 50000000
 deadlock-timeout-short 10000
-default-regex-flags 
+default-regex-flags (Empty set)
 default-storage-engine myisam
 default-time-zone (No default value)
 default-tmp-storage-engine (No default value)
@@ -1329,7 +1330,7 @@ log-slow-admin-statements TRUE
 log-slow-filter admin,filesort,filesort_on_disk,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
 log-slow-rate-limit 1
 log-slow-slave-statements TRUE
-log-slow-verbosity 
+log-slow-verbosity (Empty set)
 log-tc tc.log
 log-warnings 2
 long-query-time 10
@@ -1383,7 +1384,7 @@ net-retry-count 10
 net-write-timeout 60
 old FALSE
 old-alter-table FALSE
-old-mode 
+old-mode (Empty set)
 old-passwords FALSE
 old-style-user-limits FALSE
 optimizer-prune-level 1
@@ -1499,7 +1500,7 @@ slave-run-triggers-for-rbr NO
 slave-skip-errors (No default value)
 slave-sql-verify-checksum TRUE
 slave-transaction-retries 10
-slave-type-conversions 
+slave-type-conversions (Empty set)
 slow-launch-time 2
 slow-query-log FALSE
 sort-buffer-size 2097152
