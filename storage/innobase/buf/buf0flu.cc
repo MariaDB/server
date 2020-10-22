@@ -1468,8 +1468,12 @@ static std::atomic_flag log_flush_pending;
 /** Advance log_sys.get_flushed_lsn() */
 static void log_flush(void *)
 {
-  os_aio_wait_until_no_pending_writes(); // Try to prevent stalls on Windows.
+  /* Between batches, we try to prevent I/O stalls by these calls.
+  This should not be needed for correctness. */
+  os_aio_wait_until_no_pending_writes();
   fil_flush_file_spaces();
+
+  /* Guarantee progress for buf_flush_lists(). */
   log_write_up_to(log_sys.get_lsn(), true);
   log_flush_pending.clear();
 }
