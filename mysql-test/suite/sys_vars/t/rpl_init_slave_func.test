@@ -29,8 +29,13 @@
 ###############################################################################
 
 source include/master-slave.inc;
---echo connection slave
-connection slave;
+
+# Since a part of slave SQL thread initialisation happens after Slave_SQL_Running
+# has been set to Yes, there is a race condition between initialisation above and
+# init_slave setting given below. Synchronise slave applier with master to ensure
+# init_slave is complete and applier had processed few events like FD.
+--source include/sync_slave_sql_with_master.inc
+
 --disable_query_log
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 --enable_query_log
@@ -67,14 +72,15 @@ let $wait_condition= SELECT @@global.max_connections = @start_max_connections;
 --let $assert_text= @@global.max_connections = @start_max_connections
 --let $assert_cond= @@global.max_connections = @start_max_connections
 --source include/assert.inc
-#
-# reset of the server
-STOP SLAVE;
---wait_for_slave_to_stop
-RESET MASTER;
-RESET SLAVE;
-START SLAVE;
-source include/wait_for_slave_to_start.inc;
+
+--source include/restart_slave_sql.inc
+
+# Upon slave start, sync the applier with master, to ensure slave has
+# completed init_slave command execution and processed FD event from the
+# master.
+--connection master
+--source include/sync_slave_sql_with_master.inc
+
 #
 # wait for the slave threads have set the global variable.
 let $wait_timeout= 90;
@@ -88,12 +94,7 @@ let $wait_condition= SELECT @@global.max_connections = @start_max_connections + 
 # Setting a variable(which is local to a session) and must not be visible
 SET @@global.init_slave = "SET @a=5";
 #
-STOP SLAVE;
---wait_for_slave_to_stop
-RESET MASTER;
-RESET SLAVE;
-START SLAVE;
-source include/wait_for_slave_to_start.inc;
+--source include/restart_slave_sql.inc
 #
 SHOW VARIABLES LIKE 'init_slave';
 # expect NULL
