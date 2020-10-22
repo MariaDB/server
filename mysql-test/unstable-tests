@@ -188,6 +188,7 @@ main.range_vs_index_merge_innodb       : MDEV-15283 - Server has gone away
 main.repair                            : Modified in 10.5.4
 main.row                               : Modified in 10.5.4
 main.rowid_filter_innodb               : MDEV-20538 - Wrong result
+main.rowid_filter_innodb_debug         : Added in 10.5.7
 main.rowid_filter_myisam               : Added in 10.5.5
 main.select                            : MDEV-20532 - Floating point differences
 main.select_jcl6                       : MDEV-20532 - Floating point differences

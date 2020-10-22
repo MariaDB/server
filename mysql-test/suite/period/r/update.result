@@ -281,3 +281,14 @@ create table t1 (s date, e date, period for app(s,e), f varchar(8)) engine=aria 
 insert into t1 values ('2024-05-13','2026-03-25','foo');
 update t1 for portion of app from '2024-04-02' to '2026-03-15' set f = 'bar';
 drop table t1;
+# MDEV-19130 Assertion
+# `next_insert_id >= auto_inc_interval_for_cur_row.minimum()'
+# failed in handler::update_auto_increment after error 167
+create table t1 (id int auto_increment, f int, s datetime, e datetime, period for p(s,e), primary key(id));
+insert into t1 (s,e) values ('1994-01-06','2004-11-30'),('1994-06-21','1997-06-20');
+update ignore t1 set id = 2429681664;
+Warnings:
+Warning	1264	Out of range value for column 'id' at row 1
+Warning	1264	Out of range value for column 'id' at row 2
+update ignore t1 for portion of p from '1995-07-06' to '2009-01-12' set f = 1;
+drop table t1;

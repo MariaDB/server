@@ -2188,3 +2188,8 @@ sleep(50)
 connection extracon;
 sleep(5.5)
 0
+connect  comp_con,localhost,root,,,,,COMPRESS;
+SELECT 1;
+1
+1
+disconnect comp_con;

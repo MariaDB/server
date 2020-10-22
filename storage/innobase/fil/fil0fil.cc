@@ -368,6 +368,12 @@ static bool fil_node_open_file_low(fil_node_t *node)
   ut_ad(!node->is_open());
   ut_ad(node->space->is_closing());
   ut_ad(mutex_own(&fil_system.mutex));
+  const auto flags= node->space->flags;
+  bool o_direct_possible= !FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
+  static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096, "compatibility");
+  if (const auto ssize= FSP_FLAGS_GET_ZIP_SSIZE(flags))
+    if (ssize < 3)
+      o_direct_possible= false;
 
   for (;;)
   {
@@ -376,8 +382,9 @@ static bool fil_node_open_file_low(fil_node_t *node)
                                  node->is_raw_disk
                                  ? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
                                  : OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
-                                 OS_FILE_AIO, OS_DATA_FILE, srv_read_only_mode,
-                                 &success);
+                                 OS_FILE_AIO, o_direct_possible
+                                 ? OS_DATA_FILE : OS_DATA_FILE_NO_O_DIRECT,
+                                 srv_read_only_mode, &success);
     if (success)
       break;
 

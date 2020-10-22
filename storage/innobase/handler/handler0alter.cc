@@ -553,8 +553,10 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 			mem_heap_dup(heap, table.v_col_names,
 				     ulint(end - table.v_col_names)));
 		v_cols = static_cast<dict_v_col_t*>(
-			mem_heap_dup(heap, table.v_cols,
-				     table.n_v_cols * sizeof *v_cols));
+			mem_heap_alloc(heap, table.n_v_cols * sizeof(*v_cols)));
+		for (ulint i = table.n_v_cols; i--; ) {
+			new (&v_cols[i]) dict_v_col_t(table.v_cols[i]);
+		}
 	} else {
 		ut_ad(table.n_v_cols == 0);
 		v_col_names = NULL;
@@ -570,7 +572,6 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 	for (unsigned i = 0; i < n_v_def; i++) {
 		dict_v_col_t& v = v_cols[i];
 		DBUG_ASSERT(v.v_indexes.empty());
-		v.n_v_indexes = 0;
 		v.base_col = static_cast<dict_col_t**>(
 			mem_heap_dup(heap, v.base_col,
 				     v.num_base * sizeof *v.base_col));
@@ -680,7 +681,6 @@ dup_dropped:
 					<dict_v_col_t*>(f.col);
 				v_col->v_indexes.push_front(
 					dict_v_idx_t(index, i));
-				v_col->n_v_indexes++;
 			}
 		}
 	}
@@ -4963,7 +4963,6 @@ prepare_inplace_add_virtual(
 					  - ctx->num_to_drop_vcol + j)
 			& dict_index_t::MAX_N_FIELDS;
 
-		ctx->add_vcol[j].n_v_indexes = 0;
 		/* MDEV-17468: Do this on ctx->instant_table later */
 		innodb_base_col_setup(ctx->old_table, field, &ctx->add_vcol[j]);
 		j++;
@@ -10805,11 +10804,11 @@ ha_innobase::commit_inplace_alter_table(
 
 		/* Exclusively lock the table, to ensure that no other
 		transaction is holding locks on the table while we
-		change the table definition. The meta-data lock (MDL)
+		change the table definition. The MySQL meta-data lock
 		should normally guarantee that no conflicting locks
 		exist. However, FOREIGN KEY constraints checks and any
 		transactions collected during crash recovery could be
-		holding InnoDB locks only, not MDL. */
+		holding InnoDB locks only, not MySQL locks. */
 
 		dberr_t error = row_merge_lock_table(
 			m_prebuilt->trx, ctx->old_table, LOCK_X);
@@ -11163,7 +11162,7 @@ foreign_fail:
 		}
 		dict_sys.remove(m_prebuilt->table);
 		m_prebuilt->table = dict_table_open_on_name(
-			tb_name, TRUE, TRUE, DICT_ERR_IGNORE_NONE);
+			tb_name, TRUE, TRUE, DICT_ERR_IGNORE_FK_NOKEY);
 
 		/* Drop outdated table stats. */
 		char	errstr[1024];

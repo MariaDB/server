@@ -4,8 +4,6 @@
 --echo # wsrep_cluster_address
 --echo #
 
-call mtr.add_suppression("safe_mutex: Found wrong usage of mutex.*");
-
 --echo # save the initial value
 SET @wsrep_cluster_address_global_saved = @@global.wsrep_cluster_address;
 

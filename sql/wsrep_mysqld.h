@@ -158,7 +158,8 @@ extern const char* wsrep_provider_vendor;
 extern char*       wsrep_provider_capabilities;
 extern char*       wsrep_cluster_capabilities;
 
-int  wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff);
+int  wsrep_show_status(THD *thd, SHOW_VAR *var, void *buff,
+                       system_status_var *status_var, enum_var_type scope);
 int  wsrep_show_ready(THD *thd, SHOW_VAR *var, char *buff);
 void wsrep_free_status(THD *thd);
 void wsrep_update_cluster_state_uuid(const char* str);

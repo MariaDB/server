@@ -10,12 +10,9 @@
 #
 ##############################################################################
 
+GCF-354 : MDEV-24010 galera_3nodes.GCF-354 MTR fails : WSREP has not yet prepared node for application use
 galera_gtid_2_cluster : MDEV-23775 Galera test failure on galera_3nodes.galera_gtid_2_cluster
-galera_ipv6_mariabackup : MDEV-21770 galera_3nodes.galera_ipv6_mariabackup fails
-galera_ipv6_mariabackup_section : MDEV-21770 galera_3nodes.galera_ipv6_mariabackup fails
-galera_ipv6_mysqldump : MDEV-23576 galera_3nodes.galera_ipv6_mysqldump MTR failed: WSREP_SST: [ERROR] rsync daemon port '16008' has been taken
-galera_ipv6_rsync : MDEV-23581 galera_3nodes.galera_ipv6_rsync MTR failed: WSREP_SST: [ERROR] rsync daemon port '16008' has been taken
-galera_ipv6_rsync_section : MDEV-23580 galera_3nodes.galera_ipv6_rsync_section MTR failed: WSREP_SST: [ERROR] rsync daemon port '16008' has been taken
 galera_ist_gcache_rollover : MDEV-23578 WSREP: exception caused by message: {v=0,t=1,ut=255,o=4,s=0,sr=0,as=1,f=6,src=50524cfe,srcvid=view_id(REG,50524cfe,4),insvid=view_id(UNKNOWN,00000000,0),ru=00000000,r=[-1,-1],fs=75,nl=(}
 galera_slave_options_do :MDEV-8798
 galera_slave_options_ignore : MDEV-8798
+galera_ipv6_mysqldump : MDEV-23576

@@ -3457,10 +3457,9 @@ Key *
 mysql_add_invisible_index(THD *thd, List<Key> *key_list,
         LEX_CSTRING* field_name, enum Key::Keytype type)
 {
-  Key *key= NULL;
-  key= new (thd->mem_root) Key(type, &null_clex_str, HA_KEY_ALG_UNDEF,
-         false, DDL_options(DDL_options::OPT_NONE));
-  key->columns.push_back(new(thd->mem_root) Key_part_spec(field_name, 0),
+  Key *key= new (thd->mem_root) Key(type, &null_clex_str, HA_KEY_ALG_UNDEF,
+                                    false, DDL_options(DDL_options::OPT_NONE));
+  key->columns.push_back(new(thd->mem_root) Key_part_spec(field_name, 0, true),
           thd->mem_root);
   key_list->push_back(key, thd->mem_root);
   return key;
@@ -4034,7 +4033,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       /*
          Either field is not present or field visibility is > INVISIBLE_USER
       */
-      if (!sql_field)
+      if (!sql_field || (sql_field->invisible > INVISIBLE_USER &&
+                         !column->generated))
       {
 	my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
 	DBUG_RETURN(TRUE);
@@ -4742,7 +4742,8 @@ static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
           break;
       }
       if (!key_part)
-        key->columns.push_back(new Key_part_spec(&row_end_field, 0));
+        key->columns.push_back(new (thd->mem_root)
+                               Key_part_spec(&row_end_field, 0, true));
     }
     key_it.rewind();
   }
@@ -4772,8 +4773,10 @@ static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
           return true;
         }
       }
-      key->columns.push_back(new Key_part_spec(&period_end, 0));
-      key->columns.push_back(new Key_part_spec(&period_start, 0));
+      key->columns.push_back(new (thd->mem_root)
+                             Key_part_spec(&period_end, 0));
+      key->columns.push_back(new (thd->mem_root)
+                             Key_part_spec(&period_start, 0));
     }
   }
 
@@ -8861,8 +8864,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 	  key_part_length= 0;			// Use whole field
       }
       key_part_length /= kfield->charset()->mbmaxlen;
-      key_parts.push_back(new (thd->mem_root) Key_part_spec(
-                            &cfield->field_name, key_part_length),
+      key_parts.push_back(new (thd->mem_root) Key_part_spec(&cfield->field_name,
+                                                            key_part_length, true),
                           thd->mem_root);
     }
     if (table->s->tmp_table == NO_TMP_TABLE)

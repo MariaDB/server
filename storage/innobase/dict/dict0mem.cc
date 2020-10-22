@@ -440,7 +440,6 @@ dict_mem_table_add_v_col(
 
 	/* Initialize the index list for virtual columns */
 	ut_ad(v_col->v_indexes.empty());
-	v_col->n_v_indexes = 0;
 
 	return(v_col);
 }
@@ -1209,6 +1208,24 @@ operator<< (std::ostream& out, const dict_foreign_set& fk_set)
 	std::for_each(fk_set.begin(), fk_set.end(), dict_foreign_print(out));
 	out << "]" << std::endl;
 	return(out);
+}
+
+/** Check whether fulltext index gets affected by foreign
+key constraint. */
+bool dict_foreign_t::affects_fulltext() const
+{
+  if (foreign_table == referenced_table || !foreign_table->fts)
+    return false;
+
+  for (ulint i= 0; i < n_fields; i++)
+  {
+    const dict_col_t *col= dict_index_get_nth_col(foreign_index, i);
+    if (dict_table_is_fts_column(foreign_table->fts->indexes, col->ind,
+                                 col->is_virtual()) != ULINT_UNDEFINED)
+      return true;
+  }
+
+  return false;
 }
 
 /** Reconstruct the clustered index fields. */

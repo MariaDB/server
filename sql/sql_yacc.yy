@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation.
+   Copyright (c) 2010, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -7757,6 +7757,8 @@ alter_list_item:
           }
         | ALTER opt_column opt_if_exists_table_element field_ident SET DEFAULT column_default_expr
           {
+            if (check_expression($7, &$4, VCOL_DEFAULT))
+              MYSQL_YYABORT;
             if (unlikely(Lex->add_alter_list($4, $7, $3)))
               MYSQL_YYABORT;
           }
@@ -14181,6 +14183,8 @@ backup_statements:
         }
 	| LOCK_SYM
           {
+            if (unlikely(Lex->sphead))
+              my_yyabort_error((ER_SP_BADSTATEMENT, MYF(0), "BACKUP LOCK"));
             if (Lex->main_select_push())
               MYSQL_YYABORT;
           }
@@ -14194,6 +14198,8 @@ backup_statements:
           }
         | UNLOCK_SYM
           {
+            if (unlikely(Lex->sphead))
+              my_yyabort_error((ER_SP_BADSTATEMENT, MYF(0), "BACKUP UNLOCK"));
 	    /* Table list is empty for unlock */
             Lex->sql_command= SQLCOM_BACKUP_LOCK;
           }

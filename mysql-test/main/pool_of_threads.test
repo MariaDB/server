@@ -92,3 +92,9 @@ connection con2;
 
 connection extracon;
 --reap
+
+# Check if compression works OK
+connect (comp_con,localhost,root,,,,,COMPRESS);
+SELECT 1;
+disconnect comp_con;
+

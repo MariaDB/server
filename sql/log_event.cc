@@ -1074,7 +1074,7 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
     else
       DBUG_RETURN(NULL);
 #else
-    *error= ER(ER_BINLOG_READ_EVENT_CHECKSUM_FAILURE);
+    *error= ER_THD_OR_DEFAULT(current_thd, ER_BINLOG_READ_EVENT_CHECKSUM_FAILURE);
     sql_print_error("%s", *error);
     DBUG_RETURN(NULL);
 #endif

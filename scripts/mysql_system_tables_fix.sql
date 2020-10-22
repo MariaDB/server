@@ -646,18 +646,18 @@ ALTER TABLE db modify Delete_history_priv enum('N','Y') COLLATE utf8_general_ci 
 
 UPDATE user SET Delete_history_priv = Super_priv WHERE @had_user_delete_history_priv = 0;
 
-ALTER TABLE user ADD plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL,
-                 ADD authentication_string TEXT NOT NULL;
+ALTER TABLE user ADD plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL AFTER max_user_connections,
+                 ADD authentication_string TEXT NOT NULL AFTER plugin;
 ALTER TABLE user CHANGE auth_string authentication_string TEXT NOT NULL;
 ALTER TABLE user MODIFY plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL,
                  MODIFY authentication_string TEXT NOT NULL;
-ALTER TABLE user ADD password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
+ALTER TABLE user ADD password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER authentication_string;
 ALTER TABLE user ADD password_last_changed timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL after password_expired;
 ALTER TABLE user ADD password_lifetime smallint unsigned DEFAULT NULL after password_last_changed;
 ALTER TABLE user ADD account_locked enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL after password_lifetime;
-ALTER TABLE user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
-ALTER TABLE user ADD default_role char(80) binary DEFAULT '' NOT NULL;
-ALTER TABLE user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL;
+ALTER TABLE user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER account_locked;
+ALTER TABLE user ADD default_role char(80) binary DEFAULT '' NOT NULL AFTER is_role;
+ALTER TABLE user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL AFTER default_role;
 -- Somewhere above, we ran ALTER TABLE user .... CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin.
 --  we want password_expired column to have collation utf8_general_ci.
 ALTER TABLE user MODIFY password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
