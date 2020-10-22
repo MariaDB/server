@@ -605,6 +605,7 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 
 	for (unsigned i = 0; i < n_v_def; i++) {
 		dict_v_col_t& v = v_cols[i];
+		DBUG_ASSERT(v.v_indexes.empty());
 		v.base_col = static_cast<dict_col_t**>(
 			mem_heap_dup(heap, v.base_col,
 				     v.num_base * sizeof *v.base_col));
