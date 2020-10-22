@@ -3405,7 +3405,6 @@ static
 void
 xb_data_files_close()
 {
-	ut_ad(!os_thread_count);
 	fil_space_t::close_all();
 	buf_dblwr.close();
 }

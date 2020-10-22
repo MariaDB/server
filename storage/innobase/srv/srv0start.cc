@@ -849,9 +849,6 @@ static void srv_shutdown_all_bg_threads()
 		}
 		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 	}
-
-	ut_d(for (uint i = 1000; os_thread_count && i--; ) os_thread_yield());
-	ut_ad(!os_thread_count);
 }
 
 #ifdef UNIV_DEBUG

@@ -27,9 +27,6 @@ Created 9/8/1995 Heikki Tuuri
 #include "univ.i"
 #include "srv0srv.h"
 
-/** Number of threads active. */
-Atomic_counter<ulint>	os_thread_count;
-
 /***************************************************************//**
 Compares two thread ids for equality.
 @return TRUE if equal */
@@ -110,8 +107,6 @@ os_thread_t os_thread_create(os_thread_func_t func, void *arg)
 
 	CloseHandle(handle);
 
-	os_thread_count++;
-
 	return((os_thread_t)new_thread_id);
 #else /* _WIN32 else */
 
@@ -125,8 +120,6 @@ os_thread_t os_thread_create(os_thread_func_t func, void *arg)
 		abort();
 	}
 
-	os_thread_count++;
-
 	ret = pthread_create(&new_thread_id, &attr, func, arg);
 
 	ut_a(ret == 0);
@@ -134,8 +127,6 @@ os_thread_t os_thread_create(os_thread_func_t func, void *arg)
 	pthread_attr_destroy(&attr);
 
 #endif /* not _WIN32 */
-
-	ut_a(os_thread_count <= srv_max_n_threads);
 
 	return((os_thread_t)new_thread_id);
 }
@@ -151,8 +142,6 @@ ATTRIBUTE_NORETURN void os_thread_exit()
 #ifdef UNIV_PFS_THREAD
 	pfs_delete_thread();
 #endif
-
-	os_thread_count--;
 
 #ifdef _WIN32
 	ExitThread(0);
