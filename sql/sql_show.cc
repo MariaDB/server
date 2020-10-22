@@ -5313,6 +5313,11 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             free_root(&tmp_mem_root, MY_MARK_BLOCKS_FREE);
           }
         }
+        if (thd->killed == ABORT_QUERY)
+        {
+          error= 0;
+          goto err;
+        }
       }
     }
   }

@@ -342,7 +342,7 @@ buf_buddy_alloc_zip(
 		if (buf) {
 			buf_buddy_free_t* buddy =
 				reinterpret_cast<buf_buddy_free_t*>(
-					buf->stamp.bytes
+					reinterpret_cast<byte*>(buf)
 					+ (BUF_BUDDY_LOW << i));
 
 			ut_ad(!buf_pool_contains_zip(buf_pool, buddy));

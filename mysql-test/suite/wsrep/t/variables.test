@@ -1,7 +1,8 @@
 --source include/have_wsrep.inc
 --source include/force_restart.inc
 --source include/have_innodb.inc
---source include/galera_have_debug_sync.inc
+
+call mtr.add_suppression("WSREP: Initial position was provided by configuration or SST, avoiding override");
 
 SET @wsrep_provider_options_saved= @@global.wsrep_provider_options;
 SET @wsrep_cluster_address_saved= @@global.wsrep_cluster_address;

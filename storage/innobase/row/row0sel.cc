@@ -4487,7 +4487,6 @@ row_search_mvcc(
 
 			shortcut_match:
 				mtr.commit();
-
 				/* NOTE that we do NOT store the cursor
 				position */
 				err = DB_SUCCESS;

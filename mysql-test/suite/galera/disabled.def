@@ -27,7 +27,6 @@ galera_ftwrl : MDEV-21525 galera.galera_ftwrl
 galera_gcache_recover_manytrx : MDEV-18834 Galera test failure
 galera_kill_largechanges : MDEV-18179 Galera test failure on galera.galera_kill_largechanges
 galera_kill_nochanges : MDEV-18280 Galera test failure on galera_split_brain and galera_kill_nochanges
-galera_load_data : MDEV-19968 galera.galera_load_data
 galera_many_tables_nopk : MDEV-18182 Galera test failure on galera.galera_many_tables_nopk
 galera_mdl_race : MDEV-21524 galera.galera_mdl_race
 galera_parallel_simple : MDEV-20318 galera.galera_parallel_simple fails	

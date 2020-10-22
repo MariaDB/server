@@ -4347,7 +4347,7 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
     return TRUE;
   }
 
-  if (!(sql_command_flags[lex->sql_command] & CF_SP_BULK_SAFE))
+  if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_SAFE))
   {
     DBUG_PRINT("error", ("Command is not supported in bulk execution."));
     my_error(ER_UNSUPPORTED_PS, MYF(0));
@@ -4379,7 +4379,7 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
       Here we set parameters for not optimized commands,
       optimized commands do it inside thier internal loop.
     */
-    if (!(sql_command_flags[lex->sql_command] & CF_SP_BULK_OPTIMIZED))
+    if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_OPTIMIZED))
     {
       if (set_bulk_parameters(TRUE))
       {

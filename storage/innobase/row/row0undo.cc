@@ -425,8 +425,7 @@ row_undo(
 	for online operation. (A table lock would only be acquired
 	when committing the ALTER TABLE operation.) */
 	trx_t* trx = node->trx;
-	const bool locked_data_dict = UNIV_UNLIKELY(trx->is_recovered)
-		&& !trx->dict_operation_lock_mode;
+	const bool locked_data_dict = !trx->dict_operation_lock_mode;
 
 	if (UNIV_UNLIKELY(locked_data_dict)) {
 		row_mysql_freeze_data_dictionary(trx);
@@ -448,7 +447,8 @@ row_undo(
 		err = DB_CORRUPTION;
 	}
 
-	if (UNIV_UNLIKELY(locked_data_dict)) {
+	if (locked_data_dict) {
+
 		row_mysql_unfreeze_data_dictionary(trx);
 	}
 
