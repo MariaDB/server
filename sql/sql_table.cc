@@ -6719,7 +6719,7 @@ remove_key:
         DBUG_ASSERT(key->or_replace());
         Alter_drop::drop_type type= (key->type == Key::FOREIGN_KEY) ?
           Alter_drop::FOREIGN_KEY : Alter_drop::KEY;
-        Alter_drop *ad= new Alter_drop(type, key->name.str, FALSE);
+        Alter_drop *ad= new (thd->mem_root) Alter_drop(type, key->name.str, FALSE);
         if (ad != NULL)
         {
           // Adding the index into the drop list for replacing
