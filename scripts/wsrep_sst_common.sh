@@ -45,28 +45,68 @@ case "$1" in
         case "${WSREP_SST_OPT_ADDR}" in
         \[*)
             # IPv6
+            # Remove the starting and ending square brackets, if present:
             addr_no_bracket=${WSREP_SST_OPT_ADDR#\[}
             readonly WSREP_SST_OPT_HOST_UNESCAPED=${addr_no_bracket%%\]*}
+            # Square brackets are needed in most cases:
             readonly WSREP_SST_OPT_HOST="[${WSREP_SST_OPT_HOST_UNESCAPED}]"
+            # Some utilities and subsequent code require an address
+            # without square brackets:
             readonly WSREP_SST_OPT_HOST_ESCAPED="\\[${WSREP_SST_OPT_HOST_UNESCAPED}\\]"
+            readonly WSREP_SST_OPT_HOST_IPv6=1
             ;;
         *)
             readonly WSREP_SST_OPT_HOST=${WSREP_SST_OPT_ADDR%%[:/]*}
             readonly WSREP_SST_OPT_HOST_UNESCAPED=$WSREP_SST_OPT_HOST
             readonly WSREP_SST_OPT_HOST_ESCAPED=$WSREP_SST_OPT_HOST
+            readonly WSREP_SST_OPT_HOST_IPv6=0
             ;;
         esac
+        # Let's remove the leading part that contains the host address:
         remain=${WSREP_SST_OPT_ADDR#${WSREP_SST_OPT_HOST_ESCAPED}}
+        # Let's remove the ":" character that separates the port number
+        # from the hostname:
         remain=${remain#:}
+        # Extract the port number from the address - all characters
+        # up to "/" (if present):
         readonly WSREP_SST_OPT_ADDR_PORT=${remain%%/*}
-        remain=${remain#*/}
-        readonly WSREP_SST_OPT_MODULE=${remain%%/*}
-        readonly WSREP_SST_OPT_PATH=${WSREP_SST_OPT_ADDR#*/}
+        # If the "/" character is present, then the path is not empty:
+        if [ "${remain#*/}" != "${remain}" ]; then
+            # This operation removes everything up to the "/" character,
+            # effectively removing the port number from the string:
+            readonly WSREP_SST_OPT_PATH=${remain#*/}
+        else
+            readonly WSREP_SST_OPT_PATH=""
+        fi
+        # The rest of the string is the same as the path (for now):
+        remain=${WSREP_SST_OPT_PATH}
+        # If there is one more "/" in the string, then everything before
+        # it will be the module name, otherwise the module name is empty:
+        if [ "${remain%%/*}" != "${remain}" ]; then
+            # This operation removes the tail after the very first
+            # occurrence of the "/" character (inclusively):
+            readonly WSREP_SST_OPT_MODULE=${remain%%/*}
+        else
+            readonly WSREP_SST_OPT_MODULE=""
+        fi
+        # Remove the module name part from the string, which ends with "/":
         remain=${WSREP_SST_OPT_PATH#*/}
+        # If the rest of the string does not match the original, then there
+        # was something else besides the module name:
         if [ "$remain" != "${WSREP_SST_OPT_PATH}" ]; then
+            # Extract the part that matches the LSN by removing all
+            # characters starting from the very first "/":
             readonly WSREP_SST_OPT_LSN=${remain%%/*}
+            # Exctract everything after the first occurrence of
+            # the "/" character in the string:
             remain=${remain#*/}
+            # If the remainder does not match the original string,
+            # then there is something else (the version number in
+            # our case):
             if [ "$remain" != "${WSREP_SST_OPT_LSN}" ]; then
+                # Let's extract the version number by removing the tail
+                # after the very first occurence of the "/" character
+                # (inclusively):
                 readonly WSREP_SST_OPT_SST_VER=${remain%%/*}
             else
                 readonly WSREP_SST_OPT_SST_VER=""

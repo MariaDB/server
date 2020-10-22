@@ -6337,11 +6337,11 @@ public:
 /**
   SP Bulk execution safe
 */
-#define CF_SP_BULK_SAFE (1U << 20)
+#define CF_PS_ARRAY_BINDING_SAFE (1U << 20)
 /**
   SP Bulk execution optimized
 */
-#define CF_SP_BULK_OPTIMIZED (1U << 21)
+#define CF_PS_ARRAY_BINDING_OPTIMIZED (1U << 21)
 /**
   If command creates or drops a table
 */

@@ -107,6 +107,26 @@ SELECT * FROM articles WHERE MATCH (title,body)
 SELECT * FROM articles WHERE MATCH (title,body)
 	AGAINST ('+ MySQL - (Well stands)' IN BOOLEAN MODE);
 
+--error 128
+SELECT * FROM articles WHERE MATCH (title,body) AGAINST
+('(((((((((((((((((((((((((((((((((Security)))))))))))))))))))))))))))))))))'
+ IN BOOLEAN MODE);
+SELECT * FROM articles WHERE MATCH (title,body) AGAINST
+('((((((((((((((((((((((((((((((((Security))))))))))))))))))))))))))))))))'
+ IN BOOLEAN MODE);
+SELECT * FROM articles WHERE MATCH (title,body) AGAINST
+('(((((((((((((((((((((((((((((((vs))))))))))))))))))))))))))))))),(((to)))'
+ IN BOOLEAN MODE);
+
+--error ER_PARSE_ERROR
+SELECT * FROM articles WHERE MATCH (title,body) AGAINST
+('((((((((((((((((((((((((((((((((Security)))))))))))))))))))))))))))))))'
+ IN BOOLEAN MODE);
+--error ER_PARSE_ERROR
+SELECT * FROM articles WHERE MATCH (title,body) AGAINST
+('(((((((((((((((((((((((((((((((((Security))))))))))))))))))))))))))))))))'
+ IN BOOLEAN MODE);
+
 # Test sub-expression boolean search. Find rows contain
 # "MySQL" and "Well" or "MySQL" and "stands". But rank the 
 # doc with "Well" higher, and doc with "stands" lower.

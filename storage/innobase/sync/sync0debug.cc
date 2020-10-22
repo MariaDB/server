@@ -465,7 +465,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_WORK_QUEUE);
 	LEVEL_MAP_INSERT(SYNC_FTS_TOKENIZE);
 	LEVEL_MAP_INSERT(SYNC_FTS_OPTIMIZE);
-	LEVEL_MAP_INSERT(SYNC_FTS_BG_THREADS);
 	LEVEL_MAP_INSERT(SYNC_FTS_CACHE_INIT);
 	LEVEL_MAP_INSERT(SYNC_RECV);
 	LEVEL_MAP_INSERT(SYNC_LOG_FLUSH_ORDER);
@@ -474,7 +473,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_PAGE_CLEANER);
 	LEVEL_MAP_INSERT(SYNC_PURGE_QUEUE);
 	LEVEL_MAP_INSERT(SYNC_TRX_SYS_HEADER);
-	LEVEL_MAP_INSERT(SYNC_REC_LOCK);
 	LEVEL_MAP_INSERT(SYNC_THREADS);
 	LEVEL_MAP_INSERT(SYNC_TRX);
 	LEVEL_MAP_INSERT(SYNC_RW_TRX_HASH_ELEMENT);
@@ -743,7 +741,6 @@ LatchDebug::check_order(
 
 	case SYNC_MONITOR_MUTEX:
 	case SYNC_RECV:
-	case SYNC_FTS_BG_THREADS:
 	case SYNC_WORK_QUEUE:
 	case SYNC_FTS_TOKENIZE:
 	case SYNC_FTS_OPTIMIZE:
@@ -841,15 +838,6 @@ LatchDebug::check_order(
 		if (less(latches, level) != NULL) {
 			basic_check(latches, level, level - 1);
 			ut_a(find(latches, SYNC_BUF_POOL) != 0);
-		}
-		break;
-
-	case SYNC_REC_LOCK:
-
-		if (find(latches, SYNC_LOCK_SYS) != 0) {
-			basic_check(latches, level, SYNC_REC_LOCK - 1);
-		} else {
-			basic_check(latches, level, SYNC_REC_LOCK);
 		}
 		break;
 
@@ -1300,9 +1288,6 @@ sync_latch_meta_init()
 	LATCH_ADD_MUTEX(FIL_SYSTEM, SYNC_ANY_LATCH, fil_system_mutex_key);
 
 	LATCH_ADD_MUTEX(FLUSH_LIST, SYNC_BUF_FLUSH_LIST, flush_list_mutex_key);
-
-	LATCH_ADD_MUTEX(FTS_BG_THREADS, SYNC_FTS_BG_THREADS,
-			fts_bg_threads_mutex_key);
 
 	LATCH_ADD_MUTEX(FTS_DELETE, SYNC_FTS_OPTIMIZE, fts_delete_mutex_key);
 

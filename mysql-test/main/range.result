@@ -1251,7 +1251,7 @@ SELECT * FROM t1 WHERE
 5 <= a AND b = 3 OR
 3 <= a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	4	Using where; Using index
+1	SIMPLE	t1	range	a	a	5	NULL	3	Using where; Using index
 SELECT * FROM t1 WHERE
 3 <= a AND a <= 5 OR 
 5 <= a AND b = 3 OR
@@ -3031,6 +3031,78 @@ a	b
 9	zzzzz
 15	ffffzz
 set eq_range_index_dive_limit=default;
+drop table t1;
+#
+# MDEV-23811: Both disjunct of WHERE condition contain range conditions
+#             for the same index such that the second range condition
+#             fully covers the first one. Additionally one of the disjuncts
+#             contains a range condition for the other index.
+#
+create table t1 (
+pk int primary key auto_increment, a int, b int,
+index idx1(a), index idx2(b)
+);
+insert into t1(a,b) values
+(5,50), (1,10), (3,30), (7,70), (8,80), (4,40), (2,20), (6,60);
+insert into t1(a,b) select a+10, b+100 from t1;
+insert into t1(a,b) select a+20, b+200 from t1;
+insert into t1(a,b) select a+30, b+300 from t1;
+insert into t1(a,b) select a,b from t1;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+explain select * from t1 where ((a between 3 and 4) and b < 100) or (a between 2 and 5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx1	5	NULL	11	Using index condition; Using where
+select * from t1 where ((a between 3 and 4) and b < 100) or (a between 2 and 5);
+pk	a	b
+7	2	20
+71	2	20
+3	3	30
+67	3	30
+6	4	40
+70	4	40
+1	5	50
+65	5	50
+explain select * from t1 where (a between 2 and 5) or ((a between 3 and 4) and b < 100);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx1	5	NULL	11	Using index condition; Using where
+select * from t1 where (a between 2 and 5) or ((a between 3 and 4) and b < 100);
+pk	a	b
+7	2	20
+71	2	20
+3	3	30
+67	3	30
+6	4	40
+70	4	40
+1	5	50
+65	5	50
+explain select * from t1 where (a between 3 and 4) or ((a between 2 and 5) and b < 100);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx1	5	NULL	11	Using index condition; Using where
+select * from t1 where (a between 3 and 4) or ((a between 2 and 5) and b < 100);
+pk	a	b
+7	2	20
+71	2	20
+3	3	30
+67	3	30
+6	4	40
+70	4	40
+1	5	50
+65	5	50
+explain select * from t1 where ((a between 2 and 5) and b < 100) or (a between 3 and 4);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx1,idx2	idx1	5	NULL	11	Using index condition; Using where
+select * from t1 where ((a between 2 and 5) and b < 100) or (a between 3 and 4);
+pk	a	b
+7	2	20
+71	2	20
+3	3	30
+67	3	30
+6	4	40
+70	4	40
+1	5	50
+65	5	50
 drop table t1;
 #
 # End of 10.2 tests

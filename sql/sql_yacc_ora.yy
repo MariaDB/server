@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB
+   Copyright (c) 2010, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -8389,6 +8389,8 @@ alter_list_item:
           }
         | ALTER opt_column opt_if_exists_table_element field_ident SET DEFAULT column_default_expr
           {
+            if (check_expression($7, &$4, VCOL_DEFAULT))
+              MYSQL_YYABORT;
             if (unlikely(Lex->add_alter_list($4.str, $7, $3)))
               MYSQL_YYABORT;
           }

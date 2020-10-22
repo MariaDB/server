@@ -792,14 +792,13 @@ void my_hash_replace(HASH *hash, HASH_SEARCH_STATE *current_record,
 my_bool my_hash_iterate(HASH *hash, my_hash_walk_action action, void *argument)
 {
   uint records, i;
-  HASH_LINK *data;
 
   records= hash->records;
-  data= dynamic_element(&hash->array,0,HASH_LINK*);
 
   for (i= 0 ; i < records ; i++)
   {
-    if ((*action)(data[i].data, argument))
+    if ((*action)(dynamic_element(&hash->array, i, HASH_LINK *)->data,
+                  argument))
       return 1;
   }
   return 0;

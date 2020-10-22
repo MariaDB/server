@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2015  MariaDB Foundation.
+   Copyright (c) 2015, 2020, MariaDB
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -3867,8 +3867,11 @@ cmp_item *Type_handler_temporal_with_date::make_cmp_item(THD *thd,
 
 /***************************************************************************/
 
-static int srtcmp_in(CHARSET_INFO *cs, const String *x,const String *y)
+static int srtcmp_in(const void *cs_, const void *x_, const void *y_)
 {
+  const CHARSET_INFO *cs= static_cast<const CHARSET_INFO *>(cs_);
+  const String *x= static_cast<const String *>(x_);
+  const String *y= static_cast<const String *>(y_);
   return cs->coll->strnncollsp(cs,
                                (uchar *) x->ptr(),x->length(),
                                (uchar *) y->ptr(),y->length());

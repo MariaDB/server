@@ -583,19 +583,21 @@ void init_update_queries(void)
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_UPDATES_DATA | CF_SP_BULK_SAFE;
+                                            CF_UPDATES_DATA |
+                                            CF_PS_ARRAY_BINDING_SAFE;
   sql_command_flags[SQLCOM_UPDATE_MULTI]=   CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_UPDATES_DATA | CF_SP_BULK_SAFE;
+                                            CF_UPDATES_DATA |
+                                            CF_PS_ARRAY_BINDING_SAFE;
   sql_command_flags[SQLCOM_INSERT]=	    CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
                                             CF_INSERTS_DATA |
-                                            CF_SP_BULK_SAFE |
-                                            CF_SP_BULK_OPTIMIZED;
+                                            CF_PS_ARRAY_BINDING_SAFE |
+                                            CF_PS_ARRAY_BINDING_OPTIMIZED;
   sql_command_flags[SQLCOM_INSERT_SELECT]=  CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
@@ -605,7 +607,8 @@ void init_update_queries(void)
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_SP_BULK_SAFE | CF_DELETES_DATA;
+                                            CF_DELETES_DATA |
+                                            CF_PS_ARRAY_BINDING_SAFE;
   sql_command_flags[SQLCOM_DELETE_MULTI]=   CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
@@ -615,8 +618,9 @@ void init_update_queries(void)
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_INSERTS_DATA | CF_SP_BULK_SAFE |
-                                            CF_SP_BULK_OPTIMIZED;
+                                            CF_INSERTS_DATA |
+                                            CF_PS_ARRAY_BINDING_SAFE |
+                                            CF_PS_ARRAY_BINDING_OPTIMIZED;
   sql_command_flags[SQLCOM_REPLACE_SELECT]= CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
@@ -5678,23 +5682,20 @@ mysql_execute_command(THD *thd)
           ! lex->spname->m_explicit_name)
       {
         /* DROP FUNCTION <non qualified name> */
-        udf_func *udf = find_udf(lex->spname->m_name.str,
-                                 lex->spname->m_name.length);
-        if (udf)
+        enum drop_udf_result rc= mysql_drop_function(thd,
+                                                     &lex->spname->m_name);
+        if (rc == UDF_DEL_RESULT_DELETED)
         {
-          if (check_access(thd, DELETE_ACL, "mysql", NULL, NULL, 1, 0))
-            goto error;
-
-          if (!(res = mysql_drop_function(thd, &lex->spname->m_name)))
-          {
-            my_ok(thd);
-            break;
-          }
-          my_error(ER_SP_DROP_FAILED, MYF(0),
-                   "FUNCTION (UDF)", lex->spname->m_name.str);
-          goto error;
+          my_ok(thd);
+          break;
         }
 
+        if (rc == UDF_DEL_RESULT_ERROR)
+          goto error;
+
+        DBUG_ASSERT(rc == UDF_DEL_RESULT_ABSENT);
+
+        // If there was no current database, so it can not be SP
         if (lex->spname->m_db.str == NULL)
         {
           if (lex->if_exists())

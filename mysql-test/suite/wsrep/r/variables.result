@@ -1,3 +1,4 @@
+call mtr.add_suppression("WSREP: Initial position was provided by configuration or SST, avoiding override");
 SET @wsrep_provider_options_saved= @@global.wsrep_provider_options;
 SET @wsrep_cluster_address_saved= @@global.wsrep_cluster_address;
 
@@ -37,6 +38,7 @@ wsrep_commit_oooe	#
 wsrep_commit_oool	#
 wsrep_commit_window	#
 wsrep_connected	#
+wsrep_debug_sync_waiters	#
 wsrep_flow_control_paused	#
 wsrep_flow_control_paused_ns	#
 wsrep_flow_control_recv	#
@@ -264,8 +266,4 @@ SELECT @@global.wsrep_sst_auth;
 @@global.wsrep_sst_auth
 NULL
 SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
-SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
-SET GLOBAL wsrep_provider= none;
-SET GLOBAL wsrep_cluster_address= @wsrep_cluster_address_saved;
-SET GLOBAL wsrep_provider_options= @wsrep_provider_options_saved;
 # End of test.

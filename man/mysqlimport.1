@@ -57,13 +57,13 @@ all would be imported into a table named
 patient\&.
 .PP
 .PP
-\fBmysqldump\fR
+\fBmysqlimport\fR
 supports the following options, which can be specified on the command line or in the
-[mysqldump]
+[mysqlimport]
 and
 [client]
 option file groups\&.
-\fBmysqldump\fR
+\fBmysqlimport\fR
 also supports the options for processing option files\&.
 .sp
 .RS 4
@@ -267,17 +267,17 @@ Empty the table before importing the text file\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: fields-terminated-by option
-.\" fields-terminated-by option: mysqldump
+.\" mysqlimport: fields-terminated-by option
+.\" fields-terminated-by option: mysqlimport
 \fB\-\-fields\-terminated\-by=\&.\&.\&.\fR,
-.\" mysqldump: fields-enclosed-by option
-.\" fields-enclosed-by option: mysqldump
+.\" mysqlimport: fields-enclosed-by option
+.\" fields-enclosed-by option: mysqlimport
 \fB\-\-fields\-enclosed\-by=\&.\&.\&.\fR,
-.\" mysqldump: fields-optionally-enclosed-by option
-.\" fields-optionally-enclosed-by option: mysqldump
+.\" mysqlimport: fields-optionally-enclosed-by option
+.\" fields-optionally-enclosed-by option: mysqlimport
 \fB\-\-fields\-optionally\-enclosed\-by=\&.\&.\&.\fR,
-.\" mysqldump: fields-escaped-by option
-.\" fields-escaped-by option: mysqldump
+.\" mysqlimport: fields-escaped-by option
+.\" fields-escaped-by option: mysqlimport
 \fB\-\-fields\-escaped\-by=\&.\&.\&.\fR
 .sp
 These options have the same meaning as the corresponding clauses for
@@ -379,8 +379,8 @@ lines of the data file\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqldump: lines-terminated-by option
-.\" lines-terminated-by option: mysqldump
+.\" mysqlimport: lines-terminated-by option
+.\" lines-terminated-by option: mysqlimport
 \fB\-\-lines\-terminated\-by=\&.\&.\&.\fR
 .sp
 This option has the same meaning as the corresponding clause for

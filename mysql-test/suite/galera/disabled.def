@@ -18,7 +18,6 @@ galera.galera_defaults : MDEV-21494 Galera test sporadic failure on galera.galer
 galera_as_slave_replication_bundle : MDEV-15785 OPTION_GTID_BEGIN is set in Gtid_log_event::do_apply_event()
 galera_binlog_stmt_autoinc : MDEV-19959 Galera test failure on galera_binlog_stmt_autoinc	
 galera_gcache_recover_manytrx : MDEV-18834 Galera test failure
-galera_load_data : MDEV-19968 galera.galera_load_data
 galera_parallel_simple : MDEV-20318 galera.galera_parallel_simple fails	
 galera_shutdown_nonprim : MDEV-21493 galera.galera_shutdown_nonprim
 galera_ssl_upgrade : MDEV-19950 Galera test failure on galera_ssl_upgrade

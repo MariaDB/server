@@ -1,5 +1,9 @@
 --source include/have_wsrep.inc
 --source include/force_restart.inc
+--source include/have_innodb.inc
+--source include/galera_have_debug_sync.inc
+
+call mtr.add_suppression("WSREP: Initial position was provided by configuration or SST, avoiding override");
 
 SET @wsrep_provider_options_saved= @@global.wsrep_provider_options;
 SET @wsrep_cluster_address_saved= @@global.wsrep_cluster_address;
@@ -161,10 +165,14 @@ SELECT @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
 
 # Reset (for mtr internal checks)
+--disable_query_log
 SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
-SET GLOBAL wsrep_provider= none;
+eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
 SET GLOBAL wsrep_cluster_address= @wsrep_cluster_address_saved;
 SET GLOBAL wsrep_provider_options= @wsrep_provider_options_saved;
+--enable_query_log
+
+--source include/galera_wait_ready.inc
 
 --echo # End of test.
 

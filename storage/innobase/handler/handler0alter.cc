@@ -9422,11 +9422,11 @@ ha_innobase::commit_inplace_alter_table(
 
 		/* Exclusively lock the table, to ensure that no other
 		transaction is holding locks on the table while we
-		change the table definition. The meta-data lock (MDL)
+		change the table definition. The MySQL meta-data lock
 		should normally guarantee that no conflicting locks
 		exist. However, FOREIGN KEY constraints checks and any
 		transactions collected during crash recovery could be
-		holding InnoDB locks only, not MDL. */
+		holding InnoDB locks only, not MySQL locks. */
 
 		dberr_t error = row_merge_lock_table(
 			m_prebuilt->trx, ctx->old_table, LOCK_X);
@@ -9871,7 +9871,7 @@ foreign_fail:
 		dict_table_close(m_prebuilt->table, true, false);
 		dict_table_remove_from_cache(m_prebuilt->table);
 		m_prebuilt->table = dict_table_open_on_name(
-			tb_name, TRUE, TRUE, DICT_ERR_IGNORE_NONE);
+			tb_name, TRUE, TRUE, DICT_ERR_IGNORE_FK_NOKEY);
 
 		/* Drop outdated table stats. */
 		char	errstr[1024];

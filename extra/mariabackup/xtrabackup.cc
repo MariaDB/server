@@ -2364,7 +2364,7 @@ check_if_skip_database(
 	if (databases_exclude_hash &&
 		find_filter_in_hashtable(name, databases_exclude_hash,
 					 &database) &&
-		!database->has_tables) {
+		(!database->has_tables || !databases_include_hash)) {
 		/* Database is found and there are no tables specified,
 		   skip entire db. */
 		return DATABASE_SKIP;
@@ -2720,7 +2720,7 @@ static lsn_t xtrabackup_copy_log(lsn_t start_lsn, lsn_t end_lsn, bool last)
 			scanned_lsn += data_len;
 		} else if (data_len
 			   >= OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_TRL_SIZE
-			   || data_len <= LOG_BLOCK_HDR_SIZE) {
+			   || data_len < LOG_BLOCK_HDR_SIZE) {
 			/* We got a garbage block (abrupt end of the log). */
 			msg(0,"garbage block: " LSN_PF ",%zu",scanned_lsn, data_len);
 			break;

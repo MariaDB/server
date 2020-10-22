@@ -477,6 +477,8 @@ int mysql_update(THD *thd,
     query_plan.set_no_partitions();
     if (thd->lex->describe || thd->lex->analyze_stmt)
       goto produce_explain_and_leave;
+    if (thd->is_error())
+      DBUG_RETURN(1);
 
     my_ok(thd);				// No matching records
     DBUG_RETURN(0);
