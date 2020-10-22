@@ -957,17 +957,24 @@ ATTRIBUTE_COLD static void log_checkpoint_margin()
     return;
   }
 
+retry:
   const lsn_t lsn= log_sys.get_lsn();
-  const lsn_t async_checkpoint_lsn= log_sys.last_checkpoint_lsn +
+  const lsn_t checkpoint= log_sys.last_checkpoint_lsn;
+  const lsn_t async_checkpoint_lsn= checkpoint +
     log_sys.max_checkpoint_age_async;
-  const lsn_t sync_checkpoint_lsn= log_sys.last_checkpoint_lsn +
-    log_sys.max_checkpoint_age;
+  const lsn_t sync_checkpoint_lsn= checkpoint + log_sys.max_checkpoint_age;
   if (lsn <= sync_checkpoint_lsn)
     log_sys.set_check_flush_or_checkpoint(false);
   log_mutex_exit();
 
   if (lsn > sync_checkpoint_lsn)
-    buf_flush_wait_flushed(sync_checkpoint_lsn, lsn);
+  {
+    /* We must wait to prevent the tail of the log overwriting the head. */
+    buf_flush_wait_flushed(std::min(sync_checkpoint_lsn,
+                                    checkpoint + (64U << 20)), lsn);
+    log_mutex_enter();
+    goto retry;
+  }
   else if (lsn > async_checkpoint_lsn)
     buf_flush_ahead(async_checkpoint_lsn);
 }
