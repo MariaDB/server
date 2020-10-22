@@ -579,19 +579,21 @@ void init_update_queries(void)
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_UPDATES_DATA | CF_SP_BULK_SAFE;
+                                            CF_UPDATES_DATA |
+                                            CF_PS_ARRAY_BINDING_SAFE;
   sql_command_flags[SQLCOM_UPDATE_MULTI]=   CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_UPDATES_DATA | CF_SP_BULK_SAFE;
+                                            CF_UPDATES_DATA |
+                                            CF_PS_ARRAY_BINDING_SAFE;
   sql_command_flags[SQLCOM_INSERT]=	    CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
                                             CF_INSERTS_DATA |
-                                            CF_SP_BULK_SAFE |
-                                            CF_SP_BULK_OPTIMIZED;
+                                            CF_PS_ARRAY_BINDING_SAFE |
+                                            CF_PS_ARRAY_BINDING_OPTIMIZED;
   sql_command_flags[SQLCOM_INSERT_SELECT]=  CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
@@ -601,7 +603,8 @@ void init_update_queries(void)
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_SP_BULK_SAFE | CF_DELETES_DATA;
+                                            CF_DELETES_DATA |
+                                            CF_PS_ARRAY_BINDING_SAFE;
   sql_command_flags[SQLCOM_DELETE_MULTI]=   CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
@@ -611,8 +614,9 @@ void init_update_queries(void)
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_INSERTS_DATA | CF_SP_BULK_SAFE |
-                                            CF_SP_BULK_OPTIMIZED;
+                                            CF_INSERTS_DATA |
+                                            CF_PS_ARRAY_BINDING_SAFE |
+                                            CF_PS_ARRAY_BINDING_OPTIMIZED;
   sql_command_flags[SQLCOM_REPLACE_SELECT]= CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
@@ -775,7 +779,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_ALTER_SERVER]=       CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_SERVER]=        CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_BACKUP]=             CF_AUTO_COMMIT_TRANS;
-  sql_command_flags[SQLCOM_BACKUP_LOCK]=        0;
+  sql_command_flags[SQLCOM_BACKUP_LOCK]=        CF_AUTO_COMMIT_TRANS;
 
   /*
     The following statements can deal with temporary tables,
@@ -5080,6 +5084,13 @@ mysql_execute_command(THD *thd)
       goto error;
     }
 
+    /* Should not lock tables while BACKUP LOCK is active */
+    if (thd->mdl_backup_lock)
+    {
+      my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
+      goto error;
+    }
+
     /*
       Here we have to pre-open temporary tables for LOCK TABLES.
 
@@ -6484,24 +6495,21 @@ drop_routine(THD *thd, LEX *lex)
       ! lex->spname->m_explicit_name)
   {
     /* DROP FUNCTION <non qualified name> */
-    udf_func *udf = find_udf(lex->spname->m_name.str,
-                             lex->spname->m_name.length);
-    if (udf)
-    {
-      if (check_access(thd, DELETE_ACL, "mysql", NULL, NULL, 1, 0))
-        return 1;
-
-      if (!mysql_drop_function(thd, &lex->spname->m_name))
-      {
-        my_ok(thd);
-        return 0;
-      }
-      my_error(ER_SP_DROP_FAILED, MYF(0),
-               "FUNCTION (UDF)", lex->spname->m_name.str);
+    enum drop_udf_result rc= mysql_drop_function(thd, &lex->spname->m_name);
+    switch (rc) {
+    case UDF_DEL_RESULT_DELETED:
+      my_ok(thd);
+      return 0;
+    case UDF_DEL_RESULT_ERROR:
       return 1;
+    case UDF_DEL_RESULT_ABSENT:
+      goto absent;
     }
 
-    if (lex->spname->m_db.str == NULL)
+    DBUG_ASSERT("wrong return code" == 0);
+absent:
+    // If there was no current database, so it cannot be SP
+    if (!lex->spname->m_db.str)
     {
       if (lex->if_exists())
       {

@@ -2316,7 +2316,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
 
       for (int i=0; i < got; i ++)
       {
-        my_xid x= IF_WSREP(WSREP_ON && wsrep_is_wsrep_xid(&info->list[i]) ?
+        my_xid x= IF_WSREP(wsrep_is_wsrep_xid(&info->list[i]) ?
                            wsrep_xid_seqno(&info->list[i]) :
                            info->list[i].get_my_xid(),
                            info->list[i].get_my_xid());
@@ -6323,6 +6323,7 @@ extern "C" check_result_t handler_index_cond_check(void* h_arg)
   THD *thd= h->table->in_use;
   check_result_t res;
 
+  DEBUG_SYNC(thd, "handler_index_cond_check");
   enum thd_kill_levels abort_at= h->has_rollback() ?
     THD_ABORT_SOFTLY : THD_ABORT_ASAP;
   if (thd_kill_level(thd) > abort_at)
@@ -6356,6 +6357,7 @@ check_result_t handler_rowid_filter_check(void *h_arg)
   if (!h->pushed_idx_cond)
   {
     THD *thd= h->table->in_use;
+    DEBUG_SYNC(thd, "handler_rowid_filter_check");
     enum thd_kill_levels abort_at= h->has_transactions() ?
       THD_ABORT_SOFTLY : THD_ABORT_ASAP;
     if (thd_kill_level(thd) > abort_at)
@@ -8082,6 +8084,8 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
                                  TABLE_LIST &src_table, TABLE_LIST &table)
 {
   List_iterator<Create_field> it(alter_info.create_list);
+  List_iterator<Key> key_it(alter_info.key_list);
+  List_iterator<Key_part_spec> kp_it;
   Create_field *f, *f_start=NULL, *f_end= NULL;
 
   DBUG_ASSERT(alter_info.create_list.elements > 2);
@@ -8095,6 +8099,23 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
       {
         it.remove();
         remove--;
+      }
+      key_it.rewind();
+      while (Key *key= key_it++)
+      {
+        kp_it.init(key->columns);
+        while (Key_part_spec *kp= kp_it++)
+        {
+          if (0 == lex_string_cmp(system_charset_info, &kp->field_name,
+                                  &f->field_name))
+          {
+            kp_it.remove();
+          }
+        }
+        if (0 == key->columns.elements)
+        {
+          key_it.remove();
+        }
       }
     }
     DBUG_ASSERT(remove == 0);

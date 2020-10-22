@@ -3906,7 +3906,7 @@ exhausted:
 
 /*********************************************************************//**
 Check a pushed-down index condition.
-@return CHECK_NEG, CHECK_POS, or CHECK_OUT_OF_RANGE */
+@return CHECK_ABORTED_BY_USER, CHECK_NEG, CHECK_POS, or CHECK_OUT_OF_RANGE */
 static
 check_result_t
 row_search_idx_cond_check(
@@ -3992,7 +3992,7 @@ row_search_idx_cond_check(
                         case CHECK_POS:
                                 break;
                         default:
-                                ut_error;
+                                return(result);
                         }
 		}
 		/* Convert the remaining fields to MySQL format.
@@ -4453,15 +4453,21 @@ early_not_found:
 					switch (row_search_idx_cond_check(
 							buf, prebuilt,
 							rec, offsets)) {
+					case CHECK_ABORTED_BY_USER:
+						goto aborted;
 					case CHECK_NEG:
 					case CHECK_OUT_OF_RANGE:
-                                        case CHECK_ABORTED_BY_USER:
                                         case CHECK_ERROR:
 						err = DB_RECORD_NOT_FOUND;
 						goto shortcut_done;
 					case CHECK_POS:
 						goto shortcut_done;
 					}
+
+					ut_ad("incorrect code" == 0);
+aborted:
+					err = DB_INTERRUPTED;
+					goto shortcut_done;
 				}
 
 				if (!row_sel_store_mysql_rec(
@@ -4495,6 +4501,9 @@ early_not_found:
 				trx->op_info = "";
 				ut_ad(!sync_check_iterate(sync_check()));
 				ut_ad(!did_semi_consistent_read);
+				if (UNIV_LIKELY_NULL(heap)) {
+					mem_heap_free(heap);
+				}
 				DBUG_RETURN(err);
 
 			case SEL_RETRY:
@@ -5191,9 +5200,11 @@ no_gap_lock:
 						buf, prebuilt, rec, offsets)) {
 				case CHECK_NEG:
 					goto next_rec;
-				case CHECK_OUT_OF_RANGE:
                                 case CHECK_ABORTED_BY_USER:
-                                case CHECK_ERROR:
+					err = DB_INTERRUPTED;
+					goto idx_cond_failed;
+				case CHECK_OUT_OF_RANGE:
+				case CHECK_ERROR:
 					err = DB_RECORD_NOT_FOUND;
 					goto idx_cond_failed;
 				case CHECK_POS:
@@ -5251,8 +5262,10 @@ locks_ok_del_marked:
 			row_unlock_for_mysql(prebuilt, TRUE);
 		}
 		goto next_rec;
-	case CHECK_OUT_OF_RANGE:
         case CHECK_ABORTED_BY_USER:
+		err = DB_INTERRUPTED;
+		goto idx_cond_failed;
+	case CHECK_OUT_OF_RANGE:
         case CHECK_ERROR:
 		err = DB_RECORD_NOT_FOUND;
 		goto idx_cond_failed;
@@ -5752,7 +5765,7 @@ normal_return:
 
 func_exit:
 	trx->op_info = "";
-	if (heap != NULL) {
+	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
 

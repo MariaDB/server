@@ -160,6 +160,7 @@ static const ulint OS_FILE_NORMAL = 62;
 static const ulint OS_DATA_FILE = 100;
 static const ulint OS_LOG_FILE = 101;
 static const ulint OS_DATA_TEMP_FILE = 102;
+static const ulint OS_DATA_FILE_NO_O_DIRECT = 103;
 /* @} */
 
 /** Error codes from os_file_get_last_error @{ */

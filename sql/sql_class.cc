@@ -2589,7 +2589,7 @@ void THD::give_protection_error()
     my_error(ER_BACKUP_LOCK_IS_ACTIVE, MYF(0));
   else
   {
-    DBUG_ASSERT(global_read_lock.is_acquired());
+    DBUG_ASSERT(global_read_lock.is_acquired() || mdl_backup_lock);
     my_error(ER_CANT_UPDATE_WITH_READLOCK, MYF(0));
   }
 }

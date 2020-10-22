@@ -319,7 +319,7 @@ static buf_buddy_free_t* buf_buddy_alloc_zip(ulint i)
 		if (buf) {
 			buf_buddy_free_t* buddy =
 				reinterpret_cast<buf_buddy_free_t*>(
-					buf->stamp.bytes
+					reinterpret_cast<byte*>(buf)
 					+ (BUF_BUDDY_LOW << i));
 			ut_ad(!buf_pool.contains_zip(buddy));
 			buf_buddy_add_to_free(buddy, i);

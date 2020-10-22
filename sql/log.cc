@@ -601,9 +601,11 @@ bool LOGGER::is_log_table_enabled(uint log_table_type)
 {
   switch (log_table_type) {
   case QUERY_LOG_SLOW:
-    return (table_log_handler != NULL) && global_system_variables.sql_log_slow;
+    return (table_log_handler != NULL) && global_system_variables.sql_log_slow
+            && (log_output_options & LOG_TABLE);
   case QUERY_LOG_GENERAL:
-    return (table_log_handler != NULL) && opt_log ;
+    return (table_log_handler != NULL) && opt_log
+            && (log_output_options & LOG_TABLE);
   default:
     DBUG_ASSERT(0);
     return FALSE;                             /* make compiler happy */
@@ -10805,7 +10807,8 @@ binlog_checksum_update(MYSQL_THD thd, struct st_mysql_sys_var *var,
 }
 
 
-static int show_binlog_vars(THD *thd, SHOW_VAR *var, char *buff)
+static int show_binlog_vars(THD *thd, SHOW_VAR *var, void *,
+                            system_status_var *status_var, enum_var_type)
 {
   mysql_bin_log.set_status_variables(thd);
   var->type= SHOW_ARRAY;

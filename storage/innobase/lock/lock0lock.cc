@@ -2082,12 +2082,12 @@ static void lock_grant_and_move_on_page(ulint rec_fold, const page_id_t id)
 		lock = previous->hash;
 	}
 
-	ut_ad(!lock->trx->is_wsrep());
 	ut_ad(previous->hash == lock || previous == lock);
 	/* Grant locks if there are no conflicting locks ahead.
 	 Move granted locks to the head of the list. */
 	while (lock) {
 		/* If the lock is a wait lock on this page, and it does not need to wait. */
+		ut_ad(!lock->trx->is_wsrep());
 		if (lock_get_wait(lock)
 		    && lock->un_member.rec_lock.page_id == id
 		    && !lock_rec_has_to_wait_in_queue(lock)) {
@@ -3964,11 +3964,10 @@ lock_grant_and_move_on_rec(
 	    }
 		lock = previous->hash;
 	}
-	ut_ad(!lock->trx->is_wsrep());
 	/* Grant locks if there are no conflicting locks ahead.
 	 Move granted locks to the head of the list. */
-	for (;lock != NULL;) {
-
+	while (lock) {
+		ut_ad(!lock->trx->is_wsrep());
 		/* If the lock is a wait lock on this page, and it does not need to wait. */
 		if (lock->un_member.rec_lock.page_id == page_id
 			&& lock_rec_get_nth_bit(lock, heap_no)

@@ -2590,6 +2590,11 @@ fts_optimize_remove_table(
 	if (fts_opt_start_shutdown) {
 		ib::info() << "Try to remove table " << table->name
 			<< " after FTS optimize thread exiting.";
+		/* If the table can't be removed then wait till
+		fts optimize thread shuts down */
+		while (fts_optimize_wq) {
+			os_thread_sleep(10000);
+		}
 		return;
 	}
 

@@ -18,47 +18,34 @@ show create table innodb_compressed;
 show create table innodb_dynamic;
 show create table innodb_redundant;
 
-delimiter //;
-create procedure innodb_insert_proc (repeat_count int)
-begin
-  declare current_num int;
-  set current_num = 0;
-  while current_num < repeat_count do
-    insert into innodb_normal values(current_num, substring(MD5(RAND()), -64));
-    set current_num = current_num + 1;
-  end while;
-end//
-delimiter ;//
-commit;
+FLUSH TABLES innodb_normal FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_compact FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_compressed FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_dynamic FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_redundant FOR EXPORT; UNLOCK TABLES;
 
-begin;
-call innodb_insert_proc(2000);
-insert into innodb_compact select * from innodb_normal;
-insert into innodb_compressed select * from innodb_normal;
-insert into innodb_dynamic select * from innodb_normal;
-insert into innodb_redundant select * from innodb_normal;
-commit;
-
-let $wait_condition= select variable_value > 0 from information_schema.global_status where variable_name = 'INNODB_NUM_PAGES_ENCRYPTED';
---source include/wait_condition.inc
-
-# Note there that these variables are updated only when real I/O is done, thus they are not reliable
-SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+select variable_value > 0 from information_schema.global_status
+where variable_name = 'INNODB_NUM_PAGES_ENCRYPTED';
 
 --source include/restart_mysqld.inc
 
-update innodb_normal set c1 = c1 +1;
-update innodb_compact set c1 = c1 + 1;
-update innodb_compressed set c1 = c1 + 1;
-update innodb_dynamic set c1 = c1 + 1;
-update innodb_redundant set c1 = c1 + 1;
+BEGIN;
+INSERT INTO innodb_normal SET c1 = 1;
+INSERT INTO innodb_compact SET c1 = 1;
+INSERT INTO innodb_compressed SET c1 = 1;
+INSERT INTO innodb_dynamic SET c1 = 1;
+INSERT INTO innodb_redundant SET c1 = 1;
+COMMIT;
 
-let $wait_condition= select variable_value > 0 from information_schema.global_status where variable_name = 'INNODB_NUM_PAGES_ENCRYPTED';
---source include/wait_condition.inc
+FLUSH TABLES innodb_normal FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_compact FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_compressed FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_dynamic FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_redundant FOR EXPORT; UNLOCK TABLES;
 
-SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
-SELECT variable_value > 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
+select variable_name from information_schema.global_status
+where variable_value > 0 and variable_name
+IN ('INNODB_NUM_PAGES_ENCRYPTED','INNODB_NUM_PAGES_DECRYPTED');
 
 SET GLOBAL innodb_encrypt_tables=OFF;
 alter table innodb_compact engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
@@ -70,13 +57,12 @@ show create table innodb_dynamic;
 alter table innodb_redundant engine=innodb encrypted=DEFAULT encryption_key_id=DEFAULT;
 show create table innodb_redundant;
 
-let $wait_condition= select variable_value > 0 from information_schema.global_status where variable_name = 'INNODB_NUM_PAGES_DECRYPTED';
---source include/wait_condition.inc
+FLUSH TABLES innodb_normal FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_compact FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_compressed FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_dynamic FOR EXPORT; UNLOCK TABLES;
+FLUSH TABLES innodb_redundant FOR EXPORT; UNLOCK TABLES;
 
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_encrypted';
-SELECT variable_value >= 0 FROM information_schema.global_status WHERE variable_name = 'innodb_num_pages_decrypted';
-
-drop procedure innodb_insert_proc;
 drop table innodb_normal;
 drop table innodb_compact;
 drop table innodb_compressed;

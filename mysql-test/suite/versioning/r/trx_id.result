@@ -213,17 +213,17 @@ EXPLAIN EXTENDED SELECT x FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION @ts;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME ALL where trt_trx_sees(`test`.`t1`.`sys_trx_end`,@`ts`) and trt_trx_sees_eq(@`ts`,`test`.`t1`.`sys_trx_start`)
+Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME AS OF TRANSACTION @`ts` where trt_trx_sees(`test`.`t1`.`sys_trx_end`,@`ts`) and trt_trx_sees_eq(@`ts`,`test`.`t1`.`sys_trx_start`)
 EXPLAIN EXTENDED SELECT x FROM t1 FOR SYSTEM_TIME AS OF TIMESTAMP @ts;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME ALL where trt_trx_sees(`test`.`t1`.`sys_trx_end`,<cache>(trt_trx_id(@`ts`))) and trt_trx_sees_eq(<cache>(trt_trx_id(@`ts`)),`test`.`t1`.`sys_trx_start`)
+Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME AS OF TIMESTAMP @`ts` where trt_trx_sees(`test`.`t1`.`sys_trx_end`,<cache>(trt_trx_id(@`ts`))) and trt_trx_sees_eq(<cache>(trt_trx_id(@`ts`)),`test`.`t1`.`sys_trx_start`)
 EXPLAIN EXTENDED SELECT x FROM t1 FOR SYSTEM_TIME AS OF @ts;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME ALL where trt_trx_sees(`test`.`t1`.`sys_trx_end`,<cache>(trt_trx_id(@`ts`))) and trt_trx_sees_eq(<cache>(trt_trx_id(@`ts`)),`test`.`t1`.`sys_trx_start`)
+Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME AS OF TIMESTAMP @`ts` where trt_trx_sees(`test`.`t1`.`sys_trx_end`,<cache>(trt_trx_id(@`ts`))) and trt_trx_sees_eq(<cache>(trt_trx_id(@`ts`)),`test`.`t1`.`sys_trx_start`)
 DROP TABLE t1;
 #
 # Testing AS OF with expressions of various kinds and data types

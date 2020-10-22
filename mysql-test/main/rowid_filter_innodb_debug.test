@@ -1,0 +1,51 @@
+--source include/have_innodb.inc
+
+set default_storage_engine=innodb;
+--source include/rowid_filter_debug_kill.inc
+set default_storage_engine=default;
+
+--source include/default_optimizer_switch.inc
+--source include/count_sessions.inc
+
+set @save_optimizer_switch= @@optimizer_switch;
+set @save_use_stat_tables= @@use_stat_tables;
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+
+set @@use_stat_tables=preferably;
+
+set optimizer_use_condition_selectivity=2;
+set optimizer_switch='rowid_filter=on';
+
+--echo #
+--echo # MDEV-22761 KILL QUERY during rowid_filter, crashes
+--echo # (The smaller testcase)
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, INDEX(a), INDEX(b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0,0),(1,0),(-1,1), (-2,1), (-2,3), (-3,4), (-2,4);
+
+let $ID= `SELECT @id := CONNECTION_ID()`;
+
+set debug_sync='handler_rowid_filter_check SIGNAL killme WAIT_FOR go';
+send SELECT * FROM t1 WHERE a > 0 AND b=0;
+
+connect (con1, localhost, root,,);
+connection con1;
+let $ignore= `SELECT @id := $ID`;
+set debug_sync='now WAIT_FOR killme';
+kill query @id;
+set debug_sync='now SIGNAL go';
+
+connection default;
+--error ER_QUERY_INTERRUPTED
+reap;
+set debug_sync='RESET';
+
+disconnect con1;
+drop table t1;
+
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+set @@optimizer_switch=@save_optimizer_switch;
+set @@use_stat_tables=@save_use_stat_tables;
+
+--source include/wait_until_count_sessions.inc

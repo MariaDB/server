@@ -1,5 +1,6 @@
 --source suite/versioning/engines.inc
 --source suite/versioning/common.inc
+--source include/have_partition.inc
 
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1);
@@ -212,5 +213,17 @@ select *, check_row(row_start, row_end) from t2 for system_time all;
 drop view v2;
 drop view v1;
 drop table t1, t2;
+
+--echo #
+--echo # MDEV-23779 Error upon querying the view, that selecting from versioned table with partitions
+--echo #
+create table t1 (i int) with system versioning
+partition by system_time (partition p0 history, partition pn current);
+create view v1 as select * from t1 partition (pn);
+show create view v1;
+
+# cleanup
+drop view v1;
+drop table t1;
 
 --source suite/versioning/common_finish.inc

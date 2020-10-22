@@ -197,14 +197,12 @@ enum latch_level_t {
 
 	SYNC_FTS_TOKENIZE,
 	SYNC_FTS_OPTIMIZE,
-	SYNC_FTS_BG_THREADS,
 	SYNC_FTS_CACHE_INIT,
 	SYNC_RECV,
 	SYNC_LOG_FLUSH_ORDER,
 	SYNC_LOG,
 	SYNC_PURGE_QUEUE,
 	SYNC_TRX_SYS_HEADER,
-	SYNC_REC_LOCK,
 	SYNC_TRX,
 	SYNC_RW_TRX_HASH_ELEMENT,
 	SYNC_READ_VIEW,
@@ -267,7 +265,6 @@ enum latch_id_t {
 	LATCH_ID_DICT_FOREIGN_ERR,
 	LATCH_ID_DICT_SYS,
 	LATCH_ID_FIL_SYSTEM,
-	LATCH_ID_FTS_BG_THREADS,
 	LATCH_ID_FTS_DELETE,
 	LATCH_ID_FTS_DOC_ID,
 	LATCH_ID_FTS_PLL_TOKENIZE,
@@ -600,10 +597,10 @@ public:
 	}
 
 	/** Iterate over the counters */
-	template <typename Callback>
-	void iterate(Callback& callback) const
-		UNIV_NOTHROW
+	template<typename C> void iterate(const C& callback) UNIV_NOTHROW
 	{
+		m_mutex.enter();
+
 		Counters::const_iterator	end = m_counters.end();
 
 		for (Counters::const_iterator it = m_counters.begin();
@@ -612,6 +609,8 @@ public:
 
 			callback(*it);
 		}
+
+		m_mutex.exit();
 	}
 
 	/** Disable the monitoring */

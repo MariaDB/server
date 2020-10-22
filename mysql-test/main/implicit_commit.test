@@ -1115,6 +1115,16 @@ source include/implicit_commit_helper.inc;
 #source include/implicit_commit_helper.inc;
 
 --echo #
+--echo # SQLCOM_BACKUP_LOCK
+--echo #
+
+INSERT INTO db1.trans VALUES (1);
+BACKUP LOCK t1;
+ROLLBACK;
+BACKUP UNLOCK;
+CALL db1.test_if_commit();
+
+--echo #
 --echo # SQLCOM_SHOW_ARCHIVE
 --echo #
 

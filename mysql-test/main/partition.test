@@ -3005,5 +3005,21 @@ select id from t1 where data = 'ab' order by id;
 drop table t1;
 
 --echo #
+--echo # MDEV-5628: Assertion `! is_set()' or `!is_set() ||
+--echo # (m_status == DA_OK_BULK && is_bulk_op())' fails on UPDATE on a
+--echo # partitioned table with subquery (MySQL:71630)
+--echo #
+
+CREATE TABLE t1 (a INT) PARTITION BY HASH(a) PARTITIONS 2;
+
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (1),(2);
+
+--error ER_SUBQUERY_NO_1_ROW
+UPDATE t1 SET a = 7 WHERE a = ( SELECT b FROM t2 ) ORDER BY a LIMIT 6;
+
+DROP TABLE t1,t2;
+
+--echo #
 --echo # End of 10.1 tests
 --echo #
