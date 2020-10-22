@@ -592,6 +592,7 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 			mem_heap_alloc(heap, table.n_v_cols * sizeof(*v_cols)));
 		for (ulint i = table.n_v_cols; i--; ) {
 			new (&v_cols[i]) dict_v_col_t(table.v_cols[i]);
+			v_cols[i].v_indexes.clear();
 		}
 	} else {
 		ut_ad(table.n_v_cols == 0);
