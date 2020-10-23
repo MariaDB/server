@@ -111,6 +111,7 @@ static bool best_extension_by_limited_search(JOIN *join,
                                              uint prune_level,
                                              uint use_cond_selectivity);
 static uint determine_search_depth(JOIN* join);
+static void pick_table_access_method(JOIN_TAB *tab);
 C_MODE_START
 static int join_tab_cmp(const void *dummy, const void* ptr1, const void* ptr2);
 static int join_tab_cmp_straight(const void *dummy, const void* ptr1, const void* ptr2);
@@ -10081,6 +10082,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
   j->ref.disable_cache= FALSE;
   j->ref.null_ref_part= NO_REF_PART;
   j->ref.const_ref_part_map= 0;
+  j->ref.not_null_keyparts= 0;
   keyuse=org_keyuse;
 
   store_key **ref_key= j->ref.key_copy;
@@ -10173,23 +10175,12 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
     }
   } /* not ftkey */
   *ref_key=0;				// end_marker
+  j->ref.not_null_keyparts= not_null_keyparts;
   if (j->type == JT_FT)
     DBUG_RETURN(0);
-  ulong key_flags= j->table->actual_key_flags(keyinfo);
   if (j->type == JT_CONST)
     j->table->const_table= 1;
-  else if (!((keyparts == keyinfo->user_defined_key_parts &&
-              (
-                (key_flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME ||
-                /* Unique key and all keyparts are NULL rejecting */
-                ((key_flags & HA_NOSAME) && keyparts == not_null_keyparts)
-              )) ||
-              /* true only for extended keys */
-              (keyparts > keyinfo->user_defined_key_parts &&
-               MY_TEST(key_flags & HA_EXT_NOSAME) &&
-               keyparts == keyinfo->ext_key_parts)
-            ) ||
-            null_ref_key)
+  else if (!j->is_eq_ref_access()|| null_ref_key)
   {
     /* Must read with repeat */
     j->type= null_ref_key ? JT_REF_OR_NULL : JT_REF;
@@ -11582,11 +11573,25 @@ void set_join_cache_denial(JOIN_TAB *join_tab)
       don't do join buffering for the first table in sjm nest. 
     */
     join_tab[-1].next_select= sub_select;
-    if (join_tab->type == JT_REF && join_tab->is_ref_for_hash_join())
+    if ((join_tab->type == JT_REF || join_tab->type ==  JT_HASH) &&
+         join_tab->is_ref_for_hash_join())
     {
       join_tab->type= JT_ALL;
       join_tab->ref.key_parts= 0;
     }
+
+    if (join_tab->type == JT_HASH && !join_tab->is_ref_for_hash_join())
+    {
+      join_tab->type= join_tab->is_eq_ref_access() ? JT_EQ_REF : JT_REF;
+      pick_table_access_method(join_tab);
+    }
+
+    if (join_tab->type == JT_HASH_NEXT)
+    {
+      join_tab->type = JT_NEXT;
+      join_tab->ref.key_parts= 0;
+    }
+
     join_tab->join->return_tab= join_tab;
   }
 }
@@ -27964,6 +27969,37 @@ void JOIN_TAB::partial_cleanup()
   delete filesort_result;
   filesort_result= NULL;
   free_cache(&read_record);
+}
+
+
+/*
+TODO varun: add comments
+*/
+bool JOIN_TAB::is_eq_ref_access()
+{
+
+  KEY *keyinfo;
+  if (!is_hash_join_key_no(ref.key))
+    keyinfo= table->key_info + ref.key;
+  else
+    keyinfo= hj_key;
+
+  uint keyparts= ref.key_parts;
+  ulong key_flags= table->actual_key_flags(keyinfo);
+  if ( (keyparts == keyinfo->user_defined_key_parts &&
+          (
+            (key_flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME ||
+            /* Unique key and all keyparts are NULL rejecting */
+            ((key_flags & HA_NOSAME) && keyparts == ref.not_null_keyparts)
+          )
+        ) ||
+        /* true only for extended keys */
+        (keyparts > keyinfo->user_defined_key_parts &&
+         MY_TEST(key_flags & HA_EXT_NOSAME) &&
+         keyparts == keyinfo->ext_key_parts)
+      )
+    return true;
+  return false;
 }
 
 

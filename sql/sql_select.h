@@ -178,6 +178,11 @@ typedef struct st_table_ref
   */
   bool          disable_cache;
 
+  /*
+    The number of NOT NULL keyparts
+  */
+  uint          not_null_keyparts;
+
   bool tmp_table_index_lookup_init(THD *thd, KEY *tmp_key, Item_iterator &it,
                                    bool value, uint skip= 0);
   bool is_access_triggered();
@@ -611,6 +616,7 @@ typedef struct st_join_table {
   bool hash_join_is_possible();
   int make_scan_filter();
   bool is_ref_for_hash_join() { return is_hash_join_key_no(ref.key); }
+  bool is_eq_ref_access();
   KEY *get_keyinfo_by_key_no(uint key) 
   {
     return (is_hash_join_key_no(key) ? hj_key : table->key_info+key);
