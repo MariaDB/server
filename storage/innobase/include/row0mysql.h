@@ -384,6 +384,13 @@ dropping of tables is needed in ALTER TABLE on Unix.
 ulint
 row_drop_tables_for_mysql_in_background(void);
 /*=========================================*/
+/*********************************************************************//**
+Get the background drop list length. NOTE: the caller must own the kernel
+mutex!
+@return how many tables in list */
+ulint
+row_get_background_drop_list_len_low(void);
+/*======================================*/
 
 /** Drop garbage tables during recovery. */
 void

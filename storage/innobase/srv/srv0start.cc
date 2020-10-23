@@ -822,9 +822,8 @@ srv_open_tmp_tablespace(bool create_new_db)
 	return(err);
 }
 
-/**
-Shutdown all background threads created by InnoDB. */
-static void srv_shutdown_all_bg_threads()
+/** Shutdown background threads, except the page cleaner. */
+static void srv_shutdown_threads()
 {
 	ut_ad(!srv_undo_sources);
 	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
@@ -838,16 +837,6 @@ static void srv_shutdown_all_bg_threads()
 
 	if (srv_n_fil_crypt_threads) {
 		fil_crypt_set_thread_cnt(0);
-	}
-
-	if (buf_page_cleaner_is_active) {
-		mysql_mutex_lock(&buf_pool.flush_list_mutex);
-		while (buf_page_cleaner_is_active) {
-			mysql_cond_signal(&buf_pool.do_flush_list);
-			mysql_cond_wait(&buf_pool.done_flush_list,
-					&buf_pool.flush_list_mutex);
-		}
-		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 	}
 }
 
@@ -895,7 +884,7 @@ srv_init_abort_low(
 	}
 
 	srv_shutdown_bg_undo_sources();
-	srv_shutdown_all_bg_threads();
+	srv_shutdown_threads();
 	return(err);
 }
 
@@ -1971,7 +1960,10 @@ void srv_shutdown_bg_undo_sources()
 		ut_ad(!srv_read_only_mode);
 		fts_optimize_shutdown();
 		dict_stats_shutdown();
-		while (row_drop_tables_for_mysql_in_background());
+		while (row_get_background_drop_list_len_low()) {
+			srv_inc_activity_count();
+			os_thread_yield();
+		}
 		srv_undo_sources = false;
 	}
 }
@@ -2039,7 +2031,7 @@ void innodb_shutdown()
 	fil_space_t::close_all();
 	/* Exit any remaining threads. */
 	ut_ad(!buf_page_cleaner_is_active);
-	srv_shutdown_all_bg_threads();
+	srv_shutdown_threads();
 
 	if (srv_monitor_file) {
 		my_fclose(srv_monitor_file, MYF(MY_WME));
