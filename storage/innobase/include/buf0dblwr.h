@@ -34,8 +34,6 @@ class buf_dblwr_t
 {
   struct element
   {
-    /** tablespace */
-    fil_space_t *space;
     /** asynchronous write request */
     IORequest request;
     /** payload size in bytes */
@@ -66,10 +64,11 @@ class buf_dblwr_t
   mysql_cond_t cond;
   /** whether a batch is being written from the doublewrite buffer */
   bool batch_running;
+  /** number of expected flush_buffered_writes_completed() calls */
+  unsigned flushing_buffered_writes;
 
   slot slots[2];
-  slot *active_slot=&slots[0];
-
+  slot *active_slot= &slots[0];
 
   /** Initialize the doublewrite buffer data structure.
   @param header   doublewrite page header in the TRX_SYS page */
@@ -98,24 +97,25 @@ public:
   /** Process and remove the double write buffer pages for all tablespaces. */
   void recover();
 
-  /** Update the doublewrite buffer on write completion. */
+  /** Update the doublewrite buffer on data page write completion. */
   void write_completed();
   /** Flush possible buffered writes to persistent storage.
   It is very important to call this function after a batch of writes has been
   posted, and also when we may have to wait for a page latch!
   Otherwise a deadlock of threads can occur. */
   void flush_buffered_writes();
+  /** Update the doublewrite buffer on write batch completion
+  @param request  the completed batch write request */
+  void flush_buffered_writes_completed(const IORequest &request);
 
   /** Size of the doublewrite block in pages */
   uint32_t block_size() const { return FSP_EXTENT_SIZE; }
 
   /** Schedule a page write. If the doublewrite memory buffer is full,
   flush_buffered_writes() will be invoked to make space.
-  @param space      tablespace
   @param request    asynchronous write request
   @param size       payload size in bytes */
-  void add_to_batch(fil_space_t *space, const IORequest &request,
-                    size_t size) MY_ATTRIBUTE((nonnull));
+  void add_to_batch(const IORequest &request, size_t size);
 
   /** Determine whether the doublewrite buffer is initialized */
   bool is_initialised() const
@@ -131,6 +131,18 @@ public:
       return false;
     const uint32_t size= block_size();
     return id < block1 + size || (id >= block2 && id < block2 + size);
+  }
+
+  /** Wait for flush_buffered_writes() to be fully completed */
+  void wait_flush_buffered_writes()
+  {
+    if (is_initialised())
+    {
+      mysql_mutex_lock(&mutex);
+      while (batch_running)
+        mysql_cond_wait(&cond, &mutex);
+      mysql_mutex_unlock(&mutex);
+    }
   }
 };
 

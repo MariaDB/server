@@ -78,6 +78,8 @@ Created 10/21/1995 Heikki Tuuri
 #include <my_sys.h>
 #endif
 
+#include "buf0dblwr.h"
+
 #include <thread>
 #include <chrono>
 
@@ -4041,9 +4043,8 @@ void os_aio_free()
   write_slots= nullptr;
 }
 
-/** Waits until there are no pending writes. There can
-be other, synchronous, pending writes. */
-void os_aio_wait_until_no_pending_writes()
+/** Wait until there are no pending asynchronous writes. */
+static void os_aio_wait_until_no_pending_writes_low()
 {
   bool notify_wait = write_slots->pending_io_count() > 0;
 
@@ -4054,6 +4055,14 @@ void os_aio_wait_until_no_pending_writes()
 
    if (notify_wait)
      tpool::tpool_wait_end();
+}
+
+/** Waits until there are no pending writes. There can
+be other, synchronous, pending writes. */
+void os_aio_wait_until_no_pending_writes()
+{
+  os_aio_wait_until_no_pending_writes_low();
+  buf_dblwr.wait_flush_buffered_writes();
 }
 
 /** Request a read or write.

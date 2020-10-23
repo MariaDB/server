@@ -921,7 +921,7 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
       space->io(IORequest(type, bpage),
                 bpage->physical_offset(), size, frame, bpage);
     else
-      buf_dblwr.add_to_batch(space, IORequest(type, bpage), size);
+      buf_dblwr.add_to_batch(IORequest(bpage, space->chain.start, type), size);
   }
 
   /* Increment the I/O operation count used for selecting LRU policy. */
