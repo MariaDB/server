@@ -971,7 +971,7 @@ retry:
   {
     /* We must wait to prevent the tail of the log overwriting the head. */
     buf_flush_wait_flushed(std::min(sync_checkpoint_lsn,
-                                    checkpoint + (64U << 20)), lsn);
+                                    checkpoint + (1U << 20)), lsn);
     log_mutex_enter();
     goto retry;
   }
