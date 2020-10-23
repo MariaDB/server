@@ -147,10 +147,18 @@ err:
 
 #include <sys/wait.h>
 
+#if defined(HAVE_POLL_H)
+#include <poll.h>
+#elif defined(HAVE_SYS_POLL_H)
+#include <sys/poll.h>
+#endif /* defined(HAVE_POLL_H) */
+
 static int in[2], out[2];
 static pid_t pid;
 static char addr2line_binary[1024];
 static char output[1024];
+static struct pollfd poll_fds;
+Dl_info info;
 
 int start_addr2line_fork(const char *binary_path)
 {
@@ -200,14 +208,15 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
   ssize_t extra_bytes_read = 0;
   ssize_t parsed = 0;
 
-  fd_set set;
-  struct timeval timeout;
+  int ret;
 
   int filename_start = -1;
   int line_number_start = -1;
 
-  Dl_info info;
   void *offset;
+
+  poll_fds.fd = out[0];
+  poll_fds.events = POLLIN | POLLRDBAND;
 
   if (!dladdr(ptr, &info))
     return 1;
@@ -230,16 +239,16 @@ int my_addr_resolve(void *ptr, my_addr_loc *loc)
   if (write(in[1], input, len) <= 0)
     return 1;
 
-  FD_ZERO(&set);
-  FD_SET(out[0], &set);
 
-  /* 100 ms should be plenty of time for addr2line to issue a response. */
-  timeout.tv_sec = 0;
-  timeout.tv_usec = 100000;
+  /* 500 ms should be plenty of time for addr2line to issue a response. */
   /* Read in a loop till all the output from addr2line is complete. */
   while (parsed == total_bytes_read &&
-         select(out[0] + 1, &set, NULL, NULL, &timeout) > 0)
+         (ret= poll(&poll_fds, 1, 500)))
   {
+    /* error during poll */
+    if (ret < 0)
+      return 1;
+
     extra_bytes_read= read(out[0], output + total_bytes_read,
                            sizeof(output) - total_bytes_read);
     if (extra_bytes_read < 0)
