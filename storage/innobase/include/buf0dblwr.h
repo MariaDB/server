@@ -34,8 +34,6 @@ class buf_dblwr_t
 {
   struct element
   {
-    /** tablespace */
-    fil_space_t *space;
     /** asynchronous write request */
     IORequest request;
     /** payload size in bytes */
@@ -111,11 +109,9 @@ public:
 
   /** Schedule a page write. If the doublewrite memory buffer is full,
   flush_buffered_writes() will be invoked to make space.
-  @param space      tablespace
   @param request    asynchronous write request
   @param size       payload size in bytes */
-  void add_to_batch(fil_space_t *space, const IORequest &request,
-                    size_t size) MY_ATTRIBUTE((nonnull));
+  void add_to_batch(const IORequest &request, size_t size);
 
   /** Determine whether the doublewrite buffer is initialized */
   bool is_initialised() const

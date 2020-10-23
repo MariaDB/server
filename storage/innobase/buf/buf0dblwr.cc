@@ -654,7 +654,8 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
       ut_d(buf_dblwr_check_page_lsn(*bpage, static_cast<const byte*>(frame)));
     }
 
-    e.space->io(e.request, bpage->physical_offset(), e_size, frame, bpage);
+    e.request.node->space->io(e.request, bpage->physical_offset(), e_size,
+                              frame, bpage);
   }
 
   return true;
@@ -683,18 +684,17 @@ void buf_dblwr_t::flush_buffered_writes()
 
 /** Schedule a page write. If the doublewrite memory buffer is full,
 flush_buffered_writes() will be invoked to make space.
-@param space      tablespace
 @param request    asynchronous write request
 @param size       payload size in bytes */
-void buf_dblwr_t::add_to_batch(fil_space_t *space, const IORequest &request,
-                               size_t size)
+void buf_dblwr_t::add_to_batch(const IORequest &request, size_t size)
 {
   ut_ad(request.is_async());
   ut_ad(request.is_write());
   ut_ad(request.bpage);
   ut_ad(request.bpage->in_file());
-  ut_ad(space->id == request.bpage->id().space());
-  ut_ad(space->referenced());
+  ut_ad(request.node);
+  ut_ad(request.node->space->id == request.bpage->id().space());
+  ut_ad(request.node->space->referenced());
   ut_ad(!srv_read_only_mode);
 
   const ulint buf_size= 2 * block_size();
@@ -722,7 +722,7 @@ void buf_dblwr_t::add_to_batch(fil_space_t *space, const IORequest &request,
   ut_ad(active_slot->reserved == active_slot->first_free);
   ut_ad(active_slot->reserved < buf_size);
   new (active_slot->buf_block_arr + active_slot->first_free++)
-    element{space, request, size};
+    element{request, size};
   active_slot->reserved= active_slot->first_free;
 
   if (active_slot->first_free != buf_size ||
