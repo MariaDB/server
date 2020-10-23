@@ -580,7 +580,8 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
   batch_running= true;
   const ulint old_first_free= flush_slot->first_free;
   auto write_buf= flush_slot->write_buf;
-  const bool multi_batch= old_first_free > size;
+  const bool multi_batch= block1 + static_cast<uint32_t>(size) != block2 &&
+    old_first_free > size;
   flushing_buffered_writes= 1 + multi_batch;
   /* Now safe to release the mutex. */
   mysql_mutex_unlock(&mutex);
@@ -601,24 +602,22 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
 #endif /* UNIV_DEBUG */
   const IORequest request(nullptr, fil_system.sys_space->chain.start,
                           IORequest::DBLWR_BATCH);
-  /* Write out the first block of the doublewrite buffer */
   ut_a(fil_system.sys_space->acquire());
   if (multi_batch)
-    fil_system.sys_space->reacquire();
-
-  size_t bytes= std::min(size, old_first_free) << srv_page_size_shift;
-  os_aio(request, write_buf,
-         os_offset_t{block1.page_no()} << srv_page_size_shift, bytes);
-
-  if (multi_batch)
   {
-    size_t len= (old_first_free - size) << srv_page_size_shift;
-    bytes+= len;
+    fil_system.sys_space->reacquire();
+    os_aio(request, write_buf,
+           os_offset_t{block1.page_no()} << srv_page_size_shift,
+           size << srv_page_size_shift);
     os_aio(request, write_buf + (size << srv_page_size_shift),
-           os_offset_t{block2.page_no()} << srv_page_size_shift, len);
+           os_offset_t{block2.page_no()} << srv_page_size_shift,
+           (old_first_free - size) << srv_page_size_shift);
   }
-
-  srv_stats.data_written.add(bytes);
+  else
+    os_aio(request, write_buf,
+           os_offset_t{block1.page_no()} << srv_page_size_shift,
+           old_first_free << srv_page_size_shift);
+  srv_stats.data_written.add(old_first_free);
   return true;
 }
 
