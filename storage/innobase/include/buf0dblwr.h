@@ -32,6 +32,29 @@ Created 2011/12/19 Inaam Rana
 /** Doublewrite control struct */
 class buf_dblwr_t
 {
+  struct element
+  {
+    /** tablespace */
+    fil_space_t *space;
+    /** asynchronous write request */
+    IORequest request;
+    /** payload size in bytes */
+    size_t size;
+  };
+
+  struct slot
+  {
+    /** first free position in write_buf measured in units of
+     * srv_page_size */
+    ulint first_free;
+    /** number of slots reserved for the current write batch */
+    ulint reserved;
+    /** the doublewrite buffer, aligned to srv_page_size */
+    byte* write_buf;
+    /** buffer blocks to be written via write_buf */
+    element* buf_block_arr;
+  };
+
   /** the page number of the first doublewrite block (block_size() pages) */
   page_id_t block1= page_id_t(0, 0);
   /** the page number of the second doublewrite block (block_size() pages) */
@@ -43,25 +66,10 @@ class buf_dblwr_t
   mysql_cond_t cond;
   /** whether a batch is being written from the doublewrite buffer */
   bool batch_running;
-  /** first free position in write_buf measured in units of srv_page_size */
-  ulint first_free;
-  /** number of slots reserved for the current write batch */
-  ulint reserved;
-  /** the doublewrite buffer, aligned to srv_page_size */
-  byte *write_buf;
 
-  struct element
-  {
-    /** tablespace */
-    fil_space_t *space;
-    /** asynchronous write request */
-    IORequest request;
-    /** payload size in bytes */
-    size_t size;
-  };
+  slot slots[2];
+  slot *active_slot=&slots[0];
 
-  /** buffer blocks to be written via write_buf */
-  element *buf_block_arr;
 
   /** Initialize the doublewrite buffer data structure.
   @param header   doublewrite page header in the TRX_SYS page */
