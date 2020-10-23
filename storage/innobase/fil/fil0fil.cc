@@ -3423,11 +3423,8 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 		goto release_sync_write;
 	} else {
 		/* Queue the aio request */
-		err = os_aio(
-			IORequest(type, node),
-			node->name, node->handle, buf, offset, len,
-			purpose != FIL_TYPE_TEMPORARY && srv_read_only_mode,
-			node, bpage);
+		err = os_aio(IORequest(bpage, node, type.type),
+			     buf, offset, len);
 	}
 
 	/* We an try to recover the page from the double write buffer if
@@ -3452,62 +3449,44 @@ release:
 #include <tpool.h>
 
 /** Callback for AIO completion */
-void fil_aio_callback(os_aio_userdata_t *data)
+void fil_aio_callback(const IORequest &request)
 {
   ut_ad(fil_validate_skip());
+  ut_ad(request.node);
 
-  fil_node_t *node= data->node;
-
-  if (UNIV_UNLIKELY(!node))
+  if (!request.bpage)
   {
-    ut_ad(srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS);
-    return;
-  }
-
-  buf_page_t *bpage= static_cast<buf_page_t*>(data->message);
-  if (!bpage)
-  {
-    /* Asynchronous single page writes from the doublewrite buffer,
-    or calls from buf_flush_freed_page() don't have access to the page. */
-    ut_ad(data->type.is_write());
     ut_ad(!srv_read_only_mode);
+    ut_ad(request.type == IORequest::WRITE_ASYNC);
 write_completed:
-    node->complete_write();
+    request.node->complete_write();
   }
-  else if (data->type.is_write())
+  else if (request.is_write())
   {
-    ut_ad(!srv_read_only_mode || node->space->purpose == FIL_TYPE_TEMPORARY);
-    bool dblwr= node->space->use_doublewrite();
-    if (dblwr && bpage->status == buf_page_t::INIT_ON_FLUSH)
-    {
-      bpage->status= buf_page_t::NORMAL;
-      dblwr= false;
-    }
-    buf_page_write_complete(bpage, data->type, dblwr);
+    buf_page_write_complete(request);
     goto write_completed;
   }
   else
   {
-    ut_ad(data->type.is_read());
+    ut_ad(request.is_read());
 
     /* IMPORTANT: since i/o handling for reads will read also the insert
     buffer in fil_system.sys_space, we have to be very careful not to
-    introduce deadlocks. We never close the system tablespace (0) data
-    files via fil_system.LRU and we never issue asynchronous reads of
-    change buffer pages. */
-    const page_id_t id(bpage->id());
+    introduce deadlocks. We never close fil_system.sys_space data
+    files and never issue asynchronous reads of change buffer pages. */
+    const page_id_t id(request.bpage->id());
 
-    if (dberr_t err= buf_page_read_complete(bpage, *node))
+    if (dberr_t err= buf_page_read_complete(request.bpage, *request.node))
     {
       if (recv_recovery_is_on() && !srv_force_recovery)
         recv_sys.found_corrupt_fs= true;
 
       ib::error() << "Failed to read page " << id.page_no()
-                  << " from file '" << node->name << "': " << err;
+                  << " from file '" << request.node->name << "': " << err;
     }
   }
 
-  node->space->release();
+  request.node->space->release();
 }
 
 /** Flush to disk the writes in file spaces of the given type

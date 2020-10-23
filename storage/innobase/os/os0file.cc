@@ -3854,22 +3854,26 @@ os_file_get_status(
 }
 
 
-extern void fil_aio_callback(os_aio_userdata_t *data);
+extern void fil_aio_callback(const IORequest &request);
 
 static void io_callback(tpool::aiocb* cb)
 {
-	ut_a(cb->m_err == DB_SUCCESS);
-	os_aio_userdata_t data(cb->m_userdata);
-	/* Return cb back to cache*/
-	if (cb->m_opcode == tpool::aio_opcode::AIO_PREAD) {
-		ut_ad(read_slots->contains(cb));
-		read_slots->release(cb);
-	} else	{
-		ut_ad(write_slots->contains(cb));
-		write_slots->release(cb);
-	}
+  ut_a(cb->m_err == DB_SUCCESS);
+  const IORequest request(*static_cast<const IORequest*>
+                          (static_cast<const void*>(cb->m_userdata)));
+  /* Return cb back to cache*/
+  if (cb->m_opcode == tpool::aio_opcode::AIO_PREAD)
+  {
+    ut_ad(read_slots->contains(cb));
+    read_slots->release(cb);
+  }
+  else
+  {
+    ut_ad(write_slots->contains(cb));
+    write_slots->release(cb);
+  }
 
-	fil_aio_callback(&data);
+  fil_aio_callback(request);
 }
 
 #ifdef LINUX_NATIVE_AIO
@@ -4052,91 +4056,82 @@ void os_aio_wait_until_no_pending_writes()
      tpool::tpool_wait_end();
 }
 
-
-/**
-NOTE! Use the corresponding macro os_aio(), not directly this function!
-Requests an asynchronous i/o operation.
-@param[in,out]	type		IO request context
-@param[in]	name		Name of the file or path as NUL terminated
-				string
-@param[in]	file		Open file handle
-@param[out]	buf		buffer where to read
-@param[in]	offset		file offset where to read
-@param[in]	n		number of bytes to read
-@param[in]	read_only	if true read only mode checks are enforced
-@param[in,out]	m1		Message for the AIO handler, (can be used to
-				identify a completed AIO operation); ignored
-				if mode is OS_AIO_SYNC
-@param[in,out]	m2		message for the AIO handler (can be used to
-				identify a completed AIO operation); ignored
-				if mode is OS_AIO_SYNC
-
-@return DB_SUCCESS or error code */
-dberr_t
-os_aio_func(
-	const IORequest&type,
-	const char*	name,
-	pfs_os_file_t	file,
-	void*		buf,
-	os_offset_t	offset,
-	ulint		n,
-	bool		read_only,
-	fil_node_t*	m1,
-	void*		m2)
+/** Request a read or write.
+@param type		I/O request
+@param buf		buffer
+@param offset		file offset
+@param n		number of bytes
+@retval DB_SUCCESS if request was queued successfully
+@retval DB_IO_ERROR on I/O error */
+dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n)
 {
-
 	ut_ad(n > 0);
 	ut_ad((n % OS_FILE_LOG_BLOCK_SIZE) == 0);
 	ut_ad((offset % OS_FILE_LOG_BLOCK_SIZE) == 0);
+	ut_ad(type.is_read() || type.is_write());
+	ut_ad(type.node);
+	ut_ad(type.node->is_open());
 
 #ifdef WIN_ASYNC_IO
 	ut_ad((n & 0xFFFFFFFFUL) == n);
 #endif /* WIN_ASYNC_IO */
 
+#ifdef UNIV_PFS_IO
+	PSI_file_locker_state state;
+	PSI_file_locker* locker= nullptr;
+	register_pfs_file_io_begin(&state, locker, type.node->handle, n,
+				   type.is_write()
+				   ? PSI_FILE_WRITE : PSI_FILE_READ,
+				   __FILE__, __LINE__);
+#endif /* UNIV_PFS_IO */
+	dberr_t err = DB_SUCCESS;
+
 	if (!type.is_async()) {
-		if (type.is_read()) {
-			return(os_file_read_func(type, file, buf, offset, n));
-		}
-
-		ut_ad(type.is_write());
-
-		return(os_file_write_func(type, name, file, buf, offset, n));
+		err = type.is_read()
+			? os_file_read_func(type, type.node->handle,
+					    buf, offset, n)
+			: os_file_write_func(type, type.node->name,
+					     type.node->handle,
+					     buf, offset, n);
+func_exit:
+#ifdef UNIV_PFS_IO
+		register_pfs_file_io_end(locker, n);
+#endif /* UNIV_PFS_IO */
+		return err;
 	}
 
 	if (type.is_read()) {
 		++os_n_file_reads;
 	} else {
-		ut_ad(type.is_write());
 		++os_n_file_writes;
 	}
 
-	compile_time_assert(sizeof(os_aio_userdata_t) <= tpool::MAX_AIO_USERDATA_LEN);
-	os_aio_userdata_t userdata{m1,type,m2};
+	compile_time_assert(sizeof(IORequest) <= tpool::MAX_AIO_USERDATA_LEN);
 	io_slots* slots= type.is_read() ? read_slots : write_slots;
 	tpool::aiocb* cb = slots->acquire();
 
 	cb->m_buffer = buf;
 	cb->m_callback = (tpool::callback_func)io_callback;
 	cb->m_group = slots->get_task_group();
-	cb->m_fh = file.m_file;
+	cb->m_fh = type.node->handle.m_file;
 	cb->m_len = (int)n;
 	cb->m_offset = offset;
 	cb->m_opcode = type.is_read() ? tpool::aio_opcode::AIO_PREAD : tpool::aio_opcode::AIO_PWRITE;
-	memcpy(cb->m_userdata, &userdata, sizeof(userdata));
+	new (cb->m_userdata) IORequest{type};
 
 	ut_a(reinterpret_cast<size_t>(cb->m_buffer) % OS_FILE_LOG_BLOCK_SIZE
 	     == 0);
 	ut_a(cb->m_len % OS_FILE_LOG_BLOCK_SIZE == 0);
 	ut_a(cb->m_offset % OS_FILE_LOG_BLOCK_SIZE == 0);
 
-	if (!srv_thread_pool->submit_io(cb))
-		return DB_SUCCESS;
+	if (srv_thread_pool->submit_io(cb)) {
+		slots->release(cb);
+		os_file_handle_error(type.node->name, type.is_read()
+				     ? "aio read" : "aio write");
+		err = DB_IO_ERROR;
+	}
 
-	slots->release(cb);
-
-	os_file_handle_error(name, type.is_read() ? "aio read" : "aio write");
-
-	return(DB_IO_ERROR);
+	goto func_exit;
 }
 
 /** Prints info of the aio arrays.

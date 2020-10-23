@@ -302,16 +302,28 @@ buf_flush_relocate_on_flush_list(
 }
 
 /** Complete write of a file page from buf_pool.
-@param bpage   written page
-@param request write request
-@param dblwr   whether the doublewrite buffer was used */
-void buf_page_write_complete(buf_page_t *bpage, const IORequest &request,
-                             bool dblwr)
+@param request write request */
+void buf_page_write_complete(const IORequest &request)
 {
   ut_ad(request.is_write());
+  ut_ad(!srv_read_only_mode/* ||
+        request.node->space->purpose == FIL_TYPE_TEMPORARY*/);
+  buf_page_t *bpage= request.bpage;
+  ut_ad(bpage);
   ut_ad(bpage->in_file());
   ut_ad(bpage->io_fix() == BUF_IO_WRITE);
   ut_ad(!buf_dblwr.is_inside(bpage->id()));
+  bool dblwr;
+  if (bpage->status == buf_page_t::INIT_ON_FLUSH)
+  {
+    bpage->status= buf_page_t::NORMAL;
+    dblwr= false;
+  }
+  else
+  {
+    ut_ad(bpage->status == buf_page_t::NORMAL);
+    dblwr= request.node->space->use_doublewrite();
+  }
 
   /* We do not need protect io_fix here by mutex to read it because
   this and buf_page_read_complete() are the only functions where we can
