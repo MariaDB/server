@@ -64,10 +64,11 @@ class buf_dblwr_t
   mysql_cond_t cond;
   /** whether a batch is being written from the doublewrite buffer */
   bool batch_running;
+  /** number of expected flush_buffered_writes_completed() calls */
+  unsigned flushing_buffered_writes;
 
   slot slots[2];
-  slot *active_slot=&slots[0];
-
+  slot *active_slot= &slots[0];
 
   /** Initialize the doublewrite buffer data structure.
   @param header   doublewrite page header in the TRX_SYS page */
@@ -96,13 +97,16 @@ public:
   /** Process and remove the double write buffer pages for all tablespaces. */
   void recover();
 
-  /** Update the doublewrite buffer on write completion. */
+  /** Update the doublewrite buffer on data page write completion. */
   void write_completed();
   /** Flush possible buffered writes to persistent storage.
   It is very important to call this function after a batch of writes has been
   posted, and also when we may have to wait for a page latch!
   Otherwise a deadlock of threads can occur. */
   void flush_buffered_writes();
+  /** Update the doublewrite buffer on write batch completion
+  @param request  the completed batch write request */
+  void flush_buffered_writes_completed(const IORequest &request);
 
   /** Size of the doublewrite block in pages */
   uint32_t block_size() const { return FSP_EXTENT_SIZE; }

@@ -198,6 +198,8 @@ public:
     WRITE_SYNC= 16,
     /** Asynchronous write */
     WRITE_ASYNC= WRITE_SYNC | 1,
+    /** A doublewrite batch */
+    DBLWR_BATCH= WRITE_ASYNC | 8,
     /** Write data; evict the block on write completion */
     WRITE_LRU= WRITE_ASYNC | 32,
     /** Write data and punch hole for the rest */

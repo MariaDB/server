@@ -3375,11 +3375,12 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 	ut_ad(offset % OS_FILE_LOG_BLOCK_SIZE == 0);
 	ut_ad((len % OS_FILE_LOG_BLOCK_SIZE) == 0);
 	ut_ad(fil_validate_skip());
+	ut_ad(type.is_read() || type.is_write());
+	ut_ad(type.type != IORequest::DBLWR_BATCH);
 
 	if (type.is_read()) {
 		srv_stats.data_read.add(len);
 	} else {
-		ut_ad(type.is_write() || type.type == IORequest::PUNCH_RANGE);
 		ut_ad(!srv_read_only_mode || this == fil_system.temp_space);
 		srv_stats.data_written.add(len);
 	}
@@ -3477,7 +3478,10 @@ void fil_aio_callback(const IORequest &request)
   if (!request.bpage)
   {
     ut_ad(!srv_read_only_mode);
-    ut_ad(request.type == IORequest::WRITE_ASYNC);
+    if (request.type == IORequest::DBLWR_BATCH)
+      buf_dblwr.flush_buffered_writes_completed(request);
+    else
+      ut_ad(request.type == IORequest::WRITE_ASYNC);
 write_completed:
     request.node->complete_write();
   }

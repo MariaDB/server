@@ -570,6 +570,7 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
   }
 
   ut_ad(active_slot->reserved == active_slot->first_free);
+  ut_ad(!flushing_buffered_writes);
 
   /* Disallow anyone else to start another batch of flushing. */
   slot *flush_slot= active_slot;
@@ -579,7 +580,8 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
   batch_running= true;
   const ulint old_first_free= flush_slot->first_free;
   auto write_buf= flush_slot->write_buf;
-
+  const bool multi_batch= old_first_free > size;
+  flushing_buffered_writes= 1 + multi_batch;
   /* Now safe to release the mutex. */
   mysql_mutex_unlock(&mutex);
 #ifdef UNIV_DEBUG
@@ -597,25 +599,50 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
     ut_d(buf_dblwr_check_page_lsn(*bpage, write_buf + len2));
   }
 #endif /* UNIV_DEBUG */
+  const IORequest request(nullptr, fil_system.sys_space->chain.start,
+                          IORequest::DBLWR_BATCH);
   /* Write out the first block of the doublewrite buffer */
   ut_a(fil_system.sys_space->acquire());
-  fil_system.sys_space->io(IORequestWrite,
-                           os_offset_t{block1.page_no()} <<
-                           srv_page_size_shift,
-                           std::min(size, old_first_free) <<
-                           srv_page_size_shift, write_buf);
+  if (multi_batch)
+    fil_system.sys_space->reacquire();
 
-  if (old_first_free > size)
+  size_t bytes= std::min(size, old_first_free) << srv_page_size_shift;
+  os_aio(request, write_buf,
+         os_offset_t{block1.page_no()} << srv_page_size_shift, bytes);
+
+  if (multi_batch)
   {
-    /* Write out the second block of the doublewrite buffer. */
-    ut_a(fil_system.sys_space->acquire());
-    fil_system.sys_space->io(IORequestWrite,
-                             os_offset_t{block2.page_no()} <<
-                             srv_page_size_shift,
-                             (old_first_free - size) << srv_page_size_shift,
-                             write_buf + (size << srv_page_size_shift));
+    size_t len= (old_first_free - size) << srv_page_size_shift;
+    bytes+= len;
+    os_aio(request, write_buf + (size << srv_page_size_shift),
+           os_offset_t{block2.page_no()} << srv_page_size_shift, len);
   }
 
+  srv_stats.data_written.add(bytes);
+  return true;
+}
+
+void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
+{
+  ut_ad(this == &buf_dblwr);
+  ut_ad(srv_use_doublewrite_buf);
+  ut_ad(is_initialised());
+  ut_ad(!srv_read_only_mode);
+  ut_ad(!request.bpage);
+  ut_ad(request.node == fil_system.sys_space->chain.start);
+  ut_ad(request.type == IORequest::DBLWR_BATCH);
+  mysql_mutex_lock(&mutex);
+  ut_ad(batch_running);
+  ut_ad(flushing_buffered_writes);
+  ut_ad(flushing_buffered_writes <= 2);
+  const bool completed= !--flushing_buffered_writes;
+  mysql_mutex_unlock(&mutex);
+
+  if (!completed)
+    return;
+
+  slot *const flush_slot= active_slot == &slots[0] ? &slots[1] : &slots[0];
+  ut_ad(flush_slot->reserved == flush_slot->first_free);
   /* increment the doublewrite flushed pages counter */
   srv_stats.dblwr_pages_written.add(flush_slot->first_free);
   srv_stats.dblwr_writes.inc();
@@ -623,15 +650,9 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
   /* Now flush the doublewrite buffer data to disk */
   fil_system.sys_space->flush();
 
-  /* We know that the writes have been flushed to disk now
-  and in recovery we will find them in the doublewrite buffer
-  blocks. Next do the writes to the intended positions. */
-
-
-  ut_ad(active_slot != flush_slot);
-  ut_ad(flush_slot->first_free == old_first_free);
-
-  for (ulint i= 0; i < old_first_free; i++)
+  /* The writes have been flushed to disk now and in recovery we will
+  find them in the doublewrite buffer blocks. Next, write the data pages. */
+  for (ulint i= 0, first_free= flush_slot->first_free; i < first_free; i++)
   {
     auto e= flush_slot->buf_block_arr[i];
     buf_page_t* bpage= e.request.bpage;
@@ -658,8 +679,6 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
     e.request.node->space->io(e.request, bpage->physical_offset(), e_size,
                               frame, bpage);
   }
-
-  return true;
 }
 
 /** Flush possible buffered writes to persistent storage.
