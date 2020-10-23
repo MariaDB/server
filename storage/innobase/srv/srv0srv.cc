@@ -1281,13 +1281,13 @@ srv_export_innodb_status(void)
 
 	mutex_exit(&srv_innodb_monitor_mutex);
 
-	log_mutex_enter();
+	mysql_mutex_lock(&log_sys.mutex);
 	export_vars.innodb_lsn_current = log_sys.get_lsn();
 	export_vars.innodb_lsn_flushed = log_sys.get_flushed_lsn();
 	export_vars.innodb_lsn_last_checkpoint = log_sys.last_checkpoint_lsn;
 	export_vars.innodb_checkpoint_max_age = static_cast<ulint>(
 		log_sys.max_checkpoint_age);
-	log_mutex_exit();
+	mysql_mutex_unlock(&log_sys.mutex);
 
 	export_vars.innodb_checkpoint_age = static_cast<ulint>(
 		export_vars.innodb_lsn_current

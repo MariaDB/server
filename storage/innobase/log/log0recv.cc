@@ -1086,7 +1086,7 @@ bool log_t::file::read_log_seg(lsn_t* start_lsn, lsn_t end_lsn)
 {
 	ulint	len;
 	bool success = true;
-	ut_ad(log_sys.mutex.is_owned());
+	mysql_mutex_assert_owner(&log_sys.mutex);
 	ut_ad(!(*start_lsn % OS_FILE_LOG_BLOCK_SIZE));
 	ut_ad(!(end_lsn % OS_FILE_LOG_BLOCK_SIZE));
 	byte* buf = log_sys.buf;
@@ -1209,7 +1209,7 @@ recv_synchronize_groups()
 
 	if (!srv_read_only_mode) {
 		log_write_checkpoint_info(0);
-		log_mutex_enter();
+		mysql_mutex_lock(&log_sys.mutex);
 	}
 }
 
@@ -1739,7 +1739,7 @@ static void store_freed_or_init_rec(page_id_t page_id, bool freed)
 or corruption was noticed */
 bool recv_sys_t::parse(lsn_t checkpoint_lsn, store_t *store, bool apply)
 {
-  ut_ad(log_mutex_own());
+  mysql_mutex_assert_owner(&log_sys.mutex);
   ut_ad(mutex_own(&mutex));
   ut_ad(parse_start_lsn);
   ut_ad(log_sys.is_physical());
@@ -2378,9 +2378,9 @@ set_start_lsn:
 		}
 
 		buf_block_modify_clock_inc(block);
-		log_flush_order_mutex_enter();
+		mysql_mutex_lock(&log_sys.flush_order_mutex);
 		buf_flush_note_modification(block, start_lsn, end_lsn);
-		log_flush_order_mutex_exit();
+		mysql_mutex_unlock(&log_sys.flush_order_mutex);
 	} else if (free_page && init) {
 		/* There have been no operations that modify the page.
 		Any buffered changes must not be merged. A subsequent
@@ -2599,7 +2599,9 @@ void recv_sys_t::apply(bool last_batch)
     mutex_enter(&mutex);
   }
 
-  ut_ad(!last_batch == log_mutex_own());
+#ifdef SAFE_MUTEX
+  DBUG_ASSERT(!last_batch == mysql_mutex_is_owner(&log_sys.mutex));
+#endif /* SAFE_MUTEX */
 
   recv_no_ibuf_operations = !last_batch ||
     srv_operation == SRV_OPERATION_RESTORE ||
@@ -2703,10 +2705,10 @@ next_page:
   else
   {
     mlog_init.reset();
-    log_mutex_exit();
+    mysql_mutex_unlock(&log_sys.mutex);
   }
 
-  ut_ad(!log_mutex_own());
+  mysql_mutex_assert_not_owner(&log_sys.mutex);
   mutex_exit(&mutex);
 
   /* Instead of flushing, last_batch could sort the buf_pool.flush_list
@@ -2716,7 +2718,7 @@ next_page:
   if (!last_batch)
   {
     buf_pool_invalidate();
-    log_mutex_enter();
+    mysql_mutex_lock(&log_sys.mutex);
   }
 
   mutex_enter(&mutex);
@@ -3305,14 +3307,14 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 	recv_sys.recovery_on = true;
 
-	log_mutex_enter();
+	mysql_mutex_lock(&log_sys.mutex);
 
 	err = recv_find_max_checkpoint(&max_cp_field);
 
 	if (err != DB_SUCCESS) {
 
 		recv_sys.recovered_lsn = log_sys.get_lsn();
-		log_mutex_exit();
+		mysql_mutex_unlock(&log_sys.mutex);
 		return(err);
 	}
 
@@ -3336,7 +3338,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	contiguous_lsn = checkpoint_lsn;
 	switch (log_sys.log.format) {
 	case 0:
-		log_mutex_exit();
+		mysql_mutex_unlock(&log_sys.mutex);
 		return DB_SUCCESS;
 	default:
 		if (end_lsn == 0) {
@@ -3347,7 +3349,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 			break;
 		}
 		recv_sys.found_corrupt_log = true;
-		log_mutex_exit();
+		mysql_mutex_unlock(&log_sys.mutex);
 		return(DB_ERROR);
 	}
 
@@ -3365,12 +3367,12 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	ut_ad(!recv_sys.found_corrupt_fs);
 
 	if (srv_read_only_mode && recv_needed_recovery) {
-		log_mutex_exit();
+		mysql_mutex_unlock(&log_sys.mutex);
 		return(DB_READ_ONLY);
 	}
 
 	if (recv_sys.found_corrupt_log && !srv_force_recovery) {
-		log_mutex_exit();
+		mysql_mutex_unlock(&log_sys.mutex);
 		ib::warn() << "Log scan aborted at LSN " << contiguous_lsn;
 		return(DB_ERROR);
 	}
@@ -3378,7 +3380,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	if (recv_sys.mlog_checkpoint_lsn == 0) {
 		lsn_t scan_lsn = log_sys.log.scanned_lsn;
 		if (!srv_read_only_mode && scan_lsn != checkpoint_lsn) {
-			log_mutex_exit();
+			mysql_mutex_unlock(&log_sys.mutex);
 			ib::error err;
 			err << "Missing FILE_CHECKPOINT";
 			if (end_lsn) {
@@ -3397,7 +3399,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 		if ((recv_sys.found_corrupt_log && !srv_force_recovery)
 		    || recv_sys.found_corrupt_fs) {
-			log_mutex_exit();
+			mysql_mutex_unlock(&log_sys.mutex);
 			return(DB_ERROR);
 		}
 	}
@@ -3438,7 +3440,7 @@ completed:
 			if (srv_read_only_mode) {
 				ib::error() << "innodb_read_only"
 					" prevents crash recovery";
-				log_mutex_exit();
+				mysql_mutex_unlock(&log_sys.mutex);
 				return(DB_READ_ONLY);
 			}
 
@@ -3460,7 +3462,7 @@ completed:
 			rescan, missing_tablespace);
 
 		if (err != DB_SUCCESS) {
-			log_mutex_exit();
+			mysql_mutex_unlock(&log_sys.mutex);
 			return(err);
 		}
 
@@ -3490,7 +3492,7 @@ completed:
 					rescan, missing_tablespace);
 
 			if (err != DB_SUCCESS) {
-				log_mutex_exit();
+				mysql_mutex_unlock(&log_sys.mutex);
 				return err;
 			}
 
@@ -3514,7 +3516,7 @@ completed:
 			if ((recv_sys.found_corrupt_log
 			     && !srv_force_recovery)
 			    || recv_sys.found_corrupt_fs) {
-				log_mutex_exit();
+				mysql_mutex_unlock(&log_sys.mutex);
 				return(DB_ERROR);
 			}
 		}
@@ -3535,7 +3537,7 @@ completed:
 	}
 
 	if (recv_sys.recovered_lsn < checkpoint_lsn) {
-		log_mutex_exit();
+		mysql_mutex_unlock(&log_sys.mutex);
 
 		ib::error() << "Recovered only to lsn:"
 			    << recv_sys.recovered_lsn << " checkpoint_lsn: " << checkpoint_lsn;
@@ -3573,7 +3575,7 @@ completed:
 
 	mutex_exit(&recv_sys.mutex);
 
-	log_mutex_exit();
+	mysql_mutex_unlock(&log_sys.mutex);
 
 	recv_lsn_checks_on = true;
 

@@ -303,7 +303,7 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
 	}
 
 	/* Create a log checkpoint. */
-	log_mutex_enter();
+	mysql_mutex_lock(&log_sys.mutex);
 	if (log_sys.is_encrypted() && !log_crypt_init()) {
 		return DB_ERROR;
 	}
@@ -328,7 +328,7 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
 
 	log_sys.log.write_header_durable(lsn);
 
-	log_mutex_exit();
+	mysql_mutex_unlock(&log_sys.mutex);
 
 	log_make_checkpoint();
 	log_write_up_to(LSN_MAX, true);
@@ -355,12 +355,12 @@ static dberr_t create_log_file_rename(lsn_t lsn, std::string &logfile0)
 
   ib::info() << "Renaming log file " << logfile0 << " to " << new_name;
 
-  log_mutex_enter();
+  mysql_mutex_lock(&log_sys.mutex);
   ut_ad(logfile0.size() == 2 + new_name.size());
   logfile0= new_name;
   dberr_t err= log_sys.log.rename(std::move(new_name));
 
-  log_mutex_exit();
+  mysql_mutex_unlock(&log_sys.mutex);
 
   DBUG_EXECUTE_IF("innodb_log_abort_10", err= DB_ERROR;);
 
@@ -910,7 +910,7 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 		DBUG_EXECUTE_IF("innodb_log_abort_1", DBUG_RETURN(0););
 		DBUG_PRINT("ib_log", ("After innodb_log_abort_1"));
 
-		log_mutex_enter();
+		mysql_mutex_lock(&log_sys.mutex);
 
 		fil_names_clear(log_sys.get_lsn(), false);
 
@@ -949,7 +949,7 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 			     << " bytes; LSN=" << flushed_lsn;
 		}
 
-		log_mutex_exit();
+		mysql_mutex_unlock(&log_sys.mutex);
 
 		if (flushed_lsn != log_sys.get_flushed_lsn()) {
 			log_write_up_to(flushed_lsn, false);

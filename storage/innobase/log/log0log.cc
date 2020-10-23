@@ -50,6 +50,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "trx0trx.h"
 #include "trx0roll.h"
 #include "srv0mon.h"
+#include "sync0sync.h"
 #include "buf0dump.h"
 #include "log0sync.h"
 
@@ -83,11 +84,11 @@ void log_buffer_extend(ulong len)
 		(ut_malloc_dontdump(new_buf_size, PSI_INSTRUMENT_ME));
 	TRASH_ALLOC(new_flush_buf, new_buf_size);
 
-	log_mutex_enter();
+	mysql_mutex_lock(&log_sys.mutex);
 
 	if (len <= srv_log_buffer_size) {
 		/* Already extended enough by the others */
-		log_mutex_exit();
+		mysql_mutex_unlock(&log_sys.mutex);
 		ut_free_dodump(new_buf, new_buf_size);
 		ut_free_dodump(new_flush_buf, new_buf_size);
 		return;
@@ -109,7 +110,7 @@ void log_buffer_extend(ulong len)
 	log_sys.max_buf_free = new_buf_size / LOG_BUF_FLUSH_RATIO
 		- LOG_BUF_FLUSH_MARGIN;
 
-	log_mutex_exit();
+	mysql_mutex_unlock(&log_sys.mutex);
 
 	ut_free_dodump(old_buf, old_buf_size);
 	ut_free_dodump(old_flush_buf, old_buf_size);
@@ -158,7 +159,7 @@ log_set_capacity(ulonglong file_size)
 	margin = smallest_capacity - free;
 	margin = margin - margin / 10;	/* Add still some extra safety */
 
-	log_mutex_enter();
+	mysql_mutex_lock(&log_sys.mutex);
 
 	log_sys.log_capacity = smallest_capacity;
 
@@ -166,7 +167,7 @@ log_set_capacity(ulonglong file_size)
 	log_sys.max_checkpoint_age_async = margin - margin / 32;
 	log_sys.max_checkpoint_age = margin;
 
-	log_mutex_exit();
+	mysql_mutex_unlock(&log_sys.mutex);
 
 	return(true);
 }
@@ -178,8 +179,8 @@ void log_t::create()
   ut_ad(!is_initialised());
   m_initialised= true;
 
-  mutex_create(LATCH_ID_LOG_SYS, &mutex);
-  mutex_create(LATCH_ID_LOG_FLUSH_ORDER, &log_flush_order_mutex);
+  mysql_mutex_init(log_sys_mutex_key, &mutex, nullptr);
+  mysql_mutex_init(log_flush_order_mutex_key, &flush_order_mutex, nullptr);
 
   /* Start the lsn from one log block from zero: this way every
   log record has a non-zero start lsn, a fact which we will use */
@@ -624,7 +625,7 @@ loop:
 }
 
 /** Flush the recently written changes to the log file.
-and invoke log_mutex_enter(). */
+and invoke mysql_mutex_lock(&log_sys.mutex). */
 static void log_write_flush_to_disk_low(lsn_t lsn)
 {
   if (!log_sys.log.writes_are_durable())
@@ -640,7 +641,7 @@ static inline
 void
 log_buffer_switch()
 {
-	ut_ad(log_mutex_own());
+	mysql_mutex_assert_owner(&log_sys.mutex);
 	ut_ad(log_write_lock_own());
 
 	size_t		area_end = ut_calc_align<size_t>(
@@ -664,18 +665,18 @@ which is the "write" part of log_write_up_to().
 
 This function does not flush anything.
 
-Note : the caller must have log_mutex locked, and this
+Note : the caller must have log_sys.mutex locked, and this
 mutex is released in the function.
 
 */
 static void log_write(bool rotate_key)
 {
-	ut_ad(log_mutex_own());
+	mysql_mutex_assert_owner(&log_sys.mutex);
 	ut_ad(!recv_no_log_write);
 	lsn_t write_lsn;
 	if (log_sys.buf_free == log_sys.buf_next_to_write) {
 		/* Nothing to write */
-		log_mutex_exit();
+		mysql_mutex_unlock(&log_sys.mutex);
 		return;
 	}
 
@@ -712,7 +713,7 @@ static void log_write(bool rotate_key)
 
 	log_sys.log.set_fields(log_sys.write_lsn);
 
-	log_mutex_exit();
+	mysql_mutex_unlock(&log_sys.mutex);
 	/* Erase the end of the last log block. */
 	memset(write_buf + end_offset, 0,
 	       ~end_offset & (OS_FILE_LOG_BLOCK_SIZE - 1));
@@ -803,7 +804,7 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key)
 
   if (write_lock.acquire(lsn) == group_commit_lock::ACQUIRED)
   {
-    log_mutex_enter();
+    mysql_mutex_lock(&log_sys.mutex);
     lsn_t write_lsn= log_sys.get_lsn();
     write_lock.set_pending(write_lsn);
 
@@ -846,25 +847,24 @@ ATTRIBUTE_COLD static void log_flush_margin()
 {
 	lsn_t	lsn	= 0;
 
-	log_mutex_enter();
+	mysql_mutex_lock(&log_sys.mutex);
 
 	if (log_sys.buf_free > log_sys.max_buf_free) {
 		/* We can write during flush */
 		lsn = log_sys.get_lsn();
 	}
 
-	log_mutex_exit();
+	mysql_mutex_unlock(&log_sys.mutex);
 
 	if (lsn) {
 		log_write_up_to(lsn, false);
 	}
 }
 
-/** Write checkpoint info to the log header and invoke log_mutex_exit().
+/** Write checkpoint info to the log header and release log_sys.mutex.
 @param[in]	end_lsn	start LSN of the FILE_CHECKPOINT mini-transaction */
 ATTRIBUTE_COLD void log_write_checkpoint_info(lsn_t end_lsn)
 {
-	ut_ad(log_mutex_own());
 	ut_ad(!srv_read_only_mode);
 	ut_ad(end_lsn == 0 || end_lsn >= log_sys.next_checkpoint_lsn);
 	ut_ad(end_lsn <= log_sys.get_lsn());
@@ -900,7 +900,7 @@ ATTRIBUTE_COLD void log_write_checkpoint_info(lsn_t end_lsn)
 
 	++log_sys.n_pending_checkpoint_writes;
 
-	log_mutex_exit();
+	mysql_mutex_unlock(&log_sys.mutex);
 
 	/* Note: We alternate the physical place of the checkpoint info.
 	See the (next_checkpoint_no & 1) below. */
@@ -911,7 +911,7 @@ ATTRIBUTE_COLD void log_write_checkpoint_info(lsn_t end_lsn)
 
 	log_sys.log.flush();
 
-	log_mutex_enter();
+	mysql_mutex_lock(&log_sys.mutex);
 
 	--log_sys.n_pending_checkpoint_writes;
 	ut_ad(log_sys.n_pending_checkpoint_writes == 0);
@@ -929,7 +929,7 @@ ATTRIBUTE_COLD void log_write_checkpoint_info(lsn_t end_lsn)
 
 	DBUG_EXECUTE_IF("crash_after_checkpoint", DBUG_SUICIDE(););
 
-	log_mutex_exit();
+	mysql_mutex_unlock(&log_sys.mutex);
 }
 
 /****************************************************************//**
@@ -939,20 +939,20 @@ checkpoint. NOTE: this function may only be called if the calling thread
 owns no synchronization objects! */
 ATTRIBUTE_COLD static void log_checkpoint_margin()
 {
+retry:
   if (!log_sys.check_flush_or_checkpoint())
     return;
 
-  log_mutex_enter();
+  mysql_mutex_lock(&log_sys.mutex);
   ut_ad(!recv_no_log_write);
   ut_ad(log_sys.max_checkpoint_age >= log_sys.max_checkpoint_age_async);
 
   if (!log_sys.check_flush_or_checkpoint())
   {
-    log_mutex_exit();
+    mysql_mutex_unlock(&log_sys.mutex);
     return;
   }
 
-retry:
   const lsn_t lsn= log_sys.get_lsn();
   const lsn_t checkpoint= log_sys.last_checkpoint_lsn;
   const lsn_t async_checkpoint_lsn= checkpoint +
@@ -960,7 +960,7 @@ retry:
   const lsn_t sync_checkpoint_lsn= checkpoint + log_sys.max_checkpoint_age;
   if (lsn <= sync_checkpoint_lsn)
     log_sys.set_check_flush_or_checkpoint(false);
-  log_mutex_exit();
+  mysql_mutex_unlock(&log_sys.mutex);
 
   if (lsn > sync_checkpoint_lsn)
   {
@@ -969,10 +969,9 @@ retry:
                                     std::min(async_checkpoint_lsn,
                                              checkpoint + (1U << 20))),
                            async_checkpoint_lsn);
-    log_mutex_enter();
     goto retry;
   }
-  else if (lsn > async_checkpoint_lsn)
+  if (lsn > async_checkpoint_lsn)
     buf_flush_ahead(async_checkpoint_lsn);
 }
 
@@ -1153,10 +1152,10 @@ wait_suspend_loop:
 	}
 
 	if (log_sys.is_initialised()) {
-		log_mutex_enter();
+		mysql_mutex_lock(&log_sys.mutex);
 		const ulint	n_write	= log_sys.n_pending_checkpoint_writes;
 		const ulint	n_flush	= log_sys.pending_flushes;
-		log_mutex_exit();
+		mysql_mutex_unlock(&log_sys.mutex);
 
 		if (n_write || n_flush) {
 			if (srv_print_verbose_log && count > 600) {
@@ -1199,7 +1198,7 @@ wait_suspend_loop:
 			"ensuring dirty buffer pool are written to log");
 		log_make_checkpoint();
 
-		log_mutex_enter();
+		mysql_mutex_lock(&log_sys.mutex);
 
 		lsn = log_sys.get_lsn();
 
@@ -1208,7 +1207,7 @@ wait_suspend_loop:
 			+ SIZE_OF_FILE_CHECKPOINT;
 		ut_ad(lsn >= log_sys.last_checkpoint_lsn);
 
-		log_mutex_exit();
+		mysql_mutex_unlock(&log_sys.mutex);
 
 		if (lsn_changed) {
 			goto loop;
@@ -1265,7 +1264,7 @@ log_print(
 	double	time_elapsed;
 	time_t	current_time;
 
-	log_mutex_enter();
+	mysql_mutex_lock(&log_sys.mutex);
 
 	const lsn_t lsn= log_sys.get_lsn();
 	mysql_mutex_lock(&buf_pool.flush_list_mutex);
@@ -1305,7 +1304,7 @@ log_print(
 	log_sys.n_log_ios_old = log_sys.n_log_ios;
 	log_sys.last_printout_time = current_time;
 
-	log_mutex_exit();
+	mysql_mutex_unlock(&log_sys.mutex);
 }
 
 /**********************************************************************//**
@@ -1331,8 +1330,8 @@ void log_t::close()
   ut_free_dodump(flush_buf, srv_log_buffer_size);
   flush_buf = NULL;
 
-  mutex_free(&mutex);
-  mutex_free(&log_flush_order_mutex);
+  mysql_mutex_destroy(&mutex);
+  mysql_mutex_destroy(&flush_order_mutex);
 
   recv_sys.close();
 }

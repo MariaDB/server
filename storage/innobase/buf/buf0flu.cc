@@ -131,7 +131,7 @@ static void buf_flush_validate_skip()
 void buf_flush_insert_into_flush_list(buf_block_t* block, lsn_t lsn)
 {
 	mysql_mutex_assert_not_owner(&buf_pool.mutex);
-	ut_ad(log_flush_order_mutex_own());
+	mysql_mutex_assert_owner(&log_sys.flush_order_mutex);
 	ut_ad(lsn);
 
 	mysql_mutex_lock(&buf_pool.flush_list_mutex);
@@ -1559,7 +1559,7 @@ ulint buf_flush_lists(ulint max_n, lsn_t lsn)
 static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
 {
   ut_ad(!srv_read_only_mode);
-  ut_ad(log_mutex_own());
+  mysql_mutex_assert_owner(&log_sys.mutex);
   ut_ad(oldest_lsn <= end_lsn);
   ut_ad(end_lsn == log_sys.get_lsn());
   ut_ad(!recv_no_log_write);
@@ -1576,7 +1576,7 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
   {
     /* Do nothing, because nothing was logged (other than a
     FILE_CHECKPOINT record) since the previous checkpoint. */
-    log_mutex_exit();
+    mysql_mutex_unlock(&log_sys.mutex);
     return true;
   }
 
@@ -1597,12 +1597,12 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
   {
     flush_lsn= log_sys.get_lsn();
     ut_ad(flush_lsn >= end_lsn + SIZE_OF_FILE_CHECKPOINT);
-    log_mutex_exit();
+    mysql_mutex_unlock(&log_sys.mutex);
     log_write_up_to(flush_lsn, true, true);
-    log_mutex_enter();
+    mysql_mutex_lock(&log_sys.mutex);
     if (log_sys.last_checkpoint_lsn >= oldest_lsn)
     {
-      log_mutex_exit();
+      mysql_mutex_unlock(&log_sys.mutex);
       return true;
     }
   }
@@ -1614,13 +1614,13 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
   if (log_sys.n_pending_checkpoint_writes)
   {
     /* A checkpoint write is running */
-    log_mutex_exit();
+    mysql_mutex_unlock(&log_sys.mutex);
     return false;
   }
 
   log_sys.next_checkpoint_lsn= oldest_lsn;
   log_write_checkpoint_info(end_lsn);
-  ut_ad(!log_mutex_own());
+  mysql_mutex_assert_not_owner(&log_sys.mutex);
 
   return true;
 }
@@ -1644,13 +1644,13 @@ static bool log_checkpoint()
     fil_flush_file_spaces();
   }
 
-  log_mutex_enter();
+  mysql_mutex_lock(&log_sys.mutex);
   const lsn_t end_lsn= log_sys.get_lsn();
-  log_flush_order_mutex_enter();
+  mysql_mutex_lock(&log_sys.flush_order_mutex);
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   const lsn_t oldest_lsn= buf_pool.get_oldest_modification(end_lsn);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-  log_flush_order_mutex_exit();
+  mysql_mutex_unlock(&log_sys.flush_order_mutex);
   return log_checkpoint_low(oldest_lsn, end_lsn);
 }
 
@@ -1670,7 +1670,7 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn, lsn_t async_lsn)
   ut_ad(sync_lsn);
   ut_ad(async_lsn >= sync_lsn);
   ut_ad(sync_lsn < LSN_MAX);
-  ut_ad(!log_mutex_own());
+  mysql_mutex_assert_not_owner(&log_sys.mutex);
   ut_ad(!srv_read_only_mode);
 
   if (recv_recovery_is_on())
@@ -1730,7 +1730,7 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn, lsn_t async_lsn)
 @param lsn buf_pool.get_oldest_modification(LSN_MAX) target */
 void buf_flush_ahead(lsn_t lsn)
 {
-  ut_ad(!log_mutex_own());
+  mysql_mutex_assert_not_owner(&log_sys.mutex);
   ut_ad(!srv_read_only_mode);
 
   if (recv_recovery_is_on())
@@ -1790,12 +1790,12 @@ ATTRIBUTE_COLD static void buf_flush_sync_for_checkpoint(lsn_t lsn)
       fil_flush_file_spaces();
     }
 
-    log_mutex_enter();
+    mysql_mutex_lock(&log_sys.mutex);
     const lsn_t newest_lsn= log_sys.get_lsn();
-    log_flush_order_mutex_enter();
+    mysql_mutex_lock(&log_sys.flush_order_mutex);
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
     lsn_t measure= buf_pool.get_oldest_modification(0);
-    log_flush_order_mutex_exit();
+    mysql_mutex_unlock(&log_sys.flush_order_mutex);
     const lsn_t checkpoint_lsn= measure ? measure : newest_lsn;
     lsn_t new_target;
 
@@ -1803,10 +1803,10 @@ ATTRIBUTE_COLD static void buf_flush_sync_for_checkpoint(lsn_t lsn)
     {
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);
       log_checkpoint_low(checkpoint_lsn, newest_lsn);
-      log_mutex_enter();
+      mysql_mutex_lock(&log_sys.mutex);
       new_target= log_sys.last_checkpoint_lsn +
         log_sys.max_checkpoint_age_async;
-      log_mutex_exit();
+      mysql_mutex_unlock(&log_sys.mutex);
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
       measure= buf_pool.get_oldest_modification(LSN_MAX);
     }
@@ -1814,12 +1814,12 @@ ATTRIBUTE_COLD static void buf_flush_sync_for_checkpoint(lsn_t lsn)
     {
       new_target= log_sys.last_checkpoint_lsn +
         log_sys.max_checkpoint_age_async;
-      log_mutex_exit();
+      mysql_mutex_unlock(&log_sys.mutex);
       if (!measure)
         measure= LSN_MAX;
     }
 
-    ut_ad(!log_mutex_own());
+    mysql_mutex_assert_not_owner(&log_sys.mutex);
 
     /* After attempting log checkpoint, check if we have reached our target. */
     const lsn_t target= buf_flush_sync_lsn;

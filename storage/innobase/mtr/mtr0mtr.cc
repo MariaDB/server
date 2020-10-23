@@ -408,12 +408,12 @@ void mtr_t::commit()
       lsns= { m_commit_lsn, false };
 
     if (m_made_dirty)
-      log_flush_order_mutex_enter();
+      mysql_mutex_lock(&log_sys.flush_order_mutex);
 
     /* It is now safe to release the log mutex because the
     flush_order mutex will ensure that we are the first one
     to insert into the flush list. */
-    log_mutex_exit();
+    mysql_mutex_unlock(&log_sys.mutex);
 
     if (m_freed_pages)
     {
@@ -445,7 +445,7 @@ void mtr_t::commit()
                                      (ReleaseBlocks(lsns.first, m_commit_lsn,
                                                     m_memo)));
     if (m_made_dirty)
-      log_flush_order_mutex_exit();
+      mysql_mutex_unlock(&log_sys.flush_order_mutex);
 
     m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>());
 
@@ -464,12 +464,12 @@ void mtr_t::commit()
 /** Commit a mini-transaction that did not modify any pages,
 but generated some redo log on a higher level, such as
 FILE_MODIFY records and an optional FILE_CHECKPOINT marker.
-The caller must invoke log_mutex_enter() and log_mutex_exit().
+The caller must hold log_sys.mutex.
 This is to be used at log_checkpoint().
 @param[in]	checkpoint_lsn		log checkpoint LSN, or 0 */
 void mtr_t::commit_files(lsn_t checkpoint_lsn)
 {
-	ut_ad(log_mutex_own());
+	mysql_mutex_assert_owner(&log_sys.mutex);
 	ut_ad(is_active());
 	ut_ad(!is_inside_ibuf());
 	ut_ad(m_log_mode == MTR_LOG_ALL);
@@ -643,7 +643,7 @@ static void log_margin_checkpoint_age(ulint len)
 
   const ulint margin= len + extra_len;
 
-  ut_ad(log_mutex_own());
+  mysql_mutex_assert_owner(&log_sys.mutex);
 
   const lsn_t lsn= log_sys.get_lsn();
 
@@ -676,7 +676,7 @@ static lsn_t log_reserve_and_open(size_t len)
 {
   for (ut_d(ulint count= 0);;)
   {
-    ut_ad(log_mutex_own());
+    mysql_mutex_assert_owner(&log_sys.mutex);
 
     /* Calculate an upper limit for the space the string may take in
     the log buffer */
@@ -687,7 +687,7 @@ static lsn_t log_reserve_and_open(size_t len)
     if (log_sys.buf_free + len_upper_limit <= srv_log_buffer_size)
       break;
 
-    log_mutex_exit();
+    mysql_mutex_unlock(&log_sys.mutex);
     DEBUG_SYNC_C("log_buf_size_exceeded");
 
     /* Not enough free space, do a write of the log buffer */
@@ -697,7 +697,7 @@ static lsn_t log_reserve_and_open(size_t len)
 
     ut_ad(++count < 50);
 
-    log_mutex_enter();
+    mysql_mutex_lock(&log_sys.mutex);
   }
 
   return log_sys.get_lsn();
@@ -706,7 +706,7 @@ static lsn_t log_reserve_and_open(size_t len)
 /** Append data to the log buffer. */
 static void log_write_low(const void *str, size_t size)
 {
-  ut_ad(log_mutex_own());
+  mysql_mutex_assert_owner(&log_sys.mutex);
   const ulint trailer_offset= log_sys.trailer_offset();
 
   do
@@ -758,7 +758,7 @@ static void log_write_low(const void *str, size_t size)
 @return whether buffer pool flushing is needed */
 static bool log_close(lsn_t lsn)
 {
-  ut_ad(log_mutex_own());
+  mysql_mutex_assert_owner(&log_sys.mutex);
   ut_ad(lsn == log_sys.get_lsn());
 
   byte *log_block= static_cast<byte*>(ut_align_down(log_sys.buf +
@@ -820,7 +820,7 @@ inline ulint mtr_t::prepare_write()
 	if (UNIV_UNLIKELY(m_log_mode != MTR_LOG_ALL)) {
 		ut_ad(m_log_mode == MTR_LOG_NO_REDO);
 		ut_ad(m_log.size() == 0);
-		log_mutex_enter();
+		mysql_mutex_lock(&log_sys.mutex);
 		m_commit_lsn = log_sys.get_lsn();
 		return 0;
 	}
@@ -839,7 +839,7 @@ inline ulint mtr_t::prepare_write()
 		space = NULL;
 	}
 
-	log_mutex_enter();
+	mysql_mutex_lock(&log_sys.mutex);
 
 	if (fil_names_write_if_was_clean(space)) {
 		len = m_log.size();
@@ -864,7 +864,7 @@ inline ulint mtr_t::prepare_write()
 inline std::pair<lsn_t,bool> mtr_t::finish_write(ulint len)
 {
 	ut_ad(m_log_mode == MTR_LOG_ALL);
-	ut_ad(log_mutex_own());
+	mysql_mutex_assert_owner(&log_sys.mutex);
 	ut_ad(m_log.size() == len);
 	ut_ad(len > 0);
 

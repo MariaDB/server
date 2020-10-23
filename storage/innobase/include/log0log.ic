@@ -255,7 +255,7 @@ log_reserve_and_write_fast(
 	ulint		len,
 	lsn_t*		start_lsn)
 {
-	ut_ad(log_mutex_own());
+	mysql_mutex_assert_owner(&log_sys.mutex);
 	ut_ad(len > 0);
 
 	const ulint	data_len = len
