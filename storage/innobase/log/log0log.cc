@@ -966,7 +966,7 @@ retry:
   {
     /* We must wait to prevent the tail of the log overwriting the head. */
     buf_flush_wait_flushed(std::min(sync_checkpoint_lsn,
-                                    std::max(async_checkpoint_lsn,
+                                    std::min(async_checkpoint_lsn,
                                              checkpoint + (1U << 20))),
                            async_checkpoint_lsn);
     log_mutex_enter();
