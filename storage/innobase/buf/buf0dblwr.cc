@@ -461,6 +461,7 @@ void buf_dblwr_t::close()
   mysql_mutex_destroy(&mutex);
 
   memset((void*) this, 0, sizeof *this);
+  active_slot= &slots[0];
 }
 
 /** Update the doublewrite buffer on write completion. */
@@ -572,12 +573,12 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
 
   /* Disallow anyone else to start another batch of flushing. */
   slot *flush_slot= active_slot;
-  /* Switch the active slot*/
+  /* Switch the active slot */
   active_slot= active_slot == &slots[0] ? &slots[1] : &slots[0];
   ut_a(active_slot->first_free == 0);
   batch_running= true;
   const ulint old_first_free= flush_slot->first_free;
-  auto write_buf=flush_slot->write_buf;
+  auto write_buf= flush_slot->write_buf;
 
   /* Now safe to release the mutex. */
   mysql_mutex_unlock(&mutex);
