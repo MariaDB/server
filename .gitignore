@@ -100,6 +100,7 @@ pcre/pcre_chartables.c
 pcre/pcregrep
 pcre/pcretest
 pcre/test*grep
+plugin/auth_pam/config_auth_pam.h
 plugin/aws_key_management/aws-sdk-cpp
 plugin/aws_key_management/aws_sdk_cpp
 plugin/aws_key_management/aws_sdk_cpp-prefix
