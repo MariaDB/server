@@ -614,7 +614,11 @@ public:
   { DBUG_ASSERT(FALSE); }
 
   void global_save_default(THD *thd, set_var *var)
-  { DBUG_ASSERT(FALSE); }
+  {
+    char *ptr= (char*)(intptr)option.def_value;
+    var->save_result.string_value.str= ptr;
+    var->save_result.string_value.length= ptr ? strlen(ptr) : 0;
+  }
 
   bool session_update(THD *thd, set_var *var)
   {
