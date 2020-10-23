@@ -11,12 +11,8 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR})
 SET(CMAKE_REQUIRED_FLAGS -Werror)
 CHECK_C_SOURCE_COMPILES(
 "
-#ifdef HAVE_GRP_H
 #include <grp.h>
-#endif
-#ifdef HAVE_UNISTD_H
 #include <unistd.h>
-#endif
 int main() {
   char *arg_1;
   gid_t arg_2, arg_3;
