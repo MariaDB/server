@@ -21,7 +21,7 @@ int main() {
   char *arg_1;
   gid_t arg_2, arg_3;
   int arg_4;
-  (void)getgrouplist(arg_1,arg_2,&arg_3,arg_4);
+  (void)getgrouplist(arg_1,arg_2,&arg_3,&arg_4);
   return 0;
 }
 "
