@@ -208,11 +208,11 @@ public:
     PUNCH_RANGE= WRITE_SYNC | 128,
   };
 
+  constexpr IORequest(buf_page_t *bpage, fil_node_t *node, Type type) :
+    bpage(bpage), node(node), type(type) {}
+
   constexpr IORequest(Type type= READ_SYNC, buf_page_t *bpage= nullptr) :
     bpage(bpage), type(type) {}
-
-  constexpr IORequest(const IORequest &old, fil_node_t *node= nullptr) :
-    bpage(old.bpage), node(node), type(old.type) {}
 
   bool is_read() const { return (type & READ_SYNC) != 0; }
   bool is_write() const { return (type & WRITE_SYNC) != 0; }
@@ -243,7 +243,7 @@ public:
   buf_page_t* const bpage= nullptr;
 
   /** File descriptor */
-  const fil_node_t *const node= nullptr;
+  fil_node_t *const node= nullptr;
 
   /** Request type bit flags */
   const Type type;
@@ -608,12 +608,6 @@ The wrapper functions have the prefix of "innodb_". */
 # define os_file_close(file)						\
 	pfs_os_file_close_func(file, __FILE__, __LINE__)
 
-# define os_aio(type, name, file, buf, offset,		\
-	n, read_only, message1, message2)			\
-	pfs_os_aio_func(type, name, file, buf, offset,	\
-		n, read_only, message1, message2,		\
-			__FILE__, __LINE__)
-
 # define os_file_read(type, file, buf, offset, n)			\
 	pfs_os_file_read_func(type, file, buf, offset, n, __FILE__, __LINE__)
 
@@ -793,42 +787,6 @@ pfs_os_file_read_no_error_handling_func(
 	const char*		src_file,
 	uint			src_line);
 
-/** NOTE! Please use the corresponding macro os_aio(), not directly this
-function!
-Performance schema wrapper function of os_aio() which requests
-an asynchronous I/O operation.
-@param[in,out]	type		IO request context
-@param[in]	name		Name of the file or path as NUL terminated
-				string
-@param[in]	file		Open file handle
-@param[out]	buf		buffer where to read
-@param[in]	offset		file offset where to read
-@param[in]	n		number of bytes to read
-@param[in]	read_only	if true read only mode checks are enforced
-@param[in,out]	m1		Message for the AIO handler, (can be used to
-				identify a completed AIO operation); ignored
-				if mode is OS_AIO_SYNC
-@param[in,out]	m2		message for the AIO handler (can be used to
-				identify a completed AIO operation); ignored
-				if mode is OS_AIO_SYNC
-@param[in]	src_file	file name where func invoked
-@param[in]	src_line	line where the func invoked
-@return DB_SUCCESS if request was queued successfully, FALSE if fail */
-UNIV_INLINE
-dberr_t
-pfs_os_aio_func(
-	const IORequest&type,
-	const char*	name,
-	pfs_os_file_t	file,
-	void*		buf,
-	os_offset_t	offset,
-	ulint		n,
-	bool		read_only,
-	fil_node_t*	m1,
-	void*		m2,
-	const char*	src_file,
-	uint		src_line);
-
 /** NOTE! Please use the corresponding macro os_file_write(), not directly
 this function!
 This is the performance schema instrumented wrapper function for
@@ -949,11 +907,6 @@ to original un-instrumented file I/O APIs */
 		name, create_mode, access, read_only, success)
 
 # define os_file_close(file)	os_file_close_func(file)
-
-# define os_aio(type, name, file, buf, offset,			\
-	n, read_only, message1, message2)			\
-	os_aio_func(type, name, file, buf, offset,		\
-		n, read_only, message1, message2)
 
 # define os_file_read(type, file, buf, offset, n)			\
 	os_file_read_func(type, file, buf, offset, n)
@@ -1202,48 +1155,14 @@ os_aio_init(
 Frees the asynchronous io system. */
 void os_aio_free();
 
-struct os_aio_userdata_t
-{
-  fil_node_t* node;
-  IORequest type;
-  void* message;
-
-  os_aio_userdata_t(fil_node_t*node, IORequest type, void*message) :
-    node(node), type(type), message(message) {}
-
-  /** Construct from tpool::aiocb::m_userdata[] */
-  os_aio_userdata_t(const char *buf) { memcpy((void*)this, buf, sizeof*this); }
-};
-/**
-NOTE! Use the corresponding macro os_aio(), not directly this function!
-Requests an asynchronous i/o operation.
-@param[in,out]	type		IO request context
-@param[in]	name		Name of the file or path as NUL terminated
-				string
-@param[in]	file		Open file handle
-@param[out]	buf		buffer where to read
-@param[in]	offset		file offset where to read
-@param[in]	n		number of bytes to read
-@param[in]	read_only	if true read only mode checks are enforced
-@param[in,out]	m1		Message for the AIO handler, (can be used to
-				identify a completed AIO operation); ignored
-				if mode is OS_AIO_SYNC
-@param[in,out]	m2		message for the AIO handler (can be used to
-				identify a completed AIO operation); ignored
-				if mode is OS_AIO_SYNC
-@return DB_SUCCESS or error code */
-dberr_t
-os_aio_func(
-	const IORequest&type,
-	const char*	name,
-	pfs_os_file_t	file,
-	void*		buf,
-	os_offset_t	offset,
-	ulint		n,
-	bool		read_only,
-	fil_node_t*	m1,
-	void*		m2);
-
+/** Request a read or write.
+@param type		I/O request
+@param buf		buffer
+@param offset		file offset
+@param n		number of bytes
+@retval DB_SUCCESS if request was queued successfully
+@retval DB_IO_ERROR on I/O error */
+dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n);
 
 /** Waits until there are no pending writes in os_aio_write_array. There can
 be other, synchronous, pending writes. */

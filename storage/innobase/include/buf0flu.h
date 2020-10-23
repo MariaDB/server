@@ -72,11 +72,8 @@ buf_flush_relocate_on_flush_list(
 	buf_page_t*	dpage);	/*!< in/out: destination block */
 
 /** Complete write of a file page from buf_pool.
-@param bpage   written page
-@param request write request
-@param dblwr   whether the doublewrite buffer was used */
-void buf_page_write_complete(buf_page_t *bpage, const IORequest &request,
-                             bool dblwr);
+@param request write request */
+void buf_page_write_complete(const IORequest &request);
 
 /** Assign the full crc32 checksum for non-compressed page.
 @param[in,out]	page	page to be updated */
