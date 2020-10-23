@@ -1354,6 +1354,11 @@ e	JSON_OBJECTAGG(B.a, B.v)
 0	{"a1":"1", "a1":"1", "a1":"1"}
 0	{"a2":"2", "a2":"2", "a2":"2"}
 1	{"b1":"3", "b1":"3", "b1":"3"}
+CREATE VIEW v AS SELECT JSON_OBJECTAGG(a, e) FROM t1;
+SELECT * FROM v;
+JSON_OBJECTAGG(a, e)
+{"a1":0, "a2":0, "b1":1}
+DROP VIEW v;
 DROP TABLE t1;
 #
 # End of 10.5 tests

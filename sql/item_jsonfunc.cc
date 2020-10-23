@@ -3772,6 +3772,8 @@ Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
   uint i;                       /* for loop variable */
   DBUG_ASSERT(fixed == 0);
 
+  memcpy(orig_args, args, sizeof(Item*) * arg_count);
+
   if (init_sum_func_check(thd))
     return TRUE;
 
@@ -3866,8 +3868,4 @@ String* Item_func_json_objectagg::val_str(String* str)
   return &result;
 }
 
-
-void Item_func_json_objectagg::print(String *str, enum_query_type query_type)
-{
-}
 
