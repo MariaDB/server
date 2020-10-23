@@ -884,7 +884,7 @@ is_unaccessible:
     return nullptr;
   }
 
-  if (!fil_table_accessible(table))
+  if (!table->is_accessible())
     goto is_unaccessible;
 
   size_t db1_len, tbl1_len;

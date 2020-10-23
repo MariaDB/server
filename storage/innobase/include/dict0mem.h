@@ -1806,6 +1806,13 @@ struct dict_table_t {
 		return(UNIV_LIKELY(!file_unreadable));
 	}
 
+	/** @return whether the table is accessible */
+	bool is_accessible() const
+	{
+		return UNIV_LIKELY(is_readable() && !corrupted && space)
+			&& !space->is_stopping();
+	}
+
 	/** Check if a table name contains the string "/#sql"
 	which denotes temporary or intermediate tables in MariaDB. */
 	static bool is_temporary_name(const char* name)

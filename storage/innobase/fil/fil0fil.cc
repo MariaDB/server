@@ -1822,27 +1822,6 @@ void fil_close_tablespace(ulint id)
 	ut_free(path);
 }
 
-/** Determine whether a table can be accessed in operations that are
-not (necessarily) protected by meta-data locks.
-(Rollback would generally be protected, but rollback of
-FOREIGN KEY CASCADE/SET NULL is not protected by meta-data locks
-but only by InnoDB table locks, which may be broken by
-lock_remove_all_on_table().)
-@param[in]	table	persistent table
-checked @return whether the table is accessible */
-bool fil_table_accessible(const dict_table_t* table)
-{
-	if (UNIV_UNLIKELY(!table->is_readable() || table->corrupted)) {
-		return(false);
-	}
-
-	mutex_enter(&fil_system.mutex);
-	bool accessible = table->space && !table->space->is_stopping();
-	mutex_exit(&fil_system.mutex);
-	ut_ad(accessible || dict_table_is_file_per_table(table));
-	return accessible;
-}
-
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
 @param[in]	if_exists	whether to ignore missing tablespace

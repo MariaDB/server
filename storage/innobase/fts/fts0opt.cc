@@ -2389,7 +2389,7 @@ fts_optimize_table_bk(
 	dict_table_t*	table = slot->table;
 	dberr_t		error;
 
-	if (fil_table_accessible(table)
+	if (table->is_accessible()
 	    && table->fts && table->fts->cache
 	    && table->fts->cache->deleted >= FTS_OPTIMIZE_THRESHOLD) {
 		error = fts_optimize_table(table);
@@ -2799,8 +2799,7 @@ static void fts_optimize_sync_table(dict_table_t *table,
   if (!sync_table)
     return;
 
-  if (sync_table->fts && sync_table->fts->cache &&
-      fil_table_accessible(sync_table))
+  if (sync_table->fts && sync_table->fts->cache && sync_table->is_accessible())
   {
     fts_sync_table(sync_table, false);
     if (process_message)

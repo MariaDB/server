@@ -358,7 +358,7 @@ next_table_id:
 
 	ut_ad(!table->is_temporary());
 
-	if (!fil_table_accessible(table)) {
+	if (!table->is_accessible()) {
 		dict_table_close(table, TRUE, FALSE);
 		mutex_exit(&dict_sys.mutex);
 		goto next_table_id;
