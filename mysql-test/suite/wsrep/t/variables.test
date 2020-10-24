@@ -1,4 +1,5 @@
 --source include/have_wsrep.inc
+--source include/galera_have_debug_sync.inc
 
 SET @wsrep_provider_options_saved= @@global.wsrep_provider_options;
 SET @wsrep_cluster_address_saved= @@global.wsrep_cluster_address;
