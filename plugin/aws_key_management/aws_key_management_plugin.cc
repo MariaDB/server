@@ -161,6 +161,10 @@ public:
   {
   }
 
+  virtual void Flush(void) override
+  {
+  }
+
 protected:
   virtual void ProcessFormattedStatement(Aws::String&& statement) override
   {
