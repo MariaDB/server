@@ -49,7 +49,7 @@ bool XMLDOCUMENT::InitZip(PGLOBAL g, PCSZ entry)
 {
 #if defined(ZIP_SUPPORT)
 	bool mul = (entry) ? strchr(entry, '*') || strchr(entry, '?') : false;
-	zip = new(g) UNZIPUTL(entry, mul);
+	zip = new(g) UNZIPUTL(entry, NULL, mul);
 	return zip == NULL;
 #else   // !ZIP_SUPPORT
 	sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");

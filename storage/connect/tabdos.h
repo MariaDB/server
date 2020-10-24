@@ -30,6 +30,7 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   friend class DBFBASE;
 	friend class UNZIPUTL;
 	friend class JSONCOL;
+	friend class TDBDCL;
  public:
   // Constructor
   DOSDEF(void);

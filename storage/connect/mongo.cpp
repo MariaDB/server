@@ -380,7 +380,6 @@ MGODEF::MGODEF(void)
 	Uri = NULL;
 	Colist = NULL;
 	Filter = NULL;
-	Level = 0;
 	Base = 0;
 	Version = 0;
 	Pipe = false;
