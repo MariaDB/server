@@ -29,3 +29,11 @@ ADD_EXECUTABLE(mf_iocache-t mf_iocache-t.cc ../../sql/mf_iocache_encr.cc)
 TARGET_LINK_LIBRARIES(mf_iocache-t mysys mytap mysys_ssl)
 ADD_DEPENDENCIES(mf_iocache-t GenError)
 MY_ADD_TEST(mf_iocache)
+
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql
+                    ${CMAKE_SOURCE_DIR}/include
+                    ${CMAKE_SOURCE_DIR}/unittest/mytap
+                    ${CMAKE_SOURCE_DIR}/extra/yassl/include)
+ADD_EXECUTABLE(rpl_queue-t rpl_queue-t.cc )
+TARGET_LINK_LIBRARIES(rpl_queue-t sql mytap)
+MY_ADD_TEST(rpl_queue-t)

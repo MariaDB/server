@@ -36,6 +36,7 @@
 #include "rpl_filter.h"
 #include "repl_failsafe.h"
 #include "transaction.h"
+#include "rpl_queue.h"
 #include <thr_alarm.h>
 #include <my_dir.h>
 #include <sql_common.h>
