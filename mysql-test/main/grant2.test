@@ -226,7 +226,7 @@ create user 'mysqltest_1';
 --error ER_CANNOT_USER
 create user 'mysqltest_1';
 create user 'mysqltest_2' identified by 'Mysqltest-2';
-create user 'mysqltest_3' identified by password 'fffffffffffffffffffffffffffffffffffffffff';
+create user 'mysqltest_3' identified by password '*ffffffffffffffffffffffffffffffffffffffff';
 grant select on *.* to 'mysqltest_2';
 grant insert on test.* to 'mysqltest_2';
 grant update on test.t1 to 'mysqltest_2';
@@ -305,7 +305,7 @@ select host,db,user,table_name,column_name from mysql.columns_priv where user = 
 # Handle multi user lists
 create user 'mysqltest_1', 'mysqltest_2', 'mysqltest_3';
 drop user 'mysqltest_1', 'mysqltest_2', 'mysqltest_3';
-create user 'mysqltest_1', 'mysqltest_2' identified by 'Mysqltest-2', 'mysqltest_3' identified by password 'fffffffffffffffffffffffffffffffffffffffff';
+create user 'mysqltest_1', 'mysqltest_2' identified by 'Mysqltest-2', 'mysqltest_3' identified by password '*ffffffffffffffffffffffffffffffffffffffff';
 rename user 'mysqltest_1' to 'mysqltest_1a', 'mysqltest_2' TO 'mysqltest_2a', 'mysqltest_3' TO 'mysqltest_3a';
 --error ER_CANNOT_USER
 drop user 'mysqltest_1', 'mysqltest_2', 'mysqltest_3';

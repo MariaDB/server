@@ -14176,10 +14176,37 @@ static int native_password_get_salt(const char *hash, size_t hash_length,
   {
     if (hash_length == 7 && strcmp(hash, "invalid") == 0)
     {
-      memcpy(out, invalid_password, SCRAMBLED_PASSWORD_CHAR_LENGTH);
-      *out_length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
+      memcpy(out, invalid_password, sizeof(invalid_password));
+      *out_length= sizeof(invalid_password);
       return 0;
     }
+    my_error(ER_PASSWD_LENGTH, MYF(0), SCRAMBLED_PASSWORD_CHAR_LENGTH);
+    return 1;
+  }
+  if (hash[0] == '*')
+  {
+    hash_length--;
+    const char *c= hash + 1;
+    while (((*c >= '0' && *c <= '9') ||
+            (*c >= 'A' && *c <= 'F') ||
+            (*c >= 'a' && *c <= 'f')) &&
+	   hash_length--)
+    {
+      c++;
+    }
+    /*
+       someone is faking a of an invalid hash, that looks like it (length and '*'),
+       so we'll allow it by saving an invalid hash.
+    */
+    if (hash_length)
+    {
+      memcpy(out, invalid_password, sizeof(invalid_password));
+      *out_length= sizeof(invalid_password);
+      return 0;
+    }
+  }
+  else
+  {
     my_error(ER_PASSWD_LENGTH, MYF(0), SCRAMBLED_PASSWORD_CHAR_LENGTH);
     return 1;
   }

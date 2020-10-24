@@ -234,14 +234,14 @@ connection default;
 drop database mysqltest_db1;
 drop user mysqltest_u1@localhost;
 
-create user foo1 identified by password '11111111111111111111111111111111111111111';
+create user foo1 identified by password '*1111111111111111111111111111111111111111';
 create user foo2 identified by password '2222222222222222';
-create user foo3 identified via mysql_native_password using '11111111111111111111111111111111111111111';
+create user foo3 identified via mysql_native_password using '*1111111111111111111111111111111111111111';
 create user foo4 identified via mysql_old_password using '2222222222222222';
 
-grant select on test.* to foo5 identified by password '11111111111111111111111111111111111111111';
+grant select on test.* to foo5 identified by password '*1111111111111111111111111111111111111111';
 grant select on test.* to foo6 identified by password '2222222222222222';
-grant select on test.* to foo7 identified via mysql_native_password using '11111111111111111111111111111111111111111';
+grant select on test.* to foo7 identified via mysql_native_password using '*1111111111111111111111111111111111111111';
 grant select on test.* to foo8 identified via mysql_old_password using '2222222222222222';
 
 --sorted_result
