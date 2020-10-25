@@ -2,7 +2,6 @@
 # A fairly exhastive test for operator precedence
 #
 
-disable_abort_on_error;
 disable_warnings;
 
 #################### I couldn't come up with a test where precedence changes the result here
@@ -4759,7 +4758,7 @@ Select view_definition from information_schema.views where table_schema='test' a
 create or replace view v1 as select ! BINARY 1, BINARY ! 1;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 
-create or replace view v1 as select ! NOT 1, NOT ! 1;
+create or replace view v1 as select ! (NOT 1), NOT ! 1;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 
 create or replace view v1 as select ! ~ 1, ~ ! 1;
@@ -4768,19 +4767,19 @@ Select view_definition from information_schema.views where table_schema='test' a
 create or replace view v1 as select - BINARY 1, BINARY - 1;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 
-create or replace view v1 as select - NOT 1, NOT - 1;
+create or replace view v1 as select - (NOT 1), NOT - 1;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 
 create or replace view v1 as select - ~ 1, ~ - 1;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 
-create or replace view v1 as select BINARY NOT 1, NOT BINARY 1;
+create or replace view v1 as select BINARY (NOT 1), NOT BINARY 1;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 
 create or replace view v1 as select BINARY ~ 1, ~ BINARY 1;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 
-create or replace view v1 as select NOT ~ 1, ~ NOT 1;
+create or replace view v1 as select NOT ~ 1, ~ (NOT 1);
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 
 create or replace view v1 as select 1 IS TRUE IS FALSE, 2 IS FALSE IS UNKNOWN, 3 IS UNKNOWN IS NULL, 4 IS NULL IS TRUE;

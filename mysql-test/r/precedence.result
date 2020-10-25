@@ -7981,11 +7981,10 @@ create or replace view v1 as select ! BINARY 1, BINARY ! 1;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 view_definition
 select !cast(1 as char charset binary) AS `! BINARY 1`,cast(!1 as char charset binary) AS `BINARY ! 1`
-create or replace view v1 as select ! NOT 1, NOT ! 1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NOT 1, NOT ! 1' at line 1
+create or replace view v1 as select ! (NOT 1), NOT ! 1;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 view_definition
-select !cast(1 as char charset binary) AS `! BINARY 1`,cast(!1 as char charset binary) AS `BINARY ! 1`
+select 1 <> 0 AS `! (NOT 1)`,1 <> 0 AS `NOT ! 1`
 create or replace view v1 as select ! ~ 1, ~ ! 1;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 view_definition
@@ -7994,29 +7993,26 @@ create or replace view v1 as select - BINARY 1, BINARY - 1;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 view_definition
 select -cast(1 as char charset binary) AS `- BINARY 1`,cast(-1 as char charset binary) AS `BINARY - 1`
-create or replace view v1 as select - NOT 1, NOT - 1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NOT 1, NOT - 1' at line 1
+create or replace view v1 as select - (NOT 1), NOT - 1;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 view_definition
-select -cast(1 as char charset binary) AS `- BINARY 1`,cast(-1 as char charset binary) AS `BINARY - 1`
+select -!1 AS `- (NOT 1)`,!-1 AS `NOT - 1`
 create or replace view v1 as select - ~ 1, ~ - 1;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 view_definition
 select -~1 AS `- ~ 1`,~-1 AS `~ - 1`
-create or replace view v1 as select BINARY NOT 1, NOT BINARY 1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NOT 1, NOT BINARY 1' at line 1
+create or replace view v1 as select BINARY (NOT 1), NOT BINARY 1;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 view_definition
-select -~1 AS `- ~ 1`,~-1 AS `~ - 1`
+select cast(!1 as char charset binary) AS `BINARY (NOT 1)`,!cast(1 as char charset binary) AS `NOT BINARY 1`
 create or replace view v1 as select BINARY ~ 1, ~ BINARY 1;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 view_definition
 select cast(~1 as char charset binary) AS `BINARY ~ 1`,~cast(1 as char charset binary) AS `~ BINARY 1`
-create or replace view v1 as select NOT ~ 1, ~ NOT 1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NOT 1' at line 1
+create or replace view v1 as select NOT ~ 1, ~ (NOT 1);
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 view_definition
-select cast(~1 as char charset binary) AS `BINARY ~ 1`,~cast(1 as char charset binary) AS `~ BINARY 1`
+select !~1 AS `NOT ~ 1`,~!1 AS `~ (NOT 1)`
 create or replace view v1 as select 1 IS TRUE IS FALSE, 2 IS FALSE IS UNKNOWN, 3 IS UNKNOWN IS NULL, 4 IS NULL IS TRUE;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 view_definition
