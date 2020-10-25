@@ -132,6 +132,18 @@ public:
     const uint32_t size= block_size();
     return id < block1 + size || (id >= block2 && id < block2 + size);
   }
+
+  /** Wait for flush_buffered_writes() to be fully completed */
+  void wait_flush_buffered_writes()
+  {
+    if (is_initialised())
+    {
+      mysql_mutex_lock(&mutex);
+      while (batch_running)
+        mysql_cond_wait(&cond, &mutex);
+      mysql_mutex_unlock(&mutex);
+    }
+  }
 };
 
 /** The doublewrite buffer */
