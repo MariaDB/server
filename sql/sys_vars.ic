@@ -2651,15 +2651,18 @@ public:
   virtual bool do_check(THD *thd, set_var *var)
   {
     if (!var->value)
-    {
-      var->save_result.time.time_type= MYSQL_TIMESTAMP_NONE;
       return false;
-    }
-    bool res= var->value->get_date(&var->save_result.time,
+
+    MYSQL_TIME ltime;
+    bool res= var->value->get_date(&ltime,
                                    TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE);
-    if (res)
+    if (!res)
     {
-      var->save_result.time.time_type= MYSQL_TIMESTAMP_ERROR;
+      uint error;
+      var->save_result.timestamp.unix_time=
+              thd->variables.time_zone->TIME_to_gmt_sec(&ltime, &error);
+      var->save_result.timestamp.second_part= ltime.second_part;
+      res= error != 0;
     }
     return res;
   }
@@ -2667,24 +2670,18 @@ public:
 private:
   static bool update(THD *thd, set_var *var, vers_asof_timestamp_t *out)
   {
-    MYSQL_TIME &ltime= var->save_result.time;
-    uint error= 0;
-
     if (var->value)
     {
-      DBUG_ASSERT(ltime.time_type >= 0);
       out->type       = SYSTEM_TIME_AS_OF;
-      out->unix_time  = thd->variables.time_zone->TIME_to_gmt_sec(&ltime,
-                                                                  &error);
-      out->second_part= ltime.second_part;
+      out->unix_time  = var->save_result.timestamp.unix_time;
+      out->second_part= var->save_result.timestamp.second_part;
     }
-    return (error != 0);
+    return 0;
   }
 
   static void save_default(set_var *var, vers_asof_timestamp_t *out)
   {
     out->type= SYSTEM_TIME_UNSPECIFIED;
-    var->save_result.time.time_type= MYSQL_TIMESTAMP_NONE;
   }
 
 public:

@@ -279,6 +279,16 @@ public:
 
 
 /**
+  Structure for holding unix timestamp and high precision second part.
+ */
+typedef struct my_time_t_hires
+{
+  my_time_t unix_time;
+  ulong second_part;
+} my_time_t_hires;
+
+
+/**
   set_var_base descendant for assignments to the system variables.
 */
 class set_var :public set_var_base
@@ -296,7 +306,7 @@ public:
     plugin_ref *plugins;                ///< for Sys_var_pluginlist
     Time_zone *time_zone;               ///< for Sys_var_tz
     LEX_STRING string_value;            ///< for Sys_var_charptr and others
-    MYSQL_TIME time;                    ///< for Sys_var_vers_asof
+    my_time_t_hires timestamp;          ///< for Sys_var_vers_asof
     const void *ptr;                    ///< for Sys_var_struct
   } save_result;
   LEX_CSTRING base; /**< for structured variables, like keycache_name.variable_name */
