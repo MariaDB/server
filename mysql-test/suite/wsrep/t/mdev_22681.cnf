@@ -1,0 +1,10 @@
+!include ../my.cnf
+
+[mysqld.1]
+wsrep-on=ON
+log-bin
+binlog-format=ROW
+innodb-flush-log-at-trx-commit=1
+wsrep-cluster-address=gcomm://
+wsrep-provider=@ENV.WSREP_PROVIDER
+innodb-autoinc-lock-mode=2

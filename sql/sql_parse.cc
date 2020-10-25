@@ -3792,6 +3792,7 @@ mysql_execute_command(THD *thd)
       lex->sql_command != SQLCOM_BEGIN    &&
       lex->sql_command != SQLCOM_CALL     &&
       lex->sql_command != SQLCOM_EXECUTE  &&
+      lex->sql_command != SQLCOM_EXECUTE_IMMEDIATE &&
       !(sql_command_flags[lex->sql_command] & CF_AUTO_COMMIT_TRANS))
   {
     wsrep_start_trx_if_not_started(thd);
