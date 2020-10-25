@@ -164,7 +164,6 @@ log_set_capacity(ulonglong file_size)
 	log_sys.log_capacity = smallest_capacity;
 
 	log_sys.max_modified_age_async = margin - margin / 8;
-	log_sys.max_checkpoint_age_async = margin - margin / 32;
 	log_sys.max_checkpoint_age = margin;
 
 	mysql_mutex_unlock(&log_sys.mutex);
@@ -211,7 +210,6 @@ void log_t::create()
   n_log_ios_old= 0;
   log_capacity= 0;
   max_modified_age_async= 0;
-  max_checkpoint_age_async= 0;
   max_checkpoint_age= 0;
   next_checkpoint_no= 0;
   next_checkpoint_lsn= 0;
@@ -945,7 +943,6 @@ retry:
 
   mysql_mutex_lock(&log_sys.mutex);
   ut_ad(!recv_no_log_write);
-  ut_ad(log_sys.max_checkpoint_age >= log_sys.max_checkpoint_age_async);
 
   if (!log_sys.check_flush_or_checkpoint())
   {
@@ -955,8 +952,6 @@ retry:
 
   const lsn_t lsn= log_sys.get_lsn();
   const lsn_t checkpoint= log_sys.last_checkpoint_lsn;
-  const lsn_t async_checkpoint_lsn= checkpoint +
-    log_sys.max_checkpoint_age_async;
   const lsn_t sync_checkpoint_lsn= checkpoint + log_sys.max_checkpoint_age;
   if (lsn <= sync_checkpoint_lsn)
     log_sys.set_check_flush_or_checkpoint(false);
@@ -966,16 +961,11 @@ retry:
   {
     /* We must wait to prevent the tail of the log overwriting the head. */
     buf_flush_wait_flushed(std::min(sync_checkpoint_lsn,
-                                    std::min(async_checkpoint_lsn,
-                                             checkpoint + (1U << 20))),
-                           async_checkpoint_lsn);
+                                    checkpoint + (1U << 20)));
     /* Sleep 10ms to avoid a thundering herd */
     os_thread_sleep(10000);
     goto retry;
   }
-
-  if (lsn > async_checkpoint_lsn)
-    buf_flush_ahead(async_checkpoint_lsn);
 }
 
 /**

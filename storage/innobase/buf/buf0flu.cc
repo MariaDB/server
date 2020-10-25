@@ -64,7 +64,7 @@ bool buf_page_cleaner_is_active;
 
 /** Factor for scan length to determine n_pages for intended oldest LSN
 progress */
-static ulint buf_flush_lsn_scan_factor = 3;
+static constexpr ulint buf_flush_lsn_scan_factor = 3;
 
 /** Average redo generation rate */
 static lsn_t lsn_avg_rate = 0;
@@ -1657,18 +1657,15 @@ static bool log_checkpoint()
 /** Make a checkpoint. */
 ATTRIBUTE_COLD void log_make_checkpoint()
 {
-  lsn_t lsn= log_sys.get_lsn();
-  buf_flush_wait_flushed(lsn, lsn);
+  buf_flush_wait_flushed(log_sys.get_lsn());
   while (!log_checkpoint());
 }
 
 /** Wait until all persistent pages are flushed up to a limit.
-@param sync_lsn   buf_pool.get_oldest_modification(LSN_MAX) to wait for
-@param async_lsn  soft target lsn (may be larger than sync_lsn) */
-ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn, lsn_t async_lsn)
+@param sync_lsn   buf_pool.get_oldest_modification(LSN_MAX) to wait for */
+ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn)
 {
   ut_ad(sync_lsn);
-  ut_ad(async_lsn >= sync_lsn);
   ut_ad(sync_lsn < LSN_MAX);
   mysql_mutex_assert_not_owner(&log_sys.mutex);
   ut_ad(!srv_read_only_mode);
@@ -1705,9 +1702,9 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn, lsn_t async_lsn)
   else if (UNIV_LIKELY(srv_flush_sync))
 #endif
   {
-    if (buf_flush_sync_lsn < async_lsn)
+    if (buf_flush_sync_lsn < sync_lsn)
     {
-      buf_flush_sync_lsn= async_lsn;
+      buf_flush_sync_lsn= sync_lsn;
       mysql_cond_signal(&buf_pool.do_flush_list);
     }
   }
@@ -1804,16 +1801,14 @@ ATTRIBUTE_COLD static void buf_flush_sync_for_checkpoint(lsn_t lsn)
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);
       log_checkpoint_low(checkpoint_lsn, newest_lsn);
       mysql_mutex_lock(&log_sys.mutex);
-      new_target= log_sys.last_checkpoint_lsn +
-        log_sys.max_checkpoint_age_async;
+      new_target= log_sys.last_checkpoint_lsn + log_sys.max_checkpoint_age;
       mysql_mutex_unlock(&log_sys.mutex);
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
       measure= buf_pool.get_oldest_modification(LSN_MAX);
     }
     else
     {
-      new_target= log_sys.last_checkpoint_lsn +
-        log_sys.max_checkpoint_age_async;
+      new_target= log_sys.last_checkpoint_lsn + log_sys.max_checkpoint_age;
       mysql_mutex_unlock(&log_sys.mutex);
       if (!measure)
         measure= LSN_MAX;

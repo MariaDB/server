@@ -102,9 +102,8 @@ ulint buf_flush_lists(ulint max_n, lsn_t lsn);
 @param lru    true=buf_pool.LRU; false=buf_pool.flush_list */
 void buf_flush_wait_batch_end(bool lru);
 /** Wait until all persistent pages are flushed up to a limit.
-@param sync_lsn   buf_pool.get_oldest_modification(LSN_MAX) to wait for
-@param async_lsn  soft target lsn (may be larger than sync_lsn) */
-ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn, lsn_t async_lsn);
+@param sync_lsn   buf_pool.get_oldest_modification(LSN_MAX) to wait for */
+ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn);
 /** If innodb_flush_sync=ON, initiate a furious flush.
 @param lsn buf_pool.get_oldest_modification(LSN_MAX) target */
 void buf_flush_ahead(lsn_t lsn);

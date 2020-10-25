@@ -792,7 +792,7 @@ static bool log_close(lsn_t lsn)
 		  << log_sys.log_capacity << ".";
     }
   }
-  else if (UNIV_LIKELY(checkpoint_age <= log_sys.max_checkpoint_age_async))
+  else if (UNIV_LIKELY(checkpoint_age <= log_sys.max_checkpoint_age))
     return false;
 
   log_sys.set_check_flush_or_checkpoint();
