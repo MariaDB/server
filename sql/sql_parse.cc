@@ -100,6 +100,8 @@
 
 #include "my_json_writer.h" 
 
+#define PRIV_LOCK_TABLES (SELECT_ACL | LOCK_TABLES_ACL)
+
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
 #ifdef WITH_ARIA_STORAGE_ENGINE
@@ -4560,7 +4562,7 @@ mysql_execute_command(THD *thd)
     if (first_table && lex->type & (REFRESH_READ_LOCK|REFRESH_FOR_EXPORT))
     {
       /* Check table-level privileges. */
-      if (check_table_access(thd, LOCK_TABLES_ACL | SELECT_ACL, all_tables,
+      if (check_table_access(thd, PRIV_LOCK_TABLES, all_tables,
                              FALSE, UINT_MAX, FALSE))
         goto error;
 
@@ -6065,7 +6067,7 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
 
   @param thd                    Thread handler
   @param privilege              requested privilege
-  @param all_tables             global table list of query
+  @param tables                 global table list of query
   @param no_errors              FALSE/TRUE - report/don't report error to
                             the client (using my_error() call).
 
@@ -6075,32 +6077,29 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
     1   access denied, error is sent to client
 */
 
-bool check_single_table_access(THD *thd, ulong privilege, 
-                               TABLE_LIST *all_tables, bool no_errors)
+bool check_single_table_access(THD *thd, ulong privilege, TABLE_LIST *tables,
+                               bool no_errors)
 {
   Security_context * backup_ctx= thd->security_ctx;
 
   /* we need to switch to the saved context (if any) */
-  if (all_tables->security_ctx)
-    thd->security_ctx= all_tables->security_ctx;
+  if (tables->security_ctx)
+    thd->security_ctx= tables->security_ctx;
 
   const char *db_name;
-  if ((all_tables->view || all_tables->field_translation) &&
-      !all_tables->schema_table)
-    db_name= all_tables->view_db.str;
+  if ((tables->view || tables->field_translation) && !tables->schema_table)
+    db_name= tables->view_db.str;
   else
-    db_name= all_tables->db;
+    db_name= tables->db;
 
-  if (check_access(thd, privilege, db_name,
-                   &all_tables->grant.privilege,
-                   &all_tables->grant.m_internal,
-                   0, no_errors))
+  if (check_access(thd, privilege, db_name, &tables->grant.privilege,
+                   &tables->grant.m_internal, 0, no_errors))
     goto deny;
 
   /* Show only 1 table for check_grant */
-  if (!(all_tables->belong_to_view &&
-        (thd->lex->sql_command == SQLCOM_SHOW_FIELDS)) &&
-      check_grant(thd, privilege, all_tables, FALSE, 1, no_errors))
+  if (!(tables->belong_to_view &&
+       (thd->lex->sql_command == SQLCOM_SHOW_FIELDS)) &&
+      check_grant(thd, privilege, tables, FALSE, 1, no_errors))
     goto deny;
 
   thd->security_ctx= backup_ctx;
@@ -9060,7 +9059,7 @@ static bool lock_tables_precheck(THD *thd, TABLE_LIST *tables)
     if (is_temporary_table(table))
       continue;
 
-    if (check_table_access(thd, LOCK_TABLES_ACL | SELECT_ACL, table,
+    if (check_table_access(thd, PRIV_LOCK_TABLES, table,
                            FALSE, 1, FALSE))
       return TRUE;
   }
