@@ -1794,21 +1794,18 @@ ATTRIBUTE_COLD static void buf_flush_sync_for_checkpoint(lsn_t lsn)
     lsn_t measure= buf_pool.get_oldest_modification(0);
     mysql_mutex_unlock(&log_sys.flush_order_mutex);
     const lsn_t checkpoint_lsn= measure ? measure : newest_lsn;
-    lsn_t new_target;
 
     if (checkpoint_lsn > log_sys.last_checkpoint_lsn + SIZE_OF_FILE_CHECKPOINT)
     {
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);
       log_checkpoint_low(checkpoint_lsn, newest_lsn);
       mysql_mutex_lock(&log_sys.mutex);
-      new_target= log_sys.last_checkpoint_lsn + log_sys.max_checkpoint_age;
       mysql_mutex_unlock(&log_sys.mutex);
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
       measure= buf_pool.get_oldest_modification(LSN_MAX);
     }
     else
     {
-      new_target= log_sys.last_checkpoint_lsn + log_sys.max_checkpoint_age;
       mysql_mutex_unlock(&log_sys.mutex);
       if (!measure)
         measure= LSN_MAX;
@@ -1819,9 +1816,7 @@ ATTRIBUTE_COLD static void buf_flush_sync_for_checkpoint(lsn_t lsn)
     /* After attempting log checkpoint, check if we have reached our target. */
     const lsn_t target= buf_flush_sync_lsn;
 
-    if (new_target >= target && new_target >= measure)
-      buf_flush_sync_lsn= new_target;
-    else if (measure >= target)
+    if (measure >= target)
       buf_flush_sync_lsn= 0;
 
     /* wake up buf_flush_wait_flushed() */
