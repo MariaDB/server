@@ -2392,10 +2392,40 @@ static bool lock_tables_open_and_lock_tables(THD *thd, TABLE_LIST *tables)
     We don't set TABLE_LIST::lock_type in this case as this might result in
     extra warnings from THD::decide_logging_format() even though binary logging
     is totally irrelevant for LOCK TABLES.
+
+    Check privileges of view tables here, after views were opened.
+    Either definer or invoker has to have PRIV_LOCK_TABLES to be able to
+    lock view and its tables. For mysqldump (that locks views before dumping
+    their structures) compatibility we allow locking views that select
+    from I_S or P_S tables, but downrade the lock to TL_READ
   */
   for (table= tables; table; table= table->next_global)
+  {
     if (!table->placeholder() && table->table->s->tmp_table)
       table->table->reginfo.lock_type= TL_WRITE;
+    else if (table->belong_to_view &&
+             check_single_table_access(thd, PRIV_LOCK_TABLES, table, 1))
+    {
+      if (table->grant.m_internal.m_schema_access)
+        table->lock_type= TL_READ;
+      else
+      {
+        bool error= true;
+        if (Security_context *sctx= table->security_ctx)
+        {
+          table->security_ctx= 0;
+          error= check_single_table_access(thd, PRIV_LOCK_TABLES, table, 1);
+          table->security_ctx= sctx;
+        }
+        if (error)
+        {
+          my_error(ER_VIEW_INVALID, MYF(0), table->belong_to_view->view_db.str,
+                   table->belong_to_view->view_name.str);
+          goto err;
+        }
+      }
+    }
+  }
 
   if (lock_tables(thd, tables, counter, 0) ||
       thd->locked_tables_list.init_locked_tables(thd))
