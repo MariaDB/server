@@ -20245,10 +20245,10 @@ static MYSQL_SYSVAR_BOOL(log_compressed_pages, page_zip_log_pages,
 
 static MYSQL_SYSVAR_BOOL(log_optimize_ddl, innodb_log_optimize_ddl,
   PLUGIN_VAR_OPCMDARG,
-  "Reduce redo logging when natively creating indexes or rebuilding tables."
-  " Setting this OFF avoids delay due to page flushing and"
-  " allows concurrent backup.",
-  NULL, NULL, TRUE);
+  "DEPRECATED. Ignored in MariaDB 10.5."
+  " Reduce redo logging when natively creating indexes or rebuilding tables."
+  " Enabling this may slow down backup and cause delay due to page flushing.",
+  NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_ULONG(autoextend_increment,
   sys_tablespace_auto_extend_increment,
