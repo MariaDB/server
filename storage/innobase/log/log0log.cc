@@ -969,8 +969,11 @@ retry:
                                     std::min(async_checkpoint_lsn,
                                              checkpoint + (1U << 20))),
                            async_checkpoint_lsn);
+    /* Sleep 10ms to avoid a thundering herd */
+    os_thread_sleep(10000);
     goto retry;
   }
+
   if (lsn > async_checkpoint_lsn)
     buf_flush_ahead(async_checkpoint_lsn);
 }
