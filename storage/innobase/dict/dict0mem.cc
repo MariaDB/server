@@ -118,20 +118,15 @@ static bool dict_mem_table_is_system(char *name)
 	}
 }
 
-/**********************************************************************//**
-Creates a table memory object.
-@return own: table object */
 dict_table_t*
 dict_mem_table_create(
-/*==================*/
-	const char*	name,	/*!< in: table name */
-	ulint		space,	/*!< in: space where the clustered index of
-				the table is placed */
-	ulint		n_cols,	/*!< in: total number of columns including
-				virtual and non-virtual columns */
-	ulint		n_v_cols,/*!< in: number of virtual columns */
-	ulint		flags,	/*!< in: table flags */
-	ulint		flags2)	/*!< in: table flags2 */
+	const char*	name,
+	ulint		space,
+	ulint		n_cols,
+	ulint		n_v_cols,
+	ulint		flags,
+	ulint		flags2,
+	bool		init_stats_latch)
 {
 	dict_table_t*	table;
 	mem_heap_t*	heap;
@@ -170,15 +165,8 @@ dict_mem_table_create(
 	table->v_cols = static_cast<dict_v_col_t*>(
 		mem_heap_alloc(heap, n_v_cols * sizeof(*table->v_cols)));
 
-	/* true means that the stats latch will be enabled -
-	dict_table_stats_lock() will not be noop. */
-	dict_table_stats_latch_create(table, true);
-
 	table->autoinc_lock = static_cast<ib_lock_t*>(
 		mem_heap_alloc(heap, lock_get_size()));
-
-	/* lazy creation of table autoinc latch */
-	dict_table_autoinc_create_lazy(table);
 
 	/* If the table has an FTS index or we are in the process
 	of building one, create the table->fts */
@@ -193,6 +181,12 @@ dict_mem_table_create(
 
 	new(&table->foreign_set) dict_foreign_set();
 	new(&table->referenced_set) dict_foreign_set();
+
+	if (init_stats_latch) {
+		rw_lock_create(dict_table_stats_key, &table->stats_latch,
+			       SYNC_INDEX_TREE);
+		table->stats_latch_inited = true;
+	}
 
 	return(table);
 }
@@ -222,9 +216,7 @@ dict_mem_table_free(
 		}
 	}
 
-	dict_table_autoinc_destroy(table);
 	dict_mem_table_free_foreign_vcol_set(table);
-	dict_table_stats_latch_destroy(table);
 
 	table->foreign_set.~dict_foreign_set();
 	table->referenced_set.~dict_foreign_set();
@@ -243,6 +235,10 @@ dict_mem_table_free(
 
 	if (table->s_cols != NULL) {
 		UT_DELETE(table->s_cols);
+	}
+
+	if (table->stats_latch_inited) {
+		rw_lock_free(&table->stats_latch);
 	}
 
 	mem_heap_free(table->heap);
@@ -767,7 +763,7 @@ dict_mem_index_create(
 	dict_mem_fill_index_struct(index, heap, table_name, index_name,
 				   space, type, n_fields);
 
-	dict_index_zip_pad_mutex_create_lazy(index);
+	mysql_mutex_init(0, &index->zip_pad.mutex, NULL);
 
 	if (type & DICT_SPATIAL) {
 		index->rtr_track = static_cast<rtr_info_track_t*>(
@@ -1082,7 +1078,7 @@ dict_mem_index_free(
 	ut_ad(index);
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
-	dict_index_zip_pad_mutex_destroy(index);
+	mysql_mutex_destroy(&index->zip_pad.mutex);
 
 	if (dict_index_is_spatial(index)) {
 		rtr_info_active::iterator	it;

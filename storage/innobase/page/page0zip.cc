@@ -1656,7 +1656,7 @@ page_zip_fields_free(
 {
 	if (index) {
 		dict_table_t*	table = index->table;
-		dict_index_zip_pad_mutex_destroy(index);
+		mysql_mutex_destroy(&index->zip_pad.mutex);
 		mem_heap_free(index->heap);
 
 		dict_mem_table_free(table);
