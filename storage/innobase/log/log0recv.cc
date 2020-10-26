@@ -2060,7 +2060,14 @@ same_page:
       const bool is_init= (b & 0x70) <= INIT_PAGE;
       switch (*store) {
       case STORE_IF_EXISTS:
-        if (!fil_space_get_size(space_id))
+        if (fil_space_t *space= fil_space_acquire_silent(space_id))
+        {
+          const auto size= space->get_size();
+	  space->release();
+	  if (!size)
+            continue;
+	}
+	else
           continue;
         /* fall through */
       case STORE_YES:
@@ -2487,7 +2494,7 @@ static void recv_read_in_area(page_id_t page_id)
 
 	if (p != page_nos) {
 		mutex_exit(&recv_sys.mutex);
-		buf_read_recv_pages(FALSE, page_id.space(), page_nos,
+		buf_read_recv_pages(page_id.space(), page_nos,
 				    ulint(p - page_nos));
 		mutex_enter(&recv_sys.mutex);
 	}
@@ -2513,7 +2520,7 @@ inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
   if (end_lsn < i.lsn)
     DBUG_LOG("ib_log", "skip log for page " << page_id
              << " LSN " << end_lsn << " < " << i.lsn);
-  else if (fil_space_t *space= fil_space_acquire_for_io(page_id.space()))
+  else if (fil_space_t *space= fil_space_t::get_for_io(page_id.space()))
   {
     mtr.start();
     mtr.set_log_mode(MTR_LOG_NO_REDO);

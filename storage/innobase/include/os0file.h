@@ -37,7 +37,6 @@ Created 10/21/1995 Heikki Tuuri
 #define os0file_h
 
 #include "fsp0types.h"
-#include "os0api.h"
 #include "tpool.h"
 
 #ifndef _WIN32
@@ -45,10 +44,6 @@ Created 10/21/1995 Heikki Tuuri
 #include <sys/stat.h>
 #include <time.h>
 #endif /* !_WIN32 */
-
-/** File node of a tablespace or the log data space */
-struct fil_node_t;
-struct fil_space_t;
 
 extern bool	os_has_said_disk_full;
 
@@ -188,117 +183,75 @@ The I/O context that is passed down to the low level IO code */
 class IORequest
 {
 public:
-  constexpr IORequest(ulint type= READ, buf_page_t *bpage= nullptr,
-                      bool lru= false) :
-    m_bpage(bpage), m_type(static_cast<uint16_t>(type)), m_LRU(lru) {}
+  enum Type
+  {
+    /** Synchronous read */
+    READ_SYNC= 2,
+    /** Asynchronous read; some errors will be ignored */
+    READ_ASYNC= READ_SYNC | 1,
+    /** Possibly partial read; only used with
+    os_file_read_no_error_handling() */
+    READ_MAYBE_PARTIAL= READ_SYNC | 4,
+    /** Read for doublewrite buffer recovery */
+    DBLWR_RECOVER= READ_SYNC | 8,
+    /** Synchronous write */
+    WRITE_SYNC= 16,
+    /** Asynchronous write */
+    WRITE_ASYNC= WRITE_SYNC | 1,
+    /** Write data; evict the block on write completion */
+    WRITE_LRU= WRITE_ASYNC | 32,
+    /** Write data and punch hole for the rest */
+    PUNCH= WRITE_ASYNC | 64,
+    /** Write data and punch hole; evict the block on write completion */
+    PUNCH_LRU= PUNCH | WRITE_LRU,
+    /** Zero out a range of bytes in fil_space_t::io() */
+    PUNCH_RANGE= WRITE_SYNC | 128,
+  };
 
-	/** Flags passed in the request, they can be ORred together. */
-	enum {
-		READ = 1,
-		WRITE = 2,
+  constexpr IORequest(Type type= READ_SYNC, buf_page_t *bpage= nullptr) :
+    bpage(bpage), type(type) {}
 
-		/** Double write buffer recovery. */
-		DBLWR_RECOVER = 4,
+  constexpr IORequest(const IORequest &old, fil_node_t *node= nullptr) :
+    bpage(old.bpage), node(node), type(old.type) {}
 
-		/** Enumarations below can be ORed to READ/WRITE above*/
+  bool is_read() const { return (type & READ_SYNC) != 0; }
+  bool is_write() const { return (type & WRITE_SYNC) != 0; }
+  bool is_LRU() const { return (type & (WRITE_LRU ^ WRITE_ASYNC)) != 0; }
+  bool is_async() const { return (type & (READ_SYNC ^ READ_ASYNC)) != 0; }
 
-		/** Data file */
-		DATA_FILE = 8,
-
-		/** Disable partial read warnings */
-		DISABLE_PARTIAL_IO_WARNINGS = 32,
-
-		/** Use punch hole if available*/
-		PUNCH_HOLE = 64,
-	};
-
-	/** @return true if it is a read request */
-	bool is_read() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return((m_type & READ) == READ);
-	}
-
-	/** @return true if it is a write request */
-	bool is_write() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return((m_type & WRITE) == WRITE);
-	}
-
-	/** @return true if partial read warning disabled */
-	bool is_partial_io_warning_disabled() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return !!(m_type & DISABLE_PARTIAL_IO_WARNINGS);
-	}
-
-	/** @return true if punch hole should be used */
-	bool punch_hole() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return((m_type & PUNCH_HOLE) == PUNCH_HOLE);
-	}
-
-	/** @return true if the read should be validated */
-	bool validate() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return(is_read() ^ is_write());
-	}
-
-	/** Set the pointer to file node for IO
-	@param[in] node			File node */
-	void set_fil_node(fil_node_t *node) { m_fil_node= node; }
-
-	bool operator==(const IORequest& rhs) const
-	{
-		return(m_type == rhs.m_type);
-	}
-
-	/** @return true if the request is from the dblwr recovery */
-	bool is_dblwr_recover() const
-		MY_ATTRIBUTE((warn_unused_result))
-	{
-		return((m_type & DBLWR_RECOVER) == DBLWR_RECOVER);
-	}
-
-	ulint get_trim_length(ulint write_length) const
-	{
-		return (m_bpage ?
-			buf_page_get_trim_length(m_bpage, write_length)
-			: 0);
-	}
-
-	inline bool should_punch_hole() const;
-
-	/** Free storage space associated with a section of the file.
-	@param[in]	fh		Open file handle
-	@param[in]	off		Starting offset (SEEK_SET)
-	@param[in]	len		Size of the hole
-	@return DB_SUCCESS or error code */
-	dberr_t punch_hole(os_file_t fh, os_offset_t off, ulint len);
-
-  /** @return type of page flush (for writes) */
-  bool is_LRU() const { return m_LRU; }
+  /** If requested, free storage space associated with a section of the file.
+  @param off   byte offset from the start (SEEK_SET)
+  @param len   size of the hole in bytes
+  @return DB_SUCCESS or error code */
+  dberr_t maybe_punch_hole(os_offset_t off, ulint len)
+  {
+    return off && len && node && (type & (PUNCH ^ WRITE_ASYNC))
+      ? punch_hole(off, len)
+      : DB_SUCCESS;
+  }
 
 private:
-	/** Page to be written on write operation. */
-	buf_page_t* const	m_bpage= nullptr;
+  /** Free storage space associated with a section of the file.
+  @param off   byte offset from the start (SEEK_SET)
+  @param len   size of the hole in bytes
+  @return DB_SUCCESS or error code */
+  dberr_t punch_hole(os_offset_t off, ulint len) const
+    MY_ATTRIBUTE((nonnull));
 
-	/** File node */
-	fil_node_t*		m_fil_node= nullptr;
+public:
+  /** Page to be written on write operation */
+  buf_page_t* const bpage= nullptr;
+
+  /** File descriptor */
+  const fil_node_t *const node= nullptr;
 
   /** Request type bit flags */
-  const uint16_t m_type;
-
-  /** for writes, type of page flush */
-  const bool m_LRU= false;
+  const Type type;
 };
 
-constexpr IORequest IORequestRead(IORequest::READ);
-constexpr IORequest IORequestWrite(IORequest::WRITE);
-
+constexpr IORequest IORequestRead(IORequest::READ_SYNC);
+constexpr IORequest IORequestReadPartial(IORequest::READ_MAYBE_PARTIAL);
+constexpr IORequest IORequestWrite(IORequest::WRITE_SYNC);
 
 /** Sparse file size information. */
 struct os_file_size_t {
@@ -312,20 +265,6 @@ struct os_file_size_t {
 
 /** Win NT does not allow more than 64 */
 static const ulint OS_AIO_N_PENDING_IOS_PER_THREAD = 256;
-
-/** Modes for aio operations @{ */
-/** Normal asynchronous i/o not for ibuf pages or ibuf bitmap pages */
-static const ulint OS_AIO_NORMAL = 21;
-
-/**  Asynchronous i/o for ibuf pages or ibuf bitmap pages */
-static const ulint OS_AIO_IBUF = 22;
-
-/**Calling thread will wait for the i/o to complete,
-and perform IO completion routine itself;
-can be used for any pages, ibuf or non-ibuf.  This is used to save
-CPU time, as we can do with fewer thread switches. */
-static const ulint OS_AIO_SYNC = 24;
-/* @} */
 
 extern ulint	os_n_file_reads;
 extern ulint	os_n_file_writes;
@@ -669,9 +608,9 @@ The wrapper functions have the prefix of "innodb_". */
 # define os_file_close(file)						\
 	pfs_os_file_close_func(file, __FILE__, __LINE__)
 
-# define os_aio(type, mode, name, file, buf, offset,		\
+# define os_aio(type, name, file, buf, offset,		\
 	n, read_only, message1, message2)			\
-	pfs_os_aio_func(type, mode, name, file, buf, offset,	\
+	pfs_os_aio_func(type, name, file, buf, offset,	\
 		n, read_only, message1, message2,		\
 			__FILE__, __LINE__)
 
@@ -859,7 +798,6 @@ function!
 Performance schema wrapper function of os_aio() which requests
 an asynchronous I/O operation.
 @param[in,out]	type		IO request context
-@param[in]	mode		IO mode
 @param[in]	name		Name of the file or path as NUL terminated
 				string
 @param[in]	file		Open file handle
@@ -879,8 +817,7 @@ an asynchronous I/O operation.
 UNIV_INLINE
 dberr_t
 pfs_os_aio_func(
-	IORequest&	type,
-	ulint		mode,
+	const IORequest&type,
 	const char*	name,
 	pfs_os_file_t	file,
 	void*		buf,
@@ -1013,9 +950,9 @@ to original un-instrumented file I/O APIs */
 
 # define os_file_close(file)	os_file_close_func(file)
 
-# define os_aio(type, mode, name, file, buf, offset,			\
+# define os_aio(type, name, file, buf, offset,			\
 	n, read_only, message1, message2)			\
-	os_aio_func(type, mode, name, file, buf, offset,		\
+	os_aio_func(type, name, file, buf, offset,		\
 		n, read_only, message1, message2)
 
 # define os_file_read(type, file, buf, offset, n)			\
@@ -1281,7 +1218,6 @@ struct os_aio_userdata_t
 NOTE! Use the corresponding macro os_aio(), not directly this function!
 Requests an asynchronous i/o operation.
 @param[in,out]	type		IO request context
-@param[in]	mode		IO mode
 @param[in]	name		Name of the file or path as NUL terminated
 				string
 @param[in]	file		Open file handle
@@ -1298,8 +1234,7 @@ Requests an asynchronous i/o operation.
 @return DB_SUCCESS or error code */
 dberr_t
 os_aio_func(
-	IORequest&	type,
-	ulint		mode,
+	const IORequest&type,
 	const char*	name,
 	pfs_os_file_t	file,
 	void*		buf,

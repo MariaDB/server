@@ -3011,6 +3011,7 @@ void
 xb_fil_io_init()
 {
 	fil_system.create(srv_file_per_table ? 50000 : 5000);
+	fil_system.freeze_space_list = 1;
 	fil_system.space_id_reuse_warned = true;
 }
 
@@ -3087,24 +3088,16 @@ xb_load_single_table_tablespace(
 	bool is_empty_file = file->exists() && file->is_empty_file();
 
 	if (err == DB_SUCCESS && file->space_id() != SRV_TMP_SPACE_ID) {
-		os_offset_t	node_size = os_file_get_size(file->handle());
-		os_offset_t	n_pages;
-
-		ut_a(node_size != (os_offset_t) -1);
-
-		n_pages = node_size / fil_space_t::physical_size(file->flags());
-
-		space = fil_space_create(
+		space = fil_space_t::create(
 			name, file->space_id(), file->flags(),
 			FIL_TYPE_TABLESPACE, NULL/* TODO: crypt_data */);
 
 		ut_a(space != NULL);
 
-		space->add(file->filepath(), OS_FILE_CLOSED, uint32_t(n_pages),
-			   false, false);
+		space->add(file->filepath(), OS_FILE_CLOSED, 0, false, false);
 		/* by opening the tablespace we forcing node and space objects
 		in the cache to be populated with fields from space header */
-		space->open();
+		space->get_size();
 
 		if (srv_operation == SRV_OPERATION_RESTORE_DELTA
 		    || xb_close_files) {
@@ -3404,19 +3397,6 @@ xb_load_tablespaces()
 	debug_sync_point("xtrabackup_load_tablespaces_pause");
 	DBUG_MARIABACKUP_EVENT("after_load_tablespaces", 0);
 	return(DB_SUCCESS);
-}
-
-/************************************************************************
-Initialize the tablespace memory cache and populate it by scanning for and
-opening data files.
-@returns DB_SUCCESS or error code.*/
-static
-dberr_t
-xb_data_files_init()
-{
-	xb_fil_io_init();
-
-	return(xb_load_tablespaces());
 }
 
 /** Destroy the tablespace memory cache. */
@@ -4607,6 +4587,22 @@ xb_delta_open_matching_space(
 		return file;
 	}
 
+	if (!info.space_id && fil_system.sys_space) {
+		fil_node_t *node
+			= UT_LIST_GET_FIRST(fil_system.sys_space->chain);
+		for (; node; node = UT_LIST_GET_NEXT(chain, node)) {
+			if (!strcmp(node->name, real_name)) {
+				break;
+			}
+		}
+		if (node && node->handle != OS_FILE_CLOSED) {
+			*success = true;
+			return node->handle;
+		}
+		msg("mariabackup: Cannot find file %s\n", real_name);
+		return OS_FILE_CLOSED;
+	}
+
 	log_mutex_enter();
 	if (!fil_is_user_tablespace_id(info.space_id)) {
 found:
@@ -4704,8 +4700,8 @@ exit:
 	ut_ad(fil_space_t::zip_size(flags) == info.zip_size);
 	ut_ad(fil_space_t::physical_size(flags) == info.page_size);
 
-	if (fil_space_create(dest_space_name, info.space_id, flags,
-			      FIL_TYPE_TABLESPACE, 0)) {
+	if (fil_space_t::create(dest_space_name, info.space_id, flags,
+				FIL_TYPE_TABLESPACE, 0)) {
 		*success = xb_space_create_file(real_name, info.space_id,
 						flags, &file);
 	} else {
@@ -4925,7 +4921,7 @@ xtrabackup_apply_delta(
 		os_file_close(src_file);
 		os_file_delete(0,src_path);
 	}
-	if (dst_file != OS_FILE_CLOSED)
+	if (dst_file != OS_FILE_CLOSED && info.space_id)
 		os_file_close(dst_file);
 	return TRUE;
 
@@ -4933,7 +4929,7 @@ error:
 	aligned_free(incremental_buffer);
 	if (src_file != OS_FILE_CLOSED)
 		os_file_close(src_file);
-	if (dst_file != OS_FILE_CLOSED)
+	if (dst_file != OS_FILE_CLOSED && info.space_id)
 		os_file_close(dst_file);
 	msg("Error: xtrabackup_apply_delta(): "
 	    "failed to apply %s to %s.\n", src_path, dst_path);
@@ -5387,8 +5383,8 @@ static bool xtrabackup_prepare_func(char** argv)
 		srv_allow_writes_event = os_event_create(0);
 		os_event_set(srv_allow_writes_event);
 #endif
-		dberr_t err = xb_data_files_init();
-		if (err != DB_SUCCESS) {
+		xb_fil_io_init();
+		if (dberr_t err = xb_load_tablespaces()) {
 			msg("mariabackup: error: xb_data_files_init() failed "
 			    "with error %s\n", ut_strerr(err));
 			goto error_cleanup;
@@ -5396,7 +5392,8 @@ static bool xtrabackup_prepare_func(char** argv)
 
 		inc_dir_tables_hash.create(1000);
 
-		ok = xtrabackup_apply_deltas();
+		ok = fil_system.sys_space->open(false)
+			&& xtrabackup_apply_deltas();
 
 		xb_data_files_close();
 
@@ -5426,6 +5423,8 @@ static bool xtrabackup_prepare_func(char** argv)
 		goto error_cleanup;
 	}
 
+	fil_system.freeze_space_list = 0;
+
 	/* increase IO threads */
 	if (srv_n_file_io_threads < 10) {
 		srv_n_read_io_threads = 4;
@@ -5446,6 +5445,8 @@ static bool xtrabackup_prepare_func(char** argv)
         if (innodb_init()) {
 		goto error_cleanup;
 	}
+
+	ut_ad(!fil_system.freeze_space_list);
 
 	if (ok) {
 		msg("Last binlog file %s, position %lld",

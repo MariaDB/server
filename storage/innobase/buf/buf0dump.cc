@@ -626,6 +626,14 @@ buf_load()
 	so all pages from a given tablespace are consecutive. */
 	ulint		cur_space_id = dump[0].space();
 	fil_space_t*	space = fil_space_acquire_silent(cur_space_id);
+	if (space) {
+		bool ok = space->acquire_for_io();
+		space->release();
+		if (!ok) {
+			space = nullptr;
+		}
+	}
+
 	ulint		zip_size = space ? space->zip_size() : 0;
 
 	PSI_stage_progress*	pfs_stage_progress __attribute__((unused))
@@ -644,24 +652,34 @@ buf_load()
 		}
 
 		if (this_space_id != cur_space_id) {
-			if (space != NULL) {
-				space->release();
+			if (space) {
+				space->release_for_io();
 			}
 
 			cur_space_id = this_space_id;
 			space = fil_space_acquire_silent(cur_space_id);
 
-			if (space != NULL) {
-				zip_size = space->zip_size();
+			if (!space) {
+				continue;
 			}
+
+			bool ok = space->acquire_for_io();
+			space->release();
+
+			if (!ok) {
+				space = nullptr;
+				continue;
+			}
+
+			zip_size = space->zip_size();
 		}
 
 		/* JAN: TODO: As we use background page read below,
 		if tablespace is encrypted we cant use it. */
-		if (space == NULL ||
-		   (space && space->crypt_data &&
-		    space->crypt_data->encryption != FIL_ENCRYPTION_OFF &&
-		    space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED)) {
+		if (!space || dump[i].page_no() >= space->get_size() ||
+		    (space->crypt_data &&
+		     space->crypt_data->encryption != FIL_ENCRYPTION_OFF &&
+		     space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED)) {
 			continue;
 		}
 
@@ -671,11 +689,12 @@ buf_load()
 			continue;
 		}
 
-		buf_read_page_background(dump[i], zip_size, true);
+		space->reacquire_for_io();
+		buf_read_page_background(space, dump[i], zip_size, true);
 
 		if (buf_load_abort_flag) {
-			if (space != NULL) {
-				space->release();
+			if (space) {
+				space->release_for_io();
 			}
 			buf_load_abort_flag = false;
 			ut_free(dump);
@@ -702,8 +721,8 @@ buf_load()
 #endif
 	}
 
-	if (space != NULL) {
-		space->release();
+	if (space) {
+		space->release_for_io();
 	}
 
 	ut_free(dump);

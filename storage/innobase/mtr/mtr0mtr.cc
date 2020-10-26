@@ -214,7 +214,7 @@ static void memo_slot_release(mtr_memo_slot_t *slot)
   case MTR_MEMO_SPACE_X_LOCK:
     {
       fil_space_t *space= static_cast<fil_space_t*>(slot->object);
-      space->committed_size= space->size;
+      space->set_committed_size();
       rw_lock_x_unlock(&space->latch);
     }
     break;
@@ -256,7 +256,7 @@ struct ReleaseLatches {
     case MTR_MEMO_SPACE_X_LOCK:
       {
         fil_space_t *space= static_cast<fil_space_t*>(slot->object);
-        space->committed_size= space->size;
+        space->set_committed_size();
         rw_lock_x_unlock(&space->latch);
       }
       break;

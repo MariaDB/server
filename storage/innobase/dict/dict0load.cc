@@ -2975,15 +2975,15 @@ err_exit:
 	}
 
 	if (err == DB_SUCCESS && table->is_readable()) {
-		if (table->space && !fil_space_get_size(table->space_id)) {
+		const auto root = dict_table_get_first_index(table)->page;
+
+		if (root >= table->space->get_size()) {
 corrupted:
 			table->corrupted = true;
 			table->file_unreadable = true;
 			err = DB_CORRUPTION;
 		} else {
-			const page_id_t page_id(
-				table->space->id,
-				dict_table_get_first_index(table)->page);
+			const page_id_t page_id(table->space->id, root);
 			mtr.start();
 			buf_block_t* block = buf_page_get(
 				page_id, table->space->zip_size(),

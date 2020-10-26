@@ -206,7 +206,6 @@ function!
 Performance schema wrapper function of os_aio() which requests
 an asynchronous i/o operation.
 @param[in,type]	type		IO request context
-@param[in]	mode		IO mode
 @param[in]	name		Name of the file or path as NUL terminated
 				string
 @param[in]	file		Open file handle
@@ -226,8 +225,7 @@ an asynchronous i/o operation.
 UNIV_INLINE
 dberr_t
 pfs_os_aio_func(
-	IORequest&	type,
-	ulint		mode,
+	const IORequest&type,
 	const char*	name,
 	pfs_os_file_t	file,
 	void*		buf,
@@ -242,8 +240,6 @@ pfs_os_aio_func(
 	PSI_file_locker_state	state;
 	struct PSI_file_locker*	locker = NULL;
 
-	ut_ad(type.validate());
-
 	/* Register the read or write I/O depending on "type" */
 	register_pfs_file_io_begin(
 		&state, locker, file, n,
@@ -251,7 +247,7 @@ pfs_os_aio_func(
 		src_file, src_line);
 
 	dberr_t	result = os_aio_func(
-		type, mode, name, file, buf, offset, n, read_only, m1, m2);
+		type, name, file, buf, offset, n, read_only, m1, m2);
 
 	register_pfs_file_io_end(locker, n);
 
@@ -283,8 +279,6 @@ pfs_os_file_read_func(
 {
 	PSI_file_locker_state	state;
 	struct PSI_file_locker*	locker = NULL;
-
-	ut_ad(type.validate());
 
 	register_pfs_file_io_begin(
 		&state, locker, file, n, PSI_FILE_READ, src_file, src_line);
