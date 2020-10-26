@@ -1142,7 +1142,6 @@ fil_space_create(
 	UT_LIST_INIT(space->chain, &fil_node_t::chain);
 
 	if ((purpose == FIL_TYPE_TABLESPACE || purpose == FIL_TYPE_IMPORT)
-	    && !recv_recovery_is_on()
 	    && id > fil_system.max_assigned_id) {
 		if (!fil_system.space_id_reuse_warned) {
 			fil_system.space_id_reuse_warned = true;

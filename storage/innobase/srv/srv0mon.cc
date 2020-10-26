@@ -381,35 +381,15 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_FLUSH_N_TO_FLUSH_BY_AGE},
 
-	{"buffer_flush_adaptive_avg_time_slot", "buffer",
-	 "Avg time (ms) spent for adaptive flushing recently per slot.",
+	{"buffer_flush_adaptive_avg_time", "buffer",
+	 "Avg time (ms) spent for adaptive flushing recently.",
 	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_FLUSH_ADAPTIVE_AVG_TIME_SLOT},
-
-	{"buffer_flush_adaptive_avg_time_thread", "buffer",
-	 "Avg time (ms) spent for adaptive flushing recently per thread.",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_FLUSH_ADAPTIVE_AVG_TIME_THREAD},
-
-	{"buffer_flush_adaptive_avg_time_est", "buffer",
-	 "Estimated time (ms) spent for adaptive flushing recently.",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_FLUSH_ADAPTIVE_AVG_TIME_EST},
-
-	{"buffer_flush_avg_time", "buffer",
-	 "Avg time (ms) spent for flushing recently.",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_FLUSH_AVG_TIME},
+	 MONITOR_DEFAULT_START, MONITOR_FLUSH_ADAPTIVE_AVG_TIME},
 
 	{"buffer_flush_adaptive_avg_pass", "buffer",
 	 "Number of adaptive flushes passed during the recent Avg period.",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_FLUSH_ADAPTIVE_AVG_PASS},
-
-	{"buffer_flush_avg_pass", "buffer",
-	 "Number of flushes passed during the recent Avg period.",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_FLUSH_AVG_PASS},
 
 	{"buffer_LRU_get_free_loops", "buffer",
 	 "Total loops in LRU get free.",
@@ -868,12 +848,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_MAX_AGE_ASYNC},
 
-	{"log_max_modified_age_sync", "recovery",
-	 "Maximum LSN difference; when exceeded, start synchronous preflush",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_MAX_AGE_SYNC},
-
 	{"log_pending_log_flushes", "recovery", "Pending log flushes",
 	 static_cast<monitor_type_t>(
 	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
@@ -1171,11 +1145,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 "Number of tables evicted from DICT LRU list in the idle loop",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_SRV_DICT_LRU_EVICT_COUNT_IDLE},
-
-	{"innodb_checkpoint_usec", "server",
-	 "Time (in microseconds) spent by master thread to do checkpoint",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_SRV_CHECKPOINT_MICROSECOND},
 
 	{"innodb_dblwr_writes", "server",
 	 "Number of doublewrite operations that have been performed"
@@ -1956,7 +1925,9 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_BUF_OLDEST_LSN:
-		value = (mon_type_t) buf_pool.get_oldest_modification();
+		mysql_mutex_lock(&buf_pool.flush_list_mutex);
+		value = (mon_type_t) buf_pool.get_oldest_modification(0);
+		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 		break;
 
 	case MONITOR_OVLD_LSN_CHECKPOINT:
@@ -1965,10 +1936,6 @@ srv_mon_process_existing_counter(
 
 	case MONITOR_OVLD_MAX_AGE_ASYNC:
 		value = log_sys.max_modified_age_async;
-		break;
-
-	case MONITOR_OVLD_MAX_AGE_SYNC:
-		value = log_sys.max_modified_age_sync;
 		break;
 
 #ifdef BTR_CUR_HASH_ADAPT

@@ -665,6 +665,12 @@ buf_load()
 			continue;
 		}
 
+		if (space->is_stopping()) {
+			space->release_for_io();
+			space = nullptr;
+			continue;
+		}
+
 		buf_read_page_background(dump[i], zip_size, true);
 
 		if (buf_load_abort_flag) {

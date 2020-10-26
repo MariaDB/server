@@ -350,17 +350,6 @@ struct ReleaseBlocks
   }
 };
 
-/** Write the block contents to the REDO log */
-struct mtr_write_log_t {
-	/** Append a block to the redo log buffer.
-	@return whether the appending should continue */
-	bool operator()(const mtr_buf_t::block_t* block) const
-	{
-		log_write_low(block->begin(), block->used());
-		return(true);
-	}
-};
-
 /** Start a mini-transaction. */
 void mtr_t::start()
 {
@@ -411,12 +400,12 @@ void mtr_t::commit()
   {
     ut_ad(!srv_read_only_mode || m_log_mode == MTR_LOG_NO_REDO);
 
-    lsn_t start_lsn;
+    std::pair<lsn_t,bool> lsns;
 
     if (const ulint len= prepare_write())
-      start_lsn= finish_write(len);
+      lsns= finish_write(len);
     else
-      start_lsn= m_commit_lsn;
+      lsns= { m_commit_lsn, false };
 
     if (m_made_dirty)
       log_flush_order_mutex_enter();
@@ -453,12 +442,18 @@ void mtr_t::commit()
     }
 
     m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
-                                     (ReleaseBlocks(start_lsn, m_commit_lsn,
+                                     (ReleaseBlocks(lsns.first, m_commit_lsn,
                                                     m_memo)));
     if (m_made_dirty)
       log_flush_order_mutex_exit();
 
     m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>());
+
+    if (lsns.second)
+      buf_flush_ahead(m_commit_lsn);
+
+    if (m_made_dirty)
+      srv_stats.log_write_requests.inc();
   }
   else
     m_memo.for_each_block_in_reverse(CIterate<ReleaseAll>());
@@ -496,6 +491,7 @@ void mtr_t::commit_files(lsn_t checkpoint_lsn)
 	}
 
 	finish_write(m_log.size());
+	srv_stats.log_write_requests.inc();
 	release_resources();
 
 	if (checkpoint_lsn) {
@@ -621,6 +617,200 @@ mtr_t::release_page(const void* ptr, mtr_memo_type_t type)
 	ut_ad(0);
 }
 
+static bool log_margin_warned;
+static time_t log_margin_warn_time;
+static bool log_close_warned;
+static time_t log_close_warn_time;
+
+/** Check margin not to overwrite transaction log from the last checkpoint.
+If would estimate the log write to exceed the log_capacity,
+waits for the checkpoint is done enough.
+@param len   length of the data to be written */
+static void log_margin_checkpoint_age(ulint len)
+{
+  const ulint framing_size= log_sys.framing_size();
+  /* actual length stored per block */
+  const ulint len_per_blk= OS_FILE_LOG_BLOCK_SIZE - framing_size;
+
+  /* actual data length in last block already written */
+  ulint extra_len= log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE;
+
+  ut_ad(extra_len >= LOG_BLOCK_HDR_SIZE);
+  extra_len-= LOG_BLOCK_HDR_SIZE;
+
+  /* total extra length for block header and trailer */
+  extra_len= ((len + extra_len) / len_per_blk) * framing_size;
+
+  const ulint margin= len + extra_len;
+
+  ut_ad(log_mutex_own());
+
+  const lsn_t lsn= log_sys.get_lsn();
+
+  if (UNIV_UNLIKELY(margin > log_sys.log_capacity))
+  {
+    time_t t= time(nullptr);
+
+    /* return with warning output to avoid deadlock */
+    if (!log_margin_warned || difftime(t, log_margin_warn_time) > 15)
+    {
+      log_margin_warned= true;
+      log_margin_warn_time= t;
+
+      ib::error() << "innodb_log_file_size is too small "
+                     "for mini-transaction size " << len;
+    }
+  }
+  else if (UNIV_LIKELY(lsn + margin <= log_sys.last_checkpoint_lsn +
+                       log_sys.log_capacity))
+    return;
+
+  log_sys.set_check_flush_or_checkpoint();
+}
+
+
+/** Open the log for log_write_low(). The log must be closed with log_close().
+@param len length of the data to be written
+@return start lsn of the log record */
+static lsn_t log_reserve_and_open(size_t len)
+{
+  for (ut_d(ulint count= 0);;)
+  {
+    ut_ad(log_mutex_own());
+
+    /* Calculate an upper limit for the space the string may take in
+    the log buffer */
+
+    size_t len_upper_limit= (4 * OS_FILE_LOG_BLOCK_SIZE) +
+      srv_log_write_ahead_size + (5 * len) / 4;
+
+    if (log_sys.buf_free + len_upper_limit <= srv_log_buffer_size)
+      break;
+
+    log_mutex_exit();
+    DEBUG_SYNC_C("log_buf_size_exceeded");
+
+    /* Not enough free space, do a write of the log buffer */
+    log_sys.initiate_write(false);
+
+    srv_stats.log_waits.inc();
+
+    ut_ad(++count < 50);
+
+    log_mutex_enter();
+  }
+
+  return log_sys.get_lsn();
+}
+
+/** Append data to the log buffer. */
+static void log_write_low(const void *str, size_t size)
+{
+  ut_ad(log_mutex_own());
+  const ulint trailer_offset= log_sys.trailer_offset();
+
+  do
+  {
+    /* Calculate a part length */
+    size_t len= size;
+    size_t data_len= (log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE) + size;
+
+    if (data_len > trailer_offset)
+    {
+      data_len= trailer_offset;
+      len= trailer_offset - log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE;
+    }
+
+    memcpy(log_sys.buf + log_sys.buf_free, str, len);
+
+    size-= len;
+    str= static_cast<const char*>(str) + len;
+
+    byte *log_block= static_cast<byte*>(ut_align_down(log_sys.buf +
+                                                      log_sys.buf_free,
+                                                      OS_FILE_LOG_BLOCK_SIZE));
+
+    log_block_set_data_len(log_block, data_len);
+    lsn_t lsn= log_sys.get_lsn();
+
+    if (data_len == trailer_offset)
+    {
+      /* This block became full */
+      log_block_set_data_len(log_block, OS_FILE_LOG_BLOCK_SIZE);
+      log_block_set_checkpoint_no(log_block, log_sys.next_checkpoint_no);
+      len+= log_sys.framing_size();
+      lsn+= len;
+      /* Initialize the next block header */
+      log_block_init(log_block + OS_FILE_LOG_BLOCK_SIZE, lsn);
+    }
+    else
+      lsn+= len;
+
+    log_sys.set_lsn(lsn);
+    log_sys.buf_free+= len;
+
+    ut_ad(log_sys.buf_free <= size_t{srv_log_buffer_size});
+  }
+  while (size);
+}
+
+/** Close the log at mini-transaction commit.
+@return whether buffer pool flushing is needed */
+static bool log_close(lsn_t lsn)
+{
+  ut_ad(log_mutex_own());
+  ut_ad(lsn == log_sys.get_lsn());
+
+  byte *log_block= static_cast<byte*>(ut_align_down(log_sys.buf +
+                                                    log_sys.buf_free,
+                                                    OS_FILE_LOG_BLOCK_SIZE));
+
+  if (!log_block_get_first_rec_group(log_block))
+  {
+    /* We initialized a new log block which was not written
+    full by the current mtr: the next mtr log record group
+    will start within this block at the offset data_len */
+    log_block_set_first_rec_group(log_block,
+                                  log_block_get_data_len(log_block));
+  }
+
+  if (log_sys.buf_free > log_sys.max_buf_free)
+    log_sys.set_check_flush_or_checkpoint();
+
+  const lsn_t checkpoint_age= lsn - log_sys.last_checkpoint_lsn;
+
+  if (UNIV_UNLIKELY(checkpoint_age >= log_sys.log_capacity))
+  {
+    time_t t= time(nullptr);
+    if (!log_close_warned || difftime(t, log_close_warn_time) > 15)
+    {
+      log_close_warned= true;
+      log_close_warn_time= t;
+
+      ib::error() << "The age of the last checkpoint is " << checkpoint_age
+		  << ", which exceeds the log capacity "
+		  << log_sys.log_capacity << ".";
+    }
+  }
+  else if (UNIV_LIKELY(checkpoint_age <= log_sys.max_checkpoint_age))
+    return false;
+
+  log_sys.set_check_flush_or_checkpoint();
+  return true;
+}
+
+/** Write the block contents to the REDO log */
+struct mtr_write_log
+{
+  /** Append a block to the redo log buffer.
+  @return whether the appending should continue */
+  bool operator()(const mtr_buf_t::block_t *block) const
+  {
+    log_write_low(block->begin(), block->used());
+    return true;
+  }
+};
+
 /** Prepare to write the mini-transaction log to the redo log buffer.
 @return number of bytes to write in finish_write() */
 inline ulint mtr_t::prepare_write()
@@ -668,10 +858,10 @@ inline ulint mtr_t::prepare_write()
 	return(len);
 }
 
-/** Append the redo log records to the redo log buffer
-@param[in] len	number of bytes to write
-@return start_lsn */
-inline lsn_t mtr_t::finish_write(ulint len)
+/** Append the redo log records to the redo log buffer.
+@param len   number of bytes to write
+@return {start_lsn,flush_ahead_lsn} */
+inline std::pair<lsn_t,bool> mtr_t::finish_write(ulint len)
 {
 	ut_ad(m_log_mode == MTR_LOG_ALL);
 	ut_ad(log_mutex_own());
@@ -688,18 +878,19 @@ inline lsn_t mtr_t::finish_write(ulint len)
 							  &start_lsn);
 
 		if (m_commit_lsn) {
-			return start_lsn;
+			return std::make_pair(start_lsn, false);
 		}
 	}
 
 	/* Open the database log for log_write_low */
 	start_lsn = log_reserve_and_open(len);
 
-	mtr_write_log_t	write_log;
+	mtr_write_log write_log;
 	m_log.for_each_block(write_log);
+	m_commit_lsn = log_sys.get_lsn();
+	bool flush = log_close(m_commit_lsn);
 
-	m_commit_lsn = log_close();
-	return start_lsn;
+	return std::make_pair(start_lsn, flush);
 }
 
 /** Find buffer fix count of the given block acquired by the

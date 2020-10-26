@@ -104,9 +104,13 @@ ulint buf_flush_lists(ulint max_n, lsn_t lsn);
 /** Wait until a flush batch ends.
 @param lru    true=buf_pool.LRU; false=buf_pool.flush_list */
 void buf_flush_wait_batch_end(bool lru);
-/** Wait until a flush batch of the given lsn ends
-@param[in]	new_oldest	target oldest_modified_lsn to wait for */
-void buf_flush_wait_flushed(lsn_t new_oldest);
+/** Wait until all persistent pages are flushed up to a limit.
+@param sync_lsn   buf_pool.get_oldest_modification(LSN_MAX) to wait for */
+ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn);
+/** If innodb_flush_sync=ON, initiate a furious flush.
+@param lsn buf_pool.get_oldest_modification(LSN_MAX) target */
+void buf_flush_ahead(lsn_t lsn);
+
 /********************************************************************//**
 This function should be called at a mini-transaction commit, if a page was
 modified in it. Puts the block to the list of modified blocks, if it not
@@ -122,10 +126,13 @@ buf_flush_note_modification(
 					set of mtr's */
 
 /** Initialize page_cleaner. */
-void buf_flush_page_cleaner_init();
+ATTRIBUTE_COLD void buf_flush_page_cleaner_init();
 
 /** Wait for pending flushes to complete. */
 void buf_flush_wait_batch_end_acquiring_mutex(bool lru);
+
+/** Flush the buffer pool on shutdown. */
+ATTRIBUTE_COLD void buf_flush_buffer_pool();
 
 #ifdef UNIV_DEBUG
 /** Validate the flush list. */

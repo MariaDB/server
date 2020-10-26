@@ -1108,13 +1108,9 @@ BtrBulk::insert(
 				goto func_exit;
 			}
 
-			/* Wake up page cleaner to flush dirty pages. */
 			srv_inc_activity_count();
-			mysql_cond_signal(&buf_pool.do_flush_list);
-
 			logFreeCheck();
 		}
-
 	}
 
 	/* Convert tuple to rec. */

@@ -3011,6 +3011,7 @@ void
 xb_fil_io_init()
 {
 	fil_system.create(srv_file_per_table ? 50000 : 5000);
+	fil_system.space_id_reuse_warned = true;
 }
 
 static

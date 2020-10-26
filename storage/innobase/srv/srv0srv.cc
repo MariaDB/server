@@ -1553,11 +1553,10 @@ srv_get_activity_count(void)
 	return(srv_sys.activity_count);
 }
 
-/** Check if there has been any activity.
-@param[in,out]  activity_count  recent activity count to be returned
-if there is a change
-@return FALSE if no change in activity counter. */
-bool srv_check_activity(ulint  *activity_count)
+/** Check if srv_inc_activity_count() has been called.
+@param activity_count   copy of srv_sys.activity_count
+@return whether the activity_count had changed */
+static bool srv_check_activity(ulint *activity_count)
 {
   ulint new_activity_count= srv_sys.activity_count;
   if (new_activity_count != *activity_count)
@@ -1757,28 +1756,6 @@ srv_master_do_active_tasks(void)
 		MONITOR_INC_TIME_IN_MICRO_SECS(
 			MONITOR_SRV_DICT_LRU_MICROSECOND, counter_time);
 	}
-
-	/* The periodic log_checkpoint() call here makes it harder to
-	reproduce bugs in crash recovery or mariabackup --prepare, or
-	in code that writes the redo log records. Omitting the call
-	here should not affect correctness, because log_free_check()
-	should still be invoking checkpoints when needed. In a
-	production server, those calls could cause "furious flushing"
-	and stall the server. Normally we want to perform checkpoints
-	early and often to avoid those situations. */
-	DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", return;);
-
-	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
-		return;
-	}
-
-	/* Make a new checkpoint */
-	if (cur_time % SRV_MASTER_CHECKPOINT_INTERVAL == 0) {
-		srv_main_thread_op_info = "making checkpoint";
-		log_checkpoint();
-		MONITOR_INC_TIME_IN_MICRO_SECS(
-			MONITOR_SRV_CHECKPOINT_MICROSECOND, counter_time);
-	}
 }
 
 /*********************************************************************//**
@@ -1837,26 +1814,6 @@ srv_master_do_idle_tasks(void)
 	srv_sync_log_buffer_in_background();
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_LOG_FLUSH_MICROSECOND, counter_time);
-
-	/* The periodic log_checkpoint() call here makes it harder to
-	reproduce bugs in crash recovery or mariabackup --prepare, or
-	in code that writes the redo log records. Omitting the call
-	here should not affect correctness, because log_free_check()
-	should still be invoking checkpoints when needed. In a
-	production server, those calls could cause "furious flushing"
-	and stall the server. Normally we want to perform checkpoints
-	early and often to avoid those situations. */
-	DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", return;);
-
-	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
-		return;
-	}
-
-	/* Make a new checkpoint */
-	srv_main_thread_op_info = "making checkpoint";
-	log_checkpoint();
-	MONITOR_INC_TIME_IN_MICRO_SECS(MONITOR_SRV_CHECKPOINT_MICROSECOND,
-				       counter_time);
 }
 
 /**

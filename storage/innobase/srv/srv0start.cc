@@ -327,6 +327,7 @@ static dberr_t create_log_file(lsn_t lsn, std::string& logfile0)
 	log_mutex_exit();
 
 	log_make_checkpoint();
+	log_write_up_to(LSN_MAX, true);
 
 	return DB_SUCCESS;
 }
@@ -1297,6 +1298,7 @@ dberr_t srv_start(bool create_new_db)
 	}
 
 	std::string logfile0;
+	bool create_new_log = create_new_db;
 	if (create_new_db) {
 		flushed_lsn = log_sys.get_lsn();
 		log_sys.set_flushed_lsn(flushed_lsn);
@@ -1318,7 +1320,8 @@ dberr_t srv_start(bool create_new_db)
 			return srv_init_abort(err);
 		}
 
-		if (srv_log_file_size == 0) {
+		create_new_log = srv_log_file_size == 0;
+		if (create_new_log) {
 			if (flushed_lsn < lsn_t(1000)) {
 				ib::error()
 					<< "Cannot create log file because"
@@ -1433,10 +1436,17 @@ file_checked:
 			return(srv_init_abort(err));
 		}
 	} else {
+		/* Suppress warnings in fil_space_t::create() for files
+		that are being read before dict_boot() has recovered
+		DICT_HDR_MAX_SPACE_ID. */
+		fil_system.space_id_reuse_warned = true;
+
 		/* We always try to do a recovery, even if the database had
 		been shut down normally: this is the normal startup path */
 
-		err = recv_recovery_from_checkpoint_start(flushed_lsn);
+		err = create_new_log
+			? DB_SUCCESS
+			: recv_recovery_from_checkpoint_start(flushed_lsn);
 		recv_sys.close_files();
 
 		recv_sys.dblwr.pages.clear();
@@ -1491,6 +1501,8 @@ file_checked:
 				trx_sys_print_mysql_binlog_offset();
 			}
 		}
+
+		fil_system.space_id_reuse_warned = false;
 
 		if (!srv_read_only_mode) {
 			const ulint flags = FSP_FLAGS_PAGE_SSIZE();
