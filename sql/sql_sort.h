@@ -310,6 +310,13 @@ public:
     sort_length+= len;
   }
 
+  void reset_parameters()
+  {
+    m_using_packed_sortkeys= false;
+    size_of_packable_fields= 0;
+    sort_length= 0;
+  }
+
   static const uint size_of_length_field= 4;
 
 private:

@@ -2199,6 +2199,8 @@ sortlength(THD *thd, Sort_keys *sort_keys, bool *allow_packing_for_sortkeys)
   length=0;
   uint nullable_cols=0;
 
+  sort_keys->reset_parameters();
+
   for (SORT_FIELD *sortorder= sort_keys->begin();
        sortorder != sort_keys->end();
        sortorder++)
