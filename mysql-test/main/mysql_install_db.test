@@ -1,0 +1,162 @@
+--source include/not_windows.inc
+--source include/not_embedded.inc
+--source include/have_unix_socket.inc
+
+--let MYSQLD_DATADIR= `select @@datadir`
+--let HOSTNAME= `select @@hostname`
+
+disconnect default;
+--connect(testcon,localhost,root,,mysql,,)
+connection testcon;
+
+--echo #
+--echo #
+--echo # mysql_install_db (no args)
+--echo #
+
+--source include/kill_mysqld.inc
+--rmdir $MYSQLD_DATADIR
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_INSTALL_DB --verbose
+
+--source include/start_mysqld.inc
+
+--sorted_result
+--replace_result $HOSTNAME HOSTNAME
+SELECT user,host,plugin,password FROM user ORDER BY user,host;
+
+--sorted_result
+SHOW DATABASES;
+
+--sorted_result
+SHOW GRANTS FOR root@localhost;
+
+--sorted_result
+SHOW GRANTS FOR ''@localhost;
+
+--echo #
+--echo #
+--echo # mysql_install_db --auth-root-authentication-method=normal
+--echo #
+
+--source include/shutdown_mysqld.inc
+--rmdir $MYSQLD_DATADIR
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_INSTALL_DB --auth-root-authentication-method=normal
+
+--source include/start_mysqld.inc
+
+--sorted_result
+--replace_result $HOSTNAME HOSTNAME
+SELECT user,host,plugin,password FROM user ORDER BY user,host;
+
+--sorted_result
+SHOW DATABASES;
+
+--sorted_result
+SHOW GRANTS FOR root@localhost;
+
+--sorted_result
+SHOW GRANTS FOR ''@localhost;
+
+--echo #
+--echo #
+--echo # mysql_install_db --auth-root-authentication-method=socket \\
+--echo #                  --auth-root-socket-user=\$USER
+--echo #
+
+use test;
+--source include/shutdown_mysqld.inc
+--rmdir $MYSQLD_DATADIR
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_INSTALL_DB --auth-root-authentication-method=socket --auth-root-socket-user=$USER
+
+--source include/start_mysqld.inc
+
+--connect(unix,localhost,$USER,,mysql)
+connection unix;
+
+--sorted_result
+--replace_result $HOSTNAME HOSTNAME $USER USER
+SELECT user,host,plugin,password FROM user ORDER BY user,host;
+
+--sorted_result
+SHOW DATABASES;
+
+--replace_result $USER USER
+--sorted_result
+--eval SHOW GRANTS FOR $USER@localhost;
+
+--sorted_result
+SHOW GRANTS FOR ''@localhost;
+
+
+--echo #
+--echo #
+--echo # mysql_install_db --skip-name-resolve
+--echo #
+
+--source include/shutdown_mysqld.inc
+--rmdir $MYSQLD_DATADIR
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_INSTALL_DB --skip-name-resolve
+
+connection testcon;
+--source include/start_mysqld.inc
+use mysql;
+
+--sorted_result
+--replace_result $HOSTNAME HOSTNAME $USER USER
+SELECT user,host,plugin,password FROM user ORDER BY user,host;
+
+--sorted_result
+SHOW DATABASES;
+
+--echo # End of 10.2 tests
+
+--echo #
+--echo #
+--echo # mysql_install_db --skip-test-db
+--echo #
+
+--source include/shutdown_mysqld.inc
+--disconnect unix
+connection testcon;
+--rmdir $MYSQLD_DATADIR
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_INSTALL_DB --skip-test-db
+
+--source include/start_mysqld.inc
+
+use mysql;
+--sorted_result
+--replace_result $HOSTNAME HOSTNAME $USER USER
+SELECT user,host,plugin,password FROM user ORDER BY user,host;
+
+--sorted_result
+SHOW DATABASES;
+
+--echo # End of 10.3 tests
+
+# Cleanup
+--source include/shutdown_mysqld.inc
+--rmdir $MYSQLD_DATADIR
+--mkdir $MYSQLD_DATADIR
+
+perl;
+use lib "lib";
+use My::Handles { suppress_init_messages => 1 };
+use My::File::Path;
+my $install_db_dir = ($ENV{MTR_PARALLEL} == 1) ?
+  "$ENV{'MYSQLTEST_VARDIR'}/install.db" :
+  "$ENV{'MYSQLTEST_VARDIR'}/../install.db";
+copytree($install_db_dir, $ENV{'MYSQLD_DATADIR'});
+EOF
+
+--source include/start_mysqld.inc
+

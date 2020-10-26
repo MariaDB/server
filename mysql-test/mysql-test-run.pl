@@ -2523,6 +2523,30 @@ sub environment_setup {
     "--defaults-file=$path_config_file $extra_opts";
 
   # ----------------------------------------------------
+  # mysql_install_db
+  # ----------------------------------------------------
+  if (!IS_WINDOWS)
+  {
+    my $exe_mysql_install_db=
+      mtr_exe_exists("$bindir/scripts/mysql_install_db",
+                     "$path_client_bindir/mysql_install_db");
+    $ENV{'MYSQL_INSTALL_DB'}= native_path($exe_mysql_install_db) .
+      " --defaults-file=$path_config_file $extra_opts" .
+      " --defaults-group-suffix=.1 --cross-bootstrap";
+  }
+
+  if ( ! $source_dist )
+  {
+    $ENV{'MYSQL_INSTALL_DB'}.= " --basedir=$basedir";
+  }
+  else
+  {
+    $ENV{'MYSQL_INSTALL_DB'}.=
+      " --srcdir=" . cwd() . "/.." .
+      " --builddir=$bindir";
+  }
+
+  # ----------------------------------------------------
   # bug25714 executable may _not_ exist in
   # some versions, test using it should be skipped
   # ----------------------------------------------------
