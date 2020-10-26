@@ -101,8 +101,7 @@ ALTER TABLE t1 ADD PRIMARY KEY (a);
 ALTER TABLE t2 ADD PRIMARY KEY (a);
 ALTER TABLE t3 ADD PRIMARY KEY (a);
 
-#--sync_slave_with_master 
---connection slave
+--sync_slave_with_master
 RENAME TABLE t3 TO t3_bak;
 
 --connection master
