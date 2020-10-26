@@ -2711,7 +2711,7 @@ static bool xtrabackup_copy_logfile(bool last = false)
 
 		xtrabackup_io_throttling();
 
-		log_mutex_enter();
+		mysql_mutex_lock(&log_sys.mutex);
 		lsn_t lsn= start_lsn;
 		for (int retries= 0; retries < 100; retries++) {
 			if (log_sys.log.read_log_seg(&lsn, end_lsn)
@@ -2735,7 +2735,7 @@ static bool xtrabackup_copy_logfile(bool last = false)
 			mutex_exit(&recv_sys.mutex);
 		}
 
-		log_mutex_exit();
+		mysql_mutex_unlock(&log_sys.mutex);
 
 		if (!start_lsn) {
 			const char *reason = recv_sys.found_corrupt_log
@@ -2795,10 +2795,10 @@ static os_thread_ret_t DECLARE_THREAD(log_copying_thread)(void*)
 			break;
 		}
 
-		log_mutex_enter();
+		mysql_mutex_lock(&log_sys.mutex);
 		bool completed = metadata_to_lsn
 			&& metadata_to_lsn <= log_copy_scanned_lsn;
-		log_mutex_exit();
+		mysql_mutex_unlock(&log_sys.mutex);
 		if (completed) {
 			break;
 		}
@@ -3848,7 +3848,7 @@ static bool xtrabackup_backup_low()
 	{
 		ulint	max_cp_field;
 
-		log_mutex_enter();
+		mysql_mutex_lock(&log_sys.mutex);
 
 		if (recv_find_max_checkpoint(&max_cp_field) == DB_SUCCESS
 		    && log_sys.log.format != 0) {
@@ -3865,7 +3865,7 @@ static bool xtrabackup_backup_low()
 		} else {
 			msg("Error: recv_find_max_checkpoint() failed.");
 		}
-		log_mutex_exit();
+		mysql_mutex_unlock(&log_sys.mutex);
 	}
 
 	stop_backup_threads();
@@ -4037,20 +4037,20 @@ fail:
 	/* get current checkpoint_lsn */
 	/* Look for the latest checkpoint from any of the log groups */
 
-	log_mutex_enter();
+	mysql_mutex_lock(&log_sys.mutex);
 
 reread_log_header:
 	dberr_t err = recv_find_max_checkpoint(&max_cp_field);
 
 	if (err != DB_SUCCESS) {
 		msg("Error: cannot read redo log header");
-		log_mutex_exit();
+		mysql_mutex_unlock(&log_sys.mutex);
 		goto fail;
 	}
 
 	if (log_sys.log.format == 0) {
 		msg("Error: cannot process redo log before MariaDB 10.2.2");
-		log_mutex_exit();
+		mysql_mutex_unlock(&log_sys.mutex);
 		goto fail;
 	}
 
@@ -4067,7 +4067,7 @@ reread_log_header:
 	    != mach_read_from_8(buf + LOG_CHECKPOINT_OFFSET))
 		goto reread_log_header;
 
-	log_mutex_exit();
+	mysql_mutex_unlock(&log_sys.mutex);
 
 	xtrabackup_init_datasinks();
 
@@ -4603,7 +4603,7 @@ xb_delta_open_matching_space(
 		return OS_FILE_CLOSED;
 	}
 
-	log_mutex_enter();
+	mysql_mutex_lock(&log_sys.mutex);
 	if (!fil_is_user_tablespace_id(info.space_id)) {
 found:
 		/* open the file and return its handle */
@@ -4616,7 +4616,7 @@ found:
 			msg("mariabackup: Cannot open file %s\n", real_name);
 		}
 exit:
-		log_mutex_exit();
+		mysql_mutex_unlock(&log_sys.mutex);
 		return file;
 	}
 

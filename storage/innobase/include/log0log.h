@@ -35,7 +35,6 @@ Created 12/9/1995 Heikki Tuuri
 #define log0log_h
 
 #include "log0types.h"
-#include "ut0mutex.h"
 #include "os0file.h"
 #include "span.h"
 #include <atomic>
@@ -127,7 +126,7 @@ ATTRIBUTE_COLD void log_make_checkpoint();
 /** Make a checkpoint at the latest lsn on shutdown. */
 ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown();
 
-/** Write checkpoint info to the log header and invoke log_mutex_exit().
+/** Write checkpoint info to the log header and release log_sys.mutex.
 @param[in]	end_lsn	start LSN of the FILE_CHECKPOINT mini-transaction */
 ATTRIBUTE_COLD void log_write_checkpoint_info(lsn_t end_lsn);
 
@@ -349,9 +348,6 @@ or the MySQL version that created the redo log file. */
 					header */
 #define LOG_FILE_HDR_SIZE	(4 * OS_FILE_LOG_BLOCK_SIZE)
 
-typedef ib_mutex_t	LogSysMutex;
-typedef ib_mutex_t	FlushOrderMutex;
-
 /** Memory mapped file */
 class mapped_file_t
 {
@@ -471,7 +467,7 @@ struct log_t{
 
 private:
   /** The log sequence number of the last change of durable InnoDB files */
-  MY_ALIGNED(CACHE_LINE_SIZE)
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)
   std::atomic<lsn_t> lsn;
   /** the first guaranteed-durable log sequence number */
   std::atomic<lsn_t> flushed_to_disk_lsn;
@@ -480,10 +476,8 @@ private:
   This must hold if lsn - last_checkpoint_lsn > max_checkpoint_age. */
   std::atomic<bool> check_flush_or_checkpoint_;
 public:
-
   /** mutex protecting the log */
-  MY_ALIGNED(CACHE_LINE_SIZE)
-  LogSysMutex mutex;
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t mutex;
   /** first free offset within the log buffer in use */
   size_t buf_free;
   /** recommended maximum size of buf, after which the buffer is flushed */
@@ -492,8 +486,7 @@ public:
   dirty blocks in the list. The idea behind this mutex is to be able
   to release log_sys.mutex during mtr_commit and still ensure that
   insertions in the flush_list happen in the LSN order. */
-  MY_ALIGNED(CACHE_LINE_SIZE) FlushOrderMutex
-  log_flush_order_mutex;
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t flush_order_mutex;
   /** log_buffer, append data here */
   byte *buf;
   /** log_buffer, writing data to file from this buffer.
@@ -736,7 +729,9 @@ inline lsn_t log_t::file::calc_lsn_offset(lsn_t lsn) const
   ut_ad(this == &log_sys.log);
   /* The lsn parameters are updated while holding both the mutexes
   and it is ok to have either of them while reading */
-  ut_ad(log_sys.mutex.is_owned() || log_write_lock_own());
+#ifdef SAFE_MUTEX
+  ut_ad(mysql_mutex_is_owner(&log_sys.mutex) || log_write_lock_own());
+#endif /* SAFE_MUTEX */
   const lsn_t size = capacity();
   lsn_t l= lsn - this->lsn;
   if (longlong(l) < 0) {
@@ -749,40 +744,22 @@ inline lsn_t log_t::file::calc_lsn_offset(lsn_t lsn) const
   return l + LOG_FILE_HDR_SIZE * (1 + l / (file_size - LOG_FILE_HDR_SIZE));
 }
 
-inline void log_t::file::set_lsn(lsn_t a_lsn) {
-      ut_ad(log_sys.mutex.is_owned() || log_write_lock_own());
-      lsn = a_lsn;
+inline void log_t::file::set_lsn(lsn_t a_lsn)
+{
+#ifdef SAFE_MUTEX
+  ut_ad(mysql_mutex_is_owner(&log_sys.mutex) || log_write_lock_own());
+#endif /* SAFE_MUTEX */
+  lsn= a_lsn;
 }
 
-inline void log_t::file::set_lsn_offset(lsn_t a_lsn) {
-      ut_ad(log_sys.mutex.is_owned() || log_write_lock_own());
-      ut_ad((lsn % OS_FILE_LOG_BLOCK_SIZE) == (a_lsn % OS_FILE_LOG_BLOCK_SIZE));
-      lsn_offset = a_lsn;
+inline void log_t::file::set_lsn_offset(lsn_t a_lsn)
+{
+#ifdef SAFE_MUTEX
+  ut_ad(mysql_mutex_is_owner(&log_sys.mutex) || log_write_lock_own());
+#endif /* SAFE_MUTEX */
+  ut_ad((lsn % OS_FILE_LOG_BLOCK_SIZE) == (a_lsn % OS_FILE_LOG_BLOCK_SIZE));
+  lsn_offset= a_lsn;
 }
-
-/** Test if flush order mutex is owned. */
-#define log_flush_order_mutex_own()			\
-	mutex_own(&log_sys.log_flush_order_mutex)
-
-/** Acquire the flush order mutex. */
-#define log_flush_order_mutex_enter() do {		\
-	mutex_enter(&log_sys.log_flush_order_mutex);	\
-} while (0)
-/** Release the flush order mutex. */
-# define log_flush_order_mutex_exit() do {		\
-	mutex_exit(&log_sys.log_flush_order_mutex);	\
-} while (0)
-
-/** Test if log sys mutex is owned. */
-#define log_mutex_own() mutex_own(&log_sys.mutex)
-
-
-/** Acquire the log sys mutex. */
-#define log_mutex_enter() mutex_enter(&log_sys.mutex)
-
-
-/** Release the log sys mutex. */
-#define log_mutex_exit() mutex_exit(&log_sys.mutex)
 
 #include "log0log.ic"
 
