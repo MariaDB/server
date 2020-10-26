@@ -35,6 +35,7 @@
 
 bool MakeSelector(PGLOBAL g, PFIL fp, PSTRG s);
 bool IsNum(PSZ s);
+int  GetDefaultDepth(void);
 
 /***********************************************************************/
 /*  Make selector json representation for Mongo tables.                */
@@ -248,15 +249,10 @@ MGODISC::MGODISC(PGLOBAL g, int *lg) {
 /***********************************************************************/
 int MGODISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt)
 {
-	PCSZ    level = GetStringTableOption(g, topt, "Level", NULL);
 	PMGODEF tdp;
 
-	if (level) {
-		lvl = atoi(level);
-		lvl = (lvl > 16) ? 16 : lvl;
-	} else
-		lvl = 0;
-
+	lvl = GetIntegerTableOption(g, topt, "Level", GetDefaultDepth());
+	lvl = GetIntegerTableOption(g, topt, "Depth", lvl);
 	all = GetBooleanTableOption(g, topt, "Fullarray", false);
 
 	/*********************************************************************/
