@@ -258,7 +258,9 @@ public:
   Sort_keys_array(arr, count),
   m_using_packed_sortkeys(false),
   size_of_packable_fields(0),
-  sort_length(0)
+  sort_length_with_original_values(0),
+  sort_length_with_memcmp_values(0),
+  first_execution(true)
   {
     DBUG_ASSERT(!is_null());
   }
@@ -280,14 +282,24 @@ public:
     return size_of_packable_fields;
   }
 
-  void set_sort_length(uint len)
+  void set_sort_length_with_original_values(uint len)
   {
-    sort_length= len;
+    sort_length_with_original_values= len;
   }
 
-  uint get_sort_length()
+  uint get_sort_length_with_original_values()
   {
-    return sort_length;
+    return sort_length_with_original_values;
+  }
+
+  void set_sort_length_with_memcmp_values(uint len)
+  {
+    sort_length_with_memcmp_values= len;
+  }
+
+  uint get_sort_length_with_memcmp_values()
+  {
+    return sort_length_with_memcmp_values;
   }
 
   static void store_sortkey_length(uchar *p, uint sz)
@@ -307,15 +319,11 @@ public:
 
   void increment_original_sort_length(uint len)
   {
-    sort_length+= len;
+    sort_length_with_original_values+= len;
   }
 
-  void reset_parameters()
-  {
-    m_using_packed_sortkeys= false;
-    size_of_packable_fields= 0;
-    sort_length= 0;
-  }
+  bool is_first_execution() { return first_execution; }
+  void set_first_execution(bool val) { first_execution= val; }
 
   static const uint size_of_length_field= 4;
 
@@ -324,10 +332,20 @@ private:
   uint size_of_packable_fields;     // Total length bytes for packable columns
 
   /*
-    The length that would be needed if we stored non-packed mem-comparable
-    images of fields?
+    The sort length for all the keyparts storing the original values
   */
-  uint sort_length;
+  uint sort_length_with_original_values;
+
+  /*
+    The sort length for all the keyparts storing the mem-comparable images
+  */
+  uint sort_length_with_memcmp_values;
+
+  /*
+    TRUE       if it is the first invocation of filesort
+    FALSE      otherwise.
+  */
+  bool first_execution;
 };
 
 
