@@ -1,0 +1,110 @@
+disconnect default;
+connect testcon,localhost,root,,mysql,,;
+connection testcon;
+#
+#
+# mysql_install_db (no args)
+#
+# Kill the server
+SELECT user,host,plugin,password FROM user ORDER BY user,host;
+user	host	plugin	password
+	localhost		
+root	127.0.0.1		
+root	::1		
+root	localhost		
+SHOW DATABASES;
+Database
+information_schema
+mysql
+performance_schema
+test
+SHOW GRANTS FOR root@localhost;
+Grants for root@localhost
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+SHOW GRANTS FOR ''@localhost;
+Grants for @localhost
+GRANT USAGE ON *.* TO ''@'localhost'
+#
+#
+# mysql_install_db --auth-root-authentication-method=normal
+#
+SELECT user,host,plugin,password FROM user ORDER BY user,host;
+user	host	plugin	password
+	localhost		
+root	127.0.0.1		
+root	::1		
+root	localhost		
+SHOW DATABASES;
+Database
+information_schema
+mysql
+performance_schema
+test
+SHOW GRANTS FOR root@localhost;
+Grants for root@localhost
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+SHOW GRANTS FOR ''@localhost;
+Grants for @localhost
+GRANT USAGE ON *.* TO ''@'localhost'
+#
+#
+# mysql_install_db --auth-root-authentication-method=socket \
+#                  --auth-root-socket-user=$USER
+#
+use test;
+connect unix,localhost,$USER,,mysql;
+connection unix;
+SELECT user,host,plugin,password FROM user ORDER BY user,host;
+user	host	plugin	password
+	localhost		
+USER	localhost	unix_socket	
+SHOW DATABASES;
+Database
+information_schema
+mysql
+performance_schema
+test
+SHOW GRANTS FOR USER@localhost;;
+Grants for USER@localhost
+GRANT ALL PRIVILEGES ON *.* TO 'USER'@'localhost' IDENTIFIED VIA unix_socket WITH GRANT OPTION
+SHOW GRANTS FOR ''@localhost;
+Grants for @localhost
+GRANT USAGE ON *.* TO ''@'localhost'
+#
+#
+# mysql_install_db --skip-auth-anonymous-user
+#
+disconnect unix;
+connection testcon;
+use mysql;
+SELECT user,host,plugin,password FROM user ORDER BY user,host;
+user	host	plugin	password
+root	127.0.0.1		
+root	::1		
+root	localhost		
+SHOW DATABASES;
+Database
+information_schema
+mysql
+performance_schema
+test
+#
+#
+# mysql_install_db --skip-name-resolve
+#
+use mysql;
+SELECT user,host,plugin,password FROM user ORDER BY user,host;
+user	host	plugin	password
+	localhost		
+root	127.0.0.1		
+root	::1		
+root	localhost		
+SHOW DATABASES;
+Database
+information_schema
+mysql
+performance_schema
+test
+# End of 10.2 tests
