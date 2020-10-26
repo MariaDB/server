@@ -2300,7 +2300,7 @@ static void ibuf_read_merge_pages(const uint32_t* space_ids,
 
 	for (ulint i = 0; i < n_stored; i++) {
 		const ulint space_id = space_ids[i];
-		fil_space_t* s = fil_space_t::get_for_io(space_id);
+		fil_space_t* s = fil_space_t::get(space_id);
 		if (!s) {
 tablespace_deleted:
 			/* The tablespace was not found: remove all
@@ -2314,7 +2314,7 @@ tablespace_deleted:
 		}
 
 		const ulint zip_size = s->zip_size(), size = s->size;
-		s->release_for_io();
+		s->release();
 		mtr_t mtr;
 
 		if (UNIV_LIKELY(page_nos[i] < size)) {
@@ -4028,7 +4028,7 @@ ibuf_restore_pos(
 		return true;
 	}
 
-	if (fil_space_t* s = fil_space_acquire_silent(page_id.space())) {
+	if (fil_space_t* s = fil_space_t::get(page_id.space())) {
 		ib::error() << "ibuf cursor restoration fails!"
 			" ibuf record inserted to page "
 			<< page_id
@@ -4214,7 +4214,7 @@ ibuf_merge_or_delete_for_page(
 	fil_space_t*	space;
 
 	if (update_ibuf_bitmap) {
-		space = fil_space_acquire_silent(page_id.space());
+		space = fil_space_t::get(page_id.space());
 
 		if (UNIV_UNLIKELY(!space)) {
 			/* Do not try to read the bitmap page from the

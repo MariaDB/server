@@ -415,7 +415,7 @@ static bool buf_tmp_page_decrypt(byte* tmp_frame, byte* src_frame)
 static bool buf_page_decrypt_after_read(buf_page_t *bpage,
                                         const fil_node_t &node)
 {
-	ut_ad(node.space->pending_io());
+	ut_ad(node.space->referenced());
 	ut_ad(node.space->id == bpage->id().space());
 	const auto flags = node.space->flags;
 
@@ -475,7 +475,7 @@ decompress_with_slot:
 		slot->release();
 		ut_ad(!write_size
 		      || fil_page_type_validate(node.space, dst_frame));
-		ut_ad(node.space->pending_io());
+		ut_ad(node.space->referenced());
 		return write_size != 0;
 	}
 
@@ -516,7 +516,7 @@ decrypt_failed:
 		goto decompress;
 	}
 
-	ut_ad(node.space->pending_io());
+	ut_ad(node.space->referenced());
 	return true;
 }
 #endif /* !UNIV_INNOCHECKSUM */
@@ -2768,7 +2768,7 @@ buf_zip_decompress(
 	ulint		size = page_zip_get_size(&block->page.zip);
 	/* The tablespace will not be found if this function is called
 	during IMPORT. */
-	fil_space_t* space= fil_space_t::get_for_io(block->page.id().space());
+	fil_space_t* space= fil_space_t::get(block->page.id().space());
 	const unsigned key_version = mach_read_from_4(
 		frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 	fil_space_crypt_t* crypt_data = space ? space->crypt_data : NULL;
@@ -2805,7 +2805,7 @@ buf_zip_decompress(
 		if (page_zip_decompress(&block->page.zip,
 					block->frame, TRUE)) {
 			if (space) {
-				space->release_for_io();
+				space->release();
 			}
 			return(TRUE);
 		}
@@ -2824,7 +2824,7 @@ buf_zip_decompress(
 		/* Copy to uncompressed storage. */
 		memcpy(block->frame, frame, block->zip_size());
 		if (space) {
-			space->release_for_io();
+			space->release();
 		}
 
 		return(TRUE);
@@ -2848,7 +2848,7 @@ err_exit:
 			dict_set_corrupted_by_space(space);
 		}
 
-		space->release_for_io();
+		space->release();
 	}
 
 	return(FALSE);
@@ -3160,10 +3160,10 @@ lookup:
 			asserting. */
 			if (page_id.space() == TRX_SYS_SPACE) {
 			} else if (page_id.space() == SRV_TMP_SPACE_ID) {
-			} else if (fil_space_t* space= fil_space_t::get_for_io(
+			} else if (fil_space_t* space= fil_space_t::get(
 					   page_id.space())) {
 				bool set = dict_set_corrupted_by_space(space);
-				space->release_for_io();
+				space->release();
 				if (set) {
 					return NULL;
 				}
@@ -3374,8 +3374,7 @@ re_evict:
 	if (mode != BUF_GET_IF_IN_POOL
 	    && mode != BUF_GET_IF_IN_POOL_OR_WATCH) {
 	} else if (!ibuf_debug) {
-	} else if (fil_space_t* space
-		   = fil_space_t::get_for_io(page_id.space())) {
+	} else if (fil_space_t* space = fil_space_t::get(page_id.space())) {
 		/* Try to evict the block from the buffer pool, to use the
 		insert buffer (change buffer) as much as possible. */
 
@@ -3386,7 +3385,7 @@ re_evict:
 		/* Blocks cannot be relocated or enter or exit the
 		buf_pool while we are holding the buf_pool.mutex. */
 		const bool evicted = buf_LRU_free_page(&fix_block->page, true);
-		space->release_for_io();
+		space->release();
 
 		if (evicted) {
 			hash_lock = buf_pool.page_hash.lock_get(fold);
@@ -4108,7 +4107,7 @@ after decryption normal page checksum does not match.
 static dberr_t buf_page_check_corrupt(buf_page_t *bpage,
                                       const fil_node_t &node)
 {
-	ut_ad(node.space->pending_io());
+	ut_ad(node.space->referenced());
 
 	byte* dst_frame = (bpage->zip.data) ? bpage->zip.data :
 		((buf_block_t*) bpage)->frame;

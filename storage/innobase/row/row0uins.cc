@@ -401,7 +401,7 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		goto close_table;
 	}
 
-	if (UNIV_UNLIKELY(!fil_table_accessible(node->table))) {
+	if (UNIV_UNLIKELY(!node->table->is_accessible())) {
 close_table:
 		/* Normally, tables should not disappear or become
 		unaccessible during ROLLBACK, because they should be

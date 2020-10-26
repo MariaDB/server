@@ -697,7 +697,6 @@ static bool need_srv_free;
 static void srv_init()
 {
 	mutex_create(LATCH_ID_SRV_INNODB_MONITOR, &srv_innodb_monitor_mutex);
-	srv_thread_pool_init();
 
 	if (!srv_read_only_mode) {
 		mutex_create(LATCH_ID_SRV_SYS_TASKS, &srv_sys.tasks_mutex);
@@ -761,6 +760,7 @@ void
 srv_boot(void)
 /*==========*/
 {
+	srv_thread_pool_init();
 	sync_check_init();
 	trx_pool_init();
 	row_mysql_init();

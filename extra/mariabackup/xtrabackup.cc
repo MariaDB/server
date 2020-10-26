@@ -3094,10 +3094,10 @@ xb_load_single_table_tablespace(
 
 		ut_a(space != NULL);
 
-		space->add(file->filepath(), OS_FILE_CLOSED, 0, false, false);
-		/* by opening the tablespace we forcing node and space objects
-		in the cache to be populated with fields from space header */
-		space->get_size();
+		space->add(file->filepath(), file->detach(), 0, false, false);
+		mutex_enter(&fil_system.mutex);
+		space->read_page0();
+		mutex_exit(&fil_system.mutex);
 
 		if (srv_operation == SRV_OPERATION_RESTORE_DELTA
 		    || xb_close_files) {
@@ -3402,7 +3402,7 @@ xb_load_tablespaces()
 /** Destroy the tablespace memory cache. */
 static void xb_data_files_close()
 {
-  fil_close_all_files();
+  fil_space_t::close_all();
   buf_dblwr.close();
 }
 

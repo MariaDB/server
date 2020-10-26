@@ -268,6 +268,14 @@ public:
 		return(m_handle);
 	}
 
+	/** @return detached file handle */
+	pfs_os_file_t detach()
+	{
+		pfs_os_file_t detached = m_handle;
+		m_handle = OS_FILE_CLOSED;
+		return detached;
+	}
+
 	/** Get Datafile::m_order.
 	@return m_order */
 	ulint	order()	const

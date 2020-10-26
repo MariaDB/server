@@ -2028,7 +2028,7 @@ void innodb_shutdown()
 	}
 
 	os_aio_free();
-	fil_close_all_files();
+	fil_space_t::close_all();
 	/* Exit any remaining threads. */
 	ut_ad(!buf_page_cleaner_is_active);
 	srv_shutdown_threads();

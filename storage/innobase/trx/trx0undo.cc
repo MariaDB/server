@@ -359,7 +359,7 @@ trx_undo_seg_create(fil_space_t *space, buf_block_t *rseg_hdr, ulint *id,
                     dberr_t *err, mtr_t *mtr)
 {
 	buf_block_t*	block;
-	ulint		n_reserved;
+	uint32_t	n_reserved;
 	bool		success;
 
 	const ulint slot_no = trx_rsegf_undo_find_free(rseg_hdr);
@@ -551,7 +551,7 @@ buf_block_t* trx_undo_add_page(trx_undo_t* undo, mtr_t* mtr)
 {
 	trx_rseg_t*	rseg		= undo->rseg;
 	buf_block_t*	new_block	= NULL;
-	ulint		n_reserved;
+	uint32_t	n_reserved;
 
 	/* When we add a page to an undo log, this is analogous to
 	a pessimistic insert in a B-tree, and we must reserve the
