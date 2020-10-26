@@ -263,6 +263,7 @@ int main(int argc,char *argv[])
   const char *msg;
   const char *name;
   char *unknown_error = 0;
+  char unknow_aix[30];
 #if defined(_WIN32)
   my_bool skip_win_message= 0;
 #endif
@@ -321,7 +322,6 @@ int main(int argc,char *argv[])
       msg = strerror(code);
 
       // On AIX, unknow error return " Error <CODE> occurred."
-      char unknow_aix[30];
       snprintf(unknow_aix, sizeof(unknow_aix), " Error %3d occurred.", code);
 
       /*
