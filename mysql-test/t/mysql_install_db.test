@@ -1,0 +1,175 @@
+--source include/not_windows.inc
+--source include/not_embedded.inc
+--source include/have_unix_socket.inc
+
+--let MYSQLD_DATADIR= `select @@datadir`
+--let HOSTNAME= `select @@hostname`
+
+--echo #
+--echo #
+--echo # mysql_install_db (no args)
+--echo #
+
+--source include/shutdown_mysqld.inc
+--rmdir $MYSQLD_DATADIR
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_INSTALL_DB --verbose
+
+--source include/start_mysqld.inc
+
+--replace_result $HOSTNAME HOSTNAME
+SELECT user,host,plugin,password FROM mysql.user order by user,host;
+
+--sorted_result
+SHOW DATABASES;
+
+--sorted_result
+SHOW GRANTS FOR root@localhost;
+
+--sorted_result
+SHOW GRANTS FOR ''@localhost;
+
+--echo #
+--echo #
+--echo # mysql_install_db --auth-root-authentication-method=normal
+--echo #
+
+--source include/shutdown_mysqld.inc
+--rmdir $MYSQLD_DATADIR
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_INSTALL_DB --auth-root-authentication-method=normal
+
+--source include/start_mysqld.inc
+
+--replace_result $HOSTNAME HOSTNAME
+SELECT user,host,plugin,password FROM mysql.user order by user,host;
+
+--sorted_result
+SHOW DATABASES;
+
+--sorted_result
+SHOW GRANTS FOR root@localhost;
+
+--sorted_result
+SHOW GRANTS FOR ''@localhost;
+
+--echo #
+--echo #
+--echo # mysql_install_db --auth-root-authentication-method=socket \\
+--echo #                  --auth-root-socket-user=\$USER
+--echo #
+
+--source include/shutdown_mysqld.inc
+--rmdir $MYSQLD_DATADIR
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_INSTALL_DB --auth-root-authentication-method=socket --auth-root-socket-user=$USER
+
+--source include/start_mysqld.inc
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT $USER USER
+connect (unix,localhost,$USER);
+connection unix;
+
+--replace_result $HOSTNAME HOSTNAME $USER USER
+SELECT user,host,plugin,password FROM mysql.user order by user,host;
+
+--sorted_result
+SHOW DATABASES;
+
+--replace_result $USER USER
+--sorted_result
+eval SHOW GRANTS FOR $USER@localhost;
+
+--sorted_result
+SHOW GRANTS FOR ''@localhost;
+
+--echo #
+--echo # 
+--echo # MDEV-23494 mysql_install_db --auth-root-hostname=%
+--echo #
+
+--source include/shutdown_mysqld.inc
+--rmdir $MYSQLD_DATADIR
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_INSTALL_DB --auth-root-hostname=%
+
+--source include/start_mysqld.inc
+
+connection default;
+--enable_reconnect
+
+SELECT user,host,plugin,password FROM mysql.user order by user,host;
+
+--sorted_result
+SHOW DATABASES;
+
+--sorted_result
+SHOW GRANTS FOR root@localhost;
+
+--sorted_result
+SHOW GRANTS FOR root@'%';
+
+--sorted_result
+SHOW GRANTS FOR ''@localhost;
+
+--echo #
+--echo # 
+--echo # MDEV-23326 mysql_install_db --timezones=\$MYSQLTEST_VARDIR/std_data/zoneinfo
+--echo #
+
+--source include/shutdown_mysqld.inc
+--rmdir $MYSQLD_DATADIR
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_INSTALL_DB --timezones=$MYSQLTEST_VARDIR/std_data/zoneinfo
+
+--source include/start_mysqld.inc
+
+connection default;
+--enable_reconnect
+
+--replace_result $HOSTNAME HOSTNAME
+SELECT user,host,plugin,password FROM mysql.user order by user,host;
+
+--sorted_result
+SHOW DATABASES;
+
+--sorted_result
+SHOW GRANTS FOR root@localhost;
+
+--sorted_result
+SHOW GRANTS FOR ''@localhost;
+
+# intentionally leave out leap_seconds here as largely deprecated (world wide more than mariadb)
+# 
+
+SELECT * FROM mysql.time_zone
+  LEFT JOIN mysql.time_zone_name USING (Time_zone_id)
+  LEFT JOIN mysql.time_zone_transition USING (Time_zone_id)
+  LEFT JOIN mysql.time_zone_transition_type USING (Transition_type_id);
+
+--echo # End of 10.2 tests
+
+
+
+# Cleanup
+--source include/kill_mysqld.inc
+--rmdir $MYSQLD_DATADIR
+--mkdir $MYSQLD_DATADIR
+
+perl;
+use lib "lib";
+use My::Handles { suppress_init_messages => 1 };
+use My::File::Path;
+my $install_db_dir = ($ENV{MTR_PARALLEL} == 1) ?
+  "$ENV{'MYSQLTEST_VARDIR'}/install.db" :
+  "$ENV{'MYSQLTEST_VARDIR'}/../install.db";
+copytree($install_db_dir, $ENV{'MYSQLD_DATADIR'});
+EOF
+
+--source include/start_mysqld.inc
+

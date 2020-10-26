@@ -1,0 +1,148 @@
+#
+#
+# mysql_install_db (no args)
+#
+Installing MariaDB/MySQL system tables in 'MYSQLTEST_VARDIR/mysqld.1/data' ...
+OK
+SELECT user,host,plugin,password FROM mysql.user order by user,host;
+user	host	plugin	password
+	HOSTNAME		
+	localhost		
+root	127.0.0.1		
+root	::1		
+root	HOSTNAME		
+root	localhost		
+SHOW DATABASES;
+Database
+information_schema
+mysql
+performance_schema
+test
+SHOW GRANTS FOR root@localhost;
+Grants for root@localhost
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+SHOW GRANTS FOR ''@localhost;
+Grants for @localhost
+GRANT USAGE ON *.* TO ''@'localhost'
+#
+#
+# mysql_install_db --auth-root-authentication-method=normal
+#
+Installing MariaDB/MySQL system tables in 'MYSQLTEST_VARDIR/mysqld.1/data' ...
+OK
+SELECT user,host,plugin,password FROM mysql.user order by user,host;
+user	host	plugin	password
+	HOSTNAME		
+	localhost		
+root	127.0.0.1		
+root	::1		
+root	HOSTNAME		
+root	localhost		
+SHOW DATABASES;
+Database
+information_schema
+mysql
+performance_schema
+test
+SHOW GRANTS FOR root@localhost;
+Grants for root@localhost
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+SHOW GRANTS FOR ''@localhost;
+Grants for @localhost
+GRANT USAGE ON *.* TO ''@'localhost'
+#
+#
+# mysql_install_db --auth-root-authentication-method=socket \
+#                  --auth-root-socket-user=$USER
+#
+Installing MariaDB/MySQL system tables in 'MYSQLTEST_VARDIR/mysqld.1/data' ...
+OK
+connect  unix,localhost,$USER;
+connection unix;
+SELECT user,host,plugin,password FROM mysql.user order by user,host;
+user	host	plugin	password
+	HOSTNAME		
+	localhost		
+USER	localhost	unix_socket	
+SHOW DATABASES;
+Database
+information_schema
+mysql
+performance_schema
+test
+SHOW GRANTS FOR USER@localhost;
+Grants for USER@localhost
+GRANT ALL PRIVILEGES ON *.* TO 'USER'@'localhost' IDENTIFIED VIA unix_socket WITH GRANT OPTION
+SHOW GRANTS FOR ''@localhost;
+Grants for @localhost
+GRANT USAGE ON *.* TO ''@'localhost'
+#
+# 
+# MDEV-23494 mysql_install_db --auth-root-hostname=%
+#
+Installing MariaDB/MySQL system tables in 'MYSQLTEST_VARDIR/mysqld.1/data' ...
+OK
+connection default;
+SELECT user,host,plugin,password FROM mysql.user order by user,host;
+user	host	plugin	password
+	%		
+	localhost		
+root	%		
+root	127.0.0.1		
+root	::1		
+root	localhost		
+SHOW DATABASES;
+Database
+information_schema
+mysql
+performance_schema
+test
+SHOW GRANTS FOR root@localhost;
+Grants for root@localhost
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+SHOW GRANTS FOR root@'%';
+Grants for root@%
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'%' WITH GRANT OPTION
+SHOW GRANTS FOR ''@localhost;
+Grants for @localhost
+GRANT USAGE ON *.* TO ''@'localhost'
+#
+# 
+# MDEV-23326 mysql_install_db --timezones=$MYSQLTEST_VARDIR/std_data/zoneinfo
+#
+Installing MariaDB/MySQL system tables in 'MYSQLTEST_VARDIR/mysqld.1/data' ...
+OK
+connection default;
+SELECT user,host,plugin,password FROM mysql.user order by user,host;
+user	host	plugin	password
+	HOSTNAME		
+	localhost		
+root	127.0.0.1		
+root	::1		
+root	HOSTNAME		
+root	localhost		
+SHOW DATABASES;
+Database
+information_schema
+mysql
+performance_schema
+test
+SHOW GRANTS FOR root@localhost;
+Grants for root@localhost
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+SHOW GRANTS FOR ''@localhost;
+Grants for @localhost
+GRANT USAGE ON *.* TO ''@'localhost'
+SELECT * FROM mysql.time_zone
+LEFT JOIN mysql.time_zone_name USING (Time_zone_id)
+LEFT JOIN mysql.time_zone_transition USING (Time_zone_id)
+LEFT JOIN mysql.time_zone_transition_type USING (Transition_type_id);
+Transition_type_id	Time_zone_id	Use_leap_seconds	Name	Transition_time	Time_zone_id	Offset	Is_DST	Abbreviation
+NULL	1	N	GMT	NULL	NULL	NULL	NULL	NULL
+# End of 10.2 tests
+# Kill the server
