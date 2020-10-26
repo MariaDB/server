@@ -4123,4 +4123,125 @@ f
 baz
 foo
 DROP TABLE t1;
+#
+# MDEV-24015: SQL Error (1038): Out of sort memory when enough memory for the
+# sort buffer is provided
+#
+CREATE TABLE t1 (a VARCHAR(100), b INT);
+CREATE TABLE t2 (a VARCHAR(100), b INT);
+INSERT INTO t1 SELECT 'abc', seq FROM seq_1_to_50;
+INSERT INTO t2 SELECT seq, seq FROM seq_1_to_50;
+set @save_sort_buffer_size= @@sort_buffer_size;
+set sort_buffer_size=2000;
+ANALYZE FORMAT=JSON
+SELECT (SELECT sum(t2.b) FROM t2 WHERE t1.b=t2.b GROUP BY t2.a) FROM t1;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "r_loops": 1,
+      "rows": 50,
+      "r_rows": 50,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 100
+    },
+    "subqueries": [
+      {
+        "expression_cache": {
+          "r_loops": 50,
+          "r_hit_ratio": 0,
+          "query_block": {
+            "select_id": 2,
+            "r_loops": 50,
+            "r_total_time_ms": "REPLACED",
+            "filesort": {
+              "sort_key": "t2.a",
+              "r_loops": 50,
+              "r_total_time_ms": "REPLACED",
+              "r_used_priority_queue": false,
+              "r_output_rows": 1,
+              "r_buffer_size": "REPLACED" across executions)",
+              "r_sort_mode": "sort_key,rowid",
+              "temporary_table": {
+                "table": {
+                  "table_name": "t2",
+                  "access_type": "ALL",
+                  "r_loops": 50,
+                  "rows": 50,
+                  "r_rows": 50,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "filtered": 100,
+                  "r_filtered": 2,
+                  "attached_condition": "t1.b = t2.b"
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+SELECT (SELECT sum(t2.b) FROM t2 WHERE t1.b=t2.b GROUP BY t2.a) FROM t1;
+(SELECT sum(t2.b) FROM t2 WHERE t1.b=t2.b GROUP BY t2.a)
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+set sort_buffer_size= @save_sort_buffer_size;
+DROP TABLE t1,t2;
 # End of 10.5 tests

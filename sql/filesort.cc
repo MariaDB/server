@@ -2199,6 +2199,12 @@ sortlength(THD *thd, Sort_keys *sort_keys, bool *allow_packing_for_sortkeys)
   length=0;
   uint nullable_cols=0;
 
+  if (sort_keys->is_parameters_computed())
+  {
+    *allow_packing_for_sortkeys= sort_keys->using_packed_sortkeys();
+    return sort_keys->get_sort_length_with_memcmp_values();
+  }
+
   for (SORT_FIELD *sortorder= sort_keys->begin();
        sortorder != sort_keys->end();
        sortorder++)
@@ -2260,6 +2266,8 @@ sortlength(THD *thd, Sort_keys *sort_keys, bool *allow_packing_for_sortkeys)
   // add bytes for nullable_cols
   sort_keys->increment_original_sort_length(nullable_cols);
   *allow_packing_for_sortkeys= allow_packing_for_keys;
+  sort_keys->set_sort_length_with_memcmp_values(length + nullable_cols);
+  sort_keys->set_parameters_computed(true);
   DBUG_PRINT("info",("sort_length: %d",length));
   return length + nullable_cols;
 }
@@ -2518,7 +2526,7 @@ void Sort_param::try_to_pack_sortkeys()
     return;
 
   const uint sz= Sort_keys::size_of_length_field;
-  uint sort_len= sort_keys->get_sort_length();
+  uint sort_len= sort_keys->get_sort_length_with_original_values();
 
   /*
     Heuristic introduced, skip packing sort keys if saving less than 128 bytes

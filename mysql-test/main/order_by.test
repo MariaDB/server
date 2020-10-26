@@ -2556,4 +2556,24 @@ INSERT t1 VALUES ('foo','bar'),('baz','qux');
 SELECT COALESCE(a, b) AS f FROM t1 ORDER BY f;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-24015: SQL Error (1038): Out of sort memory when enough memory for the
+--echo # sort buffer is provided
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(100), b INT);
+CREATE TABLE t2 (a VARCHAR(100), b INT);
+
+INSERT INTO t1 SELECT 'abc', seq FROM seq_1_to_50;
+INSERT INTO t2 SELECT seq, seq FROM seq_1_to_50;
+
+set @save_sort_buffer_size= @@sort_buffer_size;
+set sort_buffer_size=2000;
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON
+SELECT (SELECT sum(t2.b) FROM t2 WHERE t1.b=t2.b GROUP BY t2.a) FROM t1;
+SELECT (SELECT sum(t2.b) FROM t2 WHERE t1.b=t2.b GROUP BY t2.a) FROM t1;
+
+set sort_buffer_size= @save_sort_buffer_size;
+DROP TABLE t1,t2;
 --echo # End of 10.5 tests
