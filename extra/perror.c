@@ -332,14 +332,20 @@ int main(int argc,char *argv[])
       if (msg &&
           my_strnncoll(&my_charset_latin1, (const uchar*) msg, 13,
                        (const uchar*) "Unknown Error", 13) &&
-          (!unknown_error || strcmp(msg, unknown_error)) &&
-          (!strcmp(msg, unknow_aix)))
+          (!unknown_error || strcmp(msg, unknown_error)))
       {
-	found= 1;
-	if (verbose)
-	  printf("OS error code %3d:  %s\n", code, msg);
-	else
-	  puts(msg);
+#ifdef _AIX
+        if (!strcmp(msg, unknow_aix))
+        {
+#endif
+          found= 1;
+          if (verbose)
+            printf("OS error code %3d:  %s\n", code, msg);
+          else
+            puts(msg);
+#ifdef _AIX
+        }
+#endif
       }
       if ((msg= get_ha_error_msg(code)))
       {
