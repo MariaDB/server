@@ -986,41 +986,6 @@ ATTRIBUTE_COLD void log_check_margins()
 
 extern void buf_resize_shutdown();
 
-/** @return the number of dirty pages in the buffer pool */
-static ulint flush_list_length()
-{
-  mysql_mutex_lock(&buf_pool.flush_list_mutex);
-  const ulint len= UT_LIST_GET_LEN(buf_pool.flush_list);
-  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-  return len;
-}
-
-static void flush_buffer_pool()
-{
-  service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-                                 "Waiting to flush the buffer pool");
-  while (buf_pool.n_flush_list || flush_list_length())
-  {
-    buf_flush_lists(srv_max_io_capacity, LSN_MAX);
-    timespec abstime;
-
-    if (buf_pool.n_flush_list)
-    {
-      service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-                                     "Waiting to flush " ULINTPF " pages",
-                                     flush_list_length());
-      set_timespec(abstime, INNODB_EXTEND_TIMEOUT_INTERVAL / 2);
-      mysql_mutex_lock(&buf_pool.mutex);
-      while (buf_pool.n_flush_list)
-        mysql_cond_timedwait(&buf_pool.done_flush_list, &buf_pool.mutex,
-                             &abstime);
-      mysql_mutex_unlock(&buf_pool.mutex);
-    }
-  }
-
-  ut_ad(!buf_pool.any_io_pending());
-}
-
 /** Make a checkpoint at the latest lsn on shutdown. */
 ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown()
 {
@@ -1141,7 +1106,7 @@ wait_suspend_loop:
 
 		goto loop;
 	} else {
-		flush_buffer_pool();
+		buf_flush_buffer_pool();
 	}
 
 	if (log_sys.is_initialised()) {

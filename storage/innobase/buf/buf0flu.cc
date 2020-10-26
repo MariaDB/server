@@ -26,6 +26,7 @@ Created 11/11/1995 Heikki Tuuri
 *******************************************************/
 
 #include "univ.i"
+#include <my_service_manager.h>
 #include <mysql/service_thd_wait.h>
 #include <sql_class.h>
 
@@ -2171,7 +2172,7 @@ next:
 }
 
 /** Initialize page_cleaner. */
-void buf_flush_page_cleaner_init()
+ATTRIBUTE_COLD void buf_flush_page_cleaner_init()
 {
   ut_ad(!buf_page_cleaner_is_active);
   ut_ad(srv_operation == SRV_OPERATION_NORMAL ||
@@ -2180,6 +2181,47 @@ void buf_flush_page_cleaner_init()
   buf_flush_sync_lsn= 0;
   buf_page_cleaner_is_active= true;
   os_thread_create(buf_flush_page_cleaner);
+}
+
+/** @return the number of dirty pages in the buffer pool */
+static ulint buf_flush_list_length()
+{
+  mysql_mutex_lock(&buf_pool.flush_list_mutex);
+  const ulint len= UT_LIST_GET_LEN(buf_pool.flush_list);
+  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+  return len;
+}
+
+/** Flush the buffer pool on shutdown. */
+ATTRIBUTE_COLD void buf_flush_buffer_pool()
+{
+  ut_ad(!buf_page_cleaner_is_active);
+  ut_ad(!buf_flush_sync_lsn);
+
+  service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+                                 "Waiting to flush the buffer pool");
+
+  while (buf_pool.n_flush_list || buf_flush_list_length())
+  {
+    buf_flush_lists(srv_max_io_capacity, LSN_MAX);
+    timespec abstime;
+
+    if (buf_pool.n_flush_list)
+    {
+      service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+                                     "Waiting to flush " ULINTPF " pages",
+                                     buf_flush_list_length());
+      set_timespec(abstime, INNODB_EXTEND_TIMEOUT_INTERVAL / 2);
+      mysql_mutex_lock(&buf_pool.mutex);
+      while (buf_pool.n_flush_list)
+        mysql_cond_timedwait(&buf_pool.done_flush_list, &buf_pool.mutex,
+                             &abstime);
+      mysql_mutex_unlock(&buf_pool.mutex);
+    }
+  }
+
+  ut_ad(!buf_pool.any_io_pending());
+  log_flush_task.wait();
 }
 
 /** Synchronously flush dirty blocks.

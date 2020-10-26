@@ -123,10 +123,13 @@ buf_flush_note_modification(
 					set of mtr's */
 
 /** Initialize page_cleaner. */
-void buf_flush_page_cleaner_init();
+ATTRIBUTE_COLD void buf_flush_page_cleaner_init();
 
 /** Wait for pending flushes to complete. */
 void buf_flush_wait_batch_end_acquiring_mutex(bool lru);
+
+/** Flush the buffer pool on shutdown. */
+ATTRIBUTE_COLD void buf_flush_buffer_pool();
 
 #ifdef UNIV_DEBUG
 /** Validate the flush list. */
