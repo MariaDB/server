@@ -1987,7 +1987,10 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 		buf_flush_wait_batch_end_acquiring_mutex(false);
 	}
 
+	mysql_mutex_lock(&buf_pool.flush_list_mutex);
 	buf_page_cleaner_is_active = false;
+	mysql_cond_broadcast(&buf_pool.done_flush_list);
+	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
 	my_thread_end();
 	/* We count the number of threads in os_thread_exit(). A created

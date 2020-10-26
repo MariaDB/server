@@ -822,11 +822,8 @@ srv_open_tmp_tablespace(bool create_new_db)
 	return(err);
 }
 
-/**
-Shutdown all background threads created by InnoDB. */
-static
-void
-srv_shutdown_all_bg_threads()
+/** Shutdown background threads, except the page cleaner. */
+static void srv_shutdown_threads()
 {
 	ut_ad(!srv_undo_sources);
 	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
@@ -838,38 +835,9 @@ srv_shutdown_all_bg_threads()
 		srv_purge_shutdown();
 	}
 
-	/* All threads end up waiting for certain events. Put those events
-	to the signaled state. Then the threads will exit themselves after
-	os_event_wait(). */
-	for (uint i = 0; i < 1000; ++i) {
-		/* NOTE: IF YOU CREATE THREADS IN INNODB, YOU MUST EXIT THEM
-		HERE OR EARLIER */
-
-		if (!srv_read_only_mode) {
-			/* b. srv error monitor thread exits automatically,
-			no need to do anything here */
-			if (srv_n_fil_crypt_threads_started) {
-				os_event_set(fil_crypt_threads_event);
-			}
-		}
-
-		if (buf_page_cleaner_is_active) {
-			ut_ad(!srv_read_only_mode);
-
-			/* e. Exit the buf_flush_page_cleaner */
-			mysql_cond_signal(&buf_pool.do_flush_list);
-		}
-
-		if (!os_thread_count) {
-			return;
-		}
-
-		os_thread_sleep(100000);
+	if (srv_n_fil_crypt_threads) {
+		fil_crypt_set_thread_cnt(0);
 	}
-
-	ib::warn() << os_thread_count << " threads created by InnoDB"
-		" had not exited at shutdown!";
-	ut_ad(0);
 }
 
 #ifdef UNIV_DEBUG
@@ -916,7 +884,7 @@ srv_init_abort_low(
 	}
 
 	srv_shutdown_bg_undo_sources();
-	srv_shutdown_all_bg_threads();
+	srv_shutdown_threads();
 	return(err);
 }
 
@@ -1972,9 +1940,10 @@ skip_monitors:
 /** Shut down background threads that can generate undo log. */
 void srv_shutdown_bg_undo_sources()
 {
+	srv_shutdown_state = SRV_SHUTDOWN_INITIATED;
+
 	if (srv_undo_sources) {
 		ut_ad(!srv_read_only_mode);
-		srv_shutdown_state = SRV_SHUTDOWN_INITIATED;
 		fts_optimize_shutdown();
 		dict_stats_shutdown();
 		while (row_get_background_drop_list_len_low()) {
@@ -2010,6 +1979,9 @@ void innodb_preshutdown()
   }
   srv_shutdown_bg_undo_sources();
   srv_purge_shutdown();
+
+  if (srv_n_fil_crypt_threads)
+    fil_crypt_set_thread_cnt(0);
 }
 
 
@@ -2020,9 +1992,21 @@ void innodb_shutdown()
 	ut_ad(!srv_undo_sources);
 	switch (srv_operation) {
 	case SRV_OPERATION_BACKUP:
-	case SRV_OPERATION_RESTORE:
 	case SRV_OPERATION_RESTORE_DELTA:
+		break;
+	case SRV_OPERATION_RESTORE:
 	case SRV_OPERATION_RESTORE_EXPORT:
+		srv_shutdown_state = SRV_SHUTDOWN_CLEANUP;
+		if (!buf_page_cleaner_is_active) {
+			break;
+		}
+		mysql_mutex_lock(&buf_pool.flush_list_mutex);
+		while (buf_page_cleaner_is_active) {
+			mysql_cond_signal(&buf_pool.do_flush_list);
+			mysql_cond_wait(&buf_pool.done_flush_list,
+					&buf_pool.flush_list_mutex);
+		}
+		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 		break;
 	case SRV_OPERATION_NORMAL:
 		/* Shut down the persistent files. */
@@ -2032,7 +2016,8 @@ void innodb_shutdown()
 	os_aio_free();
 	fil_close_all_files();
 	/* Exit any remaining threads. */
-	srv_shutdown_all_bg_threads();
+	ut_ad(!buf_page_cleaner_is_active);
+	srv_shutdown_threads();
 
 	if (srv_monitor_file) {
 		my_fclose(srv_monitor_file, MYF(MY_WME));

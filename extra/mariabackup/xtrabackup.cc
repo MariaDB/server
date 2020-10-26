@@ -3418,15 +3418,11 @@ xb_data_files_init()
 	return(xb_load_tablespaces());
 }
 
-/************************************************************************
-Destroy the tablespace memory cache. */
-static
-void
-xb_data_files_close()
+/** Destroy the tablespace memory cache. */
+static void xb_data_files_close()
 {
-	ut_ad(!os_thread_count);
-	fil_close_all_files();
-	buf_dblwr.close();
+  fil_close_all_files();
+  buf_dblwr.close();
 }
 
 /***********************************************************************
