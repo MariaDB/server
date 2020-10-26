@@ -204,7 +204,9 @@ void buf_flush_remove_pages(ulint id)
 
     for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.flush_list); bpage; )
     {
-      ut_ad(bpage->in_file());
+      ut_d(const auto s= bpage->state());
+      ut_ad(s == BUF_BLOCK_ZIP_PAGE || s == BUF_BLOCK_FILE_PAGE ||
+            s == BUF_BLOCK_REMOVE_HASH);
       buf_page_t *prev= UT_LIST_GET_PREV(list, bpage);
 
       const page_id_t bpage_id(bpage->id());
@@ -246,7 +248,9 @@ ulint buf_flush_dirty_pages(ulint id)
   for (buf_page_t *bpage= UT_LIST_GET_FIRST(buf_pool.flush_list); bpage;
        bpage= UT_LIST_GET_NEXT(list, bpage))
   {
-    ut_ad(bpage->in_file());
+    ut_d(const auto s= bpage->state());
+    ut_ad(s == BUF_BLOCK_ZIP_PAGE || s == BUF_BLOCK_FILE_PAGE ||
+          s == BUF_BLOCK_REMOVE_HASH);
     ut_ad(bpage->oldest_modification());
     if (id == bpage->id().space())
       n++;
@@ -2058,8 +2062,9 @@ static void buf_flush_validate_low()
 		original descriptor can have this state and still be
 		in the flush list waiting to acquire the
 		buf_pool.flush_list_mutex to complete the relocation. */
-		ut_ad(bpage->in_file()
-		      || bpage->state() == BUF_BLOCK_REMOVE_HASH);
+		ut_d(const auto s= bpage->state());
+		ut_ad(s == BUF_BLOCK_ZIP_PAGE || s == BUF_BLOCK_FILE_PAGE
+		      || s == BUF_BLOCK_REMOVE_HASH);
 		ut_ad(om > 0);
 
 		bpage = UT_LIST_GET_NEXT(list, bpage);
