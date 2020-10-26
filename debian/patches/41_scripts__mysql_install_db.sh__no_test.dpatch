@@ -7,13 +7,14 @@
 
 @DPATCH@
 
+index bbb264dec82..867e195f1a2 100644
 --- a/scripts/mysql_install_db.sh
 +++ b/scripts/mysql_install_db.sh
-@@ -36,7 +36,6 @@ in_rpm=0
- ip_only=0
- cross_bootstrap=0
- install_params="create database if not exists mysql;
--create database if not exists test;
- use mysql;"
- auth_root_authentication_method=normal
- auth_root_socket_user='root'
+@@ -553,7 +553,6 @@ cat_sql()
+   echo "create database if not exists mysql;"
+   echo "use mysql;"
+   # drop below 6 lines in 10.3 merge
+-  echo "create database if not exists test;"
+ 
+   if test -n "$skip_anonymous"
+   then
