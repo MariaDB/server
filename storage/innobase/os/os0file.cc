@@ -1891,39 +1891,56 @@ os_file_status_win32(
 	return(true);
 }
 
+/* Dynamically load NtFlushBuffersFileEx, used in os_file_flush_func */
+#include <winternl.h>
+typedef NTSTATUS(WINAPI* pNtFlushBuffersFileEx)(
+  HANDLE FileHandle, ULONG Flags, PVOID Parameters, ULONG ParametersSize,
+  PIO_STATUS_BLOCK IoStatusBlock);
+
+static pNtFlushBuffersFileEx my_NtFlushBuffersFileEx
+  = (pNtFlushBuffersFileEx)GetProcAddress(GetModuleHandle("ntdll"),
+    "NtFlushBuffersFileEx");
+
 /** NOTE! Use the corresponding macro os_file_flush(), not directly this
 function!
 Flushes the write buffers of a given file to the disk.
 @param[in]	file		handle to a file
 @return true if success */
-bool
-os_file_flush_func(
-	os_file_t	file)
+bool os_file_flush_func(os_file_t file)
 {
-	++os_n_fsyncs;
+  ++os_n_fsyncs;
+  static bool disable_datasync;
 
-	BOOL	ret = FlushFileBuffers(file);
+  if (my_NtFlushBuffersFileEx && !disable_datasync)
+  {
+    IO_STATUS_BLOCK iosb{};
+    NTSTATUS status= my_NtFlushBuffersFileEx(
+        file, FLUSH_FLAGS_FILE_DATA_SYNC_ONLY, nullptr, 0, &iosb);
+    if (!status)
+      return true;
+    /*
+      NtFlushBuffersFileEx(FLUSH_FLAGS_FILE_DATA_SYNC_ONLY) might fail
+      unless on Win10+, and maybe non-NTFS. Switch to using FlushFileBuffers().
+    */
+    disable_datasync= true;
+  }
 
-	if (ret) {
-		return(true);
-	}
+  if (FlushFileBuffers(file))
+    return true;
 
-	/* Since Windows returns ERROR_INVALID_FUNCTION if the 'file' is
-	actually a raw device, we choose to ignore that error if we are using
-	raw disks */
+  /* Since Windows returns ERROR_INVALID_FUNCTION if the 'file' is
+  actually a raw device, we choose to ignore that error if we are using
+  raw disks */
+  if (srv_start_raw_disk_in_use && GetLastError() == ERROR_INVALID_FUNCTION)
+    return true;
 
-	if (srv_start_raw_disk_in_use && GetLastError()
-	    == ERROR_INVALID_FUNCTION) {
-		return(true);
-	}
+  os_file_handle_error(nullptr, "flush");
 
-	os_file_handle_error(NULL, "flush");
+  /* It is a fatal error if a file flush does not succeed, because then
+  the database can get corrupt on disk */
+  ut_error;
 
-	/* It is a fatal error if a file flush does not succeed, because then
-	the database can get corrupt on disk */
-	ut_error;
-
-	return(false);
+  return false;
 }
 
 /** Retrieves the last error number if an error occurs in a file io function.
