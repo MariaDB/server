@@ -7113,7 +7113,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   }
   else
   {
-    if (likely(!rli->relay_log.write_event_buffer((uchar*)buf, event_len)))
+    if (likely(!rli->relay_log.write_event_buffer(mi->rpl_queue, (uchar*)buf,
+                                                   event_len)))
     {
       mi->master_log_pos+= inc_pos;
       DBUG_PRINT("info", ("master_log_pos: %lu", (ulong) mi->master_log_pos));

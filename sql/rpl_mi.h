@@ -23,6 +23,7 @@
 #include <my_sys.h>
 #include "rpl_filter.h"
 #include "keycaches.h"
+#include "rpl_queue.h"
 
 typedef struct st_mysql MYSQL;
 
@@ -347,6 +348,8 @@ class Master_info : public Slave_reporting_capability
     ACK from slave, or if delay_master is enabled.
   */
   int semi_ack;
+  //rpl_queue to hold events
+  r_queue *rpl_queue;
 };
 
 int init_master_info(Master_info* mi, const char* master_info_fname,

@@ -1,11 +1,12 @@
 #ifndef RPL_QUEUE_H
 #define RPL_QUEUE_H
-#include "my_global.h"
 #include "queue.h"
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#ifndef EVENT_LEN_OFFSET
 #define EVENT_LEN_OFFSET 9
+#endif
 class slave_queue_element
 {
   public:
@@ -32,7 +33,7 @@ class slave_queue_element
     }
     else
     {
-      int remainder= ev_length_end;
+      ulong remainder= ev_length_end;
       memcpy(len, ptr+ ev_length_start, 4 - remainder);
       memcpy(len+4-remainder, buffer_start, remainder);
       total_length= uint4korr(len);
@@ -50,7 +51,7 @@ class slave_queue_element
       malloced= true;
       //QTODO
       event= (uchar *)my_malloc(0, total_length, MYF(MY_WME));
-      int remainder= (ptr_numeric + total_length) % size;
+      ulong remainder= (ptr_numeric + total_length) % size;
       memcpy(event, ptr, total_length - remainder);
       memcpy(event+total_length - remainder, buffer_start, remainder);
       tail= buffer_start + remainder;
@@ -65,7 +66,7 @@ class slave_queue_element
   //We need to wrap arround in case we overstoot buffer end.
   uchar* write(uchar *ptr, uchar *buffer_start, uchar * buffer_end)
   {
-    uint32 t_len= MY_MIN(total_length, buffer_end - ptr);
+    uint64 t_len= MY_MIN(total_length, buffer_end - ptr);
     memcpy(ptr, event, t_len);
     if (t_len < total_length)
     {
@@ -94,4 +95,5 @@ class slave_queue_element
   // Reserved for use by the circular queue
   // UNUSED_SPACE = 0xFF
 };
+typedef circular_buffer_queue<slave_queue_element> r_queue;
 #endif  //RPL_QUEUE_H

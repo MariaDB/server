@@ -15,6 +15,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h" // For HAVE_REPLICATION
+#include "rpl_queue.h"
 #include "sql_priv.h"
 #include <my_dir.h>
 #include "rpl_mi.h"
@@ -43,7 +44,8 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
    gtid_reconnect_event_skip_count(0), gtid_event_seen(false),
    in_start_all_slaves(0), in_stop_all_slaves(0), in_flush_all_relay_logs(0),
    users(0), killed(0),
-   total_ddl_groups(0), total_non_trans_groups(0), total_trans_groups(0)
+   total_ddl_groups(0), total_non_trans_groups(0), total_trans_groups(0),
+   rpl_queue(NULL)
 {
   char *tmp;
   host[0] = 0; user[0] = 0; password[0] = 0;
@@ -665,6 +667,8 @@ file '%s')", fname);
   if (mi->rli.init(slave_info_fname))
     goto err;
 
+  mi->rpl_queue= new circular_buffer_queue<slave_queue_element>();
+  mi->rpl_queue->init(10000);
   mi->inited = 1;
   mi->rli.is_relay_log_recovery= FALSE;
   // now change cache READ -> WRITE - must do this before flush_master_info

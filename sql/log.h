@@ -20,6 +20,7 @@
 #include "handler.h"                            /* my_xid */
 #include "wsrep_mysqld.h"
 #include "rpl_constants.h"
+#include "rpl_queue.h"
 
 class Relay_log_info;
 
@@ -826,7 +827,7 @@ public:
   bool write_event(Log_event *ev, binlog_cache_data *data, IO_CACHE *file);
   bool write_event(Log_event *ev) { return write_event(ev, 0, &log_file); }
 
-  bool write_event_buffer(uchar* buf,uint len);
+  bool write_event_buffer(r_queue *queue, uchar* buf,uint len);
   bool append(Log_event* ev);
   bool append_no_lock(Log_event* ev);
 

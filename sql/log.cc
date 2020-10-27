@@ -39,6 +39,7 @@
 #include "rpl_rli.h"
 #include "sql_audit.h"
 #include "mysqld.h"
+#include "rpl_queue.h"
 
 #include <my_dir.h>
 #include <m_ctype.h>				// For test_if_number
@@ -5486,7 +5487,7 @@ err:
   DBUG_RETURN(error);
 }
 
-bool MYSQL_BIN_LOG::write_event_buffer(uchar* buf, uint len)
+bool MYSQL_BIN_LOG::write_event_buffer(r_queue *queue, uchar* buf, uint len)
 {
   bool error= 1;
   uchar *ebuf= 0;
@@ -5530,8 +5531,9 @@ bool MYSQL_BIN_LOG::write_event_buffer(uchar* buf, uint len)
 
     buf= ebuf;
   }
-  if (my_b_append(&log_file, buf, len))
-    goto err;
+  //if (my_b_append(&log_file, buf, len))
+    //goto err;
+  queue->enqueue(new slave_queue_element(buf));
   bytes_written+= len;
 
   error= 0;
