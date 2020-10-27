@@ -4373,6 +4373,11 @@ mysql_execute_command(THD *thd)
     /* mysql_update return 2 if we need to switch to multi-update */
     if (up_result != 2)
       break;
+    if (thd->lex->period_conditions.is_set())
+    {
+      DBUG_ASSERT(0); // Should never happen
+      goto error;
+    }
   }
   /* fall through */
   case SQLCOM_UPDATE_MULTI:

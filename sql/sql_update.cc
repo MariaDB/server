@@ -420,6 +420,14 @@ int mysql_update(THD *thd,
     DBUG_PRINT("info", ("Switch to multi-update"));
     /* pass counter value */
     thd->lex->table_count= table_count;
+    if (thd->lex->period_conditions.is_set())
+    {
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "updating and querying the same temporal periods table");
+
+      DBUG_RETURN(1);
+    }
+
     /* convert to multiupdate */
     DBUG_RETURN(2);
   }
