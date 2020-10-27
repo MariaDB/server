@@ -101,10 +101,6 @@ extern	buf_pool_t*	buf_pool_ptr;	/*!< The buffer pools
 extern	volatile bool	buf_pool_withdrawing; /*!< true when withdrawing buffer
 					pool pages might cause page relocation */
 
-extern	volatile ulint	buf_withdraw_clock; /*!< the clock is incremented
-					every time a pointer to a page may
-					become obsolete */
-
 # ifdef UNIV_DEBUG
 extern my_bool	buf_disable_resize_buffer_pool_debug; /*!< if TRUE, resizing
 					buffer pool is not allowed. */
@@ -1373,14 +1369,6 @@ buf_get_nth_chunk_block(
 	ulint		n,		/*!< in: nth chunk in the buffer pool */
 	ulint*		chunk_size);	/*!< in: chunk size */
 
-/** Verify the possibility that a stored page is not in buffer pool.
-@param[in]	withdraw_clock	withdraw clock when stored the page
-@retval true	if the page might be relocated */
-UNIV_INLINE
-bool
-buf_pool_is_obsolete(
-	ulint	withdraw_clock);
-
 /** Calculate aligned buffer pool size based on srv_buf_pool_chunk_unit,
 if needed.
 @param[in]	size	size in bytes
@@ -2207,6 +2195,11 @@ struct buf_pool_t{
 	buf_tmp_array_t*		tmp_arr;
 					/*!< Array for temporal memory
 					used in compression and encryption */
+	/** Determine if a pointer belongs to a buf_block_t.
+	It can be a pointer to the buf_block_t itself or a member of it.
+	@param ptr	a pointer that will not be dereferenced
+	@return whether the ptr belongs to a buf_block_t struct */
+	inline bool is_block_field(const void *ptr) const;
 
 #if BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN
 # error "BUF_BUDDY_LOW > UNIV_ZIP_SIZE_MIN"

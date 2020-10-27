@@ -416,6 +416,8 @@ btr_cur_optimistic_latch_leaves(
 	ulint		mode;
 	ulint		left_page_no;
 	ulint		curr_page_no;
+	ut_ad(block->page.buf_fix_count);
+	ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
 
 	switch (*latch_mode) {
 	case BTR_SEARCH_LEAF:
@@ -427,20 +429,10 @@ btr_cur_optimistic_latch_leaves(
 		mode = *latch_mode == BTR_SEARCH_PREV
 			? RW_S_LATCH : RW_X_LATCH;
 
-		buf_page_mutex_enter(block);
-		if (buf_block_get_state(block) != BUF_BLOCK_FILE_PAGE) {
-			buf_page_mutex_exit(block);
-			return(false);
-		}
-		/* pin the block not to be relocated */
-		buf_block_buf_fix_inc(block, file, line);
-		buf_page_mutex_exit(block);
-
 		rw_lock_s_lock(&block->lock);
 		if (block->modify_clock != modify_clock) {
 			rw_lock_s_unlock(&block->lock);
-
-			goto unpin_failed;
+			return false;
 		}
 
 		curr_page_no = block->page.id.page_no();
@@ -470,7 +462,7 @@ btr_cur_optimistic_latch_leaves(
 				/* release the left block */
 				btr_leaf_page_release(
 					cursor->left_block, mode, mtr);
-				goto unpin_failed;
+				return false;
 			}
 		} else {
 			cursor->left_block = NULL;
@@ -480,23 +472,28 @@ btr_cur_optimistic_latch_leaves(
 					    file, line, mtr)) {
 			if (btr_page_get_prev(buf_block_get_frame(block))
 			    == left_page_no) {
-				buf_block_buf_fix_dec(block);
+				/* block was already buffer-fixed while
+				entering the function and
+				buf_page_optimistic_get() buffer-fixes
+				it again. */
+				ut_ad(2 <= block->page.buf_fix_count);
 				*latch_mode = mode;
 				return(true);
 			} else {
-				/* release the block */
+				/* release the block and decrement of
+				buf_fix_count which was incremented
+				in buf_page_optimistic_get() */
 				btr_leaf_page_release(block, mode, mtr);
 			}
 		}
 
+		ut_ad(block->page.buf_fix_count);
 		/* release the left block */
 		if (cursor->left_block != NULL) {
 			btr_leaf_page_release(cursor->left_block,
 					      mode, mtr);
 		}
-unpin_failed:
-		/* unpin the block */
-		buf_block_buf_fix_dec(block);
+
 		return(false);
 
 	default:
@@ -1066,12 +1063,7 @@ btr_cur_search_to_nth_level_func(
 	guess = NULL;
 #else
 	info = btr_search_get_info(index);
-
-	if (!buf_pool_is_obsolete(info->withdraw_clock)) {
-		guess = info->root_guess;
-	} else {
-		guess = NULL;
-	}
+	guess = info->root_guess;
 
 #ifdef BTR_CUR_HASH_ADAPT
 	rw_lock_t* const search_latch = btr_get_search_latch(index);
@@ -1509,10 +1501,7 @@ retry_page_get:
 		}
 
 #ifdef BTR_CUR_ADAPT
-		if (block != guess) {
-			info->root_guess = block;
-			info->withdraw_clock = buf_withdraw_clock;
-		}
+		info->root_guess = block;
 #endif
 	}
 
