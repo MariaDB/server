@@ -6317,37 +6317,42 @@ i_s_dict_fill_sys_tablestats(
 	OK(field_store_string(fields[SYS_TABLESTATS_NAME],
 			      table->name.m_name));
 
-	dict_table_stats_lock(table, RW_S_LATCH);
+	{
+		struct Locking
+		{
+			Locking() { mutex_enter(&dict_sys->mutex); }
+			~Locking() { mutex_exit(&dict_sys->mutex); }
+		} locking;
 
-	if (table->stat_initialized) {
-		OK(field_store_string(fields[SYS_TABLESTATS_INIT],
-				      "Initialized"));
+		if (table->stat_initialized) {
+			OK(field_store_string(fields[SYS_TABLESTATS_INIT],
+					      "Initialized"));
 
-		OK(fields[SYS_TABLESTATS_NROW]->store(table->stat_n_rows,
-						      true));
+			OK(fields[SYS_TABLESTATS_NROW]->store(
+				   table->stat_n_rows, true));
 
-		OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(
-			   table->stat_clustered_index_size, true));
+			OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(
+				   table->stat_clustered_index_size, true));
 
-		OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(
-			   table->stat_sum_of_other_index_sizes, true));
+			OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(
+				   table->stat_sum_of_other_index_sizes,
+				   true));
 
-		OK(fields[SYS_TABLESTATS_MODIFIED]->store(
-			   table->stat_modified_counter, true));
-	} else {
-		OK(field_store_string(fields[SYS_TABLESTATS_INIT],
-				      "Uninitialized"));
+			OK(fields[SYS_TABLESTATS_MODIFIED]->store(
+				   table->stat_modified_counter, true));
+		} else {
+			OK(field_store_string(fields[SYS_TABLESTATS_INIT],
+					      "Uninitialized"));
 
-		OK(fields[SYS_TABLESTATS_NROW]->store(0, true));
+			OK(fields[SYS_TABLESTATS_NROW]->store(0, true));
 
-		OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(0, true));
+			OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(0, true));
 
-		OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(0, true));
+			OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(0, true));
 
-		OK(fields[SYS_TABLESTATS_MODIFIED]->store(0, true));
+			OK(fields[SYS_TABLESTATS_MODIFIED]->store(0, true));
+		}
 	}
-
-	dict_table_stats_unlock(table, RW_S_LATCH);
 
 	OK(fields[SYS_TABLESTATS_AUTONINC]->store(table->autoinc, true));
 

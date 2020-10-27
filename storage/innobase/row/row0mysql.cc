@@ -1512,7 +1512,7 @@ error_exit:
 		srv_stats.n_rows_inserted.inc(size_t(trx->id));
 	}
 
-	/* Not protected by dict_table_stats_lock() for performance
+	/* Not protected by dict_sys->mutex for performance
 	reasons, we would rather get garbage in stat_n_rows (which is
 	just an estimate anyway) than protecting the following code
 	with a latch. */
@@ -1870,7 +1870,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	ut_ad(node->is_delete == is_delete);
 
 	if (/*node->*/is_delete) {
-		/* Not protected by dict_table_stats_lock() for performance
+		/* Not protected by dict_sys->mutex for performance
 		reasons, we would rather get garbage in stat_n_rows (which is
 		just an estimate anyway) than protecting the following code
 		with a latch. */
@@ -2131,7 +2131,7 @@ row_update_cascade_for_mysql(
 
 			if (node->is_delete) {
 				/* Not protected by
-				dict_table_stats_lock() for
+				dict_sys->mutex for
 				performance reasons, we would rather
 				get garbage in stat_n_rows (which is
 				just an estimate anyway) than

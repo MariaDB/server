@@ -307,7 +307,6 @@ before proceeds. */
 @param[in]      n_v_cols        number of virtual columns
 @param[in]      flags           table flags
 @param[in]      flags2          table flags2
-@param[in]      init_stats_latch whether to init the stats latch
 @return own: table object */
 dict_table_t*
 dict_mem_table_create(
@@ -316,8 +315,7 @@ dict_mem_table_create(
 	ulint           n_cols,
         ulint           n_v_cols,
         ulint           flags,
-        ulint           flags2,
-        bool            init_stats_latch=true);
+        ulint           flags2);
 
 /****************************************************************//**
 Free a table memory object. */
@@ -970,7 +968,7 @@ struct dict_index_t{
 				when InnoDB was started up */
 	zip_pad_info_t	zip_pad;/*!< Information about state of
 				compression failures and successes */
-	rw_lock_t	lock;	/*!< read-write lock protecting the
+	mutable rw_lock_t	lock;	/*!< read-write lock protecting the
 				upper levels of the index tree */
 
 	/** Determine if the index has been committed to the
@@ -1691,23 +1689,8 @@ struct dict_table_t {
 	/*!< set of foreign key constraints which refer to this table */
 	dict_foreign_set			referenced_set;
 
-	/** Statistics for query optimization. @{ */
-
-	/** Creation state of 'stats_latch'. */
-	bool					stats_latch_inited;
-
-	/** This latch protects:
-	dict_table_t::stat_initialized,
-	dict_table_t::stat_n_rows (*),
-	dict_table_t::stat_clustered_index_size,
-	dict_table_t::stat_sum_of_other_index_sizes,
-	dict_table_t::stat_modified_counter (*),
-	dict_table_t::indexes*::stat_n_diff_key_vals[],
-	dict_table_t::indexes*::stat_index_size,
-	dict_table_t::indexes*::stat_n_leaf_pages.
-	(*) Those are not always protected for
-	performance reasons. */
-	rw_lock_t				stats_latch;
+	/** Statistics for query optimization. Mostly protected by
+	dict_sys->mutex. @{ */
 
 	/** TRUE if statistics have been calculated the first time after
 	database startup or table creation. */

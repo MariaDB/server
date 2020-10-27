@@ -1473,9 +1473,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_RWLOCK(INDEX_TREE, SYNC_INDEX_TREE, index_tree_rw_lock_key);
 
-	LATCH_ADD_RWLOCK(DICT_TABLE_STATS, SYNC_INDEX_TREE,
-			 dict_table_stats_key);
-
 	LATCH_ADD_RWLOCK(HASH_TABLE_RW_LOCK, SYNC_BUF_PAGE_HASH,
 		  hash_table_locks_key);
 

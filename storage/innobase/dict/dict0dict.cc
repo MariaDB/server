@@ -267,56 +267,6 @@ dict_mutex_exit_for_mysql(void)
 	mutex_exit(&dict_sys->mutex);
 }
 
-/** Lock the appropriate latch to protect a given table's statistics.
-@param[in]	table		table whose stats to lock
-@param[in]	latch_mode	RW_S_LATCH or RW_X_LATCH */
-void
-dict_table_stats_lock(
-	dict_table_t*	table,
-	ulint		latch_mode)
-{
-	ut_ad(table != NULL);
-	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
-	switch (latch_mode) {
-	case RW_S_LATCH:
-		rw_lock_s_lock(&table->stats_latch);
-		break;
-	case RW_X_LATCH:
-		rw_lock_x_lock(&table->stats_latch);
-		break;
-	case RW_NO_LATCH:
-		/* fall through */
-	default:
-		ut_error;
-	}
-}
-
-/** Unlock the latch that has been locked by dict_table_stats_lock().
-@param[in]	table		table whose stats to unlock
-@param[in]	latch_mode	RW_S_LATCH or RW_X_LATCH */
-void
-dict_table_stats_unlock(
-	dict_table_t*	table,
-	ulint		latch_mode)
-{
-	ut_ad(table != NULL);
-	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-
-	switch (latch_mode) {
-	case RW_S_LATCH:
-		rw_lock_s_unlock(&table->stats_latch);
-		break;
-	case RW_X_LATCH:
-		rw_lock_x_unlock(&table->stats_latch);
-		break;
-	case RW_NO_LATCH:
-		/* fall through */
-	default:
-		ut_error;
-	}
-}
-
 /**********************************************************************//**
 Try to drop any indexes after an aborted index creation.
 This can also be after a server kill during DROP INDEX. */
