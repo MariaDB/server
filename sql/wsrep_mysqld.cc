@@ -1181,6 +1181,54 @@ void wsrep_keys_free(wsrep_key_arr_t* key_arr)
     key_arr->keys_len= 0;
 }
 
+void
+wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* keys)
+{
+  if (!WSREP(thd) || !WSREP_CLIENT(thd)) return;
+    TABLE_LIST *table;
+
+    thd->mdl_context.release_transactional_locks();
+    uint counter;
+    MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
+
+    bool open_error=
+      open_tables(thd, &tables, &counter, MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL);
+    if (unlikely(open_error && (thd->killed || thd->is_error())))
+    {
+      WSREP_WARN("unable to open table for FK checks in OPTIMIZE/REPAIR/ALTER processing");
+    }
+    else
+    {
+      for (table= tables; table; table= table->next_local)
+      {
+        if (table->table)
+        {
+          FOREIGN_KEY_INFO *f_key_info;
+          List<FOREIGN_KEY_INFO> f_key_list;
+
+          table->table->file->get_foreign_key_list(thd, &f_key_list);
+          List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
+          while ((f_key_info=it++))
+          {
+            WSREP_DEBUG("appended fkey %s", f_key_info->referenced_table->str);
+            keys->push_back(wsrep_prepare_key_for_toi(f_key_info->referenced_db->str,
+                                                      f_key_info->referenced_table->str,
+                                                      wsrep::key::shared));
+          }
+        }
+      }
+    }
+
+    /* close the table and release MDL locks */
+    close_thread_tables(thd);
+    thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+    for (table= tables; table; table= table->next_local)
+    {
+      table->table= NULL;
+      table->mdl_request.ticket= NULL;
+    }
+}
+
 /*!
  * @param db      Database string
  * @param table   Table string
@@ -1434,7 +1482,8 @@ wsrep_prepare_keys_for_alter_add_fk(const char* child_table_db,
 wsrep::key_array wsrep_prepare_keys_for_toi(const char* db,
                                             const char* table,
                                             const TABLE_LIST* table_list,
-                                            Alter_info* alter_info)
+                                            Alter_info* alter_info,
+                                            wsrep::key_array* fk_tables)
 {
   wsrep::key_array ret;
   if (db || table)
@@ -1454,8 +1503,13 @@ wsrep::key_array wsrep_prepare_keys_for_toi(const char* db,
       ret.insert(ret.end(), fk.begin(), fk.end());
     }
   }
+  if (fk_tables && !fk_tables->empty())
+  {
+    ret.insert(ret.end(), fk_tables->begin(), fk_tables->end());
+  }
   return ret;
 }
+
 /*
  * Construct Query_log_Event from thd query and serialize it
  * into buffer.
@@ -1907,7 +1961,7 @@ fail:
  */
 static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
                            const TABLE_LIST* table_list,
-                           Alter_info* alter_info)
+                           Alter_info* alter_info, wsrep::key_array* fk_tables)
 {
   DBUG_ASSERT(thd->variables.wsrep_OSU_method == WSREP_OSU_TOI);
 
@@ -1935,7 +1989,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   struct wsrep_buf buff= { buf, buf_len };
 
   wsrep::key_array key_array=
-    wsrep_prepare_keys_for_toi(db, table, table_list, alter_info);
+    wsrep_prepare_keys_for_toi(db, table, table_list, alter_info, fk_tables);
 
   if (thd->has_read_only_protection())
   {
@@ -2048,7 +2102,7 @@ static void wsrep_RSU_end(THD *thd)
 
 int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const TABLE_LIST* table_list,
-                             Alter_info* alter_info)
+                             Alter_info* alter_info, wsrep::key_array* fk_tables)
 {
   /*
     No isolation for applier or replaying threads.
@@ -2100,7 +2154,7 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
   {
     switch (thd->variables.wsrep_OSU_method) {
     case WSREP_OSU_TOI:
-      ret= wsrep_TOI_begin(thd, db_, table_, table_list, alter_info);
+      ret= wsrep_TOI_begin(thd, db_, table_, table_list, alter_info, fk_tables);
       break;
     case WSREP_OSU_RSU:
       ret= wsrep_RSU_begin(thd, db_, table_);

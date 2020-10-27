@@ -27,10 +27,10 @@
   if (WSREP_ON && WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) \
     goto wsrep_error_label;
 
-#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_) \
+#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_, fk_tables_) \
   if (WSREP(thd) && wsrep_thd_is_local(thd) &&                          \
       wsrep_to_isolation_begin(thd, db_, table_,                        \
-                               table_list_, alter_info_))               \
+                               table_list_, alter_info_, fk_tables_))   \
     goto wsrep_error_label;
 
 #define WSREP_TO_ISOLATION_END                                          \
@@ -45,6 +45,10 @@
 #define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)                   \
   if (WSREP(thd) && !thd->lex->no_write_to_binlog                                   \
          && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) goto wsrep_error_label;
+
+#define WSREP_TO_ISOLATION_BEGIN_FK_TABLES(db_, table_, table_list_, fk_tables)    \
+  if (WSREP(thd) && !thd->lex->no_write_to_binlog                                   \
+      && wsrep_to_isolation_begin(thd, db_, table_, table_list_, NULL, fk_tables)) goto wsrep_error_label;
 
 #define WSREP_DEBUG(...)                                                \
     if (wsrep_debug)     WSREP_LOG(sql_print_information, ##__VA_ARGS__)
@@ -69,6 +73,7 @@
 #define WSREP_ERROR(...)
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_) do { } while(0)
 #define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_)
+#define WSREP_TO_ISOLATION_BEGIN_FK_TABLES(db_, table_, table_list_, fk_tables_)
 #define WSREP_TO_ISOLATION_END
 #define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)
 #define WSREP_SYNC_WAIT(thd_, before_)
