@@ -68,6 +68,7 @@ EOF
 --let $restart_parameters= --innodb-force-recovery=6 --innodb-change-buffer-dump
 --source include/start_mysqld.inc
 
+--replace_regex /contains \d+ entries/contains 990 entries/
 check table t1;
 
 --source include/shutdown_mysqld.inc
