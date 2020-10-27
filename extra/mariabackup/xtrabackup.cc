@@ -2560,6 +2560,7 @@ static my_bool xtrabackup_copy_datafile(fil_node_t *node, uint thread_n,
 	xb_read_filt_t		*read_filter;
 	my_bool			rc = FALSE;
 
+	memset(&write_filt_ctxt, 0, sizeof(xb_write_filt_ctxt_t));
 	/* Get the name and the path for the tablespace. node->name always
 	contains the path (which may be absolute for remote tablespaces in
 	5.6+). space->name contains the tablespace name in the form
@@ -2605,7 +2606,6 @@ static my_bool xtrabackup_copy_datafile(fil_node_t *node, uint thread_n,
 		sizeof dst_name - 1);
 	dst_name[sizeof dst_name - 1] = '\0';
 
-	memset(&write_filt_ctxt, 0, sizeof(xb_write_filt_ctxt_t));
 	ut_a(write_filter.process != NULL);
 
 	if (write_filter.init != NULL &&
