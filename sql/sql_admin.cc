@@ -32,7 +32,7 @@
 #include "strfunc.h"
 #include "sql_admin.h"
 #include "sql_statistics.h"
-
+#include "wsrep_mysqld.h"
 /* Prepare, run and cleanup for mysql_recreate_table() */
 
 static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list)
@@ -419,6 +419,48 @@ dbug_err:
   return open_error;
 }
 
+#ifdef WITH_WSREP
+  /*
+     OPTIMIZE, REPAIR and ALTER may take MDL locks not only for the affected table, but
+     also for the table referenced by foreign key constraint.
+     This wsrep_toi_replication() function handles TOI replication for OPTIMIZE and REPAIR
+     so that certification keys for potential FK parent tables are also appended in the
+     write set.
+     ALTER TABLE case is handled elsewhere.
+  */
+static bool wsrep_toi_replication(THD *thd, TABLE_LIST *tables)
+{
+  if (!WSREP(thd) || !WSREP_CLIENT(thd)) return false;
+
+  LEX *lex= thd->lex;
+  /* only handle OPTIMIZE and REPAIR here */
+  switch (lex->sql_command)
+  {
+  case SQLCOM_OPTIMIZE:
+  case SQLCOM_REPAIR:
+    break;
+  default:
+    return false;
+  }
+
+  close_thread_tables(thd);
+  wsrep::key_array keys;
+
+  wsrep_append_fk_parent_table(thd, tables, &keys);
+
+  /* now TOI replication, with no locks held */
+  if (keys.empty())
+  {
+    WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, tables);
+  } else {
+    WSREP_TO_ISOLATION_BEGIN_FK_TABLES(NULL, NULL, tables, &keys);
+  }
+  return false;
+
+ wsrep_error_label:
+  return true;
+}
+#endif /* WITH_WSREP */
 
 /*
   RETURN VALUES
@@ -487,6 +529,13 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   close_thread_tables(thd);
   for (table= tables; table; table= table->next_local)
     table->table= NULL;
+#ifdef WITH_WSREP
+  if (wsrep_toi_replication(thd, tables))
+  {
+    WSREP_INFO("wsrep TOI replication of has failed, skipping OPTIMIZE");
+    goto err;
+  }
+#endif /* WITH_WSREP */
 
   for (table= tables; table; table= table->next_local)
   {
@@ -1333,10 +1382,10 @@ bool Sql_cmd_analyze_table::execute(THD *thd)
   m_lex->first_select_lex()->table_list.first= first_table;
   m_lex->query_tables= first_table;
 
-error:
 #ifdef WITH_WSREP
-wsrep_error_label:
-#endif
+ wsrep_error_label:
+#endif /* WITH_WSREP */
+error:
   DBUG_RETURN(res);
 }
 
@@ -1375,7 +1424,6 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
   if (check_table_access(thd, SELECT_ACL | INSERT_ACL, first_table,
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
-  WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
 
   res= (specialflag & SPECIAL_NO_NEW_FUNC) ?
     mysql_recreate_table(thd, first_table, true) :
@@ -1394,9 +1442,6 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
   m_lex->query_tables= first_table;
 
 error:
-#ifdef WITH_WSREP
-wsrep_error_label:
-#endif
   DBUG_RETURN(res);
 }
 
@@ -1411,7 +1456,6 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   if (check_table_access(thd, SELECT_ACL | INSERT_ACL, first_table,
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
-  WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, "repair",
                          TL_WRITE, 1,
                          MY_TEST(m_lex->check_opt.sql_flags & TT_USEFRM),
@@ -1430,8 +1474,5 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   m_lex->query_tables= first_table;
 
 error:
-#ifdef WITH_WSREP
-wsrep_error_label:
-#endif
   DBUG_RETURN(res);
 }
