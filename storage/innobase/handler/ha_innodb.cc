@@ -695,7 +695,6 @@ static PSI_rwlock_info all_innodb_rwlocks[] = {
 	PSI_RWLOCK_KEY(trx_purge_latch),
 	PSI_RWLOCK_KEY(index_tree_rw_lock),
 	PSI_RWLOCK_KEY(index_online_log),
-	PSI_RWLOCK_KEY(dict_table_stats),
 	PSI_RWLOCK_KEY(hash_table_locks)
 };
 # endif /* UNIV_PFS_RWLOCK */
@@ -14117,6 +14116,8 @@ ha_innobase::info_low(
 
 	DEBUG_SYNC_C("ha_innobase_info_low");
 
+	ut_ad(!mutex_own(&dict_sys->mutex));
+
 	/* If we are forcing recovery at a high level, we will suppress
 	statistics calculation on tables, because that may crash the
 	server if an index is badly corrupted. */
@@ -14153,7 +14154,6 @@ ha_innobase::info_low(
 				opt = DICT_STATS_RECALC_TRANSIENT;
 			}
 
-			ut_ad(!mutex_own(&dict_sys->mutex));
 			ret = dict_stats_update(ib_table, opt);
 
 			if (ret != DB_SUCCESS) {
@@ -14169,14 +14169,14 @@ ha_innobase::info_low(
 		stats.update_time = (ulong) ib_table->update_time;
 	}
 
+	DBUG_EXECUTE_IF("dict_sys_mutex_avoid", goto func_exit;);
+
 	if (flag & HA_STATUS_VARIABLE) {
 
 		ulint	stat_clustered_index_size;
 		ulint	stat_sum_of_other_index_sizes;
 
-		if (!(flag & HA_STATUS_NO_LOCK)) {
-			dict_table_stats_lock(ib_table, RW_S_LATCH);
-		}
+		mutex_enter(&dict_sys->mutex);
 
 		ut_a(ib_table->stat_initialized);
 
@@ -14188,9 +14188,7 @@ ha_innobase::info_low(
 		stat_sum_of_other_index_sizes
 			= ib_table->stat_sum_of_other_index_sizes;
 
-		if (!(flag & HA_STATUS_NO_LOCK)) {
-			dict_table_stats_unlock(ib_table, RW_S_LATCH);
-		}
+		mutex_exit(&dict_sys->mutex);
 
 		/*
 		The MySQL optimizer seems to assume in a left join that n_rows
@@ -14293,9 +14291,26 @@ ha_innobase::info_low(
 			ib_push_frm_error(m_user_thd, ib_table, table, num_innodb_index, true);
 		}
 
-		if (!(flag & HA_STATUS_NO_LOCK)) {
-			dict_table_stats_lock(ib_table, RW_S_LATCH);
+
+		snprintf(path, sizeof(path), "%s/%s%s",
+			 mysql_data_home, table->s->normalized_path.str,
+			 reg_ext);
+
+		unpack_filename(path,path);
+
+		/* Note that we do not know the access time of the table,
+		nor the CHECK TABLE time, nor the UPDATE or INSERT time. */
+
+		if (os_file_get_status(
+			    path, &stat_info, false,
+			    srv_read_only_mode) == DB_SUCCESS) {
+			stats.create_time = (ulong) stat_info.ctime;
 		}
+
+		struct Locking {
+			Locking() { mutex_enter(&dict_sys->mutex); }
+			~Locking() { mutex_exit(&dict_sys->mutex); }
+		} locking;
 
 		ut_a(ib_table->stat_initialized);
 
@@ -14373,25 +14388,6 @@ ha_innobase::info_low(
 
 				key->rec_per_key[j] = rec_per_key_int;
 			}
-		}
-
-		if (!(flag & HA_STATUS_NO_LOCK)) {
-			dict_table_stats_unlock(ib_table, RW_S_LATCH);
-		}
-
-		snprintf(path, sizeof(path), "%s/%s%s",
-			 mysql_data_home, table->s->normalized_path.str,
-			 reg_ext);
-
-		unpack_filename(path,path);
-
-		/* Note that we do not know the access time of the table,
-		nor the CHECK TABLE time, nor the UPDATE or INSERT time. */
-
-		if (os_file_get_status(
-			    path, &stat_info, false,
-			    srv_read_only_mode) == DB_SUCCESS) {
-			stats.create_time = (ulong) stat_info.ctime;
 		}
 	}
 

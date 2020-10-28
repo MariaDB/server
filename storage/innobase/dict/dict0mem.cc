@@ -122,7 +122,6 @@ operator<<(
 @param n_v_cols number of virtual columns
 @param flags    table flags
 @param flags2   table flags2
-@param init_stats_latch whether to init the stats latch
 @return own: table object */
 dict_table_t*
 dict_mem_table_create(
@@ -131,8 +130,7 @@ dict_mem_table_create(
 	ulint		n_cols,
 	ulint		n_v_cols,
 	ulint		flags,
-	ulint		flags2,
-	bool		init_stats_latch)
+	ulint		flags2)
 {
 	dict_table_t*	table;
 	mem_heap_t*	heap;
@@ -193,12 +191,6 @@ dict_mem_table_create(
 	new(&table->foreign_set) dict_foreign_set();
 	new(&table->referenced_set) dict_foreign_set();
 
-	if (init_stats_latch) {
-		rw_lock_create(dict_table_stats_key, &table->stats_latch,
-			       SYNC_INDEX_TREE);
-		table->stats_latch_inited = true;
-	}
-
 	return(table);
 }
 
@@ -246,10 +238,6 @@ dict_mem_table_free(
 
 	if (table->s_cols != NULL) {
 		UT_DELETE(table->s_cols);
-	}
-
-	if (table->stats_latch_inited) {
-		rw_lock_free(&table->stats_latch);
 	}
 
 	mem_heap_free(table->heap);

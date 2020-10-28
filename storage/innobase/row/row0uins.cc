@@ -613,7 +613,7 @@ row_undo_ins(
 		}
 
 		if (err == DB_SUCCESS && node->table->stat_initialized) {
-			/* Not protected by dict_table_stats_lock() for
+			/* Not protected by dict_sys->mutex for
 			performance reasons, we would rather get garbage
 			in stat_n_rows (which is just an estimate anyway)
 			than protecting the following code with a latch. */

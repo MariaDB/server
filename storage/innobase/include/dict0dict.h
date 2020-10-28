@@ -1403,7 +1403,7 @@ UNIV_INLINE
 rw_lock_t*
 dict_index_get_lock(
 /*================*/
-	dict_index_t*	index)	/*!< in: index */
+	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /********************************************************************//**
 Returns free space reserved for future updates of records. This is
@@ -1467,22 +1467,6 @@ Releases the dictionary system mutex for MySQL. */
 void
 dict_mutex_exit_for_mysql(void);
 /*===========================*/
-
-/** Lock the appropriate latch to protect a given table's statistics.
-@param[in]	table		table whose stats to lock
-@param[in]	latch_mode	RW_S_LATCH or RW_X_LATCH */
-void
-dict_table_stats_lock(
-	dict_table_t*	table,
-	ulint		latch_mode);
-
-/** Unlock the latch that has been locked by dict_table_stats_lock().
-@param[in]	table		table whose stats to unlock
-@param[in]	latch_mode	RW_S_LATCH or RW_X_LATCH */
-void
-dict_table_stats_unlock(
-	dict_table_t*	table,
-	ulint		latch_mode);
 
 /********************************************************************//**
 Checks if the database name in two table names is the same.
