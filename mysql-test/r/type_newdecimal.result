@@ -1530,8 +1530,11 @@ select (1.20396873 * 0.89550000 * 0.68000000 * 1.08721696 * 0.99500000 *
 1.01500000 * 1.01500000 * 0.99500000)
 0.812988073953673124592306939480
 create table t1 as select 5.05 / 0.014;
+Warnings:
+Note	1265	Data truncated for column '5.05 / 0.014' at row 1
 show warnings;
 Level	Code	Message
+Note	1265	Data truncated for column '5.05 / 0.014' at row 1
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1646,6 +1649,8 @@ my_col
 0.123456789123456789123456789123
 DROP TABLE t1;
 CREATE TABLE t1 SELECT 1 / .123456789123456789123456789123456789123456789123456789123456789123456789123456789 AS my_col;
+Warnings:
+Note	1265	Data truncated for column 'my_col' at row 1
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
 my_col	decimal(65,4)	YES		NULL	
@@ -1831,8 +1836,6 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(30,30));
 INSERT INTO t1 VALUES (0.1),(0.2),(0.3);
 CREATE TABLE t2 SELECT MIN(a + 0.0000000000000000000000000000001) AS c1 FROM t1;
-Warnings:
-Note	1265	Data truncated for column 'c1' at row 4
 DESC t2;
 Field	Type	Null	Key	Default	Extra
 c1	decimal(33,30)	YES		NULL	
