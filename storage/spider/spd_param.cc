@@ -3673,7 +3673,7 @@ maria_declare_plugin(spider)
   spider_status_variables,
   spider_system_variables,
   SPIDER_DETAIL_VERSION,
-  MariaDB_PLUGIN_MATURITY_GAMMA
+  MariaDB_PLUGIN_MATURITY_STABLE
 },
 spider_i_s_alloc_mem_maria,
 spider_i_s_wrapper_protocols_maria
