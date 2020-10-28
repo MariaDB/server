@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1265,7 +1265,7 @@ UNIV_INLINE
 rw_lock_t*
 dict_index_get_lock(
 /*================*/
-	dict_index_t*	index)	/*!< in: index */
+	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /********************************************************************//**
 Returns free space reserved for future updates of records. This is

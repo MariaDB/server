@@ -2793,4 +2793,87 @@ select * from t3;
 desc t3;
 drop database d;
 
+--echo #
+--echo # MDEV-21786:
+--echo # mysqldump will forget sequence definition details on --no-data dump
+--echo #
+create database d;
+
+CREATE SEQUENCE d.s1 START WITH 100 INCREMENT BY 10 MINVALUE=100 MAXVALUE=1100 CYCLE;
+CREATE SEQUENCE d.s2 START WITH 200 INCREMENT BY 20 MINVALUE=200 MAXVALUE=1200 CYCLE;
+CREATE SEQUENCE d.s3 START WITH 300 INCREMENT BY 30 MINVALUE=300 MAXVALUE=1300 CYCLE;
+CREATE SEQUENCE d.s4 START WITH 400 INCREMENT BY 40 MINVALUE=400 MAXVALUE=1400 CYCLE;
+SELECT NEXTVAL(d.s1),NEXTVAL(d.s2),NEXTVAL(d.s3), NEXTVAL(d.s4);
+
+--echo # Show create before dump
+show create sequence d.s1;
+show create sequence d.s2;
+show create sequence d.s3;
+show create sequence d.s4;
+
+--echo # Dump sequence without `--no-data`
+--exec $MYSQL_DUMP --databases d > $MYSQLTEST_VARDIR/tmp/dump1.sql
+--echo # Restore from mysqldump
+--exec $MYSQL -Dd < $MYSQLTEST_VARDIR/tmp/dump1.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/dump1.sql
+
+--echo # Show create after restore
+show create sequence d.s1;
+show create sequence d.s2;
+show create sequence d.s3;
+show create sequence d.s4;
+SELECT NEXTVAL(d.s1),NEXTVAL(d.s2),NEXTVAL(d.s3), NEXTVAL(d.s4);
+
+--echo # Dump sequence with `--no-data`
+--exec $MYSQL_DUMP --databases d --no-data > $MYSQLTEST_VARDIR/tmp/dump-no-data.sql
+--echo # Restore from mysqldump
+--exec $MYSQL -Dd < $MYSQLTEST_VARDIR/tmp/dump-no-data.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/dump-no-data.sql
+
+--echo # Show create after restore `--no-data`
+show create sequence d.s1;
+show create sequence d.s2;
+show create sequence d.s3;
+show create sequence d.s4;
+SELECT NEXTVAL(d.s1),NEXTVAL(d.s2),NEXTVAL(d.s3), NEXTVAL(d.s4);
+
+--echo # Restore to different database than original
+--exec $MYSQL_DUMP d >  $MYSQLTEST_VARDIR/tmp/dumpd.sql
+create database d2;
+--exec $MYSQL d2 < $MYSQLTEST_VARDIR/tmp/dumpd.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/dumpd.sql
+show create sequence d2.s1;
+
+drop sequence d.s1, d.s2, d.s3, d.s4;
+drop database d;
+drop database d2;
+
+--echo #
+--echo # MDEV-20070
+--echo # mysqldump won't work correct on sequences
+--echo #
+
+DROP DATABASE IF EXISTS test1;
+DROP DATABASE IF EXISTS test2;
+CREATE DATABASE test1;
+CREATE DATABASE test2;
+USE test1;
+CREATE SEQUENCE seq_t_i INCREMENT 5 START WITH 1;
+CREATE TABLE t(
+i integer DEFAULT nextval(seq_t_i),
+j integer
+);
+INSERT INTO t VALUES (1,1),(2,2),(3,3),(4,4);
+
+--echo # Dump database 1
+--exec $MYSQL_DUMP test1 > $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+--echo # Restore from database 1 to database 2
+
+--error 1
+--exec $MYSQL test2 < $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+
+--remove_file $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+DROP DATABASE IF EXISTS test1;
+DROP DATABASE IF EXISTS test2;
+
 --echo # End of 10.3 tests

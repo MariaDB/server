@@ -158,16 +158,32 @@ PQRYRES __stdcall ColREST(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
 
   http = GetStringTableOption(g, tp, "Http", NULL);
   uri = GetStringTableOption(g, tp, "Uri", NULL);
-  fn = GetStringTableOption(g, tp, "Filename", "rest.json");
 #if defined(MARIADB)
   ftype = GetStringTableOption(g, tp, "Type", "JSON");
 #else   // !MARIADB
   // OEM tables must specify the file type
   ftype = GetStringTableOption(g, tp, "Ftype", "JSON");
 #endif  // !MARIADB
+	fn = GetStringTableOption(g, tp, "Filename", NULL);
+
+	if (!fn) {
+		int n, m = strlen(ftype) + 1;
+
+		strcat(strcpy(filename, tab), ".");
+		n = strlen(filename);
+
+		// Fold ftype to lower case
+		for (int i = 0; i < m; i++)
+			filename[n + i] = tolower(ftype[i]);
+
+		fn = filename;
+		tp->filename = PlugDup(g, fn);
+	}	// endif fn
 
   //  We used the file name relative to recorded datapath
-  snprintf(filename, sizeof filename, IF_WIN(".\\%s\\%s","./%s/%s"), db, fn);
+	PlugSetPath(filename, fn, db);
+	//strcat(strcat(strcat(strcpy(filename, "."), slash), db), slash);
+  //strncat(filename, fn, _MAX_PATH - strlen(filename));
 
   // Retrieve the file from the web and copy it locally
 	if (http && grf(g->Message, trace(515), http, uri, filename)) {
@@ -226,12 +242,10 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
   Http = GetStringCatInfo(g, "Http", NULL);
   Uri = GetStringCatInfo(g, "Uri", NULL);
-  Fn = GetStringCatInfo(g, "Filename", "rest.json");
+  Fn = GetStringCatInfo(g, "Filename", NULL);
 
   //  We used the file name relative to recorded datapath
-  //PlugSetPath(filename, Fn, GetPath());
-  strcpy(filename, GetPath());
-	strncat(filename, Fn, _MAX_PATH - strlen(filename));
+  PlugSetPath(filename, Fn, GetPath());
 
   // Retrieve the file from the web and copy it locally
 	rc = grf(g->Message, xt, Http, Uri, filename);
@@ -269,7 +283,7 @@ PTDB RESTDEF::GetTable(PGLOBAL g, MODE m)
   if (trace(515))
     htrc("REST GetTable mode=%d\n", m);
 
-  if (m != MODE_READ && m != MODE_READX) {
+  if (m != MODE_READ && m != MODE_READX && m != MODE_ANY) {
     strcpy(g->Message, "REST tables are currently read only");
     return NULL;
   } // endif m

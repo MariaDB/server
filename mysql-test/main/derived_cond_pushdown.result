@@ -10048,11 +10048,11 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "case when (tab2.max_a = 1 or tab2.max_a = 2) then 1 else 0 end = 1",
+      "attached_condition": "case when tab2.max_a = 1 or tab2.max_a = 2 then 1 else 0 end = 1",
       "materialized": {
         "query_block": {
           "select_id": 3,
-          "having_condition": "case when (max_a = 1 or max_a = 2) then 1 else 0 end = 1",
+          "having_condition": "case when max_a = 1 or max_a = 2 then 1 else 0 end = 1",
           "filesort": {
             "sort_key": "t1.b",
             "temporary_table": {
@@ -10097,11 +10097,11 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "case when (tab2.max_a = 1 or tab2.max_a > 2 and tab2.max_a < 4) then 1 else 0 end = 1",
+      "attached_condition": "case when tab2.max_a = 1 or tab2.max_a > 2 and tab2.max_a < 4 then 1 else 0 end = 1",
       "materialized": {
         "query_block": {
           "select_id": 3,
-          "having_condition": "case when (max_a = 1 or max_a > 2 and max_a < 4) then 1 else 0 end = 1",
+          "having_condition": "case when max_a = 1 or max_a > 2 and max_a < 4 then 1 else 0 end = 1",
           "filesort": {
             "sort_key": "t1.b",
             "temporary_table": {
@@ -10146,11 +10146,11 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "case when (tab2.max_a > 1 and (tab2.max_a = 2 or tab2.max_a > 2)) then 1 else 0 end = 1",
+      "attached_condition": "case when tab2.max_a > 1 and (tab2.max_a = 2 or tab2.max_a > 2) then 1 else 0 end = 1",
       "materialized": {
         "query_block": {
           "select_id": 3,
-          "having_condition": "case when (max_a > 1 and (max_a = 2 or max_a > 2)) then 1 else 0 end = 1",
+          "having_condition": "case when max_a > 1 and (max_a = 2 or max_a > 2) then 1 else 0 end = 1",
           "filesort": {
             "sort_key": "t1.b",
             "temporary_table": {
@@ -10195,7 +10195,7 @@ EXPLAIN
       "access_type": "ALL",
       "rows": 3,
       "filtered": 100,
-      "attached_condition": "case when (tab2.b = 2 or tab2.b = 4) then 1 else 0 end = 1",
+      "attached_condition": "case when tab2.b = 2 or tab2.b = 4 then 1 else 0 end = 1",
       "materialized": {
         "query_block": {
           "select_id": 3,
@@ -10207,7 +10207,7 @@ EXPLAIN
                 "access_type": "ALL",
                 "rows": 3,
                 "filtered": 100,
-                "attached_condition": "case when (t1.b = 2 or t1.b = 4) then 1 else 0 end = 1"
+                "attached_condition": "case when t1.b = 2 or t1.b = 4 then 1 else 0 end = 1"
               }
             }
           }

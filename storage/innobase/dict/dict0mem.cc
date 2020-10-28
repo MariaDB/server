@@ -124,19 +124,22 @@ bool dict_col_t::same_encoding(uint16_t a, uint16_t b)
   return false;
 }
 
-/**********************************************************************//**
-Creates a table memory object.
+/** Create a table memory object.
+@param name     table name
+@param space    tablespace
+@param n_cols   total number of columns (both virtual and non-virtual)
+@param n_v_cols number of virtual columns
+@param flags    table flags
+@param flags2   table flags2
 @return own: table object */
 dict_table_t*
 dict_mem_table_create(
-/*==================*/
-	const char*	name,	/*!< in: table name */
-	fil_space_t*	space,	/*!< in: tablespace */
-	ulint		n_cols,	/*!< in: total number of columns including
-				virtual and non-virtual columns */
-	ulint		n_v_cols,/*!< in: number of virtual columns */
-	ulint		flags,	/*!< in: table flags */
-	ulint		flags2)	/*!< in: table flags2 */
+	const char*	name,
+	fil_space_t*	space,
+	ulint		n_cols,
+	ulint		n_v_cols,
+	ulint		flags,
+	ulint		flags2)
 {
 	dict_table_t*	table;
 	mem_heap_t*	heap;
@@ -198,9 +201,6 @@ dict_mem_table_create(
 	new(&table->foreign_set) dict_foreign_set();
 	new(&table->referenced_set) dict_foreign_set();
 
-	rw_lock_create(dict_table_stats_key, &table->stats_latch,
-		       SYNC_INDEX_TREE);
-
 	return(table);
 }
 
@@ -244,8 +244,6 @@ dict_mem_table_free(
 	}
 
 	UT_DELETE(table->s_cols);
-
-	rw_lock_free(&table->stats_latch);
 
 	mem_heap_free(table->heap);
 }

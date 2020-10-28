@@ -2805,6 +2805,10 @@ int JOIN::optimize_stage2()
     (select_options & (SELECT_DESCRIBE | SELECT_NO_JOIN_CACHE)) |
     (select_lex->ftfunc_list->elements ?  SELECT_NO_JOIN_CACHE : 0);
 
+  if (select_lex->options & OPTION_SCHEMA_TABLE &&
+       optimize_schema_tables_reads(this))
+    DBUG_RETURN(1);
+
   if (make_join_readinfo(this, select_opts_for_readinfo, no_jbuf_after))
     DBUG_RETURN(1);
 
@@ -2980,10 +2984,6 @@ int JOIN::optimize_stage2()
   if (having)
     having_is_correlated= MY_TEST(having->used_tables() & OUTER_REF_TABLE_BIT);
   tmp_having= having;
-
-  if ((select_lex->options & OPTION_SCHEMA_TABLE) &&
-       optimize_schema_tables_reads(this))
-    DBUG_RETURN(TRUE);
 
   if (unlikely(thd->is_error()))
     DBUG_RETURN(TRUE);
@@ -17822,15 +17822,11 @@ Field *Item::create_field_for_schema(THD *thd, TABLE *table)
   {
     Field *field;
     if (max_length > MAX_FIELD_VARCHARLENGTH)
-      field= new (thd->mem_root) Field_blob(max_length, maybe_null, &name,
-                                            collation.collation);
-    else if (max_length > 0)
-      field= new (thd->mem_root) Field_varstring(max_length, maybe_null, &name,
-                                                 table->s,
-                                                 collation.collation);
-    else
-      field= new Field_null((uchar*) 0, 0, Field::NONE, &name,
+      field= new Field_blob(max_length, maybe_null, &name,
                             collation.collation);
+    else
+      field= new Field_varstring(max_length, maybe_null, &name,
+                                 table->s, collation.collation);
     if (field)
       field->init(table);
     return field;
@@ -18189,8 +18185,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     No need to change table name to lower case as we are only creating
     MyISAM, Aria or HEAP tables here
   */
-  fn_format(path, path, mysql_tmpdir, "",
-            MY_REPLACE_EXT|MY_UNPACK_FILENAME);
+  fn_format(path, path, mysql_tmpdir, "", MY_REPLACE_EXT|MY_UNPACK_FILENAME);
 
   if (group)
   {
@@ -19365,14 +19360,10 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       }
     }
 
-    if (unlikely((error= maria_create(share->path.str,
-                                      file_type,
-                                      share->keys, &keydef,
-                                      (uint) (*recinfo-start_recinfo),
-                                      start_recinfo,
-                                      share->uniques, &uniquedef,
-                                      &create_info,
-                                      create_flags))))
+    if (unlikely((error= maria_create(share->path.str, file_type, share->keys,
+                                      &keydef, (uint) (*recinfo-start_recinfo),
+                                      start_recinfo, share->uniques, &uniquedef,
+                                      &create_info, create_flags))))
     {
       table->file->print_error(error,MYF(0));	/* purecov: inspected */
       table->db_stat=0;
@@ -19573,8 +19564,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   if (is_duplicate)
     *is_duplicate= FALSE;
 
-  if (table->s->db_type() != heap_hton || 
-      error != HA_ERR_RECORD_FILE_FULL)
+  if (table->s->db_type() != heap_hton || error != HA_ERR_RECORD_FILE_FULL)
   {
     /*
       We don't want this error to be converted to a warning, e.g. in case of

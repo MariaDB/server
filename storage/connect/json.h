@@ -1,10 +1,11 @@
 /**************** json H Declares Source Code File (.H) ****************/
 /*  Name: json.h   Version 1.2                                         */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2017  */
+/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2020  */
 /*                                                                     */
 /*  This file contains the JSON classes declares.                      */
 /***********************************************************************/
+#include <mysql_com.h>
 #include "value.h"
 
 #if defined(_DEBUG)
@@ -44,15 +45,31 @@ typedef struct {
   int   len;
   } STRG, *PSG;
 
+// BSON size should be equal on Linux and Windows
+#define BMX 255
+typedef struct BSON* PBSON;
+
+/***********************************************************************/
+/*  Structure used to return binary json to Json UDF functions.        */
+/***********************************************************************/
+struct BSON {
+	char    Msg[BMX + 1];
+	char   *Filename;
+	PGLOBAL G;
+	int     Pretty;
+	ulong   Reslen;
+	my_bool Changed;
+	PJSON   Top;
+	PJSON   Jsp;
+	PBSON   Bsp;
+}; // end of struct BSON
+
+PBSON JbinAlloc(PGLOBAL g, UDF_ARGS* args, ulong len, PJSON jsp);
+
 char *NextChr(PSZ s, char sep);
 char *GetJsonNull(void);
 
-PJSON ParseJson(PGLOBAL g, char *s, int n, int *prty = NULL, bool *b = NULL);
-PJAR  ParseArray(PGLOBAL g, int& i, STRG& src, bool *pty);
-PJOB  ParseObject(PGLOBAL g, int& i, STRG& src, bool *pty);
-PJVAL ParseValue(PGLOBAL g, int& i, STRG& src, bool *pty);
-char *ParseString(PGLOBAL g, int& i, STRG& src);
-PVAL  ParseNumeric(PGLOBAL g, int& i, STRG& src);
+PJSON ParseJson(PGLOBAL g, char* s, int n, int* prty = NULL, bool* b = NULL);
 PSZ   Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty);
 bool  SerializeArray(JOUT *js, PJAR jarp, bool b);
 bool  SerializeObject(JOUT *js, PJOB jobp);
@@ -130,7 +147,7 @@ class JOUTPRT : public JOUTFILE {
 class JPAIR : public BLOCK {
   friend class JOBJECT;
 	friend class JSNX;
-	friend PJOB ParseObject(PGLOBAL, int&, STRG&, bool*);
+	friend class JSON;
   friend bool SerializeObject(JOUT *, PJOB);
  public:
   JPAIR(PCSZ key) : BLOCK() {Key = key; Val = NULL; Next = NULL;}
@@ -149,8 +166,9 @@ class JPAIR : public BLOCK {
 /* Class JSON. The base class for all other json classes.              */
 /***********************************************************************/
 class JSON : public BLOCK {
+	friend PJSON ParseJson(PGLOBAL, char*, int, int*, bool*);
  public:
-  JSON(void) {Size = 0;}
+	 JSON(void) : s(NULL), len(0), pty(NULL) {Size = 0;}
 
           int    size(void) {return Size;}
 	virtual int    GetSize(bool b) {return Size;}
@@ -187,14 +205,27 @@ class JSON : public BLOCK {
 	virtual bool   IsNull(void) {X return true;}
 
  protected:
-  int Size;
+	PJAR  ParseArray(PGLOBAL g, int& i);
+	PJOB  ParseObject(PGLOBAL g, int& i);
+	PJVAL ParseValue(PGLOBAL g, int& i);
+	char *ParseString(PGLOBAL g, int& i);
+	PVAL  ParseNumeric(PGLOBAL g, int& i);
+	PJAR  ParseAsArray(PGLOBAL g, int& i, int pretty, int *ptyp);
+
+	// Members
+	int Size;
+
+	// Only used when parsing
+ private:
+	char *s;
+	int   len;
+	bool *pty;
 }; // end of class JSON
 
 /***********************************************************************/
 /* Class JOBJECT: contains a list of value pairs.                      */
 /***********************************************************************/
 class JOBJECT : public JSON {
-  friend PJOB ParseObject(PGLOBAL, int&, STRG&, bool*);
   friend bool SerializeObject(JOUT *, PJOB);
 	friend class JSNX;
  public:
@@ -260,8 +291,8 @@ class JVALUE : public JSON {
   friend class JARRAY;
 	friend class JSNX;
 	friend class JSONCOL;
-	friend PJVAL ParseValue(PGLOBAL, int&, STRG&, bool*);
-  friend bool  SerializeValue(JOUT *, PJVAL);
+  friend class JSON;
+	friend bool SerializeValue(JOUT*, PJVAL);
  public:
   JVALUE(void) : JSON() {Clear();}
 	JVALUE(PJSON jsp);

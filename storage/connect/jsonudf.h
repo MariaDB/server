@@ -235,6 +235,10 @@ extern "C" {
 	DllExport char *json_serialize(UDF_EXEC_ARGS);
 	DllExport void json_serialize_deinit(UDF_INIT*);
 
+	DllExport my_bool jfile_convert_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* jfile_convert(UDF_EXEC_ARGS);
+	DllExport void jfile_convert_deinit(UDF_INIT*);
+
 	DllExport my_bool envar_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *envar(UDF_EXEC_ARGS);
 
@@ -324,3 +328,38 @@ protected:
 	my_bool  Wr;			  					// Write mode
 	my_bool  Jb;			  					// Must return json item
 }; // end of class JSNX
+
+/*********************************************************************************/
+/*  Class JUP: used by jfile_convert to make a json file pretty = 0.             */
+/*********************************************************************************/
+class JUP : public BLOCK {
+public:
+	// Constructor
+	JUP(PGLOBAL g);
+
+	// Implementation
+	void  AddBuff(char c) {
+		if (k < recl)
+			buff[k++] = c;
+		else
+			throw "Record size is too small";
+	}	// end of AddBuff
+
+	// Methods
+	char *UnprettyJsonFile(PGLOBAL g, char* fn, char* outfn, int lrecl);
+	bool  unPretty(PGLOBAL g, int lrecl);
+	void  CopyObject(PGLOBAL g);
+	void  CopyArray(PGLOBAL g);
+	void  CopyValue(PGLOBAL g);
+	void  CopyString(PGLOBAL g);
+	void  CopyNumeric(PGLOBAL g);
+
+	// Members
+	FILE* fs;
+	char* s;
+	char* buff;
+	int len;
+	int recl;
+	int i, k;
+}; // end of class JUP
+

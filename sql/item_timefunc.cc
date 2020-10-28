@@ -2095,9 +2095,9 @@ static const char *interval_names[]=
 
 void Item_date_add_interval::print(String *str, enum_query_type query_type)
 {
-  args[0]->print_parenthesised(str, query_type, ADDINTERVAL_PRECEDENCE);
+  args[0]->print_parenthesised(str, query_type, INTERVAL_PRECEDENCE);
   str->append(date_sub_interval?" - interval ":" + interval ");
-  args[1]->print_parenthesised(str, query_type, INTERVAL_PRECEDENCE);
+  args[1]->print(str, query_type);
   str->append(' ');
   str->append(interval_names[int_type]);
 }
