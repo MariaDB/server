@@ -1861,7 +1861,7 @@ retry_share:
 
 #ifdef WITH_WSREP
   if (!((flags & MYSQL_OPEN_IGNORE_FLUSH) ||
-        (wsrep_on(thd) && thd->wsrep_applier)))
+        (thd->wsrep_applier)))
 #else
   if (!(flags & MYSQL_OPEN_IGNORE_FLUSH))
 #endif
