@@ -54,6 +54,10 @@ Created 12/9/1995 Heikki Tuuri
 #include "buf0dump.h"
 #include "log0sync.h"
 
+#ifdef USE_PMDK
+#include <pmdk.h>
+#endif /* USE_PMDK */
+
 /*
 General philosophy of InnoDB redo-logs:
 
@@ -327,6 +331,62 @@ dberr_t file_os_io::flush() noexcept
   return os_file_flush(m_fd) ? DB_SUCCESS : DB_ERROR;
 }
 
+#ifdef USE_PMDK
+
+file_pmem_io::~file_pmem_io() noexcept
+{
+  if (is_opened())
+    close();
+}
+
+dberr_t
+file_pmem_io::open(const char *path, bool read_only) noexcept{
+  ulint file_current_size = 0;
+  int  is_pmem = false;
+  pmem_addr = (char *) pmem_map_file(path, srv_log_file_size, PMEM_FILE_CREATE, 0644,
+				     &file_current_size, &is_pmem);
+  pmem_len = file_current_size;
+  return is_pmem && file_current_size >= srv_log_file_size && pmem_addr != NULL
+         ? DB_SUCCESS : DB_ERROR;
+}
+
+dberr_t
+file_pmem_io::rename(const char *old_path, const char *new_path) noexcept {
+  return os_file_rename(innodb_log_file_key, old_path, new_path) ? DB_SUCCESS : DB_ERROR;
+}
+
+dberr_t
+file_pmem_io::close() noexcept {
+
+  if (pmem_addr == NULL){
+    return DB_SUCCESS;
+  }
+  if (pmem_unmap(pmem_addr, pmem_len) != 0){
+    return DB_ERROR;
+  }
+  return DB_SUCCESS;
+}
+
+dberr_t
+file_pmem_io::read(os_offset_t offset, span<byte> buf) noexcept {
+  pmem_memcpy_nodrain(buf.data(), pmem_addr + offset, buf.size());
+  return DB_SUCCESS;
+}
+
+dberr_t
+file_pmem_io::write(const char *path, os_offset_t offset,
+		    span<const byte> buf) noexcept {
+  pmem_memcpy_nodrain(pmem_addr + offset, buf.data(), buf.size());
+  return DB_SUCCESS;
+}
+
+dberr_t
+file_pmem_io::flush() noexcept
+{
+  return DB_SUCCESS;
+}
+#endif
+
 #ifdef HAVE_PMEM
 
 #include <libpmem.h>
@@ -383,7 +443,13 @@ dberr_t log_file_t::open(bool read_only) noexcept
                 ? std::unique_ptr<file_io>(new file_pmem_io)
                 : std::unique_ptr<file_io>(new file_os_io);
 #else
+#ifdef USE_PMDK
+  auto ptr = innobase_use_pmem && pmem_init
+	  ? std::unique_ptr<file_io>(new file_pmem_io)
+	  : std::unique_ptr<file_io>(new file_os_io);
+#else
   auto ptr= std::unique_ptr<file_io>(new file_os_io);
+#endif
 #endif
 
   if (dberr_t err= ptr->open(m_path.c_str(), read_only))

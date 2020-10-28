@@ -372,6 +372,16 @@ uint volatile global_disable_checkpoint;
 #if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
 ulong slow_start_timeout;
 #endif
+
+#ifdef USE_PMDK
+#include "pmdk.h"
+#endif /* USE_PMDK */
+
+#ifdef USE_PMDK
+my_bool innobase_use_pmem = false;
+bool pmem_init = false;
+#endif /* USE_PMDK */
+
 /**
    @brief 'grant_option' is used to indicate if privileges needs
    to be checked, in which case the lock, LOCK_grant, is used
@@ -5014,6 +5024,18 @@ static int init_server_components()
       unireg_abort(1);
     }
   }
+
+#ifdef USE_PMDK
+  std::string error_message;
+
+  bool init_failed = init_pmdk_library(error_message);
+  if (init_failed) {
+    sql_print_error("init pmdk failed, innobase_use_pmem to false, error message: %s", error_message.c_str());
+    pmem_init = false;
+  } else {
+    pmem_init = true;
+  }
+#endif /* USE_PMDK */
 
   if (init_io_cache_encryption())
     unireg_abort(1);

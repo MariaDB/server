@@ -330,6 +330,7 @@ ELSE()
     mysql_config
     mytop
     mariadb-hotcopy
+    ndctl_list
     ${SERVER_SCRIPTS}
     ${WSREP_SCRIPTS}
     ${SYSTEMD_SCRIPTS}

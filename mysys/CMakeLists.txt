@@ -34,6 +34,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c crc32ieee.cc my_default.c
 				my_static.c my_symlink.c my_symlink2.c my_sync.c my_thr_init.c 
 				my_basename.c
 				my_write.c ptr_cmp.c queues.c stacktrace.c
+				pmdk.cpp
 				string.c thr_alarm.c thr_lock.c thr_mutex.c
 				thr_rwlock.c thr_timer.c
                                 tree.c typelib.c base64.c my_memmem.c

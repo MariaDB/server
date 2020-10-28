@@ -19045,6 +19045,13 @@ static MYSQL_SYSVAR_ENUM(flush_method, innodb_flush_method,
   NULL, NULL, IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_FSYNC),
   &innodb_flush_method_typelib);
 
+#ifdef USE_PMDK
+static MYSQL_SYSVAR_BOOL(
+  use_pmdk, innobase_use_pmem, PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Enable/disable write redo log with pmdk program model(default off).",
+  nullptr, nullptr, FALSE);
+#endif
+
 static MYSQL_SYSVAR_STR(file_format, deprecated::innodb_file_format,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   innodb_deprecated_ignored, NULL, NULL, NULL);
@@ -20018,6 +20025,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(flush_log_at_timeout),
   MYSQL_SYSVAR(flush_log_at_trx_commit),
   MYSQL_SYSVAR(flush_method),
+#ifdef USE_PMDK
+  MYSQL_SYSVAR(use_pmdk),
+#endif
   MYSQL_SYSVAR(force_recovery),
   MYSQL_SYSVAR(fill_factor),
   MYSQL_SYSVAR(ft_cache_size),
