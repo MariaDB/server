@@ -2597,6 +2597,11 @@ static void init_pipe_security_descriptor()
   (FILE_READ_DATA | FILE_READ_EA | FILE_READ_ATTRIBUTES | READ_CONTROL |      \
    SYNCHRONIZE | FILE_WRITE_DATA | FILE_WRITE_EA | FILE_WRITE_ATTRIBUTES)
 
+#ifndef SECURITY_MAX_SID_STRING_CHARACTERS
+/* Old SDK does not have this constant */
+#define SECURITY_MAX_SID_STRING_CHARACTERS 187
+#endif
+
   /*
     Figure out SID of the user that runs the server, then create SDDL string
     for pipe permissions, and convert it to the security descriptor.
