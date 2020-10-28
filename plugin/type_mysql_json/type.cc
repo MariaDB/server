@@ -21,7 +21,7 @@
 #include <mysqld_error.h>
 #include "mysql_json.h"
 
-static const LEX_CSTRING empty_clex_str= {"", 0};
+const LEX_CSTRING empty_clex_str= {"", 0};
 
 class Type_handler_mysql_json: public Type_handler_blob
 {

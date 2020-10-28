@@ -41,4 +41,5 @@ enum JSONB_TYPES {
 
 bool parse_mysql_json_value(String *buffer, JSONB_TYPES type, const uchar *data,
                             size_t len, size_t depth);
+
 #endif  /* MYSQL_JSON_INCLUDED */

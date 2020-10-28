@@ -3498,7 +3498,7 @@ public:
                         const Column_definition *row_start,
                         const Column_definition *row_end) const;
 };
-extern Vers_type_timestamp vers_type_timestamp;
+extern MYSQL_PLUGIN_IMPORT Vers_type_timestamp vers_type_timestamp;
 
 
 class Vers_type_trx: public Vers_type_handler
