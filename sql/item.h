@@ -116,20 +116,19 @@ enum precedence {
   XOR_PRECEDENCE,       // XOR
   AND_PRECEDENCE,       // AND, &&
   NOT_PRECEDENCE,       // NOT (unless HIGH_NOT_PRECEDENCE)
-  BETWEEN_PRECEDENCE,   // BETWEEN, CASE, WHEN, THEN, ELSE
-  CMP_PRECEDENCE,       // =, <=>, >=, >, <=, <, <>, !=, IS, LIKE, REGEXP, IN
+  CMP_PRECEDENCE,       // =, <=>, >=, >, <=, <, <>, !=, IS
+  BETWEEN_PRECEDENCE,   // BETWEEN
+  IN_PRECEDENCE,        // IN, LIKE, REGEXP
   BITOR_PRECEDENCE,     // |
   BITAND_PRECEDENCE,    // &
   SHIFT_PRECEDENCE,     // <<, >>
-  ADDINTERVAL_PRECEDENCE, // first argument in +INTERVAL
+  INTERVAL_PRECEDENCE,  // first argument in +INTERVAL
   ADD_PRECEDENCE,       // +, -
   MUL_PRECEDENCE,       // *, /, DIV, %, MOD
   BITXOR_PRECEDENCE,    // ^
   PIPES_PRECEDENCE,     // || (if PIPES_AS_CONCAT)
-  NEG_PRECEDENCE,       // unary -, ~
-  BANG_PRECEDENCE,      // !, NOT (if HIGH_NOT_PRECEDENCE)
+  NEG_PRECEDENCE,       // unary -, ~, !, NOT (if HIGH_NOT_PRECEDENCE)
   COLLATE_PRECEDENCE,   // BINARY, COLLATE
-  INTERVAL_PRECEDENCE,  // INTERVAL
   DEFAULT_PRECEDENCE,
   HIGHEST_PRECEDENCE
 };
@@ -1454,6 +1453,8 @@ public:
     mysql_register_view().
   */
   virtual enum precedence precedence() const { return DEFAULT_PRECEDENCE; }
+  enum precedence higher_precedence() const
+  { return (enum precedence)(precedence() + 1); }
   void print_parenthesised(String *str, enum_query_type query_type,
                            enum precedence parent_prec);
   /**
@@ -4974,7 +4975,11 @@ public:
   {
     (*ref)->restore_to_before_no_rows_in_result();
   }
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
+  enum precedence precedence() const
+  {
+    return ref ? (*ref)->precedence() : DEFAULT_PRECEDENCE;
+  }
   void cleanup();
   Item_field *field_for_view_update()
     { return (*ref)->field_for_view_update(); }

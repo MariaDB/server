@@ -793,11 +793,6 @@ select 0=0, 0=-0, 0.0= -0.0, 0.0 = -(0.0), 0.0E1=-0.0E1, 0.0E1=-(0.0E1);
 
 select CRC32(NULL), CRC32(''), CRC32('MySQL'), CRC32('mysql'), CRC32('01234567'), CRC32('012345678'), CRC32(REPEAT('ABCDEfghij', 20)), CRC32(REPEAT('0123456789', 200));
 
-#
-# MDEV-13673 Bad result in view
-#
-explain extended select (3-2)+1, (3/2)*1, 3-(2+1), 3/(2*1);
-
 --echo #
 --echo # Start of 10.3 tests
 --echo #

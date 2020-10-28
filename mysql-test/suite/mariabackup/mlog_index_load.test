@@ -2,6 +2,7 @@
 
 CREATE TABLE t1(i INT PRIMARY KEY auto_increment, a int) ENGINE INNODB;
 INSERT INTO t1(a) SELECT * from seq_1_to_10000;
+SET GLOBAL innodb_log_optimize_ddl=ON;
 
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 

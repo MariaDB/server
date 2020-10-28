@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1119,7 +1119,7 @@ public:
   }
 
   /** @return number of committed transactions waiting for purge */
-  ulint history_size() const
+  uint32 history_size() const
   {
     return uint32(my_atomic_load32(&const_cast<trx_sys_t*>(this)
                                    ->rseg_history_len));

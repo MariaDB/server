@@ -2431,6 +2431,8 @@ String *Item_func_json_merge_patch::val_str(String *str)
   uint n_arg;
   bool empty_result, merge_to_null;
 
+  /* To report errors properly if some JSON is invalid. */
+  je1.s.error= je2.s.error= 0;
   merge_to_null= args[0]->null_value;
 
   for (n_arg=1; n_arg < arg_count; n_arg++)

@@ -1343,6 +1343,20 @@ create table t1 ( id serial );
 show create table t1;
 drop table t1;
 
+#
+# BETWEEN syntax
+#
+create or replace view v1 as select 1 between (2 between 3 and 4) and 5;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+create or replace view v1 as select 1 between (2 in (3,4)) and 5;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+create or replace view v1 as select 1 between (2 like 3) and 4;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+create or replace view v1 as select 1 not between (2 like 3) and 4;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+
+drop view v1;
+
 --echo #
 --echo # MDEV-10343 Providing compatibility for basic SQL data types
 --echo #
@@ -1547,4 +1561,4 @@ EXECUTE IMMEDIATE 'if(`systeminfo /FO LIST';
 --error ER_PARSE_ERROR
 EXECUTE IMMEDIATE 'if(`systeminfo';
 
---echo End of 10.3 tests
+--echo # End of 10.3 tests

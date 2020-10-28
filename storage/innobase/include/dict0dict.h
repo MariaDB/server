@@ -302,7 +302,7 @@ UNIV_INLINE
 void
 dict_table_autoinc_initialize(dict_table_t* table, ib_uint64_t value)
 {
-	ut_ad(dict_table_autoinc_own(table));
+	mysql_mutex_assert_owner(&table->autoinc_mutex);
 	table->autoinc = value;
 }
 
@@ -315,7 +315,7 @@ UNIV_INLINE
 ib_uint64_t
 dict_table_autoinc_read(const dict_table_t* table)
 {
-	ut_ad(dict_table_autoinc_own(table));
+	mysql_mutex_assert_owner(&table->autoinc_mutex);
 	return(table->autoinc);
 }
 
@@ -329,7 +329,7 @@ UNIV_INLINE
 bool
 dict_table_autoinc_update_if_greater(dict_table_t* table, ib_uint64_t value)
 {
-	ut_ad(dict_table_autoinc_own(table));
+	mysql_mutex_assert_owner(&table->autoinc_mutex);
 
 	if (value > table->autoinc) {
 
@@ -1467,25 +1467,6 @@ Releases the dictionary system mutex for MySQL. */
 void
 dict_mutex_exit_for_mysql(void);
 /*===========================*/
-
-/** Create a dict_table_t's stats latch or delay for lazy creation.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	table	table whose stats latch to create
-@param[in]	enabled	if false then the latch is disabled
-and dict_table_stats_lock()/unlock() become noop on this table. */
-void
-dict_table_stats_latch_create(
-	dict_table_t*	table,
-	bool		enabled);
-
-/** Destroy a dict_table_t's stats latch.
-This function is only called from either single threaded environment
-or from a thread that has not shared the table object with other threads.
-@param[in,out]	table	table whose stats latch to destroy */
-void
-dict_table_stats_latch_destroy(
-	dict_table_t*	table);
 
 /** Lock the appropriate latch to protect a given table's statistics.
 @param[in]	table		table whose stats to lock

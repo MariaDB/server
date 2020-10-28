@@ -104,7 +104,9 @@ struct ha_field_option_struct
   uint opt;
   const char *dateformat;
   const char *fieldformat;
-  char *special;
+	const char* jsonpath;
+	const char* xmlpath;
+	char *special;
 };
 
 /*

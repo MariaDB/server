@@ -233,8 +233,8 @@ static void memo_slot_release(mtr_memo_slot_t *slot)
   case MTR_MEMO_PAGE_SX_FIX:
   case MTR_MEMO_PAGE_X_FIX:
     buf_block_t *block= reinterpret_cast<buf_block_t*>(slot->object);
-    buf_block_unfix(block);
     buf_page_release_latch(block, slot->type);
+    buf_block_unfix(block);
     break;
   }
   slot->object= NULL;
@@ -276,8 +276,8 @@ struct ReleaseLatches {
     case MTR_MEMO_PAGE_SX_FIX:
     case MTR_MEMO_PAGE_X_FIX:
       buf_block_t *block= reinterpret_cast<buf_block_t*>(slot->object);
-      buf_block_unfix(block);
       buf_page_release_latch(block, slot->type);
+      buf_block_unfix(block);
       break;
     }
     slot->object= NULL;

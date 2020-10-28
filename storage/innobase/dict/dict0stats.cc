@@ -33,6 +33,7 @@ Created Jan 06, 2010 Vasil Dimov
 #include "pars0pars.h"
 #include <mysql_com.h>
 #include "btr0btr.h"
+#include "sync0sync.h"
 
 #include <algorithm>
 #include <map>
@@ -418,11 +419,6 @@ dict_stats_table_clone_create(
 
 	t->corrupted = table->corrupted;
 
-	/* This private object "t" is not shared with other threads, so
-	we do not need the stats_latch (thus we pass false below). The
-	dict_table_stats_lock()/unlock() routines will do nothing. */
-	dict_table_stats_latch_create(t, false);
-
 	UT_LIST_INIT(t->indexes, &dict_index_t::indexes);
 #ifdef BTR_CUR_HASH_ADAPT
 	UT_LIST_INIT(t->freed_indexes, &dict_index_t::indexes);
@@ -488,6 +484,8 @@ dict_stats_table_clone_create(
 
 	ut_d(t->magic_n = DICT_TABLE_MAGIC_N);
 
+	rw_lock_create(dict_table_stats_key, &t->stats_latch, SYNC_INDEX_TREE);
+
 	return(t);
 }
 
@@ -500,7 +498,7 @@ dict_stats_table_clone_free(
 /*========================*/
 	dict_table_t*	t)	/*!< in: dummy table object to free */
 {
-	dict_table_stats_latch_destroy(t);
+	rw_lock_free(&t->stats_latch);
 	mem_heap_free(t->heap);
 }
 
