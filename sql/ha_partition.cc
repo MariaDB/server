@@ -4341,7 +4341,8 @@ int ha_partition::write_row(uchar * buf)
 
   tmp_disable_binlog(thd); /* Do not replicate the low-level changes. */
   error= m_file[part_id]->ha_write_row(buf);
-  if (have_auto_increment && !table->s->next_number_keypart)
+  /* Update next_auto_inc_val only when ha_write_row() returns no error. */
+  if (!error && have_auto_increment && !table->s->next_number_keypart)
     set_auto_increment_if_higher(table->next_number_field);
   reenable_binlog(thd);
 
