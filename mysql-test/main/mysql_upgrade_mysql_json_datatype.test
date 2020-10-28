@@ -2,6 +2,10 @@
 -- source include/have_working_dns.inc
 -- source include/have_innodb.inc
 
+if (!$TYPE_MYSQL_JSON_SO) {
+  skip Need MYSQL_JSON plugin;
+}
+
 call mtr.add_suppression("Table rebuild required");
 call mtr.add_suppression("is marked as crashed");
 call mtr.add_suppression("Checking");
