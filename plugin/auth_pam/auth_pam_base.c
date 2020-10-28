@@ -30,6 +30,7 @@
   static int read_packet(struct param *param, unsigned char **pkt)
 */
 
+#include <config_auth_pam.h>
 #include <stdio.h>
 #include <string.h>
 #include <security/pam_appl.h>
