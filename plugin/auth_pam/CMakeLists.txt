@@ -33,7 +33,7 @@ IF(HAVE_PAM_APPL_H)
   FIND_LIBRARY(PAM_LIBRARY pam) # for srpm build-depends detection
   ADD_DEFINITIONS(-D_GNU_SOURCE)
   MYSQL_ADD_PLUGIN(auth_pam_v1 auth_pam_v1.c LINK_LIBRARIES pam MODULE_ONLY)
-  MYSQL_ADD_PLUGIN(auth_pam auth_pam.c LINK_LIBRARIES pam ${LIBDL} MODULE_ONLY)
+  MYSQL_ADD_PLUGIN(auth_pam auth_pam.c LINK_LIBRARIES pam ${CMAKE_DL_LIBS} MODULE_ONLY)
   IF (TARGET auth_pam)
     MYSQL_ADD_EXECUTABLE(auth_pam_tool auth_pam_tool.c DESTINATION ${INSTALL_PLUGINDIR}/auth_pam_tool_dir COMPONENT Server)
     TARGET_LINK_LIBRARIES(auth_pam_tool pam)
