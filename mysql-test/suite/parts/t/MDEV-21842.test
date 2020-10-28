@@ -1,0 +1,50 @@
+--source include/have_partition.inc
+--source include/have_innodb.inc
+let $engine= 'innodb';
+
+--echo #
+--echo # MDEV-21842: auto_increment does not increment with compound primary
+--echo # key on partitioned table
+--echo #
+
+create or replace table `t` (
+  `id` bigint(20) unsigned not null auto_increment,
+  `a` int(10) not null ,
+  `dt` date not null,
+  primary key (`id`, `dt`) ,
+  unique key (`a`, `dt`)
+) engine=innodb
+ partition by range  columns(`dt`)
+(
+ partition `p202002` values less than ('2020-03-01'),
+ partition `P202003` values less than ('2020-04-01')
+);
+
+connect (con1, localhost, root,,);
+connect (con2, localhost, root,,);
+
+--connection con1
+start transaction;
+insert into t (a, dt) values (1, '2020-02-29');
+
+--connection con2
+start transaction;
+send insert into t (a, dt) values (1, '2020-02-29');
+
+--connection con1
+insert into t (a, dt) values (2, '2020-02-29');
+select auto_increment from information_schema.tables where table_name='t';
+commit;
+
+select auto_increment from information_schema.tables where table_name='t';
+
+insert into t (a, dt) values (3, '2020-02-29');
+insert into t (a, dt) values (4, '2020-02-29');
+
+--connection con2
+--error ER_DUP_ENTRY
+reap;
+select auto_increment from information_schema.tables where table_name='t';
+
+select * from t;
+drop table t;
