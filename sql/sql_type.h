@@ -3498,7 +3498,7 @@ public:
                         const Column_definition *row_start,
                         const Column_definition *row_end) const;
 };
-extern MYSQL_PLUGIN_IMPORT Vers_type_timestamp vers_type_timestamp;
+extern Vers_type_timestamp vers_type_timestamp;
 
 
 class Vers_type_trx: public Vers_type_handler
@@ -5249,7 +5249,7 @@ public:
   bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const override;
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const override;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const override;
-  const Vers_type_handler *vers() const override { return &vers_type_timestamp; }
+  const Vers_type_handler *vers() const override;
 };
 
 
@@ -5416,7 +5416,7 @@ public:
   bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const override;
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const override;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const override;
-  const Vers_type_handler *vers() const override { return &vers_type_timestamp; }
+  const Vers_type_handler *vers() const override;
 };
 
 
@@ -7039,7 +7039,7 @@ public:
                                    const Bit_addr &bit,
                                    const Column_definition_attributes *attr,
                                    uint32 flags) const override;
-  const Vers_type_handler *vers() const override { return &vers_type_timestamp; }
+  const Vers_type_handler *vers() const override;
 };
 
 

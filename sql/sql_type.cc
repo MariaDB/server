@@ -6958,6 +6958,24 @@ bool Type_handler_string_result::
 
 /***************************************************************************/
 
+const Vers_type_handler* Type_handler_temporal_result::vers() const
+{
+  return &vers_type_timestamp;
+}
+
+const Vers_type_handler* Type_handler_string_result::vers() const
+{
+  return &vers_type_timestamp;
+}
+
+const Vers_type_handler* Type_handler_blob_common::vers() const
+
+{
+  return &vers_type_timestamp;
+}
+
+/***************************************************************************/
+
 uint Type_handler::Item_time_precision(THD *thd, Item *item) const
 {
   return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
