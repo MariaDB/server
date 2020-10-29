@@ -29,7 +29,7 @@ set time_zone='+1:00';
 flush tables;
 select * from t1;
 a	b	v
-1	2	0.3333000000000000000
+1	2	0.3333333330000000000
 select * from t8;
 a	b	v
 1234567890	2	2009-02-14 00:31:30

@@ -5920,14 +5920,14 @@ view_definition
 select 2 / 3 * 3 AS `2 / 3 * 3`,2 / (3 * 3) AS `2 / (3 * 3)`,2 / 3 * 3 AS `(2 / 3) * 3`
 select 2 / 3 * 3, 2 / (3 * 3), (2 / 3) * 3 union select * from v1;
 2 / 3 * 3	2 / (3 * 3)	(2 / 3) * 3
-2.0001	0.2222	2.0001
+2.0000	0.2222	2.0000
 create or replace view v1 as select 2 / 3 / 3, 2 / (3 / 3), (2 / 3) / 3;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 view_definition
 select 2 / 3 / 3 AS `2 / 3 / 3`,2 / (3 / 3) AS `2 / (3 / 3)`,2 / 3 / 3 AS `(2 / 3) / 3`
 select 2 / 3 / 3, 2 / (3 / 3), (2 / 3) / 3 union select * from v1;
 2 / 3 / 3	2 / (3 / 3)	(2 / 3) / 3
-0.22223333	2.0000	0.22223333
+0.22222222	2.0000	0.22222222
 create or replace view v1 as select 2 / 3 DIV 3, 2 / (3 DIV 3), (2 / 3) DIV 3;
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 view_definition

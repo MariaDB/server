@@ -891,6 +891,8 @@ int Arg_comparator::compare_decimal()
     {
       if (set_null)
         owner->null_value= 0;
+      my_decimal_round_if_needed(E_DEC_FATAL_ERROR, val1, (*a)->decimals, 0);
+      my_decimal_round_if_needed(E_DEC_FATAL_ERROR, val2, (*b)->decimals, 0);
       return my_decimal_cmp(val1, val2);
     }
   }
@@ -915,7 +917,9 @@ int Arg_comparator::compare_e_decimal()
   my_decimal *val2= (*b)->val_decimal(&decimal2);
   if ((*a)->null_value || (*b)->null_value)
     return MY_TEST((*a)->null_value && (*b)->null_value);
-  return MY_TEST(my_decimal_cmp(val1, val2) == 0);
+  my_decimal_round_if_needed(E_DEC_FATAL_ERROR, val1, (*a)->decimals, 0);
+  my_decimal_round_if_needed(E_DEC_FATAL_ERROR, val2, (*b)->decimals, 0);
+  return my_decimal_cmp(val1, val2) == 0;
 }
 
 

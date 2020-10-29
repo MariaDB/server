@@ -304,6 +304,17 @@ bool my_decimal_is_zero(const my_decimal *decimal_value)
 
 
 inline
+int my_decimal_round_if_needed(uint mask, my_decimal *dec, int scale,
+                               bool truncate)
+{
+  if (scale >= dec->frac)
+    return E_DEC_OK;
+  return check_result(mask, decimal_round(dec, dec, scale,
+					  (truncate ? TRUNCATE : HALF_UP)));
+}
+
+
+inline
 int my_decimal_round(uint mask, const my_decimal *from, int scale,
                      bool truncate, my_decimal *to)
 {
