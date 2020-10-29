@@ -14,8 +14,8 @@ CHECK_C_SOURCE_COMPILES(
 #include <grp.h>
 #include <unistd.h>
 int main() {
-  char *arg_1;
-  gid_t arg_2, arg_3;
+  char *arg_1= 0;
+  gid_t arg_2=0, arg_3;
   int arg_4;
   (void)getgrouplist(arg_1,arg_2,&arg_3,&arg_4);
   return 0;
