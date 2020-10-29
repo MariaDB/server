@@ -8688,7 +8688,8 @@ static int optimize_schema_tables_memory_usage(TABLE_LIST *table_list)
     {
       Field *field= table->field[i];
       DBUG_ASSERT(field->vcol_info == 0);
-      DBUG_ASSERT(from_recinfo->length= field->pack_length_in_rec());
+      DBUG_ASSERT(from_recinfo->length);
+      DBUG_ASSERT(from_recinfo->length == field->pack_length_in_rec());
       if (bitmap_is_set(table->read_set, i))
       {
         field->move_field(cur);
