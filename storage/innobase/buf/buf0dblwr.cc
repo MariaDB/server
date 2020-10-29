@@ -736,7 +736,15 @@ void buf_dblwr_t::add_to_batch(const IORequest &request, size_t size)
   encryption and/or page compression */
   void *frame= buf_page_get_frame(request.bpage);
 
-  memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(p, frame, size);
+  /* "frame" is at least 1024-byte aligned for ROW_FORMAT=COMPRESSED pages,
+  and at least srv_page_size (4096-byte) for everything else. */
+  memcpy_aligned<UNIV_ZIP_SIZE_MIN>(p, frame, size);
+  /* fil_page_compress() for page_compressed guarantees 256-byte alignment */
+  memset_aligned<256>(p + size, 0, srv_page_size - size);
+  /* FIXME: Inform the compiler that "size" and "srv_page_size - size"
+  are integer multiples of 256, so the above can translate into simple
+  SIMD instructions. Currently, we make no such assumptions about the
+  non-pointer parameters that are passed to the _aligned templates. */
   ut_ad(!request.bpage->zip_size() || request.bpage->zip_size() == size);
   ut_ad(active_slot->reserved == active_slot->first_free);
   ut_ad(active_slot->reserved < buf_size);
