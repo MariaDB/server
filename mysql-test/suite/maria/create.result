@@ -62,5 +62,16 @@ c1
 DROP TABLE t2,t3;
 SET @@SQL_MODE=@org_sql_mode;
 #
+# MDEV-23222 SIGSEGV in maria_status | Assertion `(longlong)
+# thd->status_var.local_memory_used >= 0
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE MDEV_23222 (i INT) DATA DIRECTORY = 'MYSQL_TMP_DIR', ENGINE=Aria TRANSACTIONAL=1;;
+flush tables;
+CREATE TABLE MDEV_23222 (i INT) DATA DIRECTORY = 'MYSQL_TMP_DIR', ENGINE=Aria TRANSACTIONAL=1;;
+Got one of the listed errors
+DROP TABLE t1;
+#
 # End of 10.3 tests
 #
