@@ -37,6 +37,9 @@ public:
   Field *make_table_field(MEM_ROOT *, const LEX_CSTRING *,
                           const Record_addr &, const Type_all_attributes &,
                           TABLE_SHARE *) const override;
+  void Column_definition_reuse_fix_attributes(THD *thd,
+                                              Column_definition *def,
+                                              const Field *field) const override;
 };
 
 Type_handler_mysql_json type_handler_mysql_json;
@@ -84,6 +87,16 @@ Field *Type_handler_mysql_json::make_table_field_from_def(TABLE_SHARE *share,
                  addr.null_bit(), attr->unireg_check, name, share,
                  attr->pack_flag_to_pack_length(), attr->charset);
 }
+
+void Type_handler_mysql_json::
+       Column_definition_reuse_fix_attributes(THD *thd,
+                                              Column_definition *def,
+                                              const Field *field) const
+{
+  Type_handler_blob::Column_definition_reuse_fix_attributes(thd, def, field);
+  def->decimals= 0;
+}
+
 
 
 Field *Type_handler_mysql_json::make_table_field(MEM_ROOT *root,
