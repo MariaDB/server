@@ -285,7 +285,7 @@ static bool parse_mysql_scalar(String *buffer, size_t value_json_type,
     const uchar type_value= *data;
     const enum_field_types field_type= static_cast<enum_field_types>(type_value);
 
-    size_t blob_length, length_bytes;
+    size_t UNINIT_VAR(blob_length), length_bytes;
     const uchar *blob_start;
 
     if (read_variable_length(data + 1, len, &blob_length, &length_bytes) ||
