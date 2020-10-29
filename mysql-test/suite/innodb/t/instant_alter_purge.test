@@ -59,8 +59,9 @@ if ($have_debug) {
 SET DEBUG_SYNC='now WAIT_FOR go';
 }
 COMMIT;
---source include/wait_all_purged.inc
+SET GLOBAL innodb_max_purge_lag_wait= 0;
 if ($have_debug) {
+--source include/wait_all_purged.inc
 SET DEBUG_SYNC='now SIGNAL do';
 }
 disconnect purge_control;

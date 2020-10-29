@@ -7827,7 +7827,6 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
                  bool is_com_multi,
                  bool is_next_command)
 {
-  int error __attribute__((unused));
   DBUG_ENTER("mysql_parse");
   DBUG_EXECUTE_IF("parser_debug", turn_parser_debug_on(););
 
@@ -7907,6 +7906,7 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
                                  (char *) thd->security_ctx->host_or_ip,
                                  0);
 
+          int error __attribute__((unused));
           error= mysql_execute_command(thd);
           MYSQL_QUERY_EXEC_DONE(error);
 	}
@@ -9006,8 +9006,6 @@ void add_join_natural(TABLE_LIST *a, TABLE_LIST *b, List<String> *using_fields,
                       SELECT_LEX *lex)
 {
   b->natural_join= a;
-  a->part_of_natural_join= TRUE;
-  b->part_of_natural_join= TRUE;
   lex->prev_join_using= using_fields;
 }
 

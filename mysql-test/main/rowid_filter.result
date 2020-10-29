@@ -1716,7 +1716,7 @@ EXPLAIN
       "key_length": "9",
       "used_key_parts": ["o_totaldiscount"],
       "rows": 39,
-      "filtered": 1.9499,
+      "filtered": "REPLACED",
       "index_condition": "orders.o_totaldiscount between 18000 and 20000",
       "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
     },
@@ -1734,7 +1734,7 @@ EXPLAIN
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
       "rows": 4,
-      "filtered": 3.0475,
+      "filtered": "REPLACED",
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
     }
   }
@@ -1746,8 +1746,8 @@ o_totaldiscount BETWEEN 18000 AND 20000 AND
 o_totalprice BETWEEN 200000 AND 220000 AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	orders	range	PRIMARY,i_o_orderdate,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	39	41.00	1.95	2.44	Using index condition; Using where
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	6.00	3.05	66.67	Using where
+1	SIMPLE	orders	range	PRIMARY,i_o_orderdate,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	39	41.00	#	2.44	Using index condition; Using where
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	6.00	#	66.67	Using where
 set statement optimizer_switch='rowid_filter=on' for ANALYZE FORMAT=JSON SELECT o_totaldiscount, o_totalprice, l_shipdate
 FROM v1, lineitem
 WHERE o_orderkey=l_orderkey AND
@@ -1776,7 +1776,7 @@ ANALYZE
       "rows": 39,
       "r_rows": 41,
       "r_total_time_ms": "REPLACED",
-      "filtered": 1.9499,
+      "filtered": "REPLACED",
       "r_filtered": 2.439,
       "index_condition": "orders.o_totaldiscount between 18000 and 20000",
       "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
@@ -1798,7 +1798,7 @@ ANALYZE
       "rows": 4,
       "r_rows": 6,
       "r_total_time_ms": "REPLACED",
-      "filtered": 3.0475,
+      "filtered": "REPLACED",
       "r_filtered": 66.667,
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
     }
@@ -1847,7 +1847,7 @@ EXPLAIN
       "key_length": "9",
       "used_key_parts": ["o_totaldiscount"],
       "rows": 39,
-      "filtered": 1.9499,
+      "filtered": "REPLACED",
       "index_condition": "orders.o_totaldiscount between 18000 and 20000",
       "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
     },
@@ -1865,7 +1865,7 @@ EXPLAIN
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
       "rows": 4,
-      "filtered": 3.0475,
+      "filtered": "REPLACED",
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
     }
   }
@@ -1877,8 +1877,8 @@ o_totaldiscount BETWEEN 18000 AND 20000 AND
 o_totalprice BETWEEN 200000 AND 220000 AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	orders	range	PRIMARY,i_o_orderdate,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	39	41.00	1.95	2.44	Using index condition; Using where
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	6.00	3.05	66.67	Using where
+1	SIMPLE	orders	range	PRIMARY,i_o_orderdate,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	39	41.00	#	2.44	Using index condition; Using where
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	6.00	#	66.67	Using where
 set statement optimizer_switch='rowid_filter=off' for ANALYZE FORMAT=JSON SELECT o_totaldiscount, o_totalprice, l_shipdate
 FROM v1, lineitem
 WHERE o_orderkey=l_orderkey AND
@@ -1907,7 +1907,7 @@ ANALYZE
       "rows": 39,
       "r_rows": 41,
       "r_total_time_ms": "REPLACED",
-      "filtered": 1.9499,
+      "filtered": "REPLACED",
       "r_filtered": 2.439,
       "index_condition": "orders.o_totaldiscount between 18000 and 20000",
       "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
@@ -1929,7 +1929,7 @@ ANALYZE
       "rows": 4,
       "r_rows": 6,
       "r_total_time_ms": "REPLACED",
-      "filtered": 3.0475,
+      "filtered": "REPLACED",
       "r_filtered": 66.667,
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
     }

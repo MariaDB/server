@@ -5,27 +5,35 @@ CHECK_INCLUDE_FILES (security/pam_ext.h  HAVE_PAM_EXT_H)
 CHECK_INCLUDE_FILES (security/pam_appl.h HAVE_PAM_APPL_H)
 CHECK_FUNCTION_EXISTS (strndup HAVE_STRNDUP)
 
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR})
+
+# Check whether getgrouplist uses git_t for second and third arguments.
+SET(CMAKE_REQUIRED_FLAGS -Werror)
+CHECK_C_SOURCE_COMPILES(
+"
+#include <grp.h>
+#include <unistd.h>
+int main() {
+  char *arg_1;
+  gid_t arg_2, arg_3;
+  int arg_4;
+  (void)getgrouplist(arg_1,arg_2,&arg_3,&arg_4);
+  return 0;
+}
+"
+HAVE_POSIX_GETGROUPLIST
+)
+SET(CMAKE_REQUIRED_FLAGS)
+
 SET(CMAKE_REQUIRED_LIBRARIES pam)
 CHECK_FUNCTION_EXISTS(pam_syslog HAVE_PAM_SYSLOG)
 SET(CMAKE_REQUIRED_LIBRARIES)
 
-IF(HAVE_PAM_SYSLOG)
-  ADD_DEFINITIONS(-DHAVE_PAM_SYSLOG)
-ENDIF()
-
-IF(HAVE_PAM_EXT_H)
-  ADD_DEFINITIONS(-DHAVE_PAM_EXT_H)
-ENDIF()
-
 IF(HAVE_PAM_APPL_H)
-  ADD_DEFINITIONS(-DHAVE_PAM_APPL_H)
-  IF(HAVE_STRNDUP)
-    ADD_DEFINITIONS(-DHAVE_STRNDUP)
-  ENDIF(HAVE_STRNDUP)
   FIND_LIBRARY(PAM_LIBRARY pam) # for srpm build-depends detection
   ADD_DEFINITIONS(-D_GNU_SOURCE)
   MYSQL_ADD_PLUGIN(auth_pam_v1 auth_pam_v1.c LINK_LIBRARIES pam MODULE_ONLY)
-  MYSQL_ADD_PLUGIN(auth_pam auth_pam.c LINK_LIBRARIES pam ${LIBDL} MODULE_ONLY)
+  MYSQL_ADD_PLUGIN(auth_pam auth_pam.c LINK_LIBRARIES pam ${CMAKE_DL_LIBS} MODULE_ONLY)
   IF (TARGET auth_pam)
     MYSQL_ADD_EXECUTABLE(auth_pam_tool auth_pam_tool.c DESTINATION ${INSTALL_PLUGINDIR}/auth_pam_tool_dir COMPONENT Server)
     TARGET_LINK_LIBRARIES(auth_pam_tool pam)
@@ -47,3 +55,6 @@ IF(HAVE_PAM_APPL_H)
     ENDIF()
   ENDIF()
 ENDIF(HAVE_PAM_APPL_H)
+
+CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmake
+               ${CMAKE_CURRENT_BINARY_DIR}/config_auth_pam.h)

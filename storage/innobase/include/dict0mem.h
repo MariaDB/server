@@ -297,20 +297,23 @@ parent table will fail, and user has to drop excessive foreign constraint
 before proceeds. */
 #define FK_MAX_CASCADE_DEL		15
 
-/**********************************************************************//**
-Creates a table memory object.
+/** Create a table memory object.
+@param name     table name
+@param space    tablespace
+@param n_cols   total number of columns (both virtual and non-virtual)
+@param n_v_cols number of virtual columns
+@param flags    table flags
+@param flags2   table flags2
 @return own: table object */
 dict_table_t*
 dict_mem_table_create(
-/*==================*/
-	const char*	name,		/*!< in: table name */
-	fil_space_t*	space,		/*!< in: tablespace */
-	ulint		n_cols,		/*!< in: total number of columns
-					including virtual and non-virtual
-					columns */
-	ulint		n_v_cols,	/*!< in: number of virtual columns */
-	ulint		flags,		/*!< in: table flags */
-	ulint		flags2);	/*!< in: table flags2 */
+	const char*	name,
+	fil_space_t*	space,
+	ulint		n_cols,
+	ulint		n_v_cols,
+	ulint		flags,
+	ulint		flags2);
+
 /****************************************************************//**
 Free a table memory object. */
 void
@@ -1118,7 +1121,7 @@ public:
 				when InnoDB was started up */
 	zip_pad_info_t	zip_pad;/*!< Information about state of
 				compression failures and successes */
-	rw_lock_t	lock;	/*!< read-write lock protecting the
+	mutable rw_lock_t	lock;	/*!< read-write lock protecting the
 				upper levels of the index tree */
 
 	/** Determine if the index has been committed to the
@@ -2102,20 +2105,8 @@ public:
 	/*!< set of foreign key constraints which refer to this table */
 	dict_foreign_set			referenced_set;
 
-	/** Statistics for query optimization. @{ */
-
-	/** This latch protects:
-	dict_table_t::stat_initialized,
-	dict_table_t::stat_n_rows (*),
-	dict_table_t::stat_clustered_index_size,
-	dict_table_t::stat_sum_of_other_index_sizes,
-	dict_table_t::stat_modified_counter (*),
-	dict_table_t::indexes*::stat_n_diff_key_vals[],
-	dict_table_t::indexes*::stat_index_size,
-	dict_table_t::indexes*::stat_n_leaf_pages.
-	(*) Those are not always protected for
-	performance reasons. */
-	rw_lock_t				stats_latch;
+	/** Statistics for query optimization. Mostly protected by
+	dict_sys.mutex. @{ */
 
 	/** TRUE if statistics have been calculated the first time after
 	database startup or table creation. */

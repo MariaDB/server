@@ -51,6 +51,27 @@ disconnect u1;
 drop user u1@localhost;
 drop database mysqltest1;
 
+--echo #
+--echo # MDEV-22313: Neither SHOW CREATE USER nor SHOW GRANTS prints a user's default role
+--echo #
+CREATE ROLE test_role;
+CREATE USER test_user;
+GRANT test_role TO test_user;
+SET DEFAULT ROLE test_role FOR test_user;
+SHOW GRANTS FOR test_user;
+SET DEFAULT ROLE NONE for test_user;
+SHOW GRANTS FOR test_user;
+connect test_user, localhost, test_user;
+SET ROLE test_role;
+SET DEFAULT ROLE test_role;
+SHOW GRANTS;
+SET DEFAULT ROLE NONE;
+SHOW GRANTS;
+disconnect test_user;
+connection default;
+DROP USER test_user;
+DROP ROLE test_role;
+
 #
 # End of 10.1 tests
 #

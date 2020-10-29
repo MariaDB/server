@@ -37,6 +37,7 @@ ALTER TABLE t1 ADD COLUMN f3 INT;
 connection purge_control;
 SET DEBUG_SYNC='now WAIT_FOR go';
 COMMIT;
+SET GLOBAL innodb_max_purge_lag_wait= 0;
 InnoDB		0 transactions not purged
 SET DEBUG_SYNC='now SIGNAL do';
 disconnect purge_control;

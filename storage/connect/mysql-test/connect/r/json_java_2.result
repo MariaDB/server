@@ -20,12 +20,12 @@ SELECT * from t1;
 Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Nullable	Jpath
 _id	1	CHAR	24	24	0	0	_id
 address_building	1	CHAR	10	10	0	0	address.building
-address_coord	1	CHAR	256	256	0	1	address.coord
+address_coord	1	CHAR	1024	1024	0	1	address.coord
 address_street	1	CHAR	38	38	0	0	address.street
 address_zipcode	1	CHAR	5	5	0	0	address.zipcode
 borough	1	CHAR	13	13	0	0	
 cuisine	1	CHAR	64	64	0	0	
-grades_date	1	CHAR	256	256	0	1	grades.0.date
+grades_date	1	CHAR	1024	1024	0	1	grades.0.date
 grades_grade	1	CHAR	14	14	0	1	grades.0.grade
 grades_score	5	BIGINT	2	2	0	1	grades.0.score
 name	1	CHAR	98	98	0	0	
@@ -64,16 +64,16 @@ OPTION_LIST='Level=1,Driver=Java,Version=2' CONNECTION='mongodb://localhost:2701
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `_id` char(24) NOT NULL `FIELD_FORMAT`='_id',
-  `address_building` char(10) NOT NULL `FIELD_FORMAT`='address.building',
-  `address_coord` varchar(256) DEFAULT NULL `FIELD_FORMAT`='address.coord',
-  `address_street` char(38) NOT NULL `FIELD_FORMAT`='address.street',
-  `address_zipcode` char(5) NOT NULL `FIELD_FORMAT`='address.zipcode',
+  `_id` char(24) NOT NULL `JPATH`='_id',
+  `address_building` char(10) NOT NULL `JPATH`='address.building',
+  `address_coord` varchar(1024) DEFAULT NULL `JPATH`='address.coord',
+  `address_street` char(38) NOT NULL `JPATH`='address.street',
+  `address_zipcode` char(5) NOT NULL `JPATH`='address.zipcode',
   `borough` char(13) NOT NULL,
   `cuisine` char(64) NOT NULL,
-  `grades_date` varchar(256) DEFAULT NULL `FIELD_FORMAT`='grades.0.date',
-  `grades_grade` char(14) DEFAULT NULL `FIELD_FORMAT`='grades.0.grade',
-  `grades_score` bigint(2) DEFAULT NULL `FIELD_FORMAT`='grades.0.score',
+  `grades_date` varchar(1024) DEFAULT NULL `JPATH`='grades.0.date',
+  `grades_grade` char(14) DEFAULT NULL `JPATH`='grades.0.grade',
+  `grades_score` bigint(2) DEFAULT NULL `JPATH`='grades.0.score',
   `name` char(98) NOT NULL,
   `restaurant_id` char(8) NOT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='mongodb://localhost:27017' `TABLE_TYPE`='JSON' `TABNAME`='restaurants' `OPTION_LIST`='Level=1,Driver=Java,Version=2' `DATA_CHARSET`='utf8' `LRECL`=4096
@@ -251,15 +251,15 @@ OPTION_LIST='Driver=Java,level=2,version=2';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `_id` char(24) NOT NULL `FIELD_FORMAT`='_id',
-  `address_building` char(10) NOT NULL `FIELD_FORMAT`='address.building',
-  `address_coord` double(18,16) DEFAULT NULL `FIELD_FORMAT`='address.coord.0',
-  `address_street` char(38) NOT NULL `FIELD_FORMAT`='address.street',
-  `address_zipcode` char(5) NOT NULL `FIELD_FORMAT`='address.zipcode',
+  `_id` char(24) NOT NULL `JPATH`='_id',
+  `address_building` char(10) NOT NULL `JPATH`='address.building',
+  `address_coord` double(18,16) DEFAULT NULL `JPATH`='address.coord.0',
+  `address_street` char(38) NOT NULL `JPATH`='address.street',
+  `address_zipcode` char(5) NOT NULL `JPATH`='address.zipcode',
   `borough` char(13) NOT NULL,
-  `grades_date` char(24) DEFAULT NULL `FIELD_FORMAT`='grades.0.date',
-  `grades_grade` char(14) DEFAULT NULL `FIELD_FORMAT`='grades.0.grade',
-  `grades_score` bigint(2) DEFAULT NULL `FIELD_FORMAT`='grades.0.score',
+  `grades_date` char(24) DEFAULT NULL `JPATH`='grades.0.date',
+  `grades_grade` char(14) DEFAULT NULL `JPATH`='grades.0.grade',
+  `grades_score` bigint(2) DEFAULT NULL `JPATH`='grades.0.score',
   `name` char(98) NOT NULL,
   `restaurant_id` char(8) NOT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='mongodb://localhost:27017' `TABLE_TYPE`='JSON' `TABNAME`='restaurants' `COLIST`='{"cuisine":0}' `FILTER`='{"cuisine":"French","borough":{"$ne":"Manhattan"}}' `OPTION_LIST`='Driver=Java,level=2,version=2' `LRECL`=4096

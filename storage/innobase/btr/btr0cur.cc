@@ -776,6 +776,8 @@ btr_cur_optimistic_latch_leaves(
 	ulint		mode;
 	ulint		left_page_no;
 	ulint		curr_page_no;
+	ut_ad(block->page.buf_fix_count);
+	ut_ad(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
 
 	switch (*latch_mode) {
 	case BTR_SEARCH_LEAF:
@@ -787,20 +789,10 @@ btr_cur_optimistic_latch_leaves(
 		mode = *latch_mode == BTR_SEARCH_PREV
 			? RW_S_LATCH : RW_X_LATCH;
 
-		buf_page_mutex_enter(block);
-		if (buf_block_get_state(block) != BUF_BLOCK_FILE_PAGE) {
-			buf_page_mutex_exit(block);
-			return(false);
-		}
-		/* pin the block not to be relocated */
-		buf_block_buf_fix_inc(block, file, line);
-		buf_page_mutex_exit(block);
-
 		rw_lock_s_lock(&block->lock);
 		if (block->modify_clock != modify_clock) {
 			rw_lock_s_unlock(&block->lock);
-
-			goto unpin_failed;
+			return false;
 		}
 
 		curr_page_no = block->page.id.page_no();
@@ -826,7 +818,7 @@ btr_cur_optimistic_latch_leaves(
 				/* release the left block */
 				btr_leaf_page_release(
 					cursor->left_block, mode, mtr);
-				goto unpin_failed;
+				return false;
 			}
 		} else {
 			cursor->left_block = NULL;
@@ -836,23 +828,28 @@ btr_cur_optimistic_latch_leaves(
 					    file, line, mtr)) {
 			if (btr_page_get_prev(buf_block_get_frame(block))
 			    == left_page_no) {
-				buf_block_buf_fix_dec(block);
+				/* block was already buffer-fixed while
+				entering the function and
+				buf_page_optimistic_get() buffer-fixes
+				it again. */
+				ut_ad(2 <= block->page.buf_fix_count);
 				*latch_mode = mode;
 				return(true);
 			} else {
-				/* release the block */
+				/* release the block and decrement of
+				buf_fix_count which was incremented
+				in buf_page_optimistic_get() */
 				btr_leaf_page_release(block, mode, mtr);
 			}
 		}
 
+		ut_ad(block->page.buf_fix_count);
 		/* release the left block */
 		if (cursor->left_block != NULL) {
 			btr_leaf_page_release(cursor->left_block,
 					      mode, mtr);
 		}
-unpin_failed:
-		/* unpin the block */
-		buf_block_buf_fix_dec(block);
+
 		return(false);
 
 	default:
@@ -1416,12 +1413,7 @@ btr_cur_search_to_nth_level_func(
 	guess = NULL;
 #else
 	info = btr_search_get_info(index);
-
-	if (!buf_pool_is_obsolete(info->withdraw_clock)) {
-		guess = info->root_guess;
-	} else {
-		guess = NULL;
-	}
+	guess = info->root_guess;
 
 #ifdef BTR_CUR_HASH_ADAPT
 
@@ -1851,10 +1843,7 @@ retry_page_get:
 		}
 
 #ifdef BTR_CUR_ADAPT
-		if (block != guess) {
-			info->root_guess = block;
-			info->withdraw_clock = buf_withdraw_clock;
-		}
+		info->root_guess = block;
 #endif
 	}
 
@@ -6847,21 +6836,19 @@ btr_record_not_null_field_in_rec(
 	}
 }
 
-/*******************************************************************//**
-Estimates the number of different key values in a given index, for
+/** Estimates the number of different key values in a given index, for
 each n-column prefix of the index where 1 <= n <= dict_index_get_n_unique(index).
 The estimates are stored in the array index->stat_n_diff_key_vals[] (indexed
 0..n_uniq-1) and the number of pages that were sampled is saved in
-index->stat_n_sample_sizes[].
+result.n_sample_sizes[].
 If innodb_stats_method is nulls_ignored, we also record the number of
 non-null values for each prefix and stored the estimates in
-array index->stat_n_non_null_key_vals.
-@return true if the index is available and we get the estimated numbers,
-false if the index is unavailable. */
-bool
-btr_estimate_number_of_different_key_vals(
-/*======================================*/
-	dict_index_t*	index)	/*!< in: index */
+array result.n_non_null_key_vals.
+@param[in]	index	index
+@return vector with statistics information
+empty vector if the index is unavailable. */
+std::vector<index_field_stats_t>
+btr_estimate_number_of_different_key_vals(dict_index_t* index)
 {
 	btr_cur_t	cursor;
 	page_t*		page;
@@ -6881,11 +6868,11 @@ btr_estimate_number_of_different_key_vals(
 	rec_offs*	offsets_rec	= NULL;
 	rec_offs*	offsets_next_rec = NULL;
 
+	std::vector<index_field_stats_t> result;
+
 	/* For spatial index, there is no such stats can be
 	fetched. */
-	if (dict_index_is_spatial(index)) {
-		return(false);
-	}
+	ut_ad(!dict_index_is_spatial(index));
 
 	n_cols = dict_index_get_n_unique(index);
 
@@ -6994,7 +6981,7 @@ btr_estimate_number_of_different_key_vals(
 			mtr_commit(&mtr);
 			mem_heap_free(heap);
 
-			return(false);
+			return result;
 		}
 
 		/* Count the number of different key values for each prefix of
@@ -7100,8 +7087,12 @@ exit_loop:
 	also the pages used for external storage of fields (those pages are
 	included in index->stat_n_leaf_pages) */
 
+	result.reserve(n_cols);
+
 	for (j = 0; j < n_cols; j++) {
-		index->stat_n_diff_key_vals[j]
+		index_field_stats_t stat;
+
+		stat.n_diff_key_vals
 			= BTR_TABLE_STATS_FROM_SAMPLE(
 				n_diff[j], index, n_sample_pages,
 				total_external_size, not_empty_flag);
@@ -7122,25 +7113,23 @@ exit_loop:
 			add_on = n_sample_pages;
 		}
 
-		index->stat_n_diff_key_vals[j] += add_on;
+		stat.n_diff_key_vals += add_on;
 
-		index->stat_n_sample_sizes[j] = n_sample_pages;
+		stat.n_sample_sizes = n_sample_pages;
 
-		/* Update the stat_n_non_null_key_vals[] with our
-		sampled result. stat_n_non_null_key_vals[] is created
-		and initialized to zero in dict_index_add_to_cache(),
-		along with stat_n_diff_key_vals[] array */
 		if (n_not_null != NULL) {
-			index->stat_n_non_null_key_vals[j] =
+			stat.n_non_null_key_vals =
 				 BTR_TABLE_STATS_FROM_SAMPLE(
 					n_not_null[j], index, n_sample_pages,
 					total_external_size, not_empty_flag);
 		}
+
+		result.push_back(stat);
 	}
 
 	mem_heap_free(heap);
 
-	return(true);
+	return result;
 }
 
 /*================== EXTERNAL STORAGE OF BIG FIELDS ===================*/

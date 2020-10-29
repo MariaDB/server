@@ -2529,17 +2529,24 @@ xb_get_copy_action(const char *dflt)
 	return(action);
 }
 
-/* TODO: We may tune the behavior (e.g. by fil_aio)*/
 
-static
-my_bool
-xtrabackup_copy_datafile(fil_node_t* node, uint thread_n, const char *dest_name=0, ulonglong max_size=ULLONG_MAX)
+/** Copy innodb data file to the specified destination.
+
+@param[in] node	file node of a tablespace
+@param[in] thread_n	thread id, used in the text of diagnostic messages
+@param[in] dest_name	destination file name
+@param[in] write_filter	write filter to copy data, can be pass-through filter
+for full backup, pages filter for incremental backup, etc.
+
+@return FALSE on success and TRUE on error */
+static my_bool xtrabackup_copy_datafile(fil_node_t *node, uint thread_n,
+                                        const char *dest_name,
+                                        const xb_write_filt_t &write_filter)
 {
 	char			 dst_name[FN_REFLEN];
 	ds_file_t		*dstfile = NULL;
 	xb_fil_cur_t		 cursor;
 	xb_fil_cur_result_t	 res;
-	xb_write_filt_t		*write_filter = NULL;
 	xb_write_filt_ctxt_t	 write_filt_ctxt;
 	const char		*action;
 	xb_read_filt_t		*read_filter;
@@ -2583,7 +2590,7 @@ xtrabackup_copy_datafile(fil_node_t* node, uint thread_n, const char *dest_name=
 		read_filter = &rf_bitmap;
 	}
 
-	res = xb_fil_cur_open(&cursor, read_filter, node, thread_n,max_size);
+	res = xb_fil_cur_open(&cursor, read_filter, node, thread_n, ULLONG_MAX);
 	if (res == XB_FIL_CUR_SKIP) {
 		goto skip;
 	} else if (res == XB_FIL_CUR_ERROR) {
@@ -2594,18 +2601,11 @@ xtrabackup_copy_datafile(fil_node_t* node, uint thread_n, const char *dest_name=
 		sizeof dst_name - 1);
 	dst_name[sizeof dst_name - 1] = '\0';
 
-	/* Setup the page write filter */
-	if (xtrabackup_incremental) {
-		write_filter = &wf_incremental;
-	} else {
-		write_filter = &wf_write_through;
-	}
-
 	memset(&write_filt_ctxt, 0, sizeof(xb_write_filt_ctxt_t));
-	ut_a(write_filter->process != NULL);
+	ut_a(write_filter.process != NULL);
 
-	if (write_filter->init != NULL &&
-	    !write_filter->init(&write_filt_ctxt, dst_name, &cursor)) {
+	if (write_filter.init != NULL &&
+	    !write_filter.init(&write_filt_ctxt, dst_name, &cursor)) {
 		msg (thread_n, "mariabackup: error: failed to initialize page write filter.");
 		goto error;
 	}
@@ -2626,7 +2626,7 @@ xtrabackup_copy_datafile(fil_node_t* node, uint thread_n, const char *dest_name=
 
 	/* The main copy loop */
 	while ((res = xb_fil_cur_read(&cursor)) == XB_FIL_CUR_SUCCESS) {
-		if (!write_filter->process(&write_filt_ctxt, dstfile)) {
+		if (!write_filter.process(&write_filt_ctxt, dstfile)) {
 			goto error;
 		}
 	}
@@ -2635,8 +2635,8 @@ xtrabackup_copy_datafile(fil_node_t* node, uint thread_n, const char *dest_name=
 		goto error;
 	}
 
-	if (write_filter->finalize
-	    && !write_filter->finalize(&write_filt_ctxt, dstfile)) {
+	if (write_filter.finalize
+	    && !write_filter.finalize(&write_filt_ctxt, dstfile)) {
 		goto error;
 	}
 
@@ -2650,8 +2650,8 @@ xtrabackup_copy_datafile(fil_node_t* node, uint thread_n, const char *dest_name=
 	if (ds_close(dstfile)) {
 		rc = TRUE;
 	}
-	if (write_filter && write_filter->deinit) {
-		write_filter->deinit(&write_filt_ctxt);
+	if (write_filter.deinit) {
+		write_filter.deinit(&write_filt_ctxt);
 	}
 	return(rc);
 
@@ -2660,8 +2660,8 @@ error:
 	if (dstfile != NULL) {
 		ds_close(dstfile);
 	}
-	if (write_filter && write_filter->deinit) {
-		write_filter->deinit(&write_filt_ctxt);;
+	if (write_filter.deinit) {
+		write_filter.deinit(&write_filt_ctxt);;
 	}
 	msg(thread_n, "mariabackup: xtrabackup_copy_datafile() failed.");
 	return(TRUE); /*ERROR*/
@@ -2671,8 +2671,8 @@ skip:
 	if (dstfile != NULL) {
 		ds_close(dstfile);
 	}
-	if (write_filter && write_filter->deinit) {
-		write_filter->deinit(&write_filt_ctxt);
+	if (write_filter.deinit) {
+		write_filter.deinit(&write_filt_ctxt);
 	}
 	msg(thread_n,"Warning: We assume the  table was dropped during xtrabackup execution and ignore the tablespace %s", node_name);
 	return(FALSE);
@@ -2968,9 +2968,9 @@ DECLARE_THREAD(data_copy_thread_func)(
 	while ((node = datafiles_iter_next(ctxt->it)) != NULL) {
 		DBUG_MARIABACKUP_EVENT("before_copy", node->space->name);
 		/* copy the datafile */
-		if(xtrabackup_copy_datafile(node, num)) {
+		if (xtrabackup_copy_datafile(node, num, NULL,
+			xtrabackup_incremental ? wf_incremental : wf_write_through))
 			die("failed to copy datafile.");
-		}
 
 		DBUG_MARIABACKUP_EVENT("after_copy", node->space->name);
 
@@ -4578,7 +4578,7 @@ void backup_fix_ddl(void)
 			continue;
 		std::string dest_name(node->space->name);
 		dest_name.append(".new");
-		xtrabackup_copy_datafile(node, 0, dest_name.c_str()/*, do_full_copy ? ULONGLONG_MAX:UNIV_PAGE_SIZE */);
+		xtrabackup_copy_datafile(node, 0, dest_name.c_str(), wf_write_through);
 	}
 
 	datafiles_iter_free(it);
@@ -5140,22 +5140,66 @@ static void rename_force(const char *from, const char *to) {
 	rename_file(from,to);
 }
 
-/* During prepare phase, rename ".new" files , that were created in backup_fix_ddl(),
-  to ".ibd".*/
-static ibool prepare_handle_new_files(
-	const char*	data_home_dir,		/*!<in: path to datadir */
-	const char*	db_name,		/*!<in: database name */
-	const char*	file_name,		/*!<in: file name with suffix */
-	void *)
-{
 
+/** During prepare phase, rename ".new" files, that were created in
+backup_fix_ddl() and backup_optimized_ddl_op(), to ".ibd". In the case of
+incremental backup, i.e. of arg argument is set, move ".new" files to
+destination directory and rename them to ".ibd", remove existing ".ibd.delta"
+and ".idb.meta" files in incremental directory to avoid applying delta to
+".ibd" file.
+
+@param[in] data_home_dir	path to datadir
+@param[in] db_name	database name
+@param[in] file_name	file name with suffix
+@param[in] arg	destination path, used in incremental backup to notify, that
+*.new file must be moved to destibation directory
+
+@return true */
+static ibool prepare_handle_new_files(const char *data_home_dir,
+                                      const char *db_name,
+                                      const char *file_name, void *arg)
+{
+	const char *dest_dir = static_cast<const char *>(arg);
 	std::string src_path = std::string(data_home_dir) + '/' + std::string(db_name) + '/' + file_name;
-	std::string dest_path = src_path;
+	/* Copy "*.new" files from incremental to base dir for incremental backup */
+	std::string dest_path=
+		dest_dir ? std::string(dest_dir) + '/' + std::string(db_name) +
+			'/' + file_name : src_path;
 
 	size_t index = dest_path.find(".new");
 	DBUG_ASSERT(index != std::string::npos);
-	dest_path.replace(index, 4, ".ibd");
+	dest_path.replace(index, strlen(".ibd"), ".ibd");
 	rename_force(src_path.c_str(),dest_path.c_str());
+
+	if (dest_dir) {
+		/* remove delta and meta files to avoid delta applying for new file */
+		index = src_path.find(".new");
+		DBUG_ASSERT(index != std::string::npos);
+		src_path.replace(index, std::string::npos, ".ibd.delta");
+		if (access(src_path.c_str(), R_OK) == 0) {
+			msg("Removing %s", src_path.c_str());
+			if (my_delete(src_path.c_str(), MYF(MY_WME)))
+				die("Can't remove %s, errno %d", src_path.c_str(), errno);
+		}
+		src_path.replace(index, std::string::npos, ".ibd.meta");
+		if (access(src_path.c_str(), R_OK) == 0) {
+			msg("Removing %s", src_path.c_str());
+			if (my_delete(src_path.c_str(), MYF(MY_WME)))
+				die("Can't remove %s, errno %d", src_path.c_str(), errno);
+		}
+
+		/* add table name to the container to avoid it's deletion at the end of
+		 prepare */
+		std::string table_name = std::string(db_name) + '/'
+			+ std::string(file_name, file_name + strlen(file_name) - strlen(".new"));
+		xb_filter_entry_t *table = static_cast<xb_filter_entry_t *>
+			(malloc(sizeof(xb_filter_entry_t) + table_name.size() + 1));
+		table->name = ((char*)table) + sizeof(xb_filter_entry_t);
+		strcpy(table->name, table_name.c_str());
+		HASH_INSERT(xb_filter_entry_t, name_hash, inc_dir_tables_hash,
+				ut_fold_string(table->name), table);
+	}
+
 	return TRUE;
 }
 
@@ -5192,17 +5236,18 @@ rm_if_not_found(
 	return(TRUE);
 }
 
-/************************************************************************
-Function enumerates files in datadir (provided by path) which are matched
+/** Function enumerates files in datadir (provided by path) which are matched
 by provided suffix. For each entry callback is called.
+
+@param[in] path	datadir path
+@param[in] suffix	suffix to match against
+@param[in] func	callback
+@param[in] func_arg	arguments for the above callback
+
 @return FALSE if callback for some entry returned FALSE */
-static
-ibool
-xb_process_datadir(
-	const char*			path,	/*!<in: datadir path */
-	const char*			suffix,	/*!<in: suffix to match
-						against */
-	handle_datadir_entry_func_t	func)	/*!<in: callback */
+static ibool xb_process_datadir(const char *path, const char *suffix,
+                                handle_datadir_entry_func_t func,
+                                void *func_arg = NULL)
 {
 	ulint		ret;
 	char		dbpath[OS_FILE_MAX_PATH+2];
@@ -5237,7 +5282,7 @@ xb_process_datadir(
 					suffix)) {
 				if (!func(
 					    path, NULL,
-					    fileinfo.name, NULL))
+					    fileinfo.name, func_arg))
 				{
 					os_file_closedir(dbdir);
 					return(FALSE);
@@ -5301,7 +5346,7 @@ next_file_item_1:
 					if (!func(
 						    path,
 						    dbinfo.name,
-						    fileinfo.name, NULL))
+						    fileinfo.name, func_arg))
 					{
 						os_file_closedir(dbdir);
 						os_file_closedir(dir);
@@ -5461,6 +5506,12 @@ static bool xtrabackup_prepare_func(char** argv)
 
 	fil_path_to_mysql_datadir = ".";
 
+	ut_ad(xtrabackup_incremental == xtrabackup_incremental_dir);
+	if (xtrabackup_incremental) {
+		inc_dir_tables_hash = hash_create(1000);
+		ut_ad(inc_dir_tables_hash);
+	}
+
 	/* Fix DDL for prepare. Process .del,.ren, and .new files.
 	The order in which files are processed, is important
 	(see MDEV-18185, MDEV-18201)
@@ -5472,6 +5523,8 @@ static bool xtrabackup_prepare_func(char** argv)
 	if (xtrabackup_incremental_dir) {
 		xb_process_datadir(xtrabackup_incremental_dir, ".new.meta", prepare_handle_new_files);
 		xb_process_datadir(xtrabackup_incremental_dir, ".new.delta", prepare_handle_new_files);
+		xb_process_datadir(xtrabackup_incremental_dir, ".new",
+				prepare_handle_new_files, (void *)".");
 	}
 	else {
 		xb_process_datadir(".", ".new", prepare_handle_new_files);
@@ -5554,8 +5607,6 @@ static bool xtrabackup_prepare_func(char** argv)
 			    "with error %s\n", ut_strerr(err));
 			goto error_cleanup;
 		}
-
-		inc_dir_tables_hash = hash_create(1000);
 
 		ok = xtrabackup_apply_deltas();
 

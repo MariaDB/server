@@ -6,7 +6,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1993-2019    */
+/*  (C) Copyright to the author Olivier BERTRAND          1993-2020    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -142,7 +142,7 @@ void htrc(char const* fmt, ...)
 /*  Language points on initial language name and eventual path.        */
 /*  Return value is the pointer to the Global structure.               */
 /***********************************************************************/
-PGLOBAL PlugInit(LPCSTR Language, uint worksize)
+PGLOBAL PlugInit(LPCSTR Language, size_t worksize)
 {
 	PGLOBAL g;
 
@@ -158,13 +158,14 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
 	} // end try/catch
 
 	g->Sarea = NULL;
-	g->Createas = 0;
+	g->Createas = false;
 	g->Alchecked = 0;
 	g->Mrr = 0;
 	g->Activityp = NULL;
 	g->Xchk = NULL;
 	g->N = 0;
 	g->More = 0;
+	g->Saved_Size = 0;
 	strcpy(g->Message, "");
 
 	/*******************************************************************/
@@ -459,7 +460,7 @@ short GetLineLength(PGLOBAL g)
 /***********************************************************************/
 /*  Program for memory allocation of work and language areas.          */
 /***********************************************************************/
-bool AllocSarea(PGLOBAL g, uint size)
+bool AllocSarea(PGLOBAL g, size_t size)
 {
   /*********************************************************************/
   /*  This is the allocation routine for the WIN32/UNIX/AIX version.   */
@@ -483,7 +484,7 @@ bool AllocSarea(PGLOBAL g, uint size)
 	if (trace(8)) {
 #endif
     if (g->Sarea)
-      htrc("Work area of %u allocated at %p\n", size, g->Sarea);
+      htrc("Work area of %zd allocated at %p\n", size, g->Sarea);
     else
       htrc("SareaAlloc: %-.256s\n", g->Message);
 
@@ -510,7 +511,7 @@ void FreeSarea(PGLOBAL g)
 #else
 		if (trace(8))
 #endif
-			htrc("Freeing Sarea at %p size = %d\n", g->Sarea, g->Sarea_Size);
+			htrc("Freeing Sarea at %p size = %zd\n", g->Sarea, g->Sarea_Size);
 
 		g->Sarea = NULL;
 		g->Sarea_Size = 0;
@@ -524,11 +525,11 @@ void FreeSarea(PGLOBAL g)
 /*  Here there should be some verification done such as validity of    */
 /*  the address and size not larger than memory size.                  */
 /***********************************************************************/
-BOOL PlugSubSet(void *memp, uint size)
+BOOL PlugSubSet(void *memp, size_t size)
   {
   PPOOLHEADER pph = (PPOOLHEADER)memp;
 
-  pph->To_Free = (OFFSET)sizeof(POOLHEADER);
+  pph->To_Free = (size_t)sizeof(POOLHEADER);
   pph->FreeBlk = size - pph->To_Free;
   return FALSE;
   } /* end of PlugSubSet */
@@ -560,15 +561,15 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
   pph = (PPOOLHEADER)memp;
 
   if (trace(16))
-    htrc("SubAlloc in %p size=%d used=%d free=%d\n",
+    htrc("SubAlloc in %p size=%zd used=%zd free=%zd\n",
           memp, size, pph->To_Free, pph->FreeBlk);
 
-  if ((uint)size > pph->FreeBlk) {   /* Not enough memory left in pool */
+  if (size > pph->FreeBlk) {   /* Not enough memory left in pool */
     PCSZ pname = "Work";
 
     sprintf(g->Message,
-      "Not enough memory in %-.256s area for request of %u (used=%d free=%d)",
-                          pname, (uint)size, pph->To_Free, pph->FreeBlk);
+      "Not enough memory in %-.256s area for request of %zu (used=%zu free=%zu)",
+                          pname, size, pph->To_Free, pph->FreeBlk);
 
     if (trace(1))
       htrc("PlugSubAlloc: %-.256s\n", g->Message);
@@ -580,11 +581,11 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
   /*  Do the suballocation the simplest way.                           */
   /*********************************************************************/
   memp = MakePtr(memp, pph->To_Free); /* Points to suballocated block  */
-  pph->To_Free += (OFFSET)size;       /* New offset of pool free block */
-  pph->FreeBlk -= (uint)size;         /* New size   of pool free block */
+  pph->To_Free += size;               /* New offset of pool free block */
+  pph->FreeBlk -= size;               /* New size   of pool free block */
 
   if (trace(16))
-    htrc("Done memp=%p used=%d free=%d\n",
+    htrc("Done memp=%p used=%zd free=%zd\n",
           memp, pph->To_Free, pph->FreeBlk);
 
   return (memp);
@@ -605,40 +606,4 @@ char *PlugDup(PGLOBAL g, const char *str)
 
   } // end of PlugDup 
 
-#if 0
-/***********************************************************************/
-/* This routine suballocate a copy of the passed string.               */
-/***********************************************************************/
-char *PlugDup(PGLOBAL g, const char *str)
-  {
-  char  *buf;
-  size_t len;
-
-  if (str && (len = strlen(str))) {
-    buf = (char*)PlugSubAlloc(g, NULL, len + 1);
-    strcpy(buf, str);
-  } else
-    buf = NULL;
-
-  return(buf);
-  } /* end of PlugDup */
-#endif // 0
-
-/***********************************************************************/
-/* This routine makes a pointer from an offset to a memory pointer.    */
-/***********************************************************************/
-void *MakePtr(void *memp, OFFSET offset)
-  {
-  return ((offset == 0) ? NULL : &((char *)memp)[offset]);
-  } /* end of MakePtr */
-
-/***********************************************************************/
-/* This routine makes an offset from a pointer new format.             */
-/***********************************************************************/
-#if 0
-OFFSET MakeOff(void *memp, void *ptr)
-  {
-  return ((!ptr) ? 0 : (OFFSET)((char *)ptr - (char *)memp));
-  } /* end of MakeOff */
-#endif
 /*--------------------- End of PLUGUTIL program -----------------------*/
