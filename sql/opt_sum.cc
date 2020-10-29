@@ -399,20 +399,28 @@ int opt_sum_query(THD *thd,
             break;
           }
           longlong info_limit= 1;
-          table->file->info_push(INFO_KIND_FORCE_LIMIT_BEGIN, &info_limit);
-          if (likely(!(error= table->file->ha_index_init((uint) ref.key, 1))))
-            error= (is_max ? 
-                    get_index_max_value(table, &ref, range_fl) :
-                    get_index_min_value(table, &ref, item_field, range_fl,
-                                        prefix_len));
+          error= 0;
 
+          table->file->info_push(INFO_KIND_FORCE_LIMIT_BEGIN, &info_limit);
+          if (!table->const_table)
+          {
+            if (likely(!(error= table->file->ha_index_init((uint) ref.key,
+                                                           1))))
+              error= (is_max ?
+                      get_index_max_value(table, &ref, range_fl) :
+                      get_index_min_value(table, &ref, item_field, range_fl,
+                                          prefix_len));
+          }
           /* Verify that the read tuple indeed matches the search key */
 	  if (!error &&
               reckey_in_range(is_max, &ref, item_field->field,
                               conds, range_fl, prefix_len))
 	    error= HA_ERR_KEY_NOT_FOUND;
-          table->file->ha_end_keyread();
-          table->file->ha_index_end();
+          if (!table->const_table)
+          {
+            table->file->ha_end_keyread();
+            table->file->ha_index_end();
+          }
           table->file->info_push(INFO_KIND_FORCE_LIMIT_END, NULL);
           if (error)
 	  {
