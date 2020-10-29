@@ -202,7 +202,6 @@ public:
     @return An item representing the function call
   */
   virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) = 0;
-
 protected:
   /** Constructor. */
   Create_func_arg2() {}
@@ -229,7 +228,6 @@ public:
     @return An item representing the function call
   */
   virtual Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) = 0;
-
 protected:
   /** Constructor. */
   Create_func_arg3() {}
@@ -975,6 +973,19 @@ class Create_func_distance : public Create_func_arg2
     Create_func_distance() {}
     virtual ~Create_func_distance() {}
 };
+
+
+class Create_func_distance_sphere: public Create_native_func
+{
+  public:
+    virtual Item *create_native(THD *thd, LEX_STRING name, List<Item> *item_list);
+    static Create_func_distance_sphere s_singleton;
+
+  protected:
+    Create_func_distance_sphere() {}
+    virtual ~Create_func_distance_sphere() {}
+};
+
 #endif
 
 
@@ -4761,6 +4772,26 @@ Create_func_glength::create_1_arg(THD *thd, Item *arg1)
 {
   return new (thd->mem_root) Item_func_glength(thd, arg1);
 }
+
+
+Create_func_distance_sphere Create_func_distance_sphere::s_singleton;
+
+Item*
+Create_func_distance_sphere::create_native(THD *thd, LEX_STRING name,
+                                           List<Item> *item_list)
+{
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  if (arg_count < 2)
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name.str);
+    return NULL;
+  }
+  return new (thd->mem_root) Item_func_sphere_distance(thd, *item_list);
+}
 #endif
 
 
@@ -7051,6 +7082,7 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("ST_WITHIN") }, GEOM_BUILDER(Create_func_within)},
   { { C_STRING_WITH_LEN("ST_X") }, GEOM_BUILDER(Create_func_x)},
   { { C_STRING_WITH_LEN("ST_Y") }, GEOM_BUILDER(Create_func_y)},
+  { { C_STRING_WITH_LEN("ST_DISTANCE_SPHERE") }, GEOM_BUILDER(Create_func_distance_sphere)},
   { { C_STRING_WITH_LEN("SUBSTRING_INDEX") }, BUILDER(Create_func_substr_index)},
   { { C_STRING_WITH_LEN("SUBTIME") }, BUILDER(Create_func_subtime)},
   { { C_STRING_WITH_LEN("TAN") }, BUILDER(Create_func_tan)},
