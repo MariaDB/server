@@ -514,7 +514,11 @@ inline void fil_space_t::flush_low()
   for (fil_node_t *node= UT_LIST_GET_FIRST(chain); node;
        node= UT_LIST_GET_NEXT(chain, node))
   {
-    ut_a(node->is_open());
+    if (!node->is_open())
+    {
+      ut_ad(!is_in_unflushed_spaces);
+      continue;
+    }
     IF_WIN(if (node->is_raw_disk) continue,);
     os_file_flush(node->handle);
   }

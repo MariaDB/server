@@ -1,0 +1,19 @@
+--source include/have_innodb.inc
+
+SELECT @@GLOBAL.innodb_open_files;
+
+CREATE TABLE t0 (a INT) ENGINE=InnoDB;
+# Ensure that the created table t0 is clean.
+FLUSH TABLE t0 WITH READ LOCK;
+UNLOCK TABLES;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+CREATE TABLE t3 (a INT) ENGINE=InnoDB;
+CREATE TABLE t4 (a INT) ENGINE=InnoDB;
+CREATE TABLE t5 (a INT) ENGINE=InnoDB;
+CREATE TABLE t6 (a INT) ENGINE=InnoDB;
+CREATE TABLE t7 (a INT) ENGINE=InnoDB;
+# Now, the data file for t0 should not be open anymore.
+FLUSH TABLE t0 WITH READ LOCK;
+UNLOCK TABLES;
+DROP TABLE t0, t1, t2, t3, t4, t5, t6, t7;
