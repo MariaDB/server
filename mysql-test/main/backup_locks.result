@@ -146,3 +146,22 @@ connection default;
 disconnect con1;
 show tables;
 Tables_in_test
+#
+#  MDEV-22879 SIGSEGV (or hang) in free/my_free from
+# _ma_end_block_record (on optimized builds)
+#
+SET STATEMENT max_statement_time=20 FOR BACKUP LOCK test.t1;
+CREATE TABLE IF NOT EXISTS t3 (c1 CHAR(1) BINARY,c2 SMALLINT(10),c3 NUMERIC(1,0), PRIMARY KEY(c1(1))) ENGINE=InnoDB;
+ERROR HY000: Can't execute the query because you have a conflicting read lock
+BACKUP UNLOCK;
+CREATE TABLE IF NOT EXISTS t3 (c1 CHAR(1) BINARY,c2 SMALLINT(10),c3 NUMERIC(1,0), PRIMARY KEY(c1(1))) ENGINE=InnoDB;
+SET STATEMENT max_statement_time=20 FOR BACKUP LOCK test.t1;
+LOCK TABLES t3 AS a2 WRITE, t3 AS a1 READ LOCAL;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+DROP TABLE t3;
+ERROR HY000: Can't execute the query because you have a conflicting read lock
+BACKUP UNLOCK;
+DROP TABLE t3;
+#
+# End of MariaDB 10.4 tests
+#
