@@ -3236,8 +3236,7 @@ void mysqld_stmt_execute(THD *thd, char *packet_arg, uint packet_length)
 
   if (packet_length < packet_min_lenght)
   {
-    my_error(ER_MALFORMED_PACKET, MYF(0), 0,
-      "", "mysqld_stmt_execute");
+    my_error(ER_MALFORMED_PACKET, MYF(0));
     DBUG_VOID_RETURN;
   }
   ulong stmt_id= uint4korr(packet);
@@ -3427,9 +3426,7 @@ static void mysql_stmt_execute_common(THD *thd,
   if (stmt_execute_packet_sanity_check(stmt, packet, packet_end, bulk_op,
                                        stmt_id == LAST_STMT_ID, read_types))
   {
-    char llbuf[22];
-    my_error(ER_MALFORMED_PACKET, MYF(0), static_cast<int>(sizeof(llbuf)),
-             llstr(stmt_id, llbuf), "mysqld_stmt_execute");
+    my_error(ER_MALFORMED_PACKET, MYF(0));
     DBUG_VOID_RETURN;
   }
 
