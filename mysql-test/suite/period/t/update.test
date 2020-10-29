@@ -192,8 +192,12 @@ CREATE TABLE t1 (a INT, b DATE, c DATE, PERIOD FOR APPTIME(b, c));
 INSERT INTO t1 VALUES(1, '1999-01-01', '2018-12-12');
 
 # Without a patch the following statement crashs a server built in debug mode
+let $stmt= UPDATE t1 FOR PORTION OF APPTIME FROM (SELECT '1999-01-01' FROM t1 WHERE a=2) TO '2018-01-01' SET a = 100;
 --error ER_NOT_SUPPORTED_YET
-UPDATE t1 FOR PORTION OF APPTIME FROM (SELECT '1999-01-01' FROM t1 WHERE a=2) TO '2018-01-01' SET a = 100;
+eval $stmt;
+eval set @tmp= "$stmt";
+--error ER_NOT_SUPPORTED_YET
+execute immediate @tmp;
 
 CREATE VIEW v1 AS SELECT * FROM t1;
 --error ER_IT_IS_A_VIEW

@@ -299,6 +299,9 @@ CREATE TABLE t1 (a INT, b DATE, c DATE, PERIOD FOR APPTIME(b, c));
 INSERT INTO t1 VALUES(1, '1999-01-01', '2018-12-12');
 UPDATE t1 FOR PORTION OF APPTIME FROM (SELECT '1999-01-01' FROM t1 WHERE a=2) TO '2018-01-01' SET a = 100;
 ERROR 42000: This version of MariaDB doesn't yet support 'updating and querying the same temporal periods table'
+set @tmp= "UPDATE t1 FOR PORTION OF APPTIME FROM (SELECT '1999-01-01' FROM t1 WHERE a=2) TO '2018-01-01' SET a = 100";
+execute immediate @tmp;
+ERROR 42000: This version of MariaDB doesn't yet support 'updating and querying the same temporal periods table'
 CREATE VIEW v1 AS SELECT * FROM t1;
 UPDATE v1 FOR PORTION OF APPTIME FROM (SELECT '1999-01-01' FROM t1 WHERE a=2) TO '2018-01-01' SET a = 100;
 ERROR 42S02: 'v1' is a view
