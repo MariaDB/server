@@ -3,7 +3,7 @@ call mtr.add_suppression("is marked as crashed");
 call mtr.add_suppression("Checking");
 SET NAMES utf8;
 set sql_mode="";
-install soname 'type_mysql_json.so';
+install soname 'type_mysql_json';
 show create table tempty;
 ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.tempty` FORCE" or dump/reload to fix it!
 show create table mysql_json_test;
@@ -103,4 +103,4 @@ Total_Number_of_Tests	Succesful_Tests	String_is_valid_JSON
 drop table tempty;
 drop table mysql_json_test;
 drop table mysql_json_test_big;
-uninstall soname 'type_mysql_json.so';
+uninstall soname 'type_mysql_json';
