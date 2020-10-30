@@ -1334,7 +1334,7 @@ static void setup_key_functions(register MARIA_KEYDEF *keyinfo)
 
 
 /**
-   @brief Function to save and store the header in the index file (.MYI)
+   @brief Function to save and store the header in the index file (.MAI)
 
    Operates under MARIA_SHARE::intern_lock if requested.
    Sets MARIA_SHARE::MARIA_STATE_INFO::is_of_horizon if transactional table.
