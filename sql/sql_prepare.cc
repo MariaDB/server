@@ -122,7 +122,10 @@ When one supplies long data for a placeholder:
 #include "lock.h"                               // MYSQL_OPEN_FORCE_SHARED_MDL
 #include "sql_handler.h"
 #include "transaction.h"                        // trans_rollback_implicit
+#ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
+#include "wsrep_trans_observer.h"
+#endif /* WITH_WSREP */
 
 /**
   A result class used to send cursor rows using the binary protocol.
@@ -4414,6 +4417,23 @@ reexecute:
 
     thd->m_reprepare_observer= NULL;
 
+#ifdef WITH_WSREP
+    if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_OPTIMIZED) &&
+	WSREP(thd))
+    {
+      if (wsrep_after_statement(thd))
+      {
+        /*
+          Re-execution success is unlikely after an error from
+          wsrep_after_statement(), so retrun error immediately.
+        */
+        thd->get_stmt_da()->reset_diagnostics_area();
+        wsrep_override_error(thd, thd->wsrep_cs().current_error(),
+                             thd->wsrep_cs().current_error_status());
+      }
+    }
+    else
+#endif /* WITH_WSREP */
     if (unlikely(error) &&
         (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
         !thd->is_fatal_error && !thd->killed &&
