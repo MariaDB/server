@@ -20860,6 +20860,153 @@ static void test_explain_meta()
 }
 
 
+#ifndef EMBEDDED_LIBRARY
+#define MDEV19838_MAX_PARAM_COUNT 32
+#define MDEV19838_FIELDS_COUNT 17
+static void test_mdev19838()
+{
+  int rc;
+  MYSQL_BIND bind[MDEV19838_MAX_PARAM_COUNT];
+  unsigned int i, paramCount = 1;
+  char charvalue[] = "012345678901234567890123456789012345";
+  MYSQL_STMT *stmt;
+
+  myheader("test_mdev19838");
+
+  rc = mysql_query(mysql, "CREATE TABLE mdev19838("
+          "f1  char(36),"
+          "f2  char(36),"
+          "f3  char(36),"
+          "f4  char(36),"
+          "f5  char(36),"
+          "f6  char(36),"
+          "f7  char(36),"
+          "f8  char(36),"
+          "f9  char(36),"
+          "f10 char(36),"
+          "f11 char(36),"
+          "f12 char(36),"
+          "f13 char(36),"
+          "f14 char(36),"
+          "f15 char(36),"
+          "f16 char(36),"
+          "f17 char(36)"
+    ")");
+  myquery(rc);
+
+  stmt = mysql_stmt_init(mysql);
+  check_stmt(stmt);
+
+  memset(bind, 0, sizeof(bind));
+
+  for (i = 0; i < MDEV19838_MAX_PARAM_COUNT; ++i)
+  {
+    bind[i].buffer = charvalue;
+    bind[i].buffer_type = MYSQL_TYPE_STRING;
+    bind[i].buffer_length = strlen(charvalue) + 1;
+    bind[i].length = &bind[i].length_value;
+    bind[i].length_value = bind[i].buffer_length - 1;
+  }
+
+  for (paramCount = 1; paramCount < MDEV19838_FIELDS_COUNT; ++paramCount)
+  {
+    mysql_stmt_attr_set(stmt, STMT_ATTR_PREBIND_PARAMS, &paramCount);
+
+    rc = mysql_stmt_bind_param(stmt, bind);
+    check_execute(stmt, rc);
+
+    rc = mariadb_stmt_execute_direct(stmt, "INSERT INTO mdev19838"
+      "(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17)"
+      " VALUES "
+      "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1);
+
+    /* Expecting an error */
+    DIE_UNLESS(rc != 0);
+
+    mysql_stmt_close(stmt);
+    stmt = mysql_stmt_init(mysql);
+    check_stmt(stmt);
+  }
+
+  paramCount = 0;
+  mysql_stmt_attr_set(stmt, STMT_ATTR_PREBIND_PARAMS, &paramCount);
+  rc = mariadb_stmt_execute_direct(stmt, "INSERT INTO mdev19838(f1)"
+    " VALUES (?)", -1);
+  /* Expecting an error */
+  DIE_UNLESS(rc != 0);
+  mysql_stmt_close(stmt);
+
+  stmt = mysql_stmt_init(mysql);
+  check_stmt(stmt);
+  /* Correct number of parameters */
+  paramCount = MDEV19838_FIELDS_COUNT;
+  mysql_stmt_attr_set(stmt, STMT_ATTR_PREBIND_PARAMS, &paramCount);
+  mysql_stmt_bind_param(stmt, bind);
+
+  rc = mariadb_stmt_execute_direct(stmt, "INSERT INTO mdev19838"
+    "(f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17)"
+    " VALUES "
+    "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1);
+  check_execute(stmt, rc);
+
+  /* MYSQL_TYPE_TINY = 1. This parameter byte can be read as "parameters send" flag byte.
+     Checking that wrong packet is still detected */
+  bind[0].buffer_type = MYSQL_TYPE_TINY;
+  bind[0].length_value = 1;
+  bind[0].buffer_length = 1;
+
+  for (paramCount = 8; paramCount > 0; --paramCount)
+  {
+    mysql_stmt_close(stmt);
+    stmt = mysql_stmt_init(mysql);
+    check_stmt(stmt);
+
+    mysql_stmt_attr_set(stmt, STMT_ATTR_PREBIND_PARAMS, &paramCount);
+
+    rc = mysql_stmt_bind_param(stmt, bind);
+    check_execute(stmt, rc);
+
+    rc = mariadb_stmt_execute_direct(stmt, "INSERT INTO mdev19838"
+      "(f1, f2, f3, f4, f5, f6, f7, f8, f9)"
+      " VALUES "
+      "(?, ?, ?, ?, ?, ?, ?, ?, ?)", -1);
+
+    /* Expecting an error */
+    DIE_UNLESS(rc != 0);
+  }
+
+  /* Test of query w/out parameters, with parameter sent and not sent */
+  for (paramCount = MDEV19838_MAX_PARAM_COUNT; paramCount != (unsigned int)-1; --paramCount)
+  {
+    mysql_stmt_close(stmt);
+    stmt = mysql_stmt_init(mysql);
+    check_stmt(stmt);
+
+    mysql_stmt_attr_set(stmt, STMT_ATTR_PREBIND_PARAMS, &paramCount);
+
+    if (paramCount > 0)
+    {
+      rc = mysql_stmt_bind_param(stmt, bind);
+      check_execute(stmt, rc);
+    }
+
+    rc = mariadb_stmt_execute_direct(stmt, "INSERT INTO mdev19838"
+      "(f1)"
+      " VALUES "
+      "(0x1111111111111111)", -1);
+
+    /* Expecting an error if parameters are sent */
+    DIE_UNLESS(rc != 0 || paramCount == 0);
+  }
+
+  mysql_stmt_close(stmt);
+
+  rc = mysql_query(mysql, "drop table mdev19838");
+  myquery(rc);
+}
+#endif // EMBEDDED_LIBRARY
+
+
 static struct my_tests_st my_tests[]= {
   { "disable_query_logs", disable_query_logs },
   { "test_view_sp_list_fields", test_view_sp_list_fields },
@@ -21152,6 +21299,9 @@ static struct my_tests_st my_tests[]= {
 #endif
   { "test_ps_params_in_ctes", test_ps_params_in_ctes },
   { "test_explain_meta", test_explain_meta },
+#ifndef EMBEDDED_LIBRARY
+  { "test_mdev19838", test_mdev19838 },
+#endif
   { 0, 0 }
 };
 

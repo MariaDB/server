@@ -2245,6 +2245,9 @@ dict_stats_update_persistent(
 	}
 
 	ut_ad(!dict_index_is_ibuf(index));
+	mutex_enter(&dict_sys->mutex);
+	dict_stats_empty_index(index, false);
+	mutex_exit(&dict_sys->mutex);
 
 	index_stats_t stats = dict_stats_analyze_index(index);
 

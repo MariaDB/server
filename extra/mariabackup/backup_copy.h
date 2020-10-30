@@ -3,6 +3,7 @@
 #define XTRABACKUP_BACKUP_COPY_H
 
 #include <my_global.h>
+#include <mysql.h>
 #include "datasink.h"
 
 /* special files */
@@ -47,5 +48,8 @@ bool
 is_path_separator(char);
 bool
 directory_exists(const char *dir, bool create);
+
+lsn_t
+get_current_lsn(MYSQL *connection);
 
 #endif
