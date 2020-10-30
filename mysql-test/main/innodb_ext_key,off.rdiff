@@ -1,3 +1,5 @@
+--- innodb_ext_key.result
++++ innodb_ext_key,off.result
 @@ -9,7 +9,7 @@
  explain
  select count(*) from lineitem where l_orderkey=130 and l_shipdate='1992-07-01';
