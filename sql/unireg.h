@@ -76,7 +76,8 @@
 #define cmp_record(A,B) memcmp((A)->record[0],(A)->B,(size_t) (A)->s->reclength)
 #define empty_record(A) { \
                           restore_record((A),s->default_values); \
-                          bfill((A)->null_flags,(A)->s->null_bytes,255);\
+                          if ((A)->s->null_bytes) \
+                            bfill((A)->null_flags,(A)->s->null_bytes,255); \
                         }
 
 	/* Defines for use with openfrm, openprt and openfrd */

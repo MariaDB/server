@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2015, MariaDB
+   Copyright (c) 2015, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -85,7 +85,6 @@ static int my_b_encr_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 
   do
   {
-    size_t copied;
     uint elength, wlength, length;
     uchar iv[MY_AES_BLOCK_SIZE]= {0};
 
@@ -116,11 +115,13 @@ static int my_b_encr_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 
     DBUG_ASSERT(length <= info->buffer_length);
 
-    copied= MY_MIN(Count, (size_t)(length - pos_offset));
-
-    memcpy(Buffer, info->buffer + pos_offset, copied);
-    Count-= copied;
-    Buffer+= copied;
+    size_t copied= MY_MIN(Count, (size_t)(length - pos_offset));
+    if (copied)
+    {
+      memcpy(Buffer, info->buffer + pos_offset, copied);
+      Count-= copied;
+      Buffer+= copied;
+    }
 
     info->read_pos= info->buffer + pos_offset + copied;
     info->read_end= info->buffer + length;

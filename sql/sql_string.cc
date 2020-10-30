@@ -237,8 +237,8 @@ bool Binary_string::copy(const Binary_string &str)
 {
   if (alloc(str.str_length))
     return TRUE;
-  str_length=str.str_length;
-  bmove(Ptr,str.Ptr,str_length);		// May be overlapping
+  if ((str_length=str.str_length))
+    bmove(Ptr,str.Ptr,str_length);		// May be overlapping
   Ptr[str_length]=0;
   return FALSE;
 }

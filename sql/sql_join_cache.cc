@@ -1397,7 +1397,8 @@ uint JOIN_CACHE::write_record_data(uchar * link, bool *is_full)
 	blob_field->get_image(cp, copy->length, 
 			      blob_field->charset());
         DBUG_ASSERT(cp + copy->length + copy->blob_length <= buff + buff_size);
-	memcpy(cp+copy->length, copy->str, copy->blob_length);               
+        if (copy->blob_length)
+          memcpy(cp+copy->length, copy->str, copy->blob_length);
 	cp+= copy->length+copy->blob_length;
       }
       break;
