@@ -26,7 +26,7 @@ ENDIF()
 
 IF(WITH_WSREP)
   ADD_EXECUTABLE(wsrep_check_version wsrep_check_version.c)
-  TARGET_LINK_LIBRARIES(wsrep_check_version ${LIBDL})
+  TARGET_LINK_LIBRARIES(wsrep_check_version ${CMAKE_DL_LIBS})
 ENDIF()
 
 IF(NOT INSTALL_MYSQLTESTDIR)

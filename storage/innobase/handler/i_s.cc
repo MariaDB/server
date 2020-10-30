@@ -5037,33 +5037,39 @@ i_s_dict_fill_sys_tablestats(
 	OK(field_store_string(fields[SYS_TABLESTATS_NAME],
 			      table->name.m_name));
 
-	rw_lock_s_lock(&table->stats_latch);
+	{
+		struct Locking
+		{
+			Locking() { mutex_enter(&dict_sys.mutex); }
+			~Locking() { mutex_exit(&dict_sys.mutex); }
+		} locking;
 
-	OK(fields[SYS_TABLESTATS_INIT]->store(table->stat_initialized, true));
-
-	if (table->stat_initialized) {
-		OK(fields[SYS_TABLESTATS_NROW]->store(table->stat_n_rows,
+		OK(fields[SYS_TABLESTATS_INIT]->store(table->stat_initialized,
 						      true));
 
-		OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(
-			   table->stat_clustered_index_size, true));
+		if (table->stat_initialized) {
+			OK(fields[SYS_TABLESTATS_NROW]->store(
+				   table->stat_n_rows, true));
 
-		OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(
-			   table->stat_sum_of_other_index_sizes, true));
+			OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(
+				   table->stat_clustered_index_size, true));
 
-		OK(fields[SYS_TABLESTATS_MODIFIED]->store(
-			   table->stat_modified_counter, true));
-	} else {
-		OK(fields[SYS_TABLESTATS_NROW]->store(0, true));
+			OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(
+				   table->stat_sum_of_other_index_sizes,
+				   true));
 
-		OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(0, true));
+			OK(fields[SYS_TABLESTATS_MODIFIED]->store(
+				   table->stat_modified_counter, true));
+		} else {
+			OK(fields[SYS_TABLESTATS_NROW]->store(0, true));
 
-		OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(0, true));
+			OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(0, true));
 
-		OK(fields[SYS_TABLESTATS_MODIFIED]->store(0, true));
+			OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(0, true));
+
+			OK(fields[SYS_TABLESTATS_MODIFIED]->store(0, true));
+		}
 	}
-
-	rw_lock_s_unlock(&table->stats_latch);
 
 	OK(fields[SYS_TABLESTATS_AUTONINC]->store(table->autoinc, true));
 

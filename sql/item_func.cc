@@ -640,8 +640,7 @@ void Item_func::print_op(String *str, enum_query_type query_type)
     str->append(func_name());
     str->append(' ');
   }
-  args[arg_count-1]->print_parenthesised(str, query_type,
-                                         (enum precedence)(precedence() + 1));
+  args[arg_count-1]->print_parenthesised(str, query_type, higher_precedence());
 }
 
 

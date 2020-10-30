@@ -1,7 +1,7 @@
 #ifndef ITEM_CMPFUNC_INCLUDED
 #define ITEM_CMPFUNC_INCLUDED
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -608,7 +608,7 @@ public:
   enum Functype functype() const override { return NOT_FUNC; }
   const char *func_name() const override { return "not"; }
   bool find_not_null_fields(table_map allowed) override { return false; }
-  enum precedence precedence() const override { return BANG_PRECEDENCE; }
+  enum precedence precedence() const override { return NEG_PRECEDENCE; }
   Item *neg_transformer(THD *thd) override;
   bool fix_fields(THD *, Item **) override;
   void print(String *str, enum_query_type query_type) override;
@@ -2184,9 +2184,11 @@ protected:
   bool aggregate_then_and_else_arguments(THD *thd, uint count);
   virtual Item **else_expr_addr() const= 0;
   virtual Item *find_item()= 0;
-  void print_when_then_arguments(String *str, enum_query_type query_type,
-                                 Item **items, uint count);
-  void print_else_argument(String *str, enum_query_type query_type, Item *item);
+  inline void print_when_then_arguments(String *str,
+                                        enum_query_type query_type,
+                                        Item **items, uint count);
+  inline void print_else_argument(String *str, enum_query_type query_type,
+                                  Item *item);
   void reorder_args(uint start);
 public:
   Item_func_case(THD *thd, List<Item> &list)
@@ -2202,7 +2204,6 @@ public:
   bool fix_fields(THD *thd, Item **ref);
   table_map not_null_tables() const { return 0; }
   const char *func_name() const { return "case"; }
-  enum precedence precedence() const { return BETWEEN_PRECEDENCE; }
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
   bool need_parentheses_in_default() { return true; }
 };
@@ -2467,7 +2468,7 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   enum Functype functype() const { return IN_FUNC; }
   const char *func_name() const { return "in"; }
-  enum precedence precedence() const { return CMP_PRECEDENCE; }
+  enum precedence precedence() const { return IN_PRECEDENCE; }
   bool eval_not_null_tables(void *opt_arg);
   bool find_not_null_fields(table_map allowed);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
@@ -2793,7 +2794,7 @@ public:
     return this;
   }
   const char *func_name() const { return "like"; }
-  enum precedence precedence() const { return CMP_PRECEDENCE; }
+  enum precedence precedence() const { return IN_PRECEDENCE; }
   bool fix_fields(THD *thd, Item **ref);
   bool fix_length_and_dec()
   {
@@ -2902,7 +2903,7 @@ public:
   longlong val_int();
   bool fix_length_and_dec();
   const char *func_name() const { return "regexp"; }
-  enum precedence precedence() const { return CMP_PRECEDENCE; }
+  enum precedence precedence() const { return IN_PRECEDENCE; }
   Item *get_copy(THD *) { return 0; }
   void print(String *str, enum_query_type query_type)
   {

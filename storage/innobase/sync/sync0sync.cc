@@ -87,7 +87,6 @@ mysql_pfs_key_t	buf_block_lock_key;
 mysql_pfs_key_t	buf_block_debug_latch_key;
 # endif /* UNIV_DEBUG */
 mysql_pfs_key_t	dict_operation_lock_key;
-mysql_pfs_key_t	dict_table_stats_key;
 mysql_pfs_key_t	index_tree_rw_lock_key;
 mysql_pfs_key_t	index_online_log_key;
 mysql_pfs_key_t	fil_space_latch_key;

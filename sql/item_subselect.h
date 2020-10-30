@@ -640,7 +640,7 @@ public:
   bool val_bool() override;
   bool test_limit(st_select_lex_unit *unit);
   void print(String *str, enum_query_type query_type) override;
-  enum precedence precedence() const override { return CMP_PRECEDENCE; }
+  enum precedence precedence() const override { return IN_PRECEDENCE; }
   bool fix_fields(THD *thd, Item **ref) override;
   bool fix_length_and_dec() override;
   void fix_after_pullout(st_select_lex *new_parent, Item **ref,

@@ -1467,21 +1467,7 @@ public:
   /** @return whether resize() is in progress */
   bool resize_in_progress() const
   {
-    return UNIV_UNLIKELY(resizing.load(std::memory_order_relaxed) ||
-                         withdrawing.load(std::memory_order_relaxed));
-  }
-
-  /** @return the withdraw_clock */
-  ulint withdraw_clock() const
-  { return withdraw_clock_.load(std::memory_order_relaxed); }
-
-  /** Verify the possibility that a stored page is not in buffer pool.
-  @param withdraw_clock  the withdraw clock of the page
-  @return whether the page might be relocated */
-  bool is_obsolete(ulint withdraw_clock) const
-  {
-    return UNIV_UNLIKELY(withdrawing.load(std::memory_order_relaxed) ||
-                         this->withdraw_clock() != withdraw_clock);
+    return UNIV_UNLIKELY(resizing.load(std::memory_order_relaxed));
   }
 
   /** @return the current size in blocks */
@@ -1594,9 +1580,7 @@ public:
   @return whether block has been created by chunk_t::create() */
   bool is_uncompressed(const buf_block_t *block) const
   {
-    /* The pointer should be aligned. */
-    return !(size_t(block) % sizeof *block) &&
-      is_block_field(reinterpret_cast<const void*>(block));
+    return is_block_field(reinterpret_cast<const void*>(block));
   }
 
   /** Get the page_hash latch for a page */
@@ -2091,13 +2075,6 @@ private:
 
   /** whether resize() is in the critical path */
   std::atomic<bool> resizing;
-
-  /** whether withdrawing buffer pool pages might cause page relocation */
-  std::atomic<bool> withdrawing;
-
-  /** a counter that is incremented every time a pointer to a page may
-  become obsolete */
-  std::atomic<ulint> withdraw_clock_;
 };
 
 /** The InnoDB buffer pool */

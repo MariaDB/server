@@ -3835,6 +3835,7 @@ mysql_execute_command(THD *thd)
       lex->sql_command != SQLCOM_BEGIN    &&
       lex->sql_command != SQLCOM_CALL     &&
       lex->sql_command != SQLCOM_EXECUTE  &&
+      lex->sql_command != SQLCOM_EXECUTE_IMMEDIATE &&
       !(sql_command_flags[lex->sql_command] & CF_AUTO_COMMIT_TRANS))
   {
     wsrep_start_trx_if_not_started(thd);
@@ -4407,6 +4408,11 @@ mysql_execute_command(THD *thd)
     /* mysql_update return 2 if we need to switch to multi-update */
     if (up_result != 2)
       break;
+    if (thd->lex->period_conditions.is_set())
+    {
+      DBUG_ASSERT(0); // Should never happen
+      goto error;
+    }
   }
   /* fall through */
   case SQLCOM_UPDATE_MULTI:
@@ -7926,7 +7932,6 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
                  bool is_com_multi,
                  bool is_next_command)
 {
-  int error __attribute__((unused));
   DBUG_ENTER("mysql_parse");
   DBUG_EXECUTE_IF("parser_debug", turn_parser_debug_on_MYSQLparse(););
   DBUG_EXECUTE_IF("parser_debug", turn_parser_debug_on_ORAparse(););
@@ -8007,6 +8012,7 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
                                  (char *) thd->security_ctx->host_or_ip,
                                  0);
 
+          int error __attribute__((unused));
           error= mysql_execute_command(thd);
           MYSQL_QUERY_EXEC_DONE(error);
 	}
@@ -9105,8 +9111,6 @@ void add_join_natural(TABLE_LIST *a, TABLE_LIST *b, List<String> *using_fields,
                       SELECT_LEX *lex)
 {
   b->natural_join= a;
-  a->part_of_natural_join= TRUE;
-  b->part_of_natural_join= TRUE;
   lex->prev_join_using= using_fields;
 }
 

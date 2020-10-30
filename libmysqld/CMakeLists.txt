@@ -159,7 +159,7 @@ ENDIF()
 SET(LIBS 
   dbug strings mysys mysys_ssl pcre2-8 vio
   ${ZLIB_LIBRARY} ${SSL_LIBRARIES} 
-  ${LIBWRAP} ${LIBCRYPT} ${LIBDL}
+  ${LIBWRAP} ${LIBCRYPT} ${CMAKE_DL_LIBS}
   ${EMBEDDED_PLUGIN_LIBS}
   sql_embedded
 )

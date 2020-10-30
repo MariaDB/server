@@ -1334,9 +1334,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_RWLOCK(INDEX_TREE, SYNC_INDEX_TREE, index_tree_rw_lock_key);
 
-	LATCH_ADD_RWLOCK(DICT_TABLE_STATS, SYNC_INDEX_TREE,
-			 dict_table_stats_key);
-
 	/* JAN: TODO: Add PFS instrumentation */
 	LATCH_ADD_MUTEX(DEFRAGMENT_MUTEX, SYNC_NO_ORDER_CHECK,
 			PFS_NOT_INSTRUMENTED);

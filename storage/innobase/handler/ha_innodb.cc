@@ -223,6 +223,27 @@ enum default_row_format_enum {
 	DEFAULT_ROW_FORMAT_DYNAMIC = 2,
 };
 
+/** A dummy variable */
+static uint innodb_max_purge_lag_wait;
+
+/** Wait for trx_sys_t::rseg_history_len to be below a limit. */
+static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
+                                             void *, const void *limit)
+{
+  const uint l= *static_cast<const uint*>(limit);
+  if (trx_sys.rseg_history_len <= l)
+    return;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  while (trx_sys.rseg_history_len > l)
+  {
+    if (thd_kill_level(thd))
+      break;
+    srv_wake_purge_thread_if_not_active();
+    os_thread_sleep(100000);
+  }
+  mysql_mutex_lock(&LOCK_global_system_variables);
+}
+
 static
 void set_my_errno(int err)
 {
@@ -567,7 +588,6 @@ static PSI_rwlock_info all_innodb_rwlocks[] = {
 	PSI_RWLOCK_KEY(trx_purge_latch),
 	PSI_RWLOCK_KEY(index_tree_rw_lock),
 	PSI_RWLOCK_KEY(index_online_log),
-	PSI_RWLOCK_KEY(dict_table_stats)
 };
 # endif /* UNIV_PFS_RWLOCK */
 
@@ -14186,6 +14206,8 @@ ha_innobase::info_low(
 
 	DEBUG_SYNC_C("ha_innobase_info_low");
 
+	ut_ad(!mutex_own(&dict_sys.mutex));
+
 	/* If we are forcing recovery at a high level, we will suppress
 	statistics calculation on tables, because that may crash the
 	server if an index is badly corrupted. */
@@ -14222,7 +14244,6 @@ ha_innobase::info_low(
 				opt = DICT_STATS_RECALC_TRANSIENT;
 			}
 
-			ut_ad(!mutex_own(&dict_sys.mutex));
 			ret = dict_stats_update(ib_table, opt);
 
 			if (ret != DB_SUCCESS) {
@@ -14238,14 +14259,14 @@ ha_innobase::info_low(
 		stats.update_time = (ulong) ib_table->update_time;
 	}
 
+	DBUG_EXECUTE_IF("dict_sys_mutex_avoid", goto func_exit;);
+
 	if (flag & HA_STATUS_VARIABLE) {
 
 		ulint	stat_clustered_index_size;
 		ulint	stat_sum_of_other_index_sizes;
 
-		if (!(flag & HA_STATUS_NO_LOCK)) {
-			rw_lock_s_lock(&ib_table->stats_latch);
-		}
+		mutex_enter(&dict_sys.mutex);
 
 		ut_a(ib_table->stat_initialized);
 
@@ -14257,9 +14278,7 @@ ha_innobase::info_low(
 		stat_sum_of_other_index_sizes
 			= ib_table->stat_sum_of_other_index_sizes;
 
-		if (!(flag & HA_STATUS_NO_LOCK)) {
-			rw_lock_s_unlock(&ib_table->stats_latch);
-		}
+		mutex_exit(&dict_sys.mutex);
 
 		/*
 		The MySQL optimizer seems to assume in a left join that n_rows
@@ -14360,9 +14379,25 @@ ha_innobase::info_low(
 			ib_push_frm_error(m_user_thd, ib_table, table, num_innodb_index, true);
 		}
 
-		if (!(flag & HA_STATUS_NO_LOCK)) {
-			rw_lock_s_lock(&ib_table->stats_latch);
+		snprintf(path, sizeof(path), "%s/%s%s",
+			 mysql_data_home, table->s->normalized_path.str,
+			 reg_ext);
+
+		unpack_filename(path,path);
+
+		/* Note that we do not know the access time of the table,
+		nor the CHECK TABLE time, nor the UPDATE or INSERT time. */
+
+		if (os_file_get_status(
+			    path, &stat_info, false,
+			    srv_read_only_mode) == DB_SUCCESS) {
+			stats.create_time = (ulong) stat_info.ctime;
 		}
+
+		struct Locking {
+			Locking() { mutex_enter(&dict_sys.mutex); }
+			~Locking() { mutex_exit(&dict_sys.mutex); }
+		} locking;
 
 		ut_a(ib_table->stat_initialized);
 
@@ -14440,25 +14475,6 @@ ha_innobase::info_low(
 
 				key->rec_per_key[j] = rec_per_key_int;
 			}
-		}
-
-		if (!(flag & HA_STATUS_NO_LOCK)) {
-			rw_lock_s_unlock(&ib_table->stats_latch);
-		}
-
-		snprintf(path, sizeof(path), "%s/%s%s",
-			 mysql_data_home, table->s->normalized_path.str,
-			 reg_ext);
-
-		unpack_filename(path,path);
-
-		/* Note that we do not know the access time of the table,
-		nor the CHECK TABLE time, nor the UPDATE or INSERT time. */
-
-		if (os_file_get_status(
-			    path, &stat_info, false,
-			    srv_read_only_mode) == DB_SUCCESS) {
-			stats.create_time = (ulong) stat_info.ctime;
 		}
 	}
 
@@ -19111,6 +19127,11 @@ static MYSQL_SYSVAR_ULONG(max_purge_lag_delay, srv_max_purge_lag_delay,
    0L,			/* Minimum value */
    10000000UL, 0);	/* Maximum value */
 
+static MYSQL_SYSVAR_UINT(max_purge_lag_wait, innodb_max_purge_lag_wait,
+  PLUGIN_VAR_RQCMDARG,
+  "Wait until History list length is below the specified limit",
+  NULL, innodb_max_purge_lag_wait_update, UINT_MAX, 0, UINT_MAX, 0);
+
 static MYSQL_SYSVAR_BOOL(rollback_on_timeout, innobase_rollback_on_timeout,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
   "Roll back the complete transaction on lock wait timeout, for 4.x compatibility (disabled by default)",
@@ -20049,6 +20070,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(flushing_avg_loops),
   MYSQL_SYSVAR(max_purge_lag),
   MYSQL_SYSVAR(max_purge_lag_delay),
+  MYSQL_SYSVAR(max_purge_lag_wait),
   MYSQL_SYSVAR(old_blocks_pct),
   MYSQL_SYSVAR(old_blocks_time),
   MYSQL_SYSVAR(open_files),

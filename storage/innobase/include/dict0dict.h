@@ -1280,7 +1280,7 @@ UNIV_INLINE
 rw_lock_t*
 dict_index_get_lock(
 /*================*/
-	dict_index_t*	index)	/*!< in: index */
+	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /********************************************************************//**
 Returns free space reserved for future updates of records. This is

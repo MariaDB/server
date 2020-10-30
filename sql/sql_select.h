@@ -2436,10 +2436,9 @@ TABLE *create_tmp_table(THD *thd,TMP_TABLE_PARAM *param,List<Item> &fields,
                         bool keep_row_order= FALSE);
 TABLE *create_tmp_table_for_schema(THD *thd, TMP_TABLE_PARAM *param,
                                    const ST_SCHEMA_TABLE &schema_table,
-                                   const MY_BITMAP &bitmap,
                                    longlong select_options,
                                    const LEX_CSTRING &alias,
-                                   bool keep_row_order);
+                                   bool do_not_open, bool keep_row_order);
 
 void free_tmp_table(THD *thd, TABLE *entry);
 bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,

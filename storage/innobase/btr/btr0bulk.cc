@@ -849,6 +849,8 @@ PageBulk::latch()
 	m_mtr.start();
 	m_index->set_modified(m_mtr);
 
+	ut_ad(m_block->page.buf_fix_count());
+
 	/* In case the block is S-latched by page_cleaner. */
 	if (!buf_page_optimistic_get(RW_X_LATCH, m_block, m_modify_clock,
 				     __FILE__, __LINE__, &m_mtr)) {
@@ -866,6 +868,8 @@ PageBulk::latch()
 	}
 
 	buf_block_buf_fix_dec(m_block);
+
+	ut_ad(m_block->page.buf_fix_count());
 
 	ut_ad(m_cur_rec > m_page && m_cur_rec < m_heap_top);
 

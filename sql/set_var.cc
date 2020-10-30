@@ -1084,7 +1084,6 @@ static void store_var(Field *field, sys_var *var, enum_var_type scope,
 int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   char name_buffer[NAME_CHAR_LEN];
-  enum_check_fields save_count_cuted_fields= thd->count_cuted_fields;
   bool res= 1;
   CHARSET_INFO *scs= system_charset_info;
   StringBuffer<STRING_BUFFER_USUAL_SIZE> strbuf(scs);
@@ -1095,7 +1094,6 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
   DBUG_ASSERT(tables->table->in_use == thd);
 
   cond= make_cond_for_info_schema(thd, cond, tables);
-  thd->count_cuted_fields= CHECK_FIELD_WARN;
   mysql_prlock_rdlock(&LOCK_system_variables_hash);
 
   for (uint i= 0; i < system_variable_hash.records; i++)
@@ -1269,7 +1267,6 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
   res= 0;
 end:
   mysql_prlock_unlock(&LOCK_system_variables_hash);
-  thd->count_cuted_fields= save_count_cuted_fields;
   return res;
 }
 

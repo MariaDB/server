@@ -447,10 +447,6 @@ create table t1 (
     col_text_g text generated always as (substr(col_text,1,499)) )
 engine innodb row_format = redundant;
 insert into t1 (col_int,col_text) values (0, 'a'), (null, 'b');
-# FIXME: remove the following to trigger the bug
---disable_query_log
-alter table t1 modify column col_text text null, force;
---enable_query_log
 alter table t1 modify column col_text text null, algorithm = instant;
 insert into t1 (col_int,col_text) values (1, null), (null, null);
 update t1 set col_text= 'd';

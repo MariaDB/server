@@ -115,8 +115,8 @@ class DllExport VALUE : public BLOCK {
   virtual void   SetValue(ulonglong) {assert(false);}
   virtual void   SetValue(double) {assert(false);}
   virtual void   SetValue_pvblk(PVBLK blk, int n) = 0;
-  virtual void   SetBinValue(void *p) = 0;
-  virtual bool   GetBinValue(void *buf, int buflen, bool go) = 0;
+	virtual void   SetBinValue(void* p) = 0;
+	virtual bool   GetBinValue(void *buf, int buflen, bool go) = 0;
   virtual int    ShowValue(char *buf, int len) = 0;
   virtual char  *GetCharString(char *p) = 0;
   virtual bool   IsEqual(PVAL vp, bool chktype) = 0;
@@ -385,7 +385,8 @@ class DllExport BINVAL: public VALUE {
   virtual void   SetValue(ulonglong n);
   virtual void   SetValue(double f);
   virtual void   SetBinValue(void *p);
-  virtual bool   GetBinValue(void *buf, int buflen, bool go);
+	virtual void   SetBinValue(void* p, ulong len);
+	virtual bool   GetBinValue(void *buf, int buflen, bool go);
   virtual int    CompareValue(PVAL) {assert(false); return 0;}
   virtual int    ShowValue(char *buf, int len);
   virtual char  *GetCharString(char *p);

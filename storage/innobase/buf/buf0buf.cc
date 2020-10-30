@@ -1479,8 +1479,6 @@ bool buf_pool_t::create()
   NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
 
   ut_ad(!resizing);
-  ut_ad(!withdrawing);
-  ut_ad(!withdraw_clock());
   ut_ad(!chunks_old);
 
   chunk_t::map_reg= UT_NEW_NOKEY(chunk_t::map());
@@ -1637,7 +1635,6 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 {
 	buf_block_t*	new_block;
 
-	ut_ad(withdrawing);
 	mysql_mutex_assert_owner(&mutex);
 	ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
 
@@ -1909,9 +1906,6 @@ inline bool buf_pool_t::withdraw_blocks()
 	ib::info() << "withdrawn target: " << UT_LIST_GET_LEN(withdraw)
 		   << " blocks";
 
-	/* retry is not needed */
-	++withdraw_clock_;
-
 	return(false);
 }
 
@@ -2105,7 +2099,6 @@ inline void buf_pool_t::resize()
 
 		ut_ad(withdraw_target == 0);
 		withdraw_target = w;
-		withdrawing.store(true, std::memory_order_relaxed);
 	}
 
 	buf_resize_status("Withdrawing blocks to be shrunken.");
@@ -2121,7 +2114,6 @@ withdraw_retry:
 
 	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
 		/* abort to resize for shutdown. */
-		withdrawing.store(false, std::memory_order_relaxed);
 		return;
 	}
 
@@ -2161,8 +2153,6 @@ withdraw_retry:
 
 		goto withdraw_retry;
 	}
-
-	withdrawing.store(false, std::memory_order_relaxed);
 
 	buf_resize_status("Latching whole of buffer pool.");
 

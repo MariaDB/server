@@ -288,8 +288,6 @@ buf_block_buf_fix_dec(
 /*==================*/
 	buf_block_t*	block)	/*!< in/out: block to bufferunfix */
 {
-	block->unfix();
-
 #ifdef UNIV_DEBUG
 	/* No debug latch is acquired if block belongs to system temporary.
 	Debug latch is not of much help if access to block is single
@@ -298,6 +296,8 @@ buf_block_buf_fix_dec(
 		rw_lock_s_unlock(block->debug_latch);
 	}
 #endif /* UNIV_DEBUG */
+
+	block->unfix();
 }
 
 /********************************************************************//**

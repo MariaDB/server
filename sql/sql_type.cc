@@ -2655,8 +2655,7 @@ Field *Type_handler_set::make_conversion_table_field(MEM_ROOT *root,
 
 Field *Type_handler_enum::make_schema_field(MEM_ROOT *root, TABLE *table,
                                             const Record_addr &addr,
-                                            const ST_FIELD_INFO &def,
-                                            bool show_field) const
+                                            const ST_FIELD_INFO &def) const
 {
   LEX_CSTRING name= def.name();
   const Typelib *typelib= def.typelib();
@@ -3861,8 +3860,7 @@ Field *Type_handler_set::make_table_field(MEM_ROOT *root,
 
 Field *Type_handler_float::make_schema_field(MEM_ROOT *root, TABLE *table,
                                              const Record_addr &addr,
-                                             const ST_FIELD_INFO &def,
-                                             bool show_field) const
+                                             const ST_FIELD_INFO &def) const
 {
   LEX_CSTRING name= def.name();
   return new (root)
@@ -3876,8 +3874,7 @@ Field *Type_handler_float::make_schema_field(MEM_ROOT *root, TABLE *table,
 
 Field *Type_handler_double::make_schema_field(MEM_ROOT *root, TABLE *table,
                                               const Record_addr &addr,
-                                              const ST_FIELD_INFO &def,
-                                              bool show_field) const
+                                              const ST_FIELD_INFO &def) const
 {
   LEX_CSTRING name= def.name();
   return new (root)
@@ -3892,8 +3889,7 @@ Field *Type_handler_double::make_schema_field(MEM_ROOT *root, TABLE *table,
 Field *Type_handler_decimal_result::make_schema_field(MEM_ROOT *root,
                                                       TABLE *table,
                                                       const Record_addr &addr,
-                                                      const ST_FIELD_INFO &def,
-                                                      bool show_field) const
+                                                      const ST_FIELD_INFO &def) const
 {
   LEX_CSTRING name= def.name();
   uint dec= def.decimal_scale();
@@ -3909,28 +3905,20 @@ Field *Type_handler_decimal_result::make_schema_field(MEM_ROOT *root,
 
 Field *Type_handler_blob_common::make_schema_field(MEM_ROOT *root, TABLE *table,
                                                    const Record_addr &addr,
-                                                   const ST_FIELD_INFO &def,
-                                                   bool show_field) const
+                                                   const ST_FIELD_INFO &def) const
 {
   LEX_CSTRING name= def.name();
-  if (show_field)
-  {
-    return new (root)
-       Field_blob(addr.ptr(), addr.null_ptr(), addr.null_bit(),
-                  Field::NONE, &name, table->s,
-                  length_bytes(),
-                  &my_charset_bin);
-  }
-  else
-    return new (root)
-      Field_null(addr.ptr(), 0, Field::NONE, &name, &my_charset_bin);
+  return new (root)
+     Field_blob(addr.ptr(), addr.null_ptr(), addr.null_bit(),
+                Field::NONE, &name, table->s,
+                length_bytes(),
+                &my_charset_bin);
 }
 
 
 Field *Type_handler_varchar::make_schema_field(MEM_ROOT *root, TABLE *table,
                                                const Record_addr &addr,
-                                               const ST_FIELD_INFO &def,
-                                               bool show_field) const
+                                               const ST_FIELD_INFO &def) const
 {
   DBUG_ASSERT(def.char_length());
   LEX_CSTRING name= def.name();
@@ -3944,7 +3932,7 @@ Field *Type_handler_varchar::make_schema_field(MEM_ROOT *root, TABLE *table,
       field->field_length= octet_length;
     return field;
   }
-  else if (show_field)
+  else
   {
     return new (root)
       Field_varstring(addr.ptr(), octet_length,
@@ -3953,16 +3941,12 @@ Field *Type_handler_varchar::make_schema_field(MEM_ROOT *root, TABLE *table,
                       Field::NONE, &name,
                       table->s, system_charset_info);
   }
-  else
-    return new (root)
-      Field_null(addr.ptr(), 0, Field::NONE, &name, system_charset_info);
 }
 
 
 Field *Type_handler_tiny::make_schema_field(MEM_ROOT *root, TABLE *table,
                                             const Record_addr &addr,
-                                            const ST_FIELD_INFO &def,
-                                            bool show_field) const
+                                            const ST_FIELD_INFO &def) const
 {
   LEX_CSTRING name= def.name();
   return new (root)
@@ -3974,8 +3958,7 @@ Field *Type_handler_tiny::make_schema_field(MEM_ROOT *root, TABLE *table,
 
 Field *Type_handler_short::make_schema_field(MEM_ROOT *root, TABLE *table,
                                              const Record_addr &addr,
-                                             const ST_FIELD_INFO &def,
-                                             bool show_field) const
+                                             const ST_FIELD_INFO &def) const
 {
   LEX_CSTRING name= def.name();
   return new (root)
@@ -3987,8 +3970,7 @@ Field *Type_handler_short::make_schema_field(MEM_ROOT *root, TABLE *table,
 
 Field *Type_handler_long::make_schema_field(MEM_ROOT *root, TABLE *table,
                                             const Record_addr &addr,
-                                            const ST_FIELD_INFO &def,
-                                            bool show_field) const
+                                            const ST_FIELD_INFO &def) const
 {
   LEX_CSTRING name= def.name();
   return new (root)
@@ -4000,8 +3982,7 @@ Field *Type_handler_long::make_schema_field(MEM_ROOT *root, TABLE *table,
 
 Field *Type_handler_longlong::make_schema_field(MEM_ROOT *root, TABLE *table,
                                                 const Record_addr &addr,
-                                                const ST_FIELD_INFO &def,
-                                                bool show_field) const
+                                                const ST_FIELD_INFO &def) const
 {
   LEX_CSTRING name= def.name();
   return new (root)
@@ -4013,8 +3994,7 @@ Field *Type_handler_longlong::make_schema_field(MEM_ROOT *root, TABLE *table,
 
 Field *Type_handler_date_common::make_schema_field(MEM_ROOT *root, TABLE *table,
                                                    const Record_addr &addr,
-                                                   const ST_FIELD_INFO &def,
-                                                   bool show_field) const
+                                                   const ST_FIELD_INFO &def) const
 {
   LEX_CSTRING name= def.name();
   return new (root)
@@ -4025,8 +4005,7 @@ Field *Type_handler_date_common::make_schema_field(MEM_ROOT *root, TABLE *table,
 
 Field *Type_handler_time_common::make_schema_field(MEM_ROOT *root, TABLE *table,
                                                    const Record_addr &addr,
-                                                   const ST_FIELD_INFO &def,
-                                                   bool show_field) const
+                                                   const ST_FIELD_INFO &def) const
 {
   LEX_CSTRING name= def.name();
   return new_Field_time(root,
@@ -4038,8 +4017,7 @@ Field *Type_handler_time_common::make_schema_field(MEM_ROOT *root, TABLE *table,
 Field *Type_handler_datetime_common::make_schema_field(MEM_ROOT *root,
                                                        TABLE *table,
                                                        const Record_addr &addr,
-                                                       const ST_FIELD_INFO &def,
-                                                       bool show_field) const
+                                                       const ST_FIELD_INFO &def) const
 {
   LEX_CSTRING name= def.name();
   return new (root) Field_datetimef(addr.ptr(),

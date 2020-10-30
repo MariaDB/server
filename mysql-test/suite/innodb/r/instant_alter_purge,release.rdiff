@@ -1,6 +1,6 @@
 --- instant_alter_purge.result
 +++ instant_alter_purge,release.result
-@@ -32,15 +32,11 @@
+@@ -32,16 +32,11 @@
  START TRANSACTION WITH CONSISTENT SNAPSHOT;
  connection default;
  DELETE FROM t1;
@@ -9,7 +9,8 @@
  connection purge_control;
 -SET DEBUG_SYNC='now WAIT_FOR go';
  COMMIT;
- InnoDB		0 transactions not purged
+ SET GLOBAL innodb_max_purge_lag_wait= 0;
+-InnoDB		0 transactions not purged
 -SET DEBUG_SYNC='now SIGNAL do';
  disconnect purge_control;
  connection default;

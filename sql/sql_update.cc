@@ -189,6 +189,13 @@ static bool check_fields(THD *thd, TABLE_LIST *table, List<Item> &items,
       my_error(ER_IT_IS_A_VIEW, MYF(0), table->table_name.str);
       return TRUE;
     }
+    if (thd->lex->sql_command == SQLCOM_UPDATE_MULTI)
+    {
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "updating and querying the same temporal periods table");
+
+      return true;
+    }
     DBUG_ASSERT(thd->lex->sql_command == SQLCOM_UPDATE);
     for (List_iterator_fast<Item> it(items); (item=it++);)
     {
@@ -419,6 +426,14 @@ int mysql_update(THD *thd,
     DBUG_PRINT("info", ("Switch to multi-update"));
     /* pass counter value */
     thd->lex->table_count= table_count;
+    if (thd->lex->period_conditions.is_set())
+    {
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "updating and querying the same temporal periods table");
+
+      DBUG_RETURN(1);
+    }
+
     /* convert to multiupdate */
     DBUG_RETURN(2);
   }

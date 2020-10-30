@@ -39,7 +39,7 @@
 ** 10 Jun 2003: SET NAMES and --no-set-names by Alexander Barkov
 */
 
-#define DUMP_VERSION "10.17"
+#define DUMP_VERSION "10.18"
 
 #include <my_global.h>
 #include <my_sys.h>
@@ -83,7 +83,8 @@
 #define IGNORE_NONE 0x00 /* no ignore */
 #define IGNORE_DATA 0x01 /* don't dump data for this table */
 #define IGNORE_INSERT_DELAYED 0x02 /* table doesn't support INSERT DELAYED */
-#define IGNORE_S3_TABLE 0x04
+#define IGNORE_SEQUENCE_TABLE 0x04 /* catch the SEQUENCE*/
+#define IGNORE_S3_TABLE 0x08
 
 /* Chars needed to store LONGLONG, excluding trailing '\0'. */
 #define LONGLONG_LEN 20
@@ -2743,7 +2744,68 @@ static inline my_bool general_log_or_slow_log_tables(const char *db,
            !my_strcasecmp(charset_info, table, "slow_log") ||
            !my_strcasecmp(charset_info, table, "transaction_registry"));
 }
+/*
+  get_sequence_structure-- retrievs sequence structure, prints out corresponding
+  CREATE statement
+  ARGS
+    seq         - sequence name
+    db          - db name
+*/
 
+static void get_sequence_structure(const char *seq, const char *db)
+{
+
+  char	     table_buff[NAME_LEN*2+3];
+  char       *result_seq;
+  FILE       *sql_file= md_result_file;
+  MYSQL_RES  *result;
+  MYSQL_ROW  row;
+
+  DBUG_ENTER("get_sequence_structure");
+  DBUG_PRINT("enter", ("db: %s  sequence: %s", db, seq));
+
+  verbose_msg("-- Retrieving sequence structure for  %s...\n", seq);
+
+  result_seq= quote_name(seq, table_buff, 1);
+  // Sequences as tables share same flags
+  if (!opt_no_create_info)
+  {
+    char buff[20+FN_REFLEN];
+    my_snprintf(buff, sizeof(buff), "SHOW CREATE SEQUENCE %s", result_seq);
+    if (mysql_query_with_error_report(mysql, &result, buff))
+    {
+      DBUG_VOID_RETURN;
+    }
+
+    print_comment(sql_file, 0,
+              "\n--\n-- Sequence structure for %s\n--\n\n",
+              fix_for_comment(result_seq));
+    if (opt_drop)
+    {
+      fprintf(sql_file, "DROP SEQUENCE IF EXISTS %s;\n", result_seq);
+      check_io(sql_file);
+    }
+
+    row= mysql_fetch_row(result);
+    fprintf(sql_file, "%s;\n", row[1]);
+    mysql_free_result(result);
+
+    // Restore next not cached value from sequence
+    my_snprintf(buff, sizeof(buff), "SELECT next_not_cached_value FROM %s", result_seq);
+    if (mysql_query_with_error_report(mysql, &result, buff))
+    {
+      DBUG_VOID_RETURN;
+    }
+    row= mysql_fetch_row(result);
+    if (row[0])
+    {
+      fprintf(sql_file, "SELECT SETVAL(%s, %s, 0);\n", result_seq, row[0]);
+    }
+    // Sequences will not use inserts, so no need for REPLACE and LOCKS
+    mysql_free_result(result);
+  }
+  DBUG_VOID_RETURN;
+}
 /*
   get_table_structure -- retrievs database structure, prints out corresponding
   CREATE statement and fills out insert_pat if the table is the type we will
@@ -3745,6 +3807,14 @@ static void dump_table(char *table, char *db, const uchar *hash_key, size_t len)
   MYSQL_ROW     row;
   DBUG_ENTER("dump_table");
 
+  /*
+    Check does table has a sequence structure and if has apply different sql queries
+  */
+  if (check_if_ignore_table(table, table_type) & IGNORE_SEQUENCE_TABLE)
+  {
+    get_sequence_structure(table, db);
+    DBUG_VOID_RETURN;
+  }
   /*
     Make sure you get the create table info before the following check for
     --no-data flag below. Otherwise, the create table info won't be printed.
@@ -5730,7 +5800,7 @@ char check_if_ignore_table(const char *table_name, char *table_type)
   /* Check memory for quote_for_like() */
   DBUG_ASSERT(2*sizeof(table_name) < sizeof(show_name_buff));
   my_snprintf(buff, sizeof(buff),
-              "SELECT engine FROM INFORMATION_SCHEMA.TABLES "
+              "SELECT engine, table_type FROM INFORMATION_SCHEMA.TABLES "
               "WHERE table_schema = DATABASE() AND table_name = %s",
               quote_for_equal(table_name, show_name_buff));
   if (mysql_query_with_error_report(mysql, &res, buff))
@@ -5770,6 +5840,8 @@ char check_if_ignore_table(const char *table_name, char *table_type)
           strcmp(table_type,"MEMORY"))
         result= IGNORE_INSERT_DELAYED;
     }
+    if (!strcmp(row[1],"SEQUENCE"))
+      result|= IGNORE_SEQUENCE_TABLE;
 
     if (!strcmp(table_type, "S3"))
        result|= IGNORE_S3_TABLE;

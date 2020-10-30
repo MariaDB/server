@@ -192,8 +192,6 @@ struct btr_search_t{
 	the machine word, i.e., they cannot be turned into bit-fields. */
 	buf_block_t* root_guess;/*!< the root page frame when it was last time
 				fetched, or NULL */
-	ulint	withdraw_clock;	/*!< the withdraw clock value of the buffer
-				pool when root_guess was stored */
 #ifdef BTR_CUR_HASH_ADAPT
 	ulint	hash_analysis;	/*!< when this exceeds
 				BTR_SEARCH_HASH_ANALYSIS, the hash
