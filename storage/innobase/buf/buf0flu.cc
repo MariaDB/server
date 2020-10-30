@@ -1106,7 +1106,8 @@ static ulint buf_flush_try_neighbors(fil_space_t *space,
       because the flushed blocks are soon freed */
       if (!lru || id == page_id || bpage->is_old())
       {
-        if (bpage->ready_for_flush() && buf_flush_page(bpage, lru, space))
+        if (!buf_pool.watch_is_sentinel(*bpage) &&
+            bpage->ready_for_flush() && buf_flush_page(bpage, lru, space))
         {
           ++count;
           continue;
