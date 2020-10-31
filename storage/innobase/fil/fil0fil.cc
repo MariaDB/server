@@ -1342,14 +1342,15 @@ next:
 					goto next;
 				}
 				mutex_exit(&fil_system.mutex);
-				os_thread_sleep(100);
+				os_thread_sleep(1000);
+				os_thread_yield();
 				mutex_enter(&fil_system.mutex);
 				if (!node->is_open()) {
 					goto next;
 				}
 			}
 
-			ib::error() << "File '" << node->name
+			ib::fatal() << "File '" << node->name
 				    << "' has " << space->referenced()
 				    << " operations";
 		}
