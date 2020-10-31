@@ -2570,6 +2570,8 @@ static my_bool xtrabackup_copy_datafile(fil_node_t *node, uint thread_n,
 		return(FALSE);
 	}
 
+	memset(&write_filt_ctxt, 0, sizeof(xb_write_filt_ctxt_t));
+
 	bool was_dropped;
 	pthread_mutex_lock(&backup_mutex);
 	was_dropped = (ddl_tracker.drops.find(node->space->id) != ddl_tracker.drops.end());
@@ -2601,7 +2603,6 @@ static my_bool xtrabackup_copy_datafile(fil_node_t *node, uint thread_n,
 		sizeof dst_name - 1);
 	dst_name[sizeof dst_name - 1] = '\0';
 
-	memset(&write_filt_ctxt, 0, sizeof(xb_write_filt_ctxt_t));
 	ut_a(write_filter.process != NULL);
 
 	if (write_filter.init != NULL &&
@@ -2941,8 +2942,14 @@ static void dbug_mariabackup_event(const char *event,const char *key)
 
 }
 #define DBUG_MARIABACKUP_EVENT(A, B) DBUG_EXECUTE_IF("mariabackup_events", dbug_mariabackup_event(A,B););
+#define DBUG_MB_INJECT_CODE(EVENT, KEY, CODE) \
+	DBUG_EXECUTE_IF("mariabackup_inject_code", {\
+		char *env = getenv(EVENT); \
+		if (env && !strcmp(env, KEY)) { CODE } \
+	})
 #else
 #define DBUG_MARIABACKUP_EVENT(A,B)
+#define DBUG_MB_INJECT_CODE(EVENT, KEY, CODE)
 #endif
 
 /**************************************************************************
@@ -2967,6 +2974,8 @@ DECLARE_THREAD(data_copy_thread_func)(
 
 	while ((node = datafiles_iter_next(ctxt->it)) != NULL) {
 		DBUG_MARIABACKUP_EVENT("before_copy", node->space->name);
+		DBUG_MB_INJECT_CODE("wait_innodb_redo_before_copy", node->space->name,
+			backup_wait_for_lsn(get_current_lsn(mysql_connection)););
 		/* copy the datafile */
 		if (xtrabackup_copy_datafile(node, num, NULL,
 			xtrabackup_incremental ? wf_incremental : wf_write_through))

@@ -86,8 +86,10 @@ eval KILL QUERY $con1_id;
 eval KILL QUERY $con2_id;
 
 connection default;
+--error ER_QUERY_INTERRUPTED
 --reap
 connection con2;
+--error ER_QUERY_INTERRUPTED
 --reap
 
 connection extracon;

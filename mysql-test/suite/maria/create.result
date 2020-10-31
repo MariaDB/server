@@ -31,3 +31,47 @@ select * from t2;
 f1	f2
 3	qux
 DROP TABLE t1, t2;
+#
+# MDEV-23159 Assertion `table_share->tmp_table != NO_TMP_TABLE ||
+# m_lock_type != 2' + SIGSEGV in trnman_can_read_from
+# (on optimized builds)
+#
+SET @org_sql_mode=@@SQL_MODE;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=Aria ROW_FORMAT=COMPRESSED;
+INSERT INTO t1 VALUES(1);
+CREATE TEMPORARY TABLE t2(b INT);
+EXPLAIN SELECT * FROM t1 WHERE a IN (SELECT MAX(a) FROM t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	Using index
+2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+DROP TABLE t1,t2;
+SET SQL_MODE='';
+CREATE TABLE t1 (c INT PRIMARY KEY) ENGINE=Aria;
+CREATE TABLE t2 (d INT);
+INSERT INTO t1 VALUES (1);
+SELECT c FROM t1 WHERE (c) IN (SELECT MIN(c) FROM t2);
+c
+DROP TABLE t1,t2;
+USE test;
+SET SQL_MODE='ONLY_FULL_GROUP_BY';
+CREATE TABLE t3 (c1 DECIMAL(1,1) PRIMARY KEY,c2 DATE,c3 NUMERIC(10) UNSIGNED) ENGINE=Aria;
+CREATE TABLE t2 (f1 INTEGER ) ENGINE=Aria;
+INSERT INTO t3 VALUES (0,0,0);
+SELECT c1 FROM t3 WHERE (c1) IN (SELECT MIN(DISTINCT c1) FROM t2);
+c1
+DROP TABLE t2,t3;
+SET @@SQL_MODE=@org_sql_mode;
+#
+# MDEV-23222 SIGSEGV in maria_status | Assertion `(longlong)
+# thd->status_var.local_memory_used >= 0
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE MDEV_23222 (i INT) DATA DIRECTORY = 'MYSQL_TMP_DIR', ENGINE=Aria TRANSACTIONAL=1;;
+flush tables;
+CREATE TABLE MDEV_23222 (i INT) DATA DIRECTORY = 'MYSQL_TMP_DIR', ENGINE=Aria TRANSACTIONAL=1;;
+Got one of the listed errors
+DROP TABLE t1;
+#
+# End of 10.3 tests
+#

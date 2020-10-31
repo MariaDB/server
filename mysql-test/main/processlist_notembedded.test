@@ -40,3 +40,21 @@ SET DEBUG_SYNC = 'RESET';
 source include/wait_until_count_sessions.inc;
 
 --echo End of 5.5 tests
+
+--echo #
+--echo # MDEV-23752: SHOW EXPLAIN FOR thd waits for sleep
+--echo #
+
+--connect (con1,localhost,root,,)
+--let $con_id = `SELECT CONNECTION_ID()`
+--send select sleep(100000);
+
+--connection default
+
+--replace_result $con_id con_id
+eval SHOW EXPLAIN FOR $con_id;
+
+--replace_result $con_id con_id
+eval KILL QUERY $con_id;
+
+--echo # End of 10.2 tests
