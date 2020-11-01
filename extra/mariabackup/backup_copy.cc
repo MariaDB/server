@@ -1443,7 +1443,7 @@ out:
 
 void backup_fix_ddl(void);
 
-static lsn_t get_current_lsn(MYSQL *connection)
+lsn_t get_current_lsn(MYSQL *connection)
 {
 	static const char lsn_prefix[] = "\nLog sequence number ";
 	lsn_t lsn = 0;

@@ -1174,6 +1174,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
                                   FALSE, TRUE))
       goto err;
     my_free(log_data);
+    log_data= 0;
   }
 
   if (!(flags & HA_DONT_TOUCH_DATA))

@@ -217,15 +217,15 @@ public:
   {
     return to_string(to, 0, 0, 0);
   }
-  String *to_string_round(String *to, uint scale, my_decimal *round_buff) const
+  String *to_string_round(String *to, int scale, my_decimal *round_buff) const
   {
     (void) round_to(round_buff, scale, HALF_UP); // QQ: check result?
     return round_buff->to_string(to);
   }
-  int round_to(my_decimal *to, uint scale, decimal_round_mode mode,
+  int round_to(my_decimal *to, int scale, decimal_round_mode mode,
                int mask= E_DEC_FATAL_ERROR) const
   {
-    return check_result(mask, decimal_round(this, to, (int) scale, mode));
+    return check_result(mask, decimal_round(this, to, scale, mode));
   }
   int to_binary(uchar *bin, int prec, int scale,
                 uint mask= E_DEC_FATAL_ERROR) const;

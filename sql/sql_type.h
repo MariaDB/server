@@ -374,7 +374,7 @@ class Dec_ptr_and_buffer: public Dec_ptr
 protected:
   my_decimal m_buffer;
 public:
-  int round_to(my_decimal *to, uint scale, decimal_round_mode mode)
+  int round_to(my_decimal *to, int scale, decimal_round_mode mode)
   {
     DBUG_ASSERT(m_ptr);
     return m_ptr->round_to(to, scale, mode);
@@ -382,6 +382,14 @@ public:
   int round_self(uint scale, decimal_round_mode mode)
   {
     return round_to(&m_buffer, scale, mode);
+  }
+  int round_self_if_needed(int scale, decimal_round_mode mode)
+  {
+    if (scale >= m_ptr->frac)
+      return E_DEC_OK;
+    int res= m_ptr->round_to(&m_buffer, scale, mode);
+    m_ptr= &m_buffer;
+    return res;
   }
   String *to_string_round(String *to, uint dec)
   {
@@ -3979,7 +3987,6 @@ public:
                           SORT_FIELD_ATTR *attr) const= 0;
   virtual bool is_packable() const { return false; }
 
-
   virtual uint32 max_display_length(const Item *item) const= 0;
   virtual uint32 Item_decimal_notation_int_digits(const Item *item) const { return 0; }
   virtual uint32 calc_pack_length(uint32 length) const= 0;
@@ -5284,7 +5291,7 @@ public:
   void sort_length(THD *thd,
                    const Type_std_attributes *item,
                    SORT_FIELD_ATTR *attr) const override;
-  bool is_packable()const override { return true; }
+  bool is_packable() const override { return true; }
   bool union_element_finalize(const Item * item) const override;
   uint calc_key_length(const Column_definition &def) const override;
   bool Column_definition_prepare_stage1(THD *thd,

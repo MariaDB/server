@@ -2274,6 +2274,27 @@ ORDER BY id+1 DESC;
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-24033: SIGSEGV in __memcmp_avx2_movbe from queue_insert | SIGSEGV in __memcmp_avx2_movbe from native_compare
+--echo #
+
+SET @save_max_length_for_sort_data=@@max_length_for_sort_data;
+SET @save_max_sort_length= @@max_sort_length;
+SET @save_sql_select_limit= @@sql_select_limit;
+
+CREATE TABLE t1 (a DECIMAL(64,0), b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4);
+
+SET max_length_for_sort_data= 30;
+SET sql_select_limit = 3;
+SET max_sort_length=8;
+SELECT * FROM t1 ORDER BY a+1;
+
+SET max_length_for_sort_data=@save_max_length_for_sort_data;
+SET max_sort_length= @save_max_sort_length;
+SET sql_select_limit= @save_sql_select_limit;
+DROP TABLE t1;
+
 --echo # End of 10.2 tests
 
 --echo #

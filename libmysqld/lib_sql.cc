@@ -333,7 +333,7 @@ static my_bool emb_read_query_result(MYSQL *mysql)
 static int emb_stmt_execute(MYSQL_STMT *stmt)
 {
   DBUG_ENTER("emb_stmt_execute");
-  uchar header[5];
+  uchar header[9];
   THD *thd;
   my_bool res;
 
@@ -345,6 +345,7 @@ static int emb_stmt_execute(MYSQL_STMT *stmt)
 
   int4store(header, stmt->stmt_id);
   header[4]= (uchar) stmt->flags;
+  header[5]= header[6]= header[7]= header[8]= 0; // safety
   thd= (THD*)stmt->mysql->thd;
   thd->client_param_count= stmt->param_count;
   thd->client_params= stmt->params;

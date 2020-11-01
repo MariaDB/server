@@ -2215,12 +2215,11 @@ sortlength(THD *thd, Sort_keys *sort_keys, bool *allow_packing_for_sortkeys)
     {
       Field *field= sortorder->field;
       CHARSET_INFO *cs= sortorder->field->sort_charset();
-      sortorder->set_length_and_original_length(thd, field->sort_length());
-
-      sortorder->suffix_length= sortorder->field->sort_suffix_length();
       sortorder->type= field->is_packable() ?
                        SORT_FIELD_ATTR::VARIABLE_SIZE :
                        SORT_FIELD_ATTR::FIXED_SIZE;
+      sortorder->set_length_and_original_length(thd, field->sort_length());
+      sortorder->suffix_length= sortorder->field->sort_suffix_length();
       sortorder->cs= cs;
 
       if (use_strnxfrm((cs=sortorder->field->sort_charset())))
@@ -2239,11 +2238,11 @@ sortlength(THD *thd, Sort_keys *sort_keys, bool *allow_packing_for_sortkeys)
     }
     else
     {
-      sortorder->item->type_handler()->sort_length(thd, sortorder->item,
-                                                   sortorder);
       sortorder->type= sortorder->item->type_handler()->is_packable() ?
                        SORT_FIELD_ATTR::VARIABLE_SIZE :
                        SORT_FIELD_ATTR::FIXED_SIZE;
+      sortorder->item->type_handler()->sort_length(thd, sortorder->item,
+                                                   sortorder);
       sortorder->cs= sortorder->item->collation.collation;
       if (sortorder->is_variable_sized() && allow_packing_for_keys)
       {
@@ -2256,8 +2255,11 @@ sortlength(THD *thd, Sort_keys *sort_keys, bool *allow_packing_for_sortkeys)
       if ((sortorder->maybe_null= sortorder->item->maybe_null))
         nullable_cols++;				// Place for NULL marker
     }
-    set_if_smaller(sortorder->length, thd->variables.max_sort_length);
-    set_if_smaller(sortorder->original_length, thd->variables.max_sort_length);
+    if (sortorder->is_variable_sized())
+    {
+      set_if_smaller(sortorder->length, thd->variables.max_sort_length);
+      set_if_smaller(sortorder->original_length, thd->variables.max_sort_length);
+    }
     length+=sortorder->length;
 
     sort_keys->increment_size_of_packable_fields(sortorder->length_bytes);
@@ -2758,7 +2760,8 @@ bool SORT_FIELD_ATTR::check_if_packing_possible(THD *thd) const
 void SORT_FIELD_ATTR::set_length_and_original_length(THD *thd, uint length_arg)
 {
   length= length_arg;
-  set_if_smaller(length, thd->variables.max_sort_length);
+  if (is_variable_sized())
+    set_if_smaller(length, thd->variables.max_sort_length);
   original_length= length_arg;
 }
 
