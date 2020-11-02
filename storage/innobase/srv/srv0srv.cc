@@ -1368,9 +1368,9 @@ void srv_error_monitor_task(void*)
 	/* longest waiting thread for a semaphore */
 	os_thread_id_t	waiter;
 	static os_thread_id_t	old_waiter = os_thread_get_curr_id();
-	/* the semaphore that is being waited for */
-	const void*	sema		= NULL;
-	static const void*	old_sema	= NULL;
+	/* the latch that is being waited for */
+	const rw_lock_t* latch= nullptr;
+	static const rw_lock_t* old_latch;
 
 	ut_ad(!srv_read_only_mode);
 
@@ -1392,8 +1392,8 @@ void srv_error_monitor_task(void*)
 	eviction policy. */
 	buf_LRU_stat_update();
 
-	if (sync_array_print_long_waits(&waiter, &sema)
-	    && sema == old_sema && os_thread_eq(waiter, old_waiter)) {
+	if (sync_array_print_long_waits(&waiter, &latch)
+	    && latch == old_latch && os_thread_eq(waiter, old_waiter)) {
 #ifdef WITH_INNODB_DISALLOW_WRITES
 	  if (UNIV_LIKELY(!innodb_disallow_writes)) {
 #endif /* WITH_INNODB_DISALLOW_WRITES */
@@ -1415,7 +1415,7 @@ void srv_error_monitor_task(void*)
 	} else {
 		fatal_cnt = 0;
 		old_waiter = waiter;
-		old_sema = sema;
+		old_latch = latch;
 	}
 }
 

@@ -35,6 +35,7 @@ Created 9/11/1995 Heikki Tuuri
 #define sync0rw_h
 
 #include "ut0mutex.h"
+#include "ut0counter.h"
 #include "ilist.h"
 
 /** Counters for RW locks. */
