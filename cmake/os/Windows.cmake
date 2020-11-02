@@ -110,6 +110,9 @@ ENDMACRO()
 
 
 IF(MSVC)
+  IF(MSVC_VERSION LESS 1920)
+    MESSAGE(FATAL_ERROR "Visual Studio q2019 or later is required")
+  ENDIF()
   # Disable mingw based pkg-config found in Strawberry perl
   SET(PKG_CONFIG_EXECUTABLE 0 CACHE INTERNAL "")
 
