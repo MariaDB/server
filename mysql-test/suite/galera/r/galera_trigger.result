@@ -45,34 +45,34 @@ connection node_2;
 set session wsrep_sync_wait=15;
 insert into t1(value) values (3);
 insert into t1(value) values (4);
-select * from t2;
-id	tbl	action
-1	t1	INSERT
-3	t1	INSERT
-4	t1	INSERT
-6	t1	INSERT
+select tbl, action from t2;
+tbl	action
+t1	INSERT
+t1	INSERT
+t1	INSERT
+t1	INSERT
 connection node_1;
 drop trigger if exists log_insert;
 insert into t1(value) values (5);
-select * from t2;
-id	tbl	action
-1	t1	INSERT
-3	t1	INSERT
-4	t1	INSERT
-6	t1	INSERT
+select tbl, action from t2;
+tbl	action
+t1	INSERT
+t1	INSERT
+t1	INSERT
+t1	INSERT
 connection node_2;
 insert into t1(value) values (6);
-select * from t2;
-id	tbl	action
-1	t1	INSERT
-3	t1	INSERT
-4	t1	INSERT
-6	t1	INSERT
+select tbl, action from t2;
+tbl	action
+t1	INSERT
+t1	INSERT
+t1	INSERT
+t1	INSERT
 connection node_1;
-select * from t2;
-id	tbl	action
-1	t1	INSERT
-3	t1	INSERT
-4	t1	INSERT
-6	t1	INSERT
+select tbl, action from t2;
+tbl	action
+t1	INSERT
+t1	INSERT
+t1	INSERT
+t1	INSERT
 drop table t1, t2;
