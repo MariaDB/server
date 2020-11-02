@@ -203,6 +203,11 @@ struct TrxFactory {
 			&trx_named_savept_t::trx_savepoints);
 
 		mysql_mutex_init(trx_mutex_key, &trx->mutex, nullptr);
+		/* While lock_sys.mutex is being held, multiple trx->mutex
+		may be acquired in any order. Because SAFE_MUTEX cannot
+		express this dependency, we will disable the check
+		altogether. */
+		mysql_mutex_setflags(&trx->mutex, MYF_NO_DEADLOCK_DETECTION);
 	}
 
 	/** Release resources held by the transaction object.
