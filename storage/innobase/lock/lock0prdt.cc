@@ -237,7 +237,7 @@ lock_prdt_has_lock(
 {
 	lock_t*		lock;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_ad((precise_mode & LOCK_MODE_MASK) == LOCK_S
 	      || (precise_mode & LOCK_MODE_MASK) == LOCK_X);
 	ut_ad(!(precise_mode & LOCK_INSERT_INTENTION));
@@ -295,7 +295,7 @@ lock_prdt_other_has_conflicting(
 					the new lock will be on */
 	const trx_t*		trx)	/*!< in: our transaction */
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	for (lock_t* lock = lock_rec_get_first(
 		lock_hash_get(mode), block, PRDT_HEAPNO);
@@ -392,7 +392,7 @@ lock_prdt_find_on_page(
 {
 	lock_t*	lock;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	for (lock = lock_sys.get_first(*lock_hash_get(type_mode),
 				       block->page.id());
@@ -437,8 +437,11 @@ lock_prdt_add_to_queue(
 					/*!< in: TRUE if caller owns the
 					transaction mutex */
 {
-	ut_ad(lock_mutex_own());
-	ut_ad(caller_owns_trx_mutex == trx_mutex_own(trx));
+	mysql_mutex_assert_owner(&lock_sys.mutex);
+#ifdef SAFE_MUTEX
+	DBUG_ASSERT(caller_owns_trx_mutex
+		    == mysql_mutex_is_owner(&trx->mutex));
+#endif /* SAFE_MUTEX */
 	ut_ad(!dict_index_is_clust(index) && !dict_index_is_online_ddl(index));
 	ut_ad(type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE));
 
@@ -532,7 +535,7 @@ lock_prdt_insert_check_and_lock(
 
 	trx_t*	trx = thr_get_trx(thr);
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	/* Because this code is invoked for a running transaction by
 	the thread that is serving the transaction, it is not necessary
@@ -546,7 +549,7 @@ lock_prdt_insert_check_and_lock(
 	lock = lock_rec_get_first(&lock_sys.prdt_hash, block, PRDT_HEAPNO);
 
 	if (lock == NULL) {
-		lock_mutex_exit();
+		mysql_mutex_unlock(&lock_sys.mutex);
 
 		/* Update the page max trx id field */
 		page_update_max_trx_id(block, buf_block_get_page_zip(block),
@@ -578,7 +581,7 @@ lock_prdt_insert_check_and_lock(
 		lock_init_prdt_from_mbr(prdt, mbr, 0, trx->lock.lock_heap);
 
 		/* Note that we may get DB_SUCCESS also here! */
-		trx_mutex_enter(trx);
+		mysql_mutex_lock(&trx->mutex);
 
 		err = lock_rec_enqueue_waiting(
 #ifdef WITH_WSREP
@@ -587,12 +590,12 @@ lock_prdt_insert_check_and_lock(
 			LOCK_X | LOCK_PREDICATE | LOCK_INSERT_INTENTION,
 			block, PRDT_HEAPNO, index, thr, prdt);
 
-		trx_mutex_exit(trx);
+		mysql_mutex_unlock(&trx->mutex);
 	} else {
 		err = DB_SUCCESS;
 	}
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	switch (err) {
 	case DB_SUCCESS_LOCKED_REC:
@@ -623,7 +626,7 @@ lock_prdt_update_parent(
         lock_prdt_t*	right_prdt,	/*!< in: MBR on the new page */
 	const page_id_t	page_id)	/*!< in: parent page */
 {
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	/* Get all locks in parent */
 	for (lock_t *lock = lock_sys.get_first_prdt(page_id);
@@ -661,7 +664,7 @@ lock_prdt_update_parent(
 		}
 	}
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 }
 
 /**************************************************************//**
@@ -685,13 +688,13 @@ lock_prdt_update_split_low(
 		/* First dealing with Page Lock */
 		if (lock->type_mode & LOCK_PRDT_PAGE) {
 			/* Duplicate the lock to new page */
-			trx_mutex_enter(lock->trx);
+			mysql_mutex_lock(&lock->trx->mutex);
 			lock_prdt_add_to_queue(lock->type_mode,
 					       new_block,
 					       lock->index,
 					       lock->trx, NULL, TRUE);
 
-			trx_mutex_exit(lock->trx);
+			mysql_mutex_unlock(&lock->trx->mutex);
 			continue;
 		}
 
@@ -712,23 +715,23 @@ lock_prdt_update_split_low(
 
 			if (!lock_prdt_consistent(lock_prdt, new_prdt, op)) {
 				/* Move the lock to new page */
-				trx_mutex_enter(lock->trx);
+				mysql_mutex_lock(&lock->trx->mutex);
 				lock_prdt_add_to_queue(lock->type_mode,
 						       new_block,
 						       lock->index,
 						       lock->trx, lock_prdt,
 						       TRUE);
-				trx_mutex_exit(lock->trx);
+				mysql_mutex_unlock(&lock->trx->mutex);
 			}
 		} else if (!lock_prdt_consistent(lock_prdt, new_prdt, op)) {
 			/* Duplicate the lock to new page */
-			trx_mutex_enter(lock->trx);
+			mysql_mutex_lock(&lock->trx->mutex);
 			lock_prdt_add_to_queue(lock->type_mode,
 					       new_block,
 					       lock->index,
 					       lock->trx, lock_prdt, TRUE);
 
-			trx_mutex_exit(lock->trx);
+			mysql_mutex_unlock(&lock->trx->mutex);
 		}
 	}
 }
@@ -743,7 +746,7 @@ lock_prdt_update_split(
 	lock_prdt_t*	new_prdt,	/*!< in: MBR on the new page */
 	const page_id_t	page_id)	/*!< in: page number */
 {
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	lock_prdt_update_split_low(new_block, prdt, new_prdt,
 				   page_id, LOCK_PREDICATE);
@@ -751,7 +754,7 @@ lock_prdt_update_split(
 	lock_prdt_update_split_low(new_block, NULL, NULL,
 				   page_id, LOCK_PRDT_PAGE);
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 }
 
 /*********************************************************************//**
@@ -816,7 +819,7 @@ lock_prdt_lock(
 	index record, and this would not have been possible if another active
 	transaction had modified this secondary index record. */
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	const unsigned	prdt_mode = type_mode | mode;
 	lock_t*		lock = lock_sys.get_first(hash, block->page.id());
@@ -831,7 +834,7 @@ lock_prdt_lock(
 
 		status = LOCK_REC_SUCCESS_CREATED;
 	} else {
-		trx_mutex_enter(trx);
+		mysql_mutex_lock(&trx->mutex);
 
 		if (lock_rec_get_next_on_page(lock)
 		    || lock->trx != trx
@@ -871,10 +874,10 @@ lock_prdt_lock(
 				}
 			}
 
-			trx_mutex_exit(trx);
+			mysql_mutex_unlock(&trx->mutex);
 
 		} else {
-			trx_mutex_exit(trx);
+			mysql_mutex_unlock(&trx->mutex);
 
 			if (!lock_rec_get_nth_bit(lock, PRDT_HEAPNO)) {
 				lock_rec_set_nth_bit(lock, PRDT_HEAPNO);
@@ -883,7 +886,7 @@ lock_prdt_lock(
 		}
 	}
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	if (status == LOCK_REC_SUCCESS_CREATED && type_mode == LOCK_PREDICATE) {
 		/* Append the predicate in the lock record */
@@ -913,7 +916,7 @@ lock_place_prdt_page_lock(
 	index record, and this would not have been possible if another active
 	transaction had modified this secondary index record. */
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	const lock_t*	lock = lock_sys.get_first_prdt_page(page_id);
 	const ulint	mode = LOCK_S | LOCK_PRDT_PAGE;
@@ -921,7 +924,7 @@ lock_place_prdt_page_lock(
 
 	if (lock != NULL) {
 
-		trx_mutex_enter(trx);
+		mysql_mutex_lock(&trx->mutex);
 
 		/* Find a matching record lock owned by this transaction. */
 
@@ -933,7 +936,7 @@ lock_place_prdt_page_lock(
 		ut_ad(lock == NULL || lock->type_mode == (mode | LOCK_REC));
 		ut_ad(lock == NULL || lock_rec_get_n_bits(lock) != 0);
 
-		trx_mutex_exit(trx);
+		mysql_mutex_unlock(&trx->mutex);
 	}
 
 	if (lock == NULL) {
@@ -949,7 +952,7 @@ lock_place_prdt_page_lock(
 #endif /* PRDT_DIAG */
 	}
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	return(DB_SUCCESS);
 }
@@ -962,11 +965,11 @@ bool lock_test_prdt_page_lock(const trx_t *trx, const page_id_t page_id)
 {
 	lock_t*		lock;
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	lock = lock_sys.get_first_prdt_page(page_id);
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	return(!lock || trx == lock->trx);
 }
@@ -982,7 +985,7 @@ lock_prdt_rec_move(
 	const buf_block_t*	donator)	/*!< in: buffer block containing
 						the donating record */
 {
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	for (lock_t *lock = lock_rec_get_first(&lock_sys.prdt_hash,
 					       donator, PRDT_HEAPNO);
@@ -1000,7 +1003,7 @@ lock_prdt_rec_move(
 			lock_prdt, FALSE);
 	}
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 }
 
 /** Removes predicate lock objects set on an index page which is discarded.
@@ -1014,7 +1017,7 @@ lock_prdt_page_free_from_discard(
 	lock_t*	lock;
 	lock_t*	next_lock;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	lock = lock_sys.get_first(*lock_hash, block->page.id());
 

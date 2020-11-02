@@ -1145,7 +1145,7 @@ fts_query_difference(
 		fts_cache_t*		cache = table->fts->cache;
 		dberr_t			error;
 
-		rw_lock_x_lock(&cache->lock);
+		mysql_mutex_lock(&cache->lock);
 
 		index_cache = fts_find_index_cache(cache, query->index);
 
@@ -1171,7 +1171,7 @@ fts_query_difference(
 			}
 		}
 
-		rw_lock_x_unlock(&cache->lock);
+		mysql_mutex_unlock(&cache->lock);
 
 		/* error is passed by 'query->error' */
 		if (query->error != DB_SUCCESS) {
@@ -1270,7 +1270,7 @@ fts_query_intersect(
 
 		/* Search the cache for a matching word first. */
 
-		rw_lock_x_lock(&cache->lock);
+		mysql_mutex_lock(&cache->lock);
 
 		/* Search for the index specific cache. */
 		index_cache = fts_find_index_cache(cache, query->index);
@@ -1295,7 +1295,7 @@ fts_query_intersect(
 			}
 		}
 
-		rw_lock_x_unlock(&cache->lock);
+		mysql_mutex_unlock(&cache->lock);
 
 		/* error is passed by 'query->error' */
 		if (query->error != DB_SUCCESS) {
@@ -1349,7 +1349,7 @@ fts_query_cache(
 	fts_cache_t*		cache = table->fts->cache;
 
 	/* Search the cache for a matching word first. */
-	rw_lock_x_lock(&cache->lock);
+	mysql_mutex_lock(&cache->lock);
 
 	/* Search for the index specific cache. */
 	index_cache = fts_find_index_cache(cache, query->index);
@@ -1379,7 +1379,7 @@ fts_query_cache(
 		}
 	}
 
-	rw_lock_x_unlock(&cache->lock);
+	mysql_mutex_unlock(&cache->lock);
 
 	return(query->error);
 }
@@ -2480,9 +2480,9 @@ fts_query_is_in_proximity_range(
 
 	memset(&get_doc, 0x0, sizeof(get_doc));
 
-	rw_lock_x_lock(&cache->lock);
+	mysql_mutex_lock(&cache->lock);
 	get_doc.index_cache = fts_find_index_cache(cache, query->index);
-	rw_lock_x_unlock(&cache->lock);
+	mysql_mutex_unlock(&cache->lock);
 	ut_a(get_doc.index_cache != NULL);
 
 	fts_phrase_t	phrase(get_doc.index_cache->index->table);
@@ -2540,14 +2540,14 @@ fts_query_search_phrase(
 	/* Setup the doc retrieval infrastructure. */
 	memset(&get_doc, 0x0, sizeof(get_doc));
 
-	rw_lock_x_lock(&cache->lock);
+	mysql_mutex_lock(&cache->lock);
 
 	get_doc.index_cache = fts_find_index_cache(cache, query->index);
 
 	/* Must find the index cache */
 	ut_a(get_doc.index_cache != NULL);
 
-	rw_lock_x_unlock(&cache->lock);
+	mysql_mutex_unlock(&cache->lock);
 
 #ifdef FTS_INTERNAL_DIAG_PRINT
 	ib::info() << "Start phrase search";
@@ -4255,9 +4255,9 @@ fts_expand_query(
 	/* Init "result_doc", to hold words from the first search pass */
 	fts_doc_init(&result_doc);
 
-	rw_lock_x_lock(&index->table->fts->cache->lock);
+	mysql_mutex_lock(&index->table->fts->cache->lock);
 	index_cache = fts_find_index_cache(index->table->fts->cache, index);
-	rw_lock_x_unlock(&index->table->fts->cache->lock);
+	mysql_mutex_unlock(&index->table->fts->cache->lock);
 
 	ut_a(index_cache);
 
