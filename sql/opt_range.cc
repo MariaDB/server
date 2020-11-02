@@ -14855,7 +14855,7 @@ const char *dbug_print_sel_arg(SEL_ARG *sel_arg)
     break;
   case SEL_ARG::KEY_RANGE:
   default:
-    stype=nullptr;
+    stype= NULL;
   }
 
   if (stype)
