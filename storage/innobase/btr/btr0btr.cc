@@ -55,7 +55,7 @@ bool
 btr_can_merge_with_page(
 /*====================*/
 	btr_cur_t*	cursor,		/*!< in: cursor on the page to merge */
-	ulint		page_no,	/*!< in: a sibling page */
+	uint32_t	page_no,	/*!< in: a sibling page */
 	buf_block_t**	merge_block,	/*!< out: the merge block */
 	mtr_t*		mtr);		/*!< in: mini-transaction */
 
@@ -280,7 +280,7 @@ the index.
 ulint
 btr_height_get(
 /*===========*/
-	dict_index_t*	index,	/*!< in: index tree */
+	const dict_index_t*	index,	/*!< in: index tree */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	ulint		height=0;
@@ -511,7 +511,7 @@ buf_block_t*
 btr_page_alloc_low(
 /*===============*/
 	dict_index_t*	index,		/*!< in: index */
-	ulint		hint_page_no,	/*!< in: hint of a good page */
+	uint32_t	hint_page_no,	/*!< in: hint of a good page */
 	byte		file_direction,	/*!< in: direction where a possible
 					page split is made */
 	ulint		level,		/*!< in: level where the page is placed
@@ -548,7 +548,7 @@ buf_block_t*
 btr_page_alloc(
 /*===========*/
 	dict_index_t*	index,		/*!< in: index */
-	ulint		hint_page_no,	/*!< in: hint of a good page */
+	uint32_t	hint_page_no,	/*!< in: hint of a good page */
 	byte		file_direction,	/*!< in: direction where a possible
 					page split is made */
 	ulint		level,		/*!< in: level where the page is placed
@@ -582,7 +582,7 @@ Gets the number of pages in a B-tree.
 ulint
 btr_get_size(
 /*=========*/
-	dict_index_t*	index,	/*!< in: index */
+	const dict_index_t*	index,	/*!< in: index */
 	ulint		flag,	/*!< in: BTR_N_LEAF_PAGES or BTR_TOTAL_SIZE */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
 				is s-latched */
@@ -1049,7 +1049,7 @@ btr_create(
 			return(FIL_NULL);
 		}
 
-		ut_ad(block->page.id().page_no() == IBUF_TREE_ROOT_PAGE_NO);
+		ut_ad(block->page.id() == page_id_t(0,IBUF_TREE_ROOT_PAGE_NO));
 
 		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE_NEW);
 
@@ -2801,7 +2801,7 @@ func_start:
 	tuple to be inserted should be the first record on the upper
 	half-page */
 	bool insert_left = false;
-	ulint hint_page_no = block->page.id().page_no() + 1;
+	uint32_t hint_page_no = block->page.id().page_no() + 1;
 	byte direction = FSP_UP;
 
 	if (tuple && n_iterations > 0) {
@@ -3386,8 +3386,6 @@ btr_compress(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	dict_index_t*	index;
-	ulint		left_page_no;
-	ulint		right_page_no;
 	buf_block_t*	merge_block;
 	page_t*		merge_page = NULL;
 	page_zip_des_t*	merge_page_zip;
@@ -3416,8 +3414,8 @@ btr_compress(
 
 	MONITOR_INC(MONITOR_INDEX_MERGE_ATTEMPTS);
 
-	left_page_no = btr_page_get_prev(page);
-	right_page_no = btr_page_get_next(page);
+	const uint32_t left_page_no = btr_page_get_prev(page);
+	const uint32_t right_page_no = btr_page_get_next(page);
 
 #ifdef UNIV_DEBUG
 	if (!page_is_leaf(page) && left_page_no == FIL_NULL) {
@@ -3989,8 +3987,6 @@ btr_discard_page(
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	dict_index_t*	index;
-	ulint		left_page_no;
-	ulint		right_page_no;
 	buf_block_t*	merge_block;
 	buf_block_t*	block;
 	btr_cur_t	parent_cursor;
@@ -4014,8 +4010,8 @@ btr_discard_page(
 
 	/* Decide the page which will inherit the locks */
 
-	left_page_no = btr_page_get_prev(block->frame);
-	right_page_no = btr_page_get_next(block->frame);
+	const uint32_t left_page_no = btr_page_get_prev(block->frame);
+	const uint32_t right_page_no = btr_page_get_next(block->frame);
 
 	ut_d(bool parent_is_different = false);
 	if (left_page_no != FIL_NULL) {
@@ -4598,8 +4594,6 @@ btr_validate_level(
 	btr_cur_t	node_cur;
 	btr_cur_t	right_node_cur;
 	rec_t*		rec;
-	ulint		right_page_no;
-	ulint		left_page_no;
 	page_cur_t	cursor;
 	dtuple_t*	node_ptr_tuple;
 	bool		ret	= true;
@@ -4612,8 +4606,8 @@ btr_validate_level(
 #endif /* UNIV_ZIP_DEBUG */
 	ulint		savepoint = 0;
 	ulint		savepoint2 = 0;
-	ulint		parent_page_no = FIL_NULL;
-	ulint		parent_right_page_no = FIL_NULL;
+	uint32_t	parent_page_no = FIL_NULL;
+	uint32_t	parent_right_page_no = FIL_NULL;
 	bool		rightmost_child = false;
 
 	mtr.start();
@@ -4669,7 +4663,7 @@ btr_validate_level(
 		does not use such scan for any of its DML or query
 		operations  */
 		if (dict_index_is_spatial(index)) {
-			left_page_no = btr_page_get_prev(page);
+			uint32_t left_page_no = btr_page_get_prev(page);
 
 			while (left_page_no != FIL_NULL) {
 				/* To obey latch order of tree blocks,
@@ -4738,8 +4732,8 @@ loop:
 
 	ut_a(btr_page_get_level(page) == level);
 
-	right_page_no = btr_page_get_next(page);
-	left_page_no = btr_page_get_prev(page);
+	uint32_t right_page_no = btr_page_get_next(page);
+	uint32_t left_page_no = btr_page_get_prev(page);
 
 	ut_a(!page_is_empty(page)
 	     || (level == 0
@@ -4860,8 +4854,7 @@ loop:
 
 			rec = btr_cur_get_rec(&node_cur);
 			fprintf(stderr, "\n"
-				"InnoDB: node ptr child page n:o "
-				ULINTPF "\n",
+				"InnoDB: node ptr child page n:o %u\n",
 				btr_node_ptr_get_child_page_no(rec, offsets));
 
 			fputs("InnoDB: record on page ", stderr);
@@ -5096,7 +5089,7 @@ bool
 btr_can_merge_with_page(
 /*====================*/
 	btr_cur_t*	cursor,		/*!< in: cursor on the page to merge */
-	ulint		page_no,	/*!< in: a sibling page */
+	uint32_t	page_no,	/*!< in: a sibling page */
 	buf_block_t**	merge_block,	/*!< out: the merge block */
 	mtr_t*		mtr)		/*!< in: mini-transaction */
 {

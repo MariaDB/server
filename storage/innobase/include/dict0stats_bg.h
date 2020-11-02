@@ -28,9 +28,7 @@ Created Apr 26, 2012 Vasil Dimov
 #define dict0stats_bg_h
 
 #include "dict0types.h"
-#include "os0event.h"
 #include "os0thread.h"
-
 
 #ifdef HAVE_PSI_INTERFACE
 extern mysql_pfs_key_t	dict_stats_recalc_pool_mutex_key;

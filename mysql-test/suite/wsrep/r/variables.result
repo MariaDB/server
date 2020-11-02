@@ -1,3 +1,4 @@
+call mtr.add_suppression("WSREP: Initial position was provided by configuration or SST, avoiding override");
 SET @wsrep_provider_options_saved= @@global.wsrep_provider_options;
 SET @wsrep_cluster_address_saved= @@global.wsrep_cluster_address;
 
@@ -48,6 +49,8 @@ wsrep_flow_control_paused_ns	#
 wsrep_flow_control_paused	#
 wsrep_flow_control_sent	#
 wsrep_flow_control_recv	#
+wsrep_flow_control_active	#
+wsrep_flow_control_requested	#
 wsrep_cert_deps_distance	#
 wsrep_apply_oooe	#
 wsrep_apply_oool	#
@@ -109,6 +112,8 @@ wsrep_flow_control_paused_ns	#
 wsrep_flow_control_paused	#
 wsrep_flow_control_sent	#
 wsrep_flow_control_recv	#
+wsrep_flow_control_active	#
+wsrep_flow_control_requested	#
 wsrep_cert_deps_distance	#
 wsrep_apply_oooe	#
 wsrep_apply_oool	#

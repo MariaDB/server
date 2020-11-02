@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,8 +27,7 @@ Created 5/30/1994 Heikki Tuuri
 #ifndef ut0mem_h
 #define ut0mem_h
 
-#include "os0event.h"
-#include "ut0mutex.h"
+#include "univ.i"
 
 /********************************************************************
 Concatenate 3 strings.*/

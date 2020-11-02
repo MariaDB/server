@@ -214,7 +214,7 @@ the index.
 ulint
 btr_height_get(
 /*===========*/
-	dict_index_t*	index,	/*!< in: index tree */
+	const dict_index_t*	index,	/*!< in: index tree */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((warn_unused_result));
 
@@ -227,8 +227,8 @@ btr_height_get(
 @param[in]	line	line where called
 @param[in,out]	mtr	mini-transaction
 @return block */
-inline buf_block_t* btr_block_get_func(const dict_index_t& index, ulint page,
-				       ulint mode, bool merge,
+inline buf_block_t* btr_block_get_func(const dict_index_t& index,
+				       uint32_t page, ulint mode, bool merge,
 				       const char* file, unsigned line,
 				       mtr_t* mtr)
 {
@@ -323,7 +323,7 @@ the child page number. In other words offsets must have been retrieved
 with rec_get_offsets(n_fields=ULINT_UNDEFINED).
 @return child node address */
 UNIV_INLINE
-ulint
+uint32_t
 btr_node_ptr_get_child_page_no(
 /*===========================*/
 	const rec_t*	rec,	/*!< in: node pointer record */
@@ -579,7 +579,7 @@ Gets the number of pages in a B-tree.
 ulint
 btr_get_size(
 /*=========*/
-	dict_index_t*	index,	/*!< in: index */
+	const dict_index_t*	index,	/*!< in: index */
 	ulint		flag,	/*!< in: BTR_N_LEAF_PAGES or BTR_TOTAL_SIZE */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
 				is s-latched */
@@ -607,7 +607,7 @@ buf_block_t*
 btr_page_alloc(
 /*===========*/
 	dict_index_t*	index,		/*!< in: index tree */
-	ulint		hint_page_no,	/*!< in: hint of a good page */
+	uint32_t	hint_page_no,	/*!< in: hint of a good page */
 	byte		file_direction,	/*!< in: direction where a possible
 					page split is made */
 	ulint		level,		/*!< in: level where the page is placed

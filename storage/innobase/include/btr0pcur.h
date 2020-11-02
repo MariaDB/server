@@ -29,6 +29,7 @@ Created 2/23/1996 Heikki Tuuri
 
 #include "dict0dict.h"
 #include "btr0cur.h"
+#include "buf0block_hint.h"
 #include "btr0btr.h"
 #include "gis0rtree.h"
 
@@ -502,13 +503,10 @@ struct btr_pcur_t{
 	whether cursor was on, before, or after the old_rec record */
 	enum btr_pcur_pos_t	rel_pos;
 	/** buffer block when the position was stored */
-	buf_block_t*	block_when_stored;
+	buf::Block_hint		block_when_stored;
 	/** the modify clock value of the buffer block when the cursor position
 	was stored */
 	ib_uint64_t	modify_clock;
-	/** the withdraw clock value of the buffer pool when the cursor
-	position was stored */
-	ulint		withdraw_clock;
 	/** btr_pcur_store_position() and btr_pcur_restore_position() state. */
 	enum pcur_pos_t	pos_state;
 	/** PAGE_CUR_G, ... */
@@ -529,9 +527,8 @@ struct btr_pcur_t{
 		btr_cur(), latch_mode(RW_NO_LATCH),
 		old_stored(false), old_rec(NULL),
 		old_n_fields(0), rel_pos(btr_pcur_pos_t(0)),
-		block_when_stored(NULL),
-		modify_clock(0), withdraw_clock(0),
-		pos_state(BTR_PCUR_NOT_POSITIONED),
+		block_when_stored(),
+		modify_clock(0), pos_state(BTR_PCUR_NOT_POSITIONED),
 		search_mode(PAGE_CUR_UNSUPP), trx_if_known(NULL),
 		old_rec_buf(NULL), buf_size(0)
 	{

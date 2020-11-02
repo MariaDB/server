@@ -26,12 +26,8 @@
 #include "ha_heap.h"
 #include "sql_base.h"
 
-static handler *heap_create_handler(handlerton *hton,
-                                    TABLE_SHARE *table, 
-                                    MEM_ROOT *mem_root);
-static int
-heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
-                            HP_CREATE_INFO *hp_create_info);
+static handler *heap_create_handler(handlerton *, TABLE_SHARE *, MEM_ROOT *);
+static int heap_prepare_hp_create_info(TABLE *, bool, HP_CREATE_INFO *);
 
 
 static int heap_panic(handlerton *hton, ha_panic_function flag)
@@ -157,7 +153,7 @@ int ha_heap::close(void)
 
 handler *ha_heap::clone(const char *name, MEM_ROOT *mem_root)
 {
-  handler *new_handler= get_new_handler(table->s, mem_root, table->s->db_type());
+  handler *new_handler= get_new_handler(table->s, mem_root, ht);
   if (new_handler && !new_handler->ha_open(table, file->s->name, table->db_stat,
                                            HA_OPEN_IGNORE_IF_LOCKED))
     return new_handler;
@@ -371,8 +367,8 @@ int ha_heap::info(uint flag)
 {
   HEAPINFO hp_info;
 
-  if (!table)
-    return 1;
+  if (!file)
+    return 0;
 
   (void) heap_info(file,&hp_info,flag);
 
@@ -606,16 +602,15 @@ ha_rows ha_heap::records_in_range(uint inx, const key_range *min_key,
 }
 
 
-static int
-heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
-                            HP_CREATE_INFO *hp_create_info)
+static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
+                                       HP_CREATE_INFO *hp_create_info)
 {
-  uint key, parts, mem_per_row= 0, keys= table_arg->s->keys;
+  TABLE_SHARE *share= table_arg->s;
+  uint key, parts, mem_per_row= 0, keys= share->keys;
   uint auto_key= 0, auto_key_type= 0;
   ha_rows max_rows;
   HP_KEYDEF *keydef;
   HA_KEYSEG *seg;
-  TABLE_SHARE *share= table_arg->s;
   bool found_real_auto_increment= 0;
 
   bzero(hp_create_info, sizeof(*hp_create_info));
@@ -623,12 +618,12 @@ heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
   for (key= parts= 0; key < keys; key++)
     parts+= table_arg->key_info[key].user_defined_key_parts;
 
-  if (!(keydef= (HP_KEYDEF*) my_malloc(hp_key_memory_HP_KEYDEF,
-                                       keys * sizeof(HP_KEYDEF) +
-				       parts * sizeof(HA_KEYSEG),
-				       MYF(MY_WME | MY_THREAD_SPECIFIC))))
+  if (!my_multi_malloc(hp_key_memory_HP_KEYDEF,
+                       MYF(MY_WME | MY_THREAD_SPECIFIC),
+                       &keydef, keys * sizeof(HP_KEYDEF),
+                       &seg, parts * sizeof(HA_KEYSEG),
+                       NULL))
     return my_errno;
-  seg= reinterpret_cast<HA_KEYSEG*>(keydef + keys);
   for (key= 0; key < keys; key++)
   {
     KEY *pos= table_arg->key_info+key;

@@ -1237,6 +1237,24 @@ rtr_check_discard_page(
 	lock_mutex_exit();
 }
 
+/** Structure acts as functor to get the optimistic access of the page.
+It returns true if it successfully gets the page. */
+struct optimistic_get
+{
+  btr_pcur_t *const r_cursor;
+  mtr_t *const mtr;
+
+  optimistic_get(btr_pcur_t *r_cursor,mtr_t *mtr)
+  :r_cursor(r_cursor), mtr(mtr) {}
+
+  bool operator()(buf_block_t *hint) const
+  {
+    return hint && buf_page_optimistic_get(
+       RW_X_LATCH, hint, r_cursor->modify_clock, __FILE__,
+       __LINE__, mtr);
+  }
+};
+
 /** Restore the stored position of a persistent cursor bufferfixing the page */
 static
 bool
@@ -1270,11 +1288,8 @@ rtr_cur_restore_position(
 
 	ut_ad(latch_mode == BTR_CONT_MODIFY_TREE);
 
-	if (!buf_pool.is_obsolete(r_cursor->withdraw_clock)
-	    && buf_page_optimistic_get(RW_X_LATCH,
-				       r_cursor->block_when_stored,
-				       r_cursor->modify_clock,
-				       __FILE__, __LINE__, mtr)) {
+	if (r_cursor->block_when_stored.run_with_hint(
+		optimistic_get(r_cursor, mtr))) {
 		ut_ad(r_cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 
 		ut_ad(r_cursor->rel_pos == BTR_PCUR_ON);
@@ -1323,8 +1338,8 @@ rtr_cur_restore_position(
 	page_cur_t*	page_cursor;
 	node_visit_t*	node = rtr_get_parent_node(btr_cur, level, false);
 	node_seq_t	path_ssn = node->seq_no;
-	const ulint	zip_size = index->table->space->zip_size();
-	ulint		page_no = node->page_no;
+	const unsigned	zip_size = index->table->space->zip_size();
+	uint32_t	page_no = node->page_no;
 
 	heap = mem_heap_create(256);
 
@@ -1484,14 +1499,13 @@ rtr_non_leaf_insert_stack_push(
 	dict_index_t*		index,	/*!< in: index descriptor */
 	rtr_node_path_t*	path,	/*!< in/out: search path */
 	ulint			level,	/*!< in: index page level */
-	ulint			child_no,/*!< in: child page no */
+	uint32_t		child_no,/*!< in: child page no */
 	const buf_block_t*	block,	/*!< in: block of the page */
 	const rec_t*		rec,	/*!< in: positioned record */
 	double			mbr_inc)/*!< in: MBR needs to be enlarged */
 {
 	node_seq_t	new_seq;
 	btr_pcur_t*	my_cursor;
-	ulint		page_no = block->page.id().page_no();
 
 	my_cursor = static_cast<btr_pcur_t*>(
 		ut_malloc_nokey(sizeof(*my_cursor)));
@@ -1503,8 +1517,8 @@ rtr_non_leaf_insert_stack_push(
 	(btr_pcur_get_btr_cur(my_cursor))->index = index;
 
 	new_seq = rtr_get_current_ssn_id(index);
-	rtr_non_leaf_stack_push(path, page_no, new_seq, level, child_no,
-				my_cursor, mbr_inc);
+	rtr_non_leaf_stack_push(path, block->page.id().page_no(),
+				new_seq, level, child_no, my_cursor, mbr_inc);
 }
 
 /** Copy a buf_block_t, except "block->lock".
@@ -1827,7 +1841,7 @@ rtr_cur_search_with_match(
 			rtr_info->matches for leaf nodes */
 			if (rtr_info && mode != PAGE_CUR_RTREE_INSERT) {
 				if (!is_leaf) {
-					ulint		page_no;
+					uint32_t	page_no;
 					node_seq_t	new_seq;
 					bool		is_loc;
 
@@ -1919,12 +1933,11 @@ rtr_cur_search_with_match(
 				then we select the record that result in
 				least increased area */
 				if (mode == PAGE_CUR_RTREE_INSERT) {
-					ulint	child_no;
 					ut_ad(least_inc < DBL_MAX);
 					offsets = rec_get_offsets(
 						best_rec, index, offsets,
 						false, ULINT_UNDEFINED, &heap);
-					child_no =
+					uint32_t child_no =
 					btr_node_ptr_get_child_page_no(
 						best_rec, offsets);
 

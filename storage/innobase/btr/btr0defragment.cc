@@ -50,6 +50,21 @@ possible. From experimentation it seems that reduce the target size by 512 every
 time will make sure the page is compressible within a couple of iterations. */
 #define BTR_DEFRAGMENT_PAGE_REDUCTION_STEP_SIZE	512
 
+/** Item in the work queue for btr_degrament_thread. */
+struct btr_defragment_item_t
+{
+	btr_pcur_t*	pcur;		/* persistent cursor where
+					btr_defragment_n_pages should start */
+	os_event_t	event;		/* if not null, signal after work
+					is done */
+	bool		removed;	/* Mark an item as removed */
+	ulonglong	last_processed;	/* timestamp of last time this index
+					is processed by defragment thread */
+
+	btr_defragment_item_t(btr_pcur_t* pcur, os_event_t event);
+	~btr_defragment_item_t();
+};
+
 /* Work queue for defragmentation. */
 typedef std::list<btr_defragment_item_t*>	btr_defragment_wq_t;
 static btr_defragment_wq_t	btr_defragment_wq;
@@ -183,8 +198,6 @@ synchronized defragmentation. */
 os_event_t
 btr_defragment_add_index(
 	dict_index_t*	index,	/*!< index to be added  */
-	bool		async,	/*!< whether this is an async
-				defragmentation */
 	dberr_t*	err)	/*!< out: error code */
 {
 	mtr_t mtr;
@@ -213,10 +226,7 @@ btr_defragment_add_index(
 		return NULL;
 	}
 	btr_pcur_t* pcur = btr_pcur_create_for_mysql();
-	os_event_t event = NULL;
-	if (!async) {
-		event = os_event_create(0);
-	}
+	os_event_t event = os_event_create(0);
 	btr_pcur_open_at_index_side(true, index, BTR_SEARCH_LEAF, pcur,
 				    true, 0, &mtr);
 	btr_pcur_move_to_next(pcur, &mtr);
@@ -609,7 +619,7 @@ btr_defragment_n_pages(
 	blocks[0] = block;
 	for (uint i = 1; i <= n_pages; i++) {
 		page_t* page = buf_block_get_frame(blocks[i-1]);
-		ulint page_no = btr_page_get_next(page);
+		uint32_t page_no = btr_page_get_next(page);
 		total_data_size += page_get_data_size(page);
 		total_n_recs += page_get_n_recs(page);
 		if (page_no == FIL_NULL) {

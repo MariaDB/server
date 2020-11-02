@@ -296,20 +296,18 @@ Datafile::read_first_page(bool read_only_mode)
 	m_first_page = static_cast<byte*>(
 		aligned_malloc(UNIV_PAGE_SIZE_MAX, srv_page_size));
 
-	IORequest	request;
 	dberr_t		err = DB_ERROR;
 	size_t		page_size = UNIV_PAGE_SIZE_MAX;
 
 	/* Don't want unnecessary complaints about partial reads. */
-
-	request.disable_partial_io_warnings();
 
 	while (page_size >= UNIV_PAGE_SIZE_MIN) {
 
 		ulint	n_read = 0;
 
 		err = os_file_read_no_error_handling(
-			request, m_handle, m_first_page, 0, page_size, &n_read);
+			IORequestReadPartial, m_handle, m_first_page, 0,
+			page_size, &n_read);
 
 		if (err == DB_IO_ERROR && n_read >= UNIV_PAGE_SIZE_MIN) {
 
@@ -805,10 +803,8 @@ Datafile::restore_from_doublewrite()
 		<< physical_size << " bytes into file '"
 		<< m_filepath << "'";
 
-	IORequest	request(IORequest::WRITE);
-
 	return(os_file_write(
-			request,
+			IORequestWrite,
 			m_filepath, m_handle, page, 0, physical_size)
 	       != DB_SUCCESS);
 }

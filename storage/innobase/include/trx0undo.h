@@ -327,8 +327,6 @@ struct trx_undo_t {
 					(IB_ID_MAX if the undo log is empty) */
 	buf_block_t*	guess_block;	/*!< guess for the buffer block where
 					the top page might reside */
-	ulint		withdraw_clock;	/*!< the withdraw clock value of the
-					buffer pool when guess_block was stored */
 
 	/** @return whether the undo log is empty */
 	bool empty() const { return top_undo_no == IB_ID_MAX; }

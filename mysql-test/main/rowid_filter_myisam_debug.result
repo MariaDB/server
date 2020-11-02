@@ -1,0 +1,54 @@
+#
+# MDEV-22761 KILL QUERY during rowid_filter, crashes
+#
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2(a int);
+insert into t2 select A.a + B.a* 10 from t0 A, t0 B;
+CREATE TABLE t3 (
+key1 int ,
+key2 int,
+filler varchar(255),
+KEY (key1),
+KEY (key2)
+);
+select engine from information_schema.tables
+where table_schema=database() and table_name='t3';
+engine
+MyISAM
+insert into t3
+select
+A.a,
+A.a,
+'filler-data-filler-data'
+from
+t0 A, t1 B;
+analyze table t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	Table is already up to date
+explain
+select * from t2, t3
+where 
+t3.key1=t2.a and t3.key2 in (2,3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	t3	ref|filter	key1,key2	key1|key2	5|5	test.t2.a	1000 (18%)	Using where; Using rowid filter
+set debug_sync='handler_rowid_filter_check SIGNAL at_rowid_filter_check WAIT_FOR go';
+select * from t2, t3
+where 
+t3.key1=t2.a and t3.key2 in (2,3);
+connect  con1, localhost, root,,;
+connection con1;
+set debug_sync='now WAIT_FOR at_rowid_filter_check';
+kill query $target_id;
+set debug_sync='now SIGNAL go';
+connection default;
+disconnect con1;
+ERROR 70100: Query execution was interrupted
+set debug_sync='RESET';
+drop table t0,t1,t2,t3;

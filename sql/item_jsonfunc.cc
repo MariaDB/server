@@ -2464,6 +2464,8 @@ String *Item_func_json_merge_patch::val_str(String *str)
   uint n_arg;
   bool empty_result, merge_to_null;
 
+  /* To report errors properly if some JSON is invalid. */
+  je1.s.error= je2.s.error= 0;
   merge_to_null= args[0]->null_value;
 
   for (n_arg=1; n_arg < arg_count; n_arg++)
@@ -3772,6 +3774,8 @@ Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
   uint i;                       /* for loop variable */
   DBUG_ASSERT(fixed == 0);
 
+  memcpy(orig_args, args, sizeof(Item*) * arg_count);
+
   if (init_sum_func_check(thd))
     return TRUE;
 
@@ -3866,8 +3870,4 @@ String* Item_func_json_objectagg::val_str(String* str)
   return &result;
 }
 
-
-void Item_func_json_objectagg::print(String *str, enum_query_type query_type)
-{
-}
 

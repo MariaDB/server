@@ -33,9 +33,6 @@ Created 9/20/1997 Heikki Tuuri
 
 #include <deque>
 
-/** Is recv_writer_thread active? */
-extern bool	recv_writer_thread_active;
-
 /** @return whether recovery is currently running. */
 #define recv_recovery_is_on() UNIV_UNLIKELY(recv_sys.recovery_on)
 
@@ -53,21 +50,12 @@ ATTRIBUTE_COLD void recv_recover_page(fil_space_t* space, buf_page_t* bpage)
 	MY_ATTRIBUTE((nonnull));
 
 /** Start recovering from a redo log checkpoint.
-@see recv_recovery_from_checkpoint_finish
 @param[in]	flush_lsn	FIL_PAGE_FILE_FLUSH_LSN
 of first system tablespace page
 @return error code or DB_SUCCESS */
 dberr_t
 recv_recovery_from_checkpoint_start(
 	lsn_t	flush_lsn);
-/** Complete recovery from a checkpoint. */
-void
-recv_recovery_from_checkpoint_finish(void);
-/********************************************************//**
-Initiates the rollback of active transactions. */
-void
-recv_recovery_rollback_active(void);
-/*===============================*/
 
 /** Whether to store redo log records in recv_sys.pages */
 enum store_t {
@@ -226,16 +214,6 @@ struct recv_sys_t
   /** whether recv_recover_page(), invoked from buf_page_read_complete(),
   should apply log records*/
   bool apply_log_recs;
-
-	ib_mutex_t		writer_mutex;/*!< mutex coordinating
-				flushing between recv_writer_thread and
-				the recovery thread. */
-	os_event_t		flush_start;/*!< event to activate
-				page cleaner threads */
-	os_event_t		flush_end;/*!< event to signal that the page
-				cleaner has finished the request */
-  /** whether to flush from buf_pool.LRU instead of buf_pool.flush_list */
-  bool flush_lru;
 	/** whether recv_apply_hashed_log_recs() is running */
 	bool		apply_batch_on;
 	byte*		buf;	/*!< buffer for parsing log records */
@@ -309,9 +287,10 @@ private:
   @param page_id  page identifier
   @param p        iterator pointing to page_id
   @param mtr      mini-transaction
+  @param b        pre-allocated buffer pool block
   @return whether the page was successfully initialized */
   inline buf_block_t *recover_low(const page_id_t page_id, map::iterator &p,
-                                  mtr_t &mtr);
+                                  mtr_t &mtr, buf_block_t *b);
   /** Attempt to initialize a page based on redo log records.
   @param page_id  page identifier
   @return the recovered block

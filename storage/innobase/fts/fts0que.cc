@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2020, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -144,6 +144,8 @@ struct fts_query_t {
 	ib_rbt_t*	wildcard_words;	/*!< words with wildcard */
 
 	bool		multi_exist;	/*!< multiple FTS_EXIST oper */
+	byte		visiting_sub_exp; /*!< count of nested
+					fts_ast_visit_sub_exp() */
 
 	st_mysql_ftparser*	parser;	/*!< fts plugin parser */
 };
@@ -2964,6 +2966,8 @@ fts_query_get_token(
 	return(new_ptr);
 }
 
+static dberr_t fts_ast_visit_sub_exp(fts_ast_node_t*, fts_ast_callback, void*);
+
 /*****************************************************************//**
 Visit every node of the AST. */
 static
@@ -3088,6 +3092,14 @@ fts_ast_visit_sub_exp(
 
 	ut_a(node->type == FTS_AST_SUBEXP_LIST);
 
+	/* To avoid stack overflow, we limit the mutual recursion
+	depth between fts_ast_visit(), fts_query_visitor() and
+	fts_ast_visit_sub_exp(). */
+	if (query->visiting_sub_exp++ > 31) {
+		query->error = DB_OUT_OF_MEMORY;
+		DBUG_RETURN(query->error);
+	}
+
 	cur_oper = query->oper;
 
 	/* Save current result set */
@@ -3110,6 +3122,7 @@ fts_ast_visit_sub_exp(
 	/* Reinstate parent node state */
 	query->multi_exist = multi_exist;
 	query->oper = cur_oper;
+	query->visiting_sub_exp--;
 
 	/* Merge the sub-expression result with the parent result set. */
 	subexpr_doc_ids = query->doc_ids;
@@ -4410,24 +4423,27 @@ fts_phrase_or_proximity_search(
 			if (k == ib_vector_size(query->match_array[j])) {
 				end_list = TRUE;
 
-				if (match[j]->doc_id != match[0]->doc_id) {
-					/* no match */
-					if (query->flags & FTS_PHRASE) {
-						ulint	s;
-
-						match[0]->doc_id = 0;
-
-						for (s = i + 1; s < n_matched;
-						     s++) {
-							match[0] = static_cast<
-							fts_match_t*>(
-							ib_vector_get(
-							query->match_array[0],
-							s));
-							match[0]->doc_id = 0;
-						}
+				if (query->flags & FTS_PHRASE) {
+					ulint	s;
+					/* Since i is the last doc id in the
+					match_array[j], remove all doc ids > i
+					from the match_array[0]. */
+					fts_match_t*    match_temp;
+					for (s = i + 1; s < n_matched; s++) {
+						match_temp = static_cast<
+						fts_match_t*>(ib_vector_get(
+						query->match_array[0], s));
+						match_temp->doc_id = 0;
 					}
 
+					if (match[j]->doc_id !=
+						match[0]->doc_id) {
+						/* no match */
+						match[0]->doc_id = 0;
+					}
+				}
+
+				if (match[j]->doc_id != match[0]->doc_id) {
 					goto func_exit;
 				}
 			}

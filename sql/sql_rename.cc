@@ -303,7 +303,8 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
     DBUG_RETURN(skip_error || if_exists ? 0 : 1);
   }
 
-  if (ha_check_if_updates_are_ignored(thd, hton, "RENAME"))
+  if (hton != view_pseudo_hton &&
+      ha_check_if_updates_are_ignored(thd, hton, "RENAME"))
   {
     /*
       Shared table. Just drop the old .frm as it's not correct anymore

@@ -42,7 +42,6 @@ Created 10/10/1995 Heikki Tuuri
 #pragma once
 
 #include "log0log.h"
-#include "os0event.h"
 #include "que0types.h"
 #include "trx0types.h"
 #include "fil0fil.h"
@@ -75,8 +74,7 @@ struct srv_stats_t
 	/** Amount of data written to the log files in bytes */
 	lsn_ctr_1_t		os_log_written;
 
-	/** Number of writes being done to the log files.
-	Protected by log_sys.write_mutex. */
+	/** Number of writes being done to the log files */
 	ulint_ctr_1_t		os_log_pending_writes;
 
 	/** We increase this counter, when we don't have enough
@@ -101,10 +99,6 @@ struct srv_stats_t
 	in the buffer pool. It happens when the buffer pool is full and we
 	need to make a flush, in order to be able to read or create a page. */
 	ulint_ctr_1_t		buf_pool_wait_free;
-
-	/** Count the number of pages that were written from buffer
-	pool to the disk */
-	ulint_ctr_1_t		buf_pool_flushed;
 
 	/** Number of buffer pool reads that led to the reading of
 	a disk page */
@@ -411,7 +405,6 @@ extern unsigned long long	srv_stats_modified_counter;
 extern my_bool			srv_stats_sample_traditional;
 
 extern my_bool	srv_use_doublewrite_buf;
-extern ulong	srv_doublewrite_batch_size;
 extern ulong	srv_checksum_algorithm;
 
 extern double	srv_max_buf_pool_modified_pct;
@@ -521,7 +514,6 @@ extern ulong srv_buf_dump_status_frequency;
 
 # ifdef UNIV_PFS_THREAD
 extern mysql_pfs_key_t	page_cleaner_thread_key;
-extern mysql_pfs_key_t	recv_writer_thread_key;
 extern mysql_pfs_key_t	trx_rollback_clean_thread_key;
 extern mysql_pfs_key_t	thread_pool_thread_key;
 
@@ -659,18 +651,11 @@ void
 srv_export_innodb_status(void);
 /*==========================*/
 /*******************************************************************//**
-Get current server activity count. We don't hold srv_sys::mutex while
-reading this value as it is only used in heuristics.
+Get current server activity count.
 @return activity count. */
 ulint
 srv_get_activity_count(void);
 /*========================*/
-
-/** Check if there has been any activity.
-@param[in,out]  activity_count  recent activity count to be returned
-if there is a change
-@return FALSE if no change in activity counter. */
-bool srv_check_activity(ulint *activity_count);
 
 /******************************************************************//**
 Increment the server activity counter. */
@@ -768,7 +753,6 @@ struct export_var_t{
 	ulint innodb_buffer_pool_read_requests;	/*!< buf_pool.stat.n_page_gets */
 	ulint innodb_buffer_pool_reads;		/*!< srv_buf_pool_reads */
 	ulint innodb_buffer_pool_wait_free;	/*!< srv_buf_pool_wait_free */
-	ulint innodb_buffer_pool_pages_flushed;	/*!< srv_buf_pool_flushed */
 	ulint innodb_buffer_pool_write_requests;/*!< srv_buf_pool_write_requests */
 	ulint innodb_buffer_pool_read_ahead_rnd;/*!< srv_read_ahead_rnd */
 	ulint innodb_buffer_pool_read_ahead;	/*!< srv_read_ahead */
@@ -822,7 +806,6 @@ struct export_var_t{
 	ulint innodb_system_rows_inserted; /*!< srv_n_system_rows_inserted */
 	ulint innodb_system_rows_updated; /*!< srv_n_system_rows_updated */
 	ulint innodb_system_rows_deleted; /*!< srv_n_system_rows_deleted*/
-	ulint innodb_num_open_files;		/*!< fil_system_t::n_open */
 	ulint innodb_truncated_status_writes;	/*!< srv_truncated_status_writes */
 
 	/** Number of undo tablespace truncation operations */
@@ -895,9 +878,6 @@ struct export_var_t{
 struct srv_slot_t{
 	ibool		in_use;			/*!< TRUE if this slot
 						is in use */
-	ibool		suspended;		/*!< TRUE if the thread is
-						waiting for the event of this
-						slot */
  	/** time(NULL) when the thread was suspended.
  	FIXME: Use my_interval_timer() or similar, to avoid bogus
  	timeouts in lock_wait_check_and_cancel() or lock_wait_suspend_thread()

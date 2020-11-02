@@ -6303,17 +6303,6 @@ INSERT INTO v (f1, f3) VALUES (1,1), (2,2);
 drop view v;
 drop tables t1,t2,t3;
 
-#
-# MDEV-11784 View is created with invalid definition which causes ERROR 1241 (21000): Operand should contain 1 column(s)
-#
-create table t1 (i int, j int);
-insert t1 values (1,1),(2,2);
-create view v1 as select (2, 3) not in (select i, j from t1);
-select * from v1;
-show create view v1;
-drop view v1;
-drop table t1;
-
 --echo #
 --echo # MDEV-10704: Assertion `field->field->table == table_arg'
 --echo # failed in fill_record(THD*, TABLE*, List<Item>&, List<Item>&,

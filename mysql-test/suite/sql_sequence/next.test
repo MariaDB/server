@@ -280,3 +280,20 @@ select next value for s;
 flush tables;
 select next value for s;
 drop sequence s;
+
+--echo #
+--echo # MDEV-23823 NEXT VALUE crash on locked view
+--echo #
+CREATE VIEW v AS SELECT 1;
+LOCK TABLE v READ;
+--error ER_NOT_SEQUENCE
+SELECT NEXT VALUE FOR v;
+
+--echo #
+--echo # MDEV-24018: SIGSEGV in Item_func_nextval::update_table on SELECT SETVAL
+--echo #
+--error ER_NOT_SEQUENCE
+SELECT SETVAL (v,0);
+
+UNLOCK TABLES;
+DROP VIEW v;

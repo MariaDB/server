@@ -767,10 +767,10 @@ void Static_binary_string::qs_append(double d)
                        NULL);
 }
 
-void Static_binary_string::qs_append(double *d)
+void Static_binary_string::qs_append(const double *d)
 {
   double ld;
-  float8get(ld, (char*) d);
+  float8get(ld, (const char*) d);
   qs_append(ld);
 }
 
@@ -858,7 +858,7 @@ int sortcmp(const String *s,const String *t, CHARSET_INFO *cs)
 int stringcmp(const String *s,const String *t)
 {
   uint32 s_len=s->length(),t_len=t->length(),len=MY_MIN(s_len,t_len);
-  int cmp= memcmp(s->ptr(), t->ptr(), len);
+  int cmp= len ? memcmp(s->ptr(), t->ptr(), len) : 0;
   return (cmp) ? cmp : (int) (s_len - t_len);
 }
 

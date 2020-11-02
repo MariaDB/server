@@ -2227,8 +2227,10 @@ public:
   virtual bool is_commit()   { return false; }
   virtual bool is_rollback() { return false; }
 #ifdef MYSQL_SERVER
-  Query_compressed_log_event(THD* thd_arg, const char* query_arg, ulong query_length,
-    bool using_trans, bool direct, bool suppress_use, int error);
+  Query_compressed_log_event(THD* thd_arg, const char* query_arg,
+                             ulong query_length,
+                             bool using_trans, bool direct, bool suppress_use,
+                             int error);
   virtual bool write();
 #endif
 };

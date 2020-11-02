@@ -6608,17 +6608,6 @@ INSERT INTO v (f1, f3) VALUES (1,1), (2,2);
 ERROR HY000: Can not modify more than one base table through a join view 'test.v'
 drop view v;
 drop tables t1,t2,t3;
-create table t1 (i int, j int);
-insert t1 values (1,1),(2,2);
-create view v1 as select (2, 3) not in (select i, j from t1);
-select * from v1;
-(2, 3) not in (select i, j from t1)
-1
-show create view v1;
-View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select !((2,3) in (select `t1`.`i`,`t1`.`j` from `t1`)) AS `(2, 3) not in (select i, j from t1)`	latin1	latin1_swedish_ci
-drop view v1;
-drop table t1;
 #
 # MDEV-10704: Assertion `field->field->table == table_arg'
 # failed in fill_record(THD*, TABLE*, List<Item>&, List<Item>&,

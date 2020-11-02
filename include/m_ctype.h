@@ -1175,7 +1175,7 @@ extern struct charset_info_st my_charset_utf8mb3_general_nopad_ci;
 extern struct charset_info_st my_charset_utf8mb3_general_mysql500_ci;
 extern struct charset_info_st my_charset_utf8mb3_unicode_ci;
 extern struct charset_info_st my_charset_utf8mb3_unicode_nopad_ci;
-extern struct charset_info_st my_charset_utf8mb4_bin;
+extern MYSQL_PLUGIN_IMPORT struct charset_info_st my_charset_utf8mb4_bin;
 extern struct charset_info_st my_charset_utf8mb4_general_ci;
 extern struct charset_info_st my_charset_utf8mb4_nopad_bin;
 extern struct charset_info_st my_charset_utf8mb4_general_nopad_ci;

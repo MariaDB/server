@@ -31,6 +31,7 @@ These comments are written to the syslog as 'authpriv.debug'
 and usually end up in /var/log/secure file.
 */
 
+#include <config_auth_pam.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
@@ -70,10 +71,16 @@ pam_syslog (const pam_handle_t *pamh, int priority,
 #define GROUP_BUFFER_SIZE 100
 static const char debug_keyword[]= "debug";
 
-static int populate_user_groups(const char *user, gid_t **groups)
+#ifdef HAVE_POSIX_GETGROUPLIST
+typedef gid_t my_gid_t;
+#else
+typedef int my_gid_t;
+#endif
+
+static int populate_user_groups(const char *user, my_gid_t **groups)
 {
-  gid_t user_group_id;
-  gid_t *loc_groups= *groups;
+  my_gid_t user_group_id;
+  my_gid_t *loc_groups= *groups;
   int ng;
 
   {
@@ -88,22 +95,23 @@ static int populate_user_groups(const char *user, gid_t **groups)
   {
     /* The rare case when the user is present in more than */
     /* GROUP_BUFFER_SIZE groups.                           */
-    loc_groups= (gid_t *) malloc(ng * sizeof (gid_t));
+    loc_groups= (my_gid_t *) malloc(ng * sizeof (my_gid_t));
+
     if (!loc_groups)
       return 0;
 
     (void) getgrouplist(user, user_group_id, loc_groups, &ng);
-    *groups= loc_groups;
+    *groups= (my_gid_t*)loc_groups;
   }
 
   return ng;
 }
 
 
-static int user_in_group(const gid_t *user_groups, int ng,const char *group)
+static int user_in_group(const my_gid_t *user_groups, int ng,const char *group)
 {
-  gid_t group_id;
-  const gid_t *groups_end = user_groups + ng;
+  my_gid_t group_id;
+  const my_gid_t *groups_end = user_groups + ng;
 
   {
     struct group *g= getgrnam(group);
@@ -122,7 +130,7 @@ static int user_in_group(const gid_t *user_groups, int ng,const char *group)
 }
 
 
-static void print_groups(pam_handle_t *pamh, const gid_t *user_groups, int ng)
+static void print_groups(pam_handle_t *pamh, const my_gid_t *user_groups, int ng)
 {
   char buf[256];
   char *c_buf= buf, *buf_end= buf+sizeof(buf)-2;
@@ -158,8 +166,8 @@ int pam_sm_authenticate(pam_handle_t *pamh, int flags,
   const char *username;
   char buf[256];
   FILE *f;
-  gid_t group_buffer[GROUP_BUFFER_SIZE];
-  gid_t *groups= group_buffer;
+  my_gid_t group_buffer[GROUP_BUFFER_SIZE];
+  my_gid_t *groups= group_buffer;
   int n_groups= -1;
 
   for (; argc > 0; argc--) 

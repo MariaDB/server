@@ -75,7 +75,6 @@ bool have_multi_threaded_slave = false;
 bool have_gtid_slave = false;
 
 /* Kill long selects */
-os_thread_id_t	kill_query_thread_id;
 os_event_t	kill_query_thread_started;
 os_event_t	kill_query_thread_stopped;
 os_event_t	kill_query_thread_stop;
@@ -856,7 +855,7 @@ start_query_killer()
 	kill_query_thread_started	= os_event_create(0);
 	kill_query_thread_stopped	= os_event_create(0);
 
-	os_thread_create(kill_query_thread, NULL, &kill_query_thread_id);
+	os_thread_create(kill_query_thread);
 
 	os_event_wait(kill_query_thread_started);
 }

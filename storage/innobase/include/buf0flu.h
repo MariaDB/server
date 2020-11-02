@@ -31,7 +31,10 @@ Created 11/5/1995 Heikki Tuuri
 #include "log0log.h"
 #include "buf0types.h"
 
-/** Number of pages flushed through non flush_list flushes. */
+/** Number of pages flushed. Protected by buf_pool.mutex. */
+extern ulint buf_flush_page_count;
+/** Number of pages flushed via LRU. Protected by buf_pool.mutex.
+Also included in buf_flush_page_count. */
 extern ulint buf_lru_flush_page_count;
 
 /** Flag indicating if the page_cleaner is in active state. */
@@ -44,27 +47,24 @@ extern my_bool		innodb_page_cleaner_disabled_debug;
 
 #endif /* UNIV_DEBUG */
 
-/** Event to synchronise with the flushing. */
-extern os_event_t	buf_flush_event;
+/** Remove all dirty pages belonging to a given tablespace when we are
+deleting the data file of that tablespace.
+The pages still remain a part of LRU and are evicted from
+the list as they age towards the tail of the LRU.
+@param id    tablespace identifier */
+void buf_flush_remove_pages(ulint id);
 
-class ut_stage_alter_t;
-
-/** Handled page counters for a single flush */
-struct flush_counters_t {
-	ulint	flushed;	/*!< number of dirty pages flushed */
-	ulint	evicted;	/*!< number of clean pages evicted */
-	ulint	unzip_LRU_evicted;/*!< number of uncompressed page images
-				evicted */
-};
-
-/** Remove a block from the flush list of modified blocks.
-@param[in]	bpage	block to be removed from the flush list */
-void buf_flush_remove(buf_page_t* bpage);
+/** Try to flush all the dirty pages that belong to a given tablespace.
+@param id    tablespace identifier
+@return number dirty pages that there were for this tablespace */
+ulint buf_flush_dirty_pages(ulint id)
+  MY_ATTRIBUTE((warn_unused_result));
 
 /*******************************************************************//**
 Relocates a buffer control block on the flush_list.
 Note that it is assumed that the contents of bpage has already been
 copied to dpage. */
+ATTRIBUTE_COLD
 void
 buf_flush_relocate_on_flush_list(
 /*=============================*/
@@ -72,12 +72,8 @@ buf_flush_relocate_on_flush_list(
 	buf_page_t*	dpage);	/*!< in/out: destination block */
 
 /** Complete write of a file page from buf_pool.
-@param bpage   written page
-@param request write request
-@param dblwr   whether the doublewrite buffer was used
-@param evict   whether or not to evict the page from LRU list */
-void buf_page_write_complete(buf_page_t *bpage, const IORequest &request,
-                             bool dblwr, bool evict);
+@param request write request */
+void buf_page_write_complete(const IORequest &request);
 
 /** Assign the full crc32 checksum for non-compressed page.
 @param[in,out]	page	page to be updated */
@@ -95,50 +91,23 @@ buf_flush_init_for_writing(
 	void*			page_zip_,
 	bool			use_full_checksum);
 
-/** Do flushing batch of a given type.
-NOTE: The calling thread is not allowed to own any latches on pages!
-@param[in]	lru		true=buf_pool.LRU; false=buf_pool.flush_list
-@param[in]	min_n		wished minimum mumber of blocks flushed
-(it is not guaranteed that the actual number is that big, though)
-@param[in]	lsn_limit	in the case BUF_FLUSH_LIST all blocks whose
-oldest_modification is smaller than this should be flushed (if their number
-does not exceed min_n), otherwise ignored
-@param[out]	n		the number of pages which were processed is
-passed back to caller. Ignored if NULL
-@retval true	if a batch was queued successfully.
-@retval false	if another batch of same type was already running. */
-bool buf_flush_do_batch(bool lru, ulint min_n, lsn_t lsn_limit,
-                        flush_counters_t *n);
-
-/** This utility flushes dirty blocks from the end of the flush list.
-NOTE: The calling thread is not allowed to own any latches on pages!
-@param[in]	min_n		wished minimum mumber of blocks flushed (it is
-not guaranteed that the actual number is that big, though)
-@param[in]	lsn_limit	in the case BUF_FLUSH_LIST all blocks whose
-oldest_modification is smaller than this should be flushed (if their number
-does not exceed min_n), otherwise ignored
-@param[out]	n_processed	the number of pages which were processed is
-passed back to caller. Ignored if NULL.
-@retval true if a batch was queued successfully
-@retval false if another batch of same type was already running */
-bool buf_flush_lists(ulint min_n, lsn_t lsn_limit, ulint *n_processed);
-
-/******************************************************************//**
-This function picks up a single page from the tail of the LRU
-list, flushes it (if it is dirty), removes it from page_hash and LRU
-list and puts it on the free list. It is called from user threads when
-they are unable to find a replaceable page at the tail of the LRU
-list i.e.: when the background LRU flushing in the page_cleaner thread
-is not fast enough to keep pace with the workload.
-@return true if success. */
-bool buf_flush_single_page_from_LRU();
+/** Write out dirty blocks from buf_pool.flush_list.
+@param max_n    wished maximum mumber of blocks flushed
+@param lsn      buf_pool.get_oldest_modification(LSN_MAX) target (0=LRU flush)
+@return the number of processed pages
+@retval 0 if a batch of the same type (lsn==0 or lsn!=0) is already running */
+ulint buf_flush_lists(ulint max_n, lsn_t lsn);
 
 /** Wait until a flush batch ends.
-@param[in]	lru	true=buf_pool.LRU; false=buf_pool.flush_list */
+@param lru    true=buf_pool.LRU; false=buf_pool.flush_list */
 void buf_flush_wait_batch_end(bool lru);
-/** Wait until a flush batch of the given lsn ends
-@param[in]	new_oldest	target oldest_modified_lsn to wait for */
-void buf_flush_wait_flushed(lsn_t new_oldest);
+/** Wait until all persistent pages are flushed up to a limit.
+@param sync_lsn   buf_pool.get_oldest_modification(LSN_MAX) to wait for */
+ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn);
+/** If innodb_flush_sync=ON, initiate a furious flush.
+@param lsn buf_pool.get_oldest_modification(LSN_MAX) target */
+void buf_flush_ahead(lsn_t lsn);
+
 /********************************************************************//**
 This function should be called at a mini-transaction commit, if a page was
 modified in it. Puts the block to the list of modified blocks, if it not
@@ -154,48 +123,22 @@ buf_flush_note_modification(
 					set of mtr's */
 
 /** Initialize page_cleaner. */
-void buf_flush_page_cleaner_init();
+ATTRIBUTE_COLD void buf_flush_page_cleaner_init();
 
-/** Wait for any possible LRU flushes to complete. */
-void buf_flush_wait_LRU_batch_end();
+/** Wait for pending flushes to complete. */
+void buf_flush_wait_batch_end_acquiring_mutex(bool lru);
+
+/** Flush the buffer pool on shutdown. */
+ATTRIBUTE_COLD void buf_flush_buffer_pool();
 
 #ifdef UNIV_DEBUG
 /** Validate the flush list. */
 void buf_flush_validate();
 #endif /* UNIV_DEBUG */
 
-/********************************************************************//**
-Initialize the red-black tree to speed up insertions into the flush_list
-during recovery process. Should be called at the start of recovery
-process before any page has been read/written. */
-void
-buf_flush_init_flush_rbt(void);
-/*==========================*/
-
-/********************************************************************//**
-Frees up the red-black tree. */
-void
-buf_flush_free_flush_rbt(void);
-/*==========================*/
-
-/** Write a flushable page from buf_pool to a file.
-buf_pool.mutex must be held.
-@param bpage       buffer control block
-@param flush_type  type of flush
-@param space       tablespace (or nullptr if not known)
-@param sync        whether this is a synchronous request
-                   (only for flush_type=SINGLE_PAGE)
-@return whether the page was flushed and buf_pool.mutex was released */
-bool buf_flush_page(buf_page_t *bpage, IORequest::flush_t flush_type,
-                    fil_space_t *space, bool sync);
-
 /** Synchronously flush dirty blocks.
 NOTE: The calling thread is not allowed to hold any buffer page latches! */
 void buf_flush_sync();
-
-/** Request IO burst and wake page_cleaner up.
-@param[in]	lsn_limit	upper limit of LSN to be flushed */
-void buf_flush_request_force(lsn_t lsn_limit);
 
 #include "buf0flu.ic"
 

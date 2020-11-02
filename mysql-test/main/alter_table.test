@@ -2037,6 +2037,20 @@ SHOW CREATE TABLE t2;
 DROP TABLE t2, t1;
 
 --echo #
+--echo # MDEV-18163: Assertion `table_share->tmp_table != NO_TMP_TABLE ||
+--echo # m_lock_type != 2' failed in handler::ha_rnd_next(); / Assertion
+--echo # `table_list->table' failed in find_field_in_table_ref / ERROR 1901
+--echo # (on optimized builds)
+--echo #
+
+
+CREATE TABLE t1 (k1 varchar(10) DEFAULT 5);
+CREATE TABLE t2 (i1 int);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+ALTER TABLE t1 ALTER COLUMN k1 SET DEFAULT (SELECT 1 FROM t2 limit 1);
+DROP TABLE t1,t2;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
@@ -2527,6 +2541,18 @@ alter table t1 rename key if exists x to xx;
 
 # cleanup
 unlock tables;
+drop table t1;
+
+--echo #
+--echo # MDEV-23852 alter table rename column to uppercase doesn't work
+--echo #
+create table t1 (abc int);
+alter table t1 rename column abc to Abc, algorithm=copy;
+show create table t1;
+alter table t1 rename column abc to ABc, algorithm=inplace;
+show create table t1;
+alter table t1 rename column abc to ABC;
+show create table t1;
 drop table t1;
 
 --echo #

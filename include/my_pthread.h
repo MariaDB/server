@@ -426,12 +426,10 @@ void safe_mutex_free_deadlock_data(safe_mutex_t *mp);
 #define MYF_NO_DEADLOCK_DETECTION 2
 
 #ifdef SAFE_MUTEX
-#define safe_mutex_assert_owner(mp) \
-          DBUG_ASSERT((mp)->count > 0 && \
-                      pthread_equal(pthread_self(), (mp)->thread))
-#define safe_mutex_assert_not_owner(mp) \
-          DBUG_ASSERT(! (mp)->count || \
-                      ! pthread_equal(pthread_self(), (mp)->thread))
+#define safe_mutex_is_owner(mp) ((mp)->count > 0 && \
+                                 pthread_equal(pthread_self(), (mp)->thread))
+#define safe_mutex_assert_owner(mp) DBUG_ASSERT(safe_mutex_is_owner(mp))
+#define safe_mutex_assert_not_owner(mp) DBUG_ASSERT(!safe_mutex_is_owner(mp))
 #define safe_mutex_setflags(mp, F)      do { (mp)->create_flags|= (F); } while (0)
 #define my_cond_timedwait(A,B,C) safe_cond_timedwait((A),(B),(C),__FILE__,__LINE__)
 #define my_cond_wait(A,B) safe_cond_wait((A), (B), __FILE__, __LINE__)

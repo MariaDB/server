@@ -280,13 +280,13 @@ buf_dump(
 	ulint			n_pages;
 	ulint			j;
 
-	mutex_enter(&buf_pool.mutex);
+	mysql_mutex_lock(&buf_pool.mutex);
 
 	n_pages = UT_LIST_GET_LEN(buf_pool.LRU);
 
 	/* skip empty buffer pools */
 	if (n_pages == 0) {
-		mutex_exit(&buf_pool.mutex);
+		mysql_mutex_unlock(&buf_pool.mutex);
 		goto done;
 	}
 
@@ -314,7 +314,7 @@ buf_dump(
 					       n_pages * sizeof(*dump)));
 
 	if (dump == NULL) {
-		mutex_exit(&buf_pool.mutex);
+		mysql_mutex_unlock(&buf_pool.mutex);
 		fclose(f);
 		buf_dump_status(STATUS_ERR,
 				"Cannot allocate " ULINTPF " bytes: %s",
@@ -339,7 +339,7 @@ buf_dump(
 		dump[j++] = id;
 	}
 
-	mutex_exit(&buf_pool.mutex);
+	mysql_mutex_unlock(&buf_pool.mutex);
 
 	ut_a(j <= n_pages);
 	n_pages = j;
@@ -493,8 +493,8 @@ buf_load()
 	page_id_t*	dump;
 	ulint		dump_n;
 	ulint		i;
-	ulint		space_id;
-	ulint		page_no;
+	uint32_t	space_id;
+	uint32_t	page_no;
 	int		fscanf_ret;
 
 	/* Ignore any leftovers from before */
@@ -518,7 +518,7 @@ buf_load()
 	This file is tiny (approx 500KB per 1GB buffer pool), reading it
 	two times is fine. */
 	dump_n = 0;
-	while (fscanf(f, ULINTPF "," ULINTPF, &space_id, &page_no) == 2
+	while (fscanf(f, "%u,%u", &space_id, &page_no) == 2
 	       && !SHUTTING_DOWN()) {
 		dump_n++;
 	}
@@ -569,8 +569,7 @@ buf_load()
 	export_vars.innodb_buffer_pool_load_incomplete = 1;
 
 	for (i = 0; i < dump_n && !SHUTTING_DOWN(); i++) {
-		fscanf_ret = fscanf(f, ULINTPF "," ULINTPF,
-				    &space_id, &page_no);
+		fscanf_ret = fscanf(f, "%u,%u", &space_id, &page_no);
 
 		if (fscanf_ret != 2) {
 			if (feof(f)) {
@@ -592,9 +591,8 @@ buf_load()
 			fclose(f);
 			buf_load_status(STATUS_ERR,
 					"Error parsing '%s': bogus"
-					" space,page " ULINTPF "," ULINTPF
-					" at line " ULINTPF ","
-					" unable to load buffer pool",
+					" space,page %u,%u at line " ULINTPF
+					", unable to load buffer pool",
 					full_filename,
 					space_id, page_no,
 					i);
@@ -627,11 +625,11 @@ buf_load()
 	ulint		last_check_time = 0;
 	ulint		last_activity_cnt = 0;
 
-	/* Avoid calling the expensive fil_space_acquire_silent() for each
+	/* Avoid calling the expensive fil_space_t::get() for each
 	page within the same tablespace. dump[] is sorted by (space, page),
 	so all pages from a given tablespace are consecutive. */
 	ulint		cur_space_id = dump[0].space();
-	fil_space_t*	space = fil_space_acquire_silent(cur_space_id);
+	fil_space_t*	space = fil_space_t::get(cur_space_id);
 	ulint		zip_size = space ? space->zip_size() : 0;
 
 	PSI_stage_progress*	pfs_stage_progress __attribute__((unused))
@@ -650,31 +648,40 @@ buf_load()
 		}
 
 		if (this_space_id != cur_space_id) {
-			if (space != NULL) {
+			if (space) {
 				space->release();
 			}
 
 			cur_space_id = this_space_id;
-			space = fil_space_acquire_silent(cur_space_id);
+			space = fil_space_t::get(cur_space_id);
 
-			if (space != NULL) {
-				zip_size = space->zip_size();
+			if (!space) {
+				continue;
 			}
+
+			zip_size = space->zip_size();
 		}
 
 		/* JAN: TODO: As we use background page read below,
 		if tablespace is encrypted we cant use it. */
-		if (space == NULL ||
-		   (space && space->crypt_data &&
-		    space->crypt_data->encryption != FIL_ENCRYPTION_OFF &&
-		    space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED)) {
+		if (!space || dump[i].page_no() >= space->get_size() ||
+		    (space->crypt_data &&
+		     space->crypt_data->encryption != FIL_ENCRYPTION_OFF &&
+		     space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED)) {
 			continue;
 		}
 
-		buf_read_page_background(dump[i], zip_size, true);
+		if (space->is_stopping()) {
+			space->release();
+			space = nullptr;
+			continue;
+		}
+
+		space->reacquire();
+		buf_read_page_background(space, dump[i], zip_size, true);
 
 		if (buf_load_abort_flag) {
-			if (space != NULL) {
+			if (space) {
 				space->release();
 			}
 			buf_load_abort_flag = false;
@@ -702,7 +709,7 @@ buf_load()
 #endif
 	}
 
-	if (space != NULL) {
+	if (space) {
 		space->release();
 	}
 

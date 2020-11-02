@@ -374,7 +374,7 @@ class Dec_ptr_and_buffer: public Dec_ptr
 protected:
   my_decimal m_buffer;
 public:
-  int round_to(my_decimal *to, uint scale, decimal_round_mode mode)
+  int round_to(my_decimal *to, int scale, decimal_round_mode mode)
   {
     DBUG_ASSERT(m_ptr);
     return m_ptr->round_to(to, scale, mode);
@@ -382,6 +382,14 @@ public:
   int round_self(uint scale, decimal_round_mode mode)
   {
     return round_to(&m_buffer, scale, mode);
+  }
+  int round_self_if_needed(int scale, decimal_round_mode mode)
+  {
+    if (scale >= m_ptr->frac)
+      return E_DEC_OK;
+    int res= m_ptr->round_to(&m_buffer, scale, mode);
+    m_ptr= &m_buffer;
+    return res;
   }
   String *to_string_round(String *to, uint dec)
   {
@@ -3934,8 +3942,7 @@ public:
   virtual Field *make_schema_field(MEM_ROOT *root,
                                    TABLE *table,
                                    const Record_addr &addr,
-                                   const ST_FIELD_INFO &def,
-                                   bool show_field) const
+                                   const ST_FIELD_INFO &def) const
   {
     DBUG_ASSERT(0);
     return NULL;
@@ -3979,7 +3986,6 @@ public:
                           const Type_std_attributes *item,
                           SORT_FIELD_ATTR *attr) const= 0;
   virtual bool is_packable() const { return false; }
-
 
   virtual uint32 max_display_length(const Item *item) const= 0;
   virtual uint32 Item_decimal_notation_int_digits(const Item *item) const { return 0; }
@@ -4817,8 +4823,7 @@ public:
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
-                           const ST_FIELD_INFO &def,
-                           bool show_field) const override;
+                           const ST_FIELD_INFO &def) const override;
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *)
     const override;
   void make_sort_key_part(uchar *to, Item *item,
@@ -5249,7 +5254,7 @@ public:
   bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const override;
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const override;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const override;
-  const Vers_type_handler *vers() const override { return &vers_type_timestamp; }
+  const Vers_type_handler *vers() const override;
 };
 
 
@@ -5286,7 +5291,7 @@ public:
   void sort_length(THD *thd,
                    const Type_std_attributes *item,
                    SORT_FIELD_ATTR *attr) const override;
-  bool is_packable()const override { return true; }
+  bool is_packable() const override { return true; }
   bool union_element_finalize(const Item * item) const override;
   uint calc_key_length(const Column_definition &def) const override;
   bool Column_definition_prepare_stage1(THD *thd,
@@ -5416,7 +5421,7 @@ public:
   bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const override;
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const override;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const override;
-  const Vers_type_handler *vers() const override { return &vers_type_timestamp; }
+  const Vers_type_handler *vers() const override;
 };
 
 
@@ -5477,8 +5482,7 @@ public:
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
-                           const ST_FIELD_INFO &def,
-                           bool show_field) const override;
+                           const ST_FIELD_INFO &def) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5529,8 +5533,7 @@ public:
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
-                           const ST_FIELD_INFO &def,
-                           bool show_field) const override;
+                           const ST_FIELD_INFO &def) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5581,8 +5584,7 @@ public:
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
-                           const ST_FIELD_INFO &def,
-                           bool show_field) const override;
+                           const ST_FIELD_INFO &def) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5648,8 +5650,7 @@ public:
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
-                           const ST_FIELD_INFO &def,
-                           bool show_field) const override;
+                           const ST_FIELD_INFO &def) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5879,8 +5880,7 @@ public:
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
-                           const ST_FIELD_INFO &def,
-                           bool show_field) const override;
+                           const ST_FIELD_INFO &def) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5935,8 +5935,7 @@ public:
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
-                           const ST_FIELD_INFO &def,
-                           bool show_field) const override;
+                           const ST_FIELD_INFO &def) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -5991,8 +5990,7 @@ public:
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
-                           const ST_FIELD_INFO &def,
-                           bool show_field) const override;
+                           const ST_FIELD_INFO &def) const override;
   Item_literal *create_literal_item(THD *thd, const char *str, size_t length,
                                     CHARSET_INFO *cs, bool send_error)
                                     const override;
@@ -6202,8 +6200,7 @@ public:
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
-                           const ST_FIELD_INFO &def,
-                           bool show_field) const override;
+                           const ST_FIELD_INFO &def) const override;
   Item_literal *create_literal_item(THD *thd, const char *str, size_t length,
                                     CHARSET_INFO *cs, bool send_error)
                                     const override;
@@ -6333,8 +6330,7 @@ public:
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
-                           const ST_FIELD_INFO &def,
-                           bool show_field) const override;
+                           const ST_FIELD_INFO &def) const override;
   Item *create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const override;
   bool validate_implicit_default_value(THD *thd, const Column_definition &def)
@@ -6909,8 +6905,7 @@ public:
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
-                           const ST_FIELD_INFO &def,
-                           bool show_field) const override;
+                           const ST_FIELD_INFO &def) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -7030,8 +7025,7 @@ public:
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
-                           const ST_FIELD_INFO &def,
-                           bool show_field) const override;
+                           const ST_FIELD_INFO &def) const override;
   Field *make_table_field_from_def(TABLE_SHARE *share,
                                    MEM_ROOT *mem_root,
                                    const LEX_CSTRING *name,
@@ -7039,7 +7033,7 @@ public:
                                    const Bit_addr &bit,
                                    const Column_definition_attributes *attr,
                                    uint32 flags) const override;
-  const Vers_type_handler *vers() const override { return &vers_type_timestamp; }
+  const Vers_type_handler *vers() const override;
 };
 
 
@@ -7214,8 +7208,7 @@ public:
   Field *make_schema_field(MEM_ROOT *root,
                            TABLE *table,
                            const Record_addr &addr,
-                           const ST_FIELD_INFO &def,
-                           bool show_field) const override;
+                           const ST_FIELD_INFO &def) const override;
 };
 
 

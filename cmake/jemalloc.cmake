@@ -17,7 +17,7 @@ MACRO (CHECK_JEMALLOC)
 
     IF(WITH_JEMALLOC STREQUAL "static")
       SET(libname jemalloc_pic)
-      SET(CMAKE_REQUIRED_LIBRARIES pthread dl m)
+      SET(CMAKE_REQUIRED_LIBRARIES pthread ${CMAKE_DL_LIBS} m)
       SET(what bundled)
     ELSE()
       SET(libname jemalloc c)

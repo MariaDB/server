@@ -1,3 +1,4 @@
+
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates. All rights reserved.
 # Copyright (c) 2014, 2020, MariaDB Corporation.
 #
@@ -28,6 +29,7 @@ SET(INNOBASE_SOURCES
 	btr/btr0pcur.cc
 	btr/btr0sea.cc
 	btr/btr0defragment.cc
+	buf/buf0block_hint.cc
 	buf/buf0buddy.cc
 	buf/buf0buf.cc
 	buf/buf0dblwr.cc
@@ -186,7 +188,6 @@ SET(INNOBASE_SOURCES
 	include/mtr0mtr.h
 	include/mtr0mtr.ic
 	include/mtr0types.h
-	include/os0api.h
 	include/os0event.h
 	include/os0file.h
 	include/os0file.ic

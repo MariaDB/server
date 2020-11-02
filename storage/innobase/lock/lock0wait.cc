@@ -53,10 +53,9 @@ lock_wait_table_print(void)
 
 		fprintf(stderr,
 			"Slot %lu:"
-			" in use %lu, susp %lu, timeout %lu, time %lu\n",
+			" in use %lu, timeout %lu, time %lu\n",
 			(ulong) i,
 			(ulong) slot->in_use,
-			(ulong) slot->suspended,
 			slot->wait_timeout,
 			(ulong) difftime(time(NULL), slot->suspend_time));
 	}
@@ -154,7 +153,6 @@ lock_wait_table_reserve_slot(
 			}
 
 			os_event_reset(slot->event);
-			slot->suspended = TRUE;
 			slot->suspend_time = time(NULL);
 			slot->wait_timeout = wait_timeout;
 
@@ -443,7 +441,6 @@ lock_wait_check_and_cancel(
 {
 	ut_ad(lock_wait_mutex_own());
 	ut_ad(slot->in_use);
-	ut_ad(slot->suspended);
 
 	double wait_time = difftime(time(NULL), slot->suspend_time);
 	trx_t* trx = thr_get_trx(slot->thr);

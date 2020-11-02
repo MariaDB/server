@@ -170,9 +170,9 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0001 November 12, 2019";
+       char version[]= "Version 1.07.0002 October 18, 2020";
 #if defined(__WIN__)
-       char compver[]= "Version 1.07.0001 " __DATE__ " "  __TIME__;
+       char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
        static char slash= '\\';
 #else   // !__WIN__
        static char slash= '/';
@@ -251,11 +251,13 @@ bool    ExactInfo(void);
 USETEMP UseTemp(void);
 int     GetConvSize(void);
 TYPCONV GetTypeConv(void);
+bool    JsonAllPath(void);
 char   *GetJsonNull(void);
+int GetDefaultDepth(void);
 uint    GetJsonGrpSize(void);
 char   *GetJavaWrapper(void);
-uint    GetWorkSize(void);
-void    SetWorkSize(uint);
+size_t  GetWorkSize(void);
+void    SetWorkSize(size_t);
 extern "C" const char *msglang(void);
 
 static void PopUser(PCONNECT xp);
@@ -345,11 +347,19 @@ static MYSQL_THDVAR_ENUM(
   1,                               // def (AUTO)
   &usetemp_typelib);               // typelib
 
+#ifdef _WIN64
 // Size used for g->Sarea_Size
-static MYSQL_THDVAR_UINT(work_size,
-       PLUGIN_VAR_RQCMDARG, 
-       "Size of the CONNECT work area.",
-       NULL, NULL, SZWORK, SZWMIN, UINT_MAX, 1);
+static MYSQL_THDVAR_ULONGLONG(work_size,
+	PLUGIN_VAR_RQCMDARG,
+	"Size of the CONNECT work area.",
+	NULL, NULL, SZWORK, SZWMIN, ULONGLONG_MAX, 1);
+#else
+// Size used for g->Sarea_Size
+static MYSQL_THDVAR_ULONG(work_size,
+  PLUGIN_VAR_RQCMDARG, 
+  "Size of the CONNECT work area.",
+  NULL, NULL, SZWORK, SZWMIN, ULONG_MAX, 1);
+#endif
 
 // Size used when converting TEXT columns to VARCHAR
 static MYSQL_THDVAR_INT(conv_size,
@@ -384,12 +394,23 @@ static MYSQL_THDVAR_ENUM(
   1,                               // def (yes)
   &xconv_typelib);                 // typelib
 
+// Adding JPATH to all Json table columns
+static MYSQL_THDVAR_BOOL(json_all_path, PLUGIN_VAR_RQCMDARG,
+	"Adding JPATH to all Json table columns",
+	NULL, NULL, 0);							// NO by default
+
 // Null representation for JSON values
 static MYSQL_THDVAR_STR(json_null,
 	PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
 	"Representation of Json null values",
 	//     check_json_null, update_json_null,
 	NULL, NULL, "<null>");
+
+// Default Json, XML or Mongo depth
+static MYSQL_THDVAR_INT(default_depth,
+	PLUGIN_VAR_RQCMDARG,
+	"Default depth used by Json, XML and Mongo discovery",
+	NULL, NULL, 0, -1, 16, 1);
 
 // Estimate max number of rows for JSON aggregate functions
 static MYSQL_THDVAR_UINT(json_grp_size,
@@ -452,15 +473,17 @@ uint GetTraceValue(void)
 	{return (uint)(connect_hton ? THDVAR(current_thd, xtrace) : 0);}
 bool ExactInfo(void) {return THDVAR(current_thd, exact_info);}
 static bool CondPushEnabled(void) {return THDVAR(current_thd, cond_push);}
+bool JsonAllPath(void) {return THDVAR(current_thd, json_all_path);}
 USETEMP UseTemp(void) {return (USETEMP)THDVAR(current_thd, use_tempfile);}
 int GetConvSize(void) {return THDVAR(current_thd, conv_size);}
 TYPCONV GetTypeConv(void) {return (TYPCONV)THDVAR(current_thd, type_conv);}
 char *GetJsonNull(void)
 	{return connect_hton ? THDVAR(current_thd, json_null) : NULL;}
+int GetDefaultDepth(void) {return THDVAR(current_thd, default_depth);}
 uint GetJsonGrpSize(void)
   {return connect_hton ? THDVAR(current_thd, json_grp_size) : 10;}
-uint GetWorkSize(void) {return THDVAR(current_thd, work_size);}
-void SetWorkSize(uint) 
+size_t GetWorkSize(void) {return (size_t)THDVAR(current_thd, work_size);}
+void SetWorkSize(size_t) 
 {
   // Changing the session variable value seems to be impossible here
   // and should be done in a check function 
@@ -470,7 +493,8 @@ void SetWorkSize(uint)
 
 #if defined(JAVA_SUPPORT)
 char *GetJavaWrapper(void)
-{return connect_hton ? THDVAR(current_thd, java_wrapper) : (char*)"wrappers/JdbcInterface";}
+{return connect_hton ? THDVAR(current_thd, java_wrapper)
+	                   : (char*)"wrappers/JdbcInterface";}
 #endif   // JAVA_SUPPORT
 
 #if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
@@ -619,8 +643,10 @@ ha_create_table_option connect_field_option_list[]=
   HA_FOPTION_NUMBER("FIELD_LENGTH", fldlen, 0, 0, INT_MAX32, 1),
   HA_FOPTION_STRING("DATE_FORMAT", dateformat),
   HA_FOPTION_STRING("FIELD_FORMAT", fieldformat),
-  HA_FOPTION_STRING("SPECIAL", special),
-  HA_FOPTION_ENUM("DISTRIB", opt, "scattered,clustered,sorted", 0),
+  HA_FOPTION_STRING("JPATH", jsonpath),
+	HA_FOPTION_STRING("XPATH", xmlpath),
+	HA_FOPTION_STRING("SPECIAL", special),
+	HA_FOPTION_ENUM("DISTRIB", opt, "scattered,clustered,sorted", 0),
   HA_FOPTION_END
 };
 
@@ -1310,9 +1336,10 @@ int GetIntegerTableOption(PGLOBAL g, PTOS options, PCSZ opname, int idef)
   if ((ulonglong) opval == (ulonglong)NO_IVAL) {
 		PCSZ pv;
 
-    if ((pv= GetListOption(g, opname, options->oplist)))
-      opval= CharToNumber((char*)pv, strlen(pv), ULONGLONG_MAX, true);
-    else
+		if ((pv = GetListOption(g, opname, options->oplist))) {
+			// opval = CharToNumber((char*)pv, strlen(pv), ULONGLONG_MAX, false);
+			return atoi(pv);
+		} else
       return idef;
 
     } // endif opval
@@ -1564,8 +1591,9 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     pcf->Offset= (int)fop->offset;
     pcf->Freq= (int)fop->freq;
     pcf->Datefmt= (char*)fop->dateformat;
-    pcf->Fieldfmt= (char*)fop->fieldformat;
-  } else {
+		pcf->Fieldfmt = fop->fieldformat ? (char*)fop->fieldformat
+			: fop->jsonpath ? (char*)fop->jsonpath : (char*)fop->xmlpath;
+	} else {
     pcf->Offset= -1;
     pcf->Freq= 0;
     pcf->Datefmt= NULL;
@@ -1573,6 +1601,9 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
   } // endif fop
 
   chset= (char *)fp->charset()->name;
+
+	if (!strcmp(chset, "binary"))
+		v = 'B';		// Binary string
 
   switch (fp->type()) {
     case MYSQL_TYPE_BLOB:
@@ -1583,7 +1614,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     default:
       pcf->Type= MYSQLtoPLG(fp->type(), &v);
       break;
-    } // endswitch SQL type
+  } // endswitch SQL type
 
   switch (pcf->Type) {
     case TYPE_STRING:
@@ -1637,7 +1668,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
       break;
     default:
       break;
-    } // endswitch type
+  } // endswitch type
 
   if (fp->flags & UNSIGNED_FLAG)
     pcf->Flags |= U_UNSIGNED;
@@ -2208,7 +2239,7 @@ int ha_connect::MakeRecord(char *buf)
 					case TYPE_BIN:
 						p= value->GetCharValue();
 						charset= &my_charset_bin;
-						rc= fp->store(p, strlen(p), charset, CHECK_FIELD_WARN);
+						rc= fp->store(p, value->GetSize(), charset, CHECK_FIELD_WARN);
 						break;
           case TYPE_DOUBLE:
             rc= fp->store(value->GetFloatValue());
@@ -4500,14 +4531,13 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, const char *dbn, bool 
 		case TAB_DIR:
 		case TAB_ZIP:
 		case TAB_OEM:
-      if (table && table->pos_in_table_list) // if SELECT
-      {
+      if (table && table->pos_in_table_list) {		// if SELECT
 #if MYSQL_VERSION_ID > 100200
 				Switch_to_definer_security_ctx backup_ctx(thd, table->pos_in_table_list);
 #endif // VERSION_ID > 100200
+
         return check_global_access(thd, FILE_ACL);
-      }
-      else
+      }	else
         return check_global_access(thd, FILE_ACL);
     case TAB_ODBC:
 		case TAB_JDBC:
@@ -4523,7 +4553,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, const char *dbn, bool 
     case TAB_VIR:
 			// This is temporary until a solution is found
 			return false;
-    } // endswitch type
+  } // endswitch type
 
   my_printf_error(ER_UNKNOWN_ERROR, "check_privileges failed", MYF(0));
   return true;
@@ -4968,7 +4998,7 @@ int ha_connect::check_stmt(PGLOBAL g, MODE newmode, bool cras)
 	} // endif CheckCleanup
 
   if (cras)
-    g->Createas= 1;  // To tell external tables of a multi-table command
+    g->Createas= true;  // To tell external tables of a multi-table command
 
 	if (trace(1))
 		htrc("Calling CntCheckDB db=%s cras=%d\n", GetDBName(NULL), cras);
@@ -5322,91 +5352,100 @@ static char *encode(PGLOBAL g, const char *cnm)
   @return
     Return 0 if ok
 */
-static bool add_field(String *sql, const char *field_name, int typ, int len,
-                      int dec, char *key, uint tm, const char *rem, char *dft,
-                      char *xtra, char *fmt, int flag, bool dbf, char v)
-{
-  char var= (len > 255) ? 'V' : v;
-  bool q, error= false;
-  const char *type= PLGtoMYSQLtype(typ, dbf, var);
+static bool add_field(String* sql, TABTYPE ttp, const char* field_name, int typ,
+	                    int len, int dec, char* key, uint tm, const char* rem,
+	                    char* dft, char* xtra, char* fmt, int flag, bool dbf, char v) {
+#if defined(DEVELOPMENT)
+	// Some client programs regard CHAR(36) as GUID
+	char var = (len > 255 || len == 36) ? 'V' : v;
+#else
+	char var = (len > 255) ? 'V' : v;
+#endif
+	bool q, error = false;
+	const char* type = PLGtoMYSQLtype(typ, dbf, var);
 
-  error|= sql->append('`');
-  error|= sql->append(field_name);
-  error|= sql->append("` ");
-  error|= sql->append(type);
+	error |= sql->append('`');
+	error |= sql->append(field_name);
+	error |= sql->append("` ");
+	error |= sql->append(type);
 
-	if (typ == TYPE_STRING || 
-		 (len && typ != TYPE_DATE && (typ != TYPE_DOUBLE || dec >= 0))) {
-    error|= sql->append('(');
-    error|= sql->append_ulonglong(len);
+	if (typ == TYPE_STRING ||
+		(len && typ != TYPE_DATE && (typ != TYPE_DOUBLE || dec >= 0))) {
+		error |= sql->append('(');
+		error |= sql->append_ulonglong(len);
 
 		if (typ == TYPE_DOUBLE) {
-      error|= sql->append(',');
-      // dec must be < len and < 31
-      error|= sql->append_ulonglong(MY_MIN(dec, (MY_MIN(len, 31) - 1)));
-    } else if (dec > 0 && !strcmp(type, "DECIMAL")) {
-      error|= sql->append(',');
-      // dec must be < len
-      error|= sql->append_ulonglong(MY_MIN(dec, len - 1));
-    } // endif dec
+			error |= sql->append(',');
+			// dec must be < len and < 31
+			error |= sql->append_ulonglong(MY_MIN(dec, (MY_MIN(len, 31) - 1)));
+		} else if (dec > 0 && !strcmp(type, "DECIMAL")) {
+			error |= sql->append(',');
+			// dec must be < len
+			error |= sql->append_ulonglong(MY_MIN(dec, len - 1));
+		} // endif dec
 
-    error|= sql->append(')');
-    } // endif len
+		error |= sql->append(')');
+	} // endif len
 
-  if (v == 'U')
-    error|= sql->append(" UNSIGNED");
-  else if (v == 'Z')
-    error|= sql->append(" ZEROFILL");
+	if (v == 'U')
+		error |= sql->append(" UNSIGNED");
+	else if (v == 'Z')
+		error |= sql->append(" ZEROFILL");
 
-  if (key && *key) {
-    error|= sql->append(" ");
-    error|= sql->append(key);
-    } // endif key
+	if (key && *key) {
+		error |= sql->append(" ");
+		error |= sql->append(key);
+	} // endif key
 
-  if (tm)
-    error|= sql->append(STRING_WITH_LEN(" NOT NULL"), system_charset_info);
+	if (tm)
+		error |= sql->append(STRING_WITH_LEN(" NOT NULL"), system_charset_info);
 
-  if (dft && *dft) {
-    error|= sql->append(" DEFAULT ");
+	if (dft && *dft) {
+		error |= sql->append(" DEFAULT ");
 
-    if (typ == TYPE_DATE)
-      q= (strspn(dft, "0123456789 -:/") == strlen(dft));
-    else
-      q= !IsTypeNum(typ);
+		if (typ == TYPE_DATE)
+			q = (strspn(dft, "0123456789 -:/") == strlen(dft));
+		else
+			q = !IsTypeNum(typ);
 
-    if (q) {
-      error|= sql->append("'");
-      error|= sql->append_for_single_quote(dft, strlen(dft));
-      error|= sql->append("'");
-    } else
-      error|= sql->append(dft);
+		if (q) {
+			error |= sql->append("'");
+			error |= sql->append_for_single_quote(dft, strlen(dft));
+			error |= sql->append("'");
+		} else
+			error |= sql->append(dft);
 
-    } // endif dft
+	} // endif dft
 
-  if (xtra && *xtra) {
-    error|= sql->append(" ");
-    error|= sql->append(xtra);
-    } // endif rem
+	if (xtra && *xtra) {
+		error |= sql->append(" ");
+		error |= sql->append(xtra);
+	} // endif rem
 
-  if (rem && *rem) {
-    error|= sql->append(" COMMENT '");
-    error|= sql->append_for_single_quote(rem, strlen(rem));
-    error|= sql->append("'");
-    } // endif rem
+	if (rem && *rem) {
+		error |= sql->append(" COMMENT '");
+		error |= sql->append_for_single_quote(rem, strlen(rem));
+		error |= sql->append("'");
+	} // endif rem
 
-  if (fmt && *fmt) {
-    error|= sql->append(" FIELD_FORMAT='");
-    error|= sql->append_for_single_quote(fmt, strlen(fmt));
-    error|= sql->append("'");
-    } // endif flag
+	if (fmt && *fmt) {
+		switch (ttp) {
+		case TAB_JSON: error |= sql->append(" JPATH='"); break;
+		case TAB_XML:  error |= sql->append(" XPATH='"); break;
+		default:	     error |= sql->append(" FIELD_FORMAT='");
+		} // endswitch ttp
 
-  if (flag) {
-    error|= sql->append(" FLAG=");
-    error|= sql->append_ulonglong(flag);
-    } // endif flag
+		error |= sql->append_for_single_quote(fmt, strlen(fmt));
+		error |= sql->append("'");
+	} // endif flag
 
-  error|= sql->append(',');
-  return error;
+	if (flag) {
+		error |= sql->append(" FLAG=");
+		error |= sql->append_ulonglong(flag);
+	} // endif flag
+
+	error |= sql->append(',');
+	return error;
 } // end of add_field
 
 /**
@@ -6027,7 +6066,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 						len= 256;      // STRBLK's have 0 length
 
 					// Now add the field
-					if (add_field(&sql, cnm, typ, len, dec, NULL, tm,
+					if (add_field(&sql, ttp, cnm, typ, len, dec, NULL, tm,
 						NULL, NULL, NULL, NULL, flg, dbf, v))
 						rc= HA_ERR_OUT_OF_MEM;
 				} // endfor crp
@@ -6221,7 +6260,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 							prec= 0;
 
 						// Now add the field
-						if (add_field(&sql, cnm, typ, prec, dec, key, tm, rem, dft, xtra,
+						if (add_field(&sql, ttp, cnm, typ, prec, dec, key, tm, rem, dft, xtra,
 							fmt, flg, dbf, v))
 							rc= HA_ERR_OUT_OF_MEM;
 				} // endfor i
@@ -6974,7 +7013,7 @@ bool ha_connect::NoFieldOptionChange(TABLE *tab)
          fop1->fldlen == fop2->fldlen &&
          CheckString(fop1->dateformat, fop2->dateformat) &&
          CheckString(fop1->fieldformat, fop2->fieldformat) &&
-         CheckString(fop1->special, fop2->special));
+			   CheckString(fop1->special, fop2->special));
     } // endfor fld
 
   return rc;
@@ -7346,7 +7385,9 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
   MYSQL_SYSVAR(errmsg_dir_path),
 #endif   // XMSG
 	MYSQL_SYSVAR(json_null),
-  MYSQL_SYSVAR(json_grp_size),
+	MYSQL_SYSVAR(json_all_path),
+	MYSQL_SYSVAR(default_depth),
+	MYSQL_SYSVAR(json_grp_size),
 #if defined(JAVA_SUPPORT)
 	MYSQL_SYSVAR(jvm_path),
 	MYSQL_SYSVAR(class_path),
@@ -7372,7 +7413,7 @@ maria_declare_plugin(connect)
   0x0107,                                       /* version number (1.07) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.07.0001",                                  /* string version */
+  "1.07.0002",                                  /* string version */
 	MariaDB_PLUGIN_MATURITY_STABLE                /* maturity */
 }
 maria_declare_plugin_end;

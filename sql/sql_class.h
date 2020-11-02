@@ -284,8 +284,9 @@ class Key_part_spec :public Sql_alloc {
 public:
   LEX_CSTRING field_name;
   uint length;
-  Key_part_spec(const LEX_CSTRING *name, uint len)
-    : field_name(*name), length(len)
+  bool generated;
+  Key_part_spec(const LEX_CSTRING *name, uint len, bool gen= false)
+    : field_name(*name), length(len), generated(gen)
   {}
   bool operator==(const Key_part_spec& other) const;
   /**
@@ -2311,7 +2312,10 @@ public:
     rpl_io_thread_info *rpl_io_info;
     rpl_sql_thread_info *rpl_sql_info;
   } system_thread_info;
+  /* Used for BACKUP LOCK */
   MDL_ticket *mdl_backup_ticket, *mdl_backup_lock;
+  /* Used to register that thread has a MDL_BACKUP_WAIT_COMMIT lock */
+  MDL_request *backup_commit_lock;
 
   void reset_for_next_command(bool do_clear_errors= 1);
   /*
@@ -2758,9 +2762,13 @@ public:
     {
       free_root(&mem_root,MYF(0));
     }
-    my_bool is_active()
+    bool is_active()
     {
       return (all.ha_list != NULL);
+    }
+    bool is_empty()
+    {
+      return all.is_empty() && stmt.is_empty();
     }
     st_transactions()
     {
@@ -3483,6 +3491,7 @@ public:
                    char const *query, ulong query_len, bool is_trans,
                    bool direct, bool suppress_use,
                    int errcode);
+  bool binlog_current_query_unfiltered();
 #endif
 
   inline void
@@ -3765,10 +3774,17 @@ public:
   /* Commit both statement and full transaction */
   int commit_whole_transaction_and_close_tables();
   void give_protection_error();
+  /*
+    Give an error if any of the following is true for this connection
+    - BACKUP STAGE is active
+    - FLUSH TABLE WITH READ LOCK is active
+    - BACKUP LOCK table_name is active
+  */
   inline bool has_read_only_protection()
   {
     if (current_backup_stage == BACKUP_FINISHED &&
-        !global_read_lock.is_acquired())
+        !global_read_lock.is_acquired() &&
+        !mdl_backup_lock)
       return FALSE;
     give_protection_error();
     return TRUE;
@@ -6873,11 +6889,11 @@ public:
 /**
   SP Bulk execution safe
 */
-#define CF_SP_BULK_SAFE (1U << 20)
+#define CF_PS_ARRAY_BINDING_SAFE (1U << 20)
 /**
   SP Bulk execution optimized
 */
-#define CF_SP_BULK_OPTIMIZED (1U << 21)
+#define CF_PS_ARRAY_BINDING_OPTIMIZED (1U << 21)
 /**
   If command creates or drops a table
 */

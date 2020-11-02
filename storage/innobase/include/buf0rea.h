@@ -46,11 +46,13 @@ dberr_t buf_read_page(const page_id_t page_id, ulint zip_size);
 buffer buf_pool if it is not already there. Sets the io_fix flag and sets
 an exclusive lock on the buffer frame. The flag is cleared and the x-lock
 released by the i/o-handler thread.
+@param[in,out]	space		tablespace
 @param[in]	page_id		page id
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	sync		true if synchronous aio is desired */
-void
-buf_read_page_background(const page_id_t page_id, ulint zip_size, bool sync);
+void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
+			      ulint zip_size, bool sync)
+  MY_ATTRIBUTE((nonnull));
 
 /** Applies a random read-ahead in buf_pool if there are at least a threshold
 value of accessed pages from the random read-ahead area. Does not read any
@@ -101,19 +103,11 @@ ulint
 buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf);
 
 /** Issues read requests for pages which recovery wants to read in.
-@param[in]	sync		true if the caller wants this function to wait
-for the highest address page to get read in, before this function returns
 @param[in]	space_id	tablespace id
 @param[in]	page_nos	array of page numbers to read, with the
 highest page number the last in the array
-@param[in]	n_stored	number of page numbers in the array */
-
-void
-buf_read_recv_pages(
-	bool		sync,
-	ulint		space_id,
-	const ulint*	page_nos,
-	ulint		n_stored);
+@param[in]	n		number of page numbers in the array */
+void buf_read_recv_pages(ulint space_id, const uint32_t* page_nos, ulint n);
 
 /** @name Modes used in read-ahead @{ */
 /** read only pages belonging to the insert buffer tree */

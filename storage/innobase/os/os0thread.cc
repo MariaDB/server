@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,9 +26,6 @@ Created 9/8/1995 Heikki Tuuri
 
 #include "univ.i"
 #include "srv0srv.h"
-
-/** Number of threads active. */
-Atomic_counter<ulint>	os_thread_count;
 
 /***************************************************************//**
 Compares two thread ids for equality.
@@ -89,15 +86,7 @@ NOTE: We count the number of threads in os_thread_exit(). A created
 thread should always use that to exit so thatthe thread count will be
 decremented.
 We do not return an error code because if there is one, we crash here. */
-os_thread_t
-os_thread_create_func(
-/*==================*/
-	os_thread_func_t	func,		/*!< in: pointer to function
-						from which to start */
-	void*			arg,		/*!< in: argument to start
-						function */
-	os_thread_id_t*		thread_id)	/*!< out: id of the created
-						thread, or NULL */
+os_thread_t os_thread_create(os_thread_func_t func, void *arg)
 {
 	os_thread_id_t	new_thread_id;
 
@@ -118,8 +107,6 @@ os_thread_create_func(
 
 	CloseHandle(handle);
 
-	os_thread_count++;
-
 	return((os_thread_t)new_thread_id);
 #else /* _WIN32 else */
 
@@ -133,8 +120,6 @@ os_thread_create_func(
 		abort();
 	}
 
-	os_thread_count++;
-
 	ret = pthread_create(&new_thread_id, &attr, func, arg);
 
 	ut_a(ret == 0);
@@ -143,41 +128,11 @@ os_thread_create_func(
 
 #endif /* not _WIN32 */
 
-	ut_a(os_thread_count <= srv_max_n_threads);
-
-	/* Return the thread_id if the caller requests it. */
-	if (thread_id != NULL) {
-		*thread_id = new_thread_id;
-	}
 	return((os_thread_t)new_thread_id);
 }
 
-/** Waits until the specified thread completes and joins it.
-Its return value is ignored.
-@param[in,out]	thread	thread to join */
-void
-os_thread_join(
-	os_thread_id_t	thread)
-{
-#ifdef _WIN32
-	/* Do nothing. */
-#else
-#ifdef UNIV_DEBUG
-	const int	ret =
-#endif /* UNIV_DEBUG */
-	pthread_join(thread, NULL);
-
-	/* Waiting on already-quit threads is allowed. */
-	ut_ad(ret == 0 || ret == ESRCH);
-#endif /* _WIN32 */
-}
-
-/** Exits the current thread.
-@param[in]	detach	if true, the thread will be detached right before
-exiting. If false, another thread is responsible for joining this thread */
-ATTRIBUTE_NORETURN
-void
-os_thread_exit(bool detach)
+/** Detach and terminate the current thread. */
+ATTRIBUTE_NORETURN void os_thread_exit()
 {
 #ifdef UNIV_DEBUG_THREAD_CREATION
 	ib::info() << "Thread exits, id "
@@ -188,14 +143,10 @@ os_thread_exit(bool detach)
 	pfs_delete_thread();
 #endif
 
-	os_thread_count--;
-
 #ifdef _WIN32
 	ExitThread(0);
 #else
-	if (detach) {
-		pthread_detach(pthread_self());
-	}
+	pthread_detach(pthread_self());
 	pthread_exit(NULL);
 #endif
 }

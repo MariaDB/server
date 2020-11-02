@@ -314,7 +314,8 @@ public:
   }
   void q_append(const char *data, size_t data_len)
   {
-    memcpy(Ptr + str_length, data, data_len);
+    if (data_len)
+      memcpy(Ptr + str_length, data, data_len);
     DBUG_ASSERT(str_length <= UINT_MAX32 - data_len);
     str_length += (uint)data_len;
   }
@@ -345,7 +346,7 @@ public:
   void qs_append(const char *str, size_t len);
   void qs_append_hex(const char *str, uint32 len);
   void qs_append(double d);
-  void qs_append(double *d);
+  void qs_append(const double *d);
   inline void qs_append(const char c)
   {
      Ptr[str_length]= c;

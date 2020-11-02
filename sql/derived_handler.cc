@@ -120,8 +120,6 @@ void derived_handler::set_derived(TABLE_LIST *tbl)
   table= tbl->table;
   unit= tbl->derived;
   select= unit->first_select();
-  tmp_table_param= select->next_select() ?
-                   ((select_unit *)(unit->result))->get_tmp_table_param() :
-                   &select->join->tmp_table_param;
+  tmp_table_param= ((select_unit *)(unit->result))->get_tmp_table_param();
 }
 

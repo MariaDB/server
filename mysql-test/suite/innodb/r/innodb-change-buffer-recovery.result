@@ -50,5 +50,5 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 SHOW ENGINE INNODB STATUS;
 Type	Name	Status
-InnoDB		insert 79, delete mark 1
+InnoDB		
 DROP TABLE t1;

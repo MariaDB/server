@@ -2807,5 +2807,16 @@ id
 16
 drop table t1;
 #
+# MDEV-5628: Assertion `! is_set()' or `!is_set() ||
+# (m_status == DA_OK_BULK && is_bulk_op())' fails on UPDATE on a
+# partitioned table with subquery (MySQL:71630)
+#
+CREATE TABLE t1 (a INT) PARTITION BY HASH(a) PARTITIONS 2;
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (1),(2);
+UPDATE t1 SET a = 7 WHERE a = ( SELECT b FROM t2 ) ORDER BY a LIMIT 6;
+ERROR 21000: Subquery returns more than 1 row
+DROP TABLE t1,t2;
+#
 # End of 10.1 tests
 #

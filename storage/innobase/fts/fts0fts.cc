@@ -286,7 +286,6 @@ fts_cache_destroy(fts_cache_t* cache)
 {
 	rw_lock_free(&cache->lock);
 	rw_lock_free(&cache->init_lock);
-	mutex_free(&cache->optimize_lock);
 	mutex_free(&cache->deleted_lock);
 	mutex_free(&cache->doc_id_lock);
 	os_event_destroy(cache->sync->event);
@@ -621,8 +620,6 @@ fts_cache_create(
 		SYNC_FTS_CACHE_INIT);
 
 	mutex_create(LATCH_ID_FTS_DELETE, &cache->deleted_lock);
-
-	mutex_create(LATCH_ID_FTS_OPTIMIZE, &cache->optimize_lock);
 
 	mutex_create(LATCH_ID_FTS_DOC_ID, &cache->doc_id_lock);
 
@@ -5269,15 +5266,12 @@ fts_t::fts_t(
 	mem_heap_t*		heap)
 	:
 	added_synced(0), dict_locked(0),
-	bg_threads(0),
 	add_wq(NULL),
 	cache(NULL),
 	doc_col(ULINT_UNDEFINED), in_queue(false), sync_message(false),
 	fts_heap(heap)
 {
 	ut_a(table->fts == NULL);
-
-	mutex_create(LATCH_ID_FTS_BG_THREADS, &bg_threads_mutex);
 
 	ib_alloc_t*	heap_alloc = ib_heap_allocator_create(fts_heap);
 
@@ -5289,8 +5283,6 @@ fts_t::fts_t(
 /** fts_t destructor. */
 fts_t::~fts_t()
 {
-	mutex_free(&bg_threads_mutex);
-
 	ut_ad(add_wq == NULL);
 
 	if (cache != NULL) {

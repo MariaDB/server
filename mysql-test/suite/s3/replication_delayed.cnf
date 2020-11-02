@@ -1,0 +1,3 @@
+!include ../rpl/my.cnf
+!include ./my.cnf
+!include ./slave.cnf

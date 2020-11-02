@@ -868,6 +868,8 @@ int Arg_comparator::compare_decimal()
     {
       if (set_null)
         owner->null_value= 0;
+      val1.round_self_if_needed((*a)->decimals, HALF_UP);
+      val2.round_self_if_needed((*b)->decimals, HALF_UP);
       return val1.cmp(val2);
     }
   }
@@ -890,6 +892,8 @@ int Arg_comparator::compare_e_decimal()
   VDec val1(*a), val2(*b);
   if (val1.is_null() || val2.is_null())
     return MY_TEST(val1.is_null() && val2.is_null());
+  val1.round_self_if_needed((*a)->decimals, HALF_UP);
+  val2.round_self_if_needed((*b)->decimals, HALF_UP);
   return MY_TEST(val1.cmp(val2) == 0);
 }
 
@@ -2331,7 +2335,7 @@ longlong Item_func_between::val_int_cmp_real()
 
 void Item_func_between::print(String *str, enum_query_type query_type)
 {
-  args[0]->print_parenthesised(str, query_type, precedence());
+  args[0]->print_parenthesised(str, query_type, higher_precedence());
   if (negated)
     str->append(STRING_WITH_LEN(" not"));
   str->append(STRING_WITH_LEN(" between "));
@@ -3348,27 +3352,28 @@ Item* Item_func_case_simple::propagate_equal_fields(THD *thd,
 }
 
 
-void Item_func_case::print_when_then_arguments(String *str,
-                                               enum_query_type query_type,
-                                               Item **items, uint count)
+inline void Item_func_case::print_when_then_arguments(String *str,
+                                                      enum_query_type
+                                                      query_type,
+                                                      Item **items, uint count)
 {
-  for (uint i=0 ; i < count ; i++)
+  for (uint i= 0; i < count; i++)
   {
     str->append(STRING_WITH_LEN("when "));
-    items[i]->print_parenthesised(str, query_type, precedence());
+    items[i]->print(str, query_type);
     str->append(STRING_WITH_LEN(" then "));
-    items[i + count]->print_parenthesised(str, query_type, precedence());
+    items[i + count]->print(str, query_type);
     str->append(' ');
   }
 }
 
 
-void Item_func_case::print_else_argument(String *str,
-                                         enum_query_type query_type,
-                                         Item *item)
+inline void Item_func_case::print_else_argument(String *str,
+                                                enum_query_type query_type,
+                                                Item *item)
 {
   str->append(STRING_WITH_LEN("else "));
-  item->print_parenthesised(str, query_type, precedence());
+  item->print(str, query_type);
   str->append(' ');
 }
 
@@ -5600,12 +5605,14 @@ void Item_func_like::print(String *str, enum_query_type query_type)
     str->append(STRING_WITH_LEN(" not "));
   str->append(func_name());
   str->append(' ');
-  args[1]->print_parenthesised(str, query_type, precedence());
   if (escape_used_in_parsing)
   {
+    args[1]->print_parenthesised(str, query_type, precedence());
     str->append(STRING_WITH_LEN(" escape "));
-    escape_item->print(str, query_type);
+    escape_item->print_parenthesised(str, query_type, higher_precedence());
   }
+  else
+    args[1]->print_parenthesised(str, query_type, higher_precedence());
 }
 
 

@@ -72,7 +72,7 @@ const char *zerofill_error_msg=
    corrupted.
 */
 ulonglong maria_recover_options= HA_RECOVER_NONE;
-handlerton __attribute__((visibility("default"))) *maria_hton;
+handlerton *maria_hton;
 
 /* bits in maria_recover_options */
 const char *maria_recover_names[]=
@@ -1025,7 +1025,7 @@ int_table_flags(HA_NULL_IN_KEY | HA_CAN_FULLTEXT | HA_CAN_SQL_HANDLER |
                 HA_CAN_VIRTUAL_COLUMNS | HA_CAN_EXPORT |
                 HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT |
                 HA_CAN_TABLES_WITHOUT_ROLLBACK),
-can_enable_indexes(1), bulk_insert_single_undo(BULK_INSERT_NONE)
+can_enable_indexes(0), bulk_insert_single_undo(BULK_INSERT_NONE)
 {}
 
 
@@ -2103,6 +2103,7 @@ void ha_maria::start_bulk_insert(ha_rows rows, uint flags)
   DBUG_ENTER("ha_maria::start_bulk_insert");
   THD *thd= table->in_use;
   MARIA_SHARE *share= file->s;
+  bool index_disabled= 0;
   DBUG_PRINT("info", ("start_bulk_insert: rows %lu", (ulong) rows));
 
   /* don't enable row cache if too few rows */
@@ -2166,6 +2167,7 @@ void ha_maria::start_bulk_insert(ha_rows rows, uint flags)
       {
         /* Internal table; If we get a duplicate something is very wrong */
         file->update|= HA_STATE_CHANGED;
+        index_disabled= share->base.keys > 0;
         maria_clear_all_keys_active(file->s->state.key_map);
       }
       else
@@ -2193,6 +2195,7 @@ void ha_maria::start_bulk_insert(ha_rows rows, uint flags)
               table->key_info[i].algorithm != HA_KEY_ALG_LONG_HASH)
           {
             maria_clear_key_active(share->state.key_map, i);
+            index_disabled= 1;
             file->update|= HA_STATE_CHANGED;
             file->create_unique_index_by_sort= all_keys;
           }
@@ -2222,6 +2225,7 @@ void ha_maria::start_bulk_insert(ha_rows rows, uint flags)
                              rows);
     }
   }
+  can_enable_indexes= index_disabled;
   DBUG_VOID_RETURN;
 }
 
@@ -2260,7 +2264,6 @@ int ha_maria::end_bulk_insert()
 
   if (bulk_insert_single_undo != BULK_INSERT_NONE)
   {
-    DBUG_ASSERT(can_enable_indexes);
     /*
       Table was transactional just before start_bulk_insert().
       No need to flush pages if we did a repair (which already flushed).
@@ -2271,6 +2274,7 @@ int ha_maria::end_bulk_insert()
       first_error= first_error ? first_error : error;
     bulk_insert_single_undo= BULK_INSERT_NONE;  // Safety
   }
+  can_enable_indexes= 0;
   DBUG_RETURN(first_error);
 }
 
@@ -2545,6 +2549,9 @@ int ha_maria::info(uint flag)
 {
   MARIA_INFO maria_info;
   char name_buff[FN_REFLEN];
+
+  if (!file)
+    return 0;
 
   (void) maria_status(file, &maria_info, flag);
   if (flag & HA_STATUS_VARIABLE)

@@ -281,3 +281,29 @@ create table t1 (s date, e date, period for app(s,e), f varchar(8)) engine=aria 
 insert into t1 values ('2024-05-13','2026-03-25','foo');
 update t1 for portion of app from '2024-04-02' to '2026-03-15' set f = 'bar';
 drop table t1;
+# MDEV-19130 Assertion
+# `next_insert_id >= auto_inc_interval_for_cur_row.minimum()'
+# failed in handler::update_auto_increment after error 167
+create table t1 (id int auto_increment, f int, s datetime, e datetime, period for p(s,e), primary key(id));
+insert into t1 (s,e) values ('1994-01-06','2004-11-30'),('1994-06-21','1997-06-20');
+update ignore t1 set id = 2429681664;
+Warnings:
+Warning	1264	Out of range value for column 'id' at row 1
+Warning	1264	Out of range value for column 'id' at row 2
+update ignore t1 for portion of p from '1995-07-06' to '2009-01-12' set f = 1;
+drop table t1;
+#
+# MDEV-22805 SIGSEGV in check_fields on UPDATE (optimized builds) | Assertion `thd->lex->sql_command == SQLCOM_UPDATE' failed.
+#
+CREATE TABLE t1 (a INT, b DATE, c DATE, PERIOD FOR APPTIME(b, c));
+INSERT INTO t1 VALUES(1, '1999-01-01', '2018-12-12');
+UPDATE t1 FOR PORTION OF APPTIME FROM (SELECT '1999-01-01' FROM t1 WHERE a=2) TO '2018-01-01' SET a = 100;
+ERROR 42000: This version of MariaDB doesn't yet support 'updating and querying the same temporal periods table'
+set @tmp= "UPDATE t1 FOR PORTION OF APPTIME FROM (SELECT '1999-01-01' FROM t1 WHERE a=2) TO '2018-01-01' SET a = 100";
+execute immediate @tmp;
+ERROR 42000: This version of MariaDB doesn't yet support 'updating and querying the same temporal periods table'
+CREATE VIEW v1 AS SELECT * FROM t1;
+UPDATE v1 FOR PORTION OF APPTIME FROM (SELECT '1999-01-01' FROM t1 WHERE a=2) TO '2018-01-01' SET a = 100;
+ERROR 42S02: 'v1' is a view
+DROP VIEW v1;
+DROP TABLE t1;

@@ -2180,11 +2180,14 @@ connection extracon2;
 KILL QUERY <default_connection_ID>;
 KILL QUERY <con2_connection_ID>;
 connection default;
-sleep(50)
-1
+ERROR 70100: Query execution was interrupted
 connection con2;
-sleep(50)
-1
+ERROR 70100: Query execution was interrupted
 connection extracon;
 sleep(5.5)
 0
+connect  comp_con,localhost,root,,,,,COMPRESS;
+SELECT 1;
+1
+1
+disconnect comp_con;

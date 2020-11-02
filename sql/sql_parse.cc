@@ -98,6 +98,8 @@
 
 #include "my_json_writer.h" 
 
+#define PRIV_LOCK_TABLES (SELECT_ACL | LOCK_TABLES_ACL)
+
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
 #ifdef WITH_ARIA_STORAGE_ENGINE
@@ -576,19 +578,21 @@ void init_update_queries(void)
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_UPDATES_DATA | CF_SP_BULK_SAFE;
+                                            CF_UPDATES_DATA |
+                                            CF_PS_ARRAY_BINDING_SAFE;
   sql_command_flags[SQLCOM_UPDATE_MULTI]=   CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_UPDATES_DATA | CF_SP_BULK_SAFE;
+                                            CF_UPDATES_DATA |
+                                            CF_PS_ARRAY_BINDING_SAFE;
   sql_command_flags[SQLCOM_INSERT]=	    CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
                                             CF_INSERTS_DATA |
-                                            CF_SP_BULK_SAFE |
-                                            CF_SP_BULK_OPTIMIZED;
+                                            CF_PS_ARRAY_BINDING_SAFE |
+                                            CF_PS_ARRAY_BINDING_OPTIMIZED;
   sql_command_flags[SQLCOM_INSERT_SELECT]=  CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
@@ -598,7 +602,8 @@ void init_update_queries(void)
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_SP_BULK_SAFE | CF_DELETES_DATA;
+                                            CF_DELETES_DATA |
+                                            CF_PS_ARRAY_BINDING_SAFE;
   sql_command_flags[SQLCOM_DELETE_MULTI]=   CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
@@ -608,8 +613,9 @@ void init_update_queries(void)
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_INSERTS_DATA | CF_SP_BULK_SAFE |
-                                            CF_SP_BULK_OPTIMIZED;
+                                            CF_INSERTS_DATA |
+                                            CF_PS_ARRAY_BINDING_SAFE |
+                                            CF_PS_ARRAY_BINDING_OPTIMIZED;
   sql_command_flags[SQLCOM_REPLACE_SELECT]= CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
@@ -772,7 +778,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_ALTER_SERVER]=       CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_SERVER]=        CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_BACKUP]=             CF_AUTO_COMMIT_TRANS;
-  sql_command_flags[SQLCOM_BACKUP_LOCK]=        0;
+  sql_command_flags[SQLCOM_BACKUP_LOCK]=        CF_AUTO_COMMIT_TRANS;
 
   /*
     The following statements can deal with temporary tables,
@@ -1090,7 +1096,6 @@ int bootstrap(MYSQL_FILE *file)
 
     thd->reset_kill_query();  /* Ensure that killed_errmsg is released */
     free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
-    thd->transaction->free();
     thd->lex->restore_set_statement_var();
   }
   delete thd;
@@ -2825,6 +2830,36 @@ retry:
           goto err;
       }
     }
+    /*
+       Check privileges of view tables here, after views were opened.
+       Either definer or invoker has to have PRIV_LOCK_TABLES to be able
+       to lock view and its tables. For mysqldump (that locks views
+       before dumping their structures) compatibility we allow locking
+       views that select from I_S or P_S tables, but downrade the lock
+       to TL_READ
+     */
+    if (table->belong_to_view &&
+        check_single_table_access(thd, PRIV_LOCK_TABLES, table, 1))
+    {
+      if (table->grant.m_internal.m_schema_access)
+        table->lock_type= TL_READ;
+      else
+      {
+        bool error= true;
+        if (Security_context *sctx= table->security_ctx)
+        {
+          table->security_ctx= 0;
+          error= check_single_table_access(thd, PRIV_LOCK_TABLES, table, 1);
+          table->security_ctx= sctx;
+        }
+        if (error)
+        {
+          my_error(ER_VIEW_INVALID, MYF(0), table->belong_to_view->view_db.str,
+                   table->belong_to_view->view_name.str);
+          goto err;
+        }
+      }
+    }
   }
 
   if (lock_tables(thd, tables, counter, 0) ||
@@ -3683,6 +3718,7 @@ mysql_execute_command(THD *thd)
       lex->sql_command != SQLCOM_BEGIN    &&
       lex->sql_command != SQLCOM_CALL     &&
       lex->sql_command != SQLCOM_EXECUTE  &&
+      lex->sql_command != SQLCOM_EXECUTE_IMMEDIATE &&
       !(sql_command_flags[lex->sql_command] & CF_AUTO_COMMIT_TRANS))
   {
     wsrep_start_trx_if_not_started(thd);
@@ -4255,6 +4291,11 @@ mysql_execute_command(THD *thd)
     /* mysql_update return 2 if we need to switch to multi-update */
     if (up_result != 2)
       break;
+    if (thd->lex->period_conditions.is_set())
+    {
+      DBUG_ASSERT(0); // Should never happen
+      goto error;
+    }
   }
   /* fall through */
   case SQLCOM_UPDATE_MULTI:
@@ -4568,6 +4609,14 @@ mysql_execute_command(THD *thd)
           sel_result->abort_result_set();
         }
         delete sel_result;
+      }
+      else if (res < 0)
+      {
+        /*
+          Insert should be ignored but we have to log the query in statement
+          format in the binary log
+        */
+        res= thd->binlog_current_query_unfiltered();
       }
       delete result;
       if (save_protocol)
@@ -4924,6 +4973,13 @@ mysql_execute_command(THD *thd)
       goto error;
     }
 
+    /* Should not lock tables while BACKUP LOCK is active */
+    if (thd->mdl_backup_lock)
+    {
+      my_error(ER_LOCK_OR_ACTIVE_TRANSACTION, MYF(0));
+      goto error;
+    }
+
     /*
       Here we have to pre-open temporary tables for LOCK TABLES.
 
@@ -5217,7 +5273,7 @@ mysql_execute_command(THD *thd)
     if (first_table && lex->type & (REFRESH_READ_LOCK|REFRESH_FOR_EXPORT))
     {
       /* Check table-level privileges. */
-      if (check_table_access(thd, LOCK_TABLES_ACL | SELECT_ACL, all_tables,
+      if (check_table_access(thd, PRIV_LOCK_TABLES, all_tables,
                              FALSE, UINT_MAX, FALSE))
         goto error;
 
@@ -6328,24 +6384,21 @@ drop_routine(THD *thd, LEX *lex)
       ! lex->spname->m_explicit_name)
   {
     /* DROP FUNCTION <non qualified name> */
-    udf_func *udf = find_udf(lex->spname->m_name.str,
-                             lex->spname->m_name.length);
-    if (udf)
-    {
-      if (check_access(thd, DELETE_ACL, "mysql", NULL, NULL, 1, 0))
-        return 1;
-
-      if (!mysql_drop_function(thd, &lex->spname->m_name))
-      {
-        my_ok(thd);
-        return 0;
-      }
-      my_error(ER_SP_DROP_FAILED, MYF(0),
-               "FUNCTION (UDF)", lex->spname->m_name.str);
+    enum drop_udf_result rc= mysql_drop_function(thd, &lex->spname->m_name);
+    switch (rc) {
+    case UDF_DEL_RESULT_DELETED:
+      my_ok(thd);
+      return 0;
+    case UDF_DEL_RESULT_ERROR:
       return 1;
+    case UDF_DEL_RESULT_ABSENT:
+      goto absent;
     }
 
-    if (lex->spname->m_db.str == NULL)
+    DBUG_ASSERT("wrong return code" == 0);
+absent:
+    // If there was no current database, so it cannot be SP
+    if (!lex->spname->m_db.str)
     {
       if (lex->if_exists())
       {
@@ -6681,7 +6734,7 @@ check_access(THD *thd, privilege_t want_access,
 
   @param thd                    Thread handler
   @param privilege              requested privilege
-  @param all_tables             global table list of query
+  @param tables                 global table list of query
   @param no_errors              FALSE/TRUE - report/don't report error to
                             the client (using my_error() call).
 
@@ -6691,28 +6744,25 @@ check_access(THD *thd, privilege_t want_access,
     1   access denied, error is sent to client
 */
 
-bool check_single_table_access(THD *thd, privilege_t privilege, 
-                               TABLE_LIST *all_tables, bool no_errors)
+bool check_single_table_access(THD *thd, privilege_t privilege,
+                               TABLE_LIST *tables, bool no_errors)
 {
-  Switch_to_definer_security_ctx backup_sctx(thd, all_tables);
+  Switch_to_definer_security_ctx backup_sctx(thd, tables);
 
   const char *db_name;
-  if ((all_tables->view || all_tables->field_translation) &&
-      !all_tables->schema_table)
-    db_name= all_tables->view_db.str;
+  if ((tables->view || tables->field_translation) && !tables->schema_table)
+    db_name= tables->view_db.str;
   else
-    db_name= all_tables->db.str;
+    db_name= tables->db.str;
 
-  if (check_access(thd, privilege, db_name,
-                   &all_tables->grant.privilege,
-                   &all_tables->grant.m_internal,
-                   0, no_errors))
+  if (check_access(thd, privilege, db_name, &tables->grant.privilege,
+                   &tables->grant.m_internal, 0, no_errors))
     return 1;
 
   /* Show only 1 table for check_grant */
-  if (!(all_tables->belong_to_view &&
-        (thd->lex->sql_command == SQLCOM_SHOW_FIELDS)) &&
-      check_grant(thd, privilege, all_tables, FALSE, 1, no_errors))
+  if (!(tables->belong_to_view &&
+       (thd->lex->sql_command == SQLCOM_SHOW_FIELDS)) &&
+      check_grant(thd, privilege, tables, FALSE, 1, no_errors))
     return 1;
 
   return 0;
@@ -7755,7 +7805,6 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
 void mysql_parse(THD *thd, char *rawbuf, uint length,
                  Parser_state *parser_state)
 {
-  int error __attribute__((unused));
   DBUG_ENTER("mysql_parse");
   DBUG_EXECUTE_IF("parser_debug", turn_parser_debug_on_MYSQLparse(););
   DBUG_EXECUTE_IF("parser_debug", turn_parser_debug_on_ORAparse(););
@@ -7830,6 +7879,7 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
                                  (char *) thd->security_ctx->host_or_ip,
                                  0);
 
+          int error __attribute__((unused));
           error= mysql_execute_command(thd);
           MYSQL_QUERY_EXEC_DONE(error);
 	}
@@ -8928,8 +8978,6 @@ void add_join_natural(TABLE_LIST *a, TABLE_LIST *b, List<String> *using_fields,
                       SELECT_LEX *lex)
 {
   b->natural_join= a;
-  a->part_of_natural_join= TRUE;
-  b->part_of_natural_join= TRUE;
   lex->prev_join_using= using_fields;
 }
 
@@ -9795,7 +9843,7 @@ static bool lock_tables_precheck(THD *thd, TABLE_LIST *tables)
     if (is_temporary_table(table))
       continue;
 
-    if (check_table_access(thd, LOCK_TABLES_ACL | SELECT_ACL, table,
+    if (check_table_access(thd, PRIV_LOCK_TABLES, table,
                            FALSE, 1, FALSE))
       return TRUE;
   }

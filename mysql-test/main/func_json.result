@@ -898,6 +898,11 @@ NULL
 SELECT JSON_MERGE_PATCH(NULL, '[1,2,3]');
 JSON_MERGE_PATCH(NULL, '[1,2,3]')
 [1, 2, 3]
+SELECT JSON_MERGE_PATCH(NULL, 'a');
+JSON_MERGE_PATCH(NULL, 'a')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_merge_patch' at position 1
 SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '[1,2,3]', '{"c":null,"d":"e"}');
 JSON_MERGE_PATCH('{"a":"b"}', NULL, '[1,2,3]', '{"c":null,"d":"e"}')
 {"d": "e"}
@@ -1354,6 +1359,11 @@ e	JSON_OBJECTAGG(B.a, B.v)
 0	{"a1":"1", "a1":"1", "a1":"1"}
 0	{"a2":"2", "a2":"2", "a2":"2"}
 1	{"b1":"3", "b1":"3", "b1":"3"}
+CREATE VIEW v AS SELECT JSON_OBJECTAGG(a, e) FROM t1;
+SELECT * FROM v;
+JSON_OBJECTAGG(a, e)
+{"a1":0, "a2":0, "b1":1}
+DROP VIEW v;
 DROP TABLE t1;
 #
 # End of 10.5 tests

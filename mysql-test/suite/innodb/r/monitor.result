@@ -55,16 +55,8 @@ buffer_flush_neighbor	disabled
 buffer_flush_neighbor_pages	disabled
 buffer_flush_n_to_flush_requested	disabled
 buffer_flush_n_to_flush_by_age	disabled
-buffer_flush_adaptive_avg_time_slot	disabled
-buffer_LRU_batch_flush_avg_time_slot	disabled
-buffer_flush_adaptive_avg_time_thread	disabled
-buffer_LRU_batch_flush_avg_time_thread	disabled
-buffer_flush_adaptive_avg_time_est	disabled
-buffer_LRU_batch_flush_avg_time_est	disabled
-buffer_flush_avg_time	disabled
+buffer_flush_adaptive_avg_time	disabled
 buffer_flush_adaptive_avg_pass	disabled
-buffer_LRU_batch_flush_avg_pass	disabled
-buffer_flush_avg_pass	disabled
 buffer_LRU_get_free_loops	disabled
 buffer_LRU_get_free_waits	disabled
 buffer_flush_avg_page_rate	disabled
@@ -90,9 +82,6 @@ buffer_LRU_batch_flush_pages	disabled
 buffer_LRU_batch_evict_total_pages	disabled
 buffer_LRU_batches_evict	disabled
 buffer_LRU_batch_evict_pages	disabled
-buffer_LRU_single_flush_scanned	disabled
-buffer_LRU_single_flush_num_scan	disabled
-buffer_LRU_single_flush_scanned_per_call	disabled
 buffer_LRU_single_flush_failure_count	disabled
 buffer_LRU_get_free_search	disabled
 buffer_LRU_search_scanned	disabled
@@ -167,7 +156,6 @@ log_lsn_current	disabled
 log_lsn_checkpoint_age	disabled
 log_lsn_buf_pool_oldest	disabled
 log_max_modified_age_async	disabled
-log_max_modified_age_sync	disabled
 log_pending_log_flushes	disabled
 log_pending_checkpoint_writes	disabled
 log_num_log_io	disabled
@@ -218,7 +206,6 @@ innodb_log_flush_usec	disabled
 innodb_dict_lru_usec	disabled
 innodb_dict_lru_count_active	disabled
 innodb_dict_lru_count_idle	disabled
-innodb_checkpoint_usec	disabled
 innodb_dblwr_writes	disabled
 innodb_dblwr_pages_written	disabled
 innodb_page_size	disabled

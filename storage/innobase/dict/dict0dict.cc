@@ -884,7 +884,7 @@ is_unaccessible:
     return nullptr;
   }
 
-  if (!fil_table_accessible(table))
+  if (!table->is_accessible())
     goto is_unaccessible;
 
   size_t db1_len, tbl1_len;
@@ -1992,6 +1992,12 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (UNIV_UNLIKELY(UT_LIST_GET_LEN(table->freed_indexes) != 0)) {
+		if (table->fts) {
+			fts_optimize_remove_table(table);
+			fts_free(table);
+			table->fts = NULL;
+		}
+
 		table->vc_templ = NULL;
 		table->id = 0;
 		return;
@@ -2353,7 +2359,6 @@ dict_index_add_col(
 	if (col->is_virtual()) {
 		dict_v_col_t*	v_col = reinterpret_cast<dict_v_col_t*>(col);
 		/* Register the index with the virtual column index list */
-		v_col->n_v_indexes++;
 		v_col->v_indexes.push_front(dict_v_idx_t(index, index->n_def));
 		col_name = dict_table_get_v_col_name_mysql(
 			table, dict_col_get_no(col));

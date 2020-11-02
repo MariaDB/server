@@ -439,11 +439,14 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
       If LIMIT ROWS EXAMINED interrupted query execution, issue a warning,
       continue with normal processing and produce an incomplete query result.
     */
+    bool saved_abort_on_warning= thd->abort_on_warning;
+    thd->abort_on_warning= false;
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT,
                         ER_THD(thd, ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT),
                         thd->accessed_rows_and_keys,
                         thd->lex->limit_rows_examined->val_uint());
+    thd->abort_on_warning= saved_abort_on_warning;
     thd->reset_killed();
   }
   /* Disable LIMIT ROWS EXAMINED after query execution. */
@@ -743,7 +746,7 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
 
 void vers_select_conds_t::print(String *str, enum_query_type query_type) const
 {
-  switch (type) {
+  switch (orig_type) {
   case SYSTEM_TIME_UNSPECIFIED:
     break;
   case SYSTEM_TIME_AS_OF:
@@ -991,6 +994,7 @@ int SELECT_LEX::vers_setup_conds(THD *thd, TABLE_LIST *tables)
   case SQLCOM_SELECT:
     use_sysvar= true;
     /* fall through */
+  case SQLCOM_CREATE_TABLE:
   case SQLCOM_INSERT_SELECT:
   case SQLCOM_REPLACE_SELECT:
   case SQLCOM_DELETE_MULTI:
@@ -1608,7 +1612,7 @@ int JOIN::optimize()
     if (!(select_options & SELECT_DESCRIBE))
     {
       /* Prepare to execute the query pushed into a foreign engine */
-      res= select_lex->pushdown_select->init();
+      res= select_lex->pushdown_select->prepare();
     }
     with_two_phase_optimization= false;
   }
@@ -2781,6 +2785,10 @@ int JOIN::optimize_stage2()
     (select_options & (SELECT_DESCRIBE | SELECT_NO_JOIN_CACHE)) |
     (select_lex->ftfunc_list->elements ?  SELECT_NO_JOIN_CACHE : 0);
 
+  if (select_lex->options & OPTION_SCHEMA_TABLE &&
+       optimize_schema_tables_reads(this))
+    DBUG_RETURN(1);
+
   if (make_join_readinfo(this, select_opts_for_readinfo, no_jbuf_after))
     DBUG_RETURN(1);
 
@@ -2956,10 +2964,6 @@ int JOIN::optimize_stage2()
   if (having)
     having_is_correlated= MY_TEST(having->used_tables() & OUTER_REF_TABLE_BIT);
   tmp_having= having;
-
-  if ((select_lex->options & OPTION_SCHEMA_TABLE) &&
-       optimize_schema_tables_reads(this))
-    DBUG_RETURN(TRUE);
 
   if (unlikely(thd->is_error()))
     DBUG_RETURN(TRUE);
@@ -4642,19 +4646,7 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
   }
 
   /* Look for a table owned by an engine with the select_handler interface */
-  select_lex->select_h= select_lex->find_select_handler(thd);
-  if (select_lex->select_h)
-  {
-    /* Create a Pushdown_select object for later execution of the query */
-    if (!(select_lex->pushdown_select=
-      new (thd->mem_root) Pushdown_select(select_lex,
-                                          select_lex->select_h)))
-    {
-      delete select_lex->select_h;
-      select_lex->select_h= NULL;
-      DBUG_RETURN(TRUE);
-    }
-  }
+  select_lex->pushdown_select= select_lex->find_select_handler(thd);
 
   if ((err= join->optimize()))
   {
@@ -18161,8 +18153,7 @@ public:
 
   bool add_schema_fields(THD *thd, TABLE *table,
                          TMP_TABLE_PARAM *param,
-                         const ST_SCHEMA_TABLE &schema_table,
-                         const MY_BITMAP &bitmap);
+                         const ST_SCHEMA_TABLE &schema_table);
 
   bool finalize(THD *thd, TABLE *table, TMP_TABLE_PARAM *param,
                 bool do_not_open, bool keep_row_order);
@@ -18271,8 +18262,7 @@ TABLE *Create_tmp_table::start(THD *thd,
     No need to change table name to lower case as we are only creating
     MyISAM, Aria or HEAP tables here
   */
-  fn_format(path, path, mysql_tmpdir, "",
-            MY_REPLACE_EXT|MY_UNPACK_FILENAME);
+  fn_format(path, path, mysql_tmpdir, "", MY_REPLACE_EXT|MY_UNPACK_FILENAME);
 
   if (m_group)
   {
@@ -19094,8 +19084,7 @@ err:
 
 bool Create_tmp_table::add_schema_fields(THD *thd, TABLE *table,
                                          TMP_TABLE_PARAM *param,
-                                         const ST_SCHEMA_TABLE &schema_table,
-                                         const MY_BITMAP &bitmap)
+                                         const ST_SCHEMA_TABLE &schema_table)
 {
   DBUG_ENTER("Create_tmp_table::add_schema_fields");
   DBUG_ASSERT(table);
@@ -19114,11 +19103,9 @@ bool Create_tmp_table::add_schema_fields(THD *thd, TABLE *table,
   for (fieldnr= 0; !defs[fieldnr].end_marker(); fieldnr++)
   {
     const ST_FIELD_INFO &def= defs[fieldnr];
-    bool visible= bitmap_is_set(&bitmap, fieldnr);
     Record_addr addr(def.nullable());
     const Type_handler *h= def.type_handler();
-    Field *field= h->make_schema_field(&table->mem_root, table,
-                                       addr, def, visible);
+    Field *field= h->make_schema_field(&table->mem_root, table, addr, def);
     if (!field)
     {
       thd->mem_root= mem_root_save;
@@ -19181,17 +19168,16 @@ TABLE *create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
 
 TABLE *create_tmp_table_for_schema(THD *thd, TMP_TABLE_PARAM *param,
                                    const ST_SCHEMA_TABLE &schema_table,
-                                   const MY_BITMAP &bitmap,
                                    longlong select_options,
                                    const LEX_CSTRING &table_alias,
-                                   bool keep_row_order)
+                                   bool do_not_open, bool keep_row_order)
 {
   TABLE *table;
   Create_tmp_table maker(param, (ORDER *) NULL, false, false,
                          select_options, HA_POS_ERROR);
   if (!(table= maker.start(thd, param, &table_alias)) ||
-      maker.add_schema_fields(thd, table, param, schema_table, bitmap) ||
-      maker.finalize(thd, table, param, false, keep_row_order))
+      maker.add_schema_fields(thd, table, param, schema_table) ||
+      maker.finalize(thd, table, param, do_not_open, keep_row_order))
   {
     maker.cleanup_on_failure(thd, table);
     return NULL;
@@ -19572,14 +19558,10 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       }
     }
 
-    if (unlikely((error= maria_create(share->path.str,
-                                      file_type,
-                                      share->keys, &keydef,
-                                      (uint) (*recinfo-start_recinfo),
-                                      start_recinfo,
-                                      share->uniques, &uniquedef,
-                                      &create_info,
-                                      create_flags))))
+    if (unlikely((error= maria_create(share->path.str, file_type, share->keys,
+                                      &keydef, (uint) (*recinfo-start_recinfo),
+                                      start_recinfo, share->uniques, &uniquedef,
+                                      &create_info, create_flags))))
     {
       table->file->print_error(error,MYF(0));	/* purecov: inspected */
       table->db_stat=0;

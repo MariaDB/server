@@ -961,7 +961,7 @@ run_data_threads(datadir_iter_t *it, os_thread_func_t func, uint n)
 		data_threads[i].n_thread = i + 1;
 		data_threads[i].count = &count;
 		data_threads[i].count_mutex = &count_mutex;
-		os_thread_create(func, data_threads + i, &data_threads[i].id);
+		data_threads[i].id = os_thread_create(func, data_threads + i);
 	}
 
 	/* Wait for threads to exit */
@@ -1382,7 +1382,7 @@ out:
 
 void backup_fix_ddl(void);
 
-static lsn_t get_current_lsn(MYSQL *connection)
+lsn_t get_current_lsn(MYSQL *connection)
 {
 	static const char lsn_prefix[] = "\nLog sequence number ";
 	lsn_t lsn = 0;

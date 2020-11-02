@@ -237,8 +237,8 @@ trx_undo_get_next_rec_from_next_page(buf_block_t *&block, uint32_t page_no,
       mach_read_from_2(block->frame + offset + TRX_UNDO_NEXT_LOG))
     return NULL;
 
-  ulint next= flst_get_next_addr(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE +
-                                 block->frame).page;
+  uint32_t next= flst_get_next_addr(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE +
+				    block->frame).page;
   if (next == FIL_NULL)
     return NULL;
 
@@ -359,7 +359,7 @@ trx_undo_seg_create(fil_space_t *space, buf_block_t *rseg_hdr, ulint *id,
                     dberr_t *err, mtr_t *mtr)
 {
 	buf_block_t*	block;
-	ulint		n_reserved;
+	uint32_t	n_reserved;
 	bool		success;
 
 	const ulint slot_no = trx_rsegf_undo_find_free(rseg_hdr);
@@ -551,7 +551,7 @@ buf_block_t* trx_undo_add_page(trx_undo_t* undo, mtr_t* mtr)
 {
 	trx_rseg_t*	rseg		= undo->rseg;
 	buf_block_t*	new_block	= NULL;
-	ulint		n_reserved;
+	uint32_t	n_reserved;
 
 	/* When we add a page to an undo log, this is analogous to
 	a pessimistic insert in a B-tree, and we must reserve the
@@ -981,7 +981,6 @@ trx_undo_mem_create(
 	undo->top_undo_no = IB_ID_MAX;
 	undo->top_page_no = page_no;
 	undo->guess_block = NULL;
-	undo->withdraw_clock = 0;
 	ut_ad(undo->empty());
 
 	return(undo);
@@ -1157,9 +1156,7 @@ trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
 	if (undo) {
 		return buf_page_get_gen(
 			page_id_t(undo->rseg->space->id, undo->last_page_no),
-			0, RW_X_LATCH,
-			buf_pool.is_obsolete(undo->withdraw_clock)
-			? NULL : undo->guess_block,
+			0, RW_X_LATCH, undo->guess_block,
 			BUF_GET, __FILE__, __LINE__, mtr, err);
 	}
 
@@ -1213,9 +1210,7 @@ trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 	if (*undo) {
 		return buf_page_get_gen(
 			page_id_t(rseg->space->id, (*undo)->last_page_no),
-			0, RW_X_LATCH,
-			buf_pool.is_obsolete((*undo)->withdraw_clock)
-			? NULL : (*undo)->guess_block,
+			0, RW_X_LATCH, (*undo)->guess_block,
 			BUF_GET, __FILE__, __LINE__, mtr, err);
 	}
 

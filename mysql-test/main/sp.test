@@ -6315,7 +6315,7 @@ INSERT INTO mysql.proc VALUES ('това_е_дълго_име_за_база_да
 --error ER_SP_PROC_TABLE_CORRUPT
 call това_е_дълго_име_за_база_данни_нали.това_е_процедура_с_доста_дълго_име_нали_и_още_по_дълго()|
 drop database това_е_дълго_име_за_база_данни_нали|
-
+show warnings|
 
 #
 # BUG#21493: Crash on the second call of a procedure containing

@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2018    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2020    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -1245,7 +1245,7 @@ void *PlgDBalloc(PGLOBAL g, void *area, MBLOCK& mp)
   mp.Sub = mp.Size <= ((mp.Sub) ? maxsub : (maxsub >> 2));
 
 	if (trace(2))
-		htrc("PlgDBalloc: in %p size=%d used=%d free=%d sub=%d\n",
+		htrc("PlgDBalloc: in %p size=%zd used=%zd free=%zd sub=%d\n",
 			arp, mp.Size, pph->To_Free, pph->FreeBlk, mp.Sub);
 
 	if (!mp.Sub) {
@@ -1261,7 +1261,7 @@ void *PlgDBalloc(PGLOBAL g, void *area, MBLOCK& mp)
       mp.Memp = malloc(mp.Size);
 
 		if (trace(8))
-			htrc("PlgDBalloc: %s(%d) at %p\n", v, mp.Size, mp.Memp);
+			htrc("PlgDBalloc: %s(%zd) at %p\n", v, mp.Size, mp.Memp);
 
 		if (!mp.Inlist && mp.Memp) {
       // New allocated block, put it in the memory block chain.
@@ -1293,7 +1293,7 @@ void *PlgDBrealloc(PGLOBAL g, void *area, MBLOCK& mp, size_t newsize)
 #endif
 
   if (trace(2))
-    htrc("PlgDBrealloc: %p size=%d sub=%d\n", mp.Memp, mp.Size, mp.Sub);
+    htrc("PlgDBrealloc: %p size=%zd sub=%d\n", mp.Memp, mp.Size, mp.Sub);
 
   if (newsize == mp.Size)
     return mp.Memp;      // Nothing to do
@@ -1343,7 +1343,7 @@ void *PlgDBrealloc(PGLOBAL g, void *area, MBLOCK& mp, size_t newsize)
   } // endif's
 
   if (trace(8))
-    htrc(" newsize=%d newp=%p sub=%d\n", mp.Size, mp.Memp, mp.Sub);
+    htrc(" newsize=%zd newp=%p sub=%d\n", mp.Size, mp.Memp, mp.Sub);
 
   return mp.Memp;
   } // end of PlgDBrealloc
@@ -1395,13 +1395,13 @@ void *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size)
   pph = (PPOOLHEADER)memp;
 
   if (trace(16))
-    htrc("PlgDBSubAlloc: memp=%p size=%d used=%d free=%d\n",
+    htrc("PlgDBSubAlloc: memp=%p size=%zd used=%zd free=%zd\n",
          memp, size, pph->To_Free, pph->FreeBlk);
 
-  if ((uint)size > pph->FreeBlk) {   /* Not enough memory left in pool */
+  if (size > pph->FreeBlk) {   /* Not enough memory left in pool */
     sprintf(g->Message,
-    "Not enough memory in Work area for request of %d (used=%d free=%d)",
-            (int) size, pph->To_Free, pph->FreeBlk);
+    "Not enough memory in Work area for request of %zd (used=%zd free=%zd)",
+            size, pph->To_Free, pph->FreeBlk);
 
     if (trace(1))
       htrc("%s\n", g->Message);
@@ -1417,7 +1417,7 @@ void *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size)
   pph->FreeBlk -= size;                 // New size   of pool free block
 
   if (trace(16))
-    htrc("Done memp=%p used=%d free=%d\n",
+    htrc("Done memp=%p used=%zd free=%zd\n",
          memp, pph->To_Free, pph->FreeBlk);
 
   return (memp);

@@ -255,7 +255,7 @@ log_reserve_and_write_fast(
 	ulint		len,
 	lsn_t*		start_lsn)
 {
-	ut_ad(log_mutex_own());
+	mysql_mutex_assert_owner(&log_sys.mutex);
 	ut_ad(len > 0);
 
 	const ulint	data_len = len
@@ -288,18 +288,6 @@ log_reserve_and_write_fast(
 	log_sys.set_lsn(lsn);
 
 	return lsn;
-}
-
-/****************************************************************
-Get log_sys::max_modified_age_async. It is OK to read the value without
-holding log_sys::mutex because it is constant.
-@return max_modified_age_async */
-UNIV_INLINE
-lsn_t
-log_get_max_modified_age_async(void)
-/*================================*/
-{
-	return(log_sys.max_modified_age_async);
 }
 
 /***********************************************************************//**

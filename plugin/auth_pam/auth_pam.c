@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2011, 2019, MariaDB Corporation.
+   Copyright (c) 2011, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,6 +15,7 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 
+#include <config_auth_pam.h>
 #include <unistd.h>
 #include <string.h>
 #include <sys/types.h>

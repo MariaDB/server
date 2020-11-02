@@ -132,6 +132,27 @@ id	title	body
 3	Optimizing MySQL	In this tutorial we will show ...
 4	1001 MySQL Tricks	1. Never run mysqld as root. 2. ...
 5	MySQL vs. YourSQL	In the following database comparison ...
+SELECT * FROM articles WHERE MATCH (title,body) AGAINST
+('(((((((((((((((((((((((((((((((((Security)))))))))))))))))))))))))))))))))'
+ IN BOOLEAN MODE);
+ERROR HY000: Table handler out of memory
+SELECT * FROM articles WHERE MATCH (title,body) AGAINST
+('((((((((((((((((((((((((((((((((Security))))))))))))))))))))))))))))))))'
+ IN BOOLEAN MODE);
+id	title	body
+6	MySQL Security	When configured properly, MySQL ...
+SELECT * FROM articles WHERE MATCH (title,body) AGAINST
+('(((((((((((((((((((((((((((((((vs))))))))))))))))))))))))))))))),(((to)))'
+ IN BOOLEAN MODE);
+id	title	body
+SELECT * FROM articles WHERE MATCH (title,body) AGAINST
+('((((((((((((((((((((((((((((((((Security)))))))))))))))))))))))))))))))'
+ IN BOOLEAN MODE);
+ERROR 42000: syntax error, unexpected $end
+SELECT * FROM articles WHERE MATCH (title,body) AGAINST
+('(((((((((((((((((((((((((((((((((Security))))))))))))))))))))))))))))))))'
+ IN BOOLEAN MODE);
+ERROR 42000: syntax error, unexpected $end
 SELECT * FROM articles WHERE MATCH (title,body)
 AGAINST ('+ MySQL + (>Well < stands)' IN BOOLEAN MODE);
 id	title	body

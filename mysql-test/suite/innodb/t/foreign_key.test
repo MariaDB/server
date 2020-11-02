@@ -407,6 +407,55 @@ show status like '%opened_tab%';
 drop function foo;
 drop table t2, t1;
 
+CREATE TABLE t1 (pk INT, a INT, PRIMARY KEY (pk)) ENGINE=InnoDB;
+XA START 'xid';
+INSERT INTO t1 VALUES (1,2);
+--error ER_XAER_RMFAIL
+CREATE TABLE x AS SELECT * FROM t1;
+--connect (con1,localhost,root,,test)
+SET foreign_key_checks= OFF, innodb_lock_wait_timeout= 1;
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE t1 ADD FOREIGN KEY f (a) REFERENCES t1 (pk), LOCK=EXCLUSIVE;# Cleanup
+--disconnect con1
+--connection default
+XA END 'xid';
+XA ROLLBACK 'xid';
+DROP TABLE t1;
+
+CREATE TABLE t1 (pk INT PRIMARY KEY,
+                 f1 VARCHAR(10), f2 VARCHAR(10),
+		 f3 VARCHAR(10), f4 VARCHAR(10),
+		 f5 VARCHAR(10), f6 VARCHAR(10),
+		 f7 VARCHAR(10), f8 VARCHAR(10),
+		 INDEX(f1), INDEX(f2), INDEX(f3), INDEX(f4),
+		 INDEX(f5), INDEX(f6), INDEX(f7), INDEX(f8)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'mariadb', 'mariadb', 'mariadb', 'mariadb',
+                       'mariadb', 'mariadb', 'mariadb', 'mariadb'),
+                      (2, 'mariadb', 'mariadb', 'mariadb', 'mariadb',
+                       'mariadb', 'mariadb', 'mariadb', 'mariadb'),
+                      (3, 'innodb', 'innodb', 'innodb', 'innodb',
+                       'innodb', 'innodb', 'innodb', 'innodb');
+ALTER TABLE t1 ADD FOREIGN KEY (f1) REFERENCES t1 (f2) ON DELETE SET NULL;
+START TRANSACTION;
+DELETE FROM t1 where f1='mariadb';
+SELECT * FROM t1;
+ROLLBACK;
+
+ALTER TABLE t1 ADD FOREIGN KEY (f3) REFERENCES t1 (f4) ON DELETE CASCADE;
+
+START TRANSACTION;
+DELETE FROM t1 where f3='mariadb';
+SELECT * FROM t1;
+ROLLBACK;
+
+ALTER TABLE t1 ADD FOREIGN KEY (f5) REFERENCES t1 (f6) ON UPDATE SET NULL;
+--error ER_ROW_IS_REFERENCED_2
+UPDATE t1 SET f6='update';
+
+ALTER TABLE t1 ADD FOREIGN KEY (f7) REFERENCES t1 (f8) ON UPDATE CASCADE;
+--error ER_ROW_IS_REFERENCED_2
+UPDATE t1 SET f6='cascade';
+DROP TABLE t1;
 #
 # End of 10.1 tests
 #
@@ -740,6 +789,20 @@ DROP TABLE t1;
 --error ER_CANT_CREATE_TABLE
 CREATE TABLE t1 (a GEOMETRY, INDEX(a(8)),
 		 FOREIGN KEY (a) REFERENCES x (xx)) ENGINE=InnoDB;
+
+--echo #
+--echo # MDEV-23675 Assertion `pos < table->n_def' in dict_table_get_nth_col
+--echo #
+CREATE TABLE t1 (pk int PRIMARY KEY, a INT, b INT, c INT, KEY(c),
+FOREIGN KEY fx (b) REFERENCES t1 (c))
+ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,0,10,10);
+ALTER TABLE t1 DROP a, ALGORITHM=INSTANT;
+SET FOREIGN_KEY_CHECKS= 0;
+DROP INDEX fx ON t1;
+INSERT INTO t1 VALUES (2,11,11);
+DROP TABLE t1;
+SET FOREIGN_KEY_CHECKS=DEFAULT;
 
 -- echo # End of 10.4 tests
 

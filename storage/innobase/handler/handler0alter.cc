@@ -56,6 +56,8 @@ Smart ALTER TABLE
 #include "ha_innodb.h"
 #include "ut0stage.h"
 #include "span.h"
+#include <thread>
+#include <sstream>
 
 using st_::span;
 /** File format constraint for ALTER TABLE */
@@ -553,8 +555,11 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 			mem_heap_dup(heap, table.v_col_names,
 				     ulint(end - table.v_col_names)));
 		v_cols = static_cast<dict_v_col_t*>(
-			mem_heap_dup(heap, table.v_cols,
-				     table.n_v_cols * sizeof *v_cols));
+			mem_heap_alloc(heap, table.n_v_cols * sizeof(*v_cols)));
+		for (ulint i = table.n_v_cols; i--; ) {
+			new (&v_cols[i]) dict_v_col_t(table.v_cols[i]);
+			v_cols[i].v_indexes.clear();
+		}
 	} else {
 		ut_ad(table.n_v_cols == 0);
 		v_col_names = NULL;
@@ -570,7 +575,6 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 	for (unsigned i = 0; i < n_v_def; i++) {
 		dict_v_col_t& v = v_cols[i];
 		DBUG_ASSERT(v.v_indexes.empty());
-		v.n_v_indexes = 0;
 		v.base_col = static_cast<dict_col_t**>(
 			mem_heap_dup(heap, v.base_col,
 				     v.num_base * sizeof *v.base_col));
@@ -680,7 +684,6 @@ dup_dropped:
 					<dict_v_col_t*>(f.col);
 				v_col->v_indexes.push_front(
 					dict_v_idx_t(index, i));
-				v_col->n_v_indexes++;
 			}
 		}
 	}
@@ -4963,7 +4966,6 @@ prepare_inplace_add_virtual(
 					  - ctx->num_to_drop_vcol + j)
 			& dict_index_t::MAX_N_FIELDS;
 
-		ctx->add_vcol[j].n_v_indexes = 0;
 		/* MDEV-17468: Do this on ctx->instant_table later */
 		innodb_base_col_setup(ctx->old_table, field, &ctx->add_vcol[j]);
 		j++;
@@ -7167,6 +7169,12 @@ err_exit:
 	}
 	trx_commit_for_mysql(ctx->prebuilt->trx);
 
+	for (uint i = 0; i < ctx->num_to_add_fk; i++) {
+		if (ctx->add_fk[i]) {
+			dict_foreign_free(ctx->add_fk[i]);
+		}
+	}
+
 	delete ctx;
 	ha_alter_info->handler_ctx = NULL;
 
@@ -7358,22 +7366,28 @@ innobase_rename_index_cache(dict_index_t* index, const char* new_name)
 /** Rename the index name in cache.
 @param[in]	ctx		alter context
 @param[in]	ha_alter_info	Data used during inplace alter. */
-static void innobase_rename_indexes_cache(
-	const ha_innobase_inplace_ctx*	ctx,
-	const Alter_inplace_info*	ha_alter_info)
+static void
+innobase_rename_indexes_cache(const ha_innobase_inplace_ctx *ctx,
+                              const Alter_inplace_info *ha_alter_info)
 {
-	DBUG_ASSERT(ha_alter_info->handler_flags & ALTER_RENAME_INDEX);
+  DBUG_ASSERT(ha_alter_info->handler_flags & ALTER_RENAME_INDEX);
 
-	for (const Alter_inplace_info::Rename_key_pair& pair :
-	     ha_alter_info->rename_keys) {
-		dict_index_t* index = dict_table_get_index_on_name(
-		    ctx->old_table, pair.old_key->name.str);
-		ut_ad(index);
+  std::vector<std::pair<dict_index_t *, const char *>> rename_info;
+  rename_info.reserve(ha_alter_info->rename_keys.size());
 
-		innobase_rename_index_cache(index, pair.new_key->name.str);
-	}
+  for (const Alter_inplace_info::Rename_key_pair &pair :
+       ha_alter_info->rename_keys)
+  {
+    dict_index_t *index=
+        dict_table_get_index_on_name(ctx->old_table, pair.old_key->name.str);
+    ut_ad(index);
+
+    rename_info.emplace_back(index, pair.new_key->name.str);
+  }
+
+  for (const auto &pair : rename_info)
+    innobase_rename_index_cache(pair.first, pair.second);
 }
-
 
 /** Fill the stored column information in s_cols list.
 @param[in]	altered_table	mysql table object
@@ -10310,13 +10324,15 @@ commit_cache_norebuild(
 					    page_id_t(space->id, 0),
 					    space->zip_size(),
 					    RW_X_LATCH, &mtr)) {
-					mtr.set_named_space(space);
-					mtr.write<4,mtr_t::MAYBE_NOP>(
-						*b,
-						FSP_HEADER_OFFSET
-						+ FSP_SPACE_FLAGS + b->frame,
-						space->flags
-						& ~FSP_FLAGS_MEM_MASK);
+					byte* f = FSP_HEADER_OFFSET
+						+ FSP_SPACE_FLAGS + b->frame;
+					const auto sf = space->flags
+						& ~FSP_FLAGS_MEM_MASK;
+					if (mach_read_from_4(f) != sf) {
+						mtr.set_named_space(space);
+						mtr.write<4,mtr_t::FORCED>(
+							*b, f, sf);
+					}
 				}
 				mtr.commit();
 			}
@@ -10528,11 +10544,18 @@ alter_stats_norebuild(
 		}
 	}
 
-	for (const Alter_inplace_info::Rename_key_pair& pair :
-	     ha_alter_info->rename_keys) {
+	for (size_t i = 0; i < ha_alter_info->rename_keys.size(); i++) {
+		const Alter_inplace_info::Rename_key_pair& pair
+			= ha_alter_info->rename_keys[i];
+
+		std::stringstream ss;
+		ss << TEMP_FILE_PREFIX_INNODB << std::this_thread::get_id()
+		   << i;
+		auto tmp_name = ss.str();
+
 		dberr_t err = dict_stats_rename_index(ctx->new_table,
 						      pair.old_key->name.str,
-						      pair.new_key->name.str);
+						      tmp_name.c_str());
 
 		if (err != DB_SUCCESS) {
 			push_warning_printf(
@@ -10544,6 +10567,34 @@ alter_stats_norebuild(
 				" statistics storage: %s",
 				ctx->new_table->name.m_name,
 				pair.old_key->name.str,
+				tmp_name.c_str(),
+				ut_strerr(err));
+		}
+	}
+
+	for (size_t i = 0; i < ha_alter_info->rename_keys.size(); i++) {
+		const Alter_inplace_info::Rename_key_pair& pair
+			= ha_alter_info->rename_keys[i];
+
+		std::stringstream ss;
+		ss << TEMP_FILE_PREFIX_INNODB << std::this_thread::get_id()
+		   << i;
+		auto tmp_name = ss.str();
+
+		dberr_t err = dict_stats_rename_index(ctx->new_table,
+						      tmp_name.c_str(),
+						      pair.new_key->name.str);
+
+		if (err != DB_SUCCESS) {
+			push_warning_printf(
+				thd,
+				Sql_condition::WARN_LEVEL_WARN,
+				ER_ERROR_ON_RENAME,
+				"Error renaming an index of table '%s'"
+				" from '%s' to '%s' in InnoDB persistent"
+				" statistics storage: %s",
+				ctx->new_table->name.m_name,
+				tmp_name.c_str(),
 				pair.new_key->name.str,
 				ut_strerr(err));
 		}
@@ -10797,11 +10848,11 @@ ha_innobase::commit_inplace_alter_table(
 
 		/* Exclusively lock the table, to ensure that no other
 		transaction is holding locks on the table while we
-		change the table definition. The meta-data lock (MDL)
+		change the table definition. The MySQL meta-data lock
 		should normally guarantee that no conflicting locks
 		exist. However, FOREIGN KEY constraints checks and any
 		transactions collected during crash recovery could be
-		holding InnoDB locks only, not MDL. */
+		holding InnoDB locks only, not MySQL locks. */
 
 		dberr_t error = row_merge_lock_table(
 			m_prebuilt->trx, ctx->old_table, LOCK_X);
@@ -11155,7 +11206,7 @@ foreign_fail:
 		}
 		dict_sys.remove(m_prebuilt->table);
 		m_prebuilt->table = dict_table_open_on_name(
-			tb_name, TRUE, TRUE, DICT_ERR_IGNORE_NONE);
+			tb_name, TRUE, TRUE, DICT_ERR_IGNORE_FK_NOKEY);
 
 		/* Drop outdated table stats. */
 		char	errstr[1024];

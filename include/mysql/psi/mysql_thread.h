@@ -1,4 +1,5 @@
 /* Copyright (c) 2008, 2013, Oracle and/or its affiliates.
+  Copyright (c) 2020, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -262,6 +263,7 @@ typedef struct st_mysql_cond mysql_cond_t;
 */
 #ifndef DISABLE_MYSQL_THREAD_H
 
+#define mysql_mutex_is_owner(M) safe_mutex_is_owner(&(M)->m_mutex)
 /**
   @def mysql_mutex_assert_owner(M)
   Wrapper, to use safe_mutex_assert_owner with instrumented mutexes.

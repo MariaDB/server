@@ -402,6 +402,55 @@ Opened_table_definitions	5
 Opened_tables	5
 drop function foo;
 drop table t2, t1;
+CREATE TABLE t1 (pk INT, a INT, PRIMARY KEY (pk)) ENGINE=InnoDB;
+XA START 'xid';
+INSERT INTO t1 VALUES (1,2);
+CREATE TABLE x AS SELECT * FROM t1;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
+connect  con1,localhost,root,,test;
+SET foreign_key_checks= OFF, innodb_lock_wait_timeout= 1;
+ALTER TABLE t1 ADD FOREIGN KEY f (a) REFERENCES t1 (pk), LOCK=EXCLUSIVE;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect con1;
+connection default;
+XA END 'xid';
+XA ROLLBACK 'xid';
+DROP TABLE t1;
+CREATE TABLE t1 (pk INT PRIMARY KEY,
+f1 VARCHAR(10), f2 VARCHAR(10),
+f3 VARCHAR(10), f4 VARCHAR(10),
+f5 VARCHAR(10), f6 VARCHAR(10),
+f7 VARCHAR(10), f8 VARCHAR(10),
+INDEX(f1), INDEX(f2), INDEX(f3), INDEX(f4),
+INDEX(f5), INDEX(f6), INDEX(f7), INDEX(f8)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'mariadb', 'mariadb', 'mariadb', 'mariadb',
+'mariadb', 'mariadb', 'mariadb', 'mariadb'),
+(2, 'mariadb', 'mariadb', 'mariadb', 'mariadb',
+'mariadb', 'mariadb', 'mariadb', 'mariadb'),
+(3, 'innodb', 'innodb', 'innodb', 'innodb',
+'innodb', 'innodb', 'innodb', 'innodb');
+ALTER TABLE t1 ADD FOREIGN KEY (f1) REFERENCES t1 (f2) ON DELETE SET NULL;
+START TRANSACTION;
+DELETE FROM t1 where f1='mariadb';
+SELECT * FROM t1;
+pk	f1	f2	f3	f4	f5	f6	f7	f8
+2	NULL	mariadb	mariadb	mariadb	mariadb	mariadb	mariadb	mariadb
+3	innodb	innodb	innodb	innodb	innodb	innodb	innodb	innodb
+ROLLBACK;
+ALTER TABLE t1 ADD FOREIGN KEY (f3) REFERENCES t1 (f4) ON DELETE CASCADE;
+START TRANSACTION;
+DELETE FROM t1 where f3='mariadb';
+SELECT * FROM t1;
+pk	f1	f2	f3	f4	f5	f6	f7	f8
+3	innodb	innodb	innodb	innodb	innodb	innodb	innodb	innodb
+ROLLBACK;
+ALTER TABLE t1 ADD FOREIGN KEY (f5) REFERENCES t1 (f6) ON UPDATE SET NULL;
+UPDATE t1 SET f6='update';
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_3` FOREIGN KEY (`f5`) REFERENCES `t1` (`f6`) ON UPDATE SET NULL)
+ALTER TABLE t1 ADD FOREIGN KEY (f7) REFERENCES t1 (f8) ON UPDATE CASCADE;
+UPDATE t1 SET f6='cascade';
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_3` FOREIGN KEY (`f5`) REFERENCES `t1` (`f6`) ON UPDATE SET NULL)
+DROP TABLE t1;
 # Start of 10.2 tests
 #
 # MDEV-13246 Stale rows despite ON DELETE CASCADE constraint
@@ -751,6 +800,19 @@ DROP TABLE t1;
 CREATE TABLE t1 (a GEOMETRY, INDEX(a(8)),
 FOREIGN KEY (a) REFERENCES x (xx)) ENGINE=InnoDB;
 ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+#
+# MDEV-23675 Assertion `pos < table->n_def' in dict_table_get_nth_col
+#
+CREATE TABLE t1 (pk int PRIMARY KEY, a INT, b INT, c INT, KEY(c),
+FOREIGN KEY fx (b) REFERENCES t1 (c))
+ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,0,10,10);
+ALTER TABLE t1 DROP a, ALGORITHM=INSTANT;
+SET FOREIGN_KEY_CHECKS= 0;
+DROP INDEX fx ON t1;
+INSERT INTO t1 VALUES (2,11,11);
+DROP TABLE t1;
+SET FOREIGN_KEY_CHECKS=DEFAULT;
 # End of 10.4 tests
 #
 # MDEV-20729 Fix REFERENCES constraint in column definition

@@ -589,7 +589,7 @@ public:
   void cleanup();
 
   enum Sumfunctype sum_func () const {return JSON_OBJECTAGG_FUNC;}
-  const char *func_name() const { return "json_objectagg("; }
+  const char *func_name() const { return "json_objectagg"; }
   const Type_handler *type_handler() const
   {
     if (too_big_for_varchar())
@@ -618,7 +618,6 @@ public:
   String* val_str(String* str);
   Item *copy_or_same(THD* thd);
   void no_rows_in_result() {}
-  void print(String *str, enum_query_type query_type);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_objectagg>(thd, this); }
 };

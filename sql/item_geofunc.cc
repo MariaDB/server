@@ -1,5 +1,5 @@
 /* Copyright (c) 2003, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2016, MariaDB
+   Copyright (c) 2011, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -443,16 +443,18 @@ String *Item_func_boundary::val_str(String *str_value)
   DBUG_ASSERT(fixed == 1);
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
+
+  if ((null_value= args[0]->null_value))
+    DBUG_RETURN(0);
+
   Geometry_buffer buffer;
-  Geometry *g;
   uint32 srid= 0;
   Transporter trn(&res_receiver);
-  
-  if ((null_value=
-       args[0]->null_value ||
-       !(g= Geometry::construct(&buffer, swkb->ptr(), swkb->length()))))
+
+  Geometry *g= Geometry::construct(&buffer, swkb->ptr(), swkb->length());
+  if (!g)
     DBUG_RETURN(0);
-  
+
   if (g->store_shapes(&trn))
     goto mem_error;
 

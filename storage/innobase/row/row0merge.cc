@@ -1080,9 +1080,8 @@ row_merge_read(
 	DBUG_LOG("ib_merge_sort", "fd=" << fd << " ofs=" << ofs);
 	DBUG_EXECUTE_IF("row_merge_read_failure", DBUG_RETURN(FALSE););
 
-	IORequest	request(IORequest::READ);
 	const bool	success = DB_SUCCESS == os_file_read_no_error_handling(
-		request, fd, buf, ofs, srv_sort_buf_size, 0);
+		IORequestRead, fd, buf, ofs, srv_sort_buf_size, 0);
 
 	/* If encryption is enabled decrypt buffer */
 	if (success && log_tmp_is_encrypted()) {
@@ -1144,9 +1143,8 @@ row_merge_write(
 		out_buf = crypt_buf;
 	}
 
-	IORequest	request(IORequest::WRITE);
 	const bool	success = DB_SUCCESS == os_file_write(
-		request, "(merge)", fd, out_buf, ofs, buf_len);
+		IORequestWrite, "(merge)", fd, out_buf, ofs, buf_len);
 
 #ifdef POSIX_FADV_DONTNEED
 	/* The block will be needed on the next merge pass,
@@ -2001,18 +1999,14 @@ end_of_index:
 					goto write_buffers;
 				}
 			} else {
-				ulint		next_page_no;
-				buf_block_t*	block;
-
-				next_page_no = btr_page_get_next(
+				uint32_t next_page_no = btr_page_get_next(
 					page_cur_get_page(cur));
 
 				if (next_page_no == FIL_NULL) {
 					goto end_of_index;
 				}
 
-				block = page_cur_get_block(cur);
-				block = btr_block_get(
+				buf_block_t* block = btr_block_get(
 					*clust_index, next_page_no,
 					RW_S_LATCH, false, &mtr);
 

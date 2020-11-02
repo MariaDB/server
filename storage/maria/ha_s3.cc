@@ -51,7 +51,11 @@
   but the stored block will be the size of the compressed block.
 
   Implementation:
-  The s3 engine inherits from the ha_maria handler
+  The s3 engine inherits from the ha_maria handler.
+
+  It uses Aria code and relies on Aria being enabled. We don't have to check
+  that Aria is enabled though, because Aria is a mandatory plugin, and
+  the server will refuse to start if Aria failed to initialize.
 
   s3 will use it's own page cache to not interfere with normal Aria
   usage but also to ensure that the S3 page cache is large enough
@@ -269,7 +273,7 @@ int ha_s3::write_row(const uchar *buf)
   DBUG_ENTER("ha_s3::write_row");
   if (in_alter_table)
     DBUG_RETURN(ha_maria::write_row(buf));
-  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+  DBUG_RETURN(HA_ERR_TABLE_READONLY);
 }
 
 /* Return true if S3 can be used */
@@ -576,7 +580,25 @@ int ha_s3::open(const char *name, int mode, uint open_flags)
   if (!s3_usable())
     DBUG_RETURN(HA_ERR_UNSUPPORTED);
 
-  if (mode != O_RDONLY && !(open_flags & HA_OPEN_FOR_CREATE))
+  /*
+    On slaves with s3_slave_ignore_updates set we allow tables to be
+    opened in write mode to be able to ignore queries that modify
+    the table trough handler::check_if_updates_are_ignored().
+
+    This is needed for the slave to be able to handle
+    CREATE TABLE t1...
+    INSERT INTO TABLE t1 ....
+    ALTER TABLE t1 ENGINE=S3
+    If this is not done, the insert will fail on the slave if the
+    master has already executed the ALTER TABLE.
+
+    We also have to allow open for create, as part of
+    ALTER TABLE ... ENGINE=S3.
+
+    Otherwise we only allow the table to be open in read mode
+  */
+  if (mode != O_RDONLY && !(open_flags & HA_OPEN_FOR_CREATE) &&
+      !s3_slave_ignore_updates)
     DBUG_RETURN(EACCES);
 
   open_args= 0;
@@ -978,14 +1000,7 @@ static int ha_s3_init(void *p)
   bool res;
   static const char *no_exts[]= { 0 };
 
-  /* This can happen if Aria fails to start */
-  if (!maria_hton)
-    return HA_ERR_INITIALIZATION;
-
   s3_hton= (handlerton *)p;
-
-  /* Use Aria engine as a base */
-  memcpy(s3_hton, maria_hton, sizeof(*s3_hton));
   s3_hton->db_type= DB_TYPE_S3;
   s3_hton->create= s3_create_handler;
   s3_hton->panic=  s3_hton_panic;
@@ -1092,6 +1107,6 @@ maria_declare_plugin(s3)
   status_variables,             /* status variables */
   system_variables,             /* system variables */
   "1.0",                        /* string version   */
-  MariaDB_PLUGIN_MATURITY_ALPHA /* maturity         */
+  MariaDB_PLUGIN_MATURITY_GAMMA /* maturity         */
 }
 maria_declare_plugin_end;

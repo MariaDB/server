@@ -97,7 +97,7 @@ set(GRN_ALL_LIBRARIES
     ${LZ4_LIBS}
     ${LIBZSTD_LIBS}
     ${MESSAGE_PACK_LIBS}
-    ${DL_LIBS}
+    ${CMAKE_DL_LIBS}
     ${M_LIBS}
     ${WS2_32_LIBS}
     ${MRUBY_LIBS}

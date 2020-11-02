@@ -2810,7 +2810,7 @@ static void read_big_block(PAGECACHE *pagecache,
     if (block_to_read->status & PCBLOCK_ERROR)
     {
       /* We get first block with an error so all operation failed */
-      goto error;
+      DBUG_VOID_RETURN;
     }
     if (block_to_read->status & PCBLOCK_BIG_READ)
     {
@@ -2842,7 +2842,11 @@ static void read_big_block(PAGECACHE *pagecache,
       // page should be read by other  thread
       DBUG_ASSERT(block->status & PCBLOCK_READ ||
                   block->status & PCBLOCK_ERROR);
-      DBUG_ASSERT(block->status & PCBLOCK_BIG_READ);
+      /*
+        It is possible that other thread already removed  the flag (in
+        case of two threads waiting) but it will not make harm to try to
+        remove it even in that case.
+      */
       block->status&= ~PCBLOCK_BIG_READ;
       // all is read => lets finish nice
       DBUG_ASSERT(block_to_read != block);
@@ -2960,9 +2964,8 @@ static void read_big_block(PAGECACHE *pagecache,
   }
   pagecache->big_block_free(&data);
 
-  block_to_read->status&= ~PCBLOCK_BIG_READ;
-
 end:
+  block_to_read->status&= ~PCBLOCK_BIG_READ;
   if (block_to_read != block)
   {
     remove_reader(block_to_read);

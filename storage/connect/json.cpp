@@ -93,9 +93,8 @@ char *NextChr(PSZ s, char sep)
 PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
 {
 	int   i, pretty = (ptyp) ? *ptyp : 3;
-	bool  b = false, pty[3] = {true, true, true};
-  PJSON jsp = NULL;
-  STRG  src;
+	bool  b = false, pty[3] = {true,true,true};
+  PJSON jsp = NULL, jp = NULL;
 
 	if (trace(1))
 		htrc("ParseJson: s=%.10s len=%d\n", s, len);
@@ -106,27 +105,29 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
   } else if (comma)
     *comma = false;
 
-  src.str = s;
-  src.len = len;
-
 	// Trying to guess the pretty format
 	if (s[0] == '[' && (s[1] == '\n' || (s[1] == '\r' && s[2] == '\n')))
 		pty[0] = false;
 
 	try {
-		for (i = 0; i < len; i++)
+		jp = new(g) JSON();
+		jp->s = s;
+		jp->len = len;
+		jp->pty = pty;
+
+		for (i = 0; i < jp->len; i++)
 			switch (s[i]) {
 				case '[':
 					if (jsp)
-						goto tryit;
-					else if (!(jsp = ParseArray(g, ++i, src, pty)))
-						throw 1;
+						jsp = jp->ParseAsArray(g, i, pretty, ptyp);
+					else
+						jsp = jp->ParseArray(g, ++i);
 
 					break;
 				case '{':
 					if (jsp)
-						goto tryit;
-					else if (!(jsp = ParseObject(g, ++i, src, pty)))
+						jsp = jp->ParseAsArray(g, i, pretty, ptyp);
+					else if (!(jsp = jp->ParseObject(g, ++i)))
 						throw 2;
 
 					break;
@@ -157,8 +158,8 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
                                         /* falls through */
 				default:
 					if (jsp)
-						goto tryit;
-					else if (!(jsp = ParseValue(g, i, src, pty)))
+						jsp = jp->ParseAsArray(g, i, pretty, ptyp);
+					else if (!(jsp = jp->ParseValue(g, i)))
 						throw 4;
 
 					break;
@@ -187,10 +188,17 @@ PJSON ParseJson(PGLOBAL g, char *s, int len, int *ptyp, bool *comma)
 	} // end catch
 
 	return jsp;
+} // end of ParseJson
 
-tryit:
+/***********************************************************************/
+/* Parse several items as being in an array.                           */
+/***********************************************************************/
+PJAR JSON::ParseAsArray(PGLOBAL g, int& i, int pretty, int *ptyp)
+{
 	if (pty[0] && (!pretty || pretty > 2)) {
-		if ((jsp = ParseArray(g, (i = 0), src, pty)) && ptyp && pretty == 3)
+		PJAR jsp;
+
+		if ((jsp = ParseArray(g, (i = 0))) && ptyp && pretty == 3)
 			*ptyp = (pty[0]) ? 0 : 3;
 
 		return jsp;
@@ -198,26 +206,23 @@ tryit:
 		strcpy(g->Message, "More than one item in file");
 
 	return NULL;
-} // end of ParseJson
+} // end of ParseAsArray
 
 /***********************************************************************/
 /* Parse a JSON Array.                                                 */
 /***********************************************************************/
-PJAR ParseArray(PGLOBAL g, int& i, STRG& src, bool *pty)
+PJAR JSON::ParseArray(PGLOBAL g, int& i)
 {
-  char  *s = src.str;
-  int    len = src.len;
-  int    level = 0;
-	bool   b = (!i);
-  PJAR   jarp = new(g) JARRAY;
-  PJVAL  jvp = NULL;
+	int  level = 0;
+	bool b = (!i);
+  PJAR jarp = new(g) JARRAY;
 
   for (; i < len; i++)
     switch (s[i]) {
       case ',':
         if (level < 2) {
           sprintf(g->Message, "Unexpected ',' near %.*s",ARGS);
-          return NULL;
+          throw 1;
         } else
           level = 1;
 
@@ -225,8 +230,8 @@ PJAR ParseArray(PGLOBAL g, int& i, STRG& src, bool *pty)
       case ']':
         if (level == 1) {
           sprintf(g->Message, "Unexpected ',]' near %.*s", ARGS);
-          return NULL;
-          } // endif level
+          throw 1;
+        } // endif level
 
         jarp->InitArray(g);
         return jarp;
@@ -240,11 +245,9 @@ PJAR ParseArray(PGLOBAL g, int& i, STRG& src, bool *pty)
       default:
         if (level == 2) {
           sprintf(g->Message, "Unexpected value near %.*s", ARGS);
-          return NULL;
-        } else if ((jvp = ParseValue(g, i, src, pty)))
-          jarp->AddValue(g, jvp);
-        else
-          return NULL;
+          throw 1;
+        } else
+          jarp->AddValue(g, ParseValue(g, i));
 
         level = (b) ? 1 : 2;
         break;
@@ -256,18 +259,15 @@ PJAR ParseArray(PGLOBAL g, int& i, STRG& src, bool *pty)
 		return jarp;
 	} // endif b
 
-  strcpy(g->Message, "Unexpected EOF in array");
-  return NULL;
+  throw ("Unexpected EOF in array");
 } // end of ParseArray
 
 /***********************************************************************/
 /* Parse a JSON Object.                                                */
 /***********************************************************************/
-PJOB ParseObject(PGLOBAL g, int& i, STRG& src, bool *pty)
+PJOB JSON::ParseObject(PGLOBAL g, int& i)
 {
   PSZ   key;
-  char *s = src.str;
-  int   len = src.len;
   int   level = 0;
   PJOB  jobp = new(g) JOBJECT;
   PJPR  jpp = NULL;
@@ -276,42 +276,37 @@ PJOB ParseObject(PGLOBAL g, int& i, STRG& src, bool *pty)
     switch (s[i]) {
       case '"':
         if (level < 2) {
-          if ((key = ParseString(g, ++i, src))) {
-            jpp = jobp->AddPair(g, key);
-            level = 1;
-          } else
-            return NULL;
-
+					key = ParseString(g, ++i);
+          jpp = jobp->AddPair(g, key);
+          level = 1;
         } else {
           sprintf(g->Message, "misplaced string near %.*s", ARGS);
-          return NULL;
+          throw 2;
         } // endif level
 
         break;
       case ':':
         if (level == 1) {
-          if (!(jpp->Val = ParseValue(g, ++i, src, pty)))
-            return NULL;
-
+					jpp->Val = ParseValue(g, ++i);
           level = 2;
         } else {
           sprintf(g->Message, "Unexpected ':' near %.*s", ARGS);
-          return NULL;
+          throw 2;
         } // endif level
 
         break;
       case ',':
         if (level < 2) {
           sprintf(g->Message, "Unexpected ',' near %.*s", ARGS);
-          return NULL;
+          throw 2;
         } else
-          level = 1;
+          level = 0;
 
         break;
       case '}':
-        if (level == 1) {
+        if (level < 2) {
           sprintf(g->Message, "Unexpected '}' near %.*s", ARGS);
-          return NULL;
+          throw 2;
           } // endif level
 
         return jobp;
@@ -324,20 +319,19 @@ PJOB ParseObject(PGLOBAL g, int& i, STRG& src, bool *pty)
       default:
         sprintf(g->Message, "Unexpected character '%c' near %.*s",
                 s[i], ARGS);
-        return NULL;
+        throw 2;
     }; // endswitch s[i]
 
   strcpy(g->Message, "Unexpected EOF in Object");
-  return NULL;
+  throw 2;
 } // end of ParseObject
 
 /***********************************************************************/
 /* Parse a JSON Value.                                                 */
 /***********************************************************************/
-PJVAL ParseValue(PGLOBAL g, int& i, STRG& src, bool *pty)
+PJVAL JSON::ParseValue(PGLOBAL g, int& i)
 {
-  char *strval, *s = src.str;
-  int   n, len = src.len;
+  int   n;
   PJVAL jvp = new(g) JVALUE;
 
   for (; i < len; i++)
@@ -355,21 +349,13 @@ PJVAL ParseValue(PGLOBAL g, int& i, STRG& src, bool *pty)
  suite:
   switch (s[i]) {
     case '[':
-      if (!(jvp->Jsp = ParseArray(g, ++i, src, pty)))
-        return NULL;
-
+			jvp->Jsp = ParseArray(g, ++i);
       break;
     case '{':
-      if (!(jvp->Jsp = ParseObject(g, ++i, src, pty)))
-        return NULL;
-
+			jvp->Jsp = ParseObject(g, ++i);
       break;
     case '"':
-      if ((strval = ParseString(g, ++i, src)))
-        jvp->Value = AllocateValue(g, strval, TYPE_STRING);
-      else
-        return NULL;
-
+      jvp->Value = AllocateValue(g, ParseString(g, ++i), TYPE_STRING);
       break;
     case 't':
       if (!strncmp(s + i, "true", 4)) {
@@ -398,11 +384,9 @@ PJVAL ParseValue(PGLOBAL g, int& i, STRG& src, bool *pty)
       break;
     case '-':
     default:
-      if (s[i] == '-' || isdigit(s[i])) {
-        if (!(jvp->Value = ParseNumeric(g, i, src)))
-          goto err;
-
-      } else
+      if (s[i] == '-' || isdigit(s[i]))
+				jvp->Value = ParseNumeric(g, i);
+      else
         goto err;
 
     }; // endswitch s[i]
@@ -410,25 +394,21 @@ PJVAL ParseValue(PGLOBAL g, int& i, STRG& src, bool *pty)
   return jvp;
 
 err:
-  sprintf(g->Message, "Unexpected character '%c' near %.*s",
-          s[i], ARGS);
-  return NULL;
+  sprintf(g->Message, "Unexpected character '%c' near %.*s", s[i], ARGS);
+  throw 3;
 } // end of ParseValue
 
 /***********************************************************************/
 /*  Unescape and parse a JSON string.                                  */
 /***********************************************************************/
-char *ParseString(PGLOBAL g, int& i, STRG& src)
+char *JSON::ParseString(PGLOBAL g, int& i)
 {
-  char  *s = src.str;
   uchar *p;
-  int    n = 0, len = src.len;
+  int    n = 0;
 
   // Be sure of memory availability
-  if (len + 1 - i > (signed)((PPOOLHEADER)g->Sarea)->FreeBlk) {
-    strcpy(g->Message, "ParseString: Out of memory");
-    return NULL;
-    } // endif len
+  if (((size_t)len + 1 - i) > ((PPOOLHEADER)g->Sarea)->FreeBlk)
+    throw("ParseString: Out of memory");
 
   // The size to allocate is not known yet
   p = (uchar*)PlugSubAlloc(g, NULL, 0);
@@ -502,17 +482,16 @@ char *ParseString(PGLOBAL g, int& i, STRG& src)
       }; // endswitch s[i]
 
  err:
-  strcpy(g->Message, "Unexpected EOF in String");
-  return NULL;
+  throw("Unexpected EOF in String");
 } // end of ParseString
 
 /***********************************************************************/
 /* Parse a JSON numeric value.                                         */
 /***********************************************************************/
-PVAL ParseNumeric(PGLOBAL g, int& i, STRG& src)
+PVAL JSON::ParseNumeric(PGLOBAL g, int& i)
 {
-  char *s = src.str, buf[50];
-  int   n = 0, len = src.len;
+  char  buf[50];
+  int   n = 0;
   short nd = 0;
 	bool  has_dot = false;
 	bool  has_e = false;
@@ -575,14 +554,11 @@ PVAL ParseNumeric(PGLOBAL g, int& i, STRG& src)
 
     i--;  // Unstack  following character
     return valp;
-  } else {
-    strcpy(g->Message, "No digit found");
-    return NULL;
-  } // endif found_digit
+  } else
+    throw("No digit found");
 
  err:
-  strcpy(g->Message, "Unexpected EOF in number");
-  return NULL;
+  throw("Unexpected EOF in number");
 } // end of ParseNumeric
 
 /***********************************************************************/

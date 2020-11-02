@@ -1,6 +1,6 @@
 #ifndef HA_S3_INCLUDED
 #define HA_S3_INCLUDED
-/* Copyright (C) 2019 MariaDB Corppration AB
+/* Copyright (C) 2019, 2020, MariaDB Corporation AB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -31,52 +31,50 @@ public:
   ~ha_s3() {}
 
   int create(const char *name, TABLE *table_arg,
-             HA_CREATE_INFO *ha_create_info);
-  int open(const char *name, int mode, uint open_flags);
-  int write_row(const uchar *buf);
-  int update_row(const uchar * old_data, const uchar * new_data)
+             HA_CREATE_INFO *ha_create_info) override;
+  int open(const char *name, int mode, uint open_flags) override;
+  int write_row(const uchar *buf) override;
+  int update_row(const uchar *, const uchar *) override
   {
     DBUG_ENTER("update_row");
-    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+    DBUG_RETURN(HA_ERR_TABLE_READONLY);
   }
-  int delete_row(const uchar * buf)
+  int delete_row(const uchar *) override
   {
     DBUG_ENTER("delete_row");
-    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+    DBUG_RETURN(HA_ERR_TABLE_READONLY);
   }
-  int check(THD * thd, HA_CHECK_OPT * check_opt)
+  int check(THD *, HA_CHECK_OPT *) override
   {
     DBUG_ENTER("delete_row");
-    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+    DBUG_RETURN(HA_ERR_TABLE_READONLY);
   }
-  int analyze(THD * thd, HA_CHECK_OPT * check_opt)
+  int analyze(THD *, HA_CHECK_OPT *) override
   {
     DBUG_ENTER("analyze");
-    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+    DBUG_RETURN(HA_ERR_TABLE_READONLY);
   }
-  int repair(THD * thd, HA_CHECK_OPT * check_opt)
+  int repair(THD *, HA_CHECK_OPT *) override
   {
     DBUG_ENTER("repair");
-    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+    DBUG_RETURN(HA_ERR_TABLE_READONLY);
   }
-  int preload_keys(THD * thd, HA_CHECK_OPT * check_opt)
+  int preload_keys(THD *, HA_CHECK_OPT *) override
   {
     DBUG_ENTER("preload_keys");
-    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+    DBUG_RETURN(HA_ERR_TABLE_READONLY);
   }
-  int external_lock(THD * thd, int lock_type);
+  int external_lock(THD * thd, int lock_type) override;
   /*
     drop_table() is only used for internal temporary tables,
     not applicable for s3
   */
-  void drop_table(const char *name)
-  {
-  }
-  int delete_table(const char *name);
-  int rename_table(const char *from, const char *to);
+  void drop_table(const char *) override {}
+  int delete_table(const char *name) override;
+  int rename_table(const char *from, const char *to) override;
   int discover_check_version() override;
   int rebind();
-  S3_INFO *s3_open_args() { return open_args; }
-  void register_handler(MARIA_HA *file);
+  S3_INFO *s3_open_args() override { return open_args; }
+  void register_handler(MARIA_HA *file) override;
 };
 #endif /* HA_S3_INCLUDED */

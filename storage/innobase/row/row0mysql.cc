@@ -1522,7 +1522,7 @@ error_exit:
 		srv_stats.n_rows_inserted.inc(size_t(trx->id));
 	}
 
-	/* Not protected by dict_table_stats_lock() for performance
+	/* Not protected by dict_sys.mutex for performance
 	reasons, we would rather get garbage in stat_n_rows (which is
 	just an estimate anyway) than protecting the following code
 	with a latch. */
@@ -1892,7 +1892,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	ut_ad(is_delete == (node->is_delete == PLAIN_DELETE));
 
 	if (is_delete) {
-		/* Not protected by dict_table_stats_lock() for performance
+		/* Not protected by dict_sys.mutex for performance
 		reasons, we would rather get garbage in stat_n_rows (which is
 		just an estimate anyway) than protecting the following code
 		with a latch. */
@@ -2234,8 +2234,7 @@ row_update_cascade_for_mysql(
 			bool stats;
 
 			if (node->is_delete == PLAIN_DELETE) {
-				/* Not protected by
-				dict_table_stats_lock() for
+				/* Not protected by dict_sys.mutex for
 				performance reasons, we would rather
 				get garbage in stat_n_rows (which is
 				just an estimate anyway) than
@@ -3391,8 +3390,7 @@ row_drop_table_for_mysql(
 		dict_stats_recalc_pool_del(table);
 		dict_stats_defrag_pool_del(table, NULL);
 		if (btr_defragment_active) {
-			/* During fts_drop_orphaned_tables() in
-			recv_recovery_rollback_active() the
+			/* During fts_drop_orphaned_tables() the
 			btr_defragment_mutex has not yet been
 			initialized by btr_defragment_init(). */
 			btr_defragment_remove_table(table);

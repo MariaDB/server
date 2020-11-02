@@ -317,6 +317,16 @@ static void handle_wait_timeout(THD *thd)
   thd->net.error= 2;
 }
 
+/** Check if some client data is cached in thd->net or thd->net.vio */
+static bool has_unread_data(THD* thd)
+{
+  NET *net= &thd->net;
+  if (net->compress && net->remain_in_buf)
+    return true;
+  Vio *vio= net->vio;
+  return vio->has_data(vio);
+}
+
 
 /**
  Process a single client request or a single batch.
@@ -351,7 +361,6 @@ static int threadpool_process_request(THD *thd)
   */
   for(;;)
   {
-    Vio *vio;
     thd->net.reading_or_writing= 0;
     if (mysql_audit_release_required(thd))
       mysql_audit_release(thd);
@@ -367,8 +376,7 @@ static int threadpool_process_request(THD *thd)
 
     set_thd_idle(thd);
 
-    vio= thd->net.vio;
-    if (!vio->has_data(vio))
+    if (!has_unread_data(thd))
     { 
       /* More info on this debug sync is in sql_parse.cc*/
       DEBUG_SYNC(thd, "before_do_command_net_read");

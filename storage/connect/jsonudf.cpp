@@ -25,7 +25,7 @@
 #else
 #define PUSH_WARNING(M) htrc(M)
 #endif
-#define M 7
+#define M 9
 
 bool  IsNum(PSZ s);
 char *NextChr(PSZ s, char sep);
@@ -1076,29 +1076,10 @@ my_bool JSNX::AddPath(void)
 
 /* --------------------------------- JSON UDF ---------------------------------- */
 
-// BSON size should be equal on Linux and Windows
-#define BMX 255
-typedef struct BSON *PBSON;
-
-/*********************************************************************************/
-/*  Structure used to return binary json.                                        */
-/*********************************************************************************/
-struct BSON {
-	char    Msg[BMX + 1];
-	char   *Filename;
-	PGLOBAL G;
-	int     Pretty;
-	ulong   Reslen;
-	my_bool Changed;
-	PJSON   Top;
-	PJSON   Jsp;
-	PBSON   Bsp;
-}; // end of struct BSON
-
 /*********************************************************************************/
 /*  Allocate and initialize a BSON structure.                                    */
 /*********************************************************************************/
-static PBSON JbinAlloc(PGLOBAL g, UDF_ARGS *args, ulong len, PJSON jsp)
+PBSON JbinAlloc(PGLOBAL g, UDF_ARGS *args, ulong len, PJSON jsp)
 {
 	PBSON bsp = (PBSON)PlgDBSubAlloc(g, NULL, sizeof(BSON));
 
@@ -1111,7 +1092,7 @@ static PBSON JbinAlloc(PGLOBAL g, UDF_ARGS *args, ulong len, PJSON jsp)
 		bsp->Reslen = len;
 		bsp->Changed = false;
 		bsp->Top = bsp->Jsp = jsp;
-		bsp->Bsp = (IsJson(args, 0) == 3) ? (PBSON)args->args[0] : NULL;
+		bsp->Bsp = (args && IsJson(args, 0) == 3) ? (PBSON)args->args[0] : NULL;
 	} else
 		PUSH_WARNING(g->Message);
 
@@ -1144,7 +1125,7 @@ static my_bool JsonSubSet(PGLOBAL g)
 {
 	PPOOLHEADER pph = (PPOOLHEADER)g->Sarea;
 
-	pph->To_Free = (OFFSET)((g->Createas) ? g->Createas : sizeof(POOLHEADER));
+	pph->To_Free = (g->Saved_Size) ? g->Saved_Size : (size_t)sizeof(POOLHEADER);
 	pph->FreeBlk = g->Sarea_Size - pph->To_Free;
 	return FALSE;
 } /* end of JsonSubSet */
@@ -1154,7 +1135,7 @@ static my_bool JsonSubSet(PGLOBAL g)
 /*********************************************************************************/
 inline void JsonMemSave(PGLOBAL g)
 {
-	g->Createas = (int)((PPOOLHEADER)g->Sarea)->To_Free;
+	g->Saved_Size = ((PPOOLHEADER)g->Sarea)->To_Free;
 } /* end of JsonMemSave */
 
 /*********************************************************************************/
@@ -1422,7 +1403,7 @@ static int IsJson(UDF_ARGS *args, uint i, bool b)
 		n = 2;					   //	arg is a json file name
 	} else if (b) {
 		char   *sap;
-		PGLOBAL g = PlugInit(NULL, args->lengths[i] * M + 1024);
+		PGLOBAL g = PlugInit(NULL, (size_t)args->lengths[i] * M + 1024);
 
 		JsonSubSet(g);
 		sap = MakePSZ(g, args, i);
@@ -1625,7 +1606,7 @@ static my_bool CheckMemory(PGLOBAL g, UDF_INIT *initid, UDF_ARGS *args, uint n,
 					return true;
 					} // endif SareaAlloc
 
-				g->Createas = 0;
+				g->Saved_Size = 0;
 				g->Xchk = NULL;
 				initid->max_length = rl;
 			}	// endif Size
@@ -4425,13 +4406,15 @@ char *json_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	fn = MakePSZ(g, args, 0);
 
 	if (args->arg_count > 1) {
-		int    len, pretty, pty = 3;
+		int    len, pretty = 3, pty = 3;
 		PJSON  jsp;
 		PJVAL  jvp = NULL;
 
-		pretty = (args->arg_type[1] == INT_RESULT) ? (int)*(longlong*)args->args[1]
-					 : (args->arg_count > 2 && args->arg_type[2] == INT_RESULT)
-					 ? (int)*(longlong*)args->args[2] : 3;
+		for (unsigned int i = 1; i < args->arg_count; i++)
+			if (args->arg_type[i] == INT_RESULT && *(longlong*)args->args[i] < 4) {
+				pretty = (int) * (longlong*)args->args[i];
+				break;
+			} // endif type
 
 		/*******************************************************************************/
 		/*  Parse the json file and allocate its tree structure.                       */
@@ -4499,6 +4482,7 @@ my_bool jfile_make_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	}	// endif
 
 	CalcLen(args, false, reslen, memlen);
+	memlen = memlen + 5000;	 // To take care of not pretty files 
 	return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of jfile_make_init
 
@@ -5628,20 +5612,19 @@ my_bool jbin_file_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	} else if (args->arg_type[0] != STRING_RESULT || !args->args[0]) {
 		strcpy(message, "First argument must be a constant string (file name)");
 		return true;
-	} else if (args->arg_count > 1 &&	args->arg_type[1] != STRING_RESULT) {
-		strcpy(message, "Second argument is not a string (path)");
-		return true;
-	} else if (args->arg_count > 2 &&	args->arg_type[2] != INT_RESULT) {
-		strcpy(message, "Third argument is not an integer (pretty)");
-		return true;
-	} else if (args->arg_count > 3) {
-		if (args->arg_type[3] != INT_RESULT) {
-			strcpy(message, "Fourth argument is not an integer (memory)");
-			return true;
-		} else
-			more += (ulong)*(longlong*)args->args[3];
-
 	} // endifs
+
+	for (unsigned int i = 1; i < args->arg_count; i++) {
+		if (!(args->arg_type[i] == INT_RESULT || args->arg_type[i] == STRING_RESULT)) {
+			sprintf(message, "Argument %d is not an integer or a string (pretty or path)", i);
+			return true;
+		} // endif arg_type
+
+		// Take care of eventual memory argument
+		if (args->arg_type[i] == INT_RESULT && args->args[i])
+			more += (ulong) * (longlong*)args->args[i];
+
+	} // endfor i
 
 	initid->maybe_null = 1;
 	CalcLen(args, false, reslen, memlen);
@@ -5656,7 +5639,7 @@ char *jbin_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
 {
 	char   *fn;
-	int     pretty, len = 0, pty = 3;
+	int     pretty = 3, len = 0, pty = 3;
 	PJSON   jsp;
 	PJVAL   jvp = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -5668,7 +5651,12 @@ char *jbin_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	PlugSubSet(g->Sarea, g->Sarea_Size);
 	g->Xchk = NULL;
 	fn = MakePSZ(g, args, 0);
-	pretty = (args->arg_count > 2 && args->args[2]) ? (int)*(longlong*)args->args[2] : 3;
+
+	for (unsigned int i = 1; i < args->arg_count; i++)
+		if (args->arg_type[i] == INT_RESULT && *(longlong*)args->args[i] < 4) {
+			pretty = (int) * (longlong*)args->args[i];
+			break;
+		} // endif type
 
 	/*********************************************************************************/
 	/*  Parse the json file and allocate its tree structure.                         */
@@ -5759,7 +5747,7 @@ char *json_serialize(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			// Keep result of constant function
 			g->Xchk = (initid->const_item) ? str : NULL;
 		} else {
-			*error = 1;
+			// *error = 1;
 			str = strcpy(result, "Argument is not a Jbin tree");
 		} // endif
 
@@ -5774,6 +5762,474 @@ void json_serialize_deinit(UDF_INIT* initid)
 {
 	JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of json_serialize_deinit
+
+/*********************************************************************************/
+/*  Convert a prettiest Json file to Pretty=0.                                   */
+/*********************************************************************************/
+my_bool jfile_convert_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
+	unsigned long reslen, memlen;
+
+	if (args->arg_count != 3) {
+		strcpy(message, "This function must have 3 arguments");
+		return true;
+	} else if (args->arg_type[2] != INT_RESULT) {
+		strcpy(message, "Third Argument must be an integer (LRECL)");
+		return true;
+	} else for (int i = 0; i < 2; i++)
+		if (args->arg_type[i] != STRING_RESULT) {
+			sprintf(message, "Arguments %d must be a string (file name)", i+1);
+			return true;
+		} // endif args
+
+	CalcLen(args, false, reslen, memlen);
+	return JsonInit(initid, args, message, false, reslen, memlen);
+} // end of jfile_convert_init
+
+char *jfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
+	                  unsigned long *res_length, char *, char *error) {
+	char   *str, *fn, *ofn;
+	int     lrecl = (int)*(longlong*)args->args[2];
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+
+	PlugSubSet(g->Sarea, g->Sarea_Size);
+	fn = MakePSZ(g, args, 0);
+	ofn = MakePSZ(g, args, 1);
+
+	if (!g->Xchk) {
+		JUP* jup = new(g) JUP(g);
+
+		str = jup->UnprettyJsonFile(g, fn, ofn, lrecl);
+		g->Xchk = str;
+	} else
+		str = (char*)g->Xchk;
+
+	if (!str) {
+		str = PlugDup(g, g->Message);
+	} // endif str
+
+	*res_length = strlen(str);
+	return str;
+} // end of jfile_convert
+
+void jfile_convert_deinit(UDF_INIT* initid) {
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of jfile_convert_deinit
+
+/* --------------------------------- Class JUP --------------------------------- */
+
+#define ARGS       MY_MIN(24,len-i),s+MY_MAX(i-3,0)
+
+/*********************************************************************************/
+/*  JUP public constructor.                                                      */
+/*********************************************************************************/
+JUP::JUP(PGLOBAL g) {
+	fs = NULL;
+	s = buff = NULL;
+	i = k = len = recl = 0;
+} // end of JUP constructor
+
+/*********************************************************************************/
+/*  Copy a json file to another with pretty = 0.                                 */
+/*********************************************************************************/
+char* JUP::UnprettyJsonFile(PGLOBAL g, char *fn, char *outfn, int lrecl) {
+	char   *ret = NULL;
+	HANDLE  hFile;
+	MEMMAP  mm;
+
+	/*******************************************************************************/
+	/*  Create the mapping file object.                                            */
+	/*******************************************************************************/
+	hFile = CreateFileMap(g, fn, &mm, MODE_READ, false);
+
+	if (hFile == INVALID_HANDLE_VALUE) {
+		DWORD rc = GetLastError();
+
+		if (!(*g->Message))
+			sprintf(g->Message, MSG(OPEN_MODE_ERROR), "map", (int)rc, fn);
+
+		return NULL;
+	} // endif hFile
+
+	/*******************************************************************************/
+	/*  Get the file size (assuming file is smaller than 4 GB)                     */
+	/*******************************************************************************/
+	if (!mm.lenL) {              // Empty or deleted file
+		CloseFileHandle(hFile);
+		return NULL;
+	} else
+		len = (int)mm.lenL;
+
+	if (!mm.memory) {
+		CloseFileHandle(hFile);
+		sprintf(g->Message, MSG(MAP_VIEW_ERROR), fn, GetLastError());
+		return NULL;
+	} else
+		s = (char*)mm.memory;
+
+	CloseFileHandle(hFile);                    // Not used anymore
+
+	/*********************************************************************************/
+	/*  Parse the json file and allocate its tree structure.                         */
+	/*********************************************************************************/
+	if (!(fs = fopen(outfn, "wb"))) {
+		sprintf(g->Message, MSG(OPEN_MODE_ERROR),
+			"w", (int)errno, outfn);
+		strcat(strcat(g->Message, ": "), strerror(errno));
+		CloseMemMap(mm.memory, (size_t)mm.lenL);
+		return NULL;
+	} // endif fs
+
+	g->Message[0] = 0;
+
+	if (!unPretty(g, lrecl))
+		ret = outfn;
+
+	CloseMemMap(mm.memory, (size_t)mm.lenL);
+	fclose(fs);
+	return ret;
+} // end of UnprettyJsonFile
+
+/***********************************************************************/
+/* Translate a json file to pretty = 0.                                */
+/***********************************************************************/
+bool JUP::unPretty(PGLOBAL g, int lrecl) {
+	bool  go, next, rc = false;
+
+	if (trace(1))
+		htrc("UnPretty: s=%.10s len=%zd lrecl=%d\n", s, len, lrecl);
+
+	if (!s || !len) {
+		strcpy(g->Message, "Void JSON file");
+		return true;
+	} else if (*s != '[') {
+		// strcpy(g->Message, "JSON file is not an array");
+		s = strchr(s, '[');
+		// return true;
+	}	// endif s
+
+	i = 1;
+	go = next = true;
+
+	try {
+		// Allocate the record
+		buff = (char*)PlugSubAlloc(g, NULL, (size_t)lrecl + 3);
+		recl = lrecl;
+
+		do {
+			for (k = 0; go && i < len; i++)
+				switch (s[i]) {
+				case '{':
+					buff[k++] = s[i++];
+					CopyObject(g);
+					break;
+				case '[':
+					throw "JSON file is not an array of objects";
+					break;
+				case ' ':
+				case '\t':
+				case '\n':
+				case '\r':
+					break;
+				case ',':
+					go = false;
+					break;
+				case ']':
+					go = next = false;
+					break;
+				default:
+					sprintf(g->Message, "Unexpected '%c' near %.*s", s[i], ARGS);
+					throw 4;
+					break;
+				}; // endswitch s[i]
+
+			// Write the record
+#ifdef __win_
+			buff[k++] = '\r';
+#endif
+			buff[k++] = '\n';
+			buff[k] = 0;
+
+			if ((fputs(buff, fs)) == EOF) {
+				sprintf(g->Message, MSG(FPUTS_ERROR), strerror(errno));
+				throw 5;
+			} // endif EOF
+
+			go = true;
+		} while (next);
+
+	} catch (int n) {
+		if (trace(1))
+			htrc("Exception %d: %s\n", n, g->Message);
+		rc = true;
+	} catch (const char* msg) {
+		strcpy(g->Message, msg);
+		rc = true;
+	} // end catch
+
+	return rc;
+} // end of unPretty
+
+/***********************************************************************/
+/* Copy a JSON Object.                                                 */
+/***********************************************************************/
+void JUP::CopyObject(PGLOBAL g) {
+	int level = 0;
+
+	for (; i < len; i++)
+		switch (s[i]) {
+		case '"':
+			AddBuff(s[i++]);
+
+			if (level < 2) {
+				CopyString(g);
+				level = 1;
+			} else {
+				sprintf(g->Message, "misplaced string near %.*s", ARGS);
+				throw 3;
+			} // endif level
+
+			break;
+		case ':':
+			AddBuff(s[i++]);
+
+			if (level == 1) {
+				CopyValue(g);
+				level = 2;
+			} else {
+				sprintf(g->Message, "Unexpected ':' near %.*s", ARGS);
+				throw 3;
+			} // endif level
+
+			break;
+		case ',':
+			AddBuff(s[i]);
+
+			if (level < 2) {
+				sprintf(g->Message, "Unexpected ',' near %.*s", ARGS);
+				throw 3;
+			} else
+				level = 0;
+
+			break;
+		case '}':
+			AddBuff(s[i]);
+
+			if (level == 1) {
+				sprintf(g->Message, "Unexpected '}' near %.*s", ARGS);
+				throw 3;
+			} // endif level
+
+			return;
+		case '\n':
+		case '\r':
+		case ' ':
+		case '\t':
+			break;
+		default:
+			sprintf(g->Message, "Unexpected character '%c' near %.*s", s[i], ARGS);
+			throw 3;
+		}; // endswitch s[i]
+
+	throw "Unexpected EOF in Object";
+} // end of CopyObject
+
+/***********************************************************************/
+/* Copy a JSON Array.                                                  */
+/***********************************************************************/
+void JUP::CopyArray(PGLOBAL g) {
+	int level = 0;
+
+	for (; i < len; i++)
+		switch (s[i]) {
+		case ',':
+			if (level < 2) {
+				sprintf(g->Message, "Unexpected ',' near %.*s", ARGS);
+				throw 2;
+			} else
+				level = 1;
+
+			AddBuff(s[i]);
+			break;
+		case ']':
+			if (level == 1) {
+				sprintf(g->Message, "Unexpected ',]' near %.*s", ARGS);
+				throw 2;
+			} // endif level
+
+			AddBuff(s[i]);
+			return;
+		case '\n':
+		case '\r':
+		case ' ':
+		case '\t':
+			break;
+		default:
+			if (level == 2) {
+				sprintf(g->Message, "Unexpected value near %.*s", ARGS);
+				throw 2;
+			} // endif level
+
+			CopyValue(g);
+			level = 2;
+			break;
+		}; // endswitch s[i]
+
+	throw "Unexpected EOF in array";
+} // end of CopyArray
+
+/***********************************************************************/
+/* Copy a JSON Value.                                                  */
+/***********************************************************************/
+void JUP::CopyValue(PGLOBAL g) {
+	for (; i < len; i++)
+		switch (s[i]) {
+		case '\n':
+		case '\r':
+		case ' ':
+		case '\t':
+			break;
+		default:
+			goto suite;
+		} // endswitch
+
+suite:
+	switch (s[i]) {
+	case '[':
+		AddBuff(s[i++]);
+		CopyArray(g);
+		break;
+	case '{':
+		AddBuff(s[i++]);
+		CopyObject(g);
+		break;
+	case '"':
+		AddBuff(s[i++]);
+		CopyString(g);
+		break;
+	case 't':
+		if (!strncmp(s + i, "true", 4)) {
+			AddBuff(s[i++]);
+			AddBuff(s[i++]);
+			AddBuff(s[i++]);
+			AddBuff(s[i]);
+		} else
+			goto err;
+
+		break;
+	case 'f':
+		if (!strncmp(s + i, "false", 5)) {
+			AddBuff(s[i++]);
+			AddBuff(s[i++]);
+			AddBuff(s[i++]);
+			AddBuff(s[i++]);
+			AddBuff(s[i]);
+		} else
+			goto err;
+
+		break;
+	case 'n':
+		if (!strncmp(s + i, "null", 4)) {
+			AddBuff(s[i++]);
+			AddBuff(s[i++]);
+			AddBuff(s[i++]);
+			AddBuff(s[i]);
+		} else
+			goto err;
+
+		break;
+	default:
+		if (s[i] == '-' || isdigit(s[i]))
+			CopyNumeric(g);
+		else
+			goto err;
+
+	}; // endswitch s[i]
+
+	return;
+
+err:
+	sprintf(g->Message, "Unexpected character '%c' near %.*s", s[i], ARGS);
+	throw 1;
+} // end of CopyValue
+
+/***********************************************************************/
+/*  Unescape and parse a JSON string.                                  */
+/***********************************************************************/
+void JUP::CopyString(PGLOBAL g) {
+	for (; i < len; i++) {
+		AddBuff(s[i]);
+
+		switch (s[i]) {
+		case '"':
+			return;
+		case '\\':
+			AddBuff(s[++i]);
+			break;
+		default:
+			break;
+		}; // endswitch s[i]
+
+	} // endfor i
+
+	throw "Unexpected EOF in String";
+} // end of CopyString
+
+/***********************************************************************/
+/* Copy a JSON numeric value.                                          */
+/***********************************************************************/
+void JUP::CopyNumeric(PGLOBAL g) {
+	bool  has_dot = false;
+	bool  has_e = false;
+	bool  found_digit = false;
+
+	for (; i < len; i++) {
+		switch (s[i]) {
+		case '.':
+			if (!found_digit || has_dot || has_e)
+				goto err;
+
+			has_dot = true;
+			break;
+		case 'e':
+		case 'E':
+			if (!found_digit || has_e)
+				goto err;
+
+			has_e = true;
+			found_digit = false;
+			break;
+		case '+':
+			if (!has_e)
+				goto err;
+
+			// fall through
+		case '-':
+			if (found_digit)
+				goto err;
+
+			break;
+		default:
+			if (isdigit(s[i])) {
+				found_digit = true;
+			} else
+				goto fin;
+
+		}; // endswitch s[i]
+
+		AddBuff(s[i]);
+	} // endfor i
+
+fin:
+	if (!found_digit)
+		throw "No digit found";
+	else
+		i--;
+
+	return;
+
+err:
+	throw "Unexpected EOF in number";
+} // end of CopyNumeric
 
 /*********************************************************************************/
 /*  Utility function returning an environment variable value.                    */

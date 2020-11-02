@@ -104,11 +104,15 @@ MACRO(ENABLE_SANITIZERS)
     STRING(APPEND CMAKE_C_STANDARD_LIBRARIES " \"${${lib}_fullpath}\" ")
     STRING(APPEND CMAKE_CXX_STANDARD_LIBRARIES " \"${${lib}_fullpath}\" ")
   ENDFOREACH()
-
+  STRING(APPEND CMAKE_C_FLAGS ${SANITIZER_COMPILE_FLAGS})
+  STRING(APPEND CMAKE_CXX_FLAGS ${SANITIZER_COMPILE_FLAGS})
 ENDMACRO()
 
 
 IF(MSVC)
+  IF(MSVC_VERSION LESS 1920)
+    MESSAGE(FATAL_ERROR "Visual Studio q2019 or later is required")
+  ENDIF()
   # Disable mingw based pkg-config found in Strawberry perl
   SET(PKG_CONFIG_EXECUTABLE 0 CACHE INTERNAL "")
 
@@ -178,6 +182,9 @@ IF(MSVC)
 -Wno-deprecated-register -Wno-missing-braces \
 -Wno-unused-function -Wno-unused-local-typedef -msse4.2 "
     )
+    IF(CMAKE_SIZEOF_VOID_P MATCHES 8)
+      STRING(APPEND CLANG_CL_FLAGS "-mpclmul ")
+    ENDIF()
     STRING(APPEND CMAKE_C_FLAGS " ${CLANG_CL_FLAGS} ${MSVC_CRT_TYPE}")
     STRING(APPEND CMAKE_CXX_FLAGS " ${CLANG_CL_FLAGS}  ${MSVC_CRT_TYPE}")
   ENDIF()

@@ -52,18 +52,9 @@
 /*  External functions.                                                */
 /***********************************************************************/
 USETEMP UseTemp(void);
+bool    JsonAllPath(void);
+int     GetDefaultDepth(void);
 char   *GetJsonNull(void);
-
-//typedef struct _jncol {
-//  struct _jncol *Next;
-//  char *Name;
-//  char *Fmt;
-//  int   Type;
-//  int   Len;
-//  int   Scale;
-//  bool  Cbn;
-//  bool  Found;
-//} JCOL, *PJCL;
 
 /***********************************************************************/
 /* JSONColumns: construct the result blocks containing the description */
@@ -167,23 +158,20 @@ JSONDISC::JSONDISC(PGLOBAL g, uint *lg)
   jsp = NULL;
   row = NULL;
   sep = NULL;
-  i = n = bf = ncol = lvl = 0;
-  all = false;
+  i = n = bf = ncol = lvl = sz = 0;
+  all = strfy = false;
 } // end of JSONDISC constructor
 
 int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 {
   char filename[_MAX_PATH];
   bool mgo = (GetTypeID(topt->type) == TAB_MONGO);
-  PCSZ level = GetStringTableOption(g, topt, "Level", NULL);
 
-  if (level) {
-    lvl = atoi(level);
-    lvl = (lvl > 16) ? 16 : lvl;
-  } else
-    lvl = 0;
-
-  sep = GetStringTableOption(g, topt, "Separator", ".");
+	lvl = GetIntegerTableOption(g, topt, "Level", GetDefaultDepth());
+	lvl = GetIntegerTableOption(g, topt, "Depth", lvl);
+	sep = GetStringTableOption(g, topt, "Separator", ".");
+	sz = GetIntegerTableOption(g, topt, "Jsize", 1024);
+	strfy = GetBooleanTableOption(g, topt, "Stringify", false);
 
   /*********************************************************************/
   /*  Open the input file.                                             */
@@ -306,7 +294,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
     // Allocate the parse work memory
     PGLOBAL G = (PGLOBAL)PlugSubAlloc(g, NULL, sizeof(GLOBAL));
     memset(G, 0, sizeof(GLOBAL));
-    G->Sarea_Size = tdp->Lrecl * 10;
+    G->Sarea_Size = (size_t)tdp->Lrecl * 10;
     G->Sarea = PlugSubAlloc(g, NULL, G->Sarea_Size);
     PlugSubSet(G->Sarea, G->Sarea_Size);
     G->jump_level = 0;
@@ -403,7 +391,10 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
   PJAR   jar;
 
   if ((valp = jvp ? jvp->GetValue() : NULL)) {
-    jcol.Type = valp->GetType();
+		if (JsonAllPath() && !fmt[bf])
+			strcat(fmt, colname);
+
+		jcol.Type = valp->GetType();
     jcol.Len = valp->GetValLen();
     jcol.Scale = valp->GetValPrec();
     jcol.Cbn = valp->IsNull();
@@ -482,8 +473,16 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
     } // endswitch Type
 
   } else if (lvl >= 0) {
-    jcol.Type = TYPE_STRING;
-    jcol.Len = 256;
+		if (strfy) {
+			if (!fmt[bf])
+				strcat(fmt, colname);
+
+			strcat(fmt, ".*");
+		}	else if (JsonAllPath() && !fmt[bf])
+			strcat(fmt, colname);
+
+		jcol.Type = TYPE_STRING;
+    jcol.Len = sz;
     jcol.Scale = 0;
     jcol.Cbn = true;
   } else
@@ -1489,7 +1488,18 @@ PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp)
   if (Value->IsTypeNum()) {
     strcpy(g->Message, "Cannot make Json for a numeric column");
     Value->Reset();
-  } else
+	} else if (Value->GetType() == TYPE_BIN) {
+		if ((unsigned)Value->GetClen() >= sizeof(BSON)) {
+			ulong len = Tjp->Lrecl ? Tjp->Lrecl : 500;
+			PBSON bsp = JbinAlloc(g, NULL, len, jsp);
+
+			strcat(bsp->Msg, " column");
+			((BINVAL*)Value)->SetBinValue(bsp, sizeof(BSON));
+		} else {
+			strcpy(g->Message, "Column size too small");
+			Value->SetValue_char(NULL, 0);
+		} // endif Clen
+	}	else
     Value->SetValue_psz(Serialize(g, jsp, NULL, 0));
 
   return Value;
@@ -1985,8 +1995,9 @@ int TDBJSON::MakeNewDoc(PGLOBAL g)
 /***********************************************************************/
 int TDBJSON::MakeDocument(PGLOBAL g)
   {
-  char   *p, *memory, *objpath, *key = NULL;
+  char   *p, *p1, *p2, *memory, *objpath, *key = NULL;
   int     len, i = 0;
+	my_bool a;
   MODE    mode = Mode;
   PJSON   jsp;
   PJOB    objp = NULL;
@@ -2029,22 +2040,39 @@ int TDBJSON::MakeDocument(PGLOBAL g)
   if ((objpath = PlugDup(g, Objname))) {
     if (*objpath == '$') objpath++;
     if (*objpath == '.') objpath++;
+		p1 = (*objpath == '[') ? objpath++ : NULL;
 
     /*********************************************************************/
     /*  Find the table in the tree structure.                            */
     /*********************************************************************/
-    for (; jsp && objpath; objpath = p) {
-      if ((p = strchr(objpath, Sep)))
-        *p++ = 0;
+    for (p = objpath; jsp && p; p = (p2 ? p2 : NULL)) {
+			a = (p1 != NULL);
+			p1 = strchr(p, '[');
+			p2 = strchr(p, '.');
 
-      if (*objpath != '[' && !IsNum(objpath)) {
-        // objpass is a key
+			if (!p2)
+				p2 = p1;
+			else if (p1) {
+				if (p1 < p2)
+					p2 = p1;
+				else if (p1 == p2 + 1)
+					*p2++ = 0;		 // Old syntax .[
+				else
+					p1 = NULL;
+
+			}	// endif p1
+
+			if (p2)
+				*p2++ = 0;
+
+      if (!a && *p && *p != '[' && !IsNum(p)) {
+        // obj is a key
         if (jsp->GetType() != TYPE_JOB) {
           strcpy(g->Message, "Table path does not match the json file");
           return RC_FX;
         } // endif Type
 
-        key = objpath;
+        key = p;
         objp = jsp->GetObject();
         arp = NULL;
         val = objp->GetValue(key);
@@ -2055,15 +2083,15 @@ int TDBJSON::MakeDocument(PGLOBAL g)
         } // endif val
 
       } else {
-        if (*objpath == '[') {
+        if (*p == '[') {
           // Old style
-          if (objpath[strlen(objpath) - 1] != ']') {
-            sprintf(g->Message, "Invalid Table path %s", Objname);
+          if (p[strlen(p) - 1] != ']') {
+            sprintf(g->Message, "Invalid Table path near %s", p);
             return RC_FX;
           } else
-            objpath++;
+            p++;
 
-        } // endif objpath
+        } // endif p
 
         if (jsp->GetType() != TYPE_JAR) {
           strcpy(g->Message, "Table path does not match the json file");
@@ -2072,7 +2100,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
 
         arp = jsp->GetArray();
         objp = NULL;
-        i = atoi(objpath) - B;
+        i = atoi(p) - B;
         val = arp->GetValue(i);
 
         if (!val) {
@@ -2083,7 +2111,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
       } // endif
 
       jsp = val->GetJson();
-    } // endfor objpath
+    } // endfor p
 
   } // endif objpath
 

@@ -71,16 +71,8 @@ buffer_flush_neighbor	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NU
 buffer_flush_neighbor_pages	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	set_member	Pages queued as a neighbor batch
 buffer_flush_n_to_flush_requested	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of pages requested for flushing.
 buffer_flush_n_to_flush_by_age	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of pages target by LSN Age for flushing.
-buffer_flush_adaptive_avg_time_slot	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Avg time (ms) spent for adaptive flushing recently per slot.
-buffer_LRU_batch_flush_avg_time_slot	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Avg time (ms) spent for LRU batch flushing recently per slot.
-buffer_flush_adaptive_avg_time_thread	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Avg time (ms) spent for adaptive flushing recently per thread.
-buffer_LRU_batch_flush_avg_time_thread	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Avg time (ms) spent for LRU batch flushing recently per thread.
-buffer_flush_adaptive_avg_time_est	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Estimated time (ms) spent for adaptive flushing recently.
-buffer_LRU_batch_flush_avg_time_est	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Estimated time (ms) spent for LRU batch flushing recently.
-buffer_flush_avg_time	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Avg time (ms) spent for flushing recently.
+buffer_flush_adaptive_avg_time	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Avg time (ms) spent for adaptive flushing recently.
 buffer_flush_adaptive_avg_pass	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of adaptive flushes passed during the recent Avg period.
-buffer_LRU_batch_flush_avg_pass	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of LRU batch flushes passed during the recent Avg period.
-buffer_flush_avg_pass	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of flushes passed during the recent Avg period.
 buffer_LRU_get_free_loops	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Total loops in LRU get free.
 buffer_LRU_get_free_waits	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Total sleep waits in LRU get free.
 buffer_flush_avg_page_rate	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Average number of pages at which flushing is happening
@@ -106,9 +98,6 @@ buffer_LRU_batch_flush_pages	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	
 buffer_LRU_batch_evict_total_pages	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	set_owner	Total pages evicted as part of LRU batches
 buffer_LRU_batches_evict	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	set_member	Number of LRU batches
 buffer_LRU_batch_evict_pages	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	set_member	Pages queued as an LRU batch
-buffer_LRU_single_flush_scanned	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	set_owner	Total pages scanned as part of single page LRU flush
-buffer_LRU_single_flush_num_scan	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	set_member	Number of times single page LRU flush is called
-buffer_LRU_single_flush_scanned_per_call	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	set_member	Page scanned per single LRU flush
 buffer_LRU_single_flush_failure_count	Buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of times attempt to flush a single page from LRU failed
 buffer_LRU_get_free_search	Buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of searches performed for a clean page
 buffer_LRU_search_scanned	buffer	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	set_owner	Total pages scanned as part of LRU search
@@ -183,7 +172,6 @@ log_lsn_current	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0
 log_lsn_checkpoint_age	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Current LSN value minus LSN at last checkpoint
 log_lsn_buf_pool_oldest	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	The oldest modified block LSN in the buffer pool
 log_max_modified_age_async	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Maximum LSN difference; when exceeded, start asynchronous preflush
-log_max_modified_age_sync	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Maximum LSN difference; when exceeded, start synchronous preflush
 log_pending_log_flushes	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Pending log flushes
 log_pending_checkpoint_writes	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Pending checkpoints
 log_num_log_io	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Number of log I/Os
@@ -234,7 +222,6 @@ innodb_log_flush_usec	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NU
 innodb_dict_lru_usec	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Time (in microseconds) spent to process DICT LRU list
 innodb_dict_lru_count_active	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of tables evicted from DICT LRU list in the active loop
 innodb_dict_lru_count_idle	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of tables evicted from DICT LRU list in the idle loop
-innodb_checkpoint_usec	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Time (in microseconds) spent by master thread to do checkpoint
 innodb_dblwr_writes	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of doublewrite operations that have been performed (innodb_dblwr_writes)
 innodb_dblwr_pages_written	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of pages that have been written for doublewrite operations (innodb_dblwr_pages_written)
 innodb_page_size	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	InnoDB page size in bytes (innodb_page_size)

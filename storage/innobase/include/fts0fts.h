@@ -316,18 +316,10 @@ public:
 	/** fts_t destructor. */
 	~fts_t();
 
-	/** Mutex protecting bg_threads* and fts_add_wq. */
-	ib_mutex_t	bg_threads_mutex;
-
-	/** Whether the ADDED table record sync-ed after
-	crash recovery; protected by bg_threads_mutex */
+	/** Whether the ADDED table record sync-ed after crash recovery */
 	unsigned	added_synced:1;
-	/** Whether the table holds dict_sys.mutex;
-	protected by bg_threads_mutex */
+	/** Whether the table holds dict_sys.mutex */
 	unsigned	dict_locked:1;
-
-	/** Number of background threads accessing this table. */
-	ulint		bg_threads;
 
 	/** Work queue for scheduling jobs for the FTS 'Add' thread, or NULL
 	if the thread has not yet been created. Each work item is a

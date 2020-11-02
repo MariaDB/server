@@ -1635,7 +1635,7 @@ i_s_cmpmem_fill_low(
 	buf_buddy_stat_t	buddy_stat_local[BUF_BUDDY_SIZES_MAX + 1];
 
 	/* Save buddy stats for buffer pool in local variables. */
-	mutex_enter(&buf_pool.mutex);
+	mysql_mutex_lock(&buf_pool.mutex);
 
 	for (uint x = 0; x <= BUF_BUDDY_SIZES; x++) {
 		zip_free_len_local[x] = (x < BUF_BUDDY_SIZES) ?
@@ -1650,7 +1650,7 @@ i_s_cmpmem_fill_low(
 		}
 	}
 
-	mutex_exit(&buf_pool.mutex);
+	mysql_mutex_unlock(&buf_pool.mutex);
 
 	for (uint x = 0; x <= BUF_BUDDY_SIZES; x++) {
 		buf_buddy_stat_t* buddy_stat = &buddy_stat_local[x];
@@ -4270,7 +4270,7 @@ static int i_s_innodb_buffer_page_fill(THD *thd, TABLE_LIST *tables, Item *)
 			buffer pool info printout, we are not required to
 			preserve the overall consistency, so we can
 			release mutex periodically */
-			mutex_enter(&buf_pool.mutex);
+			mysql_mutex_lock(&buf_pool.mutex);
 
 			/* GO through each block in the chunk */
 			for (n_blocks = num_to_process; n_blocks--; block++) {
@@ -4281,7 +4281,7 @@ static int i_s_innodb_buffer_page_fill(THD *thd, TABLE_LIST *tables, Item *)
 				num_page++;
 			}
 
-			mutex_exit(&buf_pool.mutex);
+			mysql_mutex_unlock(&buf_pool.mutex);
 
 			/* Fill in information schema table with information
 			just collected from the buffer chunk scan */
@@ -4604,7 +4604,7 @@ static int i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item *)
 
 	/* Aquire the mutex before allocating info_buffer, since
 	UT_LIST_GET_LEN(buf_pool.LRU) could change */
-	mutex_enter(&buf_pool.mutex);
+	mysql_mutex_lock(&buf_pool.mutex);
 
 	lru_len = UT_LIST_GET_LEN(buf_pool.LRU);
 
@@ -4636,7 +4636,7 @@ static int i_s_innodb_fill_buffer_lru(THD *thd, TABLE_LIST *tables, Item *)
 	ut_ad(lru_pos == UT_LIST_GET_LEN(buf_pool.LRU));
 
 exit:
-	mutex_exit(&buf_pool.mutex);
+	mysql_mutex_unlock(&buf_pool.mutex);
 
 	if (info_buffer) {
 		status = i_s_innodb_buf_page_lru_fill(
@@ -5037,33 +5037,39 @@ i_s_dict_fill_sys_tablestats(
 	OK(field_store_string(fields[SYS_TABLESTATS_NAME],
 			      table->name.m_name));
 
-	rw_lock_s_lock(&table->stats_latch);
+	{
+		struct Locking
+		{
+			Locking() { mutex_enter(&dict_sys.mutex); }
+			~Locking() { mutex_exit(&dict_sys.mutex); }
+		} locking;
 
-	OK(fields[SYS_TABLESTATS_INIT]->store(table->stat_initialized, true));
-
-	if (table->stat_initialized) {
-		OK(fields[SYS_TABLESTATS_NROW]->store(table->stat_n_rows,
+		OK(fields[SYS_TABLESTATS_INIT]->store(table->stat_initialized,
 						      true));
 
-		OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(
-			   table->stat_clustered_index_size, true));
+		if (table->stat_initialized) {
+			OK(fields[SYS_TABLESTATS_NROW]->store(
+				   table->stat_n_rows, true));
 
-		OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(
-			   table->stat_sum_of_other_index_sizes, true));
+			OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(
+				   table->stat_clustered_index_size, true));
 
-		OK(fields[SYS_TABLESTATS_MODIFIED]->store(
-			   table->stat_modified_counter, true));
-	} else {
-		OK(fields[SYS_TABLESTATS_NROW]->store(0, true));
+			OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(
+				   table->stat_sum_of_other_index_sizes,
+				   true));
 
-		OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(0, true));
+			OK(fields[SYS_TABLESTATS_MODIFIED]->store(
+				   table->stat_modified_counter, true));
+		} else {
+			OK(fields[SYS_TABLESTATS_NROW]->store(0, true));
 
-		OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(0, true));
+			OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(0, true));
 
-		OK(fields[SYS_TABLESTATS_MODIFIED]->store(0, true));
+			OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(0, true));
+
+			OK(fields[SYS_TABLESTATS_MODIFIED]->store(0, true));
+		}
 	}
-
-	rw_lock_s_unlock(&table->stats_latch);
 
 	OK(fields[SYS_TABLESTATS_AUTONINC]->store(table->autoinc, true));
 
@@ -6551,7 +6557,7 @@ i_s_dict_fill_sys_tablespaces(
 	memset(&file, 0xff, sizeof(file));
 	memset(&stat, 0x0, sizeof(stat));
 
-	if (fil_space_t* s = fil_space_acquire_silent(space)) {
+	if (fil_space_t* s = fil_space_t::get(space)) {
 		const char *filepath = s->chain.start
 			? s->chain.start->name : NULL;
 		if (!filepath) {
@@ -7044,11 +7050,13 @@ i_s_tablespaces_encryption_fill_table(
 	}
 
 	mutex_enter(&fil_system.mutex);
+	fil_system.freeze_space_list++;
 
 	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
 	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
 		if (space->purpose == FIL_TYPE_TABLESPACE
-		    && space->acquire()) {
+		    && !space->is_stopping()) {
+			space->reacquire();
 			mutex_exit(&fil_system.mutex);
 			if (int err = i_s_dict_fill_tablespaces_encryption(
 				    thd, space, tables->table)) {
@@ -7060,6 +7068,7 @@ i_s_tablespaces_encryption_fill_table(
 		}
 	}
 
+	fil_system.freeze_space_list--;
 	mutex_exit(&fil_system.mutex);
 	DBUG_RETURN(0);
 }
@@ -7177,32 +7186,7 @@ i_s_innodb_mutexes_fill_table(
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, PROCESS_ACL)) {
 		DBUG_RETURN(0);
-	}
-
-	// mutex_enter(&mutex_list_mutex);
-
-#ifdef JAN_TODO_FIXME
-	ib_mutex_t*	mutex;
-	for (mutex = UT_LIST_GET_FIRST(os_mutex_list); mutex != NULL;
-	     mutex = UT_LIST_GET_NEXT(list, mutex)) {
-		if (mutex->count_os_wait == 0) {
-			continue;
-		}
-
-		OK(field_store_string(fields[MUTEXES_NAME], mutex->cmutex_name));
-		OK(field_store_string(fields[MUTEXES_CREATE_FILE],
-				      innobase_basename(mutex->cfile_name)));
-		OK(fields[MUTEXES_CREATE_LINE]->store(lock->cline, true));
-		fields[MUTEXES_CREATE_LINE]->set_notnull();
-		OK(fields[MUTEXES_OS_WAITS]->store(lock->count_os_wait, true));
-		fields[MUTEXES_OS_WAITS]->set_notnull();
-		OK(schema_table_store_record(thd, tables->table));
-	}
-
-	mutex_exit(&mutex_list_mutex);
-#endif /* JAN_TODO_FIXME */
-
-	{
+	} else {
 		struct Locking
 		{
 			Locking() { mutex_enter(&rw_lock_list_mutex); }

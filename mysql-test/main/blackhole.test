@@ -38,3 +38,19 @@ SELECT 0 FROM t1 FORCE INDEX FOR GROUP BY(a) WHERE a = 0 OR b = 0 AND c = 0;
 DROP TABLE t1;
 
 --echo End of 5.6 tests
+
+#
+# MDEV-24017 / bug 53588 test case.
+#
+# Create long enough index (between 1000 and 3500). 1000 is the old value,
+# 3500 is innodb value (see ha_innobase::max_supported_key_length()). Without
+# the fix the test will fail with "Specified key was too long" error.
+#
+CREATE TABLE `t` (
+  `a` varchar(3000) NOT NULL default '',
+  PRIMARY KEY  (`a`)
+) ENGINE=BLACKHOLE;
+
+DROP TABLE `t`;
+
+--echo End of 10.1 tests

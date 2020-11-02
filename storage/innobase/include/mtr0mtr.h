@@ -106,7 +106,7 @@ struct mtr_t {
   /** Commit a mini-transaction that did not modify any pages,
   but generated some redo log on a higher level, such as
   FILE_MODIFY records and an optional FILE_CHECKPOINT marker.
-  The caller must invoke log_mutex_enter() and log_mutex_exit().
+  The caller must hold log_sys.mutex.
   This is to be used at log_checkpoint().
   @param checkpoint_lsn   the log sequence number of a checkpoint, or 0 */
   void commit_files(lsn_t checkpoint_lsn= 0);
@@ -628,8 +628,8 @@ private:
 
   /** Append the redo log records to the redo log buffer.
   @param len   number of bytes to write
-  @return start_lsn */
-  inline lsn_t finish_write(ulint len);
+  @return {start_lsn,flush_ahead} */
+  inline std::pair<lsn_t,bool> finish_write(ulint len);
 
   /** Release the resources */
   inline void release_resources();

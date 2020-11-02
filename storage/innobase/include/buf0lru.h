@@ -34,27 +34,15 @@ Created 11/5/1995 Heikki Tuuri
 struct trx_t;
 struct fil_space_t;
 
+/** Flush this many pages in buf_LRU_get_free_block() */
+extern size_t innodb_lru_flush_size;
+
 /*#######################################################################
 These are low-level functions
 #########################################################################*/
 
 /** Minimum LRU list length for which the LRU_old pointer is defined */
 #define BUF_LRU_OLD_MIN_LEN	512	/* 8 megabytes of 16k pages */
-
-/** Empty the flush list for all pages belonging to a tablespace.
-@param[in]	id		tablespace identifier
-@param[in]	flush		whether to write the pages to files
-@param[in]	first		first page to be flushed or evicted */
-void buf_LRU_flush_or_remove_pages(ulint id, bool flush, ulint first = 0);
-
-#ifdef UNIV_DEBUG
-/********************************************************************//**
-Insert a compressed block into buf_pool.zip_clean in the LRU order. */
-void
-buf_LRU_insert_zip_clean(
-/*=====================*/
-	buf_page_t*	bpage);	/*!< in: pointer to the block in question */
-#endif /* UNIV_DEBUG */
 
 /** Try to free a block. If bpage is a descriptor of a compressed-only
 ROW_FORMAT=COMPRESSED page, the buf_page_t object will be freed as well.
@@ -67,38 +55,34 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
   MY_ATTRIBUTE((nonnull));
 
 /** Try to free a replaceable block.
-@param[in]	scan_all	true=scan the whole LRU list,
-				false=use BUF_LRU_SEARCH_SCAN_THRESHOLD
+@param limit  maximum number of blocks to scan
 @return true if found and freed */
-bool buf_LRU_scan_and_free_block(bool scan_all);
+bool buf_LRU_scan_and_free_block(ulint limit= ULINT_UNDEFINED);
 
 /** @return a buffer block from the buf_pool.free list
 @retval	NULL	if the free list is empty */
 buf_block_t* buf_LRU_get_free_only();
 
-/** Get a free block from the buf_pool. The block is taken off the
-free list. If free list is empty, blocks are moved from the end of the
-LRU list to the free list.
+/** Get a block from the buf_pool.free list.
+If the list is empty, blocks will be moved from the end of buf_pool.LRU
+to buf_pool.free.
 
 This function is called from a user thread when it needs a clean
 block to read in a page. Note that we only ever get a block from
 the free list. Even when we flush a page or find a page in LRU scan
 we put it to free list to be used.
 * iteration 0:
-  * get a block from free list, success:done
+  * get a block from the buf_pool.free list, success:done
   * if buf_pool.try_LRU_scan is set
-    * scan LRU up to srv_LRU_scan_depth to find a clean block
-    * the above will put the block on free list
+    * scan LRU up to 100 pages to free a clean block
     * success:retry the free list
-  * flush one dirty page from tail of LRU to disk
-    * the above will put the block on free list
+  * flush up to innodb_lru_flush_size LRU blocks to data files
+    (until UT_LIST_GET_GEN(buf_pool.free) < innodb_lru_scan_depth)
+    * on buf_page_write_complete() the blocks will put on buf_pool.free list
     * success: retry the free list
-* iteration 1:
-  * same as iteration 0 except:
-    * scan whole LRU list
-    * scan LRU list even if buf_pool.try_LRU_scan is not set
-* iteration > 1:
-  * same as iteration 1 but sleep 10ms
+* subsequent iterations: same as iteration 0 except:
+  * scan whole LRU list
+  * scan LRU list even if buf_pool.try_LRU_scan is not set
 
 @param have_mutex  whether buf_pool.mutex is already being held
 @return the free control block, in state BUF_BLOCK_MEMORY */

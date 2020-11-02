@@ -35,7 +35,6 @@ Created 12/9/1995 Heikki Tuuri
 #define log0log_h
 
 #include "log0types.h"
-#include "ut0mutex.h"
 #include "os0file.h"
 #include "span.h"
 #include <atomic>
@@ -88,49 +87,11 @@ log_free_check(void);
 @param[in]	len	requested minimum size in bytes */
 void log_buffer_extend(ulong len);
 
-/** Check margin not to overwrite transaction log from the last checkpoint.
-If would estimate the log write to exceed the log_capacity,
-waits for the checkpoint is done enough.
-@param[in]	len	length of the data to be written */
-
-void
-log_margin_checkpoint_age(
-	ulint	len);
-
-/** Open the log for log_write_low. The log must be closed with log_close.
-@param[in]	len	length of the data to be written
-@return start lsn of the log record */
-lsn_t
-log_reserve_and_open(
-	ulint	len);
-/************************************************************//**
-Writes to the log the string given. It is assumed that the caller holds the
-log mutex. */
-void
-log_write_low(
-/*==========*/
-	const byte*	str,		/*!< in: string */
-	ulint		str_len);	/*!< in: string length */
-/************************************************************//**
-Closes the log.
-@return lsn */
-lsn_t
-log_close(void);
-/*===========*/
 /** Read the current LSN. */
 #define log_get_lsn() log_sys.get_lsn()
 
 /** Read the durable LSN */
 #define log_get_flush_lsn() log_sys.get_flushed_lsn()
-
-/****************************************************************
-Get log_sys::max_modified_age_async. It is OK to read the value without
-holding log_sys::mutex because it is constant.
-@return max_modified_age_async */
-UNIV_INLINE
-lsn_t
-log_get_max_modified_age_async(void);
-/*================================*/
 
 /** Calculate the recommended highest values for lsn - last_checkpoint_lsn
 and lsn - buf_pool.get_oldest_modification().
@@ -159,30 +120,22 @@ void
 log_buffer_flush_to_disk(
 	bool sync = true);
 
-/** Make a checkpoint. Note that this function does not flush dirty
-blocks from the buffer pool: it only checks what is lsn of the oldest
-modification in the pool, and writes information about the lsn in
-log file. Use log_make_checkpoint() to flush also the pool.
-@return true if success, false if a checkpoint write was already running */
-bool log_checkpoint();
-
 /** Make a checkpoint */
-void log_make_checkpoint();
+ATTRIBUTE_COLD void log_make_checkpoint();
 
 /** Make a checkpoint at the latest lsn on shutdown. */
-void logs_empty_and_mark_files_at_shutdown();
+ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown();
 
-/** Write checkpoint info to the log header and invoke log_mutex_exit().
+/** Write checkpoint info to the log header and release log_sys.mutex.
 @param[in]	end_lsn	start LSN of the FILE_CHECKPOINT mini-transaction */
-void log_write_checkpoint_info(lsn_t end_lsn);
+ATTRIBUTE_COLD void log_write_checkpoint_info(lsn_t end_lsn);
 
 /**
 Checks that there is enough free space in the log to start a new query step.
 Flushes the log buffer or makes a new checkpoint if necessary. NOTE: this
 function may only be called if the calling thread owns no synchronization
 objects! */
-void
-log_check_margins(void);
+ATTRIBUTE_COLD void log_check_margins();
 
 /************************************************************//**
 Gets a log block flush bit.
@@ -395,9 +348,6 @@ or the MySQL version that created the redo log file. */
 					header */
 #define LOG_FILE_HDR_SIZE	(4 * OS_FILE_LOG_BLOCK_SIZE)
 
-typedef ib_mutex_t	LogSysMutex;
-typedef ib_mutex_t	FlushOrderMutex;
-
 /** Memory mapped file */
 class mapped_file_t
 {
@@ -517,37 +467,32 @@ struct log_t{
 
 private:
   /** The log sequence number of the last change of durable InnoDB files */
-  MY_ALIGNED(CACHE_LINE_SIZE)
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)
   std::atomic<lsn_t> lsn;
   /** the first guaranteed-durable log sequence number */
   std::atomic<lsn_t> flushed_to_disk_lsn;
-public:
-  /** first free offset within the log buffer in use */
-  size_t buf_free;
-private:
   /** set when there may be need to flush the log buffer, or
   preflush buffer pool pages, or initiate a log checkpoint.
   This must hold if lsn - last_checkpoint_lsn > max_checkpoint_age. */
   std::atomic<bool> check_flush_or_checkpoint_;
 public:
-
   /** mutex protecting the log */
-  MY_ALIGNED(CACHE_LINE_SIZE)
-  LogSysMutex mutex;
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t mutex;
+  /** first free offset within the log buffer in use */
+  size_t buf_free;
+  /** recommended maximum size of buf, after which the buffer is flushed */
+  size_t max_buf_free;
   /** mutex to serialize access to the flush list when we are putting
   dirty blocks in the list. The idea behind this mutex is to be able
   to release log_sys.mutex during mtr_commit and still ensure that
   insertions in the flush_list happen in the LSN order. */
-  MY_ALIGNED(CACHE_LINE_SIZE) FlushOrderMutex
-  log_flush_order_mutex;
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t flush_order_mutex;
   /** log_buffer, append data here */
   byte *buf;
   /** log_buffer, writing data to file from this buffer.
   Before flushing write_buf is swapped with flush_buf */
   byte *flush_buf;
-  /** recommended maximum size of buf, after which the buffer is flushed */
-  size_t max_buf_free;
-  /** Log file stuff. Protected by mutex or write_mutex. */
+  /** Log file stuff. Protected by mutex. */
   struct file {
     /** format of the redo log: e.g., FORMAT_10_5 */
     uint32_t				format;
@@ -664,17 +609,6 @@ public:
 					buf_pool.get_oldest_modification()
 					is exceeded, we start an
 					asynchronous preflush of pool pages */
-	lsn_t		max_modified_age_sync;
-					/*!< when this recommended
-					value for lsn -
-					buf_pool.get_oldest_modification()
-					is exceeded, we start a
-					synchronous preflush of pool pages */
-	lsn_t		max_checkpoint_age_async;
-					/*!< when this checkpoint age
-					is exceeded we start an
-					asynchronous writing of a new
-					checkpoint */
 	lsn_t		max_checkpoint_age;
 					/*!< this is the maximum allowed value
 					for lsn - last_checkpoint_lsn when a
@@ -721,7 +655,10 @@ public:
   { flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed); }
 
   bool check_flush_or_checkpoint() const
-  { return check_flush_or_checkpoint_.load(std::memory_order_relaxed); }
+  {
+    return UNIV_UNLIKELY
+      (check_flush_or_checkpoint_.load(std::memory_order_relaxed));
+  }
   void set_check_flush_or_checkpoint(bool flag= true)
   { check_flush_or_checkpoint_.store(flag, std::memory_order_relaxed); }
 
@@ -784,11 +721,6 @@ extern log_t	log_sys;
 extern bool log_write_lock_own();
 #endif
 
-/** Gets the log capacity. It is OK to read the value without
-holding log_sys.mutex because it is constant.
-@return log capacity */
-inline lsn_t log_get_capacity(void) { return log_sys.log_capacity; }
-
 /** Calculate the offset of a log sequence number.
 @param[in]     lsn     log sequence number
 @return offset within the log */
@@ -797,7 +729,9 @@ inline lsn_t log_t::file::calc_lsn_offset(lsn_t lsn) const
   ut_ad(this == &log_sys.log);
   /* The lsn parameters are updated while holding both the mutexes
   and it is ok to have either of them while reading */
-  ut_ad(log_sys.mutex.is_owned() || log_write_lock_own());
+#ifdef SAFE_MUTEX
+  ut_ad(mysql_mutex_is_owner(&log_sys.mutex) || log_write_lock_own());
+#endif /* SAFE_MUTEX */
   const lsn_t size = capacity();
   lsn_t l= lsn - this->lsn;
   if (longlong(l) < 0) {
@@ -810,40 +744,22 @@ inline lsn_t log_t::file::calc_lsn_offset(lsn_t lsn) const
   return l + LOG_FILE_HDR_SIZE * (1 + l / (file_size - LOG_FILE_HDR_SIZE));
 }
 
-inline void log_t::file::set_lsn(lsn_t a_lsn) {
-      ut_ad(log_sys.mutex.is_owned() || log_write_lock_own());
-      lsn = a_lsn;
+inline void log_t::file::set_lsn(lsn_t a_lsn)
+{
+#ifdef SAFE_MUTEX
+  ut_ad(mysql_mutex_is_owner(&log_sys.mutex) || log_write_lock_own());
+#endif /* SAFE_MUTEX */
+  lsn= a_lsn;
 }
 
-inline void log_t::file::set_lsn_offset(lsn_t a_lsn) {
-      ut_ad(log_sys.mutex.is_owned() || log_write_lock_own());
-      ut_ad((lsn % OS_FILE_LOG_BLOCK_SIZE) == (a_lsn % OS_FILE_LOG_BLOCK_SIZE));
-      lsn_offset = a_lsn;
+inline void log_t::file::set_lsn_offset(lsn_t a_lsn)
+{
+#ifdef SAFE_MUTEX
+  ut_ad(mysql_mutex_is_owner(&log_sys.mutex) || log_write_lock_own());
+#endif /* SAFE_MUTEX */
+  ut_ad((lsn % OS_FILE_LOG_BLOCK_SIZE) == (a_lsn % OS_FILE_LOG_BLOCK_SIZE));
+  lsn_offset= a_lsn;
 }
-
-/** Test if flush order mutex is owned. */
-#define log_flush_order_mutex_own()			\
-	mutex_own(&log_sys.log_flush_order_mutex)
-
-/** Acquire the flush order mutex. */
-#define log_flush_order_mutex_enter() do {		\
-	mutex_enter(&log_sys.log_flush_order_mutex);	\
-} while (0)
-/** Release the flush order mutex. */
-# define log_flush_order_mutex_exit() do {		\
-	mutex_exit(&log_sys.log_flush_order_mutex);	\
-} while (0)
-
-/** Test if log sys mutex is owned. */
-#define log_mutex_own() mutex_own(&log_sys.mutex)
-
-
-/** Acquire the log sys mutex. */
-#define log_mutex_enter() mutex_enter(&log_sys.mutex)
-
-
-/** Release the log sys mutex. */
-#define log_mutex_exit() mutex_exit(&log_sys.mutex)
 
 #include "log0log.ic"
 

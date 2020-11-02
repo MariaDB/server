@@ -165,6 +165,7 @@ endif
 	# load from the libmariadb path as well
 	ln -s ../../../mysql/plugin/auth_test_plugin.so $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb3/plugin/auth_test_plugin.so
 	ln -s ../../../mysql/plugin/qa_auth_interface.so $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb3/plugin/qa_auth_interface.so
+	ln -s ../../../mysql/plugin/test_sql_service.so $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb3/plugin/test_sql_service.so
 	# Move test plugins that are only needed by the client to the libmariadb path
 	mv -v $(TMP)/usr/lib/mysql/plugin/qa_auth_client.so $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadb3/plugin/
 

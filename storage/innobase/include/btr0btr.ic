@@ -90,7 +90,7 @@ the child page number. In other words offsets must have been retrieved
 with rec_get_offsets(n_fields=ULINT_UNDEFINED).
 @return child node address */
 UNIV_INLINE
-ulint
+uint32_t
 btr_node_ptr_get_child_page_no(
 /*===========================*/
 	const rec_t*	rec,	/*!< in: node pointer record */
@@ -98,7 +98,6 @@ btr_node_ptr_get_child_page_no(
 {
 	const byte*	field;
 	ulint		len;
-	ulint		page_no;
 
 	ut_ad(!rec_offs_comp(offsets) || rec_get_node_ptr_flag(rec));
 
@@ -108,7 +107,7 @@ btr_node_ptr_get_child_page_no(
 
 	ut_ad(len == 4);
 
-	page_no = mach_read_from_4(field);
+	uint32_t page_no = mach_read_from_4(field);
 	ut_ad(page_no > 1);
 
 	return(page_no);

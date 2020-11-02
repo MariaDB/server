@@ -528,6 +528,7 @@ DROP TABLE merge_t;
 
 SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '{"c":"d"}');
 SELECT JSON_MERGE_PATCH(NULL, '[1,2,3]');
+SELECT JSON_MERGE_PATCH(NULL, 'a');
 SELECT JSON_MERGE_PATCH('{"a":"b"}', NULL, '[1,2,3]', '{"c":null,"d":"e"}');
 
 --error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
@@ -849,6 +850,10 @@ INSERT INTO t1 VALUES (0, 'a1', '1') , (0, 'a2', '2') , (1, 'b1', '3');
 EXPLAIN SELECT B.e, JSON_OBJECTAGG(B.a, B.v) FROM t1 A, t1 B GROUP BY B.e, B.a;
 SELECT B.e, JSON_OBJECTAGG(B.a, B.v) FROM t1 A, t1 B GROUP BY B.e, B.a;
 
+CREATE VIEW v AS SELECT JSON_OBJECTAGG(a, e) FROM t1;
+SELECT * FROM v;
+
+DROP VIEW v;
 DROP TABLE t1;
 
 --echo #

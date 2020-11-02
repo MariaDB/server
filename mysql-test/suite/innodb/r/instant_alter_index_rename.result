@@ -198,3 +198,39 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
 DROP FUNCTION get_index_id;
+#
+# MDEV-23356 InnoDB: Failing assertion: field->col->mtype == type, crash or ASAN failures in row_sel_convert_mysql_key_to_innobase, InnoDB indexes are inconsistent after INDEX changes
+#
+CREATE TABLE t1 (a INT, b INT, c CHAR(8),
+KEY ind1(c), KEY ind2(b)) ENGINE=InnoDB STATS_PERSISTENT=1;
+INSERT INTO t1 SELECT 1, 1, 'a' FROM seq_1_to_100;
+SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
+table_name	index_name	stat_name
+t1	GEN_CLUST_INDEX	n_diff_pfx01
+t1	GEN_CLUST_INDEX	n_leaf_pages
+t1	GEN_CLUST_INDEX	size
+t1	ind1	n_diff_pfx01
+t1	ind1	n_diff_pfx02
+t1	ind1	n_leaf_pages
+t1	ind1	size
+t1	ind2	n_diff_pfx01
+t1	ind2	n_diff_pfx02
+t1	ind2	n_leaf_pages
+t1	ind2	size
+ALTER TABLE t1 DROP INDEX ind2, ADD INDEX ind3(b),
+DROP INDEX ind1, ADD INDEX ind2(c);
+SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
+table_name	index_name	stat_name
+t1	GEN_CLUST_INDEX	n_diff_pfx01
+t1	GEN_CLUST_INDEX	n_leaf_pages
+t1	GEN_CLUST_INDEX	size
+t1	ind2	n_diff_pfx01
+t1	ind2	n_diff_pfx02
+t1	ind2	n_leaf_pages
+t1	ind2	size
+t1	ind3	n_diff_pfx01
+t1	ind3	n_diff_pfx02
+t1	ind3	n_leaf_pages
+t1	ind3	size
+UPDATE t1 SET a = 1 WHERE c = 'foo';
+DROP TABLE t1;

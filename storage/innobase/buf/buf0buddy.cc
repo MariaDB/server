@@ -192,7 +192,7 @@ static bool buf_buddy_check_free(const buf_buddy_free_t* buf, ulint i)
 {
 	const ulint	size	= BUF_BUDDY_LOW << i;
 
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 	ut_ad(!ut_align_offset(buf, size));
 	ut_ad(i >= buf_buddy_get_slot(UNIV_ZIP_SIZE_MIN));
 
@@ -261,7 +261,7 @@ UNIV_INLINE
 void
 buf_buddy_add_to_free(buf_buddy_free_t* buf, ulint i)
 {
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 	ut_ad(buf_pool.zip_free[i].start != buf);
 
 	buf_buddy_stamp_free(buf, i);
@@ -276,7 +276,7 @@ UNIV_INLINE
 void
 buf_buddy_remove_from_free(buf_buddy_free_t* buf, ulint i)
 {
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 	ut_ad(buf_buddy_check_free(buf, i));
 
 	UT_LIST_REMOVE(buf_pool.zip_free[i], buf);
@@ -290,7 +290,7 @@ static buf_buddy_free_t* buf_buddy_alloc_zip(ulint i)
 {
 	buf_buddy_free_t*	buf;
 
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 	ut_a(i < BUF_BUDDY_SIZES);
 	ut_a(i >= buf_buddy_get_slot(UNIV_ZIP_SIZE_MIN));
 
@@ -319,7 +319,7 @@ static buf_buddy_free_t* buf_buddy_alloc_zip(ulint i)
 		if (buf) {
 			buf_buddy_free_t* buddy =
 				reinterpret_cast<buf_buddy_free_t*>(
-					buf->stamp.bytes
+					reinterpret_cast<byte*>(buf)
 					+ (BUF_BUDDY_LOW << i));
 			ut_ad(!buf_pool.contains_zip(buddy));
 			buf_buddy_add_to_free(buddy, i);
@@ -350,7 +350,7 @@ buf_buddy_block_free(void* buf)
 	buf_page_t*	bpage;
 	buf_block_t*	block;
 
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 	ut_a(!ut_align_offset(buf, srv_page_size));
 
 	HASH_SEARCH(hash, &buf_pool.zip_hash, fold, buf_page_t*, bpage,
@@ -433,7 +433,7 @@ byte *buf_buddy_alloc_low(ulint i, bool *lru)
 {
 	buf_block_t*	block;
 
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 	ut_ad(i >= buf_buddy_get_slot(UNIV_ZIP_SIZE_MIN));
 
 	if (i < BUF_BUDDY_SIZES) {
@@ -480,19 +480,17 @@ static bool buf_buddy_relocate(void* src, void* dst, ulint i, bool force)
 {
 	buf_page_t*	bpage;
 	const ulint	size = BUF_BUDDY_LOW << i;
-	ulint		space;
-	ulint		offset;
 
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 	ut_ad(!ut_align_offset(src, size));
 	ut_ad(!ut_align_offset(dst, size));
 	ut_ad(i >= buf_buddy_get_slot(UNIV_ZIP_SIZE_MIN));
 	MEM_CHECK_ADDRESSABLE(dst, size);
 
-	space	= mach_read_from_4((const byte*) src
-				   + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
-	offset	= mach_read_from_4((const byte*) src
-				   + FIL_PAGE_OFFSET);
+	uint32_t space = mach_read_from_4(static_cast<const byte*>(src)
+					  + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+	uint32_t offset = mach_read_from_4(static_cast<const byte*>(src)
+					   + FIL_PAGE_OFFSET);
 
 	/* Suppress Valgrind or MSAN warnings. */
 	MEM_MAKE_DEFINED(&space, sizeof space);
@@ -584,7 +582,7 @@ void buf_buddy_free_low(void* buf, ulint i)
 {
 	buf_buddy_free_t*	buddy;
 
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 	ut_ad(i <= BUF_BUDDY_SIZES);
 	ut_ad(i >= buf_buddy_get_slot(UNIV_ZIP_SIZE_MIN));
 	ut_ad(buf_pool.buddy_stat[i].used > 0);
@@ -670,7 +668,7 @@ buf_buddy_realloc(void* buf, ulint size)
 	buf_block_t*	block = NULL;
 	ulint		i = buf_buddy_get_slot(size);
 
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 	ut_ad(i <= BUF_BUDDY_SIZES);
 	ut_ad(i >= buf_buddy_get_slot(UNIV_ZIP_SIZE_MIN));
 
@@ -711,7 +709,7 @@ buf_buddy_realloc(void* buf, ulint size)
 /** Combine all pairs of free buddies. */
 void buf_buddy_condense_free()
 {
-	ut_ad(mutex_own(&buf_pool.mutex));
+	mysql_mutex_assert_owner(&buf_pool.mutex);
 	ut_ad(buf_pool.curr_size < buf_pool.old_size);
 
 	for (ulint i = 0; i < UT_ARR_SIZE(buf_pool.zip_free); ++i) {

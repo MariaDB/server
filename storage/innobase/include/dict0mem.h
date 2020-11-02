@@ -298,19 +298,17 @@ parent table will fail, and user has to drop excessive foreign constraint
 before proceeds. */
 #define FK_MAX_CASCADE_DEL		15
 
-/** Creates a table memory object.
-@param[in]	name		table name
-@param[in]	space		tablespace
-@param[in]	n_cols		total number of columns including virtual and
-				non-virtual columns
-@param[in]	n_v_cols	number of virtual columns
-@param[in]	flags		table flags
-@param[in]	flags2		table flags2
-@param[in]	init_stats_latch	whether to init the stats latch
+/** Create a table memory object.
+@param name     table name
+@param space    tablespace
+@param n_cols   total number of columns (both virtual and non-virtual)
+@param n_v_cols number of virtual columns
+@param flags    table flags
+@param flags2   table flags2
 @return own: table object */
 dict_table_t *dict_mem_table_create(const char *name, fil_space_t *space,
                                     ulint n_cols, ulint n_v_cols, ulint flags,
-                                    ulint flags2, bool init_stats_latch= true);
+                                    ulint flags2);
 /****************************************************************/ /**
  Free a table memory object. */
 void
@@ -766,9 +764,6 @@ struct dict_v_col_t{
 	/** column pos in table */
 	unsigned		v_pos:10;
 
-	/** number of indexes */
-	unsigned		n_v_indexes:12;
-
 	/** Virtual index list, and column position in the index */
 	std::forward_list<dict_v_idx_t, ut_allocator<dict_v_idx_t> >
 	v_indexes;
@@ -777,21 +772,17 @@ struct dict_v_col_t{
   @param index  index to be detached from */
   void detach(const dict_index_t &index)
   {
-    if (!n_v_indexes) return;
+    if (v_indexes.empty()) return;
     auto i= v_indexes.before_begin();
-    ut_d(unsigned n= 0);
     do {
       auto prev = i++;
       if (i == v_indexes.end())
       {
-        ut_ad(n == n_v_indexes);
         return;
       }
-      ut_ad(++n <= n_v_indexes);
       if (i->index == &index)
       {
         v_indexes.erase_after(prev);
-        n_v_indexes--;
         return;
       }
     }
@@ -1125,7 +1116,7 @@ public:
 				when InnoDB was started up */
 	zip_pad_info_t	zip_pad;/*!< Information about state of
 				compression failures and successes */
-	rw_lock_t	lock;	/*!< read-write lock protecting the
+	mutable rw_lock_t	lock;	/*!< read-write lock protecting the
 				upper levels of the index tree */
 
 	/** Determine if the index has been committed to the
@@ -1450,6 +1441,10 @@ struct dict_foreign_t{
 
 	dict_vcol_set*	v_cols;		/*!< set of virtual columns affected
 					by foreign key constraint. */
+
+	/** Check whether the fulltext index gets affected by
+	foreign key constraint */
+	bool affects_fulltext() const;
 };
 
 std::ostream&
@@ -1809,6 +1804,13 @@ struct dict_table_t {
 		return(UNIV_LIKELY(!file_unreadable));
 	}
 
+	/** @return whether the table is accessible */
+	bool is_accessible() const
+	{
+		return UNIV_LIKELY(is_readable() && !corrupted && space)
+			&& !space->is_stopping();
+	}
+
 	/** Check if a table name contains the string "/#sql"
 	which denotes temporary or intermediate tables in MariaDB. */
 	static bool is_temporary_name(const char* name)
@@ -2133,22 +2135,8 @@ public:
 	/*!< set of foreign key constraints which refer to this table */
 	dict_foreign_set			referenced_set;
 
-	/** Statistics for query optimization. @{ */
-
-	/** This latch protects:
-	dict_table_t::stat_initialized,
-	dict_table_t::stat_n_rows (*),
-	dict_table_t::stat_clustered_index_size,
-	dict_table_t::stat_sum_of_other_index_sizes,
-	dict_table_t::stat_modified_counter (*),
-	dict_table_t::indexes*::stat_n_diff_key_vals[],
-	dict_table_t::indexes*::stat_index_size,
-	dict_table_t::indexes*::stat_n_leaf_pages.
-	(*) Those are not always protected for
-	performance reasons. */
-	rw_lock_t				stats_latch;
-
-  bool stats_latch_inited= false;
+	/** Statistics for query optimization. Mostly protected by
+	dict_sys.mutex. @{ */
 
 	/** TRUE if statistics have been calculated the first time after
 	database startup or table creation. */

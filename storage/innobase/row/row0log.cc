@@ -410,7 +410,6 @@ row_log_online_op(
 		const os_offset_t	byte_offset
 			= (os_offset_t) log->tail.blocks
 			* srv_sort_buf_size;
-		IORequest		request(IORequest::WRITE);
 		byte*			buf = log->tail.block;
 
 		if (byte_offset + srv_sort_buf_size >= srv_online_max_size) {
@@ -448,7 +447,7 @@ row_log_online_op(
 
 		log->tail.blocks++;
 		if (os_file_write(
-			    request,
+			    IORequestWrite,
 			    "(modification log)",
 			    log->fd,
 			    buf, byte_offset, srv_sort_buf_size)
@@ -549,7 +548,6 @@ row_log_table_close_func(
 		const os_offset_t	byte_offset
 			= (os_offset_t) log->tail.blocks
 			* srv_sort_buf_size;
-		IORequest		request(IORequest::WRITE);
 		byte*			buf = log->tail.block;
 
 		if (byte_offset + srv_sort_buf_size >= srv_online_max_size) {
@@ -587,7 +585,7 @@ row_log_table_close_func(
 
 		log->tail.blocks++;
 		if (os_file_write(
-			    request,
+			    IORequestWrite,
 			    "(modification log)",
 			    log->fd,
 			    buf, byte_offset, srv_sort_buf_size)
@@ -2874,11 +2872,10 @@ all_done:
 			goto func_exit;
 		}
 
-		IORequest		request(IORequest::READ);
 		byte*			buf = index->online_log->head.block;
 
 		if (os_file_read_no_error_handling(
-			    request, index->online_log->fd,
+			    IORequestRead, index->online_log->fd,
 			    buf, ofs, srv_sort_buf_size, 0) != DB_SUCCESS) {
 			ib::error()
 				<< "Unable to read temporary file"
@@ -3767,8 +3764,6 @@ all_done:
 		os_offset_t	ofs = static_cast<os_offset_t>(
 			index->online_log->head.blocks)
 			* srv_sort_buf_size;
-		IORequest	request(IORequest::READ);
-
 		ut_ad(has_index_lock);
 		has_index_lock = false;
 		rw_lock_x_unlock(dict_index_get_lock(index));
@@ -3783,7 +3778,7 @@ all_done:
 		byte*	buf = index->online_log->head.block;
 
 		if (os_file_read_no_error_handling(
-			    request, index->online_log->fd,
+			    IORequestRead, index->online_log->fd,
 			    buf, ofs, srv_sort_buf_size, 0) != DB_SUCCESS) {
 			ib::error()
 				<< "Unable to read temporary file"

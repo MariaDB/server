@@ -528,7 +528,7 @@ protected:
 	/** Check if the page is marked as free in the extent descriptor.
 	@param page_no page number to check in the extent descriptor.
 	@return true if the page is marked as free */
-	bool is_free(ulint page_no) const UNIV_NOTHROW
+	bool is_free(uint32_t page_no) const UNIV_NOTHROW
 	{
 		ut_a(xdes_calc_descriptor_page(get_zip_size(), page_no)
 		     == m_xdes_page_no);
@@ -3423,11 +3423,9 @@ fil_iterate(
 			? iter.crypt_io_buffer : io_buffer;
 		byte* const writeptr = readptr;
 
-		IORequest	read_request(IORequest::READ);
-		read_request.disable_partial_io_warnings();
-
 		err = os_file_read_no_error_handling(
-			read_request, iter.file, readptr, offset, n_bytes, 0);
+			IORequestReadPartial,
+			iter.file, readptr, offset, n_bytes, 0);
 		if (err != DB_SUCCESS) {
 			ib::error() << iter.filepath
 				    << ": os_file_read() failed";
@@ -3438,7 +3436,7 @@ fil_iterate(
 		os_offset_t	page_off = offset;
 		ulint		n_pages_read = n_bytes / size;
 		/* This block is not attached to buf_pool */
-		block->page.id_.set_page_no(ulint(page_off / size));
+		block->page.id_.set_page_no(uint32_t(page_off / size));
 
 		for (ulint i = 0; i < n_pages_read;
 		     ++block->page.id_,
@@ -3665,9 +3663,7 @@ not_encrypted:
 
 		/* A page was updated in the set, write back to disk. */
 		if (updated) {
-			IORequest       write_request(IORequest::WRITE);
-
-			err = os_file_write(write_request,
+			err = os_file_write(IORequestWrite,
 					    iter.filepath, iter.file,
 					    writeptr, offset, n_bytes);
 
@@ -3760,11 +3756,8 @@ fil_tablespace_iterate(
 
 	/* Read the first page and determine the page and zip size. */
 
-	IORequest       request(IORequest::READ);
-	request.disable_partial_io_warnings();
-
-	err = os_file_read_no_error_handling(request, file, page, 0,
-					     srv_page_size, 0);
+	err = os_file_read_no_error_handling(IORequestReadPartial,
+					     file, page, 0, srv_page_size, 0);
 
 	if (err == DB_SUCCESS) {
 		err = callback.init(file_size, block);
@@ -3861,7 +3854,6 @@ row_import_for_mysql(
 	trx_t*		trx;
 	ib_uint64_t	autoinc = 0;
 	char*		filepath = NULL;
-	ulint		space_flags MY_ATTRIBUTE((unused));
 
 	/* The caller assured that this is not read_only_mode and that no
 	temorary tablespace is being imported. */
@@ -3980,9 +3972,6 @@ row_import_for_mysql(
 				err = cfg.set_root_by_heuristic();
 			}
 		}
-
-		space_flags = fetchIndexRootPages.get_space_flags();
-
 	} else {
 		rw_lock_s_unlock(&dict_sys.latch);
 	}
@@ -4175,7 +4164,7 @@ row_import_for_mysql(
 	/* Ensure that all pages dirtied during the IMPORT make it to disk.
 	The only dirty pages generated should be from the pessimistic purge
 	of delete marked records that couldn't be purged in Phase I. */
-	buf_LRU_flush_or_remove_pages(prebuilt->table->space_id, true);
+	while (buf_flush_dirty_pages(prebuilt->table->space_id));
 
 	ib::info() << "Phase IV - Flush complete";
 	prebuilt->table->space->set_imported();
