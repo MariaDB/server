@@ -453,4 +453,17 @@ select * from t1;
 check table t1;
 drop table t1;
 
+--echo #
+--echo # MDEV-24072 Assertion 'ib_table.n_v_cols' failed
+--echo # in instant_alter_column_possible()
+--echo #
+CREATE TABLE t (a BLOB) ENGINE=InnoDB;
+INSERT INTO t VALUES ('a');
+--error ER_TRUNCATED_WRONG_VALUE
+ALTER TABLE t ADD c INT GENERATED ALWAYS AS (a+1) VIRTUAL, ADD KEY(c);
+--enable_info
+ALTER TABLE t ADD d INT;
+--disable_info
+DROP TABLE t;
+
 SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;

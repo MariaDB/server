@@ -436,4 +436,16 @@ check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 drop table t1;
+#
+# MDEV-24072 Assertion 'ib_table.n_v_cols' failed
+# in instant_alter_column_possible()
+#
+CREATE TABLE t (a BLOB) ENGINE=InnoDB;
+INSERT INTO t VALUES ('a');
+ALTER TABLE t ADD c INT GENERATED ALWAYS AS (a+1) VIRTUAL, ADD KEY(c);
+ERROR 22007: Truncated incorrect DOUBLE value: 'a'
+ALTER TABLE t ADD d INT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+DROP TABLE t;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;
