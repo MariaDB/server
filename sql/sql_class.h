@@ -5449,6 +5449,8 @@ struct SORT_FIELD_ATTR
 {
   uint length;          /* Length of sort field */
   uint suffix_length;   /* Length suffix (0-4) */
+  enum Type { FIXED_SIZE, VARIABLE_SIZE } type;
+  bool is_variable_sized() { return type == VARIABLE_SIZE; }
 };
 
 
