@@ -66,6 +66,7 @@ wsrep_cert_interval	#
 wsrep_open_transactions	#
 wsrep_open_connections	#
 wsrep_incoming_addresses	#
+wsrep_debug_sync_waiters	#
 wsrep_applier_thread_count	#
 wsrep_cluster_capabilities	#
 wsrep_cluster_conf_id	#
@@ -129,6 +130,7 @@ wsrep_cert_interval	#
 wsrep_open_transactions	#
 wsrep_open_connections	#
 wsrep_incoming_addresses	#
+wsrep_debug_sync_waiters	#
 wsrep_applier_thread_count	#
 wsrep_cluster_capabilities	#
 wsrep_cluster_conf_id	#
