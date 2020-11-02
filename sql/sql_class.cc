@@ -4548,7 +4548,8 @@ extern "C" size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen)
   if (!mysql_mutex_trylock(&thd->LOCK_thd_data))
   {
     len= MY_MIN(buflen - 1, thd->query_length());
-    memcpy(buf, thd->query(), len);
+    if (len)
+      memcpy(buf, thd->query(), len);
     mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
   buf[len]= '\0';
