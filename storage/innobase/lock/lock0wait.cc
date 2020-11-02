@@ -326,11 +326,11 @@ lock_wait_suspend_thread(
 		thd_wait_begin(trx->mysql_thd, THD_WAIT_TABLE_LOCK);
 	}
 
-	mysql_mutex_lock(&trx->mutex);
+	mysql_mutex_lock(&lock_sys.mutex);
 	while (trx->lock.wait_lock) {
-		mysql_cond_wait(&slot->cond, &trx->mutex);
+		mysql_cond_wait(&slot->cond, &lock_sys.mutex);
 	}
-	mysql_mutex_unlock(&trx->mutex);
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	thd_wait_end(trx->mysql_thd);
 
