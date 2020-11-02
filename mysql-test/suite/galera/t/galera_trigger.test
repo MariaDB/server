@@ -33,4 +33,40 @@ SELECT * FROM t1;
 
 DROP TRIGGER tr1;
 DROP TABLE t1;
+#
+# MDEV-23638 : DROP TRIGGER in Galera Cluster not replicating
+#
+--connection node_1
+CREATE TABLE t1(id int not null auto_increment, value int not null, primary key (id)) engine=innodb;
 
+CREATE TABLE t2(id int not null auto_increment, tbl varchar(64) not null, action varchar(64) not null, primary key (id));
+
+--delimiter |
+create trigger log_insert after insert on t1
+for each row begin
+    insert into t2(tbl, action) values ('t1', 'INSERT');
+end|
+--delimiter ;
+
+insert into t1(value) values (1);
+insert into t1(value) values (2);
+
+--connection node_2
+set session wsrep_sync_wait=15;
+insert into t1(value) values (3);
+insert into t1(value) values (4);
+select tbl, action from t2;
+
+--connection node_1
+drop trigger if exists log_insert;
+insert into t1(value) values (5);
+select tbl, action from t2;
+
+--connection node_2
+insert into t1(value) values (6);
+select tbl, action from t2;
+
+--connection node_1
+select tbl, action from t2;
+
+drop table t1, t2;
