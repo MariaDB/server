@@ -708,6 +708,8 @@ static char *coll_search(struct user_coll *c, const char *n, size_t len)
 {
   struct user_name un;
   struct user_name *found;
+  if (!c->n_users)
+    return 0;
   un.name_len= len;
   un.name= (char *) n;
   found= (struct user_name*)  bsearch(&un, c->users, c->n_users,
@@ -738,7 +740,8 @@ static int coll_insert(struct user_coll *c, char *n, size_t len)
 
 static void coll_sort(struct user_coll *c)
 {
-  qsort(c->users, c->n_users, sizeof(c->users[0]), cmp_users);
+  if (c->n_users)
+    qsort(c->users, c->n_users, sizeof(c->users[0]), cmp_users);
 }
 
 
@@ -969,7 +972,8 @@ static void get_str_n(char *dest, int *dest_len, size_t dest_size,
   if (src_len >= dest_size)
     src_len= dest_size - 1;
 
-  memcpy(dest, src, src_len);
+  if (src_len)
+    memcpy(dest, src, src_len);
   dest[src_len]= 0;
   *dest_len= (int)src_len;
 }

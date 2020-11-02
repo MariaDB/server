@@ -138,8 +138,9 @@ void *alloc_dynamic(DYNAMIC_ARRAY *array)
                                         array->size_of_element,
                                         MYF(array->malloc_flags | MY_WME))))
         DBUG_RETURN(0);
-      memcpy(new_ptr, array->buffer,
-             array->elements * array->size_of_element);
+      if (array->elements)
+        memcpy(new_ptr, array->buffer,
+               array->elements * array->size_of_element);
       array->malloc_flags&= ~MY_INIT_BUFFER_USED;
     }
     else if (!(new_ptr=(char*)
