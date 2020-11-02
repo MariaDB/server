@@ -454,7 +454,7 @@ fts_load_user_stopword(
 	fts_stopword_t*	stopword_info)		/*!< in: Stopword info */
 {
 	if (!fts->dict_locked) {
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 	}
 
 	/* Validate the user table existence in the right format */
@@ -463,7 +463,7 @@ fts_load_user_stopword(
 	if (!stopword_info->charset) {
 cleanup:
 		if (!fts->dict_locked) {
-			mutex_exit(&dict_sys.mutex);
+			mysql_mutex_unlock(&dict_sys.mutex);
 		}
 
 		return ret;
@@ -905,15 +905,15 @@ fts_que_graph_free_check_lock(
 	}
 
 	if (!has_dict) {
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 	}
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	que_graph_free(graph);
 
 	if (!has_dict) {
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 	}
 }
 
@@ -3516,7 +3516,9 @@ fts_add_doc_by_id(
 					"fts_instrument_sync",
 					fts_optimize_request_sync_table(table);
 					mysql_mutex_lock(&cache->lock);
-					mysql_cond_wait(&cache->sync->cond,
+					if (cache->sync->in_progress)
+						mysql_cond_wait(
+							&cache->sync->cond,
 							&cache->lock);
 					mysql_mutex_unlock(&cache->lock);
 				);
@@ -4239,8 +4241,6 @@ fts_sync(
 	while (sync->in_progress) {
 		if (wait) {
 			mysql_cond_wait(&sync->cond, &cache->lock);
-			mysql_mutex_unlock(&cache->lock);
-
 		} else {
 			mysql_mutex_unlock(&cache->lock);
 			return(DB_SUCCESS);
@@ -4314,7 +4314,7 @@ end_sync:
 
 	sync->interrupted = false;
 	sync->in_progress = false;
-	mysql_cond_signal(&sync->cond);
+	mysql_cond_broadcast(&sync->cond);
 	mysql_mutex_unlock(&cache->lock);
 
 	/* We need to check whether an optimize is required, for that
@@ -5723,7 +5723,7 @@ fts parent table id and index id.
 				index id */
 static void fil_get_fts_spaces(fts_space_set_t& fts_space_set)
 {
-  mutex_enter(&fil_system.mutex);
+  mysql_mutex_lock(&fil_system.mutex);
 
   for (fil_space_t *space= UT_LIST_GET_FIRST(fil_system.space_list);
        space;
@@ -5737,7 +5737,7 @@ static void fil_get_fts_spaces(fts_space_set_t& fts_space_set)
       fts_space_set.insert(std::make_pair(table_id, index_id));
   }
 
-  mutex_exit(&fil_system.mutex);
+  mysql_mutex_unlock(&fil_system.mutex);
 }
 
 /** Check whether the parent table id and index id of fts auxilary
@@ -6209,7 +6209,7 @@ fts_init_index(
 	fts_cache_t*    cache = table->fts->cache;
 	bool		need_init = false;
 
-	ut_ad(!mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_not_owner(&dict_sys.mutex);
 
 	/* First check cache->get_docs is initialized */
 	if (!has_cache_lock) {
@@ -6274,10 +6274,10 @@ func_exit:
 	}
 
 	if (need_init) {
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 		/* Register the table with the optimize thread. */
 		fts_optimize_add_table(table);
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 	}
 
 	return(TRUE);

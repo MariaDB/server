@@ -219,12 +219,12 @@ void btr_search_disable()
 {
 	dict_table_t*	table;
 
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 
 	btr_search_x_lock_all();
 
 	if (!btr_search_enabled) {
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 		btr_search_x_unlock_all();
 		return;
 	}
@@ -245,7 +245,7 @@ void btr_search_disable()
 		btr_search_disable_ref_count(table);
 	}
 
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 
 	/* Set all block->index = NULL. */
 	buf_pool.clear_hash_index();
@@ -1264,7 +1264,7 @@ retry:
 	ut_ad(page_is_leaf(block->frame));
 
 	/* We must not dereference block->index here, because it could be freed
-	if (index->table->n_ref_count == 0 && !mutex_own(&dict_sys.mutex)).
+	if (index->table->n_ref_count == 0).
 	Determine the ahi_slot based on the block contents. */
 
 	const index_id_t	index_id
@@ -1424,14 +1424,15 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id)
 		DBUG_ASSERT(block->page.status != buf_page_t::FREED);
 
 		buf_block_dbg_add_level(block, SYNC_TREE_NODE_FROM_HASH);
-
 		dict_index_t*	index = block->index;
 		if (index != NULL) {
+#ifdef SAFE_MUTEX
 			/* In all our callers, the table handle should
 			be open, or we should be in the process of
 			dropping the table (preventing eviction). */
-			ut_ad(index->table->get_ref_count() > 0
-			      || mutex_own(&dict_sys.mutex));
+			DBUG_ASSERT(index->table->get_ref_count()
+				    || mysql_mutex_is_owner(&dict_sys.mutex));
+#endif /* SAFE_MUTEX */
 			btr_search_drop_page_hash_index(block);
 		}
 	}

@@ -1333,9 +1333,6 @@ dict_index_calc_min_rec_len(
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-#define dict_mutex_enter_for_mysql() mutex_enter(&dict_sys.mutex)
-#define dict_mutex_exit_for_mysql() mutex_exit(&dict_sys.mutex)
-
 /********************************************************************//**
 Checks if the database name in two table names is the same.
 @return TRUE if same db name */
@@ -1399,14 +1396,13 @@ constraint */
 /* Buffers for storing detailed information about the latest foreign key
 and unique key errors */
 extern FILE*		dict_foreign_err_file;
-extern ib_mutex_t	dict_foreign_err_mutex; /* mutex protecting the
-						foreign key error messages */
+extern mysql_mutex_t dict_foreign_err_mutex;
 
 /** InnoDB data dictionary cache */
 class dict_sys_t
 {
 public:
-	DictSysMutex	mutex;		/*!< mutex protecting the data
+	mysql_mutex_t	mutex;		/*!< mutex protecting the data
 					dictionary; protects also the
 					disk-based dictionary system tables;
 					this mutex serializes CREATE TABLE
@@ -1464,7 +1460,7 @@ public:
 	(should only happen during the rollback of CREATE...SELECT) */
 	dict_table_t* get_temporary_table(table_id_t id)
 	{
-		ut_ad(mutex_own(&mutex));
+		mysql_mutex_assert_owner(&mutex);
 		dict_table_t* table;
 		ulint fold = ut_fold_ull(id);
 		HASH_SEARCH(id_hash, &temp_id_hash, fold, dict_table_t*, table,
@@ -1483,7 +1479,7 @@ public:
 	@retval	NULL	if not cached */
 	dict_table_t* get_table(table_id_t id)
 	{
-		ut_ad(mutex_own(&mutex));
+		mysql_mutex_assert_owner(&mutex);
 		dict_table_t* table;
 		ulint fold = ut_fold_ull(id);
 		HASH_SEARCH(id_hash, &table_id_hash, fold, dict_table_t*,
@@ -1524,7 +1520,7 @@ public:
   {
     ut_ad(table);
     ut_ad(table->can_be_evicted == in_lru);
-    ut_ad(mutex_own(&mutex));
+    mysql_mutex_assert_owner(&mutex);
     for (const dict_table_t* t = UT_LIST_GET_FIRST(in_lru
 					     ? table_LRU : table_non_LRU);
 	 t; t = UT_LIST_GET_NEXT(table_LRU, t))
@@ -1559,7 +1555,7 @@ public:
   /** Assert that the data dictionary is locked */
   void assert_locked()
   {
-    ut_ad(mutex_own(&mutex));
+    mysql_mutex_assert_owner(&mutex);
     ut_ad(rw_lock_own(&latch, RW_LOCK_X));
   }
 #endif
@@ -1567,13 +1563,13 @@ public:
   void lock(const char* file, unsigned line)
   {
     rw_lock_x_lock_func(&latch, 0, file, line);
-    mutex_enter_loc(&mutex, file, line);
+    mysql_mutex_lock(&mutex);
   }
 
   /** Unlock the data dictionary cache. */
   void unlock()
   {
-    mutex_exit(&mutex);
+    mysql_mutex_unlock(&mutex);
     rw_lock_x_unlock(&latch);
   }
 

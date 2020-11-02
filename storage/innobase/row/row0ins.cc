@@ -671,7 +671,7 @@ row_ins_set_detailed(
 {
 	ut_ad(!srv_read_only_mode);
 
-	mutex_enter(&srv_misc_tmpfile_mutex);
+	mysql_mutex_lock(&srv_misc_tmpfile_mutex);
 	rewind(srv_misc_tmpfile);
 
 	if (os_file_set_eof(srv_misc_tmpfile)) {
@@ -685,7 +685,7 @@ row_ins_set_detailed(
 		trx_set_detailed_error(trx, "temp file operation failed");
 	}
 
-	mutex_exit(&srv_misc_tmpfile_mutex);
+	mysql_mutex_unlock(&srv_misc_tmpfile_mutex);
 }
 
 /*********************************************************************//**
@@ -710,7 +710,7 @@ row_ins_foreign_trx_print(
 	heap_size = mem_heap_get_size(trx->lock.lock_heap);
 	mysql_mutex_unlock(&lock_sys.mutex);
 
-	mutex_enter(&dict_foreign_err_mutex);
+	mysql_mutex_lock(&dict_foreign_err_mutex);
 	rewind(dict_foreign_err_file);
 	ut_print_timestamp(dict_foreign_err_file);
 	fputs(" Transaction:\n", dict_foreign_err_file);
@@ -718,7 +718,7 @@ row_ins_foreign_trx_print(
 	trx_print_low(dict_foreign_err_file, trx, 600,
 		      n_rec_locks, n_trx_locks, heap_size);
 
-	ut_ad(mutex_own(&dict_foreign_err_mutex));
+	mysql_mutex_assert_owner(&dict_foreign_err_mutex);
 }
 
 /*********************************************************************//**
@@ -776,7 +776,7 @@ row_ins_foreign_report_err(
 	}
 	putc('\n', ef);
 
-	mutex_exit(&dict_foreign_err_mutex);
+	mysql_mutex_unlock(&dict_foreign_err_mutex);
 }
 
 /*********************************************************************//**
@@ -842,7 +842,7 @@ row_ins_foreign_report_add_err(
 	}
 	putc('\n', ef);
 
-	mutex_exit(&dict_foreign_err_mutex);
+	mysql_mutex_unlock(&dict_foreign_err_mutex);
 }
 
 /*********************************************************************//**
@@ -1600,7 +1600,7 @@ row_ins_check_foreign_constraint(
 			err = DB_ROW_IS_REFERENCED;
 		}
 
-		mutex_exit(&dict_foreign_err_mutex);
+		mysql_mutex_unlock(&dict_foreign_err_mutex);
 		goto exit_func;
 	}
 
@@ -3012,9 +3012,9 @@ row_ins_sec_index_entry_low(
 			if (!index->is_committed()) {
 				ut_ad(!thr_get_trx(thr)
 				      ->dict_operation_lock_mode);
-				mutex_enter(&dict_sys.mutex);
+				mysql_mutex_lock(&dict_sys.mutex);
 				dict_set_corrupted_index_cache_only(index);
-				mutex_exit(&dict_sys.mutex);
+				mysql_mutex_unlock(&dict_sys.mutex);
 				/* Do not return any error to the
 				caller. The duplicate will be reported
 				by ALTER TABLE or CREATE UNIQUE INDEX.

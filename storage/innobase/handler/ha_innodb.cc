@@ -115,7 +115,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "trx0trx.h"
 #include "fil0pagecompress.h"
 #include "ut0mem.h"
-#include "ut0mutex.h"
 #include "row0ext.h"
 
 #include <limits>
@@ -208,7 +207,7 @@ static char*	innodb_version_str = (char*) INNODB_VERSION_STR;
 extern uint srv_fil_crypt_rotate_key_age;
 extern uint srv_n_fil_crypt_iops;
 
-#ifdef UNIV_DEBUG
+#if defined SAFE_MUTEX && defined UNIV_DEBUG
 my_bool innodb_evict_tables_on_commit_debug;
 #endif
 
@@ -5366,12 +5365,12 @@ innobase_build_v_templ(
 	ut_ad(n_v_col > 0);
 
 	if (!locked) {
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 	}
 
 	if (s_templ->vtempl) {
 		if (!locked) {
-			mutex_exit(&dict_sys.mutex);
+			mysql_mutex_unlock(&dict_sys.mutex);
 		}
 		DBUG_VOID_RETURN;
 	}
@@ -5477,7 +5476,7 @@ innobase_build_v_templ(
 	}
 
 	if (!locked) {
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 	}
 
 	s_templ->db_name = table->s->db.str;
@@ -5776,7 +5775,7 @@ ha_innobase::open(const char* name, int, uint)
 	key_used_on_scan = m_primary_key;
 
 	if (ib_table->n_v_cols) {
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 		if (ib_table->vc_templ == NULL) {
 			ib_table->vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
 			innobase_build_v_templ(
@@ -5784,7 +5783,7 @@ ha_innobase::open(const char* name, int, uint)
 				true);
 		}
 
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 	}
 
 	if (!check_index_consistency(table, ib_table)) {
@@ -9686,7 +9685,7 @@ wsrep_append_foreign_key(
 		foreign->referenced_table : foreign->foreign_table)) {
 		WSREP_DEBUG("pulling %s table into cache",
 			    (referenced) ? "referenced" : "foreign");
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 
 		if (referenced) {
 			foreign->referenced_table =
@@ -9716,7 +9715,7 @@ wsrep_append_foreign_key(
 						TRUE, FALSE);
 			}
 		}
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 	}
 
 	if ( !((referenced) ?
@@ -12856,9 +12855,9 @@ create_table_info_t::create_table_update_dict()
 			DBUG_RETURN(-1);
 		}
 
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 		fts_optimize_add_table(innobase_table);
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 	}
 
 	if (const Field* ai = m_form->found_next_number_field) {
@@ -13125,12 +13124,12 @@ ha_innobase::discard_or_import_tablespace(
 	btr_cur_instant_init(). */
 	table_id_t id = m_prebuilt->table->id;
 	ut_ad(id);
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 	dict_table_close(m_prebuilt->table, TRUE, FALSE);
 	dict_sys.remove(m_prebuilt->table);
 	m_prebuilt->table = dict_table_open_on_id(id, TRUE,
 						  DICT_TABLE_OP_NORMAL);
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 	if (!m_prebuilt->table) {
 		err = DB_TABLE_NOT_FOUND;
 	} else {
@@ -14215,7 +14214,7 @@ ha_innobase::info_low(
 
 	DEBUG_SYNC_C("ha_innobase_info_low");
 
-	ut_ad(!mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_not_owner(&dict_sys.mutex);
 
 	/* If we are forcing recovery at a high level, we will suppress
 	statistics calculation on tables, because that may crash the
@@ -14275,7 +14274,7 @@ ha_innobase::info_low(
 		ulint	stat_clustered_index_size;
 		ulint	stat_sum_of_other_index_sizes;
 
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 
 		ut_a(ib_table->stat_initialized);
 
@@ -14287,7 +14286,7 @@ ha_innobase::info_low(
 		stat_sum_of_other_index_sizes
 			= ib_table->stat_sum_of_other_index_sizes;
 
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 
 		/*
 		The MySQL optimizer seems to assume in a left join that n_rows
@@ -14404,8 +14403,8 @@ ha_innobase::info_low(
 		}
 
 		struct Locking {
-			Locking() { mutex_enter(&dict_sys.mutex); }
-			~Locking() { mutex_exit(&dict_sys.mutex); }
+			Locking() { mysql_mutex_lock(&dict_sys.mutex); }
+			~Locking() { mysql_mutex_unlock(&dict_sys.mutex); }
 		} locking;
 
 		ut_a(ib_table->stat_initialized);
@@ -15122,7 +15121,7 @@ get_foreign_key_info(
 
 		dict_table_t*	ref_table;
 
-		ut_ad(mutex_own(&dict_sys.mutex));
+		mysql_mutex_assert_owner(&dict_sys.mutex);
 		ref_table = dict_table_open_on_name(
 			foreign->referenced_table_name_lookup,
 			TRUE, FALSE, DICT_ERR_IGNORE_NONE);
@@ -15177,7 +15176,7 @@ ha_innobase::get_foreign_key_list(
 
 	m_prebuilt->trx->op_info = "getting list of foreign keys";
 
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 
 	for (dict_foreign_set::iterator it
 		= m_prebuilt->table->foreign_set.begin();
@@ -15194,7 +15193,7 @@ ha_innobase::get_foreign_key_list(
 		}
 	}
 
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 
 	m_prebuilt->trx->op_info = "";
 
@@ -15215,7 +15214,7 @@ ha_innobase::get_parent_foreign_key_list(
 
 	m_prebuilt->trx->op_info = "getting list of referencing foreign keys";
 
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 
 	for (dict_foreign_set::iterator it
 		= m_prebuilt->table->referenced_set.begin();
@@ -15232,7 +15231,7 @@ ha_innobase::get_parent_foreign_key_list(
 		}
 	}
 
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 
 	m_prebuilt->trx->op_info = "";
 
@@ -15845,7 +15844,7 @@ innodb_show_status(
 	char*	str;
 	size_t	flen;
 
-	mutex_enter(&srv_monitor_file_mutex);
+	mysql_mutex_lock(&srv_monitor_file_mutex);
 	rewind(srv_monitor_file);
 
 	srv_printf_innodb_monitor(srv_monitor_file, FALSE,
@@ -15872,7 +15871,7 @@ innodb_show_status(
 
 	if (!(str = (char*) my_malloc(PSI_INSTRUMENT_ME,
 		      usable_len + 1, MYF(0)))) {
-		mutex_exit(&srv_monitor_file_mutex);
+		mysql_mutex_unlock(&srv_monitor_file_mutex);
 		DBUG_RETURN(1);
 	}
 
@@ -15900,7 +15899,7 @@ innodb_show_status(
 		flen = fread(str, 1, MAX_STATUS_SIZE - 1, srv_monitor_file);
 	}
 
-	mutex_exit(&srv_monitor_file_mutex);
+	mysql_mutex_unlock(&srv_monitor_file_mutex);
 
 	ret_val= stat_print(
 		thd, innobase_hton_name,
@@ -16090,37 +16089,6 @@ ShowStatus::to_string(
 	return(true);
 }
 
-/** Implements the SHOW MUTEX STATUS command, for mutexes.
-@param[in,out]	hton		the innodb handlerton
-@param[in,out]	thd		the MySQL query thread of the caller
-@param[in,out]	stat_print	function for printing statistics
-@return 0 on success. */
-static
-int
-innodb_show_mutex_status(
-	handlerton*
-#ifdef DBUG_ASSERT_EXISTS
-	hton
-#endif
-	,
-	THD*		thd,
-	stat_print_fn*	stat_print)
-{
-	DBUG_ENTER("innodb_show_mutex_status");
-
-	ShowStatus	collector;
-
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
-	mutex_monitor.iterate(collector);
-
-	if (!collector.to_string(thd, stat_print)) {
-		DBUG_RETURN(1);
-	}
-
-	DBUG_RETURN(0);
-}
-
 /** Implements the SHOW MUTEX STATUS command.
 @param[in,out]	hton		the innodb handlerton
 @param[in,out]	thd		the MySQL query thread of the caller
@@ -16145,7 +16113,7 @@ innodb_show_rwlock_status(
 
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	mutex_enter(&rw_lock_list_mutex);
+	mysql_mutex_lock(&rw_lock_list_mutex);
 
 	for (const rw_lock_t& rw_lock : rw_lock_list) {
 
@@ -16181,7 +16149,7 @@ innodb_show_rwlock_status(
 			       buf1, static_cast<uint>(buf1len),
 			       buf2, static_cast<uint>(buf2len))) {
 
-			mutex_exit(&rw_lock_list_mutex);
+			mysql_mutex_unlock(&rw_lock_list_mutex);
 
 			DBUG_RETURN(1);
 		}
@@ -16209,36 +16177,15 @@ innodb_show_rwlock_status(
 			       buf1, static_cast<uint>(buf1len),
 			       buf2, static_cast<uint>(buf2len))) {
 
-			mutex_exit(&rw_lock_list_mutex);
+			mysql_mutex_unlock(&rw_lock_list_mutex);
 
 			DBUG_RETURN(1);
 		}
 	}
 
-	mutex_exit(&rw_lock_list_mutex);
+	mysql_mutex_unlock(&rw_lock_list_mutex);
 
 	DBUG_RETURN(0);
-}
-
-/** Implements the SHOW MUTEX STATUS command.
-@param[in,out]	hton		the innodb handlerton
-@param[in,out]	thd		the MySQL query thread of the caller
-@param[in,out]	stat_print	function for printing statistics
-@return 0 on success. */
-static
-int
-innodb_show_latch_status(
-	handlerton*	hton,
-	THD*		thd,
-	stat_print_fn*	stat_print)
-{
-	int	ret = innodb_show_mutex_status(hton, thd, stat_print);
-
-	if (ret != 0) {
-		return(ret);
-	}
-
-	return(innodb_show_rwlock_status(hton, thd, stat_print));
 }
 
 /************************************************************************//**
@@ -16262,7 +16209,7 @@ innobase_show_status(
 		return(innodb_show_status(hton, thd, stat_print) != 0);
 
 	case HA_ENGINE_MUTEX:
-		return(innodb_show_latch_status(hton, thd, stat_print) != 0);
+		return innodb_show_rwlock_status(hton, thd, stat_print) != 0;
 
 	case HA_ENGINE_LOGS:
 		/* Not handled */
@@ -17548,11 +17495,6 @@ innodb_monitor_set_option(
 			srv_mon_process_existing_counter(
 				monitor_id, MONITOR_TURN_ON);
 		}
-
-		if (MONITOR_IS_ON(MONITOR_LATCHES)) {
-
-			mutex_monitor.enable();
-		}
 		break;
 
 	case MONITOR_TURN_OFF:
@@ -17563,25 +17505,14 @@ innodb_monitor_set_option(
 
 		MONITOR_OFF(monitor_id);
 		MONITOR_SET_OFF(monitor_id);
-
-		if (!MONITOR_IS_ON(MONITOR_LATCHES)) {
-
-			mutex_monitor.disable();
-		}
 		break;
 
 	case MONITOR_RESET_VALUE:
 		srv_mon_reset(monitor_id);
-
-		if (monitor_id == (MONITOR_LATCHES)) {
-
-			mutex_monitor.reset();
-		}
 		break;
 
 	case MONITOR_RESET_ALL_VALUE:
 		srv_mon_reset_all(monitor_id);
-		mutex_monitor.reset();
 		break;
 
 	default:
@@ -19811,10 +19742,12 @@ static MYSQL_SYSVAR_BOOL(trx_purge_view_update_only_debug,
   " but the each purges were not done yet.",
   NULL, NULL, FALSE);
 
+# ifdef SAFE_MUTEX
 static MYSQL_SYSVAR_BOOL(evict_tables_on_commit_debug,
   innodb_evict_tables_on_commit_debug, PLUGIN_VAR_OPCMDARG,
   "On transaction commit, try to evict tables from the data dictionary cache.",
   NULL, NULL, FALSE);
+# endif /* SAFE_MUTEX */
 
 static MYSQL_SYSVAR_UINT(data_file_size_debug,
   srv_sys_space_size_debug,
@@ -20148,7 +20081,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(trx_rseg_n_slots_debug),
   MYSQL_SYSVAR(limit_optimistic_insert_debug),
   MYSQL_SYSVAR(trx_purge_view_update_only_debug),
+# ifdef SAFE_MUTEX
   MYSQL_SYSVAR(evict_tables_on_commit_debug),
+# endif /* SAFE_MUTEX */
   MYSQL_SYSVAR(data_file_size_debug),
   MYSQL_SYSVAR(fil_make_page_dirty_debug),
   MYSQL_SYSVAR(saved_page_number_debug),
@@ -20390,9 +20325,9 @@ TABLE* innobase_init_vc_templ(dict_table_t* table)
 		DBUG_RETURN(NULL);
 	}
 
-	mutex_enter(&dict_sys.mutex);
+	mysql_mutex_lock(&dict_sys.mutex);
 	innobase_build_v_templ(mysql_table, table, table->vc_templ, NULL, true);
-	mutex_exit(&dict_sys.mutex);
+	mysql_mutex_unlock(&dict_sys.mutex);
 	DBUG_RETURN(mysql_table);
 }
 
@@ -21456,13 +21391,13 @@ ib_foreign_warn(trx_t*	    trx,   /*!< in: trx */
 	vsprintf(buf, format, args);
 	va_end(args);
 
-	mutex_enter(&dict_foreign_err_mutex);
+	mysql_mutex_lock(&dict_foreign_err_mutex);
 	rewind(ef);
 	ut_print_timestamp(ef);
 	fprintf(ef, " Error in foreign key constraint of table %s:\n",
 		table_name);
 	fputs(buf, ef);
-	mutex_exit(&dict_foreign_err_mutex);
+	mysql_mutex_unlock(&dict_foreign_err_mutex);
 
 	if (trx && trx->mysql_thd) {
 		THD* thd = (THD*)trx->mysql_thd;

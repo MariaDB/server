@@ -76,7 +76,7 @@ Executed in the purge coordinator thread.
 @return whether anything is to be purged */
 inline bool TrxUndoRsegsIterator::set_next()
 {
-	mutex_enter(&purge_sys.pq_mutex);
+	mysql_mutex_lock(&purge_sys.pq_mutex);
 
 	/* Only purge consumes events from the priority queue, user
 	threads only produce the events. */
@@ -99,15 +99,15 @@ inline bool TrxUndoRsegsIterator::set_next()
 	} else {
 		/* Queue is empty, reset iterator. */
 		purge_sys.rseg = NULL;
-		mutex_exit(&purge_sys.pq_mutex);
+		mysql_mutex_unlock(&purge_sys.pq_mutex);
 		m_rsegs = NullElement;
 		m_iter = m_rsegs.begin();
 		return false;
 	}
 
 	purge_sys.rseg = *m_iter++;
-	mutex_exit(&purge_sys.pq_mutex);
-	mutex_enter(&purge_sys.rseg->mutex);
+	mysql_mutex_unlock(&purge_sys.pq_mutex);
+	mysql_mutex_lock(&purge_sys.rseg->mutex);
 
 	ut_a(purge_sys.rseg->last_page_no != FIL_NULL);
 	ut_ad(purge_sys.rseg->last_trx_no() == m_rsegs.trx_no());
@@ -123,7 +123,7 @@ inline bool TrxUndoRsegsIterator::set_next()
 	purge_sys.hdr_offset = purge_sys.rseg->last_offset;
 	purge_sys.hdr_page_no = purge_sys.rseg->last_page_no;
 
-	mutex_exit(&purge_sys.rseg->mutex);
+	mysql_mutex_unlock(&purge_sys.rseg->mutex);
 
 	return(true);
 }
@@ -173,9 +173,9 @@ void purge_sys_t::create()
   hdr_page_no= 0;
   hdr_offset= 0;
   rw_lock_create(trx_purge_latch_key, &latch, SYNC_PURGE_LATCH);
-  mutex_create(LATCH_ID_PURGE_SYS_PQ, &pq_mutex);
-  truncate.current= NULL;
-  truncate.last= NULL;
+  mysql_mutex_init(purge_sys_pq_mutex_key, &pq_mutex, nullptr);
+  truncate.current= nullptr;
+  truncate.last= nullptr;
   heap= mem_heap_create(4096);
 }
 
@@ -194,7 +194,7 @@ void purge_sys_t::close()
   trx->state= TRX_STATE_NOT_STARTED;
   trx->free();
   rw_lock_free(&latch);
-  mutex_free(&pq_mutex);
+  mysql_mutex_destroy(&pq_mutex);
   mem_heap_free(heap);
   heap= nullptr;
 }
@@ -355,7 +355,7 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 	mtr_t		mtr;
 
 	mtr.start();
-	mutex_enter(&rseg->mutex);
+	mysql_mutex_lock(&rseg->mutex);
 
 	buf_block_t* rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
 	buf_block_t* block = trx_undo_page_get(
@@ -372,12 +372,12 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 	while (!fseg_free_step_not_header(
 		       TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER
 		       + block->frame, &mtr)) {
-		mutex_exit(&rseg->mutex);
+		mysql_mutex_unlock(&rseg->mutex);
 
 		mtr.commit();
 		mtr.start();
 
-		mutex_enter(&rseg->mutex);
+		mysql_mutex_lock(&rseg->mutex);
 
 		rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
 
@@ -418,7 +418,7 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 
 	rseg->curr_size -= seg_size;
 
-	mutex_exit(&(rseg->mutex));
+	mysql_mutex_unlock(&rseg->mutex);
 
 	mtr_commit(&mtr);
 }
@@ -439,7 +439,7 @@ trx_purge_truncate_rseg_history(
 
 	mtr.start();
 	ut_ad(rseg.is_persistent());
-	mutex_enter(&rseg.mutex);
+	mysql_mutex_lock(&rseg.mutex);
 
 	buf_block_t* rseg_hdr = trx_rsegf_get(rseg.space, rseg.page_no, &mtr);
 
@@ -451,7 +451,7 @@ trx_purge_truncate_rseg_history(
 loop:
 	if (hdr_addr.page == FIL_NULL) {
 func_exit:
-		mutex_exit(&rseg.mutex);
+		mysql_mutex_unlock(&rseg.mutex);
 		mtr.commit();
 		return;
 	}
@@ -484,7 +484,7 @@ func_exit:
 
 		/* We can free the whole log segment */
 
-		mutex_exit(&rseg.mutex);
+		mysql_mutex_unlock(&rseg.mutex);
 		mtr.commit();
 
 		/* calls the trx_purge_remove_log_hdr()
@@ -495,12 +495,12 @@ func_exit:
 		trx_purge_remove_log_hdr(rseg_hdr, block, hdr_addr.boffset,
 					 &mtr);
 
-		mutex_exit(&rseg.mutex);
+		mysql_mutex_unlock(&rseg.mutex);
 		mtr.commit();
 	}
 
 	mtr.start();
-	mutex_enter(&rseg.mutex);
+	mysql_mutex_lock(&rseg.mutex);
 
 	rseg_hdr = trx_rsegf_get(rseg.space, rseg.page_no, &mtr);
 
@@ -517,7 +517,7 @@ static void trx_purge_cleanse_purge_queue(const fil_space_t& space)
 	typedef	std::vector<TrxUndoRsegs>	purge_elem_list_t;
 	purge_elem_list_t			purge_elem_list;
 
-	mutex_enter(&purge_sys.pq_mutex);
+	mysql_mutex_lock(&purge_sys.pq_mutex);
 
 	/* Remove rseg instances that are in the purge queue before we start
 	truncate of corresponding UNDO truncate. */
@@ -544,7 +544,7 @@ static void trx_purge_cleanse_purge_queue(const fil_space_t& space)
 		}
 	}
 
-	mutex_exit(&purge_sys.pq_mutex);
+	mysql_mutex_unlock(&purge_sys.pq_mutex);
 }
 
 /**
@@ -631,11 +631,11 @@ static void trx_purge_truncate_history()
 			if (!rseg || rseg->space != &space) {
 				continue;
 			}
-			mutex_enter(&rseg->mutex);
+			mysql_mutex_lock(&rseg->mutex);
 			ut_ad(rseg->skip_allocation);
 			if (rseg->trx_ref_count) {
 not_free:
-				mutex_exit(&rseg->mutex);
+				mysql_mutex_unlock(&rseg->mutex);
 				return;
 			}
 
@@ -663,7 +663,7 @@ not_free:
 				}
 			}
 
-			mutex_exit(&rseg->mutex);
+			mysql_mutex_unlock(&rseg->mutex);
 		}
 
 		ib::info() << "Truncating " << file->name;
@@ -701,9 +701,9 @@ not_free:
 		mtr.set_named_space(purge_sys.truncate.current);
 		mtr.trim_pages(page_id_t(space.id, size));
 		fsp_header_init(purge_sys.truncate.current, size, &mtr);
-		mutex_enter(&fil_system.mutex);
+		mysql_mutex_lock(&fil_system.mutex);
 		purge_sys.truncate.current->size = file->size = size;
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 
 		buf_block_t* sys_header = trx_sysf_get(&mtr);
 
@@ -779,12 +779,12 @@ not_free:
 
 		/* In MDEV-8319 (10.5) we will PUNCH_HOLE the garbage
 		(with write-ahead logging). */
-		mutex_enter(&fil_system.mutex);
+		mysql_mutex_lock(&fil_system.mutex);
 		ut_ad(&space == purge_sys.truncate.current);
 		ut_ad(space.is_being_truncated);
 		purge_sys.truncate.current->set_stopping(false);
 		purge_sys.truncate.current->is_being_truncated = false;
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 
 		if (purge_sys.rseg != NULL
 		    && purge_sys.rseg->last_page_no == FIL_NULL) {
@@ -832,7 +832,7 @@ static void trx_purge_rseg_get_next_history_log(
 	trx_id_t	trx_no;
 	mtr_t		mtr;
 
-	mutex_enter(&purge_sys.rseg->mutex);
+	mysql_mutex_lock(&purge_sys.rseg->mutex);
 
 	ut_a(purge_sys.rseg->last_page_no != FIL_NULL);
 
@@ -865,7 +865,7 @@ static void trx_purge_rseg_get_next_history_log(
 		purge_sys.rseg->last_page_no = FIL_NULL;
 	}
 
-	mutex_exit(&purge_sys.rseg->mutex);
+	mysql_mutex_unlock(&purge_sys.rseg->mutex);
 	mtr.commit();
 
 	if (empty) {
@@ -886,7 +886,7 @@ static void trx_purge_rseg_get_next_history_log(
 
 	mtr_commit(&mtr);
 
-	mutex_enter(&purge_sys.rseg->mutex);
+	mysql_mutex_lock(&purge_sys.rseg->mutex);
 
 	purge_sys.rseg->last_page_no = prev_log_addr.page;
 	purge_sys.rseg->last_offset = prev_log_addr.boffset;
@@ -898,13 +898,13 @@ static void trx_purge_rseg_get_next_history_log(
 	than the events that Purge produces. ie. Purge can never produce
 	events from an empty rollback segment. */
 
-	mutex_enter(&purge_sys.pq_mutex);
+	mysql_mutex_lock(&purge_sys.pq_mutex);
 
 	purge_sys.purge_queue.push(*purge_sys.rseg);
 
-	mutex_exit(&purge_sys.pq_mutex);
+	mysql_mutex_unlock(&purge_sys.pq_mutex);
 
-	mutex_exit(&purge_sys.rseg->mutex);
+	mysql_mutex_unlock(&purge_sys.rseg->mutex);
 }
 
 /** Position the purge sys "iterator" on the undo record to use for purging. */

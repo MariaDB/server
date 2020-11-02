@@ -791,8 +791,8 @@ dict_mem_index_create(
 		index->rtr_track = new
 			(mem_heap_alloc(heap, sizeof *index->rtr_track))
 			rtr_info_track_t();
-		mutex_create(LATCH_ID_RTR_ACTIVE_MUTEX,
-			     &index->rtr_track->rtr_active_mutex);
+		mysql_mutex_init(rtr_active_mutex_key,
+				 &index->rtr_track->rtr_active_mutex, nullptr);
 	}
 
 	return(index);
@@ -1101,7 +1101,7 @@ dict_mem_index_free(
 			rtr_info->index = NULL;
 		}
 
-		mutex_destroy(&index->rtr_track->rtr_active_mutex);
+		mysql_mutex_destroy(&index->rtr_track->rtr_active_mutex);
 		index->rtr_track->~rtr_info_track_t();
 	}
 

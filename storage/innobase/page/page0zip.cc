@@ -1358,9 +1358,9 @@ page_zip_compress(
 #endif /* PAGE_ZIP_COMPRESS_DBG */
 	page_zip_stat[page_zip->ssize - 1].compressed++;
 	if (cmp_per_index_enabled) {
-		mutex_enter(&page_zip_stat_per_index_mutex);
+		mysql_mutex_lock(&page_zip_stat_per_index_mutex);
 		page_zip_stat_per_index[ind_id].compressed++;
-		mutex_exit(&page_zip_stat_per_index_mutex);
+		mysql_mutex_unlock(&page_zip_stat_per_index_mutex);
 	}
 
 	if (UNIV_UNLIKELY(n_dense * PAGE_ZIP_DIR_SLOT_SIZE
@@ -1538,10 +1538,10 @@ err_exit:
 		page_zip_stat[page_zip->ssize - 1].compressed_usec
 			+= time_diff;
 		if (cmp_per_index_enabled) {
-			mutex_enter(&page_zip_stat_per_index_mutex);
+			mysql_mutex_lock(&page_zip_stat_per_index_mutex);
 			page_zip_stat_per_index[ind_id].compressed_usec
 				+= time_diff;
-			mutex_exit(&page_zip_stat_per_index_mutex);
+			mysql_mutex_unlock(&page_zip_stat_per_index_mutex);
 		}
 		return false;
 	}
@@ -1605,10 +1605,10 @@ err_exit:
 	page_zip_stat[page_zip->ssize - 1].compressed_ok++;
 	page_zip_stat[page_zip->ssize - 1].compressed_usec += time_diff;
 	if (cmp_per_index_enabled) {
-		mutex_enter(&page_zip_stat_per_index_mutex);
+		mysql_mutex_lock(&page_zip_stat_per_index_mutex);
 		page_zip_stat_per_index[ind_id].compressed_ok++;
 		page_zip_stat_per_index[ind_id].compressed_usec += time_diff;
-		mutex_exit(&page_zip_stat_per_index_mutex);
+		mysql_mutex_unlock(&page_zip_stat_per_index_mutex);
 	}
 
 	if (page_is_leaf(page)) {
@@ -3244,10 +3244,10 @@ page_zip_decompress(
 	index_id_t	index_id = btr_page_get_index_id(page);
 
 	if (srv_cmp_per_index_enabled) {
-		mutex_enter(&page_zip_stat_per_index_mutex);
+		mysql_mutex_lock(&page_zip_stat_per_index_mutex);
 		page_zip_stat_per_index[index_id].decompressed++;
 		page_zip_stat_per_index[index_id].decompressed_usec += time_diff;
-		mutex_exit(&page_zip_stat_per_index_mutex);
+		mysql_mutex_unlock(&page_zip_stat_per_index_mutex);
 	}
 
 	/* Update the stat counter for LRU policy. */

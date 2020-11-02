@@ -393,11 +393,11 @@ btr_root_adjust_on_import(
 			tf &= ~FSP_FLAGS_MEM_MASK;
 			if (fil_space_t::is_flags_equal(tf, sf)
 			    || fil_space_t::is_flags_equal(sf, tf)) {
-				mutex_enter(&fil_system.mutex);
+				mysql_mutex_lock(&fil_system.mutex);
 				table->space->flags = (table->space->flags
 						       & ~FSP_FLAGS_MEM_MASK)
 					| (tf & FSP_FLAGS_MEM_MASK);
-				mutex_exit(&fil_system.mutex);
+				mysql_mutex_unlock(&fil_system.mutex);
 				err = DB_SUCCESS;
 			} else {
 				err = DB_CORRUPTION;

@@ -24,32 +24,13 @@ Global types for sync
 Created 9/5/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef sync0types_h
-#define sync0types_h
-
+#pragma once
+#include "my_atomic_wrapper.h"
 #include <vector>
 
 #include "ut0new.h"
-
-#ifdef _WIN32
-/** Native mutex */
-typedef CRITICAL_SECTION	sys_mutex_t;
-#else
-/** Native mutex */
-typedef pthread_mutex_t		sys_mutex_t;
-#endif /* _WIN32 */
-
-/** Mutex states. */
-enum mutex_state_t {
-	/** Mutex is free */
-	MUTEX_STATE_UNLOCKED = 0,
-
-	/** Mutex is acquired by some thread. */
-	MUTEX_STATE_LOCKED = 1,
-
-	/** Mutex is contended and there are threads waiting on the lock. */
-	MUTEX_STATE_WAITERS = 2
-};
+#undef rw_lock_t
+struct rw_lock_t;
 
 /*
 		LATCHING ORDER WITHIN THE DATABASE
@@ -184,28 +165,14 @@ enum latch_level_t {
 	RW_LOCK_X,
 	RW_LOCK_NOT_LOCKED,
 
-	SYNC_ANY_LATCH,
-
-	SYNC_POOL,
-	SYNC_POOL_MANAGER,
-
 	SYNC_SEARCH_SYS,
 
-	SYNC_PURGE_QUEUE,
 	SYNC_TRX_SYS_HEADER,
-	SYNC_RW_TRX_HASH_ELEMENT,
-	SYNC_READ_VIEW,
-	SYNC_TRX_SYS,
-
-	SYNC_INDEX_ONLINE_LOG,
 
 	SYNC_IBUF_BITMAP,
-	SYNC_IBUF_BITMAP_MUTEX,
 	SYNC_IBUF_TREE_NODE,
 	SYNC_IBUF_TREE_NODE_NEW,
 	SYNC_IBUF_INDEX_TREE,
-
-	SYNC_IBUF_MUTEX,
 
 	SYNC_FSP_PAGE,
 	SYNC_FSP,
@@ -213,19 +180,14 @@ enum latch_level_t {
 	SYNC_TRX_UNDO_PAGE,
 	SYNC_RSEG_HEADER,
 	SYNC_RSEG_HEADER_NEW,
-	SYNC_NOREDO_RSEG,
-	SYNC_REDO_RSEG,
 	SYNC_PURGE_LATCH,
 	SYNC_TREE_NODE,
 	SYNC_TREE_NODE_FROM_HASH,
 	SYNC_TREE_NODE_NEW,
-	SYNC_IBUF_PESS_INSERT_MUTEX,
 	SYNC_INDEX_TREE,
 
 	SYNC_IBUF_HEADER,
 	SYNC_DICT_HEADER,
-	SYNC_STATS_AUTO_RECALC,
-	SYNC_DICT,
 
 	SYNC_DICT_OPERATION,
 
@@ -248,32 +210,6 @@ enum latch_level_t {
 up its meta-data. See sync0debug.cc. */
 enum latch_id_t {
 	LATCH_ID_NONE = 0,
-	LATCH_ID_DICT_FOREIGN_ERR,
-	LATCH_ID_DICT_SYS,
-	LATCH_ID_FIL_SYSTEM,
-	LATCH_ID_IBUF_BITMAP,
-	LATCH_ID_IBUF,
-	LATCH_ID_IBUF_PESSIMISTIC_INSERT,
-	LATCH_ID_PURGE_SYS_PQ,
-	LATCH_ID_RECALC_POOL,
-	LATCH_ID_REDO_RSEG,
-	LATCH_ID_NOREDO_RSEG,
-	LATCH_ID_RW_LOCK_DEBUG,
-	LATCH_ID_RTR_ACTIVE_MUTEX,
-	LATCH_ID_RTR_MATCH_MUTEX,
-	LATCH_ID_RTR_PATH_MUTEX,
-	LATCH_ID_RW_LOCK_LIST,
-	LATCH_ID_SRV_INNODB_MONITOR,
-	LATCH_ID_SRV_MISC_TMPFILE,
-	LATCH_ID_SRV_MONITOR_FILE,
-	LATCH_ID_TRX_POOL,
-	LATCH_ID_TRX_POOL_MANAGER,
-	LATCH_ID_TRX_SYS,
-	LATCH_ID_SRV_SYS_TASKS,
-	LATCH_ID_PAGE_ZIP_STAT_PER_INDEX,
-	LATCH_ID_SYNC_ARRAY_MUTEX,
-	LATCH_ID_ROW_DROP_LIST,
-	LATCH_ID_INDEX_ONLINE_LOG,
 	LATCH_ID_BTR_SEARCH,
 	LATCH_ID_BUF_BLOCK_LOCK,
 	LATCH_ID_BUF_BLOCK_DEBUG,
@@ -284,132 +220,10 @@ enum latch_id_t {
 	LATCH_ID_IBUF_INDEX_TREE,
 	LATCH_ID_INDEX_TREE,
 	LATCH_ID_DICT_TABLE_STATS,
-	LATCH_ID_DEFRAGMENT_MUTEX,
-	LATCH_ID_RW_TRX_HASH_ELEMENT,
-	LATCH_ID_READ_VIEW,
-	LATCH_ID_MAX = LATCH_ID_READ_VIEW
-};
-
-#ifndef UNIV_INNOCHECKSUM
-/** OS mutex, without any policy. It is a thin wrapper around the
-system mutexes. The interface is different from the policy mutexes,
-to ensure that it is called directly and not confused with the
-policy mutexes. */
-struct OSMutex {
-
-	/** Constructor */
-	OSMutex()
-		UNIV_NOTHROW
-	{
-		ut_d(m_freed = true);
-	}
-
-	/** Create the mutex by calling the system functions. */
-	void init()
-		UNIV_NOTHROW
-	{
-		ut_ad(m_freed);
-
-#ifdef _WIN32
-		InitializeCriticalSection((LPCRITICAL_SECTION) &m_mutex);
-#else
-		{
-			int	ret = pthread_mutex_init(&m_mutex, NULL);
-			ut_a(ret == 0);
-		}
-#endif /* _WIN32 */
-
-		ut_d(m_freed = false);
-	}
-
-	/** Destructor */
-	~OSMutex() { }
-
-	/** Destroy the mutex */
-	void destroy()
-		UNIV_NOTHROW
-	{
-		ut_ad(!m_freed);
-#ifdef _WIN32
-		DeleteCriticalSection((LPCRITICAL_SECTION) &m_mutex);
-#else
-		int	ret;
-
-		ret = pthread_mutex_destroy(&m_mutex);
-
-		if (ret != 0) {
-
-			ib::error()
-				<< "Return value " << ret << " when calling "
-				<< "pthread_mutex_destroy().";
-		}
-#endif /* _WIN32 */
-		ut_d(m_freed = true);
-	}
-
-	/** Release the mutex. */
-	void exit()
-		UNIV_NOTHROW
-	{
-		ut_ad(!m_freed);
-#ifdef _WIN32
-		LeaveCriticalSection(&m_mutex);
-#else
-		int	ret = pthread_mutex_unlock(&m_mutex);
-		ut_a(ret == 0);
-#endif /* _WIN32 */
-	}
-
-	/** Acquire the mutex. */
-	void enter()
-		UNIV_NOTHROW
-	{
-		ut_ad(!m_freed);
-#ifdef _WIN32
-		EnterCriticalSection((LPCRITICAL_SECTION) &m_mutex);
-#else
-		int	ret = pthread_mutex_lock(&m_mutex);
-		ut_a(ret == 0);
-#endif /* _WIN32 */
-	}
-
-	/** @return true if locking succeeded */
-	bool try_lock()
-		UNIV_NOTHROW
-	{
-		ut_ad(!m_freed);
-#ifdef _WIN32
-		return(TryEnterCriticalSection(&m_mutex) != 0);
-#else
-		return(pthread_mutex_trylock(&m_mutex) == 0);
-#endif /* _WIN32 */
-	}
-
-	/** Required for os_event_t */
-	operator sys_mutex_t*()
-		UNIV_NOTHROW
-	{
-		return(&m_mutex);
-	}
-
-private:
-#ifdef DBUG_ASSERT_EXISTS
-	/** true if the mutex has been freed/destroyed. */
-	bool			m_freed;
-#endif /* DBUG_ASSERT_EXISTS */
-
-	sys_mutex_t		m_mutex;
+	LATCH_ID_MAX = LATCH_ID_DICT_TABLE_STATS
 };
 
 #ifdef UNIV_PFS_MUTEX
-/** Latch element.
-Used for mutexes which have PFS keys defined under UNIV_PFS_MUTEX.
-@param[in]	id		Latch id
-@param[in]	level		Latch level
-@param[in]	key		PFS key */
-# define LATCH_ADD_MUTEX(id, level, key)	latch_meta[LATCH_ID_ ## id] =\
-	UT_NEW_NOKEY(latch_meta_t(LATCH_ID_ ## id, #id, level, #level, key))
-
 #ifdef UNIV_PFS_RWLOCK
 /** Latch element.
 Used for rwlocks which have PFS keys defined under UNIV_PFS_RWLOCK.
@@ -425,8 +239,6 @@ Used for rwlocks which have PFS keys defined under UNIV_PFS_RWLOCK.
 #endif /* UNIV_PFS_RWLOCK */
 
 #else
-# define LATCH_ADD_MUTEX(id, level, key)	latch_meta[LATCH_ID_ ## id] =\
-	UT_NEW_NOKEY(latch_meta_t(LATCH_ID_ ## id, #id, level, #level))
 # define LATCH_ADD_RWLOCK(id, level, key)	latch_meta[LATCH_ID_ ## id] =\
 	UT_NEW_NOKEY(latch_meta_t(LATCH_ID_ ## id, #id, level, #level))
 #endif /* UNIV_PFS_MUTEX */
@@ -473,28 +285,14 @@ public:
 	};
 
 	/** Constructor */
-	LatchCounter()
-		UNIV_NOTHROW
-		:
-		m_active(false)
-	{
-		m_mutex.init();
-	}
+	LatchCounter() { mysql_mutex_init(0, &m_mutex, nullptr); }
 
 	/** Destructor */
 	~LatchCounter()
 		UNIV_NOTHROW
 	{
-		m_mutex.destroy();
-
-		for (Counters::iterator it = m_counters.begin();
-		     it != m_counters.end();
-		     ++it) {
-
-			Count*	count = *it;
-
-			UT_DELETE(count);
-		}
+		mysql_mutex_destroy(&m_mutex);
+		for (Count *count : m_counters) UT_DELETE(count);
 	}
 
 	/** Reset all counters to zero. It is not protected by any
@@ -504,25 +302,16 @@ public:
 	void reset()
 		UNIV_NOTHROW
 	{
-		m_mutex.enter();
-
-		Counters::iterator	end = m_counters.end();
-
-		for (Counters::iterator it = m_counters.begin();
-		     it != end;
-		     ++it) {
-
-			(*it)->reset();
-		}
-
-		m_mutex.exit();
+		mysql_mutex_lock(&m_mutex);
+		for (Count *count : m_counters) count->reset();
+		mysql_mutex_unlock(&m_mutex);
 	}
 
 	/** @return the aggregate counter */
 	Count* sum_register()
 		UNIV_NOTHROW
 	{
-		m_mutex.enter();
+		mysql_mutex_lock(&m_mutex);
 
 		Count*	count;
 
@@ -534,7 +323,7 @@ public:
 			count = m_counters[0];
 		}
 
-		m_mutex.exit();
+		mysql_mutex_unlock(&m_mutex);
 
 		return(count);
 	}
@@ -543,11 +332,9 @@ public:
 	void single_register(Count* count)
 		UNIV_NOTHROW
 	{
-		m_mutex.enter();
-
+		mysql_mutex_lock(&m_mutex);
 		m_counters.push_back(count);
-
-		m_mutex.exit();
+		mysql_mutex_unlock(&m_mutex);
 	}
 
 	/** Deregister a single instance counter
@@ -555,98 +342,57 @@ public:
 	void single_deregister(Count* count)
 		UNIV_NOTHROW
 	{
-		m_mutex.enter();
-
+		mysql_mutex_lock(&m_mutex);
 		m_counters.erase(
 			std::remove(
 				m_counters.begin(),
 				m_counters.end(), count),
 			m_counters.end());
-
-		m_mutex.exit();
+		mysql_mutex_unlock(&m_mutex);
 	}
 
 	/** Iterate over the counters */
 	template<typename C> void iterate(const C& callback) UNIV_NOTHROW
 	{
-		m_mutex.enter();
-
-		Counters::const_iterator	end = m_counters.end();
-
-		for (Counters::const_iterator it = m_counters.begin();
-		     it != end;
-		     ++it) {
-
-			callback(*it);
-		}
-
-		m_mutex.exit();
+		mysql_mutex_lock(&m_mutex);
+		for (Count *count : m_counters) callback(count);
+		mysql_mutex_unlock(&m_mutex);
 	}
 
 	/** Disable the monitoring */
 	void enable()
 		UNIV_NOTHROW
 	{
-		m_mutex.enter();
-
-		Counters::const_iterator	end = m_counters.end();
-
-		for (Counters::const_iterator it = m_counters.begin();
-		     it != end;
-		     ++it) {
-
-			(*it)->m_enabled = true;
-		}
-
+		mysql_mutex_lock(&m_mutex);
+		for (Count *count : m_counters) count->m_enabled = true;
 		m_active = true;
-
-		m_mutex.exit();
+		mysql_mutex_unlock(&m_mutex);
 	}
 
 	/** Disable the monitoring */
 	void disable()
 		UNIV_NOTHROW
 	{
-		m_mutex.enter();
-
-		Counters::const_iterator	end = m_counters.end();
-
-		for (Counters::const_iterator it = m_counters.begin();
-		     it != end;
-		     ++it) {
-
-			(*it)->m_enabled = false;
-		}
-
+		mysql_mutex_lock(&m_mutex);
+		for (Count *count : m_counters) count->m_enabled = false;
 		m_active = false;
-
-		m_mutex.exit();
+		mysql_mutex_unlock(&m_mutex);
 	}
 
 	/** @return if monitoring is active */
-	bool is_enabled() const
-		UNIV_NOTHROW
-	{
-		return(m_active);
-	}
+	bool is_enabled() const { return m_active; }
 
-private:
-	/* Disable copying */
-	LatchCounter(const LatchCounter&);
-	LatchCounter& operator=(const LatchCounter&);
-
-private:
-	typedef OSMutex Mutex;
-	typedef std::vector<Count*> Counters;
+	LatchCounter(const LatchCounter&) = delete;
+	LatchCounter& operator=(const LatchCounter&) = delete;
 
 	/** Mutex protecting m_counters */
-	Mutex			m_mutex;
+	mysql_mutex_t m_mutex;
 
 	/** Counters for the latches */
-	Counters		m_counters;
+	std::vector<Count*> m_counters;
 
 	/** if true then we collect the data */
-	bool			m_active;
+	Atomic_relaxed<bool> m_active= false;
 };
 
 /** Latch meta data */
@@ -811,6 +557,8 @@ inline
 const char*
 sync_latch_get_name(latch_id_t id)
 {
+	ut_ad(id != LATCH_ID_NONE);
+
 	const latch_meta_t&	meta = sync_latch_get_meta(id);
 
 	return(meta.get_name());
@@ -823,6 +571,8 @@ inline
 latch_level_t
 sync_latch_get_level(latch_id_t id)
 {
+	ut_ad(id != LATCH_ID_NONE);
+
 	const latch_meta_t&	meta = sync_latch_get_meta(id);
 
 	return(meta.get_level());
@@ -842,16 +592,6 @@ sync_latch_get_pfs_key(latch_id_t id)
 }
 #endif
 
-/** String representation of the filename and line number where the
-latch was created
-@param[in]	id		Latch ID
-@param[in]	created		Filename and line number where it was crated
-@return the string representation */
-std::string
-sync_mutex_to_string(
-	latch_id_t		id,
-	const std::string&	created);
-
 /** Get the latch name from a sync level
 @param[in]	level		Latch level to lookup
 @return 0 if not found. */
@@ -864,64 +604,6 @@ const char*
 sync_basename(const char* filename);
 
 #ifdef UNIV_DEBUG
-
-/** All (ordered) latches, used in debugging, must derive from this class. */
-struct latch_t {
-
-	/** Constructor
-	@param[in]	id	The latch ID */
-	explicit latch_t(latch_id_t id = LATCH_ID_NONE)
-		UNIV_NOTHROW
-		:
-		m_id(id),
-		m_rw_lock() {}
-
-	/** Destructor */
-	virtual ~latch_t() UNIV_NOTHROW { }
-
-	/** @return the latch ID */
-	latch_id_t get_id() const
-	{
-		return(m_id);
-	}
-
-	/** @return true if it is a rw-lock */
-	bool is_rw_lock() const
-		UNIV_NOTHROW
-	{
-		return(m_rw_lock);
-	}
-
-	/** Print the latch context
-	@return the string representation */
-	virtual std::string to_string() const = 0;
-
-	/** @return the latch level */
-	latch_level_t get_level() const
-		UNIV_NOTHROW
-	{
-		ut_a(m_id != LATCH_ID_NONE);
-
-		return(sync_latch_get_level(m_id));
-	}
-
-	/** @return the latch name, m_id must be set  */
-	const char* get_name() const
-		UNIV_NOTHROW
-	{
-		ut_a(m_id != LATCH_ID_NONE);
-
-		return(sync_latch_get_name(m_id));
-	}
-
-	/** Latch ID */
-	latch_id_t	m_id;
-
-	/** true if it is a rw-lock. In debug mode, rw_lock_t derives from
-	this class and sets this variable. */
-	bool		m_rw_lock;
-};
-
 /** Subclass this to iterate over a thread's acquired latch levels. */
 struct sync_check_functor_t {
 	virtual ~sync_check_functor_t() { }
@@ -941,7 +623,6 @@ struct sync_checker : public sync_check_functor_t
 		if (some_allowed) {
 			switch (level) {
 			case SYNC_FSP:
-			case SYNC_DICT:
 			case SYNC_DICT_OPERATION:
 			case SYNC_NO_ORDER_CHECK:
 				return(false);
@@ -970,7 +651,7 @@ struct sync_allowed_latches : public sync_check_functor_t {
 		const latch_level_t*	to)
 		: begin(from), end(to) { }
 
-	/** Checks whether the given latch_t violates the latch constraint.
+	/** Checks whether the given rw_lock_t violates the latch constraint.
 	This object maintains a list of allowed latch levels, and if the given
 	latch belongs to a latch level that is not there in the allowed list,
 	then it is a violation.
@@ -1006,8 +687,6 @@ enum rw_lock_flag_t {
 
 #endif /* UNIV_DBEUG */
 
-#endif /* UNIV_INNOCHECKSUM */
-
 /** Simple non-atomic counter aligned to CACHE_LINE_SIZE
 @tparam	Type	the integer type of the counter */
 template <typename Type>
@@ -1030,4 +709,3 @@ private:
 	/** The counter */
 	Type	m_counter;
 };
-#endif /* sync0types_h */

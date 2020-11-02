@@ -34,7 +34,7 @@ Created 9/11/1995 Heikki Tuuri
 #ifndef sync0rw_h
 #define sync0rw_h
 
-#include "ut0mutex.h"
+#include "srv0mon.h"
 #include "ut0counter.h"
 #include "ilist.h"
 
@@ -97,17 +97,12 @@ of concurrent read locks before the rw_lock breaks. */
 #define X_LOCK_DECR		0x20000000
 #define X_LOCK_HALF_DECR	0x10000000
 
-#ifdef rw_lock_t
-#undef rw_lock_t
-#endif
-struct rw_lock_t;
-
 #ifdef UNIV_DEBUG
 struct rw_lock_debug_t;
 #endif /* UNIV_DEBUG */
 
 extern ilist<rw_lock_t> rw_lock_list;
-extern ib_mutex_t			rw_lock_list_mutex;
+extern mysql_mutex_t rw_lock_list_mutex;
 
 /** Counters for RW locks. */
 extern rw_lock_stats_t	rw_lock_stats;
@@ -562,11 +557,23 @@ new readers will be let in while the thread waits for readers to
 exit. */
 
 struct rw_lock_t :
-#ifdef UNIV_DEBUG
-	public latch_t,
-#endif /* UNIV_DEBUG */
 	public ilist_node<>
 {
+  /** @return the latch ID */
+  latch_id_t get_id() const { return m_id; }
+
+  /** Print the latch context
+  @return the string representation */
+  std::string to_string();
+
+  /** @return the latch level */
+  latch_level_t get_level() const { return sync_latch_get_level(m_id); }
+
+  /** @return the latch name, m_id must be set  */
+  const char* get_name() const { return sync_latch_get_name(m_id); }
+  /** Latch ID */
+  latch_id_t m_id= LATCH_ID_NONE;
+
   ut_d(bool created= false;)
 
   /** Holds the state of the lock. */
@@ -619,7 +626,7 @@ struct rw_lock_t :
 #endif /* UNIV_PFS_RWLOCK */
 
 #ifdef UNIV_DEBUG
-	std::string to_string() const override;
+	std::string to_string() const;
 
 	/** In the debug version: pointer to the debug info list of the lock */
 	UT_LIST_BASE_NODE_T(rw_lock_debug_t) debug_list;

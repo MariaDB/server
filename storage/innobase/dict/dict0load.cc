@@ -220,7 +220,7 @@ dict_get_first_table_name_in_db(
 	ulint		len;
 	mtr_t		mtr;
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	heap = mem_heap_create(1000);
 
@@ -797,7 +797,7 @@ dict_get_first_path(
 	char*		filepath = NULL;
 	mem_heap_t*	heap = mem_heap_create(1024);
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	mtr_start(&mtr);
 
@@ -976,7 +976,7 @@ dict_sys_tables_rec_check(
 	const byte*	field;
 	ulint		len;
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	if (rec_get_deleted_flag(rec, 0)) {
 		return("delete-marked record in SYS_TABLES");
@@ -1776,7 +1776,7 @@ dict_load_columns(
 	mtr_t		mtr;
 	ulint		n_skipped = 0;
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	mtr_start(&mtr);
 
@@ -1892,7 +1892,7 @@ dict_load_virtual_one_col(
 	mtr_t		mtr;
 	ulint		skipped = 0;
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	if (v_col->num_base == 0) {
 		return;
@@ -2125,7 +2125,7 @@ dict_load_fields(
 	mtr_t		mtr;
 	dberr_t		error;
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	mtr_start(&mtr);
 
@@ -2356,7 +2356,7 @@ dict_load_indexes(
 	mtr_t		mtr;
 	dberr_t		error = DB_SUCCESS;
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	mtr_start(&mtr);
 
@@ -2650,7 +2650,7 @@ dict_save_data_dir_path(
 	dict_table_t*	table,		/*!< in/out: table */
 	const char*	filepath)	/*!< in: filepath of tablespace */
 {
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 	ut_a(DICT_TF_HAS_DATA_DIR(table->flags));
 
 	ut_a(!table->data_dir_path);
@@ -2688,7 +2688,7 @@ dict_get_and_save_data_dir_path(
 
 	if (!table->data_dir_path && table->space_id && table->space) {
 		if (!dict_mutex_own) {
-			dict_mutex_enter_for_mysql();
+			mysql_mutex_lock(&dict_sys.mutex);
 		}
 
 		table->flags |= 1 << DICT_TF_POS_DATA_DIR
@@ -2707,7 +2707,7 @@ dict_get_and_save_data_dir_path(
 		}
 
 		if (!dict_mutex_own) {
-			dict_mutex_exit_for_mysql();
+			mysql_mutex_unlock(&dict_sys.mutex);
 		}
 	}
 }
@@ -2731,7 +2731,7 @@ dict_table_t* dict_load_table(const char* name, dict_err_ignore_t ignore_err)
 	DBUG_ENTER("dict_load_table");
 	DBUG_PRINT("dict_load_table", ("loading table: '%s'", name));
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	result = dict_table_check_if_in_cache_low(name);
 
@@ -2865,7 +2865,7 @@ dict_load_table_one(
 	DBUG_ENTER("dict_load_table_one");
 	DBUG_PRINT("dict_load_table_one", ("table: %s", name.m_name));
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	heap = mem_heap_create(32000);
 
@@ -3111,7 +3111,7 @@ dict_load_table_on_id(
 	dict_table_t*	table;
 	mtr_t		mtr;
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	table = NULL;
 
@@ -3196,7 +3196,7 @@ dict_load_sys_table(
 {
 	mem_heap_t*	heap;
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	heap = mem_heap_create(1000);
 
@@ -3233,7 +3233,7 @@ dict_load_foreign_cols(
 	mtr_t		mtr;
 	size_t		id_len;
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	id_len = strlen(foreign->id);
 
@@ -3379,7 +3379,7 @@ dict_load_foreign(
 	DBUG_PRINT("dict_load_foreign",
 		   ("id: '%s', check_recursive: %d", id, check_recursive));
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	id_len = strlen(id);
 
@@ -3554,7 +3554,7 @@ dict_load_foreigns(
 
 	DBUG_ENTER("dict_load_foreigns");
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	sys_foreign = dict_table_get_low("SYS_FOREIGN");
 
@@ -3713,7 +3713,7 @@ dict_load_table_id_on_index_id(
 	bool		found = false;
 	mtr_t		mtr;
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	/* NOTE that the operation of this function is protected by
 	the dictionary mutex, and therefore no deadlocks can occur

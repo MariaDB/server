@@ -47,35 +47,34 @@ sync_check_close();
 /** Check if it is OK to acquire the latch.
 @param[in]	latch	latch type */
 void
-sync_check_lock_validate(const latch_t* latch);
+sync_check_lock_validate(const rw_lock_t* latch);
 
 /** Note that the lock has been granted
 @param[in]	latch	latch type */
 void
-sync_check_lock_granted(const latch_t* latch);
+sync_check_lock_granted(const rw_lock_t* latch);
 
 /** Check if it is OK to acquire the latch.
 @param[in]	latch	latch type
 @param[in]	level	the level of the mutex */
 void
-sync_check_lock(const latch_t* latch, latch_level_t level);
+sync_check_lock(const rw_lock_t* latch, latch_level_t level);
 
 /**
 Check if it is OK to re-acquire the lock. */
 void
-sync_check_relock(const latch_t* latch);
+sync_check_relock(const rw_lock_t* latch);
 
 /** Removes a latch from the thread level array if it is found there.
 @param[in]	latch	to unlock */
 void
-sync_check_unlock(const latch_t* latch);
+sync_check_unlock(const rw_lock_t* latch);
 
 /** Checks if the level array for the current thread contains a
 mutex or rw-latch at the specified level.
 @param[in]	level	to find
 @return	a matching latch, or NULL if not found */
-const latch_t*
-sync_check_find(latch_level_t level);
+const rw_lock_t* sync_check_find(latch_level_t level);
 
 /** Checks that the level array for the current thread is empty.
 Terminate iteration if the functor returns true.

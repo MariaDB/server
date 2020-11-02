@@ -216,15 +216,13 @@ at a time */
 #define SRV_AUTO_EXTEND_INCREMENT (srv_sys_space.get_autoextend_increment())
 
 /** Mutex protecting page_zip_stat_per_index */
-extern ib_mutex_t	page_zip_stat_per_index_mutex;
-/* Mutex for locking srv_monitor_file. Not created if srv_read_only_mode */
-extern ib_mutex_t	srv_monitor_file_mutex;
+extern mysql_mutex_t page_zip_stat_per_index_mutex;
+/** Mutex for locking srv_monitor_file */
+extern mysql_mutex_t srv_monitor_file_mutex;
 /* Temporary file for innodb monitor output */
 extern FILE*	srv_monitor_file;
-/* Mutex for locking srv_misc_tmpfile. Only created if !srv_read_only_mode.
-This mutex has a very low rank; threads reserving it should not
-acquire any further latches or sleep before releasing this one. */
-extern ib_mutex_t	srv_misc_tmpfile_mutex;
+/** Mutex for locking srv_misc_tmpfile */
+extern mysql_mutex_t srv_misc_tmpfile_mutex;
 /* Temporary file for miscellanous diagnostic output */
 extern FILE*	srv_misc_tmpfile;
 

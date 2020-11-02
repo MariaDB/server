@@ -67,7 +67,7 @@ sym_tab_free_private(
 	sym_node_t*	sym;
 	func_node_t*	func;
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	mysql_mutex_assert_owner(&dict_sys.mutex);
 
 	for (sym = UT_LIST_GET_FIRST(sym_tab->sym_list);
 	     sym != NULL;

@@ -37,6 +37,7 @@ Created 2011-05-26 Marko Makela
 #include "handler0alter.h"
 #include "ut0stage.h"
 #include "trx0rec.h"
+#include "sync0sync.h"
 
 #include <sql_class.h>
 #include <algorithm>
@@ -172,7 +173,7 @@ directly. When also head.bytes == tail.bytes, both counts will be
 reset to 0 and the file will be truncated. */
 struct row_log_t {
 	pfs_os_file_t	fd;	/*!< file descriptor */
-	ib_mutex_t	mutex;	/*!< mutex protecting error,
+	mysql_mutex_t	mutex;	/*!< mutex protecting error,
 				max_trx and tail */
 	page_no_map*	blobs;	/*!< map of page numbers of off-page columns
 				that have been freed during table-rebuilding
@@ -364,7 +365,7 @@ row_log_online_op(
 		+ (trx_id ? DATA_TRX_ID_LEN : 0);
 
 	log = index->online_log;
-	mutex_enter(&log->mutex);
+	mysql_mutex_lock(&log->mutex);
 
 	if (trx_id > log->max_trx) {
 		log->max_trx = trx_id;
@@ -472,7 +473,7 @@ write_failed:
 
 	MEM_UNDEFINED(log->tail.buf, sizeof log->tail.buf);
 err_exit:
-	mutex_exit(&log->mutex);
+	mysql_mutex_unlock(&log->mutex);
 }
 
 /******************************************************//**
@@ -500,13 +501,13 @@ row_log_table_open(
 	ulint		size,	/*!< in: size of log record */
 	ulint*		avail)	/*!< out: available size for log record */
 {
-	mutex_enter(&log->mutex);
+	mysql_mutex_lock(&log->mutex);
 
 	MEM_UNDEFINED(log->tail.buf, sizeof log->tail.buf);
 
 	if (log->error != DB_SUCCESS) {
 err_exit:
-		mutex_exit(&log->mutex);
+		mysql_mutex_unlock(&log->mutex);
 		return(NULL);
 	}
 
@@ -542,7 +543,7 @@ row_log_table_close_func(
 {
 	row_log_t*	log = index->online_log;
 
-	ut_ad(mutex_own(&log->mutex));
+	mysql_mutex_assert_owner(&log->mutex);
 
 	if (size >= avail) {
 		const os_offset_t	byte_offset
@@ -606,7 +607,7 @@ write_failed:
 	log->tail.total += size;
 	MEM_UNDEFINED(log->tail.buf, sizeof log->tail.buf);
 err_exit:
-	mutex_exit(&log->mutex);
+	mysql_mutex_unlock(&log->mutex);
 
 	onlineddl_rowlog_rows++;
 	/* 10000 means 100.00%, 4525 means 45.25% */
@@ -1279,7 +1280,7 @@ row_log_table_get_pk(
 		return(NULL);
 	}
 
-	mutex_enter(&log->mutex);
+	mysql_mutex_lock(&log->mutex);
 
 	/* log->error is protected by log->mutex. */
 	if (log->error == DB_SUCCESS) {
@@ -1418,7 +1419,7 @@ err_exit:
 	}
 
 func_exit:
-	mutex_exit(&log->mutex);
+	mysql_mutex_unlock(&log->mutex);
 	return(tuple);
 }
 
@@ -3200,7 +3201,7 @@ row_log_allocate(
 	}
 
 	log->fd = OS_FILE_CLOSED;
-	mutex_create(LATCH_ID_INDEX_ONLINE_LOG, &log->mutex);
+	mysql_mutex_init(index_online_log_key, &log->mutex, nullptr);
 
 	log->blobs = NULL;
 	log->table = table;
@@ -3283,7 +3284,7 @@ row_log_free(
 		my_large_free(log->crypt_tail, log->crypt_tail_size);
 	}
 
-	mutex_free(&log->mutex);
+	mysql_mutex_destroy(&log->mutex);
 	ut_free(log);
 	log = NULL;
 }
@@ -3299,9 +3300,11 @@ row_log_get_max_trx(
 {
 	ut_ad(dict_index_get_online_status(index) == ONLINE_INDEX_CREATION);
 
+#ifdef SAFE_MUTEX
 	ut_ad((rw_lock_own(dict_index_get_lock(index), RW_LOCK_S)
-	       && mutex_own(&index->online_log->mutex))
+	       && mysql_mutex_is_owner(&index->online_log->mutex))
 	      || rw_lock_own(dict_index_get_lock(index), RW_LOCK_X));
+#endif
 
 	return(index->online_log->max_trx);
 }

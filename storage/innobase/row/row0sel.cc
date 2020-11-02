@@ -1099,13 +1099,13 @@ re_scan:
 			thr->lock_state = QUE_THR_LOCK_NOLOCK;
 			mtr->start();
 
-			mutex_enter(&match->rtr_match_mutex);
+			mysql_mutex_lock(&match->rtr_match_mutex);
 			if (!match->valid && match->matched_recs->empty()) {
-				mutex_exit(&match->rtr_match_mutex);
+				mysql_mutex_unlock(&match->rtr_match_mutex);
 				err = DB_RECORD_NOT_FOUND;
 				goto func_end;
 			}
-			mutex_exit(&match->rtr_match_mutex);
+			mysql_mutex_unlock(&match->rtr_match_mutex);
 
 			/* MDEV-14059 FIXME: why re-latch the block?
 			pcur is already positioned on it! */
@@ -3294,16 +3294,16 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 			|| rec != btr_pcur_get_rec(prebuilt->pcur))) {
 #ifdef UNIV_DEBUG
 			rtr_info_t*	rtr_info = btr_cur->rtr_info;
-			mutex_enter(&rtr_info->matches->rtr_match_mutex);
+			mysql_mutex_lock(&rtr_info->matches->rtr_match_mutex);
 			/* The page could be deallocated (by rollback etc.) */
 			if (!rtr_info->matches->valid) {
-				mutex_exit(&rtr_info->matches->rtr_match_mutex);
+				mysql_mutex_unlock(&rtr_info->matches->rtr_match_mutex);
 				clust_rec = NULL;
 
                                 err = DB_SUCCESS;
                                 goto func_exit;
 			}
-			mutex_exit(&rtr_info->matches->rtr_match_mutex);
+			mysql_mutex_unlock(&rtr_info->matches->rtr_match_mutex);
 
 			if (rec_get_deleted_flag(rec,
                                           dict_table_is_comp(sec_index->table))
