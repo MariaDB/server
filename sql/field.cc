@@ -8724,7 +8724,10 @@ int Field_blob::cmp_binary(const uchar *a_ptr, const uchar *b_ptr,
   b_length=get_length(b_ptr);
   if (b_length > max_length)
     b_length=max_length;
-  diff=memcmp(a,b,MY_MIN(a_length,b_length));
+  if (uint32 len= MY_MIN(a_length,b_length))
+    diff= memcmp(a,b,len);
+  else
+    diff= 0;
   return diff ? diff : (int) (a_length - b_length);
 }
 
@@ -8751,7 +8754,8 @@ uint Field_blob::get_key_image_itRAW(const uchar *ptr_arg, uchar *buff,
     length=(uint) blob_length;
   }
   int2store(buff,length);
-  memcpy(buff+HA_KEY_BLOB_LENGTH, blob, length);
+  if (length)
+    memcpy(buff+HA_KEY_BLOB_LENGTH, blob, length);
   return HA_KEY_BLOB_LENGTH+length;
 }
 

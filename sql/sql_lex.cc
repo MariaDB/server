@@ -10209,7 +10209,8 @@ bool LEX::new_sp_instr_stmt(THD *thd,
   qbuff.length= prefix.length + suffix.length;
   if (!(qbuff.str= (char*) alloc_root(thd->mem_root, qbuff.length + 1)))
     return true;
-  memcpy(qbuff.str, prefix.str, prefix.length);
+  if (prefix.length)
+    memcpy(qbuff.str, prefix.str, prefix.length);
   strmake(qbuff.str + prefix.length, suffix.str, suffix.length);
   i->m_query= qbuff;
   return sphead->add_instr(i);
