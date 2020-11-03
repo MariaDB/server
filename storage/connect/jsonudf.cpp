@@ -1768,9 +1768,13 @@ static PJSON ParseJsonFile(PGLOBAL g, char *fn, int *pretty, size_t& len)
 	} // endif hFile
 
 	/*******************************************************************************/
-	/*  Get the file size (assuming file is smaller than 4 GB)                     */
+	/*  Get the file size.                                                         */
 	/*******************************************************************************/
-	len = (size_t)mm.sz.QuadPart;
+	len = (size_t)mm.lenL;
+
+	if (mm.lenH)
+		len += ((size_t)mm.lenH * 0x000000001LL);
+
 	memory = (char *)mm.memory;
 
 	if (!len) {              // Empty or deleted file
@@ -6041,11 +6045,16 @@ char* JUP::UnprettyJsonFile(PGLOBAL g, char *fn, char *outfn, int lrecl) {
 	/*******************************************************************************/
 	/*  Get the file size (assuming file is smaller than 4 GB)                     */
 	/*******************************************************************************/
-	if (!mm.sz.QuadPart) {              // Empty or deleted file
+	if (!mm.lenL && !mm.lenH) {              // Empty or deleted file
 		CloseFileHandle(hFile);
 		return NULL;
-	} else
-		len = (size_t)mm.sz.QuadPart;
+	} else {
+		len = (size_t)mm.lenL;
+
+		if (mm.lenH)
+			len += ((size_t)mm.lenH * 0x000000001LL);
+
+	}	// endif size
 
 	if (!mm.memory) {
 		CloseFileHandle(hFile);

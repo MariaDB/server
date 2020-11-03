@@ -7,7 +7,8 @@ extern "C" {
 
 typedef struct {
   void *memory;
-	LARGE_INTEGER sz;
+  DWORD lenL;
+  DWORD lenH;
   } MEMMAP;
 
 DllExport HANDLE  CreateFileMap(PGLOBAL, LPCSTR, MEMMAP *, MODE, bool);

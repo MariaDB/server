@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2020    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -1423,8 +1423,12 @@ bool VCMFAM::OpenTableFile(PGLOBAL g)
     /*******************************************************************/
     /*  Get the file size.                                             */
     /*******************************************************************/
-    len = (size_t)mm.sz.QuadPart;
-    Memory = (char *)mm.memory;
+		len = (size_t)mm.lenL;
+
+		if (mm.lenH)
+			len += ((size_t)mm.lenH * 0x000000001LL);
+
+		Memory = (char *)mm.memory;
 
     if (!len) {             // Empty or deleted file
       CloseFileHandle(hFile);
@@ -2816,8 +2820,12 @@ bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
     /*****************************************************************/
     /*  Get the file size (assuming file is smaller than 4 GB)       */
     /*****************************************************************/
-    len = (size_t)mm.sz.QuadPart;
-    Memcol[i] = (char *)mm.memory;
+		len = (size_t)mm.lenL;
+
+		if (mm.lenH)
+			len += ((size_t)mm.lenH * 0x000000001LL);
+
+		Memcol[i] = (char *)mm.memory;
 
     if (!len) {             // Empty or deleted file
       CloseFileHandle(hFile);

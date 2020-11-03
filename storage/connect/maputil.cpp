@@ -90,8 +90,8 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR filename,
         return INVALID_HANDLE_VALUE;
         } // endif memory
 
-      // HighPart is the high-order word of the file size
-      mm->sz.LowPart = GetFileSize(hFile, (LPDWORD)&mm->sz.HighPart);
+      // lenH is the high-order word of the file size
+      mm->lenL = GetFileSize(hFile, &mm->lenH);
       CloseHandle(hFileMap);                    // Not used anymore
     }  else // MODE_INSERT
       /*****************************************************************/

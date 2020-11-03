@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2020    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -176,7 +176,11 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
     /*******************************************************************/
     /*  Get the file size.                                             */
     /*******************************************************************/
-    len = (size_t)mm.sz.QuadPart;
+		len = (size_t)mm.lenL;
+		
+		if (mm.lenH)
+			len += ((size_t)mm.lenH * 0x000000001LL);
+
     Memory = (char *)mm.memory;
 
     if (!len) {              // Empty or deleted file
