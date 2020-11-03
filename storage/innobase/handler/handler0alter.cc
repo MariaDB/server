@@ -1467,7 +1467,8 @@ instant_alter_column_possible(
 		for (const dict_index_t* index = ib_table.indexes.start;
 		     index; index = index->indexes.next) {
 			if (index->has_virtual()) {
-				ut_ad(ib_table.n_v_cols);
+				ut_ad(ib_table.n_v_cols
+				      || index->is_corrupted());
 				return false;
 			}
 		}

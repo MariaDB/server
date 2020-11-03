@@ -4894,7 +4894,8 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
       length--;					// Fix length change above
       entry->value[length]= 0;			// Store end \0
     }
-    memmove(entry->value, ptr, length);
+    if (length)
+      memmove(entry->value, ptr, length);
     if (type == DECIMAL_RESULT)
       ((my_decimal*)entry->value)->fix_buffer_pointer();
     entry->length= length;

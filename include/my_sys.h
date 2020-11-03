@@ -515,8 +515,11 @@ static inline int my_b_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
   MEM_CHECK_DEFINED(Buffer, Count);
   if (info->write_pos + Count <= info->write_end)
   {
-    memcpy(info->write_pos, Buffer, Count);
-    info->write_pos+= Count;
+    if (Count)
+    {
+      memcpy(info->write_pos, Buffer, Count);
+      info->write_pos+= Count;
+    }
     return 0;
   }
   return _my_b_write(info, Buffer, Count);
