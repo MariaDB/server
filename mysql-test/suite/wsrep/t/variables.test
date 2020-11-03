@@ -1,7 +1,6 @@
 --source include/have_wsrep.inc
 --source include/force_restart.inc
 --source include/have_innodb.inc
---source include/galera_have_debug_sync.inc
 
 call mtr.add_suppression("WSREP: Initial position was provided by configuration or SST, avoiding override");
 
@@ -35,13 +34,6 @@ CALL mtr.add_suppression("WSREP: Could not open saved state file for reading.*")
 --disable_query_log
 eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
 --enable_query_log
-
---replace_column 2 #
-SHOW GLOBAL STATUS LIKE 'wsrep%';
-
---echo
---replace_column 2 #
-SHOW GLOBAL STATUS LIKE 'wsrep_%';
 
 --replace_column 2 #
 SHOW GLOBAL STATUS LIKE 'wsrep_local_state_comment';
