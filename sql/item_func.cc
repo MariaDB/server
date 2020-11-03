@@ -1481,14 +1481,13 @@ double Item_func_div::real_op()
 my_decimal *Item_func_div::decimal_op(my_decimal *decimal_value)
 {
   int err;
-  my_decimal tmp;
   VDec2_lazy val(args[0], args[1]);
   if ((null_value= val.has_null()))
     return 0;
   if ((err= check_decimal_overflow(my_decimal_div(E_DEC_FATAL_ERROR &
                                                   ~E_DEC_OVERFLOW &
                                                   ~E_DEC_DIV_ZERO,
-                                                  &tmp,
+                                                  decimal_value,
                                                   val.m_a.ptr(), val.m_b.ptr(),
                                                   prec_increment))) > 3)
   {
@@ -1497,7 +1496,6 @@ my_decimal *Item_func_div::decimal_op(my_decimal *decimal_value)
     null_value= 1;
     return 0;
   }
-  tmp.round_to(decimal_value, decimals, HALF_UP);
   return decimal_value;
 }
 
@@ -3928,6 +3926,8 @@ int Interruptible_wait::wait(mysql_cond_t *cond, mysql_mutex_t *mutex)
       timeout= m_abs_timeout;
 
     error= mysql_cond_timedwait(cond, mutex, &timeout);
+    if (m_thd->check_killed())
+      break;
     if (error == ETIMEDOUT || error == ETIME)
     {
       /* Return error if timed out or connection is broken. */
@@ -4774,7 +4774,8 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, size_t length,
       length--;					// Fix length change above
       entry->value[length]= 0;			// Store end \0
     }
-    memmove(entry->value, ptr, length);
+    if (length)
+      memmove(entry->value, ptr, length);
     if (type == DECIMAL_RESULT)
       ((my_decimal*)entry->value)->fix_buffer_pointer();
     entry->length= length;

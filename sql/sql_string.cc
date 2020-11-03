@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2016, MariaDB
+   Copyright (c) 2016, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -237,8 +237,8 @@ bool Binary_string::copy(const Binary_string &str)
 {
   if (alloc(str.str_length))
     return TRUE;
-  str_length=str.str_length;
-  bmove(Ptr,str.Ptr,str_length);		// May be overlapping
+  if ((str_length=str.str_length))
+    bmove(Ptr,str.Ptr,str_length);		// May be overlapping
   Ptr[str_length]=0;
   return FALSE;
 }
@@ -574,8 +574,11 @@ bool Binary_string::append_ulonglong(ulonglong val)
 
 bool String::append(const char *s, size_t arg_length, CHARSET_INFO *cs)
 {
+  if (!arg_length)
+    return false;
+
   uint32 offset;
-  
+
   if (needs_conversion((uint32)arg_length, cs, charset(), &offset))
   {
     size_t add_length;

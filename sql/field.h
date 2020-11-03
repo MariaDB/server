@@ -1394,6 +1394,8 @@ public:
   virtual uint max_packed_col_length(uint max_length)
   { return max_length;}
 
+  virtual bool is_packable() const { return false; }
+
   uint offset(const uchar *record) const
   {
     return (uint) (ptr - record);
@@ -1986,6 +1988,7 @@ public:
   bool can_optimize_range(const Item_bool_func *cond,
                           const Item *item,
                           bool is_eq_func) const;
+  bool is_packable() const { return true; }
 };
 
 /* base class for float and double and decimal (old one) */

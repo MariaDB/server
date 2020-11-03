@@ -144,12 +144,18 @@ static void set_setup_object_key(PFS_setup_object_key *key,
   char *ptr= &key->m_hash_key[0];
   ptr[0]= (char) object_type;
   ptr++;
-  memcpy(ptr, schema, schema_length);
-  ptr+= schema_length;
+  if (schema_length)
+  {
+    memcpy(ptr, schema, schema_length);
+    ptr+= schema_length;
+  }
   ptr[0]= 0;
   ptr++;
-  memcpy(ptr, object, object_length);
-  ptr+= object_length;
+  if (object_length)
+  {
+    memcpy(ptr, object, object_length);
+    ptr+= object_length;
+  }
   ptr[0]= 0;
   ptr++;
   key->m_key_length= (uint)(ptr - &key->m_hash_key[0]);

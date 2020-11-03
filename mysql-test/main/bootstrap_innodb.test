@@ -1,0 +1,27 @@
+source include/have_static_innodb.inc;
+source include/not_embedded.inc;
+
+let $datadir= `select @@datadir`;
+
+create table t1(a int) engine=innodb;
+source include/shutdown_mysqld.inc;
+
+write_file $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql;
+use test;
+insert t1 values (1);
+start transaction;
+insert t1 values (2);
+savepoint s1;
+insert t1 values (3);
+savepoint s2;
+insert t1 values (4);
+rollback to savepoint s1;
+insert t1 values (5);
+commit;
+EOF
+exec $MYSQLD_BOOTSTRAP_CMD --datadir=$datadir --innodb < $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql >> $MYSQLTEST_VARDIR/tmp/bootstrap.log 2>&1;
+remove_file $MYSQLTEST_VARDIR/tmp/bootstrap_test.sql;
+
+source include/start_mysqld.inc;
+select * from t1;
+drop table t1;
