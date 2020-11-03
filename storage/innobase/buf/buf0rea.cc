@@ -431,7 +431,7 @@ no_read_ahead:
   return 0;
 
 read_ahead:
-  if (!space->acquire_if_not_stopped())
+  if (space->is_stopping())
     goto no_read_ahead;
 
   /* Read all the suitable blocks within the area */
