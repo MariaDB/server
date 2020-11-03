@@ -1373,7 +1373,8 @@ bool wsrep_check_mode_after_open_table (THD *thd,
     return true;
 
   const legacy_db_type db_type= hton->db_type;
-  bool replicate= (wsrep_replicate_myisam && db_type == DB_TYPE_MYISAM);
+  bool replicate= ((db_type == DB_TYPE_MYISAM && wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM)) ||
+                   (db_type == DB_TYPE_ARIA && wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA)));
   TABLE *tbl= tables->table;
 
   if (replicate)
@@ -1383,7 +1384,7 @@ bool wsrep_check_mode_after_open_table (THD *thd,
     Following code will kick-start the TOI but this has to be done only once
     per statement.
     Note: kick-start will take-care of creating isolation key for all tables
-    involved in the list (provided all of them are MYISAM tables). */
+    involved in the list (provided all of them are MYISAM or Aria tables). */
     if (!is_stat_table(&tables->db, &tables->alias))
     {
       if (tbl->s->primary_key == MAX_KEY &&
@@ -2183,14 +2184,17 @@ bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton)
       return true;
       break;
     case DB_TYPE_MYISAM:
-      if (wsrep_replicate_myisam)
+      if (wsrep_check_mode(WSREP_MODE_REPLICATE_MYISAM))
         return true;
       else
         WSREP_DEBUG("wsrep OSU failed for %s", wsrep_thd_query(thd));
       break;
     case DB_TYPE_ARIA:
-      /* if (wsrep_replicate_aria) */
-      /* fallthrough */
+      if (wsrep_check_mode(WSREP_MODE_REPLICATE_ARIA))
+	return true;
+      else
+        WSREP_DEBUG("wsrep OSU failed for %s", wsrep_thd_query(thd));
+      break;
     default:
       WSREP_DEBUG("wsrep OSU failed for %s", wsrep_thd_query(thd));
       break;

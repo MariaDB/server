@@ -1,19 +1,6 @@
 call mtr.add_suppression("WSREP: Initial position was provided by configuration or SST, avoiding override");
 SET @wsrep_provider_options_saved= @@global.wsrep_provider_options;
 SET @wsrep_cluster_address_saved= @@global.wsrep_cluster_address;
-
-# MDEV#5534: mysql_tzinfo_to_sql generates wrong query
-#
-# Testing wsrep_replicate_myisam variable.
-SELECT @@session.wsrep_replicate_myisam;
-ERROR HY000: Variable 'wsrep_replicate_myisam' is a GLOBAL variable
-SELECT @@global.wsrep_replicate_myisam;
-@@global.wsrep_replicate_myisam
-0
-SET SESSION wsrep_replicate_myisam= ON;
-ERROR HY000: Variable 'wsrep_replicate_myisam' is a GLOBAL variable and should be set with SET GLOBAL
-SET GLOBAL wsrep_replicate_myisam= ON;
-SET GLOBAL wsrep_replicate_myisam= OFF;
 #
 # MDEV#5790: SHOW GLOBAL STATUS LIKE does not show the correct list of
 # variables when using "_"

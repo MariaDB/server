@@ -1,17 +1,14 @@
 #
-# Simple test for wsrep-replicate-myisam = ON 
+# Simple test for wsrep-mode = REPLICATE_MYISAM 
 #
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
 --connection node_1
---let $wsrep_replicate_myisam_orig = `SELECT @@wsrep_replicate_myisam`
-
---connection node_1
-SET GLOBAL wsrep_replicate_myisam = TRUE;
+SET GLOBAL wsrep_mode = REPLICATE_MYISAM;
 --connection node_2
-SET GLOBAL wsrep_replicate_myisam = TRUE;
+SET GLOBAL wsrep_mode = REPLICATE_MYISAM;
 
 #
 # Simple INSERT
@@ -24,7 +21,7 @@ INSERT INTO t1 VALUES (2), (3);
 INSERT INTO t1 SELECT 4 FROM DUAL UNION ALL SELECT 5 FROM DUAL;
 
 --connection node_2
-SELECT COUNT(*) = 5 FROM t1;
+SELECT COUNT(*) AS EXPECT_5 FROM t1;
 
 DROP TABLE t1;
 
@@ -39,10 +36,10 @@ REPLACE INTO t1 VALUES (1, 'klm'), (2,'xyz');
 REPLACE INTO t1 SELECT 3, 'yyy' FROM DUAL;
 
 --connection node_2
-SELECT COUNT(*) = 3 FROM t1;
-SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 1 AND f2 = 'klm';
-SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2 AND f2 = 'xyz';
-SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 3 AND f2 = 'yyy';
+SELECT COUNT(*) AS EXPECT_3 FROM t1;
+SELECT COUNT(*) AS EXPECT_1 FROM t1 WHERE f1 = 1 AND f2 = 'klm';
+SELECT COUNT(*) AS EXPECT_1 FROM t1 WHERE f1 = 2 AND f2 = 'xyz';
+SELECT COUNT(*) AS EXPECT_1 FROM t1 WHERE f1 = 3 AND f2 = 'yyy';
 
 #
 # UPDATE
@@ -52,7 +49,7 @@ SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 3 AND f2 = 'yyy';
 UPDATE t1 SET f2 = 'zzz' WHERE f2 = 'yyy';
 
 --connection node_2
-SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'zzz';
+SELECT COUNT(*) AS EXPECT_1 FROM t1 WHERE f2 = 'zzz';
 
 #
 # DELETE
@@ -62,7 +59,7 @@ SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'zzz';
 DELETE FROM t1 WHERE f2 = 'zzz';
 
 --connection node_2
-SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'zzz';
+SELECT COUNT(*) AS EXPECT_0 FROM t1 WHERE f2 = 'zzz';
 
 #
 # TRUNCATE
@@ -72,7 +69,7 @@ SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'zzz';
 TRUNCATE TABLE t1;
 
 --connection node_2
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
 DROP TABLE t1;
 
 #
@@ -89,8 +86,8 @@ INSERT INTO t2 VALUES (1);
 COMMIT;
 
 --connection node_2
-SELECT COUNT(*) = 1 FROM t1;
-SELECT COUNT(*) = 1 FROM t2;
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+SELECT COUNT(*) AS EXPECT_1 FROM t2;
 
 #
 # Transaction rollback
@@ -103,8 +100,8 @@ INSERT INTO t2 VALUES (2);
 ROLLBACK;
 
 --connection node_2
-SELECT COUNT(*) = 2 FROM t1;
-SELECT COUNT(*) = 1 FROM t2;
+SELECT COUNT(*) AS EXPECT_2 FROM t1;
+SELECT COUNT(*) AS EXPECT_1 FROM t2;
 
 DROP TABLE t1;
 DROP TABLE t2;
@@ -128,20 +125,7 @@ INSERT INTO t1 VALUES (1);
 
 --connection node_1
 COMMIT;
-
-DROP TABLE t1;
-DROP TABLE t2;
-
---echo #
---echo # MDEV-11152: wsrep_replicate_myisam: SELECT gets replicated using TO
---echo #
---connection node_1
-CREATE TABLE t1 (i INT) ENGINE=INNODB;
-INSERT INTO t1 VALUES(1);
-# This command should not get replicated.
-SELECT * FROM t1;
-DROP TABLE t1;
-
+DROP TABLE t1, t2;
 #
 # Test prepared staments
 #
@@ -218,12 +202,19 @@ DROP TRIGGER tr2;
 DROP TRIGGER tr3;
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-11152: wsrep_replicate_myisam: SELECT gets replicated using TO
+--echo #
+--connection node_1
+CREATE TABLE t1 (i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+# This command should not get replicated.
+SELECT * FROM t1;
+DROP TABLE t1;
+
 --connection node_1
 --disable_query_log
---eval SET GLOBAL wsrep_replicate_myisam = $wsrep_replicate_myisam_orig
---enable_query_log
-
+SET GLOBAL wsrep_mode = DEFAULT;
 --connection node_2
---disable_query_log
---eval SET GLOBAL wsrep_replicate_myisam = $wsrep_replicate_myisam_orig
+SET GLOBAL wsrep_mode = DEFAULT;
 --enable_query_log

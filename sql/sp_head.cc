@@ -1473,7 +1473,9 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
           WSREP_DEBUG("MUST_REPLAY set after SP, err_status %d trx state: %d",
                       err_status, thd->wsrep_trx().state());
         }
-        (void) wsrep_after_statement(thd);
+
+        if (wsrep_thd_is_local(thd))
+          (void) wsrep_after_statement(thd);
 
         /*
           Reset the return code to zero if the transaction was
