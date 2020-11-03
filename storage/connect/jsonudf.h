@@ -239,6 +239,10 @@ extern "C" {
 	DllExport char* jfile_convert(UDF_EXEC_ARGS);
 	DllExport void jfile_convert_deinit(UDF_INIT*);
 
+	DllExport my_bool jfile_bjson_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* jfile_bjson(UDF_EXEC_ARGS);
+	DllExport void jfile_bjson_deinit(UDF_INIT*);
+
 	DllExport my_bool envar_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *envar(UDF_EXEC_ARGS);
 
@@ -292,13 +296,14 @@ protected:
 	PVAL    MakeJson(PGLOBAL g, PJSON jsp);
 	void    SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n);
 	PJSON   GetRow(PGLOBAL g);
-	my_bool LocateArray(PJAR jarp);
-	my_bool LocateObject(PJOB jobp);
-	my_bool LocateValue(PJVAL jvp);
-	my_bool LocateArrayAll(PJAR jarp);
-	my_bool LocateObjectAll(PJOB jobp);
-	my_bool LocateValueAll(PJVAL jvp);
-	my_bool CompareTree(PJSON jp1, PJSON jp2);
+	my_bool CompareValues(PVL v1, PVL v2);
+	my_bool LocateArray(PGLOBAL g, PJAR jarp);
+	my_bool LocateObject(PGLOBAL g, PJOB jobp);
+	my_bool LocateValue(PGLOBAL g, PJVAL jvp);
+	my_bool LocateArrayAll(PGLOBAL g, PJAR jarp);
+	my_bool LocateObjectAll(PGLOBAL g, PJOB jobp);
+	my_bool LocateValueAll(PGLOBAL g, PJVAL jvp);
+	my_bool CompareTree(PGLOBAL g, PJSON jp1, PJSON jp2);
 	my_bool AddPath(void);
 
 	// Default constructor not to be used
@@ -355,11 +360,11 @@ public:
 	void  CopyNumeric(PGLOBAL g);
 
 	// Members
-	FILE* fs;
-	char* s;
-	char* buff;
-	int len;
-	int recl;
-	int i, k;
+	FILE  *fs;
+	char  *s;
+	char  *buff;
+	size_t len;
+	int    recl;
+	int    i, k;
 }; // end of class JUP
 

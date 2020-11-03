@@ -1998,7 +1998,7 @@ int TDBDOS::Cardinality(PGLOBAL g)
       if (Mode == MODE_ANY && ExactInfo()) {
         // Using index impossible or failed, do it the hard way
         Mode = MODE_READ;
-        To_Line = (char*)PlugSubAlloc(g, NULL, Lrecl + 1);
+        To_Line = (char*)PlugSubAlloc(g, NULL, (size_t)Lrecl + 1);
     
         if (Txfp->OpenTableFile(g))
           return (Cardinal = Txfp->Cardinality(g));
@@ -2232,7 +2232,7 @@ int TDBDOS::ReadDB(PGLOBAL g)
         return RC_EF;
       case -2:           // No match for join
         return RC_NF;
-      case -3:           // Same record as last non null one
+      case -3:           // Same record as non null last one
         num_there++;
         return RC_OK;
       default:

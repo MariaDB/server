@@ -1574,6 +1574,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
 
   // Now get column information
   pcf->Name= (char*)fp->field_name;
+	chset = (char*)fp->charset()->name;
 
   if (fop && fop->special) {
     pcf->Fieldfmt= (char*)fop->special;
@@ -1584,8 +1585,15 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
   pcf->Scale= 0;
   pcf->Opt= (fop) ? (int)fop->opt : 0;
 
-  if ((pcf->Length= fp->field_length) < 0)
-    pcf->Length= 256;            // BLOB?
+	if (fp->field_length >= 0) {
+		pcf->Length = fp->field_length;
+
+		// length is bytes for Connect, not characters
+		if (!strnicmp(chset, "utf8", 4))
+			pcf->Length /= 3;
+
+	} else
+		pcf->Length= 256;            // BLOB?
 
   pcf->Precision= pcf->Length;
 
@@ -1601,8 +1609,6 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     pcf->Datefmt= NULL;
     pcf->Fieldfmt= NULL;
   } // endif fop
-
-  chset= (char *)fp->charset()->name;
 
 	if (!strcmp(chset, "binary"))
 		v = 'B';		// Binary string
@@ -4940,11 +4946,11 @@ int ha_connect::external_lock(THD *thd, int lock_type)
             // Here we do make the new indexes
             if (tdp->MakeIndex(g, adp, true) == RC_FX) {
               // Make it a warning to avoid crash
-              push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 
-                                0, g->Message);
-              rc= 0;
-							//my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-							//rc= HA_ERR_INTERNAL_ERROR;
+              //push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 
+              //                  0, g->Message);
+              //rc= 0;
+							my_message(ER_TOO_MANY_KEYS, g->Message, MYF(0));
+							rc= HA_ERR_INDEX_CORRUPT;
 						} // endif MakeIndex
       
         } else if (tdbp->GetDef()->Indexable() == 3) {

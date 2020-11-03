@@ -58,7 +58,7 @@ public:
 	// Members
 	JCOL    jcol;
 	PJCL    jcp, fjcp, pjcp;
-	PVAL    valp;
+	PVL     vlp;
 	PJDEF   tdp;
 	TDBJSN *tjnp;
 	PJTDB   tjsp;
@@ -126,6 +126,7 @@ public:
 class DllExport TDBJSN : public TDBDOS {
   friend class JSONCOL;
 	friend class JSONDEF;
+	friend class JSONDISC;
 #if defined(CMGO_SUPPORT)
 	friend class CMGFAM;
 #endif   // CMGO_SUPPORT
@@ -154,14 +155,17 @@ public:
 	              {return Txfp->GetAmType() == TYPE_AM_MGO || !Xcol;}
 
   // Database routines
-  virtual int   Cardinality(PGLOBAL g);
-  virtual int   GetMaxSize(PGLOBAL g);
+  //virtual int   Cardinality(PGLOBAL g);
+  //virtual int   GetMaxSize(PGLOBAL g);
   virtual bool  OpenDB(PGLOBAL g);
   virtual int   ReadDB(PGLOBAL g);
 	virtual bool  PrepareWriting(PGLOBAL g);
 	virtual int   WriteDB(PGLOBAL g);
 
- protected:
+	// Specific routine
+	virtual int   EstimatedLength(void);
+
+protected:
           PJSON FindRow(PGLOBAL g);
           int   MakeTopTree(PGLOBAL g, PJSON jsp);
 

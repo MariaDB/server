@@ -355,11 +355,20 @@ void JSNX::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
 		if (Jb) {
 			vp->SetValue_psz(Serialize(g, val->GetJsp(), NULL, 0));
 		} else switch (val->GetValType()) {
+			case TYPE_DTM:
 			case TYPE_STRG:
+				vp->SetValue_psz(val->GetString(g));
+				break;
 			case TYPE_INTG:
 			case TYPE_BINT:
+				vp->SetValue(val->GetInteger());
+				break;
 			case TYPE_DBL:
-				vp->SetValue_pval(val->GetValue());
+				if (vp->IsTypeNum())
+					vp->SetValue(val->GetFloat());
+				else // Get the proper number of decimals
+					vp->SetValue_psz(val->GetString(g));
+
 				break;
 			case TYPE_BOOL:
 				if (vp->IsTypeNum())
@@ -430,7 +439,7 @@ PJVAL JSNX::GetRowValue(PGLOBAL g, PJSON row, int i, my_bool b)
 
 	for (; i < Nod && row; i++) {
 		if (Nodes[i].Op == OP_NUM) {
-			Value->SetValue(row->GetType() == TYPE_JAR ? row->size() : 1);
+			Value->SetValue(row->GetType() == TYPE_JAR ? ((PJAR)row)->size() : 1);
 			val = new(g) JVALUE(g, Value);
 			return val;
 		} else if (Nodes[i].Op == OP_XX) {
@@ -526,10 +535,10 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 
 		if (!jvrp->IsNull() || (op == OP_CNC && GetJsonNull())) {
 			if (jvrp->IsNull()) {
-				jvrp->Value = AllocateValue(g, GetJsonNull(), TYPE_STRING);
+				jvrp->SetString(g, GetJsonNull(), 0);
 				jvp = jvrp;
 			} else if (n < Nod - 1 && jvrp->GetJson()) {
-				jval.SetValue(GetColumnValue(g, jvrp->GetJson(), n + 1));
+				jval.SetValue(g, GetColumnValue(g, jvrp->GetJson(), n + 1));
 				jvp = &jval;
 			} else
 				jvp = jvrp;
@@ -781,13 +790,13 @@ PSZ JSNX::Locate(PGLOBAL g, PJSON jsp, PJVAL jvp, int k)
 
 		switch (jsp->GetType()) {
 			case TYPE_JAR:
-				err = LocateArray((PJAR)jsp);
+				err = LocateArray(g, (PJAR)jsp);
 				break;
 			case TYPE_JOB:
-				err = LocateObject((PJOB)jsp);
+				err = LocateObject(g, (PJOB)jsp);
 				break;
 			case TYPE_JVAL:
-				err = LocateValue((PJVAL)jsp);
+				err = LocateValue(g, (PJVAL)jsp);
 				break;
 			default:
 				err = true;
@@ -818,7 +827,7 @@ PSZ JSNX::Locate(PGLOBAL g, PJSON jsp, PJVAL jvp, int k)
 /*********************************************************************************/
 /*  Locate in a JSON Array.                                                      */
 /*********************************************************************************/
-my_bool JSNX::LocateArray(PJAR jarp)
+my_bool JSNX::LocateArray(PGLOBAL g, PJAR jarp)
 {
 	char   s[16];
 	size_t m = Jp->N;
@@ -830,7 +839,7 @@ my_bool JSNX::LocateArray(PJAR jarp)
 		if (Jp->WriteStr(s))
 			return true;
 
-		if (LocateValue(jarp->GetValue(i)))
+		if (LocateValue(g, jarp->GetValue(i)))
 			return true;
 
 		} // endfor i
@@ -841,7 +850,7 @@ my_bool JSNX::LocateArray(PJAR jarp)
 /*********************************************************************************/
 /*  Locate in a JSON Object.                                                     */
 /*********************************************************************************/
-my_bool JSNX::LocateObject(PJOB jobp)
+my_bool JSNX::LocateObject(PGLOBAL g, PJOB jobp)
 {
 	size_t m;
 
@@ -856,7 +865,7 @@ my_bool JSNX::LocateObject(PJOB jobp)
 		if (Jp->WriteStr(pair->Key))
 			return true;
 
-		if (LocateValue(pair->Val))
+		if (LocateValue(g, pair->Val))
 			return true;
 
 		} // endfor i
@@ -867,14 +876,14 @@ my_bool JSNX::LocateObject(PJOB jobp)
 /*********************************************************************************/
 /*  Locate a JSON Value.                                                         */
 /*********************************************************************************/
-my_bool JSNX::LocateValue(PJVAL jvp)
+my_bool JSNX::LocateValue(PGLOBAL g, PJVAL jvp)
 {
-	if (CompareTree(Jvalp, jvp))
+	if (CompareTree(g, Jvalp, jvp))
 		Found = (--K == 0);
 	else if (jvp->GetArray())
-		return LocateArray(jvp->GetArray());
+		return LocateArray(g, jvp->GetArray());
 	else if (jvp->GetObject())
-		return LocateObject(jvp->GetObject());
+		return LocateObject(g, jvp->GetObject());
 
 	return false;
 } // end of LocateValue
@@ -907,13 +916,13 @@ PSZ JSNX::LocateAll(PGLOBAL g, PJSON jsp, PJVAL jvp, int mx)
 
 		switch (jsp->GetType()) {
 			case TYPE_JAR:
-				err = LocateArrayAll((PJAR)jsp);
+				err = LocateArrayAll(g, (PJAR)jsp);
 				break;
 			case TYPE_JOB:
-				err = LocateObjectAll((PJOB)jsp);
+				err = LocateObjectAll(g, (PJOB)jsp);
 				break;
 			case TYPE_JVAL:
-				err = LocateValueAll((PJVAL)jsp);
+				err = LocateValueAll(g, (PJVAL)jsp);
 				break;
 			default:
 				err = true;
@@ -945,7 +954,7 @@ PSZ JSNX::LocateAll(PGLOBAL g, PJSON jsp, PJVAL jvp, int mx)
 /*********************************************************************************/
 /*  Locate in a JSON Array.                                                      */
 /*********************************************************************************/
-my_bool JSNX::LocateArrayAll(PJAR jarp)
+my_bool JSNX::LocateArrayAll(PGLOBAL g, PJAR jarp)
 {
 	if (I < Imax) {
 		Jpnp[++I].Type = TYPE_JAR;
@@ -953,7 +962,7 @@ my_bool JSNX::LocateArrayAll(PJAR jarp)
 		for (int i = 0; i < jarp->size(); i++) {
 			Jpnp[I].N = i;
 
-			if (LocateValueAll(jarp->GetValue(i)))
+			if (LocateValueAll(g, jarp->GetValue(i)))
 				return true;
 
 		} // endfor i
@@ -967,7 +976,7 @@ my_bool JSNX::LocateArrayAll(PJAR jarp)
 /*********************************************************************************/
 /*  Locate in a JSON Object.                                                     */
 /*********************************************************************************/
-my_bool JSNX::LocateObjectAll(PJOB jobp)
+my_bool JSNX::LocateObjectAll(PGLOBAL g, PJOB jobp)
 {
 	if (I < Imax) {
 		Jpnp[++I].Type = TYPE_JOB;
@@ -975,7 +984,7 @@ my_bool JSNX::LocateObjectAll(PJOB jobp)
 		for (PJPR pair = jobp->First; pair; pair = pair->Next) {
 			Jpnp[I].Key = pair->Key;
 
-			if (LocateValueAll(pair->Val))
+			if (LocateValueAll(g, pair->Val))
 				return true;
 
 		} // endfor i
@@ -989,14 +998,14 @@ my_bool JSNX::LocateObjectAll(PJOB jobp)
 /*********************************************************************************/
 /*  Locate a JSON Value.                                                         */
 /*********************************************************************************/
-my_bool JSNX::LocateValueAll(PJVAL jvp)
+my_bool JSNX::LocateValueAll(PGLOBAL g, PJVAL jvp)
 {
-	if (CompareTree(Jvalp, jvp))
+	if (CompareTree(g, Jvalp, jvp))
 		return AddPath();
 	else if (jvp->GetArray())
-		return LocateArrayAll(jvp->GetArray());
+		return LocateArrayAll(g, jvp->GetArray());
 	else if (jvp->GetObject())
-		return LocateObjectAll(jvp->GetObject());
+		return LocateObjectAll(g, jvp->GetObject());
 
 	return false;
 } // end of LocateValueAll
@@ -1004,7 +1013,7 @@ my_bool JSNX::LocateValueAll(PJVAL jvp)
 /*********************************************************************************/
 /*  Compare two JSON trees.                                                      */
 /*********************************************************************************/
-my_bool JSNX::CompareTree(PJSON jp1, PJSON jp2)
+my_bool JSNX::CompareTree(PGLOBAL g, PJSON jp1, PJSON jp2)
 {
 	if (!jp1 || !jp2 || jp1->GetType() != jp2->GetType()
 		               || jp1->size() != jp2->size())
@@ -1013,26 +1022,22 @@ my_bool JSNX::CompareTree(PJSON jp1, PJSON jp2)
 	my_bool found = true;
 
 	if (jp1->GetType() == TYPE_JVAL) {
-		PVAL v1 = jp1->GetValue(), v2 = jp2->GetValue();
+		PVL v1 = ((PJVAL)jp1)->GetVal(), v2 = ((PJVAL)jp2)->GetVal();
 
-		if (v1 && v2) {
-			if (v1->GetType() == v2->GetType())
-				found = !v1->CompareValue(v2);
-			else
-				found = false;
-
-		} else
-			found = CompareTree(jp1->GetJsp(), jp2->GetJsp());
+		if (v1 && v2)
+			found = CompareValues(v1, v2);
+		else
+			found = CompareTree(g, jp1->GetJsp(), jp2->GetJsp());
 
 	} else if (jp1->GetType() == TYPE_JAR) {
 		for (int i = 0; found && i < jp1->size(); i++)
-			found = (CompareTree(jp1->GetValue(i), jp2->GetValue(i)));
+			found = (CompareTree(g, jp1->GetValue(i), jp2->GetValue(i)));
 
 	} else if (jp1->GetType() == TYPE_JOB) {
 		PJPR p1 = jp1->GetFirst(), p2 = jp2->GetFirst();
 
 		for (; found && p1 && p2; p1 = p1->Next, p2 = p2->Next)
-			found = CompareTree(p1->Val, p2->Val);
+			found = CompareTree(g, p1->Val, p2->Val);
 
 	} else
 		found = false;
@@ -1041,10 +1046,60 @@ my_bool JSNX::CompareTree(PJSON jp1, PJSON jp2)
 } // end of CompareTree
 
 /*********************************************************************************/
+/*  Compare two VAL values and return true if they are equal.                    */
+/*********************************************************************************/
+my_bool JSNX::CompareValues(PVL v1, PVL v2)
+{
+	my_bool b = false;
+
+	switch (v1->Type) {
+	case TYPE_STRG:
+		if (v2->Type == TYPE_STRG) {
+			if (v1->Nd || v2->Nd)		// Case insensitive
+				b = (!stricmp(v1->Strp, v2->Strp));
+			else
+				b = (!strcmp(v1->Strp, v2->Strp));
+
+		} // endif Type
+
+		break;
+	case TYPE_DTM:
+		b = (!strcmp(v1->Strp, v2->Strp));
+		break;
+	case TYPE_INTG:
+		if (v2->Type == TYPE_INTG)
+			b = (v1->N == v2->N);
+		else if (v2->Type == TYPE_BINT)
+			b = (v1->N == v2->LLn);
+
+		break;
+	case TYPE_BINT:
+		if (v2->Type == TYPE_INTG)
+			b = (v1->LLn == v2->N);
+		else if (v2->Type == TYPE_BINT)
+			b = (v1->LLn == v2->LLn);
+
+		break;
+	case TYPE_DBL:
+		if (v2->Type == TYPE_DBL)
+			b = (v1->F == v2->F);
+		
+		break;
+	case TYPE_BOOL:
+		if (v2->Type == TYPE_BOOL)
+		  b = (v1->B == v2->B);
+
+		break;
+	default:        b = true;   // both nulls
+	}	// endswitch Type
+
+	return b;
+} // end of CompareValues
+
+/*********************************************************************************/
 /*  Add the found path to the list.                                              */
 /*********************************************************************************/
-my_bool JSNX::AddPath(void)
-{
+my_bool JSNX::AddPath(void) {
 	char s[16];
 
 	if (Jp->WriteStr("\"$"))
@@ -1196,6 +1251,7 @@ static PJVAL JvalNew(PGLOBAL g, JTYP type, void *vp)
 			case TYPE_VAL:
 				jvp = new(g) JVALUE(g, (PVAL)vp);
 				break;
+			case TYPE_DTM:
 			case TYPE_STRG:
 				jvp = new(g) JVALUE(g, (PCSZ)vp);
 				break;
@@ -1221,7 +1277,7 @@ static my_bool JsonInit(UDF_INIT *initid, UDF_ARGS *args,
                         unsigned long reslen, unsigned long memlen,
 												unsigned long more = 0)
 {
-  PGLOBAL g = PlugInit(NULL, memlen + more + 500);	// +500 to avoid CheckMem
+  PGLOBAL g = PlugInit(NULL, (size_t)memlen + more + 500); // +500 to avoid CheckMem
 
   if (!g) {
     strcpy(message, "Allocation error");
@@ -1690,7 +1746,7 @@ static PCSZ MakeKey(PGLOBAL g, UDF_ARGS *args, int i)
 /*********************************************************************************/
 /*  Parse a json file.                                                 */
 /*********************************************************************************/
-static PJSON ParseJsonFile(PGLOBAL g, char *fn, int *pretty, int& len)
+static PJSON ParseJsonFile(PGLOBAL g, char *fn, int *pretty, size_t& len)
 {
 	char   *memory;
 	HANDLE  hFile;
@@ -1714,7 +1770,7 @@ static PJSON ParseJsonFile(PGLOBAL g, char *fn, int *pretty, int& len)
 	/*******************************************************************************/
 	/*  Get the file size (assuming file is smaller than 4 GB)                     */
 	/*******************************************************************************/
-	len = mm.lenL;
+	len = (size_t)mm.sz.QuadPart;
 	memory = (char *)mm.memory;
 
 	if (!len) {              // Empty or deleted file
@@ -1784,7 +1840,7 @@ static PJVAL MakeValue(PGLOBAL g, UDF_ARGS *args, uint i, PJSON *top = NULL)
 {
 	char *sap = (args->arg_count > i) ? args->args[i] : NULL;
 	int   n, len;
-	short c;
+	int   ci;
 	long long bigint;
   PJSON jsp;
   PJVAL jvp = new(g) JVALUE;
@@ -1827,8 +1883,8 @@ static PJVAL MakeValue(PGLOBAL g, UDF_ARGS *args, uint i, PJSON *top = NULL)
             jvp->SetValue(jsp);
 
 				} else {
-					c = (strnicmp(args->attributes[i], "ci", 2)) ? 0 : 1;
-					jvp->SetString(g, sap, c);
+					ci = (strnicmp(args->attributes[i], "ci", 2)) ? 0 : 1;
+					jvp->SetString(g, sap, ci);
 				}	// endif n
 
       } // endif len
@@ -1839,7 +1895,7 @@ static PJVAL MakeValue(PGLOBAL g, UDF_ARGS *args, uint i, PJSON *top = NULL)
 
 			if ((bigint == 0LL && !strcmp(args->attributes[i], "FALSE")) ||
 					(bigint == 1LL && !strcmp(args->attributes[i], "TRUE")))
-				jvp->SetTiny(g, (char)bigint);
+				jvp->SetBool(g, (char)bigint);
 			else
 				jvp->SetBigint(g, bigint);
 
@@ -4404,7 +4460,8 @@ char *json_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	fn = MakePSZ(g, args, 0);
 
 	if (args->arg_count > 1) {
-		int    len, pretty = 3, pty = 3;
+		int    pretty = 3, pty = 3;
+		size_t len;
 		PJSON  jsp;
 		PJVAL  jvp = NULL;
 
@@ -5311,7 +5368,7 @@ char *jbin_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	// Get the json tree
 	if ((jvp = jsx->GetRowValue(g, jsp, 0, false))) {
-		jsp = (jvp->GetJsp()) ? jvp->GetJsp() : JvalNew(g, TYPE_VAL, jvp->GetValue());
+		jsp = (jvp->GetJsp()) ? jvp->GetJsp() : JvalNew(g, TYPE_VAL, jvp->GetValue(g));
 
 		if ((bsp = JbinAlloc(g, args, initid->max_length, jsp)))
 			strcat(bsp->Msg, " item");
@@ -5637,7 +5694,8 @@ char *jbin_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
 {
 	char   *fn;
-	int     pretty = 3, len = 0, pty = 3;
+	int     pretty = 3, pty = 3;
+	size_t  len = 0;
 	PJSON   jsp;
 	PJVAL   jvp = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -5796,16 +5854,16 @@ char *jfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
 	if (!g->Xchk) {
 		JUP* jup = new(g) JUP(g);
 
-		str = jup->UnprettyJsonFile(g, fn, ofn, lrecl);
+		str = strcpy(result, jup->UnprettyJsonFile(g, fn, ofn, lrecl));
 		g->Xchk = str;
 	} else
 		str = (char*)g->Xchk;
 
 	if (!str) {
 		if (g->Message)
-			str = PlugDup(g, g->Message);
+			str = strcpy(result, g->Message);
 		else
-			str = PlugDup(g, "Unexpected error");
+			str = strcpy(result, "Unexpected error");
 
 	} // endif str
 
@@ -5817,9 +5875,136 @@ void jfile_convert_deinit(UDF_INIT* initid) {
 	JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of jfile_convert_deinit
 
+/*********************************************************************************/
+/*  Convert a prettiest Json file to Pretty=0.                                   */
+/*********************************************************************************/
+my_bool jfile_bjson_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
+	unsigned long reslen, memlen;
+
+	if (args->arg_count != 2 && args->arg_count != 3) {
+		strcpy(message, "This function must have 2 or 3 arguments");
+		return true;
+	} else if (args->arg_count == 3 && args->arg_type[2] != INT_RESULT) {
+		strcpy(message, "Third Argument must be an integer (LRECL)");
+		return true;
+	} else for (int i = 0; i < 2; i++)
+		if (args->arg_type[i] != STRING_RESULT) {
+			sprintf(message, "Arguments %d must be a string (file name)", i + 1);
+			return true;
+		} // endif args
+
+	CalcLen(args, false, reslen, memlen);
+	memlen = memlen * M;
+	memlen += (args->arg_count == 3) ? (ulong)*(longlong*)args->args[2] : 1024;
+	return JsonInit(initid, args, message, false, reslen, memlen);
+} // end of jfile_bjson_init
+
+char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char*, char *error) {
+	char   *fn, *ofn, *buf, *str = NULL;
+	bool    loop;
+	ssize_t len, newloc;
+	size_t  lrecl, *binszp;
+	PJSON		jsp;
+	SWAP   *swp;
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+
+	PlugSubSet(g->Sarea, g->Sarea_Size);
+	fn = MakePSZ(g, args, 0);
+	ofn = MakePSZ(g, args, 1);
+
+	if (args->arg_count == 3)
+		lrecl = (size_t)*(longlong*)args->args[2];
+	else
+		lrecl = 1024;
+
+	if (!g->Xchk) {
+		int 	msgid = MSGID_OPEN_MODE_STRERROR;
+		FILE *fout;
+		FILE *fin;
+
+		if (!(fin = global_fopen(g, msgid, fn, "rt")))
+			str = strcpy(result, g->Message);
+		else if (!(fout = global_fopen(g, msgid, ofn, "wb")))
+			str = strcpy(result, g->Message);
+		else if ((buf = (char*)PlgDBSubAlloc(g, NULL, lrecl)) &&
+						 (binszp = (size_t*)PlgDBSubAlloc(g, NULL, sizeof(size_t)))) {
+			JsonMemSave(g);
+
+			try {
+				do {
+					loop = false;
+					JsonSubSet(g);
+
+					if (!fgets(buf, lrecl, fin)) {
+						if (!feof(fin)) {
+							sprintf(g->Message, "Error %d reading %zd bytes from %s", errno, lrecl, fn);
+							str = strcpy(result, g->Message);
+						}	else
+							str = strcpy(result, ofn);
+
+					} else if ((len = strlen(buf))) {
+						if ((jsp = ParseJson(g, buf, len))) {
+							newloc = (size_t)PlugSubAlloc(g, NULL, 0);
+							*binszp = newloc - (size_t)jsp;
+
+							swp = new(g) SWAP(g, jsp);
+							swp->SwapJson(jsp, true);
+
+							if (fwrite(binszp, sizeof(binszp), 1, fout) != 1) {
+								sprintf(g->Message, "Error %d writing %zd bytes to %s", 
+																		errno, sizeof(binszp), ofn);
+								str = strcpy(result, g->Message);
+							} else if (fwrite(jsp, *binszp, 1, fout) != 1) {
+								sprintf(g->Message, "Error %d writing %zd bytes to %s", 
+																		errno, *binszp, ofn);
+								str = strcpy(result, g->Message);
+							} else
+								loop = true;
+
+						} else {
+							str = strcpy(result, g->Message);
+						}	// endif jsp
+
+					} else
+						loop = true;
+
+				} while (loop);
+
+			} catch (int) {
+				str = strcpy(result, g->Message);
+			} catch (const char* msg) {
+				str = strcpy(result, msg);
+			} // end catch
+
+		} else
+			str = strcpy(result, g->Message);
+
+		if (fin) fclose(fin);
+		if (fout) fclose(fout);
+		g->Xchk = str;
+	} else
+		str = (char*)g->Xchk;
+
+	if (!str) {
+		if (g->Message)
+			str = strcpy(result, g->Message);
+		else
+			str = strcpy(result, "Unexpected error");
+
+	} // endif str
+
+	*res_length = strlen(str);
+	return str;
+} // end of jfile_bjson
+
+void jfile_bjson_deinit(UDF_INIT* initid) {
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of jfile_bjson_deinit
+
 /* --------------------------------- Class JUP --------------------------------- */
 
-#define ARGS       MY_MIN(24,len-i),s+MY_MAX(i-3,0)
+#define ARGS       MY_MIN(24,(int)len-i),s+MY_MAX(i-3,0)
 
 /*********************************************************************************/
 /*  JUP public constructor.                                                      */
@@ -5827,7 +6012,8 @@ void jfile_convert_deinit(UDF_INIT* initid) {
 JUP::JUP(PGLOBAL g) {
 	fs = NULL;
 	s = buff = NULL;
-	i = k = len = recl = 0;
+	len = 0;
+	i = k = recl = 0;
 } // end of JUP constructor
 
 /*********************************************************************************/
@@ -5855,11 +6041,11 @@ char* JUP::UnprettyJsonFile(PGLOBAL g, char *fn, char *outfn, int lrecl) {
 	/*******************************************************************************/
 	/*  Get the file size (assuming file is smaller than 4 GB)                     */
 	/*******************************************************************************/
-	if (!mm.lenL) {              // Empty or deleted file
+	if (!mm.sz.QuadPart) {              // Empty or deleted file
 		CloseFileHandle(hFile);
 		return NULL;
 	} else
-		len = (int)mm.lenL;
+		len = (size_t)mm.sz.QuadPart;
 
 	if (!mm.memory) {
 		CloseFileHandle(hFile);
@@ -5877,7 +6063,7 @@ char* JUP::UnprettyJsonFile(PGLOBAL g, char *fn, char *outfn, int lrecl) {
 		sprintf(g->Message, MSG(OPEN_MODE_ERROR),
 			"w", (int)errno, outfn);
 		strcat(strcat(g->Message, ": "), strerror(errno));
-		CloseMemMap(mm.memory, (size_t)mm.lenL);
+		CloseMemMap(mm.memory, len);
 		return NULL;
 	} // endif fs
 
@@ -5886,7 +6072,7 @@ char* JUP::UnprettyJsonFile(PGLOBAL g, char *fn, char *outfn, int lrecl) {
 	if (!unPretty(g, lrecl))
 		ret = outfn;
 
-	CloseMemMap(mm.memory, (size_t)mm.lenL);
+	CloseMemMap(mm.memory, len);
 	fclose(fs);
 	return ret;
 } // end of UnprettyJsonFile

@@ -1,11 +1,11 @@
 /*********** File AM Txt C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMTXT                                              */
 /* -------------                                                       */
-/*  Version 1.7                                                        */
+/*  Version 1.8                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2020    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -48,6 +48,7 @@
 #include "plgdbsem.h"
 #include "filamtxt.h"
 #include "tabdos.h"
+#include "tabjson.h"
 
 #if defined(UNIX) || defined(UNIV_LINUX)
 #include "osutil.h"
@@ -1661,4 +1662,253 @@ void BLKFAM::Rewind(void)
 //OldBlk = -1;     commented out in case we reuse last read block
 //Rbuf = 0;        commented out in case we reuse last read block
   } // end of Rewind
+
+/* --------------------------- Class BINFAM -------------------------- */
+
+/***********************************************************************/
+/*  BIN GetFileLength: returns file size in number of bytes.           */
+/***********************************************************************/
+int BINFAM::GetFileLength(PGLOBAL g) {
+	int len;
+
+	if (!BStream)
+		len = TXTFAM::GetFileLength(g);
+	else
+		if ((len = _filelength(_fileno(BStream))) < 0)
+			sprintf(g->Message, MSG(FILELEN_ERROR), "_filelength", To_File);
+
+	xtrc(1, "File length=%d\n", len);
+	return len;
+} // end of GetFileLength
+
+/***********************************************************************/
+/*  Cardinality: returns table cardinality in number of rows.          */
+/*  This function can be called with a null argument to test the       */
+/*  availability of Cardinality implementation (1 yes, 0 no).          */
+/***********************************************************************/
+int BINFAM::Cardinality(PGLOBAL g) {
+	return (g) ? -1 : 0;
+} // end of Cardinality
+
+/***********************************************************************/
+/*  OpenTableFile: Open a DOS/UNIX table file using C standard I/Os.   */
+/***********************************************************************/
+bool BINFAM::OpenTableFile(PGLOBAL g) {
+	char    opmode[4], filename[_MAX_PATH];
+	MODE    mode = Tdbp->GetMode();
+	PDBUSER dbuserp = PlgGetUser(g);
+
+	switch (mode) {
+	case MODE_READ:
+		strcpy(opmode, "rb");
+		break;
+	case MODE_WRITE:
+		strcpy(opmode, "wb");
+		break;
+	default:
+		sprintf(g->Message, MSG(BAD_OPEN_MODE), mode);
+		return true;
+	} // endswitch Mode
+
+	// Now open the file stream
+	PlugSetPath(filename, To_File, Tdbp->GetPath());
+
+	if (!(BStream = PlugOpenFile(g, filename, opmode))) {
+		if (trace(1))
+			htrc("%s\n", g->Message);
+
+		return (mode == MODE_READ && errno == ENOENT)
+			? PushWarning(g, Tdbp) : true;
+	} // endif BStream
+
+	if (trace(1))
+		htrc("File %s open BStream=%p mode=%s\n", filename, BStream, opmode);
+
+	To_Fb = dbuserp->Openlist;     // Keep track of File block
+
+	/*********************************************************************/
+	/*  Allocate the line buffer.                                        */
+	/*********************************************************************/
+	return AllocateBuffer(g);
+} // end of OpenTableFile
+
+/***********************************************************************/
+/*  Allocate the line buffer. For mode Delete a bigger buffer has to   */
+/*  be allocated because is it also used to move lines into the file.  */
+/***********************************************************************/
+bool BINFAM::AllocateBuffer(PGLOBAL g) {
+	MODE mode = Tdbp->GetMode();
+
+	// Lrecl is Ok
+	Buflen = Lrecl;
+
+	if (trace(1))
+		htrc("SubAllocating a buffer of %d bytes\n", Buflen);
+
+	To_Buf = (char*)PlugSubAlloc(g, NULL, Buflen);
+	return false;
+} // end of AllocateBuffer
+
+/***********************************************************************/
+/*  GetRowID: return the RowID of last read record.                    */
+/***********************************************************************/
+int BINFAM::GetRowID(void) {
+	return Rows;
+} // end of GetRowID
+
+/***********************************************************************/
+/*  GetPos: return the position of last read record.                   */
+/***********************************************************************/
+int BINFAM::GetPos(void) {
+	return Fpos;
+} // end of GetPos
+
+/***********************************************************************/
+/*  GetNextPos: return the position of next record.                    */
+/***********************************************************************/
+int BINFAM::GetNextPos(void) {
+	return ftell(BStream);
+} // end of GetNextPos
+
+/***********************************************************************/
+/*  SetPos: Replace the table at the specified position.               */
+/***********************************************************************/
+bool BINFAM::SetPos(PGLOBAL g, int pos) {
+	Fpos = pos;
+
+	if (fseek(BStream, Fpos, SEEK_SET)) {
+		sprintf(g->Message, MSG(FSETPOS_ERROR), Fpos);
+		return true;
+	} // endif
+
+	Placed = true;
+	return false;
+} // end of SetPos
+
+/***********************************************************************/
+/*  Record file position in case of UPDATE or DELETE.                  */
+/***********************************************************************/
+bool BINFAM::RecordPos(PGLOBAL g) {
+	if ((Fpos = ftell(BStream)) < 0) {
+		sprintf(g->Message, MSG(FTELL_ERROR), 0, strerror(errno));
+		//  strcat(g->Message, " (possible wrong ENDING option value)");
+		return true;
+	} // endif Fpos
+
+	return false;
+} // end of RecordPos
+
+/***********************************************************************/
+/*  ReadBuffer: Read one line for a text file.                         */
+/***********************************************************************/
+int BINFAM::ReadBuffer(PGLOBAL g) {
+	int rc;
+
+	if (!BStream)
+		return RC_EF;
+
+	xtrc(2, "ReadBuffer: Tdbp=%p To_Line=%p Placed=%d\n",
+					Tdbp, Tdbp->GetLine(), Placed);
+
+	if (!Placed) {
+		/*******************************************************************/
+		/*  Record file position in case of UPDATE or DELETE.              */
+		/*******************************************************************/
+		if (RecordPos(g))
+			return RC_FX;
+
+		CurBlk = (int)Rows++;
+		xtrc(2, "ReadBuffer: CurBlk=%d\n", CurBlk);
+	} else
+		Placed = false;
+
+	xtrc(2, " About to read: bstream=%p To_Buf=%p Buflen=%d\n",
+						BStream, To_Buf, Buflen);
+
+	// Read the prefix giving the row length
+	if (!fread(&Recsize, sizeof(size_t), 1, BStream)) {
+		if (!feof(BStream)) {
+			strcpy(g->Message, "Error reading line prefix\n");
+			return RC_FX;
+		} else
+			return RC_EF;
+
+	} else if (Recsize > Buflen) {
+		sprintf(g->Message, "Record too big (Recsize=%zd Buflen=%d)\n", Recsize, Buflen);
+		return RC_FX;
+	}	// endif Recsize
+
+	if (fread(To_Buf, Recsize, 1, BStream)) {
+		xtrc(2, " Read: To_Buf=%p Recsize=%zd\n", To_Buf, Recsize);
+		// memcpy(Tdbp->GetLine(), To_Buf, Recsize);
+		num_read++;
+		rc = RC_OK;
+	} else if (feof(BStream)) {
+		rc = RC_EF;
+	} else {
+#if defined(__WIN__)
+		sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
+#else
+		sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(0));
+#endif
+		xtrc(2, "%s\n", g->Message);
+		rc = RC_FX;
+	} // endif's fread
+
+	xtrc(2, "ReadBuffer: rc=%d\n", rc);
+	IsRead = true;
+	return rc;
+} // end of ReadBuffer
+
+/***********************************************************************/
+/*  WriteBuffer: File write routine for BIN access method.             */
+/***********************************************************************/
+int BINFAM::WriteBuffer(PGLOBAL g) {
+	int   curpos = 0;
+	bool  moved = true;
+
+	/*********************************************************************/
+	/*  Prepare writing the line.                                        */
+	/*********************************************************************/
+	memcpy(To_Buf, Tdbp->GetLine(), Recsize);
+
+	/*********************************************************************/
+	/*  Now start the writing process.                                   */
+	/*********************************************************************/
+	if (fwrite(&Recsize, sizeof(size_t), 1, BStream) != 1) {
+		sprintf(g->Message, "Error %d writing prefix to %s",
+			errno, To_File);
+		return RC_FX;
+	} else if (fwrite(To_Buf, Recsize, 1, BStream) != 1) {
+		sprintf(g->Message, "Error %d writing %zd bytes to %s",
+			errno, Recsize, To_File);
+		return RC_FX;
+	} // endif fwrite
+
+	xtrc(1, "write done\n");
+	return RC_OK;
+} // end of WriteBuffer
+
+/***********************************************************************/
+/*  Table file close routine for DOS access method.                    */
+/***********************************************************************/
+void BINFAM::CloseTableFile(PGLOBAL g, bool abort) {
+	int rc;
+
+	Abort = abort;
+	rc = PlugCloseFile(g, To_Fb);
+	xtrc(1, "BIN Close: closing %s rc=%d\n", To_File, rc);
+	BStream = NULL;           // So we can know whether table is open
+} // end of CloseTableFile
+
+/***********************************************************************/
+/*  Rewind routine for BIN access method.                              */
+/***********************************************************************/
+void BINFAM::Rewind(void) {
+	if (BStream)  // Can be NULL when making index on void table
+		rewind(BStream);
+
+	Rows = 0;
+	OldBlk = CurBlk = -1;
+} // end of Rewind
 

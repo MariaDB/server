@@ -380,8 +380,8 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec,
     case TYPE_STRING:
       valp = new(g) TYPVAL<PSZ>(g, (PSZ)NULL, len, prec);
       break;
-    case TYPE_DATE:
-      valp = new(g) DTVAL(g, len, prec, fmt);
+		case TYPE_DATE:
+			valp = new(g) DTVAL(g, len, prec, fmt);
       break;
     case TYPE_INT:
       if (uns)

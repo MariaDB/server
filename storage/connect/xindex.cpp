@@ -2471,7 +2471,7 @@ void XFILE::Close(void)
     } // endif Xfile
 
 #if defined(XMAP)
-  if (Mmp && CloseMemMap(Mmp->memory, Mmp->lenL))
+  if (Mmp && CloseMemMap(Mmp->memory, (size_t)Mmp->sz.QuadPart))
     printf("Error closing mapped index\n");
 #endif   // XMAP
   } // end of Close
@@ -2487,7 +2487,7 @@ void *XFILE::FileView(PGLOBAL g, char *fn)
   Mmp = (MMP)PlugSubAlloc(g, NULL, sizeof(MEMMAP));
   h = CreateFileMap(g, fn, Mmp, MODE_READ, false);
 
-  if (h == INVALID_HANDLE_VALUE || (!Mmp->lenH && !Mmp->lenL)) {
+  if (h == INVALID_HANDLE_VALUE || (!Mmp->sz.QuadPart)) {
     if (!(*g->Message))
       strcpy(g->Message, MSG(FILE_MAP_ERR));
 

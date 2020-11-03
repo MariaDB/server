@@ -65,7 +65,8 @@ DllExport BYTE OpBmp(PGLOBAL g, OPVAL opc);
 /***********************************************************************/
 class DllExport VALUE : public BLOCK {
   friend class CONSTANT; // The only object allowed to use SetConstFormat
- public:
+	friend class SWAP;     // The only class allowed to access protected
+public:
   // Constructors
 
   // Implementation
@@ -260,7 +261,8 @@ class DllExport TYPVAL : public VALUE {
 /***********************************************************************/
 template <>
 class DllExport TYPVAL<PSZ>: public VALUE {
- public:
+	friend class SWAP;     // The only class allowed to offsets Strg
+public:
   // Constructors
   TYPVAL(PSZ s, short c = 0);
   TYPVAL(PGLOBAL g, PSZ s, int n, int c);
@@ -346,7 +348,8 @@ class DllExport DECVAL: public TYPVAL<PSZ> {
 /*  Specific BINARY class.                                             */
 /***********************************************************************/
 class DllExport BINVAL: public VALUE {
- public:
+	friend class SWAP;     // The only class allowed to offsets pointers
+public:
   // Constructors
 //BINVAL(void *p);
   BINVAL(PGLOBAL g, void *p, int cl, int n);

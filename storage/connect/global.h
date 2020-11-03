@@ -240,10 +240,14 @@ inline void* MakePtr(void* memp, size_t offset) {
 /* This routine makes an offset from a pointer new format.             */
 /***********************************************************************/
 inline size_t MakeOff(void* memp, void* ptr) {
+	if (ptr) {
 #if defined(_DEBUG)
-	assert(ptr > memp);
+		assert(ptr > memp);
 #endif   // _DEBUG
-	return ((!ptr) ? 0 : (size_t)((char*)ptr - (size_t)memp));
+		return (size_t)((char*)ptr - (size_t)memp);
+	} else
+		return 0;
+
 } /* end of MakeOff */
 
 /*-------------------------- End of Global.H --------------------------*/

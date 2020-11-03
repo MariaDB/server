@@ -102,7 +102,7 @@ int MAPFAM::GetFileLength(PGLOBAL g)
 bool MAPFAM::OpenTableFile(PGLOBAL g)
   {
   char    filename[_MAX_PATH];
-  int     len;
+  size_t  len;
   MODE    mode = Tdbp->GetMode();
   PFBLOCK fp;
   PDBUSER dbuserp = (PDBUSER)g->Activityp->Aptr;
@@ -174,9 +174,9 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
       } // endif hFile
 
     /*******************************************************************/
-    /*  Get the file size (assuming file is smaller than 4 GB)         */
+    /*  Get the file size.                                             */
     /*******************************************************************/
-    len = mm.lenL;
+    len = (size_t)mm.sz.QuadPart;
     Memory = (char *)mm.memory;
 
     if (!len) {              // Empty or deleted file

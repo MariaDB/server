@@ -21,7 +21,7 @@ SELECT * FROM t2;
 --echo # NOTE: The first (ignored) row is due to the remaining HEADER=1 option.
 
 --echo # Testing field option modification
-ALTER TABLE t1 MODIFY d CHAR(10) NOT NULL FIELD_FORMAT='@', HEADER=0;
+ALTER TABLE t1 MODIFY d CHAR(10) NOT NULL XPATH='@', HEADER=0;
 SELECT * FROM t1;
 SHOW CREATE TABLE t1;
 SELECT * FROM t2;

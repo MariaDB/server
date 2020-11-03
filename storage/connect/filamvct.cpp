@@ -1327,7 +1327,7 @@ VCMFAM::VCMFAM(PVCMFAM txfp) : VCTFAM(txfp)
 bool VCMFAM::OpenTableFile(PGLOBAL g)
   {
   char    filename[_MAX_PATH];
-  int    len;
+  size_t  len;
   MODE    mode = Tdbp->GetMode();
   PFBLOCK fp = NULL;
   PDBUSER dbuserp = (PDBUSER)g->Activityp->Aptr;
@@ -1421,9 +1421,9 @@ bool VCMFAM::OpenTableFile(PGLOBAL g)
       } // endif hFile
 
     /*******************************************************************/
-    /*  Get the file size (assuming file is smaller than 4 GB)         */
+    /*  Get the file size.                                             */
     /*******************************************************************/
-    len = mm.lenL;
+    len = (size_t)mm.sz.QuadPart;
     Memory = (char *)mm.memory;
 
     if (!len) {             // Empty or deleted file
@@ -2762,7 +2762,7 @@ bool VMPFAM::OpenTableFile(PGLOBAL g)
 bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
   {
   char    filename[_MAX_PATH];
-  int    len;
+  size_t  len;
   HANDLE  hFile;
   MEMMAP  mm;
   PFBLOCK fp;
@@ -2816,7 +2816,7 @@ bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
     /*****************************************************************/
     /*  Get the file size (assuming file is smaller than 4 GB)       */
     /*****************************************************************/
-    len = mm.lenL;
+    len = (size_t)mm.sz.QuadPart;
     Memcol[i] = (char *)mm.memory;
 
     if (!len) {             // Empty or deleted file
