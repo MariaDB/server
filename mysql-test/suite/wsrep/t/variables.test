@@ -7,23 +7,6 @@ call mtr.add_suppression("WSREP: Initial position was provided by configuration 
 SET @wsrep_provider_options_saved= @@global.wsrep_provider_options;
 SET @wsrep_cluster_address_saved= @@global.wsrep_cluster_address;
 
---echo
---echo # MDEV#5534: mysql_tzinfo_to_sql generates wrong query
---echo #
---echo # Testing wsrep_replicate_myisam variable.
-
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
-SELECT @@session.wsrep_replicate_myisam;
-SELECT @@global.wsrep_replicate_myisam;
-
---error ER_GLOBAL_VARIABLE
-SET SESSION wsrep_replicate_myisam= ON;
-SET GLOBAL wsrep_replicate_myisam= ON;
-
-# Reset it back.
-SET GLOBAL wsrep_replicate_myisam= OFF;
-#SET GLOBAL wsrep_provider=none;
-
 --echo #
 --echo # MDEV#5790: SHOW GLOBAL STATUS LIKE does not show the correct list of
 --echo # variables when using "_"

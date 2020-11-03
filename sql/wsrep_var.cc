@@ -1047,3 +1047,14 @@ bool wsrep_strict_ddl_update(sys_var *self, THD* thd, enum_var_type var_type)
     wsrep_mode&= (~WSREP_MODE_STRICT_REPLICATION);
   return false;
 }
+
+bool wsrep_replicate_myisam_update(sys_var *self, THD* thd, enum_var_type var_type)
+{
+  // In case user still sets wsrep_replicate_myisam we set new
+  // option to wsrep_mode
+  if (wsrep_replicate_myisam)
+    wsrep_mode|= WSREP_MODE_REPLICATE_MYISAM;
+  else
+    wsrep_mode&= (~WSREP_MODE_REPLICATE_MYISAM);
+  return false;
+}

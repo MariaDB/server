@@ -1,0 +1,17 @@
+#
+# Simple test for wsrep-mode != REPLICATE_ARIA
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_aria.inc
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) Engine=Aria;
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1;
+
+--connection node_2
+--echo # Only DDL is replicated
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
+SELECT * FROM t1;
+DROP TABLE t1;

@@ -134,10 +134,13 @@ enum enum_wsrep_ignore_apply_error {
     WSREP_IGNORE_ERRORS_MAX= 0x7
 };
 
+/* wsrep_mode features */
 enum enum_wsrep_mode {
   WSREP_MODE_STRICT_REPLICATION= (1ULL << 0),
   WSREP_MODE_BINLOG_ROW_FORMAT_ONLY= (1ULL << 1),
-  WSREP_MODE_REQUIRED_PRIMARY_KEY= (1ULL << 2)
+  WSREP_MODE_REQUIRED_PRIMARY_KEY= (1ULL << 2),
+  WSREP_MODE_REPLICATE_MYISAM= (1ULL << 3),
+  WSREP_MODE_REPLICATE_ARIA= (1ULL << 4)
 };
 
 // Streaming Replication
