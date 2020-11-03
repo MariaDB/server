@@ -1,7 +1,6 @@
 --source include/have_wsrep.inc
 --source include/force_restart.inc
 --source include/have_innodb.inc
---source include/galera_have_debug_sync.inc
 
 call mtr.add_suppression("WSREP: Initial position was provided by configuration or SST, avoiding override");
 
@@ -39,11 +38,6 @@ eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
 source include/check_galera_version.inc;
 --enable_result_log
 --enable_query_log
-
---echo # wsrep
---sorted_result
---replace_column 2 #
-SHOW GLOBAL STATUS LIKE 'wsrep%';
 
 --replace_column 2 #
 SHOW GLOBAL STATUS LIKE 'wsrep_local_state_comment';
