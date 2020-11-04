@@ -23,15 +23,17 @@
 #define DBUG_ASSERT_IF_WSREP(A) DBUG_ASSERT(A)
 
 #define WSREP_MYSQL_DB (char *)"mysql"
-#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)                   \
+#define WSREP_TO_ISOLATION_BEGIN_IF(db_, table_, table_list_)                 \
+  if (WSREP_ON && WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_))
+
+#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)              \
   if (WSREP_ON && WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) \
     goto wsrep_error_label;
 
 #define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_, fk_tables_) \
   if (WSREP(thd) && wsrep_thd_is_local(thd) &&                          \
       wsrep_to_isolation_begin(thd, db_, table_,                        \
-                               table_list_, alter_info_, fk_tables_))   \
-    goto wsrep_error_label;
+                               table_list_, alter_info_, fk_tables_))
 
 #define WSREP_TO_ISOLATION_END                                          \
   if ((WSREP(thd) && wsrep_thd_is_local_toi(thd)) ||                    \
@@ -48,7 +50,7 @@
 
 #define WSREP_TO_ISOLATION_BEGIN_FK_TABLES(db_, table_, table_list_, fk_tables)    \
   if (WSREP(thd) && !thd->lex->no_write_to_binlog                                   \
-      && wsrep_to_isolation_begin(thd, db_, table_, table_list_, NULL, fk_tables)) goto wsrep_error_label;
+      && wsrep_to_isolation_begin(thd, db_, table_, table_list_, NULL, fk_tables))
 
 #define WSREP_DEBUG(...)                                                \
     if (wsrep_debug)     WSREP_LOG(sql_print_information, ##__VA_ARGS__)

@@ -480,7 +480,11 @@ bool Sql_cmd_alter_table::execute(THD *thd)
 
     WSREP_TO_ISOLATION_BEGIN_ALTER((lex->name.str ? select_lex->db.str : NULL),
                                    (lex->name.str ? lex->name.str : NULL),
-                                   first_table, &alter_info, &keys);
+                                   first_table, &alter_info, &keys)
+    {
+      WSREP_WARN("ALTER TABLE isolation failure");
+      DBUG_RETURN(TRUE);
+    }
 
     thd->variables.auto_increment_offset = 1;
     thd->variables.auto_increment_increment = 1;
@@ -522,11 +526,6 @@ bool Sql_cmd_alter_table::execute(THD *thd)
                             lex->ignore);
 
   DBUG_RETURN(result);
-#ifdef WITH_WSREP
-wsrep_error_label:
-  WSREP_WARN("ALTER TABLE isolation failure");
-  DBUG_RETURN(TRUE);
-#endif
 }
 
 bool Sql_cmd_discard_import_tablespace::execute(THD *thd)

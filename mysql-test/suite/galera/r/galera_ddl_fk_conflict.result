@@ -3,6 +3,9 @@ connection node_1;
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection node_1a;
 SET SESSION wsrep_sync_wait=0;
+connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1b;
+SET SESSION wsrep_sync_wait=0;
 ######################################################################
 # Test for OPTIMIZE 
 ######################################################################
@@ -14,29 +17,39 @@ SET SESSION wsrep_sync_wait=0;
 ######################################################################
 connection node_1;
 SET SESSION wsrep_sync_wait=0;
-CREATE TABLE p (pk INTEGER PRIMARY KEY, f2 CHAR(30));
-INSERT INTO p VALUES (1, 'INITIAL VALUE');
-INSERT INTO p VALUES (2, 'INITIAL VALUE');
-CREATE TABLE c (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p(pk));
-INSERT INTO c VALUES (1,1), (2,2);
+CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
+CREATE TABLE p2 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p2 VALUES (1, 'INITIAL VALUE');
+INSERT INTO p2 VALUES (2, 'INITIAL VALUE');
+CREATE TABLE c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT INTO c1 VALUES (1,1);
+CREATE TABLE c2 (pk INTEGER PRIMARY KEY, fk1 INTEGER, fk2 INTEGER, FOREIGN KEY (fk1) REFERENCES p1(pk), FOREIGN KEY (fk2) REFERENCES p2(pk));
+INSERT INTO c2 VALUES (1,1,1), (2,1,2);
 connection node_1;
 SET AUTOCOMMIT=ON;
 START TRANSACTION;
-UPDATE p SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
 connection node_2;
 SET SESSION wsrep_sync_wait=0;
-OPTIMIZE TABLE c ;
+OPTIMIZE TABLE c1 ;
 Table	Op	Msg_type	Msg_text
-test.c	optimize	note	Table does not support optimize, doing recreate + analyze instead
-test.c	optimize	status	OK
+test.c1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.c1	optimize	status	OK
 connection node_1;
 COMMIT;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
-SELECT COUNT(*) AS EXPECT_2 FROM p WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 EXPECT_2
 2
 connection node_2;
-SELECT COUNT(*) AS EXPECT_2 FROM p WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 EXPECT_2
 2
 ######################################################################
@@ -49,16 +62,16 @@ connection node_1;
 BEGIN;
 SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
 connection node_2;
-OPTIMIZE TABLE c ;
+OPTIMIZE TABLE c1 ;
 Table	Op	Msg_type	Msg_text
-test.c	optimize	note	Table does not support optimize, doing recreate + analyze instead
-test.c	optimize	status	OK
+test.c1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.c1	optimize	status	OK
 connection node_1a;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'dbug=';
 connection node_1;
-UPDATE p SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
 COMMIT;
 connection node_1a;
 SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
@@ -67,15 +80,73 @@ ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 SELECT 'I deadlocked';
 I deadlocked
 I deadlocked
-SELECT COUNT(*) AS EXPECT_2 FROM p WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 EXPECT_2
 2
 connection node_2;
-SELECT COUNT(*) AS EXPECT_2 FROM p WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 EXPECT_2
 2
-DROP TABLE c;
-DROP TABLE p;
+######################################################################
+#
+# Scenario #3: 2 DMLs working on two FK parent tables try to replicate, 
+#              but fails in certification for earlier DDL on child table
+#              which is child to both FK parents 
+#
+######################################################################
+connection node_1;
+BEGIN;
+connection node_1b;
+BEGIN;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+OPTIMIZE TABLE c2 ;
+Table	Op	Msg_type	Msg_text
+test.c2	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.c2	optimize	status	OK
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+COMMIT;
+connection node_1b;
+UPDATE p2 SET f2 = 'TO DEADLOCK' WHERE pk = 2;
+COMMIT;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+DROP TABLE c1, c2;
+DROP TABLE p1, p2;
 ######################################################################
 # Test for REPAIR 
 ######################################################################
@@ -87,28 +158,38 @@ DROP TABLE p;
 ######################################################################
 connection node_1;
 SET SESSION wsrep_sync_wait=0;
-CREATE TABLE p (pk INTEGER PRIMARY KEY, f2 CHAR(30));
-INSERT INTO p VALUES (1, 'INITIAL VALUE');
-INSERT INTO p VALUES (2, 'INITIAL VALUE');
-CREATE TABLE c (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p(pk));
-INSERT INTO c VALUES (1,1), (2,2);
+CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
+CREATE TABLE p2 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p2 VALUES (1, 'INITIAL VALUE');
+INSERT INTO p2 VALUES (2, 'INITIAL VALUE');
+CREATE TABLE c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT INTO c1 VALUES (1,1);
+CREATE TABLE c2 (pk INTEGER PRIMARY KEY, fk1 INTEGER, fk2 INTEGER, FOREIGN KEY (fk1) REFERENCES p1(pk), FOREIGN KEY (fk2) REFERENCES p2(pk));
+INSERT INTO c2 VALUES (1,1,1), (2,1,2);
 connection node_1;
 SET AUTOCOMMIT=ON;
 START TRANSACTION;
-UPDATE p SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
 connection node_2;
 SET SESSION wsrep_sync_wait=0;
-REPAIR TABLE c ;
+REPAIR TABLE c1 ;
 Table	Op	Msg_type	Msg_text
-test.c	repair	note	The storage engine for the table doesn't support repair
+test.c1	repair	note	The storage engine for the table doesn't support repair
 connection node_1;
 COMMIT;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
-SELECT COUNT(*) AS EXPECT_2 FROM p WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 EXPECT_2
 2
 connection node_2;
-SELECT COUNT(*) AS EXPECT_2 FROM p WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 EXPECT_2
 2
 ######################################################################
@@ -121,15 +202,15 @@ connection node_1;
 BEGIN;
 SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
 connection node_2;
-REPAIR TABLE c ;
+REPAIR TABLE c1 ;
 Table	Op	Msg_type	Msg_text
-test.c	repair	note	The storage engine for the table doesn't support repair
+test.c1	repair	note	The storage engine for the table doesn't support repair
 connection node_1a;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'dbug=';
 connection node_1;
-UPDATE p SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
 COMMIT;
 connection node_1a;
 SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
@@ -138,15 +219,72 @@ ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 SELECT 'I deadlocked';
 I deadlocked
 I deadlocked
-SELECT COUNT(*) AS EXPECT_2 FROM p WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 EXPECT_2
 2
 connection node_2;
-SELECT COUNT(*) AS EXPECT_2 FROM p WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 EXPECT_2
 2
-DROP TABLE c;
-DROP TABLE p;
+######################################################################
+#
+# Scenario #3: 2 DMLs working on two FK parent tables try to replicate, 
+#              but fails in certification for earlier DDL on child table
+#              which is child to both FK parents 
+#
+######################################################################
+connection node_1;
+BEGIN;
+connection node_1b;
+BEGIN;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+REPAIR TABLE c2 ;
+Table	Op	Msg_type	Msg_text
+test.c2	repair	note	The storage engine for the table doesn't support repair
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+COMMIT;
+connection node_1b;
+UPDATE p2 SET f2 = 'TO DEADLOCK' WHERE pk = 2;
+COMMIT;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+DROP TABLE c1, c2;
+DROP TABLE p1, p2;
 ######################################################################
 # Test for ALTER ENGINE=INNODB
 ######################################################################
@@ -158,26 +296,36 @@ DROP TABLE p;
 ######################################################################
 connection node_1;
 SET SESSION wsrep_sync_wait=0;
-CREATE TABLE p (pk INTEGER PRIMARY KEY, f2 CHAR(30));
-INSERT INTO p VALUES (1, 'INITIAL VALUE');
-INSERT INTO p VALUES (2, 'INITIAL VALUE');
-CREATE TABLE c (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p(pk));
-INSERT INTO c VALUES (1,1), (2,2);
+CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
+CREATE TABLE p2 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p2 VALUES (1, 'INITIAL VALUE');
+INSERT INTO p2 VALUES (2, 'INITIAL VALUE');
+CREATE TABLE c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT INTO c1 VALUES (1,1);
+CREATE TABLE c2 (pk INTEGER PRIMARY KEY, fk1 INTEGER, fk2 INTEGER, FOREIGN KEY (fk1) REFERENCES p1(pk), FOREIGN KEY (fk2) REFERENCES p2(pk));
+INSERT INTO c2 VALUES (1,1,1), (2,1,2);
 connection node_1;
 SET AUTOCOMMIT=ON;
 START TRANSACTION;
-UPDATE p SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
 connection node_2;
 SET SESSION wsrep_sync_wait=0;
-ALTER TABLE c ENGINE=INNODB;
+ALTER TABLE c1 ENGINE=INNODB;
 connection node_1;
 COMMIT;
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
-SELECT COUNT(*) AS EXPECT_2 FROM p WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 EXPECT_2
 2
 connection node_2;
-SELECT COUNT(*) AS EXPECT_2 FROM p WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 EXPECT_2
 2
 ######################################################################
@@ -190,13 +338,13 @@ connection node_1;
 BEGIN;
 SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
 connection node_2;
-ALTER TABLE c ENGINE=INNODB;
+ALTER TABLE c1 ENGINE=INNODB;
 connection node_1a;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
 SET GLOBAL wsrep_provider_options = 'dbug=';
 connection node_1;
-UPDATE p SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
 COMMIT;
 connection node_1a;
 SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
@@ -205,12 +353,199 @@ ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 SELECT 'I deadlocked';
 I deadlocked
 I deadlocked
-SELECT COUNT(*) AS EXPECT_2 FROM p WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 EXPECT_2
 2
 connection node_2;
-SELECT COUNT(*) AS EXPECT_2 FROM p WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 EXPECT_2
 2
-DROP TABLE c;
-DROP TABLE p;
+######################################################################
+#
+# Scenario #3: 2 DMLs working on two FK parent tables try to replicate, 
+#              but fails in certification for earlier DDL on child table
+#              which is child to both FK parents 
+#
+######################################################################
+connection node_1;
+BEGIN;
+connection node_1b;
+BEGIN;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+ALTER TABLE c2 ENGINE=INNODB;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+COMMIT;
+connection node_1b;
+UPDATE p2 SET f2 = 'TO DEADLOCK' WHERE pk = 2;
+COMMIT;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+DROP TABLE c1, c2;
+DROP TABLE p1, p2;
+######################################################################
+# Test for TRUNCATE 
+######################################################################
+######################################################################
+#
+# Scenario #1: DML working on FK parent table BF aborted by DDL
+#              over child table
+#
+######################################################################
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
+CREATE TABLE p2 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p2 VALUES (1, 'INITIAL VALUE');
+INSERT INTO p2 VALUES (2, 'INITIAL VALUE');
+CREATE TABLE c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT INTO c1 VALUES (1,1);
+CREATE TABLE c2 (pk INTEGER PRIMARY KEY, fk1 INTEGER, fk2 INTEGER, FOREIGN KEY (fk1) REFERENCES p1(pk), FOREIGN KEY (fk2) REFERENCES p2(pk));
+INSERT INTO c2 VALUES (1,1,1), (2,1,2);
+connection node_1;
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+connection node_2;
+SET SESSION wsrep_sync_wait=0;
+TRUNCATE TABLE c1 ;
+connection node_1;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+######################################################################
+#
+# Scenario #2: DML working on FK parent table tries to replicate, but
+#              fails in certification for earlier DDL on child table
+#
+######################################################################
+connection node_1;
+BEGIN;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+TRUNCATE TABLE c1 ;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+COMMIT;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+######################################################################
+#
+# Scenario #3: 2 DMLs working on two FK parent tables try to replicate, 
+#              but fails in certification for earlier DDL on child table
+#              which is child to both FK parents 
+#
+######################################################################
+connection node_1;
+BEGIN;
+connection node_1b;
+BEGIN;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+TRUNCATE TABLE c2 ;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+COMMIT;
+connection node_1b;
+UPDATE p2 SET f2 = 'TO DEADLOCK' WHERE pk = 2;
+COMMIT;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+EXPECT_2
+2
+DROP TABLE c1, c2;
+DROP TABLE p1, p2;
