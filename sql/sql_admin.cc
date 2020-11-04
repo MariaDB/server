@@ -453,7 +453,9 @@ static bool wsrep_toi_replication(THD *thd, TABLE_LIST *tables)
   {
     WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, tables);
   } else {
-    WSREP_TO_ISOLATION_BEGIN_FK_TABLES(NULL, NULL, tables, &keys);
+    WSREP_TO_ISOLATION_BEGIN_FK_TABLES(NULL, NULL, tables, &keys) {
+      return true;
+    }
   }
   return false;
 

@@ -40,31 +40,40 @@
 --connection node_1
 SET SESSION wsrep_sync_wait=0;
 
-CREATE TABLE p (pk INTEGER PRIMARY KEY, f2 CHAR(30));
-INSERT INTO p VALUES (1, 'INITIAL VALUE');
-INSERT INTO p VALUES (2, 'INITIAL VALUE');
+CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
 
-CREATE TABLE c (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p(pk));
-INSERT INTO c VALUES (1,1), (2,2);
+
+CREATE TABLE p2 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p2 VALUES (1, 'INITIAL VALUE');
+INSERT INTO p2 VALUES (2, 'INITIAL VALUE');
+
+CREATE TABLE c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT INTO c1 VALUES (1,1);
+
+CREATE TABLE c2 (pk INTEGER PRIMARY KEY, fk1 INTEGER, fk2 INTEGER, FOREIGN KEY (fk1) REFERENCES p1(pk), FOREIGN KEY (fk2) REFERENCES p2(pk));
+INSERT INTO c2 VALUES (1,1,1), (2,1,2);
 
 --connection node_1
 SET AUTOCOMMIT=ON;
 START TRANSACTION;
 
-UPDATE p SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
 
 --connection node_2
 SET SESSION wsrep_sync_wait=0;
---eval $table_admin_command TABLE c $table_admin_command_end
+--eval $table_admin_command TABLE c1 $table_admin_command_end
 
 --connection node_1
 --error ER_LOCK_DEADLOCK
 COMMIT;
 
-SELECT COUNT(*) AS EXPECT_2 FROM p WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 
 --connection node_2
-SELECT COUNT(*) AS EXPECT_2 FROM p WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 
 --echo ######################################################################
 --echo #
@@ -81,7 +90,7 @@ BEGIN;
 --source include/galera_set_sync_point.inc
 
 --connection node_2
---eval $table_admin_command TABLE c $table_admin_command_end
+--eval $table_admin_command TABLE c1 $table_admin_command_end
 
 --connection node_1a
 --source include/galera_wait_sync_point.inc
@@ -89,7 +98,7 @@ BEGIN;
 --let $expected_cert_failures = `SELECT VARIABLE_VALUE+1 FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'`
 
 --connection node_1
-UPDATE p SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
 --send COMMIT
 
 --connection node_1a
@@ -105,10 +114,71 @@ UPDATE p SET f2 = 'TO DEADLOCK' WHERE pk = 1;
 
 SELECT 'I deadlocked';
 
-SELECT COUNT(*) AS EXPECT_2 FROM p WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 
 --connection node_2
-SELECT COUNT(*) AS EXPECT_2 FROM p WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
 
-DROP TABLE c;
-DROP TABLE p;
+
+--echo ######################################################################
+--echo #
+--echo # Scenario #3: 2 DMLs working on two FK parent tables try to replicate, 
+--echo #              but fails in certification for earlier DDL on child table
+--echo #              which is child to both FK parents 
+--echo #
+--echo ######################################################################
+
+--connection node_1
+BEGIN;
+
+--connection node_1b
+BEGIN;
+
+# Block the applier on node #1 and issue DDL on node 2
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_2
+--eval $table_admin_command TABLE c2 $table_admin_command_end
+
+--connection node_1a
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+--let $expected_cert_failures = `SELECT VARIABLE_VALUE+2 FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'`
+
+--connection node_1
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+--send COMMIT
+
+--connection node_1b
+UPDATE p2 SET f2 = 'TO DEADLOCK' WHERE pk = 2;
+--send COMMIT
+
+--connection node_1a
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = $expected_cert_failures FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'
+--source include/wait_condition.inc
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+SELECT 'I deadlocked';
+
+--connection node_1b
+--error ER_LOCK_DEADLOCK
+--reap
+SELECT 'I deadlocked';
+
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+
+--connection node_2
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+SELECT COUNT(*) AS EXPECT_2 FROM p2 WHERE f2 = 'INITIAL VALUE';
+
+DROP TABLE c1, c2;
+DROP TABLE p1, p2;
