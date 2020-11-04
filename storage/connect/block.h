@@ -56,6 +56,7 @@ class DllExport BLOCK {
   // Avoid warning C4291 by defining a matching dummy delete operator
   void operator delete(void*, PGLOBAL, void *) {}
 	void operator delete(void*, long long) {}
+	void operator delete(void*) {}
 #endif
   virtual ~BLOCK() {}
 
