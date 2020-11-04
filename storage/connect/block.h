@@ -44,8 +44,8 @@ class DllExport BLOCK {
 		return PlugSubAlloc(g, mp, size);
   } // end of new
 
-	void* operator new(size_t size, size_t mp) {
-		xtrc(256, "Realloc at: mp=%zd\n", mp);
+	void* operator new(size_t size, long long mp) {
+		xtrc(256, "Realloc at: mp=%lld\n", mp);
 		return (void*)mp;
 	} // end of new
 
@@ -55,7 +55,7 @@ class DllExport BLOCK {
 #if !defined(__BORLANDC__)
   // Avoid warning C4291 by defining a matching dummy delete operator
   void operator delete(void*, PGLOBAL, void *) {}
-	//void operator delete(void*, size_t) {}
+	void operator delete(void*, long long) {}
 #endif
   virtual ~BLOCK() {}
 

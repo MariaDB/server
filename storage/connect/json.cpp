@@ -1820,7 +1820,7 @@ PJSON SWAP::MptrJson(PJSON ojp) {      // ojp is an offset
 PJAR SWAP::MptrArray(PJAR ojar) {
   PJAR jarp = (PJAR)MakePtr(Base, (size_t)ojar);
 
-  jarp = (PJAR)new((size_t)jarp) JARRAY(NULL);
+  jarp = (PJAR)new((long long)jarp) JARRAY(NULL);
 
   if (jarp->First) {
     for (int i = 0; i < jarp->Size; i++)
@@ -1839,7 +1839,7 @@ PJAR SWAP::MptrArray(PJAR ojar) {
 PJOB SWAP::MptrObject(PJOB ojob) {
   PJOB jobp = (PJOB)MakePtr(Base, (size_t)ojob);
 
-  jobp = (PJOB)new((size_t)jobp) JOBJECT(NULL);
+  jobp = (PJOB)new((long long)jobp) JOBJECT(NULL);
 
   if (jobp->First) {
     jobp->First = (PJPR)MptrPair(jobp->First);
@@ -1872,7 +1872,7 @@ PJPR SWAP::MptrPair(PJPR ojp) {
 PJVAL SWAP::MptrJValue(PJVAL ojv) {
   PJVAL jvp = (PJVAL)MakePtr(Base, (size_t)ojv);
 
-  jvp = (PJVAL)new((size_t)jvp) JVALUE(0);
+  jvp = (PJVAL)new((long long)jvp) JVALUE(0);
 
   if (!jvp->Del) {
     if (jvp->Jsp)
