@@ -137,6 +137,13 @@ alter user user1@localhost account lock;
 --error ER_ACCOUNT_HAS_BEEN_LOCKED
 --change_user user1
 
+--echo #
+--echo # MDEV-24098 SHOW CREATE USER invalid for both PASSWORD EXPIRE and
+--echo # and LOCKED
+--echo #
+alter user user1@localhost PASSWORD EXPIRE;
+show create user user1@localhost;
+
 drop user user1@localhost;
 drop user user2@localhost;
 

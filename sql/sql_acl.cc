@@ -8950,6 +8950,9 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
   append_identifier(thd, &result, username, strlen(username));
   add_user_parameters(thd, &result, acl_user, false);
 
+  if (acl_user->account_locked)
+    result.append(STRING_WITH_LEN(" ACCOUNT LOCK"));
+
   if (acl_user->password_expired)
     result.append(STRING_WITH_LEN(" PASSWORD EXPIRE"));
   else if (!acl_user->password_lifetime)
@@ -8960,9 +8963,6 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
     result.append_longlong(acl_user->password_lifetime);
     result.append(STRING_WITH_LEN(" DAY"));
   }
-
-  if (acl_user->account_locked)
-    result.append(STRING_WITH_LEN(" ACCOUNT LOCK"));
 
   protocol->prepare_for_resend();
   protocol->store(result.ptr(), result.length(), result.charset());
