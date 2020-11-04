@@ -1587,7 +1587,17 @@ void JVALUE::SetValue(PGLOBAL g, PVAL valp)
     Val->Type = TYPE_NULL;
   } else switch (valp->GetType()) {
   case TYPE_STRING:
-  case TYPE_DATE:
+		if (((DTVAL*)valp)->IsFormatted())
+			Val->Strp = valp->GetCharValue();
+		else {
+			char buf[32];
+
+			Val->Strp = PlugDup(g, valp->GetCharString(buf));
+		}	// endif Formatted
+
+		Val->Type = TYPE_DTM;
+		break;
+	case TYPE_DATE:
     Val->Strp = valp->GetCharValue();
     Val->Type = TYPE_STRG;
     break;
