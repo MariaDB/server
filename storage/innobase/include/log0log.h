@@ -37,7 +37,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "log0types.h"
 #include "os0file.h"
 #include "span.h"
-#include <atomic>
+#include "my_atomic_wrapper.h"
 #include <vector>
 #include <string>
 
@@ -615,8 +615,8 @@ public:
 					new query step is started */
 	ib_uint64_t	next_checkpoint_no;
 					/*!< next checkpoint number */
-	lsn_t		last_checkpoint_lsn;
-					/*!< latest checkpoint lsn */
+  /** latest completed checkpoint (protected by log_sys.mutex) */
+  Atomic_relaxed<lsn_t> last_checkpoint_lsn;
 	lsn_t		next_checkpoint_lsn;
 					/*!< next checkpoint lsn */
 	ulint		n_pending_checkpoint_writes;
