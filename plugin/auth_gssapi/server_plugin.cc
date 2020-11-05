@@ -32,11 +32,7 @@
   GSSAPI authentication plugin, server side
 */
 
-#ifdef _WIN32
-typedef unsigned __int64 my_ulonglong;
-#else
 typedef unsigned long long my_ulonglong;
-#endif
 
 #include <stdlib.h>
 #include <mysqld_error.h>
