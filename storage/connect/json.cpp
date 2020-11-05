@@ -1053,7 +1053,7 @@ PSZ JOBJECT::GetText(PGLOBAL g, PSZ text)
     return text;
 
   if (!text) {
-    text = (char*)PlugSubAlloc(g, NULL, 512);	// TODO: get size
+    text = (PSZ)malloc(1024);	// TODO: get size
     text[0] = 0;
     n = 1;
   } else
@@ -1079,10 +1079,14 @@ PSZ JOBJECT::GetText(PGLOBAL g, PSZ text)
   } else for (PJPR jp = First; jp; jp = jp->Next)
     jp->Val->GetText(g, text);
 
-  //if (n)
-  //  PlugSubAlloc(g, NULL, strlen(text) + 1);
+	if (n) {
+		PSZ txt = (PSZ)PlugSubAlloc(g, NULL, strlen(text));
+		strcpy(txt, text + 1);	 // Remove leading blank
+		free(text);
+		text = txt;
+	}	// endif n
 
-  return text + n;
+  return text;
 } // end of GetText;
 
 /***********************************************************************/
@@ -1290,7 +1294,7 @@ PSZ JARRAY::GetText(PGLOBAL g, PSZ text)
   PJVAL jp;
 
   if (!text) {
-    text = (char*)PlugSubAlloc(g, NULL, 512);
+    text = (char*)malloc(1024);				 // Should be large enough
     text[0] = 0;
     n = 1;
   } else
@@ -1299,10 +1303,14 @@ PSZ JARRAY::GetText(PGLOBAL g, PSZ text)
   for (jp = First; jp; jp = jp->Next)
     jp->GetText(g, text);
 
-  //if (n)
-  //  PlugSubAlloc(g, NULL, strlen(text) + 1);
+	if (n) {
+		PSZ txt = (PSZ)PlugSubAlloc(g, NULL, strlen(text));
+		strcpy(txt, text + 1);		// Remove leading blank
+		free(text);
+		text = txt;
+	}	// endif n
 
-  return text + n;
+  return text;
 } // end of GetText;
 
 /***********************************************************************/
