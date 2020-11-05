@@ -170,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0002 October 18, 2020";
+       char version[]= "Version 1.07.0002 November 05, 2020";
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -398,7 +398,7 @@ static MYSQL_THDVAR_ENUM(
 // Adding JPATH to all Json table columns
 static MYSQL_THDVAR_BOOL(json_all_path, PLUGIN_VAR_RQCMDARG,
 	"Adding JPATH to all Json table columns",
-	NULL, NULL, 0);							// NO by default
+	NULL, NULL, 1);							     // YES by default
 
 // Null representation for JSON values
 static MYSQL_THDVAR_STR(json_null,
@@ -411,7 +411,7 @@ static MYSQL_THDVAR_STR(json_null,
 static MYSQL_THDVAR_INT(default_depth,
 	PLUGIN_VAR_RQCMDARG,
 	"Default depth used by Json, XML and Mongo discovery",
-	NULL, NULL, 0, -1, 16, 1);
+	NULL, NULL, 5, -1, 16, 1);			 // Defaults to 5
 
 // Estimate max number of rows for JSON aggregate functions
 static MYSQL_THDVAR_UINT(json_grp_size,
@@ -4543,14 +4543,12 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
 		case TAB_DIR:
 		case TAB_ZIP:
 		case TAB_OEM:
-      if (table && table->pos_in_table_list) // if SELECT
-      {
+      if (table && table->pos_in_table_list) { // if SELECT
 #if MYSQL_VERSION_ID > 100200
 				Switch_to_definer_security_ctx backup_ctx(thd, table->pos_in_table_list);
 #endif // VERSION_ID > 100200
         return check_global_access(thd, FILE_ACL);
-      }
-      else
+      }	else
         return check_global_access(thd, FILE_ACL);
     case TAB_ODBC:
 		case TAB_JDBC:
@@ -5360,7 +5358,8 @@ static char *encode(PGLOBAL g, const char *cnm)
 */
 static bool add_field(String* sql, TABTYPE ttp, const char* field_name, int typ,
 	                    int len, int dec, char* key, uint tm, const char* rem,
-	                    char* dft, char* xtra, char* fmt, int flag, bool dbf, char v) {
+	                    char* dft, char* xtra, char* fmt, int flag, bool dbf, char v)
+{
 #if defined(DEVELOPMENT)
 	// Some client programs regard CHAR(36) as GUID
 	char var = (len > 255 || len == 36) ? 'V' : v;
@@ -5604,8 +5603,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   String   sql(buf, sizeof(buf), system_charset_info);
 
   sql.copy(STRING_WITH_LEN("CREATE TABLE whatever ("), system_charset_info);
-	user = host = pwd = tbl = src = col = ocl = pic = fcl = skc = rnk = zfn = NULL;
-	dsn = url = NULL;
+	user= host= pwd= tbl= src= col= ocl= pic= fcl= skc= rnk= zfn= NULL;
+	dsn= url= NULL;
 
   // Get the useful create options
   ttp= GetTypeID(topt->type);
@@ -6268,7 +6267,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 						// Now add the field
 						if (add_field(&sql, ttp, cnm, typ, prec, dec, key, tm, rem, dft, xtra,
-							fmt, flg, dbf, v))
+								fmt, flg, dbf, v))
 							rc= HA_ERR_OUT_OF_MEM;
 				} // endfor i
 
@@ -6767,8 +6766,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   if (trace(1))
     htrc("xchk=%p createas=%d\n", g->Xchk, g->Createas);
 
-#if defined(ZIP_SUPPORT)
 	if (options->zipped) {
+#if defined(ZIP_SUPPORT)
 		// Check whether the zip entry must be made from a file
 		PCSZ fn= GetListOption(g, "Load", options->oplist, NULL);
 
@@ -6790,9 +6789,11 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 			}	// endif LoadFile
 
 		}	// endif fn
-
+#else   // !ZIP_SUPPORT
+		my_message(ER_UNKNOWN_ERROR, "Option ZIP not supported", MYF(0));
+		DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+#endif  // !ZIP_SUPPORT
 	}	// endif zipped
-#endif   // ZIP_SUPPORT
 
   // To check whether indexes have to be made or remade
   if (!g->Xchk) {

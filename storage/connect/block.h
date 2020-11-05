@@ -30,8 +30,6 @@
 #define DllExport
 #endif  // !__WIN__
 
-typedef class JSON *PJSON;
-
 /***********************************************************************/
 /*  Definition of class BLOCK with its method function new.            */
 /***********************************************************************/
@@ -52,14 +50,12 @@ class DllExport BLOCK {
 	virtual void Printf(PGLOBAL, FILE *, uint) {}   // Produce file desc
   virtual void Prints(PGLOBAL, char *, uint) {}   // Produce string desc
   
-#if !defined(__BORLANDC__)
-  // Avoid warning C4291 by defining a matching dummy delete operator
+  // Avoid gcc errors by defining matching dummy delete operators
   void operator delete(void*, PGLOBAL, void *) {}
 	void operator delete(void*, long long) {}
 	void operator delete(void*) {}
-#endif
-  virtual ~BLOCK() {}
 
+  virtual ~BLOCK() {}
 }; // end of class BLOCK
 
 #endif   // !BLOCK_DEFINED

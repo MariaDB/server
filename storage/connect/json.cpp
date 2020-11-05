@@ -1533,10 +1533,11 @@ PSZ JVALUE::GetString(PGLOBAL g)
       sprintf(buf, "%.*lf", Val->Nd, Val->F);
       break;
     case TYPE_BOOL:
-      p = (Val->B) ? "true" : "false";
+      p = (char*)PlugDup(g, (Val->B) ? "true" : "false");
       break;
     case TYPE_NULL:
-      p = "null";
+      p = (char*)PlugDup(g, "null")
+				;
       break;
     default:
       p = NULL;
@@ -1545,7 +1546,7 @@ PSZ JVALUE::GetString(PGLOBAL g)
   } else
     p = NULL;
 
-  return p;
+  return (p == buf)? (char*)PlugDup(g, buf) : p;
 } // end of GetString
 
 /***********************************************************************/
