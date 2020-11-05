@@ -34,7 +34,6 @@ Created 9/11/1995 Heikki Tuuri
 #ifndef sync0rw_h
 #define sync0rw_h
 
-#include "os0event.h"
 #include "ut0mutex.h"
 #include "ilist.h"
 
@@ -572,7 +571,7 @@ struct rw_lock_t :
   /** Holds the state of the lock. */
   Atomic_relaxed<int32_t> lock_word;
 
-  /** 0=no waiters, 1=waiters for X or SX lock exist */
+  /** 0=no waiters, 1=waiters exist */
   Atomic_relaxed<uint32_t> waiters;
 
 	/** number of granted SX locks. */
@@ -586,12 +585,14 @@ struct rw_lock_t :
 	the lock_word. */
 	volatile os_thread_id_t	writer_thread;
 
-	/** Used by sync0arr.cc for thread queueing */
-	os_event_t	event;
-
-	/** Event for next-writer to wait on. A thread must decrement
-	lock_word before waiting. */
-	os_event_t	wait_ex_event;
+  /** Mutex to wait on conflict */
+  mysql_mutex_t wait_mutex;
+  /** Condition variable for an ordinary lock request (S, SX, X) */
+  mysql_cond_t wait_cond;
+  /** Condition variable for a successfully enqueued wait for an
+  exclusive lock. Subsequent requests must wait until it has been
+  granted and released. */
+  mysql_cond_t wait_ex_cond;
 
 	/** File name where lock created */
 	const char*	cfile_name;
@@ -625,6 +626,10 @@ struct rw_lock_t :
 	/** Level in the global latching order. */
 	latch_level_t	level;
 #endif /* UNIV_DEBUG */
+  /** Wake up pending (not enqueued) waiters */
+  void wakeup_waiters();
+  /** Wake up the enqueued exclusive lock waiter */
+  void wakeup_wait_ex();
 };
 #ifdef UNIV_DEBUG
 /** The structure for storing debug info of an rw-lock.  All access to this

@@ -111,31 +111,24 @@ waiters:	May be set to 1 anytime, but to avoid unnecessary wake-up
 		memory barrier is required after waiters is set, and before
 		verifying lock_word is still held, to ensure some unlocker
 		really does see the flags new value.
-event:		Threads wait on event for read or writer lock when another
+wait_cond:	Threads wait for read or writer lock when another
 		thread has an x-lock or an x-lock reservation (wait_ex). A
-		thread may only	wait on event after performing the following
+		thread may only	wait after performing the following
 		actions in order:
-		   (1) Record the counter value of event (with os_event_reset).
-		   (2) Set waiters to 1.
-		   (3) Verify lock_word <= 0.
-		(1) must come before (2) to ensure signal is not missed.
-		(2) must come before (3) to ensure a signal is sent.
+		   (1) Set waiters to 1 (ensure that wait_cond be signaled).
+		   (2) Verify lock_word <= 0.
 		These restrictions force the above ordering.
 		Immediately before sending the wake-up signal, we should:
 		   (1) Verify lock_word == X_LOCK_DECR (unlocked)
 		   (2) Reset waiters to 0.
-wait_ex_event:	A thread may only wait on the wait_ex_event after it has
+wait_ex_cond:	A thread may only wait on the wait_ex_cond after it has
 		performed the following actions in order:
 		   (1) Decrement lock_word by X_LOCK_DECR.
-		   (2) Record counter value of wait_ex_event (os_event_reset,
-		       called from sync_array_reserve_cell).
-		   (3) Verify that lock_word < 0.
-		(1) must come first to ensures no other threads become reader
-		or next writer, and notifies unlocker that signal must be sent.
-		(2) must come before (3) to ensure the signal is not missed.
+		   (2) Verify that lock_word < 0.
 		These restrictions force the above ordering.
 		Immediately before sending the wake-up signal, we should:
-		   Verify lock_word == 0 (waiting thread holds x_lock)
+		   Verify lock_word == 0 || lock_word == -X_LOCK_HALF_DECR
+		   (waiting thread holds x_lock)
 */
 
 rw_lock_stats_t		rw_lock_stats;
@@ -229,8 +222,9 @@ rw_lock_create_func(
 	lock->count_os_wait = 0;
 	lock->last_x_file_name = "not yet reserved";
 	lock->last_x_line = 0;
-	lock->event = os_event_create(0);
-	lock->wait_ex_event = os_event_create(0);
+	mysql_mutex_init(0, &lock->wait_mutex, nullptr);
+	mysql_cond_init(0, &lock->wait_cond, nullptr);
+	mysql_cond_init(0, &lock->wait_ex_cond, nullptr);
 
 	lock->is_block_lock = 0;
 
@@ -257,13 +251,34 @@ rw_lock_free_func(
 
 	mutex_enter(&rw_lock_list_mutex);
 
-	os_event_destroy(lock->event);
-
-	os_event_destroy(lock->wait_ex_event);
-
 	rw_lock_list.remove(*lock);
 
 	mutex_exit(&rw_lock_list_mutex);
+
+	mysql_mutex_destroy(&lock->wait_mutex);
+	mysql_cond_destroy(&lock->wait_cond);
+	mysql_cond_destroy(&lock->wait_ex_cond);
+}
+
+/** Wake up pending (not enqueued) waiters */
+void rw_lock_t::wakeup_waiters()
+{
+  mysql_mutex_lock(&wait_mutex);
+  const auto w= waiters.exchange(0);
+  if (w)
+    mysql_cond_broadcast(&wait_cond);
+  mysql_mutex_unlock(&wait_mutex);
+  if (w)
+    sync_array_object_signalled();
+}
+
+/** Wake up the enqueued exclusive lock waiter */
+void rw_lock_t::wakeup_wait_ex()
+{
+  mysql_mutex_lock(&wait_mutex);
+  mysql_cond_signal(&wait_ex_cond);
+  mysql_mutex_unlock(&wait_mutex);
+  sync_array_object_signalled();
 }
 
 /******************************************************************//**
@@ -291,23 +306,21 @@ rw_lock_s_lock_spin(
 	ut_ad(rw_lock_validate(lock));
 
 	rw_lock_stats.rw_s_spin_wait_count.inc();
-
 lock_loop:
-
 	/* Spin waiting for the writer field to become free */
 	HMT_low();
 	ulint j = i;
-	while (i < srv_n_spin_wait_rounds &&
-	       lock->lock_word <= 0) {
+	for (; i < srv_n_spin_wait_rounds; i++) {
+		if (lock->lock_word > 0) {
+			goto available;
+		}
 		ut_delay(srv_spin_wait_delay);
-		i++;
 	}
 
 	HMT_medium();
-	if (i >= srv_n_spin_wait_rounds) {
-		os_thread_yield();
-	}
-
+	os_thread_yield();
+available:
+	HMT_medium();
 	spin_count += lint(i - j);
 
 	/* We try once again to obtain the lock */
@@ -786,7 +799,6 @@ lock_loop:
 		return;
 
 	} else {
-
 		/* Spin waiting for the lock_word to become free */
 		ulint j = i;
 		while (i < srv_n_spin_wait_rounds

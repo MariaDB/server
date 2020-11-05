@@ -31,8 +31,6 @@ The read-write lock (for threads)
 Created 9/11/1995 Heikki Tuuri
 *******************************************************/
 
-#include "os0event.h"
-
 /******************************************************************//**
 Lock an rw-lock in shared mode for the current thread. If the rw-lock is
 locked in exclusive mode, or there is an exclusive lock request waiting,
@@ -371,8 +369,7 @@ rw_lock_s_unlock_func(
 		/* wait_ex waiter exists. It may not be asleep, but we signal
 		anyway. We do not wake other waiters, because they can't
 		exist without wait_ex waiter and wait_ex waiter goes first.*/
-		os_event_set(lock->wait_ex_event);
-		sync_array_object_signalled();
+		lock->wakeup_wait_ex();
 	} else {
 		ut_ad(lock_word > -X_LOCK_DECR);
 		ut_ad(lock_word < X_LOCK_DECR);
@@ -393,44 +390,34 @@ rw_lock_x_unlock_func(
 #endif /* UNIV_DEBUG */
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
-	int32_t lock_word = lock->lock_word;
+  ut_d(rw_lock_remove_debug_info(lock, pass, RW_LOCK_X));
 
-	if (lock_word == 0) {
-		/* Last caller in a possible recursive chain. */
-		lock->writer_thread = 0;
-	}
+  switch (int32_t lock_word= lock->lock_word) {
+  case 0:
+    /* Last caller in a possible recursive chain. */
+    lock->writer_thread= 0;
+    /* fall through */
+  case -X_LOCK_HALF_DECR:
+    /* Last X-lock owned by this thread, it may still hold SX-locks.
+    ACQ_REL due to...
+    RELEASE: we release rw-lock
+    ACQUIRE: we want waiters to be loaded after lock_word is stored */
+    lock->lock_word.fetch_add(X_LOCK_DECR, std::memory_order_acq_rel);
+    if (lock->waiters)
+      lock->wakeup_waiters();
+    break;
+  case -X_LOCK_DECR:
+  case -X_LOCK_DECR - X_LOCK_HALF_DECR:
+    /* There are 2 x-locks */
+    lock->lock_word.fetch_add(X_LOCK_DECR);
+    break;
+  default:
+    /* There are more than 2 x-locks. */
+    ut_ad(lock_word < -X_LOCK_DECR);
+    lock->lock_word.fetch_add(1);
+  }
 
-	ut_d(rw_lock_remove_debug_info(lock, pass, RW_LOCK_X));
-
-	if (lock_word == 0 || lock_word == -X_LOCK_HALF_DECR) {
-		/* Last X-lock owned by this thread, it may still hold SX-locks.
-		ACQ_REL due to...
-		RELEASE: we release rw-lock
-		ACQUIRE: we want waiters to be loaded after lock_word is stored */
-		lock->lock_word.fetch_add(X_LOCK_DECR,
-					  std::memory_order_acq_rel);
-
-		/* This no longer has an X-lock but it may still have
-		an SX-lock. So it is now free for S-locks by other threads.
-		We need to signal read/write waiters.
-		We do not need to signal wait_ex waiters, since they cannot
-		exist when there is a writer. */
-		if (lock->waiters) {
-			lock->waiters = 0;
-			os_event_set(lock->event);
-			sync_array_object_signalled();
-		}
-	} else if (lock_word == -X_LOCK_DECR
-		   || lock_word == -(X_LOCK_DECR + X_LOCK_HALF_DECR)) {
-		/* There are 2 x-locks */
-		lock->lock_word.fetch_add(X_LOCK_DECR);
-	} else {
-		/* There are more than 2 x-locks. */
-		ut_ad(lock_word < -X_LOCK_DECR);
-		lock->lock_word.fetch_add(1);
-	}
-
-	ut_ad(rw_lock_validate(lock));
+  ut_ad(rw_lock_validate(lock));
 }
 
 /******************************************************************//**
@@ -447,12 +434,9 @@ rw_lock_sx_unlock_func(
 {
 	ut_ad(rw_lock_get_sx_lock_count(lock));
 	ut_ad(lock->sx_recursive > 0);
-
-	--lock->sx_recursive;
-
 	ut_d(rw_lock_remove_debug_info(lock, pass, RW_LOCK_SX));
 
-	if (lock->sx_recursive == 0) {
+	if (--lock->sx_recursive == 0) {
 		int32_t lock_word = lock->lock_word;
 		/* Last caller in a possible recursive chain. */
 		if (lock_word > 0) {
@@ -466,20 +450,21 @@ rw_lock_sx_unlock_func(
 			lock->lock_word.fetch_add(X_LOCK_HALF_DECR,
 						  std::memory_order_acq_rel);
 
-			/* Lock is now free. May have to signal read/write
-			waiters. We do not need to signal wait_ex waiters,
+			/* We do not need to signal wait_ex waiters,
 			since they cannot exist when there is an sx-lock
 			holder. */
 			if (lock->waiters) {
-				lock->waiters = 0;
-				os_event_set(lock->event);
-				sync_array_object_signalled();
+				lock->wakeup_waiters();
 			}
 		} else {
 			/* still has x-lock */
 			ut_ad(lock_word == -X_LOCK_HALF_DECR ||
 			      lock_word <= -(X_LOCK_DECR + X_LOCK_HALF_DECR));
-			lock->lock_word.fetch_add(X_LOCK_HALF_DECR);
+			switch (lock->lock_word.fetch_add(X_LOCK_HALF_DECR)) {
+			case -X_LOCK_HALF_DECR * 2:
+			case -X_LOCK_HALF_DECR:
+				lock->wakeup_wait_ex();
+			}
 		}
 	}
 

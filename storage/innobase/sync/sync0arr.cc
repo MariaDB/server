@@ -108,7 +108,7 @@ struct sync_cell_t {
 					called sync_array_event_wait
 					on this cell */
 	int64_t		signal_count;	/*!< We capture the signal_count
-					of the latch when we
+					of the latch.mutex when we
 					reset the event. This value is
 					then passed on to os_event_wait
 					and we wait only if the event
@@ -282,24 +282,6 @@ sync_array_free(
 	UT_DELETE(arr);
 }
 
-/*******************************************************************//**
-Returns the event that the thread owning the cell waits for. */
-static
-os_event_t
-sync_cell_get_event(
-/*================*/
-	sync_cell_t*	cell) /*!< in: non-empty sync array cell */
-{
-	switch(cell->request_type) {
-	case SYNC_MUTEX:
-		return(cell->latch.mutex->event());
-	case RW_LOCK_X_WAIT:
-		return(cell->latch.lock->wait_ex_event);
-	default:
-		return(cell->latch.lock->event);
-	}
-}
-
 /******************************************************************//**
 Reserves a wait array cell for waiting for an object.
 The event of the cell is reset to nonsignalled state.
@@ -365,8 +347,9 @@ sync_array_reserve_cell(
 
 	/* Make sure the event is reset and also store the value of
 	signal_count at which the event was reset. */
-	os_event_t	event = sync_cell_get_event(cell);
-	cell->signal_count = os_event_reset(event);
+	if (cell->request_type == SYNC_MUTEX) {
+		cell->signal_count= os_event_reset(cell->latch.mutex->event());
+	}
 
 	return(cell);
 }
@@ -453,7 +436,50 @@ sync_array_wait_event(
 	sync_array_exit(arr);
 
 	tpool::tpool_wait_begin();
-	os_event_wait_low(sync_cell_get_event(cell), cell->signal_count);
+
+	if (cell->request_type == SYNC_MUTEX) {
+		os_event_wait_low(cell->latch.mutex->event(),
+				  cell->signal_count);
+	} else {
+		rw_lock_t *lock= cell->latch.lock;
+		const int32_t lock_word = lock->lock_word;
+		if (cell->request_type == RW_LOCK_X_WAIT) {
+			switch (lock_word) {
+			case 0:
+			case -X_LOCK_DECR:
+				break;
+			default:
+				mysql_mutex_lock(&lock->wait_mutex);
+				while (const int32_t l = lock->lock_word) {
+					if (l == -X_LOCK_DECR) {
+						break;
+					}
+					mysql_cond_wait(&lock->wait_ex_cond,
+							&lock->wait_mutex);
+				}
+				mysql_mutex_unlock(&lock->wait_mutex);
+			}
+		} else if (lock_word <= 0) {
+			mysql_mutex_lock(&lock->wait_mutex);
+			for (;;) {
+				/* Ensure that we will be woken up. */
+				lock->waiters.exchange(
+					1, std::memory_order_acquire);
+				int32_t l = lock->lock_word.load(
+					std::memory_order_acquire);
+				if (l > 0) {
+					break;
+				} else if (l == 0) {
+					mysql_cond_signal(&lock->wait_ex_cond);
+				}
+
+				mysql_cond_wait(&lock->wait_cond,
+						&lock->wait_mutex);
+			}
+			mysql_mutex_unlock(&lock->wait_mutex);
+		}
+	}
+
 	tpool::tpool_wait_end();
 
 	sync_array_free_cell(arr, cell);
