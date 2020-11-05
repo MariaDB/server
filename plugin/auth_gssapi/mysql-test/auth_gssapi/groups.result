@@ -1,0 +1,44 @@
+INSTALL SONAME 'auth_gssapi';
+Warnings:
+Note	1105	SSPI: using principal name 'localhost', mech 'Negotiate'
+CREATE USER 'nosuchgroup' IDENTIFIED WITH gssapi AS 'GROUP:nosuchgroup';
+connect(localhost,nosuchuser,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  con1,localhost,nosuchuser,,;
+ERROR 28000: Access denied for user 'nosuchuser'@'localhost' (using password: NO)
+DROP USER nosuchgroup;
+CREATE USER 'nullsid' IDENTIFIED WITH gssapi AS 'SID:S-1-0-0';
+connect(localhost,nullsid,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  con1,localhost,nullsid,,;
+ERROR 28000: Access denied for user 'nullsid'@'localhost' (using password: NO)
+DROP USER nullsid;
+CREATE USER 'anonymous' IDENTIFIED WITH gssapi AS 'SID:AN';
+connect(localhost,anonymous,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  con1,localhost,anonymous,,;
+ERROR 28000: Access denied for user 'anonymous'@'localhost' (using password: NO)
+DROP USER anonymous;
+CREATE USER 'group_everyone' IDENTIFIED WITH gssapi AS 'GROUP:Everyone';
+connect  con1,localhost,group_everyone,,;
+disconnect con1;
+connection default;
+DROP USER group_everyone;
+CREATE USER 'sid_wd' IDENTIFIED WITH gssapi AS 'SID:WD';
+connect  con1,localhost,sid_wd,,;
+disconnect con1;
+connection default;
+DROP USER sid_wd;
+CREATE USER 'S_1_1_0' IDENTIFIED WITH gssapi AS 'SID:S-1-1-0';
+connect  con1,localhost,S_1_1_0,,;
+disconnect con1;
+connection default;
+DROP USER S_1_1_0;
+CREATE USER 'me_short' IDENTIFIED WITH gssapi AS 'GROUP:GSSAPI_SHORTNAME';
+connect  con1,localhost,me_short,,;
+disconnect con1;
+connection default;
+DROP USER me_short;
+CREATE USER 'me_sid' IDENTIFIED WITH gssapi AS 'SID:MY-SID';
+connect  con1,localhost,me_sid,,;
+disconnect con1;
+connection default;
+DROP USER me_sid;
+UNINSTALL SONAME 'auth_gssapi';

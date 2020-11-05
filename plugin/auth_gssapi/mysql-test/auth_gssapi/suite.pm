@@ -14,6 +14,9 @@ if ($^O eq "MSWin32")
   $fullname =~ s/\\/\\\\/; # SQL escaping for backslash
   $ENV{'GSSAPI_FULLNAME'}  = $fullname;
   $ENV{'GSSAPI_SHORTNAME'} = $ENV{'USERNAME'};
+  chomp(my $sid = `powershell -Command "([System.Security.Principal.WindowsIdentity]::GetCurrent()).User.Value"`);
+  $ENV{'SID'} = $sid;
+
 }
 else
 {
