@@ -673,4 +673,39 @@ fatal_or_error::~fatal_or_error()
 
 } // namespace ib
 
+#ifndef DBUG_OFF
+static std::string dbug_str;
+
+template <class T>
+const char * dbug_print(T &obj)
+{
+	std::ostringstream os;
+	os.str("");
+	os.clear();
+	obj.print(os);
+	dbug_str = os.str();
+	return dbug_str.c_str();
+}
+
+const char * dbug_print(ib_lock_t *obj)
+{
+	return dbug_print(*obj);
+}
+
+const char * dbug_print(lock_rec_t *obj)
+{
+	return dbug_print(*obj);
+}
+
+const char * dbug_print(lock_table_t *obj)
+{
+	return dbug_print(*obj);
+}
+
+const char * dbug_print_lock_mode(ib_uint32_t type_mode)
+{
+	dbug_str = type_mode_string(type_mode);
+	return dbug_str.c_str();
+}
+#endif /* !DBUG_OFF */
 #endif /* !UNIV_INNOCHECKSUM */
