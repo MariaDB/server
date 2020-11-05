@@ -7634,10 +7634,12 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
       MYSQL_BIN_LOG::open() will write the buffered description event.
     */
     old_pos= rli->event_relay_log_pos;
-    if ((ev= Log_event::read_log_event(cur_log,
-                                       rli->relay_log.description_event_for_exec,
-                                       opt_slave_sql_verify_checksum)))
-
+    if ((ev= Log_event::read_log_event(rgi->rli->mi->rpl_queue, cur_log,
+                                     rli->relay_log.description_event_for_exec,
+                                     opt_slave_sql_verify_checksum)))
+    //uchar  *ev_ptr;
+    //if ((ev_ptr= rgi->rli->mi->rpl_queue->dequeue()->event) && 
+    //    (ev= Log_event::read_log_event(ev_ptr, 22, )))
     {
       /*
         read it while we have a lock, to avoid a mutex lock in

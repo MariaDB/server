@@ -1,0 +1,40 @@
+--source include/have_binlog_format_row.inc
+connect (master,127.0.0.1,root,,test,$SERVER_MYPORT_1,);
+connect (slave,127.0.0.1,root,,test,$SERVER_MYPORT_2,);
+--echo $SERVER_MYPORT_1
+--echo $SERVER_MYPORT_2
+
+--connection slave
+eval change master to master_host= "127.0.0.1", master_port=$SERVER_MYPORT_1, master_user="root";
+--source include/start_slave.inc
+--query_vertical show slave status
+
+--connection master
+create table t1(a int, b int , c int );
+insert into t1 values(1,1,1);
+--sleep 5
+insert into t1 select * from t1;
+ insert into t1 select * from t1;
+ insert into t1 select * from t1;
+ insert into t1 select * from t1;
+ insert into t1 select * from t1;
+ insert into t1 select * from t1;
+ insert into t1 select * from t1;
+ insert into t1 select * from t1;
+# insert into t1 select * from t1;
+# insert into t1 select * from t1;
+# insert into t1 select * from t1;
+# insert into t1 select * from t1;
+# insert into t1 select * from t1;
+select count(*) from t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--sleep 2
+select count(*) from t1;
+--sleep 999992
+--query_vertical show slave status
+
+--source include/stop_slave.inc
+
+

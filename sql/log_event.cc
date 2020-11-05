@@ -53,6 +53,7 @@
 #include "rpl_constants.h"
 #include "sql_digest.h"
 #include "zlib.h"
+#include "rpl_queue.h"
 
 #define my_b_write_string(A, B) my_b_write((A), (uchar*)(B), (uint) (sizeof(B) - 1))
 
@@ -803,7 +804,7 @@ Log_event::Log_event(const char* buf,
   LOG_EVENT_MINIMAL_HEADER_LEN bytes (just need the event's length).
 */
 
-int Log_event::read_log_event(IO_CACHE* file, String* packet,
+int Log_event::read_log_event(r_queue *rpl_queue, IO_CACHE* file, String* packet,
                               const Format_description_log_event *fdle,
                               enum enum_binlog_checksum_alg checksum_alg_arg)
 {
@@ -818,6 +819,15 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
 #endif
   DBUG_ENTER("Log_event::read_log_event(IO_CACHE*,String*...)");
 
+  if (rpl_queue)
+  {
+    slave_queue_element *el= rpl_queue->dequeue();
+    if (el)
+    {
+      packet->append((const char *)el->event, el->total_length);
+      goto direct_path;
+    }
+  }
   if (my_b_read(file, (uchar*) buf, sizeof(buf)))
   {
     /*
@@ -864,6 +874,7 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
     }
   }
 
+direct_path:
   if (fdle->crypto_data.scheme)
   {
     uchar iv[BINLOG_IV_LENGTH];
@@ -924,7 +935,7 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
   DBUG_RETURN(0);
 }
 
-Log_event* Log_event::read_log_event(IO_CACHE* file,
+Log_event* Log_event::read_log_event(r_queue *rpl_queue, IO_CACHE* file,
                                      const Format_description_log_event *fdle,
                                      my_bool crc_check)
 {
@@ -934,7 +945,7 @@ Log_event* Log_event::read_log_event(IO_CACHE* file,
   const char *error= 0;
   Log_event *res= 0;
 
-  switch (read_log_event(file, &event, fdle, BINLOG_CHECKSUM_ALG_OFF))
+  switch (read_log_event(rpl_queue, file, &event, fdle, BINLOG_CHECKSUM_ALG_OFF))
   {
     case 0:
       break;

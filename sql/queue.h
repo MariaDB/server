@@ -6,7 +6,7 @@
 #include "my_pthread.h"
 #include "mysql/psi/mysql_thread.h"
 #include <cstring>
-using namespace::std;
+
 #define UNUSED_SPACE 0xFF
 
 
@@ -27,6 +27,8 @@ class circular_buffer_queue
   ulong events;
   ulong buffer_size;
   mysql_mutex_t lock_queue;
+  mysql_mutex_t free_queue;
+  mysql_cond_t free_cond;
   ulong free_size()
   {
     if (head > tail)
@@ -51,6 +53,8 @@ class circular_buffer_queue
     buffer_end= buffer + buffer_size;
     head= tail= buffer;
     mysql_mutex_init(0, &lock_queue, MY_MUTEX_INIT_SLOW);
+    mysql_mutex_init(0, &free_queue, MY_MUTEX_INIT_SLOW);
+    mysql_cond_init(0, &free_cond, 0);
     return 0;
   }
 
@@ -76,9 +80,19 @@ class circular_buffer_queue
       Element_type *el= new Element_type(tail, buffer, buffer_end);
       tail= el->tail;
       mysql_mutex_unlock(&lock_queue);
+      mysql_cond_broadcast(&free_cond);
       return el;
     }
     return NULL;
+  }
+
+  int waited_enqueue(Element_type *elem)
+  {
+    mysql_mutex_lock(&free_queue);
+    while(free_size() < elem->total_length)
+      mysql_cond_wait(&free_cond, &free_queue);
+    mysql_mutex_unlock(&free_queue);
+    return enqueue(elem);
   }
 };
 

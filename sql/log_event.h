@@ -56,6 +56,7 @@
 #endif
 
 #include "rpl_gtid.h"
+#include "rpl_queue.h"
 
 /* Forward declarations */
 #ifndef MYSQL_CLIENT
@@ -1324,7 +1325,7 @@ public:
     we detect the event's type, then call the specific event's
     constructor and pass description_event as an argument.
   */
-  static Log_event* read_log_event(IO_CACHE* file,
+  static Log_event* read_log_event(r_queue*rpl_queue, IO_CACHE* file,
                                    const Format_description_log_event
                                    *description_event,
                                    my_bool crc_check);
@@ -1352,7 +1353,7 @@ public:
     @retval LOG_READ_TRUNC      only a partial event could be read
     @retval LOG_READ_TOO_LARGE  event too large
    */
-  static int read_log_event(IO_CACHE* file, String* packet,
+  static int read_log_event(r_queue *rpl_queue, IO_CACHE* file, String* packet,
                             const Format_description_log_event *fdle,
                             enum enum_binlog_checksum_alg checksum_alg_arg);
   /* 
