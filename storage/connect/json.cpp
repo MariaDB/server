@@ -1053,7 +1053,7 @@ PSZ JOBJECT::GetText(PGLOBAL g, PSZ text)
     return text;
 
   if (!text) {
-    text = (char*)PlugSubAlloc(g, NULL, 0);
+    text = (char*)PlugSubAlloc(g, NULL, 512);	// TODO: get size
     text[0] = 0;
     n = 1;
   } else
@@ -1079,8 +1079,8 @@ PSZ JOBJECT::GetText(PGLOBAL g, PSZ text)
   } else for (PJPR jp = First; jp; jp = jp->Next)
     jp->Val->GetText(g, text);
 
-  if (n)
-    PlugSubAlloc(g, NULL, strlen(text) + 1);
+  //if (n)
+  //  PlugSubAlloc(g, NULL, strlen(text) + 1);
 
   return text + n;
 } // end of GetText;
@@ -1290,7 +1290,7 @@ PSZ JARRAY::GetText(PGLOBAL g, PSZ text)
   PJVAL jp;
 
   if (!text) {
-    text = (char*)PlugSubAlloc(g, NULL, 0);
+    text = (char*)PlugSubAlloc(g, NULL, 512);
     text[0] = 0;
     n = 1;
   } else
@@ -1299,8 +1299,8 @@ PSZ JARRAY::GetText(PGLOBAL g, PSZ text)
   for (jp = First; jp; jp = jp->Next)
     jp->GetText(g, text);
 
-  if (n)
-    PlugSubAlloc(g, NULL, strlen(text) + 1);
+  //if (n)
+  //  PlugSubAlloc(g, NULL, strlen(text) + 1);
 
   return text + n;
 } // end of GetText;
@@ -1536,8 +1536,7 @@ PSZ JVALUE::GetString(PGLOBAL g)
       p = (char*)PlugDup(g, (Val->B) ? "true" : "false");
       break;
     case TYPE_NULL:
-      p = (char*)PlugDup(g, "null")
-				;
+      p = (char*)PlugDup(g, "null");
       break;
     default:
       p = NULL;
@@ -1546,7 +1545,7 @@ PSZ JVALUE::GetString(PGLOBAL g)
   } else
     p = NULL;
 
-  return (p == buf)? (char*)PlugDup(g, buf) : p;
+  return (p == buf) ? (char*)PlugDup(g, buf) : p;
 } // end of GetString
 
 /***********************************************************************/
