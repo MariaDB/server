@@ -414,9 +414,16 @@ sync_array_wait_event(
 	rw_lock_t *lock= cell->latch;
 	const int32_t lock_word = lock->lock_word;
 	if (cell->request_type == RW_LOCK_X_WAIT) {
-		if (lock_word) {
+		switch (lock_word) {
+		case 0:
+		case -X_LOCK_DECR:
+			break;
+		default:
 			mysql_mutex_lock(&lock->wait_mutex);
-			while (lock->lock_word) {
+			while (const int32_t l = lock->lock_word) {
+				if (l == -X_LOCK_DECR) {
+					break;
+				}
 				mysql_cond_wait(&lock->wait_ex_cond,
 						&lock->wait_mutex);
 			}

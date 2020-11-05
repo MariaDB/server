@@ -129,7 +129,8 @@ wait_ex_cond:	A thread may only wait on the wait_ex_cond after it has
 		   (2) Verify that lock_word < 0.
 		These restrictions force the above ordering.
 		Immediately before sending the wake-up signal, we should:
-		   Verify lock_word == 0 (waiting thread holds x_lock)
+		   Verify lock_word == 0 || lock_word == -X_LOCK_HALF_DECR
+		   (waiting thread holds x_lock)
 */
 
 rw_lock_stats_t		rw_lock_stats;

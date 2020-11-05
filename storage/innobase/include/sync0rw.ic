@@ -390,36 +390,34 @@ rw_lock_x_unlock_func(
 #endif /* UNIV_DEBUG */
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
-	int32_t lock_word = lock->lock_word;
+  ut_d(rw_lock_remove_debug_info(lock, pass, RW_LOCK_X));
 
-	if (lock_word == 0) {
-		/* Last caller in a possible recursive chain. */
-		lock->writer_thread = 0;
-	}
+  switch (int32_t lock_word= lock->lock_word) {
+  case 0:
+    /* Last caller in a possible recursive chain. */
+    lock->writer_thread= 0;
+    /* fall through */
+  case -X_LOCK_HALF_DECR:
+    /* Last X-lock owned by this thread, it may still hold SX-locks.
+    ACQ_REL due to...
+    RELEASE: we release rw-lock
+    ACQUIRE: we want waiters to be loaded after lock_word is stored */
+    lock->lock_word.fetch_add(X_LOCK_DECR, std::memory_order_acq_rel);
+    if (lock->waiters)
+      lock->wakeup_waiters();
+    break;
+  case -X_LOCK_DECR:
+  case -X_LOCK_DECR - X_LOCK_HALF_DECR:
+    /* There are 2 x-locks */
+    lock->lock_word.fetch_add(X_LOCK_DECR);
+    break;
+  default:
+    /* There are more than 2 x-locks. */
+    ut_ad(lock_word < -X_LOCK_DECR);
+    lock->lock_word.fetch_add(1);
+  }
 
-	ut_d(rw_lock_remove_debug_info(lock, pass, RW_LOCK_X));
-
-	if (lock_word == 0 || lock_word == -X_LOCK_HALF_DECR) {
-		/* Last X-lock owned by this thread, it may still hold SX-locks.
-		ACQ_REL due to...
-		RELEASE: we release rw-lock
-		ACQUIRE: we want waiters to be loaded after lock_word is stored */
-		lock->lock_word.fetch_add(X_LOCK_DECR,
-					  std::memory_order_acq_rel);
-		if (lock->waiters) {
-			lock->wakeup_waiters();
-		}
-	} else if (lock_word == -X_LOCK_DECR
-		   || lock_word == -(X_LOCK_DECR + X_LOCK_HALF_DECR)) {
-		/* There are 2 x-locks */
-		lock->lock_word.fetch_add(X_LOCK_DECR);
-	} else {
-		/* There are more than 2 x-locks. */
-		ut_ad(lock_word < -X_LOCK_DECR);
-		lock->lock_word.fetch_add(1);
-	}
-
-	ut_ad(rw_lock_validate(lock));
+  ut_ad(rw_lock_validate(lock));
 }
 
 /******************************************************************//**
@@ -436,12 +434,9 @@ rw_lock_sx_unlock_func(
 {
 	ut_ad(rw_lock_get_sx_lock_count(lock));
 	ut_ad(lock->sx_recursive > 0);
-
-	--lock->sx_recursive;
-
 	ut_d(rw_lock_remove_debug_info(lock, pass, RW_LOCK_SX));
 
-	if (lock->sx_recursive == 0) {
+	if (--lock->sx_recursive == 0) {
 		int32_t lock_word = lock->lock_word;
 		/* Last caller in a possible recursive chain. */
 		if (lock_word > 0) {
@@ -465,7 +460,11 @@ rw_lock_sx_unlock_func(
 			/* still has x-lock */
 			ut_ad(lock_word == -X_LOCK_HALF_DECR ||
 			      lock_word <= -(X_LOCK_DECR + X_LOCK_HALF_DECR));
-			lock->lock_word.fetch_add(X_LOCK_HALF_DECR);
+			switch (lock->lock_word.fetch_add(X_LOCK_HALF_DECR)) {
+			case -X_LOCK_HALF_DECR * 2:
+			case -X_LOCK_HALF_DECR:
+				lock->wakeup_wait_ex();
+			}
 		}
 	}
 
