@@ -1,4 +1,5 @@
 set connect_enable_mongo=1;
+set connect_json_all_path=0;
 
 --echo #
 --echo # Test the MONGO table type
