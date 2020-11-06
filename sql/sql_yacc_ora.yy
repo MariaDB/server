@@ -2434,7 +2434,7 @@ create:
               MYSQL_YYABORT;
           }
         | create_or_replace USER_SYM opt_if_not_exists clear_privileges
-          grant_list opt_require_clause opt_resource_options opt_account_locking opt_password_expiration
+          grant_list opt_require_clause opt_resource_options opt_account_locking_and_opt_password_expiration
           {
             if (unlikely(Lex->set_command_with_check(SQLCOM_CREATE_USER,
                                                      $1 | $3)))
@@ -8128,7 +8128,7 @@ alter:
           } OPTIONS_SYM '(' server_options_list ')' { }
           /* ALTER USER foo is allowed for MySQL compatibility. */
         | ALTER USER_SYM opt_if_exists clear_privileges grant_list
-          opt_require_clause opt_resource_options opt_account_locking opt_password_expiration
+          opt_require_clause opt_resource_options opt_account_locking_and_opt_password_expiration
           {
             Lex->create_info.set($3);
             Lex->sql_command= SQLCOM_ALTER_USER;
@@ -8167,37 +8167,44 @@ alter:
           }
         ;
 
-opt_account_locking:
-        /* Nothing */ {}
-        | ACCOUNT_SYM LOCK_SYM
+account_locking_option:
+          LOCK_SYM
           {
             Lex->account_options.account_locked= ACCOUNTLOCK_LOCKED;
           }
-        | ACCOUNT_SYM UNLOCK_SYM
+        | UNLOCK_SYM
           {
             Lex->account_options.account_locked= ACCOUNTLOCK_UNLOCKED;
           }
         ;
-opt_password_expiration:
-        /* Nothing */ {}
-        | PASSWORD_SYM EXPIRE_SYM
+
+opt_password_expire_option:
+          /* empty */
           {
             Lex->account_options.password_expire= PASSWORD_EXPIRE_NOW;
           }
-        | PASSWORD_SYM EXPIRE_SYM NEVER_SYM
+        | NEVER_SYM
           {
             Lex->account_options.password_expire= PASSWORD_EXPIRE_NEVER;
           }
-        | PASSWORD_SYM EXPIRE_SYM DEFAULT
+        | DEFAULT
           {
             Lex->account_options.password_expire= PASSWORD_EXPIRE_DEFAULT;
           }
-        | PASSWORD_SYM EXPIRE_SYM INTERVAL_SYM NUM DAY_SYM
+        | INTERVAL_SYM NUM DAY_SYM
           {
             Lex->account_options.password_expire= PASSWORD_EXPIRE_INTERVAL;
-            if (!(Lex->account_options.num_expiration_days= atoi($4.str)))
-              my_yyabort_error((ER_WRONG_VALUE, MYF(0), "DAY", $4.str));
+            if (!(Lex->account_options.num_expiration_days= atoi($2.str)))
+              my_yyabort_error((ER_WRONG_VALUE, MYF(0), "DAY", $2.str));
           }
+        ;
+
+opt_account_locking_and_opt_password_expiration:
+          /* empty */
+        | ACCOUNT_SYM account_locking_option
+        | PASSWORD_SYM EXPIRE_SYM opt_password_expire_option
+        | ACCOUNT_SYM account_locking_option PASSWORD_SYM EXPIRE_SYM opt_password_expire_option
+        | PASSWORD_SYM EXPIRE_SYM opt_password_expire_option ACCOUNT_SYM account_locking_option
         ;
 
 ev_alter_on_schedule_completion:
