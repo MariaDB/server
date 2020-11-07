@@ -140,36 +140,36 @@ public:
 
 	// Methods
 	virtual int    size(void) { return 1; }
-	virtual JTYP   GetValType(void) { X return TYPE_JSON; }
-	virtual void   InitArray(PGLOBAL g) { X }
+//	virtual JTYP   GetValType(void) { X return TYPE_JSON; }
+//	virtual void   InitArray(PGLOBAL g) { X }
 	//virtual PJVAL  AddValue(PGLOBAL g, PJVAL jvp = NULL, int *x = NULL) {X return NULL;}
-	virtual PJPR   AddPair(PGLOBAL g, PCSZ key) { X return NULL; }
+//	virtual PJPR   AddPair(PGLOBAL g, PCSZ key) { X return NULL; }
 	virtual void   Clear(void) { X }
-	virtual PJAR   GetKeyList(PGLOBAL g) { X return NULL; }
-	virtual PJAR   GetValList(PGLOBAL g) { X return NULL; }
-	virtual PJVAL  GetValue(const char* key) { X return NULL; }
+//	virtual PJAR   GetKeyList(PGLOBAL g) { X return NULL; }
+//	virtual PJAR   GetValList(PGLOBAL g) { X return NULL; }
+//  virtual PJVAL  GetValue(const char* key) { X return NULL; }
 	virtual PJOB   GetObject(void) { return NULL; }
 	virtual PJAR   GetArray(void) { return NULL; }
 	virtual PJVAL  GetValue(int i) { X return NULL; }
 	virtual int    GetSize(bool b) { X return 0; }
 	//virtual PVL    GetVal(void) { X return NULL; }
 	virtual PJSON  GetJsp(void) { X return NULL; }
-	virtual PJSON  GetJson(void) { X return NULL; }
+//	virtual PJSON  GetJson(void) { X return NULL; }
 	virtual PJPR   GetFirst(void) { X return NULL; }
-	virtual int    GetInteger(void) { X return 0; }
-	virtual double GetFloat() { X return 0.0; }
-	virtual PSZ    GetString(PGLOBAL g, char *buff = NULL) { X return NULL; }
+//	virtual int    GetInteger(void) { X return 0; }
+//	virtual double GetFloat() { X return 0.0; }
+//	virtual PSZ    GetString(PGLOBAL g, char *buff = NULL) { X return NULL; }
 	virtual PSZ    GetText(PGLOBAL g, PSTRG text) { X return NULL; }
 	virtual bool   Merge(PGLOBAL g, PJSON jsp) { X return true; }
-	virtual bool   SetValue(PGLOBAL g, PJVAL jvp, int i) { X return true; }
-	virtual void   SetValue(PGLOBAL g, PJVAL jvp, PCSZ key) { X }
-	virtual void   SetVal(PVL vlp) { X }
-	virtual void   SetValue(PGLOBAL g, PVAL valp) { X }
+//	virtual bool   SetValue(PGLOBAL g, PJVAL jvp, int i) { X return true; }
+//	virtual void   SetValue(PGLOBAL g, PJVAL jvp, PCSZ key) { X }
+//	virtual void   SetVal(PVL vlp) { X }
+//	virtual void   SetValue(PGLOBAL g, PVAL valp) { X }
 	virtual void   SetValue(PJSON jsp) { X }
-	virtual void   SetString(PGLOBAL g, PSZ s, short c) { X }
-	virtual void   SetInteger(PGLOBAL g, int n) { X }
-	virtual void   SetFloat(PGLOBAL g, double f) { X }
-	virtual void   DeleteKey(PCSZ k) { X }
+//	virtual void   SetString(PGLOBAL g, PSZ s, short c) { X }
+//	virtual void   SetInteger(PGLOBAL g, int n) { X }
+//	virtual void   SetFloat(PGLOBAL g, double f) { X }
+//	virtual void   DeleteKey(PCSZ k) { X }
 	virtual bool   DeleteValue(int i) { X return true; }
 	virtual bool   IsNull(void) { X return true; }
 
@@ -190,20 +190,24 @@ public:
 
   //using JSON::GetVal;
   //using JSON::SetVal;
+
+	// Methods
 	virtual void  Clear(void) {First = Last = NULL;}
 //virtual JTYP  GetValType(void) {return TYPE_JOB;}
   virtual PJPR  GetFirst(void) {return First;}
 	virtual int   GetSize(bool b);
-	virtual PJPR  AddPair(PGLOBAL g, PCSZ key);
   virtual PJOB  GetObject(void) {return this;}
-  virtual PJVAL GetValue(const char* key);
-	virtual PJAR  GetKeyList(PGLOBAL g);
-	virtual PJAR  GetValList(PGLOBAL g);
 	virtual PSZ   GetText(PGLOBAL g, PSTRG text);
 	virtual bool  Merge(PGLOBAL g, PJSON jsp);
-	virtual void  SetValue(PGLOBAL g, PJVAL jvp, PCSZ key);
-	virtual void  DeleteKey(PCSZ k);
 	virtual bool  IsNull(void);
+
+	// Specific
+	PJPR  AddPair(PGLOBAL g, PCSZ key);
+	PJVAL GetValue(const char* key);
+	PJAR  GetKeyList(PGLOBAL g);
+	PJAR  GetValList(PGLOBAL g);
+	void  SetValue(PGLOBAL g, PJVAL jvp, PCSZ key);
+	void  DeleteKey(PCSZ k);
 
  protected:
   PJPR First;
@@ -222,19 +226,23 @@ class JARRAY : public JSON {
 
   //using JSON::GetVal;
   //using JSON::SetVal;
+
+	// Methods
   virtual void  Clear(void) {First = Last = NULL; Size = 0;}
 	virtual int   size(void) { return Size; }
-	virtual JTYP  GetType(void) {return TYPE_JAR;}
+//virtual JTYP  GetType(void) {return TYPE_JAR;}
   virtual PJAR  GetArray(void) {return this;}
 	virtual int   GetSize(bool b);
-					PJVAL AddValue(PGLOBAL g, PJVAL jvp = NULL, int *x = NULL);
-  virtual void  InitArray(PGLOBAL g);
   virtual PJVAL GetValue(int i);
 	virtual PSZ   GetText(PGLOBAL g, PSTRG text);
 	virtual bool  Merge(PGLOBAL g, PJSON jsp);
-	virtual bool  SetValue(PGLOBAL g, PJVAL jvp, int i);
   virtual bool  DeleteValue(int n);
   virtual bool  IsNull(void);
+
+	// Specific
+	PJVAL AddValue(PGLOBAL g, PJVAL jvp = NULL, int* x = NULL);
+	bool  SetValue(PGLOBAL g, PJVAL jvp, int i);
+	void  InitArray(PGLOBAL g);
 
  protected:
   // Members
@@ -265,30 +273,34 @@ public:
 
   //using JSON::GetVal;
   //using JSON::SetVal;
+
+	// Methods
   virtual void   Clear(void)
           {Jsp = NULL; Val = NULL; Next = NULL; Del = false;}
-  virtual JTYP   GetType(void) {return TYPE_JVAL;}
+//virtual JTYP   GetType(void) {return TYPE_JVAL;}
   virtual JTYP   GetValType(void);
   virtual PJOB   GetObject(void);
   virtual PJAR   GetArray(void);
-  inline  PVL    GetVal(void) {return Val;}
-					PVAL   GetValue(PGLOBAL g);
   virtual PJSON  GetJsp(void) {return Jsp;}
-	virtual PJSON  GetJson(void) { return (Jsp ? Jsp : this); }
-	virtual int    GetInteger(void);
-	virtual long long GetBigint(void);
-	virtual double GetFloat(void);
-  virtual PSZ    GetString(PGLOBAL g, char *buff = NULL);
   virtual PSZ    GetText(PGLOBAL g, PSTRG text);
-	virtual void   SetValue(PJSON jsp);
-	virtual void   SetValue(PGLOBAL g, PVAL valp);
-	inline  void   SetVal(PVL vlp) { Val = vlp; }
-	virtual void   SetString(PGLOBAL g, PSZ s, int ci = 0);
-  virtual void   SetInteger(PGLOBAL g, int n);
-	virtual void   SetBigint(PGLOBAL g, longlong ll);
-	virtual void   SetFloat(PGLOBAL g, double f);
-	virtual void   SetBool(PGLOBAL g, bool b);
 	virtual bool   IsNull(void);
+
+	// Specific
+	inline PVL  GetVal(void) { return Val; }
+	inline void SetVal(PVL vlp) { Val = vlp; }
+	inline PJSON  GetJson(void) { return (Jsp ? Jsp : this); }
+	PSZ    GetString(PGLOBAL g, char* buff = NULL);
+	int    GetInteger(void);
+	long long GetBigint(void);
+	double GetFloat(void);
+	PVAL   GetValue(PGLOBAL g);
+	void   SetValue(PJSON jsp);
+	void   SetValue(PGLOBAL g, PVAL valp);
+	void   SetString(PGLOBAL g, PSZ s, int ci = 0);
+	void   SetInteger(PGLOBAL g, int n);
+	void   SetBigint(PGLOBAL g, longlong ll);
+	void   SetFloat(PGLOBAL g, double f);
+	void   SetBool(PGLOBAL g, bool b);
 
  protected:
   PJSON Jsp;      // To the json value

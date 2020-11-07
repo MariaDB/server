@@ -80,11 +80,11 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='mongodb://localhost:27017' `TABLE_TYPE`='JSON' `TABNAME`='restaurants' `OPTION_LIST`='Depth=1,Driver=Java,Version=3' `DATA_CHARSET`='utf8' `LRECL`=4096
 SELECT * FROM t1 LIMIT 5;
 _id	address_building	address_coord	address_street	address_zipcode	borough	cuisine	grades_date	grades_grade	grades_score	name	restaurant_id
-58ada47de5a51ddfcd5ed51c	1007	-73.856077	Morris Park Ave	10462	Bronx	Bakery	1393804800	A	2	Morris Park Bake Shop	30075445
-58ada47de5a51ddfcd5ed51d	469	-73.961704	Flatbush Avenue	11225	Brooklyn	Hamburgers	1419897600	A	8	Wendy'S	30112340
-58ada47de5a51ddfcd5ed51e	351	-73.98513559999999	West   57 Street	10019	Manhattan	Irish	1409961600	A	2	Dj Reynolds Pub And Restaurant	30191841
-58ada47de5a51ddfcd5ed51f	2780	-73.98241999999999	Stillwell Avenue	11224	Brooklyn	American	1402358400	A	5	Riviera Caterer	40356018
-58ada47de5a51ddfcd5ed520	97-22	-73.8601152	63 Road	11374	Queens	Jewish/Kosher	1416787200	Z	20	Tov Kosher Kitchen	40356068
+58ada47de5a51ddfcd5ed51c	1007	-73.856077, 40.848447	Morris Park Ave	10462	Bronx	Bakery	1393804800	A	2	Morris Park Bake Shop	30075445
+58ada47de5a51ddfcd5ed51d	469	-73.961704, 40.662942	Flatbush Avenue	11225	Brooklyn	Hamburgers	1419897600	A	8	Wendy'S	30112340
+58ada47de5a51ddfcd5ed51e	351	-73.98513559999999, 40.7676919	West   57 Street	10019	Manhattan	Irish	1409961600	A	2	Dj Reynolds Pub And Restaurant	30191841
+58ada47de5a51ddfcd5ed51f	2780	-73.98241999999999, 40.579505	Stillwell Avenue	11224	Brooklyn	American	1402358400	A	5	Riviera Caterer	40356018
+58ada47de5a51ddfcd5ed520	97-22	-73.8601152, 40.7311739	63 Road	11374	Queens	Jewish/Kosher	1416787200	Z	20	Tov Kosher Kitchen	40356068
 DROP TABLE t1;
 #
 # Dropping a column
@@ -93,16 +93,16 @@ CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JSON TABNAME=restaurants DATA_CHARSET=
 COLIST='{"grades":0}' OPTION_LIST='Driver=Java,Version=3,level=0' CONNECTION='mongodb://localhost:27017' LRECL=4096;
 SELECT * FROM t1 LIMIT 10;
 _id	address	borough	cuisine	name	restaurant_id
-58ada47de5a51ddfcd5ed51c	1007 -73.856077 40.848447 Morris Park Ave 10462	Bronx	Bakery	Morris Park Bake Shop	30075445
-58ada47de5a51ddfcd5ed51d	469 -73.961704 40.662942 Flatbush Avenue 11225	Brooklyn	Hamburgers	Wendy'S	30112340
-58ada47de5a51ddfcd5ed51e	351 -73.98513559999999 40.7676919 West   57 Street 10019	Manhattan	Irish	Dj Reynolds Pub And Restaurant	30191841
-58ada47de5a51ddfcd5ed51f	2780 -73.98241999999999 40.579505 Stillwell Avenue 11224	Brooklyn	American	Riviera Caterer	40356018
-58ada47de5a51ddfcd5ed520	97-22 -73.8601152 40.7311739 63 Road 11374	Queens	Jewish/Kosher	Tov Kosher Kitchen	40356068
-58ada47de5a51ddfcd5ed521	8825 -73.8803827 40.7643124 Astoria Boulevard 11369	Queens	American	Brunos On The Boulevard	40356151
-58ada47de5a51ddfcd5ed522	2206 -74.1377286 40.6119572 Victory Boulevard 10314	Staten Island	Jewish/Kosher	Kosher Island	40356442
-58ada47de5a51ddfcd5ed523	7114 -73.9068506 40.6199034 Avenue U 11234	Brooklyn	Delicatessen	Wilken'S Fine Food	40356483
-58ada47de5a51ddfcd5ed524	6409 -74.00528899999999 40.628886 11 Avenue 11219	Brooklyn	American	Regina Caterers	40356649
-58ada47de5a51ddfcd5ed525	1839 -73.9482609 40.6408271 Nostrand Avenue 11226	Brooklyn	Ice Cream, Gelato, Yogurt, Ices	Taste The Tropics Ice Cream	40356731
+58ada47de5a51ddfcd5ed51c	1007 (-73.856077, 40.848447) Morris Park Ave 10462	Bronx	Bakery	Morris Park Bake Shop	30075445
+58ada47de5a51ddfcd5ed51d	469 (-73.961704, 40.662942) Flatbush Avenue 11225	Brooklyn	Hamburgers	Wendy'S	30112340
+58ada47de5a51ddfcd5ed51e	351 (-73.98513559999999, 40.7676919) West   57 Street 10019	Manhattan	Irish	Dj Reynolds Pub And Restaurant	30191841
+58ada47de5a51ddfcd5ed51f	2780 (-73.98241999999999, 40.579505) Stillwell Avenue 11224	Brooklyn	American	Riviera Caterer	40356018
+58ada47de5a51ddfcd5ed520	97-22 (-73.8601152, 40.7311739) 63 Road 11374	Queens	Jewish/Kosher	Tov Kosher Kitchen	40356068
+58ada47de5a51ddfcd5ed521	8825 (-73.8803827, 40.7643124) Astoria Boulevard 11369	Queens	American	Brunos On The Boulevard	40356151
+58ada47de5a51ddfcd5ed522	2206 (-74.1377286, 40.6119572) Victory Boulevard 10314	Staten Island	Jewish/Kosher	Kosher Island	40356442
+58ada47de5a51ddfcd5ed523	7114 (-73.9068506, 40.6199034) Avenue U 11234	Brooklyn	Delicatessen	Wilken'S Fine Food	40356483
+58ada47de5a51ddfcd5ed524	6409 (-74.00528899999999, 40.628886) 11 Avenue 11219	Brooklyn	American	Regina Caterers	40356649
+58ada47de5a51ddfcd5ed525	1839 (-73.9482609, 40.6408271) Nostrand Avenue 11226	Brooklyn	Ice Cream, Gelato, Yogurt, Ices	Taste The Tropics Ice Cream	40356731
 DROP TABLE t1;
 #
 # Specifying Jpath

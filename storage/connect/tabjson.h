@@ -173,7 +173,7 @@ protected:
 	PGLOBAL G;											 // Support of parse memory
 	PJSON   Top;                     // The top JSON tree
 	PJSON   Row;                     // The current row
-	PJSON   Val;                     // The value of the current row
+	PJVAL   Val;                     // The value of the current row
 	PJCOL   Colp;                    // The multiple column
 	JMODE   Jmode;                   // MODE_OBJECT by default
 	PCSZ    Objname;                 // The table object name
