@@ -1873,7 +1873,7 @@ PJSON SWAP::MptrJson(PJSON ojp) {      // ojp is an offset
 PJAR SWAP::MptrArray(PJAR ojar) {
   PJAR jarp = (PJAR)MakePtr(Base, (size_t)ojar);
 
-  jarp = (PJAR)new((long long)jarp) JARRAY(NULL);
+  jarp = (PJAR)new((long long)jarp) JARRAY(0);
 
   if (jarp->First) {
     for (int i = 0; i < jarp->Size; i++)
