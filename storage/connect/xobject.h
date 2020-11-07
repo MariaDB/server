@@ -130,6 +130,7 @@ class DllExport STRING : public BLOCK {
 	inline void   SetLength(uint n) {Length = n;}
 	inline PSZ    GetStr(void) {return Strp;}
   inline uint32 GetSize(void) {return Size;}
+	inline char   GetLastChar(void) {return Length ? Strp[Length - 1] : 0;}
 	inline bool   IsTruncated(void) {return Trc;}
 
   // Methods

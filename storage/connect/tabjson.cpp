@@ -1595,7 +1595,7 @@ PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp)
 /***********************************************************************/
 /*  SetValue: Set a value from a JVALUE contains.                      */
 /***********************************************************************/
-void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
+void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val)
 {
   if (val) {
     vp->SetNull(false);
@@ -1640,8 +1640,9 @@ void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
 
         break;
       case TYPE_JAR:
-        SetJsonValue(g, vp, val->GetArray()->GetValue(0), n);
-        break;
+//      SetJsonValue(g, vp, val->GetArray()->GetValue(0));
+				vp->SetValue_psz(val->GetArray()->GetText(g, NULL));
+				break;
       case TYPE_JOB:
 //      if (!vp->IsTypeNum() || !Strict) {
           vp->SetValue_psz(val->GetObject()->GetText(g, NULL));
@@ -1736,7 +1737,7 @@ PVAL JSONCOL::GetColumnValue(PGLOBAL g, PJSON row, int i)
 
     } // endfor i
 
-  SetJsonValue(g, Value, val, n);
+  SetJsonValue(g, Value, val);
   return Value;
 } // end of GetColumnValue
 
@@ -1776,7 +1777,7 @@ PVAL JSONCOL::ExpandArray(PGLOBAL g, PJAR arp, int n)
     Tjp->NextSame = Xnod;
     } // endif NextSame
 
-  SetJsonValue(g, Value, jvp, n);
+  SetJsonValue(g, Value, jvp);
   return Value;
 } // end of ExpandArray
 
@@ -1822,10 +1823,10 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
           jvp->GetString(g), jvp->IsNull() ? 1 : 0);
 
       if (!nv++) {
-        SetJsonValue(g, vp, jvp, n);
+        SetJsonValue(g, vp, jvp);
         continue;
       } else
-        SetJsonValue(g, MulVal, jvp, n);
+        SetJsonValue(g, MulVal, jvp);
 
       if (!MulVal->IsNull()) {
         switch (op) {

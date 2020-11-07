@@ -294,7 +294,7 @@ protected:
 	PVAL    ExpandArray(PGLOBAL g, PJAR arp, int n);
 	PVAL    CalculateArray(PGLOBAL g, PJAR arp, int n);
 	PVAL    MakeJson(PGLOBAL g, PJSON jsp);
-	void    SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n);
+	void    SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val);
 	PJSON   GetRow(PGLOBAL g);
 	my_bool CompareValues(PVL v1, PVL v2);
 	my_bool LocateArray(PGLOBAL g, PJAR jarp);

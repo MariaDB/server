@@ -347,7 +347,7 @@ PVAL JSNX::MakeJson(PGLOBAL g, PJSON jsp)
 /*********************************************************************************/
 /*  SetValue: Set a value from a JVALUE contains.                                */
 /*********************************************************************************/
-void JSNX::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
+void JSNX::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val)
 {
 	if (val) {
 		vp->SetNull(false);
@@ -378,14 +378,11 @@ void JSNX::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n)
 
 				break;
 			case TYPE_JAR:
-				SetJsonValue(g, vp, val->GetArray()->GetValue(0), n);
+				vp->SetValue_psz(val->GetArray()->GetText(g, NULL));
 				break;
 			case TYPE_JOB:
-//      if (!vp->IsTypeNum() || !Strict) {
 				vp->SetValue_psz(val->GetObject()->GetText(g, NULL));
 				break;
-//      } // endif Type
-
 			case TYPE_NULL:
 				vp->SetNull(true);
 			default:
@@ -420,11 +417,10 @@ void JSNX::ReadValue(PGLOBAL g)
 /*********************************************************************************/
 PVAL JSNX::GetColumnValue(PGLOBAL g, PJSON row, int i)
 {
-	int   n = Nod - 1;
 	PJVAL val = NULL;
 
 	val = GetRowValue(g, row, i);
-	SetJsonValue(g, Value, val, n);
+	SetJsonValue(g, Value, val);
 	return Value;
 } // end of GetColumnValue
 
@@ -497,7 +493,7 @@ PJVAL JSNX::GetRowValue(PGLOBAL g, PJSON row, int i, my_bool b)
 
 	} // endfor i
 
-	// SetJsonValue(g, Value, val, n);
+	// SetJsonValue(g, Value, val);
 	return val;
 } // end of GetRowValue
 
@@ -548,10 +544,10 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 					jvp->GetString(g), jvp->IsNull() ? 1 : 0);
 
 			if (!nv++) {
-				SetJsonValue(g, vp, jvp, n);
+				SetJsonValue(g, vp, jvp);
 				continue;
 			} else
-				SetJsonValue(g, MulVal, jvp, n);
+				SetJsonValue(g, MulVal, jvp);
 
 			if (!MulVal->IsNull()) {
 				switch (op) {

@@ -228,8 +228,8 @@ public:
   PVAL  ExpandArray(PGLOBAL g, PJAR arp, int n);
   PVAL  CalculateArray(PGLOBAL g, PJAR arp, int n);
   PVAL  MakeJson(PGLOBAL g, PJSON jsp);
-  void  SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n);
-  PJSON GetRow(PGLOBAL g);
+	void  SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val);
+	PJSON GetRow(PGLOBAL g);
 
   // Default constructor not to be used
   JSONCOL(void) {}

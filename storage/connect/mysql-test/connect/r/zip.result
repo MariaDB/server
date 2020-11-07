@@ -171,32 +171,32 @@ DROP TABLE t1,t2,t3,t4;
 #
 CREATE TABLE t1 (
 _id INT(2) NOT NULL,
-name_first CHAR(9) NOT NULL FIELD_FORMAT='$.name.first',
-name_aka CHAR(4) DEFAULT NULL FIELD_FORMAT='$.name.aka',
-name_last CHAR(10) NOT NULL FIELD_FORMAT='$.name.last',
+name_first CHAR(9) NOT NULL JPATH='$.name.first',
+name_aka CHAR(4) DEFAULT NULL JPATH='$.name.aka',
+name_last CHAR(10) NOT NULL JPATH='$.name.last',
 title CHAR(12) DEFAULT NULL,
 birth CHAR(20) DEFAULT NULL,
 death CHAR(20) DEFAULT NULL,
-contribs CHAR(7) NOT NULL FIELD_FORMAT='$.contribs',
-awards_award CHAR(42) DEFAULT NULL FIELD_FORMAT='$.awards.award',
-awards_year CHAR(4) DEFAULT NULL FIELD_FORMAT='$.awards.year',
-awards_by CHAR(38) DEFAULT NULL FIELD_FORMAT='$.awards.by'
+contribs CHAR(50) NOT NULL JPATH='$.contribs',
+awards_award CHAR(42) DEFAULT NULL JPATH='$.awards.award',
+awards_year CHAR(4) DEFAULT NULL JPATH='$.awards.year',
+awards_by CHAR(38) DEFAULT NULL JPATH='$.awards.by'
 ) ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='bios.zip' OPTION_LIST='ENTRY=bios.json,LOAD=bios.json' ZIPPED=YES;
 SELECT * FROM t1;
 _id	name_first	name_aka	name_last	title	birth	death	contribs	awards_award	awards_year	awards_by
-1	John	NULL	Backus	NULL	1924-12-03T05:00:00Z	2007-03-17T04:00:00Z	Fortran	W.W. McDowell Award	1967	IEEE Computer Society
-2	John	NULL	McCarthy	NULL	1927-09-04T04:00:00Z	2011-12-24T05:00:00Z	Lisp	Turing Award	1971	ACM
-3	Grace	NULL	Hopper	Rear Admiral	1906-12-09T05:00:00Z	1992-01-01T05:00:00Z	UNIVAC	Computer Sciences Man of the Year	1969	Data Processing Management Association
-4	Kristen	NULL	Nygaard	NULL	1926-08-27T04:00:00Z	2002-08-10T04:00:00Z	OOP	Rosing Prize	1999	Norwegian Data Association
-5	Ole-Johan	NULL	Dahl	NULL	1931-10-12T04:00:00Z	2002-06-29T04:00:00Z	OOP	Rosing Prize	1999	Norwegian Data Association
+1	John	NULL	Backus	NULL	1924-12-03T05:00:00Z	2007-03-17T04:00:00Z	Fortran, ALGOL, Backus-Naur Form, FP	W.W. McDowell Award	1967	IEEE Computer Society
+2	John	NULL	McCarthy	NULL	1927-09-04T04:00:00Z	2011-12-24T05:00:00Z	Lisp, Artificial Intelligence, ALGOL	Turing Award	1971	ACM
+3	Grace	NULL	Hopper	Rear Admiral	1906-12-09T05:00:00Z	1992-01-01T05:00:00Z	UNIVAC, compiler, FLOW-MATIC, COBOL	Computer Sciences Man of the Year	1969	Data Processing Management Association
+4	Kristen	NULL	Nygaard	NULL	1926-08-27T04:00:00Z	2002-08-10T04:00:00Z	OOP, Simula	Rosing Prize	1999	Norwegian Data Association
+5	Ole-Johan	NULL	Dahl	NULL	1931-10-12T04:00:00Z	2002-06-29T04:00:00Z	OOP, Simula	Rosing Prize	1999	Norwegian Data Association
 6	Guido	NULL	van Rossum	NULL	1956-01-31T05:00:00Z	NULL	Python	Award for the Advancement of Free Software	2001	Free Software Foundation
-7	Dennis	NULL	Ritchie	NULL	1941-09-09T04:00:00Z	2011-10-12T04:00:00Z	UNIX	Turing Award	1983	ACM
+7	Dennis	NULL	Ritchie	NULL	1941-09-09T04:00:00Z	2011-10-12T04:00:00Z	UNIX, C	Turing Award	1983	ACM
 8	Yukihiro	Matz	Matsumoto	NULL	1965-04-14T04:00:00Z	NULL	Ruby	Award for the Advancement of Free Software	2011	Free Software Foundation
 9	James	NULL	Gosling	NULL	1955-05-19T04:00:00Z	NULL	Java	The Economist Innovation Award	2002	The Economist
 10	Martin	NULL	Odersky	NULL	NULL	NULL	Scala	NULL	NULL	NULL
 CREATE TABLE t2
 ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='bios.zip' ZIPPED=1
-OPTION_LIST='LEVEL=5';
+OPTION_LIST='DEPTH=5';
 SELECT * FROM t2;
 _id	name_first	name_aka	name_last	title	birth	death	contribs	awards_award	awards_year	awards_by
 1	John	NULL	Backus	NULL	1924-12-03T05:00:00Z	2007-03-17T04:00:00Z	Fortran	W.W. McDowell Award	1967	IEEE Computer Society
@@ -211,16 +211,16 @@ _id	name_first	name_aka	name_last	title	birth	death	contribs	awards_award	awards
 10	Martin	NULL	Odersky	NULL	NULL	NULL	Scala	NULL	NULL	NULL
 CREATE TABLE t3 (
 _id INT(2) NOT NULL,
-firstname CHAR(9) NOT NULL FIELD_FORMAT='$.name.first',
-aka CHAR(4) DEFAULT NULL FIELD_FORMAT='$.name.aka',
-lastname CHAR(10) NOT NULL FIELD_FORMAT='$.name.last',
+firstname CHAR(9) NOT NULL JPATH='$.name.first',
+aka CHAR(4) DEFAULT NULL JPATH='$.name.aka',
+lastname CHAR(10) NOT NULL JPATH='$.name.last',
 title CHAR(12) DEFAULT NULL,
 birth date DEFAULT NULL date_format="YYYY-DD-MM'T'hh:mm:ss'Z'",
 death date DEFAULT NULL date_format="YYYY-DD-MM'T'hh:mm:ss'Z'",
-contribs CHAR(64) NOT NULL FIELD_FORMAT='$.contribs.[", "]',
-award CHAR(42) DEFAULT NULL FIELD_FORMAT='$.awards[*].award',
-year CHAR(4) DEFAULT NULL FIELD_FORMAT='$.awards[*].year',
-`by` CHAR(38) DEFAULT NULL FIELD_FORMAT='$.awards[*].by'
+contribs CHAR(64) NOT NULL JPATH='$.contribs.[", "]',
+award CHAR(42) DEFAULT NULL JPATH='$.awards[*].award',
+year CHAR(4) DEFAULT NULL JPATH='$.awards[*].year',
+`by` CHAR(38) DEFAULT NULL JPATH='$.awards[*].by'
 ) ENGINE=CONNECT TABLE_TYPE='json' FILE_NAME='bios.zip' ZIPPED=YES;
 SELECT * FROM t3 WHERE _id = 1;
 _id	firstname	aka	lastname	title	birth	death	contribs	award	year	by

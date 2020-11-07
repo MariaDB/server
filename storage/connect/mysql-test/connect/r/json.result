@@ -15,7 +15,7 @@ DATEPUB int(4)
 ) ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='biblio.json';
 SELECT * FROM t1;
 ISBN	LANG	SUBJECT	AUTHOR	TITLE	TRANSLATION	TRANSLATOR	PUBLISHER	DATEPUB
-9782212090819	fr	applications	Jean-Christophe Bernadac	Construire une application XML	NULL	NULL	Eyrolles Paris	1999
+9782212090819	fr	applications	 Jean-Christophe Bernadac, François Knab	Construire une application XML	NULL	NULL	Eyrolles Paris	1999
 9782840825685	fr	applications	William J. Pardi	XML en Action	adapté de l'anglais par	James Guerin	Microsoft Press Paris	1999
 DROP TABLE t1;
 #

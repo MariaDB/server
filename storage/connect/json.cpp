@@ -1045,48 +1045,57 @@ PJVAL JOBJECT::GetValue(const char* key)
 /***********************************************************************/
 /* Return the text corresponding to all keys (XML like).               */
 /***********************************************************************/
-PSZ JOBJECT::GetText(PGLOBAL g, PSZ text)
+PSZ JOBJECT::GetText(PGLOBAL g, PSTRG text)
 {
-  int n;
+	if (First) {
+		bool b;
 
-  if (!First)
-    return text;
+		if (!text) {
+			text = new(g) STRING(g, 256);
+			b = true;
+		} else {
+			if (text->GetLastChar() != ' ')
+				text->Append(' ');
 
-  if (!text) {
-    text = (PSZ)malloc(1024);	// TODO: get size
-    text[0] = 0;
-    n = 1;
-  } else
-    n = 0;
+			b = false;
+		}	// endif text
 
-   if (n == 1 && !First->Next && !strcmp(First->Key, "$date")) {
-    int i;
+		if (b && !First->Next && !strcmp(First->Key, "$date")) {
+			int i;
+			PSZ s;
 
-    First->Val->GetText(g, text);
-    i = (text[1] == '-' ? 2 : 1);
+			First->Val->GetText(g, text);
+			s = text->GetStr();
+			i = (s[1] == '-' ? 2 : 1);
 
-    if (IsNum(text + i)) {
-      // Date is in milliseconds
-      int j = (int)strlen(text);
+			if (IsNum(s + i)) {
+				// Date is in milliseconds
+				int j = text->GetLength();
 
-      if (j >= 4 + i)
-        text[j - 3] = 0;      // Change it to seconds
-      else
-        strcpy(text, " 0");
+				if (j >= 4 + i) {
+					s[j - 3] = 0;        // Change it to seconds
+					text->SetLength((uint)strlen(s));
+				} else
+					text->Set(" 0");
 
-    } // endif text
+			} // endif text
 
-  } else for (PJPR jp = First; jp; jp = jp->Next)
-    jp->Val->GetText(g, text);
+		} else for (PJPR jp = First; jp; jp = jp->Next) {
+			jp->Val->GetText(g, text);
 
-	if (n) {
-		PSZ txt = (PSZ)PlugSubAlloc(g, NULL, strlen(text));
-		strcpy(txt, text + 1);	 // Remove leading blank
-		free(text);
-		text = txt;
-	}	// endif n
+			if (jp->Next)
+				text->Append(' ');
 
-  return text;
+		}	// endfor jp
+
+		if (b) {
+			text->Trim();
+			return text->GetStr();
+		}	// endif b
+
+	} // endif First
+
+	return NULL;
 } // end of GetText;
 
 /***********************************************************************/
@@ -1288,29 +1297,42 @@ bool JARRAY::SetValue(PGLOBAL g, PJVAL jvp, int n)
 /***********************************************************************/
 /* Return the text corresponding to all values.                        */
 /***********************************************************************/
-PSZ JARRAY::GetText(PGLOBAL g, PSZ text)
+PSZ JARRAY::GetText(PGLOBAL g, PSTRG text)
 {
-  int   n;
-  PJVAL jp;
+	if (First) {
+		bool  b;
+		PJVAL jp;
 
-  if (!text) {
-    text = (char*)malloc(1024);				 // Should be large enough
-    text[0] = 0;
-    n = 1;
-  } else
-    n = 0;
+		if (!text) {
+			text = new(g) STRING(g, 256);
+			b = true;
+		} else {
+			if (text->GetLastChar() != ' ')
+				text->Append(" (");
+			else
+				text->Append('(');
 
-  for (jp = First; jp; jp = jp->Next)
-    jp->GetText(g, text);
+			b = false;
+		}
 
-	if (n) {
-		PSZ txt = (PSZ)PlugSubAlloc(g, NULL, strlen(text));
-		strcpy(txt, text + 1);		// Remove leading blank
-		free(text);
-		text = txt;
-	}	// endif n
+		for (jp = First; jp; jp = jp->Next) {
+			jp->GetText(g, text);
 
-  return text;
+			if (jp->Next)
+				text->Append(", ");
+			else if (!b)
+				text->Append(')');
+
+		}	// endfor jp
+
+		if (b) {
+			text->Trim();
+			return text->GetStr();
+		}	// endif b
+
+	} // endif First
+
+	return NULL;
 } // end of GetText;
 
 /***********************************************************************/
@@ -1520,10 +1542,10 @@ double JVALUE::GetFloat(void)
 /***********************************************************************/
 /* Return the Value's String value.                                    */
 /***********************************************************************/
-PSZ JVALUE::GetString(PGLOBAL g)
+PSZ JVALUE::GetString(PGLOBAL g, char *buff)
 {
   char  buf[32];
-  char *p = buf;
+  char *p = (buff) ? buff : buf;
 
   if (Val) {
     switch (Val->Type) {
@@ -1532,19 +1554,19 @@ PSZ JVALUE::GetString(PGLOBAL g)
       p = Val->Strp;
       break;
     case TYPE_INTG:
-      sprintf(buf, "%d", Val->N);
+      sprintf(p, "%d", Val->N);
       break;
     case TYPE_BINT:
-      sprintf(buf, "%lld", Val->LLn);
+      sprintf(p, "%lld", Val->LLn);
       break;
     case TYPE_DBL:
-      sprintf(buf, "%.*lf", Val->Nd, Val->F);
+      sprintf(p, "%.*lf", Val->Nd, Val->F);
       break;
     case TYPE_BOOL:
-      p = (char*)PlugDup(g, (Val->B) ? "true" : "false");
+      p = (char*)((Val->B) ? "true" : "false");
       break;
     case TYPE_NULL:
-      p = (char*)PlugDup(g, "null");
+      p = (char*)"null";
       break;
     default:
       p = NULL;
@@ -1559,19 +1581,20 @@ PSZ JVALUE::GetString(PGLOBAL g)
 /***********************************************************************/
 /* Return the Value's String value.                                    */
 /***********************************************************************/
-PSZ JVALUE::GetText(PGLOBAL g, PSZ text)
+PSZ JVALUE::GetText(PGLOBAL g, PSTRG text)
 {
   if (Jsp)
     return Jsp->GetText(g, text);
 
-  PSZ  s = (Val) ? GetString(g) : NULL;
+	char buff[32];
+  PSZ  s = (Val) ? GetString(g, buff) : NULL;
 
-  if (s)
-    strcat(strcat(text, " "), s);
-  else if (GetJsonNull())
-    strcat(strcat(text, " "), GetJsonNull());
+	if (s)
+		text->Append(s);
+	else if (GetJsonNull())
+		text->Append(GetJsonNull());
 
-  return text;
+  return NULL;
 } // end of GetText
 
 void JVALUE::SetValue(PJSON jsp)

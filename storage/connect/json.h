@@ -7,6 +7,7 @@
 /***********************************************************************/
 #include <mysql_com.h>
 #include "value.h"
+#include "xobject.h"
 
 #if defined(_DEBUG)
 #define X  assert(false);
@@ -157,8 +158,8 @@ public:
 	virtual PJPR   GetFirst(void) { X return NULL; }
 	virtual int    GetInteger(void) { X return 0; }
 	virtual double GetFloat() { X return 0.0; }
-	virtual PSZ    GetString(PGLOBAL g) { X return NULL; }
-	virtual PSZ    GetText(PGLOBAL g, PSZ text) { X return NULL; }
+	virtual PSZ    GetString(PGLOBAL g, char *buff = NULL) { X return NULL; }
+	virtual PSZ    GetText(PGLOBAL g, PSTRG text) { X return NULL; }
 	virtual bool   Merge(PGLOBAL g, PJSON jsp) { X return true; }
 	virtual bool   SetValue(PGLOBAL g, PJVAL jvp, int i) { X return true; }
 	virtual void   SetValue(PGLOBAL g, PJVAL jvp, PCSZ key) { X }
@@ -198,7 +199,7 @@ public:
   virtual PJVAL GetValue(const char* key);
 	virtual PJAR  GetKeyList(PGLOBAL g);
 	virtual PJAR  GetValList(PGLOBAL g);
-	virtual PSZ   GetText(PGLOBAL g, PSZ text);
+	virtual PSZ   GetText(PGLOBAL g, PSTRG text);
 	virtual bool  Merge(PGLOBAL g, PJSON jsp);
 	virtual void  SetValue(PGLOBAL g, PJVAL jvp, PCSZ key);
 	virtual void  DeleteKey(PCSZ k);
@@ -229,7 +230,7 @@ class JARRAY : public JSON {
 					PJVAL AddValue(PGLOBAL g, PJVAL jvp = NULL, int *x = NULL);
   virtual void  InitArray(PGLOBAL g);
   virtual PJVAL GetValue(int i);
-	virtual PSZ   GetText(PGLOBAL g, PSZ text);
+	virtual PSZ   GetText(PGLOBAL g, PSTRG text);
 	virtual bool  Merge(PGLOBAL g, PJSON jsp);
 	virtual bool  SetValue(PGLOBAL g, PJVAL jvp, int i);
   virtual bool  DeleteValue(int n);
@@ -277,8 +278,8 @@ public:
 	virtual int    GetInteger(void);
 	virtual long long GetBigint(void);
 	virtual double GetFloat(void);
-  virtual PSZ    GetString(PGLOBAL g);
-  virtual PSZ    GetText(PGLOBAL g, PSZ text);
+  virtual PSZ    GetString(PGLOBAL g, char *buff = NULL);
+  virtual PSZ    GetText(PGLOBAL g, PSTRG text);
 	virtual void   SetValue(PJSON jsp);
 	virtual void   SetValue(PGLOBAL g, PVAL valp);
 	inline  void   SetVal(PVL vlp) { Val = vlp; }
