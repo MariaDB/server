@@ -1833,7 +1833,7 @@ int BINFAM::ReadBuffer(PGLOBAL g) {
 		} else
 			return RC_EF;
 
-	} else if (Recsize > Buflen) {
+	} else if (Recsize > (unsigned)Buflen) {
 		sprintf(g->Message, "Record too big (Recsize=%zd Buflen=%d)\n", Recsize, Buflen);
 		return RC_FX;
 	}	// endif Recsize
