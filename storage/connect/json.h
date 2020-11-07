@@ -140,36 +140,16 @@ public:
 
 	// Methods
 	virtual int    size(void) { return 1; }
-//	virtual JTYP   GetValType(void) { X return TYPE_JSON; }
-//	virtual void   InitArray(PGLOBAL g) { X }
-	//virtual PJVAL  AddValue(PGLOBAL g, PJVAL jvp = NULL, int *x = NULL) {X return NULL;}
-//	virtual PJPR   AddPair(PGLOBAL g, PCSZ key) { X return NULL; }
 	virtual void   Clear(void) { X }
-//	virtual PJAR   GetKeyList(PGLOBAL g) { X return NULL; }
-//	virtual PJAR   GetValList(PGLOBAL g) { X return NULL; }
-//  virtual PJVAL  GetValue(const char* key) { X return NULL; }
 	virtual PJOB   GetObject(void) { return NULL; }
 	virtual PJAR   GetArray(void) { return NULL; }
-	virtual PJVAL  GetValue(int i) { X return NULL; }
+	virtual PJVAL  GetArrayValue(int i) { X return NULL; }
 	virtual int    GetSize(bool b) { X return 0; }
-	//virtual PVL    GetVal(void) { X return NULL; }
 	virtual PJSON  GetJsp(void) { X return NULL; }
-//	virtual PJSON  GetJson(void) { X return NULL; }
 	virtual PJPR   GetFirst(void) { X return NULL; }
-//	virtual int    GetInteger(void) { X return 0; }
-//	virtual double GetFloat() { X return 0.0; }
-//	virtual PSZ    GetString(PGLOBAL g, char *buff = NULL) { X return NULL; }
 	virtual PSZ    GetText(PGLOBAL g, PSTRG text) { X return NULL; }
 	virtual bool   Merge(PGLOBAL g, PJSON jsp) { X return true; }
-//	virtual bool   SetValue(PGLOBAL g, PJVAL jvp, int i) { X return true; }
-//	virtual void   SetValue(PGLOBAL g, PJVAL jvp, PCSZ key) { X }
-//	virtual void   SetVal(PVL vlp) { X }
-//	virtual void   SetValue(PGLOBAL g, PVAL valp) { X }
 	virtual void   SetValue(PJSON jsp) { X }
-//	virtual void   SetString(PGLOBAL g, PSZ s, short c) { X }
-//	virtual void   SetInteger(PGLOBAL g, int n) { X }
-//	virtual void   SetFloat(PGLOBAL g, double f) { X }
-//	virtual void   DeleteKey(PCSZ k) { X }
 	virtual bool   DeleteValue(int i) { X return true; }
 	virtual bool   IsNull(void) { X return true; }
 
@@ -188,9 +168,6 @@ public:
 	JOBJECT(void) : JSON() { Type = TYPE_JOB; First = Last = NULL; }
 	JOBJECT(int i) : JSON(i) {}
 
-  //using JSON::GetVal;
-  //using JSON::SetVal;
-
 	// Methods
 	virtual void  Clear(void) {First = Last = NULL;}
 //virtual JTYP  GetValType(void) {return TYPE_JOB;}
@@ -203,10 +180,10 @@ public:
 
 	// Specific
 	PJPR  AddPair(PGLOBAL g, PCSZ key);
-	PJVAL GetValue(const char* key);
+	PJVAL GetKeyValue(const char* key);
 	PJAR  GetKeyList(PGLOBAL g);
 	PJAR  GetValList(PGLOBAL g);
-	void  SetValue(PGLOBAL g, PJVAL jvp, PCSZ key);
+	void  SetKeyValue(PGLOBAL g, PJVAL jvp, PCSZ key);
 	void  DeleteKey(PCSZ k);
 
  protected:
@@ -220,28 +197,23 @@ public:
 class JARRAY : public JSON {
 	friend class SWAP;
  public:
-	JARRAY(void) : JSON()
-	 { Type = TYPE_JAR;  Alloc = 0; First = Last = NULL; Mvals = NULL; }
+	JARRAY(void);
 	JARRAY(int i) : JSON(i) {}
-
-  //using JSON::GetVal;
-  //using JSON::SetVal;
 
 	// Methods
   virtual void  Clear(void) {First = Last = NULL; Size = 0;}
 	virtual int   size(void) { return Size; }
-//virtual JTYP  GetType(void) {return TYPE_JAR;}
   virtual PJAR  GetArray(void) {return this;}
 	virtual int   GetSize(bool b);
-  virtual PJVAL GetValue(int i);
+  virtual PJVAL GetArrayValue(int i);
 	virtual PSZ   GetText(PGLOBAL g, PSTRG text);
 	virtual bool  Merge(PGLOBAL g, PJSON jsp);
   virtual bool  DeleteValue(int n);
   virtual bool  IsNull(void);
 
 	// Specific
-	PJVAL AddValue(PGLOBAL g, PJVAL jvp = NULL, int* x = NULL);
-	bool  SetValue(PGLOBAL g, PJVAL jvp, int i);
+	PJVAL AddArrayValue(PGLOBAL g, PJVAL jvp = NULL, int* x = NULL);
+	bool  SetArrayValue(PGLOBAL g, PJVAL jvp, int i);
 	void  InitArray(PGLOBAL g);
 
  protected:

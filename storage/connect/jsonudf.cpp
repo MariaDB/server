@@ -457,7 +457,7 @@ PJVAL JSNX::GetRowValue(PGLOBAL g, PJSON row, int i, my_bool b)
 					} //endif Op
 
 				} else
-					val = ((PJOB)row)->GetValue(Nodes[i].Key);
+					val = ((PJOB)row)->GetKeyValue(Nodes[i].Key);
 
 				break;
 			case TYPE_JAR:
@@ -465,7 +465,7 @@ PJVAL JSNX::GetRowValue(PGLOBAL g, PJSON row, int i, my_bool b)
 
 				if (!Nodes[i].Key) {
 					if (Nodes[i].Op == OP_EQ || Nodes[i].Op == OP_LE)
-						val = arp->GetValue(Nodes[i].Rank);
+						val = arp->GetArrayValue(Nodes[i].Rank);
 					else if (Nodes[i].Op == OP_EXP)
 						return (PJVAL)ExpandArray(g, arp, i);
 					else
@@ -473,7 +473,7 @@ PJVAL JSNX::GetRowValue(PGLOBAL g, PJSON row, int i, my_bool b)
 
 				} else {
 					// Unexpected array, unwrap it as [0]
-					val = arp->GetValue(0);
+					val = arp->GetArrayValue(0);
 					i--;
 				}	// endif's
 
@@ -524,7 +524,7 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 		htrc("CalculateArray size=%d op=%d\n", ars, op);
 
 	for (i = 0; i < ars; i++) {
-		jvrp = arp->GetValue(i);
+		jvrp = arp->GetArrayValue(i);
 
 		if (trace(1))
 			htrc("i=%d nv=%d\n", i, nv);
@@ -617,13 +617,13 @@ my_bool JSNX::CheckPath(PGLOBAL g)
 		} else switch (row->GetType()) {
 		case TYPE_JOB:
 			if (Nodes[i].Key)
-				val = ((PJOB)row)->GetValue(Nodes[i].Key);
+				val = ((PJOB)row)->GetKeyValue(Nodes[i].Key);
 
 			break;
 		case TYPE_JAR:
 			if (!Nodes[i].Key)
 				if (Nodes[i].Op == OP_EQ || Nodes[i].Op == OP_LE)
-					val = ((PJAR)row)->GetValue(Nodes[i].Rank);
+					val = ((PJAR)row)->GetArrayValue(Nodes[i].Rank);
 
 			break;
 		case TYPE_JVAL:
@@ -660,20 +660,20 @@ PJSON JSNX::GetRow(PGLOBAL g)
 				// Expected Array was not there, wrap the value
 				continue;
 
-			val = ((PJOB)row)->GetValue(Nodes[i].Key);
+			val = ((PJOB)row)->GetKeyValue(Nodes[i].Key);
 			break;
 		case TYPE_JAR:
 			arp = (PJAR)row;
 
 			if (!Nodes[i].Key) {
 				if (Nodes[i].Op == OP_EQ)
-					val = arp->GetValue(Nodes[i].Rank);
+					val = arp->GetArrayValue(Nodes[i].Rank);
 				else
-					val = arp->GetValue(Nodes[i].Rx);
+					val = arp->GetArrayValue(Nodes[i].Rx);
 
 			} else {
 				// Unexpected array, unwrap it as [0]
-				val = arp->GetValue(0);
+				val = arp->GetArrayValue(0);
 				i--;
 			} // endif Nodes
 
@@ -700,9 +700,9 @@ PJSON JSNX::GetRow(PGLOBAL g)
 					nwr = new(g)JOBJECT;
 
 				if (row->GetType() == TYPE_JOB) {
-					((PJOB)row)->SetValue(g, new(g)JVALUE(nwr), Nodes[i-1].Key);
+					((PJOB)row)->SetKeyValue(g, new(g)JVALUE(nwr), Nodes[i-1].Key);
 				} else if (row->GetType() == TYPE_JAR) {
-					((PJAR)row)->AddValue(g, new(g)JVALUE(nwr));
+					((PJAR)row)->AddArrayValue(g, new(g)JVALUE(nwr));
 					((PJAR)row)->InitArray(g);
 				} else {
 					strcpy(g->Message, "Wrong type when writing new row");
@@ -745,16 +745,16 @@ my_bool JSNX::WriteValue(PGLOBAL g, PJVAL jvalp)
 	if (arp) {
 		if (!Nodes[Nod-1].Key) {
 			if (Nodes[Nod-1].Op == OP_EQ)
-				arp->SetValue(g, jvalp, Nodes[Nod-1].Rank);
+				arp->SetArrayValue(g, jvalp, Nodes[Nod-1].Rank);
 			else
-				arp->AddValue(g, jvalp);
+				arp->AddArrayValue(g, jvalp);
 
 			arp->InitArray(g);
 		}	// endif Key
 
 	} else if (objp) {
 		if (Nodes[Nod-1].Key)
-			objp->SetValue(g, jvalp, Nodes[Nod-1].Key);
+			objp->SetKeyValue(g, jvalp, Nodes[Nod-1].Key);
 
 	} else if (jvp)
 		jvp->SetValue(jvalp);
@@ -835,7 +835,7 @@ my_bool JSNX::LocateArray(PGLOBAL g, PJAR jarp)
 		if (Jp->WriteStr(s))
 			return true;
 
-		if (LocateValue(g, jarp->GetValue(i)))
+		if (LocateValue(g, jarp->GetArrayValue(i)))
 			return true;
 
 		} // endfor i
@@ -958,7 +958,7 @@ my_bool JSNX::LocateArrayAll(PGLOBAL g, PJAR jarp)
 		for (int i = 0; i < jarp->size(); i++) {
 			Jpnp[I].N = i;
 
-			if (LocateValueAll(g, jarp->GetValue(i)))
+			if (LocateValueAll(g, jarp->GetArrayValue(i)))
 				return true;
 
 		} // endfor i
@@ -1027,7 +1027,7 @@ my_bool JSNX::CompareTree(PGLOBAL g, PJSON jp1, PJSON jp2)
 
 	} else if (jp1->GetType() == TYPE_JAR) {
 		for (int i = 0; found && i < jp1->size(); i++)
-			found = (CompareTree(g, jp1->GetValue(i), jp2->GetValue(i)));
+			found = (CompareTree(g, jp1->GetArrayValue(i), jp2->GetArrayValue(i)));
 
 	} else if (jp1->GetType() == TYPE_JOB) {
 		PJPR p1 = jp1->GetFirst(), p2 = jp2->GetFirst();
@@ -2018,7 +2018,7 @@ char *json_make_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			PJAR arp = new(g)JARRAY;
 
 			for (uint i = 0; i < args->arg_count; i++)
-				arp->AddValue(g, MakeValue(g, args, i));
+				arp->AddArrayValue(g, MakeValue(g, args, i));
 
 			arp->InitArray(g);
 
@@ -2088,13 +2088,13 @@ char *json_array_add_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			
 			if (jvp->GetValType() != TYPE_JAR) {
 				arp = new(g)JARRAY;
-				arp->AddValue(g, jvp);
+				arp->AddArrayValue(g, jvp);
 				top = arp;
 			} else
 				arp = jvp->GetArray();
 
 			for (uint i = 1; i < args->arg_count; i++)
-				arp->AddValue(g, MakeValue(g, args, i));
+				arp->AddArrayValue(g, MakeValue(g, args, i));
 
 			arp->InitArray(g);
 			str = MakeResult(g, args, top, args->arg_count);
@@ -2186,7 +2186,7 @@ char *json_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 			if (jvp->GetValType() != TYPE_JAR) {
 				if ((arp = (PJAR)JsonNew(gb, TYPE_JAR))) {
-					arp->AddValue(gb, JvalNew(gb, TYPE_JVAL, jvp));
+					arp->AddArrayValue(gb, JvalNew(gb, TYPE_JVAL, jvp));
 					jvp->SetValue(arp);
 
 					if (!top)
@@ -2198,7 +2198,7 @@ char *json_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 				arp = jvp->GetArray();
 
 			if (arp) {
-				arp->AddValue(gb, MakeValue(gb, args, 1), x);
+				arp->AddArrayValue(gb, MakeValue(gb, args, 1), x);
 				arp->InitArray(gb);
 				str = MakeResult(g, args, top, n);
 			}	else
@@ -2367,7 +2367,7 @@ long long jsonsum_int(UDF_INIT *initid, UDF_ARGS *args, char *is_null, char *err
 			PJAR arp = jvp->GetArray();
 
 			for (int i = 0; i < arp->size(); i++)
-				n += arp->GetValue(i)->GetBigint();
+				n += arp->GetArrayValue(i)->GetBigint();
 
 		} else {
 			PUSH_WARNING("First argument target is not an array");
@@ -2442,7 +2442,7 @@ double jsonsum_real(UDF_INIT *initid, UDF_ARGS *args, char *is_null, char *error
 			PJAR arp = jvp->GetArray();
 
 			for (int i = 0; i < arp->size(); i++)
-				n += arp->GetValue(i)->GetFloat();
+				n += arp->GetArrayValue(i)->GetFloat();
 
 		} else {
 			PUSH_WARNING("First argument target is not an array");
@@ -2507,7 +2507,7 @@ double jsonavg_real(UDF_INIT *initid, UDF_ARGS *args, char *is_null, char *error
 
 			if (arp->size()) {
 				for (int i = 0; i < arp->size(); i++)
-					n += arp->GetValue(i)->GetFloat();
+					n += arp->GetArrayValue(i)->GetFloat();
 
 				n /= arp->size();
 			}	// endif size
@@ -2566,7 +2566,7 @@ char *json_make_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			
 			if ((objp = (PJOB)JsonNew(g, TYPE_JOB))) {
 				for (uint i = 0; i < args->arg_count; i++)
-					objp->SetValue(g, MakeValue(g, args, i), MakeKey(g, args, i));
+					objp->SetKeyValue(g, MakeValue(g, args, i), MakeKey(g, args, i));
 
 				str = Serialize(g, objp, NULL, 0);
 			}	// endif objp
@@ -2616,7 +2616,7 @@ char *json_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			if ((objp = (PJOB)JsonNew(g, TYPE_JOB))) {
 				for (uint i = 0; i < args->arg_count; i++)
 					if (!(jvp = MakeValue(g, args, i))->IsNull())
-						objp->SetValue(g, jvp, MakeKey(g, args, i));
+						objp->SetKeyValue(g, jvp, MakeKey(g, args, i));
 
 				str = Serialize(g, objp, NULL, 0);
 			}	// endif objp
@@ -2668,7 +2668,7 @@ char *json_object_key(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 			if ((objp = (PJOB)JsonNew(g, TYPE_JOB))) {
 				for (uint i = 0; i < args->arg_count; i += 2)
-					objp->SetValue(g, MakeValue(g, args, i + 1), MakePSZ(g, args, i));
+					objp->SetKeyValue(g, MakeValue(g, args, i + 1), MakePSZ(g, args, i));
 
 				str = Serialize(g, objp, NULL, 0);
 			}	// endif objp
@@ -2752,7 +2752,7 @@ char *json_object_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			jobp = jvp->GetObject();
 			jvp = MakeValue(gb, args, 1);
 			key = MakeKey(gb, args, 1);
-			jobp->SetValue(gb, jvp, key);
+			jobp->SetKeyValue(gb, jvp, key);
 			str = MakeResult(g, args, top);
 		} else {
 			PUSH_WARNING("First argument target is not an object");
@@ -3105,7 +3105,7 @@ void json_array_grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
   PJAR    arp = (PJAR)g->Activityp;
 
   if (arp && g->N-- > 0)
-    arp->AddValue(g, MakeValue(g, args, 0));
+    arp->AddArrayValue(g, MakeValue(g, args, 0));
 
 } // end of json_array_grp_add
 
@@ -3182,7 +3182,7 @@ void json_object_grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
   PJOB    objp = (PJOB)g->Activityp;
 
 	if (g->N-- > 0)
-		objp->SetValue(g, MakeValue(g, args, 1), MakePSZ(g, args, 0));
+		objp->SetKeyValue(g, MakeValue(g, args, 1), MakePSZ(g, args, 0));
 
 } // end of json_object_grp_add
 
@@ -4664,7 +4664,7 @@ char *jbin_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 				strcat(bsp->Msg, " array");
 
 				for (uint i = 0; i < args->arg_count; i++)
-					arp->AddValue(g, MakeValue(g, args, i));
+					arp->AddArrayValue(g, MakeValue(g, args, i));
 
 				arp->InitArray(g);
 			}	// endif arp && bsp
@@ -4725,7 +4725,7 @@ char *jbin_array_add_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 			if (jvp->GetValType() != TYPE_JAR) {
 				if ((arp = (PJAR)JsonNew(gb, TYPE_JAR))) {
-					arp->AddValue(gb, jvp);
+					arp->AddArrayValue(gb, jvp);
 					top = arp;
 				}	// endif arp
 
@@ -4733,7 +4733,7 @@ char *jbin_array_add_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 				arp = jvp->GetArray();
 
 			for (uint i = 1; i < args->arg_count; i++)
-				arp->AddValue(gb, MakeValue(gb, args, i));
+				arp->AddArrayValue(gb, MakeValue(gb, args, i));
 
 			arp->InitArray(gb);
 
@@ -4816,7 +4816,7 @@ char *jbin_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 			if (jvp->GetValType() != TYPE_JAR) {
 				if ((arp = (PJAR)JsonNew(gb, TYPE_JAR))) {
-					arp->AddValue(gb, (PJVAL)JvalNew(gb, TYPE_JVAL, jvp));
+					arp->AddArrayValue(gb, (PJVAL)JvalNew(gb, TYPE_JVAL, jvp));
 					jvp->SetValue(arp);
 
 					if (!top)
@@ -4827,7 +4827,7 @@ char *jbin_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			}	else
 				arp = jvp->GetArray();
 
-			arp->AddValue(gb, MakeValue(gb, args, 1), x);
+			arp->AddArrayValue(gb, MakeValue(gb, args, 1), x);
 			arp->InitArray(gb);
 		} else {
 			PUSH_WARNING("First argument target is not an array");
@@ -4955,7 +4955,7 @@ char *jbin_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 			if ((objp = (PJOB)JsonNew(g, TYPE_JOB))) {
 				for (uint i = 0; i < args->arg_count; i++)
-					objp->SetValue(g, MakeValue(g, args, i), MakeKey(g, args, i));
+					objp->SetKeyValue(g, MakeValue(g, args, i), MakeKey(g, args, i));
 
 
 				if ((bsp = JbinAlloc(g, args, initid->max_length, objp)))
@@ -5012,7 +5012,7 @@ char *jbin_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			if ((objp = (PJOB)JsonNew(g, TYPE_JOB))) {
 				for (uint i = 0; i < args->arg_count; i++)
 					if (!(jvp = MakeValue(g, args, i))->IsNull())
-						objp->SetValue(g, jvp, MakeKey(g, args, i));
+						objp->SetKeyValue(g, jvp, MakeKey(g, args, i));
 
 				if ((bsp = JbinAlloc(g, args, initid->max_length, objp)))
 					strcat(bsp->Msg, " object");
@@ -5071,7 +5071,7 @@ char *jbin_object_key(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 			if ((objp = (PJOB)JsonNew(g, TYPE_JOB))) {
 				for (uint i = 0; i < args->arg_count; i += 2)
-					objp->SetValue(g, MakeValue(g, args, i + 1), MakePSZ(g, args, i));
+					objp->SetKeyValue(g, MakeValue(g, args, i + 1), MakePSZ(g, args, i));
 
 				if ((bsp = JbinAlloc(g, args, initid->max_length, objp)))
 					strcat(bsp->Msg, " object");
@@ -5149,7 +5149,7 @@ char *jbin_object_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			jobp = jvp->GetObject();
 			jvp = MakeValue(gb, args, 1);
 			key = MakeKey(gb, args, 1);
-			jobp->SetValue(gb, jvp, key);
+			jobp->SetKeyValue(gb, jvp, key);
 		} else {
 			PUSH_WARNING("First argument target is not an object");
 //		if (g->Mrr) *error = 1;			 (only if no path)

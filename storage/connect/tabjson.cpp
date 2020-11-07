@@ -240,7 +240,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
     if (tjsp->MakeDocument(g))
       return 0;
 
-    jsp = (tjsp->GetDoc()) ? tjsp->GetDoc()->GetValue(0) : NULL;
+    jsp = (tjsp->GetDoc()) ? tjsp->GetDoc()->GetArrayValue(0) : NULL;
   } else {
 		if (!((tdp->Lrecl = GetIntegerTableOption(g, topt, "Lrecl", 0)))) {
 			if (!mgo) {
@@ -365,7 +365,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
       } // endswitch ReadDB
 
     } else
-      jsp = tjsp->GetDoc()->GetValue(i);
+      jsp = tjsp->GetDoc()->GetArrayValue(i);
 
     if (!(row = (jsp) ? jsp->GetObject() : NULL))
       break;
@@ -483,7 +483,7 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
 						strncat(fmt, (tdp->Uri ? sep : "[*]"), n);
 					}
 
-          if (Find(g, jar->GetValue(k), "", j))
+          if (Find(g, jar->GetArrayValue(k), "", j))
             return true;
 
           *p = *pc = 0;
@@ -922,7 +922,7 @@ PJSON TDBJSN::FindRow(PGLOBAL g)
 
     if (*objpath != '[' && !IsNum(objpath)) { // objpass is a key
       val = (jsp->GetType() == TYPE_JOB) ?
-        jsp->GetObject()->GetValue(objpath) : NULL;
+        jsp->GetObject()->GetKeyValue(objpath) : NULL;
     } else {
       if (*objpath == '[') {
         if (objpath[strlen(objpath) - 1] == ']')
@@ -932,7 +932,7 @@ PJSON TDBJSN::FindRow(PGLOBAL g)
       } // endif [
 
       val = (jsp->GetType() == TYPE_JAR) ?
-        jsp->GetArray()->GetValue(atoi(objpath) - B) : NULL;
+        jsp->GetArray()->GetArrayValue(atoi(objpath) - B) : NULL;
     } // endif objpath
 
     jsp = (val) ? val->GetJson() : NULL;
@@ -1128,7 +1128,7 @@ int TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
             val->SetValue(objp);
 
           val = new(g) JVALUE;
-          objp->SetValue(g, val, objpath);
+          objp->SetKeyValue(g, val, objpath);
         } else {
           if (*objpath == '[') {
             // Old style
@@ -1150,7 +1150,7 @@ int TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
 
           val = new(g) JVALUE;
           i = atoi(objpath) - B;
-          arp->SetValue(g, val, i);
+          arp->SetArrayValue(g, val, i);
           arp->InitArray(g);
         } // endif objpath
 
@@ -1703,7 +1703,7 @@ PVAL JSONCOL::GetColumnValue(PGLOBAL g, PJSON row, int i)
             val = new(G) JVALUE(row);
 
         } else
-          val = ((PJOB)row)->GetValue(Nodes[i].Key);
+          val = ((PJOB)row)->GetKeyValue(Nodes[i].Key);
 
         break;
       case TYPE_JAR:
@@ -1711,7 +1711,7 @@ PVAL JSONCOL::GetColumnValue(PGLOBAL g, PJSON row, int i)
 
         if (!Nodes[i].Key) {
           if (Nodes[i].Op == OP_EQ)
-            val = arp->GetValue(Nodes[i].Rank);
+            val = arp->GetArrayValue(Nodes[i].Rank);
           else if (Nodes[i].Op == OP_EXP)
             return ExpandArray(g, arp, i);
           else
@@ -1719,7 +1719,7 @@ PVAL JSONCOL::GetColumnValue(PGLOBAL g, PJSON row, int i)
 
         } else {
           // Unexpected array, unwrap it as [0]
-          val = arp->GetValue(0);
+          val = arp->GetArrayValue(0);
           i--;
         } // endif's
 
@@ -1757,7 +1757,7 @@ PVAL JSONCOL::ExpandArray(PGLOBAL g, PJAR arp, int n)
     return Value;
   } // endif ars
 
-  if (!(jvp = arp->GetValue((Nodes[n].Rx = Nodes[n].Nx)))) {
+  if (!(jvp = arp->GetArrayValue((Nodes[n].Rx = Nodes[n].Nx)))) {
     strcpy(g->Message, "Logical error expanding array");
     throw 666;
   } // endif jvp
@@ -1801,7 +1801,7 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
       ars, op, nextsame);
 
   for (i = 0; i < ars; i++) {
-    jvrp = arp->GetValue(i);
+    jvrp = arp->GetArrayValue(i);
 
     if (trace(1))
       htrc("i=%d nv=%d\n", i, nv);
@@ -1901,20 +1901,20 @@ PJSON JSONCOL::GetRow(PGLOBAL g)
           // Expected Array was not there, wrap the value
           continue;
 
-        val = ((PJOB)row)->GetValue(Nodes[i].Key);
+        val = ((PJOB)row)->GetKeyValue(Nodes[i].Key);
         break;
       case TYPE_JAR:
         arp = (PJAR)row;
 
         if (!Nodes[i].Key) {
           if (Nodes[i].Op == OP_EQ)
-            val = arp->GetValue(Nodes[i].Rank);
+            val = arp->GetArrayValue(Nodes[i].Rank);
           else
-            val = arp->GetValue(Nodes[i].Rx);
+            val = arp->GetArrayValue(Nodes[i].Rx);
 
         } else {
           // Unexpected array, unwrap it as [0]
-          val = arp->GetValue(0);
+          val = arp->GetArrayValue(0);
           i--;
         } // endif Nodes
 
@@ -1941,9 +1941,9 @@ PJSON JSONCOL::GetRow(PGLOBAL g)
           nwr = new(G) JOBJECT;
 
         if (row->GetType() == TYPE_JOB) {
-          ((PJOB)row)->SetValue(G, new(G) JVALUE(nwr), Nodes[i-1].Key);
+          ((PJOB)row)->SetKeyValue(G, new(G) JVALUE(nwr), Nodes[i-1].Key);
         } else if (row->GetType() == TYPE_JAR) {
-          ((PJAR)row)->AddValue(G, new(G) JVALUE(nwr));
+          ((PJAR)row)->AddArrayValue(G, new(G) JVALUE(nwr));
           ((PJAR)row)->InitArray(G);
         } else {
           strcpy(g->Message, "Wrong type when writing new row");
@@ -2008,14 +2008,14 @@ void JSONCOL::WriteColumn(PGLOBAL g)
 
         if (arp) {
           if (Nod > 1 && Nodes[Nod-2].Op == OP_EQ)
-            arp->SetValue(G, new(G) JVALUE(jsp), Nodes[Nod-2].Rank);
+            arp->SetArrayValue(G, new(G) JVALUE(jsp), Nodes[Nod-2].Rank);
           else
-            arp->AddValue(G, new(G) JVALUE(jsp));
+            arp->AddArrayValue(G, new(G) JVALUE(jsp));
 
           arp->InitArray(G);
         } else if (objp) {
           if (Nod > 1 && Nodes[Nod-2].Key)
-            objp->SetValue(G, new(G) JVALUE(jsp), Nodes[Nod-2].Key);
+            objp->SetKeyValue(G, new(G) JVALUE(jsp), Nodes[Nod-2].Key);
 
         } else if (jvp)
           jvp->SetValue(jsp);
@@ -2032,14 +2032,14 @@ void JSONCOL::WriteColumn(PGLOBAL g)
     case TYPE_DOUBLE:
       if (arp) {
         if (Nodes[Nod-1].Op == OP_EQ)
-          arp->SetValue(G, new(G) JVALUE(G, Value), Nodes[Nod-1].Rank);
+          arp->SetArrayValue(G, new(G) JVALUE(G, Value), Nodes[Nod-1].Rank);
         else
-          arp->AddValue(G, new(G) JVALUE(G, Value));
+          arp->AddArrayValue(G, new(G) JVALUE(G, Value));
 
         arp->InitArray(G);
       } else if (objp) {
         if (Nodes[Nod-1].Key)
-          objp->SetValue(G, new(G) JVALUE(G, Value), Nodes[Nod-1].Key);
+          objp->SetKeyValue(G, new(G) JVALUE(G, Value), Nodes[Nod-1].Key);
 
       } else if (jvp)
         jvp->SetValue(g, Value);
@@ -2189,7 +2189,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
         key = p;
         objp = jsp->GetObject();
         arp = NULL;
-        val = objp->GetValue(key);
+        val = objp->GetKeyValue(key);
 
         if (!val || !(jsp = val->GetJson())) {
           sprintf(g->Message, "Cannot find object key %s", key);
@@ -2215,7 +2215,7 @@ int TDBJSON::MakeDocument(PGLOBAL g)
         arp = jsp->GetArray();
         objp = NULL;
         i = atoi(p) - B;
-        val = arp->GetValue(i);
+        val = arp->GetArrayValue(i);
 
         if (!val) {
           sprintf(g->Message, "Cannot find array value %d", i);
@@ -2236,17 +2236,17 @@ int TDBJSON::MakeDocument(PGLOBAL g)
     Doc = new(g) JARRAY;
 
     if (val) {
-      Doc->AddValue(g, val);
+      Doc->AddArrayValue(g, val);
       Doc->InitArray(g);
     } else if (jsp) {
-      Doc->AddValue(g, new(g) JVALUE(jsp));
+      Doc->AddArrayValue(g, new(g) JVALUE(jsp));
       Doc->InitArray(g);
     } // endif val
 
     if (objp)
-      objp->SetValue(g, new(g) JVALUE(Doc), key);
+      objp->SetKeyValue(g, new(g) JVALUE(Doc), key);
     else if (arp)
-      arp->SetValue(g, new(g) JVALUE(Doc), i);
+      arp->SetArrayValue(g, new(g) JVALUE(Doc), i);
     else
       Top = Doc;
 
@@ -2409,7 +2409,7 @@ int TDBJSON::ReadDB(PGLOBAL)
     M++;
     rc = RC_OK;
   } else if (++Fpos < (signed)Doc->size()) {
-    Row = Doc->GetValue(Fpos);
+    Row = Doc->GetArrayValue(Fpos);
 
     if (Row->GetType() == TYPE_JVAL)
       Row = ((PJVAL)Row)->GetJson();
@@ -2432,25 +2432,25 @@ int TDBJSON::WriteDB(PGLOBAL g)
     PJVAL vp = new(g) JVALUE(Row);
 
     if (Mode == MODE_INSERT) {
-      Doc->AddValue(g, vp);
+      Doc->AddArrayValue(g, vp);
       Row = new(g) JOBJECT;
-    } else if (Doc->SetValue(g, vp, Fpos))
+    } else if (Doc->SetArrayValue(g, vp, Fpos))
       return RC_FX;
 
   } else if (Jmode == MODE_ARRAY) {
     PJVAL vp = new(g) JVALUE(Row);
 
     if (Mode == MODE_INSERT) {
-      Doc->AddValue(g, vp);
+      Doc->AddArrayValue(g, vp);
       Row = new(g) JARRAY;
-    } else if (Doc->SetValue(g, vp, Fpos))
+    } else if (Doc->SetArrayValue(g, vp, Fpos))
       return RC_FX;
 
   } else { // if (Jmode == MODE_VALUE)
     if (Mode == MODE_INSERT) {
-      Doc->AddValue(g, (PJVAL)Row);
+      Doc->AddArrayValue(g, (PJVAL)Row);
       Row = new(g) JVALUE;
-    } else if (Doc->SetValue(g, (PJVAL)Row, Fpos))
+    } else if (Doc->SetArrayValue(g, (PJVAL)Row, Fpos))
       return RC_FX;
 
   } // endif Jmode

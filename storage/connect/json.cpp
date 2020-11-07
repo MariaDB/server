@@ -531,7 +531,7 @@ PJAR JDOC::ParseArray(PGLOBAL g, int& i)
           sprintf(g->Message, "Unexpected value near %.*s", ARGS);
           throw 1;
         } else
-          jarp->AddValue(g, ParseValue(g, i));
+          jarp->AddArrayValue(g, ParseValue(g, i));
 
         level = (b) ? 1 : 2;
         break;
@@ -886,7 +886,7 @@ bool JDOC::SerializeArray(PJAR jarp, bool b)
 
     } // endif b
 
-    if (SerializeValue(jarp->GetValue(i)))
+    if (SerializeValue(jarp->GetArrayValue(i)))
       return true;
 
     } // endfor i
@@ -1010,7 +1010,7 @@ PJAR JOBJECT::GetKeyList(PGLOBAL g)
   PJAR jarp = new(g) JARRAY();
 
   for (PJPR jpp = First; jpp; jpp = jpp->Next)
-    jarp->AddValue(g, new(g) JVALUE(g, jpp->Key));
+    jarp->AddArrayValue(g, new(g) JVALUE(g, jpp->Key));
 
   jarp->InitArray(g);
   return jarp;
@@ -1024,7 +1024,7 @@ PJAR JOBJECT::GetValList(PGLOBAL g)
   PJAR jarp = new(g) JARRAY();
 
   for (PJPR jpp = First; jpp; jpp = jpp->Next)
-    jarp->AddValue(g, jpp->Val);
+    jarp->AddArrayValue(g, jpp->Val);
 
   jarp->InitArray(g);
   return jarp;
@@ -1033,7 +1033,7 @@ PJAR JOBJECT::GetValList(PGLOBAL g)
 /***********************************************************************/
 /* Get the value corresponding to the given key.                       */
 /***********************************************************************/
-PJVAL JOBJECT::GetValue(const char* key)
+PJVAL JOBJECT::GetKeyValue(const char* key)
 {
   for (PJPR jp = First; jp; jp = jp->Next)
     if (!strcmp(jp->Key, key))
@@ -1111,7 +1111,7 @@ bool JOBJECT::Merge(PGLOBAL g, PJSON jsp)
   PJOB jobp = (PJOB)jsp;
 
   for (PJPR jpp = jobp->First; jpp; jpp = jpp->Next)
-    SetValue(g, jpp->Val, jpp->Key);
+    SetKeyValue(g, jpp->Val, jpp->Key);
 
   return false;
 } // end of Marge;
@@ -1119,7 +1119,7 @@ bool JOBJECT::Merge(PGLOBAL g, PJSON jsp)
 /***********************************************************************/
 /* Set or add a value corresponding to the given key.                  */
 /***********************************************************************/
-void JOBJECT::SetValue(PGLOBAL g, PJVAL jvp, PCSZ key)
+void JOBJECT::SetKeyValue(PGLOBAL g, PJVAL jvp, PCSZ key)
 {
   PJPR jp;
 
@@ -1165,6 +1165,18 @@ bool JOBJECT::IsNull(void)
 } // end of IsNull
 
 /* -------------------------- Class JARRAY --------------------------- */
+
+/***********************************************************************/
+/* JARRAY constructor.                                                 */
+/***********************************************************************/
+JARRAY::JARRAY(void) : JSON()
+{
+	Type = TYPE_JAR;  
+	Size = 0; 
+	Alloc = 0; 
+	First = Last = NULL; 
+	Mvals = NULL;
+}	// end of JARRAY constructor
 
 /***********************************************************************/
 /* Return the number of values in this object.                         */
@@ -1216,7 +1228,7 @@ void JARRAY::InitArray(PGLOBAL g)
 /***********************************************************************/
 /* Get the Nth value of an Array.                                      */
 /***********************************************************************/
-PJVAL JARRAY::GetValue(int i)
+PJVAL JARRAY::GetArrayValue(int i)
 {
   if (Mvals && i >= 0 && i < Size)
     return Mvals[i];
@@ -1227,7 +1239,7 @@ PJVAL JARRAY::GetValue(int i)
 /***********************************************************************/
 /* Add a Value to the Array Value list.                                */
 /***********************************************************************/
-PJVAL JARRAY::AddValue(PGLOBAL g, PJVAL jvp, int *x)
+PJVAL JARRAY::AddArrayValue(PGLOBAL g, PJVAL jvp, int *x)
 {
   if (!jvp)
     jvp = new(g) JVALUE;
@@ -1271,7 +1283,7 @@ bool JARRAY::Merge(PGLOBAL g, PJSON jsp)
   PJAR arp = (PJAR)jsp;
 
   for (int i = 0; i < arp->size(); i++)
-    AddValue(g, arp->GetValue(i));
+    AddArrayValue(g, arp->GetArrayValue(i));
 
   InitArray(g);
   return false;
@@ -1280,7 +1292,7 @@ bool JARRAY::Merge(PGLOBAL g, PJSON jsp)
 /***********************************************************************/
 /* Set the nth Value of the Array Value list.                          */
 /***********************************************************************/
-bool JARRAY::SetValue(PGLOBAL g, PJVAL jvp, int n)
+bool JARRAY::SetArrayValue(PGLOBAL g, PJVAL jvp, int n)
 {
   int   i = 0;
   PJVAL jp, *jpp = &First;
@@ -1340,7 +1352,7 @@ PSZ JARRAY::GetText(PGLOBAL g, PSTRG text)
 /***********************************************************************/
 bool JARRAY::DeleteValue(int n)
 {
-  PJVAL jvp = GetValue(n);
+  PJVAL jvp = GetArrayValue(n);
 
   if (jvp) {
     jvp->Del = true;
@@ -1365,7 +1377,7 @@ bool JARRAY::IsNull(void)
 /* -------------------------- Class JVALUE- -------------------------- */
 
 /***********************************************************************/
-/* Constructor for a JSON.                                             */
+/* Constructor for a JVALUE.                                           */
 /***********************************************************************/
 JVALUE::JVALUE(PJSON jsp) : JSON()
 {
@@ -1383,7 +1395,7 @@ JVALUE::JVALUE(PJSON jsp) : JSON()
 } // end of JVALUE constructor
 
 /***********************************************************************/
-/* Constructor for a Val with a given string or numeric value.         */
+/* Constructor for a JVALUE with a given string or numeric value.      */
 /***********************************************************************/
 JVALUE::JVALUE(PGLOBAL g, PVL vlp) : JSON()
 {
@@ -1395,7 +1407,7 @@ JVALUE::JVALUE(PGLOBAL g, PVL vlp) : JSON()
 } // end of JVALUE constructor
 
 /***********************************************************************/
-/* Constructor for a Value with a given string or numeric value.       */
+/* Constructor for a JVALUE with a given string or numeric value.      */
 /***********************************************************************/
 JVALUE::JVALUE(PGLOBAL g, PVAL valp) : JSON() {
   Jsp = NULL;
