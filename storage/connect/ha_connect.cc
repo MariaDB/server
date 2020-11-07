@@ -251,6 +251,7 @@ bool    ExactInfo(void);
 USETEMP UseTemp(void);
 int     GetConvSize(void);
 TYPCONV GetTypeConv(void);
+int     GetDefaultDepth(void);
 bool    JsonAllPath(void);
 char   *GetJsonNull(void);
 uint    GetJsonGrpSize(void);
