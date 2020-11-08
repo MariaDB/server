@@ -7293,6 +7293,34 @@ static bool protect_against_unsafe_warning_flood(int unsafe_type)
   DBUG_RETURN(unsafe_warning_suppression_active[unsafe_type]);
 }
 
+
+void release_ddl_log_memory_entry(DDL_LOG_MEMORY_ENTRY *log_entry);
+bool write_execute_ddl_log_entry(uint first_entry,
+                                   bool complete,
+                                   DDL_LOG_MEMORY_ENTRY **active_entry);
+extern mysql_mutex_t LOCK_gdl;
+
+void ddl_log_info::release()
+{
+  while (first_entry)
+  {
+    release_ddl_log_memory_entry(first_entry);
+    first_entry= first_entry->next_active_log_entry;
+  }
+}
+
+
+void ddl_log_info::write_log_finish()
+{
+  Mutex_lock lock_gdl(&LOCK_gdl);
+  if (write_execute_ddl_log_entry(0, true, &exec_entry))
+  {
+    // FIXME: push warning
+  }
+  release();
+}
+
+
 MYSQL_TIME THD::query_start_TIME()
 {
   MYSQL_TIME res;

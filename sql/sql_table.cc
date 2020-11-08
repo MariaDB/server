@@ -2582,7 +2582,7 @@ fk_error:
       }
       if (likely(!error))
       {
-        shares.install_shadow_frms();
+        shares.install_shadow_frms(thd);
       }
       else
       {
@@ -9989,27 +9989,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                                          &alter_ctx->table_name,
                                          &alter_ctx->new_db,
                                          &alter_ctx->new_name);
-      for (FK_ddl_backup &bak: fk_rename_backup)
-      {
-        // NB: this can be foreign/ref table as well as renamed table
-        error= bak.fk_backup_frm(fk_rename_backup);
-        if (error)
-          goto err;
-      }
-      for (FK_ddl_backup &bak: fk_rename_backup)
-      {
-        error= bak.fk_install_shadow_frm(fk_rename_backup);
-        if (error)
-          goto err;
-      }
-      for (FK_ddl_backup &bak: fk_rename_backup)
-      {
-        error= deactivate_ddl_log_entry(bak.restore_backup_entry->entry_pos);
-        if (error)
-          goto err;
-      }
-      for (FK_ddl_backup &bak: fk_rename_backup)
-        bak.fk_drop_backup_frm(fk_rename_backup);
+      error= fk_rename_backup.install_shadow_frms(thd);
     }
     else
     {
@@ -10025,7 +10005,6 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
     if (likely(!error))
       my_ok(thd);
   }
-err:
   table_list->table= NULL;                    // For query cache
   query_cache_invalidate3(thd, table_list, 0);
 
@@ -13038,6 +13017,8 @@ void Alter_table_ctx::fk_release_locks(THD* thd)
 
 bool Alter_table_ctx::fk_install_frms()
 {
+  // FIXME: remake via FK_ddl_vector::install_shadow_frms()
+  // converge FK_ref_backup and FK_ddl_backup
   for (auto &key_val: fk_ref_backup)
   {
     FK_ref_backup *ref_bak= const_cast<FK_ref_backup *>(&key_val.second);
@@ -13064,6 +13045,7 @@ bool Alter_table_ctx::fk_install_frms()
     if (ref_bak->install_shadow)
       ref_bak->fk_drop_backup_frm(fk_ddl_info);
   }
+  fk_ddl_info.write_log_finish();
   return false;
 }
 
@@ -13357,10 +13339,7 @@ FK_ddl_backup::rollback(ddl_log_info& log_info)
   DBUG_ASSERT(sa.share);
   sa.share->foreign_keys= foreign_keys;
   sa.share->referenced_keys= referenced_keys;
-  if (delete_shadow_entry)
-  {
-    delete_shadow_entry= NULL;
-  }
+  delete_shadow_entry= NULL;
 }
 
 

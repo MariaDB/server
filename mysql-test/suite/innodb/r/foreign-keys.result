@@ -219,11 +219,54 @@ t2	CREATE TABLE `t2` (
 drop table t1,t2;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (fk_fid)
 drop table t2, t1;
+ERROR 42S02: Unknown table 'test.t2'
 #
 # MDEV-21053 Crash safety of FK DDL
 #
 set @save_dbug=@@debug_dbug;
-set session debug_dbug="+d,crash_add_fk_1";
+create or replace table t1 (id int primary key);
+insert into t1 values(1);
+create or replace table t2 (id int references t1 (id));
+insert into t2 values(1);
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) DEFAULT NULL,
+  KEY `fk_t2` (`id`),
+  CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `t1` (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+set @@debug_dbug= "+d,fail_fk_backup_frm";
+drop table t2;
+ERROR HY000: Unknown error
+# State after failure
+#sqlf-shadow-4-t1.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.fbk
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+set session debug_dbug="+d,crash_fk_alter_1";
 create or replace table t2 (id int);
 insert into t2 values(1);
 SHOW CREATE TABLE t2;
@@ -237,17 +280,11 @@ id
 create or replace table t1 (id int primary key);
 insert into t1 values(1);
 # State before crash
-total 28
--rw-r--r-- 1 midenok midenok   65 Feb  7 00:22 db.opt
--rw-rw---- 1 midenok midenok    7 Feb  7 00:22 t1.MYD
--rw-rw---- 1 midenok midenok 2048 Feb  7 00:22 t1.MYI
--rw-rw---- 1 midenok midenok  922 Feb  7 00:22 t1.frm
--rw-rw---- 1 midenok midenok    7 Feb  7 00:22 t2.MYD
--rw-rw---- 1 midenok midenok 1024 Feb  7 00:22 t2.MYI
--rw-rw---- 1 midenok midenok  433 Feb  7 00:22 t2.frm
+#sqlf-shadow-4-t1.frm
 db.opt
 t1.MYD
 t1.MYI
+t1.fbk
 t1.frm
 t2.MYD
 t2.MYI
@@ -264,9 +301,31 @@ id
 alter table t2 add foreign key (id) references t1(id), algorithm=copy;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
-#sql-nnnn_nnnn.frm
+#sql-alter-4.MYD
+#sql-alter-4.MYI
+#sql-alter-4.frm
+#sqlf-shadow-4-t1.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.fbk
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
 # State after crash recovery
-#sql-nnnn_nnnn.frm
+#sql-alter-4.MYD
+#sql-alter-4.MYI
+#sql-alter-4.frm
+#sqlf-shadow-4-t1.frm
+db.opt
+t1.MYD
+t1.MYI
+t1.fbk
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

@@ -910,12 +910,19 @@ typedef struct st_ddl_log_memory_entry
 
 struct ddl_log_info
 {
-  ddl_log_info() : first_entry(NULL), exec_entry(NULL), log_entry(NULL) {}
-  DDL_LOG_MEMORY_ENTRY *first_entry; // FIXME: is it needed?
+  DDL_LOG_MEMORY_ENTRY *first_entry;
   DDL_LOG_MEMORY_ENTRY *exec_entry;
-  DDL_LOG_MEMORY_ENTRY *log_entry;
+  ddl_log_info() : first_entry(NULL), exec_entry(NULL) {}
+  ~ddl_log_info()
+  {
+    // write_log_finish() must be called
+    DBUG_ASSERT(!first_entry);
+  }
+  void release();
   bool write_log_replace_delete_frm(uint next_entry, const char *from_path,
                                     const char *to_path, bool replace_flag);
+
+  void write_log_finish();
 };
 
 
@@ -971,7 +978,11 @@ protected:
 class FK_ddl_vector: public mbd::vector<FK_ddl_backup>, public ddl_log_info
 {
 public:
-  void install_shadow_frms();
+  bool install_shadow_frms(THD *thd);
+  ~FK_ddl_vector()
+  {
+
+  }
 };
 
 

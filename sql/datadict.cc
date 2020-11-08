@@ -478,15 +478,6 @@ frm_err:
 }
 
 
-static void release_log_entries(DDL_LOG_MEMORY_ENTRY *log_entry)
-{
-  while (log_entry)
-  {
-    release_ddl_log_memory_entry(log_entry);
-    log_entry= log_entry->next_active_log_entry;
-  }
-}
-
 bool ddl_log_info::write_log_replace_delete_frm(uint next_entry,
                                                 const char *from_path,
                                                 const char *to_path,
@@ -505,17 +496,18 @@ bool ddl_log_info::write_log_replace_delete_frm(uint next_entry,
     ddl_log_entry.from_name= from_path;
   if (ERROR_INJECT("fail_log_replace_delete_1", "crash_log_replace_delete_1"))
     return true;
+  DDL_LOG_MEMORY_ENTRY *next_active_log_entry= first_entry;
   Mutex_lock lock_gdl(&LOCK_gdl);
-  if (write_ddl_log_entry(&ddl_log_entry, &log_entry))
+  if (write_ddl_log_entry(&ddl_log_entry, &first_entry))
   {
 error:
-    release_log_entries(log_entry); // FIXME: it was first_log_entry
     my_error(ER_DDL_LOG_ERROR, MYF(0));
     return true;
   }
   if (ERROR_INJECT("fail_log_replace_delete_2", "crash_log_replace_delete_2"))
     goto error;
-  if (write_execute_ddl_log_entry(log_entry->entry_pos, FALSE, &exec_entry))
+  first_entry->next_active_log_entry= next_active_log_entry;
+  if (write_execute_ddl_log_entry(first_entry->entry_pos, false, &exec_entry))
     goto error;
   if (ERROR_INJECT("fail_log_replace_delete_3", "crash_log_replace_delete_3"))
     goto error;
@@ -533,7 +525,7 @@ bool FK_backup::fk_write_shadow_frm(ddl_log_info &log_info)
                               s->db, s->table_name, tmp_fk_prefix);
   if (log_info.write_log_replace_delete_frm(0, NULL, shadow_path, false))
     return true;
-  delete_shadow_entry= log_info.log_entry;
+  delete_shadow_entry= log_info.first_entry;
   bool err= s->fk_write_shadow_frm_impl(shadow_path);
   if (ERROR_INJECT("fail_fk_write_shadow", "crash_fk_write_shadow"))
     return true;
@@ -560,7 +552,7 @@ bool FK_backup::fk_backup_frm(ddl_log_info &log_info)
   }
   if (log_info.write_log_replace_delete_frm(0, bak_name, frm_name, true))
     return true;
-  restore_backup_entry= log_info.log_entry;
+  restore_backup_entry= log_info.first_entry;
   if (mysql_file_rename(key_file_frm, frm_name, bak_name, MYF(MY_WME)))
     return true;
   if (ERROR_INJECT("fail_fk_backup_frm", "crash_fk_backup_frm"))
@@ -619,10 +611,11 @@ void FK_backup::fk_drop_backup_frm(ddl_log_info &log_info)
 }
 
 
-void FK_ddl_vector::install_shadow_frms()
+// FIXME: handle return status
+bool FK_ddl_vector::install_shadow_frms(THD *thd)
 {
   if (!size())
-    return;
+    return false;
   for (FK_ddl_backup &bak: *this)
   {
     if (bak.fk_backup_frm(*this))
@@ -631,19 +624,42 @@ void FK_ddl_vector::install_shadow_frms()
   for (FK_ddl_backup &bak: *this)
   {
     if (bak.fk_install_shadow_frm(*this))
+    {
+      // FIXME: return backup FRMs, test
       goto error;
+    }
   }
 
   for (FK_ddl_backup &bak: *this)
-    deactivate_ddl_log_entry(bak.restore_backup_entry->entry_pos);
+  {
+    if (deactivate_ddl_log_entry(bak.restore_backup_entry->entry_pos))
+    {
+      // FIXME: return backup FRMs, test
+      goto error;
+    }
+  }
 
   for (FK_ddl_backup &bak: *this)
     bak.fk_drop_backup_frm(*this);
 
-  return;
+  write_log_finish();
+
+  return false;
 
 error:
   // FIXME: push warning
   for (FK_ddl_backup &bak: *this)
     bak.rollback(*this);
+
+  if (execute_ddl_log_entry(thd, first_entry->entry_pos))
+  {
+    write_log_finish();
+    // FIXME: push warning
+  }
+  else
+  {
+    Mutex_lock lock_gdl(&LOCK_gdl);
+    release();
+  }
+  return true;
 }
