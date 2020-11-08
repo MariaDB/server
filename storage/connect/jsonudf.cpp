@@ -6013,7 +6013,8 @@ JUP::JUP(PGLOBAL g) {
 	fs = NULL;
 	s = buff = NULL;
 	len = 0;
-	i = k = recl = 0;
+	k = recl = 0;
+	i = 0;
 } // end of JUP constructor
 
 /*********************************************************************************/

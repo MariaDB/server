@@ -364,7 +364,7 @@ public:
 	char  *s;
 	char  *buff;
 	size_t len;
-	int    recl;
-	int    i, k;
+	uint   i;
+	int    k, recl;
 }; // end of class JUP
 
