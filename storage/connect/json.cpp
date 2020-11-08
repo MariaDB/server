@@ -1892,7 +1892,7 @@ PJAR SWAP::MptrArray(PJAR ojar) {
 PJOB SWAP::MptrObject(PJOB ojob) {
   PJOB jobp = (PJOB)MakePtr(Base, (size_t)ojob);
 
-  jobp = (PJOB)new((long long)jobp) JOBJECT(NULL);
+  jobp = (PJOB)new((long long)jobp) JOBJECT(0);
 
   if (jobp->First) {
     jobp->First = (PJPR)MptrPair(jobp->First);
