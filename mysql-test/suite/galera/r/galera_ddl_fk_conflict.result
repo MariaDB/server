@@ -104,6 +104,7 @@ connection node_1;
 BEGIN;
 connection node_1b;
 BEGIN;
+connection node_1a;
 SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
 connection node_2;
 OPTIMIZE TABLE c2 ;
@@ -147,6 +148,58 @@ EXPECT_2
 2
 DROP TABLE c1, c2;
 DROP TABLE p1, p2;
+######################################################################
+# Test for OPTIMIZE 
+######################################################################
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
+CREATE TABLE c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT INTO c1 VALUES (1,1);
+######################################################################
+#
+# Scenario #4: DML working on FK parent table tries to replicate, but
+#              fails in certification for earlier DDL on child table
+#              and another temporary table. TMP table should be skipped
+#              but FK child table should be replicated with proper keys
+#
+######################################################################
+connection node_1;
+BEGIN;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+CREATE TEMPORARY TABLE tmp (i int);
+OPTIMIZE TABLE c1, tmp ;
+Table	Op	Msg_type	Msg_text
+test.c1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.c1	optimize	status	OK
+test.tmp	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.tmp	optimize	status	OK
+DROP TABLE tmp;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+COMMIT;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+DROP TABLE c1;
+DROP TABLE p1;
 ######################################################################
 # Test for REPAIR 
 ######################################################################
@@ -243,6 +296,7 @@ connection node_1;
 BEGIN;
 connection node_1b;
 BEGIN;
+connection node_1a;
 SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
 connection node_2;
 REPAIR TABLE c2 ;
@@ -285,6 +339,56 @@ EXPECT_2
 2
 DROP TABLE c1, c2;
 DROP TABLE p1, p2;
+######################################################################
+# Test for REPAIR 
+######################################################################
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+CREATE TABLE p1 (pk INTEGER PRIMARY KEY, f2 CHAR(30));
+INSERT INTO p1 VALUES (1, 'INITIAL VALUE');
+CREATE TABLE c1 (pk INTEGER PRIMARY KEY, fk INTEGER, FOREIGN KEY (fk) REFERENCES p1(pk));
+INSERT INTO c1 VALUES (1,1);
+######################################################################
+#
+# Scenario #4: DML working on FK parent table tries to replicate, but
+#              fails in certification for earlier DDL on child table
+#              and another temporary table. TMP table should be skipped
+#              but FK child table should be replicated with proper keys
+#
+######################################################################
+connection node_1;
+BEGIN;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+CREATE TEMPORARY TABLE tmp (i int);
+REPAIR TABLE c1, tmp ;
+Table	Op	Msg_type	Msg_text
+test.c1	repair	note	The storage engine for the table doesn't support repair
+test.tmp	repair	note	The storage engine for the table doesn't support repair
+DROP TABLE tmp;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
+COMMIT;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT 'I deadlocked';
+I deadlocked
+I deadlocked
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p1 WHERE f2 = 'INITIAL VALUE';
+EXPECT_1
+1
+DROP TABLE c1;
+DROP TABLE p1;
 ######################################################################
 # Test for ALTER ENGINE=INNODB
 ######################################################################
@@ -377,6 +481,7 @@ connection node_1;
 BEGIN;
 connection node_1b;
 BEGIN;
+connection node_1a;
 SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
 connection node_2;
 ALTER TABLE c2 ENGINE=INNODB;
@@ -509,6 +614,7 @@ connection node_1;
 BEGIN;
 connection node_1b;
 BEGIN;
+connection node_1a;
 SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
 connection node_2;
 TRUNCATE TABLE c2 ;
