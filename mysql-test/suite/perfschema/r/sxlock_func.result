@@ -8,8 +8,6 @@ select name from performance_schema.setup_instruments
 where name like "wait/synch/sxlock/%" order by name;
 name
 wait/synch/sxlock/innodb/fil_space_latch
-wait/synch/sxlock/innodb/fts_cache_init_rw_lock
-wait/synch/sxlock/innodb/fts_cache_rw_lock
 wait/synch/sxlock/innodb/index_tree_rw_lock
 select name from performance_schema.rwlock_instances
 where name in

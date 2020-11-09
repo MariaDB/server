@@ -1281,7 +1281,7 @@ dict_create_index_step(
 			    && node->table->fts) {
 				fts_index_cache_t*	index_cache;
 
-				rw_lock_x_lock(
+				mysql_mutex_lock(
 					&node->table->fts->cache->init_lock);
 
 				index_cache = (fts_index_cache_t*)
@@ -1298,7 +1298,7 @@ dict_create_index_step(
 					node->table->fts->cache->indexes,
 					*reinterpret_cast<void**>(index_cache));
 
-				rw_lock_x_unlock(
+				mysql_mutex_unlock(
 					&node->table->fts->cache->init_lock);
 			}
 

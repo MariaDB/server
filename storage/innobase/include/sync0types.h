@@ -195,7 +195,6 @@ enum latch_level_t {
 
 	SYNC_FTS_TOKENIZE,
 	SYNC_FTS_OPTIMIZE,
-	SYNC_FTS_CACHE_INIT,
 	SYNC_RECV,
 	SYNC_PURGE_QUEUE,
 	SYNC_TRX_SYS_HEADER,
@@ -234,7 +233,6 @@ enum latch_level_t {
 	SYNC_DICT_HEADER,
 	SYNC_STATS_AUTO_RECALC,
 	SYNC_DICT,
-	SYNC_FTS_CACHE,
 
 	/** Level is varying. Only used with buffer pool page locks, which
 	do not have a fixed level, but instead have their level set after
@@ -290,8 +288,6 @@ enum latch_id_t {
 	LATCH_ID_BUF_BLOCK_LOCK,
 	LATCH_ID_BUF_BLOCK_DEBUG,
 	LATCH_ID_FIL_SPACE,
-	LATCH_ID_FTS_CACHE,
-	LATCH_ID_FTS_CACHE_INIT,
 	LATCH_ID_IBUF_INDEX_TREE,
 	LATCH_ID_INDEX_TREE,
 	LATCH_ID_DICT_TABLE_STATS,
@@ -957,7 +953,6 @@ struct sync_checker : public sync_check_functor_t
 			switch (level) {
 			case SYNC_FSP:
 			case SYNC_DICT:
-			case SYNC_FTS_CACHE:
 			case SYNC_NO_ORDER_CHECK:
 				return(false);
 			default:

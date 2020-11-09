@@ -44,6 +44,8 @@ extern mysql_pfs_key_t	dict_foreign_err_mutex_key;
 extern mysql_pfs_key_t	dict_sys_mutex_key;
 extern mysql_pfs_key_t	fil_system_mutex_key;
 extern mysql_pfs_key_t	flush_list_mutex_key;
+extern mysql_pfs_key_t	fts_cache_mutex_key;
+extern mysql_pfs_key_t	fts_cache_init_mutex_key;
 extern mysql_pfs_key_t	fts_delete_mutex_key;
 extern mysql_pfs_key_t	fts_doc_id_mutex_key;
 extern mysql_pfs_key_t	fts_pll_tokenize_mutex_key;
@@ -89,8 +91,6 @@ extern mysql_pfs_key_t	read_view_mutex_key;
 performance schema */
 extern	mysql_pfs_key_t	dict_operation_lock_key;
 extern	mysql_pfs_key_t	fil_space_latch_key;
-extern	mysql_pfs_key_t	fts_cache_rw_lock_key;
-extern	mysql_pfs_key_t	fts_cache_init_rw_lock_key;
 extern	mysql_pfs_key_t	trx_i_s_cache_lock_key;
 extern	mysql_pfs_key_t	trx_purge_latch_key;
 extern	mysql_pfs_key_t	index_tree_rw_lock_key;

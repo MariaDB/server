@@ -522,6 +522,8 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(recalc_pool_mutex),
 	PSI_KEY(fil_system_mutex),
 	PSI_KEY(flush_list_mutex),
+	PSI_KEY(fts_cache_mutex),
+	PSI_KEY(fts_cache_init_mutex),
 	PSI_KEY(fts_delete_mutex),
 	PSI_KEY(fts_doc_id_mutex),
 	PSI_KEY(log_flush_order_mutex),
@@ -566,8 +568,6 @@ static PSI_rwlock_info all_innodb_rwlocks[] = {
 #  endif
 	{ &dict_operation_lock_key, "dict_operation_lock", 0 },
 	PSI_RWLOCK_KEY(fil_space_latch),
-	PSI_RWLOCK_KEY(fts_cache_rw_lock),
-	PSI_RWLOCK_KEY(fts_cache_init_rw_lock),
 	{ &trx_i_s_cache_lock_key, "trx_i_s_cache_lock", 0 },
 	{ &trx_purge_latch_key, "trx_purge_latch", 0 },
 	PSI_RWLOCK_KEY(index_tree_rw_lock),

@@ -887,13 +887,12 @@ fts_table_fetch_doc_ids(
 This function brings FTS index in sync when FTS index is first
 used. There are documents that have not yet sync-ed to auxiliary
 tables from last server abnormally shutdown, we will need to bring
-such document into FTS cache before any further operations
-@return TRUE if all OK */
-ibool
+such document into FTS cache before any further operations */
+void
 fts_init_index(
 /*===========*/
 	dict_table_t*	table,			/*!< in: Table with FTS */
-	ibool		has_cache_lock);	/*!< in: Whether we already
+	bool		has_cache_lock);	/*!< in: Whether we already
 						have cache lock */
 /*******************************************************************//**
 Add a newly create index in FTS cache */

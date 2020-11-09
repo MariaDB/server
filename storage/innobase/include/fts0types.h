@@ -123,13 +123,10 @@ struct fts_sync_t {
 that new entries are added to, until it grows over the configured maximum
 size, at which time its contents are written to the INDEX table. */
 struct fts_cache_t {
-	rw_lock_t	lock;		/*!< lock protecting all access to the
-					memory buffer. FIXME: this needs to
-					be our new upgrade-capable rw-lock */
-
-	rw_lock_t	init_lock;	/*!< lock used for the cache
-					intialization, it has different
-					SYNC level as above cache lock */
+	mysql_mutex_t	lock;		/*!< lock protecting all access to the
+					memory buffer */
+	mysql_mutex_t	init_lock;	/*!< lock used for the cache
+					intialization */
 
 	ib_mutex_t	deleted_lock;	/*!< Lock covering deleted_doc_ids */
 
