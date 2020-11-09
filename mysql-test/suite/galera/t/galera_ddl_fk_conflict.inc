@@ -62,6 +62,13 @@ UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
 
 --connection node_2
 SET SESSION wsrep_sync_wait=0;
+# wait for tables to be created in node 2 and all rows inserted as well
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/c%'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 2  FROM c2
+--source include/wait_condition.inc
+
+# replicate the DDL to be tested
 --eval $table_admin_command TABLE c1 $table_admin_command_end
 
 --connection node_1
@@ -102,11 +109,11 @@ UPDATE p1 SET f2 = 'TO DEADLOCK' WHERE pk = 1;
 --send COMMIT
 
 --connection node_1a
---let $galera_sync_point = apply_monitor_slave_enter_sync
---source include/galera_signal_sync_point.inc
-
 --let $wait_condition = SELECT VARIABLE_VALUE = $expected_cert_failures FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'
 --source include/wait_condition.inc
+
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
 
 --connection node_1
 --error ER_LOCK_DEADLOCK
@@ -136,6 +143,7 @@ BEGIN;
 --connection node_1b
 BEGIN;
 
+--connection node_1a
 # Block the applier on node #1 and issue DDL on node 2
 --let $galera_sync_point = apply_monitor_slave_enter_sync
 --source include/galera_set_sync_point.inc
@@ -157,11 +165,11 @@ UPDATE p2 SET f2 = 'TO DEADLOCK' WHERE pk = 2;
 --send COMMIT
 
 --connection node_1a
---let $galera_sync_point = apply_monitor_slave_enter_sync
---source include/galera_signal_sync_point.inc
-
 --let $wait_condition = SELECT VARIABLE_VALUE = $expected_cert_failures FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'
 --source include/wait_condition.inc
+
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
 
 --connection node_1
 --error ER_LOCK_DEADLOCK
