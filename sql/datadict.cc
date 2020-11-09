@@ -646,6 +646,36 @@ bool FK_ddl_vector::install_shadow_frms(THD *thd)
     dbg_first= false;
 #endif
   }
+
+  return false;
+
+error:
+  rollback(thd);
+  return true;
+}
+
+
+void FK_ddl_vector::rollback(THD *thd)
+{
+  // FIXME: push warning
+  for (FK_ddl_backup &bak: *this)
+    bak.rollback(*this);
+
+  if (execute_ddl_log_entry(thd, first_entry->entry_pos))
+  {
+    write_log_finish();
+    // FIXME: push warning
+  }
+  else
+  {
+    Mutex_lock lock_gdl(&LOCK_gdl);
+    release();
+  }
+}
+
+
+void FK_ddl_vector::drop_backup_frms(THD *thd)
+{
 #ifndef DBUG_OFF
   dbg_first= true;
 #endif
@@ -653,8 +683,8 @@ bool FK_ddl_vector::install_shadow_frms(THD *thd)
   {
     if (deactivate_ddl_log_entry(bak.restore_backup_entry->entry_pos))
     {
-      // FIXME: return backup FRMs, test
-      goto error;
+      // TODO: must be atomic
+      // FIXME: push warning
     }
 #ifndef DBUG_OFF
     dbg_first= false;
@@ -671,23 +701,4 @@ bool FK_ddl_vector::install_shadow_frms(THD *thd)
 #endif
   }
   write_log_finish();
-
-  return false;
-
-error:
-  // FIXME: push warning
-  for (FK_ddl_backup &bak: *this)
-    bak.rollback(*this);
-
-  if (execute_ddl_log_entry(thd, first_entry->entry_pos))
-  {
-    write_log_finish();
-    // FIXME: push warning
-  }
-  else
-  {
-    Mutex_lock lock_gdl(&LOCK_gdl);
-    release();
-  }
-  return true;
 }

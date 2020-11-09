@@ -2485,8 +2485,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       }
       bool enoent_warning;
       FK_ddl_vector shares;
-      if ((error= fk_handle_drop(thd, table, shares, drop_db)))
-        goto fk_error;
+      error= fk_handle_drop(thd, table, shares, drop_db);
+      if (unlikely(error))
+        goto err;
 
       if (thd->locked_tables_mode == LTM_LOCK_TABLES ||
           thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)
@@ -2494,9 +2495,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))
         {
           error= -1;
-          for (FK_ddl_backup &bak: shares)
-            if (bak.sa.share)
-              bak.rollback(shares);
+          shares.rollback(thd);
           goto err;
         }
         close_all_tables_for_name(thd, table->table->s,
@@ -2509,6 +2508,11 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       /* Check that we have an exclusive lock on the table to be dropped. */
       DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db.str,
                                                 table_name.str, MDL_EXCLUSIVE));
+
+
+      error= shares.install_shadow_frms(thd);
+      if (unlikely(error))
+        goto err;
 
       // Remove extension for delete
       *path_end= '\0';
@@ -2526,13 +2530,10 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         error= 0;                            // Table didn't exists
       else if (error)
       {
-fk_error:
+        shares.rollback(thd);
         if (drop_db || thd->is_killed())
         {
           error= -1;
-          for (FK_ddl_backup &bak: shares)
-            if (bak.sa.share)
-              bak.rollback(shares);
           goto err;
         }
       }
@@ -2580,23 +2581,12 @@ fk_error:
           table_dropped= 1;
         }
       }
-      if (likely(!error))
-      {
-        /*
-           TODO: recover dropped table if install_shadow_frms() fails.
 
-           NB: We cannot do install_shadow_frms() before ha_delete_table() because
-           frms must be oroginal if DROP fails. OTOH we should fail DROP if we
-           failed to change frms.
-        */
-        error= shares.install_shadow_frms(thd);
-      }
+      if (likely(!error))
+        shares.drop_backup_frms(thd);
       else
-      {
-        for (FK_ddl_backup &bak: shares)
-          if (bak.sa.share)
-            bak.rollback(shares);
-      }
+        shares.rollback(thd);
+
       local_non_tmp_error|= MY_TEST(error);
     }
 
@@ -9996,12 +9986,13 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                                          &alter_ctx->table_name,
                                          &alter_ctx->new_db,
                                          &alter_ctx->new_name);
-      error= fk_rename_backup.install_shadow_frms(thd);
+      error= fk_rename_backup.install_shadow_frms(thd); // FIXME: move to beginning
+      if (!error)
+        fk_rename_backup.drop_backup_frms(thd);
     }
     else
     {
-      for (FK_ddl_backup &bak: fk_rename_backup)
-        bak.rollback(fk_rename_backup);
+      fk_rename_backup.rollback(thd);
     }
   }
 
@@ -13161,7 +13152,10 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, FK_ddl_vector &shares,
     if (err)
     {
       if (err > 2)
+      {
+        shares.rollback(thd);
         return true;
+      }
       // ignore non-existent frm (main.drop_table_force, Test6)
       thd->clear_error();
       ref.sa.release();
@@ -13342,11 +13336,12 @@ void
 FK_ddl_backup::rollback(ddl_log_info& log_info)
 {
   // FIXME: add test case
-//   DBUG_ASSERT(0);
-  DBUG_ASSERT(sa.share);
-  sa.share->foreign_keys= foreign_keys;
-  sa.share->referenced_keys= referenced_keys;
-  delete_shadow_entry= NULL;
+  if (sa.share)
+  {
+    sa.share->foreign_keys= foreign_keys;
+    sa.share->referenced_keys= referenced_keys;
+    delete_shadow_entry= NULL;
+  }
 }
 
 

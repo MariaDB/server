@@ -178,14 +178,15 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
     /* Revert the table list (for prepared statements) */
     table_list= reverse_table_list(table_list);
 
-    for (FK_ddl_backup &bak: fk_rename_backup)
-      bak.rollback(fk_rename_backup);
+    fk_rename_backup.rollback(thd);
 
     error= 1;
   }
   else
   {
-    error= fk_rename_backup.install_shadow_frms(thd);
+    error= fk_rename_backup.install_shadow_frms(thd); // FIXME: move to beginning
+    if (!error)
+      fk_rename_backup.drop_backup_frms(thd);
   }
 
   if (likely(!silent && !error))

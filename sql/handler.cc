@@ -5571,7 +5571,8 @@ int ha_create_table(THD *thd, const char *path,
 
   if (fk_update_refs)
   {
-    fk_shares.install_shadow_frms(thd);
+    fk_shares.install_shadow_frms(thd); // FIXME: move to beginning, handle return status
+    fk_shares.drop_backup_frms(thd);
   }
 
   free_table_share(&share);

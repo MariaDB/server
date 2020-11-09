@@ -982,6 +982,8 @@ class FK_ddl_vector: public mbd::vector<FK_ddl_backup>, public ddl_log_info
 {
 public:
   bool install_shadow_frms(THD *thd);
+  void drop_backup_frms(THD *thd);
+  void rollback(THD *thd);
   ~FK_ddl_vector()
   {
 
