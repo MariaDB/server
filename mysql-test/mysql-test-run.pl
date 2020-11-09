@@ -802,6 +802,7 @@ sub run_test_server ($$$) {
 	  # Client disconnected
 	  mtr_verbose("Child closed socket");
 	  $s->remove($sock);
+	  $sock->close;
 	  if (--$childs == 0){
 	    return ("Completed", $test_failure, $completed, $extra_warnings);
 	  }
@@ -971,6 +972,7 @@ sub run_test_server ($$$) {
             # Test failure due to warnings, force is off
             return ("Warnings in log", 1, $completed, $extra_warnings);
           }
+          next;
         }
 	elsif ($line =~ /^SPENT/) {
 	  add_total_times($line);
@@ -4184,6 +4186,7 @@ sub run_testcase ($$) {
     if (start_servers($tinfo))
     {
       report_failure_and_restart($tinfo);
+      unlink $path_current_testlog;
       return 1;
     }
   }
