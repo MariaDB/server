@@ -86,11 +86,6 @@ flush tables;
 --error 1,ER_TABLE_EXISTS_ERROR
 --eval CREATE TABLE MDEV_23222 (i INT) DATA DIRECTORY = '$MYSQL_TMP_DIR', ENGINE=Aria TRANSACTIONAL=1;
 DROP TABLE t1;
---disable_warnings
---remove_file $mysqld_datadir/test/MDEV_23222.MAD
---replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---remove_file $MYSQL_TMP_DIR/MDEV_23222.MAD
---enable_warnings
 
 --echo #
 --echo # End of 10.3 tests
