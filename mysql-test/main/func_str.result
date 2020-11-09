@@ -211,6 +211,11 @@ this	is 	test
 select replace('aaaa','a','b'),replace('aaaa','aa','b'),replace('aaaa','a','bb'),replace('aaaa','','b'),replace('bbbb','a','c');
 replace('aaaa','a','b')	replace('aaaa','aa','b')	replace('aaaa','a','bb')	replace('aaaa','','b')	replace('bbbb','a','c')
 bbbb	bb	bbbbbbbb	aaaa	bbbb
+select replace('aaaa','a','bbbb');
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					replace('aaaa','a','bbbb')	253	16	16	Y	0	39	8
+replace('aaaa','a','bbbb')
+bbbbbbbbbbbbbbbb
 select replace(concat(lcase(concat('THIS',' ','IS',' ','A',' ')),ucase('false'),' ','test'),'FALSE','REAL') ;
 replace(concat(lcase(concat('THIS',' ','IS',' ','A',' ')),ucase('false'),' ','test'),'FALSE','REAL')
 this is a REAL test
