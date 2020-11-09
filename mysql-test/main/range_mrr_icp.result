@@ -1253,7 +1253,7 @@ SELECT * FROM t1 WHERE
 5 <= a AND b = 3 OR
 3 <= a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	3	Using where; Using index
+1	SIMPLE	t1	range	a	a	5	NULL	4	Using where; Using index
 SELECT * FROM t1 WHERE
 3 <= a AND a <= 5 OR 
 5 <= a AND b = 3 OR
@@ -3044,6 +3044,39 @@ a	b
 15	ffffzz
 set eq_range_index_dive_limit=default;
 drop table t1;
+#
+# MDEV-24117: Memory management problem in statistics state...
+#  (just the testcase)
+#
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1
+select A.a + B.a* 10 + C.a * 100 + D.a * 1000
+from t0 A, t0 B, t0 C, t0 D
+where D.a<4;
+create table t2 (
+a int,
+b int,
+key(a)
+);
+insert into t2 values (1,1),(2,2),(3,3);
+set @query=(select group_concat(a) from t1);
+set @tmp_24117= @@max_session_mem_used;
+#
+# On debug build, the usage was
+#  - 2.8M without the bug
+#  - 1G with the bug.
+set max_session_mem_used=64*1024*1024;
+set @query=concat('explain select * from t2 where a in (', @query, ')');
+prepare s from @query;
+# This should not fail with an error:
+execute s;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	3	Using where
+set max_session_mem_used=@tmp_24117;
+deallocate prepare s;
+drop table t0,t1,t2;
 #
 # MDEV-23811: Both disjunct of WHERE condition contain range conditions
 #             for the same index such that the second range condition
