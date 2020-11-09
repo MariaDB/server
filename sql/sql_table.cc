@@ -2582,7 +2582,14 @@ fk_error:
       }
       if (likely(!error))
       {
-        shares.install_shadow_frms(thd);
+        /*
+           TODO: recover dropped table if install_shadow_frms() fails.
+
+           NB: We cannot do install_shadow_frms() before ha_delete_table() because
+           frms must be oroginal if DROP fails. OTOH we should fail DROP if we
+           failed to change frms.
+        */
+        error= shares.install_shadow_frms(thd);
       }
       else
       {

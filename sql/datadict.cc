@@ -553,9 +553,14 @@ bool FK_backup::fk_backup_frm(ddl_log_info &log_info)
   if (log_info.write_log_replace_delete_frm(0, bak_name, frm_name, true))
     return true;
   restore_backup_entry= log_info.first_entry;
-  if (mysql_file_rename(key_file_frm, frm_name, bak_name, MYF(MY_WME)))
+#ifndef DBUG_OFF
+  if (!log_info.dbg_first &&
+      ERROR_INJECT("fail_fk_backup_frm", "crash_fk_backup_frm"))
+  {
     return true;
-  if (ERROR_INJECT("fail_fk_backup_frm", "crash_fk_backup_frm"))
+  }
+#endif
+  if (mysql_file_rename(key_file_frm, frm_name, bak_name, MYF(MY_WME)))
     return true;
   return false;
 }
@@ -616,11 +621,20 @@ bool FK_ddl_vector::install_shadow_frms(THD *thd)
 {
   if (!size())
     return false;
+#ifndef DBUG_OFF
+  dbg_first= true;
+#endif
   for (FK_ddl_backup &bak: *this)
   {
     if (bak.fk_backup_frm(*this))
       goto error;
+#ifndef DBUG_OFF
+    dbg_first= false;
+#endif
   }
+#ifndef DBUG_OFF
+  dbg_first= true;
+#endif
   for (FK_ddl_backup &bak: *this)
   {
     if (bak.fk_install_shadow_frm(*this))
@@ -628,8 +642,13 @@ bool FK_ddl_vector::install_shadow_frms(THD *thd)
       // FIXME: return backup FRMs, test
       goto error;
     }
+#ifndef DBUG_OFF
+    dbg_first= false;
+#endif
   }
-
+#ifndef DBUG_OFF
+  dbg_first= true;
+#endif
   for (FK_ddl_backup &bak: *this)
   {
     if (deactivate_ddl_log_entry(bak.restore_backup_entry->entry_pos))
@@ -637,11 +656,20 @@ bool FK_ddl_vector::install_shadow_frms(THD *thd)
       // FIXME: return backup FRMs, test
       goto error;
     }
+#ifndef DBUG_OFF
+    dbg_first= false;
+#endif
   }
-
+#ifndef DBUG_OFF
+  dbg_first= true;
+#endif
   for (FK_ddl_backup &bak: *this)
+  {
     bak.fk_drop_backup_frm(*this);
-
+#ifndef DBUG_OFF
+    dbg_first= false;
+#endif
+  }
   write_log_finish();
 
   return false;
