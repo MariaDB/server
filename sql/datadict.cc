@@ -557,11 +557,23 @@ bool FK_backup::fk_backup_frm(ddl_log_info &log_info)
   if (!log_info.dbg_first &&
       (ERROR_INJECT("fail_fk_backup_frm", "crash_fk_backup_frm")))
   {
-    return true;
+    goto rename_failed;
   }
 #endif
   if (mysql_file_rename(key_file_frm, frm_name, bak_name, MYF(MY_WME)))
+  {
+rename_failed:
+    /* Rename failed and we don't want rollback to delete original frm */
+    if (deactivate_ddl_log_entry(restore_backup_entry->entry_pos))
+    {
+      /* This is very bad case because log replay will delete original frm.
+         At least try prohibit replaying it and push an alert message. */
+      log_info.write_log_finish();
+      // FIXME: push error
+    }
+    restore_backup_entry= NULL;
     return true;
+  }
   return false;
 }
 
