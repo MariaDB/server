@@ -128,20 +128,18 @@ trx_undo_parse_add_undo_rec(
 	return(ptr + len);
 }
 
-/**********************************************************************//**
-Calculates the free space left for extending an undo log record.
+/** Calculate the free space left for extending an undo log record.
+@param page    undo log page
+@param ptr     current end of the undo page
 @return bytes left */
-UNIV_INLINE
-ulint
-trx_undo_left(
-/*==========*/
-	const page_t*	page,	/*!< in: undo log page */
-	const byte*	ptr)	/*!< in: pointer to page */
+static ulint trx_undo_left(const page_t *page, const byte *ptr)
 {
-	/* The '- 10' is a safety margin, in case we have some small
-	calculation error below */
-
-	return(UNIV_PAGE_SIZE - (ptr - page) - 10 - FIL_PAGE_DATA_END);
+  ut_ad(ptr >= &page[TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE]);
+  /* The 10 is supposed to be an extra safety margin (and needed for
+  compatibility with older versions) */
+  lint left= srv_page_size - (ptr - page) - (10 + FIL_PAGE_DATA_END);
+  ut_ad(left >= 0);
+  return left < 0 ? 0 : static_cast<ulint>(left);
 }
 
 /**********************************************************************//**
