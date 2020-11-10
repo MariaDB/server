@@ -6205,6 +6205,7 @@ static bool write_log_replace_delete_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
     ddl_log_entry.action_type= DDL_LOG_REPLACE_ACTION;
   else
     ddl_log_entry.action_type= DDL_LOG_DELETE_ACTION;
+  ddl_log_entry.entry_type= DDL_LOG_ENTRY_CODE;
   ddl_log_entry.next_entry= next_entry;
   ddl_log_entry.handler_name= reg_ext;
   ddl_log_entry.name= to_path;
@@ -6245,6 +6246,7 @@ static bool write_log_changed_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
                                          uint *next_entry, const char *path)
 {
   DDL_LOG_ENTRY ddl_log_entry;
+  ddl_log_entry.entry_type= DDL_LOG_ENTRY_CODE;
   partition_info *part_info= lpt->part_info;
   DDL_LOG_MEMORY_ENTRY *log_entry;
   char tmp_path[FN_REFLEN + 1];
@@ -6344,6 +6346,7 @@ static bool write_log_dropped_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
                                          bool temp_list)
 {
   DDL_LOG_ENTRY ddl_log_entry;
+  ddl_log_entry.entry_type= DDL_LOG_ENTRY_CODE;
   partition_info *part_info= lpt->part_info;
   DDL_LOG_MEMORY_ENTRY *log_entry;
   char tmp_path[FN_REFLEN + 1];

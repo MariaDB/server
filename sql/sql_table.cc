@@ -854,8 +854,10 @@ static uint read_ddl_log_header()
 static void set_global_from_ddl_log_entry(const DDL_LOG_ENTRY *ddl_log_entry)
 {
   mysql_mutex_assert_owner(&LOCK_gdl);
+  DBUG_ASSERT(ddl_log_entry->entry_type == DDL_LOG_ENTRY_CODE ||
+              ddl_log_entry->entry_type == DDL_TRY_LOG_ENTRY_CODE);
   global_ddl_log.file_entry_buf[DDL_LOG_ENTRY_TYPE_POS]=
-                                    (char)DDL_LOG_ENTRY_CODE;
+                                    (char) ddl_log_entry->entry_type;
   global_ddl_log.file_entry_buf[DDL_LOG_ACTION_TYPE_POS]=
                                     (char)ddl_log_entry->action_type;
   global_ddl_log.file_entry_buf[DDL_LOG_PHASE_POS]= 0;
@@ -1054,7 +1056,8 @@ static bool deactivate_ddl_log_entry_no_lock(uint entry_no)
   mysql_mutex_assert_owner(&LOCK_gdl);
   if (!read_ddl_log_file_entry(entry_no))
   {
-    if (file_entry_buf[DDL_LOG_ENTRY_TYPE_POS] == DDL_LOG_ENTRY_CODE)
+    if (file_entry_buf[DDL_LOG_ENTRY_TYPE_POS] == DDL_LOG_ENTRY_CODE ||
+        file_entry_buf[DDL_LOG_ENTRY_TYPE_POS] == DDL_TRY_LOG_ENTRY_CODE)
     {
       /*
         Log entry, if complete mark it done (IGNORE).
@@ -1390,15 +1393,15 @@ static bool execute_ddl_log_entry_no_lock(THD *thd, uint first_entry)
                       read_entry);
       break;
     }
-    DBUG_ASSERT(ddl_log_entry.entry_type == DDL_LOG_ENTRY_CODE ||
-                ddl_log_entry.entry_type == DDL_IGNORE_LOG_ENTRY_CODE);
+    DBUG_ASSERT(ddl_log_entry.entry_type != DDL_LOG_EXECUTE_CODE);
 
     if (execute_ddl_log_action(thd, &ddl_log_entry))
     {
       /* Write to error log and continue with next log entry */
       sql_print_error("Failed to execute action for entry = %u from ddl log",
                       read_entry);
-      break;
+      if (ddl_log_entry.entry_type != DDL_TRY_LOG_ENTRY_CODE)
+        break; // TODO: do we need this break at all?
     }
     read_entry= ddl_log_entry.next_entry;
   } while (read_entry);

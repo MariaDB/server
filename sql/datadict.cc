@@ -489,6 +489,7 @@ bool ddl_log_info::write_log_replace_delete_frm(const char *from_path,
     ddl_log_entry.action_type= DDL_LOG_REPLACE_ACTION;
   else
     ddl_log_entry.action_type= DDL_LOG_DELETE_ACTION;
+  ddl_log_entry.entry_type= DDL_TRY_LOG_ENTRY_CODE;
   ddl_log_entry.next_entry= first_entry ? first_entry->entry_pos : 0;
   ddl_log_entry.handler_name= file_action;
   ddl_log_entry.name= to_path;

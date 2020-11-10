@@ -848,6 +848,7 @@ enum ddl_log_entry_code
   */
   DDL_LOG_EXECUTE_CODE = 'e',
   DDL_LOG_ENTRY_CODE = 'l',
+  DDL_TRY_LOG_ENTRY_CODE = 't',
   DDL_IGNORE_LOG_ENTRY_CODE = 'i'
 };
 
