@@ -2,6 +2,10 @@
 # MDEV-11757 KEY_BLOCK_SIZE strangeness when UNCOMPRESSing COMPRESSed InnoDB tables
 #
 source include/have_innodb.inc;
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 
 create table t1 (
   id1 bigint(20) not null,
@@ -17,6 +21,9 @@ SET innodb_strict_mode=OFF;
 alter table t1 row_format=dynamic;
 show create table t1;
 SET innodb_strict_mode=ON;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log
 alter table t1 key_block_size=0;
 show create table t1;
 alter table t1 drop primary key, add primary key (id1),

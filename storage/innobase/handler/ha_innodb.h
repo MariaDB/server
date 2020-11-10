@@ -460,6 +460,9 @@ protected:
 	@see build_template() */
 	void reset_template();
 
+	/** @return whether the table is read-only */
+	bool is_read_only() const;
+
 	inline void update_thd(THD* thd);
 	void update_thd();
 

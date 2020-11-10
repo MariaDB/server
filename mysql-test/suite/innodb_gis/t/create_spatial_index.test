@@ -15,6 +15,10 @@
 --source include/have_innodb_16k.inc
 --source include/have_geometry.inc
 
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 
 # Check spatial index functionality on compress table with Primary key
 CREATE TABLE tab(c1 int NOT NULL PRIMARY KEY,c2 POINT NOT NULL,
@@ -1107,6 +1111,9 @@ SET @g1 = ST_GeomFromText( 'POLYGON((0 0,0 30,30 40,40 50,50 30,0 0))');
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
 
 DELETE FROM tab WHERE MBRIntersects(tab.c4, @g1);
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log
 
 SELECT c1,ST_Astext(c4) FROM tab WHERE MBRIntersects(tab.c4, @g1) ORDER BY c1;
 

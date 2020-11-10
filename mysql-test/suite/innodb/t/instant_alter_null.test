@@ -1,8 +1,18 @@
 --source include/have_innodb.inc
 
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
+
 create table t (a int NOT NULL) engine=innodb row_format=   compressed;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter table t modify a int NULL, algorithm=instant;
+
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log
+
 drop table t;
 
 create table t (a int NOT NULL) engine=innodb row_format=   dynamic;

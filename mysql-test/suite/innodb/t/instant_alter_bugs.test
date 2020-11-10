@@ -210,7 +210,10 @@ SELECT * FROM t1;
 DROP TABLE t1;
 --echo # End of 10.3 tests
 
-
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 create table t (
   a varchar(9),
   b int,
@@ -225,6 +228,9 @@ alter table t modify a varchar(10), algorithm=instant;
 alter table t change b bb int, algorithm=instant;
 alter table t modify c int without system versioning, algorithm=instant;
 set @@system_versioning_alter_history = error;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log
 check table t;
 drop table t;
 

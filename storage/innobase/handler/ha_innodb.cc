@@ -223,6 +223,9 @@ enum default_row_format_enum {
 	DEFAULT_ROW_FORMAT_DYNAMIC = 2,
 };
 
+/** Whether ROW_FORMAT=COMPRESSED tables are read-only */
+static my_bool innodb_read_only_compressed;
+
 /** A dummy variable */
 static uint innodb_max_purge_lag_wait;
 
@@ -7236,6 +7239,25 @@ ha_innobase::innobase_set_max_autoinc(
 	return(error);
 }
 
+/** @return whether the table is read-only */
+bool ha_innobase::is_read_only() const
+{
+  ut_ad(m_prebuilt->trx == thd_to_trx(m_user_thd));
+
+  if (high_level_read_only)
+  {
+    ib_senderrf(m_user_thd, IB_LOG_LEVEL_WARN, ER_READ_ONLY_MODE);
+    return true;
+  }
+
+  if (!DICT_TF_GET_ZIP_SSIZE(m_prebuilt->table->flags) ||
+      !innodb_read_only_compressed)
+    return false;
+
+  ib_senderrf(m_user_thd, IB_LOG_LEVEL_WARN, ER_UNSUPPORTED_COMPRESSED_TABLE);
+  return true;
+}
+
 /********************************************************************//**
 Stores a row in an InnoDB database, to the table specified in this
 handle.
@@ -7258,12 +7280,9 @@ ha_innobase::write_row(
 	trx_t*		trx = thd_to_trx(m_user_thd);
 
 	/* Validation checks before we commence write_row operation. */
-	if (high_level_read_only) {
-		ib_senderrf(ha_thd(), IB_LOG_LEVEL_WARN, ER_READ_ONLY_MODE);
+	if (is_read_only()) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	}
-
-	ut_a(m_prebuilt->trx == trx);
 
 	if (!trx_is_started(trx)) {
 		++trx->will_lock;
@@ -8038,10 +8057,7 @@ ha_innobase::update_row(
 
 	DBUG_ENTER("ha_innobase::update_row");
 
-	ut_a(m_prebuilt->trx == trx);
-
-	if (high_level_read_only) {
-		ib_senderrf(ha_thd(), IB_LOG_LEVEL_WARN, ER_READ_ONLY_MODE);
+	if (is_read_only()) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	} else if (!trx_is_started(trx)) {
 		++trx->will_lock;
@@ -8199,10 +8215,7 @@ ha_innobase::delete_row(
 
 	DBUG_ENTER("ha_innobase::delete_row");
 
-	ut_a(m_prebuilt->trx == trx);
-
-	if (high_level_read_only) {
-		ib_senderrf(ha_thd(), IB_LOG_LEVEL_WARN, ER_READ_ONLY_MODE);
+	if (is_read_only()) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	} else if (!trx_is_started(trx)) {
 		++trx->will_lock;
@@ -10602,9 +10615,8 @@ create_table_info_t::create_options_are_invalid()
 
 	/* Check if a non-zero KEY_BLOCK_SIZE was specified. */
 	if (has_key_block_size) {
-		if (is_temp) {
-			my_error(ER_UNSUPPORT_COMPRESSED_TEMPORARY_TABLE,
-				 MYF(0));
+		if (is_temp || innodb_read_only_compressed) {
+			my_error(ER_UNSUPPORTED_COMPRESSED_TABLE, MYF(0));
 			return("KEY_BLOCK_SIZE");
 		}
 
@@ -10659,9 +10671,8 @@ create_table_info_t::create_options_are_invalid()
 	other incompatibilities. */
 	switch (row_format) {
 	case ROW_TYPE_COMPRESSED:
-		if (is_temp) {
-			my_error(ER_UNSUPPORT_COMPRESSED_TEMPORARY_TABLE,
-				 MYF(0));
+		if (is_temp || innodb_read_only_compressed) {
+			my_error(ER_UNSUPPORTED_COMPRESSED_TABLE, MYF(0));
 			return("ROW_FORMAT");
 		}
 		if (!m_allow_file_per_table) {
@@ -12759,7 +12770,7 @@ ha_innobase::discard_or_import_tablespace(
 	ut_a(m_prebuilt->trx->magic_n == TRX_MAGIC_N);
 	ut_a(m_prebuilt->trx == thd_to_trx(ha_thd()));
 
-	if (high_level_read_only) {
+	if (is_read_only()) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	}
 
@@ -13281,11 +13292,11 @@ int ha_innobase::truncate()
 {
 	DBUG_ENTER("ha_innobase::truncate");
 
-	if (high_level_read_only) {
+	update_thd();
+
+	if (is_read_only()) {
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	}
-
-	update_thd();
 
 	HA_CREATE_INFO	info;
 	mem_heap_t*	heap = mem_heap_create(1000);
@@ -19336,6 +19347,11 @@ static MYSQL_SYSVAR_BOOL(read_only, srv_read_only_mode,
   "Start InnoDB in read only mode (off by default)",
   NULL, NULL, FALSE);
 
+static MYSQL_SYSVAR_BOOL(read_only_compressed, innodb_read_only_compressed,
+  PLUGIN_VAR_OPCMDARG,
+  "Make ROW_FORMAT=COMPRESSED tables read-only (ON by default)",
+  NULL, NULL, TRUE);
+
 static MYSQL_SYSVAR_BOOL(cmp_per_index_enabled, srv_cmp_per_index_enabled,
   PLUGIN_VAR_OPCMDARG,
   "Enable INFORMATION_SCHEMA.innodb_cmp_per_index,"
@@ -19625,6 +19641,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(random_read_ahead),
   MYSQL_SYSVAR(read_ahead_threshold),
   MYSQL_SYSVAR(read_only),
+  MYSQL_SYSVAR(read_only_compressed),
   MYSQL_SYSVAR(instant_alter_column_allowed),
   MYSQL_SYSVAR(io_capacity),
   MYSQL_SYSVAR(io_capacity_max),

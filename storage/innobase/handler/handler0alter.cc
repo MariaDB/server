@@ -1975,7 +1975,7 @@ ha_innobase::check_if_supported_inplace_alter(
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
-	if (high_level_read_only) {
+	if (is_read_only()) {
 		ha_alter_info->unsupported_reason =
 			my_get_err_msg(ER_READ_ONLY_MODE);
 

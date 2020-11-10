@@ -253,6 +253,10 @@ SELECT * FROM t1;
 CHECK TABLE t1;
 DROP TABLE t1;
 
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 CREATE TABLE t1(
   a VARCHAR(1000) GENERATED ALWAYS AS ('1') VIRTUAL,
   b VARCHAR(1000) NOT NULL,
@@ -262,6 +266,9 @@ CREATE TABLE t1(
 ) ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
 INSERT INTO t1(b) VALUES(REPEAT('b',1000));
 DELETE FROM t1;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log
 DROP TABLE t1;
 
 --echo #

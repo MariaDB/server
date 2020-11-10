@@ -617,6 +617,10 @@ eval DROP DATABASE $dest_db;
 --echo # ORPHANED DUE TO RENAME TABLE
 --echo #
 CREATE DATABASE db1; USE db1;
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 CREATE TABLE notes (
    id int(11) NOT NULL AUTO_INCREMENT,
    body text COLLATE utf8_unicode_ci,
@@ -627,6 +631,9 @@ ROW_FORMAT=COMPRESSED;
 
 ALTER TABLE notes ADD FULLTEXT INDEX index_ft_body (body(255));
 DROP INDEX index_ft_body ON notes;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log
 
 CREATE DATABASE db2;
 RENAME TABLE db1.notes TO db2.notes;

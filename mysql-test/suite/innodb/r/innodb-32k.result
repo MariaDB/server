@@ -29,7 +29,7 @@ c71 char(200), c72 char(200), c73 char(200), c74 char(200), c75 char(200),
 c76 char(200), c77 char(200), c78 char(200), c79 char(200), c80 char(200),
 c81 char(63)
 ) ROW_FORMAT=compressed;
-ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+Got one of the listed errors
 CREATE TABLE t1 (a varchar(255) character set utf8,
 b varchar(255) character set utf8,
 c varchar(255) character set utf8,
