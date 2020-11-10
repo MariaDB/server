@@ -1171,20 +1171,25 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
         if (frm_action != ACT_HANDLER)
         {
           if (frm_action == ACT_PARTITION)
-            strxmov(to_path, ddl_log_entry->name, reg_ext, NullS);
-          if (unlikely((error= mysql_file_delete(key_file_frm, to_path,
-                                                 MYF(MY_WME |
-                                                     MY_IGNORE_ENOENT)))))
-            break;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-          if (frm_action == ACT_PARTITION)
           {
-	    strxmov(to_path, ddl_log_entry->name, PAR_EXT, NullS);
-	    (void) mysql_file_delete(key_file_partition_ddl_log, to_path,
-				     MYF(0));
-          }
+            strxmov(to_path, ddl_log_entry->name, reg_ext, NullS);
+            if (unlikely((error= mysql_file_delete(key_file_frm, to_path,
+                                                  MYF(MY_WME |
+                                                      MY_IGNORE_ENOENT)))))
+              break;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+            strxmov(to_path, ddl_log_entry->name, PAR_EXT, NullS);
+            (void) mysql_file_delete(key_file_partition_ddl_log, to_path, MYF(0));
 #endif
-        }
+          } // (frm_action == ACT_PARTITION)
+          else
+          {
+            if (unlikely((error= mysql_file_delete(key_file_frm, ddl_log_entry->name,
+                                                  MYF(MY_WME |
+                                                      MY_IGNORE_ENOENT)))))
+              break;
+          } // (frm_action != ACT_PARTITION)
+        } // (frm_action != ACT_HANDLER)
         else
         {
           if (unlikely((error= hton->drop_table(hton, ddl_log_entry->name))))
@@ -1192,7 +1197,7 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
             if (!non_existing_table_error(error))
               break;
           }
-        }
+        } // (frm_action === ACT_HANDLER)
         if ((deactivate_ddl_log_entry_no_lock(ddl_log_entry->entry_pos)))
           break;
         (void) sync_ddl_log_no_lock();
@@ -1217,24 +1222,27 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
         {
           strxmov(to_path, ddl_log_entry->name, reg_ext, NullS);
           strxmov(from_path, ddl_log_entry->from_name, reg_ext, NullS);
-        }
-        if (mysql_file_rename(key_file_frm, from_path, to_path, MYF(MY_WME)))
-          break;
+          if (mysql_file_rename(key_file_frm, from_path, to_path, MYF(MY_WME)))
+            break;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-        if (frm_action == ACT_PARTITION)
-        {
-	  strxmov(to_path, ddl_log_entry->name, PAR_EXT, NullS);
-	  strxmov(from_path, ddl_log_entry->from_name, PAR_EXT, NullS);
-	  (void) mysql_file_rename(key_file_partition_ddl_log, from_path, to_path, MYF(MY_WME));
-	}
+          strxmov(to_path, ddl_log_entry->name, PAR_EXT, NullS);
+          strxmov(from_path, ddl_log_entry->from_name, PAR_EXT, NullS);
+          (void) mysql_file_rename(key_file_partition_ddl_log, from_path, to_path, MYF(MY_WME));
 #endif
-      }
+        } // (frm_action == ACT_PARTITION)
+        else
+        {
+          if (mysql_file_rename(key_file_frm, ddl_log_entry->from_name,
+                                ddl_log_entry->name, MYF(MY_WME)))
+            break;
+        } // (frm_action != ACT_PARTITION)
+      } // (frm_action != ACT_HANDLER)
       else
       {
         if (file->ha_rename_table(ddl_log_entry->from_name,
                                   ddl_log_entry->name))
           break;
-      }
+      } // (frm_action == ACT_HANDLER)
       if ((deactivate_ddl_log_entry_no_lock(ddl_log_entry->entry_pos)))
         break;
       (void) sync_ddl_log_no_lock();
@@ -13136,9 +13144,9 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, FK_ddl_vector &shares,
   List_iterator<FK_info> ref_it;
 
   // NB: another loop separates share acquisition which may fail
-  for (FK_ddl_backup &ref: shares)
+  for (auto ref = std::begin(shares); ref != std::end(shares); )
   {
-    ref_it.init(ref.sa.share->referenced_keys);
+    ref_it.init(ref->sa.share->referenced_keys);
     while (FK_info *rk= ref_it++)
     {
       if (0 == cmp_table(rk->foreign_db, share->db) &&
@@ -13148,7 +13156,7 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, FK_ddl_vector &shares,
         ref_it.remove();
       }
     }
-    int err= ref.fk_write_shadow_frm(shares);
+    int err= ref->fk_write_shadow_frm(shares);
     if (err)
     {
       if (err > 2)
@@ -13158,8 +13166,11 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, FK_ddl_vector &shares,
       }
       // ignore non-existent frm (main.drop_table_force, Test6)
       thd->clear_error();
-      ref.sa.release();
+      ref->sa.release();
+      ref= shares.erase(ref);
     }
+    else
+      ++ref;
   }
 
   return false;

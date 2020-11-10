@@ -922,8 +922,8 @@ struct ddl_log_info
     DBUG_ASSERT(!first_entry);
   }
   void release();
-  bool write_log_replace_delete_frm(uint next_entry, const char *from_path,
-                                    const char *to_path, bool replace_flag);
+  bool write_log_replace_delete_frm(const char *from_path, const char *to_path,
+                                    bool replace_flag);
 
   void write_log_finish();
 };
@@ -944,7 +944,7 @@ public:
   {}
   FK_list foreign_keys;
   FK_list referenced_keys;
-  bool fk_write_shadow_frm(ddl_log_info& log_info);
+  int fk_write_shadow_frm(ddl_log_info& log_info);
   bool fk_backup_frm(ddl_log_info& log_info);
   bool fk_install_shadow_frm(ddl_log_info& log_info);
   void fk_drop_shadow_frm(ddl_log_info& log_info);
@@ -965,6 +965,13 @@ public:
     FK_backup(std::move(src)),
     sa(std::move(src.sa))
   {}
+
+  FK_ddl_backup& operator=(FK_ddl_backup&& src)
+  {
+    *((FK_backup *) this)= std::move(src);
+    sa= std::move(src.sa);
+    return *this;
+  }
 
   void rollback(ddl_log_info& log_info);
   bool backup_frm(ddl_log_info &log_info, Table_name table);

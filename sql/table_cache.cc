@@ -1295,6 +1295,7 @@ void TDC_element::flush_unused(bool mark_flushed)
 
 Share_acquire::~Share_acquire()
 {
+  // NB: same as Share_acquire::release()
   if (share)
   {
     if (flush_unused)

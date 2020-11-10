@@ -391,6 +391,7 @@ int TABLE_SHARE::fk_write_shadow_frm_impl(const char *shadow_path)
       my_error(ER_FILE_NOT_FOUND, MYF(0), path, my_errno);
       break;
     default:
+      DBUG_ASSERT(err < 10);
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       break;
     }
@@ -478,8 +479,7 @@ frm_err:
 }
 
 
-bool ddl_log_info::write_log_replace_delete_frm(uint next_entry,
-                                                const char *from_path,
+bool ddl_log_info::write_log_replace_delete_frm(const char *from_path,
                                                 const char *to_path,
                                                 bool replace_flag)
 {
@@ -489,7 +489,7 @@ bool ddl_log_info::write_log_replace_delete_frm(uint next_entry,
     ddl_log_entry.action_type= DDL_LOG_REPLACE_ACTION;
   else
     ddl_log_entry.action_type= DDL_LOG_DELETE_ACTION;
-  ddl_log_entry.next_entry= next_entry;
+  ddl_log_entry.next_entry= first_entry ? first_entry->entry_pos : 0;
   ddl_log_entry.handler_name= file_action;
   ddl_log_entry.name= to_path;
   if (replace_flag)
@@ -516,17 +516,17 @@ error:
 }
 
 
-bool FK_backup::fk_write_shadow_frm(ddl_log_info &log_info)
+int FK_backup::fk_write_shadow_frm(ddl_log_info &log_info)
 {
   char shadow_path[FN_REFLEN + 1];
   TABLE_SHARE *s= get_share();
   DBUG_ASSERT(s);
   build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1,
                               s->db, s->table_name, tmp_fk_prefix);
-  if (log_info.write_log_replace_delete_frm(0, NULL, shadow_path, false))
+  if (log_info.write_log_replace_delete_frm(NULL, shadow_path, false))
     return true;
   delete_shadow_entry= log_info.first_entry;
-  bool err= s->fk_write_shadow_frm_impl(shadow_path);
+  int err= s->fk_write_shadow_frm_impl(shadow_path);
   if (ERROR_INJECT("fail_fk_write_shadow", "crash_fk_write_shadow"))
     return true;
   return err;
@@ -550,12 +550,12 @@ bool FK_backup::fk_backup_frm(ddl_log_info &log_info)
     my_error(ER_FILE_EXISTS_ERROR, MYF(0), bak_name);
     return true;
   }
-  if (log_info.write_log_replace_delete_frm(0, bak_name, frm_name, true))
+  if (log_info.write_log_replace_delete_frm(bak_name, frm_name, true))
     return true;
   restore_backup_entry= log_info.first_entry;
 #ifndef DBUG_OFF
   if (!log_info.dbg_first &&
-      ERROR_INJECT("fail_fk_backup_frm", "crash_fk_backup_frm"))
+      (ERROR_INJECT("fail_fk_backup_frm", "crash_fk_backup_frm")))
   {
     return true;
   }

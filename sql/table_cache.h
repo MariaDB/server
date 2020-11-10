@@ -133,6 +133,13 @@ public:
   {
     src.share= NULL;
   }
+  Share_acquire& operator= (Share_acquire &&src)
+  {
+    flush_unused= src.flush_unused;
+    share= src.share;
+    src.share= NULL;
+    return *this;
+  }
   ~Share_acquire();
   bool is_error(THD *thd);
   void acquire(THD *thd, TABLE_LIST &tl, uint flags= 0);
