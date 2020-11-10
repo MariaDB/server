@@ -3056,7 +3056,7 @@ set @tmp_24117= @@max_session_mem_used;
 #  - 2.8M without the bug
 #  - 1G with the bug.
 set max_session_mem_used=64*1024*1024;
-set @query=concat('explain select * from t2 where a in (', @query, ')');
+set @query=concat('explain select * from t2 where a=1 or a in (', @query, ')');
 prepare s from @query;
 # This should not fail with an error:
 execute s;
