@@ -1914,6 +1914,7 @@ SELECT SCHEMA_NAME from information_schema.schemata where schema_name=REPEAT('a'
 --echo # Diagnostics_area::sql_errno upon query from I_S with LIMIT ROWS EXAMINED
 --echo #
 
+replace_regex /at least \d+ rows/at least ### rows/;
 SELECT * FROM INFORMATION_SCHEMA.`COLUMNS` LIMIT ROWS EXAMINED 10;
 
 --echo #
