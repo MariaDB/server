@@ -49,8 +49,8 @@ ifeq (32,$(DEB_HOST_ARCH_BITS))
 endif
 
 # ColumnStore only attempts to build on a few platforms as dictated by CMake checks
-# Also note in debian/control the CS-only build deps marked '[i386 amd64]'
-ifeq ($(DEB_HOST_ARCH),$(filter $(DEB_HOST_ARCH),amd64 i386))
+# Also note in debian/control the CS-only build deps marked '[amd64]'
+ifeq ($(DEB_HOST_ARCH),$(filter $(DEB_HOST_ARCH),amd64))
     CMAKEFLAGS += -DPLUGIN_COLUMNSTORE=YES
 endif
 
