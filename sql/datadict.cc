@@ -479,7 +479,7 @@ frm_err:
 }
 
 
-bool ddl_log_info::write_log_replace_delete_frm(const char *from_path,
+bool ddl_log_info::write_log_replace_delete_file(const char *from_path,
                                                 const char *to_path,
                                                 bool replace_flag)
 {
@@ -520,11 +520,13 @@ error:
 int FK_backup::fk_write_shadow_frm(ddl_log_info &log_info)
 {
   char shadow_path[FN_REFLEN + 1];
+  char frm_name[FN_REFLEN + 1];
   TABLE_SHARE *s= get_share();
   DBUG_ASSERT(s);
   build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1,
                               s->db, s->table_name, tmp_fk_prefix);
-  if (log_info.write_log_replace_delete_frm(NULL, shadow_path, false))
+  strxnmov(frm_name, sizeof(frm_name), shadow_path, reg_ext, NullS);
+  if (log_info.write_log_replace_delete_file(NULL, frm_name, false))
     return true;
   delete_shadow_entry= log_info.first_entry;
   int err= s->fk_write_shadow_frm_impl(shadow_path);
@@ -551,7 +553,7 @@ bool FK_backup::fk_backup_frm(ddl_log_info &log_info)
     my_error(ER_FILE_EXISTS_ERROR, MYF(0), bak_name);
     return true;
   }
-  if (log_info.write_log_replace_delete_frm(bak_name, frm_name, true))
+  if (log_info.write_log_replace_delete_file(bak_name, frm_name, true))
     return true;
   restore_backup_entry= log_info.first_entry;
 #ifndef DBUG_OFF

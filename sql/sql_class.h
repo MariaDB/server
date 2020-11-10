@@ -923,7 +923,7 @@ struct ddl_log_info
     DBUG_ASSERT(!first_entry);
   }
   void release();
-  bool write_log_replace_delete_frm(const char *from_path, const char *to_path,
+  bool write_log_replace_delete_file(const char *from_path, const char *to_path,
                                     bool replace_flag);
 
   void write_log_finish();
