@@ -15189,24 +15189,6 @@ struct table_list_item {
 	const char*		name;
 };
 
-/** Structure to compare two st_tablename objects using their
-db and tablename. It is used in the ordering of cascade_fk_set.
-It returns true if the first argument precedes the second argument
-and false otherwise. */
-struct tablename_compare {
-
-	bool operator()(const st_handler_tablename lhs,
-			const st_handler_tablename rhs) const
-	{
-		int cmp = strcmp(lhs.db, rhs.db);
-		if (cmp == 0) {
-			cmp = strcmp(lhs.tablename, rhs.tablename);
-		}
-
-		return(cmp < 0);
-	}
-};
-
 /*****************************************************************//**
 Checks if ALTER TABLE may change the storage engine of the table.
 Changing storage engines is not allowed for tables for which there
