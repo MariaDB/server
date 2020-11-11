@@ -4450,9 +4450,11 @@ void st_select_lex::set_explain_type(bool on_the_fly)
             /*
               pos_in_table_list=NULL for e.g. post-join aggregation JOIN_TABs.
             */
-            if (tab->table && tab->table->pos_in_table_list &&
-                tab->table->pos_in_table_list->with &&
-                tab->table->pos_in_table_list->with->is_recursive)
+            if (!(tab->table && tab->table->pos_in_table_list))
+	      continue;
+            TABLE_LIST *tbl= tab->table->pos_in_table_list;
+            if (tbl->with && tbl->with->is_recursive &&
+                tbl->is_with_table_recursive_reference())
             {
               uses_cte= true;
               break;
