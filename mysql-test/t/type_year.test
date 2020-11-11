@@ -265,6 +265,17 @@ SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 MODIFY a YEAR;
 DROP TABLE t1;
 
+--echo #
+--echo # Various widths of the YEAR
+--echo #
+create or replace table t1 (a YEAR(0)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(1)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(2)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(3)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(4)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(5)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(100)); SHOW CREATE TABLE t1;
+drop table t1;
 
 --echo #
 --echo # End of 10.2 tests
