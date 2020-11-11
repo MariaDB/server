@@ -143,15 +143,18 @@ trx_undo_parse_add_undo_rec(
 }
 
 /** Calculate the free space left for extending an undo log record.
-@param[in]	undo_block	undo log page
-@param[in]	ptr		current end of the undo page
+@param undo_block    undo log page
+@param ptr           current end of the undo page
 @return bytes left */
-static ulint trx_undo_left(const buf_block_t* undo_block, const byte* ptr)
+static ulint trx_undo_left(const buf_block_t *undo_block, const byte *ptr)
 {
-	/* The 10 is a safety margin, in case we have some small
-	calculation error below */
-	return srv_page_size - ulint(ptr - undo_block->frame)
-		- (10 + FIL_PAGE_DATA_END);
+  ut_ad(ptr >= &undo_block->frame[TRX_UNDO_PAGE_HDR]);
+  ut_ad(ptr <= &undo_block->frame[srv_page_size - 10 - FIL_PAGE_DATA_END]);
+
+  /* The 10 is supposed to be an extra safety margin (and needed for
+  compatibility with older versions) */
+  return srv_page_size - ulint(ptr - undo_block->frame) -
+    (10 + FIL_PAGE_DATA_END);
 }
 
 /**********************************************************************//**
@@ -174,9 +177,6 @@ trx_undo_page_set_next_prev_and_add(
 					/* pointer within undo_page
 					that points to the next free
 					offset value within undo_page.*/
-
-	ut_ad(ptr > undo_block->frame);
-	ut_ad(ptr < undo_block->frame + srv_page_size);
 
 	if (UNIV_UNLIKELY(trx_undo_left(undo_block, ptr) < 2)) {
 		return(0);
@@ -234,17 +234,15 @@ trx_undo_log_v_idx(
 
 	ut_ad(!vcol->v_indexes.empty());
 
-	/* Size to reserve, max 5 bytes for each index id and position, plus
-	5 bytes for num of indexes, 2 bytes for write total length.
-	1 byte for undo log record format version marker */
-	ulint		size = 5 + 2 + (first_v_col ? 1 : 0);
+	ulint		size = first_v_col ? 1 + 2 : 2;
 	const ulint	avail = trx_undo_left(undo_block, ptr);
 
-	if (avail < size) {
+	/* The mach_write_compressed(ptr, flen) in
+	trx_undo_page_report_modify() will consume additional 1 to 5 bytes. */
+	if (avail < size + 5) {
 		return(NULL);
 	}
 
-	size = 0;
 	ulint n_idx = 0;
 	for (const auto& v_index : vcol->v_indexes) {
 		n_idx++;
@@ -252,12 +250,14 @@ trx_undo_log_v_idx(
 		size += mach_get_compressed_size(uint32_t(v_index.index->id));
 		size += mach_get_compressed_size(v_index.nth_field);
 	}
-	size += 2 + mach_get_compressed_size(n_idx);
 
-	if (avail < size) {
+	size += mach_get_compressed_size(n_idx);
+
+	if (avail < size + 5) {
 		return(NULL);
 	}
 
+	ut_d(const byte* orig_ptr = ptr);
 
 	if (first_v_col) {
 		/* write the version marker */
@@ -279,6 +279,8 @@ trx_undo_log_v_idx(
 
 		ptr += mach_write_compressed(ptr, v_index.nth_field);
 	}
+
+	ut_ad(orig_ptr + size == ptr);
 
 	mach_write_to_2(old_ptr, ulint(ptr - old_ptr));
 
@@ -496,8 +498,6 @@ trx_undo_page_report_insert(
 	first_free = mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
 				      + undo_block->frame);
 	ptr = undo_block->frame + first_free;
-
-	ut_ad(first_free <= srv_page_size);
 
 	if (trx_undo_left(undo_block, ptr) < 2 + 1 + 11 + 11) {
 		/* Not enough space for writing the general parameters */
@@ -904,8 +904,6 @@ trx_undo_page_report_modify(
 	first_free = mach_read_from_2(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE
 				      + undo_block->frame);
 	ptr = undo_block->frame + first_free;
-
-	ut_ad(first_free <= srv_page_size);
 
 	if (trx_undo_left(undo_block, ptr) < 50) {
 		/* NOTE: the value 50 must be big enough so that the general

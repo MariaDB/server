@@ -9605,15 +9605,9 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
   }
   bool no_imerge_from_ranges= FALSE;
 
-  SEL_TREE *rt1= tree1;
-  SEL_TREE *rt2= tree2;
   /* Build the range part of the tree for the formula (1) */ 
   if (sel_trees_can_be_ored(param, tree1, tree2, &ored_keys))
   {
-    if (no_merges1)
-      rt1= new SEL_TREE(tree1, TRUE, param);
-    if (no_merges2)
-      rt2= new SEL_TREE(tree2, TRUE, param);
     bool must_be_ored= sel_trees_must_be_ored(param, tree1, tree2, ored_keys);
     no_imerge_from_ranges= must_be_ored;
 
@@ -9671,6 +9665,12 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
   else if (!no_ranges1 && !no_ranges2 && !no_imerge_from_ranges)
   {
     /* Build the imerge part of the tree for the formula (1) */
+    SEL_TREE *rt1= tree1;
+    SEL_TREE *rt2= tree2;
+    if (no_merges1)
+      rt1= new SEL_TREE(tree1, TRUE, param);
+    if (no_merges2)
+      rt2= new SEL_TREE(tree2, TRUE, param);
     if (!rt1 || !rt2 ||
         result->merges.push_back(imerge_from_ranges) ||
         imerge_from_ranges->or_sel_tree(param, rt1) ||
@@ -10336,7 +10336,7 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
       if (!tmp->next_key_part)
       {
 	SEL_ARG *key2_next= key2->next;
-        if (key2->use_count)
+	if (key2_shared)
 	{
 	  SEL_ARG *key2_cpy= new SEL_ARG(*key2);
           if (!key2_cpy)
