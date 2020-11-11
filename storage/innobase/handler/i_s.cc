@@ -7049,6 +7049,7 @@ i_s_tablespaces_encryption_fill_table(
 		DBUG_RETURN(0);
 	}
 
+	int err = 0;
 	mutex_enter(&fil_system.mutex);
 	fil_system.freeze_space_list++;
 
@@ -7058,19 +7059,19 @@ i_s_tablespaces_encryption_fill_table(
 		    && !space->is_stopping()) {
 			space->reacquire();
 			mutex_exit(&fil_system.mutex);
-			if (int err = i_s_dict_fill_tablespaces_encryption(
-				    thd, space, tables->table)) {
-				space->release();
-				DBUG_RETURN(err);
-			}
+			err = i_s_dict_fill_tablespaces_encryption(
+				thd, space, tables->table);
 			mutex_enter(&fil_system.mutex);
 			space->release();
+			if (err) {
+				break;
+			}
 		}
 	}
 
 	fil_system.freeze_space_list--;
 	mutex_exit(&fil_system.mutex);
-	DBUG_RETURN(0);
+	DBUG_RETURN(err);
 }
 /*******************************************************************//**
 Bind the dynamic table INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION
