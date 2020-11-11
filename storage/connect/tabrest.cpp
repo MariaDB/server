@@ -42,7 +42,13 @@
 #include "tabfmt.h"
 #include "tabrest.h"
 
+#if defined(__WIN__) || defined(_WINDOWS)
+#define popen  _popen
+#define pclose _pclose
+#endif
+
 static XGETREST getRestFnc = NULL;
+static int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename);
 
 #if !defined(MARIADB)
 /***********************************************************************/
@@ -70,6 +76,40 @@ PTABDEF __stdcall GetREST(PGLOBAL g, void *memp)
   return new(g, memp) RESTDEF;
 } // end of GetREST
 #endif   // !MARIADB
+
+/***********************************************************************/
+/*  Xcurl: retrieve the REST answer by executing curl.                 */
+/***********************************************************************/
+int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
+{
+	char  buf[1024];
+	int   rc;
+	FILE *pipe;
+
+	if (Uri) {
+		if (*Uri == '/' || Http[strlen(Http) - 1] == '/')
+			sprintf(buf, "curl %s%s > %s", Http, Uri, filename);
+		else
+			sprintf(buf, "curl %s/%s > %s", Http, Uri, filename);
+
+	} else
+		sprintf(buf, "curl %s > %s", Http, filename);
+
+	if ((pipe = popen(buf, "rt"))) {
+		if (trace(515))
+			while (fgets(buf, sizeof(buf), pipe)) {
+				htrc("%s", buf);
+			}	// endwhile
+
+		pclose(pipe);
+		rc = 0;
+	} else {
+		sprintf(g->Message, "curl failed, errno =%d", errno);
+		rc = 1;
+	} // endif pipe
+
+	return rc;
+} // end od Xcurl
 
 /***********************************************************************/
 /*  GetREST: get the external TABDEF from OEM module.                  */
@@ -148,13 +188,15 @@ PQRYRES RESTColumns(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
 PQRYRES __stdcall ColREST(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
 #endif  // !MARIADB
 {
-  PQRYRES qrp= NULL;
-  char filename[_MAX_PATH + 1];  // MAX PATH ???
-  PCSZ http, uri, fn, ftype;
+  PQRYRES  qrp= NULL;
+  char     filename[_MAX_PATH + 1];  // MAX PATH ???
+	int      rc;
+	bool     curl = false;
+  PCSZ     http, uri, fn, ftype;
 	XGETREST grf = GetRestFunction(g);
 
 	if (!grf)
-		return NULL;
+		curl = true;
 
   http = GetStringTableOption(g, tp, "Http", NULL);
   uri = GetStringTableOption(g, tp, "Uri", NULL);
@@ -182,13 +224,17 @@ PQRYRES __stdcall ColREST(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
 
   //  We used the file name relative to recorded datapath
 	PlugSetPath(filename, fn, db);
-	//strcat(strcat(strcat(strcpy(filename, "."), slash), db), slash);
-  //strncat(filename, fn, _MAX_PATH - strlen(filename));
+	curl = GetBooleanTableOption(g, tp, "Curl", curl);
 
   // Retrieve the file from the web and copy it locally
-	if (http && grf(g->Message, trace(515), http, uri, filename)) {
-			// sprintf(g->Message, "Failed to get file at %s", http);
-  } else if (!stricmp(ftype, "JSON"))
+	if (curl)
+		rc = Xcurl(g, http, uri, filename);
+	else
+		rc = grf(g->Message, trace(515), http, uri, filename);
+
+	if (rc)
+		return NULL;
+  else if (!stricmp(ftype, "JSON"))
     qrp = JSONColumns(g, db, NULL, tp, info);
   else if (!stricmp(ftype, "CSV"))
     qrp = CSVColumns(g, NULL, tp, info);
@@ -209,14 +255,14 @@ PQRYRES __stdcall ColREST(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
 /***********************************************************************/
 bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 {
-	char    filename[_MAX_PATH + 1];
-  int     rc = 0, n;
-	bool    xt = trace(515);
-	LPCSTR  ftype;
+	char     filename[_MAX_PATH + 1];
+  int      rc = 0, n;
+	bool     curl = false, xt = trace(515);
+	LPCSTR   ftype;
 	XGETREST grf = GetRestFunction(g);
 
 	if (!grf)
-		return true;
+		curl = true;
 
 #if defined(MARIADB)
   ftype = GetStringCatInfo(g, "Type", "JSON");
@@ -235,8 +281,8 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     : (!stricmp(ftype, "CSV"))  ? 3 : 0;
 
   if (n == 0) {
-    htrc("DefineAM: Unsupported REST table type %s", am);
-    sprintf(g->Message, "Unsupported REST table type %s", am);
+    htrc("DefineAM: Unsupported REST table type %s\n", ftype);
+    sprintf(g->Message, "Unsupported REST table type %s", ftype);
     return true;
   } // endif n
 
@@ -247,8 +293,13 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   //  We used the file name relative to recorded datapath
   PlugSetPath(filename, Fn, GetPath());
 
+	curl = GetBoolCatInfo("Curl", curl);
+
   // Retrieve the file from the web and copy it locally
-	rc = grf(g->Message, xt, Http, Uri, filename);
+	if (curl)
+		rc = Xcurl(g, Http, Uri, filename);
+	else
+		rc = grf(g->Message, xt, Http, Uri, filename);
 
   if (xt)
     htrc("Return from restGetFile: rc=%d\n", rc);
