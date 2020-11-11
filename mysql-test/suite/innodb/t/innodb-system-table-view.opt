@@ -1,6 +1,5 @@
 --innodb
 --innodb-sys-tablespaces
---innodb-sys-datafiles
 --innodb-sys-tablestats
 --innodb-sys-tables
 --innodb-sys-columns

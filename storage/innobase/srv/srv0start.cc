@@ -121,8 +121,6 @@ incomplete transactions */
 bool	srv_startup_is_before_trx_rollback_phase;
 /** TRUE if the server is being started */
 bool	srv_is_being_started;
-/** TRUE if SYS_TABLESPACES is available for lookups */
-bool	srv_sys_tablespaces_open;
 /** TRUE if the server was successfully started */
 bool	srv_was_started;
 /** The original value of srv_log_file_size (innodb_log_file_size) */
@@ -1768,17 +1766,7 @@ file_checked:
 			trx_rollback_recovered(false);
 		}
 
-		/* FIXME: Skip the following if srv_read_only_mode,
-		while avoiding "Allocated tablespace ID" warnings. */
 		if (srv_force_recovery <= SRV_FORCE_NO_IBUF_MERGE) {
-			/* Open or Create SYS_TABLESPACES and SYS_DATAFILES
-			so that tablespace names and other metadata can be
-			found. */
-			err = dict_create_or_check_sys_tablespace();
-			if (err != DB_SUCCESS) {
-				return(srv_init_abort(err));
-			}
-
 			/* The following call is necessary for the insert
 			buffer to work with multiple tablespaces. We must
 			know the mapping between space id's and .ibd file
@@ -1848,10 +1836,7 @@ skip_monitors:
 	/* Create the SYS_FOREIGN and SYS_FOREIGN_COLS system tables */
 	err = dict_create_or_check_foreign_constraint_tables();
 	if (err == DB_SUCCESS) {
-		err = dict_create_or_check_sys_tablespace();
-		if (err == DB_SUCCESS) {
-			err = dict_create_or_check_sys_virtual();
-		}
+		err = dict_create_or_check_sys_virtual();
 	}
 	switch (err) {
 	case DB_SUCCESS:

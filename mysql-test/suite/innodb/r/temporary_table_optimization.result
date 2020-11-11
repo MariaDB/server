@@ -244,23 +244,14 @@ index sk (b(3021))
 drop table t;
 CREATE TABLE t1 ( i INT ) ENGINE = Innodb;
 CREATE TEMPORARY TABLE t2 ( i INT ) ENGINE = Innodb;
-SELECT COUNT(*) FROM information_schema.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%t_';
-COUNT(*)
-0
 SELECT COUNT(*) FROM information_schema.INNODB_SYS_TABLES WHERE NAME LIKE '%test%t_';
 COUNT(*)
 1
 CREATE TEMPORARY table t3 ( i INT ) ENGINE = Innodb;
-SELECT COUNT(*) FROM information_schema.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%t_';
-COUNT(*)
-0
 SELECT COUNT(*) FROM information_schema.INNODB_SYS_TABLES WHERE NAME LIKE '%test%t_';
 COUNT(*)
 1
 DROP TABLE t1,t2,t3;
-SELECT COUNT(*) FROM information_schema.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%t_';
-COUNT(*)
-0
 SELECT COUNT(*) FROM information_schema.INNODB_SYS_TABLES WHERE NAME LIKE '%test%t_';
 COUNT(*)
 0

@@ -10909,7 +10909,6 @@ ha_innobase::update_create_info(
 		return;
 	}
 
-	/* Update the DATA DIRECTORY name from SYS_DATAFILES. */
 	dict_get_and_save_data_dir_path(m_prebuilt->table, false);
 
 	if (m_prebuilt->table->data_dir_path) {
@@ -19749,7 +19748,6 @@ i_s_innodb_sys_fields,
 i_s_innodb_sys_foreign,
 i_s_innodb_sys_foreign_cols,
 i_s_innodb_sys_tablespaces,
-i_s_innodb_sys_datafiles,
 i_s_innodb_sys_virtual,
 i_s_innodb_mutexes,
 i_s_innodb_sys_semaphore_waits,

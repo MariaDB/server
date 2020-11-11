@@ -336,7 +336,6 @@ select * from information_schema.innodb_buffer_page_lru;
 POOL_ID	LRU_POSITION	SPACE	PAGE_NUMBER	PAGE_TYPE	FLUSH_TYPE	FIX_COUNT	IS_HASHED	NEWEST_MODIFICATION	OLDEST_MODIFICATION	ACCESS_TIME	TABLE_NAME	INDEX_NAME	NUMBER_RECORDS	DATA_SIZE	COMPRESSED_SIZE	COMPRESSED	IO_FIX	IS_OLD	FREE_PAGE_CLOCK
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_buffer_page_lru but the InnoDB storage engine is not installed
-select * from information_schema.innodb_buffer_stats;
 select * from information_schema.innodb_sys_tables;
 TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
 Warnings:
@@ -366,14 +365,9 @@ ID	FOR_COL_NAME	REF_COL_NAME	POS
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_sys_foreign_cols but the InnoDB storage engine is not installed
 select * from information_schema.innodb_sys_tablespaces;
-SPACE	NAME	FLAG	ROW_FORMAT	PAGE_SIZE	ZIP_PAGE_SIZE	FS_BLOCK_SIZE	FILE_SIZE	ALLOCATED_SIZE
+SPACE	NAME	FLAG	ROW_FORMAT	PAGE_SIZE	FILENAME	FS_BLOCK_SIZE	FILE_SIZE	ALLOCATED_SIZE
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_sys_tablespaces but the InnoDB storage engine is not installed
-select * from information_schema.innodb_sys_datafiles;
-SPACE	PATH
-Warnings:
-Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_sys_datafiles but the InnoDB storage engine is not installed
-select * from information_schema.innodb_changed_pages;
 select * from information_schema.innodb_tablespaces_encryption;
 SPACE	NAME	ENCRYPTION_SCHEME	KEYSERVER_REQUESTS	MIN_KEY_VERSION	CURRENT_KEY_VERSION	KEY_ROTATION_PAGE_NUMBER	KEY_ROTATION_MAX_PAGE_NUMBER	CURRENT_KEY_ID	ROTATING_OR_FLUSHING
 Warnings:

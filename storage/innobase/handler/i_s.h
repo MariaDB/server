@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -59,7 +59,6 @@ extern struct st_maria_plugin	i_s_innodb_sys_fields;
 extern struct st_maria_plugin	i_s_innodb_sys_foreign;
 extern struct st_maria_plugin	i_s_innodb_sys_foreign_cols;
 extern struct st_maria_plugin	i_s_innodb_sys_tablespaces;
-extern struct st_maria_plugin	i_s_innodb_sys_datafiles;
 extern struct st_maria_plugin	i_s_innodb_mutexes;
 extern struct st_maria_plugin	i_s_innodb_sys_virtual;
 extern struct st_maria_plugin	i_s_innodb_tablespaces_encryption;

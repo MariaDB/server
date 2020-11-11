@@ -47,8 +47,6 @@ enum dict_system_id_t {
 	SYS_FIELDS,
 	SYS_FOREIGN,
 	SYS_FOREIGN_COLS,
-	SYS_TABLESPACES,
-	SYS_DATAFILES,
 	SYS_VIRTUAL,
 
 	/* This must be last item. Defines the number of system tables. */
@@ -56,13 +54,11 @@ enum dict_system_id_t {
 };
 
 /** Check each tablespace found in the data dictionary.
-Look at each table defined in SYS_TABLES that has a space_id > 0.
-If the tablespace is not yet in the fil_system cache, look up the
-tablespace in SYS_DATAFILES to ensure the correct path.
+Then look at each table defined in SYS_TABLES that has a space_id > 0
+to find all the file-per-table tablespaces.
 
 In a crash recovery we already have some tablespace objects created from
-processing the REDO log.  Any other tablespace in SYS_TABLESPACES not
-previously used in recovery will be opened here.  We will compare the
+processing the REDO log. We will compare the
 space_id information in the data dictionary to what we find in the
 tablespace file. In addition, more validation will be done if recovery
 was needed and force_recovery is not set.
@@ -80,7 +76,6 @@ dict_get_first_table_name_in_db(
 	const char*	name);	/*!< in: database name which ends to '/' */
 
 /** Make sure the data_file_name is saved in dict_table_t if needed.
-Try to read it from the fil_system first, then from SYS_DATAFILES.
 @param[in]	table		Table object
 @param[in]	dict_mutex_own	true if dict_sys.mutex is owned already */
 void
@@ -259,51 +254,5 @@ dict_process_sys_foreign_col_rec(
 	const char**	ref_col_name,	/*!< out: referenced column name
 					in referenced table */
 	ulint*		pos);		/*!< out: column position */
-/********************************************************************//**
-This function parses a SYS_TABLESPACES record, extracts necessary
-information from the record and returns to caller.
-@return error message, or NULL on success */
-const char*
-dict_process_sys_tablespaces(
-/*=========================*/
-	mem_heap_t*	heap,		/*!< in/out: heap memory */
-	const rec_t*	rec,		/*!< in: current SYS_TABLESPACES rec */
-	uint32_t*	space,		/*!< out: tablespace identifier */
-	const char**	name,		/*!< out: tablespace name */
-	ulint*		flags);		/*!< out: tablespace flags */
-/********************************************************************//**
-This function parses a SYS_DATAFILES record, extracts necessary
-information from the record and returns to caller.
-@return error message, or NULL on success */
-const char*
-dict_process_sys_datafiles(
-/*=======================*/
-	mem_heap_t*	heap,		/*!< in/out: heap memory */
-	const rec_t*	rec,		/*!< in: current SYS_DATAFILES rec */
-	uint32_t*	space,		/*!< out: tablespace identifier */
-	const char**	path);		/*!< out: datafile path */
-
-/** Update the record for space_id in SYS_TABLESPACES to this filepath.
-@param[in]	space_id	Tablespace ID
-@param[in]	filepath	Tablespace filepath
-@return DB_SUCCESS if OK, dberr_t if the insert failed */
-dberr_t
-dict_update_filepath(
-	ulint		space_id,
-	const char*	filepath);
-
-/** Replace records in SYS_TABLESPACES and SYS_DATAFILES associated with
-the given space_id using an independent transaction.
-@param[in]	space_id	Tablespace ID
-@param[in]	name		Tablespace name
-@param[in]	filepath	First filepath
-@param[in]	fsp_flags	Tablespace flags
-@return DB_SUCCESS if OK, dberr_t if the insert failed */
-dberr_t
-dict_replace_tablespace_and_filepath(
-	ulint		space_id,
-	const char*	name,
-	const char*	filepath,
-	ulint		fsp_flags);
 
 #endif

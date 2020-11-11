@@ -1624,7 +1624,6 @@ If the fix_dict boolean is set, then it is safe to use an internal SQL
 statement to update the dictionary tables if they are incorrect.
 
 @param[in]	validate	true if we should validate the tablespace
-@param[in]	fix_dict	true if the dictionary is available to be fixed
 @param[in]	purpose		FIL_TYPE_TABLESPACE or FIL_TYPE_TEMPORARY
 @param[in]	id		tablespace ID
 @param[in]	flags		expected FSP_SPACE_FLAGS
@@ -1637,7 +1636,6 @@ If file-per-table, it is the table name in the databasename/tablename format
 fil_space_t*
 fil_ibd_open(
 	bool			validate,
-	bool			fix_dict,
 	fil_type_t		purpose,
 	ulint			id,
 	ulint			flags,
