@@ -2096,6 +2096,52 @@ set eq_range_index_dive_limit=default;
 drop table t1;
 
 --echo #
+--echo # MDEV-24117: Memory management problem in statistics state...
+--echo #  (just the testcase)
+--echo #
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1(a int);
+
+# 4K rows
+insert into t1
+select A.a + B.a* 10 + C.a * 100 + D.a * 1000
+from t0 A, t0 B, t0 C, t0 D
+where D.a<4;
+
+create table t2 (
+  a int,
+  b int,
+  key(a)
+);
+
+insert into t2 values (1,1),(2,2),(3,3);
+
+set @query=(select group_concat(a) from t1);
+
+set @tmp_24117= @@max_session_mem_used;
+
+--echo #
+--echo # On debug build, the usage was
+--echo #  - 2.8M without the bug
+--echo #  - 1G with the bug.
+
+set max_session_mem_used=64*1024*1024;
+
+set @query=concat('explain select * from t2 where a in (', @query, ')');
+
+prepare s from @query;
+
+--echo # This should not fail with an error:
+execute s;
+set max_session_mem_used=@tmp_24117;
+
+deallocate prepare s;
+
+drop table t0,t1,t2;
+--echo #
 --echo # MDEV-23811: Both disjunct of WHERE condition contain range conditions
 --echo #             for the same index such that the second range condition
 --echo #             fully covers the first one. Additionally one of the disjuncts

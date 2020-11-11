@@ -3271,10 +3271,19 @@ void mysqld_stmt_execute(THD *thd, char *packet_arg, uint packet_length)
 void mysqld_stmt_bulk_execute(THD *thd, char *packet_arg, uint packet_length)
 {
   uchar *packet= (uchar*)packet_arg; // GCC 4.0.1 workaround
+  DBUG_ENTER("mysqld_stmt_execute_bulk");
+
+  const uint packet_header_lenght= 4 + 2; //ID & 2 bytes of flags
+
+  if (packet_length < packet_header_lenght)
+  {
+    my_error(ER_MALFORMED_PACKET, MYF(0));
+    DBUG_VOID_RETURN;
+  }
+
   ulong stmt_id= uint4korr(packet);
   uint flags= (uint) uint2korr(packet + 4);
   uchar *packet_end= packet + packet_length;
-  DBUG_ENTER("mysqld_stmt_execute_bulk");
 
   if (!(thd->client_capabilities &
         MARIADB_CLIENT_STMT_BULK_OPERATIONS))
@@ -3282,16 +3291,18 @@ void mysqld_stmt_bulk_execute(THD *thd, char *packet_arg, uint packet_length)
     DBUG_PRINT("error",
                ("An attempt to execute bulk operation without support"));
     my_error(ER_UNSUPPORTED_PS, MYF(0));
+    DBUG_VOID_RETURN;
   }
   /* Check for implemented parameters */
   if (flags & (~STMT_BULK_FLAG_CLIENT_SEND_TYPES))
   {
     DBUG_PRINT("error", ("unsupported bulk execute flags %x", flags));
     my_error(ER_UNSUPPORTED_PS, MYF(0));
+    DBUG_VOID_RETURN;
   }
 
   /* stmt id and two bytes of flags */
-  packet+= 4 + 2;
+  packet+= packet_header_lenght;
   mysql_stmt_execute_common(thd, stmt_id, packet, packet_end, 0, TRUE,
                             (flags & STMT_BULK_FLAG_CLIENT_SEND_TYPES));
   DBUG_VOID_RETURN;
@@ -3368,9 +3379,11 @@ stmt_execute_packet_sanity_check(Prepared_statement *stmt,
   {
     /*
       If there is no parameters, this should be normally already end
-      of the packet. If it's not - then error
+      of the packet, but it is not a problem if something left (popular
+      mistake in protocol implementation) because we will not read anymore
+      from the buffer.
     */
-    return (packet_end > packet);
+    return false;
   }
   return false;
 }

@@ -20032,8 +20032,11 @@ static void test_mdev19838()
       " VALUES "
       "(0x1111111111111111)", -1);
 
-    /* Expecting an error if parameters are sent */
-    DIE_UNLESS(rc != 0 || paramCount == 0);
+    /*
+      We allow junk at the end of the packet in case of
+      no parameters. So it will succeed.
+    */
+    DIE_UNLESS(rc == 0);
   }
 
   mysql_stmt_close(stmt);
