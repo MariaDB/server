@@ -229,8 +229,12 @@ PQRYRES __stdcall ColREST(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
   // Retrieve the file from the web and copy it locally
 	if (curl)
 		rc = Xcurl(g, http, uri, filename);
-	else
+	else if (grf)
 		rc = grf(g->Message, trace(515), http, uri, filename);
+	else {
+		strcpy(g->Message, "Cannot access to curl nor casablanca");
+		rc = 1;
+	}	// endif !grf
 
 	if (rc)
 		return NULL;
@@ -296,13 +300,16 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 	curl = GetBoolCatInfo("Curl", curl);
 
   // Retrieve the file from the web and copy it locally
-	if (curl)
+	if (curl) {
 		rc = Xcurl(g, Http, Uri, filename);
-	else
+		xtrc(515, "Return from Xcurl: rc=%d\n", rc);
+	} else if (grf) {
 		rc = grf(g->Message, xt, Http, Uri, filename);
-
-  if (xt)
-    htrc("Return from restGetFile: rc=%d\n", rc);
+		xtrc(515, "Return from restGetFile: rc=%d\n", rc);
+	} else {
+		strcpy(g->Message, "Cannot access to curl nor casablanca");
+		rc = 1;
+	}	// endif !grf
 
   if (rc)
     return true;
