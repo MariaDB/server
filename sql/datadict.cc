@@ -597,6 +597,13 @@ bool FK_backup::fk_install_shadow_frm(ddl_log_info &log_info)
   strxnmov(frm_name, sizeof(frm_name), path, reg_ext, NullS);
   if (!mysql_file_stat(key_file_frm, shadow_frm_name, &stat_info, MYF(MY_WME)))
     return true;
+#ifndef DBUG_OFF
+  if (!log_info.dbg_first &&
+      (ERROR_INJECT("fail_fk_install_shadow_frm", "crash_fk_install_shadow_frm")))
+  {
+    return true;
+  }
+#endif
   if (mysql_file_rename(key_file_frm, shadow_frm_name, frm_name, MYF(MY_WME)))
     return true;
   if (deactivate_ddl_log_entry(delete_shadow_entry->entry_pos))

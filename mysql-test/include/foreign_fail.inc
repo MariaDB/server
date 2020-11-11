@@ -29,7 +29,6 @@ if ($show_statement1)
   eval $show_statement1;
 }
 
-show create table t1;
 --eval set @@debug_dbug= $debug_dbug
 # accept all errors
 --disable_abort_on_error
@@ -39,6 +38,9 @@ show create table t1;
 --echo # State after failure
 --replace_result #p# #p#
 --list_files $datadir/test
-show create table t1;
+if ($show_statement2)
+{
+  eval $show_statement2;
+}
 set session debug_dbug=@save_dbug;
 

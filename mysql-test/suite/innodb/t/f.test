@@ -1,0 +1,62 @@
+--source include/have_innodb.inc
+
+# In fail_fk_backup_frm the log is already written but rename is not done
+call mtr.add_suppression("Failed to execute action for entry");
+
+--let $DATADIR= `SELECT @@datadir;`
+
+--let $create_statement2=
+--let $insert_statement=
+--let $insert_statement2=
+
+--delimiter $
+create or replace procedure make_tables()
+begin
+  create table t1 (x int primary key);
+  create table t2 (y int primary key);
+  create table t3 (z int primary key);
+  create table t4 (
+    a int primary key,
+    x int references t1(x),
+    y int references t2(y),
+    z int references t3(z));
+  insert t1 values (1);
+  insert t2 values (2);
+  insert t3 values (3);
+  insert t4 values (0, 1, 2, 3);
+end $
+
+create or replace procedure drop_tables()
+begin
+  drop table if exists t4;
+  drop table if exists t3;
+  drop table if exists t2;
+  drop table if exists t1;
+end $
+--delimiter ;
+
+let $create_statement= call make_tables;
+let $show_statement0= check tables t1, t2, t3, t4;
+let $show_statement1= check tables t1, t2, t3, t4;
+let $show_statement2= check tables t1, t2, t3, t4;
+let $debug_dbug="+d,fail_fk_backup_frm";
+let $fail_statement= drop table t4;
+--source include/foreign_fail.inc
+call drop_tables;
+let $debug_dbug="+d,fail_fk_install_shadow_frm";
+let $fail_statement= drop table t4;
+--source include/foreign_fail.inc
+call drop_tables;
+
+#set @save_dbug=@@debug_dbug;
+#let $create_statement= create or replace table t1 (id int primary key);
+#let $create_statement2= create or replace table t2 (id int);
+#let $insert_statement= insert into t1 values(1);
+#let $insert_statement2= insert into t2 values(1);
+#set session debug_dbug="+d,crash_fk_alter_1";
+#let $crash_statement= alter table t2 add foreign key (id) references t1(id), algorithm=copy;
+#--source suite/parts/inc/partition_crash_t2.inc
+
+drop procedure make_tables;
+drop procedure drop_tables;
+set session debug_dbug=@save_dbug;
