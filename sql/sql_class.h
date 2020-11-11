@@ -555,7 +555,6 @@ typedef struct system_variables
   ulonglong bulk_insert_buff_size;
   ulonglong join_buff_size;
   ulonglong sortbuff_size;
-  ulonglong group_concat_max_len;
   ulonglong default_regex_flags;
   ulonglong max_mem_used;
 
@@ -644,6 +643,8 @@ typedef struct system_variables
   */
   uint32     gtid_domain_id;
   uint64     gtid_seq_no;
+
+  uint group_concat_max_len;
 
   /**
     Default transaction access mode. READ ONLY (true) or READ WRITE (false).
