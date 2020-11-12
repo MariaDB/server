@@ -311,7 +311,7 @@ class Window_spec;
   any particular table (like COUNT(*)), returm 0 from Item_sum::used_tables(),
   but still return false from Item_sum::const_item().
 */
-class Unique;
+class Unique_impl;
 class Variable_sized_keys;
 
 class Item_sum :public Item_func_or_sum
@@ -593,9 +593,9 @@ public:
   bool with_sum_func() const { return true; }
   virtual void set_partition_row_count(ulonglong count) { DBUG_ASSERT(0); }
   bool is_packing_allowed(TABLE* table, uint* total_length);
-  Unique *get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
-                     uint size_arg, size_t max_in_memory_size_arg,
-                     uint min_dupl_count_arg, bool allow_packing);
+  Unique_impl *get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
+                          uint size_arg, size_t max_in_memory_size_arg,
+                          uint min_dupl_count_arg, bool allow_packing);
 };
 
 
@@ -653,7 +653,7 @@ class Aggregator_distinct : public Aggregator
     For AVG/SUM(DISTINCT) we always use this tree (as it takes a single 
     argument) to get the distinct rows.
   */
-  Unique *tree;
+  Unique_impl *tree;
 
   /* 
     The length of the temp table row. Must be a member of the class as it
@@ -1888,7 +1888,7 @@ protected:
      @see Item_func_group_concat::add
      @see Item_func_group_concat::clear
    */
-  Unique *unique_filter;
+  Unique_impl *unique_filter;
   TABLE *table;
   ORDER **order;
   Name_resolution_context *context;

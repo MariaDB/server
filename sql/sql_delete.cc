@@ -316,7 +316,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   bool binlog_is_row;
   Explain_delete *explain;
   Delete_plan query_plan(thd->mem_root);
-  Unique * deltempfile= NULL;
+  Unique_impl *deltempfile= NULL;
   bool delete_record= false;
   bool delete_while_scanning;
   bool portion_of_time_through_update;
@@ -702,9 +702,9 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       clause.  Instead of deleting the rows, first mark them deleted.
     */
     ha_rows tmplimit=limit;
-    deltempfile= new (thd->mem_root) Unique_impl (refpos_order_cmp, table->file,
-                                             table->file->ref_length,
-                                             MEM_STRIP_BUF_SIZE);
+    deltempfile= new (thd->mem_root) Unique_impl(refpos_order_cmp, table->file,
+                                                 table->file->ref_length,
+                                                 MEM_STRIP_BUF_SIZE);
 
     THD_STAGE_INFO(thd, stage_searching_rows_for_update);
     while (!(error=info.read_record()) && !thd->killed &&
@@ -713,9 +713,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       if (record_should_be_deleted(thd, table, select, explain, delete_history))
       {
         table->file->position(table->record[0]);
-        if (unlikely((error=
-                      deltempfile->unique_add((char*) table->file->ref,
-                                               deltempfile->get_size()))))
+        if (unlikely((error= deltempfile->unique_add(table->file->ref))))
         {
           error= 1;
           goto terminate_delete;
@@ -1162,7 +1160,8 @@ multi_delete::multi_delete(THD *thd_arg, TABLE_LIST *dt, uint num_of_tables_arg)
     num_of_tables(num_of_tables_arg), error(0),
     do_delete(0), transactional_tables(0), normal_tables(0), error_handled(0)
 {
-  tempfiles= (Unique **) thd_arg->calloc(sizeof(Unique *) * num_of_tables);
+  tempfiles=
+    (Unique_impl **) thd_arg->calloc(sizeof(Unique_impl *) * num_of_tables);
 }
 
 
@@ -1196,7 +1195,7 @@ bool
 multi_delete::initialize_tables(JOIN *join)
 {
   TABLE_LIST *walk;
-  Unique **tempfiles_ptr;
+  Unique_impl **tempfiles_ptr;
   DBUG_ENTER("initialize_tables");
 
   if (unlikely((thd->variables.option_bits & OPTION_SAFE_UPDATES) &&
@@ -1269,9 +1268,10 @@ multi_delete::initialize_tables(JOIN *join)
   for (;walk ;walk= walk->next_local)
   {
     TABLE *table=walk->table;
-    *tempfiles_ptr++= new (thd->mem_root) Unique_impl (refpos_order_cmp, table->file,
-                                                  table->file->ref_length,
-                                                  MEM_STRIP_BUF_SIZE);
+    *tempfiles_ptr++= new (thd->mem_root) Unique_impl(refpos_order_cmp,
+                                                      table->file,
+                                                      table->file->ref_length,
+                                                      MEM_STRIP_BUF_SIZE);
   }
   init_ftfuncs(thd, thd->lex->current_select, 1);
   DBUG_RETURN(thd->is_fatal_error);
@@ -1351,8 +1351,7 @@ int multi_delete::send_data(List<Item> &values)
     }
     else
     {
-      uint size= tempfiles[secure_counter]->get_size();
-      error=tempfiles[secure_counter]->unique_add((char*) table->file->ref, size);
+      error=tempfiles[secure_counter]->unique_add(table->file->ref);
       if (unlikely(error))
       {
 	error= 1;                               // Fatal error

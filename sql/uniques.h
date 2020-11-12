@@ -18,18 +18,24 @@
 
 #include "filesort.h"
 
+
+/*
+   Unique_impl -- An abstract class for unique (removing duplicates).
+*/
+
 class Unique : public Sql_alloc {
 public:
 
   virtual void reset() = 0;
-  virtual bool unique_add(void *ptr, uint size_arg) = 0;
+  virtual bool unique_add(void *ptr) = 0;
   virtual ~Unique() {};
 
   virtual void close_for_expansion() = 0;
 
   virtual bool get(TABLE *table) = 0;
-  virtual bool walk(TABLE *table, tree_walk_action action, void *walk_action_arg)= 0;
-  
+  virtual bool walk(TABLE *table, tree_walk_action action,
+                    void *walk_action_arg)= 0;
+
   virtual SORT_INFO *get_sort() = 0;
 
   virtual ulong get_n_elements() = 0;
@@ -38,20 +44,15 @@ public:
 
   // This will be renamed:
   virtual ulong elements_in_tree() = 0;
-
-  // These will be removed:
-  virtual uint get_size() const = 0;
-  virtual bool is_packed() = 0;
-  virtual uint get_full_size() const = 0;
 };
 
 /*
-   Unique -- class for unique (removing of duplicates).
+   Unique_impl -- class for unique (removing of duplicates).
    Puts all values to the TREE. If the tree becomes too big,
    it's dumped to the file. User can request sorted values, or
    just iterate through them. In the last case tree merging is performed in
    memory simultaneously with iteration, so it should be ~2-3x faster.
- */
+*/
 
 class Unique_impl : public Unique {
   DYNAMIC_ARRAY file_ptrs;
@@ -74,6 +75,8 @@ class Unique_impl : public Unique {
     size in bytes used for storing keys in the Unique tree
   */
   size_t memory_used;
+  ulong elements;
+  SORT_INFO sort;
 
   bool merge(TABLE *table, uchar *buff, size_t size, bool without_last_merge);
   bool flush();
@@ -94,9 +97,20 @@ class Unique_impl : public Unique {
   }
 
 public:
-  ulong elements;
-  ulong get_n_elements() override { return elements; }
-  SORT_INFO sort;
+
+  /*
+    @brief
+      Returns the number of elements in the unique instance
+
+    @details
+      If all the elements fit in the memeory, then this returns all the
+      distinct elements.
+  */
+  ulong get_n_elements() override
+  {
+    return is_in_memory() ? elements_in_tree() : elements;
+  }
+
   SORT_INFO *get_sort() override { return &sort; }
 
   Unique_impl(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
@@ -104,6 +118,13 @@ public:
          uint min_dupl_count_arg= 0);
   virtual ~Unique_impl();
   ulong elements_in_tree() { return tree.elements_in_tree; }
+
+  virtual uint get_length(void *ptr) { return size; }
+
+  bool unique_add(void *ptr) override
+  {
+    return unique_add(ptr, get_length(ptr));
+  }
 
   /*
     @brief
@@ -113,7 +134,7 @@ public:
       size                     length of the key
   */
 
-  bool unique_add(void *ptr, uint size_arg) override
+  bool unique_add(void *ptr, uint size_arg)
   {
     DBUG_ENTER("unique_add");
     DBUG_PRINT("info", ("tree %u - %lu", tree.elements_in_tree, max_elements));
@@ -164,7 +185,7 @@ public:
   void reset() override;
   bool walk(TABLE *table, tree_walk_action action, void *walk_action_arg);
 
-  uint get_size() const override { return size; }
+  uint get_size() const { return size; }
   uint get_full_size() const { return full_size; }
   size_t get_max_in_memory_size() const { return max_in_memory_size; }
   bool is_count_stored() { return with_counters; }
@@ -199,8 +220,12 @@ protected:
                 uint size_arg, size_t max_in_memory_size_arg,
                 uint min_dupl_count_arg);
 
-  bool is_packed() { return true; }
-  int write_record_to_file(uchar *key);
+  uint get_length(void *ptr) override
+  {
+    return read_packed_length(static_cast<uchar*>(ptr));
+  }
+  bool is_packed() override { return true; }
+  int write_record_to_file (uchar *key) override;
 
   // returns the length of the key along with the length bytes for the key
   static uint read_packed_length(uchar *p)

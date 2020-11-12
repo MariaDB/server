@@ -1048,7 +1048,7 @@ int Aggregator_distinct::insert_record_to_unique()
     if ((packed_length= variable_sized_keys->make_packed_record(true)) == 0)
       return -1; // NULL value
     DBUG_ASSERT(packed_length <= tree->get_size());
-    return tree->unique_add(variable_sized_keys->get_packed_rec_ptr(), packed_length);
+    return tree->unique_add(variable_sized_keys->get_packed_rec_ptr());
   }
 
   copy_fields(tmp_table_param);
@@ -1066,8 +1066,7 @@ int Aggregator_distinct::insert_record_to_unique()
     key_length used to initialize the tree didn't include space for them.
   */
 
-  return tree->unique_add(table->record[0] + table->s->null_bytes,
-                          tree->get_size());
+  return tree->unique_add(table->record[0] + table->s->null_bytes);
 }
 
 
@@ -1144,7 +1143,7 @@ bool Aggregator_distinct::add()
       '0' values are also stored in the tree. This doesn't matter
       for SUM(DISTINCT), but is important for AVG(DISTINCT)
     */
-    return tree->unique_add(table->field[0]->ptr, tree->get_size());
+    return tree->unique_add(table->field[0]->ptr);
   }
 }
 
@@ -1178,7 +1177,7 @@ void Aggregator_distinct::endup()
   {
     DBUG_ASSERT(item_sum->fixed == 1);
     Item_sum_count *sum= (Item_sum_count *)item_sum;
-    if (tree && tree->get_n_elements() == 0)
+    if (tree && tree->is_in_memory())
     {
       /* everything fits in memory */
       sum->count= (longlong) tree->elements_in_tree();
@@ -4941,9 +4940,10 @@ bool Item_sum::is_packing_allowed(TABLE *table, uint* total_length)
   @brief
     Get unique instance to filter out duplicate for AGG_FUNC(DISTINCT col....)
 */
-Unique* Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
-                             uint size_arg, size_t max_in_memory_size_arg,
-                             uint min_dupl_count_arg, bool allow_packing)
+Unique_impl*
+Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
+                     uint size_arg, size_t max_in_memory_size_arg,
+                     uint min_dupl_count_arg, bool allow_packing)
 {
   if (allow_packing)
    return new Unique_packed(comp_func, comp_func_fixed_arg, size_arg,
@@ -5025,7 +5025,7 @@ int Item_func_group_concat::insert_record_to_unique()
     if ((packed_length= variable_sized_keys->make_packed_record(skip_nulls())) == 0)
       return -1; // NULL value
     DBUG_ASSERT(packed_length <= unique_filter->get_size());
-    return unique_filter->unique_add(variable_sized_keys->get_packed_rec_ptr(), packed_length);
+    return unique_filter->unique_add(variable_sized_keys->get_packed_rec_ptr());
   }
 
   copy_fields(tmp_table_param);
@@ -5043,5 +5043,5 @@ int Item_func_group_concat::insert_record_to_unique()
     key_length used to initialize the tree didn't include space for them.
   */
 
-  return unique_filter->unique_add(get_record_pointer(), unique_filter->get_size());
+  return unique_filter->unique_add(get_record_pointer());
 }

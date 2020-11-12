@@ -1651,7 +1651,7 @@ protected:
 
   /* Field for which the number of distinct values is to be find out */
   Field *table_field;  
-  Unique *tree;       /* The helper object to contain distinct values */
+  Unique_impl *tree;       /* The helper object to contain distinct values */
   uint tree_key_length; /* The length of the keys for the elements of 'tree */
 
   ulonglong distincts;
@@ -1755,9 +1755,9 @@ public:
       length= variable_size_keys->make_packed_record(true);
       DBUG_ASSERT(length != 0);
       DBUG_ASSERT(length <= tree->get_size());
-      return tree->unique_add(variable_size_keys->get_packed_rec_ptr(), length);
+      return tree->unique_add(variable_size_keys->get_packed_rec_ptr());
     }
-    return tree->unique_add(table_field->ptr, length);
+    return tree->unique_add(table_field->ptr);
   }
 
   /*
@@ -1853,7 +1853,7 @@ public:
   bool add()
   {
     longlong val= table_field->val_int();
-    return tree->unique_add(&val, tree->get_size());
+    return tree->unique_add(&val);
   }
   bool setup(THD *thd, size_t max_heap_table_size)
   {

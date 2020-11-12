@@ -6569,7 +6569,7 @@ class SORT_INFO;
 class multi_delete :public select_result_interceptor
 {
   TABLE_LIST *delete_tables, *table_being_deleted;
-  Unique **tempfiles;
+  Unique_impl **tempfiles;
   ha_rows deleted, found;
   uint num_of_tables;
   int error;

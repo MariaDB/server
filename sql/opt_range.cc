@@ -11726,12 +11726,12 @@ int read_keys_and_merge_scans(THD *thd,
                               READ_RECORD *read_record,
                               bool intersection,
                               key_map *filtered_scans,
-                              Unique **unique_ptr)
+                              Unique_impl **unique_ptr)
 {
   List_iterator_fast<QUICK_RANGE_SELECT> cur_quick_it(quick_selects);
   QUICK_RANGE_SELECT* cur_quick;
   int result;
-  Unique *unique= *unique_ptr;
+  Unique_impl *unique= *unique_ptr;
   handler *file= head->file;
   bool with_cpk_filter= pk_quick_select != NULL;
   DBUG_ENTER("read_keys_and_merge");
@@ -11815,7 +11815,7 @@ int read_keys_and_merge_scans(THD *thd,
       continue;
 
     cur_quick->file->position(cur_quick->record);
-    if (unique->unique_add((char*)cur_quick->file->ref, unique->get_size()))
+    if (unique->unique_add((char*)cur_quick->file->ref))
       goto err;
   }
 
