@@ -469,10 +469,6 @@ void trx_t::free()
   MEM_NOACCESS(&mod_tables, sizeof mod_tables);
   MEM_NOACCESS(&detailed_error, sizeof detailed_error);
   MEM_NOACCESS(&flush_observer, sizeof flush_observer);
-  MEM_NOACCESS(&n_rec_lock_waits, sizeof n_rec_lock_waits);
-  MEM_NOACCESS(&n_table_lock_waits, sizeof n_table_lock_waits);
-  MEM_NOACCESS(&total_rec_lock_wait_time, sizeof total_rec_lock_wait_time);
-  MEM_NOACCESS(&total_table_lock_wait_time, sizeof total_table_lock_wait_time);
 #ifdef WITH_WSREP
   MEM_NOACCESS(&wsrep_event, sizeof wsrep_event);
 #endif /* WITH_WSREP */

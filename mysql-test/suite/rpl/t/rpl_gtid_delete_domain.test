@@ -53,17 +53,11 @@ START SLAVE IO_THREAD;
 # adjust the master binlog state
 FLUSH BINARY LOGS;
 --let $purge_to_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
---eval PURGE BINARY LOGS TO '$purge_to_binlog';
+--let $purge_binlogs_to=$purge_to_binlog
+--source include/wait_for_purge.inc 
+
 # with final removal of the extra domain
-###adding to debug info to catch the failure (1076):
---error 0,1076
 --eval FLUSH BINARY LOGS DELETE_DOMAIN_ID=($extra_domain_id)
-
-if ($mysql_errno == 1076) { 
-    --echo ### Failure "Could not delete gtid domain"
-    --source include/show_rpl_debug_info.inc
-  }
-
 SELECT @@global.gtid_binlog_pos, @@global.gtid_binlog_state;
 
 --connection slave
