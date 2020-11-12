@@ -240,7 +240,8 @@ public:
     threads, the SQL thread sets it to unblock the I/O thread and make it
     temporarily forget about the constraint.
   */
-  ulonglong log_space_limit,log_space_total;
+  ulonglong log_space_limit;
+  Atomic_counter<uint64> log_space_total;
   bool ignore_log_space_limit;
 
   /*
