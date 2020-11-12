@@ -148,13 +148,13 @@ trx_undo_parse_add_undo_rec(
 @return bytes left */
 static ulint trx_undo_left(const buf_block_t *undo_block, const byte *ptr)
 {
-  ut_ad(ptr >= &undo_block->frame[TRX_UNDO_PAGE_HDR]);
-  ut_ad(ptr <= &undo_block->frame[srv_page_size - 10 - FIL_PAGE_DATA_END]);
-
+  ut_ad(ptr >= &undo_block->frame[TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE]);
   /* The 10 is supposed to be an extra safety margin (and needed for
   compatibility with older versions) */
-  return srv_page_size - ulint(ptr - undo_block->frame) -
+  lint left= srv_page_size - (ptr - undo_block->frame) -
     (10 + FIL_PAGE_DATA_END);
+  ut_ad(left >= 0);
+  return left < 0 ? 0 : static_cast<ulint>(left);
 }
 
 /**********************************************************************//**

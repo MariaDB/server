@@ -1012,20 +1012,6 @@ private:
 	during bulk create index */
 	FlushObserver*	flush_observer;
 public:
-	/* Lock wait statistics */
-	ulint		n_rec_lock_waits;
-					/*!< Number of record lock waits,
-					might not be exactly correct. */
-	ulint		n_table_lock_waits;
-					/*!< Number of table lock waits,
-					might not be exactly correct. */
-	ulint		total_rec_lock_wait_time;
-					/*!< Total rec lock wait time up
-					to this moment. */
-	ulint		total_table_lock_wait_time;
-					/*!< Total table lock wait time
-					up to this moment. */
-
 #ifdef WITH_WSREP
 	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
 #endif /* WITH_WSREP */

@@ -4637,7 +4637,7 @@ evict_from_pool:
 
 		if (!access_time && !recv_no_ibuf_operations) {
 			ibuf_merge_or_delete_for_page(
-				block, block->page.id, zip_size, true);
+				block, block->page.id, zip_size);
 		}
 
 		buf_pool_mutex_enter(buf_pool);
@@ -5691,7 +5691,7 @@ loop:
 	/* Delete possible entries for the page from the insert buffer:
 	such can exist if the page belonged to an index which was dropped */
 	if (!recv_recovery_is_on()) {
-		ibuf_merge_or_delete_for_page(NULL, page_id, zip_size, true);
+		ibuf_merge_or_delete_for_page(NULL, page_id, zip_size);
 	}
 
 	frame = block->frame;
@@ -6188,7 +6188,7 @@ release_page:
 		    && page_is_leaf(frame)) {
 			ibuf_merge_or_delete_for_page(
 				reinterpret_cast<buf_block_t*>(bpage),
-				bpage->id, bpage->zip_size(), true);
+				bpage->id, bpage->zip_size());
 		}
 
 		space->release_for_io();

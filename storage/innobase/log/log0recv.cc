@@ -320,7 +320,7 @@ public:
 				mutex_exit(&recv_sys.mutex);
 				ibuf_merge_or_delete_for_page(
 					block, i.first,
-					block->zip_size(), true);
+					block->zip_size());
 				mtr.commit();
 				mtr.start();
 				mutex_enter(&recv_sys.mutex);
