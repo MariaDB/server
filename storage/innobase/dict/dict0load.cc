@@ -1054,7 +1054,7 @@ next:
 		look to see if it is already in the tablespace cache. */
 		if (fil_space_for_table_exists_in_mem(
 			    space_id, table_name.m_name, flags)) {
-			continue;
+			goto next;
 		}
 
 		char*	filepath = fil_make_filepath(
@@ -1073,8 +1073,8 @@ next:
 
 		max_space_id = ut_max(max_space_id, space_id);
 
-		ut_free(table_name.m_name);
 		ut_free(filepath);
+		goto next;
 	}
 
 	mtr_commit(&mtr);
