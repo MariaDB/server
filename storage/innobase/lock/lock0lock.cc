@@ -4753,7 +4753,7 @@ lock_validate()
 
 	lock_mutex_exit();
 
-	for (const page_id_t page_id : pages) {
+	for (page_id_t page_id : pages) {
 		lock_rec_block_validate(page_id);
 	}
 

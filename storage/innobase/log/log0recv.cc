@@ -96,13 +96,22 @@ struct log_phys_t : public log_rec_t
   /** start LSN of the mini-transaction (not necessarily of this record) */
   const lsn_t start_lsn;
 private:
-  /** length  of the record, in bytes */
-  uint16_t len;
+  /** @return the start of length and data */
+  const byte *start() const
+  {
+    return my_assume_aligned<sizeof(size_t)>
+      (reinterpret_cast<const byte*>(&start_lsn + 1));
+  }
+  /** @return the start of length and data */
+  byte *start()
+  { return const_cast<byte*>(const_cast<const log_phys_t*>(this)->start()); }
+  /** @return the length of the following record */
+  uint16_t len() const { uint16_t i; memcpy(&i, start(), 2); return i; }
 
   /** @return start of the log records */
-  byte *begin() { return reinterpret_cast<byte*>(&len + 1); }
+  byte *begin() { return start() + 2; }
   /** @return end of the log records */
-  byte *end() { byte *e= begin() + len; ut_ad(!*e); return e; }
+  byte *end() { byte *e= begin() + len(); ut_ad(!*e); return e; }
 public:
   /** @return start of the log records */
   const byte *begin() const { return const_cast<log_phys_t*>(this)->begin(); }
@@ -112,11 +121,7 @@ public:
   /** Determine the allocated size of the object.
   @param len  length of recs, excluding terminating NUL byte
   @return the total allocation size */
-  static size_t alloc_size(size_t len)
-  {
-    return len + 1 +
-      reinterpret_cast<size_t>(reinterpret_cast<log_phys_t*>(0)->begin());
-  }
+  static inline size_t alloc_size(size_t len);
 
   /** Constructor.
   @param start_lsn start LSN of the mini-transaction
@@ -124,11 +129,13 @@ public:
   @param recs the first log record for the page in the mini-transaction
   @param size length of recs, in bytes, excluding terminating NUL byte */
   log_phys_t(lsn_t start_lsn, lsn_t lsn, const byte *recs, size_t size) :
-    log_rec_t(lsn), start_lsn(start_lsn), len(static_cast<uint16_t>(size))
+    log_rec_t(lsn), start_lsn(start_lsn)
   {
     ut_ad(start_lsn);
     ut_ad(start_lsn < lsn);
+    const uint16_t len= static_cast<uint16_t>(size);
     ut_ad(len == size);
+    memcpy(start(), &len, 2);
     reinterpret_cast<byte*>(memcpy(begin(), recs, size))[size]= 0;
   }
 
@@ -138,8 +145,10 @@ public:
   void append(const byte *recs, size_t size)
   {
     ut_ad(start_lsn < lsn);
+    uint16_t l= len();
     reinterpret_cast<byte*>(memcpy(end(), recs, size))[size]= 0;
-    len= static_cast<uint16_t>(len + size);
+    l= static_cast<uint16_t>(l + size);
+    memcpy(start(), &l, 2);
   }
 
   /** Apply an UNDO_APPEND record.
@@ -512,6 +521,12 @@ page_corrupted:
     }
   }
 };
+
+
+inline size_t log_phys_t::alloc_size(size_t len)
+{
+  return len + (1 + 2 + sizeof(log_phys_t));
+}
 
 
 /** Tablespace item during recovery */

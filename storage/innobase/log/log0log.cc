@@ -918,7 +918,7 @@ ATTRIBUTE_COLD void log_write_checkpoint_info(lsn_t end_lsn)
 
 	DBUG_PRINT("ib_log", ("checkpoint ended at " LSN_PF
 			      ", flushed to " LSN_PF,
-			      log_sys.last_checkpoint_lsn,
+			      lsn_t{log_sys.last_checkpoint_lsn},
 			      log_sys.get_flushed_lsn()));
 
 	MONITOR_INC(MONITOR_NUM_CHECKPOINT);
@@ -1233,7 +1233,7 @@ log_print(
 		lsn,
 		log_sys.get_flushed_lsn(),
 		pages_flushed,
-		log_sys.last_checkpoint_lsn);
+		lsn_t{log_sys.last_checkpoint_lsn});
 
 	current_time = time(NULL);
 
