@@ -5535,6 +5535,7 @@ loop:
 	    && buf_page_in_file(&block->page)
 	    && !buf_pool_watch_is_sentinel(buf_pool, &block->page)) {
 		ut_d(block->page.file_page_was_freed = FALSE);
+		bool have_x_latch = false;
 #ifdef BTR_CUR_HASH_ADAPT
 		const dict_index_t *drop_hash_entry= nullptr;
 #endif
@@ -5587,22 +5588,24 @@ loop:
 			free_block = nullptr;
 			break;
 		case BUF_BLOCK_FILE_PAGE:
-			buf_block_buf_fix_inc(block, __FILE__, __LINE__);
-			const uint32_t num_fix_count= mtr->get_fix_count(block)
-				+ 1;
-			while (buf_block_get_io_fix(block) != BUF_IO_NONE
-			       || (num_fix_count
-				   != block->page.buf_fix_count)) {
-				buf_pool_mutex_exit(buf_pool);
-				rw_lock_x_unlock(hash_lock);
+			have_x_latch = mtr->have_x_latch(*block);
+			if (!have_x_latch) {
+				buf_block_buf_fix_inc(block,
+						      __FILE__, __LINE__);
+				while (buf_block_get_io_fix(block)
+				       != BUF_IO_NONE
+				       || block->page.buf_fix_count != 1) {
+					buf_pool_mutex_exit(buf_pool);
+					rw_lock_x_unlock(hash_lock);
 
-				os_thread_yield();
+					os_thread_sleep(1000);
 
-				buf_pool_mutex_enter(buf_pool);
-				rw_lock_x_lock(hash_lock);
+					buf_pool_mutex_enter(buf_pool);
+					rw_lock_x_lock(hash_lock);
+				}
+
+				rw_lock_x_lock(&block->lock);
 			}
-
-			rw_lock_x_lock(&block->lock);
 #ifdef BTR_CUR_HASH_ADAPT
 			drop_hash_entry = block->index;
 #endif
@@ -5622,7 +5625,9 @@ loop:
 		}
 #endif /* BTR_CUR_HASH_ADAPT */
 
-		mtr_memo_push(mtr, block, MTR_MEMO_PAGE_X_FIX);
+		if (!have_x_latch) {
+			mtr_memo_push(mtr, block, MTR_MEMO_PAGE_X_FIX);
+		}
 
 		return block;
 	}
