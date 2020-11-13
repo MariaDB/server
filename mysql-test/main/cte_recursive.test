@@ -2676,6 +2676,56 @@ DROP PROCEDURE p;
 DROP TABLE t1,t2,t3,t4;
 
 --echo #
+--echo # MDEV-23619: recursive CTE used only in the second operand of UNION
+--echo #
+
+create table t1 (
+  a bigint(10) not null auto_increment,
+  b int(5) not null,
+  c bigint(10) default null,
+  primary key (a)
+) engine myisam;
+insert into t1 values
+  (1,3,12), (2,7,15), (3,1,3), (4,3,1);
+
+let $q=
+with recursive r_cte as
+( select * from t1 as s
+  union
+  select t1.* from t1, r_cte as r where t1.c = r.a )
+select 0 as b FROM dual union all select b FROM r_cte as t;
+
+eval explain $q;
+eval $q;
+--source include/analyze-format.inc
+eval analyze format=json $q;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo #checking hanging cte that uses a recursive cte
+let $q1=
+with h_cte as
+( with recursive r_cte as
+  ( select * from t1 as s
+    union
+    select t1.* from t1, r_cte as r where t1.c = r.a )
+  select 0 as b FROM dual union all select b FROM r_cte as t)
+select * from t1 as tt;
+
+eval explain $q1;
+eval $q1;
+--source include/analyze-format.inc
+eval analyze format=json $q1;
+eval prepare stmt from "$q1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
