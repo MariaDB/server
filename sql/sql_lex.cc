@@ -4076,6 +4076,10 @@ bool LEX::can_use_merged()
   SYNOPSIS
     LEX::can_not_use_merged()
 
+  @param no_update_or_delete Set to 1 if we can't use merge with multiple-table
+                             updates, like when used from
+                             TALE_LIST::init_derived()
+
   DESCRIPTION
     Temporary table algorithm will be used on all SELECT levels for queries
     listed here (see also LEX::can_use_merged()).
@@ -4085,10 +4089,9 @@ bool LEX::can_use_merged()
     TRUE  - VIEWs with MERGE algorithms can be used
 */
 
-bool LEX::can_not_use_merged()
+bool LEX::can_not_use_merged(bool no_update_or_delete)
 {
-  switch (sql_command)
-  {
+  switch (sql_command) {
   case SQLCOM_CREATE_VIEW:
   case SQLCOM_SHOW_CREATE:
   /*
@@ -4098,6 +4101,13 @@ bool LEX::can_not_use_merged()
   */
   case SQLCOM_SHOW_FIELDS:
     return TRUE;
+
+  case SQLCOM_UPDATE_MULTI:
+  case SQLCOM_DELETE_MULTI:
+    if (no_update_or_delete)
+      return TRUE;
+    /* Fall through */
+
   default:
     return FALSE;
   }
