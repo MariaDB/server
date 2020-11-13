@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -334,6 +334,24 @@ public:
 	@return	false if iteration was terminated. */
 	template <typename Functor>
 	bool for_each_block(Functor& functor) const
+	{
+		for (typename list_t::iterator it = m_list.begin(),
+					       end = m_list.end();
+		     it != end; ++it) {
+
+			if (!functor(&*it)) {
+				return false;
+			}
+		}
+
+		return(true);
+	}
+
+	/**
+	Iterate over each block and call the functor.
+	@return	false if iteration was terminated. */
+	template <typename Functor>
+	bool for_each_block(const Functor& functor) const
 	{
 		for (typename list_t::iterator it = m_list.begin(),
 					       end = m_list.end();
