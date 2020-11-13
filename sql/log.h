@@ -728,7 +728,7 @@ public:
   {
     bytes_written = 0;
   }
-  void harvest_bytes_written(ulonglong* counter)
+  void harvest_bytes_written(Atomic_counter<uint64> *counter)
   {
 #ifndef DBUG_OFF
     char buf1[22],buf2[22];

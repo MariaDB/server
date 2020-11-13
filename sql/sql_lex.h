@@ -4469,6 +4469,12 @@ public:
 
   int add_period(Lex_ident name, Lex_ident_sys_st start, Lex_ident_sys_st end)
   {
+    if (lex_string_cmp(system_charset_info, &start, &end) == 0)
+    {
+      my_error(ER_FIELD_SPECIFIED_TWICE, MYF(0), start.str);
+      return 1;
+    }
+
     Table_period_info &info= create_info.period_info;
 
     if (check_exists && info.name.streq(name))

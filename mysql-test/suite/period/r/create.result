@@ -45,6 +45,10 @@ ERROR 42000: Incorrect column specifier for column 's'
 create or replace table t (id int primary key, s date, e date,
 period for mytime(s,x));
 ERROR 42S22: Unknown column 'x' in 'mytime'
+# MDEV-18842: Unfortunate error message when the same column is used
+# for application period start and end
+create or replace table t (s date, t date, period for apt(s,s));
+ERROR 42000: Column 's' specified twice
 create or replace table t (id int primary key, s date, e date,
 period for mytime(s,e),
 period for mytime2(s,e));

@@ -3483,7 +3483,7 @@ re_evict:
 		if (fix_block->page.ibuf_exist) {
 			fix_block->page.ibuf_exist = false;
 			ibuf_merge_or_delete_for_page(fix_block, page_id,
-						      zip_size, true);
+						      zip_size);
 		}
 
 		if (rw_latch == RW_X_LATCH) {
@@ -3550,7 +3550,7 @@ buf_page_get_gen(
     {
       rw_lock_x_lock_inline(&block->lock, 0, file, line);
       block->page.ibuf_exist= false;
-      ibuf_merge_or_delete_for_page(block, page_id, block->zip_size(), true);
+      ibuf_merge_or_delete_for_page(block, page_id, block->zip_size());
 
       if (rw_latch == RW_X_LATCH)
       {
@@ -3823,7 +3823,7 @@ loop:
     if (block->page.ibuf_exist)
     {
       if (!recv_recovery_is_on())
-        ibuf_merge_or_delete_for_page(nullptr, page_id, zip_size, true);
+        ibuf_merge_or_delete_for_page(nullptr, page_id, zip_size);
       block->page.ibuf_exist= false;
     }
 
@@ -3885,7 +3885,7 @@ loop:
   /* Delete possible entries for the page from the insert buffer:
   such can exist if the page belonged to an index which was dropped */
   if (!recv_recovery_is_on())
-    ibuf_merge_or_delete_for_page(nullptr, page_id, zip_size, true);
+    ibuf_merge_or_delete_for_page(nullptr, page_id, zip_size);
 
   static_assert(FIL_PAGE_PREV + 4 == FIL_PAGE_NEXT, "adjacent");
   memset_aligned<8>(block->frame + FIL_PAGE_PREV, 0xff, 8);

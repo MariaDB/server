@@ -3448,7 +3448,7 @@ public:
   void awake_no_mutex(killed_state state_to_set);
   void awake(killed_state state_to_set)
   {
-    bool wsrep_on_local= WSREP_NNULL(this);
+    bool wsrep_on_local= variables.wsrep_on;
     /*
       mutex locking order (LOCK_thd_data - LOCK_thd_kill)) requires
       to grab LOCK_thd_data here

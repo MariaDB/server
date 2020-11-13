@@ -16,7 +16,6 @@ wait/synch/sxlock/innodb/dict_operation_lock
 wait/synch/sxlock/innodb/fil_space_latch
 wait/synch/sxlock/innodb/fts_cache_init_rw_lock
 wait/synch/sxlock/innodb/fts_cache_rw_lock
-wait/synch/sxlock/innodb/index_online_log
 wait/synch/sxlock/innodb/index_tree_rw_lock
 wait/synch/sxlock/innodb/trx_i_s_cache_lock
 wait/synch/sxlock/innodb/trx_purge_latch

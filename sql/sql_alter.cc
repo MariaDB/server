@@ -490,6 +490,25 @@ bool Sql_cmd_alter_table::execute(THD *thd)
 
   if (check_grant(thd, priv_needed, first_table, FALSE, UINT_MAX, FALSE))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
+#ifdef WITH_WSREP
+  if (WSREP(thd) && WSREP_CLIENT(thd) &&
+      (!thd->is_current_stmt_binlog_format_row() ||
+       !thd->find_temporary_table(first_table)))
+  {
+    wsrep::key_array keys;
+    wsrep_append_fk_parent_table(thd, first_table, &keys);
+
+    WSREP_TO_ISOLATION_BEGIN_ALTER(lex->name.str ? select_lex->db.str
+                                   : first_table->db.str,
+                                   lex->name.str ? lex->name.str
+                                   : first_table->table_name.str,
+                                   first_table, &alter_info, &keys,
+                                   used_engine ? &create_info : nullptr);
+
+    thd->variables.auto_increment_offset = 1;
+    thd->variables.auto_increment_increment = 1;
+  }
+#endif
 
   if (lex->name.str && !test_all_bits(priv, INSERT_ACL | CREATE_ACL))
   {
@@ -515,20 +534,6 @@ bool Sql_cmd_alter_table::execute(THD *thd)
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   thd->work_part_info= 0;
-#endif
-
-#ifdef WITH_WSREP
-  if (WSREP(thd) &&
-      (!thd->is_current_stmt_binlog_format_row() ||
-       !thd->find_temporary_table(first_table)))
-  {
-    WSREP_TO_ISOLATION_BEGIN_ALTER((lex->name.str ? select_lex->db.str : first_table->db.str),
-                                   (lex->name.str ? lex->name.str : first_table->table_name.str),
-                                   first_table, &alter_info, used_engine ? &create_info : NULL);
-
-    thd->variables.auto_increment_offset = 1;
-    thd->variables.auto_increment_increment = 1;
-  }
 #endif
 
   result= mysql_alter_table(thd, &select_lex->db, &lex->name,

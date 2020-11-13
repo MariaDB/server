@@ -449,7 +449,8 @@ mysqld_ld_preload_text() {
 set_malloc_lib() {
   malloc_lib="$1"
   if expr "$malloc_lib" : "\(tcmalloc\|jemalloc\)" > /dev/null ; then
-    if ! my_which ldconfig > /dev/null 2>&1
+    export PATH=$PATH:/sbin
+    if ! command -v ldconfig > /dev/null 2>&1
     then
       log_error "ldconfig command not found, required for ldconfig -p"
       exit 1

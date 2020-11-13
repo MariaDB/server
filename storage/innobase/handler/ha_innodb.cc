@@ -541,6 +541,7 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(ibuf_bitmap_mutex),
 	PSI_KEY(ibuf_mutex),
 	PSI_KEY(ibuf_pessimistic_insert_mutex),
+	PSI_KEY(index_online_log),
 	PSI_KEY(log_sys_mutex),
 	PSI_KEY(page_zip_stat_per_index_mutex),
 	PSI_KEY(purge_sys_pq_mutex),
@@ -587,7 +588,6 @@ static PSI_rwlock_info all_innodb_rwlocks[] = {
 	PSI_RWLOCK_KEY(trx_i_s_cache_lock),
 	PSI_RWLOCK_KEY(trx_purge_latch),
 	PSI_RWLOCK_KEY(index_tree_rw_lock),
-	PSI_RWLOCK_KEY(index_online_log),
 };
 # endif /* UNIV_PFS_RWLOCK */
 
@@ -15262,24 +15262,6 @@ struct table_list_item {
 	const dict_table_t*	table;
 	/** Table name */
 	const char*		name;
-};
-
-/** Structure to compare two st_tablename objects using their
-db and tablename. It is used in the ordering of cascade_fk_set.
-It returns true if the first argument precedes the second argument
-and false otherwise. */
-struct tablename_compare {
-
-	bool operator()(const st_handler_tablename lhs,
-			const st_handler_tablename rhs) const
-	{
-		int cmp = strcmp(lhs.db, rhs.db);
-		if (cmp == 0) {
-			cmp = strcmp(lhs.tablename, rhs.tablename);
-		}
-
-		return(cmp < 0);
-	}
 };
 
 /*****************************************************************//**
