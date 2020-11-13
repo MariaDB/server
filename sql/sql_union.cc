@@ -1859,13 +1859,7 @@ bool st_select_lex_unit::cleanup()
   {
     DBUG_RETURN(FALSE);
   }
-  /*
-    When processing a PS/SP or an EXPLAIN command cleanup of a unit can
-    be performed immediately when the unit is reached in the cleanup
-    traversal initiated by the cleanup of the main unit.
-  */
-  if (!thd->stmt_arena->is_stmt_prepare() && !thd->lex->describe &&
-      with_element && with_element->is_recursive && union_result)
+  if (with_element && with_element->is_recursive && union_result)
   {
     select_union_recursive *result= with_element->rec_result;
     if (++result->cleanup_count == with_element->rec_outer_references)
@@ -2045,27 +2039,31 @@ bool st_select_lex::cleanup()
 
   if (join)
   {
+    List_iterator<TABLE_LIST> ti(leaf_tables);
+    TABLE_LIST *tbl;
+    while ((tbl= ti++))
+    {
+      if (tbl->is_recursive_with_table() &&
+          !tbl->is_with_table_recursive_reference())
+      {
+        /*
+          If query is killed before open_and_process_table() for tbl
+          is called then 'with' is already set, but 'derived' is not.
+        */
+        st_select_lex_unit *unit= tbl->with->spec;
+        error|= (bool) error | (uint) unit->cleanup();
+      }
+    }
     DBUG_ASSERT((st_select_lex*)join->select_lex == this);
     error= join->destroy();
     delete join;
     join= 0;
   }
-  for (TABLE_LIST *tbl= get_table_list(); tbl; tbl= tbl->next_local)
-  {
-    if (tbl->is_recursive_with_table() &&
-        !tbl->is_with_table_recursive_reference())
-    {
-      /*
-        If query is killed before open_and_process_table() for tbl
-        is called then 'with' is already set, but 'derived' is not.
-      */
-      st_select_lex_unit *unit= tbl->with->spec;
-      error|= (bool) error | (uint) unit->cleanup();
-    }
-  }
   for (SELECT_LEX_UNIT *lex_unit= first_inner_unit(); lex_unit ;
        lex_unit= lex_unit->next_unit())
   {
+    if (lex_unit->with_element && lex_unit->with_element->is_recursive)
+      continue;
     error= (bool) ((uint) error | (uint) lex_unit->cleanup());
   }
   inner_refs_list.empty();
@@ -2085,8 +2083,12 @@ void st_select_lex::cleanup_all_joins(bool full)
     join->cleanup(full);
 
   for (unit= first_inner_unit(); unit; unit= unit->next_unit())
+  {
+    if (unit->with_element && unit->with_element->is_recursive)
+      continue;
     for (sl= unit->first_select(); sl; sl= sl->next_select())
       sl->cleanup_all_joins(full);
+  }
   DBUG_VOID_RETURN;
 }
 
