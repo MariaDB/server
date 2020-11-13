@@ -1687,7 +1687,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     if (view_is_mergeable &&
         (table->select_lex->master_unit() != &old_lex->unit ||
          old_lex->can_use_merged()) &&
-        !old_lex->can_not_use_merged())
+        !old_lex->can_not_use_merged(0))
     {
       /* lex should contain at least one table */
       DBUG_ASSERT(view_main_select_tables != 0);
