@@ -2535,9 +2535,18 @@ sub environment_setup {
 		   "$path_client_bindir/my_install_db");
   $ENV{'MYSQL_INSTALL_DB'}= native_path($exe_mysql_install_db) .
     " --defaults-file=$path_config_file $extra_opts" .
-    " --defaults-group-suffix=.1" .
-    " --srcdir=" . cwd() . "/.." .
-    " --builddir=$bindir";
+    " --defaults-group-suffix=.1";
+
+  if ( ! $source_dist )
+  {
+    $ENV{'MYSQL_INSTALL_DB'}.= " --basedir=$basedir";
+  }
+  else
+  {
+    $ENV{'MYSQL_INSTALL_DB'}.=
+      " --srcdir=" . cwd() . "/.." .
+      " --builddir=$bindir";
+  }
 
   # ----------------------------------------------------
   # bug25714 executable may _not_ exist in
