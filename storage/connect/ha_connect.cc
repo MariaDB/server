@@ -170,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0002 November 05, 2020";
+       char version[]= "Version 1.07.0002 November 13, 2020";
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -6092,6 +6092,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					rc= HA_ERR_INTERNAL_ERROR;
 					goto err;
 				} // endif !nblin
+
+				// Restore language type
+				if (ttp == TAB_REST)
+					ttp = GetTypeID(topt->type);
 
 				for (i= 0; !rc && i < qrp->Nblin; i++) {
 					typ= len= prec= dec= flg= 0;
