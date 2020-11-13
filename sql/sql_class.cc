@@ -7315,7 +7315,7 @@ void ddl_log_info::write_log_finish()
   Mutex_lock lock_gdl(&LOCK_gdl);
   if (write_execute_ddl_log_entry(0, true, &exec_entry))
   {
-    // FIXME: push warning
+    my_printf_error(ER_DDL_LOG_ERROR, "Deactivating execute entry failed", MYF(0));
   }
   release();
 }

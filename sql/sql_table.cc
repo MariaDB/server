@@ -13039,7 +13039,7 @@ bool Alter_table_ctx::fk_install_frms()
   {
     FK_ref_backup *ref_bak= const_cast<FK_ref_backup *>(&key_val.second);
     if (ref_bak->install_shadow && ref_bak->fk_install_shadow_frm(fk_ddl_info))
-      // FIXME: replay log if failed
+      // FIXME: test rollback
       return true;
   }
   for (auto &key_val: fk_ref_backup)
@@ -13349,7 +13349,6 @@ FK_ddl_backup::FK_ddl_backup(Share_acquire&& _sa) :
 void
 FK_ddl_backup::rollback(ddl_log_info& log_info)
 {
-  // FIXME: add test case
   if (sa.share)
   {
     sa.share->foreign_keys= foreign_keys;

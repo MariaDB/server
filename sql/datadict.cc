@@ -512,7 +512,6 @@ error:
     goto error;
   if (ERROR_INJECT("fail_log_replace_delete_3", "crash_log_replace_delete_3"))
     goto error;
-  // FIXME: release on finish (write_log_completed(), release_log_entries())
   return false;
 }
 
@@ -572,7 +571,8 @@ rename_failed:
       /* This is very bad case because log replay will delete original frm.
          At least try prohibit replaying it and push an alert message. */
       log_info.write_log_finish();
-      // FIXME: push error
+      my_printf_error(ER_DDL_LOG_ERROR, "Deactivating restore backup entry %u failed",
+                      MYF(0), restore_backup_entry->entry_pos);
     }
     restore_backup_entry= NULL;
     return true;
@@ -607,7 +607,11 @@ bool FK_backup::fk_install_shadow_frm(ddl_log_info &log_info)
   if (mysql_file_rename(key_file_frm, shadow_frm_name, frm_name, MYF(MY_WME)))
     return true;
   if (deactivate_ddl_log_entry(delete_shadow_entry->entry_pos))
+  {
+    my_printf_error(ER_DDL_LOG_ERROR, "Deactivating delete shadow entry %u failed",
+                    MYF(0), delete_shadow_entry->entry_pos);
     return true;
+  }
   delete_shadow_entry= NULL;
   return false;
 }
@@ -638,7 +642,6 @@ void FK_backup::fk_drop_backup_frm(ddl_log_info &log_info)
 }
 
 
-// FIXME: handle return status
 bool FK_ddl_vector::install_shadow_frms(THD *thd)
 {
   if (!size())
@@ -660,10 +663,7 @@ bool FK_ddl_vector::install_shadow_frms(THD *thd)
   for (FK_ddl_backup &bak: *this)
   {
     if (bak.fk_install_shadow_frm(*this))
-    {
-      // FIXME: return backup FRMs, test
       goto error;
-    }
 #ifndef DBUG_OFF
     dbg_first= false;
 #endif
@@ -679,14 +679,14 @@ error:
 
 void FK_ddl_vector::rollback(THD *thd)
 {
-  // FIXME: push warning
   for (FK_ddl_backup &bak: *this)
     bak.rollback(*this);
 
   if (execute_ddl_log_entry(thd, first_entry->entry_pos))
   {
+    my_printf_error(ER_DDL_LOG_ERROR, "Executing some rollback actions from entry %u failed",
+                    MYF(0), first_entry->entry_pos);
     write_log_finish();
-    // FIXME: push warning
   }
   else
   {
@@ -705,8 +705,10 @@ void FK_ddl_vector::drop_backup_frms(THD *thd)
   {
     if (deactivate_ddl_log_entry(bak.restore_backup_entry->entry_pos))
     {
+      // FIXME: test getting into here (and other deactivate_ddl_log_entry() failures)
+      my_printf_error(ER_DDL_LOG_ERROR, "Deactivating restore backup entry %u failed",
+                      MYF(0), bak.restore_backup_entry->entry_pos);
       // TODO: must be atomic
-      // FIXME: push warning
     }
 #ifndef DBUG_OFF
     dbg_first= false;
