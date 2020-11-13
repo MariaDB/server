@@ -151,6 +151,10 @@ struct mtr_t {
     return old_mode;
   }
 
+  /** Check if we are holding a block latch in exclusive mode
+  @param block  buffer pool block to search for */
+  bool have_x_latch(const buf_block_t &block) const;
+
 	/** Copy the tablespaces associated with the mini-transaction
 	(needed for generating FILE_MODIFY records)
 	@param[in]	mtr	mini-transaction that may modify

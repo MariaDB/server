@@ -3772,18 +3772,29 @@ loop:
       ut_ad(0);
       break;
     case BUF_BLOCK_FILE_PAGE:
-      buf_block_buf_fix_inc(block, __FILE__, __LINE__);
+      if (!mtr->have_x_latch(*block))
       {
-        const auto num_fix_count= mtr->get_fix_count(block) + 1;
-        while (block->page.io_fix() != BUF_IO_NONE ||
-               num_fix_count != block->page.buf_fix_count())
+        buf_block_buf_fix_inc(block, __FILE__, __LINE__);
         {
-          mysql_mutex_unlock(&buf_pool.mutex);
-          os_thread_yield();
-          mysql_mutex_lock(&buf_pool.mutex);
+          while (block->page.io_fix() != BUF_IO_NONE ||
+                 block->page.buf_fix_count() != 1)
+          {
+            timespec abstime;
+            set_timespec_nsec(abstime, 1000000);
+            mysql_cond_timedwait(&buf_pool.done_flush_list, &buf_pool.mutex,
+                                 &abstime);
+          }
         }
+        rw_lock_x_lock(&block->lock);
+        mtr_memo_push(mtr, block, MTR_MEMO_PAGE_X_FIX);
       }
-      rw_lock_x_lock(&block->lock);
+      else
+      {
+        ut_ad(!block->page.ibuf_exist);
+#ifdef BTR_CUR_HASH_ADAPT
+        ut_ad(!block->index);
+#endif
+      }
 #ifdef BTR_CUR_HASH_ADAPT
       drop_hash_entry= block->index;
 #endif
@@ -3808,6 +3819,7 @@ loop:
       buf_page_free_descriptor(&block->page);
       block= free_block;
       buf_block_buf_fix_inc(block, __FILE__, __LINE__);
+      mtr_memo_push(mtr, block, MTR_MEMO_PAGE_X_FIX);
       break;
     }
 
@@ -3817,8 +3829,6 @@ loop:
     if (drop_hash_entry)
       btr_search_drop_page_hash_index(block);
 #endif /* BTR_CUR_HASH_ADAPT */
-
-    mtr_memo_push(mtr, block, MTR_MEMO_PAGE_X_FIX);
 
     if (block->page.ibuf_exist)
     {
