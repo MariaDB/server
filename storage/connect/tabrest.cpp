@@ -88,12 +88,12 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 
 	if (Uri) {
 		if (*Uri == '/' || Http[strlen(Http) - 1] == '/')
-			sprintf(buf, "curl %s%s > %s", Http, Uri, filename);
+			sprintf(buf, "curl %s%s -o %s", Http, Uri, filename);
 		else
-			sprintf(buf, "curl %s/%s > %s", Http, Uri, filename);
+			sprintf(buf, "curl %s/%s -o %s", Http, Uri, filename);
 
 	} else
-		sprintf(buf, "curl %s > %s", Http, filename);
+		sprintf(buf, "curl %s -o %s", Http, filename);
 
 	if ((pipe = popen(buf, "rt"))) {
 		if (trace(515))
