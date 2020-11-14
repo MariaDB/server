@@ -682,6 +682,10 @@ void FK_ddl_vector::rollback(THD *thd)
   for (FK_ddl_backup &bak: *this)
     bak.rollback(*this);
 
+  // NB: we might not fk_write_shadow_frm() at all in case rename table failed
+  if (!first_entry)
+    return;
+
   if (execute_ddl_log_entry(thd, first_entry->entry_pos))
   {
     my_printf_error(ER_DDL_LOG_ERROR, "Executing some rollback actions from entry %u failed",

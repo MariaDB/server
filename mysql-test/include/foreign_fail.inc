@@ -1,5 +1,8 @@
 set @save_dbug=@@debug_dbug;
-eval $create_statement;
+if ($create_statement)
+{
+  eval $create_statement;
+}
 if ($insert_statement)
 {
   eval $insert_statement;

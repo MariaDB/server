@@ -1572,7 +1572,7 @@ bool TABLE_SHARE::fk_resolve_referenced_keys(THD *thd, TABLE_SHARE *from)
 
   for (FK_info &fk: from->foreign_keys)
   {
-    if (0 != cmp_db_table(fk.referenced_db, fk.referenced_table))
+    if (0 != cmp_db_table(fk.ref_db(), fk.referenced_table))
       continue;
 
     DBUG_ASSERT(fk.foreign_id.length);

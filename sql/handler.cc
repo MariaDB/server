@@ -5539,8 +5539,12 @@ int ha_create_table(THD *thd, const char *path,
       goto err;
   }
 
-  if (fk_update_refs && share.fk_handle_create(thd, fk_shares))
-    goto err;
+  if (fk_update_refs)
+  {
+    if (share.fk_handle_create(thd, fk_shares) ||
+        fk_shares.install_shadow_frms(thd))
+      goto err;
+  }
 
   share.m_psi= PSI_CALL_get_table_share(temp_table, &share);
 
@@ -5570,18 +5574,14 @@ int ha_create_table(THD *thd, const char *path,
     goto err;
 
   if (fk_update_refs)
-  {
-    fk_shares.install_shadow_frms(thd); // FIXME: move to beginning, handle return status
     fk_shares.drop_backup_frms(thd);
-  }
 
   free_table_share(&share);
   DBUG_RETURN(0);
 
 err:
   if (fk_update_refs)
-    for (FK_ddl_backup &bak: fk_shares)
-      bak.rollback(fk_shares);
+    fk_shares.rollback(thd);
   free_table_share(&share);
   DBUG_RETURN(1);
 }

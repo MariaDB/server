@@ -247,12 +247,14 @@ show create table t2;
 
 --error ER_ROW_IS_REFERENCED_2
 drop table t1,t2;
---error ER_BAD_TABLE_ERROR
 drop table t2, t1;
 
 --echo #
 --echo # MDEV-21053 Crash safety of FK DDL
 --echo #
+# In fail_fk_backup_frm the log is already written but rename is not done
+call mtr.add_suppression("Failed to execute action for entry");
+
 --let $DATADIR= `SELECT @@datadir;`
 
 --let $create_statement2=
@@ -283,35 +285,52 @@ begin
   drop table if exists t2;
   drop table if exists t1;
 end $
-
-create or replace procedure show_tables()
-begin
-  show create table t1;
-  show create table t2;
-  show create table t3;
-end $
 --delimiter ;
 
+--echo # DROP TABLE
 let $create_statement= call make_tables;
-let $show_statement0= show create table t4;
-let $show_statement1= call show_tables;
-let $show_statement2= call show_tables;
+let $show_statement0= check tables t1, t2, t3, t4;
+let $show_statement1= check tables t1, t2, t3, t4;
+let $show_statement2= check tables t1, t2, t3, t4;
 let $debug_dbug="+d,fail_fk_backup_frm";
-let $fail_statement= drop table t2;
---source include/fk_fail_t2.inc
-
+let $fail_statement= drop table t4;
+--source include/foreign_fail.inc
+call drop_tables;
+let $debug_dbug="+d,fail_fk_install_shadow_frm";
+--source include/foreign_fail.inc
 call drop_tables;
 
-set @save_dbug=@@debug_dbug;
-let $create_statement= create or replace table t1 (id int primary key);
-let $create_statement2= create or replace table t2 (id int);
-let $insert_statement= insert into t1 values(1);
-let $insert_statement2= insert into t2 values(1);
-set session debug_dbug="+d,crash_fk_alter_1";
-let $crash_statement= alter table t2 add foreign key (id) references t1(id), algorithm=copy;
---source suite/parts/inc/partition_crash_t2.inc
+# FIXME: crash statements
+
+--echo # CREATE TABLE
+create table t1 (x int primary key);
+create table t2 (y int primary key);
+create table t3 (z int primary key);
+--let $create_statement=
+let $fail_statement= create table t4 (a int primary key, x int references t1(x), y int references t2(y), z int references t3(z));
+let $debug_dbug="+d,fail_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+call drop_tables;
+
+--echo # RENAME TABLE
+# FIXME: test multi-rename
+let $create_statement= call make_tables;
+let $debug_dbug="+d,fail_fk_backup_frm";
+let $fail_statement= rename table t4 to xt4;
+--source include/foreign_fail.inc
+call drop_tables;
+
+#set @save_dbug=@@debug_dbug;
+#let $create_statement= create or replace table t1 (id int primary key);
+#let $create_statement2= create or replace table t2 (id int);
+#let $insert_statement= insert into t1 values(1);
+#let $insert_statement2= insert into t2 values(1);
+#set session debug_dbug="+d,crash_fk_alter_1";
+#let $crash_statement= alter table t2 add foreign key (id) references t1(id), algorithm=copy;
+#--source suite/parts/inc/partition_crash_t2.inc
 
 drop procedure make_tables;
 drop procedure drop_tables;
-drop procedure show_tables;
 set session debug_dbug=@save_dbug;

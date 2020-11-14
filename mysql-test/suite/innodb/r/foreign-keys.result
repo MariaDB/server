@@ -219,22 +219,45 @@ t2	CREATE TABLE `t2` (
 drop table t1,t2;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (fk_fid)
 drop table t2, t1;
-ERROR 42S02: Unknown table 'test.t2'
 #
 # MDEV-21053 Crash safety of FK DDL
 #
+call mtr.add_suppression("Failed to execute action for entry");
+create or replace procedure make_tables()
+begin
+create table t1 (x int primary key);
+create table t2 (y int primary key);
+create table t3 (z int primary key);
+create table t4 (
+a int primary key,
+x int references t1(x),
+y int references t2(y),
+z int references t3(z));
+insert t1 values (1);
+insert t2 values (2);
+insert t3 values (3);
+insert t4 values (0, 1, 2, 3);
+end $
+create or replace procedure drop_tables()
+begin
+drop table if exists t4;
+drop table if exists t3;
+drop table if exists t2;
+drop table if exists t1;
+end $
+# DROP TABLE
 set @save_dbug=@@debug_dbug;
-create or replace table t1 (id int primary key);
-insert into t1 values(1);
-create or replace table t2 (id int references t1 (id));
-insert into t2 values(1);
-show create table t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `id` int(11) DEFAULT NULL,
-  KEY `fk_t2` (`id`),
-  CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `t1` (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+call make_tables;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
 # State before failure
 db.opt
 t1.MYD
@@ -243,114 +266,283 @@ t1.frm
 t2.MYD
 t2.MYI
 t2.frm
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `id` int(11) NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
 set @@debug_dbug= "+d,fail_fk_backup_frm";
-drop table t2;
+drop table t4;
 ERROR HY000: Unknown error
 # State after failure
-#sqlf-shadow-4-t1.frm
 db.opt
 t1.MYD
 t1.MYI
-t1.fbk
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `id` int(11) NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+call drop_tables;
+set @save_dbug=@@debug_dbug;
+call make_tables;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_install_shadow_frm";
+drop table t4;
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+call drop_tables;
+# CREATE TABLE
+create table t1 (x int primary key);
+create table t2 (y int primary key);
+create table t3 (z int primary key);
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set @@debug_dbug= "+d,fail_fk_backup_frm";
+create table t4 (a int primary key, x int references t1(x), y int references t2(y), z int references t3(z));
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
 set session debug_dbug=@save_dbug;
 set @save_dbug=@@debug_dbug;
-set session debug_dbug="+d,crash_fk_alter_1";
-create or replace table t2 (id int);
-insert into t2 values(1);
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `id` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT * FROM t2;
-id
-1
-create or replace table t1 (id int primary key);
-insert into t1 values(1);
-# State before crash
-#sqlf-shadow-4-t1.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+# State before failure
 db.opt
 t1.MYD
 t1.MYI
-t1.fbk
 t1.frm
 t2.MYD
 t2.MYI
 t2.frm
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `id` int(11) NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT * FROM t1;
-id
-1
-alter table t2 add foreign key (id) references t1(id), algorithm=copy;
-ERROR HY000: Lost connection to MySQL server during query
-# State after crash (before recovery)
-#sql-alter-4.MYD
-#sql-alter-4.MYI
-#sql-alter-4.frm
-#sqlf-shadow-4-t1.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set @@debug_dbug= "+d,fail_fk_install_shadow_frm";
+create table t4 (a int primary key, x int references t1(x), y int references t2(y), z int references t3(z));
+ERROR HY000: Unknown error
+# State after failure
 db.opt
 t1.MYD
 t1.MYI
-t1.fbk
 t1.frm
 t2.MYD
 t2.MYI
 t2.frm
-# State after crash recovery
-#sql-alter-4.MYD
-#sql-alter-4.MYI
-#sql-alter-4.frm
-#sqlf-shadow-4-t1.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set session debug_dbug=@save_dbug;
+call drop_tables;
+# RENAME TABLE
+set @save_dbug=@@debug_dbug;
+call make_tables;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
 db.opt
 t1.MYD
 t1.MYI
-t1.fbk
 t1.frm
 t2.MYD
 t2.MYI
 t2.frm
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `id` int(11) NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-Warnings:
-Error	145	Table './test/t1' is marked as crashed and should be repaired
-Warning	1034	1 client is using or hasn't closed the table properly
-Note	1034	Table is fixed
-SELECT * FROM t1;
-id
-1
-DROP TABLE t1;
-SHOW CREATE TABLE t2;
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `id` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-Warnings:
-Error	145	Table './test/t2' is marked as crashed and should be repaired
-Warning	1034	1 client is using or hasn't closed the table properly
-Note	1034	Table is fixed
-SELECT * FROM t2;
-id
-1
-DROP TABLE t2;
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_backup_frm";
+rename table t4 to xt4;
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+call drop_tables;
+drop procedure make_tables;
+drop procedure drop_tables;
 set session debug_dbug=@save_dbug;

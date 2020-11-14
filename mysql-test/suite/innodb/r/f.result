@@ -21,6 +21,7 @@ drop table if exists t3;
 drop table if exists t2;
 drop table if exists t1;
 end $
+# DROP TABLE
 set @save_dbug=@@debug_dbug;
 call make_tables;
 check tables t1, t2, t3, t4;
@@ -124,6 +125,173 @@ test.t4	check	Note	Found 3 foreign keys
 test.t4	check	status	OK
 set @@debug_dbug= "+d,fail_fk_install_shadow_frm";
 drop table t4;
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set session debug_dbug=@save_dbug;
+call drop_tables;
+# CREATE TABLE
+create table t1 (x int primary key);
+create table t2 (y int primary key);
+create table t3 (z int primary key);
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set @@debug_dbug= "+d,fail_fk_backup_frm";
+create table t4 (a int primary key, x int references t1(x), y int references t2(y), z int references t3(z));
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set session debug_dbug=@save_dbug;
+set @save_dbug=@@debug_dbug;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set @@debug_dbug= "+d,fail_fk_install_shadow_frm";
+create table t4 (a int primary key, x int references t1(x), y int references t2(y), z int references t3(z));
+ERROR HY000: Unknown error
+# State after failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+test.t4	check	Error	Table 'test.t4' doesn't exist
+test.t4	check	status	Operation failed
+set session debug_dbug=@save_dbug;
+call drop_tables;
+# RENAME TABLE
+set @save_dbug=@@debug_dbug;
+call make_tables;
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+# State before failure
+db.opt
+t1.MYD
+t1.MYI
+t1.frm
+t2.MYD
+t2.MYI
+t2.frm
+t3.MYD
+t3.MYI
+t3.frm
+t4.MYD
+t4.MYI
+t4.frm
+check tables t1, t2, t3, t4;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 1 referenced keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 1 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	status	OK
+test.t4	check	Note	Found 3 foreign keys
+test.t4	check	status	OK
+set @@debug_dbug= "+d,fail_fk_backup_frm";
+rename table t4 to xt4;
 ERROR HY000: Unknown error
 # State after failure
 db.opt

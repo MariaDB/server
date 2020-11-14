@@ -9971,8 +9971,15 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                          &alter_ctx->new_name, fk_rename_backup))
       DBUG_RETURN(true);
 
+    for (FK_ddl_backup &ref: fk_rename_backup)
+      if (ref.fk_write_shadow_frm(fk_rename_backup))
+        DBUG_RETURN(true);
+
     close_all_tables_for_name(thd, table->s, HA_EXTRA_PREPARE_FOR_RENAME,
                               NULL);
+
+    if (fk_rename_backup.install_shadow_frms(thd))
+      DBUG_RETURN(true);
 
     if (mysql_rename_table(old_db_type, &alter_ctx->db, &alter_ctx->table_name,
                            &alter_ctx->new_db, &alter_ctx->new_name, 0))
@@ -9997,9 +10004,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                                          &alter_ctx->table_name,
                                          &alter_ctx->new_db,
                                          &alter_ctx->new_name);
-      error= fk_rename_backup.install_shadow_frms(thd); // FIXME: move to beginning
-      if (!error)
-        fk_rename_backup.drop_backup_frms(thd);
+      fk_rename_backup.drop_backup_frms(thd);
     }
     else
     {
@@ -12444,7 +12449,7 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_ddl_vector &shares, FK_list *fk_
 
   for (FK_info &fk: fkeys)
   {
-    if (!cmp_table(fk.ref_db(), db) && !cmp_table(fk.referenced_table, table_name))
+    if (!::cmp_table(fk.ref_db(), db) && !::cmp_table(fk.referenced_table, table_name))
       continue; // subject table name is already prelocked by caller DDL
     if (!tables.insert(fk.ref_table(thd->mem_root)))
       return true;
@@ -12502,8 +12507,8 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_ddl_vector &shares, FK_list *fk_
     for (const FK_info &fk: fkeys)
     {
       // Find keys referencing the acquired share and add them to referenced_keys
-      if (cmp_table(fk.ref_db(), ref_share->db) ||
-          cmp_table(fk.referenced_table, ref_share->table_name))
+      if (::cmp_table(fk.ref_db(), ref_share->db) ||
+          ::cmp_table(fk.referenced_table, ref_share->table_name))
         continue;
 
       // Check for duplicated id
@@ -13147,7 +13152,7 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, FK_ddl_vector &shares,
   List_iterator<FK_info> ref_it;
 
   // NB: another loop separates share acquisition which may fail
-  for (auto ref = std::begin(shares); ref != std::end(shares); )
+  for (auto ref= std::begin(shares); ref != std::end(shares); )
   {
     ref_it.init(ref->sa.share->referenced_keys);
     while (FK_info *rk= ref_it++)
@@ -13169,8 +13174,7 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, FK_ddl_vector &shares,
       }
       // ignore non-existent frm (main.drop_table_force, Test6)
       thd->clear_error();
-      ref->sa.release();
-      ref= shares.erase(ref);
+
     }
     else
       ++ref;
@@ -13203,7 +13207,16 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
   if (share->foreign_keys.is_empty() && share->referenced_keys.is_empty())
     return false;
   mbd::set<Table_name> tables;
+  mbd::set<Table_name> already;
   MDL_request_list mdl_list;
+  for (FK_ddl_backup &bak: fk_rename_backup)
+  {
+    // NB: exception_wrapper prints error message
+    if (!already.insert(Table_name(bak.sa.share->db, bak.sa.share->table_name)))
+      return true;
+  }
+  // NB: we do not allow same share twice in fk_rename_backup
+  DBUG_ASSERT(already.size() == fk_rename_backup.size());
   for (FK_info &fk: share->foreign_keys)
   {
     if (fk.foreign_db.strdup(&share->mem_root, *new_db) ||
@@ -13213,6 +13226,7 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
         0 == cmp_table(fk.referenced_table, old_table->table_name))
     {
       // NB: we don't have to lock self-references but we have to update share
+      // FIXME: where we rollback share?
       if (0 != cmp_table(old_table->db, *new_db) &&
           fk.referenced_db.strdup(&share->mem_root, *new_db))
         goto mem_error;
@@ -13220,8 +13234,12 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
         goto mem_error;
       continue;
     }
-    if (!tables.insert(fk.ref_table(thd->mem_root)))
-      goto mem_error;
+    Table_name ref_table= fk.ref_table(thd->mem_root);
+    // NB: multi-rename may have already this table locked
+    if (already.find(ref_table) != already.end())
+      continue;
+    if (!tables.insert(ref_table))
+      return true;
   }
   for (FK_info &rk: share->referenced_keys)
   {
@@ -13249,12 +13267,12 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
         goto mem_error;
       continue;
     }
-    if (!tables.insert(rk.for_table(thd->mem_root)))
-      goto mem_error;
+    Table_name for_table= rk.for_table(thd->mem_root);
+    if (already.find(for_table) != already.end())
+      continue;
+    if (!tables.insert(for_table))
+      return true;
   }
-
-  if (tables.empty())
-    return false;
 
   if (thd->mdl_context.upgrade_shared_lock(
              old_table->mdl_request.ticket, MDL_EXCLUSIVE,
@@ -13273,7 +13291,7 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
   if (thd->mdl_context.acquire_locks(&mdl_list, thd->variables.lock_wait_timeout))
     return true;
 
-  fk_rename_backup.reserve(tables.size());
+  fk_rename_backup.reserve(fk_rename_backup.size() + tables.size());
 
   for (const Table_name &ref: tables)
   {
@@ -13283,7 +13301,7 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
     if (!ref_sa.share)
       return true;
     if (fk_rename_backup.push_back(std::move(ref_sa)))
-      goto mem_error;
+      return true;
     DBUG_ASSERT(!ref_sa.share);
     if (!fk_rename_backup.back().sa.share)
       return true; // ctor failed, share was released
@@ -13314,8 +13332,6 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
           rk.foreign_table.strdup(&ref_share->mem_root, *new_table_name))
         goto mem_error;
     }
-    if (ref.fk_write_shadow_frm(fk_rename_backup))
-      return true;
   }
 
   return false;

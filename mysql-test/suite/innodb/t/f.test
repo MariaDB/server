@@ -35,6 +35,7 @@ begin
 end $
 --delimiter ;
 
+--echo # DROP TABLE
 let $create_statement= call make_tables;
 let $show_statement0= check tables t1, t2, t3, t4;
 let $show_statement1= check tables t1, t2, t3, t4;
@@ -44,7 +45,28 @@ let $fail_statement= drop table t4;
 --source include/foreign_fail.inc
 call drop_tables;
 let $debug_dbug="+d,fail_fk_install_shadow_frm";
-let $fail_statement= drop table t4;
+--source include/foreign_fail.inc
+call drop_tables;
+
+# FIXME: crash statements
+
+--echo # CREATE TABLE
+create table t1 (x int primary key);
+create table t2 (y int primary key);
+create table t3 (z int primary key);
+--let $create_statement=
+let $fail_statement= create table t4 (a int primary key, x int references t1(x), y int references t2(y), z int references t3(z));
+let $debug_dbug="+d,fail_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+call drop_tables;
+
+--echo # RENAME TABLE
+# FIXME: test multi-rename
+let $create_statement= call make_tables;
+let $debug_dbug="+d,fail_fk_backup_frm";
+let $fail_statement= rename table t4 to xt4;
 --source include/foreign_fail.inc
 call drop_tables;
 

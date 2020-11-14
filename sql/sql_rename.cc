@@ -153,40 +153,75 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
                        0))
     goto err;
 
-  error=0;
+  error= 0;
+
+  ren_table= rename_tables(thd, table_list, 0, if_exists, &force_if_exists,
+                           fk_rename_backup);
+
+  if (ren_table)
+    error= true;
+  else
+  {
+    for (FK_ddl_backup &ref: fk_rename_backup)
+    {
+      if (ref.fk_write_shadow_frm(fk_rename_backup))
+      {
+        error= true;
+        break;
+      }
+    }
+
+    if (!error)
+      error= fk_rename_backup.install_shadow_frms(thd);
+  }
   /*
     An exclusive lock on table names is satisfactory to ensure
     no other thread accesses this table.
   */
-  if ((ren_table= rename_tables(thd, table_list, 0, if_exists,
-                                &force_if_exists, fk_rename_backup)))
+  if (error)
   {
-    /* Rename didn't succeed;  rename back the tables in reverse order */
-    TABLE_LIST *table;
+    fk_rename_backup.rollback(thd);
+    fk_rename_backup.clear();
 
+    /* Rename didn't succeed;  rename back the tables in reverse order */
     /* Reverse the table list */
     table_list= reverse_table_list(table_list);
+    TABLE_LIST *table= table_list;
 
-    /* Find the last renamed table */
-    for (table= table_list;
-	 table->next_local != ren_table ;
-	 table= table->next_local->next_local) ;
-    table= table->next_local->next_local;		// Skip error table
+    if (ren_table)
+    {
+      /* Find the last renamed table */
+      for (; table->next_local != ren_table ;
+          table= table->next_local->next_local) ;
+      table= table->next_local->next_local;		// Skip error table
+    }
     /* Revert to old names */
     rename_tables(thd, table, 1, if_exists, &force_if_exists, fk_rename_backup);
 
+    /* NB: we may have already acquired share with new name in fk_handle_rename(). */
+    for (ren_table= table_list; ren_table; ren_table= ren_table->next_local->next_local)
+    {
+      if (is_temporary_table(ren_table))
+        continue;
+      tdc_remove_table(thd, ren_table->db.str, ren_table->table_name.str);
+    }
+
     /* Revert the table list (for prepared statements) */
     table_list= reverse_table_list(table_list);
-
-    fk_rename_backup.rollback(thd);
-
-    error= 1;
   }
   else
   {
-    error= fk_rename_backup.install_shadow_frms(thd); // FIXME: move to beginning
-    if (!error)
-      fk_rename_backup.drop_backup_frms(thd);
+    fk_rename_backup.drop_backup_frms(thd);
+    /* NB: first we release ref shares */
+    fk_rename_backup.clear();
+
+    /* and then we can tdc_remove_table() because fk_rename_backup may hold these shares. */
+    for (ren_table= table_list; ren_table; ren_table= ren_table->next_local->next_local)
+    {
+      if (is_temporary_table(ren_table))
+        continue;
+      tdc_remove_table(thd, ren_table->db.str, ren_table->table_name.str);
+    }
   }
 
   if (likely(!silent && !error))
@@ -321,12 +356,13 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
       Shared table. Just drop the old .frm as it's not correct anymore
       Discovery will find the old table when it's accessed
      */
-    tdc_remove_table(thd, ren_table->db.str, ren_table->table_name.str);
+    // FIXME: tdc_remove_table() is now done later. Does that work?
+    // tdc_remove_table(thd, ren_table->db.str, ren_table->table_name.str);
     quick_rm_table(thd, 0, &ren_table->db, &old_alias, FRM_ONLY, 0);
     DBUG_RETURN(0);
   }
 
-  if (ha_table_exists(thd, new_db, &new_alias, &new_hton))
+  if (!skip_error && ha_table_exists(thd, new_db, &new_alias, &new_hton))
   {
     my_error(ER_TABLE_EXISTS_ERROR, MYF(0), new_alias.str);
     DBUG_RETURN(1);                     // This can't be skipped
@@ -339,8 +375,6 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
       !wsrep_should_replicate_ddl(thd, hton->db_type))
     DBUG_RETURN(1);
 #endif
-
-  tdc_remove_table(thd, ren_table->db.str, ren_table->table_name.str);
 
   if (hton != view_pseudo_hton)
   {
@@ -373,6 +407,19 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
         */
         (void) mysql_rename_table(hton, new_db, &new_alias,
                                   &ren_table->db, &old_alias, NO_FK_CHECKS);
+      }
+    }
+    if (!skip_error && !rc)
+    {
+      /*
+         NB: fk_rename_backup may contain this share. fk_write_shadow_frm()
+         will not find original frm by old name since we renamed it.
+      */
+      TDC_element *element= tdc_lock_share(thd, ren_table->db.str, old_alias.str);
+      if (element && element != MY_ERRPTR)
+      {
+        rc= element->share->update_name(*new_db, new_alias);
+        tdc_unlock_share(element);
       }
     }
     if (thd->replication_flags & OPTION_IF_EXISTS)

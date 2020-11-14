@@ -770,8 +770,11 @@ struct TABLE_SHARE
   LEX_CSTRING db;                        /* Pointer to db */
   LEX_CSTRING table_name;                /* Table name (for open) */
   LEX_CSTRING path;                	/* Path to .frm file (from datadir) */
+  // TODO: normalized_path is now the same as path (set in alloc_table_share())
   LEX_CSTRING normalized_path;		/* unpack_filename(path) */
   LEX_CSTRING connect_string;
+
+  bool update_name(LEX_CSTRING new_db, LEX_CSTRING new_name);
 
   int cmp_db_table(const LEX_CSTRING &_db, const LEX_CSTRING &_table_name) const
   {
@@ -780,6 +783,8 @@ struct TABLE_SHARE
       return res;
     return ::cmp_table(_table_name, table_name);
   }
+
+  int cmp_db_table(const TABLE_LIST &tl) const;
 
   /* 
      Set of keys in use, implemented as a Bitmap.
