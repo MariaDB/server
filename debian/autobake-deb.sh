@@ -17,6 +17,13 @@ set -e
 # building the deb packages here.
 export DEB_BUILD_OPTIONS="nocheck $DEB_BUILD_OPTIONS"
 
+# Take the files and part of control from MCS directory
+if [[ -d storage/columnstore/columnstore/debian ]]; then
+  cp -v storage/columnstore/columnstore/debian/mariadb-plugin-columnstore.* debian/
+  echo >> debian/control
+  cat storage/columnstore/columnstore/debian/control >> debian/control
+fi
+
 # General CI optimizations to keep build output smaller
 if [[ $TRAVIS ]] || [[ $GITLAB_CI ]]
 then
