@@ -4170,19 +4170,11 @@ insert buffer. If the page is not read, but created in the buffer pool, this
 function deletes its buffered entries from the insert buffer; there can
 exist entries for such a page if the page belonged to an index which
 subsequently was dropped.
-@param[in,out]	block			if page has been read from disk,
-pointer to the page x-latched, else NULL
-@param[in]	page_id			page id of the index page
-@param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	update_ibuf_bitmap	normally this is set, but
-if we have deleted or are deleting the tablespace, then we naturally do not
-want to update a non-existent bitmap page */
-void
-ibuf_merge_or_delete_for_page(
-	buf_block_t*		block,
-	const page_id_t		page_id,
-	ulint			zip_size,
-	bool			update_ibuf_bitmap)
+@param block    X-latched page to try to apply changes to, or NULL to discard
+@param page_id  page identifier
+@param zip_size ROW_FORMAT=COMPRESSED page size, or 0 */
+void ibuf_merge_or_delete_for_page(buf_block_t *block, const page_id_t page_id,
+                                   ulint zip_size)
 {
 	btr_pcur_t	pcur;
 #ifdef UNIV_IBUF_DEBUG
@@ -4211,47 +4203,33 @@ ibuf_merge_or_delete_for_page(
 		return;
 	}
 
-	fil_space_t*	space;
+	fil_space_t* space = fil_space_t::get(page_id.space());
 
-	if (update_ibuf_bitmap) {
-		space = fil_space_t::get(page_id.space());
-
-		if (UNIV_UNLIKELY(!space)) {
-			/* Do not try to read the bitmap page from the
-			non-existent tablespace, delete the ibuf records */
-			block = NULL;
-			update_ibuf_bitmap = false;
-		} else {
-			ulint	bitmap_bits = 0;
-
-			ibuf_mtr_start(&mtr);
-
-			buf_block_t* bitmap_page = ibuf_bitmap_get_map_page(
-				page_id, zip_size, &mtr);
-
-			if (bitmap_page
-			    && fil_page_get_type(bitmap_page->frame)
-			    != FIL_PAGE_TYPE_ALLOCATED) {
-				bitmap_bits = ibuf_bitmap_page_get_bits(
-					bitmap_page->frame, page_id, zip_size,
-					IBUF_BITMAP_BUFFERED, &mtr);
-			}
-
-			ibuf_mtr_commit(&mtr);
-
-			if (!bitmap_bits) {
-				/* No changes are buffered for this page. */
-				space->release();
-				return;
-			}
-		}
-	} else if (block != NULL
-		   && (ibuf_fixed_addr_page(page_id, physical_size)
-		       || fsp_descr_page(page_id, physical_size))) {
-
-		return;
+	if (UNIV_UNLIKELY(!space)) {
+		block = NULL;
 	} else {
-		space = NULL;
+		ulint	bitmap_bits = 0;
+
+		ibuf_mtr_start(&mtr);
+
+		buf_block_t* bitmap_page = ibuf_bitmap_get_map_page(
+			page_id, zip_size, &mtr);
+
+		if (bitmap_page
+		    && fil_page_get_type(bitmap_page->frame)
+		    != FIL_PAGE_TYPE_ALLOCATED) {
+			bitmap_bits = ibuf_bitmap_page_get_bits(
+				bitmap_page->frame, page_id, zip_size,
+				IBUF_BITMAP_BUFFERED, &mtr);
+		}
+
+		ibuf_mtr_commit(&mtr);
+
+		if (!bitmap_bits) {
+			/* No changes are buffered for this page. */
+			space->release();
+			return;
+		}
 	}
 
 	mem_heap_t* heap = mem_heap_create(512);
@@ -4297,12 +4275,11 @@ loop:
 		ibuf.index, search_tuple, PAGE_CUR_GE, BTR_MODIFY_LEAF,
 		&pcur, &mtr);
 
-	if (block != NULL) {
+	if (block) {
 		ut_ad(rw_lock_own(&block->lock, RW_LOCK_X));
 		buf_block_buf_fix_inc(block, __FILE__, __LINE__);
 		rw_lock_x_lock(&block->lock);
 
-		mtr.set_named_space(space);
 		mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
 		/* This is a user page (secondary index leaf page),
 		but we pretend that it is a change buffer page in
@@ -4311,7 +4288,9 @@ loop:
 		the block is io-fixed. Other threads must not try to
 		latch an io-fixed block. */
 		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE);
-	} else if (update_ibuf_bitmap) {
+	}
+
+	if (space) {
 		mtr.set_named_space(space);
 	}
 
@@ -4467,7 +4446,7 @@ loop:
 	}
 
 reset_bit:
-	if (!update_ibuf_bitmap) {
+	if (!space) {
 	} else if (buf_block_t* bitmap = ibuf_bitmap_get_map_page(
 			   page_id, zip_size, &mtr)) {
 		/* FIXME: update the bitmap byte only once! */

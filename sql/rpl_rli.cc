@@ -461,7 +461,7 @@ static inline int add_relay_log(Relay_log_info* rli,LOG_INFO* linfo)
     DBUG_RETURN(1);
   }
   rli->log_space_total += s.st_size;
-  DBUG_PRINT("info",("log_space_total: %llu", rli->log_space_total));
+  DBUG_PRINT("info",("log_space_total: %llu", uint64(rli->log_space_total)));
   DBUG_RETURN(0);
 }
 
@@ -1254,7 +1254,7 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
     mysql_mutex_unlock(rli->relay_log.get_log_lock());
   }
 err:
-  DBUG_PRINT("info",("log_space_total: %llu",rli->log_space_total));
+  DBUG_PRINT("info",("log_space_total: %llu", uint64(rli->log_space_total)));
   mysql_mutex_unlock(&rli->data_lock);
   DBUG_RETURN(error);
 }

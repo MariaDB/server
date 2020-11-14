@@ -215,6 +215,7 @@ wsrep_sync_wait_upto (THD* thd, wsrep_gtid_t* upto, int timeout);
 extern void wsrep_last_committed_id (wsrep_gtid_t* gtid);
 extern int  wsrep_check_opts();
 extern void wsrep_prepend_PATH (const char* path);
+void wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* table, wsrep::key_array* keys);
 
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
@@ -362,8 +363,9 @@ struct HA_CREATE_INFO;
 
 int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const TABLE_LIST* table_list,
-                             const Alter_info* alter_info= NULL,
-                             const HA_CREATE_INFO* create_info= NULL);
+                             const Alter_info* alter_info= nullptr,
+                             const wsrep::key_array *fk_tables= nullptr,
+                             const HA_CREATE_INFO* create_info= nullptr);
 
 bool wsrep_should_replicate_ddl(THD* thd, const enum legacy_db_type db_type);
 bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list);
@@ -606,6 +608,9 @@ void wsrep_deinit_server();
  * to corresponding wsrep-lib fragment_unit
  */
 enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit);
+
+wsrep::key wsrep_prepare_key_for_toi(const char* db, const char* table,
+                                     enum wsrep::key::type type);
 
 #else /* !WITH_WSREP */
 

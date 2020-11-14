@@ -48,8 +48,19 @@ public:
   void emergency_shutdown()
   { throw wsrep::not_implemented_error(); }
   void will_replay();
+  void signal_replayed();
   enum wsrep::provider::status replay();
+  enum wsrep::provider::status replay_unordered();
   void wait_for_replayers(wsrep::unique_lock<wsrep::mutex>&);
+  enum wsrep::provider::status commit_by_xid();
+  bool is_explicit_xa()
+  {
+    return false;
+  }
+  bool is_xa_rollback()
+  {
+    return false;
+  }
   void debug_sync(const char*);
   void debug_crash(const char*);
   int bf_rollback();

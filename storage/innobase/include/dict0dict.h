@@ -910,19 +910,6 @@ inline ulint dict_tf_get_zip_size(ulint flags)
 		: 0;
 }
 
-/** Determine the extent size (in pages) for the given table
-@param[in]	table	the table whose extent size is being
-			calculated.
-@return extent size in pages (256, 128 or 64) */
-inline ulint dict_table_extent_size(const dict_table_t* table)
-{
-	if (ulint zip_size = table->space->zip_size()) {
-		return (1U << 20) / zip_size;
-	}
-
-	return FSP_EXTENT_SIZE;
-}
-
 /********************************************************************//**
 Checks if a column is in the ordering columns of the clustered index of a
 table. Column prefixes are treated like whole columns.

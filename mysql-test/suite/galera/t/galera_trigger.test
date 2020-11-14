@@ -55,18 +55,18 @@ insert into t1(value) values (2);
 set session wsrep_sync_wait=15;
 insert into t1(value) values (3);
 insert into t1(value) values (4);
-select * from t2;
+select tbl, action from t2;
 
 --connection node_1
 drop trigger if exists log_insert;
 insert into t1(value) values (5);
-select * from t2;
+select tbl, action from t2;
 
 --connection node_2
 insert into t1(value) values (6);
-select * from t2;
+select tbl, action from t2;
 
 --connection node_1
-select * from t2;
+select tbl, action from t2;
 
 drop table t1, t2;

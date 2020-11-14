@@ -331,6 +331,24 @@ public:
 	}
 
 	/**
+	Iterate over each block and call the functor.
+	@return	false if iteration was terminated. */
+	template <typename Functor>
+	bool for_each_block(const Functor& functor) const
+	{
+		for (typename list_t::iterator it = m_list.begin(),
+					       end = m_list.end();
+		     it != end; ++it) {
+
+			if (!functor(&*it)) {
+				return false;
+			}
+		}
+
+		return(true);
+	}
+
+	/**
 	Iterate over all the blocks in reverse and call the iterator
 	@return	false if iteration was terminated. */
 	template <typename Functor>

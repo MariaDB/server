@@ -51,12 +51,7 @@ struct ha_table_option_struct
 	uint		encryption;		/*!<  DEFAULT, ON, OFF */
 	ulonglong	encryption_key_id;	/*!< encryption key id  */
 };
-/* JAN: TODO: MySQL 5.7 handler.h */
-struct st_handler_tablename
-{
-  const char *db;
-  const char *tablename;
-};
+
 /** The class defining a handle to an Innodb table */
 class ha_innobase final : public handler
 {

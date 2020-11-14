@@ -460,10 +460,6 @@ void trx_t::free()
   MEM_NOACCESS(&xid, sizeof xid);
   MEM_NOACCESS(&mod_tables, sizeof mod_tables);
   MEM_NOACCESS(&detailed_error, sizeof detailed_error);
-  MEM_NOACCESS(&n_rec_lock_waits, sizeof n_rec_lock_waits);
-  MEM_NOACCESS(&n_table_lock_waits, sizeof n_table_lock_waits);
-  MEM_NOACCESS(&total_rec_lock_wait_time, sizeof total_rec_lock_wait_time);
-  MEM_NOACCESS(&total_table_lock_wait_time, sizeof total_table_lock_wait_time);
   MEM_NOACCESS(&magic_n, sizeof magic_n);
   trx_pools->mem_free(this);
 }

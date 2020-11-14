@@ -137,6 +137,33 @@ alter user user1@localhost account lock;
 --error ER_ACCOUNT_HAS_BEEN_LOCKED
 --change_user user1
 
+--echo #
+--echo # MDEV-24098 SHOW CREATE USER invalid for both PASSWORD EXPIRE and
+--echo # and LOCKED
+--echo #
+alter user user1@localhost PASSWORD EXPIRE;
+show create user user1@localhost;
+drop user user1@localhost;
+
+--echo #
+--echo # MDEV-24098 CREATE USER/ALTER USER PASSWORD EXPIRE/LOCK in
+--echo # either order.
+--echo #
+create user user1@localhost PASSWORD EXPIRE ACCOUNT LOCK;
+show create user user1@localhost;
+drop user user1@localhost;
+create user user1@localhost ACCOUNT LOCK PASSWORD EXPIRE;
+show create user user1@localhost;
+alter user user1@localhost  PASSWORD EXPIRE NEVER ACCOUNT UNLOCK ;
+show create user user1@localhost;
+alter user user1@localhost  ACCOUNT LOCK PASSWORD EXPIRE DEFAULT;
+show create user user1@localhost;
+# note output needs to be corrected by MDEV-24114: password expire users cannot be unexpired
+alter user user1@localhost  PASSWORD EXPIRE INTERVAL 60 DAY ACCOUNT UNLOCK;
+--replace_regex /"version_id":[0-9]*,/"version_id":XXX,/
+select * from mysql.global_priv where user='user1';
+show create user user1@localhost;
+
 drop user user1@localhost;
 drop user user2@localhost;
 
