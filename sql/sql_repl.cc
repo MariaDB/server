@@ -3261,9 +3261,9 @@ err:
   if (slave_errno)
   {
     if (net_report)
-      my_error(slave_errno, MYF(0),
-               (int) mi->connection_name.length,
-               mi->connection_name.str);
+      my_error_ensure(slave_errno, ENSURE_ER_BAD_SLAVE, MYF(0),
+                      (int) mi->connection_name.length,
+                      mi->connection_name.str);
     DBUG_RETURN(slave_errno == ER_BAD_SLAVE ? -1 : 1);
   }
 
@@ -3440,7 +3440,12 @@ int reset_slave(THD *thd, Master_info* mi)
 err:
   mi->unlock_slave_threads();
   if (unlikely(error))
-    my_error(sql_errno, MYF(0), errmsg);
+  {
+    if (sql_errno == ER_RELAY_LOG_FAIL)
+      my_error(ER_RELAY_LOG_FAIL, MYF(0), errmsg);
+    else
+      my_error(ER_UNKNOWN_ERROR, MYF(0));
+  }
   DBUG_RETURN(error);
 }
 

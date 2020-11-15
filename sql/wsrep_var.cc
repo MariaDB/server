@@ -118,9 +118,10 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
 
       mysql_mutex_unlock(&LOCK_global_system_variables);
 
-      if (wsrep_init())
+      int error= wsrep_init();
+      if (error)
       {
-        my_error(ER_CANT_OPEN_LIBRARY, MYF(0), tmp, my_error, "wsrep_init failed");
+        my_error(ER_CANT_OPEN_LIBRARY, MYF(0), tmp, error, "wsrep_init failed");
         //rcode= true;
       }
 
@@ -418,10 +419,10 @@ bool wsrep_provider_update (sys_var *self, THD* thd, enum_var_type type)
 
   char* tmp= strdup(wsrep_provider); // wsrep_init() rewrites provider
                                      //when fails
-
-  if (wsrep_init())
+  int error= wsrep_init();
+  if (error)
   {
-    my_error(ER_CANT_OPEN_LIBRARY, MYF(0), tmp, my_error, "wsrep_init failed");
+    my_error(ER_CANT_OPEN_LIBRARY, MYF(0), tmp, error, "wsrep_init failed");
     rcode= true;
   }
   free(tmp);

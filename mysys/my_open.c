@@ -150,7 +150,8 @@ File my_register_filename(File fd, const char *FileName, enum file_type
   {
     if (my_errno == EMFILE)
       error_message_number= EE_OUT_OF_FILERESOURCES;
-    my_error(error_message_number,
+    my_error_ensure(error_message_number,
+             ENSURE_EE_OUT_OF_FILERESOURCES,
              MYF(ME_BELL | (MyFlags & (ME_NOTE | ME_ERROR_LOG))),
              FileName, my_errno);
   }

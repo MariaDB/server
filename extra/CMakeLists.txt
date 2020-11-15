@@ -34,17 +34,20 @@ ADD_CUSTOM_COMMAND(OUTPUT ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp
 	--out-dir=${CMAKE_BINARY_DIR}/sql/share/
 	--header_file=${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp
 	--name_file=${CMAKE_BINARY_DIR}/include/mysqld_ername.h.tmp
+	--ensure_file=${CMAKE_BINARY_DIR}/include/mysqld_err_ensure.h.tmp
 	--state_file=${CMAKE_BINARY_DIR}/include/sql_state.h.tmp
 	--in_file=${PROJECT_SOURCE_DIR}/sql/share/errmsg-utf8.txt
    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp ${CMAKE_BINARY_DIR}/include/mysqld_error.h
    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_BINARY_DIR}/include/mysqld_ername.h.tmp ${CMAKE_BINARY_DIR}/include/mysqld_ername.h
    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_BINARY_DIR}/include/sql_state.h.tmp ${CMAKE_BINARY_DIR}/include/sql_state.h
+   COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_BINARY_DIR}/include/mysqld_err_ensure.h.tmp ${CMAKE_BINARY_DIR}/include/mysqld_err_ensure.h
    DEPENDS comp_err ${PROJECT_SOURCE_DIR}/sql/share/errmsg-utf8.txt)
 
 ADD_CUSTOM_TARGET(GenError
                   ALL
                   DEPENDS
-                  ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp)
+                  ${CMAKE_BINARY_DIR}/include/mysqld_error.h.tmp
+                  ${CMAKE_BINARY_DIR}/include/mysqld_err_ensure.h.tmp)
 
 MYSQL_ADD_EXECUTABLE(my_print_defaults my_print_defaults.c)
 TARGET_LINK_LIBRARIES(my_print_defaults  mysys)

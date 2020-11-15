@@ -5106,9 +5106,10 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
           (tab_part_info->part_type == RANGE_PARTITION ||
            alt_part_info->defined_max_value))
       {
-        my_error((tab_part_info->part_type == RANGE_PARTITION ?
-                  ER_PARTITION_MAXVALUE_ERROR :
-                  ER_PARTITION_DEFAULT_ERROR), MYF(0));
+        my_error_ensure((tab_part_info->part_type == RANGE_PARTITION ?
+                        ER_PARTITION_MAXVALUE_ERROR :
+                        ER_PARTITION_DEFAULT_ERROR),
+                        ENSURE_ER_PARTITION_DEFAULT_ERROR, MYF(0));
         goto err;
       }
       if (num_new_partitions == 0)

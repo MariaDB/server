@@ -301,19 +301,19 @@ bool Foreign_key::validate(List<Create_field> &table_fields)
     {
       if (delete_opt == FK_OPTION_SET_NULL)
       {
-        my_error(ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN, MYF(0), 
+        my_error(ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN, MYF(0),
                  "ON DELETE SET NULL");
         DBUG_RETURN(TRUE);
       }
       if (update_opt == FK_OPTION_SET_NULL)
       {
-        my_error(ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN, MYF(0), 
+        my_error(ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN, MYF(0),
                  "ON UPDATE SET NULL");
         DBUG_RETURN(TRUE);
       }
       if (update_opt == FK_OPTION_CASCADE)
       {
-        my_error(ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN, MYF(0), 
+        my_error(ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN, MYF(0),
                  "ON UPDATE CASCADE");
         DBUG_RETURN(TRUE);
       }
@@ -6307,8 +6307,10 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     */
     if (multi_write_engine &&
         (flags_write_some_set & HA_HAS_OWN_BINLOGGING))
-      my_error((error= ER_BINLOG_MULTIPLE_ENGINES_AND_SELF_LOGGING_ENGINE),
-               MYF(0));
+    {
+      error= ER_BINLOG_MULTIPLE_ENGINES_AND_SELF_LOGGING_ENGINE;
+      my_error(ER_BINLOG_MULTIPLE_ENGINES_AND_SELF_LOGGING_ENGINE, MYF(0));
+    }
     else if (multi_access_engine && flags_access_some_set & HA_HAS_OWN_BINLOGGING)
       lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_MULTIPLE_ENGINES_AND_SELF_LOGGING_ENGINE);
 
@@ -6319,7 +6321,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         1. Error: Binary logging impossible since both row-incapable
            engines and statement-incapable engines are involved
       */
-      my_error((error= ER_BINLOG_ROW_ENGINE_AND_STMT_ENGINE), MYF(0));
+      error= ER_BINLOG_ROW_ENGINE_AND_STMT_ENGINE;
+      my_error(ER_BINLOG_ROW_ENGINE_AND_STMT_ENGINE, MYF(0));
     }
     /* statement-only engines involved */
     else if ((flags_write_all_set & HA_BINLOG_ROW_CAPABLE) == 0)
@@ -6330,7 +6333,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
           4. Error: Cannot execute row injection since table uses
              storage engine limited to statement-logging
         */
-        my_error((error= ER_BINLOG_ROW_INJECTION_AND_STMT_ENGINE), MYF(0));
+        error= ER_BINLOG_ROW_INJECTION_AND_STMT_ENGINE;
+        my_error(ER_BINLOG_ROW_INJECTION_AND_STMT_ENGINE, MYF(0));
       }
       else if ((wsrep_binlog_format() == BINLOG_FORMAT_ROW || is_bulk_op()) &&
                sqlcom_can_generate_row_events(this))
@@ -6339,7 +6343,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
           2. Error: Cannot modify table that uses a storage engine
              limited to statement-logging when BINLOG_FORMAT = ROW
         */
-        my_error((error= ER_BINLOG_ROW_MODE_AND_STMT_ENGINE), MYF(0));
+        error= ER_BINLOG_ROW_MODE_AND_STMT_ENGINE;
+        my_error(ER_BINLOG_ROW_MODE_AND_STMT_ENGINE, MYF(0));
       }
       else if ((unsafe_flags= lex->get_stmt_unsafe_flags()) != 0)
       {
@@ -6352,9 +6357,12 @@ int THD::decide_logging_format(TABLE_LIST *tables)
              unsafe_type < LEX::BINLOG_STMT_UNSAFE_COUNT;
              unsafe_type++)
           if (unsafe_flags & (1 << unsafe_type))
-            my_error((error= ER_BINLOG_UNSAFE_AND_STMT_ENGINE), MYF(0),
+          {
+            error= ER_BINLOG_UNSAFE_AND_STMT_ENGINE;
+            my_error(ER_BINLOG_UNSAFE_AND_STMT_ENGINE, MYF(0),
                      ER_THD(this,
                             LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
+          }
       }
       /* log in statement format! */
     }
@@ -6389,7 +6397,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
                              wsrep_cs().mode() ==
                              wsrep::client_state::m_local),1))
 	  {
-            my_error((error= ER_BINLOG_STMT_MODE_AND_ROW_ENGINE), MYF(0), "");
+            error= ER_BINLOG_STMT_MODE_AND_ROW_ENGINE;
+            my_error(ER_BINLOG_STMT_MODE_AND_ROW_ENGINE, MYF(0), "");
 	  }
         }
         else if (is_write && (unsafe_flags= lex->get_stmt_unsafe_flags()) != 0)
@@ -6433,7 +6442,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       {
         if (! is_current_stmt_binlog_format_row())
         {
-          my_error((error= ER_BINLOG_STMT_MODE_AND_NO_REPL_TABLES), MYF(0));
+          error= ER_BINLOG_STMT_MODE_AND_NO_REPL_TABLES;
+          my_error(ER_BINLOG_STMT_MODE_AND_NO_REPL_TABLES, MYF(0));
         }
         else
         {

@@ -782,7 +782,7 @@ int set_var::check(THD *thd)
   if (var->check_type(type))
   {
     int err= type == OPT_GLOBAL ? ER_LOCAL_VARIABLE : ER_GLOBAL_VARIABLE;
-    my_error(err, MYF(0), var->name.str);
+    my_error_ensure(err, ENSURE_ER_LOCAL_VARIABLE, MYF(0), var->name.str);
     return -1;
   }
   if (type == OPT_GLOBAL && var->on_check_access_global(thd))
@@ -829,7 +829,7 @@ int set_var::light_check(THD *thd)
   if (var->check_type(type))
   {
     int err= type == OPT_GLOBAL ? ER_LOCAL_VARIABLE : ER_GLOBAL_VARIABLE;
-    my_error(err, MYF(0), var->name.str);
+    my_error_ensure(err, ENSURE_ER_LOCAL_VARIABLE, MYF(0), var->name.str);
     return -1;
   }
   if (type == OPT_GLOBAL &&

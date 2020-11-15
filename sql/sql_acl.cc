@@ -7599,8 +7599,9 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
   mysql_mutex_unlock(&acl_cache->lock);
 
   if (result)
-    my_error(revoke ? ER_CANNOT_REVOKE_ROLE : ER_CANNOT_GRANT_ROLE, MYF(0),
-             rolename.str, wrong_users.c_ptr_safe());
+    my_error_ensure(revoke ? ER_CANNOT_REVOKE_ROLE : ER_CANNOT_GRANT_ROLE,
+                    ENSURE_ER_CANNOT_REVOKE_ROLE, MYF(0),
+                    rolename.str, wrong_users.c_ptr_safe());
   else
     result= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
 
@@ -12899,10 +12900,11 @@ struct MPVIO_EXT :public MYSQL_PLUGIN_VIO
 */
 static void login_failed_error(THD *thd)
 {
-  my_error(access_denied_error_code(thd->password), MYF(0),
-           thd->main_security_ctx.user,
-           thd->main_security_ctx.host_or_ip,
-           thd->password ? ER_THD(thd, ER_YES) : ER_THD(thd, ER_NO));
+  my_error_ensure(access_denied_error_code(thd->password),
+                  ENSURE_ER_ACCESS_DENIED_ERROR, MYF(0),
+                  thd->main_security_ctx.user,
+                  thd->main_security_ctx.host_or_ip,
+                  thd->password ? ER_THD(thd, ER_YES) : ER_THD(thd, ER_NO));
   general_log_print(thd, COM_CONNECT,
                     ER_THD(thd, access_denied_error_code(thd->password)),
                     thd->main_security_ctx.user,

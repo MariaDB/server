@@ -10439,7 +10439,8 @@ bool Column_definition::check_length(uint mysql_errno, uint limit) const
 {
   if (length <= limit)
     return false;
-  my_error(mysql_errno, MYF(0), field_name.str, static_cast<ulong>(limit));
+  my_error_ensure(mysql_errno, ENSURE_ER_TOO_BIG_DISPLAYWIDTH, MYF(0),
+                  field_name.str, static_cast<ulong>(limit));
   return true;
 }
 

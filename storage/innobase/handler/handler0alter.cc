@@ -1836,7 +1836,8 @@ innobase_fts_check_doc_id_col(
 		}
 
 		if (err && !check_only) {
-			my_error(err, MYF(0), field->field_name.str);
+			my_error_ensure(err, ENSURE_ER_WRONG_COLUMN_NAME,
+					MYF(0), field->field_name.str);
 		}
 
 		return(true);
@@ -4162,10 +4163,11 @@ innobase_check_foreigns_low(
 		for (unsigned f = 0; f < foreign->n_fields; f++) {
 			if (!strcmp(foreign->foreign_col_names[f],
 				    col_name)) {
-				my_error(drop
+				my_error_ensure(drop
 					 ? ER_FK_COLUMN_CANNOT_DROP
-					 : ER_FK_COLUMN_NOT_NULL, MYF(0),
-					 col_name, foreign->id);
+					 : ER_FK_COLUMN_NOT_NULL,
+					 ENSURE_ER_FK_COLUMN_CANNOT_DROP,
+					 MYF(0), col_name, foreign->id);
 				return(true);
 			}
 		}
@@ -6770,7 +6772,8 @@ new_clustered_failed:
 				 altered_table->s->table_name.str);
 			goto new_table_failed;
 		case DB_DUPLICATE_KEY:
-			my_error(HA_ERR_TABLE_EXIST, MYF(0),
+			my_error_ensure(HA_ERR_TABLE_EXIST,
+				 ENSURE_ER_TABLE_EXISTS_ERROR, MYF(0),
 				 altered_table->s->table_name.str);
 			goto new_table_failed;
 		case DB_UNSUPPORTED:

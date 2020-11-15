@@ -197,7 +197,7 @@ static inline void wsrep_override_error(THD *thd, uint error)
        da->sql_errno() != ER_LOCK_DEADLOCK))
   {
     da->reset_diagnostics_area();
-    my_error(error, MYF(0));
+    my_error_ensure(error, "", MYF(0));
   }
 }
 
@@ -216,7 +216,7 @@ static inline void wsrep_override_error(THD *thd, uint error,
        da->sql_errno() != ER_LOCK_DEADLOCK))
   {
     da->reset_diagnostics_area();
-    my_error(error, MYF(0), status);
+    my_error_ensure(error, "%d", MYF(0), status);
   }
 }
 

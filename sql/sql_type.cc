@@ -7575,7 +7575,9 @@ static void wrong_precision_error(uint errcode, Item *a,
                                   ulonglong number, uint maximum)
 {
   StringBuffer<1024> buf(system_charset_info);
-  my_error(errcode, MYF(0), number, item_name(a, &buf), maximum);
+  // todo static_assert
+  my_error_ensure(errcode, ENSURE_ER_TOO_BIG_PRECISION, MYF(0),
+                  number, item_name(a, &buf), maximum);
 }
 
 

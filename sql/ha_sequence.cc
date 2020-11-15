@@ -365,7 +365,7 @@ void ha_sequence::print_error(int error, myf errflag)
     my_error(ER_ILLEGAL_HA, MYF(0), "SEQUENCE", sequence_db, sequence_name);
     DBUG_VOID_RETURN;
   case ER_WRONG_INSERT_INTO_SEQUENCE:
-    my_error(error, MYF(0));
+    my_error_ensure(error, "", MYF(0));
     DBUG_VOID_RETURN;
   }
   file->print_error(error, errflag);

@@ -2660,8 +2660,9 @@ err:
   {
     uint is_note= if_exists ? ME_NOTE : 0;
     unknown_tables.chop();
-    my_error((drop_sequence ? ER_UNKNOWN_SEQUENCES : ER_BAD_TABLE_ERROR),
-             MYF(is_note), unknown_tables.c_ptr_safe());
+    my_error_ensure((drop_sequence ? ER_UNKNOWN_SEQUENCES : ER_BAD_TABLE_ERROR),
+                    ENSURE_ER_BAD_TABLE_ERROR,
+                    MYF(is_note), unknown_tables.c_ptr_safe());
   }
   error= thd->is_error();
 
@@ -4615,7 +4616,8 @@ bool validate_comment_length(THD *thd, LEX_CSTRING *comment, size_t max_len,
     }
     if (thd->is_strict_mode())
     {
-       my_error(err_code, MYF(0), name, static_cast<ulong>(max_len));
+       my_error_ensure(err_code, ENSURE_ER_TOO_LONG_DATABASE_COMMENT, MYF(0),
+                       name, static_cast<uint>(max_len));
        DBUG_RETURN(true);
     }
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, err_code,
@@ -8122,7 +8124,7 @@ static bool mysql_inplace_alter_table(THD *thd,
                                         table->s->frm_image,
                                         &table->s->tabledef_version))
     {
-      my_error(HA_ERR_INCOMPATIBLE_DEFINITION, MYF(0));
+      my_error_ensure(HA_ERR_INCOMPATIBLE_DEFINITION, "", MYF(0));
       DBUG_RETURN(true);
     }
   }

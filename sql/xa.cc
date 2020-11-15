@@ -653,7 +653,12 @@ bool trans_xa_commit(THD *thd)
   {
     int r= ha_commit_trans(thd, TRUE);
     if ((res= MY_TEST(r)))
-      my_error(r == 1 ? ER_XA_RBROLLBACK : ER_XAER_RMERR, MYF(0));
+    {
+      if (r == 1)
+        my_error(ER_XA_RBROLLBACK, MYF(0));
+      else
+        my_error(ER_XAER_RMERR, MYF(0));
+    }
   }
   else if (thd->transaction->xid_state.xid_cache_element->xa_state == XA_PREPARED)
   {

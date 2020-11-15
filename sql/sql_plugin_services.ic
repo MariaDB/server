@@ -207,9 +207,14 @@ static struct my_crypt_service_st crypt_handler=
   my_random_bytes
 };
 
+#define macro_empty()
+#define macro_defer(x) x macro_empty()
+
+extern "C" void macro_defer(my_error)(uint nr, myf MyFlags, ...);
+
 static struct my_print_error_service_st my_print_error_handler=
 {
-  my_error,
+  macro_defer(my_error),
   my_printf_error,
   my_printv_error
 };

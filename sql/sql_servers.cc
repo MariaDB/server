@@ -1124,7 +1124,14 @@ end:
   {
     DBUG_PRINT("info", ("problem creating server <%s>",
                         server_options->server_name.str));
-    my_error(error, MYF(0), server_options->server_name.str);
+    if (error == ER_FOREIGN_SERVER_EXISTS
+        || error == ER_FOREIGN_SERVER_DOESNT_EXIST)
+      my_error_ensure(error, ENSURE_ER_FOREIGN_SERVER_EXISTS, MYF(0),
+                      server_options->server_name.str);
+    if (error == ER_OUT_OF_RESOURCES)
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    else
+      my_error(ER_UNKNOWN_ERROR, MYF(0));
   }
   else
     my_ok(thd);

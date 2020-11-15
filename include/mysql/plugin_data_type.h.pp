@@ -191,9 +191,19 @@ extern struct my_print_error_service_st {
   void (*my_printf_error_func)(unsigned int nr, const char *fmt, unsigned long MyFlags,...);
   void (*my_printv_error_func)(unsigned int error, const char *format, unsigned long MyFlags, va_list ap);
 } *my_print_error_service;
-extern void my_error(unsigned int nr, unsigned long MyFlags, ...);
+extern void my_errorv(unsigned int nr, unsigned long MyFlags, va_list args);
 extern void my_printf_error(unsigned int my_err, const char *format, unsigned long MyFlags, ...);
 extern void my_printv_error(unsigned int error, const char *format, unsigned long MyFlags,va_list ap);
+__attribute__ ((format (printf, 2, 4)))
+inline static
+void my_error_ensure(unsigned int my_err, const char *ensure_format,
+                     unsigned long MyFlags, ...)
+{
+  va_list args;
+  va_start(args, MyFlags);
+  my_errorv(my_err, MyFlags, args);
+  va_end(args);
+}
 }
 extern "C" {
 extern struct my_snprintf_service_st {

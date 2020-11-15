@@ -2239,9 +2239,10 @@ bool partition_info::fix_parser_data(THD *thd)
                     part_type == LIST_PARTITION);
         if (defined_max_value)
         {
-          my_error((part_type == RANGE_PARTITION) ?
-                   ER_PARTITION_MAXVALUE_ERROR :
-                   ER_PARTITION_DEFAULT_ERROR, MYF(0));
+          my_error_ensure((part_type == RANGE_PARTITION) ?
+                           ER_PARTITION_MAXVALUE_ERROR :
+                           ER_PARTITION_DEFAULT_ERROR,
+                          ENSURE_ER_PARTITION_MAXVALUE_ERROR, MYF(0));
           DBUG_RETURN(TRUE);
         }
 

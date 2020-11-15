@@ -19,6 +19,8 @@
 #include <stdarg.h>
 #include <m_ctype.h>
 
+#undef my_error
+
 /* Max length of a error message. Should be kept in sync with MYSQL_ERRMSG_SIZE. */
 #define ERRMSGSIZE      (512)
 
@@ -105,23 +107,29 @@ const char *my_get_err_msg(uint nr)
   @param ...       variable list matching that error format string
 */
 
-void my_error(uint nr, myf MyFlags, ...)
+void my_errorv(uint nr, myf MyFlags, va_list args)
 {
-  const char *format;
-  va_list args;
   char ebuff[ERRMSGSIZE];
-  DBUG_ENTER("my_error");
-  DBUG_PRINT("my", ("nr: %d  MyFlags: %lu  errno: %d", nr, MyFlags, errno));
+  const char *format;
   if (!(format = my_get_err_msg(nr)))
     (void) my_snprintf(ebuff, sizeof(ebuff), "Unknown error %d", nr);
   else
   {
-    va_start(args,MyFlags);
     (void) my_vsnprintf_ex(&my_charset_utf8mb3_general_ci, ebuff,
                            sizeof(ebuff), format, args);
-    va_end(args);
   }
   (*error_handler_hook)(nr, ebuff, MyFlags);
+}
+
+void my_error(uint nr, myf MyFlags, ...)
+{
+  va_list args;
+  DBUG_ENTER("my_error");
+  DBUG_PRINT("my", ("nr: %d  MyFlags: %lu  errno: %d", nr, MyFlags, errno));
+
+  va_start(args,MyFlags);
+  my_errorv(nr, MyFlags, args);
+  va_end(args);
   DBUG_VOID_RETURN;
 }
 

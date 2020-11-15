@@ -573,13 +573,13 @@ error_if_in_trans_or_substatement(THD *thd, int in_substatement_error,
 {
   if (unlikely(thd->in_sub_stmt))
   {
-    my_error(in_substatement_error, MYF(0));
+    my_error_ensure(in_substatement_error, "", MYF(0));
     return true;
   }
 
   if (unlikely(thd->in_active_multi_stmt_transaction()))
   {
-    my_error(in_transaction_error, MYF(0));
+    my_error_ensure(in_transaction_error, "", MYF(0));
     return true;
   }
 

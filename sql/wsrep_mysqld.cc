@@ -1220,7 +1220,7 @@ bool wsrep_sync_wait (THD* thd, uint mask)
                                    //       with ER_LOCK_WAIT_TIMEOUT
       }
 
-      my_error(err, MYF(0), msg);
+      my_error_ensure(err, "%s", MYF(0), msg);
 
       return true;
     }

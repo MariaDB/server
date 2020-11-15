@@ -4173,8 +4173,10 @@ void handler::print_error(int error, myf errflag)
     break;
   case HA_ERR_AUTOINC_ERANGE:
     textno= error;
-    my_error(textno, errflag, table->next_number_field->field_name.str,
-             table->in_use->get_stmt_da()->current_row_for_warning());
+    my_error_ensure(HA_ERR_AUTOINC_ERANGE, ENSURE_ER_WARN_DATA_OUT_OF_RANGE,
+                    errflag,
+                    table->next_number_field->field_name.str,
+                    table->in_use->get_stmt_da()->current_row_for_warning());
     DBUG_VOID_RETURN;
     break;
   case HA_ERR_TOO_MANY_CONCURRENT_TRXS:
@@ -4240,10 +4242,11 @@ void handler::print_error(int error, myf errflag)
     char buff[FN_REFLEN];
     strxnmov(buff, sizeof(buff),
              table_share->normalized_path.str, bas_ext()[0], NULL);
-    my_error(textno, errflag, buff, error);
+    my_error_ensure(textno, "%s%d", errflag, buff, error);
   }
   else
-    my_error(textno, errflag, table_share->table_name.str, error);
+    my_error_ensure(textno, "%s%d", errflag, table_share->table_name.str, error);
+
   DBUG_VOID_RETURN;
 }
 

@@ -75,8 +75,10 @@ static int inline EXTRA_DEBUG_fflush(...) { return 0; }
 #include <sql_class.h>
 #include <sql_connect.h>
 #define MYSQL_SERVER_my_error my_error
+#define MYSQL_SERVER_my_error_ensure my_error_ensure
 #else
 static void inline MYSQL_SERVER_my_error(...) {}
+static void inline MYSQL_SERVER_my_error_ensure (...) {}
 #endif
 
 #ifndef EXTRA_DEBUG_ASSERT
@@ -740,7 +742,8 @@ net_real_write(NET *net,const uchar *packet, size_t len)
       net->error= 2;				/* Close socket */
       net->last_errno= (interrupted ? ER_NET_WRITE_INTERRUPTED :
                                ER_NET_ERROR_ON_WRITE);
-      MYSQL_SERVER_my_error(net->last_errno, MYF(0));
+      MYSQL_SERVER_my_error_ensure(net->last_errno,
+                                   ENSURE_ER_NET_ERROR_ON_WRITE, MYF(0));
       break;
     }
     pos+=length;
@@ -989,7 +992,8 @@ retry:
             len= packet_error;
             net->error= 0;
             net->last_errno= ER_CONNECTION_KILLED;
-            MYSQL_SERVER_my_error(net->last_errno, MYF(0));
+            MYSQL_SERVER_my_error_ensure(net->last_errno,
+                                         ENSURE_ER_CONNECTION_KILLED, MYF(0));
             goto end;
           }
 
@@ -1048,7 +1052,8 @@ retry:
           net->last_errno= (vio_was_timeout(net->vio) ?
                                    ER_NET_READ_INTERRUPTED :
                                    ER_NET_READ_ERROR);
-          MYSQL_SERVER_my_error(net->last_errno, MYF(0));
+          MYSQL_SERVER_my_error_ensure(net->last_errno,
+                                       ENSURE_ER_NET_READ_ERROR, MYF(0));
 	  goto end;
 	}
 	remain -= (uint32) length;

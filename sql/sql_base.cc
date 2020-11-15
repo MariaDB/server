@@ -1261,9 +1261,10 @@ void update_non_unique_table_error(TABLE_LIST *update,
     {
       /* Issue the ER_NON_INSERTABLE_TABLE error for an INSERT */
       if (update->view == duplicate->view)
-        my_error(!strncmp(operation, "INSERT", 6) ?
-                 ER_NON_INSERTABLE_TABLE : ER_NON_UPDATABLE_TABLE, MYF(0),
-                 update->alias.str, operation);
+        my_error_ensure(!strncmp(operation, "INSERT", 6) ?
+                        ER_NON_INSERTABLE_TABLE : ER_NON_UPDATABLE_TABLE,
+                        ENSURE_ER_NON_UPDATABLE_TABLE, MYF(0),
+                        update->alias.str, operation);
       else
         my_error(ER_VIEW_PREVENT_UPDATE, MYF(0),
                  (duplicate->view ? duplicate->alias.str : update->alias.str),
@@ -2244,7 +2245,7 @@ err_exit:
   if (p_error)
     *p_error= error;
   else
-    my_error(error, MYF(0), table_name);
+    my_error_ensure(error, ENSURE_ER_TABLE_NOT_LOCKED, MYF(0), table_name);
 
   return NULL;
 }
