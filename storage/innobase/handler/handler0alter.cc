@@ -1884,7 +1884,8 @@ innobase_fts_check_doc_id_col(
 		}
 
 		if (err && !check_only) {
-			my_error(err, MYF(0), field->field_name.str);
+			my_error_ensure(err, ENSURE_ER_WRONG_COLUMN_NAME,
+					MYF(0), field->field_name.str);
 		}
 
 		return(true);
@@ -6975,7 +6976,8 @@ wrong_column_name:
 				 altered_table->s->table_name.str);
 			goto new_table_failed;
 		case DB_DUPLICATE_KEY:
-			my_error(HA_ERR_TABLE_EXIST, MYF(0),
+			my_error_ensure(HA_ERR_TABLE_EXIST,
+				 ENSURE_ER_TABLE_EXISTS_ERROR, MYF(0),
 				 altered_table->s->table_name.str);
 			goto new_table_failed;
 		case DB_UNSUPPORTED:

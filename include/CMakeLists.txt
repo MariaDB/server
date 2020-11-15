@@ -18,6 +18,7 @@ SET(HEADERS_GEN_CONFIGURE
   my_config.h
   mysqld_ername.h
   mysqld_error.h
+  mysqld_err_ensure.h
   sql_state.h
 )
 

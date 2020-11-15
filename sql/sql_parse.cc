@@ -6136,7 +6136,16 @@ mysql_execute_command(THD *thd)
     {
       DBUG_PRINT("info", ("problem altering server <%s>",
                           lex->server_options.server_name.str));
-      my_error(error, MYF(0), lex->server_options.server_name.str);
+      if (error == ER_FOREIGN_SERVER_DOESNT_EXIST)
+      {
+        my_error(ER_FOREIGN_SERVER_DOESNT_EXIST, MYF(0),
+                 lex->server_options.server_name.str);
+      }
+      else if (!thd->is_error())
+      {
+        DBUG_ASSERT(0);
+        my_error(ER_UNKNOWN_ERROR, MYF(0));
+      }
       break;
     }
     my_ok(thd, 1);
@@ -6158,7 +6167,8 @@ mysql_execute_command(THD *thd)
       {
         DBUG_PRINT("info", ("problem dropping server %s",
                             lex->server_options.server_name.str));
-        my_error(err_code, MYF(0), lex->server_options.server_name.str);
+        my_error(ER_FOREIGN_SERVER_DOESNT_EXIST, MYF(0),
+                 lex->server_options.server_name.str);
       }
       else
       {
@@ -7000,12 +7010,13 @@ check_access(THD *thd, privilege_t want_access,
     if (!no_errors)
     {
       status_var_increment(thd->status_var.access_denied_errors);
-      my_error(access_denied_error_code(thd->password), MYF(0),
-               sctx->priv_user,
-               sctx->priv_host,
-               (thd->password ?
-                ER_THD(thd, ER_YES) :
-                ER_THD(thd, ER_NO)));                    /* purecov: tested */
+      my_error_ensure(access_denied_error_code(thd->password),
+                      ENSURE_ER_ACCESS_DENIED_ERROR, MYF(0),
+                      sctx->priv_user,
+                      sctx->priv_host,
+                      (thd->password ?
+                       ER_THD(thd, ER_YES) :
+                       ER_THD(thd, ER_NO)));
     }
     DBUG_RETURN(TRUE);				/* purecov: tested */
   }
@@ -9525,6 +9536,7 @@ struct kill_threads_callback_arg
   THD *thd;
   LEX_USER *user;
   List<THD> threads_to_kill;
+  my_thread_id thread_id;
 };
 
 
@@ -9566,14 +9578,20 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
 
   *rows= 0;
 
-  if (unlikely(thd->is_fatal_error))        // If we run out of memory
-    DBUG_RETURN(ER_OUT_OF_RESOURCES);
+  if (unlikely(thd->is_fatal_error))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return ER_OUT_OF_RESOURCES;
+  }
 
   DBUG_PRINT("enter", ("user: %s  signal: %u", user->user.str,
                        (uint) kill_signal));
 
   if (server_threads.iterate(kill_threads_callback, &arg))
-    DBUG_RETURN(ER_KILL_DENIED_ERROR);
+  {
+    my_error(ER_KILL_DENIED_ERROR, MYF(0), (ulong)arg.thread_id);
+    return ER_KILL_DENIED_ERROR;
+  }
 
   if (!arg.threads_to_kill.is_empty())
   {
@@ -9656,7 +9674,7 @@ void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type)
 #endif
   else
   {
-    my_error(error, MYF(0), id);
+    my_error_ensure(error, ENSURE_ER_NO_SUCH_THREAD, MYF(0), (ulong)id);
   }
 }
 
@@ -9699,7 +9717,7 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
     break;
   case ER_OUT_OF_RESOURCES:
   default:
-    my_error(error, MYF(0));
+    my_error_ensure(error, ER_OUT_OF_RESOURCES, MYF(0));
   }
 }
 

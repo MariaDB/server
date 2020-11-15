@@ -3718,7 +3718,7 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
   if (unlikely(error || (res.errors & VCOL_IMPOSSIBLE)))
   {
     // this can only happen if the frm was corrupted
-    my_error(ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
+    my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
              get_vcol_type_name(), name.str);
     DBUG_RETURN(1);
   }
@@ -4298,7 +4298,7 @@ partititon_err:
         (outparam->file && 
           !(outparam->file->ha_table_flags() & HA_CAN_VIRTUAL_COLUMNS)))
   {
-    my_error(ER_UNSUPPORTED_ENGINE_FOR_VIRTUAL_COLUMNS, MYF(0),
+    my_error(ER_UNSUPPORTED_ENGINE_FOR_GENERATED_COLUMNS, MYF(0),
              plugin_name(share->db_plugin)->str);
     error_reported= TRUE;
     goto err;
@@ -4543,8 +4543,10 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
     else
     {
       strxmov(buff, share->normalized_path.str, reg_ext, NullS);
-      my_error((db_errno == EMFILE) ? ER_CANT_OPEN_FILE : ER_FILE_NOT_FOUND,
-               errortype, buff, db_errno);
+      my_error_ensure((db_errno == EMFILE) ? ER_CANT_OPEN_FILE
+                                           : ER_FILE_NOT_FOUND,
+                      ENSURE_ER_CANT_OPEN_FILE,
+                      errortype, buff, db_errno);
     }
     break;
   case OPEN_FRM_OK:

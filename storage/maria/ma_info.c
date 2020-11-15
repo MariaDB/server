@@ -148,6 +148,6 @@ void _ma_report_error(int errcode, const LEX_STRING *name)
     }
   }
 
-  my_error(errcode, MYF(ME_ERROR_LOG), file_name);
+  my_error_ensure(errcode, "%s", MYF(ME_ERROR_LOG), file_name);
   DBUG_VOID_RETURN;
 }

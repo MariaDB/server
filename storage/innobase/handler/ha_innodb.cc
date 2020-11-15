@@ -7874,7 +7874,7 @@ set_max_autoinc:
 #endif /* WITH_WSREP */
 
 	if (error_result == HA_FTS_INVALID_DOCID) {
-		my_error(HA_FTS_INVALID_DOCID, MYF(0));
+		my_error_ensure(HA_FTS_INVALID_DOCID, "", MYF(0));
 	}
 
 func_exit:
@@ -8558,7 +8558,7 @@ ha_innobase::update_row(
 func_exit:
 	if (error == DB_FTS_INVALID_DOCID) {
 		err = HA_FTS_INVALID_DOCID;
-		my_error(HA_FTS_INVALID_DOCID, MYF(0));
+		my_error_ensure(HA_FTS_INVALID_DOCID, "", MYF(0));
 	} else {
 		err = convert_error_code_to_mysql(
 			error, m_prebuilt->table->flags, m_user_thd);
@@ -9561,7 +9561,8 @@ ha_innobase::ft_init_ext(
 	dberr_t	error = fts_query(trx, index, flags, q, query_len, &result);
 
 	if (error != DB_SUCCESS) {
-		my_error(convert_error_code_to_mysql(error, 0, NULL), MYF(0));
+		my_error_ensure(convert_error_code_to_mysql(error, 0, NULL), "",
+				MYF(0));
 		return(NULL);
 	}
 
@@ -10814,9 +10815,11 @@ err_col:
 
 		*buf_end = '\0';
 
-		my_error(err == DB_DUPLICATE_KEY
+		my_error_ensure(
+			err == DB_DUPLICATE_KEY
 			 ? ER_TABLE_EXISTS_ERROR
-			 : ER_TABLESPACE_EXISTS, MYF(0), display_name);
+			 : ER_TABLESPACE_EXISTS,
+			ENSURE_ER_TABLE_EXISTS_ERROR, MYF(0), display_name);
 	}
 
 	DBUG_RETURN(convert_error_code_to_mysql(err, m_flags, m_thd));
