@@ -965,12 +965,6 @@ extern ulonglong my_getcputime(void);
 #define MAP_NORESERVE 0         /* For irix and AIX */
 #endif
 
-/* Compatibility with pre linux 3.8 distributions */
-#ifdef __linux__
-#define MAP_HUGE_SHIFT 26
-#define MAP_HUGETLB 0x40000
-#endif
-
 #ifdef HAVE_MMAP64
 #define my_mmap(a,b,c,d,e,f)    mmap64(a,b,c,d,e,f)
 #else
