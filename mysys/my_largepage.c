@@ -325,9 +325,13 @@ uchar *my_large_malloc(size_t *size, myf my_flags)
       /* this might be 0, in which case we do a standard mmap */
       if (large_page_size)
       {
-#ifdef __linux__
-        mapflag|= MAP_HUGETLB |
-                  my_bit_log2_size_t(large_page_size) << MAP_HUGE_SHIFT;
+#if defined(MAP_HUGETLB) /* linux 2.6.32 */
+        mapflag|= MAP_HUGETLB;
+#if defined(MAP_HUGE_SHIFT) /* Linux-3.8+ */
+        mapflag|= my_bit_log2_size_t(large_page_size) << MAP_HUGE_SHIFT;
+#else
+# warning "No explicit large page (HUGETLB pages) support in Linux < 3.8"
+#endif
 #elif defined(MAP_ALIGNED)
         mapflag|= MAP_ALIGNED_SUPER |
                   MAP_ALIGNED(my_bit_log2_size_t(large_page_size));
