@@ -22,7 +22,7 @@ ERROR 42000: Access denied; you need (at least one of) the SUPER, SLAVE MONITOR 
 SHOW RELAYLOG EVENTS;
 ERROR 42000: Access denied; you need (at least one of) the SLAVE MONITOR privilege(s) for this operation
 disconnect con1;
-# 
+#
 # SHOW SLAVE STATUS and SHOW RELAYLOG EVENTS are allowed with SLAVE MONITOR privilege
 #
 connection default;
