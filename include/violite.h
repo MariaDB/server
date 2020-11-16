@@ -249,7 +249,6 @@ struct st_vio
   char                  *read_pos;      /* start of unfetched data in the
                                            read buffer */
   char                  *read_end;      /* end of unfetched data */
-  struct mysql_async_context *async_context; /* For non-blocking API */
   int                   read_timeout;   /* Timeout value (ms) for read ops. */
   int                   write_timeout;  /* Timeout value (ms) for write ops. */
   /* function pointers. They are similar for socket/SSL/whatever */
@@ -279,6 +278,7 @@ struct st_vio
   HANDLE hPipe;
   OVERLAPPED overlapped;
   int shutdown_flag;
+  void *tp_ctx; /* threadpool context */
 #endif
 };
 #endif /* vio_violite_h_ */

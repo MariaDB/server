@@ -81,9 +81,6 @@ DROP TABLE t1;
 # Bug#54747: Deadlock between REORGANIZE PARTITION and
 #            SELECT is not detected
 #
-SET @old_innodb_thread_concurrency := @@innodb_thread_concurrency;
-SET @old_innodb_thread_sleep_delay := @@innodb_thread_sleep_delay;
-SET GLOBAL innodb_thread_concurrency = 1;
 CREATE TABLE t1
 (user_num BIGINT,
 hours SMALLINT,
@@ -116,8 +113,6 @@ connection con1;
 # Cleaning up.
 disconnect con1;
 connection default;
-SET GLOBAL innodb_thread_concurrency = @old_innodb_thread_concurrency;
-SET GLOBAL innodb_thread_sleep_delay = @old_innodb_thread_sleep_delay;
 DROP TABLE t1;
 #
 # Bug#50418: DROP PARTITION does not interact with transactions

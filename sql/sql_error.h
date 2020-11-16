@@ -1022,14 +1022,6 @@ public:
   { DBUG_ASSERT(m_status == DA_ERROR || m_status == DA_OK ||
                 m_status == DA_OK_BULK); return m_message; }
 
-  bool skip_flush() const
-  {
-    DBUG_ASSERT(m_status == DA_OK || m_status == DA_OK_BULK);
-    return m_skip_flush;
-  }
-
-  void set_skip_flush()
-  { m_skip_flush= TRUE; }
 
   uint sql_errno() const
   {
@@ -1214,9 +1206,6 @@ private:
 
   /** Set to make set_error_status after set_{ok,eof}_status possible. */
   bool m_can_overwrite_status;
-
-  /** Skip flushing network buffer after writing OK (for COM_MULTI) */
-  bool m_skip_flush;
 
   /** Message buffer. Can be used by OK or ERROR status. */
   char m_message[MYSQL_ERRMSG_SIZE];

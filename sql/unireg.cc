@@ -1104,8 +1104,11 @@ static bool pack_fields(uchar **buff_arg, List<Create_field> &create_fields,
     it.rewind();
     while ((field=it++))
     {
-      memcpy(buff, field->comment.str, field->comment.length);
-      buff+= field->comment.length;
+      if (size_t l= field->comment.length)
+      {
+        memcpy(buff, field->comment.str, l);
+        buff+= l;
+      }
     }
   }
   *buff_arg= buff;

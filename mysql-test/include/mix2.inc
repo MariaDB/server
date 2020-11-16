@@ -1423,33 +1423,6 @@ show variables like "innodb_sync_spin_loops";
 set global innodb_sync_spin_loops=20;
 show variables like "innodb_sync_spin_loops";
 
-# Test for innodb_thread_concurrency variable
-show variables like "innodb_thread_concurrency";
-set global innodb_thread_concurrency=1001;
-show variables like "innodb_thread_concurrency";
-set global innodb_thread_concurrency=0;
-show variables like "innodb_thread_concurrency";
-set global innodb_thread_concurrency=16;
-show variables like "innodb_thread_concurrency";
-
-# Test for innodb_concurrency_tickets variable
-show variables like "innodb_concurrency_tickets";
-set global innodb_concurrency_tickets=1000;
-show variables like "innodb_concurrency_tickets";
-set global innodb_concurrency_tickets=0;
-show variables like "innodb_concurrency_tickets";
-set global innodb_concurrency_tickets=500;
-show variables like "innodb_concurrency_tickets";
-
-# Test for innodb_thread_sleep_delay variable
-show variables like "innodb_thread_sleep_delay";
-set global innodb_thread_sleep_delay=100000;
-show variables like "innodb_thread_sleep_delay";
-set global innodb_thread_sleep_delay=0;
-show variables like "innodb_thread_sleep_delay";
-set global innodb_thread_sleep_delay=10000;
-show variables like "innodb_thread_sleep_delay";
-
 }
 
 

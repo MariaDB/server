@@ -26,8 +26,12 @@
 #include <shellapi.h>
 #include <accctrl.h>
 #include <aclapi.h>
+#include <ntsecapi.h>
+#include <sddl.h>
 struct IUnknown;
 #include <shlwapi.h>
+
+#include <string>
 
 #define USAGETEXT \
 "mysql_install_db.exe  Ver 1.00 for Windows\n" \
@@ -39,9 +43,8 @@ struct IUnknown;
 
 extern "C" const char* mysql_bootstrap_sql[];
 
-static char default_os_user[]= "NT AUTHORITY\\NetworkService";
 static char default_datadir[MAX_PATH];
-static int create_db_instance();
+static int create_db_instance(const char *datadir);
 static uint opt_silent;
 static char datadir_buffer[FN_REFLEN];
 static char mysqld_path[FN_REFLEN];
@@ -51,13 +54,13 @@ static char *opt_password;
 static int  opt_port;
 static int  opt_innodb_page_size;
 static char *opt_socket;
-static char *opt_os_user;
-static char *opt_os_password;
 static my_bool opt_default_user;
 static my_bool opt_allow_remote_root_access;
 static my_bool opt_skip_networking;
 static my_bool opt_verbose_bootstrap;
 static my_bool verbose_errors;
+static my_bool opt_large_pages;
+static char *opt_config;
 
 #define DEFAULT_INNODB_PAGE_SIZE 16*1024
 
@@ -73,14 +76,14 @@ static struct my_option my_long_options[]=
   &opt_password, &opt_password, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"port", 'P', "mysql port",
   &opt_port, &opt_port, 0, GET_INT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"socket", 'W', 
+  {"socket", 'W',
   "named pipe name (if missing, it will be set the same as service)",
   &opt_socket, &opt_socket, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"default-user", 'D', "Create default user",
   &opt_default_user, &opt_default_user, 0 , GET_BOOL, OPT_ARG, 0, 0, 0, 0, 0, 0},
-  {"allow-remote-root-access", 'R', 
+  {"allow-remote-root-access", 'R',
   "Allows remote access from network for user root",
-  &opt_allow_remote_root_access, &opt_allow_remote_root_access, 0 , GET_BOOL, 
+  &opt_allow_remote_root_access, &opt_allow_remote_root_access, 0 , GET_BOOL,
   OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"skip-networking", 'N', "Do not use TCP connections, use pipe instead",
   &opt_skip_networking, &opt_skip_networking, 0 , GET_BOOL, OPT_ARG, 0, 0, 0, 0,
@@ -91,6 +94,10 @@ static struct my_option my_long_options[]=
    &opt_silent, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"verbose-bootstrap", 'o', "Include mysqld bootstrap output",&opt_verbose_bootstrap,
    &opt_verbose_bootstrap, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  { "large-pages",'l', "Use large pages", &opt_large_pages,
+   &opt_large_pages, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"config",'c', "my.ini config template file", &opt_config,
+   &opt_config,  0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -135,7 +142,7 @@ ATTRIBUTE_NORETURN  static void die(const char *fmt, ...)
 }
 
 
-static void verbose(const char *fmt, ...)
+static void verbose( const char *fmt, ...)
 {
   va_list args;
 
@@ -150,15 +157,16 @@ static void verbose(const char *fmt, ...)
   va_end(args);
 }
 
+static char full_config_path[MAX_PATH];
 
 int main(int argc, char **argv)
 {
   int error;
-  char self_name[FN_REFLEN];
+  char self_name[MAX_PATH];
   char *p;
-
+  char *datadir = NULL;
   MY_INIT(argv[0]);
-  GetModuleFileName(NULL, self_name, FN_REFLEN);
+  GetModuleFileName(NULL, self_name, MAX_PATH);
   strcpy(mysqld_path,self_name);
   p= strrchr(mysqld_path, FN_LIBCHAR);
   if (p)
@@ -168,7 +176,56 @@ int main(int argc, char **argv)
 
   if ((error= handle_options(&argc, &argv, my_long_options, get_one_option)))
     exit(error);
-  if (!opt_datadir)
+
+  if (opt_config != 0 && _access(opt_config, 04) != 0)
+  {
+    int err= errno;
+    switch(err)
+    {
+      case EACCES:
+        die("File %s can't be read", opt_config);
+        break;
+      case ENOENT:
+        die("File %s does not exist", opt_config);
+        break;
+      default:
+        die("Can't access file %s, errno %d",opt_config, err);
+        break;
+    }
+  }
+  if (opt_config)
+  {
+    DWORD dwret = GetFullPathName(opt_config, sizeof(full_config_path), full_config_path, NULL);
+    if (dwret == 0)
+    {
+      die("GetFullPathName failed, last error %u", GetLastError());
+    }
+    else if (dwret > sizeof(full_config_path))
+    {
+      die("Can't resolve the config file name, path too large");
+    }
+    opt_config= full_config_path;
+  }
+
+  if(opt_datadir)
+    datadir = opt_datadir;
+
+  if (!datadir && opt_config)
+  {
+    for(auto section : {"server","mysqld"})
+    {
+      auto ret  = GetPrivateProfileStringA(section,"datadir", NULL, default_datadir,
+        sizeof(default_datadir)-1, opt_config);
+      if (ret)
+      {
+        datadir= default_datadir;
+        printf("Data directory (from config file) is %s\n",datadir);
+        break;
+      }
+    }
+  }
+
+  if (!datadir)
   {
     /*
       Figure out default data directory. It "data" directory, next to "bin" directory, where
@@ -189,31 +246,32 @@ int main(int argc, char **argv)
       my_print_help(my_long_options);
     }
     strcat_s(default_datadir, "\\data");
-    opt_datadir= default_datadir;
-    printf("Default data directory is %s\n",opt_datadir);
+    datadir= default_datadir;
+    printf("Default data directory is %s\n",datadir);
   }
+
+  DBUG_ASSERT(datadir);
 
   /* Print some help on errors */
   verbose_errors= TRUE;
 
-  if (!opt_os_user)
-  {
-    opt_os_user= default_os_user;
-    opt_os_password= NULL;
-  }
   /* Workaround WiX bug (strip possible quote character at the end of path) */
-  size_t len= strlen(opt_datadir);
+  size_t len= strlen(datadir);
   if (len > 0)
   {
-    if (opt_datadir[len-1] == '"')
+    if (datadir[len-1] == '"')
     {
-      opt_datadir[len-1]= 0;
+      datadir[len-1]= 0;
+    }
+    if (datadir[0] == '"')
+    {
+      datadir++;
     }
   }
-  GetFullPathName(opt_datadir, FN_REFLEN, datadir_buffer, NULL);
-  opt_datadir= datadir_buffer;
+  GetFullPathName(datadir, FN_REFLEN, datadir_buffer, NULL);
+  datadir= datadir_buffer;
 
-  if (create_db_instance())
+  if (create_db_instance(datadir))
   {
     die("database creation failed");
   }
@@ -279,19 +337,37 @@ static char *get_plugindir()
 
 static char *init_bootstrap_command_line(char *cmdline, size_t size)
 {
-  char basedir[MAX_PATH];
-  get_basedir(basedir, sizeof(basedir), mysqld_path);
-
-  my_snprintf(cmdline, size - 1,
-    "\"\"%s\" --no-defaults %s --innodb-page-size=%d --bootstrap"
-    " \"--lc-messages-dir=%s/share\""
-    " --basedir=. --datadir=. --default-storage-engine=myisam"
-    " --max_allowed_packet=9M "
-    " --net-buffer-length=16k\"", mysqld_path,
-    opt_verbose_bootstrap ? "--console" : "", opt_innodb_page_size, basedir);
+  snprintf(cmdline, size - 1,
+    "\"\"%s\""
+    " --defaults-file=my.ini"
+    " %s"
+    " --bootstrap"
+    " --datadir=."
+    " --loose-innodb-buffer-pool-size=10M"
+    "\""
+    , mysqld_path, opt_verbose_bootstrap ? "--console" : "");
   return cmdline;
 }
 
+static char my_ini_path[MAX_PATH];
+
+static void write_myini_str(const char *key, const char* val, const char *section="mysqld")
+{
+  DBUG_ASSERT(my_ini_path[0]);
+  if (!WritePrivateProfileString(section, key, val, my_ini_path))
+  {
+    die("Can't write to ini file key=%s, val=%s, section=%s, Windows error %u",key,val,section,
+      GetLastError());
+  }
+}
+
+
+static void write_myini_int(const char* key, int val, const char* section = "mysqld")
+{
+  char buf[10];
+  itoa(val, buf, 10);
+  write_myini_str(key, buf, section);
+}
 
 /**
   Create my.ini in  current directory (this is assumed to be
@@ -305,59 +381,63 @@ static int create_myini()
 
   char path_buf[MAX_PATH];
   GetCurrentDirectory(MAX_PATH, path_buf);
-
-  /* Create ini file. */
-  FILE *myini= fopen("my.ini","wt");
-  if (!myini)
+  snprintf(my_ini_path,sizeof(my_ini_path), "%s\\my.ini", path_buf);
+  if (opt_config)
   {
-    die("Can't create my.ini in data directory");
+    if (!CopyFile(opt_config,  my_ini_path,TRUE))
+    {
+      die("Can't copy %s to my.ini , last error %lu", opt_config, GetLastError());
+    }
   }
 
   /* Write out server settings. */
-  fprintf(myini, "[mysqld]\n");
   convert_slashes(path_buf);
-  fprintf(myini, "datadir=%s\n", path_buf);
+  write_myini_str("datadir",path_buf);
+
   if (opt_skip_networking)
   {
-    fprintf(myini,"skip-networking\n");
+    write_myini_str("skip-networking","ON");
     if (!opt_socket)
       opt_socket= opt_service;
   }
-  enable_named_pipe= (my_bool) 
+  enable_named_pipe= (my_bool)
     ((opt_socket && opt_socket[0]) || opt_skip_networking);
 
   if (enable_named_pipe)
   {
-    fprintf(myini,"named-pipe=ON\n");
+    write_myini_str("named-pipe","ON");
   }
 
   if (opt_socket && opt_socket[0])
   {
-    fprintf(myini, "socket=%s\n", opt_socket);
+    write_myini_str("socket", opt_socket);
   }
   if (opt_port)
   {
-    fprintf(myini,"port=%d\n", opt_port);
+    write_myini_int("port", opt_port);
   }
   if (opt_innodb_page_size != DEFAULT_INNODB_PAGE_SIZE)
   {
-    fprintf(myini, "innodb-page-size=%d\n", opt_innodb_page_size);
+    write_myini_int("innodb-page-size", opt_innodb_page_size);
   }
+  if (opt_large_pages)
+  {
+    write_myini_str("large-pages","ON");
+  }
+
   /* Write out client settings. */
-  fprintf(myini, "[client]\n");
 
   /* Used for named pipes */
   if (opt_socket && opt_socket[0])
-    fprintf(myini,"socket=%s\n",opt_socket);
+    write_myini_str("socket",opt_socket,"client");
   if (opt_skip_networking)
-    fprintf(myini,"protocol=pipe\n");
+    write_myini_str("protocol", "pipe", "client");
   else if (opt_port)
-    fprintf(myini,"port=%d\n",opt_port);
+    write_myini_int("port",opt_port,"client");
 
   char *plugin_dir = get_plugindir();
   if (plugin_dir)
-    fprintf(myini, "plugin-dir=%s\n", plugin_dir);
-  fclose(myini);
+    write_myini_str("plugin-dir", plugin_dir, "client");
   return 0;
 }
 
@@ -380,22 +460,92 @@ static const char allow_remote_root_access_cmd[]=
   "DROP TABLE tmp_user;\n";
 static const char end_of_script[]="-- end.";
 
+/*
+Add or remove privilege for a user
+@param[in] account_name - user name, Windows style, e.g "NT SERVICE\mariadb", or ".\joe"
+@param[in] privilege name - standard Windows privilege name, e.g "SeLockMemoryPrivilege"
+@param[in] add - when true, add privilege, otherwise remove it
+
+In special case where privilege name is NULL, and add is false
+all privileges for the user are removed.
+*/
+static int handle_user_privileges(const char *account_name, const wchar_t *privilege_name, bool add)
+{
+  LSA_OBJECT_ATTRIBUTES attr{};
+  LSA_HANDLE lsa_handle;
+  auto status= LsaOpenPolicy(
+      0, &attr, POLICY_LOOKUP_NAMES | POLICY_CREATE_ACCOUNT, &lsa_handle);
+  if (status)
+  {
+    verbose("LsaOpenPolicy returned %lu", LsaNtStatusToWinError(status));
+    return 1;
+  }
+  BYTE sidbuf[SECURITY_MAX_SID_SIZE];
+  PSID sid= (PSID) sidbuf;
+  SID_NAME_USE name_use;
+  char domain_name[256];
+  DWORD cbSid= sizeof(sidbuf);
+  DWORD cbDomain= sizeof(domain_name);
+  BOOL ok= LookupAccountNameA(0, account_name, sid, &cbSid, domain_name,
+                              &cbDomain, &name_use);
+  if (!ok)
+  {
+    verbose("LsaOpenPolicy returned %lu", LsaNtStatusToWinError(status));
+    return 1;
+  }
+
+  if (privilege_name)
+  {
+    LSA_UNICODE_STRING priv{};
+    priv.Buffer= (PWSTR) privilege_name;
+    priv.Length= (USHORT) wcslen(privilege_name) * sizeof(wchar_t);
+    priv.MaximumLength= priv.Length;
+    if (add)
+    {
+      status= LsaAddAccountRights(lsa_handle, sid, &priv, 1);
+      if (status)
+      {
+        verbose("LsaAddAccountRights returned %lu/%lu", status,
+                LsaNtStatusToWinError(status));
+        return 1;
+      }
+    }
+    else
+    {
+      status= LsaRemoveAccountRights(lsa_handle, sid, FALSE, &priv, 1);
+      if (status)
+      {
+        verbose("LsaRemoveRights returned %lu/%lu",
+                LsaNtStatusToWinError(status));
+        return 1;
+      }
+    }
+  }
+  else
+  {
+    DBUG_ASSERT(!add);
+    status= LsaRemoveAccountRights(lsa_handle, sid, TRUE, 0, 0);
+  }
+  LsaClose(lsa_handle);
+  return 0;
+}
+
 /* Register service. Assume my.ini is in datadir */
 
-static int register_service()
+static int register_service(const char *datadir, const char *user, const char *passwd)
 {
   char buf[3*MAX_PATH +32]; /* path to mysqld.exe, to my.ini, service name */
   SC_HANDLE sc_manager, sc_service;
 
-  size_t datadir_len= strlen(opt_datadir);
+  size_t datadir_len= strlen(datadir);
   const char *backslash_after_datadir= "\\";
 
-  if (datadir_len && opt_datadir[datadir_len-1] == '\\')
+  if (datadir_len && datadir[datadir_len-1] == '\\')
     backslash_after_datadir= "";
 
   verbose("Registering service '%s'", opt_service);
   my_snprintf(buf, sizeof(buf)-1,
-    "\"%s\" \"--defaults-file=%s%smy.ini\" \"%s\"" ,  mysqld_path, opt_datadir, 
+    "\"%s\" \"--defaults-file=%s%smy.ini\" \"%s\"" ,  mysqld_path, datadir,
     backslash_after_datadir, opt_service);
 
   /* Get a handle to the SCM database. */ 
@@ -408,7 +558,7 @@ static int register_service()
   /* Create the service. */
   sc_service= CreateService(sc_manager, opt_service,  opt_service,
     SERVICE_ALL_ACCESS, SERVICE_WIN32_OWN_PROCESS, SERVICE_AUTO_START, 
-    SERVICE_ERROR_NORMAL, buf, NULL, NULL, NULL, opt_os_user, opt_os_password);
+    SERVICE_ERROR_NORMAL, buf, NULL, NULL, NULL, user, passwd);
 
   if (!sc_service) 
   {
@@ -549,7 +699,7 @@ static int set_directory_permissions(const char *dir, const char *os_user)
 
 /* Create database instance (including registering as service etc) .*/
 
-static int create_db_instance()
+static int create_db_instance(const char *datadir)
 {
   int ret= 0;
   char cwd[MAX_PATH];
@@ -558,6 +708,8 @@ static int create_db_instance()
   FILE *in;
   bool created_datadir= false;
   DWORD last_error;
+  bool service_created= false;
+  std::string mysql_db_dir;
 
   verbose("Running bootstrap");
 
@@ -565,7 +717,7 @@ static int create_db_instance()
 
   /* Create datadir and datadir/mysql, if they do not already exist. */
 
-  if (CreateDirectory(opt_datadir, NULL))
+  if (CreateDirectory(datadir, NULL))
   {
     created_datadir= true;
   }
@@ -576,71 +728,91 @@ static int create_db_instance()
     {
       case ERROR_ACCESS_DENIED:
         die("Can't create data directory '%s' (access denied)\n",
-            opt_datadir);
+            datadir);
         break;
       case ERROR_PATH_NOT_FOUND:
         die("Can't create data directory '%s' "
             "(one or more intermediate directories do not exist)\n",
-            opt_datadir);
+            datadir);
         break;
       default:
         die("Can't create data directory '%s', last error %u\n",
-         opt_datadir, last_error);
+         datadir, last_error);
         break;
     }
   }
 
-  if (!SetCurrentDirectory(opt_datadir))
+  if (!SetCurrentDirectory(datadir))
   {
     last_error = GetLastError();
     switch (last_error)
     {
       case ERROR_DIRECTORY:
         die("Can't set current directory to '%s', the path is not a valid directory \n",
-            opt_datadir);
+            datadir);
         break;
       default:
         die("Can' set current directory to '%s', last error %u\n",
-            opt_datadir, last_error);
+            datadir, last_error);
         break;
     }
   }
 
-  if (!PathIsDirectoryEmpty(opt_datadir))
+  if (!PathIsDirectoryEmpty(datadir))
   {
-    fprintf(stderr,"ERROR : Data directory %s is not empty."
-        " Only new or empty existing directories are accepted for --datadir\n",opt_datadir);
+    fprintf(stderr, "ERROR : Data directory %s is not empty."
+        " Only new or empty existing directories are accepted for --datadir\n", datadir);
     exit(1);
   }
 
-  if (!CreateDirectory("mysql",NULL))
+  std::string service_user;
+  /* Register service if requested. */
+  if (opt_service && opt_service[0])
   {
-    last_error = GetLastError();
-    DWORD attributes;
-    switch(last_error)
-    {
-      case ERROR_ACCESS_DENIED:
-        die("Can't create subdirectory 'mysql' in '%s' (access denied)\n",opt_datadir);
-        break;
-      case ERROR_ALREADY_EXISTS:
-       attributes = GetFileAttributes("mysql");
-
-       if (attributes == INVALID_FILE_ATTRIBUTES)
-         die("GetFileAttributes() failed for existing file '%s\\mysql', last error %u",
-            opt_datadir, GetLastError());
-       else if (!(attributes & FILE_ATTRIBUTE_DIRECTORY))
-         die("File '%s\\mysql' exists, but it is not a directory", opt_datadir);
-
-       break;
-    }
+    /* Run service under virtual account NT SERVICE\service_name.*/
+    service_user.append("NT SERVICE\\").append(opt_service);
+    ret = register_service(datadir, service_user.c_str(), NULL);
+    if (ret)
+      goto end;
+    service_created = true;
+  }
+  if (opt_large_pages)
+  {
+    handle_user_privileges(service_user.c_str(), L"SeLockMemoryPrivilege", true);
+  }
+  /*
+    Set data directory permissions for both current user and
+    the one who who runs services.
+  */
+  set_directory_permissions(datadir, NULL);
+  if (!service_user.empty())
+  {
+    set_directory_permissions(datadir, service_user.c_str());
   }
 
   /*
-    Set data directory permissions for both current user and 
-    default_os_user (the one who runs services).
+  Get security descriptor for the data directory.
+  It will be passed, as SDDL text, to the mysqld bootstrap subprocess,
+  to allow for correct subdirectory permissions.
   */
-  set_directory_permissions(opt_datadir, NULL);
-  set_directory_permissions(opt_datadir, default_os_user);
+  PSECURITY_DESCRIPTOR pSD;
+  if (GetNamedSecurityInfoA(datadir, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
+    0, 0, 0, 0, &pSD) == ERROR_SUCCESS)
+  {
+    char* string_sd = NULL;
+    if (ConvertSecurityDescriptorToStringSecurityDescriptor(pSD, SDDL_REVISION_1,
+      DACL_SECURITY_INFORMATION, &string_sd, 0))
+    {
+      _putenv_s("MARIADB_NEW_DIRECTORY_SDDL", string_sd);
+      LocalFree(string_sd);
+    }
+    LocalFree(pSD);
+  }
+
+  /* Create my.ini file in data directory.*/
+  ret = create_myini();
+  if (ret)
+    goto end;
 
   /* Do mysqld --bootstrap. */
   init_bootstrap_command_line(cmdline, sizeof(cmdline));
@@ -656,18 +828,23 @@ static int create_db_instance()
   {
     verbose("WARNING: Can't disable buffering on mysqld's stdin");
   }
-  if (fwrite("use mysql;\n",11,1, in) != 1)
-  {
-    verbose("ERROR: Can't write to mysqld's stdin");
-    ret= 1;
-    goto end;
-  }
-
-  int i;
-  for (i=0; mysql_bootstrap_sql[i]; i++)
+  static const char *pre_bootstrap_sql[] = { "create database mysql;\n","use mysql;\n"};
+  for (auto cmd  : pre_bootstrap_sql)
   {
     /* Write the bootstrap script to stdin. */
-    if (fwrite(mysql_bootstrap_sql[i], strlen(mysql_bootstrap_sql[i]), 1, in) != 1)
+    if (fwrite(cmd, strlen(cmd), 1, in) != 1)
+    {
+      verbose("ERROR: Can't write to mysqld's stdin");
+      ret= 1;
+      goto end;
+    }
+  }
+
+  for (int i= 0; mysql_bootstrap_sql[i]; i++)
+  {
+    auto cmd = mysql_bootstrap_sql[i];
+    /* Write the bootstrap script to stdin. */
+    if (fwrite(cmd, strlen(cmd), 1, in) != 1)
     {
       verbose("ERROR: Can't write to mysqld's stdin");
       ret= 1;
@@ -709,7 +886,7 @@ static int create_db_instance()
   }
 
   /*
-    On some reason, bootstrap chokes if last command sent via stdin ends with 
+    On some reason, bootstrap chokes if last command sent via stdin ends with
     newline, so we supply a dummy comment, that does not end with newline.
   */
   fputs(end_of_script, in);
@@ -723,25 +900,37 @@ static int create_db_instance()
     goto end;
   }
 
-
-  /* Create my.ini file in data directory.*/
-  ret= create_myini();
-  if (ret)
-    goto end;
-
-  /* Register service if requested. */
-  if (opt_service && opt_service[0])
-  {
-    ret= register_service();
-    if (ret)
-      goto end;
-  }
-
 end:
-  if (ret)
+  if (!ret)
+    return ret;
+
+  /* Cleanup after error.*/
+  if (created_datadir)
   {
     SetCurrentDirectory(cwd);
-    clean_directory(opt_datadir);
+    clean_directory(datadir);
+  }
+
+  if (service_created)
+  {
+    auto sc_manager = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
+    if (sc_manager)
+    {
+      auto sc_handle= OpenServiceA(sc_manager,opt_service, DELETE);
+      if (sc_handle)
+      {
+        DeleteService(sc_handle);
+        CloseServiceHandle(sc_handle);
+      }
+      CloseServiceHandle(sc_manager);
+    }
+
+    /*Remove all service user privileges for the user.*/
+    if(strncmp(service_user.c_str(), "NT SERVICE\\",
+         sizeof("NT SERVICE\\")-1))
+    {
+      handle_user_privileges(service_user.c_str(), 0, false);
+    }
     if (created_datadir)
       RemoveDirectory(opt_datadir);
   }

@@ -930,14 +930,6 @@
 }
 
 {
-  TokuDB uses gcc __thread variables
-  Memcheck:Leak
-  fun:memalign
-  fun:*
-  fun:__tls_get_addr
-}
-
-{
   Galera uses gcc __thread variables
   Memcheck:Leak
   fun:memalign

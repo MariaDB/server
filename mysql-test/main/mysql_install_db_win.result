@@ -1,8 +1,8 @@
 Running bootstrap
+Creating my.ini file
 Removing default user
 Allowing remote access for user root
 Setting root password
-Creating my.ini file
 Creation of the database was successful
 # Kill the server
 # restart: --datadir=MYSQLTEST_VARDIR/tmp/ddir --loose-innodb
@@ -14,4 +14,24 @@ DATADIR/
 1
 FOUND 1 /is not empty. Only new or empty existing directories are accepted for --datadir/ in install.log
 connection default;
+[mysqld]
+long_query_time=15.000000
+#slow_query_log_file=l:/errorlog/mariadb.slow.log
+slow_query_log_file=BASEDIR/data/slow_query_log_01.log
+datadir=BASEDIR/data
+server-id=1
+port=3307
+#tmpdir=C:/mysql_tmpdir
+tmpdir=BASEDIR/temp
+innodb_data_file_path=ibdata1:10M;ibdata2:10M:autoextend
+innodb_log_group_home_dir=BASEDIR/data
+skip-name-resolve
+
+#*********************************************************
+# performance_schema
+#*********************************************************
+performance_schema=OFF
+
+[client]
+port=3307
 # restart

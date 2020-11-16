@@ -130,5 +130,42 @@ connection default;
 #
 alter user user1@localhost account lock;
 ERROR HY000: Access denied, this account is locked
+#
+# MDEV-24098 SHOW CREATE USER invalid for both PASSWORD EXPIRE and
+# and LOCKED
+#
+alter user user1@localhost PASSWORD EXPIRE;
+show create user user1@localhost;
+CREATE USER for user1@localhost
+CREATE USER `user1`@`localhost` ACCOUNT LOCK PASSWORD EXPIRE
+drop user user1@localhost;
+#
+# MDEV-24098 CREATE USER/ALTER USER PASSWORD EXPIRE/LOCK in
+# either order.
+#
+create user user1@localhost PASSWORD EXPIRE ACCOUNT LOCK;
+show create user user1@localhost;
+CREATE USER for user1@localhost
+CREATE USER `user1`@`localhost` ACCOUNT LOCK PASSWORD EXPIRE
+drop user user1@localhost;
+create user user1@localhost ACCOUNT LOCK PASSWORD EXPIRE;
+show create user user1@localhost;
+CREATE USER for user1@localhost
+CREATE USER `user1`@`localhost` ACCOUNT LOCK PASSWORD EXPIRE
+alter user user1@localhost  PASSWORD EXPIRE NEVER ACCOUNT UNLOCK ;
+show create user user1@localhost;
+CREATE USER for user1@localhost
+CREATE USER `user1`@`localhost` PASSWORD EXPIRE
+alter user user1@localhost  ACCOUNT LOCK PASSWORD EXPIRE DEFAULT;
+show create user user1@localhost;
+CREATE USER for user1@localhost
+CREATE USER `user1`@`localhost` ACCOUNT LOCK PASSWORD EXPIRE
+alter user user1@localhost  PASSWORD EXPIRE INTERVAL 60 DAY ACCOUNT UNLOCK;
+select * from mysql.global_priv where user='user1';
+Host	User	Priv
+localhost	user1	{"access":0,"version_id":XXX,"plugin":"mysql_native_password","authentication_string":"","account_locked":false,"password_last_changed":0,"password_lifetime":60}
+show create user user1@localhost;
+CREATE USER for user1@localhost
+CREATE USER `user1`@`localhost` PASSWORD EXPIRE
 drop user user1@localhost;
 drop user user2@localhost;

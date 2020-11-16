@@ -54,8 +54,6 @@ static const char* SYSTEM_TABLE_NAME[] = {
 	"SYS_FIELDS",
 	"SYS_FOREIGN",
 	"SYS_FOREIGN_COLS",
-	"SYS_TABLESPACES",
-	"SYS_DATAFILES",
 	"SYS_VIRTUAL"
 };
 
@@ -662,307 +660,6 @@ err_len:
 	return(NULL);
 }
 
-/********************************************************************//**
-This function parses a SYS_TABLESPACES record, extracts necessary
-information from the record and returns to caller.
-@return error message, or NULL on success */
-const char*
-dict_process_sys_tablespaces(
-/*=========================*/
-	mem_heap_t*	heap,		/*!< in/out: heap memory */
-	const rec_t*	rec,		/*!< in: current SYS_TABLESPACES rec */
-	uint32_t*	space,		/*!< out: tablespace identifier */
-	const char**	name,		/*!< out: tablespace name */
-	ulint*		flags)		/*!< out: tablespace flags */
-{
-	ulint		len;
-	const byte*	field;
-
-	if (rec_get_deleted_flag(rec, 0)) {
-		return("delete-marked record in SYS_TABLESPACES");
-	}
-
-	if (rec_get_n_fields_old(rec) != DICT_NUM_FIELDS__SYS_TABLESPACES) {
-		return("wrong number of columns in SYS_TABLESPACES record");
-	}
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_TABLESPACES__SPACE, &len);
-	if (len != DICT_FLD_LEN_SPACE) {
-err_len:
-		return("incorrect column length in SYS_TABLESPACES");
-	}
-	*space = mach_read_from_4(field);
-
-	rec_get_nth_field_offs_old(
-		rec, DICT_FLD__SYS_TABLESPACES__DB_TRX_ID, &len);
-	if (len != DATA_TRX_ID_LEN && len != UNIV_SQL_NULL) {
-		goto err_len;
-	}
-
-	rec_get_nth_field_offs_old(
-		rec, DICT_FLD__SYS_TABLESPACES__DB_ROLL_PTR, &len);
-	if (len != DATA_ROLL_PTR_LEN && len != UNIV_SQL_NULL) {
-		goto err_len;
-	}
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_TABLESPACES__NAME, &len);
-	if (len == 0 || len == UNIV_SQL_NULL) {
-		goto err_len;
-	}
-	*name = mem_heap_strdupl(heap, (char*) field, len);
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_TABLESPACES__FLAGS, &len);
-	if (len != DICT_FLD_LEN_FLAGS) {
-		goto err_len;
-	}
-	*flags = mach_read_from_4(field);
-
-	return(NULL);
-}
-
-/********************************************************************//**
-This function parses a SYS_DATAFILES record, extracts necessary
-information from the record and returns it to the caller.
-@return error message, or NULL on success */
-const char*
-dict_process_sys_datafiles(
-/*=======================*/
-	mem_heap_t*	heap,		/*!< in/out: heap memory */
-	const rec_t*	rec,		/*!< in: current SYS_DATAFILES rec */
-	uint32_t*	space,		/*!< out: space id */
-	const char**	path)		/*!< out: datafile paths */
-{
-	ulint		len;
-	const byte*	field;
-
-	if (rec_get_deleted_flag(rec, 0)) {
-		return("delete-marked record in SYS_DATAFILES");
-	}
-
-	if (rec_get_n_fields_old(rec) != DICT_NUM_FIELDS__SYS_DATAFILES) {
-		return("wrong number of columns in SYS_DATAFILES record");
-	}
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_DATAFILES__SPACE, &len);
-	if (len != DICT_FLD_LEN_SPACE) {
-err_len:
-		return("incorrect column length in SYS_DATAFILES");
-	}
-	*space = mach_read_from_4(field);
-
-	rec_get_nth_field_offs_old(
-		rec, DICT_FLD__SYS_DATAFILES__DB_TRX_ID, &len);
-	if (len != DATA_TRX_ID_LEN && len != UNIV_SQL_NULL) {
-		goto err_len;
-	}
-
-	rec_get_nth_field_offs_old(
-		rec, DICT_FLD__SYS_DATAFILES__DB_ROLL_PTR, &len);
-	if (len != DATA_ROLL_PTR_LEN && len != UNIV_SQL_NULL) {
-		goto err_len;
-	}
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_DATAFILES__PATH, &len);
-	if (len == 0 || len == UNIV_SQL_NULL) {
-		goto err_len;
-	}
-	*path = mem_heap_strdupl(heap, (char*) field, len);
-
-	return(NULL);
-}
-
-/** Get the first filepath from SYS_DATAFILES for a given space_id.
-@param[in]	space_id	Tablespace ID
-@return First filepath (caller must invoke ut_free() on it)
-@retval NULL if no SYS_DATAFILES entry was found. */
-static char*
-dict_get_first_path(
-	ulint	space_id)
-{
-	mtr_t		mtr;
-	dict_table_t*	sys_datafiles;
-	dict_index_t*	sys_index;
-	dtuple_t*	tuple;
-	dfield_t*	dfield;
-	byte*		buf;
-	btr_pcur_t	pcur;
-	const rec_t*	rec;
-	const byte*	field;
-	ulint		len;
-	char*		filepath = NULL;
-	mem_heap_t*	heap = mem_heap_create(1024);
-
-	ut_ad(mutex_own(&dict_sys.mutex));
-
-	mtr_start(&mtr);
-
-	sys_datafiles = dict_table_get_low("SYS_DATAFILES");
-	sys_index = UT_LIST_GET_FIRST(sys_datafiles->indexes);
-
-	ut_ad(!dict_table_is_comp(sys_datafiles));
-	ut_ad(name_of_col_is(sys_datafiles, sys_index,
-			     DICT_FLD__SYS_DATAFILES__SPACE, "SPACE"));
-	ut_ad(name_of_col_is(sys_datafiles, sys_index,
-			     DICT_FLD__SYS_DATAFILES__PATH, "PATH"));
-
-	tuple = dtuple_create(heap, 1);
-	dfield = dtuple_get_nth_field(tuple, DICT_FLD__SYS_DATAFILES__SPACE);
-
-	buf = static_cast<byte*>(mem_heap_alloc(heap, 4));
-	mach_write_to_4(buf, space_id);
-
-	dfield_set_data(dfield, buf, 4);
-	dict_index_copy_types(tuple, sys_index, 1);
-
-	btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
-				  BTR_SEARCH_LEAF, &pcur, &mtr);
-
-	rec = btr_pcur_get_rec(&pcur);
-
-	/* Get the filepath from this SYS_DATAFILES record. */
-	if (btr_pcur_is_on_user_rec(&pcur)) {
-		field = rec_get_nth_field_old(
-			rec, DICT_FLD__SYS_DATAFILES__SPACE, &len);
-		ut_a(len == 4);
-
-		if (space_id == mach_read_from_4(field)) {
-			/* A record for this space ID was found. */
-			field = rec_get_nth_field_old(
-				rec, DICT_FLD__SYS_DATAFILES__PATH, &len);
-
-			ut_ad(len > 0);
-			ut_ad(len < OS_FILE_MAX_PATH);
-
-			if (len > 0 && len < UNIV_SQL_NULL) {
-				filepath = mem_strdupl(
-					reinterpret_cast<const char*>(field),
-					len);
-				ut_ad(filepath != NULL);
-
-				/* The dictionary may have been written on
-				another OS. */
-				os_normalize_path(filepath);
-			}
-		}
-	}
-
-	btr_pcur_close(&pcur);
-	mtr_commit(&mtr);
-	mem_heap_free(heap);
-
-	return(filepath);
-}
-
-/** Update the record for space_id in SYS_TABLESPACES to this filepath.
-@param[in]	space_id	Tablespace ID
-@param[in]	filepath	Tablespace filepath
-@return DB_SUCCESS if OK, dberr_t if the insert failed */
-dberr_t
-dict_update_filepath(
-	ulint		space_id,
-	const char*	filepath)
-{
-	if (!srv_sys_tablespaces_open) {
-		/* Startup procedure is not yet ready for updates. */
-		return(DB_SUCCESS);
-	}
-
-	dberr_t		err = DB_SUCCESS;
-	trx_t*		trx;
-
-	ut_d(dict_sys.assert_locked());
-
-	trx = trx_create();
-	trx->op_info = "update filepath";
-	trx->dict_operation_lock_mode = RW_X_LATCH;
-	trx_start_for_ddl(trx, TRX_DICT_OP_INDEX);
-
-	pars_info_t*	info = pars_info_create();
-
-	pars_info_add_int4_literal(info, "space", space_id);
-	pars_info_add_str_literal(info, "path", filepath);
-
-	err = que_eval_sql(info,
-			   "PROCEDURE UPDATE_FILEPATH () IS\n"
-			   "BEGIN\n"
-			   "UPDATE SYS_DATAFILES"
-			   " SET PATH = :path\n"
-			   " WHERE SPACE = :space;\n"
-			   "END;\n", FALSE, trx);
-
-	trx_commit_for_mysql(trx);
-	trx->dict_operation_lock_mode = 0;
-	trx->free();
-
-	if (UNIV_LIKELY(err == DB_SUCCESS)) {
-		/* We just updated SYS_DATAFILES due to the contents in
-		a link file.  Make a note that we did this. */
-		ib::info() << "The InnoDB data dictionary table SYS_DATAFILES"
-			" for tablespace ID " << space_id
-			<< " was updated to use file " << filepath << ".";
-	} else {
-		ib::warn() << "Error occurred while updating InnoDB data"
-			" dictionary table SYS_DATAFILES for tablespace ID "
-			<< space_id << " to file " << filepath << ": "
-			<< err << ".";
-	}
-
-	return(err);
-}
-
-/** Replace records in SYS_TABLESPACES and SYS_DATAFILES associated with
-the given space_id using an independent transaction.
-@param[in]	space_id	Tablespace ID
-@param[in]	name		Tablespace name
-@param[in]	filepath	First filepath
-@param[in]	fsp_flags	Tablespace flags
-@return DB_SUCCESS if OK, dberr_t if the insert failed */
-dberr_t
-dict_replace_tablespace_and_filepath(
-	ulint		space_id,
-	const char*	name,
-	const char*	filepath,
-	ulint		fsp_flags)
-{
-	if (!srv_sys_tablespaces_open) {
-		/* Startup procedure is not yet ready for updates.
-		Return success since this will likely get updated
-		later. */
-		return(DB_SUCCESS);
-	}
-
-	dberr_t		err = DB_SUCCESS;
-	trx_t*		trx;
-
-	DBUG_EXECUTE_IF("innodb_fail_to_update_tablespace_dict",
-			return(DB_INTERRUPTED););
-
-	ut_d(dict_sys.assert_locked());
-	ut_ad(filepath);
-
-	trx = trx_create();
-	trx->op_info = "insert tablespace and filepath";
-	trx->dict_operation_lock_mode = RW_X_LATCH;
-	trx_start_for_ddl(trx, TRX_DICT_OP_INDEX);
-
-	/* A record for this space ID was not found in
-	SYS_DATAFILES. Assume the record is also missing in
-	SYS_TABLESPACES.  Insert records into them both. */
-	err = dict_replace_tablespace_in_dictionary(
-		space_id, name, fsp_flags, filepath, trx);
-
-	trx_commit_for_mysql(trx);
-	trx->dict_operation_lock_mode = 0;
-	trx->free();
-
-	return(err);
-}
-
 /** Check the validity of a SYS_TABLES record
 Make sure the fields are the right length and that they
 do not contain invalid contents.
@@ -1044,53 +741,6 @@ err_len:
 	}
 
 	return(NULL);
-}
-
-/** Read and return the contents of a SYS_TABLESPACES record.
-@param[in]	rec	A record of SYS_TABLESPACES
-@param[out]	id	Pointer to the space_id for this table
-@param[in,out]	name	Buffer for Tablespace Name of length NAME_LEN
-@param[out]	flags	Pointer to tablespace flags
-@return true if the record was read correctly, false if not. */
-bool
-dict_sys_tablespaces_rec_read(
-	const rec_t*	rec,
-	ulint*		id,
-	char*		name,
-	ulint*		flags)
-{
-	const byte*	field;
-	ulint		len;
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_TABLESPACES__SPACE, &len);
-	if (len != DICT_FLD_LEN_SPACE) {
-		ib::error() << "Wrong field length in SYS_TABLESPACES.SPACE: "
-		<< len;
-		return(false);
-	}
-	*id = mach_read_from_4(field);
-
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_TABLESPACES__NAME, &len);
-	if (len == 0 || len == UNIV_SQL_NULL) {
-		ib::error() << "Wrong field length in SYS_TABLESPACES.NAME: "
-			<< len;
-		return(false);
-	}
-	strncpy(name, reinterpret_cast<const char*>(field), NAME_LEN);
-
-	/* read the 4 byte flags from the TYPE field */
-	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_TABLESPACES__FLAGS, &len);
-	if (len != 4) {
-		ib::error() << "Wrong field length in SYS_TABLESPACES.FLAGS: "
-			<< len;
-		return(false);
-	}
-	*flags = mach_read_from_4(field);
-
-	return(true);
 }
 
 /** Check if SYS_TABLES.TYPE is valid
@@ -1343,15 +993,6 @@ static ulint dict_check_sys_tables()
 
 	mtr_start(&mtr);
 
-	/* Before traversing SYS_TABLES, let's make sure we have
-	SYS_TABLESPACES and SYS_DATAFILES loaded. */
-	dict_table_t*	sys_tablespaces;
-	dict_table_t*	sys_datafiles;
-	sys_tablespaces = dict_table_get_low("SYS_TABLESPACES");
-	ut_a(sys_tablespaces != NULL);
-	sys_datafiles = dict_table_get_low("SYS_DATAFILES");
-	ut_a(sys_datafiles != NULL);
-
 	for (rec = dict_startscan_system(&pcur, &mtr, SYS_TABLES);
 	     rec != NULL;
 	     mtr.commit(), mtr.start(),
@@ -1411,34 +1052,17 @@ next:
 
 		/* Now that we have the proper name for this tablespace,
 		look to see if it is already in the tablespace cache. */
-		if (const fil_space_t* space
-		    = fil_space_for_table_exists_in_mem(
+		if (fil_space_for_table_exists_in_mem(
 			    space_id, table_name.m_name, flags)) {
-			/* Recovery can open a datafile that does not
-			match SYS_DATAFILES.  If they don't match, update
-			SYS_DATAFILES. */
-			char *dict_path = dict_get_first_path(space_id);
-			const char *fil_path = space->chain.start->name;
-			if (dict_path
-			    && strcmp(dict_path, fil_path)) {
-				dict_update_filepath(space_id, fil_path);
-			}
-			ut_free(dict_path);
-			ut_free(table_name.m_name);
-			continue;
+			goto next;
 		}
 
-		/* Set the expected filepath from the data dictionary.
-		If the file is found elsewhere (from an ISL or the default
-		location) or this path is the same file but looks different,
-		fil_ibd_open() will update the dictionary with what is
-		opened. */
-		char*	filepath = dict_get_first_path(space_id);
+		char*	filepath = fil_make_filepath(
+			NULL, table_name.m_name, IBD, false);
 
 		/* Check that the .ibd file exists. */
 		if (!fil_ibd_open(
 			    false,
-			    !srv_read_only_mode && srv_log_file_size != 0,
 			    FIL_TYPE_TABLESPACE,
 			    space_id, dict_tf_to_fsp_flags(flags),
 			    table_name, filepath)) {
@@ -1449,8 +1073,8 @@ next:
 
 		max_space_id = ut_max(max_space_id, space_id);
 
-		ut_free(table_name.m_name);
 		ut_free(filepath);
+		goto next;
 	}
 
 	mtr_commit(&mtr);
@@ -1463,8 +1087,7 @@ Then look at each table defined in SYS_TABLES that has a space_id > 0
 to find all the file-per-table tablespaces.
 
 In a crash recovery we already have some tablespace objects created from
-processing the REDO log.  Any other tablespace in SYS_TABLESPACES not
-previously used in recovery will be opened here.  We will compare the
+processing the REDO log. We will compare the
 space_id information in the data dictionary to what we find in the
 tablespace file. In addition, more validation will be done if recovery
 was needed and force_recovery is not set.
@@ -1487,9 +1110,7 @@ void dict_check_tablespaces_and_store_max_id()
 
 	fil_set_max_space_id_if_bigger(max_space_id);
 
-	/* Open all tablespaces referenced in SYS_TABLES.
-	This will update SYS_TABLESPACES and SYS_DATAFILES if it
-	finds any file-per-table tablespaces not already there. */
+	/* Open all tablespaces referenced in SYS_TABLES. */
 	max_space_id = dict_check_sys_tables();
 	fil_set_max_space_id_if_bigger(max_space_id);
 
@@ -2674,8 +2295,7 @@ dict_save_data_dir_path(
 	}
 }
 
-/** Make sure the data_dir_path is saved in dict_table_t if DATA DIRECTORY
-was used. Try to read it from the fil_system first, then from SYS_DATAFILES.
+/** Make sure the data_dir_path is saved in dict_table_t if needed.
 @param[in]	table		Table object
 @param[in]	dict_mutex_own	true if dict_sys.mutex is owned already */
 void
@@ -2698,8 +2318,8 @@ dict_get_and_save_data_dir_path(
 
 		if (table->data_dir_path == NULL) {
 			/* Since we did not set the table data_dir_path,
-			unset the flag.  This does not change SYS_DATAFILES
-			or SYS_TABLES or FSP_SPACE_FLAGS on the header page
+			unset the flag.  This does not change
+			SYS_TABLES or FSP_SPACE_FLAGS on the header page
 			of the tablespace, but it makes dict_table_t
 			consistent. */
 			table->flags &= ~DICT_TF_MASK_DATA_DIR
@@ -2800,8 +2420,7 @@ dict_load_tablespace(
 	from the table->name. */
 	char* filepath = NULL;
 	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-		/* This will set table->data_dir_path from either
-		fil_system or SYS_DATAFILES */
+		/* This will set table->data_dir_path from fil_system */
 		dict_get_and_save_data_dir_path(table, true);
 
 		if (table->data_dir_path) {
@@ -2814,7 +2433,7 @@ dict_load_tablespace(
 	/* Try to open the tablespace.  We set the 2nd param (fix_dict) to
 	false because we do not have an x-lock on dict_sys.latch */
 	table->space = fil_ibd_open(
-		true, false, FIL_TYPE_TABLESPACE, table->space_id,
+		true, FIL_TYPE_TABLESPACE, table->space_id,
 		dict_tf_to_fsp_flags(table->flags),
 		table->name, filepath);
 

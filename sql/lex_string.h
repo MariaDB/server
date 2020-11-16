@@ -76,12 +76,12 @@ static inline bool lex_string_cmp(CHARSET_INFO *charset, const LEX_CSTRING *a,
 
 static inline bool cmp(const LEX_CSTRING *a, const LEX_CSTRING *b)
 {
-  return (a->length != b->length ||
-          memcmp(a->str, b->str, a->length));
+  return a->length != b->length ||
+    (a->length && memcmp(a->str, b->str, a->length));
 }
 static inline bool cmp(const LEX_CSTRING a, const LEX_CSTRING b)
 {
-  return a.length != b.length || memcmp(a.str, b.str, a.length);
+  return a.length != b.length || (a.length && memcmp(a.str, b.str, a.length));
 }
 
 /*

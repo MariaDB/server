@@ -267,37 +267,6 @@ enum dict_fld_sys_foreign_cols_enum {
 	DICT_FLD__SYS_FOREIGN_COLS__REF_COL_NAME	= 5,
 	DICT_NUM_FIELDS__SYS_FOREIGN_COLS		= 6
 };
-/* The columns in SYS_TABLESPACES */
-enum dict_col_sys_tablespaces_enum {
-	DICT_COL__SYS_TABLESPACES__SPACE		= 0,
-	DICT_COL__SYS_TABLESPACES__NAME			= 1,
-	DICT_COL__SYS_TABLESPACES__FLAGS		= 2,
-	DICT_NUM_COLS__SYS_TABLESPACES			= 3
-};
-/* The field numbers in the SYS_TABLESPACES clustered index */
-enum dict_fld_sys_tablespaces_enum {
-	DICT_FLD__SYS_TABLESPACES__SPACE		= 0,
-	DICT_FLD__SYS_TABLESPACES__DB_TRX_ID		= 1,
-	DICT_FLD__SYS_TABLESPACES__DB_ROLL_PTR		= 2,
-	DICT_FLD__SYS_TABLESPACES__NAME			= 3,
-	DICT_FLD__SYS_TABLESPACES__FLAGS		= 4,
-	DICT_NUM_FIELDS__SYS_TABLESPACES		= 5
-};
-/* The columns in SYS_DATAFILES */
-enum dict_col_sys_datafiles_enum {
-	DICT_COL__SYS_DATAFILES__SPACE			= 0,
-	DICT_COL__SYS_DATAFILES__PATH			= 1,
-	DICT_NUM_COLS__SYS_DATAFILES			= 2
-};
-/* The field numbers in the SYS_DATAFILES clustered index */
-enum dict_fld_sys_datafiles_enum {
-	DICT_FLD__SYS_DATAFILES__SPACE			= 0,
-	DICT_FLD__SYS_DATAFILES__DB_TRX_ID		= 1,
-	DICT_FLD__SYS_DATAFILES__DB_ROLL_PTR		= 2,
-	DICT_FLD__SYS_DATAFILES__PATH			= 3,
-	DICT_NUM_FIELDS__SYS_DATAFILES			= 4
-};
-
 /* The columns in SYS_VIRTUAL */
 enum dict_col_sys_virtual_enum {
 	DICT_COL__SYS_VIRTUAL__TABLE_ID		= 0,

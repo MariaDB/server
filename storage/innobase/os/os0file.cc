@@ -51,8 +51,8 @@ Created 10/21/1995 Heikki Tuuri
 #endif
 #include "os0event.h"
 #include "os0thread.h"
+#include "buf0dblwr.h"
 
-#include <vector>
 #include <tpool_structs.h>
 
 #ifdef LINUX_NATIVE_AIO
@@ -73,12 +73,10 @@ Created 10/21/1995 Heikki Tuuri
 
 #ifdef _WIN32
 #include <winioctl.h>
-#else
-// my_test_if_atomic_write()
-#include <my_sys.h>
 #endif
 
-#include "buf0dblwr.h"
+// my_test_if_atomic_write() , my_win_secattr()
+#include <my_sys.h>
 
 #include <thread>
 #include <chrono>
@@ -2022,6 +2020,10 @@ os_file_get_last_error_low(
 				" because of either a thread exit"
 				" or an application request."
 				" Retry attempt is made.";
+		} else if (err == ERROR_PATH_NOT_FOUND) {
+			ib::error()
+				<< "This error means that directory did not exist"
+				" during file creation.";
 		} else {
 
 			ib::info() << OPERATING_SYSTEM_ERROR_MSG;
@@ -2154,7 +2156,7 @@ os_file_create_simple_func(
 		file = CreateFile(
 			(LPCTSTR) name, access,
 			FILE_SHARE_READ | FILE_SHARE_DELETE,
-			NULL, create_flag, attributes, NULL);
+			my_win_file_secattr(), create_flag, attributes, NULL);
 
 		if (file == INVALID_HANDLE_VALUE) {
 
@@ -2560,7 +2562,7 @@ os_file_create_func(
 
 		/* Use default security attributes and no template file. */
 		file = CreateFile(
-			name, access, share_mode, NULL,
+			name, access, share_mode, my_win_file_secattr(),
 			create_flag, attributes, NULL);
 
 		/* If FILE_FLAG_NO_BUFFERING was set, check if this can work at all,
@@ -2614,6 +2616,7 @@ A simple function to open or create a file.
 @param[out]	success		true if succeeded
 @return own: handle to the file, not defined if error, error number
 	can be retrieved with os_file_get_last_error */
+
 pfs_os_file_t
 os_file_create_simple_no_error_handling_func(
 	const char*	name,
@@ -2695,7 +2698,7 @@ os_file_create_simple_no_error_handling_func(
 	file = CreateFile((LPCTSTR) name,
 			  access,
 			  share_mode,
-			  NULL,			// Security attributes
+			  my_win_file_secattr(),
 			  create_flag,
 			  attributes,
 			  NULL);		// No template file
@@ -2985,7 +2988,7 @@ os_file_get_status_win32(
 				access,
 				FILE_SHARE_READ | FILE_SHARE_WRITE
 				| FILE_SHARE_DELETE,	// Full sharing
-				NULL,			// Default security
+				my_win_file_secattr(),
 				OPEN_EXISTING,		// Existing file only
 				FILE_ATTRIBUTE_NORMAL,	// Normal file
 				NULL);			// No attr. template
@@ -4259,72 +4262,152 @@ os_file_set_umask(ulint umask)
 }
 
 #ifdef _WIN32
-static int win32_get_block_size(HANDLE volume_handle, const char *volume_name)
+
+/* Checks whether physical drive is on SSD.*/
+static bool is_drive_on_ssd(DWORD nr)
 {
-  STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR disk_alignment;
-  STORAGE_PROPERTY_QUERY storage_query;
-  DWORD tmp;
+  char physical_drive_path[32];
+  snprintf(physical_drive_path, sizeof(physical_drive_path),
+           "\\\\.\\PhysicalDrive%lu", nr);
 
-  memset(&storage_query, 0, sizeof(storage_query));
-  storage_query.PropertyId = StorageAccessAlignmentProperty;
-  storage_query.QueryType = PropertyStandardQuery;
+  HANDLE h= CreateFile(physical_drive_path, 0,
+                 FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                 nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+  if (h == INVALID_HANDLE_VALUE)
+    return false;
 
-  if (os_win32_device_io_control(volume_handle,
-    IOCTL_STORAGE_QUERY_PROPERTY,
-    &storage_query,
-    sizeof storage_query,
-    &disk_alignment,
-    sizeof disk_alignment,
-    &tmp) &&  tmp == sizeof disk_alignment) {
-      return disk_alignment.BytesPerPhysicalSector;
-  }
-
-  switch (GetLastError()) {
-    case ERROR_INVALID_FUNCTION:
-    case ERROR_NOT_SUPPORTED:
-      break;
-    default:
-      os_file_handle_error_no_exit(
-        volume_name,
-        "DeviceIoControl(IOCTL_STORAGE_QUERY_PROPERTY / StorageAccessAlignmentProperty)",
-        FALSE);
-   }
-   return 512;
-}
-
-static bool win32_is_ssd(HANDLE volume_handle)
-{
-  DWORD tmp;
   DEVICE_SEEK_PENALTY_DESCRIPTOR seek_penalty;
-  STORAGE_PROPERTY_QUERY storage_query;
-  memset(&storage_query, 0, sizeof(storage_query));
+  STORAGE_PROPERTY_QUERY storage_query{};
+  storage_query.PropertyId= StorageDeviceSeekPenaltyProperty;
+  storage_query.QueryType= PropertyStandardQuery;
 
-  storage_query.PropertyId = StorageDeviceSeekPenaltyProperty;
-  storage_query.QueryType = PropertyStandardQuery;
-
-  if (os_win32_device_io_control(volume_handle,
-    IOCTL_STORAGE_QUERY_PROPERTY,
-    &storage_query,
-    sizeof storage_query,
-    &seek_penalty,
-    sizeof seek_penalty,
-    &tmp) && tmp == sizeof(seek_penalty)){
-      return !seek_penalty.IncursSeekPenalty;
+  bool on_ssd= false;
+  DWORD bytes_written;
+  if (DeviceIoControl(h, IOCTL_STORAGE_QUERY_PROPERTY, &storage_query,
+                      sizeof storage_query, &seek_penalty, sizeof seek_penalty,
+                      &bytes_written, nullptr))
+  {
+    on_ssd= seek_penalty.IncursSeekPenalty;
   }
-
-  DEVICE_TRIM_DESCRIPTOR trim;
-  storage_query.PropertyId = StorageDeviceTrimProperty;
-  if (os_win32_device_io_control(volume_handle,
-    IOCTL_STORAGE_QUERY_PROPERTY,
-    &storage_query,
-    sizeof storage_query,
-    &trim,
-    sizeof trim,
-    &tmp) && tmp == sizeof trim) {
-      return trim.TrimEnabled;
+  else
+  {
+    on_ssd= false;
   }
-  return false;
+  CloseHandle(h);
+  return on_ssd;
 }
+
+/*
+  Checks whether volume is on SSD, by checking all physical drives
+  in that volume.
+*/
+static bool is_volume_on_ssd(const char *volume_mount_point)
+{
+  char volume_name[MAX_PATH];
+
+  if (!GetVolumeNameForVolumeMountPoint(volume_mount_point, volume_name,
+                                        array_elements(volume_name)))
+  {
+    /* This can fail, e.g if file is on network share */
+    return false;
+  }
+
+  /* Chomp last backslash, this is needed to open volume.*/
+  size_t length= strlen(volume_name);
+  if (length && volume_name[length - 1] == '\\')
+    volume_name[length - 1]= 0;
+
+  /* Open volume handle */
+  HANDLE volume_handle= CreateFile(
+      volume_name, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+      nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+
+  if (volume_handle == INVALID_HANDLE_VALUE)
+    return false;
+
+  /*
+   Enumerate all volume extends, check whether all of them are on SSD
+  */
+
+  /* Anticipate common case where there is only one extent.*/
+  VOLUME_DISK_EXTENTS single_extent;
+
+  /* But also have a place to manage allocated data.*/
+  std::unique_ptr<BYTE[]> lifetime;
+
+  DWORD bytes_written;
+  VOLUME_DISK_EXTENTS *extents= nullptr;
+  if (DeviceIoControl(volume_handle, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS,
+                      nullptr, 0, &single_extent, sizeof(single_extent),
+                      &bytes_written, nullptr))
+  {
+    /* Worked on the first try. Use the preallocated buffer.*/
+    extents= &single_extent;
+  }
+  else
+  {
+    VOLUME_DISK_EXTENTS *last_query= &single_extent;
+    while (GetLastError() == ERROR_MORE_DATA)
+    {
+      DWORD extentCount= last_query->NumberOfDiskExtents;
+      DWORD allocatedSize=
+          FIELD_OFFSET(VOLUME_DISK_EXTENTS, Extents[extentCount]);
+      lifetime.reset(new BYTE[allocatedSize]);
+      last_query= (VOLUME_DISK_EXTENTS *) lifetime.get();
+      if (DeviceIoControl(volume_handle, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS,
+                          nullptr, 0, last_query, allocatedSize,
+                          &bytes_written, nullptr))
+      {
+        extents= last_query;
+        break;
+      }
+    }
+  }
+  CloseHandle(volume_handle);
+  if (!extents)
+    return false;
+
+  for (DWORD i= 0; i < extents->NumberOfDiskExtents; i++)
+    if (!is_drive_on_ssd(extents->Extents[i].DiskNumber))
+      return false;
+
+  return true;
+}
+
+#include <unordered_map>
+static bool is_file_on_ssd(char *file_path)
+{
+  /* Cache of volume_path => volume_info, protected by rwlock.*/
+  static std::unordered_map<std::string, bool> cache;
+  static SRWLOCK lock= SRWLOCK_INIT;
+
+  /* Preset result, in case something fails, e.g we're on network drive.*/
+  char volume_path[MAX_PATH];
+  if (!GetVolumePathName(file_path, volume_path, array_elements(volume_path)))
+    return false;
+
+  /* Try cached volume info first.*/
+  std::string volume_path_str(volume_path);
+  bool found;
+  bool result;
+  AcquireSRWLockShared(&lock);
+  auto e= cache.find(volume_path_str);
+  if ((found= e != cache.end()))
+    result= e->second;
+  ReleaseSRWLockShared(&lock);
+
+  if (found)
+    return result;
+
+  result= is_volume_on_ssd(volume_path);
+
+  /* Update cache */
+  AcquireSRWLockExclusive(&lock);
+  cache[volume_path_str]= result;
+  ReleaseSRWLockExclusive(&lock);
+  return result;
+}
+
 #endif
 
 /** Determine some file metadata when creating or reading the file.
@@ -4361,48 +4444,12 @@ void fil_node_t::find_metadata(os_file_t file
 	space->atomic_write_supported = space->purpose == FIL_TYPE_TEMPORARY
 		|| space->purpose == FIL_TYPE_IMPORT;
 #ifdef _WIN32
-	block_size = 512;
-	on_ssd = false;
-	// Open volume for this file, find out it "physical bytes per sector"
-	char volume[MAX_PATH + 4];
-	if (!GetVolumePathName(name, volume + 4, MAX_PATH)) {
-		os_file_handle_error_no_exit(name,
-			"GetVolumePathName()", FALSE);
-		return;
-	}
-	// Special prefix required for volume names.
-	memcpy(volume, "\\\\.\\", 4);
-
-	size_t len = strlen(volume);
-	if (volume[len - 1] == '\\') {
-		// Trim trailing backslash from volume name.
-		volume[len - 1] = 0;
-	}
-
-	HANDLE volume_handle = CreateFile(volume, FILE_READ_ATTRIBUTES,
-		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-		0, OPEN_EXISTING, 0, 0);
-
-	if (volume_handle != INVALID_HANDLE_VALUE) {
-		block_size = win32_get_block_size(volume_handle, volume);
-		on_ssd = win32_is_ssd(volume_handle);
-		CloseHandle(volume_handle);
+	on_ssd = is_file_on_ssd(name);
+	FILE_STORAGE_INFO info;
+	if (GetFileInformationByHandleEx(
+		file, FileStorageInfo, &info, sizeof(info))) {
+		block_size = info.PhysicalBytesPerSectorForAtomicity;
 	} else {
-		/*
-		Report error, unless it is expected, e.g
-		missing permissions, or error when trying to
-		open volume for UNC share.
-		*/
-		if (GetLastError() != ERROR_ACCESS_DENIED
-		    && GetDriveType(volume) == DRIVE_FIXED) {
-			    os_file_handle_error_no_exit(volume, "CreateFile()", FALSE);
-		}
-	}
-
-	/* Currently we support file block size up to 4KiB */
-	if (block_size > 4096) {
-		block_size = 4096;
-	} else if (block_size < 512) {
 		block_size = 512;
 	}
 #else

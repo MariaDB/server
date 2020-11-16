@@ -840,12 +840,6 @@ rpl.show_status_stop_slave_race-7126   : Modified in 10.5.7
 
 #-----------------------------------------------------------------------
 
-rpl-tokudb.*                             : TokuDB is deprecated and not maintained anymore
-rpl-tokudb.rpl_deadlock_tokudb           : MDEV-20529 - mysqltest failed but provided no output
-rpl-tokudb.rpl_tokudb_commit_after_flush : MDEV-16966 - Server crash
-
-#-----------------------------------------------------------------------
-
 rpl/extra/rpl_tests.* : MDEV-10994 - Not maintained
 
 #-----------------------------------------------------------------------
@@ -920,12 +914,6 @@ sys_vars.thread_cache_size_func                    : MDEV-11775 - Wrong result
 sys_vars.wait_timeout_func                         : MDEV-12896 - Wrong result
 sys_vars.wsrep_cluster_address_basic               : Modified in 10.5.7
 sys_vars.wsrep_on_basic                            : Configuration deleted in 10.5.7
-
-#-----------------------------------------------------------------------
-
-tokudb.* : TokuDB is deprecated and not maintained anymore
-
-#-----------------------------------------------------------------------
 
 type_inet.type_inet6 : Modified in 10.5.7
 

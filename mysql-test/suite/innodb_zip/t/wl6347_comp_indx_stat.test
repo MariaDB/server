@@ -23,6 +23,9 @@ let $innodb_compression_level = `SELECT @@global.innodb_compression_level`;
 SET GLOBAL innodb_file_per_table=on;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 SET GLOBAL innodb_compression_level=0;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 
 --echo #******************************************************************
 --echo # Test 1-1K: innodb_cmp_per_index_enabled=ON and innodb_compression_level=0 with page size 1K
@@ -65,6 +68,9 @@ SET @inl_val=2;
 
 --echo # set the flag on (default off)
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 
 --echo # set the flags
 SET GLOBAL innodb_file_per_table=on;
@@ -151,6 +157,9 @@ DROP TABLE tab5;
 --echo # reset the stat table before starting next testcase
 SET GLOBAL innodb_cmp_per_index_enabled=0;
 SET GLOBAL innodb_cmp_per_index_enabled=1;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 
 --echo # create a table with page size=4K
 --echo # create indexes on each column.(total 9 indexes)
@@ -359,6 +368,9 @@ DROP TABLE tab5;
 --echo # reset the stat table before starting next testcase
 SET GLOBAL innodb_cmp_per_index_enabled=OFF;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 
 --echo # create a table with page size=2K
 --echo # create indexes on each column.(total 9 indexes)
@@ -424,6 +436,9 @@ DROP TABLE tab5;
 --echo # reset the stat table before starting next testcase
 SET GLOBAL innodb_cmp_per_index_enabled=OFF;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 
 --echo # create a table with page size=4K
 --echo # create indexes on each column.(total 9 indexes)
@@ -855,6 +870,9 @@ DROP TABLE tab5;
 --echo # reset the stat table before starting next testcase
 SET GLOBAL innodb_cmp_per_index_enabled=OFF;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 
 --echo # create a table with page size=2K
 --echo # create indexes on each column.(total 9 indexes)
@@ -1115,6 +1133,10 @@ DROP TABLE tab5;
 SET GLOBAL innodb_cmp_per_index_enabled=OFF;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 SET GLOBAL innodb_compression_failure_threshold_pct=10;
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 
 --echo # create a table with page size=2K
 --echo # create indexes on each column.(total 9 indexes)
@@ -1333,5 +1355,6 @@ eval SET GLOBAL innodb_file_per_table=default;
 eval SET GLOBAL innodb_cmp_per_index_enabled=default;
 --disable_query_log
 eval SET GLOBAL innodb_compression_level=$innodb_compression_level;
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
 --enable_query_log
 eval SET GLOBAL innodb_compression_failure_threshold_pct=default;

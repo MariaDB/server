@@ -733,7 +733,14 @@ let $row_format=REDUNDANT;
 --source inc/innodb_v_large_col.inc
 
 let $row_format=COMPRESSED;
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 --source inc/innodb_v_large_col.inc
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log
 
 # Make sure FTS_DOC_ID for FULLTEXT index set with correct column id with
 # virtual columns

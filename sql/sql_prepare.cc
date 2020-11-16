@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2019, MariaDB
+   Copyright (c) 2008, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -122,7 +122,10 @@ When one supplies long data for a placeholder:
 #include "sql_handler.h"
 #include "transaction.h"                        // trans_rollback_implicit
 #include "mysql/psi/mysql_ps.h"                 // MYSQL_EXECUTE_PS
+#ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
+#include "wsrep_trans_observer.h"
+#endif /* WITH_WSREP */
 
 /* Constants defining bits in parameter type flags. Flags are read from high byte of short value */
 static const uint PARAMETER_FLAG_UNSIGNED = 128U << 8;
@@ -4620,6 +4623,23 @@ reexecute:
 
     thd->m_reprepare_observer= NULL;
 
+#ifdef WITH_WSREP
+    if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_OPTIMIZED) &&
+	WSREP(thd))
+    {
+      if (wsrep_after_statement(thd))
+      {
+        /*
+          Re-execution success is unlikely after an error from
+          wsrep_after_statement(), so retrun error immediately.
+        */
+        thd->get_stmt_da()->reset_diagnostics_area();
+        wsrep_override_error(thd, thd->wsrep_cs().current_error(),
+                             thd->wsrep_cs().current_error_status());
+      }
+    }
+    else
+#endif /* WITH_WSREP */
     if (unlikely(error) &&
         (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
         !thd->is_fatal_error && !thd->killed &&
@@ -5377,7 +5397,7 @@ protected:
                          CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
   bool net_send_eof(THD *thd, uint server_status, uint statement_warn_count);
   bool net_send_ok(THD *, uint, uint, ulonglong, ulonglong, const char *,
-                   bool, bool);
+                   bool);
   bool net_send_error_packet(THD *, uint, const char *, const char *);
   bool begin_dataset();
   bool begin_dataset(THD *thd, uint numfields);
@@ -5540,7 +5560,7 @@ bool Protocol_local::net_store_data_cs(const uchar *from, size_t length,
 bool
 Protocol_local::net_send_ok(THD *thd,
   uint server_status, uint statement_warn_count,
-  ulonglong affected_rows, ulonglong id, const char *message, bool, bool)
+  ulonglong affected_rows, ulonglong id, const char *message, bool)
 {
   DBUG_ENTER("emb_net_send_ok");
   MYSQL_DATA *data;

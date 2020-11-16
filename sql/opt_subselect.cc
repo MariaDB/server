@@ -4287,11 +4287,11 @@ bool setup_sj_materialization_part2(JOIN_TAB *sjm_tab)
     sjm_tab->type= JT_ALL;
 
     /* Initialize full scan */
-    sjm_tab->read_first_record= join_read_record_no_init;
+    sjm_tab->read_first_record= join_init_read_record;
     sjm_tab->read_record.copy_field= sjm->copy_field;
     sjm_tab->read_record.copy_field_end= sjm->copy_field +
                                          sjm->sjm_table_cols.elements;
-    sjm_tab->read_record.read_record_func= rr_sequential_and_unpack;
+    sjm_tab->read_record.read_record_func= read_record_func_for_rr_and_unpack;
   }
 
   sjm_tab->bush_children->end[-1].next_select= end_sj_materialize;
@@ -7140,4 +7140,17 @@ bool Item_in_subselect::pushdown_cond_for_in_subquery(THD *thd, Item *cond)
 exit:
   thd->lex->current_select= save_curr_select;
   DBUG_RETURN(FALSE);
+}
+
+/*
+  @brief
+    Check if a table is a SJM Scan table
+
+  @retval
+    TRUE     SJM scan table
+    FALSE    Otherwise
+*/
+bool TABLE_LIST::is_sjm_scan_table()
+{
+  return is_active_sjm() && sj_mat_info->is_sj_scan;
 }

@@ -31,6 +31,12 @@ create or replace table t (id int primary key, s time, e time,
 --error ER_BAD_FIELD_ERROR
 create or replace table t (id int primary key, s date, e date,
                            period for mytime(s,x));
+
+--echo # MDEV-18842: Unfortunate error message when the same column is used
+--echo # for application period start and end
+--error ER_FIELD_SPECIFIED_TWICE
+create or replace table t (s date, t date, period for apt(s,s));
+
 --error ER_MORE_THAN_ONE_PERIOD
 create or replace table t (id int primary key, s date, e date,
                            period for mytime(s,e),

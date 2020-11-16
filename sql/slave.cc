@@ -347,8 +347,7 @@ gtid_pos_table_creation(THD *thd, plugin_ref engine, LEX_CSTRING *table_name)
   err= parser_state.init(thd, thd->query(), thd->query_length());
   if (err)
     goto end;
-  mysql_parse(thd, thd->query(), thd->query_length(), &parser_state,
-              FALSE, FALSE);
+  mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
   if (unlikely(thd->is_error()))
     err= 1;
   /* The warning is relevant to 10.3 and earlier. */
@@ -2819,7 +2818,7 @@ static bool wait_for_relay_log_space(Relay_log_info* rli)
       DBUG_PRINT("info", ("log_space_limit=%llu log_space_total=%llu "
                           "ignore_log_space_limit=%d "
                           "sql_force_rotate_relay=%d", 
-                        rli->log_space_limit, rli->log_space_total,
+                        rli->log_space_limit, uint64(rli->log_space_total),
                         (int) rli->ignore_log_space_limit,
                         (int) rli->sql_force_rotate_relay));
     }
@@ -5085,7 +5084,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
       {
         DBUG_PRINT("info", ("log_space_limit=%llu log_space_total=%llu "
                             "ignore_log_space_limit=%d",
-                            rli->log_space_limit, rli->log_space_total,
+                            rli->log_space_limit, uint64(rli->log_space_total),
                             (int) rli->ignore_log_space_limit));
       }
 #endif

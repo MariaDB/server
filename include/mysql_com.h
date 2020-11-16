@@ -123,7 +123,7 @@ enum enum_server_command
   COM_SLAVE_WORKER=251,
   COM_SLAVE_IO=252,
   COM_SLAVE_SQL=253,
-  COM_MULTI=254,
+  COM_RESERVED_1=254, /* Old COM_MULTI, now removed */
   /* Must be last */
   COM_END=255
 };
@@ -296,8 +296,10 @@ enum enum_indicator_type
 #define MARIADB_CLIENT_FLAGS_MASK 0xffffffff00000000ULL
 /* Client support progress indicator */
 #define MARIADB_CLIENT_PROGRESS (1ULL << 32)
-/* support COM_MULTI */
-#define MARIADB_CLIENT_COM_MULTI (1ULL << 33)
+
+/* Old COM_MULTI experiment (functionality removed).*/
+#define MARIADB_CLIENT_RESERVED_1 (1ULL << 33)
+
 /* support of array binding */
 #define MARIADB_CLIENT_STMT_BULK_OPERATIONS (1ULL << 34)
 /* support of extended metadata (e.g. type/format information) */
@@ -341,7 +343,6 @@ enum enum_indicator_type
                            CLIENT_SESSION_TRACK |\
                            CLIENT_DEPRECATE_EOF |\
                            CLIENT_CONNECT_ATTRS |\
-                           MARIADB_CLIENT_COM_MULTI |\
                            MARIADB_CLIENT_STMT_BULK_OPERATIONS |\
                            MARIADB_CLIENT_EXTENDED_METADATA|\
                            CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS)

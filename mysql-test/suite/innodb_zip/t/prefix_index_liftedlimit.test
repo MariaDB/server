@@ -15,6 +15,11 @@
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
 
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
+
 call mtr.add_suppression('InnoDB: Cannot add field.*because after adding it, the row size is');
 # Prefix index with VARCHAR data type , primary/secondary index and DML ops
 CREATE TABLE worklog5743 (
@@ -1301,8 +1306,6 @@ ALTER TABLE worklog5743 ADD PRIMARY KEY `pk_idx` (col_1_varchar(3000));
 DROP TABLE worklog5743;
 
 # -----------------------------------------------------------------------------
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
-set global innodb_large_prefix=0;
 CREATE TABLE worklog5743 (
 col_1_varchar VARCHAR (4000) , col_2_varchar VARCHAR (4000) ,
 PRIMARY KEY (col_1_varchar(3072))
@@ -1327,4 +1330,7 @@ ALTER TABLE worklog5743 ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE;
 ALTER TABLE worklog5743 ROW_FORMAT=REDUNDANT, ALGORITHM=COPY;
 --disable_info
 SHOW CREATE TABLE worklog5743;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log
 DROP TABLE worklog5743;

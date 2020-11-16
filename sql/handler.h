@@ -535,7 +535,7 @@ enum legacy_db_type
   DB_TYPE_PERFORMANCE_SCHEMA=28,
   DB_TYPE_S3=41,
   DB_TYPE_ARIA=42,
-  DB_TYPE_TOKUDB=43,
+  DB_TYPE_TOKUDB=43, /* disabled in MariaDB Server 10.5, removed in 10.6 */
   DB_TYPE_SEQUENCE=44,
   DB_TYPE_FIRST_DYNAMIC=45,
   DB_TYPE_DEFAULT=127 // Must be last
@@ -866,8 +866,10 @@ struct xid_t {
   void set(long f, const char *g, long gl, const char *b, long bl)
   {
     formatID= f;
-    memcpy(data, g, gtrid_length= gl);
-    memcpy(data+gl, b, bqual_length= bl);
+    if ((gtrid_length= gl))
+      memcpy(data, g, gl);
+    if ((bqual_length= bl))
+      memcpy(data+gl, b, bl);
   }
   void set(ulonglong xid)
   {

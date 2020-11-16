@@ -108,7 +108,7 @@ fresh install:
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - mariadb --version # Client version
-    - service mariadb status # There is no init.d/mysql in MariaDB 10.5
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.6
     - mkdir -p debug # Ensure dir exists before using it
     - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
     - cp -ra /etc/mysql debug/etc-mysql
@@ -122,7 +122,7 @@ fresh install:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb-10.3.x to mariadb-10.5.y upgrade:
+mariadb-10.3.x to mariadb-10.6.y upgrade:
   stage: upgrade in Sid
   dependencies:
     - build
@@ -162,7 +162,7 @@ mariadb-10.3.x to mariadb-10.5.y upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb-10.3.x buster to mariadb-10.5 upgrade:
+mariadb-10.3.x buster to mariadb-10.6 upgrade:
   stage: upgrade from Buster/Stretch/Jessie
   dependencies:
     - build
@@ -206,7 +206,7 @@ mariadb-10.3.x buster to mariadb-10.5 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb-10.1 to mariadb-10.5 upgrade:
+mariadb-10.1 to mariadb-10.6 upgrade:
   stage: upgrade from Buster/Stretch/Jessie
   dependencies:
     - build
@@ -269,7 +269,7 @@ test basic features:
     # Verify installation of MariaDB built in this commit
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
     - mariadb --version # Client version
-    - service mariadb status # There is no init.d/mysql in MariaDB 10.5
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.6
     - mkdir -p debug # Ensure dir exists before using it
     - find /var/lib/mysql -ls > debug/var-lib-mysql.list || true # Ignore errors about "no such file or directory"
     - cp -ra /etc/mysql debug/etc-mysql
@@ -477,7 +477,7 @@ mariadb-connector-c on stretch upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mysql-5.5 to mariadb-10.5 upgrade:
+mysql-5.5 to mariadb-10.6 upgrade:
   stage: upgrade from Buster/Stretch/Jessie
   dependencies:
     - build
@@ -523,7 +523,7 @@ mysql-5.5 to mariadb-10.5 upgrade:
 
 # Upgrading from MySQL 5.7 involves automatic renaming of auth_socket plugin
 # to unix_socket and automaticly re-adding Password column in user table.
-mysql-5.7 to mariadb-10.5 upgrade:
+mysql-5.7 to mariadb-10.6 upgrade:
   stage: test extras
   dependencies:
     - build
@@ -569,7 +569,7 @@ mysql-5.7 to mariadb-10.5 upgrade:
 
 # Upgrading from MySQL 8.0 with datadir in place is not possible. Users need to do a data dump.
 # The Debian maintainer scripts detect this situation and simply moves old datadir aside and start fresh.
-mysql-8.0 to mariadb-10.5 upgrade:
+mysql-8.0 to mariadb-10.6 upgrade:
   stage: upgrade extras
   dependencies:
     - build
@@ -618,7 +618,7 @@ mysql-8.0 to mariadb-10.5 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb.org-10.5.x to mariadb-10.5 upgrade:
+mariadb.org-10.5.x to mariadb-10.6 upgrade:
   stage: upgrade extras
   dependencies:
     - build
@@ -666,7 +666,7 @@ mariadb.org-10.5.x to mariadb-10.5 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb.org-10.4 to mariadb-10.5 upgrade:
+mariadb.org-10.4 to mariadb-10.6 upgrade:
   stage: upgrade extras
   dependencies:
     - build
@@ -718,7 +718,7 @@ mariadb.org-10.4 to mariadb-10.5 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb.org-10.3 to mariadb-10.5 upgrade:
+mariadb.org-10.3 to mariadb-10.6 upgrade:
   stage: upgrade extras
   dependencies:
     - build
@@ -767,7 +767,7 @@ mariadb.org-10.3 to mariadb-10.5 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb.org-10.2 to mariadb-10.5 upgrade:
+mariadb.org-10.2 to mariadb-10.6 upgrade:
   stage: upgrade extras
   dependencies:
     - build

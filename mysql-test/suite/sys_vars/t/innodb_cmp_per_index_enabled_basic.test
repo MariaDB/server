@@ -2,6 +2,9 @@
 # CREATE TABLE ... KEY_BLOCK_SIZE=8; does not work with page size = 4k
 -- source include/have_innodb_16k.inc
 
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+
 # Check the default value
 SELECT @@global.innodb_cmp_per_index_enabled;
 
@@ -64,3 +67,4 @@ DROP TABLE t;
 #
 
 SET GLOBAL innodb_cmp_per_index_enabled=default;
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;

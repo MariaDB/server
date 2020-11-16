@@ -3483,7 +3483,7 @@ re_evict:
 		if (fix_block->page.ibuf_exist) {
 			fix_block->page.ibuf_exist = false;
 			ibuf_merge_or_delete_for_page(fix_block, page_id,
-						      zip_size, true);
+						      zip_size);
 		}
 
 		if (rw_latch == RW_X_LATCH) {
@@ -3550,7 +3550,7 @@ buf_page_get_gen(
     {
       rw_lock_x_lock_inline(&block->lock, 0, file, line);
       block->page.ibuf_exist= false;
-      ibuf_merge_or_delete_for_page(block, page_id, block->zip_size(), true);
+      ibuf_merge_or_delete_for_page(block, page_id, block->zip_size());
 
       if (rw_latch == RW_X_LATCH)
       {
@@ -3772,18 +3772,29 @@ loop:
       ut_ad(0);
       break;
     case BUF_BLOCK_FILE_PAGE:
-      buf_block_buf_fix_inc(block, __FILE__, __LINE__);
+      if (!mtr->have_x_latch(*block))
       {
-        const auto num_fix_count= mtr->get_fix_count(block) + 1;
-        while (block->page.io_fix() != BUF_IO_NONE ||
-               num_fix_count != block->page.buf_fix_count())
+        buf_block_buf_fix_inc(block, __FILE__, __LINE__);
         {
-          mysql_mutex_unlock(&buf_pool.mutex);
-          os_thread_yield();
-          mysql_mutex_lock(&buf_pool.mutex);
+          while (block->page.io_fix() != BUF_IO_NONE ||
+                 block->page.buf_fix_count() != 1)
+          {
+            timespec abstime;
+            set_timespec_nsec(abstime, 1000000);
+            mysql_cond_timedwait(&buf_pool.done_flush_list, &buf_pool.mutex,
+                                 &abstime);
+          }
         }
+        rw_lock_x_lock(&block->lock);
+        mtr_memo_push(mtr, block, MTR_MEMO_PAGE_X_FIX);
       }
-      rw_lock_x_lock(&block->lock);
+      else
+      {
+        ut_ad(!block->page.ibuf_exist);
+#ifdef BTR_CUR_HASH_ADAPT
+        ut_ad(!block->index);
+#endif
+      }
 #ifdef BTR_CUR_HASH_ADAPT
       drop_hash_entry= block->index;
 #endif
@@ -3808,6 +3819,7 @@ loop:
       buf_page_free_descriptor(&block->page);
       block= free_block;
       buf_block_buf_fix_inc(block, __FILE__, __LINE__);
+      mtr_memo_push(mtr, block, MTR_MEMO_PAGE_X_FIX);
       break;
     }
 
@@ -3818,12 +3830,10 @@ loop:
       btr_search_drop_page_hash_index(block);
 #endif /* BTR_CUR_HASH_ADAPT */
 
-    mtr_memo_push(mtr, block, MTR_MEMO_PAGE_X_FIX);
-
     if (block->page.ibuf_exist)
     {
       if (!recv_recovery_is_on())
-        ibuf_merge_or_delete_for_page(nullptr, page_id, zip_size, true);
+        ibuf_merge_or_delete_for_page(nullptr, page_id, zip_size);
       block->page.ibuf_exist= false;
     }
 
@@ -3885,7 +3895,7 @@ loop:
   /* Delete possible entries for the page from the insert buffer:
   such can exist if the page belonged to an index which was dropped */
   if (!recv_recovery_is_on())
-    ibuf_merge_or_delete_for_page(nullptr, page_id, zip_size, true);
+    ibuf_merge_or_delete_for_page(nullptr, page_id, zip_size);
 
   static_assert(FIL_PAGE_PREV + 4 == FIL_PAGE_NEXT, "adjacent");
   memset_aligned<8>(block->frame + FIL_PAGE_PREV, 0xff, 8);

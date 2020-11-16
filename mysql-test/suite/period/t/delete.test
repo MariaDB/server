@@ -67,6 +67,11 @@ delete from t for portion of othertime from '2000-01-01' to '2018-01-01';
 --error ER_PARSE_ERROR
 delete from t for portion of system_time from '2000-01-01' to '2018-01-01';
 
+--echo # MDEV-22596 DELETE FOR PORTION does not obey
+--echo # "Expression in FOR PORTION OF must be constant" limitation, data can be easily lost
+--error ER_NOT_CONSTANT_EXPRESSION
+delete from t for portion of apptime from s to e;
+
 create or replace table t (id int, str text, s date, e date,
     period for apptime(s,e));
 

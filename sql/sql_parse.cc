@@ -113,9 +113,7 @@
 #include "wsrep_trans_observer.h" /* wsrep transaction hooks */
 
 static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
-                              Parser_state *parser_state,
-                              bool is_com_multi,
-                              bool is_next_command);
+                              Parser_state *parser_state);
 
 #endif /* WITH_WSREP */
 /**
@@ -391,7 +389,7 @@ const LEX_CSTRING command_name[257]={
   { STRING_WITH_LEN("Slave_worker") }, //251
   { STRING_WITH_LEN("Slave_IO") }, //252
   { STRING_WITH_LEN("Slave_SQL") }, //253
-  { STRING_WITH_LEN("Com_multi") }, //254
+  { 0, 0},
   { STRING_WITH_LEN("Error") }  // Last command number 255
 };
 
@@ -490,7 +488,7 @@ void init_update_queries(void)
   memset(server_command_flags, 0, sizeof(server_command_flags));
 
   server_command_flags[COM_STATISTICS]= CF_SKIP_QUERY_ID | CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
-  server_command_flags[COM_PING]=       CF_SKIP_QUERY_ID | CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK | CF_NO_COM_MULTI;
+  server_command_flags[COM_PING]=       CF_SKIP_QUERY_ID | CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
 
   server_command_flags[COM_QUIT]= CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_PROCESS_INFO]= CF_SKIP_WSREP_CHECK;
@@ -519,7 +517,6 @@ void init_update_queries(void)
   server_command_flags[COM_STMT_EXECUTE]= CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_STMT_SEND_LONG_DATA]= CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_REGISTER_SLAVE]= CF_SKIP_WSREP_CHECK;
-  server_command_flags[COM_MULTI]= CF_SKIP_WSREP_CHECK | CF_NO_COM_MULTI;
 
   /* Initialize the sql command flags array. */
   memset(sql_command_flags, 0, sizeof(sql_command_flags));
@@ -958,7 +955,7 @@ void execute_init_command(THD *thd, LEX_STRING *init_command,
   save_vio= thd->net.vio;
   thd->net.vio= 0;
   thd->clear_error(1);
-  dispatch_command(COM_QUERY, thd, buf, (uint)len, FALSE, FALSE);
+  dispatch_command(COM_QUERY, thd, buf, (uint)len);
   thd->client_capabilities= save_client_capabilities;
   thd->net.vio= save_vio;
 
@@ -1084,7 +1081,7 @@ int bootstrap(MYSQL_FILE *file)
       break;
     }
 
-    mysql_parse(thd, thd->query(), length, &parser_state, FALSE, FALSE);
+    mysql_parse(thd, thd->query(), length, &parser_state);
 
     bootstrap_error= thd->is_error();
     thd->protocol->end_statement();
@@ -1132,6 +1129,19 @@ void cleanup_items(Item *item)
   DBUG_VOID_RETURN;
 }
 
+#ifdef WITH_WSREP
+static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
+{
+  for (const TABLE_LIST *table= tables; table; table= table->next_global)
+  {
+    LEX_CSTRING db= table->db, tn= table->table_name;
+    if (get_table_category(&db, &tn)  < TABLE_CATEGORY_INFORMATION)
+      return false;
+  }
+  return true;
+}
+#endif /* WITH_WSREP */
+#ifndef EMBEDDED_LIBRARY
 static enum enum_server_command fetch_command(THD *thd, char *packet)
 {
   enum enum_server_command
@@ -1147,21 +1157,6 @@ static enum enum_server_command fetch_command(THD *thd, char *packet)
                      command_name[command].str));
   DBUG_RETURN(command);
 }
-
-
-#ifdef WITH_WSREP
-static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
-{
-  for (const TABLE_LIST *table= tables; table; table= table->next_global)
-  {
-    LEX_CSTRING db= table->db, tn= table->table_name;
-    if (get_table_category(&db, &tn)  < TABLE_CATEGORY_INFORMATION)
-      return false;
-  }
-  return true;
-}
-#endif /* WITH_WSREP */
-#ifndef EMBEDDED_LIBRARY
 
 /**
   Read one command from connection and execute it (query or simple command).
@@ -1351,7 +1346,7 @@ bool do_command(THD *thd)
   DBUG_ASSERT(packet_length);
   DBUG_ASSERT(!thd->apc_target.is_enabled());
   return_value= dispatch_command(command, thd, packet+1,
-                                 (uint) (packet_length-1), FALSE, FALSE);
+                                 (uint) (packet_length-1));
   DBUG_ASSERT(!thd->apc_target.is_enabled());
 
 out:
@@ -1462,45 +1457,6 @@ static void wsrep_copy_query(THD *thd)
 }
 #endif /* WITH_WSREP */
 
-/**
-  check COM_MULTI packet
-
-  @param thd             thread handle
-  @param packet          pointer on the packet of commands
-  @param packet_length   length of this packet
-
-  @retval 0 - Error
-  @retval # - Number of commands in the batch
-*/
-
-uint maria_multi_check(THD *thd, char *packet, size_t packet_length)
-{
-  uint counter= 0;
-  DBUG_ENTER("maria_multi_check");
-  while (packet_length)
-  {
-    char *packet_start= packet;
-    size_t subpacket_length= net_field_length((uchar **)&packet_start);
-    size_t length_length= packet_start - packet;
-    // length of command + 3 bytes where that length was stored
-    DBUG_PRINT("info", ("sub-packet length: %zu + %zu  command: %x",
-                        subpacket_length, length_length,
-                        packet_start[3]));
-
-    if (subpacket_length == 0 ||
-        (subpacket_length + length_length) > packet_length)
-    {
-      my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
-                 MYF(0));
-      DBUG_RETURN(0);
-    }
-
-    counter++;
-    packet= packet_start + subpacket_length;
-    packet_length-= (subpacket_length + length_length);
-  }
-  DBUG_RETURN(counter);
-}
 
 
 #if defined(WITH_ARIA_STORAGE_ENGINE)
@@ -1537,8 +1493,6 @@ public:
   @param packet_length   length of packet + 1 (to show that data is
                          null-terminated) except for COM_SLEEP, where it
                          can be zero.
-  @param is_com_multi    recursive call from COM_MULTI
-  @param is_next_command there will be more command in the COM_MULTI batch
 
   @todo
     set thd->lex->sql_command to SQLCOM_END here.
@@ -1552,8 +1506,7 @@ public:
         COM_QUIT/COM_SHUTDOWN
 */
 bool dispatch_command(enum enum_server_command command, THD *thd,
-		      char* packet, uint packet_length, bool is_com_multi,
-                      bool is_next_command)
+		      char* packet, uint packet_length)
 {
   NET *net= &thd->net;
   bool error= 0;
@@ -1634,14 +1587,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     beginning of each command.
   */
   thd->server_status&= ~SERVER_STATUS_CLEAR_SET;
-  if (is_next_command)
-  {
-    drop_more_results= !MY_TEST(thd->server_status &
-                                SERVER_MORE_RESULTS_EXISTS);
-    thd->server_status|= SERVER_MORE_RESULTS_EXISTS;
-    if (is_com_multi)
-      thd->get_stmt_da()->set_skip_flush();
-  }
 
   if (unlikely(thd->security_ctx->password_expired &&
                command != COM_QUERY &&
@@ -1856,8 +1801,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     if (WSREP(thd))
     {
       if (wsrep_mysql_parse(thd, thd->query(), thd->query_length(),
-                            &parser_state,
-                            is_com_multi, is_next_command))
+                            &parser_state))
       {
         WSREP_DEBUG("Deadlock error for: %s", thd->query());
         mysql_mutex_lock(&thd->LOCK_thd_data);
@@ -1869,8 +1813,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     }
     else
 #endif /* WITH_WSREP */
-      mysql_parse(thd, thd->query(), thd->query_length(), &parser_state,
-                  is_com_multi, is_next_command);
+      mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
 
     while (!thd->killed && (parser_state.m_lip.found_semicolon != NULL) &&
            ! thd->is_error())
@@ -1954,8 +1897,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       if (WSREP(thd))
       {
         if (wsrep_mysql_parse(thd, beginning_of_next_stmt,
-                              length, &parser_state,
-                              is_com_multi, is_next_command))
+                              length, &parser_state))
         {
           WSREP_DEBUG("Deadlock error for: %s", thd->query());
           mysql_mutex_lock(&thd->LOCK_thd_data);
@@ -1968,8 +1910,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       }
       else
 #endif /* WITH_WSREP */
-      mysql_parse(thd, beginning_of_next_stmt, length, &parser_state,
-                  is_com_multi, is_next_command);
+      mysql_parse(thd, beginning_of_next_stmt, length, &parser_state);
 
     }
 
@@ -2020,13 +1961,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       break;
     }
     packet= arg_end + 1;
-    // thd->reset_for_next_command reset state => restore it
-    if (is_next_command)
-    {
-      thd->server_status|= SERVER_MORE_RESULTS_EXISTS;
-      if (is_com_multi)
-        thd->get_stmt_da()->set_skip_flush();
-    }
 
     lex_start(thd);
     /* Must be before we init the table list. */
@@ -2314,84 +2248,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     general_log_print(thd, command, NullS);
     my_eof(thd);
     break;
-  case COM_MULTI:
-  {
-    uint counter;
-    uint current_com= 0;
-    DBUG_ASSERT(!is_com_multi);
-    if (!(thd->client_capabilities & CLIENT_MULTI_RESULTS))
-    {
-      /* The client does not support multiple result sets being sent back */
-      my_error(ER_COMMULTI_BADCONTEXT, MYF(0));
-      break;
-    }
-
-    if (!(counter= maria_multi_check(thd, packet, packet_length)))
-      break;
-
-    {
-      char *packet_start= packet;
-      /* We have to store next length because it will be destroyed by '\0' */
-      size_t next_subpacket_length= net_field_length((uchar **)&packet_start);
-      size_t next_length_length= packet_start - packet;
-      unsigned char *readbuff= net->buff;
-
-      if (net_allocate_new_packet(net, thd, MYF(0)))
-        break;
-
-      PSI_statement_locker *save_locker= thd->m_statement_psi;
-      sql_digest_state *save_digest= thd->m_digest;
-      thd->m_statement_psi= NULL;
-      thd->m_digest= NULL;
-
-      while (packet_length)
-      {
-        current_com++;
-        size_t subpacket_length= next_subpacket_length + next_length_length;
-        size_t length_length= next_length_length;
-        if (subpacket_length < packet_length)
-        {
-          packet_start= packet + subpacket_length;
-          next_subpacket_length= net_field_length((uchar**)&packet_start);
-          next_length_length= packet_start - (packet + subpacket_length);
-        }
-        /* safety like in do_command() */
-        packet[subpacket_length]= '\0';
-
-        enum enum_server_command subcommand=
-          fetch_command(thd, (packet + length_length));
-
-        if (server_command_flags[subcommand] & CF_NO_COM_MULTI)
-        {
-          my_error(ER_BAD_COMMAND_IN_MULTI, MYF(0),
-                   command_name[subcommand].str);
-          goto com_multi_end;
-        }
-
-        if (dispatch_command(subcommand, thd, packet + (1 + length_length),
-                             (uint)(subpacket_length - (1 + length_length)), TRUE,
-                             (current_com != counter)))
-        {
-          DBUG_ASSERT(thd->is_error());
-          goto com_multi_end;
-        }
-
-        DBUG_ASSERT(subpacket_length <= packet_length);
-        packet+= subpacket_length;
-        packet_length-= (uint)subpacket_length;
-      }
-
-com_multi_end:
-      thd->m_statement_psi= save_locker;
-      thd->m_digest= save_digest;
-
-      /* release old buffer */
-      net_flush(net);
-      DBUG_ASSERT(net->buff == net->write_pos); // nothing to send
-      my_free(readbuff);
-    }
-    break;
-  }
   case COM_SLEEP:
   case COM_CONNECT:				// Impossible here
   case COM_TIME:				// Impossible from client
@@ -2460,11 +2316,8 @@ dispatch_end:
     thd_proc_info(thd, "Updating status");
     /* Finalize server status flags after executing a command. */
     thd->update_server_status();
-    if (command != COM_MULTI)
-    {
-      thd->protocol->end_statement();
-      query_cache_end_of_result(thd);
-    }
+    thd->protocol->end_statement();
+    query_cache_end_of_result(thd);
   }
   if (drop_more_results)
     thd->server_status&= ~SERVER_MORE_RESULTS_EXISTS;
@@ -2492,8 +2345,7 @@ dispatch_end:
   thd->m_statement_psi= NULL;
   thd->m_digest= NULL;
 
-  if (!is_com_multi)
-    thd->packet.shrink(thd->variables.net_buffer_length); // Reclaim some memory
+  thd->packet.shrink(thd->variables.net_buffer_length); // Reclaim some memory
 
   thd->reset_kill_query();  /* Ensure that killed_errmsg is released */
   /*
@@ -7833,9 +7685,7 @@ static void wsrep_prepare_for_autocommit_retry(THD* thd,
 }
 
 static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
-                              Parser_state *parser_state,
-                              bool is_com_multi,
-                              bool is_next_command)
+                              Parser_state *parser_state)
 {
   bool is_autocommit=
     !thd->in_multi_stmt_transaction_mode()                  &&
@@ -7844,7 +7694,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
   do
   {
     retry_autocommit= false;
-    mysql_parse(thd, rawbuf, length, parser_state, is_com_multi, is_next_command);
+    mysql_parse(thd, rawbuf, length, parser_state);
 
     /*
       Convert all ER_QUERY_INTERRUPTED errors to ER_LOCK_DEADLOCK
@@ -7950,15 +7800,10 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
   @param       thd     Current thread
   @param       rawbuf  Begining of the query text
   @param       length  Length of the query text
-  @param[out]  found_semicolon For multi queries, position of the character of
-                               the next query in the query text.
-  @param is_next_command there will be more command in the COM_MULTI batch
 */
 
 void mysql_parse(THD *thd, char *rawbuf, uint length,
-                 Parser_state *parser_state,
-                 bool is_com_multi,
-                 bool is_next_command)
+                 Parser_state *parser_state)
 {
   DBUG_ENTER("mysql_parse");
   DBUG_EXECUTE_IF("parser_debug", turn_parser_debug_on_MYSQLparse(););
@@ -7982,12 +7827,6 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
   */
   lex_start(thd);
   thd->reset_for_next_command();
-  if (is_next_command)
-  {
-    thd->server_status|= SERVER_MORE_RESULTS_EXISTS;
-    if (is_com_multi)
-      thd->get_stmt_da()->set_skip_flush();
-  }
 
   if (query_cache_send_result_to_client(thd, rawbuf, length) <= 0)
   {

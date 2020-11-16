@@ -97,12 +97,6 @@ static void wsrep_set_wsrep_on()
     strcmp(wsrep_provider, WSREP_NONE);
 }
 
-/* This is intentionally declared as a weak global symbol, so that
-linking will succeed even if the server is built with a dynamically
-linked InnoDB. */
-ulong innodb_lock_schedule_algorithm __attribute__((weak));
-struct handlerton* innodb_hton_ptr __attribute__((weak));
-
 bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
 {
   if (var_type == OPT_GLOBAL) {
@@ -138,18 +132,7 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
 
 bool wsrep_on_check(sys_var *self, THD* thd, set_var* var)
 {
-  bool new_wsrep_on= (bool)var->save_result.ulonglong_value;
-
-  if (check_has_super(self, thd, var))
-    return true;
-
-  if (new_wsrep_on && innodb_hton_ptr && innodb_lock_schedule_algorithm != 0) {
-    my_message(ER_WRONG_ARGUMENTS, " WSREP (galera) can't be enabled "
-            "if innodb_lock_schedule_algorithm=VATS. Please configure"
-            " innodb_lock_schedule_algorithm=FCFS and restart.", MYF(0));
-    return true;
-  }
-  return false;
+  return check_has_super(self, thd, var);
 }
 
 bool wsrep_causal_reads_update (sys_var *self, THD* thd, enum_var_type var_type)

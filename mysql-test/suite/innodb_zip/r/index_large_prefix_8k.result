@@ -266,7 +266,7 @@ drop table worklog5743_8;
 ### Test 5 ###
 create table worklog5743(a1 int, a2 varchar(20000)) ROW_FORMAT=DYNAMIC;
 create index idx1 on worklog5743(a2);
-ERROR 42000: Specified key was too long; max key length is 3072 bytes
+ERROR 42000: Specified key was too long; max key length is 1536 bytes
 drop table worklog5743;
 create table worklog5743(a1 int, a2 varchar(1537)) ROW_FORMAT=DYNAMIC;
 create index idx1 on worklog5743(a2);

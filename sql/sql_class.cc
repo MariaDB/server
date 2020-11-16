@@ -4982,7 +4982,8 @@ extern "C" size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen)
   if (!mysql_mutex_trylock(&thd->LOCK_thd_data))
   {
     len= MY_MIN(buflen - 1, thd->query_length());
-    memcpy(buf, thd->query(), len);
+    if (len)
+      memcpy(buf, thd->query(), len);
     mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
   buf[len]= '\0';
@@ -5038,15 +5039,6 @@ extern "C" enum enum_server_command thd_current_command(MYSQL_THD thd)
   return thd->get_command();
 }
 
-
-extern "C" int thd_slave_thread(const MYSQL_THD thd)
-{
-  return(thd->slave_thread);
-}
-
-
-
-
 /* Returns high resolution timestamp for the start
   of the current query. */
 extern "C" unsigned long long thd_start_utime(const MYSQL_THD thd)
@@ -5084,7 +5076,7 @@ thd_need_wait_reports(const MYSQL_THD thd)
 }
 
 /*
-  Used by storage engines (currently TokuDB and InnoDB) to report that
+  Used by storage engines (currently InnoDB) to report that
   one transaction THD is about to go to wait for a transactional lock held by
   another transactions OTHER_THD.
 

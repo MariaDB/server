@@ -14,6 +14,11 @@ SELECT @@innodb_file_per_table;
 
 SET SQL_MODE=strict_all_tables;
 
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
+
 CREATE TABLE tab0 (c1 VARCHAR(65530), KEY(c1(3073))) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
 SHOW CREATE TABLE tab0;
 DROP TABLE tab0;
@@ -33,3 +38,7 @@ SELECT @@innodb_strict_mode;
 
 CREATE TABLE tab1(c1 int ) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
 DROP TABLE tab1;
+
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log

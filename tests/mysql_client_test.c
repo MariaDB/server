@@ -21137,6 +21137,16 @@ static void test_mdev20261()
 }
 
 
+static void test_execute_direct()
+{
+#ifndef EMBEDDED_LIBRARY
+  MYSQL_STMT* stmt= mysql_stmt_init(mysql);
+  int rc= mariadb_stmt_execute_direct(stmt,"do 1",-1);
+  myquery(rc);
+  mysql_stmt_close(stmt);
+#endif
+}
+
 static struct my_tests_st my_tests[]= {
   { "disable_query_logs", disable_query_logs },
   { "test_view_sp_list_fields", test_view_sp_list_fields },
@@ -21435,6 +21445,7 @@ static struct my_tests_st my_tests[]= {
 #endif
   { "test_mdev18408", test_mdev18408 },
   { "test_mdev20261", test_mdev20261 },
+  { "test_execute_direct", test_execute_direct },
   { 0, 0 }
 };
 

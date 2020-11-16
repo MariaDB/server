@@ -2363,21 +2363,6 @@ err_exit:
 
 	err = trx->error_state;
 
-	/* Update SYS_TABLESPACES and SYS_DATAFILES if a new file-per-table
-	tablespace was created. */
-	if (err == DB_SUCCESS && dict_table_is_file_per_table(table)) {
-		err = dict_replace_tablespace_in_dictionary(
-			table->space_id, table->name.m_name,
-			table->space->flags,
-			table->space->chain.start->name, trx);
-
-		if (err != DB_SUCCESS) {
-
-			/* We must delete the link file. */
-			RemoteDatafile::delete_link_file(table->name.m_name);
-		}
-	}
-
 	switch (err) {
 	case DB_SUCCESS:
 		break;
@@ -3653,23 +3638,6 @@ do_drop:
 			"DELETE FROM SYS_TABLES WHERE NAME=:name;\n"
 
 			"END;\n", FALSE, trx) : err;
-
-		if (err == DB_SUCCESS && table->space
-		    && dict_table_get_low("SYS_TABLESPACES")
-		    && dict_table_get_low("SYS_DATAFILES")) {
-			info = pars_info_create();
-			pars_info_add_int4_literal(info, "id",
-						   lint(table->space_id));
-			err = que_eval_sql(
-				info,
-				"PROCEDURE DROP_SPACE_PROC () IS\n"
-				"BEGIN\n"
-				"DELETE FROM SYS_TABLESPACES\n"
-				"WHERE SPACE = :id;\n"
-				"DELETE FROM SYS_DATAFILES\n"
-				"WHERE SPACE = :id;\n"
-				"END;\n", FALSE, trx);
-		}
 	}
 
 	switch (err) {
@@ -4285,38 +4253,6 @@ row_rename_table_for_mysql(
 			   "END;\n"
 			   , FALSE, trx);
 
-	/* SYS_TABLESPACES and SYS_DATAFILES need to be updated if
-	the table is in a single-table tablespace. */
-	if (err != DB_SUCCESS || !dict_table_is_file_per_table(table)) {
-	} else if (table->space) {
-		/* If old path and new path are the same means tablename
-		has not changed and only the database name holding the table
-		has changed so we need to make the complete filepath again. */
-		char*	new_path = dict_tables_have_same_db(old_name, new_name)
-			? os_file_make_new_pathname(
-				table->space->chain.start->name, new_name)
-			: fil_make_filepath(NULL, new_name, IBD, false);
-
-		info = pars_info_create();
-
-		pars_info_add_str_literal(info, "new_table_name", new_name);
-		pars_info_add_str_literal(info, "new_path_name", new_path);
-		pars_info_add_int4_literal(info, "space_id", table->space_id);
-
-		err = que_eval_sql(info,
-				   "PROCEDURE RENAME_SPACE () IS\n"
-				   "BEGIN\n"
-				   "UPDATE SYS_TABLESPACES"
-				   " SET NAME = :new_table_name\n"
-				   " WHERE SPACE = :space_id;\n"
-				   "UPDATE SYS_DATAFILES"
-				   " SET PATH = :new_path_name\n"
-				   " WHERE SPACE = :space_id;\n"
-				   "END;\n"
-				   , FALSE, trx);
-
-		ut_free(new_path);
-	}
 	if (err != DB_SUCCESS) {
 		goto end;
 	}

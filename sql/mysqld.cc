@@ -117,12 +117,15 @@
 #include "sql_reload.h"  // reload_acl_and_cache
 #include "sp_head.h"  // init_sp_psi_keys
 
+#include <mysqld_default_groups.h>
+
 #ifdef HAVE_POLL_H
 #include <poll.h>
 #endif
 
 #ifdef _WIN32
 #include <handle_connections_win.h>
+#include <sddl.h>
 #endif
 
 #include <my_service_manager.h>
@@ -369,7 +372,7 @@ my_bool locked_in_memory;
 bool opt_using_transactions;
 bool volatile abort_loop;
 uint volatile global_disable_checkpoint;
-#if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
+#if defined(_WIN32)
 ulong slow_start_timeout;
 #endif
 /**
@@ -1400,21 +1403,10 @@ static pthread_t select_thread;
 
 /* OS specific variables */
 
-#ifdef __WIN__
-#undef	 getpid
-#include <process.h>
-
-static bool start_mode=0, use_opt_args;
-static int opt_argc;
-static char **opt_argv;
-
-#if !defined(EMBEDDED_LIBRARY)
+#ifdef _WIN32
 HANDLE hEventShutdown;
-static char shutdown_event_name[40];
-#include "nt_servc.h"
-static	 NTService  Service;	      ///< Service object for WinNT
-#endif /* EMBEDDED_LIBRARY */
-#endif /* __WIN__ */
+#endif
+
 
 #ifndef EMBEDDED_LIBRARY
 bool mysqld_embedded=0;
@@ -1631,9 +1623,8 @@ static void break_connect_loop()
 
   abort_loop= 1;
 
-#if defined(__WIN__)
-  if (!SetEvent(hEventShutdown))
-    DBUG_PRINT("error", ("Got error: %ld from SetEvent", GetLastError()));
+#if defined(_WIN32)
+  mysqld_win_initiate_shutdown();
 #else
   /* Avoid waiting for ourselves when thread-handling=no-threads. */
   if (pthread_equal(pthread_self(), select_thread))
@@ -1905,6 +1896,12 @@ extern "C" void unireg_abort(int exit_code)
   mysqld_exit(exit_code);
 }
 
+#ifdef _WIN32
+typedef void (*report_svc_status_t)(DWORD current_state, DWORD win32_exit_code,
+                                    DWORD wait_hint);
+static void dummy_svc_status(DWORD, DWORD, DWORD) {}
+static report_svc_status_t my_report_svc_status= dummy_svc_status;
+#endif
 
 static void mysqld_exit(int exit_code)
 {
@@ -1935,6 +1932,9 @@ static void mysqld_exit(int exit_code)
       SAFEMALLOC_REPORT_MEMORY(0);
   }
   DBUG_LEAVE;
+#ifdef _WIN32
+  my_report_svc_status(SERVICE_STOPPED, exit_code, 0);
+#endif
   sd_notify(0, "STATUS=MariaDB server is down");
   exit(exit_code); /* purecov: inspected */
 }
@@ -2617,14 +2617,60 @@ void unlink_thd(THD *thd)
 }
 
 
-/******************************************************************************
-  Setup a signal thread with handles all signals.
-  Because Linux doesn't support schemas use a mutex to check that
-  the signal thread is ready before continuing
-******************************************************************************/
+#if defined(_WIN32)
+/*
+  If server is started as service, the service routine will set
+  the callback function.
+*/
+void mysqld_set_service_status_callback(void (*r)(DWORD, DWORD, DWORD))
+{
+  my_report_svc_status= r;
+}
 
-#if defined(__WIN__)
+static bool startup_complete()
+{
+  return hEventShutdown != NULL;
+}
 
+/**
+  Initiates shutdown on Windows by setting shutdown event.
+  Reports windows service status.
+
+  If startup was not finished, terminates process (no good
+  cleanup possible)
+*/
+void mysqld_win_initiate_shutdown()
+{
+  if (startup_complete())
+  {
+    my_report_svc_status(SERVICE_STOP_PENDING, 0, 0);
+    abort_loop= 1;
+    if (!SetEvent(hEventShutdown))
+      /* This should never fail.*/
+      abort();
+  }
+  else
+  {
+    my_report_svc_status(SERVICE_STOPPED, 1, 0);
+    TerminateProcess(GetCurrentProcess(), 1);
+  }
+}
+
+/*
+  Signal when server has started and can accept connections.
+*/
+void mysqld_win_set_startup_complete()
+{
+  my_report_svc_status(SERVICE_RUNNING, 0, 0);
+  DBUG_ASSERT(startup_complete());
+}
+
+
+void mysqld_win_set_service_name(const char *name)
+{
+  if (stricmp(name, "mysql"))
+    load_default_groups[array_elements(load_default_groups) - 2]= name;
+}
 
 /*
   On Windows, we use native SetConsoleCtrlHandler for handle events like Ctrl-C
@@ -2635,31 +2681,28 @@ void unlink_thd(THD *thd)
   callstack.
 */
 
-static BOOL WINAPI console_event_handler( DWORD type ) 
+static BOOL WINAPI console_event_handler( DWORD type )
 {
-  DBUG_ENTER("console_event_handler");
-#ifndef EMBEDDED_LIBRARY
-  if(type == CTRL_C_EVENT)
+  static const char *names[]= {
+   "CTRL_C_EVENT","CTRL_BREAK_EVENT", "CTRL_CLOSE_EVENT", "", "",
+   "CTRL_LOGOFF_EVENT", "CTRL_SHUTDOWN_EVENT"};
+
+  switch (type)
   {
-     /*
-       Do not shutdown before startup is finished and shutdown
-       thread is initialized. Otherwise there is a race condition 
-       between main thread doing initialization and CTRL-C thread doing
-       cleanup, which can result into crash.
-     */
-#ifndef EMBEDDED_LIBRARY
-     if(hEventShutdown)
-       break_connect_loop();
-     else
-#endif
-       sql_print_warning("CTRL-C ignored during startup");
-     DBUG_RETURN(TRUE);
+  case CTRL_C_EVENT:
+  case CTRL_BREAK_EVENT:
+    sql_print_information("console_event_handler: received %s event, shutting down",
+                          names[type]);
+    mysqld_win_initiate_shutdown();
+    return TRUE;
+  case CTRL_CLOSE_EVENT:
+    sql_print_information("console_event_handler: received CTRL_CLOSE_EVENT event, terminating");
+    TerminateProcess(GetCurrentProcess(), 1);
+    return TRUE;
+  default:
+    return FALSE;
   }
-#endif
-  DBUG_RETURN(FALSE);
 }
-
-
 
 
 #ifdef DEBUG_UNHANDLED_EXCEPTION_FILTER
@@ -2692,7 +2735,7 @@ static void wait_for_debugger(int timeout_sec)
 }
 #endif /* DEBUG_UNHANDLED_EXCEPTION_FILTER */
 
-LONG WINAPI my_unhandler_exception_filter(EXCEPTION_POINTERS *ex_pointers)
+static LONG WINAPI my_unhandler_exception_filter(EXCEPTION_POINTERS *ex_pointers)
 {
    static BOOL first_time= TRUE;
    if(!first_time)
@@ -2739,10 +2782,9 @@ LONG WINAPI my_unhandler_exception_filter(EXCEPTION_POINTERS *ex_pointers)
 
 void init_signals(void)
 {
-  if(opt_console)
-    SetConsoleCtrlHandler(console_event_handler,TRUE);
+   SetConsoleCtrlHandler(console_event_handler,TRUE);
 
-    /* Avoid MessageBox()es*/
+   /* Avoid MessageBox()es*/
   _CrtSetReportMode(_CRT_WARN, _CRTDBG_MODE_FILE);
   _CrtSetReportFile(_CRT_WARN, _CRTDBG_FILE_STDERR);
   _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE);
@@ -2759,7 +2801,8 @@ void init_signals(void)
    */
   SetErrorMode(SetErrorMode(0) | SEM_FAILCRITICALERRORS
                                | SEM_NOOPENFILEERRORBOX);
-  SetUnhandledExceptionFilter(my_unhandler_exception_filter);
+  if(!opt_debugging)
+    SetUnhandledExceptionFilter(my_unhandler_exception_filter);
 }
 
 
@@ -3137,12 +3180,7 @@ void *my_str_realloc_mysqld(void *ptr, size_t size)
 }
 #endif
 
-#include <mysqld_default_groups.h>
 
-#if defined(__WIN__) && !defined(EMBEDDED_LIBRARY)
-static const int load_default_groups_sz=
-sizeof(load_default_groups)/sizeof(load_default_groups[0]);
-#endif
 
 
 /**
@@ -3293,7 +3331,6 @@ SHOW_VAR com_status_vars[]= {
   {"kill",                 STMT_STATUS(SQLCOM_KILL)},
   {"load",                 STMT_STATUS(SQLCOM_LOAD)},
   {"lock_tables",          STMT_STATUS(SQLCOM_LOCK_TABLES)},
-  {"multi",                COM_STATUS(com_multi)},
   {"optimize",             STMT_STATUS(SQLCOM_OPTIMIZE)},
   {"preload_keys",         STMT_STATUS(SQLCOM_PRELOAD_KEYS)},
   {"prepare_sql",          STMT_STATUS(SQLCOM_PREPARE)},
@@ -3806,7 +3843,7 @@ static int init_common_variables()
     of SQLCOM_ constants.
   */
   compile_time_assert(sizeof(com_status_vars)/sizeof(com_status_vars[0]) - 1 ==
-                     SQLCOM_END + 11);
+                     SQLCOM_END + 10);
 #endif
 
   if (get_options(&remaining_argc, &remaining_argv))
@@ -4991,6 +5028,30 @@ static int init_server_components()
       /* The following options were added after 5.6.10 */
       MYSQL_TO_BE_IMPLEMENTED_OPTION("rpl-stop-slave-timeout"),
       MYSQL_TO_BE_IMPLEMENTED_OPTION("validate-user-plugins"), // NO_EMBEDDED_ACCESS_CHECKS
+
+      /* The following options were deprecated in 10.5 or earlier */
+      MARIADB_REMOVED_OPTION("innodb-adaptive-max-sleep-delay"),
+      MARIADB_REMOVED_OPTION("innodb-background-scrub-data-check-interval"),
+      MARIADB_REMOVED_OPTION("innodb-background-scrub-data-compressed"),
+      MARIADB_REMOVED_OPTION("innodb-background-scrub-data-interval"),
+      MARIADB_REMOVED_OPTION("innodb-background-scrub-data-uncompressed"),
+      MARIADB_REMOVED_OPTION("innodb-buffer-pool-instances"),
+      MARIADB_REMOVED_OPTION("innodb-commit-concurrency"),
+      MARIADB_REMOVED_OPTION("innodb-concurrency-tickets"),
+      MARIADB_REMOVED_OPTION("innodb-file-format"),
+      MARIADB_REMOVED_OPTION("innodb-large-prefix"),
+      MARIADB_REMOVED_OPTION("innodb-lock-schedule-algorithm"),
+      MARIADB_REMOVED_OPTION("innodb-log-checksums"),
+      MARIADB_REMOVED_OPTION("innodb-log-compressed-pages"),
+      MARIADB_REMOVED_OPTION("innodb-log-files-in-group"),
+      MARIADB_REMOVED_OPTION("innodb-log-optimize-ddl"),
+      MARIADB_REMOVED_OPTION("innodb-page-cleaners"),
+      MARIADB_REMOVED_OPTION("innodb-replication-delay"),
+      MARIADB_REMOVED_OPTION("innodb-scrub-log"),
+      MARIADB_REMOVED_OPTION("innodb-scrub-log-speed"),
+      MARIADB_REMOVED_OPTION("innodb-thread-concurrency"),
+      MARIADB_REMOVED_OPTION("innodb-thread-sleep-delay"),
+      MARIADB_REMOVED_OPTION("innodb-undo-logs"),
       {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
     };
     /*
@@ -5194,19 +5255,6 @@ static int init_server_components()
 
 
 #ifndef EMBEDDED_LIBRARY
-#ifdef _WIN32
-static void create_shutdown_event()
-{
-  hEventShutdown=CreateEvent(0, FALSE, FALSE, shutdown_event_name);
-  // On "Stop Service" we have to do regular shutdown
-  Service.SetShutdownEvent(hEventShutdown);
-}
-#else /*_WIN32*/
-#define create_shutdown_event()
-#endif
-#endif /* EMBEDDED_LIBRARY */
-
-#ifndef EMBEDDED_LIBRARY
 
 #ifndef DBUG_OFF
 /*
@@ -5246,11 +5294,7 @@ static void test_lc_time_sz()
 #endif//DBUG_OFF
 
 
-#ifdef __WIN__
-int win_main(int argc, char **argv)
-#else
 int mysqld_main(int argc, char **argv)
-#endif
 {
 #ifndef _WIN32
   /* We can't close stdin just now, because it may be booststrap mode. */
@@ -5268,7 +5312,6 @@ int mysqld_main(int argc, char **argv)
   if (init_early_variables())
     exit(1);
 
-#ifndef _WIN32
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   pre_initialize_performance_schema();
 #endif /*WITH_PERFSCHEMA_STORAGE_ENGINE */
@@ -5278,7 +5321,6 @@ int mysqld_main(int argc, char **argv)
     fprintf(stderr, "my_init() failed.");
     return 1;
   }
-#endif
 
   orig_argc= argc;
   orig_argv= argv;
@@ -5485,12 +5527,12 @@ int mysqld_main(int argc, char **argv)
   if (WSREP_ON && wsrep_check_opts()) unireg_abort(1);
 #endif
 
+#ifdef _WIN32
   /* 
    The subsequent calls may take a long time : e.g. innodb log read.
    Thus set the long running service control manager timeout
   */
-#if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
-  Service.SetSlowStarting(slow_start_timeout);
+  my_report_svc_status(SERVICE_START_PENDING, NO_ERROR, slow_start_timeout);
 #endif
 
   if (init_server_components())
@@ -5498,13 +5540,6 @@ int mysqld_main(int argc, char **argv)
 
   init_ssl();
   network_init();
-
-#ifdef _WIN32
-  if (!opt_console)
-  {
-    FreeConsole();				// Remove window
-  }
-#endif
 
 #ifdef WITH_WSREP
   // Recover and exit.
@@ -5593,7 +5628,6 @@ int mysqld_main(int argc, char **argv)
     }
   }
 
-  create_shutdown_event();
   start_handle_manager();
 
   /* Copy default global rpl_filter to global_rpl_filter */
@@ -5647,9 +5681,6 @@ int mysqld_main(int argc, char **argv)
   }
 #endif
 
-#if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
-  Service.SetRunning();
-#endif
 
   /* Signal threads waiting for server to be started */
   mysql_mutex_lock(&LOCK_server_started);
@@ -5705,16 +5736,6 @@ int mysqld_main(int argc, char **argv)
   */
   PSI_CALL_delete_current_thread();
 
-#if defined(__WIN__) && !defined(EMBEDDED_LIBRARY)
-  if (start_mode)
-    Service.Stop();
-  else
-  {
-    Service.SetShutdownEvent(0);
-    if (hEventShutdown)
-      CloseHandle(hEventShutdown);
-  }
-#endif
 #if (defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY))
   ERR_remove_state(0);
 #endif
@@ -5723,245 +5744,6 @@ int mysqld_main(int argc, char **argv)
 }
 
 #endif /* !EMBEDDED_LIBRARY */
-
-
-/****************************************************************************
-  Main and thread entry function for Win32
-  (all this is needed only to run mysqld as a service on WinNT)
-****************************************************************************/
-
-#if defined(__WIN__) && !defined(EMBEDDED_LIBRARY)
-void  mysql_service(void *p)
-{
-  if (my_thread_init())
-    abort();
-  
-  if (use_opt_args)
-    win_main(opt_argc, opt_argv);
-  else
-    win_main(Service.my_argc, Service.my_argv);
-
-  my_thread_end();
-}
-
-
-/* Quote string if it contains space, else copy */
-
-static char *add_quoted_string(char *to, const char *from, char *to_end)
-{
-  uint length= (uint) (to_end-to);
-
-  if (!strchr(from, ' '))
-    return strmake(to, from, length-1);
-  return strxnmov(to, length-1, "\"", from, "\"", NullS);
-}
-
-
-/**
-  Handle basic handling of services, like installation and removal.
-
-  @param argv	   	        Pointer to argument list
-  @param servicename		Internal name of service
-  @param displayname		Display name of service (in taskbar ?)
-  @param file_path		Path to this program
-  @param startup_option	Startup option to mysqld
-
-  @retval 0	option handled
-  @retval 1	Could not handle option
-*/
-
-static bool
-default_service_handling(char **argv,
-			 const char *servicename,
-			 const char *displayname,
-			 const char *file_path,
-			 const char *extra_opt,
-			 const char *account_name)
-{
-  char path_and_service[FN_REFLEN+FN_REFLEN+32], *pos, *end;
-  const char *opt_delim;
-  end= path_and_service + sizeof(path_and_service)-3;
-
-  /* We have to quote filename if it contains spaces */
-  pos= add_quoted_string(path_and_service, file_path, end);
-  if (extra_opt && *extra_opt)
-  {
-    /* 
-     Add option after file_path. There will be zero or one extra option.  It's 
-     assumed to be --defaults-file=file but isn't checked.  The variable (not
-     the option name) should be quoted if it contains a string.  
-    */
-    *pos++= ' ';
-    if ((opt_delim= strchr(extra_opt, '=')))
-    {
-      size_t length= ++opt_delim - extra_opt;
-      pos= strnmov(pos, extra_opt, length);
-    }
-    else
-      opt_delim= extra_opt;
-    
-    pos= add_quoted_string(pos, opt_delim, end);
-  }
-  /* We must have servicename last */
-  *pos++= ' ';
-  (void) add_quoted_string(pos, servicename, end);
-
-  if (Service.got_service_option(argv, "install"))
-  {
-    Service.Install(1, servicename, displayname, path_and_service,
-                    account_name);
-    return 0;
-  }
-  if (Service.got_service_option(argv, "install-manual"))
-  {
-    Service.Install(0, servicename, displayname, path_and_service,
-                    account_name);
-    return 0;
-  }
-  if (Service.got_service_option(argv, "remove"))
-  {
-    Service.Remove(servicename);
-    return 0;
-  }
-  return 1;
-}
-
-/* Remove service name from the command line arguments, and pass
-resulting command line to the service via opt_args.*/
-#include <vector>
-static void service_init_cmdline_args(int argc, char **argv)
-{
-  start_mode= 1;
-  use_opt_args= 1;
-
-  if(argc == 1)
-  {
-    opt_argc= argc;
-    opt_argv= argv;
-  }
-  else
-  {
-    static std::vector<char *> argv_no_service;
-    for (int i= 0; argv[i]; i++)
-      argv_no_service.push_back(argv[i]);
-    // Remove the last argument, service name
-    argv_no_service[argv_no_service.size() - 1]= 0;
-    opt_argc= (int)argv_no_service.size() - 1;
-    opt_argv= &argv_no_service[0];
-  }
-  DBUG_ASSERT(!opt_argv[opt_argc]);
-}
-
-int mysqld_main(int argc, char **argv)
-{
-  my_progname= argv[0];
-
-  /*
-    When several instances are running on the same machine, we
-    need to have an  unique  named  hEventShudown  through the
-    application PID e.g.: MySQLShutdown1890; MySQLShutdown2342
-  */
-  int10_to_str((int) GetCurrentProcessId(),strmov(shutdown_event_name,
-                                                  "MySQLShutdown"), 10);
-
-  /* Must be initialized early for comparison of service name */
-  system_charset_info= &my_charset_utf8mb3_general_ci;
-
-#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
-  pre_initialize_performance_schema();
-#endif /*WITH_PERFSCHEMA_STORAGE_ENGINE */
-
-  if (my_init())
-  {
-    fprintf(stderr, "my_init() failed.");
-    return 1;
-  }
-
-
-  char file_path[FN_REFLEN];
-  my_path(file_path, argv[0], "");		      /* Find name in path */
-  fn_format(file_path,argv[0],file_path,"",   MY_REPLACE_DIR | MY_UNPACK_FILENAME | MY_RESOLVE_SYMLINKS);
-
-
-  if (argc == 2)
-  {
-    if (!default_service_handling(argv, MYSQL_SERVICENAME, MYSQL_SERVICENAME,
-      file_path, "", NULL))
-      return 0;
-
-    if (Service.IsService(argv[1]))        /* Start an optional service */
-    {
-      /*
-      Only add the service name to the groups read from the config file
-      if it's not "MySQL". (The default service name should be 'mysqld'
-      but we started a bad tradition by calling it MySQL from the start
-      and we are now stuck with it.
-      */
-      if (my_strcasecmp(system_charset_info, argv[1],"mysql"))
-        load_default_groups[load_default_groups_sz-2]= argv[1];
-      service_init_cmdline_args(argc, argv);
-      Service.Init(argv[1], mysql_service);
-      return 0;
-    }
-  }
-  else if (argc == 3) /* install or remove any optional service */
-  {
-    if (!default_service_handling(argv, argv[2], argv[2], file_path, "",
-                                  NULL))
-      return 0;
-    if (Service.IsService(argv[2]))
-    {
-      /*
-       mysqld was started as
-       mysqld --defaults-file=my_path\my.ini service-name
-      */
-      if (my_strcasecmp(system_charset_info, argv[2],"mysql"))
-        load_default_groups[load_default_groups_sz-2]= argv[2];
-      service_init_cmdline_args(argc, argv);
-      Service.Init(argv[2], mysql_service);
-      return 0;
-    }
-  }
-  else if (argc == 4 || argc == 5)
-  {
-    /*
-      This may seem strange, because we handle --local-service while
-      preserving 4.1's behavior of allowing any one other argument that is
-      passed to the service on startup. (The assumption is that this is
-      --defaults-file=file, but that was not enforced in 4.1, so we don't
-      enforce it here.)
-    */
-    const char *extra_opt= NullS;
-    const char *account_name = NullS;
-    int index;
-    for (index = 3; index < argc; index++)
-    {
-      if (!strcmp(argv[index], "--local-service"))
-        account_name= "NT AUTHORITY\\LocalService";
-      else
-        extra_opt= argv[index];
-    }
-
-    if (argc == 4 || account_name)
-      if (!default_service_handling(argv, argv[2], argv[2], file_path,
-                                    extra_opt, account_name))
-        return 0;
-  }
-  else if (argc == 1 && Service.IsService(MYSQL_SERVICENAME))
-  {
-    /* start the default service */
-    service_init_cmdline_args(argc, argv);
-    Service.Init(MYSQL_SERVICENAME, mysql_service);
-    return 0;
-  }
-
-  /* Start as standalone server */
-  Service.my_argc=argc;
-  Service.my_argv=argv;
-  mysql_service(NULL);
-  return 0;
-}
-#endif
 
 
 static bool read_init_file(char *file_name)
@@ -8179,6 +7961,23 @@ mysqld_get_one_option(const struct my_option *opt, char *argument,
     break;
   case OPT_BOOTSTRAP:
     opt_noacl=opt_bootstrap=1;
+#ifdef _WIN32
+    {
+      /*
+       Check if security descriptor is passed from
+       mysql_install_db.exe.
+       Used by Windows installer to correctly setup
+       privileges on the new directories.
+      */
+      char* dir_sddl = getenv("MARIADB_NEW_DIRECTORY_SDDL");
+      if (dir_sddl)
+      {
+        ConvertStringSecurityDescriptorToSecurityDescriptor(
+          dir_sddl, SDDL_REVISION_1, &my_dir_security_attributes.lpSecurityDescriptor, NULL);
+        DBUG_ASSERT(my_dir_security_attributes.lpSecurityDescriptor);
+      }
+    }
+#endif
     break;
   case OPT_SERVER_ID:
     ::server_id= global_system_variables.server_id;
@@ -9252,6 +9051,7 @@ PSI_memory_key key_memory_binlog_ver_1_event;
 PSI_memory_key key_memory_bison_stack;
 PSI_memory_key key_memory_blob_mem_storage;
 PSI_memory_key key_memory_dboptions_hash;
+PSI_memory_key key_memory_dbnames_cache;
 PSI_memory_key key_memory_errmsgs;
 PSI_memory_key key_memory_frm_string;
 PSI_memory_key key_memory_gdl;
@@ -9552,6 +9352,7 @@ static PSI_memory_info all_server_memory[]=
   { &key_memory_THD_handler_tables_hash, "THD::handler_tables_hash", 0},
   { &key_memory_hash_index_key_buffer, "hash_index_key_buffer", 0},
   { &key_memory_dboptions_hash, "dboptions_hash", 0},
+  { &key_memory_dbnames_cache, "dbnames_cache", 0},
   { &key_memory_user_conn, "user_conn", 0},
 //  { &key_memory_LOG_POS_COORD, "LOG_POS_COORD", 0},
 //  { &key_memory_XID_STATE, "XID_STATE", 0},

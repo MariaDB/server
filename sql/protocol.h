@@ -54,7 +54,7 @@ protected:
   virtual bool net_store_data_cs(const uchar *from, size_t length,
                       CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
   virtual bool net_send_ok(THD *, uint, uint, ulonglong, ulonglong, const char *,
-                           bool, bool);
+                           bool);
   virtual bool net_send_error_packet(THD *, uint, const char *, const char *);
 #ifdef EMBEDDED_LIBRARY
   char **next_field;
@@ -78,7 +78,7 @@ protected:
 
   virtual bool send_ok(uint server_status, uint statement_warn_count,
                        ulonglong affected_rows, ulonglong last_insert_id,
-                       const char *message, bool skip_flush);
+                       const char *message);
 
   virtual bool send_eof(uint server_status, uint statement_warn_count);
 

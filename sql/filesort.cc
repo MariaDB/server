@@ -251,6 +251,9 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
 
   param.init_for_filesort(sort_len, table, max_rows, filesort->sort_positions);
 
+  param.set_all_read_bits= filesort->set_all_read_bits;
+  param.unpack= filesort->unpack;
+
   sort->addon_fields=  param.addon_fields;
   sort->sort_keys= param.sort_keys;
 
@@ -884,6 +887,8 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
       goto err;
   }
 
+  if (param->set_all_read_bits)
+    sort_form->column_bitmaps_set(save_read_set, save_write_set);
   DEBUG_SYNC(thd, "after_index_merge_phase1");
 
   for (;;)
@@ -891,7 +896,11 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
     if (quick_select)
       error= select->quick->get_next();
     else					/* Not quick-select */
+    {
       error= file->ha_rnd_next(sort_form->record[0]);
+      if (param->unpack)
+        param->unpack(sort_form);
+    }
     if (unlikely(error))
       break;
     file->position(sort_form->record[0]);

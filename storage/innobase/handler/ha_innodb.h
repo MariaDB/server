@@ -51,12 +51,7 @@ struct ha_table_option_struct
 	uint		encryption;		/*!<  DEFAULT, ON, OFF */
 	ulonglong	encryption_key_id;	/*!< encryption key id  */
 };
-/* JAN: TODO: MySQL 5.7 handler.h */
-struct st_handler_tablename
-{
-  const char *db;
-  const char *tablename;
-};
+
 /** The class defining a handle to an Innodb table */
 class ha_innobase final : public handler
 {
@@ -460,6 +455,9 @@ protected:
 	@see build_template() */
 	void reset_template();
 
+	/** @return whether the table is read-only */
+	bool is_read_only() const;
+
 	inline void update_thd(THD* thd);
 	void update_thd();
 
@@ -528,12 +526,6 @@ the definitions are bracketed with #ifdef INNODB_COMPATIBILITY_HOOKS */
 #endif
 
 extern "C" {
-
-/** Check if a user thread is a replication slave thread
-@param thd user thread
-@retval 0 the user thread is not a replication slave thread
-@retval 1 the user thread is a replication slave thread */
-int thd_slave_thread(const MYSQL_THD thd);
 
 /** Check if a user thread is running a non-transactional update
 @param thd user thread

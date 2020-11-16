@@ -4038,6 +4038,8 @@ row_import_for_mysql(
 	Find the space ID in SYS_TABLES since this is an ALTER TABLE. */
 	dict_get_and_save_data_dir_path(table, true);
 
+	ut_ad(!DICT_TF_HAS_DATA_DIR(table->flags) || table->data_dir_path);
+
 	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 		ut_a(table->data_dir_path);
 
@@ -4069,7 +4071,7 @@ row_import_for_mysql(
 	ulint	fsp_flags = dict_tf_to_fsp_flags(table->flags);
 
 	table->space = fil_ibd_open(
-		true, true, FIL_TYPE_IMPORT, table->space_id,
+		true, FIL_TYPE_IMPORT, table->space_id,
 		fsp_flags, table->name, filepath, &err);
 
 	ut_ad((table->space == NULL) == (err != DB_SUCCESS));

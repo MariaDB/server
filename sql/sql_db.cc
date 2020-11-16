@@ -104,8 +104,137 @@ cmp_db_names(LEX_CSTRING *db1_name, const LEX_CSTRING *db2_name)
                          db1_name->str, db2_name->str) == 0));
 }
 
+#ifdef HAVE_PSI_INTERFACE
+static PSI_rwlock_key key_rwlock_LOCK_dboptions;
+static PSI_rwlock_key key_rwlock_LOCK_dbnames;
+static PSI_rwlock_key key_rwlock_LOCK_rmdir;
+
+static PSI_rwlock_info all_database_names_rwlocks[]= {
+    {&key_rwlock_LOCK_dboptions, "LOCK_dboptions", PSI_FLAG_GLOBAL},
+    {&key_rwlock_LOCK_dbnames, "LOCK_dbnames", PSI_FLAG_GLOBAL},
+    {&key_rwlock_LOCK_rmdir, "LOCK_rmdir",PSI_FLAG_GLOBAL},
+};
+
+static void init_database_names_psi_keys(void)
+{
+  const char *category= "sql";
+  int count;
+
+  if (PSI_server == NULL)
+    return;
+
+  count= array_elements(all_database_names_rwlocks);
+  PSI_server->register_rwlock(category, all_database_names_rwlocks, count);
+}
+#endif
+
+static mysql_rwlock_t rmdir_lock;
 
 /*
+  Cache of C strings for existing database names.
+
+  The only use of it is to avoid repeated expensive
+  my_access() calls.
+
+  Provided operations are lookup, insert (after successfull my_access())
+  and clear (this is called whenever rmdir is called).
+*/
+struct dbname_cache_t
+{
+private:
+  Hash_set<LEX_STRING> m_set;
+  mysql_rwlock_t m_lock;
+
+  static uchar *get_key(const LEX_STRING *ls, size_t *sz, my_bool)
+  {
+    *sz= ls->length;
+    return (uchar *) ls->str;
+  }
+
+public:
+  dbname_cache_t()
+      : m_set(key_memory_dbnames_cache, table_alias_charset, 10, 0,
+              sizeof(char *), (my_hash_get_key) get_key, my_free, 0)
+  {
+    mysql_rwlock_init(key_rwlock_LOCK_dbnames, &m_lock);
+  }
+
+  bool contains(const char *s)
+  {
+    auto sz= strlen(s);
+    mysql_rwlock_rdlock(&m_lock);
+    bool ret= m_set.find(s, sz) != 0;
+    mysql_rwlock_unlock(&m_lock);
+    return ret;
+  }
+
+  void insert(const char *s)
+  {
+    auto len= strlen(s);
+    auto ls= (LEX_STRING *) my_malloc(key_memory_dbnames_cache,
+                                      sizeof(LEX_STRING) + strlen(s) + 1, 0);
+
+    if (!ls)
+      return;
+
+    ls->length= len;
+    ls->str= (char *) (ls + 1);
+
+    memcpy(ls->str, s, len + 1);
+    mysql_rwlock_wrlock(&m_lock);
+    bool found= m_set.find(s, len) != 0;
+    if (!found)
+      m_set.insert(ls);
+    mysql_rwlock_unlock(&m_lock);
+    if (found)
+      my_free(ls);
+  }
+
+  void clear()
+  {
+    mysql_rwlock_wrlock(&m_lock);
+    m_set.clear();
+    mysql_rwlock_unlock(&m_lock);
+  }
+
+  ~dbname_cache_t()
+  {
+      mysql_rwlock_destroy(&m_lock);
+  }
+};
+
+static dbname_cache_t* dbname_cache;
+
+static void dbname_cache_init()
+{
+  static MY_ALIGNED(16) char buf[sizeof(dbname_cache_t)];
+  DBUG_ASSERT(!dbname_cache);
+  dbname_cache= new (buf) dbname_cache_t;
+  mysql_rwlock_init(key_rwlock_LOCK_rmdir, &rmdir_lock);
+}
+
+static void dbname_cache_destroy()
+{
+  if (!dbname_cache)
+    return;
+
+  dbname_cache->~dbname_cache_t();
+  dbname_cache= 0;
+  mysql_rwlock_destroy(&rmdir_lock);
+}
+
+static int my_rmdir(const char *dir)
+{
+  auto ret= rmdir(dir);
+  if (ret)
+    return ret;
+  mysql_rwlock_wrlock(&rmdir_lock);
+  dbname_cache->clear();
+  mysql_rwlock_unlock(&rmdir_lock);
+  return 0;
+}
+
+  /*
   Function we use in the creation of our hash to get key.
 */
 
@@ -131,7 +260,7 @@ static inline int write_to_binlog(THD *thd, const char *query, size_t q_len,
   qinfo.db= db;
   qinfo.db_len= (uint32)db_len;
   return mysql_bin_log.write(&qinfo);
-}  
+}
 
 
 /*
@@ -145,26 +274,7 @@ void free_dbopt(void *dbopt)
   my_free(dbopt);
 }
 
-#ifdef HAVE_PSI_INTERFACE
-static PSI_rwlock_key key_rwlock_LOCK_dboptions;
 
-static PSI_rwlock_info all_database_names_rwlocks[]=
-{
-  { &key_rwlock_LOCK_dboptions, "LOCK_dboptions", PSI_FLAG_GLOBAL}
-};
-
-static void init_database_names_psi_keys(void)
-{
-  const char* category= "sql";
-  int count;
-
-  if (PSI_server == NULL)
-    return;
-
-  count= array_elements(all_database_names_rwlocks);
-  PSI_server->register_rwlock(category, all_database_names_rwlocks, count);
-}
-#endif
 
 /**
   Initialize database option cache.
@@ -190,6 +300,7 @@ bool my_dboptions_cache_init(void)
                         table_alias_charset, 32, 0, 0, (my_hash_get_key)
                         dboptions_get_key, free_dbopt, 0);
   }
+  dbname_cache_init();
   return error;
 }
 
@@ -205,6 +316,7 @@ void my_dboptions_cache_free(void)
   {
     dboptions_init= 0;
     my_hash_free(&dboptions);
+    dbname_cache_destroy();
     mysql_rwlock_destroy(&LOCK_dboptions);
   }
 }
@@ -692,7 +804,7 @@ mysql_create_db_internal(THD *thd, const LEX_CSTRING *db,
       Restore things to beginning.
     */
     path[path_len]= 0;
-    if (rmdir(path) >= 0)
+    if (my_rmdir(path) >= 0)
       DBUG_RETURN(-1);
     /*
       We come here when we managed to create the database, but not the option
@@ -1252,7 +1364,7 @@ static my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error)
 
   if (pos > path && pos[-1] == FN_LIBCHAR)
     *--pos=0;
-  if (unlikely(rmdir(path) < 0 && send_error))
+  if (unlikely(my_rmdir(path) < 0 && send_error))
   {
     my_error(ER_DB_DROP_RMDIR, MYF(0), path, errno);
     DBUG_RETURN(1);
@@ -1824,7 +1936,7 @@ bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db)
     length= build_table_filename(path, sizeof(path)-1, new_db.str, "", "", 0);
     if (length && path[length-1] == FN_LIBCHAR)
       path[length-1]=0;                            // remove ending '\'
-    rmdir(path);
+    my_rmdir(path);
     goto exit;
   }
 
@@ -1919,10 +2031,14 @@ exit:
     TRUE    The directory does not exist.
 */
 
+
 bool check_db_dir_existence(const char *db_name)
 {
   char db_dir_path[FN_REFLEN + 1];
   uint db_dir_path_len;
+
+  if (dbname_cache->contains(db_name))
+    return 0;
 
   db_dir_path_len= build_table_filename(db_dir_path, sizeof(db_dir_path) - 1,
                                         db_name, "", "", 0);
@@ -1930,9 +2046,19 @@ bool check_db_dir_existence(const char *db_name)
   if (db_dir_path_len && db_dir_path[db_dir_path_len - 1] == FN_LIBCHAR)
     db_dir_path[db_dir_path_len - 1]= 0;
 
-  /* Check access. */
+  /*
+    Check access.
 
-  return my_access(db_dir_path, F_OK);
+    The locking is to prevent creating permanent stale
+    entries for deleted databases, in case of
+    race condition with my_rmdir.
+  */
+  mysql_rwlock_rdlock(&rmdir_lock);
+  int ret= my_access(db_dir_path, F_OK);
+  if (!ret)
+    dbname_cache->insert(db_name);
+  mysql_rwlock_unlock(&rmdir_lock);
+  return ret;
 }
 
 

@@ -127,7 +127,7 @@ ERROR HY000: Period `p` is not found in table
 create or replace table t(id int, s date, e date,
 period for p(s,e),
 primary key(id, s, p without overlaps));
-ERROR HY000: Key `(null)` cannot explicitly include column `s`
+ERROR HY000: Key `PRIMARY` cannot explicitly include column `s`
 create or replace table t(id int, s date, e date,
 period for p(s,e),
 primary key(id));
@@ -320,4 +320,34 @@ t1	CREATE TABLE `t1` (
  PARTITION `pn` CURRENT ENGINE = InnoDB)
 insert into t1 values (1,'2013-01-12','2015-11-04'),
 (2,'2016-03-15','2024-11-09');
+# MDEV-22714 Assertion `index->table->is_instant()' failed upon
+# multi-update on table with WITHOUT OVERLAPS
+create or replace table t (a int);
+insert into t values (0),(null),(0);
+create or replace table t1 (f int, s date, e date, period for p(s,e),
+unique(f, p without overlaps));
+insert into t1 values (0,'2026-02-12','2036-09-16'),
+(null,'2025-03-09','2032-12-05');
+update ignore t join t1 set f = a;
+# MDEV-22639  Assertion `inited != NONE' failed in
+# handler::ha_check_overlaps upon multi-table update
+create or replace table t (f int, s date, e date, period for p(s,e),
+unique(f, p without overlaps)) engine=myisam;
+insert into t values (1,'1988-08-25','2024-03-06');
+create or replace table t1 (a int) engine=myisam;
+insert into t1 values (1),(2);
+update t join t1 set s = '2020-01-01';
+# MDEV-22608 ASAN use-after-poison in TABLE::check_period_overlaps
+create or replace table t1 (s date, e date, b bit, period for p(s,e),
+unique(b, p without overlaps)) engine=myisam;
+insert into t1 values ('2024-12-21','2034-06-29',0),
+('2024-12-21','2034-06-29',1);
+update t1 set b = 1;
+ERROR 23000: Duplicate entry '\x01-2034-06-29-2024-12-21' for key 'b'
+# MDEV-22677 Server crashes in ha_partition::open upon update on
+# partitioned HEAP table with WITHOUT OVERLAPS
+create or replace table t (id int, s date, e date, period for p(s,e),
+primary key(id, p without overlaps)
+) engine=heap partition by hash(id);
+update t set id = 1;
 drop table t, t1;

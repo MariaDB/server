@@ -167,36 +167,12 @@ dict_foreigns_has_s_base_col(
 	const dict_foreign_set&	local_fk_set,
 	const dict_table_t*	table);
 
-/****************************************************************//**
-Creates the tablespaces and datafiles system tables inside InnoDB
-at server bootstrap or server start if they are not found or are
-not of the right form.
-@return DB_SUCCESS or error code */
-dberr_t
-dict_create_or_check_sys_tablespace(void);
-/*=====================================*/
 /** Creates the virtual column system tables inside InnoDB
 at server bootstrap or server start if they are not found or are
 not of the right form.
 @return DB_SUCCESS or error code */
 dberr_t
 dict_create_or_check_sys_virtual();
-
-/** Put a tablespace definition into the data dictionary,
-replacing what was there previously.
-@param[in]	space	Tablespace id
-@param[in]	name	Tablespace name
-@param[in]	flags	Tablespace flags
-@param[in]	path	Tablespace path
-@param[in]	trx	Transaction
-@return error code or DB_SUCCESS */
-dberr_t
-dict_replace_tablespace_in_dictionary(
-	ulint		space_id,
-	const char*	name,
-	ulint		flags,
-	const char*	path,
-	trx_t*		trx);
 
 /********************************************************************//**
 Add a foreign key definition to the data dictionary tables.

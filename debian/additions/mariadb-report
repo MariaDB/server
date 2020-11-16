@@ -142,7 +142,6 @@ my $have_innodb_vals = 1; # This might be set to 0 later in get_MySQL_version()
 my $have_aria_vals = 0;
 my $have_subquerycache_vals = 0;
 my $have_binlog_vals = 0;
-my $have_tokudb_engine = 0;
 my $use_thread_pool = 0;
 
 if(defined $op{'r'})
@@ -690,15 +689,6 @@ sub get_MySQL_version
       } else {
          $have_binlog_vals = 0;
       }
-
-      $have_tokudb_engine = $dbh->selectall_arrayref("SELECT SUPPORT FROM information_schema.engines WHERE ENGINE = 'TokuDB';", undef)->[0][0];
-      if(defined($have_tokudb_engine) && ($have_tokudb_engine eq "YES" || $have_tokudb_engine eq "DEFAULT"))
-      {
-         print "TokuDB detected\n" if $op{debug};
-         $have_tokudb_engine = 1;
-      } else {
-         $have_tokudb_engine = 0;
-      }
    }
 }
 
@@ -903,7 +893,6 @@ sub write_report
    write_Aria() if $have_aria_vals;
    write_Subquerycache() if $have_subquerycache_vals;
    write_Binlog() if $have_binlog_vals;
-   write_TokuDB() if $have_tokudb_engine;
 }
 
 sub sec_to_dhms # Seconds to days+hours:minutes:seconds
@@ -1172,16 +1161,6 @@ sub write_Binlog
 
    return if $binlog_cache_ratio == 0 && $binlog_stmt_cache_ratio == 0;
    $~ = 'BINLOG';
-   write;
-}
-
-sub write_TokuDB
-{
-   print "write_TokuDB\n" if $op{debug};
-
-   return if $stats{'Tokudb_cachetable_size_current'} == 0;
-
-   $~ = 'TOKUDB';
    write;
 }
 
@@ -1572,17 +1551,6 @@ Disk use
 perc($binlog_cache_ratio)
   Non transactional	@>>>>>%
 perc($binlog_stmt_cache_ratio)
-.
-
-format TOKUDB =
-
-__ TokuDB ______________________________________________________________
-Cachetable    @>>>>>> of  @>>>>>>  %Usage: @>>>>>
-make_short($stats{Tokudb_cachetable_size_current}, 1), make_short($vars{tokudb_cache_size}, 1), perc($stats{Tokudb_cachetable_size_current}, $vars{tokudb_cache_size})
-  Miss        @>>>>>>    @>>>>>/s
-make_short($stats{'Tokudb_cachetable_miss'}), t($stats{'Tokudb_cachetable_miss'})
-  Evictions   @>>>>>>    @>>>>>/s
-make_short($stats{'Tokudb_cachetable_evictions'}), t($stats{'Tokudb_cachetable_evictions'})
 .
 
 format ROWS =

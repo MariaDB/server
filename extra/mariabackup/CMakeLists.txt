@@ -46,12 +46,6 @@ ADD_DEFINITIONS(-UMYSQL_SERVER)
 # xtrabackup binary
 ########################################################################
 
-IF(WIN32)
-  SET(NT_SERVICE_SOURCE ${PROJECT_SOURCE_DIR}/sql/nt_servc.cc)
-ELSE()
-  SET(NT_SERVICE_SOURCE)
-ENDIF()
-
 ADD_DEFINITIONS(-DPCRE_STATIC=1)
 ADD_DEFINITIONS(${SSL_DEFINES})
 MYSQL_ADD_EXECUTABLE(mariadb-backup
@@ -76,7 +70,6 @@ MYSQL_ADD_EXECUTABLE(mariadb-backup
   encryption_plugin.cc
   ${PROJECT_BINARY_DIR}/sql/sql_builtin.cc
   ${PROJECT_SOURCE_DIR}/sql/net_serv.cc
-  ${NT_SERVICE_SOURCE}
   ${PROJECT_SOURCE_DIR}/libmysqld/libmysql.c
   COMPONENT backup
   )

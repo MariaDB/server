@@ -24,6 +24,10 @@ SELECT * FROM information_schema.innodb_cmp_per_index_reset;
 # see that the table is empty
 SELECT * FROM information_schema.innodb_cmp_per_index;
 
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 # create a table that uses compression
 CREATE TABLE t (
 	a INT,
@@ -57,6 +61,9 @@ while ($i)
 COMMIT;
 
 ALTER TABLE t DROP INDEX c;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log
 
 GRANT USAGE ON *.* TO 'tuser01'@'localhost' IDENTIFIED BY 'cDJvI9s_Uq';
 FLUSH PRIVILEGES;

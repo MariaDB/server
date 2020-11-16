@@ -834,7 +834,6 @@ typedef struct system_status_var
   ulong com_create_tmp_table;
   ulong com_drop_tmp_table;
   ulong com_other;
-  ulong com_multi;
 
   ulong com_stmt_prepare;
   ulong com_stmt_reprepare;
@@ -3448,7 +3447,7 @@ public:
   void awake_no_mutex(killed_state state_to_set);
   void awake(killed_state state_to_set)
   {
-    bool wsrep_on_local= WSREP_NNULL(this);
+    bool wsrep_on_local= variables.wsrep_on;
     /*
       mutex locking order (LOCK_thd_data - LOCK_thd_kill)) requires
       to grab LOCK_thd_data here
@@ -6942,10 +6941,6 @@ public:
 #define CF_SKIP_WSREP_CHECK     0
 #endif /* WITH_WSREP */
 
-/**
-  Do not allow it for COM_MULTI batch
-*/
-#define CF_NO_COM_MULTI         (1U << 3)
 
 /* Inline functions */
 

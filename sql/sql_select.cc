@@ -3867,6 +3867,16 @@ JOIN::add_sorting_to_table(JOIN_TAB *tab, ORDER *order)
                                  tab->select);
   if (!tab->filesort)
     return true;
+
+  TABLE *table= tab->table;
+  if ((tab == join_tab + const_tables) &&
+       table->pos_in_table_list &&
+       table->pos_in_table_list->is_sjm_scan_table())
+  {
+    tab->filesort->set_all_read_bits= TRUE;
+    tab->filesort->unpack= unpack_to_base_table_fields;
+  }
+
   /*
     Select was moved to filesort->select to force join_init_read_record to use
     sorted result instead of reading table through select.
@@ -13768,6 +13778,9 @@ void JOIN::join_free()
   for (tmp_unit= select_lex->first_inner_unit();
        tmp_unit;
        tmp_unit= tmp_unit->next_unit())
+  {
+    if (tmp_unit->with_element && tmp_unit->with_element->is_recursive)
+      continue;
     for (sl= tmp_unit->first_select(); sl; sl= sl->next_select())
     {
       Item_subselect *subselect= sl->master_unit()->item;
@@ -13785,7 +13798,7 @@ void JOIN::join_free()
       /* Can't unlock if at least one JOIN is still needed */
       can_unlock= can_unlock && full_local;
     }
-
+  }
   /*
     We are not using tables anymore
     Unlock all tables. We may be in an INSERT .... SELECT statement.
@@ -14233,37 +14246,8 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
             can be used without tmp. table.
           */
           bool can_subst_to_first_table= false;
-          bool first_is_in_sjm_nest= false;
-          if (first_is_base_table)
-          {
-            TABLE_LIST *tbl_for_first=
-              join->join_tab[join->const_tables].table->pos_in_table_list;
-            first_is_in_sjm_nest= tbl_for_first->sj_mat_info &&
-                                  tbl_for_first->sj_mat_info->is_used;
-          }
-          /*
-            Currently we do not employ the optimization that uses multiple
-            equalities for ORDER BY to remove tmp table in the case when
-            the first table happens to be the result of materialization of
-            a semi-join nest ( <=> first_is_in_sjm_nest == true).
-
-            When a semi-join nest is materialized and scanned to look for
-            possible matches in the remaining tables for every its row
-            the fields from the result of materialization are copied
-            into the record buffers of tables from the semi-join nest.
-            So these copies are used to access the remaining tables rather
-            than the fields from the result of materialization.
-
-            Unfortunately now this so-called 'copy back' technique is
-            supported only if the rows  are scanned with the rr_sequential
-            function, but not with other rr_* functions that are employed
-            when the result of materialization is required to be sorted.
-
-            TODO: either to support 'copy back' technique for the above case,
-                  or to get rid of this technique altogether.
-          */
           if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_ORDERBY_EQ_PROP) &&
-              first_is_base_table && !first_is_in_sjm_nest &&
+              first_is_base_table &&
               order->item[0]->real_item()->type() == Item::FIELD_ITEM &&
               join->cond_equal)
           {
@@ -20222,19 +20206,6 @@ do_select(JOIN *join, Procedure *procedure)
 }
 
 
-int rr_sequential_and_unpack(READ_RECORD *info)
-{
-  int error;
-  if (unlikely((error= rr_sequential(info))))
-    return error;
-  
-  for (Copy_field *cp= info->copy_field; cp != info->copy_field_end; cp++)
-    (*cp->do_copy)(cp);
-
-  return error;
-}
-
-
 /**
   @brief
   Instantiates temporary table
@@ -21530,12 +21501,20 @@ bool test_if_use_dynamic_range_scan(JOIN_TAB *join_tab)
 
 int join_init_read_record(JOIN_TAB *tab)
 {
+  bool need_unpacking= FALSE;
+  JOIN *join= tab->join;
   /* 
     Note: the query plan tree for the below operations is constructed in
     save_agg_explain_data.
   */
   if (tab->distinct && tab->remove_duplicates())  // Remove duplicates.
     return 1;
+
+  if (join->top_join_tab_count != join->const_tables)
+  {
+    TABLE_LIST *tbl= tab->table->pos_in_table_list;
+    need_unpacking= tbl ? tbl->is_sjm_scan_table() : FALSE;
+  }
 
   tab->build_range_rowid_filter_if_needed();
 
@@ -21544,6 +21523,11 @@ int join_init_read_record(JOIN_TAB *tab)
 
   DBUG_EXECUTE_IF("kill_join_init_read_record",
                   tab->join->thd->set_killed(KILL_QUERY););
+
+
+  if (!tab->preread_init_done  && tab->preread_init())
+    return 1;
+
   if (tab->select && tab->select->quick && tab->select->quick->reset())
   {
     /* Ensures error status is propagated back to client */
@@ -21554,19 +21538,7 @@ int join_init_read_record(JOIN_TAB *tab)
   /* make sure we won't get ER_QUERY_INTERRUPTED from any code below */
   DBUG_EXECUTE_IF("kill_join_init_read_record",
                   tab->join->thd->reset_killed(););
-  if (!tab->preread_init_done  && tab->preread_init())
-    return 1;
 
-
-  if (init_read_record(&tab->read_record, tab->join->thd, tab->table,
-                       tab->select, tab->filesort_result, 1,1, FALSE))
-    return 1;
-  return tab->read_record.read_record();
-}
-
-int
-join_read_record_no_init(JOIN_TAB *tab)
-{
   Copy_field *save_copy, *save_copy_end;
   
   /*
@@ -21576,12 +21548,19 @@ join_read_record_no_init(JOIN_TAB *tab)
   save_copy=     tab->read_record.copy_field;
   save_copy_end= tab->read_record.copy_field_end;
   
-  init_read_record(&tab->read_record, tab->join->thd, tab->table,
-		   tab->select, tab->filesort_result, 1, 1, FALSE);
+  if (init_read_record(&tab->read_record, tab->join->thd, tab->table,
+                       tab->select, tab->filesort_result, 1, 1, FALSE))
+    return 1;
 
   tab->read_record.copy_field=     save_copy;
   tab->read_record.copy_field_end= save_copy_end;
-  tab->read_record.read_record_func= rr_sequential_and_unpack;
+
+  if (need_unpacking)
+  {
+    tab->read_record.read_record_func_and_unpack_calls=
+                                             tab->read_record.read_record_func;
+    tab->read_record.read_record_func = read_record_func_for_rr_and_unpack;
+  }
 
   return tab->read_record.read_record();
 }
@@ -27984,10 +27963,10 @@ JOIN::reoptimize(Item *added_where, table_map join_tables,
   if (save_to)
   {
     DBUG_ASSERT(!keyuse.elements);
-    memcpy(keyuse.buffer,
-           save_to->keyuse.buffer,
-           (size_t) save_to->keyuse.elements * keyuse.size_of_element);
     keyuse.elements= save_to->keyuse.elements;
+    if (size_t e= keyuse.elements)
+      memcpy(keyuse.buffer,
+             save_to->keyuse.buffer, e * keyuse.size_of_element);
   }
 
   /* Add the new access methods to the keyuse array. */
@@ -29456,6 +29435,20 @@ void JOIN::init_join_cache_and_keyread()
     else
       tab->remove_redundant_bnl_scan_conds();
   }
+}
+
+
+/*
+  @brief
+    Unpack temp table fields to base table fields.
+*/
+
+void unpack_to_base_table_fields(TABLE *table)
+{
+  JOIN_TAB *tab= table->reginfo.join_tab;
+  for (Copy_field *cp= tab->read_record.copy_field;
+       cp != tab->read_record.copy_field_end; cp++)
+    (*cp->do_copy)(cp);
 }
 
 

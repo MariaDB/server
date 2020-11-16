@@ -35,6 +35,10 @@ DROP TABLE t1;
 --echo # BTR_COPY_BLOB_PREFIX
 --echo #
 
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 CREATE TABLE t1(f1 INT PRIMARY KEY, f3 LINESTRING NOT NULL,
 	  	SPATIAL KEY(f3))ENGINE=InnoDB ROW_FORMAT=COMPRESSED
 		KEY_BLOCK_SIZE=1;
@@ -58,5 +62,7 @@ let $linestr = $linestr 9999 9999);
 --eval INSERT INTO t1 VALUES (1, ST_linefromtext(concat('linestring', '$linestr')));
 
 ALTER TABLE t1 ROW_FORMAT = DYNAMIC, KEY_BLOCK_SIZE=0, ALGORITHM=INPLACE;
-
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log
 DROP TABLE t1;

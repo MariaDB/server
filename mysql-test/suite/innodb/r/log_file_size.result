@@ -1,9 +1,9 @@
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
-# restart: --innodb-thread-concurrency=1 --innodb-log-file-size=2m
+# restart: --innodb-log-file-size=2m
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
-# restart: --innodb-thread-concurrency=100 --innodb-log-file-size=20M
+# restart: --innodb-log-file-size=20M
 BEGIN;
 INSERT INTO t1 VALUES (42);
 # restart: --innodb-log-file-size=12M

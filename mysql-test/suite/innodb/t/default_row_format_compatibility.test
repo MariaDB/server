@@ -147,14 +147,22 @@ SHOW TABLE STATUS LIKE 'tab';
 # Check by SELECT, no errors
 SELECT * FROM tab;
 
-# Check no errors
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=ON;
+
+--error ER_UNSUPPORTED_COMPRESSED_TABLE
 ALTER TABLE tab ROW_FORMAT=COMPRESSED;
+SET GLOBAL innodb_read_only_compressed=OFF;
+ALTER TABLE tab ROW_FORMAT=COMPRESSED;
+SET GLOBAL innodb_read_only_compressed=ON;
 
 # Check by SELECT, no errors
 SELECT * FROM tab;
 
-# Check no errors
 ALTER TABLE tab ROW_FORMAT=Dynamic;
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+
+# Check no errors
 --replace_column 3 # 5 # 6 # 7 # 8 # 9 # 10 # 12 #
 SHOW TABLE STATUS LIKE 'tab';
 

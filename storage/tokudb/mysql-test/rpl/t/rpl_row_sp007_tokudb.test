@@ -1,3 +1,0 @@
--- source include/have_tokudb.inc
-let $engine_type=TokuDB;
--- source suite/rpl/include/rpl_row_sp007.test

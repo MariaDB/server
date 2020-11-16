@@ -1,9 +1,15 @@
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
 SELECT @@global.innodb_buffer_pool_evict;
 @@global.innodb_buffer_pool_evict
 
+SET GLOBAL innodb_read_only_compressed=ON;
+CREATE TABLE t(a INT) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+SET GLOBAL innodb_read_only_compressed=OFF;
 CREATE TABLE t(a INT) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
 SET GLOBAL innodb_buffer_pool_evict = 'uncompressed';
 SELECT @@global.innodb_buffer_pool_evict;
 @@global.innodb_buffer_pool_evict
 
 DROP TABLE t;
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;

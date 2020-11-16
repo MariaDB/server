@@ -210,7 +210,10 @@ SELECT * FROM t1;
 DROP TABLE t1;
 --echo # End of 10.3 tests
 
-
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 create table t (
   a varchar(9),
   b int,
@@ -225,6 +228,9 @@ alter table t modify a varchar(10), algorithm=instant;
 alter table t change b bb int, algorithm=instant;
 alter table t modify c int without system versioning, algorithm=instant;
 set @@system_versioning_alter_history = error;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log
 check table t;
 drop table t;
 
@@ -453,5 +459,18 @@ update t1 set col_text= 'd';
 select * from t1;
 check table t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-24072 Assertion 'ib_table.n_v_cols' failed
+--echo # in instant_alter_column_possible()
+--echo #
+CREATE TABLE t (a BLOB) ENGINE=InnoDB;
+INSERT INTO t VALUES ('a');
+--error ER_TRUNCATED_WRONG_VALUE
+ALTER TABLE t ADD c INT GENERATED ALWAYS AS (a+1) VIRTUAL, ADD KEY(c);
+--enable_info
+ALTER TABLE t ADD d INT;
+--disable_info
+DROP TABLE t;
 
 SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;

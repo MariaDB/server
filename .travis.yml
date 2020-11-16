@@ -213,8 +213,7 @@ before_script:
 script:
 # following modules are disabled after sourcing .travis.compiler.sh:
 # clang disabled: mroonga just generates too many warnings with clang and travis stops the job
-# cland disabled: tokudb has fatal warnings
-# gcc/rpl: tokudb and mroonga
+# gcc/rpl: mroonga
   - source .travis.compiler.sh
   - cmake .
            -DCMAKE_BUILD_TYPE=${TYPE}

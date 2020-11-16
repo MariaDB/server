@@ -91,8 +91,7 @@ bool is_log_table_write_query(enum enum_sql_command command);
 bool alloc_query(THD *thd, const char *packet, size_t packet_length);
 void mysql_init_select(LEX *lex);
 void mysql_parse(THD *thd, char *rawbuf, uint length,
-                 Parser_state *parser_state, bool is_com_multi,
-                 bool is_next_command);
+                 Parser_state *parser_state);
 bool mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *sel);
 void create_select_for_variable(THD *thd, LEX_CSTRING *var_name);
 void create_table_set_open_action_and_adjust_tables(LEX *lex);
@@ -103,8 +102,7 @@ int bootstrap(MYSQL_FILE *file);
 int mysql_execute_command(THD *thd);
 bool do_command(THD *thd);
 bool dispatch_command(enum enum_server_command command, THD *thd,
-		      char* packet, uint packet_length,
-                      bool is_com_multi, bool is_next_command);
+		      char* packet, uint packet_length);
 void log_slow_statement(THD *thd);
 bool append_file_to_dir(THD *thd, const char **filename_ptr,
                         const LEX_CSTRING *table_name);

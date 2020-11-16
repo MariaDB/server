@@ -6,6 +6,10 @@
 # zlib
 set global innodb_compression_algorithm = 1;
 
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
+
 create table innodb_compressed(c1 int, b char(20)) engine=innodb row_format=compressed key_block_size=8;
 show warnings;
 create table innodb_normal (c1 int, b char(20)) engine=innodb;

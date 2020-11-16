@@ -7,6 +7,7 @@ innodb_stats_persistent=ON
 innodb_stats_auto_recalc=ON
 innodb_stats_persistent_sample_pages=20
 innodb_stats_transient_sample_pages=8
+skip-innodb-read-only-compressed
 
 [mysqld.2]
 secure-file-priv = ""
@@ -15,3 +16,4 @@ innodb_stats_persistent=ON
 innodb_stats_auto_recalc=ON
 innodb_stats_persistent_sample_pages=20
 innodb_stats_transient_sample_pages=8
+skip-innodb-read-only-compressed

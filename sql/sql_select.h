@@ -223,7 +223,7 @@ typedef enum_nested_loop_state
 (*Next_select_func)(JOIN *, struct st_join_table *, bool);
 Next_select_func setup_end_select_func(JOIN *join, JOIN_TAB *tab);
 int rr_sequential(READ_RECORD *info);
-int rr_sequential_and_unpack(READ_RECORD *info);
+int read_record_func_for_rr_and_unpack(READ_RECORD *info);
 Item *remove_pushed_top_conjuncts(THD *thd, Item *cond);
 Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
                                            COND_EQUAL **cond_eq,
@@ -2360,7 +2360,6 @@ create_virtual_tmp_table(THD *thd, Field *field)
 
 int test_if_item_cache_changed(List<Cached_item> &list);
 int join_init_read_record(JOIN_TAB *tab);
-int join_read_record_no_init(JOIN_TAB *tab);
 void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key);
 inline Item * and_items(THD *thd, Item* cond, Item *item)
 {
@@ -2418,6 +2417,7 @@ int print_explain_message_line(select_result_sink *result,
 void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res);
 int append_possible_keys(MEM_ROOT *alloc, String_list &list, TABLE *table, 
                          key_map possible_keys);
+void unpack_to_base_table_fields(TABLE *table);
 
 /****************************************************************************
   Temporary table support for SQL Runtime

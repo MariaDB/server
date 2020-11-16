@@ -26,7 +26,6 @@
 #include <handle_connections_win.h>
 
 /* From mysqld.cc */
-extern HANDLE hEventShutdown;
 extern MYSQL_SOCKET base_ip_sock, extra_ip_sock;
 #ifdef HAVE_POOL_OF_THREADS
 extern PTP_CALLBACK_ENVIRON get_threadpool_win_callback_environ();
@@ -510,6 +509,18 @@ struct Pipe_Listener : public Listener
   }
 };
 
+ /* The shutdown event, which is set whenever*/
+static void create_shutdown_event()
+{
+  char shutdown_event_name[40];
+  sprintf_s(shutdown_event_name, "MySQLShutdown%u", GetCurrentProcessId());
+  if (!(hEventShutdown= CreateEvent(0, FALSE, FALSE, shutdown_event_name)))
+  {
+    sql_print_error("Can't create shutdown event, Windows error %u", GetLastError());
+    unireg_abort(1);
+  }
+}
+
 /**
   Accept new client connections on Windows.
 
@@ -572,9 +583,9 @@ void network_init_win()
 
 void handle_connections_win()
 {
-  DBUG_ASSERT(hEventShutdown);
   int n_waits;
 
+  create_shutdown_event();
   wait_events[SHUTDOWN_IDX]= hEventShutdown;
   n_waits= 1;
 
@@ -589,6 +600,8 @@ void handle_connections_win()
     all_listeners[i]->begin_accept();
   }
 
+  mysqld_win_set_startup_complete();
+
   for (;;)
   {
     DWORD idx = WaitForMultipleObjects(n_waits ,wait_events, FALSE, INFINITE);
@@ -599,6 +612,8 @@ void handle_connections_win()
 
     all_listeners[idx - LISTENER_START_IDX]->completion_callback();
   }
+
+  mysqld_win_initiate_shutdown();
 
   /* Cleanup */
   for (int i= 0; i < n_listeners; i++)

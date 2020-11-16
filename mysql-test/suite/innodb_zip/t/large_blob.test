@@ -81,6 +81,10 @@ INSERT INTO t1 VALUES (1, '');
 UPDATE t1 SET c2=@longblob;
 DROP TABLE t1;
 
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 --echo #
 --echo # Separate tablespace, Row Format = Compressed, Key Block Size = 2k
 --echo #
@@ -103,6 +107,9 @@ CREATE TABLE t1 (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 KEY_BLOCK_SIZE=1;
 INSERT INTO t1 VALUES (1, '');
 UPDATE t1 SET c2=@longblob;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log
 DROP TABLE t1;
 
 --echo #

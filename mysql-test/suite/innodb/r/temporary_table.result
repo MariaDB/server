@@ -164,11 +164,11 @@ ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 create temporary table t (
 i int)
 engine = innodb row_format = compressed;
-ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 create temporary table t (
 i int)
 engine = innodb row_format = compressed key_block_size = 8;
-ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 create temporary table t (
 i int)
 engine = innodb row_format = dynamic;
@@ -201,7 +201,7 @@ drop table t;
 create temporary table t (
 i int)
 engine = innodb row_format = compressed;
-ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 #files in MYSQL_TMP_DIR, expecting only default temporary tablespace file
 ibtmp1
 create temporary table t (
@@ -473,19 +473,19 @@ CREATE TEMPORARY TABLE t1 (
 i INT NOT NULL PRIMARY KEY,
 c CHAR(10) NOT NULL
 ) ENGINE = InnoDB KEY_BLOCK_SIZE = 4;
-ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 SHOW WARNINGS;
 Level	Code	Message
-Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Error	4047	InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 CREATE TEMPORARY TABLE t1 (
 i INT NOT NULL PRIMARY KEY,
 c CHAR(10) NOT NULL
 ) ENGINE = InnoDB KEY_BLOCK_SIZE = 4, ROW_FORMAT = COMPACT;
-ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 SHOW WARNINGS;
 Level	Code	Message
-Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Error	4047	InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 CREATE TEMPORARY TABLE t1 (
 i INT NOT NULL PRIMARY KEY,
@@ -505,37 +505,37 @@ CREATE TEMPORARY TABLE t1 (
 i INT NOT NULL PRIMARY KEY,
 c CHAR(10) NOT NULL
 ) ENGINE = InnoDB KEY_BLOCK_SIZE = 4;
-ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 SHOW WARNINGS;
 Level	Code	Message
-Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Error	4047	InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 CREATE TEMPORARY TABLE t1 (
 i INT NOT NULL PRIMARY KEY,
 c CHAR(10) NOT NULL
 ) ENGINE = InnoDB ROW_FORMAT = COMPRESSED;
-ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 SHOW WARNINGS;
 Level	Code	Message
-Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Error	4047	InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 CREATE TEMPORARY TABLE t1 (
 i INT NOT NULL PRIMARY KEY,
 c CHAR(10) NOT NULL
 ) ENGINE = InnoDB ROW_FORMAT = COMPRESSED KEY_BLOCK_SIZE = 8;
-ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 SHOW WARNINGS;
 Level	Code	Message
-Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Error	4047	InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 CREATE TEMPORARY TABLE t1 (
 i INT NOT NULL PRIMARY KEY,
 c CHAR(10) NOT NULL
 ) ENGINE = InnoDB ROW_FORMAT = COMPRESSED KEY_BLOCK_SIZE = 7;
-ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 SHOW WARNINGS;
 Level	Code	Message
-Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Error	4047	InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 CREATE TEMPORARY TABLE t1 (
 i INT NOT NULL PRIMARY KEY,
@@ -555,22 +555,22 @@ CREATE TEMPORARY TABLE t1 (
 i INT NOT NULL PRIMARY KEY
 ) ENGINE = InnoDB ROW_FORMAT = REDUNDANT;
 ALTER TABLE t1 ROW_FORMAT = COMPRESSED;
-ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 SHOW WARNINGS;
 Level	Code	Message
-Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Error	4047	InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 ALTER TABLE t1 KEY_BLOCK_SIZE = 4;
-ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 SHOW WARNINGS;
 Level	Code	Message
-Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Error	4047	InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 ALTER TABLE t1 ROW_FORMAT = DYNAMIC KEY_BLOCK_SIZE = 4;
-ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 SHOW WARNINGS;
 Level	Code	Message
-Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Error	4047	InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 ALTER TABLE t1 ROW_FORMAT = DYNAMIC;
 set innodb_strict_mode = OFF;
@@ -613,10 +613,10 @@ Warning	1478	InnoDB: ROW_FORMAT=COMPRESSED is ignored for TEMPORARY TABLE.
 Warning	1478	InnoDB: assuming ROW_FORMAT=DYNAMIC.
 set innodb_strict_mode = ON;
 ALTER TABLE t1 ADD COLUMN j INT;
-ERROR HY000: CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+ERROR HY000: InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 SHOW WARNINGS;
 Level	Code	Message
-Error	4047	CREATE TEMPORARY TABLE is not allowed with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
+Error	4047	InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 SHOW CREATE TABLE t1;
 Table	Create Table

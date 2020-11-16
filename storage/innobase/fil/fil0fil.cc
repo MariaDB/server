@@ -2477,7 +2477,6 @@ If the fix_dict boolean is set, then it is safe to use an internal SQL
 statement to update the dictionary tables if they are incorrect.
 
 @param[in]	validate	true if we should validate the tablespace
-@param[in]	fix_dict	true if the dictionary is available to be fixed
 @param[in]	purpose		FIL_TYPE_TABLESPACE or FIL_TYPE_TEMPORARY
 @param[in]	id		tablespace ID
 @param[in]	flags		expected FSP_SPACE_FLAGS
@@ -2490,7 +2489,6 @@ If file-per-table, it is the table name in the databasename/tablename format
 fil_space_t*
 fil_ibd_open(
 	bool			validate,
-	bool			fix_dict,
 	fil_type_t		purpose,
 	ulint			id,
 	ulint			flags,
@@ -2522,20 +2520,10 @@ fil_ibd_open(
 	}
 	mutex_exit(&fil_system.mutex);
 
-	bool		dict_filepath_same_as_default = false;
-	bool		link_file_found = false;
-	bool		link_file_is_bad = false;
 	Datafile	df_default;	/* default location */
-	Datafile	df_dict;	/* dictionary location */
 	RemoteDatafile	df_remote;	/* remote location */
 	ulint		tablespaces_found = 0;
 	ulint		valid_tablespaces_found = 0;
-
-	if (fix_dict) {
-		ut_d(dict_sys.assert_locked());
-		ut_ad(!srv_read_only_mode);
-		ut_ad(srv_log_file_size != 0);
-	}
 
 	/* Table flags can be ULINT_UNDEFINED if
 	dict_tf_to_fsp_flags_failure is set. */
@@ -2547,7 +2535,6 @@ corrupted:
 
 	ut_ad(fil_space_t::is_valid_flags(flags & ~FSP_FLAGS_MEM_MASK, id));
 	df_default.init(tablename.m_name, flags);
-	df_dict.init(tablename.m_name, flags);
 	df_remote.init(tablename.m_name, flags);
 
 	/* Discover the correct file by looking in three possible locations
@@ -2564,7 +2551,6 @@ corrupted:
 		/* Always validate a file opened from an ISL pointer */
 		validate = true;
 		++tablespaces_found;
-		link_file_found = true;
 	} else if (df_remote.filepath() != NULL) {
 		/* An ISL file was found but contained a bad filepath in it.
 		Better validate anything we do find. */
@@ -2573,17 +2559,10 @@ corrupted:
 
 	/* Attempt to open the tablespace at the dictionary filepath. */
 	if (path_in) {
-		if (df_default.same_filepath_as(path_in)) {
-			dict_filepath_same_as_default = true;
-		} else {
+		if (!df_default.same_filepath_as(path_in)) {
 			/* Dict path is not the default path. Always validate
 			remote files. If default is opened, it was moved. */
 			validate = true;
-			df_dict.set_filepath(path_in);
-			if (df_dict.open_read_only(true) == DB_SUCCESS) {
-				ut_ad(df_dict.is_open());
-				++tablespaces_found;
-			}
 		}
 	}
 
@@ -2604,14 +2583,6 @@ corrupted:
 		df_remote.delete_link_file();
 		df_remote.close();
 	}
-	if (tablespaces_found > 1 && df_default.same_as(df_dict)) {
-		--tablespaces_found;
-		df_dict.close();
-	}
-	if (tablespaces_found > 1 && df_remote.same_as(df_dict)) {
-		--tablespaces_found;
-		df_dict.close();
-	}
 
 	/*  We have now checked all possible tablespace locations and
 	have a count of how many unique files we found.  If things are
@@ -2629,9 +2600,6 @@ corrupted:
 
 	valid_tablespaces_found +=
 		(df_default.validate_to_dd(id, flags) == DB_SUCCESS);
-
-	valid_tablespaces_found +=
-		(df_dict.validate_to_dd(id, flags) == DB_SUCCESS);
 
 	/* Make sense of these three possible locations.
 	First, bail out if no tablespace files were found. */
@@ -2663,12 +2631,6 @@ corrupted:
 				<< ", Space ID=" << df_remote.space_id()
 				<< ", Flags=" << df_remote.flags();
 		}
-		if (df_dict.is_open()) {
-			ib::error() << "Dictionary location: "
-				<< df_dict.filepath()
-				<< ", Space ID=" << df_dict.space_id()
-				<< ", Flags=" << df_dict.flags();
-		}
 
 		/* Force-recovery will allow some tablespaces to be
 		skipped by REDO if there was more than one file found.
@@ -2683,13 +2645,11 @@ corrupted:
 
 			/* If the file is not open it cannot be valid. */
 			ut_ad(df_default.is_open() || !df_default.is_valid());
-			ut_ad(df_dict.is_open()    || !df_dict.is_valid());
 			ut_ad(df_remote.is_open()  || !df_remote.is_valid());
 
 			/* Having established that, this is an easy way to
 			look for corrupted data files. */
 			if (df_default.is_open() != df_default.is_valid()
-			    || df_dict.is_open() != df_dict.is_valid()
 			    || df_remote.is_open() != df_remote.is_valid()) {
 				goto corrupted;
 			}
@@ -2706,17 +2666,9 @@ error:
 			tablespaces_found--;
 		}
 
-		if (df_dict.is_open() && !df_dict.is_valid()) {
-			df_dict.close();
-			/* Leave dict.filepath so that SYS_DATAFILES
-			can be corrected below. */
-			tablespaces_found--;
-		}
-
 		if (df_remote.is_open() && !df_remote.is_valid()) {
 			df_remote.close();
 			tablespaces_found--;
-			link_file_is_bad = true;
 		}
 	}
 
@@ -2724,78 +2676,9 @@ error:
 	ut_a(tablespaces_found == 1);
 	ut_a(valid_tablespaces_found == 1);
 
-	/* Only fix the dictionary at startup when there is only one thread.
-	Calls to dict_load_table() can be done while holding other latches. */
-	if (!fix_dict) {
-		goto skip_validate;
-	}
-
-	/* We may need to update what is stored in SYS_DATAFILES or
-	SYS_TABLESPACES or adjust the link file.  Since a failure to
-	update SYS_TABLESPACES or SYS_DATAFILES does not prevent opening
-	and using the tablespace either this time or the next, we do not
-	check the return code or fail to open the tablespace. But if it
-	fails, dict_update_filepath() will issue a warning to the log. */
-	if (df_dict.filepath()) {
-		ut_ad(path_in != NULL);
-		ut_ad(df_dict.same_filepath_as(path_in));
-
-		if (df_remote.is_open()) {
-			if (!df_remote.same_filepath_as(path_in)) {
-				dict_update_filepath(id, df_remote.filepath());
-			}
-
-		} else if (df_default.is_open()) {
-			ut_ad(!dict_filepath_same_as_default);
-			dict_update_filepath(id, df_default.filepath());
-			if (link_file_is_bad) {
-				RemoteDatafile::delete_link_file(
-					tablename.m_name);
-			}
-
-		} else if (!link_file_found || link_file_is_bad) {
-			ut_ad(df_dict.is_open());
-			/* Fix the link file if we got our filepath
-			from the dictionary but a link file did not
-			exist or it did not point to a valid file. */
-			RemoteDatafile::delete_link_file(tablename.m_name);
-			RemoteDatafile::create_link_file(
-				tablename.m_name, df_dict.filepath());
-		}
-
-	} else if (df_remote.is_open()) {
-		if (dict_filepath_same_as_default) {
-			dict_update_filepath(id, df_remote.filepath());
-
-		} else if (path_in == NULL) {
-			/* SYS_DATAFILES record for this space ID
-			was not found. */
-			dict_replace_tablespace_and_filepath(
-				id, tablename.m_name,
-				df_remote.filepath(), flags);
-		}
-
-	} else if (df_default.is_open()) {
-		/* We opened the tablespace in the default location.
-		SYS_DATAFILES.PATH needs to be updated if it is different
-		from this default path or if the SYS_DATAFILES.PATH was not
-		supplied and it should have been. Also update the dictionary
-		if we found an ISL file (since !df_remote.is_open).  Since
-		path_in is not suppled for file-per-table, we must assume
-		that it matched the ISL. */
-		if ((path_in != NULL && !dict_filepath_same_as_default)
-		    || (path_in == NULL && DICT_TF_HAS_DATA_DIR(flags))
-		    || df_remote.filepath() != NULL) {
-			dict_replace_tablespace_and_filepath(
-				id, tablename.m_name, df_default.filepath(),
-				flags);
-		}
-	}
-
 skip_validate:
 	const byte* first_page =
 		df_default.is_open() ? df_default.get_first_page() :
-		df_dict.is_open() ? df_dict.get_first_page() :
 		df_remote.get_first_page();
 
 	fil_space_crypt_t* crypt_data = first_page
@@ -2814,12 +2697,10 @@ skip_validate:
 
 	space->add(
 		df_remote.is_open() ? df_remote.filepath() :
-		df_dict.is_open() ? df_dict.filepath() :
 		df_default.filepath(), OS_FILE_CLOSED, 0, false, true);
 
 	if (validate && !srv_read_only_mode) {
 		df_remote.close();
-		df_dict.close();
 		df_default.close();
 		if (space->acquire()) {
 			if (purpose != FIL_TYPE_IMPORT) {

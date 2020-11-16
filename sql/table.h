@@ -1137,7 +1137,7 @@ struct TABLE_SHARE
   bool write_frm_image(const uchar *frm_image, size_t frm_length);
   bool write_par_image(const uchar *par_image, size_t par_length);
 
-  /* Only used by tokudb */
+  /* Only used by S3 */
   bool write_frm_image(void)
   { return frm_image ? write_frm_image(frm_image->str, frm_image->length) : 0; }
 
@@ -2777,6 +2777,7 @@ struct TABLE_LIST
    */
   const char *get_table_name() const { return view != NULL ? view_name.str : table_name.str; }
   bool is_active_sjm();
+  bool is_sjm_scan_table();
   bool is_jtbm() { return MY_TEST(jtbm_subselect != NULL); }
   st_select_lex_unit *get_unit();
   st_select_lex *get_single_select();
@@ -3194,7 +3195,8 @@ inline void mark_as_null_row(TABLE *table)
 {
   table->null_row=1;
   table->status|=STATUS_NULL_ROW;
-  bfill(table->null_flags,table->s->null_bytes,255);
+  if (table->s->null_bytes)
+    bfill(table->null_flags,table->s->null_bytes,255);
 }
 
 bool is_simple_order(ORDER *order);

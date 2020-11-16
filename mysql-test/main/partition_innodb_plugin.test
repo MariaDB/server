@@ -41,9 +41,12 @@ SET @old_innodb_file_per_table = @@global.innodb_file_per_table;
 SET @old_innodb_strict_mode = @@global.innodb_strict_mode;
 SET @@global.innodb_file_per_table = ON,
 @@global.innodb_strict_mode = ON;
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 
 --connect(con1,localhost,root,,)
-
 CREATE TABLE t1 (id INT NOT NULL
 PRIMARY KEY,
 user_num CHAR(10)
@@ -90,6 +93,9 @@ DROP TABLE t1;
 --connection default
 SET @@global.innodb_strict_mode = @old_innodb_strict_mode;
 SET @@global.innodb_file_per_table = @old_innodb_file_per_table;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log
 
 #
 # Bug#32430 - show engine innodb status causes errors

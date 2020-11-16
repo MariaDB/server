@@ -66,6 +66,9 @@ select * from mysql.user where user = 'foo';
 alter user foo identified by password '*88C89BE093D4ECF72D039F62EBB7477EA1FD4D63';
 select * from mysql.user where user = 'foo';
 
+alter user foo identified by password 'invalid';
+select * from mysql.user where user = 'foo';
+
 --error ER_CANNOT_USER
 alter user foo identified with 'somecoolplugin';
 show warnings;

@@ -502,6 +502,7 @@ extern PSI_memory_key key_memory_TABLE;
 extern PSI_memory_key key_memory_binlog_statement_buffer;
 extern PSI_memory_key key_memory_user_conn;
 extern PSI_memory_key key_memory_dboptions_hash;
+extern PSI_memory_key key_memory_dbnames_cache;
 extern PSI_memory_key key_memory_hash_index_key_buffer;
 extern PSI_memory_key key_memory_THD_handler_tables_hash;
 extern PSI_memory_key key_memory_JOIN_CACHE;
@@ -957,5 +958,15 @@ extern ulong opt_binlog_dbug_fsync_sleep;
 
 extern uint volatile global_disable_checkpoint;
 extern my_bool opt_help;
+
+extern int mysqld_main(int argc, char **argv);
+
+#ifdef _WIN32
+extern HANDLE hEventShutdown;
+extern void mysqld_win_initiate_shutdown();
+extern void mysqld_win_set_startup_complete();
+extern void mysqld_set_service_status_callback(void (*)(DWORD, DWORD, DWORD));
+extern void mysqld_win_set_service_name(const char *name);
+#endif
 
 #endif /* MYSQLD_INCLUDED */

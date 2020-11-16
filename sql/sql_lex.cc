@@ -5430,12 +5430,14 @@ void st_select_lex::set_explain_type(bool on_the_fly)
               /*
                 pos_in_table_list=NULL for e.g. post-join aggregation JOIN_TABs.
               */
-              if (tab->table && tab->table->pos_in_table_list &&
-                  tab->table->pos_in_table_list->with &&
-                  tab->table->pos_in_table_list->with->is_recursive)
+              if (!tab->table);
+              else if (const TABLE_LIST *pos= tab->table->pos_in_table_list)
               {
-                uses_cte= true;
-                break;
+                if (pos->with && pos->with->is_recursive)
+                {
+                  uses_cte= true;
+                  break;
+                }
               }
             }
             if (uses_cte)
@@ -10209,7 +10211,8 @@ bool LEX::new_sp_instr_stmt(THD *thd,
   qbuff.length= prefix.length + suffix.length;
   if (!(qbuff.str= (char*) alloc_root(thd->mem_root, qbuff.length + 1)))
     return true;
-  memcpy(qbuff.str, prefix.str, prefix.length);
+  if (prefix.length)
+    memcpy(qbuff.str, prefix.str, prefix.length);
   strmake(qbuff.str + prefix.length, suffix.str, suffix.length);
   i->m_query= qbuff;
   return sphead->add_instr(i);
