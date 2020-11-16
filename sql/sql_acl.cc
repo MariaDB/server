@@ -1531,11 +1531,11 @@ class User_table_json: public User_table
   {
     privilege_t mask= ALL_KNOWN_ACL_100304;
     ulonglong orig_access= access;
-    if (version_id >= 100509)
+    if (version_id >= 100508)
     {
-      mask= ALL_KNOWN_ACL_100509;
+      mask= ALL_KNOWN_ACL_100508;
     }
-    else if (version_id >= 100502 && version_id < 100509)
+    else if (version_id >= 100502 && version_id < 100508)
     {
       mask= ALL_KNOWN_ACL_100502;
     }

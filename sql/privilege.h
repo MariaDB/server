@@ -67,7 +67,7 @@ enum privilege_t: unsigned long long
   REPL_MASTER_ADMIN_ACL = (1ULL << 35), // Added in 10.5.2
   BINLOG_ADMIN_ACL      = (1ULL << 36), // Added in 10.5.2
   BINLOG_REPLAY_ACL     = (1ULL << 37), // Added in 10.5.2
-  SLAVE_MONITOR_ACL     = (1ULL << 38)  // Added in 10.5.9
+  SLAVE_MONITOR_ACL     = (1ULL << 38)  // Added in 10.5.8
   /*
     When adding new privilege bits, don't forget to update:
     In this file:
@@ -102,10 +102,10 @@ constexpr static inline privilege_t ALL_KNOWN_BITS(privilege_t x)
 // Version markers
 constexpr privilege_t LAST_100304_ACL= DELETE_HISTORY_ACL;
 constexpr privilege_t LAST_100502_ACL= BINLOG_REPLAY_ACL;
-constexpr privilege_t LAST_100509_ACL= SLAVE_MONITOR_ACL;
+constexpr privilege_t LAST_100508_ACL= SLAVE_MONITOR_ACL;
 
 // Current version markers
-constexpr privilege_t LAST_CURRENT_ACL= LAST_100509_ACL;
+constexpr privilege_t LAST_CURRENT_ACL= LAST_100508_ACL;
 constexpr uint PRIVILEGE_T_MAX_BIT=
               my_bit_log2_uint64((ulonglong) LAST_CURRENT_ACL);
 
@@ -119,8 +119,8 @@ constexpr privilege_t ALL_KNOWN_ACL_100304 = ALL_KNOWN_BITS(LAST_100304_ACL);
 // A combination of all bits defined in 10.5.2
 constexpr privilege_t ALL_KNOWN_ACL_100502= ALL_KNOWN_BITS(LAST_100502_ACL);
 
-// A combination of all bits defined in 10.5.9
-constexpr privilege_t ALL_KNOWN_ACL_100509= ALL_KNOWN_BITS(LAST_100509_ACL);
+// A combination of all bits defined in 10.5.8
+constexpr privilege_t ALL_KNOWN_ACL_100508= ALL_KNOWN_BITS(LAST_100508_ACL);
 
 // A combination of all bits defined as of the current version
 constexpr privilege_t ALL_KNOWN_ACL= ALL_KNOWN_BITS(LAST_CURRENT_ACL);
@@ -512,10 +512,10 @@ constexpr privilege_t PRIV_STMT_STOP_SLAVE= REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
 // Was SUPER_ACL prior to 10.5.2
 constexpr privilege_t PRIV_STMT_CHANGE_MASTER= REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
 // Was (SUPER_ACL | REPL_CLIENT_ACL) prior to 10.5.2
-// Was (SUPER_ACL | REPL_SLAVE_ADMIN_ACL) from 10.5.2 to 10.5.8
+// Was (SUPER_ACL | REPL_SLAVE_ADMIN_ACL) from 10.5.2 to 10.5.7
 constexpr privilege_t PRIV_STMT_SHOW_SLAVE_STATUS= SLAVE_MONITOR_ACL | SUPER_ACL;
 // Was REPL_SLAVE_ACL prior to 10.5.2
-// Was REPL_SLAVE_ADMIN_ACL from 10.5.2 to 10.5.8
+// Was REPL_SLAVE_ADMIN_ACL from 10.5.2 to 10.5.7
 constexpr privilege_t PRIV_STMT_SHOW_RELAYLOG_EVENTS= SLAVE_MONITOR_ACL;
 
 /*
