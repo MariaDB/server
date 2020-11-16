@@ -15,7 +15,7 @@ SET @all_known_privileges_current=(SELECT CAST(json_value(Priv, '$.access') AS U
 DROP USER user1@localhost;
 SELECT HEX(@all_known_privileges_current);
 HEX(@all_known_privileges_current)
-3FFFFFFFFF
+7FFFFFFFFF
 CREATE USER bad_access1@localhost;
 UPDATE
 mysql.global_priv
