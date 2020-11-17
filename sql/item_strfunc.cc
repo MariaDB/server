@@ -5262,13 +5262,13 @@ String *Item_temptable_rowid::val_str(String *str)
 
 #include "wsrep_mysqld.h"
 /* Format is %d-%d-%llu */
-#define WSREP_MAX_WSREP_SERVER_GTID_STR_LEN 10+1+10+1+20
+constexpr size_t WSREP_MAX_WSREP_SERVER_GTID_STR_LEN= 10+1+10+1+20;
 
 String *Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
 {
   if (gtid_str.alloc(WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1))
   {
-    my_error(ER_OUTOFMEMORY, WSREP_MAX_WSREP_SERVER_GTID_STR_LEN);
+    my_error(ER_OUTOFMEMORY, MYF(0), WSREP_MAX_WSREP_SERVER_GTID_STR_LEN);
     null_value= TRUE;
     return 0;
   }
@@ -5293,7 +5293,7 @@ String *Item_func_wsrep_last_seen_gtid::val_str_ascii(String *str)
 {
   if (gtid_str.alloc(WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1))
   {
-    my_error(ER_OUTOFMEMORY, WSREP_MAX_WSREP_SERVER_GTID_STR_LEN);
+    my_error(ER_OUTOFMEMORY, MYF(0), WSREP_MAX_WSREP_SERVER_GTID_STR_LEN);
     null_value= TRUE;
     return 0;
   }
@@ -5338,7 +5338,7 @@ longlong Item_func_wsrep_sync_wait_upto::val_int()
   if (!(gtid_list= gtid_parse_string_to_list(gtid_str->ptr(), gtid_str->length(),
                                              &count)))
   {
-    my_error(ER_INCORRECT_GTID_STATE, MYF(0), func_name());
+    my_error(ER_INCORRECT_GTID_STATE, MYF(0));
     null_value= TRUE;
     return 0;
   }
@@ -5350,12 +5350,12 @@ longlong Item_func_wsrep_sync_wait_upto::val_int()
       wait_gtid_ret= wsrep_gtid_server.wait_gtid_upto(gtid_list[0].seq_no, timeout);
       if ((wait_gtid_ret == ETIMEDOUT) || (wait_gtid_ret == ETIME))
       {
-        my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0), func_name());
+        my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
         ret= 0;
       }
       else if (wait_gtid_ret == ENOMEM)
       {
-        my_error(ER_OUTOFMEMORY, MYF(0), func_name());
+        my_error(ER_OUTOFMEMORY, MYF(0), sizeof(std::pair<uint64, mysql_cond_t*>));
         ret= 0;
       }
     }

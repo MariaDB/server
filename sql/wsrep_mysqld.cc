@@ -2199,8 +2199,11 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
                  wsrep_thd_query(thd));
       if (!thd->is_error())
       {
-        my_error(ER_LOCK_DEADLOCK, MYF(0), "WSREP replication failed. Check "
-                 "your wsrep connection state and retry the query.");
+        push_warning_printf(thd, Sql_state_errno_level::WARN_LEVEL_ERROR,
+                            ER_LOCK_DEADLOCK,
+                            "WSREP replication failed. Check "
+                            "your wsrep connection state and retry the query.");
+        my_error(ER_LOCK_DEADLOCK, MYF(0));
       }
     }
     rc= -1;

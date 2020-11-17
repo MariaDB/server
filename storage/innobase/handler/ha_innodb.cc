@@ -9386,8 +9386,7 @@ ha_innobase::ft_init_ext(
 
 	/* If tablespace is discarded, we should return here */
 	if (!ft_table->space) {
-		my_error(ER_TABLESPACE_MISSING, MYF(0), table->s->db.str,
-			 table->s->table_name.str);
+		my_error(ER_TABLESPACE_MISSING, MYF(0), ft_table->name.m_name);
 		return(NULL);
 	}
 
@@ -13718,7 +13717,7 @@ ha_innobase::rename_table(
 
 		error = DB_ERROR;
 	} else if (error == DB_LOCK_WAIT_TIMEOUT) {
-		my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0), to);
+		my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
 
 		error = DB_LOCK_WAIT;
 	}

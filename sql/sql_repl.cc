@@ -3261,9 +3261,7 @@ err:
   if (slave_errno)
   {
     if (net_report)
-      my_error_ensure(slave_errno, ENSURE_ER_BAD_SLAVE, MYF(0),
-                      (int) mi->connection_name.length,
-                      mi->connection_name.str);
+      my_error_ensure(slave_errno, ENSURE_ER_BAD_SLAVE, MYF(0));
     DBUG_RETURN(slave_errno == ER_BAD_SLAVE ? -1 : 1);
   }
 
@@ -3525,7 +3523,7 @@ static bool get_string_parameter(char *to, const char *from, size_t length,
     if (from_numchars > length / cs->mbmaxlen)
     {
       my_error(ER_WRONG_STRING_LENGTH, MYF(0), from, name,
-               (int) (length / cs->mbmaxlen));
+               length / cs->mbmaxlen);
       return 1;
     }
     memcpy(to, from, from_length+1);

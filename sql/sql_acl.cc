@@ -3236,7 +3236,7 @@ end:
   switch (result)
   {
     case ER_INVALID_CURRENT_USER:
-      my_error(ER_INVALID_CURRENT_USER, MYF(0), rolename);
+      my_error(ER_INVALID_CURRENT_USER, MYF(0));
       break;
     case ER_INVALID_ROLE:
       /* Role doesn't exist at all */
