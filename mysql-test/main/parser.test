@@ -158,8 +158,8 @@ create table SUM(a int);
 create table SUM (a int);
 drop table SUM;
 
---error ER_PARSE_ERROR
 create table SYSDATE(a int);
+DROP TABLE SYSDATE;
 create table SYSDATE (a int);
 drop table SYSDATE;
 
@@ -332,10 +332,10 @@ create table SUM(a int);
 --error ER_PARSE_ERROR
 create table SUM (a int);
 
---error ER_PARSE_ERROR
 create table SYSDATE(a int);
---error ER_PARSE_ERROR
+DROP TABLE SYSDATE;
 create table SYSDATE (a int);
+DROP TABLE SYSDATE;
 
 create table SYSTEM_USER(a int);
 drop table SYSTEM_USER;
@@ -1900,6 +1900,54 @@ insert into t1 values (1),(2);
 explain extended (SELECT x FROM t1 WINDOW w1 as () FOR UPDATE) LIMIT 1;
 explain extended (SELECT x FROM t1 FOR UPDATE) LIMIT 1;
 drop table t1;
+--echo #
+--echo # MDEV-19682 sql_mode="oracle" does not support sysdate
+--echo #
+
+--error ER_BAD_FIELD_ERROR
+SELECT sysdate LIKE '____-__-__ __:__:__';
+--error ER_BAD_FIELD_ERROR
+SELECT sysdate = sysdate();
+--error ER_BAD_FIELD_ERROR
+SELECT sysdate = sysdate(0);
+
+CREATE DATABASE sysdate;
+DROP DATABASE sysdate;
+
+CREATE TABLE sysdate (a INT);
+DROP TABLE sysdate;
+
+CREATE TABLE t1 (sysdate INT);
+DROP TABLE t1;
+
+DELIMITER $$;
+CREATE FUNCTION sysdate() RETURNS INT
+BEGIN
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+DROP FUNCTION sysdate;
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE sysdate INT DEFAULT 10;
+  SELECT sysdate;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE a INT DEFAULT 0;
+sysdate:
+  WHILE a DO
+    SELECT 1;
+    LEAVE sysdate;
+  END WHILE ;
+END;
+$$
+DELIMITER ;$$
 
 --echo #
 --echo # End of 10.6 tests

@@ -10361,23 +10361,22 @@ function_call_nonkeyword:
             if (unlikely(!($$= Lex->make_item_func_substr(thd, $3, $5))))
               MYSQL_YYABORT;
           }
-        | SYSDATE opt_time_precision
+/* Start SQL_MODE_ORACLE_SPECIFIC
+        | SYSDATE
           {
-            /*
-              Unlike other time-related functions, SYSDATE() is
-              replication-unsafe because it is not affected by the
-              TIMESTAMP variable.  It is unsafe even if
-              sysdate_is_now=1, because the slave may have
-              sysdate_is_now=0.
-            */
-            Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-            if (global_system_variables.sysdate_is_now == 0)
-              $$= new (thd->mem_root) Item_func_sysdate_local(thd, $2);
-            else
-              $$= new (thd->mem_root) Item_func_now_local(thd, $2);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-            Lex->safe_to_cache_query=0;
+             if (unlikely(!($$= Lex->make_item_func_sysdate(thd, 0))))
+               MYSQL_YYABORT;
+          }
+End SQL_MODE_ORACLE_SPECIFIC */
+        | SYSDATE '(' ')'
+          {
+             if (unlikely(!($$= Lex->make_item_func_sysdate(thd, 0))))
+               MYSQL_YYABORT;
+          }
+        | SYSDATE '(' real_ulong_num ')'
+          {
+             if (unlikely(!($$= Lex->make_item_func_sysdate(thd, (uint) $3))))
+               MYSQL_YYABORT;
           }
         | TIMESTAMP_ADD '(' interval_time_stamp ',' expr ',' expr ')'
           {
@@ -16144,6 +16143,9 @@ keyword_sp_var_and_label:
         | SUSPEND_SYM
         | SWAPS_SYM
         | SWITCHES_SYM
+/* Start SQL_MODE_DEFAULT_SPECIFIC */
+        | SYSDATE
+/* End SQL_MODE_DEFAULT_SPECIFIC */
         | SYSTEM
         | SYSTEM_TIME_SYM
         | TABLE_NAME_SYM
@@ -16393,7 +16395,6 @@ reserved_keyword_udt_not_param_type:
         | STRAIGHT_JOIN
         | SUBSTRING
         | SUM_SYM
-        | SYSDATE
         | TABLE_REF_PRIORITY
         | TABLE_SYM
         | TERMINATED

@@ -109,7 +109,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 create table SUM (a int);
 drop table SUM;
 create table SYSDATE(a int);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SYSDATE(a int)' at line 1
+DROP TABLE SYSDATE;
 create table SYSDATE (a int);
 drop table SYSDATE;
 create table SYSTEM_USER(a int);
@@ -246,9 +246,9 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 create table SUM (a int);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SUM (a int)' at line 1
 create table SYSDATE(a int);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SYSDATE(a int)' at line 1
+DROP TABLE SYSDATE;
 create table SYSDATE (a int);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SYSDATE (a int)' at line 1
+DROP TABLE SYSDATE;
 create table SYSTEM_USER(a int);
 drop table SYSTEM_USER;
 create table SYSTEM_USER (a int);
@@ -2127,6 +2127,45 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	(select `test`.`t1`.`x` AS `x` from `test`.`t1` limit 1)
 drop table t1;
+#
+# MDEV-19682 sql_mode="oracle" does not support sysdate
+#
+SELECT sysdate LIKE '____-__-__ __:__:__';
+ERROR 42S22: Unknown column 'sysdate' in 'field list'
+SELECT sysdate = sysdate();
+ERROR 42S22: Unknown column 'sysdate' in 'field list'
+SELECT sysdate = sysdate(0);
+ERROR 42S22: Unknown column 'sysdate' in 'field list'
+CREATE DATABASE sysdate;
+DROP DATABASE sysdate;
+CREATE TABLE sysdate (a INT);
+DROP TABLE sysdate;
+CREATE TABLE t1 (sysdate INT);
+DROP TABLE t1;
+CREATE FUNCTION sysdate() RETURNS INT
+BEGIN
+RETURN 1;
+END;
+$$
+Warnings:
+Note	1585	This function 'sysdate' has the same name as a native function
+DROP FUNCTION sysdate;
+BEGIN NOT ATOMIC
+DECLARE sysdate INT DEFAULT 10;
+SELECT sysdate;
+END;
+$$
+sysdate
+10
+BEGIN NOT ATOMIC
+DECLARE a INT DEFAULT 0;
+sysdate:
+WHILE a DO
+SELECT 1;
+LEAVE sysdate;
+END WHILE ;
+END;
+$$
 #
 # End of 10.6 tests
 #
