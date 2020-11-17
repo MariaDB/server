@@ -11743,6 +11743,16 @@ table_primary_derived:
             if (!($$= Lex->parsed_derived_table($1->master_unit(), $2, $3)))
               MYSQL_YYABORT;
           }
+/* Start SQL_MODE_ORACLE_SPECIFIC
+        | subquery
+          opt_for_system_time_clause
+          {
+            LEX_CSTRING alias;
+            if ($1->make_unique_derived_name(thd, &alias) ||
+                !($$= Lex->parsed_derived_table($1->master_unit(), $2, &alias)))
+              MYSQL_YYABORT;
+          }
+End SQL_MODE_ORACLE_SPECIFIC */
         ;
 
 opt_outer:
