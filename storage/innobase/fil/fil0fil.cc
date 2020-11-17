@@ -1539,6 +1539,8 @@ fil_name_write_rename(
 	fil_name_write_rename_low(space_id, old_name, new_name, &mtr);
 	mtr.commit();
 	log_write_up_to(mtr.commit_lsn(), true);
+        /* MDEV-24184 FIXME: Remove the call to log_make_checkpoint() */
+	log_make_checkpoint();
 }
 
 /** Write FILE_MODIFY for a file.
@@ -2205,7 +2207,6 @@ fil_rename_tablespace(
 	ut_ad(strchr(new_file_name, OS_PATH_SEPARATOR) != NULL);
 
 	if (!recv_recovery_is_on()) {
-		fil_name_write_rename(id, old_file_name, new_file_name);
 		mysql_mutex_lock(&log_sys.mutex);
 	}
 
