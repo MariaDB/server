@@ -87,7 +87,7 @@ let $checkpoint = $MYSQL_TMP_DIR/already-existing-directory;
 --mkdir $checkpoint
 let $succeeds = 0;
 --source set_checkpoint.inc
---exec rm -rf $checkpoint
+rmdir $checkpoint;
 
 --disable_result_log
 truncate table t1;
