@@ -3591,7 +3591,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       < connect_string->length))
   {
     my_error(ER_WRONG_STRING_LENGTH, MYF(0),
-             connect_string->str, "CONNECTION", CONNECT_STRING_MAXLEN);
+             connect_string->str, "CONNECTION", (size_t)CONNECT_STRING_MAXLEN);
     DBUG_RETURN(TRUE);
   }
 

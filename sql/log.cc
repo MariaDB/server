@@ -9723,7 +9723,7 @@ int TC_LOG_MMAP::unlog(ulong cookie, my_xid xid)
   mysql_mutex_lock(&LOCK_pending_checkpoint);
   if (pending_checkpoint == NULL)
   {
-    uint32 size= sizeof(*pending_checkpoint) + sizeof(ulong) * (ncookies - 1);
+    size_t size= sizeof(*pending_checkpoint) + sizeof(ulong) * (ncookies - 1);
     if (!(pending_checkpoint=
           (pending_cookies *)my_malloc(PSI_INSTRUMENT_ME, size,
                                        MYF(MY_ZEROFILL))))

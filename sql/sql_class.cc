@@ -3309,7 +3309,7 @@ int select_export::send_data(List<Item> &items)
       set_if_smaller(estimated_bytes, UINT_MAX32);
       if (cvt_str.alloc((uint32) estimated_bytes))
       {
-        my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), (uint32) estimated_bytes);
+        my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), (size_t)estimated_bytes);
         goto err;
       }
 

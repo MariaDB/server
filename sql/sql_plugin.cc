@@ -582,8 +582,7 @@ static my_bool read_mysql_plugin_info(struct st_plugin_dl *plugin_dl,
                     MYF(MY_ZEROFILL|MY_WME));
     if (!cur)
     {
-      my_error(ER_OUTOFMEMORY, MyFlags,
-                   static_cast<int>(plugin_dl->dl.length));
+      my_error(ER_OUTOFMEMORY, MyFlags, plugin_dl->dl.length);
       DBUG_RETURN(TRUE);
     }
     /*
@@ -702,8 +701,7 @@ static my_bool read_maria_plugin_info(struct st_plugin_dl *plugin_dl,
                   MYF(MY_ZEROFILL|MY_WME));
       if (!cur)
       {
-        my_error(ER_OUTOFMEMORY, MyFlags,
-                     static_cast<int>(plugin_dl->dl.length));
+        my_error(ER_OUTOFMEMORY, MyFlags, plugin_dl->dl.length);
         DBUG_RETURN(TRUE);
       }
       /*
@@ -839,8 +837,7 @@ static st_plugin_dl *plugin_dl_add(const LEX_CSTRING *dl, myf MyFlags)
   if (! (plugin_dl.dl.str= (char*) my_malloc(key_memory_mysql_plugin_dl,
                                              plugin_dl.dl.length, MYF(0))))
   {
-    my_error(ER_OUTOFMEMORY, MyFlags,
-                 static_cast<int>(plugin_dl.dl.length));
+    my_error(ER_OUTOFMEMORY, MyFlags, plugin_dl.dl.length);
     goto ret;
   }
   plugin_dl.dl.length= copy_and_convert((char*) plugin_dl.dl.str,
@@ -852,8 +849,7 @@ static st_plugin_dl *plugin_dl_add(const LEX_CSTRING *dl, myf MyFlags)
   /* Add this dll to array */
   if (! (tmp= plugin_dl_insert_or_reuse(&plugin_dl)))
   {
-    my_error(ER_OUTOFMEMORY, MyFlags,
-                 static_cast<int>(sizeof(struct st_plugin_dl)));
+    my_error(ER_OUTOFMEMORY, MyFlags, sizeof(struct st_plugin_dl));
     goto ret;
   }
 

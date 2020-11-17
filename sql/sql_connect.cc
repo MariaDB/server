@@ -1159,7 +1159,7 @@ bool login_connection(THD *thd)
   /*  Updates global user connection stats. */
   if (increment_connection_count(thd, TRUE))
   {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int) (2*sizeof(USER_STATS)));
+    my_error(ER_OUTOFMEMORY, MYF(0), (2*sizeof(USER_STATS)));
     error= 1;
     goto exit;
   }

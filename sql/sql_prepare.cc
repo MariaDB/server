@@ -1546,8 +1546,7 @@ static int mysql_test_select(Prepared_statement *stmt,
 
   if (!lex->result && !(lex->result= new (stmt->mem_root) select_send(thd)))
   {
-    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL),
-             static_cast<int>(sizeof(select_send)));
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), sizeof(select_send));
     goto error;
   }
 
@@ -2130,7 +2129,7 @@ static bool mysql_test_multidelete(Prepared_statement *stmt,
   if (add_item_to_list(thd, new (thd->mem_root)
                        Item_null(thd)))
   {
-    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 0);
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), sizeof(list_node));
     goto error;
   }
 
@@ -4953,7 +4952,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
       alloc_query(thd, (char*) expanded_query->ptr(),
                   expanded_query->length()))
   {
-    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), expanded_query->length());
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), (size_t)expanded_query->length());
     goto error;
   }
   /*

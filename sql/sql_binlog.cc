@@ -64,7 +64,7 @@ static int check_event_type(int type, Relay_log_info *rli)
       if (!(rli->relay_log.description_event_for_exec=
             new Format_description_log_event(4)))
       {
-        my_error(ER_OUTOFMEMORY, MYF(0), 1);
+        my_error(ER_OUTOFMEMORY, MYF(0), sizeof(Format_description_log_event));
         return 1;
       }
 
@@ -147,7 +147,7 @@ int binlog_defragment(THD *thd)
     (char *) my_malloc(PSI_INSTRUMENT_ME, thd->lex->comment.length, MYF(MY_WME));
   if (!thd->lex->comment.str)
   {
-    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 1);
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), thd->lex->comment.length);
     return -1;
   }
 
@@ -226,7 +226,7 @@ void mysql_client_binlog_statement(THD* thd)
   */
   if (!(rli))
   {
-    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 1);  /* needed 1 bytes */
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), sizeof *rli);  /* needed 1 bytes */
     goto end;
   }
 
@@ -246,7 +246,7 @@ void mysql_client_binlog_statement(THD* thd)
   if (!(buf= (char *) my_malloc(key_memory_binlog_statement_buffer,
                                 decoded_len, MYF(MY_WME))))
   {
-    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 1);
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), decoded_len);
     goto end;
   }
 

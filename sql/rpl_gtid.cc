@@ -1462,7 +1462,7 @@ rpl_slave_state::alloc_gtid_pos_table(LEX_CSTRING *table_name, void *hton,
   if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME), &p, sizeof(*p),
                        &allocated_str, table_name->length+1, NULL))
   {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int)(sizeof(*p) + table_name->length+1));
+    my_error(ER_OUTOFMEMORY, MYF(0), sizeof(*p) + table_name->length + 1);
     return NULL;
   }
   memcpy(allocated_str, table_name->str, table_name->length+1); // Also copy '\0'

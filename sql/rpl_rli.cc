@@ -1498,13 +1498,13 @@ Relay_log_info::alloc_inuse_relaylog(const char *name)
   if (!(gtid_list= (rpl_gtid *)my_malloc(PSI_INSTRUMENT_ME,
                                  sizeof(*gtid_list)*gtid_count, MYF(MY_WME))))
   {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*gtid_list)*gtid_count);
+    my_error(ER_OUTOFMEMORY, MYF(0), sizeof(*gtid_list)*gtid_count);
     return 1;
   }
   if (!(ir= new inuse_relaylog(this, gtid_list, gtid_count, name)))
   {
     my_free(gtid_list);
-    my_error(ER_OUTOFMEMORY, MYF(0), (int) sizeof(*ir));
+    my_error(ER_OUTOFMEMORY, MYF(0), sizeof(*ir));
     return 1;
   }
   if (relay_log_state.get_gtid_list(gtid_list, gtid_count))
@@ -1647,7 +1647,7 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
       if (!(entry= (struct gtid_pos_element *)my_malloc(PSI_INSTRUMENT_ME,
                                                 sizeof(*entry), MYF(MY_WME))))
       {
-        my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*entry));
+        my_error(ER_OUTOFMEMORY, MYF(0), sizeof(*entry));
         err= 1;
         goto end;
       }

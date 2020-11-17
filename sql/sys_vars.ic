@@ -871,7 +871,7 @@ public:
       if (res->length() > max_length)
       {
         my_error(ER_WRONG_STRING_LENGTH, MYF(0),
-                 res->ptr(), name.str, (int) max_length);
+                 res->ptr(), name.str, max_length);
         return true;
       }
       var->save_result.string_value.str= thd->strmake(res->ptr(),

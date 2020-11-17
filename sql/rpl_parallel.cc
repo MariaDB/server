@@ -1584,8 +1584,8 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
                        &rpt_array, new_count*sizeof(*rpt_array),
                        NULL))
   {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int(new_count*sizeof(*new_list) +
-                                          new_count*sizeof(*rpt_array))));
+    my_error(ER_OUTOFMEMORY, MYF(0),
+             new_count*sizeof(*new_list) + new_count*sizeof(*rpt_array));
     goto err;
   }
 
@@ -1813,7 +1813,7 @@ rpl_parallel_thread::get_qev_common(Log_event *ev, ulonglong event_size)
     qev_free_list= qev->next;
   else if(!(qev= (queued_event *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*qev), MYF(0))))
   {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*qev));
+    my_error(ER_OUTOFMEMORY, MYF(0), sizeof(*qev));
     return NULL;
   }
   qev->typ= rpl_parallel_thread::queued_event::QUEUED_EVENT;
@@ -1918,7 +1918,7 @@ rpl_parallel_thread::get_rgi(Relay_log_info *rli, Gtid_log_event *gtid_ev,
   {
     if(!(rgi= new rpl_group_info(rli)))
     {
-      my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*rgi));
+      my_error(ER_OUTOFMEMORY, MYF(0), sizeof(*rgi));
       return NULL;
     }
     rgi->is_parallel_exec = true;
@@ -1976,7 +1976,7 @@ rpl_parallel_thread::get_gco(uint64 wait_count, group_commit_orderer *prev,
     gco_free_list= gco->next_gco;
   else if(!(gco= (group_commit_orderer *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*gco), MYF(0))))
   {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*gco));
+    my_error(ER_OUTOFMEMORY, MYF(0), sizeof(*gco));
     return NULL;
   }
   mysql_cond_init(key_COND_group_commit_orderer,
@@ -2285,7 +2285,7 @@ rpl_parallel::find(uint32 domain_id)
                          &p, count*sizeof(*p),
                          NULL))
     {
-      my_error(ER_OUTOFMEMORY, MYF(0), (int)(sizeof(*e)+count*sizeof(*p)));
+      my_error(ER_OUTOFMEMORY, MYF(0), sizeof(*e) + count*sizeof(*p));
       return NULL;
     }
     e->rpl_threads= p;

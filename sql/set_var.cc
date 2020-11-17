@@ -1410,7 +1410,7 @@ resolve_engine_list(THD *thd, const char *str_arg, size_t str_arg_len,
     res= (plugin_ref *)my_malloc(PSI_INSTRUMENT_ME, (count+1)*sizeof(*res), MYF(MY_ZEROFILL|MY_WME));
   if (!res)
   {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int)((count+1)*sizeof(*res)));
+    my_error(ER_OUTOFMEMORY, MYF(0), (count+1)*sizeof(*res));
     goto err;
   }
 
@@ -1461,7 +1461,7 @@ copy_engine_list(plugin_ref *list)
   p= (plugin_ref *)my_malloc(PSI_INSTRUMENT_ME, (count+1)*sizeof(*p), MYF(0));
   if (!p)
   {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int)((count+1)*sizeof(*p)));
+    my_error(ER_OUTOFMEMORY, MYF(0), (count+1)*sizeof(*p));
     return NULL;
   }
   for (i= 0; i < count; ++i)
@@ -1486,7 +1486,7 @@ temp_copy_engine_list(THD *thd, plugin_ref *list)
   p= (plugin_ref *)thd->alloc((count+1)*sizeof(*p));
   if (!p)
   {
-    my_error(ER_OUTOFMEMORY, MYF(0), (int)((count+1)*sizeof(*p)));
+    my_error(ER_OUTOFMEMORY, MYF(0), (count+1)*sizeof(*p));
     return NULL;
   }
   for (i= 0; i < count; ++i)
