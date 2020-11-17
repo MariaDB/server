@@ -825,6 +825,9 @@ int Log_event::read_log_event(r_queue *rpl_queue, IO_CACHE* file, String* packet
     if (el)
     {
       packet->append((const char *)el->event, el->total_length);
+      data_len= el->total_length;
+      rpl_queue->unlock_mutex();
+      delete el;
       goto direct_path;
     }
   }

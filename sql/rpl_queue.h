@@ -1,5 +1,6 @@
 #ifndef RPL_QUEUE_H
 #define RPL_QUEUE_H
+#include "my_sys.h"
 #include "queue.h"
 #include <cmath>
 #include <cstdlib>
@@ -74,7 +75,7 @@ class slave_queue_element
       memcpy(buffer_start, event + t_len, total_length - t_len);
       return buffer_start + total_length - t_len;
     }
-    //NO wrapping needed
+    //NO wrapping needed //QTODO
     else
     {
       memcpy(ptr, event, total_length);
@@ -84,7 +85,7 @@ class slave_queue_element
   ~slave_queue_element()
   {
     if (malloced)
-      free(event);
+      my_free(event);
   }
 
   //QTODO

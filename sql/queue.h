@@ -4,6 +4,7 @@
 #include "my_global.h"
 #include "my_base.h"
 #include "my_pthread.h"
+#include "my_sys.h"
 #include "mysql/psi/mysql_thread.h"
 #include <cstring>
 
@@ -58,6 +59,14 @@ class circular_buffer_queue
     return 0;
   }
 
+  void destroy()
+  {
+    my_free(buffer);
+    mysql_mutex_destroy(&lock_queue);
+    mysql_mutex_destroy(&free_queue);
+    mysql_cond_destroy(&free_cond);
+  }
+
   /*
      We want to write in continues memory.
    */
@@ -78,9 +87,10 @@ class circular_buffer_queue
     {
       mysql_mutex_lock(&lock_queue);
       Element_type *el= new Element_type(tail, buffer, buffer_end);
+      //We are not going to unlock mutex till we get explicit call of
+      //unlock_mutex by caller thread (that means sql thread has copied data
+      //into its buffer)
       tail= el->tail;
-      mysql_mutex_unlock(&lock_queue);
-      mysql_cond_broadcast(&free_cond);
       return el;
     }
     return NULL;
@@ -93,6 +103,16 @@ class circular_buffer_queue
       mysql_cond_wait(&free_cond, &free_queue);
     mysql_mutex_unlock(&free_queue);
     return enqueue(elem);
+  }
+
+  void lock_mutex()
+  {
+    mysql_mutex_lock(&lock_queue);
+  }
+  void unlock_mutex()
+  {
+    mysql_mutex_unlock(&lock_queue);
+    mysql_cond_broadcast(&free_cond);
   }
 };
 

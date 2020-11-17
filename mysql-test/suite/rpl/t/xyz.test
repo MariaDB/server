@@ -12,29 +12,42 @@ eval change master to master_host= "127.0.0.1", master_port=$SERVER_MYPORT_1, ma
 --connection master
 create table t1(a int, b int , c int );
 insert into t1 values(1,1,1);
---sleep 5
 insert into t1 select * from t1;
- insert into t1 select * from t1;
- insert into t1 select * from t1;
- insert into t1 select * from t1;
- insert into t1 select * from t1;
- insert into t1 select * from t1;
- insert into t1 select * from t1;
- insert into t1 select * from t1;
-# insert into t1 select * from t1;
-# insert into t1 select * from t1;
-# insert into t1 select * from t1;
-# insert into t1 select * from t1;
-# insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+#insert into t1 select * from t1;
+#insert into t1 select * from t1;
+#insert into t1 select * from t1;
+#insert into t1 select * from t1;
+#insert into t1 select * from t1;
+#insert into t1 select * from t1;
+#insert into t1 select * from t1;
 select count(*) from t1;
+# show binlog events;
 --source include/save_master_gtid.inc
 
 --connection slave
---sleep 2
+--source include/sync_with_master_gtid.inc
 select count(*) from t1;
---sleep 999992
 --query_vertical show slave status
 
+--connection master
+drop table t1;
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc
 
 
