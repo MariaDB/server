@@ -40,10 +40,18 @@ set wsrep_sync_wait=0;
 
 --let $wait_condition = SELECT COUNT(*) = 2 FROM child;
 --source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 2 FROM parent;
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 2 FROM grandparent;
+--source include/wait_condition.inc
 DELETE FROM grandparent WHERE id = 1;
 
 --connection node_1
 --let $wait_condition = SELECT COUNT(*) = 1 FROM child;
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM parent;
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM grandparent;
 --source include/wait_condition.inc
 SELECT COUNT(*), COUNT(*) = 0 FROM parent WHERE grandparent_id = 1;
 SELECT COUNT(*), COUNT(*) = 0 FROM child WHERE parent_id = 1;
