@@ -314,10 +314,10 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
+#include "sql_analyse.h"                        // append_escaped()
 #include <mysql/plugin.h>
 #include "ha_federatedx.h"
 #include "sql_servers.h"
-#include "sql_analyse.h"                        // append_escaped()
 #include "sql_show.h"                           // append_identifier()
 #include "tztime.h"                             // my_tz_find()
 #include "sql_select.h"

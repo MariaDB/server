@@ -284,6 +284,7 @@ static int create_header_files(struct errors *error_head)
 
   fprintf(er_definef, "#ifndef ER_ERROR_FIRST\n");
   fprintf(er_definef, "#define ER_ERROR_FIRST %d\n", error_head->d_code);
+  fprintf(er_definef, "enum {\n");
 
   current_d_code= error_head->d_code -1;
   for (tmp_error= error_head; tmp_error; tmp_error= tmp_error->next_error)
@@ -301,7 +302,7 @@ static int create_header_files(struct errors *error_head)
       uint next_range= (((current_d_code + ERRORS_PER_RANGE) / 
                          ERRORS_PER_RANGE) * ERRORS_PER_RANGE);
 
-      fprintf(er_definef, "#define ER_ERROR_LAST_SECTION_%d %d\n", section,
+      fprintf(er_definef, "ER_ERROR_LAST_SECTION_%d= %d,\n", section,
               current_d_code);
       fprintf(er_definef, "\n/* New section */\n\n");
       fprintf(er_definef, "#define ER_ERROR_FIRST_SECTION_%d %d\n", section+1,
@@ -311,7 +312,7 @@ static int create_header_files(struct errors *error_head)
     }
     current_d_code= tmp_error->d_code;
 
-    fprintf(er_definef, "#define %s %u\n", tmp_error->er_name,
+    fprintf(er_definef, "%s= %u,\n", tmp_error->er_name,
 	    tmp_error->d_code);
     er_last= tmp_error->d_code;
 
@@ -336,8 +337,8 @@ static int create_header_files(struct errors *error_head)
     fprintf(er_ensuref, "\"\n");
   }
   /* finishing off with mysqld_error.h */
+  fprintf(er_definef, "};\n");
   fprintf(er_definef, "#define ER_ERROR_LAST %d\n", er_last);
-  fprintf(er_definef, "#include \"%s\"\n", ENSUREFILE);
   fprintf(er_definef, "#endif /* ER_ERROR_FIRST */\n");
   my_fclose(er_definef, MYF(0));
   my_fclose(sql_statef, MYF(0));
