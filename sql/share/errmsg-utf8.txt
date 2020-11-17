@@ -886,30 +886,29 @@ ER_OPEN_AS_READONLY
         swe "'%-.192s' är skyddad mot förändring"
         ukr "Таблиця '%-.192s' тільки для читання"
 ER_OUTOFMEMORY HY001 S1001
-        chi "内存不足; 重启后重试(需要 %d bytes)"
-        cze "Málo paměti. Přestartujte daemona a zkuste znovu (je potřeba %d bytů)"
-        dan "Ikke mere hukommelse. Genstart serveren og prøv igen (mangler %d bytes)"
-        eng "Out of memory; restart server and try again (needed %d bytes)"
-        est "Mälu  sai otsa. Proovi MariaDB uuesti käivitada (puudu jäi %d baiti)"
-        fre "Manque de mémoire. Redémarrez le démon et ré-essayez (%d octets nécessaires)"
-        ger "Kein Speicher vorhanden (%d Bytes benötigt). Bitte Server neu starten"
-        greek "Δεν υπάρχει διαθέσιμη μνήμη. Προσπαθήστε πάλι, επανεκινώντας τη διαδικασία (demon) (χρειάζονται %d bytes)"
-        hun "Nincs eleg memoria. Inditsa ujra a demont, es probalja ismet. (%d byte szukseges.)"
-        ita "Memoria esaurita. Fai ripartire il demone e riprova (richiesti %d bytes)"
-        jpn "メモリが不足しています。サーバーを再起動してみてください。(%d バイトの割り当てに失敗)"
-        kor "Out of memory. 데몬을 재 실행 후 다시 시작하시오 (needed %d bytes)"
-        nla "Geen geheugen meer. Herstart server en probeer opnieuw (%d bytes nodig)"
-        nor "Ikke mer minne. Star på nytt tjenesten og prøv igjen (trengte %d byter)"
-        norwegian-ny "Ikkje meir minne. Start på nytt tenesten og prøv igjen (trengte %d bytar)"
-        pol "Zbyt mało pamięci. Uruchom ponownie demona i spróbuj ponownie (potrzeba %d bajtów)"
-        por "Sem memória. Reinicie o programa e tente novamente (necessita de %d bytes)"
-        rum "Out of memory. Porneste daemon-ul din nou si incearca inca o data (e nevoie de %d bytes)"
-        rus "Недостаточно памяти. Перезапустите сервер и попробуйте еще раз (нужно %d байт)"
-        serbian "Nema memorije. Restartujte MariaDB server i probajte ponovo (potrebno je %d byte-ova)"
-        slo "Málo pamäti. Reštartujte daemona a skúste znova (je potrebných %d bytov)"
-        spa "Memoria insuficiente. Reinicie el demonio e intentelo otra vez (necesita %d bytes)"
-        swe "Oväntat slut på minnet, starta om programmet och försök på nytt (Behövde %d bytes)"
-        ukr "Брак пам'яті. Рестартуйте сервер та спробуйте знову (потрібно %d байтів)"
+        cze "Málo paměti. Přestartujte daemona a zkuste znovu (je potřeba %zu bytů)"
+        dan "Ikke mere hukommelse. Genstart serveren og prøv igen (mangler %zu bytes)"
+        eng "Out of memory; restart server and try again (needed %zu bytes)"
+        est "Mälu  sai otsa. Proovi MariaDB uuesti käivitada (puudu jäi %zu baiti)"
+        fre "Manque de mémoire. Redémarrez le démon et ré-essayez (%zu octets nécessaires)"
+        ger "Kein Speicher vorhanden (%zu Bytes benötigt). Bitte Server neu starten"
+        greek "Δεν υπάρχει διαθέσιμη μνήμη. Προσπαθήστε πάλι, επανεκινώντας τη διαδικασία (demon) (χρειάζονται %zu bytes)"
+        hun "Nincs eleg memoria. Inditsa ujra a demont, es probalja ismet. (%zu byte szukseges.)"
+        ita "Memoria esaurita. Fai ripartire il demone e riprova (richiesti %zu bytes)"
+        jpn "メモリが不足しています。サーバーを再起動してみてください。(%zu バイトの割り当てに失敗)"
+        kor "Out of memory. 데몬을 재 실행 후 다시 시작하시오 (needed %zu bytes)"
+        nla "Geen geheugen meer. Herstart server en probeer opnieuw (%zu bytes nodig)"
+        nor "Ikke mer minne. Star på nytt tjenesten og prøv igjen (trengte %zu byter)"
+        norwegian-ny "Ikkje meir minne. Start på nytt tenesten og prøv igjen (trengte %zu bytar)"
+        pol "Zbyt mało pamięci. Uruchom ponownie demona i spróbuj ponownie (potrzeba %zu bajtów)"
+        por "Sem memória. Reinicie o programa e tente novamente (necessita de %zu bytes)"
+        rum "Out of memory. Porneste daemon-ul din nou si incearca inca o data (e nevoie de %zu bytes)"
+        rus "Недостаточно памяти. Перезапустите сервер и попробуйте еще раз (нужно %zu байт)"
+        serbian "Nema memorije. Restartujte MariaDB server i probajte ponovo (potrebno je %zu byte-ova)"
+        slo "Málo pamäti. Reštartujte daemona a skúste znova (je potrebných %zu bytov)"
+        spa "Memoria insuficiente. Reinicie el demonio e intentelo otra vez (necesita %zu bytes)"
+        swe "Oväntat slut på minnet, starta om programmet och försök på nytt (Behövde %zu bytes)"
+        ukr "Брак пам'яті. Рестартуйте сервер та спробуйте знову (потрібно %zu байтів)"
 ER_OUT_OF_SORTMEMORY HY001 S1001
         chi "排序内存不足，可以考虑增加实例排序缓存量"
         cze "Málo paměti pro třídění. Zvyšte velikost třídícího bufferu"
@@ -6230,9 +6229,9 @@ ER_HOSTNAME
         ger "Hostname"
         hindi "होस्ट का नाम"
 ER_WRONG_STRING_LENGTH
-        chi "字符串'%-.70T'对于%s（应不超过%d）太长"
-        eng "String '%-.70T' is too long for %s (should be no longer than %d)"
-        ger "String '%-.70T' ist zu lang für %s (sollte nicht länger sein als %d)"
+        chi "字符串'%-.70T'对于%s（应不超过%zu）太长"
+        eng "String '%-.70T' is too long for %s (should be no longer than %zu)"
+        ger "String '%-.70T' ist zu lang für %s (sollte nicht länger sein als %zu)"
 ER_NON_INSERTABLE_TABLE  
         chi "目标表%-.100s %s不可插入"
         eng "The target table %-.100s of the %s is not insertable-into"
@@ -7297,7 +7296,7 @@ ER_UNDO_RECORD_TOO_BIG
         eng "Undo log record is too big"
 
 ER_BINLOG_UNSAFE_INSERT_IGNORE_SELECT
-        chi "INSERT IGNORE...SELECT不安全，因为选择由select检索行的顺序确定哪个（如果有）行被忽略。无法预测此顺序，并且在master和slave方面可能有所不同" 
+        chi "INSERT IGNORE...SELECT不安全，因为选择由select检索行的顺序确定哪个（如果有）行被忽略。无法预测此顺序，并且在master和slave方面可能有所不同"
         eng "INSERT IGNORE... SELECT is unsafe because the order in which rows are retrieved by the SELECT determines which (if any) rows are ignored. This order cannot be predicted and may differ on master and the slave"
 
 ER_BINLOG_UNSAFE_INSERT_SELECT_UPDATE
@@ -7591,7 +7590,7 @@ ER_GTID_UNSAFE_CREATE_DROP_TEMPORARY_TABLE_IN_TRANSACTION
 
 ER_GTID_MODE_CAN_ONLY_CHANGE_ONE_STEP_AT_A_TIME
         chi "GTID_MODE的值只能一次更改一步：OFF<-> UPGRODE_STEP_1 <-> UPGRODE_STEP_2 <-> ON。另请注意，此值必须在所有服务器上同时上升或下降;有关说明，请参阅手册。“"
-        eng "The value of GTID_MODE can only change one step at a time: OFF <-> UPGRADE_STEP_1 <-> UPGRADE_STEP_2 <-> ON. Also note that this value must be stepped up or down simultaneously on all servers; see the Manual for instructions." 
+        eng "The value of GTID_MODE can only change one step at a time: OFF <-> UPGRADE_STEP_1 <-> UPGRADE_STEP_2 <-> ON. Also note that this value must be stepped up or down simultaneously on all servers; see the Manual for instructions."
 
 ER_MASTER_HAS_PURGED_REQUIRED_GTIDS
         chi "从机更改主站到Master_Auto_Position = 1，因此主站连接，但主设备已清除了slave需要的GTID的二进制日志"
@@ -7960,7 +7959,7 @@ ER_SLAVE_RLI_INIT_REPOSITORY
         chi "从站无法从存储库初始化中继日志信息结构"
         eng "Slave failed to initialize relay log info structure from the repository"
 
-ER_ACCESS_DENIED_CHANGE_USER_ERROR 28000 
+ER_ACCESS_DENIED_CHANGE_USER_ERROR 28000
         bgn "Отказан достъп при опит за смяна към потребител %-.48s'@'%-.64s' (използвана парола: %s). Затваряне на връзката"
         chi "访问拒绝尝试更改为用户'%-.48s'@'%-.64s'（使用密码：%s）。断开连接"
         eng "Access denied trying to change to user '%-.48s'@'%-.64s' (using password: %s). Disconnecting"
@@ -8233,7 +8232,7 @@ ER_SUBQUERIES_NOT_SUPPORTED 42000
         eng "%s does not support subqueries or stored functions"
 ER_SET_STATEMENT_NOT_SUPPORTED 42000
         chi "系统变量%.200s无法在set语句中设置。“"
-        eng "The system variable %.200s cannot be set in SET STATEMENT." 
+        eng "The system variable %.200s cannot be set in SET STATEMENT."
 ER_UNUSED_9
         eng "You should never see it"
 ER_USER_CREATE_EXISTS
@@ -8292,7 +8291,7 @@ ER_FILE_CORRUPT
 
 ER_ERROR_ON_MASTER
         chi "查询在主设备上部分完成（主设备：%d）并中止。你的master在这一点上有可能不一致。如果您确定您的主站是可以的，请在从站上手动运行此查询，然后使用SET GLOBAL SQL_SLAVE_SKIP_COUNTER = 1; START SLAVE ;查询：'%s'"
-        eng "Query partially completed on the master (error on master: %d) and was aborted. There is a chance that your master is inconsistent at this point. If you are sure that your master is ok, run this query manually on the slave and then restart the slave with SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1; START SLAVE;. Query:'%s'" 
+        eng "Query partially completed on the master (error on master: %d) and was aborted. There is a chance that your master is inconsistent at this point. If you are sure that your master is ok, run this query manually on the slave and then restart the slave with SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1; START SLAVE;. Query:'%s'"
 
 ER_INCONSISTENT_ERROR
         chi "查询在主站和从站上引起了不同的错误。主站错误：消息（格式）='%s'错误代码=%d;从站错误：实际消息='%s'，错误代码=%d。默认数据库：'%s'。查询：'%s'"
