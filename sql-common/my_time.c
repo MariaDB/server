@@ -19,6 +19,7 @@
 #include <my_time.h>
 #include <m_string.h>
 #include <m_ctype.h>
+#include <mysqld_error.h>
 /* Windows version of localtime_r() is declared in my_ptrhead.h */
 #include <my_pthread.h>
 

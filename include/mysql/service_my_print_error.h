@@ -68,6 +68,8 @@ void my_error_ensure(unsigned int my_err, const char *ensure_format,
 
 #define my_error(nr, ...) \
                 my_error_ensure(nr, ENSURE_ ## nr, __VA_ARGS__)
+
+#include "mysqld_err_ensure.h"
 #endif /* MYSQL_DYNAMIC_PLUGIN */
 
 #ifdef __cplusplus
