@@ -9262,6 +9262,26 @@ Item *LEX::make_item_func_substr(THD *thd, Item *a, Item *b)
 }
 
 
+Item *LEX::make_item_func_sysdate(THD *thd, uint fsp)
+{
+  /*
+    Unlike other time-related functions, SYSDATE() is
+    replication-unsafe because it is not affected by the
+    TIMESTAMP variable.  It is unsafe even if
+    sysdate_is_now=1, because the slave may have
+    sysdate_is_now=0.
+  */
+  set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+  Item *item= global_system_variables.sysdate_is_now == 0 ?
+              (Item *) new (thd->mem_root) Item_func_sysdate_local(thd, fsp) :
+              (Item *) new (thd->mem_root) Item_func_now_local(thd, fsp);
+  if (unlikely(item == NULL))
+    return NULL;
+  safe_to_cache_query=0;
+  return item;
+}
+
+
 Item *LEX::make_item_func_replace(THD *thd,
                                   Item *org,
                                   Item *find,
