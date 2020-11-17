@@ -3755,9 +3755,9 @@ buf_page_create(fil_space_t *space, uint32_t offset,
   free_block->initialise(page_id, zip_size, 1);
 
   const ulint fold= page_id.fold();
-loop:
   mysql_mutex_lock(&buf_pool.mutex);
 
+loop:
   buf_block_t *block= reinterpret_cast<buf_block_t*>
     (buf_pool.page_hash_get_low(page_id, fold));
 
@@ -3775,17 +3775,15 @@ loop:
       if (!mtr->have_x_latch(*block))
       {
         buf_block_buf_fix_inc(block, __FILE__, __LINE__);
+        while (!rw_lock_x_lock_nowait(&block->lock))
         {
-          while (block->page.io_fix() != BUF_IO_NONE ||
-                 block->page.buf_fix_count() != 1)
-          {
-            timespec abstime;
-            set_timespec_nsec(abstime, 1000000);
-            mysql_cond_timedwait(&buf_pool.done_flush_list, &buf_pool.mutex,
-                                 &abstime);
-          }
+          /* Wait for buf_page_write_complete() to release block->lock.
+          We must not hold buf_pool.mutex while waiting. */
+          timespec abstime;
+          set_timespec_nsec(abstime, 1000000);
+          mysql_cond_timedwait(&buf_pool.done_flush_list, &buf_pool.mutex,
+                               &abstime);
         }
-        rw_lock_x_lock(&block->lock);
         mtr_memo_push(mtr, block, MTR_MEMO_PAGE_X_FIX);
       }
       else
@@ -3805,7 +3803,11 @@ loop:
       if (block->page.io_fix() != BUF_IO_NONE)
       {
         hash_lock->write_unlock();
-        mysql_mutex_unlock(&buf_pool.mutex);
+        /* Wait for buf_page_write_complete() to release the I/O fix. */
+        timespec abstime;
+        set_timespec_nsec(abstime, 1000000);
+        mysql_cond_timedwait(&buf_pool.done_flush_list, &buf_pool.mutex,
+                             &abstime);
         goto loop;
       }
 
