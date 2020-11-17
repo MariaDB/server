@@ -806,3 +806,65 @@ ERROR HY000: Unknown data type: 'BEGIN'
 #
 # End of 10.5 tests
 #
+#
+# Start of 10.6 tests
+#
+#
+# MDEV-19682 sql_mode="oracle" does not support sysdate
+#
+SELECT sysdate LIKE '____-__-__ __:__:__';
+sysdate LIKE '____-__-__ __:__:__'
+1
+SELECT sysdate = sysdate();
+sysdate = sysdate()
+1
+SELECT sysdate = sysdate(0);
+sysdate = sysdate(0)
+1
+CREATE DATABASE sysdate;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'sysdate' at line 1
+CREATE TABLE sysdate (a INT);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'sysdate (a INT)' at line 1
+CREATE TABLE t1 (sysdate INT);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'sysdate INT)' at line 1
+CREATE TABLE t1 (a sysdate);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'sysdate)' at line 1
+CREATE FUNCTION sysdate RETURN INT AS
+BEGIN
+RETURN 1;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'sysdate RETURN INT AS
+BEGIN
+RETURN 1;
+END' at line 1
+CREATE FUNCTION sysdate() RETURN INT AS
+BEGIN
+RETURN 1;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'sysdate() RETURN INT AS
+BEGIN
+RETURN 1;
+END' at line 1
+DECLARE
+sysdate INT := 10;
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'sysdate INT := 10;
+BEGIN
+NULL;
+END' at line 2
+BEGIN
+<<sysdate>>
+NULL;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'sysdate>>
+NULL;
+END' at line 2
+#
+# End of 10.6 tests
+#

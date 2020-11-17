@@ -653,3 +653,75 @@ SELECT CAST(1 AS BEGIN);
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-19682 sql_mode="oracle" does not support sysdate
+--echo #
+
+# SYSDATE is not deterministic. Let's use LIKE and equality.
+# The main point here is only to check that SYSDATE
+# gets parsed without parentheses. The actial value is not important.
+SELECT sysdate LIKE '____-__-__ __:__:__';
+SELECT sysdate = sysdate();
+SELECT sysdate = sysdate(0);
+
+--error ER_PARSE_ERROR
+CREATE DATABASE sysdate;
+
+--error ER_PARSE_ERROR
+CREATE TABLE sysdate (a INT);
+
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (sysdate INT);
+
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (a sysdate);
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE FUNCTION sysdate RETURN INT AS
+BEGIN
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE FUNCTION sysdate() RETURN INT AS
+BEGIN
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+DECLARE
+  sysdate INT := 10;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+BEGIN
+<<sysdate>>
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
