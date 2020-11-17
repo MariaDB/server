@@ -10001,3 +10001,28 @@ $$
 DELIMITER ;$$
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
+
+--echo #
+--echo # MDEV-24220: error when opening a table for the second call of SP
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2);
+CREATE VIEW v1 AS SELECT MAX(a) as f FROM t1;
+--delimiter $
+CREATE PROCEDURE p1()
+BEGIN
+  SELECT * FROM v1;
+END $
+--delimiter ;
+
+CALL p1;
+ALTER TABLE t1 DROP a;
+-- error ER_VIEW_INVALID
+CALL p1;
+
+DROP PROCEDURE p1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #End of 10.2 tests
