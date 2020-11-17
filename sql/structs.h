@@ -874,7 +874,13 @@ public:
   Timeval(my_time_t sec, ulong usec)
   {
     tv_sec= sec;
-    tv_usec= usec;
+    /*
+      Since tv_usec is not always of type ulong, cast usec parameter
+      explicitly to uint to avoid compiler warnings about losing
+      integer precision.
+    */
+    DBUG_ASSERT(usec < 1000000);
+    tv_usec= (uint)usec;
   }
   explicit Timeval(const timeval &tv)
    :timeval(tv)

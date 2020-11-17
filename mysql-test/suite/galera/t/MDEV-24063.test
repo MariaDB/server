@@ -8,6 +8,10 @@
 
 --source include/galera_cluster.inc
 
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --connection node_2a
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
@@ -18,3 +22,5 @@ SET GLOBAL wsrep_on=OFF;
 --source include/start_mysqld.inc
 
 DROP TABLE t1;
+
+--source include/auto_increment_offset_restore.inc
