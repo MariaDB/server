@@ -3747,14 +3747,16 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   tab->tmp_table_param->skip_create_table= true;
   TABLE* table= create_tmp_table(thd, tab->tmp_table_param, *table_fields,
                                  table_group, distinct,
-                                 save_sum_fields, select_options, table_rows_limit, 
+                                 save_sum_fields, select_options,
+                                 table_rows_limit,
                                  &empty_clex_str, true, keep_row_order);
   if (!table)
     DBUG_RETURN(true);
   tmp_table_param.using_outer_summary_function=
     tab->tmp_table_param->using_outer_summary_function;
   tab->join= this;
-  DBUG_ASSERT(tab > tab->join->join_tab || !top_join_tab_count || !tables_list);
+  DBUG_ASSERT(tab > tab->join->join_tab || !top_join_tab_count ||
+              !tables_list);
   if (tab > join_tab)
     (tab - 1)->next_select= sub_select_postjoin_aggr;
   if (!(tab->aggr= new (thd->mem_root) AGGR_OP(tab)))
@@ -4260,8 +4262,9 @@ void JOIN::exec_inner()
   /*
     Enable LIMIT ROWS EXAMINED during query execution if:
     (1) This JOIN is the outermost query (not a subquery or derived table)
-        This ensures that the limit is enabled when actual execution begins, and
-        not if a subquery is evaluated during optimization of the outer query.
+        This ensures that the limit is enabled when actual execution begins,
+        and not if a subquery is evaluated during optimization of the outer
+        query.
     (2) This JOIN is not the result of a UNION. In this case do not apply the
         limit in order to produce the partial query result stored in the
         UNION temp table.
@@ -14091,7 +14094,7 @@ static void update_depend_map_for_order(JOIN *join, ORDER *order)
 
 
 /**
-  Remove all constants and check if ORDER only contains simple
+  Remove all constants from ORDER and check if ORDER only contains simple
   expressions.
 
   We also remove all duplicate expressions, keeping only the first one.
@@ -16665,13 +16668,13 @@ static uint reset_nj_counters(JOIN *join, List<TABLE_LIST> *join_list)
   @verbatim
      IMPLEMENTATION 
        LIMITATIONS ON JOIN ORDER
-         The nested [outer] joins executioner algorithm imposes these limitations
-         on join order:
+         The nested [outer] joins executioner algorithm imposes these
+         limitations on join order:
          1. "Outer tables first" -  any "outer" table must be before any 
              corresponding "inner" table.
-         2. "No interleaving" - tables inside a nested join must form a continuous
-            sequence in join order (i.e. the sequence must not be interrupted by 
-            tables that are outside of this nested join).
+         2. "No interleaving" - tables inside a nested join must form a
+             continuous sequence in join order (i.e. the sequence must not be
+             interrupted by tables that are outside of this nested join).
 
          #1 is checked elsewhere, this function checks #2 provided that #1 has
          been already checked.
@@ -16683,34 +16686,36 @@ static uint reset_nj_counters(JOIN *join, List<TABLE_LIST> *join_list)
 
          The join order "t1 t2 t0 t3" is invalid:
 
-         table t0 is outside of the nested join, so WHERE condition for t0 is
-         attached directly to t0 (without triggers, and it may be used to access
-         t0). Applying WHERE(t0) to (t2,t0,t3) record is invalid as we may miss
-         combinations of (t1, t2, t3) that satisfy condition cond1, and produce a
-         null-complemented (t1, t2.NULLs, t3.NULLs) row, which should not have
-         been produced.
+         table t0 is outside of the nested join, so WHERE condition
+         for t0 is attached directly to t0 (without triggers, and it
+         may be used to access t0). Applying WHERE(t0) to (t2,t0,t3)
+         record is invalid as we may miss combinations of (t1, t2, t3)
+         that satisfy condition cond1, and produce a null-complemented
+         (t1, t2.NULLs, t3.NULLs) row, which should not have been
+         produced.
 
          If table t0 is not between t2 and t3, the problem doesn't exist:
-          If t0 is located after (t2,t3), WHERE(t0) is applied after nested join
-           processing has finished.
-          If t0 is located before (t2,t3), predicates like WHERE_cond(t0, t2) are
-           wrapped into condition triggers, which takes care of correct nested
-           join processing.
+          If t0 is located after (t2,t3), WHERE(t0) is applied after nested
+           join processing has finished.
+          If t0 is located before (t2,t3), predicates like WHERE_cond(t0, t2)
+           are wrapped into condition triggers, which takes care of correct
+           nested join processing.
 
        HOW IT IS IMPLEMENTED
          The limitations on join order can be rephrased as follows: for valid
          join order one must be able to:
            1. write down the used tables in the join order on one line.
-           2. for each nested join, put one '(' and one ')' on the said line        
+           2. for each nested join, put one '(' and one ')' on the said line
            3. write "LEFT JOIN" and "ON (...)" where appropriate
            4. get a query equivalent to the query we're trying to execute.
 
          Calls to check_interleaving_with_nj() are equivalent to writing the
          above described line from left to right. 
-         A single check_interleaving_with_nj(A,B) call is equivalent to writing 
-         table B and appropriate brackets on condition that table A and
-         appropriate brackets is the last what was written. Graphically the
-         transition is as follows:
+
+         A single check_interleaving_with_nj(A,B) call is equivalent
+         to writing table B and appropriate brackets on condition that
+         table A and appropriate brackets is the last what was
+         written. Graphically the transition is as follows:
 
                               +---- current position
                               |
@@ -21896,8 +21901,8 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 
 /*
   @brief
-    Perform a GROUP BY operation over a stream of rows ordered by their group. The 
-    result is sent into join->result.
+    Perform a GROUP BY operation over a stream of rows ordered by their group.
+    The result is sent into join->result.
 
   @detail
     Also applies HAVING, etc.
@@ -22177,7 +22182,9 @@ end:
 }
 
 
-/** Like end_update, but this is done with unique constraints instead of keys.  */
+/**
+   Like end_update, but this is done with unique constraints instead of keys.
+*/
 
 static enum_nested_loop_state
 end_unique_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
