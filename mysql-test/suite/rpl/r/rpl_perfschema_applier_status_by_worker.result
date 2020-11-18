@@ -1,0 +1,76 @@
+include/master-slave.inc
+[connection master]
+call mtr.add_suppression("Error 'Table 'test.t' doesn't exist' on query.");
+include/assert.inc [On master, the table should return an empty set.]
+
+# Setup MTS and perform testing on a fresh slave.
+
+include/sync_slave_sql_with_master.inc
+connection slave;
+include/stop_slave.inc
+set @save_slave_parallel_workers= @@global.slave_parallel_workers;
+SET @@global.slave_parallel_workers=1;
+set @save_slave_transaction_retries= @@global.slave_transaction_retries;
+include/start_slave.inc
+include/assert.inc [thread_name should should indicate worker thread.]
+include/assert.inc [Service_State should be "ON" on a fresh slave server.]
+include/assert.inc [Last_Seen_Transaction should show "" if no transaction applierd]
+connection master;
+CREATE TABLE t1 (a INT);
+DROP TABLE t1;
+connection slave;
+include/assert.inc [Last_Seen_Transaction should show "0-1-3".]
+include/assert.inc [Value returned by SSS and PS table for Last_Error_Number should be same.]
+include/assert.inc [Value returned by SSS and PS table for Last_Error_Message should both be empty.]
+include/assert.inc [Value returned by PS table for Last_Error_Timestamp should be 0000-00-00 00:00:00.]
+
+# Introduce an error in the worker thread and check for the correctness
+# of error number, message and timestamp fields.
+
+connection master;
+use test;
+create table t(a int primary key);
+connection slave;
+drop table t;
+connection master;
+insert into t values(1);
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1146]
+
+# Extract the error related fields from SSS and PS table and compare
+# them for correctness.
+
+include/assert.inc [Value returned by SSS and PS table for Last_Error_Number should be same.]
+Last_Error_Message
+Error 'Table 'test.t' doesn't exist' on query. Default database: 'test'. Query: 'insert into t values(1)'
+
+# Verify that the error fields are preserved after STOP SLAVE.
+
+
+# 1. Verify that thread_id changes to NULL and service_state to "off" on
+#    STOP SLAVE.
+
+include/assert.inc [After STOP SLAVE, thread_id should be NULL]
+include/assert.inc [So, Service_State after STOP SLAVE should be "OFF".]
+select Last_Seen_Transaction from performance_schema.replication_applier_status_by_worker;
+Last_Seen_Transaction	0-1-5
+
+# 2. Extract the worker_id and the error related fields from SSS and PS
+#    table and compare them. These fields should preserve their values.
+
+include/assert.inc [Value returned by SSS and PS table for Last_Error_Number should be same.]
+Last_Error_Message
+Error 'Table 'test.t' doesn't exist' on query. Default database: 'test'. Query: 'insert into t values(1)'
+STOP SLAVE;
+RESET SLAVE;
+connection master;
+DROP TABLE t;
+RESET MASTER;
+
+# Cleanup.
+
+connection slave;
+set @@global.slave_parallel_workers= @save_slave_parallel_workers;
+set @@global.slave_transaction_retries= @save_slave_transaction_retries;
+include/start_slave.inc
+include/rpl_end.inc
