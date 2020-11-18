@@ -1495,7 +1495,7 @@ thd_trx_is_auto_commit(
 	       && !thd_test_options(
 		       thd,
 		       OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)
-	       && thd_is_select(thd));
+	       && thd_sql_command(thd) == SQLCOM_SELECT);
 }
 
 /******************************************************************//**
@@ -1529,17 +1529,6 @@ thd_query_start_micro(
 	const THD*	thd)	/*!< in: thread handle */
 {
 	return thd_start_utime(thd);
-}
-
-/******************************************************************//**
-Returns true if the thread is executing a SELECT statement.
-@return true if thd is executing SELECT */
-ibool
-thd_is_select(
-/*==========*/
-	const THD*	thd)	/*!< in: thread handle */
-{
-	return(thd_sql_command(thd) == SQLCOM_SELECT);
 }
 
 /******************************************************************//**

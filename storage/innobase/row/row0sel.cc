@@ -4542,12 +4542,11 @@ aborted:
 	      || prebuilt->table->no_rollback()
 	      || srv_read_only_mode);
 
-	/* Do not lock gaps for plain SELECT
-	at READ UNCOMMITTED or READ COMMITTED isolation level */
+	/* Do not lock gaps at READ UNCOMMITTED or READ COMMITTED
+	isolation level */
 	const bool set_also_gap_locks =
 		prebuilt->select_lock_type != LOCK_NONE
-		&& (trx->isolation_level > TRX_ISO_READ_COMMITTED
-		    || !thd_is_select(trx->mysql_thd))
+		&& trx->isolation_level > TRX_ISO_READ_COMMITTED
 #ifdef WITH_WSREP
 		&& !wsrep_thd_skip_locking(trx->mysql_thd)
 #endif /* WITH_WSREP */
@@ -4755,7 +4754,6 @@ rec_loop:
 	if (page_rec_is_supremum(rec)) {
 
 		if (set_also_gap_locks
-		    && trx->isolation_level > TRX_ISO_READ_COMMITTED
 		    && !dict_index_is_spatial(index)) {
 
 			/* Try to place a lock on the index record */
@@ -5020,8 +5018,16 @@ wrong_offs:
 			goto no_gap_lock;
 		}
 
-		if (!set_also_gap_locks
-		    || (unique_search && !rec_get_deleted_flag(rec, comp))
+#ifdef WITH_WSREP
+		if (UNIV_UNLIKELY(!set_also_gap_locks)) {
+			ut_ad(wsrep_thd_skip_locking(trx->mysql_thd));
+			goto no_gap_lock;
+		}
+#else /* WITH_WSREP */
+		ut_ad(set_also_gap_locks);
+#endif /* WITH_WSREP */
+
+		if ((unique_search && !rec_get_deleted_flag(rec, comp))
 		    || dict_index_is_spatial(index)) {
 
 			goto no_gap_lock;

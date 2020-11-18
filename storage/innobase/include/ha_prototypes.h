@@ -191,14 +191,6 @@ innobase_basename(
 	const char*	path_name);
 
 /******************************************************************//**
-Returns true if the thread is executing a SELECT statement.
-@return true if thd is executing SELECT */
-ibool
-thd_is_select(
-/*==========*/
-	const THD*	thd);	/*!< in: thread handle */
-
-/******************************************************************//**
 Converts an identifier to a table name. */
 void
 innobase_convert_from_table_id(
