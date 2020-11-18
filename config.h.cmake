@@ -42,6 +42,7 @@
 #cmakedefine HAVE_LIMITS_H 1
 #cmakedefine HAVE_LINK_H 1
 #cmakedefine HAVE_LINUX_UNISTD_H 1
+#cmakedefine HAVE_LINUX_MMAN_H 1
 #cmakedefine HAVE_LOCALE_H 1
 #cmakedefine HAVE_MALLOC_H 1
 #cmakedefine HAVE_MEMORY_H 1

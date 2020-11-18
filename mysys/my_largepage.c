@@ -23,6 +23,9 @@
 #if defined(__linux__) || defined(MAP_ALIGNED)
 #include "my_bit.h"
 #endif
+#ifdef HAVE_LINUX_MMAN_H
+#include <linux/mman.h>
+#endif
 
 #ifdef HAVE_SOLARIS_LARGE_PAGES
 #if defined(__sun__) && defined(__GNUC__) && defined(__cplusplus) \
