@@ -2291,6 +2291,7 @@ bool page_apply_insert_redundant(const buf_block_t &block, bool reuse,
                                  size_t hdr_c, size_t data_c,
                                  const void *data, size_t data_len)
 {
+  int r = 0;
   const uint16_t n_slots= page_dir_get_n_slots(block.frame);
   byte *page_n_heap= my_assume_aligned<2>(PAGE_N_HEAP + PAGE_HEADER +
                                           block.frame);
@@ -2310,7 +2311,7 @@ corrupted:
                     " due to corruption on "
                     : "Not applying INSERT_HEAP_REDUNDANT"
                     " due to corruption on ")
-                << id;
+                << id << " reason: " << r;
     return true;
   }
 
@@ -2320,46 +2321,46 @@ corrupted:
   const byte *const heap_bot= &block.frame[PAGE_OLD_SUPREMUM_END];
   byte *heap_top= block.frame + mach_read_from_2(page_heap_top);
   if (UNIV_UNLIKELY(heap_bot > heap_top || heap_top > last_slot))
-    goto corrupted;
+    { r = 1; goto corrupted; }
   if (UNIV_UNLIKELY(mach_read_from_2(last_slot) != PAGE_OLD_SUPREMUM))
-    goto corrupted;
+    { r = 2; goto corrupted; }
   if (UNIV_UNLIKELY(mach_read_from_2(page_dir_get_nth_slot(block.frame, 0)) !=
                                      PAGE_OLD_INFIMUM))
-    goto corrupted;
+    { r = 3; goto corrupted; }
   rec_t * const prev_rec= block.frame + PAGE_OLD_INFIMUM + prev;
   if (!prev);
   else if (UNIV_UNLIKELY(heap_bot + (REC_N_OLD_EXTRA_BYTES + 1) > prev_rec ||
                          prev_rec > heap_top))
-    goto corrupted;
+    { r = 4; goto corrupted; }
   const ulint pn_fields= rec_get_bit_field_2(prev_rec, REC_OLD_N_FIELDS,
                                              REC_OLD_N_FIELDS_MASK,
                                              REC_OLD_N_FIELDS_SHIFT);
   if (UNIV_UNLIKELY(pn_fields == 0 || pn_fields > REC_MAX_N_FIELDS))
-    goto corrupted;
+    { r = 5; goto corrupted; }
   const ulint pextra_size= REC_N_OLD_EXTRA_BYTES +
     (rec_get_1byte_offs_flag(prev_rec) ? pn_fields : pn_fields * 2);
   if (prev_rec == &block.frame[PAGE_OLD_INFIMUM]);
   else if (UNIV_UNLIKELY(prev_rec - pextra_size < heap_bot))
-    goto corrupted;
+    { r = 6; goto corrupted; }
   const ulint pdata_size= rec_get_data_size_old(prev_rec);
   if (UNIV_UNLIKELY(prev_rec + pdata_size > heap_top))
-    goto corrupted;
+    { r = 7; goto corrupted; }
   rec_t * const next_rec= block.frame + mach_read_from_2(prev_rec - REC_NEXT);
   if (next_rec == block.frame + PAGE_OLD_SUPREMUM);
   else if (UNIV_UNLIKELY(heap_bot + REC_N_OLD_EXTRA_BYTES > next_rec ||
                          next_rec > heap_top))
-    goto corrupted;
+    { r = 8; goto corrupted; }
   const bool is_short= (enc_hdr >> 2) & 1;
   const ulint n_fields= (enc_hdr >> 3) + 1;
   if (UNIV_UNLIKELY(n_fields > REC_MAX_N_FIELDS))
-    goto corrupted;
+    { r = 9; goto corrupted; }
   const ulint extra_size= REC_N_OLD_EXTRA_BYTES +
     (is_short ? n_fields : n_fields * 2);
   hdr_c+= REC_N_OLD_EXTRA_BYTES;
   if (UNIV_UNLIKELY(hdr_c > extra_size || hdr_c > pextra_size))
-    goto corrupted;
+    { r = 10; goto corrupted; }
   if (UNIV_UNLIKELY(extra_size - hdr_c > data_len))
-    goto corrupted;
+    { r = 11; goto corrupted; }
   /* We buffer all changes to the record header locally, so that
   we will avoid modifying the page before all consistency checks
   have been fulfilled. */
@@ -2374,15 +2375,15 @@ corrupted:
     if (owner_rec == &block.frame[PAGE_OLD_SUPREMUM]);
     else if (UNIV_UNLIKELY(heap_bot + REC_N_OLD_EXTRA_BYTES > owner_rec ||
                            owner_rec > heap_top))
-      goto corrupted;
+      { r = 12; goto corrupted; }
     if (!ns--)
-      goto corrupted; /* Corrupted (cyclic?) next-record list */
+      { r = 13; goto corrupted; } /* Corrupted (cyclic?) next-record list */
   }
 
   page_dir_slot_t *owner_slot= last_slot;
 
   if (n_owned > PAGE_DIR_SLOT_MAX_N_OWNED)
-    goto corrupted;
+    { r = 14; goto corrupted; }
   else
   {
     mach_write_to_2(insert_buf, owner_rec - block.frame);
@@ -2392,7 +2393,7 @@ corrupted:
 
     while (memcmp_aligned<2>(owner_slot, insert_buf, 2))
       if ((owner_slot+= 2) == first_slot)
-        goto corrupted;
+        { r = 15; goto corrupted; }
   }
 
   memcpy(insert_buf, data, extra_size - hdr_c);
@@ -2408,9 +2409,9 @@ corrupted:
 
   const ulint data_size= rec_get_data_size_old(insert_rec);
   if (UNIV_UNLIKELY(data_c > data_size))
-    goto corrupted;
+    { r = 16; goto corrupted; }
   if (UNIV_UNLIKELY(extra_size - hdr_c + data_size - data_c != data_len))
-    goto corrupted;
+    { r = 17; goto corrupted; }
 
   /* Perform final consistency checks and then apply the change to the page. */
   byte *buf;
@@ -2421,28 +2422,28 @@ corrupted:
     rec_t *free_rec= block.frame + mach_read_from_2(page_free);
     if (UNIV_UNLIKELY(heap_bot + REC_N_OLD_EXTRA_BYTES > free_rec ||
                       free_rec > heap_top))
-      goto corrupted;
+      { r = 18; goto corrupted; }
     const ulint fn_fields= rec_get_n_fields_old(free_rec);
     const ulint fextra_size= REC_N_OLD_EXTRA_BYTES +
       (rec_get_1byte_offs_flag(free_rec) ? fn_fields : fn_fields * 2);
     if (UNIV_UNLIKELY(free_rec - fextra_size < heap_bot))
-      goto corrupted;
+      { r = 19; goto corrupted; }
     const ulint fdata_size= rec_get_data_size_old(free_rec);
     if (UNIV_UNLIKELY(free_rec + data_size > heap_top))
-      goto corrupted;
+      { r = 20; goto corrupted; }
     if (UNIV_UNLIKELY(extra_size + data_size > fextra_size + fdata_size))
-      goto corrupted;
+      { r = 21; goto corrupted; }
     byte *page_garbage= my_assume_aligned<2>(page_free + 2);
     if (UNIV_UNLIKELY(mach_read_from_2(page_garbage) <
                       fextra_size + fdata_size))
-      goto corrupted;
+      { r = 22; goto corrupted; }
     buf= free_rec - fextra_size;
     const rec_t *const next_free= block.frame +
       mach_read_from_2(free_rec - REC_NEXT);
     if (next_free == block.frame);
     else if (UNIV_UNLIKELY(next_free < &heap_bot[REC_N_OLD_EXTRA_BYTES + 1] ||
                            heap_top < next_free))
-      goto corrupted;
+      { r = 23; goto corrupted; }
     mach_write_to_2(page_garbage, mach_read_from_2(page_garbage) -
                     extra_size - data_size);
     rec_set_bit_field_2(insert_rec, rec_get_heap_no_old(free_rec),
@@ -2452,7 +2453,7 @@ corrupted:
   else
   {
     if (UNIV_UNLIKELY(heap_top + extra_size + data_size > last_slot))
-      goto corrupted;
+      { r = 24; goto corrupted; }
     rec_set_bit_field_2(insert_rec, h,
                         REC_OLD_HEAP_NO, REC_HEAP_NO_MASK, REC_HEAP_NO_SHIFT);
     mach_write_to_2(page_n_heap, h + 1);
