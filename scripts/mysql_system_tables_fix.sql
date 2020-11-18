@@ -31,6 +31,37 @@ set alter_algorithm=DEFAULT;
 
 set @have_innodb= (select count(engine) from information_schema.engines where engine='INNODB' and support != 'NO');
 
+--
+-- Ensure that all tables are of type Aria and transactional
+--
+
+ALTER TABLE user ENGINE=Aria transactional=1;
+ALTER TABLE db ENGINE=Aria transactional=1;
+ALTER TABLE func ENGINE=Aria transactional=1;
+ALTER TABLE procs_priv ENGINE=Aria transactional=1;
+ALTER TABLE tables_priv ENGINE=Aria transactional=1;
+ALTER TABLE columns_priv ENGINE=Aria transactional=1;
+ALTER TABLE roles_mapping ENGINE=Aria transactional=1;
+ALTER TABLE plugin ENGINE=Aria transactional=1;
+ALTER TABLE servers ENGINE=Aria transactional=1;
+ALTER TABLE time_zone_name ENGINE=Aria transactional=1;
+ALTER TABLE time_zone ENGINE=Aria transactional=1;
+ALTER TABLE time_zone_transition ENGINE=Aria transactional=1;
+ALTER TABLE time_zone_transition_type ENGINE=Aria transactional=1;
+ALTER TABLE time_zone_leap_second ENGINE=Aria transactional=1;
+ALTER TABLE proc ENGINE=Aria transactional=1;
+ALTER TABLE event ENGINE=Aria transactional=1;
+ALTER TABLE proxies_priv ENGINE=Aria transactional=1;
+
+-- The following tables doesn't have to be transactional
+ALTER TABLE help_topic ENGINE=Aria transactional=0;
+ALTER TABLE help_category ENGINE=Aria transactional=0;
+ALTER TABLE help_relation ENGINE=Aria transactional=0;
+ALTER TABLE help_keyword ENGINE=Aria transactional=0;
+ALTER TABLE table_stats ENGINE=Aria transactional=0;
+ALTER TABLE column_stats ENGINE=Aria transactional=0;
+ALTER TABLE index_stats ENGINE=Aria transactional=0;
+
 ALTER TABLE user add File_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 
 # Detect whether or not we had the Grant_priv column
@@ -67,11 +98,11 @@ ALTER TABLE tables_priv
   ADD KEY Grantor (Grantor);
 
 ALTER TABLE tables_priv
-  MODIFY Host char(60) NOT NULL default '',
+  MODIFY Host char(255) NOT NULL default '',
   MODIFY Db char(64) NOT NULL default '',
-  MODIFY User char(80) binary NOT NULL default '',
+  MODIFY User char(128) binary NOT NULL default '',
   MODIFY Table_name char(64) NOT NULL default '',
-  MODIFY Grantor char(141) COLLATE utf8_bin NOT NULL default '',
+  MODIFY Grantor varchar(384) COLLATE utf8_bin NOT NULL default '',
   ENGINE=Aria,
   CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin;
 
@@ -95,9 +126,9 @@ ALTER TABLE columns_priv
     COLLATE utf8_general_ci DEFAULT '' NOT NULL;
 
 ALTER TABLE columns_priv
-  MODIFY Host char(60) NOT NULL default '',
+  MODIFY Host char(255) NOT NULL default '',
   MODIFY Db char(64) NOT NULL default '',
-  MODIFY User char(80) binary NOT NULL default '',
+  MODIFY User char(128) binary NOT NULL default '',
   MODIFY Table_name char(64) NOT NULL default '',
   MODIFY Column_name char(64) NOT NULL default '',
   ENGINE=Aria,
@@ -163,8 +194,8 @@ alter table func comment='User defined functions';
 # Convert all tables to UTF-8 with binary collation
 # and reset all char columns to correct width
 ALTER TABLE user
-  MODIFY Host char(60) NOT NULL default '',
-  MODIFY User char(80) binary NOT NULL default '',
+  MODIFY Host char(255) NOT NULL default '',
+  MODIFY User char(128) binary NOT NULL default '',
   ENGINE=Aria, CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin;
 
 # In MySQL 5.7.6 the Password column is removed. Recreate it to preserve the number
@@ -206,9 +237,9 @@ ALTER TABLE user
   MODIFY ssl_type enum('','ANY','X509', 'SPECIFIED') COLLATE utf8_general_ci DEFAULT '' NOT NULL;
 
 ALTER TABLE db
-  MODIFY Host char(60) NOT NULL default '',
+  MODIFY Host char(255) NOT NULL default '',
   MODIFY Db char(64) NOT NULL default '',
-  MODIFY User char(80) binary NOT NULL default '',
+  MODIFY User char(128) binary NOT NULL default '',
   ENGINE=Aria, CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin;
 ALTER TABLE db
   MODIFY  Select_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL,
@@ -437,7 +468,7 @@ ALTER TABLE proc MODIFY name char(64) DEFAULT '' NOT NULL,
 # Reset some fields after the conversion
 ALTER TABLE proc CONVERT TO CHARACTER SET utf8,
                   MODIFY db char(64) binary DEFAULT '' NOT NULL,
-                  MODIFY definer char(141) binary DEFAULT '' NOT NULL,
+                  MODIFY definer varchar(384) binary DEFAULT '' NOT NULL,
                   MODIFY comment text binary NOT NULL;
 
 ALTER TABLE proc ADD character_set_client
@@ -656,7 +687,7 @@ ALTER TABLE user ADD password_last_changed timestamp DEFAULT CURRENT_TIMESTAMP N
 ALTER TABLE user ADD password_lifetime smallint unsigned DEFAULT NULL after password_last_changed;
 ALTER TABLE user ADD account_locked enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL after password_lifetime;
 ALTER TABLE user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER account_locked;
-ALTER TABLE user ADD default_role char(80) binary DEFAULT '' NOT NULL AFTER is_role;
+ALTER TABLE user ADD default_role char(128) binary DEFAULT '' NOT NULL AFTER is_role;
 ALTER TABLE user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL AFTER default_role;
 
 -- Somewhere above, we ran ALTER TABLE user .... CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin.
@@ -709,19 +740,19 @@ end if //
 DELIMITER ;
 
 # MDEV-4332 longer user names
-alter table user         modify User         char(80)  binary not null default '';
-alter table db           modify User         char(80)  binary not null default '';
-alter table tables_priv  modify User         char(80)  binary not null default '';
-alter table columns_priv modify User         char(80)  binary not null default '';
-alter table procs_priv   modify User         char(80)  binary not null default '';
-alter table proc         modify definer      char(141) collate utf8_bin not null default '';
-alter table event        modify definer      char(141) collate utf8_bin not null default '';
-alter table proxies_priv modify User         char(80)  COLLATE utf8_bin not null default '';
-alter table proxies_priv modify Proxied_user char(80)  COLLATE utf8_bin not null default '';
-alter table proxies_priv modify Grantor      char(141) COLLATE utf8_bin not null default '';
-alter table servers      modify Username     char(80)                   not null default '';
-alter table procs_priv   modify Grantor      char(141) COLLATE utf8_bin not null default '';
-alter table tables_priv  modify Grantor      char(141) COLLATE utf8_bin not null default '';
+alter table user         modify User         char(128)  binary not null default '';
+alter table db           modify User         char(128)  binary not null default '';
+alter table tables_priv  modify User         char(128)  binary not null default '';
+alter table columns_priv modify User         char(128)  binary not null default '';
+alter table procs_priv   modify User         char(128)  binary not null default '';
+alter table proc         modify definer      varchar(384) collate utf8_bin not null default '';
+alter table event        modify definer      varchar(384) collate utf8_bin not null default '';
+alter table proxies_priv modify User         char(128)  COLLATE utf8_bin not null default '';
+alter table proxies_priv modify Proxied_user char(128)  COLLATE utf8_bin not null default '';
+alter table proxies_priv modify Grantor      varchar(384) COLLATE utf8_bin not null default '';
+alter table servers      modify Username     char(128)                   not null default '';
+alter table procs_priv   modify Grantor      varchar(384) COLLATE utf8_bin not null default '';
+alter table tables_priv  modify Grantor      varchar(384) COLLATE utf8_bin not null default '';
 
 # Activate the new, possible modified privilege tables
 # This should not be needed, but gives us some extra testing that the above
@@ -739,40 +770,9 @@ ALTER TABLE help_topic MODIFY url TEXT NOT NULL;
 # MDEV-7383 - varbinary on mix/max of column_stats
 alter table column_stats modify min_value varbinary(255) DEFAULT NULL, modify max_value varbinary(255) DEFAULT NULL;
 
---
--- Ensure that all tables are of type Aria and transactional
---
-
-ALTER TABLE user ENGINE=Aria transactional=1;
-ALTER TABLE db ENGINE=Aria transactional=1;
-ALTER TABLE func ENGINE=Aria transactional=1;
-ALTER TABLE procs_priv ENGINE=Aria transactional=1;
-ALTER TABLE tables_priv ENGINE=Aria transactional=1;
-ALTER TABLE columns_priv ENGINE=Aria transactional=1;
-ALTER TABLE roles_mapping ENGINE=Aria transactional=1;
-ALTER TABLE plugin ENGINE=Aria transactional=1;
-ALTER TABLE servers ENGINE=Aria transactional=1;
-ALTER TABLE time_zone_name ENGINE=Aria transactional=1;
-ALTER TABLE time_zone ENGINE=Aria transactional=1;
-ALTER TABLE time_zone_transition ENGINE=Aria transactional=1;
-ALTER TABLE time_zone_transition_type ENGINE=Aria transactional=1;
-ALTER TABLE time_zone_leap_second ENGINE=Aria transactional=1;
-ALTER TABLE proc ENGINE=Aria transactional=1;
-ALTER TABLE event ENGINE=Aria transactional=1;
-ALTER TABLE proxies_priv ENGINE=Aria transactional=1;
-
--- The following tables doesn't have to be transactional
-ALTER TABLE help_topic ENGINE=Aria transactional=0;
-ALTER TABLE help_category ENGINE=Aria transactional=0;
-ALTER TABLE help_relation ENGINE=Aria transactional=0;
-ALTER TABLE help_keyword ENGINE=Aria transactional=0;
-ALTER TABLE table_stats ENGINE=Aria transactional=0;
-ALTER TABLE column_stats ENGINE=Aria transactional=0;
-ALTER TABLE index_stats ENGINE=Aria transactional=0;
-
 DELIMITER //
 IF 'BASE TABLE' = (select table_type from information_schema.tables where table_schema=database() and table_name='user') THEN
-  CREATE TABLE IF NOT EXISTS global_priv (Host char(60) binary DEFAULT '', User char(80) binary DEFAULT '', Priv JSON NOT NULL DEFAULT '{}' CHECK(JSON_VALID(Priv)), PRIMARY KEY Host (Host,User)) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin comment='Users and global privileges'
+  CREATE TABLE IF NOT EXISTS global_priv (Host char(255) binary DEFAULT '', User char(128) binary DEFAULT '', Priv JSON NOT NULL DEFAULT '{}' CHECK(JSON_VALID(Priv)), PRIMARY KEY Host (Host,User)) engine=Aria transactional=1 CHARACTER SET utf8 COLLATE utf8_bin comment='Users and global privileges'
   SELECT Host, User, JSON_COMPACT(JSON_OBJECT('access',
                              1*('Y'=Select_priv)+
                              2*('Y'=Insert_priv)+

@@ -76,9 +76,9 @@ user
 show create table db;
 Table	Create Table
 db	CREATE TABLE `db` (
-  `Host` char(60) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `Host` char(255) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Db` char(64) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `User` char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `User` char(128) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Select_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
   `Insert_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
   `Update_priv` enum('N','Y') CHARACTER SET utf8 NOT NULL DEFAULT 'N',
@@ -117,19 +117,19 @@ func	CREATE TABLE `func` (
 show create table global_priv;
 Table	Create Table
 global_priv	CREATE TABLE `global_priv` (
-  `Host` char(60) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `User` char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `Host` char(255) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `User` char(128) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Priv` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '{}' CHECK (json_valid(`Priv`)),
   PRIMARY KEY (`Host`,`User`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8 COLLATE=utf8_bin PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Users and global privileges'
 show create table tables_priv;
 Table	Create Table
 tables_priv	CREATE TABLE `tables_priv` (
-  `Host` char(60) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `Host` char(255) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Db` char(64) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `User` char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `User` char(128) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Table_name` char(64) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `Grantor` char(141) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `Grantor` varchar(384) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `Table_priv` set('Select','Insert','Update','Delete','Create','Drop','Grant','References','Index','Alter','Create View','Show view','Trigger','Delete versioning rows') CHARACTER SET utf8 NOT NULL DEFAULT '',
   `Column_priv` set('Select','Insert','Update','References') CHARACTER SET utf8 NOT NULL DEFAULT '',
@@ -139,9 +139,9 @@ tables_priv	CREATE TABLE `tables_priv` (
 show create table columns_priv;
 Table	Create Table
 columns_priv	CREATE TABLE `columns_priv` (
-  `Host` char(60) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `Host` char(255) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Db` char(64) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `User` char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `User` char(128) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Table_name` char(64) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Column_name` char(64) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
@@ -153,10 +153,10 @@ Table	Create Table
 procs_priv	CREATE TABLE `procs_priv` (
   `Host` char(60) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Db` char(64) COLLATE utf8_bin NOT NULL DEFAULT '',
-  `User` char(80) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `User` char(128) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Routine_name` char(64) CHARACTER SET utf8 NOT NULL DEFAULT '',
   `Routine_type` enum('FUNCTION','PROCEDURE','PACKAGE','PACKAGE BODY') COLLATE utf8_bin NOT NULL,
-  `Grantor` char(141) COLLATE utf8_bin NOT NULL DEFAULT '',
+  `Grantor` varchar(384) COLLATE utf8_bin NOT NULL DEFAULT '',
   `Proc_priv` set('Execute','Alter Routine','Grant') CHARACTER SET utf8 NOT NULL DEFAULT '',
   `Timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`Host`,`Db`,`User`,`Routine_name`,`Routine_type`),
@@ -168,7 +168,7 @@ servers	CREATE TABLE `servers` (
   `Server_name` char(64) NOT NULL DEFAULT '',
   `Host` char(64) NOT NULL DEFAULT '',
   `Db` char(64) NOT NULL DEFAULT '',
-  `Username` char(80) NOT NULL DEFAULT '',
+  `Username` char(128) NOT NULL DEFAULT '',
   `Password` char(64) NOT NULL DEFAULT '',
   `Port` int(4) NOT NULL DEFAULT 0,
   `Socket` char(64) NOT NULL DEFAULT '',
@@ -190,7 +190,7 @@ proc	CREATE TABLE `proc` (
   `param_list` blob NOT NULL DEFAULT '',
   `returns` longblob NOT NULL,
   `body` longblob NOT NULL,
-  `definer` char(141) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '',
+  `definer` varchar(384) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '',
   `created` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `modified` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
   `sql_mode` set('REAL_AS_FLOAT','PIPES_AS_CONCAT','ANSI_QUOTES','IGNORE_SPACE','IGNORE_BAD_TABLE_OPTIONS','ONLY_FULL_GROUP_BY','NO_UNSIGNED_SUBTRACTION','NO_DIR_IN_CREATE','POSTGRESQL','ORACLE','MSSQL','DB2','MAXDB','NO_KEY_OPTIONS','NO_TABLE_OPTIONS','NO_FIELD_OPTIONS','MYSQL323','MYSQL40','ANSI','NO_AUTO_VALUE_ON_ZERO','NO_BACKSLASH_ESCAPES','STRICT_TRANS_TABLES','STRICT_ALL_TABLES','NO_ZERO_IN_DATE','NO_ZERO_DATE','INVALID_DATES','ERROR_FOR_DIVISION_BY_ZERO','TRADITIONAL','NO_AUTO_CREATE_USER','HIGH_NOT_PRECEDENCE','NO_ENGINE_SUBSTITUTION','PAD_CHAR_TO_FULL_LENGTH','EMPTY_STRING_IS_NULL','SIMULTANEOUS_ASSIGNMENT','TIME_ROUND_FRACTIONAL') NOT NULL DEFAULT '',
@@ -208,7 +208,7 @@ event	CREATE TABLE `event` (
   `db` char(64) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '',
   `name` char(64) NOT NULL DEFAULT '',
   `body` longblob NOT NULL,
-  `definer` char(141) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '',
+  `definer` varchar(384) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '',
   `execute_at` datetime DEFAULT NULL,
   `interval_value` int(11) DEFAULT NULL,
   `interval_field` enum('YEAR','QUARTER','MONTH','DAY','HOUR','MINUTE','WEEK','SECOND','MICROSECOND','YEAR_MONTH','DAY_HOUR','DAY_MINUTE','DAY_SECOND','HOUR_MINUTE','HOUR_SECOND','MINUTE_SECOND','DAY_MICROSECOND','HOUR_MICROSECOND','MINUTE_MICROSECOND','SECOND_MICROSECOND') DEFAULT NULL,

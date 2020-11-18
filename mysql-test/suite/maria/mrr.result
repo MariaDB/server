@@ -423,12 +423,12 @@ set join_buffer_size=10240;
 CREATE TABLE t1 (
 f2 varchar(32) COLLATE latin1_swedish_ci, 
 f3 int(11), 
-f4 varchar(2048) COLLATE utf8_bin, 
-f5 varchar(2048) COLLATE latin1_bin, 
+f4 varchar(4096) COLLATE utf8_bin,
+f5 varchar(4096) COLLATE latin1_bin,
 KEY (f5)
 ) ENGINE=Aria TRANSACTIONAL=0 ;
 Warnings:
-Note	1071	Specified key was too long; max key length is 2000 bytes
+Note	1071	Specified key was too long; max key length is 2300 bytes
 # Fill the table with some data
 SELECT alias2.* , alias1.f2 
 FROM 

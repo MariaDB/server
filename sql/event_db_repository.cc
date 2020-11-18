@@ -57,7 +57,7 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
   },
   {
     { STRING_WITH_LEN("definer") },
-    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("varchar(") },
     { STRING_WITH_LEN("utf8") }
   },
   {

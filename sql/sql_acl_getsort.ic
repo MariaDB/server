@@ -14,6 +14,8 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
+
+#define magic_bits 30
 /*
   Returns a number which, if sorted in descending order, magically puts
   patterns in the order from most specific (e.g. no wildcards) to most generic
@@ -21,8 +23,8 @@
 
   Takes a template that lists types of following patterns (by the first letter
   of _h_ostname, _d_bname, _u_sername) and up to four patterns.
-  No more than two can be of 'h' or 'd' type (because one magic value takes 26
-  bits, see below).
+  No more than two can be of 'h' or 'd' type (because one magic value takes
+  magic_bits bits, see below).
 
   ========================================================================
 
@@ -142,7 +144,7 @@
   case 2: ((M*2*(maxlen+1) + L)*(maxlen+1) + K)*(maxlen+1) + P
 
   upper bound: L<=maxlen, M<=maxlen, K<=maxlen/2, P<maxlen
-  for a current maxlen=64, the magic number needs 26 bits.
+  for a current maxlen=64, the magic number needs magic_bits bits.
 */
 
 static ulonglong get_magic_sort(const char *templ, ...)
@@ -165,9 +167,9 @@ static ulonglong get_magic_sort(const char *templ, ...)
       continue;
     }
 
-    /* A wildcard pattern.  Encoded in 26 bits.  */
+    /* A wildcard pattern.  Encoded in magic_bits bits.  */
     uint maxlen= *templ == 'd' ? max_dbname_length : max_hostname_length;
-    DBUG_ASSERT(maxlen <= 64);
+    DBUG_ASSERT(maxlen <= 255);
     DBUG_ASSERT(*templ == 'd' || *templ == 'h');
 
     uint N= 0, M= 0, K= 0, P= 0;
@@ -189,14 +191,19 @@ static ulonglong get_magic_sort(const char *templ, ...)
       if (pat[i] == wild_prefix && pat[i+1]) i++;
       N++;
     }
-    uint L= K ? maxlen - N - M : 0, d= maxlen + 1, magic;
+
+    set_if_smaller(K, 31);
+    set_if_smaller(M, 31);
+
+    ulonglong L= K ? maxlen - N - M : 0, d= maxlen + 1, magic;
+    ulonglong d1= MY_MIN(d, 32);
     if (L > M)
-      magic= (((L * 2 + 1) * d + K) * d + M) * d + P;
+      magic= (((L * 2 + 1) * d + K) * d1 + M) * d + P;
     else
-      magic= (((M * 2 + 0) * d + L) * d + K) * d + P;
-    DBUG_ASSERT(magic < 1<<26);
-    sort= (sort << 26) + magic;
-    IF_DBUG(bits_used+= 26,);
+      magic= (((M * 2 + 0) * d + L) * d1 + K) * d + P;
+    DBUG_ASSERT(magic < (1ULL << magic_bits));
+    sort= (sort << magic_bits) + magic;
+    IF_DBUG(bits_used+= magic_bits,);
   }
   DBUG_ASSERT(bits_used < 8*sizeof(sort));
   va_end(args);

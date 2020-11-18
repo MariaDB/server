@@ -92,7 +92,7 @@ show create table accounts;
 Table	Create Table
 accounts	CREATE TABLE `accounts` (
   `USER` char(128) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
-  `HOST` char(60) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `HOST` char(255) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `CURRENT_CONNECTIONS` bigint(20) NOT NULL,
   `TOTAL_CONNECTIONS` bigint(20) NOT NULL
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8
@@ -153,7 +153,7 @@ events_stages_history_long	CREATE TABLE `events_stages_history_long` (
 show create table events_stages_summary_by_host_by_event_name;
 Table	Create Table
 events_stages_summary_by_host_by_event_name	CREATE TABLE `events_stages_summary_by_host_by_event_name` (
-  `HOST` char(60) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `HOST` char(255) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `EVENT_NAME` varchar(128) NOT NULL,
   `COUNT_STAR` bigint(20) unsigned NOT NULL,
   `SUM_TIMER_WAIT` bigint(20) unsigned NOT NULL,
@@ -187,7 +187,7 @@ show create table events_stages_summary_by_account_by_event_name;
 Table	Create Table
 events_stages_summary_by_account_by_event_name	CREATE TABLE `events_stages_summary_by_account_by_event_name` (
   `USER` char(128) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
-  `HOST` char(60) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `HOST` char(255) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `EVENT_NAME` varchar(128) NOT NULL,
   `COUNT_STAR` bigint(20) unsigned NOT NULL,
   `SUM_TIMER_WAIT` bigint(20) unsigned NOT NULL,
@@ -376,7 +376,7 @@ events_statements_summary_by_digest	CREATE TABLE `events_statements_summary_by_d
 show create table events_statements_summary_by_host_by_event_name;
 Table	Create Table
 events_statements_summary_by_host_by_event_name	CREATE TABLE `events_statements_summary_by_host_by_event_name` (
-  `HOST` char(60) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `HOST` char(255) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `EVENT_NAME` varchar(128) NOT NULL,
   `COUNT_STAR` bigint(20) unsigned NOT NULL,
   `SUM_TIMER_WAIT` bigint(20) unsigned NOT NULL,
@@ -467,7 +467,7 @@ show create table events_statements_summary_by_account_by_event_name;
 Table	Create Table
 events_statements_summary_by_account_by_event_name	CREATE TABLE `events_statements_summary_by_account_by_event_name` (
   `USER` char(128) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
-  `HOST` char(60) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `HOST` char(255) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `EVENT_NAME` varchar(128) NOT NULL,
   `COUNT_STAR` bigint(20) unsigned NOT NULL,
   `SUM_TIMER_WAIT` bigint(20) unsigned NOT NULL,
@@ -784,7 +784,7 @@ events_waits_history_long	CREATE TABLE `events_waits_history_long` (
 show create table events_waits_summary_by_host_by_event_name;
 Table	Create Table
 events_waits_summary_by_host_by_event_name	CREATE TABLE `events_waits_summary_by_host_by_event_name` (
-  `HOST` char(60) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `HOST` char(255) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `EVENT_NAME` varchar(128) NOT NULL,
   `COUNT_STAR` bigint(20) unsigned NOT NULL,
   `SUM_TIMER_WAIT` bigint(20) unsigned NOT NULL,
@@ -829,7 +829,7 @@ show create table events_waits_summary_by_account_by_event_name;
 Table	Create Table
 events_waits_summary_by_account_by_event_name	CREATE TABLE `events_waits_summary_by_account_by_event_name` (
   `USER` char(128) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
-  `HOST` char(60) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `HOST` char(255) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `EVENT_NAME` varchar(128) NOT NULL,
   `COUNT_STAR` bigint(20) unsigned NOT NULL,
   `SUM_TIMER_WAIT` bigint(20) unsigned NOT NULL,
@@ -1040,7 +1040,7 @@ host_cache	CREATE TABLE `host_cache` (
 show create table hosts;
 Table	Create Table
 hosts	CREATE TABLE `hosts` (
-  `HOST` char(60) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
+  `HOST` char(255) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
   `CURRENT_CONNECTIONS` bigint(20) NOT NULL,
   `TOTAL_CONNECTIONS` bigint(20) NOT NULL
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8
@@ -1082,7 +1082,7 @@ rwlock_instances	CREATE TABLE `rwlock_instances` (
 show create table setup_actors;
 Table	Create Table
 setup_actors	CREATE TABLE `setup_actors` (
-  `HOST` char(60) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '%',
+  `HOST` char(255) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '%',
   `USER` char(128) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '%',
   `ROLE` char(128) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT '%',
   `ENABLED` enum('YES','NO') NOT NULL DEFAULT 'YES',
@@ -1364,7 +1364,7 @@ threads	CREATE TABLE `threads` (
   `TYPE` varchar(10) NOT NULL,
   `PROCESSLIST_ID` bigint(20) unsigned DEFAULT NULL,
   `PROCESSLIST_USER` varchar(128) DEFAULT NULL,
-  `PROCESSLIST_HOST` varchar(60) DEFAULT NULL,
+  `PROCESSLIST_HOST` varchar(255) DEFAULT NULL,
   `PROCESSLIST_DB` varchar(64) DEFAULT NULL,
   `PROCESSLIST_COMMAND` varchar(16) DEFAULT NULL,
   `PROCESSLIST_TIME` bigint(20) DEFAULT NULL,

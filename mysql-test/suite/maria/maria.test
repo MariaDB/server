@@ -373,12 +373,12 @@ drop table t1;
 #
 
 --error 1071
-CREATE TABLE t1 (a varchar(255), b varchar(255), c varchar(255), d varchar(255), e varchar(255), f varchar(255), g varchar(255), h varchar(255), i varchar(255), KEY t1 (a, b, c, d, e, f, g, h, i));
+CREATE TABLE t1 (a varchar(255), b varchar(255), c varchar(255), d varchar(255), e varchar(255), f varchar(255), g varchar(255), h varchar(255), i varchar(255), j varchar(255), KEY t1 (a, b, c, d, e, f, g, h, i, j));
 --error 1070
 CREATE TABLE t1 (a varchar(1), b varchar(1), key (a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b,a,b));
-CREATE TABLE t1 (a varchar(255), b varchar(255), c varchar(255), d varchar(255), e varchar(255), f varchar(255), g varchar(255), h varchar(255), i varchar(255));
+CREATE TABLE t1 (a varchar(255), b varchar(255), c varchar(255), d varchar(255), e varchar(255), f varchar(255), g varchar(255), h varchar(255), i varchar(255), j varchar(255));
 --error 1071
-ALTER TABLE t1 ADD INDEX t1 (a, b, c, d, e, f, g, h, i);
+ALTER TABLE t1 ADD INDEX t1 (a, b, c, d, e, f, g, h, i, j);
 DROP TABLE t1;
 
 #
@@ -1159,15 +1159,15 @@ create table t1 (a int not null, key `a` (a) key_block_size=2048);
 show create table t1;
 drop table t1;
 
-create table t1 (a varchar(2048), key `a` (a));
+create table t1 (a varchar(4096), key `a` (a));
 show create table t1;
 drop table t1;
 
-create table t1 (a varchar(2048), key `a` (a) key_block_size=1024);
+create table t1 (a varchar(4096), key `a` (a) key_block_size=1024);
 show create table t1;
 drop table t1;
 
-create table t1 (a int not null, b varchar(2048), key (a), key(b)) key_block_size=1024;
+create table t1 (a int not null, b varchar(4096), key (a), key(b)) key_block_size=1024;
 show create table t1;
 alter table t1 key_block_size=2048;
 show create table t1;
@@ -1181,11 +1181,11 @@ alter table t1 add d int, add key (d);
 show create table t1;
 drop table t1;
 
-create table t1 (a int not null, b varchar(2048), key (a), key(b)) key_block_size=8192;
+create table t1 (a int not null, b varchar(4096), key (a), key(b)) key_block_size=8192;
 show create table t1;
 drop table t1;
 
-create table t1 (a int not null, b varchar(2048), key (a) key_block_size=1024, key(b)) key_block_size=8192;
+create table t1 (a int not null, b varchar(4096), key (a) key_block_size=1024, key(b)) key_block_size=8192;
 show create table t1;
 drop table t1;
 
@@ -1199,7 +1199,7 @@ create table t1 (a int not null, key `a` (a) key_block_size=512);
 show create table t1;
 drop table t1;
 
-create table t1 (a varchar(2048), key `a` (a) key_block_size=1000000000000000000);
+create table t1 (a varchar(4096), key `a` (a) key_block_size=1000000000000000000);
 show create table t1;
 drop table t1;
 

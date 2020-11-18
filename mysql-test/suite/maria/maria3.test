@@ -22,7 +22,7 @@ create table t1 (a int not null, key `a` (a) key_block_size=512);
 show create table t1;
 drop table t1;
 
-create table t1 (a varchar(2048), key `a` (a) key_block_size=1000000000000000000);
+create table t1 (a varchar(4096), key `a` (a) key_block_size=1000000000000000000);
 show create table t1;
 drop table t1;
 

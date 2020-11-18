@@ -177,7 +177,7 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   },
   {
     { STRING_WITH_LEN("definer") },
-    { STRING_WITH_LEN("char(") },
+    { STRING_WITH_LEN("varchar(") },
     { STRING_WITH_LEN("utf8") }
   },
   {

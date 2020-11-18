@@ -197,6 +197,7 @@ extern MYSQL_PLUGIN_IMPORT const char **errmesg;
 extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd);
 extern "C" unsigned long long thd_query_id(const MYSQL_THD thd);
 extern "C" size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen);
+extern "C" const char *thd_priv_host(MYSQL_THD thd,  size_t *length);
 extern "C" const char *thd_user_name(MYSQL_THD thd);
 extern "C" const char *thd_client_host(MYSQL_THD thd);
 extern "C" const char *thd_client_ip(MYSQL_THD thd);

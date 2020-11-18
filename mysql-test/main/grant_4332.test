@@ -30,13 +30,13 @@ grant usage on *.* to a17aaaaaaaaaaaaa0@lodalhost;
 --error ER_WRONG_STRING_LENGTH
 drop user a17aaaaaaaaaaaaa0@lodalhost;
 
-alter table mysql.user modify User char(80) binary not null default '';
-alter table mysql.db modify User char(80) binary not null default '';
-alter table mysql.tables_priv modify User char(80) binary not null default '';
-alter table mysql.columns_priv modify User char(80) binary not null default '';
-alter table mysql.procs_priv modify User char(80) binary not null default '';
-alter table mysql.proc modify definer char(141) collate utf8_bin not null default '';
-alter table mysql.event modify definer char(141) collate utf8_bin not null default '';
+alter table mysql.user modify User char(128) binary not null default '';
+alter table mysql.db modify User char(128) binary not null default '';
+alter table mysql.tables_priv modify User char(128) binary not null default '';
+alter table mysql.columns_priv modify User char(128) binary not null default '';
+alter table mysql.procs_priv modify User char(128) binary not null default '';
+alter table mysql.proc modify definer varchar(384) collate utf8_bin not null default '';
+alter table mysql.event modify definer varchar(384) collate utf8_bin not null default '';
 flush privileges;
 
 --enable_metadata

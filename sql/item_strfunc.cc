@@ -55,7 +55,7 @@ C_MODE_END
 #include <sql_repl.h>
 #include "sql_statistics.h"
 
-size_t username_char_length= 80;
+size_t username_char_length= USERNAME_CHAR_LENGTH;
 
 /*
   Calculate max length of string from length argument to LEFT and RIGHT

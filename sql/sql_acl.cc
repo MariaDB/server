@@ -64,8 +64,8 @@ bool using_global_priv_table= true;
 
 // set that from field length in acl_load?
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-const uint max_hostname_length= 60;
-const uint max_dbname_length= 64;
+const uint max_hostname_length= HOSTNAME_LENGTH;
+const uint max_dbname_length= NAME_CHAR_LEN;
 #endif
 
 const char *safe_vio_type_name(Vio *vio)
