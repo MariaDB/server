@@ -216,11 +216,10 @@ row_undo_ins_remove_sec_low(
 	}
 
 	if (dict_index_is_spatial(index)) {
-		if (modify_leaf) {
-			mode |= BTR_RTREE_DELETE_MARK;
-		}
+		mode |= modify_leaf
+			? BTR_RTREE_UNDO_INS | BTR_RTREE_DELETE_MARK
+			: BTR_RTREE_UNDO_INS;
 		btr_pcur_get_btr_cur(&pcur)->thr = thr;
-		mode |= BTR_RTREE_UNDO_INS;
 	}
 
 	switch (row_search_index_entry(index, entry, mode, &pcur, &mtr)) {

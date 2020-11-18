@@ -160,6 +160,8 @@ record is in spatial index */
 					 | BTR_ALREADY_S_LATCHED	\
 					 | BTR_LATCH_FOR_INSERT		\
 					 | BTR_LATCH_FOR_DELETE		\
+					 | BTR_RTREE_UNDO_INS		\
+					 | BTR_RTREE_DELETE_MARK	\
 					 | BTR_MODIFY_EXTERNAL)))
 
 #define BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode)			\

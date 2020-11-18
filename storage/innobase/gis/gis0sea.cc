@@ -106,8 +106,6 @@ rtr_pcur_getnext_from_path(
 	ulint		skip_parent = false;
 	bool		new_split = false;
 	bool		need_parent;
-	bool		for_delete = false;
-	bool		for_undo_ins = false;
 
 	/* exhausted all the pages to be searched */
 	if (rtr_info->path->empty()) {
@@ -117,9 +115,6 @@ rtr_pcur_getnext_from_path(
 	ut_ad(dtuple_get_n_fields_cmp(tuple));
 
 	my_latch_mode = BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
-
-	for_delete = latch_mode & BTR_RTREE_DELETE_MARK;
-	for_undo_ins = latch_mode & BTR_RTREE_UNDO_INS;
 
 	/* There should be no insert coming to this function. Only
 	mode with BTR_MODIFY_* should be delete */
@@ -136,8 +131,7 @@ rtr_pcur_getnext_from_path(
 		       && mode == PAGE_CUR_RTREE_LOCATE);
 
 	if (!index_locked) {
-		ut_ad(latch_mode & BTR_SEARCH_LEAF
-		      || latch_mode & BTR_MODIFY_LEAF);
+		ut_ad(latch_mode & (BTR_SEARCH_LEAF | BTR_MODIFY_LEAF));
 		mtr_s_lock(dict_index_get_lock(index), mtr);
 	} else {
 		ut_ad(mtr_memo_contains_flagged(mtr, &index->lock,
@@ -330,7 +324,9 @@ rtr_pcur_getnext_from_path(
 
 					if (!rec_get_deleted_flag(rec,
 					    dict_table_is_comp(index->table))
-					    || (!for_delete && !for_undo_ins)) {
+					    || !(latch_mode
+						 & (BTR_RTREE_DELETE_MARK
+						    | BTR_RTREE_UNDO_INS))) {
 						found = true;
 						btr_cur->low_match = low_match;
 					} else {
@@ -484,7 +480,6 @@ rtr_pcur_move_to_next(
 	page_cur_mode_t	mode,	/*!< in: cursor search mode */
 	btr_pcur_t*	cursor,	/*!< in: persistent cursor; NOTE that the
 				function may release the page latch */
-	ulint		level,	/*!< in: target level */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	rtr_info_t*	rtr_info = cursor->btr_cur.rtr_info;
@@ -510,7 +505,7 @@ rtr_pcur_move_to_next(
 
 	/* Fetch the next page */
 	return(rtr_pcur_getnext_from_path(tuple, mode, &cursor->btr_cur,
-					 level, cursor->latch_mode,
+					 0, cursor->latch_mode,
 					 false, mtr));
 }
 
@@ -544,7 +539,6 @@ void
 rtr_pcur_open_low(
 /*==============*/
 	dict_index_t*	index,	/*!< in: index */
-	ulint		level,	/*!< in: level in the rtree */
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
 	page_cur_mode_t	mode,	/*!< in: PAGE_CUR_RTREE_LOCATE, ... */
 	ulint		latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
@@ -557,21 +551,13 @@ rtr_pcur_open_low(
 	ulint		n_fields;
 	ulint		low_match;
 	rec_t*		rec;
-	bool		tree_latched = false;
-	bool		for_delete = false;
-	bool		for_undo_ins = false;
 
-	ut_ad(level == 0);
-
-	ut_ad(latch_mode & BTR_MODIFY_LEAF || latch_mode & BTR_MODIFY_TREE);
+	ut_ad(latch_mode & (BTR_MODIFY_LEAF | BTR_MODIFY_TREE));
 	ut_ad(mode == PAGE_CUR_RTREE_LOCATE);
 
 	/* Initialize the cursor */
 
 	btr_pcur_init(cursor);
-
-	for_delete = latch_mode & BTR_RTREE_DELETE_MARK;
-	for_undo_ins = latch_mode & BTR_RTREE_UNDO_INS;
 
 	cursor->latch_mode = BTR_LATCH_MODE_WITHOUT_FLAGS(latch_mode);
 	cursor->search_mode = mode;
@@ -589,7 +575,7 @@ rtr_pcur_open_low(
 		btr_cursor->rtr_info->thr = btr_cursor->thr;
 	}
 
-	btr_cur_search_to_nth_level(index, level, tuple, mode, latch_mode,
+	btr_cur_search_to_nth_level(index, 0, tuple, mode, latch_mode,
 				    btr_cursor, 0, file, line, mtr, 0);
 	cursor->pos_state = BTR_PCUR_IS_POSITIONED;
 
@@ -601,25 +587,20 @@ rtr_pcur_open_low(
 
 	n_fields = dtuple_get_n_fields(tuple);
 
-	if (latch_mode & BTR_ALREADY_S_LATCHED) {
-		ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
-				  MTR_MEMO_S_LOCK));
-		tree_latched = true;
-	}
+	ut_ad(!(latch_mode & BTR_ALREADY_S_LATCHED)
+	      || mtr_memo_contains(mtr, &index->lock, MTR_MEMO_S_LOCK));
+	ut_ad(!(latch_mode & BTR_MODIFY_TREE)
+	      || mtr_memo_contains_flagged(mtr, &index->lock, MTR_MEMO_X_LOCK
+					   | MTR_MEMO_SX_LOCK));
 
-	if (latch_mode & BTR_MODIFY_TREE) {
-		ut_ad(mtr_memo_contains_flagged(mtr, &index->lock,
-						MTR_MEMO_X_LOCK
-						| MTR_MEMO_SX_LOCK));
-		tree_latched = true;
-	}
+	const bool deleted = rec_get_deleted_flag(
+		rec, dict_table_is_comp(index->table));
 
 	if (page_rec_is_infimum(rec) || low_match != n_fields
-	    || (rec_get_deleted_flag(rec, dict_table_is_comp(index->table))
-		&& (for_delete || for_undo_ins))) {
+	    || (latch_mode & (BTR_RTREE_DELETE_MARK | BTR_RTREE_UNDO_INS)
+		&& deleted)) {
 
-		if (rec_get_deleted_flag(rec, dict_table_is_comp(index->table))
-		    && for_delete) {
+		if (latch_mode & BTR_RTREE_DELETE_MARK && deleted) {
 			btr_cursor->rtr_info->fd_del = true;
 			btr_cursor->low_match = 0;
 		}
@@ -628,8 +609,6 @@ rtr_pcur_open_low(
 		if (latch_mode & BTR_MODIFY_LEAF) {
 			ulint		tree_idx = btr_cursor->tree_height - 1;
 			rtr_info_t*	rtr_info = btr_cursor->rtr_info;
-
-			ut_ad(level == 0);
 
 			if (rtr_info->tree_blocks[tree_idx]) {
 				mtr_release_block_at_savepoint(
@@ -641,8 +620,9 @@ rtr_pcur_open_low(
 		}
 
 		bool	ret = rtr_pcur_getnext_from_path(
-			tuple, mode, btr_cursor, level, latch_mode,
-			tree_latched, mtr);
+			tuple, mode, btr_cursor, 0, latch_mode,
+			latch_mode & (BTR_ALREADY_S_LATCHED | BTR_MODIFY_TREE),
+			mtr);
 
 		if (ret) {
 			low_match = btr_pcur_get_low_match(cursor);

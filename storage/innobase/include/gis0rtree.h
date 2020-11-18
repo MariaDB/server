@@ -123,8 +123,6 @@ rtr_pcur_move_to_next(
 	page_cur_mode_t	mode,	/*!< in: cursor search mode */
 	btr_pcur_t*	cursor, /*!< in: persistent cursor; NOTE that the
 				function may release the page latch */
-	ulint		cur_level,
-				/*!< in: current level */
 	mtr_t*		mtr);	/*!< in: mtr */
 
 /****************************************************************//**
@@ -325,7 +323,6 @@ void
 rtr_pcur_open_low(
 /*==============*/
 	dict_index_t*	index,	/*!< in: index */
-	ulint		level,	/*!< in: level in the btree */
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
 	page_cur_mode_t	mode,	/*!< in: PAGE_CUR_L, ...;
 				NOTE that if the search is made using a unique
@@ -340,7 +337,7 @@ rtr_pcur_open_low(
 	mtr_t*		mtr);	/*!< in: mtr */
 
 #define rtr_pcur_open(i,t,md,l,c,m)			\
-	rtr_pcur_open_low(i,0,t,md,l,c,__FILE__,__LINE__,m)
+	rtr_pcur_open_low(i,t,md,l,c,__FILE__,__LINE__,m)
 
 struct btr_cur_t;
 

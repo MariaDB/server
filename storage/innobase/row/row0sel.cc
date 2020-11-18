@@ -5727,7 +5727,7 @@ next_rec:
 	if (moves_up) {
 		if (UNIV_UNLIKELY(spatial_search)) {
 			if (rtr_pcur_move_to_next(
-				    search_tuple, mode, pcur, 0, &mtr)) {
+				    search_tuple, mode, pcur, &mtr)) {
 				goto rec_loop;
 			}
 		} else {
