@@ -219,3 +219,38 @@ DROP TABLE test.t1;
 SET GLOBAL enforce_storage_engine=NULL;
 
 --echo End of 10.1 tests
+
+--echo #
+--echo # MDEV-23201 'Roles' are created incorrectly on an install that was previously MySQL 5.7
+--echo #
+--echo #
+
+--exec $MYSQL_DUMP --result-file $MYSQLTEST_VARDIR/tmp/user.sql mysql user
+--remove_file $MYSQLD_DATADIR/mysql/user.frm
+--remove_file $MYSQLD_DATADIR/mysql/user.MYI
+--remove_file $MYSQLD_DATADIR/mysql/user.MYD
+
+--copy_file std_data/mysql57user.frm $MYSQLD_DATADIR/mysql/user.frm
+--copy_file std_data/mysql57user.MYI $MYSQLD_DATADIR/mysql/user.MYI
+--copy_file std_data/mysql57user.MYD $MYSQLD_DATADIR/mysql/user.MYD
+FLUSH TABLES mysql.user;
+FLUSH PRIVILEGES;
+SHOW CREATE TABLE mysql.user;
+
+--exec $MYSQL_UPGRADE --force 2>&1
+SHOW CREATE TABLE mysql.user;
+
+CREATE ROLE `aRole`;
+SET ROLE `aRole`;
+
+FLUSH PRIVILEGES;
+
+SET ROLE `aRole`;
+SELECT `User`, `is_role` FROM `mysql`.`user`;
+
+DROP ROLE `aRole`;
+--exec $MYSQL mysql < $MYSQLTEST_VARDIR/tmp/user.sql
+FLUSH PRIVILEGES;
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+--echo End of 10.2 tests

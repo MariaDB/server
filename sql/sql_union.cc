@@ -514,6 +514,25 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   found_rows_for_union= first_sl->options & OPTION_FOUND_ROWS;
   is_union_select= is_union() || fake_select_lex;
 
+  /*
+    If we are reading UNION output and the UNION is in the
+    IN/ANY/ALL/EXISTS subquery, then ORDER BY is redundant and hence should
+    be removed.
+    Example:
+     select ... col IN (select col2 FROM t1 union select col3 from t2 ORDER BY 1)
+
+    (as for ORDER BY ... LIMIT, it currently not supported inside
+     IN/ALL/ANY subqueries)
+    (For non-UNION this removal of ORDER BY clause is done in
+     check_and_do_in_subquery_rewrites())
+  */
+  if (is_union() && item &&
+      (item->is_in_predicate() || item->is_exists_predicate()))
+  {
+    global_parameters()->order_list.first= NULL;
+    global_parameters()->order_list.elements= 0;
+  }
+
   /* Global option */
 
   if (is_union_select || is_recursive)
@@ -1539,6 +1558,19 @@ bool st_select_lex::cleanup()
     error= join->destroy();
     delete join;
     join= 0;
+  }
+  for (TABLE_LIST *tbl= get_table_list(); tbl; tbl= tbl->next_local)
+  {
+    if (tbl->is_recursive_with_table() &&
+        !tbl->is_with_table_recursive_reference())
+    {
+      /*
+        If query is killed before open_and_process_table() for tbl
+        is called then 'with' is already set, but 'derived' is not.
+      */
+      st_select_lex_unit *unit= tbl->with->spec;
+      error|= (bool) error | (uint) unit->cleanup();
+    }
   }
   for (SELECT_LEX_UNIT *lex_unit= first_inner_unit(); lex_unit ;
        lex_unit= lex_unit->next_unit())

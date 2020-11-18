@@ -45,7 +45,7 @@ typedef class JARRAY  *PJAR;
 #define BMX 255
 typedef struct BSON  *PBSON;
 typedef struct JPAIR *PJPR;
-typedef struct VAL   *PVL;
+//typedef struct VAL   *PVL;
 
 /***********************************************************************/
 /* Structure JPAIR. The pairs of a json Object.                        */
@@ -56,6 +56,7 @@ struct JPAIR {
 	PJPR  Next;     // To the next pair
 }; // end of struct JPAIR
 
+#if 0
 /***********************************************************************/
 /* Structure VAL (string, int, float, bool or null)                    */
 /***********************************************************************/
@@ -70,6 +71,7 @@ struct VAL {
 	int         Nd;				 // Decimal number
 	JTYP        Type;      // The value type
 }; // end of struct VAL
+#endif // 0
 
 /***********************************************************************/
 /*  Structure used to return binary json to Json UDF functions.        */
@@ -87,7 +89,7 @@ struct BSON {
 }; // end of struct BSON
 
 PBSON JbinAlloc(PGLOBAL g, UDF_ARGS* args, ulong len, PJSON jsp);
-PVL   AllocVal(PGLOBAL g, JTYP type);
+//PVL   AllocVal(PGLOBAL g, JTYP type);
 char *NextChr(PSZ s, char sep);
 char *GetJsonNull(void);
 const char* GetFmt(int type, bool un);
@@ -112,7 +114,7 @@ public:
 	PJOB  ParseObject(PGLOBAL g, int& i);
 	PJVAL ParseValue(PGLOBAL g, int& i);
 	char *ParseString(PGLOBAL g, int& i);
-	PVL   ParseNumeric(PGLOBAL g, int& i);
+	void  ParseNumeric(PGLOBAL g, int& i, PJVAL jvp);
 	PJAR  ParseAsArray(PGLOBAL g, int& i, int pretty, int *ptyp);
 	bool  SerializeArray(PJAR jarp, bool b);
 	bool  SerializeObject(PJOB jobp);
@@ -231,6 +233,7 @@ class JARRAY : public JSON {
 class JVALUE : public JSON {
   friend class JARRAY;
 	friend class JSNX;
+	friend class JSONDISC;
 	friend class JSONCOL;
   friend class JSON;
 	friend class JDOC;
@@ -238,7 +241,7 @@ class JVALUE : public JSON {
 public:
 	JVALUE(void) : JSON() { Type = TYPE_JVAL; Clear(); }
 	JVALUE(PJSON jsp);
-	JVALUE(PGLOBAL g, PVL vlp);
+//JVALUE(PGLOBAL g, PVL vlp);
 	JVALUE(PGLOBAL g, PVAL valp);
 	JVALUE(PGLOBAL g, PCSZ strp);
 	JVALUE(int i) : JSON(i) {}
@@ -247,20 +250,19 @@ public:
   //using JSON::SetVal;
 
 	// Methods
-  virtual void   Clear(void)
-          {Jsp = NULL; Val = NULL; Next = NULL; Del = false;}
+	virtual void   Clear(void);
 //virtual JTYP   GetType(void) {return TYPE_JVAL;}
   virtual JTYP   GetValType(void);
   virtual PJOB   GetObject(void);
   virtual PJAR   GetArray(void);
-  virtual PJSON  GetJsp(void) {return Jsp;}
+  virtual PJSON  GetJsp(void) {return (DataType == TYPE_JSON ? Jsp : NULL);}
   virtual PSZ    GetText(PGLOBAL g, PSTRG text);
 	virtual bool   IsNull(void);
 
 	// Specific
-	inline PVL  GetVal(void) { return Val; }
-	inline void SetVal(PVL vlp) { Val = vlp; }
-	inline PJSON  GetJson(void) { return (Jsp ? Jsp : this); }
+	//inline PVL  GetVal(void) { return Val; }
+	//inline void SetVal(PVL vlp) { Val = vlp; }
+	inline PJSON  GetJson(void) { return (DataType == TYPE_JSON ? Jsp : this); }
 	PSZ    GetString(PGLOBAL g, char* buff = NULL);
 	int    GetInteger(void);
 	long long GetBigint(void);
@@ -275,10 +277,19 @@ public:
 	void   SetBool(PGLOBAL g, bool b);
 
  protected:
-  PJSON Jsp;      // To the json value
-  PVL   Val;      // To the string or numeric value
-  PJVAL Next;     // Next value in array
-  bool  Del;      // True when deleted
+	 union {
+		 PJSON  Jsp;       // To the json value
+		 char  *Strp;      // Ptr to a string
+		 int    N;         // An integer value
+		 long long LLn;		 // A big integer value
+		 double F;				 // A (double) float value
+		 bool   B;				 // True or false
+	 };
+//PVL   Val;      // To the string or numeric value
+	PJVAL Next;     // Next value in array
+	JTYP  DataType; // The data value type
+	int   Nd;				// Decimal number
+	bool  Del;      // True when deleted
 }; // end of class JVALUE
 
 
@@ -368,15 +379,15 @@ protected:
 	size_t MoffObject(PJOB jobp);
 	size_t MoffJValue(PJVAL jvp);
 	size_t MoffPair(PJPR jpp);
-	size_t MoffVal(PVL vlp);
+//size_t MoffVal(PVL vlp);
 	PJSON  MptrJson(PJSON jnp);
 	PJAR   MptrArray(PJAR jarp);
 	PJOB   MptrObject(PJOB jobp);
 	PJVAL  MptrJValue(PJVAL jvp);
 	PJPR   MptrPair(PJPR jpp);
-	PVL    MptrVal(PVL vlp);
+//PVL    MptrVal(PVL vlp);
 
 	// Member
-	PGLOBAL G, NG;
+	PGLOBAL G;
 	void   *Base;
 }; // end of class SWAP

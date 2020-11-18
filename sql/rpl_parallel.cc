@@ -75,18 +75,18 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
 
   /* Do not update position if an earlier event group caused an error abort. */
   DBUG_ASSERT(qev->typ == rpl_parallel_thread::queued_event::QUEUED_POS_UPDATE);
+  rli= qev->rgi->rli;
   e= qev->entry_for_queued;
-  if (e->stop_on_error_sub_id < (uint64)ULONGLONG_MAX || e->force_abort)
+  if (e->stop_on_error_sub_id < (uint64)ULONGLONG_MAX ||
+      (e->force_abort && !rli->stop_for_until))
     return;
 
-  rli= qev->rgi->rli;
   mysql_mutex_lock(&rli->data_lock);
   cmp= strcmp(rli->group_relay_log_name, qev->event_relay_log_name);
   if (cmp < 0)
   {
     rli->group_relay_log_pos= qev->future_event_relay_log_pos;
     strmake_buf(rli->group_relay_log_name, qev->event_relay_log_name);
-    rli->notify_group_relay_log_name_update();
   } else if (cmp == 0 &&
              rli->group_relay_log_pos < qev->future_event_relay_log_pos)
     rli->group_relay_log_pos= qev->future_event_relay_log_pos;
@@ -378,13 +378,14 @@ do_gco_wait(rpl_group_info *rgi, group_commit_orderer *gco,
 }
 
 
-static void
+static bool
 do_ftwrl_wait(rpl_group_info *rgi,
               bool *did_enter_cond, PSI_stage_info *old_stage)
 {
   THD *thd= rgi->thd;
   rpl_parallel_entry *entry= rgi->parallel_entry;
   uint64 sub_id= rgi->gtid_sub_id;
+  bool aborted= false;
   DBUG_ENTER("do_ftwrl_wait");
 
   mysql_mutex_assert_owner(&entry->LOCK_parallel_entry);
@@ -407,7 +408,10 @@ do_ftwrl_wait(rpl_group_info *rgi,
     do
     {
       if (entry->force_abort || rgi->worker_error)
+      {
+        aborted= true;
         break;
+      }
       if (thd->check_killed())
       {
         thd->send_kill_message();
@@ -427,7 +431,7 @@ do_ftwrl_wait(rpl_group_info *rgi,
   if (sub_id > entry->largest_started_sub_id)
     entry->largest_started_sub_id= sub_id;
 
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(aborted);
 }
 
 
@@ -513,7 +517,22 @@ rpl_unpause_after_ftwrl(THD *thd)
     mysql_mutex_lock(&e->LOCK_parallel_entry);
     rpt->pause_for_ftwrl = false;
     mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
-    e->pause_sub_id= (uint64)ULONGLONG_MAX;
+    /*
+      Do not change pause_sub_id if force_abort is set.
+      force_abort is set in case of STOP SLAVE.
+
+      Reason: If pause_sub_id is not changed and force_abort_is set,
+      any parallel slave thread waiting in do_ftwrl_wait() will
+      on wakeup return from do_ftwrl_wait() with 1. This will set
+      skip_event_group to 1 in handle_rpl_parallel_thread() and the
+      parallel thread will abort at once.
+
+      If pause_sub_id is changed, the code in handle_rpl_parallel_thread()
+      would continue to execute the transaction in the queue, which would
+      cause some transactions to be lost.
+    */
+    if (!e->force_abort)
+      e->pause_sub_id= (uint64)ULONGLONG_MAX;
     mysql_cond_broadcast(&e->COND_parallel_entry);
     mysql_mutex_unlock(&e->LOCK_parallel_entry);
   }
@@ -1197,7 +1216,7 @@ handle_rpl_parallel_thread(void *arg)
           rgi->worker_error= 1;
         }
         if (likely(!skip_event_group))
-          do_ftwrl_wait(rgi, &did_enter_cond, &old_stage);
+          skip_event_group= do_ftwrl_wait(rgi, &did_enter_cond, &old_stage);
 
         /*
           Register ourself to wait for the previous commit, if we need to do

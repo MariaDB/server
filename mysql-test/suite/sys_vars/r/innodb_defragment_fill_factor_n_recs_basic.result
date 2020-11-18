@@ -19,13 +19,13 @@ SELECT @@global.innodb_defragment_fill_factor_n_recs;
 1
 SET @@global.innodb_defragment_fill_factor_n_recs = -1;
 Warnings:
-Warning	1292	Truncated incorrect innodb_defragment_fill_factor_n_ value: '-1'
+Warning	1292	Truncated incorrect innodb_defragment_fill_factor... value: '-1'
 SELECT @@global.innodb_defragment_fill_factor_n_recs;
 @@global.innodb_defragment_fill_factor_n_recs
 1
 SET @@global.innodb_defragment_fill_factor_n_recs = 10000;
 Warnings:
-Warning	1292	Truncated incorrect innodb_defragment_fill_factor_n_ value: '10000'
+Warning	1292	Truncated incorrect innodb_defragment_fill_factor... value: '10000'
 SELECT @@global.innodb_defragment_fill_factor_n_recs;
 @@global.innodb_defragment_fill_factor_n_recs
 100

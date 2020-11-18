@@ -23,7 +23,7 @@ STOP SLAVE;
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 wait
 EOF
---shutdown_server 10
+--shutdown_server
 --source include/wait_until_disconnected.inc
 --append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 restart

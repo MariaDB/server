@@ -152,6 +152,7 @@ JSONDISC::JSONDISC(PGLOBAL g, uint *lg)
 {
   length = lg;
   jcp = fjcp = pjcp = NULL;
+  tdp = NULL;
   tjnp = NULL;
   jpp = NULL;
   tjsp = NULL;
@@ -392,16 +393,16 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
   PJOB   job;
   PJAR   jar;
 
-  if ((vlp = jvp ? jvp->GetVal() : NULL)) {
+  if (jvp && jvp->DataType != TYPE_JSON) {
 		if (JsonAllPath() && !fmt[bf])
 			strcat(fmt, colname);
 
-		jcol.Type = vlp->Type;
+		jcol.Type = jvp->DataType;
 
-		switch (vlp->Type) {
+		switch (jvp->DataType) {
 		case TYPE_STRG:
 		case TYPE_DTM:
-			jcol.Len = (int)strlen(vlp->Strp);
+			jcol.Len = (int)strlen(jvp->Strp);
 			break;
 		case TYPE_INTG:
 		case TYPE_BINT:
@@ -409,7 +410,7 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
 			break;
 		case TYPE_DBL:
 			jcol.Len = (int)strlen(jvp->GetString(g));
-			jcol.Scale = vlp->Nd;
+			jcol.Scale = jvp->Nd;
 			break;
 		case TYPE_BOOL:
 			jcol.Len = 1;
@@ -419,8 +420,8 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
 			break;
 		} // endswitch Type
 
-    jcol.Scale = vlp->Nd;
-    jcol.Cbn = vlp->Type == TYPE_NULL;
+    jcol.Scale = jvp->Nd;
+    jcol.Cbn = jvp->DataType == TYPE_NULL;
   } else if (!jvp || jvp->IsNull()) {
     jcol.Type = TYPE_UNKNOWN;
     jcol.Len = jcol.Scale = 0;
@@ -528,7 +529,7 @@ void JSONDISC::AddColumn(PGLOBAL g)
     if (jcp->Type != jcol.Type) {
       if (jcp->Type == TYPE_UNKNOWN)
         jcp->Type = jcol.Type;
-      else if (jcol.Type != TYPE_UNKNOWN)
+      else if (jcol.Type != TYPE_UNKNOWN && jcol.Type != TYPE_VOID)
         jcp->Type = TYPE_STRING;
 
     } // endif Type
@@ -1595,12 +1596,12 @@ PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp)
 /***********************************************************************/
 /*  SetValue: Set a value from a JVALUE contains.                      */
 /***********************************************************************/
-void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val)
+void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL jvp)
 {
-  if (val) {
+  if (jvp) {
     vp->SetNull(false);
 
-    switch (val->GetValType()) {
+    switch (jvp->GetValType()) {
       case TYPE_STRG:
       case TYPE_INTG:
       case TYPE_BINT:
@@ -1609,21 +1610,21 @@ void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val)
 				switch (vp->GetType()) {
 				case TYPE_STRING:
 				case TYPE_DATE:
-					vp->SetValue_psz(val->GetString(g));
+					vp->SetValue_psz(jvp->GetString(g));
 					break;
 				case TYPE_INT:
 				case TYPE_SHORT:
 				case TYPE_TINY:
-					vp->SetValue(val->GetInteger());
+					vp->SetValue(jvp->GetInteger());
 					break;
 				case TYPE_BIGINT:
-					vp->SetValue(val->GetBigint());
+					vp->SetValue(jvp->GetBigint());
 					break;
 				case TYPE_DOUBLE:
-					vp->SetValue(val->GetFloat());
+					vp->SetValue(jvp->GetFloat());
 
-					if (val->GetValType() == TYPE_DBL)
-						vp->SetPrec(val->Val->Nd);
+					if (jvp->GetValType() == TYPE_DBL)
+						vp->SetPrec(jvp->Nd);
 
 					break;
 				default:
@@ -1634,18 +1635,18 @@ void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val)
         break;
       case TYPE_BOOL:
         if (vp->IsTypeNum())
-          vp->SetValue(val->GetInteger() ? 1 : 0);
+          vp->SetValue(jvp->GetInteger() ? 1 : 0);
         else
-          vp->SetValue_psz((PSZ)(val->GetInteger() ? "true" : "false"));
+          vp->SetValue_psz((PSZ)(jvp->GetInteger() ? "true" : "false"));
 
         break;
       case TYPE_JAR:
 //      SetJsonValue(g, vp, val->GetArray()->GetValue(0));
-				vp->SetValue_psz(val->GetArray()->GetText(g, NULL));
+				vp->SetValue_psz(jvp->GetArray()->GetText(g, NULL));
 				break;
       case TYPE_JOB:
 //      if (!vp->IsTypeNum() || !Strict) {
-          vp->SetValue_psz(val->GetObject()->GetText(g, NULL));
+          vp->SetValue_psz(jvp->GetObject()->GetText(g, NULL));
           break;
 //        } // endif Type
 
@@ -1808,9 +1809,9 @@ PVAL JSONCOL::CalculateArray(PGLOBAL g, PJAR arp, int n)
 
     if (!jvrp->IsNull() || (op == OP_CNC && GetJsonNull())) do {
       if (jvrp->IsNull()) {
-				jvrp->Val = AllocVal(g, TYPE_STRG);
-				jvrp->Val->Strp = PlugDup(g, GetJsonNull());
-				jvp = jvrp;
+				jvrp->Strp = PlugDup(g, GetJsonNull());
+        jvrp->DataType = TYPE_STRG;
+        jvp = jvrp;
       } else if (n < Nod - 1 && jvrp->GetJson()) {
         Tjp->NextSame = nextsame;
         jval.SetValue(g, GetColumnValue(g, jvrp->GetJson(), n + 1));

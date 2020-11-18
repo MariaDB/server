@@ -312,7 +312,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   pos+= reclength;
   int2store(pos, create_info->connect_string.length);
   pos+= 2;
-  memcpy(pos, create_info->connect_string.str, create_info->connect_string.length);
+  if (create_info->connect_string.length)
+    memcpy(pos, create_info->connect_string.str, create_info->connect_string.length);
   pos+= create_info->connect_string.length;
   int2store(pos, str_db_type.length);
   pos+= 2;
@@ -593,6 +594,18 @@ static bool pack_vcols(String *buf, List<Create_field> &create_fields,
 }
 
 
+static uint typelib_values_packed_length(const TYPELIB *t)
+{
+  uint length= 0;
+  for (uint i= 0; t->type_names[i]; i++)
+  {
+    length+= t->type_lengths[i];
+    length++; /* Separator */
+  }
+  return length;
+}
+
+
 /* Make formheader */
 
 static bool pack_header(THD *thd, uchar *forminfo,
@@ -685,9 +698,8 @@ static bool pack_header(THD *thd, uchar *forminfo,
       field->interval_id=get_interval_id(&int_count,create_fields,field);
       if (old_int_count != int_count)
       {
-	for (const char **pos=field->interval->type_names ; *pos ; pos++)
-	  int_length+=(uint) strlen(*pos)+1;	// field + suffix prefix
-	int_parts+=field->interval->count+1;
+        int_length+= typelib_values_packed_length(field->interval);
+        int_parts+= field->interval->count + 1;
       }
     }
     if (f_maybe_null(field->pack_flag))
@@ -776,11 +788,7 @@ static size_t packed_fields_length(List<Create_field> &create_fields)
     {
       int_count= field->interval_id;
       length++;
-      for (int i=0; field->interval->type_names[i]; i++)
-      {
-        length+= field->interval->type_lengths[i];
-        length++;
-      }
+      length+= typelib_values_packed_length(field->interval);
       length++;
     }
 

@@ -2233,6 +2233,18 @@ set GLOBAL sql_mode=default;
 --source include/wait_until_count_sessions.inc
 
 --echo #
+--echo # MDEV-22755 CREATE USER leads to indirect SIGABRT in __stack_chk_fail () from fill_schema_user_privileges + *** stack smashing detected *** (on optimized builds)
+--echo #
+
+SET NAMES utf8;
+SET SQL_MODE='';
+CREATE USER 觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻@localhost;
+SELECT * FROM INFORMATION_SCHEMA.user_privileges WHERE GRANTEE LIKE "'abcdefghijklmnopqrstuvwxyz'%";
+SELECT GRANTEE FROM INFORMATION_SCHEMA.user_privileges WHERE GRANTEE LIKE '%觻%';
+DROP USER  觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻_觻觻觻觻觻觻觻觻觻觻@localhost;
+SET SQL_MODE=DEFAULT;
+
+--echo #
 --echo # Start of 10.2 tests
 --echo #
 
@@ -2254,6 +2266,31 @@ INSERT INTO t1 VALUES ();
 SELECT * FROM t1;
 DROP TABLE t1;
 DROP USER dummy@localhost;
+
+--echo #
+--echo # MDEV-23082: ER_TABLEACCESS_DENIED_ERROR error message is truncated, and
+--echo # inaccurately
+--echo #
+
+CREATE USER foo;
+CREATE DATABASE db;
+CREATE TABLE db.t (a INT);
+
+--connect (con1,localhost,foo,,)
+
+--error ER_TABLEACCESS_DENIED_ERROR
+GRANT ALL ON db.t TO foo;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, GRANT OPTION, REFERENCES,
+INDEX, ALTER, CREATE VIEW, SHOW VIEW, TRIGGER ON db.t TO foo;
+
+--connection default
+--disconnect con1
+
+DROP USER foo;
+DROP TABLE db.t;
+DROP DATABASE db;
 
 --echo #
 --echo # End of 10.2 tests

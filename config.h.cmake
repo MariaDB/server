@@ -200,6 +200,7 @@
 #cmakedefine HAVE_PTHREAD_ATTR_SETSCOPE 1
 #cmakedefine HAVE_PTHREAD_ATTR_SETSTACKSIZE 1
 #cmakedefine HAVE_PTHREAD_CONDATTR_CREATE 1
+#cmakedefine HAVE_PTHREAD_GETAFFINITY_NP 1
 #cmakedefine HAVE_PTHREAD_KEY_DELETE 1
 #cmakedefine HAVE_PTHREAD_KILL 1
 #cmakedefine HAVE_PTHREAD_RWLOCK_RDLOCK 1
@@ -249,7 +250,6 @@
 /* Symbols we may use */
 #cmakedefine HAVE_SYS_ERRLIST 1
 /* used by stacktrace functions */
-#cmakedefine HAVE_BSS_START 1
 #cmakedefine HAVE_BACKTRACE 1
 #cmakedefine HAVE_BACKTRACE_SYMBOLS 1
 #cmakedefine HAVE_BACKTRACE_SYMBOLS_FD 1

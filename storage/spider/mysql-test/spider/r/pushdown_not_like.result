@@ -1,0 +1,63 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+drop and create databases
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+create table select test
+connection master_1;
+DROP TABLE IF EXISTS ta_l;
+CREATE TABLE ta_l (
+a INT,
+b CHAR(1),
+c DATETIME,
+PRIMARY KEY(a)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+INSERT INTO ta_l (a, b, c) VALUES
+(1, 'a', '2018-11-01 10:21:39'),
+(2, 'b', '2015-06-30 23:59:59'),
+(3, 'c', '2013-11-01 01:01:01');
+
+spider not like bug fix test
+connection master_1;
+select * from ta_l where b not like 'a%';
+a	b	c
+2	b	2015-06-30 23:59:59
+3	c	2013-11-01 01:01:01
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select%';
+argument
+select `a`,`b`,`c` from `auto_test_remote`.`ta_r` where (`b` not like 'a%')
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select%'
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+
+end of test

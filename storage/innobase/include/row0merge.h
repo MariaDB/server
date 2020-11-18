@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -201,18 +201,6 @@ void
 row_merge_file_destroy_low(
 /*=======================*/
 	int		fd);	/*!< in: merge file descriptor */
-
-/*********************************************************************//**
-Provide a new pathname for a table that is being renamed if it belongs to
-a file-per-table tablespace.  The caller is responsible for freeing the
-memory allocated for the return value.
-@return new pathname of tablespace file, or NULL if space = 0 */
-char*
-row_make_new_pathname(
-/*==================*/
-	dict_table_t*	table,		/*!< in: table to be renamed */
-	const char*	new_name)	/*!< in: new name */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*********************************************************************//**
 Rename the tables in the data dictionary.  The data dictionary must
@@ -489,7 +477,7 @@ row_merge_read_rec(
 	const mrec_t**		mrec,	/*!< out: pointer to merge record,
 					or NULL on end of list
 					(non-NULL on I/O error) */
-	ulint*			offsets,/*!< out: offsets of mrec */
+	rec_offs*		offsets,/*!< out: offsets of mrec */
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
 	ulint			space)	   /*!< in: space id */
 	MY_ATTRIBUTE((warn_unused_result));

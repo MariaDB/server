@@ -2038,9 +2038,13 @@ static int init_binlog_sender(binlog_send_info *info,
     });
 
   if (global_system_variables.log_warnings > 1)
+  {
     sql_print_information(
-        "Start binlog_dump to slave_server(%lu), pos(%s, %lu)",
-        thd->variables.server_id, log_ident, (ulong)*pos);
+        "Start binlog_dump to slave_server(%lu), pos(%s, %lu), "
+        "using_gtid(%d), gtid('%s')", thd->variables.server_id,
+        log_ident, (ulong)*pos, info->using_gtid_state,
+        connect_gtid_state.c_ptr_quick());
+  }
 
 #ifndef DBUG_OFF
   if (opt_sporadic_binlog_dump_fail && (binlog_dump_count++ % 2))
@@ -3858,8 +3862,14 @@ bool mysql_show_binlog_events(THD* thd)
 {
   Protocol *protocol= thd->protocol;
   List<Item> field_list;
+  char errmsg_buf[MYSYS_ERRMSG_SIZE];
   const char *errmsg = 0;
   bool ret = TRUE;
+  /*
+     Using checksum validate the correctness of event pos specified in show
+     binlog events command.
+  */
+  bool verify_checksum_once= false;
   IO_CACHE log;
   File file = -1;
   MYSQL_BIN_LOG *binary_log= NULL;
@@ -3867,6 +3877,9 @@ bool mysql_show_binlog_events(THD* thd)
   Master_info *mi= 0;
   LOG_INFO linfo;
   LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
+  enum enum_binlog_checksum_alg checksum_alg;
+  my_off_t binlog_size;
+  MY_STAT s;
 
   DBUG_ENTER("mysql_show_binlog_events");
 
@@ -3938,6 +3951,17 @@ bool mysql_show_binlog_events(THD* thd)
     if ((file=open_binlog(&log, linfo.log_file_name, &errmsg)) < 0)
       goto err;
 
+    my_stat(linfo.log_file_name, &s, MYF(0));
+    binlog_size= s.st_size;
+    if (lex_mi->pos > binlog_size)
+    {
+      sprintf(errmsg_buf, "Invalid pos specified. Requested from pos:%llu is "
+              "greater than actual file size:%lu\n", lex_mi->pos,
+              (ulong)s.st_size);
+      errmsg= errmsg_buf;
+      goto err;
+    }
+
     /*
       to account binlog event header size
     */
@@ -3989,20 +4013,57 @@ bool mysql_show_binlog_events(THD* thd)
       }
     }
 
-    my_b_seek(&log, pos);
+    if (lex_mi->pos > BIN_LOG_HEADER_SIZE)
+    {
+      checksum_alg= description_event->checksum_alg;
+      /* Validate user given position using checksum */
+      if (checksum_alg != BINLOG_CHECKSUM_ALG_OFF &&
+          checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF)
+      {
+        if (!opt_master_verify_checksum)
+          verify_checksum_once= true;
+        my_b_seek(&log, pos);
+      }
+      else
+      {
+        my_off_t cur_pos= my_b_tell(&log);
+        ulong next_event_len= 0;
+        uchar buff[IO_SIZE];
+        while (cur_pos < pos)
+        {
+          my_b_seek(&log, cur_pos + EVENT_LEN_OFFSET);
+          if (my_b_read(&log, (uchar *)buff, sizeof(next_event_len)))
+          {
+            mysql_mutex_unlock(log_lock);
+            errmsg = "Could not read event_length";
+            goto err;
+          }
+          next_event_len= uint4korr(buff);
+          cur_pos= cur_pos + next_event_len;
+        }
+        if (cur_pos > pos)
+        {
+          mysql_mutex_unlock(log_lock);
+          errmsg= "Invalid input pos specified please provide valid one.";
+          goto err;
+        }
+        my_b_seek(&log, cur_pos);
+      }
+    }
 
     for (event_count = 0;
          (ev = Log_event::read_log_event(&log, (mysql_mutex_t*) 0,
                                          description_event,
-                                         opt_master_verify_checksum)); )
+                                         (opt_master_verify_checksum ||
+                                          verify_checksum_once))); )
     {
       if (event_count >= limit_start &&
-	  ev->net_send(protocol, linfo.log_file_name, pos))
+          ev->net_send(protocol, linfo.log_file_name, pos))
       {
-	errmsg = "Net error";
-	delete ev;
+        errmsg = "Net error";
+        delete ev;
         mysql_mutex_unlock(log_lock);
-	goto err;
+        goto err;
       }
 
       if (ev->get_type_code() == FORMAT_DESCRIPTION_EVENT)
@@ -4028,10 +4089,11 @@ bool mysql_show_binlog_events(THD* thd)
         delete ev;
       }
 
+      verify_checksum_once= false;
       pos = my_b_tell(&log);
 
       if (++event_count >= limit_end)
-	break;
+        break;
     }
 
     if (event_count < limit_end && log.error)

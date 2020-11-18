@@ -1,0 +1,35 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+# We will kill and restart the server.
+--source include/not_embedded.inc
+FLUSH TABLES;
+
+--echo #
+--echo # MDEV-21217 innodb_force_recovery=2 may wrongly abort the rollback
+--echo # of recovered transactions
+--echo #
+
+connect (con0,localhost,root);
+CREATE TABLE t0 (a INT PRIMARY KEY) ENGINE=InnoDB;
+# Create enough undo log so that the rollback may take enough time.
+BEGIN;
+INSERT INTO t0 SELECT * FROM seq_1_to_1000;
+
+connection default;
+# Persist the above incomplete transaction.
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+
+--let $restart_parameters= --innodb-force-recovery=2
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
+--let $restart_parameters=
+--let $shutdown_timeout=
+
+disconnect con0;
+connection default;
+# If the rollback was aborted, we would end up in a lock wait here.
+# The LIMIT 0 works around MDEV-22889 InnoDB occasionally breaks ACID
+SELECT * FROM t0 LIMIT 0 LOCK IN SHARE MODE;
+DROP TABLE t0,t1;

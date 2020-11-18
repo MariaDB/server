@@ -1,0 +1,119 @@
+SET GLOBAL innodb_adaptive_hash_index = false;
+SET GLOBAL innodb_stats_persistent = false;
+connect  purge_control,localhost,root,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connect  con2,localhost,root,,;
+CREATE TABLE t1 (
+a00 CHAR(255) NOT NULL DEFAULT 'a',
+a01 CHAR(255) NOT NULL DEFAULT 'a',
+a02 CHAR(255) NOT NULL DEFAULT 'a',
+b INT NOT NULL DEFAULT 0,
+CONSTRAINT pkey PRIMARY KEY(a00, a01, a02)
+) charset latin1 ENGINE = InnoDB COMMENT='MERGE_THRESHOLD=45';
+SET GLOBAL innodb_limit_optimistic_insert_debug = 3;
+CREATE PROCEDURE data_load_t1()
+BEGIN
+DECLARE c1 INT DEFAULT 97;
+DECLARE c2 INT DEFAULT 97;
+DECLARE c3 INT DEFAULT 97;
+WHILE c1 < 102 DO
+WHILE c2 < 123 DO
+WHILE c3 < 123 DO
+INSERT INTO t1 (a00) VALUES (CHAR(c1,c2,c3));
+SET c3 = c3 + 1;
+END WHILE;
+SET c3 = 97;
+SET c2 = c2 + 1;
+END WHILE;
+SET c2 = 97;
+SET c1 = c1 + 1;
+END WHILE;
+END |
+call data_load_t1();
+DROP PROCEDURE data_load_t1;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
+CLUST_INDEX_SIZE
+1856
+connection con2;
+DELETE FROM t1 WHERE a00 = 'cnm';
+COMMIT;
+BEGIN;
+INSERT INTO t1 SET a00 = 'cnm';
+connection purge_control;
+COMMIT;
+connection con2;
+SET GLOBAL innodb_limit_optimistic_insert_debug = 0;
+ROLLBACK;
+# Test start
+connection purge_control;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection con2;
+DELETE FROM t1 WHERE a00 = 'bii';
+COMMIT;
+BEGIN;
+INSERT INTO t1 SET a00 = 'bii';
+SET DEBUG_SYNC = 'rollback_undo_pk SIGNAL roll1_wait WAIT_FOR roll2';
+SET DEBUG_SYNC = 'rollback_purge_clust SIGNAL rollback_waiting WAIT_FOR resume';
+ROLLBACK;
+connection purge_control;
+SET DEBUG_SYNC = 'now WAIT_FOR roll1_wait';
+COMMIT;
+SET DEBUG_SYNC = 'now SIGNAL roll2';
+connect  con1,localhost,root,,;
+SET DEBUG_SYNC = 'now WAIT_FOR rollback_waiting TIMEOUT 1';
+SET DEBUG_SYNC = 'rw_s_lock_waiting SIGNAL lockwait1';
+SELECT a00 FROM t1 WHERE a00 = 'bii';
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR lockwait1 TIMEOUT 1';
+SET DEBUG_SYNC = 'now SIGNAL resume';
+connection con1;
+a00
+connection con2;
+connection default;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
+CLUST_INDEX_SIZE
+1856
+DELETE FROM t1 WHERE a00 = 'dpn';
+COMMIT;
+INSERT INTO t1 SET a00 = 'dpn';
+ROLLBACK;
+ALTER TABLE t1 COMMENT='MERGE_THRESHOLD=35';
+connection purge_control;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection con2;
+DELETE FROM t1 WHERE a00 = 'cnd';
+COMMIT;
+BEGIN;
+INSERT INTO t1 SET a00 = 'cnd';
+SET DEBUG_SYNC = 'rollback_undo_pk SIGNAL roll1_wait WAIT_FOR roll2';
+SET DEBUG_SYNC = 'rollback_purge_clust SIGNAL rollback_waiting WAIT_FOR resume EXECUTE 2';
+ROLLBACK;
+connection purge_control;
+SET DEBUG_SYNC = 'now WAIT_FOR roll1_wait';
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+SET DEBUG_SYNC = 'now SIGNAL roll2';
+connection con1;
+SET DEBUG_SYNC = 'now WAIT_FOR rollback_waiting TIMEOUT 1';
+SET DEBUG_SYNC = 'now SIGNAL resume';
+SET DEBUG_SYNC = 'now WAIT_FOR rollback_waiting TIMEOUT 1';
+disconnect purge_control;
+connection default;
+SET DEBUG_SYNC = 'now SIGNAL resume';
+disconnect con1;
+connection con2;
+disconnect con2;
+connection default;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
+CLUST_INDEX_SIZE
+1856
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;

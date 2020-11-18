@@ -39,6 +39,9 @@ Modified 30/07/2014 Jan Lindström jan.lindstrom@mariadb.com
 
 #include <list>
 
+using std::list;
+using std::min;
+
 /* When there's no work, either because defragment is disabled, or because no
 query is submitted, thread checks state every BTR_DEFRAGMENT_SLEEP_IN_USECS.*/
 #define BTR_DEFRAGMENT_SLEEP_IN_USECS		1000000
@@ -154,8 +157,6 @@ synchronized defragmentation. */
 os_event_t
 btr_defragment_add_index(
 	dict_index_t*	index,	/*!< index to be added  */
-	bool		async,	/*!< whether this is an async
-				defragmentation */
 	dberr_t*	err)	/*!< out: error code */
 {
 	mtr_t mtr;
@@ -188,10 +189,7 @@ btr_defragment_add_index(
 		return NULL;
 	}
 	btr_pcur_t* pcur = btr_pcur_create_for_mysql();
-	os_event_t event = NULL;
-	if (!async) {
-		event = os_event_create(0);
-	}
+	os_event_t event = os_event_create(0);
 	btr_pcur_open_at_index_side(true, index, BTR_SEARCH_LEAF, pcur,
 				    true, 0, &mtr);
 	btr_pcur_move_to_next(pcur, &mtr);
@@ -338,8 +336,8 @@ btr_defragment_calc_n_recs_for_size(
 {
 	page_t* page = buf_block_get_frame(block);
 	ulint n_recs = 0;
-	ulint offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint* offsets = offsets_;
+	rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs* offsets = offsets_;
 	rec_offs_init(offsets_);
 	mem_heap_t* heap = NULL;
 	ulint size = 0;

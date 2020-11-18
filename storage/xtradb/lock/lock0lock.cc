@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1770,7 +1770,7 @@ wsrep_kill_victim(
         ut_ad(trx_mutex_own(lock->trx));
 
 	/* quit for native mysql */
-	if (!wsrep_on(trx->mysql_thd)) return;
+	if (!trx->is_wsrep()) return;
 
 	my_bool bf_this  = wsrep_thd_is_BF(trx->mysql_thd, FALSE);
 	my_bool bf_other = wsrep_thd_is_BF(lock->trx->mysql_thd, TRUE);
@@ -1856,7 +1856,7 @@ lock_rec_other_has_conflicting(
 
 #ifdef WITH_WSREP
 		if (lock_rec_has_to_wait(TRUE, trx, mode, lock, is_supremum)) {
-			if (wsrep_on_trx(trx)) {
+			if (trx->is_wsrep()) {
 				trx_mutex_enter(lock->trx);
 				/* Below function will roll back either trx
 				or lock->trx depending on priority of the
@@ -2318,8 +2318,7 @@ lock_rec_create(
 	ut_ad(index->table->n_ref_count > 0 || !index->table->can_be_evicted);
 
 #ifdef WITH_WSREP
-	if (c_lock                      &&
-	    wsrep_on_trx(trx)           &&
+	if (c_lock && trx->is_wsrep() &&
 	    wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 		lock_t *hash	= (lock_t *)c_lock->hash;
 		lock_t *prev	= NULL;
@@ -5009,7 +5008,7 @@ lock_table_create(
 	UT_LIST_ADD_LAST(trx_locks, trx->lock.trx_locks, lock);
 
 #ifdef WITH_WSREP
-	if (c_lock && wsrep_on_trx(trx)) {
+	if (c_lock && trx->is_wsrep()) {
 		if (wsrep_thd_is_wsrep(trx->mysql_thd)
 		    && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 			UT_LIST_INSERT_AFTER(
@@ -5248,7 +5247,7 @@ lock_table_enqueue_waiting(
 	/* Enqueue the lock request that will wait to be granted */
 
 #ifdef WITH_WSREP
-	if (trx->lock.was_chosen_as_deadlock_victim && wsrep_on_trx(trx)) {
+	if (trx->lock.was_chosen_as_deadlock_victim && trx->is_wsrep()) {
 		return(DB_DEADLOCK);
 	}
 

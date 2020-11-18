@@ -250,3 +250,22 @@ show create table t2;
 drop table t1,t2;
 --error ER_BAD_TABLE_ERROR
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-23470 InnoDB: Failing assertion: cmp < 0 in
+--echo #	row_ins_check_foreign_constraint
+--echo #
+CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY, f2 INT NOT NULL)ENGINE=InnoDB;
+CREATE TABLE t2(f1 VARCHAR(100), f2 INT NOT NULL,
+                INDEX(f2))ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES(99, 2);
+ALTER TABLE t2 ADD FOREIGN KEY(f2) REFERENCES t1(f1);
+
+SET FOREIGN_KEY_CHECKS=0;
+DROP INDEX f2 ON t2;
+SET FOREIGN_KEY_CHECKS=1;
+--error ER_NO_REFERENCED_ROW_2
+INSERT INTO t2 VALUES('G', 3);
+DROP TABLE t2, t1;
+SET FOREIGN_KEY_CHECKS=DEFAULT;

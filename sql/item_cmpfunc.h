@@ -155,7 +155,7 @@ protected:
   /*
     Return the full select tree for "field_item" and "value":
     - a single SEL_TREE if the field is not in a multiple equality, or
-    - a conjuction of all SEL_TREEs for all fields from
+    - a conjunction of all SEL_TREEs for all fields from
       the same multiple equality with "field_item".
   */
   SEL_TREE *get_full_func_mm_tree(RANGE_OPT_PARAM *param,
@@ -574,7 +574,7 @@ public:
   longlong val_int();
   enum Functype functype() const { return NOT_FUNC; }
   const char *func_name() const { return "not"; }
-  enum precedence precedence() const { return BANG_PRECEDENCE; }
+  enum precedence precedence() const { return NEG_PRECEDENCE; }
   Item *neg_transformer(THD *thd);
   bool fix_fields(THD *, Item **);
   virtual void print(String *str, enum_query_type query_type);
@@ -1590,7 +1590,6 @@ public:
   uint decimal_precision() const;
   table_map not_null_tables() const { return 0; }
   const char *func_name() const { return "case"; }
-  enum precedence precedence() const { return BETWEEN_PRECEDENCE; }
   virtual void print(String *str, enum_query_type query_type);
   Item *find_item(String *str);
   CHARSET_INFO *compare_collation() const { return cmp_collation.collation; }
@@ -1704,7 +1703,7 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   enum Functype functype() const { return IN_FUNC; }
   const char *func_name() const { return "in"; }
-  enum precedence precedence() const { return CMP_PRECEDENCE; }
+  enum precedence precedence() const { return IN_PRECEDENCE; }
   bool eval_not_null_tables(void *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   bool count_sargable_conds(void *arg);
@@ -1915,7 +1914,7 @@ protected:
                        Item_func::Functype type, Item *value);
 public:
   int escape;
-	bool negated;
+  bool negated;
 
   Item_func_like(THD *thd, Item *a, Item *b, Item *escape_arg, bool escape_used):
     Item_bool_func2(thd, a, b), canDoTurboBM(FALSE), pattern(0), pattern_len(0),
@@ -1999,7 +1998,7 @@ public:
     return this;
   }
   const char *func_name() const { return "like"; }
-  enum precedence precedence() const { return CMP_PRECEDENCE; }
+  enum precedence precedence() const { return IN_PRECEDENCE; }
   bool fix_fields(THD *thd, Item **ref);
   bool fix_length_and_dec()
   {
@@ -2127,7 +2126,7 @@ public:
   bool fix_fields(THD *thd, Item **ref);
   bool fix_length_and_dec();
   const char *func_name() const { return "regexp"; }
-  enum precedence precedence() const { return CMP_PRECEDENCE; }
+  enum precedence precedence() const { return IN_PRECEDENCE; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
   void print(String *str, enum_query_type query_type)
   {

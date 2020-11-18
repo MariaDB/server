@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -101,18 +101,22 @@ static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_FOREIGN_OPERATIONS
 	= Alter_inplace_info::DROP_FOREIGN_KEY
 	| Alter_inplace_info::ADD_FOREIGN_KEY;
 
-/** Operations that InnoDB cares about and can perform without rebuild */
-static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_NOREBUILD
-	= INNOBASE_ONLINE_CREATE
-	| INNOBASE_FOREIGN_OPERATIONS
+/** Operations that InnoDB cares about and can perform without validation */
+static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_NOVALIDATE
+	= INNOBASE_FOREIGN_OPERATIONS
 	| Alter_inplace_info::DROP_INDEX
 	| Alter_inplace_info::DROP_UNIQUE_INDEX
 	| Alter_inplace_info::ALTER_COLUMN_NAME
-	| Alter_inplace_info::ALTER_COLUMN_EQUAL_PACK_LENGTH
 	//| Alter_inplace_info::ALTER_INDEX_COMMENT
-	| Alter_inplace_info::ADD_VIRTUAL_COLUMN
 	| Alter_inplace_info::DROP_VIRTUAL_COLUMN
 	| Alter_inplace_info::ALTER_VIRTUAL_COLUMN_ORDER;
+
+/** Operations that InnoDB cares about and can perform without rebuild */
+static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_NOREBUILD
+	= INNOBASE_ALTER_NOVALIDATE
+	| INNOBASE_ONLINE_CREATE
+	| Alter_inplace_info::ALTER_COLUMN_EQUAL_PACK_LENGTH
+	| Alter_inplace_info::ADD_VIRTUAL_COLUMN;
 
 struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 {
@@ -244,15 +248,12 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	@return whether the table will be rebuilt */
 	bool need_rebuild () const { return(old_table != new_table); }
 
-	/** Clear uncommmitted added indexes after a failed operation. */
-	void clear_added_indexes()
-	{
-		for (ulint i = 0; i < num_to_add_index; i++) {
-			if (!add_index[i]->is_committed()) {
-				add_index[i]->detach_columns();
-			}
-		}
-	}
+  /** Clear uncommmitted added indexes after a failed operation. */
+  void clear_added_indexes()
+  {
+    for (ulint i= 0; i < num_to_add_index; i++)
+      add_index[i]->detach_columns(true);
+  }
 
 	/** Share context between partitions.
 	@param[in] ctx	context from another partition of the table */
@@ -1801,7 +1802,7 @@ innobase_rec_to_mysql(
 	struct TABLE*		table,	/*!< in/out: MySQL table */
 	const rec_t*		rec,	/*!< in: record */
 	const dict_index_t*	index,	/*!< in: index */
-	const ulint*		offsets)/*!< in: rec_get_offsets(
+	const rec_offs*		offsets)/*!< in: rec_get_offsets(
 					rec, index, ...) */
 {
 	uint	n_fields	= table->s->fields;
@@ -3361,7 +3362,11 @@ innobase_pk_order_preserved(
 		if (old_pk_column) {
 			new_field_order = old_field;
 		} else if (innobase_pk_col_is_existing(new_col_no, col_map,
-						       old_n_cols)) {
+						       old_n_cols)
+			   || new_clust_index->table->persistent_autoinc
+			   == new_field + 1) {
+			/* Adding an existing column or an AUTO_INCREMENT
+			column may change the existing ordering. */
 			new_field_order = old_n_uniq + existing_field_count++;
 		} else {
 			/* Skip newly added column. */
@@ -4403,6 +4408,7 @@ prepare_inplace_alter_table_dict(
 	create_table_info_t info(ctx->prebuilt->trx->mysql_thd, altered_table,
 				 ha_alter_info->create_info, NULL, NULL,
 				 srv_file_per_table);
+	ut_d(bool stats_wait = false);
 
 	if (num_fts_index > 1) {
 		my_error(ER_INNODB_FT_LIMIT, MYF(0));
@@ -4476,6 +4482,7 @@ prepare_inplace_alter_table_dict(
 	XXX what may happen if bg stats opens the table after we
 	have unlocked data dictionary below? */
 	dict_stats_wait_bg_to_stop_using_table(user_table, ctx->trx);
+	ut_d(stats_wait = true);
 
 	online_retry_drop_indexes_low(ctx->new_table, ctx->trx);
 
@@ -4844,7 +4851,14 @@ index_created:
 			goto error_handling;
 		}
 
-		if (!info.row_size_is_acceptable(*ctx->add_index[a])) {
+		/* For ALTER TABLE...FORCE or OPTIMIZE TABLE, we may
+		only issue warnings, because there will be no schema change. */
+		if (!info.row_size_is_acceptable(
+			    *ctx->add_index[a],
+			    !!(ha_alter_info->handler_flags
+			       & ~(INNOBASE_INPLACE_IGNORE
+				   | INNOBASE_ALTER_NOVALIDATE
+				   | Alter_inplace_info::RECREATE_TABLE)))) {
 			error = DB_TOO_BIG_RECORD;
 			goto error_handling;
 		}
@@ -4903,12 +4917,6 @@ index_created:
 			user_table);
 		dict_index_t*	new_clust_index = dict_table_get_first_index(
 			ctx->new_table);
-		ctx->skip_pk_sort = innobase_pk_order_preserved(
-			ctx->col_map, clust_index, new_clust_index);
-
-		DBUG_EXECUTE_IF("innodb_alter_table_pk_assert_no_sort",
-			DBUG_ASSERT(ctx->skip_pk_sort););
-
 		DBUG_ASSERT(!ctx->new_table->persistent_autoinc);
 		if (const Field* ai = altered_table->found_next_number_field) {
 			const unsigned	col_no = innodb_col_no(ai);
@@ -4926,6 +4934,12 @@ index_created:
 				btr_write_autoinc(new_clust_index, autoinc);
 			}
 		}
+
+		ctx->skip_pk_sort = innobase_pk_order_preserved(
+			ctx->col_map, clust_index, new_clust_index);
+
+		DBUG_EXECUTE_IF("innodb_alter_table_pk_assert_no_sort",
+			DBUG_ASSERT(ctx->skip_pk_sort););
 
 		if (ctx->online) {
 			/* Allocate a log for online table rebuild. */
@@ -5108,7 +5122,8 @@ error_handled:
 		/* n_ref_count must be 1, because purge cannot
 		be executing on this very table as we are
 		holding dict_operation_lock X-latch. */
-		DBUG_ASSERT(user_table->get_ref_count() == 1 || ctx->online);
+		ut_ad(!stats_wait || ctx->online
+		      || user_table->get_ref_count() == 1);
 
 		online_retry_drop_indexes_with_trx(user_table, ctx->trx);
 	} else {
@@ -5132,6 +5147,12 @@ err_exit:
 
 	trx_free_for_mysql(ctx->trx);
 	trx_commit_for_mysql(ctx->prebuilt->trx);
+
+	for (uint i = 0; i < ctx->num_to_add_fk; i++) {
+		if (ctx->add_fk[i]) {
+			dict_foreign_free(ctx->add_fk[i]);
+		}
+	}
 
 	delete ctx;
 	ha_alter_info->handler_ctx = NULL;
@@ -7911,6 +7932,7 @@ commit_cache_norebuild(
 			dict_index_remove_from_cache(index->table, index);
 		}
 
+		fts_clear_all(ctx->old_table, trx);
 		trx_commit_for_mysql(trx);
 	}
 
@@ -8395,9 +8417,15 @@ ha_innobase::commit_inplace_alter_table(
 			= static_cast<ha_innobase_inplace_ctx*>(*pctx);
 
 		DBUG_ASSERT(new_clustered == ctx->need_rebuild());
-
-		fail = commit_set_autoinc(ha_alter_info, ctx, altered_table,
-					  table);
+		if (ctx->need_rebuild()
+		    && dict_table_is_discarded(ctx->old_table)) {
+			my_error(ER_TABLESPACE_DISCARDED, MYF(0),
+				 table->s->table_name.str);
+			fail = true;
+		} else {
+			fail = commit_set_autoinc(ha_alter_info, ctx,
+						  altered_table, table);
+		}
 
 		if (fail) {
 		} else if (ctx->need_rebuild()) {
@@ -8678,25 +8706,18 @@ foreign_fail:
 	}
 
 	if (ctx0->num_to_drop_vcol || ctx0->num_to_add_vcol) {
+		/* FIXME: this workaround does not seem to work with
+		partitioned tables */
 		DBUG_ASSERT(ctx0->old_table->get_ref_count() == 1);
 
 		trx_commit_for_mysql(m_prebuilt->trx);
-#ifdef BTR_CUR_HASH_ADAPT
-		if (btr_search_enabled) {
-			btr_search_disable(false);
-			btr_search_enable();
-		}
-#endif /* BTR_CUR_HASH_ADAPT */
 
-		char	tb_name[FN_REFLEN];
-		ut_strcpy(tb_name, m_prebuilt->table->name.m_name);
-
-		tb_name[strlen(m_prebuilt->table->name.m_name)] = 0;
-
+		char	tb_name[NAME_LEN * 2 + 1 + 1];
+		strcpy(tb_name, m_prebuilt->table->name.m_name);
 		dict_table_close(m_prebuilt->table, true, false);
 		dict_table_remove_from_cache(m_prebuilt->table);
 		m_prebuilt->table = dict_table_open_on_name(
-			tb_name, TRUE, TRUE, DICT_ERR_IGNORE_NONE);
+			tb_name, TRUE, TRUE, DICT_ERR_IGNORE_FK_NOKEY);
 
 		/* Drop outdated table stats. */
 		char	errstr[1024];
@@ -8822,7 +8843,7 @@ foreign_fail:
 			trx_start_for_ddl(trx, TRX_DICT_OP_TABLE);
 			dberr_t error = row_merge_drop_table(trx, ctx->old_table);
 
-			if (error != DB_SUCCESS) {
+			if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
 				ib::error() << "Inplace alter table " << ctx->old_table->name
 					    << " dropping copy of the old table failed error "
 					    << error

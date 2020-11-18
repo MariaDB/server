@@ -148,7 +148,7 @@ Warnings:
 Warning	1287	Using innodb_log_checksum_algorithm is deprecated and the parameter may be removed in future releases. Ignoning the parameter.
 select @@innodb_log_checksum_algorithm, @@innodb_log_checksums;
 @@innodb_log_checksum_algorithm	@@innodb_log_checksums
-NONE	0
+STRICT_INNODB	1
 set global innodb_log_checksum_algorithm=STRICT_INNODB;
 Warnings:
 Warning	1287	Using innodb_log_checksum_algorithm is deprecated and the parameter may be removed in future releases. Ignoning the parameter.

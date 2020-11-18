@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -684,7 +684,7 @@ fil_node_open_file(
 #ifdef UNIV_HOTBACKUP
 add_size:
 #endif /* UNIV_HOTBACKUP */
-		space->size += node->size;
+		space->committed_size = space->size += node->size;
 	}
 
 	ulint atomic_writes = FSP_FLAGS_GET_ATOMIC_WRITES(space->flags);
@@ -1158,6 +1158,9 @@ retry:
 		ut_a(success);
 		/* InnoDB data files cannot shrink. */
 		ut_a(space->size >= size);
+		if (size > space->committed_size) {
+			space->committed_size = size;
+		}
 
 		/* There could be multiple concurrent I/O requests for
 		this tablespace (multiple threads trying to extend
@@ -1813,25 +1816,6 @@ fil_space_get_zip_size(
 	}
 
 	return(flags);
-}
-
-/*******************************************************************//**
-Checks if the pair space, page_no refers to an existing page in a tablespace
-file space. The tablespace must be cached in the memory cache.
-@return	TRUE if the address is meaningful */
-UNIV_INTERN
-ibool
-fil_check_adress_in_tablespace(
-/*===========================*/
-	ulint	id,	/*!< in: space id */
-	ulint	page_no)/*!< in: page number */
-{
-	if (fil_space_get_size(id) > page_no) {
-
-		return(TRUE);
-	}
-
-	return(FALSE);
 }
 
 /****************************************************************//**
@@ -6878,138 +6862,4 @@ fil_space_release(fil_space_t* space)
 	ut_ad(space->n_pending_ops > 0);
 	space->n_pending_ops--;
 	mutex_exit(&fil_system->mutex);
-}
-
-/** Return the next fil_space_t.
-Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_release() are invoked here which
-blocks a concurrent operation from dropping the tablespace.
-@param[in]	prev_space	Pointer to the previous fil_space_t.
-If NULL, use the first fil_space_t on fil_system->space_list.
-@return pointer to the next fil_space_t.
-@retval NULL if this was the last*/
-UNIV_INTERN
-fil_space_t*
-fil_space_next(fil_space_t* prev_space)
-{
-	fil_space_t*		space=prev_space;
-
-	mutex_enter(&fil_system->mutex);
-
-	if (prev_space == NULL) {
-		space = UT_LIST_GET_FIRST(fil_system->space_list);
-
-		/* We can trust that space is not NULL because at least the
-		system tablespace is always present and loaded first. */
-		space->n_pending_ops++;
-	} else {
-		ut_ad(space->n_pending_ops > 0);
-
-		/* Move on to the next fil_space_t */
-		space->n_pending_ops--;
-		space = UT_LIST_GET_NEXT(space_list, space);
-
-		/* Skip spaces that are being created by
-		fil_ibd_create(), or dropped, or !tablespace. */
-		while (space != NULL
-			&& (UT_LIST_GET_LEN(space->chain) == 0
-			    || space->is_stopping()
-			    || space->purpose != FIL_TABLESPACE)) {
-			space = UT_LIST_GET_NEXT(space_list, space);
-		}
-
-		if (space != NULL) {
-			space->n_pending_ops++;
-		}
-	}
-
-	mutex_exit(&fil_system->mutex);
-
-	return(space);
-}
-
-/**
-Remove space from key rotation list if there are no more
-pending operations.
-@param[in]	space		Tablespace */
-static
-void
-fil_space_remove_from_keyrotation(
-	fil_space_t* space)
-{
-	ut_ad(mutex_own(&fil_system->mutex));
-	ut_ad(space);
-
-	if (space->n_pending_ops == 0 && space->is_in_rotation_list) {
-		space->is_in_rotation_list = false;
-		ut_a(UT_LIST_GET_LEN(fil_system->rotation_list) > 0);
-		UT_LIST_REMOVE(rotation_list, fil_system->rotation_list, space);
-	}
-}
-
-
-/** Return the next fil_space_t from key rotation list.
-Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_release() are invoked here which
-blocks a concurrent operation from dropping the tablespace.
-@param[in]	prev_space	Pointer to the previous fil_space_t.
-If NULL, use the first fil_space_t on fil_system->space_list.
-@return pointer to the next fil_space_t.
-@retval NULL if this was the last*/
-UNIV_INTERN
-fil_space_t*
-fil_space_keyrotate_next(
-	fil_space_t*	prev_space)
-{
-	fil_space_t* space = prev_space;
-	fil_space_t* old   = NULL;
-
-	mutex_enter(&fil_system->mutex);
-
-	if (UT_LIST_GET_LEN(fil_system->rotation_list) == 0) {
-		if (space) {
-			ut_ad(space->n_pending_ops > 0);
-			space->n_pending_ops--;
-			fil_space_remove_from_keyrotation(space);
-		}
-		mutex_exit(&fil_system->mutex);
-		return(NULL);
-	}
-
-	if (prev_space == NULL) {
-		space = UT_LIST_GET_FIRST(fil_system->rotation_list);
-
-		/* We can trust that space is not NULL because we
-		checked list length above */
-	} else {
-		ut_ad(space->n_pending_ops > 0);
-
-		/* Move on to the next fil_space_t */
-		space->n_pending_ops--;
-
-		old = space;
-		space = UT_LIST_GET_NEXT(rotation_list, space);
-
-		fil_space_remove_from_keyrotation(old);
-	}
-
-	/* Skip spaces that are being created by fil_ibd_create(),
-	or dropped. Note that rotation_list contains only
-	space->purpose == FIL_TABLESPACE. */
-	while (space != NULL
-		&& (UT_LIST_GET_LEN(space->chain) == 0
-			|| space->is_stopping())) {
-
-		old = space;
-		space = UT_LIST_GET_NEXT(rotation_list, space);
-		fil_space_remove_from_keyrotation(old);
-	}
-
-	if (space != NULL) {
-		space->n_pending_ops++;
-	}
-
-	mutex_exit(&fil_system->mutex);
-
-	return(space);
 }

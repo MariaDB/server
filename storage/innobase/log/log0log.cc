@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -83,11 +83,8 @@ reduce the size of the log.
 /** Redo log system */
 log_t*	log_sys	= NULL;
 
-/** Whether to generate and require checksums on the redo log pages */
+/** Whether to require checksums on the redo log pages */
 my_bool	innodb_log_checksums;
-
-/** Pointer to the log checksum calculation function */
-log_checksum_func_t log_checksum_algorithm_ptr;
 
 /* Next log block number to do dummy record filling if no log records written
 for a while */
@@ -857,7 +854,7 @@ log_block_store_checksum(
 /*=====================*/
 	byte*	block)	/*!< in/out: pointer to a log block */
 {
-	log_block_set_checksum(block, log_block_calc_checksum(block));
+	log_block_set_checksum(block, log_block_calc_checksum_crc32(block));
 }
 
 /******************************************************//**
@@ -1203,7 +1200,7 @@ loop:
 		}
 	}
 
-	if (UNIV_UNLIKELY(srv_shutdown_state != SRV_SHUTDOWN_NONE)) {
+	if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED)) {
 		service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
 					       "InnoDB log write: "
 					       LSN_PF "," LSN_PF,
@@ -1430,7 +1427,7 @@ log_group_checkpoint(lsn_t end_lsn)
 	ut_ad(end_lsn == 0 || end_lsn >= log_sys->next_checkpoint_lsn);
 	ut_ad(end_lsn <= log_sys->lsn);
 	ut_ad(end_lsn + SIZE_OF_MLOG_CHECKPOINT <= log_sys->lsn
-	      || srv_shutdown_state != SRV_SHUTDOWN_NONE);
+	      || srv_shutdown_state > SRV_SHUTDOWN_INITIATED);
 
 	DBUG_PRINT("ib_log", ("checkpoint " UINT64PF " at " LSN_PF
 			      " written",
@@ -1600,7 +1597,7 @@ bool log_checkpoint(bool sync)
 	if (oldest_lsn
 	    > log_sys->last_checkpoint_lsn + SIZE_OF_MLOG_CHECKPOINT) {
 		/* Some log has been written since the previous checkpoint. */
-	} else if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
+	} else if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 		/* MariaDB 10.3 startup expects the redo log file to be
 		logically empty (not even containing a MLOG_CHECKPOINT record)
 		after a clean shutdown. Perform an extra checkpoint at
@@ -1625,7 +1622,7 @@ bool log_checkpoint(bool sync)
 	lsn_t		flush_lsn	= oldest_lsn;
 	const lsn_t	end_lsn		= log_sys->lsn;
 	const bool	do_write
-		= srv_shutdown_state == SRV_SHUTDOWN_NONE
+		= srv_shutdown_state <= SRV_SHUTDOWN_INITIATED
 		|| flush_lsn != end_lsn;
 
 	if (fil_names_clear(flush_lsn, do_write)) {
@@ -1893,7 +1890,7 @@ wait_suspend_loop:
 			"Waiting for %s to exit", thread_name);
 		if (srv_print_verbose_log && count > COUNT_INTERVAL) {
 			ib::info() << "Waiting for " << thread_name
-				   << "to exit";
+				   << " to exit";
 			count = 0;
 		}
 		goto loop;
@@ -1936,6 +1933,9 @@ wait_suspend_loop:
 				"Waiting for page cleaner");
 			ib::info() << "Waiting for page_cleaner to "
 				"finish flushing of buffer pool";
+			/* This is a workaround to avoid the InnoDB hang
+			when OS datetime changed backwards */
+			os_event_set(buf_flush_event);
 			count = 0;
 		}
 	}

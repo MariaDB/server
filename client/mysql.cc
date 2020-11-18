@@ -1303,8 +1303,8 @@ sig_handler mysql_end(int sig)
 {
 #ifndef _WIN32
   /*
-    Ingnoring SIGQUIT and SIGINT signals when cleanup process starts.
-    This will help in resolving the double free issues, which occures in case
+    Ignoring SIGQUIT and SIGINT signals when cleanup process starts.
+    This will help in resolving the double free issues, which occurs in case
     the signal handler function is started in between the clean up function.
   */
   signal(SIGQUIT, SIG_IGN);
@@ -3213,7 +3213,7 @@ static int
 com_go(String *buffer,char *line __attribute__((unused)))
 {
   char		buff[200]; /* about 110 chars used so far */
-  char		time_buff[52+3+1]; /* time max + space&parens + NUL */
+  char		time_buff[52+3+1]; /* time max + space & parens + NUL */
   MYSQL_RES	*result;
   ulong		timer, warnings= 0;
   uint		error= 0;
@@ -3232,7 +3232,7 @@ com_go(String *buffer,char *line __attribute__((unused)))
 
   if (buffer->is_empty())
   {
-    if (status.batch)				// Ignore empty quries
+    if (status.batch)				// Ignore empty queries.
       return 0;
     return put_info("No query specified\n",INFO_ERROR);
 
@@ -3297,7 +3297,7 @@ com_go(String *buffer,char *line __attribute__((unused)))
     else
       time_buff[0]= '\0';
 
-    /* Every branch must truncate  buff . */
+    /* Every branch must truncate buff. */
     if (result)
     {
       if (!mysql_num_rows(result) && ! quick && !column_types_flag)
@@ -4730,7 +4730,7 @@ sql_real_connect(char *host,char *database,char *user,char *password,
   /*
     CLIENT_PROGRESS_OBSOLETE is set only if we requested it in
     mysql_real_connect() and the server also supports it
-  */
+*/
   if (mysql.client_flag & CLIENT_PROGRESS_OBSOLETE)
     mysql_options(&mysql, MYSQL_PROGRESS_CALLBACK, (void*) report_progress);
 #else
@@ -4799,7 +4799,7 @@ com_status(String *buffer __attribute__((unused)),
   tee_fprintf(stdout, "\nConnection id:\t\t%lu\n",mysql_thread_id(&mysql));
   /*
     Don't remove "limit 1",
-    it is protection againts SQL_SELECT_LIMIT=0
+    it is protection against SQL_SELECT_LIMIT=0
   */
   if (!mysql_store_result_for_lazy(&result))
   {
@@ -5172,7 +5172,7 @@ static const char *construct_prompt()
   time_t  lclock = time(NULL);			// Get the date struct
   struct tm *t = localtime(&lclock);
 
-  /* parse thru the settings for the prompt */
+  /* parse through the settings for the prompt */
   for (char *c = current_prompt; *c ; c++)
   {
     if (*c != PROMPT_CHAR)

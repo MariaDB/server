@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2019, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1814,7 +1814,7 @@ row_upd_store_row(
 
 inline bool wsrep_must_process_fk(const upd_node_t* node, const trx_t* trx)
 {
-	if (!wsrep_on_trx(trx)) {
+	if (!trx->is_wsrep()) {
 		return false;
 	}
 	return que_node_get_type(node->common.parent) != QUE_NODE_UPDATE

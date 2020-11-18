@@ -10,7 +10,7 @@
 
 --source include/big_test.inc
 --source include/galera_cluster.inc
---source include/have_innodb.inc
+--source include/force_restart.inc
 
 --connection node_1
 --echo cluster 1 node 1
@@ -29,6 +29,7 @@ SHOW STATUS LIKE 'wsrep_cluster_size';
 --connection node_4
 --echo cluster 2 node 1
 SHOW STATUS LIKE 'wsrep_cluster_size';
+call mtr.add_suppression("Slave I/O: Got fatal error 1236 from master when reading data from binary log.*");
 
 --connect node_5, 127.0.0.1, root, , test, $NODE_MYPORT_5
 --connection node_5
@@ -193,7 +194,7 @@ select @@gtid_slave_pos;
 
 --echo cluster 1 node 1
 --connection node_1
-create table t1 (cluster_domain_id int ,node_server_id int, seq_no int);
+create table t1 (cluster_domain_id int not null,node_server_id int not null, seq_no int not null, primary key(cluster_domain_id, node_server_id,seq_no)) engine=innodb;
 insert into t1 values (1, 11, 2);
 
 select @@gtid_binlog_state;
@@ -283,10 +284,19 @@ reset master;
 set global GTID_SLAVE_POS="";
 
 --connection node_2
+set session wsrep_on=off;
 reset master;
+set session wsrep_on=on;
 --connection node_3
+set session wsrep_on=off;
 reset master;
+set session wsrep_on=on;
 --connection node_5
+set session wsrep_on=off;
 reset master;
+set session wsrep_on=on;
 --connection node_6
+set session wsrep_on=off;
 reset master;
+set session wsrep_on=on;
+

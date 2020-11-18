@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2018, MariaDB Corporation.
+   Copyright (c) 2008, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -71,6 +71,7 @@
 #ifdef HAVE_SYS_SYSCALL_H
 #include <sys/syscall.h>
 #endif
+#include "repl_failsafe.h"
 
 /*
   The following is used to initialise Table_ident with a internal
@@ -604,6 +605,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    m_current_stage_key(0),
    in_sub_stmt(0), log_all_errors(0),
    binlog_unsafe_warning_flags(0),
+   current_stmt_binlog_format(BINLOG_FORMAT_MIXED),
    binlog_table_maps(0),
    bulk_param(0),
    table_map_for_update(0),
@@ -727,7 +729,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   query_name_consts= 0;
   semisync_info= 0;
   db_charset= global_system_variables.collation_database;
-  bzero(ha_data, sizeof(ha_data));
+  bzero((void*) ha_data, sizeof(ha_data));
   mysys_var=0;
   binlog_evt_union.do_union= FALSE;
   enable_slow_log= 0;
@@ -1206,7 +1208,7 @@ void THD::init(void)
 #ifdef WITH_WSREP
   wsrep_exec_mode= wsrep_applier ? REPL_RECV :  LOCAL_STATE;
   wsrep_conflict_state= NO_CONFLICT;
-  wsrep_query_state= QUERY_IDLE;
+  wsrep_thd_set_query_state(this, QUERY_IDLE);
   wsrep_last_query_id= 0;
   wsrep_trx_meta.gtid= WSREP_GTID_UNDEFINED;
   wsrep_trx_meta.depends_on= WSREP_SEQNO_UNDEFINED;
@@ -1416,6 +1418,10 @@ void THD::cleanup(void)
   DBUG_ASSERT(!mdl_context.has_locks());
 
   apc_target.destroy();
+#ifdef HAVE_REPLICATION
+  unregister_slave(this, true, true);
+#endif
+
   cleanup_done=1;
   DBUG_VOID_RETURN;
 }
@@ -3475,7 +3481,6 @@ void select_dumpvar::cleanup()
 
 Query_arena::Type Query_arena::type() const
 {
-  DBUG_ASSERT(0); /* Should never be called */
   return STATEMENT;
 }
 
@@ -4524,6 +4529,7 @@ extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd)
   @param buflen  Length of the buffer
 
   @return Length of the query
+  @retval 0 if LOCK_thd_data cannot be acquired without waiting
 
   @note This function is thread safe as the query string is
         accessed under mutex protection and the string is copied
@@ -4532,10 +4538,19 @@ extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd)
 
 extern "C" size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen)
 {
-  mysql_mutex_lock(&thd->LOCK_thd_data);
-  size_t len= MY_MIN(buflen - 1, thd->query_length());
-  memcpy(buf, thd->query(), len);
-  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  size_t len= 0;
+  /* InnoDB invokes this function while holding internal mutexes.
+  THD::awake() will hold LOCK_thd_data while invoking an InnoDB
+  function that would acquire the internal mutex. Because this
+  function is a non-essential part of information_schema view output,
+  we will break the deadlock by avoiding a mutex wait here
+  and returning the empty string if a wait would be needed. */
+  if (!mysql_mutex_trylock(&thd->LOCK_thd_data))
+  {
+    len= MY_MIN(buflen - 1, thd->query_length());
+    memcpy(buf, thd->query(), len);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  }
   buf[len]= '\0';
   return len;
 }

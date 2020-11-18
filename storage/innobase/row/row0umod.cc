@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -75,7 +75,7 @@ dberr_t
 row_undo_mod_clust_low(
 /*===================*/
 	undo_node_t*	node,	/*!< in: row undo node */
-	ulint**		offsets,/*!< out: rec_get_offsets() on the record */
+	rec_offs**	offsets,/*!< out: rec_get_offsets() on the record */
 	mem_heap_t**	offsets_heap,
 				/*!< in/out: memory heap that can be emptied */
 	mem_heap_t*	heap,	/*!< in/out: memory heap */
@@ -169,12 +169,15 @@ row_undo_mod_remove_clust_low(
 	/* Find out if the record has been purged already
 	or if we can remove it. */
 
-	if (!btr_pcur_restore_position(mode, &node->pcur, mtr)
-	    || row_vers_must_preserve_del_marked(node->new_trx_id,
-						 node->table->name,
-						 mtr)) {
+	if (!btr_pcur_restore_position(mode, &node->pcur, mtr)) {
+		return DB_SUCCESS;
+	}
 
-		return(DB_SUCCESS);
+	DEBUG_SYNC_C("rollback_purge_clust");
+
+	if (row_vers_must_preserve_del_marked(node->new_trx_id,
+					      node->table->name, mtr)) {
+		return DB_SUCCESS;
 	}
 
 	btr_cur = btr_pcur_get_btr_cur(&node->pcur);
@@ -184,7 +187,7 @@ row_undo_mod_remove_clust_low(
 	if (!trx_id_offset) {
 		mem_heap_t*	heap	= NULL;
 		ulint		trx_id_col;
-		const ulint*	offsets;
+		const rec_offs*	offsets;
 		ulint		len;
 
 		trx_id_col = dict_index_get_sys_col_pos(
@@ -285,7 +288,7 @@ row_undo_mod_clust(
 
 	mem_heap_t*	heap		= mem_heap_create(1024);
 	mem_heap_t*	offsets_heap	= NULL;
-	ulint*		offsets		= NULL;
+	rec_offs*	offsets		= NULL;
 	const dtuple_t*	rebuilt_old_pk;
 	byte		sys[DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN];
 
@@ -361,6 +364,7 @@ row_undo_mod_clust(
 	      == node->new_trx_id);
 
 	btr_pcur_commit_specify_mtr(pcur, &mtr);
+	DEBUG_SYNC_C("rollback_undo_pk");
 
 	if (err == DB_SUCCESS && node->rec_type == TRX_UNDO_UPD_DEL_REC) {
 
@@ -665,7 +669,7 @@ try_again:
 	switch (search_result) {
 		mem_heap_t*	heap;
 		mem_heap_t*	offsets_heap;
-		ulint*		offsets;
+		rec_offs*	offsets;
 	case ROW_BUFFERED:
 	case ROW_NOT_DELETED_REF:
 		/* These are invalid outcomes, because the mode passed
@@ -880,7 +884,7 @@ row_undo_mod_upd_del_sec(
 			does not exist.  However, this situation may
 			only occur during the rollback of incomplete
 			transactions. */
-			ut_a(thr_is_recv(thr));
+			ut_a(thr_get_trx(thr) == trx_roll_crash_recv_trx);
 		} else {
 			err = row_undo_mod_del_mark_or_remove_sec(
 				node, thr, index, entry);
@@ -1297,8 +1301,8 @@ row_undo_mod(
 			already be holding dict_sys->mutex, which
 			would be acquired when updating statistics. */
 			if (update_statistics && !dict_locked) {
-				dict_stats_update_if_needed(
-					node->table, node->trx->mysql_thd);
+				dict_stats_update_if_needed(node->table,
+							    *node->trx);
 			} else {
 				node->table->stat_modified_counter++;
 			}

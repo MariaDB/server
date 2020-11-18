@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2019, MariaDB Corporation.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -372,7 +372,7 @@ row_build_low(
 	ulint			type,
 	const dict_index_t*	index,
 	const rec_t*		rec,
-	const ulint*		offsets,
+	const rec_offs*		offsets,
 	const dict_table_t*	col_table,
 	const dtuple_t*		add_cols,
 	const dict_add_v_col_t*	add_v,
@@ -388,7 +388,7 @@ row_build_low(
 	byte*			buf;
 	ulint			j;
 	mem_heap_t*		tmp_heap	= NULL;
-	ulint			offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs		offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs_init(offsets_);
 
 	ut_ad(index != NULL);
@@ -435,7 +435,7 @@ row_build_low(
 	}
 
 	/* Avoid a debug assertion in rec_offs_validate(). */
-	rec_offs_make_valid(copy, index, const_cast<ulint*>(offsets));
+	rec_offs_make_valid(copy, index, const_cast<rec_offs*>(offsets));
 
 	if (!col_table) {
 		ut_ad(!col_map);
@@ -525,7 +525,7 @@ row_build_low(
 		}
 	}
 
-	rec_offs_make_valid(rec, index, const_cast<ulint*>(offsets));
+	rec_offs_make_valid(rec, index, const_cast<rec_offs*>(offsets));
 
 	ut_ad(dtuple_check_typed(row));
 
@@ -578,7 +578,7 @@ row_build(
 					this record must be at least
 					s-latched and the latch held
 					as long as the row dtuple is used! */
-	const ulint*		offsets,/*!< in: rec_get_offsets(rec,index)
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(rec,index)
 					or NULL, in which case this function
 					will invoke rec_get_offsets() */
 	const dict_table_t*	col_table,
@@ -631,7 +631,7 @@ row_build_w_add_vcol(
 	ulint			type,
 	const dict_index_t*	index,
 	const rec_t*		rec,
-	const ulint*		offsets,
+	const rec_offs*		offsets,
 	const dict_table_t*	col_table,
 	const dtuple_t*		add_cols,
 	const dict_add_v_col_t*	add_v,
@@ -652,9 +652,7 @@ row_rec_to_index_entry_low(
 /*=======================*/
 	const rec_t*		rec,	/*!< in: record in the index */
 	const dict_index_t*	index,	/*!< in: index */
-	const ulint*		offsets,/*!< in: rec_get_offsets(rec, index) */
-	ulint*			n_ext,	/*!< out: number of externally
-					stored columns */
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(rec, index) */
 	mem_heap_t*		heap)	/*!< in: memory heap from which
 					the memory needed is allocated */
 {
@@ -672,8 +670,6 @@ row_rec_to_index_entry_low(
 	/* Because this function may be invoked by row0merge.cc
 	on a record whose header is in different format, the check
 	rec_offs_validate(rec, index, offsets) must be avoided here. */
-	ut_ad(n_ext);
-	*n_ext = 0;
 
 	rec_len = rec_offs_n_fields(offsets);
 
@@ -698,7 +694,6 @@ row_rec_to_index_entry_low(
 
 		if (rec_offs_nth_extern(offsets, i)) {
 			dfield_set_ext(dfield);
-			(*n_ext)++;
 		}
 	}
 
@@ -716,9 +711,7 @@ row_rec_to_index_entry(
 /*===================*/
 	const rec_t*		rec,	/*!< in: record in the index */
 	const dict_index_t*	index,	/*!< in: index */
-	const ulint*		offsets,/*!< in: rec_get_offsets(rec) */
-	ulint*			n_ext,	/*!< out: number of externally
-					stored columns */
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(rec) */
 	mem_heap_t*		heap)	/*!< in: memory heap from which
 					the memory needed is allocated */
 {
@@ -737,10 +730,10 @@ row_rec_to_index_entry(
 
 	copy_rec = rec_copy(buf, rec, offsets);
 
-	rec_offs_make_valid(copy_rec, index, const_cast<ulint*>(offsets));
+	rec_offs_make_valid(copy_rec, index, const_cast<rec_offs*>(offsets));
 	entry = row_rec_to_index_entry_low(
-		copy_rec, index, offsets, n_ext, heap);
-	rec_offs_make_valid(rec, index, const_cast<ulint*>(offsets));
+		copy_rec, index, offsets, heap);
+	rec_offs_make_valid(rec, index, const_cast<rec_offs*>(offsets));
 
 	dtuple_set_info_bits(entry,
 			     rec_get_info_bits(rec, rec_offs_comp(offsets)));
@@ -782,8 +775,8 @@ row_build_row_ref(
 	ulint		clust_col_prefix_len;
 	ulint		i;
 	mem_heap_t*	tmp_heap	= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(index != NULL);
@@ -878,7 +871,7 @@ row_build_row_ref_in_tuple(
 					held as long as the row
 					reference is used! */
 	const dict_index_t*	index,	/*!< in: secondary index */
-	ulint*			offsets,/*!< in: rec_get_offsets(rec, index)
+	rec_offs*		offsets,/*!< in: rec_get_offsets(rec, index)
 					or NULL */
 	trx_t*			trx)	/*!< in: transaction */
 {
@@ -891,7 +884,7 @@ row_build_row_ref_in_tuple(
 	ulint			clust_col_prefix_len;
 	ulint			i;
 	mem_heap_t*		heap		= NULL;
-	ulint			offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs		offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs_init(offsets_);
 
 	ut_ad(!dict_index_is_clust(index));

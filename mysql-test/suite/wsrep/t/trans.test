@@ -9,6 +9,7 @@
 --echo #
 
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
+--error 1030
 SAVEPOINT A;
 
 --echo End of test.

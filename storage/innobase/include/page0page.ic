@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -173,9 +173,6 @@ page_header_set_field(
 {
 	ut_ad(page);
 	ut_ad(field <= PAGE_N_RECS);
-#if 0 /* FIXME: MDEV-19344 hits this */
-	ut_ad(field != PAGE_N_RECS || val);
-#endif
 	ut_ad(field == PAGE_N_HEAP || val < srv_page_size);
 	ut_ad(field != PAGE_N_HEAP || (val & 0x7fff) < srv_page_size);
 
@@ -356,6 +353,26 @@ page_rec_is_last(
 	ut_ad(page_get_n_recs(page) > 0);
 
 	return(page_rec_get_next_const(rec) == page_get_supremum_rec(page));
+}
+
+/************************************************************//**
+true if distance between the records (measured in number of times we have to
+move to the next record) is at most the specified value */
+UNIV_INLINE
+bool
+page_rec_distance_is_at_most(
+/*=========================*/
+	const rec_t*	left_rec,
+	const rec_t*	right_rec,
+	ulint		val)
+{
+	for (ulint i = 0; i <= val; i++) {
+		if (left_rec == right_rec) {
+			return (true);
+		}
+		left_rec = page_rec_get_next_const(left_rec);
+	}
+	return (false);
 }
 
 /************************************************************//**
@@ -660,6 +677,7 @@ page_rec_get_next_low(
 	}
 
 	ut_ad(page_rec_is_infimum(rec)
+	      || (!page_is_leaf(page) && !page_has_prev(page))
 	      || !(rec_get_info_bits(page + offs, comp)
 		   & REC_INFO_MIN_REC_FLAG));
 
@@ -1004,7 +1022,7 @@ page_mem_free(
 	rec_t*			rec,		/*!< in: pointer to the
 						(origin of) record */
 	const dict_index_t*	index,		/*!< in: index of rec */
-	const ulint*		offsets)	/*!< in: array returned by
+	const rec_offs*		offsets)	/*!< in: array returned by
 						rec_get_offsets() */
 {
 	rec_t*		free;

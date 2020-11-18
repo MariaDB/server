@@ -116,6 +116,24 @@ BOOL exclude_service(mysqld_service_properties *props)
 }
 
 
+static void get_datadir_from_ini(const char *ini, char *service_name, char *datadir, size_t sz)
+{
+  *datadir= 0;
+  const char *sections[]= {service_name, "mysqld", "server", "mariadb",
+                           "mariadbd"};
+  for (int i= 0; i < sizeof(sections) / sizeof(sections[0]); i++)
+  {
+    if (sections[i])
+    {
+      GetPrivateProfileStringA(sections[i], "datadir", NULL, datadir,
+                               (DWORD) sz, ini);
+      if (*datadir)
+        return;
+    }
+  }
+}
+
+
 /*
   Retrieve some properties from windows mysqld service binary path.
   We're interested in ini file location and datadir, and also in version of 
@@ -135,6 +153,7 @@ int get_mysql_service_properties(const wchar_t *bin_path,
   wchar_t **args= NULL;
   int retval= 1;
   BOOL have_inifile;
+  char service_name[MAX_PATH];
 
   props->datadir[0]= 0;
   props->inifile[0]= 0;
@@ -148,12 +167,9 @@ int get_mysql_service_properties(const wchar_t *bin_path,
   {
     /*
       There are rare cases where service config does not have 
-      --defaults-filein the binary parth . There services were registered with 
+      --defaults-file in the binary parth . There services were registered with 
       plain mysqld --install, the data directory is next to "bin" in this case.
-      Service name (second parameter) must be MySQL.
     */
-    if(wcscmp(args[1], L"MySQL") != 0)
-      goto end;
     have_inifile= FALSE;
   }
   else if(numargs == 3)
@@ -164,6 +180,9 @@ int get_mysql_service_properties(const wchar_t *bin_path,
   {
     goto end;
   }
+
+  /* Last parameter is the service name*/
+  wcstombs(service_name, args[numargs-1], MAX_PATH);
 
   if(have_inifile && wcsncmp(args[1], L"--defaults-file=", 16) != 0)
     goto end;
@@ -196,8 +215,8 @@ int get_mysql_service_properties(const wchar_t *bin_path,
     normalize_path(props->inifile, MAX_PATH);
     if (GetFileAttributes(props->inifile) != INVALID_FILE_ATTRIBUTES)
     {
-      GetPrivateProfileString("mysqld", "datadir", NULL, props->datadir, MAX_PATH, 
-        props->inifile);
+      get_datadir_from_ini(props->inifile, service_name, props->datadir,
+                           sizeof(props->datadir));
     }
     else
     {
@@ -211,7 +230,7 @@ int get_mysql_service_properties(const wchar_t *bin_path,
     }
   }
 
-  if(!have_inifile)
+  if(!have_inifile || props->datadir[0] == 0)
   {
     /*
       Hard, although a rare case, we're guessing datadir and defaults-file.
@@ -235,22 +254,25 @@ int get_mysql_service_properties(const wchar_t *bin_path,
       *p= 0;
     }
 
-    /* Look for my.ini, my.cnf in the install root */
-    sprintf_s(props->inifile, MAX_PATH, "%s\\my.ini", install_root);
-    if (GetFileAttributes(props->inifile) == INVALID_FILE_ATTRIBUTES)
+    if (!have_inifile)
     {
-      sprintf_s(props->inifile, MAX_PATH, "%s\\my.cnf", install_root);
-    }
-    if (GetFileAttributes(props->inifile) != INVALID_FILE_ATTRIBUTES)
-    {
-      /* Ini file found, get datadir from there */
-      GetPrivateProfileString("mysqld", "datadir", NULL, props->datadir,
-        MAX_PATH, props->inifile);
-    }
-    else
-    {
-      /* No ini file */
-      props->inifile[0]= 0;
+      /* Look for my.ini, my.cnf in the install root */
+      sprintf_s(props->inifile, MAX_PATH, "%s\\my.ini", install_root);
+      if (GetFileAttributes(props->inifile) == INVALID_FILE_ATTRIBUTES)
+      {
+        sprintf_s(props->inifile, MAX_PATH, "%s\\my.cnf", install_root);
+      }
+      if (GetFileAttributes(props->inifile) != INVALID_FILE_ATTRIBUTES)
+      {
+        /* Ini file found, get datadir from there */
+        get_datadir_from_ini(props->inifile, service_name, props->datadir,
+                             sizeof(props->datadir));
+      }
+      else
+      {
+        /* No ini file */
+        props->inifile[0]= 0;
+      }
     }
 
     /* Try datadir in install directory.*/

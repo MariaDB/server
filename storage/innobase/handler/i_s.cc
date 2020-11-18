@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2508,7 +2508,7 @@ i_s_metrics_fill(
 			time_diff = 0;
 		}
 
-		/* Unless MONITOR__NO_AVERAGE is marked, we will need
+		/* Unless MONITOR_NO_AVERAGE is set, we must
 		to calculate the average value. If this is a monitor set
 		owner marked by MONITOR_SET_OWNER, divide
 		the value by another counter (number of calls) designated
@@ -2516,8 +2516,9 @@ i_s_metrics_fill(
 		Otherwise average the counter value by the time between the
 		time that the counter is enabled and time it is disabled
 		or time it is sampled. */
-		if (!(monitor_info->monitor_type & MONITOR_NO_AVERAGE)
-		    && (monitor_info->monitor_type & MONITOR_SET_OWNER)
+		if ((monitor_info->monitor_type
+		     & (MONITOR_NO_AVERAGE | MONITOR_SET_OWNER))
+		    == MONITOR_SET_OWNER
 		    && monitor_info->monitor_related_id) {
 			mon_type_t	value_start
 				 = MONITOR_VALUE_SINCE_START(
@@ -2533,18 +2534,18 @@ i_s_metrics_fill(
 				fields[METRIC_AVG_VALUE_START]->set_null();
 			}
 
-			if (MONITOR_VALUE(monitor_info->monitor_related_id)) {
-				OK(fields[METRIC_AVG_VALUE_RESET]->store(
-					MONITOR_VALUE(count)
-					/ MONITOR_VALUE(
-					monitor_info->monitor_related_id),
-					FALSE));
+			if (mon_type_t related_value =
+			    MONITOR_VALUE(monitor_info->monitor_related_id)) {
+				OK(fields[METRIC_AVG_VALUE_RESET]
+				   ->store(MONITOR_VALUE(count)
+					   / related_value, false));
+				fields[METRIC_AVG_VALUE_RESET]->set_notnull();
 			} else {
 				fields[METRIC_AVG_VALUE_RESET]->set_null();
 			}
-		} else if (!(monitor_info->monitor_type & MONITOR_NO_AVERAGE)
-			   && !(monitor_info->monitor_type
-				& MONITOR_DISPLAY_CURRENT)) {
+		} else if (!(monitor_info->monitor_type
+			     & (MONITOR_NO_AVERAGE
+				| MONITOR_DISPLAY_CURRENT))) {
 			if (time_diff != 0) {
 				OK(fields[METRIC_AVG_VALUE_START]->store(
 					(double) MONITOR_VALUE_SINCE_START(
@@ -3326,6 +3327,8 @@ no_fts:
 	conv_str.f_len = sizeof word;
 	conv_str.f_str = word;
 
+	rw_lock_s_lock(&cache->lock);
+
 	for (ulint i = 0; i < ib_vector_size(cache->indexes); i++) {
 		fts_index_cache_t*      index_cache;
 
@@ -3336,6 +3339,7 @@ no_fts:
 				 index_cache, thd, &conv_str, tables));
 	}
 
+	rw_lock_s_unlock(&cache->lock);
 	dict_table_close(user_table, FALSE, FALSE);
 	rw_lock_s_unlock(&dict_operation_lock);
 
@@ -3474,7 +3478,7 @@ i_s_fts_index_table_fill_selected(
 	for (;;) {
 		error = fts_eval_sql(trx, graph);
 
-		if (error == DB_SUCCESS) {
+		if (UNIV_LIKELY(error == DB_SUCCESS)) {
 			fts_sql_commit(trx);
 
 			break;
@@ -3488,7 +3492,7 @@ i_s_fts_index_table_fill_selected(
 				trx->error_state = DB_SUCCESS;
 			} else {
 				ib::error() << "Error occurred while reading"
-					" FTS index: " << ut_strerr(error);
+					" FTS index: " << error;
 				break;
 			}
 		}
@@ -6313,37 +6317,42 @@ i_s_dict_fill_sys_tablestats(
 	OK(field_store_string(fields[SYS_TABLESTATS_NAME],
 			      table->name.m_name));
 
-	dict_table_stats_lock(table, RW_S_LATCH);
+	{
+		struct Locking
+		{
+			Locking() { mutex_enter(&dict_sys->mutex); }
+			~Locking() { mutex_exit(&dict_sys->mutex); }
+		} locking;
 
-	if (table->stat_initialized) {
-		OK(field_store_string(fields[SYS_TABLESTATS_INIT],
-				      "Initialized"));
+		if (table->stat_initialized) {
+			OK(field_store_string(fields[SYS_TABLESTATS_INIT],
+					      "Initialized"));
 
-		OK(fields[SYS_TABLESTATS_NROW]->store(table->stat_n_rows,
-						      true));
+			OK(fields[SYS_TABLESTATS_NROW]->store(
+				   table->stat_n_rows, true));
 
-		OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(
-			   table->stat_clustered_index_size, true));
+			OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(
+				   table->stat_clustered_index_size, true));
 
-		OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(
-			   table->stat_sum_of_other_index_sizes, true));
+			OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(
+				   table->stat_sum_of_other_index_sizes,
+				   true));
 
-		OK(fields[SYS_TABLESTATS_MODIFIED]->store(
-			   table->stat_modified_counter, true));
-	} else {
-		OK(field_store_string(fields[SYS_TABLESTATS_INIT],
-				      "Uninitialized"));
+			OK(fields[SYS_TABLESTATS_MODIFIED]->store(
+				   table->stat_modified_counter, true));
+		} else {
+			OK(field_store_string(fields[SYS_TABLESTATS_INIT],
+					      "Uninitialized"));
 
-		OK(fields[SYS_TABLESTATS_NROW]->store(0, true));
+			OK(fields[SYS_TABLESTATS_NROW]->store(0, true));
 
-		OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(0, true));
+			OK(fields[SYS_TABLESTATS_CLUST_SIZE]->store(0, true));
 
-		OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(0, true));
+			OK(fields[SYS_TABLESTATS_INDEX_SIZE]->store(0, true));
 
-		OK(fields[SYS_TABLESTATS_MODIFIED]->store(0, true));
+			OK(fields[SYS_TABLESTATS_MODIFIED]->store(0, true));
+		}
 	}
-
-	dict_table_stats_unlock(table, RW_S_LATCH);
 
 	OK(fields[SYS_TABLESTATS_AUTONINC]->store(table->autoinc, true));
 
@@ -8057,31 +8066,24 @@ i_s_dict_fill_sys_tablespaces(
 	OK(fields[SYS_TABLESPACES_ZIP_PAGE_SIZE]->store(
 		   page_size.physical(), true));
 
-	char*	filepath = NULL;
-	if (FSP_FLAGS_HAS_DATA_DIR(cflags)) {
-		mutex_enter(&dict_sys->mutex);
-		filepath = dict_get_first_path(space);
-		mutex_exit(&dict_sys->mutex);
-	}
-
-	if (filepath == NULL) {
-		filepath = fil_make_filepath(NULL, name, IBD, false);
-	}
-
 	os_file_stat_t	stat;
 	os_file_size_t	file;
 
 	memset(&file, 0xff, sizeof(file));
 	memset(&stat, 0x0, sizeof(stat));
 
-	if (filepath != NULL) {
+	if (fil_space_t* s = fil_space_acquire_silent(space)) {
+		const char *filepath = s->chain.start
+			? s->chain.start->name : NULL;
+		if (!filepath) {
+			goto file_done;
+		}
 
 		file = os_file_get_size(filepath);
 
 		/* Get the file system (or Volume) block size. */
-		dberr_t	err = os_file_get_status(filepath, &stat, false, false);
-
-		switch(err) {
+		switch (dberr_t err = os_file_get_status(filepath, &stat,
+							 false, false)) {
 		case DB_FAIL:
 			ib::warn()
 				<< "File '" << filepath << "', failed to get "
@@ -8093,13 +8095,12 @@ i_s_dict_fill_sys_tablespaces(
 			break;
 
 		default:
-			ib::error()
-				<< "File '" << filepath << "' "
-				<< ut_strerr(err);
+			ib::error() << "File '" << filepath << "' " << err;
 			break;
 		}
 
-		ut_free(filepath);
+file_done:
+		fil_space_release(s);
 	}
 
 	if (file.m_total_size == static_cast<os_offset_t>(~0)) {
@@ -8627,7 +8628,7 @@ i_s_tablespaces_encryption_fill_table(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
 	/* deny access to user without PROCESS_ACL privilege */
-	if (check_global_access(thd, SUPER_ACL)) {
+	if (check_global_access(thd, PROCESS_ACL)) {
 		DBUG_RETURN(0);
 	}
 
@@ -9101,6 +9102,8 @@ i_s_innodb_mutexes_fill_table(
 			~Locking() { mutex_exit(&rw_lock_list_mutex); }
 		} locking;
 
+		char lock_name[sizeof "buf0dump.cc:12345"];
+
 		for (lock = UT_LIST_GET_FIRST(rw_lock_list); lock != NULL;
 		     lock = UT_LIST_GET_NEXT(list, lock)) {
 			if (lock->count_os_wait == 0) {
@@ -9113,11 +9116,16 @@ i_s_innodb_mutexes_fill_table(
 				continue;
 			}
 
-			//OK(field_store_string(fields[MUTEXES_NAME],
-			//			lock->lock_name));
-			OK(field_store_string(
-				   fields[MUTEXES_CREATE_FILE],
-				   innobase_basename(lock->cfile_name)));
+			const char* basename = innobase_basename(
+				lock->cfile_name);
+
+			snprintf(lock_name, sizeof lock_name, "%s:%u",
+				 basename, lock->cline);
+
+			OK(field_store_string(fields[MUTEXES_NAME],
+					      lock_name));
+			OK(field_store_string(fields[MUTEXES_CREATE_FILE],
+					      basename));
 			OK(fields[MUTEXES_CREATE_LINE]->store(lock->cline,
 							      true));
 			fields[MUTEXES_CREATE_LINE]->set_notnull();
@@ -9133,8 +9141,8 @@ i_s_innodb_mutexes_fill_table(
 			snprintf(buf1, sizeof buf1, "combined %s",
 				 innobase_basename(block_lock->cfile_name));
 
-			//OK(field_store_string(fields[MUTEXES_NAME],
-			//			block_lock->lock_name));
+			OK(field_store_string(fields[MUTEXES_NAME],
+					      "buf_block_t::lock"));
 			OK(field_store_string(fields[MUTEXES_CREATE_FILE],
 					      buf1));
 			OK(fields[MUTEXES_CREATE_LINE]->store(block_lock->cline,

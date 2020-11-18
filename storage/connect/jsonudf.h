@@ -296,7 +296,7 @@ protected:
 	PVAL    MakeJson(PGLOBAL g, PJSON jsp);
 	void    SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val);
 	PJSON   GetRow(PGLOBAL g);
-	my_bool CompareValues(PVL v1, PVL v2);
+	my_bool CompareValues(PJVAL v1, PJVAL v2);
 	my_bool LocateArray(PGLOBAL g, PJAR jarp);
 	my_bool LocateObject(PGLOBAL g, PJOB jobp);
 	my_bool LocateValue(PGLOBAL g, PJVAL jvp);

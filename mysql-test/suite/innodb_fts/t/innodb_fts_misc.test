@@ -672,10 +672,16 @@ CREATE TABLE mdev20987_2(f1 INT NOT NULL, f2 CHAR(100),
                 FOREIGN KEY(f1) REFERENCES mdev20987_1(f1))ENGINE=InnoDB;
 INSERT INTO mdev20987_1 VALUES(1);
 INSERT INTO mdev20987_2 VALUES(1, 'mariadb');
+
+CREATE TABLE mdev22358 (a INT, b TEXT, FULLTEXT KEY ftidx (b)) ENGINE=InnoDB;
+ALTER TABLE mdev22358 DROP KEY ftidx;
+INSERT INTO mdev22358 (a) VALUES (2),(2);
+--error ER_DUP_ENTRY
+ALTER TABLE mdev22358 ADD UNIQUE KEY uidx (a), ADD FULLTEXT KEY ftidx (b);
 --source include/restart_mysqld.inc
 SHOW CREATE TABLE t2;
 DELETE FROM t1 WHERE MATCH(char_column) AGAINST ('bbb');
-DROP TABLE t1, t2, mdev20987_2, mdev20987_1;
+DROP TABLE t1, t2, mdev20987_2, mdev20987_1, mdev22358;
 
 --echo "----------Test28---------"
 create table `fts_test`(`a` text,fulltext key(`a`))engine=innodb;

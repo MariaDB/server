@@ -2872,7 +2872,8 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
      */
     ORDER *order= (ORDER *)alloc_root(thd->mem_root, sizeof(ORDER));
     memset(order, 0, sizeof(*order));
-    Item *item= new (thd->mem_root) Item_field(thd, join_tab->table->field[0]);
+    Item *item= new (thd->mem_root) Item_temptable_field(thd,
+                                                    join_tab->table->field[0]);
     order->item= (Item **)alloc_root(thd->mem_root, 2 * sizeof(Item *));
     order->item[1]= NULL;
     order->item[0]= item;
@@ -2966,6 +2967,14 @@ Window_funcs_computation::save_explain_plan(MEM_ROOT *mem_root,
     xpl->sorts.push_back(eaf, mem_root);
   }
   return xpl;
+}
+
+
+bool st_select_lex::add_window_func(Item_window_func *win_func)
+{
+  if (parsing_place != SELECT_LIST)
+    fields_in_window_functions+= win_func->window_func()->argument_count();
+  return window_funcs.push_back(win_func);
 }
 
 /////////////////////////////////////////////////////////////////////////////

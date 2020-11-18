@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -110,7 +110,8 @@ Item_args::Item_args(THD *thd, const Item_args *other)
     arg_count= 0;
     return;
   }
-  memcpy(args, other->args, sizeof(Item*) * arg_count);
+  if (arg_count)
+    memcpy(args, other->args, sizeof(Item*) * arg_count);
 }
 
 
@@ -365,7 +366,7 @@ Item *Item_func::transform(THD *thd, Item_transformer transformer, uchar *argume
   callback functions.
 
     First the function applies the analyzer to the root node of
-    the Item_func object. Then if the analizer succeeeds (returns TRUE)
+    the Item_func object. Then if the analyzer succeeds (returns TRUE)
     the function recursively applies the compile method to each argument
     of the Item_func node.
     If the call of the method for an argument item returns a new item
@@ -480,8 +481,7 @@ void Item_func::print_op(String *str, enum_query_type query_type)
     str->append(func_name());
     str->append(' ');
   }
-  args[arg_count-1]->print_parenthesised(str, query_type,
-                                         (enum precedence)(precedence() + 1));
+  args[arg_count-1]->print_parenthesised(str, query_type, higher_precedence());
 }
 
 
@@ -1768,7 +1768,7 @@ bool Item_func_div::fix_length_and_dec()
   case TIME_RESULT:
     DBUG_ASSERT(0);
   }
-  maybe_null= 1; // devision by zero
+  maybe_null= 1; // division by zero
   DBUG_RETURN(FALSE);
 }
 
@@ -1816,11 +1816,9 @@ longlong Item_func_int_div::val_int()
       raise_integer_overflow();
     return res;
   }
-  
-  longlong val0=args[0]->val_int();
-  longlong val1=args[1]->val_int();
-  bool val0_negative, val1_negative, res_negative;
-  ulonglong uval0, uval1, res;
+
+  Longlong_hybrid val0= args[0]->to_longlong_hybrid();
+  Longlong_hybrid val1= args[1]->to_longlong_hybrid();
   if ((null_value= (args[0]->null_value || args[1]->null_value)))
     return 0;
   if (val1 == 0)
@@ -1829,12 +1827,8 @@ longlong Item_func_int_div::val_int()
     return 0;
   }
 
-  val0_negative= !args[0]->unsigned_flag && val0 < 0;
-  val1_negative= !args[1]->unsigned_flag && val1 < 0;
-  res_negative= val0_negative != val1_negative;
-  uval0= (ulonglong) (val0_negative ? -val0 : val0);
-  uval1= (ulonglong) (val1_negative ? -val1 : val1);
-  res= uval0 / uval1;
+  bool res_negative= val0.neg() != val1.neg();
+  ulonglong res= val0.abs() / val1.abs();
   if (res_negative)
   {
     if (res > (ulonglong) LONGLONG_MAX)
@@ -1848,7 +1842,7 @@ longlong Item_func_int_div::val_int()
 bool Item_func_int_div::fix_length_and_dec()
 {
   Item_result argtype= args[0]->result_type();
-  /* use precision ony for the data type it is applicable for and valid */
+  /* use precision only for the data type it is applicable for and valid */
   uint32 char_length= args[0]->max_char_length() -
                       (argtype == DECIMAL_RESULT || argtype == INT_RESULT ?
                        args[0]->decimals : 0);
@@ -1863,11 +1857,8 @@ bool Item_func_int_div::fix_length_and_dec()
 longlong Item_func_mod::int_op()
 {
   DBUG_ASSERT(fixed == 1);
-  longlong val0= args[0]->val_int();
-  longlong val1= args[1]->val_int();
-  bool val0_negative, val1_negative;
-  ulonglong uval0, uval1;
-  ulonglong res;
+  Longlong_hybrid val0= args[0]->to_longlong_hybrid();
+  Longlong_hybrid val1= args[1]->to_longlong_hybrid();
 
   if ((null_value= args[0]->null_value || args[1]->null_value))
     return 0; /* purecov: inspected */
@@ -1882,13 +1873,9 @@ longlong Item_func_mod::int_op()
     LONGLONG_MIN by -1 generates SIGFPE, we calculate using unsigned values and
     then adjust the sign appropriately.
   */
-  val0_negative= !args[0]->unsigned_flag && val0 < 0;
-  val1_negative= !args[1]->unsigned_flag && val1 < 0;
-  uval0= (ulonglong) (val0_negative ? -val0 : val0);
-  uval1= (ulonglong) (val1_negative ? -val1 : val1);
-  res= uval0 % uval1;
-  return check_integer_overflow(val0_negative ? -(longlong) res : res,
-                                !val0_negative);
+  ulonglong res= val0.abs() % val1.abs();
+  return check_integer_overflow(val0.neg() ? -(longlong) res : res,
+                                !val0.neg());
 }
 
 double Item_func_mod::real_op()
@@ -2338,6 +2325,9 @@ bool Item_func_int_val::fix_length_and_dec()
     if ((args[0]->max_length - args[0]->decimals) >=
         (DECIMAL_LONGLONG_DIGITS - 2))
     {
+      fix_char_length(
+        my_decimal_precision_to_length_no_truncation(
+          args[0]->decimal_int_part(), 0, false));
       set_handler_by_result_type(DECIMAL_RESULT);
     }
     else
@@ -2521,6 +2511,8 @@ bool Item_func_round::fix_length_and_dec()
 
     precision-= decimals_delta - length_increase;
     decimals= MY_MIN(decimals_to_set, DECIMAL_MAX_SCALE);
+    if (!precision)
+      precision= 1; // DECIMAL(0,0) -> DECIMAL(1,0)
     max_length= my_decimal_precision_to_length_no_truncation(precision,
                                                              decimals,
                                                              unsigned_flag);
@@ -2652,19 +2644,20 @@ void Item_func_rand::seed_random(Item *arg)
     TODO: do not do reinit 'rand' for every execute of PS/SP if
     args[0] is a constant.
   */
-  uint32 tmp;
+  uint32 tmp= (uint32) arg->val_int();
 #ifdef WITH_WSREP
-  THD *thd= current_thd;
-  if (WSREP(thd))
+  if (WSREP_ON)
   {
-    if (thd->wsrep_exec_mode==REPL_RECV)
-      tmp= thd->wsrep_rand;
-    else
-      tmp= thd->wsrep_rand= (uint32) arg->val_int();
-   }
-  else
+    THD *thd= current_thd;
+    if (thd->variables.wsrep_on)
+    {
+      if (thd->wsrep_exec_mode==REPL_RECV)
+        tmp= thd->wsrep_rand;
+      else
+        thd->wsrep_rand= tmp;
+    }
+  }
 #endif /* WITH_WSREP */
-    tmp= (uint32) arg->val_int();
 
   my_rnd_init(rand, (uint32) (tmp*0x10001L+55555555L),
              (uint32) (tmp*0x10000001L));
@@ -4060,6 +4053,8 @@ int Interruptible_wait::wait(mysql_cond_t *cond, mysql_mutex_t *mutex)
       timeout= m_abs_timeout;
 
     error= mysql_cond_timedwait(cond, mutex, &timeout);
+    if (m_thd->check_killed())
+      break;
     if (error == ETIMEDOUT || error == ETIME)
     {
       /* Return error if timed out or connection is broken. */
@@ -4828,7 +4823,7 @@ bool Item_func_set_user_var::register_field_in_bitmap(void *arg)
   @param type           type of new value
   @param cs             charset info for new value
   @param dv             derivation for new value
-  @param unsigned_arg   indiates if a value of type INT_RESULT is unsigned
+  @param unsigned_arg   indicates if a value of type INT_RESULT is unsigned
 
   @note Sets error and fatal error if allocation fails.
 
@@ -6573,7 +6568,7 @@ void my_missing_function_error(const LEX_STRING &token, const char *func_name)
   @brief Initialize the result field by creating a temporary dummy table
     and assign it to a newly created field object. Meta data used to
     create the field is fetched from the sp_head belonging to the stored
-    proceedure found in the stored procedure functon cache.
+    procedure found in the stored procedure function cache.
   
   @note This function should be called from fix_fields to init the result
     field. It is some what related to Item_field.
@@ -6877,7 +6872,7 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     /*
       Here we check privileges of the stored routine only during view
       creation, in order to validate the view.  A runtime check is
-      perfomed in Item_func_sp::execute(), and this method is not
+      performed in Item_func_sp::execute(), and this method is not
       called during context analysis.  Notice, that during view
       creation we do not infer into stored routine bodies and do not
       check privileges of its statements, which would probably be a

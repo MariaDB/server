@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,8 +33,12 @@ Created 10/25/1995 Heikki Tuuri
 #include "dict0types.h"
 #include "page0size.h"
 #include "ibuf0types.h"
+#include "ilist.h"
 
 #include <list>
+
+struct unflushed_spaces_tag_t;
+struct rotation_list_tag_t;
 
 // Forward declaration
 extern ibool srv_use_doublewrite_buf;
@@ -78,7 +82,9 @@ fil_type_is_data(
 struct fil_node_t;
 
 /** Tablespace or log data space */
-struct fil_space_t {
+struct fil_space_t : ilist_node<unflushed_spaces_tag_t>,
+                     ilist_node<rotation_list_tag_t>
+{
 	ulint		id;	/*!< space id */
 	hash_node_t	hash;	/*!< hash chain node */
 	char*		name;	/*!< Tablespace name */
@@ -129,6 +135,8 @@ struct fil_space_t {
 				/*!< recovered tablespace size in pages;
 				0 if no size change was read from the redo log,
 				or if the size change was implemented */
+  /** the committed size of the tablespace in pages */
+  ulint committed_size;
 	ulint		flags;	/*!< FSP_SPACE_FLAGS and FSP_FLAGS_MEM_ flags;
 				see fsp0types.h,
 				fsp_flags_is_valid(),
@@ -156,25 +164,20 @@ struct fil_space_t {
 	ulint		n_pending_ios;
 	rw_lock_t	latch;	/*!< latch protecting the file space storage
 				allocation */
-	UT_LIST_NODE_T(fil_space_t) unflushed_spaces;
-				/*!< list of spaces with at least one unflushed
-				file we have written to */
 	UT_LIST_NODE_T(fil_space_t) named_spaces;
 				/*!< list of spaces for which MLOG_FILE_NAME
 				records have been issued */
-	/** Checks that this tablespace in a list of unflushed tablespaces.
-	@return true if in a list */
-	bool is_in_unflushed_spaces() const;
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
-	/** other tablespaces needing key rotation */
-	UT_LIST_NODE_T(fil_space_t) rotation_list;
-	/** Checks that this tablespace needs key rotation.
-	@return true if in a rotation list */
-	bool is_in_rotation_list() const;
 
 	/** MariaDB encryption data */
 	fil_space_crypt_t* crypt_data;
+
+	/** Checks that this tablespace in a list of unflushed tablespaces. */
+	bool is_in_unflushed_spaces;
+
+	/** Checks that this tablespace needs key rotation. */
+	bool is_in_rotation_list;
 
 	/** True if the device this filespace is on supports atomic writes */
 	bool		atomic_write_supported;
@@ -191,6 +194,15 @@ struct fil_space_t {
 
 	/** @return whether the tablespace is about to be dropped */
 	bool is_stopping() const { return stop_new_ops;	}
+
+  /** Clamp a page number for batched I/O, such as read-ahead.
+  @param offset   page number limit
+  @return offset clamped to the tablespace size */
+  ulint max_page_number_for_io(ulint offset) const
+  {
+    const ulint limit= committed_size;
+    return limit > offset ? offset : limit;
+  }
 
 	/** @return whether doublewrite buffering is needed */
 	bool use_doublewrite() const
@@ -484,6 +496,11 @@ fil_space_get(
 data space) is stored here; below we talk about tablespaces, but also
 the ib_logfiles form a 'space' and it is handled here */
 struct fil_system_t {
+	fil_system_t()
+	    : n_open(0), max_assigned_id(0), space_id_reuse_warned(false)
+	{
+	}
+
 	ib_mutex_t	mutex;		/*!< The mutex protecting the cache */
 	hash_table_t*	spaces;		/*!< The hash table of spaces in the
 					system; they are hashed on the space
@@ -501,8 +518,8 @@ struct fil_system_t {
 					not put to this list: they are opened
 					after the startup, and kept open until
 					shutdown */
-	UT_LIST_BASE_NODE_T(fil_space_t) unflushed_spaces;
-					/*!< base node for the list of those
+	sized_ilist<fil_space_t, unflushed_spaces_tag_t> unflushed_spaces;
+					/*!< list of those
 					tablespaces whose files contain
 					unflushed writes; those spaces have
 					at least one file node where
@@ -524,11 +541,11 @@ struct fil_system_t {
 					record has been written since
 					the latest redo log checkpoint.
 					Protected only by log_sys->mutex. */
-	UT_LIST_BASE_NODE_T(fil_space_t) rotation_list;
+	ilist<fil_space_t, rotation_list_tag_t> rotation_list;
 					/*!< list of all file spaces needing
 					key rotation.*/
 
-	ibool		space_id_reuse_warned;
+	bool		space_id_reuse_warned;
 					/* !< TRUE if fil_space_create()
 					has issued a warning about
 					potential space_id reuse */
@@ -539,24 +556,15 @@ struct fil_system_t {
 	@retval	NULL	if the tablespace does not exist or cannot be read */
 	fil_space_t* read_page0(ulint id);
 
-	/** Return the next fil_space_t from key rotation list.
-	Once started, the caller must keep calling this until it returns NULL.
-	fil_space_acquire() and fil_space_release() are invoked here which
-	blocks a concurrent operation from dropping the tablespace.
-	@param[in]      prev_space      Previous tablespace or NULL to start
-					from beginning of fil_system->rotation
-					list
-	@param[in]      recheck         recheck of the tablespace is needed or
-					still encryption thread does write page0
-					for it
-	@param[in]	key_version	key version of the key state thread
-	If NULL, use the first fil_space_t on fil_system->space_list.
-	@return pointer to the next fil_space_t.
-	@retval NULL if this was the last */
-	fil_space_t* keyrotate_next(
-		fil_space_t*	prev_space,
-		bool		remove,
-		uint		key_version);
+  /** Return the next tablespace from rotation_list.
+  @param space   previous tablespace (NULL to start from the start)
+  @param recheck whether the removal condition needs to be rechecked after
+  the encryption parameters were changed
+  @param encrypt expected state of innodb_encrypt_tables
+  @return the next tablespace to process (n_pending_ops incremented)
+  @retval NULL if this was the last */
+  inline fil_space_t* keyrotate_next(fil_space_t *space, bool recheck,
+                                     bool encrypt);
 };
 
 /** The tablespace memory cache. This variable is NULL before the module is
@@ -564,15 +572,6 @@ initialized. */
 extern fil_system_t*	fil_system;
 
 #include "fil0crypt.h"
-
-/** Returns the latch of a file space.
-@param[in]	id	space id
-@param[out]	flags	tablespace flags
-@return latch protecting storage allocation */
-rw_lock_t*
-fil_space_get_latch(
-	ulint	id,
-	ulint*	flags);
 
 /** Gets the type of a file space.
 @param[in]	id	tablespace identifier
@@ -795,34 +794,6 @@ fil_space_acquire_for_io(ulint id);
 void
 fil_space_release_for_io(fil_space_t* space);
 
-/** Return the next fil_space_t.
-Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_release() are invoked here which
-blocks a concurrent operation from dropping the tablespace.
-@param[in,out]	prev_space	Pointer to the previous fil_space_t.
-If NULL, use the first fil_space_t on fil_system->space_list.
-@return pointer to the next fil_space_t.
-@retval NULL if this was the last  */
-fil_space_t*
-fil_space_next(
-	fil_space_t*	prev_space)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Return the next fil_space_t from key rotation list.
-Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_release() are invoked here which
-blocks a concurrent operation from dropping the tablespace.
-@param[in]	prev_space	Previous tablespace or NULL to start
-				from beginning of fil_system->rotation list
-@param[in]	remove		Whether to remove the previous tablespace from
-				the rotation list
-If NULL, use the first fil_space_t on fil_system->space_list.
-@return pointer to the next fil_space_t.
-@retval NULL if this was the last*/
-fil_space_t*
-fil_space_keyrotate_next(fil_space_t* prev_space, bool remove)
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Wrapper with reference-counting for a fil_space_t. */
 class FilSpace
 {
@@ -958,14 +929,9 @@ bool fil_table_accessible(const dict_table_t* table)
 
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
+@param[in]	if_exists	whether to ignore missing tablespace
 @return	DB_SUCCESS or error */
-dberr_t
-fil_delete_tablespace(
-	ulint id
-#ifdef BTR_CUR_HASH_ADAPT
-	, bool drop_ahi = false /*!< whether to drop the adaptive hash index */
-#endif /* BTR_CUR_HASH_ADAPT */
-	);
+dberr_t fil_delete_tablespace(ulint id, bool if_exists= false);
 
 /** Prepare to truncate an undo tablespace.
 @param[in]	space_id	undo tablespace id
@@ -1382,18 +1348,6 @@ This call is made from external to this module, so the mutex is not owned.
 ulint
 fil_space_get_id_by_name(
 	const char*	tablespace);
-
-/**
-Iterate over all the spaces in the space list and fetch the
-tablespace names. It will return a copy of the name that must be
-freed by the caller using: delete[].
-@return DB_SUCCESS if all OK. */
-dberr_t
-fil_get_space_names(
-/*================*/
-	space_name_list_t&	space_name_list)
-				/*!< in/out: Vector for collecting the names. */
-	MY_ATTRIBUTE((warn_unused_result));
 
 /** Generate redo log for swapping two .ibd files
 @param[in]	old_table	old table

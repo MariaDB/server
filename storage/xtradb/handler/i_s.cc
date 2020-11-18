@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2553,7 +2553,7 @@ i_s_metrics_fill(
 			time_diff = 0;
 		}
 
-		/* Unless MONITOR__NO_AVERAGE is marked, we will need
+		/* Unless MONITOR_NO_AVERAGE is set, we must
 		to calculate the average value. If this is a monitor set
 		owner marked by MONITOR_SET_OWNER, divide
 		the value by another counter (number of calls) designated
@@ -2561,8 +2561,9 @@ i_s_metrics_fill(
 		Otherwise average the counter value by the time between the
 		time that the counter is enabled and time it is disabled
 		or time it is sampled. */
-		if (!(monitor_info->monitor_type & MONITOR_NO_AVERAGE)
-		    && (monitor_info->monitor_type & MONITOR_SET_OWNER)
+		if ((monitor_info->monitor_type
+		     & (MONITOR_NO_AVERAGE | MONITOR_SET_OWNER))
+		    == MONITOR_SET_OWNER
 		    && monitor_info->monitor_related_id) {
 			mon_type_t	value_start
 				 = MONITOR_VALUE_SINCE_START(
@@ -2578,18 +2579,18 @@ i_s_metrics_fill(
 				fields[METRIC_AVG_VALUE_START]->set_null();
 			}
 
-			if (MONITOR_VALUE(monitor_info->monitor_related_id)) {
-				OK(fields[METRIC_AVG_VALUE_RESET]->store(
-					MONITOR_VALUE(count)
-					/ MONITOR_VALUE(
-					monitor_info->monitor_related_id),
-					FALSE));
+			if (mon_type_t related_value =
+			    MONITOR_VALUE(monitor_info->monitor_related_id)) {
+				OK(fields[METRIC_AVG_VALUE_RESET]
+				   ->store(MONITOR_VALUE(count)
+					   / related_value, false));
+				fields[METRIC_AVG_VALUE_RESET]->set_notnull();
 			} else {
 				fields[METRIC_AVG_VALUE_RESET]->set_null();
 			}
-		} else if (!(monitor_info->monitor_type & MONITOR_NO_AVERAGE)
-			   && !(monitor_info->monitor_type
-				& MONITOR_DISPLAY_CURRENT)) {
+		} else if (!(monitor_info->monitor_type
+			     & (MONITOR_NO_AVERAGE
+				| MONITOR_DISPLAY_CURRENT))) {
 			if (time_diff) {
 				OK(fields[METRIC_AVG_VALUE_START]->store(
 					(double) MONITOR_VALUE_SINCE_START(
@@ -3367,6 +3368,8 @@ no_fts:
 	conv_str.f_len = sizeof word;
 	conv_str.f_str = word;
 
+	rw_lock_s_lock(&cache->lock);
+
 	for (ulint i = 0; i < ib_vector_size(cache->indexes); i++) {
 		fts_index_cache_t*      index_cache;
 
@@ -3377,6 +3380,7 @@ no_fts:
 				 index_cache, thd, &conv_str, tables));
 	}
 
+	rw_lock_s_unlock(&cache->lock);
 	dict_table_close(user_table, FALSE, FALSE);
 	rw_lock_s_unlock(&dict_operation_lock);
 

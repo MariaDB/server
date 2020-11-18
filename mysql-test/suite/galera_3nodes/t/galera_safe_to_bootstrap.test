@@ -2,6 +2,7 @@
 # Test the safe_to_bootstrap in grastate.dat 
 #
 --source include/galera_cluster.inc
+--source include/force_restart.inc
 
 --let $galera_connection_name = node_3
 --let $galera_server_number = 3
@@ -14,7 +15,11 @@
 --source ../galera/include/auto_increment_offset_save.inc
 
 --connection node_1
-CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
 
 #
 # At start, all grastate.dat files have safe_to_boostrap: 0
@@ -151,9 +156,17 @@ SET SESSION wsrep_on = OFF;
 --source include/start_mysqld.inc
 --source include/wait_until_connected_again.inc
 
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+
 --connection node_2
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 --source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
 
 --connection node_3
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.3.expect

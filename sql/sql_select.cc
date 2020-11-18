@@ -383,11 +383,14 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
       If LIMIT ROWS EXAMINED interrupted query execution, issue a warning,
       continue with normal processing and produce an incomplete query result.
     */
+    bool saved_abort_on_warning= thd->abort_on_warning;
+    thd->abort_on_warning= false;
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT,
                         ER_THD(thd, ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT),
                         thd->accessed_rows_and_keys,
                         thd->lex->limit_rows_examined->val_uint());
+    thd->abort_on_warning= saved_abort_on_warning;
     thd->reset_killed();
   }
   /* Disable LIMIT ROWS EXAMINED after query execution. */
@@ -1109,11 +1112,11 @@ int JOIN::optimize()
   if (optimization_state != JOIN::NOT_OPTIMIZED)
     return FALSE;
   optimization_state= JOIN::OPTIMIZATION_IN_PROGRESS;
+  create_explain_query_if_not_exists(thd->lex, thd->mem_root);
 
   int res= optimize_inner();
   if (!res && have_query_plan != QEP_DELETED)
   {
-    create_explain_query_if_not_exists(thd->lex, thd->mem_root);
     have_query_plan= QEP_AVAILABLE;
 
     /*
@@ -1447,6 +1450,7 @@ JOIN::optimize_inner()
         zero_result_cause= "Zero limit";
       }
       table_count= top_join_tab_count= 0;
+      handle_implicit_grouping_with_window_funcs();
       error= 0;
       goto setup_subq_exit;
     }
@@ -1502,6 +1506,7 @@ JOIN::optimize_inner()
 	zero_result_cause= "No matching min/max row";
         table_count= top_join_tab_count= 0;
 	error=0;
+        handle_implicit_grouping_with_window_funcs();
         goto setup_subq_exit;
       }
       if (res > 1)
@@ -1517,6 +1522,7 @@ JOIN::optimize_inner()
       tables_list= 0;				// All tables resolved
       select_lex->min_max_opt_list.empty();
       const_tables= top_join_tab_count= table_count;
+      handle_implicit_grouping_with_window_funcs();
       /*
         Extract all table-independent conditions and replace the WHERE
         clause with them. All other conditions were computed by opt_sum_query
@@ -1615,6 +1621,7 @@ JOIN::optimize_inner()
     zero_result_cause= "no matching row in const table";
     DBUG_PRINT("error",("Error: %s", zero_result_cause));
     error= 0;
+    handle_implicit_grouping_with_window_funcs();
     goto setup_subq_exit;
   }
   if (!(thd->variables.option_bits & OPTION_BIG_SELECTS) &&
@@ -1639,6 +1646,7 @@ JOIN::optimize_inner()
     zero_result_cause=
       "Impossible WHERE noticed after reading const tables";
     select_lex->mark_const_derived(zero_result_cause);
+    handle_implicit_grouping_with_window_funcs();
     goto setup_subq_exit;
   }
 
@@ -1781,6 +1789,7 @@ JOIN::optimize_inner()
     zero_result_cause=
       "Impossible WHERE noticed after reading const tables";
     select_lex->mark_const_derived(zero_result_cause);
+    handle_implicit_grouping_with_window_funcs();
     goto setup_subq_exit;
   }
 
@@ -2008,11 +2017,16 @@ JOIN::optimize_inner()
   }
 
   need_tmp= test_if_need_tmp_table();
-  //TODO this could probably go in test_if_need_tmp_table.
-  if (this->select_lex->window_specs.elements > 0) {
-    need_tmp= TRUE;
+
+  /*
+    If window functions are present then we can't have simple_order set to
+    TRUE as the window function needs a temp table for computation.
+    ORDER BY is computed after the window function computation is done, so
+    the sort will be done on the temp table.
+  */
+  if (select_lex->have_window_funcs())
     simple_order= FALSE;
-  }
+
 
   /*
     If the hint FORCE INDEX FOR ORDER BY/GROUP BY is used for the table
@@ -2204,8 +2218,12 @@ JOIN::optimize_inner()
     having_is_correlated= MY_TEST(having->used_tables() & OUTER_REF_TABLE_BIT);
   tmp_having= having;
 
-  if ((select_lex->options & OPTION_SCHEMA_TABLE))
-    optimize_schema_tables_reads(this);
+  if ((select_lex->options & OPTION_SCHEMA_TABLE) &&
+       optimize_schema_tables_reads(this))
+    DBUG_RETURN(TRUE);
+
+  if (unlikely(thd->is_error()))
+    DBUG_RETURN(TRUE);
 
   /*
     The loose index scan access method guarantees that all grouping or
@@ -4593,7 +4611,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       for (i= 0; i < join->table_count ; i++)
         if (double rr= join->best_positions[i].records_read)
           records= COST_MULT(records, rr);
-      ha_rows rows= records > HA_ROWS_MAX ? HA_ROWS_MAX : (ha_rows) records;
+      ha_rows rows= records > (double) HA_ROWS_MAX ? HA_ROWS_MAX : (ha_rows) records;
       set_if_smaller(rows, unit->select_limit_cnt);
       join->select_lex->increase_derived_records(rows);
     }
@@ -5982,6 +6000,7 @@ static void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array)
       uint n_tables= my_count_bits(map);
       if (n_tables == 1)			// Only one table
       {
+        DBUG_ASSERT(!(map & PSEUDO_TABLE_BITS)); // Must be a real table
         Table_map_iterator it(map);
         int tablenr= it.next_bit();
         DBUG_ASSERT(tablenr != Table_map_iterator::BITMAP_END);
@@ -12375,24 +12394,7 @@ void JOIN::cleanup(bool full)
       for (tab= first_linear_tab(this, WITH_BUSH_ROOTS, WITH_CONST_TABLES); tab;
            tab= next_linear_tab(this, tab, WITH_BUSH_ROOTS))
       {
-        if (!tab->table)
-          continue;
-        DBUG_PRINT("info", ("close index: %s.%s  alias: %s",
-                            tab->table->s->db.str,
-                            tab->table->s->table_name.str,
-                            tab->table->alias.c_ptr()));
-	if (tab->table->is_created())
-        {
-          tab->table->file->ha_index_or_rnd_end();
-          if (tab->aggr)
-          {
-            int tmp= 0;
-            if ((tmp= tab->table->file->extra(HA_EXTRA_NO_CACHE)))
-              tab->table->file->print_error(tmp, MYF(0));
-          }
-        }
-        delete tab->filesort_result;
-        tab->filesort_result= NULL;
+        tab->partial_cleanup();
       }
     }
   }
@@ -13857,12 +13859,15 @@ static int compare_fields_by_table_order(Item *field1,
 {
   int cmp= 0;
   bool outer_ref= 0;
-  Item_field *f1= (Item_field *) (field1->real_item());
-  Item_field *f2= (Item_field *) (field2->real_item());
-  if (field1->const_item() || f1->const_item())
+  Item *field1_real= field1->real_item();
+  Item *field2_real= field2->real_item();
+
+  if (field1->const_item() || field1_real->const_item())
     return -1;
-  if (field2->const_item() || f2->const_item())
+  if (field2->const_item() || field2_real->const_item())
     return 1;
+  Item_field *f1= (Item_field *) field1_real;
+  Item_field *f2= (Item_field *) field2_real;
   if (f1->used_tables() & OUTER_REF_TABLE_BIT)
   {
     outer_ref= 1;
@@ -14354,7 +14359,7 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
     }	 
   }
   else if (cond->type() == Item::FUNC_ITEM && 
-           ((Item_cond*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
+           ((Item_func*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
   {
     item_equal= (Item_equal *) cond;
     item_equal->sort(&compare_fields_by_table_order, table_join_idx);
@@ -18225,7 +18230,8 @@ void set_postjoin_aggr_write_func(JOIN_TAB *tab)
     }
   }
   else if (join->sort_and_group && !tmp_tbl->precomputed_group_by &&
-           !join->sort_and_group_aggr_tab && join->tables_list)
+           !join->sort_and_group_aggr_tab && join->tables_list &&
+           join->top_join_tab_count)
   {
     DBUG_PRINT("info",("Using end_write_group"));
     aggr->set_write_func(end_write_group);
@@ -19865,7 +19871,7 @@ join_read_last(JOIN_TAB *tab)
 {
   TABLE *table=tab->table;
   int error= 0;
-  DBUG_ENTER("join_read_first");
+  DBUG_ENTER("join_read_last");
 
   DBUG_ASSERT(table->no_keyread ||
               !table->covering_keys.is_set(tab->index) ||
@@ -21921,6 +21927,9 @@ check_reverse_order:
     else if (select && select->quick)
       select->quick->need_sorted_output();
 
+    tab->read_record.unlock_row= (tab->type == JT_EQ_REF) ?
+                                 join_read_key_unlock_row : rr_unlock_row;
+
   } // QEP has been modified
 
   /*
@@ -22689,10 +22698,13 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
                 List<Item> &fields, List<Item> &all_fields, ORDER *order,
                 bool from_window_spec)
 { 
+  SELECT_LEX *select = thd->lex->current_select;
   enum_parsing_place context_analysis_place=
                      thd->lex->current_select->context_analysis_place;
   thd->where="order clause";
-  for (; order; order=order->next)
+  const bool for_union = select->master_unit()->is_union() &&
+                         select == select->master_unit()->fake_select_lex;
+  for (uint number = 1; order; order=order->next, number++)
   {
     if (find_order_in_list(thd, ref_pointer_array, tables, order, fields,
                            all_fields, false, true, from_window_spec))
@@ -22703,6 +22715,18 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
       my_error(ER_WINDOW_FUNCTION_IN_WINDOW_SPEC, MYF(0));
       return 1;
     }
+
+    /*
+      UNION queries cannot be used with an aggregate function in
+      an ORDER BY clause
+    */
+
+    if (for_union && (*order->item)->with_sum_func)
+    {
+      my_error(ER_AGGREGATE_ORDER_FOR_UNION, MYF(0), number);
+      return 1;
+    }
+
     if (from_window_spec && (*order->item)->with_sum_func &&
         (*order->item)->type() != Item::SUM_FUNC_ITEM)
       (*order->item)->split_sum_func(thd, ref_pointer_array,
@@ -23624,7 +23648,8 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   for (uint i= 0; (item= it++); i++)
   {
     Field *field;
-    if (item->with_sum_func && item->type() != Item::SUM_FUNC_ITEM)
+    if ((item->with_sum_func && item->type() != Item::SUM_FUNC_ITEM) ||
+       item->with_window_func)
       item_field= item;
     else if (item->type() == Item::FIELD_ITEM)
       item_field= item->get_tmp_table_item(thd);
@@ -26923,6 +26948,62 @@ Item *remove_pushed_top_conjuncts(THD *thd, Item *cond)
   }
   return cond;
 }
+
+/*
+  There are 5 cases in which we shortcut the join optimization process as we
+  conclude that the join would be a degenerate one
+    1) IMPOSSIBLE WHERE
+    2) MIN/MAX optimization (@see opt_sum_query)
+    3) EMPTY CONST TABLE
+  If a window function is present in any of the above cases then to get the
+  result of the window function, we need to execute it. So we need to
+  create a temporary table for its execution. Here we need to take in mind
+  that aggregate functions and non-aggregate function need not be executed.
+
+*/
+
+
+void JOIN::handle_implicit_grouping_with_window_funcs()
+{
+  if (select_lex->have_window_funcs() && send_row_on_empty_set())
+  {
+    const_tables= top_join_tab_count= table_count= 0;
+  }
+}
+
+
+/*
+  @brief
+    Perform a partial cleanup for the JOIN_TAB structure
+
+  @note
+    this is used to cleanup resources for the re-execution of correlated
+    subqueries.
+*/
+void JOIN_TAB::partial_cleanup()
+{
+  if (!table)
+    return;
+
+  if (table->is_created())
+  {
+    table->file->ha_index_or_rnd_end();
+    DBUG_PRINT("info", ("close index: %s.%s  alias: %s",
+               table->s->db.str,
+               table->s->table_name.str,
+               table->alias.c_ptr()));
+    if (aggr)
+    {
+      int tmp= 0;
+      if ((tmp= table->file->extra(HA_EXTRA_NO_CACHE)))
+        table->file->print_error(tmp, MYF(0));
+    }
+  }
+  delete filesort_result;
+  filesort_result= NULL;
+  free_cache(&read_record);
+}
+
 
 /**
   @} (end of group Query_Optimizer)

@@ -112,7 +112,7 @@ void my_error(uint nr, myf MyFlags, ...)
   char ebuff[ERRMSGSIZE];
   DBUG_ENTER("my_error");
   DBUG_PRINT("my", ("nr: %d  MyFlags: %lu  errno: %d", nr, MyFlags, errno));
-
+  
   if (!(format = my_get_err_msg(nr)))
     (void) my_snprintf(ebuff, sizeof(ebuff), "Unknown error %d", nr);
   else

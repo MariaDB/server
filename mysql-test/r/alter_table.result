@@ -2506,5 +2506,16 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE t2, t1;
 #
+# MDEV-18163: Assertion `table_share->tmp_table != NO_TMP_TABLE ||
+# m_lock_type != 2' failed in handler::ha_rnd_next(); / Assertion
+# `table_list->table' failed in find_field_in_table_ref / ERROR 1901
+# (on optimized builds)
+#
+CREATE TABLE t1 (k1 varchar(10) DEFAULT 5);
+CREATE TABLE t2 (i1 int);
+ALTER TABLE t1 ALTER COLUMN k1 SET DEFAULT (SELECT 1 FROM t2 limit 1);
+ERROR HY000: Function or expression 'select ...' cannot be used in the DEFAULT clause of `k1`
+DROP TABLE t1,t2;
+#
 # End of 10.2 tests
 #

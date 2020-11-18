@@ -285,7 +285,7 @@ public:
     -------------------------------------------------------------------------
     MODULE create/delete handler object
     -------------------------------------------------------------------------
-    Object create/delete methode. The normal called when a table object
+    Object create/delete method. Normally called when a table object
     exists. There is also a method to create the handler object with only
     partition information. This is used from mysql_create_table when the
     table is to be created and the engine type is deduced to be the
@@ -583,7 +583,7 @@ public:
 
   /**
     @breif
-    Positions an index cursor to the index specified in the hanlde. Fetches the
+    Positions an index cursor to the index specified in the handle. Fetches the
     row if available. If the key value is null, begin at first key of the
     index.
   */
@@ -800,7 +800,7 @@ public:
 
     HA_REC_NOT_IN_SEQ:
     This flag is set for handlers that cannot guarantee that the rows are
-    returned accroding to incremental positions (0, 1, 2, 3...).
+    returned according to incremental positions (0, 1, 2, 3...).
     This also means that rnd_next() should return HA_ERR_RECORD_DELETED
     if it finds a deleted row.
     (MyISAM (not fixed length row), HEAP, InnoDB)

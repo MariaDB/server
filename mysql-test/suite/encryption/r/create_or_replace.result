@@ -1,8 +1,5 @@
+SET @save_threads = @@GLOBAL.innodb_encryption_threads;
 SET default_storage_engine = InnoDB;
-CREATE TABLE t1 (pk INT PRIMARY KEY, c VARCHAR(256));
-CREATE TABLE t2 AS SELECT * FROM t1;
-drop table t1,t2;
-SET GLOBAL innodb_encryption_threads = 0;
 SET GLOBAL innodb_encryption_threads = 4;
 CREATE TABLE `table10_int_autoinc` (`col_int_key` int, pk int auto_increment, `col_int` int, key (`col_int_key` ),primary key (pk)) engine=innodb;
 INSERT /*! IGNORE */ INTO table10_int_autoinc VALUES  (NULL, NULL, -474021888) ,  (1, NULL, NULL) ,  (1141047296, NULL, NULL) ,  (NULL, NULL, NULL) ,  (NULL, NULL, 1) ,  (NULL, NULL, 9) ,  (0, NULL, 1225785344) ,  (NULL, NULL, 1574174720) ,  (2, NULL, NULL) ,  (6, NULL, 3);
@@ -14,13 +11,9 @@ INSERT IGNORE INTO `table1_int_autoinc` ( `col_int` ) VALUES ( 1 ), ( 0 ), ( 7 )
 INSERT IGNORE INTO `table10_int_autoinc` ( `col_int` ) VALUES ( 6 ), ( 2 ), ( 3 ), ( 6 );
 connect  con1,localhost,root,,test;
 connect  con2,localhost,root,,test;
-connection default;
-drop table if exists create_or_replace_t, table1_int_autoinc, table0_int_autoinc, table10_int_autoinc;
 disconnect con1;
 disconnect con2;
-SET GLOBAL innodb_encrypt_tables = OFF;
-SET GLOBAL innodb_encryption_threads = 4;
-# Wait max 10 min for key encryption threads to decrypt all spaces
-# Success!
-SET GLOBAL innodb_encryption_threads = 0;
-SET GLOBAL innodb_encrypt_tables = OFF;
+connection default;
+drop table create_or_replace_t, table1_int_autoinc, table0_int_autoinc,
+table10_int_autoinc;
+SET GLOBAL innodb_encryption_threads = @save_threads;

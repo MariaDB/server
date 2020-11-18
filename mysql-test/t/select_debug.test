@@ -10,6 +10,7 @@ create table t2 (a int);
 insert into t2 values (2), (3);
 
 set session join_cache_level=3;
+SET @saved_dbug = @@SESSION.debug_dbug;
 set @@debug_dbug= 'd,opt';
 
 explain select t1.b from t1,t2 where t1.b=t2.a;
@@ -17,3 +18,4 @@ select t1.b from t1,t2 where t1.b=t2.a;
 
 set session join_cache_level=default;
 drop table t1,t2;
+SET debug_dbug= @saved_dbug;

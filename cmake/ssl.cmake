@@ -147,6 +147,7 @@ MACRO (MYSQL_CHECK_SSL)
       SET(SSL_DEFINES "-DHAVE_OPENSSL")
 
       SET(CMAKE_REQUIRED_LIBRARIES ${SSL_LIBRARIES})
+      SET(CMAKE_REQUIRED_INCLUDES ${OPENSSL_INCLUDE_DIR})
       CHECK_SYMBOL_EXISTS(ERR_remove_thread_state "openssl/err.h"
                           HAVE_ERR_remove_thread_state)
       CHECK_SYMBOL_EXISTS(EVP_aes_128_ctr "openssl/evp.h"

@@ -17,10 +17,18 @@ connection node_2;
 Performing --wsrep-recover ...
 Using --wsrep-start-position when starting mysqld ...
 connection node_1;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+5
+connection node_2;
+SET SESSION wsrep_sync_wait = 15;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+5
 include/diff_servers.inc [servers=1 2]
 connection node_1;
 DROP TABLE t1;
 CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
-include/assert_grep.inc [IST first seqno 2 not found from cache, falling back to SST]
+include/assert_grep.inc [not found from cache, falling back to SST]
 connection node_2;
 CALL mtr.add_suppression("Skipped GCache ring buffer recovery");

@@ -284,7 +284,7 @@ uchar *hash_get_key_for_sp_head(const uchar *ptr, size_t *plen,
 void hash_free_sp_head(void *p)
 {
   sp_head *sp= (sp_head *)p;
-  delete sp;
+  sp_head::destroy(sp);
 }
 
 

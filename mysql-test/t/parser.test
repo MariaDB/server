@@ -1090,7 +1090,9 @@ CREATE TABLE t1 AS SELECT 1 LIMIT 1 UNION SELECT 2;
 --echo # For now, we're testing the parser.
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
+--error ER_AGGREGATE_ORDER_FOR_UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a);
+--error ER_AGGREGATE_ORDER_FOR_UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a ORDER BY GROUP_CONCAT(a ORDER BY a);
 DROP TABLE t1;
 
@@ -1131,8 +1133,11 @@ DROP TABLE t1;
 
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (10),(20),(30);
+--error ER_AGGREGATE_ORDER_FOR_UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a);
+--error ER_AGGREGATE_ORDER_FOR_UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a);
+--error ER_AGGREGATE_ORDER_FOR_UNION
 SELECT 1 AS a UNION SELECT a FROM t1 GROUP BY a WITH ROLLUP ORDER BY GROUP_CONCAT(a ORDER BY a) LIMIT 1;
 DROP TABLE t1;
 
@@ -1346,3 +1351,17 @@ create function fs() returns serial return 1;
 create table t1 ( id serial );
 show create table t1;
 drop table t1;
+
+#
+# BETWEEN syntax
+#
+create or replace view v1 as select 1 between (2 between 3 and 4) and 5;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+create or replace view v1 as select 1 between (2 in (3,4)) and 5;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+create or replace view v1 as select 1 between (2 like 3) and 4;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+create or replace view v1 as select 1 not between (2 like 3) and 4;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+
+drop view v1;

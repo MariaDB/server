@@ -1903,6 +1903,11 @@ create table t1(o1 int, o2 int, o3 int, primary key(o1,o2,o3)) engine = innodb;
 insert into t1 values(1,1,2),(2,2,1);
 alter table t1 drop primary key, add primary key(o1), lock=none;
 drop table t1;
+create table t1(o1 int, o2 int, primary key(o1,o2)) engine = innodb;
+insert into t1 values(1,1),(2,1);
+alter table t1 drop primary key, add column a int unique auto_increment,
+add primary key(o1,o2,a), algorithm=inplace;
+drop table t1;
 #
 # MDEV-15325 Incomplete validation of missing tablespace during recovery
 #

@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1164,7 +1164,7 @@ sync_array_print_long_waits(
 		sync_array_exit(arr);
 	}
 
-	if (noticed) {
+	if (noticed && srv_monitor_event) {
 		ibool	old_val;
 
 		fprintf(stderr,

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -165,11 +165,10 @@ btr_pcur_store_position(
 		index, rec, &cursor->old_n_fields,
 		&cursor->old_rec_buf, &cursor->buf_size);
 
-	cursor->block_when_stored = block;
+	cursor->block_when_stored.store(block);
 
 	/* Function try to check if block is S/X latch. */
 	cursor->modify_clock = buf_block_get_modify_clock(block);
-	cursor->withdraw_clock = buf_withdraw_clock;
 }
 
 /**************************************************************//**
@@ -198,6 +197,26 @@ btr_pcur_copy_stored_position(
 
 	pcur_receive->old_n_fields = pcur_donate->old_n_fields;
 }
+
+/** Structure acts as functor to do the latching of leaf pages.
+It returns true if latching of leaf pages succeeded and false
+otherwise. */
+struct optimistic_latch_leaves
+{
+  btr_pcur_t *const cursor;
+  ulint *latch_mode;
+  mtr_t *const mtr;
+
+  optimistic_latch_leaves(btr_pcur_t *cursor, ulint *latch_mode, mtr_t *mtr)
+  :cursor(cursor), latch_mode(latch_mode), mtr(mtr) {}
+
+  bool operator() (buf_block_t *hint) const
+  {
+    return hint && btr_cur_optimistic_latch_leaves(
+             hint, cursor->modify_clock, latch_mode,
+             btr_pcur_get_btr_cur(cursor), __FILE__, __LINE__, mtr);
+  }
+};
 
 /**************************************************************//**
 Restores the stored position of a persistent cursor bufferfixing the page and
@@ -261,7 +280,7 @@ btr_pcur_restore_position_func(
 		cursor->latch_mode =
 			BTR_LATCH_MODE_WITHOUT_INTENTION(latch_mode);
 		cursor->pos_state = BTR_PCUR_IS_POSITIONED;
-		cursor->block_when_stored = btr_pcur_get_block(cursor);
+		cursor->block_when_stored.clear();
 
 		return(FALSE);
 	}
@@ -276,12 +295,9 @@ btr_pcur_restore_position_func(
 	case BTR_MODIFY_PREV:
 		/* Try optimistic restoration. */
 
-		if (!buf_pool_is_obsolete(cursor->withdraw_clock)
-		    && btr_cur_optimistic_latch_leaves(
-			cursor->block_when_stored, cursor->modify_clock,
-			&latch_mode, btr_pcur_get_btr_cur(cursor),
-			file, line, mtr)) {
-
+		if (cursor->block_when_stored.run_with_hint(
+			optimistic_latch_leaves(cursor, &latch_mode,
+						mtr))) {
 			cursor->pos_state = BTR_PCUR_IS_POSITIONED;
 			cursor->latch_mode = latch_mode;
 
@@ -293,16 +309,21 @@ btr_pcur_restore_position_func(
 			if (cursor->rel_pos == BTR_PCUR_ON) {
 #ifdef UNIV_DEBUG
 				const rec_t*	rec;
-				const ulint*	offsets1;
-				const ulint*	offsets2;
+				rec_offs	offsets1_[REC_OFFS_NORMAL_SIZE];
+				rec_offs	offsets2_[REC_OFFS_NORMAL_SIZE];
+				rec_offs*	offsets1 = offsets1_;
+				rec_offs*	offsets2 = offsets2_;
 				rec = btr_pcur_get_rec(cursor);
+
+				rec_offs_init(offsets1_);
+				rec_offs_init(offsets2_);
 
 				heap = mem_heap_create(256);
 				offsets1 = rec_get_offsets(
-					cursor->old_rec, index, NULL, true,
+					cursor->old_rec, index, offsets1, true,
 					cursor->old_n_fields, &heap);
 				offsets2 = rec_get_offsets(
-					rec, index, NULL, true,
+					rec, index, offsets2, true,
 					cursor->old_n_fields, &heap);
 
 				ut_ad(!cmp_rec_rec(cursor->old_rec,
@@ -348,8 +369,11 @@ btr_pcur_restore_position_func(
 		mode = PAGE_CUR_UNSUPP;
 	}
 
-	btr_pcur_open_with_no_init_func(index, tuple, mode, latch_mode,
-					cursor, 0, file, line, mtr);
+	btr_pcur_open_with_no_init_func(index, tuple, mode, latch_mode, cursor,
+#ifdef BTR_CUR_HASH_ADAPT
+					0,
+#endif /* BTR_CUR_HASH_ADAPT */
+					file, line, mtr);
 
 	/* Restore the old search mode */
 	cursor->search_mode = old_mode;
@@ -357,22 +381,23 @@ btr_pcur_restore_position_func(
 	ut_ad(cursor->rel_pos == BTR_PCUR_ON
 	      || cursor->rel_pos == BTR_PCUR_BEFORE
 	      || cursor->rel_pos == BTR_PCUR_AFTER);
+	rec_offs offsets[REC_OFFS_NORMAL_SIZE];
+	rec_offs_init(offsets);
 	if (cursor->rel_pos == BTR_PCUR_ON
 	    && btr_pcur_is_on_user_rec(cursor)
 	    && !cmp_dtuple_rec(tuple, btr_pcur_get_rec(cursor),
 			       rec_get_offsets(btr_pcur_get_rec(cursor),
-					       index, NULL, true,
+					       index, offsets, true,
 					       ULINT_UNDEFINED, &heap))) {
 
 		/* We have to store the NEW value for the modify clock,
 		since the cursor can now be on a different page!
 		But we can retain the value of old_rec */
 
-		cursor->block_when_stored = btr_pcur_get_block(cursor);
+		cursor->block_when_stored.store(btr_pcur_get_block(cursor));
 		cursor->modify_clock = buf_block_get_modify_clock(
-						cursor->block_when_stored);
+					cursor->block_when_stored.block());
 		cursor->old_stored = true;
-		cursor->withdraw_clock = buf_withdraw_clock;
 
 		mem_heap_free(heap);
 

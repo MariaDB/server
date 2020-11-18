@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4430,7 +4430,7 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
     Again we don't do this for SHOW COLUMNS/KEYS because
     of backward compatibility.
   */
-  if (!is_show_fields_or_keys && result &&
+  if (!is_show_fields_or_keys && result && thd->is_error() &&
       (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
        thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT))
   {
@@ -5079,6 +5079,29 @@ bool store_schema_shemata(THD* thd, TABLE *table, LEX_STRING *db_name,
 }
 
 
+/*
+  Check if the specified database exists on disk.
+
+  @param dbname - the database name
+  @retval true  - on error, the database directory does not exists
+  @retval false - on success, the database directory exists
+*/
+static bool verify_database_directory_exists(const LEX_STRING &dbname)
+{
+  DBUG_ENTER("verify_database_directory_exists");
+  char path[FN_REFLEN + 16];
+  uint path_len;
+  MY_STAT stat_info;
+  if (!dbname.str[0])
+    DBUG_RETURN(true); // Empty database name: does not exist.
+  path_len= build_table_filename(path, sizeof(path) - 1, dbname.str, "", "", 0);
+  path[path_len - 1]= 0;
+  if (!mysql_file_stat(key_file_misc, path, &stat_info, MYF(0)))
+    DBUG_RETURN(true); // The database directory was not found: does not exist.
+  DBUG_RETURN(false);  // The database directory was found.
+}
+
+
 int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   /*
@@ -5107,19 +5130,10 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
     If we have lookup db value we should check that the database exists
   */
   if(lookup_field_vals.db_value.str && !lookup_field_vals.wild_db_value &&
-     db_names.at(0) != &INFORMATION_SCHEMA_NAME)
-  {
-    char path[FN_REFLEN+16];
-    uint path_len;
-    MY_STAT stat_info;
-    if (!lookup_field_vals.db_value.str[0])
-      DBUG_RETURN(0);
-    path_len= build_table_filename(path, sizeof(path) - 1,
-                                   lookup_field_vals.db_value.str, "", "", 0);
-    path[path_len-1]= 0;
-    if (!mysql_file_stat(key_file_misc, path, &stat_info, MYF(0)))
-      DBUG_RETURN(0);
-  }
+     (!db_names.elements() /* The database name was too long */||
+      (db_names.at(0) != &INFORMATION_SCHEMA_NAME &&
+       verify_database_directory_exists(lookup_field_vals.db_value))))
+    DBUG_RETURN(0);
 
   for (size_t i=0; i < db_names.elements(); i++)
   {
@@ -5600,15 +5614,21 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
         I.e. we are in SELECT FROM INFORMATION_SCHEMA.COLUMS
         rather than in SHOW COLUMNS
       */
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-      thd->clear_error();
+      if (thd->is_error())
+      {
+        /*
+          The the query was aborted because examined rows exceeded limit.
+          Don't send the warning here. It is done later, in handle_select().
+        */
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                     thd->get_stmt_da()->sql_errno(),
+                     thd->get_stmt_da()->message());
+        thd->clear_error();
+      }
       res= 0;
     }
     DBUG_RETURN(res);
   }
-
   show_table= tables->table;
   count= 0;
   ptr= show_table->field;
@@ -5994,7 +6014,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
       {
         free_table_share(&share);
         if (free_sp_head)
-          delete sp;
+          sp_head::destroy(sp);
         DBUG_RETURN(1);
       }
     }
@@ -6045,7 +6065,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
       }
     }
     if (free_sp_head)
-      delete sp;
+      sp_head::destroy(sp);
   }
   free_table_share(&share);
   DBUG_RETURN(error);
@@ -6131,7 +6151,7 @@ bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
           store_column_type(table, field, cs, 5);
           free_table_share(&share);
           if (free_sp_head)
-            delete sp;
+            sp_head::destroy(sp);
         }
       }
 
@@ -6526,7 +6546,7 @@ static int get_check_constraints_record(THD *thd, TABLE_LIST *tables,
                                         LEX_STRING *table_name)
 {
   DBUG_ENTER("get_check_constraints_record");
-  if(res)
+  if (res)
   {
     if (thd->is_error())
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -6535,15 +6555,32 @@ static int get_check_constraints_record(THD *thd, TABLE_LIST *tables,
     thd->clear_error();
     DBUG_RETURN(0);
   }
-  if(!tables->view)
+  if (!tables->view)
   {
     StringBuffer<MAX_FIELD_WIDTH> str(system_charset_info);
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+    TABLE_LIST table_acl_check;
+    bzero((char*) &table_acl_check, sizeof(table_acl_check));
+#endif
     for (uint i= 0; i < tables->table->s->table_check_constraints; i++)
     {
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+      if (!(thd->col_access & TABLE_ACLS))
+      {
+        table_acl_check.db= db_name->str;
+        table_acl_check.db_length= db_name->length;
+        table_acl_check.table_name= table_name->str;
+        table_acl_check.table_name_length= table_name->length;
+        table_acl_check.grant.privilege= thd->col_access;
+        if (check_grant(thd, TABLE_ACLS, &table_acl_check, FALSE, 1, TRUE))
+          continue;
+      }
+#endif
       Virtual_column_info *check= tables->table->check_constraints[i];
       table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
       table->field[3]->store(check->name.str, check->name.length,
                              system_charset_info);
+      /* Make sure the string is empty between each print. */
       str.length(0);
       check->print(&str);
       table->field[4]->store(str.ptr(), str.length(), system_charset_info);
@@ -6551,8 +6588,7 @@ static int get_check_constraints_record(THD *thd, TABLE_LIST *tables,
         DBUG_RETURN(1);
     }
   }
-
-  DBUG_RETURN(0);
+  DBUG_RETURN(res);
 }
 
 static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
@@ -8283,7 +8319,6 @@ end:
 bool optimize_schema_tables_reads(JOIN *join)
 {
   THD *thd= join->thd;
-  bool result= 0;
   DBUG_ENTER("optimize_schema_tables_reads");
 
   JOIN_TAB *tab;
@@ -8318,11 +8353,11 @@ bool optimize_schema_tables_reads(JOIN *join)
         */
         cond= tab->cache_select->cond;
       }
-
-      optimize_for_get_all_tables(thd, table_list, cond);
+      if (optimize_for_get_all_tables(thd, table_list, cond))
+        DBUG_RETURN(TRUE);   // Handle OOM
     }
   }
-  DBUG_RETURN(result);
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -9370,11 +9405,14 @@ ST_FIELD_INFO spatial_ref_sys_fields_info[]=
 ST_FIELD_INFO check_constraints_fields_info[]=
 {
   {"CONSTRAINT_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"CONSTRAINT_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
+  {"CONSTRAINT_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
+   OPEN_FULL_TABLE},
   {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"CONSTRAINT_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {"CHECK_CLAUSE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE }
+  {"CONSTRAINT_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
+   OPEN_FULL_TABLE},
+  {"CHECK_CLAUSE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
+   OPEN_FULL_TABLE},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 
 /*
@@ -9393,7 +9431,7 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"CHARACTER_SETS", charsets_fields_info, 0,
    fill_schema_charsets, make_character_sets_old_format, 0, -1, -1, 0, 0},
   {"CHECK_CONSTRAINTS", check_constraints_fields_info, 0, get_all_tables, 0,
-  get_check_constraints_record, 1, 2, 0, OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
+   get_check_constraints_record, 1, 2, 0, OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
   {"COLLATIONS", collation_fields_info, 0,
    fill_schema_collation, make_old_format, 0, -1, -1, 0, 0},
   {"COLLATION_CHARACTER_SET_APPLICABILITY", coll_charset_app_fields_info,

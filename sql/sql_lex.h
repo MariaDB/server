@@ -871,6 +871,14 @@ public:
    converted to a GROUP BY involving BIT fields.
   */
   uint hidden_bit_fields;
+  /*
+    Number of fields used in the definition of all the windows functions.
+    This includes:
+      1) Fields in the arguments
+      2) Fields in the PARTITION BY clause
+      3) Fields in the ORDER BY clause
+  */
+  uint fields_in_window_functions;
   enum_parsing_place parsing_place; /* where we are parsing expression */
   enum_parsing_place context_analysis_place; /* where we are in prepare */
   bool with_sum_func;   /* sum function indicator */
@@ -1180,10 +1188,7 @@ public:
                        SQL_I_List<ORDER> win_order_list,
                        Window_frame *win_frame);
   List<Item_window_func> window_funcs;
-  bool add_window_func(Item_window_func *win_func)
-  {
-    return window_funcs.push_back(win_func);
-  }
+  bool add_window_func(Item_window_func *win_func);
 
   bool have_window_funcs() const { return (window_funcs.elements !=0); }
 
@@ -1296,28 +1301,6 @@ public:
   SQL_I_List<Sroutine_hash_entry> sroutines_list;
   Sroutine_hash_entry **sroutines_list_own_last;
   uint sroutines_list_own_elements;
-
-  /**
-    Locking state of tables in this particular statement.
-
-    If we under LOCK TABLES or in prelocked mode we consider tables
-    for the statement to be "locked" if there was a call to lock_tables()
-    (which called handler::start_stmt()) for tables of this statement
-    and there was no matching close_thread_tables() call.
-
-    As result this state may differ significantly from one represented
-    by Open_tables_state::lock/locked_tables_mode more, which are always
-    "on" under LOCK TABLES or in prelocked mode.
-  */
-  enum enum_lock_tables_state {
-    LTS_NOT_LOCKED = 0,
-    LTS_LOCKED
-  };
-  enum_lock_tables_state lock_tables_state;
-  bool is_query_tables_locked()
-  {
-    return (lock_tables_state == LTS_LOCKED);
-  }
 
   /**
     Number of tables which were open by open_tables() and to be locked

@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2017, MariaDB Corporation.
+   Copyright (c) 2008, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -78,6 +78,10 @@ public:
   { }
   Well_formed_prefix(CHARSET_INFO *cs, const char *str, size_t length)
    :Well_formed_prefix_status(cs, str, str + length, length), m_str(str)
+  { }
+  Well_formed_prefix(CHARSET_INFO *cs, LEX_STRING str, size_t nchars)
+   :Well_formed_prefix_status(cs, str.str, str.str + str.length, nchars),
+    m_str(str.str)
   { }
   size_t length() const { return m_source_end_pos - m_str; }
 };
@@ -551,7 +555,8 @@ public:
   }
   void q_append(const char *data, size_t data_len)
   {
-    memcpy(Ptr + str_length, data, data_len);
+    if (data_len)
+      memcpy(Ptr + str_length, data, data_len);
     DBUG_ASSERT(str_length <= UINT_MAX32 - data_len);
     str_length += (uint)data_len;
   }

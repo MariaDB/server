@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -302,6 +302,12 @@ struct mtr_t {
 		const char*	file,
 		unsigned	line);
 
+	/** Exclusively aqcuire a tablespace latch.
+	@param space  tablespace
+	@param file   source code file name of the caller
+	@param line   source code line number */
+	void x_lock_space(fil_space_t *space, const char *file, unsigned line);
+
 	/** Release an object in the memo stack.
 	@param object	object
 	@param type	object type: MTR_MEMO_S_LOCK, ...
@@ -428,6 +434,10 @@ struct mtr_t {
 	static inline bool is_block_dirtied(const buf_block_t* block)
 		MY_ATTRIBUTE((warn_unused_result));
 
+	/** Get the buffer fix count for the block added by this mtr.
+	@param[in]	block	block to be checked
+	@return number of buffer count added by this mtr */
+	int32_t get_fix_count(buf_block_t *block);
 private:
 	/** Look up the system tablespace. */
 	void lookup_sys_space();

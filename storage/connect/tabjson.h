@@ -58,7 +58,7 @@ public:
 	// Members
 	JCOL    jcol;
 	PJCL    jcp, fjcp, pjcp;
-	PVL     vlp;
+//PVL     vlp;
 	PJDEF   tdp;
 	TDBJSN *tjnp;
 	PJTDB   tjsp;

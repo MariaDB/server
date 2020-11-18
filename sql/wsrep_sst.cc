@@ -1,4 +1,4 @@
-/* Copyright 2008-2015 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2020 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1542,10 +1542,13 @@ static void* sst_donor_thread (void* a)
   char         out_buf[out_len];
 
   wsrep_uuid_t  ret_uuid= WSREP_UUID_UNDEFINED;
-  wsrep_seqno_t ret_seqno= WSREP_SEQNO_UNDEFINED; // seqno of complete SST
+  // seqno of complete SST
+  wsrep_seqno_t ret_seqno= WSREP_SEQNO_UNDEFINED;
 
-  wsp::thd thd(FALSE); // we turn off wsrep_on for this THD so that it can
-                       // operate with wsrep_ready == OFF
+  // We turn off wsrep_on for this THD so that it can
+  // operate with wsrep_ready == OFF
+  // We also set this SST thread THD as system thread
+  wsp::thd thd(FALSE, true);
   wsp::process proc(arg->cmd, "r", arg->env);
 
   err= proc.error();
@@ -1723,23 +1726,64 @@ static int sst_donate_other (const char*   method,
   return arg.err;
 }
 
+/* return true if character can be a part of a filename */
+static bool filename_char(int const c)
+{
+  return isalnum(c) || (c == '-') || (c == '_') || (c == '.');
+}
+
+/* return true if character can be a part of an address string */
+static bool address_char(int const c)
+{
+  return filename_char(c) ||
+         (c == ':') || (c == '[') || (c == ']') || (c == '/');
+}
+
+static bool check_request_str(const char* const str,
+                              bool (*check) (int c))
+{
+  for (size_t i(0); str[i] != '\0'; ++i)
+  {
+    if (!check(str[i]))
+    {
+      WSREP_WARN("Illegal character in state transfer request: %i (%c).",
+                 str[i], str[i]);
+      return true;
+    }
+  }
+
+  return false;
+}
+
 wsrep_cb_status_t wsrep_sst_donate_cb (void* app_ctx, void* recv_ctx,
                                        const void* msg, size_t msg_len,
                                        const wsrep_gtid_t* current_gtid,
                                        const char* state, size_t state_len,
                                        bool bypass)
 {
-  /* This will be reset when sync callback is called.
-   * Should we set wsrep_ready to FALSE here too? */
-
-  wsrep_config_state->set(WSREP_MEMBER_DONOR);
-
   const char* method = (char*)msg;
   size_t method_len  = strlen (method);
+
+  if (check_request_str(method, filename_char))
+  {
+    WSREP_ERROR("Bad SST method name. SST canceled.");
+    return WSREP_CB_FAILURE;
+  }
+
   const char* data   = method + method_len + 1;
+
+  if (check_request_str(data, address_char))
+  {
+    WSREP_ERROR("Bad SST address string. SST canceled.");
+    return WSREP_CB_FAILURE;
+  }
 
   char uuid_str[37];
   wsrep_uuid_print (&current_gtid->uuid, uuid_str, sizeof(uuid_str));
+
+  /* This will be reset when sync callback is called.
+   * Should we set wsrep_ready to FALSE here too? */
+  wsrep_config_state->set(WSREP_MEMBER_DONOR);
 
   wsp::env env(NULL);
   if (env.error())

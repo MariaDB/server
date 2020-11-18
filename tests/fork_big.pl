@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 use strict;
 
 # Copyright (c) 2001, 2006 MySQL AB

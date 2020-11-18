@@ -1,6 +1,6 @@
 #!/bin/bash -ue
 # Copyright (C) 2013 Percona Inc
-# Copyright (C) 2017-2019 MariaDB
+# Copyright (C) 2017-2020 MariaDB
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -189,23 +189,48 @@ get_transfer()
             if nc -h 2>&1 | grep -q ncat;then 
                 # Ncat
                 tcmd="nc -l ${TSST_PORT}"
-            elif nc -h 2>&1 | grep -q -- '-d\>';then
+            elif nc -h 2>&1 | grep -qw -- '-d\>';then
                 # Debian netcat
-                tcmd="nc -dl ${TSST_PORT}"
+                if [ $WSREP_SST_OPT_HOST_IPv6 -eq 1 ];then
+                    # When host is not explicitly specified (when only the port
+                    # is specified) netcat can only bind to an IPv4 address if
+                    # the "-6" option is not explicitly specified:
+                    tcmd="nc -dl -6 ${TSST_PORT}"
+                else
+                    tcmd="nc -dl ${TSST_PORT}"
+                fi
             else
                 # traditional netcat
                 tcmd="nc -l -p ${TSST_PORT}"
             fi
         else
+            # Check to see if netcat supports the '-N' flag.
+            # -N Shutdown the network socket after EOF on stdin
+            # If it supports the '-N' flag, then we need to use the '-N'
+            # flag, otherwise the transfer will stay open after the file
+            # transfer and cause the command to timeout.
+            # Older versions of netcat did not need this flag and will
+            # return an error if the flag is used.
+            #
+            tcmd_extra=""
+            if nc -h 2>&1 | grep -qw -- -N; then
+                tcmd_extra+="-N"
+		wsrep_log_info "Using nc -N"
+            fi
+
+            # netcat doesn't understand [] around IPv6 address
             if nc -h 2>&1 | grep -q ncat;then
                 # Ncat
-                tcmd="nc ${REMOTEIP} ${TSST_PORT}"
-            elif nc -h 2>&1 | grep -q -- '-d\>';then
+                wsrep_log_info "Using Ncat as streamer"
+                tcmd="nc ${tcmd_extra} ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            elif nc -h 2>&1 | grep -qw -- '-d\>';then
                 # Debian netcat
-                tcmd="nc ${REMOTEIP} ${TSST_PORT}"
+                wsrep_log_info "Using Debian netcat as streamer"
+                tcmd="nc ${tcmd_extra} ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
             else
                 # traditional netcat
-                tcmd="nc -q0 ${REMOTEIP} ${TSST_PORT}"
+                wsrep_log_info "Using traditional netcat as streamer"
+                tcmd="nc -q0 ${tcmd_extra} ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
             fi
         fi
     else
@@ -359,7 +384,7 @@ read_cnf()
     iopts=$(parse_cnf sst inno-backup-opts "")
     iapts=$(parse_cnf sst inno-apply-opts "")
     impts=$(parse_cnf sst inno-move-opts "")
-    stimeout=$(parse_cnf sst sst-initial-timeout 100)
+    stimeout=$(parse_cnf sst sst-initial-timeout 300)
     ssyslog=$(parse_cnf sst sst-syslog 0)
     ssystag=$(parse_cnf mysqld_safe syslog-tag "${SST_SYSLOG_TAG:-}")
     ssystag+="-"
@@ -386,8 +411,8 @@ read_cnf()
 
 get_stream()
 {
-    if [[ $sfmt == 'xbstream' ]];then 
-        wsrep_log_info "Streaming with xbstream"
+    if [[ $sfmt == 'mbstream' || $sfmt == 'xbstream' ]];then
+        wsrep_log_info "Streaming with ${sfmt}"
         if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
             strmcmd="${XBSTREAM_BIN} -x"
         else
@@ -523,25 +548,11 @@ kill_xtrabackup()
 
 setup_ports()
 {
+    SST_PORT=${WSREP_SST_OPT_ADDR_PORT}
     if [[ "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
-        if [ "${WSREP_SST_OPT_ADDR#\[}" != "$WSREP_SST_OPT_ADDR" ]; then
-            remain=$(echo $WSREP_SST_OPT_ADDR | awk -F '\\][:/]' '{ print $2 }')
-            REMOTEIP=$(echo $WSREP_SST_OPT_ADDR | awk -F '\\]:' '{ print $1 }')"]"
-            SST_PORT=$(echo $remain | awk -F '[:/]' '{ print $1 }')
-            lsn=$(echo $remain | awk -F '[:/]' '{ print $3 }')
-            sst_ver=$(echo $remain | awk -F '[:/]' '{ print $4 }')
-        else
-            SST_PORT=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $2 }')
-            REMOTEIP=$(echo $WSREP_SST_OPT_ADDR | awk -F ':' '{ print $1 }')
-            lsn=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $4 }')
-            sst_ver=$(echo $WSREP_SST_OPT_ADDR | awk -F '[:/]' '{ print $5 }')
-        fi
-    else
-        if [ "${WSREP_SST_OPT_ADDR#\[}" != "$WSREP_SST_OPT_ADDR" ]; then
-            SST_PORT=$(echo ${WSREP_SST_OPT_ADDR} | awk -F '\\]:' '{ print $2 }')
-        else
-            SST_PORT=$(echo ${WSREP_SST_OPT_ADDR} | awk -F ':' '{ print $2 }')
-        fi
+        REMOTEIP=${WSREP_SST_OPT_HOST}
+        lsn=${WSREP_SST_OPT_LSN}
+        sst_ver=${WSREP_SST_OPT_SST_VER}
     fi
 }
 
@@ -620,7 +631,8 @@ recv_joiner()
     popd 1>/dev/null 
 
     if [[ ${RC[0]} -eq 124 ]];then 
-        wsrep_log_error "Possible timeout in receving first data from donor in gtid stage"
+        wsrep_log_error "Possible timeout in receiving first data from "
+	                "donor in gtid stage: exit codes: ${RC[@]}"
         exit 32
     fi
 
@@ -700,9 +712,11 @@ if ${INNOBACKUPEX_BIN} /tmp --help 2>/dev/null | grep -q -- '--version-check'; t
     disver="--no-version-check"
 fi
 
+iopts+=" --databases-exclude=\"lost+found\""
+
 if [[ ${FORCE_FTWRL:-0} -eq 1 ]];then 
     wsrep_log_info "Forcing FTWRL due to environment variable FORCE_FTWRL equal to $FORCE_FTWRL"
-    iopts+=" --no-backup-locks "
+    iopts+=" --no-backup-locks"
 fi
 
 INNOEXTRA=$WSREP_SST_OPT_MYSQLD
@@ -712,7 +726,8 @@ INNODB_DATA_HOME_DIR=${INNODB_DATA_HOME_DIR:-""}
 if [ ! -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
     INNODB_DATA_HOME_DIR=$INNODB_DATA_HOME_DIR_ARG
 fi
-# if INNODB_DATA_HOME_DIR env. variable is not set, try to get it from my.cnf
+# if no command line arg and INNODB_DATA_HOME_DIR environment variable
+# is not set, try to get it from my.cnf:
 if [ -z "$INNODB_DATA_HOME_DIR" ]; then
     INNODB_DATA_HOME_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-data-home-dir '')
 fi
@@ -960,17 +975,25 @@ then
 
     ib_home_dir=$INNODB_DATA_HOME_DIR
 
-    # Try to set ib_log_dir from the command line:
-    ib_log_dir=$INNODB_LOG_GROUP_HOME_ARG
-    if [ -z "$ib_log_dir" ]; then
-        ib_log_dir=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-log-group-home-dir "")
+    WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
+    # Try to set WSREP_LOG_DIR from the command line:
+    if [ ! -z "$INNODB_LOG_GROUP_HOME_ARG" ]; then
+        WSREP_LOG_DIR=$INNODB_LOG_GROUP_HOME_ARG
     fi
-    if [ -z "$ib_log_dir" ]; then
-        ib_log_dir=$(parse_cnf --mysqld innodb-log-group-home-dir "")
+    # if no command line arg and WSREP_LOG_DIR is not set,
+    # try to get it from my.cnf:
+    if [ -z "$WSREP_LOG_DIR" ]; then
+        WSREP_LOG_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-log-group-home-dir '')
+    fi
+    if [ -z "$WSREP_LOG_DIR" ]; then
+        WSREP_LOG_DIR=$(parse_cnf --mysqld innodb-log-group-home-dir '')
     fi
 
+    ib_log_dir=$WSREP_LOG_DIR
+
     # Try to set ib_undo_dir from the command line:
-    ib_undo_dir=$INNODB_UNDO_DIR_ARG
+    ib_undo_dir=${INNODB_UNDO_DIR_ARG:-""}
+    # if no command line arg then try to get it from my.cnf:
     if [ -z "$ib_undo_dir" ]; then
         ib_undo_dir=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-undo-directory "")
     fi

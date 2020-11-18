@@ -68,6 +68,7 @@ Usage: $0 [OPTIONS]
   --cross-bootstrap    For internal use.  Used when building the MariaDB system
                        tables on a different host than the target.
   --datadir=path       The path to the MariaDB data directory.
+  --no-defaults        Don't read default options from any option file.
   --defaults-extra-file=name
                        Read this file after the global files are read.
   --defaults-file=name Only read default options from the given file name.
@@ -80,8 +81,6 @@ Usage: $0 [OPTIONS]
   --help               Display this help and exit.                     
   --ldata=path         The path to the MariaDB data directory. Same as
                        --datadir.
-  --no-defaults        Don't read default options from any option file.
-  --defaults-file=path Read only this configuration file.
   --rpm                For internal use.  This option is used by RPM files
                        during the MariaDB installation process.
   --skip-auth-anonymous-user
@@ -245,7 +244,7 @@ cannot_find_file()
   echo "If you compiled from source, you need to either run 'make install' to"
   echo "copy the software into the correct location ready for operation."
   echo "If you don't want to do a full install, you can use the --srcdir"
-  echo "option to only install the mysql database and privilege tables"
+  echo "option to only install the mysql database and privilege tables."
   echo
   echo "If you are using a binary release, you must either be at the top"
   echo "level of the extracted archive, or pass the --basedir option"

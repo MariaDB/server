@@ -1,0 +1,35 @@
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+SELECT @@WSREP_ON;
+@@WSREP_ON
+0
+connection node_2;
+ALTER TABLE mysql.gtid_slave_pos engine = InnoDB;
+START SLAVE;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t1 VALUES(1);
+SELECT LENGTH(@@global.gtid_binlog_state) > 1;
+LENGTH(@@global.gtid_binlog_state) > 1
+1
+connection node_2;
+gtid_binlog_state_equal
+0
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+SELECT COUNT(*) = 0 FROM t1;
+COUNT(*) = 0
+1
+gtid_binlog_state_equal
+0
+#cleanup
+connection node_1;
+DROP TABLE t1;
+connection node_2;
+connection node_3;
+connection node_1;
+reset master;
+connection node_2;
+STOP SLAVE;
+RESET SLAVE ALL;
+reset master;
+connection node_3;
+reset master;

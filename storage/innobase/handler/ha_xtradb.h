@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 Copyright (c) 2009, Percona Inc.
 
 Portions of this file contain modifications contributed and copyrighted
@@ -507,18 +507,6 @@ set_log_checksum_algorithm(THD* thd, st_mysql_sys_var*, void*, const void* save)
                             ER_WARN_DEPRECATED_SYNTAX,
                             innodb_deprecated_msg,
                             "innodb_log_checksum_algorithm");
-	log_mutex_enter();
-	srv_log_checksum_algorithm = *static_cast<const ulong*>(save);
-	if (srv_log_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_NONE) {
-		ib::info() << "Setting innodb_log_checksums = false";
-		innodb_log_checksums = false;
-		log_checksum_algorithm_ptr = log_block_calc_checksum_none;
-	} else {
-		ib::info() << "Setting innodb_log_checksums = true";
-		innodb_log_checksums = true;
-		log_checksum_algorithm_ptr = log_block_calc_checksum_crc32;
-	}
-	log_mutex_exit();
 }
 static MYSQL_SYSVAR_ENUM(log_checksum_algorithm, srv_log_checksum_algorithm,
   PLUGIN_VAR_RQCMDARG,
@@ -869,15 +857,6 @@ innodb_check_deprecated(void)
 
 	if (srv_log_checksum_algorithm != SRV_CHECKSUM_ALGORITHM_DEPRECATED) {
 		innodb_print_deprecation("innodb-log-checksum-algorithm");
-		if (srv_log_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_NONE) {
-			ib::info() << "Setting innodb_log_checksums = false";
-			innodb_log_checksums = false;
-			log_checksum_algorithm_ptr = log_block_calc_checksum_none;
-		} else {
-			ib::info() << "Setting innodb_log_checksums = true";
-			innodb_log_checksums = true;
-			log_checksum_algorithm_ptr = log_block_calc_checksum_crc32;
-		}
 	}
 
 	if (srv_max_changed_pages) {

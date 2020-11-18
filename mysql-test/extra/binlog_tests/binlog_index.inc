@@ -22,7 +22,7 @@ call mtr.add_suppression('Could not open .*');
 call mtr.add_suppression('MYSQL_BIN_LOG::purge_logs failed to clean registers before purging logs.');
 flush tables;
 
-let $old=`select @@debug`;
+SET @saved_dbug = @@SESSION.debug_dbug;
 
 RESET MASTER;
 
@@ -273,6 +273,6 @@ SELECT @index;
 -- replace_regex /\.[\\\/]master/master/
 SELECT @index;
 
-eval SET SESSION debug_dbug="$old";
+SET @@SESSION.debug_dbug = @saved_dbug;
 
 --echo End of tests

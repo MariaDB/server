@@ -14,7 +14,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.3)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8.5)
 
 # explicitly set the policy to OLD
 # (cannot use NEW, not everyone is on cmake-2.8.12 yet)
@@ -30,6 +30,9 @@ IF(CMAKE_VERSION VERSION_EQUAL "3.0.0" OR
  CMAKE_POLICY(SET CMP0026 OLD)
  CMAKE_POLICY(SET CMP0045 OLD)
  CMAKE_POLICY(SET CMP0042 OLD)
+ENDIF()
+IF(POLICY CMP0048)
+  CMAKE_POLICY(SET CMP0048 NEW)
 ENDIF()
 IF(POLICY CMP0054)
   CMAKE_POLICY(SET CMP0054 NEW)
@@ -144,8 +147,6 @@ INCLUDE(mysql_version)
 INCLUDE(cpack_source_ignore_files)
 INCLUDE(install_layout)
 INCLUDE(wsrep)
-INCLUDE(cpack_rpm)
-INCLUDE(cpack_deb)
 
 # Add macros
 INCLUDE(character_sets)
@@ -186,6 +187,7 @@ ENDIF()
 OPTION(NOT_FOR_DISTRIBUTION "Allow linking with GPLv2-incompatible system libraries. Only set it you never plan to distribute the resulting binaries" OFF)
 
 INCLUDE(check_compiler_flag)
+INCLUDE(check_linker_flag)
 
 OPTION(WITH_ASAN "Enable address sanitizer" OFF)
 IF (WITH_ASAN)
@@ -216,7 +218,7 @@ ENDIF()
 
 OPTION(WITH_UBSAN "Enable undefined behavior sanitizer" OFF)
 IF (WITH_UBSAN)
-  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=undefined -fno-sanitize=alignment -U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=undefined -fno-sanitize=alignment -U_FORTIFY_SOURCE -DWITH_UBSAN" DEBUG RELWITHDEBINFO)
 ENDIF()
 
 OPTION(WITH_MSAN "Enable memory sanitizer" OFF)
@@ -238,9 +240,14 @@ IF(SECURITY_HARDENED)
   ENDIF()
   # security-enhancing flags
   MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
-  MY_CHECK_AND_SET_COMPILER_FLAG("-Wl,-z,relro,-z,now")
+  MY_CHECK_AND_SET_LINKER_FLAG("-Wl,-z,relro,-z,now")
   MY_CHECK_AND_SET_COMPILER_FLAG("-fstack-protector --param=ssp-buffer-size=4")
   MY_CHECK_AND_SET_COMPILER_FLAG("-D_FORTIFY_SOURCE=2" RELEASE RELWITHDEBINFO)
+ENDIF()
+
+OPTION(WITH_DBUG_TRACE "Enable DBUG_ENTER()/DBUG_EXIT()" ON)
+IF(WITH_DBUG_TRACE)
+  ADD_DEFINITIONS(-DDBUG_TRACE)
 ENDIF()
 
 # Always enable debug sync for debug builds.
@@ -384,6 +391,9 @@ IF(WITH_UNIT_TESTS)
    ADD_SUBDIRECTORY(unittest/sql)
  ENDIF()
 ENDIF()
+
+INCLUDE(cpack_rpm)
+INCLUDE(cpack_deb)
 
 SET (MYSQLD_STATIC_PLUGIN_LIBS "" CACHE INTERNAL "")
 

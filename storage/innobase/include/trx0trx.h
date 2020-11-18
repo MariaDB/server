@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -73,12 +73,9 @@ Creates a transaction object for MySQL.
 trx_t*
 trx_allocate_for_mysql(void);
 /*========================*/
-/********************************************************************//**
-Creates a transaction object for background operations by the master thread.
-@return own: transaction object */
-trx_t*
-trx_allocate_for_background(void);
-/*=============================*/
+
+/** @return allocated transaction object for internal operations */
+trx_t *trx_allocate_for_background();
 
 /** Frees and initialize a transaction object instantinated during recovery.
 @param trx trx object to free and initialize during recovery */
@@ -432,13 +429,6 @@ ibool
 trx_is_interrupted(
 /*===============*/
 	const trx_t*	trx);	/*!< in: transaction */
-/**********************************************************************//**
-Determines if the currently running transaction is in strict mode.
-@return TRUE if strict */
-ibool
-trx_is_strict(
-/*==========*/
-	trx_t*	trx);	/*!< in: transaction */
 
 /*******************************************************************//**
 Calculates the "weight" of a transaction. The weight of one transaction
@@ -560,6 +550,7 @@ Check transaction state */
 	ut_ad(!(t)->id);						\
 	ut_ad(!(t)->has_logged());					\
 	ut_ad(!(t)->is_referenced());					\
+	ut_ad(!(t)->is_wsrep());					\
 	ut_ad(!MVCC::is_view_active((t)->read_view));			\
 	ut_ad((t)->lock.wait_thr == NULL);				\
 	ut_ad(UT_LIST_GET_LEN((t)->lock.trx_locks) == 0);		\
@@ -880,6 +871,13 @@ public:
 	rolled back by trx_rollback_or_clean_recovered().
 	Protected by trx_t::mutex for transactions that are in trx_sys. */
 	bool		is_recovered;
+#ifdef WITH_WSREP
+	/** whether wsrep_on(mysql_thd) held at the start of transaction */
+	bool		wsrep;
+	bool is_wsrep() const { return UNIV_UNLIKELY(wsrep); }
+#else /* WITH_WSREP */
+	bool is_wsrep() const { return false; }
+#endif /* WITH_WSREP */
 
 	ReadView*	read_view;	/*!< consistent read view used in the
 					transaction, or NULL if not yet set */
@@ -916,7 +914,8 @@ public:
 					the coordinator using the XA API, and
 					is set to false  after commit or
 					rollback. */
-	unsigned	active_commit_ordered:1;/* 1 if owns prepare mutex */
+	/** whether this is holding the prepare mutex */
+	bool		active_commit_ordered;
 	/*------------------------------*/
 	bool		check_unique_secondary;
 					/*!< normally TRUE, but if the user
@@ -1202,6 +1201,9 @@ public:
     my_atomic_add32_explicit(&n_ref, -1, MY_MEMORY_ORDER_RELAXED);
     ut_ad(old_n_ref > 0);
   }
+
+  /** Free the memory to trx_pools */
+  inline void free();
 
 
 private:

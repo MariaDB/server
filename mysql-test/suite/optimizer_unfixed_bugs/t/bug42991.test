@@ -6,6 +6,7 @@
 
 --source include/have_innodb.inc
 
+SET @saved_dbug = @@SESSION.debug_dbug;
 # Valgrind errors happen only with this:
 set session debug_dbug="+d,optimizer_innodb_icp";
 
@@ -246,3 +247,4 @@ UNLOCK TABLES;
 select * from `table5` where  (col2 <= '6566-06-15' AND col24 <> 'd')  group by `col83` order by `col83` desc  ;
 
 drop table `table5`;
+SET debug_dbug= @saved_dbug;

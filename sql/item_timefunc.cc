@@ -430,7 +430,7 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
         make_truncated_value_warning(current_thd,
                                      Sql_condition::WARN_LEVEL_WARN,
                                      val_begin, length,
-				     cached_timestamp_type, 0, NullS);
+				     cached_timestamp_type, NULL, NULL, NULL);
 	break;
       }
     } while (++val != val_end);
@@ -452,7 +452,7 @@ err:
 
 
 /**
-  Create a formated date/time value in a string.
+  Create a formatted date/time value in a string.
 */
 
 static bool make_date_time(const LEX_CSTRING &format, MYSQL_TIME *l_time,
@@ -1041,7 +1041,7 @@ uint week_mode(uint mode)
 	a date at start of january) In this case one can get 53 for the
 	first week of next year.  This flag ensures that the week is
 	relevant for the given year. Note that this flag is only
-	releveant if WEEK_JANUARY is not set.
+	relevant if WEEK_JANUARY is not set.
 
 			  If set	 Week is in range 1-53.
 
@@ -1090,17 +1090,21 @@ longlong Item_func_yearweek::val_int()
 }
 
 
+static uint weekday_from_item(Item *item, bool *null_value, bool week_starts_on_sunday)
+{
+  MYSQL_TIME ltime;
+  if ((*null_value= item->get_date_with_conversion(&ltime, TIME_NO_ZERO_DATE |
+                                                           TIME_NO_ZERO_IN_DATE)))
+    return 0;
+  return calc_weekday(calc_daynr(ltime.year, ltime.month, ltime.day), week_starts_on_sunday) +
+         MY_TEST(week_starts_on_sunday);
+}
+
+
 longlong Item_func_weekday::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  MYSQL_TIME ltime;
-  
-  if (get_arg0_date(&ltime, TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE))
-    return 0;
-
-  return (longlong) calc_weekday(calc_daynr(ltime.year, ltime.month,
-                                            ltime.day),
-                                 odbc_type) + MY_TEST(odbc_type);
+  return (longlong) weekday_from_item(args[0], &null_value, odbc_type);
 }
 
 bool Item_func_dayname::fix_length_and_dec()
@@ -1119,7 +1123,7 @@ bool Item_func_dayname::fix_length_and_dec()
 String* Item_func_dayname::val_str(String* str)
 {
   DBUG_ASSERT(fixed == 1);
-  uint weekday=(uint) val_int();		// Always Item_func_weekday()
+  uint weekday= weekday_from_item(args[0], &null_value, false);
   const char *day_name;
   uint err;
 
@@ -1353,7 +1357,7 @@ bool get_interval_value(Item *args,interval_type int_type, INTERVAL *interval)
     if (!(res= args->val_str_ascii(&str_value)))
       return (1);
 
-    /* record negative intervalls in interval->neg */
+    /* record negative intervals in interval->neg */
     str=res->ptr();
     cs= res->charset();
     const char *end=str+res->length();
@@ -1604,7 +1608,7 @@ bool Item_func_from_days::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 
 
 /**
-    Converts current time in my_time_t to MYSQL_TIME represenatation for local
+    Converts current time in my_time_t to MYSQL_TIME representation for local
     time zone. Defines time zone (local) used for whole CURDATE function.
 */
 void Item_func_curdate_local::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
@@ -1615,7 +1619,7 @@ void Item_func_curdate_local::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 
 
 /**
-    Converts current time in my_time_t to MYSQL_TIME represenatation for UTC
+    Converts current time in my_time_t to MYSQL_TIME representation for UTC
     time zone. Defines time zone (UTC) used for whole UTC_DATE function.
 */
 void Item_func_curdate_utc::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
@@ -1695,7 +1699,7 @@ static void set_sec_part(ulong sec_part, MYSQL_TIME *ltime, Item *item)
 }
 
 /**
-    Converts current time in my_time_t to MYSQL_TIME represenatation for local
+    Converts current time in my_time_t to MYSQL_TIME representation for local
     time zone. Defines time zone (local) used for whole CURTIME function.
 */
 void Item_func_curtime_local::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
@@ -1709,7 +1713,7 @@ void Item_func_curtime_local::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 
 
 /**
-    Converts current time in my_time_t to MYSQL_TIME represenatation for UTC
+    Converts current time in my_time_t to MYSQL_TIME representation for UTC
     time zone. Defines time zone (UTC) used for whole UTC_TIME function.
 */
 void Item_func_curtime_utc::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
@@ -1764,7 +1768,7 @@ int Item_func_now_local::save_in_field(Field *field, bool no_conversions)
 
 
 /**
-    Converts current time in my_time_t to MYSQL_TIME represenatation for local
+    Converts current time in my_time_t to MYSQL_TIME representation for local
     time zone. Defines time zone (local) used for whole NOW function.
 */
 void Item_func_now_local::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
@@ -1776,7 +1780,7 @@ void Item_func_now_local::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
 
 
 /**
-    Converts current time in my_time_t to MYSQL_TIME represenatation for UTC
+    Converts current time in my_time_t to MYSQL_TIME representation for UTC
     time zone. Defines time zone (UTC) used for whole UTC_TIMESTAMP function.
 */
 void Item_func_now_utc::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
@@ -1807,7 +1811,7 @@ bool Item_func_now::get_date(MYSQL_TIME *res,
 
 
 /**
-    Converts current time in my_time_t to MYSQL_TIME represenatation for local
+    Converts current time in my_time_t to MYSQL_TIME representation for local
     time zone. Defines time zone (local) used for whole SYSDATE function.
 */
 void Item_func_sysdate_local::store_now_in_TIME(THD *thd, MYSQL_TIME *now_time)
@@ -1866,13 +1870,13 @@ overflow:
   {
     ErrConvInteger err2(sec, unsigned_flag);
     make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &err2, MYSQL_TIMESTAMP_TIME, 0, NullS);
+                                 &err2, MYSQL_TIMESTAMP_TIME, NULL, NULL, NULL);
   }
   else
   {
     ErrConvString err2(err);
     make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &err2, MYSQL_TIMESTAMP_TIME, 0, NullS);
+                                 &err2, MYSQL_TIMESTAMP_TIME, NULL, NULL, NULL);
   }
   return 0;
 }
@@ -2118,7 +2122,7 @@ bool Item_func_convert_tz::get_date(MYSQL_TIME *ltime,
     uint not_used;
     my_time_tmp= from_tz->TIME_to_gmt_sec(ltime, &not_used);
     ulong sec_part= ltime->second_part;
-    /* my_time_tmp is guranteed to be in the allowed range */
+    /* my_time_tmp is guaranteed to be in the allowed range */
     if (my_time_tmp)
       to_tz->gmt_sec_to_TIME(ltime, my_time_tmp);
     /* we rely on the fact that no timezone conversion can change sec_part */
@@ -2246,9 +2250,9 @@ static const char *interval_names[]=
 
 void Item_date_add_interval::print(String *str, enum_query_type query_type)
 {
-  args[0]->print_parenthesised(str, query_type, ADDINTERVAL_PRECEDENCE);
+  args[0]->print_parenthesised(str, query_type, INTERVAL_PRECEDENCE);
   str->append(date_sub_interval?" - interval ":" + interval ");
-  args[1]->print_parenthesised(str, query_type, INTERVAL_PRECEDENCE);
+  args[1]->print(str, query_type);
   str->append(' ');
   str->append(interval_names[int_type]);
 }
@@ -2555,7 +2559,7 @@ bool Item_char_typecast::fix_length_and_dec()
   uint32 char_length;
   /* 
      We always force character set conversion if cast_cs
-     is a multi-byte character set. It garantees that the
+     is a multi-byte character set. It guarantees that the
      result of CAST is a well-formed string.
      For single-byte character sets we allow just to copy
      from the argument. A single-byte character sets string
@@ -2890,7 +2894,7 @@ bool Item_func_maketime::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     int len = (int)(ptr - buf) + sprintf(ptr, ":%02u:%02u", (uint)minute, (uint)second);
     make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                  buf, len, MYSQL_TIMESTAMP_TIME,
-                                 0, NullS);
+                                 NULL, NULL, NULL);
   }
 
   return (null_value= 0);

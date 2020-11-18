@@ -29,6 +29,13 @@ extern ulong my_time_to_wait_for_lock;
 
 #if defined(HAVE_ALARM) && !defined(NO_ALARM_LOOP)
 #include <signal.h>
+#ifdef HAVE_SIGHANDLER_T
+#define sig_return sighandler_t
+#elif defined(SOLARIS) || defined(__sun) || defined(__APPLE__)
+typedef void (*sig_return)(int); /* Returns type from signal */
+#else
+typedef void (*sig_return)(void); /* Returns type from signal */
+#endif
 #define ALARM_VARIABLES uint alarm_old=0; \
 			sig_return alarm_signal=0
 #define ALARM_INIT	my_have_got_alarm=0 ; \

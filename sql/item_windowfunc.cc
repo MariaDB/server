@@ -234,9 +234,10 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
   {
     Item *item= args[i];
     // 'item' can be changed during fix_fields
-    if ((!item->fixed && item->fix_fields(thd, args)) ||
+    if ((!item->fixed && item->fix_fields(thd, args + i)) ||
         (item= args[i])->check_cols(1))
       return TRUE;
+    with_window_func|= item->with_window_func;
   }
   Type_std_attributes::set(args[0]);
   for (uint i= 0; i < arg_count && !with_subselect; i++)
@@ -442,10 +443,8 @@ void Item_window_func::print(String *str, enum_query_type query_type)
 {
   window_func()->print(str, query_type);
   str->append(" over ");
-#ifndef DBUG_OFF
-  if (!window_spec) // one can call dbug_print_item() anytime in gdb
+  if (!window_spec)
     str->append(window_name);
   else
-#endif
-  window_spec->print(str, query_type);
+    window_spec->print(str, query_type);
 }

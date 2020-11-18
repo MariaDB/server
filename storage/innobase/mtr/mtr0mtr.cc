@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -218,6 +218,13 @@ static void memo_slot_release(mtr_memo_slot_t *slot)
   case MTR_MEMO_SX_LOCK:
     rw_lock_sx_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
     break;
+  case MTR_MEMO_SPACE_X_LOCK:
+    {
+      fil_space_t *space= static_cast<fil_space_t*>(slot->object);
+      space->committed_size= space->size;
+      rw_lock_x_unlock(&space->latch);
+    }
+    break;
   case MTR_MEMO_X_LOCK:
     rw_lock_x_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
     break;
@@ -226,8 +233,8 @@ static void memo_slot_release(mtr_memo_slot_t *slot)
   case MTR_MEMO_PAGE_SX_FIX:
   case MTR_MEMO_PAGE_X_FIX:
     buf_block_t *block= reinterpret_cast<buf_block_t*>(slot->object);
-    buf_block_unfix(block);
     buf_page_release_latch(block, slot->type);
+    buf_block_unfix(block);
     break;
   }
   slot->object= NULL;
@@ -251,6 +258,13 @@ struct ReleaseLatches {
     case MTR_MEMO_S_LOCK:
       rw_lock_s_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
       break;
+    case MTR_MEMO_SPACE_X_LOCK:
+      {
+        fil_space_t *space= static_cast<fil_space_t*>(slot->object);
+        space->committed_size= space->size;
+        rw_lock_x_unlock(&space->latch);
+      }
+      break;
     case MTR_MEMO_X_LOCK:
       rw_lock_x_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
       break;
@@ -262,8 +276,8 @@ struct ReleaseLatches {
     case MTR_MEMO_PAGE_SX_FIX:
     case MTR_MEMO_PAGE_X_FIX:
       buf_block_t *block= reinterpret_cast<buf_block_t*>(slot->object);
-      buf_block_unfix(block);
       buf_page_release_latch(block, slot->type);
+      buf_block_unfix(block);
       break;
     }
     slot->object= NULL;
@@ -293,6 +307,24 @@ struct DebugCheck {
 	}
 };
 #endif
+
+/** Find buffer fix count of the given block acquired by the
+mini-transaction */
+struct FindBlock
+{
+  int32_t num_fix;
+  const buf_block_t *const block;
+
+  FindBlock(const buf_block_t *block_buf): num_fix(0), block(block_buf) {}
+
+  bool operator()(const mtr_memo_slot_t* slot)
+  {
+    if (slot->object == block)
+      ut_d(if (slot->type != MTR_MEMO_MODIFY))
+      num_fix++;
+    return true;
+  }
+};
 
 /** Release a resource acquired by the mini-transaction. */
 struct ReleaseBlocks {
@@ -378,7 +410,7 @@ mtr_write_log(
 /** Start a mini-transaction. */
 void mtr_t::start()
 {
-  UNIV_MEM_INVALID(this, sizeof *this);
+  MEM_UNDEFINED(this, sizeof *this);
 
   new(&m_memo) mtr_buf_t();
   new(&m_log) mtr_buf_t();
@@ -564,11 +596,21 @@ mtr_t::x_lock_space(ulint space_id, const char* file, unsigned line)
 
 	ut_ad(space);
 	ut_ad(space->id == space_id);
-	x_lock(&space->latch, file, line);
+	x_lock_space(space, file, line);
 	ut_ad(space->purpose == FIL_TYPE_TEMPORARY
 	      || space->purpose == FIL_TYPE_IMPORT
 	      || space->purpose == FIL_TYPE_TABLESPACE);
 	return(space);
+}
+
+/** Exclusively aqcuire a tablespace latch.
+@param space  tablespace
+@param file   source code file name of the caller
+@param line   source code line number */
+void mtr_t::x_lock_space(fil_space_t *space, const char *file, unsigned line)
+{
+  rw_lock_x_lock_inline(&space->latch, 0, file, line);
+  memo_push(space, MTR_MEMO_SPACE_X_LOCK);
 }
 
 /** Look up the system tablespace. */
@@ -764,27 +806,28 @@ with index pages.
 void
 mtr_t::release_free_extents(ulint n_reserved)
 {
-	fil_space_t*	space;
+  fil_space_t *space= m_user_space;
 
-	ut_ad(!m_undo_space);
+  ut_ad(!m_undo_space);
 
-	if (m_user_space) {
+  if (space)
+    ut_ad(m_user_space->id == m_user_space_id);
+  else
+  {
+    ut_ad(m_sys_space->id == TRX_SYS_SPACE);
+    space= m_sys_space;
+  }
 
-		ut_ad(m_user_space->id == m_user_space_id);
-		ut_ad(memo_contains(get_memo(), &m_user_space->latch,
-				    MTR_MEMO_X_LOCK));
+  ut_ad(memo_contains(get_memo(), space, MTR_MEMO_SPACE_X_LOCK));
+  space->release_free_extents(n_reserved);
+}
 
-		space = m_user_space;
-	} else {
-
-		ut_ad(m_sys_space->id == TRX_SYS_SPACE);
-		ut_ad(memo_contains(get_memo(), &m_sys_space->latch,
-				    MTR_MEMO_X_LOCK));
-
-		space = m_sys_space;
-	}
-
-	space->release_free_extents(n_reserved);
+int32_t mtr_t::get_fix_count(buf_block_t *block)
+{
+  Iterate<FindBlock> iteration((FindBlock(block)));
+  if (m_memo.for_each_block(iteration))
+    return iteration.functor.num_fix;
+  return 0;
 }
 
 #ifdef UNIV_DEBUG

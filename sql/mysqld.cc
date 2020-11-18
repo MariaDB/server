@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2019, MariaDB Corporation.
+   Copyright (c) 2008, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -365,7 +365,6 @@ static bool volatile select_thread_in_use, signal_thread_in_use;
 static volatile bool ready_to_exit;
 static my_bool opt_debugging= 0, opt_external_locking= 0, opt_console= 0;
 static my_bool opt_short_log_format= 0, opt_silent_startup= 0;
-bool my_disable_leak_check= false;
 
 uint kill_cached_threads;
 static uint wake_thread;
@@ -2172,13 +2171,12 @@ static void mysqld_exit(int exit_code)
   shutdown_performance_schema();        // we do it as late as possible
 #endif
   set_malloc_size_cb(NULL);
-  if (opt_endinfo && global_status_var.global_memory_used)
-    fprintf(stderr, "Warning: Memory not freed: %ld\n",
-            (long) global_status_var.global_memory_used);
-  if (!opt_debugging && !my_disable_leak_check && exit_code == 0 &&
-      debug_assert_on_not_freed_memory)
+  if (global_status_var.global_memory_used)
   {
-    DBUG_ASSERT(global_status_var.global_memory_used == 0);
+    fprintf(stderr, "Warning: Memory not freed: %lld\n",
+            (longlong) global_status_var.global_memory_used);
+    if (exit_code == 0)
+      SAFEMALLOC_REPORT_MEMORY(0);
   }
   cleanup_tls();
   DBUG_LEAVE;
@@ -2417,9 +2415,11 @@ static void set_ports()
     */
 
 #if MYSQL_PORT_DEFAULT == 0
+# if !__has_feature(memory_sanitizer) // Work around MSAN deficiency
     struct  servent *serv_ptr;
     if ((serv_ptr= getservbyname("mysql", "tcp")))
       SYSVAR_AUTOSIZE(mysqld_port, ntohs((u_short) serv_ptr->s_port));
+# endif
 #endif
     if ((env = getenv("MYSQL_TCP_PORT")))
     {
@@ -2687,6 +2687,67 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
   DBUG_RETURN(ip_sock);
 }
 
+#ifdef _WIN32
+/*
+  Create a security descriptor for pipe.
+  - Use low integrity level, so that it is possible to connect
+  from any process.
+  - Give current user read/write access to pipe.
+  - Give Everyone read/write access to pipe minus FILE_CREATE_PIPE_INSTANCE
+*/
+static void init_pipe_security_descriptor()
+{
+#define SDDL_FMT "S:(ML;; NW;;; LW) D:(A;; 0x%08x;;; WD)(A;; FRFW;;; %s)"
+#define EVERYONE_PIPE_ACCESS_MASK                                             \
+  (FILE_READ_DATA | FILE_READ_EA | FILE_READ_ATTRIBUTES | READ_CONTROL |      \
+   SYNCHRONIZE | FILE_WRITE_DATA | FILE_WRITE_EA | FILE_WRITE_ATTRIBUTES)
+
+#ifndef SECURITY_MAX_SID_STRING_CHARACTERS
+/* Old SDK does not have this constant */
+#define SECURITY_MAX_SID_STRING_CHARACTERS 187
+#endif
+
+  /*
+    Figure out SID of the user that runs the server, then create SDDL string
+    for pipe permissions, and convert it to the security descriptor.
+  */
+  char sddl_string[sizeof(SDDL_FMT) + 8 + SECURITY_MAX_SID_STRING_CHARACTERS];
+  struct
+  {
+    TOKEN_USER token_user;
+    BYTE buffer[SECURITY_MAX_SID_SIZE];
+  } token_buffer;
+  HANDLE token;
+  DWORD tmp;
+
+  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token))
+    goto fail;
+
+  if (!GetTokenInformation(token, TokenUser, &token_buffer,
+                           (DWORD) sizeof(token_buffer), &tmp))
+    goto fail;
+
+  CloseHandle(token);
+
+  char *current_user_string_sid;
+  if (!ConvertSidToStringSid(token_buffer.token_user.User.Sid,
+                             &current_user_string_sid))
+    goto fail;
+
+  snprintf(sddl_string, sizeof(sddl_string), SDDL_FMT,
+           EVERYONE_PIPE_ACCESS_MASK, current_user_string_sid);
+  LocalFree(current_user_string_sid);
+
+  if (ConvertStringSecurityDescriptorToSecurityDescriptor(sddl_string,
+      SDDL_REVISION_1, &saPipeSecurity.lpSecurityDescriptor, 0))
+    return;
+
+fail:
+  sql_perror("Can't start server : Initialize security descriptor");
+  unireg_abort(1);
+}
+#endif
+
 static void network_init(void)
 {
 #ifdef HAVE_SYS_UN_H
@@ -2724,19 +2785,7 @@ static void network_init(void)
 
     strxnmov(pipe_name, sizeof(pipe_name)-1, "\\\\.\\pipe\\",
 	     mysqld_unix_port, NullS);
-    /*
-      Create a security descriptor for pipe.
-      - Use low integrity level, so that it is possible to connect
-      from any process.
-      - Give Everyone read/write access to pipe.
-    */
-    if (!ConvertStringSecurityDescriptorToSecurityDescriptor(
-         "S:(ML;; NW;;; LW) D:(A;; FRFW;;; WD)",
-         SDDL_REVISION_1, &saPipeSecurity.lpSecurityDescriptor, NULL))
-    {
-      sql_perror("Can't start server : Initialize security descriptor");
-      unireg_abort(1);
-    }
+    init_pipe_security_descriptor();
     saPipeSecurity.nLength = sizeof(SECURITY_ATTRIBUTES);
     saPipeSecurity.bInheritHandle = FALSE;
     if ((hPipe= CreateNamedPipe(pipe_name,
@@ -3357,7 +3406,6 @@ void init_signals(void)
     sigemptyset(&sa.sa_mask);
     sigprocmask(SIG_SETMASK,&sa.sa_mask,NULL);
 
-    my_init_stacktrace();
 #if defined(__amiga__)
     sa.sa_handler=(void(*)())handle_fatal_signal;
 #else
@@ -4081,7 +4129,8 @@ rpl_make_log_name(const char *opt,
                   const char *ext)
 {
   DBUG_ENTER("rpl_make_log_name");
-  DBUG_PRINT("enter", ("opt: %s, def: %s, ext: %s", opt, def, ext));
+  DBUG_PRINT("enter", ("opt: %s, def: %s, ext: %s", opt ? opt : "(null)",
+                       def, ext));
   char buff[FN_REFLEN];
   const char *base= opt ? opt : def;
   unsigned int options=
@@ -4432,7 +4481,7 @@ static int init_common_variables()
     min_connections= 10;
     /* MyISAM requires two file handles per table. */
     wanted_files= (extra_files + max_connections + extra_max_connections +
-                   tc_size * 2);
+                   tc_size * 2 * tc_instances);
 #if defined(HAVE_POOL_OF_THREADS) && !defined(__WIN__)
     // add epoll or kevent fd for each threadpool group, in case pool of threads is used
     wanted_files+= (thread_handling > SCHEDULER_NO_THREADS) ? 0 : threadpool_size;
@@ -4461,6 +4510,14 @@ static int init_common_variables()
     if (files < wanted_files && global_system_variables.log_warnings)
       sql_print_warning("Could not increase number of max_open_files to more than %u (request: %u)", files, wanted_files);
 
+    /* If we required too much tc_instances than we reduce */
+    SYSVAR_AUTOSIZE_IF_CHANGED(tc_instances,
+                               (uint32) MY_MIN(MY_MAX((files - extra_files -
+                                                      max_connections)/
+                                                      2/tc_size,
+                                                     1),
+                                              tc_instances),
+                               uint32);
     /*
       If we have requested too much file handles than we bring
       max_connections in supported bounds. Still leave at least
@@ -4468,7 +4525,7 @@ static int init_common_variables()
     */
     SYSVAR_AUTOSIZE_IF_CHANGED(max_connections,
                                (ulong) MY_MAX(MY_MIN(files- extra_files-
-                                                     min_tc_size*2,
+                                                     min_tc_size*2*tc_instances,
                                                      max_connections),
                                               min_connections),
                                ulong);
@@ -4481,7 +4538,7 @@ static int init_common_variables()
     */
     SYSVAR_AUTOSIZE_IF_CHANGED(tc_size,
                                (ulong) MY_MIN(MY_MAX((files - extra_files -
-                                                      max_connections) / 2,
+                                                      max_connections) / 2 / tc_instances,
                                                      min_tc_size),
                                               tc_size), ulong);
     DBUG_PRINT("warning",
@@ -4666,8 +4723,10 @@ static int init_common_variables()
     get corrupted if accesses with names of different case.
   */
   DBUG_PRINT("info", ("lower_case_table_names: %d", lower_case_table_names));
+  if(mysql_real_data_home_ptr == NULL || *mysql_real_data_home_ptr == 0)
+    mysql_real_data_home_ptr= mysql_real_data_home;
   SYSVAR_AUTOSIZE(lower_case_file_system,
-                  test_if_case_insensitive(mysql_real_data_home));
+                  test_if_case_insensitive(mysql_real_data_home_ptr));
   if (!lower_case_table_names && lower_case_file_system == 1)
   {
     if (lower_case_table_names_used)
@@ -4684,7 +4743,7 @@ static int init_common_variables()
     {
       if (global_system_variables.log_warnings)
 	sql_print_warning("Setting lower_case_table_names=2 because file "
-                  "system for %s is case insensitive", mysql_real_data_home);
+                  "system for %s is case insensitive", mysql_real_data_home_ptr);
       SYSVAR_AUTOSIZE(lower_case_table_names, 2);
     }
   }
@@ -4695,7 +4754,7 @@ static int init_common_variables()
       sql_print_warning("lower_case_table_names was set to 2, even though your "
                         "the file system '%s' is case sensitive.  Now setting "
                         "lower_case_table_names to 0 to avoid future problems.",
-			mysql_real_data_home);
+			mysql_real_data_home_ptr);
     SYSVAR_AUTOSIZE(lower_case_table_names, 0);
   }
   else
@@ -5915,8 +5974,10 @@ int mysqld_main(int argc, char **argv)
       set_user(mysqld_user, user_info);
   }
 
+#ifdef WITH_WSREP
   if (WSREP_ON && wsrep_check_opts())
     global_system_variables.wsrep_on= 0;
+#endif
 
   /* 
    The subsequent calls may take a long time : e.g. innodb log read.
@@ -6608,13 +6669,11 @@ void handle_connections_sockets()
   MYSQL_SOCKET sock= mysql_socket_invalid();
   MYSQL_SOCKET new_sock= mysql_socket_invalid();
   uint error_count=0;
-  CONNECT *connect;
   struct sockaddr_storage cAddr;
   int ip_flags __attribute__((unused))=0;
   int socket_flags __attribute__((unused))= 0;
   int extra_ip_flags __attribute__((unused))=0;
   int flags=0,retval;
-  bool is_unix_sock;
 #ifdef HAVE_POLL
   int socket_count= 0;
   struct pollfd fds[3]; // for ip_sock, unix_sock and extra_ip_sock
@@ -6814,41 +6873,37 @@ void handle_connections_sockets()
 
     DBUG_PRINT("info", ("Creating CONNECT for new connection"));
 
-    if ((connect= new CONNECT()))
+    if (CONNECT *connect= new CONNECT())
     {
-      is_unix_sock= (mysql_socket_getfd(sock) ==
-                     mysql_socket_getfd(unix_sock));
+      const bool is_unix_sock= (mysql_socket_getfd(sock) ==
+                                mysql_socket_getfd(unix_sock));
 
-      if (!(connect->vio=
-            mysql_socket_vio_new(new_sock,
-                                 is_unix_sock ? VIO_TYPE_SOCKET :
-                                 VIO_TYPE_TCPIP,
-                                 is_unix_sock ? VIO_LOCALHOST: 0)))
+      if ((connect->vio=
+           mysql_socket_vio_new(new_sock,
+                                is_unix_sock ? VIO_TYPE_SOCKET :
+                                VIO_TYPE_TCPIP,
+                                is_unix_sock ? VIO_LOCALHOST: 0)))
       {
-        delete connect;
-        connect= 0;                             // Error handling below
+        if (is_unix_sock)
+          connect->host= my_localhost;
+
+        if (mysql_socket_getfd(sock) == mysql_socket_getfd(extra_ip_sock))
+        {
+          connect->extra_port= 1;
+          connect->scheduler= extra_thread_scheduler;
+        }
+        create_new_thread(connect);
+        continue;
       }
+
+      delete connect;
     }
 
-    if (!connect)
-    {
-      /* Connect failure */
-      (void) mysql_socket_shutdown(new_sock, SHUT_RDWR);
-      (void) mysql_socket_close(new_sock);
-      statistic_increment(aborted_connects,&LOCK_status);
-      statistic_increment(connection_errors_internal, &LOCK_status);
-      continue;
-    }
-
-    if (is_unix_sock)
-      connect->host= my_localhost;
-
-    if (mysql_socket_getfd(sock) == mysql_socket_getfd(extra_ip_sock))
-    {
-      connect->extra_port= 1;
-      connect->scheduler= extra_thread_scheduler;
-    }
-    create_new_thread(connect);
+    /* Connect failure */
+    (void) mysql_socket_shutdown(new_sock, SHUT_RDWR);
+    (void) mysql_socket_close(new_sock);
+    statistic_increment(aborted_connects,&LOCK_status);
+    statistic_increment(connection_errors_internal, &LOCK_status);
   }
   sd_notify(0, "STOPPING=1\n"
             "STATUS=Shutdown in progress\n");
@@ -8331,8 +8386,8 @@ show_ssl_get_server_not_after(THD *thd, SHOW_VAR *var, char *buff,
 
 #endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
 
-static int show_default_keycache(THD *thd, SHOW_VAR *var, char *buff,
-                                 enum enum_var_type scope)
+static int show_default_keycache(THD *thd, SHOW_VAR *var, void *buff,
+                                 system_status_var *, enum_var_type)
 {
   struct st_data {
     KEY_CACHE_STATISTICS stats;
@@ -8365,7 +8420,7 @@ static int show_default_keycache(THD *thd, SHOW_VAR *var, char *buff,
 
   v->name= 0;
 
-  DBUG_ASSERT((char*)(v+1) <= buff + SHOW_VAR_FUNC_BUFF_SIZE);
+  DBUG_ASSERT((char*)(v+1) <= static_cast<char*>(buff) + SHOW_VAR_FUNC_BUFF_SIZE);
 
 #undef set_one_keycache_var
 
@@ -8389,8 +8444,8 @@ static int show_memory_used(THD *thd, SHOW_VAR *var, char *buff,
 
 
 #ifndef DBUG_OFF
-static int debug_status_func(THD *thd, SHOW_VAR *var, char *buff,
-                             enum enum_var_type scope)
+static int debug_status_func(THD *thd, SHOW_VAR *var, void *buff,
+                             system_status_var *, enum_var_type)
 {
 #define add_var(X,Y,Z)                  \
   v->name= X;                           \
@@ -8517,9 +8572,9 @@ SHOW_VAR status_vars[]= {
   {"Key",                      (char*) &show_default_keycache, SHOW_FUNC},
   {"Last_query_cost",          (char*) offsetof(STATUS_VAR, last_query_cost), SHOW_DOUBLE_STATUS},
   {"Max_statement_time_exceeded", (char*) offsetof(STATUS_VAR, max_statement_time_exceeded), SHOW_LONG_STATUS},
-  {"Master_gtid_wait_count",   (char*) offsetof(STATUS_VAR, master_gtid_wait_count), SHOW_LONGLONG_STATUS},
-  {"Master_gtid_wait_timeouts", (char*) offsetof(STATUS_VAR, master_gtid_wait_timeouts), SHOW_LONGLONG_STATUS},
-  {"Master_gtid_wait_time",    (char*) offsetof(STATUS_VAR, master_gtid_wait_time), SHOW_LONGLONG_STATUS},
+  {"Master_gtid_wait_count",   (char*) offsetof(STATUS_VAR, master_gtid_wait_count), SHOW_LONG_STATUS},
+  {"Master_gtid_wait_timeouts", (char*) offsetof(STATUS_VAR, master_gtid_wait_timeouts), SHOW_LONG_STATUS},
+  {"Master_gtid_wait_time",    (char*) offsetof(STATUS_VAR, master_gtid_wait_time), SHOW_LONG_STATUS},
   {"Max_used_connections",     (char*) &max_used_connections,  SHOW_LONG},
   {"Memory_used",              (char*) &show_memory_used, SHOW_SIMPLE_FUNC},
   {"Not_flushed_delayed_rows", (char*) &delayed_rows_in_use,    SHOW_LONG_NOFLUSH},
@@ -8754,8 +8809,8 @@ static void usage(void)
          "\nbecause execution stopped before plugins were initialized.");
   }
 
-  puts("\nTo see what values a running MySQL server is using, type"
-       "\n'mysqladmin variables' instead of 'mysqld --verbose --help'.");
+    puts("\nTo see what variables a running MySQL server is using, type"
+         "\n'mysqladmin variables' instead of 'mysqld --verbose --help'.");
   }
   DBUG_VOID_RETURN;
 }

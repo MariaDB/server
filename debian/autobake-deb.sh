@@ -26,6 +26,12 @@ then
   # Don't include test suite package on Travis-CI to make the build time shorter
   sed '/Package: mariadb-test-data/,/^$/d' -i debian/control
   sed '/Package: mariadb-test/,/^$/d' -i debian/control
+  sed '/Package: mariadb-plugin-tokudb/,/^$/d' -i debian/control
+  sed '/Package: mariadb-plugin-mroonga/,/^$/d' -i debian/control
+  sed '/Package: mariadb-plugin-spider/,/^$/d' -i debian/control
+  sed '/Package: mariadb-plugin-oqgraph/,/^$/d' -i debian/control
+  export MYSQL_COMPILER_LAUNCHER=ccache
+  sed 's|-DDEB|-DPLUGIN_TOKUDB=NO -DPLUGIN_MROONGA=NO -DPLUGIN_SPIDER=NO -DPLUGIN_OQGRAPH=NO -DPLUGIN_PERFSCHEMA=NO -WITH_EMBEDDED_SERVER=OFF -DDEB|' -i debian/rules
 fi
 
 

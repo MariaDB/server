@@ -891,6 +891,8 @@ int Arg_comparator::compare_decimal()
     {
       if (set_null)
         owner->null_value= 0;
+      my_decimal_round_if_needed(E_DEC_FATAL_ERROR, val1, (*a)->decimals, 0);
+      my_decimal_round_if_needed(E_DEC_FATAL_ERROR, val2, (*b)->decimals, 0);
       return my_decimal_cmp(val1, val2);
     }
   }
@@ -915,7 +917,9 @@ int Arg_comparator::compare_e_decimal()
   my_decimal *val2= (*b)->val_decimal(&decimal2);
   if ((*a)->null_value || (*b)->null_value)
     return MY_TEST((*a)->null_value && (*b)->null_value);
-  return MY_TEST(my_decimal_cmp(val1, val2) == 0);
+  my_decimal_round_if_needed(E_DEC_FATAL_ERROR, val1, (*a)->decimals, 0);
+  my_decimal_round_if_needed(E_DEC_FATAL_ERROR, val2, (*b)->decimals, 0);
+  return my_decimal_cmp(val1, val2) == 0;
 }
 
 
@@ -1424,7 +1428,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
   @note 
    Item_in_optimizer should work as pass-through for
     - subqueries that were processed by ALL/ANY->MIN/MAX rewrite
-    - subqueries taht were originally EXISTS subqueries (and were coverted by
+    - subqueries that were originally EXISTS subqueries (and were coinverted by
       the EXISTS->IN rewrite)
 
    When Item_in_optimizer is not not working as a pass-through, it
@@ -2017,8 +2021,8 @@ longlong Item_func_interval::val_int()
       interval_range *range= intervals + mid;
       my_bool cmp_result;
       /*
-        The values in the range intervall may have different types,
-        Only do a decimal comparision of the first argument is a decimal
+        The values in the range interval may have different types,
+        Only do a decimal comparison if the first argument is a decimal
         and we are comparing against a decimal
       */
       if (dec && range->type == DECIMAL_RESULT)
@@ -2312,7 +2316,7 @@ longlong Item_func_between::val_int()
 
 void Item_func_between::print(String *str, enum_query_type query_type)
 {
-  args[0]->print_parenthesised(str, query_type, precedence());
+  args[0]->print_parenthesised(str, query_type, higher_precedence());
   if (negated)
     str->append(STRING_WITH_LEN(" not"));
   str->append(STRING_WITH_LEN(" between "));
@@ -2684,7 +2688,7 @@ Item_func_nullif::fix_length_and_dec()
       Some examples of what NULLIF can end up with after argument
       substitution (we don't mention args[1] in some cases for simplicity):
 
-      1. l_expr is not an aggragate function:
+      1. l_expr is not an aggregate function:
 
         a. No conversion happened.
            args[0] and args[2] were not replaced to something else
@@ -2808,7 +2812,7 @@ Item_func_nullif::fix_length_and_dec()
     In this case we remember and reuse m_arg0 during EXECUTE time as args[2].
 
     QQ: How to make sure that m_args0 does not point
-    to something temporary which will be destoyed between PREPARE and EXECUTE.
+    to something temporary which will be destroyed between PREPARE and EXECUTE.
     The condition below should probably be more strict and somehow check that:
     - change_item_tree() was called for the new args[0]
     - m_args0 is referenced from inside args[0], e.g. as a function argument,
@@ -3243,7 +3247,7 @@ bool Item_func_case::fix_length_and_dec()
         If we'll do string comparison, we also need to aggregate
         character set and collation for first/WHEN items and
         install converters for some of them to cmp_collation when necessary.
-        This is done because cmp_item compatators cannot compare
+        This is done because cmp_item comparators cannot compare
         strings in two different character sets.
         Some examples when we install converters:
 
@@ -3375,15 +3379,15 @@ void Item_func_case::print(String *str, enum_query_type query_type)
   for (uint i= first_expr_num + 1 ; i < nwhens + first_expr_num + 1; i++)
   {
     str->append(STRING_WITH_LEN("when "));
-    args[i]->print_parenthesised(str, query_type, precedence());
+    args[i]->print(str, query_type);
     str->append(STRING_WITH_LEN(" then "));
-    args[i+nwhens]->print_parenthesised(str, query_type, precedence());
+    args[i+nwhens]->print(str, query_type);
     str->append(' ');
   }
   if (else_expr_num != -1)
   {
     str->append(STRING_WITH_LEN("else "));
-    args[else_expr_num]->print_parenthesised(str, query_type, precedence());
+    args[else_expr_num]->print(str, query_type);
     str->append(' ');
   }
   str->append(STRING_WITH_LEN("end"));
@@ -4153,8 +4157,11 @@ void Item_func_in::fix_after_pullout(st_select_lex *new_parent, Item **ref,
   eval_not_null_tables(NULL);
 }
 
-static int srtcmp_in(CHARSET_INFO *cs, const String *x,const String *y)
+static int srtcmp_in(const void *cs_, const void *x_, const void *y_)
 {
+  const CHARSET_INFO *cs= static_cast<const CHARSET_INFO *>(cs_);
+  const String *x= static_cast<const String *>(x_);
+  const String *y= static_cast<const String *>(y_);
   return cs->coll->strnncollsp(cs,
                                (uchar *) x->ptr(),x->length(),
                                (uchar *) y->ptr(),y->length());
@@ -5240,12 +5247,14 @@ void Item_func_like::print(String *str, enum_query_type query_type)
     str->append(STRING_WITH_LEN(" not "));
   str->append(func_name());
   str->append(' ');
-  args[1]->print_parenthesised(str, query_type, precedence());
   if (escape_used_in_parsing)
   {
+    args[1]->print_parenthesised(str, query_type, precedence());
     str->append(STRING_WITH_LEN(" escape "));
-    escape_item->print(str, query_type);
+    escape_item->print_parenthesised(str, query_type, higher_precedence());
   }
+  else
+    args[1]->print_parenthesised(str, query_type, higher_precedence());
 }
 
 
@@ -6959,7 +6968,7 @@ Item* Item_equal::get_first(JOIN_TAB *context, Item *field_item)
     and not ot2.col.
     
     eliminate_item_equal() also has code that deals with equality substitution
-    in presense of SJM nests.
+    in presence of SJM nests.
   */
 
   TABLE_LIST *emb_nest;

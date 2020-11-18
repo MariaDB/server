@@ -1182,3 +1182,23 @@ with t as (select 1 as t) select * from t;
 with columns as (select 1 as t) select * from columns;
 
 use test;
+
+--echo #
+--echo # MDEV-18460: Server crashed in strmake / tdc_create_key /
+--echo # THD::create_tmp_table_def_key
+--echo #
+
+--connect con1,localhost,root,,
+--change_user root,,
+
+CREATE TEMPORARY TABLE test.t (a INT);
+WITH cte AS (SELECT 1) SELECT * FROM cte;
+WITH t AS (SELECT 1) SELECT * FROM t;
+--error ER_NO_DB_ERROR
+WITH cte AS (SELECT 1) SELECT * FROM t;
+DROP TABLE test.t;
+
+--connection default
+--disconnect con1
+
+--echo # End of 10.2 tests

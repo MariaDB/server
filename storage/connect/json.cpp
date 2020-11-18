@@ -84,6 +84,7 @@ char* NextChr(PSZ s, char sep)
   return p2;
 } // end of NextChr
 
+#if 0
 /***********************************************************************/
 /* Allocate a VAL structure, make sure common field and Nd are zeroed. */
 /***********************************************************************/
@@ -96,6 +97,7 @@ PVL AllocVal(PGLOBAL g, JTYP type)
   vlp->Type = type;
   return vlp;
 } // end of AllocVal
+#endif // 0
 
 /***********************************************************************/
 /* Parse a json string.                                                */
@@ -633,18 +635,22 @@ PJVAL JDOC::ParseValue(PGLOBAL g, int& i)
   switch (s[i]) {
     case '[':
       jvp->Jsp = ParseArray(g, ++i);
+      jvp->DataType = TYPE_JSON;
       break;
     case '{':
       jvp->Jsp = ParseObject(g, ++i);
+      jvp->DataType = TYPE_JSON;
       break;
     case '"':
-      jvp->Val = AllocVal(g, TYPE_STRG);
-      jvp->Val->Strp = ParseString(g, ++i);
+//    jvp->Val = AllocVal(g, TYPE_STRG);
+      jvp->Strp = ParseString(g, ++i);
+      jvp->DataType = TYPE_STRG;
       break;
     case 't':
       if (!strncmp(s + i, "true", 4)) {
-        jvp->Val = AllocVal(g, TYPE_BOOL);
-        jvp->Val->B = true;
+//      jvp->Val = AllocVal(g, TYPE_BOOL);
+        jvp->B = true;
+        jvp->DataType = TYPE_BOOL;
         i += 3;
       } else
         goto err;
@@ -652,24 +658,26 @@ PJVAL JDOC::ParseValue(PGLOBAL g, int& i)
       break;
     case 'f':
       if (!strncmp(s + i, "false", 5)) {
-        jvp->Val = AllocVal(g, TYPE_BOOL);
-        jvp->Val->B = false;
+//      jvp->Val = AllocVal(g, TYPE_BOOL);
+        jvp->B = false;
+        jvp->DataType = TYPE_BOOL;
         i += 4;
       } else
         goto err;
 
       break;
     case 'n':
-      if (!strncmp(s + i, "null", 4))
+      if (!strncmp(s + i, "null", 4)) {
+        jvp->DataType = TYPE_NULL;
         i += 3;
-      else
+      } else
         goto err;
 
       break;
     case '-':
     default:
       if (s[i] == '-' || isdigit(s[i]))
-        jvp->Val = ParseNumeric(g, i);
+        ParseNumeric(g, i, jvp);
       else
         goto err;
 
@@ -772,7 +780,7 @@ char *JDOC::ParseString(PGLOBAL g, int& i)
 /***********************************************************************/
 /* Parse a JSON numeric value.                                         */
 /***********************************************************************/
-PVL JDOC::ParseNumeric(PGLOBAL g, int& i)
+void JDOC::ParseNumeric(PGLOBAL g, int& i, PJVAL vlp)
 {
   char  buf[50];
   int   n = 0;
@@ -780,7 +788,7 @@ PVL JDOC::ParseNumeric(PGLOBAL g, int& i)
   bool  has_dot = false;
   bool  has_e = false;
   bool  found_digit = false;
-  PVL   vlp = NULL;
+//PVL   vlp = NULL;
 
   for (; i < len; i++) {
     switch (s[i]) {
@@ -829,24 +837,27 @@ PVL JDOC::ParseNumeric(PGLOBAL g, int& i)
     if (has_dot || has_e) {
       double dv = strtod(buf, NULL);
 
-      vlp = AllocVal(g, TYPE_DBL);
+//    vlp = AllocVal(g, TYPE_DBL);
       vlp->F = dv;
       vlp->Nd = nd;
+      vlp->DataType = TYPE_DBL;
     } else {
       long long iv = strtoll(buf, NULL, 10);
 
       if (iv > INT_MAX32 || iv < INT_MIN32) {
-        vlp = AllocVal(g, TYPE_BINT);
+//      vlp = AllocVal(g, TYPE_BINT);
         vlp->LLn = iv;
+        vlp->DataType = TYPE_BINT;
       } else {
-        vlp = AllocVal(g, TYPE_INTG);
+//      vlp = AllocVal(g, TYPE_INTG);
         vlp->N = (int)iv;
+        vlp->DataType = TYPE_INTG;
       } // endif iv
 
     } // endif has
 
     i--;  // Unstack  following character
-    return vlp;
+    return;
   } else
     throw("No digit found");
 
@@ -933,28 +944,28 @@ bool JDOC::SerializeValue(PJVAL jvp)
   char buf[64];
   PJAR jap;
   PJOB jop;
-  PVL  vlp;
+  //PVL  vlp;
 
   if ((jap = jvp->GetArray()))
     return SerializeArray(jap, false);
   else if ((jop = jvp->GetObject()))
     return SerializeObject(jop);
-  else if (!(vlp = jvp->Val))
-    return js->WriteStr("null");
-  else switch (vlp->Type) {
+//else if (!(vlp = jvp->Val))
+//  return js->WriteStr("null");
+  else switch (jvp->DataType) {
     case TYPE_BOOL:
-      return js->WriteStr(vlp->B ? "true" : "false");
+      return js->WriteStr(jvp->B ? "true" : "false");
     case TYPE_STRG:
     case TYPE_DTM:
-      return js->Escape(vlp->Strp);
+      return js->Escape(jvp->Strp);
     case TYPE_INTG:
-      sprintf(buf, "%d", vlp->N);
+      sprintf(buf, "%d", jvp->N);
       return js->WriteStr(buf);
     case TYPE_BINT:
-      sprintf(buf, "%lld", vlp->LLn);
+      sprintf(buf, "%lld", jvp->LLn);
       return js->WriteStr(buf);
     case TYPE_DBL:
-      sprintf(buf, "%.*lf", vlp->Nd, vlp->F);
+      sprintf(buf, "%.*lf", jvp->Nd, jvp->F);
       return js->WriteStr(buf);
     case TYPE_NULL:
       return js->WriteStr("null");
@@ -1382,11 +1393,24 @@ bool JARRAY::IsNull(void)
 JVALUE::JVALUE(PJSON jsp) : JSON()
 {
   if (jsp->GetType() == TYPE_JVAL) {
-    Jsp = jsp->GetJsp();
-    Val = ((PJVAL)jsp)->GetVal();
+    PJVAL jvp = (PJVAL)jsp;
+
+//  Val = ((PJVAL)jsp)->GetVal();
+    if (jvp->DataType == TYPE_JSON) {
+      Jsp = jvp->GetJsp();
+      DataType = TYPE_JSON;
+      Nd = 0;
+    } else {
+      LLn = jvp->LLn;   // Must be LLn on 32 bit machines
+      Nd = jvp->Nd;
+      DataType = jvp->DataType;
+    } // endelse Jsp
+ 
   } else {
     Jsp = jsp;
-    Val = NULL;
+//  Val = NULL;
+    DataType = TYPE_JSON;
+    Nd = 0;
   } // endif Type
 
   Next = NULL;
@@ -1394,6 +1418,7 @@ JVALUE::JVALUE(PJSON jsp) : JSON()
   Type = TYPE_JVAL;
 } // end of JVALUE constructor
 
+#if 0
 /***********************************************************************/
 /* Constructor for a JVALUE with a given string or numeric value.      */
 /***********************************************************************/
@@ -1405,13 +1430,14 @@ JVALUE::JVALUE(PGLOBAL g, PVL vlp) : JSON()
   Del = false;
   Type = TYPE_JVAL;
 } // end of JVALUE constructor
+#endif // 0
 
 /***********************************************************************/
 /* Constructor for a JVALUE with a given string or numeric value.      */
 /***********************************************************************/
 JVALUE::JVALUE(PGLOBAL g, PVAL valp) : JSON() {
   Jsp = NULL;
-  Val = NULL;
+//Val = NULL;
   SetValue(g, valp);
   Next = NULL;
   Del = false;
@@ -1424,24 +1450,39 @@ JVALUE::JVALUE(PGLOBAL g, PVAL valp) : JSON() {
 JVALUE::JVALUE(PGLOBAL g, PCSZ strp) : JSON()
 {
   Jsp = NULL;
-  Val = AllocVal(g, TYPE_STRG);
-  Val->Strp = (char*)strp;
+//Val = AllocVal(g, TYPE_STRG);
+  Strp = (char*)strp;
+  DataType = TYPE_STRG;
+  Nd = 0;
   Next = NULL;
   Del = false;
   Type = TYPE_JVAL;
 } // end of JVALUE constructor
 
 /***********************************************************************/
+/* Set or reset all Jvalue members.                                    */
+/***********************************************************************/
+void JVALUE::Clear(void)
+{
+  Jsp = NULL; 
+  Next = NULL; 
+  Type = TYPE_JVAL; 
+  Del = false; 
+  Nd = 0; 
+  DataType = TYPE_NULL;
+} // end of Clear
+
+/***********************************************************************/
 /* Returns the type of the Value's value.                              */
 /***********************************************************************/
 JTYP JVALUE::GetValType(void)
 {
-  if (Jsp)
+  if (DataType == TYPE_JSON)
     return Jsp->GetType();
-  else if (Val)
-    return Val->Type;
+//else if (Val)
+//  return Val->Type;
   else
-    return TYPE_NULL;
+    return DataType;
 
 } // end of GetValType
 
@@ -1450,7 +1491,7 @@ JTYP JVALUE::GetValType(void)
 /***********************************************************************/
 PJOB JVALUE::GetObject(void)
 {
-  if (Jsp && Jsp->GetType() == TYPE_JOB)
+  if (DataType == TYPE_JSON && Jsp->GetType() == TYPE_JOB)
     return (PJOB)Jsp;
 
   return NULL;
@@ -1461,7 +1502,7 @@ PJOB JVALUE::GetObject(void)
 /***********************************************************************/
 PJAR JVALUE::GetArray(void)
 {
-  if (Jsp && Jsp->GetType() == TYPE_JAR)
+  if (DataType == TYPE_JSON && Jsp->GetType() == TYPE_JAR)
     return (PJAR)Jsp;
 
   return NULL;
@@ -1474,11 +1515,11 @@ PVAL JVALUE::GetValue(PGLOBAL g)
 {
   PVAL valp = NULL;
 
-  if (Val)
-    if (Val->Type == TYPE_STRG)
-      valp = AllocateValue(g, Val->Strp, Val->Type, Val->Nd);
+  if (DataType != TYPE_JSON)
+    if (DataType == TYPE_STRG)
+      valp = AllocateValue(g, Strp, DataType, Nd);
     else
-      valp = AllocateValue(g, Val, Val->Type, Val->Nd);
+      valp = AllocateValue(g, &LLn, DataType, Nd);
 
   return valp;
 } // end of GetValue
@@ -1489,15 +1530,13 @@ PVAL JVALUE::GetValue(PGLOBAL g)
 int JVALUE::GetInteger(void) {
   int n;
 
-  if (!Val)
-    n = 0;
-  else switch (Val->Type) {
-  case TYPE_INTG: n = Val->N;           break;
-  case TYPE_DBL:  n = (int)Val->F;      break;
+  switch (DataType) {
+  case TYPE_INTG: n = N;           break;
+  case TYPE_DBL:  n = (int)F;      break;
   case TYPE_DTM:
-  case TYPE_STRG: n = atoi(Val->Strp);  break;
-  case TYPE_BOOL: n = (Val->B) ? 1 : 0; break;
-  case TYPE_BINT: n = (int)Val->LLn;    break;
+  case TYPE_STRG: n = atoi(Strp);  break;
+  case TYPE_BOOL: n = (B) ? 1 : 0; break;
+  case TYPE_BINT: n = (int)LLn;    break;
   default:
     n = 0;
   } // endswitch Type
@@ -1512,15 +1551,13 @@ long long JVALUE::GetBigint(void)
 {
   long long lln;
 
-  if (!Val)
-    lln = 0;
-  else switch (Val->Type) {
-  case TYPE_BINT: lln = Val->LLn;          break;
-  case TYPE_INTG: lln = (long long)Val->N; break;
-  case TYPE_DBL:  lln = (long long)Val->F; break;
+  switch (DataType) {
+  case TYPE_BINT: lln = LLn;          break;
+  case TYPE_INTG: lln = (long long)N; break;
+  case TYPE_DBL:  lln = (long long)F; break;
   case TYPE_DTM:
-  case TYPE_STRG: lln = atoll(Val->Strp);  break;
-  case TYPE_BOOL: lln = (Val->B) ? 1 : 0;  break;
+  case TYPE_STRG: lln = atoll(Strp);  break;
+  case TYPE_BOOL: lln = (B) ? 1 : 0;  break;
   default:
     lln = 0;
   } // endswitch Type
@@ -1535,15 +1572,13 @@ double JVALUE::GetFloat(void)
 {
   double d;
 
-  if (!Val)
-    d = 0.0;
-  else switch (Val->Type) {
-  case TYPE_DBL:  d = Val->F;               break;
-  case TYPE_BINT: d = (double)Val->LLn;     break;
-  case TYPE_INTG: d = (double)Val->N;       break;
+  switch (DataType) {
+  case TYPE_DBL:  d = F;               break;
+  case TYPE_BINT: d = (double)LLn;     break;
+  case TYPE_INTG: d = (double)N;       break;
   case TYPE_DTM:
-  case TYPE_STRG: d = atof(Val->Strp);      break;
-  case TYPE_BOOL: d = (Val->B) ? 1.0 : 0.0; break;
+  case TYPE_STRG: d = atof(Strp);      break;
+  case TYPE_BOOL: d = (B) ? 1.0 : 0.0; break;
   default:
     d = 0.0;
   } // endswitch Type
@@ -1559,33 +1594,30 @@ PSZ JVALUE::GetString(PGLOBAL g, char *buff)
   char  buf[32];
   char *p = (buff) ? buff : buf;
 
-  if (Val) {
-    switch (Val->Type) {
-    case TYPE_DTM:
-    case TYPE_STRG:
-      p = Val->Strp;
-      break;
-    case TYPE_INTG:
-      sprintf(p, "%d", Val->N);
-      break;
-    case TYPE_BINT:
-      sprintf(p, "%lld", Val->LLn);
-      break;
-    case TYPE_DBL:
-      sprintf(p, "%.*lf", Val->Nd, Val->F);
-      break;
-    case TYPE_BOOL:
-      p = (char*)((Val->B) ? "true" : "false");
-      break;
-    case TYPE_NULL:
-      p = (char*)"null";
-      break;
-    default:
-      p = NULL;
-    } // endswitch Type
-
-  } else
+  switch (DataType) {
+  case TYPE_DTM:
+  case TYPE_STRG:
+    p = Strp;
+    break;
+  case TYPE_INTG:
+    sprintf(p, "%d", N);
+    break;
+  case TYPE_BINT:
+    sprintf(p, "%lld", LLn);
+    break;
+  case TYPE_DBL:
+    sprintf(p, "%.*lf", Nd, F);
+    break;
+  case TYPE_BOOL:
+    p = (char*)((B) ? "true" : "false");
+    break;
+  case TYPE_NULL:
+    p = (char*)"null";
+    break;
+  default:
     p = NULL;
+  } // endswitch Type
+
 
   return (p == buf) ? (char*)PlugDup(g, buf) : p;
 } // end of GetString
@@ -1595,11 +1627,11 @@ PSZ JVALUE::GetString(PGLOBAL g, char *buff)
 /***********************************************************************/
 PSZ JVALUE::GetText(PGLOBAL g, PSTRG text)
 {
-  if (Jsp)
+  if (DataType == TYPE_JSON)
     return Jsp->GetText(g, text);
 
 	char buff[32];
-  PSZ  s = (Val) ? GetString(g, buff) : NULL;
+  PSZ  s = (DataType == TYPE_NULL) ? NULL : GetString(g, buff);
 
 	if (s)
 		text->Append(s);
@@ -1611,58 +1643,60 @@ PSZ JVALUE::GetText(PGLOBAL g, PSTRG text)
 
 void JVALUE::SetValue(PJSON jsp)
 {
-  if (jsp && jsp->GetType() == TYPE_JVAL) {
+  if (DataType == TYPE_JSON && jsp->GetType() == TYPE_JVAL) {
     Jsp = jsp->GetJsp();
-    Val = ((PJVAL)jsp)->GetVal();
+    Nd = ((PJVAL)jsp)->Nd;
+    DataType = ((PJVAL)jsp)->DataType;
+    //  Val = ((PJVAL)jsp)->GetVal();
   } else {
     Jsp = jsp;
-    Val = NULL;
+    DataType = TYPE_JSON;
   } // endif Type
 
 } // end of SetValue;
 
 void JVALUE::SetValue(PGLOBAL g, PVAL valp)
 {
-  if (!Val)
-    Val = AllocVal(g, TYPE_VAL);
+//if (!Val)
+//  Val = AllocVal(g, TYPE_VAL);
 
   if (!valp || valp->IsNull()) {
-    Val->Type = TYPE_NULL;
+    DataType = TYPE_NULL;
   } else switch (valp->GetType()) {
-  case TYPE_STRING:
+  case TYPE_DATE:
 		if (((DTVAL*)valp)->IsFormatted())
-			Val->Strp = valp->GetCharValue();
+			Strp = valp->GetCharValue();
 		else {
 			char buf[32];
 
-			Val->Strp = PlugDup(g, valp->GetCharString(buf));
+			Strp = PlugDup(g, valp->GetCharString(buf));
 		}	// endif Formatted
 
-		Val->Type = TYPE_DTM;
+		DataType = TYPE_DTM;
 		break;
-	case TYPE_DATE:
-    Val->Strp = valp->GetCharValue();
-    Val->Type = TYPE_STRG;
+	case TYPE_STRING:
+    Strp = valp->GetCharValue();
+    DataType = TYPE_STRG;
     break;
   case TYPE_DOUBLE:
   case TYPE_DECIM:
-    Val->F = valp->GetFloatValue();
+    F = valp->GetFloatValue();
 
     if (IsTypeNum(valp->GetType()))
-      Val->Nd = valp->GetValPrec();
+      Nd = valp->GetValPrec();
 
-    Val->Type = TYPE_DBL;
+    DataType = TYPE_DBL;
     break;
   case TYPE_TINY:
-    Val->B = valp->GetTinyValue() != 0;
-    Val->Type = TYPE_BOOL;
+    B = valp->GetTinyValue() != 0;
+    DataType = TYPE_BOOL;
   case TYPE_INT:
-    Val->N = valp->GetIntValue();
-    Val->Type = TYPE_INTG;
+    N = valp->GetIntValue();
+    DataType = TYPE_INTG;
     break;
   case TYPE_BIGINT:
-    Val->LLn = valp->GetBigintValue();
-    Val->Type = TYPE_BINT;
+    LLn = valp->GetBigintValue();
+    DataType = TYPE_BINT;
     break;
   default:
     sprintf(g->Message, "Unsupported typ %d\n", valp->GetType());
@@ -1676,9 +1710,8 @@ void JVALUE::SetValue(PGLOBAL g, PVAL valp)
 /***********************************************************************/
 void JVALUE::SetInteger(PGLOBAL g, int n)
 {
-  Val = AllocVal(g, TYPE_INTG);
-  Val->N = n;
-  Jsp = NULL;
+  N = n;
+  DataType = TYPE_INTG;
 } // end of SetInteger
 
 /***********************************************************************/
@@ -1686,9 +1719,8 @@ void JVALUE::SetInteger(PGLOBAL g, int n)
 /***********************************************************************/
 void JVALUE::SetBool(PGLOBAL g, bool b)
 {
-  Val = AllocVal(g, TYPE_BOOL);
-  Val->B = b;
-  Jsp = NULL;
+  B = b;
+  DataType = TYPE_BOOL;
 } // end of SetTiny
 
 /***********************************************************************/
@@ -1696,9 +1728,8 @@ void JVALUE::SetBool(PGLOBAL g, bool b)
 /***********************************************************************/
 void JVALUE::SetBigint(PGLOBAL g, long long ll)
 {
-  Val = AllocVal(g, TYPE_BINT);
-  Val->LLn = ll;
-  Jsp = NULL;
+  LLn = ll;
+  DataType = TYPE_BINT;
 } // end of SetBigint
 
 /***********************************************************************/
@@ -1706,10 +1737,9 @@ void JVALUE::SetBigint(PGLOBAL g, long long ll)
 /***********************************************************************/
 void JVALUE::SetFloat(PGLOBAL g, double f)
 {
-  Val = AllocVal(g, TYPE_DBL);
-  Val->F = f;
-  Val->Nd = 6;
-  Jsp = NULL;
+  F = f;
+  Nd = 6;
+  DataType = TYPE_DBL;
 } // end of SetFloat
 
 /***********************************************************************/
@@ -1717,10 +1747,9 @@ void JVALUE::SetFloat(PGLOBAL g, double f)
 /***********************************************************************/
 void JVALUE::SetString(PGLOBAL g, PSZ s, int ci)
 {
-  Val = AllocVal(g, TYPE_STRG);
-  Val->Strp = s;
-  Val->Nd = ci;
-  Jsp = NULL;
+  Strp = s;
+  Nd = ci;
+  DataType = TYPE_STRG;
 } // end of SetString
 
 /***********************************************************************/
@@ -1728,7 +1757,7 @@ void JVALUE::SetString(PGLOBAL g, PSZ s, int ci)
 /***********************************************************************/
 bool JVALUE::IsNull(void)
 {
-  return (Jsp) ? Jsp->IsNull() : (Val) ? Val->Type == TYPE_NULL : true;
+  return (DataType == TYPE_JSON) ? Jsp->IsNull() : DataType == TYPE_NULL;
 } // end of IsNull
 
 
@@ -1751,7 +1780,7 @@ void SWAP::SwapJson(PJSON jsp, bool move)
 /* Replace all pointers by offsets.                                    */
 /***********************************************************************/
 size_t SWAP::MoffJson(PJSON jsp) {
-  size_t res;
+  size_t res = NULL;
 
   if (jsp)
     switch (jsp->Type) {
@@ -1780,6 +1809,7 @@ size_t SWAP::MoffArray(PJAR jarp)
     for (int i = 0; i < jarp->Size; i++)
       jarp->Mvals[i] = (PJVAL)MakeOff(Base, jarp->Mvals[i]);
 
+    jarp->Mvals = (PJVAL*)MakeOff(Base, jarp->Mvals);
     jarp->First = (PJVAL)MoffJValue(jarp->First);
     jarp->Last = (PJVAL)MakeOff(Base, jarp->Last);
   } // endif First
@@ -1819,11 +1849,13 @@ size_t SWAP::MoffPair(PJPR jpp) {
 /***********************************************************************/
 size_t SWAP::MoffJValue(PJVAL jvp) {
   if (!jvp->Del) {
-    if (jvp->Jsp)
+    if (jvp->DataType == TYPE_JSON)
       jvp->Jsp = (PJSON)MoffJson(jvp->Jsp);
+    else if (jvp->DataType == TYPE_STRG)
+      jvp->Strp = (PSZ)MakeOff(Base, (jvp->Strp));
 
-    if (jvp->Val)
-      jvp->Val = (PVL)MoffVal(jvp->Val);
+//  if (jvp->Val)
+//    jvp->Val = (PVL)MoffVal(jvp->Val);
 
   } // endif Del
 
@@ -1833,6 +1865,7 @@ size_t SWAP::MoffJValue(PJVAL jvp) {
   return MakeOff(Base, jvp);
 } // end of MoffJValue
 
+#if 0
 /***********************************************************************/
 /* Replace string pointers by offset.                                  */
 /***********************************************************************/
@@ -1842,6 +1875,7 @@ size_t SWAP::MoffVal(PVL vlp) {
 
   return MakeOff(Base, vlp);
 } // end of MoffVal
+#endif // 0
 
 /***********************************************************************/
 /* Replace all offsets by pointers.                                    */
@@ -1876,6 +1910,8 @@ PJAR SWAP::MptrArray(PJAR ojar) {
   jarp = (PJAR)new((long long)jarp) JARRAY(0);
 
   if (jarp->First) {
+    jarp->Mvals = (PJVAL*)MakePtr(Base, (size_t)jarp->Mvals);
+
     for (int i = 0; i < jarp->Size; i++)
       jarp->Mvals[i] = (PJVAL)MakePtr(Base, (size_t)jarp->Mvals[i]);
 
@@ -1928,11 +1964,13 @@ PJVAL SWAP::MptrJValue(PJVAL ojv) {
   jvp = (PJVAL)new((long long)jvp) JVALUE(0);
 
   if (!jvp->Del) {
-    if (jvp->Jsp)
+    if (jvp->DataType == TYPE_JSON)
       jvp->Jsp = (PJSON)MptrJson(jvp->Jsp);
+    else if (jvp->DataType == TYPE_STRG)
+      jvp->Strp = (PSZ)MakePtr(Base, (size_t)jvp->Strp);
 
-    if (jvp->Val)
-      jvp->Val = (PVL)MptrVal(jvp->Val);
+//  if (jvp->Val)
+//    jvp->Val = (PVL)MptrVal(jvp->Val);
 
   } // endif Del
 
@@ -1942,6 +1980,7 @@ PJVAL SWAP::MptrJValue(PJVAL ojv) {
   return jvp;
 } // end of MptrJValue
 
+#if 0
 /***********************************************************************/
 /* Replace string offsets by a pointer.                                */
 /***********************************************************************/
@@ -1953,3 +1992,4 @@ PVL SWAP::MptrVal(PVL ovl) {
 
   return vlp;
 } // end of MptrValue
+#endif // 0

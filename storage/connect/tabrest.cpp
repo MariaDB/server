@@ -1,8 +1,11 @@
 /************** tabrest C++ Program Source Code File (.CPP) ************/
-/* PROGRAM NAME: tabrest   Version 1.7                                 */
-/*  (C) Copyright to the author Olivier BERTRAND          2018 - 2019  */
+/* PROGRAM NAME: tabrest   Version 1.8                                 */
+/*  (C) Copyright to the author Olivier BERTRAND          2018 - 2020  */
 /*  This program is the REST Web API support for MariaDB.              */
 /*  When compiled without MARIADB defined, it is the EOM module code.  */
+/*  The way Connect handles NOSQL data returned by REST queries is     */
+/*  just by retrieving it as a file and then leave the existing data   */
+/*  type tables (JSON, XML or CSV) process it as usual.                */
 /***********************************************************************/
 
 /***********************************************************************/
@@ -78,7 +81,7 @@ PTABDEF __stdcall GetREST(PGLOBAL g, void *memp)
 #endif   // !MARIADB
 
 /***********************************************************************/
-/*  Xcurl: retrieve the REST answer by executing curl.                 */
+/*  Xcurl: retrieve the REST answer by executing cURL.                 */
 /***********************************************************************/
 int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 {
@@ -112,7 +115,7 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 } // end od Xcurl
 
 /***********************************************************************/
-/*  GetREST: get the external TABDEF from OEM module.                  */
+/*  GetREST: load the Rest lib and get the Rest function.              */
 /***********************************************************************/
 XGETREST GetRestFunction(PGLOBAL g)
 {

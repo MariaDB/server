@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -203,19 +203,6 @@ fts_ast_visit(
 						and ignored processing an
 						operator, currently we only
 						ignore FTS_IGNORE operator */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*****************************************************************//**
-Process (nested) sub-expression, create a new result set to store the
-sub-expression result by processing nodes under current sub-expression
-list. Merge the sub-expression result with that of parent expression list.
-@return DB_SUCCESS if all went well */
-UNIV_INTERN
-dberr_t
-fts_ast_visit_sub_exp(
-/*==================*/
-	fts_ast_node_t*		node,		/*!< in: instance to traverse*/
-	fts_ast_callback	visitor,	/*!< in: callback */
-	void*			arg)		/*!< in: callback arg */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /********************************************************************
 Create a lex instance.*/

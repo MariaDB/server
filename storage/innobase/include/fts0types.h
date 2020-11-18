@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -80,20 +80,6 @@ struct fts_index_cache_t {
 	CHARSET_INFO*	charset;	/*!< charset */
 };
 
-/** For supporting the tracking of updates on multiple FTS indexes we need
-to track which FTS indexes need to be updated. For INSERT and DELETE we
-update all fts indexes. */
-struct fts_update_t {
-	doc_id_t	doc_id;		/*!< The doc id affected */
-
-	ib_vector_t*	fts_indexes;	/*!< The FTS indexes that need to be
-					updated. A NULL value means all
-					indexes need to be updated.  This
-					vector is not allocated on the heap
-					and so must be freed explicitly,
-					when we are done with it */
-};
-
 /** Stop word control infotmation. */
 struct fts_stopword_t {
 	ulint		status;		/*!< Status of the stopword tree */
@@ -144,8 +130,6 @@ struct fts_cache_t {
 	rw_lock_t	init_lock;	/*!< lock used for the cache
 					intialization, it has different
 					SYNC level as above cache lock */
-
-	ib_mutex_t	optimize_lock;	/*!< Lock for OPTIMIZE */
 
 	ib_mutex_t	deleted_lock;	/*!< Lock covering deleted_doc_ids */
 
@@ -319,10 +303,9 @@ fts_ranking_doc_id_cmp(
 	const void*	p2);			/*!< in: id2 */
 
 /******************************************************************//**
-Compare two fts_update_t instances doc_ids. */
+Compare two doc_ids. */
 UNIV_INLINE
-int
-fts_update_doc_id_cmp(
+int fts_doc_id_cmp(
 /*==================*/
 						/*!< out:
 						< 0 if n1 < n2,

@@ -368,6 +368,36 @@ SELECT COLUMN_GET(@aaa, 'price' AS DECIMAL) aaa;
 SELECT COLUMN_GET(@aaa, 'price' AS INT) aaa;
 SELECT COLUMN_GET(@aaa, 'price' AS DOUBLE) aaa;
 
+
+--echo #
+--echo # MDEV-22579 No error when inserting DEFAULT(non_virtual_column) into a virtual column
+--echo #
+
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE OR REPLACE TABLE t1 (
+ a INT NOT NULL DEFAULT 10,
+ b INT AS (a+1) VIRTUAL
+) ENGINE=MyISAM;
+
+# Testing with a column list
+
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+INSERT INTO t1 (b) VALUES (10);
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+INSERT INTO t1 (b) VALUES (DEFAULT(a));
+INSERT INTO t1 (b) VALUES (DEFAULT);
+
+# Testing without a column list
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+INSERT INTO t1 VALUES (10,10);
+--error ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
+INSERT INTO t1 VALUES (10,DEFAULT(a));
+INSERT INTO t1 VALUES (10, DEFAULT);
+
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+
 --echo #
 --echo # End of 10.1 tests
 --echo #
@@ -401,6 +431,7 @@ replace INTO `t1` (`pk`,col_bit) VALUES (99,1000);
 select pk, col_bit+0, vcol_bit+0 from t1;
 replace INTO `t1` (`pk`,col_bit) VALUES (99,10000);
 select pk, col_bit+0, vcol_bit+0 from t1;
+--error ER_DATA_TOO_LONG
 REPLACE LOW_PRIORITY INTO `t1` (`pk`) VALUES (99);
 drop table t1;
 
@@ -421,9 +452,41 @@ CREATE TABLE t1 (
 INSERT INTO t1 (pk,i) VALUES (1,1);
 TRUNCATE TABLE t1;
 INSERT IGNORE INTO t1 (pk,i) VALUES (1,127);
+--error ER_WARN_DATA_OUT_OF_RANGE
 REPLACE INTO t1 (pk,i) VALUES (1,2);
 DROP TABLE t1;
 SET @sql_mode=@old_sql_mode;
+
+--echo #
+--echo # MDEV-22579 No error when inserting DEFAULT(non_virtual_column) into a virtual column
+--echo # 10.2+ specific part
+--echo #
+
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE OR REPLACE TABLE t1 (
+ a INT NOT NULL DEFAULT 10,
+ b INT AS (a+1) VIRTUAL
+) ENGINE=MyISAM;
+
+# Testing with column list
+
+EXECUTE IMMEDIATE 'INSERT INTO t1 (b) VALUES(?)' USING DEFAULT;
+EXECUTE IMMEDIATE 'INSERT INTO t1 (b) VALUES(?)' USING IGNORE;
+INSERT INTO t1 (b) VALUES (DEFAULT);
+INSERT INTO t1 (b) VALUES (IGNORE);
+SELECT * FROM t1;
+DELETE FROM t1;
+
+# Testing without column list
+
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES(10,?)' USING DEFAULT;
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES(11,?)' USING IGNORE;
+INSERT INTO t1 VALUES (12,DEFAULT);
+INSERT INTO t1 VALUES (13,IGNORE);
+SELECT * FROM t1;
+
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
 
 --echo #
 --echo # End of 10.2 tests

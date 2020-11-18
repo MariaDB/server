@@ -18,25 +18,24 @@ if(WIN32)
   # include(${ROCKSDB_SOURCE_DIR}/thirdparty.inc)
 else()
   option(WITH_ROCKSDB_JEMALLOC "build RocksDB with JeMalloc" OFF)
-  if(WITH_ROCKSDB_JEMALLOC)
-    find_package(JeMalloc REQUIRED)
-    add_definitions(-DROCKSDB_JEMALLOC)
-    ADD_DEFINITIONS(-DROCKSDB_MALLOC_USABLE_SIZE)
-    include_directories(${JEMALLOC_INCLUDE_DIR})
-  endif()
   if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
     # FreeBSD has jemaloc as default malloc
     add_definitions(-DROCKSDB_JEMALLOC)
     ADD_DEFINITIONS(-DROCKSDB_MALLOC_USABLE_SIZE)
     set(WITH_JEMALLOC ON)
+  elseif(WITH_ROCKSDB_JEMALLOC)
+    find_package(JeMalloc REQUIRED)
+    add_definitions(-DROCKSDB_JEMALLOC)
+    ADD_DEFINITIONS(-DROCKSDB_MALLOC_USABLE_SIZE)
+    include_directories(${JEMALLOC_INCLUDE_DIR})
   endif()
 endif()
 
 
 # Optional compression libraries.
 
-foreach(compression_lib LZ4 BZIP2 ZSTD snappy)
-  FIND_PACKAGE(${compression_lib} QUIET)
+foreach(compression_lib LZ4 BZip2 ZSTD snappy)
+  FIND_PACKAGE(${compression_lib})
 
   SET(WITH_ROCKSDB_${compression_lib} AUTO CACHE STRING
   "Build RocksDB  with ${compression_lib} compression. Possible values are 'ON', 'OFF', 'AUTO' and default is 'AUTO'")
@@ -54,16 +53,16 @@ if(LZ4_FOUND AND (NOT WITH_ROCKSDB_LZ4 STREQUAL "OFF"))
   list(APPEND THIRDPARTY_LIBS ${LZ4_LIBRARY})
 endif()
 
-if(BZIP2_FOUND AND (NOT WITH_ROCKSDB_BZIP2 STREQUAL "OFF"))
+if(BZIP2_FOUND AND (NOT WITH_ROCKSDB_BZip2 STREQUAL "OFF"))
   add_definitions(-DBZIP2)
   include_directories(${BZIP2_INCLUDE_DIR})
   list(APPEND THIRDPARTY_LIBS ${BZIP2_LIBRARIES})
 endif()
 
-if(SNAPPY_FOUND  AND (NOT WITH_ROCKSDB_SNAPPY STREQUAL "OFF"))
+if(SNAPPY_FOUND  AND (NOT WITH_ROCKSDB_snappy STREQUAL "OFF"))
   add_definitions(-DSNAPPY)
-  include_directories(${SNAPPY_INCLUDE_DIR})
-  list(APPEND THIRDPARTY_LIBS ${SNAPPY_LIBRARIES})
+  include_directories(${snappy_INCLUDE_DIR})
+  list(APPEND THIRDPARTY_LIBS ${snappy_LIBRARIES})
 endif()
 
 include(CheckFunctionExists)
@@ -132,6 +131,10 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
   ADD_DEFINITIONS(-DHAVE_POWER8 -DHAS_ALTIVEC)
 endif(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
 
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "riscv64")
+ set(SYSTEM_LIBS ${SYSTEM_LIBS} -latomic)
+endif()
+
 option(WITH_FALLOCATE "build with fallocate" ON)
 
 if(WITH_FALLOCATE AND UNIX)
@@ -189,31 +192,32 @@ set(ROCKSDB_SOURCES
         cache/clock_cache.cc
         cache/lru_cache.cc
         cache/sharded_cache.cc
+        db/arena_wrapped_db_iter.cc
         db/builder.cc
         db/c.cc
         db/column_family.cc
         db/compacted_db_impl.cc
         db/compaction/compaction.cc
         db/compaction/compaction_iterator.cc
-        db/compaction/compaction_job.cc
         db/compaction/compaction_picker.cc
+        db/compaction/compaction_job.cc
         db/compaction/compaction_picker_fifo.cc
         db/compaction/compaction_picker_level.cc
         db/compaction/compaction_picker_universal.cc
         db/convenience.cc
         db/db_filesnapshot.cc
-        db/dbformat.cc
         db/db_impl/db_impl.cc
+        db/db_impl/db_impl_write.cc
         db/db_impl/db_impl_compaction_flush.cc
-        db/db_impl/db_impl_debug.cc
-        db/db_impl/db_impl_experimental.cc
         db/db_impl/db_impl_files.cc
         db/db_impl/db_impl_open.cc
+        db/db_impl/db_impl_debug.cc
+        db/db_impl/db_impl_experimental.cc
         db/db_impl/db_impl_readonly.cc
         db/db_impl/db_impl_secondary.cc
-        db/db_impl/db_impl_write.cc
         db/db_info_dumper.cc
         db/db_iter.cc
+        db/dbformat.cc
         db/error_handler.cc
         db/event_helpers.cc
         db/experimental.cc
@@ -222,9 +226,10 @@ set(ROCKSDB_SOURCES
         db/flush_job.cc
         db/flush_scheduler.cc
         db/forward_iterator.cc
+        db/import_column_family_job.cc
         db/internal_stats.cc
-        db/log_reader.cc
         db/logs_with_prep_tracker.cc
+        db/log_reader.cc
         db/log_writer.cc
         db/malloc_stats.cc
         db/memtable.cc
@@ -238,22 +243,31 @@ set(ROCKSDB_SOURCES
         db/table_cache.cc
         db/table_properties_collector.cc
         db/transaction_log_impl.cc
+        db/trim_history_scheduler.cc
         db/version_builder.cc
         db/version_edit.cc
         db/version_set.cc
         db/wal_manager.cc
-        db/write_batch_base.cc
         db/write_batch.cc
+        db/write_batch_base.cc
         db/write_controller.cc
         db/write_thread.cc
         env/env.cc
         env/env_chroot.cc
+        env/env_encryption.cc
         env/env_hdfs.cc
+        env/file_system.cc
         env/mock_env.cc
         file/delete_scheduler.cc
-        file/filename.cc
+        file/file_prefetch_buffer.cc
         file/file_util.cc
+        file/filename.cc
+        file/random_access_file_reader.cc
+        file/read_write_util.cc
+        file/readahead_raf.cc
+        file/sequence_file_reader.cc
         file/sst_file_manager_impl.cc
+        file/writable_file_writer.cc
         logging/auto_roll_logger.cc
         logging/event_logger.cc
         logging/log_buffer.cc
@@ -268,8 +282,8 @@ set(ROCKSDB_SOURCES
         memtable/write_buffer_manager.cc
         monitoring/histogram.cc
         monitoring/histogram_windowing.cc
-        monitoring/instrumented_mutex.cc
         monitoring/in_memory_stats_history.cc
+        monitoring/instrumented_mutex.cc
         monitoring/iostats_context.cc
         monitoring/perf_context.cc
         monitoring/perf_level.cc
@@ -277,7 +291,6 @@ set(ROCKSDB_SOURCES
         monitoring/statistics.cc
         monitoring/thread_status_impl.cc
         monitoring/thread_status_updater.cc
-        monitoring/thread_status_updater_debug.cc
         monitoring/thread_status_util.cc
         monitoring/thread_status_util_debug.cc
         options/cf_options.cc
@@ -288,21 +301,24 @@ set(ROCKSDB_SOURCES
         options/options_sanity_check.cc
         port/stack_trace.cc
         table/adaptive/adaptive_table_factory.cc
+        table/block_based/block.cc
         table/block_based/block_based_filter_block.cc
         table/block_based/block_based_table_builder.cc
         table/block_based/block_based_table_factory.cc
         table/block_based/block_based_table_reader.cc
         table/block_based/block_builder.cc
-        table/block_based/block.cc
         table/block_based/block_prefix_index.cc
-        table/block_based/data_block_footer.cc
         table/block_based/data_block_hash_index.cc
+        table/block_based/data_block_footer.cc
+        table/block_based/filter_block_reader_common.cc
+        table/block_based/filter_policy.cc
         table/block_based/flush_block_policy.cc
         table/block_based/full_filter_block.cc
         table/block_based/index_builder.cc
+        table/block_based/parsed_full_filter_block.cc
         table/block_based/partitioned_filter_block.cc
+        table/block_based/uncompression_dict_reader.cc
         table/block_fetcher.cc
-        table/bloom_block.cc
         table/cuckoo/cuckoo_table_builder.cc
         table/cuckoo/cuckoo_table_factory.cc
         table/cuckoo/cuckoo_table_reader.cc
@@ -312,6 +328,7 @@ set(ROCKSDB_SOURCES
         table/merging_iterator.cc
         table/meta_blocks.cc
         table/persistent_cache_helper.cc
+        table/plain/plain_table_bloom.cc
         table/plain/plain_table_builder.cc
         table/plain/plain_table_factory.cc
         table/plain/plain_table_index.cc
@@ -323,23 +340,34 @@ set(ROCKSDB_SOURCES
         table/two_level_iterator.cc
         test_util/sync_point.cc
         test_util/sync_point_impl.cc
+        test_util/testutil.cc
+        test_util/transaction_test_util.cc
+        tools/block_cache_analyzer/block_cache_trace_analyzer.cc
+        tools/dump/db_dump_tool.cc
         tools/ldb_cmd.cc
         tools/ldb_tool.cc
         tools/sst_dump_tool.cc
-        trace_replay/block_cache_tracer.cc
+        tools/trace_analyzer_tool.cc
         trace_replay/trace_replay.cc
-        util/bloom.cc
+        trace_replay/block_cache_tracer.cc
         util/coding.cc
         util/compaction_job_stats_impl.cc
         util/comparator.cc
         util/compression_context_cache.cc
         util/concurrent_task_limiter_impl.cc
-        util/crc32c_arm64.cc
         util/crc32c.cc
         util/dynamic_bloom.cc
-        util/file_reader_writer.cc
-        util/filter_policy.cc
         util/hash.cc
+        util/murmurhash.cc
+        util/random.cc
+        util/rate_limiter.cc
+        util/slice.cc
+        util/file_checksum_helper.cc
+        util/status.cc
+        util/string_util.cc
+        util/thread_local.cc
+        util/threadpool_imp.cc
+        util/xxhash.cc
         utilities/backupable/backupable_db.cc
         utilities/blob_db/blob_compaction_filter.cc
         utilities/blob_db/blob_db.cc
@@ -347,12 +375,11 @@ set(ROCKSDB_SOURCES
         utilities/blob_db/blob_db_impl_filesnapshot.cc
         utilities/blob_db/blob_dump_tool.cc
         utilities/blob_db/blob_file.cc
-        utilities/blob_db/blob_log_format.cc
         utilities/blob_db/blob_log_reader.cc
         utilities/blob_db/blob_log_writer.cc
+        utilities/blob_db/blob_log_format.cc
         utilities/checkpoint/checkpoint_impl.cc
         utilities/compaction_filters/remove_emptyvalue_compactionfilter.cc
-        utilities/convenience/info_log_finder.cc
         utilities/debug.cc
         utilities/env_mirror.cc
         utilities/env_timed.cc
@@ -361,9 +388,11 @@ set(ROCKSDB_SOURCES
         utilities/merge_operators/bytesxor.cc
         utilities/merge_operators/max.cc
         utilities/merge_operators/put.cc
-        utilities/merge_operators/string_append/stringappend2.cc
+        utilities/merge_operators/sortlist.cc
         utilities/merge_operators/string_append/stringappend.cc
+        utilities/merge_operators/string_append/stringappend2.cc
         utilities/merge_operators/uint64add.cc
+        utilities/object_registry.cc
         utilities/option_change_migration/option_change_migration.cc
         utilities/options/options_util.cc
         utilities/persistent_cache/block_cache_tier.cc
@@ -371,11 +400,12 @@ set(ROCKSDB_SOURCES
         utilities/persistent_cache/block_cache_tier_metadata.cc
         utilities/persistent_cache/persistent_cache_tier.cc
         utilities/persistent_cache/volatile_tier_impl.cc
+        utilities/simulator_cache/cache_simulator.cc
         utilities/simulator_cache/sim_cache.cc
         utilities/table_properties_collectors/compact_on_deletion_collector.cc
         utilities/trace/file_trace_reader_writer.cc
-        utilities/transactions/optimistic_transaction.cc
         utilities/transactions/optimistic_transaction_db_impl.cc
+        utilities/transactions/optimistic_transaction.cc
         utilities/transactions/pessimistic_transaction.cc
         utilities/transactions/pessimistic_transaction_db.cc
         utilities/transactions/snapshot_checker.cc
@@ -390,15 +420,6 @@ set(ROCKSDB_SOURCES
         utilities/ttl/db_ttl_impl.cc
         utilities/write_batch_with_index/write_batch_with_index.cc
         utilities/write_batch_with_index/write_batch_with_index_internal.cc
-        util/murmurhash.cc
-        util/random.cc
-        util/rate_limiter.cc
-        util/slice.cc
-        util/status.cc
-        util/string_util.cc
-        util/thread_local.cc
-        util/threadpool_imp.cc
-        util/xxhash.cc
 )
 
 
@@ -415,7 +436,8 @@ else()
   list(APPEND ROCKSDB_SOURCES
     port/port_posix.cc
     env/env_posix.cc
-    env/io_posix.cc)
+    env/io_posix.cc
+    env/fs_posix.cc)
   # ppc64 or ppc64le
   if(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
     enable_language(ASM)
@@ -423,6 +445,17 @@ else()
       util/crc32c_ppc.c
       util/crc32c_ppc_asm.S)
   endif(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
+  # aarch
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
+    INCLUDE(CheckCXXCompilerFlag)
+    CHECK_CXX_COMPILER_FLAG("-march=armv8-a+crc+crypto" HAS_ARMV8_CRC)
+    if(HAS_ARMV8_CRC)
+      message(STATUS " HAS_ARMV8_CRC yes")
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv8-a+crc+crypto -Wno-unused-function")
+      list(APPEND ROCKSDB_SOURCES
+        util/crc32c_arm64.cc)
+    endif(HAS_ARMV8_CRC)
+  endif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
 endif()
 SET(SOURCES)
 FOREACH(s ${ROCKSDB_SOURCES})
@@ -471,6 +504,6 @@ list(APPEND SOURCES ${CMAKE_CURRENT_BINARY_DIR}/build_version.cc)
 ADD_CONVENIENCE_LIBRARY(rocksdblib ${SOURCES})
 target_link_libraries(rocksdblib ${THIRDPARTY_LIBS} ${SYSTEM_LIBS})
 IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  set_target_properties(rocksdblib PROPERTIES COMPILE_FLAGS "-fPIC -fno-builtin-memcmp -frtti")
+  set_target_properties(rocksdblib PROPERTIES COMPILE_FLAGS "-fPIC -fno-builtin-memcmp -frtti -Wno-error")
 endif()
 

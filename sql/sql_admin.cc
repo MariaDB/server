@@ -765,35 +765,20 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       {
         compl_result_code= result_code= HA_ADMIN_INVALID;
       }
+
+      /*
+        The check for Alter_info::ALTER_ADMIN_PARTITION implements this logic:
+        do not collect EITS STATS for this syntax:
+          ALTER TABLE ... ANALYZE PARTITION p
+        EITS statistics is global (not per-partition). Collecting global stats
+        is much more expensive processing just one partition, so the most
+        appropriate action is to just not collect EITS stats for this command.
+      */
       collect_eis=
         (table->table->s->table_category == TABLE_CATEGORY_USER &&
+        !(lex->alter_info.flags & Alter_info::ALTER_ADMIN_PARTITION) &&
          (get_use_stat_tables_mode(thd) > NEVER ||
           lex->with_persistent_for_clause));
-
-
-      if (!lex->index_list)
-      {
-        tab->keys_in_use_for_query.init(tab->s->keys);
-      }
-      else
-      {
-        int pos;
-        LEX_STRING *index_name;
-        List_iterator_fast<LEX_STRING> it(*lex->index_list);
-   
-        tab->keys_in_use_for_query.clear_all();  
-        while ((index_name= it++))
-	{
-          if (tab->s->keynames.type_names == 0 ||
-              (pos= find_type(&tab->s->keynames, index_name->str,
-                              index_name->length, 1)) <= 0)
-          {
-            compl_result_code= result_code= HA_ADMIN_INVALID;
-            break;
-          }
-          tab->keys_in_use_for_query.set_bit(--pos);
-        }  
-      }
     }
 
     if (result_code == HA_ADMIN_OK)
@@ -877,6 +862,27 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                                   column_name->str);
           }
           tab->file->column_bitmaps_signal();
+        }
+        if (!lex->index_list)
+          tab->keys_in_use_for_query.init(tab->s->keys);
+        else
+        {
+          int pos;
+          LEX_STRING *index_name;
+          List_iterator_fast<LEX_STRING> it(*lex->index_list);
+
+          tab->keys_in_use_for_query.clear_all();
+          while ((index_name= it++))
+          {
+            if (tab->s->keynames.type_names == 0 ||
+                (pos= find_type(&tab->s->keynames, index_name->str,
+                                index_name->length, 1)) <= 0)
+            {
+              compl_result_code= result_code= HA_ADMIN_INVALID;
+              break;
+            }
+            tab->keys_in_use_for_query.set_bit(--pos);
+          }
         }
         if (!(compl_result_code=
               alloc_statistics_for_table(thd, table->table)) &&
@@ -1091,7 +1097,7 @@ send_result_message:
         }
         /* Make sure this table instance is not reused after the operation. */
         if (table->table)
-          table->table->m_needs_reopen= true;
+          table->table->mark_table_for_reopen();
       }
       result_code= result_code ? HA_ADMIN_FAILED : HA_ADMIN_OK;
       table->next_local= save_next_local;
@@ -1216,7 +1222,7 @@ err:
     trans_rollback(thd);
   if (table && table->table)
   {
-    table->table->m_needs_reopen= true;
+    table->table->mark_table_for_reopen();
     table->table= 0;
   }
   close_thread_tables(thd);			// Shouldn't be needed

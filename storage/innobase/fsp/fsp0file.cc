@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -331,7 +331,7 @@ Datafile::read_first_page(bool read_only_mode)
 			ib::error()
 				<< "Cannot read first page of '"
 				<< m_filepath << "' "
-				<< ut_strerr(err);
+				<< err;
 			break;
 		}
 	}
@@ -768,10 +768,10 @@ Datafile::restore_from_doublewrite()
 	}
 
 	/* Find if double write buffer contains page_no of given space id. */
-	const byte*	page = recv_sys->dblwr.find_page(m_space_id, 0);
 	const page_id_t	page_id(m_space_id, 0);
+	const byte*	page = recv_sys->dblwr.find_page(page_id);
 
-	if (page == NULL) {
+	if (!page) {
 		/* If the first page of the given user tablespace is not there
 		in the doublewrite buffer, then the recovery is going to fail
 		now. Hence this is treated as an error. */
@@ -788,15 +788,10 @@ Datafile::restore_from_doublewrite()
 		FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
 
 	if (!fsp_flags_is_valid(flags, m_space_id)) {
-		ulint cflags = fsp_flags_convert_from_101(flags);
-		if (cflags == ULINT_UNDEFINED) {
-			ib::warn()
-				<< "Ignoring a doublewrite copy of page "
-				<< page_id
-				<< " due to invalid flags " << ib::hex(flags);
-			return(true);
-		}
-		flags = cflags;
+		flags = fsp_flags_convert_from_101(flags);
+		/* recv_dblwr_t::validate_page() inside find_page()
+		checked this already. */
+		ut_ad(flags != ULINT_UNDEFINED);
 		/* The flags on the page should be converted later. */
 	}
 

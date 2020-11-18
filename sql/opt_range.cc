@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2015, MariaDB
+   Copyright (c) 2008, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -357,7 +357,7 @@ QUICK_RANGE_SELECT *get_quick_select(PARAM *param,uint index,
                                      uint mrr_buf_size, MEM_ROOT *alloc);
 static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                        bool index_read_must_be_used,
-                                       bool update_tbl_stats,
+                                       bool for_range_access,
                                        double read_time);
 static
 TRP_INDEX_INTERSECT *get_best_index_intersect(PARAM *param, SEL_TREE *tree,
@@ -1852,6 +1852,9 @@ SEL_ARG::SEL_ARG(SEL_ARG &arg) :Sql_alloc()
   next_key_part=arg.next_key_part;
   max_part_no= arg.max_part_no;
   use_count=1; elements=1;
+  next= 0;
+  if (next_key_part)
+    ++next_key_part->use_count;
 }
 
 
@@ -4705,6 +4708,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
                                              sizeof(TRP_RANGE*)*
                                              n_child_scans)))
     DBUG_RETURN(NULL);
+
   /*
     Collect best 'range' scan for each of disjuncts, and, while doing so,
     analyze possibility of ROR scans. Also calculate some values needed by
@@ -4716,7 +4720,8 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   {
     DBUG_EXECUTE("info", print_sel_tree(param, *ptree, &(*ptree)->keys_map,
                                         "tree in SEL_IMERGE"););
-    if (!(*cur_child= get_key_scans_params(param, *ptree, TRUE, FALSE, read_time)))
+    if (!(*cur_child= get_key_scans_params(param, *ptree, TRUE, FALSE,
+                                           read_time)))
     {
       /*
         One of index scans in this index_merge is more expensive than entire
@@ -5036,9 +5041,12 @@ TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
          a random order
       2. the functions that estimate the cost of a range scan and an
          index merge retrievals are not well calibrated
+
+      As the best range access has been already chosen it does not
+      make sense to evaluate the one obtained from a degenerated
+      index merge.
     */
-    trp= get_key_scans_params(param, *imerge->trees, FALSE, TRUE,
-                              read_time);
+    trp= 0;
   }
 
   DBUG_RETURN(trp); 
@@ -6765,6 +6773,8 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
       tree         make range select for this SEL_TREE
       index_read_must_be_used if TRUE, assume 'index only' option will be set
                              (except for clustered PK indexes)
+      for_range_access     if TRUE the function is called to get the best range
+                           plan for range access, not for index merge access
       read_time    don't create read plans with cost > read_time.
   RETURN
     Best range read plan
@@ -6773,7 +6783,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
 
 static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                                        bool index_read_must_be_used, 
-                                       bool update_tbl_stats,
+                                       bool for_range_access,
                                        double read_time)
 {
   uint idx, UNINIT_VAR(best_idx);
@@ -6819,8 +6829,15 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
                             (bool) param->table->covering_keys.is_set(keynr);
 
       found_records= check_quick_select(param, idx, read_index_only, key,
-                                        update_tbl_stats, &mrr_flags,
+                                        for_range_access, &mrr_flags,
                                         &buf_size, &cost);
+
+      if (!for_range_access && !param->is_ror_scan &&
+          !optimizer_flag(param->thd,OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION))
+      {
+        /* The scan is not a ROR-scan, just skip it */
+        continue;
+      }
 
       if (found_records != HA_POS_ERROR && tree->index_scans &&
           (index_scan= (INDEX_SCAN_INFO *)alloc_root(param->mem_root,
@@ -7541,13 +7558,15 @@ SEL_TREE *Item_bool_func::get_full_func_mm_tree(RANGE_OPT_PARAM *param,
   table_map param_comp= ~(param->prev_tables | param->read_tables |
 		          param->current_table);
 #ifdef HAVE_SPATIAL
-  Field::geometry_type sav_geom_type;
-  const bool geometry= field_item->field->type() == MYSQL_TYPE_GEOMETRY;
-  if (geometry)
+  Field::geometry_type sav_geom_type= Field::GEOM_GEOMETRY, *geom_type=
+    field_item->field->type() == MYSQL_TYPE_GEOMETRY
+    ? &(static_cast<Field_geom*>(field_item->field))->geom_type
+    : NULL;
+  if (geom_type)
   {
-    sav_geom_type= ((Field_geom*) field_item->field)->geom_type;
+    sav_geom_type= *geom_type;
     /* We have to be able to store all sorts of spatial features here */
-    ((Field_geom*) field_item->field)->geom_type= Field::GEOM_GEOMETRY;
+    *geom_type= Field::GEOM_GEOMETRY;
   }
 #endif /*HAVE_SPATIAL*/
 
@@ -7578,9 +7597,9 @@ SEL_TREE *Item_bool_func::get_full_func_mm_tree(RANGE_OPT_PARAM *param,
   }
 
 #ifdef HAVE_SPATIAL
-  if (geometry)
+  if (geom_type)
   {
-    ((Field_geom*) field_item->field)->geom_type= sav_geom_type;
+    *geom_type= sav_geom_type;
   }
 #endif /*HAVE_SPATIAL*/
   DBUG_RETURN(ftree);
@@ -9069,7 +9088,7 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
       if (key2->next_key_part)
       {
 	key1->use_count--;			// Incremented in and_all_keys
-	return and_all_keys(param, key1, key2, clone_flag);
+        return and_all_keys(param, key1, key2->next_key_part, clone_flag);
       }
       key2->use_count--;			// Key2 doesn't have a tree
     }
@@ -9581,10 +9600,11 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
 
       if (!tmp->next_key_part)
       {
-        if (key2->use_count)
+	SEL_ARG *key2_next= key2->next;
+	if (key2_shared)
 	{
 	  SEL_ARG *key2_cpy= new SEL_ARG(*key2);
-          if (key2_cpy)
+          if (!key2_cpy)
             return 0;
           key2= key2_cpy;
 	}
@@ -9605,7 +9625,7 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
             Move on to next range in key2
           */
           key2->increment_use_count(-1); // Free not used tree
-          key2=key2->next;
+          key2=key2_next;
           continue;
         }
         else

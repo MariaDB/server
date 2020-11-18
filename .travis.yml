@@ -8,10 +8,8 @@ git:
   depth: 2
 
 language: cpp
-os:
-  - linux
-  - osx
-osx_image: xcode9.1
+os: linux
+
 compiler:
   - gcc
   - clang
@@ -19,15 +17,9 @@ compiler:
 cache:
   apt: true
   ccache: true
-  directories:
-    - /usr/local/Cellar
 
 env:
   matrix:
-#    - GCC_VERSION=4.8 TYPE=Debug          MYSQL_TEST_SUITES=rpl
-#    - GCC_VERSION=5   TYPE=Debug          MYSQL_TEST_SUITES=main,archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
-#    - GCC_VERSION=6   TYPE=Debug          MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb
-#    - GCC_VERSION=6   TYPE=Debug          MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
     - GCC_VERSION=4.8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
     - GCC_VERSION=5   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main,archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
     - GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb
@@ -35,8 +27,8 @@ env:
 
 matrix:
   exclude:
-    - os: osx
-      compiler: gcc
+    - compiler: clang
+      env: GCC_VERSION=5   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main,archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
   include:
     - os: linux
       compiler: gcc
@@ -48,6 +40,7 @@ matrix:
             - cmake
             - debhelper
             - dh-apparmor
+            - dh-exec
             - dpatch
             - gdb
             - libaio-dev
@@ -86,51 +79,6 @@ matrix:
         - export MTR_MEM=/tmp
         - env DEB_BUILD_OPTIONS="parallel=6" debian/autobake-deb.sh;
         - ccache --show-stats
-  # Until OSX becomes a bit more stable: MDEV-12435
-  allow_failures:
-    - os: osx
-      compiler: clang
-      env: GCC_VERSION=4.8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
-    - os: osx
-      compiler: clang
-      env: GCC_VERSION=5   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main,archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
-    - os: osx
-      compiler: clang
-      env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb
-    - os: osx
-      compiler: clang
-      env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,percona,perfschema,plugins,multi_source,roles
-
-# Matrix include for coverity
-#    - env:
-#        - GCC_VERSION=6
-#      addon:
-#      coverity_scan:
-#        # ref: https://scan.coverity.com/travis_ci
-#        # GitHub project metadata
-#        project:
-#          - name: MariaDB/server
-#          - description: MariaDB Server
-#
-#        # Where email notification of build analysis results will be sent
-#        notification_email: security@mariadb.org
-#
-#        # Commands to prepare for build_command
-#        build_command_prepend:
-#          - source .travis.compiler.sh
-#          - ${MYSQL_BUILD_CC} --version ; ${MYSQL_BUILD_CXX} --version
-#          - cmake . 
-#                   -DCMAKE_BUILD_TYPE=Debug
-#                   -DWITH_SSL=system -DWITH_ZLIB=system
-#                   -DWITHOUT_TOKUDB_STORAGE_ENGINE=ON -DWITHOUT_MROONGA_STORAGE_ENGINE=ON
-#
-#        # The command that will be added as an argument to "cov-build" to compile your project for analysis,
-#        build_command: make -j 4
-#
-#        # Pattern to match selecting branches that will run analysis.
-#        # Take care in resource usage, and consider the build frequency allowances per
-#        #   https://scan.coverity.com/faq#frequency - 7 per week is the current limit.
-#        branch_pattern: .*coverity.*
 
 addons:
   apt:
@@ -176,15 +124,6 @@ addons:
       - liblzma-dev
       - libzmq-dev
       - uuid-dev
-
-# libsystemd-daemon-dev # https://github.com/travis-ci/apt-package-whitelist/issues/3882
-
-before_install:
-  - if [[ "${TRAVIS_OS_NAME}" == 'osx' ]]; then
-      brew update;
-      brew install gnutls lz4 lzo xz snappy ccache jemalloc curl ossp-uuid pcre;
-      brew link ccache;
-    fi
 
 script:
   - ccache --version

@@ -1,0 +1,42 @@
+# ==== Purpose ====
+#
+# Test verifies that reading binary log by using "SHOW BINLOG EVENTS" command
+# from various random positions doesn't lead to crash. It should exit
+# gracefully with appropriate error.
+#
+# ==== References ====
+#
+# MDEV-18046:Assortment of crashes, assertion failures and ASAN errors in mysql_show_binlog_events
+
+--source include/have_log_bin.inc
+--source include/have_innodb.inc
+
+RESET MASTER;
+call mtr.add_suppression("Error in Log_event::read_log_event*");
+call mtr.add_suppression("Replication event checksum verification failed while reading from a log file*");
+
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (c1 CHAR(255), c2 CHAR(255), c3 CHAR(255), c4 CHAR(255), c5 CHAR(255));
+INSERT INTO t1 VALUES (repeat('a', 255), repeat('a', 255),repeat('a', 255),repeat('a', 255),repeat('a', 255));
+INSERT INTO t1 VALUES (repeat('a', 255), repeat('a', 255),repeat('a', 255),repeat('a', 255),repeat('a', 255));
+UPDATE t1 SET c1=repeat('b',255);
+INSERT INTO t1 VALUES (repeat('a', 255), repeat('a', 255),repeat('a', 255),repeat('a', 255),repeat('a', 255));
+--let $max_pos= query_get_value(SHOW MASTER STATUS,Position,1)
+--let $pos= 1
+while ($pos <= $max_pos)
+{
+  --disable_query_log
+  --disable_result_log
+  --error 0,1220
+  eval SHOW BINLOG EVENTS FROM $pos LIMIT 100;
+  --inc $pos
+  --enable_result_log
+  --enable_query_log
+}
+
+# Testing a case where input position is greater than actual binlog file size.
+--replace_result $pos POS $max_pos MAX_POS
+--error 1220
+eval SHOW BINLOG EVENTS FROM $pos;
+
+DROP TABLE t1;

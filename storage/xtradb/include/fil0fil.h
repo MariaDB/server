@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -300,6 +300,8 @@ struct fil_space_t {
 				/*!< recovered tablespace size in pages;
 				0 if no size change was read from the redo log,
 				or if the size change was implemented */
+  /** the committed size of the tablespace in pages */
+  ulint committed_size;
 	ulint		flags;	/*!< FSP_SPACE_FLAGS and FSP_FLAGS_MEM_ flags;
 				see fsp0fsp.h,
 				fsp_flags_is_valid(),
@@ -364,6 +366,15 @@ struct fil_space_t {
 	{
 		return stop_new_ops;
 	}
+
+  /** Clamp a page number for batched I/O, such as read-ahead.
+  @param offset   page number limit
+  @return offset clamped to the tablespace size */
+  ulint max_page_number_for_io(ulint offset) const
+  {
+    const ulint limit= committed_size;
+    return limit > offset ? offset : limit;
+  }
 };
 
 /** Value of fil_space_t::magic_n */
@@ -574,16 +585,6 @@ ulint
 fil_space_get_zip_size(
 /*===================*/
 	ulint	id);	/*!< in: space id */
-/*******************************************************************//**
-Checks if the pair space, page_no refers to an existing page in a tablespace
-file space. The tablespace must be cached in the memory cache.
-@return	TRUE if the address is meaningful */
-UNIV_INTERN
-ibool
-fil_check_adress_in_tablespace(
-/*===========================*/
-	ulint	id,	/*!< in: space id */
-	ulint	page_no);/*!< in: page number */
 /****************************************************************//**
 Initializes the tablespace memory cache. */
 UNIV_INTERN
@@ -703,34 +704,6 @@ fil_space_acquire_for_io(ulint id);
 UNIV_INTERN
 void
 fil_space_release_for_io(fil_space_t* space);
-
-/** Return the next fil_space_t.
-Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_release() are invoked here which
-blocks a concurrent operation from dropping the tablespace.
-@param[in,out]	prev_space	Pointer to the previous fil_space_t.
-If NULL, use the first fil_space_t on fil_system->space_list.
-@return pointer to the next fil_space_t.
-@retval NULL if this was the last  */
-UNIV_INTERN
-fil_space_t*
-fil_space_next(
-	fil_space_t*	prev_space)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Return the next fil_space_t from key rotation list.
-Once started, the caller must keep calling this until it returns NULL.
-fil_space_acquire() and fil_space_release() are invoked here which
-blocks a concurrent operation from dropping the tablespace.
-@param[in,out]	prev_space	Pointer to the previous fil_space_t.
-If NULL, use the first fil_space_t on fil_system->space_list.
-@return pointer to the next fil_space_t.
-@retval NULL if this was the last*/
-UNIV_INTERN
-fil_space_t*
-fil_space_keyrotate_next(
-	fil_space_t*	prev_space)
-	MY_ATTRIBUTE((warn_unused_result));
 
 /** Wrapper with reference-counting for a fil_space_t. */
 class FilSpace

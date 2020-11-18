@@ -1,28 +1,28 @@
 SET @start_global_value = @@global.innodb_spin_wait_delay;
 SELECT @start_global_value;
 @start_global_value
-6
+4
 Valid values are zero or above
 select @@global.innodb_spin_wait_delay >=0;
 @@global.innodb_spin_wait_delay >=0
 1
 select @@global.innodb_spin_wait_delay;
 @@global.innodb_spin_wait_delay
-6
+4
 select @@session.innodb_spin_wait_delay;
 ERROR HY000: Variable 'innodb_spin_wait_delay' is a GLOBAL variable
 show global variables like 'innodb_spin_wait_delay';
 Variable_name	Value
-innodb_spin_wait_delay	6
+innodb_spin_wait_delay	4
 show session variables like 'innodb_spin_wait_delay';
 Variable_name	Value
-innodb_spin_wait_delay	6
+innodb_spin_wait_delay	4
 select * from information_schema.global_variables where variable_name='innodb_spin_wait_delay';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_SPIN_WAIT_DELAY	6
+INNODB_SPIN_WAIT_DELAY	4
 select * from information_schema.session_variables where variable_name='innodb_spin_wait_delay';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_SPIN_WAIT_DELAY	6
+INNODB_SPIN_WAIT_DELAY	4
 set global innodb_spin_wait_delay=10;
 select @@global.innodb_spin_wait_delay;
 @@global.innodb_spin_wait_delay
@@ -38,7 +38,7 @@ ERROR HY000: Variable 'innodb_spin_wait_delay' is a GLOBAL variable and should b
 set global innodb_spin_wait_delay=DEFAULT;
 select @@global.innodb_spin_wait_delay;
 @@global.innodb_spin_wait_delay
-6
+4
 set global innodb_spin_wait_delay=0;
 select @@global.innodb_spin_wait_delay;
 @@global.innodb_spin_wait_delay
@@ -111,4 +111,4 @@ INNODB_SPIN_WAIT_DELAY	0
 SET @@global.innodb_spin_wait_delay = @start_global_value;
 SELECT @@global.innodb_spin_wait_delay;
 @@global.innodb_spin_wait_delay
-6
+4

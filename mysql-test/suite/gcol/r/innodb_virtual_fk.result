@@ -740,3 +740,53 @@ t1	CREATE TABLE `t1` (
   KEY `v4` (`v4`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE t1;
+#
+# MDEV-20396 Server crashes after DELETE with SEL NULL Foreign key and a
+# virtual column in index
+#
+CREATE TABLE parent
+(
+ID int unsigned NOT NULL,
+PRIMARY KEY (ID)
+);
+CREATE TABLE child
+(
+ID int unsigned NOT NULL,
+ParentID int unsigned NULL,
+Value int unsigned NOT NULL DEFAULT 0,
+Flag int unsigned AS (Value) VIRTUAL,
+PRIMARY KEY (ID),
+KEY (ParentID, Flag),
+FOREIGN KEY (ParentID) REFERENCES parent (ID) ON DELETE SET NULL
+ON UPDATE CASCADE
+);
+INSERT INTO parent (ID) VALUES (100);
+INSERT INTO child (ID,ParentID,Value) VALUES (123123,100,1);
+DELETE FROM parent WHERE ID=100;
+select * from child;
+ID	ParentID	Value	Flag
+123123	NULL	1	1
+INSERT INTO parent (ID) VALUES (100);
+UPDATE child SET ParentID=100 WHERE ID=123123;
+DROP TABLE child, parent;
+#
+# MDEV-23387 dict_load_foreign() fails to load the table during alter
+#
+SET FOREIGN_KEY_CHECKS=0;
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+f3 INT AS (f1) VIRTUAL,
+INDEX(f1), INDEX(f2))ENGINE=InnoDB;
+ALTER TABLE t1 ADD CONSTRAINT r FOREIGN KEY(f2) REFERENCES t1(f1), LOCK=NONE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  `f2` int(11) NOT NULL,
+  `f3` int(11) GENERATED ALWAYS AS (`f1`) VIRTUAL,
+  KEY `f1` (`f1`),
+  KEY `f2` (`f2`),
+  CONSTRAINT `r` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ALTER TABLE t1 DROP INDEX f1;
+ALTER TABLE t1 DROP f3;
+DROP TABLE t1;

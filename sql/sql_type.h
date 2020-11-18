@@ -92,6 +92,7 @@ public:
   virtual void sortlength(THD *thd,
                           const Type_std_attributes *item,
                           SORT_FIELD_ATTR *attr) const= 0;
+  virtual bool is_packable() const { return false; }
 };
 
 
@@ -169,6 +170,7 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
+  bool is_packable()const { return true; }
 };
 
 

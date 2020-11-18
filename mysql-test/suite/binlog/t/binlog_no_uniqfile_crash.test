@@ -1,0 +1,83 @@
+# ==== Purpose ====
+#
+# Test verifies that when RESET MASTER TO # command is supplied with binlog
+# extension number greater than 2147483647 the command should report
+# appropriate error and binary log should be disabled. It should not result in
+# a crash.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - Verify case with max binary log extension. Max value is '2147483647'
+#    1 - Confirm that SHOW BINARY LOGS displays a binary log with '2147483647'
+#    2 - Verify that events are successfully written into max extension file.
+#    3 - Try to create a binary log with extension greater than max allowed
+#        value '2147483648', verify ER_NO_UNIQUE_LOGFILE error is reported.
+#    4 - Execute CREATE DATABASE db2 statement and verify server dosn't crash.
+#    5 - Execute SHOW BINARY LOG command and verify that it reports
+#        ER_NO_BINARY_LOGGING error.
+#    6 - Restart the server and verify that databse 'db2' exists and it it not
+#        present in the binary log.
+#
+# ==== References ====
+#
+# MDEV-22451: SIGSEGV in __memmove_avx_unaligned_erms/memcpy from
+#            _my_b_write on CREATE after RESET MASTER
+#
+--source include/have_log_bin.inc
+
+call mtr.add_suppression("Next log extension: 2147483647. Remaining log filename extensions: 0");
+call mtr.add_suppression("Log filename extension number exhausted:.");
+call mtr.add_suppression("Can't generate a unique log-filename");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to generate new file name.");
+call mtr.add_suppression("Could not use master-bin for logging");
+
+
+--echo "Test case verifies creation of binary log with max entension value."
+RESET MASTER TO 2147483647;
+--source include/show_binary_logs.inc
+
+# Check error log for correct messages.
+let $log_error_= `SELECT @@GLOBAL.log_error`;
+if(!$log_error_)
+{
+    # MySQL Server on windows is started with --console and thus
+    # does not know the location of its .err log, use default location
+    let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.1.err;
+}
+
+--let SEARCH_FILE=$log_error_
+--let SEARCH_PATTERN=Next log extension: 2147483647. Remaining log filename extensions: 0.
+--source include/search_pattern_in_file.inc
+
+CREATE DATABASE db1;
+--source include/show_binlog_events.inc
+
+--error ER_NO_UNIQUE_LOGFILE
+RESET MASTER TO 2147483648;
+
+--let SEARCH_FILE=$log_error_
+--let SEARCH_PATTERN=Turning logging off for the whole duration of the MySQL server process
+--source include/search_pattern_in_file.inc
+
+--echo "Following CREATE DATABSE db2 command will not be present in binary log"
+--echo "as binary log got closed due to ER_NO_UNIQUE_LOGFILE error."
+CREATE DATABASE db2;
+
+
+--echo "RESET MASTER command fails to generate a new binary log"
+--echo "log-bin will be disabled and server needs to be restarted to"
+--echo "re-enable the binary log."
+--error ER_NO_BINARY_LOGGING
+SHOW BINARY LOGS;
+
+--source include/restart_mysqld.inc
+
+--source include/show_binary_logs.inc
+SHOW DATABASES LIKE 'db%';
+--source include/show_binlog_events.inc
+
+# Cleanup
+DROP DATABASE db1;
+DROP DATABASE db2;
+--source include/show_binlog_events.inc

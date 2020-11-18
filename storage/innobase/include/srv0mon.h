@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -652,14 +652,14 @@ Use MONITOR_DEC if appropriate mutex protection exists.
 		}							\
 	}
 
-#ifdef UNIV_DEBUG_VALGRIND
+#ifdef HAVE_valgrind_or_MSAN
 # define MONITOR_CHECK_DEFINED(value) do {	\
 	mon_type_t m = value;			\
-	UNIV_MEM_ASSERT_RW(&m, sizeof m);	\
+	MEM_CHECK_DEFINED(&m, sizeof m);	\
 } while (0)
-#else /* UNIV_DEBUG_VALGRIND */
+#else /* HAVE_valgrind_or_MSAN */
 # define MONITOR_CHECK_DEFINED(value) (void) 0
-#endif /* UNIV_DEBUG_VALGRIND */
+#endif /* HAVE_valgrind_or_MSAN */
 
 #define	MONITOR_INC_VALUE(monitor, value)				\
 	MONITOR_CHECK_DEFINED(value);					\

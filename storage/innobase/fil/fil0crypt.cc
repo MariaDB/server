@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -40,9 +40,6 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 #include "fsp0fsp.h"
 #include "fil0pagecompress.h"
 #include <my_crypt.h>
-
-/** Mutex for keys */
-static ib_mutex_t fil_crypt_key_mutex;
 
 static bool fil_crypt_threads_inited = false;
 
@@ -113,8 +110,6 @@ UNIV_INTERN
 void
 fil_space_crypt_init()
 {
-	mutex_create(LATCH_ID_FIL_CRYPT_MUTEX, &fil_crypt_key_mutex);
-
 	fil_crypt_throttle_sleep_event = os_event_create(0);
 
 	mutex_create(LATCH_ID_FIL_CRYPT_STAT_MUTEX, &crypt_stat_mutex);
@@ -128,7 +123,6 @@ void
 fil_space_crypt_cleanup()
 {
 	os_event_destroy(fil_crypt_throttle_sleep_event);
-	mutex_free(&fil_crypt_key_mutex);
 	mutex_free(&crypt_stat_mutex);
 }
 
@@ -298,14 +292,9 @@ fil_space_read_crypt_data(const page_size_t& page_size, const byte* page)
 	      type == CRYPT_SCHEME_1)
 	    || iv_length != sizeof crypt_data->iv) {
 		ib::error() << "Found non sensible crypt scheme: "
-			    << type << "," << iv_length << " for space: "
-			    << page_get_space_id(page) << " offset: "
-			    << offset << " bytes: ["
-			    << page[offset + 2 + MAGIC_SZ]
-			    << page[offset + 3 + MAGIC_SZ]
-			    << page[offset + 4 + MAGIC_SZ]
-			    << page[offset + 5 + MAGIC_SZ]
-			    << "].";
+			    << type << "," << iv_length
+			    << " for space: "
+			    << page_get_space_id(page);
 		return NULL;
 	}
 
@@ -417,6 +406,8 @@ fil_space_crypt_t::write_page0(
 			 MLOG_4BYTES, mtr);
 	mlog_write_ulint(page + offset + MAGIC_SZ + 2 + len + 8, encryption,
 		MLOG_1BYTE, mtr);
+
+	DBUG_EXECUTE_IF("ib_do_not_log_crypt_data", return;);
 
 	byte* log_ptr = mlog_open(mtr, 11 + 17 + len);
 
@@ -655,51 +646,10 @@ fil_space_encrypt(
 		return (src_frame);
 	}
 
-	fil_space_crypt_t* crypt_data = space->crypt_data;
-	const page_size_t	page_size(space->flags);
 	ut_ad(space->n_pending_ios > 0);
-	byte* tmp = fil_encrypt_buf(crypt_data, space->id, offset, lsn,
-				    src_frame, page_size, dst_frame);
-
-#ifdef UNIV_DEBUG
-	if (tmp) {
-		/* Verify that encrypted buffer is not corrupted */
-		dberr_t err = DB_SUCCESS;
-		byte* src = src_frame;
-		bool page_compressed_encrypted = (mach_read_from_2(tmp+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
-		byte uncomp_mem[UNIV_PAGE_SIZE_MAX];
-		byte tmp_mem[UNIV_PAGE_SIZE_MAX];
-
-		if (page_compressed_encrypted) {
-			memcpy(uncomp_mem, src, srv_page_size);
-			ulint unzipped1 = fil_page_decompress(
-				tmp_mem, uncomp_mem);
-			ut_ad(unzipped1);
-			if (unzipped1 != srv_page_size) {
-				src = uncomp_mem;
-			}
-		}
-
-		ut_ad(!buf_page_is_corrupted(true, src, page_size, space));
-		ut_ad(fil_space_decrypt(crypt_data, tmp_mem, page_size, tmp,
-					&err));
-		ut_ad(err == DB_SUCCESS);
-
-		/* Need to decompress the page if it was also compressed */
-		if (page_compressed_encrypted) {
-			byte buf[UNIV_PAGE_SIZE_MAX];
-			memcpy(buf, tmp_mem, srv_page_size);
-			ulint unzipped2 = fil_page_decompress(tmp_mem, buf);
-			ut_ad(unzipped2);
-		}
-
-		memcpy(tmp_mem + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
-		       src + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 8);
-		ut_ad(!memcmp(src, tmp_mem, page_size.physical()));
-	}
-#endif /* UNIV_DEBUG */
-
-	return tmp;
+	return fil_encrypt_buf(space->crypt_data, space->id, offset, lsn,
+			       src_frame, page_size_t(space->flags),
+			       dst_frame);
 }
 
 /** Decrypt a page.
@@ -766,8 +716,10 @@ fil_space_decrypt(
 		}
 
 		ib::fatal() << "Unable to decrypt data-block "
-			    << " src: " << src << "srclen: "
-			    << srclen << " buf: " << dst << "buflen: "
+			    << " src: " << static_cast<const void*>(src)
+			    << "srclen: "
+			    << srclen << " buf: "
+			    << static_cast<const void*>(dst) << "buflen: "
 			    << dstlen << " return-code: " << rc
 			    << " Can't continue!";
 	}
@@ -1120,6 +1072,7 @@ struct rotate_thread_t {
 		case SRV_SHUTDOWN_EXIT_THREADS:
 			/* srv_init_abort() must have been invoked */
 		case SRV_SHUTDOWN_CLEANUP:
+		case SRV_SHUTDOWN_INITIATED:
 			return true;
 		case SRV_SHUTDOWN_FLUSH_PHASE:
 		case SRV_SHUTDOWN_LAST_PHASE:
@@ -1427,6 +1380,99 @@ fil_crypt_return_iops(
 	fil_crypt_update_total_stat(state);
 }
 
+/** Return the next tablespace from rotation_list.
+@param space   previous tablespace (NULL to start from the start)
+@param recheck whether the removal condition needs to be rechecked after
+the encryption parameters were changed
+@param encrypt expected state of innodb_encrypt_tables
+@return the next tablespace to process (n_pending_ops incremented)
+@retval NULL if this was the last */
+inline fil_space_t *fil_system_t::keyrotate_next(fil_space_t *space,
+                                                 bool recheck, bool encrypt)
+{
+  ut_ad(mutex_own(&mutex));
+
+  sized_ilist<fil_space_t, rotation_list_tag_t>::iterator it=
+    space && space->is_in_rotation_list ? space : rotation_list.begin();
+  const sized_ilist<fil_space_t, rotation_list_tag_t>::iterator end=
+    rotation_list.end();
+
+  if (space)
+  {
+    const bool released= !--space->n_pending_ops;
+
+    if (space->is_in_rotation_list)
+    {
+      while (++it != end &&
+             (!UT_LIST_GET_LEN(it->chain) || it->is_stopping()));
+
+      /* If one of the encryption threads already started the encryption
+      of the table then don't remove the unencrypted spaces from rotation list
+
+      If there is a change in innodb_encrypt_tables variables value then
+      don't remove the last processed tablespace from the rotation list. */
+      if (released && (!recheck || space->crypt_data) &&
+          !encrypt == !srv_encrypt_tables)
+      {
+        ut_a(!rotation_list.empty());
+        rotation_list.remove(*space);
+        space->is_in_rotation_list= false;
+      }
+    }
+  }
+
+  if (it == end)
+    return NULL;
+
+  space= &*it;
+  space->n_pending_ops++;
+  return space;
+}
+
+/** Return the next tablespace.
+@param space    previous tablespace (NULL to start from the beginning)
+@param recheck  whether the removal condition needs to be rechecked after
+the encryption parameters were changed
+@param encrypt  expected state of innodb_encrypt_tables
+@return pointer to the next tablespace (with n_pending_ops incremented)
+@retval NULL if this was the last */
+static fil_space_t *fil_space_next(fil_space_t *space, bool recheck,
+                                   bool encrypt)
+{
+  mutex_enter(&fil_system->mutex);
+  ut_ad(!space || space->n_pending_ops);
+
+  if (!srv_fil_crypt_rotate_key_age)
+    space= fil_system->keyrotate_next(space, recheck, encrypt);
+  else if (!space)
+  {
+    space= UT_LIST_GET_FIRST(fil_system->space_list);
+    /* We can trust that space is not NULL because at least the
+    system tablespace is always present and loaded first. */
+    space->n_pending_ops++;
+  }
+  else
+  {
+    ut_ad(space->n_pending_ops > 0);
+    /* Move on to the next fil_space_t */
+    space->n_pending_ops--;
+    space= UT_LIST_GET_NEXT(space_list, space);
+
+    /* Skip abnormal tablespaces or those that are being created by
+    fil_ibd_create(), or being dropped. */
+    while (space &&
+           (UT_LIST_GET_LEN(space->chain) == 0 ||
+            space->is_stopping() || space->purpose != FIL_TYPE_TABLESPACE))
+      space= UT_LIST_GET_NEXT(space_list, space);
+
+    if (space)
+      space->n_pending_ops++;
+  }
+
+  mutex_exit(&fil_system->mutex);
+  return space;
+}
+
 /** Search for a space needing rotation
 @param[in,out]	key_state	Key state
 @param[in,out]	state		Rotation state
@@ -1439,6 +1485,11 @@ static bool fil_crypt_find_space_to_rotate(
 {
 	/* we need iops to start rotating */
 	while (!state->should_shutdown() && !fil_crypt_alloc_iops(state)) {
+		if (state->space && state->space->is_stopping()) {
+			fil_space_release(state->space);
+			state->space = NULL;
+		}
+
 		os_event_reset(fil_crypt_threads_event);
 		os_event_wait_time(fil_crypt_threads_event, 100000);
 	}
@@ -1459,16 +1510,8 @@ static bool fil_crypt_find_space_to_rotate(
 		state->space = NULL;
 	}
 
-	/* If key rotation is enabled (default) we iterate all tablespaces.
-	If key rotation is not enabled we iterate only the tablespaces
-	added to keyrotation list. */
-	if (srv_fil_crypt_rotate_key_age) {
-		state->space = fil_space_next(state->space);
-	} else {
-		state->space = fil_system->keyrotate_next(
-					state->space, *recheck,
-					key_state->key_version);
-	}
+	state->space = fil_space_next(state->space, *recheck,
+				      key_state->key_version != 0);
 
 	while (!state->should_shutdown() && state->space) {
 		/* If there is no crypt data and we have not yet read
@@ -1486,16 +1529,16 @@ static bool fil_crypt_find_space_to_rotate(
 			return true;
 		}
 
-		if (srv_fil_crypt_rotate_key_age) {
-			state->space = fil_space_next(state->space);
-		} else {
-			state->space = fil_system->keyrotate_next(
-					state->space, *recheck,
-					key_state->key_version);
-		}
+		state->space = fil_space_next(state->space, *recheck,
+					      key_state->key_version != 0);
 	}
 
-	/* if we didn't find any space return iops */
+	if (state->space) {
+		fil_space_release(state->space);
+		state->space = NULL;
+	}
+
+	/* no work to do; release our allocation of I/O capacity */
 	fil_crypt_return_iops(state);
 
 	return false;
@@ -2302,7 +2345,7 @@ static void fil_crypt_rotation_list_fill()
 	     space != NULL;
 	     space = UT_LIST_GET_NEXT(space_list, space)) {
 		if (space->purpose != FIL_TYPE_TABLESPACE
-		    || space->is_in_rotation_list()
+		    || space->is_in_rotation_list
 		    || space->is_stopping()
 		    || UT_LIST_GET_LEN(space->chain) == 0) {
 			continue;
@@ -2346,7 +2389,8 @@ static void fil_crypt_rotation_list_fill()
 			}
 		}
 
-		UT_LIST_ADD_LAST(fil_system->rotation_list, space);
+		fil_system->rotation_list.push_back(*space);
+		space->is_in_rotation_list = true;
 	}
 }
 
@@ -2469,6 +2513,7 @@ fil_space_crypt_close_tablespace(
 
 		/* wakeup throttle (all) sleepers */
 		os_event_set(fil_crypt_throttle_sleep_event);
+		os_event_set(fil_crypt_threads_event);
 
 		os_thread_sleep(20000);
 		dict_mutex_enter_for_mysql();

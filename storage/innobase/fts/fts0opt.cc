@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -525,7 +525,7 @@ fts_index_fetch_nodes(
 	for (;;) {
 		error = fts_eval_sql(trx, *graph);
 
-		if (error == DB_SUCCESS) {
+		if (UNIV_LIKELY(error == DB_SUCCESS)) {
 			fts_sql_commit(trx);
 
 			break;				/* Exit the loop. */
@@ -538,7 +538,7 @@ fts_index_fetch_nodes(
 
 				trx->error_state = DB_SUCCESS;
 			} else {
-				ib::error() << "(" << ut_strerr(error)
+				ib::error() << "(" << error
 					<< ") while reading FTS index.";
 
 				break;			/* Exit the loop. */
@@ -860,7 +860,7 @@ fts_index_fetch_words(
 				error = fts_eval_sql(optim->trx, graph);
 			}
 
-			if (error == DB_SUCCESS) {
+			if (UNIV_LIKELY(error == DB_SUCCESS)) {
 				//FIXME fts_sql_commit(optim->trx);
 				break;
 			} else {
@@ -877,7 +877,7 @@ fts_index_fetch_words(
 
 					optim->trx->error_state = DB_SUCCESS;
 				} else {
-					ib::error() << "(" << ut_strerr(error)
+					ib::error() << "(" << error
 						<< ") while reading document.";
 
 					break;	/* Exit the loop. */
@@ -920,7 +920,7 @@ fts_fetch_doc_ids(
 	int		i = 0;
 	sel_node_t*	sel_node = static_cast<sel_node_t*>(row);
 	fts_doc_ids_t*	fts_doc_ids = static_cast<fts_doc_ids_t*>(user_arg);
-	fts_update_t*	update = static_cast<fts_update_t*>(
+	doc_id_t*	update = static_cast<doc_id_t*>(
 		ib_vector_push(fts_doc_ids->doc_ids, NULL));
 
 	for (exp = sel_node->select_list;
@@ -936,8 +936,7 @@ fts_fetch_doc_ids(
 		/* Note: The column numbers below must match the SELECT. */
 		switch (i) {
 		case 0: /* DOC_ID */
-			update->fts_indexes = NULL;
-			update->doc_id = fts_read_doc_id(
+			*update = fts_read_doc_id(
 				static_cast<byte*>(data));
 			break;
 
@@ -1005,7 +1004,7 @@ fts_table_fetch_doc_ids(
 	mutex_exit(&dict_sys->mutex);
 
 	if (error == DB_SUCCESS) {
-		ib_vector_sort(doc_ids->doc_ids, fts_update_doc_id_cmp);
+		ib_vector_sort(doc_ids->doc_ids, fts_doc_id_cmp);
 	}
 
 	if (alloc_bk_trx) {
@@ -1022,7 +1021,7 @@ Do a binary search for a doc id in the array
 int
 fts_bsearch(
 /*========*/
-	fts_update_t*	array,	/*!< in: array to sort */
+	doc_id_t*	array,	/*!< in: array to sort */
 	int		lower,	/*!< in: the array lower bound */
 	int		upper,	/*!< in: the array upper bound */
 	doc_id_t	doc_id)	/*!< in: the doc id to search for */
@@ -1036,9 +1035,9 @@ fts_bsearch(
 		while (lower < upper) {
 			int	i = (lower + upper) >> 1;
 
-			if (doc_id > array[i].doc_id) {
+			if (doc_id > array[i]) {
 				lower = i + 1;
-			} else if (doc_id < array[i].doc_id) {
+			} else if (doc_id < array[i]) {
 				upper = i - 1;
 			} else {
 				return(i); /* Found. */
@@ -1047,7 +1046,7 @@ fts_bsearch(
 	}
 
 	if (lower == upper && lower < orig_size) {
-		if (doc_id == array[lower].doc_id) {
+		if (doc_id == array[lower]) {
 			return(lower);
 		} else if (lower == 0) {
 			return(-1);
@@ -1074,7 +1073,7 @@ fts_optimize_lookup(
 {
 	int		pos;
 	int		upper = static_cast<int>(ib_vector_size(doc_ids));
-	fts_update_t*	array = (fts_update_t*) doc_ids->data;
+	doc_id_t*	array = (doc_id_t*) doc_ids->data;
 
 	pos = fts_bsearch(array, static_cast<int>(lower), upper, first_doc_id);
 
@@ -1087,10 +1086,10 @@ fts_optimize_lookup(
 		/* If i is 1, it could be first_doc_id is less than
 		either the first or second array item, do a
 		double check */
-		if (i == 1 && array[0].doc_id <= last_doc_id
-		    && first_doc_id < array[0].doc_id) {
+		if (i == 1 && array[0] <= last_doc_id
+		    && first_doc_id < array[0]) {
 			pos = 0;
-		} else if (i < upper && array[i].doc_id <= last_doc_id) {
+		} else if (i < upper && array[i] <= last_doc_id) {
 
 			/* Check if the "next" doc id is within the
 			first & last doc id of the node. */
@@ -1229,12 +1228,12 @@ test_again:
 		delta for decoding the entries following this document's
 		entries. */
 		if (*del_pos >= 0 && *del_pos < (int) ib_vector_size(del_vec)) {
-			fts_update_t*	update;
+			doc_id_t*	update;
 
-			update = (fts_update_t*) ib_vector_get(
+			update = (doc_id_t*) ib_vector_get(
 				del_vec, *del_pos);
 
-			del_doc_id = update->doc_id;
+			del_doc_id = *update;
 		}
 
 		if (enc->src_ilist_ptr == src_node->ilist && doc_id == 0) {
@@ -1357,12 +1356,6 @@ fts_optimize_word(
 	enc.src_last_doc_id = 0;
 	enc.src_ilist_ptr = NULL;
 
-	if (fts_enable_diag_print) {
-		word->text.f_str[word->text.f_len] = 0;
-		ib::info() << "FTS_OPTIMIZE: optimize \"" << word->text.f_str
-			<< "\"";
-	}
-
 	while (i < size) {
 		ulint		copied;
 		fts_node_t*	src_node;
@@ -1440,11 +1433,6 @@ fts_optimize_write_word(
 
 	ut_ad(fts_table->charset);
 
-	if (fts_enable_diag_print) {
-		ib::info() << "FTS_OPTIMIZE: processed \"" << word->f_str
-			<< "\"";
-	}
-
 	pars_info_bind_varchar_literal(
 		info, "word", word->f_str, word->f_len);
 
@@ -1462,8 +1450,8 @@ fts_optimize_write_word(
 
 	error = fts_eval_sql(trx, graph);
 
-	if (error != DB_SUCCESS) {
-		ib::error() << "(" << ut_strerr(error) << ") during optimize,"
+	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
+		ib::error() << "(" << error << ") during optimize,"
 			" when deleting a word from the FTS index.";
 	}
 
@@ -1486,8 +1474,8 @@ fts_optimize_write_word(
 			error = fts_write_node(
 				trx, &graph, fts_table, word, node);
 
-			if (error != DB_SUCCESS) {
-				ib::error() << "(" << ut_strerr(error) << ")"
+			if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
+				ib::error() << "(" << error << ")"
 					" during optimize, while adding a"
 					" word to the FTS index.";
 			}
@@ -1876,9 +1864,8 @@ fts_optimize_index_completed(
 	error = fts_config_set_index_value(
 		optim->trx, index, FTS_LAST_OPTIMIZED_WORD, &word);
 
-	if (error != DB_SUCCESS) {
-
-		ib::error() << "(" << ut_strerr(error) << ") while updating"
+	if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
+		ib::error() << "(" << error << ") while updating"
 			" last optimized word!";
 	}
 
@@ -2020,7 +2007,7 @@ fts_optimize_purge_deleted_doc_ids(
 	ulint		i;
 	pars_info_t*	info;
 	que_t*		graph;
-	fts_update_t*	update;
+	doc_id_t*	update;
 	doc_id_t	write_doc_id;
 	dberr_t		error = DB_SUCCESS;
 	char		deleted[MAX_FULL_NAME_LEN];
@@ -2030,11 +2017,11 @@ fts_optimize_purge_deleted_doc_ids(
 
 	ut_a(ib_vector_size(optim->to_delete->doc_ids) > 0);
 
-	update = static_cast<fts_update_t*>(
+	update = static_cast<doc_id_t*>(
 		ib_vector_get(optim->to_delete->doc_ids, 0));
 
 	/* Convert to "storage" byte order. */
-	fts_write_doc_id((byte*) &write_doc_id, update->doc_id);
+	fts_write_doc_id((byte*) &write_doc_id, *update);
 
 	/* This is required for the SQL parser to work. It must be able
 	to find the following variables. So we do it twice. */
@@ -2056,11 +2043,11 @@ fts_optimize_purge_deleted_doc_ids(
 	/* Delete the doc ids that were copied at the start. */
 	for (i = 0; i < ib_vector_size(optim->to_delete->doc_ids); ++i) {
 
-		update = static_cast<fts_update_t*>(ib_vector_get(
+		update = static_cast<doc_id_t*>(ib_vector_get(
 			optim->to_delete->doc_ids, i));
 
 		/* Convert to "storage" byte order. */
-		fts_write_doc_id((byte*) &write_doc_id, update->doc_id);
+		fts_write_doc_id((byte*) &write_doc_id, *update);
 
 		fts_bind_doc_id(info, "doc_id1", &write_doc_id);
 
@@ -2430,7 +2417,7 @@ fts_optimize_table(
 	fts_optimize_t*	optim = NULL;
 	fts_t*		fts = table->fts;
 
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		ib::info() << "FTS start optimize " << table->name;
 	}
 
@@ -2482,7 +2469,7 @@ fts_optimize_table(
 		if (error == DB_SUCCESS
 		    && optim->n_completed == ib_vector_size(fts->indexes)) {
 
-			if (fts_enable_diag_print) {
+			if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 				ib::info() << "FTS_OPTIMIZE: Completed"
 					" Optimize, cleanup DELETED table";
 			}
@@ -2505,7 +2492,7 @@ fts_optimize_table(
 
 	fts_optimize_free(optim);
 
-	if (fts_enable_diag_print) {
+	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		ib::info() << "FTS end optimize " << table->name;
 	}
 
@@ -2586,6 +2573,11 @@ fts_optimize_remove_table(
 	if (fts_opt_start_shutdown) {
 		ib::info() << "Try to remove table " << table->name
 			<< " after FTS optimize thread exiting.";
+		/* If the table can't be removed then wait till
+		fts optimize thread shuts down */
+		while (fts_optimize_wq) {
+			os_thread_sleep(10000);
+		}
 		return;
 	}
 
@@ -2616,9 +2608,13 @@ fts_optimize_remove_table(
 
 	os_event_destroy(event);
 
-	ut_d(mutex_enter(&fts_optimize_wq->mutex));
-	ut_ad(!table->fts->in_queue);
-	ut_d(mutex_exit(&fts_optimize_wq->mutex));
+#ifdef UNIV_DEBUG
+	if (!fts_opt_start_shutdown) {
+		mutex_enter(&fts_optimize_wq->mutex);
+		ut_ad(!table->fts->in_queue);
+		mutex_exit(&fts_optimize_wq->mutex);
+	}
+#endif /* UNIV_DEBUG */
 }
 
 /** Send sync fts cache for the table.
@@ -2644,8 +2640,6 @@ fts_optimize_request_sync_table(
 	mutex_enter(&fts_optimize_wq->mutex);
 
 	ib_wqueue_add(fts_optimize_wq, msg, msg->heap, true);
-
-	table->fts->in_queue = true;
 
 	mutex_exit(&fts_optimize_wq->mutex);
 }
@@ -2692,7 +2686,7 @@ static bool fts_optimize_del_table(const dict_table_t* table)
 		slot = static_cast<fts_slot_t*>(ib_vector_get(fts_slots, i));
 
 		if (slot->table == table) {
-			if (fts_enable_diag_print) {
+			if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 				ib::info() << "FTS Optimize Removing table "
 					<< table->name;
 			}
@@ -2805,8 +2799,7 @@ fts_optimize_thread(
 	/* Assign number of tables added in fts_slots_t to n_tables */
 	n_tables = ib_vector_size(fts_slots);
 
-	while (!done && srv_shutdown_state == SRV_SHUTDOWN_NONE) {
-
+	while (!done && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
 		/* If there is no message in the queue and we have tables
 		to optimize then optimize the tables. */
 

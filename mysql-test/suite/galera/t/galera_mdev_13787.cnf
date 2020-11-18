@@ -1,0 +1,9 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+innodb-stats-persistent=1
+
+[mysqld.2]
+innodb-stats-persistent=1
+
+

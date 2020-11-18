@@ -1018,12 +1018,12 @@ my_bool JSNX::CompareTree(PGLOBAL g, PJSON jp1, PJSON jp2)
 	my_bool found = true;
 
 	if (jp1->GetType() == TYPE_JVAL) {
-		PVL v1 = ((PJVAL)jp1)->GetVal(), v2 = ((PJVAL)jp2)->GetVal();
+//	PVL v1 = ((PJVAL)jp1)->GetVal(), v2 = ((PJVAL)jp2)->GetVal();
 
-		if (v1 && v2)
-			found = CompareValues(v1, v2);
-		else
+		if (((PJVAL)jp1)->DataType == TYPE_JSON && ((PJVAL)jp2)->DataType == TYPE_JSON)
 			found = CompareTree(g, jp1->GetJsp(), jp2->GetJsp());
+		else
+			found = CompareValues(((PJVAL)jp1), ((PJVAL)jp2));
 
 	} else if (jp1->GetType() == TYPE_JAR) {
 		for (int i = 0; found && i < jp1->size(); i++)
@@ -1044,13 +1044,13 @@ my_bool JSNX::CompareTree(PGLOBAL g, PJSON jp1, PJSON jp2)
 /*********************************************************************************/
 /*  Compare two VAL values and return true if they are equal.                    */
 /*********************************************************************************/
-my_bool JSNX::CompareValues(PVL v1, PVL v2)
+my_bool JSNX::CompareValues(PJVAL v1, PJVAL v2)
 {
 	my_bool b = false;
 
-	switch (v1->Type) {
+	switch (v1->DataType) {
 	case TYPE_STRG:
-		if (v2->Type == TYPE_STRG) {
+		if (v2->DataType == TYPE_STRG) {
 			if (v1->Nd || v2->Nd)		// Case insensitive
 				b = (!stricmp(v1->Strp, v2->Strp));
 			else
@@ -1060,33 +1060,41 @@ my_bool JSNX::CompareValues(PVL v1, PVL v2)
 
 		break;
 	case TYPE_DTM:
-		b = (!strcmp(v1->Strp, v2->Strp));
+		if (v2->DataType == TYPE_DTM)
+			b = (!strcmp(v1->Strp, v2->Strp));
+
 		break;
 	case TYPE_INTG:
-		if (v2->Type == TYPE_INTG)
+		if (v2->DataType == TYPE_INTG)
 			b = (v1->N == v2->N);
-		else if (v2->Type == TYPE_BINT)
+		else if (v2->DataType == TYPE_BINT)
 			b = (v1->N == v2->LLn);
 
 		break;
 	case TYPE_BINT:
-		if (v2->Type == TYPE_INTG)
+		if (v2->DataType == TYPE_INTG)
 			b = (v1->LLn == v2->N);
-		else if (v2->Type == TYPE_BINT)
+		else if (v2->DataType == TYPE_BINT)
 			b = (v1->LLn == v2->LLn);
 
 		break;
 	case TYPE_DBL:
-		if (v2->Type == TYPE_DBL)
+		if (v2->DataType == TYPE_DBL)
 			b = (v1->F == v2->F);
 		
 		break;
 	case TYPE_BOOL:
-		if (v2->Type == TYPE_BOOL)
+		if (v2->DataType == TYPE_BOOL)
 		  b = (v1->B == v2->B);
 
 		break;
-	default:        b = true;   // both nulls
+	case TYPE_NULL:
+		if (v2->DataType == TYPE_NULL)
+			b = true;
+
+		break;
+	default:
+		break;
 	}	// endswitch Type
 
 	return b;
@@ -1263,7 +1271,7 @@ static PJVAL JvalNew(PGLOBAL g, JTYP type, void *vp)
 	}	// end try/catch
 
 	return jvp;
-} /* end of JsonNew */
+} /* end of JvalNew */
 
 /*********************************************************************************/
 /*  Allocate and initialise the memory area.                                     */

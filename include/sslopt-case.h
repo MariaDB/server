@@ -30,7 +30,7 @@
     */
       opt_use_ssl= 1;
     /* crl has no effect in yaSSL */  
-#ifdef HAVE_YASSL
+#if defined (HAVE_YASSL) && (!defined (_WIN32) || defined (MYSQL_SERVER))
       opt_ssl_crl= NULL;
       opt_ssl_crlpath= NULL;
 #endif

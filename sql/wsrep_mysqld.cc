@@ -37,7 +37,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include "log_event.h"
-#include <slave.h>
 #include "sql_plugin.h"                         /* wsrep_plugins_pre_init() */
 #include <vector>
 
@@ -259,6 +258,17 @@ static void wsrep_log_cb(wsrep_log_level_t level, const char *msg) {
     break;
   }
 }
+
+void wsrep_log(void (*fun)(const char *, ...), const char *format, ...)
+{
+  va_list args;
+  char msg[1024];
+  va_start(args, format);
+  vsnprintf(msg, sizeof(msg) - 1, format, args);
+  va_end(args);
+  (fun)("WSREP: %s", msg);
+}
+
 
 static void wsrep_log_states (wsrep_log_level_t   const level,
                               const wsrep_uuid_t* const group_uuid,
@@ -629,7 +639,6 @@ int wsrep_init()
   {
     // enable normal operation in case no provider is specified
     wsrep_ready_set(TRUE);
-    wsrep_inited= 1;
     global_system_variables.wsrep_on = 0;
     wsrep_init_args args;
     args.logger_cb = wsrep_log_cb;
@@ -640,9 +649,14 @@ int wsrep_init()
     {
       DBUG_PRINT("wsrep",("wsrep::init() failed: %d", rcode));
       WSREP_ERROR("wsrep::init() failed: %d, must shutdown", rcode);
+      wsrep_ready_set(FALSE);
       wsrep->free(wsrep);
       free(wsrep);
       wsrep = NULL;
+    }
+    else
+    {
+      wsrep_inited= 1;
     }
     return rcode;
   }
@@ -1544,6 +1558,39 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
     {
       return false;
     }
+    /*
+      If mariadb master has replicated a CTAS, we should not replicate the create table
+      part separately as TOI, but to replicate both create table and following inserts
+      as one write set.
+      Howver, if CTAS creates empty table, we should replicate the create table alone
+      as TOI. We have to do relay log event lookup to see if row events follow the
+      create table event.
+    */
+    if (thd->slave_thread && !(thd->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_STANDALONE))
+    {
+      /* this is CTAS, either empty or populated table */
+      ulonglong event_size = 0;
+      enum Log_event_type ev_type= wsrep_peak_event(thd->rgi_slave, &event_size);
+      switch (ev_type)
+      {
+      case QUERY_EVENT:
+        /* CTAS with empty table, we replicate create table as TOI */
+        break;
+
+      case TABLE_MAP_EVENT:
+        WSREP_DEBUG("replicating CTAS of empty table as TOI");
+        // fall through
+      case WRITE_ROWS_EVENT:
+        /* CTAS with populated table, we replicate later at commit time */
+        WSREP_DEBUG("skipping create table of CTAS replication");
+        return false;
+
+      default:
+        WSREP_WARN("unexpected async replication event: %d", ev_type);
+      }
+      return true;
+    }
+    /* no next async replication event */
     return true;
 
   case SQLCOM_CREATE_VIEW:
@@ -1565,10 +1612,17 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
 
   case SQLCOM_CREATE_TRIGGER:
 
-    DBUG_ASSERT(!table_list);
     DBUG_ASSERT(first_table);
 
     if (thd->find_temporary_table(first_table))
+    {
+      return false;
+    }
+    return true;
+
+  case SQLCOM_DROP_TRIGGER:
+    DBUG_ASSERT(table_list);
+    if (thd->find_temporary_table(table_list))
     {
       return false;
     }
@@ -1752,7 +1806,7 @@ static int wsrep_RSU_begin(THD *thd, char *db_, char *table_)
     }
 
     my_error(ER_LOCK_DEADLOCK, MYF(0));
-    return(1);
+    return(-1);
   }
 
   wsrep_seqno_t seqno = wsrep->pause(wsrep);
@@ -2279,6 +2333,7 @@ static my_bool have_committing_connections()
 
     if (is_committing_connection(tmp))
     {
+      mysql_mutex_unlock(&LOCK_thread_count);
       return TRUE;
     }
   }
@@ -2549,6 +2604,17 @@ extern "C" void wsrep_thd_set_exec_mode(THD *thd, enum wsrep_exec_mode mode)
 extern "C" void wsrep_thd_set_query_state(
 	THD *thd, enum wsrep_query_state state)
 {
+  /* async slave thread should never flag IDLE state, as it may
+     give rollbacker thread chance to interfere and rollback async slave
+     transaction.
+     in fact, async slave thread is never idle as it reads complete
+     transactions from relay log and applies them, as a whole.
+     BF abort happens voluntarily by async slave thread.
+  */
+  if (thd->slave_thread && state == QUERY_IDLE) {
+    WSREP_DEBUG("Skipping IDLE state change for slave SQL");
+    return;
+  }
   thd->wsrep_query_state= state;
 }
 
@@ -2858,7 +2924,12 @@ static int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
     definer_host.length= 0;
   }
 
-  stmt_query.append(STRING_WITH_LEN("CREATE "));
+  const LEX_STRING command[3]=
+      {{ C_STRING_WITH_LEN("CREATE ") },
+       { C_STRING_WITH_LEN("ALTER ") },
+       { C_STRING_WITH_LEN("CREATE OR REPLACE ") }};
+  stmt_query.append(command[thd->lex->create_view_mode].str,
+                    command[thd->lex->create_view_mode].length);
 
   append_definer(thd, &stmt_query, &definer_user, &definer_host);
 

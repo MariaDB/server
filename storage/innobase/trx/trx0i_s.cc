@@ -450,7 +450,6 @@ fill_trx_row(
 						which to copy volatile
 						strings */
 {
-	size_t		stmt_len;
 	const char*	s;
 
 	ut_ad(lock_mutex_own());
@@ -485,16 +484,14 @@ fill_trx_row(
 	row->trx_mysql_thread_id = thd_get_thread_id(trx->mysql_thd);
 
 	char	query[TRX_I_S_TRX_QUERY_MAX_LEN + 1];
-	stmt_len = innobase_get_stmt_safe(trx->mysql_thd, query, sizeof(query));
-
-	if (stmt_len > 0) {
-
+	if (size_t stmt_len = thd_query_safe(trx->mysql_thd, query,
+					     sizeof query)) {
 		row->trx_query = static_cast<const char*>(
 			ha_storage_put_memlim(
 				cache->storage, query, stmt_len + 1,
 				MAX_ALLOWED_FOR_STORAGE(cache)));
 
-		row->trx_query_cs = innobase_get_charset(trx->mysql_thd);
+		row->trx_query_cs = thd_charset(trx->mysql_thd);
 
 		if (row->trx_query == NULL) {
 
@@ -599,7 +596,7 @@ put_nth_field(
 	ulint			n,	/*!< in: number of field */
 	const dict_index_t*	index,	/*!< in: index */
 	const rec_t*		rec,	/*!< in: record */
-	const ulint*		offsets)/*!< in: record offsets, returned
+	const rec_offs*		offsets)/*!< in: record offsets, returned
 					by rec_get_offsets() */
 {
 	const byte*	data;
@@ -680,8 +677,8 @@ fill_lock_data(
 	const dict_index_t*	index;
 	ulint			n_fields;
 	mem_heap_t*		heap;
-	ulint			offsets_onstack[REC_OFFS_NORMAL_SIZE];
-	ulint*			offsets;
+	rec_offs		offsets_onstack[REC_OFFS_NORMAL_SIZE];
+	rec_offs*		offsets;
 	char			buf[TRX_I_S_LOCK_DATA_MAX_LEN];
 	ulint			buf_used;
 	ulint			i;

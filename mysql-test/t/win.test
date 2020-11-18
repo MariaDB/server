@@ -1,6 +1,7 @@
 #
 #  Window Functions Tests
 #
+--source include/have_sequence.inc
 
 --disable_warnings
 drop table if exists t1,t2;
@@ -2340,6 +2341,186 @@ explain
 select rank() over (partition by 'abc' order by 'xyz') from t1;
 select rank() over (partition by 'abc' order by 'xyz') from t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-19380: ASAN heap-use-after-free in Protocol::net_store_data
+--echo #
+
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1),(2),(3);
+
+SELECT (SELECT MIN('foo') OVER() FROM t1 LIMIT 1) as x;
+drop table t1;
+
+--echo #
+--echo # MDEV-16579: Wrong result of query using DISTINCT COUNT(*) OVER (*)
+--echo #
+
+CREATE TABLE t1 (i int) ;
+INSERT INTO t1 VALUES (1),(0),(1),(2),(0),(1),(2),(1),(2);
+
+SELECT  DISTINCT COUNT(*) OVER (), MOD(MIN(i),2) FROM t1 GROUP BY i ;
+drop table t1;
+
+--echo #
+--echo # MDEV-21318: Wrong results with window functions and implicit grouping
+--echo #
+
+CREATE TABLE t1 (a INT);
+
+--echo #
+--echo #  With empty const table
+--echo #  The expected result here is 1, NULL
+--echo #
+
+explain
+SELECT row_number() over(), sum(1) FROM t1;
+SELECT row_number() over(), sum(1) FROM t1;
+
+insert into t1 values (2);
+
+--echo #
+--echo #  Const table has 1 row, but still impossible where
+--echo #  The expected result here is 1, NULL
+--echo #
+
+EXPLAIN SELECT row_number() over(), sum(1) FROM t1 where a=1;
+SELECT row_number() over(), sum(1) FROM t1 where a=1;
+
+--echo #
+--echo #  Impossible HAVING
+--echo #  Empty result is expected
+--echo #
+
+EXPLAIN SELECT row_number() over(), sum(1) FROM t1 where a=1 having 1=0;
+SELECT row_number() over(), sum(1) FROM t1 where a=1 having 1=0;
+
+--echo #
+--echo #  const table has 1 row, no impossible where
+--echo #  The expected result here is 1, 2
+--echo #
+
+EXPLAIN SELECT row_number() over(), sum(a) FROM t1 where a=2;
+SELECT row_number() over(), sum(a) FROM t1 where a=2;
+drop table t1;
+
+--echo #
+--echo # Impossible Where
+--echo #
+
+create table t1(a int);
+insert into t1 values (1);
+
+--echo #
+--echo # Expected result is NULL, 0, NULL
+--echo #
+EXPLAIN SELECT MAX(a) OVER (), COUNT(a), abs(a)  FROM t1 WHERE FALSE;
+SELECT MAX(a) OVER (), COUNT(a), abs(a)  FROM t1 WHERE FALSE;
+
+--echo #
+--echo # Expected result is 1, 0, NULL
+--echo #
+
+EXPLAIN
+SELECT MAX(1) OVER (), COUNT(a), abs(a)  FROM t1 WHERE FALSE;
+SELECT MAX(1) OVER (), COUNT(a), abs(a)  FROM t1 WHERE FALSE;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-22461: JOIN::make_aggr_tables_info(): Assertion `select_options & (1ULL << 17)' failed.
+--echo #
+
+CREATE TEMPORARY TABLE t0 (a INT PRIMARY KEY ) ;
+INSERT INTO t0 VALUES (1),(2),(3);
+
+SELECT a FROM t0
+WHERE a < 8
+GROUP BY 1.5
+WINDOW v2 AS ( PARTITION BY a ORDER BY a DESC );
+
+SELECT a, ROW_NUMBER() OVER v2
+FROM t0
+WHERE a < 8
+GROUP BY 1.5
+WINDOW v2 AS ( PARTITION BY a ORDER BY a DESC );
+
+drop table t0;
+
+--echo #
+--echo # MDEV-16230:Server crashes when Analyze format=json is run with a window function with
+--echo # empty PARTITION BY and ORDER BY clauses
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2),(3,3);
+
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON SELECT row_number() OVER() FROM t1;
+SELECT row_number() OVER() FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22984: Throw an error when arguments to window functions are window functions
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+SELECT NTILE(MAX(a) OVER (PARTITION BY a)) OVER (PARTITION BY a ORDER BY b) FROM t1;
+--error ER_SUM_FUNC_WITH_WINDOW_FUNC_AS_ARG
+SELECT FIRST_VALUE(MAX(a) OVER (PARTITION BY a)) OVER (ORDER BY a) AS x FROM t1 GROUP BY a;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-12059: Assertion `precision > 0' failed with a window function or window aggregate function
+--echo #
+
+CREATE TABLE t1 (d DECIMAL(1,0) UNSIGNED);
+INSERT INTO t1 VALUES (1),(2);
+SELECT MIN(d) OVER () FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22463: Element_type &Bounds_checked_array<Item *>::operator[](size_t) [Element_type = Item *]:
+--echo # Assertion `n < m_size' failed
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, c INT, d INT, e INT, f INT, g int, h INT, i INT);
+INSERT INTO t1 SELECT seq,seq,seq,seq, seq,seq,seq,seq,seq FROM seq_1_to_5;
+
+SELECT ROW_NUMBER() OVER w2 FROM t1 WINDOW w2 AS (PARTITION BY -1,0,1,2,3,4,5,6);
+--sorted_result
+SELECT a FROM t1 ORDER BY ROW_NUMBER() OVER (PARTITION BY -1,1,0,2,3,4,5,6,7,8);
+SELECT a,b FROM t1 WINDOW w2 AS (PARTITION BY -1,1,0,2,3,4);
+SELECT ROW_NUMBER() OVER w2 FROM t1 WINDOW w2 AS (PARTITION BY -1,0,1,2,3,4,5,6);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18916: crash in Window_spec::print_partition() with decimals
+--echo #
+
+--error ER_TOO_BIG_SCALE
+SELECT cast((rank() over w1) as decimal (53,56));
+--error ER_WRONG_WINDOW_SPEC_NAME
+SELECT cast((rank() over w1) as decimal (53,30));
+
+--echo #
+--echo # MDEV-15180: server crashed with NTH_VALUE()
+--echo #
+
+CREATE TABLE t1 (i1 int, a int);
+INSERT INTO t1 VALUES (1, 1), (2, 2),(3, 3);
+
+CREATE TABLE t2 (i2 int);
+INSERT INTO t2 VALUES (1),(2),(5),(1),(7),(4),(3);
+
+CREATE VIEW v1 AS (SELECT * FROM t1,t2 WHERE t1.i1=t2.i2) ;
+SELECT NTH_VALUE(i1, i1) OVER (PARTITION BY i1) FROM v1;
+
+DROP VIEW v1;
+DROP TABLE t1,t2;
 
 --echo #
 --echo # End of 10.2 tests

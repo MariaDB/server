@@ -1380,7 +1380,7 @@
     1X
     123456\P
 
-//KF>testsavedregex
+//S-KF>testsavedregex
 
 /abc/IS>testsavedregex
 <testsavedregex

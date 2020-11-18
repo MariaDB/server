@@ -10,7 +10,7 @@ call mtr.add_suppression("Master is configured to log replication events");
 
 # If everything is okay, the test will end in several seconds; maybe a minute. 
 # If the problem shows up, it will hang until testcase timeout is exceeded.
---exec $MYSQL_SLAP --silent --socket=$SLAVE_MYSOCK -q "START SLAVE; STOP SLAVE; SHOW GLOBAL STATUS" -c 2 --number-of-queries=100 --create-schema=test
+--exec $MYSQL_SLAP --silent --host=127.0.0.1 -P $SLAVE_MYPORT -q "START SLAVE; STOP SLAVE; SHOW GLOBAL STATUS" -c 2 --number-of-queries=100 --create-schema=test
 
 # All done.
 

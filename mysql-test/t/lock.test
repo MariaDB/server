@@ -619,3 +619,17 @@ UNLOCK TABLES;
 UNLOCK TABLES;
 DROP TABLE t1, t2;
 
+--echo #
+--echo # MDEV-21398 Deadlock (server hang) or assertion failure in
+--echo # Diagnostics_area::set_error_status upon ALTER under lock
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+LOCK TABLE t1 WRITE, t1 AS t1a READ;
+ALTER TABLE t1 CHANGE COLUMN IF EXISTS x xx INT;
+UNLOCK TABLES;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

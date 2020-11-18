@@ -1,4 +1,4 @@
-/* Copyright (C) 2014 SkySQL Ab.
+/* Copyright (C) 2014, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -148,5 +148,13 @@ void wsrep_unlock_rollback()
 void wsrep_set_data_home_dir(const char *)
 { }
 
+void wsrep_log(void (*)(const char *, ...), const char *, ...)
+{
+}
+
 my_bool wsrep_thd_is_applier(MYSQL_THD thd)
 { return false; }
+
+void wsrep_report_bf_lock_wait(MYSQL_THD thd,
+                               unsigned long long id)
+{}

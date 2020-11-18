@@ -50,6 +50,11 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #include "util/status.h"
 
+int writing_rollback = 0;
+extern "C" {
+  uint force_recovery = 0;
+}
+
 static const int log_format_version = TOKU_LOG_VERSION;
 
 toku_instr_key *result_output_condition_lock_mutex_key;
@@ -232,6 +237,7 @@ void toku_logger_initialize_rollback_cache(TOKULOGGER logger, FT ft) {
 }
 
 int toku_logger_open_rollback(TOKULOGGER logger, CACHETABLE cachetable, bool create) {
+    writing_rollback++;
     assert(logger->is_open);
     assert(!logger->rollback_cachefile);
 
@@ -251,6 +257,7 @@ int toku_logger_open_rollback(TOKULOGGER logger, CACHETABLE cachetable, bool cre
     } else {
         toku_ft_handle_close(ft_handle);
     }
+    writing_rollback--;
     return r;
 }
 
@@ -268,20 +275,20 @@ void toku_logger_close_rollback_check_empty(TOKULOGGER logger, bool clean_shutdo
             FT CAST_FROM_VOIDP(ft, toku_cachefile_get_userdata(cf));
             if (clean_shutdown) {
                 //Verify it is safe to close it.
-                assert(!ft->h->dirty);  //Must not be dirty.
+                assert(!ft->h->dirty());  //Must not be dirty.
                 ft->blocktable.free_unused_blocknums(ft->h->root_blocknum);
                 // Must have no data blocks (rollback logs or otherwise).
                 ft->blocktable.verify_no_data_blocks_except_root(ft->h->root_blocknum);
-                assert(!ft->h->dirty);
+                assert(!ft->h->dirty());
             } else {
-                ft->h->dirty = 0;
+                ft->h->clear_dirty();
             }
             ft_to_close = toku_ft_get_only_existing_ft_handle(ft);
             if (clean_shutdown) {
                 bool is_empty;
                 is_empty = toku_ft_is_empty_fast(ft_to_close);
                 assert(is_empty);
-                assert(!ft->h->dirty); // it should not have been dirtied by the toku_ft_is_empty test.
+                assert(!ft->h->dirty()); // it should not have been dirtied by the toku_ft_is_empty test.
             }
         }
 

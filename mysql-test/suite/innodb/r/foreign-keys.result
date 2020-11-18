@@ -220,3 +220,19 @@ drop table t1,t2;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 drop table t1,t2;
 ERROR 42S02: Unknown table 'test.t2'
+#
+# MDEV-23470 InnoDB: Failing assertion: cmp < 0 in
+#	row_ins_check_foreign_constraint
+#
+CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY, f2 INT NOT NULL)ENGINE=InnoDB;
+CREATE TABLE t2(f1 VARCHAR(100), f2 INT NOT NULL,
+INDEX(f2))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(99, 2);
+ALTER TABLE t2 ADD FOREIGN KEY(f2) REFERENCES t1(f1);
+SET FOREIGN_KEY_CHECKS=0;
+DROP INDEX f2 ON t2;
+SET FOREIGN_KEY_CHECKS=1;
+INSERT INTO t2 VALUES('G', 3);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
+DROP TABLE t2, t1;
+SET FOREIGN_KEY_CHECKS=DEFAULT;

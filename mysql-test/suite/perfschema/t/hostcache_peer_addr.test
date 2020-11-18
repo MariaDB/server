@@ -22,6 +22,7 @@ select current_user();
 disconnect con1;
 
 --connection default
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= "+d,vio_peer_addr_error";
 
 --disable_query_log
@@ -42,7 +43,7 @@ connect (con3,"127.0.0.1",root,,test,$MASTER_MYPORT,);
 show global status like "connection_errors_%";
 --source ../include/hostcache_dump.inc
 
-set global debug_dbug= default;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 
 flush status;
 show global status like "connection_errors_%";

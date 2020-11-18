@@ -338,6 +338,13 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
     DBUG_RETURN(false);
   }
 
+  if (!tl->db)
+  {
+    DBUG_PRINT("info",
+               ("Table reference to a temporary table must have database set"));
+    DBUG_RETURN(false);
+  }
+
   /*
     Temporary tables are not safe for parallel replication. They were
     designed to be visible to one thread only, so have no table locking.
@@ -1058,7 +1065,7 @@ TABLE *THD::find_temporary_table(const char *key, uint key_length,
         case TMP_TABLE_ANY:        found= true;                 break;
         }
       }
-      if (table && unlikely(table->m_needs_reopen))
+      if (table && unlikely(table->needs_reopen()))
       {
         share->all_tmp_tables.remove(table);
         free_temporary_table(table);

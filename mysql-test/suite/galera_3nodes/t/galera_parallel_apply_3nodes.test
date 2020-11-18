@@ -24,14 +24,26 @@ SET GLOBAL wsrep_slave_threads = 2;
 --send UPDATE t1 SET f1 = f1 + 100;
 
 --connection node_1
+#
+# Note that test is not deterministic. We have following cases possible
+# (1) Both updates are certified locally and then executed by the applier
+# (2) Certification of update in node_1 fails because applier has started
+#     update from node_2
+# (3) Certification of update in node_2 fails because applier has started
+#     update from node_1
+#
+--error 0,ER_LOCK_DEADLOCK
 --reap
+SELECT COUNT(*) FROM t1;
 
 --connection node_2
+--error 0,ER_LOCK_DEADLOCK
 --reap
+SELECT COUNT(*) FROM t1;
 
 --connection node_3
-SELECT f1 = 111 FROM t1;
-SELECT COUNT(*) IN (1, 2) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE 'committed%';
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) IN (1, 2) FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE LIKE '%committed%';
 
 --eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig;
 

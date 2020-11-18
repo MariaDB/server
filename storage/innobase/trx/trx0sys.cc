@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -422,7 +422,7 @@ trx_sysf_create(
 	mtr_x_lock_space(TRX_SYS_SPACE, mtr);
 
 	/* Create the trx sys file block in a new allocated file segment */
-	block = fseg_create(TRX_SYS_SPACE, 0, TRX_SYS + TRX_SYS_FSEG_HEADER,
+	block = fseg_create(TRX_SYS_SPACE, TRX_SYS + TRX_SYS_FSEG_HEADER,
 			    mtr);
 	buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);
 

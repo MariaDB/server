@@ -446,9 +446,9 @@ trx_undo_seg_create(
 	}
 
 	/* Allocate a new file segment for the undo log */
-	block = fseg_create_general(space, 0,
+	block = fseg_create_general(space,
 				    TRX_UNDO_SEG_HDR
-				    + TRX_UNDO_FSEG_HEADER, TRUE, mtr);
+				    + TRX_UNDO_FSEG_HEADER, TRUE, mtr, NULL);
 
 	fil_space_release_free_extents(space, n_reserved);
 
@@ -869,7 +869,7 @@ trx_undo_free_page(
 		    undo_page + TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE, mtr);
 
 	fseg_free_page(header_page + TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER,
-		       space, page_no, false, mtr);
+		       space, page_no, mtr);
 
 	last_addr = flst_get_last(header_page + TRX_UNDO_SEG_HDR
 				  + TRX_UNDO_PAGE_LIST, mtr);
@@ -1092,7 +1092,7 @@ trx_undo_seg_free(
 
 		file_seg = seg_header + TRX_UNDO_FSEG_HEADER;
 
-		finished = fseg_free_step(file_seg, false, &mtr);
+		finished = fseg_free_step(file_seg, &mtr);
 
 		if (finished) {
 			/* Update the rseg header */
@@ -1338,7 +1338,6 @@ trx_undo_mem_create(
 	undo->empty = TRUE;
 	undo->top_page_no = page_no;
 	undo->guess_block = NULL;
-	undo->withdraw_clock = 0;
 
 	return(undo);
 }

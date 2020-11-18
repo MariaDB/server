@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -50,7 +50,7 @@ rtr_page_split_initialize_nodes(
 	btr_cur_t*	cursor,	/*!< in: cursor at which to insert; when the
 				function returns, the cursor is positioned
 				on the predecessor of the inserted record */
-	ulint**		offsets,/*!< in: offsets on inserted record */
+	rec_offs**	offsets,/*!< in: offsets on inserted record */
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
 	double**	buf_pos)/*!< in/out: current buffer position */
 {
@@ -193,7 +193,7 @@ rtr_update_mbr_field_in_place(
 /*==========================*/
 	dict_index_t*	index,		/*!< in: spatial index. */
 	rec_t*		rec,		/*!< in/out: rec to be modified.*/
-	ulint*		offsets,	/*!< in/out: offsets on rec. */
+	rec_offs*	offsets,	/*!< in/out: offsets on rec. */
 	rtr_mbr_t*	mbr,		/*!< in: the new mbr. */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
@@ -267,7 +267,7 @@ bool
 rtr_update_mbr_field(
 /*=================*/
 	btr_cur_t*	cursor,		/*!< in/out: cursor pointed to rec.*/
-	ulint*		offsets,	/*!< in/out: offsets on rec. */
+	rec_offs*	offsets,	/*!< in/out: offsets on rec. */
 	btr_cur_t*	cursor2,	/*!< in/out: cursor pointed to rec
 					that should be deleted.
 					this cursor is for btr_compress to
@@ -297,7 +297,7 @@ rtr_update_mbr_field(
 	bool		ins_suc = true;
 	ulint		cur2_pos = 0;
 	ulint		del_page_no = 0;
-	ulint*		offsets2;
+	rec_offs*	offsets2;
 
 	rec = btr_cur_get_rec(cursor);
 	page = page_align(rec);
@@ -384,7 +384,7 @@ rtr_update_mbr_field(
 		}
 
 		if (cursor2) {
-			ulint* offsets2;
+			rec_offs* offsets2;
 
 			if (page_zip) {
 				cursor2->page_cur.rec
@@ -406,7 +406,7 @@ rtr_update_mbr_field(
 
 		page_cur_t		page_cur;
 		rec_t*			insert_rec;
-		ulint*			insert_offsets = NULL;
+		rec_offs*		insert_offsets = NULL;
 		ulint			old_pos;
 		rec_t*			old_rec;
 
@@ -438,7 +438,7 @@ update_mbr:
 		/* When there're not only 1 rec in the page, we do delete/insert
 		to avoid page split. */
 		rec_t*			insert_rec;
-		ulint*			insert_offsets = NULL;
+		rec_offs*		insert_offsets = NULL;
 		rec_t*			next_rec;
 
 		/* Delete the rec which cursor point to. */
@@ -639,7 +639,7 @@ rtr_adjust_upper_level(
 	page_zip_des_t*	new_page_zip;
 	dict_index_t*	index = sea_cur->index;
 	btr_cur_t	cursor;
-	ulint*		offsets;
+	rec_offs*	offsets;
 	mem_heap_t*	heap;
 	ulint		level;
 	dtuple_t*	node_ptr_upper;
@@ -809,8 +809,8 @@ rtr_split_page_move_rec_list(
 	page_cur_t		new_page_cursor;
 	page_t*			page;
 	page_t*			new_page;
-	ulint			offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*			offsets		= offsets_;
+	rec_offs		offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*		offsets		= offsets_;
 	page_zip_des_t*		new_page_zip
 		= buf_block_get_page_zip(new_block);
 	rec_t*			rec;
@@ -970,7 +970,7 @@ rtr_page_split_and_insert(
 	btr_cur_t*	cursor,	/*!< in/out: cursor at which to insert; when the
 				function returns, the cursor is positioned
 				on the predecessor of the inserted record */
-	ulint**		offsets,/*!< out: offsets on inserted record */
+	rec_offs**	offsets,/*!< out: offsets on inserted record */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	const dtuple_t*	tuple,	/*!< in: tuple to insert */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
@@ -1322,7 +1322,7 @@ rtr_ins_enlarge_mbr(
 	mem_heap_t*		heap;
 	dict_index_t*		index = btr_cur->index;
 	page_cur_t*		page_cursor;
-	ulint*			offsets;
+	rec_offs*		offsets;
 	node_visit_t*		node_visit;
 	btr_cur_t		cursor;
 	page_t*			page;
@@ -1406,10 +1406,10 @@ rtr_page_copy_rec_list_end_no_locks(
 	page_cur_t	page_cur;
 	page_cur_t	cur1;
 	rec_t*		cur_rec;
-	ulint		offsets_1[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets1 = offsets_1;
-	ulint		offsets_2[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets2 = offsets_2;
+	rec_offs	offsets_1[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets1 = offsets_1;
+	rec_offs	offsets_2[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets2 = offsets_2;
 	ulint		moved = 0;
 	bool		is_leaf = page_is_leaf(new_page);
 
@@ -1449,10 +1449,9 @@ rtr_page_copy_rec_list_end_no_locks(
 			offsets2 = rec_get_offsets(cur_rec, index, offsets2,
 						   is_leaf,
 						   ULINT_UNDEFINED, &heap);
-			cmp = cmp_rec_rec_with_match(cur1_rec, cur_rec,
-						     offsets1, offsets2,
-						     index, FALSE,
-						     &cur_matched_fields);
+			cmp = cmp_rec_rec(cur1_rec, cur_rec,
+					  offsets1, offsets2, index, false,
+					  &cur_matched_fields);
 			if (cmp < 0) {
 				page_cur_move_to_prev(&page_cur);
 				break;
@@ -1533,10 +1532,10 @@ rtr_page_copy_rec_list_start_no_locks(
 {
 	page_cur_t	cur1;
 	rec_t*		cur_rec;
-	ulint		offsets_1[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets1 = offsets_1;
-	ulint		offsets_2[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets2 = offsets_2;
+	rec_offs	offsets_1[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets1 = offsets_1;
+	rec_offs	offsets_2[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets2 = offsets_2;
 	page_cur_t	page_cur;
 	ulint		moved = 0;
 	bool		is_leaf = page_is_leaf(buf_block_get_frame(block));
@@ -1564,15 +1563,13 @@ rtr_page_copy_rec_list_start_no_locks(
 
 		while (!page_rec_is_supremum(cur_rec)) {
 			ulint		cur_matched_fields = 0;
-			int		cmp;
 
 			offsets2 = rec_get_offsets(cur_rec, index, offsets2,
 						   is_leaf,
 						   ULINT_UNDEFINED, &heap);
-			cmp = cmp_rec_rec_with_match(cur1_rec, cur_rec,
-						     offsets1, offsets2,
-						     index, FALSE,
-						     &cur_matched_fields);
+			int cmp = cmp_rec_rec(cur1_rec, cur_rec,
+					      offsets1, offsets2, index, false,
+					      &cur_matched_fields);
 			if (cmp < 0) {
 				page_cur_move_to_prev(&page_cur);
 				cur_rec = page_cur_get_rec(&page_cur);
@@ -1645,8 +1642,8 @@ rtr_merge_mbr_changed(
 /*==================*/
 	btr_cur_t*		cursor,		/*!< in/out: cursor */
 	btr_cur_t*		cursor2,	/*!< in: the other cursor */
-	ulint*			offsets,	/*!< in: rec offsets */
-	ulint*			offsets2,	/*!< in: rec offsets */
+	rec_offs*		offsets,	/*!< in: rec offsets */
+	rec_offs*		offsets2,	/*!< in: rec offsets */
 	rtr_mbr_t*		new_mbr,	/*!< out: MBR to update */
 	buf_block_t*		merge_block,	/*!< in: page to merge */
 	buf_block_t*		block,		/*!< in: page be merged */
@@ -1692,8 +1689,8 @@ rtr_merge_and_update_mbr(
 /*=====================*/
 	btr_cur_t*		cursor,		/*!< in/out: cursor */
 	btr_cur_t*		cursor2,	/*!< in: the other cursor */
-	ulint*			offsets,	/*!< in: rec offsets */
-	ulint*			offsets2,	/*!< in: rec offsets */
+	rec_offs*		offsets,	/*!< in: rec offsets */
+	rec_offs*		offsets2,	/*!< in: rec offsets */
 	page_t*			child_page,	/*!< in: the page. */
 	buf_block_t*		merge_block,	/*!< in: page to merge */
 	buf_block_t*		block,		/*!< in: page be merged */
@@ -1762,7 +1759,7 @@ rtr_check_same_block(
 
 {
 	ulint		page_no = childb->page.id.page_no();
-	ulint*		offsets;
+	rec_offs*	offsets;
 	rec_t*		rec = page_rec_get_next(page_get_infimum_rec(
 				buf_block_get_frame(parentb)));
 
@@ -1793,7 +1790,7 @@ rtr_rec_cal_increase(
 				dtuple in some of the common fields, or which
 				has an equal number or more fields than
 				dtuple */
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
 	double*		area)	/*!< out: increased area */
 {
 	const dfield_t*	dtuple_field;
@@ -1889,7 +1886,7 @@ rtr_estimate_n_rows_in_range(
 	rec_t*		rec;
 	byte*		field;
 	ulint		len;
-	ulint*		offsets = NULL;
+	rec_offs*	offsets = NULL;
 	mem_heap_t*	heap;
 
 	heap = mem_heap_create(512);

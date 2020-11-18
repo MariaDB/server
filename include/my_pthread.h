@@ -693,7 +693,7 @@ extern void my_mutex_end(void);
   We need to have at least 256K stack to handle calls to myisamchk_init()
   with the current number of keys and key parts.
 */
-#ifdef __SANITIZE_ADDRESS__
+#if defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN)
 #define DEFAULT_THREAD_STACK	(364*1024L)
 #else
 #define DEFAULT_THREAD_STACK	(292*1024L)
@@ -729,13 +729,14 @@ struct st_my_thread_var
 #endif
 };
 
-extern struct st_my_thread_var *_my_thread_var(void) __attribute__ ((const));
+struct st_my_thread_var *_my_thread_var(void);
 extern void **my_thread_var_dbug(void);
 extern safe_mutex_t **my_thread_var_mutex_in_use(void);
 extern uint my_thread_end_wait_time;
 extern my_bool safe_mutex_deadlock_detector;
 #define my_thread_var (_my_thread_var())
 #define my_errno my_thread_var->thr_errno
+int set_mysys_var(struct st_my_thread_var *mysys_var);
 /*
   Keep track of shutdown,signal, and main threads so that my_end() will not
   report errors with them

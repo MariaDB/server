@@ -82,20 +82,19 @@ enum precedence {
   XOR_PRECEDENCE,       // XOR
   AND_PRECEDENCE,       // AND, &&
   NOT_PRECEDENCE,       // NOT (unless HIGH_NOT_PRECEDENCE)
-  BETWEEN_PRECEDENCE,   // BETWEEN, CASE, WHEN, THEN, ELSE
-  CMP_PRECEDENCE,       // =, <=>, >=, >, <=, <, <>, !=, IS, LIKE, REGEXP, IN
+  CMP_PRECEDENCE,       // =, <=>, >=, >, <=, <, <>, !=, IS
+  BETWEEN_PRECEDENCE,   // BETWEEN
+  IN_PRECEDENCE,        // IN, LIKE, REGEXP
   BITOR_PRECEDENCE,     // |
   BITAND_PRECEDENCE,    // &
   SHIFT_PRECEDENCE,     // <<, >>
-  ADDINTERVAL_PRECEDENCE, // first argument in +INTERVAL
+  INTERVAL_PRECEDENCE,  // first argument in +INTERVAL
   ADD_PRECEDENCE,       // +, -
   MUL_PRECEDENCE,       // *, /, DIV, %, MOD
   BITXOR_PRECEDENCE,    // ^
   PIPES_PRECEDENCE,     // || (if PIPES_AS_CONCAT)
-  NEG_PRECEDENCE,       // unary -, ~
-  BANG_PRECEDENCE,      // !, NOT (if HIGH_NOT_PRECEDENCE)
+  NEG_PRECEDENCE,       // unary -, ~, !, NOT (if HIGH_NOT_PRECEDENCE)
   COLLATE_PRECEDENCE,   // BINARY, COLLATE
-  INTERVAL_PRECEDENCE,  // INTERVAL
   DEFAULT_PRECEDENCE,
   HIGHEST_PRECEDENCE
 };
@@ -244,7 +243,7 @@ void dummy_error_processor(THD *thd, void *data);
 void view_error_processor(THD *thd, void *data);
 
 /*
-  Instances of Name_resolution_context store the information necesary for
+  Instances of Name_resolution_context store the information necessary for
   name resolution of Items and other context analysis of a query made in
   fix_fields().
 
@@ -402,7 +401,7 @@ public:
   Monotonicity is defined only for Item* trees that represent table
   partitioning expressions (i.e. have no subselects/user vars/PS parameters
   etc etc). An Item* tree is assumed to have the same monotonicity properties
-  as its correspoinding function F:
+  as its corresponding function F:
 
   [signed] longlong F(field1, field2, ...) {
     put values of field_i into table record buffer;
@@ -746,7 +745,7 @@ protected:
     return rc;
   }
   /*
-    This method is used if the item was not null but convertion to
+    This method is used if the item was not null but conversion to
     TIME/DATE/DATETIME failed. We return a zero date if allowed,
     otherwise - null.
   */
@@ -947,7 +946,7 @@ public:
   /*
     real_type() is the type of base item.  This is same as type() for
     most items, except Item_ref() and Item_cache_wrapper() where it
-    shows the type for the underlaying item.
+    shows the type for the underlying item.
   */
   virtual enum Type real_type() const { return type(); }
   
@@ -1054,7 +1053,7 @@ public:
       The caller can modify the returned String, if it's not marked
       "const" (with the String::mark_as_const() method). That means that
       if the item returns its own internal buffer (e.g. tmp_value), it
-      *must* be marked "const" [1]. So normally it's preferrable to
+      *must* be marked "const" [1]. So normally it's preferable to
       return the result value in the String, that was passed as an
       argument. But, for example, SUBSTR() returns a String that simply
       points into the buffer of SUBSTR()'s args[0]->val_str(). Such a
@@ -1301,6 +1300,13 @@ public:
     a constant expression. Used in the optimizer to propagate basic constants.
   */
   virtual bool basic_const_item() const { return 0; }
+  /*
+    Determines if the expression is allowed as
+    a virtual column assignment source:
+      INSERT INTO t1 (vcol) VALUES (10)    -> error
+      INSERT INTO t1 (vcol) VALUES (NULL)  -> ok
+  */
+  virtual bool vcol_assignment_allowed_value() const { return false; }
   /* cloning of constant items (0 if it is not const) */
   virtual Item *clone_item(THD *thd) { return 0; }
   virtual Item* build_clone(THD *thd, MEM_ROOT *mem_root) { return get_copy(thd, mem_root); }
@@ -1376,6 +1382,8 @@ public:
     mysql_register_view().
   */
   virtual enum precedence precedence() const { return DEFAULT_PRECEDENCE; }
+  enum precedence higher_precedence() const
+  { return (enum precedence)(precedence() + 1); }
   void print_parenthesised(String *str, enum_query_type query_type,
                            enum precedence parent_prec);
   /**
@@ -1424,7 +1432,7 @@ public:
      @param cond_ptr[OUT] Store a replacement item here if the condition
                           can be simplified, e.g.:
                             WHERE part1 OR part2 OR part3
-                          with one of the partN evalutating to SEL_TREE::ALWAYS.
+                          with one of the partN evaluating to SEL_TREE::ALWAYS.
    */
    virtual SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   /*
@@ -1502,6 +1510,13 @@ public:
     MYSQL_TIME ltime;
     uint fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES | TIME_TIME_ONLY;
     return get_date(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
+  }
+  longlong val_datetime_packed_result();
+  longlong val_time_packed_result()
+  {
+    MYSQL_TIME ltime;
+    uint fuzzydate= TIME_TIME_ONLY | TIME_INVALID_DATES | TIME_FUZZY_DATES;
+    return get_date_result(&ltime, fuzzydate) ? 0 : pack_time(&ltime);
   }
   // Get a temporal value in packed DATE/DATETIME or TIME format
   longlong val_temporal_packed(enum_field_types f_type)
@@ -1997,7 +2012,7 @@ public:
   virtual bool is_outer_field() const { DBUG_ASSERT(fixed); return FALSE; }
 
   /**
-    Checks if this item or any of its decendents contains a subquery.
+    Checks if this item or any of its descendents contains a subquery.
   */
   virtual bool has_subquery() const { return with_subselect; }
 
@@ -2893,6 +2908,7 @@ public:
     collation.set(cs, DERIVATION_IGNORABLE, MY_REPERTOIRE_ASCII);
   }
   enum Type type() const { return NULL_ITEM; }
+  bool vcol_assignment_allowed_value() const { return true; }
   bool eq(const Item *item, bool binary_cmp) const { return null_eq(item); }
   double val_real();
   longlong val_int();
@@ -3075,6 +3091,25 @@ public:
   */
   enum enum_indicator_type indicator;
 
+  bool vcol_assignment_allowed_value() const
+  {
+    switch (state) {
+    case NULL_VALUE:
+    case DEFAULT_VALUE:
+    case IGNORE_VALUE:
+      return true;
+    case NO_VALUE:
+    case INT_VALUE:
+    case REAL_VALUE:
+    case STRING_VALUE:
+    case TIME_VALUE:
+    case LONG_DATA_VALUE:
+    case DECIMAL_VALUE:
+      break;
+    }
+    return false;
+  }
+
   /*
     A buffer for string and long data values. Historically all allocated
     values returned from val_str() were treated as eligible to
@@ -3106,7 +3141,6 @@ public:
 
   enum Type type() const
   {
-    DBUG_ASSERT(fixed || state == NO_VALUE);
     return item_type;
   }
 
@@ -4508,7 +4542,11 @@ public:
   {
     (*ref)->restore_to_before_no_rows_in_result();
   }
-  virtual void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type);
+  enum precedence precedence() const
+  {
+    return ref ? (*ref)->precedence() : DEFAULT_PRECEDENCE;
+  }
   void cleanup();
   Item_field *field_for_view_update()
     { return (*ref)->field_for_view_update(); }
@@ -4971,6 +5009,15 @@ public:
     item_equal= NULL;
     Item_direct_ref::cleanup();
   }
+  /*
+    TODO move these val_*_result function to Item_dierct_ref (maybe)
+  */
+  double val_result();
+  longlong val_int_result();
+  String *str_result(String* tmp);
+  my_decimal *val_decimal_result(my_decimal *val);
+  bool val_bool_result();
+
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_direct_view_ref>(thd, mem_root, this); }
 };
@@ -5167,7 +5214,7 @@ public:
    
     This is the method that updates the cached value.
     It must be explicitly called by the user of this class to store the value 
-    of the orginal item in the cache.
+    of the original item in the cache.
   */  
   virtual void copy() = 0;
 
@@ -5342,21 +5389,24 @@ class Item_default_value : public Item_field
   void calculate();
 public:
   Item *arg;
+  Field *cached_field;
   Item_default_value(THD *thd, Name_resolution_context *context_arg)
     :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                (const char *)NULL),
-     arg(NULL) {}
+    arg(NULL), cached_field(NULL) {}
   Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a)
     :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                 (const char *)NULL),
-     arg(a) {}
+    arg(a), cached_field(NULL) {}
   Item_default_value(THD *thd, Name_resolution_context *context_arg, Field *a)
     :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
                 (const char *)NULL),
-     arg(NULL) {}
+    arg(NULL),cached_field(NULL) {}
   enum Type type() const { return DEFAULT_VALUE_ITEM; }
+  bool vcol_assignment_allowed_value() const { return arg == NULL; }
   bool eq(const Item *item, bool binary_cmp) const;
   bool fix_fields(THD *, Item **);
+  void cleanup();
   void print(String *str, enum_query_type query_type);
   String *val_str(String *str);
   double val_real();
@@ -5758,6 +5808,13 @@ public:
   bool cache_value();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   int save_in_field(Field *field, bool no_conversions);
+  bool setup(THD *thd, Item *item)
+  {
+    if (Item_cache_int::setup(thd, item))
+      return true;
+    set_if_smaller(decimals, TIME_SECOND_PART_DIGITS);
+    return false;
+  }
   Item_result cmp_type() const { return TIME_RESULT; }
   void store_packed(longlong val_arg, Item *example);
   /*

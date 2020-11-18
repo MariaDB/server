@@ -3,6 +3,7 @@ include/master-slave.inc
 connection slave;
 SET DEBUG_SYNC= 'RESET';
 include/stop_slave.inc
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= 'd,dbug.before_get_running_status_yes';
 Slave_running, Slave_IO_Running, Slave_SQL_Running, must be OFF, NO, NO in three following queries
 SHOW STATUS LIKE 'Slave_running';
@@ -34,7 +35,7 @@ Slave_running	ON
 Slave_IO_Running= Yes
 Slave_SQL_Running= Yes
 connection slave;
-set global debug_dbug= '';
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 SET DEBUG_SYNC= 'RESET';
 End of tests
 include/rpl_end.inc

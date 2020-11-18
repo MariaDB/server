@@ -7899,5 +7899,46 @@ a	b
 DROP TABLE t1;
 SET NAMES utf8;
 #
+# MDEV-22111 ERROR 1064 & 1033 and SIGSEGV on CREATE TABLE w/ various charsets on 10.4/5 optimized builds | Assertion `(uint) (table_check_constraints - share->check_constraints) == (uint) (share->table_check_constraints - share->field_check_constraints)' failed
+# 10.2 tests
+#
+SET NAMES utf8, COLLATION_CONNECTION=utf16_hungarian_ci;
+CREATE TABLE t1(c ENUM('aaaaaaaa') CHARACTER SET 'Binary',d JSON);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` enum('\0a\0a\0a\0a\0a\0a\0a\0a') CHARACTER SET binary DEFAULT NULL,
+  `d` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 (c) VALUES (1);
+SELECT HEX(c) FROM t1;
+HEX(c)
+00610061006100610061006100610061
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1(c ENUM('aaaaaaaaa') CHARACTER SET 'Binary',d JSON);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` enum('\0a\0a\0a\0a\0a\0a\0a\0a\0a') CHARACTER SET binary DEFAULT NULL,
+  `d` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 (c) VALUES (1);
+SELECT HEX(c) FROM t1;
+HEX(c)
+006100610061006100610061006100610061
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1(c ENUM('aaaaaaaaaa') CHARACTER SET 'Binary',d JSON);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` enum('\0a\0a\0a\0a\0a\0a\0a\0a\0a\0a') CHARACTER SET binary DEFAULT NULL,
+  `d` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 (c) VALUES (1);
+SELECT HEX(c) FROM t1;
+HEX(c)
+0061006100610061006100610061006100610061
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #

@@ -1,13 +1,6 @@
 --source include/not_embedded.inc
 --source include/have_example_plugin.inc
---source include/have_innodb.inc
-
-if (!`select count(*) from information_schema.plugins
-         where plugin_name = 'innodb' and plugin_status = 'active' and
-              plugin_library is null`) {
-  skip Need compiled-in InnoDB;
-}
-
+--source include/have_static_innodb.inc
 
 --replace_regex /\.dll/.so/
 eval install plugin example soname '$HA_EXAMPLE_SO';

@@ -123,6 +123,9 @@ When one supplies long data for a placeholder:
 #include "transaction.h"                        // trans_rollback_implicit
 #include "wsrep_mysqld.h"
 
+/* Constants defining bits in parameter type flags. Flags are read from high byte of short value */
+static const uint PARAMETER_FLAG_UNSIGNED = 128U << 8;
+
 /**
   A result class used to send cursor rows using the binary protocol.
 */
@@ -903,6 +906,8 @@ static bool insert_params_with_log(Prepared_statement *stmt, uchar *null_array,
 
     if (param->convert_str_value(thd))
       DBUG_RETURN(1);                           /* out of memory */
+
+    param->sync_clones();
   }
   if (acc.finalize())
     DBUG_RETURN(1);
@@ -1001,11 +1006,73 @@ static bool insert_bulk_params(Prepared_statement *stmt,
   DBUG_RETURN(0);
 }
 
-static bool set_conversion_functions(Prepared_statement *stmt,
-                                     uchar **data, uchar *data_end)
+
+/**
+  Checking if parameter type and flags are valid
+
+  @param typecode  ushort value with type in low byte, and flags in high byte
+
+  @retval true  this parameter is wrong
+  @retval false this parameter is OK
+*/
+
+static bool
+parameter_type_sanity_check(ushort typecode)
+{
+  /* Checking if type in lower byte is valid */
+  switch (typecode & 0xff) {
+  case MYSQL_TYPE_DECIMAL:
+  case MYSQL_TYPE_NEWDECIMAL:
+  case MYSQL_TYPE_TINY:
+  case MYSQL_TYPE_SHORT:
+  case MYSQL_TYPE_LONG:
+  case MYSQL_TYPE_LONGLONG:
+  case MYSQL_TYPE_INT24:
+  case MYSQL_TYPE_YEAR:
+  case MYSQL_TYPE_BIT:
+  case MYSQL_TYPE_FLOAT:
+  case MYSQL_TYPE_DOUBLE:
+  case MYSQL_TYPE_NULL:
+  case MYSQL_TYPE_VARCHAR:
+  case MYSQL_TYPE_TINY_BLOB:
+  case MYSQL_TYPE_MEDIUM_BLOB:
+  case MYSQL_TYPE_LONG_BLOB:
+  case MYSQL_TYPE_BLOB:
+  case MYSQL_TYPE_VAR_STRING:
+  case MYSQL_TYPE_STRING:
+  case MYSQL_TYPE_ENUM:
+  case MYSQL_TYPE_SET:
+  case MYSQL_TYPE_GEOMETRY:
+  case MYSQL_TYPE_TIMESTAMP:
+  case MYSQL_TYPE_DATE:
+  case MYSQL_TYPE_TIME:
+  case MYSQL_TYPE_DATETIME:
+  case MYSQL_TYPE_NEWDATE:
+  break;
+  /*
+    This types normally cannot be sent by client, so maybe it'd be
+    better to treat them like an error here.
+  */
+  case MYSQL_TYPE_TIMESTAMP2:
+  case MYSQL_TYPE_TIME2:
+  case MYSQL_TYPE_DATETIME2:
+  default:
+    return true;
+  };
+
+  // In Flags in high byte only unsigned bit may be set
+  if (typecode & ((~PARAMETER_FLAG_UNSIGNED) & 0x0000ff00))
+  {
+    return true;
+  }
+  return false;
+}
+
+static bool
+set_conversion_functions(Prepared_statement *stmt, uchar **data)
 {
   uchar *read_pos= *data;
-  const uint signed_bit= 1 << 15;
+
   DBUG_ENTER("set_conversion_functions");
   /*
      First execute or types altered by the client, setup the
@@ -1018,12 +1085,17 @@ static bool set_conversion_functions(Prepared_statement *stmt,
   {
     ushort typecode;
 
-    if (read_pos >= data_end)
-      DBUG_RETURN(1);
-
+    /*
+      stmt_execute_packet_sanity_check has already verified, that there
+      are enough data in the packet for data types
+    */
     typecode= sint2korr(read_pos);
     read_pos+= 2;
-    (**it).unsigned_flag= MY_TEST(typecode & signed_bit);
+    if (parameter_type_sanity_check(typecode))
+    {
+      DBUG_RETURN(1);
+    }
+    (**it).unsigned_flag= MY_TEST(typecode & PARAMETER_FLAG_UNSIGNED);
     setup_one_conversion_function(thd, *it, (uchar) (typecode & 0xff));
     (*it)->sync_clones();
   }
@@ -1033,7 +1105,7 @@ static bool set_conversion_functions(Prepared_statement *stmt,
 
 
 static bool setup_conversion_functions(Prepared_statement *stmt,
-                                       uchar **data, uchar *data_end,
+                                       uchar **data,
                                        bool bulk_protocol= 0)
 {
   /* skip null bits */
@@ -1046,7 +1118,7 @@ static bool setup_conversion_functions(Prepared_statement *stmt,
   if (*read_pos++) //types supplied / first execute
   {
     *data= read_pos;
-    bool res= set_conversion_functions(stmt, data, data_end);
+    bool res= set_conversion_functions(stmt, data);
     DBUG_RETURN(res);
   }
   *data= read_pos;
@@ -3123,7 +3195,10 @@ static void reset_stmt_params(Prepared_statement *stmt)
   Item_param **item= stmt->param_array;
   Item_param **end= item + stmt->param_count;
   for (;item < end ; ++item)
+  {
     (**item).reset();
+    (**item).sync_clones();
+  }
 }
 
 
@@ -3154,11 +3229,19 @@ static void mysql_stmt_execute_common(THD *thd,
 
 void mysqld_stmt_execute(THD *thd, char *packet_arg, uint packet_length)
 {
+  const uint packet_min_lenght= 9;
   uchar *packet= (uchar*)packet_arg; // GCC 4.0.1 workaround
+
+  DBUG_ENTER("mysqld_stmt_execute");
+
+  if (packet_length < packet_min_lenght)
+  {
+    my_error(ER_MALFORMED_PACKET, MYF(0));
+    DBUG_VOID_RETURN;
+  }
   ulong stmt_id= uint4korr(packet);
   ulong flags= (ulong) packet[4];
   uchar *packet_end= packet + packet_length;
-  DBUG_ENTER("mysqld_stmt_execute");
 
   packet+= 9;                               /* stmt_id + 5 bytes of flags */
 
@@ -3188,10 +3271,19 @@ void mysqld_stmt_execute(THD *thd, char *packet_arg, uint packet_length)
 void mysqld_stmt_bulk_execute(THD *thd, char *packet_arg, uint packet_length)
 {
   uchar *packet= (uchar*)packet_arg; // GCC 4.0.1 workaround
+  DBUG_ENTER("mysqld_stmt_execute_bulk");
+
+  const uint packet_header_lenght= 4 + 2; //ID & 2 bytes of flags
+
+  if (packet_length < packet_header_lenght)
+  {
+    my_error(ER_MALFORMED_PACKET, MYF(0));
+    DBUG_VOID_RETURN;
+  }
+
   ulong stmt_id= uint4korr(packet);
   uint flags= (uint) uint2korr(packet + 4);
   uchar *packet_end= packet + packet_length;
-  DBUG_ENTER("mysqld_stmt_execute_bulk");
 
   if (!(thd->client_capabilities &
         MARIADB_CLIENT_STMT_BULK_OPERATIONS))
@@ -3199,19 +3291,101 @@ void mysqld_stmt_bulk_execute(THD *thd, char *packet_arg, uint packet_length)
     DBUG_PRINT("error",
                ("An attempt to execute bulk operation without support"));
     my_error(ER_UNSUPPORTED_PS, MYF(0));
+    DBUG_VOID_RETURN;
   }
   /* Check for implemented parameters */
   if (flags & (~STMT_BULK_FLAG_CLIENT_SEND_TYPES))
   {
     DBUG_PRINT("error", ("unsupported bulk execute flags %x", flags));
     my_error(ER_UNSUPPORTED_PS, MYF(0));
+    DBUG_VOID_RETURN;
   }
 
   /* stmt id and two bytes of flags */
-  packet+= 4 + 2;
+  packet+= packet_header_lenght;
   mysql_stmt_execute_common(thd, stmt_id, packet, packet_end, 0, TRUE,
                             (flags & STMT_BULK_FLAG_CLIENT_SEND_TYPES));
   DBUG_VOID_RETURN;
+}
+
+/**
+  Additional packet checks for direct execution
+
+  @param thd             THD handle
+  @param stmt            prepared statement being directly executed
+  @param paket           packet with parameters to bind
+  @param packet_end      pointer to the byte after parameters end
+  @param bulk_op         is it bulk operation
+  @param direct_exec     is it direct execution
+  @param read_bytes      need to read types (only with bulk_op)
+
+  @retval true  this parameter is wrong
+  @retval false this parameter is OK
+*/
+
+static bool
+stmt_execute_packet_sanity_check(Prepared_statement *stmt,
+                                 uchar *packet, uchar *packet_end,
+                                 bool bulk_op, bool direct_exec,
+                                 bool read_types)
+{
+
+  DBUG_ASSERT((!read_types) || (read_types && bulk_op));
+  if (stmt->param_count > 0)
+  {
+    uint packet_length= static_cast<uint>(packet_end - packet);
+    uint null_bitmap_bytes= (bulk_op ? 0 : (stmt->param_count + 7)/8);
+    uint min_len_for_param_count = null_bitmap_bytes
+                                 + (bulk_op ? 0 : 1); /* sent types byte */
+
+    if (!bulk_op && packet_length >= min_len_for_param_count)
+    {
+      if ((read_types= packet[null_bitmap_bytes]))
+      {
+        /*
+          Should be 0 or 1. If the byte is not 1, that could mean,
+          e.g. that we read incorrect byte due to incorrect number
+          of sent parameters for direct execution (i.e. null bitmap
+          is shorter or longer, than it should be)
+        */
+        if (packet[null_bitmap_bytes] != '\1')
+        {
+          return true;
+        }
+      }
+    }
+
+    if (read_types)
+    {
+      /* 2 bytes per parameter of the type and flags */
+      min_len_for_param_count+= 2*stmt->param_count;
+    }
+    else
+    {
+      /*
+        If types are not sent, there is nothing to do here.
+        But for direct execution types should always be sent
+      */
+      return direct_exec;
+    }
+
+    /*
+      If true, the packet is guaranteed too short for the number of
+      parameters in the PS
+    */
+    return (packet_length < min_len_for_param_count);
+  }
+  else
+  {
+    /*
+      If there is no parameters, this should be normally already end
+      of the packet, but it is not a problem if something left (popular
+      mistake in protocol implementation) because we will not read anymore
+      from the buffer.
+    */
+    return false;
+  }
+  return false;
 }
 
 
@@ -3253,6 +3427,22 @@ static void mysql_stmt_execute_common(THD *thd,
              llstr(stmt_id, llbuf), "mysqld_stmt_execute");
     DBUG_VOID_RETURN;
   }
+
+  /*
+    In case of direct execution application decides how many parameters
+    to send.
+
+    Thus extra checks are required to prevent crashes caused by incorrect
+    interpretation of the packet data. Plus there can be always a broken
+    evil client.
+  */
+  if (stmt_execute_packet_sanity_check(stmt, packet, packet_end, bulk_op,
+                                       stmt_id == LAST_STMT_ID, read_types))
+  {
+    my_error(ER_MALFORMED_PACKET, MYF(0));
+    DBUG_VOID_RETURN;
+  }
+
   stmt->read_types= read_types;
 
 #if defined(ENABLED_PROFILING)
@@ -3877,7 +4067,7 @@ Prepared_statement::~Prepared_statement()
   free_items();
   if (lex)
   {
-    delete lex->sphead;
+    sp_head::destroy(lex->sphead);
     delete lex->result;
     delete (st_lex_local *) lex;
   }
@@ -4163,7 +4353,7 @@ Prepared_statement::set_parameters(String *expanded_query,
   {
 #ifndef EMBEDDED_LIBRARY
     uchar *null_array= packet;
-    res= (setup_conversion_functions(this, &packet, packet_end) ||
+    res= (setup_conversion_functions(this, &packet) ||
           set_params(this, null_array, packet, packet_end, expanded_query));
 #else
     /*
@@ -4385,7 +4575,7 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
     return TRUE;
   }
 
-  if (!(sql_command_flags[lex->sql_command] & CF_SP_BULK_SAFE))
+  if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_SAFE))
   {
     DBUG_PRINT("error", ("Command is not supported in bulk execution."));
     my_error(ER_UNSUPPORTED_PS, MYF(0));
@@ -4395,7 +4585,7 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
 
 #ifndef EMBEDDED_LIBRARY
   if (read_types &&
-      set_conversion_functions(this, &packet, packet_end))
+      set_conversion_functions(this, &packet))
 #else
   // bulk parameters are not supported for embedded, so it will an error
 #endif
@@ -4427,7 +4617,7 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
       Here we set parameters for not optimized commands,
       optimized commands do it inside thier internal loop.
     */
-    if (!(sql_command_flags[lex->sql_command] & CF_SP_BULK_OPTIMIZED))
+    if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_OPTIMIZED))
     {
       if (set_bulk_parameters(TRUE))
       {

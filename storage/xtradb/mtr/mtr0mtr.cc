@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -87,6 +88,15 @@ mtr_memo_slot_release_func(
 		break;
 	case MTR_MEMO_X_LOCK:
 		rw_lock_x_unlock((prio_rw_lock_t*) object);
+		break;
+	case MTR_MEMO_SPACE_X_LOCK:
+		{
+			fil_space_t* space = reinterpret_cast<fil_space_t*>(
+				static_cast<char*>(object)
+				- my_offsetof(fil_space_t, latch));
+			space->committed_size = space->size;
+			rw_lock_x_unlock(&space->latch);
+		}
 		break;
 #ifdef UNIV_DEBUG
 	default:

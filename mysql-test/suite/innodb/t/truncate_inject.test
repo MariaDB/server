@@ -14,26 +14,26 @@ ENGINE = InnoDB;
 insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 check table t;
 #
-SET debug_dbug = '+d,ib_err_trunc_assigning_undo_log';
+SET @@SESSION.debug_dbug = '+d,ib_err_trunc_assigning_undo_log';
 --error ER_GET_ERRNO
 truncate table t;
-SET debug_dbug = @save_dbug;
+SET @@SESSION.debug_dbug = @save_dbug;
 check table t;
 select * from t;
 
 --echo # 2. Error while preparing for truncate
-SET debug_dbug = '+d,ib_err_trunc_preparing_for_truncate';
+SET @@SESSION.debug_dbug = '+d,ib_err_trunc_preparing_for_truncate';
 --error ER_GET_ERRNO
 truncate table t;
-SET debug_dbug = @save_dbug;
+SET @@SESSION.debug_dbug = @save_dbug;
 check table t;
 select * from t;
 
 --echo # 3. Error while dropping/creating indexes
-SET debug_dbug = '+d,ib_err_trunc_drop_index';
+SET @@SESSION.debug_dbug = '+d,ib_err_trunc_drop_index';
 --error ER_GET_ERRNO
 truncate table t;
-SET debug_dbug = @save_dbug;
+SET @@SESSION.debug_dbug = @save_dbug;
 check table t;
 --error ER_TABLE_CORRUPT,ER_GET_ERRNO
 select * from t;
@@ -44,10 +44,10 @@ ENGINE = InnoDB;
 insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 check table t;
 
-SET debug_dbug = '+d,ib_err_trunc_create_index';
+SET @@SESSION.debug_dbug = '+d,ib_err_trunc_create_index';
 --error ER_GET_ERRNO
 truncate table t;
-SET debug_dbug = @save_dbug;
+SET @@SESSION.debug_dbug = @save_dbug;
 check table t;
 --error ER_TABLE_CORRUPT,ER_GET_ERRNO
 select * from t;
@@ -58,9 +58,9 @@ ENGINE = InnoDB;
 insert into t values (1, 1.1, 'a'), (2, 2.2, 'b'), (3, 3.3, 'c');
 check table t;
 
-SET debug_dbug = '+d,ib_err_trunc_temp_recreate_index';
+SET @@SESSION.debug_dbug = '+d,ib_err_trunc_temp_recreate_index';
 truncate table t;
-SET debug_dbug = @save_dbug;
+SET @@SESSION.debug_dbug = @save_dbug;
 
 check table t;
 select * from t;
@@ -73,9 +73,9 @@ insert into t values (1, 1.1, 'mysql is now oracle company'),
 		     (2, 2.2, 'innodb is part of mysql'),
 		     (3, 3.3, 'innodb is default storage engine of mysql');
 check table t;
-SET debug_dbug = '+d,ib_err_trunc_temp_recreate_index';
+SET @@SESSION.debug_dbug = '+d,ib_err_trunc_temp_recreate_index';
 truncate table t;
-SET debug_dbug = @save_dbug;
+SET @@SESSION.debug_dbug = @save_dbug;
 
 check table t;
 select * from t;
@@ -88,9 +88,9 @@ insert into t values (1, 1.1, 'mysql is now oracle company'),
 		     (2, 2.2, 'innodb is part of mysql'),
 		     (3, 3.3, 'innodb is default storage engine of mysql');
 check table t;
-SET debug_dbug = '+d,ib_err_trunc_temp_recreate_index';
+SET @@SESSION.debug_dbug = '+d,ib_err_trunc_temp_recreate_index';
 truncate table t;
-SET debug_dbug = @save_dbug;
+SET @@SESSION.debug_dbug = @save_dbug;
 
 check table t;
 select * from t order by i;

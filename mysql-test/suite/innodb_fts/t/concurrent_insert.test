@@ -29,6 +29,7 @@ CREATE TABLE t2 (f1 char(100), FULLTEXT idx1(f1))ENGINE=InnoDB;
 INSERT INTO t2 VALUES('mariadb');
 
 connection default;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug ='+d,fts_instrument_sync_request,ib_optimize_wq_hang';
 SET DEBUG_SYNC= 'fts_instrument_sync_request
 		 SIGNAL drop_index_start WAIT_FOR sync_op';
@@ -45,7 +46,7 @@ set DEBUG_SYNC= 'now SIGNAL fts_drop_index';
 
 connection con1;
 reap;
-SET global DEBUG_DBUG=RESET;
 drop table t1, t2;
 connection default;
 set DEBUG_SYNC=RESET;
+SET @@GLOBAL.debug_dbug = @saved_dbug;

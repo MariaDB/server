@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -554,12 +554,18 @@ buf_dblwr_process()
 			continue;
 		}
 
-		if (!fil_check_adress_in_tablespace(space_id, page_no)) {
+		if (!space()->size) {
+			fil_space_get_size(space_id);
+		}
+
+		if (UNIV_UNLIKELY(space()->size <= page_no)) {
 			ib_logf(IB_LOG_LEVEL_WARN,
-				"A copy of page " ULINTPF ":" ULINTPF
+				"A copy of page " ULINTPF
 				" in the doublewrite buffer slot " ULINTPF
-				" is not within space bounds",
-				space_id, page_no, page_no_dblwr);
+				" is beyond the end of the tablespace "
+				" %s (" ULINTPF " pages)",
+				page_no, page_no_dblwr,
+				space()->name, space()->size);
 			continue;
 		}
 
@@ -963,6 +969,7 @@ try_again:
 		ib_int64_t	sig_count = os_event_reset(buf_dblwr->b_event);
 		mutex_exit(&buf_dblwr->mutex);
 
+		os_aio_simulated_wake_handler_threads();
 		os_event_wait_low(buf_dblwr->b_event, sig_count);
 		goto try_again;
 	}
@@ -1112,6 +1119,7 @@ try_again:
 		checkpoint. */
 		ib_int64_t	sig_count = os_event_reset(buf_dblwr->b_event);
 		mutex_exit(&buf_dblwr->mutex);
+		os_aio_simulated_wake_handler_threads();
 
 		os_event_wait_low(buf_dblwr->b_event, sig_count);
 		goto try_again;

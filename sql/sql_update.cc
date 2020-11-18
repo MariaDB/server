@@ -417,6 +417,8 @@ int mysql_update(THD *thd,
     query_plan.set_no_partitions();
     if (thd->lex->describe || thd->lex->analyze_stmt)
       goto produce_explain_and_leave;
+    if (thd->is_error())
+      DBUG_RETURN(1);
 
     my_ok(thd);				// No matching records
     DBUG_RETURN(0);
@@ -1104,8 +1106,7 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
     DBUG_RETURN(TRUE);
 
   if (setup_tables_and_check_access(thd, &select_lex->context, 
-                                    &select_lex->top_join_list,
-                                    table_list,
+                                    &select_lex->top_join_list, table_list,
                                     select_lex->leaf_tables,
                                     FALSE, UPDATE_ACL, SELECT_ACL, TRUE) ||
       setup_conds(thd, table_list, select_lex->leaf_tables, conds) ||

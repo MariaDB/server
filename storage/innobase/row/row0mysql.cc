@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -100,7 +100,7 @@ static UT_LIST_BASE_NODE_T(row_mysql_drop_t)	row_mysql_drop_list;
 static ib_mutex_t row_drop_list_mutex;
 
 /** Flag: has row_mysql_drop_list been initialized? */
-static ibool	row_mysql_drop_list_inited	= FALSE;
+static bool row_mysql_drop_list_inited;
 
 /*******************************************************************//**
 Determine if the given name is a name reserved for MySQL system tables.
@@ -297,9 +297,7 @@ row_mysql_store_geometry(
 {
 	/* MySQL might assume the field is set to zero except the length and
 	the pointer fields */
-	UNIV_MEM_ASSERT_RW(src, src_len);
-	UNIV_MEM_ASSERT_W(dest, dest_len);
-	UNIV_MEM_INVALID(dest, dest_len);
+	MEM_CHECK_DEFINED(src, src_len);
 
 	memset(dest, '\0', dest_len);
 
@@ -782,8 +780,7 @@ handle_new_error:
 			" foreign constraints and try again";
 		goto rollback_to_savept;
 	default:
-		ib::fatal() << "Unknown error code " << err << ": "
-			<< ut_strerr(err);
+		ib::fatal() << "Unknown error " << err;
 	}
 
 	if (trx->error_state != DB_SUCCESS) {
@@ -1033,7 +1030,7 @@ row_prebuilt_free(
 		rtr_clean_rtr_info(prebuilt->rtr_info, true);
 	}
 	if (prebuilt->table) {
-		dict_table_close(prebuilt->table, dict_locked, TRUE);
+		dict_table_close(prebuilt->table, dict_locked, FALSE);
 	}
 
 	mem_heap_free(prebuilt->heap);
@@ -1092,7 +1089,7 @@ row_get_prebuilt_insert_row(
 		may need to rebuild the row insert template. */
 
 		if (prebuilt->trx_id == table->def_trx_id
-		    && UT_LIST_GET_LEN(prebuilt->ins_node->entry_list)
+		    && prebuilt->ins_node->entry_list.size()
 		    == UT_LIST_GET_LEN(table->indexes)) {
 
 			return(prebuilt->ins_node->row);
@@ -1515,7 +1512,7 @@ error_exit:
 		srv_stats.n_rows_inserted.inc(size_t(trx->id));
 	}
 
-	/* Not protected by dict_table_stats_lock() for performance
+	/* Not protected by dict_sys->mutex for performance
 	reasons, we would rather get garbage in stat_n_rows (which is
 	just an estimate anyway) than protecting the following code
 	with a latch. */
@@ -1526,7 +1523,7 @@ error_exit:
 		memcpy(prebuilt->row_id, node->sys_buf, DATA_ROW_ID_LEN);
 	}
 
-	dict_stats_update_if_needed(table, trx->mysql_thd);
+	dict_stats_update_if_needed(table, *trx);
 	trx->op_info = "";
 
 	if (blob_heap != NULL) {
@@ -1873,7 +1870,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	ut_ad(node->is_delete == is_delete);
 
 	if (/*node->*/is_delete) {
-		/* Not protected by dict_table_stats_lock() for performance
+		/* Not protected by dict_sys->mutex for performance
 		reasons, we would rather get garbage in stat_n_rows (which is
 		just an estimate anyway) than protecting the following code
 		with a latch. */
@@ -1898,7 +1895,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	}
 
 	if (update_statistics) {
-		dict_stats_update_if_needed(prebuilt->table, trx->mysql_thd);
+		dict_stats_update_if_needed(prebuilt->table, *trx);
 	} else {
 		/* Always update the table modification counter. */
 		prebuilt->table->stat_modified_counter++;
@@ -2003,8 +2000,8 @@ row_unlock_for_mysql(
 						     + index->trx_id_offset);
 		} else {
 			mem_heap_t*	heap			= NULL;
-			ulint	offsets_[REC_OFFS_NORMAL_SIZE];
-			ulint*	offsets				= offsets_;
+			rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+			rec_offs* offsets				= offsets_;
 
 			rec_offs_init(offsets_);
 			offsets = rec_get_offsets(rec, index, offsets, true,
@@ -2134,7 +2131,7 @@ row_update_cascade_for_mysql(
 
 			if (node->is_delete) {
 				/* Not protected by
-				dict_table_stats_lock() for
+				dict_sys->mutex for
 				performance reasons, we would rather
 				get garbage in stat_n_rows (which is
 				just an estimate anyway) than
@@ -2151,8 +2148,7 @@ row_update_cascade_for_mysql(
 			}
 
 			if (stats) {
-				dict_stats_update_if_needed(node->table,
-							    trx->mysql_thd);
+				dict_stats_update_if_needed(node->table, *trx);
 			} else {
 				/* Always update the table
 				modification counter. */
@@ -2460,6 +2456,9 @@ row_create_index_for_mysql(
 		index->table = table;
 
 		err = dict_create_index_tree_in_mem(index, trx);
+#ifdef BTR_CUR_HASH_ADAPT
+		ut_ad(!index->search_info->ref_count);
+#endif /* BTR_CUR_HASH_ADAPT */
 
 		if (err != DB_SUCCESS) {
 			dict_index_remove_from_cache(table, index);
@@ -2571,13 +2570,31 @@ next:
 
 	ut_a(!table->can_be_evicted);
 
+	bool skip = false;
+
 	if (!table->to_be_dropped) {
+skip:
 		dict_table_close(table, FALSE, FALSE);
 
 		mutex_enter(&row_drop_list_mutex);
 		UT_LIST_REMOVE(row_mysql_drop_list, drop);
-		UT_LIST_ADD_LAST(row_mysql_drop_list, drop);
+		if (!skip) {
+			UT_LIST_ADD_LAST(row_mysql_drop_list, drop);
+		} else {
+			ut_free(drop);
+		}
 		goto next;
+	}
+
+	if (!srv_fast_shutdown && !trx_sys_any_active_transactions()) {
+		lock_mutex_enter();
+		skip = UT_LIST_GET_LEN(table->locks) != 0;
+		lock_mutex_exit();
+		if (skip) {
+			/* We cannot drop tables that are locked by XA
+			PREPARE transactions. */
+			goto skip;
+		}
 	}
 
 	char* name = mem_strdup(table->name.m_name);
@@ -3056,12 +3073,26 @@ row_discard_tablespace_for_mysql(
 		err = DB_ERROR;
 
 	} else {
+		bool fts_exist = (dict_table_has_fts_index(table)
+				  || DICT_TF2_FLAG_IS_SET(
+					  table, DICT_TF2_FTS_HAS_DOC_ID));
+
+		if (fts_exist) {
+			row_mysql_unlock_data_dictionary(trx);
+			fts_optimize_remove_table(table);
+			row_mysql_lock_data_dictionary(trx);
+		}
+
 		/* Do foreign key constraint checks. */
 
 		err = row_discard_tablespace_foreign_key_checks(trx, table);
 
 		if (err == DB_SUCCESS) {
 			err = row_discard_tablespace(trx, table);
+		}
+
+		if (fts_exist && err != DB_SUCCESS) {
+			fts_optimize_add_table(table);
 		}
 	}
 
@@ -3145,10 +3176,10 @@ row_drop_ancillary_fts_tables(
 
 		dberr_t err = fts_drop_tables(trx, table);
 
-		if (err != DB_SUCCESS) {
+		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			ib::error() << " Unable to remove ancillary FTS"
 				" tables for table "
-				<< table->name << " : " << ut_strerr(err);
+				<< table->name << " : " << err;
 
 			return(err);
 		}
@@ -3359,35 +3390,6 @@ row_drop_table_for_mysql(
 
 	if (!dict_table_is_temporary(table)) {
 		if (table->space != TRX_SYS_SPACE) {
-#ifdef BTR_CUR_HASH_ADAPT
-			/* On DISCARD TABLESPACE, we would not drop the
-			adaptive hash index entries. If the tablespace is
-			missing here, delete-marking the record in SYS_INDEXES
-			would not free any pages in the buffer pool. Thus,
-			dict_index_remove_from_cache() would hang due to
-			adaptive hash index entries existing in the buffer
-			pool.  To prevent this hang, and also to guarantee
-			that btr_search_drop_page_hash_when_freed() will avoid
-			calling btr_search_drop_page_hash_index() while we
-			hold the InnoDB dictionary lock, we will drop any
-			adaptive hash index entries upfront. */
-			const bool immune = is_temp_name
-				|| create_failed
-				|| sqlcom == SQLCOM_CREATE_TABLE
-				|| strstr(table->name.m_name, "/FTS");
-
-			while (buf_LRU_drop_page_hash_for_tablespace(table)) {
-				if ((!immune && trx_is_interrupted(trx))
-				    || srv_shutdown_state
-				    != SRV_SHUTDOWN_NONE) {
-					err = DB_INTERRUPTED;
-					table->to_be_dropped = false;
-					dict_table_close(table, true, false);
-					goto funct_exit;
-				}
-			}
-#endif /* BTR_CUR_HASH_ADAPT */
-
 			/* Delete the link file if used. */
 			if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 				RemoteDatafile::delete_link_file(name);
@@ -3404,15 +3406,15 @@ row_drop_table_for_mysql(
 			btr_defragment_remove_table(table);
 		}
 
-		/* Remove stats for this table and all of its indexes from the
-		persistent storage if it exists and if there are stats for this
-		table in there. This function creates its own trx and commits
-		it. */
-		char	errstr[1024];
-		err = dict_stats_drop_table(name, errstr, sizeof(errstr));
-
-		if (err != DB_SUCCESS) {
-			ib::warn() << errstr;
+		if (UNIV_LIKELY(!strstr(name, "/" TEMP_FILE_PREFIX_INNODB))) {
+			/* Remove any persistent statistics for this table,
+			in a separate transaction. */
+			char errstr[1024];
+			err = dict_stats_drop_table(name, errstr,
+						    sizeof errstr);
+			if (err != DB_SUCCESS) {
+				ib::warn() << errstr;
+			}
 		}
 	}
 
@@ -3711,10 +3713,12 @@ do_drop:
 		dict_table_t.  Free this memory before returning. */
 		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 			dict_get_and_save_data_dir_path(table, true);
-			ut_a(table->data_dir_path);
+			ut_ad(table->data_dir_path
+			      || dict_table_is_discarded(table));
 			filepath = fil_make_filepath(
 				table->data_dir_path,
-				table->name.m_name, IBD, true);
+				table->name.m_name, IBD,
+				table->data_dir_path != NULL);
 		} else {
 			filepath = fil_make_filepath(
 				NULL, table->name.m_name, IBD, false);
@@ -3804,6 +3808,11 @@ funct_exit:
 		if (trx_is_started(trx)) {
 
 			trx_commit_for_mysql(trx);
+		}
+
+		/* Add the table to fts queue if drop table fails */
+		if (err != DB_SUCCESS && table->fts) {
+			fts_optimize_add_table(table);
 		}
 
 		row_mysql_unlock_data_dictionary(trx);
@@ -3931,9 +3940,21 @@ loop:
 		avoid accessing dropped fts aux tables in information
 		scheam when parent table still exists.
 		Note: Drop parent table will drop fts aux tables. */
-		char*	parent_table_name;
-		parent_table_name = fts_get_parent_table_name(
-				table_name, strlen(table_name));
+		char*		parent_table_name = NULL;
+		table_id_t	table_id;
+		index_id_t	index_id;
+
+		if (fts_check_aux_table(
+				table_name, &table_id, &index_id)) {
+			dict_table_t* parent_table = dict_table_open_on_id(
+					table_id, TRUE, DICT_TABLE_OP_NORMAL);
+			if (parent_table != NULL) {
+				parent_table_name = mem_strdupl(
+					parent_table->name.m_name,
+					strlen(parent_table->name.m_name));
+				dict_table_close(parent_table, TRUE, FALSE);
+			}
+		}
 
 		if (parent_table_name != NULL) {
 			ut_free(table_name);
@@ -4015,10 +4036,10 @@ loop:
 			table_name, trx, SQLCOM_DROP_DB);
 		trx_commit_for_mysql(trx);
 
-		if (err != DB_SUCCESS) {
+		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 			ib::error() << "DROP DATABASE "
 				<< ut_get_name(trx, name) << " failed"
-				" with error (" << ut_strerr(err) << ") for"
+				" with error (" << err << ") for"
 				" table " << ut_get_name(trx, table_name);
 			ut_free(table_name);
 			break;
@@ -4285,11 +4306,9 @@ row_rename_table_for_mysql(
 
 	/* SYS_TABLESPACES and SYS_DATAFILES need to be updated if
 	the table is in a single-table tablespace. */
-	if (err == DB_SUCCESS
-	    && dict_table_is_file_per_table(table)) {
-		/* Make a new pathname to update SYS_DATAFILES. */
-		char*	new_path = row_make_new_pathname(table, new_name);
-		char*	old_path = fil_space_get_first_path(table->space);
+	if (err != DB_SUCCESS || !dict_table_is_file_per_table(table)) {
+	} else if (char* old_path = fil_space_get_first_path(table->space)) {
+		char* new_path = os_file_make_new_pathname(old_path, new_name);
 
 		/* If old path and new path are the same means tablename
 		has not changed and only the database name holding the table
@@ -4529,12 +4548,20 @@ end:
 		if (err != DB_SUCCESS) {
 
 			if (old_is_tmp) {
-				ib::error() << "In ALTER TABLE "
+				/* In case of copy alter, ignore the
+				loading of foreign key constraint
+				when foreign_key_check is disabled */
+				ib::error_or_warn(trx->check_foreigns)
+					<< "In ALTER TABLE "
 					<< ut_get_name(trx, new_name)
 					<< " has or is referenced in foreign"
 					" key constraints which are not"
 					" compatible with the new table"
 					" definition.";
+				if (!trx->check_foreigns) {
+					err = DB_SUCCESS;
+					goto funct_exit;
+				}
 			} else {
 				ib::error() << "In RENAME TABLE table "
 					<< ut_get_name(trx, new_name)
@@ -4652,9 +4679,8 @@ row_scan_index_for_mysql(
 	ulint		i;
 	ulint		cnt;
 	mem_heap_t*	heap		= NULL;
-	ulint		n_ext;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets;
 	rec_offs_init(offsets_);
 
 	*n_rows = 0;
@@ -4786,14 +4812,14 @@ not_ok:
 
 			tmp_heap = mem_heap_create(size);
 
-			offsets = static_cast<ulint*>(
+			offsets = static_cast<rec_offs*>(
 				mem_heap_dup(tmp_heap, offsets, size));
 		}
 
 		mem_heap_empty(heap);
 
 		prev_entry = row_rec_to_index_entry(
-			rec, index, offsets, &n_ext, heap);
+			rec, index, offsets, heap);
 
 		if (UNIV_LIKELY_NULL(tmp_heap)) {
 			mem_heap_free(tmp_heap);
@@ -4818,19 +4844,22 @@ row_mysql_init(void)
 		row_mysql_drop_list,
 		&row_mysql_drop_t::row_mysql_drop_list);
 
-	row_mysql_drop_list_inited = TRUE;
+	row_mysql_drop_list_inited = true;
 }
 
-/*********************************************************************//**
-Close this module */
-void
-row_mysql_close(void)
-/*================*/
+void row_mysql_close()
 {
-	ut_a(UT_LIST_GET_LEN(row_mysql_drop_list) == 0);
+  ut_ad(!UT_LIST_GET_LEN(row_mysql_drop_list) ||
+        srv_force_recovery >= SRV_FORCE_NO_BACKGROUND);
+  if (row_mysql_drop_list_inited)
+  {
+    row_mysql_drop_list_inited= false;
+    mutex_free(&row_drop_list_mutex);
 
-	if (row_mysql_drop_list_inited) {
-		mutex_free(&row_drop_list_mutex);
-		row_mysql_drop_list_inited = FALSE;
-	}
+    while (row_mysql_drop_t *drop= UT_LIST_GET_FIRST(row_mysql_drop_list))
+    {
+      UT_LIST_REMOVE(row_mysql_drop_list, drop);
+      ut_free(drop);
+    }
+  }
 }

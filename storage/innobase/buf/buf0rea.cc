@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -279,31 +279,8 @@ buf_read_ahead_random(
 	high = (page_id.page_no() / buf_read_ahead_random_area + 1)
 		* buf_read_ahead_random_area;
 
-	/* Remember the tablespace version before we ask the tablespace size
-	below: if DISCARD + IMPORT changes the actual .ibd file meanwhile, we
-	do not try to read outside the bounds of the tablespace! */
 	if (fil_space_t* space = fil_space_acquire(page_id.space())) {
-
-#ifdef UNIV_DEBUG
-		if (srv_file_per_table) {
-			ulint	size = 0;
-
-			for (const fil_node_t*	node =
-				UT_LIST_GET_FIRST(space->chain);
-			     node != NULL;
-			     node = UT_LIST_GET_NEXT(chain, node)) {
-
-				size += ulint(os_file_get_size(node->handle)
-					/ page_size.physical());
-			}
-
-			ut_ad(size == space->size);
-		}
-#endif /* UNIV_DEBUG */
-
-		if (high > space->size) {
-			high = space->size;
-		}
+		high = space->max_page_number_for_io(high);
 		fil_space_release(space);
 	} else {
 		return(0);
@@ -580,13 +557,10 @@ buf_read_ahead_linear(
 		return(0);
 	}
 
-	/* Remember the tablespace version before we ask te tablespace size
-	below: if DISCARD + IMPORT changes the actual .ibd file meanwhile, we
-	do not try to read outside the bounds of the tablespace! */
 	ulint	space_size;
 
 	if (fil_space_t* space = fil_space_acquire(page_id.space())) {
-		space_size = space->size;
+		space_size = space->committed_size;
 		fil_space_release(space);
 
 		if (high > space_size) {
@@ -925,8 +899,12 @@ buf_read_recv_pages(
 		ulint			count = 0;
 
 		buf_pool = buf_pool_get(cur_page_id);
-		while (buf_pool->n_pend_reads >= recv_n_pool_free_frames / 2) {
+		ulint limit = 0;
+		for (ulint j = 0; j < buf_pool->n_chunks; j++) {
+			limit += buf_pool->chunks[j].size / 2;
+		}
 
+		while (buf_pool->n_pend_reads >= limit) {
 			os_aio_simulated_wake_handler_threads();
 			os_thread_sleep(10000);
 

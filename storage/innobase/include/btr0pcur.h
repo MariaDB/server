@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,6 +29,7 @@ Created 2/23/1996 Heikki Tuuri
 
 #include "dict0dict.h"
 #include "btr0cur.h"
+#include "buf0block_hint.h"
 #include "btr0btr.h"
 #include "gis0rtree.h"
 
@@ -136,15 +137,22 @@ btr_pcur_open_with_no_init_func(
 				page, but assume that the caller uses his
 				btr search latch to protect the record! */
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
+#ifdef BTR_CUR_HASH_ADAPT
 	ulint		has_search_latch,
 				/*!< in: latch mode the caller
 				currently has on search system:
 				RW_S_LATCH, or 0 */
+#endif /* BTR_CUR_HASH_ADAPT */
 	const char*	file,	/*!< in: file name */
 	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr);	/*!< in: mtr */
-#define btr_pcur_open_with_no_init(ix,t,md,l,cur,has,m)			\
+#ifdef BTR_CUR_HASH_ADAPT
+# define btr_pcur_open_with_no_init(ix,t,md,l,cur,has,m)		\
 	btr_pcur_open_with_no_init_func(ix,t,md,l,cur,has,__FILE__,__LINE__,m)
+#else /* BTR_CUR_HASH_ADAPT */
+# define btr_pcur_open_with_no_init(ix,t,md,l,cur,has,m)		\
+	btr_pcur_open_with_no_init_func(ix,t,md,l,cur,__FILE__,__LINE__,m)
+#endif /* BTR_CUR_HASH_ADAPT */
 
 /*****************************************************************//**
 Opens a persistent cursor at either end of an index. */
@@ -507,13 +515,10 @@ struct btr_pcur_t{
 	whether cursor was on, before, or after the old_rec record */
 	enum btr_pcur_pos_t	rel_pos;
 	/** buffer block when the position was stored */
-	buf_block_t*	block_when_stored;
+	buf::Block_hint		block_when_stored;
 	/** the modify clock value of the buffer block when the cursor position
 	was stored */
 	ib_uint64_t	modify_clock;
-	/** the withdraw clock value of the buffer pool when the cursor
-	position was stored */
-	ulint		withdraw_clock;
 	/** btr_pcur_store_position() and btr_pcur_restore_position() state. */
 	enum pcur_pos_t	pos_state;
 	/** PAGE_CUR_G, ... */
@@ -533,9 +538,8 @@ struct btr_pcur_t{
 	btr_pcur_t() :
 		btr_cur(), latch_mode(0), old_stored(false), old_rec(NULL),
 		old_n_fields(0), rel_pos(btr_pcur_pos_t(0)),
-		block_when_stored(NULL),
-		modify_clock(0), withdraw_clock(0),
-		pos_state(BTR_PCUR_NOT_POSITIONED),
+		block_when_stored(),
+		modify_clock(0), pos_state(BTR_PCUR_NOT_POSITIONED),
 		search_mode(PAGE_CUR_UNSUPP), trx_if_known(NULL),
 		old_rec_buf(NULL), buf_size(0)
 	{

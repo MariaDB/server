@@ -63,7 +63,7 @@ let MYSQLD_DATADIR=`select @@datadir`;
 --echo # We give 30 seconds to do a clean shutdown because we do not want
 --echo # to redo apply the pages of t1.ibd at the time of recovery.
 --echo # We want SQL to initiate the first access to t1.ibd.
-shutdown_server 30;
+shutdown_server;
 
 --echo # Wait until disconnected.
 --source include/wait_until_disconnected.inc

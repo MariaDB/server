@@ -811,9 +811,9 @@ typedef struct system_status_var
   ulong feature_window_functions;   /* +1 when window functions are used */
 
   /* From MASTER_GTID_WAIT usage */
-  ulonglong master_gtid_wait_timeouts;          /* Number of timeouts */
-  ulonglong master_gtid_wait_time;              /* Time in microseconds */
-  ulonglong master_gtid_wait_count;
+  ulong master_gtid_wait_timeouts;          /* Number of timeouts */
+  ulong master_gtid_wait_time;              /* Time in microseconds */
+  ulong master_gtid_wait_count;
 
   ulong empty_queries;
   ulong access_denied_errors;
@@ -953,7 +953,7 @@ public:
   /* We build without RTTI, so dynamic_cast can't be used. */
   enum Type
   {
-    STATEMENT, PREPARED_STATEMENT, STORED_PROCEDURE
+    STATEMENT, PREPARED_STATEMENT, STORED_PROCEDURE, TABLE_ARENA
   };
 
   Query_arena(MEM_ROOT *mem_root_arg, enum enum_state state_arg) :
@@ -1823,20 +1823,23 @@ private:
   TABLE_LIST *m_locked_tables;
   TABLE_LIST **m_locked_tables_last;
   /** An auxiliary array used only in reopen_tables(). */
-  TABLE **m_reopen_array;
+  TABLE_LIST **m_reopen_array;
   /**
     Count the number of tables in m_locked_tables list. We can't
     rely on thd->lock->table_count because it excludes
     non-transactional temporary tables. We need to know
     an exact number of TABLE objects.
   */
-  size_t m_locked_tables_count;
+  uint m_locked_tables_count;
 public:
+  bool some_table_marked_for_reopen;
+
   Locked_tables_list()
     :m_locked_tables(NULL),
     m_locked_tables_last(&m_locked_tables),
     m_reopen_array(NULL),
-    m_locked_tables_count(0)
+    m_locked_tables_count(0),
+    some_table_marked_for_reopen(0)
   {
     init_sql_alloc(&m_locked_tables_root, MEM_ROOT_BLOCK_SIZE, 0,
                    MYF(MY_THREAD_SPECIFIC));
@@ -1859,6 +1862,7 @@ public:
   bool restore_lock(THD *thd, TABLE_LIST *dst_table_list, TABLE *table,
                     MYSQL_LOCK *lock);
   void add_back_last_deleted_lock(TABLE_LIST *dst_table_list);
+  void mark_table_for_reopen(THD *thd, TABLE *table);
 };
 
 
@@ -3650,13 +3654,20 @@ public:
     return 0;
   }
 
+
+  bool is_item_tree_change_register_required()
+  {
+    return !stmt_arena->is_conventional()
+           || stmt_arena->type() == Query_arena::TABLE_ARENA;
+  }
+
   void change_item_tree(Item **place, Item *new_value)
   {
     DBUG_ENTER("THD::change_item_tree");
     DBUG_PRINT("enter", ("Register: %p (%p) <- %p",
                        *place, place, new_value));
     /* TODO: check for OOM condition here */
-    if (!stmt_arena->is_conventional())
+    if (is_item_tree_change_register_required())
       nocheck_register_item_tree_change(place, *place, mem_root);
     *place= new_value;
     DBUG_VOID_RETURN;
@@ -3725,7 +3736,8 @@ public:
           The worst things that can happen is that we get
           a suboptimal error message.
         */
-        if ((killed_err= (err_info*) alloc(sizeof(*killed_err))))
+        killed_err= (err_info*) alloc_root(&main_mem_root, sizeof(*killed_err));
+        if (killed_err)
         {
           killed_err->no= killed_errno_arg;
           ::strmake((char*) killed_err->msg, killed_err_msg_arg,
@@ -5437,6 +5449,8 @@ struct SORT_FIELD_ATTR
 {
   uint length;          /* Length of sort field */
   uint suffix_length;   /* Length suffix (0-4) */
+  enum Type { FIXED_SIZE, VARIABLE_SIZE } type;
+  bool is_variable_sized() { return type == VARIABLE_SIZE; }
 };
 
 
@@ -5770,11 +5784,11 @@ public:
 /**
   SP Bulk execution safe
 */
-#define CF_SP_BULK_SAFE (1U << 20)
+#define CF_PS_ARRAY_BINDING_SAFE (1U << 20)
 /**
   SP Bulk execution optimized
 */
-#define CF_SP_BULK_OPTIMIZED (1U << 21)
+#define CF_PS_ARRAY_BINDING_OPTIMIZED (1U << 21)
 
 /* Bits in server_command_flags */
 

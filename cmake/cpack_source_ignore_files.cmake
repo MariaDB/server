@@ -15,6 +15,7 @@
 
 SET(CPACK_SOURCE_IGNORE_FILES
 \\\\.git/
+\\\\.git$
 \\\\.gitignore$
 \\\\.gitattributes$
 CMakeCache\\\\.txt$

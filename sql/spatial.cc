@@ -50,6 +50,98 @@ double my_double_round(double value, longlong dec, bool dec_unsigned,
 
 #define MAX_DIGITS_IN_DOUBLE MY_GCVT_MAX_FIELD_WIDTH
 
+int MBR::within(const MBR *mbr)
+{
+  /*
+    We have to take into account the 'dimension' of
+    the MBR, where the dimension of a single point is 0,
+    the dimesion of an vertical or horizontal line is 1,
+    and finally the dimension of the solid rectangle is 2.
+  */
+    
+  int dim1= dimension();
+  int dim2= mbr->dimension();
+
+  DBUG_ASSERT(dim1 >= 0 && dim1 <= 2 && dim2 >= 0 && dim2 <= 2);
+
+  /*
+    Either/both of the two operands can degrade to a point or a
+    horizontal/vertical line segment, and we have to treat such cases
+    separately.
+   */
+  switch (dim1)
+  {
+  case 0:
+    DBUG_ASSERT(xmin == xmax && ymin == ymax);
+    switch (dim2)
+    {
+    case 0:
+      DBUG_ASSERT(mbr->xmin == mbr->xmax && mbr->ymin == mbr->ymax);
+      return equals(mbr);
+      break;
+    case 1:
+      DBUG_ASSERT((mbr->xmin == mbr->xmax && mbr->ymin != mbr->ymax) ||
+                  (mbr->ymin == mbr->ymax && mbr->xmin != mbr->xmax));
+      return ((xmin > mbr->xmin && xmin < mbr->xmax && ymin == mbr->ymin) ||
+              (ymin > mbr->ymin && ymin < mbr->ymax && xmin == mbr->xmin));
+      break;
+    case 2:
+      DBUG_ASSERT(mbr->xmin != mbr->xmax && mbr->ymin != mbr->ymax);
+      return (xmin > mbr->xmin && xmax < mbr->xmax &&
+              ymin > mbr->ymin && ymax < mbr->ymax);
+      break;
+    }
+    break;
+  case 1:
+    DBUG_ASSERT((xmin == xmax && ymin != ymax) ||
+                (ymin == ymax && xmin != xmax));
+    switch (dim2)
+    {
+    case 0:
+      DBUG_ASSERT(mbr->xmin == mbr->xmax && mbr->ymin == mbr->ymax);
+      return 0;
+      break;
+    case 1:
+      DBUG_ASSERT((mbr->xmin == mbr->xmax && mbr->ymin != mbr->ymax) ||
+                  (mbr->ymin == mbr->ymax && mbr->xmin != mbr->xmax));
+      return ((xmin == xmax && mbr->xmin == mbr->xmax && mbr->xmin == xmin &&
+               mbr->ymin <= ymin && mbr->ymax >= ymax) ||
+              (ymin == ymax && mbr->ymin == mbr->ymax && mbr->ymin == ymin &&
+               mbr->xmin <= xmin && mbr->xmax >= xmax));
+      break;
+    case 2:
+      DBUG_ASSERT(mbr->xmin != mbr->xmax && mbr->ymin != mbr->ymax);
+      return ((xmin == xmax && xmin > mbr->xmin && xmax < mbr->xmax &&
+               ymin >= mbr->ymin && ymax <= mbr->ymax) ||
+              (ymin == ymax && ymin > mbr->ymin && ymax < mbr->ymax &&
+               xmin >= mbr->xmin && xmax <= mbr->xmax));
+      break;
+    }
+    break;
+  case 2:
+    DBUG_ASSERT(xmin != xmax && ymin != ymax);
+    switch (dim2)
+    {
+    case 0:
+    case 1:
+      return 0;
+      break;
+    case 2:
+      DBUG_ASSERT(mbr->xmin != mbr->xmax && mbr->ymin != mbr->ymax);
+      return ((mbr->xmin <= xmin) && (mbr->ymin <= ymin) &&
+              (mbr->xmax >= xmax) && (mbr->ymax >= ymax));
+      break;
+
+    }
+    break;
+  }
+
+  // Never reached.
+  DBUG_ASSERT(false);
+  return 0;
+}
+
+
 /***************************** Gis_class_info *******************************/
 
 String Geometry::bad_geometry_data("Bad object", &my_charset_bin);

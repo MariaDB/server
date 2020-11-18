@@ -754,7 +754,7 @@ static sp_head *sp_compile(THD *thd, String *defstr, sql_mode_t sql_mode,
   if (parse_sql(thd, & parser_state, creation_ctx) || thd->lex == NULL)
   {
     sp= thd->lex->sphead;
-    delete sp;
+    sp_head::destroy(sp);
     sp= 0;
   }
   else
@@ -1081,7 +1081,7 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
     {
       if (lex->create_info.or_replace())
       {
-        if ((ret= sp_drop_routine_internal(thd, type, lex->spname, table)))
+        if (sp_drop_routine_internal(thd, type, lex->spname, table))
           goto done;
       }
       else if (lex->create_info.if_not_exists())

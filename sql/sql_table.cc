@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB
+   Copyright (c) 2010, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4196,10 +4196,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         continue;
 
       {
-        /* Check that there's no repeating constraint names. */
+        /* Check that there's no repeating table CHECK constraint names. */
         List_iterator_fast<Virtual_column_info>
           dup_it(alter_info->check_constraint_list);
-        Virtual_column_info *dup_check;
+        const Virtual_column_info *dup_check;
         while ((dup_check= dup_it++) && dup_check != check)
         {
           if (check->name.length == dup_check->name.length &&
@@ -4209,6 +4209,27 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
             my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
             DBUG_RETURN(TRUE);
           }
+        }
+      }
+
+      /* Check that there's no repeating key constraint names. */
+      List_iterator_fast<Key> key_it(alter_info->key_list);
+      while (const Key *key= key_it++)
+      {
+        /*
+          Not all keys considered to be the CONSTRAINT
+          Noly Primary Key UNIQUE and Foreign keys.
+        */
+        if (key->type != Key::PRIMARY && key->type != Key::UNIQUE &&
+            key->type != Key::FOREIGN_KEY)
+          continue;
+
+        if (check->name.length == key->name.length &&
+            my_strcasecmp(system_charset_info,
+              check->name.str, key->name.str) == 0)
+        {
+          my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
+          DBUG_RETURN(TRUE);
         }
       }
 
@@ -4265,10 +4286,33 @@ bool validate_comment_length(THD *thd, LEX_STRING *comment, size_t max_len,
                              uint err_code, const char *name)
 {
   DBUG_ENTER("validate_comment_length");
-  uint tmp_len= my_charpos(system_charset_info, comment->str,
-                           comment->str + comment->length, max_len);
+
+  if (comment->length == 0)
+    DBUG_RETURN(false);
+
+  size_t tmp_len=
+      Well_formed_prefix(system_charset_info, *comment, max_len).length();
   if (tmp_len < comment->length)
   {
+#if MARIADB_VERSION_ID < 100500
+    if (comment->length <= max_len)
+    {
+      if (thd->is_strict_mode())
+      {
+         my_error(ER_INVALID_CHARACTER_STRING, MYF(0),
+                  system_charset_info->csname, comment->str);
+         DBUG_RETURN(true);
+      }
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_INVALID_CHARACTER_STRING,
+                          ER_THD(thd, ER_INVALID_CHARACTER_STRING),
+                          system_charset_info->csname, comment->str);
+      comment->length= tmp_len;
+      DBUG_RETURN(false);
+    }
+#else
+#error do it in TEXT_STRING_sys
+#endif
     if (thd->is_strict_mode())
     {
        my_error(err_code, MYF(0), name, static_cast<ulong>(max_len));
@@ -5393,7 +5437,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   DBUG_ENTER("mysql_create_like_table");
 
 #ifdef WITH_WSREP
-  if (WSREP_ON && !thd->wsrep_applier &&
+  if (WSREP(thd) && !thd->wsrep_applier &&
       wsrep_create_like_table(thd, table, src_table, create_info))
     DBUG_RETURN(res);
 #endif
@@ -7758,7 +7802,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       if (field->default_value)
         field->default_value->expr->walk(&Item::rename_fields_processor, 1,
                                          &column_rename_param);
-      table->m_needs_reopen= 1; // because new column name is on thd->mem_root
+      // Force reopen because new column name is on thd->mem_root
+      table->mark_table_for_reopen();
     }
 
     /* Check if field is changed */
@@ -8170,12 +8215,42 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         {
           check->expr->walk(&Item::rename_fields_processor, 1,
                             &column_rename_param);
-          table->m_needs_reopen= 1; // because new column name is on thd->mem_root
+          // Force reopen because new column name is on thd->mem_root
+          table->mark_table_for_reopen();
         }
         new_constraint_list.push_back(check, thd->mem_root);
       }
     }
   }
+
+  if (!alter_info->check_constraint_list.is_empty())
+  {
+    /* Check the table FOREIGN KEYs for name duplications. */
+    List <FOREIGN_KEY_INFO> fk_child_key_list;
+    FOREIGN_KEY_INFO *f_key;
+    table->file->get_foreign_key_list(thd, &fk_child_key_list);
+    List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);
+    while ((f_key= fk_key_it++))
+    {
+      List_iterator_fast<Virtual_column_info>
+        c_it(alter_info->check_constraint_list);
+      Virtual_column_info *check;
+      while ((check= c_it++))
+      {
+        if (!check->name.length || check->automatic_name)
+          continue;
+
+        if (check->name.length == f_key->foreign_id->length &&
+            my_strcasecmp(system_charset_info, f_key->foreign_id->str,
+                          check->name.str) == 0)
+        {
+          my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
+          goto err;
+        }
+      }
+    }
+  }
+
   /* Add new constraints */
   new_constraint_list.append(&alter_info->check_constraint_list);
 
@@ -8847,6 +8922,13 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     {
       my_error(ER_UNSUPORTED_LOG_ENGINE, MYF(0),
                hton_name(create_info->db_type)->str);
+      DBUG_RETURN(true);
+    }
+
+    if (create_info->db_type == maria_hton &&
+        create_info->transactional != HA_CHOICE_NO)
+    {
+      my_error(ER_TRANSACTIONAL_ARIA_LOG_ENGINE, MYF(0));
       DBUG_RETURN(true);
     }
 
@@ -9870,7 +9952,8 @@ err_new_table_cleanup:
     thd->abort_on_warning= true;
     make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                                  f_val, strlength(f_val), t_type,
-                                 new_table->s,
+                                 alter_ctx.new_db,
+                                 alter_ctx.new_name,
                                  alter_ctx.datetime_field->field_name);
     thd->abort_on_warning= save_abort_on_warning;
   }
@@ -9982,6 +10065,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   sql_mode_t save_sql_mode= thd->variables.sql_mode;
   ulonglong prev_insert_id, time_to_report_progress;
   Field **dfield_ptr= to->default_field;
+  uint save_to_s_default_fields= to->s->default_fields;
   DBUG_ENTER("copy_data_between_tables");
 
   /* Two or 3 stages; Sorting, copying data and update indexes */
@@ -10263,6 +10347,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   *copied= found_count;
   *deleted=delete_count;
   to->file->ha_release_auto_increment();
+  to->s->default_fields= save_to_s_default_fields;
 
   if (!cleanup_done)
   {

@@ -1,5 +1,5 @@
 /* Copyright (c) 2003, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2016, MariaDB
+   Copyright (c) 2011, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -456,16 +456,18 @@ String *Item_func_boundary::val_str(String *str_value)
   DBUG_ASSERT(fixed == 1);
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
+
+  if ((null_value= args[0]->null_value))
+    DBUG_RETURN(0);
+
   Geometry_buffer buffer;
-  Geometry *g;
   uint32 srid= 0;
   Transporter trn(&res_receiver);
-  
-  if ((null_value=
-       args[0]->null_value ||
-       !(g= Geometry::construct(&buffer, swkb->ptr(), swkb->length()))))
+
+  Geometry *g= Geometry::construct(&buffer, swkb->ptr(), swkb->length());
+  if (!g)
     DBUG_RETURN(0);
-  
+
   if (g->store_shapes(&trn))
     goto mem_error;
 
@@ -2389,12 +2391,15 @@ double Item_func_distance::val_real()
   MBR mbr1, mbr2;
   const char *c_end;
 
-
-  if ((null_value= (args[0]->null_value || args[1]->null_value ||
-          !(g1= Geometry::construct(&buffer1, res1->ptr(), res1->length())) ||
-          !(g2= Geometry::construct(&buffer2, res2->ptr(), res2->length())) ||
-          g1->get_mbr(&mbr1, &c_end) ||
-          g2->get_mbr(&mbr2, &c_end))))
+  if (args[0]->null_value || args[1]->null_value)
+    goto mem_error;
+  g1= Geometry::construct(&buffer1, res1->ptr(), res1->length());
+  if (!g1)
+    goto mem_error;
+  g2= Geometry::construct(&buffer2, res2->ptr(), res2->length());
+  if (!g2)
+    goto mem_error;
+  if (g1->get_mbr(&mbr1, &c_end) || g2->get_mbr(&mbr2, &c_end))
     goto mem_error;
 
   mbr1.add_mbr(&mbr2);
@@ -2543,7 +2548,7 @@ String *Item_func_pointonsurface::val_str(String *str)
   Geometry *g;
   MBR mbr;
   const char *c_end;
-  double UNINIT_VAR(px), UNINIT_VAR(py), x0, y0;
+  double UNINIT_VAR(px), UNINIT_VAR(py), x0, UNINIT_VAR(y0);
   String *result= 0;
   const Gcalc_scan_iterator::point *pprev= NULL;
   uint32 srid;

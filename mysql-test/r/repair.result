@@ -233,3 +233,24 @@ i
 UNLOCK TABLES;
 DROP TABLE t1;
 # End of 10.0 tests
+create table t1 (a int, b varchar(200));
+insert t1 select seq, repeat(200, seq) from seq_1_to_30;
+delete from t1 where a % 13 = 0;
+repair table t1 use_frm;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	warning	Number of rows changed from 0 to 28
+test.t1	repair	status	OK
+delete from t1 where a % 11 = 0;
+repair table t1 extended use_frm;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	warning	Number of rows changed from 0 to 26
+test.t1	repair	status	OK
+delete from t1 where a % 7 = 0;
+set myisam_repair_threads = 2;
+repair table t1 use_frm;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	warning	Number of rows changed from 0 to 22
+test.t1	repair	status	OK
+set myisam_repair_threads = default;
+drop table t1;
+# End of 10.2 tests

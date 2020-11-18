@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -383,7 +383,7 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 		}
 
 		if (fseg_free_step_not_header(
-			    seg_hdr + TRX_UNDO_FSEG_HEADER, false, &mtr)) {
+			    seg_hdr + TRX_UNDO_FSEG_HEADER, &mtr)) {
 
 			break;
 		}
@@ -413,7 +413,7 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 		is not flooded with bufferfixed pages: see the note in
 		fsp0fsp.cc. */
 
-	} while (!fseg_free_step(seg_hdr + TRX_UNDO_FSEG_HEADER, false, &mtr));
+	} while (!fseg_free_step(seg_hdr + TRX_UNDO_FSEG_HEADER, &mtr));
 
 	hist_size = mtr_read_ulint(rseg_hdr + TRX_RSEG_HISTORY_SIZE,
 				   MLOG_4BYTES, &mtr);
@@ -698,12 +698,11 @@ namespace undo {
 
 			os_file_close(handle);
 
-			if (err != DB_SUCCESS) {
-
+			if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 				ib::info()
 					<< "Unable to read '"
 					<< log_file_name << "' : "
-					<< ut_strerr(err);
+					<< err;
 
 				os_file_delete(
 					innodb_log_file_key, log_file_name);
@@ -996,7 +995,7 @@ trx_purge_initiate_truncate(
 	mtr_t mtr;
 	const ulint size = SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
 	mtr.start();
-	mtr_x_lock(&space->latch, &mtr);
+	mtr.x_lock_space(space, __FILE__, __LINE__);
 	fil_truncate_log(space, size, &mtr);
 	fsp_header_init(space_id, size, &mtr);
 	mutex_enter(&fil_system->mutex);

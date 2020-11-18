@@ -1,6 +1,7 @@
 #
 # Bug#40992 - InnoDB: Crash when engine_condition_pushdown is on
 #
+SET @saved_dbug = @@SESSION.debug_dbug;
 set session debug_dbug="+d,optimizer_innodb_icp";
 CREATE TABLE t (
 dummy INT PRIMARY KEY, 
@@ -13,3 +14,4 @@ dummy	a	b
 3	3	3
 5	5	5
 DROP TABLE t;
+SET debug_dbug= @saved_dbug;

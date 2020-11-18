@@ -410,26 +410,17 @@ public:
 };
 
 
-class Item_func_weekday :public Item_func
+class Item_func_weekday :public Item_int_func
 {
   bool odbc_type;
 public:
   Item_func_weekday(THD *thd, Item *a, bool type_arg):
-    Item_func(thd, a), odbc_type(type_arg) { collation.set_numeric(); }
+    Item_int_func(thd, a), odbc_type(type_arg) { }
   longlong val_int();
-  double val_real() { DBUG_ASSERT(fixed == 1); return (double) val_int(); }
-  String *val_str(String *str)
-  {
-    DBUG_ASSERT(fixed == 1);
-    str->set(val_int(), &my_charset_bin);
-    return null_value ? 0 : str;
-  }
   const char *func_name() const
   {
      return (odbc_type ? "dayofweek" : "weekday");
   }
-  enum Item_result result_type () const { return INT_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_LONGLONG; }
   bool fix_length_and_dec()
   {
     decimals= 0;
@@ -447,21 +438,25 @@ public:
   { return get_item_copy<Item_func_weekday>(thd, mem_root, this); }
 };
 
-class Item_func_dayname :public Item_func_weekday
+class Item_func_dayname :public Item_str_func
 {
   MY_LOCALE *locale;
  public:
-  Item_func_dayname(THD *thd, Item *a): Item_func_weekday(thd, a, 0) {}
+  Item_func_dayname(THD *thd, Item *a): Item_str_func(thd, a) {}
   const char *func_name() const { return "dayname"; }
   String *val_str(String *str);
-  enum Item_result result_type () const { return STRING_RESULT; }
-  enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
   bool fix_length_and_dec();
   bool check_partition_func_processor(void *int_arg) {return TRUE;}
   bool check_vcol_func_processor(void *arg)
   {
     return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
   }
+  bool check_valid_arguments_processor(void *int_arg)
+  {
+    return !has_date_args();
+  }
+  Item *get_copy(THD *thd, MEM_ROOT *mem_root)
+  { return get_item_copy<Item_func_dayname>(thd, mem_root, this); }
 };
 
 
@@ -872,6 +867,10 @@ class Item_func_from_unixtime :public Item_datetimefunc
   const char *func_name() const { return "from_unixtime"; }
   bool fix_length_and_dec();
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
+  bool check_vcol_func_processor(void *arg)
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
+  }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_func_from_unixtime>(thd, mem_root, this); }
 };
@@ -943,7 +942,7 @@ public:
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   bool eq(const Item *item, bool binary_cmp) const;
   void print(String *str, enum_query_type query_type);
-  enum precedence precedence() const { return ADDINTERVAL_PRECEDENCE; }
+  enum precedence precedence() const { return INTERVAL_PRECEDENCE; }
   bool need_parentheses_in_default() { return true; }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_date_add_interval>(thd, mem_root, this); }

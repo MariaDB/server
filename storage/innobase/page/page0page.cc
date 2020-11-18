@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -36,6 +36,7 @@ Created 2/2/1994 Heikki Tuuri
 #include "fut0lst.h"
 #include "btr0sea.h"
 #include "trx0sys.h"
+#include <algorithm>
 
 /*			THE INDEX PAGE
 			==============
@@ -248,43 +249,6 @@ page_set_autoinc(
 	} else {
 		mlog_write_ull(field, autoinc, mtr);
 	}
-}
-
-/************************************************************//**
-Allocates a block of memory from the heap of an index page.
-@return pointer to start of allocated buffer, or NULL if allocation fails */
-byte*
-page_mem_alloc_heap(
-/*================*/
-	page_t*		page,	/*!< in/out: index page */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page with enough
-				space available for inserting the record,
-				or NULL */
-	ulint		need,	/*!< in: total number of bytes needed */
-	ulint*		heap_no)/*!< out: this contains the heap number
-				of the allocated record
-				if allocation succeeds */
-{
-	byte*	block;
-	ulint	avl_space;
-
-	ut_ad(page && heap_no);
-
-	avl_space = page_get_max_insert_size(page, 1);
-
-	if (avl_space >= need) {
-		block = page_header_get_ptr(page, PAGE_HEAP_TOP);
-
-		page_header_set_ptr(page, page_zip, PAGE_HEAP_TOP,
-				    block + need);
-		*heap_no = page_dir_get_n_heap(page);
-
-		page_dir_set_n_heap(page, page_zip, 1 + *heap_no);
-
-		return(block);
-	}
-
-	return(NULL);
 }
 
 /**********************************************************//**
@@ -582,8 +546,8 @@ page_copy_rec_list_end_no_locks(
 	page_cur_t	cur1;
 	rec_t*		cur2;
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	page_cur_position(rec, block, &cur1);
@@ -814,8 +778,8 @@ page_copy_rec_list_start(
 	rtr_rec_move_t*	rec_move	= NULL;
 	rec_t*		ret
 		= page_rec_get_prev(page_get_supremum_rec(new_page));
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	/* Here, "ret" may be pointing to a user record or the
@@ -1049,8 +1013,8 @@ page_delete_rec_list_end(
 	page_zip_des_t*	page_zip	= buf_block_get_page_zip(block);
 	page_t*		page		= page_align(rec);
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(size == ULINT_UNDEFINED || size < UNIV_PAGE_SIZE);
@@ -1250,8 +1214,8 @@ page_delete_rec_list_start(
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	page_cur_t	cur1;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	mem_heap_t*	heap		= NULL;
 
 	rec_offs_init(offsets_);
@@ -1738,7 +1702,7 @@ void
 page_rec_print(
 /*===========*/
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets)/*!< in: record descriptor */
+	const rec_offs*	offsets)/*!< in: record descriptor */
 {
 	ut_a(!page_rec_is_comp(rec) == !rec_offs_comp(offsets));
 	rec_print_new(stderr, rec, offsets);
@@ -1813,8 +1777,8 @@ page_print_list(
 	ulint		count;
 	ulint		n_recs;
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_a((ibool)!!page_is_comp(page) == dict_table_is_comp(index->table));
@@ -1924,7 +1888,7 @@ ibool
 page_rec_validate(
 /*==============*/
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	ulint		n_owned;
 	ulint		heap_no;
@@ -2019,10 +1983,9 @@ page_simple_validate_old(
 
 	n_slots = page_dir_get_n_slots(page);
 
-	if (UNIV_UNLIKELY(n_slots > UNIV_PAGE_SIZE / 4)) {
-		ib::error() << "Nonsensical number " << n_slots
-			<< " of page dir slots";
-
+	if (UNIV_UNLIKELY(n_slots < 2 || n_slots > UNIV_PAGE_SIZE / 4)) {
+		ib::error() << "Nonsensical number of page dir slots: "
+			    << n_slots;
 		goto func_exit;
 	}
 
@@ -2219,10 +2182,9 @@ page_simple_validate_new(
 
 	n_slots = page_dir_get_n_slots(page);
 
-	if (UNIV_UNLIKELY(n_slots > UNIV_PAGE_SIZE / 4)) {
-		ib::error() << "Nonsensical number " << n_slots
-			<< " of page dir slots";
-
+	if (UNIV_UNLIKELY(n_slots < 2 || n_slots > srv_page_size / 4)) {
+		ib::error() << "Nonsensical number of page dir slots: "
+			    << n_slots;
 		goto func_exit;
 	}
 
@@ -2420,8 +2382,13 @@ page_validate(
 	ulint			n_slots;
 	ibool			ret		= FALSE;
 	ulint			i;
-	ulint*			offsets		= NULL;
-	ulint*			old_offsets	= NULL;
+	rec_offs		offsets_1[REC_OFFS_NORMAL_SIZE];
+	rec_offs		offsets_2[REC_OFFS_NORMAL_SIZE];
+	rec_offs*		offsets		= offsets_1;
+	rec_offs*		old_offsets	= offsets_2;
+
+	rec_offs_init(offsets_1);
+	rec_offs_init(offsets_2);
 
 #ifdef UNIV_GIS_DEBUG
 	if (dict_index_is_spatial(index)) {
@@ -2432,8 +2399,13 @@ page_validate(
 	if (UNIV_UNLIKELY((ibool) !!page_is_comp(page)
 			  != dict_table_is_comp(index->table))) {
 		ib::error() << "'compact format' flag mismatch";
-		goto func_exit2;
+func_exit2:
+		ib::error() << "Apparent corruption in space "
+			<< page_get_space_id(page) << " page "
+			<< page_get_page_no(page) << " index " << index->name;
+		return FALSE;
 	}
+
 	if (page_is_comp(page)) {
 		if (UNIV_UNLIKELY(!page_simple_validate_new(page))) {
 			goto func_exit2;
@@ -2474,15 +2446,14 @@ page_validate(
 
 	n_slots = page_dir_get_n_slots(page);
 
-	if (UNIV_UNLIKELY(!(page_header_get_ptr(page, PAGE_HEAP_TOP)
-			    <= page_dir_get_nth_slot(page, n_slots - 1)))) {
+	const void* top = page_header_get_ptr(page, PAGE_HEAP_TOP);
+	const void* last_slot = page_dir_get_nth_slot(page, n_slots - 1);
 
+	if (UNIV_UNLIKELY(top > last_slot)) {
 		ib::warn() << "Record heap and dir overlap on space "
 			<< page_get_space_id(page) << " page "
 			<< page_get_page_no(page) << " index " << index->name
-			<< ", " << page_header_get_ptr(page, PAGE_HEAP_TOP)
-			<< ", " << page_dir_get_nth_slot(page, n_slots - 1);
-
+			<< ", " << top << ", " << last_slot;
 		goto func_exit;
 	}
 
@@ -2644,11 +2615,7 @@ page_validate(
 		}
 
 		/* set old_offsets to offsets; recycle offsets */
-		{
-			ulint* offs = old_offsets;
-			old_offsets = offsets;
-			offsets = offs;
-		}
+		std::swap(old_offsets, offsets);
 	}
 
 	if (page_is_comp(page)) {
@@ -2745,10 +2712,7 @@ func_exit:
 	mem_heap_free(heap);
 
 	if (UNIV_UNLIKELY(ret == FALSE)) {
-func_exit2:
-		ib::error() << "Apparent corruption in space "
-			<< page_get_space_id(page) << " page "
-			<< page_get_page_no(page) << " index " << index->name;
+		goto func_exit2;
 	}
 
 	return(ret);
@@ -2813,7 +2777,7 @@ page_delete_rec(
 	page_cur_t*		pcur,	/*!< in/out: page cursor on record
 					to delete */
 	page_zip_des_t*		page_zip,/*!< in: compressed page descriptor */
-	const ulint*		offsets)/*!< in: offsets for record */
+	const rec_offs*		offsets)/*!< in: offsets for record */
 {
 	bool		no_compress_needed;
 	buf_block_t*	block = pcur->block;

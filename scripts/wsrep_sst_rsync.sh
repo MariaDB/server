@@ -150,10 +150,11 @@ fi
 
 WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
 # Try to set WSREP_LOG_DIR from the command line:
-if [ -z "$WSREP_LOG_DIR" ]; then
+if [ ! -z "$INNODB_LOG_GROUP_HOME_ARG" ]; then
     WSREP_LOG_DIR=$INNODB_LOG_GROUP_HOME_ARG
 fi
-# if WSREP_LOG_DIR env. variable is not set, try to get it from my.cnf
+# if no command line arg and WSREP_LOG_DIR is not set,
+# try to get it from my.cnf:
 if [ -z "$WSREP_LOG_DIR" ]; then
     WSREP_LOG_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-log-group-home-dir '')
 fi
@@ -174,7 +175,8 @@ INNODB_DATA_HOME_DIR=${INNODB_DATA_HOME_DIR:-""}
 if [ ! -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
     INNODB_DATA_HOME_DIR=$INNODB_DATA_HOME_DIR_ARG
 fi
-# if INNODB_DATA_HOME_DIR env. variable is not set, try to get it from my.cnf
+# if no command line arg and INNODB_DATA_HOME_DIR environment variable
+# is not set, try to get it from my.cnf:
 if [ -z "$INNODB_DATA_HOME_DIR" ]; then
     INNODB_DATA_HOME_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-data-home-dir '')
 fi
@@ -198,6 +200,7 @@ fi
 
 # New filter - exclude everything except dirs (schemas) and innodb files
 FILTER="-f '- /lost+found'
+        -f '- /.zfs'
         -f '- /.fseventsd'
         -f '- /.Trashes'
         -f '+ /wsrep_sst_binlog.tar'
@@ -354,7 +357,7 @@ EOF
         [ "$OS" = "Linux" ] && count=$(grep -c processor /proc/cpuinfo)
         [ "$OS" = "Darwin" -o "$OS" = "FreeBSD" ] && count=$(sysctl -n hw.ncpu)
 
-        find . -maxdepth 1 -mindepth 1 -type d -not -name "lost+found" \
+        find . -maxdepth 1 -mindepth 1 -type d -not -name "lost+found" -not -name ".zfs" \
              -print0 | xargs -I{} -0 -P $count \
              rsync ${STUNNEL:+--rsh="$STUNNEL"} \
              --owner --group --perms --links --specials \
@@ -437,6 +440,7 @@ timeout = 300
 $SILENT
 [$MODULE]
     path = $WSREP_SST_OPT_DATA
+    exclude = .zfs
 [$MODULE-log_dir]
     path = $WSREP_LOG_DIR
 [$MODULE-data_dir]

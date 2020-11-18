@@ -10,6 +10,7 @@
 #********************************************************
 --source include/have_geometry.inc
 --source include/have_innodb.inc
+--source include/have_partition.inc
 
 SET default_storage_engine=InnoDB;
 SET innodb_strict_mode=OFF;
@@ -162,21 +163,21 @@ EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8)
 FROM tab
 WHERE c8=ST_GeometryFromWKB(ST_AsWKB(ST_GeomCollFromText('GeometryCollection(Point(1 1),LineString(2 2, 3 3))')));
 
---echo #check range predicate on the index columns
---replace_column 10 #
---error ER_WRONG_ARGUMENTS
-EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab
-WHERE c2>=ST_LineFromText('LINESTRING(10 10,20 20,30 30)');
-
---replace_column 10 #
---error ER_WRONG_ARGUMENTS
-EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab
-WHERE c3>=ST_PolyFromText('POLYGON((0 0,5 5,10 10,15 15,0 0),(10 10,20 20,30 30,40 40,10 10))');
-
---replace_column 10 #
---error ER_WRONG_ARGUMENTS
-EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab
-WHERE c8>=ST_GeomCollFromText('GeometryCollection(Point(1 1),LineString(2 2, 3 3))');
+#--echo #check range predicate on the index columns
+#--replace_column 10 #
+#--error ER_WRONG_ARGUMENTS
+#EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab
+#WHERE c2>=ST_LineFromText('LINESTRING(10 10,20 20,30 30)');
+#
+#--replace_column 10 #
+#--error ER_WRONG_ARGUMENTS
+#EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab
+#WHERE c3>=ST_PolyFromText('POLYGON((0 0,5 5,10 10,15 15,0 0),(10 10,20 20,30 30,40 40,10 10))');
+#
+#--replace_column 10 #
+#--error ER_WRONG_ARGUMENTS
+#EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab
+#WHERE c8>=ST_GeomCollFromText('GeometryCollection(Point(1 1),LineString(2 2, 3 3))');
 
 --echo #check index with DELETE operation
 --replace_column 10 #
@@ -518,21 +519,21 @@ EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8)
 FROM tab3
 WHERE c8=ST_GeometryFromWKB(ST_AsWKB(ST_GeomCollFromText('GeometryCollection(Point(1 1),LineString(2 2, 3 3))')));
 
---echo #check range predicate on the index columns
---replace_column 10 #
---error ER_WRONG_ARGUMENTS
-EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab3
-WHERE c2>=ST_LineFromText('LINESTRING(10 10,20 20,30 30)');
+# --echo #check range predicate on the index columns
+# --replace_column 10 #
+# --error ER_WRONG_ARGUMENTS
+# EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab3
+# WHERE c2>=ST_LineFromText('LINESTRING(10 10,20 20,30 30)');
+# 
+# --replace_column 10 #
+# --error ER_WRONG_ARGUMENTS
+# EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab3
+# WHERE c3>=ST_PolyFromText('POLYGON((0 0,5 5,10 10,15 15,0 0),(10 10,20 20,30 30,40 40,10 10))');
 
---replace_column 10 #
---error ER_WRONG_ARGUMENTS
-EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab3
-WHERE c3>=ST_PolyFromText('POLYGON((0 0,5 5,10 10,15 15,0 0),(10 10,20 20,30 30,40 40,10 10))');
-
---replace_column 10 #
---error ER_WRONG_ARGUMENTS
-EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab3
-WHERE c8>=ST_GeomCollFromText('GeometryCollection(Point(1 1),LineString(2 2, 3 3))');
+# --replace_column 10 #
+# --error ER_WRONG_ARGUMENTS
+# EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab3
+# WHERE c8>=ST_GeomCollFromText('GeometryCollection(Point(1 1),LineString(2 2, 3 3))');
 
 --echo #check index with DELETE operation
 --replace_column 10 #
@@ -638,7 +639,7 @@ FROM gis_geometrycollection g1, gis_geometrycollection g2 ORDER BY first, second
 --echo # check support of Foreign Key constraint
 CREATE TABLE parent (id GEOMETRY NOT NULL,PRIMARY KEY (id(10))) ENGINE=INNODB;
 
---error 1215
+--error ER_CANT_CREATE_TABLE
 CREATE TABLE child (id GEOMETRY, parent_id GEOMETRY,
                     INDEX par_ind (parent_id(10)),
                     FOREIGN KEY (parent_id(10)) REFERENCES parent(id)
@@ -675,7 +676,7 @@ SELECT COUNT(*) FROM tab3;
 DROP TABLE gis_point, gis_line, gis_polygon, gis_multi_point;
 DROP TABLE gis_multi_line, gis_multi_polygon;
 DROP TABLE gis_geometrycollection, gis_geometry;
-DROP TABLE tab,tab2,tab3,parent,emp2;
+DROP TABLE tab,tab2,tab3,parent;
 DROP PROCEDURE geominout;
 DROP PROCEDURE geom_insert;
 DROP PROCEDURE geom_cursor;

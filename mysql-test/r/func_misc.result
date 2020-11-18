@@ -815,13 +815,13 @@ select release_lock(repeat('a', 192));
 release_lock(repeat('a', 192))
 1
 select get_lock(repeat('a', 193), 0);
-ERROR 42000: Identifier name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' is too long
+ERROR 42000: Identifier name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...' is too long
 select is_used_lock(repeat('a', 193));
-ERROR 42000: Identifier name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' is too long
+ERROR 42000: Identifier name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...' is too long
 select is_free_lock(repeat('a', 193));
-ERROR 42000: Identifier name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' is too long
+ERROR 42000: Identifier name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...' is too long
 select release_lock(repeat('a', 193));
-ERROR 42000: Identifier name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' is too long
+ERROR 42000: Identifier name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...' is too long
 
 # --
 # -- WL#5787: IPv6-capable INET_ATON and INET_NTOA functions.
@@ -1490,6 +1490,19 @@ EXECUTE stmt;
 x
 x
 DEALLOCATE PREPARE stmt;
+#
+# MDEV-19680: Assertion `!table || (!table->read_set || bitmap_is_set(table->read_set, field_index) ||
+#             (!(ptr >= table->record[0] && ptr < table->record[0] + table->s->reclength)))'
+#             or alike failed upon SELECT with mix of functions from simple view
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT ISNULL( BENCHMARK(1, MIN(a))) FROM v1;
+ISNULL( BENCHMARK(1, MIN(a)))
+0
+DROP VIEW v1;
+DROP TABLE t1;
 #
 # Start of 10.2 tests
 #

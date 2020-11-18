@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2010, 2019, MariaDB
+   Copyright (c) 2010, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -701,9 +701,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
     {
       DBUG_PRINT("info", ("Subquery can't be converted to merged semi-join"));
       /* Test if the user has set a legal combination of optimizer switches. */
-      if (!optimizer_flag(thd, OPTIMIZER_SWITCH_IN_TO_EXISTS) &&
-          !optimizer_flag(thd, OPTIMIZER_SWITCH_MATERIALIZATION))
-        my_error(ER_ILLEGAL_SUBQUERY_OPTIMIZER_SWITCHES, MYF(0));
+      DBUG_ASSERT(optimizer_flag(thd, OPTIMIZER_SWITCH_IN_TO_EXISTS |
+                                      OPTIMIZER_SWITCH_MATERIALIZATION));
       /*
         Transform each subquery predicate according to its overloaded
         transformer.
@@ -2635,16 +2634,11 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables)
     do
     {
       uint key= keyuse->key;
-      KEY *keyinfo;
       key_part_map bound_parts= 0;
-      bool is_excluded_key= keyuse->is_for_hash_join(); 
-      if (!is_excluded_key)
+      if (!keyuse->is_for_hash_join() &&
+          (table->key_info[key].flags & HA_NOSAME))
       {
-        keyinfo= table->key_info + key;
-        is_excluded_key= !MY_TEST(keyinfo->flags & HA_NOSAME);
-      }
-      if (!is_excluded_key)
-      {
+        KEY *keyinfo= table->key_info + key;
         do  /* For all equalities on all key parts */
         {
           /*

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2019, MariaDB
+   Copyright (c) 2008, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -103,6 +103,8 @@
 #include "sql_bootstrap.h"
 
 #include "my_json_writer.h" 
+
+#define PRIV_LOCK_TABLES (SELECT_ACL | LOCK_TABLES_ACL)
 
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
@@ -577,19 +579,21 @@ void init_update_queries(void)
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_UPDATES_DATA | CF_SP_BULK_SAFE;
+                                            CF_UPDATES_DATA |
+                                            CF_PS_ARRAY_BINDING_SAFE;
   sql_command_flags[SQLCOM_UPDATE_MULTI]=   CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_UPDATES_DATA | CF_SP_BULK_SAFE;
+                                            CF_UPDATES_DATA |
+                                            CF_PS_ARRAY_BINDING_SAFE;
   sql_command_flags[SQLCOM_INSERT]=	    CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
                                             CF_INSERTS_DATA |
-                                            CF_SP_BULK_SAFE |
-                                            CF_SP_BULK_OPTIMIZED;
+                                            CF_PS_ARRAY_BINDING_SAFE |
+                                            CF_PS_ARRAY_BINDING_OPTIMIZED;
   sql_command_flags[SQLCOM_INSERT_SELECT]=  CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
@@ -599,7 +603,7 @@ void init_update_queries(void)
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_SP_BULK_SAFE;
+                                            CF_PS_ARRAY_BINDING_SAFE;
   sql_command_flags[SQLCOM_DELETE_MULTI]=   CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
@@ -608,8 +612,9 @@ void init_update_queries(void)
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
                                             CF_CAN_BE_EXPLAINED |
-                                            CF_INSERTS_DATA | CF_SP_BULK_SAFE |
-                                            CF_SP_BULK_OPTIMIZED;
+                                            CF_INSERTS_DATA |
+                                            CF_PS_ARRAY_BINDING_SAFE |
+                                            CF_PS_ARRAY_BINDING_OPTIMIZED;
   sql_command_flags[SQLCOM_REPLACE_SELECT]= CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_CAN_GENERATE_ROW_EVENTS |
                                             CF_OPTIMIZER_TRACE |
@@ -913,11 +918,6 @@ void execute_init_command(THD *thd, LEX_STRING *init_command,
   char *buf= thd->strmake(init_command->str, len);
   mysql_rwlock_unlock(var_lock);
 
-#if defined(ENABLED_PROFILING)
-  thd->profiling.start_new_query();
-  thd->profiling.set_query_source(buf, len);
-#endif
-
   THD_STAGE_INFO(thd, stage_execution_of_init_command);
   save_client_capabilities= thd->client_capabilities;
   thd->client_capabilities|= CLIENT_MULTI_QUERIES;
@@ -932,9 +932,6 @@ void execute_init_command(THD *thd, LEX_STRING *init_command,
   thd->client_capabilities= save_client_capabilities;
   thd->net.vio= save_vio;
 
-#if defined(ENABLED_PROFILING)
-  thd->profiling.finish_current_query();
-#endif
 }
 
 
@@ -1061,7 +1058,6 @@ static void handle_bootstrap_impl(THD *thd)
 
     thd->reset_kill_query();  /* Ensure that killed_errmsg is released */
     free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
-    free_root(&thd->transaction.mem_root,MYF(MY_KEEP_PREALLOC));
     thd->lex->restore_set_statement_var();
   }
 
@@ -1210,7 +1206,7 @@ bool do_command(THD *thd)
   if (WSREP(thd))
   {
     mysql_mutex_lock(&thd->LOCK_thd_data);
-    thd->wsrep_query_state= QUERY_IDLE;
+    wsrep_thd_set_query_state(thd, QUERY_IDLE);
     if (thd->wsrep_conflict_state==MUST_ABORT)
     {
       wsrep_client_rollback(thd);
@@ -1278,7 +1274,7 @@ bool do_command(THD *thd)
       thd->store_globals();
     }
 
-    thd->wsrep_query_state= QUERY_EXEC;
+    wsrep_thd_set_query_state(thd, QUERY_EXEC);
     mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
 #endif /* WITH_WSREP */
@@ -1295,7 +1291,8 @@ bool do_command(THD *thd)
       mysql_mutex_lock(&thd->LOCK_thd_data);
       if (thd->wsrep_conflict_state == MUST_ABORT)
       {
-        DBUG_PRINT("wsrep",("aborted for wsrep rollback: %lu", thd->real_id));
+        DBUG_PRINT("wsrep",("aborted for wsrep rollback: %lu",
+                   (long unsigned int) thd->real_id));
         wsrep_client_rollback(thd);
       }
       mysql_mutex_unlock(&thd->LOCK_thd_data);
@@ -1575,7 +1572,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     }
 
     mysql_mutex_lock(&thd->LOCK_thd_data);
-    thd->wsrep_query_state= QUERY_EXEC;
+    wsrep_thd_set_query_state(thd, QUERY_EXEC);
     if (thd->wsrep_conflict_state== RETRY_AUTOCOMMIT)
     {
       thd->wsrep_conflict_state= NO_CONFLICT;
@@ -1823,7 +1820,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     if (parser_state.init(thd, thd->query(), thd->query_length()))
       break;
 
-    if (WSREP_ON)
+    if (WSREP(thd))
       wsrep_mysql_parse(thd, thd->query(), thd->query_length(), &parser_state,
                         is_com_multi, is_next_command);
     else
@@ -1833,7 +1830,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     while (!thd->killed && (parser_state.m_lip.found_semicolon != NULL) &&
            ! thd->is_error())
     {
-      thd->get_stmt_da()->set_skip_flush();
       /*
         Multiple queries exist, execute them individually
       */
@@ -1907,13 +1903,13 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       */
       statistic_increment(thd->status_var.questions, &LOCK_status);
 
-      if(!WSREP(thd))
+      if (!WSREP(thd))
 	thd->set_time(); /* Reset the query start time. */
 
       parser_state.reset(beginning_of_next_stmt, length);
       /* TODO: set thd->lex->sql_command to SQLCOM_END here */
 
-      if (WSREP_ON)
+      if (WSREP(thd))
         wsrep_mysql_parse(thd, beginning_of_next_stmt, length, &parser_state,
                           is_com_multi, is_next_command);
       else
@@ -2082,7 +2078,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       general_log_print(thd, command, "Log: '%s'  Pos: %lu", name, pos);
       if (nlen < FN_REFLEN)
         mysql_binlog_send(thd, thd->strmake(name, nlen), (my_off_t)pos, flags);
-      unregister_slave(thd,1,1);
+      unregister_slave(thd, true, true); // todo: can be extraneous
       /*  fake COM_QUIT -- if we get here, the thread needs to terminate */
       error = TRUE;
       break;
@@ -2883,6 +2879,36 @@ retry:
 
         if (result)
           goto err;
+      }
+    }
+    /*
+       Check privileges of view tables here, after views were opened.
+       Either definer or invoker has to have PRIV_LOCK_TABLES to be able
+       to lock view and its tables. For mysqldump (that locks views
+       before dumping their structures) compatibility we allow locking
+       views that select from I_S or P_S tables, but downrade the lock
+       to TL_READ
+     */
+    if (table->belong_to_view &&
+        check_single_table_access(thd, PRIV_LOCK_TABLES, table, 1))
+    {
+      if (table->grant.m_internal.m_schema_access)
+        table->lock_type= TL_READ;
+      else
+      {
+        bool error= true;
+        if (Security_context *sctx= table->security_ctx)
+        {
+          table->security_ctx= 0;
+          error= check_single_table_access(thd, PRIV_LOCK_TABLES, table, 1);
+          table->security_ctx= sctx;
+        }
+        if (error)
+        {
+          my_error(ER_VIEW_INVALID, MYF(0), table->belong_to_view->view_db.str,
+                   table->belong_to_view->view_name.str);
+          goto err;
+        }
       }
     }
   }
@@ -4862,7 +4888,7 @@ mysql_execute_command(THD *thd)
   /* Don't do it, if we are inside a SP */
   if (!thd->spcont)
   {
-    delete lex->sphead;
+    sp_head::destroy(lex->sphead);
     lex->sphead= NULL;
   }
   /* lex->unit.cleanup() is called outside, no need to call it here */
@@ -5089,7 +5115,7 @@ mysql_execute_command(THD *thd)
     if (first_table && lex->type & (REFRESH_READ_LOCK|REFRESH_FOR_EXPORT))
     {
       /* Check table-level privileges. */
-      if (check_table_access(thd, LOCK_TABLES_ACL | SELECT_ACL, all_tables,
+      if (check_table_access(thd, PRIV_LOCK_TABLES, all_tables,
                              FALSE, UINT_MAX, FALSE))
         goto error;
 
@@ -5628,23 +5654,20 @@ mysql_execute_command(THD *thd)
           ! lex->spname->m_explicit_name)
       {
         /* DROP FUNCTION <non qualified name> */
-        udf_func *udf = find_udf(lex->spname->m_name.str,
-                                 lex->spname->m_name.length);
-        if (udf)
+        enum drop_udf_result rc= mysql_drop_function(thd,
+                                                     &lex->spname->m_name);
+        if (rc == UDF_DEL_RESULT_DELETED)
         {
-          if (check_access(thd, DELETE_ACL, "mysql", NULL, NULL, 1, 0))
-            goto error;
-
-          if (!(res = mysql_drop_function(thd, &lex->spname->m_name)))
-          {
-            my_ok(thd);
-            break;
-          }
-          my_error(ER_SP_DROP_FAILED, MYF(0),
-                   "FUNCTION (UDF)", lex->spname->m_name.str);
-          goto error;
+          my_ok(thd);
+          break;
         }
 
+        if (rc == UDF_DEL_RESULT_ERROR)
+          goto error;
+
+        DBUG_ASSERT(rc == UDF_DEL_RESULT_ABSENT);
+
+        // If there was no current database, so it can not be SP
         if (lex->spname->m_db.str == NULL)
         {
           if (lex->if_exists())
@@ -5998,7 +6021,8 @@ finish:
   lex->unit.cleanup();
 
   /* close/reopen tables that were marked to need reopen under LOCK TABLES */
-  if (! thd->lex->requires_prelocking())
+  if (unlikely(thd->locked_tables_list.some_table_marked_for_reopen) &&
+      !thd->lex->requires_prelocking())
     thd->locked_tables_list.reopen_tables(thd, true);
 
   if (! thd->in_sub_stmt)
@@ -6604,7 +6628,7 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
 
   @param thd                    Thread handler
   @param privilege              requested privilege
-  @param all_tables             global table list of query
+  @param tables                 global table list of query
   @param no_errors              FALSE/TRUE - report/don't report error to
                             the client (using my_error() call).
 
@@ -6614,28 +6638,25 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
     1   access denied, error is sent to client
 */
 
-bool check_single_table_access(THD *thd, ulong privilege, 
-                               TABLE_LIST *all_tables, bool no_errors)
+bool check_single_table_access(THD *thd, ulong privilege, TABLE_LIST *tables,
+                               bool no_errors)
 {
-  Switch_to_definer_security_ctx backup_sctx(thd, all_tables);
+  Switch_to_definer_security_ctx backup_sctx(thd, tables);
 
   const char *db_name;
-  if ((all_tables->view || all_tables->field_translation) &&
-      !all_tables->schema_table)
-    db_name= all_tables->view_db.str;
+  if ((tables->view || tables->field_translation) && !tables->schema_table)
+    db_name= tables->view_db.str;
   else
-    db_name= all_tables->db;
+    db_name= tables->db;
 
-  if (check_access(thd, privilege, db_name,
-                   &all_tables->grant.privilege,
-                   &all_tables->grant.m_internal,
-                   0, no_errors))
+  if (check_access(thd, privilege, db_name, &tables->grant.privilege,
+                   &tables->grant.m_internal, 0, no_errors))
     return 1;
 
   /* Show only 1 table for check_grant */
-  if (!(all_tables->belong_to_view &&
-        (thd->lex->sql_command == SQLCOM_SHOW_FIELDS)) &&
-      check_grant(thd, privilege, all_tables, FALSE, 1, no_errors))
+  if (!(tables->belong_to_view &&
+       (thd->lex->sql_command == SQLCOM_SHOW_FIELDS)) &&
+      check_grant(thd, privilege, tables, FALSE, 1, no_errors))
     return 1;
 
   return 0;
@@ -7758,8 +7779,8 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
     sp_cache_enforce_limit(thd->sp_proc_cache, stored_program_cache_size);
     sp_cache_enforce_limit(thd->sp_func_cache, stored_program_cache_size);
     thd->end_statement();
+    thd->Item_change_list::rollback_item_tree_changes();
     thd->cleanup_after_query();
-    DBUG_ASSERT(thd->Item_change_list::is_empty());
   }
   else
   {
@@ -8563,6 +8584,11 @@ bool st_select_lex::add_window_def(THD *thd,
                                                       win_frame);
   group_list= thd->lex->save_group_list;
   order_list= thd->lex->save_order_list;
+  if (parsing_place != SELECT_LIST)
+  {
+    fields_in_window_functions+= win_part_list_ptr->elements +
+                                 win_order_list_ptr->elements;
+  }
   return (win_def == NULL || window_specs.push_back(win_def));
 }
 
@@ -8584,6 +8610,11 @@ bool st_select_lex::add_window_spec(THD *thd,
                                                          win_frame);
   group_list= thd->lex->save_group_list;
   order_list= thd->lex->save_order_list;
+  if (parsing_place != SELECT_LIST)
+  {
+    fields_in_window_functions+= win_part_list_ptr->elements +
+                                 win_order_list_ptr->elements;
+  }
   thd->lex->win_spec= win_spec;
   return (win_spec == NULL || window_specs.push_back(win_spec));
 }
@@ -9637,7 +9668,7 @@ static bool lock_tables_precheck(THD *thd, TABLE_LIST *tables)
     if (is_temporary_table(table))
       continue;
 
-    if (check_table_access(thd, LOCK_TABLES_ACL | SELECT_ACL, table,
+    if (check_table_access(thd, PRIV_LOCK_TABLES, table,
                            FALSE, 1, FALSE))
       return TRUE;
   }

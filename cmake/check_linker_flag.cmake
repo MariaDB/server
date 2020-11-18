@@ -1,0 +1,27 @@
+include(CheckCXXSourceCompiles)
+
+FUNCTION(MY_CHECK_AND_SET_LINKER_FLAG flag_to_set)
+  # Let's avoid expensive compiler tests on Windows:
+  IF(WIN32)
+    RETURN()
+  ENDIF()
+  STRING(REGEX REPLACE "[-,= +]" "_" result "HAVE_LINK_FLAG_${flag_to_set}")
+  SET(SAVE_CMAKE_REQUIRED_LIBRARIES "${CMAKE_REQUIRED_LIBRARIES}")
+  STRING(REGEX REPLACE "^-Wno-" "-W" flag_to_check ${flag_to_set})
+  SET(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} ${flag_to_check})
+  CHECK_CXX_SOURCE_COMPILES("int main(void) { return 0; }" ${result})
+  SET(CMAKE_REQUIRED_LIBRARIES "${SAVE_CMAKE_REQUIRED_LIBRARIES}")
+  IF (${result})
+    FOREACH(linktype SHARED MODULE EXE)
+        IF(ARGN)
+          FOREACH(type ${ARGN})
+            SET(CMAKE_${linktype}_LINKER_FLAGS_${type}
+              "${CMAKE_${linktype}_LINKER_FLAGS_${type}} ${flag_to_set}" PARENT_SCOPE)
+          ENDFOREACH()
+        ELSE()
+          SET(CMAKE_${linktype}_LINKER_FLAGS
+            "${CMAKE_${linktype}_LINKER_FLAGS} ${flag_to_set}" PARENT_SCOPE)
+        ENDIF()
+    ENDFOREACH()
+  ENDIF()
+ENDFUNCTION()

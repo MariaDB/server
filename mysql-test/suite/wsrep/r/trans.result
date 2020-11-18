@@ -6,4 +6,5 @@
 #
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 SAVEPOINT A;
+ERROR HY000: Got error 1 "Operation not permitted" from storage engine binlog
 End of test.

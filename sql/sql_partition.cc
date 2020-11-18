@@ -4592,7 +4592,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
         {
           *fast_alter_table= true;
           /* Force table re-open for consistency with the main case. */
-          table->m_needs_reopen= true;
+          table->mark_table_for_reopen();
         }
         else
         {
@@ -4640,7 +4640,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
         must be reopened.
       */
       *fast_alter_table= true;
-      table->m_needs_reopen= true;
+      table->mark_table_for_reopen();
     }
     else
     {
@@ -5472,6 +5472,28 @@ the generated partition syntax in a correct manner.
           }
           *partition_changed= TRUE;
         }
+      }
+      /*
+        Prohibit inplace when partitioned by primary key and the primary key is dropped.
+      */
+      if (!*partition_changed &&
+          tab_part_info->part_field_array &&
+          !tab_part_info->part_field_list.elements &&
+          table->s->primary_key != MAX_KEY)
+      {
+        KEY *primary_key= table->key_info + table->s->primary_key;
+        List_iterator_fast<Alter_drop> drop_it(alter_info->drop_list);
+        const char *primary_name= primary_key->name;
+        const Alter_drop *drop;
+        drop_it.rewind();
+        while ((drop= drop_it++))
+        {
+          if (drop->type == Alter_drop::KEY &&
+              0 == my_strcasecmp(system_charset_info, primary_name, drop->name))
+            break;
+        }
+        if (drop)
+          *partition_changed= TRUE;
       }
     }
     if (thd->work_part_info)
@@ -6418,7 +6440,7 @@ void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
   THD *thd= lpt->thd;
   TABLE *table= lpt->table;
   DBUG_ENTER("handle_alter_part_error");
-  DBUG_ASSERT(table->m_needs_reopen);
+  DBUG_ASSERT(table->needs_reopen());
 
   if (close_table)
   {
@@ -6637,7 +6659,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   bool frm_install= FALSE;
   MDL_ticket *mdl_ticket= table->mdl_ticket;
   DBUG_ENTER("fast_alter_partition_table");
-  DBUG_ASSERT(table->m_needs_reopen);
+  DBUG_ASSERT(table->needs_reopen());
 
   part_info= table->part_info;
   lpt->thd= thd;

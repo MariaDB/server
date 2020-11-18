@@ -45,6 +45,9 @@
 #include "transaction.h"       // trans_commit_stmt
 #include "sql_audit.h"
 #include "debug_sync.h"
+#ifdef WITH_WSREP
+#include "wsrep_thd.h"
+#endif /* WITH_WSREP */
 
 /*
   Sufficient max length of printed destinations and frame offsets (all uints).
@@ -532,51 +535,40 @@ check_routine_name(LEX_STRING *ident)
 }
 
 
+sp_head* sp_head::create()
+{
+  MEM_ROOT own_root;
+  init_sql_alloc(&own_root, MEM_ROOT_BLOCK_SIZE, MEM_ROOT_PREALLOC, MYF(0));
+  sp_head *sp;
+  if (!(sp= new (&own_root) sp_head(&own_root)))
+    free_root(&own_root, MYF(0));
+
+  return sp;
+}
+
+
+void sp_head::destroy(sp_head *sp)
+{
+  if (sp)
+  {
+    /* Make a copy of main_mem_root as free_root will free the sp */
+    MEM_ROOT own_root= sp->main_mem_root;
+    DBUG_PRINT("info", ("mem_root %p moved to %p",
+                        &sp->main_mem_root, &own_root));
+    delete sp;
+    free_root(&own_root, MYF(0));
+  }
+}
+
 /*
  *
  *  sp_head
  *
  */
 
-void *
-sp_head::operator new(size_t size) throw()
-{
-  DBUG_ENTER("sp_head::operator new");
-  MEM_ROOT own_root;
-  sp_head *sp;
-
-  init_sql_alloc(&own_root, MEM_ROOT_BLOCK_SIZE, MEM_ROOT_PREALLOC, MYF(0));
-  sp= (sp_head *) alloc_root(&own_root, size);
-  if (sp == NULL)
-    DBUG_RETURN(NULL);
-  sp->main_mem_root= own_root;
-  DBUG_PRINT("info", ("mem_root %p", &sp->mem_root));
-  DBUG_RETURN(sp);
-}
-
-void
-sp_head::operator delete(void *ptr, size_t size) throw()
-{
-  DBUG_ENTER("sp_head::operator delete");
-  MEM_ROOT own_root;
-
-  if (ptr == NULL)
-    DBUG_VOID_RETURN;
-
-  sp_head *sp= (sp_head *) ptr;
-
-  /* Make a copy of main_mem_root as free_root will free the sp */
-  own_root= sp->main_mem_root;
-  DBUG_PRINT("info", ("mem_root %p moved to %p",
-                      &sp->mem_root, &own_root));
-  free_root(&own_root, MYF(0));
-
-  DBUG_VOID_RETURN;
-}
-
-
-sp_head::sp_head()
-  :Query_arena(&main_mem_root, STMT_INITIALIZED_FOR_SP),
+sp_head::sp_head(MEM_ROOT *mem_root_arg)
+  :Query_arena(NULL, STMT_INITIALIZED_FOR_SP),
+   main_mem_root(*mem_root_arg), // todo: std::move operator.
    m_flags(0),
    m_sp_cache_version(0),
    m_creation_ctx(0),
@@ -585,6 +577,8 @@ sp_head::sp_head()
    m_next_cached_sp(0),
    m_cont_level(0)
 {
+  mem_root= &main_mem_root;
+
   m_first_instance= this;
   m_first_free_instance= this;
   m_last_cached_sp= this;
@@ -831,7 +825,7 @@ sp_head::~sp_head()
   my_hash_free(&m_sptabs);
   my_hash_free(&m_sroutines);
 
-  delete m_next_cached_sp;
+  sp_head::destroy(m_next_cached_sp);
 
   DBUG_VOID_RETURN;
 }
@@ -1132,6 +1126,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
               backup_arena;
   query_id_t old_query_id;
   TABLE *old_derived_tables;
+  TABLE *old_rec_tables;
   LEX *old_lex;
   Item_change_list old_change_list;
   String old_packet;
@@ -1207,6 +1202,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   old_query_id= thd->query_id;
   old_derived_tables= thd->derived_tables;
   thd->derived_tables= 0;
+  old_rec_tables= thd->rec_tables;
+  thd->rec_tables= 0;
   save_sql_mode= thd->variables.sql_mode;
   thd->variables.sql_mode= m_sql_mode;
   save_abort_on_warning= thd->abort_on_warning;
@@ -1327,7 +1324,93 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     thd->m_digest= NULL;
 
     err_status= i->execute(thd, &ip);
+#ifdef WITH_WSREP
+    if (m_type == TYPE_ENUM_PROCEDURE)
+    {
+      mysql_mutex_lock(&thd->LOCK_thd_data);
+      if (thd->wsrep_conflict_state == MUST_REPLAY)
+      {
+        wsrep_replay_sp_transaction(thd);
+        err_status= thd->get_stmt_da()->is_set();
+        thd->wsrep_conflict_state= NO_CONFLICT;
+      }
+      else if (thd->wsrep_conflict_state == ABORTED ||
+               thd->wsrep_conflict_state == CERT_FAILURE)
+      {
+        /*
+          If the statement execution was BF aborted or was aborted
+          due to certification failure, clean up transaction here
+          and reset conflict state to NO_CONFLICT and thd->killed
+          to THD::NOT_KILLED. Error handling is done based on err_status
+          below. Error must have been raised by wsrep hton code before
+          entering here.
+         */
+        DBUG_ASSERT(err_status);
+        DBUG_ASSERT(thd->get_stmt_da()->is_error());
+        thd->wsrep_conflict_state= NO_CONFLICT;
+        thd->killed= NOT_KILLED;
+      }
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
+    }
+#endif /* WITH_WSREP */
+#ifdef WITH_WSREP_NO
+    if (WSREP(thd))
+    {
+      if (((thd->wsrep_trx().state() == wsrep::transaction::s_executing) &&
+           (thd->is_fatal_error || thd->killed)))
+      {
+        WSREP_DEBUG("SP abort err status %d in sub %d trx state %d",
+                    err_status, thd->in_sub_stmt, thd->wsrep_trx().state());
+        err_status= 1;
+        thd->is_fatal_error= 1;
+        /*
+          SP was killed, and it is not due to a wsrep conflict.
+          We skip after_command hook at this point because
+          otherwise it clears the error, and cleans up the
+          whole transaction. For now we just return and finish
+          our handling once we are back to mysql_parse.
+        */
+        WSREP_DEBUG("Skipping after_command hook for killed SP");
+      }
+      else
+      {
+        const bool must_replay= wsrep_must_replay(thd);
+        if (must_replay)
+        {
+          WSREP_DEBUG("MUST_REPLAY set after SP, err_status %d trx state: %d",
+                      err_status, thd->wsrep_trx().state());
+        }
+        (void) wsrep_after_statement(thd);
 
+        /*
+          Reset the return code to zero if the transaction was
+          replayed succesfully.
+        */
+        if (must_replay && !wsrep_current_error(thd))
+        {
+          err_status= 0;
+          thd->get_stmt_da()->reset_diagnostics_area();
+        }
+        /*
+          Final wsrep error status for statement is known only after
+          wsrep_after_statement() call. If the error is set, override
+          error in thd diagnostics area and reset wsrep client_state error
+          so that the error does not get propagated via client-server protocol.
+        */
+        if (wsrep_current_error(thd))
+        {
+          wsrep_override_error(thd, wsrep_current_error(thd),
+                               wsrep_current_error_status(thd));
+          thd->wsrep_cs().reset_error();
+          /* Reset also thd->killed if it has been set during BF abort. */
+          if (thd->killed == KILL_QUERY)
+            thd->killed= NOT_KILLED;
+          /* if failed transaction was not replayed, must return with error from here */
+          if (!must_replay) err_status = 1;
+        }
+      }
+    }
+#endif /* WITH_WSREP */
     thd->m_digest= parent_digest;
 
     if (i->free_list)
@@ -1388,6 +1471,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   thd->set_query_id(old_query_id);
   DBUG_ASSERT(!thd->derived_tables);
   thd->derived_tables= old_derived_tables;
+  thd->rec_tables= old_rec_tables;
   thd->variables.sql_mode= save_sql_mode;
   thd->abort_on_warning= save_abort_on_warning;
   thd->m_reprepare_observer= save_reprepare_observer;

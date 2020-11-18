@@ -1,0 +1,77 @@
+#
+# Test Galera as a slave to a MariaDB master using GTIDs
+#
+# suite/galera/galera_2nodes_as_slave.cnf describes the setup of the nodes
+# suite/galera/t/galera_as_slave_gtid.cnf has the GTID options
+#
+# This test will replicate writes to MyISAM table and check that slave node is able
+# to apply them.
+# mysql.gtid_slave_pos table should be defined as innodb engine, original problem
+# by writes to  mysql.gtid_slave_pos, whereas the replicated transaction contained
+# no innodb writes
+#
+
+--source include/have_innodb.inc
+
+# As node #1 is not a Galera node, we connect to node #2 in order to run include/galera_cluster.inc
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--source include/galera_cluster.inc
+SELECT @@WSREP_ON;
+
+--connection node_2
+# make sure gtid_slave_pos is of innodb engine, mtr does not currently provide that
+ALTER TABLE mysql.gtid_slave_pos engine = InnoDB;
+
+--disable_query_log
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_1;
+--enable_query_log
+START SLAVE;
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t1 VALUES(1);
+
+SELECT LENGTH(@@global.gtid_binlog_state) > 1;
+--let $gtid_binlog_state_node1 = `SELECT @@global.gtid_binlog_state;`
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
+
+--disable_query_log
+--eval SELECT '$gtid_binlog_state_node1' = @@global.gtid_binlog_state AS gtid_binlog_state_equal;
+--enable_query_log
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+SELECT COUNT(*) = 0 FROM t1;
+
+--disable_query_log
+--eval SELECT '$gtid_binlog_state_node1' = @@global.gtid_binlog_state AS gtid_binlog_state_equal;
+--enable_query_log
+
+--echo #cleanup
+--sleep 1
+
+--connection node_1
+DROP TABLE t1;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+--connection node_3
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+--connection node_1
+reset master;
+
+--connection node_2
+STOP SLAVE;
+RESET SLAVE ALL;
+reset master;
+
+--connection node_3
+reset master;

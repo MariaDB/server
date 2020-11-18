@@ -9,7 +9,7 @@
 # - setup log_warnings and debug 
 --connection slave
 --source include/stop_slave.inc
---let $debug_save= `SELECT @@GLOBAL.debug_dbug`
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 --let $log_warnings_save= `SELECT @@GLOBAL.log_warnings`
 
 SET GLOBAL log_warnings = 2;
@@ -55,7 +55,7 @@ EOF
 
 # cleanup
 --source include/stop_slave.inc
---eval SET GLOBAL debug_dbug = '$debug_save'
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 --eval SET GLOBAL log_warnings = $log_warnings_save
 --source include/start_slave.inc
 
