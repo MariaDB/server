@@ -317,7 +317,7 @@ static PFS_engine_table_share *all_shares[]=
   &table_replication_applier_configuration::m_share,
   &table_replication_applier_status::m_share,
   &table_replication_applier_status_by_coordinator::m_share,
-  //&table_replication_applier_status_by_worker::m_share,
+  &table_replication_applier_status_by_worker::m_share,
   //&table_replication_group_member_stats::m_share,
 #endif
 
