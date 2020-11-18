@@ -398,6 +398,14 @@ then
     MODULE="rsync_sst"
 
     RSYNC_PID="$WSREP_SST_OPT_DATA/$MODULE.pid"
+    # give some time for lingering rsync from previous SST to complete
+    check_round=0
+    while check_pid $RSYNC_PID && [ $check_round -lt 10 ]
+    do
+        wsrep_log_info "lingering rsync daemon found at startup, waiting for it to exit"
+        check_round=$(( check_round + 1 ))
+        sleep 1
+    done
 
     if check_pid $RSYNC_PID
     then
