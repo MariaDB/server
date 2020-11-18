@@ -15539,6 +15539,10 @@ static void test_mysql_insert_id()
 
   myheader("test_mysql_insert_id");
 
+  rc= mysql_query(mysql, "if @@default_storage_engine not in ('Aria', 'MyISAM') "
+    "then set @@default_storage_engine='Aria'; "
+    "end if");
+  myquery(rc);
   rc= mysql_query(mysql, "drop table if exists t1,t2");
   myquery(rc);
   /* table without auto_increment column */
@@ -15725,6 +15729,8 @@ static void test_mysql_insert_id()
   DIE_UNLESS(res == 15);
 
   rc= mysql_query(mysql, "drop table t1,t2");
+  myquery(rc);
+  rc= mysql_query(mysql, "set default_storage_engine=DEFAULT");
   myquery(rc);
 }
 
@@ -16384,6 +16390,16 @@ static void test_change_user()
   MYSQL_RES* res;
   DBUG_ENTER("test_change_user");
   myheader("test_change_user");
+
+  /* Check pre-req - non anonymous users */
+  sprintf(buff, "select user,host from mysql.user where user=''");
+  rc= mysql_query(mysql, buff);
+  myquery(rc);
+  res= mysql_store_result(mysql);
+  if (mysql_num_rows(res) > 0)
+  {
+    DBUG_VOID_RETURN;
+  }
 
   /* Prepare environment */
   sprintf(buff, "drop database if exists %s", db);
@@ -17275,6 +17291,12 @@ static void test_bug31669()
 
   DBUG_ENTER("test_bug31669");
   myheader("test_bug31669");
+
+  /* MTR only test, so many assumptions */
+  if (getenv("MTR_PERL") == NULL)
+  {
+    DBUG_VOID_RETURN;
+  }
 
   conn= client_connect(0, MYSQL_PROTOCOL_TCP, 0);
 
@@ -18924,6 +18946,12 @@ static void test_progress_reporting()
   if (embedded_server_arg_count)
     return;
 
+  /* MTR only test, so many assumptions */
+  if (getenv("MTR_PERL") == NULL)
+  {
+    return;
+  }
+
   myheader("test_progress_reporting");
 
 
@@ -18990,6 +19018,12 @@ static void test_mdev3885()
   int rc;
   MYSQL *conn;
 
+  /* MTR only test, so many assumptions */
+  if (getenv("MTR_PERL") == NULL)
+  {
+    return;
+  }
+
   myheader("test_mdev3885");
   conn= client_connect(0, MYSQL_PROTOCOL_TCP, 0);
   rc= mysql_kill(conn, mysql_thread_id(conn));
@@ -19045,6 +19079,12 @@ static void test_bug11766854()
   struct st_mysql_client_plugin *plugin;
 
   DBUG_ENTER("test_bug11766854");
+  /* MTR only test, so many assumptions */
+  if (getenv("MTR_PERL") == NULL)
+  {
+    DBUG_VOID_RETURN;
+  }
+
   myheader("test_bug11766854");
 
   plugin= mysql_load_plugin(mysql, "foo", -1, 0);
@@ -19610,10 +19650,12 @@ static void test_compressed_protocol()
 static void test_big_packet()
 {
   MYSQL *mysql_local;
+  MYSQL_ROW row;
+  MYSQL_RES *resl;
   char *query, *end;
   /* We run the tests with a server with max packet size of 3200000 */
   size_t big_packet= 31000000L;
-  int i;
+  int i, rcl;
   MYSQL_PARAMETERS *mysql_params= mysql_get_parameters();
   long org_max_allowed_packet= *mysql_params->p_max_allowed_packet;
   long opt_net_buffer_length= *mysql_params->p_net_buffer_length;
@@ -19637,6 +19679,22 @@ static void test_big_packet()
     mysql_close(mysql_local);
     exit(1);
   }
+
+  /* insufficent to test */
+  rcl= mysql_query(mysql_local, "SELECT @@global.max_allowed_packet >= 3200000");
+  myquery(rcl);
+  resl= mysql_use_result(mysql_local);
+  DIE_UNLESS(resl);
+
+  row= mysql_fetch_row(resl);
+  DIE_UNLESS(row);
+
+  if (!atoi(row[1]))
+  {
+    mysql_free_result(resl);
+    return;
+  }
+  mysql_free_result(resl);
 
   *mysql_params->p_max_allowed_packet= big_packet+1000;
   *mysql_params->p_net_buffer_length=  8L*256L*256L;
