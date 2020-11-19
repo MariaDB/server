@@ -40,6 +40,13 @@ private:
    */
   bool m_filter;
 
+public:
+  /* domain id list types */
+  enum enum_list_type {
+    DO_DOMAIN_IDS= 0,
+    IGNORE_DOMAIN_IDS
+  };
+
   /*
     DO_DOMAIN_IDS (0):
       Ignore all the events which do not belong to any of the domain ids in the
@@ -49,13 +56,6 @@ private:
       Ignore the events which belong to one of the domain ids in the list.
   */
   DYNAMIC_ARRAY m_domain_ids[2];
-
-public:
-  /* domain id list types */
-  enum enum_list_type {
-    DO_DOMAIN_IDS= 0,
-    IGNORE_DOMAIN_IDS
-  };
 
   Domain_id_filter();
 
