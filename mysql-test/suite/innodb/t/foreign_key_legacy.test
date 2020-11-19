@@ -22,7 +22,10 @@ select * from information_schema.innodb_sys_foreign;
 select * from information_schema.innodb_sys_foreign_cols;
 flush tables;
 --echo # Data is imported from SYS_FOREIGN[_COLS] on table open
+# Warnings doesn't appear in SHOW CREATE TABLE under ps-protocol
+--disable_warnings
 show create table t2;
+--enable_warnings
 select * from information_schema.innodb_sys_foreign;
 select * from information_schema.innodb_sys_foreign_cols;
 
@@ -154,7 +157,9 @@ rename table t1 to t0;
 select * from information_schema.innodb_sys_foreign;
 select * from information_schema.innodb_sys_foreign_cols;
 
+--disable_warnings
 show create table t2;
+--enable_warnings
 
 select * from information_schema.innodb_sys_foreign;
 select * from information_schema.innodb_sys_foreign_cols;
@@ -176,7 +181,9 @@ rename table t2 to t3;
 select * from information_schema.innodb_sys_foreign;
 select * from information_schema.innodb_sys_foreign_cols;
 
+--disable_warnings
 show create table t3;
+--enable_warnings
 
 select * from information_schema.innodb_sys_foreign;
 select * from information_schema.innodb_sys_foreign_cols;
@@ -200,7 +207,9 @@ alter table t1 rename t0;
 select * from information_schema.innodb_sys_foreign;
 select * from information_schema.innodb_sys_foreign_cols;
 
+--disable_warnings
 show create table t2;
+--enable_warnings
 
 select * from information_schema.innodb_sys_foreign;
 select * from information_schema.innodb_sys_foreign_cols;
@@ -240,7 +249,9 @@ alter table t1 change x z int;
 select * from information_schema.innodb_sys_foreign;
 select * from information_schema.innodb_sys_foreign_cols;
 
+--disable_warnings
 show create table t2;
+--enable_warnings
 select * from information_schema.innodb_sys_foreign;
 select * from information_schema.innodb_sys_foreign_cols;
 drop tables t2, t1;
@@ -259,7 +270,9 @@ alter table t2 change y z int;
 select * from information_schema.innodb_sys_foreign;
 select * from information_schema.innodb_sys_foreign_cols;
 
+--disable_warnings
 show create table t2;
+--enable_warnings
 --error ER_ROW_IS_REFERENCED_2
 drop table t1;
 drop tables t2, t1;
@@ -279,7 +292,10 @@ alter table t1 rename column x to z;
 select * from information_schema.innodb_sys_foreign;
 select * from information_schema.innodb_sys_foreign_cols;
 
+--disable_warnings
 show create table t2;
+--enable_warnings
+
 select * from information_schema.innodb_sys_foreign;
 select * from information_schema.innodb_sys_foreign_cols;
 --error ER_ROW_IS_REFERENCED_2
@@ -300,7 +316,10 @@ alter table t2 rename column y to z;
 select * from information_schema.innodb_sys_foreign;
 select * from information_schema.innodb_sys_foreign_cols;
 
+--disable_warnings
 show create table t2;
+--enable_warnings
+
 --error ER_ROW_IS_REFERENCED_2
 drop table t1;
 drop tables t2, t1;
@@ -331,6 +350,7 @@ select * from information_schema.innodb_sys_foreign_cols;
 drop table t1;
 drop tables t2, t1;
 
+--enable_warnings
 set session debug_dbug= @saved_debug_dbug;
 set global innodb_eval_sql= default;
 set default_storage_engine= default;

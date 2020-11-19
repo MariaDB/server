@@ -21248,7 +21248,7 @@ fk_upgrade_create_fk(
 	ut_a(fld->len <= MAX_FULL_NAME_LEN);
 	memcpy(src_ref, fld->data, fld->len);
 	src_ref[fld->len] = 0;
-	if (lower_case_table_names == 1) {
+	if (lower_case_table_names) {
 		innobase_casedn_str(src_ref);
 	}
 	memcpy(d.ref_name, src_ref, fld->len + 1);
@@ -21386,6 +21386,7 @@ fk_upgrade_push_fk(
 	ut_ad(fk.foreign_fields.elements < MAX_NUM_FK_COLUMNS);
 	ut_ad(fk.foreign_fields.elements == fk.referenced_fields.elements);
 	uint i= 0;
+	char norm_name[FN_REFLEN];
 	const char* column_names[MAX_NUM_FK_COLUMNS];
 	const char* ref_column_names[MAX_NUM_FK_COLUMNS];
 	dict_index_t* index;
@@ -21408,7 +21409,8 @@ fk_upgrade_push_fk(
 		d.err = DB_CANNOT_ADD_CONSTRAINT;
 		return 0;
 	}
-	dict_table_t* ref_table = dict_table_open_on_name(d.ref_name, true, false, DICT_ERR_IGNORE_FK_NOKEY);
+	normalize_table_name(norm_name, d.ref_name);
+	dict_table_t* ref_table = dict_table_open_on_name(norm_name, true, false, DICT_ERR_IGNORE_FK_NOKEY);
 	if (!ref_table) {
 		mutex_exit(&dict_sys.mutex);
 		ib_foreign_warn(d.trx, DB_CANNOT_ADD_CONSTRAINT, d.s->table_name.str,

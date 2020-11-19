@@ -29,8 +29,6 @@ t2	CREATE TABLE `t2` (
   KEY `fk_t2` (`y`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`y`) REFERENCES `t1` (`x`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-Warnings:
-Error	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
 select * from information_schema.innodb_sys_foreign;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 select * from information_schema.innodb_sys_foreign_cols;
@@ -105,7 +103,7 @@ show create table t2;
 ERROR HY000: Index for table 't2' is corrupt; try to repair it
 show warnings;
 Level	Code	Message
-Error	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
+Note	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
 Warning	150	Upgrade table t2 with foreign key t2_ibfk_1 constraint failed. Foreign key index not found!
 Error	1215	Cannot add foreign key constraint for `t2`
 Error	1034	Index for table 't2' is corrupt; try to repair it
@@ -127,7 +125,7 @@ show create table t2;
 ERROR HY000: Index for table 't2' is corrupt; try to repair it
 show warnings;
 Level	Code	Message
-Error	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
+Note	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
 Warning	150	Upgrade table t2 with foreign key t2_ibfk_1 constraint failed. Referenced key index not found!
 Error	1215	Cannot add foreign key constraint for `t2`
 Error	1034	Index for table 't2' is corrupt; try to repair it
@@ -143,7 +141,7 @@ show create table t2;
 ERROR HY000: Index for table 't2' is corrupt; try to repair it
 show warnings;
 Level	Code	Message
-Error	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
+Note	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
 Warning	150	Upgrade table t2 with foreign key t2_ibfk_1 constraint failed. Foreign key index not found!
 Error	1215	Cannot add foreign key constraint for `t2`
 Error	1034	Index for table 't2' is corrupt; try to repair it
@@ -159,7 +157,7 @@ show create table t2;
 ERROR HY000: Index for table 't2' is corrupt; try to repair it
 show warnings;
 Level	Code	Message
-Error	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
+Note	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
 Warning	150	Upgrade table t2 with foreign key t2_ibfk_1 constraint failed. Referenced key index not found!
 Error	1215	Cannot add foreign key constraint for `t2`
 Error	1034	Index for table 't2' is corrupt; try to repair it
@@ -192,8 +190,6 @@ t2	CREATE TABLE `t2` (
   KEY `fk_t2` (`y`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`y`) REFERENCES `t0` (`x`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-Warnings:
-Error	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
 select * from information_schema.innodb_sys_foreign;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 select * from information_schema.innodb_sys_foreign_cols;
@@ -222,8 +218,6 @@ t3	CREATE TABLE `t3` (
   KEY `fk_t2` (`y`),
   CONSTRAINT `t3_ibfk_1` FOREIGN KEY (`y`) REFERENCES `t1` (`x`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-Warnings:
-Error	1459	Upgrade required. Please do "REPAIR TABLE `t3`" or dump/reload to fix it!
 select * from information_schema.innodb_sys_foreign;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 select * from information_schema.innodb_sys_foreign_cols;
@@ -253,8 +247,6 @@ t2	CREATE TABLE `t2` (
   KEY `fk_t2` (`y`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`y`) REFERENCES `t0` (`x`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-Warnings:
-Error	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
 select * from information_schema.innodb_sys_foreign;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 select * from information_schema.innodb_sys_foreign_cols;
@@ -269,7 +261,7 @@ INSERT INTO SYS_FOREIGN VALUES ('test/t2_ibfk_1', 'test/t2', 'test/t1', 1);
 INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
 alter table t2 rename t3;
 Warnings:
-Error	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
+Note	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
 select * from information_schema.innodb_sys_foreign;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 select * from information_schema.innodb_sys_foreign_cols;
@@ -306,8 +298,6 @@ t2	CREATE TABLE `t2` (
   KEY `fk_t2` (`y`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`y`) REFERENCES `t1` (`z`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-Warnings:
-Error	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
 select * from information_schema.innodb_sys_foreign;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 select * from information_schema.innodb_sys_foreign_cols;
@@ -322,7 +312,7 @@ INSERT INTO SYS_FOREIGN VALUES ('test/t2_ibfk_1', 'test/t2', 'test/t1', 1);
 INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
 alter table t2 change y z int;
 Warnings:
-Error	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
+Note	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
 select * from information_schema.innodb_sys_foreign;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 select * from information_schema.innodb_sys_foreign_cols;
@@ -359,8 +349,6 @@ t2	CREATE TABLE `t2` (
   KEY `fk_t2` (`y`),
   CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`y`) REFERENCES `t1` (`z`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-Warnings:
-Error	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
 select * from information_schema.innodb_sys_foreign;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 select * from information_schema.innodb_sys_foreign_cols;
@@ -377,7 +365,7 @@ INSERT INTO SYS_FOREIGN VALUES ('test/t2_ibfk_1', 'test/t2', 'test/t1', 1);
 INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
 alter table t2 rename column y to z;
 Warnings:
-Error	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
+Note	1459	Upgrade required. Please do "REPAIR TABLE `t2`" or dump/reload to fix it!
 select * from information_schema.innodb_sys_foreign;
 ID	FOR_NAME	REF_NAME	N_COLS	TYPE
 select * from information_schema.innodb_sys_foreign_cols;
