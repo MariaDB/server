@@ -68,7 +68,7 @@ public:
 	PCSZ    sep;
 	char    colname[65], fmt[129], buf[16];
 	uint   *length;
-	int     i, n, bf, ncol, lvl, sz;
+	int     i, n, bf, ncol, lvl, sz, limit;
 	bool    all, strfy;
 }; // end of JSONDISC
 

@@ -159,7 +159,7 @@ JSONDISC::JSONDISC(PGLOBAL g, uint *lg)
   jsp = NULL;
   row = NULL;
   sep = NULL;
-  i = n = bf = ncol = lvl = sz = 0;
+  i = n = bf = ncol = lvl = sz = limit = 0;
   all = strfy = false;
 } // end of JSONDISC constructor
 
@@ -172,7 +172,8 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 	lvl = GetIntegerTableOption(g, topt, "Depth", lvl);
 	sep = GetStringTableOption(g, topt, "Separator", ".");
 	sz = GetIntegerTableOption(g, topt, "Jsize", 1024);
-	strfy = GetBooleanTableOption(g, topt, "Stringify", false);
+  limit = GetIntegerTableOption(g, topt, "Limit", 10);
+  strfy = GetBooleanTableOption(g, topt, "Stringify", false);
 
   /*********************************************************************/
   /*  Open the input file.                                             */
@@ -458,7 +459,7 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
         jar = (PJAR)jsp;
 
         if (all || (tdp->Xcol && !stricmp(tdp->Xcol, key)))
-          ars = jar->GetSize(false);
+          ars = MY_MIN(jar->GetSize(false), limit);
         else
           ars = MY_MIN(jar->GetSize(false), 1);
 
@@ -527,10 +528,29 @@ void JSONDISC::AddColumn(PGLOBAL g)
 
   if (jcp) {
     if (jcp->Type != jcol.Type) {
-      if (jcp->Type == TYPE_UNKNOWN)
+      if (jcp->Type == TYPE_UNKNOWN || jcol.Type == TYPE_VOID)
         jcp->Type = jcol.Type;
-      else if (jcol.Type != TYPE_UNKNOWN && jcol.Type != TYPE_VOID)
-        jcp->Type = TYPE_STRING;
+//    else if (jcol.Type != TYPE_UNKNOWN && jcol.Type != TYPE_VOID)
+//      jcp->Type = TYPE_STRING;
+      else if (jcp->Type != TYPE_STRING)
+        switch (jcol.Type) {
+        case TYPE_STRING:
+        case TYPE_DOUBLE:
+          jcp->Type = jcol.Type;
+          break;
+        case TYPE_BIGINT:
+          if (jcp->Type == TYPE_INT || jcp->Type == TYPE_TINY)
+            jcp->Type = jcol.Type;
+
+          break;
+        case TYPE_INT:
+          if (jcp->Type == TYPE_TINY)
+            jcp->Type = jcol.Type;
+
+          break;
+        default:
+          break;
+        } // endswith Type
 
     } // endif Type
 
