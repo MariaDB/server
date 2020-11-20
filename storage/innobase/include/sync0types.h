@@ -236,8 +236,6 @@ enum latch_level_t {
 	SYNC_DICT,
 	SYNC_FTS_CACHE,
 
-	SYNC_DICT_OPERATION,
-
 	/** Level is varying. Only used with buffer pool page locks, which
 	do not have a fixed level, but instead have their level set after
 	the page is locked; see e.g.  ibuf_bitmap_get_map_page(). */
@@ -291,7 +289,6 @@ enum latch_id_t {
 	LATCH_ID_WORK_QUEUE,
 	LATCH_ID_BUF_BLOCK_LOCK,
 	LATCH_ID_BUF_BLOCK_DEBUG,
-	LATCH_ID_DICT_OPERATION,
 	LATCH_ID_FIL_SPACE,
 	LATCH_ID_FTS_CACHE,
 	LATCH_ID_FTS_CACHE_INIT,
@@ -960,7 +957,6 @@ struct sync_checker : public sync_check_functor_t
 			switch (level) {
 			case SYNC_FSP:
 			case SYNC_DICT:
-			case SYNC_DICT_OPERATION:
 			case SYNC_FTS_CACHE:
 			case SYNC_NO_ORDER_CHECK:
 				return(false);

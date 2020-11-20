@@ -493,7 +493,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_STATS_AUTO_RECALC);
 	LEVEL_MAP_INSERT(SYNC_DICT);
 	LEVEL_MAP_INSERT(SYNC_FTS_CACHE);
-	LEVEL_MAP_INSERT(SYNC_DICT_OPERATION);
 	LEVEL_MAP_INSERT(SYNC_LEVEL_VARYING);
 	LEVEL_MAP_INSERT(SYNC_NO_ORDER_CHECK);
 
@@ -738,7 +737,6 @@ LatchDebug::check_order(
 	case SYNC_REDO_RSEG:
 	case SYNC_NOREDO_RSEG:
 	case SYNC_PURGE_QUEUE:
-	case SYNC_DICT_OPERATION:
 	case SYNC_DICT_HEADER:
 	case SYNC_IBUF_MUTEX:
 	case SYNC_INDEX_ONLINE_LOG:
@@ -839,7 +837,6 @@ LatchDebug::check_order(
 
 		ut_a(find(latches, SYNC_FSP) == &fil_system.temp_space->latch
 		     || find(latches, SYNC_INDEX_TREE)
-		     || find(latches, SYNC_DICT_OPERATION)
 		     || basic_check(latches, level, SYNC_TREE_NODE - 1));
 		break;
 
@@ -1305,9 +1302,6 @@ sync_latch_meta_init()
 	LATCH_ADD_RWLOCK(BUF_BLOCK_DEBUG, SYNC_LEVEL_VARYING,
 			 PFS_NOT_INSTRUMENTED);
 #endif /* UNIV_DEBUG */
-
-	LATCH_ADD_RWLOCK(DICT_OPERATION, SYNC_DICT_OPERATION,
-			 dict_operation_lock_key);
 
 	LATCH_ADD_RWLOCK(FIL_SPACE, SYNC_FSP, fil_space_latch_key);
 

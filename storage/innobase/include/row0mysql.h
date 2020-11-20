@@ -330,14 +330,8 @@ row_mysql_unlock_data_dictionary(
 /*********************************************************************//**
 Locks the data dictionary in shared mode from modifications, for performing
 foreign key check, rollback, or other operation invisible to MySQL. */
-void
-row_mysql_freeze_data_dictionary_func(
-/*==================================*/
-	trx_t*		trx,	/*!< in/out: transaction */
-	const char*	file,	/*!< in: file name */
-	unsigned	line);	/*!< in: line number */
-#define row_mysql_freeze_data_dictionary(trx)				\
-	row_mysql_freeze_data_dictionary_func(trx, __FILE__, __LINE__)
+void row_mysql_freeze_data_dictionary(trx_t *trx);
+
 /*********************************************************************//**
 Unlocks the data dictionary shared lock. */
 void

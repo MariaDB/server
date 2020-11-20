@@ -31,6 +31,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "data0data.h"
 #include "dict0mem.h"
 #include "fsp0fsp.h"
+#include "srw_lock.h"
 #include <deque>
 
 class MDL_ticket;
@@ -1392,6 +1393,21 @@ extern ib_mutex_t	dict_foreign_err_mutex; /* mutex protecting the
 /** InnoDB data dictionary cache */
 class dict_sys_t
 {
+private:
+  /** @brief the data dictionary rw-latch protecting dict_sys
+
+  Table create, drop, etc. reserve this in X-mode (along with
+  acquiring dict_sys.mutex); implicit or
+  backround operations that are not fully covered by MDL
+  (rollback, foreign key checks) reserve this in S-mode.
+
+  This latch also prevents lock waits when accessing the InnoDB
+  data dictionary tables. @see trx_t::dict_operation_lock_mode */
+  MY_ALIGNED(CACHE_LINE_SIZE) srw_lock latch;
+#ifdef UNIV_DEBUG
+  /** whether latch is being held in exclusive mode (by any thread) */
+  bool latch_ex;
+#endif
 public:
 	DictSysMutex	mutex;		/*!< mutex protecting the data
 					dictionary; protects also the
@@ -1400,15 +1416,6 @@ public:
 					and DROP TABLE, as well as reading
 					the dictionary data for a table from
 					system tables */
-	/** @brief the data dictionary rw-latch protecting dict_sys
-
-	Table create, drop, etc. reserve this in X-mode; implicit or
-	backround operations purge, rollback, foreign key checks reserve this
-	in S-mode; not all internal InnoDB operations are covered by MDL.
-
-	This latch also prevents lock waits when accessing the InnoDB
-	data dictionary tables. @see trx_t::dict_operation_lock_mode */
-	rw_lock_t	latch;
 	row_id_t	row_id;		/*!< the next row id to assign;
 					NOTE that at a checkpoint this
 					must be written to the dict system
@@ -1433,9 +1440,10 @@ public:
 			table_non_LRU;	/*!< List of tables that can't be
 					evicted from the cache */
 private:
-	bool m_initialised;
-	/** the sequence of temporary table IDs */
-	std::atomic<table_id_t> temp_table_id;
+  bool m_initialised= false;
+  /** the sequence of temporary table IDs */
+  std::atomic<table_id_t> temp_table_id{DICT_HDR_FIRST_ID};
+
 	/** hash table of temporary table IDs */
 	hash_table_t temp_id_hash;
 public:
@@ -1479,12 +1487,6 @@ public:
 		DBUG_ASSERT(!table || !table->is_temporary());
 		return table;
 	}
-
-  /**
-    Constructor.  Further initialisation happens in create().
-  */
-
-  dict_sys_t() : m_initialised(false), temp_table_id(DICT_HDR_FIRST_ID) {}
 
   bool is_initialised() const { return m_initialised; }
 
@@ -1544,25 +1546,30 @@ public:
 
 #ifdef UNIV_DEBUG
   /** Assert that the data dictionary is locked */
-  void assert_locked()
-  {
-    ut_ad(mutex_own(&mutex));
-    ut_ad(rw_lock_own(&latch, RW_LOCK_X));
-  }
+  void assert_locked() { ut_ad(mutex_own(&mutex)); }
 #endif
   /** Lock the data dictionary cache. */
   void lock(const char* file, unsigned line)
   {
-    rw_lock_x_lock_func(&latch, 0, file, line);
+    latch.wr_lock();
+    ut_ad(!latch_ex);
+    ut_d(latch_ex= true);
     mutex_enter_loc(&mutex, file, line);
   }
 
   /** Unlock the data dictionary cache. */
   void unlock()
   {
+    ut_ad(latch_ex);
+    ut_d(latch_ex= false);
     mutex_exit(&mutex);
-    rw_lock_x_unlock(&latch);
+    latch.wr_unlock();
   }
+
+  /** Prevent modifications of the data dictionary */
+  void freeze() { latch.rd_lock(); ut_ad(!latch_ex); }
+  /** Allow modifications of the data dictionary */
+  void unfreeze() { ut_ad(!latch_ex); latch.rd_unlock(); }
 
   /** Estimate the used memory occupied by the data dictionary
   table and index objects.

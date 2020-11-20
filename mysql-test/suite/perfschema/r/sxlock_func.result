@@ -7,7 +7,6 @@ TRUNCATE TABLE performance_schema.events_waits_current;
 select name from performance_schema.setup_instruments
 where name like "wait/synch/sxlock/%" order by name;
 name
-wait/synch/sxlock/innodb/dict_operation_lock
 wait/synch/sxlock/innodb/fil_space_latch
 wait/synch/sxlock/innodb/fts_cache_init_rw_lock
 wait/synch/sxlock/innodb/fts_cache_rw_lock
@@ -23,7 +22,6 @@ where name in
   )
 order by name;
 name
-wait/synch/sxlock/innodb/dict_operation_lock
 drop table if exists t1;
 create table t1(a int) engine=innodb;
 begin;

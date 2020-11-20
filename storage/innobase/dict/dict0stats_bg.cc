@@ -298,8 +298,8 @@ void dict_stats_init()
 	   dict_stats_update_if_needed() is called and it may be acquired
 	   inside that function (thus a level <=SYNC_DICT would do).
 	3) from row_drop_table_for_mysql() after dict_sys.mutex (SYNC_DICT)
-	   and dict_sys.latch (SYNC_DICT_OPERATION) have been locked
-	   (thus a level <SYNC_DICT && <SYNC_DICT_OPERATION would do)
+	   and dict_sys.latch have been locked
+	   (thus a level <SYNC_DICT would do)
 	So we choose SYNC_STATS_AUTO_RECALC to be about below SYNC_DICT. */
 
 	mutex_create(LATCH_ID_RECALC_POOL, &recalc_pool_mutex);

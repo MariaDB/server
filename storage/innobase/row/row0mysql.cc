@@ -2060,18 +2060,11 @@ no_unlock:
 /*********************************************************************//**
 Locks the data dictionary in shared mode from modifications, for performing
 foreign key check, rollback, or other operation invisible to MySQL. */
-void
-row_mysql_freeze_data_dictionary_func(
-/*==================================*/
-	trx_t*		trx,	/*!< in/out: transaction */
-	const char*	file,	/*!< in: file name */
-	unsigned	line)	/*!< in: line number */
+void row_mysql_freeze_data_dictionary(trx_t *trx)
 {
-	ut_a(trx->dict_operation_lock_mode == 0);
-
-	rw_lock_s_lock_inline(&dict_sys.latch, 0, file, line);
-
-	trx->dict_operation_lock_mode = RW_S_LATCH;
+  ut_a(trx->dict_operation_lock_mode == 0);
+  trx->dict_operation_lock_mode = RW_S_LATCH;
+  dict_sys.freeze();
 }
 
 /*********************************************************************//**
@@ -2081,13 +2074,10 @@ row_mysql_unfreeze_data_dictionary(
 /*===============================*/
 	trx_t*	trx)	/*!< in/out: transaction */
 {
-	ut_ad(lock_trx_has_sys_table_locks(trx) == NULL);
-
-	ut_a(trx->dict_operation_lock_mode == RW_S_LATCH);
-
-	rw_lock_s_unlock(&dict_sys.latch);
-
-	trx->dict_operation_lock_mode = 0;
+  ut_ad(!lock_trx_has_sys_table_locks(trx));
+  ut_ad(trx->dict_operation_lock_mode == RW_S_LATCH);
+  dict_sys.unfreeze();
+  trx->dict_operation_lock_mode = 0;
 }
 
 /** Write query start time as SQL field data to a buffer. Needed by InnoDB.
@@ -2273,8 +2263,7 @@ row_mysql_lock_data_dictionary_func(
 	const char*	file,	/*!< in: file name */
 	unsigned	line)	/*!< in: line number */
 {
-	ut_a(trx->dict_operation_lock_mode == 0
-	     || trx->dict_operation_lock_mode == RW_X_LATCH);
+	ut_ad(trx->dict_operation_lock_mode == 0);
 	dict_sys.lock(file, line);
 	trx->dict_operation_lock_mode = RW_X_LATCH;
 }
@@ -2287,7 +2276,7 @@ row_mysql_unlock_data_dictionary(
 	trx_t*	trx)	/*!< in/out: transaction */
 {
 	ut_ad(lock_trx_has_sys_table_locks(trx) == NULL);
-	ut_a(trx->dict_operation_lock_mode == RW_X_LATCH);
+	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 	trx->dict_operation_lock_mode = 0;
 	dict_sys.unlock();
 }

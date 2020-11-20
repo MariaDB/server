@@ -2417,18 +2417,18 @@ i_s_fts_deleted_generic_fill(
 
 	/* Prevent DROP of the internal tables for fulltext indexes.
 	FIXME: acquire DDL-blocking MDL on the user table name! */
-	rw_lock_s_lock(&dict_sys.latch);
+	dict_sys.freeze();
 
 	user_table = dict_table_open_on_id(
 		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
 	if (!user_table) {
-		rw_lock_s_unlock(&dict_sys.latch);
+func_exit:
+		dict_sys.unfreeze();
 		DBUG_RETURN(0);
 	} else if (!dict_table_has_fts_index(user_table)) {
 		dict_table_close(user_table, FALSE, FALSE);
-		rw_lock_s_unlock(&dict_sys.latch);
-		DBUG_RETURN(0);
+		goto func_exit;
 	}
 
 	deleted = fts_doc_ids_create();
@@ -2444,7 +2444,7 @@ i_s_fts_deleted_generic_fill(
 
 	dict_table_close(user_table, FALSE, FALSE);
 
-	rw_lock_s_unlock(&dict_sys.latch);
+	dict_sys.unfreeze();
 
 	trx->free();
 
@@ -2793,14 +2793,14 @@ i_s_fts_index_cache_fill(
 
 	/* Prevent DROP of the internal tables for fulltext indexes.
 	FIXME: acquire DDL-blocking MDL on the user table name! */
-	rw_lock_s_lock(&dict_sys.latch);
+	dict_sys.freeze();
 
 	user_table = dict_table_open_on_id(
 		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
 	if (!user_table) {
 no_fts:
-		rw_lock_s_unlock(&dict_sys.latch);
+		dict_sys.unfreeze();
 		DBUG_RETURN(0);
 	}
 
@@ -2831,7 +2831,7 @@ no_fts:
 
 	rw_lock_s_unlock(&cache->lock);
 	dict_table_close(user_table, FALSE, FALSE);
-	rw_lock_s_unlock(&dict_sys.latch);
+	dict_sys.unfreeze();
 
 	DBUG_RETURN(ret);
 }
@@ -3243,13 +3243,13 @@ i_s_fts_index_table_fill(
 
 	/* Prevent DROP of the internal tables for fulltext indexes.
 	FIXME: acquire DDL-blocking MDL on the user table name! */
-	rw_lock_s_lock(&dict_sys.latch);
+	dict_sys.freeze();
 
 	user_table = dict_table_open_on_id(
 		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
 	if (!user_table) {
-		rw_lock_s_unlock(&dict_sys.latch);
+		dict_sys.unfreeze();
 		DBUG_RETURN(0);
 	}
 
@@ -3269,7 +3269,7 @@ i_s_fts_index_table_fill(
 
 	dict_table_close(user_table, FALSE, FALSE);
 
-	rw_lock_s_unlock(&dict_sys.latch);
+	dict_sys.unfreeze();
 
 	ut_free(conv_str.f_str);
 
@@ -3397,14 +3397,14 @@ i_s_fts_config_fill(
 
 	/* Prevent DROP of the internal tables for fulltext indexes.
 	FIXME: acquire DDL-blocking MDL on the user table name! */
-	rw_lock_s_lock(&dict_sys.latch);
+	dict_sys.freeze();
 
 	user_table = dict_table_open_on_id(
 		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
 	if (!user_table) {
 no_fts:
-		rw_lock_s_unlock(&dict_sys.latch);
+		dict_sys.unfreeze();
 		DBUG_RETURN(0);
 	}
 
@@ -3468,7 +3468,7 @@ no_fts:
 
 	dict_table_close(user_table, FALSE, FALSE);
 
-	rw_lock_s_unlock(&dict_sys.latch);
+	dict_sys.unfreeze();
 
 	trx->free();
 
@@ -5107,7 +5107,7 @@ i_s_sys_tables_fill_table_stats(
 	}
 
 	heap = mem_heap_create(1000);
-	rw_lock_s_lock(&dict_sys.latch);
+	dict_sys.freeze();
 	mutex_enter(&dict_sys.mutex);
 	mtr_start(&mtr);
 
@@ -5141,11 +5141,11 @@ i_s_sys_tables_fill_table_stats(
 					    err_msg);
 		}
 
-		rw_lock_s_unlock(&dict_sys.latch);
+		dict_sys.unfreeze();
 		mem_heap_empty(heap);
 
 		/* Get the next record */
-		rw_lock_s_lock(&dict_sys.latch);
+		dict_sys.freeze();
 		mutex_enter(&dict_sys.mutex);
 
 		mtr_start(&mtr);
@@ -5154,7 +5154,7 @@ i_s_sys_tables_fill_table_stats(
 
 	mtr_commit(&mtr);
 	mutex_exit(&dict_sys.mutex);
-	rw_lock_s_unlock(&dict_sys.latch);
+	dict_sys.unfreeze();
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);

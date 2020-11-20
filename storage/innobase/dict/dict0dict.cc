@@ -1038,7 +1038,7 @@ void dict_sys_t::create()
   table_id_hash.create(hash_size);
   temp_id_hash.create(hash_size);
 
-  rw_lock_create(dict_operation_lock_key, &latch, SYNC_DICT_OPERATION);
+  latch.init(dict_operation_lock_key);
 
   if (!srv_read_only_mode)
   {
@@ -4950,7 +4950,7 @@ void dict_sys_t::close()
 
   mutex_exit(&mutex);
   mutex_free(&mutex);
-  rw_lock_free(&latch);
+  latch.destroy();
 
   mutex_free(&dict_foreign_err_mutex);
 
