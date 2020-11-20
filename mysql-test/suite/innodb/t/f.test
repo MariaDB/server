@@ -12,17 +12,17 @@ call mtr.add_suppression("Failed to execute action for entry");
 --delimiter $
 create or replace procedure make_tables()
 begin
-  create table t1 (x int primary key);
-  create table t2 (y int primary key);
-  create table t3 (z int primary key);
+  create table t1 (x int primary key, a int references t1(x));
+  create table t2 (x int references t1(x), y int primary key, b int references t2(x));
+  create table t3 (x int references t2(x), y int references t2(y), z int primary key, c int references t3(z));
   create table t4 (
     a int primary key,
     x int references t1(x),
     y int references t2(y),
     z int references t3(z));
-  insert t1 values (1);
-  insert t2 values (2);
-  insert t3 values (3);
+  insert t1 values (1, 1);
+  insert t2 values (1, 2, 1);
+  insert t3 values (1, 2, 3, 3);
   insert t4 values (0, 1, 2, 3);
 end $
 
@@ -41,7 +41,7 @@ let $show_statement0= check tables t1, t2, t3, t4;
 let $show_statement1= check tables t1, t2, t3, t4;
 let $show_statement2= check tables t1, t2, t3, t4;
 let $debug_dbug="+d,fail_fk_backup_frm";
-let $fail_statement= drop table t4;
+let $fail_statement= drop tables t4, t1, t3, t2;
 --source include/foreign_fail.inc
 call drop_tables;
 let $debug_dbug="+d,fail_fk_install_shadow_frm";
@@ -66,7 +66,8 @@ call drop_tables;
 # FIXME: test multi-rename
 let $create_statement= call make_tables;
 let $debug_dbug="+d,fail_fk_backup_frm";
-let $fail_statement= rename table t4 to xt4;
+let $fail_statement= rename table t4 to xt4, t1 to xt1, t3 to xt3, t2 to xt2;
+#let $fail_statement= rename table t4 to xt4;
 --source include/foreign_fail.inc
 call drop_tables;
 
