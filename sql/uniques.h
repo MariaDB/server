@@ -19,15 +19,103 @@
 #include "filesort.h"
 
 
+
+class Descriptor : public Sql_alloc
+{
+protected:
+  int size;
+  int full_size;
+  enum attributes
+  {
+    FIXED_SIZED_KEYS= 0,
+    VARIABLE_SIZED_KEYS_WITH_ORIGINAL_VALUES
+  };
+  int flags;
+
+public:
+  virtual ~Descriptor() {};
+  uint get_size() { return size; }
+  uint get_full_size() { return full_size; }
+  virtual uint get_length_of_key(void *ptr) = 0;
+  virtual bool is_packed() = 0;
+  virtual int compare_keys(uchar *a, uchar *b) = 0;
+  virtual int compare_keys_for_single_arg(uchar *a, uchar *b)= 0;
+};
+
+
+class Fixed_sized_keys_descriptor : public Descriptor
+{
+private:
+
+public:
+  Fixed_sized_keys_descriptor(uint key_length)
+  {
+    size= key_length;
+  }
+  ~Fixed_sized_keys_descriptor() {}
+  uint get_length_of_key(void *ptr) override;
+  int compare_keys(uchar *a, uchar *b) override;
+  int compare_keys_for_single_arg(uchar *a, uchar *b) override;
+};
+
+
+class Variable_sized_keys_descriptior : public Descriptor
+{
+  /*
+    Packed record ptr for a record of the table, the packed value in this
+    record is added to the unique tree
+  */
+  uchar* packed_rec_ptr;
+
+  /*
+    Array of SORT_FIELD structure storing the information about the key parts
+    in the sort key of the Unique tree
+    @see Unique::setup()
+  */
+  SORT_FIELD *sortorder;
+
+  /*
+    Structure storing information about usage of keys
+  */
+  Sort_keys *sort_keys;
+
+public:
+  Variable_sized_keys_descriptior(uint key_length)
+  {
+    size= key_length;
+    full_size= 0;
+  }
+  ~Variable_sized_keys_descriptior();
+
+  uchar *get_packed_rec_ptr() { return packed_rec_ptr; }
+  Sort_keys *get_keys() { return sort_keys; }
+  SORT_FIELD *get_sortorder() { return sortorder; }
+
+  // Fill structures like sort_keys, sortorder
+  bool setup();
+  uint make_packed_record(bool exclude_nulls);
+  uint get_length_of_key(void *ptr) override;
+  int compare_keys(uchar *a, uchar *b) override;
+  int compare_keys_for_single_arg(uchar *a, uchar *b);
+};
+
+
 /*
-   Unique_impl -- An abstract class for unique (removing duplicates).
+   Unique -- An abstract class for unique (removing duplicates).
 */
 
 class Unique : public Sql_alloc {
+
+protected:
+  Descriptor *descriptor;
 public:
 
   virtual void reset() = 0;
   virtual bool unique_add(void *ptr) = 0;
+  Unique()
+  {
+    descriptor= NULL;
+  }
   virtual ~Unique() {};
 
   virtual void close_for_expansion() = 0;
@@ -44,6 +132,7 @@ public:
 
   // This will be renamed:
   virtual ulong elements_in_tree() = 0;
+  Descriptor *get_descriptor() { return descriptor; }
 };
 
 /*
@@ -56,7 +145,8 @@ public:
 
 class Unique_impl : public Unique {
   DYNAMIC_ARRAY file_ptrs;
-  ulong max_elements;   /* Total number of elements that will be stored in-memory */
+  /* Total number of elements that will be stored in-memory */
+  ulong max_elements;
   size_t max_in_memory_size;
   IO_CACHE file;
   TREE tree;

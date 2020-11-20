@@ -74,7 +74,8 @@ int unique_intersect_write_to_ptrs(uchar* key, element_count count, Unique_impl 
 Unique_impl::Unique_impl(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
 	             uint size_arg, size_t max_in_memory_size_arg,
                uint min_dupl_count_arg)
-  :max_in_memory_size(max_in_memory_size_arg),
+  :Unique(),
+   max_in_memory_size(max_in_memory_size_arg),
    size(size_arg),
    memory_used(0),
    elements(0)
