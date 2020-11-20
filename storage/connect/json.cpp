@@ -1780,7 +1780,7 @@ void SWAP::SwapJson(PJSON jsp, bool move)
 /* Replace all pointers by offsets.                                    */
 /***********************************************************************/
 size_t SWAP::MoffJson(PJSON jsp) {
-  size_t res = NULL;
+  size_t res = 0;
 
   if (jsp)
     switch (jsp->Type) {
