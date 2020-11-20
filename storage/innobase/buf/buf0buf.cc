@@ -343,22 +343,6 @@ in the debug version */
 static ulint buf_dbg_counter;
 #endif /* UNIV_DEBUG */
 
-#if defined UNIV_PFS_MUTEX || defined UNIV_PFS_RWLOCK
-# ifndef PFS_SKIP_BUFFER_MUTEX_RWLOCK
-
-/* If defined, register buf_block_t::lock
-in one group after their initialization. */
-#  define PFS_GROUP_BUFFER_SYNC
-
-/* This define caps the number of mutexes/rwlocks can
-be registered with performance schema. Developers can
-modify this define if necessary. Please note, this would
-be effective only if PFS_GROUP_BUFFER_SYNC is defined. */
-#  define PFS_MAX_BUFFER_MUTEX_LOCK_REGISTER	ULINT_MAX
-
-# endif /* !PFS_SKIP_BUFFER_MUTEX_RWLOCK */
-#endif /* UNIV_PFS_MUTEX || UNIV_PFS_RWLOCK */
-
 /** Macro to determine whether the read of write counter is used depending
 on the io_type */
 #define MONITOR_RW_COUNTER(io_type, counter)		\
@@ -1217,52 +1201,6 @@ void buf_page_print(const byte* read_buf, ulint zip_size)
 	}
 }
 
-# ifdef PFS_GROUP_BUFFER_SYNC
-/********************************************************************//**
-This function registers mutexes and rwlocks in buffer blocks with
-performance schema. If PFS_MAX_BUFFER_MUTEX_LOCK_REGISTER is
-defined to be a value less than chunk->size, then only mutexes
-and rwlocks in the first PFS_MAX_BUFFER_MUTEX_LOCK_REGISTER
-blocks are registered. */
-static
-void
-pfs_register_buffer_block(
-/*======================*/
-	buf_pool_t::chunk_t*	chunk)		/*!< in/out: chunk of buffers */
-{
-	buf_block_t*    block;
-	ulint		num_to_register;
-
-	block = chunk->blocks;
-
-	num_to_register = ut_min(
-		chunk->size, PFS_MAX_BUFFER_MUTEX_LOCK_REGISTER);
-
-	for (ulint i = 0; i < num_to_register; i++) {
-		rw_lock_t*	rwlock;
-
-#  ifdef UNIV_PFS_RWLOCK
-		rwlock = &block->lock;
-		ut_a(!rwlock->pfs_psi);
-		rwlock->pfs_psi = (PSI_server)
-			? PSI_server->init_rwlock(buf_block_lock_key, rwlock)
-			: NULL;
-
-#   ifdef UNIV_DEBUG
-		rwlock = block->debug_latch;
-		ut_a(!rwlock->pfs_psi);
-		rwlock->pfs_psi = (PSI_server)
-			? PSI_server->init_rwlock(buf_block_debug_latch_key,
-						  rwlock)
-			: NULL;
-#   endif /* UNIV_DEBUG */
-
-#  endif /* UNIV_PFS_RWLOCK */
-		block++;
-	}
-}
-# endif /* PFS_GROUP_BUFFER_SYNC */
-
 /** Initialize a buffer page descriptor.
 @param[in,out]	block	buffer page descriptor
 @param[in]	frame	buffer page frame */
@@ -1288,27 +1226,10 @@ buf_block_init(buf_block_t* block, byte* frame)
 
 	ut_d(block->debug_latch = (rw_lock_t *) ut_malloc_nokey(sizeof(rw_lock_t)));
 
-#if defined PFS_SKIP_BUFFER_MUTEX_RWLOCK || defined PFS_GROUP_BUFFER_SYNC
-	/* If PFS_SKIP_BUFFER_MUTEX_RWLOCK is defined, skip registration
-	of buffer block rwlock with performance schema.
-
-	If PFS_GROUP_BUFFER_SYNC is defined, skip the registration
-	since buffer block rwlock will be registered later in
-	pfs_register_buffer_block(). */
-
 	rw_lock_create(PFS_NOT_INSTRUMENTED, &block->lock, SYNC_LEVEL_VARYING);
 
 	ut_d(rw_lock_create(PFS_NOT_INSTRUMENTED, block->debug_latch,
 			    SYNC_LEVEL_VARYING));
-
-#else /* PFS_SKIP_BUFFER_MUTEX_RWLOCK || PFS_GROUP_BUFFER_SYNC */
-
-	rw_lock_create(buf_block_lock_key, &block->lock, SYNC_LEVEL_VARYING);
-
-	ut_d(rw_lock_create(buf_block_debug_latch_key,
-			    block->debug_latch, SYNC_LEVEL_VARYING));
-
-#endif /* PFS_SKIP_BUFFER_MUTEX_RWLOCK || PFS_GROUP_BUFFER_SYNC */
 
 	block->lock.is_block_lock = 1;
 
@@ -1396,9 +1317,6 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
 
   reg();
 
-#ifdef PFS_GROUP_BUFFER_SYNC
-  pfs_register_buffer_block(this);
-#endif /* PFS_GROUP_BUFFER_SYNC */
   return true;
 }
 

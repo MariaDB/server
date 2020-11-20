@@ -82,10 +82,6 @@ mysql_pfs_key_t	read_view_mutex_key;
 #endif /* UNIV_PFS_MUTEX */
 #ifdef UNIV_PFS_RWLOCK
 mysql_pfs_key_t	btr_search_latch_key;
-mysql_pfs_key_t	buf_block_lock_key;
-# ifdef UNIV_DEBUG
-mysql_pfs_key_t	buf_block_debug_latch_key;
-# endif /* UNIV_DEBUG */
 mysql_pfs_key_t	dict_operation_lock_key;
 mysql_pfs_key_t	index_tree_rw_lock_key;
 mysql_pfs_key_t	index_online_log_key;
