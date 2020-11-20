@@ -697,7 +697,7 @@ not_free:
 		mtr_t mtr;
 		const ulint size = SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
 		mtr.start();
-		mtr_x_lock_space(purge_sys.truncate.current, &mtr);
+		mtr.x_lock_space(purge_sys.truncate.current);
 		/* Associate the undo tablespace with mtr.
 		During mtr::commit(), InnoDB can use the undo
 		tablespace object to clear all freed ranges */

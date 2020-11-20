@@ -212,11 +212,11 @@ static void memo_slot_release(mtr_memo_slot_t *slot)
     rw_lock_sx_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
     break;
   case MTR_MEMO_SPACE_X_LOCK:
-    {
-      fil_space_t *space= static_cast<fil_space_t*>(slot->object);
-      space->set_committed_size();
-      rw_lock_x_unlock(&space->latch);
-    }
+    static_cast<fil_space_t*>(slot->object)->set_committed_size();
+    static_cast<fil_space_t*>(slot->object)->x_unlock();
+    break;
+  case MTR_MEMO_SPACE_S_LOCK:
+    static_cast<fil_space_t*>(slot->object)->s_unlock();
     break;
   case MTR_MEMO_X_LOCK:
     rw_lock_x_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
@@ -254,11 +254,11 @@ struct ReleaseLatches {
       rw_lock_s_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
       break;
     case MTR_MEMO_SPACE_X_LOCK:
-      {
-        fil_space_t *space= static_cast<fil_space_t*>(slot->object);
-        space->set_committed_size();
-        rw_lock_x_unlock(&space->latch);
-      }
+      static_cast<fil_space_t*>(slot->object)->set_committed_size();
+      static_cast<fil_space_t*>(slot->object)->x_unlock();
+      break;
+    case MTR_MEMO_SPACE_S_LOCK:
+      static_cast<fil_space_t*>(slot->object)->s_unlock();
       break;
     case MTR_MEMO_X_LOCK:
       rw_lock_x_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
@@ -426,7 +426,7 @@ void mtr_t::commit()
         freed_space= fil_system.sys_space;
       }
 
-      ut_ad(memo_contains(*freed_space));
+      ut_ad(freed_space->is_owner());
       /* Update the last freed lsn */
       freed_space->update_last_freed_lsn(m_commit_lsn);
 
@@ -545,13 +545,10 @@ bool mtr_t::is_named_space(const fil_space_t* space) const
 #endif /* UNIV_DEBUG */
 
 /** Acquire a tablespace X-latch.
-NOTE: use mtr_x_lock_space().
 @param[in]	space_id	tablespace ID
-@param[in]	file		file name from where called
-@param[in]	line		line number in file
 @return the tablespace object (never NULL) */
 fil_space_t*
-mtr_t::x_lock_space(ulint space_id, const char* file, unsigned line)
+mtr_t::x_lock_space(ulint space_id)
 {
 	fil_space_t*	space;
 
@@ -569,8 +566,22 @@ mtr_t::x_lock_space(ulint space_id, const char* file, unsigned line)
 
 	ut_ad(space);
 	ut_ad(space->id == space_id);
-	x_lock_space(space, file, line);
+	x_lock_space(space);
 	return(space);
+}
+
+/** Acquire a tablespace X-latch.
+@param[in]	space	tablespace */
+void mtr_t::x_lock_space(fil_space_t *space)
+{
+  ut_ad(space->purpose == FIL_TYPE_TEMPORARY ||
+        space->purpose == FIL_TYPE_IMPORT ||
+        space->purpose == FIL_TYPE_TABLESPACE);
+  if (!memo_contains(*space))
+  {
+    memo_push(space, MTR_MEMO_SPACE_X_LOCK);
+    space->x_lock();
+  }
 }
 
 /** Release an object in the memo stack.
@@ -937,6 +948,21 @@ bool mtr_t::have_x_latch(const buf_block_t &block) const
   return true;
 }
 
+/** Check if we are holding exclusive tablespace latch
+@param space  tablespace to search for
+@param shared whether to look for shared latch, instead of exclusive
+@return whether space.latch is being held */
+bool mtr_t::memo_contains(const fil_space_t& space, bool shared)
+{
+  Iterate<Find> iteration(Find(&space, shared
+                               ? MTR_MEMO_SPACE_S_LOCK
+                               : MTR_MEMO_SPACE_X_LOCK));
+  if (m_memo.for_each_block_in_reverse(iteration))
+    return false;
+  ut_ad(shared || space.is_owner());
+  return true;
+}
+
 #ifdef UNIV_DEBUG
 /** Check if we are holding an rw-latch in this mini-transaction
 @param lock   latch to search for
@@ -962,18 +988,6 @@ bool mtr_t::memo_contains(const rw_lock_t &lock, mtr_memo_type_t type)
     break;
   }
 
-  return true;
-}
-
-/** Check if we are holding exclusive tablespace latch
-@param space  tablespace to search for
-@return whether space.latch is being held */
-bool mtr_t::memo_contains(const fil_space_t& space)
-{
-  Iterate<Find> iteration(Find(&space, MTR_MEMO_SPACE_X_LOCK));
-  if (m_memo.for_each_block_in_reverse(iteration))
-    return false;
-  ut_ad(rw_lock_own(const_cast<rw_lock_t*>(&space.latch), RW_LOCK_X));
   return true;
 }
 

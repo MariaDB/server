@@ -671,7 +671,7 @@ trx_rseg_create(ulint space_id)
 
 	mtr.start();
 
-	fil_space_t*	space = mtr_x_lock_space(space_id, &mtr);
+	fil_space_t*	space = mtr.x_lock_space(space_id);
 	ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
 
 	if (buf_block_t* sys_header = trx_sysf_get(&mtr)) {
@@ -706,7 +706,7 @@ trx_temp_rseg_create()
 	for (ulong i = 0; i < TRX_SYS_N_RSEGS; i++) {
 		mtr.start();
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
-		mtr_x_lock_space(fil_system.temp_space, &mtr);
+		mtr.x_lock_space(fil_system.temp_space);
 
 		buf_block_t* rblock = trx_rseg_header_create(
 			fil_system.temp_space, i, NULL, &mtr);

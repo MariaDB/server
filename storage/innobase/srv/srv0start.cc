@@ -1512,8 +1512,7 @@ file_checked:
 			if (sum_of_new_sizes > 0) {
 				/* New data file(s) were added */
 				mtr.start();
-				mtr.x_lock_space(fil_system.sys_space,
-						 __FILE__, __LINE__);
+				mtr.x_lock_space(fil_system.sys_space);
 				buf_block_t* block = buf_page_get(
 					page_id_t(0, 0), 0,
 					RW_SX_LATCH, &mtr);

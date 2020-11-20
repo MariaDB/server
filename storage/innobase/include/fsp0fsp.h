@@ -477,13 +477,15 @@ fsp_reserve_free_extents(
 @param[in,out]	seg_header	file segment header
 @param[in,out]	space		tablespace
 @param[in]	offset		page number
-@param[in,out]	mtr		mini-transaction */
+@param[in,out]	mtr		mini-transaction
+@param[in]	have_latch	whether space->x_lock() was already called */
 void
 fseg_free_page(
 	fseg_header_t*	seg_header,
 	fil_space_t*	space,
 	uint32_t	offset,
-	mtr_t*		mtr);
+	mtr_t*		mtr,
+	bool		have_latch = false);
 /** Determine whether a page is free.
 @param[in,out]	space	tablespace
 @param[in]	page	page number

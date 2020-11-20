@@ -648,10 +648,11 @@ btr_page_create(
 @param[in,out]	index	index tree
 @param[in,out]	block	block to be freed
 @param[in,out]	mtr	mini-transaction
-@param[in]	blob	whether this is freeing a BLOB page */
+@param[in]	blob	whether this is freeing a BLOB page
+@param[in]	latched	whether index->table->space->x_lock() was called */
 MY_ATTRIBUTE((nonnull))
 void btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
-		   bool blob = false);
+		   bool blob = false, bool space_latched = false);
 
 /**************************************************************//**
 Gets the root node of a tree and x- or s-latches it.

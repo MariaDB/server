@@ -708,7 +708,7 @@ static void srv_init()
 	ut_d(srv_master_thread_disabled_event = os_event_create(0));
 
 	/* page_zip_stat_per_index_mutex is acquired from:
-	1. page_zip_compress() (after SYNC_FSP)
+	1. page_zip_compress()
 	2. page_zip_decompress()
 	3. i_s_cmp_per_index_fill_low() (where SYNC_DICT is acquired)
 	4. innodb_cmp_per_index_update(), no other latches

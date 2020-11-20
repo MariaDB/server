@@ -475,7 +475,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_IBUF_INDEX_TREE);
 	LEVEL_MAP_INSERT(SYNC_IBUF_MUTEX);
 	LEVEL_MAP_INSERT(SYNC_FSP_PAGE);
-	LEVEL_MAP_INSERT(SYNC_FSP);
 	LEVEL_MAP_INSERT(SYNC_EXTERN_STORAGE);
 	LEVEL_MAP_INSERT(SYNC_TRX_UNDO_PAGE);
 	LEVEL_MAP_INSERT(SYNC_RSEG_HEADER);
@@ -798,13 +797,6 @@ LatchDebug::check_order(
 		break;
 
 	case SYNC_FSP_PAGE:
-		ut_a(find(latches, SYNC_FSP) != 0);
-		break;
-
-	case SYNC_FSP:
-
-		ut_a(find(latches, SYNC_FSP) != 0
-		     || basic_check(latches, level, SYNC_FSP));
 		break;
 
 	case SYNC_TRX_UNDO_PAGE:
@@ -830,9 +822,7 @@ LatchDebug::check_order(
 		break;
 
 	case SYNC_TREE_NODE:
-
-		ut_a(find(latches, SYNC_FSP) == &fil_system.temp_space->latch
-		     || find(latches, SYNC_INDEX_TREE)
+		ut_a(find(latches, SYNC_INDEX_TREE)
 		     || basic_check(latches, level, SYNC_TREE_NODE - 1));
 		break;
 
@@ -859,13 +849,12 @@ LatchDebug::check_order(
 		pre-allocated new pages may only be used while holding
 		ibuf_mutex, in btr_page_alloc_for_ibuf(). */
 
-		ut_a(find(latches, SYNC_IBUF_MUTEX) != 0
-		     || find(latches, SYNC_FSP) != 0);
+		ut_ad(find(latches, SYNC_IBUF_MUTEX) != 0
+		      || fil_system.sys_space->is_owner());
 		break;
 
 	case SYNC_IBUF_INDEX_TREE:
-
-		if (find(latches, SYNC_FSP) != 0) {
+		if (fil_system.sys_space->is_owner()) {
 			basic_check(latches, level, level - 1);
 		} else {
 			basic_check(latches, level, SYNC_IBUF_TREE_NODE - 1);
@@ -873,14 +862,12 @@ LatchDebug::check_order(
 		break;
 
 	case SYNC_IBUF_PESS_INSERT_MUTEX:
-
-		basic_check(latches, level, SYNC_FSP - 1);
+		basic_check(latches, level, SYNC_FSP_PAGE);
 		ut_a(find(latches, SYNC_IBUF_MUTEX) == 0);
 		break;
 
 	case SYNC_IBUF_HEADER:
-
-		basic_check(latches, level, SYNC_FSP - 1);
+		basic_check(latches, level, SYNC_FSP_PAGE);
 		ut_a(find(latches, SYNC_IBUF_MUTEX) == NULL);
 		ut_a(find(latches, SYNC_IBUF_PESS_INSERT_MUTEX) == NULL);
 		break;
@@ -1298,8 +1285,6 @@ sync_latch_meta_init()
 	LATCH_ADD_RWLOCK(BUF_BLOCK_DEBUG, SYNC_LEVEL_VARYING,
 			 PFS_NOT_INSTRUMENTED);
 #endif /* UNIV_DEBUG */
-
-	LATCH_ADD_RWLOCK(FIL_SPACE, SYNC_FSP, fil_space_latch_key);
 
 	LATCH_ADD_RWLOCK(IBUF_INDEX_TREE, SYNC_IBUF_INDEX_TREE,
 			 index_tree_rw_lock_key);

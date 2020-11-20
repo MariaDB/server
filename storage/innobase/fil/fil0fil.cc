@@ -853,7 +853,6 @@ fil_space_free_low(
 
 	ut_ad(space->size == 0);
 
-	rw_lock_free(&space->latch);
 	fil_space_destroy_crypt_data(&space->crypt_data);
 
 	space->~fil_space_t();
@@ -885,7 +884,7 @@ fil_space_free(
 
 	if (space != NULL) {
 		if (x_latched) {
-			rw_lock_x_unlock(&space->latch);
+			space->x_unlock();
 		}
 
 		if (!recv_recovery_is_on()) {
@@ -958,7 +957,7 @@ fil_space_t *fil_space_t::create(const char *name, ulint id, ulint flags,
 			 << " " << fil_crypt_get_type(crypt_data));
 	}
 
-	rw_lock_create(fil_space_latch_key, &space->latch, SYNC_FSP);
+	space->latch.init(fil_space_latch_key);
 
 	if (space->purpose == FIL_TYPE_TEMPORARY) {
 		/* SysTablespace::open_or_create() would pass
@@ -978,7 +977,6 @@ fil_space_t *fil_space_t::create(const char *name, ulint id, ulint flags,
 			<< " to the tablespace memory cache, but tablespace '"
 			<< old_space->name << "' already exists in the cache!";
 		mutex_exit(&fil_system.mutex);
-		rw_lock_free(&space->latch);
 		space->~fil_space_t();
 		ut_free(space->name);
 		ut_free(space);
@@ -1797,7 +1795,7 @@ void fil_close_tablespace(ulint id)
 		return;
 	}
 
-	rw_lock_x_lock(&space->latch);
+	space->x_lock();
 
 	/* Invalidate in the buffer pool all pages belonging to the
 	tablespace. Since we have invoked space->set_stopping(), readahead
@@ -1809,11 +1807,11 @@ void fil_close_tablespace(ulint id)
 	os_aio_wait_until_no_pending_writes();
 	ut_ad(space->is_stopping());
 
-	/* If the free is successful, the X lock will be released before
+	/* If the free is successful, the wrlock will be released before
 	the space memory data structure is freed. */
 
 	if (!fil_space_free(id, true)) {
-		rw_lock_x_unlock(&space->latch);
+		space->x_unlock();
 	}
 
 	/* If it is a delete then also delete any generated files, otherwise

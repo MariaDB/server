@@ -216,7 +216,6 @@ enum latch_level_t {
 	SYNC_IBUF_MUTEX,
 
 	SYNC_FSP_PAGE,
-	SYNC_FSP,
 	SYNC_EXTERN_STORAGE,
 	SYNC_TRX_UNDO_PAGE,
 	SYNC_RSEG_HEADER,
@@ -287,7 +286,6 @@ enum latch_id_t {
 	LATCH_ID_WORK_QUEUE,
 	LATCH_ID_BUF_BLOCK_LOCK,
 	LATCH_ID_BUF_BLOCK_DEBUG,
-	LATCH_ID_FIL_SPACE,
 	LATCH_ID_IBUF_INDEX_TREE,
 	LATCH_ID_INDEX_TREE,
 	LATCH_ID_DICT_TABLE_STATS,
@@ -951,7 +949,6 @@ struct sync_checker : public sync_check_functor_t
 	{
 		if (some_allowed) {
 			switch (level) {
-			case SYNC_FSP:
 			case SYNC_DICT:
 			case SYNC_NO_ORDER_CHECK:
 				return(false);

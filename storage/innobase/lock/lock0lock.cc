@@ -292,15 +292,12 @@ bool
 lock_validate();
 /*============*/
 
-/*********************************************************************//**
-Validates the record lock queues on a page.
-@return TRUE if ok */
-static
-ibool
-lock_rec_validate_page(
-/*===================*/
-	const buf_block_t*	block)	/*!< in: buffer block */
-	MY_ATTRIBUTE((warn_unused_result));
+/** Validate the record lock queues on a page.
+@param block    buffer pool block
+@param latched  whether the tablespace latch may be held
+@return true if ok */
+static bool lock_rec_validate_page(const buf_block_t *block, bool latched)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 #endif /* UNIV_DEBUG */
 
 /* The lock system */
@@ -2379,7 +2376,10 @@ lock_move_reorganize_page(
 	mem_heap_free(heap);
 
 #ifdef UNIV_DEBUG_LOCK_VALIDATE
-	ut_ad(lock_rec_validate_page(block));
+	if (fil_space_t* space = fil_space_t::get(page_id.space())) {
+		ut_ad(lock_rec_validate_page(block, space->is_latched()));
+		space->release();
+	}
 #endif
 }
 
@@ -2491,8 +2491,12 @@ lock_move_rec_list_end(
 	lock_mutex_exit();
 
 #ifdef UNIV_DEBUG_LOCK_VALIDATE
-	ut_ad(lock_rec_validate_page(block));
-	ut_ad(lock_rec_validate_page(new_block));
+	if (fil_space_t* space = fil_space_t::get(page_id.space())) {
+		const bool is_latched{space->is_latched()};
+		ut_ad(lock_rec_validate_page(block, is_latched));
+		ut_ad(lock_rec_validate_page(new_block, is_latched));
+		space->release();
+	}
 #endif
 }
 
@@ -4536,14 +4540,11 @@ func_exit:
 	goto func_exit;
 }
 
-/*********************************************************************//**
-Validates the record lock queues on a page.
-@return TRUE if ok */
-static
-ibool
-lock_rec_validate_page(
-/*===================*/
-	const buf_block_t*	block)	/*!< in: buffer block */
+/** Validate the record lock queues on a page.
+@param block    buffer pool block
+@param latched  whether the tablespace latch may be held
+@return true if ok */
+static bool lock_rec_validate_page(const buf_block_t *block, bool latched)
 {
 	const lock_t*	lock;
 	const rec_t*	rec;
@@ -4577,8 +4578,8 @@ loop:
 	ut_ad(!trx_is_ac_nl_ro(lock->trx));
 
 	/* Only validate the record queues when this thread is not
-	holding a space->latch. */
-	if (!sync_check_find(SYNC_FSP))
+	holding a tablespace latch. */
+	if (!latched)
 	for (i = nth_bit; i < lock_rec_get_n_bits(lock); i++) {
 
 		if (i == PAGE_HEAP_NO_SUPREMUM
@@ -4690,7 +4691,8 @@ static void lock_rec_block_validate(const page_id_t page_id)
 		if (block) {
 			buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
 
-			ut_ad(lock_rec_validate_page(block));
+			ut_ad(lock_rec_validate_page(block,
+						     space->is_latched()));
 		}
 
 		mtr_commit(&mtr);

@@ -7,7 +7,6 @@ TRUNCATE TABLE performance_schema.events_waits_current;
 select name from performance_schema.setup_instruments
 where name like "wait/synch/sxlock/%" order by name;
 name
-wait/synch/sxlock/innodb/fil_space_latch
 wait/synch/sxlock/innodb/index_tree_rw_lock
 select name from performance_schema.rwlock_instances
 where name in

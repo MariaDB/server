@@ -7638,8 +7638,8 @@ btr_free_externally_stored_field(
 						    MTR_MEMO_PAGE_X_FIX));
 	ut_ad(!rec || rec_offs_validate(rec, index, offsets));
 	ut_ad(!rec || field_ref == btr_rec_get_field_ref(rec, offsets, i));
-	ut_ad(local_mtr->is_named_space(
-		      page_get_space_id(page_align(field_ref))));
+	ut_ad(index->table->space_id == index->table->space->id);
+	ut_ad(local_mtr->is_named_space(index->table->space));
 
 	if (UNIV_UNLIKELY(!memcmp(field_ref, field_ref_zero,
 				  BTR_EXTERN_FIELD_REF_SIZE))) {
@@ -7653,7 +7653,6 @@ btr_free_externally_stored_field(
 	ut_ad(!(mach_read_from_4(field_ref + BTR_EXTERN_LEN)
 	        & ~((BTR_EXTERN_OWNER_FLAG
 	             | BTR_EXTERN_INHERITED_FLAG) << 24)));
-	ut_ad(space_id == index->table->space->id);
 	ut_ad(space_id == index->table->space_id);
 
 	const ulint ext_zip_size = index->table->space->zip_size();
@@ -7727,7 +7726,9 @@ btr_free_externally_stored_field(
 			}
 			next_page_no = mach_read_from_4(page + FIL_PAGE_NEXT);
 
-			btr_page_free(index, ext_block, &mtr, true);
+			btr_page_free(index, ext_block, &mtr, true,
+				      local_mtr->memo_contains(
+					      *index->table->space));
 
 			if (UNIV_LIKELY_NULL(block->page.zip.data)) {
 				mach_write_to_4(field_ref + BTR_EXTERN_PAGE_NO,
@@ -7751,7 +7752,9 @@ btr_free_externally_stored_field(
 			next_page_no = mach_read_from_4(
 				page + FIL_PAGE_DATA
 				+ BTR_BLOB_HDR_NEXT_PAGE_NO);
-			btr_page_free(index, ext_block, &mtr, true);
+			btr_page_free(index, ext_block, &mtr, true,
+				      local_mtr->memo_contains(
+					      *index->table->space));
 
 			mtr.write<4>(*block, BTR_EXTERN_PAGE_NO + field_ref,
 				     next_page_no);

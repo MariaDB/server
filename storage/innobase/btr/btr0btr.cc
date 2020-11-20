@@ -604,7 +604,7 @@ btr_get_size(
 	if (!root) {
 		return ULINT_UNDEFINED;
 	}
-	mtr_x_lock_space(index->table->space, mtr);
+	mtr->x_lock_space(index->table->space);
 	if (flag == BTR_N_LEAF_PAGES) {
 		fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
 				      + root->frame, &n, mtr);
@@ -652,7 +652,7 @@ btr_get_size_and_reserved(
 		return ULINT_UNDEFINED;
 	}
 
-	mtr_x_lock_space(index->table->space, mtr);
+	mtr->x_lock_space(index->table->space);
 
 	ulint n = fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
 					+ root->frame, used, mtr);
@@ -691,9 +691,10 @@ btr_page_free_for_ibuf(
 @param[in,out]	index	index tree
 @param[in,out]	block	block to be freed
 @param[in,out]	mtr	mini-transaction
-@param[in]	blob	whether this is freeing a BLOB page */
+@param[in]	blob	whether this is freeing a BLOB page
+@param[in]	latched	whether index->table->space->x_lock() was called */
 void btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
-		   bool blob)
+		   bool blob, bool space_latched)
 {
 	ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
 #ifdef BTR_CUR_HASH_ADAPT
@@ -726,7 +727,7 @@ void btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
 					  ? PAGE_HEADER + PAGE_BTR_SEG_LEAF
 					  : PAGE_HEADER + PAGE_BTR_SEG_TOP];
 	fseg_free_page(seg_header,
-		       index->table->space, id.page_no(), mtr);
+		       index->table->space, id.page_no(), mtr, space_latched);
 	buf_page_free(id, mtr, __FILE__, __LINE__);
 
 	/* The page was marked free in the allocation bitmap, but it

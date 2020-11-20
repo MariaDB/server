@@ -33,6 +33,7 @@ Created 10/25/1995 Heikki Tuuri
 
 #ifndef UNIV_INNOCHECKSUM
 
+#include "srw_lock.h"
 #include "buf0dblwr.h"
 #include "hash0hash.h"
 #include "log0recv.h"
@@ -340,6 +341,12 @@ struct fil_space_t final
 {
 #ifndef UNIV_INNOCHECKSUM
   friend fil_node_t;
+  ~fil_space_t()
+  {
+    ut_ad(!latch_owner);
+    ut_ad(!latch_count);
+    latch.destroy();
+  }
 	ulint		id;	/*!< space id */
 	hash_node_t	hash;	/*!< hash chain node */
 	char*		name;	/*!< Tablespace name */
@@ -389,9 +396,11 @@ private:
   static constexpr uint32_t NEEDS_FSYNC= 1U << 29;
   /** The reference count */
   static constexpr uint32_t PENDING= ~(STOPPING | CLOSING | NEEDS_FSYNC);
+  /** latch protecting all page allocation bitmap pages */
+  srw_lock latch;
+  ut_d(os_thread_id_t latch_owner;)
+  ut_d(Atomic_relaxed<uint32_t> latch_count;)
 public:
-	rw_lock_t	latch;	/*!< latch protecting the file space storage
-				allocation */
 	UT_LIST_NODE_T(fil_space_t) named_spaces;
 				/*!< list of spaces for which FILE_MODIFY
 				records have been issued */
@@ -458,7 +467,6 @@ public:
 	@return	whether the reservation succeeded */
 	bool reserve_free_extents(uint32_t n_free_now, uint32_t n_to_reserve)
 	{
-		ut_ad(rw_lock_own(&latch, RW_LOCK_X));
 		if (n_reserved_extents + n_to_reserve > n_free_now) {
 			return false;
 		}
@@ -472,7 +480,6 @@ public:
 	void release_free_extents(uint32_t n_reserved)
 	{
 		if (!n_reserved) return;
-		ut_ad(rw_lock_own(&latch, RW_LOCK_X));
 		ut_a(n_reserved_extents >= n_reserved);
 		n_reserved_extents -= n_reserved;
 	}
@@ -950,11 +957,7 @@ public:
   }
 
   /** Update committed_size in mtr_t::commit() */
-  void set_committed_size()
-  {
-    ut_ad(rw_lock_own(&latch, RW_LOCK_X));
-    committed_size= size;
-  }
+  void set_committed_size() { committed_size= size; }
 
   /** @return the last persisted page number */
   uint32_t last_page_number() const { return committed_size - 1; }
@@ -989,6 +992,41 @@ public:
   @retval nullptr upon reaching the end of the iteration */
   static inline fil_space_t *next(fil_space_t *space, bool recheck,
                                   bool encrypt);
+
+#ifdef UNIV_DEBUG
+  bool is_latched() const { return latch_count != 0; }
+  bool is_owner() const { return latch_owner == os_thread_get_curr_id(); }
+#endif
+  /** Acquire the allocation latch in exclusive mode */
+  void x_lock()
+  {
+    latch.wr_lock();
+    ut_ad(!latch_owner);
+    ut_d(latch_owner= os_thread_get_curr_id());
+    ut_ad(!latch_count.fetch_add(1));
+  }
+  /** Release the allocation latch from exclusive mode */
+  void x_unlock()
+  {
+    ut_ad(latch_count.fetch_sub(1) == 1);
+    ut_ad(latch_owner == os_thread_get_curr_id());
+    ut_d(latch_owner= 0);
+    latch.wr_unlock();
+  }
+  /** Acquire the allocation latch in shared mode */
+  void s_lock()
+  {
+    latch.rd_lock();
+    ut_ad(!latch_owner);
+    ut_d(latch_count.fetch_add(1));
+  }
+  /** Release the allocation latch from shared mode */
+  void s_unlock()
+  {
+    ut_ad(latch_count.fetch_sub(1));
+    ut_ad(!latch_owner);
+    latch.rd_unlock();
+  }
 
 private:
   /** @return whether the file is usable for io() */

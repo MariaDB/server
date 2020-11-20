@@ -493,10 +493,7 @@ const struct _ft_vft_ext ft_vft_ext_result = {innobase_fts_get_version,
 
 #ifdef HAVE_PSI_INTERFACE
 # define PSI_KEY(n) {&n##_key, #n, 0}
-/* All RWLOCK used in Innodb are SX-locks */
-# define PSI_RWLOCK_KEY(n) {&n##_key, #n, PSI_RWLOCK_FLAG_SX}
-
-/* Keys to register pthread mutexes/cond in the current file with
+/** Keys to register pthread mutexes/cond in the current file with
 performance schema */
 static mysql_pfs_key_t	commit_cond_mutex_key;
 static mysql_pfs_key_t	commit_cond_key;
@@ -562,15 +559,16 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 /* all_innodb_rwlocks array contains rwlocks that are
 performance schema instrumented if "UNIV_PFS_RWLOCK"
 is defined */
-static PSI_rwlock_info all_innodb_rwlocks[] = {
+static PSI_rwlock_info all_innodb_rwlocks[] =
+{
 #  ifdef BTR_CUR_HASH_ADAPT
   { &btr_search_latch_key, "btr_search_latch", 0 },
 #  endif
-	{ &dict_operation_lock_key, "dict_operation_lock", 0 },
-	PSI_RWLOCK_KEY(fil_space_latch),
-	{ &trx_i_s_cache_lock_key, "trx_i_s_cache_lock", 0 },
-	{ &trx_purge_latch_key, "trx_purge_latch", 0 },
-	PSI_RWLOCK_KEY(index_tree_rw_lock),
+  { &dict_operation_lock_key, "dict_operation_lock", 0 },
+  { &fil_space_latch_key, "fil_space_latch", 0 },
+  { &trx_i_s_cache_lock_key, "trx_i_s_cache_lock", 0 },
+  { &trx_purge_latch_key, "trx_purge_latch", 0 },
+  { &index_tree_rw_lock_key, "index_tree_rw_lock", PSI_RWLOCK_FLAG_SX }
 };
 # endif /* UNIV_PFS_RWLOCK */
 

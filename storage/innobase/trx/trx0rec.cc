@@ -2039,7 +2039,7 @@ trx_undo_report_row_operation(
 				tree latch, which is the rseg
 				mutex. We must commit the mini-transaction
 				first, because it may be holding lower-level
-				latches, such as SYNC_FSP and SYNC_FSP_PAGE. */
+				latches, such as SYNC_FSP_PAGE. */
 
 				mtr.commit();
 				mtr.start();
