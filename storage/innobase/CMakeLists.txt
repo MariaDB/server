@@ -105,7 +105,6 @@ SET(INNOBASE_SOURCES
 	include/data0types.h
 	include/db0err.h
 	include/dict0boot.h
-	include/dict0boot.ic
 	include/dict0crea.h
 	include/dict0crea.ic
 	include/dict0defrag_bg.h

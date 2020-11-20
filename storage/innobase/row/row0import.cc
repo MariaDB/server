@@ -2396,15 +2396,7 @@ row_import_set_sys_max_row_id(
 	if (row_id) {
 		/* Update the system row id if the imported index row id is
 		greater than the max system row id. */
-
-		mutex_enter(&dict_sys.mutex);
-
-		if (row_id >= dict_sys.row_id) {
-			dict_sys.row_id = row_id + 1;
-			dict_hdr_flush_row_id();
-		}
-
-		mutex_exit(&dict_sys.mutex);
+		dict_sys.update_row_id(row_id);
 	}
 }
 

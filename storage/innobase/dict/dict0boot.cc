@@ -93,27 +93,16 @@ dict_hdr_get_new_id(
 	mtr.commit();
 }
 
-/**********************************************************************//**
-Writes the current value of the row id counter to the dictionary header file
-page. */
-void
-dict_hdr_flush_row_id(void)
-/*=======================*/
+/** Update dict_sys.row_id in the dictionary header file page. */
+void dict_hdr_flush_row_id(row_id_t id)
 {
-	row_id_t	id;
-	mtr_t		mtr;
-
-	ut_ad(mutex_own(&dict_sys.mutex));
-
-	id = dict_sys.row_id;
-
-	mtr.start();
-
-	buf_block_t* d = dict_hdr_get(&mtr);
-
-	mtr.write<8>(*d, DICT_HDR + DICT_HDR_ROW_ID + d->frame, id);
-
-	mtr.commit();
+  mtr_t mtr;
+  mtr.start();
+  buf_block_t* d= dict_hdr_get(&mtr);
+  byte *row_id= DICT_HDR + DICT_HDR_ROW_ID + d->frame;
+  if (mach_read_from_8(row_id) < id)
+    mtr.write<8>(*d, row_id, id);
+  mtr.commit();
 }
 
 /*****************************************************************//**
@@ -270,9 +259,7 @@ dict_boot(void)
 	..._MARGIN, it will immediately be updated to the disk-based
 	header. */
 
-	dict_sys.row_id = DICT_HDR_ROW_ID_WRITE_MARGIN
-		+ ut_uint64_align_up(mach_read_from_8(dict_hdr + DICT_HDR_ROW_ID),
-				     DICT_HDR_ROW_ID_WRITE_MARGIN);
+	dict_sys.recover_row_id(mach_read_from_8(dict_hdr + DICT_HDR_ROW_ID));
 	if (ulint max_space_id = mach_read_from_4(dict_hdr
 						  + DICT_HDR_MAX_SPACE_ID)) {
 		max_space_id--;

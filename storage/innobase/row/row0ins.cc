@@ -3501,22 +3501,9 @@ row_ins_alloc_row_id_step(
 /*======================*/
 	ins_node_t*	node)	/*!< in: row insert node */
 {
-	row_id_t	row_id;
-
-	ut_ad(node->state == INS_NODE_ALLOC_ROW_ID);
-
-	if (dict_index_is_unique(dict_table_get_first_index(node->table))) {
-
-		/* No row id is stored if the clustered index is unique */
-
-		return;
-	}
-
-	/* Fill in row id value to row */
-
-	row_id = dict_sys_get_new_row_id();
-
-	dict_sys_write_row_id(node->sys_buf, row_id);
+  ut_ad(node->state == INS_NODE_ALLOC_ROW_ID);
+  if (dict_table_get_first_index(node->table)->is_gen_clust())
+    dict_sys_write_row_id(node->sys_buf, dict_sys.get_new_row_id());
 }
 
 /***********************************************************//**

@@ -46,27 +46,39 @@ dict_hdr_get_new_id(
 						(not assigned if NULL) */
 	ulint*			space_id);	/*!< out: space id
 						(not assigned if NULL) */
-/**********************************************************************//**
-Writes the current value of the row id counter to the dictionary header file
-page. */
-void
-dict_hdr_flush_row_id(void);
-/*=======================*/
-/**********************************************************************//**
-Returns a new row id.
-@return the new id */
-UNIV_INLINE
-row_id_t
-dict_sys_get_new_row_id(void);
-/*=========================*/
+/** Update dict_sys.row_id in the dictionary header file page. */
+void dict_hdr_flush_row_id(row_id_t id);
+/** @return A new value for GEN_CLUST_INDEX(DB_ROW_ID) */
+inline row_id_t dict_sys_t::get_new_row_id()
+{
+  row_id_t id= row_id.fetch_add(1);
+  if (!(id % ROW_ID_WRITE_MARGIN))
+    dict_hdr_flush_row_id(id);
+  return id;
+}
+
+/** Ensure that row_id is not smaller than id, on IMPORT TABLESPACE */
+inline void dict_sys_t::update_row_id(row_id_t id)
+{
+  row_id_t sys_id= row_id;
+  while (id >= sys_id)
+  {
+    if (!row_id.compare_exchange_strong(sys_id, id))
+      continue;
+    if (!(id % ROW_ID_WRITE_MARGIN))
+      dict_hdr_flush_row_id(id);
+    break;
+  }
+}
+
 /**********************************************************************//**
 Writes a row id to a record or other 6-byte stored form. */
-UNIV_INLINE
-void
-dict_sys_write_row_id(
-/*==================*/
-	byte*		field,	/*!< in: record field */
-	row_id_t	row_id);/*!< in: row id */
+inline void dict_sys_write_row_id(byte *field, row_id_t row_id)
+{
+  static_assert(DATA_ROW_ID_LEN == 6, "compatibility");
+  mach_write_to_6(field, row_id);
+}
+
 /*****************************************************************//**
 Initializes the data dictionary memory structures when the database is
 started. This function is also called when the data dictionary is created.
@@ -87,12 +99,7 @@ dict_create(void)
 /*********************************************************************//**
 Check if a table id belongs to  system table.
 @return true if the table id belongs to a system table. */
-UNIV_INLINE
-bool
-dict_is_sys_table(
-/*==============*/
-	table_id_t	id)		/*!< in: table id to check */
-	MY_ATTRIBUTE((warn_unused_result));
+inline bool dict_is_sys_table(table_id_t id) { return id < DICT_HDR_FIRST_ID; }
 
 /* Space id and page no where the dictionary header resides */
 #define	DICT_HDR_SPACE		0	/* the SYSTEM tablespace */
@@ -288,12 +295,5 @@ enum dict_fld_sys_virtual_enum {
 length of thos fields. */
 #define	DICT_FLD_LEN_SPACE	4
 #define	DICT_FLD_LEN_FLAGS	4
-
-/* When a row id which is zero modulo this number (which must be a power of
-two) is assigned, the field DICT_HDR_ROW_ID on the dictionary header page is
-updated */
-#define DICT_HDR_ROW_ID_WRITE_MARGIN	256
-
-#include "dict0boot.ic"
 
 #endif
