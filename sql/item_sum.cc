@@ -940,10 +940,9 @@ bool Aggregator_distinct::setup(THD *thd)
         but this has to be handled - otherwise someone can crash
         the server with a DoS attack
       */
-      if (!tree || (variable_sized_keys &&
-                    variable_sized_keys->setup(thd, item_sum,
-                                               non_const_items,
-                                               item_sum->get_arg_count())))
+      if (!tree || (tree->get_descriptor()->setup(thd, item_sum,
+                                                  non_const_items,
+                                                  item_sum->get_arg_count())))
         return TRUE;
     }
     return FALSE;
@@ -4043,7 +4042,7 @@ Item_func_group_concat::dump_leaf_variable_sized_key(void *key_arg,
 
   pos= item->variable_sized_keys->get_sortorder();
   key_end= key + item->unique_filter->get_full_size();
-  key+= Unique_packed::size_of_length_field;
+  key+= Variable_sized_keys_descriptor::size_of_length_field;
 
   ulonglong *offset_limit= &item->copy_offset_limit;
   ulonglong *row_limit = &item->copy_row_limit;
@@ -4931,7 +4930,8 @@ bool Item_sum::is_packing_allowed(TABLE *table, uint* total_length)
     Unique::size_of_lengt_field is the length bytes to store the packed length
     for each record inserted in the Unique tree
   */
-  (*total_length)+= Unique_packed::size_of_length_field + size_of_packable_fields;
+  (*total_length)+= Variable_sized_keys_descriptor::size_of_length_field +
+                    size_of_packable_fields;
   return true;
 }
 
@@ -4946,22 +4946,16 @@ Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
                      uint min_dupl_count_arg, bool allow_packing)
 {
   Descriptor *desc;
+
   if (allow_packing)
-  {
     desc= new Variable_sized_keys_descriptor(size_arg);
-    if (!desc)
-      return NULL;
-    return new Unique_packed(comp_func, comp_func_fixed_arg, size_arg,
-                             max_in_memory_size_arg, min_dupl_count_arg, desc);
-  }
   else
-  {
     desc= new Fixed_sized_keys_descriptor(size_arg);
-    if (!desc)
-      return NULL;
-    return new Unique_impl(comp_func, comp_func_fixed_arg, size_arg,
-                           max_in_memory_size_arg, min_dupl_count_arg, desc);
-  }
+
+  if (!desc)
+    return NULL;
+  return new Unique_impl(comp_func, comp_func_fixed_arg, size_arg,
+                         max_in_memory_size_arg, min_dupl_count_arg, desc);
 }
 
 

@@ -33,12 +33,20 @@ protected:
 
 public:
   virtual ~Descriptor() {};
-  virtual uint get_length_of_key(void *ptr) = 0;
+  virtual uint get_length_of_key(uchar *ptr) = 0;
   bool is_variable_sized()
   {
     return flags & (1 << VARIABLE_SIZED_KEYS_WITH_ORIGINAL_VALUES);
   }
   virtual int compare_keys(uchar *a, uchar *b) = 0;
+  bool setup(THD *thd, Item_sum *item, uint non_const_args, uint arg_count)
+  {
+    return false;
+  }
+  bool setup(THD *thd, Field *field)
+  {
+    return false;
+  }
 };
 
 
@@ -47,7 +55,7 @@ class Fixed_sized_keys_descriptor : public Descriptor
 public:
   Fixed_sized_keys_descriptor(uint length);
   ~Fixed_sized_keys_descriptor() {}
-  uint get_length_of_key(void *ptr) override { return key_length; }
+  uint get_length_of_key(uchar *ptr) override { return key_length; }
   int compare_keys(uchar *a, uchar *b) override { return 0; }
 };
 
@@ -83,12 +91,17 @@ public:
   // Fill structures like sort_keys, sortorder
   bool setup() {return false;}
   uint make_packed_record(bool exclude_nulls) {return 0;}
-  uint get_length_of_key(void *ptr) override
+  uint get_length_of_key(uchar *ptr) override
   {
-    return size_of_length_field + uint4korr(static_cast<uchar*>(ptr));
+    return read_packed_length(ptr);
   }
   int compare_keys(uchar *a, uchar *b) override { return 0; }
   int compare_keys_for_single_arg(uchar *a, uchar *b) { return 0;}
+  // returns the length of the key along with the length bytes for the key
+  static uint read_packed_length(uchar *p)
+  {
+    return size_of_length_field + uint4korr(p);
+  }
 
   static const uint size_of_length_field= 4;
 };
@@ -195,13 +208,13 @@ public:
 
   Unique_impl(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
          uint size_arg, size_t max_in_memory_size_arg,
-         uint min_dupl_count_arg= 0, Descriptor *desc= NULL);
+         uint min_dupl_count_arg, Descriptor *desc);
   virtual ~Unique_impl();
   ulong elements_in_tree() { return tree.elements_in_tree; }
 
   bool unique_add(void *ptr) override
   {
-    return unique_add(ptr, m_descriptor->get_length_of_key(ptr));
+    return unique_add(ptr, m_descriptor->get_length_of_key((uchar*)ptr));
   }
 
   /*
@@ -271,7 +284,8 @@ public:
   virtual int write_record_to_file(uchar *key);
 
   // returns TRUE if the unique tree stores packed values
-  virtual bool is_packed() { return m_descriptor->is_variable_sized(); }
+  bool is_packed() { return m_descriptor->is_variable_sized(); }
+  Descriptor* get_descriptor() { return m_descriptor; }
 
   friend int unique_write_to_file(uchar* key, element_count count, Unique_impl *unique);
   friend int unique_write_to_ptrs(uchar* key, element_count count, Unique_impl *unique);
@@ -280,33 +294,6 @@ public:
                                              Unique_impl *unique);
   friend int unique_intersect_write_to_ptrs(uchar* key, element_count count,
 				            Unique_impl *unique);
-};
-
-
-
-/*
-  Unique_packed class: derived from Unique class, used to store
-  records in packed format to efficiently utilize the space provided
-  inside the tree.
-*/
-
-class Unique_packed : public Unique_impl
-{
-public:
-  Unique_packed(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
-                uint size_arg, size_t max_in_memory_size_arg,
-                uint min_dupl_count_arg, Descriptor *desc= NULL);
-
-  bool is_packed() override { return m_descriptor->is_variable_sized(); }
-  int write_record_to_file (uchar *key) override;
-
-  // returns the length of the key along with the length bytes for the key
-  static uint read_packed_length(uchar *p)
-  {
-    return size_of_length_field + uint4korr(p);
-  }
-
-  static const uint size_of_length_field= 4;
 };
 
 #endif /* UNIQUE_INCLUDED */

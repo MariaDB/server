@@ -2588,9 +2588,10 @@ void Sort_param::try_to_pack_sortkeys()
 uint32 Sort_param::get_record_length_for_unique(uchar *to,
                                                 uint size_of_dupl_count)
 {
-  return using_packed_sortkeys() ?
-         Unique_packed::read_packed_length(to) + size_of_dupl_count :
-         rec_length;
+  if (!using_packed_sortkeys())
+    return rec_length;
+  return Variable_sized_keys_descriptor::read_packed_length(to) +
+         size_of_dupl_count;
 }
 
 

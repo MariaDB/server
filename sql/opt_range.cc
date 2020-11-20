@@ -11758,10 +11758,14 @@ int read_keys_and_merge_scans(THD *thd,
     DBUG_EXECUTE_IF("only_one_Unique_may_be_created", 
                     DBUG_SET("+d,index_merge_may_not_create_a_Unique"); );
 
+    Descriptor *desc= new Fixed_sized_keys_descriptor(file->ref_length);
+
+    if (!desc)
+      goto err;
     unique= new Unique_impl(refpos_order_cmp, (void *)file,
                        file->ref_length,
                        (size_t)thd->variables.sortbuff_size,
-		       intersection ? quick_selects.elements : 0);                     
+		       intersection ? quick_selects.elements : 0, desc);
     if (!unique)
       goto err;
     *unique_ptr= unique;

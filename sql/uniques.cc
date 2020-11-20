@@ -858,15 +858,6 @@ err:
 }
 
 
-Unique_packed::Unique_packed(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
-                            uint size_arg, size_t max_in_memory_size_arg,
-                            uint min_dupl_count_arg, Descriptor *desc):
-  Unique_impl(comp_func, comp_func_fixed_arg, size_arg,
-              max_in_memory_size_arg, min_dupl_count_arg, desc)
-{
-}
-
-
 /*
   @brief
     Write an intermediate unique record to the file
@@ -880,13 +871,7 @@ Unique_packed::Unique_packed(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
 
 int Unique_impl::write_record_to_file(uchar *key)
 {
-  return my_b_write(get_file(), key, size);
-}
-
-
-int Unique_packed::write_record_to_file(uchar *key)
-{
-  return my_b_write(get_file(), key, read_packed_length(key));
+  return my_b_write(get_file(), key, m_descriptor->get_length_of_key(key));
 }
 
 

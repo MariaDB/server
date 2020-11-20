@@ -1525,7 +1525,8 @@ public:
 */
 uchar* get_buffer_start(Field *field, uchar *to)
 {
-  return to + Unique_packed::size_of_length_field + MY_TEST(field->maybe_null());
+  return to + Variable_sized_keys_descriptor::size_of_length_field +
+         MY_TEST(field->maybe_null());
 }
 
 
@@ -1535,7 +1536,7 @@ uchar* get_buffer_start(Field *field, uchar *to)
 */
 uchar* get_buffer_end(Field *field, uchar *to)
 {
-  return to + Unique_packed::read_packed_length(to);
+  return to + Variable_sized_keys_descriptor::read_packed_length(to);
 }
 
 
@@ -1717,23 +1718,29 @@ public:
     {
       tree_key_length= table_field->max_packed_col_length(table_field->pack_length());
 
-      tree_key_length+= Unique_packed::size_of_length_field;
+      tree_key_length+= Variable_sized_keys_descriptor::size_of_length_field;
       tree_key_length+= MY_TEST(table_field->maybe_null());
       variable_size_keys= new Variable_sized_keys(tree_key_length);
       if (!variable_size_keys)
         return true; // OOM
 
-      tree= new Unique_packed((qsort_cmp2) simple_packed_str_key_cmp,
-                              (void*) this, tree_key_length,
-                              max_heap_table_size, 1);
+      Descriptor *desc= new Variable_sized_keys_descriptor(tree_key_length);
+      if (!desc)
+        return true; // OOM
+      tree= new Unique_impl((qsort_cmp2) simple_packed_str_key_cmp,
+                            (void*) this, tree_key_length,
+                             max_heap_table_size, 1, desc);
       if (!tree)
         return true; // OOM
       return variable_size_keys->setup(thd, table_field);
     }
 
     tree_key_length= table_field->pack_length();
+    Descriptor *desc= new Fixed_sized_keys_descriptor(tree_key_length);
+    if (!desc)
+      return true;  // OOM
     tree= new Unique_impl((qsort_cmp2) simple_str_key_cmp, (void*) table_field,
-                     tree_key_length, max_heap_table_size, 1);
+                     tree_key_length, max_heap_table_size, 1, desc);
 
     return tree == NULL;
   }
@@ -1858,9 +1865,12 @@ public:
   bool setup(THD *thd, size_t max_heap_table_size)
   {
     tree_key_length= sizeof(ulonglong);
+    Descriptor *desc= new Fixed_sized_keys_descriptor(tree_key_length);
+    if (!desc)
+      return true;
     tree= new Unique_impl((qsort_cmp2) simple_ulonglong_key_cmp,
                      (void*) &tree_key_length,
-                     tree_key_length, max_heap_table_size, 1);
+                     tree_key_length, max_heap_table_size, 1, desc);
     return tree == NULL;
   }
   static int simple_ulonglong_key_cmp(void* arg, uchar* key1, uchar* key2);
