@@ -239,8 +239,6 @@ enum latch_level_t {
 
 	SYNC_DICT_OPERATION,
 
-	SYNC_TRX_I_S_RWLOCK,
-
 	/** Level is varying. Only used with buffer pool page locks, which
 	do not have a fixed level, but instead have their level set after
 	the page is locked; see e.g.  ibuf_bitmap_get_map_page(). */
@@ -298,7 +296,6 @@ enum latch_id_t {
 	LATCH_ID_FIL_SPACE,
 	LATCH_ID_FTS_CACHE,
 	LATCH_ID_FTS_CACHE_INIT,
-	LATCH_ID_TRX_I_S_CACHE,
 	LATCH_ID_TRX_PURGE,
 	LATCH_ID_IBUF_INDEX_TREE,
 	LATCH_ID_INDEX_TREE,
