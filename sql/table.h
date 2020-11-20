@@ -54,7 +54,6 @@ class ACL_internal_table_access;
 class Field;
 class FK_create_vector;
 class Table_name;
-class Table_name_set;
 class Table_statistics;
 class With_element;
 struct TDC_element;
@@ -735,7 +734,6 @@ struct TABLE_SHARE
   FK_list foreign_keys;
   FK_list referenced_keys;
   bool fk_handle_create(THD *thd, FK_create_vector &shares, FK_list *fk_add= NULL);
-  void fk_revert_create(THD *thd, Table_name_set &ref_tables);
   bool fk_check_consistency(THD *thd);
   bool referenced_by_foreign_key() const
   {
@@ -774,6 +772,14 @@ struct TABLE_SHARE
   LEX_CSTRING path;                	/* Path to .frm file (from datadir) */
   LEX_CSTRING normalized_path;		/* unpack_filename(path) */
   LEX_CSTRING connect_string;
+
+  int cmp_db_table(const LEX_CSTRING &_db, const LEX_CSTRING &_table_name) const
+  {
+    int res= ::cmp_table(_db, db);
+    if (res)
+      return res;
+    return ::cmp_table(_table_name, table_name);
+  }
 
   /* 
      Set of keys in use, implemented as a Bitmap.

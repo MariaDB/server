@@ -1277,17 +1277,13 @@ void Foreign_key_io::store_fk(FK_info &fk, uchar *&pos)
   DBUG_ASSERT(pos - old_pos == (long int)fk_size(fk));
 }
 
-void Foreign_key_io::store_hint(FK_info &rk, uchar *&pos)
-{
-  pos= store_string(pos, rk.foreign_db);
-  pos= store_string(pos, rk.foreign_table);
-}
-
 bool Foreign_key_io::store(FK_list &foreign_keys, FK_list &referenced_keys)
 {
   DBUG_EXECUTE_IF("fk_skip_store", return false;);
 
-  ulonglong fk_count= 0, rk_count= 0;
+  ulonglong fk_count= 0;
+  mbd::set<Table_name> hints;
+  bool inserted;
 
   if (foreign_keys.is_empty() && referenced_keys.is_empty())
     return false;
@@ -1305,10 +1301,18 @@ bool Foreign_key_io::store(FK_list &foreign_keys, FK_list &referenced_keys)
     // NB: we do not store hints on self-refs, they are stored from foreign_keys.
     if (rk.self_ref())
       continue;
-    rk_count++;
+
+    if (!hints.insert(Table_name(rk.foreign_db, rk.foreign_table), &inserted))
+      return true;
+
+    if (!inserted)
+      continue;
+
     store_size+= hint_size(rk);
   }
-  store_size+= net_length_size(rk_count);
+  store_size+= net_length_size(referenced_keys.elements);
+  store_size+= net_length_size(0); // Reserved: stored referenced keys count
+  store_size+= net_length_size(hints.size());
 
   if (reserve(store_size))
   {
@@ -1322,12 +1326,13 @@ bool Foreign_key_io::store(FK_list &foreign_keys, FK_list &referenced_keys)
   for (FK_info &fk: foreign_keys)
     store_fk(fk, pos);
 
-  pos= store_length(pos, rk_count);
-  for (FK_info &rk: referenced_keys)
+  pos= store_length(pos, referenced_keys.elements);
+  pos= store_length(pos, 0); // Reserved: stored referenced keys count
+  pos= store_length(pos, hints.size());
+  for (const Table_name &hint: hints)
   {
-    if (rk.self_ref())
-      continue;
-    store_hint(rk, pos);
+    pos= store_string(pos, hint.db);
+    pos= store_string(pos, hint.name);
   }
 
   size_t new_length= (char *) pos - ptr();
@@ -1339,26 +1344,26 @@ bool Foreign_key_io::store(FK_list &foreign_keys, FK_list &referenced_keys)
 bool Foreign_key_io::parse(THD *thd, TABLE_SHARE *s, LEX_CUSTRING& image)
 {
   Pos p(image);
-  size_t version, fk_count, rk_count;
+  size_t version, fk_count, rk_count, stored_rk_count, hint_count;
   Lex_cstring hint_db, hint_table;
 
   if (read_length(version, p))
   {
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_CANNOT_ADD_FOREIGN,
                         "Foreign_key_io failed to read binary data version");
     return true;
   }
   if (read_length(fk_count, p))
   {
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_CANNOT_ADD_FOREIGN,
                         "Foreign_key_io failed to read foreign key count");
     return true;
   }
   if (version > fk_io_version)
   {
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_CANNOT_ADD_FOREIGN,
                         "Foreign_key_io does not support %d version of binary data", version);
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_CANNOT_ADD_FOREIGN,
                         "Foreign_key_io max supported version is %d", fk_io_version);
     return true;
   }
@@ -1414,23 +1419,40 @@ bool Foreign_key_io::parse(THD *thd, TABLE_SHARE *s, LEX_CUSTRING& image)
         return true;
     }
     /* If it is self-reference we also push to referenced_keys: */
-    if (!cmp_table(dst->referenced_db, s->db) && !cmp_table(dst->referenced_table, s->table_name))
+    if (dst->self_ref() && s->referenced_keys.push_back(dst, &s->mem_root))
     {
-      if (s->referenced_keys.push_back(dst, &s->mem_root))
-      {
-        my_error(ER_OUT_OF_RESOURCES, MYF(0));
-        return true;
-      }
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return true;
     }
   }
   if (read_length(rk_count, p))
   {
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_CANNOT_ADD_FOREIGN,
+                        "Foreign_key_io failed to read referenced keys count");
+    return true;
+  }
+  if (read_length(stored_rk_count, p))
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_CANNOT_ADD_FOREIGN,
+                        "Foreign_key_io failed to read referenced keys count");
+    return true;
+  }
+  if (stored_rk_count > 0)
+  {
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0), "stored referenced keys");
+    DBUG_ASSERT(0);
+    return true;
+  }
+  if (read_length(hint_count, p))
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_CANNOT_ADD_FOREIGN,
                         "Foreign_key_io failed to read reference hints count");
     return true;
   }
 
-  for (uint i= 0; i < rk_count; ++i)
+  const bool shallow_hints= s->tmp_table || s->open_flags & GTS_FK_SHALLOW_HINTS;
+
+  for (uint i= 0; i < hint_count; ++i)
   {
     if (read_string(hint_db, &s->mem_root, p))
       return true;
@@ -1438,7 +1460,7 @@ bool Foreign_key_io::parse(THD *thd, TABLE_SHARE *s, LEX_CUSTRING& image)
       return true;
     // NB: we do not store self-references into referenced hints
     DBUG_ASSERT(cmp_table(hint_db, s->db) || cmp_table(hint_table, s->table_name));
-    if (s->tmp_table || s->open_flags & GTS_FK_SHALLOW_HINTS)
+    if (shallow_hints)
     {
       /* For DROP TABLE we don't need full reference resolution. We just need
          to know if anything from the outside references the dropped table.
@@ -1483,9 +1505,10 @@ bool Foreign_key_io::parse(THD *thd, TABLE_SHARE *s, LEX_CUSTRING& image)
         if (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE)
         {
           thd->clear_error();
-          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_CANNOT_ADD_FOREIGN,
                               "Reference hint to non-existent table `%s.%s` skipped",
                               hint_db.str, hint_table.str);
+          rk_count--;
           continue;
         }
         return true;
@@ -1497,10 +1520,16 @@ bool Foreign_key_io::parse(THD *thd, TABLE_SHARE *s, LEX_CUSTRING& image)
       return true;
     if (s->referenced_keys.elements == refs_was)
     {
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_CANNOT_ADD_FOREIGN,
                           "Table `%s.%s` has no foreign keys to `%s.%s`",
                           hint_db.str, hint_table.str, s->db.str, s->table_name.str);
     }
+  } // for (hint_count)
+  if (!shallow_hints && (s->referenced_keys.elements != rk_count))
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_CANNOT_ADD_FOREIGN,
+                        "Expected %u refenced keys but found %u",
+                        s->referenced_keys.elements, rk_count);
   }
   return p.pos < p.end; // Error if some data is still left
 }
@@ -1508,10 +1537,37 @@ bool Foreign_key_io::parse(THD *thd, TABLE_SHARE *s, LEX_CUSTRING& image)
 
 bool TABLE_SHARE::fk_resolve_referenced_keys(THD *thd, TABLE_SHARE *from)
 {
+  Lex_ident_set ids;
+  bool inserted;
+
+  for (FK_info &rk: referenced_keys)
+  {
+    DBUG_ASSERT(rk.foreign_id.length);
+    if (!ids.insert(rk.foreign_id, &inserted))
+      return true;
+
+    if (!inserted) // FIXME: assert instead error
+    {
+      my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "FOREIGN KEY", rk.foreign_id.str);
+      return true;
+    }
+  }
+
   for (FK_info &fk: from->foreign_keys)
   {
-    if (cmp_table(fk.referenced_db, db) || cmp_table(fk.referenced_table, table_name))
+    if (0 != cmp_db_table(fk.referenced_db, fk.referenced_table))
       continue;
+
+    DBUG_ASSERT(fk.foreign_id.length);
+    if (!ids.insert(fk.foreign_id, &inserted))
+      return true;
+
+    if (!inserted)
+    {
+      my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "FOREIGN KEY", fk.foreign_id.str);
+      return true; // FIXME: warn instead fail
+    }
+
     for (Lex_cstring &fld: fk.referenced_fields)
     {
       uint i;
@@ -1522,7 +1578,7 @@ bool TABLE_SHARE::fk_resolve_referenced_keys(THD *thd, TABLE_SHARE *from)
       }
       if (i == fields)
       {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_CANNOT_ADD_FOREIGN,
                             "Missing field `%s` hint table `%s.%s` refers to",
                             fld.str, from->db.str, from->table_name.str);
         return true;

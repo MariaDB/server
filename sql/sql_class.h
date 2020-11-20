@@ -491,16 +491,6 @@ struct Table_name_lt
   }
 };
 
-class Table_name_set: public mbd::set<Table_name, Table_name_lt>
-{
-public:
-  template <class T>
-  bool insert(T&& value)
-  {
-    return set<Table_name, Table_name_lt>::
-      insert(std::forward<T>(value));
-  }
-};
 typedef mbd::set<Lex_cstring, Lex_ident_lt> Lex_ident_set;
 
 

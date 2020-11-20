@@ -425,6 +425,8 @@ public:
   mbd::vector<Table_name> rk_renamed_table;
   /** FK list prepared by prepare_create_table() */
   FK_list            foreign_keys;
+  /** RK list inherited from old table + self-refs from prepare_create_table() */
+  FK_list            referenced_keys;
   MDL_request_list fk_mdl_reqs;
   mbd::map<Table_name, Share_acquire, Table_name_lt> fk_shares;
 

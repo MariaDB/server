@@ -82,7 +82,7 @@ static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
                                     uint key_count);
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
                                       uint *, handler *, KEY **, uint *,
-                                      FK_list &, int, const LEX_CSTRING &db,
+                                      FK_list &, FK_list &, int, const LEX_CSTRING &db,
                                       const LEX_CSTRING &table_name);
 static uint blob_length_by_type(enum_field_types type);
 static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
@@ -1840,8 +1840,8 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     if (mysql_prepare_create_table(lpt->thd, lpt->create_info, lpt->alter_info,
                                    &lpt->db_options, lpt->table->file,
                                    &lpt->key_info_buffer, &lpt->key_count,
-                                   foreign_keys, C_ALTER_TABLE, lpt->db,
-                                   lpt->table_name))
+                                   foreign_keys, referenced_keys, C_ALTER_TABLE,
+                                   lpt->db, lpt->table_name))
     {
       DBUG_RETURN(TRUE);
     }
@@ -3584,8 +3584,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                            Alter_info *alter_info, uint *db_options,
                            handler *file, KEY **key_info_buffer,
                            uint *key_count, FK_list &foreign_keys,
-                           int create_table_mode, const LEX_CSTRING &db,
-                           const LEX_CSTRING &table_name)
+                           FK_list &referenced_keys, int create_table_mode,
+                           const LEX_CSTRING &db, const LEX_CSTRING &table_name)
 {
   Lex_cstring   key_name;
   Lex_ident_set key_names;
@@ -3921,18 +3921,25 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       {
         if (key->foreign)
         {
-          FK_info *fk_info= new (thd->mem_root) FK_info();
+          FK_info *fk= new (thd->mem_root) FK_info();
           Foreign_key &fkey= static_cast<Foreign_key &>(*key);
-          fk_info->assign(fkey, {db, table_name});
-          if (!fk_info->foreign_id.str)
+          fk->assign(fkey, {db, table_name});
+          if (!fk->foreign_id.str)
           {
-            fk_info->foreign_id= make_unique_key_name(thd, table_name,
-                                                      key_names, true);
-            fkey.constraint_name= fk_info->foreign_id;
+            fk->foreign_id= make_unique_key_name(thd, table_name, key_names, true);
+            fkey.constraint_name= fk->foreign_id;
           }
-          if (foreign_keys.push_back(fk_info))
+          if (foreign_keys.push_back(fk))
+          {
+            my_error(ER_OUT_OF_RESOURCES, MYF(0));
             DBUG_RETURN(TRUE);
-          if (!key_names.insert(fk_info->foreign_id))
+          }
+          if (fk->self_ref() && referenced_keys.push_back(fk))
+          {
+            my_error(ER_OUT_OF_RESOURCES, MYF(0));
+            DBUG_RETURN(TRUE);
+          }
+          if (!key_names.insert(fk->foreign_id))
             DBUG_RETURN(TRUE);				// Out of memory
         }
         key=key_iterator++;
@@ -4329,10 +4336,19 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	}
 	if (key->foreign)
         {
-          FK_info *fk_info= new (thd->mem_root) FK_info();
-          fk_info->assign(*(Foreign_key *) key, {db, table_name});
-          fk_info->foreign_id= key_name;
-          foreign_keys.push_back(fk_info);
+          FK_info *fk= new (thd->mem_root) FK_info();
+          fk->assign(*(Foreign_key *) key, {db, table_name});
+          fk->foreign_id= key_name;
+          if (foreign_keys.push_back(fk))
+          {
+            my_error(ER_OUT_OF_RESOURCES, MYF(0));
+            DBUG_RETURN(TRUE);
+          }
+          if (fk->self_ref() && referenced_keys.push_back(fk))
+          {
+            my_error(ER_OUT_OF_RESOURCES, MYF(0));
+            DBUG_RETURN(TRUE);
+          }
         }
 	key_info->name= key_name;
         if (!key_names.insert(key_name))
@@ -5081,7 +5097,8 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
 
   if (mysql_prepare_create_table(thd, create_info, alter_info, &db_options,
                                  file, key_info, key_count, foreign_keys,
-                                 create_table_mode, new_db, new_table_name))
+                                 referenced_keys, create_table_mode,
+                                 new_db, new_table_name))
     goto err;
   create_info->table_options=db_options;
 
@@ -7665,15 +7682,16 @@ bool mysql_compare_tables(TABLE *table,
   Alter_info tmp_alter_info(*alter_info, thd->mem_root);
   uint db_options= 0; /* not used */
   KEY *key_info_buffer= NULL;
-  FK_list foreign_keys;
+  FK_list foreign_keys, referenced_keys;
 
   /* Create the prepared information. */
   int create_table_mode= table->s->tmp_table == NO_TMP_TABLE ?
                            C_ORDINARY_CREATE : C_ALTER_TABLE;
   if (mysql_prepare_create_table(thd, create_info, &tmp_alter_info,
                                  &db_options, table->file, &key_info_buffer,
-                                 &key_count, foreign_keys, create_table_mode,
-                                 table->s->db, table->s->table_name))
+                                 &key_count, foreign_keys, referenced_keys,
+                                 create_table_mode, table->s->db,
+                                 table->s->table_name))
     DBUG_RETURN(1);
 
   /* Some very basic checks. */
@@ -8814,6 +8832,14 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     goto err;
   }
 
+  /*
+    Collect all referenced keys which are not self-refs
+  */
+  for (FK_info &rk: table->s->referenced_keys)
+  {
+    if (!rk.self_ref())
+      alter_ctx->referenced_keys.push_back(&rk);
+  }
 
   /*
     Collect all foreign keys which isn't in drop list.
@@ -10765,7 +10791,7 @@ do_continue:;
                            thd->lex->create_info, create_info, alter_info,
                            C_ALTER_TABLE_FRM_ONLY, NULL,
                            &key_info, &key_count, alter_ctx.foreign_keys,
-                           table->s->referenced_keys, &frm);
+                           alter_ctx.referenced_keys, &frm);
   reenable_binlog(thd);
   if (unlikely(error))
   {
@@ -12390,7 +12416,7 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_create_vector &shares, FK_list *
   if (fkeys.is_empty())
     return false;
 
-  Table_name_set tables;
+  mbd::set<Table_name> tables;
 
   for (FK_info &fk: fkeys)
   {
@@ -13007,6 +13033,7 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, mbd::vector<FK_ddl_backup> &sha
       if (0 != cmp_table(rk.foreign_db, table->db) ||
           (!drop_db && 0 != cmp_table(rk.foreign_table, table->table_name)))
       {
+        // NB: we get ((null)) in foreign_id for GTS_FK_SHALLOW_HINTS
         my_error(ER_ROW_IS_REFERENCED_2, MYF(0), rk.foreign_id.str);
         return true;
       }
@@ -13014,7 +13041,7 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, mbd::vector<FK_ddl_backup> &sha
   }
   if (share->foreign_keys.is_empty())
     return false;
-  Table_name_set tables;
+  mbd::set<Table_name> tables;
   for (const FK_info &fk: share->foreign_keys)
   {
     if (0 == cmp_table(fk.ref_db(), table->db) &&
@@ -13117,7 +13144,7 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
   TABLE_SHARE *share= sa.share;
   if (share->foreign_keys.is_empty() && share->referenced_keys.is_empty())
     return false;
-  Table_name_set tables;
+  mbd::set<Table_name> tables;
   MDL_request_list mdl_list;
   for (FK_info &fk: share->foreign_keys)
   {
