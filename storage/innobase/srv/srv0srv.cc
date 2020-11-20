@@ -1492,13 +1492,13 @@ bool purge_sys_t::running() const
 /** Stop purge during FLUSH TABLES FOR EXPORT */
 void purge_sys_t::stop()
 {
-  rw_lock_x_lock(&latch);
+  latch.wr_lock();
 
   if (!enabled())
   {
     /* Shutdown must have been initiated during FLUSH TABLES FOR EXPORT. */
     ut_ad(!srv_undo_sources);
-    rw_lock_x_unlock(&latch);
+    latch.wr_unlock();
     return;
   }
 
@@ -1506,7 +1506,7 @@ void purge_sys_t::stop()
 
   const auto paused= m_paused++;
 
-  rw_lock_x_unlock(&latch);
+  latch.wr_unlock();
 
   if (!paused)
   {
@@ -1529,7 +1529,7 @@ void purge_sys_t::resume()
    ut_ad(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
    ut_ad(!sync_check_iterate(sync_check()));
    purge_coordinator_task.enable();
-   rw_lock_x_lock(&latch);
+   latch.wr_lock();
    int32_t paused= m_paused--;
    ut_a(paused);
 
@@ -1540,7 +1540,7 @@ void purge_sys_t::resume()
      srv_wake_purge_thread_if_not_active();
      MONITOR_ATOMIC_INC(MONITOR_PURGE_RESUME_COUNT);
    }
-   rw_lock_x_unlock(&latch);
+   latch.wr_unlock();
 }
 
 /*******************************************************************//**

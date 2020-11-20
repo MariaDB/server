@@ -569,7 +569,7 @@ static PSI_rwlock_info all_innodb_rwlocks[] = {
 	PSI_RWLOCK_KEY(fts_cache_rw_lock),
 	PSI_RWLOCK_KEY(fts_cache_init_rw_lock),
 	{ &trx_i_s_cache_lock_key, "trx_i_s_cache_lock", 0 },
-	PSI_RWLOCK_KEY(trx_purge_latch),
+	{ &trx_purge_latch_key, "trx_purge_latch", 0 },
 	PSI_RWLOCK_KEY(index_tree_rw_lock),
 };
 # endif /* UNIV_PFS_RWLOCK */
