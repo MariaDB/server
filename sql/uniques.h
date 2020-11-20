@@ -39,14 +39,15 @@ public:
     return flags & (1 << VARIABLE_SIZED_KEYS_WITH_ORIGINAL_VALUES);
   }
   virtual int compare_keys(uchar *a, uchar *b) = 0;
-  bool setup(THD *thd, Item_sum *item, uint non_const_args, uint arg_count)
-  {
-    return false;
-  }
-  bool setup(THD *thd, Field *field)
-  {
-    return false;
-  }
+  virtual int compare_keys_for_single_arg(uchar *a, uchar *b) = 0;
+  virtual bool setup(THD *thd, Item_sum *item,
+                     uint non_const_args, uint arg_count) { return false; }
+  virtual bool setup(THD *thd, Field *field) { return false; }
+  virtual uchar *get_packed_rec_ptr() { return NULL; }
+  virtual uint make_packed_record(bool exclude_nulls) { return 0; }
+  virtual Sort_keys *get_keys() { return NULL; }
+  SORT_FIELD *get_sortorder() { return NULL; }
+
 };
 
 
@@ -57,6 +58,7 @@ public:
   ~Fixed_sized_keys_descriptor() {}
   uint get_length_of_key(uchar *ptr) override { return key_length; }
   int compare_keys(uchar *a, uchar *b) override { return 0; }
+  int compare_keys_for_single_arg(uchar *a, uchar *b) override { return 0; }
 };
 
 
@@ -67,6 +69,8 @@ class Variable_sized_keys_descriptor : public Descriptor
     record is added to the unique tree
   */
   uchar* packed_rec_ptr;
+
+  String tmp_buffer;
 
   /*
     Array of SORT_FIELD structure storing the information about the key parts
@@ -82,25 +86,32 @@ class Variable_sized_keys_descriptor : public Descriptor
 
 public:
   Variable_sized_keys_descriptor(uint length);
-  ~Variable_sized_keys_descriptor() {}
+  ~Variable_sized_keys_descriptor();
 
   uchar *get_packed_rec_ptr() { return packed_rec_ptr; }
   Sort_keys *get_keys() { return sort_keys; }
   SORT_FIELD *get_sortorder() { return sortorder; }
 
-  // Fill structures like sort_keys, sortorder
-  bool setup() {return false;}
-  uint make_packed_record(bool exclude_nulls) {return 0;}
+  uint make_packed_record(bool exclude_nulls);
   uint get_length_of_key(uchar *ptr) override
   {
     return read_packed_length(ptr);
   }
-  int compare_keys(uchar *a, uchar *b) override { return 0; }
-  int compare_keys_for_single_arg(uchar *a, uchar *b) { return 0;}
+  int compare_keys(uchar *a, uchar *b) override;
+  int compare_keys_for_single_arg(uchar *a, uchar *b);
+
+  // Fill structures like sort_keys, sortorder
+  bool setup(THD *thd, Item_sum *item,
+            uint non_const_args, uint arg_count);
+  bool setup(THD *thd, Field *field);
   // returns the length of the key along with the length bytes for the key
   static uint read_packed_length(uchar *p)
   {
     return size_of_length_field + uint4korr(p);
+  }
+  void store_packed_length(uchar *p, uint sz)
+  {
+    int4store(p, sz - size_of_length_field);
   }
 
   static const uint size_of_length_field= 4;

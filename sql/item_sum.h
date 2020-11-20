@@ -312,7 +312,6 @@ class Window_spec;
   but still return false from Item_sum::const_item().
 */
 class Unique_impl;
-class Variable_sized_keys;
 
 class Item_sum :public Item_func_or_sum
 {
@@ -682,16 +681,10 @@ class Aggregator_distinct : public Aggregator
   */
   bool use_distinct_values;
 
-  /*
-    Used to store information about variable sized keys
-    @see sql_sort.h for the class definition
-  */
-  Variable_sized_keys *variable_sized_keys;
-
 public:
   Aggregator_distinct (Item_sum *sum) :
     Aggregator(sum), table(NULL), tmp_table_param(NULL), tree(NULL),
-    always_null(false), use_distinct_values(false), variable_sized_keys(NULL) {}
+    always_null(false), use_distinct_values(false) {}
   virtual ~Aggregator_distinct ();
   Aggregator_type Aggrtype() { return DISTINCT_AGGREGATOR; }
 
@@ -1918,8 +1911,6 @@ protected:
     (to correctly free resources)
   */
   Item_func_group_concat *original;
-
-  Variable_sized_keys *variable_sized_keys;
 
   /*
     Used by Item_func_group_concat and Item_func_json_arrayagg. The latter

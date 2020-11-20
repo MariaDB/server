@@ -723,8 +723,8 @@ Aggregator_distinct::composite_packed_key_cmp(void* arg,
                                               uchar* key1, uchar* key2)
 {
   Aggregator_distinct *aggr= (Aggregator_distinct *) arg;
-  DBUG_ASSERT(aggr->variable_sized_keys);
-  return aggr->variable_sized_keys->compare_packed_keys(key1, key2);
+  DBUG_ASSERT(aggr->tree);
+  return aggr->tree->get_descriptor()->compare_keys(key1, key2);
 }
 
 
@@ -746,8 +746,8 @@ int
 Aggregator_distinct::packed_key_cmp_single_arg(void *arg, uchar *key1, uchar *key2)
 {
   Aggregator_distinct *aggr= (Aggregator_distinct *) arg;
-  DBUG_ASSERT(aggr->variable_sized_keys);
-  return aggr->variable_sized_keys->compare_keys_for_single_arg(key1, key2);
+  DBUG_ASSERT(aggr->tree);
+  return aggr->tree->get_descriptor()->compare_keys_for_single_arg(key1, key2);
 }
 
 
@@ -924,10 +924,6 @@ bool Aggregator_distinct::setup(THD *thd)
       {
         compare_key= get_compare_func_for_packed_keys();
         cmp_arg= (void*)this;
-
-        variable_sized_keys= new Variable_sized_keys(tree_key_length);
-        if (variable_sized_keys == NULL)
-          return true;
       }
       DBUG_ASSERT(tree == 0);
 
@@ -1044,10 +1040,10 @@ int Aggregator_distinct::insert_record_to_unique()
   if (tree->is_packed())
   {
     uint packed_length;
-    if ((packed_length= variable_sized_keys->make_packed_record(true)) == 0)
+    if ((packed_length= tree->get_descriptor()->make_packed_record(true)) == 0)
       return -1; // NULL value
     DBUG_ASSERT(packed_length <= tree->get_size());
-    return tree->unique_add(variable_sized_keys->get_packed_rec_ptr());
+    return tree->unique_add(tree->get_descriptor()->get_packed_rec_ptr());
   }
 
   copy_fields(tmp_table_param);
@@ -1919,11 +1915,6 @@ Aggregator_distinct::~Aggregator_distinct()
   {
     delete tmp_table_param;
     tmp_table_param= NULL;
-  }
-  if (variable_sized_keys)
-  {
-    delete variable_sized_keys;
-    variable_sized_keys= NULL;
   }
 }
 
@@ -3761,10 +3752,10 @@ int group_concat_packed_key_cmp_with_distinct(void *arg,
 {
   Item_func_group_concat *item_func= (Item_func_group_concat*)arg;
 
-  DBUG_ASSERT(item_func->variable_sized_keys);
+  DBUG_ASSERT(item_func->unique_filter);
   uchar *a= (uchar*)a_ptr;
   uchar *b= (uchar*)b_ptr;
-  return item_func->variable_sized_keys->compare_packed_keys(a, b);
+  return item_func->unique_filter->get_descriptor()->compare_keys(a, b);
 }
 
 
@@ -4040,7 +4031,7 @@ Item_func_group_concat::dump_leaf_variable_sized_key(void *key_arg,
   uint old_length= result->length();
   SORT_FIELD *pos;
 
-  pos= item->variable_sized_keys->get_sortorder();
+  pos= item->unique_filter->get_descriptor()->get_sortorder();
   key_end= key + item->unique_filter->get_full_size();
   key+= Variable_sized_keys_descriptor::size_of_length_field;
 
@@ -4163,8 +4154,7 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
    warning_for_row(FALSE),
    force_copy_fields(0), row_limit(NULL),
    offset_limit(NULL), limit_clause(limit_clause),
-   copy_offset_limit(0), copy_row_limit(0), original(0),
-   variable_sized_keys(NULL)
+   copy_offset_limit(0), copy_row_limit(0), original(0)
 {
   Item *item_select;
   Item **arg_ptr;
@@ -4233,8 +4223,7 @@ Item_func_group_concat::Item_func_group_concat(THD *thd,
   force_copy_fields(item->force_copy_fields),
   row_limit(item->row_limit), offset_limit(item->offset_limit),
   limit_clause(item->limit_clause),copy_offset_limit(item->copy_offset_limit),
-  copy_row_limit(item->copy_row_limit), original(item),
-  variable_sized_keys(item->variable_sized_keys)
+  copy_row_limit(item->copy_row_limit), original(item)
 {
   quick_group= item->quick_group;
   result.set_charset(collation.collation);
@@ -4295,11 +4284,6 @@ void Item_func_group_concat::cleanup()
       {
         delete unique_filter;
         unique_filter= NULL;
-      }
-      if (variable_sized_keys)
-      {
-        delete variable_sized_keys;
-        variable_sized_keys= NULL;
       }
     }
     DBUG_ASSERT(tree == 0);
@@ -4695,13 +4679,6 @@ bool Item_func_group_concat::setup(THD *thd)
     tree_len= 0;
   }
 
-  if (allow_packing)
-  {
-    variable_sized_keys= new Variable_sized_keys(tree_key_length);
-    if (variable_sized_keys == NULL)
-      DBUG_RETURN(TRUE); //OOM
-  }
-
   if (distinct)
   {
     unique_filter= get_unique(get_comparator_function_for_distinct(allow_packing),
@@ -4709,10 +4686,10 @@ bool Item_func_group_concat::setup(THD *thd)
                              tree_key_length + get_null_bytes(),
                              ram_limitation(thd), 0, allow_packing);
 
-    if (!unique_filter || (variable_sized_keys &&
-                           variable_sized_keys->setup(thd, this,
-                                                      non_const_items,
-                                                      arg_count_field)))
+    if (!unique_filter ||
+        (unique_filter->get_descriptor()->setup(thd, this,
+                                                non_const_items,
+                                                arg_count_field)))
       DBUG_RETURN(TRUE);
   }
   if ((row_limit && row_limit->cmp_type() != INT_RESULT) ||
@@ -4750,7 +4727,7 @@ String* Item_func_group_concat::val_str(String* str)
       tree_walk(tree, &dump_leaf_key, this, left_root_right);
     else if (distinct) // distinct (and no order by).
       unique_filter->walk(table,
-                          variable_sized_keys ?
+                          unique_filter->is_packed() ?
                           dump_leaf_variable_sized_key :
                           dump_leaf_key, this);
     else if (row_limit && copy_row_limit == (ulonglong)row_limit->val_int())
@@ -4810,7 +4787,7 @@ qsort_cmp2 Item_func_group_concat::get_comparator_function_for_order_by()
 uchar* Item_func_group_concat::get_record_pointer()
 {
   return is_distinct_packed() ?
-         variable_sized_keys->get_packed_rec_ptr() :
+         unique_filter->get_descriptor()->get_packed_rec_ptr() :
          (skip_nulls() ?
           table->record[0] + table->s->null_bytes :
           table->record[0]);
@@ -4845,8 +4822,6 @@ uint Item_func_group_concat::get_null_bytes()
 
 bool Item_func_group_concat::is_distinct_packed()
 {
-  DBUG_ASSERT((variable_sized_keys != NULL) ==
-              (unique_filter && unique_filter->is_packed()));
   return unique_filter && unique_filter->is_packed();
 }
 
@@ -5027,10 +5002,12 @@ int Item_func_group_concat::insert_record_to_unique()
   if (unique_filter->is_packed())
   {
     uint packed_length;
-    if ((packed_length= variable_sized_keys->make_packed_record(skip_nulls())) == 0)
+    if ((packed_length= unique_filter->get_descriptor()->
+                        make_packed_record(skip_nulls())) == 0)
       return -1; // NULL value
     DBUG_ASSERT(packed_length <= unique_filter->get_size());
-    return unique_filter->unique_add(variable_sized_keys->get_packed_rec_ptr());
+    return unique_filter->unique_add(unique_filter->get_descriptor()
+                                     ->get_packed_rec_ptr());
   }
 
   copy_fields(tmp_table_param);

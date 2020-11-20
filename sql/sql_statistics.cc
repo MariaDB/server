@@ -1657,7 +1657,6 @@ protected:
 
   ulonglong distincts;
   ulonglong distincts_single_occurence;
-  Variable_sized_keys *variable_size_keys;
 
 public:
   
@@ -1683,15 +1682,12 @@ public:
     table_field= field;
     tree_key_length= 0;
     tree= NULL;
-    variable_size_keys= NULL;
   }
 
   virtual ~Count_distinct_field()
   {
     delete tree;
     tree= NULL;
-    delete variable_size_keys;
-    variable_size_keys= NULL;
   }
 
   /* 
@@ -1720,9 +1716,6 @@ public:
 
       tree_key_length+= Variable_sized_keys_descriptor::size_of_length_field;
       tree_key_length+= MY_TEST(table_field->maybe_null());
-      variable_size_keys= new Variable_sized_keys(tree_key_length);
-      if (!variable_size_keys)
-        return true; // OOM
 
       Descriptor *desc= new Variable_sized_keys_descriptor(tree_key_length);
       if (!desc)
@@ -1732,7 +1725,7 @@ public:
                              max_heap_table_size, 1, desc);
       if (!tree)
         return true; // OOM
-      return variable_size_keys->setup(thd, table_field);
+      return tree->get_descriptor()->setup(thd, table_field);
     }
 
     tree_key_length= table_field->pack_length();
@@ -1758,11 +1751,10 @@ public:
     uint length= tree->get_size();
     if (tree->is_packed())
     {
-      DBUG_ASSERT(variable_size_keys);
-      length= variable_size_keys->make_packed_record(true);
+      length= tree->get_descriptor()->make_packed_record(true);
       DBUG_ASSERT(length != 0);
       DBUG_ASSERT(length <= tree->get_size());
-      return tree->unique_add(variable_size_keys->get_packed_rec_ptr());
+      return tree->unique_add(tree->get_descriptor()->get_packed_rec_ptr());
     }
     return tree->unique_add(table_field->ptr);
   }
@@ -1840,8 +1832,8 @@ int Count_distinct_field::simple_packed_str_key_cmp(void* arg,
                                                     uchar* key1, uchar* key2)
 {
   Count_distinct_field *compare_arg= (Count_distinct_field*)arg;
-  DBUG_ASSERT(compare_arg->variable_size_keys);
-  return compare_arg->variable_size_keys->compare_keys_for_single_arg(key1, key2);
+  DBUG_ASSERT(compare_arg->tree->get_descriptor());
+  return compare_arg->tree->get_descriptor()->compare_keys_for_single_arg(key1, key2);
 }
 
 
