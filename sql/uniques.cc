@@ -73,9 +73,8 @@ int unique_intersect_write_to_ptrs(uchar* key, element_count count, Unique_impl 
 
 Unique_impl::Unique_impl(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
 	             uint size_arg, size_t max_in_memory_size_arg,
-               uint min_dupl_count_arg)
-  :Unique(),
-   max_in_memory_size(max_in_memory_size_arg),
+               uint min_dupl_count_arg, Descriptor *desc)
+  :max_in_memory_size(max_in_memory_size_arg),
    size(size_arg),
    memory_used(0),
    elements(0)
@@ -108,6 +107,7 @@ Unique_impl::Unique_impl(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
 
   (void) open_cached_file(&file, mysql_tmpdir,TEMP_PREFIX, DISK_BUFFER_SIZE,
                           MYF(MY_WME));
+  m_descriptor= desc;
 }
 
 
@@ -860,9 +860,9 @@ err:
 
 Unique_packed::Unique_packed(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
                             uint size_arg, size_t max_in_memory_size_arg,
-                            uint min_dupl_count_arg):
+                            uint min_dupl_count_arg, Descriptor *desc):
   Unique_impl(comp_func, comp_func_fixed_arg, size_arg,
-         max_in_memory_size_arg, min_dupl_count_arg)
+              max_in_memory_size_arg, min_dupl_count_arg, desc)
 {
 }
 
@@ -887,4 +887,18 @@ int Unique_impl::write_record_to_file(uchar *key)
 int Unique_packed::write_record_to_file(uchar *key)
 {
   return my_b_write(get_file(), key, read_packed_length(key));
+}
+
+
+Variable_sized_keys_descriptor::Variable_sized_keys_descriptor(uint length)
+{
+  key_length= length;
+  flags= (1 << VARIABLE_SIZED_KEYS_WITH_ORIGINAL_VALUES);
+}
+
+
+Fixed_sized_keys_descriptor::Fixed_sized_keys_descriptor(uint length)
+{
+  key_length= length;
+  flags= (1 << FIXED_SIZED_KEYS);
 }

@@ -23,43 +23,36 @@
 class Descriptor : public Sql_alloc
 {
 protected:
-  int size;
-  int full_size;
+  uint key_length;
   enum attributes
   {
     FIXED_SIZED_KEYS= 0,
     VARIABLE_SIZED_KEYS_WITH_ORIGINAL_VALUES
   };
-  int flags;
+  uint flags;
 
 public:
   virtual ~Descriptor() {};
-  uint get_size() { return size; }
-  uint get_full_size() { return full_size; }
   virtual uint get_length_of_key(void *ptr) = 0;
-  virtual bool is_packed() = 0;
+  bool is_variable_sized()
+  {
+    return flags & (1 << VARIABLE_SIZED_KEYS_WITH_ORIGINAL_VALUES);
+  }
   virtual int compare_keys(uchar *a, uchar *b) = 0;
-  virtual int compare_keys_for_single_arg(uchar *a, uchar *b)= 0;
 };
 
 
 class Fixed_sized_keys_descriptor : public Descriptor
 {
-private:
-
 public:
-  Fixed_sized_keys_descriptor(uint key_length)
-  {
-    size= key_length;
-  }
+  Fixed_sized_keys_descriptor(uint length);
   ~Fixed_sized_keys_descriptor() {}
-  uint get_length_of_key(void *ptr) override;
-  int compare_keys(uchar *a, uchar *b) override;
-  int compare_keys_for_single_arg(uchar *a, uchar *b) override;
+  uint get_length_of_key(void *ptr) override { return key_length; }
+  int compare_keys(uchar *a, uchar *b) override { return 0; }
 };
 
 
-class Variable_sized_keys_descriptior : public Descriptor
+class Variable_sized_keys_descriptor : public Descriptor
 {
   /*
     Packed record ptr for a record of the table, the packed value in this
@@ -80,23 +73,24 @@ class Variable_sized_keys_descriptior : public Descriptor
   Sort_keys *sort_keys;
 
 public:
-  Variable_sized_keys_descriptior(uint key_length)
-  {
-    size= key_length;
-    full_size= 0;
-  }
-  ~Variable_sized_keys_descriptior();
+  Variable_sized_keys_descriptor(uint length);
+  ~Variable_sized_keys_descriptor() {}
 
   uchar *get_packed_rec_ptr() { return packed_rec_ptr; }
   Sort_keys *get_keys() { return sort_keys; }
   SORT_FIELD *get_sortorder() { return sortorder; }
 
   // Fill structures like sort_keys, sortorder
-  bool setup();
-  uint make_packed_record(bool exclude_nulls);
-  uint get_length_of_key(void *ptr) override;
-  int compare_keys(uchar *a, uchar *b) override;
-  int compare_keys_for_single_arg(uchar *a, uchar *b);
+  bool setup() {return false;}
+  uint make_packed_record(bool exclude_nulls) {return 0;}
+  uint get_length_of_key(void *ptr) override
+  {
+    return size_of_length_field + uint4korr(static_cast<uchar*>(ptr));
+  }
+  int compare_keys(uchar *a, uchar *b) override { return 0; }
+  int compare_keys_for_single_arg(uchar *a, uchar *b) { return 0;}
+
+  static const uint size_of_length_field= 4;
 };
 
 
@@ -107,15 +101,11 @@ public:
 class Unique : public Sql_alloc {
 
 protected:
-  Descriptor *descriptor;
+  Descriptor *m_descriptor;
 public:
 
   virtual void reset() = 0;
   virtual bool unique_add(void *ptr) = 0;
-  Unique()
-  {
-    descriptor= NULL;
-  }
   virtual ~Unique() {};
 
   virtual void close_for_expansion() = 0;
@@ -132,7 +122,7 @@ public:
 
   // This will be renamed:
   virtual ulong elements_in_tree() = 0;
-  Descriptor *get_descriptor() { return descriptor; }
+  Descriptor *get_descriptor() { return m_descriptor; }
 };
 
 /*
@@ -205,15 +195,13 @@ public:
 
   Unique_impl(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
          uint size_arg, size_t max_in_memory_size_arg,
-         uint min_dupl_count_arg= 0);
+         uint min_dupl_count_arg= 0, Descriptor *desc= NULL);
   virtual ~Unique_impl();
   ulong elements_in_tree() { return tree.elements_in_tree; }
 
-  virtual uint get_length(void *ptr) { return size; }
-
   bool unique_add(void *ptr) override
   {
-    return unique_add(ptr, get_length(ptr));
+    return unique_add(ptr, m_descriptor->get_length_of_key(ptr));
   }
 
   /*
@@ -283,7 +271,7 @@ public:
   virtual int write_record_to_file(uchar *key);
 
   // returns TRUE if the unique tree stores packed values
-  virtual bool is_packed() { return false; }
+  virtual bool is_packed() { return m_descriptor->is_variable_sized(); }
 
   friend int unique_write_to_file(uchar* key, element_count count, Unique_impl *unique);
   friend int unique_write_to_ptrs(uchar* key, element_count count, Unique_impl *unique);
@@ -304,17 +292,12 @@ public:
 
 class Unique_packed : public Unique_impl
 {
-protected:
-  public:
+public:
   Unique_packed(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
                 uint size_arg, size_t max_in_memory_size_arg,
-                uint min_dupl_count_arg);
+                uint min_dupl_count_arg, Descriptor *desc= NULL);
 
-  uint get_length(void *ptr) override
-  {
-    return read_packed_length(static_cast<uchar*>(ptr));
-  }
-  bool is_packed() override { return true; }
+  bool is_packed() override { return m_descriptor->is_variable_sized(); }
   int write_record_to_file (uchar *key) override;
 
   // returns the length of the key along with the length bytes for the key

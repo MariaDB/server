@@ -4945,12 +4945,23 @@ Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
                      uint size_arg, size_t max_in_memory_size_arg,
                      uint min_dupl_count_arg, bool allow_packing)
 {
+  Descriptor *desc;
   if (allow_packing)
-   return new Unique_packed(comp_func, comp_func_fixed_arg, size_arg,
-                             max_in_memory_size_arg, min_dupl_count_arg);
-  return new Unique_impl(comp_func, comp_func_fixed_arg, size_arg,
-                    max_in_memory_size_arg, min_dupl_count_arg);
-
+  {
+    desc= new Variable_sized_keys_descriptor(size_arg);
+    if (!desc)
+      return NULL;
+    return new Unique_packed(comp_func, comp_func_fixed_arg, size_arg,
+                             max_in_memory_size_arg, min_dupl_count_arg, desc);
+  }
+  else
+  {
+    desc= new Fixed_sized_keys_descriptor(size_arg);
+    if (!desc)
+      return NULL;
+    return new Unique_impl(comp_func, comp_func_fixed_arg, size_arg,
+                           max_in_memory_size_arg, min_dupl_count_arg, desc);
+  }
 }
 
 
