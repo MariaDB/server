@@ -1,3 +1,4 @@
+#pragma once
 /**************** json H Declares Source Code File (.H) ****************/
 /*  Name: json.h   Version 1.2                                         */
 /*                                                                     */
@@ -15,21 +16,19 @@
 #define X
 #endif
 
-enum JTYP : short {
+enum JTYP {
 	TYPE_NULL = TYPE_VOID,
 	TYPE_STRG = TYPE_STRING,
 	TYPE_DBL = TYPE_DOUBLE,
 	TYPE_BOOL = TYPE_TINY,
 	TYPE_BINT = TYPE_BIGINT,
-	TYPE_INTG = TYPE_INT,
 	TYPE_DTM = TYPE_DATE,
-	TYPE_FLOAT,
+	TYPE_INTG = TYPE_INT,
+	TYPE_VAL = 12,
+	TYPE_JSON,
 	TYPE_JAR,
 	TYPE_JOB,
-	TYPE_JVAL,
-	TYPE_JSON,
-	TYPE_DEL,
-	TYPE_UNKNOWN
+	TYPE_JVAL
 };
 
 class JDOC;
@@ -39,16 +38,16 @@ class JVALUE;
 class JOBJECT;
 class JARRAY;
 
-typedef class JDOC    *PJDOC;
-typedef class JSON    *PJSON;
-typedef class JVALUE  *PJVAL;
-typedef class JOBJECT *PJOB;
-typedef class JARRAY  *PJAR;
+typedef class JDOC* PJDOC;
+typedef class JSON* PJSON;
+typedef class JVALUE* PJVAL;
+typedef class JOBJECT* PJOB;
+typedef class JARRAY* PJAR;
 
 // BSON size should be equal on Linux and Windows
 #define BMX 255
-typedef struct BSON  *PBSON;
-typedef struct JPAIR *PJPR;
+typedef struct BSON* PBSON;
+typedef struct JPAIR* PJPR;
 //typedef struct VAL   *PVL;
 
 /***********************************************************************/
@@ -66,7 +65,7 @@ struct JPAIR {
 /***********************************************************************/
 struct VAL {
 	union {
-		char     *Strp;      // Ptr to a string
+		char* Strp;      // Ptr to a string
 		int       N;         // An integer value
 		long long LLn;			 // A big integer value
 		double    F;				 // A float value
@@ -82,7 +81,7 @@ struct VAL {
 /***********************************************************************/
 struct BSON {
 	char    Msg[BMX + 1];
-	char   *Filename;
+	char* Filename;
 	PGLOBAL G;
 	int     Pretty;
 	ulong   Reslen;
@@ -94,18 +93,18 @@ struct BSON {
 
 PBSON JbinAlloc(PGLOBAL g, UDF_ARGS* args, ulong len, PJSON jsp);
 //PVL   AllocVal(PGLOBAL g, JTYP type);
-char *NextChr(PSZ s, char sep);
-char *GetJsonNull(void);
+char* NextChr(PSZ s, char sep);
+char* GetJsonNull(void);
 const char* GetFmt(int type, bool un);
 
 PJSON ParseJson(PGLOBAL g, char* s, size_t n, int* prty = NULL, bool* b = NULL);
-PSZ   Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty);
+PSZ   Serialize(PGLOBAL g, PJSON jsp, char* fn, int pretty);
 DllExport bool IsNum(PSZ s);
 
 /***********************************************************************/
 /* Class JDOC. The class for parsing and serializing json documents.   */
 /***********************************************************************/
-class JDOC: public BLOCK {
+class JDOC : public BLOCK {
 	friend PJSON ParseJson(PGLOBAL, char*, size_t, int*, bool*);
 	friend PSZ Serialize(PGLOBAL, PJSON, char*, int);
 public:
@@ -113,23 +112,23 @@ public:
 
 	void  SetJp(JOUT* jp) { js = jp; }
 
- protected:
+protected:
 	PJAR  ParseArray(PGLOBAL g, int& i);
 	PJOB  ParseObject(PGLOBAL g, int& i);
 	PJVAL ParseValue(PGLOBAL g, int& i);
-	char *ParseString(PGLOBAL g, int& i);
+	char* ParseString(PGLOBAL g, int& i);
 	void  ParseNumeric(PGLOBAL g, int& i, PJVAL jvp);
-	PJAR  ParseAsArray(PGLOBAL g, int& i, int pretty, int *ptyp);
+	PJAR  ParseAsArray(PGLOBAL g, int& i, int pretty, int* ptyp);
 	bool  SerializeArray(PJAR jarp, bool b);
 	bool  SerializeObject(PJOB jobp);
 	bool  SerializeValue(PJVAL jvp);
 
 	// Members used when parsing and serializing
- private:
+private:
 	JOUT* js;
-	char *s;
+	char* s;
 	int   len;
-	bool *pty;
+	bool* pty;
 }; // end of class JDOC
 
 /***********************************************************************/
@@ -167,7 +166,7 @@ public:
 /* Class JOBJECT: contains a list of value pairs.                      */
 /***********************************************************************/
 class JOBJECT : public JSON {
-  friend class JDOC;
+	friend class JDOC;
 	friend class JSNX;
 	friend class SWAP;
 public:
@@ -175,11 +174,11 @@ public:
 	JOBJECT(int i) : JSON(i) {}
 
 	// Methods
-	virtual void  Clear(void) {First = Last = NULL;}
-//virtual JTYP  GetValType(void) {return TYPE_JOB;}
-  virtual PJPR  GetFirst(void) {return First;}
+	virtual void  Clear(void) { First = Last = NULL; }
+	//virtual JTYP  GetValType(void) {return TYPE_JOB;}
+	virtual PJPR  GetFirst(void) { return First; }
 	virtual int   GetSize(bool b);
-  virtual PJOB  GetObject(void) {return this;}
+	virtual PJOB  GetObject(void) { return this; }
 	virtual PSZ   GetText(PGLOBAL g, PSTRG text);
 	virtual bool  Merge(PGLOBAL g, PJSON jsp);
 	virtual bool  IsNull(void);
@@ -192,9 +191,9 @@ public:
 	void  SetKeyValue(PGLOBAL g, PJVAL jvp, PCSZ key);
 	void  DeleteKey(PCSZ k);
 
- protected:
-  PJPR First;
-  PJPR Last;
+protected:
+	PJPR First;
+	PJPR Last;
 }; // end of class JOBJECT
 
 /***********************************************************************/
@@ -202,65 +201,65 @@ public:
 /***********************************************************************/
 class JARRAY : public JSON {
 	friend class SWAP;
- public:
+public:
 	JARRAY(void);
 	JARRAY(int i) : JSON(i) {}
 
 	// Methods
-  virtual void  Clear(void) {First = Last = NULL; Size = 0;}
+	virtual void  Clear(void) { First = Last = NULL; Size = 0; }
 	virtual int   size(void) { return Size; }
-  virtual PJAR  GetArray(void) {return this;}
+	virtual PJAR  GetArray(void) { return this; }
 	virtual int   GetSize(bool b);
-  virtual PJVAL GetArrayValue(int i);
+	virtual PJVAL GetArrayValue(int i);
 	virtual PSZ   GetText(PGLOBAL g, PSTRG text);
 	virtual bool  Merge(PGLOBAL g, PJSON jsp);
-  virtual bool  DeleteValue(int n);
-  virtual bool  IsNull(void);
+	virtual bool  DeleteValue(int n);
+	virtual bool  IsNull(void);
 
 	// Specific
 	PJVAL AddArrayValue(PGLOBAL g, PJVAL jvp = NULL, int* x = NULL);
 	bool  SetArrayValue(PGLOBAL g, PJVAL jvp, int i);
 	void  InitArray(PGLOBAL g);
 
- protected:
-  // Members
+protected:
+	// Members
 	int    Size;		 // The number of items in the array
-  int    Alloc;    // The Mvals allocated size
-  PJVAL  First;    // Used when constructing
-  PJVAL  Last;     // Last constructed value
-  PJVAL *Mvals;    // Allocated when finished
+	int    Alloc;    // The Mvals allocated size
+	PJVAL  First;    // Used when constructing
+	PJVAL  Last;     // Last constructed value
+	PJVAL* Mvals;    // Allocated when finished
 }; // end of class JARRAY
 
 /***********************************************************************/
 /* Class JVALUE.                                                       */
 /***********************************************************************/
 class JVALUE : public JSON {
-  friend class JARRAY;
+	friend class JARRAY;
 	friend class JSNX;
 	friend class JSONDISC;
 	friend class JSONCOL;
-  friend class JSON;
+	friend class JSON;
 	friend class JDOC;
 	friend class SWAP;
 public:
 	JVALUE(void) : JSON() { Type = TYPE_JVAL; Clear(); }
 	JVALUE(PJSON jsp);
-//JVALUE(PGLOBAL g, PVL vlp);
+	//JVALUE(PGLOBAL g, PVL vlp);
 	JVALUE(PGLOBAL g, PVAL valp);
 	JVALUE(PGLOBAL g, PCSZ strp);
 	JVALUE(int i) : JSON(i) {}
 
-  //using JSON::GetVal;
-  //using JSON::SetVal;
+	//using JSON::GetVal;
+	//using JSON::SetVal;
 
 	// Methods
 	virtual void   Clear(void);
-//virtual JTYP   GetType(void) {return TYPE_JVAL;}
-  virtual JTYP   GetValType(void);
-  virtual PJOB   GetObject(void);
-  virtual PJAR   GetArray(void);
-  virtual PJSON  GetJsp(void) {return (DataType == TYPE_JSON ? Jsp : NULL);}
-  virtual PSZ    GetText(PGLOBAL g, PSTRG text);
+	//virtual JTYP   GetType(void) {return TYPE_JVAL;}
+	virtual JTYP   GetValType(void);
+	virtual PJOB   GetObject(void);
+	virtual PJAR   GetArray(void);
+	virtual PJSON  GetJsp(void) { return (DataType == TYPE_JSON ? Jsp : NULL); }
+	virtual PSZ    GetText(PGLOBAL g, PSTRG text);
 	virtual bool   IsNull(void);
 
 	// Specific
@@ -280,16 +279,16 @@ public:
 	void   SetFloat(PGLOBAL g, double f);
 	void   SetBool(PGLOBAL g, bool b);
 
- protected:
-	 union {
-		 PJSON  Jsp;       // To the json value
-		 char  *Strp;      // Ptr to a string
-		 int    N;         // An integer value
-		 long long LLn;		 // A big integer value
-		 double F;				 // A (double) float value
-		 bool   B;				 // True or false
-	 };
-//PVL   Val;      // To the string or numeric value
+protected:
+	union {
+		PJSON  Jsp;       // To the json value
+		char* Strp;      // Ptr to a string
+		int    N;         // An integer value
+		long long LLn;		 // A big integer value
+		double F;				 // A (double) float value
+		bool   B;				 // True or false
+	};
+	//PVL   Val;      // To the string or numeric value
 	PJVAL Next;     // Next value in array
 	JTYP  DataType; // The data value type
 	int   Nd;				// Decimal number
@@ -369,8 +368,7 @@ public:
 class SWAP : public BLOCK {
 public:
 	// Constructor
-	SWAP(PGLOBAL g, PJSON jsp) 
-	{
+	SWAP(PGLOBAL g, PJSON jsp) {
 		G = g, Base = (char*)jsp - 8;
 	}
 
@@ -383,15 +381,15 @@ protected:
 	size_t MoffObject(PJOB jobp);
 	size_t MoffJValue(PJVAL jvp);
 	size_t MoffPair(PJPR jpp);
-//size_t MoffVal(PVL vlp);
+	//size_t MoffVal(PVL vlp);
 	PJSON  MptrJson(PJSON jnp);
 	PJAR   MptrArray(PJAR jarp);
 	PJOB   MptrObject(PJOB jobp);
 	PJVAL  MptrJValue(PJVAL jvp);
 	PJPR   MptrPair(PJPR jpp);
-//PVL    MptrVal(PVL vlp);
+	//PVL    MptrVal(PVL vlp);
 
-	// Member
+		// Member
 	PGLOBAL G;
-	void   *Base;
+	void* Base;
 }; // end of class SWAP

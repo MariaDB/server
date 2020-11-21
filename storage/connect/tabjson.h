@@ -35,7 +35,7 @@ typedef struct _jncol {
 	struct _jncol *Next;
 	char *Name;
 	char *Fmt;
-	int   Type;
+	JTYP  Type;
 	int   Len;
 	int   Scale;
 	bool  Cbn;

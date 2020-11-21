@@ -10,7 +10,7 @@
 #include "block.h"
 #include "osutil.h"
 #include "maputil.h"
-#include "json.h"
+#include "bson.h"
 
 #define UDF_EXEC_ARGS \
   UDF_INIT*, UDF_ARGS*, char*, unsigned long*, char*, char*

@@ -1252,9 +1252,9 @@ static PJVAL JvalNew(PGLOBAL g, JTYP type, void *vp)
 			case TYPE_JOB:
 				jvp = new(g) JVALUE((PJSON)vp);
 				break;
-			case TYPE_VAL:
-				jvp = new(g) JVALUE(g, (PVAL)vp);
-				break;
+//		case TYPE_VAL:
+//			jvp = new(g) JVALUE(g, (PVAL)vp);
+//			break;
 			case TYPE_DTM:
 			case TYPE_STRG:
 				jvp = new(g) JVALUE(g, (PCSZ)vp);
@@ -5376,7 +5376,7 @@ char *jbin_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	// Get the json tree
 	if ((jvp = jsx->GetRowValue(g, jsp, 0, false))) {
-		jsp = (jvp->GetJsp()) ? jvp->GetJsp() : JvalNew(g, TYPE_VAL, jvp->GetValue(g));
+		jsp = (jvp->GetJsp()) ? jvp->GetJsp() : JvalNew(g, TYPE_JVAL, jvp->GetValue(g));
 
 		if ((bsp = JbinAlloc(g, args, initid->max_length, jsp)))
 			strcat(bsp->Msg, " item");

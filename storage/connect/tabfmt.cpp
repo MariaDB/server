@@ -67,7 +67,7 @@
 /*  This should be an option.                                          */
 /***********************************************************************/
 #define MAXCOL          200        /* Default max column nb in result  */
-#define TYPE_UNKNOWN     10        /* Must be greater than other types */
+#define TYPE_UNKNOWN     12        /* Must be greater than other types */
 
 /***********************************************************************/
 /*  External function.                                                 */

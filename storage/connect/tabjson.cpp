@@ -46,7 +46,7 @@
 /*  This should be an option.                                          */
 /***********************************************************************/
 #define MAXCOL          200        /* Default max column nb in result  */
-#define TYPE_UNKNOWN     12        /* Must be greater than other types */
+//#define TYPE_UNKNOWN     12        /* Must be greater than other types */
 
 /***********************************************************************/
 /*  External functions.                                                */
@@ -114,7 +114,7 @@ PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info)
   /*********************************************************************/
   for (i = 0, jcp = pjdc->fjcp; jcp; i++, jcp = jcp->Next) {
     if (jcp->Type == TYPE_UNKNOWN)
-      jcp->Type = TYPE_STRING;             // Void column
+      jcp->Type = TYPE_STRG;               // Void column
 
     crp = qrp->Colresp;                    // Column Name
     crp->Kdata->SetValue(jcp->Name, i);
@@ -395,7 +395,7 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
   PJAR   jar;
 
   if (jvp && jvp->DataType != TYPE_JSON) {
-		if (JsonAllPath() && !fmt[bf])
+		if (JsonAllPath() && !fmt[bf])                                  
 			strcat(fmt, colname);
 
 		jcol.Type = jvp->DataType;
@@ -506,7 +506,7 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
 		}	else if (JsonAllPath() && !fmt[bf])
 			strcat(fmt, colname);
 
-		jcol.Type = TYPE_STRING;
+		jcol.Type = TYPE_STRG;
     jcol.Len = sz;
     jcol.Scale = 0;
     jcol.Cbn = true;
@@ -528,23 +528,23 @@ void JSONDISC::AddColumn(PGLOBAL g)
 
   if (jcp) {
     if (jcp->Type != jcol.Type) {
-      if (jcp->Type == TYPE_UNKNOWN || jcol.Type == TYPE_VOID)
+      if (jcp->Type == TYPE_UNKNOWN || jcp->Type == TYPE_NULL)
         jcp->Type = jcol.Type;
 //    else if (jcol.Type != TYPE_UNKNOWN && jcol.Type != TYPE_VOID)
 //      jcp->Type = TYPE_STRING;
-      else if (jcp->Type != TYPE_STRING)
+      else if (jcp->Type != TYPE_STRG)
         switch (jcol.Type) {
-        case TYPE_STRING:
-        case TYPE_DOUBLE:
+        case TYPE_STRG:
+        case TYPE_DBL:
           jcp->Type = jcol.Type;
           break;
-        case TYPE_BIGINT:
-          if (jcp->Type == TYPE_INT || jcp->Type == TYPE_TINY)
+        case TYPE_BINT:
+          if (jcp->Type == TYPE_INTG || jcp->Type == TYPE_BOOL)
             jcp->Type = jcol.Type;
 
           break;
-        case TYPE_INT:
-          if (jcp->Type == TYPE_TINY)
+        case TYPE_INTG:
+          if (jcp->Type == TYPE_BOOL)
             jcp->Type = jcol.Type;
 
           break;
