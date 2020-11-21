@@ -242,7 +242,7 @@ drop tables ch1, t2, t1, t3;
 
 --echo # Rename column on referenced table
 create or replace table t1 (id int primary key);
-create or replace table t2 (id int references t1);
+create or replace table t2 (id int references t1, id2 int references t1(id));
 select * from t2;
 alter table t1 change id xid int;
 show create table t2;

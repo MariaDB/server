@@ -241,46 +241,52 @@ test.t3	check	status	OK
 drop tables ch1, t2, t1, t3;
 # Rename column on referenced table
 create or replace table t1 (id int primary key);
-create or replace table t2 (id int references t1);
+create or replace table t2 (id int references t1, id2 int references t1(id));
 select * from t2;
-id
+id	id2
 alter table t1 change id xid int;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `id` int(11) DEFAULT NULL,
+  `id2` int(11) DEFAULT NULL,
   KEY `fk_t2` (`id`),
-  CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `t1` (`xid`)
+  KEY `fk_t2_2` (`id2`),
+  CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `t1` (`xid`),
+  CONSTRAINT `fk_t2_2` FOREIGN KEY (`id2`) REFERENCES `t1` (`xid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 select * from t1;
 xid
 check table t2;
 Table	Op	Msg_type	Msg_text
-test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 2 foreign keys
 test.t2	check	status	OK
 flush table t2;
 check table t2;
 Table	Op	Msg_type	Msg_text
-test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 2 foreign keys
 test.t2	check	status	OK
 alter table t1 rename column xid to yid;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `id` int(11) DEFAULT NULL,
+  `id2` int(11) DEFAULT NULL,
   KEY `fk_t2` (`id`),
-  CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `t1` (`yid`)
+  KEY `fk_t2_2` (`id2`),
+  CONSTRAINT `fk_t2` FOREIGN KEY (`id`) REFERENCES `t1` (`yid`),
+  CONSTRAINT `fk_t2_2` FOREIGN KEY (`id2`) REFERENCES `t1` (`yid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 select * from t1;
 yid
 check table t2;
 Table	Op	Msg_type	Msg_text
-test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 2 foreign keys
 test.t2	check	status	OK
 flush table t2;
 check table t2;
 Table	Op	Msg_type	Msg_text
-test.t2	check	Note	Found 1 foreign keys
+test.t2	check	Note	Found 2 foreign keys
 test.t2	check	status	OK
 drop tables t2, t1;
 # Check rename table

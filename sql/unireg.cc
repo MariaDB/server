@@ -1546,11 +1546,7 @@ bool TABLE_SHARE::fk_resolve_referenced_keys(THD *thd, TABLE_SHARE *from)
     if (!ids.insert(rk.foreign_id, &inserted))
       return true;
 
-    if (!inserted) // FIXME: assert instead error
-    {
-      my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "FOREIGN KEY", rk.foreign_id.str);
-      return true;
-    }
+    DBUG_ASSERT(inserted);
   }
 
   for (FK_info &fk: from->foreign_keys)
@@ -1564,8 +1560,9 @@ bool TABLE_SHARE::fk_resolve_referenced_keys(THD *thd, TABLE_SHARE *from)
 
     if (!inserted)
     {
-      my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "FOREIGN KEY", fk.foreign_id.str);
-      return true; // FIXME: warn instead fail
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_DUP_CONSTRAINT_NAME,
+                          "Foreign ID already exists `%s`", fk.foreign_id.str);
+      continue;
     }
 
     for (Lex_cstring &fld: fk.referenced_fields)
