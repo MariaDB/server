@@ -3626,8 +3626,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   int select_field_count= C_CREATE_SELECT(create_table_mode);
   bool tmp_table= create_table_mode == C_ALTER_TABLE;
   bool is_hash_field_needed= false;
-  // NB: if we do ALTER TABLE referenced_keys is already filled
-  const bool fk_add_self_refs= referenced_keys.is_empty();
   DBUG_ENTER("mysql_prepare_create_table");
 
   DBUG_EXECUTE_IF("test_pseudo_invisible",{
