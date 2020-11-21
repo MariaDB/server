@@ -15,6 +15,9 @@
 #define X
 #endif
 
+// Required by some compilers
+enum JTYP : short;
+
 enum JTYP : short {
 	TYPE_NULL = TYPE_VOID,
 	TYPE_STRG = TYPE_STRING,
