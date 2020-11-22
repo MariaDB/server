@@ -57,15 +57,38 @@ public:
 };
 
 
-/* Backup for the table we refering or which referes us */
-class FK_ref_backup : public FK_table_backup
+class FK_ddl_backup2 : public FK_backup
 {
 public:
-  bool install_shadow;
-  FK_ref_backup() : install_shadow(false) {}
-  virtual ~FK_ref_backup()
+  TABLE_SHARE *share;
+
+  FK_ddl_backup2() : share(NULL) {}
+  virtual ~FK_ddl_backup2()
   {
-    commit();
+    if (share)
+      rollback();
+  }
+  FK_ddl_backup2(Share_acquire&& _sa)
+  {
+  }
+  bool init(TABLE_SHARE *)
+  {
+    return true;
+  }
+  void commit()
+  {
+    share= NULL;
+  }
+  void rollback()
+  {
+    DBUG_ASSERT(share);
+    share->foreign_keys= foreign_keys;
+    share->referenced_keys= referenced_keys;
+    share= NULL;
+  }
+  TABLE_SHARE *get_share() const
+  {
+    return share;
   }
 };
 
@@ -442,9 +465,9 @@ public:
   // Backup for the table we altering. NB: auto-rollback if not committed.
   FK_table_backup fk_table_backup;
   // NB: share is owned and released by fk_shares
-  mbd::map<TABLE_SHARE *, FK_ref_backup> fk_ref_backup;
+  mbd::map<TABLE_SHARE *, FK_share_backup> fk_ref_backup;
   // NB: backup is added only if not exists
-  FK_ref_backup* fk_add_backup(TABLE_SHARE *share);
+  FK_share_backup* fk_add_backup(TABLE_SHARE *share);
   void fk_rollback();
   bool fk_install_frms();
 

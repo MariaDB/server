@@ -336,6 +336,27 @@ public:
     }
     return false;
   }
+  template <class... Args>
+  typename Base::iterator emplace(bool &inserted, Args&&... args) noexcept
+  {
+    try
+    {
+      auto ret= Base::emplace(args...);
+      inserted= ret.second;
+      return ret.first;
+    }
+    catch (std::bad_alloc())
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return Base::end();
+    }
+    catch (...)
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0), "Unexpected exception");
+      return Base::end();
+    }
+    return Base::end();
+  }
 };
 
 
@@ -389,6 +410,18 @@ public:
       return NULL;
     return &*ret;
   }
+  template <class... Args>
+  const Key* emplace(bool *inserted, Args&&... args)
+  {
+    bool ins;
+    auto ret= exception_wrapper<std::set<Key, Compare, Allocator> >::
+      emplace(ins, args...);
+    if (inserted)
+      *inserted= ins;
+    if (ret == std::set<Key, Compare, Allocator>::end())
+      return NULL;
+    return &*ret;
+  }
 };
 
 
@@ -416,6 +449,18 @@ public:
       insert(std::make_pair(key, std::forward<T>(value)), ins);
     if (inserted)
       *inserted= ins;
+    return &ret->second;
+  }
+  template <class... Args>
+  T* emplace(bool *inserted, Args&&... args)
+  {
+    bool ins;
+    auto ret= exception_wrapper<std::map<Key, T, Compare, Allocator> >::
+      emplace(ins, args...);
+    if (inserted)
+      *inserted= ins;
+    if (ret == std::map<Key, T, Compare, Allocator>::end())
+      return NULL;
     return &ret->second;
   }
 };
@@ -937,9 +982,12 @@ public:
   DDL_LOG_MEMORY_ENTRY *restore_backup_entry;
 
 public:
+  bool update_frm;
+
   FK_backup() :
     delete_shadow_entry(NULL),
-    restore_backup_entry(NULL)
+    restore_backup_entry(NULL),
+    update_frm(false)
   {}
   virtual ~FK_backup()
   {}
@@ -954,35 +1002,65 @@ public:
 };
 
 
-// NB: FK_ddl_backup responds for share release unlike FK_table_backup
-class FK_ddl_backup : public FK_backup
+class FK_share_backup : public FK_backup
 {
-public:
-  Share_acquire sa;
+protected:
+  TABLE_SHARE *share;
 
+public:
+  // FIXME: remove (used in ALTER TABLE)
+  FK_share_backup() : share(NULL) {}
+  bool init(TABLE_SHARE *_share);
+
+  FK_share_backup(TABLE_SHARE *_share)
+  {
+    if (init(_share))
+      share= NULL;
+  }
+//   virtual ~FK_share_backup()
+//   {
+//     commit();
+//   }
+  void commit()
+  {
+    share= NULL;
+  }
+  TABLE_SHARE *get_share() const
+  {
+    return share;
+  }
+  void rollback(ddl_log_info& log_info);
+};
+
+
+// NB: FK_ddl_backup responds for share release unlike FK_table_backup
+class FK_ddl_backup : public FK_share_backup
+{
+  /* NB: if sa.share is not empty, share is auto-released on destructor */
+  Share_acquire sa;
+  /*
+     NB: if sa.share is not empty, share == sa.share. ALTER algorithms are more
+     complex and shares are held and released in separate container alter_ctx.fk_shares.
+     To make DDL logging common for all commands we handle it via FK_ddl_vector interface, but
+     without templating and virtual interfaces (these are overcomplexity for only 2 variations)
+     we have to converge backup operations into single FK_ddl_backup.
+  */
+
+public:
   FK_ddl_backup(Share_acquire&& _sa);
-  FK_ddl_backup(const FK_ddl_backup&)= delete;
+  FK_ddl_backup(const FK_ddl_backup&)= delete; // (explict reminder for default)
   FK_ddl_backup(FK_ddl_backup&& src) :
-    FK_backup(std::move(src)),
-    sa(std::move(src.sa))
-  {}
+    FK_share_backup(std::move(src)),
+    sa(std::move(src.sa)) {}
 
   FK_ddl_backup& operator=(FK_ddl_backup&& src)
   {
-    *((FK_backup *) this)= std::move(src);
+    *((FK_share_backup *) this)= std::move(src);
     sa= std::move(src.sa);
     return *this;
   }
 
-  void rollback(ddl_log_info& log_info);
   bool backup_frm(ddl_log_info &log_info, Table_name table);
-  TABLE_SHARE *get_share() const
-  {
-    return sa.share;
-  }
-
-protected:
-  FK_ddl_backup() {}
 };
 
 

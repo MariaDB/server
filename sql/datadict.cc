@@ -651,6 +651,8 @@ bool FK_ddl_vector::install_shadow_frms(THD *thd)
 #endif
   for (FK_ddl_backup &bak: *this)
   {
+    if (!bak.update_frm)
+      continue;
     if (bak.fk_backup_frm(*this))
       goto error;
 #ifndef DBUG_OFF
@@ -662,6 +664,8 @@ bool FK_ddl_vector::install_shadow_frms(THD *thd)
 #endif
   for (FK_ddl_backup &bak: *this)
   {
+    if (!bak.update_frm)
+      continue;
     if (bak.fk_install_shadow_frm(*this))
       goto error;
 #ifndef DBUG_OFF
@@ -682,7 +686,7 @@ void FK_ddl_vector::rollback(THD *thd)
   for (FK_ddl_backup &bak: *this)
     bak.rollback(*this);
 
-  // NB: we might not fk_write_shadow_frm() at all in case rename table failed
+  // NB: we might not fk_write_shadow_frm() at all f.ex. when rename table failed
   if (!first_entry)
     return;
 
@@ -707,6 +711,8 @@ void FK_ddl_vector::drop_backup_frms(THD *thd)
 #endif
   for (FK_ddl_backup &bak: *this)
   {
+    if (!bak.update_frm)
+      continue;
     if (deactivate_ddl_log_entry(bak.restore_backup_entry->entry_pos))
     {
       // FIXME: test getting into here (and other deactivate_ddl_log_entry() failures)
@@ -723,10 +729,13 @@ void FK_ddl_vector::drop_backup_frms(THD *thd)
 #endif
   for (FK_ddl_backup &bak: *this)
   {
+    if (!bak.update_frm)
+      continue;
     bak.fk_drop_backup_frm(*this);
 #ifndef DBUG_OFF
     dbg_first= false;
 #endif
   }
-  write_log_finish();
+  if (first_entry)
+    write_log_finish();
 }

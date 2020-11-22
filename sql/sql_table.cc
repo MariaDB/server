@@ -12497,13 +12497,13 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_ddl_vector &shares, FK_list *fk_
       return true;
     }
     DBUG_ASSERT(!ref_sa.share);
-    if (!shares.back().sa.share)
+    if (!shares.back().get_share())
       return true; // ctor failed, share was released
   }
 
   for (FK_ddl_backup &ref: shares)
   {
-    TABLE_SHARE *ref_share= ref.sa.share;
+    TABLE_SHARE *ref_share= ref.get_share();
     for (const FK_info &fk: fkeys)
     {
       // Find keys referencing the acquired share and add them to referenced_keys
@@ -12724,7 +12724,7 @@ bool Alter_table_ctx::fk_handle_alter(THD *thd)
     if (!fk_table.share)
       return true;
     TABLE_SHARE *fk_share= fk_table.share;
-    FK_ref_backup *ref_bak= fk_add_backup(fk_share);
+    FK_share_backup *ref_bak= fk_add_backup(fk_share);
     if (!ref_bak)
       return true;
     for (FK_info &fk: fk_share->foreign_keys)
@@ -12740,7 +12740,7 @@ bool Alter_table_ctx::fk_handle_alter(THD *thd)
           my_error(ER_OUT_OF_RESOURCES, MYF(0));
           return true;
         }
-        ref_bak->install_shadow= true;
+        ref_bak->update_frm= true;
       }
     }
   }
@@ -12765,10 +12765,10 @@ bool Alter_table_ctx::fk_handle_alter(THD *thd)
     if (!ref_table.share)
       return true;
     TABLE_SHARE *ref_share= ref_table.share;
-    FK_ref_backup *ref_bak= fk_add_backup(ref_share);
+    FK_share_backup *ref_bak= fk_add_backup(ref_share);
     if (!ref_bak)
       return true;
-    ref_bak->install_shadow= true;
+    ref_bak->update_frm= true;
     // Find prepared FK in fk_list. If ID exists, use it.
     FK_info *fk;
     List_iterator<FK_info> fk_it(new_foreign_keys);
@@ -12841,7 +12841,7 @@ bool Alter_table_ctx::fk_handle_alter(THD *thd)
     if (!ref_table.share)
       return true;
     TABLE_SHARE *ref_share= ref_table.share;
-    FK_ref_backup *ref_bak= fk_add_backup(ref_share);
+    FK_share_backup *ref_bak= fk_add_backup(ref_share);
     if (!ref_bak)
       return true;
     FK_info *rk;
@@ -12854,7 +12854,7 @@ bool Alter_table_ctx::fk_handle_alter(THD *thd)
       break;
     }
     if (rk)
-      ref_bak->install_shadow= true;
+      ref_bak->update_frm= true;
   }
 
   /* Handle table rename. FRM write is required. */
@@ -12871,7 +12871,7 @@ bool Alter_table_ctx::fk_handle_alter(THD *thd)
     if (!ref_table.share)
       return true;
     TABLE_SHARE *ref_share= ref_table.share;
-    FK_ref_backup *ref_bak= fk_add_backup(ref_share);
+    FK_share_backup *ref_bak= fk_add_backup(ref_share);
     if (!ref_bak)
       return true;
     // Update foreign_table of referenced_keys.
@@ -12894,7 +12894,7 @@ bool Alter_table_ctx::fk_handle_alter(THD *thd)
         }
       }
     }
-    ref_bak->install_shadow= true;
+    ref_bak->update_frm= true;
   } // for (const Table_name &ref: fk_renamed_table)
 
   for (const Table_name &ref: rk_renamed_table)
@@ -12910,7 +12910,7 @@ bool Alter_table_ctx::fk_handle_alter(THD *thd)
     if (!fk_table.share)
       return true;
     TABLE_SHARE *fk_share= fk_table.share;
-    FK_ref_backup *ref_bak= fk_add_backup(fk_share);
+    FK_share_backup *ref_bak= fk_add_backup(fk_share);
     if (!ref_bak)
       return true;
     // Update referenced_table of foreign_keys.
@@ -12933,14 +12933,14 @@ bool Alter_table_ctx::fk_handle_alter(THD *thd)
         }
       }
     }
-    ref_bak->install_shadow= true;
+    ref_bak->update_frm= true;
   } // for (const Table_name &ref: rk_renamed_table)
 
   /* Update EXTRA2_FOREIGN_KEY_INFO section in FRM files. */
   for (auto &key_val: fk_ref_backup)
   {
-    FK_ref_backup *ref_bak= const_cast<FK_ref_backup *>(&key_val.second);
-    if (ref_bak->install_shadow && ref_bak->fk_write_shadow_frm(fk_ddl_info))
+    FK_share_backup *ref_bak= const_cast<FK_share_backup *>(&key_val.second);
+    if (ref_bak->update_frm && ref_bak->fk_write_shadow_frm(fk_ddl_info))
       return true;
   }
 
@@ -12990,9 +12990,10 @@ bool Alter_table_ctx::fk_check_foreign_id(THD *thd)
 }
 
 
-FK_ref_backup* Alter_table_ctx::fk_add_backup(TABLE_SHARE *share)
+#if 0
+FK_share_backup* Alter_table_ctx::fk_add_backup(TABLE_SHARE *share)
 {
-  FK_ref_backup fk_bak;
+  FK_share_backup fk_bak;
   if (fk_bak.init(share))
     return NULL;
   auto found= fk_ref_backup.find(share);
@@ -13000,16 +13001,25 @@ FK_ref_backup* Alter_table_ctx::fk_add_backup(TABLE_SHARE *share)
     return &found->second;
   return fk_ref_backup.insert(share, fk_bak);
 }
+#endif
+
+
+FK_share_backup* Alter_table_ctx::fk_add_backup(TABLE_SHARE *share)
+{
+  bool inserted;
+  FK_share_backup *fk_bak= fk_ref_backup.emplace(&inserted, share, share);
+  return fk_bak;
+}
 
 
 void Alter_table_ctx::fk_rollback()
 {
   for (auto &key_val: fk_ref_backup)
   {
-    FK_ref_backup *ref_bak= const_cast<FK_ref_backup *>(&key_val.second);
-    if (ref_bak->install_shadow)
+    FK_share_backup *ref_bak= const_cast<FK_share_backup *>(&key_val.second);
+    if (ref_bak->update_frm)
       ref_bak->fk_drop_shadow_frm(fk_ddl_info);
-    ref_bak->rollback();
+    ref_bak->rollback(fk_ddl_info);
   }
 }
 
@@ -13032,31 +13042,31 @@ void Alter_table_ctx::fk_release_locks(THD* thd)
 bool Alter_table_ctx::fk_install_frms()
 {
   // FIXME: remake via FK_ddl_vector::install_shadow_frms()
-  // converge FK_ref_backup and FK_ddl_backup
+  // converge FK_share_backup and FK_ddl_backup
   for (auto &key_val: fk_ref_backup)
   {
-    FK_ref_backup *ref_bak= const_cast<FK_ref_backup *>(&key_val.second);
-    DBUG_ASSERT(ref_bak->share);
-    if (ref_bak->install_shadow && ref_bak->fk_backup_frm(fk_ddl_info))
+    FK_share_backup *ref_bak= const_cast<FK_share_backup *>(&key_val.second);
+    DBUG_ASSERT(ref_bak->get_share());
+    if (ref_bak->update_frm && ref_bak->fk_backup_frm(fk_ddl_info))
       return true;
   }
   for (auto &key_val: fk_ref_backup)
   {
-    FK_ref_backup *ref_bak= const_cast<FK_ref_backup *>(&key_val.second);
-    if (ref_bak->install_shadow && ref_bak->fk_install_shadow_frm(fk_ddl_info))
+    FK_share_backup *ref_bak= const_cast<FK_share_backup *>(&key_val.second);
+    if (ref_bak->update_frm && ref_bak->fk_install_shadow_frm(fk_ddl_info))
       // FIXME: test rollback
       return true;
   }
   for (auto &key_val: fk_ref_backup)
   {
-    FK_ref_backup *ref_bak= const_cast<FK_ref_backup *>(&key_val.second);
-    if (ref_bak->install_shadow && deactivate_ddl_log_entry(ref_bak->restore_backup_entry->entry_pos))
+    FK_share_backup *ref_bak= const_cast<FK_share_backup *>(&key_val.second);
+    if (ref_bak->update_frm && deactivate_ddl_log_entry(ref_bak->restore_backup_entry->entry_pos))
       return true;
   }
   for (auto &key_val: fk_ref_backup)
   {
-    FK_ref_backup *ref_bak= const_cast<FK_ref_backup *>(&key_val.second);
-    if (ref_bak->install_shadow)
+    FK_share_backup *ref_bak= const_cast<FK_share_backup *>(&key_val.second);
+    if (ref_bak->update_frm)
       ref_bak->fk_drop_backup_frm(fk_ddl_info);
   }
   fk_ddl_info.write_log_finish();
@@ -13145,7 +13155,7 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, FK_ddl_vector &shares,
       return true;
     }
     DBUG_ASSERT(!ref_sa.share);
-    if (!shares.back().sa.share)
+    if (!shares.back().get_share())
       return true; // ctor failed, share was released
   }
 
@@ -13154,7 +13164,7 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, FK_ddl_vector &shares,
   // NB: another loop separates share acquisition which may fail
   for (auto ref= std::begin(shares); ref != std::end(shares); )
   {
-    ref_it.init(ref->sa.share->referenced_keys);
+    ref_it.init(ref->get_share()->referenced_keys);
     while (FK_info *rk= ref_it++)
     {
       if (0 == cmp_table(rk->foreign_db, share->db) &&
@@ -13212,7 +13222,7 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
   for (FK_ddl_backup &bak: fk_rename_backup)
   {
     // NB: exception_wrapper prints error message
-    if (!already.insert(Table_name(bak.sa.share->db, bak.sa.share->table_name)))
+    if (!already.insert(Table_name(bak.get_share()->db, bak.get_share()->table_name)))
       return true;
   }
   // NB: we do not allow same share twice in fk_rename_backup
@@ -13303,13 +13313,13 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
     if (fk_rename_backup.push_back(std::move(ref_sa)))
       return true;
     DBUG_ASSERT(!ref_sa.share);
-    if (!fk_rename_backup.back().sa.share)
+    if (!fk_rename_backup.back().get_share())
       return true; // ctor failed, share was released
   }
 
   for (FK_ddl_backup &ref: fk_rename_backup)
   {
-    TABLE_SHARE *ref_share= ref.sa.share;
+    TABLE_SHARE *ref_share= ref.get_share();
     if (!ref_share)
       continue; // renamed table backup
     for (FK_info &fk: ref_share->foreign_keys)
@@ -13345,39 +13355,19 @@ mem_error:
 FK_ddl_backup::FK_ddl_backup(Share_acquire&& _sa) :
   sa(std::move(_sa))
 {
-  if (foreign_keys.copy(&sa.share->foreign_keys, &sa.share->mem_root) ||
-      list_copy_and_replace_each_value(foreign_keys, &sa.share->mem_root))
-  {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+  if (init(sa.share))
     sa.release();
-    return;
-  }
-  if (referenced_keys.copy(&sa.share->referenced_keys, &sa.share->mem_root) ||
-      list_copy_and_replace_each_value(referenced_keys, &sa.share->mem_root))
+  else
   {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0));
-    sa.release();
-    return;
-  }
-}
-
-
-void
-FK_ddl_backup::rollback(ddl_log_info& log_info)
-{
-  if (sa.share)
-  {
-    sa.share->foreign_keys= foreign_keys;
-    sa.share->referenced_keys= referenced_keys;
-    delete_shadow_entry= NULL;
+    share= sa.share;
+    update_frm= true;
   }
 }
 
 
 bool
-FK_table_backup::init(TABLE_SHARE *_share)
+FK_share_backup::init(TABLE_SHARE *_share)
 {
-  DBUG_ASSERT(_share);
   if (foreign_keys.copy(&_share->foreign_keys, &_share->mem_root) ||
       list_copy_and_replace_each_value(foreign_keys, &_share->mem_root))
   {
@@ -13392,4 +13382,38 @@ FK_table_backup::init(TABLE_SHARE *_share)
   }
   share= _share;
   return false;
+}
+
+
+// FIXME: remove FK_table_backup
+bool
+FK_table_backup::init(TABLE_SHARE *_share)
+{
+  if (foreign_keys.copy(&_share->foreign_keys, &_share->mem_root) ||
+      list_copy_and_replace_each_value(foreign_keys, &_share->mem_root))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return true;
+  }
+  if (referenced_keys.copy(&_share->referenced_keys, &_share->mem_root) ||
+      list_copy_and_replace_each_value(referenced_keys, &_share->mem_root))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return true;
+  }
+  share= _share;
+  return false;
+}
+
+
+void
+FK_share_backup::rollback(ddl_log_info& log_info)
+{
+  if (share)
+  {
+    share->foreign_keys= foreign_keys;
+    share->referenced_keys= referenced_keys;
+    share= NULL;
+  }
+  delete_shadow_entry= NULL;
 }
