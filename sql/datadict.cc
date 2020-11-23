@@ -694,13 +694,8 @@ void FK_ddl_vector::rollback(THD *thd)
   {
     my_printf_error(ER_DDL_LOG_ERROR, "Executing some rollback actions from entry %u failed",
                     MYF(0), first_entry->entry_pos);
-    write_log_finish();
   }
-  else
-  {
-    Mutex_lock lock_gdl(&LOCK_gdl);
-    release();
-  }
+  write_log_finish();
 }
 
 
