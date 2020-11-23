@@ -57,42 +57,6 @@ public:
 };
 
 
-class FK_ddl_backup2 : public FK_backup
-{
-public:
-  TABLE_SHARE *share;
-
-  FK_ddl_backup2() : share(NULL) {}
-  virtual ~FK_ddl_backup2()
-  {
-    if (share)
-      rollback();
-  }
-  FK_ddl_backup2(Share_acquire&& _sa)
-  {
-  }
-  bool init(TABLE_SHARE *)
-  {
-    return true;
-  }
-  void commit()
-  {
-    share= NULL;
-  }
-  void rollback()
-  {
-    DBUG_ASSERT(share);
-    share->foreign_keys= foreign_keys;
-    share->referenced_keys= referenced_keys;
-    share= NULL;
-  }
-  TABLE_SHARE *get_share() const
-  {
-    return share;
-  }
-};
-
-
 /* DROP FK does not fail for non-existent ref (but other commands do) */
 struct FK_table_to_lock
 {
