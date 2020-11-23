@@ -1032,7 +1032,6 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
   TABLE table;
   TABLE_SHARE share;
   Create_field *field;
-  enum_check_fields old_count_cuted_fields= thd->count_cuted_fields;
   DBUG_ENTER("make_empty_rec");
 
   /* We need a table to generate columns for default values */
@@ -1051,7 +1050,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
   null_pos= buff;
 
   List_iterator<Create_field> it(create_fields);
-  thd->count_cuted_fields= CHECK_FIELD_WARN;    // To find wrong default values
+  Check_level_instant_set check_level_save(thd, CHECK_FIELD_WARN);
   while ((field=it++))
   {
     /* regfield don't have to be deleted as it's allocated on THD::mem_root */
@@ -1131,6 +1130,5 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
     *(null_pos + null_count / 8)|= ~(((uchar) 1 << (null_count & 7)) - 1);
 
 err:
-  thd->count_cuted_fields= old_count_cuted_fields;
   DBUG_RETURN(error);
 } /* make_empty_rec */

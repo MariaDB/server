@@ -1867,21 +1867,15 @@ bool Field::compatible_field_size(uint field_metadata,
 int Field::store(const char *to, size_t length, CHARSET_INFO *cs,
                  enum_check_fields check_level)
 {
-  int res;
-  THD *thd= get_thd();
-  enum_check_fields old_check_level= thd->count_cuted_fields;
-  thd->count_cuted_fields= check_level;
-  res= store(to, length, cs);
-  thd->count_cuted_fields= old_check_level;
-  return res;
+  Check_level_instant_set check_level_save(get_thd(), check_level);
+  return store(to, length, cs);
 }
 
 
 int Field::store_timestamp(my_time_t ts, ulong sec_part)
 {
   MYSQL_TIME ltime;
-  THD *thd= get_thd();
-  thd->timestamp_to_TIME(&ltime, ts, sec_part, 0);
+  get_thd()->timestamp_to_TIME(&ltime, ts, sec_part, 0);
   return store_time_dec(&ltime, decimals());
 }
 
