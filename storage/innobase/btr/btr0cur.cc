@@ -578,7 +578,7 @@ incompatible:
 			}
 		}
 
-		if (index->table->deserialise_columns(
+		if (index->table->deserialise_mblob(
 			    &block->frame[FIL_PAGE_DATA + BTR_BLOB_HDR_SIZE],
 			    len)) {
 			goto incompatible;
@@ -4391,7 +4391,7 @@ static void btr_cur_trim_alter_metadata(dtuple_t* entry,
 		return;
 	}
 
-	/* This is based on dict_table_t::deserialise_columns()
+	/* This is based on dict_table_t::deserialise_mblob()
 	and btr_cur_instant_init_low(). */
 	mtr_t mtr;
 	mtr.start();

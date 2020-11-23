@@ -146,6 +146,11 @@ ATOMIC_WRITES=ON and ATOMIC_WRITES=OFF between MariaDB 10.1.0 and 10.2.3)
 */
 #define DICT_TF_WIDTH_NO_ROLLBACK 2
 
+/**
+Width of the persistent count flag
+*/
+#define DICT_TF_WIDTH_PERSISTENT_COUNT 1
+
 /** Width of all the currently known table flags */
 #define DICT_TF_BITS	(DICT_TF_WIDTH_COMPACT			\
 			+ DICT_TF_WIDTH_ZIP_SSIZE		\
@@ -153,7 +158,8 @@ ATOMIC_WRITES=ON and ATOMIC_WRITES=OFF between MariaDB 10.1.0 and 10.2.3)
 			+ DICT_TF_WIDTH_DATA_DIR		\
 			+ DICT_TF_WIDTH_PAGE_COMPRESSION	\
 			+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL	\
-			+ DICT_TF_WIDTH_NO_ROLLBACK)
+			+ DICT_TF_WIDTH_NO_ROLLBACK	  \
+			+ DICT_TF_WIDTH_PERSISTENT_COUNT)
 
 /** Zero relative shift position of the COMPACT field */
 #define DICT_TF_POS_COMPACT		0
@@ -175,8 +181,11 @@ ATOMIC_WRITES=ON and ATOMIC_WRITES=OFF between MariaDB 10.1.0 and 10.2.3)
 /** Zero relative shift position of the NO_ROLLBACK field */
 #define DICT_TF_POS_NO_ROLLBACK		(DICT_TF_POS_PAGE_COMPRESSION_LEVEL \
 					+ DICT_TF_WIDTH_PAGE_COMPRESSION_LEVEL)
-#define DICT_TF_POS_UNUSED		(DICT_TF_POS_NO_ROLLBACK     \
+/** Zero relative shift position of the PERSISTENT_COUNT field */
+#define DICT_TF_POS_PERSISTENT_COUNT (DICT_TF_POS_NO_ROLLBACK     \
 					+ DICT_TF_WIDTH_NO_ROLLBACK)
+#define DICT_TF_POS_UNUSED           (DICT_TF_POS_PERSISTENT_COUNT    \
+					+ DICT_TF_WIDTH_PERSISTENT_COUNT)
 
 /** Bit mask of the COMPACT field */
 #define DICT_TF_MASK_COMPACT				\
@@ -206,6 +215,11 @@ ATOMIC_WRITES=ON and ATOMIC_WRITES=OFF between MariaDB 10.1.0 and 10.2.3)
 #define DICT_TF_MASK_NO_ROLLBACK		\
 		((~(~0U << DICT_TF_WIDTH_NO_ROLLBACK)) \
 		<< DICT_TF_POS_NO_ROLLBACK)
+/** Bit mask of the PERSISTENT_COUNT field */
+#define DICT_TF_MASK_PERSISTENT_COUNT		\
+		((~(~0U << DICT_TF_WIDTH_PERSISTENT_COUNT)) \
+		<< DICT_TF_POS_PERSISTENT_COUNT)
+
 
 /** Return the value of the COMPACT field */
 #define DICT_TF_GET_COMPACT(flags)			\
@@ -231,7 +245,10 @@ ATOMIC_WRITES=ON and ATOMIC_WRITES=OFF between MariaDB 10.1.0 and 10.2.3)
 #define DICT_TF_GET_PAGE_COMPRESSION_LEVEL(flags)       \
 		((flags & DICT_TF_MASK_PAGE_COMPRESSION_LEVEL)	\
 		>> DICT_TF_POS_PAGE_COMPRESSION_LEVEL)
-
+/** Return the value of the PERSISTENT_COUNT field */
+#define DICT_TF_GET_PERSISTENT_COUNT(flags)       \
+		((flags & DICT_TF_MASK_PERSISTENT_COUNT)	\
+		>> DICT_TF_POS_PERSISTENT_COUNT)
 /* @} */
 
 /** @brief Table Flags set number 2.
@@ -1852,16 +1869,23 @@ struct dict_table_t {
 		return NULL;
 	}
 
-	/** Serialise metadata of dropped or reordered columns.
+	/** Metadata BLOB structure. */
+	#define NUM_NON_PK_FIELDS_SIZE 4
+	#define NON_PK_FIELD_SIZE 2
+	#define COMMITTED_COUNT_SIZE 8
+
+	/** Serialise metadata BLOB, consisting of dropped or reordered columns,
+	and committed count.
 	@param[in,out]	heap	memory heap for allocation
 	@param[out]	field	data field with the metadata */
-	inline void serialise_columns(mem_heap_t* heap, dfield_t* field) const;
+	inline void serialise_mblob(mem_heap_t* heap, dfield_t* field) const;
 
-	/** Reconstruct dropped or reordered columns.
-	@param[in]	metadata	data from serialise_columns()
+	/** Deserialise metadata BLOB and reconstruct dropped or reordered columns,
+	and committed count.
+	@param[in]	metadata	data from serialise_mblob()
 	@param[in]	len		length of the metadata, in bytes
 	@return whether parsing the metadata failed */
-	bool deserialise_columns(const byte* metadata, ulint len);
+	bool deserialise_mblob(const byte* metadata, ulint len);
 
 	/** Set is_instant() before instant_column().
 	@param[in]	old		previous table definition
@@ -1871,7 +1895,8 @@ struct dict_table_t {
 					1 + first changed column position */
 	inline void prepare_instant(const dict_table_t& old,
 				    const ulint* col_map,
-				    unsigned& first_alter_pos);
+				    unsigned& first_alter_pos,
+				    bool alter_persistent_count);
 
 	/** Adjust table metadata for instant ADD/DROP/reorder COLUMN.
 	@param[in]	table	table on which prepare_instant() was invoked
@@ -2292,6 +2317,12 @@ public:
 	determine whether we can evict the table from the dictionary cache.
 	It is protected by lock_sys.mutex. */
 	ulint					n_rec_locks;
+
+	/* Whether committed count is initialized. */
+	std::atomic<bool>       committed_count_inited;
+
+	/* Count of committed records. */
+	Atomic_counter<uint64_t>       committed_count;
 
 private:
 	/** Count of how many handles are opened to this table. Dropping of the

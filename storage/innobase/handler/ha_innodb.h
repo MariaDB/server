@@ -50,6 +50,7 @@ struct ha_table_option_struct
 						value OFF.*/
 	uint		encryption;		/*!<  DEFAULT, ON, OFF */
 	ulonglong	encryption_key_id;	/*!< encryption key id  */
+	bool		persistent_count;	/*!< persistent count */
 };
 
 /** The class defining a handle to an Innodb table */
@@ -183,6 +184,11 @@ public:
                 const key_range*        min_key,
                 const key_range*        max_key,
                 page_range*             pages) override;
+
+	int enable_persistent_count();
+	int disable_persistent_count();
+
+	inline int records2(ha_rows* num_rows) override;
 
 	ha_rows estimate_rows_upper_bound() override;
 
@@ -721,6 +727,10 @@ public:
 	THD* thd() const
 	{ return(m_thd); }
 
+	/** Get table. */
+	dict_table_t* table() const
+	{ return(m_table); }
+
 	/** Normalizes a table name string.
 	A normalized name consists of the database name catenated to '/' and
 	table name. An example: test/mytable. On Windows normalization puts
@@ -954,6 +964,26 @@ ib_push_frm_error(
 	TABLE*		table,		/*!< in: MySQL table */
 	ulint		n_keys,		/*!< in: InnoDB #keys */
 	bool		push_warning);	/*!< in: print warning ? */
+
+/** Initialize metadata BLOB on CREATE for persistent count.
+@param[in]  user_table  InnoDB table
+@param[in]  table       MySQL table
+@param[in]  trx         transaction
+@retval true   failure
+@retval false  success */
+bool innobase_create_persistent_count(
+	dict_table_t*       user_table,
+	const TABLE*        table,
+	trx_t*              trx);
+
+/** Update metadata BLOB to reflect updated persistent count.
+@param[in]  user_table  InnoDB table
+@param[in]	trx		transaction
+@retval	true	failure
+@retval	false	success */
+bool innobase_update_persistent_count(
+	const dict_table_t* user_table,
+	trx_t*		trx);
 
 /** Check each index part length whether they not exceed the max limit
 @param[in]	max_field_len	maximum allowed key part length

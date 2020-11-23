@@ -3632,6 +3632,12 @@ public:
   */
   virtual int pre_records() { return 0; }
   virtual ha_rows records() { return stats.records; }
+  virtual int records2(ha_rows* num_rows)
+  {
+    *num_rows = records();
+    return 0;
+  }
+
   /**
     Return upper bound of current number of records in the table
     (max. of how many records one will retrieve when doing a full table scan)

@@ -1263,16 +1263,22 @@ inline void dict_index_t::reconstruct_fields()
 	n_core_null_bytes = static_cast<byte>(UT_BITS_IN_BYTES(n_core_null));
 }
 
-/** Reconstruct dropped or reordered columns.
-@param[in]	metadata	data from serialise_columns()
+/** Deserialise metadata BLOB and reconstruct dropped or reordered columns,
+committed count.
+@param[in]	metadata	data from serialise_mblob()
 @param[in]	len		length of the metadata, in bytes
 @return whether parsing the metadata failed */
-bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
+bool dict_table_t::deserialise_mblob(const byte* metadata, ulint len)
 {
 	DBUG_ASSERT(!instant);
 
 	unsigned num_non_pk_fields = mach_read_from_4(metadata);
-	metadata += 4;
+	metadata += NUM_NON_PK_FIELDS_SIZE;
+
+	DBUG_ASSERT((NUM_NON_PK_FIELDS_SIZE + num_non_pk_fields * NON_PK_FIELD_SIZE
+			== len)
+		|| (NUM_NON_PK_FIELDS_SIZE + num_non_pk_fields * NON_PK_FIELD_SIZE
+			+ COMMITTED_COUNT_SIZE == len));
 
 	if (num_non_pk_fields >= REC_MAX_N_FIELDS - 3) {
 		return true;
@@ -1293,7 +1299,7 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 
 	for (unsigned i = 0; i < num_non_pk_fields; i++) {
 		auto c = field_map[i] = mach_read_from_2(metadata);
-		metadata += 2;
+		metadata += NON_PK_FIELD_SIZE;
 
 		if (field_map[i].is_dropped()) {
 			if (c.ind() > DICT_MAX_FIXED_COL_LEN + 1) {
@@ -1326,6 +1332,14 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 	DBUG_ASSERT(col == &dropped_cols[n_dropped_cols]);
 
 	UT_LIST_GET_FIRST(indexes)->reconstruct_fields();
+
+	committed_count_inited = (NUM_NON_PK_FIELDS_SIZE +
+		num_non_pk_fields * NON_PK_FIELD_SIZE + COMMITTED_COUNT_SIZE == len);
+	if (committed_count_inited) {
+		committed_count = mach_read_from_8(metadata);
+		metadata += COMMITTED_COUNT_SIZE;
+	}
+
 	return false;
 }
 

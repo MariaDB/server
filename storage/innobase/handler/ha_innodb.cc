@@ -622,6 +622,11 @@ static MYSQL_THDVAR_BOOL(compression_default, PLUGIN_VAR_OPCMDARG,
   "Is compression the default for new tables", 
   NULL, NULL, FALSE);
 
+// should persistent count be enabled by default for new tables
+static MYSQL_THDVAR_BOOL(persistent_count_default, PLUGIN_VAR_OPCMDARG,
+  "Is persistent count enabled by default for new tables",
+  NULL, NULL, FALSE);
+
 /** Update callback for SET [SESSION] innodb_default_encryption_key_id */
 static void
 innodb_default_encryption_key_id_update(THD* thd, st_mysql_sys_var* var,
@@ -663,7 +668,7 @@ ha_create_table_option innodb_table_option_list[]=
   HA_TOPTION_ENUM("ENCRYPTED", encryption, "DEFAULT,YES,NO", 0),
   /* With this option the user defines the key identifier using for the encryption */
   HA_TOPTION_SYSVAR("ENCRYPTION_KEY_ID", encryption_key_id, default_encryption_key_id),
-
+  HA_TOPTION_SYSVAR("PERSISTENT_COUNT", persistent_count, persistent_count_default),
   HA_TOPTION_END
 };
 
@@ -4763,6 +4768,9 @@ ha_innobase::table_flags() const
 	called before prebuilt is inited. */
 
 	if (thd_tx_isolation(thd) <= ISO_READ_COMMITTED) {
+		if (thd_tx_isolation(thd) == ISO_READ_COMMITTED) {
+			return (flags | HA_STATS_RECORDS_IS_EXACT);
+		}
 		return(flags);
 	}
 
@@ -11478,8 +11486,9 @@ index_bad:
 	dict_tf_set(&m_flags, innodb_row_format, zip_ssize,
 			m_use_data_dir,
 			options->page_compressed,
-		    	options->page_compression_level == 0 ?
-		        default_compression_level : ulint(options->page_compression_level));
+			options->page_compression_level == 0 ? default_compression_level
+				: ulint(options->page_compression_level),
+			options->persistent_count);
 
 	if (m_form->s->table_type == TABLE_TYPE_SEQUENCE) {
 		m_flags |= DICT_TF_MASK_NO_ROLLBACK;
@@ -12968,6 +12977,15 @@ ha_innobase::create(
 		DBUG_RETURN(error);
 	}
 
+	dict_table_t* ib_table = info.table();
+
+	ib_table->committed_count_inited =
+		!!DICT_TF_GET_PERSISTENT_COUNT(info.flags());
+	if (ib_table->committed_count_inited) {
+		ib_table->committed_count = 0;
+		innobase_create_persistent_count(ib_table, form, trx);
+	}
+
 	innobase_commit_low(trx);
 	row_mysql_unlock_data_dictionary(trx);
 
@@ -13710,6 +13728,65 @@ ha_innobase::rename_table(
 	}
 
 	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
+}
+
+/** Initialize committed count within dict_table_t.
+@return  0 or error code */
+int
+ha_innobase::enable_persistent_count()
+{
+	dict_table_t* ib_table = m_prebuilt->table;
+	uchar* read_buf = m_prebuilt->m_mysql_table->record[0];
+	trx_t* trx = m_prebuilt->trx;
+	int err;
+
+	if (ib_table->committed_count_inited) {
+		return -1;  /* Already initialized */
+	}
+
+	uint64_t count = 0;
+	rnd_init(true);
+	do {
+		err = rnd_next(read_buf);
+		if (!err) {
+			count++;
+		}
+	} while (!err);
+	ib_table->committed_count = count - trx->uncommitted_count(ib_table);
+	ib_table->committed_count_inited = true;
+
+	return 0;
+}
+
+/** De-initialize committed count within dict_table_t.
+@return  0 or error code */
+int
+ha_innobase::disable_persistent_count()
+{
+	dict_table_t* ib_table = m_prebuilt->table;
+	ib_table->committed_count_inited = false;
+
+	return 0;
+}
+
+/** If committed count is initialized and transaction is in READ COMMITTED mode,
+returns exact number of records; otherwise returns an estimate of index records.
+@param[out]  num_rows  number of rows in table
+@return  0 if success
+@return  1 if failure */
+inline
+int
+ha_innobase::records2(ha_rows* num_rows)
+{	
+    trx_t* trx = m_prebuilt->trx;
+    dict_table_t* ib_table = m_prebuilt->table;
+
+    if (!ib_table->committed_count_inited) {
+        return 1;
+    }
+    *num_rows = ib_table->committed_count + trx->uncommitted_count(ib_table);
+
+    return 0;
 }
 
 /*********************************************************************//**
@@ -20143,6 +20220,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(buf_dump_status_frequency),
   MYSQL_SYSVAR(background_thread),
   MYSQL_SYSVAR(encrypt_temporary_tables),
+  MYSQL_SYSVAR(persistent_count_default),
 
   NULL
 };

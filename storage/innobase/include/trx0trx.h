@@ -705,6 +705,12 @@ struct trx_rsegs_t {
 	trx_temp_undo_t	m_noredo;
 };
 
+/** Uncommitted difference for an undo log rec */
+struct undo_rec_diff_t {
+	int64_t diff;
+	table_id_t table_id;
+};
+
 struct trx_t : ilist_node<> {
 private:
   /**
@@ -1049,6 +1055,9 @@ private:
 public:
   /** Commit the transaction. */
   void commit();
+  /** Return number of uncommitted records for table within transaction
+  @param[in]	table 	table to count uncommitted records for */
+  int64_t uncommitted_count(const dict_table_t* table) const;
 
 
   bool is_referenced() const { return n_ref > 0; }
@@ -1167,7 +1176,6 @@ struct commit_node_t{
 	enum commit_node_state
 			state;	/*!< node execution state */
 };
-
 
 /** Test if trx->mutex is owned. */
 #define trx_mutex_own(t) mutex_own(&t->mutex)

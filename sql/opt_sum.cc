@@ -298,6 +298,7 @@ int opt_sum_query(THD *thd,
     if (!(tl->table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT) ||
         tl->schema_table)
     {
+stats_records_inexact:
       maybe_exact_count&= MY_TEST(!tl->schema_table &&
                                   (tl->table->file->ha_table_flags() &
                                    HA_HAS_RECORDS));
@@ -321,7 +322,12 @@ int opt_sum_query(THD *thd,
         tl->table->file->print_error(error, MYF(ME_FATAL));
         DBUG_RETURN(error);
       }
-      count*= tl->table->file->stats.records;
+
+      ha_rows num_rows;
+      if (tl->table->file->records2(&num_rows)) {
+        goto stats_records_inexact;
+      }
+      count *= num_rows;
     }
   }
 

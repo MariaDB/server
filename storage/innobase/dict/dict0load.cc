@@ -1236,7 +1236,7 @@ dict_sys_tables_rec_read(
 	ATOMIC_WRITES=OFF, but it would be ignored starting with
 	MariaDB 10.2.4. */
 	compile_time_assert(DICT_TF_POS_PAGE_COMPRESSION == 7);
-	compile_time_assert(DICT_TF_POS_UNUSED == 14);
+	compile_time_assert(DICT_TF_POS_UNUSED == 15);
 
 	if ((type & 0x19f) != 0x101) {
 		/* The table cannot have been created with MariaDB

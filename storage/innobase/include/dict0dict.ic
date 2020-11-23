@@ -559,7 +559,8 @@ dict_tf_get_rec_format(
 @param[in]	zip_ssize	Zip Shift Size
 @param[in]	use_data_dir	Table uses DATA DIRECTORY
 @param[in]	page_compressed Table uses page compression
-@param[in]	page_compression_level Page compression level */
+@param[in]	page_compression_level Page compression level
+@param[in]	persistent_count Table uses persistent count */
 UNIV_INLINE
 void
 dict_tf_set(
@@ -569,7 +570,8 @@ dict_tf_set(
 	ulint		zip_ssize,
 	bool		use_data_dir,
 	bool		page_compressed,
-	ulint		page_compression_level)
+	ulint		page_compression_level,
+	bool		persistent_count)
 {
 	*flags = use_data_dir ? 1 << DICT_TF_POS_DATA_DIR : 0;
 
@@ -603,6 +605,10 @@ dict_tf_set(
 		ut_ad(zip_ssize == 0);
 		ut_ad(dict_tf_get_page_compression(*flags) == TRUE);
 		ut_ad(dict_tf_get_page_compression_level(*flags) == page_compression_level);
+	}
+
+	if (persistent_count) {
+		*flags |= (1 << DICT_TF_POS_PERSISTENT_COUNT);
 	}
 }
 

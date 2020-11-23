@@ -604,7 +604,7 @@ rec_init_offsets(
 	call in btr_cur_instant_init_low(). We cannot invoke
 	index->is_instant(), because the same assertion would fail there
 	until btr_cur_instant_init_low() has invoked
-	dict_table_t::deserialise_columns(). */
+	dict_table_t::deserialise_mblob(). */
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable)
 	      || index->in_instant_init);
 	ut_d(memcpy(&offsets[RECORD_OFFSET], &rec, sizeof(rec)));
