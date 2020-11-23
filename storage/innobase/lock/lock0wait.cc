@@ -459,24 +459,21 @@ lock_wait_check_and_cancel(
 
 		lock_mutex_enter();
 
-		trx_mutex_enter(trx);
-
 		if (trx->lock.wait_lock != NULL) {
-
 			ut_a(trx->lock.que_state == TRX_QUE_LOCK_WAIT);
 
 #ifdef WITH_WSREP
                         if (!wsrep_is_BF_lock_timeout(trx)) {
 #endif /* WITH_WSREP */
+				mutex_enter(&trx->mutex);
 				lock_cancel_waiting_and_release(trx->lock.wait_lock);
+				mutex_exit(&trx->mutex);
 #ifdef WITH_WSREP
                         }
 #endif /* WITH_WSREP */
 		}
 
 		lock_mutex_exit();
-
-		trx_mutex_exit(trx);
 	}
 }
 

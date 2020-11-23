@@ -959,13 +959,13 @@ trx_rollback_step(
 
 		trx = thr_get_trx(thr);
 
-		trx_mutex_enter(trx);
-
 		node->state = ROLL_NODE_WAIT;
 
 		ut_a(node->undo_thr == NULL);
 
 		roll_limit = node->savept ? node->savept->least_undo_no : 0;
+
+		trx_mutex_enter(trx);
 
 		trx_commit_or_rollback_prepare(trx);
 

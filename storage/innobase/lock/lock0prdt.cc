@@ -920,20 +920,14 @@ lock_place_prdt_page_lock(
 	trx_t*		trx = thr_get_trx(thr);
 
 	if (lock != NULL) {
-
-		trx_mutex_enter(trx);
-
 		/* Find a matching record lock owned by this transaction. */
 
 		while (lock != NULL && lock->trx != trx) {
-
 			lock = lock_rec_get_next_on_page_const(lock);
 		}
 
 		ut_ad(lock == NULL || lock->type_mode == (mode | LOCK_REC));
 		ut_ad(lock == NULL || lock_rec_get_n_bits(lock) != 0);
-
-		trx_mutex_exit(trx);
 	}
 
 	if (lock == NULL) {

@@ -1872,8 +1872,6 @@ lock_rec_cancel(
 /*============*/
 	lock_t*	lock)	/*!< in: waiting record lock request */
 {
-	que_thr_t*	thr;
-
 	ut_ad(lock_mutex_own());
 	ut_ad(lock_get_type_low(lock) == LOCK_REC);
 
@@ -1884,17 +1882,13 @@ lock_rec_cancel(
 
 	lock_reset_lock_and_trx_wait(lock);
 
-	/* The following function releases the trx from lock wait */
-
-	trx_mutex_enter(lock->trx);
-
-	thr = que_thr_end_lock_wait(lock->trx);
-
-	if (thr != NULL) {
+	/* The following releases the trx from lock wait */
+	trx_t *trx = lock->trx;
+	trx_mutex_enter(trx);
+	if (que_thr_t* thr = que_thr_end_lock_wait(trx)) {
 		lock_wait_release_thread_if_suspended(thr);
 	}
-
-	trx_mutex_exit(lock->trx);
+	trx_mutex_exit(trx);
 }
 
 /** Remove a record lock request, waiting or granted, from the queue and
@@ -3755,7 +3749,6 @@ lock_rec_unlock(
 	heap_no = page_rec_get_heap_no(rec);
 
 	lock_mutex_enter();
-	trx_mutex_enter(trx);
 
 	first_lock = lock_rec_get_first(&lock_sys.rec_hash, block, heap_no);
 
@@ -3770,7 +3763,6 @@ lock_rec_unlock(
 	}
 
 	lock_mutex_exit();
-	trx_mutex_exit(trx);
 
 	{
 		ib::error	err;
@@ -3809,7 +3801,6 @@ released:
 	}
 
 	lock_mutex_exit();
-	trx_mutex_exit(trx);
 }
 
 #ifdef UNIV_DEBUG
@@ -3925,7 +3916,8 @@ lock_trx_table_locks_remove(
 	ut_ad(lock_mutex_own());
 
 	/* It is safe to read this because we are holding the lock mutex */
-	if (!trx->lock.cancel) {
+	const bool have_mutex = trx->lock.cancel;
+	if (!have_mutex) {
 		trx_mutex_enter(trx);
 	} else {
 		ut_ad(trx_mutex_own(trx));
@@ -3942,16 +3934,12 @@ lock_trx_table_locks_remove(
 		if (lock == lock_to_remove) {
 			*it = NULL;
 
-			if (!trx->lock.cancel) {
+			if (!have_mutex) {
 				trx_mutex_exit(trx);
 			}
 
 			return;
 		}
-	}
-
-	if (!trx->lock.cancel) {
-		trx_mutex_exit(trx);
 	}
 
 	/* Lock must exist in the vector. */
