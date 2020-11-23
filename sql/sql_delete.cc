@@ -702,16 +702,16 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       clause.  Instead of deleting the rows, first mark them deleted.
     */
     ha_rows tmplimit=limit;
-    Descriptor *desc= new Fixed_sized_keys_descriptor(table->file->ref_length);
+    Descriptor *desc= new Fixed_size_keys_descriptor(table->file->ref_length);
     if (!desc)
-      goto terminate_delete;
+      goto terminate_delete;  // OOM
 
     deltempfile= new (thd->mem_root) Unique_impl(refpos_order_cmp, table->file,
                                                  table->file->ref_length,
                                                  MEM_STRIP_BUF_SIZE, 0, desc);
 
     if (!deltempfile)
-      goto terminate_delete;
+      goto terminate_delete;  // OOM
 
     THD_STAGE_INFO(thd, stage_searching_rows_for_update);
     while (!(error=info.read_record()) && !thd->killed &&
@@ -1277,9 +1277,9 @@ multi_delete::initialize_tables(JOIN *join)
   for (;walk ;walk= walk->next_local)
   {
     TABLE *table=walk->table;
-    desc= new Fixed_sized_keys_descriptor(table->file->ref_length);
+    desc= new Fixed_size_keys_descriptor(table->file->ref_length);
     if (!desc)
-      DBUG_RETURN(TRUE);
+      DBUG_RETURN(TRUE); // OOM
 
     unique= new (thd->mem_root) Unique_impl(refpos_order_cmp,
                                                       table->file,
@@ -1287,7 +1287,7 @@ multi_delete::initialize_tables(JOIN *join)
                                                       MEM_STRIP_BUF_SIZE,
                                                       0, desc);
     if (!unique)
-      DBUG_RETURN(TRUE);
+      DBUG_RETURN(TRUE);  // OOM
     *tempfiles_ptr++= unique;
   }
   init_ftfuncs(thd, thd->lex->current_select, 1);

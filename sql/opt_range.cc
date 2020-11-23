@@ -11758,7 +11758,7 @@ int read_keys_and_merge_scans(THD *thd,
     DBUG_EXECUTE_IF("only_one_Unique_may_be_created", 
                     DBUG_SET("+d,index_merge_may_not_create_a_Unique"); );
 
-    Descriptor *desc= new Fixed_sized_keys_descriptor(file->ref_length);
+    Descriptor *desc= new Fixed_size_keys_descriptor(file->ref_length);
 
     if (!desc)
       goto err;

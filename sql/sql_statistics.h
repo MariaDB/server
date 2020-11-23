@@ -139,7 +139,7 @@ double get_column_range_cardinality(Field *field,
                                     uint range_flag);
 bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table);
 bool is_eits_usable(Field* field);
-uchar *get_buffer_start(Field *field, uchar *to);
+uint get_offset_to_value(Field *field);
 uchar *get_buffer_end(Field *field, uchar *to);
 
 class Histogram

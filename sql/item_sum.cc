@@ -703,10 +703,12 @@ int Aggregator_distinct::composite_key_cmp(void* arg, uchar* key1, uchar* key2)
 
 
 /**
-  Correctly compare composite keys.
+  @brief
+    Compare composite variable size keys.
 
-  Used by the Unique class to compare packed keys. Will do correct comparisons
-  for composite keys with various field types.
+  @notes
+    Used by the Unique class to compare packed keys.
+    Will do correct comparisons for composite keys with various field types.
 
   @param arg     Pointer to the relevant Aggregator_distinct instance
   @param key1    left key image
@@ -720,7 +722,8 @@ int Aggregator_distinct::composite_key_cmp(void* arg, uchar* key1, uchar* key2)
 
 int
 Aggregator_distinct::composite_packed_key_cmp(void* arg,
-                                              uchar* key1, uchar* key2)
+                                              uchar* key1,
+                                              uchar* key2)
 {
   Aggregator_distinct *aggr= (Aggregator_distinct *) arg;
   DBUG_ASSERT(aggr->tree);
@@ -729,9 +732,12 @@ Aggregator_distinct::composite_packed_key_cmp(void* arg,
 
 
 /**
-  Correctly compare composite keys.
+  @brief
+    compare single component key.
 
-  Used by the Unique class to compare packed keys which have a single argument
+  @notes
+    Used by the Unique class to compare packed keys
+    which have a single argument
 
   @param arg     Pointer to the relevant Aggregator_distinct instance
   @param key1    left key image
@@ -743,7 +749,9 @@ Aggregator_distinct::composite_packed_key_cmp(void* arg,
     @retval >0       if key1 > key2
 */
 int
-Aggregator_distinct::packed_key_cmp_single_arg(void *arg, uchar *key1, uchar *key2)
+Aggregator_distinct::packed_key_cmp_single_arg(void *arg,
+                                               uchar *key1,
+                                               uchar *key2)
 {
   Aggregator_distinct *aggr= (Aggregator_distinct *) arg;
   DBUG_ASSERT(aggr->tree);
@@ -1037,7 +1045,7 @@ void Aggregator_distinct::clear()
 */
 int Aggregator_distinct::insert_record_to_unique()
 {
-  if (tree->is_packed())
+  if (tree->is_variable_sized())
   {
     uint packed_length;
     if ((packed_length= tree->get_descriptor()->make_packed_record(true)) == 0)
@@ -1133,7 +1141,7 @@ bool Aggregator_distinct::add()
     DBUG_ASSERT(tree);
     item_sum->null_value= 0;
 
-    DBUG_ASSERT(tree->is_packed() == false);
+    DBUG_ASSERT(tree->is_variable_sized() == false);
     /*
       '0' values are also stored in the tree. This doesn't matter
       for SUM(DISTINCT), but is important for AVG(DISTINCT)
@@ -4033,7 +4041,7 @@ Item_func_group_concat::dump_leaf_variable_sized_key(void *key_arg,
 
   pos= item->unique_filter->get_descriptor()->get_sortorder();
   key_end= key + item->unique_filter->get_full_size();
-  key+= Variable_sized_keys_descriptor::size_of_length_field;
+  key+= Variable_size_keys_descriptor::size_of_length_field;
 
   ulonglong *offset_limit= &item->copy_offset_limit;
   ulonglong *row_limit = &item->copy_row_limit;
@@ -4727,7 +4735,7 @@ String* Item_func_group_concat::val_str(String* str)
       tree_walk(tree, &dump_leaf_key, this, left_root_right);
     else if (distinct) // distinct (and no order by).
       unique_filter->walk(table,
-                          unique_filter->is_packed() ?
+                          unique_filter->is_variable_sized() ?
                           dump_leaf_variable_sized_key :
                           dump_leaf_key, this);
     else if (row_limit && copy_row_limit == (ulonglong)row_limit->val_int())
@@ -4822,7 +4830,7 @@ uint Item_func_group_concat::get_null_bytes()
 
 bool Item_func_group_concat::is_distinct_packed()
 {
-  return unique_filter && unique_filter->is_packed();
+  return unique_filter && unique_filter->is_variable_sized();
 }
 
 
@@ -4905,7 +4913,7 @@ bool Item_sum::is_packing_allowed(TABLE *table, uint* total_length)
     Unique::size_of_lengt_field is the length bytes to store the packed length
     for each record inserted in the Unique tree
   */
-  (*total_length)+= Variable_sized_keys_descriptor::size_of_length_field +
+  (*total_length)+= Variable_size_keys_descriptor::size_of_length_field +
                     size_of_packable_fields;
   return true;
 }
@@ -4923,9 +4931,9 @@ Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
   Descriptor *desc;
 
   if (allow_packing)
-    desc= new Variable_sized_keys_descriptor(size_arg);
+    desc= new Variable_size_keys_descriptor(size_arg);
   else
-    desc= new Fixed_sized_keys_descriptor(size_arg);
+    desc= new Fixed_size_keys_descriptor(size_arg);
 
   if (!desc)
     return NULL;
@@ -4999,7 +5007,7 @@ Item_func_group_concat::~Item_func_group_concat()
 */
 int Item_func_group_concat::insert_record_to_unique()
 {
-  if (unique_filter->is_packed())
+  if (unique_filter->is_variable_sized())
   {
     uint packed_length;
     if ((packed_length= unique_filter->get_descriptor()->

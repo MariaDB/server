@@ -18,8 +18,13 @@
 
 #include "filesort.h"
 
+/*
 
-
+  Descriptor class storing information about the keys that would be
+  inserted in the Unique tree. This is an abstract class which is
+  extended by other class to support descriptors for keys with fixed and
+  variable size.
+*/
 class Descriptor : public Sql_alloc
 {
 protected:
@@ -47,22 +52,27 @@ public:
   virtual uint make_packed_record(bool exclude_nulls) { return 0; }
   virtual Sort_keys *get_keys() { return NULL; }
   SORT_FIELD *get_sortorder() { return NULL; }
-
 };
 
 
-class Fixed_sized_keys_descriptor : public Descriptor
+/*
+  Descriptor for fixed size keys
+*/
+class Fixed_size_keys_descriptor : public Descriptor
 {
 public:
-  Fixed_sized_keys_descriptor(uint length);
-  ~Fixed_sized_keys_descriptor() {}
+  Fixed_size_keys_descriptor(uint length);
+  ~Fixed_size_keys_descriptor() {}
   uint get_length_of_key(uchar *ptr) override { return key_length; }
   int compare_keys(uchar *a, uchar *b) override { return 0; }
   int compare_keys_for_single_arg(uchar *a, uchar *b) override { return 0; }
 };
 
 
-class Variable_sized_keys_descriptor : public Descriptor
+/*
+  Descriptor for variable size keys
+*/
+class Variable_size_keys_descriptor : public Descriptor
 {
   /*
     Packed record ptr for a record of the table, the packed value in this
@@ -85,8 +95,8 @@ class Variable_sized_keys_descriptor : public Descriptor
   Sort_keys *sort_keys;
 
 public:
-  Variable_sized_keys_descriptor(uint length);
-  ~Variable_sized_keys_descriptor();
+  Variable_size_keys_descriptor(uint length);
+  ~Variable_size_keys_descriptor();
 
   uchar *get_packed_rec_ptr() { return packed_rec_ptr; }
   Sort_keys *get_keys() { return sort_keys; }
@@ -295,7 +305,7 @@ public:
   virtual int write_record_to_file(uchar *key);
 
   // returns TRUE if the unique tree stores packed values
-  bool is_packed() { return m_descriptor->is_variable_sized(); }
+  bool is_variable_sized() { return m_descriptor->is_variable_sized(); }
   Descriptor* get_descriptor() { return m_descriptor; }
 
   friend int unique_write_to_file(uchar* key, element_count count, Unique_impl *unique);

@@ -699,7 +699,7 @@ bool Unique_impl::walk(TABLE *table, tree_walk_action action, void *walk_action_
                     (Merge_chunk *) file_ptrs.buffer + file_ptrs.elements,
                     action, walk_action_arg,
                     tree.compare, tree.custom_arg, &file, with_counters,
-                    min_dupl_count, is_packed());
+                    min_dupl_count, is_variable_sized());
   }
   my_free(merge_buffer);
   return res;
@@ -751,8 +751,8 @@ bool Unique_impl::merge(TABLE *table, uchar *buff, size_t buff_size,
   sort_param.max_keys_per_buffer=
     (uint) MY_MAX((max_in_memory_size / sort_param.sort_length), MERGEBUFF2);
   sort_param.not_killable= 1;
-  sort_param.set_using_packed_keys(is_packed());
-  sort_param.set_packed_format(is_packed());
+  sort_param.set_using_packed_keys(is_variable_sized());
+  sort_param.set_packed_format(is_variable_sized());
 
   sort_param.unique_buff= buff +(sort_param.max_keys_per_buffer *
                                  sort_param.sort_length);
@@ -813,7 +813,7 @@ bool Unique_impl::get(TABLE *table)
   sort.return_rows= elements+tree.elements_in_tree;
   DBUG_ENTER("Unique_impl::get");
 
-  DBUG_ASSERT(is_packed() == FALSE);
+  DBUG_ASSERT(is_variable_sized() == FALSE);
 
   if (my_b_tell(&file) == 0)
   {
@@ -876,7 +876,7 @@ int Unique_impl::write_record_to_file(uchar *key)
 }
 
 
-Variable_sized_keys_descriptor::Variable_sized_keys_descriptor(uint length)
+Variable_size_keys_descriptor::Variable_size_keys_descriptor(uint length)
   :sortorder(NULL), sort_keys(NULL)
 {
   key_length= length;
@@ -888,7 +888,7 @@ Variable_sized_keys_descriptor::Variable_sized_keys_descriptor(uint length)
 }
 
 
-Variable_sized_keys_descriptor::~Variable_sized_keys_descriptor()
+Variable_size_keys_descriptor::~Variable_size_keys_descriptor()
 {
   my_free(packed_rec_ptr);
 }
@@ -902,7 +902,7 @@ Variable_sized_keys_descriptor::~Variable_sized_keys_descriptor()
     0         NULL value
     >0        length of the packed record
 */
-uint Variable_sized_keys_descriptor::make_packed_record(bool exclude_nulls)
+uint Variable_size_keys_descriptor::make_packed_record(bool exclude_nulls)
 {
   Field *field;
   SORT_FIELD *sort_field;
@@ -963,7 +963,7 @@ uint Variable_sized_keys_descriptor::make_packed_record(bool exclude_nulls)
 */
 
 bool
-Variable_sized_keys_descriptor::setup(THD *thd, Item_sum *item,
+Variable_size_keys_descriptor::setup(THD *thd, Item_sum *item,
                                       uint non_const_args, uint arg_count)
 {
   SORT_FIELD *sort,*pos;
@@ -1009,7 +1009,7 @@ Variable_sized_keys_descriptor::setup(THD *thd, Item_sum *item,
     FALSE setup successful
 */
 
-bool Variable_sized_keys_descriptor::setup(THD *thd, Field *field)
+bool Variable_size_keys_descriptor::setup(THD *thd, Field *field)
 {
   SORT_FIELD *sort,*pos;
   if (sortorder)
@@ -1044,7 +1044,7 @@ bool Variable_sized_keys_descriptor::setup(THD *thd, Field *field)
 
 */
 
-int Variable_sized_keys_descriptor::compare_keys(uchar *a_ptr,
+int Variable_size_keys_descriptor::compare_keys(uchar *a_ptr,
                                                  uchar *b_ptr)
 {
   return sort_keys->compare_keys(a_ptr + size_of_length_field,
@@ -1052,7 +1052,7 @@ int Variable_sized_keys_descriptor::compare_keys(uchar *a_ptr,
 }
 
 
-int Variable_sized_keys_descriptor::compare_keys_for_single_arg(uchar *a,
+int Variable_size_keys_descriptor::compare_keys_for_single_arg(uchar *a,
                                                                 uchar *b)
 {
   return sort_keys->compare_keys_for_single_arg(a + size_of_length_field,
@@ -1060,7 +1060,7 @@ int Variable_sized_keys_descriptor::compare_keys_for_single_arg(uchar *a,
 }
 
 
-Fixed_sized_keys_descriptor::Fixed_sized_keys_descriptor(uint length)
+Fixed_size_keys_descriptor::Fixed_size_keys_descriptor(uint length)
 {
   key_length= length;
   flags= (1 << FIXED_SIZED_KEYS);

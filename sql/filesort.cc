@@ -2062,9 +2062,6 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
         res_length= rec_length - size_of_dupl_count;
         if (check_dupl_count)
         {
-          /*
-            TODO varun: this looks incorrect to me
-          */
           uint dupl_count_ofs= rec_length - sizeof(element_count);
           memcpy(&dupl_count, src + dupl_count_ofs, sizeof(dupl_count));
 
@@ -2590,7 +2587,7 @@ uint32 Sort_param::get_record_length_for_unique(uchar *to,
 {
   if (!using_packed_sortkeys())
     return rec_length;
-  return Variable_sized_keys_descriptor::read_packed_length(to) +
+  return Variable_size_keys_descriptor::read_packed_length(to) +
          size_of_dupl_count;
 }
 
