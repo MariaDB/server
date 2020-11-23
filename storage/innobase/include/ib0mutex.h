@@ -145,7 +145,7 @@ private:
 };
 
 
-#ifdef HAVE_IB_LINUX_FUTEX
+#ifdef __linux__
 
 #include <linux/futex.h>
 #include <sys/syscall.h>
@@ -261,7 +261,7 @@ private:
 	std::atomic<int32>	m_lock_word;
 };
 
-#endif /* HAVE_IB_LINUX_FUTEX */
+#endif /* __linux__ */
 
 template <template <typename> class Policy>
 struct TTASMutex {

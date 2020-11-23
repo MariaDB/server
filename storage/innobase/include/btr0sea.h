@@ -303,7 +303,8 @@ struct btr_search_sys_t
   /** Get an adaptive hash index partition */
   partition *get_part(const dict_index_t &index) const
   {
-    ut_ad(index.table->space->id == index.table->space_id);
+    ut_ad(!index.table->space ||
+          index.table->space->id == index.table->space_id);
     return get_part(ulint(index.id), index.table->space_id);
   }
 

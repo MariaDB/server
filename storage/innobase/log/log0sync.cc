@@ -100,7 +100,7 @@ public:
 private:
 #if defined(__linux__) || defined (_WIN32)
   std::atomic<int> m_signalled;
-  const std::memory_order mem_order = std::memory_order::memory_order_acq_rel;
+  static constexpr std::memory_order mem_order= std::memory_order_acq_rel;
 public:
   binary_semaphore() :m_signalled(0) {}
 #else

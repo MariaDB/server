@@ -492,7 +492,7 @@ void fil_node_t::prepare_to_close_or_detach()
 }
 
 /** Flush any writes cached by the file system. */
-inline void fil_space_t::flush_low()
+void fil_space_t::flush_low()
 {
   ut_ad(!mutex_own(&fil_system.mutex));
 

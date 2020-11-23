@@ -156,7 +156,7 @@ store the given number of bits.
 /** Determines if a number is zero or a power of two.
 @param[in]	n	number
 @return nonzero if n is zero or a power of two; zero otherwise */
-#define ut_is_2pow(n) UNIV_LIKELY(!((n) & ((n) - 1)))
+#define ut_is_2pow(n) (!((n) & ((n) - 1)))
 
 /** Functor that compares two C strings. Can be used as a comparator for
 e.g. std::map that uses char* as keys. */

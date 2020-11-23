@@ -24,11 +24,8 @@ Policy based mutexes.
 Created 2012-03-24 Sunny Bains.
 ***********************************************************************/
 
+#pragma once
 #ifndef UNIV_INNOCHECKSUM
-
-#ifndef ut0mutex_h
-#define ut0mutex_h
-
 #include "sync0policy.h"
 #include "ib0mutex.h"
 
@@ -38,9 +35,9 @@ Created 2012-03-24 Sunny Bains.
 @param[in]	T		The resulting typedef alias */
 #define UT_MUTEX_TYPE(M, P, T) typedef PolicyMutex<M<P> > T;
 
-# ifdef HAVE_IB_LINUX_FUTEX
+# ifdef __linux__
 UT_MUTEX_TYPE(TTASFutexMutex, GenericPolicy, FutexMutex);
-# endif /* HAVE_IB_LINUX_FUTEX */
+# endif /* __linux__ */
 
 UT_MUTEX_TYPE(TTASMutex, GenericPolicy, SpinMutex);
 UT_MUTEX_TYPE(OSTrackMutex, GenericPolicy, SysMutex);
@@ -177,7 +174,5 @@ void mutex_destroy(
 {
 	mutex->destroy();
 }
-
-#endif /* ut0mutex_h */
 
 #endif /* UNIV_INNOCHECKSUM */

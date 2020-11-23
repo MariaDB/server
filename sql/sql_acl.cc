@@ -1057,6 +1057,9 @@ class User_table_tabular: public User_table
     if (access & REPL_SLAVE_ACL)
       access|= REPL_MASTER_ADMIN_ACL;
 
+    if (access & REPL_SLAVE_ACL)
+      access|= SLAVE_MONITOR_ACL;
+
     return access & GLOBAL_ACLS;
   }
 
@@ -1528,7 +1531,11 @@ class User_table_json: public User_table
   {
     privilege_t mask= ALL_KNOWN_ACL_100304;
     ulonglong orig_access= access;
-    if (version_id >= 100502)
+    if (version_id >= 100508)
+    {
+      mask= ALL_KNOWN_ACL_100508;
+    }
+    else if (version_id >= 100502 && version_id < 100508)
     {
       mask= ALL_KNOWN_ACL_100502;
     }
@@ -1554,6 +1561,12 @@ class User_table_json: public User_table
         }
         access|= GLOBAL_SUPER_ADDED_SINCE_USER_TABLE_ACLS;
       }
+      /*
+        REPLICATION_CLIENT(BINLOG_MONITOR_ACL) should allow SHOW SLAVE STATUS
+        REPLICATION SLAVE should allow SHOW RELAYLOG EVENTS
+      */
+      if (access & BINLOG_MONITOR_ACL || access & REPL_SLAVE_ACL)
+        access|= SLAVE_MONITOR_ACL;
     }
 
     if (orig_access & ~mask)
@@ -8974,7 +8987,7 @@ static const char *command_array[]=
   "CREATE USER", "EVENT", "TRIGGER", "CREATE TABLESPACE", "DELETE HISTORY",
   "SET USER", "FEDERATED ADMIN", "CONNECTION ADMIN", "READ_ONLY ADMIN",
   "REPLICATION SLAVE ADMIN", "REPLICATION MASTER ADMIN", "BINLOG ADMIN",
-  "BINLOG REPLAY"
+  "BINLOG REPLAY", "SLAVE MONITOR"
 };
 
 static uint command_lengths[]=
@@ -8987,7 +9000,7 @@ static uint command_lengths[]=
   11, 5, 7, 17, 14,
   8, 15, 16, 15,
   23, 24, 12,
-  13
+  13, 13
 };
 
 

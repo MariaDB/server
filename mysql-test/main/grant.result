@@ -624,7 +624,8 @@ Reload	Server Admin	To reload or refresh tables, logs and privileges
 Binlog admin	Server	To purge binary logs
 Binlog monitor	Server	To use SHOW BINLOG STATUS and SHOW BINARY LOG
 Replication master admin	Server	To monitor connected slaves
-Replication slave admin	Server	To start/monitor/stop slave and apply binlog events
+Replication slave admin	Server	To start/stop slave and apply binlog events
+Slave monitor	Server	To use SHOW SLAVE STATUS and SHOW RELAYLOG EVENTS
 Replication slave	Server Admin	To read binary log events from the master
 Select	Tables	To retrieve rows from table
 Show databases	Server Admin	To see all databases with SHOW DATABASES
@@ -1966,10 +1967,11 @@ GRANT REPLICATION SLAVE       ON *.* TO mysqltest_u1@localhost;
 GRANT SHOW DATABASES          ON *.* TO mysqltest_u1@localhost;
 GRANT SHUTDOWN                ON *.* TO mysqltest_u1@localhost;
 GRANT USAGE                   ON *.* TO mysqltest_u1@localhost;
+GRANT SLAVE MONITOR           ON *.* TO mysqltest_u1@localhost;
 
 SHOW GRANTS FOR mysqltest_u1@localhost;
 Grants for mysqltest_u1@localhost
-GRANT RELOAD, SHUTDOWN, PROCESS, FILE, SHOW DATABASES, REPLICATION SLAVE, BINLOG MONITOR, CREATE USER ON *.* TO `mysqltest_u1`@`localhost`
+GRANT RELOAD, SHUTDOWN, PROCESS, FILE, SHOW DATABASES, REPLICATION SLAVE, BINLOG MONITOR, CREATE USER, SLAVE MONITOR ON *.* TO `mysqltest_u1`@`localhost`
 GRANT CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, CREATE ROUTINE, ALTER ROUTINE, EVENT ON `mysqltest_db1`.* TO `mysqltest_u1`@`localhost`
 connect  con1,localhost,mysqltest_u1,,mysqltest_db1;
 connection con1;

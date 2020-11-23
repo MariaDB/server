@@ -29,6 +29,10 @@
 # vardir on tmpfs : ~ 375
 # vardir on disk  : ~ 546
 --source include/big_test.inc
+# Possibly related to MDEV-16678, the test seems to deterministically fail on
+# non-debug builds. innodb_force_recovery=2 (disabling the purge of history)
+# would seem to help a little.
+--source include/have_debug.inc
 # We go with "--send" and "--reap" and that fails with the embedded server.
 --source include/not_embedded.inc
 # Its intentional to not take the risk that a run with valgrind times out.

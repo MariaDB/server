@@ -66,7 +66,8 @@ enum privilege_t: unsigned long long
   REPL_SLAVE_ADMIN_ACL  = (1ULL << 34), // Added in 10.5.2
   REPL_MASTER_ADMIN_ACL = (1ULL << 35), // Added in 10.5.2
   BINLOG_ADMIN_ACL      = (1ULL << 36), // Added in 10.5.2
-  BINLOG_REPLAY_ACL     = (1ULL << 37)  // Added in 10.5.2
+  BINLOG_REPLAY_ACL     = (1ULL << 37), // Added in 10.5.2
+  SLAVE_MONITOR_ACL     = (1ULL << 38)  // Added in 10.5.8
   /*
     When adding new privilege bits, don't forget to update:
     In this file:
@@ -93,13 +94,18 @@ enum privilege_t: unsigned long long
   */
 };
 
+constexpr static inline privilege_t ALL_KNOWN_BITS(privilege_t x)
+{
+  return (privilege_t)(x | (x-1));
+}
 
 // Version markers
 constexpr privilege_t LAST_100304_ACL= DELETE_HISTORY_ACL;
 constexpr privilege_t LAST_100502_ACL= BINLOG_REPLAY_ACL;
+constexpr privilege_t LAST_100508_ACL= SLAVE_MONITOR_ACL;
 
 // Current version markers
-constexpr privilege_t LAST_CURRENT_ACL= LAST_100502_ACL;
+constexpr privilege_t LAST_CURRENT_ACL= LAST_100508_ACL;
 constexpr uint PRIVILEGE_T_MAX_BIT=
               my_bit_log2_uint64((ulonglong) LAST_CURRENT_ACL);
 
@@ -108,15 +114,16 @@ static_assert((privilege_t)(1ULL << PRIVILEGE_T_MAX_BIT) == LAST_CURRENT_ACL,
               "LAST_CURRENT_ACL and PRIVILEGE_T_MAX_BIT do not match");
 
 // A combination of all bits defined in 10.3.4 (and earlier)
-constexpr privilege_t ALL_KNOWN_ACL_100304 =
-  (privilege_t) ((LAST_100304_ACL << 1) - 1);
+constexpr privilege_t ALL_KNOWN_ACL_100304 = ALL_KNOWN_BITS(LAST_100304_ACL);
 
 // A combination of all bits defined in 10.5.2
-constexpr privilege_t ALL_KNOWN_ACL_100502=
-  (privilege_t) ((LAST_100502_ACL << 1) - 1);
+constexpr privilege_t ALL_KNOWN_ACL_100502= ALL_KNOWN_BITS(LAST_100502_ACL);
+
+// A combination of all bits defined in 10.5.8
+constexpr privilege_t ALL_KNOWN_ACL_100508= ALL_KNOWN_BITS(LAST_100508_ACL);
 
 // A combination of all bits defined as of the current version
-constexpr privilege_t ALL_KNOWN_ACL= ALL_KNOWN_ACL_100502;
+constexpr privilege_t ALL_KNOWN_ACL= ALL_KNOWN_BITS(LAST_CURRENT_ACL);
 
 
 // Unary operators
@@ -269,7 +276,7 @@ constexpr privilege_t GLOBAL_ACLS=
   SUPER_ACL | RELOAD_ACL | SHUTDOWN_ACL | PROCESS_ACL | FILE_ACL |
   REPL_SLAVE_ACL | BINLOG_MONITOR_ACL |
   GLOBAL_SUPER_ADDED_SINCE_USER_TABLE_ACLS |
-  REPL_MASTER_ADMIN_ACL;
+  REPL_MASTER_ADMIN_ACL | SLAVE_MONITOR_ACL;
 
 constexpr privilege_t DEFAULT_CREATE_PROC_ACLS=
   ALTER_PROC_ACL | EXECUTE_ACL;
@@ -505,9 +512,11 @@ constexpr privilege_t PRIV_STMT_STOP_SLAVE= REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
 // Was SUPER_ACL prior to 10.5.2
 constexpr privilege_t PRIV_STMT_CHANGE_MASTER= REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
 // Was (SUPER_ACL | REPL_CLIENT_ACL) prior to 10.5.2
-constexpr privilege_t PRIV_STMT_SHOW_SLAVE_STATUS= REPL_SLAVE_ADMIN_ACL | SUPER_ACL;
+// Was (SUPER_ACL | REPL_SLAVE_ADMIN_ACL) from 10.5.2 to 10.5.7
+constexpr privilege_t PRIV_STMT_SHOW_SLAVE_STATUS= SLAVE_MONITOR_ACL | SUPER_ACL;
 // Was REPL_SLAVE_ACL prior to 10.5.2
-constexpr privilege_t PRIV_STMT_SHOW_RELAYLOG_EVENTS= REPL_SLAVE_ADMIN_ACL;
+// Was REPL_SLAVE_ADMIN_ACL from 10.5.2 to 10.5.7
+constexpr privilege_t PRIV_STMT_SHOW_RELAYLOG_EVENTS= SLAVE_MONITOR_ACL;
 
 /*
   Privileges related to binlog replying.

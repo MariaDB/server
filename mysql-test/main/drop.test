@@ -187,7 +187,7 @@ write_file $MYSQLD_DATADIR/mysql_test/do_not_delete;
 do_not_delete
 EOF
 
-replace_result $MYSQLD_DATADIR ./ \\ / 41 39;
+replace_result $MYSQLD_DATADIR ./ \\ / 66 39 93 39 17 39 247 39 41 39 "File exists" "Directory not empty";
 error ER_DB_DROP_RMDIR;
 drop database mysql_test;
 select database();
