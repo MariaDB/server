@@ -787,7 +787,7 @@ public:
 	rw_trx_hash.
 
 	Transitions to COMMITTED are protected by trx_t::mutex. */
-	trx_state_t	state;
+  Atomic_relaxed<trx_state_t> state;
 #ifdef WITH_WSREP
 	/** whether wsrep_on(mysql_thd) held at the start of transaction */
 	bool		wsrep;

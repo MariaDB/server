@@ -656,11 +656,8 @@ public:
             trx->mutex is released, and it will have to be rechecked
             by the caller after reacquiring the mutex.
           */
-          trx_mutex_enter(trx);
-          const trx_state_t state= trx->state;
-          trx_mutex_exit(trx);
-          if (state == TRX_STATE_COMMITTED_IN_MEMORY)
-            trx= NULL;
+          if (trx->state == TRX_STATE_COMMITTED_IN_MEMORY)
+            trx= nullptr;
           else
             trx->reference();
         }

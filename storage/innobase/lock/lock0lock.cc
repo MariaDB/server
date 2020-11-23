@@ -5013,9 +5013,7 @@ static void lock_rec_other_trx_holds_expl(trx_t *caller_trx, trx_t *trx,
     ut_ad(!page_rec_is_metadata(rec));
     lock_mutex_enter();
     ut_ad(trx->is_referenced());
-    trx_mutex_enter(trx);
-    const trx_state_t state = trx->state;
-    trx_mutex_exit(trx);
+    const trx_state_t state{trx->state};
     ut_ad(state != TRX_STATE_NOT_STARTED);
     if (state == TRX_STATE_COMMITTED_IN_MEMORY)
     {
