@@ -1006,10 +1006,11 @@ class FK_share_backup : public FK_backup
 {
 protected:
   TABLE_SHARE *share;
+  bool autocommit; // FIXME: remove
 
 public:
   // FIXME: remove (used in ALTER TABLE)
-  FK_share_backup() : share(NULL) {}
+  FK_share_backup() : share(NULL), autocommit(true) {}
   bool init(TABLE_SHARE *_share);
 
   FK_share_backup(TABLE_SHARE *_share)
@@ -1017,10 +1018,11 @@ public:
     if (init(_share))
       share= NULL;
   }
-//   virtual ~FK_share_backup()
-//   {
-//     commit();
-//   }
+  virtual ~FK_share_backup()
+  {
+    if (autocommit)
+      commit();
+  }
   void commit()
   {
     share= NULL;
