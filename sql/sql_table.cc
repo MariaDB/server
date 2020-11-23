@@ -12944,7 +12944,7 @@ bool Alter_table_ctx::fk_handle_alter(THD *thd)
   /* Update EXTRA2_FOREIGN_KEY_INFO section in FRM files. */
   for (auto &key_val: fk_ref_backup)
   {
-    FK_share_backup *ref_bak= const_cast<FK_share_backup *>(&key_val.second);
+    FK_share_backup *ref_bak= &key_val.second;
     if (ref_bak->update_frm && ref_bak->fk_write_shadow_frm(fk_ddl_info))
       return true;
   }
@@ -12999,7 +12999,7 @@ void Alter_table_ctx::fk_rollback()
 {
   for (auto &key_val: fk_ref_backup)
   {
-    FK_share_backup *ref_bak= const_cast<FK_share_backup *>(&key_val.second);
+    FK_share_backup *ref_bak= &key_val.second;
     if (ref_bak->update_frm)
       ref_bak->fk_drop_shadow_frm(fk_ddl_info);
     ref_bak->rollback(fk_ddl_info);
@@ -13028,27 +13028,27 @@ bool Alter_table_ctx::fk_install_frms()
   // converge FK_share_backup and FK_ddl_backup
   for (auto &key_val: fk_ref_backup)
   {
-    FK_share_backup *ref_bak= const_cast<FK_share_backup *>(&key_val.second);
+    FK_share_backup *ref_bak= &key_val.second;
     DBUG_ASSERT(ref_bak->get_share());
     if (ref_bak->update_frm && ref_bak->fk_backup_frm(fk_ddl_info))
       return true;
   }
   for (auto &key_val: fk_ref_backup)
   {
-    FK_share_backup *ref_bak= const_cast<FK_share_backup *>(&key_val.second);
+    FK_share_backup *ref_bak= &key_val.second;
     if (ref_bak->update_frm && ref_bak->fk_install_shadow_frm(fk_ddl_info))
       // FIXME: test rollback
       return true;
   }
   for (auto &key_val: fk_ref_backup)
   {
-    FK_share_backup *ref_bak= const_cast<FK_share_backup *>(&key_val.second);
+    FK_share_backup *ref_bak= &key_val.second;
     if (ref_bak->update_frm && deactivate_ddl_log_entry(ref_bak->restore_backup_entry->entry_pos))
       return true;
   }
   for (auto &key_val: fk_ref_backup)
   {
-    FK_share_backup *ref_bak= const_cast<FK_share_backup *>(&key_val.second);
+    FK_share_backup *ref_bak= &key_val.second;
     if (ref_bak->update_frm)
       ref_bak->fk_drop_backup_frm(fk_ddl_info);
   }

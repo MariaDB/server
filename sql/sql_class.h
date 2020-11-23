@@ -1002,6 +1002,7 @@ public:
 };
 
 
+// NB: used for ALTER TABLE
 class FK_share_backup : public FK_backup
 {
 protected:
@@ -1053,6 +1054,10 @@ public:
     FK_share_backup(std::move(src)),
     sa(std::move(src.sa)) {}
 
+  // used by ALTER
+  FK_ddl_backup(TABLE_SHARE *_share) : FK_share_backup(_share)
+  {}
+
   FK_ddl_backup& operator=(FK_ddl_backup&& src)
   {
     *((FK_share_backup *) this)= std::move(src);
@@ -1065,11 +1070,12 @@ public:
 
 
 /*
-   NB: again, ALTER does require duplicate check hence mbd::map is used, while other commands
+   NB: Not a vtagain, ALTER does require duplicate check hence mbd::map is used, while other commands
    do not require and mbd::vector is enough. To avoid templating or code complexity via virtual
    ifaces we just use mbd::map for everything. We are not going to hit bottleneck here:
    it is DDL (rare operation), it is less than hundred of foreign keys normally.
 */
+// FIXME: not a vector now, rename to something...
 class FK_ddl_vector: public mbd::map<TABLE_SHARE *, FK_ddl_backup>, public ddl_log_info
 {
 public:
