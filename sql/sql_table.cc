@@ -673,8 +673,8 @@ st_global_ddl_log global_ddl_log;
 
 mysql_mutex_t LOCK_gdl;
 
-#define DDL_LOG_ENTRY_TYPE_POS 0
-#define DDL_LOG_ACTION_TYPE_POS 1
+#define DDL_LOG_ENTRY_TYPE_POS 0  // single char ddl_log_entry_code
+#define DDL_LOG_ACTION_TYPE_POS 1 // single char ddl_log_action_code
 #define DDL_LOG_PHASE_POS 2
 #define DDL_LOG_NEXT_ENTRY_POS 4
 #define DDL_LOG_NAME_POS 8
@@ -1135,9 +1135,10 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
     DBUG_RETURN(FALSE);
   }
   DBUG_PRINT("ddl_log",
-             ("execute type %c next %u name '%s' from_name '%s' handler '%s'"
+             ("execute action '%c' pos %u next %u name '%s' from_name '%s' handler '%s'"
               " tmp_name '%s'",
              ddl_log_entry->action_type,
+             ddl_log_entry->entry_pos,
              ddl_log_entry->next_entry,
              ddl_log_entry->name,
              ddl_log_entry->from_name,
@@ -1446,9 +1447,10 @@ bool write_ddl_log_entry(DDL_LOG_ENTRY *ddl_log_entry,
   }
   error= FALSE;
   DBUG_PRINT("ddl_log",
-             ("write type %c next %u name '%s' from_name '%s' handler '%s'"
+             ("write action '%c' pos %u next %u name '%s' from_name '%s' handler '%s'"
               " tmp_name '%s'",
              (char) global_ddl_log.file_entry_buf[DDL_LOG_ACTION_TYPE_POS],
+              (*active_entry)->entry_pos,
              ddl_log_entry->next_entry,
              (char*) &global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS],
              (char*) &global_ddl_log.file_entry_buf[DDL_LOG_NAME_POS
@@ -1541,6 +1543,10 @@ bool write_execute_ddl_log_entry(uint first_entry,
     }
     write_header= TRUE;
   }
+  DBUG_PRINT("ddl_log",
+             ("write execute '%c' pos %u next %u",
+             (char) global_ddl_log.file_entry_buf[DDL_LOG_ENTRY_TYPE_POS],
+              (*active_entry)->entry_pos, first_entry));
   if (write_ddl_log_file_entry((*active_entry)->entry_pos))
   {
     sql_print_error("Error writing execute entry in ddl log");
