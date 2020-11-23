@@ -162,9 +162,9 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
     error= true;
   else
   {
-    for (FK_ddl_backup &ref: fk_rename_backup)
+    for (auto &ref: fk_rename_backup)
     {
-      if (ref.fk_write_shadow_frm(fk_rename_backup))
+      if (ref.second.fk_write_shadow_frm(fk_rename_backup))
       {
         error= true;
         break;

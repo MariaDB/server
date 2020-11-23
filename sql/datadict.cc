@@ -649,11 +649,11 @@ bool FK_ddl_vector::install_shadow_frms(THD *thd)
 #ifndef DBUG_OFF
   dbg_first= true;
 #endif
-  for (FK_ddl_backup &bak: *this)
+  for (auto &bak: *this)
   {
-    if (!bak.update_frm)
+    if (!bak.second.update_frm)
       continue;
-    if (bak.fk_backup_frm(*this))
+    if (bak.second.fk_backup_frm(*this))
       goto error;
 #ifndef DBUG_OFF
     dbg_first= false;
@@ -662,11 +662,11 @@ bool FK_ddl_vector::install_shadow_frms(THD *thd)
 #ifndef DBUG_OFF
   dbg_first= true;
 #endif
-  for (FK_ddl_backup &bak: *this)
+  for (auto &bak: *this)
   {
-    if (!bak.update_frm)
+    if (!bak.second.update_frm)
       continue;
-    if (bak.fk_install_shadow_frm(*this))
+    if (bak.second.fk_install_shadow_frm(*this))
       goto error;
 #ifndef DBUG_OFF
     dbg_first= false;
@@ -683,8 +683,8 @@ error:
 
 void FK_ddl_vector::rollback(THD *thd)
 {
-  for (FK_ddl_backup &bak: *this)
-    bak.rollback(*this);
+  for (auto &bak: *this)
+    bak.second.rollback(*this);
 
   // NB: we might not fk_write_shadow_frm() at all f.ex. when rename table failed
   if (!first_entry)
@@ -704,15 +704,15 @@ void FK_ddl_vector::drop_backup_frms(THD *thd)
 #ifndef DBUG_OFF
   dbg_first= true;
 #endif
-  for (FK_ddl_backup &bak: *this)
+  for (auto &bak: *this)
   {
-    if (!bak.update_frm)
+    if (!bak.second.update_frm)
       continue;
-    if (deactivate_ddl_log_entry(bak.restore_backup_entry->entry_pos))
+    if (deactivate_ddl_log_entry(bak.second.restore_backup_entry->entry_pos))
     {
       // FIXME: test getting into here (and other deactivate_ddl_log_entry() failures)
       my_printf_error(ER_DDL_LOG_ERROR, "Deactivating restore backup entry %u failed",
-                      MYF(0), bak.restore_backup_entry->entry_pos);
+                      MYF(0), bak.second.restore_backup_entry->entry_pos);
       // TODO: must be atomic
     }
 #ifndef DBUG_OFF
@@ -722,11 +722,11 @@ void FK_ddl_vector::drop_backup_frms(THD *thd)
 #ifndef DBUG_OFF
   dbg_first= true;
 #endif
-  for (FK_ddl_backup &bak: *this)
+  for (auto &bak: *this)
   {
-    if (!bak.update_frm)
+    if (!bak.second.update_frm)
       continue;
-    bak.fk_drop_backup_frm(*this);
+    bak.second.fk_drop_backup_frm(*this);
 #ifndef DBUG_OFF
     dbg_first= false;
 #endif

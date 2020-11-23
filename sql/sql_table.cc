@@ -9977,8 +9977,8 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                          &alter_ctx->new_name, fk_rename_backup))
       DBUG_RETURN(true);
 
-    for (FK_ddl_backup &ref: fk_rename_backup)
-      if (ref.fk_write_shadow_frm(fk_rename_backup))
+    for (auto &ref: fk_rename_backup)
+      if (ref.second.fk_write_shadow_frm(fk_rename_backup))
         DBUG_RETURN(true);
 
     close_all_tables_for_name(thd, table->s, HA_EXTRA_PREPARE_FOR_RENAME,
@@ -12478,8 +12478,6 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_ddl_vector &shares, FK_list *fk_
   if (thd->mdl_context.acquire_locks(&mdl_list, thd->variables.lock_wait_timeout))
     return true;
 
-  shares.reserve(tables.size());
-
   // update referenced_keys of ref_tables
   for (const Table_name &ref: tables)
   {
@@ -12497,19 +12495,20 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_ddl_vector &shares, FK_list *fk_
       }
       return true;
     }
-    if (shares.push_back(std::move(ref_sa)))
+    FK_ddl_backup *bak= shares.emplace(NULL, ref_sa.share, std::move(ref_sa));
+    if (!bak)
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       return true;
     }
     DBUG_ASSERT(!ref_sa.share);
-    if (!shares.back().get_share())
+    if (!bak->get_share())
       return true; // ctor failed, share was released
   }
 
-  for (FK_ddl_backup &ref: shares)
+  for (auto &ref: shares)
   {
-    TABLE_SHARE *ref_share= ref.get_share();
+    TABLE_SHARE *ref_share= ref.first;
     for (const FK_info &fk: fkeys)
     {
       // Find keys referencing the acquired share and add them to referenced_keys
@@ -12538,7 +12537,7 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_ddl_vector &shares, FK_list *fk_
       }
     } // for (const FK_info &fk: fkeys)
 
-    if (ref.fk_write_shadow_frm(shares))
+    if (ref.second.fk_write_shadow_frm(shares))
       return true;
   } // for (ref_tables)
 
@@ -12996,28 +12995,6 @@ bool Alter_table_ctx::fk_check_foreign_id(THD *thd)
 }
 
 
-#if 0
-FK_share_backup* Alter_table_ctx::fk_add_backup(TABLE_SHARE *share)
-{
-  FK_share_backup fk_bak;
-  if (fk_bak.init(share))
-    return NULL;
-  auto found= fk_ref_backup.find(share);
-  if (found != fk_ref_backup.end())
-    return &found->second;
-  return fk_ref_backup.insert(share, fk_bak);
-}
-#endif
-
-
-FK_share_backup* Alter_table_ctx::fk_add_backup(TABLE_SHARE *share)
-{
-  bool inserted;
-  FK_share_backup *fk_bak= fk_ref_backup.emplace(&inserted, share, share);
-  return fk_bak;
-}
-
-
 void Alter_table_ctx::fk_rollback()
 {
   for (auto &key_val: fk_ref_backup)
@@ -13141,9 +13118,6 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, FK_ddl_vector &shares,
   if (thd->mdl_context.acquire_locks(&mdl_list, thd->variables.lock_wait_timeout))
     return true;
 
-  // NB: we don't want needless reallocs and reconstruction of objects inside the loop
-  shares.reserve(tables.size());
-
   for (const Table_name &ref: tables)
   {
     TABLE_LIST tl;
@@ -13155,13 +13129,14 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, FK_ddl_vector &shares,
       thd->clear_error();
       continue;
     }
-    if (shares.push_back(FK_ddl_backup(std::move(ref_sa))))
+    FK_ddl_backup *bak= shares.emplace(NULL, ref_sa.share, std::move(ref_sa));
+    if (!bak)
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       return true;
     }
     DBUG_ASSERT(!ref_sa.share);
-    if (!shares.back().get_share())
+    if (!bak->get_share())
       return true; // ctor failed, share was released
   }
 
@@ -13170,7 +13145,7 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, FK_ddl_vector &shares,
   // NB: another loop separates share acquisition which may fail
   for (auto ref= std::begin(shares); ref != std::end(shares); )
   {
-    ref_it.init(ref->get_share()->referenced_keys);
+    ref_it.init(ref->first->referenced_keys);
     while (FK_info *rk= ref_it++)
     {
       if (0 == cmp_table(rk->foreign_db, share->db) &&
@@ -13180,7 +13155,7 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, FK_ddl_vector &shares,
         ref_it.remove();
       }
     }
-    int err= ref->fk_write_shadow_frm(shares);
+    int err= ref->second.fk_write_shadow_frm(shares);
     if (err)
     {
       if (err > 2)
@@ -13190,7 +13165,7 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, FK_ddl_vector &shares,
       }
       // ignore non-existent frm (main.drop_table_force, Test6)
       thd->clear_error();
-
+      shares.erase(ref++);
     }
     else
       ++ref;
@@ -13223,12 +13198,12 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
   if (share->foreign_keys.is_empty() && share->referenced_keys.is_empty())
     return false;
   mbd::set<Table_name> tables;
-  mbd::set<Table_name> already;
+  mbd::set<Table_name> already; // FIXME: do we need it for mbd::map?
   MDL_request_list mdl_list;
-  for (FK_ddl_backup &bak: fk_rename_backup)
+  for (auto &bak: fk_rename_backup)
   {
     // NB: exception_wrapper prints error message
-    if (!already.insert(Table_name(bak.get_share()->db, bak.get_share()->table_name)))
+    if (!already.insert(Table_name(bak.first->db, bak.first->table_name)))
       return true;
   }
   // NB: we do not allow same share twice in fk_rename_backup
@@ -13307,8 +13282,6 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
   if (thd->mdl_context.acquire_locks(&mdl_list, thd->variables.lock_wait_timeout))
     return true;
 
-  fk_rename_backup.reserve(fk_rename_backup.size() + tables.size());
-
   for (const Table_name &ref: tables)
   {
     TABLE_LIST tl;
@@ -13316,16 +13289,17 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
     Share_acquire ref_sa(thd, tl);
     if (!ref_sa.share)
       return true;
-    if (fk_rename_backup.push_back(std::move(ref_sa)))
+    FK_ddl_backup *bak= fk_rename_backup.emplace(NULL, ref_sa.share, std::move(ref_sa));
+    if (!bak)
       return true;
     DBUG_ASSERT(!ref_sa.share);
-    if (!fk_rename_backup.back().get_share())
+    if (!bak->get_share())
       return true; // ctor failed, share was released
   }
 
-  for (FK_ddl_backup &ref: fk_rename_backup)
+  for (auto &ref: fk_rename_backup)
   {
-    TABLE_SHARE *ref_share= ref.get_share();
+    TABLE_SHARE *ref_share= ref.first;
     if (!ref_share)
       continue; // renamed table backup
     for (FK_info &fk: ref_share->foreign_keys)
@@ -13359,13 +13333,13 @@ mem_error:
 
 
 FK_ddl_backup::FK_ddl_backup(Share_acquire&& _sa) :
+  FK_share_backup(_sa.share),
   sa(std::move(_sa))
 {
-  if (init(sa.share))
+  if (!(share))
     sa.release();
   else
   {
-    share= sa.share;
     update_frm= true;
     autocommit= false;
   }

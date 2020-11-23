@@ -428,10 +428,16 @@ public:
 
   // Backup for the table we altering. NB: auto-rollback if not committed.
   FK_table_backup fk_table_backup;
-  // NB: share is owned and released by fk_shares
+  // NB: share is owned and released by fk_shares.
   mbd::map<TABLE_SHARE *, FK_share_backup> fk_ref_backup;
-  // NB: backup is added only if not exists
-  FK_share_backup* fk_add_backup(TABLE_SHARE *share);
+  /*
+     NB: backup is added only if not exists, fk_handle_alter() may try it multiple
+     times per one share.
+  */
+  FK_share_backup* fk_add_backup(TABLE_SHARE *share)
+  {
+    return fk_ref_backup.emplace(NULL, share, share);
+  }
   void fk_rollback();
   bool fk_install_frms();
 

@@ -341,7 +341,7 @@ public:
   {
     try
     {
-      auto ret= Base::emplace(args...);
+      auto ret= Base::emplace(std::forward<Args>(args)...);
       inserted= ret.second;
       return ret.first;
     }
@@ -415,7 +415,7 @@ public:
   {
     bool ins;
     auto ret= exception_wrapper<std::set<Key, Compare, Allocator> >::
-      emplace(ins, args...);
+      emplace(ins, std::forward<Args>(args)...);
     if (inserted)
       *inserted= ins;
     if (ret == std::set<Key, Compare, Allocator>::end())
@@ -456,7 +456,7 @@ public:
   {
     bool ins;
     auto ret= exception_wrapper<std::map<Key, T, Compare, Allocator> >::
-      emplace(ins, args...);
+      emplace(ins, std::forward<Args>(args)...);
     if (inserted)
       *inserted= ins;
     if (ret == std::map<Key, T, Compare, Allocator>::end())
@@ -1009,11 +1009,9 @@ protected:
   bool autocommit; // FIXME: remove
 
 public:
-  // FIXME: remove (used in ALTER TABLE)
-  FK_share_backup() : share(NULL), autocommit(true) {}
   bool init(TABLE_SHARE *_share);
 
-  FK_share_backup(TABLE_SHARE *_share)
+  FK_share_backup(TABLE_SHARE *_share) : autocommit(true)
   {
     if (init(_share))
       share= NULL;
@@ -1066,16 +1064,18 @@ public:
 };
 
 
-class FK_ddl_vector: public mbd::vector<FK_ddl_backup>, public ddl_log_info
+/*
+   NB: again, ALTER does require duplicate check hence mbd::map is used, while other commands
+   do not require and mbd::vector is enough. To avoid templating or code complexity via virtual
+   ifaces we just use mbd::map for everything. We are not going to hit bottleneck here:
+   it is DDL (rare operation), it is less than hundred of foreign keys normally.
+*/
+class FK_ddl_vector: public mbd::map<TABLE_SHARE *, FK_ddl_backup>, public ddl_log_info
 {
 public:
   bool install_shadow_frms(THD *thd);
   void drop_backup_frms(THD *thd);
   void rollback(THD *thd);
-  ~FK_ddl_vector()
-  {
-
-  }
 };
 
 

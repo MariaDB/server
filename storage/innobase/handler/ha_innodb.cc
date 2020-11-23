@@ -21537,8 +21537,8 @@ fk_upgrade_legacy_storage(dict_table_t* table, trx_t* trx, THD *thd, TABLE_SHARE
 	}
 
 	// Update referenced FRMs
-	for (FK_ddl_backup &bak: ref_shares) {
-		if (bak.fk_install_shadow_frm(fk_ddl_info)) {
+	for (auto &bak: ref_shares) {
+		if (bak.second.fk_install_shadow_frm(fk_ddl_info)) {
 			// FIXME: MDEV-21053 atomicity
 			err = DB_ERROR;
 			goto rollback;
@@ -21590,8 +21590,8 @@ fk_upgrade_legacy_storage(dict_table_t* table, trx_t* trx, THD *thd, TABLE_SHARE
 	return DB_LEGACY_FK;
 
 rollback:
-	for (FK_ddl_backup &bak: ref_shares) {
-		bak.rollback(fk_ddl_info);
+	for (auto &bak: ref_shares) {
+		bak.second.rollback(fk_ddl_info);
 	}
 	return err;
 }
