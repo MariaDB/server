@@ -92,7 +92,6 @@ public:
   bool auto_inc_initialized;
   mysql_mutex_t auto_inc_mutex;                /**< protecting auto_inc val */
   ulonglong next_auto_inc_val;                 /**< first non reserved value */
-  ulonglong prev_auto_inc_val;                 /**< stored next_auto_inc_val */
   /**
     Hash of partition names. Initialized in the first ha_partition::open()
     for the table_share. After that it is read-only, i.e. no locking required.
@@ -104,7 +103,6 @@ public:
   Partition_share()
     : auto_inc_initialized(false),
     next_auto_inc_val(0),
-    prev_auto_inc_val(0),
     partition_name_hash_initialized(false),
     partition_names(NULL)
   {
@@ -430,24 +428,6 @@ private:
   MY_BITMAP m_locked_partitions;
   /** Stores shared auto_increment etc. */
   Partition_share *part_share;
-  /** Fix spurious -Werror=overloaded-virtual in GCC 9 */
-  virtual void restore_auto_increment(ulonglong prev_insert_id)
-  {
-    handler::restore_auto_increment(prev_insert_id);
-  }
-  /** Store and restore next_auto_inc_val over duplicate key errors. */
-  virtual void store_auto_increment()
-  {
-    DBUG_ASSERT(part_share);
-    part_share->prev_auto_inc_val= part_share->next_auto_inc_val;
-    handler::store_auto_increment();
-  }
-  virtual void restore_auto_increment()
-  {
-    DBUG_ASSERT(part_share);
-    part_share->next_auto_inc_val= part_share->prev_auto_inc_val;
-    handler::restore_auto_increment();
-  }
   /** Temporary storage for new partitions Handler_shares during ALTER */
   List<Parts_share_refs> m_new_partitions_share_refs;
   /** Sorted array of partition ids in descending order of number of rows. */
