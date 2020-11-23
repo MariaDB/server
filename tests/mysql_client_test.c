@@ -21184,13 +21184,14 @@ static void test_cache_metadata()
 {
   char char_val[]= "blah";
   int int_val = 1;
+  int rc;
   MYSQL_BIND param= {0};
   my_bool is_null= FALSE;
 
 
   MYSQL_STMT* stmt= mysql_stmt_init(mysql);
   check_stmt(stmt);
-  int rc= mysql_stmt_prepare(stmt, "SELECT ?", -1);
+  rc= mysql_stmt_prepare(stmt, "SELECT ?", -1);
   myquery(rc);
 
   param.buffer= char_val;
