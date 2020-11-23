@@ -48,7 +48,7 @@
   All options after it come from that file.
   Empty file name ("") means command line.
 */
-static char *file_marker= (char*)"----file-marker----";
+static const char *file_marker= "----file-marker----";
 my_bool my_defaults_mark_files= FALSE;
 my_bool is_file_marker(const char* arg)
 {
@@ -406,7 +406,8 @@ int my_load_defaults(const char *conf_file, const char **groups, int *argc,
   int args_used= 0;
   int error= 0;
   MEM_ROOT alloc;
-  char *ptr,**res;
+  const char *ptr;
+  const char **res;
   const char **dirs;
   DBUG_ENTER("my_load_defaults");
 
@@ -449,10 +450,10 @@ int my_load_defaults(const char *conf_file, const char **groups, int *argc,
     }
   }
 
-  if (!(ptr=(char*) alloc_root(&alloc, sizeof(alloc) +
-			       (args.elements + *argc + 3) * sizeof(char*))))
+  if (!(ptr= alloc_root(&alloc, sizeof(alloc) +
+	                (args.elements + *argc + 3) * sizeof(char*))))
     goto err;
-  res= (char**) (ptr+sizeof(alloc));
+  res= (const char**) (ptr+sizeof(alloc));
 
   /* found arguments + command line arguments to new array */
   memcpy(res, args.buffer, args.elements * sizeof(char*));
@@ -460,14 +461,14 @@ int my_load_defaults(const char *conf_file, const char **groups, int *argc,
   if (my_defaults_mark_files)
   {
     res[args.elements++]= file_marker;
-    res[args.elements++]= (char*)"";
+    res[args.elements++]= "";
   }
 
   if (*argc)
     memcpy(res + args.elements, *argv, *argc * sizeof(char*));
 
   (*argc)+= args.elements;
-  *argv= res;
+  *argv= (char **)res;
   (*argv)[*argc]= 0;
   *(MEM_ROOT*) ptr= alloc;			/* Save alloc root for free */
   delete_dynamic(&args);

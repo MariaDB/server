@@ -1456,7 +1456,7 @@ static const MY_CSET_OS_NAME charsets[] =
   {"utf8",           "utf8",     my_cs_exact},
   {"utf-8",          "utf8",     my_cs_exact},
 #endif
-  {NULL,             NULL,       0}
+  {NULL,             NULL,       my_cs_exact}
 };
 
 
