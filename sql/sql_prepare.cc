@@ -334,9 +334,13 @@ static bool send_prep_stmt(Prepared_statement *stmt, uint columns)
   error= my_net_write(net, buff, sizeof(buff));
   if (stmt->param_count && likely(!error))
   {
-    error= thd->protocol_text.send_result_set_metadata((List<Item> *)
-                                          &stmt->lex->param_list,
-                                          Protocol::SEND_EOF);
+    /*
+      Force the column info to be written
+      (in this case PS parameter type info).
+    */
+    error= thd->protocol_text.send_result_set_metadata(
+                (List<Item> *)&stmt->lex->param_list,
+                Protocol::SEND_EOF | Protocol::SEND_FORCE_COLUMN_INFO);
   }
 
   if (likely(!error))
@@ -3444,10 +3448,15 @@ static void mysql_stmt_execute_common(THD *thd,
   thd->protocol= &thd->protocol_binary;
   MYSQL_EXECUTE_PS(thd->m_statement_psi, stmt->m_prepared_stmt);
 
+  auto save_cur_stmt= thd->cur_stmt;
+  thd->cur_stmt= stmt;
+
   if (!bulk_op)
     stmt->execute_loop(&expanded_query, open_cursor, packet, packet_end);
   else
     stmt->execute_bulk_loop(&expanded_query, open_cursor, packet, packet_end);
+
+  thd->cur_stmt= save_cur_stmt;
   thd->protocol= save_protocol;
 
   sp_cache_enforce_limit(thd->sp_proc_cache, stored_program_cache_size);
@@ -4206,6 +4215,8 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
 
   old_stmt_arena= thd->stmt_arena;
   thd->stmt_arena= this;
+  auto save_cur_stmt= thd->cur_stmt;
+  thd->cur_stmt= this;
 
   Parser_state parser_state;
   if (parser_state.init(thd, thd->query(), thd->query_length()))
@@ -4213,6 +4224,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     thd->restore_backup_statement(this, &stmt_backup);
     thd->restore_active_arena(this, &stmt_backup);
     thd->stmt_arena= old_stmt_arena;
+    thd->cur_stmt = save_cur_stmt;
     DBUG_RETURN(TRUE);
   }
 
@@ -4221,6 +4233,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
 
   lex_start(thd);
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_PREPARE;
+
 
   error= (parse_sql(thd, & parser_state, NULL) ||
           thd->is_error() ||
@@ -4297,6 +4310,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   cleanup_stmt();
   thd->restore_backup_statement(this, &stmt_backup);
   thd->stmt_arena= old_stmt_arena;
+  thd->cur_stmt= save_cur_stmt;
 
   if (likely(error == 0))
   {
@@ -4755,6 +4769,7 @@ Prepared_statement::reprepare()
       it's failed, we need to return all the warnings to the user.
     */
     thd->get_stmt_da()->clear_warning_info(thd->query_id);
+    column_info_state.reset();
   }
   else
   {
