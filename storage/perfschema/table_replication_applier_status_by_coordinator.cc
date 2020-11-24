@@ -55,12 +55,14 @@ table_replication_applier_status_by_coordinator::m_share=
   sizeof(pos_t), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE replication_applier_status_by_coordinator("
-  "CHANNEL_NAME CHAR(64) collate utf8_general_ci not null,"
+  "CONNECTION_NAME VARCHAR(256) collate utf8_general_ci not null,"
   "THREAD_ID BIGINT UNSIGNED,"
   "SERVICE_STATE ENUM('ON','OFF') not null,"
+  "LAST_SEEN_TRANSACTION CHAR(57) not null,"
   "LAST_ERROR_NUMBER INTEGER not null,"
   "LAST_ERROR_MESSAGE VARCHAR(1024) not null,"
-  "LAST_ERROR_TIMESTAMP TIMESTAMP(0) not null)") },
+  "LAST_ERROR_TIMESTAMP TIMESTAMP(0) not null,"
+  "LAST_TRANS_RETRY_COUNT INTEGER not null)") },
   false  /* perpetual */
 };
 
@@ -104,15 +106,7 @@ int table_replication_applier_status_by_coordinator::rnd_next(void)
   {
     mi= (Master_info *)my_hash_element(&master_info_index->master_info_hash, m_pos.m_index);
 
-    /*
-      Construct and display SQL Thread's (Coordinator) information in
-      'replication_applier_status_by_coordinator' table only in the case of
-      multi threaded slave mode. Code should do nothing in the case of single
-      threaded slave mode. In case of single threaded slave mode SQL Thread's
-      status will be reported as part of
-      'replication_applier_status_by_worker' table.
-    */
-    if (mi && mi->host[0] && /*mi->rli.get_worker_count() > */ 0)
+    if (mi && mi->host[0])
     {
       make_row(mi);
       m_next_pos.set_after(&m_pos);
@@ -147,13 +141,20 @@ int table_replication_applier_status_by_coordinator::rnd_pos(const void *pos)
 void table_replication_applier_status_by_coordinator::make_row(Master_info *mi)
 {
   m_row_exists= false;
+  rpl_gtid gtid;
+  char buf[10+1+10+1+20+1];
+  String str(buf, sizeof(buf), system_charset_info);
+  bool first= true;
+
+  str.length(0);
 
   DBUG_ASSERT(mi != NULL);
 
   mysql_mutex_lock(&mi->rli.data_lock);
 
-  m_row.channel_name_length= static_cast<uint>(mi->connection_name.length);
-  memcpy(m_row.channel_name, mi->connection_name.str, m_row.channel_name_length);
+  gtid= mi->rli.last_seen_gtid;
+  m_row.connection_name_length= static_cast<uint>(mi->connection_name.length);
+  memcpy(m_row.connection_name, mi->connection_name.str, m_row.connection_name_length);
 
   if (mi->rli.slave_running)
   {
@@ -175,6 +176,18 @@ void table_replication_applier_status_by_coordinator::make_row(Master_info *mi)
   else
     m_row.service_state= PS_RPL_NO;
 
+  if ((gtid.seq_no > 0 &&
+        !rpl_slave_state_tostring_helper(&str, &gtid, &first)))
+  {
+    strmake(m_row.last_seen_transaction,str.ptr(), str.length());
+    m_row.last_seen_transaction_length= str.length();
+  }
+  else
+  {
+    m_row.last_seen_transaction_length= 0;
+    memcpy(m_row.last_seen_transaction, "", 1);
+  }
+
   mysql_mutex_lock(&mi->rli.err_lock);
 
   m_row.last_error_number= (long int) mi->rli.last_error().number;
@@ -190,10 +203,11 @@ void table_replication_applier_status_by_coordinator::make_row(Master_info *mi)
            m_row.last_error_message_length);
 
     /** time in millisecond since epoch */
-    m_row.last_error_timestamp= 0;//(ulonglong)mi->rli.last_error().skr*1000000;
+    m_row.last_error_timestamp= (ulonglong)mi->rli.last_error().skr*1000000;
   }
 
   mysql_mutex_unlock(&mi->rli.err_lock);
+  m_row.last_trans_retry_count= (ulong)mi->rli.last_trans_retry_count;
   mysql_mutex_unlock(&mi->rli.data_lock);
 
   m_row_exists= true;
@@ -217,8 +231,8 @@ int table_replication_applier_status_by_coordinator
     {
       switch(f->field_index)
       {
-      case 0: /* channel_name */
-         set_field_char_utf8(f, m_row.channel_name, m_row.channel_name_length);
+      case 0: /* connection_name */
+         set_field_varchar_utf8(f, m_row.connection_name, m_row.connection_name_length);
          break;
       case 1: /*thread_id*/
         if (!m_row.thread_id_is_null)
@@ -229,16 +243,23 @@ int table_replication_applier_status_by_coordinator
       case 2: /*service_state*/
         set_field_enum(f, m_row.service_state);
         break;
-      case 3: /*last_error_number*/
+      case 3: /*last_seen_transaction*/
+        set_field_char_utf8(f, m_row.last_seen_transaction, m_row.last_seen_transaction_length);
+        break;
+      case 4: /*last_error_number*/
         set_field_ulong(f, m_row.last_error_number);
         break;
-      case 4: /*last_error_message*/
+      case 5: /*last_error_message*/
         set_field_varchar_utf8(f, m_row.last_error_message,
                                m_row.last_error_message_length);
         break;
-      case 5: /*last_error_timestamp*/
+      case 6: /*last_error_timestamp*/
         set_field_timestamp(f, m_row.last_error_timestamp);
         break;
+      case 7: /*last_trans_retry_count*/
+        set_field_ulong(f, m_row.last_trans_retry_count);
+        break;
+
       default:
         DBUG_ASSERT(false);
       }

@@ -34,8 +34,6 @@
 #include "pfs_engine_table.h"
 #include "rpl_mi.h"
 #include "mysql_com.h"
-//#include "rpl_msr.h"
-//#include "rpl_info.h" /*CHANNEL_NAME_LENGTH*/
 #include "my_thread.h"
 
 class Master_info;
@@ -59,15 +57,18 @@ enum enum_rpl_yes_no {
   additional length field denoted by <field_name>_length.
 */
 struct st_row_coordinator {
-  char channel_name[CHANNEL_NAME_LENGTH];
-  uint channel_name_length;
+  char connection_name[CHANNEL_NAME_LENGTH];
+  uint connection_name_length;
   ulonglong thread_id;
   bool thread_id_is_null;
   enum_rpl_yes_no service_state;
+  char last_seen_transaction[GTID_MAX_STR_LENGTH + 1];
+  uint last_seen_transaction_length;
   uint last_error_number;
   char last_error_message[MAX_SLAVE_ERRMSG];
   uint last_error_message_length;
   ulonglong last_error_timestamp;
+  ulong last_trans_retry_count;
 };
 
 /** Table PERFORMANCE_SCHEMA.replication_applier_status_by_coordinator */
