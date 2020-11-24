@@ -428,7 +428,7 @@ public:
 
   // Backup for the table we altering. NB: auto-rollback if not committed.
   FK_table_backup fk_table_backup;
-  // NB: share is owned and released by fk_shares.
+  // NB: shares are owned and released by fk_shares.
   FK_ddl_vector fk_ref_backup;
   /*
      NB: backup is added only if not exists, fk_handle_alter() may try it multiple

@@ -1070,7 +1070,7 @@ public:
 
 
 /*
-   NB: Not a vtagain, ALTER does require duplicate check hence mbd::map is used, while other commands
+   NB: again, ALTER does require duplicate check hence mbd::map is used, while other commands
    do not require and mbd::vector is enough. To avoid templating or code complexity via virtual
    ifaces we just use mbd::map for everything. We are not going to hit bottleneck here:
    it is DDL (rare operation), it is less than hundred of foreign keys normally.
