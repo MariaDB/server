@@ -1038,7 +1038,7 @@ void dict_sys_t::create()
   table_id_hash.create(hash_size);
   temp_id_hash.create(hash_size);
 
-  latch.init(dict_operation_lock_key);
+  latch.SRW_LOCK_INIT(dict_operation_lock_key);
 
   if (!srv_read_only_mode)
   {

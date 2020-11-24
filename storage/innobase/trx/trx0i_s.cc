@@ -1263,7 +1263,7 @@ trx_i_s_cache_init(
 	acquire trx_i_s_cache_t::rw_lock, rdlock
 	release trx_i_s_cache_t::rw_lock */
 
-	cache->rw_lock.init(trx_i_s_cache_lock_key);
+	cache->rw_lock.SRW_LOCK_INIT(trx_i_s_cache_lock_key);
 
 	cache->last_read = 0;
 

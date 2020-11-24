@@ -250,7 +250,7 @@ struct btr_search_sys_t
     void init()
     {
       memset((void*) this, 0, sizeof *this);
-      latch.init(btr_search_latch_key);
+      latch.SRW_LOCK_INIT(btr_search_latch_key);
     }
 
     void alloc(ulint hash_size)

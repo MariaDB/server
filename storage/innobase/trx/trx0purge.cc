@@ -175,7 +175,7 @@ void purge_sys_t::create()
   offset= 0;
   hdr_page_no= 0;
   hdr_offset= 0;
-  latch.init(trx_purge_latch_key);
+  latch.SRW_LOCK_INIT(trx_purge_latch_key);
   mutex_create(LATCH_ID_PURGE_SYS_PQ, &pq_mutex);
   truncate.current= NULL;
   truncate.last= NULL;

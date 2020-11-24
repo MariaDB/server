@@ -32,6 +32,12 @@ this program; if not, write to the Free Software Foundation, Inc.,
 # endif
 #endif
 
+#ifdef UNIV_PFS_RWLOCK
+# define SRW_LOCK_INIT(key) init(key)
+#else
+# define SRW_LOCK_INIT(key) init()
+#endif
+
 class srw_lock final
 #if defined __linux__ && !defined SRW_LOCK_DUMMY
   : protected rw_lock
@@ -40,7 +46,7 @@ class srw_lock final
 #if defined SRW_LOCK_DUMMY || (!defined _WIN32 && !defined __linux__)
   mysql_rwlock_t lock;
 public:
-  void init(mysql_pfs_key_t key) { mysql_rwlock_init(key, &lock); }
+  void SRW_LOCK_INIT(mysql_pfs_key_t key) { mysql_rwlock_init(key, &lock); }
   void destroy() { mysql_rwlock_destroy(&lock); }
   void rd_lock() { mysql_rwlock_rdlock(&lock); }
   void rd_unlock() { mysql_rwlock_unlock(&lock); }
@@ -67,7 +73,7 @@ public:
 # endif
 
 public:
-  void init(mysql_pfs_key_t key)
+  void SRW_LOCK_INIT(mysql_pfs_key_t key)
   {
 # ifdef UNIV_PFS_RWLOCK
     pfs_psi= PSI_RWLOCK_CALL(init_rwlock)(key, this);
@@ -83,7 +89,7 @@ public:
       pfs_psi= nullptr;
     }
 # endif
-    DBUG_ASSERT(!is_locked_or_waiting());
+    IF_WIN(, DBUG_ASSERT(!is_locked_or_waiting()));
   }
   void rd_lock()
   {

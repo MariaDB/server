@@ -957,7 +957,7 @@ fil_space_t *fil_space_t::create(const char *name, ulint id, ulint flags,
 			 << " " << fil_crypt_get_type(crypt_data));
 	}
 
-	space->latch.init(fil_space_latch_key);
+	space->latch.SRW_LOCK_INIT(fil_space_latch_key);
 
 	if (space->purpose == FIL_TYPE_TEMPORARY) {
 		/* SysTablespace::open_or_create() would pass
