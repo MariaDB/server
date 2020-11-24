@@ -281,25 +281,17 @@ the read requests for the whole area.
 #ifndef UNIV_INNOCHECKSUM
 void page_hash_latch::read_lock_wait()
 {
-  auto l= read_lock_yield();
   /* First, try busy spinning for a while. */
   for (auto spin= srv_n_spin_wait_rounds; spin--; )
   {
-    if (l & WRITER_PENDING)
-      ut_delay(srv_spin_wait_delay);
+    ut_delay(srv_spin_wait_delay);
     if (read_trylock())
       return;
-    l= read_lock_yield();
   }
   /* Fall back to yielding to other threads. */
-  for (;;)
-  {
-    if (l & WRITER_PENDING)
-      os_thread_yield();
-    if (read_trylock())
-      return;
-    l= read_lock_yield();
-  }
+  do
+    os_thread_yield();
+  while (!read_trylock());
 }
 
 void page_hash_latch::write_lock_wait()
