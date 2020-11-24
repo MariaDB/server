@@ -2202,8 +2202,6 @@ SCHEMA_NAME
 # End of 10.1 tests
 #
 #
-# Start of 10.2 Test
-#
 # MDEV-14836: Assertion `m_status == DA_ERROR' failed in
 # Diagnostics_area::sql_errno upon query from I_S with LIMIT ROWS EXAMINED
 #
@@ -2275,6 +2273,13 @@ using (CONSTRAINT_CATALOG, CONSTRAINT_SCHEMA, TABLE_NAME, CONSTRAINT_NAME)
 TABLE_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE	CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA
 test	t	a	`i` > 0	def	test
 drop table t;
+#
+# MDEV-24230 subquery on information_schema fails with error message
+#
+create table t1 (n int);
+create table t2 (n int);
+insert into t1 set n = (select table_rows from information_schema.tables where table_name='t2');
+drop table t1, t2;
 #
 # End of 10.3 tests
 #

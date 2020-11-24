@@ -3695,7 +3695,6 @@ static bool show_status_array(THD *thd, const char *wild,
   char name_buffer[NAME_CHAR_LEN];
   int len;
   SHOW_VAR tmp, *var;
-  Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
   bool res= FALSE;
   CHARSET_INFO *charset= system_charset_info;
   DBUG_ENTER("show_status_array");
@@ -8669,13 +8668,6 @@ static int optimize_schema_tables_memory_usage(TABLE_LIST *table_list)
     DBUG_ASSERT(table->s->keys == 0);
     DBUG_ASSERT(table->s->uniques == 0);
 
-    // XXX HACK HACK HACK: in a stored function, RETURN (SELECT ...)
-    // enables warnings (in THD::sp_eval_expr) for the whole val_xxx/store pair,
-    // while the intention is to warn only for store(). Until this is
-    // fixed let's avoid data truncation warnings in I_S->fill_table()
-    if (thd->count_cuted_fields == CHECK_FIELD_IGNORE)
-    {
-
     uchar *cur= table->field[0]->ptr;
     /* first recinfo could be a NULL bitmap, not an actual Field */
     from_recinfo= to_recinfo= p->start_recinfo + (cur != table->record[0]);
@@ -8709,7 +8701,6 @@ static int optimize_schema_tables_memory_usage(TABLE_LIST *table_list)
       to_recinfo++;
     }
     p->recinfo= to_recinfo;
-    } // XXX end of HACK HACK HACK
 
     // TODO switch from Aria to Memory if all blobs were optimized away?
     if (instantiate_tmp_table(table, p->keyinfo, p->start_recinfo, &p->recinfo,
@@ -8872,6 +8863,7 @@ bool get_schema_tables_result(JOIN *join,
       }
 
       Switch_to_definer_security_ctx backup_ctx(thd, table_list);
+      Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
       if (table_list->schema_table->fill_table(thd, table_list, cond))
       {
         result= 1;
