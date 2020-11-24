@@ -56,6 +56,7 @@
 #include "sql_cte.h"
 #include "sql_window.h"
 #include "item_windowfunc.h"
+#include "item_period.h"
 #include "event_parse_data.h"
 #include "create_options.h"
 #include <myisam.h>
@@ -1442,7 +1443,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
         literal insert_ident order_ident temporal_literal
         simple_ident expr sum_expr in_sum_expr
         variable variable_aux bool_pri
-        predicate bit_expr parenthesized_expr
+        predicate period_predicand bit_expr parenthesized_expr
         table_wild simple_expr column_default_non_parenthesized_expr udf_expr
         primary_expr string_factor_expr mysql_concatenation_expr
         select_sublist_qualified_asterisk
@@ -9483,6 +9484,10 @@ predicate:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        | period_predicand OVERLAPS_SYM period_predicand
+          {
+            $$= new(thd->mem_root) Item_func_overlaps(thd, $1, $3);
+          }
         | predicate not REGEXP predicate
           {
             Item *item= new (thd->mem_root) Item_func_regex(thd, $1, $4);
@@ -9494,6 +9499,15 @@ predicate:
           }
         | bit_expr %prec PREC_BELOW_NOT
         ;
+
+period_predicand:
+    simple_ident { }
+  | PERIOD_SYM '(' bit_expr ',' bit_expr ')'
+    {
+      $$= new (thd->mem_root) Item_period(thd, {*$3, *$5});
+      if (unlikely($$ == NULL))
+        MYSQL_YYABORT;
+    }
 
 bit_expr:
           bit_expr '|' bit_expr %prec '|'
@@ -10059,13 +10073,7 @@ function_call_keyword:
           }
         | INTERVAL_SYM '(' expr ',' expr ')'
           {
-            List<Item> *list= new (thd->mem_root) List<Item>;
-            if (unlikely(list == NULL))
-              MYSQL_YYABORT;
-            if (unlikely(list->push_front($5, thd->mem_root)) ||
-                unlikely(list->push_front($3, thd->mem_root)))
-              MYSQL_YYABORT;
-            Item_row *item= new (thd->mem_root) Item_row(thd, *list);
+            Item_row *item= new (thd->mem_root) Item_row(thd, {*$3, *$5});
             if (unlikely(item == NULL))
               MYSQL_YYABORT;
             $$= new (thd->mem_root) Item_func_interval(thd, item);
@@ -15711,7 +15719,7 @@ keyword_sp_var_and_label:
         | ONE_SYM
         | ONLINE_SYM
         | ONLY_SYM
-        | OVERLAPS_SYM
+//        | OVERLAPS_SYM        /* Conflicts with period predicate */
         | PACKAGE_MARIADB_SYM
         | PACK_KEYS_SYM
         | PAGE_SYM

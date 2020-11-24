@@ -99,17 +99,25 @@ bool Item_args::alloc_arguments(THD *thd, uint count)
   return false;
 }
 
-
-void Item_args::set_arguments(THD *thd, List<Item> &list)
+template<typename E>
+void Item_args::set_arguments(THD *thd, E &list)
 {
-  if (alloc_arguments(thd, list.elements))
+  if (alloc_arguments(thd, list.size()))
     return;
-  List_iterator_fast<Item> li(list);
-  Item *item;
-  for (arg_count= 0; (item= li++); )
-    args[arg_count++]= item;
+  arg_count= 0;
+  for (Item &item: list)
+    args[arg_count++]= &item;
 }
 
+Item_args::Item_args(THD *thd, List<Item> &list)
+{
+  set_arguments(thd, list);
+}
+
+Item_args::Item_args(THD *thd, const ref_initializer_list<Item> &list)
+{
+  set_arguments(thd, list);
+}
 
 Item_args::Item_args(THD *thd, const Item_args *other)
   :arg_count(other->arg_count)

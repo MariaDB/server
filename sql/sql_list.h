@@ -534,6 +534,7 @@ public:
     return res == NULL || res->push_back(first, mem_root) ? NULL : res;
   }
 
+  uint size() const { return elements; }
   class Iterator;
   using value_type= T;
   using iterator= Iterator;

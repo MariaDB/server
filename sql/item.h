@@ -767,7 +767,8 @@ public:
              FIELD_VARIANCE_ITEM, INSERT_VALUE_ITEM,
              SUBSELECT_ITEM, ROW_ITEM, CACHE_ITEM, TYPE_HOLDER,
              PARAM_ITEM, TRIGGER_FIELD_ITEM,
-             EXPR_CACHE_ITEM};
+             EXPR_CACHE_ITEM,
+             PERIOD_ITEM};
 
   enum cond_result { COND_UNDEF,COND_OK,COND_TRUE,COND_FALSE };
 
@@ -2576,7 +2577,8 @@ class Item_args
 protected:
   Item **args, *tmp_arg[2];
   uint arg_count;
-  void set_arguments(THD *thd, List<Item> &list);
+  template<typename E>
+  void set_arguments(THD *thd, E &list);
   bool walk_args(Item_processor processor, bool walk_subquery, void *arg)
   {
     for (uint i= 0; i < arg_count; i++)
@@ -2621,6 +2623,9 @@ protected:
     return true;
   }
 public:
+  template<class T>
+  using ref_initializer_list= std::initializer_list<std::reference_wrapper<T>>;
+
   Item_args(void)
     :args(NULL), arg_count(0)
   { }
@@ -2661,10 +2666,8 @@ public:
       args[0]= a; args[1]= b; args[2]= c; args[3]= d; args[4]= e;
     }
   }
-  Item_args(THD *thd, List<Item> &list)
-  {
-    set_arguments(thd, list);
-  }
+  Item_args(THD *thd, List<Item> &list);
+  Item_args(THD *thd, const ref_initializer_list<Item> &list);
   Item_args(THD *thd, const Item_args *other);
   bool alloc_arguments(THD *thd, uint count);
   void add_argument(Item *item)
