@@ -351,6 +351,31 @@ public:
                                   enum cache_type io_cache_type_arg);
 };
 
+/**
+  @struct Rows_event_factory
+
+  Holds an event type code and a callback function to create it.
+  Should be created by Rows_event_factory::get.
+*/
+struct Rows_event_factory
+{
+  int type_code;
+
+  Rows_log_event *(*create)(THD*, TABLE*, ulong, bool is_transactional);
+
+  template<class RowsEventT>
+  static Rows_event_factory get()
+  {
+    return { RowsEventT::TYPE_CODE,
+             [](THD* thd, TABLE* table, ulong flags, bool is_transactional)
+                     -> Rows_log_event*
+             {
+               return new RowsEventT(thd, table, flags, is_transactional);
+             }
+    };
+  }
+};
+
 /* Tell the io thread if we can delay the master info sync. */
 #define SEMI_SYNC_SLAVE_DELAY_SYNC 1
 /* Tell the io thread if the current event needs a ack. */
@@ -419,6 +444,7 @@ private:
 #define BINLOG_COOKIE_GET_ID(c) ( ((ulong)(c)>>1) - BINLOG_COOKIE_BASE )
 #define BINLOG_COOKIE_IS_DUMMY(c) \
   ( ((ulong)(c)>>1) == BINLOG_COOKIE_DUMMY_ID )
+
 
 class binlog_cache_mngr;
 class binlog_cache_data;
@@ -724,11 +750,18 @@ public:
               Format_description_log_event *fdle, bool do_xa);
   int do_binlog_recovery(const char *opt_name, bool do_xa_recovery);
 #if !defined(MYSQL_CLIENT)
+  Rows_log_event*
+  prepare_pending_rows_event(THD *thd, TABLE* table,
+                             binlog_cache_data *cache_data,
+                             uint32 serv_id, size_t needed,
+                             bool is_transactional,
+                             Rows_event_factory event_factory);
 
   int flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
-                                       binlog_cache_mngr *cache_mngr,
+                                       binlog_cache_data *cache_data,
                                        bool is_transactional);
-  int remove_pending_rows_event(THD *thd, bool is_transactional);
+
+  static int remove_pending_rows_event(THD *thd, binlog_cache_data *cache_data);
 
 #endif /* !defined(MYSQL_CLIENT) */
   void reset_bytes_written()
@@ -825,7 +858,7 @@ public:
   void write_binlog_checkpoint_event_already_locked(const char *name, uint len);
   int  write_cache(THD *thd, IO_CACHE *cache);
   void set_write_error(THD *thd, bool is_transactional);
-  bool check_write_error(THD *thd);
+  static bool check_write_error(THD *thd);
 
   void start_union_events(THD *thd, query_id_t query_id_param);
   void stop_union_events(THD *thd);
@@ -1180,10 +1213,11 @@ bool write_annotated_row(THD *thd);
 int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
                                     bool is_transactional,
                                     MYSQL_BIN_LOG *bin_log,
-                                    binlog_cache_mngr *cache_mngr,
-                                    bool use_trans_cache);
+                                    binlog_cache_data *cache_data);
 Rows_log_event* binlog_get_pending_rows_event(binlog_cache_mngr *cache_mngr,
                                               bool use_trans_cache);
+binlog_cache_data* binlog_get_cache_data(binlog_cache_mngr *cache_mngr,
+                                         bool use_trans_cache);
 
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
 extern handlerton *binlog_hton;
