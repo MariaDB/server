@@ -6448,6 +6448,7 @@ struct SORT_FIELD_ATTR
   bool check_if_packing_possible(THD *thd) const;
   bool is_variable_sized() { return type == VARIABLE_SIZE; }
   void setup(Field *fld, bool with_suffix);
+  void setup_for_fixed_size_keys(Field *fld);
   int compare_nullability(uchar *a, uchar *b);
 };
 
@@ -6459,6 +6460,7 @@ struct SORT_FIELD: public SORT_FIELD_ATTR
   bool reverse;				/* if descending sort */
   void setup(Field *fld, bool with_suffix);
   void setup(Item *item, bool with_suffix);
+  void setup_for_fixed_size_keys(Field *fld);
 };
 
 

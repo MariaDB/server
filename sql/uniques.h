@@ -77,7 +77,7 @@ class Fixed_size_keys_descriptor : public Descriptor
 {
 public:
   Fixed_size_keys_descriptor(uint length);
-  ~Fixed_size_keys_descriptor() {}
+  virtual ~Fixed_size_keys_descriptor() {}
   uint get_length_of_key(uchar *ptr) override { return max_length; }
   bool setup(THD *thd, Field *field);
   bool setup(THD *thd, Item_sum *item,
@@ -111,7 +111,7 @@ protected:
 
 public:
   Variable_size_keys_descriptor(uint length);
-  ~Variable_size_keys_descriptor();
+  virtual ~Variable_size_keys_descriptor();
 
   Sort_keys *get_keys() { return sort_keys; }
   SORT_FIELD *get_sortorder() { return sortorder; }

@@ -2834,12 +2834,28 @@ void SORT_FIELD::setup(Item *item_arg, bool with_suffix)
 }
 
 
+
+void SORT_FIELD::setup_for_fixed_size_keys(Field *fld)
+{
+  field= fld;
+  item= NULL;
+  reverse= false;
+  SORT_FIELD_ATTR::setup_for_fixed_size_keys(fld);
+}
+
+
+void SORT_FIELD_ATTR::setup_for_fixed_size_keys(Field *field)
+{
+  original_length= length= field->pack_length();
+  cs= field->charset();
+  suffix_length= 0;
+  type=  SORT_FIELD_ATTR::FIXED_SIZE;
+  maybe_null= field->maybe_null();
+  length_bytes= 0;
+}
+
 void SORT_FIELD_ATTR::setup(Field *fld, bool with_suffix)
 {
-  /*
-    For unique needs to be set to FALSE always
-    but we can even pass the reverse as an argument to the function
-  */
   original_length= length= (with_suffix ?
                             fld->sort_length() :
                             fld->sort_length_without_suffix());

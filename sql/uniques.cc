@@ -1083,6 +1083,21 @@ Fixed_size_keys_descriptor::setup(THD *thd, Item_sum *item,
 bool
 Fixed_size_keys_descriptor::setup(THD *thd, Field *field)
 {
+  SORT_FIELD *sort,*pos;
+  if (sortorder)
+    return false;
+
+  DBUG_ASSERT(sort_keys == NULL);
+  sortorder= (SORT_FIELD*) thd->alloc(sizeof(SORT_FIELD));
+  pos= sort= sortorder;
+  if (!pos)
+    return true;
+  sort_keys= new Sort_keys(sortorder, 1);
+  if (!sort_keys)
+    return true;
+  sort=pos= sortorder;
+  pos->setup_for_fixed_size_keys(field);
+
   return false;
 }
 
@@ -1100,3 +1115,8 @@ Fixed_size_keys_descriptor::Fixed_size_keys_descriptor(uint length)
   sort_keys= NULL;
   sortorder= NULL;
 }
+
+
+Fixed_size_keys_simple::Fixed_size_keys_simple(uint length)
+:Fixed_size_keys_descriptor(length)
+{}

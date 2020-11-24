@@ -1725,7 +1725,7 @@ public:
       desc= new Variable_size_keys_simple(tree_key_length);
       if (!desc)
         return true; // OOM
-      tree= new Unique_impl((qsort_cmp2) simple_packed_str_key_cmp,
+      tree= new Unique_impl((qsort_cmp2) key_cmp,
                             (void*) this, tree_key_length,
                              max_heap_table_size, 1, desc);
       if (!tree)
@@ -1734,12 +1734,15 @@ public:
     }
 
     tree_key_length= table_field->pack_length();
-    desc= new Fixed_size_keys_descriptor(tree_key_length);
+    desc= new Fixed_size_keys_simple(tree_key_length);
     if (!desc)
       return true;  // OOM
-    tree= new Unique_impl((qsort_cmp2) simple_str_key_cmp, (void*) table_field,
+    tree= new Unique_impl((qsort_cmp2) key_cmp, (void*) this,
                           tree_key_length, max_heap_table_size, 1, desc);
-    return tree == NULL;
+    if (!tree)
+      return true; // OOM
+
+    return tree->get_descriptor()->setup(thd, table_field);
   }
 
 
@@ -1816,7 +1819,7 @@ public:
     return table_field->collected_stats->histogram.get_values();
   }
 
-  static int simple_packed_str_key_cmp(void* arg, uchar* key1, uchar* key2);
+  static int key_cmp(void* arg, uchar* key1, uchar* key2);
 };
 
 /*
@@ -1832,9 +1835,9 @@ public:
     @retval = 0       if key1 = key2
     @retval > 0       if key1 > key2
 */
-int Count_distinct_field::simple_packed_str_key_cmp(void* arg,
-                                                    uchar* key1,
-                                                    uchar* key2)
+int Count_distinct_field::key_cmp(void* arg,
+                                  uchar* key1,
+                                  uchar* key2)
 {
   Count_distinct_field *compare_arg= (Count_distinct_field*)arg;
   DBUG_ASSERT(compare_arg->tree->get_descriptor());
