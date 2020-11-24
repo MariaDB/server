@@ -36,17 +36,24 @@ protected:
   /** Flag to indicate that write_lock() or write_lock_wait() is pending */
   static constexpr uint32_t WRITER_PENDING= WRITER | WRITER_WAITING;
 
-  /** Yield a read lock request due to a conflict with a write lock.
-  @return the lock value */
-  uint32_t read_lock_yield()
-  {
-    uint32_t l= lock.fetch_sub(1, std::memory_order_relaxed);
-    DBUG_ASSERT(l & ~WRITER_PENDING);
-    return l;
-  }
   /** Start waiting for an exclusive lock. */
   void write_lock_wait_start()
   { lock.fetch_or(WRITER_WAITING, std::memory_order_relaxed); }
+  /** Try to acquire a shared lock.
+  @param l the value of the lock word
+  @return whether the lock was acquired */
+  bool read_trylock(uint32_t &l)
+  {
+    l= UNLOCKED;
+    while (!lock.compare_exchange_strong(l, l + 1, std::memory_order_acquire,
+                                         std::memory_order_relaxed))
+    {
+      DBUG_ASSERT(!(WRITER & l) || !(~WRITER_PENDING & l));
+      if (l & WRITER_PENDING)
+        return false;
+    }
+    return true;
+  }
   /** Wait for an exclusive lock.
   @return whether the exclusive lock was acquired */
   bool write_lock_poll()
@@ -80,8 +87,7 @@ public:
   }
   /** Try to acquire a shared lock.
   @return whether the lock was acquired */
-  bool read_trylock()
-  { return !(lock.fetch_add(1, std::memory_order_acquire) & WRITER_PENDING); }
+  bool read_trylock() { uint32_t l; return read_trylock(l); }
   /** Try to acquire an exclusive lock.
   @return whether the lock was acquired */
   bool write_trylock()
