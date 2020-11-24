@@ -29,6 +29,13 @@ CONNECTION_NAME	HOST	PORT	USER	USING_GTID	SSL_ALLOWED	SSL_CA_FILE	SSL_CA_PATH	SS
 slave2	#	#	root	NO	NO						NO			60	86400	60.000			
 slave1	#	#	root	NO	NO						NO			60	86400	60.000			
 start all slaves;
+#
+# MDEV:16437: merge 5.7 P_S replication instrumentation and tables
+#
+select * from performance_schema.replication_applier_status_by_coordinator;
+CONNECTION_NAME	THREAD_ID	SERVICE_STATE	LAST_SEEN_TRANSACTION	LAST_ERROR_NUMBER	LAST_ERROR_MESSAGE	LAST_ERROR_TIMESTAMP	LAST_TRANS_RETRY_COUNT
+slave2	#	ON		0		0000-00-00 00:00:00	0
+slave1	#	ON		0		0000-00-00 00:00:00	0
 stop slave 'slave1';
 show slave 'slave1' status;
 Slave_IO_State	

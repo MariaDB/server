@@ -263,6 +263,12 @@ let $condition= = 'Waiting for master to send event';
 --let $all_slaves_status=
 --echo #
 
+--echo #
+--echo # MDEV:16437: merge 5.7 P_S replication instrumentation and tables
+--echo #
+--replace_column 2 #
+SELECT * FROM performance_schema.replication_applier_status_by_coordinator;
+
 --sorted_result
 select * from db1.t1;
 
