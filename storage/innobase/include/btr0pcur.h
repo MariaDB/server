@@ -137,9 +137,8 @@ btr_pcur_open_with_no_init_func(
 				that the ahi_latch protects the record! */
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
 #ifdef BTR_CUR_HASH_ADAPT
-	rw_lock_t*	ahi_latch,
-				/*!< in: adaptive hash index latch held
-				by the caller, or NULL if none */
+	srw_lock*	ahi_latch,
+				/*!< in: currently held AHI rdlock, or NULL */
 #endif /* BTR_CUR_HASH_ADAPT */
 	const char*	file,	/*!< in: file name */
 	unsigned	line,	/*!< in: line where called */

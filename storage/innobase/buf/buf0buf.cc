@@ -1980,16 +1980,11 @@ inline void buf_pool_t::resize()
 
 #ifdef BTR_CUR_HASH_ADAPT
 	/* disable AHI if needed */
-	const bool btr_search_disabled = btr_search_enabled;
-
 	buf_resize_status("Disabling adaptive hash index.");
 
 	btr_search_s_lock_all();
-	if (btr_search_disabled) {
-		btr_search_s_unlock_all();
-	} else {
-		btr_search_s_unlock_all();
-	}
+	const bool btr_search_disabled = btr_search_enabled;
+	btr_search_s_unlock_all();
 
 	btr_search_disable();
 

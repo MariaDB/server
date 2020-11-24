@@ -30,7 +30,11 @@ Created 2/17/1996 Heikki Tuuri
 #include "dict0dict.h"
 #ifdef BTR_CUR_HASH_ADAPT
 #include "ha0ha.h"
-#include "sync0sync.h"
+#include "srw_lock.h"
+
+#ifdef UNIV_PFS_RWLOCK
+extern mysql_pfs_key_t btr_search_latch_key;
+#endif /* UNIV_PFS_RWLOCK */
 
 #define btr_search_sys_create() btr_search_sys.create()
 #define btr_search_sys_free() btr_search_sys.free()
@@ -77,7 +81,7 @@ btr_search_guess_on_hash(
 	ulint		mode,
 	ulint		latch_mode,
 	btr_cur_t*	cursor,
-	rw_lock_t*	ahi_latch,
+	srw_lock*	ahi_latch,
 	mtr_t*		mtr);
 
 /** Move or delete hash entries for moved records, usually in a page split.
@@ -109,8 +113,8 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id);
 			using btr_cur_search_, and the new record has been
 			inserted next to the cursor.
 @param[in]	ahi_latch	the adaptive hash index latch */
-void
-btr_search_update_hash_node_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch);
+void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
+                                           srw_lock *ahi_latch);
 
 /** Updates the page hash index when a single record is inserted on a page.
 @param[in,out]	cursor		cursor which was positioned to the
@@ -118,8 +122,8 @@ btr_search_update_hash_node_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch);
 				and the new record has been inserted next
 				to the cursor
 @param[in]	ahi_latch	the adaptive hash index latch */
-void
-btr_search_update_hash_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch);
+void btr_search_update_hash_on_insert(btr_cur_t *cursor,
+                                      srw_lock *ahi_latch);
 
 /** Updates the page hash index when a single record is deleted from a page.
 @param[in]	cursor	cursor which was positioned on the record to delete
@@ -138,23 +142,6 @@ static inline void btr_search_x_unlock_all();
 
 /** Lock all search latches in shared mode. */
 static inline void btr_search_s_lock_all();
-
-#ifdef UNIV_DEBUG
-/** Check if thread owns all the search latches.
-@param[in]	mode	lock mode check
-@retval true if owns all of them
-@retval false if does not own some of them */
-static inline bool btr_search_own_all(ulint mode);
-
-/** Check if thread owns any of the search latches.
-@param[in]	mode	lock mode check
-@retval true if owns any of them
-@retval false if owns no search latch */
-static inline bool btr_search_own_any(ulint mode);
-
-/** @return whether this thread holds any of the search latches */
-static inline bool btr_search_own_any();
-#endif /* UNIV_DEBUG */
 
 /** Unlock all search latches from shared mode. */
 static inline void btr_search_s_unlock_all();
@@ -250,20 +237,20 @@ struct btr_search_sys_t
   struct partition
   {
     /** latches protecting hash_table */
-    rw_lock_t latch;
+    srw_lock latch;
     /** mapping of dtuple_fold() to rec_t* in buf_block_t::frame */
     hash_table_t table;
     /** memory heap for table */
     mem_heap_t *heap;
 
-    char pad[(CPU_LEVEL1_DCACHE_LINESIZE - sizeof(rw_lock_t) -
+    char pad[(CPU_LEVEL1_DCACHE_LINESIZE - sizeof(srw_lock) -
               sizeof(hash_table_t) - sizeof(mem_heap_t)) &
              (CPU_LEVEL1_DCACHE_LINESIZE - 1)];
 
     void init()
     {
       memset((void*) this, 0, sizeof *this);
-      rw_lock_create(btr_search_latch_key, &latch, SYNC_SEARCH_SYS);
+      latch.init(btr_search_latch_key);
     }
 
     void alloc(ulint hash_size)
@@ -285,7 +272,7 @@ struct btr_search_sys_t
 
     void free()
     {
-      rw_lock_free(&latch);
+      latch.destroy();
       if (heap)
         clear();
     }
@@ -309,7 +296,7 @@ struct btr_search_sys_t
   }
 
   /** Get the search latch for the adaptive hash index partition */
-  rw_lock_t *get_latch(const dict_index_t &index) const
+  srw_lock *get_latch(const dict_index_t &index) const
   { return &get_part(index)->latch; }
 
   /** Create and initialize at startup */
@@ -354,10 +341,10 @@ inline ulint dict_index_t::n_ahi_pages() const
 {
   if (!btr_search_enabled)
     return 0;
-  rw_lock_t *latch = &btr_search_sys.get_part(*this)->latch;
-  rw_lock_s_lock(latch);
+  srw_lock *latch= &btr_search_sys.get_part(*this)->latch;
+  latch->rd_lock();
   ulint ref_count= search_info->ref_count;
-  rw_lock_s_unlock(latch);
+  latch->rd_unlock();
   return ref_count;
 }
 

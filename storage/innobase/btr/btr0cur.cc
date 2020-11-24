@@ -1245,9 +1245,8 @@ btr_cur_search_to_nth_level_func(
 	btr_cur_t*	cursor, /*!< in/out: tree cursor; the cursor page is
 				s- or x-latched, but see also above! */
 #ifdef BTR_CUR_HASH_ADAPT
-	rw_lock_t*	ahi_latch,
-				/*!< in: currently held btr_search_latch
-				(in RW_S_LATCH mode), or NULL */
+	srw_lock*	ahi_latch,
+				/*!< in: currently held AHI rdlock, or NULL */
 #endif /* BTR_CUR_HASH_ADAPT */
 	const char*	file,	/*!< in: file name */
 	unsigned	line,	/*!< in: line where called */
@@ -1449,7 +1448,7 @@ btr_cur_search_to_nth_level_func(
 #ifdef BTR_CUR_HASH_ADAPT
 	if (ahi_latch) {
 		/* Release possible search latch to obey latching order */
-		rw_lock_s_unlock(ahi_latch);
+		ahi_latch->rd_unlock();
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -2502,7 +2501,7 @@ func_exit:
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (ahi_latch) {
-		rw_lock_s_lock(ahi_latch);
+		ahi_latch->rd_lock();
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -3584,7 +3583,7 @@ fail_err:
 		ut_ad(index->is_instant());
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 	} else {
-		rw_lock_t* ahi_latch = btr_search_sys.get_latch(*index);
+		srw_lock* ahi_latch = btr_search_sys.get_latch(*index);
 		if (!reorg && cursor->flag == BTR_CUR_HASH) {
 			btr_search_update_hash_node_on_insert(
 				cursor, ahi_latch);
@@ -4296,7 +4295,7 @@ btr_cur_update_in_place(
 
 #ifdef BTR_CUR_HASH_ADAPT
 	{
-		rw_lock_t* ahi_latch = block->index
+		srw_lock* ahi_latch = block->index
 			? btr_search_sys.get_latch(*index) : NULL;
 		if (ahi_latch) {
 			/* TO DO: Can we skip this if none of the fields
@@ -4316,7 +4315,7 @@ btr_cur_update_in_place(
 				btr_search_update_hash_on_delete(cursor);
 			}
 
-			rw_lock_x_lock(ahi_latch);
+			ahi_latch->wr_lock();
 		}
 
 		assert_block_ahi_valid(block);
@@ -4327,7 +4326,7 @@ btr_cur_update_in_place(
 
 #ifdef BTR_CUR_HASH_ADAPT
 		if (ahi_latch) {
-			rw_lock_x_unlock(ahi_latch);
+			ahi_latch->wr_unlock();
 		}
 	}
 #endif /* BTR_CUR_HASH_ADAPT */

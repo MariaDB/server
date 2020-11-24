@@ -3857,15 +3857,15 @@ row_sel_try_search_shortcut_for_mysql(
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(!prebuilt->templ_contains_blob);
 
-	rw_lock_t* ahi_latch = btr_search_sys.get_latch(*index);
-	rw_lock_s_lock(ahi_latch);
+	srw_lock* ahi_latch = btr_search_sys.get_latch(*index);
+	ahi_latch->rd_lock();
 	btr_pcur_open_with_no_init(index, search_tuple, PAGE_CUR_GE,
 				   BTR_SEARCH_LEAF, pcur, ahi_latch, mtr);
 	rec = btr_pcur_get_rec(pcur);
 
 	if (!page_rec_is_user_rec(rec) || rec_is_metadata(rec, *index)) {
 retry:
-		rw_lock_s_unlock(ahi_latch);
+		ahi_latch->rd_unlock();
 		return(SEL_RETRY);
 	}
 
@@ -3875,7 +3875,7 @@ retry:
 
 	if (btr_pcur_get_up_match(pcur) < dtuple_get_n_fields(search_tuple)) {
 exhausted:
-		rw_lock_s_unlock(ahi_latch);
+		ahi_latch->rd_unlock();
 		return(SEL_EXHAUSTED);
 	}
 
@@ -3899,7 +3899,7 @@ exhausted:
 
 	*out_rec = rec;
 
-	rw_lock_s_unlock(ahi_latch);
+	ahi_latch->rd_unlock();
 	return(SEL_FOUND);
 }
 #endif /* BTR_CUR_HASH_ADAPT */
