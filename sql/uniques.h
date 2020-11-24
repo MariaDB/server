@@ -59,8 +59,8 @@ public:
 
   // Fill structures like sort_keys, sortorder
   virtual bool setup(THD *thd, Item_sum *item,
-                     uint non_const_args, uint arg_count);
-  virtual bool setup(THD *thd, Field *field);
+                     uint non_const_args, uint arg_count) { return false; }
+  virtual bool setup(THD *thd, Field *field) { return false; }
   virtual Sort_keys *get_keys() { return sort_keys; }
   SORT_FIELD *get_sortorder() { return sortorder; }
 
@@ -79,16 +79,19 @@ public:
   Fixed_size_keys_descriptor(uint length);
   ~Fixed_size_keys_descriptor() {}
   uint get_length_of_key(uchar *ptr) override { return max_length; }
-  virtual int compare_keys(uchar *a, uchar *b) override { return 0; }
+  bool setup(THD *thd, Field *field);
+  bool setup(THD *thd, Item_sum *item,
+             uint non_const_args, uint arg_count);
+  virtual int compare_keys(uchar *a, uchar *b) override;
 };
 
 
-class Fixed_size_keys_simple_descriptor : public Fixed_size_keys_descriptor
+class Fixed_size_keys_simple : public Fixed_size_keys_descriptor
 {
 public:
-  Fixed_size_keys_simple_descriptor(uint length);
-  ~Fixed_size_keys_simple_descriptor() {}
-  int compare_keys(uchar *a, uchar *b) override { return 0; }
+  Fixed_size_keys_simple(uint length);
+  ~Fixed_size_keys_simple() {}
+  int compare_keys(uchar *a, uchar *b) override;
 };
 
 
@@ -110,17 +113,18 @@ public:
   Variable_size_keys_descriptor(uint length);
   ~Variable_size_keys_descriptor();
 
-  uchar *get_packed_rec_ptr() { return packed_rec_ptr; }
   Sort_keys *get_keys() { return sort_keys; }
   SORT_FIELD *get_sortorder() { return sortorder; }
-
-  uint make_packed_record(bool exclude_nulls);
+  bool setup(THD *thd, Item_sum *item, uint non_const_args, uint arg_count);
+  bool setup(THD *thd, Field *field);
   uint get_length_of_key(uchar *ptr) override
   {
     return read_packed_length(ptr);
   }
   int compare_keys(uchar *a, uchar *b) override;
 
+
+  // All need to be moved to some new class
   // returns the length of the key along with the length bytes for the key
   static uint read_packed_length(uchar *p)
   {
@@ -132,6 +136,8 @@ public:
   }
 
   static const uint size_of_length_field= 4;
+  uchar *get_packed_rec_ptr() { return packed_rec_ptr; }
+  uint make_packed_record(bool exclude_nulls);
 };
 
 

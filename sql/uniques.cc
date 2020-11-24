@@ -964,8 +964,8 @@ uint Variable_size_keys_descriptor::make_packed_record(bool exclude_nulls)
 */
 
 bool
-Descriptor::setup(THD *thd, Item_sum *item,
-                  uint non_const_args, uint arg_count)
+Variable_size_keys_descriptor::setup(THD *thd, Item_sum *item,
+                                     uint non_const_args, uint arg_count)
 {
   SORT_FIELD *sort,*pos;
   if (sortorder)
@@ -1010,7 +1010,7 @@ Descriptor::setup(THD *thd, Item_sum *item,
     FALSE setup successful
 */
 
-bool Descriptor::setup(THD *thd, Field *field)
+bool Variable_size_keys_descriptor::setup(THD *thd, Field *field)
 {
   SORT_FIELD *sort,*pos;
   if (sortorder)
@@ -1026,7 +1026,6 @@ bool Descriptor::setup(THD *thd, Field *field)
     return true;
   sort=pos= sortorder;
   pos->setup(field, false);  // Nulls are always excluded
-
   return false;
 }
 
@@ -1053,18 +1052,44 @@ int Variable_size_keys_descriptor::compare_keys(uchar *a_ptr,
 }
 
 
-
-Variable_size_keys_simple::Variable_size_keys_simple(uint length)
-  : Variable_size_keys_descriptor(length)
-{
-
-}
-
-
 int Variable_size_keys_simple::compare_keys(uchar *a, uchar *b)
 {
   return sort_keys->compare_keys_for_single_arg(a + size_of_length_field,
                                                 b + size_of_length_field);
+}
+
+
+Variable_size_keys_simple::Variable_size_keys_simple(uint length)
+  : Variable_size_keys_descriptor(length)
+{}
+
+
+int Fixed_size_keys_simple::compare_keys(uchar *a, uchar *b)
+{
+  SORT_FIELD *sort_field= sort_keys->begin();
+  DBUG_ASSERT(sort_field->field);
+  return sort_field->field->cmp(a, b);
+}
+
+
+bool
+Fixed_size_keys_descriptor::setup(THD *thd, Item_sum *item,
+                                  uint non_const_args, uint arg_count)
+{
+  return false;
+}
+
+
+bool
+Fixed_size_keys_descriptor::setup(THD *thd, Field *field)
+{
+  return false;
+}
+
+
+int Fixed_size_keys_descriptor::compare_keys(uchar *a, uchar *b)
+{
+  return 0;
 }
 
 
