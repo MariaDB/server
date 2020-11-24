@@ -7249,7 +7249,9 @@ int handler::binlog_log_row(TABLE *table,
   if (thd->variables.option_bits & OPTION_GTID_BEGIN)
     is_trans= 1;
 
-  bool error= (*log_func)(thd, table, &mysql_bin_log, cache_mngr,
+  auto *cache= binlog_get_cache_data(cache_mngr, use_trans_cache(thd, is_trans));
+
+  bool error= (*log_func)(thd, table, &mysql_bin_log, cache,
                           is_trans, before_record, after_record);
   DBUG_RETURN(error ? HA_ERR_RBR_LOGGING_FAILED : 0);
 }
