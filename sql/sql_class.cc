@@ -6899,116 +6899,6 @@ bool THD::binlog_table_should_be_logged(const LEX_CSTRING *db)
            binlog_filter->db_ok(db->str)));
 }
 
-struct RowsEventFactory
-{
-  int type_code;
-
-  Rows_log_event *(*create)(THD*, TABLE*, ulong, bool is_transactional);
-};
-
-/**
- Creates RowsEventFactory, responsible for creating Rows_log_event descendant.
- @tparam RowsEventT is a type which will be constructed by
-                    RowsEventFactory::create.
- @return a RowsEventFactory object with type_code equal to RowsEventT::TYPE_CODE
-         and create containing pointer to a RowsEventT constructor callback.
- */
-template<class RowsEventT>
-static RowsEventFactory binlog_get_rows_event_creator()
-{
-  return { RowsEventT::TYPE_CODE,
-           [](THD* thd, TABLE* table, ulong flags, bool is_transactional)
-           -> Rows_log_event*
-           {
-             return new RowsEventT(thd, table, flags, is_transactional);
-           }
-         };
-}
-
-/*
-  Template member function for ensuring that there is an rows log
-  event of the apropriate type before proceeding.
-
-  PRE CONDITION:
-    - Events of type 'RowEventT' have the type code 'type_code'.
-
-  POST CONDITION:
-    If a non-NULL pointer is returned, the pending event for thread 'thd' will
-    be an event of type 'RowEventT' (which have the type code 'type_code')
-    will either empty or have enough space to hold 'needed' bytes.  In
-    addition, the columns bitmap will be correct for the row, meaning that
-    the pending event will be flushed if the columns in the event differ from
-    the columns suppled to the function.
-
-  RETURNS
-    If no error, a non-NULL pending event (either one which already existed or
-    the newly created one).
-    If error, NULL.
- */
-
-Rows_log_event*
-binlog_prepare_pending_rows_event(THD *thd, TABLE* table,
-                                  MYSQL_BIN_LOG *bin_log,
-                                  binlog_cache_mngr *cache_mngr,
-                                  uint32 serv_id, size_t needed,
-                                  bool is_transactional,
-                                  RowsEventFactory event_factory)
-{
-  DBUG_ENTER("binlog_prepare_pending_rows_event");
-  /* Pre-conditions */
-  DBUG_ASSERT(table->s->table_map_id != ~0UL);
-
-  /*
-    There is no good place to set up the transactional data, so we
-    have to do it here.
-  */
-  Rows_log_event* pending= binlog_get_pending_rows_event(cache_mngr,
-                                                         use_trans_cache(thd,
-                                                             is_transactional));
-
-  if (unlikely(pending && !pending->is_valid()))
-    DBUG_RETURN(NULL);
-
-  /*
-    Check if the current event is non-NULL and a write-rows
-    event. Also check if the table provided is mapped: if it is not,
-    then we have switched to writing to a new table.
-    If there is no pending event, we need to create one. If there is a pending
-    event, but it's not about the same table id, or not of the same type
-    (between Write, Update and Delete), or not the same affected columns, or
-    going to be too big, flush this event to disk and create a new pending
-    event.
-  */
-  if (!pending ||
-      pending->server_id != serv_id ||
-      pending->get_table_id() != table->s->table_map_id ||
-      pending->get_general_type_code() != event_factory.type_code ||
-      pending->get_data_size() + needed > opt_binlog_rows_event_max_size ||
-      pending->read_write_bitmaps_cmp(table) == FALSE)
-  {
-    /* Create a new RowsEventT... */
-    Rows_log_event* const
-        ev= event_factory.create(thd, table, table->s->table_map_id,
-                                 is_transactional);
-    if (unlikely(!ev))
-      DBUG_RETURN(NULL);
-    ev->server_id= serv_id; // I don't like this, it's too easy to forget.
-    /*
-      flush the pending event and replace it with the newly created
-      event...
-    */
-    if (unlikely(bin_log->flush_and_set_pending_rows_event(thd, ev, cache_mngr,
-                                                           is_transactional)))
-    {
-      delete ev;
-      DBUG_RETURN(NULL);
-    }
-
-    DBUG_RETURN(ev);               /* This is the new pending event */
-  }
-  DBUG_RETURN(pending);        /* This is the current pending event */
-}
-
 /* Declare in unnamed namespace. */
 CPP_UNNAMED_NS_START
   /**
@@ -7134,7 +7024,7 @@ CPP_UNNAMED_NS_START
 CPP_UNNAMED_NS_END
 
 int THD::binlog_write_row(TABLE* table, MYSQL_BIN_LOG *bin_log,
-                          binlog_cache_mngr *cache_mngr, bool is_trans,
+                          binlog_cache_data *cache_data, bool is_trans,
                           uchar const *record)
 {
   /*
@@ -7151,13 +7041,12 @@ int THD::binlog_write_row(TABLE* table, MYSQL_BIN_LOG *bin_log,
   size_t const len= pack_row(table, table->rpl_write_set, row_data, record);
 
   auto creator= binlog_should_compress(len) ?
-              binlog_get_rows_event_creator<Write_rows_compressed_log_event>() :
-              binlog_get_rows_event_creator<Write_rows_log_event>();
+                Rows_event_factory::get<Write_rows_compressed_log_event>() :
+                Rows_event_factory::get<Write_rows_log_event>();
 
-  auto *ev= binlog_prepare_pending_rows_event(this, table,
-                                              &mysql_bin_log, cache_mngr,
-                                              variables.server_id,
-                                              len, is_trans, creator);
+  auto *ev= bin_log->prepare_pending_rows_event(this, table, cache_data,
+                                                variables.server_id,
+                                                len, is_trans, creator);
 
   if (unlikely(ev == 0))
     return HA_ERR_OUT_OF_MEM;
@@ -7166,7 +7055,7 @@ int THD::binlog_write_row(TABLE* table, MYSQL_BIN_LOG *bin_log,
 }
 
 int THD::binlog_update_row(TABLE* table,  MYSQL_BIN_LOG *bin_log,
-                           binlog_cache_mngr *cache_mngr, bool is_trans,
+                           binlog_cache_data *cache_data, bool is_trans,
                            const uchar *before_record,
                            const uchar *after_record)
 {
@@ -7214,13 +7103,12 @@ int THD::binlog_update_row(TABLE* table,  MYSQL_BIN_LOG *bin_log,
 #endif
 
   auto creator= binlog_should_compress(before_size + after_size) ?
-             binlog_get_rows_event_creator<Update_rows_compressed_log_event>() :
-             binlog_get_rows_event_creator<Update_rows_log_event>();
-  auto *ev= binlog_prepare_pending_rows_event(this, table,
-                                              &mysql_bin_log, cache_mngr,
-                                              variables.server_id,
-                                              before_size + after_size,
-                                              is_trans, creator);
+                Rows_event_factory::get<Update_rows_compressed_log_event>() :
+                Rows_event_factory::get<Update_rows_log_event>();
+  auto *ev= bin_log->prepare_pending_rows_event(this, table, cache_data,
+                                                variables.server_id,
+                                                before_size + after_size,
+                                                is_trans, creator);
 
   if (unlikely(ev == 0))
     return HA_ERR_OUT_OF_MEM;
@@ -7236,7 +7124,7 @@ int THD::binlog_update_row(TABLE* table,  MYSQL_BIN_LOG *bin_log,
 }
 
 int THD::binlog_delete_row(TABLE* table, MYSQL_BIN_LOG *bin_log,
-                           binlog_cache_mngr *cache_mngr, bool is_trans,
+                           binlog_cache_data *cache_data, bool is_trans,
                            uchar const *record)
 {
   /**
@@ -7270,12 +7158,11 @@ int THD::binlog_delete_row(TABLE* table, MYSQL_BIN_LOG *bin_log,
   size_t const len= pack_row(table, table->read_set, row_data, record);
 
   auto creator= binlog_should_compress(len) ?
-             binlog_get_rows_event_creator<Delete_rows_compressed_log_event>() :
-             binlog_get_rows_event_creator<Delete_rows_log_event>();
-  auto *ev= binlog_prepare_pending_rows_event(this, table,
-                                              &mysql_bin_log, cache_mngr,
-                                              variables.server_id,
-                                              len, is_trans, creator);
+                Rows_event_factory::get<Delete_rows_compressed_log_event>() :
+                Rows_event_factory::get<Delete_rows_log_event>();
+  auto *ev= mysql_bin_log.prepare_pending_rows_event(this, table, cache_data,
+                                                     variables.server_id,
+                                                     len, is_trans, creator);
 
   if (unlikely(ev == 0))
     return HA_ERR_OUT_OF_MEM;
@@ -7355,28 +7242,6 @@ void THD::binlog_prepare_row_images(TABLE *table)
   DBUG_VOID_RETURN;
 }
 
-
-
-int THD::binlog_remove_pending_rows_event(bool reset_stmt,
-                                          bool is_transactional)
-{
-  DBUG_ENTER("THD::binlog_remove_pending_rows_event");
-
-  if(!WSREP_EMULATE_BINLOG_NNULL(this) && !mysql_bin_log.is_open())
-    DBUG_RETURN(0);
-
-  /* Ensure that all events in a GTID group are in the same cache */
-  if (variables.option_bits & OPTION_GTID_BEGIN)
-    is_transactional= 1;
-
-  mysql_bin_log.remove_pending_rows_event(this, is_transactional);
-
-  if (reset_stmt)
-    reset_binlog_for_next_statement();
-  DBUG_RETURN(0);
-}
-
-
 int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
 {
   DBUG_ENTER("THD::binlog_flush_pending_rows_event");
@@ -7395,11 +7260,12 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
   auto *cache_mngr= binlog_get_cache_mngr();
   if (!cache_mngr)
     DBUG_RETURN(0);
+  auto *cache= binlog_get_cache_data(cache_mngr,
+                                     use_trans_cache(this, is_transactional));
 
   int error=
     ::binlog_flush_pending_rows_event(this, stmt_end, is_transactional,
-                                      &mysql_bin_log, cache_mngr,
-                                      use_trans_cache(this, is_transactional));
+                                      &mysql_bin_log, cache);
   DBUG_RETURN(error);
 }
 
