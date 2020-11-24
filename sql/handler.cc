@@ -6998,7 +6998,10 @@ int handler::binlog_log_row(TABLE *table,
   if (cache_mngr == NULL)
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-  bool error= (*log_func)(thd, table, &mysql_bin_log, cache_mngr,
+  auto *cache= binlog_get_cache_data(cache_mngr,
+                                     use_trans_cache(thd, row_logging_has_trans));
+
+  bool error= (*log_func)(thd, table, &mysql_bin_log, cache,
                           row_logging_has_trans, before_record, after_record);
   DBUG_RETURN(error ? HA_ERR_RBR_LOGGING_FAILED : 0);
 }
