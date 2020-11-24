@@ -877,10 +877,11 @@ int Unique_impl::write_record_to_file(uchar *key)
 
 
 Variable_size_keys_descriptor::Variable_size_keys_descriptor(uint length)
-  :sortorder(NULL), sort_keys(NULL)
 {
-  key_length= length;
+  max_length= length;
   flags= (1 << VARIABLE_SIZED_KEYS_WITH_ORIGINAL_VALUES);
+  sort_keys= NULL;
+  sortorder= NULL;
   packed_rec_ptr= (uchar *)my_malloc(PSI_INSTRUMENT_ME,
                                      length,
                                      MYF(MY_WME | MY_THREAD_SPECIFIC));
@@ -963,8 +964,8 @@ uint Variable_size_keys_descriptor::make_packed_record(bool exclude_nulls)
 */
 
 bool
-Variable_size_keys_descriptor::setup(THD *thd, Item_sum *item,
-                                      uint non_const_args, uint arg_count)
+Descriptor::setup(THD *thd, Item_sum *item,
+                  uint non_const_args, uint arg_count)
 {
   SORT_FIELD *sort,*pos;
   if (sortorder)
@@ -1009,7 +1010,7 @@ Variable_size_keys_descriptor::setup(THD *thd, Item_sum *item,
     FALSE setup successful
 */
 
-bool Variable_size_keys_descriptor::setup(THD *thd, Field *field)
+bool Descriptor::setup(THD *thd, Field *field)
 {
   SORT_FIELD *sort,*pos;
   if (sortorder)
@@ -1052,8 +1053,15 @@ int Variable_size_keys_descriptor::compare_keys(uchar *a_ptr,
 }
 
 
-int Variable_size_keys_descriptor::compare_keys_for_single_arg(uchar *a,
-                                                                uchar *b)
+
+Variable_size_keys_simple::Variable_size_keys_simple(uint length)
+  : Variable_size_keys_descriptor(length)
+{
+
+}
+
+
+int Variable_size_keys_simple::compare_keys(uchar *a, uchar *b)
 {
   return sort_keys->compare_keys_for_single_arg(a + size_of_length_field,
                                                 b + size_of_length_field);
@@ -1062,6 +1070,8 @@ int Variable_size_keys_descriptor::compare_keys_for_single_arg(uchar *a,
 
 Fixed_size_keys_descriptor::Fixed_size_keys_descriptor(uint length)
 {
-  key_length= length;
+  max_length= length;
   flags= (1 << FIXED_SIZED_KEYS);
+  sort_keys= NULL;
+  sortorder= NULL;
 }

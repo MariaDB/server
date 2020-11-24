@@ -28,60 +28,14 @@
 class Descriptor : public Sql_alloc
 {
 protected:
-  uint key_length;
+  /* maximum possible size of any key, in bytes */
+  uint max_length;
   enum attributes
   {
     FIXED_SIZED_KEYS= 0,
     VARIABLE_SIZED_KEYS_WITH_ORIGINAL_VALUES
   };
   uint flags;
-
-public:
-  virtual ~Descriptor() {};
-  virtual uint get_length_of_key(uchar *ptr) = 0;
-  bool is_variable_sized()
-  {
-    return flags & (1 << VARIABLE_SIZED_KEYS_WITH_ORIGINAL_VALUES);
-  }
-  virtual int compare_keys(uchar *a, uchar *b) = 0;
-  virtual int compare_keys_for_single_arg(uchar *a, uchar *b) = 0;
-  virtual bool setup(THD *thd, Item_sum *item,
-                     uint non_const_args, uint arg_count) { return false; }
-  virtual bool setup(THD *thd, Field *field) { return false; }
-  virtual uchar *get_packed_rec_ptr() { return NULL; }
-  virtual uint make_packed_record(bool exclude_nulls) { return 0; }
-  virtual Sort_keys *get_keys() { return NULL; }
-  SORT_FIELD *get_sortorder() { return NULL; }
-};
-
-
-/*
-  Descriptor for fixed size keys
-*/
-class Fixed_size_keys_descriptor : public Descriptor
-{
-public:
-  Fixed_size_keys_descriptor(uint length);
-  ~Fixed_size_keys_descriptor() {}
-  uint get_length_of_key(uchar *ptr) override { return key_length; }
-  int compare_keys(uchar *a, uchar *b) override { return 0; }
-  int compare_keys_for_single_arg(uchar *a, uchar *b) override { return 0; }
-};
-
-
-/*
-  Descriptor for variable size keys
-*/
-class Variable_size_keys_descriptor : public Descriptor
-{
-  /*
-    Packed record ptr for a record of the table, the packed value in this
-    record is added to the unique tree
-  */
-  uchar* packed_rec_ptr;
-
-  String tmp_buffer;
-
   /*
     Array of SORT_FIELD structure storing the information about the key parts
     in the sort key of the Unique tree
@@ -93,6 +47,64 @@ class Variable_size_keys_descriptor : public Descriptor
     Structure storing information about usage of keys
   */
   Sort_keys *sort_keys;
+
+public:
+  virtual ~Descriptor() {};
+  virtual uint get_length_of_key(uchar *ptr) = 0;
+  bool is_variable_sized()
+  {
+    return flags & (1 << VARIABLE_SIZED_KEYS_WITH_ORIGINAL_VALUES);
+  }
+  virtual int compare_keys(uchar *a, uchar *b) = 0;
+
+  // Fill structures like sort_keys, sortorder
+  virtual bool setup(THD *thd, Item_sum *item,
+                     uint non_const_args, uint arg_count);
+  virtual bool setup(THD *thd, Field *field);
+  virtual Sort_keys *get_keys() { return sort_keys; }
+  SORT_FIELD *get_sortorder() { return sortorder; }
+
+  /* need to be moved to a separate class */
+  virtual uchar *get_packed_rec_ptr() { return NULL; }
+  virtual uint make_packed_record(bool exclude_nulls) { return 0; }
+};
+
+
+/*
+  Descriptor for fixed size keys
+*/
+class Fixed_size_keys_descriptor : public Descriptor
+{
+public:
+  Fixed_size_keys_descriptor(uint length);
+  ~Fixed_size_keys_descriptor() {}
+  uint get_length_of_key(uchar *ptr) override { return max_length; }
+  virtual int compare_keys(uchar *a, uchar *b) override { return 0; }
+};
+
+
+class Fixed_size_keys_simple_descriptor : public Fixed_size_keys_descriptor
+{
+public:
+  Fixed_size_keys_simple_descriptor(uint length);
+  ~Fixed_size_keys_simple_descriptor() {}
+  int compare_keys(uchar *a, uchar *b) override { return 0; }
+};
+
+
+/*
+  Descriptor for variable size keys
+*/
+class Variable_size_keys_descriptor : public Descriptor
+{
+protected:
+  /*
+    Packed record ptr for a record of the table, the packed value in this
+    record is added to the unique tree
+  */
+  uchar* packed_rec_ptr;
+
+  String tmp_buffer;
 
 public:
   Variable_size_keys_descriptor(uint length);
@@ -108,12 +120,7 @@ public:
     return read_packed_length(ptr);
   }
   int compare_keys(uchar *a, uchar *b) override;
-  int compare_keys_for_single_arg(uchar *a, uchar *b);
 
-  // Fill structures like sort_keys, sortorder
-  bool setup(THD *thd, Item_sum *item,
-            uint non_const_args, uint arg_count);
-  bool setup(THD *thd, Field *field);
   // returns the length of the key along with the length bytes for the key
   static uint read_packed_length(uchar *p)
   {
@@ -125,6 +132,17 @@ public:
   }
 
   static const uint size_of_length_field= 4;
+};
+
+
+/* Descriptor for variable size keys with only one component */
+
+class Variable_size_keys_simple : public Variable_size_keys_descriptor
+{
+public:
+  Variable_size_keys_simple(uint length);
+  ~Variable_size_keys_simple() {}
+  int compare_keys(uchar *a, uchar *b) override;
 };
 
 

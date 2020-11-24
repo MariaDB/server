@@ -755,7 +755,7 @@ Aggregator_distinct::packed_key_cmp_single_arg(void *arg,
 {
   Aggregator_distinct *aggr= (Aggregator_distinct *) arg;
   DBUG_ASSERT(aggr->tree);
-  return aggr->tree->get_descriptor()->compare_keys_for_single_arg(key1, key2);
+  return aggr->tree->get_descriptor()->compare_keys(key1, key2);
 }
 
 
@@ -1078,7 +1078,7 @@ int Aggregator_distinct::insert_record_to_unique()
     Get compare function for packed keys
 
     @retval
-      comparision function
+      comparison function
 */
 qsort_cmp2 Aggregator_distinct::get_compare_func_for_packed_keys()
 {

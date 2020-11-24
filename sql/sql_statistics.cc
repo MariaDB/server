@@ -1722,7 +1722,7 @@ public:
       tree_key_length+= Variable_size_keys_descriptor::size_of_length_field;
       tree_key_length+= MY_TEST(table_field->maybe_null());
 
-      desc= new Variable_size_keys_descriptor(tree_key_length);
+      desc= new Variable_size_keys_simple(tree_key_length);
       if (!desc)
         return true; // OOM
       tree= new Unique_impl((qsort_cmp2) simple_packed_str_key_cmp,
@@ -1838,8 +1838,7 @@ int Count_distinct_field::simple_packed_str_key_cmp(void* arg,
 {
   Count_distinct_field *compare_arg= (Count_distinct_field*)arg;
   DBUG_ASSERT(compare_arg->tree->get_descriptor());
-  return compare_arg->tree->get_descriptor()->
-                            compare_keys_for_single_arg(key1, key2);
+  return compare_arg->tree->get_descriptor()->compare_keys(key1, key2);
 }
 
 
