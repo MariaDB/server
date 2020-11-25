@@ -51,6 +51,8 @@ namespace tpool
 {
 #ifdef LINUX_NATIVE_AIO
 
+#define MAX_EVENTS 256
+
 class aio_linux final : public aio
 {
   thread_pool *m_pool;
@@ -60,10 +62,10 @@ class aio_linux final : public aio
 
   static void getevent_thread_routine(aio_linux *aio)
   {
-    io_event events[N_PENDING];
+    io_event events[MAX_EVENTS];
     for (;;)
     {
-      switch (int ret= my_getevents(aio->m_io_ctx, 1, N_PENDING, events)) {
+      switch (int ret= my_getevents(aio->m_io_ctx, 1, MAX_EVENTS, events)) {
       case -EINTR:
         continue;
       case -EINVAL:
