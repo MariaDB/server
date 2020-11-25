@@ -22,8 +22,14 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 # include <libaio.h>
 # include <sys/syscall.h>
 
-/** A simpler alternative to io_getevents(), without
-aio_ring_is_empty() that may trigger SIGSEGV */
+/*
+  A hack, which so far seems to allow allow getevents thread to be interrupted
+  by io_destroy() from another thread
+
+  libaio's io_getevent() would sometimes crash when attempting this feat,
+  thus the raw syscall.
+
+*/
 static int my_getevents(io_context_t ctx, long min_nr, long nr, io_event *ev)
 {
   int saved_errno= errno;
@@ -37,6 +43,8 @@ static int my_getevents(io_context_t ctx, long min_nr, long nr, io_event *ev)
   return ret;
 }
 #endif
+
+
 /*
   Linux AIO implementation, based on native AIO.
   Needs libaio.h and -laio at the compile time.
