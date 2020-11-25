@@ -264,7 +264,6 @@ struct os_file_size_t {
 	os_offset_t	m_alloc_size;
 };
 
-/** Win NT does not allow more than 64 */
 static const ulint OS_AIO_N_PENDING_IOS_PER_THREAD = 256;
 
 extern ulint	os_n_file_reads;
