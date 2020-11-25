@@ -418,7 +418,6 @@ public:
   FK_list            referenced_keys;
   MDL_request_list fk_mdl_reqs;
   mbd::map<Table_name, Share_acquire, Table_name_lt> fk_shares;
-  ddl_log_info fk_ddl_info;
 
   bool fk_prepare_rename(THD *thd, TABLE *table, Create_field *def,
                          mbd::set<FK_table_to_lock> &fk_tables_to_lock);
@@ -438,7 +437,6 @@ public:
   {
     return fk_ref_backup.emplace(NULL, share, share);
   }
-  void fk_rollback();
   bool fk_install_frms();
 
 private:
