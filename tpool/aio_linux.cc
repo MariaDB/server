@@ -60,27 +60,26 @@ class aio_linux final : public aio
 
   static void getevent_thread_routine(aio_linux *aio)
   {
-    io_event events[1];
+    io_event events[N_PENDING];
     for (;;)
     {
-      switch (int ret= my_getevents(aio->m_io_ctx, 1, 1, events)) {
+      switch (int ret= my_getevents(aio->m_io_ctx, 1, N_PENDING, events)) {
       case -EINTR:
-      case 0:
         continue;
       case -EINVAL:
         if (shutdown_in_progress)
           return;
         /* fall through */
       default:
-        if (ret != 1)
+        if (ret < 0)
         {
           fprintf(stderr, "io_getevents returned %d\n", ret);
           abort();
           return;
         }
-        else
+        for (int i= 0; i < ret; i++)
         {
-          const io_event &event= events[0];
+          const io_event &event= events[i];
           aiocb *iocb= static_cast<aiocb*>(event.obj);
           if (static_cast<int>(event.res) < 0)
           {

@@ -1467,7 +1467,7 @@ bool buf_pool_t::create()
   ut_d(lru_scan_itr.m_mutex= &mutex);
 
   io_buf.create((srv_n_read_io_threads + srv_n_write_io_threads) *
-                OS_AIO_N_PENDING_IOS_PER_THREAD);
+                tpool::aio::N_PENDING);
 
   /* FIXME: remove some of these variables */
   srv_buf_pool_curr_size= curr_pool_size;

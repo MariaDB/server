@@ -155,6 +155,8 @@ struct aiocb
 class aio
 {
 public:
+  /** Maximum number of pending requests per thread */
+  static constexpr unsigned N_PENDING= 256;
   /**
     Submit asyncronous IO.
     On completion, cb->m_callback is executed.
