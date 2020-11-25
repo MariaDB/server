@@ -16,20 +16,25 @@
 #define X												  
 #endif
 
+#define ARGS    MY_MIN(24,(int)len-i),s+MY_MAX(i-3,0)
+#define MOF(X)  MakeOff(Base, X)
+#define MP(X)   MakePtr(Base, X)
+#define MPP(X)  (PBPR)MakePtr(Base, X)
+#define MVP(X)  (PBVAL)MakePtr(Base, X)
+#define MZP(X)  (PSZ)MakePtr(Base, X)
+#define LLN(X)	*(longlong*)MakePtr(Base, X)
+#define DBL(X)	*(double*)MakePtr(Base, X)
+
 class BDOC;
 class BOUT;
-//class JSON;
+class BJSON;
 
 typedef class BDOC* PBDOC;
-//typedef class BJSON* PBSON;
-
-// BSON size should be equal on Linux and Windows
-#define BMX 255
-
-typedef uint OFFSET;
+typedef class BJSON* PBJSON;
+typedef uint  OFFSET;
 
 /***********************************************************************/
-/* Structure JVALUE.                                                   */
+/* Structure BVAL. Binary representation of a JVALUE.                  */
 /***********************************************************************/
 typedef struct _jvalue {
 	union {
@@ -39,38 +44,18 @@ typedef struct _jvalue {
 		bool   B;				  // A boolean value True or false (0)
 	};
 	short    Nd;				// Number of decimals
-	JTYP     Type;      // The value type
+	short    Type;      // The value type
 	OFFSET   Next;      // Offset to the next value in array
 } BVAL, *PBVAL;  // end of struct BVALUE
 
 /***********************************************************************/
-/* Structure JPAIR. The pairs of a json Object.                        */
+/* Structure BPAIR. The pairs of a json Object.                        */
 /***********************************************************************/
 typedef struct _jpair {
 	OFFSET Key;    // Offset to this pair key name
 	OFFSET Vlp;    // To the value of the pair
 	OFFSET Next;   // Offset to the next pair in object
 } BPAIR, *PBPR;  // end of struct BPAIR
-
-#if 0
-/***********************************************************************/
-/*  Structure used to return binary json to Json UDF functions.        */
-/*  (should be moved to jsonudf.h).                                    */
-/***********************************************************************/
-typedef struct _JsonBin {
-	char    Msg[BMX + 1];
-	char   *Filename;
-	PGLOBAL G;
-	int     Pretty;
-	ulong   Reslen;
-	my_bool Changed;
-	PBSON   Top;
-	PBSON   Jsp;
-	PBJN    Bsp;
-} BJSON, *PBJN ; // end of struct BJSON
-
-PBJN  JbinAlloc(PGLOBAL g, UDF_ARGS* args, ulong len, PJSON jsp);
-#endif // 0
 
 char* NextChr(PSZ s, char sep);
 char* GetJsonNull(void);
@@ -79,15 +64,84 @@ const char* GetFmt(int type, bool un);
 DllExport bool IsNum(PSZ s);
 
 /***********************************************************************/
+/* Class BJSON. The class handling all BJSON operations.               */
+/***********************************************************************/
+class BJSON : public BLOCK {
+public:
+	// Constructor
+	BJSON(void* base, PBVAL vp = NULL) { Base = base; Bvp = vp; }
+
+	void* GetBase(void) { return Base; }
+
+	// SubAlloc functions
+	void* BsonSubAlloc(PGLOBAL g, size_t size);
+	PBPR  SubAllocPair(PGLOBAL g, OFFSET key, OFFSET val = 0);
+	PBVAL SubAllocVal(PGLOBAL g);
+	PBVAL SubAllocVal(PGLOBAL g, OFFSET toval, JTYP type = TYPE_UNKNOWN, short nd = 0);
+	PBVAL SubAllocVal(PGLOBAL g, PVAL valp);
+	PBVAL DupVal(PGLOBAL g, PBVAL bvp);
+
+	// Array functions
+	int   GetArraySize(PBVAL bap, bool b = false);
+	PBVAL GetArrayValue(PBVAL bap, int i);
+  PSZ   GetArrayText(PGLOBAL g, PBVAL bap, PSTRG text);
+	PBVAL MergeArray(PGLOBAL g, PBVAL bap1,PBVAL bap2);
+	PBVAL DeleteValue(PBVAL bap, int n);
+	PBVAL AddArrayValue(PGLOBAL g, PBVAL bap, PBVAL nvp = NULL, int* x = NULL);
+	PBVAL SetArrayValue(PGLOBAL g, PBVAL bap, PBVAL nvp, int n);
+	bool  IsArrayNull(PBVAL bap);
+
+	// Object functions
+	int   GetObjectSize(PBPR bop, bool b = false);
+  PSZ   GetObjectText(PGLOBAL g, PBPR bop, PSTRG text);
+	PBPR  MergeObject(PGLOBAL g, PBPR bop1, PBPR bop2);
+	PBPR  AddPair(PGLOBAL g, PBPR bop, PSZ key, OFFSET val = 0);
+	PBVAL GetKeyValue(PBPR bop, PSZ key);
+	PBVAL GetKeyList(PGLOBAL g, PBPR bop);
+	PBVAL GetObjectValList(PGLOBAL g, PBPR bop);
+	PBPR  SetKeyValue(PGLOBAL g, PBPR bop, OFFSET bvp, PSZ key);
+	PBPR  DeleteKey(PBPR bop, PCSZ k);
+	bool  IsObjectNull(PBPR bop);
+
+	// Value functions
+	int   GetSize(PBVAL vlp, bool b = false);
+	PBPR  GetObject(PBVAL vlp);
+	PBVAL GetArray(PBVAL vlp);
+	//PJSON GetJsp(void) { return (DataType == TYPE_JSON ? Jsp : NULL); }
+	PSZ   GetValueText(PGLOBAL g, PBVAL vlp, PSTRG text);
+	//inline PJSON  GetJson(void) { return (DataType == TYPE_JSON ? Jsp : this); }
+	PSZ   GetString(PGLOBAL g, PBVAL vp, char* buff = NULL);
+	int   GetInteger(PBVAL vp);
+	long long GetBigint(PBVAL vp);
+	double GetDouble(PBVAL vp);
+	PVAL  GetValue(PGLOBAL g, PBVAL vp);
+	void  SetValueObj(PBVAL vlp, PBPR bop);
+	void  SetValueArr(PBVAL vlp, PBVAL bap);
+	void  SetValueVal(PBVAL vlp, PBVAL vp);
+	void  SetValue(PGLOBAL g, PBVAL vlp, PVAL valp);
+	void  SetString(PBVAL vlp, PSZ s, int ci = 0);
+	void  SetInteger(PBVAL vlp, int n);
+	void  SetBigint(PGLOBAL g, PBVAL vlp, longlong ll);
+	void  SetFloat(PBVAL vlp, double f);
+	void  SetBool(PBVAL vlp, bool b);
+	bool  IsValueNull(PBVAL vlp);
+
+	// Members
+	PBVAL Bvp;
+	void* Base;
+
+protected:
+	// Default constructor not to be used
+	BJSON(void) {}
+}; // end of class BJSON
+
+/***********************************************************************/
 /* Class JDOC. The class for parsing and serializing json documents.   */
 /***********************************************************************/
-class BDOC : public BLOCK {
+class BDOC : public BJSON {
 public:
-	BDOC(void);
+	BDOC(void *);
 
-	void *BsonSubAlloc(PGLOBAL g, size_t size);
-	PBPR  SubAllocPair(PGLOBAL g, OFFSET key);
-	PBVAL SubAllocVal(PGLOBAL g);
 	PBVAL ParseJson(PGLOBAL g, char* s, size_t n, int* prty = NULL, bool* b = NULL);
 	PSZ   Serialize(PGLOBAL g, PBVAL bvp, char* fn, int pretty);
 
@@ -98,72 +152,21 @@ protected:
 	OFFSET ParseString(PGLOBAL g, int& i);
 	void   ParseNumeric(PGLOBAL g, int& i, PBVAL bvp);
 	OFFSET ParseAsArray(PGLOBAL g, int& i, int pretty, int* ptyp);
-	bool  SerializeArray(OFFSET arp, bool b);
-	bool  SerializeObject(OFFSET obp);
-	bool  SerializeValue(PBVAL vp);
+	bool   SerializeArray(OFFSET arp, bool b);
+	bool   SerializeObject(OFFSET obp);
+	bool   SerializeValue(PBVAL vp);
 
 	// Members used when parsing and serializing
-private:
 	JOUT* jp;						 // Used with serialize
-	void* base;          // The base for making offsets or pointers
 	char* s;						 // The Json string to parse
 	int   len;					 // The Json string length
 	bool  pty[3];					 // Used to guess what pretty is
+
+	// Default constructor not to be used
+	BDOC(void) {}
 }; // end of class BDOC
 
 #if 0
-/***********************************************************************/
-/* Class BJSON. The class handling all BSON operations.                */
-/***********************************************************************/
-class BJSON : public BLOCK {
-public:
-	// Constructor
-	BJSON(PBVAL vp, void* base) { Vlp = vp; Base = base; }
-
-	// Array functions
-	int   GetSize(bool b);
-	PBVAL GetArrayValue(int i);
-	PSZ   GetText(PGLOBAL g, PSTRG text);
-	bool  Merge(PGLOBAL g, PBVAL jsp);
-	bool  DeleteValue(int n);
-	PBVAL AddArrayValue(PGLOBAL g, PBVAL jvp = NULL, int* x = NULL);
-	bool  SetArrayValue(PGLOBAL g, PBVAL jvp, int i);
-
-	// Object functions
-	int   GetObjectSize(PBPR prp, bool b);
-	PSZ   GetObjectText(PGLOBAL g, PBPR prp, PSTRG text);
-	bool  MergeObject(PGLOBAL g, PBPR prp);
- 	PJPR  AddPair(PGLOBAL g, PCSZ key);
-	PJVAL GetKeyValue(const char* key);
-	PJAR  GetKeyList(PGLOBAL g);
-	PJAR  GetValList(PGLOBAL g);
-	void  SetKeyValue(PGLOBAL g, PBVAL jvp, PCSZ key);
-	void  DeleteKey(PCSZ k);
-
-	// Value functions
-	PBPR  GetObject(void);
-	PBVAL GetArray(void);
-	PJSON GetJsp(void) { return (DataType == TYPE_JSON ? Jsp : NULL); }
-	PSZ   GetValueText(PGLOBAL g, PSTRG text);
-	inline PJSON  GetJson(void) { return (DataType == TYPE_JSON ? Jsp : this); }
-	PSZ   GetString(PGLOBAL g, char* buff = NULL);
-	int   GetInteger(void);
-	long long GetBigint(void);
-	double GetFloat(void);
-	PVAL  GetValue(PGLOBAL g);
-	void  SetValue(PJSON jsp);
-	void  SetValue(PGLOBAL g, PVAL valp);
-	void  SetString(PGLOBAL g, PSZ s, int ci = 0);
-	void  SetInteger(PGLOBAL g, int n);
-	void  SetBigint(PGLOBAL g, longlong ll);
-	void  SetFloat(PGLOBAL g, double f);
-	void  SetBool(PGLOBAL g, bool b);
-
-	// Members
-	PBVAL Vlp;
-	void* Base;
-}; // end of class BJSON
-
 /***********************************************************************/
 /* Class JOBJECT: contains a list of value pairs.                      */
 /***********************************************************************/

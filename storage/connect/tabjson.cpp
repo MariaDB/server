@@ -1596,6 +1596,7 @@ PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp)
   if (Value->IsTypeNum()) {
     strcpy(g->Message, "Cannot make Json for a numeric column");
     Value->Reset();
+#if 0
 	} else if (Value->GetType() == TYPE_BIN) {
 		if ((unsigned)Value->GetClen() >= sizeof(BSON)) {
 			ulong len = Tjp->Lrecl ? Tjp->Lrecl : 500;
@@ -1607,6 +1608,7 @@ PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp)
 			strcpy(g->Message, "Column size too small");
 			Value->SetValue_char(NULL, 0);
 		} // endif Clen
+#endif 0
 	}	else
     Value->SetValue_psz(Serialize(g, jsp, NULL, 0));
 

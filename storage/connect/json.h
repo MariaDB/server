@@ -15,10 +15,7 @@
 #define X
 #endif
 
-// Required by some compilers
-enum JTYP : short;
-
-enum JTYP : short {
+enum JTYP {
 	TYPE_NULL = TYPE_VOID,
 	TYPE_STRG = TYPE_STRING,
 	TYPE_DBL = TYPE_DOUBLE,
@@ -48,9 +45,6 @@ typedef class JVALUE  *PJVAL;
 typedef class JOBJECT *PJOB;
 typedef class JARRAY  *PJAR;
 
-// BSON size should be equal on Linux and Windows
-#define BMX 255
-typedef struct BSON  *PBSON;
 typedef struct JPAIR *PJPR;
 //typedef struct VAL   *PVL;
 
@@ -63,39 +57,6 @@ struct JPAIR {
 	PJPR  Next;     // To the next pair
 }; // end of struct JPAIR
 
-#if 0
-/***********************************************************************/
-/* Structure VAL (string, int, float, bool or null)                    */
-/***********************************************************************/
-struct VAL {
-	union {
-		char     *Strp;      // Ptr to a string
-		int       N;         // An integer value
-		long long LLn;			 // A big integer value
-		double    F;				 // A float value
-		bool      B;				 // True or false
-	};
-	int         Nd;				 // Decimal number
-	JTYP        Type;      // The value type
-}; // end of struct VAL
-#endif // 0
-
-/***********************************************************************/
-/*  Structure used to return binary json to Json UDF functions.        */
-/***********************************************************************/
-struct BSON {
-	char    Msg[BMX + 1];
-	char   *Filename;
-	PGLOBAL G;
-	int     Pretty;
-	ulong   Reslen;
-	my_bool Changed;
-	PJSON   Top;
-	PJSON   Jsp;
-	PBSON   Bsp;
-}; // end of struct BSON
-
-PBSON JbinAlloc(PGLOBAL g, UDF_ARGS* args, ulong len, PJSON jsp);
 //PVL   AllocVal(PGLOBAL g, JTYP type);
 char *NextChr(PSZ s, char sep);
 char *GetJsonNull(void);
