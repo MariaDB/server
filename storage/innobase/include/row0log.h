@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -65,7 +65,7 @@ Free the row log for an index that was being created online. */
 void
 row_log_free(
 /*=========*/
-	row_log_t*&	log)	/*!< in,own: row log */
+	row_log_t*	log)	/*!< in,own: row log */
 	MY_ATTRIBUTE((nonnull));
 
 /******************************************************//**
