@@ -135,10 +135,10 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma) {
         if (Bvp->Type != TYPE_UNKNOWN) {
           Bvp->To_Val = ParseAsArray(g, i, pretty, ptyp);
           Bvp->Type = TYPE_JAR;
-        } else if ((Bvp->To_Val = ParseObject(g, ++i)))
+        } else {
+          Bvp->To_Val = ParseObject(g, ++i);
           Bvp->Type = TYPE_JOB;
-        else
-          throw 2;
+        } // endif Type
 
         break;
       case ' ':
@@ -300,7 +300,7 @@ OFFSET BDOC::ParseObject(PGLOBAL g, int& i) {
         } else 
           firstbpp = lastbpp = bpp;
 
-        level = 1;
+        level = 2;
       } else {
         sprintf(g->Message, "misplaced string near %.*s", ARGS);
         throw 2;
@@ -308,9 +308,9 @@ OFFSET BDOC::ParseObject(PGLOBAL g, int& i) {
 
       break;
     case ':':
-      if (level == 1) {
+      if (level == 2) {
         lastbpp->Vlp = MOF(ParseValue(g, ++i));
-        level = 2;
+        level = 3;
       } else {
         sprintf(g->Message, "Unexpected ':' near %.*s", ARGS);
         throw 2;
@@ -318,15 +318,15 @@ OFFSET BDOC::ParseObject(PGLOBAL g, int& i) {
 
       break;
     case ',':
-      if (level < 2) {
+      if (level < 3) {
         sprintf(g->Message, "Unexpected ',' near %.*s", ARGS);
         throw 2;
       } else
-        level = 0;
+        level = 1;
 
       break;
     case '}':
-      if (level < 2) {
+      if (!(level == 0 || level == 3)) {
         sprintf(g->Message, "Unexpected '}' near %.*s", ARGS);
         throw 2;
       } // endif level
@@ -1248,7 +1248,7 @@ PBVAL BJSON::SubAllocVal(PGLOBAL g)
 /***********************************************************************/
 /* Sub-allocate and initialize a BVAL as string.                       */
 /***********************************************************************/
-PBVAL BJSON::SubAllocVal(PGLOBAL g, OFFSET toval, JTYP type, short nd)
+PBVAL BJSON::SubAllocVal(PGLOBAL g, OFFSET toval, int type, short nd)
 {
   PBVAL bvp = (PBVAL)BsonSubAlloc(g, sizeof(BVAL));
 

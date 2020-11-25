@@ -77,7 +77,7 @@ public:
 	void* BsonSubAlloc(PGLOBAL g, size_t size);
 	PBPR  SubAllocPair(PGLOBAL g, OFFSET key, OFFSET val = 0);
 	PBVAL SubAllocVal(PGLOBAL g);
-	PBVAL SubAllocVal(PGLOBAL g, OFFSET toval, JTYP type = TYPE_UNKNOWN, short nd = 0);
+	PBVAL SubAllocVal(PGLOBAL g, OFFSET toval, int type = TYPE_UNKNOWN, short nd = 0);
 	PBVAL SubAllocVal(PGLOBAL g, PVAL valp);
 	PBVAL DupVal(PGLOBAL g, PBVAL bvp);
 

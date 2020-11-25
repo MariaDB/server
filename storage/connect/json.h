@@ -5,6 +5,7 @@
 /*                                                                     */
 /*  This file contains the JSON classes declares.                      */
 /***********************************************************************/
+#pragma once
 #include <mysql_com.h>
 #include "value.h"
 #include "xobject.h"
