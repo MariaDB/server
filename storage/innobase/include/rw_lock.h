@@ -30,9 +30,9 @@ protected:
   /** Available lock */
   static constexpr uint32_t UNLOCKED= 0;
   /** Flag to indicate that write_lock() is being held */
-  static constexpr uint32_t WRITER= 1 << 31;
+  static constexpr uint32_t WRITER= 1U << 31;
   /** Flag to indicate that write_lock_wait() is pending */
-  static constexpr uint32_t WRITER_WAITING= 1 << 30;
+  static constexpr uint32_t WRITER_WAITING= 1U << 30;
   /** Flag to indicate that write_lock() or write_lock_wait() is pending */
   static constexpr uint32_t WRITER_PENDING= WRITER | WRITER_WAITING;
 

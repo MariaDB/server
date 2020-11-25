@@ -4158,7 +4158,7 @@ void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
 			}
 			ulint l = rec_get_1byte_offs_flag(rec)
 				? (n + 1) : (n + 1) * 2;
-			byte* b = &rec[-REC_N_OLD_EXTRA_BYTES - l];
+			byte* b = rec - REC_N_OLD_EXTRA_BYTES - l;
 			compile_time_assert(REC_1BYTE_SQL_NULL_MASK << 8
 					    == REC_2BYTE_SQL_NULL_MASK);
 			mtr->write<1>(*block, b,
@@ -4181,7 +4181,7 @@ void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
 			ut_ad(len == rec_get_nth_field_size(rec, n));
 			ulint l = rec_get_1byte_offs_flag(rec)
 				? (n + 1) : (n + 1) * 2;
-			byte* b = &rec[-REC_N_OLD_EXTRA_BYTES - l];
+			byte* b = rec - REC_N_OLD_EXTRA_BYTES - l;
 			compile_time_assert(REC_1BYTE_SQL_NULL_MASK << 8
 					    == REC_2BYTE_SQL_NULL_MASK);
 			mtr->write<1>(*block, b,
