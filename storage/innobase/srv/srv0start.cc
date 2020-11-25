@@ -341,7 +341,7 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
 @param[in,out]	logfile0	name of the first log file
 @return	error code
 @retval	DB_SUCCESS	on successful operation */
-MY_ATTRIBUTE((warn_unused_result, nonnull))
+MY_ATTRIBUTE((warn_unused_result))
 static dberr_t create_log_file_rename(lsn_t lsn, std::string &logfile0)
 {
   ut_ad(!srv_log_file_created);

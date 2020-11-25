@@ -237,8 +237,7 @@ private:
   @param off   byte offset from the start (SEEK_SET)
   @param len   size of the hole in bytes
   @return DB_SUCCESS or error code */
-  dberr_t punch_hole(os_offset_t off, ulint len) const
-    MY_ATTRIBUTE((nonnull));
+  dberr_t punch_hole(os_offset_t off, ulint len) const;
 
 public:
   /** Page to be written on write operation */

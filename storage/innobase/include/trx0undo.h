@@ -160,8 +160,7 @@ trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
 NOTE: This corresponds to a redo log record and must not be changed!
 @see mtr_t::undo_create()
 @param[in,out]	block	undo log page */
-void trx_undo_page_init(const buf_block_t &block)
-	MY_ATTRIBUTE((nonnull));
+void trx_undo_page_init(const buf_block_t &block);
 
 /** Allocate an undo log page.
 @param[in,out]	undo	undo log
