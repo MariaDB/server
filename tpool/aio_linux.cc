@@ -22,13 +22,22 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 # include <libaio.h>
 # include <sys/syscall.h>
 
-/*
-  A hack, which so far seems to allow allow getevents thread to be interrupted
-  by io_destroy() from another thread
+/**
+  Invoke the io_getevents() system call.
 
-  libaio's io_getevent() would sometimes crash when attempting this feat,
-  thus the raw syscall.
+  @param ctx     context from io_setup()
+  @param min_nr  minimum number of completion events to wait for
+  @param nr      maximum number of completion events to collect
+  @param ev      the collected events
 
+  In https://pagure.io/libaio/c/7cede5af5adf01ad26155061cc476aad0804d3fc
+  the io_getevents() implementation in libaio was "optimized" so that it
+  would elide the system call when there are no outstanding requests
+  and a timeout was specified.
+
+  The libaio code for dereferencing ctx would occasionally trigger
+  SIGSEGV if io_destroy() was concurrently invoked from another thread.
+  Hence, we use the raw system call.
 */
 static int my_getevents(io_context_t ctx, long min_nr, long nr, io_event *ev)
 {
@@ -59,8 +68,6 @@ namespace tpool
 {
 #ifdef LINUX_NATIVE_AIO
 
-#define MAX_EVENTS 256
-
 class aio_linux final : public aio
 {
   thread_pool *m_pool;
@@ -70,6 +77,10 @@ class aio_linux final : public aio
 
   static void getevent_thread_routine(aio_linux *aio)
   {
+    /* We collect this many events at a time. os_aio_init() would
+    multiply OS_AIO_N_PENDING_THREADS by the number of read and write threads
+    and ultimately pass it to io_setup() via thread_pool::configure_aio(). */
+    constexpr unsigned MAX_EVENTS= 256;
     io_event events[MAX_EVENTS];
     for (;;)
     {
