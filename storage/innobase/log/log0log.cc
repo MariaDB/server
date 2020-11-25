@@ -1011,7 +1011,6 @@ ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown()
 		!srv_read_only_mode && srv_fast_shutdown < 2) {
 		buf_dump_start();
 	}
-	srv_error_monitor_timer.reset();
 	srv_monitor_timer.reset();
 	lock_sys.timeout_timer.reset();
 	if (do_srv_shutdown) {

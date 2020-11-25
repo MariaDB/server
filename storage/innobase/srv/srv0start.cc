@@ -1826,8 +1826,8 @@ file_checked:
 
 		DBUG_EXECUTE_IF("innodb_skip_monitors", goto skip_monitors;);
 		/* Create the task which warns of long semaphore waits */
-		srv_start_periodic_timer(srv_error_monitor_timer, srv_error_monitor_task, 1000);
-		srv_start_periodic_timer(srv_monitor_timer, srv_monitor_task, 5000);
+		srv_start_periodic_timer(srv_monitor_timer, srv_monitor_task,
+					 SRV_MONITOR_INTERVAL);
 
 #ifndef DBUG_OFF
 skip_monitors:

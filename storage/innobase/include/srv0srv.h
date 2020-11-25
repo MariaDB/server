@@ -702,13 +702,6 @@ Complete the shutdown tasks such as background DROP TABLE,
 and optionally change buffer merge (on innodb_fast_shutdown=0). */
 void srv_shutdown(bool ibuf_merge);
 
-
-/*************************************************************************
-A task which prints warnings about semaphore waits which have lasted
-too long. These can be used to track bugs which cause hangs.
-*/
-void srv_error_monitor_task(void*);
-
 } /* extern "C" */
 
 #ifdef UNIV_DEBUG
@@ -900,12 +893,14 @@ struct srv_slot_t{
 
 extern tpool::thread_pool *srv_thread_pool;
 extern std::unique_ptr<tpool::timer> srv_master_timer;
-extern std::unique_ptr<tpool::timer> srv_error_monitor_timer;
 extern std::unique_ptr<tpool::timer> srv_monitor_timer;
+
+/** The interval at which srv_monitor_task is invoked, in milliseconds */
+constexpr unsigned SRV_MONITOR_INTERVAL= 15000; /* 4 times per minute */
 
 static inline void srv_monitor_timer_schedule_now()
 {
-  srv_monitor_timer->set_time(0, 5000);
+  srv_monitor_timer->set_time(0, SRV_MONITOR_INTERVAL);
 }
 static inline void srv_start_periodic_timer(std::unique_ptr<tpool::timer>& t,
                                             void (*func)(void*), int period)
