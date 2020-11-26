@@ -36,7 +36,14 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     wsrep_plugin.cc
     service_wsrep.cc
   )
-  MYSQL_ADD_PLUGIN(wsrep ${WSREP_SOURCES} MANDATORY NOT_EMBEDDED EXPORT_SYMBOLS LINK_LIBRARIES wsrep-lib wsrep_api_v26)
+  MYSQL_ADD_PLUGIN(wsrep ${WSREP_SOURCES} MANDATORY NOT_EMBEDDED LINK_LIBRARIES wsrep-lib wsrep_api_v26)
+  IF(VISIBILITY_HIDDEN_FLAG AND TARGET wsrep)
+    # wsrep_info plugin needs some wsrep symbols from inside mysqld
+    # we have to remove -fvisibility=hidden from wsrep
+    GET_TARGET_PROPERTY(f wsrep COMPILE_FLAGS)
+    STRING(REPLACE "${VISIBILITY_HIDDEN_FLAG}" "" f ${f})
+    SET_TARGET_PROPERTIES(wsrep PROPERTIES COMPILE_FLAGS "${f}")
+  ENDIF()
 ELSE()
   ADD_LIBRARY(wsrep STATIC wsrep_dummy.cc)
   ADD_DEPENDENCIES(wsrep GenError)
