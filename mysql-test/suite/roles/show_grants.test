@@ -88,3 +88,16 @@ drop role test_role2;
 delete from mysql.roles_mapping where Role='test_role1';
 delete from mysql.roles_mapping where Role='test_role2';
 flush privileges;
+
+--echo #
+--echo # MDEV-24289: show grants missing with grant option
+--echo #
+create role anel;
+GRANT SELECT, UPDATE, DELETE, ALTER ON *.* TO 'anel';
+SHOW GRANTS for 'anel';
+
+create role MariaDB_admin;
+GRANT SELECT, UPDATE, DELETE, ALTER ON *.* TO 'MariaDB_admin' WITH GRANT OPTION;
+SHOW GRANTS for 'MariaDB_admin';
+drop role MariaDB_admin;
+drop role anel;

@@ -8945,7 +8945,8 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
 
   if (!handle_as_role)
     add_user_parameters(&global, (ACL_USER *)acl_entry, (want_access & GRANT_ACL));
-
+  else if (want_access & GRANT_ACL)
+    global.append(STRING_WITH_LEN(" WITH GRANT OPTION"));
   protocol->prepare_for_resend();
   protocol->store(global.ptr(),global.length(),global.charset());
   if (protocol->write())
