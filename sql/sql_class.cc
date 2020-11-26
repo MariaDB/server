@@ -7135,8 +7135,8 @@ int THD::binlog_delete_row(TABLE* table, Event_log *bin_log,
                 Rows_event_factory::get<Delete_rows_compressed_log_event>() :
                 Rows_event_factory::get<Delete_rows_log_event>();
   auto *ev= bin_log->prepare_pending_rows_event(this, table, cache_data,
-                                                     variables.server_id,
-                                                     len, is_trans, creator);
+                                                variables.server_id,
+                                                len, is_trans, creator);
 
   if (unlikely(ev == 0))
     return HA_ERR_OUT_OF_MEM;

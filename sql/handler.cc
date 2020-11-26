@@ -2920,6 +2920,13 @@ int ha_savepoint(THD *thd, SAVEPOINT *sv)
   Ha_trx_info *ha_info= trans->ha_list;
   DBUG_ENTER("ha_savepoint");
 
+  if (!thd->online_alter_cache_list.empty())
+  {
+    my_printf_error(ER_NOT_SUPPORTED_YET, "Cannot set up a savepoint while "
+                    "online ALTER TABLE is in progress", MYF(0));
+    DBUG_RETURN(1);
+  }
+
   for (; ha_info; ha_info= ha_info->next())
   {
     int err;
@@ -7012,13 +7019,50 @@ bool handler::check_table_binlog_row_based_internal()
 }
 
 
-int handler::binlog_log_row(TABLE *table,
-                            const uchar *before_record,
-                            const uchar *after_record,
-                            Log_func *log_func)
+#ifdef HAVE_REPLICATION
+static int binlog_log_row_online_alter(TABLE* table,
+                                       const uchar *before_record,
+                                       const uchar *after_record,
+                                       Log_func *log_func,
+                                       bool has_trans)
 {
   THD *thd= table->in_use;
-  DBUG_ENTER("binlog_log_row");
+
+  if (!table->online_alter_cache)
+  {
+    auto *cache_mngr= online_alter_binlog_get_cache_mngr(thd, table);
+    // Use transaction cache directly, if it is not multi-transaction mode
+    table->online_alter_cache= binlog_get_cache_data(cache_mngr,
+                                        !thd->in_multi_stmt_transaction_mode());
+
+    trans_register_ha(thd, false, binlog_hton, 0);
+    if (thd->in_multi_stmt_transaction_mode())
+      trans_register_ha(thd, true, binlog_hton, 0);
+  }
+
+  // We need to log all columns for the case if alter table changes primary key.
+  table->use_all_columns();
+  bitmap_set_all(table->rpl_write_set);
+
+  int error= (*log_func)(thd, table, table->s->online_alter_binlog,
+                         table->online_alter_cache, has_trans,
+                         before_record, after_record);
+
+  return unlikely(error) ? HA_ERR_RBR_LOGGING_FAILED : 0;
+}
+#endif // HAVE_REPLICATION
+
+
+static int binlog_log_row_to_binlog(TABLE* table,
+                                    const uchar *before_record,
+                                    const uchar *after_record,
+                                    Log_func *log_func,
+                                    bool has_trans)
+{
+  bool error= 0;
+  THD *const thd= table->in_use;
+
+  DBUG_ENTER("binlog_log_row_to_binlog");
 
   if (!thd->binlog_table_maps &&
       thd->binlog_write_table_maps())
@@ -7032,16 +7076,36 @@ int handler::binlog_log_row(TABLE *table,
   if (cache_mngr == NULL)
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-  bool is_trans= row_logging_has_trans;
   /* Ensure that all events in a GTID group are in the same cache */
   if (thd->variables.option_bits & OPTION_GTID_BEGIN)
-    is_trans= 1;
+    has_trans= 1;
 
-  auto *cache= binlog_get_cache_data(cache_mngr, use_trans_cache(thd, is_trans));
+  auto *cache= binlog_get_cache_data(cache_mngr,
+                                     use_trans_cache(thd, has_trans));
 
-  bool error= (*log_func)(thd, table, mysql_bin_log.as_event_log(), cache,
-                          is_trans, before_record, after_record);
+    error= (*log_func)(thd, table, mysql_bin_log.as_event_log(), cache,
+                       has_trans, before_record, after_record);
   DBUG_RETURN(error ? HA_ERR_RBR_LOGGING_FAILED : 0);
+}
+
+int handler::binlog_log_row(const uchar *before_record,
+                            const uchar *after_record,
+                            Log_func *log_func)
+{
+  DBUG_ENTER("handler::binlog_log_row");
+
+  int error = 0;
+  if (row_logging)
+    error= binlog_log_row_to_binlog(table, before_record, after_record,
+                                    log_func, row_logging_has_trans);
+
+#ifdef HAVE_REPLICATION
+  if (unlikely(!error && table->s->online_alter_binlog))
+    error= binlog_log_row_online_alter(table, before_record, after_record,
+                                       log_func, row_logging_has_trans);
+#endif // HAVE_REPLICATION
+
+  DBUG_RETURN(error);
 }
 
 
@@ -7584,11 +7648,9 @@ int handler::ha_write_row(const uchar *buf)
   if (likely(!error))
   {
     rows_changed++;
-    if (row_logging)
-    {
-      Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
-      error= binlog_log_row(table, 0, buf, log_func);
-    }
+    Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
+    error= binlog_log_row(0, buf, log_func);
+
 #ifdef WITH_WSREP
     if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
         ht->flags & HTON_WSREP_REPLICATION &&
@@ -7644,11 +7706,9 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   if (likely(!error))
   {
     rows_changed++;
-    if (row_logging)
-    {
-      Log_func *log_func= Update_rows_log_event::binlog_row_logging_function;
-      error= binlog_log_row(table, old_data, new_data, log_func);
-    }
+    Log_func *log_func= Update_rows_log_event::binlog_row_logging_function;
+    error= binlog_log_row(old_data, new_data, log_func);
+
 #ifdef WITH_WSREP
     THD *thd= ha_thd();
     if (WSREP_NNULL(thd))
@@ -7722,11 +7782,9 @@ int handler::ha_delete_row(const uchar *buf)
   if (likely(!error))
   {
     rows_changed++;
-    if (row_logging)
-    {
-      Log_func *log_func= Delete_rows_log_event::binlog_row_logging_function;
-      error= binlog_log_row(table, buf, 0, log_func);
-    }
+    Log_func *log_func= Delete_rows_log_event::binlog_row_logging_function;
+    error= binlog_log_row(buf, 0, log_func);
+
 #ifdef WITH_WSREP
     THD *thd= ha_thd();
     if (WSREP_NNULL(thd))

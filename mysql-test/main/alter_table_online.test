@@ -1,0 +1,551 @@
+-- source include/have_debug_sync.inc
+-- source include/not_embedded.inc
+-- source alter_table_online_binlog.inc
+
+-- disable_query_log
+-- if ($MTR_COMBINATION_INNODB) {
+-- source include/have_innodb.inc
+set default_storage_engine= innodb;
+-- }
+-- if ($MTR_COMBINATION_ROCKSDB) {
+-- source include/have_rocksdb.inc
+set default_storage_engine= rocksdb;
+-- }
+-- enable_query_log
+
+-- let $default_engine= `select @@default_storage_engine`
+
+--connect (con2, localhost, root,,)
+--connection default
+
+
+--echo #
+--echo # Test insert
+--echo #
+
+--echo # Insert and add column
+create or replace table t1 (a int) engine=innodb;
+insert t1 values (5);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+insert into t1 values (123), (456), (789);
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo # Insert and add NOT NULL column without default value
+create or replace table t1 (a int) engine=innodb;
+insert t1 values (5);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NOT NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+insert into t1 values (123), (456), (789);
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo # Insert and add a column with a default value
+create or replace table t1 (a int) engine=innodb;
+insert t1 values (5);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NOT NULL default (222), algorithm= copy, lock= none;
+
+--connection con2
+--reap
+insert into t1 values (123), (456), (789);
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo #
+--echo # Test update
+--echo #
+
+--echo # Update and add a column
+create or replace table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1, 22);
+insert t1 values (3, 44);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add c int default(1),
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set b= 55 where a = 1;
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo #
+--echo # Test primary key change
+--echo #
+
+--echo # Drop key, add key
+create or replace table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1, 22);
+insert t1 values (3, 44);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 drop primary key, add primary key(b),
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set b= 55 where a = 1;
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo # Drop key, add key. Two updates
+create or replace table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1, 11);
+insert t1 values (2, 22);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 drop primary key, add primary key(b),
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set b= 33 where a = 1;
+update t1 set b= 44 where a = 2;
+
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo #
+--echo # Various tests, see below
+--echo #
+
+create or replace table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1, 11);
+insert t1 values (2, 22);
+insert t1 values (3, 33);
+insert t1 values (4, 44);
+insert t1 values (5, 55);
+insert t1 values (6, 66);
+insert t1 values (7, 77);
+insert t1 values (8, 88);
+insert t1 values (9, 99);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 drop primary key, add primary key(b),
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+
+--echo # Two updates
+update t1 set b= 1001 where a = 1;
+update t1 set b= 2002 where a = 2;
+
+--echo # Two updates in transaction
+set autocommit = 0;
+start transaction;
+update t1 set b= 3003 where a = 3;
+update t1 set b= 4004 where a = 4;
+commit;
+set autocommit = 1;
+
+--echo # Second update is rolled back
+update t1 set b= 5005 where a = 5;
+
+set autocommit = 0;
+start transaction;
+update t1 set b= 6006 where a = 6;
+rollback;
+set autocommit = 1;
+
+--echo # Second execution in transaction fails
+
+set autocommit = 0;
+start transaction;
+update t1 set b= 7007 where a = 7;
+--error ER_DUP_ENTRY
+update t1 set a= 8, b= 8008 where a = 8 or a = 9 order by a;
+commit;
+set autocommit = 1;
+
+select * from t1;
+
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+--sorted_result
+select * from t1;
+
+--echo #
+--echo # MYISAM. Only Inserts can be tested.
+--echo #
+
+create or replace table t1 (a int) engine=myisam;
+insert t1 values (5);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+insert into t1 values (123), (456), (789);
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+select * from t1;
+
+--echo # Test incompatible changes
+create or replace table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1, 22);
+insert t1 values (3, 44);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 drop primary key, add primary key(b),
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set b= 44 where a = 1;
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--error ER_DUP_ENTRY
+--reap
+select * from t1;
+
+
+--echo # Test log read after EXCLUSIVE lock
+--echo # Transaction is started before ALTER, and UPDATE is made.
+--echo # Then more UPDATEs.
+
+create or replace table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1, 11);
+insert t1 values (2, 22);
+insert t1 values (3, 33);
+insert t1 values (4, 44);
+insert t1 values (5, 55);
+
+set debug_sync= 'alter_table_online_before_lock SIGNAL locking WAIT_FOR end';
+set debug_sync= 'alter_table_online_downgraded SIGNAL downgraded';
+
+--send
+alter table t1 drop primary key, add primary key(b),
+            algorithm= copy, lock= none;
+
+--connection con2
+begin;
+
+set debug_sync= 'now WAIT_FOR downgraded';
+update t1 set b= 111 where a = 1;
+
+set debug_sync= 'now WAIT_FOR locking';
+set debug_sync= 'now SIGNAL end';
+
+update t1 set b= 222 where a = 2;
+update t1 set b= 333 where a = 3;
+update t1 set b= 444 where a = 4;
+
+commit;
+
+update t1 set b= 555 where a = 5;
+
+--connection default
+--reap
+select * from t1;
+
+--echo #
+--echo # Test progress report.
+--echo #
+
+create or replace table t1 (a int primary key, b int) engine=innodb;
+insert t1 values (1, 11);
+insert t1 values (2, 22);
+insert t1 values (3, 33);
+insert t1 values (4, 44);
+
+set debug_sync= 'alter_table_online_before_lock SIGNAL locking WAIT_FOR end';
+set debug_sync= 'alter_table_online_downgraded SIGNAL downgraded'
+                                             ' WAIT_FOR start_replication';
+set debug_sync= 'alter_table_online_progress SIGNAL applied WAIT_FOR proceed'
+                                           ' EXECUTE 9';
+--let $con= `select connection_id()`
+
+--send
+alter table t1 drop primary key, add primary key(b),
+            algorithm= copy, lock= none;
+
+--connection con2
+
+set debug_sync= 'now WAIT_FOR downgraded';
+
+update t1 set b= 111 where a = 1;
+insert t1 values (5, 55);
+update t1 set b= 555 where a = 5;
+insert t1 values (6, 66);
+update t1 set b= 666 where a = 6;
+set debug_sync= 'now SIGNAL start_replication';
+
+--disable_query_log
+eval set @con= $con;
+--enable_query_log
+
+--echo # First signal is for log description event.
+set debug_sync= 'now WAIT_FOR applied';
+select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR locking';
+
+begin;
+
+update t1 set b= 222 where a = 2;
+update t1 set b= 333 where a = 3;
+update t1 set b= 444 where a = 4;
+
+commit;
+set debug_sync= 'now SIGNAL end WAIT_FOR applied';
+
+select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed WAIT_FOR applied';
+
+select stage, progress from INFORMATION_SCHEMA.PROCESSLIST where id = @con;
+set debug_sync= 'now SIGNAL proceed';
+
+--connection default
+--reap
+select * from t1;
+
+
+--echo #
+--echo # Test system versioning
+--echo #
+create or replace table t1 (a int primary key, b int);
+insert t1 values (1, 22);
+insert t1 values (3, 44);
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+set timestamp = 1;
+
+--send
+alter table t1 add system versioning,
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+set timestamp = 2;
+update t1 set b= 55 where a = 1;
+set timestamp = 3;
+insert into t1 values (6, 77);
+
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+-- replace_result $default_engine *SUBSTITUTED*
+show create table t1;
+select *, UNIX_TIMESTAMP(row_start), UNIX_TIMESTAMP(row_end) from t1 for system_time all;
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 drop system versioning,
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set b= 88 where a = 1;
+
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--echo # Can't UPDATE versioned -> plain (and can't DELETE)
+--error ER_DUP_ENTRY
+--reap
+-- replace_result $default_engine *SUBSTITUTED*
+show create table t1;
+select *, UNIX_TIMESTAMP(row_start), UNIX_TIMESTAMP(row_end) from t1 for system_time all;
+
+--connection con2
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 drop system versioning,
+            algorithm= copy, lock= none;
+
+--connection con2
+--reap
+insert into t1 values (8, 99);
+
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--echo # INSERT versioned -> plain works fine since it is a single versioned op.
+--reap
+-- replace_result $default_engine *SUBSTITUTED*
+show create table t1;
+select * from t1;
+
+--echo #
+--echo # Test ROLLBACK TO SAVEPOINT
+--echo #
+
+create or replace table t1 (a int) engine=innodb;
+insert t1 values (1), (2);
+
+create or replace table t2 (a int) engine=innodb;
+insert t2 values (1), (2);
+
+--connection con2
+begin;
+update t2 set a= 222 where a = 2;
+savepoint savie;
+update t2 set a= 111 where a = 1;
+
+--send
+set debug_sync= 'now WAIT_FOR ended';
+
+--connection default
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+
+--send
+alter table t1 add b int NULL, algorithm= copy, lock= none;
+
+--connection con2
+--reap
+update t1 set a= 123 where a = 1;
+
+--error ER_NOT_SUPPORTED_YET
+savepoint whoopsie;
+show warnings;
+
+rollback to savepoint savie;
+commit;
+
+set debug_sync= 'now SIGNAL end';
+
+--connection default
+--reap
+
+select * from t1;
+select * from t2;
+
+--echo # Cleanup
+set debug_sync= 'reset';
+drop table t1;
+drop table t2;

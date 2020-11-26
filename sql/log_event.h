@@ -4258,6 +4258,8 @@ private:
   bool  m_used_query_txt;
 };
 
+class table_def;
+
 /**
   @class Table_map_log_event
 
@@ -4909,6 +4911,7 @@ public:
   virtual bool print(FILE *file, PRINT_EVENT_INFO *print_event_info);
 #endif
 
+  table_def get_table_def();
 
 private:
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
@@ -5213,7 +5216,7 @@ protected:
 #endif
   ulonglong       m_table_id;	/* Table ID */
   MY_BITMAP   m_cols;		/* Bitmap denoting columns available */
-  ulong       m_width;          /* The width of the columns bitmap */
+  uint        m_width;          /* The width of the columns bitmap */
   /*
     Bitmap for columns available in the after image, if present. These
     fields are only available for Update_rows events. Observe that the
@@ -5247,6 +5250,7 @@ protected:
 
 
   /* helper functions */
+
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   const uchar *m_curr_row;     /* Start of the row being processed */

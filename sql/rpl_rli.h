@@ -941,14 +941,20 @@ struct rpl_group_info
     }
   }
 
-  bool get_table_data(TABLE *table_arg, table_def **tabledef_var, TABLE **conv_table_var) const
+  bool get_table_data(TABLE *table_arg, table_def **tabledef_var,
+          TABLE **conv_table_var,
+          const Copy_field *copy[], const Copy_field **copy_end) const
   {
     DBUG_ASSERT(tabledef_var && conv_table_var);
     for (TABLE_LIST *ptr= tables_to_lock ; ptr != NULL ; ptr= ptr->next_global)
       if (ptr->table == table_arg)
       {
-        *tabledef_var= &static_cast<RPL_TABLE_LIST*>(ptr)->m_tabledef;
-        *conv_table_var= static_cast<RPL_TABLE_LIST*>(ptr)->m_conv_table;
+        auto *rpl_table_list= static_cast<RPL_TABLE_LIST*>(ptr);
+        if (rpl_table_list->m_tabledef_valid)
+          *tabledef_var= &rpl_table_list->m_tabledef;
+        *conv_table_var= rpl_table_list->m_conv_table;
+        *copy= rpl_table_list->m_online_alter_copy_fields;
+        *copy_end= rpl_table_list->m_online_alter_copy_fields_end;
         DBUG_PRINT("debug", ("Fetching table data for table %s.%s:"
                              " tabledef: %p, conv_table: %p",
                              table_arg->s->db.str, table_arg->s->table_name.str,
