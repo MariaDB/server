@@ -70,6 +70,7 @@ void set_thd_stage_info(void *thd,
 #include "wsrep_on.h"
 #ifdef WITH_WSREP
 #include <inttypes.h>
+#include <ilist.h>
 /* wsrep-lib */
 #include "wsrep_client_service.h"
 #include "wsrep_client_state.h"
@@ -5545,6 +5546,8 @@ public:
   Item *sp_fix_func_item_for_assignment(const Field *to, Item **it_addr);
   Item *sp_prepare_func_item(Item **it_addr, uint cols);
   bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
+
+  ilist<binlog_cache_mngr> online_alter_cache_list;
 
   bool sql_parser(LEX *old_lex, LEX *lex,
                   char *str, uint str_len, bool stmt_prepare_mode);

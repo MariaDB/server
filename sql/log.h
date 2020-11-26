@@ -421,16 +421,83 @@ public:
 
   bool open(
           const char *log_name,
-          enum_log_type log_type,
           const char *new_name, ulong next_file_number,
           enum cache_type io_cache_type_arg);
-  IO_CACHE *get_log_file() { return &log_file; }
+  virtual IO_CACHE *get_log_file() { return &log_file; }
 
-  int write_description_event(enum_binlog_checksum_alg checksum_alg,
-                              bool encrypt, bool dont_set_created,
-                              bool is_relay_log);
+  longlong write_description_event(enum_binlog_checksum_alg checksum_alg,
+                                   bool encrypt, bool dont_set_created,
+                                   bool is_relay_log);
 
   bool write_event(Log_event *ev, binlog_cache_data *data, IO_CACHE *file);
+};
+
+/**
+  A single-reader, single-writer non-blocking layer for Event_log.
+  Provides IO_CACHE for writing and IO_CACHE for reading.
+
+  Writers use an overrided get_log_file version for their writes, while readers
+  should use flip() to initiate reading.
+  flip() swaps pointers to allow non-blocking reads.
+
+  Writers can block other writers and a reader with a mutex, but a reader only
+  swaps two pointers under a lock, so it won't block writers.
+
+  TODO should be unnecessary after MDEV-24676 is done
+ */
+class Cache_flip_event_log: public Event_log {
+  IO_CACHE alt_buf;
+  IO_CACHE *current, *alt;
+public:
+
+  Cache_flip_event_log() : Event_log(), alt_buf{},
+                           current(&log_file), alt(&alt_buf) {}
+  bool open(enum cache_type io_cache_type_arg)
+  {
+    log_file.dir= mysql_tmpdir;
+    alt_buf.dir= log_file.dir;
+    bool res= Event_log::open(NULL, NULL, 0, io_cache_type_arg);
+    if (res)
+      return res;
+
+    name= my_strdup(key_memory_MYSQL_LOG_name, "online-alter-binlog",
+                    MYF(MY_WME));
+    if (!name)
+      return false;
+
+    res= init_io_cache(&alt_buf, -1, LOG_BIN_IO_SIZE, io_cache_type_arg, 0, 0,
+                       MYF(MY_WME | MY_NABP | MY_WAIT_IF_FULL)) != 0;
+    return res;
+  }
+
+  /**
+    Swaps current and alt_log. Can be called only from the reader thread.
+    @return a new IO_CACHE pointer to read from.
+   */
+  IO_CACHE *flip()
+  {
+    IO_CACHE *tmp= current;
+    reinit_io_cache(alt, WRITE_CACHE, 0, 0, 0);
+    mysql_mutex_lock(get_log_lock());
+    reinit_io_cache(current, READ_CACHE, 0, 0, 0);
+    current= alt;
+    mysql_mutex_unlock(get_log_lock());
+    alt= tmp;
+
+    return alt;
+  }
+
+  IO_CACHE *get_log_file() override
+  {
+    mysql_mutex_assert_owner(get_log_lock());
+    return current;
+  }
+
+  void cleanup()
+  {
+    end_io_cache(&alt_buf);
+    Event_log::cleanup();
+  }
 };
 
 /* Tell the io thread if we can delay the master info sync. */
@@ -641,7 +708,6 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
     new_file() is locking. new_file_without_locking() does not acquire
     LOCK_log.
   */
-  int new_file_without_locking();
   int new_file_impl();
   void do_checkpoint_request(ulong binlog_id);
   void purge();
@@ -651,6 +717,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
   void trx_group_commit_leader(group_commit_entry *leader);
   bool is_xidlist_idle_nolock();
 public:
+  int new_file_without_locking();
   /*
     A list of struct xid_count_per_binlog is used to keep track of how many
     XIDs are in prepared, but not committed, state in each binlog. And how
@@ -1256,6 +1323,7 @@ int binlog_flush_pending_rows_event(THD *thd, bool stmt_end,
                                     binlog_cache_data *cache_data);
 Rows_log_event* binlog_get_pending_rows_event(binlog_cache_mngr *cache_mngr,
                                               bool use_trans_cache);
+binlog_cache_mngr *online_alter_binlog_get_cache_mngr(THD *thd, TABLE *table);
 binlog_cache_data* binlog_get_cache_data(binlog_cache_mngr *cache_mngr,
                                          bool use_trans_cache);
 
@@ -1349,6 +1417,5 @@ int binlog_commit_by_xid(handlerton *hton, XID *xid);
 int binlog_rollback_by_xid(handlerton *hton, XID *xid);
 bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
                                uint64 start_alter_id, bool log_if_exists);
-
 
 #endif /* LOG_H */
