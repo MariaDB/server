@@ -24,6 +24,7 @@ endmacro()
 
 set_from_component(LICENSE)
 set_from_component(VENDOR)
+set_from_component(VERSION)
 
 #
 # Support for the %posttrans scriptlet
@@ -80,6 +81,7 @@ set(CMAKE_MODULE_PATH ${orig_CMAKE_MODULE_PATH})
 
 restore(LICENSE)
 restore(VENDOR)
+restore(VERSION)
 if(${orig_${base_var}})
   set(${base_var} ${orig_${base_var}})
 endif()
