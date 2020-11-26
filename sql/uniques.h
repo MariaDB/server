@@ -71,7 +71,7 @@ public:
 
 
 /*
-  Descriptor for fixed size keys
+  Descriptor for fixed size keys for multiple key components
 */
 class Fixed_size_keys_descriptor : public Descriptor
 {
@@ -86,11 +86,44 @@ public:
 };
 
 
-class Fixed_size_keys_simple : public Fixed_size_keys_descriptor
+class Fixed_size_keys_mem_comparable: public Fixed_size_keys_descriptor
 {
 public:
-  Fixed_size_keys_simple(uint length);
-  ~Fixed_size_keys_simple() {}
+  Fixed_size_keys_mem_comparable(uint length)
+    :Fixed_size_keys_descriptor(length){}
+  ~Fixed_size_keys_mem_comparable() {}
+  int compare_keys(uchar *a, uchar *b) override;
+};
+
+
+
+class Fixed_size_keys_for_rowids: public Fixed_size_keys_descriptor
+{
+private:
+  handler *file;
+
+public:
+  Fixed_size_keys_for_rowids(handler *file_arg)
+    :Fixed_size_keys_descriptor(file_arg->ref_length)
+  {
+    file= file_arg;
+  }
+  ~Fixed_size_keys_for_rowids() {}
+  int compare_keys(uchar *a, uchar *b) override;
+};
+
+
+
+/*
+  Descriptor for fixed size keys with multiple key parts
+*/
+
+class Fixed_size_composite_keys_descriptor : public Fixed_size_keys_descriptor
+{
+public:
+  Fixed_size_composite_keys_descriptor(uint length)
+    : Fixed_size_keys_descriptor(length) {}
+  ~Fixed_size_composite_keys_descriptor() {}
   int compare_keys(uchar *a, uchar *b) override;
 };
 

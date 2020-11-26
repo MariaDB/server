@@ -702,11 +702,11 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       clause.  Instead of deleting the rows, first mark them deleted.
     */
     ha_rows tmplimit=limit;
-    Descriptor *desc= new Fixed_size_keys_descriptor(table->file->ref_length);
+    Descriptor *desc= new Fixed_size_keys_for_rowids(table->file);
     if (!desc)
       goto terminate_delete;  // OOM
 
-    deltempfile= new (thd->mem_root) Unique_impl(refpos_order_cmp, table->file,
+    deltempfile= new (thd->mem_root) Unique_impl(refpos_cmp, desc,
                                                  table->file->ref_length,
                                                  MEM_STRIP_BUF_SIZE, 0, desc);
 
@@ -1064,6 +1064,13 @@ extern "C" int refpos_order_cmp(void* arg, const void *a,const void *b)
   return file->cmp_ref((const uchar*)a, (const uchar*)b);
 }
 
+
+extern "C" int refpos_cmp(void* arg, const void *a, const void *b)
+{
+  Fixed_size_keys_for_rowids *desc= (Fixed_size_keys_for_rowids *) arg;
+  return desc->compare_keys((uchar*)a, (uchar *)b);
+}
+
 /*
   make delete specific preparation and checks after opening tables
 
@@ -1277,15 +1284,15 @@ multi_delete::initialize_tables(JOIN *join)
   for (;walk ;walk= walk->next_local)
   {
     TABLE *table=walk->table;
-    desc= new Fixed_size_keys_descriptor(table->file->ref_length);
+    desc= new Fixed_size_keys_for_rowids(table->file);
     if (!desc)
       DBUG_RETURN(TRUE); // OOM
 
-    unique= new (thd->mem_root) Unique_impl(refpos_order_cmp,
-                                                      table->file,
-                                                      table->file->ref_length,
-                                                      MEM_STRIP_BUF_SIZE,
-                                                      0, desc);
+    unique= new (thd->mem_root) Unique_impl(refpos_cmp,
+                                            desc,
+                                            table->file->ref_length,
+                                            MEM_STRIP_BUF_SIZE,
+                                            0, desc);
     if (!unique)
       DBUG_RETURN(TRUE);  // OOM
     *tempfiles_ptr++= unique;

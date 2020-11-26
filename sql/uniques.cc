@@ -1064,8 +1064,21 @@ Variable_size_keys_simple::Variable_size_keys_simple(uint length)
 {}
 
 
-int Fixed_size_keys_simple::compare_keys(uchar *a, uchar *b)
+/*                   FIXED SIZE KEYS DESCRIPTOR                             */
+
+
+Fixed_size_keys_descriptor::Fixed_size_keys_descriptor(uint length)
 {
+  max_length= length;
+  flags= (1 << FIXED_SIZED_KEYS);
+  sort_keys= NULL;
+  sortorder= NULL;
+}
+
+
+int Fixed_size_keys_descriptor::compare_keys(uchar *a, uchar *b)
+{
+  DBUG_ASSERT(sort_keys);
   SORT_FIELD *sort_field= sort_keys->begin();
   DBUG_ASSERT(sort_field->field);
   return sort_field->field->cmp(a, b);
@@ -1076,6 +1089,30 @@ bool
 Fixed_size_keys_descriptor::setup(THD *thd, Item_sum *item,
                                   uint non_const_args, uint arg_count)
 {
+  SORT_FIELD *sort,*pos;
+  if (sortorder)
+    return false;
+  DBUG_ASSERT(sort_keys == NULL);
+  sortorder= (SORT_FIELD*) thd->alloc(sizeof(SORT_FIELD) * non_const_args);
+  pos= sort= sortorder;
+  if (!pos)
+    return true;
+  sort_keys= new Sort_keys(sortorder, non_const_args);
+  if (!sort_keys)
+    return true;
+  sort=pos= sortorder;
+  for (uint i= 0; i < arg_count; i++)
+  {
+    Item *arg= item->get_arg(i);
+    if (arg->const_item())
+      continue;
+
+    Field *field= arg->get_tmp_table_field();
+
+    DBUG_ASSERT(field);
+    pos->setup_for_fixed_size_keys(field);
+    pos++;
+  }
   return false;
 }
 
@@ -1102,21 +1139,30 @@ Fixed_size_keys_descriptor::setup(THD *thd, Field *field)
 }
 
 
-int Fixed_size_keys_descriptor::compare_keys(uchar *a, uchar *b)
+int Fixed_size_keys_mem_comparable::compare_keys(uchar *key1, uchar *key2)
 {
+  return memcmp(key1, key2, max_length);
+}
+
+
+int
+Fixed_size_composite_keys_descriptor::compare_keys(uchar *key1, uchar *key2)
+{
+  for (SORT_FIELD *sort_field= sort_keys->begin();
+       sort_field != sort_keys->end(); sort_field++)
+  {
+    Field *field= sort_field->field;
+    int res = field->cmp(key1, key2);
+    if (res)
+      return res;
+    key1 += sort_field->length;
+    key2 += sort_field->length;
+  }
   return 0;
 }
 
 
-Fixed_size_keys_descriptor::Fixed_size_keys_descriptor(uint length)
+int Fixed_size_keys_for_rowids::compare_keys(uchar *key1, uchar *key2)
 {
-  max_length= length;
-  flags= (1 << FIXED_SIZED_KEYS);
-  sort_keys= NULL;
-  sortorder= NULL;
+  return file->cmp_ref(key1, key2);
 }
-
-
-Fixed_size_keys_simple::Fixed_size_keys_simple(uint length)
-:Fixed_size_keys_descriptor(length)
-{}

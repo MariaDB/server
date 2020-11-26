@@ -1734,7 +1734,7 @@ public:
     }
 
     tree_key_length= table_field->pack_length();
-    desc= new Fixed_size_keys_simple(tree_key_length);
+    desc= new Fixed_size_keys_descriptor(tree_key_length);
     if (!desc)
       return true;  // OOM
     tree= new Unique_impl((qsort_cmp2) key_cmp, (void*) this,
@@ -1865,11 +1865,11 @@ public:
   bool setup(THD *thd, size_t max_heap_table_size)
   {
     tree_key_length= sizeof(ulonglong);
-    Descriptor *desc= new Fixed_size_keys_descriptor(tree_key_length);
+    Descriptor *desc= new Fixed_size_keys_mem_comparable(tree_key_length);
     if (!desc)
       return true;
     tree= new Unique_impl((qsort_cmp2) simple_ulonglong_key_cmp,
-                          (void*) &tree_key_length,
+                          (void*) this,
                           tree_key_length, max_heap_table_size, 1, desc);
     return tree == NULL;
   }
@@ -1895,9 +1895,9 @@ int Count_distinct_field_bit::simple_ulonglong_key_cmp(void* arg,
                                                        uchar* key1,
                                                        uchar* key2)
 {
-  ulonglong *val1= (ulonglong *) key1;
-  ulonglong *val2= (ulonglong *) key2;
-  return *val1 > *val2 ? 1 : *val1 == *val2 ? 0 : -1;
+  Count_distinct_field_bit *compare_arg= (Count_distinct_field_bit*)arg;
+  DBUG_ASSERT(compare_arg->tree->get_descriptor());
+  return compare_arg->tree->get_descriptor()->compare_keys(key1, key2);
 }
 
 

@@ -594,7 +594,8 @@ public:
   bool is_packing_allowed(TABLE* table, uint* total_length);
   Unique_impl *get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
                           uint size_arg, size_t max_in_memory_size_arg,
-                          uint min_dupl_count_arg, bool allow_packing);
+                          uint min_dupl_count_arg, bool allow_packing,
+                          uint number_of_args);
 };
 
 
@@ -700,9 +701,7 @@ public:
   bool unique_walk_function_for_count(void *element);
   int insert_record_to_unique();
   qsort_cmp2 get_compare_func_for_packed_keys();
-  static int composite_key_cmp(void* arg, uchar* key1, uchar* key2);
-  static int composite_packed_key_cmp(void* arg, uchar* key1, uchar* key2);
-  static int packed_key_cmp_single_arg(void *arg, uchar *key1, uchar *key2);
+  static int key_cmp(void* arg, uchar* key1, uchar* key2);
 };
 
 

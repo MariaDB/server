@@ -668,41 +668,6 @@ C_MODE_END
 
 
 /**
-  Correctly compare composite keys.
- 
-  Used by the Unique class to compare keys. Will do correct comparisons
-  for composite keys with various field types.
-
-  @param arg     Pointer to the relevant Aggregator_distinct instance
-  @param key1    left key image
-  @param key2    right key image
-  @return        comparison result
-    @retval <0       if key1 < key2
-    @retval =0       if key1 = key2
-    @retval >0       if key1 > key2
-*/
-
-int Aggregator_distinct::composite_key_cmp(void* arg, uchar* key1, uchar* key2)
-{
-  Aggregator_distinct *aggr= (Aggregator_distinct *) arg;
-  Field **field    = aggr->table->field;
-  Field **field_end= field + aggr->table->s->fields;
-  uint32 *lengths=aggr->field_lengths;
-  for (; field < field_end; ++field)
-  {
-    Field* f = *field;
-    int len = *lengths++;
-    int res = f->cmp(key1, key2);
-    if (res)
-      return res;
-    key1 += len;
-    key2 += len;
-  }
-  return 0;
-}
-
-
-/**
   @brief
     Compare composite variable size keys.
 
@@ -720,38 +685,7 @@ int Aggregator_distinct::composite_key_cmp(void* arg, uchar* key1, uchar* key2)
     @retval >0       if key1 > key2
 */
 
-int
-Aggregator_distinct::composite_packed_key_cmp(void* arg,
-                                              uchar* key1,
-                                              uchar* key2)
-{
-  Aggregator_distinct *aggr= (Aggregator_distinct *) arg;
-  DBUG_ASSERT(aggr->tree);
-  return aggr->tree->get_descriptor()->compare_keys(key1, key2);
-}
-
-
-/**
-  @brief
-    compare single component key.
-
-  @notes
-    Used by the Unique class to compare packed keys
-    which have a single argument
-
-  @param arg     Pointer to the relevant Aggregator_distinct instance
-  @param key1    left key image
-  @param key2    right key image
-
-  @return        comparison result
-    @retval <0       if key1 < key2
-    @retval =0       if key1 = key2
-    @retval >0       if key1 > key2
-*/
-int
-Aggregator_distinct::packed_key_cmp_single_arg(void *arg,
-                                               uchar *key1,
-                                               uchar *key2)
+int Aggregator_distinct::key_cmp(void* arg, uchar* key1, uchar* key2)
 {
   Aggregator_distinct *aggr= (Aggregator_distinct *) arg;
   DBUG_ASSERT(aggr->tree);
@@ -907,14 +841,14 @@ bool Aggregator_distinct::setup(THD *thd)
             compare method that can take advantage of not having to worry
             about other fields.
           */
-          compare_key= (qsort_cmp2) simple_str_key_cmp;
+          compare_key= (qsort_cmp2) key_cmp;
           cmp_arg= (void*) table->field[0];
           /* tree_key_length has been set already */
         }
         else
         {
           uint32 *length;
-          compare_key= (qsort_cmp2) composite_key_cmp;
+          compare_key= (qsort_cmp2) key_cmp;
           cmp_arg= (void*) this;
           field_lengths= (uint32*) thd->alloc(table->s->fields * sizeof(uint32));
           for (tree_key_length= 0, length= field_lengths, field= table->field;
@@ -930,14 +864,14 @@ bool Aggregator_distinct::setup(THD *thd)
 
       if (allow_packing)
       {
-        compare_key= get_compare_func_for_packed_keys();
+        compare_key= (qsort_cmp2) key_cmp;
         cmp_arg= (void*)this;
       }
       DBUG_ASSERT(tree == 0);
 
       tree= item_sum->get_unique(compare_key, cmp_arg, tree_key_length,
                                  item_sum->ram_limitation(thd), 0,
-                                 allow_packing);
+                                 allow_packing, non_const_items);
       /*
         The only time tree_key_length could be 0 is if someone does
         count(distinct) on a char(0) field - stupid thing to do,
@@ -997,7 +931,7 @@ bool Aggregator_distinct::setup(THD *thd)
     */
     tree= item_sum->get_unique(simple_raw_key_cmp, &tree_key_length, tree_key_length,
                                item_sum->ram_limitation(thd), 0,
-                               false);
+                               false, 1);
     DBUG_RETURN(tree == 0);
   }
 }
@@ -1070,21 +1004,6 @@ int Aggregator_distinct::insert_record_to_unique()
   */
 
   return tree->unique_add(table->record[0] + table->s->null_bytes);
-}
-
-
-/*
-  @brief
-    Get compare function for packed keys
-
-    @retval
-      comparison function
-*/
-qsort_cmp2 Aggregator_distinct::get_compare_func_for_packed_keys()
-{
-  return item_sum->get_arg_count() == 1 ?
-         (qsort_cmp2) packed_key_cmp_single_arg:
-         (qsort_cmp2) composite_packed_key_cmp;
 }
 
 
@@ -4692,7 +4611,8 @@ bool Item_func_group_concat::setup(THD *thd)
     unique_filter= get_unique(get_comparator_function_for_distinct(allow_packing),
                              (void*)this,
                              tree_key_length + get_null_bytes(),
-                             ram_limitation(thd), 0, allow_packing);
+                             ram_limitation(thd), 0, allow_packing,
+                             non_const_items);
 
     if (!unique_filter ||
         (unique_filter->get_descriptor()->setup(thd, this,
@@ -4926,14 +4846,25 @@ bool Item_sum::is_packing_allowed(TABLE *table, uint* total_length)
 Unique_impl*
 Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
                      uint size_arg, size_t max_in_memory_size_arg,
-                     uint min_dupl_count_arg, bool allow_packing)
+                     uint min_dupl_count_arg, bool allow_packing,
+                     uint number_of_args)
 {
   Descriptor *desc;
 
   if (allow_packing)
-    desc= new Variable_size_keys_descriptor(size_arg);
+  {
+    if (number_of_args == 1)
+      desc= new Variable_size_keys_simple(size_arg);
+    else
+      desc= new Variable_size_keys_descriptor(size_arg);
+  }
   else
-    desc= new Fixed_size_keys_descriptor(size_arg);
+  {
+    if (number_of_args == 1)
+      desc= new Fixed_size_keys_descriptor(size_arg);
+    else
+      desc= new Fixed_size_composite_keys_descriptor(size_arg);
+  }
 
   if (!desc)
     return NULL;
