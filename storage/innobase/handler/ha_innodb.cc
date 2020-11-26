@@ -16415,7 +16415,10 @@ ha_innobase::store_lock(
 			    || sql_command == SQLCOM_REPLACE_SELECT
 			    || sql_command == SQLCOM_UPDATE
 			    || sql_command == SQLCOM_CREATE_SEQUENCE
-			    || sql_command == SQLCOM_CREATE_TABLE))) {
+			    || sql_command == SQLCOM_CREATE_TABLE))
+		    || (trx->isolation_level == TRX_ISO_REPEATABLE_READ
+		        && sql_command == SQLCOM_ALTER_TABLE
+		        && lock_type == TL_READ)) {
 
 			/* If the transaction isolation level is
 			READ UNCOMMITTED or READ COMMITTED and we are executing
