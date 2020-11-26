@@ -954,7 +954,7 @@ insert into t1 values (1);
 connection default;
 # Add pending SNW lock.
 # Sending:
-alter table t1 add primary key (c1);;
+alter table t1 add primary key (c1), lock=shared;;
 # 
 connection mdl_con1;
 # Check that ALTER TABLE is waiting with pending SNW lock.
@@ -1964,7 +1964,7 @@ create table t1 (i int);
 # Ensure that ALTER waits once it has acquired SNW lock.
 set debug_sync='alter_table_copy_after_lock_upgrade SIGNAL parked1 WAIT_FOR go1';
 # Sending:
-alter table t1 add column j int;
+alter table t1 add column j int, lock=shared;
 #
 connection deadlock_con1;
 # Wait till ALTER acquires SNW lock and stops.
@@ -2330,7 +2330,7 @@ c1	c2	c3
 #
 connection con46273;
 set debug_sync='alter_table_copy_after_lock_upgrade SIGNAL alter_table_locked WAIT_FOR alter_go';
-alter table t1 add column e int, rename to t2;;
+alter table t1 add column e int, rename to t2, lock=shared;;
 #
 connection default;
 set debug_sync='now WAIT_FOR alter_table_locked';
@@ -2586,7 +2586,7 @@ connection default;
 # table lock and get blocked on sync point.
 set debug_sync= 'alter_table_copy_after_lock_upgrade SIGNAL parked WAIT_FOR go';
 # Sending:
-alter table t1 add column j int;
+alter table t1 add column j int, lock=shared;
 connection con1;
 # Wait until ALTER TABLE gets blocked on a sync point.
 set debug_sync= 'now WAIT_FOR parked';
