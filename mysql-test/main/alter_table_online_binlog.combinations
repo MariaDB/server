@@ -1,0 +1,4 @@
+[standalone]
+[binlog]
+--log-bin=master-bin
+

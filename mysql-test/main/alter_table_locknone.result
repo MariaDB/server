@@ -71,7 +71,6 @@ ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
 alter online table t1 add f int;
 ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
 alter online table t1 engine=memory;
-ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
 alter online table t1 rename to t2;
 ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCLUSIVE
 alter online table t1 checksum=1;

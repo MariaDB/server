@@ -52,6 +52,7 @@ struct TABLE_LIST;
 class ACL_internal_schema_access;
 class ACL_internal_table_access;
 class Field;
+class Copy_field;
 class Table_statistics;
 class With_element;
 struct TDC_element;
@@ -65,6 +66,7 @@ class Pushdown_derived;
 struct Name_resolution_context;
 class Table_function_json_table;
 class Open_table_context;
+class MYSQL_LOG;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -892,6 +894,10 @@ struct TABLE_SHARE
   plugin_ref default_part_plugin;
 #endif
 
+#ifdef HAVE_REPLICATION
+  Cache_flip_event_log *online_alter_binlog;
+#endif
+
   /**
     System versioning and application-time periods support.
   */
@@ -1559,6 +1565,8 @@ public:
   */
   Item *notnull_cond;
 
+  binlog_cache_data *online_alter_cache;
+
   inline void reset() { bzero((void*)this, sizeof(*this)); }
   void init(THD *thd, TABLE_LIST *tl);
   bool fill_item_list(List<Item> *item_list) const;
@@ -2208,11 +2216,18 @@ struct TABLE_LIST
                      mdl_type, MDL_TRANSACTION);
   }
 
+  TABLE_LIST(const LEX_CSTRING *db_arg,
+             const LEX_CSTRING *table_name_arg,
+             const LEX_CSTRING *alias_arg,
+             enum thr_lock_type lock_type_arg)
+  {
+    init_one_table(db_arg, table_name_arg, alias_arg, lock_type_arg);
+  }
+
   TABLE_LIST(TABLE *table_arg, thr_lock_type lock_type)
+    : TABLE_LIST(&table_arg->s->db, &table_arg->s->table_name, NULL, lock_type)
   {
     DBUG_ASSERT(table_arg->s);
-    init_one_table(&table_arg->s->db, &table_arg->s->table_name,
-                   NULL, lock_type);
     table= table_arg;
     vers_conditions.name= table->s->vers.name;
   }

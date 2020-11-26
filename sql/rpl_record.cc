@@ -228,7 +228,10 @@ unpack_row(rpl_group_info *rgi,
   uint i= 0;
   table_def *tabledef= NULL;
   TABLE *conv_table= NULL;
-  bool table_found= rgi && rgi->get_table_data(table, &tabledef, &conv_table);
+  const Copy_field *copy_fields;
+  const Copy_field *copy_fields_end;
+  bool table_found= rgi && rgi->get_table_data(table, &tabledef, &conv_table,
+                                               &copy_fields, &copy_fields_end);
   DBUG_PRINT("debug", ("Table data: table_found: %d, tabldef: %p, conv_table: %p",
                        table_found, tabledef, conv_table));
   DBUG_ASSERT(table_found);
@@ -242,7 +245,7 @@ unpack_row(rpl_group_info *rgi,
   if (rgi && !table_found)
     DBUG_RETURN(HA_ERR_GENERIC);
 
-  for (field_ptr= begin_ptr ; field_ptr < end_ptr && *field_ptr ; ++field_ptr)
+  for (field_ptr= begin_ptr; field_ptr < end_ptr && *field_ptr; ++field_ptr)
   {
     /*
       If there is a conversion table, we pick up the field pointer to
@@ -343,8 +346,11 @@ unpack_row(rpl_group_info *rgi,
         case, we have unpacked the master data to the conversion
         table, so we need to copy the value stored in the conversion
         table into the final table and do the conversion at the same time.
+
+        If copy_fields is set, it means we are doing an online alter table,
+        and will use copy_fields set up in copy_data_between_tables
       */
-      if (conv_field)
+      if (conv_field && !copy_fields)
       {
         Copy_field copy;
 #ifndef DBUG_OFF
@@ -374,6 +380,14 @@ unpack_row(rpl_group_info *rgi,
       null_mask <<= 1;
     }
     i++;
+  }
+
+  if (copy_fields)
+  {
+    for (auto *copy=copy_fields; copy != copy_fields_end; copy++)
+    {
+      copy->do_copy(copy);
+    }
   }
 
   /*
