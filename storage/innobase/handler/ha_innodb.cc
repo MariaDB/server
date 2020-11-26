@@ -16427,7 +16427,10 @@ ha_innobase::store_lock(
 			    || sql_command == SQLCOM_REPLACE_SELECT
 			    || sql_command == SQLCOM_UPDATE
 			    || sql_command == SQLCOM_CREATE_SEQUENCE
-			    || sql_command == SQLCOM_CREATE_TABLE))) {
+			    || sql_command == SQLCOM_CREATE_TABLE))
+		    || (trx->isolation_level == TRX_ISO_REPEATABLE_READ
+		        && sql_command == SQLCOM_ALTER_TABLE
+		        && lock_type == TL_READ)) {
 
 			/* If the transaction isolation level is
 			READ UNCOMMITTED or READ COMMITTED and we are executing
@@ -21204,4 +21207,18 @@ buf_pool_size_align(
   } else {
     return (size / m + 1) * m;
   }
+}
+
+void ha_innobase::open_read_view()
+{
+  trx_t *trx= m_prebuilt->trx;
+  auto thd_iso= thd_get_trx_isolation(m_user_thd);
+
+  trx->isolation_level= innobase_map_isolation_level(thd_iso);
+  ut_ad(trx->isolation_level == TRX_ISO_REPEATABLE_READ);
+  ut_ad(!trx_is_started(trx));
+
+  trx_start_if_not_started_xa(trx, false);
+
+  trx->read_view.open(m_prebuilt->trx);
 }

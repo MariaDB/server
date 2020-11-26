@@ -456,7 +456,7 @@ SELECT * FROM t1 WHERE a=0;
 
 connection con1;
 --echo # Sending:
---send ALTER TABLE t1 MODIFY a INT UNSIGNED;
+--send ALTER TABLE t1 MODIFY a INT UNSIGNED, LOCK=SHARED;
 
 connection default;
 --echo # Wait until ALTER TABLE is blocked on table 't1'.

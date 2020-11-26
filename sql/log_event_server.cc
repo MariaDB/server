@@ -6212,7 +6212,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 
 err:
   restore_empty_query_table_list(thd->lex);
-  rgi->slave_close_thread_tables(thd);
+  if (rgi->tables_to_lock_count)
+    rgi->slave_close_thread_tables(thd);
   thd->reset_query_timer();
   DBUG_RETURN(error);
 }
@@ -6780,6 +6781,13 @@ check_table_map(rpl_group_info *rgi, RPL_TABLE_LIST *table_list)
   DBUG_RETURN(res);
 }
 
+table_def Table_map_log_event::get_table_def()
+{
+  return table_def(m_coltype, m_colcnt,
+                   m_field_metadata, m_field_metadata_size,
+                   m_null_bits, m_flags);
+}
+
 int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
 {
   RPL_TABLE_LIST *table_list;
@@ -6818,39 +6826,32 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
   LEX_CSTRING tmp_db_name=  {db_mem, db_mem_length };
   LEX_CSTRING tmp_tbl_name= {tname_mem, tname_mem_length };
 
-  table_list->init_one_table(&tmp_db_name, &tmp_tbl_name, 0, TL_WRITE);
-  table_list->table_id= DBUG_IF("inject_tblmap_same_id_maps_diff_table") ? 0 : m_table_id;
-  table_list->updating= 1;
+  /*
+    The memory allocated by the table_def structure (i.e., not the
+    memory allocated *for* the table_def structure) is released
+    inside rpl_group_info::clear_tables_to_lock() by calling the
+    table_def destructor explicitly.
+  */
+  new(table_list) RPL_TABLE_LIST(&tmp_db_name, &tmp_tbl_name, TL_WRITE,
+                                 get_table_def(),
+                                 m_flags & TM_BIT_HAS_TRIGGERS_F);
+
+  table_list->table_id= DBUG_IF("inject_tblmap_same_id_maps_diff_table") ?
+                                         0: m_table_id;
   table_list->required_type= TABLE_TYPE_NORMAL;
+  table_list->open_type= OT_BASE_ONLY;
+  DBUG_ASSERT(table_list->updating);
 
   DBUG_PRINT("debug", ("table: %s is mapped to %llu",
                        table_list->table_name.str,
                        table_list->table_id));
-  table_list->master_had_triggers= ((m_flags & TM_BIT_HAS_TRIGGERS_F) ? 1 : 0);
-  DBUG_PRINT("debug", ("table->master_had_triggers=%d", 
+  DBUG_PRINT("debug", ("table->master_had_triggers=%d",
                        (int)table_list->master_had_triggers));
 
   enum_tbl_map_status tblmap_status= check_table_map(rgi, table_list);
   if (tblmap_status == OK_TO_PROCESS)
   {
     DBUG_ASSERT(thd->lex->query_tables != table_list);
-
-    /*
-      Use placement new to construct the table_def instance in the
-      memory allocated for it inside table_list.
-
-      The memory allocated by the table_def structure (i.e., not the
-      memory allocated *for* the table_def structure) is released
-      inside Relay_log_info::clear_tables_to_lock() by calling the
-      table_def destructor explicitly.
-    */
-    new (&table_list->m_tabledef)
-      table_def(m_coltype, m_colcnt,
-                m_field_metadata, m_field_metadata_size,
-                m_null_bits, m_flags);
-    table_list->m_tabledef_valid= TRUE;
-    table_list->m_conv_table= NULL;
-    table_list->open_type= OT_BASE_ONLY;
 
     /*
       We record in the slave's information that the table should be
@@ -6896,8 +6897,9 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
           execute in a user session 
          */
         my_error(ER_SLAVE_FATAL_ERROR, MYF(0), buf);
-    } 
-    
+    }
+
+    table_list->~RPL_TABLE_LIST();
     my_free(memory);
   }
 

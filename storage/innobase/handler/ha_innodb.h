@@ -444,6 +444,7 @@ public:
 			  const KEY_PART_INFO& old_part,
 			  const KEY_PART_INFO& new_part) const override;
 
+        void open_read_view() override;
 protected:
 	dberr_t innobase_get_autoinc(ulonglong* value);
 	dberr_t innobase_lock_autoinc();
