@@ -237,8 +237,7 @@ private:
   @param off   byte offset from the start (SEEK_SET)
   @param len   size of the hole in bytes
   @return DB_SUCCESS or error code */
-  dberr_t punch_hole(os_offset_t off, ulint len) const
-    MY_ATTRIBUTE((nonnull));
+  dberr_t punch_hole(os_offset_t off, ulint len) const;
 
 public:
   /** Page to be written on write operation */
@@ -265,8 +264,7 @@ struct os_file_size_t {
 	os_offset_t	m_alloc_size;
 };
 
-/** Win NT does not allow more than 64 */
-static const ulint OS_AIO_N_PENDING_IOS_PER_THREAD = 256;
+constexpr ulint OS_AIO_N_PENDING_IOS_PER_THREAD= 256;
 
 extern ulint	os_n_file_reads;
 extern ulint	os_n_file_writes;

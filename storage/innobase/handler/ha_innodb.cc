@@ -16948,6 +16948,7 @@ innodb_max_dirty_pages_pct_update(
 				    in_val);
 
 		srv_max_dirty_pages_pct_lwm = in_val;
+		mysql_cond_signal(&buf_pool.do_flush_list);
 	}
 
 	srv_max_buf_pool_modified_pct = in_val;
@@ -16981,6 +16982,7 @@ innodb_max_dirty_pages_pct_lwm_update(
 	}
 
 	srv_max_dirty_pages_pct_lwm = in_val;
+	mysql_cond_signal(&buf_pool.do_flush_list);
 }
 
 /*************************************************************//**

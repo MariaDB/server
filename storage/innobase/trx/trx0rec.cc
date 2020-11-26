@@ -2452,7 +2452,7 @@ trx_undo_prev_version_build(
 				      == rec_get_nth_field_size(rec, n));
 				ulint l = rec_get_1byte_offs_flag(*old_vers)
 					? (n + 1) : (n + 1) * 2;
-				(*old_vers)[-REC_N_OLD_EXTRA_BYTES - l]
+				*(*old_vers - REC_N_OLD_EXTRA_BYTES - l)
 					&= byte(~REC_1BYTE_SQL_NULL_MASK);
 			}
 		}

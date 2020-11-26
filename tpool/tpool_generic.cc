@@ -230,19 +230,19 @@ class thread_pool_generic : public thread_pool
   /** Maximimum number of threads in this pool. */
   unsigned int m_max_threads;
 
-  /* Maintainence related statistics (see maintainence()) */
+  /* maintenance related statistics (see maintenance()) */
   size_t m_last_thread_count;
   unsigned long long m_last_activity;
-  std::unique_ptr<timer> m_maintaince_timer_task;
+  std::unique_ptr<timer> m_maintenance_timer_task;
 
   void worker_main(worker_data *thread_data);
   void worker_end(worker_data* thread_data);
 
   /* Checks threadpool responsiveness, adjusts thread_counts */
-  void maintainence();
-  static void maintainence_func(void* arg)
+  void maintenance();
+  static void maintenance_func(void* arg)
   {
-    ((thread_pool_generic *)arg)->maintainence();
+    ((thread_pool_generic *)arg)->maintenance();
   }
   bool add_thread();
   bool wake(worker_wake_reason reason, task *t = nullptr);
@@ -528,11 +528,11 @@ void thread_pool_generic::worker_main(worker_data *thread_var)
   Periodic job to fix thread count and concurrency,
   in case of long tasks, etc
 */
-void thread_pool_generic::maintainence()
+void thread_pool_generic::maintenance()
 {
   /*
     If pool is busy (i.e the its mutex is currently locked), we can
-    skip the maintainence task, some times, to lower mutex contention
+    skip the maintenance task, some times, to lower mutex contention
   */
   static int skip_counter;
   const int MAX_SKIPS = 10;
@@ -691,7 +691,7 @@ thread_pool_generic::thread_pool_generic(int min_threads, int max_threads) :
   m_max_threads(max_threads),
   m_last_thread_count(),
   m_last_activity(),
-  m_maintaince_timer_task()
+  m_maintenance_timer_task()
 {
 
   if (m_max_threads < m_concurrency)
@@ -703,8 +703,8 @@ thread_pool_generic::thread_pool_generic(int min_threads, int max_threads) :
 
   if (min_threads < max_threads)
   {
-    m_maintaince_timer_task.reset(new timer_generic(thread_pool_generic::maintainence_func, this, nullptr));
-    m_maintaince_timer_task->set_time((int)m_timer_interval.count(), (int)m_timer_interval.count());
+    m_maintenance_timer_task.reset(new timer_generic(thread_pool_generic::maintenance_func, this, nullptr));
+    m_maintenance_timer_task->set_time((int)m_timer_interval.count(), (int)m_timer_interval.count());
   }
 }
 
@@ -792,7 +792,7 @@ thread_pool_generic::~thread_pool_generic()
   m_aio.reset();
 
   /* Also stop the maintanence task early. */
-  m_maintaince_timer_task.reset();
+  m_maintenance_timer_task.reset();
 
   std::unique_lock<std::mutex> lk(m_mtx);
   m_in_shutdown= true;

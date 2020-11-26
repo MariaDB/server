@@ -186,7 +186,7 @@ tpool::thread_pool* srv_thread_pool;
 
 /** Maximum number of times allowed to conditionally acquire
 mutex before switching to blocking wait on the mutex */
-#define MAX_MUTEX_NOWAIT	20
+#define MAX_MUTEX_NOWAIT	2
 
 /** Check whether the number of failed nonblocking mutex
 acquisition attempts exceeds maximum allowed value. If so,
@@ -555,8 +555,7 @@ struct purge_coordinator_state
 
 static purge_coordinator_state purge_state;
 
-/** threadpool timer for srv_error_monitor_task(). */
-std::unique_ptr<tpool::timer> srv_error_monitor_timer;
+/** threadpool timer for srv_monitor_task() */
 std::unique_ptr<tpool::timer> srv_monitor_timer;
 
 
@@ -769,16 +768,11 @@ srv_boot(void)
 
 /******************************************************************//**
 Refreshes the values used to calculate per-second averages. */
-static
-void
-srv_refresh_innodb_monitor_stats(void)
-/*==================================*/
+static void srv_refresh_innodb_monitor_stats(time_t current_time)
 {
 	mutex_enter(&srv_innodb_monitor_mutex);
 
-	time_t current_time = time(NULL);
-
-	if (difftime(current_time, srv_last_monitor_time) <= 60) {
+	if (difftime(current_time, srv_last_monitor_time) < 60) {
 		/* We referesh InnoDB Monitor values so that averages are
 		printed from at most 60 last seconds */
 		mutex_exit(&srv_innodb_monitor_mutex);
@@ -1309,26 +1303,18 @@ struct srv_monitor_state_t
 static srv_monitor_state_t monitor_state;
 
 /** A task which prints the info output by various InnoDB monitors.*/
-void srv_monitor_task(void*)
+static void srv_monitor()
 {
-	double		time_elapsed;
-	time_t		current_time;
+	time_t current_time = time(NULL);
 
-	ut_ad(!srv_read_only_mode);
-
-	current_time = time(NULL);
-
-	time_elapsed = difftime(current_time, monitor_state.last_monitor_time);
-
-	if (time_elapsed > 15) {
+	if (difftime(current_time, monitor_state.last_monitor_time) >= 15) {
 		monitor_state.last_monitor_time = current_time;
 
 		if (srv_print_innodb_monitor) {
 			/* Reset mutex_skipped counter everytime
 			srv_print_innodb_monitor changes. This is to
 			ensure we will not be blocked by lock_sys.mutex
-			for short duration information printing,
-			such as requested by sync_array_print_long_waits() */
+			for short duration information printing */
 			if (!monitor_state.last_srv_print_monitor) {
 				monitor_state.mutex_skipped = 0;
 				monitor_state.last_srv_print_monitor = true;
@@ -1366,14 +1352,14 @@ void srv_monitor_task(void*)
 		}
 	}
 
-	srv_refresh_innodb_monitor_stats();
+	srv_refresh_innodb_monitor_stats(current_time);
 }
 
 /*********************************************************************//**
 A task which prints warnings about semaphore waits which have lasted
 too long. These can be used to track bugs which cause hangs.
 */
-void srv_error_monitor_task(void*)
+void srv_monitor_task(void*)
 {
 	/* number of successive fatal timeouts observed */
 	static ulint		fatal_cnt;
@@ -1408,20 +1394,17 @@ void srv_error_monitor_task(void*)
 	if (sync_array_print_long_waits(&waiter, &sema)
 	    && sema == old_sema && os_thread_eq(waiter, old_waiter)) {
 #if defined(WITH_WSREP) && defined(WITH_INNODB_DISALLOW_WRITES)
-	  if (os_event_is_set(srv_allow_writes_event)) {
+		if (!os_event_is_set(srv_allow_writes_event)) {
+			fprintf(stderr,
+				"WSREP: avoiding InnoDB self crash due to "
+				"long semaphore wait of  > %lu seconds\n"
+				"Server is processing SST donor operation, "
+				"fatal_cnt now: " ULINTPF,
+				srv_fatal_semaphore_wait_threshold, fatal_cnt);
+			return;
+		}
 #endif /* WITH_WSREP */
-		fatal_cnt++;
-#if defined(WITH_WSREP) && defined(WITH_INNODB_DISALLOW_WRITES)
-	  } else {
-		fprintf(stderr,
-			"WSREP: avoiding InnoDB self crash due to long "
-			"semaphore wait of  > %lu seconds\n"
-			"Server is processing SST donor operation, "
-			"fatal_cnt now: " ULINTPF,
-			srv_fatal_semaphore_wait_threshold, fatal_cnt);
-	  }
-#endif /* WITH_WSREP */
-		if (fatal_cnt > 10) {
+		if (fatal_cnt++) {
 			ib::fatal() << "Semaphore wait has lasted > "
 				<< srv_fatal_semaphore_wait_threshold
 				<< " seconds. We intentionally crash the"
@@ -1432,6 +1415,8 @@ void srv_error_monitor_task(void*)
 		old_waiter = waiter;
 		old_sema = sema;
 	}
+
+	srv_monitor();
 }
 
 /******************************************************************//**

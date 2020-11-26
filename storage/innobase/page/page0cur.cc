@@ -2683,7 +2683,7 @@ corrupted:
   data_len-= enc_hdr_l >> 3;
   data= &static_cast<const byte*>(data)[enc_hdr_l >> 3];
 
-  memcpy(buf, &prev_rec[-REC_N_NEW_EXTRA_BYTES - hdr_c], hdr_c);
+  memcpy(buf, prev_rec - REC_N_NEW_EXTRA_BYTES - hdr_c, hdr_c);
   buf+= hdr_c;
   *buf++= static_cast<byte>((enc_hdr_l & 3) << 4); /* info_bits; n_owned=0 */
   *buf++= static_cast<byte>(h >> 5); /* MSB of heap number */

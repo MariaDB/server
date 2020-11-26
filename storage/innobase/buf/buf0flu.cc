@@ -126,6 +126,20 @@ static void buf_flush_validate_skip()
 }
 #endif /* UNIV_DEBUG */
 
+/** Wake up the page cleaner if needed */
+inline void buf_pool_t::page_cleaner_wakeup()
+{
+  if (page_cleaner_idle() &&
+      (srv_max_dirty_pages_pct_lwm == 0.0 ||
+       srv_max_dirty_pages_pct_lwm <=
+       double(UT_LIST_GET_LEN(buf_pool.flush_list)) * 100.0 /
+       double(UT_LIST_GET_LEN(buf_pool.LRU) + UT_LIST_GET_LEN(buf_pool.free))))
+  {
+    page_cleaner_is_idle= false;
+    mysql_cond_signal(&do_flush_list);
+  }
+}
+
 /** Insert a modified block into the flush list.
 @param[in,out]	block	modified block
 @param[in]	lsn	oldest modification */
@@ -145,6 +159,7 @@ void buf_flush_insert_into_flush_list(buf_block_t* block, lsn_t lsn)
 
 	UT_LIST_ADD_FIRST(buf_pool.flush_list, &block->page);
 	ut_d(buf_flush_validate_skip());
+	buf_pool.page_cleaner_wakeup();
 	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 }
 
@@ -2067,8 +2082,12 @@ furious_flush:
     else if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED)
       break;
 
-    mysql_cond_timedwait(&buf_pool.do_flush_list, &buf_pool.flush_list_mutex,
-                         &abstime);
+    if (buf_pool.page_cleaner_idle())
+      mysql_cond_wait(&buf_pool.do_flush_list, &buf_pool.flush_list_mutex);
+    else
+      mysql_cond_timedwait(&buf_pool.do_flush_list, &buf_pool.flush_list_mutex,
+                           &abstime);
+
     set_timespec(abstime, 1);
 
     lsn_limit= buf_flush_sync_lsn;
@@ -2091,6 +2110,8 @@ furious_flush:
         /* wake up buf_flush_wait_flushed() */
         mysql_cond_broadcast(&buf_pool.done_flush_list);
       }
+unemployed:
+      buf_pool.page_cleaner_set_idle(true);
       continue;
     }
 
@@ -2101,13 +2122,14 @@ furious_flush:
       double(UT_LIST_GET_LEN(buf_pool.LRU) + UT_LIST_GET_LEN(buf_pool.free));
 
     if (dirty_pct < srv_max_dirty_pages_pct_lwm && !lsn_limit)
-      continue;
+      goto unemployed;
 
     const lsn_t oldest_lsn= buf_pool.get_oldest_modification(0);
 
     if (UNIV_UNLIKELY(lsn_limit != 0) && oldest_lsn >= lsn_limit)
       buf_flush_sync_lsn= 0;
 
+    buf_pool.page_cleaner_set_idle(false);
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
     ulint n_flushed;
@@ -2158,6 +2180,11 @@ do_checkpoint:
                                      n_flushed);
         goto do_checkpoint;
       }
+    }
+    else
+    {
+      mysql_mutex_lock(&buf_pool.flush_list_mutex);
+      goto unemployed;
     }
 
 #ifdef UNIV_DEBUG

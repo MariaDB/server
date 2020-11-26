@@ -1937,9 +1937,28 @@ public:
   FlushHp flush_hp;
   /** modified blocks (a subset of LRU) */
   UT_LIST_BASE_NODE_T(buf_page_t) flush_list;
-
+private:
+  /** whether the page cleaner needs wakeup from indefinite sleep */
+  bool page_cleaner_is_idle;
+public:
   /** signalled to wake up the page_cleaner; protected by flush_list_mutex */
   mysql_cond_t do_flush_list;
+
+  /** @return whether the page cleaner must sleep due to being idle */
+  bool page_cleaner_idle() const
+  {
+    mysql_mutex_assert_owner(&flush_list_mutex);
+    return page_cleaner_is_idle;
+  }
+  /** Wake up the page cleaner if needed */
+  inline void page_cleaner_wakeup();
+
+  /** Register whether an explicit wakeup of the page cleaner is needed */
+  void page_cleaner_set_idle(bool deep_sleep)
+  {
+    mysql_mutex_assert_owner(&flush_list_mutex);
+    page_cleaner_is_idle= deep_sleep;
+  }
 
   // n_flush_LRU + n_flush_list is approximately COUNT(io_fix()==BUF_IO_WRITE)
   // in flush_list
