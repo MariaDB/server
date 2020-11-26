@@ -567,7 +567,7 @@ public:
       return do_field_string;
     }
 
-    static void do_field_fbt_native_to_binary(Copy_field *copy)
+    static void do_field_fbt_native_to_binary(const Copy_field *copy)
     {
       NativeBuffer<FbtImpl::binary_length()+1> res;
       copy->from_field->val_native(&res);

@@ -757,15 +757,15 @@ protected:
   }
   void error_generated_column_function_is_not_allowed(THD *thd, bool error)
                                                       const;
-  static void do_field_eq(Copy_field *copy);
-  static void do_field_int(Copy_field *copy);
-  static void do_field_real(Copy_field *copy);
-  static void do_field_string(Copy_field *copy);
-  static void do_field_date(Copy_field *copy);
-  static void do_field_temporal(Copy_field *copy, date_mode_t fuzzydate);
-  static void do_field_datetime(Copy_field *copy);
-  static void do_field_timestamp(Copy_field *copy);
-  static void do_field_decimal(Copy_field *copy);
+  static void do_field_eq(const Copy_field *copy);
+  static void do_field_int(const Copy_field *copy);
+  static void do_field_real(const Copy_field *copy);
+  static void do_field_string(const Copy_field *copy);
+  static void do_field_date(const Copy_field *copy);
+  static void do_field_temporal(const Copy_field *copy, date_mode_t fuzzydate);
+  static void do_field_datetime(const Copy_field *copy);
+  static void do_field_timestamp(const Copy_field *copy);
+  static void do_field_decimal(const Copy_field *copy);
 public:
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
@@ -914,7 +914,7 @@ public:
     Convenience definition of a copy function returned by
     Field::get_copy_func()
   */
-  typedef void Copy_func(Copy_field*);
+  typedef void Copy_func(const Copy_field*);
   virtual Copy_func *get_copy_func(const Field *from) const= 0;
   virtual Copy_func *get_copy_func_to(const Field *to) const
   {
@@ -3572,7 +3572,7 @@ protected:
   void store_TIME(const Time &t) { return store_TIME(t.get_mysql_time()); }
   int store_TIME_with_warning(const Time *ltime, const ErrConv *str, int warn);
   bool check_zero_in_date_with_warn(date_mode_t fuzzydate);
-  static void do_field_time(Copy_field *copy);
+  static void do_field_time(const Copy_field *copy);
 public:
   Field_time(uchar *ptr_arg, uint length_arg, uchar *null_ptr_arg,
              uchar null_bit_arg, enum utype unireg_check_arg,
@@ -4373,8 +4373,8 @@ protected:
   */
   String read_value;
 
-  static void do_copy_blob(Copy_field *copy);
-  static void do_conv_blob(Copy_field *copy);
+  static void do_copy_blob(const Copy_field *copy);
+  static void do_conv_blob(const Copy_field *copy);
   uint get_key_image_itRAW(const uchar *ptr_arg, uchar *buff, uint length) const;
 public:
   Field_blob(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
@@ -4730,7 +4730,7 @@ private:
 
 
 class Field_enum :public Field_str {
-  static void do_field_enum(Copy_field *copy_field);
+  static void do_field_enum(const Copy_field *copy_field);
   longlong val_int(const uchar *) const;
   bool can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
                                          const Item *item) const;
@@ -5854,14 +5854,14 @@ public:
   */
   uint from_length,to_length;
   Field *from_field,*to_field;
-  String tmp;					// For items
+  mutable String tmp;					// For items
 
   Copy_field() = default;
   ~Copy_field() = default;
   void set(Field *to,Field *from,bool save);	// Field to field 
   void set(uchar *to,Field *from);		// Field to string
-  void (*do_copy)(Copy_field *);
-  void (*do_copy2)(Copy_field *);		// Used to handle null values
+  void (*do_copy)(const Copy_field *);
+  void (*do_copy2)(const Copy_field *);		// Used to handle null values
 };
 
 
