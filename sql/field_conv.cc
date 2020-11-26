@@ -30,30 +30,30 @@
 #include "sql_class.h"                          // THD
 #include <m_ctype.h>
 
-void Field::do_field_eq(Copy_field *copy)
+void Field::do_field_eq(const Copy_field *copy)
 {
   memcpy(copy->to_ptr,copy->from_ptr,copy->from_length);
 }
 
-static void do_field_1(Copy_field *copy)
+static void do_field_1(const Copy_field *copy)
 {
   copy->to_ptr[0]=copy->from_ptr[0];
 }
 
-static void do_field_2(Copy_field *copy)
+static void do_field_2(const Copy_field *copy)
 {
   copy->to_ptr[0]=copy->from_ptr[0];
   copy->to_ptr[1]=copy->from_ptr[1];
 }
 
-static void do_field_3(Copy_field *copy)
+static void do_field_3(const Copy_field *copy)
 {
   copy->to_ptr[0]=copy->from_ptr[0];
   copy->to_ptr[1]=copy->from_ptr[1];
   copy->to_ptr[2]=copy->from_ptr[2];
 }
 
-static void do_field_4(Copy_field *copy)
+static void do_field_4(const Copy_field *copy)
 {
   copy->to_ptr[0]=copy->from_ptr[0];
   copy->to_ptr[1]=copy->from_ptr[1];
@@ -61,7 +61,7 @@ static void do_field_4(Copy_field *copy)
   copy->to_ptr[3]=copy->from_ptr[3];
 }
 
-static void do_field_6(Copy_field *copy)
+static void do_field_6(const Copy_field *copy)
 {						// For blob field
   copy->to_ptr[0]=copy->from_ptr[0];
   copy->to_ptr[1]=copy->from_ptr[1];
@@ -71,7 +71,7 @@ static void do_field_6(Copy_field *copy)
   copy->to_ptr[5]=copy->from_ptr[5];
 }
 
-static void do_field_8(Copy_field *copy)
+static void do_field_8(const Copy_field *copy)
 {
   copy->to_ptr[0]=copy->from_ptr[0];
   copy->to_ptr[1]=copy->from_ptr[1];
@@ -84,7 +84,7 @@ static void do_field_8(Copy_field *copy)
 }
 
 
-static void do_field_to_null_str(Copy_field *copy)
+static void do_field_to_null_str(const Copy_field *copy)
 {
   if (*copy->from_null_ptr & copy->from_bit)
   {
@@ -99,7 +99,7 @@ static void do_field_to_null_str(Copy_field *copy)
 }
 
 
-static void do_outer_field_to_null_str(Copy_field *copy)
+static void do_outer_field_to_null_str(const Copy_field *copy)
 {
   if (*copy->null_row ||
       (copy->from_null_ptr && (*copy->from_null_ptr & copy->from_bit)))
@@ -220,7 +220,7 @@ set_field_to_null_with_conversions(Field *field, bool no_conversions)
 }
 
 
-static void do_skip(Copy_field *copy __attribute__((unused)))
+static void do_skip(const Copy_field *copy __attribute__((unused)))
 {
 }
 
@@ -233,7 +233,7 @@ static void do_skip(Copy_field *copy __attribute__((unused)))
   set to NULLs, so we don't need to check table->null_row here.
 */
 
-static void do_copy_null(Copy_field *copy)
+static void do_copy_null(const Copy_field *copy)
 {
   if (*copy->from_null_ptr & copy->from_bit)
   {
@@ -252,7 +252,7 @@ static void do_copy_null(Copy_field *copy)
      field)
 */
 
-static void do_outer_field_null(Copy_field *copy)
+static void do_outer_field_null(const Copy_field *copy)
 {
   if (*copy->null_row ||
       (copy->from_null_ptr && (*copy->from_null_ptr & copy->from_bit)))
@@ -271,7 +271,7 @@ static void do_outer_field_null(Copy_field *copy)
   Copy: (not-NULL field in table that can be NULL-complemented) -> (not-NULL
   field)
 */
-static void do_copy_nullable_row_to_notnull(Copy_field *copy)
+static void do_copy_nullable_row_to_notnull(const Copy_field *copy)
 {
   if (*copy->null_row ||
       (copy->from_null_ptr && (*copy->from_null_ptr & copy->from_bit)))
@@ -288,7 +288,7 @@ static void do_copy_nullable_row_to_notnull(Copy_field *copy)
 }
 
 /* Copy: (NULL-able field) -> (not NULL-able field) */
-static void do_copy_not_null(Copy_field *copy)
+static void do_copy_not_null(const Copy_field *copy)
 {
   if (*copy->from_null_ptr & copy->from_bit)
   {
@@ -302,7 +302,7 @@ static void do_copy_not_null(Copy_field *copy)
 
 
 /* Copy: (non-NULLable field) -> (NULLable field) */
-static void do_copy_maybe_null(Copy_field *copy)
+static void do_copy_maybe_null(const Copy_field *copy)
 {
   *copy->to_null_ptr&= ~copy->to_bit;
   (copy->do_copy2)(copy);
@@ -310,7 +310,7 @@ static void do_copy_maybe_null(Copy_field *copy)
 
 /* timestamp and next_number has special handling in case of NULL values */
 
-static void do_copy_timestamp(Copy_field *copy)
+static void do_copy_timestamp(const Copy_field *copy)
 {
   if (*copy->from_null_ptr & copy->from_bit)
   {
@@ -322,7 +322,7 @@ static void do_copy_timestamp(Copy_field *copy)
 }
 
 
-static void do_copy_next_number(Copy_field *copy)
+static void do_copy_next_number(const Copy_field *copy)
 {
   if (*copy->from_null_ptr & copy->from_bit)
   {
@@ -335,12 +335,12 @@ static void do_copy_next_number(Copy_field *copy)
 }
 
 
-void Field_blob::do_copy_blob(Copy_field *copy)
+void Field_blob::do_copy_blob(const Copy_field *copy)
 {
   ((Field_blob*) copy->to_field)->copy_value(((Field_blob*) copy->from_field));
 }
 
-void Field_blob::do_conv_blob(Copy_field *copy)
+void Field_blob::do_conv_blob(const Copy_field *copy)
 {
   copy->from_field->val_str(&copy->tmp);
   ((Field_blob *) copy->to_field)->store(copy->tmp.ptr(),
@@ -350,7 +350,7 @@ void Field_blob::do_conv_blob(Copy_field *copy)
 
 /** Save blob in copy->tmp for GROUP BY. */
 
-static void do_save_blob(Copy_field *copy)
+static void do_save_blob(const Copy_field *copy)
 {
   char buff[MAX_FIELD_WIDTH];
   String res(buff,sizeof(buff),copy->tmp.charset());
@@ -362,7 +362,7 @@ static void do_save_blob(Copy_field *copy)
 }
 
 
-void Field::do_field_string(Copy_field *copy)
+void Field::do_field_string(const Copy_field *copy)
 {
   char buff[MAX_FIELD_WIDTH];
   String res(buff, sizeof(buff), copy->from_field->charset());
@@ -373,7 +373,7 @@ void Field::do_field_string(Copy_field *copy)
 }
 
 
-void Field_enum::do_field_enum(Copy_field *copy)
+void Field_enum::do_field_enum(const Copy_field *copy)
 {
   if (copy->from_field->val_int() == 0)
     ((Field_enum *) copy->to_field)->store_type((ulonglong) 0);
@@ -382,7 +382,7 @@ void Field_enum::do_field_enum(Copy_field *copy)
 }
 
 
-static void do_field_varbinary_pre50(Copy_field *copy)
+static void do_field_varbinary_pre50(const Copy_field *copy)
 {
   char buff[MAX_FIELD_WIDTH];
   copy->tmp.set_buffer_if_not_allocated(buff,sizeof(buff),copy->tmp.charset());
@@ -397,35 +397,35 @@ static void do_field_varbinary_pre50(Copy_field *copy)
 }
 
 
-void Field::do_field_int(Copy_field *copy)
+void Field::do_field_int(const Copy_field *copy)
 {
   longlong value= copy->from_field->val_int();
   copy->to_field->store(value,
                         MY_TEST(copy->from_field->flags & UNSIGNED_FLAG));
 }
 
-void Field::do_field_real(Copy_field *copy)
+void Field::do_field_real(const Copy_field *copy)
 {
   double value=copy->from_field->val_real();
   copy->to_field->store(value);
 }
 
 
-void Field::do_field_decimal(Copy_field *copy)
+void Field::do_field_decimal(const Copy_field *copy)
 {
   my_decimal value(copy->from_field);
   copy->to_field->store_decimal(&value);
 }
 
 
-void Field::do_field_timestamp(Copy_field *copy)
+void Field::do_field_timestamp(const Copy_field *copy)
 {
   // XXX why couldn't we do it everywhere?
   copy->from_field->save_in_field(copy->to_field);
 }
 
 
-void Field::do_field_temporal(Copy_field *copy, date_mode_t fuzzydate)
+void Field::do_field_temporal(const Copy_field *copy, date_mode_t fuzzydate)
 {
   MYSQL_TIME ltime;
   // TODO: we now need to check result
@@ -436,19 +436,19 @@ void Field::do_field_temporal(Copy_field *copy, date_mode_t fuzzydate)
 }
 
 
-void Field::do_field_datetime(Copy_field *copy)
+void Field::do_field_datetime(const Copy_field *copy)
 {
   return do_field_temporal(copy, Datetime::Options(TIME_CONV_NONE, current_thd));
 }
 
 
-void Field::do_field_date(Copy_field *copy)
+void Field::do_field_date(const Copy_field *copy)
 {
   return do_field_temporal(copy, Date::Options(TIME_CONV_NONE));
 }
 
 
-void Field_time::do_field_time(Copy_field *copy)
+void Field_time::do_field_time(const Copy_field *copy)
 {
   return do_field_temporal(copy, Time::Options(current_thd));
 }
@@ -459,7 +459,7 @@ void Field_time::do_field_time(Copy_field *copy)
   from string.
 */
 
-static void do_cut_string(Copy_field *copy)
+static void do_cut_string(const Copy_field *copy)
 {
   CHARSET_INFO *cs= copy->from_field->charset();
   memcpy(copy->to_ptr,copy->from_ptr,copy->to_length);
@@ -480,7 +480,7 @@ static void do_cut_string(Copy_field *copy)
   from string.
 */
 
-static void do_cut_string_complex(Copy_field *copy)
+static void do_cut_string_complex(const Copy_field *copy)
 {						// Shorter string field
   CHARSET_INFO *cs= copy->from_field->charset();
   const uchar *from_end= copy->from_ptr + copy->from_length;
@@ -512,7 +512,7 @@ static void do_cut_string_complex(Copy_field *copy)
 
 
 
-static void do_expand_binary(Copy_field *copy)
+static void do_expand_binary(const Copy_field *copy)
 {
   CHARSET_INFO *cs= copy->from_field->charset();
   memcpy(copy->to_ptr,copy->from_ptr,copy->from_length);
@@ -522,7 +522,7 @@ static void do_expand_binary(Copy_field *copy)
 
 
 
-static void do_expand_string(Copy_field *copy)
+static void do_expand_string(const Copy_field *copy)
 {
   CHARSET_INFO *cs= copy->from_field->charset();
   memcpy(copy->to_ptr,copy->from_ptr,copy->from_length);
@@ -531,7 +531,7 @@ static void do_expand_string(Copy_field *copy)
 }
 
 
-static void do_varstring1(Copy_field *copy)
+static void do_varstring1(const Copy_field *copy)
 {
   uint length= (uint) *(uchar*) copy->from_ptr;
   if (length > copy->to_length- 1)
@@ -548,7 +548,7 @@ static void do_varstring1(Copy_field *copy)
 }
 
 
-static void do_varstring1_mb(Copy_field *copy)
+static void do_varstring1_mb(const Copy_field *copy)
 {
   CHARSET_INFO *cs= copy->from_field->charset();
   uint from_length= (uint) *(uchar*) copy->from_ptr;
@@ -566,7 +566,7 @@ static void do_varstring1_mb(Copy_field *copy)
 }
 
 
-static void do_varstring2(Copy_field *copy)
+static void do_varstring2(const Copy_field *copy)
 {
   uint length=uint2korr(copy->from_ptr);
   if (length > copy->to_length- HA_KEY_BLOB_LENGTH)
@@ -584,7 +584,7 @@ static void do_varstring2(Copy_field *copy)
 }
 
 
-static void do_varstring2_mb(Copy_field *copy)
+static void do_varstring2_mb(const Copy_field *copy)
 {
   CHARSET_INFO *cs= copy->from_field->charset();
   uint char_length= (copy->to_length - HA_KEY_BLOB_LENGTH) / cs->mbmaxlen;
