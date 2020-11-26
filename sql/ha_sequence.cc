@@ -287,8 +287,7 @@ int ha_sequence::write_row(const uchar *buf)
       sequence->copy(&tmp_seq);
     rows_changed++;
     /* We have to do the logging while we hold the sequence mutex */
-    if (row_logging)
-      error= binlog_log_row(table, 0, buf, log_func);
+    error= binlog_log_row(0, buf, log_func);
   }
 
   /* Row is already logged, don't log it again in ha_write_row() */
