@@ -45,6 +45,7 @@
 #include <m_ctype.h>				// For test_if_number
 
 #include <set_var.h> // for Sys_last_gtid_ptr
+#include <ilist.h>
 
 #ifdef _WIN32
 #include "message.h"
@@ -102,6 +103,9 @@ static int binlog_start_consistent_snapshot(handlerton *hton, THD *thd);
 static int binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
                               Log_event *end_ev, bool all, bool using_stmt,
                               bool using_trx, bool is_ro_1pc);
+
+int binlog_online_alter_commit(THD *thd, bool all);
+void binlog_online_alter_rollback(THD *thd, bool all);
 
 static const LEX_CSTRING write_error_msg=
     { STRING_WITH_LEN("error writing to the binary log") };
@@ -508,15 +512,16 @@ void Log_event_writer::set_incident()
 }
 
 
-class binlog_cache_mngr {
+class binlog_cache_mngr: public ilist_node<> {
 public:
   binlog_cache_mngr(my_off_t param_max_binlog_stmt_cache_size,
                     my_off_t param_max_binlog_cache_size,
                     ulong *param_ptr_binlog_stmt_cache_use,
                     ulong *param_ptr_binlog_stmt_cache_disk_use,
                     ulong *param_ptr_binlog_cache_use,
-                    ulong *param_ptr_binlog_cache_disk_use)
-    : last_commit_pos_offset(0), using_xa(FALSE), xa_xid(0)
+                    ulong *param_ptr_binlog_cache_disk_use,
+                    TABLE_SHARE *share)
+    : last_commit_pos_offset(0), using_xa(FALSE), xa_xid(0), share(share)
   {
      stmt_cache.set_binlog_cache_info(param_max_binlog_stmt_cache_size,
                                       param_ptr_binlog_stmt_cache_use,
@@ -578,9 +583,12 @@ public:
   ulong binlog_id;
   /* Set if we get an error during commit that must be returned from unlog(). */
   bool delayed_error;
+
   //Will be reset when gtid is written into binlog
   uchar  gtid_flags3;
   decltype (rpl_gtid::seq_no) sa_seq_no;
+
+  TABLE_SHARE *share;
 private:
 
   binlog_cache_mngr& operator=(const binlog_cache_mngr& info);
@@ -2249,6 +2257,31 @@ static int binlog_commit_flush_xa_prepare(THD *thd, bool all,
   return (binlog_flush_cache(thd, cache_mngr, &end_evt, all, TRUE, TRUE));
 }
 
+#ifdef HAVE_REPLICATION
+static void
+binlog_online_alter_cleanup(ilist<binlog_cache_mngr> &list,
+                            bool ending_trans)
+{
+  for (auto &cache: list)
+  {
+    cache.reset(true, ending_trans);
+  }
+  if (ending_trans)
+  {
+    auto it= list.begin();
+    while (it != list.end())
+    {
+      auto &cache= *it;
+      it++;
+      list.remove(cache);
+      cache.~binlog_cache_mngr();
+      my_free(&cache);
+    }
+    DBUG_ASSERT(list.empty());
+  }
+}
+#endif // HAVE_REPLICATION
+
 /**
   This function is called once after each statement.
 
@@ -2265,8 +2298,15 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
   PSI_stage_info org_stage;
   DBUG_ENTER("binlog_commit");
 
-  binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
+  bool is_ending_transaction= ending_trans(thd, all);
+  error= binlog_online_alter_commit(thd, all);
+  if (error)
+    DBUG_RETURN(error);
 
+  binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
+  /*
+    cache_mngr can be NULL in case if binlog logging is disabled.
+  */
   if (!cache_mngr)
   {
     DBUG_ASSERT(WSREP(thd) ||
@@ -2326,7 +2366,7 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
      - We are in a transaction and a full transaction is committed.
     Otherwise, we accumulate the changes.
   */
-  if (likely(!error) && ending_trans(thd, all))
+  if (likely(!error) && is_ending_transaction)
   {
     bool is_xa_prepare= is_preparing_xa(thd);
 
@@ -2366,12 +2406,17 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
 {
   DBUG_ENTER("binlog_rollback");
 
+  bool is_ending_trans= ending_trans(thd, all);
+
+  bool rollback_online= !thd->online_alter_cache_list.empty();
+  if (rollback_online)
+    binlog_online_alter_rollback(thd, all);
   int error= 0;
   binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
 
   if (!cache_mngr)
   {
-    DBUG_ASSERT(WSREP(thd));
+    DBUG_ASSERT(WSREP(thd) || rollback_online);
     DBUG_ASSERT(thd->lex->sql_command != SQLCOM_XA_ROLLBACK);
 
     DBUG_RETURN(0);
@@ -2425,7 +2470,7 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
   }
   else if (likely(!error))
   {  
-    if (ending_trans(thd, all) && trans_cannot_safely_rollback(thd, all))
+    if (is_ending_trans && trans_cannot_safely_rollback(thd, all))
       error= binlog_rollback_flush_trx_cache(thd, all, cache_mngr);
     /*
       Truncate the cache if:
@@ -2437,7 +2482,7 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
         . the format is not MIXED or no temporary non-trans table
           was updated.
     */
-    else if (ending_trans(thd, all) ||
+    else if (is_ending_trans ||
              (!(thd->transaction->stmt.has_created_dropped_temp_table() &&
                 !thd->is_current_stmt_binlog_format_row()) &&
               (!stmt_has_updated_non_trans_table(thd) ||
@@ -2596,6 +2641,9 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
 static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
 {
   DBUG_ENTER("binlog_savepoint_rollback");
+
+  if (!thd->online_alter_cache_list.empty())
+    binlog_online_alter_rollback(thd, !thd->in_sub_stmt);
 
   /*
     Write ROLLBACK TO SAVEPOINT to the binlog cache if we have updated some
@@ -3071,13 +3119,14 @@ void MYSQL_LOG::close(uint exiting)
   {
     end_io_cache(&log_file);
 
-    if (log_type == LOG_BIN && mysql_file_sync(log_file.file, MYF(MY_WME)) && ! write_error)
+    if (log_type == LOG_BIN && log_file.file >= 0 &&
+        mysql_file_sync(log_file.file, MYF(MY_WME)) && ! write_error)
     {
       write_error= 1;
       sql_print_error(ER_DEFAULT(ER_ERROR_ON_WRITE), name, errno);
     }
 
-    if (!(exiting & LOG_CLOSE_DELAYED_CLOSE) &&
+    if (!(exiting & LOG_CLOSE_DELAYED_CLOSE) && log_file.file >= 0 &&
         mysql_file_close(log_file.file, MYF(MY_WME)) && ! write_error)
     {
       write_error= 1;
@@ -3574,7 +3623,7 @@ MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
     We don't want to initialize locks here as such initialization depends on
     safe_mutex (when using safe_mutex) which depends on MY_INIT(), which is
     called only in main(). Doing initialization here would make it happen
-    before main().
+    before main(). init_pthread_objects() can be called for that purpose.
   */
   index_file_name[0] = 0;
   bzero((char*) &index_file, sizeof(index_file));
@@ -3752,28 +3801,46 @@ bool MYSQL_BIN_LOG::open_index_file(const char *index_file_name_arg,
 }
 
 
-bool Event_log::open(const char *log_name, enum_log_type log_type,
+bool Event_log::open(const char *log_name,
                      const char *new_name, ulong next_file_number,
                      enum cache_type io_cache_type_arg)
 {
-  bool error= MYSQL_LOG::open(
+  bool error= false;
+  if (log_name || new_name)
+  {
+    error= MYSQL_LOG::open(
 #ifdef HAVE_PSI_INTERFACE
           0,
 #endif
-          log_name, log_type, new_name, next_file_number, io_cache_type_arg);
+          log_name, LOG_NORMAL, new_name, next_file_number, io_cache_type_arg);
+  }
+  else
+  {
+#ifdef HAVE_PSI_INTERFACE
+    /* Keep the key for reopen */
+    m_log_file_key= 0;
+#endif
+    error= init_io_cache(&log_file, -1, LOG_BIN_IO_SIZE,
+                         io_cache_type_arg, 0, 0,
+                         MYF(MY_WME | MY_NABP | MY_WAIT_IF_FULL));
+
+    log_state= LOG_OPENED;
+    inited= true;
+  }
   if (error)
     return error;
 
-  int bytes_written= write_description_event(
+  longlong bytes_written= write_description_event(
                               (enum_binlog_checksum_alg)binlog_checksum_options,
                               encrypt_binlog, false, false);
   error= bytes_written < 0;
   return error;
 }
 
-int Event_log::write_description_event(enum_binlog_checksum_alg checksum_alg,
-                                       bool encrypt, bool dont_set_created,
-                                       bool is_relay_log)
+longlong
+Event_log::write_description_event(enum_binlog_checksum_alg checksum_alg,
+                                   bool encrypt, bool dont_set_created,
+                                   bool is_relay_log)
 {
   Format_description_log_event s(BINLOG_VERSION);
   /*
@@ -3818,7 +3885,7 @@ int Event_log::write_description_event(enum_binlog_checksum_alg checksum_alg,
         return -1;
     }
   }
-  return s.data_written;
+  return (longlong)s.data_written;
 }
 
 
@@ -4335,7 +4402,8 @@ int MYSQL_BIN_LOG::find_log_pos(LOG_INFO *linfo, const char *log_name,
                        log_name ? log_name : "NULL", full_log_name));
 
   /* As the file is flushed, we can't get an error here */
-  (void) reinit_io_cache(&index_file, READ_CACHE, (my_off_t) 0, 0, 0);
+  error= reinit_io_cache(&index_file, READ_CACHE, (my_off_t) 0, 0, 0);
+  DBUG_ASSERT(!error);
 
   for (;;)
   {
@@ -5938,17 +6006,11 @@ bool stmt_has_updated_non_trans_table(const THD* thd)
   binlog_hton, which has internal linkage.
 */
 
-binlog_cache_mngr *THD::binlog_setup_trx_data()
+binlog_cache_mngr *binlog_setup_cache_mngr(TABLE_SHARE *share)
 {
-  DBUG_ENTER("THD::binlog_setup_trx_data");
-  binlog_cache_mngr *cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(this, binlog_hton);
-
-  if (cache_mngr)
-    DBUG_RETURN(cache_mngr);                             // Already set up
-
-  cache_mngr= (binlog_cache_mngr*) my_malloc(key_memory_binlog_cache_mngr,
-                                  sizeof(binlog_cache_mngr), MYF(MY_ZEROFILL));
+  auto *cache_mngr= (binlog_cache_mngr*) my_malloc(key_memory_binlog_cache_mngr,
+                                  sizeof(binlog_cache_mngr),
+                                                   MYF(MY_ZEROFILL));
   if (!cache_mngr ||
       open_cached_file(&cache_mngr->stmt_cache.cache_log, mysql_tmpdir,
                        LOG_PREFIX, (size_t)binlog_stmt_cache_size, MYF(MY_WME)) ||
@@ -5956,17 +6018,34 @@ binlog_cache_mngr *THD::binlog_setup_trx_data()
                        LOG_PREFIX, (size_t)binlog_cache_size, MYF(MY_WME)))
   {
     my_free(cache_mngr);
-    DBUG_RETURN(0);                      // Didn't manage to set it up
+    return NULL;
   }
-  thd_set_ha_data(this, binlog_hton, cache_mngr);
 
   cache_mngr= new (cache_mngr)
-              binlog_cache_mngr(max_binlog_stmt_cache_size,
-                                max_binlog_cache_size,
-                                &binlog_stmt_cache_use,
-                                &binlog_stmt_cache_disk_use,
-                                &binlog_cache_use,
-                                &binlog_cache_disk_use);
+          binlog_cache_mngr(max_binlog_stmt_cache_size,
+                            max_binlog_cache_size,
+                            &binlog_stmt_cache_use,
+                            &binlog_stmt_cache_disk_use,
+                            &binlog_cache_use,
+                            &binlog_cache_disk_use,
+                            share);
+
+  return cache_mngr;
+}
+
+binlog_cache_mngr *THD::binlog_setup_trx_data()
+{
+  DBUG_ENTER("THD::binlog_setup_trx_data");
+  binlog_cache_mngr *cache_mngr=
+    (binlog_cache_mngr*) thd_get_ha_data(this, binlog_hton);
+
+  if (!cache_mngr)
+  {
+    cache_mngr= binlog_setup_cache_mngr(NULL);
+    thd_set_ha_data(this, binlog_hton, cache_mngr);
+  }
+
+
   DBUG_RETURN(cache_mngr);
 }
 
@@ -6328,6 +6407,23 @@ write_err:
 }
 
 
+binlog_cache_mngr *online_alter_binlog_get_cache_mngr(THD *thd, TABLE *table)
+{
+  ilist<binlog_cache_mngr> &list= thd->online_alter_cache_list;
+
+  /* we assume it's very rare to have more than one online ALTER running */
+  for (auto &cache: list)
+  {
+    if (cache.share == table->s)
+      return &cache;
+  }
+
+  auto *new_cache_mngr= binlog_setup_cache_mngr(table->s);
+  list.push_back(*new_cache_mngr);
+
+  return new_cache_mngr;
+}
+
 binlog_cache_mngr *THD::binlog_get_cache_mngr() const
 {
   return (binlog_cache_mngr*) thd_get_ha_data(this, binlog_hton);
@@ -6429,7 +6525,7 @@ Event_log::flush_and_set_pending_rows_event(THD *thd,
                                                 bool is_transactional)
 {
   DBUG_ENTER("MYSQL_BIN_LOG::flush_and_set_pending_rows_event(event)");
-  DBUG_ASSERT(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open());
+  DBUG_ASSERT(WSREP_EMULATE_BINLOG(thd) || is_open());
   DBUG_PRINT("enter", ("event: %p", event));
 
   DBUG_PRINT("info", ("cache_mngr->pending(): %p", cache_data->pending()));
@@ -7589,6 +7685,105 @@ private:
   bool first;
 };
 
+int cache_copy(IO_CACHE *to, IO_CACHE *from)
+{
+  DBUG_ENTER("cache_copy");
+  if (reinit_io_cache(from, READ_CACHE, 0, 0, 0))
+    DBUG_RETURN(ER_ERROR_ON_WRITE);
+  size_t bytes_in_cache= my_b_bytes_in_cache(from);
+
+  do
+  {
+    my_b_write(to, from->read_pos, bytes_in_cache);
+
+    from->read_pos += bytes_in_cache;
+    bytes_in_cache= my_b_fill(from);
+    if (from->error || to->error)
+      DBUG_RETURN(ER_ERROR_ON_WRITE);
+  } while (bytes_in_cache);
+
+  DBUG_RETURN(0);
+}
+
+int binlog_online_alter_commit(THD *thd, bool all)
+{
+  DBUG_ENTER("online_alter_commit");
+  int error= 0;
+#ifdef HAVE_REPLICATION
+
+  if (thd->online_alter_cache_list.empty())
+    DBUG_RETURN(0);
+
+  bool is_ending_transaction= ending_trans(thd, all);
+
+  for (auto &cache_mngr: thd->online_alter_cache_list)
+  {
+    auto *binlog= cache_mngr.share->online_alter_binlog;
+    DBUG_ASSERT(binlog);
+
+    error= binlog_flush_pending_rows_event(thd,
+                                           /*
+                                             do not set STMT_END for last event
+                                             to leave table open in altering thd
+                                           */
+                                           false,
+                                           true,
+                                           binlog,
+                                           is_ending_transaction
+                                           ? &cache_mngr.trx_cache
+                                           : &cache_mngr.stmt_cache);
+    if (is_ending_transaction)
+    {
+      mysql_mutex_lock(binlog->get_log_lock());
+      error= binlog->write_cache(thd, &cache_mngr.trx_cache.cache_log);
+
+      mysql_mutex_unlock(binlog->get_log_lock());
+    }
+    else
+    {
+      error= cache_copy(&cache_mngr.trx_cache.cache_log,
+                        &cache_mngr.stmt_cache.cache_log);
+    }
+
+    if (error)
+    {
+      my_error(ER_ERROR_ON_WRITE, MYF(ME_ERROR_LOG),
+               binlog->get_name(), errno);
+      binlog_online_alter_cleanup(thd->online_alter_cache_list,
+                                  is_ending_transaction);
+      DBUG_RETURN(error);
+    }
+  }
+
+  binlog_online_alter_cleanup(thd->online_alter_cache_list,
+                              is_ending_transaction);
+
+  for (TABLE *table= thd->open_tables; table; table= table->next)
+  {
+    table->online_alter_cache= NULL;
+  }
+#endif // HAVE_REPLICATION
+  DBUG_RETURN(error);
+}
+
+void binlog_online_alter_rollback(THD *thd, bool all)
+{
+#ifdef HAVE_REPLICATION
+  bool is_ending_trans= ending_trans(thd, all);
+
+  /*
+    This is a crucial moment that we are running through
+    thd->online_alter_cache_list, and not through thd->open_tables to cleanup
+    stmt cache, though both have it. The reason is that the tables can be closed
+    to that moment in case of an error.
+    The same reason applies to the fact we don't store cache_mngr in the table
+    itself -- because it can happen to be not existing.
+    Still in case if tables are left opened
+   */
+  binlog_online_alter_cleanup(thd->online_alter_cache_list, is_ending_trans);
+#endif // HAVE_REPLICATION
+}
+
 /*
   Write the contents of a cache to the binary log.
 
@@ -7617,7 +7812,7 @@ int Event_log::write_cache(THD *thd, IO_CACHE *cache)
   size_t val;
   size_t end_log_pos_inc= 0; // each event processed adds BINLOG_CHECKSUM_LEN 2 t
   uchar header[LOG_EVENT_HEADER_LEN];
-  CacheWriter writer(thd, &log_file, binlog_checksum_options, &crypto);
+  CacheWriter writer(thd, get_log_file(), binlog_checksum_options, &crypto);
 
   if (crypto.scheme)
   {
@@ -7642,7 +7837,7 @@ int Event_log::write_cache(THD *thd, IO_CACHE *cache)
     split.
   */
 
-  group= (size_t)my_b_tell(&log_file);
+  group= (size_t)my_b_tell(get_log_file());
   hdr_offs= carry= 0;
 
   do

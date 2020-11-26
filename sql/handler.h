@@ -656,6 +656,7 @@ given at all. */
 typedef ulonglong alter_table_operations;
 
 class Event_log;
+class Cache_flip_event_log;
 class binlog_cache_data;
 typedef bool Log_func(THD*, TABLE*, Event_log *, binlog_cache_data *, bool,
                       const uchar*, const uchar*);
@@ -3561,6 +3562,7 @@ public:
   /** to be actually called to get 'check()' functionality*/
   int ha_check(THD *thd, HA_CHECK_OPT *check_opt);
   int ha_repair(THD* thd, HA_CHECK_OPT* check_opt);
+  virtual void open_read_view(){}
   void ha_start_bulk_insert(ha_rows rows, uint flags= 0)
   {
     DBUG_ENTER("handler::ha_start_bulk_insert");
@@ -5053,8 +5055,7 @@ public:
   bool check_table_binlog_row_based();
   bool prepare_for_row_logging();
   int prepare_for_insert(bool do_create);
-  int binlog_log_row(TABLE *table,
-                     const uchar *before_record,
+  int binlog_log_row(const uchar *before_record,
                      const uchar *after_record,
                      Log_func *log_func);
 

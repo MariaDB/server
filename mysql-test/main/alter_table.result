@@ -1734,7 +1734,6 @@ info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
 Note	1831	Duplicate index `i3`. This is deprecated and will be disallowed in a future release
 ALTER TABLE t1 ADD INDEX i4(b), ALGORITHM= COPY, LOCK= NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
 ALTER TABLE t1 ADD INDEX i5(b), ALGORITHM= COPY, LOCK= SHARED;
 affected rows: 2
 info: Records: 2  Duplicates: 0  Warnings: 1
@@ -1752,7 +1751,6 @@ ERROR 0A000: LOCK=NONE/SHARED is not supported for this operation. Try LOCK=EXCL
 ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE, LOCK= EXCLUSIVE;
 affected rows: 0
 ALTER TABLE m1 ENABLE KEYS, ALGORITHM= COPY, LOCK= NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
 ALTER ONLINE TABLE m1 ADD COLUMN c int;
 ERROR 0A000: LOCK=NONE is not supported for this operation. Try LOCK=SHARED
 ALTER TABLE m1 ENABLE KEYS, ALGORITHM= COPY, LOCK= SHARED;
