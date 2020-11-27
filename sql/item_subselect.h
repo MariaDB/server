@@ -601,12 +601,18 @@ public:
 
   Item_func_not_all *upper_item; // point on NOT/NOP before ALL/SOME subquery
 
+  /*
+    SET to TRUE if IN subquery is converted from an IN predicate
+  */
+  bool converted_from_in_predicate;
+
   Item_in_subselect(THD *thd_arg, Item * left_expr, st_select_lex *select_lex);
   Item_in_subselect(THD *thd_arg):
     Item_exists_subselect(thd_arg), left_expr_cache(0), first_execution(TRUE),
     in_strategy(SUBS_NOT_TRANSFORMED),
     pushed_cond_guards(NULL), func(NULL), do_not_convert_to_sj(FALSE),
-    is_jtbm_merged(FALSE), is_jtbm_const_tab(FALSE), upper_item(0) {}
+    is_jtbm_merged(FALSE), is_jtbm_const_tab(FALSE), upper_item(0),
+    converted_from_in_predicate(FALSE) {}
   void cleanup();
   subs_type substype() { return IN_SUBS; }
   void reset() 
