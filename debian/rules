@@ -82,6 +82,7 @@ ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
 	dpkg-architecture -a$(DEB_BUILD_ARCH) -f -c dh_auto_configure --builddirectory=builddir-native
 	dh_auto_build --builddirectory=builddir-native -- import_executables
 endif
+	echo "server:Version=$(DEB_VERSION)" >> debian/substvars
 
 	# Don't build ColumnStore as part of the native build, only build it when
 	# triggered by autobake-deb.sh. Saves build time and disk space.
@@ -188,6 +189,8 @@ override_dh_installinit-arch:
 	dh_installinit --name=mariadb --no-start -- defaults 19 21
 	dh_systemd_start --restart-after-upgrade
 
+override_dh_gencontrol:
+	dh_gencontrol -- -Tdebian/substvars
 
 # If a file is not supposed to be included anywhere, add it to the not-installed
 # file and document the reason. Note that dh_install supports the above mentioned
