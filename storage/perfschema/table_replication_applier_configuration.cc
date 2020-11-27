@@ -29,17 +29,15 @@
 //#define HAVE_REPLICATION
 
 #include "my_global.h"
+#ifdef HAVE_REPLICATION
 #include "table_replication_applier_configuration.h"
 #include "pfs_instr_class.h"
 #include "pfs_instr.h"
 #include "slave.h"
-//#include "rpl_info.h"
 #include "rpl_rli.h"
 #include "rpl_mi.h"
 #include "sql_parse.h"
-//#include "rpl_msr.h"   /* Multisource replication */
 
-#ifdef HAVE_REPLICATION
 THR_LOCK table_replication_applier_configuration::m_table_lock;
 
 PFS_engine_table_share
@@ -54,7 +52,7 @@ table_replication_applier_configuration::m_share=
   sizeof(pos_t), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE replication_applier_configuration("
-  "CHANNEL_NAME CHAR(64) collate utf8_general_ci not null,"
+  "CONNECTION_NAME VARCHAR(256) collate utf8_general_ci not null,"
   "DESIRED_DELAY INTEGER not null)") },
   false  /* perpetual */
 };
@@ -139,9 +137,9 @@ void table_replication_applier_configuration::make_row(Master_info *mi)
   mysql_mutex_lock(&mi->data_lock);
   mysql_mutex_lock(&mi->rli.data_lock);
 
-  m_row.channel_name_length= static_cast<uint>(mi->connection_name.length);
-  memcpy(m_row.channel_name, mi->connection_name.str, m_row.channel_name_length);
-  m_row.desired_delay= 0; //mi->rli->get_sql_delay();
+  m_row.connection_name_length= static_cast<uint>(mi->connection_name.length);
+  memcpy(m_row.connection_name, mi->connection_name.str, m_row.connection_name_length);
+  m_row.desired_delay= mi->rli.get_sql_delay();
 
   mysql_mutex_unlock(&mi->rli.data_lock);
   mysql_mutex_unlock(&mi->data_lock);
@@ -159,18 +157,7 @@ int table_replication_applier_configuration::read_row_values(TABLE *table,
   if (unlikely(! m_row_exists))
     return HA_ERR_RECORD_DELETED;
 
-  /*
-    Note:
-    There are no NULL columns in this table,
-    so there are no null bits reserved for NULL flags per column.
-    There are no VARCHAR columns either, so the record is not
-    in HA_OPTION_PACK_RECORD format as most other performance_schema tables.
-    When HA_OPTION_PACK_RECORD is not set,
-    the table record reserves an extra null byte, see open_binary_frm().
-  */
-
-  DBUG_ASSERT(table->s->null_bytes == 1);
-  buf[0]= 0;
+  DBUG_ASSERT(table->s->null_bytes == 0);
 
   for (; (f= *fields) ; fields++)
   {
@@ -178,10 +165,10 @@ int table_replication_applier_configuration::read_row_values(TABLE *table,
     {
       switch(f->field_index)
       {
-      case 0: /**channel_name*/
-        set_field_char_utf8(f, m_row.channel_name, m_row.channel_name_length);
+      case 0: /* connection_name */
+        set_field_varchar_utf8(f, m_row.connection_name, m_row.connection_name_length);
         break;
-      case 1: /** desired_delay */
+      case 1: /* desired_delay */
         set_field_ulong(f, static_cast<ulong>(m_row.desired_delay));
         break;
       default:

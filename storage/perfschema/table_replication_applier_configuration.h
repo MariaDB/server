@@ -35,8 +35,6 @@
 #include "rpl_mi.h"
 #include "mysql_com.h"
 #include "my_thread.h"
-//#include "rpl_msr.h"
-//#include "rpl_info.h"  /*CHANNEL_NAME_LENGTH*/
 
 class Master_info;
 
@@ -47,8 +45,8 @@ class Master_info;
 
 /** A row in the table*/
 struct st_row_applier_config {
-  char channel_name[CHANNEL_NAME_LENGTH];
-  uint channel_name_length;
+  char connection_name[CHANNEL_NAME_LENGTH];
+  uint connection_name_length;
   time_t desired_delay;
   bool desired_delay_is_set;
 };
