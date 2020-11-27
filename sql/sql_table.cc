@@ -12945,6 +12945,19 @@ bool Alter_table_ctx::fk_check_foreign_id(THD *thd)
       DBUG_ASSERT(rk.foreign_id.str);
       if (0 == rk.foreign_id.cmp(new_fk.fk->constraint_name))
       {
+        bool found= false;
+        for (const FK_drop_old &dropped: fk_dropped)
+        {
+          if (s->cmp_db_table(dropped.ref.db, dropped.ref.name))
+            continue;
+          if (0 == dropped.fk->foreign_id.cmp(new_fk.fk->constraint_name))
+          {
+            found= true;
+            break;
+          }
+        }
+        if (found)
+          break;
         my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "FOREIGN KEY",
                  rk.foreign_id.str);
         return true;
