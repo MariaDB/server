@@ -71,8 +71,9 @@ public:
 
 
 /*
-  Descriptor for fixed size keys for multiple key components
+  Descriptor for fixed size keys with single key part
 */
+
 class Fixed_size_keys_descriptor : public Descriptor
 {
 public:
@@ -86,6 +87,9 @@ public:
 };
 
 
+/*
+  Descriptor for fixed size mem-comparable keys with single key part
+*/
 class Fixed_size_keys_mem_comparable: public Fixed_size_keys_descriptor
 {
 public:
@@ -96,7 +100,9 @@ public:
 };
 
 
-
+/*
+  Descriptor for fixed size keys for rowid comparison
+*/
 class Fixed_size_keys_for_rowids: public Fixed_size_keys_descriptor
 {
 private:
@@ -112,6 +118,33 @@ public:
   int compare_keys(uchar *a, uchar *b) override;
 };
 
+
+/*
+  Descriptor for fixed size keys where a keypart can be NULL
+  Used currently in JSON_ARRAYAGG
+*/
+
+class Fixed_size_keys_descriptor_with_nulls : public Fixed_size_keys_descriptor
+{
+public:
+  Fixed_size_keys_descriptor_with_nulls(uint length)
+    : Fixed_size_keys_descriptor(length) {}
+  ~Fixed_size_keys_descriptor_with_nulls() {}
+  int compare_keys(uchar *a, uchar *b) override;
+};
+
+
+/*
+  Descriptor for fixed size keys in group_concat
+*/
+class Fixed_size_keys_for_group_concat : public Fixed_size_keys_descriptor
+{
+public:
+  Fixed_size_keys_for_group_concat(uint length)
+    : Fixed_size_keys_descriptor(length) {}
+  ~Fixed_size_keys_for_group_concat() {}
+  int compare_keys(uchar *a, uchar *b) override;
+};
 
 
 /*

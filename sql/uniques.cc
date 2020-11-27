@@ -1166,3 +1166,56 @@ int Fixed_size_keys_for_rowids::compare_keys(uchar *key1, uchar *key2)
 {
   return file->cmp_ref(key1, key2);
 }
+
+
+int
+Fixed_size_keys_descriptor_with_nulls::compare_keys(uchar *key1_arg,
+                                                    uchar *key2_arg)
+{
+
+  /*
+    We have to use get_tmp_table_field() instead of
+    real_item()->get_tmp_table_field() because we want the field in
+    the temporary table, not the original field
+  */
+  for (SORT_FIELD *sort_field= sort_keys->begin();
+       sort_field != sort_keys->end(); sort_field++)
+  {
+    Field *field= sort_field->field;
+    if (field->is_null_in_record(key1_arg) &&
+        field->is_null_in_record(key2_arg))
+      return 0;
+
+    if (field->is_null_in_record(key1_arg))
+      return -1;
+
+    if (field->is_null_in_record(key2_arg))
+      return 1;
+
+    uchar *key1= (uchar*)key1_arg + field->table->s->null_bytes;
+    uchar *key2= (uchar*)key2_arg + field->table->s->null_bytes;
+
+    uint offset= (field->offset(field->table->record[0]) -
+                  field->table->s->null_bytes);
+    int res= field->cmp(key1 + offset, key2 + offset);
+    if (res)
+      return res;
+  }
+  return 0;
+}
+
+
+int Fixed_size_keys_for_group_concat::compare_keys(uchar *key1, uchar *key2)
+{
+  for (SORT_FIELD *sort_field= sort_keys->begin();
+       sort_field != sort_keys->end(); sort_field++)
+  {
+    Field *field= sort_field->field;
+    uint offset= (field->offset(field->table->record[0]) -
+                  field->table->s->null_bytes);
+    int res= field->cmp(key1 + offset, key2 + offset);
+    if (res)
+      return res;
+  }
+  return 0;
+}

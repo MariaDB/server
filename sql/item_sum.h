@@ -592,10 +592,11 @@ public:
   bool with_sum_func() const { return true; }
   virtual void set_partition_row_count(ulonglong count) { DBUG_ASSERT(0); }
   bool is_packing_allowed(TABLE* table, uint* total_length);
-  Unique_impl *get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
-                          uint size_arg, size_t max_in_memory_size_arg,
-                          uint min_dupl_count_arg, bool allow_packing,
-                          uint number_of_args);
+  virtual Unique_impl *get_unique(qsort_cmp2 comp_func,
+                                  void *comp_func_fixed_arg,
+                                  uint size_arg, size_t max_in_memory_size_arg,
+                                  uint min_dupl_count_arg, bool allow_packing,
+                                  uint number_of_args);
 };
 
 
@@ -2033,6 +2034,11 @@ public:
                                           element_count __attribute__((unused)),
                                           void *item_arg);
   int insert_record_to_unique();
+  Unique_impl *get_unique(qsort_cmp2 comp_func,
+                          void *comp_func_fixed_arg,
+                          uint size_arg, size_t max_in_memory_size_arg,
+                          uint min_dupl_count_arg, bool allow_packing,
+                          uint number_of_args);
 };
 
 #endif /* ITEM_SUM_INCLUDED */

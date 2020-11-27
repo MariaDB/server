@@ -3611,51 +3611,12 @@ int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
 */
 
 int group_concat_key_cmp_with_distinct_with_nulls(void* arg,
-                                                  const void* key1_arg,
-                                                  const void* key2_arg)
+                                                  const void* key1,
+                                                  const void* key2)
 {
   Item_func_group_concat *item_func= (Item_func_group_concat*)arg;
-
-  uchar *key1= (uchar*)key1_arg + item_func->table->s->null_bytes;
-  uchar *key2= (uchar*)key2_arg + item_func->table->s->null_bytes;
-
-  /*
-    JSON_ARRAYAGG function only accepts one argument.
-  */
-
-  Item *item= item_func->args[0];
-  /*
-    If item is a const item then either get_tmp_table_field returns 0
-    or it is an item over a const table.
-  */
-  if (item->const_item())
-    return 0;
-  /*
-    We have to use get_tmp_table_field() instead of
-    real_item()->get_tmp_table_field() because we want the field in
-    the temporary table, not the original field
-  */
-  Field *field= item->get_tmp_table_field();
-
-  if (!field)
-    return 0;
-
-  if (field->is_null_in_record((uchar*)key1_arg) &&
-      field->is_null_in_record((uchar*)key2_arg))
-    return 0;
-
-  if (field->is_null_in_record((uchar*)key1_arg))
-    return -1;
-
-  if (field->is_null_in_record((uchar*)key2_arg))
-    return 1;
-
-  uint offset= (field->offset(field->table->record[0]) -
-                field->table->s->null_bytes);
-  int res= field->cmp(key1 + offset, key2 + offset);
-  if (res)
-    return res;
-  return 0;
+  return item_func->unique_filter->get_descriptor()
+         ->compare_keys((uchar *)key1, (uchar *)key2);
 }
 
 
@@ -4872,6 +4833,38 @@ Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
                          max_in_memory_size_arg, min_dupl_count_arg, desc);
 }
 
+
+Unique_impl*
+Item_func_group_concat::get_unique(qsort_cmp2 comp_func,
+                                   void *comp_func_fixed_arg,
+                                   uint size_arg,
+                                   size_t max_in_memory_size_arg,
+                                   uint min_dupl_count_arg,
+                                   bool allow_packing,
+                                   uint number_of_args)
+{
+  Descriptor *desc;
+
+  if (allow_packing)
+  {
+    if (number_of_args == 1)
+      desc= new Variable_size_keys_simple(size_arg);
+    else
+      desc= new Variable_size_keys_descriptor(size_arg);
+  }
+  else
+  {
+    if (number_of_args == 1 && !skip_nulls())
+      desc= new Fixed_size_keys_descriptor_with_nulls(size_arg);
+    else
+      desc= new Fixed_size_keys_for_group_concat(size_arg);
+  }
+
+  if (!desc)
+    return NULL;
+  return new Unique_impl(comp_func, comp_func_fixed_arg, size_arg,
+                         max_in_memory_size_arg, min_dupl_count_arg, desc);
+}
 
 void Item_func_group_concat::print(String *str, enum_query_type query_type)
 {
