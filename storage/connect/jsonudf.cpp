@@ -1950,6 +1950,8 @@ static PJVAL MakeTypedValue(PGLOBAL g, UDF_ARGS *args, uint i,
 	return jvp;
 } // end of MakeTypedValue
 
+/* ------------------------------ The JSON UDF's ------------------------------- */
+
 /*********************************************************************************/
 /*  Make a Json value containing the parameter.                                  */
 /*********************************************************************************/

@@ -1,7 +1,7 @@
 /****************** bsonudf C++ Program Source Code File (.CPP) ******************/
 /*  PROGRAM NAME: bsonudf     Version 1.0                                        */
 /*  (C) Copyright to the author Olivier BERTRAND          2020                   */
-/*  This program are the BSON User Defined Functions     .                       */
+/*  This program are the BSON User Defined Functions.                            */
 /*********************************************************************************/
 
 /*********************************************************************************/
@@ -25,7 +25,7 @@
 #else
 #define PUSH_WARNING(M) htrc(M)
 #endif
-#define M 9
+#define M 6
 
 /* --------------------------------- JSON UDF ---------------------------------- */
 
@@ -49,7 +49,8 @@ inline void JsonFreeMem(PGLOBAL g) {
 /*********************************************************************************/
 /*  SubAlloc a new BJNX class with protection against memory exhaustion.         */
 /*********************************************************************************/
-static PBJNX BjnxNew(PGLOBAL g, PBVAL vlp, int type, int len) {
+static PBJNX BjnxNew(PGLOBAL g, PBVAL vlp, int type, int len)
+{
 	PBJNX bjnx;
 
 	try {
@@ -71,7 +72,8 @@ static PBJNX BjnxNew(PGLOBAL g, PBVAL vlp, int type, int len) {
 /*  BSNX public constructor.                                                     */
 /*********************************************************************************/
 BJNX::BJNX(PGLOBAL g, PBVAL row, int type, int len, int prec, my_bool wr)
-	: BDOC(g->Sarea) {
+	: BDOC(g->Sarea)
+{
 	Row = row;
 	Bvalp = NULL;
 	Jpnp = NULL;
@@ -99,7 +101,8 @@ BJNX::BJNX(PGLOBAL g, PBVAL row, int type, int len, int prec, my_bool wr)
 /*********************************************************************************/
 /*  SetJpath: set and parse the json path.                                       */
 /*********************************************************************************/
-my_bool BJNX::SetJpath(PGLOBAL g, char* path, my_bool jb) {
+my_bool BJNX::SetJpath(PGLOBAL g, char* path, my_bool jb)
+{
 	// Check Value was allocated
 	if (!Value)
 		return true;
@@ -117,7 +120,8 @@ my_bool BJNX::SetJpath(PGLOBAL g, char* path, my_bool jb) {
 /*********************************************************************************/
 /*  Analyse array processing options.                                            */
 /*********************************************************************************/
-my_bool BJNX::SetArrayOptions(PGLOBAL g, char* p, int i, PSZ nm) {
+my_bool BJNX::SetArrayOptions(PGLOBAL g, char* p, int i, PSZ nm)
+{
 	int     n = (int)strlen(p);
 	my_bool dg = true, b = false;
 	PJNODE  jnp = &Nodes[i];
@@ -243,7 +247,8 @@ my_bool BJNX::SetArrayOptions(PGLOBAL g, char* p, int i, PSZ nm) {
 /*  creating the table. It permits to indicate the position of the node          */
 /*  corresponding to that column.                                                */
 /*********************************************************************************/
-my_bool BJNX::ParseJpath(PGLOBAL g) {
+my_bool BJNX::ParseJpath(PGLOBAL g)
+{
 	char* p, * p1 = NULL, * p2 = NULL, * pbuf = NULL;
 	int     i;
 	my_bool a, mul = false;
@@ -329,7 +334,8 @@ my_bool BJNX::ParseJpath(PGLOBAL g) {
 /*********************************************************************************/
 /*  MakeJson: Serialize the json item and set value to it.                       */
 /*********************************************************************************/
-PVAL BJNX::MakeJson(PGLOBAL g, PBVAL bvp) {
+PVAL BJNX::MakeJson(PGLOBAL g, PBVAL bvp)
+{
 	if (Value->IsTypeNum()) {
 		strcpy(g->Message, "Cannot make Json for a numeric value");
 		Value->Reset();
@@ -345,7 +351,8 @@ PVAL BJNX::MakeJson(PGLOBAL g, PBVAL bvp) {
 /*********************************************************************************/
 /*  SetValue: Set a value from a JVALUE contains.                                */
 /*********************************************************************************/
-void BJNX::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL vlp) {
+void BJNX::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL vlp)
+{
 	if (vlp) {
 		vp->SetNull(false);
 
@@ -396,21 +403,24 @@ void BJNX::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL vlp) {
 /*********************************************************************************/
 /*  GetJson:                                                                     */
 /*********************************************************************************/
-PBVAL BJNX::GetJson(PGLOBAL g) {
+PBVAL BJNX::GetJson(PGLOBAL g)
+{
 	return GetRowValue(g, Row, 0);
 } // end of GetJson
 
 /*********************************************************************************/
 /*  ReadValue:                                                                   */
 /*********************************************************************************/
-void BJNX::ReadValue(PGLOBAL g) {
+void BJNX::ReadValue(PGLOBAL g)
+{
 	Value->SetValue_pval(GetColumnValue(g, Row, 0));
 } // end of ReadValue
 
 /*********************************************************************************/
 /*  GetColumnValue:                                                              */
 /*********************************************************************************/
-PVAL BJNX::GetColumnValue(PGLOBAL g, PBVAL row, int i) {
+PVAL BJNX::GetColumnValue(PGLOBAL g, PBVAL row, int i)
+{
 	PBVAL vlp = GetRowValue(g, row, i);
 
 	SetJsonValue(g, Value, vlp);
@@ -420,7 +430,8 @@ PVAL BJNX::GetColumnValue(PGLOBAL g, PBVAL row, int i) {
 /*********************************************************************************/
 /*  GetRowValue:                                                                 */
 /*********************************************************************************/
-PBVAL BJNX::GetRowValue(PGLOBAL g, PBVAL row, int i, my_bool b) {
+PBVAL BJNX::GetRowValue(PGLOBAL g, PBVAL row, int i, my_bool b)
+{
 	my_bool expd = false;
 	PBVAL   bap;
 	PBVAL   vlp = NULL;
@@ -488,7 +499,8 @@ PBVAL BJNX::GetRowValue(PGLOBAL g, PBVAL row, int i, my_bool b) {
 /*********************************************************************************/
 /*  ExpandArray:                                                                 */
 /*********************************************************************************/
-PVAL BJNX::ExpandArray(PGLOBAL g, PBVAL arp, int n) {
+PVAL BJNX::ExpandArray(PGLOBAL g, PBVAL arp, int n)
+{
 	strcpy(g->Message, "Expand cannot be done by this function");
 	return NULL;
 } // end of ExpandArray
@@ -496,7 +508,8 @@ PVAL BJNX::ExpandArray(PGLOBAL g, PBVAL arp, int n) {
 /*********************************************************************************/
 /*  CalculateArray: NIY                                                          */
 /*********************************************************************************/
-PVAL BJNX::CalculateArray(PGLOBAL g, PBVAL bap, int n) {
+PVAL BJNX::CalculateArray(PGLOBAL g, PBVAL bap, int n)
+{
 #if 0
 	int     i, ars = GetArraySize(bap), nv = 0;
 	bool    err;
@@ -592,7 +605,8 @@ PVAL BJNX::CalculateArray(PGLOBAL g, PBVAL bap, int n) {
 /*********************************************************************************/
 /* CheckPath: Checks whether the path exists in the document.                    */
 /*********************************************************************************/
-my_bool BJNX::CheckPath(PGLOBAL g) {
+my_bool BJNX::CheckPath(PGLOBAL g)
+{
 	PBVAL   val = NULL;
 	PBVAL   row = Row;
 
@@ -632,7 +646,8 @@ my_bool BJNX::CheckPath(PGLOBAL g) {
 /***********************************************************************/
 /*  GetRow: Set the complete path of the object to be set.             */
 /***********************************************************************/
-PBVAL BJNX::GetRow(PGLOBAL g) {
+PBVAL BJNX::GetRow(PGLOBAL g)
+{
 	PBVAL val = NULL;
 	PBVAL arp;
 	PBVAL nwr, row = Row;
@@ -711,7 +726,8 @@ PBVAL BJNX::GetRow(PGLOBAL g) {
 /***********************************************************************/
 /*  WriteValue:                                                        */
 /***********************************************************************/
-my_bool BJNX::WriteValue(PGLOBAL g, PBVAL jvalp) {
+my_bool BJNX::WriteValue(PGLOBAL g, PBVAL jvalp)
+{
 	PBPR  objp = NULL;
 	PBVAL arp = NULL;
 	PBVAL jvp = NULL;
@@ -751,7 +767,8 @@ my_bool BJNX::WriteValue(PGLOBAL g, PBVAL jvalp) {
 /*********************************************************************************/
 /*  Locate a value in a JSON tree:                                               */
 /*********************************************************************************/
-PSZ BJNX::Locate(PGLOBAL g, PBVAL jsp, PBVAL jvp, int k) {
+PSZ BJNX::Locate(PGLOBAL g, PBVAL jsp, PBVAL jvp, int k)
+{
 	PSZ     str = NULL;
 	my_bool b = false, err = true;
 
@@ -808,7 +825,8 @@ PSZ BJNX::Locate(PGLOBAL g, PBVAL jsp, PBVAL jvp, int k) {
 /*********************************************************************************/
 /*  Locate in a JSON Array.                                                      */
 /*********************************************************************************/
-my_bool BJNX::LocateArray(PGLOBAL g, PBVAL jarp) {
+my_bool BJNX::LocateArray(PGLOBAL g, PBVAL jarp)
+{
 	char   s[16];
 	int    n = GetArraySize(jarp);
 	size_t m = Jp->N;
@@ -831,7 +849,8 @@ my_bool BJNX::LocateArray(PGLOBAL g, PBVAL jarp) {
 /*********************************************************************************/
 /*  Locate in a JSON Object.                                                     */
 /*********************************************************************************/
-my_bool BJNX::LocateObject(PGLOBAL g, PBPR jobp) {
+my_bool BJNX::LocateObject(PGLOBAL g, PBPR jobp)
+{
 	size_t m;
 
 	if (Jp->WriteChr('.'))
@@ -856,7 +875,8 @@ my_bool BJNX::LocateObject(PGLOBAL g, PBPR jobp) {
 /*********************************************************************************/
 /*  Locate a JSON Value.                                                         */
 /*********************************************************************************/
-my_bool BJNX::LocateValue(PGLOBAL g, PBVAL jvp) {
+my_bool BJNX::LocateValue(PGLOBAL g, PBVAL jvp)
+{
 	if (CompareTree(g, Bvalp, jvp))
 		Found = (--K == 0);
 	else if (jvp->Type == TYPE_JAR)
@@ -870,7 +890,8 @@ my_bool BJNX::LocateValue(PGLOBAL g, PBVAL jvp) {
 /*********************************************************************************/
 /*  Locate all occurrences of a value in a JSON tree:                            */
 /*********************************************************************************/
-PSZ BJNX::LocateAll(PGLOBAL g, PBVAL jsp, PBVAL bvp, int mx) {
+PSZ BJNX::LocateAll(PGLOBAL g, PBVAL jsp, PBVAL bvp, int mx)
+{
 	PSZ     str = NULL;
 	my_bool b = false, err = true;
 	PJPN    jnp;
@@ -930,7 +951,8 @@ PSZ BJNX::LocateAll(PGLOBAL g, PBVAL jsp, PBVAL bvp, int mx) {
 /*********************************************************************************/
 /*  Locate in a JSON Array.                                                      */
 /*********************************************************************************/
-my_bool BJNX::LocateArrayAll(PGLOBAL g, PBVAL jarp) {
+my_bool BJNX::LocateArrayAll(PGLOBAL g, PBVAL jarp)
+{
 	int i = 0;
 
 	if (I < Imax) {
@@ -954,7 +976,8 @@ my_bool BJNX::LocateArrayAll(PGLOBAL g, PBVAL jarp) {
 /*********************************************************************************/
 /*  Locate in a JSON Object.                                                     */
 /*********************************************************************************/
-my_bool BJNX::LocateObjectAll(PGLOBAL g, PBPR jobp) {
+my_bool BJNX::LocateObjectAll(PGLOBAL g, PBPR jobp)
+{
 	if (I < Imax) {
 		Jpnp[++I].Type = TYPE_JOB;
 
@@ -975,7 +998,8 @@ my_bool BJNX::LocateObjectAll(PGLOBAL g, PBPR jobp) {
 /*********************************************************************************/
 /*  Locate a JSON Value.                                                         */
 /*********************************************************************************/
-my_bool BJNX::LocateValueAll(PGLOBAL g, PBVAL jvp) {
+my_bool BJNX::LocateValueAll(PGLOBAL g, PBVAL jvp)
+{
 	if (CompareTree(g, Bvalp, jvp))
 		return AddPath();
 	else if (jvp->Type == TYPE_JAR)
@@ -989,7 +1013,8 @@ my_bool BJNX::LocateValueAll(PGLOBAL g, PBVAL jvp) {
 /*********************************************************************************/
 /*  Compare two JSON trees.                                                      */
 /*********************************************************************************/
-my_bool BJNX::CompareTree(PGLOBAL g, PBVAL jp1, PBVAL jp2) {
+my_bool BJNX::CompareTree(PGLOBAL g, PBVAL jp1, PBVAL jp2)
+{
 	if (!jp1 || !jp2 || jp1->Type != jp2->Type || GetSize(jp1) != GetSize(jp2))
 		return false;
 
@@ -1017,7 +1042,8 @@ my_bool BJNX::CompareTree(PGLOBAL g, PBVAL jp1, PBVAL jp2) {
 /*********************************************************************************/
 /*  Compare two VAL values and return true if they are equal.                    */
 /*********************************************************************************/
-my_bool BJNX::CompareValues(PGLOBAL g, PBVAL v1, PBVAL v2) {
+my_bool BJNX::CompareValues(PGLOBAL g, PBVAL v1, PBVAL v2)
+{
 	my_bool b = false;
 
 	if (v1 && v2)
@@ -1091,7 +1117,8 @@ my_bool BJNX::CompareValues(PGLOBAL g, PBVAL v1, PBVAL v2) {
 /*********************************************************************************/
 /*  Add the found path to the list.                                              */
 /*********************************************************************************/
-my_bool BJNX::AddPath(void) {
+my_bool BJNX::AddPath(void)
+{
 	char s[16];
 
 	if (Jp->WriteStr("\"$"))
@@ -1121,86 +1148,270 @@ my_bool BJNX::AddPath(void) {
 	return false;
 }	// end of AddPath
 
+/* -----------------------------Utility functions ------------------------------ */
+
 /*********************************************************************************/
 /*  Make a BVAL value from the passed argument.                                  */
 /*********************************************************************************/
-static PBVAL MakeBinValue(PGLOBAL g, UDF_ARGS* args, uint i) {
+static PBVAL MakeBinValue(PGLOBAL g, UDF_ARGS* args, uint i)
+{
 	char* sap = (args->arg_count > i) ? args->args[i] : NULL;
 	int   n, len;
 	int   ci;
 	longlong bigint;
-	void* Base = g->Sarea;		// Required by MOF
-	BDOC  doc(Base);
-	PBVAL bp;
-	PBVAL bvp = doc.SubAllocVal(g);
+	BDOC  doc(g->Sarea);
+	PBVAL bp, bvp = doc.SubAllocVal(g);
 
-	if (sap) switch (args->arg_type[i]) {
-	case STRING_RESULT:
-		if ((len = args->lengths[i])) {
-			if ((n = IsJson(args, i)) < 3)
-				sap = MakePSZ(g, args, i);
+	if (sap) {
+		if (args->arg_type[i] == STRING_RESULT) {
+			if ((len = args->lengths[i])) {
+				if ((n = IsJson(args, i)) < 3)
+					sap = MakePSZ(g, args, i);
 
-			if (n) {
-				if (n == 2) {
-					if (!(sap = GetJsonFile(g, sap))) {
+				if (n) {
+					if (n == 2) {
+						if (!(sap = GetJsonFile(g, sap))) {
+							PUSH_WARNING(g->Message);
+							return NULL;
+						} // endif sap
+
+						len = strlen(sap);
+					} // endif 2
+
+					if (!(bp = doc.ParseJson(g, sap, strlen(sap)))) {
 						PUSH_WARNING(g->Message);
 						return NULL;
-					} // endif sap
+					} else
+						bvp = bp;
 
-					len = strlen(sap);
-				} // endif 2
+				} else {
+					// Check whether this string is a valid json string
+					JsonMemSave(g);
 
-				if (!(bp = doc.ParseJson(g, sap, strlen(sap))))
-					PUSH_WARNING(g->Message);
+					if (!(bp = doc.ParseJson(g, sap, strlen(sap)))) {
+						// Recover suballocated memory
+						JsonSubSet(g);
+						ci = (strnicmp(args->attributes[i], "ci", 2)) ? 0 : 1;
+						doc.SetString(bvp, sap, ci);
+					} else
+						bvp = bp;
 
-				bvp = bp;
-			} else {
-				// Check whether this string is a valid json string
-				JsonMemSave(g);
-
-				if (!(bvp = doc.ParseJson(g, sap, strlen(sap)))) {
-					// Recover suballocated memory
-					JsonSubSet(g);
-					ci = (strnicmp(args->attributes[i], "ci", 2)) ? 0 : 1;
-					bvp = doc.SubAllocVal(g, MOF(sap), TYPE_STRG, ci);
-				} else
 					g->Saved_Size = 0;
+				}	// endif n
 
-			}	// endif n
+			} // endif len
 
-		} // endif len
+		} else switch (args->arg_type[i]) {
+			case INT_RESULT:
+				bigint = *(longlong*)sap;
 
-		break;
-	case INT_RESULT:
-		bigint = *(longlong*)sap;
+				if ((bigint == 0LL && !strcmp(args->attributes[i], "FALSE")) ||
+					  (bigint == 1LL && !strcmp(args->attributes[i], "TRUE")))
+					doc.SetBool(bvp, (bool)bigint);
+				else
+					doc.SetBigint(g, bvp, bigint);
 
-		if ((bigint == 0LL && !strcmp(args->attributes[i], "FALSE")) ||
-			(bigint == 1LL && !strcmp(args->attributes[i], "TRUE")))
-			doc.SetBool(bvp, (bool)bigint);
-		else
-			doc.SetBigint(g, bvp, bigint);
+				break;
+			case REAL_RESULT:
+				doc.SetFloat(bvp, *(double*)sap);
+				break;
+			case DECIMAL_RESULT:
+				doc.SetFloat(bvp, atof(MakePSZ(g, args, i)));
+				break;
+			case TIME_RESULT:
+			case ROW_RESULT:
+			default:
+				bvp->Type = TYPE_UNKNOWN;
+				break;
+			} // endswitch arg_type
 
-		break;
-	case REAL_RESULT:
-		doc.SetFloat(bvp, *(double*)sap);
-		break;
-	case DECIMAL_RESULT:
-		doc.SetFloat(bvp, atof(MakePSZ(g, args, i)));
-		break;
-	case TIME_RESULT:
-	case ROW_RESULT:
-	default:
-		bvp = NULL;
-		break;
-	} // endswitch arg_type
+	} // endif sap
 
 	return bvp;
 } // end of MakeBinValue
 
+/* ------------------------- Now the new Bin UDF's ----------------------------- */
+
+/*********************************************************************************/
+/*  Make a Json value containing the parameter.                                  */
+/*********************************************************************************/
+my_bool bsonvalue_init(UDF_INIT* initid, UDF_ARGS* args, char* message)
+{
+	unsigned long reslen, memlen;
+
+	if (args->arg_count > 1) {
+		strcpy(message, "Cannot accept more than 1 argument");
+		return true;
+	} else
+		CalcLen(args, false, reslen, memlen);
+
+	return JsonInit(initid, args, message, false, reslen, memlen);
+} // end of bsonvalue_init
+
+char* bsonvalue(UDF_INIT* initid, UDF_ARGS* args, char* result,
+	unsigned long* res_length, char*, char*)
+{
+	char   *str;
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+
+	if (!g->Xchk) {
+		if (!CheckMemory(g, initid, args, 1, false)) {
+			BDOC  doc(g->Sarea);
+			PBVAL bvp = MakeBinValue(g, args, 0);
+
+			if (!(str = doc.Serialize(g, bvp, NULL, 0)))
+				str = strcpy(result, g->Message);
+
+		} else
+			str = strcpy(result, g->Message);
+
+		// Keep result of constant function
+		g->Xchk = (initid->const_item) ? str : NULL;
+	} else
+		str = (char*)g->Xchk;
+
+	*res_length = strlen(str);
+	return str;
+} // end of bsonValue
+
+void bsonvalue_deinit(UDF_INIT* initid) {
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bsonvalue_deinit
+
+/*********************************************************************************/
+/*  Make a Bson array containing all the parameters.                             */
+/*********************************************************************************/
+my_bool bson_make_array_init(UDF_INIT* initid, UDF_ARGS* args, char* message)
+{
+	unsigned long reslen, memlen;
+
+	CalcLen(args, false, reslen, memlen);
+	return JsonInit(initid, args, message, false, reslen, memlen);
+} // end of bson_make_array_init
+
+char* bson_make_array(UDF_INIT* initid, UDF_ARGS* args, char* result,
+	unsigned long* res_length, char*, char*)
+{
+	char* str = NULL;
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+
+	if (!g->Xchk) {
+		if (!CheckMemory(g, initid, args, args->arg_count, false)) {
+			BDOC  doc(g->Sarea);
+			PBVAL bvp = NULL, arp = NULL;
+
+			for (uint i = 0; i < args->arg_count; i++)
+				bvp = doc.AddArrayValue(g, bvp, MakeBinValue(g, args, i));
+
+			arp = doc.SubAllocVal(g, bvp, TYPE_JAR);
+
+			if (!(str = doc.Serialize(g, arp, NULL, 0)))
+				str = strcpy(result, g->Message);
+
+		} else
+			str = strcpy(result, g->Message);
+
+		// Keep result of constant function
+		g->Xchk = (initid->const_item) ? str : NULL;
+	} else
+		str = (char*)g->Xchk;
+
+	*res_length = strlen(str);
+	return str;
+} // end of bson_make_array
+
+void bson_make_array_deinit(UDF_INIT* initid) {
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bson_make_array_deinit
+
+/*********************************************************************************/
+/*  Add one or several values to a Bson array.                                   */
+/*********************************************************************************/
+my_bool bson_array_add_values_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
+	unsigned long reslen, memlen;
+
+	if (args->arg_count < 2) {
+		strcpy(message, "This function must have at least 2 arguments");
+		return true;
+		//} else if (!IsJson(args, 0, true)) {
+		//	strcpy(message, "First argument must be a valid json string or item");
+		//	return true;
+	} else
+		CalcLen(args, false, reslen, memlen);
+
+	if (!JsonInit(initid, args, message, true, reslen, memlen)) {
+		PGLOBAL g = (PGLOBAL)initid->ptr;
+
+		// This is a constant function
+		g->N = (initid->const_item) ? 1 : 0;
+
+		// This is to avoid double execution when using prepared statements
+		if (IsJson(args, 0) > 1)
+			initid->const_item = 0;
+
+		return false;
+	} else
+		return true;
+
+} // end of bson_array_add_values_init
+
+char* bson_array_add_values(UDF_INIT* initid, UDF_ARGS* args, char* result,
+	unsigned long* res_length, char* is_null, char*) {
+	char* str = NULL;
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+
+	if (!g->Xchk) {
+		if (!CheckMemory(g, initid, args, args->arg_count, true)) {
+			uint  n = 1;
+			bool  b = false;
+			BDOC  doc(g->Sarea);
+			PBVAL bvp = NULL, arp = MakeBinValue(g, args, 0);
+
+			if (arp->Type == TYPE_JAR) {
+				bvp = doc.GetArray(arp);
+				b = !bvp;
+			} else
+				n = 0;
+
+			for (uint i = n; i < args->arg_count; i++)
+				bvp = doc.AddArrayValue(g, bvp, MakeBinValue(g, args, i));
+
+			if (!n)
+				arp = doc.SubAllocVal(g, bvp, TYPE_JAR);
+			else if (b)
+				doc.SetValueArr(arp, bvp);
+
+//		str = MakeResult(g, args, top, args->arg_count);
+			str = doc.Serialize(g, arp, NULL, 0);
+		} // endif CheckMemory
+
+		if (!str) {
+			PUSH_WARNING(g->Message);
+			str = args->args[0];
+		}	// endif str
+
+		// Keep result of constant function
+		g->Xchk = (g->N) ? str : NULL;
+	} else
+		str = (char*)g->Xchk;
+
+	if (!str) {
+		*res_length = 0;
+		*is_null = 1;
+	} else
+		*res_length = strlen(str);
+
+	return str;
+} // end of bson_array_add_values
+
+void bson_array_add_values_deinit(UDF_INIT* initid) {
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bson_array_add_values_deinit
+
 /*********************************************************************************/
 /*  Test BJSON parse and serialize.                                              */
 /*********************************************************************************/
-my_bool json_test_bson_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
+my_bool bson_test_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 	unsigned long reslen, memlen, more = 1000;
 
 	if (args->arg_count == 0) {
@@ -1213,9 +1424,9 @@ my_bool json_test_bson_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 		CalcLen(args, false, reslen, memlen);
 
 	return JsonInit(initid, args, message, true, reslen, memlen, more);
-} // end of json_test_bson_init
+} // end of bson_test_init
 
-char* json_test_bson(UDF_INIT* initid, UDF_ARGS* args, char* result,
+char* bson_test(UDF_INIT* initid, UDF_ARGS* args, char* result,
 	unsigned long* res_length, char* is_null, char* error) {
 	char* str = NULL, * sap = NULL, * fn = NULL;
 	int     pretty = 1;
@@ -1281,16 +1492,16 @@ err:
 		*res_length = strlen(str);
 
 	return str;
-} // end of json_test_bson
+} // end of bson_test
 
-void json_test_bson_deinit(UDF_INIT* initid) {
+void bson_test_deinit(UDF_INIT* initid) {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of json_test_bson_deinit
+} // end of bson_test_deinit
 
 /*********************************************************************************/
 /*  Locate a value in a Json tree.                                               */
 /*********************************************************************************/
-my_bool jsonlocate_bson_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
+my_bool bsonlocate_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 	unsigned long reslen, memlen, more = 1000;
 
 	if (args->arg_count < 2) {
@@ -1311,11 +1522,11 @@ my_bool jsonlocate_bson_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 		more = 0;
 
 	return JsonInit(initid, args, message, true, reslen, memlen, more);
-} // end of jsonlocate_bson_init
+} // end of bsonlocate_init
 
-char* jsonlocate_bson(UDF_INIT* initid, UDF_ARGS* args, char* result,
+char* bsonlocate(UDF_INIT* initid, UDF_ARGS* args, char* result,
 	unsigned long* res_length, char* is_null, char* error) {
-	char* path = NULL;
+	char   *path = NULL;
 	int     k;
 	PBVAL   bvp, bvp2;
 	PBJNX   bnxp;
@@ -1358,7 +1569,10 @@ char* jsonlocate_bson(UDF_INIT* initid, UDF_ARGS* args, char* result,
 			bvp = (PBVAL)g->Xchk;
 
 		// The item to locate
-		bvp2 = MakeBinValue(g, args, 1);
+		if (!(bvp2 = MakeBinValue(g, args, 1))) {
+			PUSH_WARNING("Invalid second argument");
+			goto err;
+		}	// endif bvp
 
 		k = (args->arg_count > 2) ? (int)*(long long*)args->args[2] : 1;
 
@@ -1389,16 +1603,16 @@ err:
 		*res_length = strlen(path);
 
 	return path;
-} // end of jsonlocate_bson
+} // end of bsonlocate
 
-void jsonlocate_bson_deinit(UDF_INIT* initid) {
+void bsonlocate_deinit(UDF_INIT* initid) {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of jsonlocate_bson_deinit
+} // end of bsonlocate_deinit
 
 /*********************************************************************************/
 /*  Locate all occurences of a value in a Json tree.                             */
 /*********************************************************************************/
-my_bool json_locate_all_bson_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
+my_bool bson_locate_all_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 	unsigned long reslen, memlen, more = 1000;
 
 	if (args->arg_count < 2) {
@@ -1419,9 +1633,9 @@ my_bool json_locate_all_bson_init(UDF_INIT* initid, UDF_ARGS* args, char* messag
 		more = 0;
 
 	return JsonInit(initid, args, message, true, reslen, memlen, more);
-} // end of json_locate_all_bson_init
+} // end of bson_locate_all_init
 
-char* json_locate_all_bson(UDF_INIT* initid, UDF_ARGS* args, char* result,
+char* bson_locate_all(UDF_INIT* initid, UDF_ARGS* args, char* result,
 	unsigned long* res_length, char* is_null, char* error) {
 	char* path = NULL;
 	int     mx = 10;
@@ -1467,7 +1681,10 @@ char* json_locate_all_bson(UDF_INIT* initid, UDF_ARGS* args, char* result,
 			bvp = (PBVAL)g->Xchk;
 
 		// The item to locate
-		bvp2 = MakeBinValue(g, args, 1);
+		if (!(bvp2 = MakeBinValue(g, args, 1))) {
+			PUSH_WARNING("Invalid second argument");
+			goto err;
+		}	// endif bvp
 
 		if (args->arg_count > 2)
 			mx = (int)*(long long*)args->args[2];
@@ -1499,9 +1716,9 @@ err:
 		*res_length = strlen(path);
 
 	return path;
-} // end of json_locate_all_bson
+} // end of bson_locate_all
 
-void json_locate_all_bson_deinit(UDF_INIT* initid) {
+void bson_locate_all_deinit(UDF_INIT* initid) {
 	JsonFreeMem((PGLOBAL)initid->ptr);
-} // end of json_locate_all_bson_deinit
+} // end of bson_locate_all_deinit
 

@@ -76,8 +76,14 @@ public:
 	// SubAlloc functions
 	void* BsonSubAlloc(PGLOBAL g, size_t size);
 	PBPR  SubAllocPair(PGLOBAL g, OFFSET key, OFFSET val = 0);
+	PBPR  SubAllocPair(PGLOBAL g, PSZ key, OFFSET val = 0)
+				{return SubAllocPair(g, MOF(key), val);}
 	PBVAL SubAllocVal(PGLOBAL g);
-	PBVAL SubAllocVal(PGLOBAL g, OFFSET toval, int type = TYPE_UNKNOWN, short nd = 0);
+	PBVAL SubAllocVal(PGLOBAL g, OFFSET toval, int type = TYPE_NULL, short nd = 0);
+	PBVAL SubAllocVal(PGLOBAL g, PBVAL toval, int type = TYPE_NULL, short nd = 0)
+				{return SubAllocVal(g, MOF(toval), type, nd);}
+	PBVAL SubAllocVal(PGLOBAL g, PSZ str, int type = TYPE_STRG, short nd = 0)
+				{return SubAllocVal(g, MOF(str), type, nd);}
 	PBVAL SubAllocVal(PGLOBAL g, PVAL valp);
 	PBVAL DupVal(PGLOBAL g, PBVAL bvp);
 

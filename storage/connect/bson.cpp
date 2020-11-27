@@ -653,7 +653,7 @@ PSZ BDOC::Serialize(PGLOBAL g, PBVAL bvp, char* fn, int pretty) {
       err = SerializeValue(MVP(bvp->To_Val));
       break;
     default:
-      strcpy(g->Message, "Invalid json tree");
+      err = SerializeValue(bvp);
     } // endswitch Type
 
     if (fs) {
@@ -760,7 +760,7 @@ bool BDOC::SerializeObject(OFFSET obp) {
 bool BDOC::SerializeValue(PBVAL jvp) {
   char buf[64];
 
-  switch (jvp->Type) {
+  if (jvp) switch (jvp->Type) {
   case TYPE_JAR:
     return SerializeArray(jvp->To_Val, false);
   case TYPE_JOB:
@@ -788,8 +788,7 @@ bool BDOC::SerializeValue(PBVAL jvp) {
     return jp->WriteStr("???");   // TODO
   } // endswitch Type
 
-  strcpy(jp->g->Message, "Unrecognized value");
-  return true;
+  return  jp->WriteStr("null");
 } // end of SerializeValue
 
 /* --------------------------- Class BJSON --------------------------- */
@@ -860,7 +859,7 @@ int BJSON::GetObjectSize(PBPR bop, bool b)
 /***********************************************************************/
 PBPR BJSON::AddPair(PGLOBAL g, PBPR bop, PSZ key, OFFSET val)
 {
-  PBPR brp, nrp = SubAllocPair(g, MOF(key), val);
+  PBPR brp, nrp = SubAllocPair(g, key, val);
 
   if (bop) {
     for (brp = bop; brp->Next; brp = MPP(brp->Next));
@@ -995,10 +994,10 @@ PBPR BJSON::SetKeyValue(PGLOBAL g, PBPR bop, OFFSET bvp, PSZ key)
         prp = brp;
 
     if (!brp)
-      prp->Vlp = MOF(SubAllocPair(g, MOF(key), bvp));
+      prp->Vlp = MOF(SubAllocPair(g, key, bvp));
 
   } else
-    bop = SubAllocPair(g, MOF(key), bvp);
+    bop = SubAllocPair(g, key, bvp);
 
   // Return the first pair of this object
   return bop;
@@ -1094,7 +1093,7 @@ PBVAL BJSON::AddArrayValue(PGLOBAL g, PBVAL bap, PBVAL nvp, int* x)
     nvp = SubAllocVal(g);
 
   if (bap) {
-    int   i = 0, n = *x;
+    int   i = 0, n = (x) ? *x : INT_MAX32;
     PBVAL bvp;
 
     for (bvp = bap; bvp; bvp = MVP(bvp->Next), i++)
@@ -1240,7 +1239,7 @@ PBVAL BJSON::SubAllocVal(PGLOBAL g)
 
   bvp->To_Val = 0;
   bvp->Nd = 0;
-  bvp->Type = TYPE_UNKNOWN;
+  bvp->Type = TYPE_NULL;
   bvp->Next = 0;
   return bvp;
 } // end of SubAllocVal

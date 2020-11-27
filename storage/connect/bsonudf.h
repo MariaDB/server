@@ -83,16 +83,28 @@ protected:
 }; // end of class BJNX
 
 extern "C" {
-	DllExport my_bool json_test_bson_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char* json_test_bson(UDF_EXEC_ARGS);
-	DllExport void json_test_bson_deinit(UDF_INIT*);
+	DllExport my_bool bson_test_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* bson_test(UDF_EXEC_ARGS);
+	DllExport void bson_test_deinit(UDF_INIT*);
 
-	DllExport my_bool jsonlocate_bson_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char* jsonlocate_bson(UDF_EXEC_ARGS);
-	DllExport void jsonlocate_bson_deinit(UDF_INIT*);
+	DllExport my_bool bsonvalue_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* bsonvalue(UDF_EXEC_ARGS);
+	DllExport void bsonvalue_deinit(UDF_INIT*);
 
-	DllExport my_bool json_locate_all_bson_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport char* json_locate_all_bson(UDF_EXEC_ARGS);
-	DllExport void json_locate_all_bson_deinit(UDF_INIT*);
+	DllExport my_bool bson_make_array_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* bson_make_array(UDF_EXEC_ARGS);
+	DllExport void bson_make_array_deinit(UDF_INIT*);
+
+	DllExport my_bool bson_array_add_values_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* bson_array_add_values(UDF_EXEC_ARGS);
+	DllExport void bson_array_add_values_deinit(UDF_INIT*);
+
+	DllExport my_bool bsonlocate_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* bsonlocate(UDF_EXEC_ARGS);
+	DllExport void bsonlocate_deinit(UDF_INIT*);
+
+	DllExport my_bool bson_locate_all_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* bson_locate_all(UDF_EXEC_ARGS);
+	DllExport void bson_locate_all_deinit(UDF_INIT*);
 } // extern "C"
 
