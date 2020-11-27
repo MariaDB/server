@@ -20,7 +20,16 @@ if ($show_statement0)
   eval $show_statement0;
 }
 
---echo # State before failure
+if ($crash_statement)
+{
+  --echo # State before crash
+}
+
+if (!$crash_statement)
+{
+  --echo # State before failure
+}
+
 --list_files_write_file $DATADIR.files.txt $DATADIR/test
 --replace_result #p# #P# #sp# #SP#
 --replace_regex /#sql-ib[1-9][0-9]*\.ibd\n//
@@ -33,14 +42,46 @@ if ($show_statement1)
 }
 
 --eval set @@debug_dbug= $debug_dbug
-# accept all errors
---disable_abort_on_error
---replace_regex /#sqlx-[0-9a-f_]*/#sqlx-nnnn_nnnn/i
---eval $fail_statement
---enable_abort_on_error
---echo # State after failure
---replace_result #p# #p#
---list_files $datadir/test
+
+if ($crash_statement)
+{
+  --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+  --disable_reconnect
+  # CR_SERVER_LOST
+  --error 2013
+  --eval $crash_statement
+
+  --echo # State after crash (before recovery)
+  --list_files_write_file $DATADIR.files.txt $DATADIR/test
+  --replace_result #p# #P# #sp# #SP# #tmp# #TMP#
+  --replace_regex /sql-exchange.*\./sql-exchange./ /sql-shadow-[0-9a-f]*-/sql-shadow-/ /sql-alter-[0-9a-f]*-/sql-alter-/ /#sql-ib[1-9][0-9]*\.ibd\n//
+  --cat_file $DATADIR.files.txt
+  --remove_file $DATADIR.files.txt
+
+  --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+  --enable_reconnect
+  --source include/wait_until_connected_again.inc
+
+  --echo # State after crash recovery
+  --list_files_write_file $DATADIR.files.txt $DATADIR/test
+  --replace_result #p# #P# #sp# #SP#
+  --replace_regex /sql-alter-[0-9a-f]*-/sql-alter-/ /#sql-ib[1-9][0-9]*\.ibd\n//
+  --cat_file $DATADIR.files.txt
+  --remove_file $DATADIR.files.txt
+}
+
+if (!$crash_statement)
+{
+  # accept all errors
+  --disable_abort_on_error
+  --replace_regex /#sqlx-[0-9a-f_]*/#sqlx-nnnn_nnnn/i
+  --eval $fail_statement
+  --enable_abort_on_error
+  --echo # State after failure
+  --replace_result #p# #p#
+  --list_files $datadir/test
+}
+
 if ($show_statement2)
 {
   eval $show_statement2;

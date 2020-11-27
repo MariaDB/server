@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_debug.inc
 
 # In fail_fk_backup_frm the log is already written but rename is not done
 call mtr.add_suppression("Failed to execute action for entry");
@@ -35,16 +36,23 @@ begin
 end $
 --delimiter ;
 
---echo # DROP TABLE
-let $create_statement= call make_tables;
 let $show_statement0= check tables t1, t2, t3, t4;
 let $show_statement1= check tables t1, t2, t3, t4;
 let $show_statement2= check tables t1, t2, t3, t4;
+
+--echo # DROP TABLE
+call make_tables;
+--let $crash_statement=
+--let $create_statement=
 let $debug_dbug="+d,fail_fk_backup_frm";
 let $fail_statement= drop tables t4, t1, t3, t2;
 --source include/foreign_fail.inc
-call drop_tables;
 let $debug_dbug="+d,fail_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+let $crash_statement= $fail_statement;
+let $debug_dbug="+d,crash_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_install_shadow_frm";
 --source include/foreign_fail.inc
 call drop_tables;
 
@@ -55,21 +63,82 @@ create table t1 (x int primary key);
 create table t2 (y int primary key);
 create table t3 (z int primary key);
 --let $create_statement=
+--let $crash_statement=
 let $fail_statement= create table t4 (a int primary key, x int references t1(x), y int references t2(y), z int references t3(z));
+let $debug_dbug="+d,fail_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+let $crash_statement= $fail_statement;
+let $debug_dbug="+d,crash_fk_backup_frm";
+--source include/foreign_fail.inc
+drop table t4;
+let $debug_dbug="+d,crash_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+call drop_tables;
+
+--echo # RENAME TABLE
+call make_tables;
+--let $create_statement=
+--let $crash_statement=
+let $fail_statement= rename table t4 to xt4, t1 to xt1, t3 to xt3, t2 to xt2;
+let $debug_dbug="+d,fail_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+#let $crash_statement= $fail_statement;
+#let $show_statement2= check tables xt1, xt2, xt3, xt4;
+#let $debug_dbug="+d,crash_fk_backup_frm";
+#--source include/foreign_fail.inc
+#let $debug_dbug="+d,crash_fk_install_shadow_frm";
+#--source include/foreign_fail.inc
+--let $crash_statement=
+let $show_statement2= $show_statement0;
+let $fail_statement= alter table t3 rename xt3;
+let $debug_dbug="+d,fail_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+#let $crash_statement= $fail_statement;
+#let $debug_dbug="+d,crash_fk_backup_frm";
+#--source include/foreign_fail.inc
+#let $debug_dbug="+d,crash_fk_install_shadow_frm";
+#--source include/foreign_fail.inc
+call drop_tables;
+
+--echo # RENAME COLUMN
+call make_tables;
+--let $create_statement=
+--let $crash_statement=
+let $fail_statement= alter table t2 change y z int, change x y int, change b c int;
+let $debug_dbug="+d,fail_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+let $fail_statement= alter table t3 rename column z to z2, rename column y to y2, rename column x to x2, rename column c to c2;
 let $debug_dbug="+d,fail_fk_backup_frm";
 --source include/foreign_fail.inc
 let $debug_dbug="+d,fail_fk_install_shadow_frm";
 --source include/foreign_fail.inc
 call drop_tables;
 
---echo # RENAME TABLE
-# FIXME: test multi-rename
-let $create_statement= call make_tables;
+--echo # ADD/DROP FOREIGN KEY, DROP COLUMN
+call make_tables;
+--let $create_statement=
+show create table t3;
+let $fail_statement= alter table t3
+  drop foreign key fk_t3,
+  drop foreign key fk_t3_2,
+  drop foreign key fk_t3_3,
+  drop c,
+  add foreign key (x) references t1(x),
+  add foreign key (y) references t2(x);
 let $debug_dbug="+d,fail_fk_backup_frm";
-let $fail_statement= rename table t4 to xt4, t1 to xt1, t3 to xt3, t2 to xt2;
-#let $fail_statement= rename table t4 to xt4;
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_install_shadow_frm";
 --source include/foreign_fail.inc
 call drop_tables;
+
 
 #set @save_dbug=@@debug_dbug;
 #let $create_statement= create or replace table t1 (id int primary key);

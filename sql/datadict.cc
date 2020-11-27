@@ -556,7 +556,7 @@ bool FK_backup::fk_backup_frm(ddl_log_info &log_info)
     return true;
   restore_backup_entry= log_info.first_entry;
 #ifndef DBUG_OFF
-  if (!log_info.dbg_first &&
+  if (log_info.dbg_fail &&
       (ERROR_INJECT("fail_fk_backup_frm", "crash_fk_backup_frm")))
   {
     goto rename_failed;
@@ -600,7 +600,7 @@ bool FK_backup::fk_install_shadow_frm(ddl_log_info &log_info)
   if (!mysql_file_stat(key_file_frm, shadow_frm_name, &stat_info, MYF(MY_WME)))
     return true;
 #ifndef DBUG_OFF
-  if (!log_info.dbg_first &&
+  if (log_info.dbg_fail &&
       (ERROR_INJECT("fail_fk_install_shadow_frm", "crash_fk_install_shadow_frm")))
   {
     return true;
@@ -649,30 +649,39 @@ bool FK_ddl_vector::install_shadow_frms(THD *thd)
   if (!size())
     return false;
 #ifndef DBUG_OFF
-  dbg_first= true;
+  FK_backup *last;
+  for (auto &bak: *this)
+  {
+    if (!bak.second.update_frm)
+      continue;
+    last= &bak.second;
+  }
+  dbg_fail= false;
 #endif
   for (auto &bak: *this)
   {
     if (!bak.second.update_frm)
       continue;
+#ifndef DBUG_OFF
+    if (&bak.second == last)
+      dbg_fail= true;
+#endif
     if (bak.second.fk_backup_frm(*this))
       goto error;
-#ifndef DBUG_OFF
-    dbg_first= false;
-#endif
   }
 #ifndef DBUG_OFF
-  dbg_first= true;
+  dbg_fail= false;
 #endif
   for (auto &bak: *this)
   {
     if (!bak.second.update_frm)
       continue;
+#ifndef DBUG_OFF
+    if (&bak.second == last)
+      dbg_fail= true;
+#endif
     if (bak.second.fk_install_shadow_frm(*this))
       goto error;
-#ifndef DBUG_OFF
-    dbg_first= false;
-#endif
   }
 
   return false;
@@ -704,7 +713,7 @@ void FK_ddl_vector::rollback(THD *thd)
 void FK_ddl_vector::drop_backup_frms(THD *thd)
 {
 #ifndef DBUG_OFF
-  dbg_first= true;
+  dbg_fail= true;
 #endif
   for (auto &bak: *this)
   {
@@ -718,11 +727,11 @@ void FK_ddl_vector::drop_backup_frms(THD *thd)
       // TODO: must be atomic
     }
 #ifndef DBUG_OFF
-    dbg_first= false;
+    dbg_fail= false;
 #endif
   }
 #ifndef DBUG_OFF
-  dbg_first= true;
+  dbg_fail= true;
 #endif
   for (auto &bak: *this)
   {
@@ -730,7 +739,7 @@ void FK_ddl_vector::drop_backup_frms(THD *thd)
       continue;
     bak.second.fk_drop_backup_frm(*this);
 #ifndef DBUG_OFF
-    dbg_first= false;
+    dbg_fail= false;
 #endif
   }
   if (first_entry)

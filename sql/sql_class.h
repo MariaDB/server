@@ -959,7 +959,7 @@ struct ddl_log_info
   DDL_LOG_MEMORY_ENTRY *first_entry;
   DDL_LOG_MEMORY_ENTRY *exec_entry;
 #ifndef DBUG_OFF
-  bool dbg_first;
+  bool dbg_fail;
 #endif
   ddl_log_info() : first_entry(NULL), exec_entry(NULL) {}
   ~ddl_log_info()
