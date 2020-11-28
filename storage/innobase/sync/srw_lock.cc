@@ -114,7 +114,7 @@ void srw_lock_low::read_lock(uint32_t l)
       for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
       {
         ut_delay(srv_spin_wait_delay);
-        if (read_trylock(l))
+        if (read_trylock<true>(l))
           return;
         else if (l == WRITER_WAITING)
           goto wake_writer;
@@ -122,11 +122,50 @@ void srw_lock_low::read_lock(uint32_t l)
 
     wait(l);
   }
-  while (!read_trylock(l));
+  while (!read_trylock<true>(l));
 }
 
-/** Wait for a write lock after a failed write_trylock() */
-void srw_lock_low::write_lock()
+/** Wait for an update lock.
+@param lock word value from a failed update_trylock() */
+void srw_lock_low::update_lock(uint32_t l)
+{
+  do
+  {
+    if (l == WRITER_WAITING)
+    {
+    wake_writer:
+#ifdef SRW_LOCK_DUMMY
+      pthread_mutex_lock(&mutex);
+      {
+        pthread_cond_signal(&cond);
+        pthread_cond_wait(&cond, &mutex);
+        l= value();
+      }
+      while (l == WRITER_WAITING);
+      pthread_mutex_unlock(&mutex);
+      continue;
+#else
+      wake_one();
+#endif
+    }
+    else
+      for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+      {
+        ut_delay(srv_spin_wait_delay);
+        if (update_trylock(l))
+          return;
+        else if (l == WRITER_WAITING)
+          goto wake_writer;
+      }
+
+    wait(l);
+  }
+  while (!update_trylock(l));
+}
+
+/** Wait for a write lock after a failed write_trylock() or upgrade_trylock()
+@param holding_u  whether we already hold u_lock() */
+void srw_lock_low::write_lock(bool holding_u)
 {
   for (;;)
   {
@@ -134,6 +173,7 @@ void srw_lock_low::write_lock()
     /* We are the first writer to be granted the lock. Spin for a while. */
     for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
     {
+      l= holding_u ? WRITER_WAITING | UPDATER : WRITER_WAITING;
       if (write_lock_wait_try(l))
         return;
       if (!(l & WRITER_WAITING))
@@ -141,13 +181,22 @@ void srw_lock_low::write_lock()
       ut_delay(srv_spin_wait_delay);
     }
 
+    l= holding_u ? WRITER_WAITING | UPDATER : WRITER_WAITING;
     if (write_lock_wait_try(l))
       return;
 
     if (!(l & WRITER_WAITING))
     {
-      if (l == UNLOCKED && write_trylock())
-        return;
+      switch (l) {
+      case UNLOCKED:
+        DBUG_ASSERT(!holding_u);
+        if (write_trylock())
+          return;
+        break;
+      case UPDATER:
+        if (holding_u && upgrade_trylock())
+          return;
+      }
       l= write_lock_wait_start() | WRITER_WAITING;
     }
     else
@@ -158,5 +207,5 @@ void srw_lock_low::write_lock()
 }
 
 void srw_lock_low::rd_unlock() { if (read_unlock()) wake_one(); }
-
+void srw_lock_low::u_unlock() { if (update_unlock()) wake_one(); }
 void srw_lock_low::wr_unlock() { write_unlock(); wake_all(); }
