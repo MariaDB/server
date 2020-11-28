@@ -75,8 +75,6 @@ struct ddl_log_info;
 typedef ulonglong nested_join_map;
 
 
-#define tmp_file_prefix "#sql"			/**< Prefix for tmp tables */
-#define tmp_file_prefix_length 4
 #define TMP_TABLE_KEY_EXTRA 8
 
 /**
