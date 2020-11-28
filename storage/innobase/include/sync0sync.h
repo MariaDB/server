@@ -67,7 +67,6 @@ extern mysql_pfs_key_t page_zip_stat_per_index_mutex_key;
 # ifdef UNIV_DEBUG
 extern mysql_pfs_key_t	rw_lock_debug_mutex_key;
 # endif /* UNIV_DEBUG */
-extern mysql_pfs_key_t	rw_lock_list_mutex_key;
 extern mysql_pfs_key_t	srv_innodb_monitor_mutex_key;
 extern mysql_pfs_key_t	srv_misc_tmpfile_mutex_key;
 extern mysql_pfs_key_t	srv_monitor_file_mutex_key;

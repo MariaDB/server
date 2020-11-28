@@ -1172,7 +1172,7 @@ struct buf_block_t{
 # ifdef UNIV_DEBUG
 	/** @name Debug fields */
 	/* @{ */
-	rw_lock_t*	debug_latch;	/*!< in the debug version, each thread
+	rw_lock_t	debug_latch;	/*!< in the debug version, each thread
 					which bufferfixes the block acquires
 					an s-latch here; so we can use the
 					debug utilities in sync0rw */

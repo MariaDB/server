@@ -953,9 +953,8 @@ rtr_create_rtr_info(
 						     + UNIV_PAGE_SIZE_MAX + 1);
 		mutex_create(LATCH_ID_RTR_MATCH_MUTEX,
 			     &rtr_info->matches->rtr_match_mutex);
-		rw_lock_create(PFS_NOT_INSTRUMENTED,
-			       &(rtr_info->matches->block.lock),
-			      SYNC_LEVEL_VARYING);
+		rtr_info->matches->block.lock.create(PFS_NOT_INSTRUMENTED,
+						     SYNC_LEVEL_VARYING);
 	}
 
 	rtr_info->path = UT_NEW_NOKEY(rtr_node_path_t());
@@ -1100,7 +1099,7 @@ rtr_clean_rtr_info(
 				UT_DELETE(rtr_info->matches->matched_recs);
 			}
 
-			rw_lock_free(&(rtr_info->matches->block.lock));
+			rtr_info->matches->block.lock.free();
 
 			mutex_destroy(&rtr_info->matches->rtr_match_mutex);
 		}
@@ -1555,7 +1554,6 @@ rtr_copy_buf(
 	matches->block.curr_left_side = block->curr_left_side;
 	matches->block.index = block->index;
 #endif /* BTR_CUR_HASH_ADAPT */
-	ut_d(matches->block.debug_latch = NULL);
 }
 
 /****************************************************************//**

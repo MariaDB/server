@@ -64,7 +64,6 @@ mysql_pfs_key_t	rw_lock_debug_mutex_key;
 mysql_pfs_key_t rtr_active_mutex_key;
 mysql_pfs_key_t	rtr_match_mutex_key;
 mysql_pfs_key_t	rtr_path_mutex_key;
-mysql_pfs_key_t	rw_lock_list_mutex_key;
 mysql_pfs_key_t	srv_innodb_monitor_mutex_key;
 mysql_pfs_key_t	srv_misc_tmpfile_mutex_key;
 mysql_pfs_key_t	srv_monitor_file_mutex_key;
@@ -141,10 +140,6 @@ Prints info of the sync system.
 void
 sync_print(FILE* file)
 {
-#ifdef UNIV_DEBUG
-	rw_lock_list_print_info(file);
-#endif /* UNIV_DEBUG */
-
 	sync_array_print(file);
 
 	sync_print_wait_info(file);
@@ -226,20 +221,5 @@ MutexMonitor::reset()
 	/** Note: We don't add any latch meta-data after startup. Therefore
 	there is no need to use a mutex here. */
 
-	LatchMetaData::iterator	end = latch_meta.end();
-
-	for (LatchMetaData::iterator it = latch_meta.begin(); it != end; ++it) {
-
-		if (*it != NULL) {
-			(*it)->get_counter()->reset();
-		}
-	}
-
-	mutex_enter(&rw_lock_list_mutex);
-
-	for (rw_lock_t& rw_lock : rw_lock_list) {
-		rw_lock.count_os_wait = 0;
-	}
-
-	mutex_exit(&rw_lock_list_mutex);
+	for (auto l : latch_meta) if (l) l->get_counter()->reset();
 }

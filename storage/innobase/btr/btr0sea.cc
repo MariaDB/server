@@ -207,7 +207,7 @@ ATTRIBUTE_COLD static void btr_search_lazy_free(dict_index_t *index)
   dict_table_t *table= index->table;
   /* Perform the skipped steps of dict_index_remove_from_cache_low(). */
   UT_LIST_REMOVE(table->freed_indexes, index);
-  rw_lock_free(&index->lock);
+  index->lock.free();
   dict_mem_index_free(index);
 
   if (!UT_LIST_GET_LEN(table->freed_indexes) &&

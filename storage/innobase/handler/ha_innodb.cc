@@ -537,7 +537,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 #  ifdef UNIV_DEBUG
 	PSI_KEY(rw_lock_debug_mutex),
 #  endif /* UNIV_DEBUG */
-	PSI_KEY(rw_lock_list_mutex),
 	PSI_KEY(srv_innodb_monitor_mutex),
 	PSI_KEY(srv_misc_tmpfile_mutex),
 	PSI_KEY(srv_monitor_file_mutex),
@@ -15860,13 +15859,13 @@ innodb_show_rwlock_status(
 {
 	DBUG_ENTER("innodb_show_rwlock_status");
 
+	DBUG_ASSERT(hton == innodb_hton_ptr);
+#if 0 // FIXME
 	const rw_lock_t* block_rwlock= nullptr;
 	ulint		block_rwlock_oswait_count = 0;
 	uint		hton_name_len = (uint) strlen(innobase_hton_name);
 
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
-	mutex_enter(&rw_lock_list_mutex);
+	mutex_enter(&dict_sys.mutex);
 
 	for (const rw_lock_t& rw_lock : rw_lock_list) {
 
@@ -15902,7 +15901,7 @@ innodb_show_rwlock_status(
 			       buf1, static_cast<uint>(buf1len),
 			       buf2, static_cast<uint>(buf2len))) {
 
-			mutex_exit(&rw_lock_list_mutex);
+			mutex_exit(&dict_sys.mutex);
 
 			DBUG_RETURN(1);
 		}
@@ -15930,14 +15929,14 @@ innodb_show_rwlock_status(
 			       buf1, static_cast<uint>(buf1len),
 			       buf2, static_cast<uint>(buf2len))) {
 
-			mutex_exit(&rw_lock_list_mutex);
+			mutex_exit(&dict_sys.mutex);
 
 			DBUG_RETURN(1);
 		}
 	}
 
-	mutex_exit(&rw_lock_list_mutex);
-
+	mutex_exit(&dict_sys.mutex);
+#endif
 	DBUG_RETURN(0);
 }
 
@@ -17299,6 +17298,11 @@ innodb_monitor_set_option(
 		if (monitor_id == (MONITOR_LATCHES)) {
 
 			mutex_monitor.reset();
+#if 0 // FIXME
+			dict_sys.for_each_index(
+				[](dict_index_t& i) {i.count_os_wait = 0});
+			buf_block_os_wait = 0;
+#endif
 		}
 		break;
 

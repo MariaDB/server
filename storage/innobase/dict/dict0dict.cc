@@ -1308,7 +1308,7 @@ dict_index_t *dict_index_t::clone() const
   dict_index_t *index= static_cast<dict_index_t*>(mem_heap_dup(heap, this,
                                                                sizeof *this));
   *index= *this;
-  rw_lock_create(index_tree_rw_lock_key, &index->lock, SYNC_INDEX_TREE);
+  index->lock.create(index_tree_rw_lock_key, SYNC_INDEX_TREE);
   index->heap= heap;
   index->name= mem_heap_strdup(heap, name);
   index->fields= static_cast<dict_field_t*>
@@ -2157,8 +2157,7 @@ dict_index_add_to_cache(
 #endif /* BTR_CUR_ADAPT */
 
 	new_index->page = unsigned(page_no);
-	rw_lock_create(index_tree_rw_lock_key, &new_index->lock,
-		       SYNC_INDEX_TREE);
+	new_index->lock.create(index_tree_rw_lock_key, SYNC_INDEX_TREE);
 
 	new_index->n_core_fields = new_index->n_fields;
 
@@ -2227,7 +2226,7 @@ dict_index_remove_from_cache_low(
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
-	rw_lock_free(&index->lock);
+	index->lock.free();
 
 	dict_mem_index_free(index);
 }

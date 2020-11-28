@@ -36,7 +36,6 @@ Created 9/11/1995 Heikki Tuuri
 
 #include "os0event.h"
 #include "ut0mutex.h"
-#include "ilist.h"
 
 /** Counters for RW locks. */
 struct rw_lock_stats_t {
@@ -106,28 +105,10 @@ struct rw_lock_t;
 struct rw_lock_debug_t;
 #endif /* UNIV_DEBUG */
 
-extern ilist<rw_lock_t> rw_lock_list;
-extern ib_mutex_t			rw_lock_list_mutex;
-
 /** Counters for RW locks. */
 extern rw_lock_stats_t	rw_lock_stats;
 
 #ifndef UNIV_PFS_RWLOCK
-/******************************************************************//**
-Creates, or rather, initializes an rw-lock object in a specified memory
-location (which must be appropriately aligned). The rw-lock is initialized
-to the non-locked state. Explicit freeing of the rw-lock with rw_lock_free
-is necessary only if the memory block containing it is freed.
-if MySQL performance schema is enabled and "UNIV_PFS_RWLOCK" is
-defined, the rwlock are instrumented with performance schema probes. */
-# ifdef UNIV_DEBUG
-#  define rw_lock_create(K, L, level)				\
-	rw_lock_create_func((L), (level), __FILE__, __LINE__)
-# else /* UNIV_DEBUG */
-#  define rw_lock_create(K, L, level)				\
-	rw_lock_create_func((L), __FILE__, __LINE__)
-# endif	/* UNIV_DEBUG */
-
 /**************************************************************//**
 NOTE! The following macros should be used in rw locking and
 unlocking, not the corresponding function. */
@@ -203,18 +184,7 @@ unlocking, not the corresponding function. */
 #  define rw_lock_x_unlock_gen(L, P)	rw_lock_x_unlock_func(L)
 # endif
 
-# define rw_lock_free(M)		rw_lock_free_func(M)
-
 #else /* !UNIV_PFS_RWLOCK */
-
-/* Following macros point to Performance Schema instrumented functions. */
-# ifdef UNIV_DEBUG
-#   define rw_lock_create(K, L, level)				\
-	pfs_rw_lock_create_func((K), (L), (level), __FILE__, __LINE__)
-# else	/* UNIV_DEBUG */
-#  define rw_lock_create(K, L, level)				\
-	pfs_rw_lock_create_func((K), (L), __FILE__, __LINE__)
-# endif	/* UNIV_DEBUG */
 
 /******************************************************************
 NOTE! The following macros should be used in rw locking and
@@ -279,35 +249,11 @@ unlocking, not the corresponding function. */
 #  define rw_lock_x_unlock_gen(L, P)	pfs_rw_lock_x_unlock_func(L)
 # endif
 
-# define rw_lock_free(M)		pfs_rw_lock_free_func(M)
-
 #endif /* !UNIV_PFS_RWLOCK */
 
 #define rw_lock_s_unlock(L)		rw_lock_s_unlock_gen(L, 0)
 #define rw_lock_x_unlock(L)		rw_lock_x_unlock_gen(L, 0)
 
-/******************************************************************//**
-Creates, or rather, initializes an rw-lock object in a specified memory
-location (which must be appropriately aligned). The rw-lock is initialized
-to the non-locked state. Explicit freeing of the rw-lock with rw_lock_free
-is necessary only if the memory block containing it is freed. */
-void
-rw_lock_create_func(
-/*================*/
-	rw_lock_t*	lock,		/*!< in: pointer to memory */
-#ifdef UNIV_DEBUG
-	latch_level_t	level,		/*!< in: level */
-#endif /* UNIV_DEBUG */
-	const char*	cfile_name,	/*!< in: file name where created */
-	unsigned	cline);		/*!< in: file line where created */
-/******************************************************************//**
-Calling this function is obligatory only if the memory buffer containing
-the rw-lock is freed. Removes an rw-lock object from the global list. The
-rw-lock is checked to be in the non-locked state. */
-void
-rw_lock_free_func(
-/*==============*/
-	rw_lock_t*	lock);		/*!< in/out: rw-lock */
 #ifdef UNIV_DEBUG
 /******************************************************************//**
 Checks that the rw-lock has been initialized and that there are no
@@ -532,26 +478,22 @@ rw_lock_is_locked(
 	ulint		lock_type);	/*!< in: lock type: RW_LOCK_S,
 					RW_LOCK_X or RW_LOCK_SX */
 #ifdef UNIV_DEBUG
-/***************************************************************//**
-Prints debug info of currently locked rw-locks. */
-void
-rw_lock_list_print_info(
-/*====================*/
-	FILE*		file);		/*!< in: file where to print */
+/** The structure for storing debug info of an rw-lock.  All access to this
+structure must be protected by rw_lock_debug_mutex_enter(). */
+struct	rw_lock_debug_t {
 
-/*#####################################################################*/
-
-/*********************************************************************//**
-Prints info of a debug struct. */
-void
-rw_lock_debug_print(
-/*================*/
-	FILE*			f,	/*!< in: output stream */
-	const rw_lock_debug_t*	info);	/*!< in: debug struct */
+	os_thread_id_t thread_id;  /*!< The thread id of the thread which
+				locked the rw-lock */
+	ulint	pass;		/*!< Pass value given in the lock operation */
+	ulint	lock_type;	/*!< Type of the lock: RW_LOCK_X,
+				RW_LOCK_S, RW_LOCK_X_WAIT */
+	const char*	file_name;/*!< File name where the lock was obtained */
+	unsigned	line;	/*!< Line where the rw-lock was locked */
+	UT_LIST_NODE_T(rw_lock_debug_t) list;
+				/*!< Debug structs are linked in a two-way
+				list */
+};
 #endif /* UNIV_DEBUG */
-
-/* NOTE! The structure appears here only for the compiler to know its size.
-Do not use its fields directly! */
 
 /** The structure used in the spin lock implementation of a read-write
 lock. Several threads may have a shared lock simultaneously in this
@@ -561,19 +503,35 @@ readers, a writer may queue for x-lock by decrementing lock_word: no
 new readers will be let in while the thread waits for readers to
 exit. */
 
-struct rw_lock_t :
-#ifdef UNIV_DEBUG
-	public latch_t,
-#endif /* UNIV_DEBUG */
-	public ilist_node<>
+struct rw_lock_t ut_d(: public latch_t)
 {
-  ut_d(bool created= false;)
+#ifdef UNIV_DEBUG
+  bool created() const { return level != SYNC_UNKNOWN; }
+#endif
 
   /** Holds the state of the lock. */
   Atomic_relaxed<int32_t> lock_word;
 
   /** 0=no waiters, 1=waiters for X or SX lock exist */
   Atomic_relaxed<uint32_t> waiters;
+
+private:
+  void create_low();
+public:
+  void create(mysql_pfs_key_t key, latch_level_t level)
+  {
+#ifdef UNIV_PFS_RWLOCK
+    pfs_psi= PSI_RWLOCK_CALL(init_rwlock)(key, this);
+#endif /* UNIV_PFS_RWLOCK */
+    ut_d(m_rw_lock= true);
+    ut_d(UT_LIST_INIT(debug_list, &rw_lock_debug_t::list));
+    ut_d(m_id= sync_latch_get_id(sync_latch_get_name(level)));
+    ut_d(this->level= level);
+    create_low();
+  }
+
+  /** Free the rw-lock after create() */
+  void free();
 
 	/** number of granted SX locks. */
 	volatile ulint	sx_recursive;
@@ -593,20 +551,11 @@ struct rw_lock_t :
 	lock_word before waiting. */
 	os_event_t	wait_ex_event;
 
-	/** File name where lock created */
-	const char*	cfile_name;
-
 	/** File name where last x-locked */
 	const char*	last_x_file_name;
 
-	/** Line where created */
-	unsigned	cline:13;
-
-	/** If 1 then the rw-lock is a block lock */
-	unsigned	is_block_lock:1;
-
 	/** Line number where last time x-locked */
-	unsigned	last_x_line:14;
+	unsigned	last_x_line;
 
 	/** Count of os_waits. May not be accurate */
 	uint32_t	count_os_wait;
@@ -626,23 +575,6 @@ struct rw_lock_t :
 	latch_level_t	level;
 #endif /* UNIV_DEBUG */
 };
-#ifdef UNIV_DEBUG
-/** The structure for storing debug info of an rw-lock.  All access to this
-structure must be protected by rw_lock_debug_mutex_enter(). */
-struct	rw_lock_debug_t {
-
-	os_thread_id_t thread_id;  /*!< The thread id of the thread which
-				locked the rw-lock */
-	ulint	pass;		/*!< Pass value given in the lock operation */
-	ulint	lock_type;	/*!< Type of the lock: RW_LOCK_X,
-				RW_LOCK_S, RW_LOCK_X_WAIT */
-	const char*	file_name;/*!< File name where the lock was obtained */
-	unsigned	line;	/*!< Line where the rw-lock was locked */
-	UT_LIST_NODE_T(rw_lock_debug_t) list;
-				/*!< Debug structs are linked in a two-way
-				list */
-};
-#endif /* UNIV_DEBUG */
 
 /* For performance schema instrumentation, a new set of rwlock
 wrap functions are created if "UNIV_PFS_RWLOCK" is defined.
@@ -656,7 +588,6 @@ The instrumented function names have prefix of "pfs_rw_lock_" vs.
 original name prefix of "rw_lock_". Following are list of functions
 that have been instrumented:
 
-rw_lock_create()
 rw_lock_x_lock()
 rw_lock_x_lock_gen()
 rw_lock_x_lock_nowait()
@@ -667,27 +598,9 @@ rw_lock_s_lock_nowait()
 rw_lock_s_unlock_gen()
 rw_lock_sx_lock()
 rw_lock_sx_unlock_gen()
-rw_lock_free()
 */
 
 #ifdef UNIV_PFS_RWLOCK
-/******************************************************************//**
-Performance schema instrumented wrap function for rw_lock_create_func()
-NOTE! Please use the corresponding macro rw_lock_create(), not
-directly this function! */
-UNIV_INLINE
-void
-pfs_rw_lock_create_func(
-/*====================*/
-	PSI_rwlock_key  key,		/*!< in: key registered with
-					performance schema */
-	rw_lock_t*	lock,		/*!< in: rw lock */
-#ifdef UNIV_DEBUG
-	latch_level_t	level,		/*!< in: level */
-#endif /* UNIV_DEBUG */
-	const char*	cfile_name,	/*!< in: file name where created */
-	unsigned	cline);		/*!< in: file line where created */
-
 /******************************************************************//**
 Performance schema instrumented wrap function for rw_lock_x_lock_func()
 NOTE! Please use the corresponding macro rw_lock_x_lock(), not
@@ -822,15 +735,6 @@ pfs_rw_lock_sx_unlock_func(
 				thread to unlock */
 #endif /* UNIV_DEBUG */
 	rw_lock_t*	lock);	/*!< in/out: rw-lock */
-/******************************************************************//**
-Performance schema instrumented wrap function for rw_lock_free_func()
-NOTE! Please use the corresponding macro rw_lock_free(), not directly
-this function! */
-UNIV_INLINE
-void
-pfs_rw_lock_free_func(
-/*==================*/
-	rw_lock_t*	lock);	/*!< in: rw-lock */
 #endif  /* UNIV_PFS_RWLOCK */
 
 #include "sync0rw.ic"

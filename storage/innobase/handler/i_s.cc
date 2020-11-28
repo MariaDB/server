@@ -6914,21 +6914,22 @@ i_s_innodb_mutexes_fill_table(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	ulint		block_lock_oswait_count = 0;
-	const rw_lock_t* block_lock= nullptr;
-	Field**		fields = tables->table->field;
-
 	DBUG_ENTER("i_s_innodb_mutexes_fill_table");
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
 	if (check_global_access(thd, PROCESS_ACL)) {
 		DBUG_RETURN(0);
-	} else {
+	}
+#if 0 // FIXME
+	ulint		block_lock_oswait_count = 0;
+	const rw_lock_t* block_lock= nullptr;
+	Field**		fields = tables->table->field;
+
 		struct Locking
 		{
-			Locking() { mutex_enter(&rw_lock_list_mutex); }
-			~Locking() { mutex_exit(&rw_lock_list_mutex); }
+			Locking() { mutex_enter(&dict_sys.mutex); }
+			~Locking() { mutex_exit(&dict_sys.mutex); }
 		} locking;
 
 		char lock_name[sizeof "buf0dump.cc:12345"];
@@ -6981,7 +6982,7 @@ i_s_innodb_mutexes_fill_table(
 			fields[MUTEXES_OS_WAITS]->set_notnull();
 			OK(schema_table_store_record(thd, tables->table));
 		}
-	}
+#endif
 
 	DBUG_RETURN(0);
 }

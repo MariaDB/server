@@ -487,37 +487,6 @@ rw_lock_sx_unlock_func(
 }
 
 #ifdef UNIV_PFS_RWLOCK
-
-/******************************************************************//**
-Performance schema instrumented wrap function for rw_lock_create_func().
-NOTE! Please use the corresponding macro rw_lock_create(), not directly
-this function! */
-UNIV_INLINE
-void
-pfs_rw_lock_create_func(
-/*====================*/
-	mysql_pfs_key_t	key,		/*!< in: key registered with
-					performance schema */
-	rw_lock_t*	lock,		/*!< in/out: pointer to memory */
-# ifdef UNIV_DEBUG
-	latch_level_t	level,		/*!< in: level */
-# endif /* UNIV_DEBUG */
-	const char*	cfile_name,	/*!< in: file name where created */
-	unsigned	cline)		/*!< in: file line where created */
-{
-	ut_d(new(lock) rw_lock_t());
-
-	/* Initialize the rwlock for performance schema */
-	lock->pfs_psi = PSI_RWLOCK_CALL(init_rwlock)(key, lock);
-
-	/* The actual function to initialize an rwlock */
-	rw_lock_create_func(lock,
-#ifdef UNIV_DEBUG
-			    level,
-#endif /* UNIV_DEBUG */
-			    cfile_name,
-			    cline);
-}
 /******************************************************************//**
 Performance schema instrumented wrap function for rw_lock_x_lock_func()
 NOTE! Please use the corresponding macro rw_lock_x_lock(), not directly
@@ -592,23 +561,6 @@ pfs_rw_lock_x_lock_func_nowait(
 	}
 
 	return(ret);
-}
-/******************************************************************//**
-Performance schema instrumented wrap function for rw_lock_free_func()
-NOTE! Please use the corresponding macro rw_lock_free(), not directly
-this function! */
-UNIV_INLINE
-void
-pfs_rw_lock_free_func(
-/*==================*/
-	rw_lock_t*	lock)	/*!< in: pointer to rw-lock */
-{
-	if (lock->pfs_psi != NULL) {
-		PSI_RWLOCK_CALL(destroy_rwlock)(lock->pfs_psi);
-		lock->pfs_psi = NULL;
-	}
-
-	rw_lock_free_func(lock);
 }
 /******************************************************************//**
 Performance schema instrumented wrap function for rw_lock_s_lock_func()

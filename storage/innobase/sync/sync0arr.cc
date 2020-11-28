@@ -470,6 +470,7 @@ sync_array_cell_print(
 	FILE*		file,		/*!< in: file where to print */
 	sync_cell_t*	cell)		/*!< in: sync cell */
 {
+#if 0 //FIXME
 	rw_lock_t*	rwlock;
 	ulint		type;
 	ulint		writer;
@@ -568,6 +569,7 @@ sync_array_cell_print(
 		}
 		break;
 	}
+#endif
 
 	if (!cell->waiting) {
 		fputs("wait has ended\n", file);
@@ -642,6 +644,40 @@ sync_array_deadlock_step(
 	}
 	return(FALSE);
 }
+
+static void rw_lock_debug_print(FILE* f, const rw_lock_debug_t*	info)
+{
+	ulint	rwt = info->lock_type;
+
+	fprintf(f, "Locked: thread " ULINTPF " file %s line %u  ",
+		ulint(info->thread_id),
+		sync_basename(info->file_name),
+		info->line);
+
+	switch (rwt) {
+	case RW_LOCK_S:
+		fputs("S-LOCK", f);
+		break;
+	case RW_LOCK_X:
+		fputs("X-LOCK", f);
+		break;
+	case RW_LOCK_SX:
+		fputs("SX-LOCK", f);
+		break;
+	case RW_LOCK_X_WAIT:
+		fputs("WAIT X-LOCK", f);
+		break;
+	default:
+		ut_error;
+	}
+
+	if (info->pass != 0) {
+		fprintf(f, " pass value %lu", (ulong) info->pass);
+	}
+
+	fprintf(f, "\n");
+}
+
 
 /**
 Report an error to stderr.

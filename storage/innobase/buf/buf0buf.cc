@@ -1216,16 +1216,10 @@ buf_block_init(buf_block_t* block, byte* frame)
 
 	page_zip_des_init(&block->page.zip);
 
-	ut_d(block->debug_latch = (rw_lock_t *) ut_malloc_nokey(sizeof(rw_lock_t)));
+	block->lock.create(PFS_NOT_INSTRUMENTED, SYNC_LEVEL_VARYING);
 
-	rw_lock_create(PFS_NOT_INSTRUMENTED, &block->lock, SYNC_LEVEL_VARYING);
-
-	ut_d(rw_lock_create(PFS_NOT_INSTRUMENTED, block->debug_latch,
-			    SYNC_LEVEL_VARYING));
-
-	block->lock.is_block_lock = 1;
-
-	ut_ad(rw_lock_validate(&(block->lock)));
+	ut_d(block->debug_latch.create(PFS_NOT_INSTRUMENTED,
+				       SYNC_LEVEL_VARYING));
 }
 
 /** Allocate a chunk of buffer frames.
@@ -1361,9 +1355,8 @@ inline const buf_block_t *buf_pool_t::chunk_t::not_freed() const
 @param[in,out]	block	buffer pool block descriptor */
 static void buf_block_free_mutexes(buf_block_t* block)
 {
-	rw_lock_free(&block->lock);
-	ut_d(rw_lock_free(block->debug_latch));
-	ut_d(ut_free(block->debug_latch));
+	block->lock.free();
+	ut_d(block->debug_latch.free());
 }
 
 /** Create the hash table.
@@ -2511,10 +2504,10 @@ void buf_page_free(const page_id_t page_id,
     return;
   }
 
+
   block->fix();
   ut_ad(block->page.buf_fix_count());
-  ut_ad(fsp_is_system_temporary(page_id.space()) ||
-	rw_lock_s_lock_nowait(block->debug_latch, file, line));
+  ut_ad(rw_lock_s_lock_nowait(&block->debug_latch, file, line));
 
   mtr_memo_type_t fix_type= MTR_MEMO_PAGE_X_FIX;
   rw_lock_x_lock_inline(&block->lock, 0, file, line);
@@ -3324,18 +3317,9 @@ re_evict:
 
 	ut_ad(fix_block->page.buf_fix_count());
 
-#ifdef UNIV_DEBUG
 	/* We have already buffer fixed the page, and we are committed to
-	returning this page to the caller. Register for debugging.
-	Avoid debug latching if page/block belongs to system temporary
-	tablespace (Not much needed for table with single threaded access.). */
-	if (!fsp_is_system_temporary(page_id.space())) {
-		ibool   ret;
-		ret = rw_lock_s_lock_nowait(
-			fix_block->debug_latch, file, line);
-		ut_a(ret);
-	}
-#endif /* UNIV_DEBUG */
+	returning this page to the caller. Register for debugging. */
+	ut_ad(rw_lock_s_lock_nowait(&fix_block->debug_latch, file, line));
 
 	/* While tablespace is reinited the indexes are already freed but the
 	blocks related to it still resides in buffer pool. Trying to remove
@@ -3365,12 +3349,7 @@ re_evict:
 
 	if (fix_block->page.id() != page_id) {
 		fix_block->unfix();
-
-#ifdef UNIV_DEBUG
-		if (!fsp_is_system_temporary(page_id.space())) {
-			rw_lock_s_unlock(fix_block->debug_latch);
-		}
-#endif /* UNIV_DEBUG */
+		ut_d(rw_lock_s_unlock(&fix_block->debug_latch));
 
 		if (err) {
 			*err = DB_PAGE_CORRUPTED;
@@ -3443,7 +3422,7 @@ buf_page_get_gen(
   if (buf_block_t *block= recv_sys.recover(page_id))
   {
     block->fix();
-    ut_ad(rw_lock_s_lock_nowait(block->debug_latch, file, line));
+    ut_ad(rw_lock_s_lock_nowait(&block->debug_latch, file, line));
     if (err)
       *err= DB_SUCCESS;
     const bool must_merge= allow_ibuf_merge &&
@@ -3756,8 +3735,7 @@ loop:
 
   /* Duplicate buf_block_buf_fix_inc_func() */
   ut_ad(block->page.buf_fix_count() == 1);
-  ut_ad(fsp_is_system_temporary(page_id.space()) ||
-        rw_lock_s_lock_nowait(block->debug_latch, __FILE__, __LINE__));
+  ut_ad(rw_lock_s_lock_nowait(&block->debug_latch, __FILE__, __LINE__));
 
   /* The block must be put to the LRU list */
   buf_LRU_add_block(&block->page, false);

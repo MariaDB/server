@@ -375,7 +375,7 @@ ibuf_close(void)
 	mutex_free(&ibuf_bitmap_mutex);
 
 	dict_table_t*	ibuf_table = ibuf.index->table;
-	rw_lock_free(&ibuf.index->lock);
+	ibuf.index->lock.free();
 	dict_mem_index_free(ibuf.index);
 	dict_mem_table_free(ibuf_table);
 	ibuf.index = NULL;
@@ -477,8 +477,7 @@ ibuf_init_at_db_start(void)
 		DICT_CLUSTERED | DICT_IBUF, 1);
 	ibuf.index->id = DICT_IBUF_ID_MIN + IBUF_SPACE_ID;
 	ibuf.index->n_uniq = REC_MAX_N_FIELDS;
-	rw_lock_create(index_tree_rw_lock_key, &ibuf.index->lock,
-		       SYNC_IBUF_INDEX_TREE);
+	ibuf.index->lock.create(index_tree_rw_lock_key, SYNC_IBUF_INDEX_TREE);
 #ifdef BTR_CUR_ADAPT
 	ibuf.index->search_info = btr_search_info_create(ibuf.index->heap);
 #endif /* BTR_CUR_ADAPT */

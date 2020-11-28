@@ -140,10 +140,6 @@ wait_ex_event:	A thread may only wait on the wait_ex_event after it has
 
 rw_lock_stats_t		rw_lock_stats;
 
-/* The global list of rw-locks */
-ilist<rw_lock_t> rw_lock_list;
-ib_mutex_t		rw_lock_list_mutex;
-
 #ifdef UNIV_DEBUG
 /******************************************************************//**
 Creates a debug info struct. */
@@ -182,88 +178,38 @@ rw_lock_debug_free(
 }
 #endif /* UNIV_DEBUG */
 
-/******************************************************************//**
-Creates, or rather, initializes an rw-lock object in a specified memory
-location (which must be appropriately aligned). The rw-lock is initialized
-to the non-locked state. Explicit freeing of the rw-lock with rw_lock_free
-is necessary only if the memory block containing it is freed. */
-void
-rw_lock_create_func(
-/*================*/
-	rw_lock_t*	lock,		/*!< in: pointer to memory */
-#ifdef UNIV_DEBUG
-	latch_level_t	level,		/*!< in: level */
-#endif /* UNIV_DEBUG */
-	const char*	cfile_name,	/*!< in: file name where created */
-	unsigned	cline)		/*!< in: file line where created */
+void rw_lock_t::create_low()
 {
-#if defined(UNIV_DEBUG) && !defined(UNIV_PFS_RWLOCK)
-	/* It should have been created in pfs_rw_lock_create_func() */
-	new(lock) rw_lock_t();
-#endif /* UNIV_DEBUG */
+  ut_ad(m_id != LATCH_ID_NONE);
+  ut_ad(level != SYNC_UNKNOWN);
 
-	lock->lock_word = X_LOCK_DECR;
-	lock->waiters = 0;
-
-	lock->sx_recursive = 0;
-	lock->writer_thread= 0;
-
-#ifdef UNIV_DEBUG
-	lock->m_rw_lock = true;
-
-	UT_LIST_INIT(lock->debug_list, &rw_lock_debug_t::list);
-
-	lock->m_id = sync_latch_get_id(sync_latch_get_name(level));
-	ut_a(lock->m_id != LATCH_ID_NONE);
-
-	lock->level = level;
-#endif /* UNIV_DEBUG */
-
-	lock->cfile_name = cfile_name;
-
-	/* This should hold in practice. If it doesn't then we need to
-	split the source file anyway. Or create the locks on lines
-	less than 8192. cline is unsigned:13. */
-	ut_ad(cline <= ((1U << 13) - 1));
-	lock->cline = cline & ((1U << 13) - 1);
-	lock->count_os_wait = 0;
-	lock->last_x_file_name = "not yet reserved";
-	lock->last_x_line = 0;
-	lock->event = os_event_create(0);
-	lock->wait_ex_event = os_event_create(0);
-
-	lock->is_block_lock = 0;
-
-	ut_d(lock->created = true);
-
-	mutex_enter(&rw_lock_list_mutex);
-	rw_lock_list.push_front(*lock);
-	mutex_exit(&rw_lock_list_mutex);
+  lock_word= X_LOCK_DECR;
+  waiters= 0;
+  sx_recursive= 0;
+  writer_thread= 0;
+  count_os_wait= 0;
+  last_x_file_name= "not yet reserved";
+  last_x_line= 0;
+  event= os_event_create(0);
+  wait_ex_event= os_event_create(0);
 }
 
-/******************************************************************//**
-Calling this function is obligatory only if the memory buffer containing
-the rw-lock is freed. Removes an rw-lock object from the global list. The
-rw-lock is checked to be in the non-locked state. */
-void
-rw_lock_free_func(
-/*==============*/
-	rw_lock_t*	lock)	/*!< in/out: rw-lock */
+/** Free the rw-lock after create() */
+void rw_lock_t::free()
 {
-	ut_ad(rw_lock_validate(lock));
-	ut_a(lock->lock_word == X_LOCK_DECR);
-
-	ut_d(lock->created = false);
-
-	mutex_enter(&rw_lock_list_mutex);
-
-	os_event_destroy(lock->event);
-
-	os_event_destroy(lock->wait_ex_event);
-
-	rw_lock_list.remove(*lock);
-
-	mutex_exit(&rw_lock_list_mutex);
+  ut_ad(created());
+  ut_ad(rw_lock_validate(this));
+  ut_ad(lock_word == X_LOCK_DECR);
+#ifdef UNIV_PFS_RWLOCK
+  if (pfs_psi)
+  {
+    PSI_RWLOCK_CALL(destroy_rwlock)(pfs_psi);
+    pfs_psi= nullptr;
+  }
+#endif /* UNIV_PFS_RWLOCK */
+  ut_d(level= SYNC_UNKNOWN);
+  os_event_destroy(event);
+  os_event_destroy(wait_ex_event);
 }
 
 /******************************************************************//**
@@ -846,7 +792,7 @@ rw_lock_validate(
 {
 	ut_ad(lock);
 
-	ut_ad(lock->created);
+	ut_ad(lock->created());
 
 	int32_t lock_word = lock->lock_word;
 
@@ -1076,93 +1022,6 @@ bool rw_lock_own_flagged(const rw_lock_t* lock, rw_lock_flags_t flags)
 
 	rw_lock_debug_mutex_exit();
 	return false;
-}
-
-/***************************************************************//**
-Prints debug info of currently locked rw-locks. */
-void
-rw_lock_list_print_info(
-/*====================*/
-	FILE*	file)		/*!< in: file where to print */
-{
-	ulint		count = 0;
-
-	mutex_enter(&rw_lock_list_mutex);
-
-	fputs("-------------\n"
-	      "RW-LATCH INFO\n"
-	      "-------------\n", file);
-
-	for (const rw_lock_t& lock : rw_lock_list) {
-
-		count++;
-
-		if (lock.lock_word != X_LOCK_DECR) {
-
-			fprintf(file, "RW-LOCK: %p ", (void*) &lock);
-
-			if (int32_t waiters= lock.waiters) {
-				fprintf(file, " (%d waiters)\n", waiters);
-			} else {
-				putc('\n', file);
-			}
-
-			rw_lock_debug_t* info;
-
-			rw_lock_debug_mutex_enter();
-
-			for (info = UT_LIST_GET_FIRST(lock.debug_list);
-			     info != NULL;
-			     info = UT_LIST_GET_NEXT(list, info)) {
-
-				rw_lock_debug_print(file, info);
-			}
-
-			rw_lock_debug_mutex_exit();
-		}
-	}
-
-	fprintf(file, "Total number of rw-locks " ULINTPF "\n", count);
-	mutex_exit(&rw_lock_list_mutex);
-}
-
-/*********************************************************************//**
-Prints info of a debug struct. */
-void
-rw_lock_debug_print(
-/*================*/
-	FILE*			f,	/*!< in: output stream */
-	const rw_lock_debug_t*	info)	/*!< in: debug struct */
-{
-	ulint	rwt = info->lock_type;
-
-	fprintf(f, "Locked: thread " ULINTPF " file %s line %u  ",
-		ulint(info->thread_id),
-		sync_basename(info->file_name),
-		info->line);
-
-	switch (rwt) {
-	case RW_LOCK_S:
-		fputs("S-LOCK", f);
-		break;
-	case RW_LOCK_X:
-		fputs("X-LOCK", f);
-		break;
-	case RW_LOCK_SX:
-		fputs("SX-LOCK", f);
-		break;
-	case RW_LOCK_X_WAIT:
-		fputs("WAIT X-LOCK", f);
-		break;
-	default:
-		ut_error;
-	}
-
-	if (info->pass != 0) {
-		fprintf(f, " pass value %lu", (ulong) info->pass);
-	}
-
-	fprintf(f, "\n");
 }
 
 /** Print the rw-lock information.
