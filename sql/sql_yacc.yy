@@ -6555,6 +6555,11 @@ opt_compressed:
         | compressed { }
         ;
 
+opt_enable:
+          /* empty */ {}
+        | ENABLE_SYM { }
+        ;
+
 compressed:
           COMPRESSED_SYM opt_compression_method
           {
@@ -6581,7 +6586,7 @@ compressed_deprecated_column_attribute:
         ;
 
 asrow_attribute:
-          not NULL_SYM
+          not NULL_SYM opt_enable
           {
             Lex->last_field->flags|= NOT_NULL_FLAG;
           }

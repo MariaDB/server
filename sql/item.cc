@@ -3634,7 +3634,7 @@ String *Item_int::val_str(String *str)
 
 void Item_int::print(String *str, enum_query_type query_type)
 {
-  StringBuffer<LONGLONG_BUFFER_SIZE> buf;
+  StringBuffer<LONGLONG_BUFFER_SIZE+1> buf;
   // my_charset_bin is good enough for numbers
   buf.set_int(value, unsigned_flag, &my_charset_bin);
   str->append(buf);

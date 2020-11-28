@@ -880,6 +880,10 @@ bool select_unit_ext::send_eof()
     table->file->ha_rnd_end();
   }
 
+  /* Clean up table buffers for the next set operation from pipeline */
+  if (next_sl)
+    restore_record(table,s->default_values);
+
   if (unlikely(error))
     table->file->print_error(error, MYF(0));
 

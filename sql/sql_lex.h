@@ -1113,7 +1113,7 @@ public:
   */
   LEX *parent_lex;
   enum olap_type olap;
-  /* FROM clause - points to the beginning of the TABLE_LIST::next_local list. */
+  /* FROM clause - points to the beginning of the TABLE_LIST::next_local list */
   SQL_I_List<TABLE_LIST>  table_list;
 
   /*
@@ -1129,8 +1129,8 @@ public:
   List<Item>          pre_fix; /* above list before fix_fields */
   bool                is_item_list_lookup;
   /* 
-    Usualy it is pointer to ftfunc_list_alloc, but in union used to create fake
-    select_lex for calling mysql_select under results of union
+    Usually it is pointer to ftfunc_list_alloc, but in union used to create
+    fake select_lex for calling mysql_select under results of union
   */
   List<Item_func_match> *ftfunc_list;
   List<Item_func_match> ftfunc_list_alloc;

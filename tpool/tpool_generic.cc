@@ -305,8 +305,10 @@ public:
         std::unique_lock<std::mutex> lk(m_mtx);
         if (m_on)
         {
+          DBUG_PUSH_EMPTY;
           thr_timer_end(this);
           thr_timer_settime(this, 1000ULL * m_period);
+          DBUG_POP_EMPTY;
         }
       }
     }

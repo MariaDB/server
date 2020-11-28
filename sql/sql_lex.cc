@@ -10279,7 +10279,7 @@ bool LEX::sp_proc_stmt_statement_finalize(THD *thd, bool no_lookahead)
     It is done by transformer.
 
     The extracted condition is saved in cond_pushed_into_where of this select.
-    cond can remain un empty after the extraction of the condition that can be
+    COND can remain not empty after the extraction of the conditions that can be
     pushed into WHERE. It is saved in remaining_cond.
 
   @note

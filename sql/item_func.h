@@ -1962,6 +1962,7 @@ class Item_func_rand :public Item_real_func
   bool first_eval; // TRUE if val_real() is called 1st time
   bool check_arguments() const
   { return check_argument_types_can_return_int(0, arg_count); }
+  void seed_random (Item * val);
 public:
   Item_func_rand(THD *thd, Item *a):
     Item_real_func(thd, a), rand(0), first_eval(TRUE) {}
@@ -1974,12 +1975,11 @@ public:
   void cleanup() { first_eval= TRUE; Item_real_func::cleanup(); }
   bool check_vcol_func_processor(void *arg)
   {
-    return mark_unsupported_function(func_name(), "()", arg, VCOL_NON_DETERMINISTIC);
+    return mark_unsupported_function(func_name(), "()", arg,
+                                     VCOL_NON_DETERMINISTIC);
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_rand>(thd, this); }
-private:
-  void seed_random (Item * val);  
 };
 
 

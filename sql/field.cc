@@ -1085,7 +1085,7 @@ Field_longstr::make_packed_sort_key_part(uchar *buff,
 uchar*
 Field_longstr::pack_sort_string(uchar *to, const SORT_FIELD_ATTR *sort_field)
 {
-  StringBuffer<LONGLONG_BUFFER_SIZE> buf;
+  StringBuffer<LONGLONG_BUFFER_SIZE+1> buf;
   val_str(&buf, &buf);
   return to + sort_field->pack_sort_string(to, &buf, field_charset());
 }

@@ -1286,10 +1286,10 @@ null:
 bool Item_func_replace::fix_length_and_dec()
 {
   ulonglong char_length= (ulonglong) args[0]->max_char_length();
-  int diff=(int) (args[2]->max_char_length() - args[1]->max_char_length());
-  if (diff > 0 && args[1]->max_char_length())
+  int diff=(int) (args[2]->max_char_length() - 1);
+  if (diff > 0)
   {						// Calculate of maxreplaces
-    ulonglong max_substrs= char_length / args[1]->max_char_length();
+    ulonglong max_substrs= char_length;
     char_length+= max_substrs * (uint) diff;
   }
 
