@@ -564,7 +564,9 @@ bool FK_backup::fk_backup_frm(ddl_log_info &log_info)
 #endif
   if (mysql_file_rename(key_file_frm, frm_name, bak_name, MYF(MY_WME)))
   {
+#ifndef DBUG_OFF
 rename_failed:
+#endif
     /* Rename failed and we don't want rollback to delete original frm */
     if (deactivate_ddl_log_entry(restore_backup_entry->entry_pos))
     {

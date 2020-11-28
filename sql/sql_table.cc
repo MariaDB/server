@@ -1168,6 +1168,27 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
   switch (ddl_log_entry->action_type)
   {
     case DDL_LOG_REPLACE_ACTION:
+    {
+      if (ddl_log_entry->phase == 0 && frm_action != ACT_HANDLER)
+      {
+        /* If new file doesn't exist or a special file keep an old one. */
+        const char *from_name;
+        MY_STAT stat_info;
+        if (frm_action == ACT_PARTITION)
+        {
+          strxmov(from_path, ddl_log_entry->from_name, reg_ext, NullS);
+          from_name= from_path;
+        }
+        else
+          from_name= ddl_log_entry->from_name;
+        if (!mysql_file_stat(key_file_frm, from_name, &stat_info, MYF(0)))
+          break;
+        if ((stat_info.st_mode & S_IFLNK) != S_IFLNK &&   // symlink
+            (stat_info.st_mode & S_IFREG) != S_IFREG)     // regular file
+          break;
+      }
+    }
+    /* fall through */
     case DDL_LOG_DELETE_ACTION:
     {
       if (ddl_log_entry->phase == 0)
