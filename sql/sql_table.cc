@@ -13193,14 +13193,22 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
   DBUG_ASSERT(already.size() == fk_rename_backup.size());
   for (FK_info &fk: share->foreign_keys)
   {
+    // NB: share will be removed but updated foreign keys may be needed in multi-rename.
     if (fk.foreign_db.strdup(&share->mem_root, *new_db) ||
         fk.foreign_table.strdup(&share->mem_root, *new_table_name))
       goto mem_error;
     if (0 == cmp_table(fk.ref_db(), old_table->db) &&
         0 == cmp_table(fk.referenced_table, old_table->table_name))
     {
-      // NB: we don't have to lock self-references but we have to update share
-      // FIXME: where we rollback share?
+      /*
+        NB: we don't have to lock self-references but we should update table name.
+
+        We don't write FRM for renamed table:
+          - foreign_db, foreign_table are not stored;
+          - referenced_db, referenced_table are NULL for self-references.
+
+        We don't have to rollback this share: it is removed from cache.
+      */
       if (0 != cmp_table(old_table->db, *new_db) &&
           fk.referenced_db.strdup(&share->mem_root, *new_db))
         goto mem_error;
@@ -13283,8 +13291,6 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
   for (auto &ref: fk_rename_backup)
   {
     TABLE_SHARE *ref_share= ref.first;
-    if (!ref_share)
-      continue; // renamed table backup
     for (FK_info &fk: ref_share->foreign_keys)
     {
       if (cmp_table(fk.ref_db(), old_table->db) ||

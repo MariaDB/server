@@ -980,9 +980,8 @@ class FK_backup
 public:
   DDL_LOG_MEMORY_ENTRY *delete_shadow_entry;
   DDL_LOG_MEMORY_ENTRY *restore_backup_entry;
-
-public:
   bool update_frm;
+  Table_name old_name;
 
   FK_backup() :
     delete_shadow_entry(NULL),
