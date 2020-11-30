@@ -197,7 +197,6 @@ enum latch_level_t {
 	SYNC_FTS_OPTIMIZE,
 	SYNC_RECV,
 	SYNC_PURGE_QUEUE,
-	SYNC_TRX_SYS_HEADER,
 	SYNC_TRX,
 	SYNC_RW_TRX_HASH_ELEMENT,
 	SYNC_READ_VIEW,
@@ -207,37 +206,16 @@ enum latch_level_t {
 
 	SYNC_INDEX_ONLINE_LOG,
 
-	SYNC_IBUF_BITMAP,
 	SYNC_IBUF_BITMAP_MUTEX,
-	SYNC_IBUF_TREE_NODE,
-	SYNC_IBUF_TREE_NODE_NEW,
-	SYNC_IBUF_INDEX_TREE,
 
 	SYNC_IBUF_MUTEX,
 
-	SYNC_FSP_PAGE,
-	SYNC_EXTERN_STORAGE,
-	SYNC_TRX_UNDO_PAGE,
-	SYNC_RSEG_HEADER,
-	SYNC_RSEG_HEADER_NEW,
 	SYNC_NOREDO_RSEG,
 	SYNC_REDO_RSEG,
-	SYNC_TREE_NODE,
-	SYNC_TREE_NODE_FROM_HASH,
-	SYNC_TREE_NODE_NEW,
 	SYNC_IBUF_PESS_INSERT_MUTEX,
-	SYNC_INDEX_TREE,
 
-	SYNC_IBUF_HEADER,
-	SYNC_DICT_HEADER,
 	SYNC_STATS_AUTO_RECALC,
 	SYNC_DICT,
-
-	/** Level is varying. Only used with buffer pool page locks, which
-	do not have a fixed level, but instead have their level set after
-	the page is locked; see e.g.  ibuf_bitmap_get_map_page(). */
-
-	SYNC_LEVEL_VARYING,
 
 	/** This can be used to suppress order checking. */
 	SYNC_NO_ORDER_CHECK,
@@ -264,7 +242,6 @@ enum latch_id_t {
 	LATCH_ID_RECV_SYS,
 	LATCH_ID_REDO_RSEG,
 	LATCH_ID_NOREDO_RSEG,
-	LATCH_ID_RW_LOCK_DEBUG,
 	LATCH_ID_RTR_ACTIVE_MUTEX,
 	LATCH_ID_RTR_MATCH_MUTEX,
 	LATCH_ID_RTR_PATH_MUTEX,
@@ -283,10 +260,6 @@ enum latch_id_t {
 	LATCH_ID_ROW_DROP_LIST,
 	LATCH_ID_INDEX_ONLINE_LOG,
 	LATCH_ID_WORK_QUEUE,
-	LATCH_ID_BUF_BLOCK_LOCK,
-	LATCH_ID_BUF_BLOCK_DEBUG,
-	LATCH_ID_IBUF_INDEX_TREE,
-	LATCH_ID_INDEX_TREE,
 	LATCH_ID_DICT_TABLE_STATS,
 	LATCH_ID_DEFRAGMENT_MUTEX,
 	LATCH_ID_BTR_DEFRAGMENT_MUTEX,
@@ -880,9 +853,7 @@ struct latch_t {
 	@param[in]	id	The latch ID */
 	explicit latch_t(latch_id_t id = LATCH_ID_NONE)
 		UNIV_NOTHROW
-		:
-		m_id(id),
-		m_rw_lock() {}
+		: m_id(id) {}
 
 	/** Destructor */
 	virtual ~latch_t() UNIV_NOTHROW { }
@@ -891,13 +862,6 @@ struct latch_t {
 	latch_id_t get_id() const
 	{
 		return(m_id);
-	}
-
-	/** @return true if it is a rw-lock */
-	bool is_rw_lock() const
-		UNIV_NOTHROW
-	{
-		return(m_rw_lock);
 	}
 
 	/** Print the latch context
@@ -924,10 +888,6 @@ struct latch_t {
 
 	/** Latch ID */
 	latch_id_t	m_id;
-
-	/** true if it is a rw-lock. In debug mode, sux_lock derives from
-	this class and sets this variable. */
-	bool		m_rw_lock;
 };
 
 /** Subclass this to iterate over a thread's acquired latch levels. */

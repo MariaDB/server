@@ -54,17 +54,6 @@ sync_check_lock_validate(const latch_t* latch);
 void
 sync_check_lock_granted(const latch_t* latch);
 
-/** Check if it is OK to acquire the latch.
-@param[in]	latch	latch type
-@param[in]	level	the level of the mutex */
-void
-sync_check_lock(const latch_t* latch, latch_level_t level);
-
-/**
-Check if it is OK to re-acquire the lock. */
-void
-sync_check_relock(const latch_t* latch);
-
 /** Removes a latch from the thread level array if it is found there.
 @param[in]	latch	to unlock */
 void
@@ -83,18 +72,6 @@ Terminate iteration if the functor returns true.
 @return true if the functor returns true for any element */
 bool
 sync_check_iterate(const sync_check_functor_t& functor);
-
-/** Acquires the debug mutex. We cannot use the mutex defined in sync0sync,
-because the debug mutex is also acquired in sync0arr while holding the OS
-mutex protecting the sync array, and the ordinary mutex_enter might
-recursively call routines in sync0arr, leading to a deadlock on the OS
-mutex. */
-void
-rw_lock_debug_mutex_enter();
-
-/** Releases the debug mutex. */
-void
-rw_lock_debug_mutex_exit();
 
 #endif /* UNIV_DEBUG */
 

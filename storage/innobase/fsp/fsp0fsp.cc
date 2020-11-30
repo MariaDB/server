@@ -129,7 +129,6 @@ inline buf_block_t *fsp_get_header(const fil_space_t *space, mtr_t *mtr)
 {
  buf_block_t *block= buf_page_get(page_id_t(space->id, 0), space->zip_size(),
                                   RW_SX_LATCH, mtr);
- buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
  ut_ad(space->id == mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_ID +
                                      block->frame));
  return block;
@@ -349,8 +348,6 @@ xdes_get_descriptor_with_space_hdr(
 		block = buf_page_get(
 			page_id_t(space->id, descr_page_no), zip_size,
 			RW_SX_LATCH, mtr);
-
-		buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
 	}
 
 	if (desc_block != NULL) {
@@ -379,7 +376,6 @@ static xdes_t* xdes_get_descriptor(const fil_space_t *space, page_no_t offset,
 {
   buf_block_t *block= buf_page_get(page_id_t(space->id, 0), space->zip_size(),
                                    RW_SX_LATCH, mtr);
-  buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
   return xdes_get_descriptor_with_space_hdr(block, space, offset, xdes, mtr);
 }
 
@@ -412,8 +408,6 @@ xdes_get_descriptor_const(
 
 	if (buf_block_t* block = buf_page_get(page_id_t(space->id, page),
 					      zip_size, RW_S_LATCH, mtr)) {
-		buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
-
 		ut_ad(page != 0 || space->free_limit == mach_read_from_4(
 			      FSP_FREE_LIMIT + FSP_HEADER_OFFSET
 			      + block->frame));
@@ -553,8 +547,6 @@ void fsp_header_init(fil_space_t* space, uint32_t size, mtr_t* mtr)
 
 	buf_block_t* block = buf_page_create(space, 0, zip_size, mtr,
 					     free_block);
-	buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
-
 	if (UNIV_UNLIKELY(block != free_block)) {
 		buf_pool.free_block(free_block);
 	}
@@ -877,7 +869,6 @@ fsp_fill_free_list(
 				block= buf_page_create(
 					space, static_cast<uint32_t>(i),
 					zip_size, mtr, f);
-				buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
 				if (UNIV_UNLIKELY(block != f)) {
 					buf_pool.free_block(f);
 				}
@@ -894,7 +885,6 @@ fsp_fill_free_list(
 					static_cast<uint32_t>(
 						i + FSP_IBUF_BITMAP_OFFSET),
 					zip_size, mtr, f);
-				buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
 				if (UNIV_UNLIKELY(block != f)) {
 					buf_pool.free_block(f);
 				}
@@ -1357,7 +1347,6 @@ fsp_alloc_seg_inode_page(fil_space_t *space, buf_block_t *header, mtr_t *mtr)
   if (!block)
     return false;
 
-  buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
   ut_ad(block->lock.not_recursive());
 
   mtr->write<2>(*block, block->frame + FIL_PAGE_TYPE, FIL_PAGE_INODE);
@@ -1401,7 +1390,6 @@ fsp_alloc_seg_inode(fil_space_t *space, buf_block_t *header,
 			       + header->frame).page);
 
 	block = buf_page_get(page_id, space->zip_size(), RW_SX_LATCH, mtr);
-	buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
 	if (!space->full_crc32()) {
 		fil_block_check_type(*block, FIL_PAGE_INODE, mtr);
 	}

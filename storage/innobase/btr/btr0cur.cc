@@ -556,7 +556,6 @@ incompatible:
 			page_id_t(space->id,
 				  mach_read_from_4(ptr + BTR_EXTERN_PAGE_NO)),
 			0, RW_S_LATCH, mtr);
-		buf_block_dbg_add_level(block, SYNC_EXTERN_STORAGE);
 		if (fil_page_get_type(block->frame) != FIL_PAGE_TYPE_BLOB
 		    || mach_read_from_4(&block->frame[FIL_PAGE_DATA
 						      + BTR_BLOB_HDR_NEXT_PAGE_NO])
@@ -1798,17 +1797,13 @@ retry_page_get:
 		goto search_loop;
 	}
 
-	if (rw_latch != RW_NO_LATCH) {
 #ifdef UNIV_ZIP_DEBUG
+	if (rw_latch != RW_NO_LATCH) {
 		const page_zip_des_t*	page_zip
 			= buf_block_get_page_zip(block);
 		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
-#endif /* UNIV_ZIP_DEBUG */
-
-		buf_block_dbg_add_level(
-			block, dict_index_is_ibuf(index)
-			? SYNC_IBUF_TREE_NODE : SYNC_TREE_NODE);
 	}
+#endif /* UNIV_ZIP_DEBUG */
 
 	ut_ad(fil_page_index_page_check(page));
 	ut_ad(index->id == btr_page_get_index_id(page));
@@ -4402,7 +4397,6 @@ static void btr_cur_trim_alter_metadata(dtuple_t* entry,
 		page_id_t(index->table->space->id,
 			  mach_read_from_4(ptr + BTR_EXTERN_PAGE_NO)),
 		0, RW_S_LATCH, &mtr);
-	buf_block_dbg_add_level(block, SYNC_EXTERN_STORAGE);
 	ut_ad(fil_page_get_type(block->frame) == FIL_PAGE_TYPE_BLOB);
 	ut_ad(mach_read_from_4(&block->frame[FIL_PAGE_DATA
 					     + BTR_BLOB_HDR_NEXT_PAGE_NO])
@@ -7359,9 +7353,6 @@ btr_store_big_rec_extern_fields(
 					rec_block->zip_size(),
 					RW_X_LATCH, &mtr);
 
-				buf_block_dbg_add_level(prev_block,
-							SYNC_EXTERN_STORAGE);
-
 				if (page_zip) {
 					mtr.write<4>(*prev_block,
 						     prev_block->frame
@@ -7666,9 +7657,6 @@ btr_free_externally_stored_field(
 	ut_ad(rec || !block->page.zip.data);
 
 	for (;;) {
-#ifdef UNIV_DEBUG
-		buf_block_t*	rec_block;
-#endif /* UNIV_DEBUG */
 		buf_block_t*	ext_block;
 
 		mtr_start(&mtr);
@@ -7683,12 +7671,8 @@ btr_free_externally_stored_field(
 		const page_id_t	page_id(page_get_space_id(p),
 					page_get_page_no(p));
 
-#ifdef UNIV_DEBUG
-		rec_block =
-#endif /* UNIV_DEBUG */
 		buf_page_get(page_id, rec_zip_size, RW_X_LATCH, &mtr);
 
-		buf_block_dbg_add_level(rec_block, SYNC_NO_ORDER_CHECK);
 		page_no = mach_read_from_4(field_ref + BTR_EXTERN_PAGE_NO);
 
 		if (/* There is no external storage data */
@@ -7715,7 +7699,6 @@ btr_free_externally_stored_field(
 			page_id_t(space_id, page_no), ext_zip_size,
 			RW_X_LATCH, &mtr);
 
-		buf_block_dbg_add_level(ext_block, SYNC_EXTERN_STORAGE);
 		page = buf_block_get_frame(ext_block);
 
 		if (ext_zip_size) {
@@ -7885,7 +7868,6 @@ btr_copy_blob_prefix(
 		mtr_start(&mtr);
 
 		block = buf_page_get(id, 0, RW_S_LATCH, &mtr);
-		buf_block_dbg_add_level(block, SYNC_EXTERN_STORAGE);
 		page = buf_block_get_frame(block);
 
 		btr_check_blob_fil_page_type(*block, true);

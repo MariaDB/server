@@ -3606,16 +3606,8 @@ row_merge_insert_index_tuples(
 				dtuple, tuple_heap);
 		}
 
-#ifdef UNIV_DEBUG
-		static const latch_level_t latches[] = {
-			SYNC_INDEX_TREE,	/* index->lock */
-			SYNC_LEVEL_VARYING	/* btr_bulk->m_page_bulks */
-		};
-#endif /* UNIV_DEBUG */
-
 		ut_ad(dtuple_validate(dtuple));
-		ut_ad(!sync_check_iterate(sync_allowed_latches(latches,
-							       latches + 2)));
+		ut_ad(!sync_check_iterate(sync_check()));
 		error = btr_bulk->insert(dtuple);
 
 		if (error != DB_SUCCESS) {

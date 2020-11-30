@@ -309,7 +309,6 @@ log_free_check(void)
 	static const latch_level_t latches[] = {
 		SYNC_DICT,		/* dict_sys.mutex during
 					commit_try_rebuild() */
-		SYNC_INDEX_TREE		/* index->lock */
 	};
 #endif /* UNIV_DEBUG */
 

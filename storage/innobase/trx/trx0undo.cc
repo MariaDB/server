@@ -175,7 +175,6 @@ trx_undo_get_prev_rec_from_prev_page(buf_block_t *&block, uint16_t rec,
 
   block= buf_page_get(page_id_t(block->page.id().space(), prev_page_no),
                       0, shared ? RW_S_LATCH : RW_X_LATCH, mtr);
-  buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
 
   return trx_undo_page_get_last_rec(block, page_no, offset);
 }
@@ -243,7 +242,6 @@ trx_undo_get_next_rec_from_next_page(buf_block_t *&block, uint32_t page_no,
     return NULL;
 
   block= buf_page_get(page_id_t(block->page.id().space(), next), 0, mode, mtr);
-  buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
 
   return trx_undo_page_get_first_rec(block, page_no, offset);
 }
@@ -281,7 +279,6 @@ trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
                        mtr_t *mtr)
 {
   block = buf_page_get(page_id_t(space.id, page_no), 0, mode, mtr);
-  buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
 
   if (trx_undo_rec_t *rec= trx_undo_page_get_first_rec(block, page_no, offset))
     return rec;
@@ -392,8 +389,6 @@ trx_undo_seg_create(fil_space_t *space, buf_block_t *rseg_hdr, ulint *id,
 		*err = DB_OUT_OF_FILE_SPACE;
 		return NULL;
 	}
-
-	buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
 
 	mtr->undo_create(*block);
 	trx_undo_page_init(*block);
@@ -578,7 +573,6 @@ buf_block_t* trx_undo_add_page(trx_undo_t* undo, mtr_t* mtr)
 		goto func_exit;
 	}
 
-	buf_block_dbg_add_level(new_block, SYNC_TRX_UNDO_PAGE);
 	undo->last_page_no = new_block->page.id().page_no();
 
 	mtr->undo_create(*new_block);
@@ -1102,8 +1096,6 @@ trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
 	if (!block) {
 		return NULL;
 	}
-
-	buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
 
 	UT_LIST_REMOVE(rseg->undo_cached, undo);
 	MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_CACHED);

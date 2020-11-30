@@ -268,8 +268,6 @@ rtr_pcur_getnext_from_path(
 
 		if (block == NULL) {
 			continue;
-		} else if (rw_latch != RW_NO_LATCH) {
-			buf_block_dbg_add_level(block, SYNC_TREE_NODE);
 		}
 
 		rtr_info->tree_blocks[tree_idx] = block;

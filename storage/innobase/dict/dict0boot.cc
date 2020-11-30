@@ -35,15 +35,6 @@ Created 4/18/1996 Heikki Tuuri
 #include "log0recv.h"
 #include "os0file.h"
 
-/** @return the DICT_HDR block, x-latched */
-buf_block_t *dict_hdr_get(mtr_t* mtr)
-{
-  buf_block_t *block= buf_page_get(page_id_t(DICT_HDR_SPACE, DICT_HDR_PAGE_NO),
-				   0, RW_X_LATCH, mtr);
-  buf_block_dbg_add_level(block, SYNC_DICT_HEADER);
-  return block;
-}
-
 /**********************************************************************//**
 Returns a new table, index, or space id. */
 void

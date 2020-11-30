@@ -161,7 +161,6 @@ trx_sysf_create(
 	block = fseg_create(fil_system.sys_space,
 			    TRX_SYS + TRX_SYS_FSEG_HEADER,
 			    mtr);
-	buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);
 
 	ut_a(block->page.id() == page_id_t(0, TRX_SYS_PAGE_NO));
 

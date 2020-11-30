@@ -832,8 +832,6 @@ skip_secondaries:
 				page_id_t(rseg->space->id, page_no),
 				0, RW_X_LATCH, &mtr);
 
-			buf_block_dbg_add_level(block, SYNC_TRX_UNDO_PAGE);
-
 			data_field = buf_block_get_frame(block)
 				+ offset + internal_offset;
 

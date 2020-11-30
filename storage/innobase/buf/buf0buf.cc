@@ -2510,7 +2510,6 @@ void buf_page_free(const page_id_t page_id,
   block->lock.x_lock(file, line);
 
   block->page.status= buf_page_t::FREED;
-  buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
   hash_lock->read_unlock();
 }
 
@@ -3422,9 +3421,6 @@ buf_page_optimistic_get(
 	}
 
 	if (modify_clock != block->modify_clock) {
-
-		buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
-
 		if (rw_latch == RW_S_LATCH) {
 			block->lock.s_unlock();
 		} else {
@@ -3499,7 +3495,6 @@ buf_page_try_get_func(
   ut_ad(bpage->buf_fix_count());
   ut_ad(bpage->state() == BUF_BLOCK_FILE_PAGE);
   ut_ad(bpage->id() == page_id);
-  buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
 
   buf_pool.stat.n_page_gets++;
   return block;
