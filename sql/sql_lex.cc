@@ -3567,8 +3567,10 @@ void LEX::print(String *str, enum_query_type query_type)
     str->append(STRING_WITH_LEN("UPDATE "));
     if (ignore)
       str->append(STRING_WITH_LEN("IGNORE "));
-    // table name
-    str->append(query_tables->alias);
+    // table name. If the query was using a view, we need
+    // the underlying table name, not the view name
+    TABLE_LIST *base_tbl= query_tables->table->pos_in_table_list;
+    base_tbl->print(thd, table_map(0), str, query_type);
     str->append(STRING_WITH_LEN(" SET "));
     // print item assignments
     List_iterator<Item> it(sel->item_list);
@@ -3585,6 +3587,41 @@ void LEX::print(String *str, enum_query_type query_type)
       str->append(STRING_WITH_LEN("="));
       value->print(str, query_type);
     }
+
+    if (sel->where)
+    {
+      str->append(STRING_WITH_LEN(" WHERE "));
+      sel->where->print(str, query_type);
+    }
+
+    if (sel->order_list.elements)
+    {
+      str->append(STRING_WITH_LEN(" ORDER BY "));
+      for (ORDER *ord= sel->order_list.first; ord; ord= ord->next)
+      {
+        if (ord != sel->order_list.first)
+          str->append(STRING_WITH_LEN(", "));
+        (*ord->item)->print(str, query_type);
+      }
+    }
+    if (sel->select_limit)
+    {
+      str->append(STRING_WITH_LEN(" LIMIT "));
+      sel->select_limit->print(str, query_type);
+    }
+  }
+  else if (sql_command == SQLCOM_DELETE)
+  {
+    SELECT_LEX *sel= first_select_lex();
+    str->append(STRING_WITH_LEN("DELETE "));
+    if (ignore)
+      str->append(STRING_WITH_LEN("IGNORE "));
+
+    str->append(STRING_WITH_LEN("FROM "));
+    // table name. If the query was using a view, we need
+    // the underlying table name, not the view name
+    TABLE_LIST *base_tbl= query_tables->table->pos_in_table_list;
+    base_tbl->print(thd, table_map(0), str, query_type);
 
     if (sel->where)
     {
