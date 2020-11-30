@@ -4177,6 +4177,13 @@ public:
     locked_tables_mode= mode_arg;
   }
   void leave_locked_tables_mode();
+  /* Relesae transactional locks if there are no active transactions */
+  void release_transactional_locks()
+  {
+    if (!(server_status &
+          (SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY)))
+      mdl_context.release_transactional_locks();
+  }
   int decide_logging_format(TABLE_LIST *tables);
   /*
    In Some cases when decide_logging_format is called it does not have all

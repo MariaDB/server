@@ -2842,6 +2842,9 @@ void MDL_context::rollback_to_savepoint(const MDL_savepoint &mdl_savepoint)
 void MDL_context::release_transactional_locks()
 {
   DBUG_ENTER("MDL_context::release_transactional_locks");
+  /* Fail if there are active transactions */
+  DBUG_ASSERT(!(current_thd->server_status &
+                (SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY)));
   release_locks_stored_before(MDL_STATEMENT, NULL);
   release_locks_stored_before(MDL_TRANSACTION, NULL);
   DBUG_VOID_RETURN;

@@ -241,7 +241,7 @@ DROP TABLE t1;
 #
 # Bug#12352846 - TRANS_XA_START(THD*):
 #                ASSERTION THD->TRANSACTION.XID_STATE.XID.IS_NULL()
-#                FAILED 
+#                FAILED
 #
 DROP TABLE IF EXISTS t1, t2;
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
@@ -291,3 +291,29 @@ connection default;
 XA END 'xid1';
 XA ROLLBACK 'xid1';
 DROP TABLE t1, t2, t3;
+#
+# MDEV 15532 XA: Assertion `!log->same_pk' failed in
+# row_log_table_apply_delete
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+connect  con1,localhost,root,,test;
+XA START 'xid';
+UPDATE t1 SET a = 5;
+connection default;
+SET innodb_lock_wait_timeout= 2, lock_wait_timeout= 2;
+ALTER TABLE non_existing_table1;
+ERROR 42S02: Table 'test.non_existing_table1' doesn't exist
+ALTER TABLE t1 FORCE;;
+connection con1;
+ALTER TABLE non_existing_table2;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
+DELETE FROM t1 LIMIT 1;
+connection default;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+XA END 'xid';
+XA ROLLBACK 'xid';
+DROP TABLE t1;
+disconnect con1;
+connection default;
