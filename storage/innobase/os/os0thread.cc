@@ -27,58 +27,6 @@ Created 9/8/1995 Heikki Tuuri
 #include "univ.i"
 #include "srv0srv.h"
 
-/***************************************************************//**
-Compares two thread ids for equality.
-@return TRUE if equal */
-ibool
-os_thread_eq(
-/*=========*/
-	os_thread_id_t	a,	/*!< in: OS thread or thread id */
-	os_thread_id_t	b)	/*!< in: OS thread or thread id */
-{
-#ifdef _WIN32
-	if (a == b) {
-		return(TRUE);
-	}
-
-	return(FALSE);
-#else
-	if (pthread_equal(a, b)) {
-		return(TRUE);
-	}
-
-	return(FALSE);
-#endif
-}
-
-/****************************************************************//**
-Converts an OS thread id to a ulint. It is NOT guaranteed that the ulint is
-unique for the thread though!
-@return thread identifier as a number */
-ulint
-os_thread_pf(
-/*=========*/
-	os_thread_id_t	a)	/*!< in: OS thread identifier */
-{
-	return((ulint) a);
-}
-
-/*****************************************************************//**
-Returns the thread identifier of current thread. Currently the thread
-identifier in Unix is the thread handle itself. Note that in HP-UX
-pthread_t is a struct of 3 fields.
-@return current thread identifier */
-os_thread_id_t
-os_thread_get_curr_id(void)
-/*=======================*/
-{
-#ifdef _WIN32
-	return(GetCurrentThreadId());
-#else
-	return(pthread_self());
-#endif
-}
-
 /****************************************************************//**
 Creates a new thread of execution. The execution starts from
 the function given.
@@ -135,8 +83,7 @@ os_thread_t os_thread_create(os_thread_func_t func, void *arg)
 ATTRIBUTE_NORETURN void os_thread_exit()
 {
 #ifdef UNIV_DEBUG_THREAD_CREATION
-	ib::info() << "Thread exits, id "
-		<< os_thread_pf(os_thread_get_curr_id());
+	ib::info() << "Thread exits, id " << os_thread_get_curr_id();
 #endif
 
 #ifdef UNIV_PFS_THREAD
@@ -148,19 +95,6 @@ ATTRIBUTE_NORETURN void os_thread_exit()
 #else
 	pthread_detach(pthread_self());
 	pthread_exit(NULL);
-#endif
-}
-
-/*****************************************************************//**
-Advises the os to give up remainder of the thread's time slice. */
-void
-os_thread_yield(void)
-/*=================*/
-{
-#if defined(_WIN32)
-	SwitchToThread();
-#else
-	sched_yield();
 #endif
 }
 

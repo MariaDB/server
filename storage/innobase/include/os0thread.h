@@ -66,22 +66,10 @@ typedef void* (*os_posix_f_t) (void*);
 typedef unsigned int    mysql_pfs_key_t;
 #endif /* HAVE_PSI_INTERFACE */
 
-/***************************************************************//**
-Compares two thread ids for equality.
-@return TRUE if equal */
-ibool
-os_thread_eq(
-/*=========*/
-	os_thread_id_t	a,	/*!< in: OS thread or thread id */
-	os_thread_id_t	b);	/*!< in: OS thread or thread id */
-/****************************************************************//**
-Converts an OS thread id to a ulint. It is NOT guaranteed that the ulint is
-unique for the thread though!
-@return thread identifier as a number */
-ulint
-os_thread_pf(
-/*=========*/
-	os_thread_id_t	a);	/*!< in: OS thread identifier */
+#define os_thread_eq(a,b) IF_WIN(a == b, pthread_equal(a, b))
+#define os_thread_yield() IF_WIN(SwitchToThread(), sched_yield())
+#define os_thread_get_curr_id() IF_WIN(GetCurrentThreadId(), pthread_self())
+
 /****************************************************************//**
 Creates a new thread of execution. The execution starts from
 the function given.
@@ -94,17 +82,6 @@ os_thread_t os_thread_create(os_thread_func_t func, void *arg= nullptr);
 /** Detach and terminate the current thread. */
 ATTRIBUTE_NORETURN void os_thread_exit();
 
-/*****************************************************************//**
-Returns the thread identifier of current thread.
-@return current thread identifier */
-os_thread_id_t
-os_thread_get_curr_id(void);
-/*========================*/
-/*****************************************************************//**
-Advises the os to give up remainder of the thread's time slice. */
-void
-os_thread_yield(void);
-/*=================*/
 /*****************************************************************//**
 The thread sleeps at least the time given in microseconds. */
 void

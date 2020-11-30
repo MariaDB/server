@@ -112,7 +112,7 @@ struct LatchDebug {
 			const os_thread_id_t& rhs) const
 			UNIV_NOTHROW
 		{
-			return(os_thread_pf(lhs) < os_thread_pf(rhs));
+			return(ulint(lhs) < ulint(rhs));
 		}
 	};
 
@@ -537,7 +537,7 @@ LatchDebug::crash(
 		get_level_name(latched->m_level);
 
 	ib::error()
-		<< "Thread " << os_thread_pf(os_thread_get_curr_id())
+		<< "Thread " << os_thread_get_curr_id()
 		<< " already owns a latch "
 		<< sync_latch_get_name(latch->m_id) << " at level"
 		<< " " << latched->m_level << " (" << latch_level_name

@@ -477,10 +477,10 @@ sync_array_cell_print(
 	type = cell->request_type;
 
 	fprintf(file,
-		"--Thread %lu has waited at %s line %lu"
+		"--Thread " ULINTPF " has waited at %s line " ULINTPF
 		" for %.2f seconds the semaphore:\n",
-		(ulong) os_thread_pf(cell->thread_id),
-		innobase_basename(cell->file), (ulong) cell->line,
+		ulint(cell->thread_id),
+		innobase_basename(cell->file), cell->line,
 		difftime(time(NULL), cell->reservation_time));
 
 	switch (type) {
@@ -510,7 +510,7 @@ sync_array_cell_print(
 				fprintf(file,
 					"a writer (thread id " ULINTPF ") has"
 					" reserved it in mode %s",
-					os_thread_pf(rwlock->writer_thread),
+					ulint(rwlock->writer_thread),
 				writer == RW_LOCK_X ? " exclusive\n"
 				: writer == RW_LOCK_SX ? " SX\n"
 					: " wait exclusive\n");
@@ -532,7 +532,7 @@ sync_array_cell_print(
 				innobase_basename(rwlock->last_x_file_name),
 				rwlock->last_x_line
 #if 0 /* JAN: TODO: FIX LATER */
-				, os_thread_pf(rwlock->thread_id),
+				, ulint(rwlock->thread_id),
 				innobase_basename(rwlock->file_name),
 				rwlock->line
 #endif
@@ -725,7 +725,7 @@ sync_array_detect_deadlock(
 
 				ib::info()
 					<< "Mutex " << mutex << " owned by"
-					" thread " << os_thread_pf(thread)
+					" thread " << thread
 					<< " file " << name << " line "
 					<< policy.context.get_enter_line();
 
@@ -1203,7 +1203,7 @@ sync_arr_fill_sys_semphore_waits_table(
 			type = cell->request_type;
 			/* JAN: FIXME
 			OK(fields[SYS_SEMAPHORE_WAITS_THREAD_ID]->store(,
-			(longlong)os_thread_pf(cell->thread), true));
+			ulint(cell->thread), true));
 			*/
 			OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_FILE], innobase_basename(cell->file)));
 			OK(fields[SYS_SEMAPHORE_WAITS_LINE]->store(cell->line, true));
@@ -1259,7 +1259,7 @@ sync_arr_fill_sys_semphore_waits_table(
 					if (writer != RW_LOCK_NOT_LOCKED) {
 						// JAN: FIXME
 						// OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_OBJECT_NAME], rwlock->lock_name));
-						OK(fields[SYS_SEMAPHORE_WAITS_WRITER_THREAD]->store(os_thread_pf(rwlock->writer_thread), true));
+						OK(fields[SYS_SEMAPHORE_WAITS_WRITER_THREAD]->store(ulint(rwlock->writer_thread), true));
 
 						if (writer == RW_LOCK_X) {
 							OK(field_store_string(fields[SYS_SEMAPHORE_WAITS_RESERVATION_MODE], "RW_LOCK_X"));
