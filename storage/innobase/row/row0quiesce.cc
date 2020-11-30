@@ -677,10 +677,10 @@ row_quiesce_set_state(
 	for (dict_index_t* index = dict_table_get_next_index(clust_index);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
-		rw_lock_x_lock(&index->lock);
+		index->lock.x_lock(__FILE__, __LINE__);
 	}
 
-	rw_lock_x_lock(&clust_index->lock);
+	clust_index->lock.x_lock(__FILE__, __LINE__);
 
 	switch (state) {
 	case QUIESCE_START:
@@ -700,7 +700,7 @@ row_quiesce_set_state(
 	for (dict_index_t* index = dict_table_get_first_index(table);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
-		rw_lock_x_unlock(&index->lock);
+		index->lock.x_unlock();
 	}
 
 	row_mysql_unlock_data_dictionary(trx);

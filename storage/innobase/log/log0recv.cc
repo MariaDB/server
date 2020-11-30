@@ -2461,9 +2461,9 @@ void recv_recover_page(fil_space_t* space, buf_page_t* bpage)
 	this OS thread, so that we can acquire a second
 	x-latch on it.  This is needed for the operations to
 	the page to pass the debug checks. */
-	rw_lock_x_lock_move_ownership(&block->lock);
-	buf_block_buf_fix_inc(block, __FILE__, __LINE__);
-	rw_lock_x_lock(&block->lock);
+	block->lock.claim_ownership();
+	block->lock.x_lock_recursive();
+	buf_block_buf_fix_inc(block);
 	mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
 
 	mutex_enter(&recv_sys.mutex);

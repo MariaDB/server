@@ -881,7 +881,6 @@ constexpr const char* const auto_event_names[] =
   "srv0start",
   "sync0arr",
   "sync0debug",
-  "sync0rw",
   "sync0start",
   "sync0types",
   "trx0i_s",

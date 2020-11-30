@@ -27,6 +27,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "mach0data.h"
 #include "assume_aligned.h"
 #include "ut0crc32.h"
+#include "sync0debug.h"
 
 extern ulong srv_log_buffer_size;
 

@@ -25,7 +25,6 @@ Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
 #include "buf0lru.h"
-#include "sync0rw.h"
 #include "fil0fil.h"
 #include "btr0btr.h"
 #include "buf0buddy.h"

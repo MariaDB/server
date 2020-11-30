@@ -1950,7 +1950,7 @@ row_merge_read_clustered_index(
 				goto scan_next;
 			}
 
-			if (clust_index->lock.waiters) {
+			if (0/*FIXME: clust_index->count_os_waits changed*/) {
 				/* There are waiters on the clustered
 				index tree lock, likely the purge
 				thread. Store and restore the cursor
@@ -2557,22 +2557,21 @@ write_buffers:
 				from accessing this index, to ensure
 				read consistency. */
 
-				trx_id_t	max_trx_id;
-
 				ut_a(row == NULL);
-				rw_lock_x_lock(
-					dict_index_get_lock(buf->index));
-				ut_a(dict_index_get_online_status(buf->index)
+
+				dict_index_t* index = buf->index;
+				index->lock.x_lock(__FILE__, __LINE__);
+				ut_a(dict_index_get_online_status(index)
 				     == ONLINE_INDEX_CREATION);
 
-				max_trx_id = row_log_get_max_trx(buf->index);
+				trx_id_t max_trx_id = row_log_get_max_trx(
+					index);
 
-				if (max_trx_id > buf->index->trx_id) {
-					buf->index->trx_id = max_trx_id;
+				if (max_trx_id > index->trx_id) {
+					index->trx_id = max_trx_id;
 				}
 
-				rw_lock_x_unlock(
-					dict_index_get_lock(buf->index));
+				index->lock.x_unlock();
 			}
 
 			/* Secondary index and clustered index which is
@@ -3867,8 +3866,7 @@ row_merge_drop_indexes(
 						table, index);
 					index = prev;
 				} else {
-					rw_lock_x_lock(
-						dict_index_get_lock(index));
+					index->lock.x_lock(__FILE__, __LINE__);
 					dict_index_set_online_status(
 						index, ONLINE_INDEX_ABORTED);
 					index->type |= DICT_CORRUPT;
@@ -3877,11 +3875,11 @@ row_merge_drop_indexes(
 				}
 				continue;
 			case ONLINE_INDEX_CREATION:
-				rw_lock_x_lock(dict_index_get_lock(index));
+				index->lock.x_lock(__FILE__, __LINE__);
 				ut_ad(!index->is_committed());
 				row_log_abort_sec(index);
 			drop_aborted:
-				rw_lock_x_unlock(dict_index_get_lock(index));
+				index->lock.x_unlock();
 
 				DEBUG_SYNC_C("merge_drop_index_after_abort");
 				/* covered by dict_sys.mutex */
@@ -3893,10 +3891,10 @@ row_merge_drop_indexes(
 				the tablespace, but keep the object
 				in the data dictionary cache. */
 				row_merge_drop_index_dict(trx, index->id);
-				rw_lock_x_lock(dict_index_get_lock(index));
+				index->lock.x_lock(__FILE__, __LINE__);
 				dict_index_set_online_status(
 					index, ONLINE_INDEX_ABORTED_DROPPED);
-				rw_lock_x_unlock(dict_index_get_lock(index));
+				index->lock.x_unlock();
 				table->drop_aborted = TRUE;
 				continue;
 			}
@@ -4768,12 +4766,10 @@ func_exit:
 			case ONLINE_INDEX_COMPLETE:
 				break;
 			case ONLINE_INDEX_CREATION:
-				rw_lock_x_lock(
-					dict_index_get_lock(indexes[i]));
+				indexes[i]->lock.x_lock(__FILE__, __LINE__);
 				row_log_abort_sec(indexes[i]);
 				indexes[i]->type |= DICT_CORRUPT;
-				rw_lock_x_unlock(
-					dict_index_get_lock(indexes[i]));
+				indexes[i]->lock.x_unlock();
 				new_table->drop_aborted = TRUE;
 				/* fall through */
 			case ONLINE_INDEX_ABORTED_DROPPED:

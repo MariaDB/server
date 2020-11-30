@@ -1368,4 +1368,3 @@ sync_check_close()
 
 	sync_latch_meta_destroy();
 }
-

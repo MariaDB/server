@@ -371,7 +371,6 @@ my $s  = qr/(\d{6} .?\d:\d\d:\d\d)/;   # InnoDB timestamp
 my %innodb_section_headers = (
    "TRANSACTIONS"                          => "tx",
    "BUFFER POOL AND MEMORY"                => "bp",
-   "SEMAPHORES"                            => "sm",
    "LOG"                                   => "lg",
    "ROW OPERATIONS"                        => "ro",
    "INSERT BUFFER AND ADAPTIVE HASH INDEX" => "ib",
@@ -384,7 +383,6 @@ my %innodb_section_headers = (
 my %parser_for = (
    tx => \&parse_tx_section,
    bp => \&parse_bp_section,
-   sm => \&parse_sm_section,
    lg => \&parse_lg_section,
    ro => \&parse_ro_section,
    ib => \&parse_ib_section,
@@ -581,10 +579,6 @@ sub get_status_hash {
       (map { 'IB_lg_' . $_ => $innodb_status->{'sections'}->{'lg'}->{$_} }
          qw( log_ios_done pending_chkp_writes last_chkp log_ios_s
             log_flushed_to log_seq_no pending_log_writes complete )),
-      (map { 'IB_sm_' . $_ => $innodb_status->{'sections'}->{'sm'}->{$_} }
-         qw( wait_array_size rw_shared_spins rw_excl_os_waits mutex_os_waits
-            mutex_spin_rounds mutex_spin_waits rw_excl_spins rw_shared_os_waits
-            waits signal_count reservation_count complete )),
       (map { 'IB_ro_' . $_ => $innodb_status->{'sections'}->{'ro'}->{$_} }
          qw( queries_in_queue n_reserved_extents main_thread_state
          main_thread_proc_no main_thread_id read_sec del_sec upd_sec ins_sec
@@ -1228,75 +1222,6 @@ sub parse_ib_section {
    return 1;
 }
 
-sub parse_wait_array {
-   my ( $text, $complete, $debug, $full ) = @_;
-   my %result;
-
-   @result{ qw(thread waited_at_filename waited_at_line waited_secs) }
-      = $text =~ m/^--Thread $d has waited at $fl for $f seconds/m;
-
-   # Depending on whether it's a SYNC_MUTEX,RW_LOCK_EX,RW_LOCK_SHARED,
-   # there will be different text output
-   if ( $text =~ m/^Mutex at/m ) {
-      $result{'request_type'} = 'M';
-      @result{ qw( lock_mem_addr lock_cfile_name lock_cline lock_var) }
-         = $text =~ m/^Mutex at $h created file $fl, lock var $d$/m;
-      @result{ qw( waiters_flag )}
-         = $text =~ m/^waiters flag $d$/m;
-   }
-   else {
-      @result{ qw( request_type lock_mem_addr lock_cfile_name lock_cline) }
-         = $text =~ m/^(.)-lock on RW-latch at $h created in file $fl$/m;
-      @result{ qw( writer_thread writer_lock_mode ) }
-         = $text =~ m/^a writer \(thread id $d\) has reserved it in mode  (.*)$/m;
-      @result{ qw( num_readers waiters_flag )}
-         = $text =~ m/^number of readers $d, waiters flag $d$/m;
-      @result{ qw(last_s_file_name last_s_line ) }
-         = $text =~ m/Last time read locked in file $fl$/m;
-      @result{ qw(last_x_file_name last_x_line ) }
-         = $text =~ m/Last time write locked in file $fl$/m;
-   }
-
-   $result{'cell_waiting'} = $text =~ m/^wait has ended$/m ? 0 : 1;
-   $result{'cell_event_set'} = $text =~ m/^wait is ending$/m ? 1 : 0;
-
-   # Because there are two code paths, some things won't get set.
-   map { $result{$_} ||= '' }
-      qw(last_s_file_name last_x_file_name writer_lock_mode);
-   map { $result{$_} ||= 0 }
-      qw(num_readers lock_var last_s_line last_x_line writer_thread);
-
-   return \%result;
-}
-
-sub parse_sm_section {
-   my ( $section, $complete, $debug, $full ) = @_;
-   return 0 unless $section && $section->{'fulltext'};
-   my $fulltext = $section->{'fulltext'};
-
-   # Grab the info
-   @{$section}{ 'reservation_count', 'signal_count' }
-      = $fulltext =~ m/^OS WAIT ARRAY INFO: reservation count $d, signal count $d$/m;
-   @{$section}{ 'mutex_spin_waits', 'mutex_spin_rounds', 'mutex_os_waits' }
-      = $fulltext =~ m/^Mutex spin waits $d, rounds $d, OS waits $d$/m;
-   @{$section}{ 'rw_shared_spins', 'rw_shared_os_waits', 'rw_excl_spins', 'rw_excl_os_waits' }
-      = $fulltext =~ m/^RW-shared spins $d, OS waits $d; RW-excl spins $d, OS waits $d$/m;
-   if ( ! defined $section->{rw_shared_spins} ) {
-      @{$section}{ 'rw_shared_spins', 'rw_shared_os_waits'}
-         = $fulltext =~ m/^RW-shared spins $d, rounds \d+, OS waits $d$/m;
-      @{$section}{ 'rw_excl_spins', 'rw_excl_os_waits' }
-         = $fulltext =~ m/^RW-excl spins $d, rounds \d+, OS waits $d$/m;
-   }
-
-   # Look for info on waits.
-   my @waits = $fulltext =~ m/^(--Thread.*?)^(?=Mutex spin|--Thread)/gms;
-   $section->{'waits'} = [ map { parse_wait_array($_, $complete, $debug) } @waits ];
-   $section->{'wait_array_size'} = scalar(@waits);
-
-   delete $section->{'fulltext'} unless $debug;
-   return 1;
-}
-
 # I've read the source for this section.
 sub parse_bp_section {
    my ( $section, $complete, $debug, $full ) = @_;
@@ -1672,10 +1597,6 @@ my %columns = (
    last_chkp                   => { hdr => 'Last Checkpoint',     num => 0, label => 'Last log checkpoint' },
    last_errno                  => { hdr => 'Last Errno',          num => 1, label => 'Last error number' },
    last_error                  => { hdr => 'Last Error',          num => 0, label => 'Last error' },
-   last_s_file_name            => { hdr => 'S-File',              num => 0, label => 'Filename where last read locked' },
-   last_s_line                 => { hdr => 'S-Line',              num => 1, label => 'Line where last read locked' },
-   last_x_file_name            => { hdr => 'X-File',              num => 0, label => 'Filename where last write locked' },
-   last_x_line                 => { hdr => 'X-Line',              num => 1, label => 'Line where last write locked' },
    last_pct                    => { hdr => 'Pct',                 num => 1, label => 'Last Percentage' },
    last_total                  => { hdr => 'Last Total',          num => 1, label => 'Last Total' },
    last_value                  => { hdr => 'Last Incr',           num => 1, label => 'Last Value' },
@@ -3043,10 +2964,6 @@ my %tbl_meta = (
          num_readers        => { src => 'num_readers' },
          lock_var           => { src => 'lock_var' },
          waiters_flag       => { src => 'waiters_flag' },
-         last_s_file_name   => { src => 'last_s_file_name' },
-         last_s_line        => { src => 'last_s_line' },
-         last_x_file_name   => { src => 'last_x_file_name' },
-         last_x_line        => { src => 'last_x_line' },
          cell_waiting       => { src => 'cell_waiting' },
          cell_event_set     => { src => 'cell_event_set' },
       },

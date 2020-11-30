@@ -1358,7 +1358,7 @@ fsp_alloc_seg_inode_page(fil_space_t *space, buf_block_t *header, mtr_t *mtr)
     return false;
 
   buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
-  ut_ad(rw_lock_get_x_lock_count(&block->lock) == 1);
+  ut_ad(block->lock.not_recursive());
 
   mtr->write<2>(*block, block->frame + FIL_PAGE_TYPE, FIL_PAGE_INODE);
 
@@ -1719,7 +1719,7 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
 			goto funct_exit;
 		}
 
-		ut_ad(rw_lock_get_x_lock_count(&block->lock) == 1);
+		ut_ad(block->lock.not_recursive());
 		ut_ad(!fil_page_get_type(block->frame));
 		mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->frame,
 			      FIL_PAGE_TYPE_SYS);

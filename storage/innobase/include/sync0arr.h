@@ -46,7 +46,6 @@ UNIV_INLINE
 sync_array_t*
 sync_array_get_and_reserve_cell(
 	void*		object,	/*!< in: pointer to the object to wait for */
-	ulint		type,	/*!< in: lock request type */
 	const char*	file,	/*!< in: file where requested */
 	unsigned	line,	/*!< in: line where requested */
 	sync_cell_t**	cell);	/*!< out: the cell reserved, never NULL */
@@ -56,8 +55,7 @@ The event of the cell is reset to nonsignalled state. */
 sync_cell_t*
 sync_array_reserve_cell(
 	sync_array_t*	arr,	/*!< in: wait array */
-	void*		object, /*!< in: pointer to the object to wait for */
-	ulint		type,	/*!< in: lock request type */
+	void*		object,	/*!< in: pointer to the object to wait for */
 	const char*	file,	/*!< in: file where requested */
 	unsigned	line);	/*!< in: line where requested */
 

@@ -1261,15 +1261,6 @@ dict_index_get_page(
 /*================*/
 	const dict_index_t*	tree)	/*!< in: index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*********************************************************************//**
-Gets the read-write lock of the index tree.
-@return read-write lock */
-UNIV_INLINE
-rw_lock_t*
-dict_index_get_lock(
-/*================*/
-	const dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /********************************************************************//**
 Returns free space reserved for future updates of records. This is
 relevant only in the case of many consecutive inserts, as updates

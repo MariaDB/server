@@ -305,11 +305,7 @@ row_undo_mod_clust(
 	ut_ad(online || !dict_index_is_online_ddl(index));
 
 	if (err == DB_SUCCESS && online) {
-
-		ut_ad(rw_lock_own_flagged(
-				&index->lock,
-				RW_LOCK_FLAG_S | RW_LOCK_FLAG_X
-				| RW_LOCK_FLAG_SX));
+		ut_ad(index->lock.have_any());
 
 		switch (node->rec_type) {
 		case TRX_UNDO_DEL_MARK_REC:

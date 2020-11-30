@@ -28,6 +28,7 @@ Created 11/28/1995 Heikki Tuuri
 #ifndef UNIV_INNOCHECKSUM
 
 #include "mtr0types.h"
+#include "ut0byte.h"
 
 /*******************************************************//**
 The following function is used to store data in one byte. */

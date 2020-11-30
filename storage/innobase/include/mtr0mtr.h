@@ -67,7 +67,7 @@ savepoint. */
 
 #define mtr_s_lock_index(i, m)	(m)->s_lock(&(i)->lock, __FILE__, __LINE__)
 #define mtr_x_lock_index(i, m)	(m)->x_lock(&(i)->lock, __FILE__, __LINE__)
-#define mtr_sx_lock_index(i, m)	(m)->sx_lock(&(i)->lock, __FILE__, __LINE__)
+#define mtr_sx_lock_index(i, m)	(m)->u_lock(&(i)->lock, __FILE__, __LINE__)
 
 #define mtr_release_block_at_savepoint(m, s, b)				\
 				(m)->release_block_at_savepoint((s), (b))
@@ -117,7 +117,7 @@ struct mtr_t {
 	@param lock		latch to release */
 	inline void release_s_latch_at_savepoint(
 		ulint		savepoint,
-		rw_lock_t*	lock);
+		index_lock*	lock);
 
 	/** Release the block in an mtr memo after a savepoint. */
 	inline void release_block_at_savepoint(
@@ -218,9 +218,9 @@ struct mtr_t {
 	@param[in]	lock	rw-latch
 	@param[in]	file	file name from where called
 	@param[in]	line	line number in file */
-	void s_lock(rw_lock_t* lock, const char* file, unsigned line)
+	void s_lock(index_lock* lock, const char* file, unsigned line)
 	{
-		rw_lock_s_lock_inline(lock, 0, file, line);
+		lock->s_lock(file, line);
 		memo_push(lock, MTR_MEMO_S_LOCK);
 	}
 
@@ -228,19 +228,19 @@ struct mtr_t {
 	@param[in]	lock	rw-latch
 	@param[in]	file	file name from where called
 	@param[in]	line	line number in file */
-	void x_lock(rw_lock_t* lock, const char* file, unsigned line)
+	void x_lock(index_lock* lock, const char* file, unsigned line)
 	{
-		rw_lock_x_lock_inline(lock, 0, file, line);
+		lock->x_lock(file, line);
 		memo_push(lock, MTR_MEMO_X_LOCK);
 	}
 
-	/** Acquire an shared/exclusive rw-latch.
+	/** Acquire an update latch.
 	@param[in]	lock	rw-latch
 	@param[in]	file	file name from where called
 	@param[in]	line	line number in file */
-	void sx_lock(rw_lock_t* lock, const char* file, unsigned line)
+	void u_lock(index_lock* lock, const char* file, unsigned line)
 	{
-		rw_lock_sx_lock_inline(lock, 0, file, line);
+		lock->u_lock(file, line);
 		memo_push(lock, MTR_MEMO_SX_LOCK);
 	}
 
@@ -315,6 +315,20 @@ public:
     return false;
 #endif
   }
+
+  /** Latch a buffer pool block.
+  @param block    block to be latched
+  @param rw_latch RW_S_LATCH, RW_SX_LATCH, RW_X_LATCH, RW_NO_LATCH
+  @param file     file name
+  @param line     line where called */
+  void page_lock(buf_block_t *block, ulint rw_latch,
+                 const char *file, unsigned line);
+
+  /** Upgrade U locks on a block to X */
+  void page_lock_upgrade(const buf_block_t &block);
+  /** Upgrade X lock to X */
+  void lock_upgrade(const index_lock &lock);
+
   /** Check if we are holding tablespace latch
   @param space  tablespace to search for
   @param shared whether to look for shared latch, instead of exclusive
@@ -326,7 +340,7 @@ public:
   @param lock   latch to search for
   @param type   held latch type
   @return whether (lock,type) is contained */
-  bool memo_contains(const rw_lock_t &lock, mtr_memo_type_t type)
+  bool memo_contains(const index_lock &lock, mtr_memo_type_t type)
     MY_ATTRIBUTE((warn_unused_result));
 
 	/** Check if memo contains the given item.

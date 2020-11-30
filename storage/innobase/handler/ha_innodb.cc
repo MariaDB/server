@@ -11365,10 +11365,10 @@ innobase_parse_hint_from_comment(
 
 			/* x-lock index is needed to exclude concurrent
 			pessimistic tree operations */
-			rw_lock_x_lock(dict_index_get_lock(index));
+			index->lock.x_lock(__FILE__, __LINE__);
 			index->merge_threshold = merge_threshold_table
 				& ((1U << 6) - 1);
-			rw_lock_x_unlock(dict_index_get_lock(index));
+			index->lock.x_unlock();
 
 			continue;
 		}
@@ -11385,11 +11385,11 @@ innobase_parse_hint_from_comment(
 
 				/* x-lock index is needed to exclude concurrent
 				pessimistic tree operations */
-				rw_lock_x_lock(dict_index_get_lock(index));
+				index->lock.x_lock(__FILE__, __LINE__);
 				index->merge_threshold
 					= merge_threshold_index[i]
 					& ((1U << 6) - 1);
-				rw_lock_x_unlock(dict_index_get_lock(index));
+				index->lock.x_unlock();
 				is_found[i] = true;
 
 				break;
@@ -15861,13 +15861,13 @@ innodb_show_rwlock_status(
 
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 #if 0 // FIXME
-	const rw_lock_t* block_rwlock= nullptr;
+	const block_lock* block_rwlock= nullptr;
 	ulint		block_rwlock_oswait_count = 0;
 	uint		hton_name_len = (uint) strlen(innobase_hton_name);
 
 	mutex_enter(&dict_sys.mutex);
 
-	for (const rw_lock_t& rw_lock : rw_lock_list) {
+	for (const block_lock& rw_lock : rw_lock_list) {
 
 		if (rw_lock.count_os_wait == 0) {
 			continue;

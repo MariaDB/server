@@ -341,8 +341,7 @@ row_log_online_op(
 
 	ut_ad(dtuple_validate(tuple));
 	ut_ad(dtuple_get_n_fields(tuple) == dict_index_get_n_fields(index));
-	ut_ad(rw_lock_own_flagged(&index->lock,
-				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
+	// FIXME: ut_ad(index->lock.have_s_or_x());
 
 	if (index->is_corrupted()) {
 		return;
@@ -660,9 +659,7 @@ row_log_table_delete(
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(rec_offs_n_fields(offsets) == dict_index_get_n_fields(index));
 	ut_ad(rec_offs_size(offsets) <= sizeof index->online_log->tail.buf);
-	ut_ad(rw_lock_own_flagged(
-			&index->lock,
-			RW_LOCK_FLAG_S | RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX));
+	ut_ad(index->lock.have_any());
 
 	if (index->online_status != ONLINE_INDEX_CREATION
 	    || (index->type & DICT_CORRUPT) || index->table->corrupted
@@ -957,9 +954,8 @@ row_log_table_low(
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(rec_offs_n_fields(offsets) == dict_index_get_n_fields(index));
 	ut_ad(rec_offs_size(offsets) <= sizeof log->tail.buf);
-	ut_ad(rw_lock_own_flagged(
-			&index->lock,
-			RW_LOCK_FLAG_S | RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX));
+	ut_ad(index->lock.have_any());
+
 #ifdef UNIV_DEBUG
 	switch (fil_page_get_type(page_align(rec))) {
 	case FIL_PAGE_INDEX:
@@ -1239,10 +1235,7 @@ row_log_table_get_pk(
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(dict_index_is_online_ddl(index));
 	ut_ad(!offsets || rec_offs_validate(rec, index, offsets));
-	ut_ad(rw_lock_own_flagged(
-			&index->lock,
-			RW_LOCK_FLAG_S | RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX));
-
+	ut_ad(index->lock.have_any());
 	ut_ad(log);
 	ut_ad(log->table);
 	ut_ad(log->min_trx);
@@ -1447,9 +1440,7 @@ row_log_table_blob_free(
 {
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(dict_index_is_online_ddl(index));
-	ut_ad(rw_lock_own_flagged(
-			&index->lock,
-			RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX));
+	ut_ad(index->lock.have_u_or_x());
 	ut_ad(page_no != FIL_NULL);
 
 	if (index->online_log->error != DB_SUCCESS) {
@@ -1491,10 +1482,7 @@ row_log_table_blob_alloc(
 {
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(dict_index_is_online_ddl(index));
-
-	ut_ad(rw_lock_own_flagged(
-			&index->lock,
-			RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX));
+	ut_ad(index->lock.have_u_or_x());
 
 	ut_ad(page_no != FIL_NULL);
 
@@ -1588,7 +1576,7 @@ row_log_table_apply_convert_mrec(
 
 		if (rec_offs_nth_extern(offsets, i)) {
 			ut_ad(rec_offs_any_extern(offsets));
-			rw_lock_x_lock(dict_index_get_lock(index));
+			index->lock.x_lock(__FILE__, __LINE__);
 
 			if (const page_no_map* blobs = log->blobs) {
 				data = rec_get_nth_field(
@@ -1618,7 +1606,7 @@ row_log_table_apply_convert_mrec(
 			ut_a(data);
 			dfield_set_data(dfield, data, len);
 blob_done:
-			rw_lock_x_unlock(dict_index_get_lock(index));
+			index->lock.x_unlock();
 		} else {
 			data = rec_get_nth_field(mrec, offsets, i, &len);
 			if (len == UNIV_SQL_DEFAULT) {
@@ -2768,7 +2756,7 @@ row_log_table_apply_ops(
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(dict_index_is_online_ddl(index));
 	ut_ad(trx->mysql_thd);
-	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_X));
+	ut_ad(index->lock.have_x());
 	ut_ad(!dict_index_is_online_ddl(new_index));
 	ut_ad(dict_col_get_clust_pos(
 		      dict_table_get_sys_col(index->table, DATA_TRX_ID), index)
@@ -2788,7 +2776,7 @@ row_log_table_apply_ops(
 
 next_block:
 	ut_ad(has_index_lock);
-	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_X));
+	ut_ad(index->lock.have_u_or_x());
 	ut_ad(index->online_log->head.bytes == 0);
 
 	stage->inc(row_log_progress_inc_per_block());
@@ -2861,7 +2849,7 @@ all_done:
 
 		ut_ad(has_index_lock);
 		has_index_lock = false;
-		rw_lock_x_unlock(dict_index_get_lock(index));
+		index->lock.x_unlock();
 
 		log_free_check();
 
@@ -3052,7 +3040,7 @@ all_done:
 
 			mrec = NULL;
 process_next_block:
-			rw_lock_x_lock(dict_index_get_lock(index));
+			index->lock.x_lock(__FILE__, __LINE__);
 			has_index_lock = true;
 
 			index->online_log->head.bytes = 0;
@@ -3084,7 +3072,7 @@ interrupted:
 	error = DB_INTERRUPTED;
 func_exit:
 	if (!has_index_lock) {
-		rw_lock_x_lock(dict_index_get_lock(index));
+		index->lock.x_lock(__FILE__, __LINE__);
 	}
 
 	mem_heap_free(offsets_heap);
@@ -3126,7 +3114,7 @@ row_log_table_apply(
 		clust_index->online_log->n_rows = new_table->stat_n_rows;
 	}
 
-	rw_lock_x_lock(dict_index_get_lock(clust_index));
+	clust_index->lock.x_lock(__FILE__, __LINE__);
 
 	if (!clust_index->online_log) {
 		ut_ad(dict_index_get_online_status(clust_index)
@@ -3149,7 +3137,7 @@ row_log_table_apply(
 		      == clust_index->online_log->tail.total);
 	}
 
-	rw_lock_x_unlock(dict_index_get_lock(clust_index));
+	clust_index->lock.x_unlock();
 	DBUG_EXECUTE_IF("innodb_trx_duplicates",
 			thr_get_trx(thr)->duplicates = 0;);
 
@@ -3188,7 +3176,7 @@ row_log_allocate(
 	ut_ad(same_pk || table);
 	ut_ad(!table || col_map);
 	ut_ad(!defaults || col_map);
-	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_X));
+	ut_ad(index->lock.have_u_or_x());
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 	ut_ad(trx->id);
 
@@ -3297,11 +3285,9 @@ row_log_get_max_trx(
 	dict_index_t*	index)	/*!< in: index, must be locked */
 {
 	ut_ad(dict_index_get_online_status(index) == ONLINE_INDEX_CREATION);
-
-	ut_ad((rw_lock_own(dict_index_get_lock(index), RW_LOCK_S)
-	       && mutex_own(&index->online_log->mutex))
-	      || rw_lock_own(dict_index_get_lock(index), RW_LOCK_X));
-
+	ut_ad(index->lock.have_x()
+	      || (index->lock.have_s()
+		  && mutex_own(&index->online_log->mutex)));
 	return(index->online_log->max_trx);
 }
 
@@ -3329,8 +3315,7 @@ row_log_apply_op_low(
 
 	ut_ad(!dict_index_is_clust(index));
 
-	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_X)
-	      == has_index_lock);
+	ut_ad(index->lock.have_x() == has_index_lock);
 
 	ut_ad(!index->is_corrupted());
 	ut_ad(trx_id != 0 || op == ROW_OP_DELETE);
@@ -3572,8 +3557,7 @@ row_log_apply_op(
 	/* Online index creation is only used for secondary indexes. */
 	ut_ad(!dict_index_is_clust(index));
 
-	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_X)
-	      == has_index_lock);
+	ut_ad(index->lock.have_x() == has_index_lock);
 
 	if (index->is_corrupted()) {
 		*error = DB_INDEX_CORRUPT;
@@ -3684,7 +3668,7 @@ row_log_apply_ops(
 
 	ut_ad(dict_index_is_online_ddl(index));
 	ut_ad(!index->is_committed());
-	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_X));
+	ut_ad(index->lock.have_x());
 	ut_ad(index->online_log);
 
 	MEM_UNDEFINED(&mrec_end, sizeof mrec_end);
@@ -3699,7 +3683,7 @@ row_log_apply_ops(
 
 next_block:
 	ut_ad(has_index_lock);
-	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_X));
+	ut_ad(index->lock.have_x());
 	ut_ad(index->online_log->head.bytes == 0);
 
 	stage->inc(row_log_progress_inc_per_block());
@@ -3765,7 +3749,7 @@ all_done:
 			* srv_sort_buf_size;
 		ut_ad(has_index_lock);
 		has_index_lock = false;
-		rw_lock_x_unlock(dict_index_get_lock(index));
+		index->lock.x_unlock();
 
 		log_free_check();
 
@@ -3925,7 +3909,7 @@ all_done:
 
 			mrec = NULL;
 process_next_block:
-			rw_lock_x_lock(dict_index_get_lock(index));
+			index->lock.x_lock(__FILE__, __LINE__);
 			has_index_lock = true;
 
 			index->online_log->head.bytes = 0;
@@ -3957,7 +3941,7 @@ interrupted:
 	error = DB_INTERRUPTED;
 func_exit:
 	if (!has_index_lock) {
-		rw_lock_x_lock(dict_index_get_lock(index));
+		index->lock.x_lock(__FILE__, __LINE__);
 	}
 
 	switch (error) {
@@ -4012,7 +3996,7 @@ row_log_apply(
 
 	log_free_check();
 
-	rw_lock_x_lock(dict_index_get_lock(index));
+	index->lock.x_lock(__FILE__, __LINE__);
 
 	if (!dict_table_is_corrupted(index->table)) {
 		error = row_log_apply_ops(trx, index, &dup, stage);
@@ -4036,7 +4020,7 @@ row_log_apply(
 
 	log = index->online_log;
 	index->online_log = NULL;
-	rw_lock_x_unlock(dict_index_get_lock(index));
+	index->lock.x_unlock();
 
 	row_log_free(log);
 

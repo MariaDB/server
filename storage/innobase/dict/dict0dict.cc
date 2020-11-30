@@ -1308,7 +1308,7 @@ dict_index_t *dict_index_t::clone() const
   dict_index_t *index= static_cast<dict_index_t*>(mem_heap_dup(heap, this,
                                                                sizeof *this));
   *index= *this;
-  index->lock.create(index_tree_rw_lock_key, SYNC_INDEX_TREE);
+  index->lock.SRW_LOCK_INIT(index_tree_rw_lock_key);
   index->heap= heap;
   index->name= mem_heap_strdup(heap, name);
   index->fields= static_cast<dict_field_t*>
@@ -2157,7 +2157,7 @@ dict_index_add_to_cache(
 #endif /* BTR_CUR_ADAPT */
 
 	new_index->page = unsigned(page_no);
-	new_index->lock.create(index_tree_rw_lock_key, SYNC_INDEX_TREE);
+	new_index->lock.SRW_LOCK_INIT(index_tree_rw_lock_key);
 
 	new_index->n_core_fields = new_index->n_fields;
 
@@ -4417,10 +4417,10 @@ dict_set_merge_threshold_list_debug(
 		for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
 		     index != NULL;
 		     index = UT_LIST_GET_NEXT(indexes, index)) {
-			rw_lock_x_lock(dict_index_get_lock(index));
+			index->lock.x_lock(__FILE__, __LINE__);
 			index->merge_threshold = merge_threshold_all
 				& ((1U << 6) - 1);
-			rw_lock_x_unlock(dict_index_get_lock(index));
+			index->lock.x_unlock();
 		}
 	}
 }

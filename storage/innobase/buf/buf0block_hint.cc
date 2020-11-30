@@ -50,7 +50,7 @@ void Block_hint::buffer_fix_block_if_still_valid()
     page_hash_latch *hash_lock= buf_pool.page_hash.lock<false>(fold);
     if (buf_pool.is_uncompressed(m_block) && m_page_id == m_block->page.id() &&
         m_block->page.state() == BUF_BLOCK_FILE_PAGE)
-      buf_block_buf_fix_inc(m_block, __FILE__, __LINE__);
+      buf_block_buf_fix_inc(m_block);
     else
       clear();
     hash_lock->read_unlock();

@@ -6923,7 +6923,7 @@ i_s_innodb_mutexes_fill_table(
 	}
 #if 0 // FIXME
 	ulint		block_lock_oswait_count = 0;
-	const rw_lock_t* block_lock= nullptr;
+	const block_lock* block_lock= nullptr;
 	Field**		fields = tables->table->field;
 
 		struct Locking
@@ -6934,7 +6934,7 @@ i_s_innodb_mutexes_fill_table(
 
 		char lock_name[sizeof "buf0dump.cc:12345"];
 
-		for (const rw_lock_t& lock : rw_lock_list) {
+		for (const block_lock& lock : rw_lock_list) {
 			if (lock.count_os_wait == 0) {
 				continue;
 			}

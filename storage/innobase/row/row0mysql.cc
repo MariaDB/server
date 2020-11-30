@@ -3527,13 +3527,13 @@ defer:
 	for (dict_index_t* index = dict_table_get_first_index(table);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
-		rw_lock_x_lock(dict_index_get_lock(index));
+		index->lock.x_lock(__FILE__, __LINE__);
 		/* Save the page numbers so that we can restore them
 		if the operation fails. */
 		*page_no++ = index->page;
 		/* Mark the index unusable. */
 		index->page = FIL_NULL;
-		rw_lock_x_unlock(dict_index_get_lock(index));
+		index->lock.x_unlock();
 	}
 
 	/* Deleting a row from SYS_INDEXES table will invoke
@@ -3713,10 +3713,10 @@ do_drop:
 		for (dict_index_t* index = dict_table_get_first_index(table);
 		     index != NULL;
 		     index = dict_table_get_next_index(index)) {
-			rw_lock_x_lock(dict_index_get_lock(index));
+			index->lock.x_lock(__FILE__, __LINE__);
 			ut_a(index->page == FIL_NULL);
 			index->page = *page_no++;
-			rw_lock_x_unlock(dict_index_get_lock(index));
+			index->lock.x_unlock();
 		}
 	}
 
