@@ -671,6 +671,8 @@ bool trans_xa_detach(THD *thd)
 
   thd->transaction.all.ha_list= 0;
   thd->transaction.all.no_2pc= 0;
+  thd->server_status&= ~(SERVER_STATUS_IN_TRANS |
+                         SERVER_STATUS_IN_TRANS_READONLY);
   return false;
 #endif
 }
