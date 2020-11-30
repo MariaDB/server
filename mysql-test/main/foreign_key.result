@@ -573,7 +573,28 @@ test.t2	check	Note	Found 1 foreign keys
 test.t2	check	status	OK
 test.t3	check	Note	Found 2 foreign keys
 test.t3	check	status	OK
-drop tables fail_t4, t4, t3, t2, t1;
+drop tables fail_t4, t4;
+rename table t3 to t4, t2 to t3, t1 to t2, t4 to t1;
+check tables t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 foreign keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 2 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 1 foreign keys
+test.t3	check	status	OK
+flush tables t1, t2, t3;
+check tables t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Note	Found 2 foreign keys
+test.t1	check	status	OK
+test.t2	check	Note	Found 2 referenced keys
+test.t2	check	status	OK
+test.t3	check	Note	Found 1 referenced keys
+test.t3	check	Note	Found 1 foreign keys
+test.t3	check	status	OK
+drop tables t1, t3, t2;
 # Check drop table
 create or replace table t1 (id int primary key);
 create or replace table ch1 (id int, foreign key (id) references t1 (id));

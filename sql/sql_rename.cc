@@ -354,10 +354,20 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
     DBUG_RETURN(0);
   }
 
-  if (!skip_error && ha_table_exists(thd, new_db, &new_alias, &new_hton))
+  if (ha_table_exists(thd, new_db, &new_alias, &new_hton))
   {
-    my_error(ER_TABLE_EXISTS_ERROR, MYF(0), new_alias.str);
-    DBUG_RETURN(1);                     // This can't be skipped
+    bool prev_renamed= false;
+    TDC_element *element= tdc_lock_share(thd, new_db->str, new_alias.str);
+    if (element && element != MY_ERRPTR)
+    {
+      prev_renamed= (fk_rename_backup.find(element->share) != fk_rename_backup.end());
+      tdc_unlock_share(element);
+    }
+    if (!prev_renamed)
+    {
+      my_error(ER_TABLE_EXISTS_ERROR, MYF(0), new_alias.str);
+      DBUG_RETURN(1);                     // This can't be skipped
+    }
   }
 
   DBUG_ASSERT(!thd->locked_tables_mode);
@@ -373,6 +383,11 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
     if (hton->flags & HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE)
       *force_if_exists= 1;
 
+    /*
+      NB: we cannot do fk_handle_rename() before rename_tables() because of
+
+        rename table t3 to t4, t2 to t3, t1 to t2, t4 to t1;
+    */
     if (!skip_error &&
         fk_handle_rename(thd, ren_table, new_db, new_table_name, fk_rename_backup))
       DBUG_RETURN(1);
