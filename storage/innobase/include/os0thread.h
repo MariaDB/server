@@ -25,9 +25,7 @@ process and thread control primitives
 Created 9/8/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef os0thread_h
-#define os0thread_h
-
+#pragma once
 #include "univ.i"
 
 /* Possible fixed priorities for threads */
@@ -66,15 +64,9 @@ typedef void* (*os_posix_f_t) (void*);
 typedef unsigned int    mysql_pfs_key_t;
 #endif /* HAVE_PSI_INTERFACE */
 
-#ifndef _WIN32
-#define os_thread_eq(a,b) pthread_equal(a, b)
-#define os_thread_yield() sched_yield()
-#define os_thread_get_curr_id() pthread_self()
-#else
-bool os_thread_eq(os_thread_id_t a, os_thread_id_t b);
-void os_thread_yield();
-os_thread_id_t os_thread_get_curr_id();
-#endif
+#define os_thread_eq(a,b) IF_WIN(a == b, pthread_equal(a, b))
+#define os_thread_yield() IF_WIN(SwitchToThread(), sched_yield())
+#define os_thread_get_curr_id() IF_WIN(GetCurrentThreadId(), pthread_self())
 
 /****************************************************************//**
 Creates a new thread of execution. The execution starts from
@@ -88,11 +80,9 @@ os_thread_t os_thread_create(os_thread_func_t func, void *arg= nullptr);
 /** Detach and terminate the current thread. */
 ATTRIBUTE_NORETURN void os_thread_exit();
 
-/*****************************************************************//**
-The thread sleeps at least the time given in microseconds. */
-void
-os_thread_sleep(
-/*============*/
-	ulint	tm);	/*!< in: time in microseconds */
-
+#ifdef _WIN32
+# define os_thread_sleep(usec) Sleep((DWORD) usec / 1000)
+#else
+/** Sleep for some time */
+void os_thread_sleep(ulint usec);
 #endif
