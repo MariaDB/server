@@ -25,6 +25,22 @@ this program; if not, write to the Free Software Foundation, Inc.,
 # define SRW_LOCK_DUMMY /* Use dummy implementation for debugging purposes */
 #endif
 
+#ifdef SRW_LOCK_DUMMY
+/** An exclusive-only variant of srw_lock */
+class srw_mutex
+{
+  pthread_mutex_t lock;
+public:
+  void init() { pthread_mutex_init(&lock, nullptr); }
+  void destroy() { pthread_mutex_destroy(&lock); }
+  void wr_lock() { pthread_mutex_lock(&lock); }
+  void wr_unlock() { pthread_mutex_unlock(&lock); }
+  bool wr_lock_try() { return !pthread_mutex_trylock(&lock); }
+};
+#else
+# define srw_mutex srw_lock_low
+#endif
+
 #include "rw_lock.h"
 
 /** Slim reader-writer lock with no recursion */
