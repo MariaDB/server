@@ -27,12 +27,6 @@ Created 9/8/1995 Heikki Tuuri
 #include "univ.i"
 #include "srv0srv.h"
 
-#ifdef _WIN32
-bool os_thread_eq(os_thread_id_t a, os_thread_id_t b) { return a == b; }
-void os_thread_yield() { SwitchToThread(); }
-os_thread_id_t os_thread_get_curr_id() { return GetCurrentThreadId(); }
-#endif
-
 /****************************************************************//**
 Creates a new thread of execution. The execution starts from
 the function given.
@@ -104,28 +98,24 @@ ATTRIBUTE_NORETURN void os_thread_exit()
 #endif
 }
 
-/*****************************************************************//**
-The thread sleeps at least the time given in microseconds. */
-void
-os_thread_sleep(
-/*============*/
-	ulint	tm)	/*!< in: time in microseconds */
+#ifndef _WIN32
+/** Sleep for some time */
+void os_thread_sleep(ulint tm)
 {
-#ifdef _WIN32
-	Sleep((DWORD) tm / 1000);
-#elif defined(HAVE_NANOSLEEP)
+# ifdef HAVE_NANOSLEEP
 	struct timespec	t;
 
 	t.tv_sec = tm / 1000000;
 	t.tv_nsec = (tm % 1000000) * 1000;
 
 	::nanosleep(&t, NULL);
-#else
+# else
 	struct timeval  t;
 
 	t.tv_sec = tm / 1000000;
 	t.tv_usec = tm % 1000000;
 
 	select(0, NULL, NULL, NULL, &t);
-#endif /* _WIN32 */
+# endif
 }
+#endif /* !_WIN32 */
