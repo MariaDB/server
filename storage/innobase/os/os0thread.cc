@@ -27,6 +27,12 @@ Created 9/8/1995 Heikki Tuuri
 #include "univ.i"
 #include "srv0srv.h"
 
+#ifdef _WIN32
+bool os_thread_eq(os_thread_id_t a, os_thread_id_t b) { return a == b; }
+void os_thread_yield() { SwitchToThread(); }
+os_thread_id_t os_thread_get_curr_id() { return GetCurrentThreadId(); }
+#endif
+
 /****************************************************************//**
 Creates a new thread of execution. The execution starts from
 the function given.
