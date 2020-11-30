@@ -1183,8 +1183,7 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
           from_name= ddl_log_entry->from_name;
         if (!mysql_file_stat(key_file_frm, from_name, &stat_info, MYF(0)))
           break;
-        if ((stat_info.st_mode & S_IFLNK) != S_IFLNK &&   // symlink
-            (stat_info.st_mode & S_IFREG) != S_IFREG)     // regular file
+        if (!MY_S_ISREG(stat_info.st_mode) && !MY_S_ISLNK(stat_info.st_mode))
           break;
       }
     }
