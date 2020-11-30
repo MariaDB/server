@@ -19,50 +19,24 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #pragma once
 #include "univ.i"
 
-#if 0 // defined SAFE_MUTEX
-# define SRW_LOCK_DUMMY /* Use mysql_rwlock_t for debugging purposes */
+#if !(defined __linux__ || defined _WIN32 || defined __OpenBSD__)
+# define SRW_LOCK_DUMMY
+#elif 0 // defined SAFE_MUTEX
+# define SRW_LOCK_DUMMY /* Use dummy implementation for debugging purposes */
 #endif
 
-#if defined SRW_LOCK_DUMMY || (!defined _WIN32 && !defined __linux__)
-#else
-# ifdef _WIN32
-#  include <windows.h>
-# else
-#  include "rw_lock.h"
-# endif
-#endif
+#include "rw_lock.h"
 
-#ifdef UNIV_PFS_RWLOCK
-# define SRW_LOCK_INIT(key) init(key)
-#else
-# define SRW_LOCK_INIT(key) init()
-#endif
-
-class srw_lock final
-#if defined __linux__ && !defined SRW_LOCK_DUMMY
-  : protected rw_lock
-#endif
+/** Slim reader-writer lock with no recursion */
+class srw_lock_low final : private rw_lock
 {
-#if defined SRW_LOCK_DUMMY || (!defined _WIN32 && !defined __linux__)
-  mysql_rwlock_t lock;
-public:
-  void SRW_LOCK_INIT(mysql_pfs_key_t key) { mysql_rwlock_init(key, &lock); }
-  void destroy() { mysql_rwlock_destroy(&lock); }
-  void rd_lock() { mysql_rwlock_rdlock(&lock); }
-  void rd_unlock() { mysql_rwlock_unlock(&lock); }
-  void wr_lock() { mysql_rwlock_wrlock(&lock); }
-  void wr_unlock() { mysql_rwlock_unlock(&lock); }
-#else
-# ifdef UNIV_PFS_RWLOCK
-  PSI_rwlock *pfs_psi;
-# endif
-# ifdef _WIN32
-  SRWLOCK lock;
-  bool read_trylock() { return TryAcquireSRWLockShared(&lock); }
-  bool write_trylock() { return TryAcquireSRWLockExclusive(&lock); }
-  void read_lock() { AcquireSRWLockShared(&lock); }
-  void write_lock() { AcquireSRWLockExclusive(&lock); }
-# else
+#ifdef UNIV_PFS_RWLOCK
+  friend class srw_lock;
+#endif
+#ifdef SRW_LOCK_DUMMY
+  pthread_mutex_t mutex;
+  pthread_cond_t cond;
+#endif
   /** @return pointer to the lock word */
   rw_lock *word() { return static_cast<rw_lock*>(this); }
   /** Wait for a read lock.
@@ -70,82 +44,102 @@ public:
   void read_lock(uint32_t l);
   /** Wait for a write lock after a failed write_trylock() */
   void write_lock();
-# endif
+  /** Wait for signal
+  @param l lock word from a failed acquisition */
+  inline void wait(uint32_t l);
+  /** Send signal to one waiter */
+  inline void wake_one();
+  /** Send signal to all waiters */
+  inline void wake_all();
+public:
+#ifdef SRW_LOCK_DUMMY
+  void init();
+  void destroy();
+#else
+  void init() { DBUG_ASSERT(!is_locked_or_waiting()); }
+  void destroy() { DBUG_ASSERT(!is_locked_or_waiting()); }
+#endif
+  bool rd_lock_try() { uint32_t l; return read_trylock(l); }
+  bool wr_lock_try() { return write_trylock(); }
+  void rd_lock() { uint32_t l; if (!read_trylock(l)) read_lock(l); }
+  void wr_lock() { if (!write_trylock()) write_lock(); }
+  void rd_unlock();
+  void wr_unlock();
+};
+
+#ifndef UNIV_PFS_RWLOCK
+# define SRW_LOCK_INIT(key) init()
+typedef srw_lock_low srw_lock;
+#else
+# define SRW_LOCK_INIT(key) init(key)
+
+/** Slim reader-writer lock with PERFORMANCE_SCHEMA instrumentation */
+class srw_lock
+{
+  srw_lock_low lock;
+  PSI_rwlock *pfs_psi;
 
 public:
-  void SRW_LOCK_INIT(mysql_pfs_key_t key)
+  void init(mysql_pfs_key_t key)
   {
-# ifdef UNIV_PFS_RWLOCK
+    lock.init();
     pfs_psi= PSI_RWLOCK_CALL(init_rwlock)(key, this);
-# endif
-    IF_WIN(lock= SRWLOCK_INIT, static_assert(4 == sizeof(rw_lock), "ABI"));
   }
   void destroy()
   {
-# ifdef UNIV_PFS_RWLOCK
     if (pfs_psi)
     {
       PSI_RWLOCK_CALL(destroy_rwlock)(pfs_psi);
       pfs_psi= nullptr;
     }
-# endif
-    IF_WIN(, DBUG_ASSERT(!is_locked_or_waiting()));
+    lock.destroy();
   }
   void rd_lock()
   {
-    IF_WIN(, uint32_t l);
-# ifdef UNIV_PFS_RWLOCK
-    if (read_trylock(IF_WIN(, l)))
+    uint32_t l;
+    if (lock.read_trylock(l))
       return;
     if (pfs_psi)
     {
       PSI_rwlock_locker_state state;
       PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_rdwait)
         (&state, pfs_psi, PSI_RWLOCK_READLOCK, __FILE__, __LINE__);
-      read_lock(IF_WIN(, l));
+      lock.read_lock(l);
       if (locker)
         PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
       return;
     }
-# endif /* UNIV_PFS_RWLOCK */
-    IF_WIN(read_lock(), if (!read_trylock(l)) read_lock(l));
+    lock.read_lock(l);
+  }
+  void rd_unlock()
+  {
+    if (pfs_psi)
+      PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
+    lock.rd_unlock();
   }
   void wr_lock()
   {
-# ifdef UNIV_PFS_RWLOCK
-    if (write_trylock())
+    if (lock.write_trylock())
       return;
     if (pfs_psi)
     {
       PSI_rwlock_locker_state state;
       PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
         (&state, pfs_psi, PSI_RWLOCK_WRITELOCK, __FILE__, __LINE__);
-      write_lock();
+      lock.write_lock();
       if (locker)
         PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
       return;
     }
-# endif /* UNIV_PFS_RWLOCK */
-    IF_WIN(, if (!write_trylock())) write_lock();
-  }
-#ifdef _WIN32
-  void rd_unlock()
-  {
-#ifdef UNIV_PFS_RWLOCK
-    if (pfs_psi) PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
-#endif
-    ReleaseSRWLockShared(&lock);
+    lock.write_lock();
   }
   void wr_unlock()
   {
-#ifdef UNIV_PFS_RWLOCK
-    if (pfs_psi) PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
-#endif
-    ReleaseSRWLockExclusive(&lock);
+    if (pfs_psi)
+      PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
+    lock.wr_unlock();
   }
-#else
-  void rd_unlock();
-  void wr_unlock();
-#endif
-#endif
+  bool rd_lock_try() { return lock.rd_lock_try(); }
+  bool wr_lock_try() { return lock.wr_lock_try(); }
 };
+#endif

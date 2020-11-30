@@ -327,6 +327,7 @@ SET(INNOBASE_SOURCES
 	srv/srv0mon.cc
 	srv/srv0srv.cc
 	srv/srv0start.cc
+	sync/srw_lock.cc
 	sync/sync0arr.cc
 	sync/sync0rw.cc
 	sync/sync0debug.cc
@@ -348,12 +349,6 @@ SET(INNOBASE_SOURCES
 	ut/ut0ut.cc
 	ut/ut0vec.cc
 	ut/ut0wqueue.cc)
-
-IF (UNIX)
-  IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    SET(INNOBASE_SOURCES ${INNOBASE_SOURCES} "sync/srw_lock_futex.cc")
-  ENDIF()
-ENDIF()
 
 MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
   MODULE_OUTPUT_NAME ha_innodb

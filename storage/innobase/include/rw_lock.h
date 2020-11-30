@@ -76,6 +76,8 @@ protected:
       write_lock_wait_start();
     return false;
   }
+  /** @return the lock word value */
+  uint32_t value() const { return lock.load(std::memory_order_acquire); }
 
 public:
   /** Default constructor */
