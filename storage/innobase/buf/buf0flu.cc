@@ -2043,7 +2043,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
 
 #ifdef UNIV_DEBUG_THREAD_CREATION
   ib::info() << "page_cleaner thread running, id "
-             << os_thread_pf(os_thread_get_curr_id());
+             << os_thread_get_curr_id();
 #endif /* UNIV_DEBUG_THREAD_CREATION */
 #ifdef UNIV_LINUX
   /* linux might be able to set different setting for each thread.
