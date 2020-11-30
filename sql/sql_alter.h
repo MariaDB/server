@@ -26,37 +26,6 @@ class Alter_rename_key;
 class Key;
 
 
-/* Backup for the table we altering */
-class FK_table_backup : public FK_backup
-{
-public:
-  TABLE_SHARE *share;
-
-  FK_table_backup() : share(NULL) {}
-  virtual ~FK_table_backup()
-  {
-    if (share)
-      rollback();
-  }
-  bool init(TABLE_SHARE *);
-  void commit()
-  {
-    share= NULL;
-  }
-  void rollback()
-  {
-    DBUG_ASSERT(share);
-    share->foreign_keys= foreign_keys;
-    share->referenced_keys= referenced_keys;
-    share= NULL;
-  }
-  TABLE_SHARE *get_share() const
-  {
-    return share;
-  }
-};
-
-
 /* DROP FK does not fail for non-existent ref (but other commands do) */
 struct FK_table_to_lock
 {
@@ -425,8 +394,6 @@ public:
   bool fk_check_foreign_id(THD *thd);
   void fk_release_locks(THD *thd);
 
-  // Backup for the table we altering. NB: auto-rollback if not committed.
-  FK_table_backup fk_table_backup;
   // NB: shares are owned and released by fk_shares.
   FK_ddl_vector fk_ref_backup;
   /*

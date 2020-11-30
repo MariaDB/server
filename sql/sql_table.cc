@@ -8264,7 +8264,6 @@ static bool mysql_inplace_alter_table(THD *thd,
     }
   }
 
-  alter_ctx->fk_table_backup.commit();
   table->s->frm_image= NULL;
 
   close_all_tables_for_name(thd, table->s,
@@ -8479,8 +8478,6 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     period_start_name= table->s->period_start_field()->field_name;
     period_end_name= table->s->period_end_field()->field_name;
   }
-  if (!table->s->tmp_table)
-    alter_ctx->fk_table_backup.init(table->s);
   DBUG_ENTER("mysql_prepare_alter_table");
 
   /*
@@ -11244,8 +11241,6 @@ do_continue:;
     // NB: now after lock upgrade it jumps to "err_with_mdl" as well
     goto err_new_table_cleanup;
 
-  alter_ctx.fk_table_backup.commit();
-
   close_all_tables_for_name(thd, table->s,
                             alter_ctx.is_table_renamed() ?
                             HA_EXTRA_PREPARE_FOR_RENAME:
@@ -13027,8 +13022,6 @@ bool Alter_table_ctx::fk_check_foreign_id(THD *thd)
 void Alter_table_ctx::fk_release_locks(THD* thd)
 {
   fk_ref_backup.clear();
-  if (fk_table_backup.share)
-    fk_table_backup.rollback();
 
   MDL_request_list::Iterator it(fk_mdl_reqs);
   while (MDL_request *req= it++)
@@ -13336,27 +13329,6 @@ FK_ddl_backup::FK_ddl_backup(Share_acquire&& _sa) :
 
 bool
 FK_share_backup::init(TABLE_SHARE *_share)
-{
-  if (foreign_keys.copy(&_share->foreign_keys, &_share->mem_root) ||
-      list_copy_and_replace_each_value(foreign_keys, &_share->mem_root))
-  {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0));
-    return true;
-  }
-  if (referenced_keys.copy(&_share->referenced_keys, &_share->mem_root) ||
-      list_copy_and_replace_each_value(referenced_keys, &_share->mem_root))
-  {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0));
-    return true;
-  }
-  share= _share;
-  return false;
-}
-
-
-// FIXME: remove FK_table_backup
-bool
-FK_table_backup::init(TABLE_SHARE *_share)
 {
   if (foreign_keys.copy(&_share->foreign_keys, &_share->mem_root) ||
       list_copy_and_replace_each_value(foreign_keys, &_share->mem_root))
