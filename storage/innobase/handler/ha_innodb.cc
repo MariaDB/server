@@ -21446,7 +21446,6 @@ dberr_t
 fk_upgrade_legacy_storage(dict_table_t* table, trx_t* trx, THD *thd, TABLE_SHARE *share)
 {
 	pars_info_t* info;
-	ddl_log_info fk_ddl_info;
 	fk_legacy_data d(trx, table, share);
 
 	info = pars_info_create();
@@ -21510,47 +21509,43 @@ fk_upgrade_legacy_storage(dict_table_t* table, trx_t* trx, THD *thd, TABLE_SHARE
 	ut_ad(d.foreign_keys.elements);
 
 	// Got legacy foreign keys, update referenced shares
-	FK_table_backup fk_table_backup;
+	FK_ddl_backup *share_backup;
 	FK_ddl_vector ref_shares;
-	if (d.s->fk_handle_create(thd, ref_shares, &d.foreign_keys)) {
+	if (share->fk_handle_create(thd, ref_shares, &d.foreign_keys)) {
 		err = DB_ERROR;
 		goto rollback;
 	}
 
-	if (fk_table_backup.init(d.s)) {
+	share_backup= ref_shares.emplace(NULL, share, share);
+	if (!share_backup) {
 		err = DB_OUT_OF_MEMORY;
 		goto rollback;
 	}
 
 	// Push to main share. Share is already locked by Open_table_context.
 	for (FK_info &fk: d.foreign_keys) {
-		if (d.s->foreign_keys.push_back(&fk, &d.s->mem_root)) {
+		if (share->foreign_keys.push_back(&fk, &share->mem_root)) {
 			err = DB_OUT_OF_MEMORY;
 			goto rollback;
 		}
+		share_backup->update_frm= true;
 	}
 
 	// Update foreign FRM
-	if (fk_table_backup.fk_write_shadow_frm(fk_ddl_info)) {
+	if (share_backup->fk_write_shadow_frm(ref_shares)) {
 		err = DB_ERROR;
 		goto rollback;
 	}
 
 	// Update referenced FRMs
-	for (auto &bak: ref_shares) {
-		if (bak.second.fk_install_shadow_frm(fk_ddl_info)) {
-			// FIXME: MDEV-21053 atomicity
-			err = DB_ERROR;
-			goto rollback;
-		}
-	}
-
-	if (fk_table_backup.fk_install_shadow_frm(fk_ddl_info)) {
+	if (ref_shares.install_shadow_frms(thd)) {
 		err = DB_ERROR;
 		goto rollback;
 	}
 
-	fk_table_backup.commit();
+	ref_shares.drop_backup_frms(thd);
+	share_backup->commit();
+	ref_shares.clear();
 
 	// Drop legacy foreign keys
 	static const char	sql_drop[] =
@@ -21590,9 +21585,7 @@ fk_upgrade_legacy_storage(dict_table_t* table, trx_t* trx, THD *thd, TABLE_SHARE
 	return DB_LEGACY_FK;
 
 rollback:
-	for (auto &bak: ref_shares) {
-		bak.second.rollback(fk_ddl_info);
-	}
+	ref_shares.rollback(thd);
 	return err;
 }
 

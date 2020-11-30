@@ -1053,7 +1053,7 @@ public:
     FK_share_backup(std::move(src)),
     sa(std::move(src.sa)) {}
 
-  // used by ALTER
+  // used by ALTER and fk_upgrade_legacy_storage()
   FK_ddl_backup(TABLE_SHARE *_share) : FK_share_backup(_share)
   {}
 
