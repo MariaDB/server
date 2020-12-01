@@ -433,7 +433,7 @@ rpl_slave_state::truncate_state_table(THD *thd)
       close_thread_tables(thd);
       ha_commit_trans(thd, TRUE);
     }
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
   }
 
   reenable_binlog(thd);
@@ -864,7 +864,7 @@ end:
     }
     else
     {
-      thd->mdl_context.release_transactional_locks();
+      thd->release_transactional_locks();
 #ifdef HAVE_REPLICATION
       rpl_group_info::pending_gtid_deletes_free(delete_list);
 #endif

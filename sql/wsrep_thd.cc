@@ -75,7 +75,7 @@ void wsrep_client_rollback(THD *thd)
   }
 
   /* Release transactional metadata locks. */
-  thd->mdl_context.release_transactional_locks();
+  thd->release_transactional_locks();
 
   /* release explicit MDL locks */
   thd->mdl_context.release_explicit_locks();
@@ -212,7 +212,7 @@ void wsrep_replay_sp_transaction(THD* thd)
     thd->locked_tables_list.unlock_locked_tables(thd);
     thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);
   }
-  thd->mdl_context.release_transactional_locks();
+  thd->release_transactional_locks();
 
   mysql_mutex_unlock(&thd->LOCK_thd_data);
   THD *replay_thd= new THD(true);
@@ -351,7 +351,7 @@ void wsrep_replay_transaction(THD *thd)
         thd->locked_tables_list.unlock_locked_tables(thd);
         thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);
       }
-      thd->mdl_context.release_transactional_locks();
+      thd->release_transactional_locks();
       /*
         Replaying will call MYSQL_START_STATEMENT when handling
         BEGIN Query_log_event so end statement must be called before

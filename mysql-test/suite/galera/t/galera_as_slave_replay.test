@@ -1,0 +1,200 @@
+#
+# This test tests the operation of transaction replay for async replication slave.
+# If a potentially conflicting galera transaction arrives at
+# just the right time during the commit and has lock conflict with async replication transaction
+# applied by slave SQL thread, then the async replication transaction should either abort
+# or rollback and replay (depending on the nature of lock conflict).
+#
+
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+--connection node_2a
+--source include/galera_cluster.inc
+#--source suite/galera/include/galera_have_debug_sync.inc
+
+#
+# node 1 is native MariaDB server operating as async replication master
+#
+--connection node_1
+RESET MASTER;
+
+--connection node_2a
+#
+# count the number of wsrep replay's done in the node
+#
+--let $wsrep_local_replays_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+
+
+#
+# nodes 2 and 3 form a galera cluster, node 2 operates as slave for native MariaDB naster in node 1
+#
+--disable_query_log
+--eval CHANGE MASTER TO  MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_1;
+--enable_query_log
+START SLAVE;
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1)) engine=innodb;
+INSERT INTO t1 VALUES (1, 'a');
+INSERT INTO t1 VALUES (3, 'a');
+
+#
+# use statement format replication to cause a false positive conflict with async replication transaction
+# and galera replication. The conflict will be on GAP lock, and slave SQL thread should rollback
+# and replay
+#
+set binlog_format=STATEMENT;
+
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+
+SELECT * FROM t1  FOR UPDATE;
+UPDATE t1 SET f2 = 'c' WHERE f1 > 1;
+
+--connection node_2a
+# wait for create table and inserts to be replicated from master
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT COUNT(*) = 2 FROM test.t1;
+--source include/wait_condition.inc
+
+# wait for create table and inserts to be replicated in cluster
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connection node_3
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT COUNT(*) = 2 FROM test.t1;
+--source include/wait_condition.inc
+
+--connection node_2a
+# Block the future commit of async replication
+--let $galera_sync_point = commit_monitor_enter_sync
+--source include/galera_set_sync_point.inc
+
+# block also the applier before applying begins
+SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
+
+#
+# now inject a conflicting insert from node 3, it will replicate with
+# earlier seqno (than async transaction) and pause before applying in node 2
+#
+--connection node_3
+INSERT INTO test.t1 VALUES (2, 'b');
+
+#
+# send the update from master, this will succeed here, beceuase of async replication.
+# async replication will apply this in node 2 and pause before commit phase,
+--connection node_1
+--error 0
+COMMIT;
+
+# Wait until async slave commit is blocked in node_2
+--connection node_2a
+--source include/galera_wait_sync_point.inc
+
+#
+# release the applier
+# note: have to clear wsrep_apply_cb sync point first, as async replication will go for replay
+# and as this sync point, after BF applier is released to progress
+#
+SET GLOBAL debug_dbug = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+
+# Unblock the async slave commit
+--connection node_2a
+--source include/galera_clear_sync_point.inc
+--source include/galera_signal_sync_point.inc
+
+--connection node_1
+
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'a';
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
+SELECT * FROM t1;
+
+--connection node_2a
+
+# wsrep_local_replays has increased by 1
+set session wsrep_sync_wait=15;
+--let $wsrep_local_replays_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+set session wsrep_sync_wait=0;
+
+--disable_query_log
+--eval SELECT $wsrep_local_replays_new - $wsrep_local_replays_old = 1 AS wsrep_local_replays;
+--enable_query_log
+
+#
+#  replaying of async transaction should be effective, and row 3 having 'c' in f2
+#
+SELECT *  FROM t1;
+SET DEBUG_SYNC = "RESET";
+
+#********************************************************************************
+#	test phase 2
+#********************************************************************************
+
+--echo #
+--echo # test phase with real abort
+--echo #
+
+--connection node_1
+
+set binlog_format=ROW;
+
+insert into t1 values (4, 'd');
+
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+
+UPDATE t1 SET f2 = 'd' WHERE f1 = 3;
+
+--connection node_2a
+# wait for the last insert to be replicated from master
+--let $wait_condition = SELECT COUNT(*) = 4 FROM test.t1;
+--source include/wait_condition.inc
+
+# Block the commit
+--let $galera_sync_point = commit_monitor_enter_sync
+--source include/galera_set_sync_point.inc
+
+# block applier
+SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
+
+# Inject a conflicting update from node 3
+--connection node_3
+UPDATE test.t1 SET f2 = 'e' WHERE f1 = 3;
+
+# send the update from master
+--connection node_1
+--error 0
+COMMIT;
+
+--connection node_2a
+
+# release the applier
+SET GLOBAL debug_dbug = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+
+
+# Unblock the async slave commit
+--connection node_2a
+--source include/galera_clear_sync_point.inc
+--source include/galera_signal_sync_point.inc
+SET DEBUG_SYNC = "RESET";
+
+--connection node_2a
+
+set session wsrep_sync_wait=15;
+SELECT COUNT(*) = 1 FROM test.t1 WHERE f2 = 'e';
+set session wsrep_sync_wait=0;
+
+STOP SLAVE;
+RESET SLAVE;
+
+DROP TABLE t1;
+
+--connection node_1
+DROP TABLE t1;
+RESET MASTER;

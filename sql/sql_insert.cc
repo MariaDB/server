@@ -3050,7 +3050,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
     if (thd->mdl_context.clone_ticket(&di->grl_protection) ||
         thd->mdl_context.clone_ticket(&di->table_list.mdl_request))
     {
-      thd->mdl_context.release_transactional_locks();
+      thd->release_transactional_locks();
       di->handler_thread_initialized= TRUE;
       goto err;
     }
@@ -3246,7 +3246,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
     thd->set_killed(KILL_CONNECTION_HARD);	        // If error
 
     close_thread_tables(thd);			// Free the table
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
     mysql_cond_broadcast(&di->cond_client);       // Safety
 
     mysql_mutex_lock(&LOCK_delayed_create);    // Because of delayed_get_table
@@ -4722,7 +4722,8 @@ bool select_create::send_eof()
         WSREP_ERROR("Appending table key for CTAS failed: %s, %d",
                     (wsrep_thd_query(thd)) ?
                     wsrep_thd_query(thd) : "void", rcode);
-        return true;
+        abort_result_set();
+        DBUG_RETURN(true);
       }
       /* If commit fails, we should be able to reset the OK status. */
       thd->get_stmt_da()->set_overwrite_status(TRUE);

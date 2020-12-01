@@ -4037,7 +4037,7 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
     if (trans_commit_stmt(thd) || trans_commit(thd))
     {
       thd->variables.option_bits&= ~OPTION_AUTOCOMMIT;
-      thd->mdl_context.release_transactional_locks();
+      thd->release_transactional_locks();
       WSREP_DEBUG("autocommit, MDL TRX lock released: %lld",
                   (longlong) thd->thread_id);
       return true;

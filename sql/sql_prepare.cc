@@ -4247,7 +4247,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   if (thd->transaction_rollback_request)
   {
     trans_rollback_implicit(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
   }
 
   /* Preserve CHANGE MASTER attributes */

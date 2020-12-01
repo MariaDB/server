@@ -3,6 +3,10 @@
 --source include/have_udf.inc
 --source include/platform.inc
 
+if (!$AUTH_SOCKET_SO) {
+  --skip Need auth socket plugin
+}
+
 --echo #
 --echo # MDEV-23630: mysqldump to logically dump system tables
 --echo #
@@ -18,6 +22,7 @@ create user USER;
 
 if (`SELECT CONVERT(@@VERSION_COMPILE_OS USING latin1) NOT IN ('Win32', 'Win64', 'Windows')`)
 {
+--error 0,ER_PLUGIN_INSTALLED
 --eval install plugin /*M!100401 IF NOT EXISTS */ unix_socket soname '$AUTH_SOCKET_SO';
 alter user USER identified via unix_socket;
 }
