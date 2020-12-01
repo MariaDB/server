@@ -1065,6 +1065,32 @@ Field::make_packed_sort_key_part(uchar *buff,
 
 
 uint
+Field::make_packed_key_part(uchar *buff, const SORT_FIELD_ATTR *sort_field)
+{
+  if (maybe_null())
+  {
+    if (is_null())
+    {
+      *buff++= 0;
+      return 0;  // For NULL values don't write any data
+    }
+    *buff++=1;
+  }
+  memcpy(buff, ptr, sort_field->original_length);
+  return sort_field->original_length;
+}
+
+
+uint
+Field_longstr::make_packed_key_part(uchar *buff,
+                                    const SORT_FIELD_ATTR *sort_field)
+{
+  return make_packed_sort_key_part(buff, sort_field);
+}
+
+
+
+uint
 Field_longstr::make_packed_sort_key_part(uchar *buff,
                                          const SORT_FIELD_ATTR *sort_field)
 {

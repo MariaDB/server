@@ -974,7 +974,7 @@ void Aggregator_distinct::clear()
 
   @retval
     -1       NULL value, record rejected
-     0       record succesfully inserted into the tree
+     0       record successfully inserted into the tree
      1       error
 */
 int Aggregator_distinct::insert_record_to_unique()
@@ -3921,7 +3921,7 @@ Item_func_group_concat::dump_leaf_variable_sized_key(void *key_arg,
 
   pos= item->unique_filter->get_descriptor()->get_sortorder();
   key_end= key + item->unique_filter->get_full_size();
-  key+= Variable_size_keys_descriptor::size_of_length_field;
+  key+= Variable_size_composite_key_desc::size_of_length_field;
 
   ulonglong *offset_limit= &item->copy_offset_limit;
   ulonglong *row_limit = &item->copy_row_limit;
@@ -4794,7 +4794,7 @@ bool Item_sum::is_packing_allowed(TABLE *table, uint* total_length)
     Unique::size_of_lengt_field is the length bytes to store the packed length
     for each record inserted in the Unique tree
   */
-  (*total_length)+= Variable_size_keys_descriptor::size_of_length_field +
+  (*total_length)+= Variable_size_composite_key_desc::size_of_length_field +
                     size_of_packable_fields;
   return true;
 }
@@ -4817,7 +4817,7 @@ Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
     if (number_of_args == 1)
       desc= new Variable_size_keys_simple(size_arg);
     else
-      desc= new Variable_size_keys_descriptor(size_arg);
+      desc= new Variable_size_composite_key_desc(size_arg);
   }
   else
   {
@@ -4850,7 +4850,7 @@ Item_func_group_concat::get_unique(qsort_cmp2 comp_func,
     if (number_of_args == 1)
       desc= new Variable_size_keys_simple(size_arg);
     else
-      desc= new Variable_size_keys_descriptor(size_arg);
+      desc= new Variable_size_composite_key_desc(size_arg);
   }
   else
   {

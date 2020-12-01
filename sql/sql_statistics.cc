@@ -1527,7 +1527,7 @@ public:
 */
 uint get_offset_to_value(Field *field)
 {
-  return Variable_size_keys_descriptor::size_of_length_field +
+  return Variable_size_composite_key_desc::size_of_length_field +
          MY_TEST(field->maybe_null());
 }
 
@@ -1538,7 +1538,7 @@ uint get_offset_to_value(Field *field)
 */
 uchar* get_buffer_end(Field *field, uchar *to)
 {
-  return to + Variable_size_keys_descriptor::read_packed_length(to);
+  return to + Variable_size_composite_key_desc::read_packed_length(to);
 }
 
 
@@ -1719,7 +1719,7 @@ public:
       tree_key_length= table_field->
                        max_packed_col_length(table_field->pack_length());
 
-      tree_key_length+= Variable_size_keys_descriptor::size_of_length_field;
+      tree_key_length+= Variable_size_composite_key_desc::size_of_length_field;
       tree_key_length+= MY_TEST(table_field->maybe_null());
 
       desc= new Variable_size_keys_simple(tree_key_length);

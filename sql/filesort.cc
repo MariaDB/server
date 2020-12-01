@@ -2587,7 +2587,7 @@ uint32 Sort_param::get_record_length_for_unique(uchar *to,
 {
   if (!using_packed_sortkeys())
     return rec_length;
-  return Variable_size_keys_descriptor::read_packed_length(to) +
+  return Variable_size_composite_key_desc::read_packed_length(to) +
          size_of_dupl_count;
 }
 
@@ -3015,6 +3015,28 @@ int SORT_FIELD_ATTR::compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
   *a_len+= length;
   *b_len+= length;
   return memcmp(a, b, length);
+}
+
+
+int SORT_FIELD::compare_fixed_size_vals(uchar *a, size_t *a_len,
+                                        uchar *b, size_t *b_len)
+{
+  if (maybe_null)
+  {
+    *a_len=1;
+    *b_len=1;
+    int cmp_val;
+    if ((cmp_val= compare_nullability(a, b)) || *a == 0)
+      return cmp_val;
+
+    a++;
+    b++;
+  }
+  else
+    *a_len= *b_len= 0;
+  *a_len+= length;
+  *b_len+= length;
+  return field->cmp(a, b);
 }
 
 

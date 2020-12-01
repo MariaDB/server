@@ -1468,6 +1468,9 @@ public:
   virtual uint make_packed_sort_key_part(uchar *buff,
                                          const SORT_FIELD_ATTR *sort_field);
 
+  virtual uint make_packed_key_part(uchar *buff,
+                                    const SORT_FIELD_ATTR *sort_field);
+
   virtual void make_send_field(Send_field *);
 
   /*
@@ -2213,6 +2216,8 @@ public:
   bool is_packable() const override { return true; }
   uint make_packed_sort_key_part(uchar *buff,
                                  const SORT_FIELD_ATTR *sort_field)override;
+  uint make_packed_key_part(uchar *buff,
+                            const SORT_FIELD_ATTR *sort_field) override;
   uchar* pack_sort_string(uchar *to, const SORT_FIELD_ATTR *sort_field);
 };
 

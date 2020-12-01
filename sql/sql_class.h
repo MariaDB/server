@@ -6461,6 +6461,8 @@ struct SORT_FIELD: public SORT_FIELD_ATTR
   void setup(Field *fld, bool with_suffix);
   void setup(Item *item, bool with_suffix);
   void setup_for_fixed_size_keys(Field *fld);
+  int compare_fixed_size_vals(uchar *a, size_t *a_len,
+                              uchar *b, size_t *b_len);
 };
 
 

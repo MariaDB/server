@@ -876,7 +876,7 @@ int Unique_impl::write_record_to_file(uchar *key)
 }
 
 
-Variable_size_keys_descriptor::Variable_size_keys_descriptor(uint length)
+Variable_size_composite_key_desc::Variable_size_composite_key_desc(uint length)
 {
   max_length= length;
   flags= (1 << VARIABLE_SIZED_KEYS_WITH_ORIGINAL_VALUES);
@@ -889,7 +889,7 @@ Variable_size_keys_descriptor::Variable_size_keys_descriptor(uint length)
 }
 
 
-Variable_size_keys_descriptor::~Variable_size_keys_descriptor()
+Variable_size_composite_key_desc::~Variable_size_composite_key_desc()
 {
   my_free(packed_rec_ptr);
 }
@@ -903,7 +903,7 @@ Variable_size_keys_descriptor::~Variable_size_keys_descriptor()
     0         NULL value
     >0        length of the packed record
 */
-uint Variable_size_keys_descriptor::make_packed_record(bool exclude_nulls)
+uint Variable_size_composite_key_desc::make_packed_record(bool exclude_nulls)
 {
   Field *field;
   SORT_FIELD *sort_field;
@@ -920,7 +920,7 @@ uint Variable_size_keys_descriptor::make_packed_record(bool exclude_nulls)
     if ((field=sort_field->field))
     {
       // Field
-      length= field->make_packed_sort_key_part(to, sort_field);
+      length= field->make_packed_key_part(to, sort_field);
     }
     else
     {           // Item
@@ -939,7 +939,7 @@ uint Variable_size_keys_descriptor::make_packed_record(bool exclude_nulls)
     to+= length;
   }
 
-  length= static_cast<int>(to - orig_to);
+  length= static_cast<uint>(to - orig_to);
   store_packed_length(orig_to, length);
   return length;
 }
@@ -964,8 +964,8 @@ uint Variable_size_keys_descriptor::make_packed_record(bool exclude_nulls)
 */
 
 bool
-Variable_size_keys_descriptor::setup(THD *thd, Item_sum *item,
-                                     uint non_const_args, uint arg_count)
+Variable_size_composite_key_desc::setup(THD *thd, Item_sum *item,
+                                        uint non_const_args, uint arg_count)
 {
   SORT_FIELD *sort,*pos;
   if (sortorder)
@@ -1010,7 +1010,7 @@ Variable_size_keys_descriptor::setup(THD *thd, Item_sum *item,
     FALSE setup successful
 */
 
-bool Variable_size_keys_descriptor::setup(THD *thd, Field *field)
+bool Variable_size_composite_key_desc::setup(THD *thd, Field *field)
 {
   SORT_FIELD *sort,*pos;
   if (sortorder)
@@ -1044,11 +1044,27 @@ bool Variable_size_keys_descriptor::setup(THD *thd, Field *field)
 
 */
 
-int Variable_size_keys_descriptor::compare_keys(uchar *a_ptr,
-                                                 uchar *b_ptr)
+int Variable_size_composite_key_desc::compare_keys(uchar *a_ptr,
+                                                uchar *b_ptr)
 {
-  return sort_keys->compare_keys(a_ptr + size_of_length_field,
-                                 b_ptr + size_of_length_field);
+  uchar *a= a_ptr + Variable_size_composite_key_desc::size_of_length_field;
+  uchar *b= b_ptr + Variable_size_composite_key_desc::size_of_length_field;
+  int retval= 0;
+  size_t a_len, b_len;
+  for (SORT_FIELD *sort_field= sort_keys->begin();
+       sort_field != sort_keys->end(); sort_field++)
+  {
+    retval= sort_field->is_variable_sized() ?
+            sort_field->compare_packed_varstrings(a, &a_len, b, &b_len) :
+            sort_field->compare_packed_fixed_size_vals(a, &a_len, b, &b_len);
+
+    if (retval)
+      return sort_field->reverse ? -retval : retval;
+
+    a+= a_len;
+    b+= b_len;
+  }
+  return retval;
 }
 
 
@@ -1060,7 +1076,7 @@ int Variable_size_keys_simple::compare_keys(uchar *a, uchar *b)
 
 
 Variable_size_keys_simple::Variable_size_keys_simple(uint length)
-  : Variable_size_keys_descriptor(length)
+  : Variable_size_composite_key_desc(length)
 {}
 
 
