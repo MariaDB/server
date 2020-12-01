@@ -22,6 +22,6 @@ Tables_in_bug
 parent
 alter table parent row_format=dynamic;
 Warnings:
-Warning	1105	Reference hint to non-existent table `bug.child` skipped
+Warning	1215	Reference hint to non-existent table `bug.child` skipped
 drop table parent;
 drop database bug;
