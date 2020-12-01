@@ -1051,7 +1051,7 @@ static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 	if (buf_block_t* block = buf_page_get_gen(
 		    page_id_t(space->id, 0), space->zip_size(),
 		    RW_X_LATCH, NULL, BUF_GET_POSSIBLY_FREED,
-		    __FILE__, __LINE__, &mtr, &err)) {
+		    &mtr, &err)) {
 
 		crypt_data->type = CRYPT_SCHEME_1;
 		crypt_data->min_key_version = 0; // all pages are unencrypted
@@ -1691,28 +1691,20 @@ fil_crypt_find_page_to_rotate(
 	return found;
 }
 
-#define fil_crypt_get_page_throttle(state,offset,mtr,sleeptime_ms) \
-	fil_crypt_get_page_throttle_func(state, offset, mtr, \
-					 sleeptime_ms, __FILE__, __LINE__)
-
 /***********************************************************************
 Get a page and compute sleep time
 @param[in,out]		state		Rotation state
 @param[in]		offset		Page offset
 @param[in,out]		mtr		Minitransaction
 @param[out]		sleeptime_ms	Sleep time
-@param[in]		file		File where called
-@param[in]		line		Line where called
 @return page or NULL*/
 static
 buf_block_t*
-fil_crypt_get_page_throttle_func(
+fil_crypt_get_page_throttle(
 	rotate_thread_t*	state,
 	uint32_t		offset,
 	mtr_t*			mtr,
-	ulint*			sleeptime_ms,
-	const char*		file,
-	unsigned		line)
+	ulint*			sleeptime_ms)
 {
 	fil_space_t* space = state->space;
 	const ulint zip_size = space->zip_size();
@@ -1725,11 +1717,9 @@ fil_crypt_get_page_throttle_func(
 		return NULL;
 	}
 
-	dberr_t err = DB_SUCCESS;
 	buf_block_t* block = buf_page_get_gen(page_id, zip_size, RW_X_LATCH,
 					      NULL,
-					      BUF_PEEK_IF_IN_POOL, file, line,
-					      mtr, &err);
+					      BUF_PEEK_IF_IN_POOL, mtr);
 	if (block != NULL) {
 		/* page was in buffer pool */
 		state->crypt_stat.pages_read_from_cache++;
@@ -1745,8 +1735,7 @@ fil_crypt_get_page_throttle_func(
 	const ulonglong start = my_interval_timer();
 	block = buf_page_get_gen(page_id, zip_size,
 				 RW_X_LATCH,
-				 NULL, BUF_GET_POSSIBLY_FREED,
-				file, line, mtr, &err);
+				 NULL, BUF_GET_POSSIBLY_FREED, mtr);
 	const ulonglong end = my_interval_timer();
 
 	state->cnt_waited++;
@@ -1989,12 +1978,9 @@ fil_crypt_flush_space(
 	mtr_t mtr;
 	mtr.start();
 
-	dberr_t err;
-
 	if (buf_block_t* block = buf_page_get_gen(
 		    page_id_t(space->id, 0), space->zip_size(),
-		    RW_X_LATCH, NULL, BUF_GET_POSSIBLY_FREED,
-		    __FILE__, __LINE__, &mtr, &err)) {
+		    RW_X_LATCH, NULL, BUF_GET_POSSIBLY_FREED, &mtr)) {
 		mtr.set_named_space(space);
 		crypt_data->write_page0(block, &mtr);
 	}

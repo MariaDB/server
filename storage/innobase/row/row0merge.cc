@@ -158,8 +158,7 @@ public:
 			btr_cur_search_to_nth_level(m_index, 0, dtuple,
 						    PAGE_CUR_RTREE_INSERT,
 						    BTR_MODIFY_LEAF, &ins_cur,
-						    0, __FILE__, __LINE__,
-						    &mtr);
+						    0, &mtr);
 
 			/* It need to update MBR in parent entry,
 			so change search mode to BTR_MODIFY_TREE */
@@ -174,8 +173,7 @@ public:
 				btr_cur_search_to_nth_level(
 					m_index, 0, dtuple,
 					PAGE_CUR_RTREE_INSERT,
-					BTR_MODIFY_TREE, &ins_cur, 0,
-					__FILE__, __LINE__, &mtr);
+					BTR_MODIFY_TREE, &ins_cur, 0, &mtr);
 			}
 
 			error = btr_cur_optimistic_insert(
@@ -197,8 +195,7 @@ public:
 					m_index, 0, dtuple,
 					PAGE_CUR_RTREE_INSERT,
 					BTR_MODIFY_TREE,
-					&ins_cur, 0,
-					__FILE__, __LINE__, &mtr);
+					&ins_cur, 0, &mtr);
 
 				error = btr_cur_pessimistic_insert(
 						flag, &ins_cur, &ins_offsets,

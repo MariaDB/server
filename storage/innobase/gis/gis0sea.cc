@@ -264,7 +264,7 @@ rtr_pcur_getnext_from_path(
 		block = buf_page_get_gen(
 			page_id_t(index->table->space_id,
 				  next_rec.page_no), zip_size,
-			rw_latch, NULL, BUF_GET, __FILE__, __LINE__, mtr);
+			rw_latch, NULL, BUF_GET, mtr);
 
 		if (block == NULL) {
 			continue;
@@ -529,15 +529,12 @@ rtr_compare_cursor_rec(
 Initializes and opens a persistent cursor to an index tree. It should be
 closed with btr_pcur_close. Mainly called by row_search_index_entry() */
 void
-rtr_pcur_open_low(
-/*==============*/
+rtr_pcur_open(
 	dict_index_t*	index,	/*!< in: index */
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
 	page_cur_mode_t	mode,	/*!< in: PAGE_CUR_RTREE_LOCATE, ... */
 	ulint		latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
-	const char*	file,	/*!< in: file name */
-	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	btr_cur_t*	btr_cursor;
@@ -574,7 +571,7 @@ rtr_pcur_open_low(
 	}
 
 	btr_cur_search_to_nth_level(index, 0, tuple, mode, latch_mode,
-				    btr_cursor, 0, file, line, mtr);
+				    btr_cursor, 0, mtr);
 	cursor->pos_state = BTR_PCUR_IS_POSITIONED;
 
 	cursor->trx_if_known = NULL;
@@ -726,8 +723,7 @@ static void rtr_get_father_node(
 		/* root split, and search the new root */
 		btr_cur_search_to_nth_level(
 			index, level, tuple, PAGE_CUR_RTREE_LOCATE,
-			BTR_CONT_MODIFY_TREE, btr_cur, 0,
-			__FILE__, __LINE__, mtr);
+			BTR_CONT_MODIFY_TREE, btr_cur, 0, mtr);
 
 	} else {
 		/* btr_validate */
@@ -736,8 +732,7 @@ static void rtr_get_father_node(
 
 		btr_cur_search_to_nth_level(
 			index, level, tuple, PAGE_CUR_RTREE_LOCATE,
-			BTR_CONT_MODIFY_TREE, btr_cur, 0,
-			__FILE__, __LINE__, mtr);
+			BTR_CONT_MODIFY_TREE, btr_cur, 0, mtr);
 
 		rec = btr_cur_get_rec(btr_cur);
 		n_fields = dtuple_get_n_fields_cmp(tuple);
@@ -1222,8 +1217,7 @@ struct optimistic_get
   bool operator()(buf_block_t *hint) const
   {
     return hint && buf_page_optimistic_get(
-       RW_X_LATCH, hint, r_cursor->modify_clock, __FILE__,
-       __LINE__, mtr);
+       RW_X_LATCH, hint, r_cursor->modify_clock, mtr);
   }
 };
 
@@ -1322,12 +1316,9 @@ rtr_cur_restore_position(
 	ut_ad(r_cursor == node->cursor);
 
 search_again:
-	dberr_t err = DB_SUCCESS;
-
 	block = buf_page_get_gen(
 		page_id_t(index->table->space_id, page_no),
-		zip_size, RW_X_LATCH, NULL,
-		BUF_GET, __FILE__, __LINE__, mtr, &err);
+		zip_size, RW_X_LATCH, NULL, BUF_GET, mtr);
 
 	ut_ad(block);
 

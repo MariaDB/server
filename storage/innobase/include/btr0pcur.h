@@ -109,13 +109,11 @@ btr_pcur_open_low(
 				record! */
 	ulint		latch_mode,/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor, /*!< in: memory buffer for persistent cursor */
-	const char*	file,	/*!< in: file name */
-	unsigned	line,	/*!< in: line where called */
 	ib_uint64_t	autoinc,/*!< in: PAGE_ROOT_AUTO_INC to be written
 				(0 if none) */
 	mtr_t*		mtr);	/*!< in: mtr */
 #define btr_pcur_open(i,t,md,l,c,m)				\
-	btr_pcur_open_low(i,0,t,md,l,c,__FILE__,__LINE__,0,m)
+	btr_pcur_open_low(i,0,t,md,l,c,0,m)
 /**************************************************************//**
 Opens an persistent cursor to an index tree without initializing the
 cursor. */
@@ -140,15 +138,13 @@ btr_pcur_open_with_no_init_func(
 	srw_lock*	ahi_latch,
 				/*!< in: currently held AHI rdlock, or NULL */
 #endif /* BTR_CUR_HASH_ADAPT */
-	const char*	file,	/*!< in: file name */
-	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr);	/*!< in: mtr */
 #ifdef BTR_CUR_HASH_ADAPT
 # define btr_pcur_open_with_no_init(ix,t,md,l,cur,ahi,m)		\
-	btr_pcur_open_with_no_init_func(ix,t,md,l,cur,ahi,__FILE__,__LINE__,m)
+	btr_pcur_open_with_no_init_func(ix,t,md,l,cur,ahi,m)
 #else /* BTR_CUR_HASH_ADAPT */
 # define btr_pcur_open_with_no_init(ix,t,md,l,cur,ahi,m)		\
-	btr_pcur_open_with_no_init_func(ix,t,md,l,cur,__FILE__,__LINE__,m)
+	btr_pcur_open_with_no_init_func(ix,t,md,l,cur,m)
 #endif /* BTR_CUR_HASH_ADAPT */
 
 /*****************************************************************//**
@@ -193,8 +189,7 @@ in the first case sets the cursor after last in tree, and in the latter case
 before first in tree. The latching mode must be BTR_SEARCH_LEAF or
 BTR_MODIFY_LEAF. */
 void
-btr_pcur_open_on_user_rec_func(
-/*===========================*/
+btr_pcur_open_on_user_rec(
 	dict_index_t*	index,		/*!< in: index */
 	const dtuple_t*	tuple,		/*!< in: tuple on which search done */
 	page_cur_mode_t	mode,		/*!< in: PAGE_CUR_L, ... */
@@ -202,27 +197,18 @@ btr_pcur_open_on_user_rec_func(
 					BTR_MODIFY_LEAF */
 	btr_pcur_t*	cursor,		/*!< in: memory buffer for persistent
 					cursor */
-	const char*	file,		/*!< in: file name */
-	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr);		/*!< in: mtr */
-#define btr_pcur_open_on_user_rec(i,t,md,l,c,m)				\
-	btr_pcur_open_on_user_rec_func(i,t,md,l,c,__FILE__,__LINE__,m)
 /**********************************************************************//**
 Positions a cursor at a randomly chosen position within a B-tree.
 @return true if the index is available and we have put the cursor, false
 if the index is unavailable */
 UNIV_INLINE
 bool
-btr_pcur_open_at_rnd_pos_func(
-/*==========================*/
+btr_pcur_open_at_rnd_pos(
 	dict_index_t*	index,		/*!< in: index */
 	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor,		/*!< in/out: B-tree pcur */
-	const char*	file,		/*!< in: file name */
-	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr);		/*!< in: mtr */
-#define btr_pcur_open_at_rnd_pos(i,l,c,m)				\
-	btr_pcur_open_at_rnd_pos_func(i,l,c,__FILE__,__LINE__,m)
 /**************************************************************//**
 Frees the possible memory heap of a persistent cursor and sets the latch
 mode of the persistent cursor to BTR_NO_LATCHES.
@@ -268,15 +254,10 @@ restores to before first or after the last in the tree.
 record and it can be restored on a user record whose ordering fields
 are identical to the ones of the original user record */
 ibool
-btr_pcur_restore_position_func(
-/*===========================*/
+btr_pcur_restore_position(
 	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor,		/*!< in: detached persistent cursor */
-	const char*	file,		/*!< in: file name */
-	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr);		/*!< in: mtr */
-#define btr_pcur_restore_position(l,cur,mtr)				\
-	btr_pcur_restore_position_func(l,cur,__FILE__,__LINE__,mtr)
 /*********************************************************//**
 Gets the rel_pos field for a cursor whose position has been stored.
 @return BTR_PCUR_ON, ... */

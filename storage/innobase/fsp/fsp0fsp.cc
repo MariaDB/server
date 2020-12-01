@@ -895,7 +895,7 @@ fsp_fill_free_list(
 			}
 		}
 
-		buf_block_t* xdes;
+		buf_block_t* xdes = nullptr;
 		xdes_t*	descr = xdes_get_descriptor_with_space_hdr(
 			header, space, i, &xdes, mtr, init_space);
 		if (xdes != header && !space->full_crc32()) {

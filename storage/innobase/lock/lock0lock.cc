@@ -4668,7 +4668,7 @@ static void lock_rec_block_validate(const page_id_t page_id)
 			space->zip_size(),
 			RW_X_LATCH, NULL,
 			BUF_GET_POSSIBLY_FREED,
-			__FILE__, __LINE__, &mtr, &err);
+			&mtr, &err);
 
 		if (err != DB_SUCCESS) {
 			ib::error() << "Lock rec block validate failed for tablespace "

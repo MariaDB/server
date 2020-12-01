@@ -1148,7 +1148,7 @@ trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
 		return buf_page_get_gen(
 			page_id_t(undo->rseg->space->id, undo->last_page_no),
 			0, RW_X_LATCH, undo->guess_block,
-			BUF_GET, __FILE__, __LINE__, mtr, err);
+			BUF_GET, mtr, err);
 	}
 
 	trx_rseg_t* rseg = trx->rsegs.m_redo.rseg;
@@ -1188,8 +1188,7 @@ buf_block_t*
 trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 		    dberr_t* err, mtr_t* mtr)
 {
-  const bool	is_temp __attribute__((unused)) = rseg == trx->rsegs.m_noredo.rseg;
-
+	ut_d(const bool	is_temp = rseg == trx->rsegs.m_noredo.rseg);
 	ut_ad(rseg == trx->rsegs.m_redo.rseg
 	      || rseg == trx->rsegs.m_noredo.rseg);
 	ut_ad(undo == (is_temp
@@ -1202,7 +1201,7 @@ trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 		return buf_page_get_gen(
 			page_id_t(rseg->space->id, (*undo)->last_page_no),
 			0, RW_X_LATCH, (*undo)->guess_block,
-			BUF_GET, __FILE__, __LINE__, mtr, err);
+			BUF_GET, mtr, err);
 	}
 
 	DBUG_EXECUTE_IF(

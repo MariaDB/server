@@ -853,12 +853,12 @@ PageBulk::latch()
 
 	/* In case the block is S-latched by page_cleaner. */
 	if (!buf_page_optimistic_get(RW_X_LATCH, m_block, m_modify_clock,
-				     __FILE__, __LINE__, &m_mtr)) {
+				     &m_mtr)) {
 		m_block = buf_page_get_gen(page_id_t(m_index->table->space_id,
 						     m_page_no),
 					   0, RW_X_LATCH,
 					   m_block, BUF_GET_IF_IN_POOL,
-					   __FILE__, __LINE__, &m_mtr, &m_err);
+					   &m_mtr, &m_err);
 
 		if (m_err != DB_SUCCESS) {
 			return (m_err);
