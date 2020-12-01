@@ -459,6 +459,13 @@ close_table:
 					node->heap);
 			} else {
 				node->ref = &trx_undo_metadata;
+				if (!row_undo_search_clust_to_pcur(node)) {
+					/* An error probably occurred during
+					an insert into the clustered index,
+					after we wrote the undo log record. */
+					goto close_table;
+				}
+				return;
 			}
 
 			if (!row_undo_search_clust_to_pcur(node)) {
