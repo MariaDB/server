@@ -221,9 +221,6 @@ public:
       return false;
     }
   }
-  /** Acquire an exclusive lock or upgrade an update lock
-  @return whether U locks were upgraded to X */
-  bool x_lock_upgraded(const char *, unsigned) { return x_lock_upgraded(); }
 
   /** @return whether a shared lock was acquired */
   bool s_lock_try()
