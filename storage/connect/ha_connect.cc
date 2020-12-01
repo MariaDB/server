@@ -170,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0002 December 01, 2020";
+       char version[]= "Version 1.07.0002 December 02, 2020";
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -4569,6 +4569,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
     case TAB_OCCUR:
     case TAB_PIVOT:
     case TAB_VIR:
+    default:
 			// This is temporary until a solution is found
 			return false;
     } // endswitch type
