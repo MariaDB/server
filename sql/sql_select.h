@@ -1900,18 +1900,11 @@ public:
   {
     enum store_key_result result;
     THD *thd= to_field->table->in_use;
-    enum_check_fields saved_count_cuted_fields= thd->count_cuted_fields;
-    sql_mode_t orig_sql_mode= thd->variables.sql_mode;
+    Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
+    Sql_mode_save sql_mode(thd);
     thd->variables.sql_mode&= ~(MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
     thd->variables.sql_mode|= MODE_INVALID_DATES;
-
-    thd->count_cuted_fields= CHECK_FIELD_IGNORE;
-
     result= copy_inner();
-
-    thd->count_cuted_fields= saved_count_cuted_fields;
-    thd->variables.sql_mode= orig_sql_mode;
-
     return result;
   }
 

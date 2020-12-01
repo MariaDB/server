@@ -1337,7 +1337,7 @@ close_table:
 	}
 
 	/* Extract indexed virtual columns from undo log */
-	if (node->table->n_v_cols) {
+	if (node->ref != &trx_undo_metadata && node->table->n_v_cols) {
 		row_upd_replace_vcol(node->row, node->table,
 				     node->update, false, node->undo_row,
 				     (node->cmpl_info & UPD_NODE_NO_ORD_CHANGE)

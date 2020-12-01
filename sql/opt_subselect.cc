@@ -868,6 +868,7 @@ bool subquery_types_allow_materialization(THD* thd, Item_in_subselect *in_subs)
 
   bool all_are_fields= TRUE;
   uint32 total_key_length = 0;
+  bool converted_from_in_predicate= in_subs->converted_from_in_predicate;
   for (uint i= 0; i < elements; i++)
   {
     Item *outer= in_subs->left_expr->element_index(i);
@@ -875,8 +876,11 @@ bool subquery_types_allow_materialization(THD* thd, Item_in_subselect *in_subs)
     all_are_fields &= (outer->real_item()->type() == Item::FIELD_ITEM && 
                        inner->real_item()->type() == Item::FIELD_ITEM);
     total_key_length += inner->max_length;
-    if (!inner->type_handler()->subquery_type_allows_materialization(inner,
-                                                                     outer))
+    if (!inner->
+         type_handler()->
+         subquery_type_allows_materialization(inner,
+                                              outer,
+                                              converted_from_in_predicate))
     {
       trace_transform.add("possible", false);
       trace_transform.add("cause", "types mismatch");

@@ -209,12 +209,11 @@ void tp_callback(TP_connection *c)
 
 error:
   c->thd= 0;
-  delete c;
-
   if (thd)
   {
     threadpool_remove_connection(thd);
   }
+  delete c;
   worker_context.restore();
 }
 

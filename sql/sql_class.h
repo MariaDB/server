@@ -4574,6 +4574,13 @@ public:
     locked_tables_mode= mode_arg;
   }
   void leave_locked_tables_mode();
+  /* Relesae transactional locks if there are no active transactions */
+  void release_transactional_locks()
+  {
+    if (!(server_status &
+          (SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY)))
+      mdl_context.release_transactional_locks();
+  }
   int decide_logging_format(TABLE_LIST *tables);
   /*
    In Some cases when decide_logging_format is called it does not have all
@@ -6742,6 +6749,23 @@ class Switch_to_definer_security_ctx
  private:
   THD *m_thd;
   Security_context *m_sctx;
+};
+
+
+class Check_level_instant_set
+{
+  THD *m_thd;
+  enum_check_fields m_check_level;
+public:
+  Check_level_instant_set(THD *thd, enum_check_fields temporary_value)
+   :m_thd(thd), m_check_level(thd->count_cuted_fields)
+  {
+    thd->count_cuted_fields= temporary_value;
+  }
+  ~Check_level_instant_set()
+  {
+    m_thd->count_cuted_fields= m_check_level;
+  }
 };
 
 

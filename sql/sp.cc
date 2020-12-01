@@ -1181,8 +1181,6 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
 
   CHARSET_INFO *db_cs= get_default_db_collation(thd, sp->m_db.str);
 
-  enum_check_fields saved_count_cuted_fields;
-
   bool store_failed= FALSE;
   DBUG_ENTER("sp_create_routine");
   DBUG_PRINT("enter", ("type: %s  name: %.*s",
@@ -1216,8 +1214,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
   /* Reset sql_mode during data dictionary operations. */
   thd->variables.sql_mode= 0;
 
-  saved_count_cuted_fields= thd->count_cuted_fields;
-  thd->count_cuted_fields= CHECK_FIELD_WARN;
+  Check_level_instant_set check_level_save(thd, CHECK_FIELD_WARN);
 
   if (!(table= open_proc_table_for_update(thd)))
   {
@@ -1477,7 +1474,6 @@ log:
   ret= FALSE;
 
 done:
-  thd->count_cuted_fields= saved_count_cuted_fields;
   thd->variables.sql_mode= saved_mode;
   DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
   DBUG_RETURN(ret);

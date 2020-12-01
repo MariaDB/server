@@ -441,7 +441,7 @@ rpl_slave_state::truncate_state_table(THD *thd)
       close_thread_tables(thd);
       ha_commit_trans(thd, TRUE);
     }
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
   }
 
   reenable_binlog(thd);
@@ -988,7 +988,7 @@ end:
         ha_rollback_trans(thd, FALSE);
     }
     close_thread_tables(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
     thd->lex->restore_backup_query_tables_list(&lex_backup);
 
     if (err)

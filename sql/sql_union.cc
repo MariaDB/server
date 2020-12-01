@@ -2102,6 +2102,7 @@ bool st_select_lex::cleanup()
     delete join;
     join= 0;
   }
+  leaf_tables.empty();
   for (SELECT_LEX_UNIT *lex_unit= first_inner_unit(); lex_unit ;
        lex_unit= lex_unit->next_unit())
   {

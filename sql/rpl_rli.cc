@@ -1702,7 +1702,7 @@ scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_CSTRING *, void *),
   {
     my_error(ER_FILE_NOT_FOUND, MYF(0), path, my_errno);
     close_thread_tables(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
     return 1;
   }
   else
@@ -1715,7 +1715,7 @@ scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_CSTRING *, void *),
     err= ha_discover_table_names(thd, &MYSQL_SCHEMA_NAME, dirp, &tl, false);
     my_dirend(dirp);
     close_thread_tables(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
     if (err)
       return err;
 
@@ -2000,7 +2000,7 @@ end:
     ha_commit_trans(thd, FALSE);
     ha_commit_trans(thd, TRUE);
     close_thread_tables(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
   }
 
   return err;
@@ -2282,7 +2282,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
 
   if (unlikely(error))
   {
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
 
     if (thd == rli->sql_driver_thd)
     {
@@ -2396,10 +2396,10 @@ void rpl_group_info::slave_close_thread_tables(THD *thd)
   if (thd->transaction_rollback_request)
   {
     trans_rollback_implicit(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
   }
   else if (! thd->in_multi_stmt_transaction_mode())
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
   else
     thd->mdl_context.release_statement_locks();
 

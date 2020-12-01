@@ -3,6 +3,10 @@
 --source include/have_udf.inc
 --source include/platform.inc
 
+if (!$AUTH_SOCKET_SO) {
+  --skip Need auth socket plugin
+}
+
 --echo #
 --echo # MDEV-23630: mysqldump to logically dump system tables
 --echo #

@@ -18,7 +18,6 @@
 #include <mysql.h>
 #include <xtrabackup.h>
 #include <encryption_plugin.h>
-#include <backup_copy.h>
 #include <sql_plugin.h>
 #include <sstream>
 #include <vector>

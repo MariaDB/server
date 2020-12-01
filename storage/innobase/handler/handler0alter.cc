@@ -7047,6 +7047,7 @@ error_handling_drop_uncached:
 					if (ok && a == 1) {
 						row_log_free(
 							index->online_log);
+						index->online_log = NULL;
 						ok = false;
 					});
 
@@ -8619,6 +8620,7 @@ innobase_online_rebuild_log_free(
 		      == ONLINE_INDEX_CREATION);
 		clust_index->online_status = ONLINE_INDEX_COMPLETE;
 		row_log_free(clust_index->online_log);
+		clust_index->online_log = NULL;
 		DEBUG_SYNC_C("innodb_online_rebuild_log_free_aborted");
 	}
 

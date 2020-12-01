@@ -19,6 +19,7 @@
 #include "sql_const.h"
 #include "sql_class.h"
 #include "sql_time.h"
+#include "sql_string.h"
 #include "item.h"
 #include "log.h"
 #include "tztime.h"
@@ -6683,7 +6684,8 @@ uint Type_handler_timestamp_common::Item_decimal_precision(const Item *item) con
 
 bool Type_handler_real_result::
        subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const
+                                            const Item *outer,
+                                            bool is_in_predicate) const
 {
   DBUG_ASSERT(inner->cmp_type() == REAL_RESULT);
   return outer->cmp_type() == REAL_RESULT;
@@ -6692,7 +6694,8 @@ bool Type_handler_real_result::
 
 bool Type_handler_int_result::
        subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const
+                                            const Item *outer,
+                                            bool is_in_predicate) const
 {
   DBUG_ASSERT(inner->cmp_type() == INT_RESULT);
   return outer->cmp_type() == INT_RESULT;
@@ -6701,7 +6704,8 @@ bool Type_handler_int_result::
 
 bool Type_handler_decimal_result::
        subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const
+                                            const Item *outer,
+                                            bool is_in_predicate) const
 {
   DBUG_ASSERT(inner->cmp_type() == DECIMAL_RESULT);
   return outer->cmp_type() == DECIMAL_RESULT;
@@ -6710,23 +6714,37 @@ bool Type_handler_decimal_result::
 
 bool Type_handler_string_result::
        subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const
+                                            const Item *outer,
+                                            bool is_in_predicate) const
 {
   DBUG_ASSERT(inner->cmp_type() == STRING_RESULT);
-  return outer->cmp_type() == STRING_RESULT &&
-         outer->collation.collation == inner->collation.collation &&
-         /*
-           Materialization also is unable to work when create_tmp_table() will
-           create a blob column because item->max_length is too big.
-           The following test is copied from varstring_type_handler().
-         */
-         !inner->too_big_for_varchar();
+  if (outer->cmp_type() == STRING_RESULT &&
+      /*
+        Materialization also is unable to work when create_tmp_table() will
+        create a blob column because item->max_length is too big.
+        The following test is copied from varstring_type_handler().
+      */
+      !inner->too_big_for_varchar())
+  {
+    if (outer->collation.collation == inner->collation.collation)
+      return true;
+    if (is_in_predicate)
+    {
+      Charset inner_col(inner->collation.collation);
+      if (inner_col.encoding_allows_reinterpret_as(outer->
+                                                   collation.collation) &&
+          inner_col.eq_collation_specific_names(outer->collation.collation))
+        return true;
+    }
+  }
+  return false;
 }
 
 
 bool Type_handler_temporal_result::
        subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const
+                                            const Item *outer,
+                                            bool is_in_predicate) const
 {
   DBUG_ASSERT(inner->cmp_type() == TIME_RESULT);
   return mysql_timestamp_type() ==
