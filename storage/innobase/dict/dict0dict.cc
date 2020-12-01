@@ -4417,7 +4417,7 @@ dict_set_merge_threshold_list_debug(
 		for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
 		     index != NULL;
 		     index = UT_LIST_GET_NEXT(indexes, index)) {
-			index->lock.x_lock(__FILE__, __LINE__);
+			index->lock.x_lock(SRW_LOCK_CALL);
 			index->merge_threshold = merge_threshold_all
 				& ((1U << 6) - 1);
 			index->lock.x_unlock();

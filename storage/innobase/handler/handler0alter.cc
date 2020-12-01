@@ -6866,7 +6866,7 @@ error_handling_drop_uncached_1:
 
 		if (ctx->online) {
 			/* Allocate a log for online table rebuild. */
-			clust_index->lock.x_lock(__FILE__, __LINE__);
+			clust_index->lock.x_lock(SRW_LOCK_CALL);
 			bool ok = row_log_allocate(
 				ctx->prebuilt->trx,
 				clust_index, ctx->new_table,
@@ -6941,7 +6941,7 @@ error_handling_drop_uncached:
 				/* No need to allocate a modification log. */
 				DBUG_ASSERT(!index->online_log);
 			} else {
-				index->lock.x_lock(__FILE__, __LINE__);
+				index->lock.x_lock(SRW_LOCK_CALL);
 
 				bool ok = row_log_allocate(
 					ctx->prebuilt->trx,
@@ -7126,7 +7126,7 @@ error_handled:
 			dict_index_t* clust_index = dict_table_get_first_index(
 				user_table);
 
-			clust_index->lock.x_lock(__FILE__, __LINE__);
+			clust_index->lock.x_lock(SRW_LOCK_CALL);
 
 			if (clust_index->online_log) {
 				ut_ad(ctx->online);
@@ -8524,7 +8524,7 @@ innobase_online_rebuild_log_free(
 {
 	dict_index_t* clust_index = dict_table_get_first_index(table);
 	ut_d(dict_sys.assert_locked());
-	clust_index->lock.x_lock(__FILE__, __LINE__);
+	clust_index->lock.x_lock(SRW_LOCK_CALL);
 
 	if (clust_index->online_log) {
 		ut_ad(dict_index_get_online_status(clust_index)
@@ -10392,7 +10392,7 @@ commit_cache_norebuild(
 
 			/* Mark the index dropped
 			in the data dictionary cache. */
-			index->lock.u_lock();
+			index->lock.u_lock(SRW_LOCK_CALL);
 			index->page = FIL_NULL;
 			index->lock.u_unlock();
 		}

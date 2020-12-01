@@ -2633,7 +2633,7 @@ fseg_free_extent(
 		if (!xdes_is_free(descr, i)) {
 			buf_page_free(
 			  page_id_t(space->id, first_page_in_extent + 1),
-			  mtr, __FILE__, __LINE__);
+			  mtr);
 		}
 	}
 }

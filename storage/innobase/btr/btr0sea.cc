@@ -181,7 +181,7 @@ static void btr_search_check_free_space_in_heap(const dict_index_t *index)
   buf_block_t *block= buf_block_alloc();
   auto part= btr_search_sys.get_part(*index);
 
-  part->latch.wr_lock();
+  part->latch.wr_lock(SRW_LOCK_CALL);
 
   if (!btr_search_enabled || part->heap->free_block)
     buf_block_free(block);
@@ -709,7 +709,7 @@ btr_search_update_hash_ref(
 	ut_ad(index == cursor->index);
 	ut_ad(!dict_index_is_ibuf(index));
 	auto part = btr_search_sys.get_part(*index);
-	part->latch.wr_lock();
+	part->latch.wr_lock(SRW_LOCK_CALL);
 	ut_ad(!block->index || block->index == index);
 
 	if (block->index
@@ -1052,7 +1052,7 @@ btr_search_guess_on_hash(
 	const rec_t* rec;
 
 	if (!ahi_latch) {
-		part->latch.rd_lock();
+		part->latch.rd_lock(SRW_LOCK_CALL);
 
 		if (!btr_search_enabled) {
 			goto fail;
@@ -1109,7 +1109,7 @@ got_no_latch:
 			}
 			fix_type = MTR_MEMO_PAGE_S_FIX;
 		} else {
-			if (!block->lock.x_lock_try(__FILE__, __LINE__)) {
+			if (!block->lock.x_lock_try()) {
 				goto got_no_latch;
 			}
 			fix_type = MTR_MEMO_PAGE_X_FIX;
@@ -1261,7 +1261,7 @@ retry:
 	auto part = btr_search_sys.get_part(index_id,
 					    block->page.id().space());
 
-	part->latch.rd_lock();
+	part->latch.rd_lock(SRW_LOCK_CALL);
 	assert_block_ahi_valid(block);
 
 	if (!block->index || !btr_search_enabled) {
@@ -1336,7 +1336,7 @@ next_rec:
 		mem_heap_free(heap);
 	}
 
-	part->latch.wr_lock();
+	part->latch.wr_lock(SRW_LOCK_CALL);
 
 	if (UNIV_UNLIKELY(!block->index)) {
 		/* Someone else has meanwhile dropped the hash index */
@@ -1409,11 +1409,11 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id)
 		AHI is dropped when page is freed. */
 		DBUG_ASSERT(block->page.status != buf_page_t::FREED);
 
-		if (dict_index_t* index = block->index) {
+		if (block->index) {
 			/* In all our callers, the table handle should
 			be open, or we should be in the process of
 			dropping the table (preventing eviction). */
-			ut_ad(index->table->get_ref_count() > 0
+			ut_ad(block->index->table->get_ref_count() > 0
 			      || mutex_own(&dict_sys.mutex));
 			btr_search_drop_page_hash_index(block);
 		}
@@ -1471,7 +1471,7 @@ btr_search_build_page_hash_index(
 	// FIXME: ut_ad(block->lock.have_s_or_x())
 	ut_ad(block->page.id().page_no() >= 3);
 
-	ahi_latch->rd_lock();
+	ahi_latch->rd_lock(SRW_LOCK_CALL);
 
 	const bool enabled = btr_search_enabled;
 	const bool rebuild = enabled && block->index
@@ -1585,7 +1585,7 @@ btr_search_build_page_hash_index(
 
 	btr_search_check_free_space_in_heap(index);
 
-	ahi_latch->wr_lock();
+	ahi_latch->wr_lock(SRW_LOCK_CALL);
 
 	if (!btr_search_enabled) {
 		goto exit_func;
@@ -1719,7 +1719,7 @@ btr_search_move_or_delete_hash_entries(
 		return;
 	}
 
-	ahi_latch->rd_lock();
+	ahi_latch->rd_lock(SRW_LOCK_CALL);
 
 	if (block->index) {
 		uint16_t n_fields = block->curr_n_fields;
@@ -1796,7 +1796,7 @@ void btr_search_update_hash_on_delete(btr_cur_t* cursor)
 
 	auto part = btr_search_sys.get_part(*index);
 
-	part->latch.wr_lock();
+	part->latch.wr_lock(SRW_LOCK_CALL);
 	assert_block_ahi_valid(block);
 
 	if (block->index && btr_search_enabled) {
@@ -1850,7 +1850,7 @@ void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
 
 	ut_a(cursor->index == index);
 	ut_ad(!dict_index_is_ibuf(index));
-	ahi_latch->wr_lock();
+	ahi_latch->wr_lock(SRW_LOCK_CALL);
 
 	if (!block->index || !btr_search_enabled) {
 
@@ -1968,7 +1968,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor,
 	} else {
 		if (left_side) {
 			locked = true;
-			ahi_latch->wr_lock();
+			ahi_latch->wr_lock(SRW_LOCK_CALL);
 
 			if (!btr_search_enabled || !block->index) {
 				goto function_exit;
@@ -1987,7 +1987,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor,
 
 		if (!locked) {
 			locked = true;
-			ahi_latch->wr_lock();
+			ahi_latch->wr_lock(SRW_LOCK_CALL);
 
 			if (!btr_search_enabled || !block->index) {
 				goto function_exit;
@@ -2012,7 +2012,7 @@ check_next_rec:
 		if (!left_side) {
 			if (!locked) {
 				locked = true;
-				ahi_latch->wr_lock();
+				ahi_latch->wr_lock(SRW_LOCK_CALL);
 
 				if (!btr_search_enabled || !block->index) {
 					goto function_exit;
@@ -2032,7 +2032,7 @@ check_next_rec:
 	if (ins_fold != next_fold) {
 		if (!locked) {
 			locked = true;
-			ahi_latch->wr_lock();
+			ahi_latch->wr_lock(SRW_LOCK_CALL);
 
 			if (!btr_search_enabled || !block->index) {
 				goto function_exit;

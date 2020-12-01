@@ -393,7 +393,7 @@ rtr_pcur_getnext_from_path(
 			lock_mutex_exit();
 
 			if (rw_latch == RW_NO_LATCH) {
-				block->lock.s_lock(__FILE__, __LINE__);
+				block->lock.s_lock();
 			}
 
 			lock_prdt_lock(block, &prdt, index, LOCK_S,
@@ -569,7 +569,7 @@ rtr_pcur_open_low(
 	}
 
 	if ((latch_mode & BTR_MODIFY_TREE) && index->lock.have_u_not_x()) {
-		index->lock.u_x_upgrade();
+		index->lock.u_x_upgrade(SRW_LOCK_CALL);
 		mtr->lock_upgrade(index->lock);
 	}
 

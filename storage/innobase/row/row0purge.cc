@@ -444,7 +444,7 @@ row_purge_remove_sec_if_poss_leaf(
 	pcur.btr_cur.purge_node = node;
 	if (index->is_spatial()) {
 		pcur.btr_cur.thr = NULL;
-		index->lock.u_lock();
+		index->lock.u_lock(SRW_LOCK_CALL);
 		search_result = row_search_index_entry(
 			index, entry, mode, &pcur, &mtr);
 		index->lock.u_unlock();

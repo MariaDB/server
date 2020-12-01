@@ -110,7 +110,7 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     block->initialise(page_id, zip_size);
     /* x_unlock() will be invoked
     in buf_page_read_complete() by the io-handler thread. */
-    block->lock.x_lock(__FILE__, __LINE__, true);
+    block->lock.x_lock(true);
   }
 
   const ulint fold= page_id.fold();

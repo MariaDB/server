@@ -11362,7 +11362,7 @@ innobase_parse_hint_from_comment(
 
 			/* x-lock index is needed to exclude concurrent
 			pessimistic tree operations */
-			index->lock.x_lock(__FILE__, __LINE__);
+			index->lock.x_lock(SRW_LOCK_CALL);
 			index->merge_threshold = merge_threshold_table
 				& ((1U << 6) - 1);
 			index->lock.x_unlock();
@@ -11382,7 +11382,7 @@ innobase_parse_hint_from_comment(
 
 				/* x-lock index is needed to exclude concurrent
 				pessimistic tree operations */
-				index->lock.x_lock(__FILE__, __LINE__);
+				index->lock.x_lock(SRW_LOCK_CALL);
 				index->merge_threshold
 					= merge_threshold_index[i]
 					& ((1U << 6) - 1);

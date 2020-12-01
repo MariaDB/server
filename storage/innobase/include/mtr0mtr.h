@@ -65,9 +65,15 @@ savepoint. */
 /** Push an object to an mtr memo stack. */
 #define mtr_memo_push(m, o, t)	(m)->memo_push(o, t)
 
-#define mtr_s_lock_index(i, m)	(m)->s_lock(&(i)->lock, __FILE__, __LINE__)
-#define mtr_x_lock_index(i, m)	(m)->x_lock(&(i)->lock, __FILE__, __LINE__)
-#define mtr_sx_lock_index(i, m)	(m)->u_lock(&(i)->lock, __FILE__, __LINE__)
+#ifdef UNIV_PFS_RWLOCK
+# define mtr_s_lock_index(i, m)	(m)->s_lock(__FILE__, __LINE__, &(i)->lock)
+# define mtr_x_lock_index(i, m)	(m)->x_lock(__FILE__, __LINE__, &(i)->lock)
+# define mtr_sx_lock_index(i, m)(m)->u_lock(__FILE__, __LINE__, &(i)->lock)
+#else
+# define mtr_s_lock_index(i, m)	(m)->s_lock(&(i)->lock)
+# define mtr_x_lock_index(i, m)	(m)->x_lock(&(i)->lock)
+# define mtr_sx_lock_index(i, m)(m)->u_lock(&(i)->lock)
+#endif
 
 #define mtr_release_block_at_savepoint(m, s, b)				\
 				(m)->release_block_at_savepoint((s), (b))
@@ -214,35 +220,38 @@ struct mtr_t {
 	@return the tablespace object (never NULL) */
 	fil_space_t* x_lock_space(ulint space_id);
 
-	/** Acquire a shared rw-latch.
-	@param[in]	lock	rw-latch
-	@param[in]	file	file name from where called
-	@param[in]	line	line number in file */
-	void s_lock(index_lock* lock, const char* file, unsigned line)
-	{
-		lock->s_lock(file, line);
-		memo_push(lock, MTR_MEMO_S_LOCK);
-	}
+  /** Acquire a shared rw-latch. */
+  void s_lock(
+#ifdef UNIV_PFS_RWLOCK
+    const char *file, unsigned line,
+#endif
+    index_lock *lock)
+  {
+    lock->s_lock(SRW_LOCK_ARGS(file, line));
+    memo_push(lock, MTR_MEMO_S_LOCK);
+  }
 
-	/** Acquire an exclusive rw-latch.
-	@param[in]	lock	rw-latch
-	@param[in]	file	file name from where called
-	@param[in]	line	line number in file */
-	void x_lock(index_lock* lock, const char* file, unsigned line)
-	{
-		lock->x_lock(file, line);
-		memo_push(lock, MTR_MEMO_X_LOCK);
-	}
+  /** Acquire an exclusive rw-latch. */
+  void x_lock(
+#ifdef UNIV_PFS_RWLOCK
+    const char *file, unsigned line,
+#endif
+    index_lock *lock)
+  {
+    lock->x_lock(SRW_LOCK_ARGS(file, line));
+    memo_push(lock, MTR_MEMO_X_LOCK);
+  }
 
-	/** Acquire an update latch.
-	@param[in]	lock	rw-latch
-	@param[in]	file	file name from where called
-	@param[in]	line	line number in file */
-	void u_lock(index_lock* lock, const char* file, unsigned line)
-	{
-		lock->u_lock(file, line);
-		memo_push(lock, MTR_MEMO_SX_LOCK);
-	}
+  /** Acquire an update latch. */
+  void u_lock(
+#ifdef UNIV_PFS_RWLOCK
+    const char *file, unsigned line,
+#endif
+    index_lock *lock)
+  {
+    lock->u_lock(SRW_LOCK_ARGS(file, line));
+    memo_push(lock, MTR_MEMO_SX_LOCK);
+  }
 
 	/** Acquire a tablespace S-latch.
 	@param[in]	space	tablespace */
@@ -318,11 +327,8 @@ public:
 
   /** Latch a buffer pool block.
   @param block    block to be latched
-  @param rw_latch RW_S_LATCH, RW_SX_LATCH, RW_X_LATCH, RW_NO_LATCH
-  @param file     file name
-  @param line     line where called */
-  void page_lock(buf_block_t *block, ulint rw_latch,
-                 const char *file, unsigned line);
+  @param rw_latch RW_S_LATCH, RW_SX_LATCH, RW_X_LATCH, RW_NO_LATCH */
+  void page_lock(buf_block_t *block, ulint rw_latch);
 
   /** Upgrade U locks on a block to X */
   void page_lock_upgrade(const buf_block_t &block);

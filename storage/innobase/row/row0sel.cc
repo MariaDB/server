@@ -1077,7 +1077,7 @@ sel_set_rtr_rec_lock(
 	ut_ad(page_align(first_rec) == cur_block->frame);
 	ut_ad(match->valid);
 
-	match->block.lock.x_lock(__FILE__, __LINE__);
+	match->block.lock.x_lock();
 retry:
 	cur_block = btr_pcur_get_block(pcur);
 	// FIXME: ut_ad(match->block.lock.have_s_or_x());
@@ -3857,7 +3857,7 @@ row_sel_try_search_shortcut_for_mysql(
 	ut_ad(!prebuilt->templ_contains_blob);
 
 	srw_lock* ahi_latch = btr_search_sys.get_latch(*index);
-	ahi_latch->rd_lock();
+	ahi_latch->rd_lock(SRW_LOCK_CALL);
 	btr_pcur_open_with_no_init(index, search_tuple, PAGE_CUR_GE,
 				   BTR_SEARCH_LEAF, pcur, ahi_latch, mtr);
 	rec = btr_pcur_get_rec(pcur);

@@ -1565,7 +1565,7 @@ public:
   /** Lock the data dictionary cache. */
   void lock(const char* file, unsigned line)
   {
-    latch.wr_lock();
+    latch.wr_lock(SRW_LOCK_ARGS(file, line));
     ut_ad(!latch_ex);
     ut_d(latch_ex= true);
     mutex_enter_loc(&mutex, file, line);
@@ -1581,7 +1581,7 @@ public:
   }
 
   /** Prevent modifications of the data dictionary */
-  void freeze() { latch.rd_lock(); ut_ad(!latch_ex); }
+  void freeze() { latch.rd_lock(SRW_LOCK_CALL); ut_ad(!latch_ex); }
   /** Allow modifications of the data dictionary */
   void unfreeze() { ut_ad(!latch_ex); latch.rd_unlock(); }
 

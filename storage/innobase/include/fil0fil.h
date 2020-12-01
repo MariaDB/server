@@ -1000,7 +1000,7 @@ public:
   /** Acquire the allocation latch in exclusive mode */
   void x_lock()
   {
-    latch.wr_lock();
+    latch.wr_lock(SRW_LOCK_CALL);
     ut_ad(!latch_owner);
     ut_d(latch_owner= os_thread_get_curr_id());
     ut_ad(!latch_count.fetch_add(1));
@@ -1016,7 +1016,7 @@ public:
   /** Acquire the allocation latch in shared mode */
   void s_lock()
   {
-    latch.rd_lock();
+    latch.rd_lock(SRW_LOCK_CALL);
     ut_ad(!latch_owner);
     ut_d(latch_count.fetch_add(1));
   }

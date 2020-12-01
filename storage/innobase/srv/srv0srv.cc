@@ -912,7 +912,7 @@ srv_printf_innodb_monitor(
 #ifdef BTR_CUR_HASH_ADAPT
 	for (ulint i = 0; i < btr_ahi_parts && btr_search_enabled; ++i) {
 		const auto part= &btr_search_sys.parts[i];
-		part->latch.rd_lock();
+		part->latch.rd_lock(SRW_LOCK_CALL);
 		ut_ad(part->heap->type == MEM_HEAP_FOR_BTR_SEARCH);
 		fprintf(file, "Hash table size " ULINTPF
 			", node heap has " ULINTPF " buffer(s)\n",
@@ -1053,7 +1053,7 @@ srv_export_innodb_status(void)
 	ulint mem_adaptive_hash = 0;
 	for (ulong i = 0; i < btr_ahi_parts; i++) {
 		const auto part= &btr_search_sys.parts[i];
-		part->latch.rd_lock();
+		part->latch.rd_lock(SRW_LOCK_CALL);
 		if (part->heap) {
 			ut_ad(part->heap->type == MEM_HEAP_FOR_BTR_SEARCH);
 
@@ -1471,7 +1471,7 @@ bool purge_sys_t::running() const
 /** Stop purge during FLUSH TABLES FOR EXPORT */
 void purge_sys_t::stop()
 {
-  latch.wr_lock();
+  latch.wr_lock(SRW_LOCK_CALL);
 
   if (!enabled())
   {
@@ -1508,7 +1508,7 @@ void purge_sys_t::resume()
    ut_ad(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
    ut_ad(!sync_check_iterate(sync_check()));
    purge_coordinator_task.enable();
-   latch.wr_lock();
+   latch.wr_lock(SRW_LOCK_CALL);
    int32_t paused= m_paused--;
    ut_a(paused);
 

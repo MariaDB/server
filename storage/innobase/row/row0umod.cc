@@ -371,7 +371,7 @@ row_undo_mod_clust(
 		} else {
 			index->set_modified(mtr);
 			have_latch = true;
-			purge_sys.latch.rd_lock();
+			purge_sys.latch.rd_lock(SRW_LOCK_CALL);
 			if (!row_undo_mod_must_purge(node, &mtr)) {
 				goto mtr_commit_exit;
 			}
@@ -398,7 +398,7 @@ row_undo_mod_clust(
 			mtr.set_log_mode(MTR_LOG_NO_REDO);
 		} else {
 			have_latch = true;
-			purge_sys.latch.rd_lock();
+			purge_sys.latch.rd_lock(SRW_LOCK_CALL);
 			if (!row_undo_mod_must_purge(node, &mtr)) {
 				goto mtr_commit_exit;
 			}
@@ -425,7 +425,7 @@ row_undo_mod_clust(
 		}
 		rec_t* rec = btr_pcur_get_rec(pcur);
 		have_latch = true;
-		purge_sys.latch.rd_lock();
+		purge_sys.latch.rd_lock(SRW_LOCK_CALL);
 		if (!purge_sys.changes_visible(node->new_trx_id,
 					       node->table->name)) {
 			goto mtr_commit_exit;

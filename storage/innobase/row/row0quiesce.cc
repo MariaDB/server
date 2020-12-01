@@ -677,10 +677,10 @@ row_quiesce_set_state(
 	for (dict_index_t* index = dict_table_get_next_index(clust_index);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
-		index->lock.x_lock(__FILE__, __LINE__);
+		index->lock.x_lock(SRW_LOCK_CALL);
 	}
 
-	clust_index->lock.x_lock(__FILE__, __LINE__);
+	clust_index->lock.x_lock(SRW_LOCK_CALL);
 
 	switch (state) {
 	case QUIESCE_START:

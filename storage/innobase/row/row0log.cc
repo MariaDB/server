@@ -1576,7 +1576,7 @@ row_log_table_apply_convert_mrec(
 
 		if (rec_offs_nth_extern(offsets, i)) {
 			ut_ad(rec_offs_any_extern(offsets));
-			index->lock.x_lock(__FILE__, __LINE__);
+			index->lock.x_lock(SRW_LOCK_CALL);
 
 			if (const page_no_map* blobs = log->blobs) {
 				data = rec_get_nth_field(
@@ -3040,7 +3040,7 @@ all_done:
 
 			mrec = NULL;
 process_next_block:
-			index->lock.x_lock(__FILE__, __LINE__);
+			index->lock.x_lock(SRW_LOCK_CALL);
 			has_index_lock = true;
 
 			index->online_log->head.bytes = 0;
@@ -3072,7 +3072,7 @@ interrupted:
 	error = DB_INTERRUPTED;
 func_exit:
 	if (!has_index_lock) {
-		index->lock.x_lock(__FILE__, __LINE__);
+		index->lock.x_lock(SRW_LOCK_CALL);
 	}
 
 	mem_heap_free(offsets_heap);
@@ -3114,7 +3114,7 @@ row_log_table_apply(
 		clust_index->online_log->n_rows = new_table->stat_n_rows;
 	}
 
-	clust_index->lock.x_lock(__FILE__, __LINE__);
+	clust_index->lock.x_lock(SRW_LOCK_CALL);
 
 	if (!clust_index->online_log) {
 		ut_ad(dict_index_get_online_status(clust_index)
@@ -3909,7 +3909,7 @@ all_done:
 
 			mrec = NULL;
 process_next_block:
-			index->lock.x_lock(__FILE__, __LINE__);
+			index->lock.x_lock(SRW_LOCK_CALL);
 			has_index_lock = true;
 
 			index->online_log->head.bytes = 0;
@@ -3941,7 +3941,7 @@ interrupted:
 	error = DB_INTERRUPTED;
 func_exit:
 	if (!has_index_lock) {
-		index->lock.x_lock(__FILE__, __LINE__);
+		index->lock.x_lock(SRW_LOCK_CALL);
 	}
 
 	switch (error) {
@@ -3996,7 +3996,7 @@ row_log_apply(
 
 	log_free_check();
 
-	index->lock.x_lock(__FILE__, __LINE__);
+	index->lock.x_lock(SRW_LOCK_CALL);
 
 	if (!dict_table_is_corrupted(index->table)) {
 		error = row_log_apply_ops(trx, index, &dup, stage);

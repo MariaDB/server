@@ -1224,7 +1224,7 @@ static void buf_flush_discard_page(buf_page_t *bpage)
   else
   {
     rw_lock= &reinterpret_cast<buf_block_t*>(bpage)->lock;
-    if (!rw_lock->u_lock_try())
+    if (!rw_lock->u_lock_try(false))
       return;
   }
 

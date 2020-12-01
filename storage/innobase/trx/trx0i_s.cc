@@ -1304,7 +1304,7 @@ trx_i_s_cache_start_read(
 /*=====================*/
 	trx_i_s_cache_t*	cache)	/*!< in: cache */
 {
-	cache->rw_lock.rd_lock();
+	cache->rw_lock.rd_lock(SRW_LOCK_CALL);
 }
 
 /*******************************************************************//**
@@ -1325,7 +1325,7 @@ trx_i_s_cache_start_write(
 /*======================*/
 	trx_i_s_cache_t*	cache)	/*!< in: cache */
 {
-	cache->rw_lock.wr_lock();
+	cache->rw_lock.wr_lock(SRW_LOCK_CALL);
 }
 
 /*******************************************************************//**

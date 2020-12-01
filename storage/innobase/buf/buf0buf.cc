@@ -2473,13 +2473,8 @@ as FREED. It avoids the concurrent flushing of freed page.
 Currently, this function only marks the page as FREED if it is
 in buffer pool.
 @param[in]	page_id	page id
-@param[in,out]	mtr	mini-transaction
-@param[in]	file	file name
-@param[in]	line	line where called */
-void buf_page_free(const page_id_t page_id,
-                   mtr_t *mtr,
-                   const char *file,
-                   unsigned line)
+@param[in,out]	mtr	mini-transaction */
+void buf_page_free(const page_id_t page_id, mtr_t *mtr)
 {
   ut_ad(mtr);
   ut_ad(mtr->is_active());
@@ -2507,7 +2502,7 @@ void buf_page_free(const page_id_t page_id,
   ut_ad(block->page.buf_fix_count());
 
   mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
-  block->lock.x_lock(file, line);
+  block->lock.x_lock();
 
   block->page.status= buf_page_t::FREED;
   hash_lock->read_unlock();
@@ -3119,7 +3114,7 @@ evict_from_pool:
 		buf_unzip_LRU_add_block(block, FALSE);
 
 		block->page.set_io_fix(BUF_IO_READ);
-		block->lock.x_lock(file, line);
+		block->lock.x_lock();
 
 		MEM_UNDEFINED(bpage, sizeof *bpage);
 
@@ -3262,7 +3257,7 @@ re_evict:
 	    && allow_ibuf_merge
 	    && fil_page_get_type(fix_block->frame) == FIL_PAGE_INDEX
 	    && page_is_leaf(fix_block->frame)) {
-		fix_block->lock.x_lock(file, line);
+		fix_block->lock.x_lock();
 
 		if (fix_block->page.ibuf_exist) {
 			fix_block->page.ibuf_exist = false;
@@ -3278,7 +3273,7 @@ re_evict:
 		}
 	} else {
 get_latch:
-		mtr->page_lock(fix_block, rw_latch, file, line);
+		mtr->page_lock(fix_block, rw_latch);
 	}
 
 	if (!not_first_access && mode != BUF_PEEK_IF_IN_POOL) {
@@ -3330,7 +3325,7 @@ buf_page_get_gen(
     else if (must_merge && fil_page_get_type(block->frame) == FIL_PAGE_INDEX &&
 	     page_is_leaf(block->frame))
     {
-      block->lock.x_lock(file, line);
+      block->lock.x_lock();
       block->page.ibuf_exist= false;
       ibuf_merge_or_delete_for_page(block, page_id, block->zip_size());
 
@@ -3341,7 +3336,7 @@ buf_page_get_gen(
       }
       block->lock.x_unlock();
     }
-    mtr->page_lock(block, rw_latch, file, line);
+    mtr->page_lock(block, rw_latch);
     return block;
   }
 
@@ -3410,7 +3405,7 @@ buf_page_optimistic_get(
 		goto func_exit;
 	} else {
 		fix_type = MTR_MEMO_PAGE_X_FIX;
-		success = block->lock.x_lock_try(file, line);
+		success = block->lock.x_lock_try();
 	}
 
 	ut_ad(id == block->page.id());
@@ -3481,7 +3476,7 @@ buf_page_try_get_func(
   /* We will always try to acquire an U latch.
   In lock_rec_print() we may already be holding an S latch on the page,
   and recursive S latch acquisition is not allowed. */
-  if (!block->lock.u_lock_try())
+  if (!block->lock.u_lock_try(false))
   {
     buf_block_buf_fix_dec(block);
     return nullptr;
@@ -3555,7 +3550,7 @@ loop:
       if (!mtr->have_x_latch(*block))
       {
         buf_block_buf_fix_inc(block);
-        while (!block->lock.x_lock_try(__FILE__, __LINE__))
+        while (!block->lock.x_lock_try())
         {
           /* Wait for buf_page_write_complete() to release block->lock.
           We must not hold buf_pool.mutex while waiting. */
@@ -3591,7 +3586,7 @@ loop:
         goto loop;
       }
 
-      free_block->lock.x_lock(__FILE__, __LINE__);
+      free_block->lock.x_lock();
       buf_relocate(&block->page, &free_block->page);
       buf_flush_relocate_on_flush_list(&block->page, &free_block->page);
 
@@ -3639,7 +3634,7 @@ loop:
   ut_d(block->page.in_page_hash= true);
   HASH_INSERT(buf_page_t, hash, &buf_pool.page_hash, fold, &block->page);
 
-  block->lock.x_lock(__FILE__, __LINE__);
+  block->lock.x_lock();
   if (UNIV_UNLIKELY(zip_size))
   {
     /* Prevent race conditions during buf_buddy_alloc(), which may

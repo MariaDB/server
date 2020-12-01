@@ -95,9 +95,13 @@ public:
 
 #ifndef UNIV_PFS_RWLOCK
 # define SRW_LOCK_INIT(key) init()
+# define SRW_LOCK_ARGS(file, line) /* nothing */
+# define SRW_LOCK_CALL /* nothing */
 typedef srw_lock_low srw_lock;
 #else
 # define SRW_LOCK_INIT(key) init(key)
+# define SRW_LOCK_ARGS(file, line) file, line
+# define SRW_LOCK_CALL __FILE__, __LINE__
 
 /** Slim reader-writer lock with PERFORMANCE_SCHEMA instrumentation */
 class srw_lock
@@ -121,7 +125,7 @@ public:
     lock.destroy();
   }
   template<bool update= false>
-  void rd_lock()
+  void rd_lock(const char *file, unsigned line)
   {
     uint32_t l;
     if (lock.read_trylock(l))
@@ -131,7 +135,7 @@ public:
       PSI_rwlock_locker_state state;
       PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_rdwait)
         (&state, pfs_psi, update ? PSI_RWLOCK_SHAREDLOCK : PSI_RWLOCK_READLOCK,
-         __FILE__, __LINE__);
+         file, line);
       lock.read_lock(l);
       if (locker)
         PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
@@ -145,7 +149,7 @@ public:
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.rd_unlock();
   }
-  void u_lock()
+  void u_lock(const char *file, unsigned line)
   {
     if (pfs_psi)
     {
@@ -153,7 +157,7 @@ public:
         return;
       PSI_rwlock_locker_state state;
       PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
-        (&state, pfs_psi, PSI_RWLOCK_SHAREDEXCLUSIVELOCK, __FILE__, __LINE__);
+        (&state, pfs_psi, PSI_RWLOCK_SHAREDEXCLUSIVELOCK, file, line);
       lock.u_lock();
       if (locker)
         PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
@@ -168,7 +172,7 @@ public:
     lock.u_unlock();
   }
   template<bool update= false>
-  void wr_lock()
+  void wr_lock(const char *file, unsigned line)
   {
     if (lock.write_trylock())
       return;
@@ -178,7 +182,7 @@ public:
       PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
         (&state, pfs_psi,
          update ? PSI_RWLOCK_EXCLUSIVELOCK : PSI_RWLOCK_WRITELOCK,
-         __FILE__, __LINE__);
+         file, line);
       lock.write_lock(false);
       if (locker)
         PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
@@ -192,7 +196,7 @@ public:
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.wr_unlock();
   }
-  void u_wr_upgrade()
+  void u_wr_upgrade(const char *file, unsigned line)
   {
     if (lock.upgrade_trylock())
       return;
@@ -200,7 +204,7 @@ public:
     {
       PSI_rwlock_locker_state state;
       PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
-        (&state, pfs_psi, PSI_RWLOCK_WRITELOCK, __FILE__, __LINE__);
+        (&state, pfs_psi, PSI_RWLOCK_WRITELOCK, file, line);
       lock.write_lock(true);
       if (locker)
         PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);

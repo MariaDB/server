@@ -2560,7 +2560,7 @@ write_buffers:
 				ut_a(row == NULL);
 
 				dict_index_t* index = buf->index;
-				index->lock.x_lock(__FILE__, __LINE__);
+				index->lock.x_lock(SRW_LOCK_CALL);
 				ut_a(dict_index_get_online_status(index)
 				     == ONLINE_INDEX_CREATION);
 
@@ -3858,7 +3858,7 @@ row_merge_drop_indexes(
 						table, index);
 					index = prev;
 				} else {
-					index->lock.x_lock(__FILE__, __LINE__);
+					index->lock.x_lock(SRW_LOCK_CALL);
 					dict_index_set_online_status(
 						index, ONLINE_INDEX_ABORTED);
 					index->type |= DICT_CORRUPT;
@@ -3867,7 +3867,7 @@ row_merge_drop_indexes(
 				}
 				continue;
 			case ONLINE_INDEX_CREATION:
-				index->lock.x_lock(__FILE__, __LINE__);
+				index->lock.x_lock(SRW_LOCK_CALL);
 				ut_ad(!index->is_committed());
 				row_log_abort_sec(index);
 			drop_aborted:
@@ -3883,7 +3883,7 @@ row_merge_drop_indexes(
 				the tablespace, but keep the object
 				in the data dictionary cache. */
 				row_merge_drop_index_dict(trx, index->id);
-				index->lock.x_lock(__FILE__, __LINE__);
+				index->lock.x_lock(SRW_LOCK_CALL);
 				dict_index_set_online_status(
 					index, ONLINE_INDEX_ABORTED_DROPPED);
 				index->lock.x_unlock();
@@ -4758,7 +4758,7 @@ func_exit:
 			case ONLINE_INDEX_COMPLETE:
 				break;
 			case ONLINE_INDEX_CREATION:
-				indexes[i]->lock.x_lock(__FILE__, __LINE__);
+				indexes[i]->lock.x_lock(SRW_LOCK_CALL);
 				row_log_abort_sec(indexes[i]);
 				indexes[i]->type |= DICT_CORRUPT;
 				indexes[i]->lock.x_unlock();

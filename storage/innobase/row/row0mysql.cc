@@ -3527,7 +3527,7 @@ defer:
 	for (dict_index_t* index = dict_table_get_first_index(table);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
-		index->lock.x_lock(__FILE__, __LINE__);
+		index->lock.x_lock(SRW_LOCK_CALL);
 		/* Save the page numbers so that we can restore them
 		if the operation fails. */
 		*page_no++ = index->page;
@@ -3713,7 +3713,7 @@ do_drop:
 		for (dict_index_t* index = dict_table_get_first_index(table);
 		     index != NULL;
 		     index = dict_table_get_next_index(index)) {
-			index->lock.x_lock(__FILE__, __LINE__);
+			index->lock.x_lock(SRW_LOCK_CALL);
 			ut_a(index->page == FIL_NULL);
 			index->page = *page_no++;
 			index->lock.x_unlock();

@@ -981,7 +981,7 @@ static void mtr_defer_drop_ahi(buf_block_t *block, mtr_memo_type_t fix_type)
   case MTR_MEMO_PAGE_S_FIX:
     /* Temporarily release our S-latch. */
     block->lock.s_unlock();
-    block->lock.x_lock(__FILE__, __LINE__);
+    block->lock.x_lock();
     if (dict_index_t *index= block->index)
       if (index->freed())
         btr_search_drop_page_hash_index(block);
@@ -990,7 +990,7 @@ static void mtr_defer_drop_ahi(buf_block_t *block, mtr_memo_type_t fix_type)
     break;
   case MTR_MEMO_PAGE_SX_FIX:
     block->lock.u_unlock();
-    block->lock.x_lock(__FILE__, __LINE__);
+    block->lock.x_lock();
     if (dict_index_t *index= block->index)
       if (index->freed())
         btr_search_drop_page_hash_index(block);
@@ -1051,11 +1051,8 @@ void mtr_t::lock_upgrade(const index_lock &lock)
 
 /** Latch a buffer pool block.
 @param block    block to be latched
-@param rw_latch RW_S_LATCH, RW_SX_LATCH, RW_X_LATCH, RW_NO_LATCH
-@param file     file name
-@param line     line where called */
-void mtr_t::page_lock(buf_block_t *block, ulint rw_latch,
-                      const char *file, unsigned line)
+@param rw_latch RW_S_LATCH, RW_SX_LATCH, RW_X_LATCH, RW_NO_LATCH */
+void mtr_t::page_lock(buf_block_t *block, ulint rw_latch)
 {
   mtr_memo_type_t fix_type;
   switch (rw_latch)
@@ -1065,16 +1062,16 @@ void mtr_t::page_lock(buf_block_t *block, ulint rw_latch,
     goto done;
   case RW_S_LATCH:
     fix_type= MTR_MEMO_PAGE_S_FIX;
-    block->lock.s_lock(file, line);
+    block->lock.s_lock();
     break;
   case RW_SX_LATCH:
     fix_type= MTR_MEMO_PAGE_SX_FIX;
-    block->lock.u_lock(file, line);
+    block->lock.u_lock();
     break;
   default:
     ut_ad(rw_latch == RW_X_LATCH);
     fix_type= MTR_MEMO_PAGE_X_FIX;
-    if (block->lock.x_lock_upgraded(file, line))
+    if (block->lock.x_lock_upgraded())
     {
       page_lock_upgrade(*block);
       block->unfix();
