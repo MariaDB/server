@@ -170,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0002 November 30, 2020";
+       char version[]= "Version 1.07.0002 December 01, 2020";
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -4516,7 +4516,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
     case TAB_VEC:
 		case TAB_REST:
     case TAB_JSON:
-#if defined DEVELOPMENT
+#if defined(DEVELOPMENT)
     case TAB_BSON:
 #endif   // DEVELOPMENT
       if (options->filename && *options->filename) {
@@ -5685,9 +5685,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 		} else if (topt->http) {
 			switch (ttp) {
 				case TAB_JSON:
-#ifdef    DEVELOPMENT
+#if defined(DEVELOPMENT)
         case TAB_BSON:
-#endif // DEVELOPMENT
+#endif   // DEVELOPMENT
         case TAB_XML:
 				case TAB_CSV:
 					ttp = TAB_REST;
@@ -5872,9 +5872,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			case TAB_XML:
 #endif   // LIBXML2_SUPPORT  ||         DOMDOC_SUPPORT
 			case TAB_JSON:
-#ifdef    DEVELOPMENT
+#if defined(DEVELOPMENT)
       case TAB_BSON:
-#endif // DEVELOPMENT
+#endif   // DEVELOPMENT
 				dsn= strz(g, create_info->connect_string);
 
 				if (!fn && !zfn && !mul && !dsn)
@@ -6041,11 +6041,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				case TAB_JSON:
 					qrp= JSONColumns(g, db, dsn, topt, fnc == FNC_COL);
 					break;
-#ifdef    DEVELOPMENT
+#if defined(DEVELOPMENT)
         case TAB_BSON:
           qrp= BSONColumns(g, db, dsn, topt, fnc == FNC_COL);
           break;
-#endif // DEVELOPMENT
+#endif   // DEVELOPMENT
 #if defined(JAVA_SUPPORT)
 				case TAB_MONGO:
 					url= strz(g, create_info->connect_string);

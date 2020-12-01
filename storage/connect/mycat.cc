@@ -190,7 +190,7 @@ bool IsFileType(TABTYPE type)
     case TAB_JSON:
 #if defined(DEVELOPMENT)
     case TAB_BSON:
-#endif
+#endif   // DEVELOPMENT
     case TAB_REST:
  // case TAB_ZIP:
       isfile= true;
@@ -288,7 +288,7 @@ bool IsTypeIndexable(TABTYPE type)
     case TAB_JSON:
 #if defined(DEVELOPMENT)
     case TAB_BSON:
-#endif
+#endif   // DEVELOPMENT
       idx= true;
       break;
     default:
@@ -317,7 +317,7 @@ int GetIndexType(TABTYPE type)
     case TAB_JSON:
 #if defined(DEVELOPMENT)
     case TAB_BSON:
-#endif
+#endif   // DEVELOPMENT
       xtyp= 1;
       break;
     case TAB_MYSQL:
@@ -484,7 +484,7 @@ PTABDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
     case TAB_JSON: tdp= new(g) JSONDEF; break;
 #if defined(DEVELOPMENT)
     case TAB_BSON: tdp= new(g) BSONDEF; break;
-#endif
+#endif   // DEVELOPMENT
 #if defined(ZIP_SUPPORT)
     case TAB_ZIP: tdp= new(g) ZIPDEF;   break;
 #endif   // ZIP_SUPPORT
