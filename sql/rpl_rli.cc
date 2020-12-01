@@ -1708,7 +1708,7 @@ scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_CSTRING *, void *),
   {
     my_error(ER_FILE_NOT_FOUND, MYF(0), path, my_errno);
     close_thread_tables(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
     return 1;
   }
   else
@@ -1721,7 +1721,7 @@ scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_CSTRING *, void *),
     err= ha_discover_table_names(thd, &MYSQL_SCHEMA_NAME, dirp, &tl, false);
     my_dirend(dirp);
     close_thread_tables(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
     if (err)
       return err;
 
