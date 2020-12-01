@@ -170,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0002 November 13, 2020";
+       char version[]= "Version 1.07.0002 November 30, 2020";
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -230,6 +230,9 @@ char *GetUserVariable(PGLOBAL g, const uchar *varname)
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 PQRYRES VirColumns(PGLOBAL g, bool info);
 PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info);
+#ifdef    DEVELOPMENT
+PQRYRES BSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info);
+#endif // DEVEOPMENT
 PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info);
 #if defined(REST_SUPPORT)
 PQRYRES RESTColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
@@ -4513,7 +4516,10 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
     case TAB_VEC:
 		case TAB_REST:
     case TAB_JSON:
-			if (options->filename && *options->filename) {
+#if defined DEVELOPMENT
+    case TAB_BSON:
+#endif   // DEVELOPMENT
+      if (options->filename && *options->filename) {
 				if (!quick) {
 					char path[FN_REFLEN], dbpath[FN_REFLEN];
 
@@ -5679,7 +5685,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 		} else if (topt->http) {
 			switch (ttp) {
 				case TAB_JSON:
-				case TAB_XML:
+#ifdef    DEVELOPMENT
+        case TAB_BSON:
+#endif // DEVELOPMENT
+        case TAB_XML:
 				case TAB_CSV:
 					ttp = TAB_REST;
 					break;
@@ -5863,6 +5872,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			case TAB_XML:
 #endif   // LIBXML2_SUPPORT  ||         DOMDOC_SUPPORT
 			case TAB_JSON:
+#ifdef    DEVELOPMENT
+      case TAB_BSON:
+#endif // DEVELOPMENT
 				dsn= strz(g, create_info->connect_string);
 
 				if (!fn && !zfn && !mul && !dsn)
@@ -6029,6 +6041,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				case TAB_JSON:
 					qrp= JSONColumns(g, db, dsn, topt, fnc == FNC_COL);
 					break;
+#ifdef    DEVELOPMENT
+        case TAB_BSON:
+          qrp= BSONColumns(g, db, dsn, topt, fnc == FNC_COL);
+          break;
+#endif // DEVELOPMENT
 #if defined(JAVA_SUPPORT)
 				case TAB_MONGO:
 					url= strz(g, create_info->connect_string);

@@ -69,54 +69,64 @@ DllExport bool IsNum(PSZ s);
 class BJSON : public BLOCK {
 public:
 	// Constructor
-	BJSON(void* base, PBVAL vp = NULL) { Base = base; Bvp = vp; }
+	BJSON(PGLOBAL g, PBVAL vp = NULL) { G = g, Base = G->Sarea; Bvp = vp; }
 
 	void* GetBase(void) { return Base; }
+	void  SubSet(bool b = false);
+	void  MemSave(void) {G->Saved_Size = ((PPOOLHEADER)G->Sarea)->To_Free;}
+	void  GetMsg(PGLOBAL g) { if (g != G) strcpy(g->Message, G->Message); }
 
 	// SubAlloc functions
-	void* BsonSubAlloc(PGLOBAL g, size_t size);
-	PBPR  SubAllocPair(PGLOBAL g, OFFSET key, OFFSET val = 0);
-	PBPR  SubAllocPair(PGLOBAL g, PSZ key, OFFSET val = 0)
-				{return SubAllocPair(g, MOF(key), val);}
-	PBVAL SubAllocVal(PGLOBAL g);
-	PBVAL SubAllocVal(PGLOBAL g, OFFSET toval, int type = TYPE_NULL, short nd = 0);
-	PBVAL SubAllocVal(PGLOBAL g, PBVAL toval, int type = TYPE_NULL, short nd = 0)
-				{return SubAllocVal(g, MOF(toval), type, nd);}
-	PBVAL SubAllocVal(PGLOBAL g, PSZ str, int type = TYPE_STRG, short nd = 0)
-				{return SubAllocVal(g, MOF(str), type, nd);}
-	PBVAL SubAllocVal(PGLOBAL g, PVAL valp);
-	PBVAL DupVal(PGLOBAL g, PBVAL bvp);
+	void* BsonSubAlloc(size_t size);
+	PBPR  SubAllocPair(OFFSET key, OFFSET val = 0);
+	PBPR  SubAllocPair(PSZ key, OFFSET val = 0)
+				{return SubAllocPair(MOF(key), val);}
+	PBVAL NewVal(int type = TYPE_NULL);
+	PBVAL SubAllocVal(OFFSET toval, int type = TYPE_NULL, short nd = 0);
+	PBVAL SubAllocVal(PBVAL toval, int type = TYPE_NULL, short nd = 0)
+				{return SubAllocVal(MOF(toval), type, nd);}
+	PBVAL SubAllocStr(OFFSET str, short nd = 0);
+	PBVAL SubAllocStr(PSZ str, short nd = 0)
+				{return SubAllocStr(MOF(str), nd);}
+	PBVAL SubAllocVal(PVAL valp);
+	PBVAL DupVal(PBVAL bvp);
 
 	// Array functions
 	int   GetArraySize(PBVAL bap, bool b = false);
 	PBVAL GetArrayValue(PBVAL bap, int i);
   PSZ   GetArrayText(PGLOBAL g, PBVAL bap, PSTRG text);
-	PBVAL MergeArray(PGLOBAL g, PBVAL bap1,PBVAL bap2);
+	PBVAL MergeArray(PBVAL bap1,PBVAL bap2);
 	PBVAL DeleteValue(PBVAL bap, int n);
-	PBVAL AddArrayValue(PGLOBAL g, PBVAL bap, PBVAL nvp = NULL, int* x = NULL);
-	PBVAL SetArrayValue(PGLOBAL g, PBVAL bap, PBVAL nvp, int n);
+	PBVAL AddArrayValue(PBVAL bap, PBVAL nvp = NULL, int* x = NULL);
+	PBVAL SetArrayValue(PBVAL bap, PBVAL nvp, int n);
 	bool  IsArrayNull(PBVAL bap);
 
 	// Object functions
 	int   GetObjectSize(PBPR bop, bool b = false);
+	PBPR  GetNext(PBPR prp) {return MPP(prp->Next);}
   PSZ   GetObjectText(PGLOBAL g, PBPR bop, PSTRG text);
-	PBPR  MergeObject(PGLOBAL g, PBPR bop1, PBPR bop2);
-	PBPR  AddPair(PGLOBAL g, PBPR bop, PSZ key, OFFSET val = 0);
+	PBPR  MergeObject(PBPR bop1, PBPR bop2);
+	PBPR  AddPair(PBPR bop, PSZ key, OFFSET val = 0);
+	PSZ   GetKey(PBPR prp) {return MZP(prp->Key);}
+	PBVAL GetVal(PBPR prp) {return MVP(prp->Vlp);}
 	PBVAL GetKeyValue(PBPR bop, PSZ key);
-	PBVAL GetKeyList(PGLOBAL g, PBPR bop);
-	PBVAL GetObjectValList(PGLOBAL g, PBPR bop);
-	PBPR  SetKeyValue(PGLOBAL g, PBPR bop, OFFSET bvp, PSZ key);
+	PBVAL GetKeyList(PBPR bop);
+	PBVAL GetObjectValList(PBPR bop);
+	PBPR  SetKeyValue(PBPR bop, OFFSET bvp, PSZ key);
+	inline PBPR SetKeyValue(PBPR bop, PBVAL vlp, PSZ key)
+			{return SetKeyValue(bop, MOF(vlp), key);}
 	PBPR  DeleteKey(PBPR bop, PCSZ k);
 	bool  IsObjectNull(PBPR bop);
 
 	// Value functions
 	int   GetSize(PBVAL vlp, bool b = false);
+	PBVAL GetNext(PBVAL vlp) {return MVP(vlp->Next);}
 	PBPR  GetObject(PBVAL vlp);
 	PBVAL GetArray(PBVAL vlp);
 	//PJSON GetJsp(void) { return (DataType == TYPE_JSON ? Jsp : NULL); }
 	PSZ   GetValueText(PGLOBAL g, PBVAL vlp, PSTRG text);
-	//inline PJSON  GetJson(void) { return (DataType == TYPE_JSON ? Jsp : this); }
-	PSZ   GetString(PGLOBAL g, PBVAL vp, char* buff = NULL);
+	inline PBVAL GetBson(PBVAL bvp) { return IsJson(bvp) ? MVP(bvp->To_Val) : bvp; }
+	PSZ   GetString(PBVAL vp, char* buff = NULL);
 	int   GetInteger(PBVAL vp);
 	long long GetBigint(PBVAL vp);
 	double GetDouble(PBVAL vp);
@@ -124,17 +134,20 @@ public:
 	void  SetValueObj(PBVAL vlp, PBPR bop);
 	void  SetValueArr(PBVAL vlp, PBVAL bap);
 	void  SetValueVal(PBVAL vlp, PBVAL vp);
-	void  SetValue(PGLOBAL g, PBVAL vlp, PVAL valp);
+	void  SetValue(PBVAL vlp, PVAL valp);
 	void  SetString(PBVAL vlp, PSZ s, int ci = 0);
 	void  SetInteger(PBVAL vlp, int n);
-	void  SetBigint(PGLOBAL g, PBVAL vlp, longlong ll);
+	void  SetBigint(PBVAL vlp, longlong ll);
 	void  SetFloat(PBVAL vlp, double f);
 	void  SetBool(PBVAL vlp, bool b);
+	void  Clear(PBVAL vlp) { vlp->N = 0; vlp->Nd = 0; vlp->Next = 0; vlp->Type = TYPE_NULL; }
 	bool  IsValueNull(PBVAL vlp);
+	bool  IsJson(PBVAL vlp) {return (vlp->Type == TYPE_JAR || vlp->Type == TYPE_JOB);}
 
 	// Members
-	PBVAL Bvp;
-	void* Base;
+	PGLOBAL G;
+	PBVAL   Bvp;
+	void   *Base;
 
 protected:
 	// Default constructor not to be used
@@ -146,18 +159,18 @@ protected:
 /***********************************************************************/
 class BDOC : public BJSON {
 public:
-	BDOC(void *);
+	BDOC(PGLOBAL G);
 
 	PBVAL ParseJson(PGLOBAL g, char* s, size_t n, int* prty = NULL, bool* b = NULL);
 	PSZ   Serialize(PGLOBAL g, PBVAL bvp, char* fn, int pretty);
 
 protected:
-	OFFSET ParseArray(PGLOBAL g, int& i);
-	OFFSET ParseObject(PGLOBAL g, int& i);
-	PBVAL  ParseValue(PGLOBAL g, int& i);
-	OFFSET ParseString(PGLOBAL g, int& i);
-	void   ParseNumeric(PGLOBAL g, int& i, PBVAL bvp);
-	OFFSET ParseAsArray(PGLOBAL g, int& i, int pretty, int* ptyp);
+	OFFSET ParseArray(int& i);
+	OFFSET ParseObject(int& i);
+	PBVAL  ParseValue(int& i);
+	OFFSET ParseString(int& i);
+	void   ParseNumeric(int& i, PBVAL bvp);
+	OFFSET ParseAsArray(int& i, int pretty, int* ptyp);
 	bool   SerializeArray(OFFSET arp, bool b);
 	bool   SerializeObject(OFFSET obp);
 	bool   SerializeValue(PBVAL vp);
@@ -166,7 +179,7 @@ protected:
 	JOUT* jp;						 // Used with serialize
 	char* s;						 // The Json string to parse
 	int   len;					 // The Json string length
-	bool  pty[3];					 // Used to guess what pretty is
+	bool  pty[3];				 // Used to guess what pretty is
 
 	// Default constructor not to be used
 	BDOC(void) {}

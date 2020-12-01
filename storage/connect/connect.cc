@@ -73,8 +73,7 @@ PGLOBAL CntExit(PGLOBAL g)
 			g->Activityp = NULL;
 		}	// endif Activityp
 
-    PlugExit(g);
-    g= NULL;
+    g= PlugExit(g);
     } // endif g
 
   return g;

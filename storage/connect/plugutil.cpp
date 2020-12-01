@@ -184,7 +184,7 @@ PGLOBAL PlugInit(LPCSTR Language, size_t worksize)
 /***********************************************************************/
 /*  PlugExit: Terminate Plug operations.                               */
 /***********************************************************************/
-int PlugExit(PGLOBAL g)
+PGLOBAL PlugExit(PGLOBAL g)
 {
 	if (g) {
 		PDBUSER dup = PlgGetUser(g);
@@ -196,7 +196,7 @@ int PlugExit(PGLOBAL g)
 		delete g;
 	}	// endif g
 
-  return 0;
+  return NULL;
 } // end of PlugExit
 
 /***********************************************************************/
@@ -483,9 +483,10 @@ bool AllocSarea(PGLOBAL g, size_t size)
 #else
 	if (trace(8)) {
 #endif
-    if (g->Sarea)
+    if (g->Sarea) {
       htrc("Work area of %zd allocated at %p\n", size, g->Sarea);
-    else
+      PlugSubSet(g->Sarea, size);
+    } else
       htrc("SareaAlloc: %s\n", g->Message);
 
   } // endif trace

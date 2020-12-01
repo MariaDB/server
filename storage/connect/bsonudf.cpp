@@ -41,7 +41,7 @@ inline void JsonMemSave(PGLOBAL g) {
 /*********************************************************************************/
 inline void JsonFreeMem(PGLOBAL g) {
 	g->Activityp = NULL;
-	PlugExit(g);
+	g = PlugExit(g);
 } /* end of JsonFreeMem */
 
 /* --------------------------- New Testing BJSON Stuff --------------------------*/
@@ -71,8 +71,7 @@ static PBJNX BjnxNew(PGLOBAL g, PBVAL vlp, int type, int len)
 /*********************************************************************************/
 /*  BSNX public constructor.                                                     */
 /*********************************************************************************/
-BJNX::BJNX(PGLOBAL g, PBVAL row, int type, int len, int prec, my_bool wr)
-	: BDOC(g->Sarea)
+BJNX::BJNX(PGLOBAL g, PBVAL row, int type, int len, int prec, my_bool wr) : BDOC(g)
 {
 	Row = row;
 	Bvalp = NULL;
@@ -361,7 +360,7 @@ void BJNX::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL vlp)
 		} else switch (vlp->Type) {
 		case TYPE_DTM:
 		case TYPE_STRG:
-			vp->SetValue_psz(GetString(g, vlp));
+			vp->SetValue_psz(GetString(vlp));
 			break;
 		case TYPE_INTG:
 		case TYPE_BINT:
@@ -371,14 +370,14 @@ void BJNX::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL vlp)
 			if (vp->IsTypeNum())
 				vp->SetValue(GetDouble(vlp));
 			else // Get the proper number of decimals
-				vp->SetValue_psz(GetString(g, vlp));
+				vp->SetValue_psz(GetString(vlp));
 
 			break;
 		case TYPE_BOOL:
 			if (vp->IsTypeNum())
 				vp->SetValue(GetInteger(vlp) ? 1 : 0);
 			else
-				vp->SetValue_psz(GetString(g, vlp));
+				vp->SetValue_psz(GetString(vlp));
 
 			break;
 		case TYPE_JAR:
@@ -439,7 +438,7 @@ PBVAL BJNX::GetRowValue(PGLOBAL g, PBVAL row, int i, my_bool b)
 	for (; i < Nod && row; i++) {
 		if (Nodes[i].Op == OP_NUM) {
 			Value->SetValue(row->Type == TYPE_JAR ? GetArraySize(MVP(row->To_Val)) : 1);
-			vlp = SubAllocVal(g, Value);
+			vlp = SubAllocVal(Value);
 			return vlp;
 		} else if (Nodes[i].Op == OP_XX) {
 			Jb = b;
@@ -473,7 +472,7 @@ PBVAL BJNX::GetRowValue(PGLOBAL g, PBVAL row, int i, my_bool b)
 				else if (Nodes[i].Op == OP_EXP)
 					return (PBVAL)ExpandArray(g, bap, i);
 				else
-					return SubAllocVal(g, CalculateArray(g, bap, i));
+					return SubAllocVal(CalculateArray(g, bap, i));
 
 			} else {
 				// Unexpected array, unwrap it as [0]
@@ -701,12 +700,12 @@ PBVAL BJNX::GetRow(PGLOBAL g)
 				//					nwr = SubAllocPair(g);
 
 								// Construct new row
-				nwr = SubAllocVal(g);
+				nwr = NewVal();
 
 				if (row->Type == TYPE_JOB) {
-					SetKeyValue(g, MPP(row->To_Val), MOF(nwr), Nodes[i - 1].Key);
+					SetKeyValue(MPP(row->To_Val), MOF(nwr), Nodes[i - 1].Key);
 				} else if (row->Type == TYPE_JAR) {
-					AddArrayValue(g, MVP(row->To_Val), nwr);
+					AddArrayValue(MVP(row->To_Val), nwr);
 				} else {
 					strcpy(g->Message, "Wrong type when writing new row");
 					nwr = NULL;
@@ -748,15 +747,15 @@ my_bool BJNX::WriteValue(PGLOBAL g, PBVAL jvalp)
 	if (arp) {
 		if (!Nodes[Nod - 1].Key) {
 			if (Nodes[Nod - 1].Op == OP_EQ)
-				SetArrayValue(g, arp, jvalp, Nodes[Nod - 1].Rank);
+				SetArrayValue(arp, jvalp, Nodes[Nod - 1].Rank);
 			else
-				AddArrayValue(g, arp, jvalp);
+				AddArrayValue(arp, jvalp);
 
 		}	// endif Key
 
 	} else if (objp) {
 		if (Nodes[Nod - 1].Key)
-			SetKeyValue(g, objp, MOF(jvalp), Nodes[Nod - 1].Key);
+			SetKeyValue(objp, MOF(jvalp), Nodes[Nod - 1].Key);
 
 	} else if (jvp)
 		SetValueVal(jvp, jvalp);
@@ -1159,8 +1158,8 @@ static PBVAL MakeBinValue(PGLOBAL g, UDF_ARGS* args, uint i)
 	int   n, len;
 	int   ci;
 	longlong bigint;
-	BDOC  doc(g->Sarea);
-	PBVAL bp, bvp = doc.SubAllocVal(g);
+	BDOC  doc(g);
+	PBVAL bp, bvp = doc.NewVal();
 
 	if (sap) {
 		if (args->arg_type[i] == STRING_RESULT) {
@@ -1209,7 +1208,7 @@ static PBVAL MakeBinValue(PGLOBAL g, UDF_ARGS* args, uint i)
 					  (bigint == 1LL && !strcmp(args->attributes[i], "TRUE")))
 					doc.SetBool(bvp, (bool)bigint);
 				else
-					doc.SetBigint(g, bvp, bigint);
+					doc.SetBigint(bvp, bigint);
 
 				break;
 			case REAL_RESULT:
@@ -1256,7 +1255,7 @@ char* bsonvalue(UDF_INIT* initid, UDF_ARGS* args, char* result,
 
 	if (!g->Xchk) {
 		if (!CheckMemory(g, initid, args, 1, false)) {
-			BDOC  doc(g->Sarea);
+			BDOC  doc(g);
 			PBVAL bvp = MakeBinValue(g, args, 0);
 
 			if (!(str = doc.Serialize(g, bvp, NULL, 0)))
@@ -1297,13 +1296,13 @@ char* bson_make_array(UDF_INIT* initid, UDF_ARGS* args, char* result,
 
 	if (!g->Xchk) {
 		if (!CheckMemory(g, initid, args, args->arg_count, false)) {
-			BDOC  doc(g->Sarea);
+			BDOC  doc(g);
 			PBVAL bvp = NULL, arp = NULL;
 
 			for (uint i = 0; i < args->arg_count; i++)
-				bvp = doc.AddArrayValue(g, bvp, MakeBinValue(g, args, i));
+				bvp = doc.AddArrayValue(bvp, MakeBinValue(g, args, i));
 
-			arp = doc.SubAllocVal(g, bvp, TYPE_JAR);
+			arp = doc.SubAllocVal(bvp, TYPE_JAR);
 
 			if (!(str = doc.Serialize(g, arp, NULL, 0)))
 				str = strcpy(result, g->Message);
@@ -1364,7 +1363,7 @@ char* bson_array_add_values(UDF_INIT* initid, UDF_ARGS* args, char* result,
 		if (!CheckMemory(g, initid, args, args->arg_count, true)) {
 			uint  n = 1;
 			bool  b = false;
-			BDOC  doc(g->Sarea);
+			BDOC  doc(g);
 			PBVAL bvp = NULL, arp = MakeBinValue(g, args, 0);
 
 			if (arp->Type == TYPE_JAR) {
@@ -1374,10 +1373,10 @@ char* bson_array_add_values(UDF_INIT* initid, UDF_ARGS* args, char* result,
 				n = 0;
 
 			for (uint i = n; i < args->arg_count; i++)
-				bvp = doc.AddArrayValue(g, bvp, MakeBinValue(g, args, i));
+				bvp = doc.AddArrayValue(bvp, MakeBinValue(g, args, i));
 
 			if (!n)
-				arp = doc.SubAllocVal(g, bvp, TYPE_JAR);
+				arp = doc.SubAllocVal(bvp, TYPE_JAR);
 			else if (b)
 				doc.SetValueArr(arp, bvp);
 

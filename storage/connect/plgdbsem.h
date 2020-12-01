@@ -83,7 +83,8 @@ enum TABTYPE {TAB_UNDEF =  0,   /* Table of undefined type             */
 							TAB_ZIP   = 27,   /* ZIP file info table                 */
 							TAB_MONGO = 28,   /* Table retrieved from MongoDB        */
 							TAB_REST  = 29,   /* Table retrieved from Rest           */
-              TAB_NIY   = 30};  /* Table not implemented yet           */
+              TAB_BSON  = 30,   /* BSON Table (development)            */
+              TAB_NIY   = 31};  /* Table not implemented yet           */
 
 enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_ROWID =   1,        /* ROWID type (special column)   */

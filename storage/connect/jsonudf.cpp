@@ -1178,7 +1178,7 @@ my_bool JsonSubSet(PGLOBAL g)
 {
 	PPOOLHEADER pph = (PPOOLHEADER)g->Sarea;
 
-	pph->To_Free = (g->Saved_Size) ? g->Saved_Size : (size_t)sizeof(POOLHEADER);
+	pph->To_Free = (g->Saved_Size) ? g->Saved_Size : sizeof(POOLHEADER);
 	pph->FreeBlk = g->Sarea_Size - pph->To_Free;
 	g->Saved_Size = 0;
 	return FALSE;
@@ -1198,7 +1198,7 @@ inline void JsonMemSave(PGLOBAL g)
 inline void JsonFreeMem(PGLOBAL g)
 {
 	g->Activityp = NULL;
-	PlugExit(g);
+	g = PlugExit(g);
 } /* end of JsonFreeMem */
 
 /*********************************************************************************/
@@ -1281,7 +1281,7 @@ my_bool JsonInit(UDF_INIT *initid, UDF_ARGS *args, char *message, my_bool mbn,
     return true;
   } else if (g->Sarea_Size == 0) {
 		strcpy(message, g->Message);
-		PlugExit(g);
+		g = PlugExit(g);
 		return true;
   } // endif g
 

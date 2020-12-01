@@ -16,9 +16,9 @@
 /*************** Mycat CC Program Source Code File (.CC) ***************/
 /* PROGRAM NAME: MYCAT                                                 */
 /* -------------                                                       */
-/*  Version 1.7                                                        */
+/*  Version 1.8                                                        */
 /*                                                                     */
-/*  Author: Olivier Bertrand                       2012 - 2019         */
+/*  Author: Olivier Bertrand                       2012 - 2020         */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -82,7 +82,11 @@
 #endif   // JAVA_SUPPORT
 #include "tabpivot.h"
 #include "tabvir.h"
+#if defined(DEVELOPMENT)
+#include "tabbson.h"
+#else
 #include "tabjson.h"
+#endif   // DEVELOPMENT
 #include "ha_connect.h"
 #if defined(XML_SUPPORT)
 #include "tabxml.h"
@@ -157,6 +161,9 @@ TABTYPE GetTypeID(const char *type)
                  : (!stricmp(type, "PIVOT")) ? TAB_PIVOT
                  : (!stricmp(type, "VIR"))   ? TAB_VIR
                  : (!stricmp(type, "JSON"))  ? TAB_JSON
+#if defined(DEVELOPMENT)
+                 : (!stricmp(type, "BSON"))  ? TAB_BSON
+#endif
 #if defined(ZIP_SUPPORT)
                  : (!stricmp(type, "ZIP"))   ? TAB_ZIP
 #endif
@@ -181,6 +188,9 @@ bool IsFileType(TABTYPE type)
     case TAB_INI:
     case TAB_VEC:
     case TAB_JSON:
+#if defined(DEVELOPMENT)
+    case TAB_BSON:
+#endif
     case TAB_REST:
  // case TAB_ZIP:
       isfile= true;
@@ -276,6 +286,9 @@ bool IsTypeIndexable(TABTYPE type)
     case TAB_VEC:
     case TAB_DBF:
     case TAB_JSON:
+#if defined(DEVELOPMENT)
+    case TAB_BSON:
+#endif
       idx= true;
       break;
     default:
@@ -302,6 +315,9 @@ int GetIndexType(TABTYPE type)
     case TAB_VEC:
     case TAB_DBF:
     case TAB_JSON:
+#if defined(DEVELOPMENT)
+    case TAB_BSON:
+#endif
       xtyp= 1;
       break;
     case TAB_MYSQL:
@@ -445,7 +461,7 @@ PTABDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
     case TAB_XML: tdp= new(g) XMLDEF;   break;
 #endif   // XML_SUPPORT
 #if defined(VCT_SUPPORT)
-    case TAB_VEC: tdp = new(g) VCTDEF;  break;
+    case TAB_VEC: tdp= new(g) VCTDEF;  break;
 #endif   // VCT_SUPPORT
 #if defined(ODBC_SUPPORT)
     case TAB_ODBC: tdp= new(g) ODBCDEF; break;
@@ -466,8 +482,11 @@ PTABDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
     case TAB_PIVOT: tdp= new(g) PIVOTDEF; break;
     case TAB_VIR: tdp= new(g) VIRDEF;   break;
     case TAB_JSON: tdp= new(g) JSONDEF; break;
+#if defined(DEVELOPMENT)
+    case TAB_BSON: tdp= new(g) BSONDEF; break;
+#endif
 #if defined(ZIP_SUPPORT)
-    case TAB_ZIP: tdp = new(g) ZIPDEF;   break;
+    case TAB_ZIP: tdp= new(g) ZIPDEF;   break;
 #endif   // ZIP_SUPPORT
 #if defined(REST_SUPPORT)
     case TAB_REST: tdp= new (g) RESTDEF; break;

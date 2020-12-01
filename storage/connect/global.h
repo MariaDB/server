@@ -208,7 +208,7 @@ DllExport char   *PlugGetMessage(PGLOBAL, int);
 DllExport short   GetLineLength(PGLOBAL);   // Console line length
 #endif   // __WIN__
 DllExport PGLOBAL PlugInit(LPCSTR, size_t); // Plug global initialization
-DllExport int     PlugExit(PGLOBAL);        // Plug global termination
+DllExport PGLOBAL PlugExit(PGLOBAL);        // Plug global termination
 DllExport LPSTR   PlugRemoveType(LPSTR, LPCSTR);
 DllExport LPCSTR  PlugSetPath(LPSTR to, LPCSTR prefix, LPCSTR name, LPCSTR dir);
 DllExport BOOL    PlugIsAbsolutePath(LPCSTR path);

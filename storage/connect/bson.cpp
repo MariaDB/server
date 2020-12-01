@@ -87,7 +87,7 @@ char* NextChr(PSZ s, char sep) {
 /***********************************************************************/
 /*  BDOC constructor.                                                  */
 /***********************************************************************/
-BDOC::BDOC(void *base) : BJSON(base, NULL)
+BDOC::BDOC(PGLOBAL G) : BJSON(G, NULL)
 { 
   jp = NULL;
   s = NULL;
@@ -118,25 +118,25 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma) {
     pty[0] = false;
 
   try {
-    Bvp = SubAllocVal(g);
+    Bvp = NewVal();
     Bvp->Type = TYPE_UNKNOWN;
 
     for (i = 0; i < len; i++)
       switch (s[i]) {
       case '[':
         if (Bvp->Type != TYPE_UNKNOWN)
-          Bvp->To_Val = ParseAsArray(g, i, pretty, ptyp);
+          Bvp->To_Val = ParseAsArray(i, pretty, ptyp);
         else
-          Bvp->To_Val = ParseArray(g, ++i);
+          Bvp->To_Val = ParseArray(++i);
 
         Bvp->Type = TYPE_JAR;
         break;
       case '{':
         if (Bvp->Type != TYPE_UNKNOWN) {
-          Bvp->To_Val = ParseAsArray(g, i, pretty, ptyp);
+          Bvp->To_Val = ParseAsArray(i, pretty, ptyp);
           Bvp->Type = TYPE_JAR;
         } else {
-          Bvp->To_Val = ParseObject(g, ++i);
+          Bvp->To_Val = ParseObject(++i);
           Bvp->Type = TYPE_JOB;
         } // endif Type
 
@@ -168,9 +168,9 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma) {
 
       default:
         if (Bvp->Type != TYPE_UNKNOWN) {
-          Bvp->To_Val = ParseAsArray(g, i, pretty, ptyp);
+          Bvp->To_Val = ParseAsArray(i, pretty, ptyp);
           Bvp->Type = TYPE_JAR;
-        } else if ((Bvp->To_Val = MOF(ParseValue(g, i))))
+        } else if ((Bvp->To_Val = MOF(ParseValue(i))))
           Bvp->Type = TYPE_JVAL;
         else
           throw 4;
@@ -193,7 +193,8 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma) {
 
   } catch (int n) {
     if (trace(1))
-      htrc("Exception %d: %s\n", n, g->Message);
+      htrc("Exception %d: %s\n", n, G->Message);
+    GetMsg(g);
     Bvp = NULL;
   } catch (const char* msg) {
     strcpy(g->Message, msg);
@@ -206,16 +207,16 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma) {
 /***********************************************************************/
 /* Parse several items as being in an array.                           */
 /***********************************************************************/
-OFFSET BDOC::ParseAsArray(PGLOBAL g, int& i, int pretty, int* ptyp) {
+OFFSET BDOC::ParseAsArray(int& i, int pretty, int* ptyp) {
   if (pty[0] && (!pretty || pretty > 2)) {
     OFFSET jsp;
 
-    if ((jsp = ParseArray(g, (i = 0))) && ptyp && pretty == 3)
+    if ((jsp = ParseArray((i = 0))) && ptyp && pretty == 3)
       *ptyp = (pty[0]) ? 0 : 3;
 
     return jsp;
   } else
-    strcpy(g->Message, "More than one item in file");
+    strcpy(G->Message, "More than one item in file");
 
   return 0;
 } // end of ParseAsArray
@@ -223,7 +224,7 @@ OFFSET BDOC::ParseAsArray(PGLOBAL g, int& i, int pretty, int* ptyp) {
 /***********************************************************************/
 /* Parse a JSON Array.                                                 */
 /***********************************************************************/
-OFFSET BDOC::ParseArray(PGLOBAL g, int& i) {
+OFFSET BDOC::ParseArray(int& i) {
   int   level = 0;
   bool  b = (!i);
   PBVAL vlp, firstvlp, lastvlp;
@@ -234,7 +235,7 @@ OFFSET BDOC::ParseArray(PGLOBAL g, int& i) {
     switch (s[i]) {
     case ',':
       if (level < 2) {
-        sprintf(g->Message, "Unexpected ',' near %.*s", ARGS);
+        sprintf(G->Message, "Unexpected ',' near %.*s", ARGS);
         throw 1;
       } else
         level = 1;
@@ -242,7 +243,7 @@ OFFSET BDOC::ParseArray(PGLOBAL g, int& i) {
       break;
     case ']':
       if (level == 1) {
-        sprintf(g->Message, "Unexpected ',]' near %.*s", ARGS);
+        sprintf(G->Message, "Unexpected ',]' near %.*s", ARGS);
         throw 1;
       } // endif level
 
@@ -256,14 +257,14 @@ OFFSET BDOC::ParseArray(PGLOBAL g, int& i) {
       break;
     default:
       if (level == 2) {
-        sprintf(g->Message, "Unexpected value near %.*s", ARGS);
+        sprintf(G->Message, "Unexpected value near %.*s", ARGS);
         throw 1;
       } else if (lastvlp) {
-        vlp = ParseValue(g, i);
+        vlp = ParseValue(i);
         lastvlp->Next = MOF(vlp);
         lastvlp = vlp;
       } else
-        firstvlp = lastvlp = ParseValue(g, i);
+        firstvlp = lastvlp = ParseValue(i);
 
       level = (b) ? 1 : 2;
       break;
@@ -280,7 +281,7 @@ OFFSET BDOC::ParseArray(PGLOBAL g, int& i) {
 /***********************************************************************/
 /* Parse a JSON Object.                                                */
 /***********************************************************************/
-OFFSET BDOC::ParseObject(PGLOBAL g, int& i) {
+OFFSET BDOC::ParseObject(int& i) {
   OFFSET key;
   int    level = 0;
   PBPR   bpp, firstbpp, lastbpp;
@@ -291,8 +292,8 @@ OFFSET BDOC::ParseObject(PGLOBAL g, int& i) {
     switch (s[i]) {
     case '"':
       if (level < 2) {
-        key = ParseString(g, ++i);
-        bpp = SubAllocPair(g, key);
+        key = ParseString(++i);
+        bpp = SubAllocPair(key);
 
         if (lastbpp) {
           lastbpp->Next = MOF(bpp);
@@ -302,24 +303,24 @@ OFFSET BDOC::ParseObject(PGLOBAL g, int& i) {
 
         level = 2;
       } else {
-        sprintf(g->Message, "misplaced string near %.*s", ARGS);
+        sprintf(G->Message, "misplaced string near %.*s", ARGS);
         throw 2;
       } // endif level
 
       break;
     case ':':
       if (level == 2) {
-        lastbpp->Vlp = MOF(ParseValue(g, ++i));
+        lastbpp->Vlp = MOF(ParseValue(++i));
         level = 3;
       } else {
-        sprintf(g->Message, "Unexpected ':' near %.*s", ARGS);
+        sprintf(G->Message, "Unexpected ':' near %.*s", ARGS);
         throw 2;
       } // endif level
 
       break;
     case ',':
       if (level < 3) {
-        sprintf(g->Message, "Unexpected ',' near %.*s", ARGS);
+        sprintf(G->Message, "Unexpected ',' near %.*s", ARGS);
         throw 2;
       } else
         level = 1;
@@ -327,7 +328,7 @@ OFFSET BDOC::ParseObject(PGLOBAL g, int& i) {
       break;
     case '}':
       if (!(level == 0 || level == 3)) {
-        sprintf(g->Message, "Unexpected '}' near %.*s", ARGS);
+        sprintf(G->Message, "Unexpected '}' near %.*s", ARGS);
         throw 2;
       } // endif level
 
@@ -339,20 +340,21 @@ OFFSET BDOC::ParseObject(PGLOBAL g, int& i) {
     case '\t':
       break;
     default:
-      sprintf(g->Message, "Unexpected character '%c' near %.*s",
+      sprintf(G->Message, "Unexpected character '%c' near %.*s",
         s[i], ARGS);
       throw 2;
     }; // endswitch s[i]
 
-  strcpy(g->Message, "Unexpected EOF in Object");
+  strcpy(G->Message, "Unexpected EOF in Object");
   throw 2;
 } // end of ParseObject
 
 /***********************************************************************/
 /* Parse a JSON Value.                                                 */
 /***********************************************************************/
-PBVAL BDOC::ParseValue(PGLOBAL g, int& i) {
-  PBVAL bvp = SubAllocVal(g);
+PBVAL BDOC::ParseValue(int& i)
+{
+  PBVAL bvp = NewVal();
 
   for (; i < len; i++)
     switch (s[i]) {
@@ -369,16 +371,16 @@ PBVAL BDOC::ParseValue(PGLOBAL g, int& i) {
 suite:
   switch (s[i]) {
   case '[':
-    bvp->To_Val = ParseArray(g, ++i);
+    bvp->To_Val = ParseArray(++i);
     bvp->Type = TYPE_JAR;
     break;
   case '{':
-    bvp->To_Val = ParseObject(g, ++i);
+    bvp->To_Val = ParseObject(++i);
     bvp->Type = TYPE_JOB;
     break;
   case '"':
     //    jvp->Val = AllocVal(g, TYPE_STRG);
-    bvp->To_Val = ParseString(g, ++i);
+    bvp->To_Val = ParseString(++i);
     bvp->Type = TYPE_STRG;
     break;
   case 't':
@@ -412,7 +414,7 @@ suite:
   case '-':
   default:
     if (s[i] == '-' || isdigit(s[i]))
-      ParseNumeric(g, i, bvp);
+      ParseNumeric(i, bvp);
     else
       goto err;
 
@@ -421,29 +423,29 @@ suite:
   return bvp;
 
 err:
-  sprintf(g->Message, "Unexpected character '%c' near %.*s", s[i], ARGS);
+  sprintf(G->Message, "Unexpected character '%c' near %.*s", s[i], ARGS);
   throw 3;
 } // end of ParseValue
 
 /***********************************************************************/
 /*  Unescape and parse a JSON string.                                  */
 /***********************************************************************/
-OFFSET BDOC::ParseString(PGLOBAL g, int& i) {
+OFFSET BDOC::ParseString(int& i) {
   uchar* p;
   int    n = 0;
 
   // Be sure of memory availability
-  if (((size_t)len + 1 - i) > ((PPOOLHEADER)g->Sarea)->FreeBlk)
+  if (((size_t)len + 1 - i) > ((PPOOLHEADER)G->Sarea)->FreeBlk)
     throw("ParseString: Out of memory");
 
   // The size to allocate is not known yet
-  p = (uchar*)PlugSubAlloc(g, NULL, 0);
+  p = (uchar*)PlugSubAlloc(G, NULL, 0);
 
   for (; i < len; i++)
     switch (s[i]) {
     case '"':
       p[n++] = 0;
-      PlugSubAlloc(g, NULL, n);
+      PlugSubAlloc(G, NULL, n);
       return MOF(p);
     case '\\':
       if (++i < len) {
@@ -514,7 +516,7 @@ throw("Unexpected EOF in String");
 /***********************************************************************/
 /* Parse a JSON numeric value.                                         */
 /***********************************************************************/
-void BDOC::ParseNumeric(PGLOBAL g, int& i, PBVAL vlp) {
+void BDOC::ParseNumeric(int& i, PBVAL vlp) {
   char  buf[50];
   int   n = 0;
   short nd = 0;
@@ -570,7 +572,7 @@ fin:
       double dv = strtod(buf, NULL);
 
       if (nd > 6) {
-        double* dvp = (double*)PlugSubAlloc(g, NULL, sizeof(double));
+        double* dvp = (double*)PlugSubAlloc(G, NULL, sizeof(double));
 
         *dvp = dv;
         vlp->To_Val = MOF(dvp);
@@ -585,7 +587,7 @@ fin:
       longlong iv = strtoll(buf, NULL, 10);
 
       if (iv > INT_MAX32 || iv < INT_MIN32) {
-        longlong *llp = (longlong*)PlugSubAlloc(g, NULL, sizeof(longlong));
+        longlong *llp = (longlong*)PlugSubAlloc(G, NULL, sizeof(longlong));
 
         *llp = iv;
         vlp->To_Val = MOF(llp);
@@ -614,7 +616,7 @@ PSZ BDOC::Serialize(PGLOBAL g, PBVAL bvp, char* fn, int pretty) {
   bool  b = false, err = true;
   FILE* fs = NULL;
 
-  g->Message[0] = 0;
+  G->Message[0] = 0;
 
   try {
     if (!bvp) {
@@ -664,15 +666,15 @@ PSZ BDOC::Serialize(PGLOBAL g, PBVAL bvp, char* fn, int pretty) {
       str = ((JOUTSTR*)jp)->Strp;
       jp->WriteChr('\0');
       PlugSubAlloc(g, NULL, ((JOUTSTR*)jp)->N);
-    } else {
-      if (!g->Message[0])
+    } else if (G->Message[0])
         strcpy(g->Message, "Error in Serialize");
-
-    } // endif's
+      else
+        GetMsg(g);
 
   } catch (int n) {
     if (trace(1))
-      htrc("Exception %d: %s\n", n, g->Message);
+      htrc("Exception %d: %s\n", n, G->Message);
+    GetMsg(g);
     str = NULL;
   } catch (const char* msg) {
     strcpy(g->Message, msg);
@@ -796,10 +798,10 @@ bool BDOC::SerializeValue(PBVAL jvp) {
 /***********************************************************************/
 /*  Program for sub-allocating Bjson structures.                       */
 /***********************************************************************/
-void* BJSON::BsonSubAlloc(PGLOBAL g, size_t size)
+void* BJSON::BsonSubAlloc(size_t size)
 {
   PPOOLHEADER pph;                           /* Points on area header. */
-  void* memp = g->Sarea;
+  void* memp = G->Sarea;
 
   size = ((size + 3) / 4) * 4;       /* Round up size to multiple of 4 */
   pph = (PPOOLHEADER)memp;
@@ -808,10 +810,10 @@ void* BJSON::BsonSubAlloc(PGLOBAL g, size_t size)
     memp, size, pph->To_Free, pph->FreeBlk);
 
   if (size > pph->FreeBlk) {   /* Not enough memory left in pool */
-    sprintf(g->Message,
+    sprintf(G->Message,
       "Not enough memory for request of %zd (used=%zd free=%zd)",
       size, pph->To_Free, pph->FreeBlk);
-    xtrc(1, "BsonSubAlloc: %s\n", g->Message);
+    xtrc(1, "BsonSubAlloc: %s\n", G->Message);
     throw(1234);
   } /* endif size OS32 code */
 
@@ -824,14 +826,29 @@ void* BJSON::BsonSubAlloc(PGLOBAL g, size_t size)
   return memp;
 } /* end of BsonSubAlloc */
 
+/*********************************************************************************/
+/*  Program for SubSet re-initialization of the memory pool.                     */
+/*********************************************************************************/
+void BJSON::SubSet(bool b)
+{
+  PPOOLHEADER pph = (PPOOLHEADER)G->Sarea;
+
+  pph->To_Free = (G->Saved_Size) ? G->Saved_Size : sizeof(POOLHEADER);
+  pph->FreeBlk = G->Sarea_Size - pph->To_Free;
+
+  if (b)
+    G->Saved_Size = 0;
+
+} /* end of JsonSubSet */
+
 /* ------------------------ Bobject functions ------------------------ */
 
 /***********************************************************************/
 /* Sub-allocate and initialize a BPAIR.                                */
 /***********************************************************************/
-PBPR BJSON::SubAllocPair(PGLOBAL g, OFFSET key, OFFSET val)
+PBPR BJSON::SubAllocPair(OFFSET key, OFFSET val)
 {
-  PBPR bpp = (PBPR)BsonSubAlloc(g, sizeof(BPAIR));
+  PBPR bpp = (PBPR)BsonSubAlloc(sizeof(BPAIR));
 
   bpp->Key = key;
   bpp->Vlp = val;
@@ -857,9 +874,9 @@ int BJSON::GetObjectSize(PBPR bop, bool b)
 /***********************************************************************/
 /* Add a new pair to an Object and return it.                          */
 /***********************************************************************/
-PBPR BJSON::AddPair(PGLOBAL g, PBPR bop, PSZ key, OFFSET val)
+PBPR BJSON::AddPair(PBPR bop, PSZ key, OFFSET val)
 {
-  PBPR brp, nrp = SubAllocPair(g, key, val);
+  PBPR brp, nrp = SubAllocPair(key, val);
 
   if (bop) {
     for (brp = bop; brp->Next; brp = MPP(brp->Next));
@@ -874,17 +891,17 @@ PBPR BJSON::AddPair(PGLOBAL g, PBPR bop, PSZ key, OFFSET val)
 /***********************************************************************/
 /* Return all object keys as an array.                                 */
 /***********************************************************************/
-PBVAL BJSON::GetKeyList(PGLOBAL g, PBPR bop)
+PBVAL BJSON::GetKeyList(PBPR bop)
 {
   PBVAL bvp, lvp, fvp = NULL;
 
   for (PBPR brp = bop; brp; brp = MPP(brp->Next))
     if (fvp) {
-      bvp = SubAllocVal(g, brp->Key, TYPE_STRG);
+      bvp = SubAllocVal(brp->Key, TYPE_STRG);
       lvp->Next = MOF(bvp);
       lvp = bvp;
     } else
-      lvp = fvp = SubAllocVal(g, brp->Key, TYPE_STRG);
+      lvp = fvp = SubAllocVal(brp->Key, TYPE_STRG);
 
   return fvp;
 } // end of GetKeyList
@@ -892,17 +909,17 @@ PBVAL BJSON::GetKeyList(PGLOBAL g, PBPR bop)
 /***********************************************************************/
 /* Return all object values as an array.                               */
 /***********************************************************************/
-PBVAL BJSON::GetObjectValList(PGLOBAL g, PBPR bop)
+PBVAL BJSON::GetObjectValList(PBPR bop)
 {
   PBVAL bvp, lvp, fvp = NULL;
 
   for (PBPR brp = bop; brp; brp = MPP(brp->Next))
     if (fvp) {
-      bvp = DupVal(g, MVP(brp->Vlp));
+      bvp = DupVal(MVP(brp->Vlp));
       lvp->Next = MOF(bvp);
       lvp = bvp;
     } else
-      lvp = fvp = DupVal(g, MVP(brp->Vlp));
+      lvp = fvp = DupVal(MVP(brp->Vlp));
 
   return fvp;
 } // end of GetObjectValList
@@ -981,7 +998,7 @@ PSZ BJSON::GetObjectText(PGLOBAL g, PBPR bop, PSTRG text) {
 /***********************************************************************/
 /* Set or add a value corresponding to the given key.                  */
 /***********************************************************************/
-PBPR BJSON::SetKeyValue(PGLOBAL g, PBPR bop, OFFSET bvp, PSZ key)
+PBPR BJSON::SetKeyValue(PBPR bop, OFFSET bvp, PSZ key)
 {
   PBPR brp = bop, prp = NULL;
 
@@ -994,10 +1011,10 @@ PBPR BJSON::SetKeyValue(PGLOBAL g, PBPR bop, OFFSET bvp, PSZ key)
         prp = brp;
 
     if (!brp)
-      prp->Vlp = MOF(SubAllocPair(g, key, bvp));
+      prp->Vlp = MOF(SubAllocPair(key, bvp));
 
   } else
-    bop = SubAllocPair(g, key, bvp);
+    bop = SubAllocPair(key, bvp);
 
   // Return the first pair of this object
   return bop;
@@ -1006,11 +1023,11 @@ PBPR BJSON::SetKeyValue(PGLOBAL g, PBPR bop, OFFSET bvp, PSZ key)
 /***********************************************************************/
 /* Merge two objects.                                                  */
 /***********************************************************************/
-PBPR BJSON::MergeObject(PGLOBAL g, PBPR bop1, PBPR bop2)
+PBPR BJSON::MergeObject(PBPR bop1, PBPR bop2)
 {
   if (bop1)
     for (PBPR brp = bop2; brp; brp = MPP(brp->Next))
-      SetKeyValue(g, bop1, brp->Vlp, MZP(brp->Key));
+      SetKeyValue(bop1, brp->Vlp, MZP(brp->Key));
 
   else
     bop1 = bop2;
@@ -1087,10 +1104,10 @@ PBVAL BJSON::GetArrayValue(PBVAL bap, int n)
 /***********************************************************************/
 /* Add a Value to the Array Value list.                                */
 /***********************************************************************/
-PBVAL BJSON::AddArrayValue(PGLOBAL g, PBVAL bap, PBVAL nvp, int* x)
+PBVAL BJSON::AddArrayValue(PBVAL bap, PBVAL nvp, int* x)
 {
   if (!nvp)
-    nvp = SubAllocVal(g);
+    nvp = NewVal();
 
   if (bap) {
     int   i = 0, n = (x) ? *x : INT_MAX32;
@@ -1112,11 +1129,11 @@ PBVAL BJSON::AddArrayValue(PGLOBAL g, PBVAL bap, PBVAL nvp, int* x)
 /***********************************************************************/
 /* Merge two arrays.                                                   */
 /***********************************************************************/
-PBVAL BJSON::MergeArray(PGLOBAL g, PBVAL bap1, PBVAL bap2)
+PBVAL BJSON::MergeArray(PBVAL bap1, PBVAL bap2)
 {
   if (bap1) {
     for (PBVAL bvp = bap2; bvp; bvp = MVP(bvp->Next))
-      AddArrayValue(g, bap1, bvp);
+      AddArrayValue(bap1, bvp);
 
     return bap1;
   } else
@@ -1127,7 +1144,7 @@ PBVAL BJSON::MergeArray(PGLOBAL g, PBVAL bap1, PBVAL bap2)
 /***********************************************************************/
 /* Set the nth Value of the Array Value list or add it.                          */
 /***********************************************************************/
-PBVAL BJSON::SetArrayValue(PGLOBAL g, PBVAL bap, PBVAL nvp, int n)
+PBVAL BJSON::SetArrayValue(PBVAL bap, PBVAL nvp, int n)
 {
   PBVAL bvp = bap, pvp = NULL;
 
@@ -1144,7 +1161,7 @@ PBVAL BJSON::SetArrayValue(PGLOBAL g, PBVAL bap, PBVAL nvp, int n)
   } // endif bap
 
   if (!bvp) {
-    bvp = DupVal(g, nvp);
+    bvp = DupVal(nvp);
 
     if (pvp)
       pvp->Next = MOF(bvp);
@@ -1233,47 +1250,56 @@ bool BJSON::IsArrayNull(PBVAL bap)
 /***********************************************************************/
 /* Sub-allocate and clear a BVAL.                                      */
 /***********************************************************************/
-PBVAL BJSON::SubAllocVal(PGLOBAL g)
+PBVAL BJSON::NewVal(int type)
 {
-  PBVAL bvp = (PBVAL)BsonSubAlloc(g, sizeof(BVAL));
+  PBVAL bvp = (PBVAL)BsonSubAlloc(sizeof(BVAL));
 
   bvp->To_Val = 0;
   bvp->Nd = 0;
-  bvp->Type = TYPE_NULL;
-  bvp->Next = 0;
-  return bvp;
-} // end of SubAllocVal
-
-/***********************************************************************/
-/* Sub-allocate and initialize a BVAL as string.                       */
-/***********************************************************************/
-PBVAL BJSON::SubAllocVal(PGLOBAL g, OFFSET toval, int type, short nd)
-{
-  PBVAL bvp = (PBVAL)BsonSubAlloc(g, sizeof(BVAL));
-
-  bvp->To_Val = toval;
-  bvp->Nd = nd;
   bvp->Type = type;
   bvp->Next = 0;
   return bvp;
 } // end of SubAllocVal
 
 /***********************************************************************/
+/* Sub-allocate and initialize a BVAL as type.                         */
+/***********************************************************************/
+PBVAL BJSON::SubAllocVal(OFFSET toval, int type, short nd)
+{
+  PBVAL bvp = NewVal(type);
+
+  bvp->To_Val = toval;
+  bvp->Nd = nd;
+  return bvp;
+} // end of SubAllocVal
+
+/***********************************************************************/
+/* Sub-allocate and initialize a BVAL as string.                       */
+/***********************************************************************/
+PBVAL BJSON::SubAllocStr(OFFSET toval, short nd)
+{
+  PBVAL bvp = NewVal(TYPE_STRG);
+
+  bvp->To_Val = toval;
+  bvp->Nd = nd;
+  return bvp;
+} // end of SubAllocVal
+
+/***********************************************************************/
 /* Allocate a BVALUE with a given string or numeric value.             */
 /***********************************************************************/
-PBVAL BJSON::SubAllocVal(PGLOBAL g, PVAL valp)
+PBVAL BJSON::SubAllocVal(PVAL valp)
 {
-  PBVAL vlp = SubAllocVal(g);
-  SetValue(g, vlp, valp);
-  vlp->Next = NULL;
+  PBVAL vlp = NewVal();
+  SetValue(vlp, valp);
   return vlp;
 } // end of SubAllocVal
 
 /***********************************************************************/
 /* Sub-allocate and initialize a BVAL from another BVAL.               */
 /***********************************************************************/
-PBVAL BJSON::DupVal(PGLOBAL g, PBVAL bvlp) {
-  PBVAL bvp = (PBVAL)BsonSubAlloc(g, sizeof(BVAL));
+PBVAL BJSON::DupVal(PBVAL bvlp) {
+  PBVAL bvp = NewVal();
 
   *bvp = *bvlp;
   bvp->Next = 0;
@@ -1539,7 +1565,7 @@ double BJSON::GetDouble(PBVAL vp)
 /***********************************************************************/
 /* Return the Value's String value.                                    */
 /***********************************************************************/
-PSZ BJSON::GetString(PGLOBAL g, PBVAL vp, char* buff)
+PSZ BJSON::GetString(PBVAL vp, char* buff)
 {
   char  buf[32];
   char* p = (buff) ? buff : buf;
@@ -1572,7 +1598,7 @@ PSZ BJSON::GetString(PGLOBAL g, PBVAL vp, char* buff)
     p = NULL;
   } // endswitch Type
 
-  return (p == buf) ? (PSZ)PlugDup(g, buf) : p;
+  return (p == buf) ? (PSZ)PlugDup(G, buf) : p;
 } // end of GetString
 
 /***********************************************************************/
@@ -1585,7 +1611,7 @@ PSZ BJSON::GetValueText(PGLOBAL g, PBVAL vlp, PSTRG text) {
     return GetArrayText(g, MVP(vlp->To_Val), text);
 
   char buff[32];
-  PSZ  s = (vlp->Type == TYPE_NULL) ? NULL : GetString(g, vlp, buff);
+  PSZ  s = (vlp->Type == TYPE_NULL) ? NULL : GetString(vlp, buff);
 
   if (s)
     text->Append(s);
@@ -1614,7 +1640,7 @@ void BJSON::SetValueVal(PBVAL vlp, PBVAL vp)
   vlp->Type = vp->Type;
 } // end of SetValue;
 
-void BJSON::SetValue(PGLOBAL g, PBVAL vlp, PVAL valp)
+void BJSON::SetValue(PBVAL vlp, PVAL valp)
 {
   if (!valp || valp->IsNull()) {
     vlp->Type = TYPE_NULL;
@@ -1625,7 +1651,7 @@ void BJSON::SetValue(PGLOBAL g, PBVAL vlp, PVAL valp)
     else {
       char buf[32];
 
-      vlp->To_Val = MOF(PlugDup(g, valp->GetCharString(buf)));
+      vlp->To_Val = MOF(PlugDup(G, valp->GetCharString(buf)));
     }	// endif Formatted
 
     vlp->Type = TYPE_DTM;
@@ -1642,7 +1668,7 @@ void BJSON::SetValue(PGLOBAL g, PBVAL vlp, PVAL valp)
       vlp->F = (float)valp->GetFloatValue();
       vlp->Type = TYPE_FLOAT;
     } else {
-      double *dp = (double*)PlugSubAlloc(g, NULL, sizeof(double));
+      double *dp = (double*)PlugSubAlloc(G, NULL, sizeof(double));
 
       *dp = valp->GetFloatValue();
       vlp->To_Val = MOF(dp);
@@ -1663,7 +1689,7 @@ void BJSON::SetValue(PGLOBAL g, PBVAL vlp, PVAL valp)
       vlp->N = valp->GetIntValue();
       vlp->Type = TYPE_INTG;
     } else {
-      longlong* llp = (longlong*)PlugSubAlloc(g, NULL, sizeof(longlong));
+      longlong* llp = (longlong*)PlugSubAlloc(G, NULL, sizeof(longlong));
 
       *llp = valp->GetBigintValue();
       vlp->To_Val = MOF(llp);
@@ -1672,7 +1698,7 @@ void BJSON::SetValue(PGLOBAL g, PBVAL vlp, PVAL valp)
 
     break;
   default:
-    sprintf(g->Message, "Unsupported typ %d\n", valp->GetType());
+    sprintf(G->Message, "Unsupported typ %d\n", valp->GetType());
     throw(777);
   } // endswitch Type
 
@@ -1699,13 +1725,13 @@ void BJSON::SetBool(PBVAL vlp, bool b)
 /***********************************************************************/
 /* Set the Value's value as the given big integer.                     */
 /***********************************************************************/
-void BJSON::SetBigint(PGLOBAL g, PBVAL vlp, longlong ll)
+void BJSON::SetBigint(PBVAL vlp, longlong ll)
 {
   if (ll >= INT_MIN32 && ll <= INT_MAX32) {
     vlp->N = (int)ll;
     vlp->Type = TYPE_INTG;
   } else {
-    longlong* llp = (longlong*)PlugSubAlloc(g, NULL, sizeof(longlong));
+    longlong* llp = (longlong*)PlugSubAlloc(G, NULL, sizeof(longlong));
 
     *llp = ll;
     vlp->To_Val = MOF(llp);

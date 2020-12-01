@@ -5,6 +5,7 @@
 /*                                                                     */
 /*  This file contains the JSON classes declares.                      */
 /***********************************************************************/
+#pragma once
 //#include "osutil.h"				// Unuseful and bad for OEM
 #include "block.h"
 #include "colblk.h"
@@ -161,6 +162,7 @@ public:
   virtual int   ReadDB(PGLOBAL g);
 	virtual bool  PrepareWriting(PGLOBAL g);
 	virtual int   WriteDB(PGLOBAL g);
+  virtual void  CloseDB(PGLOBAL g);
 
 	// Specific routine
 	virtual int   EstimatedLength(void);
