@@ -1326,6 +1326,16 @@ class buf_pool_t
     @return whether the allocation succeeded */
     inline bool create(size_t bytes);
 
+    /** @return sum of buf_block_t::lock::waited() */
+    uint64_t waited() const
+    {
+      uint64_t total_waited= 0;
+      for (const buf_block_t *block= blocks, * const end= blocks + size;
+           block != end; block++)
+        total_waited+= block->lock.waited();
+      return total_waited;
+    }
+
 #ifdef UNIV_DEBUG
     /** Find a block that points to a ROW_FORMAT=COMPRESSED page
     @param data  pointer to the start of a ROW_FORMAT=COMPRESSED page frame
@@ -1403,6 +1413,19 @@ public:
     return size;
   }
 
+  /** @return sum of buf_block_t::lock::waited() */
+  uint64_t waited()
+  {
+    ut_ad(is_initialised());
+    uint64_t waited_count= 0;
+    page_hash.read_lock_all(); /* prevent any race with resize() */
+    for (const chunk_t *chunk= chunks, * const end= chunks + n_chunks;
+         chunk != end; chunk++)
+      waited_count+= chunks->waited();
+    page_hash.read_unlock_all();
+    return waited_count;
+  }
+
   /** Determine whether a frame is intended to be withdrawn during resize().
   @param ptr    pointer within a buf_block_t::frame
   @return whether the frame will be withdrawn */
@@ -1410,7 +1433,7 @@ public:
   {
     ut_ad(curr_size < old_size);
 #ifdef SAFE_MUTEX
-    if (resizing.load(std::memory_order_relaxed))
+    if (resize_in_progress())
       mysql_mutex_assert_owner(&mutex);
 #endif /* SAFE_MUTEX */
 
@@ -1430,7 +1453,7 @@ public:
   {
     ut_ad(curr_size < old_size);
 #ifdef SAFE_MUTEX
-    if (resizing.load(std::memory_order_relaxed))
+    if (resize_in_progress())
       mysql_mutex_assert_owner(&mutex);
 #endif /* SAFE_MUTEX */
 
@@ -1804,6 +1827,28 @@ public:
       }
     }
 
+    /** Acquire all latches in shared mode */
+    void read_lock_all()
+    {
+      for (auto n= pad(n_cells) & ~ELEMENTS_PER_LATCH;;
+           n-= ELEMENTS_PER_LATCH + 1)
+      {
+        reinterpret_cast<page_hash_latch&>(array[n]).read_lock();
+        if (!n)
+          break;
+      }
+    }
+    /** Release all latches in shared mode */
+    void read_unlock_all()
+    {
+      for (auto n= pad(n_cells) & ~ELEMENTS_PER_LATCH;;
+           n-= ELEMENTS_PER_LATCH + 1)
+      {
+        reinterpret_cast<page_hash_latch&>(array[n]).read_unlock();
+        if (!n)
+          break;
+      }
+    }
     /** Exclusively aqcuire all latches */
     inline void write_lock_all();
 

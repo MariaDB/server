@@ -364,7 +364,7 @@ SPACE	NAME	ENCRYPTION_SCHEME	KEYSERVER_REQUESTS	MIN_KEY_VERSION	CURRENT_KEY_VERS
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_tablespaces_encryption but the InnoDB storage engine is not installed
 select * from information_schema.innodb_mutexes;
-NAME	CREATE_FILE	CREATE_LINE	OS_WAITS
+NAME	OS_WAITS
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_mutexes but the InnoDB storage engine is not installed
 select * from information_schema.innodb_sys_semaphore_waits;

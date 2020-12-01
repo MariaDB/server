@@ -15838,103 +15838,37 @@ innodb_show_mutex_status(
 	DBUG_RETURN(0);
 }
 
-/** Implements the SHOW MUTEX STATUS command.
-@param[in,out]	hton		the innodb handlerton
-@param[in,out]	thd		the MySQL query thread of the caller
-@param[in,out]	stat_print	function for printing statistics
+/** Implement SHOW ENGINE INNODB MUTEX for rw-locks.
+@param hton  the innodb handlerton
+@param thd   connection
+@param fn    function for printing statistics
 @return 0 on success. */
 static
 int
-innodb_show_rwlock_status(
-	handlerton*
-#ifdef DBUG_ASSERT_EXISTS
-	hton
-#endif
-	,
-	THD*		thd,
-	stat_print_fn*	stat_print)
+innodb_show_rwlock_status(handlerton* ut_d(hton), THD *thd, stat_print_fn *fn)
 {
-	DBUG_ENTER("innodb_show_rwlock_status");
+  DBUG_ENTER("innodb_show_rwlock_status");
+  ut_ad(hton == innodb_hton_ptr);
 
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-#if 0 // FIXME
-	const block_lock* block_rwlock= nullptr;
-	ulint		block_rwlock_oswait_count = 0;
-	uint		hton_name_len = (uint) strlen(innobase_hton_name);
+  constexpr size_t prefix_len= sizeof "waits=" - 1;
+  char waits[prefix_len + 20 + 1];
+  snprintf(waits, sizeof waits, "waits=" UINT64PF, buf_pool.waited());
 
-	mutex_enter(&dict_sys.mutex);
+  if (fn(thd, STRING_WITH_LEN(innobase_hton_name),
+         STRING_WITH_LEN("buf_block_t::lock"), waits, strlen(waits)))
+    DBUG_RETURN(1);
 
-	for (const block_lock& rw_lock : rw_lock_list) {
-
-		if (rw_lock.count_os_wait == 0) {
-			continue;
-		}
-
-		int		buf1len;
-		char		buf1[IO_SIZE];
-
-		if (rw_lock.is_block_lock) {
-
-			block_rwlock = &rw_lock;
-			block_rwlock_oswait_count += rw_lock.count_os_wait;
-
-			continue;
-		}
-
-		buf1len = snprintf(
-			buf1, sizeof buf1, "rwlock: %s:%u",
-			innobase_basename(rw_lock.cfile_name),
-			rw_lock.cline);
-
-		int		buf2len;
-		char		buf2[IO_SIZE];
-
-		buf2len = snprintf(
-			buf2, sizeof buf2, "waits=%u",
-			rw_lock.count_os_wait);
-
-		if (stat_print(thd, innobase_hton_name,
-			       hton_name_len,
-			       buf1, static_cast<uint>(buf1len),
-			       buf2, static_cast<uint>(buf2len))) {
-
-			mutex_exit(&dict_sys.mutex);
-
-			DBUG_RETURN(1);
-		}
-	}
-
-	if (block_rwlock != NULL) {
-
-		int		buf1len;
-		char		buf1[IO_SIZE];
-
-		buf1len = snprintf(
-			buf1, sizeof buf1, "sum rwlock: %s:%u",
-			innobase_basename(block_rwlock->cfile_name),
-			block_rwlock->cline);
-
-		int		buf2len;
-		char		buf2[IO_SIZE];
-
-		buf2len = snprintf(
-			buf2, sizeof buf2, "waits=" ULINTPF,
-			block_rwlock_oswait_count);
-
-		if (stat_print(thd, innobase_hton_name,
-			       hton_name_len,
-			       buf1, static_cast<uint>(buf1len),
-			       buf2, static_cast<uint>(buf2len))) {
-
-			mutex_exit(&dict_sys.mutex);
-
-			DBUG_RETURN(1);
-		}
-	}
-
-	mutex_exit(&dict_sys.mutex);
-#endif
-	DBUG_RETURN(0);
+  DBUG_RETURN(!dict_sys.for_each_index([&](const dict_index_t &i)
+  {
+    uint32_t waited= i.lock.waited();
+    if (!waited)
+      return true;
+    snprintf(waits + prefix_len, sizeof waits - prefix_len, "%u", waited);
+    std::ostringstream s;
+    s << i.name << '(' << i.table->name << ')';
+    return !fn(thd, STRING_WITH_LEN(innobase_hton_name),
+               s.str().data(), s.str().size(), waits, strlen(waits));
+  }));
 }
 
 /** Implements the SHOW MUTEX STATUS command.

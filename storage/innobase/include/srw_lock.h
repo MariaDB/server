@@ -78,13 +78,39 @@ public:
 #endif
   bool rd_lock_try() { uint32_t l; return read_trylock(l); }
   bool wr_lock_try() { return write_trylock(); }
-  template<bool update=false>
-  void rd_lock() { uint32_t l; if (!read_trylock(l)) read_lock(l); }
-  void u_lock() { uint32_t l; if (!update_trylock(l)) update_lock(l); }
+  template<bool update= false>
+  bool rd_lock()
+  {
+    uint32_t l;
+    if (read_trylock(l))
+      return true;
+    read_lock(l);
+    return false;
+  }
+  bool u_lock()
+  {
+    uint32_t l;
+    if (update_trylock(l))
+      return true;
+    update_lock(l);
+    return false;
+  }
   bool u_lock_try() { uint32_t l; return update_trylock(l); }
-  void u_wr_upgrade() { if (!upgrade_trylock()) write_lock(true); }
-  template<bool update=false>
-  void wr_lock() { if (!write_trylock()) write_lock(false); }
+  bool u_wr_upgrade()
+  {
+    if (upgrade_trylock())
+      return true;
+    write_lock(true);
+    return false;
+  }
+  template<bool update= false>
+  bool wr_lock()
+  {
+    if (write_trylock())
+      return true;
+    write_lock(false);
+    return false;
+  }
   void rd_unlock();
   void u_unlock();
   void wr_unlock();
@@ -122,7 +148,7 @@ public:
     lock.destroy();
   }
   template<bool update= false>
-  void rd_lock(const char *file, unsigned line)
+  bool rd_lock(const char *file, unsigned line)
   {
     if (pfs_psi)
     {
@@ -130,12 +156,12 @@ public:
       PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_rdwait)
         (&state, pfs_psi, update ? PSI_RWLOCK_SHAREDLOCK : PSI_RWLOCK_READLOCK,
          file, line);
-      lock.rd_lock();
+      bool no_wait= lock.rd_lock();
       if (locker)
         PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
-      return;
+      return no_wait;
     }
-    lock.rd_lock();
+    return lock.rd_lock();
   }
   void rd_unlock()
   {
@@ -143,19 +169,19 @@ public:
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.rd_unlock();
   }
-  void u_lock(const char *file, unsigned line)
+  bool u_lock(const char *file, unsigned line)
   {
     if (pfs_psi)
     {
       PSI_rwlock_locker_state state;
       PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
         (&state, pfs_psi, PSI_RWLOCK_SHAREDEXCLUSIVELOCK, file, line);
-      lock.u_lock();
+      bool no_wait= lock.u_lock();
       if (locker)
         PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
-      return;
+      return no_wait;
     }
-    lock.u_lock();
+    return lock.u_lock();
   }
   void u_unlock()
   {
@@ -164,7 +190,7 @@ public:
     lock.u_unlock();
   }
   template<bool update= false>
-  void wr_lock(const char *file, unsigned line)
+  bool wr_lock(const char *file, unsigned line)
   {
     if (pfs_psi)
     {
@@ -173,12 +199,12 @@ public:
         (&state, pfs_psi,
          update ? PSI_RWLOCK_EXCLUSIVELOCK : PSI_RWLOCK_WRITELOCK,
          file, line);
-      lock.wr_lock();
+      bool no_wait= lock.wr_lock();
       if (locker)
         PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
-      return;
+      return no_wait;
     }
-    lock.wr_lock();
+    return lock.wr_lock();
   }
   void wr_unlock()
   {
@@ -186,19 +212,19 @@ public:
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.wr_unlock();
   }
-  void u_wr_upgrade(const char *file, unsigned line)
+  bool u_wr_upgrade(const char *file, unsigned line)
   {
     if (pfs_psi)
     {
       PSI_rwlock_locker_state state;
       PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
         (&state, pfs_psi, PSI_RWLOCK_EXCLUSIVELOCK, file, line);
-      lock.u_wr_upgrade();
+      bool no_wait= lock.u_wr_upgrade();
       if (locker)
         PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
-      return;
+      return no_wait;
     }
-    lock.u_wr_upgrade();
+    return lock.u_wr_upgrade();
   }
   bool rd_lock_try() { return lock.rd_lock_try(); }
   bool u_lock_try() { return lock.u_lock_try(); }

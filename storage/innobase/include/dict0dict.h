@@ -1537,7 +1537,8 @@ private:
   @param t table
   @retval false if f returned false
   @retval true if f never returned false */
-  template<typename F> inline bool for_each_index(const F &f, dict_table_t *t);
+  template<typename F>
+  inline bool for_each_index(const F &f, const dict_table_t *t);
 public:
   /** Invoke f on each index of each persistent table, until it returns false
   @retval false if f returned false
@@ -1611,9 +1612,9 @@ extern dict_sys_t	dict_sys;
 #define dict_sys_unlock() dict_sys.unlock()
 
 template<typename F>
-inline bool dict_sys_t::for_each_index(const F &f, dict_table_t *t)
+inline bool dict_sys_t::for_each_index(const F &f, const dict_table_t *t)
 {
-  dict_index_t *i= UT_LIST_GET_FIRST(t->indexes);
+  const dict_index_t *i= UT_LIST_GET_FIRST(t->indexes);
   do
   {
     if (!i->is_corrupted() && !f(*i))
