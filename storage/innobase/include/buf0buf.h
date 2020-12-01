@@ -592,14 +592,6 @@ inline uint buf_page_full_crc32_size(const byte* buf, bool* comp, bool* cr)
 }
 
 #ifndef UNIV_INNOCHECKSUM
-#ifdef UNIV_DEBUG
-/** Find a block in the buffer pool that points to a given compressed page.
-@param[in]	data		pointer to compressed page
-@return buffer block pointing to the compressed page
-@retval NULL if not found */
-buf_block_t* buf_pool_contains_zip(const void* data);
-#endif /* UNIV_DEBUG */
-
 /** Dump a page to stderr.
 @param[in]	read_buf	database page
 @param[in]	zip_size	compressed page size, or 0 */
