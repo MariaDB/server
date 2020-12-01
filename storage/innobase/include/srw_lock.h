@@ -192,7 +192,7 @@ public:
     {
       PSI_rwlock_locker_state state;
       PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
-        (&state, pfs_psi, PSI_RWLOCK_WRITELOCK, file, line);
+        (&state, pfs_psi, PSI_RWLOCK_EXCLUSIVELOCK, file, line);
       lock.u_wr_upgrade();
       if (locker)
         PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
