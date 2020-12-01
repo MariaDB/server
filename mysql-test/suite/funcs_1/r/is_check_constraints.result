@@ -90,7 +90,9 @@ CREATE TABLE t3
 (
 a int,
 b int check (b>0), # field constraint named 'b'
-CONSTRAINT b check (b>10) # table constraint
+CONSTRAINT b check (b>10), # table constraint
+# `CHECK_CLAUSE` should allow more then `var(64)` constraints
+CONSTRAINT b1 check (b<123456789012345678901234567890123456789012345678901234567890123456789)
 ) ENGINE=InnoDB;
 SELECT * from information_schema.check_constraints;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
@@ -104,6 +106,7 @@ def	foo	t2	CHK_dates	`start_date` is null
 def	foo	t2	name	char_length(`name`) > 2
 def	foo	t3	b	`b` > 0
 def	foo	t3	b	`b` > 10
+def	foo	t3	b1	`b` < 123456789012345678901234567890123456789012345678901234567890123456789
 disconnect con1;
 CONNECT con2, localhost, boo2,, test;
 SELECT * from information_schema.check_constraints;

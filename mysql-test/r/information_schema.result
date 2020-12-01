@@ -843,6 +843,7 @@ information_schema.columns
 where data_type = 'longtext' and table_schema != 'performance_schema';
 table_schema	table_name	column_name
 information_schema	ALL_PLUGINS	PLUGIN_DESCRIPTION
+information_schema	CHECK_CONSTRAINTS	CHECK_CLAUSE
 information_schema	COLUMNS	COLUMN_DEFAULT
 information_schema	COLUMNS	COLUMN_TYPE
 information_schema	COLUMNS	GENERATION_EXPRESSION
