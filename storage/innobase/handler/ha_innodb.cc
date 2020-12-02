@@ -15838,54 +15838,6 @@ innodb_show_mutex_status(
 	DBUG_RETURN(0);
 }
 
-/** Implement SHOW ENGINE INNODB MUTEX for rw-locks.
-@param hton  the innodb handlerton
-@param thd   connection
-@param fn    function for printing statistics
-@return 0 on success. */
-static
-int
-innodb_show_rwlock_status(handlerton* ut_d(hton), THD *thd, stat_print_fn *fn)
-{
-  DBUG_ENTER("innodb_show_rwlock_status");
-  ut_ad(hton == innodb_hton_ptr);
-
-  char waits[20 + sizeof "waits="];
-
-  DBUG_RETURN(!dict_sys.for_each_index([&](const dict_index_t &i)
-  {
-    uint32_t waited= 0; // FIXME
-    if (!waited)
-      return true;
-    snprintf(waits, sizeof waits, "waits=%u", waited);
-    std::ostringstream s;
-    s << i.name << '(' << i.table->name << ')';
-    return !fn(thd, STRING_WITH_LEN(innobase_hton_name),
-               s.str().data(), s.str().size(), waits, strlen(waits));
-  }));
-}
-
-/** Implements the SHOW MUTEX STATUS command.
-@param[in,out]	hton		the innodb handlerton
-@param[in,out]	thd		the MySQL query thread of the caller
-@param[in,out]	stat_print	function for printing statistics
-@return 0 on success. */
-static
-int
-innodb_show_latch_status(
-	handlerton*	hton,
-	THD*		thd,
-	stat_print_fn*	stat_print)
-{
-	int	ret = innodb_show_mutex_status(hton, thd, stat_print);
-
-	if (ret != 0) {
-		return(ret);
-	}
-
-	return(innodb_show_rwlock_status(hton, thd, stat_print));
-}
-
 /************************************************************************//**
 Return 0 on success and non-zero on failure. Note: the bool return type
 seems to be abused here, should be an int. */
@@ -15907,7 +15859,7 @@ innobase_show_status(
 		return(innodb_show_status(hton, thd, stat_print) != 0);
 
 	case HA_ENGINE_MUTEX:
-		return(innodb_show_latch_status(hton, thd, stat_print) != 0);
+		return(innodb_show_mutex_status(hton, thd, stat_print) != 0);
 
 	case HA_ENGINE_LOGS:
 		/* Not handled */
@@ -19619,7 +19571,6 @@ i_s_innodb_sys_foreign,
 i_s_innodb_sys_foreign_cols,
 i_s_innodb_sys_tablespaces,
 i_s_innodb_sys_virtual,
-i_s_innodb_mutexes,
 i_s_innodb_sys_semaphore_waits,
 i_s_innodb_tablespaces_encryption
 maria_declare_plugin_end;

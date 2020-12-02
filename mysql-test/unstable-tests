@@ -462,7 +462,6 @@ innodb.innodb_information_schema_buffer      : MDEV-23418 - Wrong result
 innodb.innodb_max_recordsize_32k             : MDEV-14801 - Operation failed
 innodb.innodb_max_recordsize_64k             : MDEV-15203 - Wrong result
 innodb.innodb_monitor                        : MDEV-10939 - Testcase timeout
-innodb.innodb_mutexes                        : MDEV-23416 - Extra warning
 innodb.innodb_mysql                          : MDEV-19873 - Wrong result
 innodb.innodb_scrub                          : Modified in 10.5.7
 innodb.innodb_simulate_comp_failures_small   : MDEV-20526 - ASAN use-after-poison

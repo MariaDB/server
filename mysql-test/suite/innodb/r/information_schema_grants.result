@@ -40,8 +40,6 @@ create sql security invoker view i_locks as select * from information_schema.inn
 create sql security definer view d_locks as select * from information_schema.innodb_locks;
 create sql security invoker view i_metrics as select * from information_schema.innodb_metrics;
 create sql security definer view d_metrics as select * from information_schema.innodb_metrics;
-create sql security invoker view i_mutexes as select * from information_schema.innodb_mutexes;
-create sql security definer view d_mutexes as select * from information_schema.innodb_mutexes;
 create sql security invoker view i_sys_columns as select * from information_schema.innodb_sys_columns;
 create sql security definer view d_sys_columns as select * from information_schema.innodb_sys_columns;
 create sql security invoker view i_sys_fields as select * from information_schema.innodb_sys_fields;
@@ -187,13 +185,6 @@ ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) 
 select count(*) > -1 from i_metrics;
 ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
 select count(*) > -1 from d_metrics;
-count(*) > -1
-1
-select count(*) > -1 from information_schema.innodb_mutexes;
-ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
-select count(*) > -1 from i_mutexes;
-ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
-select count(*) > -1 from d_mutexes;
 count(*) > -1
 1
 select count(*) > -1 from information_schema.innodb_sys_columns;
