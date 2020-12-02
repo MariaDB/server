@@ -982,10 +982,10 @@ int Aggregator_distinct::insert_record_to_unique()
   if (tree->is_variable_sized())
   {
     uint packed_length;
-    if ((packed_length= tree->get_descriptor()->make_packed_record(true)) == 0)
+    if ((packed_length= tree->get_descriptor()->make_record(true)) == 0)
       return -1; // NULL value
     DBUG_ASSERT(packed_length <= tree->get_size());
-    return tree->unique_add(tree->get_descriptor()->get_packed_rec_ptr());
+    return tree->unique_add(tree->get_descriptor()->get_rec_ptr());
   }
 
   copy_fields(tmp_table_param);
@@ -4676,7 +4676,7 @@ qsort_cmp2 Item_func_group_concat::get_comparator_function_for_order_by()
 uchar* Item_func_group_concat::get_record_pointer()
 {
   return is_distinct_packed() ?
-         unique_filter->get_descriptor()->get_packed_rec_ptr() :
+         unique_filter->get_descriptor()->get_rec_ptr() :
          (skip_nulls() ?
           table->record[0] + table->s->null_bytes :
           table->record[0]);
@@ -4935,11 +4935,11 @@ int Item_func_group_concat::insert_record_to_unique()
   {
     uint packed_length;
     if ((packed_length= unique_filter->get_descriptor()->
-                        make_packed_record(skip_nulls())) == 0)
+                        make_record(skip_nulls())) == 0)
       return -1; // NULL value
     DBUG_ASSERT(packed_length <= unique_filter->get_size());
     return unique_filter->unique_add(unique_filter->get_descriptor()
-                                     ->get_packed_rec_ptr());
+                                     ->get_rec_ptr());
   }
 
   copy_fields(tmp_table_param);

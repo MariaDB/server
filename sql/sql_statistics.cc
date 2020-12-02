@@ -1758,10 +1758,10 @@ public:
     uint length= tree->get_size();
     if (tree->is_variable_sized())
     {
-      length= tree->get_descriptor()->make_packed_record(true);
+      length= tree->get_descriptor()->make_record(true);
       DBUG_ASSERT(length != 0);
       DBUG_ASSERT(length <= tree->get_size());
-      return tree->unique_add(tree->get_descriptor()->get_packed_rec_ptr());
+      return tree->unique_add(tree->get_descriptor()->get_rec_ptr());
     }
     return tree->unique_add(table_field->ptr);
   }
