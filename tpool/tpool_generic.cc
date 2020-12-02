@@ -561,7 +561,12 @@ void thread_pool_generic::worker_main(worker_data *thread_var)
   Helper function, to be used inside maintenance callback,
   before m_last_activity is updated
 */
-constexpr auto invalid_timestamp=  std::chrono::system_clock::time_point::max();
+#if __has_feature(memory_sanitizer)
+const /* WITH_MSAN in clang++-11 does not work with constexpr */
+#else
+constexpr
+#endif
+auto invalid_timestamp=  std::chrono::system_clock::time_point::max();
 constexpr auto max_idle_time= std::chrono::minutes(1);
 
 /* Time since maintenance timer had nothing to do */
