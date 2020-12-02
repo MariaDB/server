@@ -52,25 +52,18 @@ inline void srw_lock_low::readers_wait(uint32_t l)
   pthread_mutex_unlock(&mutex);
 }
 
-#if 0
-inline void srw_lock_low::writer_wake()
-{
-  pthread_mutex_lock(&mutex);
-  pthread_cond_broadcast(&cond_ex);
-  if (!(value() & WRITER_PENDING))
-    pthread_cond_broadcast(&cond);
-  pthread_mutex_unlock(&mutex);
-}
-#endif
-
 inline void srw_lock_low::writer_wake()
 {
   pthread_mutex_lock(&mutex);
   uint32_t l= value();
-  if (!(l & WRITER))
-    pthread_cond_broadcast((l & WRITER_PENDING) ? &cond_ex : &cond);
-  else
+  if (l & WRITER)
     DBUG_ASSERT(!(l & ~WRITER_PENDING));
+  else
+  {
+    pthread_cond_broadcast(&cond_ex);
+    if (!(l & WRITER_PENDING))
+      pthread_cond_broadcast(&cond);
+  }
   pthread_mutex_unlock(&mutex);
 }
 # define readers_wake writer_wake
