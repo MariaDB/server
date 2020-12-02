@@ -33,7 +33,7 @@ class srw_mutex
 public:
   void init() { pthread_mutex_init(&lock, nullptr); }
   void destroy() { pthread_mutex_destroy(&lock); }
-  template<bool update=false> void wr_lock() { pthread_mutex_lock(&lock); }
+  void wr_lock() { pthread_mutex_lock(&lock); }
   void wr_unlock() { pthread_mutex_unlock(&lock); }
   bool wr_lock_try() { return !pthread_mutex_trylock(&lock); }
 };
@@ -46,6 +46,9 @@ public:
 /** Slim reader-writer lock with no recursion */
 class srw_lock_low final : private rw_lock
 {
+#ifdef UNIV_PFS_RWLOCK
+  friend class srw_lock;
+#endif
 #ifdef SRW_LOCK_DUMMY
   pthread_mutex_t mutex;
   pthread_cond_t cond;
@@ -78,39 +81,13 @@ public:
 #endif
   bool rd_lock_try() { uint32_t l; return read_trylock(l); }
   bool wr_lock_try() { return write_trylock(); }
-  template<bool update= false>
-  bool rd_lock()
-  {
-    uint32_t l;
-    if (read_trylock(l))
-      return true;
-    read_lock(l);
-    return false;
-  }
-  bool u_lock()
-  {
-    uint32_t l;
-    if (update_trylock(l))
-      return true;
-    update_lock(l);
-    return false;
-  }
+  template<bool support_u_lock= false>
+  void rd_lock() { uint32_t l; if (!read_trylock(l)) read_lock(l); }
+  void u_lock() { uint32_t l; if (!update_trylock(l)) update_lock(l); }
   bool u_lock_try() { uint32_t l; return update_trylock(l); }
-  bool u_wr_upgrade()
-  {
-    if (upgrade_trylock())
-      return true;
-    write_lock(true);
-    return false;
-  }
-  template<bool update= false>
-  bool wr_lock()
-  {
-    if (write_trylock())
-      return true;
-    write_lock(false);
-    return false;
-  }
+  void u_wr_upgrade() { if (!upgrade_trylock()) write_lock(true); }
+  template<bool support_u_lock= false>
+  void wr_lock() { if (!write_trylock()) write_lock(false); }
   void rd_unlock();
   void u_unlock();
   void wr_unlock();
@@ -142,91 +119,105 @@ public:
   }
   void destroy()
   {
-    if (pfs_psi)
+    if (psi_likely(pfs_psi != nullptr))
     {
       PSI_RWLOCK_CALL(destroy_rwlock)(pfs_psi);
       pfs_psi= nullptr;
     }
     lock.destroy();
   }
-  template<bool update= false>
-  bool rd_lock(const char *file, unsigned line)
+  template<bool support_u_lock= false>
+  void rd_lock(const char *file, unsigned line)
   {
-    if (pfs_psi)
+    if (psi_likely(pfs_psi != nullptr))
     {
       PSI_rwlock_locker_state state;
+      uint32_t l;
+      bool nowait= lock.read_trylock(l);
       PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_rdwait)
-        (&state, pfs_psi, update ? PSI_RWLOCK_SHAREDLOCK : PSI_RWLOCK_READLOCK,
+        (&state, pfs_psi,
+         support_u_lock
+         ? (nowait ? PSI_RWLOCK_TRYSHAREDLOCK : PSI_RWLOCK_SHAREDLOCK)
+         : (nowait ? PSI_RWLOCK_TRYREADLOCK : PSI_RWLOCK_READLOCK),
          file, line);
-      bool no_wait= lock.rd_lock();
+      if (!nowait)
+        lock.read_lock(l);
       if (locker)
         PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
-      return no_wait;
+      return;
     }
-    return lock.rd_lock();
+    lock.rd_lock();
   }
   void rd_unlock()
   {
-    if (pfs_psi)
+    if (psi_likely(pfs_psi != nullptr))
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.rd_unlock();
   }
-  bool u_lock(const char *file, unsigned line)
+  void u_lock(const char *file, unsigned line)
   {
-    if (pfs_psi)
+    if (psi_likely(pfs_psi != nullptr))
     {
       PSI_rwlock_locker_state state;
       PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
         (&state, pfs_psi, PSI_RWLOCK_SHAREDEXCLUSIVELOCK, file, line);
-      bool no_wait= lock.u_lock();
+      lock.u_lock();
       if (locker)
         PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
-      return no_wait;
+      return;
     }
-    return lock.u_lock();
+    lock.u_lock();
   }
   void u_unlock()
   {
-    if (pfs_psi)
+    if (psi_likely(pfs_psi != nullptr))
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.u_unlock();
   }
-  template<bool update= false>
-  bool wr_lock(const char *file, unsigned line)
+  template<bool support_u_lock= false>
+  void wr_lock(const char *file, unsigned line)
   {
-    if (pfs_psi)
+    if (psi_likely(pfs_psi != nullptr))
     {
       PSI_rwlock_locker_state state;
+      bool nowait= lock.write_trylock();
       PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
         (&state, pfs_psi,
-         update ? PSI_RWLOCK_EXCLUSIVELOCK : PSI_RWLOCK_WRITELOCK,
+         support_u_lock
+         ? (nowait ? PSI_RWLOCK_TRYEXCLUSIVELOCK : PSI_RWLOCK_EXCLUSIVELOCK)
+         : (nowait ? PSI_RWLOCK_TRYWRITELOCK : PSI_RWLOCK_WRITELOCK),
          file, line);
-      bool no_wait= lock.wr_lock();
+      if (!nowait)
+        lock.wr_lock();
       if (locker)
         PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
-      return no_wait;
+      return;
     }
-    return lock.wr_lock();
+    lock.wr_lock();
   }
   void wr_unlock()
   {
-    if (pfs_psi)
+    if (psi_likely(pfs_psi != nullptr))
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.wr_unlock();
   }
-  bool u_wr_upgrade(const char *file, unsigned line)
+  void u_wr_upgrade(const char *file, unsigned line)
   {
-    if (pfs_psi)
+    if (psi_likely(pfs_psi != nullptr))
     {
       PSI_rwlock_locker_state state;
+      bool nowait= lock.upgrade_trylock();
       PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
-        (&state, pfs_psi, PSI_RWLOCK_EXCLUSIVELOCK, file, line);
-      bool no_wait= lock.u_wr_upgrade();
+        (&state, pfs_psi,
+         nowait ? PSI_RWLOCK_TRYEXCLUSIVELOCK : PSI_RWLOCK_EXCLUSIVELOCK,
+         file, line);
+      if (!nowait)
+        lock.write_lock(true);
       if (locker)
         PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
-      return no_wait;
+      return;
     }
-    return lock.u_wr_upgrade();
+    lock.u_wr_upgrade();
   }
   bool rd_lock_try() { return lock.rd_lock_try(); }
   bool u_lock_try() { return lock.u_lock_try(); }

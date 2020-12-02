@@ -28,14 +28,18 @@ insert into t1 values (1), (2), (3);
 insert into t1 values (1), (2), (3);
 commit;
 drop table t1;
-select operation from performance_schema.events_waits_history_long
-where event_name like "wait/synch/sxlock/%"
-  and operation = "shared_lock" limit 1;
-operation
-shared_lock
+select event_name from performance_schema.events_waits_history_long
+where event_name = 'wait/synch/sxlock/innodb/index_tree_rw_lock'
+  and operation in ('try_shared_lock','shared_lock') limit 1;
+event_name
+wait/synch/sxlock/innodb/index_tree_rw_lock
+select event_name from performance_schema.events_waits_history_long
+where event_name = 'wait/synch/sxlock/innodb/index_tree_rw_lock'
+  and operation in ('try_exclusive_lock','exclusive_lock') limit 1;
+event_name
+wait/synch/sxlock/innodb/index_tree_rw_lock
 select operation from performance_schema.events_waits_history_long
 where event_name like "wait/synch/sxlock/%"
   and operation = "exclusive_lock" limit 1;
 operation
-exclusive_lock
 UPDATE performance_schema.setup_instruments SET enabled = 'YES', timed = 'YES';

@@ -40,11 +40,15 @@ drop table t1;
 
 # Make sure some shared_lock operations have been executed
 
-select operation from performance_schema.events_waits_history_long
-  where event_name like "wait/synch/sxlock/%"
-  and operation = "shared_lock" limit 1;
+select event_name from performance_schema.events_waits_history_long
+  where event_name = 'wait/synch/sxlock/innodb/index_tree_rw_lock'
+  and operation in ('try_shared_lock','shared_lock') limit 1;
 
 # Make sure some exclusive_lock operations have been executed
+
+select event_name from performance_schema.events_waits_history_long
+  where event_name = 'wait/synch/sxlock/innodb/index_tree_rw_lock'
+  and operation in ('try_exclusive_lock','exclusive_lock') limit 1;
 
 select operation from performance_schema.events_waits_history_long
   where event_name like "wait/synch/sxlock/%"

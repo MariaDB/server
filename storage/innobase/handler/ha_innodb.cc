@@ -15850,20 +15850,14 @@ innodb_show_rwlock_status(handlerton* ut_d(hton), THD *thd, stat_print_fn *fn)
   DBUG_ENTER("innodb_show_rwlock_status");
   ut_ad(hton == innodb_hton_ptr);
 
-  constexpr size_t prefix_len= sizeof "waits=" - 1;
-  char waits[prefix_len + 20 + 1];
-  snprintf(waits, sizeof waits, "waits=" UINT64PF, buf_pool.waited());
-
-  if (fn(thd, STRING_WITH_LEN(innobase_hton_name),
-         STRING_WITH_LEN("buf_block_t::lock"), waits, strlen(waits)))
-    DBUG_RETURN(1);
+  char waits[20 + sizeof "waits="];
 
   DBUG_RETURN(!dict_sys.for_each_index([&](const dict_index_t &i)
   {
-    uint32_t waited= i.lock.waited();
+    uint32_t waited= 0; // FIXME
     if (!waited)
       return true;
-    snprintf(waits + prefix_len, sizeof waits - prefix_len, "%u", waited);
+    snprintf(waits, sizeof waits, "waits=%u", waited);
     std::ostringstream s;
     s << i.name << '(' << i.table->name << ')';
     return !fn(thd, STRING_WITH_LEN(innobase_hton_name),
@@ -17229,9 +17223,6 @@ innodb_monitor_set_option(
 		if (monitor_id == (MONITOR_LATCHES)) {
 
 			mutex_monitor.reset();
-			buf_pool.reset_waited();
-			dict_sys.for_each_index([](const dict_index_t &i)
-			{i.lock.reset_waited(); return true;});
 		}
 		break;
 

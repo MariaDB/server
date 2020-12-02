@@ -43,8 +43,6 @@ class sux_lock final
 #endif
   /** Numbers of U and X locks. Protected by lock. */
   uint32_t recursive;
-  /** Number of blocking waits */
-  std::atomic<uint32_t> waits;
 #ifdef UNIV_DEBUG
   /** Protects readers */
   mutable srw_mutex readers_lock;
@@ -69,7 +67,6 @@ public:
     lock.SRW_LOCK_INIT(key);
     ut_ad(!writer.load(std::memory_order_relaxed));
     ut_ad(!recursive);
-    ut_ad(!waits.load(std::memory_order_relaxed));
     ut_d(readers_lock.init());
     ut_ad(!readers.load(std::memory_order_relaxed));
   }
@@ -90,11 +87,6 @@ public:
 #endif
     lock.destroy();
   }
-
-  /** @return number of blocking waits */
-  uint32_t waited() const { return waits.load(std::memory_order_relaxed); }
-  /** Reset the number of blocking waits */
-  void reset_waited() { waits.store(0, std::memory_order_relaxed); }
 
   /** needed for dict_index_t::clone() */
   inline void operator=(const sux_lock&);
@@ -308,7 +300,6 @@ template<> inline void sux_lock<srw_lock_low>::init()
   lock.init();
   ut_ad(!writer.load(std::memory_order_relaxed));
   ut_ad(!recursive);
-  ut_ad(!waits.load(std::memory_order_relaxed));
   ut_d(readers_lock.init());
   ut_ad(!readers.load(std::memory_order_relaxed));
 }
@@ -318,8 +309,7 @@ inline void sux_lock<srw_lock>::s_lock(const char *file, unsigned line)
 {
   ut_ad(!have_x());
   ut_ad(!have_s());
-  if (!lock.template rd_lock<true>(file, line))
-    waits.fetch_add(1, std::memory_order_relaxed);
+  lock.template rd_lock<true>(file, line);
   ut_d(s_lock_register());
 }
 
@@ -331,8 +321,7 @@ inline void sux_lock<srw_lock>::u_lock(const char *file, unsigned line)
     writer_recurse<true>();
   else
   {
-    if (!lock.u_lock(file, line))
-      waits.fetch_add(1, std::memory_order_relaxed);
+    lock.u_lock(file, line);
     ut_ad(!recursive);
     recursive= RECURSIVE_U;
     set_first_owner(id);
@@ -347,8 +336,7 @@ inline void sux_lock<srw_lock>::x_lock(const char *file, unsigned line)
     writer_recurse<false>();
   else
   {
-    if (!lock.template wr_lock<true>(file, line))
-      waits.fetch_add(1, std::memory_order_relaxed);
+    lock.template wr_lock<true>(file, line);
     ut_ad(!recursive);
     recursive= RECURSIVE_X;
     set_first_owner(id);
@@ -359,8 +347,7 @@ template<>
 inline void sux_lock<srw_lock>::u_x_upgrade(const char *file, unsigned line)
 {
   ut_ad(have_u_not_x());
-  if (!lock.u_wr_upgrade(file, line))
-    waits.fetch_add(1, std::memory_order_relaxed);
+  lock.u_wr_upgrade(file, line);
   recursive/= RECURSIVE_U;
 }
 #endif
@@ -370,8 +357,7 @@ inline void sux_lock<srw_lock_low>::s_lock()
 {
   ut_ad(!have_x());
   ut_ad(!have_s());
-  if (!lock.template rd_lock<true>())
-    waits.fetch_add(1, std::memory_order_relaxed);
+  lock.template rd_lock<true>();
   ut_d(s_lock_register());
 }
 
@@ -383,8 +369,7 @@ inline void sux_lock<srw_lock_low>::u_lock()
     writer_recurse<true>();
   else
   {
-    if (!lock.u_lock())
-      waits.fetch_add(1, std::memory_order_relaxed);
+    lock.u_lock();
     ut_ad(!recursive);
     recursive= RECURSIVE_U;
     set_first_owner(id);
@@ -402,8 +387,7 @@ inline void sux_lock<srw_lock_low>::x_lock(bool for_io)
   }
   else
   {
-    if (!lock.template wr_lock<true>())
-      waits.fetch_add(1, std::memory_order_relaxed);
+    lock.template wr_lock<true>();
     ut_ad(!recursive);
     recursive= RECURSIVE_X;
     set_first_owner(for_io ? FOR_IO : id);
@@ -414,8 +398,7 @@ template<>
 inline void sux_lock<srw_lock_low>::u_x_upgrade()
 {
   ut_ad(have_u_not_x());
-  if (!lock.u_wr_upgrade())
-    waits.fetch_add(1, std::memory_order_relaxed);
+  lock.u_wr_upgrade();
   recursive/= RECURSIVE_U;
 }
 

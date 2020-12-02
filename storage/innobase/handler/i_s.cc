@@ -6910,17 +6910,12 @@ i_s_innodb_mutexes_fill_table(
     DBUG_RETURN(0);
 
   Field **fields= tables->table->field;
-  OK(fields[0]->store(STRING_WITH_LEN("buf_block_t::lock"),
-                      system_charset_info));
-  OK(fields[1]->store(buf_pool.waited(), true));
   fields[0]->set_notnull();
   fields[1]->set_notnull();
 
-  OK(schema_table_store_record(thd, tables->table));
-
   DBUG_RETURN(!dict_sys.for_each_index([&](const dict_index_t &i)
   {
-    uint32_t waited= i.lock.waited();
+    uint32_t waited= 0;// FIXME
     if (!waited)
       return true;
     if (fields[1]->store(waited, true))
