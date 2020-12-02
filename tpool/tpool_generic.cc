@@ -561,6 +561,9 @@ void thread_pool_generic::worker_main(worker_data *thread_var)
   Helper function, to be used inside maintenance callback,
   before m_last_activity is updated
 */
+#ifndef __has_feature
+# define __has_feature(x) 0
+#endif
 #if __has_feature(memory_sanitizer)
 const /* WITH_MSAN in clang++-11 does not work with constexpr */
 #else
