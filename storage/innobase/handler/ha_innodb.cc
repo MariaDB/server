@@ -4245,9 +4245,6 @@ static int innodb_init(void* p)
 	}
 #endif /* MYSQL_DYNAMIC_PLUGIN */
 
-	/* Currently, monitor counter information are not persistent. */
-	memset(monitor_set_tbl, 0, sizeof monitor_set_tbl);
-
 	memset(innodb_counter_value, 0, sizeof innodb_counter_value);
 
 	/* Do this as late as possible so server is fully starts up,
