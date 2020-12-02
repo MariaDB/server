@@ -225,3 +225,81 @@ void srw_lock_low::write_lock(bool holding_u)
 void srw_lock_low::rd_unlock() { if (read_unlock()) writer_wake(); }
 void srw_lock_low::u_unlock() { if (update_unlock()) writer_wake(); }
 void srw_lock_low::wr_unlock() { write_unlock(); readers_wake(); }
+
+#ifdef UNIV_PFS_RWLOCK
+template<bool support_u_lock>
+void srw_lock::psi_rd_lock(const char *file, unsigned line)
+{
+  PSI_rwlock_locker_state state;
+  uint32_t l;
+  const bool nowait= lock.read_trylock(l);
+  if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_rdwait)
+      (&state, pfs_psi,
+       support_u_lock
+       ? (nowait ? PSI_RWLOCK_TRYSHAREDLOCK : PSI_RWLOCK_SHAREDLOCK)
+       : (nowait ? PSI_RWLOCK_TRYREADLOCK : PSI_RWLOCK_READLOCK), file, line))
+  {
+    if (!nowait)
+      lock.read_lock(l);
+    PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
+  }
+  else if (!nowait)
+    lock.read_lock(l);
+}
+
+template void srw_lock::psi_rd_lock<false>(const char *, unsigned);
+template void srw_lock::psi_rd_lock<true>(const char *, unsigned);
+
+void srw_lock::psi_u_lock(const char *file, unsigned line)
+{
+  PSI_rwlock_locker_state state;
+  if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
+      (&state, pfs_psi, PSI_RWLOCK_SHAREDEXCLUSIVELOCK, file, line))
+  {
+    lock.u_lock();
+    PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
+  }
+  else
+    lock.u_lock();
+}
+
+template<bool support_u_lock>
+void srw_lock::psi_wr_lock(const char *file, unsigned line)
+{
+  PSI_rwlock_locker_state state;
+  const bool nowait= lock.write_trylock();
+  if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
+      (&state, pfs_psi,
+       support_u_lock
+       ? (nowait ? PSI_RWLOCK_TRYEXCLUSIVELOCK : PSI_RWLOCK_EXCLUSIVELOCK)
+       : (nowait ? PSI_RWLOCK_TRYWRITELOCK : PSI_RWLOCK_WRITELOCK),
+       file, line))
+  {
+    if (!nowait)
+      lock.wr_lock();
+    PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
+  }
+  else if (!nowait)
+    lock.wr_lock();
+}
+
+template void srw_lock::psi_wr_lock<false>(const char *, unsigned);
+template void srw_lock::psi_wr_lock<true>(const char *, unsigned);
+
+void srw_lock::psi_u_wr_upgrade(const char *file, unsigned line)
+{
+  PSI_rwlock_locker_state state;
+  const bool nowait= lock.upgrade_trylock();
+  if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
+      (&state, pfs_psi,
+       nowait ? PSI_RWLOCK_TRYEXCLUSIVELOCK : PSI_RWLOCK_EXCLUSIVELOCK,
+       file, line))
+  {
+    if (!nowait)
+      lock.write_lock(true);
+    PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
+  }
+  else if (!nowait)
+    lock.write_lock(true);
+}
+#endif /* UNIV_PFS_RWLOCK */

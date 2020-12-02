@@ -115,6 +115,12 @@ class srw_lock
   srw_lock_low lock;
   PSI_rwlock *pfs_psi;
 
+  template<bool support_u_lock>
+  void psi_rd_lock(const char *file, unsigned line);
+  void psi_u_lock(const char *file, unsigned line);
+  template<bool support_u_lock>
+  void psi_wr_lock(const char *file, unsigned line);
+  void psi_u_wr_upgrade(const char *file, unsigned line);
 public:
   void init(mysql_pfs_key_t key)
   {
@@ -134,23 +140,9 @@ public:
   void rd_lock(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-    {
-      PSI_rwlock_locker_state state;
-      uint32_t l;
-      bool nowait= lock.read_trylock(l);
-      PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_rdwait)
-        (&state, pfs_psi,
-         support_u_lock
-         ? (nowait ? PSI_RWLOCK_TRYSHAREDLOCK : PSI_RWLOCK_SHAREDLOCK)
-         : (nowait ? PSI_RWLOCK_TRYREADLOCK : PSI_RWLOCK_READLOCK),
-         file, line);
-      if (!nowait)
-        lock.read_lock(l);
-      if (locker)
-        PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
-      return;
-    }
-    lock.rd_lock();
+      psi_rd_lock<support_u_lock>(file, line);
+    else
+      lock.rd_lock();
   }
   void rd_unlock()
   {
@@ -161,16 +153,9 @@ public:
   void u_lock(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-    {
-      PSI_rwlock_locker_state state;
-      PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
-        (&state, pfs_psi, PSI_RWLOCK_SHAREDEXCLUSIVELOCK, file, line);
+      psi_u_lock(file, line);
+    else
       lock.u_lock();
-      if (locker)
-        PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
-      return;
-    }
-    lock.u_lock();
   }
   void u_unlock()
   {
@@ -182,22 +167,9 @@ public:
   void wr_lock(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-    {
-      PSI_rwlock_locker_state state;
-      bool nowait= lock.write_trylock();
-      PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
-        (&state, pfs_psi,
-         support_u_lock
-         ? (nowait ? PSI_RWLOCK_TRYEXCLUSIVELOCK : PSI_RWLOCK_EXCLUSIVELOCK)
-         : (nowait ? PSI_RWLOCK_TRYWRITELOCK : PSI_RWLOCK_WRITELOCK),
-         file, line);
-      if (!nowait)
-        lock.wr_lock();
-      if (locker)
-        PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
-      return;
-    }
-    lock.wr_lock();
+      psi_wr_lock<support_u_lock>(file, line);
+    else
+      lock.wr_lock();
   }
   void wr_unlock()
   {
@@ -208,20 +180,9 @@ public:
   void u_wr_upgrade(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-    {
-      PSI_rwlock_locker_state state;
-      bool nowait= lock.upgrade_trylock();
-      PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
-        (&state, pfs_psi,
-         nowait ? PSI_RWLOCK_TRYEXCLUSIVELOCK : PSI_RWLOCK_EXCLUSIVELOCK,
-         file, line);
-      if (!nowait)
-        lock.write_lock(true);
-      if (locker)
-        PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
-      return;
-    }
-    lock.u_wr_upgrade();
+      psi_u_wr_upgrade(file, line);
+    else
+      lock.u_wr_upgrade();
   }
   bool rd_lock_try() { return lock.rd_lock_try(); }
   bool u_lock_try() { return lock.u_lock_try(); }
