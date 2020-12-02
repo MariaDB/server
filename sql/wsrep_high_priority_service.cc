@@ -142,11 +142,12 @@ Wsrep_high_priority_service::Wsrep_high_priority_service(THD* thd)
 
   /* Disable general logging on applier threads */
   thd->variables.option_bits |= OPTION_LOG_OFF;
-  /* Enable binlogging if opt_log_slave_updates is set */
-  if (opt_log_slave_updates)
-    thd->variables.option_bits|= OPTION_BIN_LOG;
-  else
-    thd->variables.option_bits&= ~(OPTION_BIN_LOG);
+
+  /* enable binlogging regardless of log_slave_updates setting
+     this is for ensuring that both local and applier transaction go through
+     same commit ordering algorithm in group commit control
+   */
+  thd->variables.option_bits|= OPTION_BIN_LOG;
 
   thd->net.vio= 0;
   thd->reset_db(&db_str);
