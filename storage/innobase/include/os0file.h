@@ -45,6 +45,8 @@ Created 10/21/1995 Heikki Tuuri
 #include <time.h>
 #endif /* !_WIN32 */
 
+#include "my_counter.h"
+
 /** File node of a tablespace or the log data space */
 struct fil_node_t;
 struct fil_space_t;
@@ -460,7 +462,7 @@ or write, causing a bottleneck for parallelism. */
 static const ulint OS_AIO_SYNC = 24;
 /* @} */
 
-extern ulint	os_n_file_reads;
+extern Atomic_counter<ulint> os_n_file_reads;
 extern ulint	os_n_file_writes;
 extern ulint	os_n_fsyncs;
 

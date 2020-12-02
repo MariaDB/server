@@ -674,7 +674,7 @@ static ulint		os_aio_n_segments = ULINT_UNDEFINED;
 wait until a batch of new read requests have been posted */
 static bool		os_aio_recommend_sleep_for_read_threads;
 
-ulint	os_n_file_reads;
+Atomic_counter<ulint> os_n_file_reads;
 static ulint	os_bytes_read_since_printout;
 ulint	os_n_file_writes;
 ulint	os_n_fsyncs;
@@ -7411,7 +7411,7 @@ os_aio_print(FILE*	file)
 		ULINTPF " OS fsyncs\n",
 		fil_n_pending_log_flushes,
 		fil_n_pending_tablespace_flushes,
-		os_n_file_reads,
+		ulint{os_n_file_reads},
 		os_n_file_writes,
 		os_n_fsyncs);
 
