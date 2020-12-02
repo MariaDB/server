@@ -1544,7 +1544,7 @@ void THD::cleanup(void)
     and left the mode a few lines above), there will be outstanding
     metadata locks. Release them.
   */
-  mdl_context.release_transactional_locks();
+  mdl_context.release_transactional_locks(this);
 
   backup_end(this);
   backup_unlock(this);

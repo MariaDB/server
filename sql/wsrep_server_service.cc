@@ -248,7 +248,7 @@ void Wsrep_server_service::log_view(
             WSREP_WARN("Failed to commit transaction for store view");
           }
         }
-        applier->m_thd->mdl_context.release_transactional_locks();
+        applier->m_thd->release_transactional_locks();
       }
 
       /*

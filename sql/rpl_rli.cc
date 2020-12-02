@@ -1675,7 +1675,7 @@ end:
   {
     *out_hton= table->s->db_type();
     close_thread_tables(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->mdl_context.release_transactional_locks(thd);
   }
   return err;
 }

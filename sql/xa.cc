@@ -399,6 +399,7 @@ static bool xa_trans_force_rollback(THD *thd)
   xid_cache_delete(thd, &thd->transaction.xid_state);
 
   trans_track_end_trx(thd);
+  thd->mdl_context.release_transactional_locks(thd);
 
   return rc;
 }
@@ -603,7 +604,7 @@ bool trans_xa_commit(THD *thd)
   xid_cache_delete(thd, &thd->transaction.xid_state);
 
   trans_track_end_trx(thd);
-  thd->mdl_context.release_transactional_locks();
+  thd->mdl_context.release_transactional_locks(thd);
 
   DBUG_RETURN(res);
 }
@@ -677,6 +678,8 @@ bool trans_xa_detach(THD *thd)
   thd->transaction.all.no_2pc= 0;
   thd->server_status&= ~(SERVER_STATUS_IN_TRANS |
                          SERVER_STATUS_IN_TRANS_READONLY);
+  thd->mdl_context.release_transactional_locks(thd);
+
   return false;
 #endif
 }

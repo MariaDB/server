@@ -733,7 +733,7 @@ end:
     if (in_transaction)
       thd->mdl_context.release_statement_locks();
     else
-      thd->mdl_context.release_transactional_locks();
+      thd->release_transactional_locks();
   }
   thd->lex->restore_backup_query_tables_list(&lex_backup);
   thd->variables.option_bits= thd_saved_option;

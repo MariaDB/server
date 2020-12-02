@@ -4579,7 +4579,7 @@ public:
   {
     if (!(server_status &
           (SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY)))
-      mdl_context.release_transactional_locks();
+      mdl_context.release_transactional_locks(this);
   }
   int decide_logging_format(TABLE_LIST *tables);
   /*
