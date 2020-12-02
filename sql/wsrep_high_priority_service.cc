@@ -443,8 +443,24 @@ int Wsrep_high_priority_service::log_dummy_write_set(const wsrep::ws_handle& ws_
       cs.before_rollback();
       cs.after_rollback();
     }
+
+    if (!WSREP_EMULATE_BINLOG(m_thd))
+    {
+      wsrep_register_for_group_commit(m_thd);
+      ret = ret || cs.provider().commit_order_leave(ws_handle, ws_meta, err);
+      m_thd->wait_for_prior_commit();
+    }
+
     wsrep_set_SE_checkpoint(ws_meta.gtid());
-    ret= ret || cs.provider().commit_order_leave(ws_handle, ws_meta, err);
+
+    if (!WSREP_EMULATE_BINLOG(m_thd))
+    {
+      wsrep_unregister_from_group_commit(m_thd);
+    }
+    else
+    {
+      ret= ret || cs.provider().commit_order_leave(ws_handle, ws_meta, err);
+    }
     cs.after_applying();
   }
   DBUG_RETURN(ret);
