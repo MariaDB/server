@@ -114,6 +114,8 @@ public:
   void rd_unlock();
   void u_unlock();
   void wr_unlock();
+  /** @return whether any writer is waiting */
+  bool is_waiting() const { return value() & WRITER_WAITING; }
 };
 
 #ifndef UNIV_PFS_RWLOCK
@@ -229,5 +231,6 @@ public:
   bool rd_lock_try() { return lock.rd_lock_try(); }
   bool u_lock_try() { return lock.u_lock_try(); }
   bool wr_lock_try() { return lock.wr_lock_try(); }
+  bool is_waiting() const { return lock.is_waiting(); }
 };
 #endif

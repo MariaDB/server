@@ -1947,7 +1947,7 @@ row_merge_read_clustered_index(
 				goto scan_next;
 			}
 
-			if (0/*FIXME: clust_index->count_os_waits changed*/) {
+			if (clust_index->lock.is_waiting()) {
 				/* There are waiters on the clustered
 				index tree lock, likely the purge
 				thread. Store and restore the cursor

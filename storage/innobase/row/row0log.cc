@@ -341,7 +341,7 @@ row_log_online_op(
 
 	ut_ad(dtuple_validate(tuple));
 	ut_ad(dtuple_get_n_fields(tuple) == dict_index_get_n_fields(index));
-	// FIXME: ut_ad(index->lock.have_s_or_x());
+	ut_ad(index->lock.have_x() || index->lock.have_s());
 
 	if (index->is_corrupted()) {
 		return;

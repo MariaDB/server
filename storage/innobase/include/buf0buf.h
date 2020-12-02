@@ -1326,14 +1326,20 @@ class buf_pool_t
     @return whether the allocation succeeded */
     inline bool create(size_t bytes);
 
-    /** @return sum of buf_block_t::lock::waited() */
-    uint64_t waited() const
+    /** Compute the sum of buf_block_t::lock::waited()
+    @param total_waited sum of buf_block_t::lock::waited() */
+    void waited(uint64_t &total_waited) const
     {
-      uint64_t total_waited= 0;
       for (const buf_block_t *block= blocks, * const end= blocks + size;
            block != end; block++)
         total_waited+= block->lock.waited();
-      return total_waited;
+    }
+    /** Invoke buf_block_t::lock::reset_waited() on all blocks */
+    void reset_waited()
+    {
+      for (buf_block_t *block= blocks, * const end= blocks + size;
+           block != end; block++)
+        block->lock.reset_waited();
     }
 
 #ifdef UNIV_DEBUG
@@ -1421,9 +1427,20 @@ public:
     page_hash.read_lock_all(); /* prevent any race with resize() */
     for (const chunk_t *chunk= chunks, * const end= chunks + n_chunks;
          chunk != end; chunk++)
-      waited_count+= chunks->waited();
+      chunks->waited(waited_count);
     page_hash.read_unlock_all();
     return waited_count;
+  }
+
+  /** Invoke buf_block_t::lock::reset_waited() on all blocks */
+  void reset_waited()
+  {
+    ut_ad(is_initialised());
+    page_hash.read_lock_all(); /* prevent any race with resize() */
+    for (const chunk_t *chunk= chunks, * const end= chunks + n_chunks;
+         chunk != end; chunk++)
+      chunks->reset_waited();
+    page_hash.read_unlock_all();
   }
 
   /** Determine whether a frame is intended to be withdrawn during resize().

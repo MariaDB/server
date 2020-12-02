@@ -1080,7 +1080,7 @@ sel_set_rtr_rec_lock(
 	match->block.lock.x_lock();
 retry:
 	cur_block = btr_pcur_get_block(pcur);
-	// FIXME: ut_ad(match->block.lock.have_s_or_x());
+	ut_ad(match->block.lock.have_x() || match->block.lock.have_s());
 	ut_ad(page_is_leaf(buf_block_get_frame(cur_block)));
 
 	err = lock_sec_rec_read_check_and_lock(

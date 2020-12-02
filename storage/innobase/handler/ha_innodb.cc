@@ -17229,11 +17229,9 @@ innodb_monitor_set_option(
 		if (monitor_id == (MONITOR_LATCHES)) {
 
 			mutex_monitor.reset();
-#if 0 // FIXME
-			dict_sys.for_each_index(
-				[](dict_index_t& i) {i.count_os_wait = 0});
-			buf_block_os_wait = 0;
-#endif
+			buf_pool.reset_waited();
+			dict_sys.for_each_index([](const dict_index_t &i)
+			{i.lock.reset_waited(); return true;});
 		}
 		break;
 

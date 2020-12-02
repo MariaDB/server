@@ -1305,8 +1305,8 @@ dict_index_t *dict_index_t::clone() const
               sizeof *stat_n_non_null_key_vals);
 
   mem_heap_t* heap= mem_heap_create(size);
-  dict_index_t *index= static_cast<dict_index_t*>(mem_heap_dup(heap, this,
-                                                               sizeof *this));
+  dict_index_t *index= static_cast<dict_index_t*>
+    (mem_heap_alloc(heap, sizeof *this));
   *index= *this;
   index->lock.SRW_LOCK_INIT(index_tree_rw_lock_key);
   index->heap= heap;

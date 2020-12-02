@@ -406,7 +406,7 @@ static
 bool
 btr_search_update_block_hash_info(btr_search_t* info, buf_block_t* block)
 {
-	ut_ad(block->lock.have_u_or_x());
+	ut_ad(block->lock.have_x() || block->lock.have_s());
 
 	info->last_hash_succ = FALSE;
 	ut_d(auto state= block->page.state());
@@ -694,7 +694,7 @@ btr_search_update_hash_ref(
 {
 	ut_ad(cursor->flag == BTR_CUR_HASH_FAIL);
 
-	//FIXME: ut_ad(block->lock.have_s_or_x());
+	ut_ad(block->lock.have_x() || block->lock.have_s());
 	ut_ad(page_align(btr_cur_get_rec(cursor)) == block->frame);
 	ut_ad(page_is_leaf(block->frame));
 	assert_block_ahi_valid(block);
@@ -1244,11 +1244,9 @@ retry:
 		return;
 	}
 
-#if 0 /* FIXME */
 	ut_ad(!block->page.buf_fix_count()
 	      || block->page.state() == BUF_BLOCK_REMOVE_HASH
-	      || block->lock.have_any();
-#endif
+	      || block->lock.have_any());
 	ut_ad(page_is_leaf(block->frame));
 
 	/* We must not dereference block->index here, because it could be freed
@@ -1467,7 +1465,7 @@ btr_search_build_page_hash_index(
 	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(page_is_leaf(block->frame));
 
-	// FIXME: ut_ad(block->lock.have_s_or_x())
+	ut_ad(block->lock.have_x() || block->lock.have_s());
 	ut_ad(block->page.id().page_no() >= 3);
 
 	ahi_latch->rd_lock(SRW_LOCK_CALL);

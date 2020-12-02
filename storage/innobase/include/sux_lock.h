@@ -93,6 +93,8 @@ public:
 
   /** @return number of blocking waits */
   uint32_t waited() const { return waits.load(std::memory_order_relaxed); }
+  /** Reset the number of blocking waits */
+  void reset_waited() { waits.store(0, std::memory_order_relaxed); }
 
   /** needed for dict_index_t::clone() */
   inline void operator=(const sux_lock&);
@@ -284,11 +286,17 @@ public:
   /** Release an exclusive lock */
   void x_unlock(bool claim_ownership= false)
   { u_or_x_unlock(false, claim_ownership); }
+
+  /** @return whether any writer is waiting */
+  bool is_waiting() const { return lock.is_waiting(); }
 };
 
 typedef sux_lock<srw_lock_low> block_lock;
 /** needed for dict_index_t::clone() */
-template<> inline void sux_lock<srw_lock>::operator=(const sux_lock&) {}
+template<> inline void sux_lock<srw_lock>::operator=(const sux_lock&)
+{
+  memset((void*) this, 0, sizeof *this);
+}
 
 #ifndef UNIV_PFS_RWLOCK
 typedef block_lock index_lock;

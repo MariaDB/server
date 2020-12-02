@@ -1105,7 +1105,7 @@ bool mtr_t::memo_contains(const index_lock &lock, mtr_memo_type_t type)
     ut_ad(lock.have_x());
     break;
   case MTR_MEMO_SX_LOCK:
-    ut_ad(lock.have_u_or_x()); // FIXME: ut_ad(lock.have_u());
+    ut_ad(lock.have_u_or_x());
     break;
   case MTR_MEMO_S_LOCK:
     ut_ad(lock.have_s());

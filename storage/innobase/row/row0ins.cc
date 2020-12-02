@@ -2079,7 +2079,7 @@ row_ins_scan_sec_index_for_duplicate(
 
 	rec_offs_init(offsets_);
 
-	// FIXME: ut_ad(s_latch == index->lock.have_s_or_u());
+	ut_ad(s_latch == (index->lock.have_u_not_x() || index->lock.have_s()));
 
 	n_unique = dict_index_get_n_unique(index);
 
