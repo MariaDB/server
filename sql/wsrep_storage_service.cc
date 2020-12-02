@@ -176,7 +176,7 @@ int Wsrep_storage_service::commit(const wsrep::ws_handle& ws_handle,
     trans_rollback(m_thd);
   }
   m_thd->wsrep_cs().after_applying();
-  m_thd->mdl_context.release_transactional_locks();
+  m_thd->release_transactional_locks();
   DBUG_RETURN(ret);
 }
 
@@ -191,7 +191,7 @@ int Wsrep_storage_service::rollback(const wsrep::ws_handle& ws_handle,
             ws_handle, ws_meta, false) ||
             trans_rollback(m_thd));
   m_thd->wsrep_cs().after_applying();
-  m_thd->mdl_context.release_transactional_locks();
+  m_thd->release_transactional_locks();
   DBUG_RETURN(ret);
 }
 

@@ -1267,7 +1267,7 @@ wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* key
   if (!WSREP(thd) || !WSREP_CLIENT(thd)) return;
     TABLE_LIST *table;
 
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
     uint counter;
     MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
 

@@ -1520,7 +1520,8 @@ Item_in_subselect::Item_in_subselect(THD *thd, Item * left_exp,
   pushed_cond_guards(NULL), do_not_convert_to_sj(FALSE), is_jtbm_merged(FALSE),
   is_jtbm_const_tab(FALSE), is_flattenable_semijoin(FALSE),
   is_registered_semijoin(FALSE),
-  upper_item(0)
+  upper_item(0),
+  converted_from_in_predicate(FALSE)
 {
   DBUG_ENTER("Item_in_subselect::Item_in_subselect");
   DBUG_PRINT("info", ("in_strategy: %u", (uint)in_strategy));

@@ -290,7 +290,7 @@ int Wsrep_high_priority_service::append_fragment_and_commit(
 
   ret= ret || trans_commit(m_thd);
   ret= ret || (m_thd->wsrep_cs().after_applying(), 0);
-  m_thd->mdl_context.release_transactional_locks();
+  m_thd->release_transactional_locks();
 
   free_root(m_thd->mem_root, MYF(MY_KEEP_PREALLOC));
 
@@ -332,7 +332,7 @@ int Wsrep_high_priority_service::commit(const wsrep::ws_handle& ws_handle,
     m_rgi->cleanup_context(thd, 0);
   }
 
-  m_thd->mdl_context.release_transactional_locks();
+  m_thd->release_transactional_locks();
 
   thd_proc_info(thd, "wsrep applier committed");
 
@@ -378,7 +378,7 @@ int Wsrep_high_priority_service::rollback(const wsrep::ws_handle& ws_handle,
      assert(ws_handle == wsrep::ws_handle());
   }
   int ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
-  m_thd->mdl_context.release_transactional_locks();
+  m_thd->release_transactional_locks();
   m_thd->mdl_context.release_explicit_locks();
 
   free_root(m_thd->mem_root, MYF(MY_KEEP_PREALLOC));

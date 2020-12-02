@@ -2240,6 +2240,45 @@ DROP TABLE t1,t2,t3,t4;
 --echo # End of 10.2 tests
 
 --echo #
+--echo # MDEV-21265: IN predicate conversion to IN subquery should be allowed for a broader set of datatype comparison
+--echo #
+
+CREATE TABLE t1(a VARCHAR(50) collate utf8_general_ci, b INT);
+INSERT INTO t1 VALUES ('abc',1), ('def', 2), ('ghi', 3), ('jkl', 4), ('mno', 5);
+
+CREATE TABLE t2(a VARCHAR(50) collate utf8mb4_general_ci, b INT);
+INSERT INTO t2 VALUES ('abc',1), ('def', 2), ('ghi', 3), ('jkl', 4), ('mno', 5);
+
+set @save_in_predicate_conversion_threshold= @@in_predicate_conversion_threshold;
+set in_predicate_conversion_threshold=2;
+
+set names 'utf8mb4';
+--echo #
+--echo # IN predicate to IN subquery is not allowed as materialization is not allowed
+--echo # The character set on the inner side is not equal to or a proper subset of the outer side
+--echo #
+
+EXPLAIN
+SELECT * FROM t1 WHERE (t1.a,t1.b) IN (('abx',1),('def',2), ('abc', 3));
+
+set names 'utf8';
+--echo #
+--echo # IN predicate to IN subquery is performed as materialization is llowed
+--echo # The character set on the inner side is a proper subset of the outer side
+--echo #
+
+--echo # this test in 10.5 has only 2 rows in the IN predicate
+
+EXPLAIN
+SELECT * FROM t2 WHERE (t2.a,t2.b) IN (('abc',1), ('def', 2));
+
+set names default;
+set @@in_predicate_conversion_threshold= @save_in_predicate_conversion_threshold;
+DROP TABLE t1,t2;
+
+--echo # End of 10.3 tests
+
+--echo #
 --echo # MDEV-19134: EXISTS() slower if ORDER BY is defined
 --echo #
 create table t0 (a int);

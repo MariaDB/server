@@ -3278,9 +3278,6 @@ private:
   */
   Handler_share **ha_share;
 
-  /** Stores next_insert_id for handling duplicate key errors. */
-  ulonglong m_prev_insert_id;
-
 public:
   handler(handlerton *ht_arg, TABLE_SHARE *share_arg)
     :table_share(share_arg), table(0),
@@ -3308,7 +3305,7 @@ public:
     m_psi_numrows(0),
     m_psi_locker(NULL),
     row_logging(0), row_logging_init(0),
-    m_lock_type(F_UNLCK), ha_share(NULL), m_prev_insert_id(0)
+    m_lock_type(F_UNLCK), ha_share(NULL)
   {
     DBUG_PRINT("info",
                ("handler created F_UNLCK %d F_RDLCK %d F_WRLCK %d",
@@ -4026,16 +4023,6 @@ public:
     */
     next_insert_id= (prev_insert_id > 0) ? prev_insert_id :
       insert_id_for_cur_row;
-  }
-
-  /** Store and restore next_insert_id over duplicate key errors. */
-  virtual void store_auto_increment()
-  {
-    m_prev_insert_id= next_insert_id;
-  }
-  virtual void restore_auto_increment()
-  {
-    restore_auto_increment(m_prev_insert_id);
   }
 
   virtual void update_create_info(HA_CREATE_INFO *create_info) {}

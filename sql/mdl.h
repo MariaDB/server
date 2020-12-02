@@ -921,7 +921,7 @@ public:
   void set_lock_duration(MDL_ticket *mdl_ticket, enum_mdl_duration duration);
 
   void release_statement_locks();
-  void release_transactional_locks();
+  void release_transactional_locks(THD *thd);
   void release_explicit_locks();
   void rollback_to_savepoint(const MDL_savepoint &mdl_savepoint);
 

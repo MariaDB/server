@@ -1565,7 +1565,7 @@ void THD::cleanup(void)
     and left the mode a few lines above), there will be outstanding
     metadata locks. Release them.
   */
-  mdl_context.release_transactional_locks();
+  mdl_context.release_transactional_locks(this);
 
   backup_end(this);
   backup_unlock(this);
@@ -4919,7 +4919,7 @@ void destroy_background_thd(MYSQL_THD thd)
 void reset_thd(MYSQL_THD thd)
 {
   close_thread_tables(thd);
-  thd->mdl_context.release_transactional_locks();
+  thd->release_transactional_locks();
   thd->free_items();
   free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
 }

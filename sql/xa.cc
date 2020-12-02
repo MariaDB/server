@@ -404,6 +404,7 @@ bool xa_trans_force_rollback(THD *thd)
   xid_cache_delete(thd, &thd->transaction->xid_state);
 
   trans_track_end_trx(thd);
+  thd->mdl_context.release_transactional_locks(thd);
 
   return rc;
 }
@@ -554,11 +555,13 @@ bool trans_xa_prepare(THD *thd)
 
 /**
   Commit and terminate the a XA transaction.
+  Transactional locks are released if transaction ended
 
   @param thd    Current thread
 
   @retval FALSE  Success
   @retval TRUE   Failure
+
 */
 
 bool trans_xa_commit(THD *thd)
@@ -718,6 +721,8 @@ bool trans_xa_commit(THD *thd)
   xid_cache_delete(thd, &xid_state);
 
   trans_track_end_trx(thd);
+  thd->mdl_context.release_transactional_locks(thd);
+
   /* The transaction should be marked as complete in P_S. */
   DBUG_ASSERT(thd->m_transaction_psi == NULL || res);
   DBUG_RETURN(res);
@@ -726,6 +731,7 @@ bool trans_xa_commit(THD *thd)
 
 /**
   Roll back and terminate a XA transaction.
+  Transactional locks are released if transaction ended
 
   @param thd    Current thread
 
@@ -844,6 +850,10 @@ bool trans_xa_detach(THD *thd)
   thd->transaction->all.ha_list= 0;
   thd->transaction->all.no_2pc= 0;
   thd->m_transaction_psi= 0;
+  thd->server_status&= ~(SERVER_STATUS_IN_TRANS |
+                         SERVER_STATUS_IN_TRANS_READONLY);
+  thd->mdl_context.release_transactional_locks(thd);
+
   return false;
 }
 
