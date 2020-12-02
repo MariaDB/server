@@ -1064,6 +1064,9 @@ Field::make_packed_sort_key_part(uchar *buff,
 }
 
 
+/*
+  TODO varun: need to look what to do here
+*/
 uint
 Field::make_packed_key_part(uchar *buff, const SORT_FIELD_ATTR *sort_field)
 {

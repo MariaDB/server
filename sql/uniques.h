@@ -67,6 +67,7 @@ public:
   /* need to be moved to a separate class */
   virtual uchar *get_rec_ptr() { return NULL; }
   virtual uint make_record(bool exclude_nulls) { return 0; }
+  virtual bool init() { return false; }
 };
 
 
@@ -163,7 +164,7 @@ public:
 
 class Encode_record : public Sql_alloc
 {
-private:
+protected:
   /*
     Packed record ptr for a record of the table, the packed value in this
     record is added to the unique tree
@@ -172,16 +173,11 @@ private:
   uchar* rec_ptr;
 
   String tmp_buffer;
-  Sort_keys *sort_keys;
 public:
-    Encode_record(Sort_keys *keys)
-    {
-      sort_keys= keys;
-      rec_ptr= NULL;
-    }
-    virtual ~Encode_record() {}
-    virtual uint make_record(bool exclude_nulls) { return 0; }
-    uchar *get_packed_rec_ptr() { return rec_ptr; }
+  Encode_record() : rec_ptr(NULL) {}
+  virtual ~Encode_record();
+  virtual uint make_encoded_record(Sort_keys *keys, bool exclude_nulls);
+  bool init(uint length);
 };
 
 
@@ -189,21 +185,18 @@ class Encode_record_for_count_distinct : public Encode_record
 {
 
 public:
-  Encode_record_for_count_distinct(Sort_keys *keys)
-    : Encode_record(keys) {}
+  Encode_record_for_count_distinct() : Encode_record() {}
   ~Encode_record_for_count_distinct() {}
-  uint make_record(bool exclude_nulls)  override { return 0; }
+  uint make_encoded_record(Sort_keys *keys, bool exclude_nulls) override;
 };
 
 
 class Encode_record_for_group_concat : public Encode_record
 {
 public:
-  Encode_record_for_group_concat(Sort_keys *keys)
-    : Encode_record(keys) {}
+  Encode_record_for_group_concat() : Encode_record() {}
   ~Encode_record_for_group_concat() {}
-  uint make_record(bool exclude_nulls)  override { return 0; }
-
+  uint make_encoded_record(Sort_keys *keys, bool exclude_nulls) override;
 };
 
 
@@ -217,8 +210,6 @@ public:
   {
     return read_packed_length(ptr);
   }
-  uint make_record(bool exclude_nulls) { return 0;}
-  uchar *get_packed_rec_ptr() { return NULL; }
   Sort_keys *get_keys() { return sort_keys; }
   SORT_FIELD *get_sortorder() { return sortorder; }
   bool setup(THD *thd, Item_sum *item, uint non_const_args, uint arg_count);
@@ -230,7 +221,7 @@ public:
   {
     return size_of_length_field + uint4korr(p);
   }
-  void store_packed_length(uchar *p, uint sz)
+  static void store_packed_length(uchar *p, uint sz)
   {
     int4store(p, sz - size_of_length_field);
   }
@@ -241,23 +232,31 @@ public:
 /*
   Descriptor for variable size keys
 */
-class Variable_size_composite_key_desc : public Variable_size_keys_descriptor
+class Variable_size_composite_key_desc : public Variable_size_keys_descriptor,
+                                         public Encode_record
 {
 public:
   Variable_size_composite_key_desc(uint length);
   ~Variable_size_composite_key_desc() {}
   int compare_keys(uchar *a, uchar *b) override;
+  uint make_record(bool exclude_nulls) override;
+  bool init() override;
+  uchar* get_rec_ptr() { return rec_ptr; }
 };
 
 
 /* Descriptor for variable size keys with only one component */
 
-class Variable_size_keys_simple : public Variable_size_keys_descriptor
+class Variable_size_keys_simple : public Variable_size_keys_descriptor,
+                                  public Encode_record
 {
 public:
   Variable_size_keys_simple(uint length);
   ~Variable_size_keys_simple() {}
   int compare_keys(uchar *a, uchar *b) override;
+  uint make_record(bool exclude_nulls) override;
+  bool init() override;
+  uchar* get_rec_ptr() { return rec_ptr; }
 };
 
 

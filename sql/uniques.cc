@@ -890,67 +890,16 @@ Variable_size_keys_descriptor::~Variable_size_keys_descriptor()
 
 
 Variable_size_composite_key_desc::Variable_size_composite_key_desc(uint length)
-   : Variable_size_keys_descriptor(length)
+   : Variable_size_keys_descriptor(length), Encode_record()
 {
 }
 
 
 Variable_size_keys_simple::Variable_size_keys_simple(uint length)
-  : Variable_size_keys_descriptor(length)
+  : Variable_size_keys_descriptor(length), Encode_record()
 {
 }
 
-
-
-/*
-  @brief
-    Make a record with packed values for a key
-
-  @retval
-    0         NULL value
-    >0        length of the packed record
-*/
-/*uint Variable_size_composite_key_desc::make_record(bool exclude_nulls)
-{
-  Field *field;
-  SORT_FIELD *sort_field;
-  uint length;
-  uchar *orig_to, *to;
-  orig_to= to= packed_rec_ptr;
-  to+= size_of_length_field;
-
-  for (sort_field=sort_keys->begin() ;
-       sort_field != sort_keys->end() ;
-       sort_field++)
-  {
-    bool maybe_null=0;
-    if ((field=sort_field->field))
-    {
-      // Field
-      length= field->make_packed_key_part(to, sort_field);
-    }
-    else
-    {           // Item
-      Item *item= sort_field->item;
-      length= item->type_handler()->make_packed_sort_key_part(to, item,
-                                                              sort_field,
-                                                              &tmp_buffer);
-    }
-
-    if ((maybe_null= sort_field->maybe_null))
-    {
-      if (exclude_nulls && length == 0)
-        return 0;   // NULL value
-      to++;
-    }
-    to+= length;
-  }
-
-  length= static_cast<uint>(to - orig_to);
-  store_packed_length(orig_to, length);
-  return length;
-}
-*/
 
 /*
   @brief
@@ -1054,8 +1003,8 @@ bool Variable_size_keys_descriptor::setup(THD *thd, Field *field)
 int Variable_size_composite_key_desc::compare_keys(uchar *a_ptr,
                                                 uchar *b_ptr)
 {
-  uchar *a= a_ptr + Variable_size_composite_key_desc::size_of_length_field;
-  uchar *b= b_ptr + Variable_size_composite_key_desc::size_of_length_field;
+  uchar *a= a_ptr + Variable_size_keys_descriptor::size_of_length_field;
+  uchar *b= b_ptr + Variable_size_keys_descriptor::size_of_length_field;
   int retval= 0;
   size_t a_len, b_len;
   for (SORT_FIELD *sort_field= sort_keys->begin();
@@ -1072,6 +1021,30 @@ int Variable_size_composite_key_desc::compare_keys(uchar *a_ptr,
     b+= b_len;
   }
   return retval;
+}
+
+
+uint Variable_size_composite_key_desc::make_record(bool exclude_nulls)
+{
+  return make_encoded_record(sort_keys, exclude_nulls);
+}
+
+
+uint Variable_size_keys_simple::make_record(bool exclude_nulls)
+{
+  return make_encoded_record(sort_keys, exclude_nulls);
+}
+
+
+bool Variable_size_composite_key_desc::init()
+{
+  return Encode_record::init(max_length);
+}
+
+
+bool Variable_size_keys_simple::init()
+{
+  return Encode_record::init(max_length);
 }
 
 
@@ -1235,5 +1208,90 @@ int Fixed_size_keys_for_group_concat::compare_keys(uchar *key1, uchar *key2)
     if (res)
       return res;
   }
+  return 0;
+}
+
+
+bool Encode_record::init(uint length)
+{
+  if (tmp_buffer.alloc(length))
+    return true;
+  rec_ptr= (uchar *)my_malloc(PSI_INSTRUMENT_ME,
+                              length,
+                              MYF(MY_WME | MY_THREAD_SPECIFIC));
+  return rec_ptr == NULL;
+}
+
+
+Encode_record::~Encode_record()
+{
+  my_free(rec_ptr);
+}
+
+
+/*
+  @brief
+    Make a record with packed values for a key
+
+  @retval
+    0         NULL value
+    >0        length of the packed record
+*/
+uint Encode_record::make_encoded_record(Sort_keys *sort_keys,
+                                        bool exclude_nulls)
+{
+  Field *field;
+  SORT_FIELD *sort_field;
+  uint length;
+  uchar *orig_to, *to;
+
+  orig_to= to= rec_ptr;
+  to+= Variable_size_keys_descriptor::size_of_length_field;
+
+  for (sort_field=sort_keys->begin() ;
+       sort_field != sort_keys->end() ;
+       sort_field++)
+  {
+    bool maybe_null=0;
+    if ((field=sort_field->field))
+    {
+      // Field
+      length= field->make_packed_sort_key_part(to, sort_field);
+    }
+    else
+    {           // Item
+      Item *item= sort_field->item;
+      length= item->type_handler()->make_packed_sort_key_part(to, item,
+                                                              sort_field,
+                                                              &tmp_buffer);
+    }
+
+    if ((maybe_null= sort_field->maybe_null))
+    {
+      if (exclude_nulls && length == 0)  // rejecting NULLS
+        return 0;
+      to++;
+    }
+    to+= length;
+  }
+
+  length= static_cast<uint>(to - orig_to);
+  Variable_size_keys_descriptor::store_packed_length(orig_to, length);
+  return length;
+}
+
+
+uint
+Encode_record_for_count_distinct::make_encoded_record(Sort_keys *sort_keys,
+                                                      bool exclude_nulls)
+{
+  return 0;
+}
+
+
+uint
+Encode_record_for_group_concat::make_encoded_record(Sort_keys *sort_keys,
+                                                    bool exclude_nulls)
+{
   return 0;
 }

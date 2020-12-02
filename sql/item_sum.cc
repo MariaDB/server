@@ -3921,7 +3921,7 @@ Item_func_group_concat::dump_leaf_variable_sized_key(void *key_arg,
 
   pos= item->unique_filter->get_descriptor()->get_sortorder();
   key_end= key + item->unique_filter->get_full_size();
-  key+= Variable_size_composite_key_desc::size_of_length_field;
+  key+= Variable_size_keys_descriptor::size_of_length_field;
 
   ulonglong *offset_limit= &item->copy_offset_limit;
   ulonglong *row_limit = &item->copy_row_limit;
@@ -4794,7 +4794,7 @@ bool Item_sum::is_packing_allowed(TABLE *table, uint* total_length)
     Unique::size_of_lengt_field is the length bytes to store the packed length
     for each record inserted in the Unique tree
   */
-  (*total_length)+= Variable_size_composite_key_desc::size_of_length_field +
+  (*total_length)+= Variable_size_keys_descriptor::size_of_length_field +
                     size_of_packable_fields;
   return true;
 }
@@ -4818,6 +4818,8 @@ Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
       desc= new Variable_size_keys_simple(size_arg);
     else
       desc= new Variable_size_composite_key_desc(size_arg);
+    if (!desc || desc->init())
+      return NULL;
   }
   else
   {
@@ -4825,10 +4827,9 @@ Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
       desc= new Fixed_size_keys_descriptor(size_arg);
     else
       desc= new Fixed_size_composite_keys_descriptor(size_arg);
+    if (!desc || desc->init())
+      return NULL;
   }
-
-  if (!desc)
-    return NULL;
   return new Unique_impl(comp_func, comp_func_fixed_arg, size_arg,
                          max_in_memory_size_arg, min_dupl_count_arg, desc);
 }
@@ -4851,6 +4852,8 @@ Item_func_group_concat::get_unique(qsort_cmp2 comp_func,
       desc= new Variable_size_keys_simple(size_arg);
     else
       desc= new Variable_size_composite_key_desc(size_arg);
+    if (!desc || desc->init())
+      return NULL;
   }
   else
   {
@@ -4858,10 +4861,10 @@ Item_func_group_concat::get_unique(qsort_cmp2 comp_func,
       desc= new Fixed_size_keys_descriptor_with_nulls(size_arg);
     else
       desc= new Fixed_size_keys_for_group_concat(size_arg);
+    if (!desc)
+      return NULL;
   }
 
-  if (!desc)
-    return NULL;
   return new Unique_impl(comp_func, comp_func_fixed_arg, size_arg,
                          max_in_memory_size_arg, min_dupl_count_arg, desc);
 }
