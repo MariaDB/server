@@ -1705,6 +1705,22 @@ public:
 
   /*
     @brief
+      Calculate the max length to store the length of a packable field
+
+    @param
+      field               Field structure
+
+  */
+  uint compute_packable_length(Field *field)
+  {
+    return table_field->max_packed_col_length(table_field->pack_length()) +
+           Variable_size_keys_descriptor::size_of_length_field +
+           MY_TEST(table_field->maybe_null());
+  }
+
+
+  /*
+    @brief
       Create and setup the Unique object for the column
 
     @param
@@ -1716,33 +1732,22 @@ public:
     Descriptor *desc;
     if (table_field->is_packable())
     {
-      tree_key_length= table_field->
-                       max_packed_col_length(table_field->pack_length());
-
-      tree_key_length+= Variable_size_keys_descriptor::size_of_length_field;
-      tree_key_length+= MY_TEST(table_field->maybe_null());
-
+      tree_key_length= compute_packable_length(table_field);
       desc= new Variable_size_keys_simple(tree_key_length);
-      if (!desc || desc->init())
-        return true; // OOM
-      tree= new Unique_impl((qsort_cmp2) key_cmp,
-                            (void*) this, tree_key_length,
-                             max_heap_table_size, 1, desc);
-      if (!tree)
-        return true; // OOM
-      return tree->get_descriptor()->setup(thd, table_field);
     }
-
-    tree_key_length= table_field->pack_length();
-    desc= new Fixed_size_keys_descriptor(tree_key_length);
+    else
+    {
+      tree_key_length= table_field->pack_length();
+      desc= new Fixed_size_keys_descriptor(tree_key_length);
+    }
     if (!desc)
       return true;  // OOM
-    tree= new Unique_impl((qsort_cmp2) key_cmp, (void*) this,
-                          tree_key_length, max_heap_table_size, 1, desc);
+    tree= new Unique_impl((qsort_cmp2) key_cmp,
+                          (void*) this, tree_key_length,
+                           max_heap_table_size, 1, desc);
     if (!tree)
       return true; // OOM
-
-    return tree->get_descriptor()->setup(thd, table_field);
+    return tree->get_descriptor()->setup_for_field(thd, table_field);
   }
 
 

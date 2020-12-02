@@ -878,7 +878,8 @@ bool Aggregator_distinct::setup(THD *thd)
         but this has to be handled - otherwise someone can crash
         the server with a DoS attack
       */
-      if (!tree || (tree->get_descriptor()->setup(thd, item_sum,
+      if (!tree ||
+          (tree->get_descriptor()->setup_for_item(thd, item_sum,
                                                   non_const_items,
                                                   item_sum->get_arg_count())))
         return TRUE;
@@ -4576,9 +4577,9 @@ bool Item_func_group_concat::setup(THD *thd)
                              non_const_items);
 
     if (!unique_filter ||
-        (unique_filter->get_descriptor()->setup(thd, this,
-                                                non_const_items,
-                                                arg_count_field)))
+        (unique_filter->get_descriptor()->setup_for_item(thd, this,
+                                                         non_const_items,
+                                                         arg_count_field)))
       DBUG_RETURN(TRUE);
   }
   if ((row_limit && row_limit->cmp_type() != INT_RESULT) ||
@@ -4818,8 +4819,6 @@ Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
       desc= new Variable_size_keys_simple(size_arg);
     else
       desc= new Variable_size_composite_key_desc(size_arg);
-    if (!desc || desc->init())
-      return NULL;
   }
   else
   {
@@ -4827,9 +4826,10 @@ Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
       desc= new Fixed_size_keys_descriptor(size_arg);
     else
       desc= new Fixed_size_composite_keys_descriptor(size_arg);
-    if (!desc || desc->init())
-      return NULL;
   }
+
+  if (!desc)
+    return NULL;
   return new Unique_impl(comp_func, comp_func_fixed_arg, size_arg,
                          max_in_memory_size_arg, min_dupl_count_arg, desc);
 }
@@ -4851,9 +4851,7 @@ Item_func_group_concat::get_unique(qsort_cmp2 comp_func,
     if (number_of_args == 1)
       desc= new Variable_size_keys_simple(size_arg);
     else
-      desc= new Variable_size_composite_key_desc(size_arg);
-    if (!desc || desc->init())
-      return NULL;
+      desc= new Variable_size_composite_key_desc_for_gconcat(size_arg);
   }
   else
   {
@@ -4861,9 +4859,10 @@ Item_func_group_concat::get_unique(qsort_cmp2 comp_func,
       desc= new Fixed_size_keys_descriptor_with_nulls(size_arg);
     else
       desc= new Fixed_size_keys_for_group_concat(size_arg);
-    if (!desc)
-      return NULL;
   }
+
+  if (!desc)
+    return NULL;
 
   return new Unique_impl(comp_func, comp_func_fixed_arg, size_arg,
                          max_in_memory_size_arg, min_dupl_count_arg, desc);
@@ -4934,7 +4933,7 @@ Item_func_group_concat::~Item_func_group_concat()
 */
 int Item_func_group_concat::insert_record_to_unique()
 {
-  if (unique_filter->is_variable_sized())
+  if (unique_filter->is_variable_sized() && unique_filter->is_single_arg())
   {
     uint packed_length;
     if ((packed_length= unique_filter->get_descriptor()->
@@ -4959,6 +4958,18 @@ int Item_func_group_concat::insert_record_to_unique()
     bloat the tree without providing any valuable info. Besides,
     key_length used to initialize the tree didn't include space for them.
   */
+
+  if (unique_filter->is_variable_sized())
+  {
+    DBUG_ASSERT(!unique_filter->is_single_arg());
+    uint packed_length;
+    if ((packed_length= unique_filter->get_descriptor()->
+                        make_record(skip_nulls())) == 0)
+      return -1; // NULL value
+    DBUG_ASSERT(packed_length <= unique_filter->get_size());
+    return unique_filter->unique_add(unique_filter->get_descriptor()
+                                     ->get_rec_ptr());
+  }
 
   return unique_filter->unique_add(get_record_pointer());
 }
