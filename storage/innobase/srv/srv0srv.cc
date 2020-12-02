@@ -851,6 +851,12 @@ srv_printf_innodb_monitor(
 	      "-----------------\n", file);
 	srv_print_master_thread_info(file);
 
+	fputs("----------\n"
+	      "SEMAPHORES\n"
+	      "----------\n", file);
+
+	sync_array_print(file);
+
 	/* Conceptually, srv_innodb_monitor_mutex has a very high latching
 	order level in sync0sync.h, while dict_foreign_err_mutex has a very
 	low level 135. Therefore we can reserve the latter mutex here without
