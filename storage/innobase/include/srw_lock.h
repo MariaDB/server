@@ -114,8 +114,8 @@ typedef srw_lock_low srw_lock;
 /** Slim reader-writer lock with PERFORMANCE_SCHEMA instrumentation */
 class srw_lock
 {
-  srw_lock_low lock;
   PSI_rwlock *pfs_psi;
+  srw_lock_low lock;
 
   template<bool support_u_lock>
   ATTRIBUTE_NOINLINE void psi_rd_lock(const char *file, unsigned line);
@@ -126,8 +126,8 @@ class srw_lock
 public:
   void init(mysql_pfs_key_t key)
   {
-    lock.init();
     pfs_psi= PSI_RWLOCK_CALL(init_rwlock)(key, this);
+    lock.init();
   }
   void destroy()
   {

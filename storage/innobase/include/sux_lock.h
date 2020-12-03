@@ -33,6 +33,8 @@ class sux_lock final
 {
   /** The underlying non-recursive lock */
   srw lock;
+  /** Numbers of U and X locks. Protected by lock. */
+  uint32_t recursive;
   /** The owner of the U or X lock (0 if none); protected by lock */
   std::atomic<os_thread_id_t> writer;
   /** Special writer!=0 value to indicate that the lock is non-recursive
@@ -42,8 +44,6 @@ class sux_lock final
 #else
 # define FOR_IO ((os_thread_id_t) ~0UL) /* it could be a pointer */
 #endif
-  /** Numbers of U and X locks. Protected by lock. */
-  uint32_t recursive;
 #ifdef UNIV_DEBUG
   /** Protects readers */
   mutable srw_mutex readers_lock;
