@@ -85,44 +85,15 @@ public:
 #endif
   bool rd_lock_try() { uint32_t l; return read_trylock(l); }
   bool wr_lock_try() { return write_trylock(); }
-  /** @return whether the lock was acquired without waiting
-  @tparam support_u_lock dummy parameter for UNIV_PFS_RWLOCK */
+  /** @tparam support_u_lock dummy parameter for UNIV_PFS_RWLOCK */
   template<bool support_u_lock= false>
-  bool rd_lock()
-  {
-    uint32_t l;
-    if (read_trylock(l))
-      return true;
-    read_lock(l);
-    return false;
-  }
-  /** @return whether the lock was acquired without waiting */
-  bool u_lock()
-  {
-    uint32_t l;
-    if (update_trylock(l))
-      return true;
-    update_lock(l);
-    return false;
-  }
+  void rd_lock() { uint32_t l; if (!read_trylock(l)) read_lock(l); }
+  void u_lock() { uint32_t l; if (!update_trylock(l)) update_lock(l); }
   bool u_lock_try() { uint32_t l; return update_trylock(l); }
-  /** @return whether the lock was upgraded without waiting */
-  bool u_wr_upgrade()
-  {
-    if (upgrade_trylock())
-      return true;
-    write_lock(true);
-    return false;
-  }
-  /** @return whether the lock was acquired without waiting */
+  void u_wr_upgrade() { if (!upgrade_trylock()) write_lock(true); }
+  /** @tparam support_u_lock dummy parameter for UNIV_PFS_RWLOCK */
   template<bool support_u_lock= false>
-  bool wr_lock()
-  {
-    if (write_trylock())
-      return true;
-    write_lock(false);
-    return false;
-  }
+  void wr_lock() { if (!write_trylock()) write_lock(false); }
   void rd_unlock();
   void u_unlock();
   void wr_unlock();
@@ -147,11 +118,11 @@ class srw_lock
   PSI_rwlock *pfs_psi;
 
   template<bool support_u_lock>
-  ATTRIBUTE_NOINLINE bool psi_rd_lock(const char *file, unsigned line);
+  ATTRIBUTE_NOINLINE void psi_rd_lock(const char *file, unsigned line);
   template<bool support_u_lock>
-  ATTRIBUTE_NOINLINE bool psi_wr_lock(const char *file, unsigned line);
-  ATTRIBUTE_NOINLINE bool psi_u_lock(const char *file, unsigned line);
-  ATTRIBUTE_NOINLINE bool psi_u_wr_upgrade(const char *file, unsigned line);
+  ATTRIBUTE_NOINLINE void psi_wr_lock(const char *file, unsigned line);
+  ATTRIBUTE_NOINLINE void psi_u_lock(const char *file, unsigned line);
+  ATTRIBUTE_NOINLINE void psi_u_wr_upgrade(const char *file, unsigned line);
 public:
   void init(mysql_pfs_key_t key)
   {
@@ -160,7 +131,7 @@ public:
   }
   void destroy()
   {
-    if (pfs_psi)
+    if (psi_likely(pfs_psi != nullptr))
     {
       PSI_RWLOCK_CALL(destroy_rwlock)(pfs_psi);
       pfs_psi= nullptr;
@@ -168,52 +139,52 @@ public:
     lock.destroy();
   }
   template<bool support_u_lock= false>
-  bool rd_lock(const char *file, unsigned line)
+  void rd_lock(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-      return psi_rd_lock<support_u_lock>(file, line);
+      psi_rd_lock<support_u_lock>(file, line);
     else
-      return lock.rd_lock();
+      lock.rd_lock();
   }
   void rd_unlock()
   {
-    if (pfs_psi)
+    if (psi_likely(pfs_psi != nullptr))
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.rd_unlock();
   }
-  bool u_lock(const char *file, unsigned line)
+  void u_lock(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-      return psi_u_lock(file, line);
+      psi_u_lock(file, line);
     else
-      return lock.u_lock();
+      lock.u_lock();
   }
   void u_unlock()
   {
-    if (pfs_psi)
+    if (psi_likely(pfs_psi != nullptr))
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.u_unlock();
   }
   template<bool support_u_lock= false>
-  bool wr_lock(const char *file, unsigned line)
+  void wr_lock(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-      return psi_wr_lock<support_u_lock>(file, line);
+      psi_wr_lock<support_u_lock>(file, line);
     else
-      return lock.wr_lock();
+      lock.wr_lock();
   }
   void wr_unlock()
   {
-    if (pfs_psi)
+    if (psi_likely(pfs_psi != nullptr))
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.wr_unlock();
   }
-  bool u_wr_upgrade(const char *file, unsigned line)
+  void u_wr_upgrade(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-      return psi_u_wr_upgrade(file, line);
+      psi_u_wr_upgrade(file, line);
     else
-      return lock.u_wr_upgrade();
+      lock.u_wr_upgrade();
   }
   bool rd_lock_try() { return lock.rd_lock_try(); }
   bool u_lock_try() { return lock.u_lock_try(); }

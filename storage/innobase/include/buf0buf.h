@@ -1318,22 +1318,6 @@ class buf_pool_t
     @return whether the allocation succeeded */
     inline bool create(size_t bytes);
 
-    /** Compute the sum of buf_block_t::lock::waited()
-    @param total_waited sum of buf_block_t::lock::waited() */
-    void waited(uint64_t &total_waited) const
-    {
-      for (const buf_block_t *block= blocks, * const end= blocks + size;
-           block != end; block++)
-        total_waited+= block->lock.waited();
-    }
-    /** Invoke buf_block_t::lock::reset_waited() on all blocks */
-    void reset_waited()
-    {
-      for (buf_block_t *block= blocks, * const end= blocks + size;
-           block != end; block++)
-        block->lock.reset_waited();
-    }
-
 #ifdef UNIV_DEBUG
     /** Find a block that points to a ROW_FORMAT=COMPRESSED page
     @param data  pointer to the start of a ROW_FORMAT=COMPRESSED page frame
@@ -1409,30 +1393,6 @@ public:
     for (auto j= n_chunks; j--; )
       size+= chunks[j].size;
     return size;
-  }
-
-  /** @return sum of buf_block_t::lock::waited() */
-  uint64_t waited()
-  {
-    ut_ad(is_initialised());
-    uint64_t waited_count= 0;
-    page_hash.read_lock_all(); /* prevent any race with resize() */
-    for (const chunk_t *chunk= chunks, * const end= chunks + n_chunks;
-         chunk != end; chunk++)
-      chunks->waited(waited_count);
-    page_hash.read_unlock_all();
-    return waited_count;
-  }
-
-  /** Invoke buf_block_t::lock::reset_waited() on all blocks */
-  void reset_waited()
-  {
-    ut_ad(is_initialised());
-    page_hash.read_lock_all(); /* prevent any race with resize() */
-    for (const chunk_t *chunk= chunks, * const end= chunks + n_chunks;
-         chunk != end; chunk++)
-      chunks->reset_waited();
-    page_hash.read_unlock_all();
   }
 
   /** Determine whether a frame is intended to be withdrawn during resize().
@@ -1836,28 +1796,6 @@ public:
       }
     }
 
-    /** Acquire all latches in shared mode */
-    void read_lock_all()
-    {
-      for (auto n= pad(n_cells) & ~ELEMENTS_PER_LATCH;;
-           n-= ELEMENTS_PER_LATCH + 1)
-      {
-        reinterpret_cast<page_hash_latch&>(array[n]).read_lock();
-        if (!n)
-          break;
-      }
-    }
-    /** Release all latches in shared mode */
-    void read_unlock_all()
-    {
-      for (auto n= pad(n_cells) & ~ELEMENTS_PER_LATCH;;
-           n-= ELEMENTS_PER_LATCH + 1)
-      {
-        reinterpret_cast<page_hash_latch&>(array[n]).read_unlock();
-        if (!n)
-          break;
-      }
-    }
     /** Exclusively aqcuire all latches */
     inline void write_lock_all();
 
