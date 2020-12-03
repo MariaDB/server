@@ -35,7 +35,8 @@ class srw_lock_low final : private rw_lock
 #endif
 #ifdef SRW_LOCK_DUMMY
   pthread_mutex_t mutex;
-  pthread_cond_t cond;
+  pthread_cond_t cond_shared;
+  pthread_cond_t cond_exclusive;
 #endif
   /** @return pointer to the lock word */
   rw_lock *word() { return static_cast<rw_lock*>(this); }
@@ -46,11 +47,14 @@ class srw_lock_low final : private rw_lock
   void write_lock();
   /** Wait for signal
   @param l lock word from a failed acquisition */
-  inline void wait(uint32_t l);
+  inline void writer_wait(uint32_t l);
+  /** Wait for signal
+  @param l lock word from a failed acquisition */
+  inline void readers_wait(uint32_t l);
   /** Send signal to one waiter */
-  inline void wake_one();
+  inline void writer_wake();
   /** Send signal to all waiters */
-  inline void wake_all();
+  inline void readers_wake();
 public:
 #ifdef SRW_LOCK_DUMMY
   void init();
