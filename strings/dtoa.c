@@ -2234,11 +2234,18 @@ static char *dtoa(double dd, int mode, int ndigits, int *decpt, int *sign,
     *sign= 0;
 
   /* If infinity, set decpt to DTOA_OVERFLOW, if 0 set it to 1 */
-  if (((word0(&u) & Exp_mask) == Exp_mask && (*decpt= DTOA_OVERFLOW)) ||
-      (!dval(&u) && (*decpt= 1)))
+  if ((word0(&u) & Exp_mask) == Exp_mask)
   {
+    *decpt= DTOA_OVERFLOW;
+    goto inf_nan_0;
+  }
+  else if (!dval(&u))
+  {
+    char *res;
+    *decpt= 1;
+ inf_nan_0:
     /* Infinity, NaN, 0 */
-    char *res= (char*) dtoa_alloc(2, &alloc);
+    res= (char*) dtoa_alloc(2, &alloc);
     res[0]= '0';
     res[1]= '\0';
     if (rve)
