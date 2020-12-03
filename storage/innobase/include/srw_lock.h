@@ -25,6 +25,22 @@ this program; if not, write to the Free Software Foundation, Inc.,
 # define SRW_LOCK_DUMMY /* Use dummy implementation for debugging purposes */
 #endif
 
+#ifdef SRW_LOCK_DUMMY
+/** An exclusive-only variant of srw_lock */
+class srw_mutex
+{
+  pthread_mutex_t lock;
+public:
+  void init() { pthread_mutex_init(&lock, nullptr); }
+  void destroy() { pthread_mutex_destroy(&lock); }
+  void wr_lock() { pthread_mutex_lock(&lock); }
+  void wr_unlock() { pthread_mutex_unlock(&lock); }
+  bool wr_lock_try() { return !pthread_mutex_trylock(&lock); }
+};
+#else
+# define srw_mutex srw_lock_low
+#endif
+
 #include "rw_lock.h"
 
 /** Slim reader-writer lock with no recursion */
@@ -43,8 +59,12 @@ class srw_lock_low final : private rw_lock
   /** Wait for a read lock.
   @param l lock word from a failed read_trylock() */
   void read_lock(uint32_t l);
-  /** Wait for a write lock after a failed write_trylock() */
-  void write_lock();
+  /** Wait for an update lock.
+  @param l lock word from a failed update_trylock() */
+  void update_lock(uint32_t l);
+  /** Wait for a write lock after a failed write_trylock() or upgrade_trylock()
+  @param holding_u  whether we already hold u_lock() */
+  void write_lock(bool holding_u);
   /** Wait for signal
   @param l lock word from a failed acquisition */
   inline void writer_wait(uint32_t l);
@@ -65,9 +85,15 @@ public:
 #endif
   bool rd_lock_try() { uint32_t l; return read_trylock(l); }
   bool wr_lock_try() { return write_trylock(); }
+  template<bool support_u_lock= false>
   void rd_lock() { uint32_t l; if (!read_trylock(l)) read_lock(l); }
-  void wr_lock() { if (!write_trylock()) write_lock(); }
+  void u_lock() { uint32_t l; if (!update_trylock(l)) update_lock(l); }
+  bool u_lock_try() { uint32_t l; return update_trylock(l); }
+  void u_wr_upgrade() { if (!upgrade_trylock()) write_lock(true); }
+  template<bool support_u_lock= false>
+  void wr_lock() { if (!write_trylock()) write_lock(false); }
   void rd_unlock();
+  void u_unlock();
   void wr_unlock();
 };
 
@@ -87,8 +113,12 @@ class srw_lock
   srw_lock_low lock;
   PSI_rwlock *pfs_psi;
 
+  template<bool support_u_lock>
   ATTRIBUTE_NOINLINE void psi_rd_lock(const char *file, unsigned line);
+  template<bool support_u_lock>
   ATTRIBUTE_NOINLINE void psi_wr_lock(const char *file, unsigned line);
+  ATTRIBUTE_NOINLINE void psi_u_lock(const char *file, unsigned line);
+  ATTRIBUTE_NOINLINE void psi_u_wr_upgrade(const char *file, unsigned line);
 public:
   void init(mysql_pfs_key_t key)
   {
@@ -104,10 +134,11 @@ public:
     }
     lock.destroy();
   }
+  template<bool support_u_lock= false>
   void rd_lock(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-      psi_rd_lock(file, line);
+      psi_rd_lock<support_u_lock>(file, line);
     else
       lock.rd_lock();
   }
@@ -117,10 +148,24 @@ public:
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.rd_unlock();
   }
+  void u_lock(const char *file, unsigned line)
+  {
+    if (psi_likely(pfs_psi != nullptr))
+      psi_u_lock(file, line);
+    else
+      lock.u_lock();
+  }
+  void u_unlock()
+  {
+    if (pfs_psi)
+      PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
+    lock.u_unlock();
+  }
+  template<bool support_u_lock= false>
   void wr_lock(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-      psi_wr_lock(file, line);
+      psi_wr_lock<support_u_lock>(file, line);
     else
       lock.wr_lock();
   }
@@ -130,7 +175,15 @@ public:
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.wr_unlock();
   }
+  void u_wr_upgrade(const char *file, unsigned line)
+  {
+    if (psi_likely(pfs_psi != nullptr))
+      psi_u_wr_upgrade(file, line);
+    else
+      lock.u_wr_upgrade();
+  }
   bool rd_lock_try() { return lock.rd_lock_try(); }
+  bool u_lock_try() { return lock.u_lock_try(); }
   bool wr_lock_try() { return lock.wr_lock_try(); }
 };
 #endif

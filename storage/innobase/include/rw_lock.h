@@ -20,7 +20,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <atomic>
 #include "my_dbug.h"
 
-/** Simple read-write lock based on std::atomic */
+/** Simple read-update-write lock based on std::atomic */
 class rw_lock
 {
   /** The lock word */
@@ -35,6 +35,8 @@ protected:
   static constexpr uint32_t WRITER_WAITING= 1U << 30;
   /** Flag to indicate that write_lock() or write_lock_wait() is pending */
   static constexpr uint32_t WRITER_PENDING= WRITER | WRITER_WAITING;
+  /** Flag to indicate that an update lock exists */
+  static constexpr uint32_t UPDATER= 1U << 29;
 
   /** Start waiting for an exclusive lock.
   @return current value of the lock word */
@@ -45,13 +47,14 @@ protected:
   @return whether the exclusive lock was acquired */
   bool write_lock_wait_try(uint32_t &l)
   {
-    l= WRITER_WAITING;
     return lock.compare_exchange_strong(l, WRITER, std::memory_order_acquire,
                                         std::memory_order_relaxed);
   }
   /** Try to acquire a shared lock.
+  @tparam prioritize_updater   whether to ignore WRITER_WAITING for UPDATER
   @param l the value of the lock word
   @return whether the lock was acquired */
+  template<bool prioritize_updater= false>
   bool read_trylock(uint32_t &l)
   {
     l= UNLOCKED;
@@ -59,16 +62,53 @@ protected:
                                          std::memory_order_relaxed))
     {
       DBUG_ASSERT(!(WRITER & l) || !(~WRITER_PENDING & l));
-      if (l & WRITER_PENDING)
+      DBUG_ASSERT((~(WRITER_PENDING | UPDATER) & l) < UPDATER);
+      if (prioritize_updater
+          ? (WRITER & l) || ((WRITER_WAITING | UPDATER) & l) == WRITER_WAITING
+          : (WRITER_PENDING & l))
         return false;
     }
+    return true;
+  }
+  /** Try to acquire an update lock.
+  @param l the value of the lock word
+  @return whether the lock was acquired */
+  bool update_trylock(uint32_t &l)
+  {
+    l= UNLOCKED;
+    while (!lock.compare_exchange_strong(l, l | UPDATER,
+                                         std::memory_order_acquire,
+                                         std::memory_order_relaxed))
+    {
+      DBUG_ASSERT(!(WRITER & l) || !(~WRITER_PENDING & l));
+      DBUG_ASSERT((~(WRITER_PENDING | UPDATER) & l) < UPDATER);
+      if ((WRITER_PENDING | UPDATER) & l)
+        return false;
+    }
+    return true;
+  }
+  /** Try to upgrade an update lock to an exclusive lock.
+  @return whether the update lock was upgraded to exclusive */
+  bool upgrade_trylock()
+  {
+    auto l= UPDATER;
+    while (!lock.compare_exchange_strong(l, l ^ (WRITER | UPDATER),
+                                         std::memory_order_acquire,
+                                         std::memory_order_relaxed))
+    {
+      DBUG_ASSERT(!(~l & (UPDATER - 1)));
+      DBUG_ASSERT(((WRITER | UPDATER) & l) == UPDATER);
+      if (~(WRITER_WAITING | UPDATER) & l)
+        return false;
+    }
+    DBUG_ASSERT((l & ~WRITER_WAITING) == UPDATER);
     return true;
   }
   /** Wait for an exclusive lock.
   @return whether the exclusive lock was acquired */
   bool write_lock_poll()
   {
-    uint32_t l;
+    auto l= WRITER_WAITING;
     if (write_lock_wait_try(l))
       return true;
     if (!(l & WRITER_WAITING))
@@ -88,15 +128,26 @@ public:
   bool read_unlock()
   {
     auto l= lock.fetch_sub(1, std::memory_order_release);
-    DBUG_ASSERT(~WRITER_PENDING & l); /* at least one read lock */
+    DBUG_ASSERT(~(WRITER_PENDING | UPDATER) & l); /* at least one read lock */
     DBUG_ASSERT(!(l & WRITER)); /* no write lock must have existed */
     return (~WRITER_PENDING & l) == 1;
+  }
+  /** Release an update lock.
+  @return whether any writers may have to be woken up */
+  bool update_unlock()
+  {
+    auto l= lock.fetch_and(~UPDATER, std::memory_order_release);
+    /* the update lock must have existed */
+    DBUG_ASSERT((l & (WRITER | UPDATER)) == UPDATER);
+    return !(~(WRITER_PENDING | UPDATER) & l);
   }
   /** Release an exclusive lock */
   void write_unlock()
   {
-    IF_DBUG_ASSERT(auto l=,) lock.fetch_sub(WRITER, std::memory_order_release);
-    DBUG_ASSERT(l & WRITER); /* the write lock must have existed */
+    IF_DBUG_ASSERT(auto l=,)
+    lock.fetch_and(~WRITER, std::memory_order_release);
+    /* the write lock must have existed */
+    DBUG_ASSERT((l & (WRITER | UPDATER)) == WRITER);
   }
   /** Try to acquire a shared lock.
   @return whether the lock was acquired */
@@ -113,6 +164,9 @@ public:
   /** @return whether an exclusive lock is being held by any thread */
   bool is_write_locked() const
   { return !!(lock.load(std::memory_order_relaxed) & WRITER); }
+  /** @return whether an update lock is being held by any thread */
+  bool is_update_locked() const
+  { return !!(lock.load(std::memory_order_relaxed) & UPDATER); }
   /** @return whether a shared lock is being held by any thread */
   bool is_read_locked() const
   {

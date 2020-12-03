@@ -130,7 +130,7 @@ void srw_lock_low::read_lock(uint32_t l)
       for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
       {
         ut_delay(srv_spin_wait_delay);
-        if (read_trylock(l))
+        if (read_trylock<true>(l))
           return;
         else if (l == WRITER_WAITING)
           goto wake_writer;
@@ -138,11 +138,50 @@ void srw_lock_low::read_lock(uint32_t l)
 
     readers_wait(l);
   }
-  while (!read_trylock(l));
+  while (!read_trylock<true>(l));
 }
 
-/** Wait for a write lock after a failed write_trylock() */
-void srw_lock_low::write_lock()
+/** Wait for an update lock.
+@param lock word value from a failed update_trylock() */
+void srw_lock_low::update_lock(uint32_t l)
+{
+  do
+  {
+    if (l == WRITER_WAITING)
+    {
+    wake_writer:
+#ifdef SRW_LOCK_DUMMY
+      pthread_mutex_lock(&mutex);
+      {
+        pthread_cond_signal(&cond_exclusive);
+        pthread_cond_wait(&cond_shared, &mutex);
+        l= value();
+      }
+      while (l == WRITER_WAITING);
+      pthread_mutex_unlock(&mutex);
+      continue;
+#else
+      writer_wake();
+#endif
+    }
+    else
+      for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+      {
+        ut_delay(srv_spin_wait_delay);
+        if (update_trylock(l))
+          return;
+        else if (l == WRITER_WAITING)
+          goto wake_writer;
+      }
+
+    readers_wait(l);
+  }
+  while (!update_trylock(l));
+}
+
+/** Wait for a write lock after a failed write_trylock() or upgrade_trylock()
+@param holding_u  whether we already hold u_lock() */
+void srw_lock_low::write_lock(bool holding_u)
 {
   for (;;)
   {
@@ -150,6 +189,7 @@ void srw_lock_low::write_lock()
     /* We are the first writer to be granted the lock. Spin for a while. */
     for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
     {
+      l= holding_u ? WRITER_WAITING | UPDATER : WRITER_WAITING;
       if (write_lock_wait_try(l))
         return;
       if (!(l & WRITER_WAITING))
@@ -157,13 +197,22 @@ void srw_lock_low::write_lock()
       ut_delay(srv_spin_wait_delay);
     }
 
+    l= holding_u ? WRITER_WAITING | UPDATER : WRITER_WAITING;
     if (write_lock_wait_try(l))
       return;
 
     if (!(l & WRITER_WAITING))
     {
-      if (l == UNLOCKED && write_trylock())
-        return;
+      switch (l) {
+      case UNLOCKED:
+        DBUG_ASSERT(!holding_u);
+        if (write_trylock())
+          return;
+        break;
+      case UPDATER:
+        if (holding_u && upgrade_trylock())
+          return;
+      }
       l= write_lock_wait_start() | WRITER_WAITING;
     }
     else
@@ -175,9 +224,12 @@ void srw_lock_low::write_lock()
 
 void srw_lock_low::rd_unlock() { if (read_unlock()) writer_wake(); }
 
+void srw_lock_low::u_unlock() { if (update_unlock()) writer_wake(); }
+
 void srw_lock_low::wr_unlock() { write_unlock(); readers_wake(); }
 
 #ifdef UNIV_PFS_RWLOCK
+template<bool support_u_lock>
 void srw_lock::psi_rd_lock(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
@@ -185,7 +237,9 @@ void srw_lock::psi_rd_lock(const char *file, unsigned line)
   const bool nowait= lock.read_trylock(l);
   if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_rdwait)
       (&state, pfs_psi,
-       nowait ? PSI_RWLOCK_TRYREADLOCK : PSI_RWLOCK_READLOCK, file, line))
+       support_u_lock
+       ? (nowait ? PSI_RWLOCK_TRYSHAREDLOCK : PSI_RWLOCK_SHAREDLOCK)
+       : (nowait ? PSI_RWLOCK_TRYREADLOCK : PSI_RWLOCK_READLOCK), file, line))
   {
     if (!nowait)
       lock.read_lock(l);
@@ -195,13 +249,32 @@ void srw_lock::psi_rd_lock(const char *file, unsigned line)
     lock.read_lock(l);
 }
 
+template void srw_lock::psi_rd_lock<false>(const char *, unsigned);
+template void srw_lock::psi_rd_lock<true>(const char *, unsigned);
+
+void srw_lock::psi_u_lock(const char *file, unsigned line)
+{
+  PSI_rwlock_locker_state state;
+  if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
+      (&state, pfs_psi, PSI_RWLOCK_SHAREDEXCLUSIVELOCK, file, line))
+  {
+    lock.u_lock();
+    PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
+  }
+  else
+    lock.u_lock();
+}
+
+template<bool support_u_lock>
 void srw_lock::psi_wr_lock(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
   const bool nowait= lock.write_trylock();
   if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
       (&state, pfs_psi,
-       nowait ? PSI_RWLOCK_TRYWRITELOCK : PSI_RWLOCK_WRITELOCK,
+       support_u_lock
+       ? (nowait ? PSI_RWLOCK_TRYEXCLUSIVELOCK : PSI_RWLOCK_EXCLUSIVELOCK)
+       : (nowait ? PSI_RWLOCK_TRYWRITELOCK : PSI_RWLOCK_WRITELOCK),
        file, line))
   {
     if (!nowait)
@@ -210,5 +283,25 @@ void srw_lock::psi_wr_lock(const char *file, unsigned line)
   }
   else if (!nowait)
     lock.wr_lock();
+}
+
+template void srw_lock::psi_wr_lock<false>(const char *, unsigned);
+template void srw_lock::psi_wr_lock<true>(const char *, unsigned);
+
+void srw_lock::psi_u_wr_upgrade(const char *file, unsigned line)
+{
+  PSI_rwlock_locker_state state;
+  const bool nowait= lock.upgrade_trylock();
+  if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
+      (&state, pfs_psi,
+       nowait ? PSI_RWLOCK_TRYEXCLUSIVELOCK : PSI_RWLOCK_EXCLUSIVELOCK,
+       file, line))
+  {
+    if (!nowait)
+      lock.write_lock(true);
+    PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
+  }
+  else if (!nowait)
+    lock.write_lock(true);
 }
 #endif /* UNIV_PFS_RWLOCK */
