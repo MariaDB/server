@@ -52,6 +52,8 @@ let $debug_dbug="+d,fail_fk_backup_frm";
 let $debug_dbug="+d,fail_fk_install_shadow_frm";
 --source include/foreign_fail.inc
 let $crash_statement= $fail_statement;
+let $debug_dbug="+d,crash_fk_write_shadow_frm";
+--source include/foreign_fail.inc
 let $debug_dbug="+d,crash_fk_backup_frm";
 --source include/foreign_fail.inc
 let $debug_dbug="+d,crash_fk_install_shadow_frm";
@@ -76,6 +78,9 @@ let $debug_dbug="+d,fail_fk_backup_frm";
 let $debug_dbug="+d,fail_fk_install_shadow_frm";
 --source include/foreign_fail.inc
 let $crash_statement= $fail_statement;
+let $debug_dbug="+d,crash_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+drop table t4;
 let $debug_dbug="+d,crash_fk_backup_frm";
 --source include/foreign_fail.inc
 drop table t4;
@@ -94,14 +99,18 @@ let $debug_dbug="+d,fail_fk_backup_frm";
 --source include/foreign_fail.inc
 let $debug_dbug="+d,fail_fk_install_shadow_frm";
 --source include/foreign_fail.inc
-#let $crash_statement= $fail_statement;
-#let $show_statement2= check tables xt1, xt2, xt3, xt4;
-#let $debug_dbug="+d,crash_fk_backup_frm";
-#--source include/foreign_fail.inc
-#let $debug_dbug="+d,crash_fk_install_shadow_frm";
-#--source include/foreign_fail.inc
+let $crash_statement= $fail_statement;
+# TODO: rollback RENAME TABLE (and other DDL?) via DDL log
+# NB: if we rename back in different order we'll lose some referenced hints
+# (Foreign_key_io::parse() skips them if it can't find table by name)
+# MDEV-23433 solves the problem of missing referenced hints
+let $fixup_statement= rename table xt4 to t4, xt3 to t3, xt2 to t2, xt1 to t1;
+let $debug_dbug="+d,crash_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_install_shadow_frm";
+--source include/foreign_fail.inc
 --let $crash_statement=
-let $show_statement2= $show_statement0;
+--let $fixup_statement=
 let $fail_statement= alter table t3 rename xt3;
 let $debug_dbug="+d,fail_fk_write_shadow_frm";
 --source include/foreign_fail.inc

@@ -13137,7 +13137,12 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, FK_ddl_vector &shares,
     }
 
 #ifndef DBUG_OFF
-  shares.dbg_fail= true;
+    {
+      auto ref2= ref;
+      ++ref2;
+      if (ref2 == shares.end())
+        shares.dbg_fail= true;
+    }
 #endif
 
     int err= ref->second.fk_write_shadow_frm(shares);
@@ -13281,7 +13286,16 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
     tl.init_one_table(&ref.db, &ref.name, &ref.name, TL_IGNORE);
     Share_acquire ref_sa(thd, tl);
     if (!ref_sa.share)
+    {
+      if (!thd->variables.check_foreign() && thd->is_error() &&
+          thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE)
+      {
+        // skip non-existing referenced shares, allow RENAME
+        thd->clear_error();
+        continue;
+      }
       return true;
+    }
     FK_ddl_backup *bak= fk_rename_backup.emplace(NULL, ref_sa.share, std::move(ref_sa));
     if (!bak)
       return true;

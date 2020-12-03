@@ -82,6 +82,13 @@ if (!$crash_statement)
   --list_files $datadir/test
 }
 
+if ($fixup_statement)
+{
+  set foreign_key_checks= 0;
+  eval $fixup_statement;
+  set foreign_key_checks= 1;
+}
+
 if ($show_statement2)
 {
   eval $show_statement2;
