@@ -1106,11 +1106,11 @@ my_vsnprintf_mb2(char *dst, size_t n, const char* fmt, va_list ap)
     
     if (*fmt == 's')                      /* String parameter */
     {
-      char *par= va_arg(ap, char *);
+      const char *par= va_arg(ap, char *);
       size_t plen;
       size_t left_len= (size_t)(end-dst);
       if (!par)
-        par= (char*) "(null)";
+        par= "(null)";
       plen= strlen(par);
       if (left_len <= plen * 2)
         plen = left_len / 2 - 1;
@@ -2330,10 +2330,10 @@ my_vsnprintf_utf32(char *dst, size_t n, const char* fmt, va_list ap)
     
     if (*fmt == 's')                                /* String parameter */
     {
-      reg2 char *par= va_arg(ap, char *);
+      reg2 const char *par= va_arg(ap, char *);
       size_t plen;
       size_t left_len= (size_t)(end - dst);
-      if (!par) par= (char*)"(null)";
+      if (!par) par= "(null)";
       plen= strlen(par);
       if (left_len <= plen*4)
         plen= left_len / 4 - 1;

@@ -196,6 +196,7 @@ double getopt_ulonglong2double(ulonglong v)
   @return error in case of ambiguous or unknown options,
           0 on success.
 */
+
 int handle_options(int *argc, char ***argv, const struct my_option *longopts,
                    my_get_one_option get_one_option)
 {

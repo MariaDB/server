@@ -24,18 +24,18 @@
 typedef const char* (*tc_version_type)(int*, int*, const char**);
 typedef int (*mallctl_type)(const char*, void*, size_t*, void*, size_t);
 
-char *guess_malloc_library()
+const char *guess_malloc_library()
 {
   tc_version_type tc_version_func;
   mallctl_type mallctl_func;
 #ifndef HAVE_DLOPEN
-  return (char*) MALLOC_LIBRARY;
+  return MALLOC_LIBRARY;
 #else
   static char buf[128];
 
   if (strcmp(MALLOC_LIBRARY, "system") != 0)
   {
-    return (char*) MALLOC_LIBRARY;
+    return MALLOC_LIBRARY;
   }
 
   /* tcmalloc */
@@ -59,7 +59,7 @@ char *guess_malloc_library()
     return buf;
   }
 
-  return (char*) MALLOC_LIBRARY;
+  return MALLOC_LIBRARY;
 #endif
 }
 

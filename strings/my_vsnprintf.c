@@ -153,13 +153,13 @@ static const char *check_longlong(const char *fmt, uint *have_longlong)
 */
 
 static char *backtick_string(CHARSET_INFO *cs, char *to, const char *end,
-                             char *par, size_t par_len, char quote_char,
+                             const char *par, size_t par_len, char quote_char,
                              my_bool cut)
 {
   char *last[3]= {0,0,0};
   uint char_len;
   char *start= to;
-  char *par_end= par + par_len;
+  const char *par_end= par + par_len;
   size_t buff_length= (size_t) (end - to);
   uint index= 0;
 
@@ -224,14 +224,14 @@ err:
 */
 
 static char *process_str_arg(CHARSET_INFO *cs, char *to, const char *end,
-                             size_t width, char *par, uint print_type,
+                             size_t width, const char *par, uint print_type,
                              my_bool nice_cut)
 {
   int well_formed_error;
   uint dots= 0;
   size_t plen, left_len= (size_t) (end - to) + 1, slen=0;
   if (!par)
-    par = (char*) "(null)";
+    par = "(null)";
 
   if (nice_cut)
   {

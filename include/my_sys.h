@@ -143,7 +143,7 @@ C_MODE_START
 /* Extra length needed for filename if one calls my_create_backup_name */
 #define MY_BACKUP_NAME_EXTRA_LENGTH 17
 
-char *guess_malloc_library();
+const char *guess_malloc_library();
 
 /* If we have our own safemalloc (for debugging) */
 #if defined(SAFEMALLOC)
@@ -218,7 +218,7 @@ extern int errno;			/* declare errno */
 #endif
 #endif					/* #ifndef errno */
 extern char *home_dir;			/* Home directory for user */
-extern MYSQL_PLUGIN_IMPORT char  *mysql_data_home;
+extern MYSQL_PLUGIN_IMPORT const char  *mysql_data_home;
 extern const char *my_progname;		/* program-name (printed in errors) */
 extern const char *my_progname_short;	/* like above but without directory */
 extern char curr_dir[];		/* Current directory for user */

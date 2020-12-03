@@ -108,19 +108,19 @@ static my_bool test_if_shannon_card_exists()
     removed one with the U.2 interface.
   */
 
-  for (dev_part= 'a' ; dev_part < 'z' ; dev_part++)
+  for (dev_part= 'a' ; dev_part <= 'z' ; dev_part++)
   {
     char path[32];
     struct stat stat_buff;
 
     sprintf(path, "/dev/df%c", dev_part);
-#ifdef TEST_SHANNON
     if (lstat(path, &stat_buff) < 0)
     {
+#ifdef TEST_SHANNON
       printf("%s(): lstat failed.\n", __func__);
+#endif
       break;
     }
-#endif
     shannon_devices[shannon_found_devices].st_dev= stat_buff.st_rdev;
     sprintf(shannon_devices[shannon_found_devices].dev_name, "/dev/sct%c",
             dev_part);

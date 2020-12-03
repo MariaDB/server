@@ -57,7 +57,7 @@ PSI_memory_key key_memory_win_IP_ADAPTER_ADDRESSES;
 
 	/* from my_init */
 char *home_dir=0;
-char *mysql_data_home= (char*) ".";
+const char *mysql_data_home= ".";
 const char      *my_progname= NULL, *my_progname_short= NULL;
 char		curr_dir[FN_REFLEN]= {0},
 		home_dir_buff[FN_REFLEN]= {0};

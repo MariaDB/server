@@ -98,7 +98,7 @@ static char *directory_file_name (char * dst, const char *src)
   DBUG_ASSERT(strlen(src) < (FN_REFLEN + 1));
 
   if (src[0] == 0)
-    src= (char*) ".";                           /* Use empty as current */
+    src= ".";                                    /* Use empty as current */
   end= strnmov(dst, src, FN_REFLEN + 1);
   if (end[-1] != FN_LIBCHAR)
   {

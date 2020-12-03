@@ -836,7 +836,7 @@ my_parse_charset_xml(MY_CHARSET_LOADER *loader, const char *buf, size_t len)
 }
 
 
-uint
+my_repertoire_t
 my_string_repertoire_8bit(CHARSET_INFO *cs, const char *str, size_t length)
 {
   const char *strend;
@@ -877,22 +877,22 @@ my_string_metadata_get_mb(MY_STRING_METADATA *metadata,
     if (mblen > 0) /* Assigned character */
     {
       if (wc > 0x7F)
-        metadata->repertoire|= MY_REPERTOIRE_EXTENDED;
+        (uint)metadata->repertoire|= MY_REPERTOIRE_EXTENDED;
       str+= mblen;
     }
     else if (mblen == MY_CS_ILSEQ) /* Bad byte sequence */
     {
-      metadata->repertoire|= MY_REPERTOIRE_EXTENDED;
+      (uint)metadata->repertoire|= MY_REPERTOIRE_EXTENDED;
       str++;
     }
     else if (mblen > MY_CS_TOOSMALL) /* Unassigned character */ 
     {
-      metadata->repertoire|= MY_REPERTOIRE_EXTENDED;
+      (uint)metadata->repertoire|= MY_REPERTOIRE_EXTENDED;
       str+= (-mblen);
     }
     else /* Incomplete character, premature end-of-line */
     {
-      metadata->repertoire|= MY_REPERTOIRE_EXTENDED; /* Just in case */
+      (uint)metadata->repertoire|= MY_REPERTOIRE_EXTENDED; /* Just in case */
       break;
     }
   }

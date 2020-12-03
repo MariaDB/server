@@ -530,7 +530,7 @@ static my_bool type_and_offset_read_num(DYNAMIC_COLUMN_TYPE *type,
     DBUG_ASSERT(0);                             /* impossible */
     return 1;
   }
-  *type= (val & 0x7) + 1;
+  *type= (DYNAMIC_COLUMN_TYPE)((val & 0x7) + 1);
   *offset= val >> 3;
   return (*offset >= lim);
 }
@@ -565,7 +565,7 @@ static my_bool type_and_offset_read_named(DYNAMIC_COLUMN_TYPE *type,
     DBUG_ASSERT(0);                             /* impossible */
     return 1;
   }
-  *type= (val & 0xf) + 1;
+  *type= (DYNAMIC_COLUMN_TYPE)((val & 0xf) + 1);
   *offset= (size_t) (val >> 4);
   return (*offset >= lim);
 }
@@ -1784,7 +1784,7 @@ dynamic_column_create_many_internal_fmt(DYNAMIC_COLUMN *str,
   DYN_HEADER header;
   enum enum_dyncol_func_result rc;
   bzero(&header, sizeof(header));
-  header.format= (string_keys ? 1 : 0);
+  header.format= (enum enum_dyncol_format)(string_keys ? 1 : 0);
 
   if (new_str)
   {
