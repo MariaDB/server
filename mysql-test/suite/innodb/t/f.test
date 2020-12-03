@@ -56,7 +56,7 @@ let $debug_dbug="+d,crash_fk_install_shadow_frm";
 --source include/foreign_fail.inc
 call drop_tables;
 
-# FIXME: crash statements
+# FIXME: crash statements, fail_fk_write_shadow
 
 --echo # CREATE TABLE
 create table t1 (x int primary key);

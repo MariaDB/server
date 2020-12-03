@@ -667,7 +667,7 @@ bool FK_ddl_vector::install_shadow_frms(THD *thd)
       dbg_fail= true;
 #endif
     if (bak.second.fk_backup_frm(*this))
-      goto error;
+      return true;
   }
 #ifndef DBUG_OFF
   dbg_fail= false;
@@ -681,14 +681,10 @@ bool FK_ddl_vector::install_shadow_frms(THD *thd)
       dbg_fail= true;
 #endif
     if (bak.second.fk_install_shadow_frm(*this))
-      goto error;
+      return true;
   }
 
   return false;
-
-error:
-  rollback(thd);
-  return true;
 }
 
 

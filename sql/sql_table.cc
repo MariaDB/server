@@ -2549,7 +2549,10 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
 
       error= shares.install_shadow_frms(thd);
       if (unlikely(error))
+      {
+        shares.rollback(thd);
         goto err;
+      }
 
       // Remove extension for delete
       *path_end= '\0';
@@ -8275,7 +8278,10 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   // FIXME: do right after fk_handle_alter?
   if (alter_ctx->fk_ref_backup.install_shadow_frms(thd))
+  {
+    alter_ctx->fk_ref_backup.rollback(thd);
     DBUG_RETURN(true);
+  }
 
   alter_ctx->fk_ref_backup.drop_backup_frms(thd);
 
@@ -10002,14 +10008,22 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
       DBUG_RETURN(true);
 
     for (auto &ref: fk_rename_backup)
+    {
       if (ref.second.fk_write_shadow_frm(fk_rename_backup))
+      {
+        fk_rename_backup.rollback(thd);
         DBUG_RETURN(true);
+      }
+    }
 
     close_all_tables_for_name(thd, table->s, HA_EXTRA_PREPARE_FOR_RENAME,
                               NULL);
 
     if (fk_rename_backup.install_shadow_frms(thd))
+    {
+      fk_rename_backup.rollback(thd);
       DBUG_RETURN(true);
+    }
 
     if (mysql_rename_table(old_db_type, &alter_ctx->db, &alter_ctx->table_name,
                            &alter_ctx->new_db, &alter_ctx->new_name, 0))
@@ -13347,11 +13361,9 @@ FK_share_backup::init(TABLE_SHARE *_share)
 void
 FK_share_backup::rollback(ddl_log_info& log_info)
 {
-  if (share)
-  {
-    share->foreign_keys= foreign_keys;
-    share->referenced_keys= referenced_keys;
-    share= NULL;
-  }
+  DBUG_ASSERT(share);
+  share->foreign_keys= foreign_keys;
+  share->referenced_keys= referenced_keys;
+  share= NULL;
   delete_shadow_entry= NULL;
 }
