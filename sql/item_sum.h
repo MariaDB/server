@@ -29,6 +29,7 @@
 class Item_sum;
 class Aggregator_distinct;
 class Aggregator_simple;
+class Descriptor;
 
 /**
   The abstract base class for the Aggregator_* classes.
@@ -597,6 +598,10 @@ public:
                                   uint size_arg, size_t max_in_memory_size_arg,
                                   uint min_dupl_count_arg, bool allow_packing,
                                   uint number_of_args);
+  virtual Descriptor *get_descriptor_for_fixed_size_keys(uint args_count,
+                                                         uint size_arg);
+  virtual Descriptor *get_descriptor_for_variable_size_keys(uint args_count,
+                                                            uint size_arg);
 };
 
 
@@ -701,7 +706,6 @@ public:
   bool unique_walk_function(void *element);
   bool unique_walk_function_for_count(void *element);
   int insert_record_to_unique();
-  qsort_cmp2 get_compare_func_for_packed_keys();
   static int key_cmp(void* arg, uchar* key1, uchar* key2);
 };
 
@@ -2034,11 +2038,11 @@ public:
                                           element_count __attribute__((unused)),
                                           void *item_arg);
   int insert_record_to_unique();
-  Unique_impl *get_unique(qsort_cmp2 comp_func,
-                          void *comp_func_fixed_arg,
-                          uint size_arg, size_t max_in_memory_size_arg,
-                          uint min_dupl_count_arg, bool allow_packing,
-                          uint number_of_args);
+  int insert_packed_record_to_unique();
+  Descriptor *get_descriptor_for_fixed_size_keys(uint args_count,
+                                                 uint size_arg) override;
+  Descriptor *get_descriptor_for_variable_size_keys(uint args_count,
+                                                    uint size_arg) override;
 };
 
 #endif /* ITEM_SUM_INCLUDED */

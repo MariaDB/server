@@ -982,11 +982,12 @@ int Aggregator_distinct::insert_record_to_unique()
 {
   if (tree->is_variable_sized())
   {
-    uint packed_length;
-    if ((packed_length= tree->get_descriptor()->make_record(true)) == 0)
+    uchar *rec_ptr;
+    Descriptor *descriptor= tree->get_descriptor();
+    if ((rec_ptr= descriptor->make_record(true)) == NULL)
       return -1; // NULL value
-    DBUG_ASSERT(packed_length <= tree->get_size());
-    return tree->unique_add(tree->get_descriptor()->get_rec_ptr());
+    DBUG_ASSERT(descriptor->get_length_of_key(rec_ptr) <= tree->get_size());
+    return tree->unique_add(rec_ptr);
   }
 
   copy_fields(tmp_table_param);
@@ -3623,18 +3624,13 @@ int group_concat_key_cmp_with_distinct_with_nulls(void* arg,
 
 /**
   Compares the packed values for fields in expr list of GROUP_CONCAT.
-  @note
-
-     GROUP_CONCAT([DISTINCT] expr [,expr ...]
-              [ORDER BY {unsigned_integer | col_name | expr}
-                  [ASC | DESC] [,col_name ...]]
-              [SEPARATOR str_val])
 
   @return
   @retval -1 : key1 < key2
   @retval  0 : key1 = key2
   @retval  1 : key1 > key2
 */
+
 int group_concat_packed_key_cmp_with_distinct(void *arg,
                                               const void *a_ptr,
                                               const void *b_ptr)
@@ -4640,9 +4636,12 @@ String* Item_func_group_concat::val_str(String* str)
 /*
   @brief
     Get the comparator function for DISTINT clause
+
+  @param packed              TRUE if the record is stored in a packed format
 */
 
-qsort_cmp2 Item_func_group_concat::get_comparator_function_for_distinct(bool packed)
+qsort_cmp2
+Item_func_group_concat::get_comparator_function_for_distinct(bool packed)
 {
   return packed ?
          group_concat_packed_key_cmp_with_distinct :
@@ -4676,11 +4675,9 @@ qsort_cmp2 Item_func_group_concat::get_comparator_function_for_order_by()
 
 uchar* Item_func_group_concat::get_record_pointer()
 {
-  return is_distinct_packed() ?
-         unique_filter->get_descriptor()->get_rec_ptr() :
-         (skip_nulls() ?
+  return  skip_nulls() ?
           table->record[0] + table->s->null_bytes :
-          table->record[0]);
+          table->record[0];
 }
 
 
@@ -4731,9 +4728,8 @@ bool Item_func_group_concat::is_distinct_packed()
 bool Item_func_group_concat::is_packing_allowed(uint* total_length)
 {
   /*
-    TODO varun:
     Currently Unique is not packed if ORDER BY clause is used
-    This needs to be implemented when MDEV-22089 is fixed
+    This is a limitation as of now.
   */
   if (!distinct || arg_count_order)
     return false;
@@ -4749,8 +4745,11 @@ bool Item_func_group_concat::is_packing_allowed(uint* total_length)
   @param table           Table structure
   @total_length     [OUT] max length of the packed key(takes into account
                           the length bytes also)
-*/
 
+  @retval
+    TRUE                 packing is allowed
+    FALSE                otherwise
+*/
 
 bool Item_sum::is_packing_allowed(TABLE *table, uint* total_length)
 {
@@ -4803,7 +4802,22 @@ bool Item_sum::is_packing_allowed(TABLE *table, uint* total_length)
 
 /*
   @brief
-    Get unique instance to filter out duplicate for AGG_FUNC(DISTINCT col....)
+    Get unique instance to filter out duplicates
+
+  @param  comp_func                     compare function
+  @param  comp_func_fixed_arg           arg passed to the comparison function
+  @param  size_arg                      max length of the key
+  @param  max_in_memory_size_arg        max memory available for Unique
+  @param  min_dupl_count_arg            > 0 , the count for each value needs
+                                        to be stored also
+  @param  allow_packing                 TRUE: Variable size keys are allowed
+  @param  number_of_args                Number of args involved in DISTINCT
+
+
+  @retval
+    NOT NULL   instance of Unique class returned
+    NULL       ERROR
+
 */
 Unique_impl*
 Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
@@ -4814,19 +4828,9 @@ Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
   Descriptor *desc;
 
   if (allow_packing)
-  {
-    if (number_of_args == 1)
-      desc= new Variable_size_keys_simple(size_arg);
-    else
-      desc= new Variable_size_composite_key_desc(size_arg);
-  }
+    desc= get_descriptor_for_variable_size_keys(number_of_args, size_arg);
   else
-  {
-    if (number_of_args == 1)
-      desc= new Fixed_size_keys_descriptor(size_arg);
-    else
-      desc= new Fixed_size_composite_keys_descriptor(size_arg);
-  }
+    desc= get_descriptor_for_fixed_size_keys(number_of_args, size_arg);
 
   if (!desc)
     return NULL;
@@ -4834,39 +4838,6 @@ Item_sum::get_unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
                          max_in_memory_size_arg, min_dupl_count_arg, desc);
 }
 
-
-Unique_impl*
-Item_func_group_concat::get_unique(qsort_cmp2 comp_func,
-                                   void *comp_func_fixed_arg,
-                                   uint size_arg,
-                                   size_t max_in_memory_size_arg,
-                                   uint min_dupl_count_arg,
-                                   bool allow_packing,
-                                   uint number_of_args)
-{
-  Descriptor *desc;
-
-  if (allow_packing)
-  {
-    if (number_of_args == 1)
-      desc= new Variable_size_keys_simple(size_arg);
-    else
-      desc= new Variable_size_composite_key_desc_for_gconcat(size_arg);
-  }
-  else
-  {
-    if (number_of_args == 1 && !skip_nulls())
-      desc= new Fixed_size_keys_descriptor_with_nulls(size_arg);
-    else
-      desc= new Fixed_size_keys_for_group_concat(size_arg);
-  }
-
-  if (!desc)
-    return NULL;
-
-  return new Unique_impl(comp_func, comp_func_fixed_arg, size_arg,
-                         max_in_memory_size_arg, min_dupl_count_arg, desc);
-}
 
 void Item_func_group_concat::print(String *str, enum_query_type query_type)
 {
@@ -4928,21 +4899,14 @@ Item_func_group_concat::~Item_func_group_concat()
 
   @retval
     -1       NULL value, record rejected
-     0       record succesfully inserted into the tree
+     0       record successfully inserted into the tree
      1       error
 */
+
 int Item_func_group_concat::insert_record_to_unique()
 {
   if (unique_filter->is_variable_sized() && unique_filter->is_single_arg())
-  {
-    uint packed_length;
-    if ((packed_length= unique_filter->get_descriptor()->
-                        make_record(skip_nulls())) == 0)
-      return -1; // NULL value
-    DBUG_ASSERT(packed_length <= unique_filter->get_size());
-    return unique_filter->unique_add(unique_filter->get_descriptor()
-                                     ->get_rec_ptr());
-  }
+    return insert_packed_record_to_unique();
 
   copy_fields(tmp_table_param);
   if (copy_funcs(tmp_table_param->items_to_copy, table->in_use))
@@ -4960,16 +4924,71 @@ int Item_func_group_concat::insert_record_to_unique()
   */
 
   if (unique_filter->is_variable_sized())
-  {
-    DBUG_ASSERT(!unique_filter->is_single_arg());
-    uint packed_length;
-    if ((packed_length= unique_filter->get_descriptor()->
-                        make_record(skip_nulls())) == 0)
-      return -1; // NULL value
-    DBUG_ASSERT(packed_length <= unique_filter->get_size());
-    return unique_filter->unique_add(unique_filter->get_descriptor()
-                                     ->get_rec_ptr());
-  }
+    return insert_packed_record_to_unique();
 
   return unique_filter->unique_add(get_record_pointer());
+}
+
+
+/*
+  @brief
+    Insert a packed record inside the Unique tree
+
+  @retval
+    -1       NULL value, record rejected
+     0       record successfully inserted into the tree
+     1       error
+*/
+
+int Item_func_group_concat::insert_packed_record_to_unique()
+{
+  Descriptor *descriptor= unique_filter->get_descriptor();
+  uchar *rec_ptr;
+  if ((rec_ptr= descriptor->make_record(skip_nulls())) == NULL)
+    return -1; // NULL value
+  DBUG_ASSERT(descriptor->get_length_of_key(rec_ptr)
+                        <= unique_filter->get_size());
+  return unique_filter->unique_add(rec_ptr);
+}
+
+
+Descriptor *Item_sum::get_descriptor_for_fixed_size_keys(uint args_count,
+                                                         uint size_arg)
+{
+  if (args_count == 1)
+    return new Fixed_size_keys_descriptor(size_arg);
+  else
+    return new Fixed_size_composite_keys_descriptor(size_arg);
+}
+
+
+Descriptor *Item_sum::get_descriptor_for_variable_size_keys(uint args_count,
+                                                            uint size_arg)
+{
+  if (args_count == 1)
+    return new Variable_size_keys_simple(size_arg);
+  else
+    return new Variable_size_composite_key_desc(size_arg);
+}
+
+
+Descriptor*
+Item_func_group_concat::get_descriptor_for_fixed_size_keys(uint args_count,
+                                                           uint size_arg)
+{
+  if (args_count == 1 && !skip_nulls())
+    return new Fixed_size_keys_descriptor_with_nulls(size_arg);
+  else
+    return new Fixed_size_keys_for_group_concat(size_arg);
+}
+
+
+Descriptor*
+Item_func_group_concat::get_descriptor_for_variable_size_keys(uint args_count,
+                                                              uint size_arg)
+{
+  if (args_count == 1)
+    return new Variable_size_keys_simple(size_arg);
+  else
+    return new Variable_size_composite_key_desc_for_gconcat(size_arg);
 }

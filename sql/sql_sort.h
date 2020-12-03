@@ -672,7 +672,7 @@ public:
     m_packed_format= val;
   }
 
-  uint32 get_record_length_for_unique(uchar *to, uint size_of_dupl_count);
+  uint32 get_key_length_for_unique(uchar *to, uint size_of_dupl_count);
 
 private:
   uint m_packable_length;
@@ -696,26 +696,5 @@ int merge_index(Sort_param *param, Sort_buffer sort_buffer,
                 Merge_chunk *buffpek, uint maxbuffer,
                 IO_CACHE *tempfile, IO_CACHE *outfile);
 void reuse_freed_buff(QUEUE *queue, Merge_chunk *reuse, uint key_length);
-
-
-/*
-  An interface to handle variable sized records.
-  The primary use of this class is to create record for a key
-  which has variable sized values for its keyparts.
-
-
-  The format used for the record is:
-
-    <total_key_length> <keypart1_null_byte> < keypart1_length> <keypart1_value> ......... <keypartN_value>
-
-  <total_key_length>     : 4 bytes is used to store the length of the key.
-  <keypart1_null_byte>   : uses 1 byte to store nullability for a kepart,
-                           no byte is used if  the keypart is defined as NOT NULLABLE
-  <keypart1_length>      : length of the value of the keypart. This is optional and is only stored for keyparts
-                           that can have variable sized values. For eg VARCHARS and CHARS will have this length
-                           but integers being fixed size will not have these additional bytes for length.
-  <keypart1_value>       : the value for the keypart.
-
-*/
 
 #endif /* SQL_SORT_INCLUDED */

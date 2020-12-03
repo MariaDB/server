@@ -1504,7 +1504,7 @@ append_null:
 
   @param
     str                  buffer to write the value
-    item                 JSON_ARRAYAGG item
+    item                 argument to JSON_ARRAYAGG item
     field                field whose value needs to be appended
     tmp_val              temp buffer
 

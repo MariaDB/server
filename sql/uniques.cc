@@ -569,8 +569,8 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
       read next key from the cache or from the file and push it to the
       queue; this gives new top.
     */
-    key_length= sort_param.get_record_length_for_unique((uchar*)old_key,
-                                                        size_of_dupl_count);
+    key_length= sort_param.get_key_length_for_unique((uchar*)old_key,
+                                                     size_of_dupl_count);
 
     cnt_ofs= key_length - (with_counters ? sizeof(element_count) : 0);
     top->advance_current_key(key_length);
@@ -622,8 +622,8 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
   {
     do
     {
-      key_length= sort_param.get_record_length_for_unique(top->current_key(),
-                                                          size_of_dupl_count);
+      key_length= sort_param.get_key_length_for_unique(top->current_key(),
+                                                       size_of_dupl_count);
       cnt_ofs= key_length - (with_counters ? sizeof(element_count) : 0);
       cnt= with_counters ?
            get_counter_from_merged_element(top->current_key(), cnt_ofs) : 1;
@@ -882,27 +882,27 @@ int Unique_impl::write_record_to_file(uchar *key)
 Variable_size_keys_descriptor::Variable_size_keys_descriptor(uint length)
 {
   max_length= length;
-  flags= (1 << VARIABLE_SIZED_KEYS_WITH_ORIGINAL_VALUES);
+  flags= (1 << VARIABLE_SIZED_KEYS);
   sort_keys= NULL;
   sortorder= NULL;
 }
 
 
 Variable_size_composite_key_desc::Variable_size_composite_key_desc(uint length)
-   : Variable_size_keys_descriptor(length), Encode_record()
+   : Variable_size_keys_descriptor(length), Encode_key()
 {
 }
 
 
 Variable_size_composite_key_desc_for_gconcat::
 Variable_size_composite_key_desc_for_gconcat(uint length)
-   : Variable_size_keys_descriptor(length), Encode_record_for_group_concat()
+   : Variable_size_keys_descriptor(length), Encode_key_for_group_concat()
 {
 }
 
 
 Variable_size_keys_simple::Variable_size_keys_simple(uint length)
-  : Variable_size_keys_descriptor(length), Encode_record()
+  : Variable_size_keys_descriptor(length), Encode_key()
 {
 }
 
@@ -951,10 +951,10 @@ Variable_size_keys_descriptor::setup_for_item(THD *thd, Item_sum *item,
     if (arg->type() == Item::FIELD_ITEM)
     {
       Field *field= ((Item_field*)arg)->field;
-      pos->setup(field, false);
+      pos->setup_key_part_for_variable_size_key(field);
     }
     else
-      pos->setup(arg, false);
+      pos->setup_key_part_for_variable_size_key(arg);
     pos++;
   }
   return false;
@@ -988,7 +988,7 @@ bool Variable_size_keys_descriptor::setup_for_field(THD *thd, Field *field)
   if (!sort_keys)
     return true;
   sort=pos= sortorder;
-  pos->setup(field, false);  // Nulls are always excluded
+  pos->setup_key_part_for_variable_size_key(field);  // Nulls are always excluded
   return false;
 }
 
@@ -1041,22 +1041,15 @@ int Variable_size_composite_key_desc_for_gconcat::compare_keys(uchar *a_ptr,
   for (SORT_FIELD *sort_field= sort_keys->begin();
        sort_field != sort_keys->end(); sort_field++)
   {
-    if (sort_field->is_variable_sized())
-    {
-      retval= sort_field->compare_packed_varstrings(a, &a_len, b, &b_len);
-      a+= a_len;
-      b+= b_len;
-    }
-    else
-    {
-      DBUG_ASSERT(sort_field->field);
-      retval= sort_field->field->cmp(a, b);
-      a+= sort_field->length;
-      b+= sort_field->length;
-    }
+    retval= sort_field->is_variable_sized() ?
+            sort_field->compare_packed_varstrings(a, &a_len, b, &b_len) :
+            sort_field->compare_fixed_size_vals(a, &a_len, b, &b_len);
 
     if (retval)
       return sort_field->reverse ? -retval : retval;
+
+    a+= a_len;
+    b+= b_len;
   }
   return retval;
 }
@@ -1069,19 +1062,18 @@ int Variable_size_keys_simple::compare_keys(uchar *a, uchar *b)
 }
 
 
-
-uint Variable_size_composite_key_desc::make_record(bool exclude_nulls)
+uchar* Variable_size_composite_key_desc::make_record(bool exclude_nulls)
 {
   return make_encoded_record(sort_keys, exclude_nulls);
 }
 
-uint Variable_size_composite_key_desc_for_gconcat::make_record(bool exclude_nulls)
+uchar* Variable_size_composite_key_desc_for_gconcat::make_record(bool exclude_nulls)
 {
   return make_encoded_record(sort_keys, exclude_nulls);
 }
 
 
-uint Variable_size_keys_simple::make_record(bool exclude_nulls)
+uchar* Variable_size_keys_simple::make_record(bool exclude_nulls)
 {
   return make_encoded_record(sort_keys, exclude_nulls);
 }
@@ -1089,19 +1081,19 @@ uint Variable_size_keys_simple::make_record(bool exclude_nulls)
 
 bool Variable_size_composite_key_desc::init()
 {
-  return Encode_record::init(max_length);
+  return Encode_key::init(max_length);
 }
 
 
 bool Variable_size_composite_key_desc_for_gconcat::init()
 {
-  return Encode_record::init(max_length);
+  return Encode_key::init(max_length);
 }
 
 
 bool Variable_size_keys_simple::init()
 {
-  return Encode_record::init(max_length);
+  return Encode_key::init(max_length);
 }
 
 
@@ -1130,7 +1122,7 @@ Variable_size_composite_key_desc_for_gconcat::setup_for_item(THD *thd,
       continue;
 
     Field *field= arg->get_tmp_table_field();
-    pos->setup(field, false);
+    pos->setup_key_part_for_variable_size_key(field);
     pos++;
   }
   return false;
@@ -1184,7 +1176,7 @@ Fixed_size_keys_descriptor::setup_for_item(THD *thd, Item_sum *item,
     Field *field= arg->get_tmp_table_field();
 
     DBUG_ASSERT(field);
-    pos->setup_for_fixed_size_keys(field);
+    pos->setup_key_part_for_fixed_size_key(field);
     pos++;
   }
   return false;
@@ -1207,7 +1199,7 @@ Fixed_size_keys_descriptor::setup_for_field(THD *thd, Field *field)
   if (!sort_keys)
     return true;
   sort=pos= sortorder;
-  pos->setup_for_fixed_size_keys(field);
+  pos->setup_key_part_for_fixed_size_key(field);
 
   return false;
 }
@@ -1295,7 +1287,7 @@ int Fixed_size_keys_for_group_concat::compare_keys(uchar *key1, uchar *key2)
 }
 
 
-bool Encode_record::init(uint length)
+bool Encode_key::init(uint length)
 {
   if (tmp_buffer.alloc(length))
     return true;
@@ -1306,7 +1298,7 @@ bool Encode_record::init(uint length)
 }
 
 
-Encode_record::~Encode_record()
+Encode_key::~Encode_key()
 {
   my_free(rec_ptr);
 }
@@ -1320,8 +1312,8 @@ Encode_record::~Encode_record()
     0         NULL value
     >0        length of the packed record
 */
-uint Encode_record::make_encoded_record(Sort_keys *sort_keys,
-                                        bool exclude_nulls)
+uchar* Encode_key::make_encoded_record(Sort_keys *sort_keys,
+                                     bool exclude_nulls)
 {
   Field *field;
   SORT_FIELD *sort_field;
@@ -1352,7 +1344,7 @@ uint Encode_record::make_encoded_record(Sort_keys *sort_keys,
     if ((maybe_null= sort_field->maybe_null))
     {
       if (exclude_nulls && length == 0)  // rejecting NULLS
-        return 0;
+        return NULL;
       to++;
     }
     to+= length;
@@ -1360,13 +1352,13 @@ uint Encode_record::make_encoded_record(Sort_keys *sort_keys,
 
   length= static_cast<uint>(to - orig_to);
   Variable_size_keys_descriptor::store_packed_length(orig_to, length);
-  return length;
+  return rec_ptr;
 }
 
 
-uint
-Encode_record_for_group_concat::make_encoded_record(Sort_keys *sort_keys,
-                                                    bool exclude_nulls)
+uchar*
+Encode_key_for_group_concat::make_encoded_record(Sort_keys *sort_keys,
+                                                 bool exclude_nulls)
 {
   Field *field;
   SORT_FIELD *sort_field;
@@ -1388,7 +1380,7 @@ Encode_record_for_group_concat::make_encoded_record(Sort_keys *sort_keys,
     if ((maybe_null= sort_field->maybe_null))
     {
       if (exclude_nulls && length == 0)  // rejecting NULLS
-        return 0;
+        return NULL;
       to++;
     }
     to+= length;
@@ -1396,12 +1388,5 @@ Encode_record_for_group_concat::make_encoded_record(Sort_keys *sort_keys,
 
   length= static_cast<uint>(to - orig_to);
   Variable_size_keys_descriptor::store_packed_length(orig_to, length);
-  return length;
-}
-
-
-bool Descriptor::is_single_arg()
-{
-  DBUG_ASSERT(sort_keys);
-  return !(sort_keys->size() > 1) ;
+  return rec_ptr;
 }

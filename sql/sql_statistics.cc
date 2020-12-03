@@ -1524,7 +1524,11 @@ public:
 
   @param
     field               Field structure
+
+  @retval
+    offset of the value from the start of the buffer
 */
+
 uint get_offset_to_value(Field *field)
 {
   return Variable_size_keys_descriptor::size_of_length_field +
@@ -1535,10 +1539,16 @@ uint get_offset_to_value(Field *field)
 /*
   @brief
     Get the end of the buffer storing the value for the field
+  @param
+    buffer                  buffer storing the value
+
+  @retval
+    return end of the buffer
 */
-uchar* get_buffer_end(Field *field, uchar *to)
+
+uchar* get_buffer_end(uchar *buffer)
 {
-  return to + Variable_size_keys_descriptor::read_packed_length(to);
+  return buffer + Variable_size_keys_descriptor::read_packed_length(buffer);
 }
 
 
@@ -1600,7 +1610,7 @@ public:
       {
         column->unpack(column->ptr,
                        to + get_offset_to_value(column),
-                       get_buffer_end(column, to), 0);
+                       get_buffer_end(to), 0);
       }
       else
         column->store_field_value(to, col_length);
@@ -1710,7 +1720,10 @@ public:
     @param
       field               Field structure
 
+    @retval
+      Return the max length for a packable field
   */
+
   uint compute_packable_length(Field *field)
   {
     return table_field->max_packed_col_length(table_field->pack_length()) +
@@ -1726,7 +1739,12 @@ public:
     @param
       thd                    Thread structure
       max_heap_table_size    max allowed size of the unique tree
+
+    @retval
+      TRUE            ERROR
+      FALSE           SUCCESS
   */
+
   virtual bool setup(THD *thd, size_t max_heap_table_size)
   {
     Descriptor *desc;
@@ -1759,14 +1777,12 @@ public:
   {
     table_field->mark_unused_memory_as_defined();
     DBUG_ASSERT(tree);
-
-    uint length= tree->get_size();
     if (tree->is_variable_sized())
     {
-      length= tree->get_descriptor()->make_record(true);
-      DBUG_ASSERT(length != 0);
-      DBUG_ASSERT(length <= tree->get_size());
-      return tree->unique_add(tree->get_descriptor()->get_rec_ptr());
+      Descriptor *descriptor= tree->get_descriptor();
+      uchar *rec_ptr=  descriptor->make_record(true);
+      DBUG_ASSERT(descriptor->get_length_of_key(rec_ptr) <= tree->get_size());
+      return tree->unique_add(rec_ptr);
     }
     return tree->unique_add(table_field->ptr);
   }
@@ -1867,7 +1883,7 @@ public:
     longlong val= table_field->val_int();
     return tree->unique_add(&val);
   }
-  bool setup(THD *thd, size_t max_heap_table_size)
+  bool setup(THD *thd, size_t max_heap_table_size) override
   {
     tree_key_length= sizeof(ulonglong);
     Descriptor *desc= new Fixed_size_keys_mem_comparable(tree_key_length);

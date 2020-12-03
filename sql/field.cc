@@ -1065,8 +1065,20 @@ Field::make_packed_sort_key_part(uchar *buff,
 
 
 /*
-  TODO varun: need to look what to do here
+  @brief
+    Create a packed sort key part
+
+  @param  buff           buffer where values are written
+  @param  sort_field     sort column structure
+
+  @details
+   This function stores the original values for the fixed size columns and
+   does not covert them to mem-comparable images.
+
+  @retval
+    length of the bytes written, does not include the NULL bytes
 */
+
 uint
 Field::make_packed_key_part(uchar *buff, const SORT_FIELD_ATTR *sort_field)
 {

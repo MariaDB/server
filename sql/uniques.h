@@ -28,13 +28,21 @@
 class Descriptor : public Sql_alloc
 {
 protected:
+
   /* maximum possible size of any key, in bytes */
   uint max_length;
   enum attributes
   {
     FIXED_SIZED_KEYS= 0,
-    VARIABLE_SIZED_KEYS_WITH_ORIGINAL_VALUES
+    VARIABLE_SIZED_KEYS
   };
+
+  /*
+    Storing information about the attributes for the keys
+    Each bit for the flag points to an attribute
+    Currently only 2 bits are used, so the remaining bit can be used
+    in the future if some extension is required for descriptors
+  */
   uint flags;
   /*
     Array of SORT_FIELD structure storing the information about the key parts
@@ -53,7 +61,7 @@ public:
   virtual uint get_length_of_key(uchar *ptr) = 0;
   bool is_variable_sized()
   {
-    return flags & (1 << VARIABLE_SIZED_KEYS_WITH_ORIGINAL_VALUES);
+    return flags & (1 << VARIABLE_SIZED_KEYS);
   }
   virtual int compare_keys(uchar *a, uchar *b) = 0;
 
@@ -62,13 +70,47 @@ public:
                               uint non_const_args, uint arg_count)
   { return false; }
   virtual bool setup_for_field(THD *thd, Field *field) { return false; }
+
   virtual Sort_keys *get_keys() { return sort_keys; }
   SORT_FIELD *get_sortorder() { return sortorder; }
 
-  /* need to be moved to a separate class */
-  virtual uchar *get_rec_ptr() { return NULL; }
-  virtual uint make_record(bool exclude_nulls) { return 0; }
-  virtual bool is_single_arg();
+  virtual uchar* make_record(bool exclude_nulls) { return NULL; }
+  virtual bool is_single_arg() = 0;
+};
+
+
+/*
+  Class to encode a key into a particular format. The format depends whether
+  the key is of fixed size or variable size.
+
+  @note
+    Currently this encoding is only done for variable size keys
+*/
+class Encode_key
+{
+protected:
+  /*
+    Packed record ptr for a record of the table, the packed value in this
+    record is added to the unique tree
+  */
+  uchar* rec_ptr;
+
+  String tmp_buffer;
+public:
+  Encode_key() : rec_ptr(NULL) {}
+  virtual ~Encode_key();
+  virtual uchar* make_encoded_record(Sort_keys *keys, bool exclude_nulls);
+  bool init(uint length);
+  uchar *get_rec_ptr() { return rec_ptr; }
+};
+
+
+class Encode_key_for_group_concat : public Encode_key
+{
+public:
+  Encode_key_for_group_concat() : Encode_key() {}
+  ~Encode_key_for_group_concat() {}
+  uchar* make_encoded_record(Sort_keys *keys, bool exclude_nulls) override;
 };
 
 
@@ -86,6 +128,7 @@ public:
   bool setup_for_item(THD *thd, Item_sum *item,
                       uint non_const_args, uint arg_count);
   virtual int compare_keys(uchar *a, uchar *b) override;
+  virtual bool is_single_arg() override { return true; }
 };
 
 
@@ -160,39 +203,12 @@ public:
     : Fixed_size_keys_descriptor(length) {}
   ~Fixed_size_composite_keys_descriptor() {}
   int compare_keys(uchar *a, uchar *b) override;
-};
-
-
-class Encode_record
-{
-protected:
-  /*
-    Packed record ptr for a record of the table, the packed value in this
-    record is added to the unique tree
-  */
-
-  uchar* rec_ptr;
-
-  String tmp_buffer;
-public:
-  Encode_record() : rec_ptr(NULL) {}
-  virtual ~Encode_record();
-  virtual uint make_encoded_record(Sort_keys *keys, bool exclude_nulls);
-  bool init(uint length);
-};
-
-
-class Encode_record_for_group_concat : public Encode_record
-{
-public:
-  Encode_record_for_group_concat() : Encode_record() {}
-  ~Encode_record_for_group_concat() {}
-  uint make_encoded_record(Sort_keys *keys, bool exclude_nulls) override;
+  bool is_single_arg() override { return false; }
 };
 
 
 /*
-  Descriptor for variable size keys
+  Base class for the descriptor for variable size keys
 */
 
 class Variable_size_keys_descriptor : public Descriptor
@@ -204,13 +220,14 @@ public:
   {
     return read_packed_length(ptr);
   }
-  Sort_keys *get_keys() { return sort_keys; }
-  SORT_FIELD *get_sortorder() { return sortorder; }
   virtual int compare_keys(uchar *a, uchar *b) override { return 0; }
   virtual bool init() { return false; }
-  bool setup_for_item(THD *thd, Item_sum *item,
-                      uint non_const_args, uint arg_count) override;
-  bool setup_for_field(THD *thd, Field *field) override;
+  virtual bool is_single_arg() override { return false; }
+
+  virtual bool setup_for_item(THD *thd, Item_sum *item,
+                              uint non_const_args, uint arg_count) override;
+  virtual bool setup_for_field(THD *thd, Field *field) override;
+
   // All need to be moved to some new class
   // returns the length of the key along with the length bytes for the key
   static uint read_packed_length(uchar *p)
@@ -226,24 +243,23 @@ public:
 
 
 /*
-
   Descriptor for variable size keys with only one component
 
   Used by EITS, JSON_ARRAYAGG,
   COUNT(DISTINCT col1) AND GROUP_CONCAT(DISTINCT col1) => only one item is allowed
-
 */
 
 class Variable_size_keys_simple : public Variable_size_keys_descriptor,
-                                  public Encode_record
+                                  public Encode_key
 {
 public:
   Variable_size_keys_simple(uint length);
   virtual ~Variable_size_keys_simple() {}
   int compare_keys(uchar *a, uchar *b) override;
-  uint make_record(bool exclude_nulls) override;
+  uchar* make_record(bool exclude_nulls) override;
   uchar* get_rec_ptr() { return rec_ptr; }
   bool init() override;
+  bool is_single_arg() override { return true; }
 };
 
 
@@ -251,27 +267,30 @@ public:
   Descriptor for variable sized keys with multiple key parts
 */
 class Variable_size_composite_key_desc : public Variable_size_keys_descriptor,
-                                         public Encode_record
+                                         public Encode_key
 {
 public:
   Variable_size_composite_key_desc(uint length);
   virtual ~Variable_size_composite_key_desc() {}
   int compare_keys(uchar *a, uchar *b) override;
-  uint make_record(bool exclude_nulls) override;
-  uchar* get_rec_ptr() { return rec_ptr; }
+  uchar* make_record(bool exclude_nulls) override;
   bool init() override;
 };
 
 
+
+/*
+  Descriptor for variable sized keys with multiple key parts for GROUP_CONCAT
+*/
+
 class Variable_size_composite_key_desc_for_gconcat :
-  public Variable_size_keys_descriptor , public Encode_record_for_group_concat
+  public Variable_size_keys_descriptor , public Encode_key_for_group_concat
 {
 public:
   Variable_size_composite_key_desc_for_gconcat(uint length);
   virtual ~Variable_size_composite_key_desc_for_gconcat() {}
   int compare_keys(uchar *a, uchar *b) override;
-  uint make_record(bool exclude_nulls) override;
-  uchar* get_rec_ptr() { return rec_ptr; }
+  uchar* make_record(bool exclude_nulls) override;
   bool init() override;
   bool setup_for_item(THD *thd, Item_sum *item,
                       uint non_const_args, uint arg_count) override;
@@ -285,6 +304,11 @@ public:
 class Unique : public Sql_alloc {
 
 protected:
+
+  /*
+    Storing all relevant information of the expressions whose value are
+    being added to the Unique tree
+  */
   Descriptor *m_descriptor;
 public:
 
