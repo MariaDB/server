@@ -1006,24 +1006,14 @@ class FK_share_backup : public FK_backup
 {
 protected:
   TABLE_SHARE *share;
-  bool autocommit; // FIXME: remove
 
 public:
   bool init(TABLE_SHARE *_share);
 
-  FK_share_backup(TABLE_SHARE *_share) : autocommit(true)
+  FK_share_backup(TABLE_SHARE *_share)
   {
     if (init(_share))
       share= NULL;
-  }
-  virtual ~FK_share_backup()
-  {
-    if (autocommit)
-      commit();
-  }
-  void commit()
-  {
-    share= NULL;
   }
   TABLE_SHARE *get_share() const
   {

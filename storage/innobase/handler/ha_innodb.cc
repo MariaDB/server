@@ -21544,7 +21544,6 @@ fk_upgrade_legacy_storage(dict_table_t* table, trx_t* trx, THD *thd, TABLE_SHARE
 	}
 
 	ref_shares.drop_backup_frms(thd);
-	share_backup->commit();
 	ref_shares.clear();
 
 	// Drop legacy foreign keys
