@@ -101,8 +101,8 @@ typedef void *(*my_getopt_value)(const char *, uint, const struct my_option *,
                                  int *);
 
 
-extern char *disabled_my_option;
-extern char *autoset_my_option;
+extern const char *disabled_my_option;
+extern const char *autoset_my_option;
 extern my_bool my_getopt_print_errors;
 extern my_bool my_getopt_skip_unknown;
 extern my_bool my_getopt_prefix_matching;

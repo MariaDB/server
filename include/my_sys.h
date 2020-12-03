@@ -716,7 +716,7 @@ extern int my_redel(const char *from, const char *to, time_t backup_time_stamp,
 void my_create_backup_name(char *to, const char *from,
                            time_t backup_time_stamp);
 extern int my_copystat(const char *from, const char *to, int MyFlags);
-extern char * my_filename(File fd);
+extern const char * my_filename(File fd);
 
 extern my_bool init_tmpdir(MY_TMPDIR *tmpdir, const char *pathlist);
 extern char *my_tmpdir(MY_TMPDIR *tmpdir);

@@ -52,9 +52,14 @@ static const uint special_opt_prefix_lengths[]=
 enum enum_special_opt
 { OPT_SKIP, OPT_DISABLE, OPT_ENABLE, OPT_MAXIMUM, OPT_LOOSE, OPT_AUTOSET};
 
-char *disabled_my_option= (char*) "0";
-char *enabled_my_option= (char*) "1";
-char *autoset_my_option= (char*) "auto";
+const char *disabled_my_option= "0";
+const char *enabled_my_option= "1";
+const char *autoset_my_option= "auto";
+
+/* constant strings used by my_getopt */
+const char * const empty_string= "";
+const char * const space_string= " ";
+
 
 /*
    This is a flag that can be set in client programs. 0 means that
@@ -198,7 +203,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
   my_bool end_of_options= 0, must_be_var, set_maximum_value,
           option_is_loose, option_is_autoset;
   char **pos, **pos_end, *optend, *opt_str, key_name[FN_REFLEN];
-  char *filename= (char*)"";
+  char *filename= (char*) empty_string;
   const char *UNINIT_VAR(prev_found);
   const struct my_option *optp;
   void *value;
@@ -315,11 +320,11 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 		      for example: --skip-option=0 -> option = TRUE
 		    */
 		    optend= (optend && *optend == '0' && !(*(optend + 1))) ?
-		      enabled_my_option : disabled_my_option;
+		      (char *)enabled_my_option : (char *)disabled_my_option;
 		    break;
 		  case OPT_ENABLE:
 		    optend= (optend && *optend == '0' && !(*(optend + 1))) ?
-                      disabled_my_option : enabled_my_option;
+                      (char *)disabled_my_option : (char *)enabled_my_option;
 		    break;
 		  case OPT_MAXIMUM:
 		    set_maximum_value= 1;
@@ -449,7 +454,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 	      continue;
 	    }
             if (get_one_option(optp, *((my_bool*) value) ?
-                               enabled_my_option : disabled_my_option,
+                               (char *)enabled_my_option : (char *)disabled_my_option,
                                filename))
               DBUG_RETURN(EXIT_ARGUMENT_INVALID);
 	    continue;
@@ -479,7 +484,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 	    continue;
 	  }
 	  else
-            argument= autoset_my_option;
+            argument= (char *)autoset_my_option;
 	}
 	else if (optp->arg_type == REQUIRED_ARG && !optend)
 	{
@@ -537,7 +542,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
 		  /* The rest of the option is option argument */
 		  argument= optend + 1;
 		  /* This is in effect a jump out of the outer loop */
-		  optend= (char*) " ";
+		  optend= (char *)space_string;
 		}
 		else
 		{
@@ -593,7 +598,7 @@ int handle_options(int *argc, char ***argv, const struct my_option *longopts,
                 Do not continue to parse at the current "-XYZ" argument,
                 skip to the next argv[] argument instead.
               */
-              optend= (char*) " ";
+              optend= (char *)space_string;
             }
             else
             {
@@ -717,7 +722,7 @@ static int setval(const struct my_option *opts, void *value, char *argument,
   DBUG_ENTER("setval");
 
   if (!argument)
-    argument= enabled_my_option;
+    argument= (char *)enabled_my_option;
 
   if (value)
   {
@@ -756,7 +761,7 @@ static int setval(const struct my_option *opts, void *value, char *argument,
       break;
     case GET_STR:
       /* If no argument or --enable-string-option, set string to "" */
-      *((char**) value)= argument == enabled_my_option ? (char*) "" : argument;
+      *((char**) value)= argument == enabled_my_option ? (char*) empty_string : argument;
       break;
     case GET_STR_ALLOC:
       my_free(*((char**) value));
@@ -1650,7 +1655,10 @@ void my_print_variables(const struct my_option *options)
         for (nr= 0; llvalue && nr < optp->typelib->count; nr++, llvalue >>=1)
 	{
           printf("%s%s=", (nr ? "," : ""), get_type(optp->typelib, nr));
-	  printf(llvalue & 1 ? "on" : "off");
+	  if (llvalue & 1)
+	    printf("on");
+	  else
+	    printf("off");
 	}
         printf("\n");
 	break;

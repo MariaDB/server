@@ -24,15 +24,15 @@
       fd	File descriptor
 */
 
-char * my_filename(File fd)
+const char * my_filename(File fd)
 {
   DBUG_ENTER("my_filename");
   if ((uint) fd >= (uint) my_file_limit || !my_file_info[fd].name)
-    DBUG_RETURN((char*) "UNKNOWN");
+    DBUG_RETURN("UNKNOWN");
   if (fd >= 0 && my_file_info[fd].type != UNOPEN)
   {
     DBUG_RETURN(my_file_info[fd].name);
   }
   else
-    DBUG_RETURN((char*) "UNOPENED");	/* Debug message */
+    DBUG_RETURN("UNOPENED");	/* Debug message */
 }

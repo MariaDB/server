@@ -29,17 +29,18 @@ static char *find_file_in_path(char *to,const char *name);
 	   own_path_name_part is concatinated to result.
 	   my_path puts result in to and returns to */
 
-char * my_path(char * to, const char *progname,
+char * my_path(char *to, const char *progname,
                const char *own_pathname_part)
 {
-  char *start, *end, *prog;
+  char *start;
+  const char *end, *prog;
   size_t to_length;
   DBUG_ENTER("my_path");
 
-  start=to;					/* Return this */
+  start= to;                                   /* Return this */
   if (progname && (dirname_part(to, progname, &to_length) ||
 		   find_file_in_path(to,progname) ||
-		   ((prog=getenv("_")) != 0 &&
+		   ((prog= getenv("_")) != 0 &&
                     dirname_part(to, prog, &to_length))))
   {
     (void) intern_filename(to,to);
@@ -51,13 +52,13 @@ char * my_path(char * to, const char *progname,
   }
   else
   {
-    if ((end = getenv("MY_BASEDIR_VERSION")) == 0 &&
-	(end = getenv("MY_BASEDIR")) == 0)
+    if ((end= getenv("MY_BASEDIR_VERSION")) == 0 &&
+	(end= getenv("MY_BASEDIR")) == 0)
     {
 #ifdef DEFAULT_BASEDIR
-      end= (char*) DEFAULT_BASEDIR;
+      end= DEFAULT_BASEDIR;
 #else
-      end= (char*) "/my/";
+      end= "/my/";
 #endif
     }
     (void) intern_filename(to,end);
