@@ -248,7 +248,7 @@ int update_portion_of_time(THD *thd, TABLE *table,
   uint dst_fieldno= lcond ? table->s->period.end_fieldno
                           : table->s->period.start_fieldno;
 
-  table->file->store_auto_increment();
+  ulonglong prev_insert_id= table->file->next_insert_id;
   store_record(table, record[1]);
   if (likely(!res))
     res= src->save_in_field(table->field[dst_fieldno], true);
@@ -264,7 +264,7 @@ int update_portion_of_time(THD *thd, TABLE *table,
                                            TRG_ACTION_AFTER, true);
   restore_record(table, record[1]);
   if (res)
-    table->file->restore_auto_increment();
+    table->file->restore_auto_increment(prev_insert_id);
 
   if (likely(!res) && lcond && rcond)
     res= table->period_make_insert(period_conds.end.item,

@@ -4443,7 +4443,7 @@ int ha_partition::write_row(const uchar * buf)
 
   DBUG_ASSERT(!m_file[part_id]->row_logging);
   error= m_file[part_id]->ha_write_row(buf);
-  if (have_auto_increment && !table->s->next_number_keypart)
+  if (!error && have_auto_increment && !table->s->next_number_keypart)
     set_auto_increment_if_higher(table->next_number_field);
 
 exit:

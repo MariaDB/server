@@ -653,7 +653,7 @@ public:
   }
   bool
   subquery_type_allows_materialization(const Item *inner,
-                                       const Item *outer) const override
+                                       const Item *outer, bool) const override
   {
     /*
       Example:

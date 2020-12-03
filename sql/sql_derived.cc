@@ -1401,7 +1401,8 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     DBUG_RETURN(false);
 
   st_select_lex_unit *unit= derived->get_unit();
-  st_select_lex *sl= unit->first_select();
+  st_select_lex *first_sl= unit->first_select();
+  st_select_lex *sl= first_sl;
 
   if (derived->prohibit_cond_pushdown)
     DBUG_RETURN(false);
@@ -1460,6 +1461,20 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     if (!extracted_cond_copy)
       continue;
 
+    /*
+      Rename the columns of all non-first selects of a union to be compatible
+      by names with the columns of the first select. It will allow to use copies
+      of the same expression pushed into having clauses of different selects.
+    */
+    if (sl != first_sl)
+    {
+      DBUG_ASSERT(sl->item_list.elements == first_sl->item_list.elements);
+      List_iterator_fast<Item> it(sl->item_list);
+      List_iterator_fast<Item> nm_it(unit->types);
+      while (Item *item= it++)
+        item->share_name_with(nm_it++);
+    }
+
     /* Collect fields that are used in the GROUP BY of sl */
     if (sl->have_window_funcs())
     {
@@ -1480,7 +1495,7 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
                                     &remaining_cond,
                                     &Item::derived_field_transformer_for_where,
                                     (uchar *) sl);
-    
+
     if (!remaining_cond)
       continue;
     /*

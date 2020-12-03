@@ -873,7 +873,7 @@ Wsrep_view Wsrep_schema::restore_view(THD* thd, const Wsrep_id& own_id) const {
       close_thread_tables(thd);
     }
   }
-  thd->mdl_context.release_transactional_locks();
+  thd->release_transactional_locks();
 
   thd->variables.wsrep_sync_wait= wsrep_sync_wait_saved;
 

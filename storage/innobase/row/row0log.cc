@@ -3236,7 +3236,6 @@ row_log_allocate(
 	}
 
 	dict_index_set_online_status(index, ONLINE_INDEX_CREATION);
-	index->online_log = log;
 
 	if (log_tmp_is_encrypted()) {
 		log->crypt_head_size = log->crypt_tail_size = srv_sort_buf_size;
@@ -3251,6 +3250,7 @@ row_log_allocate(
 		}
 	}
 
+	index->online_log = log;
 	/* While we might be holding an exclusive data dictionary lock
 	here, in row_log_abort_sec() we will not always be holding it. Use
 	atomic operations in both cases. */
@@ -3264,7 +3264,7 @@ Free the row log for an index that was being created online. */
 void
 row_log_free(
 /*=========*/
-	row_log_t*&	log)	/*!< in,own: row log */
+	row_log_t*	log)	/*!< in,own: row log */
 {
 	MONITOR_ATOMIC_DEC(MONITOR_ONLINE_CREATE_INDEX);
 
@@ -3284,7 +3284,6 @@ row_log_free(
 
 	mutex_free(&log->mutex);
 	ut_free(log);
-	log = NULL;
 }
 
 /******************************************************//**

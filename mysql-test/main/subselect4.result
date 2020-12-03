@@ -2719,6 +2719,41 @@ SET join_cache_level= @save_join_cache_level;
 DROP TABLE t1,t2,t3,t4;
 # End of 10.2 tests
 #
+# MDEV-21265: IN predicate conversion to IN subquery should be allowed for a broader set of datatype comparison
+#
+CREATE TABLE t1(a VARCHAR(50) collate utf8_general_ci, b INT);
+INSERT INTO t1 VALUES ('abc',1), ('def', 2), ('ghi', 3), ('jkl', 4), ('mno', 5);
+CREATE TABLE t2(a VARCHAR(50) collate utf8mb4_general_ci, b INT);
+INSERT INTO t2 VALUES ('abc',1), ('def', 2), ('ghi', 3), ('jkl', 4), ('mno', 5);
+set @save_in_predicate_conversion_threshold= @@in_predicate_conversion_threshold;
+set in_predicate_conversion_threshold=2;
+set names 'utf8mb4';
+#
+# IN predicate to IN subquery is not allowed as materialization is not allowed
+# The character set on the inner side is not equal to or a proper subset of the outer side
+#
+EXPLAIN
+SELECT * FROM t1 WHERE (t1.a,t1.b) IN (('abx',1),('def',2), ('abc', 3));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+set names 'utf8';
+#
+# IN predicate to IN subquery is performed as materialization is llowed
+# The character set on the inner side is a proper subset of the outer side
+#
+# this test in 10.5 has only 2 rows in the IN predicate
+EXPLAIN
+SELECT * FROM t2 WHERE (t2.a,t2.b) IN (('abc',1), ('def', 2));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	16	func,func	1	Using where
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	2	
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+set names default;
+set @@in_predicate_conversion_threshold= @save_in_predicate_conversion_threshold;
+DROP TABLE t1,t2;
+# End of 10.3 tests
+#
 # MDEV-19134: EXISTS() slower if ORDER BY is defined
 #
 create table t0 (a int);

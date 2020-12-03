@@ -1,4 +1,4 @@
-/* Copyright (c) 2017, MariaDB
+/* Copyright (c) 2017, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -861,7 +861,8 @@ static bool cmp_row_types(Item* item1, Item* item2)
     Item *inner= item1->element_index(i);
     Item *outer= item2->element_index(i);
     if (!inner->type_handler()->subquery_type_allows_materialization(inner,
-                                                                     outer))
+                                                                     outer,
+                                                                     true))
       return true;
   }
   return false;
@@ -941,8 +942,8 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
       trace_conv.add("reason", "non-constant element in the IN-list");
       return this;
     }
-    
-    if (cmp_row_types(args[0], args[i]))
+
+    if (cmp_row_types(args[i], args[0]))
     {
       trace_conv.add("done", false);
       trace_conv.add("reason", "type mismatch");
@@ -1027,6 +1028,7 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   if (!(in_subs=
           new (thd->mem_root) Item_in_subselect(thd, args[0], sq_select)))
     goto err;
+  in_subs->converted_from_in_predicate= TRUE;
   sq= in_subs;
   if (negated)
     sq= negate_expression(thd, in_subs);

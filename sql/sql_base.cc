@@ -9040,9 +9040,12 @@ void
 close_mysql_tables(THD *thd)
 {
   if (! thd->in_sub_stmt)
+  {
     trans_commit_stmt(thd);
+    trans_commit(thd);
+  }
   close_thread_tables(thd);
-  thd->mdl_context.release_transactional_locks();
+  thd->release_transactional_locks();
 }
 
 /*

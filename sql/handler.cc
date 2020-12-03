@@ -3514,7 +3514,6 @@ int handler::update_auto_increment()
   THD *thd= table->in_use;
   struct system_variables *variables= &thd->variables;
   int result=0, tmp;
-  enum enum_check_fields save_count_cuted_fields;
   DBUG_ENTER("handler::update_auto_increment");
 
   /*
@@ -3656,10 +3655,10 @@ int handler::update_auto_increment()
                      nr, append ? nb_reserved_values : 0));
 
   /* Store field without warning (Warning will be printed by insert) */
-  save_count_cuted_fields= thd->count_cuted_fields;
-  thd->count_cuted_fields= CHECK_FIELD_IGNORE;
-  tmp= table->next_number_field->store((longlong)nr, TRUE);
-  thd->count_cuted_fields= save_count_cuted_fields;
+  {
+    Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
+    tmp= table->next_number_field->store((longlong)nr, TRUE);
+  }
 
   if (unlikely(tmp))                            // Out of range value in store
   {

@@ -414,6 +414,7 @@ INSERT INTO t1 VALUES (1,2);
 CREATE TABLE x AS SELECT * FROM t1;
 --connect (con1,localhost,root,,test)
 SET foreign_key_checks= OFF, innodb_lock_wait_timeout= 1;
+SET lock_wait_timeout=5;
 --error ER_LOCK_WAIT_TIMEOUT
 ALTER TABLE t1 ADD FOREIGN KEY f (a) REFERENCES t1 (pk), LOCK=EXCLUSIVE;# Cleanup
 --disconnect con1

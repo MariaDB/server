@@ -174,7 +174,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
 #if defined(HAVE_valgrind) && defined(EXTRA_DEBUG)
   reg1 USED_MEM *next;
   DBUG_ENTER("alloc_root");
-  DBUG_PRINT("enter",("root: %p  name: %s", mem_root, root_name(mem_root)));
+  DBUG_PRINT("enter",("root: %p", mem_root));
 
   DBUG_ASSERT(alloc_root_inited(mem_root));
 
@@ -208,7 +208,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
   reg2 USED_MEM **prev;
   size_t original_length __attribute__((unused)) = length;
   DBUG_ENTER("alloc_root");
-  DBUG_PRINT("enter",("root: %p  name: %s", mem_root, root_name(mem_root)));
+  DBUG_PRINT("enter",("root: %p", mem_root));
   DBUG_ASSERT(alloc_root_inited(mem_root));
 
   DBUG_EXECUTE_IF("simulate_out_of_memory",
@@ -387,8 +387,7 @@ void free_root(MEM_ROOT *root, myf MyFlags)
 {
   reg1 USED_MEM *next,*old;
   DBUG_ENTER("free_root");
-  DBUG_PRINT("enter",("root: %p  name: %s  flags: %u", root, root_name(root),
-                      (uint) MyFlags));
+  DBUG_PRINT("enter",("root: %p  flags: %lu", root, MyFlags));
 
 #if !(defined(HAVE_valgrind) && defined(EXTRA_DEBUG))
   /*

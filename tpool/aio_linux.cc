@@ -23,7 +23,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 # include <sys/syscall.h>
 
 /**
-  Invoke the io_getevents() system call.
+  Invoke the io_getevents() system call, without timeout parameter.
 
   @param ctx     context from io_setup()
   @param min_nr  minimum number of completion events to wait for
@@ -37,7 +37,25 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 
   The libaio code for dereferencing ctx would occasionally trigger
   SIGSEGV if io_destroy() was concurrently invoked from another thread.
-  Hence, we use the raw system call.
+  Hence, we have to use the raw system call.
+
+  WHY are we doing this at all?
+  Because we want io_destroy() from another thread to interrupt io_getevents().
+
+  And, WHY do we want io_destroy() from another thread to interrupt
+  io_getevents()?
+
+  Because there is no documented, libaio-friendly and race-condition-free way to
+  interrupt io_getevents(). io_destroy() coupled with raw syscall seemed to work
+  for us so far.
+
+  Historical note : in the past, we used io_getevents with timeouts. We'd wake
+  up periodically, check for shutdown flag, return from the main routine.
+  This was admittedly safer, yet it did cost periodic wakeups, which we are not
+  willing to do anymore.
+
+  @note we also rely on the undocumented property, that io_destroy(ctx)
+  will make this version of io_getevents return EINVAL.
 */
 static int my_getevents(io_context_t ctx, long min_nr, long nr, io_event *ev)
 {
@@ -77,10 +95,12 @@ class aio_linux final : public aio
 
   static void getevent_thread_routine(aio_linux *aio)
   {
-    /* We collect this many events at a time. os_aio_init() would
-    multiply OS_AIO_N_PENDING_THREADS by the number of read and write threads
-    and ultimately pass it to io_setup() via thread_pool::configure_aio(). */
+    /*
+      We collect events in small batches to hopefully reduce the
+      number of system calls.
+    */
     constexpr unsigned MAX_EVENTS= 256;
+
     io_event events[MAX_EVENTS];
     for (;;)
     {

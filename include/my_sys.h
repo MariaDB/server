@@ -877,7 +877,6 @@ extern void my_free_lock(void *ptr);
 #define my_malloc_lock(A,B) my_malloc(PSI_INSTRUMENT_ME, (A),(B))
 #define my_free_lock(A) my_free((A))
 #endif
-#define root_name(A) ""
 #define alloc_root_inited(A) ((A)->min_malloc != 0)
 #define ALLOC_ROOT_MIN_BLOCK_SIZE (MALLOC_OVERHEAD + sizeof(USED_MEM) + 8)
 #define clear_alloc_root(A) do { (A)->free= (A)->used= (A)->pre_alloc= 0; (A)->min_malloc=0;} while(0)

@@ -904,7 +904,7 @@ inline std::pair<lsn_t,bool> mtr_t::finish_write(ulint len)
 	return std::make_pair(start_lsn, flush);
 }
 
-/** Find out whether a block was X-latched by the mini-transaction */
+/** Find out whether a block was not X-latched by the mini-transaction */
 struct FindBlockX
 {
   const buf_block_t &block;
@@ -914,7 +914,7 @@ struct FindBlockX
   /** @return whether the block was not found x-latched */
   bool operator()(const mtr_memo_slot_t *slot) const
   {
-    return slot->object != &block || slot->type == MTR_MEMO_PAGE_X_FIX;
+    return slot->object != &block || slot->type != MTR_MEMO_PAGE_X_FIX;
   }
 };
 

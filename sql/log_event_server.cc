@@ -2987,10 +2987,10 @@ error:
   if (thd->transaction_rollback_request)
   {
     trans_rollback_implicit(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
   }
   else if (! thd->in_multi_stmt_transaction_mode())
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
   else
     thd->mdl_context.release_statement_locks();
 
@@ -4038,7 +4038,7 @@ int Xid_log_event::do_commit()
 {
   bool res;
   res= trans_commit(thd); /* Automatically rolls back on error. */
-  thd->mdl_context.release_transactional_locks();
+  thd->release_transactional_locks();
   return res;
 }
 #endif
@@ -4087,10 +4087,7 @@ int XA_prepare_log_event::do_commit()
     res= trans_xa_prepare(thd);
   }
   else
-  {
     res= trans_xa_commit(thd);
-    thd->mdl_context.release_transactional_locks();
-  }
 
   return res;
 }

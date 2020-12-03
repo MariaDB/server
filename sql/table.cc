@@ -8741,7 +8741,7 @@ int TABLE::period_make_insert(Item *src, Field *dst)
 {
   THD *thd= in_use;
 
-  file->store_auto_increment();
+  ulonglong prev_insert_id= file->next_insert_id;
   store_record(this, record[1]);
   int res= src->save_in_field(dst, true);
 
@@ -8761,7 +8761,7 @@ int TABLE::period_make_insert(Item *src, Field *dst)
 
   restore_record(this, record[1]);
   if (res)
-    file->restore_auto_increment();
+    file->restore_auto_increment(prev_insert_id);
   return res;
 }
 

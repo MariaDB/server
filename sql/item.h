@@ -973,6 +973,13 @@ public:
   void set_name_no_truncate(THD *thd, const char *str, uint length,
                             CHARSET_INFO *cs);
   void init_make_send_field(Send_field *tmp_field, const Type_handler *h);
+  void share_name_with(const Item *item)
+  {
+    name= item->name;
+    common_flags= static_cast<uint8>
+     ((common_flags & ~IS_AUTO_GENERATED_NAME) |
+      (item->common_flags & IS_AUTO_GENERATED_NAME));
+  }
   virtual void cleanup();
   virtual void make_send_field(THD *thd, Send_field *field);
 

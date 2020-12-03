@@ -151,7 +151,7 @@ bool trans_begin(THD *thd, uint flags)
     Release transactional metadata locks only after the
     transaction has been committed.
   */
-  thd->mdl_context.release_transactional_locks();
+  thd->release_transactional_locks();
 
   // The RO/RW options are mutually exclusive.
   DBUG_ASSERT(!((flags & MYSQL_START_TRANS_OPT_READ_ONLY) &&
