@@ -375,7 +375,7 @@ ibuf_close(void)
 	mutex_free(&ibuf_bitmap_mutex);
 
 	dict_table_t*	ibuf_table = ibuf.index->table;
-	rw_lock_free(&ibuf.index->lock);
+	ibuf.index->lock.free();
 	dict_mem_index_free(ibuf.index);
 	dict_mem_table_free(ibuf_table);
 	ibuf.index = NULL;
@@ -477,8 +477,7 @@ ibuf_init_at_db_start(void)
 		DICT_CLUSTERED | DICT_IBUF, 1);
 	ibuf.index->id = DICT_IBUF_ID_MIN + IBUF_SPACE_ID;
 	ibuf.index->n_uniq = REC_MAX_N_FIELDS;
-	rw_lock_create(index_tree_rw_lock_key, &ibuf.index->lock,
-		       SYNC_IBUF_INDEX_TREE);
+	ibuf.index->lock.SRW_LOCK_INIT(index_tree_rw_lock_key);
 #ifdef BTR_CUR_ADAPT
 	ibuf.index->search_info = btr_search_info_create(ibuf.index->heap);
 #endif /* BTR_CUR_ADAPT */
@@ -1856,7 +1855,7 @@ static bool ibuf_add_free_page()
 		return false;
 	}
 
-	ut_ad(rw_lock_get_x_lock_count(&block->lock) == 1);
+	ut_ad(block->lock.not_recursive());
 	ibuf_enter(&mtr);
 	mutex_enter(&ibuf_mutex);
 
@@ -1986,7 +1985,7 @@ ibuf_remove_free_page(void)
 	ibuf_bitmap_page_set_bits<IBUF_BITMAP_IBUF>(
 		bitmap_page, page_id, srv_page_size, false, &mtr);
 
-	buf_page_free(page_id, &mtr, __FILE__, __LINE__);
+	buf_page_free(page_id, &mtr);
 
 	ibuf_mtr_commit(&mtr);
 }
@@ -4243,7 +4242,7 @@ void ibuf_merge_or_delete_for_page(buf_block_t *block, const page_id_t page_id,
 		is needed for the insert operations to the index page to pass
 		the debug checks. */
 
-		rw_lock_x_lock_move_ownership(&(block->lock));
+		block->lock.claim_ownership();
 
 		if (!fil_page_index_page_check(block->frame)
 		    || !page_is_leaf(block->frame)) {
@@ -4276,9 +4275,8 @@ loop:
 		&pcur, &mtr);
 
 	if (block) {
-		ut_ad(rw_lock_own(&block->lock, RW_LOCK_X));
-		buf_block_buf_fix_inc(block, __FILE__, __LINE__);
-		rw_lock_x_lock(&block->lock);
+		buf_block_buf_fix_inc(block);
+		block->lock.x_lock_recursive();
 
 		mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
 		/* This is a user page (secondary index leaf page),
@@ -4395,10 +4393,8 @@ loop:
 				ibuf_mtr_start(&mtr);
 				mtr.set_named_space(space);
 
-				ut_ad(rw_lock_own(&block->lock, RW_LOCK_X));
-				buf_block_buf_fix_inc(block,
-						      __FILE__, __LINE__);
-				rw_lock_x_lock(&block->lock);
+				buf_block_buf_fix_inc(block);
+				block->lock.x_lock_recursive();
 				mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
 
 				/* This is a user page (secondary

@@ -268,7 +268,6 @@ enum latch_id_t {
 	LATCH_ID_RTR_ACTIVE_MUTEX,
 	LATCH_ID_RTR_MATCH_MUTEX,
 	LATCH_ID_RTR_PATH_MUTEX,
-	LATCH_ID_RW_LOCK_LIST,
 	LATCH_ID_SRV_INNODB_MONITOR,
 	LATCH_ID_SRV_MISC_TMPFILE,
 	LATCH_ID_SRV_MONITOR_FILE,
@@ -926,7 +925,7 @@ struct latch_t {
 	/** Latch ID */
 	latch_id_t	m_id;
 
-	/** true if it is a rw-lock. In debug mode, rw_lock_t derives from
+	/** true if it is a rw-lock. In debug mode, sux_lock derives from
 	this class and sets this variable. */
 	bool		m_rw_lock;
 };
@@ -1001,16 +1000,6 @@ private:
 @return LATCH_ID_NONE. */
 latch_id_t
 sync_latch_get_id(const char* name);
-
-typedef ulint rw_lock_flags_t;
-
-/* Flags to specify lock types for rw_lock_own_flagged() */
-enum rw_lock_flag_t {
-	RW_LOCK_FLAG_S  = 1 << 0,
-	RW_LOCK_FLAG_X  = 1 << 1,
-	RW_LOCK_FLAG_SX = 1 << 2
-};
-
 #endif /* UNIV_DBEUG */
 
 #endif /* UNIV_INNOCHECKSUM */

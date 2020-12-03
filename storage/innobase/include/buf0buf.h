@@ -362,13 +362,8 @@ void buf_page_make_young(buf_page_t *bpage);
 /** Mark the page status as FREED for the given tablespace id and
 page number. If the page is not in buffer pool then ignore it.
 @param[in]	page_id	page_id
-@param[in,out]	mtr	mini-transaction
-@param[in]	file	file name
-@param[in]	line	line where called */
-void buf_page_free(const page_id_t page_id,
-                   mtr_t *mtr,
-                   const char *file,
-                   unsigned line);
+@param[in,out]	mtr	mini-transaction */
+void buf_page_free(const page_id_t page_id, mtr_t *mtr);
 
 /********************************************************************//**
 Reads the freed_page_clock of a buffer block.
@@ -433,30 +428,11 @@ buf_block_get_modify_clock(
 	buf_block_t*	block);	/*!< in: block */
 /*******************************************************************//**
 Increments the bufferfix count. */
-UNIV_INLINE
-void
-buf_block_buf_fix_inc_func(
-/*=======================*/
-# ifdef UNIV_DEBUG
-	const char*	file,	/*!< in: file name */
-	unsigned	line,	/*!< in: line */
-# endif /* UNIV_DEBUG */
-	buf_block_t*	block)	/*!< in/out: block to bufferfix */
-	MY_ATTRIBUTE((nonnull));
+# define buf_block_buf_fix_inc(block) (block)->fix()
 
-# ifdef UNIV_DEBUG
-/** Increments the bufferfix count.
-@param[in,out]	b	block to bufferfix
-@param[in]	f	file name where requested
-@param[in]	l	line number where requested */
-#  define buf_block_buf_fix_inc(b,f,l) buf_block_buf_fix_inc_func(f,l,b)
-# else /* UNIV_DEBUG */
-/** Increments the bufferfix count.
-@param[in,out]	b	block to bufferfix
-@param[in]	f	file name where requested
-@param[in]	l	line number where requested */
-#  define buf_block_buf_fix_inc(b,f,l) buf_block_buf_fix_inc_func(b)
-# endif /* UNIV_DEBUG */
+/*******************************************************************//**
+Decrements the bufferfix count. */
+# define buf_block_buf_fix_dec(block) (block)->unfix()
 #endif /* !UNIV_INNOCHECKSUM */
 
 /** Check if a buffer is all zeroes.
@@ -631,21 +607,7 @@ void buf_pool_invalidate();
 --------------------------- LOWER LEVEL ROUTINES -------------------------
 =========================================================================*/
 
-#ifdef UNIV_DEBUG
-/*********************************************************************//**
-Adds latch level info for the rw-lock protecting the buffer frame. This
-should be called in the debug version after a successful latching of a
-page if we know the latching order level of the acquired latch. */
-UNIV_INLINE
-void
-buf_block_dbg_add_level(
-/*====================*/
-	buf_block_t*	block,	/*!< in: buffer page
-				where we have acquired latch */
-	latch_level_t	level);	/*!< in: latching order level */
-#else /* UNIV_DEBUG */
-# define buf_block_dbg_add_level(block, level) /* nothing */
-#endif /* UNIV_DEBUG */
+#define buf_block_dbg_add_level(block, level) do {} while (0)
 
 #ifdef UNIV_DEBUG
 /*********************************************************************//**
@@ -1036,8 +998,8 @@ struct buf_block_t{
 					is of size srv_page_size, and
 					aligned to an address divisible by
 					srv_page_size */
-	rw_lock_t	lock;		/*!< read-write lock of the buffer
-					frame */
+  /** read-write lock covering frame */
+  block_lock lock;
 #ifdef UNIV_DEBUG
   /** whether page.list is in buf_pool.withdraw
   ((state() == BUF_BLOCK_NOT_USED)) and the buffer pool is being shrunk;
@@ -1161,22 +1123,12 @@ struct buf_block_t{
 # define assert_block_ahi_empty_on_init(block) /* nothing */
 # define assert_block_ahi_valid(block) /* nothing */
 #endif /* BTR_CUR_HASH_ADAPT */
-# ifdef UNIV_DEBUG
-	/** @name Debug fields */
-	/* @{ */
-	rw_lock_t*	debug_latch;	/*!< in the debug version, each thread
-					which bufferfixes the block acquires
-					an s-latch here; so we can use the
-					debug utilities in sync0rw */
-	/* @} */
-# endif
   void fix() { page.fix(); }
   uint32_t unfix()
   {
     ut_ad(page.buf_fix_count() || page.io_fix() != BUF_IO_NONE ||
           page.state() == BUF_BLOCK_ZIP_PAGE ||
-          !rw_lock_own_flagged(&lock, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S |
-                               RW_LOCK_FLAG_SX));
+          !lock.have_any());
     return page.unfix();
   }
 
@@ -1395,6 +1347,22 @@ class buf_pool_t
     @return whether the allocation succeeded */
     inline bool create(size_t bytes);
 
+    /** Compute the sum of buf_block_t::lock::waited()
+    @param total_waited sum of buf_block_t::lock::waited() */
+    void waited(uint64_t &total_waited) const
+    {
+      for (const buf_block_t *block= blocks, * const end= blocks + size;
+           block != end; block++)
+        total_waited+= block->lock.waited();
+    }
+    /** Invoke buf_block_t::lock::reset_waited() on all blocks */
+    void reset_waited()
+    {
+      for (buf_block_t *block= blocks, * const end= blocks + size;
+           block != end; block++)
+        block->lock.reset_waited();
+    }
+
 #ifdef UNIV_DEBUG
     /** Find a block that points to a ROW_FORMAT=COMPRESSED page
     @param data  pointer to the start of a ROW_FORMAT=COMPRESSED page frame
@@ -1472,6 +1440,30 @@ public:
     return size;
   }
 
+  /** @return sum of buf_block_t::lock::waited() */
+  uint64_t waited()
+  {
+    ut_ad(is_initialised());
+    uint64_t waited_count= 0;
+    page_hash.read_lock_all(); /* prevent any race with resize() */
+    for (const chunk_t *chunk= chunks, * const end= chunks + n_chunks;
+         chunk != end; chunk++)
+      chunks->waited(waited_count);
+    page_hash.read_unlock_all();
+    return waited_count;
+  }
+
+  /** Invoke buf_block_t::lock::reset_waited() on all blocks */
+  void reset_waited()
+  {
+    ut_ad(is_initialised());
+    page_hash.read_lock_all(); /* prevent any race with resize() */
+    for (const chunk_t *chunk= chunks, * const end= chunks + n_chunks;
+         chunk != end; chunk++)
+      chunks->reset_waited();
+    page_hash.read_unlock_all();
+  }
+
   /** Determine whether a frame is intended to be withdrawn during resize().
   @param ptr    pointer within a buf_block_t::frame
   @return whether the frame will be withdrawn */
@@ -1479,7 +1471,7 @@ public:
   {
     ut_ad(curr_size < old_size);
 #ifdef SAFE_MUTEX
-    if (resizing.load(std::memory_order_relaxed))
+    if (resize_in_progress())
       mysql_mutex_assert_owner(&mutex);
 #endif /* SAFE_MUTEX */
 
@@ -1499,7 +1491,7 @@ public:
   {
     ut_ad(curr_size < old_size);
 #ifdef SAFE_MUTEX
-    if (resizing.load(std::memory_order_relaxed))
+    if (resize_in_progress())
       mysql_mutex_assert_owner(&mutex);
 #endif /* SAFE_MUTEX */
 
@@ -1548,9 +1540,6 @@ public:
   @return pointer to block, never NULL */
   inline buf_block_t *block_from_ahi(const byte *ptr) const;
 #endif /* BTR_CUR_HASH_ADAPT */
-
-  bool is_block_lock(const rw_lock_t *l) const
-  { return is_block_field(static_cast<const void*>(l)); }
 
   /**
   @return the smallest oldest_modification lsn for any page
@@ -1876,6 +1865,28 @@ public:
       }
     }
 
+    /** Acquire all latches in shared mode */
+    void read_lock_all()
+    {
+      for (auto n= pad(n_cells) & ~ELEMENTS_PER_LATCH;;
+           n-= ELEMENTS_PER_LATCH + 1)
+      {
+        reinterpret_cast<page_hash_latch&>(array[n]).read_lock();
+        if (!n)
+          break;
+      }
+    }
+    /** Release all latches in shared mode */
+    void read_unlock_all()
+    {
+      for (auto n= pad(n_cells) & ~ELEMENTS_PER_LATCH;;
+           n-= ELEMENTS_PER_LATCH + 1)
+      {
+        reinterpret_cast<page_hash_latch&>(array[n]).read_unlock();
+        if (!n)
+          break;
+      }
+    }
     /** Exclusively aqcuire all latches */
     inline void write_lock_all();
 

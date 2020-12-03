@@ -39,14 +39,14 @@ ORDER BY event_name;
 event_name
 wait/synch/rwlock/innodb/dict_operation_lock
 wait/synch/rwlock/innodb/fil_space_latch
-select operation from performance_schema.events_waits_history_long
-where event_name like "wait/synch/sxlock/%"
-  and operation = "shared_lock" limit 1;
-operation
-shared_lock
-select operation from performance_schema.events_waits_history_long
-where event_name like "wait/synch/sxlock/%"
-  and operation = "exclusive_lock" limit 1;
-operation
-exclusive_lock
+SELECT event_name FROM performance_schema.events_waits_history_long
+WHERE event_name = 'wait/synch/sxlock/innodb/index_tree_rw_lock'
+AND operation IN ('try_shared_lock','shared_lock') LIMIT 1;
+event_name
+wait/synch/sxlock/innodb/index_tree_rw_lock
+SELECT event_name from performance_schema.events_waits_history_long
+WHERE event_name = 'wait/synch/sxlock/innodb/index_tree_rw_lock'
+AND operation IN ('try_exclusive_lock','exclusive_lock') LIMIT 1;
+event_name
+wait/synch/sxlock/innodb/index_tree_rw_lock
 UPDATE performance_schema.setup_instruments SET enabled = 'YES', timed = 'YES';

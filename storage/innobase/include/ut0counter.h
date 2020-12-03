@@ -111,8 +111,7 @@ private:
 	because ib_counter_t is only intended for usage with global
 	memory that is allocated from the .bss and thus guaranteed to
 	be zero-initialized by the run-time environment.
-	@see srv_stats
-	@see rw_lock_stats */
+	@see srv_stats */
 	struct ib_counter_element_t {
 		MY_ALIGNED(CACHE_LINE_SIZE) std::atomic<Type> value;
 	};

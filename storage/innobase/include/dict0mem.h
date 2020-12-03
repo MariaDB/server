@@ -35,7 +35,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "btr0types.h"
 #include "lock0types.h"
 #include "que0types.h"
-#include "sync0rw.h"
+#include "sux_lock.h"
 #include "ut0mem.h"
 #include "ut0rnd.h"
 #include "ut0byte.h"
@@ -1116,8 +1116,8 @@ public:
 				when InnoDB was started up */
 	zip_pad_info_t	zip_pad;/*!< Information about state of
 				compression failures and successes */
-	mutable rw_lock_t	lock;	/*!< read-write lock protecting the
-				upper levels of the index tree */
+  /** lock protecting the non-leaf index pages */
+  mutable index_lock lock;
 
 	/** Determine if the index has been committed to the
 	data dictionary.

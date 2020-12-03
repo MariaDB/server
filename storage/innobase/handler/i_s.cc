@@ -6885,26 +6885,15 @@ namespace Show {
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_MUTEXES */
 static ST_FIELD_INFO	innodb_mutexes_fields_info[] =
 {
-#define MUTEXES_NAME			0
   Column("NAME", Varchar(OS_FILE_MAX_PATH), NOT_NULL),
-
-#define MUTEXES_CREATE_FILE		1
-  Column("CREATE_FILE", Varchar(OS_FILE_MAX_PATH), NOT_NULL),
-
-#define MUTEXES_CREATE_LINE		2
-  Column("CREATE_LINE", ULong(), NOT_NULL),
-
-#define MUTEXES_OS_WAITS		3
   Column("OS_WAITS", ULonglong(), NOT_NULL),
-
   CEnd()
 };
 } // namespace Show
 
 /*******************************************************************//**
 Function to populate INFORMATION_SCHEMA.INNODB_MUTEXES table.
-Loop through each record in mutex and rw_lock lists, and extract the column
-information and fill the INFORMATION_SCHEMA.INNODB_MUTEXES table.
+@see innodb_show_rwlock_status
 @return 0 on success */
 static
 int
@@ -6914,76 +6903,34 @@ i_s_innodb_mutexes_fill_table(
 	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
 	Item*		)	/*!< in: condition (not used) */
 {
-	ulint		block_lock_oswait_count = 0;
-	const rw_lock_t* block_lock= nullptr;
-	Field**		fields = tables->table->field;
+  DBUG_ENTER("i_s_innodb_mutexes_fill_table");
+  RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
-	DBUG_ENTER("i_s_innodb_mutexes_fill_table");
-	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
+  if (check_global_access(thd, PROCESS_ACL))
+    DBUG_RETURN(0);
 
-	/* deny access to user without PROCESS_ACL privilege */
-	if (check_global_access(thd, PROCESS_ACL)) {
-		DBUG_RETURN(0);
-	} else {
-		struct Locking
-		{
-			Locking() { mutex_enter(&rw_lock_list_mutex); }
-			~Locking() { mutex_exit(&rw_lock_list_mutex); }
-		} locking;
+  Field **fields= tables->table->field;
+  OK(fields[0]->store(STRING_WITH_LEN("buf_block_t::lock"),
+                      system_charset_info));
+  OK(fields[1]->store(buf_pool.waited(), true));
+  fields[0]->set_notnull();
+  fields[1]->set_notnull();
 
-		char lock_name[sizeof "buf0dump.cc:12345"];
+  OK(schema_table_store_record(thd, tables->table));
 
-		for (const rw_lock_t& lock : rw_lock_list) {
-			if (lock.count_os_wait == 0) {
-				continue;
-			}
-
-			if (buf_pool.is_block_lock(&lock)) {
-				block_lock = &lock;
-				block_lock_oswait_count += lock.count_os_wait;
-				continue;
-			}
-
-			const char* basename = innobase_basename(
-				lock.cfile_name);
-
-			snprintf(lock_name, sizeof lock_name, "%s:%u",
-				 basename, lock.cline);
-
-			OK(field_store_string(fields[MUTEXES_NAME],
-					      lock_name));
-			OK(field_store_string(fields[MUTEXES_CREATE_FILE],
-					      basename));
-			OK(fields[MUTEXES_CREATE_LINE]->store(lock.cline,
-							      true));
-			fields[MUTEXES_CREATE_LINE]->set_notnull();
-			OK(fields[MUTEXES_OS_WAITS]->store(lock.count_os_wait,
-							   true));
-			fields[MUTEXES_OS_WAITS]->set_notnull();
-			OK(schema_table_store_record(thd, tables->table));
-		}
-
-		if (block_lock) {
-			char buf1[IO_SIZE];
-
-			snprintf(buf1, sizeof buf1, "combined %s",
-				 innobase_basename(block_lock->cfile_name));
-
-			OK(field_store_string(fields[MUTEXES_NAME],
-					      "buf_block_t::lock"));
-			OK(field_store_string(fields[MUTEXES_CREATE_FILE],
-					      buf1));
-			OK(fields[MUTEXES_CREATE_LINE]->store(block_lock->cline,
-							      true));
-			fields[MUTEXES_CREATE_LINE]->set_notnull();
-			OK(fields[MUTEXES_OS_WAITS]->store(
-				   block_lock_oswait_count, true));
-			fields[MUTEXES_OS_WAITS]->set_notnull();
-			OK(schema_table_store_record(thd, tables->table));
-		}
-	}
-
-	DBUG_RETURN(0);
+  DBUG_RETURN(!dict_sys.for_each_index([&](const dict_index_t &i)
+  {
+    uint32_t waited= i.lock.waited();
+    if (!waited)
+      return true;
+    if (fields[1]->store(waited, true))
+      return false;
+    std::ostringstream s;
+    s << i.name << '(' << i.table->name << ')';
+    return !fields[0]->store(s.str().data(), s.str().size(),
+                             system_charset_info) &&
+           !schema_table_store_record(thd, tables->table);
+  }));
 }
 
 /*******************************************************************//**

@@ -442,21 +442,19 @@ row_purge_remove_sec_if_poss_leaf(
 
 	/* Set the purge node for the call to row_purge_poss_sec(). */
 	pcur.btr_cur.purge_node = node;
-	if (dict_index_is_spatial(index)) {
-		rw_lock_sx_lock(dict_index_get_lock(index));
+	if (index->is_spatial()) {
 		pcur.btr_cur.thr = NULL;
+		index->lock.u_lock(SRW_LOCK_CALL);
+		search_result = row_search_index_entry(
+			index, entry, mode, &pcur, &mtr);
+		index->lock.u_unlock();
 	} else {
 		/* Set the query thread, so that ibuf_insert_low() will be
 		able to invoke thd_get_trx(). */
 		pcur.btr_cur.thr = static_cast<que_thr_t*>(
 			que_node_get_parent(node));
-	}
-
-	search_result = row_search_index_entry(
-		index, entry, mode, &pcur, &mtr);
-
-	if (dict_index_is_spatial(index)) {
-		rw_lock_sx_unlock(dict_index_get_lock(index));
+		search_result = row_search_index_entry(
+			index, entry, mode, &pcur, &mtr);
 	}
 
 	switch (search_result) {

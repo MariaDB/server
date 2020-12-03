@@ -207,7 +207,7 @@ ATTRIBUTE_COLD static void btr_search_lazy_free(dict_index_t *index)
   dict_table_t *table= index->table;
   /* Perform the skipped steps of dict_index_remove_from_cache_low(). */
   UT_LIST_REMOVE(table->freed_indexes, index);
-  rw_lock_free(&index->lock);
+  index->lock.free();
   dict_mem_index_free(index);
 
   if (!UT_LIST_GET_LEN(table->freed_indexes) &&
@@ -406,8 +406,7 @@ static
 bool
 btr_search_update_block_hash_info(btr_search_t* info, buf_block_t* block)
 {
-	ut_ad(rw_lock_own_flagged(&block->lock,
-				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
+	ut_ad(block->lock.have_x() || block->lock.have_s());
 
 	info->last_hash_succ = FALSE;
 	ut_d(auto state= block->page.state());
@@ -695,8 +694,7 @@ btr_search_update_hash_ref(
 {
 	ut_ad(cursor->flag == BTR_CUR_HASH_FAIL);
 
-	ut_ad(rw_lock_own_flagged(&block->lock,
-				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
+	ut_ad(block->lock.have_x() || block->lock.have_s());
 	ut_ad(page_align(btr_cur_get_rec(cursor)) == block->frame);
 	ut_ad(page_is_leaf(block->frame));
 	assert_block_ahi_valid(block);
@@ -1097,23 +1095,21 @@ fail:
 		ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
 		DBUG_ASSERT(fail || block->page.status != buf_page_t::FREED);
 
-		buf_block_buf_fix_inc(block, __FILE__, __LINE__);
+		buf_block_buf_fix_inc(block);
 		hash_lock->read_unlock();
 		block->page.set_accessed();
 
 		buf_page_make_young_if_needed(&block->page);
 		mtr_memo_type_t	fix_type;
 		if (latch_mode == BTR_SEARCH_LEAF) {
-			if (!rw_lock_s_lock_nowait(&block->lock,
-						   __FILE__, __LINE__)) {
+			if (!block->lock.s_lock_try()) {
 got_no_latch:
 				buf_block_buf_fix_dec(block);
 				goto fail;
 			}
 			fix_type = MTR_MEMO_PAGE_S_FIX;
 		} else {
-			if (!rw_lock_x_lock_func_nowait_inline(
-				    &block->lock, __FILE__, __LINE__)) {
+			if (!block->lock.x_lock_try()) {
 				goto got_no_latch;
 			}
 			fix_type = MTR_MEMO_PAGE_X_FIX;
@@ -1251,9 +1247,7 @@ retry:
 
 	ut_ad(!block->page.buf_fix_count()
 	      || block->page.state() == BUF_BLOCK_REMOVE_HASH
-	      || rw_lock_own_flagged(&block->lock,
-				     RW_LOCK_FLAG_X | RW_LOCK_FLAG_S
-				     | RW_LOCK_FLAG_SX));
+	      || block->lock.have_any());
 	ut_ad(page_is_leaf(block->frame));
 
 	/* We must not dereference block->index here, because it could be freed
@@ -1423,7 +1417,7 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id)
 			/* In all our callers, the table handle should
 			be open, or we should be in the process of
 			dropping the table (preventing eviction). */
-			ut_ad(index->table->get_ref_count() > 0
+			ut_ad(block->index->table->get_ref_count() > 0
 			      || mutex_own(&dict_sys.mutex));
 			btr_search_drop_page_hash_index(block);
 		}
@@ -1478,8 +1472,7 @@ btr_search_build_page_hash_index(
 	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(page_is_leaf(block->frame));
 
-	ut_ad(rw_lock_own_flagged(&block->lock,
-				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
+	ut_ad(block->lock.have_x() || block->lock.have_s());
 	ut_ad(block->page.id().page_no() >= 3);
 
 	ahi_latch->rd_lock(SRW_LOCK_CALL);
@@ -1701,8 +1694,8 @@ btr_search_move_or_delete_hash_entries(
 	buf_block_t*	new_block,
 	buf_block_t*	block)
 {
-	ut_ad(rw_lock_own(&(block->lock), RW_LOCK_X));
-	ut_ad(rw_lock_own(&(new_block->lock), RW_LOCK_X));
+	ut_ad(block->lock.have_x());
+	ut_ad(new_block->lock.have_x());
 
 	if (!btr_search_enabled) {
 		return;
@@ -1781,7 +1774,7 @@ void btr_search_update_hash_on_delete(btr_cur_t* cursor)
 
 	block = btr_cur_get_block(cursor);
 
-	ut_ad(rw_lock_own(&(block->lock), RW_LOCK_X));
+	ut_ad(block->lock.have_x());
 
 	assert_block_ahi_valid(block);
 	index = block->index;
@@ -1850,7 +1843,7 @@ void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
 
 	block = btr_cur_get_block(cursor);
 
-	ut_ad(rw_lock_own(&(block->lock), RW_LOCK_X));
+	ut_ad(block->lock.have_x());
 
 	index = block->index;
 
@@ -1927,7 +1920,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor,
 
 	block = btr_cur_get_block(cursor);
 
-	ut_ad(rw_lock_own(&(block->lock), RW_LOCK_X));
+	ut_ad(block->lock.have_x());
 	assert_block_ahi_valid(block);
 
 	index = block->index;

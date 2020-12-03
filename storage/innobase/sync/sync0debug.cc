@@ -1235,9 +1235,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(RTR_PATH_MUTEX, SYNC_ANY_LATCH, rtr_path_mutex_key);
 
-	LATCH_ADD_MUTEX(RW_LOCK_LIST, SYNC_NO_ORDER_CHECK,
-			rw_lock_list_mutex_key);
-
 	LATCH_ADD_MUTEX(SRV_INNODB_MONITOR, SYNC_NO_ORDER_CHECK,
 			srv_innodb_monitor_mutex_key);
 
@@ -1354,10 +1351,6 @@ sync_check_init()
 
 	sync_latch_meta_init();
 
-	/* create the mutex to protect rw_lock list. */
-
-	mutex_create(LATCH_ID_RW_LOCK_LIST, &rw_lock_list_mutex);
-
 	ut_d(LatchDebug::init());
 
 	sync_array_init();
@@ -1371,10 +1364,7 @@ sync_check_close()
 {
 	ut_d(LatchDebug::shutdown());
 
-	mutex_free(&rw_lock_list_mutex);
-
 	sync_array_close();
 
 	sync_latch_meta_destroy();
 }
-

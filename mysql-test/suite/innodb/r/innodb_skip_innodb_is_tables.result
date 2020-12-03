@@ -243,15 +243,6 @@ innodb_dict_lru_count_idle	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NU
 innodb_dblwr_writes	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of doublewrite operations that have been performed (innodb_dblwr_writes)
 innodb_dblwr_pages_written	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of pages that have been written for doublewrite operations (innodb_dblwr_pages_written)
 innodb_page_size	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	InnoDB page size in bytes (innodb_page_size)
-innodb_rwlock_s_spin_waits	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of rwlock spin waits due to shared latch request
-innodb_rwlock_x_spin_waits	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of rwlock spin waits due to exclusive latch request
-innodb_rwlock_sx_spin_waits	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of rwlock spin waits due to sx latch request
-innodb_rwlock_s_spin_rounds	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of rwlock spin loop rounds due to shared latch request
-innodb_rwlock_x_spin_rounds	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of rwlock spin loop rounds due to exclusive latch request
-innodb_rwlock_sx_spin_rounds	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of rwlock spin loop rounds due to sx latch request
-innodb_rwlock_s_os_waits	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of OS waits due to shared latch request
-innodb_rwlock_x_os_waits	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of OS waits due to exclusive latch request
-innodb_rwlock_sx_os_waits	server	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of OS waits due to sx latch request
 dml_reads	dml	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of rows read
 dml_inserts	dml	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of rows inserted
 dml_deletes	dml	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of rows deleted
@@ -373,7 +364,7 @@ SPACE	NAME	ENCRYPTION_SCHEME	KEYSERVER_REQUESTS	MIN_KEY_VERSION	CURRENT_KEY_VERS
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_tablespaces_encryption but the InnoDB storage engine is not installed
 select * from information_schema.innodb_mutexes;
-NAME	CREATE_FILE	CREATE_LINE	OS_WAITS
+NAME	OS_WAITS
 Warnings:
 Warning	1012	InnoDB: SELECTing from INFORMATION_SCHEMA.innodb_mutexes but the InnoDB storage engine is not installed
 select * from information_schema.innodb_sys_semaphore_waits;

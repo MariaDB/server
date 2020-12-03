@@ -578,7 +578,6 @@ buf_block_t* trx_undo_add_page(trx_undo_t* undo, mtr_t* mtr)
 		goto func_exit;
 	}
 
-	ut_ad(rw_lock_get_x_lock_count(&new_block->lock) == 1);
 	buf_block_dbg_add_level(new_block, SYNC_TRX_UNDO_PAGE);
 	undo->last_page_no = new_block->page.id().page_no();
 
@@ -629,7 +628,7 @@ trx_undo_free_page(
 	fseg_free_page(TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER
 		       + header_block->frame,
 		       rseg->space, page_no, mtr);
-	buf_page_free(page_id_t(space, page_no), mtr, __FILE__, __LINE__);
+	buf_page_free(page_id_t(space, page_no), mtr);
 
 	const fil_addr_t last_addr = flst_get_last(
 		TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST + header_block->frame);

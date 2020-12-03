@@ -38,7 +38,6 @@ Created April 08, 2011 Vasil Dimov
 #include "os0thread.h"
 #include "srv0srv.h"
 #include "srv0start.h"
-#include "sync0rw.h"
 #include "ut0byte.h"
 
 #include <algorithm>

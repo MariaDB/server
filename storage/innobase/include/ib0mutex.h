@@ -457,7 +457,7 @@ struct TTASEventMutex {
 
 				sync_cell_t*	cell;
 				sync_array_t *sync_arr = sync_array_get_and_reserve_cell(
-					this, SYNC_MUTEX,
+					this,
 					filename, line, &cell);
 
 				uint32_t oldval = MUTEX_STATE_LOCKED;

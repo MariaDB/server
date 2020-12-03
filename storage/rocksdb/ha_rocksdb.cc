@@ -8150,7 +8150,7 @@ int ha_rocksdb::read_row_from_secondary_key(uchar *const buf,
                                             const Rdb_key_def &kd,
                                             bool move_forward) {
   int rc = 0;
-  uint pk_size;
+  uint pk_size= 0;
 
   /* Get the key columns and primary key value */
   const rocksdb::Slice &rkey = m_scan_it->key();

@@ -185,9 +185,16 @@ extern const byte field_ref_zero[UNIV_PAGE_SIZE_MAX];
 
 #ifndef UNIV_INNOCHECKSUM
 
-#include "ut0mutex.h"
-#include "sync0rw.h"
-#include "rw_lock.h"
+/** Latch types */
+enum rw_lock_type_t
+{
+  RW_S_LATCH= 1 << 0,
+  RW_X_LATCH= 1 << 1,
+  RW_SX_LATCH= 1 << 2,
+  RW_NO_LATCH= 1 << 3
+};
+
+#include "sux_lock.h"
 
 class page_hash_latch : public rw_lock
 {

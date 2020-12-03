@@ -156,7 +156,7 @@ too_small:
     tablespace, then the page has not been written to in
     doublewrite. */
 
-    ut_ad(rw_lock_get_x_lock_count(&new_block->lock) == 1);
+    ut_ad(new_block->lock.not_recursive());
     const page_id_t id= new_block->page.id();
     /* We only do this in the debug build, to ensure that the check in
     buf_flush_init_for_writing() will see a valid page type. The

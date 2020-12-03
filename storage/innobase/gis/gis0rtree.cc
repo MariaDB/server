@@ -917,8 +917,7 @@ func_start:
 	ut_ad(!dict_index_is_online_ddl(cursor->index)
 	      || (flags & BTR_CREATE_FLAG)
 	      || dict_index_is_clust(cursor->index));
-	ut_ad(rw_lock_own_flagged(dict_index_get_lock(cursor->index),
-				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX));
+	ut_ad(cursor->index->lock.have_u_or_x());
 
 	block = btr_cur_get_block(cursor);
 	page = buf_block_get_frame(block);

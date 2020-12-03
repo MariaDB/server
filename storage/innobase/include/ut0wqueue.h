@@ -34,6 +34,7 @@ processing.
 #define IB_WORK_QUEUE_H
 
 #include "ut0list.h"
+#include "ut0mutex.h"
 #include "mem0mem.h"
 
 // Forward declaration

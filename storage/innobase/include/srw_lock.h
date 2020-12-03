@@ -85,16 +85,49 @@ public:
 #endif
   bool rd_lock_try() { uint32_t l; return read_trylock(l); }
   bool wr_lock_try() { return write_trylock(); }
+  /** @return whether the lock was acquired without waiting
+  @tparam support_u_lock dummy parameter for UNIV_PFS_RWLOCK */
   template<bool support_u_lock= false>
-  void rd_lock() { uint32_t l; if (!read_trylock(l)) read_lock(l); }
-  void u_lock() { uint32_t l; if (!update_trylock(l)) update_lock(l); }
+  bool rd_lock()
+  {
+    uint32_t l;
+    if (read_trylock(l))
+      return true;
+    read_lock(l);
+    return false;
+  }
+  /** @return whether the lock was acquired without waiting */
+  bool u_lock()
+  {
+    uint32_t l;
+    if (update_trylock(l))
+      return true;
+    update_lock(l);
+    return false;
+  }
   bool u_lock_try() { uint32_t l; return update_trylock(l); }
-  void u_wr_upgrade() { if (!upgrade_trylock()) write_lock(true); }
+  /** @return whether the lock was upgraded without waiting */
+  bool u_wr_upgrade()
+  {
+    if (upgrade_trylock())
+      return true;
+    write_lock(true);
+    return false;
+  }
+  /** @return whether the lock was acquired without waiting */
   template<bool support_u_lock= false>
-  void wr_lock() { if (!write_trylock()) write_lock(false); }
+  bool wr_lock()
+  {
+    if (write_trylock())
+      return true;
+    write_lock(false);
+    return false;
+  }
   void rd_unlock();
   void u_unlock();
   void wr_unlock();
+  /** @return whether any writer is waiting */
+  bool is_waiting() const { return value() & WRITER_WAITING; }
 };
 
 #ifndef UNIV_PFS_RWLOCK
@@ -114,11 +147,11 @@ class srw_lock
   PSI_rwlock *pfs_psi;
 
   template<bool support_u_lock>
-  ATTRIBUTE_NOINLINE void psi_rd_lock(const char *file, unsigned line);
+  ATTRIBUTE_NOINLINE bool psi_rd_lock(const char *file, unsigned line);
   template<bool support_u_lock>
-  ATTRIBUTE_NOINLINE void psi_wr_lock(const char *file, unsigned line);
-  ATTRIBUTE_NOINLINE void psi_u_lock(const char *file, unsigned line);
-  ATTRIBUTE_NOINLINE void psi_u_wr_upgrade(const char *file, unsigned line);
+  ATTRIBUTE_NOINLINE bool psi_wr_lock(const char *file, unsigned line);
+  ATTRIBUTE_NOINLINE bool psi_u_lock(const char *file, unsigned line);
+  ATTRIBUTE_NOINLINE bool psi_u_wr_upgrade(const char *file, unsigned line);
 public:
   void init(mysql_pfs_key_t key)
   {
@@ -135,12 +168,12 @@ public:
     lock.destroy();
   }
   template<bool support_u_lock= false>
-  void rd_lock(const char *file, unsigned line)
+  bool rd_lock(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-      psi_rd_lock<support_u_lock>(file, line);
+      return psi_rd_lock<support_u_lock>(file, line);
     else
-      lock.rd_lock();
+      return lock.rd_lock();
   }
   void rd_unlock()
   {
@@ -148,12 +181,12 @@ public:
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.rd_unlock();
   }
-  void u_lock(const char *file, unsigned line)
+  bool u_lock(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-      psi_u_lock(file, line);
+      return psi_u_lock(file, line);
     else
-      lock.u_lock();
+      return lock.u_lock();
   }
   void u_unlock()
   {
@@ -162,12 +195,12 @@ public:
     lock.u_unlock();
   }
   template<bool support_u_lock= false>
-  void wr_lock(const char *file, unsigned line)
+  bool wr_lock(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-      psi_wr_lock<support_u_lock>(file, line);
+      return psi_wr_lock<support_u_lock>(file, line);
     else
-      lock.wr_lock();
+      return lock.wr_lock();
   }
   void wr_unlock()
   {
@@ -175,15 +208,16 @@ public:
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.wr_unlock();
   }
-  void u_wr_upgrade(const char *file, unsigned line)
+  bool u_wr_upgrade(const char *file, unsigned line)
   {
     if (psi_likely(pfs_psi != nullptr))
-      psi_u_wr_upgrade(file, line);
+      return psi_u_wr_upgrade(file, line);
     else
-      lock.u_wr_upgrade();
+      return lock.u_wr_upgrade();
   }
   bool rd_lock_try() { return lock.rd_lock_try(); }
   bool u_lock_try() { return lock.u_lock_try(); }
   bool wr_lock_try() { return lock.wr_lock_try(); }
+  bool is_waiting() const { return lock.is_waiting(); }
 };
 #endif

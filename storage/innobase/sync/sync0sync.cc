@@ -32,8 +32,8 @@ Mutex, the basic synchronization primitive
 Created 9/5/1995 Heikki Tuuri
 *******************************************************/
 
-#include "sync0rw.h"
 #include "sync0sync.h"
+#include "ut0mutex.h"
 
 #ifdef UNIV_PFS_MUTEX
 mysql_pfs_key_t	buf_pool_mutex_key;
@@ -64,7 +64,6 @@ mysql_pfs_key_t	rw_lock_debug_mutex_key;
 mysql_pfs_key_t rtr_active_mutex_key;
 mysql_pfs_key_t	rtr_match_mutex_key;
 mysql_pfs_key_t	rtr_path_mutex_key;
-mysql_pfs_key_t	rw_lock_list_mutex_key;
 mysql_pfs_key_t	srv_innodb_monitor_mutex_key;
 mysql_pfs_key_t	srv_misc_tmpfile_mutex_key;
 mysql_pfs_key_t	srv_monitor_file_mutex_key;
@@ -93,62 +92,6 @@ mysql_pfs_key_t	trx_purge_latch_key;
 
 /** For monitoring active mutexes */
 MutexMonitor	mutex_monitor;
-
-/**
-Prints wait info of the sync system.
-@param file - where to print */
-static
-void
-sync_print_wait_info(FILE* file)
-{
-	fprintf(file,
-		"RW-shared spins " UINT64PF ", rounds " UINT64PF ","
-		" OS waits " UINT64PF "\n"
-		"RW-excl spins " UINT64PF ", rounds " UINT64PF ","
-		" OS waits " UINT64PF "\n"
-		"RW-sx spins " UINT64PF ", rounds " UINT64PF ","
-		" OS waits " UINT64PF "\n",
-		(ib_uint64_t) rw_lock_stats.rw_s_spin_wait_count,
-		(ib_uint64_t) rw_lock_stats.rw_s_spin_round_count,
-		(ib_uint64_t) rw_lock_stats.rw_s_os_wait_count,
-		(ib_uint64_t) rw_lock_stats.rw_x_spin_wait_count,
-		(ib_uint64_t) rw_lock_stats.rw_x_spin_round_count,
-		(ib_uint64_t) rw_lock_stats.rw_x_os_wait_count,
-		(ib_uint64_t) rw_lock_stats.rw_sx_spin_wait_count,
-		(ib_uint64_t) rw_lock_stats.rw_sx_spin_round_count,
-		(ib_uint64_t) rw_lock_stats.rw_sx_os_wait_count);
-
-	fprintf(file,
-		"Spin rounds per wait: %.2f RW-shared,"
-		" %.2f RW-excl, %.2f RW-sx\n",
-		rw_lock_stats.rw_s_spin_wait_count
-		? static_cast<double>(rw_lock_stats.rw_s_spin_round_count) /
-		static_cast<double>(rw_lock_stats.rw_s_spin_wait_count)
-		: static_cast<double>(rw_lock_stats.rw_s_spin_round_count),
-		rw_lock_stats.rw_x_spin_wait_count
-		? static_cast<double>(rw_lock_stats.rw_x_spin_round_count) /
-		static_cast<double>(rw_lock_stats.rw_x_spin_wait_count)
-		: static_cast<double>(rw_lock_stats.rw_x_spin_round_count),
-		rw_lock_stats.rw_sx_spin_wait_count
-		? static_cast<double>(rw_lock_stats.rw_sx_spin_round_count) /
-		static_cast<double>(rw_lock_stats.rw_sx_spin_wait_count)
-		: static_cast<double>(rw_lock_stats.rw_sx_spin_round_count));
-}
-
-/**
-Prints info of the sync system.
-@param file - where to print */
-void
-sync_print(FILE* file)
-{
-#ifdef UNIV_DEBUG
-	rw_lock_list_print_info(file);
-#endif /* UNIV_DEBUG */
-
-	sync_array_print(file);
-
-	sync_print_wait_info(file);
-}
 
 /** Print the filename "basename" e.g., p = "/a/b/c/d/e.cc" -> p = "e.cc"
 @param[in]	filename	Name from where to extract the basename
@@ -226,20 +169,5 @@ MutexMonitor::reset()
 	/** Note: We don't add any latch meta-data after startup. Therefore
 	there is no need to use a mutex here. */
 
-	LatchMetaData::iterator	end = latch_meta.end();
-
-	for (LatchMetaData::iterator it = latch_meta.begin(); it != end; ++it) {
-
-		if (*it != NULL) {
-			(*it)->get_counter()->reset();
-		}
-	}
-
-	mutex_enter(&rw_lock_list_mutex);
-
-	for (rw_lock_t& rw_lock : rw_lock_list) {
-		rw_lock.count_os_wait = 0;
-	}
-
-	mutex_exit(&rw_lock_list_mutex);
+	for (auto l : latch_meta) if (l) l->get_counter()->reset();
 }

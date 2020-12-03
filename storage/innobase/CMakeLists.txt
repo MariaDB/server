@@ -234,6 +234,7 @@ SET(INNOBASE_SOURCES
 	include/row0upd.h
 	include/row0upd.ic
 	include/row0vers.h
+	include/rw_lock.h
 	include/srv0mon.h
 	include/srv0mon.ic
 	include/srv0srv.h
@@ -242,8 +243,7 @@ SET(INNOBASE_SOURCES
 	include/sync0arr.ic
 	include/sync0debug.h
 	include/sync0policy.h
-	include/sync0rw.h
-	include/sync0rw.ic
+	include/sux_lock.h
 	include/sync0sync.h
 	include/sync0types.h
 	include/trx0i_s.h
@@ -329,7 +329,6 @@ SET(INNOBASE_SOURCES
 	srv/srv0start.cc
 	sync/srw_lock.cc
 	sync/sync0arr.cc
-	sync/sync0rw.cc
 	sync/sync0debug.cc
 	sync/sync0sync.cc
 	trx/trx0i_s.cc

@@ -41,7 +41,6 @@ Created July 17, 2007 Vasil Dimov
 #include "rem0rec.h"
 #include "row0row.h"
 #include "srv0srv.h"
-#include "sync0rw.h"
 #include "sync0sync.h"
 #include "trx0sys.h"
 #include "que0que.h"

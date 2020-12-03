@@ -52,26 +52,15 @@ ORDER BY event_name;
 
 # Make sure some shared_lock operations have been executed
 
-select operation from performance_schema.events_waits_history_long
-  where event_name like "wait/synch/sxlock/%"
-  and operation = "shared_lock" limit 1;
+SELECT event_name FROM performance_schema.events_waits_history_long
+WHERE event_name = 'wait/synch/sxlock/innodb/index_tree_rw_lock'
+AND operation IN ('try_shared_lock','shared_lock') LIMIT 1;
 
 # Make sure some exclusive_lock operations have been executed
 
-select operation from performance_schema.events_waits_history_long
-  where event_name like "wait/synch/sxlock/%"
-  and operation = "exclusive_lock" limit 1;
-
-# The following operations are not verified in this test:
-# - shared_exclusive_lock
-# - try_shared_lock
-# - try_shared_exclusive_lock
-# - try_exclusive_lock
-# because to observe them:
-# - there must be an actual code path using the operation
-#   (this affects try operations, which are not all used)
-# - there must be a repeatable scenario to trigger the
-#   code path, to use as payload in the test script
+SELECT event_name from performance_schema.events_waits_history_long
+WHERE event_name = 'wait/synch/sxlock/innodb/index_tree_rw_lock'
+AND operation IN ('try_exclusive_lock','exclusive_lock') LIMIT 1;
 
 # Cleanup
 

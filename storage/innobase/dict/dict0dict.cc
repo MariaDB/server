@@ -1305,10 +1305,10 @@ dict_index_t *dict_index_t::clone() const
               sizeof *stat_n_non_null_key_vals);
 
   mem_heap_t* heap= mem_heap_create(size);
-  dict_index_t *index= static_cast<dict_index_t*>(mem_heap_dup(heap, this,
-                                                               sizeof *this));
+  dict_index_t *index= static_cast<dict_index_t*>
+    (mem_heap_alloc(heap, sizeof *this));
   *index= *this;
-  rw_lock_create(index_tree_rw_lock_key, &index->lock, SYNC_INDEX_TREE);
+  index->lock.SRW_LOCK_INIT(index_tree_rw_lock_key);
   index->heap= heap;
   index->name= mem_heap_strdup(heap, name);
   index->fields= static_cast<dict_field_t*>
@@ -2157,8 +2157,7 @@ dict_index_add_to_cache(
 #endif /* BTR_CUR_ADAPT */
 
 	new_index->page = unsigned(page_no);
-	rw_lock_create(index_tree_rw_lock_key, &new_index->lock,
-		       SYNC_INDEX_TREE);
+	new_index->lock.SRW_LOCK_INIT(index_tree_rw_lock_key);
 
 	new_index->n_core_fields = new_index->n_fields;
 
@@ -2228,7 +2227,7 @@ dict_index_remove_from_cache_low(
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
-	rw_lock_free(&index->lock);
+	index->lock.free();
 
 	dict_mem_index_free(index);
 }
@@ -4419,10 +4418,10 @@ dict_set_merge_threshold_list_debug(
 		for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
 		     index != NULL;
 		     index = UT_LIST_GET_NEXT(indexes, index)) {
-			rw_lock_x_lock(dict_index_get_lock(index));
+			index->lock.x_lock(SRW_LOCK_CALL);
 			index->merge_threshold = merge_threshold_all
 				& ((1U << 6) - 1);
-			rw_lock_x_unlock(dict_index_get_lock(index));
+			index->lock.x_unlock();
 		}
 	}
 }
