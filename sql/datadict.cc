@@ -520,6 +520,7 @@ int FK_backup::fk_write_shadow_frm(ddl_log_info &log_info)
 {
   char shadow_path[FN_REFLEN + 1];
   char frm_name[FN_REFLEN + 1];
+  int err;
   TABLE_SHARE *s= get_share();
   DBUG_ASSERT(s);
   build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1,
@@ -528,9 +529,30 @@ int FK_backup::fk_write_shadow_frm(ddl_log_info &log_info)
   if (log_info.write_log_replace_delete_file(NULL, frm_name, false))
     return true;
   delete_shadow_entry= log_info.first_entry;
-  int err= s->fk_write_shadow_frm_impl(shadow_path);
-  if (ERROR_INJECT("fail_fk_write_shadow", "crash_fk_write_shadow"))
-    return true;
+#ifndef DBUG_OFF
+  if (log_info.dbg_fail &&
+      (ERROR_INJECT("fail_fk_write_shadow_frm", "crash_fk_write_shadow_frm")))
+  {
+    err= 10;
+    goto write_shadow_failed;
+  }
+#endif
+  err= s->fk_write_shadow_frm_impl(shadow_path);
+  if (err)
+  {
+#ifndef DBUG_OFF
+write_shadow_failed:
+#endif
+    if (deactivate_ddl_log_entry(delete_shadow_entry->entry_pos))
+    {
+      /* This is very bad case because log replay will delete original frm.
+         At least try prohibit replaying it and push an alert message. */
+      log_info.write_log_finish();
+      my_printf_error(ER_DDL_LOG_ERROR, "Deactivating delete shadow entry %u failed",
+                      MYF(0), delete_shadow_entry->entry_pos);
+    }
+    delete_shadow_entry= NULL;
+  }
   return err;
 }
 
@@ -644,7 +666,35 @@ void FK_backup::fk_drop_backup_frm(ddl_log_info &log_info)
 }
 
 
-bool FK_ddl_vector::install_shadow_frms(THD *thd)
+int FK_ddl_vector::write_shadow_frms()
+{
+  int err;
+#ifndef DBUG_OFF
+  FK_backup *last;
+  for (auto &bak: *this)
+  {
+    if (!bak.second.update_frm)
+      continue;
+    last= &bak.second;
+  }
+  dbg_fail= false;
+#endif
+  for (auto &bak: *this)
+  {
+    if (!bak.second.update_frm)
+      continue;
+#ifndef DBUG_OFF
+    if (&bak.second == last)
+      dbg_fail= true;
+#endif
+    if ((err= bak.second.fk_write_shadow_frm(*this)))
+      return err;
+  }
+  return 0;
+}
+
+
+bool FK_ddl_vector::install_shadow_frms()
 {
   if (!size())
     return false;

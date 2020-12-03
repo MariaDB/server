@@ -1068,7 +1068,8 @@ public:
 class FK_ddl_vector: public mbd::map<TABLE_SHARE *, FK_ddl_backup>, public ddl_log_info
 {
 public:
-  bool install_shadow_frms(THD *thd);
+  int write_shadow_frms();
+  bool install_shadow_frms();
   void drop_backup_frms(THD *thd);
   void rollback(THD *thd);
 };

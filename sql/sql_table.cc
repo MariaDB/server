@@ -2547,7 +2547,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                                                 table_name.str, MDL_EXCLUSIVE));
 
 
-      error= shares.install_shadow_frms(thd);
+      error= shares.install_shadow_frms();
       if (unlikely(error))
       {
         shares.rollback(thd);
@@ -8277,7 +8277,7 @@ static bool mysql_inplace_alter_table(THD *thd,
   table_list->table= table= NULL;
 
   // FIXME: do right after fk_handle_alter?
-  if (alter_ctx->fk_ref_backup.install_shadow_frms(thd))
+  if (alter_ctx->fk_ref_backup.install_shadow_frms())
   {
     alter_ctx->fk_ref_backup.rollback(thd);
     DBUG_RETURN(true);
@@ -10007,19 +10007,17 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                          &alter_ctx->new_name, fk_rename_backup))
       DBUG_RETURN(true);
 
-    for (auto &ref: fk_rename_backup)
+
+    if (fk_rename_backup.write_shadow_frms())
     {
-      if (ref.second.fk_write_shadow_frm(fk_rename_backup))
-      {
-        fk_rename_backup.rollback(thd);
-        DBUG_RETURN(true);
-      }
+      fk_rename_backup.rollback(thd);
+      DBUG_RETURN(true);
     }
 
     close_all_tables_for_name(thd, table->s, HA_EXTRA_PREPARE_FOR_RENAME,
                               NULL);
 
-    if (fk_rename_backup.install_shadow_frms(thd))
+    if (fk_rename_backup.install_shadow_frms())
     {
       fk_rename_backup.rollback(thd);
       DBUG_RETURN(true);
@@ -11347,7 +11345,7 @@ err_rename_back:
     }
   }
 
-  if (alter_ctx.fk_ref_backup.install_shadow_frms(thd))
+  if (alter_ctx.fk_ref_backup.install_shadow_frms())
     goto err_rename_back;
 
   if (alter_ctx.is_table_renamed())
@@ -12574,9 +12572,6 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_ddl_vector &shares, FK_list *fk_
         return true;
       }
     } // for (const FK_info &fk: fkeys)
-
-    if (ref.second.fk_write_shadow_frm(shares))
-      return true;
   } // for (ref_tables)
 
   return false;
@@ -12980,12 +12975,8 @@ bool Alter_table_ctx::fk_handle_alter(THD *thd)
   } // for (const Table_name &ref: rk_renamed_table)
 
   /* Update EXTRA2_FOREIGN_KEY_INFO section in FRM files. */
-  for (auto &key_val: fk_ref_backup)
-  {
-    FK_share_backup *ref_bak= &key_val.second;
-    if (ref_bak->update_frm && ref_bak->fk_write_shadow_frm(fk_ref_backup))
-      return true;
-  }
+  if (fk_ref_backup.write_shadow_frms())
+    return true;
 
   if (ERROR_INJECT("fail_fk_alter_3", "crash_fk_alter_3"))
     return true;
@@ -13144,6 +13135,11 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, FK_ddl_vector &shares,
         ref_it.remove();
       }
     }
+
+#ifndef DBUG_OFF
+  shares.dbg_fail= true;
+#endif
+
     int err= ref->second.fk_write_shadow_frm(shares);
     if (err)
     {

@@ -162,17 +162,9 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
     error= true;
   else
   {
-    for (auto &ref: fk_rename_backup)
-    {
-      if (ref.second.fk_write_shadow_frm(fk_rename_backup))
-      {
-        error= true;
-        break;
-      }
-    }
-
+    error= fk_rename_backup.write_shadow_frms();
     if (!error)
-      error= fk_rename_backup.install_shadow_frms(thd);
+      error= fk_rename_backup.install_shadow_frms();
   }
   /*
     An exclusive lock on table names is satisfactory to ensure

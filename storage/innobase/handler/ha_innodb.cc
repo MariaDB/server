@@ -21531,14 +21531,9 @@ fk_upgrade_legacy_storage(dict_table_t* table, trx_t* trx, THD *thd, TABLE_SHARE
 		share_backup->update_frm= true;
 	}
 
-	// Update foreign FRM
-	if (share_backup->fk_write_shadow_frm(ref_shares)) {
-		err = DB_ERROR;
-		goto rollback;
-	}
-
-	// Update referenced FRMs
-	if (ref_shares.install_shadow_frms(thd)) {
+	// Update foreign and referenced FRMs
+	if (ref_shares.write_shadow_frms() ||
+	    ref_shares.install_shadow_frms()) {
 		err = DB_ERROR;
 		goto rollback;
 	}

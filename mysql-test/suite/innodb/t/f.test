@@ -44,8 +44,10 @@ let $show_statement2= check tables t1, t2, t3, t4;
 call make_tables;
 --let $crash_statement=
 --let $create_statement=
-let $debug_dbug="+d,fail_fk_backup_frm";
 let $fail_statement= drop tables t4, t1, t3, t2;
+let $debug_dbug="+d,fail_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_backup_frm";
 --source include/foreign_fail.inc
 let $debug_dbug="+d,fail_fk_install_shadow_frm";
 --source include/foreign_fail.inc
@@ -56,7 +58,7 @@ let $debug_dbug="+d,crash_fk_install_shadow_frm";
 --source include/foreign_fail.inc
 call drop_tables;
 
-# FIXME: crash statements, fail_fk_write_shadow
+# FIXME: crash statements
 
 --echo # CREATE TABLE
 create table t1 (x int primary key);
@@ -65,6 +67,10 @@ create table t3 (z int primary key);
 --let $create_statement=
 --let $crash_statement=
 let $fail_statement= create table t4 (a int primary key, x int references t1(x), y int references t2(y), z int references t3(z));
+let $debug_dbug="+d,fail_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,fail_fk_backup_frm";
+--source include/foreign_fail.inc
 let $debug_dbug="+d,fail_fk_backup_frm";
 --source include/foreign_fail.inc
 let $debug_dbug="+d,fail_fk_install_shadow_frm";
@@ -82,6 +88,8 @@ call make_tables;
 --let $create_statement=
 --let $crash_statement=
 let $fail_statement= rename table t4 to xt4, t1 to xt1, t3 to xt3, t2 to xt2;
+let $debug_dbug="+d,fail_fk_write_shadow_frm";
+--source include/foreign_fail.inc
 let $debug_dbug="+d,fail_fk_backup_frm";
 --source include/foreign_fail.inc
 let $debug_dbug="+d,fail_fk_install_shadow_frm";
@@ -95,6 +103,8 @@ let $debug_dbug="+d,fail_fk_install_shadow_frm";
 --let $crash_statement=
 let $show_statement2= $show_statement0;
 let $fail_statement= alter table t3 rename xt3;
+let $debug_dbug="+d,fail_fk_write_shadow_frm";
+--source include/foreign_fail.inc
 let $debug_dbug="+d,fail_fk_backup_frm";
 --source include/foreign_fail.inc
 let $debug_dbug="+d,fail_fk_install_shadow_frm";
@@ -111,6 +121,8 @@ call make_tables;
 --let $create_statement=
 --let $crash_statement=
 let $fail_statement= alter table t2 change y z int, change x y int, change b c int;
+let $debug_dbug="+d,fail_fk_write_shadow_frm";
+--source include/foreign_fail.inc
 let $debug_dbug="+d,fail_fk_backup_frm";
 --source include/foreign_fail.inc
 let $debug_dbug="+d,fail_fk_install_shadow_frm";
@@ -133,6 +145,8 @@ let $fail_statement= alter table t3
   drop c,
   add foreign key (x) references t1(x),
   add foreign key (y) references t2(x);
+let $debug_dbug="+d,fail_fk_write_shadow_frm";
+--source include/foreign_fail.inc
 let $debug_dbug="+d,fail_fk_backup_frm";
 --source include/foreign_fail.inc
 let $debug_dbug="+d,fail_fk_install_shadow_frm";

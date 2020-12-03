@@ -5541,7 +5541,8 @@ int ha_create_table(THD *thd, const char *path,
 
   if (fk_update_refs &&
       (share.fk_handle_create(thd, fk_shares) ||
-      fk_shares.install_shadow_frms(thd)))
+      fk_shares.write_shadow_frms() ||
+      fk_shares.install_shadow_frms()))
     goto err;
 
   share.m_psi= PSI_CALL_get_table_share(temp_table, &share);
