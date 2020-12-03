@@ -342,7 +342,7 @@ inline ulint dict_index_t::n_ahi_pages() const
   if (!btr_search_enabled)
     return 0;
   srw_lock *latch= &btr_search_sys.get_part(*this)->latch;
-  latch->rd_lock();
+  latch->rd_lock(SRW_LOCK_CALL);
   ulint ref_count= search_info->ref_count;
   latch->rd_unlock();
   return ref_count;

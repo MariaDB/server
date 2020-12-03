@@ -2501,7 +2501,7 @@ func_exit:
 
 #ifdef BTR_CUR_HASH_ADAPT
 	if (ahi_latch) {
-		ahi_latch->rd_lock();
+		ahi_latch->rd_lock(SRW_LOCK_CALL);
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -4315,7 +4315,7 @@ btr_cur_update_in_place(
 				btr_search_update_hash_on_delete(cursor);
 			}
 
-			ahi_latch->wr_lock();
+			ahi_latch->wr_lock(SRW_LOCK_CALL);
 		}
 
 		assert_block_ahi_valid(block);

@@ -3858,7 +3858,7 @@ row_sel_try_search_shortcut_for_mysql(
 	ut_ad(!prebuilt->templ_contains_blob);
 
 	srw_lock* ahi_latch = btr_search_sys.get_latch(*index);
-	ahi_latch->rd_lock();
+	ahi_latch->rd_lock(SRW_LOCK_CALL);
 	btr_pcur_open_with_no_init(index, search_tuple, PAGE_CUR_GE,
 				   BTR_SEARCH_LEAF, pcur, ahi_latch, mtr);
 	rec = btr_pcur_get_rec(pcur);

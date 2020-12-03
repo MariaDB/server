@@ -259,7 +259,7 @@ public:
   /** A wrapper around trx_sys_t::clone_oldest_view(). */
   void clone_oldest_view()
   {
-    latch.wr_lock();
+    latch.wr_lock(SRW_LOCK_CALL);
     trx_sys.clone_oldest_view(&view);
     latch.wr_unlock();
   }
