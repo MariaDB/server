@@ -249,8 +249,6 @@ Must not be called when recv_no_ibuf_operations==true.
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	x_latch		FALSE if relaxed check (avoid latching the
 bitmap page)
-@param[in]	file		file name
-@param[in]	line		line where called
 @param[in,out]	mtr		mtr which will contain an x-latch to the
 bitmap page if the page is not one of the fixed address ibuf pages, or NULL,
 in which case a new transaction is created.
@@ -262,8 +260,6 @@ ibuf_page_low(
 #ifdef UNIV_DEBUG
 	bool			x_latch,
 #endif /* UNIV_DEBUG */
-	const char*		file,
-	unsigned		line,
 	mtr_t*			mtr)
 	MY_ATTRIBUTE((warn_unused_result));
 
@@ -276,7 +272,7 @@ Must not be called when recv_no_ibuf_operations==true.
 @param[in,out]	mtr		mini-transaction or NULL
 @return TRUE if level 2 or level 3 page */
 # define ibuf_page(page_id, zip_size, mtr)	\
-	ibuf_page_low(page_id, zip_size, true, __FILE__, __LINE__, mtr)
+	ibuf_page_low(page_id, zip_size, true, mtr)
 
 #else /* UVIV_DEBUG */
 
@@ -287,7 +283,7 @@ Must not be called when recv_no_ibuf_operations==true.
 @param[in,out]	mtr		mini-transaction or NULL
 @return TRUE if level 2 or level 3 page */
 # define ibuf_page(page_id, zip_size, mtr)	\
-	ibuf_page_low(page_id, zip_size, __FILE__, __LINE__, mtr)
+	ibuf_page_low(page_id, zip_size, mtr)
 
 #endif /* UVIV_DEBUG */
 /***********************************************************************//**

@@ -251,7 +251,7 @@ struct optimistic_latch_leaves
   {
     return hint && btr_cur_optimistic_latch_leaves(
              hint, cursor->modify_clock, latch_mode,
-             btr_pcur_get_btr_cur(cursor), __FILE__, __LINE__, mtr);
+             btr_pcur_get_btr_cur(cursor), mtr);
   }
 };
 
@@ -271,12 +271,9 @@ restores to before first or after the last in the tree.
 record and it can be restored on a user record whose ordering fields
 are identical to the ones of the original user record */
 ibool
-btr_pcur_restore_position_func(
-/*===========================*/
+btr_pcur_restore_position(
 	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_pcur_t*	cursor,		/*!< in: detached persistent cursor */
-	const char*	file,		/*!< in: file name */
-	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
 	dict_index_t*	index;
@@ -307,9 +304,7 @@ btr_pcur_restore_position_func(
 
 		if (err != DB_SUCCESS) {
 			ib::warn() << " Error code: " << err
-				   << " btr_pcur_restore_position_func "
-				   << " called from file: "
-				   << file << " line: " << line
+				   << " btr_pcur_restore_position "
 				   << " table: " << index->table->name
 				   << " index: " << index->name;
 		}
@@ -406,7 +401,7 @@ btr_pcur_restore_position_func(
 #ifdef BTR_CUR_HASH_ADAPT
 					NULL,
 #endif /* BTR_CUR_HASH_ADAPT */
-					file, line, mtr);
+					mtr);
 
 	/* Restore the old search mode */
 	cursor->search_mode = old_mode;
@@ -627,8 +622,7 @@ in the first case sets the cursor after last in tree, and in the latter case
 before first in tree. The latching mode must be BTR_SEARCH_LEAF or
 BTR_MODIFY_LEAF. */
 void
-btr_pcur_open_on_user_rec_func(
-/*===========================*/
+btr_pcur_open_on_user_rec(
 	dict_index_t*	index,		/*!< in: index */
 	const dtuple_t*	tuple,		/*!< in: tuple on which search done */
 	page_cur_mode_t	mode,		/*!< in: PAGE_CUR_L, ... */
@@ -636,12 +630,9 @@ btr_pcur_open_on_user_rec_func(
 					BTR_MODIFY_LEAF */
 	btr_pcur_t*	cursor,		/*!< in: memory buffer for persistent
 					cursor */
-	const char*	file,		/*!< in: file name */
-	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
-	btr_pcur_open_low(index, 0, tuple, mode, latch_mode, cursor,
-			  file, line, 0, mtr);
+	btr_pcur_open_low(index, 0, tuple, mode, latch_mode, cursor, 0, mtr);
 
 	if ((mode == PAGE_CUR_GE) || (mode == PAGE_CUR_G)) {
 

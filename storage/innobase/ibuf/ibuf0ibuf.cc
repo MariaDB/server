@@ -660,37 +660,21 @@ inline page_id_t ibuf_bitmap_page_no_calc(const page_id_t page_id, ulint size)
 stored.
 @param[in]	page_id		page id of the file page
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	file		file name
-@param[in]	line		line where called
 @param[in,out]	mtr		mini-transaction
 @return bitmap page where the file page is mapped, that is, the bitmap
 page containing the descriptor bits for the file page; the bitmap page
 is x-latched */
 static
 buf_block_t*
-ibuf_bitmap_get_map_page_func(
+ibuf_bitmap_get_map_page(
 	const page_id_t		page_id,
 	ulint			zip_size,
-	const char*		file,
-	unsigned		line,
 	mtr_t*			mtr)
 {
 	return buf_page_get_gen(
 		ibuf_bitmap_page_no_calc(page_id, zip_size),
-		zip_size, RW_X_LATCH, NULL, BUF_GET, file, line, mtr);
+		zip_size, RW_X_LATCH, NULL, BUF_GET, mtr);
 }
-
-/** Gets the ibuf bitmap page where the bits describing a given file page are
-stored.
-@param[in]	page_id		page id of the file page
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in,out]	mtr		mini-transaction
-@return bitmap page where the file page is mapped, that is, the bitmap
-page containing the descriptor bits for the file page; the bitmap page
-is x-latched */
-#define ibuf_bitmap_get_map_page(page_id, zip_size, mtr)	\
-	ibuf_bitmap_get_map_page_func(page_id, zip_size, \
-				      __FILE__, __LINE__, mtr)
 
 /************************************************************************//**
 Sets the free bits of the page in the ibuf bitmap. This is done in a separate
@@ -921,8 +905,6 @@ Must not be called when recv_no_ibuf_operations==true.
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	x_latch		FALSE if relaxed check (avoid latching the
 bitmap page)
-@param[in]	file		file name
-@param[in]	line		line where called
 @param[in,out]	mtr		mtr which will contain an x-latch to the
 bitmap page if the page is not one of the fixed address ibuf pages, or NULL,
 in which case a new transaction is created.
@@ -934,8 +916,6 @@ ibuf_page_low(
 #ifdef UNIV_DEBUG
 	bool			x_latch,
 #endif /* UNIV_DEBUG */
-	const char*		file,
-	unsigned		line,
 	mtr_t*			mtr)
 {
 	ibool	ret;
@@ -972,7 +952,7 @@ ibuf_page_low(
 		buf_block_t* block = buf_page_get_gen(
 			ibuf_bitmap_page_no_calc(page_id, zip_size),
 			zip_size, RW_NO_LATCH, NULL, BUF_GET_NO_LATCH,
-			file, line, &local_mtr, &err);
+			&local_mtr, &err);
 
 		ret = ibuf_bitmap_page_get_bits_low(
 			block->frame, page_id, zip_size,
@@ -988,8 +968,8 @@ ibuf_page_low(
 		mtr_start(mtr);
 	}
 
-	ret = ibuf_bitmap_page_get_bits(ibuf_bitmap_get_map_page_func(
-						page_id, zip_size, file, line,
+	ret = ibuf_bitmap_page_get_bits(ibuf_bitmap_get_map_page(
+						page_id, zip_size,
 						mtr)->frame,
 					page_id, zip_size,
 					IBUF_BITMAP_IBUF, mtr);
@@ -2296,7 +2276,7 @@ tablespace_deleted:
 			buf_page_get_gen(page_id_t(space_id, page_nos[i]),
 					 zip_size, RW_X_LATCH, nullptr,
 					 BUF_GET_POSSIBLY_FREED,
-					 __FILE__, __LINE__, &mtr, &err, true);
+					 &mtr, &err, true);
 			mtr.commit();
 			if (err == DB_TABLESPACE_DELETED) {
 				goto tablespace_deleted;

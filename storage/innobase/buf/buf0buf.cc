@@ -2757,8 +2757,6 @@ buf_wait_for_read(
 @param[in]	guess			guessed block or NULL
 @param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
 BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
-@param[in]	file			file name
-@param[in]	line			line where called
 @param[in]	mtr			mini-transaction
 @param[out]	err			DB_SUCCESS or error code
 @param[in]	allow_ibuf_merge	Allow change buffer merge to happen
@@ -2773,8 +2771,6 @@ buf_page_get_low(
 	ulint			rw_latch,
 	buf_block_t*		guess,
 	ulint			mode,
-	const char*		file,
-	unsigned		line,
 	mtr_t*			mtr,
 	dberr_t*		err,
 	bool			allow_ibuf_merge)
@@ -2829,7 +2825,7 @@ buf_page_get_low(
 #endif /* UNIV_DEBUG */
 
 	ut_ad(!mtr || !ibuf_inside(mtr)
-	      || ibuf_page_low(page_id, zip_size, FALSE, file, line, NULL));
+	      || ibuf_page_low(page_id, zip_size, FALSE, NULL));
 
 	buf_pool.stat.n_page_gets++;
 loop:
@@ -3293,8 +3289,6 @@ get_latch:
 @param[in]	guess			guessed block or NULL
 @param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
 BUF_PEEK_IF_IN_POOL, BUF_GET_NO_LATCH, or BUF_GET_IF_IN_POOL_OR_WATCH
-@param[in]	file			file name
-@param[in]	line			line where called
 @param[in]	mtr			mini-transaction
 @param[out]	err			DB_SUCCESS or error code
 @param[in]	allow_ibuf_merge	Allow change buffer merge while
@@ -3307,8 +3301,6 @@ buf_page_get_gen(
 	ulint			rw_latch,
 	buf_block_t*		guess,
 	ulint			mode,
-	const char*		file,
-	unsigned		line,
 	mtr_t*			mtr,
 	dberr_t*		err,
 	bool			allow_ibuf_merge)
@@ -3341,7 +3333,7 @@ buf_page_get_gen(
   }
 
   return buf_page_get_low(page_id, zip_size, rw_latch,
-                          guess, mode, file, line, mtr, err, allow_ibuf_merge);
+                          guess, mode, mtr, err, allow_ibuf_merge);
 }
 
 /********************************************************************//**
@@ -3354,8 +3346,6 @@ buf_page_optimistic_get(
 	ulint		rw_latch,/*!< in: RW_S_LATCH, RW_X_LATCH */
 	buf_block_t*	block,	/*!< in: guessed buffer block */
 	ib_uint64_t	modify_clock,/*!< in: modify clock value */
-	const char*	file,	/*!< in: file name */
-	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr)	/*!< in: mini-transaction */
 {
 	ibool		success;
@@ -3443,16 +3433,9 @@ func_exit:
 page is not in the buffer pool it is not loaded and NULL is returned.
 Suitable for using when holding the lock_sys_t::mutex.
 @param[in]	page_id	page id
-@param[in]	file	file name
-@param[in]	line	line where called
 @param[in]	mtr	mini-transaction
 @return pointer to a page or NULL */
-buf_block_t*
-buf_page_try_get_func(
-	const page_id_t		page_id,
-	const char*		file,
-	unsigned		line,
-	mtr_t*			mtr)
+buf_block_t* buf_page_try_get(const page_id_t page_id, mtr_t *mtr)
 {
   ut_ad(mtr);
   ut_ad(mtr->is_active());

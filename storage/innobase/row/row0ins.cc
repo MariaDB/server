@@ -2610,7 +2610,7 @@ row_ins_clust_index_entry_low(
 	the function will return in both low_match and up_match of the
 	cursor sensible values */
  	err = btr_pcur_open_low(index, 0, entry, PAGE_CUR_LE, mode, &pcur,
-			  __FILE__, __LINE__, auto_inc, &mtr);
+				auto_inc, &mtr);
 	if (err != DB_SUCCESS) {
 		index->table->file_unreadable = true;
 		mtr.commit();
@@ -2924,7 +2924,7 @@ row_ins_sec_index_entry_low(
 		err = btr_cur_search_to_nth_level(
 			index, 0, entry, PAGE_CUR_RTREE_INSERT,
 			search_mode,
-			&cursor, 0, __FILE__, __LINE__, &mtr);
+			&cursor, 0, &mtr);
 
 		if (mode == BTR_MODIFY_LEAF && rtr_info.mbr_adj) {
 			mtr_commit(&mtr);
@@ -2939,7 +2939,7 @@ row_ins_sec_index_entry_low(
 			err = btr_cur_search_to_nth_level(
 				index, 0, entry, PAGE_CUR_RTREE_INSERT,
 				search_mode,
-				&cursor, 0, __FILE__, __LINE__, &mtr);
+				&cursor, 0, &mtr);
 			mode = BTR_MODIFY_TREE;
 		}
 
@@ -2951,7 +2951,7 @@ row_ins_sec_index_entry_low(
 		err = btr_cur_search_to_nth_level(
 			index, 0, entry, PAGE_CUR_LE,
 			search_mode,
-			&cursor, 0, __FILE__, __LINE__, &mtr);
+			&cursor, 0, &mtr);
 	}
 
 	if (err != DB_SUCCESS) {
@@ -3045,7 +3045,7 @@ row_ins_sec_index_entry_low(
 			index, 0, entry, PAGE_CUR_LE,
 			(search_mode
 			 & ~(BTR_INSERT | BTR_IGNORE_SEC_UNIQUE)),
-			&cursor, 0, __FILE__, __LINE__, &mtr);
+			&cursor, 0, &mtr);
 	}
 
 	if (row_ins_must_modify_rec(&cursor)) {

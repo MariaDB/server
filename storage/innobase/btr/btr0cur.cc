@@ -755,8 +755,6 @@ bool btr_cur_instant_root_init(dict_index_t* index, const page_t* page)
 @param[in]	modify_clock	modify clock value
 @param[in,out]	latch_mode	BTR_SEARCH_LEAF, ...
 @param[in,out]	cursor		cursor
-@param[in]	file		file name
-@param[in]	line		line where called
 @param[in]	mtr		mini-transaction
 @return true if success */
 bool
@@ -765,8 +763,6 @@ btr_cur_optimistic_latch_leaves(
 	ib_uint64_t	modify_clock,
 	ulint*		latch_mode,
 	btr_cur_t*	cursor,
-	const char*	file,
-	unsigned	line,
 	mtr_t*		mtr)
 {
 	ut_ad(block->page.buf_fix_count());
@@ -779,7 +775,7 @@ btr_cur_optimistic_latch_leaves(
 	case BTR_SEARCH_LEAF:
 	case BTR_MODIFY_LEAF:
 		return(buf_page_optimistic_get(*latch_mode, block,
-				modify_clock, file, line, mtr));
+				modify_clock, mtr));
 	case BTR_SEARCH_PREV:
 	case BTR_MODIFY_PREV:
 		block->lock.s_lock();
@@ -801,7 +797,7 @@ btr_cur_optimistic_latch_leaves(
 					  left_page_no),
 				cursor->index->table->space->zip_size(),
 				mode, nullptr, BUF_GET_POSSIBLY_FREED,
-				__FILE__, __LINE__, mtr, &err);
+				mtr, &err);
 
 			if (err == DB_DECRYPTION_FAILED) {
 				cursor->index->table->file_unreadable = true;
@@ -818,8 +814,7 @@ btr_cur_optimistic_latch_leaves(
 			cursor->left_block = NULL;
 		}
 
-		if (buf_page_optimistic_get(mode, block, modify_clock,
-					    file, line, mtr)) {
+		if (buf_page_optimistic_get(mode, block, modify_clock, mtr)) {
 			if (btr_page_get_prev(block->frame) == left_page_no) {
 				/* block was already buffer-fixed while
 				entering the function and
@@ -1247,8 +1242,6 @@ btr_cur_search_to_nth_level_func(
 	srw_lock*	ahi_latch,
 				/*!< in: currently held AHI rdlock, or NULL */
 #endif /* BTR_CUR_HASH_ADAPT */
-	const char*	file,	/*!< in: file name */
-	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr,	/*!< in: mtr */
 	ib_uint64_t	autoinc)/*!< in: PAGE_ROOT_AUTO_INC to be written
 				(0 if none) */
@@ -1609,7 +1602,7 @@ retry_page_get:
 	ut_ad(n_blocks < BTR_MAX_LEVELS);
 	tree_savepoints[n_blocks] = mtr_set_savepoint(mtr);
 	block = buf_page_get_gen(page_id, zip_size, rw_latch, guess,
-				 buf_mode, file, line, mtr, &err,
+				 buf_mode, mtr, &err,
 				 height == 0 && !index->is_clust());
 	tree_blocks[n_blocks] = block;
 
@@ -1725,7 +1718,7 @@ retry_page_get:
 			get_block = buf_page_get_gen(
 				page_id_t(page_id.space(), left_page_no),
 				zip_size, rw_latch, NULL, buf_mode,
-				file, line, mtr, &err);
+				mtr, &err);
 			prev_tree_blocks[prev_n_blocks] = get_block;
 			prev_n_blocks++;
 
@@ -1755,8 +1748,7 @@ retry_page_get:
 
 		tree_savepoints[n_blocks] = mtr_set_savepoint(mtr);
 		block = buf_page_get_gen(page_id, zip_size,
-					 rw_latch, NULL, buf_mode,
-					 file, line, mtr, &err);
+					 rw_latch, NULL, buf_mode, mtr, &err);
 		tree_blocks[n_blocks] = block;
 
 		if (err != DB_SUCCESS) {
@@ -2510,8 +2502,7 @@ func_exit:
 /*****************************************************************//**
 Opens a cursor at either end of an index. */
 dberr_t
-btr_cur_open_at_index_side_func(
-/*============================*/
+btr_cur_open_at_index_side(
 	bool		from_left,	/*!< in: true if open to the low end,
 					false if to the high end */
 	dict_index_t*	index,		/*!< in: index */
@@ -2519,8 +2510,6 @@ btr_cur_open_at_index_side_func(
 	btr_cur_t*	cursor,		/*!< in/out: cursor */
 	ulint		level,		/*!< in: level to search for
 					(0=leaf). */
-	const char*	file,		/*!< in: file name */
-	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr)		/*!< in/out: mini-transaction */
 {
 	page_cur_t*	page_cursor;
@@ -2630,7 +2619,7 @@ btr_cur_open_at_index_side_func(
 			? upper_rw_latch : RW_NO_LATCH;
 		buf_block_t* block = buf_page_get_gen(page_id, zip_size,
 						      rw_latch, NULL, BUF_GET,
-						      file, line, mtr, &err,
+						      mtr, &err,
 						      height == 0
 						      && !index->is_clust());
 		ut_ad((block != NULL) == (err == DB_SUCCESS));
@@ -2866,13 +2855,10 @@ Positions a cursor at a randomly chosen position within a B-tree.
 @return true if the index is available and we have put the cursor, false
 if the index is unavailable */
 bool
-btr_cur_open_at_rnd_pos_func(
-/*=========================*/
+btr_cur_open_at_rnd_pos(
 	dict_index_t*	index,		/*!< in: index */
 	ulint		latch_mode,	/*!< in: BTR_SEARCH_LEAF, ... */
 	btr_cur_t*	cursor,		/*!< in/out: B-tree cursor */
-	const char*	file,		/*!< in: file name */
-	unsigned	line,		/*!< in: line where called */
 	mtr_t*		mtr)		/*!< in: mtr */
 {
 	page_cur_t*	page_cursor;
@@ -2971,7 +2957,7 @@ btr_cur_open_at_rnd_pos_func(
 			? upper_rw_latch : RW_NO_LATCH;
 		buf_block_t* block = buf_page_get_gen(page_id, zip_size,
 						      rw_latch, NULL, BUF_GET,
-						      file, line, mtr, &err,
+						      mtr, &err,
 						      height == 0
 						      && !index->is_clust());
 		tree_blocks[n_blocks] = block;
@@ -6031,7 +6017,7 @@ btr_estimate_n_rows_in_range_on_level(
 		silence a debug assertion about this. */
 		block = buf_page_get_gen(page_id, zip_size, RW_S_LATCH,
 					 NULL, BUF_GET_POSSIBLY_FREED,
-					 __FILE__, __LINE__, &mtr, &err);
+					 &mtr, &err);
 
 		ut_ad((block != NULL) == (err == DB_SUCCESS));
 
@@ -6187,8 +6173,7 @@ btr_estimate_n_rows_in_range_low(
               btr_cur_search_to_nth_level(index, 0, tuple1->tuple,
                                             tuple1->mode,
 					    BTR_SEARCH_LEAF | BTR_ESTIMATE,
-					    &cursor, 0,
-					    __FILE__, __LINE__, &mtr);
+					    &cursor, 0, &mtr);
 
 		ut_ad(!page_rec_is_infimum(btr_cur_get_rec(&cursor)));
 
@@ -6244,8 +6229,7 @@ btr_estimate_n_rows_in_range_low(
 		btr_cur_search_to_nth_level(index, 0, tuple2->tuple,
                                             mode2,
 					    BTR_SEARCH_LEAF | BTR_ESTIMATE,
-					    &cursor, 0,
-					    __FILE__, __LINE__, &mtr);
+					    &cursor, 0, &mtr);
 
 		const rec_t*	rec = btr_cur_get_rec(&cursor);
 

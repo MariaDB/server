@@ -359,7 +359,6 @@ btr_root_adjust_on_import(
 	buf_block_t* block = buf_page_get_gen(
 		page_id_t(table->space->id, index->page),
 		table->space->zip_size(), RW_X_LATCH, NULL, BUF_GET,
-		__FILE__, __LINE__,
 		&mtr, &err);
 	if (!block) {
 		ut_ad(err != DB_SUCCESS);
@@ -784,8 +783,6 @@ btr_page_get_father_node_ptr_func(
 				its page x-latched */
 	ulint		latch_mode,/*!< in: BTR_CONT_MODIFY_TREE
 				or BTR_CONT_SEARCH_TREE */
-	const char*	file,	/*!< in: file name */
-	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	dtuple_t*	tuple;
@@ -818,15 +815,12 @@ btr_page_get_father_node_ptr_func(
 
 	err = btr_cur_search_to_nth_level(
 		index, level + 1, tuple,
-		PAGE_CUR_LE, latch_mode, cursor, 0,
-		file, line, mtr);
+		PAGE_CUR_LE, latch_mode, cursor, 0, mtr);
 
 	if (err != DB_SUCCESS) {
 		ib::warn() << " Error code: " << err
 			<< " btr_page_get_father_node_ptr_func "
 			<< " level: " << level + 1
-			<< " called from file: "
-			<< file << " line: " << line
 			<< " table: " << index->table->name
 			<< " index: " << index->name();
 	}
@@ -869,11 +863,11 @@ btr_page_get_father_node_ptr_func(
 
 #define btr_page_get_father_node_ptr(of,heap,cur,mtr)			\
 	btr_page_get_father_node_ptr_func(				\
-		of,heap,cur,BTR_CONT_MODIFY_TREE,__FILE__,__LINE__,mtr)
+		of,heap,cur,BTR_CONT_MODIFY_TREE,mtr)
 
 #define btr_page_get_father_node_ptr_for_validate(of,heap,cur,mtr)	\
 	btr_page_get_father_node_ptr_func(				\
-		of,heap,cur,BTR_CONT_SEARCH_TREE,__FILE__,__LINE__,mtr)
+		of,heap,cur,BTR_CONT_SEARCH_TREE,mtr)
 
 /************************************************************//**
 Returns the upper level node pointer to a page. It is assumed that mtr holds
@@ -2320,14 +2314,11 @@ btr_page_insert_fits(
 Inserts a data tuple to a tree on a non-leaf level. It is assumed
 that mtr holds an x-latch on the tree. */
 void
-btr_insert_on_non_leaf_level_func(
-/*==============================*/
+btr_insert_on_non_leaf_level(
 	ulint		flags,	/*!< in: undo logging and locking flags */
 	dict_index_t*	index,	/*!< in: index */
 	ulint		level,	/*!< in: level, must be > 0 */
 	dtuple_t*	tuple,	/*!< in: the record to be inserted */
-	const char*	file,	/*!< in: file name */
-	unsigned	line,	/*!< in: line where called */
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	big_rec_t*	dummy_big_rec;
@@ -2346,14 +2337,12 @@ btr_insert_on_non_leaf_level_func(
 		dberr_t err = btr_cur_search_to_nth_level(
 			index, level, tuple, PAGE_CUR_LE,
 			BTR_CONT_MODIFY_TREE,
-			&cursor, 0, file, line, mtr);
+			&cursor, 0, mtr);
 
 		if (err != DB_SUCCESS) {
 			ib::warn() << " Error code: " << err
 				   << " btr_page_get_father_node_ptr_func "
 				   << " level: " << level
-				   << " called from file: "
-				   << file << " line: " << line
 				   << " table: " << index->table->name
 				   << " index: " << index->name;
 		}
@@ -2367,7 +2356,7 @@ btr_insert_on_non_leaf_level_func(
 		btr_cur_search_to_nth_level(index, level, tuple,
 					    PAGE_CUR_RTREE_INSERT,
 					    BTR_CONT_MODIFY_TREE,
-					    &cursor, 0, file, line, mtr);
+					    &cursor, 0, mtr);
 	}
 
 	ut_ad(cursor.flag == BTR_CUR_BINARY);

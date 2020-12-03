@@ -3337,8 +3337,7 @@ row_log_apply_op_low(
 				    has_index_lock
 				    ? BTR_MODIFY_TREE
 				    : BTR_MODIFY_LEAF,
-				    &cursor, 0, __FILE__, __LINE__,
-				    &mtr);
+				    &cursor, 0, &mtr);
 
 	ut_ad(dict_index_get_n_unique(index) > 0);
 	/* This test is somewhat similar to row_ins_must_modify_rec(),
@@ -3386,8 +3385,7 @@ row_log_apply_op_low(
 				index->set_modified(mtr);
 				btr_cur_search_to_nth_level(
 					index, 0, entry, PAGE_CUR_LE,
-					BTR_MODIFY_TREE, &cursor, 0,
-					__FILE__, __LINE__, &mtr);
+					BTR_MODIFY_TREE, &cursor, 0, &mtr);
 
 				/* No other thread than the current one
 				is allowed to modify the index tree.
@@ -3489,8 +3487,7 @@ insert_the_rec:
 				index->set_modified(mtr);
 				btr_cur_search_to_nth_level(
 					index, 0, entry, PAGE_CUR_LE,
-					BTR_MODIFY_TREE, &cursor, 0,
-					__FILE__, __LINE__, &mtr);
+					BTR_MODIFY_TREE, &cursor, 0, &mtr);
 			}
 
 			/* We already determined that the
