@@ -315,21 +315,13 @@ ibuf_header_page_get(
 /*=================*/
 	mtr_t*	mtr)	/*!< in/out: mini-transaction */
 {
-	buf_block_t*	block;
-
 	ut_ad(!ibuf_inside(mtr));
-	page_t* page = NULL;
 
-	block = buf_page_get(
+	buf_block_t* block = buf_page_get(
 		page_id_t(IBUF_SPACE_ID, FSP_IBUF_HEADER_PAGE_NO),
 		0, RW_X_LATCH, mtr);
 
-	if (block) {
-		buf_block_dbg_add_level(block, SYNC_IBUF_HEADER);
-		page = buf_block_get_frame(block);
-	}
-
-	return page;
+	return block ? block->frame : nullptr;
 }
 
 /** Acquire the change buffer root page.
@@ -348,8 +340,6 @@ static buf_block_t *ibuf_tree_root_get(mtr_t *mtr)
 	block = buf_page_get(
 		page_id_t(IBUF_SPACE_ID, FSP_IBUF_TREE_ROOT_PAGE_NO),
 		0, RW_SX_LATCH, mtr);
-
-	buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE_NEW);
 
 	ut_ad(page_get_space_id(block->frame) == IBUF_SPACE_ID);
 	ut_ad(page_get_page_no(block->frame) == FSP_IBUF_TREE_ROOT_PAGE_NO);
@@ -458,8 +448,6 @@ ibuf_init_at_db_start(void)
 		block = buf_page_get(
 			page_id_t(IBUF_SPACE_ID, FSP_IBUF_TREE_ROOT_PAGE_NO),
 			0, RW_X_LATCH, &mtr);
-
-		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE);
 
 		root = buf_block_get_frame(block);
 	}
@@ -687,20 +675,9 @@ ibuf_bitmap_get_map_page_func(
 	unsigned		line,
 	mtr_t*			mtr)
 {
-	buf_block_t*	block = NULL;
-	dberr_t		err = DB_SUCCESS;
-
-	block = buf_page_get_gen(
+	return buf_page_get_gen(
 		ibuf_bitmap_page_no_calc(page_id, zip_size),
-		zip_size, RW_X_LATCH, NULL, BUF_GET, file, line, mtr, &err);
-
-	if (err != DB_SUCCESS) {
-		return NULL;
-	}
-
-
-	buf_block_dbg_add_level(block, SYNC_IBUF_BITMAP);
-	return block;
+		zip_size, RW_X_LATCH, NULL, BUF_GET, file, line, mtr);
 }
 
 /** Gets the ibuf bitmap page where the bits describing a given file page are
@@ -1859,8 +1836,6 @@ static bool ibuf_add_free_page()
 	ibuf_enter(&mtr);
 	mutex_enter(&ibuf_mutex);
 
-	buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE_NEW);
-
 	mtr.write<2>(*block, block->frame + FIL_PAGE_TYPE,
 		     FIL_PAGE_IBUF_FREE_LIST);
 
@@ -1963,7 +1938,6 @@ ibuf_remove_free_page(void)
 				       + root->frame).page);
 
 	buf_block_t* block = buf_page_get(page_id, 0, RW_X_LATCH, &mtr);
-	buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE);
 
 	/* Remove the page from the free list and update the ibuf size data */
 
@@ -2843,8 +2817,6 @@ ibuf_get_volume_buffered(
 			page_id_t(IBUF_SPACE_ID, prev_page_no),
 			0, RW_X_LATCH, mtr);
 
-		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE);
-
 		prev_page = buf_block_get_frame(block);
 		ut_ad(page_validate(prev_page, ibuf.index));
 	}
@@ -2917,8 +2889,6 @@ count_later:
 		block = buf_page_get(
 			page_id_t(IBUF_SPACE_ID, next_page_no),
 			0, RW_X_LATCH, mtr);
-
-		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE);
 
 		next_page = buf_block_get_frame(block);
 		ut_ad(page_validate(next_page, ibuf.index));
@@ -4277,15 +4247,7 @@ loop:
 	if (block) {
 		buf_block_buf_fix_inc(block);
 		block->lock.x_lock_recursive();
-
 		mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
-		/* This is a user page (secondary index leaf page),
-		but we pretend that it is a change buffer page in
-		order to obey the latching order. This should be OK,
-		because buffered changes are applied immediately while
-		the block is io-fixed. Other threads must not try to
-		latch an io-fixed block. */
-		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE);
 	}
 
 	if (space) {
@@ -4396,13 +4358,6 @@ loop:
 				buf_block_buf_fix_inc(block);
 				block->lock.x_lock_recursive();
 				mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
-
-				/* This is a user page (secondary
-				index leaf page), but it should be OK
-				to use too low latching order for it,
-				as the block is io-fixed. */
-				buf_block_dbg_add_level(
-					block, SYNC_IBUF_TREE_NODE);
 
 				if (!ibuf_restore_pos(page_id, search_tuple,
 						      BTR_MODIFY_LEAF,

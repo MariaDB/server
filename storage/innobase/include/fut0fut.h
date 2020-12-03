@@ -62,8 +62,6 @@ fut_get_ptr(
 
 	ptr = buf_block_get_frame(block) + addr.boffset;
 
-	buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
-
 	if (ptr_block != NULL) {
 		*ptr_block = block;
 	}

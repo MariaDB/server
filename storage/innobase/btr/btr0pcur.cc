@@ -338,11 +338,6 @@ btr_pcur_restore_position_func(
 			cursor->pos_state = BTR_PCUR_IS_POSITIONED;
 			cursor->latch_mode = latch_mode;
 
-			buf_block_dbg_add_level(
-				btr_pcur_get_block(cursor),
-				dict_index_is_ibuf(index)
-				? SYNC_IBUF_TREE_NODE : SYNC_TREE_NODE);
-
 			if (cursor->rel_pos == BTR_PCUR_ON) {
 #ifdef UNIV_DEBUG
 				const rec_t*	rec;

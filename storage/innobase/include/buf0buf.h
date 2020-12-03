@@ -607,8 +607,6 @@ void buf_pool_invalidate();
 --------------------------- LOWER LEVEL ROUTINES -------------------------
 =========================================================================*/
 
-#define buf_block_dbg_add_level(block, level) do {} while (0)
-
 #ifdef UNIV_DEBUG
 /*********************************************************************//**
 Gets a pointer to the memory frame of a block.

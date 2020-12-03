@@ -34,7 +34,8 @@ Created 4/18/1996 Heikki Tuuri
 #include "dict0dict.h"
 
 /** @return the DICT_HDR block, x-latched */
-buf_block_t *dict_hdr_get(mtr_t* mtr);
+#define dict_hdr_get(mtr) buf_page_get					\
+	(page_id_t(DICT_HDR_SPACE, DICT_HDR_PAGE_NO), 0, RW_X_LATCH, mtr)
 /**********************************************************************//**
 Returns a new table, index, or space id. */
 void

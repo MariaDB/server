@@ -2555,7 +2555,6 @@ inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
     {
       ut_ad(&recs == &recv_sys.pages.find(page_id)->second);
       i.created= true;
-      buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
       recv_recover_page(block, mtr, p, space, &i);
       ut_ad(mtr.has_committed());
       recs.log.clear();
@@ -2676,7 +2675,6 @@ next_page:
                                                  __FILE__, __LINE__,
                                                  &mtr, nullptr, false))
         {
-          buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
           recv_recover_page(block, mtr, p);
           ut_ad(mtr.has_committed());
         }

@@ -44,11 +44,6 @@ Created 2012-08-21 Sunny Bains
 
 my_bool		srv_sync_debug;
 
-/** The global mutex which protects debug info lists of all rw-locks.
-To modify the debug info list of an rw-lock, this mutex has to be
-acquired in addition to the mutex protecting the lock. */
-static SysMutex		rw_lock_debug_mutex;
-
 /** The latch held by a thread */
 struct Latched {
 
@@ -209,20 +204,13 @@ struct LatchDebug {
 	{
 		/* Ignore diagnostic latches, starting with '.' */
 
-		if (*latch->get_name() != '.'
-		    && latch->get_level() != SYNC_LEVEL_VARYING) {
-
-			ut_ad(level != SYNC_LEVEL_VARYING);
-
+		if (*latch->get_name() != '.') {
 			Latches*	latches = check_order(latch, level);
 
 			ut_a(latches->empty()
-			     || level == SYNC_LEVEL_VARYING
 			     || level == SYNC_NO_ORDER_CHECK
 			     || latches->back().get_level()
 			     == SYNC_NO_ORDER_CHECK
-			     || latches->back().m_latch->get_level()
-			     == SYNC_LEVEL_VARYING
 			     || latches->back().get_level() >= level);
 		}
 	}
@@ -241,50 +229,8 @@ struct LatchDebug {
 	{
 		/* Ignore diagnostic latches, starting with '.' */
 
-		if (*latch->get_name() != '.'
-		    && latch->get_level() != SYNC_LEVEL_VARYING) {
-
-			Latches*	latches = thread_latches(true);
-
-			latches->push_back(Latched(latch, level));
-		}
-	}
-
-	/** For recursive X rw-locks.
-	@param[in]	latch		The RW-Lock to relock  */
-	void relock(const latch_t* latch)
-		UNIV_NOTHROW
-	{
-		ut_a(latch->m_rw_lock);
-
-		latch_level_t	level = latch->get_level();
-
-		/* Ignore diagnostic latches, starting with '.' */
-
-		if (*latch->get_name() != '.'
-		    && latch->get_level() != SYNC_LEVEL_VARYING) {
-
-			Latches*	latches = thread_latches(true);
-
-			Latches::iterator	it = std::find(
-				latches->begin(), latches->end(),
-				Latched(latch, level));
-
-			ut_a(latches->empty()
-			     || level == SYNC_LEVEL_VARYING
-			     || level == SYNC_NO_ORDER_CHECK
-			     || latches->back().m_latch->get_level()
-			     == SYNC_LEVEL_VARYING
-			     || latches->back().m_latch->get_level()
-			     == SYNC_NO_ORDER_CHECK
-			     || latches->back().get_level() >= level
-			     || it != latches->end());
-
-			if (it == latches->end()) {
-				latches->push_back(Latched(latch, level));
-			} else {
-				latches->insert(it, Latched(latch, level));
-			}
+		if (*latch->get_name() != '.') {
+			thread_latches(true)->push_back(Latched(latch, level));
 		}
 	}
 
@@ -327,10 +273,6 @@ struct LatchDebug {
 
 		return(it->second);
 	}
-
-	/** Initialise the debug data structures */
-	static void init()
-		UNIV_NOTHROW;
 
 	/** Shutdown the latch debug checking */
 	static void shutdown()
@@ -460,7 +402,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_FTS_OPTIMIZE);
 	LEVEL_MAP_INSERT(SYNC_RECV);
 	LEVEL_MAP_INSERT(SYNC_PURGE_QUEUE);
-	LEVEL_MAP_INSERT(SYNC_TRX_SYS_HEADER);
 	LEVEL_MAP_INSERT(SYNC_TRX);
 	LEVEL_MAP_INSERT(SYNC_RW_TRX_HASH_ELEMENT);
 	LEVEL_MAP_INSERT(SYNC_READ_VIEW);
@@ -468,29 +409,13 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_LOCK_SYS);
 	LEVEL_MAP_INSERT(SYNC_LOCK_WAIT_SYS);
 	LEVEL_MAP_INSERT(SYNC_INDEX_ONLINE_LOG);
-	LEVEL_MAP_INSERT(SYNC_IBUF_BITMAP);
 	LEVEL_MAP_INSERT(SYNC_IBUF_BITMAP_MUTEX);
-	LEVEL_MAP_INSERT(SYNC_IBUF_TREE_NODE);
-	LEVEL_MAP_INSERT(SYNC_IBUF_TREE_NODE_NEW);
-	LEVEL_MAP_INSERT(SYNC_IBUF_INDEX_TREE);
 	LEVEL_MAP_INSERT(SYNC_IBUF_MUTEX);
-	LEVEL_MAP_INSERT(SYNC_FSP_PAGE);
-	LEVEL_MAP_INSERT(SYNC_EXTERN_STORAGE);
-	LEVEL_MAP_INSERT(SYNC_TRX_UNDO_PAGE);
-	LEVEL_MAP_INSERT(SYNC_RSEG_HEADER);
-	LEVEL_MAP_INSERT(SYNC_RSEG_HEADER_NEW);
 	LEVEL_MAP_INSERT(SYNC_NOREDO_RSEG);
 	LEVEL_MAP_INSERT(SYNC_REDO_RSEG);
-	LEVEL_MAP_INSERT(SYNC_TREE_NODE);
-	LEVEL_MAP_INSERT(SYNC_TREE_NODE_FROM_HASH);
-	LEVEL_MAP_INSERT(SYNC_TREE_NODE_NEW);
-	LEVEL_MAP_INSERT(SYNC_INDEX_TREE);
 	LEVEL_MAP_INSERT(SYNC_IBUF_PESS_INSERT_MUTEX);
-	LEVEL_MAP_INSERT(SYNC_IBUF_HEADER);
-	LEVEL_MAP_INSERT(SYNC_DICT_HEADER);
 	LEVEL_MAP_INSERT(SYNC_STATS_AUTO_RECALC);
 	LEVEL_MAP_INSERT(SYNC_DICT);
-	LEVEL_MAP_INSERT(SYNC_LEVEL_VARYING);
 	LEVEL_MAP_INSERT(SYNC_NO_ORDER_CHECK);
 
 	/* Enum count starts from 0 */
@@ -692,8 +617,6 @@ LatchDebug::check_order(
 	latch_level_t	level)
 	UNIV_NOTHROW
 {
-	ut_ad(latch->get_level() != SYNC_LEVEL_VARYING);
-
 	Latches*	latches = thread_latches(true);
 
 	/* NOTE that there is a problem with _NODE and _LEAF levels: if the
@@ -703,21 +626,7 @@ LatchDebug::check_order(
 
 	switch (level) {
 	case SYNC_NO_ORDER_CHECK:
-	case SYNC_EXTERN_STORAGE:
-	case SYNC_TREE_NODE_FROM_HASH:
-		/* Do no order checking */
 		break;
-
-	case SYNC_TRX_SYS_HEADER:
-
-		if (srv_is_being_started) {
-			/* This is violated during trx_sys_create_rsegs()
-			when creating additional rollback segments when
-			upgrading in srv_start(). */
-			break;
-		}
-
-		/* Fall through */
 
 	case SYNC_RECV:
 	case SYNC_WORK_QUEUE:
@@ -732,7 +641,6 @@ LatchDebug::check_order(
 	case SYNC_REDO_RSEG:
 	case SYNC_NOREDO_RSEG:
 	case SYNC_PURGE_QUEUE:
-	case SYNC_DICT_HEADER:
 	case SYNC_IBUF_MUTEX:
 	case SYNC_INDEX_ONLINE_LOG:
 	case SYNC_STATS_AUTO_RECALC:
@@ -776,100 +684,8 @@ LatchDebug::check_order(
 		}
 		break;
 
-	case SYNC_IBUF_BITMAP:
-
-		/* Either the thread must own the master mutex to all
-		the bitmap pages, or it is allowed to latch only ONE
-		bitmap page. */
-
-		if (find(latches, SYNC_IBUF_BITMAP_MUTEX) != 0) {
-
-			basic_check(latches, level, SYNC_IBUF_BITMAP - 1);
-
-		} else if (!srv_is_being_started) {
-
-			/* This is violated during trx_sys_create_rsegs()
-			when creating additional rollback segments during
-			upgrade. */
-
-			basic_check(latches, level, SYNC_IBUF_BITMAP);
-		}
-		break;
-
-	case SYNC_FSP_PAGE:
-		break;
-
-	case SYNC_TRX_UNDO_PAGE:
-
-		/* Purge is allowed to read in as many UNDO pages as it likes.
-		The purge thread can read the UNDO pages without any covering
-		mutex. */
-
-		ut_a(find(latches, SYNC_REDO_RSEG) != 0
-		     || find(latches, SYNC_NOREDO_RSEG) != 0
-		     || basic_check(latches, level, level - 1));
-		break;
-
-	case SYNC_RSEG_HEADER:
-
-		ut_a(find(latches, SYNC_REDO_RSEG) != 0
-		     || find(latches, SYNC_NOREDO_RSEG) != 0);
-		break;
-
-	case SYNC_RSEG_HEADER_NEW:
-
-		ut_a(find(latches, SYNC_FSP_PAGE) != 0);
-		break;
-
-	case SYNC_TREE_NODE:
-		ut_a(find(latches, SYNC_INDEX_TREE)
-		     || basic_check(latches, level, SYNC_TREE_NODE - 1));
-		break;
-
-	case SYNC_TREE_NODE_NEW:
-
-		ut_a(find(latches, SYNC_FSP_PAGE) != 0);
-		break;
-
-	case SYNC_INDEX_TREE:
-
-		basic_check(latches, level, SYNC_TREE_NODE - 1);
-		break;
-
-	case SYNC_IBUF_TREE_NODE:
-
-		ut_a(find(latches, SYNC_IBUF_INDEX_TREE) != 0
-		     || basic_check(latches, level, SYNC_IBUF_TREE_NODE - 1));
-		break;
-
-	case SYNC_IBUF_TREE_NODE_NEW:
-
-		/* ibuf_add_free_page() allocates new pages for the change
-		buffer while only holding the tablespace x-latch. These
-		pre-allocated new pages may only be used while holding
-		ibuf_mutex, in btr_page_alloc_for_ibuf(). */
-
-		ut_ad(find(latches, SYNC_IBUF_MUTEX) != 0
-		      || fil_system.sys_space->is_owner());
-		break;
-
-	case SYNC_IBUF_INDEX_TREE:
-		if (fil_system.sys_space->is_owner()) {
-			basic_check(latches, level, level - 1);
-		} else {
-			basic_check(latches, level, SYNC_IBUF_TREE_NODE - 1);
-		}
-		break;
-
 	case SYNC_IBUF_PESS_INSERT_MUTEX:
-		basic_check(latches, level, SYNC_FSP_PAGE);
 		ut_a(find(latches, SYNC_IBUF_MUTEX) == 0);
-		break;
-
-	case SYNC_IBUF_HEADER:
-		basic_check(latches, level, SYNC_FSP_PAGE);
-		ut_a(find(latches, SYNC_IBUF_MUTEX) == NULL);
-		ut_a(find(latches, SYNC_IBUF_PESS_INSERT_MUTEX) == NULL);
 		break;
 
 	case SYNC_DICT:
@@ -878,7 +694,6 @@ LatchDebug::check_order(
 
 	case SYNC_MUTEX:
 	case SYNC_UNKNOWN:
-	case SYNC_LEVEL_VARYING:
 	case RW_LOCK_X:
 	case RW_LOCK_X_WAIT:
 	case RW_LOCK_S:
@@ -902,11 +717,6 @@ void
 LatchDebug::unlock(const latch_t* latch)
 	UNIV_NOTHROW
 {
-	if (latch->get_level() == SYNC_LEVEL_VARYING) {
-		// We don't have varying level mutexes
-		ut_ad(latch->m_rw_lock);
-	}
-
 	Latches*	latches;
 
 	if (*latch->get_name() == '.') {
@@ -955,16 +765,14 @@ LatchDebug::unlock(const latch_t* latch)
 			return;
 		}
 
-		if (latch->get_level() != SYNC_LEVEL_VARYING) {
-			ib::error()
-				<< "Couldn't find latch "
-				<< sync_latch_get_name(latch->get_id());
+		ib::error()
+			<< "Couldn't find latch "
+			<< sync_latch_get_name(latch->get_id());
 
-			print_latches(latches);
+		print_latches(latches);
 
-			/** Must find the latch. */
-			ut_error;
-		}
+		/** Must find the latch. */
+		ut_error;
 	}
 }
 
@@ -1043,34 +851,6 @@ sync_check_lock_granted(const latch_t* latch)
 	}
 }
 
-/** Check if it is OK to acquire the latch.
-@param[in]	latch	latch type
-@param[in]	level	Latch level */
-void
-sync_check_lock(
-	const latch_t*	latch,
-	latch_level_t	level)
-{
-	if (LatchDebug::instance() != NULL) {
-
-		ut_ad(latch->get_level() == SYNC_LEVEL_VARYING);
-		ut_ad(latch->get_id() == LATCH_ID_BUF_BLOCK_LOCK);
-
-		LatchDebug::instance()->lock_validate(latch, level);
-		LatchDebug::instance()->lock_granted(latch, level);
-	}
-}
-
-/** Check if it is OK to re-acquire the lock.
-@param[in]	latch		RW-LOCK to relock (recursive X locks) */
-void
-sync_check_relock(const latch_t* latch)
-{
-	if (LatchDebug::instance() != NULL) {
-		LatchDebug::instance()->relock(latch);
-	}
-}
-
 /** Removes a latch from the thread level array if it is found there.
 @param[in]	latch		The latch to unlock */
 void
@@ -1124,14 +904,6 @@ static void sync_check_enable()
 	LatchDebug::create_instance();
 }
 
-/** Initialise the debug data structures */
-void
-LatchDebug::init()
-	UNIV_NOTHROW
-{
-	mutex_create(LATCH_ID_RW_LOCK_DEBUG, &rw_lock_debug_mutex);
-}
-
 /** Shutdown the latch debug checking
 
 Note: We don't enforce any synchronisation checks. The caller must ensure
@@ -1140,8 +912,6 @@ void
 LatchDebug::shutdown()
 	UNIV_NOTHROW
 {
-	mutex_free(&rw_lock_debug_mutex);
-
 	ut_a(s_initialized);
 
 	s_initialized = false;
@@ -1149,24 +919,6 @@ LatchDebug::shutdown()
 	UT_DELETE(s_instance);
 
 	LatchDebug::s_instance = NULL;
-}
-
-/** Acquires the debug mutex. We cannot use the mutex defined in sync0sync,
-because the debug mutex is also acquired in sync0arr while holding the OS
-mutex protecting the sync array, and the ordinary mutex_enter might
-recursively call routines in sync0arr, leading to a deadlock on the OS
-mutex. */
-void
-rw_lock_debug_mutex_enter()
-{
-	mutex_enter(&rw_lock_debug_mutex);
-}
-
-/** Releases the debug mutex. */
-void
-rw_lock_debug_mutex_exit()
-{
-	mutex_exit(&rw_lock_debug_mutex);
 }
 #endif /* UNIV_DEBUG */
 
@@ -1219,15 +971,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(NOREDO_RSEG, SYNC_NOREDO_RSEG, noredo_rseg_mutex_key);
 
-#ifdef UNIV_DEBUG
-	/* Mutex names starting with '.' are not tracked. They are assumed
-	to be diagnostic mutexes used in debugging. */
-	latch_meta[LATCH_ID_RW_LOCK_DEBUG] =
-		LATCH_ADD_MUTEX(RW_LOCK_DEBUG,
-			SYNC_NO_ORDER_CHECK,
-			rw_lock_debug_mutex_key);
-#endif /* UNIV_DEBUG */
-
 	LATCH_ADD_MUTEX(RTR_ACTIVE_MUTEX, SYNC_ANY_LATCH,
 			rtr_active_mutex_key);
 
@@ -1273,20 +1016,6 @@ sync_latch_meta_init()
 			index_online_log_key);
 
 	LATCH_ADD_MUTEX(WORK_QUEUE, SYNC_WORK_QUEUE, PFS_NOT_INSTRUMENTED);
-
-	// Add the RW locks
-	LATCH_ADD_RWLOCK(BUF_BLOCK_LOCK, SYNC_LEVEL_VARYING,
-			 PFS_NOT_INSTRUMENTED);
-
-#ifdef UNIV_DEBUG
-	LATCH_ADD_RWLOCK(BUF_BLOCK_DEBUG, SYNC_LEVEL_VARYING,
-			 PFS_NOT_INSTRUMENTED);
-#endif /* UNIV_DEBUG */
-
-	LATCH_ADD_RWLOCK(IBUF_INDEX_TREE, SYNC_IBUF_INDEX_TREE,
-			 index_tree_rw_lock_key);
-
-	LATCH_ADD_RWLOCK(INDEX_TREE, SYNC_INDEX_TREE, index_tree_rw_lock_key);
 
 	/* JAN: TODO: Add PFS instrumentation */
 	LATCH_ADD_MUTEX(DEFRAGMENT_MUTEX, SYNC_NO_ORDER_CHECK,
@@ -1350,8 +1079,6 @@ sync_check_init()
 	ut_d(LatchDebug::s_initialized = true);
 
 	sync_latch_meta_init();
-
-	ut_d(LatchDebug::init());
 
 	sync_array_init();
 

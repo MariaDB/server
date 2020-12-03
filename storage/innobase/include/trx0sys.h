@@ -68,10 +68,8 @@ trx_sys_rseg_find_free(const buf_block_t* sys_header);
 @retval	NULL	if the page cannot be read */
 inline buf_block_t *trx_sysf_get(mtr_t* mtr, bool rw= true)
 {
-  buf_block_t* block = buf_page_get(page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
-				    0, rw ? RW_X_LATCH : RW_S_LATCH, mtr);
-  ut_d(if (block) buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);)
-  return block;
+  return buf_page_get(page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
+                      0, rw ? RW_X_LATCH : RW_S_LATCH, mtr);
 }
 
 #ifdef UNIV_DEBUG

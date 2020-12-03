@@ -323,8 +323,6 @@ trx_rseg_header_create(
 		return block;
 	}
 
-	buf_block_dbg_add_level(block, SYNC_RSEG_HEADER_NEW);
-
 	ut_ad(0 == mach_read_from_4(TRX_RSEG_FORMAT + TRX_RSEG
 				    + block->frame));
 	ut_ad(0 == mach_read_from_4(TRX_RSEG_HISTORY_SIZE + TRX_RSEG

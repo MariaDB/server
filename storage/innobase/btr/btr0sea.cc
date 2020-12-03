@@ -1120,7 +1120,6 @@ got_no_latch:
 
 		part->latch.rd_unlock();
 
-		buf_block_dbg_add_level(block, SYNC_TREE_NODE_FROM_HASH);
 		if (UNIV_UNLIKELY(fail)) {
 			goto fail_and_release_page;
 		}
@@ -1390,7 +1389,6 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id)
 {
 	buf_block_t*	block;
 	mtr_t		mtr;
-	dberr_t		err = DB_SUCCESS;
 
 	mtr_start(&mtr);
 
@@ -1402,18 +1400,14 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id)
 
 	block = buf_page_get_gen(page_id, 0, RW_X_LATCH, NULL,
 				 BUF_PEEK_IF_IN_POOL, __FILE__, __LINE__,
-				 &mtr, &err);
+				 &mtr);
 
 	if (block) {
-
 		/* If AHI is still valid, page can't be in free state.
 		AHI is dropped when page is freed. */
 		DBUG_ASSERT(block->page.status != buf_page_t::FREED);
 
-		buf_block_dbg_add_level(block, SYNC_TREE_NODE_FROM_HASH);
-
-		dict_index_t*	index = block->index;
-		if (index != NULL) {
+		if (block->index) {
 			/* In all our callers, the table handle should
 			be open, or we should be in the process of
 			dropping the table (preventing eviction). */

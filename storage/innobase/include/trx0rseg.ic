@@ -40,11 +40,8 @@ trx_rsegf_get(fil_space_t* space, uint32_t page_no, mtr_t* mtr)
 	      || srv_is_undo_tablespace(space->id)
 	      || !srv_was_started);
 
-	buf_block_t* block = buf_page_get(page_id_t(space->id, page_no),
-					  0, RW_X_LATCH, mtr);
-
-	buf_block_dbg_add_level(block, SYNC_RSEG_HEADER);
-	return block;
+	return buf_page_get(page_id_t(space->id, page_no),
+			    0, RW_X_LATCH, mtr);
 }
 
 /** Gets a newly created rollback segment header.
@@ -59,14 +56,9 @@ trx_rsegf_get_new(
 	uint32_t		page_no,
 	mtr_t*			mtr)
 {
-	buf_block_t*	block;
-
 	ut_ad(space <= srv_undo_tablespaces_active || space == SRV_TMP_SPACE_ID
 	      || !srv_was_started);
 	ut_ad(space <= TRX_SYS_MAX_UNDO_SPACES || space == SRV_TMP_SPACE_ID);
 
-	block = buf_page_get(page_id_t(space, page_no), 0, RW_X_LATCH, mtr);
-
-	buf_block_dbg_add_level(block, SYNC_RSEG_HEADER_NEW);
-	return block;
+	return buf_page_get(page_id_t(space, page_no), 0, RW_X_LATCH, mtr);
 }

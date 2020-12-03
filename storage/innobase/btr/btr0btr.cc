@@ -366,8 +366,6 @@ btr_root_adjust_on_import(
 		goto func_exit;
 	}
 
-	buf_block_dbg_add_level(block, SYNC_TREE_NODE);
-
 	page = buf_block_get_frame(block);
 	page_zip = buf_block_get_page_zip(block);
 
@@ -490,8 +488,6 @@ btr_page_alloc_for_ibuf(
 		index->table->space->zip_size(),
 		RW_X_LATCH, mtr);
 
-	buf_block_dbg_add_level(new_block, SYNC_IBUF_TREE_NODE_NEW);
-
 	flst_remove(root, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST,
 		    new_block, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE,
 		    mtr);
@@ -557,21 +553,13 @@ btr_page_alloc(
 					for x-latching and initializing
 					the page */
 {
-	buf_block_t*	new_block;
-
 	if (dict_index_is_ibuf(index)) {
 
 		return(btr_page_alloc_for_ibuf(index, mtr));
 	}
 
-	new_block = btr_page_alloc_low(
+	return btr_page_alloc_low(
 		index, hint_page_no, file_direction, level, mtr, init_mtr);
-
-	if (new_block) {
-		buf_block_dbg_add_level(new_block, SYNC_TREE_NODE_NEW);
-	}
-
-	return(new_block);
 }
 
 /**************************************************************//**
@@ -979,8 +967,6 @@ btr_free_root_check(
 		page_id, zip_size, RW_X_LATCH, mtr);
 
 	if (block) {
-		buf_block_dbg_add_level(block, SYNC_TREE_NODE);
-
 		if (fil_page_index_page_check(block->frame)
 		    && index_id == btr_page_get_index_id(block->frame)) {
 			/* This should be a root page.
@@ -1030,9 +1016,6 @@ btr_create(
 			return(FIL_NULL);
 		}
 
-		buf_block_dbg_add_level(
-			ibuf_hdr_block, SYNC_IBUF_TREE_NODE_NEW);
-
 		ut_ad(ibuf_hdr_block->page.id().page_no()
 		      == IBUF_HEADER_PAGE_NO);
 		/* Allocate then the next page to the segment: it will be the
@@ -1050,8 +1033,6 @@ btr_create(
 
 		ut_ad(block->page.id() == page_id_t(0,IBUF_TREE_ROOT_PAGE_NO));
 
-		buf_block_dbg_add_level(block, SYNC_IBUF_TREE_NODE_NEW);
-
 		flst_init(block, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST, mtr);
 	} else {
 		block = fseg_create(space, PAGE_HEADER + PAGE_BTR_SEG_TOP,
@@ -1061,8 +1042,6 @@ btr_create(
 			return(FIL_NULL);
 		}
 
-		buf_block_dbg_add_level(block, SYNC_TREE_NODE_NEW);
-
 		if (!fseg_create(space, PAGE_HEADER + PAGE_BTR_SEG_LEAF, mtr,
 				 false, block)) {
 			/* Not enough space for new segment, free root
@@ -1070,10 +1049,6 @@ btr_create(
 			btr_free_root(block, mtr);
 			return(FIL_NULL);
 		}
-
-		/* The fseg create acquires a second latch on the page,
-		therefore we must declare it: */
-		buf_block_dbg_add_level(block, SYNC_TREE_NODE_NEW);
 	}
 
 	ut_ad(!page_has_siblings(block->frame));
