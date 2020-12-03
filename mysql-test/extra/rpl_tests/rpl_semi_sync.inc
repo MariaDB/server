@@ -10,7 +10,6 @@ source include/have_innodb.inc;
 source include/master-slave.inc;
 
 let $engine_type= InnoDB;
-#let $engine_type= MyISAM;
 
 # Suppress warnings that might be generated during the test
 connection master;
@@ -94,7 +93,6 @@ enable_query_log;
 echo [ status of semi-sync on master should be OFF ];
 show status like 'Rpl_semi_sync_master_clients';
 show status like 'Rpl_semi_sync_master_status';
---replace_result 305 304
 show status like 'Rpl_semi_sync_master_yes_tx';
 
 # reset master to make sure the following test will start with a clean environment
@@ -201,16 +199,23 @@ connection slave;
 source include/stop_slave.inc;
 
 connection master;
+--source include/kill_binlog_dump_threads.inc
 set global rpl_semi_sync_master_timeout= 5000;
 
 # The first semi-sync check should be on because after slave stop,
 # there are no transactions on the master.
 echo [ master status should be ON ];
-show status like 'Rpl_semi_sync_master_status';
+
+let $status_var= Rpl_semi_sync_master_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
+
+let $status_var= Rpl_semi_sync_master_clients;
+let $status_var_value= 0;
+source include/wait_for_status_var.inc;
+
 show status like 'Rpl_semi_sync_master_no_tx';
---replace_result 305 304
 show status like 'Rpl_semi_sync_master_yes_tx';
-show status like 'Rpl_semi_sync_master_clients';
 
 echo [ semi-sync replication of these transactions will fail ];
 insert into t1 values (500);
@@ -225,7 +230,6 @@ source include/wait_for_status_var.inc;
 echo [ master status should be OFF ];
 show status like 'Rpl_semi_sync_master_status';
 show status like 'Rpl_semi_sync_master_no_tx';
---replace_result 305 304
 show status like 'Rpl_semi_sync_master_yes_tx';
 
 # Semi-sync status on master is now OFF, so all these transactions
@@ -246,7 +250,6 @@ insert into t1 values (100);
 echo [ master status should be OFF ];
 show status like 'Rpl_semi_sync_master_status';
 show status like 'Rpl_semi_sync_master_no_tx';
---replace_result 305 304
 show status like 'Rpl_semi_sync_master_yes_tx';
 
 --echo #
@@ -274,9 +277,11 @@ connection master;
 
 # The master semi-sync status should be on again after slave catches up.
 echo [ master status should be ON again after slave catches up ];
-show status like 'Rpl_semi_sync_master_status';
+
+let $status_var= Rpl_semi_sync_master_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
 show status like 'Rpl_semi_sync_master_no_tx';
---replace_result 305 304
 show status like 'Rpl_semi_sync_master_yes_tx';
 show status like 'Rpl_semi_sync_master_clients';
 
@@ -332,11 +337,7 @@ replace_result $engine_type ENGINE_TYPE;
 eval create table t1 (a int) engine = $engine_type;
 drop table t1;
 
-##show status like 'Rpl_semi_sync_master_status';
-
 sync_slave_with_master;
---replace_column 2 #
-show status like 'Rpl_relay%';
 
 echo [ test reset master ];
 connection master;
@@ -353,19 +354,7 @@ source include/stop_slave.inc;
 reset slave;
 
 # Kill the dump thread on master for previous slave connection and
-# wait for it to exit
-connection master;
-let $_tid= `select id from information_schema.processlist where command = 'Binlog Dump' limit 1`;
-if ($_tid)
-{
-  --replace_result $_tid _tid
-  eval kill query $_tid;
-
-  # After dump thread exit, Rpl_semi_sync_master_clients will be 0
-  let $status_var= Rpl_semi_sync_master_clients;
-  let $status_var_value= 0;
-  source include/wait_for_status_var.inc;
-}
+--source include/kill_binlog_dump_threads.inc
 
 connection slave;
 source include/start_slave.inc;
@@ -404,17 +393,7 @@ connection master;
 reset master;
 
 # Kill the dump thread on master for previous slave connection and wait for it to exit
-let $_tid= `select id from information_schema.processlist where command = 'Binlog Dump' limit 1`;
-if ($_tid)
-{
-  --replace_result $_tid _tid
-  eval kill query $_tid;
-
-  # After dump thread exit, Rpl_semi_sync_master_clients will be 0
-  let $status_var= Rpl_semi_sync_master_clients;
-  let $status_var_value= 0;
-  source include/wait_for_status_var.inc;
-}
+--source include/kill_binlog_dump_threads.inc
 
 # Do not binlog the following statement because it will generate
 # different events for ROW and STATEMENT format
@@ -459,21 +438,16 @@ SHOW STATUS LIKE 'Rpl_semi_sync_slave_status';
 connection master;
 
 # Kill the dump thread on master for previous slave connection and wait for it to exit
-let $_tid= `select id from information_schema.processlist where command = 'Binlog Dump' limit 1`;
-if ($_tid)
-{
-  --replace_result $_tid _tid
-  eval kill query $_tid;
-
-  # After dump thread exit, Rpl_semi_sync_master_clients will be 0
-  let $status_var= Rpl_semi_sync_master_clients;
-  let $status_var_value= 0;
-  source include/wait_for_status_var.inc;
-}
+--source include/kill_binlog_dump_threads.inc
 
 echo [ Semi-sync status on master should be ON ];
-show status like 'Rpl_semi_sync_master_clients';
+let $status_var= Rpl_semi_sync_master_clients;
+let $status_var_value= 0;
+source include/wait_for_status_var.inc;
 show status like 'Rpl_semi_sync_master_status';
+let $status_var= Rpl_semi_sync_master_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
 set global rpl_semi_sync_master_enabled= 0;
 
 connection slave;
