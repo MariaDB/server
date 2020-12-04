@@ -469,7 +469,6 @@ innodb.innodb_stats                          : MDEV-10682 - wrong result
 innodb.innodb_stats_drop_locked              : Modified in 10.5.7
 innodb.innodb_stats_persistent               : MDEV-21567 - Wrong result in execution plan
 innodb.innodb_stats_persistent_debug         : MDEV-14801 - Operation failed
-innodb.innodb_sys_semaphore_waits            : MDEV-10331 - Semaphore wait
 innodb.innodb_trx_weight                     : Configuration deleted in 10.5.7
 innodb.innodb_zip_innochecksum2              : MDEV-13882 - Warning: difficult to find free blocks
 innodb.instant_alter_bugs                    : Modified in 10.5.7

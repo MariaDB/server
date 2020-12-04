@@ -123,6 +123,7 @@ static const char *removed_variables[] =
 "innodb_stats_sample_pages",
 "innodb_stats_update_need_lock",
 "innodb_support_xa",
+"innodb_sync_array_size",
 "innodb_thread_concurrency",
 "innodb_thread_concurrency_timer_based",
 "innodb_thread_sleep_delay",

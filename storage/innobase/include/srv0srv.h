@@ -45,6 +45,7 @@ Created 10/10/1995 Heikki Tuuri
 #include "que0types.h"
 #include "trx0types.h"
 #include "fil0fil.h"
+#include "ut0counter.h"
 
 #include "mysql/psi/mysql_stage.h"
 #include "mysql/psi/psi.h"
@@ -184,7 +185,7 @@ struct srv_stats_t
 };
 
 /** We are prepared for a situation that we have this many threads waiting for
-a semaphore inside InnoDB. srv_start() sets the value. */
+a transactional lock inside InnoDB. srv_start() sets the value. */
 extern ulint srv_max_n_threads;
 
 extern const char*	srv_main_thread_op_info;

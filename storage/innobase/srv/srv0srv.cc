@@ -838,11 +838,11 @@ srv_printf_innodb_monitor(
 	      "-----------------\n", file);
 	srv_print_master_thread_info(file);
 
+	/* This section is intentionally left blank, for tools like "innotop" */
 	fputs("----------\n"
 	      "SEMAPHORES\n"
 	      "----------\n", file);
-
-	sync_array_print(file);
+	/* End of intentionally blank section */
 
 	/* Conceptually, srv_innodb_monitor_mutex has a very high latching
 	order level in sync0sync.h, while dict_foreign_err_mutex has a very
@@ -1347,21 +1347,11 @@ static void srv_monitor()
 	srv_refresh_innodb_monitor_stats(current_time);
 }
 
-/*********************************************************************//**
-A task which prints warnings about semaphore waits which have lasted
-too long. These can be used to track bugs which cause hangs.
-*/
+/** Periodic task which prints the info output by various InnoDB monitors.*/
 void srv_monitor_task(void*)
 {
 	/* number of successive fatal timeouts observed */
-	static ulint		fatal_cnt;
 	static lsn_t		old_lsn = recv_sys.recovered_lsn;
-	/* longest waiting thread for a semaphore */
-	os_thread_id_t	waiter;
-	static os_thread_id_t	old_waiter = os_thread_get_curr_id();
-	/* the semaphore that is being waited for */
-	const void*	sema		= NULL;
-	static const void*	old_sema	= NULL;
 
 	ut_ad(!srv_read_only_mode);
 
@@ -1382,31 +1372,6 @@ void srv_monitor_task(void*)
 	/* Update the statistics collected for deciding LRU
 	eviction policy. */
 	buf_LRU_stat_update();
-
-	if (sync_array_print_long_waits(&waiter, &sema)
-	    && sema == old_sema && os_thread_eq(waiter, old_waiter)) {
-#if defined(WITH_WSREP) && defined(WITH_INNODB_DISALLOW_WRITES)
-		if (UNIV_UNLIKELY(innodb_disallow_writes)) {
-			fprintf(stderr,
-				"WSREP: avoiding InnoDB self crash due to "
-				"long semaphore wait of  > %lu seconds\n"
-				"Server is processing SST donor operation, "
-				"fatal_cnt now: " ULINTPF,
-				srv_fatal_semaphore_wait_threshold, fatal_cnt);
-			return;
-		}
-#endif /* WITH_WSREP */
-		if (fatal_cnt++) {
-			ib::fatal() << "Semaphore wait has lasted > "
-				<< srv_fatal_semaphore_wait_threshold
-				<< " seconds. We intentionally crash the"
-				" server because it appears to be hung.";
-		}
-	} else {
-		fatal_cnt = 0;
-		old_waiter = waiter;
-		old_sema = sema;
-	}
 
 	srv_monitor();
 }

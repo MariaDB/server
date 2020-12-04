@@ -41,7 +41,6 @@ UT_MUTEX_TYPE(TTASFutexMutex, GenericPolicy, FutexMutex);
 
 UT_MUTEX_TYPE(TTASMutex, GenericPolicy, SpinMutex);
 UT_MUTEX_TYPE(OSTrackMutex, GenericPolicy, SysMutex);
-UT_MUTEX_TYPE(TTASEventMutex, GenericPolicy, SyncArrayMutex);
 
 #ifdef MUTEX_FUTEX
 /** The default mutex type. */
@@ -50,9 +49,6 @@ typedef FutexMutex ib_mutex_t;
 #elif defined(MUTEX_SYS)
 typedef SysMutex ib_mutex_t;
 #define MUTEX_TYPE	"Uses system mutexes"
-#elif defined(MUTEX_EVENT)
-typedef SyncArrayMutex ib_mutex_t;
-#define MUTEX_TYPE	"Uses event mutexes"
 #else
 #error "ib_mutex_t type is unknown"
 #endif /* MUTEX_FUTEX */

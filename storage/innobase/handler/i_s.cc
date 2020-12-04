@@ -22,7 +22,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 InnoDB INFORMATION SCHEMA tables interface to MySQL.
 
 Created July 18, 2007 Vasil Dimov
-Modified Dec 29, 2014 Jan Lindström (Added sys_semaphore_waits)
 *******************************************************/
 
 #include "univ.i"
@@ -54,7 +53,6 @@ Modified Dec 29, 2014 Jan Lindström (Added sys_semaphore_waits)
 #include "fts0priv.h"
 #include "btr0btr.h"
 #include "page0zip.h"
-#include "sync0arr.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "dict0crea.h"
@@ -171,20 +169,6 @@ time_t			MYSQL_TYPE_DATETIME
 ---------------------------------
 */
 
-/** Implemented on sync0arr.cc */
-/*******************************************************************//**
-Function to populate INFORMATION_SCHEMA.INNODB_SYS_SEMAPHORE_WAITS table.
-Loop through each item on sync array, and extract the column
-information and fill the INFORMATION_SCHEMA.INNODB_SYS_SEMAPHORE_WAITS table.
-@return 0 on success */
-UNIV_INTERN
-int
-sync_arr_fill_sys_semphore_waits_table(
-/*===================================*/
-	THD*		thd,	/*!< in: thread */
-	TABLE_LIST*	tables,	/*!< in/out: tables to fill */
-	Item*		);	/*!< in: condition (not used) */
-
 /*******************************************************************//**
 Common function to fill any of the dynamic tables:
 INFORMATION_SCHEMA.innodb_trx
@@ -245,6 +229,7 @@ field_store_time_t(
 /*******************************************************************//**
 Auxiliary function to store char* value in MYSQL_TYPE_STRING field.
 @return 0 on success */
+static
 int
 field_store_string(
 /*===============*/
@@ -6878,144 +6863,4 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_tablespaces_encryption =
 	/* Maria extension */
 	STRUCT_FLD(version_info, INNODB_VERSION_STR),
 	STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE)
-};
-
-namespace Show {
-/* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_SYS_SEMAPHORE_WAITS */
-static ST_FIELD_INFO	innodb_sys_semaphore_waits_fields_info[] =
-{
-	// SYS_SEMAPHORE_WAITS_THREAD_ID	0
-  Column("THREAD_ID", ULonglong(), NOT_NULL),
-
-	// SYS_SEMAPHORE_WAITS_OBJECT_NAME	1
-  Column("OBJECT_NAME", Varchar(OS_FILE_MAX_PATH), NULLABLE),
-
-	// SYS_SEMAPHORE_WAITS_FILE	2
-  Column("FILE", Varchar(OS_FILE_MAX_PATH), NULLABLE),
-
-	// SYS_SEMAPHORE_WAITS_LINE	3
-  Column("LINE", ULong(), NOT_NULL),
-
-	// SYS_SEMAPHORE_WAITS_WAIT_TIME	4
-  Column("WAIT_TIME", ULonglong(), NOT_NULL),
-
-	// SYS_SEMAPHORE_WAITS_WAIT_OBJECT	5
-  Column("WAIT_OBJECT", ULonglong(), NOT_NULL),
-
-	// SYS_SEMAPHORE_WAITS_WAIT_TYPE	6
-  Column("WAIT_TYPE", Varchar(16), NULLABLE),
-
-	// SYS_SEMAPHORE_WAITS_HOLDER_THREAD_ID	7
-  Column("HOLDER_THREAD_ID", ULonglong(), NOT_NULL),
-
-	// SYS_SEMAPHORE_WAITS_HOLDER_FILE 8
-  Column("HOLDER_FILE", Varchar(OS_FILE_MAX_PATH), NULLABLE),
-
-	// SYS_SEMAPHORE_WAITS_HOLDER_LINE 9
-  Column("HOLDER_LINE", ULong(), NOT_NULL),
-
-	// SYS_SEMAPHORE_WAITS_CREATED_FILE 10
-  Column("CREATED_FILE", Varchar(OS_FILE_MAX_PATH), NULLABLE),
-
-	// SYS_SEMAPHORE_WAITS_CREATED_LINE 11
-  Column("CREATED_LINE", ULong(), NOT_NULL),
-
-	// SYS_SEMAPHORE_WAITS_WRITER_THREAD 12
-  Column("WRITER_THREAD", ULonglong(), NOT_NULL),
-
-	// SYS_SEMAPHORE_WAITS_RESERVATION_MODE 13
-  Column("RESERVATION_MODE", Varchar(16), NULLABLE),
-
-	// SYS_SEMAPHORE_WAITS_READERS	14
-  Column("READERS", ULong(), NOT_NULL),
-
-	// SYS_SEMAPHORE_WAITS_WAITERS_FLAG 15
-  Column("WAITERS_FLAG", ULonglong(), NOT_NULL),
-
-	// SYS_SEMAPHORE_WAITS_LOCK_WORD	16
-  Column("LOCK_WORD", ULonglong(), NOT_NULL),
-
-	// SYS_SEMAPHORE_WAITS_LAST_WRITER_FILE 17
-  Column("LAST_WRITER_FILE", Varchar(OS_FILE_MAX_PATH), NULLABLE),
-
-	// SYS_SEMAPHORE_WAITS_LAST_WRITER_LINE 18
-  Column("LAST_WRITER_LINE", ULong(), NOT_NULL),
-
-	// SYS_SEMAPHORE_WAITS_OS_WAIT_COUNT 19
-  Column("OS_WAIT_COUNT", ULong(), NOT_NULL),
-
-  CEnd()
-};
-} // namespace Show
-
-
-
-/*******************************************************************//**
-Bind the dynamic table INFORMATION_SCHEMA.INNODB_SYS_SEMAPHORE_WAITS
-@return 0 on success */
-static
-int
-innodb_sys_semaphore_waits_init(
-/*============================*/
-	void*	p)	/*!< in/out: table schema object */
-{
-	ST_SCHEMA_TABLE*	schema;
-
-	DBUG_ENTER("innodb_sys_semaphore_waits_init");
-
-	schema = (ST_SCHEMA_TABLE*) p;
-
-	schema->fields_info = Show::innodb_sys_semaphore_waits_fields_info;
-	schema->fill_table = sync_arr_fill_sys_semphore_waits_table;
-
-	DBUG_RETURN(0);
-}
-
-UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_semaphore_waits =
-{
-	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
-	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
-
-	/* pointer to type-specific plugin descriptor */
-	/* void* */
-	STRUCT_FLD(info, &i_s_info),
-
-	/* plugin name */
-	/* const char* */
-	STRUCT_FLD(name, "INNODB_SYS_SEMAPHORE_WAITS"),
-
-	/* plugin author (for SHOW PLUGINS) */
-	/* const char* */
-	STRUCT_FLD(author, maria_plugin_author),
-
-	/* general descriptive text (for SHOW PLUGINS) */
-	/* const char* */
-	STRUCT_FLD(descr, "InnoDB SYS_SEMAPHORE_WAITS"),
-
-	/* the plugin license (PLUGIN_LICENSE_XXX) */
-	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
-
-	/* the function to invoke when plugin is loaded */
-	/* int (*)(void*); */
-	STRUCT_FLD(init, innodb_sys_semaphore_waits_init),
-
-	/* the function to invoke when plugin is unloaded */
-	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
-
-	/* plugin version (for SHOW PLUGINS) */
-	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
-
-	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
-
-	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
-
-        /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };

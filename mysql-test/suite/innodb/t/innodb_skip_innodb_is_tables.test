@@ -27,4 +27,3 @@ select * from information_schema.innodb_sys_foreign;
 select * from information_schema.innodb_sys_foreign_cols;
 select * from information_schema.innodb_sys_tablespaces;
 select * from information_schema.innodb_tablespaces_encryption;
-select * from information_schema.innodb_sys_semaphore_waits;

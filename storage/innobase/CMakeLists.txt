@@ -187,7 +187,6 @@ SET(INNOBASE_SOURCES
 	include/mtr0mtr.h
 	include/mtr0mtr.ic
 	include/mtr0types.h
-	include/os0event.h
 	include/os0file.h
 	include/os0file.ic
 	include/os0thread.h
@@ -239,8 +238,6 @@ SET(INNOBASE_SOURCES
 	include/srv0mon.ic
 	include/srv0srv.h
 	include/srv0start.h
-	include/sync0arr.h
-	include/sync0arr.ic
 	include/sync0debug.h
 	include/sync0policy.h
 	include/sux_lock.h
@@ -294,7 +291,6 @@ SET(INNOBASE_SOURCES
 	mem/mem0mem.cc
 	mtr/mtr0mtr.cc
 	os/os0file.cc
-	os/os0event.cc
 	os/os0thread.cc
 	page/page0cur.cc
 	page/page0page.cc
@@ -328,7 +324,6 @@ SET(INNOBASE_SOURCES
 	srv/srv0srv.cc
 	srv/srv0start.cc
 	sync/srw_lock.cc
-	sync/sync0arr.cc
 	sync/sync0debug.cc
 	sync/sync0sync.cc
 	trx/trx0i_s.cc

@@ -18444,14 +18444,6 @@ static MYSQL_SYSVAR_UINT(purge_threads, srv_n_purge_threads,
   "Number of tasks for purging transaction history",
   NULL, NULL, 4, 1, innodb_purge_threads_MAX, 0);
 
-static MYSQL_SYSVAR_ULONG(sync_array_size, srv_sync_array_size,
-  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
-  "Size of the mutex/lock wait array.",
-  NULL, NULL,
-  1,			/* Default setting */
-  1,			/* Minimum value */
-  1024, 0);		/* Maximum value */
-
 static MYSQL_SYSVAR_UINT(fast_shutdown, srv_fast_shutdown,
   PLUGIN_VAR_OPCMDARG,
   "Speeds up the shutdown process of the InnoDB storage engine. Possible"
@@ -19471,7 +19463,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(undo_log_truncate),
   MYSQL_SYSVAR(undo_directory),
   MYSQL_SYSVAR(undo_tablespaces),
-  MYSQL_SYSVAR(sync_array_size),
   MYSQL_SYSVAR(compression_failure_threshold_pct),
   MYSQL_SYSVAR(compression_pad_pct_max),
   MYSQL_SYSVAR(default_row_format),
@@ -19554,7 +19545,6 @@ i_s_innodb_sys_foreign,
 i_s_innodb_sys_foreign_cols,
 i_s_innodb_sys_tablespaces,
 i_s_innodb_sys_virtual,
-i_s_innodb_sys_semaphore_waits,
 i_s_innodb_tablespaces_encryption
 maria_declare_plugin_end;
 
