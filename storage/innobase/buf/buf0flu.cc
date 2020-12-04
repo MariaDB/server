@@ -2104,6 +2104,7 @@ furious_flush:
 
     if (!dirty_blocks)
     {
+unemployed2:
       if (UNIV_UNLIKELY(lsn_limit != 0))
       {
         buf_flush_sync_lsn= 0;
@@ -2125,6 +2126,13 @@ unemployed:
       goto unemployed;
 
     const lsn_t oldest_lsn= buf_pool.get_oldest_modification(0);
+
+#if 0 /* MDEV-12227 FIXME: enable this */
+    ut_ad(oldest_lsn); /* dirty_blocks implies this */
+#else
+    if (!oldest_lsn)
+      goto unemployed2;
+#endif
 
     if (UNIV_UNLIKELY(lsn_limit != 0) && oldest_lsn >= lsn_limit)
       buf_flush_sync_lsn= 0;
