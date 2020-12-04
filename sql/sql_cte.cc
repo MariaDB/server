@@ -227,6 +227,7 @@ With_element *With_clause::find_table_def(TABLE_LIST *table,
         !table->is_fqtn)
     {
       table->set_derived();
+      table->db= empty_c_string;
       return with_elem;
     }
   }
