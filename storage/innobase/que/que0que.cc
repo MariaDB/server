@@ -182,8 +182,8 @@ que_thr_end_lock_wait(
 {
 	que_thr_t*	thr;
 
-	ut_ad(lock_mutex_own());
-	ut_ad(trx_mutex_own(trx));
+	mysql_mutex_assert_owner(&lock_sys.mutex);
+	mysql_mutex_assert_owner(&trx->mutex);
 
 	thr = trx->lock.wait_thr;
 
@@ -231,7 +231,7 @@ que_fork_scheduler_round_robin(
 	que_fork_t*	fork,		/*!< in: a query fork */
 	que_thr_t*	thr)		/*!< in: current pos */
 {
-	trx_mutex_enter(fork->trx);
+	mysql_mutex_lock(&fork->trx->mutex);
 
 	/* If no current, start first available. */
 	if (thr == NULL) {
@@ -261,7 +261,7 @@ que_fork_scheduler_round_robin(
 		}
 	}
 
-	trx_mutex_exit(fork->trx);
+	mysql_mutex_unlock(&fork->trx->mutex);
 
 	return(thr);
 }
@@ -592,7 +592,7 @@ que_thr_node_step(
 
 	auto mutex = &thr->graph->trx->mutex;
 
-	mutex_enter(mutex);
+	mysql_mutex_lock(mutex);
 
 	if (!que_thr_peek_stop(thr)) {
 		/* Thread execution completed */
@@ -600,7 +600,7 @@ que_thr_node_step(
 		thr = NULL;
 	}
 
-	mutex_exit(mutex);
+	mysql_mutex_unlock(mutex);
 	return(thr);
 }
 
@@ -618,7 +618,7 @@ que_thr_stop(
 
 	graph = thr->graph;
 
-	ut_ad(trx_mutex_own(trx));
+	mysql_mutex_assert_owner(&trx->mutex);
 
 	if (graph->state == QUE_FORK_COMMAND_WAIT) {
 
@@ -671,7 +671,7 @@ que_thr_dec_refer_count(
 	trx = thr_get_trx(thr);
 
 	ut_a(thr->is_active);
-	ut_ad(trx_mutex_own(trx));
+	mysql_mutex_assert_owner(&trx->mutex);
 
 	if (thr->state == QUE_THR_RUNNING) {
 
@@ -721,7 +721,7 @@ que_thr_stop_for_mysql(
 
 	trx = thr_get_trx(thr);
 
-	trx_mutex_enter(trx);
+	mysql_mutex_lock(&trx->mutex);
 
 	if (thr->state == QUE_THR_RUNNING) {
 		switch (trx->error_state) {
@@ -742,7 +742,7 @@ que_thr_stop_for_mysql(
 	ut_d(thr->set_active(false));
 	thr->is_active= false;
 func_exit:
-	trx_mutex_exit(trx);
+	mysql_mutex_unlock(&trx->mutex);
 }
 
 #ifdef UNIV_DEBUG
@@ -980,7 +980,7 @@ que_run_threads_low(
 
 	ut_ad(thr->state == QUE_THR_RUNNING);
 	ut_a(thr_get_trx(thr)->error_state == DB_SUCCESS);
-	ut_ad(!trx_mutex_own(thr_get_trx(thr)));
+	mysql_mutex_assert_not_owner(&thr->graph->trx->mutex);
 
 	/* cumul_resource counts how much resources the OS thread (NOT the
 	query thread) has spent in this function */
@@ -1009,9 +1009,9 @@ que_run_threads_low(
 			/* This can change next_thr to a non-NULL value
 			if there was a lock wait that already completed. */
 
-			mutex_enter(&trx->mutex);
+			mysql_mutex_lock(&trx->mutex);
 			que_thr_dec_refer_count(thr, &next_thr);
-			mutex_exit(&trx->mutex);
+			mysql_mutex_unlock(&trx->mutex);
 
 			if (next_thr != NULL) {
 				thr = next_thr;
@@ -1029,7 +1029,7 @@ que_run_threads(
 /*============*/
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	ut_ad(!trx_mutex_own(thr_get_trx(thr)));
+	mysql_mutex_assert_not_owner(&thr->graph->trx->mutex);
 
 loop:
 	ut_a(thr_get_trx(thr)->error_state == DB_SUCCESS);
@@ -1054,7 +1054,7 @@ loop:
 		lock_wait_suspend_thread(thr);
 		trx_t* trx = thr->graph->trx;
 
-		trx_mutex_enter(trx);
+		mysql_mutex_lock(&trx->mutex);
 		ut_ad(trx->id);
 		const dberr_t err = trx->error_state;
 		if (err != DB_SUCCESS) {
@@ -1062,7 +1062,7 @@ loop:
 			a lock wait timeout */
 			que_thr_dec_refer_count(thr, NULL);
 		}
-		trx_mutex_exit(trx);
+		mysql_mutex_unlock(&trx->mutex);
 
 		if (err == DB_SUCCESS) {
 			goto loop;

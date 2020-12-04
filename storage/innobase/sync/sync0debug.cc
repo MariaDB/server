@@ -33,7 +33,7 @@ Created 2012-08-21 Sunny Bains
 #include "sync0sync.h"
 #include "sync0debug.h"
 #include "srv0start.h"
-#include "fil0fil.h"
+#include "lock0lock.h"
 
 #include <vector>
 #include <string>
@@ -397,17 +397,10 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_ANY_LATCH);
 	LEVEL_MAP_INSERT(SYNC_POOL);
 	LEVEL_MAP_INSERT(SYNC_POOL_MANAGER);
-	LEVEL_MAP_INSERT(SYNC_WORK_QUEUE);
-	LEVEL_MAP_INSERT(SYNC_FTS_TOKENIZE);
-	LEVEL_MAP_INSERT(SYNC_FTS_OPTIMIZE);
-	LEVEL_MAP_INSERT(SYNC_RECV);
 	LEVEL_MAP_INSERT(SYNC_PURGE_QUEUE);
-	LEVEL_MAP_INSERT(SYNC_TRX);
 	LEVEL_MAP_INSERT(SYNC_RW_TRX_HASH_ELEMENT);
 	LEVEL_MAP_INSERT(SYNC_READ_VIEW);
 	LEVEL_MAP_INSERT(SYNC_TRX_SYS);
-	LEVEL_MAP_INSERT(SYNC_LOCK_SYS);
-	LEVEL_MAP_INSERT(SYNC_LOCK_WAIT_SYS);
 	LEVEL_MAP_INSERT(SYNC_INDEX_ONLINE_LOG);
 	LEVEL_MAP_INSERT(SYNC_IBUF_BITMAP_MUTEX);
 	LEVEL_MAP_INSERT(SYNC_IBUF_MUTEX);
@@ -628,12 +621,6 @@ LatchDebug::check_order(
 	case SYNC_NO_ORDER_CHECK:
 		break;
 
-	case SYNC_RECV:
-	case SYNC_WORK_QUEUE:
-	case SYNC_FTS_TOKENIZE:
-	case SYNC_FTS_OPTIMIZE:
-	case SYNC_LOCK_SYS:
-	case SYNC_LOCK_WAIT_SYS:
 	case SYNC_RW_TRX_HASH_ELEMENT:
 	case SYNC_READ_VIEW:
 	case SYNC_TRX_SYS:
@@ -671,17 +658,6 @@ LatchDebug::check_order(
 			basic_check(latches, level, level);
 		}
 
-		break;
-
-	case SYNC_TRX:
-
-		/* Either the thread must own the lock_sys.mutex, or
-		it is allowed to own only ONE trx_t::mutex. */
-
-		if (less(latches, level) != NULL) {
-			basic_check(latches, level, level - 1);
-			ut_a(find(latches, SYNC_LOCK_SYS) != 0);
-		}
 		break;
 
 	case SYNC_IBUF_PESS_INSERT_MUTEX:
@@ -944,13 +920,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(FIL_SYSTEM, SYNC_ANY_LATCH, fil_system_mutex_key);
 
-	LATCH_ADD_MUTEX(FTS_DELETE, SYNC_FTS_OPTIMIZE, fts_delete_mutex_key);
-
-	LATCH_ADD_MUTEX(FTS_DOC_ID, SYNC_FTS_OPTIMIZE, fts_doc_id_mutex_key);
-
-	LATCH_ADD_MUTEX(FTS_PLL_TOKENIZE, SYNC_FTS_TOKENIZE,
-			fts_pll_tokenize_mutex_key);
-
 	LATCH_ADD_MUTEX(IBUF_BITMAP, SYNC_IBUF_BITMAP_MUTEX,
 			ibuf_bitmap_mutex_key);
 
@@ -964,8 +933,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(RECALC_POOL, SYNC_STATS_AUTO_RECALC,
 			recalc_pool_mutex_key);
-
-	LATCH_ADD_MUTEX(RECV_SYS, SYNC_RECV, recv_sys_mutex_key);
 
 	LATCH_ADD_MUTEX(REDO_RSEG, SYNC_REDO_RSEG, redo_rseg_mutex_key);
 
@@ -992,13 +959,6 @@ sync_latch_meta_init()
 	LATCH_ADD_MUTEX(TRX_POOL_MANAGER, SYNC_POOL_MANAGER,
 			trx_pool_manager_mutex_key);
 
-	LATCH_ADD_MUTEX(TRX, SYNC_TRX, trx_mutex_key);
-
-	LATCH_ADD_MUTEX(LOCK_SYS, SYNC_LOCK_SYS, lock_mutex_key);
-
-	LATCH_ADD_MUTEX(LOCK_SYS_WAIT, SYNC_LOCK_WAIT_SYS,
-			lock_wait_mutex_key);
-
 	LATCH_ADD_MUTEX(TRX_SYS, SYNC_TRX_SYS, trx_sys_mutex_key);
 
 	LATCH_ADD_MUTEX(SRV_SYS_TASKS, SYNC_ANY_LATCH, srv_threads_mutex_key);
@@ -1015,18 +975,8 @@ sync_latch_meta_init()
 	LATCH_ADD_MUTEX(INDEX_ONLINE_LOG, SYNC_INDEX_ONLINE_LOG,
 			index_online_log_key);
 
-	LATCH_ADD_MUTEX(WORK_QUEUE, SYNC_WORK_QUEUE, PFS_NOT_INSTRUMENTED);
-
 	/* JAN: TODO: Add PFS instrumentation */
 	LATCH_ADD_MUTEX(DEFRAGMENT_MUTEX, SYNC_NO_ORDER_CHECK,
-			PFS_NOT_INSTRUMENTED);
-	LATCH_ADD_MUTEX(BTR_DEFRAGMENT_MUTEX, SYNC_NO_ORDER_CHECK,
-			PFS_NOT_INSTRUMENTED);
-	LATCH_ADD_MUTEX(FIL_CRYPT_STAT_MUTEX, SYNC_NO_ORDER_CHECK,
-			PFS_NOT_INSTRUMENTED);
-	LATCH_ADD_MUTEX(FIL_CRYPT_DATA_MUTEX, SYNC_NO_ORDER_CHECK,
-			PFS_NOT_INSTRUMENTED);
-	LATCH_ADD_MUTEX(FIL_CRYPT_THREADS_MUTEX, SYNC_NO_ORDER_CHECK,
 			PFS_NOT_INSTRUMENTED);
 	LATCH_ADD_MUTEX(RW_TRX_HASH_ELEMENT, SYNC_RW_TRX_HASH_ELEMENT,
 			rw_trx_hash_element_mutex_key);

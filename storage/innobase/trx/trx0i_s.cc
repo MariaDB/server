@@ -423,7 +423,7 @@ fill_trx_row(
 {
 	const char*	s;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	row->trx_id = trx_get_id_for_print(trx);
 	row->trx_started = trx->start_time;
@@ -1046,7 +1046,7 @@ add_trx_relevant_locks_to_cache(
 					requested lock row, or NULL or
 					undefined */
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	/* If transaction is waiting we add the wait lock and all locks
 	from another transactions that are blocking the wait lock. */
@@ -1194,7 +1194,7 @@ static void fetch_data_into_cache_low(trx_i_s_cache_t *cache, const trx_t *trx)
 
 static void fetch_data_into_cache(trx_i_s_cache_t *cache)
 {
-  ut_ad(lock_mutex_own());
+  mysql_mutex_assert_owner(&lock_sys.mutex);
   trx_i_s_cache_clear(cache);
 
   /* Capture the state of transactions */
@@ -1225,9 +1225,9 @@ trx_i_s_possibly_fetch_data_into_cache(
 
 	/* We need to read trx_sys and record/table lock queues */
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 	fetch_data_into_cache(cache);
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	/* update cache last read time */
 	cache->last_read = my_interval_timer();

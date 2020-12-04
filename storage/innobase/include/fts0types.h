@@ -114,23 +114,25 @@ struct fts_sync_t {
 	bool		in_progress;	/*!< flag whether sync is in progress.*/
 	bool		unlock_cache;	/*!< flag whether unlock cache when
 					write fts node */
-	os_event_t	event;		/*!< sync finish event;
-					only os_event_set() and os_event_wait()
-					are used */
+  /** condition variable for in_progress; used with table->fts->cache->lock */
+  mysql_cond_t cond;
 };
 
 /** The cache for the FTS system. It is a memory-based inverted index
 that new entries are added to, until it grows over the configured maximum
 size, at which time its contents are written to the INDEX table. */
-struct fts_cache_t {
-	mysql_mutex_t	lock;		/*!< lock protecting all access to the
-					memory buffer */
-	mysql_mutex_t	init_lock;	/*!< lock used for the cache
-					intialization */
+struct fts_cache_t
+{
+  /** lock protecting all access to the memory buffer */
+  mysql_mutex_t lock;
+  /** cache initialization */
+  mysql_mutex_t init_lock;
 
-	ib_mutex_t	deleted_lock;	/*!< Lock covering deleted_doc_ids */
+  /** protection for deleted_doc_ids */
+  mysql_mutex_t deleted_lock;
 
-	ib_mutex_t	doc_id_lock;	/*!< Lock covering Doc ID */
+  /** protection for DOC_ID */
+  mysql_mutex_t	doc_id_lock;
 
 	ib_vector_t*	deleted_doc_ids;/*!< Array of deleted doc ids, each
 					element is of type fts_update_t */

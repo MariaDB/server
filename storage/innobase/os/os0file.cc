@@ -49,7 +49,6 @@ Created 10/21/1995 Heikki Tuuri
 #ifdef HAVE_LINUX_UNISTD_H
 #include "unistd.h"
 #endif
-#include "os0event.h"
 #include "os0thread.h"
 #include "buf0dblwr.h"
 
@@ -152,12 +151,7 @@ static ulint	os_innodb_umask	= 0;
 #endif /* _WIN32 */
 
 
-#ifdef WITH_INNODB_DISALLOW_WRITES
-#define WAIT_ALLOW_WRITES() os_event_wait(srv_allow_writes_event)
-#else
-#define WAIT_ALLOW_WRITES() do { } while (0)
-#endif /* WITH_INNODB_DISALLOW_WRITES */
-
+#define WAIT_ALLOW_WRITES() innodb_wait_allow_writes()
 
 ulint	os_n_file_reads;
 static ulint	os_bytes_read_since_printout;
