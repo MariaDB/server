@@ -242,7 +242,7 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 			      == trx->rsegs.m_redo.rseg);
 			mtr_t		mtr;
 			mtr.start();
-			mutex_enter(&trx->rsegs.m_redo.rseg->mutex);
+			mysql_mutex_lock(&trx->rsegs.m_redo.rseg->mutex);
 			if (trx_undo_t* undo = trx->rsegs.m_redo.undo) {
 				trx_undo_set_state_at_prepare(trx, undo, true,
 							      &mtr);
@@ -251,7 +251,7 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 				trx_undo_set_state_at_prepare(trx, undo, true,
 							      &mtr);
 			}
-			mutex_exit(&trx->rsegs.m_redo.rseg->mutex);
+			mysql_mutex_unlock(&trx->rsegs.m_redo.rseg->mutex);
 			/* Write the redo log for the XA ROLLBACK
 			state change to the global buffer. It is
 			not necessary to flush the redo log. If
@@ -672,7 +672,7 @@ struct trx_roll_count_callback_arg
 static my_bool trx_roll_count_callback(rw_trx_hash_element_t *element,
                                        trx_roll_count_callback_arg *arg)
 {
-  mutex_enter(&element->mutex);
+  mysql_mutex_lock(&element->mutex);
   if (trx_t *trx= element->trx)
   {
     if (trx->is_recovered && trx_state_eq(trx, TRX_STATE_ACTIVE))
@@ -681,7 +681,7 @@ static my_bool trx_roll_count_callback(rw_trx_hash_element_t *element,
       arg->n_rows+= trx->undo_no;
     }
   }
-  mutex_exit(&element->mutex);
+  mysql_mutex_unlock(&element->mutex);
   return 0;
 }
 
@@ -719,7 +719,7 @@ void trx_roll_report_progress()
 static my_bool trx_rollback_recovered_callback(rw_trx_hash_element_t *element,
                                                std::vector<trx_t*> *trx_list)
 {
-  mutex_enter(&element->mutex);
+  mysql_mutex_lock(&element->mutex);
   if (trx_t *trx= element->trx)
   {
     trx->mutex.wr_lock();
@@ -727,7 +727,7 @@ static my_bool trx_rollback_recovered_callback(rw_trx_hash_element_t *element,
       trx_list->push_back(trx);
     trx->mutex.wr_unlock();
   }
-  mutex_exit(&element->mutex);
+  mysql_mutex_unlock(&element->mutex);
   return 0;
 }
 

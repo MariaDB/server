@@ -24,9 +24,7 @@ The database buffer pool global types for the directory
 Created 11/17/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef buf0types_h
-#define buf0types_h
-
+#pragma once
 #include "univ.i"
 
 /** Buffer page (uncompressed or compressed) */
@@ -228,5 +226,3 @@ public:
 };
 
 #endif /* !UNIV_INNOCHECKSUM */
-
-#endif /* buf0types.h */

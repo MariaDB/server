@@ -24,9 +24,7 @@ Transaction system
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#ifndef trx0sys_h
-#define trx0sys_h
-
+#pragma once
 #include "buf0buf.h"
 #include "fil0fil.h"
 #include "trx0types.h"
@@ -36,12 +34,17 @@ Created 3/26/1996 Heikki Tuuri
 #include "ut0lst.h"
 #include "read0types.h"
 #include "page0types.h"
-#include "ut0mutex.h"
 #include "trx0trx.h"
 #ifdef WITH_WSREP
 #include "trx0xa.h"
 #endif /* WITH_WSREP */
 #include "ilist.h"
+#include "my_cpu.h"
+
+#ifdef UNIV_PFS_MUTEX
+extern mysql_pfs_key_t trx_sys_mutex_key;
+extern mysql_pfs_key_t rw_trx_hash_element_mutex_key;
+#endif
 
 /** Checks if a page address is the trx sys header page.
 @param[in]	page_id	page id
@@ -345,13 +348,13 @@ struct rw_trx_hash_element_t
 {
   rw_trx_hash_element_t(): trx(0)
   {
-    mutex_create(LATCH_ID_RW_TRX_HASH_ELEMENT, &mutex);
+    mysql_mutex_init(rw_trx_hash_element_mutex_key, &mutex, nullptr);
   }
 
 
   ~rw_trx_hash_element_t()
   {
-    mutex_free(&mutex);
+    mysql_mutex_destroy(&mutex);
   }
 
 
@@ -365,7 +368,7 @@ struct rw_trx_hash_element_t
   */
   Atomic_counter<trx_id_t> no;
   trx_t *trx;
-  ib_mutex_t mutex;
+  mysql_mutex_t mutex;
 };
 
 
@@ -534,10 +537,10 @@ class rw_trx_hash_t
   static my_bool debug_iterator(rw_trx_hash_element_t *element,
                                 debug_iterator_arg<T> *arg)
   {
-    mutex_enter(&element->mutex);
+    mysql_mutex_lock(&element->mutex);
     if (element->trx)
       validate_element(element->trx);
-    mutex_exit(&element->mutex);
+    mysql_mutex_unlock(&element->mutex);
     return arg->action(element, arg->argument);
   }
 #endif
@@ -639,7 +642,7 @@ public:
                       sizeof(trx_id_t)));
     if (element)
     {
-      mutex_enter(&element->mutex);
+      mysql_mutex_lock(&element->mutex);
       lf_hash_search_unpin(pins);
       if ((trx= element->trx)) {
         DBUG_ASSERT(trx_id == trx->id);
@@ -660,7 +663,7 @@ public:
             trx->reference();
         }
       }
-      mutex_exit(&element->mutex);
+      mysql_mutex_unlock(&element->mutex);
     }
     if (!caller_trx)
       lf_hash_put_pins(pins);
@@ -694,9 +697,9 @@ public:
   void erase(trx_t *trx)
   {
     ut_d(validate_element(trx));
-    mutex_enter(&trx->rw_trx_hash_element->mutex);
+    mysql_mutex_lock(&trx->rw_trx_hash_element->mutex);
     trx->rw_trx_hash_element->trx= 0;
-    mutex_exit(&trx->rw_trx_hash_element->mutex);
+    mysql_mutex_unlock(&trx->rw_trx_hash_element->mutex);
     int res= lf_hash_delete(&hash, get_pins(trx),
                             reinterpret_cast<const void*>(&trx->id),
                             sizeof(trx_id_t));
@@ -730,12 +733,12 @@ public:
     May return element with committed transaction. If caller doesn't like to
     see committed transactions, it has to skip those under element mutex:
 
-      mutex_enter(&element->mutex);
+      mysql_mutex_lock(&element->mutex);
       if (trx_t trx= element->trx)
       {
         // trx is protected against commit in this branch
       }
-      mutex_exit(&element->mutex);
+      mysql_mutex_unlock(&element->mutex);
 
     May miss concurrently inserted transactions.
 
@@ -796,44 +799,44 @@ public:
 class thread_safe_trx_ilist_t
 {
 public:
-  void create() { mutex_create(LATCH_ID_TRX_SYS, &mutex); }
-  void close() { mutex_free(&mutex); }
+  void create() { mysql_mutex_init(trx_sys_mutex_key, &mutex, nullptr); }
+  void close() { mysql_mutex_destroy(&mutex); }
 
   bool empty() const
   {
-    mutex_enter(&mutex);
+    mysql_mutex_lock(&mutex);
     auto result= trx_list.empty();
-    mutex_exit(&mutex);
+    mysql_mutex_unlock(&mutex);
     return result;
   }
 
   void push_front(trx_t &trx)
   {
-    mutex_enter(&mutex);
+    mysql_mutex_lock(&mutex);
     trx_list.push_front(trx);
-    mutex_exit(&mutex);
+    mysql_mutex_unlock(&mutex);
   }
 
   void remove(trx_t &trx)
   {
-    mutex_enter(&mutex);
+    mysql_mutex_lock(&mutex);
     trx_list.remove(trx);
-    mutex_exit(&mutex);
+    mysql_mutex_unlock(&mutex);
   }
 
   template <typename Callable> void for_each(Callable &&callback) const
   {
-    mutex_enter(&mutex);
+    mysql_mutex_lock(&mutex);
     for (const auto &trx : trx_list)
       callback(trx);
-    mutex_exit(&mutex);
+    mysql_mutex_unlock(&mutex);
   }
 
-  void freeze() const { mutex_enter(&mutex); }
-  void unfreeze() const { mutex_exit(&mutex); }
+  void freeze() const { mysql_mutex_lock(&mutex); }
+  void unfreeze() const { mysql_mutex_unlock(&mutex); }
 
 private:
-  alignas(CACHE_LINE_SIZE) mutable TrxSysMutex mutex;
+  alignas(CACHE_LINE_SIZE) mutable mysql_mutex_t mutex;
   alignas(CACHE_LINE_SIZE) ilist<trx_t> trx_list;
 };
 
@@ -1148,11 +1151,11 @@ private:
   {
     if (element->id < *id)
     {
-      mutex_enter(&element->mutex);
+      mysql_mutex_lock(&element->mutex);
       /* We don't care about read-only transactions here. */
       if (element->trx && element->trx->rsegs.m_redo.rseg)
         *id= element->id;
-      mutex_exit(&element->mutex);
+      mysql_mutex_unlock(&element->mutex);
     }
     return 0;
   }
@@ -1217,5 +1220,3 @@ private:
 
 /** The transaction system */
 extern trx_sys_t trx_sys;
-
-#endif

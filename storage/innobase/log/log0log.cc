@@ -50,7 +50,6 @@ Created 12/9/1995 Heikki Tuuri
 #include "trx0trx.h"
 #include "trx0roll.h"
 #include "srv0mon.h"
-#include "sync0sync.h"
 #include "buf0dump.h"
 #include "log0sync.h"
 

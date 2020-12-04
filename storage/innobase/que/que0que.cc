@@ -1085,13 +1085,13 @@ que_eval_sql(
 	ut_a(trx->error_state == DB_SUCCESS);
 
 	if (reserve_dict_mutex) {
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 	}
 
 	graph = pars_sql(info, sql);
 
 	if (reserve_dict_mutex) {
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 	}
 
 	graph->trx = trx;
@@ -1104,13 +1104,13 @@ que_eval_sql(
 	que_run_threads(thr);
 
 	if (reserve_dict_mutex) {
-		mutex_enter(&dict_sys.mutex);
+		mysql_mutex_lock(&dict_sys.mutex);
 	}
 
 	que_graph_free(graph);
 
 	if (reserve_dict_mutex) {
-		mutex_exit(&dict_sys.mutex);
+		mysql_mutex_unlock(&dict_sys.mutex);
 	}
 
 	DBUG_RETURN(trx->error_state);

@@ -35,7 +35,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "dict0dict.h"
 #include "fts0priv.h"
 #include "lock0lock.h"
-#include "sync0sync.h"
 #include "row0row.h"
 #include "sql_string.h"
 #include <iostream>
@@ -791,8 +790,8 @@ dict_mem_index_create(
 		index->rtr_track = new
 			(mem_heap_alloc(heap, sizeof *index->rtr_track))
 			rtr_info_track_t();
-		mutex_create(LATCH_ID_RTR_ACTIVE_MUTEX,
-			     &index->rtr_track->rtr_active_mutex);
+		mysql_mutex_init(rtr_active_mutex_key,
+				 &index->rtr_track->rtr_active_mutex, nullptr);
 	}
 
 	return(index);
@@ -1101,7 +1100,7 @@ dict_mem_index_free(
 			rtr_info->index = NULL;
 		}
 
-		mutex_destroy(&index->rtr_track->rtr_active_mutex);
+		mysql_mutex_destroy(&index->rtr_track->rtr_active_mutex);
 		index->rtr_track->~rtr_info_track_t();
 	}
 

@@ -29,7 +29,6 @@ Created 2011/12/19
 #include "buf0checksum.h"
 #include "srv0start.h"
 #include "srv0srv.h"
-#include "sync0sync.h"
 #include "page0zip.h"
 #include "trx0sys.h"
 #include "fil0crypt.h"

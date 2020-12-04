@@ -4,9 +4,6 @@
 # dict_update_statistics_low can still be run concurrently on same table
 #
 # This is a symbolic test, it would not fail if the bug is present.
-# Rather those SQL commands have been used during manual testing under
-# innodb_sync_debug to test all changed codepaths for locking
-# correctness.
 #
 
 CREATE TABLE bug53046_1 (c1 INT PRIMARY KEY) ENGINE=INNODB;

@@ -163,7 +163,6 @@ SET(INNOBASE_SOURCES
 	include/ha0storage.ic
 	include/handler0alter.h
 	include/hash0hash.h
-	include/ib0mutex.h
 	include/ibuf0ibuf.h
 	include/ibuf0ibuf.ic
 	include/ibuf0types.h
@@ -238,11 +237,7 @@ SET(INNOBASE_SOURCES
 	include/srv0mon.ic
 	include/srv0srv.h
 	include/srv0start.h
-	include/sync0debug.h
-	include/sync0policy.h
 	include/sux_lock.h
-	include/sync0sync.h
-	include/sync0types.h
 	include/trx0i_s.h
 	include/trx0purge.h
 	include/trx0rec.h
@@ -267,7 +262,6 @@ SET(INNOBASE_SOURCES
 	include/ut0lst.h
 	include/ut0mem.h
 	include/ut0mem.ic
-	include/ut0mutex.h
 	include/ut0new.h
 	include/ut0pool.h
 	include/ut0rbt.h
@@ -324,8 +318,6 @@ SET(INNOBASE_SOURCES
 	srv/srv0srv.cc
 	srv/srv0start.cc
 	sync/srw_lock.cc
-	sync/sync0debug.cc
-	sync/sync0sync.cc
 	trx/trx0i_s.cc
 	trx/trx0purge.cc
 	trx/trx0rec.cc

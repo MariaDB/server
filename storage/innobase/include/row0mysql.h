@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -316,11 +316,18 @@ data dictionary modification operation. */
 void
 row_mysql_lock_data_dictionary_func(
 /*================================*/
-	trx_t*		trx,	/*!< in/out: transaction */
+#ifdef UNIV_PFS_RWLOCK
 	const char*	file,	/*!< in: file name */
-	unsigned	line);	/*!< in: line number */
+	unsigned	line,	/*!< in: line number */
+#endif
+	trx_t*		trx);	/*!< in/out: transaction */
+#ifdef UNIV_PFS_RWLOCK
 #define row_mysql_lock_data_dictionary(trx)				\
-	row_mysql_lock_data_dictionary_func(trx, __FILE__, __LINE__)
+	row_mysql_lock_data_dictionary_func(__FILE__, __LINE__, trx)
+#else
+#define row_mysql_lock_data_dictionary row_mysql_lock_data_dictionary_func
+#endif
+
 /*********************************************************************//**
 Unlocks the data dictionary exclusive lock. */
 void

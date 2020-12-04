@@ -51,6 +51,7 @@ Completed by Sunny Bains and Marko Makela
 #endif /* BTR_CUR_ADAPT */
 #include "ut0stage.h"
 #include "fil0crypt.h"
+#include "srv0mon.h"
 
 /* Ignore posix_fadvise() on those platforms where it does not exist */
 #if defined _WIN32
@@ -3602,7 +3603,6 @@ row_merge_insert_index_tuples(
 		}
 
 		ut_ad(dtuple_validate(dtuple));
-		ut_ad(!sync_check_iterate(sync_check()));
 		error = btr_bulk->insert(dtuple);
 
 		if (error != DB_SUCCESS) {

@@ -25,7 +25,7 @@ Created May 26, 2014 Vasil Dimov
 *******************************************************/
 
 #include "univ.i"
-#include <algorithm>
+#include "ut0new.h"
 /** The total amount of memory currently allocated from the operating
 system with allocate_large(). */
 Atomic_counter<ulint> os_total_large_mem_allocated;

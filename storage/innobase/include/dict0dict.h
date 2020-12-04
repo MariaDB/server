@@ -1312,9 +1312,6 @@ dict_index_calc_min_rec_len(
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-#define dict_mutex_enter_for_mysql() mutex_enter(&dict_sys.mutex)
-#define dict_mutex_exit_for_mysql() mutex_exit(&dict_sys.mutex)
-
 /********************************************************************//**
 Checks if the database name in two table names is the same.
 @return TRUE if same db name */
@@ -1378,8 +1375,7 @@ constraint */
 /* Buffers for storing detailed information about the latest foreign key
 and unique key errors */
 extern FILE*		dict_foreign_err_file;
-extern ib_mutex_t	dict_foreign_err_mutex; /* mutex protecting the
-						foreign key error messages */
+extern mysql_mutex_t dict_foreign_err_mutex;
 
 /** InnoDB data dictionary cache */
 class dict_sys_t
@@ -1400,7 +1396,7 @@ private:
   bool latch_ex;
 #endif
 public:
-	DictSysMutex	mutex;		/*!< mutex protecting the data
+	mysql_mutex_t	mutex;		/*!< mutex protecting the data
 					dictionary; protects also the
 					disk-based dictionary system tables;
 					this mutex serializes CREATE TABLE
@@ -1461,7 +1457,7 @@ public:
 	(should only happen during the rollback of CREATE...SELECT) */
 	dict_table_t* get_temporary_table(table_id_t id)
 	{
-		ut_ad(mutex_own(&mutex));
+		mysql_mutex_assert_owner(&mutex);
 		dict_table_t* table;
 		ulint fold = ut_fold_ull(id);
 		HASH_SEARCH(id_hash, &temp_id_hash, fold, dict_table_t*, table,
@@ -1480,7 +1476,7 @@ public:
 	@retval	NULL	if not cached */
 	dict_table_t* get_table(table_id_t id)
 	{
-		ut_ad(mutex_own(&mutex));
+		mysql_mutex_assert_owner(&mutex);
 		dict_table_t* table;
 		ulint fold = ut_fold_ull(id);
 		HASH_SEARCH(id_hash, &table_id_hash, fold, dict_table_t*,
@@ -1515,7 +1511,7 @@ public:
   {
     ut_ad(table);
     ut_ad(table->can_be_evicted == in_lru);
-    ut_ad(mutex_own(&mutex));
+    mysql_mutex_assert_owner(&mutex);
     for (const dict_table_t* t = UT_LIST_GET_FIRST(in_lru
 					     ? table_LRU : table_non_LRU);
 	 t; t = UT_LIST_GET_NEXT(table_LRU, t))
@@ -1548,15 +1544,15 @@ public:
 
 #ifdef UNIV_DEBUG
   /** Assert that the data dictionary is locked */
-  void assert_locked() { ut_ad(mutex_own(&mutex)); }
+  void assert_locked() { mysql_mutex_assert_owner(&mutex); }
 #endif
   /** Lock the data dictionary cache. */
-  void lock(const char* file, unsigned line)
+  void lock(SRW_LOCK_ARGS(const char* file, unsigned line))
   {
     latch.wr_lock(SRW_LOCK_ARGS(file, line));
     ut_ad(!latch_ex);
     ut_d(latch_ex= true);
-    mutex_enter_loc(&mutex, file, line);
+    mysql_mutex_lock(&mutex);
   }
 
   /** Unlock the data dictionary cache. */
@@ -1564,7 +1560,7 @@ public:
   {
     ut_ad(latch_ex);
     ut_d(latch_ex= false);
-    mutex_exit(&mutex);
+    mysql_mutex_unlock(&mutex);
     latch.wr_unlock();
   }
 
@@ -1595,7 +1591,7 @@ public:
 extern dict_sys_t	dict_sys;
 
 #define dict_table_prevent_eviction(table) dict_sys.prevent_eviction(table)
-#define dict_sys_lock() dict_sys.lock(__FILE__, __LINE__)
+#define dict_sys_lock() dict_sys.lock(SRW_LOCK_CALL)
 #define dict_sys_unlock() dict_sys.unlock()
 
 /* Auxiliary structs for checking a table definition @{ */

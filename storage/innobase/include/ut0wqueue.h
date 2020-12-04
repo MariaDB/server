@@ -33,7 +33,6 @@ processing.
 #pragma once
 
 #include "ut0list.h"
-#include "ut0mutex.h"
 #include "mem0mem.h"
 
 // Forward declaration

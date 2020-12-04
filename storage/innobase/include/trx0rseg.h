@@ -30,6 +30,11 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0sys.h"
 #include "fut0lst.h"
 
+#ifdef UNIV_PFS_MUTEX
+extern mysql_pfs_key_t redo_rseg_mutex_key;
+extern mysql_pfs_key_t noredo_rseg_mutex_key;
+#endif /* UNIV_PFS_MUTEX */
+
 /** Gets a rollback segment header.
 @param[in]	space		space where placed
 @param[in]	page_no		page number of the header
@@ -100,7 +105,7 @@ struct trx_rseg_t {
 
 	/** mutex protecting the fields in this struct except id,space,page_no
 	which are constant */
-	RsegMutex			mutex;
+	mysql_mutex_t			mutex;
 
 	/** space where the rollback segment header is placed */
 	fil_space_t*			space;

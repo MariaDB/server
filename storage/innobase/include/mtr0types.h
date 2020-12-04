@@ -24,14 +24,11 @@ Mini-transaction buffer global types
 Created 11/26/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef mtr0types_h
-#define mtr0types_h
+#pragma once
 
-#ifndef UNIV_INNOCHECKSUM
 #include "buf0types.h"
-#else
-#include "univ.i"
-#endif /* UNIV_INNOCHECKSUM */
+
+#include "ut0byte.h"
 
 struct mtr_t;
 
@@ -344,6 +341,4 @@ enum mtr_memo_type_t {
 	/** wr_lock() on fil_space_t::latch */
 	MTR_MEMO_SPACE_S_LOCK = MTR_MEMO_SX_LOCK << 2
 };
-#endif /* !UNIV_CHECKSUM */
-
-#endif /* mtr0types_h */
+#endif /* !UNIV_INNOCHECKSUM */
