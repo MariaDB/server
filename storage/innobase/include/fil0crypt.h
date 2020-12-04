@@ -26,7 +26,6 @@ Created 04/01/2015 Jan Lindström
 #ifndef fil0crypt_h
 #define fil0crypt_h
 
-#include "os0event.h"
 #include "my_crypt.h"
 #include "fil0fil.h"
 
@@ -41,7 +40,8 @@ static const unsigned char CRYPT_MAGIC[MAGIC_SZ] = {
 /* This key will be used if nothing else is given */
 #define FIL_DEFAULT_ENCRYPTION_KEY ENCRYPTION_KEY_SYSTEM_DATA
 
-extern os_event_t fil_crypt_threads_event;
+/** Wake up the encryption threads */
+void fil_crypt_threads_signal(bool broadcast= false);
 
 /**
  * CRYPT_SCHEME_UNENCRYPTED
@@ -116,7 +116,7 @@ struct fil_space_crypt_t : st_encryption_scheme
 	{
 		key_id = new_key_id;
 		my_random_bytes(iv, sizeof(iv));
-		mutex_create(LATCH_ID_FIL_CRYPT_DATA_MUTEX, &mutex);
+		mysql_mutex_init(0, &mutex, nullptr);
 		locker = crypt_data_scheme_locker;
 		type = new_type;
 
@@ -135,7 +135,7 @@ struct fil_space_crypt_t : st_encryption_scheme
 	/** Destructor */
 	~fil_space_crypt_t()
 	{
-		mutex_free(&mutex);
+		mysql_mutex_destroy(&mutex);
 	}
 
 	/** Get latest key version from encryption plugin
@@ -186,7 +186,7 @@ struct fil_space_crypt_t : st_encryption_scheme
 	uint min_key_version; // min key version for this space
 	fil_encryption_t encryption; // Encryption setup
 
-	ib_mutex_t mutex;   // mutex protecting following variables
+	mysql_mutex_t mutex;   // mutex protecting following variables
 
 	/** Return code from encryption_key_get_latest_version.
         If ENCRYPTION_KEY_VERSION_INVALID encryption plugin

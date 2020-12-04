@@ -47,6 +47,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0xa.h"
 #include "ut0pool.h"
 #include "ut0vec.h"
+#include "sync0sync.h"
 
 #include <set>
 #include <new>
@@ -202,7 +203,7 @@ struct TrxFactory {
 			trx->trx_savepoints,
 			&trx_named_savept_t::trx_savepoints);
 
-		mutex_create(LATCH_ID_TRX, &trx->mutex);
+		trx->mutex.init();
 	}
 
 	/** Release resources held by the transaction object.
@@ -239,7 +240,7 @@ struct TrxFactory {
 		UT_DELETE(trx->xid);
 		ut_free(trx->detailed_error);
 
-		mutex_free(&trx->mutex);
+		trx->mutex.destroy();
 
 		trx->mod_tables.~trx_mod_tables_t();
 
@@ -482,9 +483,9 @@ inline void trx_t::commit_state()
   makes modifications to the database, will get an lsn larger than the
   committing transaction T. In the case where the log flush fails, and
   T never gets committed, also T2 will never get committed. */
-  trx_mutex_enter(this);
+  mutex.wr_lock();
   state= TRX_STATE_COMMITTED_IN_MEMORY;
-  trx_mutex_exit(this);
+  mutex.wr_unlock();
   ut_ad(id || !is_referenced());
 }
 
@@ -1267,10 +1268,10 @@ trx_update_mod_tables_timestamp(
 		/* recheck while holding the mutex that blocks
 		table->acquire() */
 		mutex_enter(&dict_sys.mutex);
-		mutex_enter(&lock_sys.mutex);
+		mysql_mutex_lock(&lock_sys.mutex);
 		const bool do_evict = !table->get_ref_count()
 			&& !UT_LIST_GET_LEN(table->locks);
-		mutex_exit(&lock_sys.mutex);
+		mysql_mutex_unlock(&lock_sys.mutex);
 		if (do_evict) {
 			dict_sys.remove(table, true);
 		}
@@ -1477,7 +1478,7 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
   }
   lock.was_chosen_as_wsrep_victim= false;
 #endif /* WITH_WSREP */
-  trx_mutex_enter(this);
+  mutex.wr_lock();
   dict_operation= TRX_DICT_OP_NONE;
 
   DBUG_LOG("trx", "Commit in memory: " << this);
@@ -1485,7 +1486,7 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
 
   assert_freed();
   trx_init(this);
-  trx_mutex_exit(this);
+  mutex.wr_unlock();
 
   ut_a(error_state == DB_SUCCESS);
   if (!srv_read_only_mode)
@@ -1873,7 +1874,7 @@ trx_print_latched(
 	ulint		max_query_len)	/*!< in: max query length to print,
 					or 0 to use the default max length */
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	trx_print_low(f, trx, max_query_len,
 		      lock_number_of_rows_locked(&trx->lock),
@@ -1896,11 +1897,11 @@ trx_print(
 	ulint	n_trx_locks;
 	ulint	heap_size;
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 	n_rec_locks = lock_number_of_rows_locked(&trx->lock);
 	n_trx_locks = UT_LIST_GET_LEN(trx->lock.trx_locks);
 	heap_size = mem_heap_get_size(trx->lock.lock_heap);
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	trx_print_low(f, trx, max_query_len,
 		      n_rec_locks, n_trx_locks, heap_size);
@@ -2010,9 +2011,9 @@ trx_prepare(
 	DBUG_EXECUTE_IF("ib_trx_crash_during_xa_prepare_step", DBUG_SUICIDE(););
 
 	ut_a(trx->state == TRX_STATE_ACTIVE);
-	trx_mutex_enter(trx);
+	trx->mutex.wr_lock();
 	trx->state = TRX_STATE_PREPARED;
-	trx_mutex_exit(trx);
+	trx->mutex.wr_unlock();
 
 	if (lsn) {
 		/* Depending on the my.cnf options, we may now write the log
@@ -2154,7 +2155,7 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
   mutex_enter(&element->mutex);
   if (trx_t *trx= element->trx)
   {
-    trx_mutex_enter(trx);
+    trx->mutex.wr_lock();
     if (trx->is_recovered &&
 	(trx_state_eq(trx, TRX_STATE_PREPARED) ||
 	 trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)) &&
@@ -2171,7 +2172,7 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
       arg->trx= trx;
       found= 1;
     }
-    trx_mutex_exit(trx);
+    trx->mutex.wr_unlock();
   }
   mutex_exit(&element->mutex);
   return found;

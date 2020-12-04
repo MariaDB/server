@@ -3284,9 +3284,9 @@ commit_exit:
 		ibuf_mtr_commit(&bitmap_mtr);
 		goto fail_exit;
 	} else {
-		lock_mutex_enter();
+		mysql_mutex_lock(&lock_sys.mutex);
 		const auto lock_exists = lock_sys.get_first(page_id);
-		lock_mutex_exit();
+		mysql_mutex_unlock(&lock_sys.mutex);
 		if (lock_exists) {
 			goto commit_exit;
 		}

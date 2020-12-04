@@ -42,6 +42,7 @@ Created 5/7/1996 Heikki Tuuri
 #include "row0mysql.h"
 #include "row0vers.h"
 #include "pars0pars.h"
+#include "sync0sync.h"
 
 #include <set>
 
@@ -451,11 +452,12 @@ void lock_sys_t::create(ulint n_cells)
 	waiting_threads = static_cast<srv_slot_t*>
 		(ut_zalloc_nokey(srv_max_n_threads * sizeof *waiting_threads));
 	last_slot = waiting_threads;
+	for (ulint i = srv_max_n_threads; i--; ) {
+		mysql_cond_init(0, &waiting_threads[i].cond, nullptr);
+	}
 
-	mutex_create(LATCH_ID_LOCK_SYS, &mutex);
-
-	mutex_create(LATCH_ID_LOCK_SYS_WAIT, &wait_mutex);
-
+	mysql_mutex_init(lock_mutex_key, &mutex, nullptr);
+	mysql_mutex_init(lock_wait_mutex_key, &wait_mutex, nullptr);
 
 	rec_hash.create(n_cells);
 	prdt_hash.create(n_cells);
@@ -486,7 +488,7 @@ void lock_sys_t::resize(ulint n_cells)
 {
 	ut_ad(this == &lock_sys);
 
-	mutex_enter(&mutex);
+	mysql_mutex_lock(&mutex);
 
 	hash_table_t old_hash(rec_hash);
 	rec_hash.create(n_cells);
@@ -505,7 +507,7 @@ void lock_sys_t::resize(ulint n_cells)
 	HASH_MIGRATE(&old_hash, &prdt_page_hash, lock_t, hash,
 		     lock_rec_lock_fold);
 	old_hash.free();
-	mutex_exit(&mutex);
+	mysql_mutex_unlock(&mutex);
 }
 
 
@@ -525,13 +527,11 @@ void lock_sys_t::close()
 	prdt_hash.free();
 	prdt_page_hash.free();
 
-	mutex_destroy(&mutex);
-	mutex_destroy(&wait_mutex);
+	mysql_mutex_destroy(&mutex);
+	mysql_mutex_destroy(&wait_mutex);
 
 	for (ulint i = srv_max_n_threads; i--; ) {
-		if (os_event_t& event = waiting_threads[i].event) {
-			os_event_destroy(event);
-		}
+		mysql_cond_destroy(&waiting_threads[i].cond);
 	}
 
 	ut_free(waiting_threads);
@@ -873,7 +873,7 @@ lock_rec_get_prev(
 	lock_t*		lock;
 	lock_t*		found_lock	= NULL;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_ad(lock_get_type_low(in_lock) == LOCK_REC);
 
 	for (lock = lock_sys.get_first(*lock_hash_get(in_lock->type_mode),
@@ -910,7 +910,7 @@ lock_rec_has_expl(
 {
 	lock_t*	lock;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_ad((precise_mode & LOCK_MODE_MASK) == LOCK_S
 	      || (precise_mode & LOCK_MODE_MASK) == LOCK_X);
 	ut_ad(!(precise_mode & LOCK_INSERT_INTENTION));
@@ -959,7 +959,7 @@ lock_rec_other_has_expl_req(
 					are taken into account */
 {
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_ad(mode == LOCK_X || mode == LOCK_S);
 
 	/* Only GAP lock can be on SUPREMUM, and we are not looking for
@@ -994,8 +994,7 @@ wsrep_kill_victim(
 	const trx_t * const trx,
 	const lock_t *lock)
 {
-	ut_ad(lock_mutex_own());
-	ut_ad(trx_mutex_own(lock->trx));
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	/* quit for native mysql */
 	if (!trx->is_wsrep()) return;
@@ -1070,7 +1069,7 @@ lock_rec_other_has_conflicting(
 {
 	lock_t*		lock;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	bool	is_supremum = (heap_no == PAGE_HEAP_NO_SUPREMUM);
 
@@ -1081,12 +1080,12 @@ lock_rec_other_has_conflicting(
 		if (lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
 #ifdef WITH_WSREP
 			if (trx->is_wsrep()) {
-				trx_mutex_enter(lock->trx);
+				lock->trx->mutex.wr_lock();
 				/* Below function will roll back either trx
 				or lock->trx depending on priority of the
 				transaction. */
 				wsrep_kill_victim(const_cast<trx_t*>(trx), lock);
-				trx_mutex_exit(lock->trx);
+				lock->trx->mutex.wr_unlock();
 			}
 #endif /* WITH_WSREP */
 			return(lock);
@@ -1116,7 +1115,7 @@ lock_sec_rec_some_has_impl(
 	trx_id_t	max_trx_id;
 	const page_t*	page = page_align(rec);
 
-	ut_ad(!lock_mutex_own());
+	mysql_mutex_assert_not_owner(&lock_sys.mutex);
 	ut_ad(!dict_index_is_clust(index));
 	ut_ad(page_rec_is_user_rec(rec));
 	ut_ad(rec_offs_validate(rec, index, offsets));
@@ -1157,7 +1156,7 @@ lock_number_of_rows_locked(
 /*=======================*/
 	const trx_lock_t*	trx_lock)	/*!< in: transaction locks */
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	return(trx_lock->n_rec_locks);
 }
@@ -1173,7 +1172,7 @@ lock_number_of_tables_locked(
 	const lock_t*	lock;
 	ulint		n_tables = 0;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	for (lock = UT_LIST_GET_FIRST(trx_lock->trx_locks);
 	     lock != NULL;
@@ -1248,8 +1247,7 @@ lock_rec_create_low(
 	ulint		n_bits;
 	ulint		n_bytes;
 
-	ut_ad(lock_mutex_own());
-	ut_ad(holds_trx_mutex == trx_mutex_own(trx));
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
 
 #ifdef UNIV_DEBUG
@@ -1341,7 +1339,7 @@ lock_rec_create_low(
 		 * delayed conflict resolution '...kill_one_trx' was not called,
 		 * if victim was waiting for some other lock
 		 */
-		trx_mutex_enter(c_lock->trx);
+		c_lock->trx->mutex.wr_lock();
 		if (c_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 
 			c_lock->trx->lock.was_chosen_as_deadlock_victim = TRUE;
@@ -1362,16 +1360,16 @@ lock_rec_create_low(
 			   lock_grant, which wants to grant trx mutex again
 			*/
 			if (holds_trx_mutex) {
-				trx_mutex_exit(trx);
+				trx->mutex.wr_unlock();
 			}
 			lock_cancel_waiting_and_release(
 				c_lock->trx->lock.wait_lock);
 
 			if (holds_trx_mutex) {
-				trx_mutex_enter(trx);
+				trx->mutex.wr_lock();
 			}
 
-			trx_mutex_exit(c_lock->trx);
+			c_lock->trx->mutex.wr_unlock();
 
 			if (UNIV_UNLIKELY(wsrep_debug)) {
 				wsrep_report_bf_lock_wait(trx->mysql_thd, trx->id);
@@ -1381,22 +1379,21 @@ lock_rec_create_low(
 			/* have to bail out here to avoid lock_set_lock... */
 			return(lock);
 		}
-		trx_mutex_exit(c_lock->trx);
+		c_lock->trx->mutex.wr_unlock();
 	} else
 #endif /* WITH_WSREP */
 		HASH_INSERT(lock_t, hash, lock_hash_get(type_mode),
 			    page_id.fold(), lock);
 
 	if (!holds_trx_mutex) {
-		trx_mutex_enter(trx);
+		trx->mutex.wr_lock();
 	}
-	ut_ad(trx_mutex_own(trx));
 	if (type_mode & LOCK_WAIT) {
 		lock_set_lock_and_trx_wait(lock, trx);
 	}
 	UT_LIST_ADD_LAST(trx->lock.trx_locks, lock);
 	if (!holds_trx_mutex) {
-		trx_mutex_exit(trx);
+		trx->mutex.wr_unlock();
 	}
 	MONITOR_INC(MONITOR_RECLOCK_CREATED);
 	MONITOR_INC(MONITOR_NUM_RECLOCK);
@@ -1434,13 +1431,12 @@ lock_rec_enqueue_waiting(
 	que_thr_t*		thr,
 	lock_prdt_t*		prdt)
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_ad(!srv_read_only_mode);
 	ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
 
 	trx_t* trx = thr_get_trx(thr);
 
-	ut_ad(trx_mutex_own(trx));
 	ut_a(!que_thr_stop(thr));
 
 	switch (trx_get_dict_operation(trx)) {
@@ -1524,7 +1520,7 @@ lock_rec_find_similar_on_page(
 	lock_t*         lock,           /*!< in: lock_sys.get_first() */
 	const trx_t*    trx)            /*!< in: transaction */
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	for (/* No op */;
 	     lock != NULL;
@@ -1565,11 +1561,10 @@ lock_rec_add_to_queue(
 					/*!< in: TRUE if caller owns the
 					transaction mutex */
 {
-#ifdef UNIV_DEBUG
-	ut_ad(lock_mutex_own());
-	ut_ad(caller_owns_trx_mutex == trx_mutex_own(trx));
-	ut_ad(dict_index_is_clust(index)
+	mysql_mutex_assert_owner(&lock_sys.mutex);
+	ut_ad(index->is_primary()
 	      || dict_index_get_online_status(index) != ONLINE_INDEX_CREATION);
+#ifdef UNIV_DEBUG
 	switch (type_mode & LOCK_MODE_MASK) {
 	case LOCK_X:
 	case LOCK_S:
@@ -1695,7 +1690,7 @@ lock_rec_lock(
   ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
   DBUG_EXECUTE_IF("innodb_report_deadlock", return DB_DEADLOCK;);
 
-  lock_mutex_enter();
+  mysql_mutex_lock(&lock_sys.mutex);
   ut_ad((LOCK_MODE_MASK & mode) != LOCK_S ||
         lock_table_has(trx, index->table, LOCK_IS));
   ut_ad((LOCK_MODE_MASK & mode) != LOCK_X ||
@@ -1705,7 +1700,7 @@ lock_rec_lock(
                      static_cast<lock_mode>(LOCK_MODE_MASK & mode)));
   else if (lock_t *lock= lock_sys.get_first(block->page.id()))
   {
-    trx_mutex_enter(trx);
+    trx->mutex.wr_lock();
     if (lock_rec_get_next_on_page(lock) ||
         lock->trx != trx ||
         lock->type_mode != (ulint(mode) | LOCK_REC) ||
@@ -1752,7 +1747,7 @@ lock_rec_lock(
         err= DB_SUCCESS_LOCKED_REC;
       }
     }
-    trx_mutex_exit(trx);
+    trx->mutex.wr_unlock();
   }
   else
   {
@@ -1769,7 +1764,7 @@ lock_rec_lock(
 
     err= DB_SUCCESS_LOCKED_REC;
   }
-  lock_mutex_exit();
+  mysql_mutex_unlock(&lock_sys.mutex);
   MONITOR_ATOMIC_INC(MONITOR_NUM_RECLOCK_REQ);
   return err;
 }
@@ -1789,7 +1784,7 @@ lock_rec_has_to_wait_in_queue(
 	ulint		bit_offset;
 
 	ut_ad(wait_lock);
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_ad(lock_get_wait(wait_lock));
 	ut_ad(lock_get_type_low(wait_lock) == LOCK_REC);
 
@@ -1818,8 +1813,7 @@ lock_rec_has_to_wait_in_queue(
 after lock_reset_lock_and_trx_wait() has been called. */
 static void lock_grant_after_reset(lock_t* lock)
 {
-	ut_ad(lock_mutex_own());
-	ut_ad(trx_mutex_own(lock->trx));
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	if (lock_get_mode(lock) == LOCK_AUTO_INC) {
 		dict_table_t*	table = lock->un_member.tab_lock.table;
@@ -1856,10 +1850,11 @@ static void lock_grant_after_reset(lock_t* lock)
 /** Grant a lock to a waiting lock request and release the waiting transaction. */
 static void lock_grant(lock_t* lock)
 {
-	lock_reset_lock_and_trx_wait(lock);
-	trx_mutex_enter(lock->trx);
-	lock_grant_after_reset(lock);
-	trx_mutex_exit(lock->trx);
+  lock_reset_lock_and_trx_wait(lock);
+  auto mutex= &lock->trx->mutex;
+  mutex->wr_lock();
+  lock_grant_after_reset(lock);
+  mutex->wr_unlock();
 }
 
 /*************************************************************//**
@@ -1872,7 +1867,7 @@ lock_rec_cancel(
 /*============*/
 	lock_t*	lock)	/*!< in: waiting record lock request */
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_ad(lock_get_type_low(lock) == LOCK_REC);
 
 	/* Reset the bit (there can be only one set bit) in the lock bitmap */
@@ -1884,11 +1879,12 @@ lock_rec_cancel(
 
 	/* The following releases the trx from lock wait */
 	trx_t *trx = lock->trx;
-	trx_mutex_enter(trx);
+	auto mutex = &trx->mutex;
+	mutex->wr_lock();
 	if (que_thr_t* thr = que_thr_end_lock_wait(trx)) {
 		lock_wait_release_thread_if_suspended(thr);
 	}
-	trx_mutex_exit(trx);
+	mutex->wr_unlock();
 }
 
 /** Remove a record lock request, waiting or granted, from the queue and
@@ -1899,7 +1895,7 @@ static void lock_rec_dequeue_from_page(lock_t* in_lock)
 {
 	hash_table_t*	lock_hash;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_ad(lock_get_type_low(in_lock) == LOCK_REC);
 	/* We may or may not be holding in_lock->trx->mutex here. */
 
@@ -1952,7 +1948,7 @@ lock_rec_discard(
 {
 	trx_lock_t*	trx_lock;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_ad(lock_get_type_low(in_lock) == LOCK_REC);
 
 	trx_lock = &in_lock->trx->lock;
@@ -2018,7 +2014,7 @@ lock_rec_reset_and_release_wait_low(
 {
 	lock_t*	lock;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	for (lock = lock_rec_get_first(hash, block, heap_no);
 	     lock != NULL;
@@ -2074,7 +2070,7 @@ lock_rec_inherit_to_gap(
 {
 	lock_t*	lock;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	/* At READ UNCOMMITTED or READ COMMITTED isolation level,
 	we do not want locks set
@@ -2116,7 +2112,7 @@ lock_rec_inherit_to_gap_if_gap_lock(
 {
 	lock_t*	lock;
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	for (lock = lock_rec_get_first(&lock_sys.rec_hash, block, heap_no);
 	     lock != NULL;
@@ -2133,7 +2129,7 @@ lock_rec_inherit_to_gap_if_gap_lock(
 		}
 	}
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 }
 
 /*************************************************************//**
@@ -2157,7 +2153,7 @@ lock_rec_move_low(
 {
 	lock_t*	lock;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	/* If the lock is predicate lock, it resides on INFIMUM record */
 	ut_ad(lock_rec_get_first(
@@ -2263,13 +2259,13 @@ lock_move_reorganize_page(
 	mem_heap_t*	heap		= NULL;
 	ulint		comp;
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	/* FIXME: This needs to deal with predicate lock too */
 	lock = lock_sys.get_first(block->page.id());
 
 	if (lock == NULL) {
-		lock_mutex_exit();
+		mysql_mutex_unlock(&lock_sys.mutex);
 
 		return;
 	}
@@ -2365,7 +2361,7 @@ lock_move_reorganize_page(
 		ut_ad(lock_rec_find_set_bit(lock) == ULINT_UNDEFINED);
 	}
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	mem_heap_free(heap);
 
@@ -2394,7 +2390,7 @@ lock_move_rec_list_end(
 	ut_ad(buf_block_get_frame(block) == page_align(rec));
 	ut_ad(comp == page_is_comp(buf_block_get_frame(new_block)));
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	/* Note: when we move locks from record to record, waiting locks
 	and possible granted gap type locks behind them are enqueued in
@@ -2482,7 +2478,7 @@ lock_move_rec_list_end(
 		}
 	}
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 #ifdef UNIV_DEBUG_LOCK_VALIDATE
 	if (fil_space_t* space = fil_space_t::get(page_id.space())) {
@@ -2520,7 +2516,7 @@ lock_move_rec_list_start(
 	ut_ad(comp == page_rec_is_comp(old_end));
 	ut_ad(!page_rec_is_metadata(rec));
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	for (lock = lock_sys.get_first(block->page.id());
 	     lock;
@@ -2600,7 +2596,7 @@ lock_move_rec_list_start(
 #endif /* UNIV_DEBUG */
 	}
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 #ifdef UNIV_DEBUG_LOCK_VALIDATE
 	ut_ad(lock_rec_validate_page(block));
@@ -2633,7 +2629,7 @@ lock_rtr_move_rec_list(
 	ut_ad(new_block->frame == page_align(rec_move[0].new_rec));
 	ut_ad(comp == page_rec_is_comp(rec_move[0].new_rec));
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	for (lock = lock_sys.get_first(block->page.id());
 	     lock;
@@ -2684,7 +2680,7 @@ lock_rtr_move_rec_list(
 		}
 	}
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 #ifdef UNIV_DEBUG_LOCK_VALIDATE
 	ut_ad(lock_rec_validate_page(block));
@@ -2700,7 +2696,7 @@ lock_update_split_right(
 {
 	ulint	heap_no = lock_get_min_heap_no(right_block);
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	/* Move the locks on the supremum of the left page to the supremum
 	of the right page */
@@ -2714,7 +2710,7 @@ lock_update_split_right(
 	lock_rec_inherit_to_gap(left_block, right_block,
 				PAGE_HEAP_NO_SUPREMUM, heap_no);
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 }
 
 /*************************************************************//**
@@ -2734,7 +2730,7 @@ lock_update_merge_right(
 {
 	ut_ad(!page_rec_is_metadata(orig_succ));
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	/* Inherit the locks from the supremum of the left page to the
 	original successor of infimum on the right page, to which the left
@@ -2756,7 +2752,7 @@ lock_update_merge_right(
 
 	lock_rec_free_all_from_discard_page(left_block);
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 }
 
 /*************************************************************//**
@@ -2772,14 +2768,14 @@ lock_update_root_raise(
 	const buf_block_t*	block,	/*!< in: index page to which copied */
 	const buf_block_t*	root)	/*!< in: root page */
 {
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	/* Move the locks on the supremum of the root to the supremum
 	of block */
 
 	lock_rec_move(block, root,
 		      PAGE_HEAP_NO_SUPREMUM, PAGE_HEAP_NO_SUPREMUM);
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 }
 
 /*************************************************************//**
@@ -2793,7 +2789,7 @@ lock_update_copy_and_discard(
 	const buf_block_t*	block)		/*!< in: index page;
 						NOT the root! */
 {
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	/* Move the locks on the supremum of the old page to the supremum
 	of new_page */
@@ -2802,7 +2798,7 @@ lock_update_copy_and_discard(
 		      PAGE_HEAP_NO_SUPREMUM, PAGE_HEAP_NO_SUPREMUM);
 	lock_rec_free_all_from_discard_page(block);
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 }
 
 /*************************************************************//**
@@ -2815,7 +2811,7 @@ lock_update_split_left(
 {
 	ulint	heap_no = lock_get_min_heap_no(right_block);
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	/* Inherit the locks to the supremum of the left page from the
 	successor of the infimum on the right page */
@@ -2823,7 +2819,7 @@ lock_update_split_left(
 	lock_rec_inherit_to_gap(left_block, right_block,
 				PAGE_HEAP_NO_SUPREMUM, heap_no);
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 }
 
 /*************************************************************//**
@@ -2843,7 +2839,7 @@ lock_update_merge_left(
 
 	ut_ad(left_block->frame == page_align(orig_pred));
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	left_next_rec = page_rec_get_next_const(orig_pred);
 
@@ -2875,7 +2871,7 @@ lock_update_merge_left(
 
 	lock_rec_free_all_from_discard_page(right_block);
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 }
 
 /*************************************************************//**
@@ -2895,13 +2891,13 @@ lock_rec_reset_and_inherit_gap_locks(
 	ulint			heap_no)	/*!< in: heap_no of the
 						donating record */
 {
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	lock_rec_reset_and_release_wait(heir_block, heir_heap_no);
 
 	lock_rec_inherit_to_gap(heir_block, block, heir_heap_no, heap_no);
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 }
 
 /*************************************************************//**
@@ -2921,7 +2917,7 @@ lock_update_discard(
 	ulint		heap_no;
 	const page_id_t	page_id(block->page.id());
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	if (lock_sys.get_first(page_id)) {
 		ut_ad(!lock_sys.get_first_prdt(page_id));
@@ -2968,7 +2964,7 @@ lock_update_discard(
 			page_id, &lock_sys.prdt_page_hash);
 	}
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 }
 
 /*************************************************************//**
@@ -3029,7 +3025,7 @@ lock_update_delete(
 								       FALSE));
 	}
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	/* Let the next record inherit the locks from rec, in gap mode */
 
@@ -3039,7 +3035,7 @@ lock_update_delete(
 
 	lock_rec_reset_and_release_wait(block, heap_no);
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 }
 
 /*********************************************************************//**
@@ -3063,11 +3059,11 @@ lock_rec_store_on_page_infimum(
 
 	ut_ad(block->frame == page_align(rec));
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	lock_rec_move(block, block, PAGE_HEAP_NO_INFIMUM, heap_no);
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 }
 
 /*********************************************************************//**
@@ -3087,11 +3083,11 @@ lock_rec_restore_from_page_infimum(
 {
 	ulint	heap_no = page_rec_get_heap_no(rec);
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	lock_rec_move(block, donator, heap_no, PAGE_HEAP_NO_INFIMUM);
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 }
 
 /*========================= TABLE LOCKS ==============================*/
@@ -3125,8 +3121,7 @@ lock_table_create(
 	lock_t*		lock;
 
 	ut_ad(table && trx);
-	ut_ad(lock_mutex_own());
-	ut_ad(trx_mutex_own(trx));
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	check_trx_state(trx);
 
@@ -3177,7 +3172,7 @@ lock_table_create(
 			ut_list_append(table->locks, lock, TableLockGetNode());
 		}
 
-		trx_mutex_enter(c_lock->trx);
+		c_lock->trx->mutex.wr_lock();
 
 		if (c_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 			c_lock->trx->lock.was_chosen_as_deadlock_victim = TRUE;
@@ -3190,13 +3185,13 @@ lock_table_create(
 
 			/* The lock release will call lock_grant(),
 			which would acquire trx->mutex again. */
-			trx_mutex_exit(trx);
+			trx->mutex.wr_unlock();
 			lock_cancel_waiting_and_release(
 				c_lock->trx->lock.wait_lock);
-			trx_mutex_enter(trx);
+			trx->mutex.wr_lock();
 		}
 
-		trx_mutex_exit(c_lock->trx);
+		c_lock->trx->mutex.wr_unlock();
 	} else
 #endif /* WITH_WSREP */
 	ut_list_append(table->locks, lock, TableLockGetNode());
@@ -3224,7 +3219,7 @@ lock_table_pop_autoinc_locks(
 /*=========================*/
 	trx_t*	trx)	/*!< in/out: transaction that owns the AUTOINC locks */
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_ad(!ib_vector_is_empty(trx->autoinc_locks));
 
 	/* Skip any gaps, gaps are NULL lock entries in the
@@ -3252,7 +3247,7 @@ lock_table_remove_autoinc_lock(
 	lock_t*	autoinc_lock;
 	lint	i = ib_vector_size(trx->autoinc_locks) - 1;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_ad(lock_get_mode(lock) == LOCK_AUTO_INC);
 	ut_ad(lock_get_type_low(lock) & LOCK_TABLE);
 	ut_ad(!ib_vector_is_empty(trx->autoinc_locks));
@@ -3304,7 +3299,7 @@ lock_table_remove_low(
 	trx_t*		trx;
 	dict_table_t*	table;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	trx = lock->trx;
 	table = lock->un_member.tab_lock.table;
@@ -3367,11 +3362,10 @@ lock_table_enqueue_waiting(
 	trx_t*		trx;
 	lock_t*		lock;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_ad(!srv_read_only_mode);
 
 	trx = thr_get_trx(thr);
-	ut_ad(trx_mutex_own(trx));
 	ut_a(!que_thr_stop(thr));
 
 	switch (trx_get_dict_operation(trx)) {
@@ -3448,7 +3442,7 @@ lock_table_other_has_incompatible(
 {
 	lock_t*	lock;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	for (lock = UT_LIST_GET_LAST(table->locks);
 	     lock != NULL;
@@ -3466,9 +3460,9 @@ lock_table_other_has_incompatible(
 					ib::info() << " SQL: "
 					   << wsrep_thd_query(lock->trx->mysql_thd);
 				}
-				trx_mutex_enter(lock->trx);
+				lock->trx->mutex.wr_lock();
 				wsrep_kill_victim((trx_t *)trx, (lock_t *)lock);
-				trx_mutex_exit(lock->trx);
+				lock->trx->mutex.wr_unlock();
 			}
 #endif /* WITH_WSREP */
 
@@ -3534,7 +3528,7 @@ lock_table(
 		trx_set_rw_mode(trx);
 	}
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	DBUG_EXECUTE_IF("fatal-semaphore-timeout",
 		{ os_thread_sleep(3600000000LL); });
@@ -3545,7 +3539,7 @@ lock_table(
 	wait_for = lock_table_other_has_incompatible(
 		trx, LOCK_WAIT, table, mode);
 
-	trx_mutex_enter(trx);
+	trx->mutex.wr_lock();
 
 	/* Another trx has a request on the table in an incompatible
 	mode: this trx may have to wait */
@@ -3565,9 +3559,9 @@ lock_table(
 		err = DB_SUCCESS;
 	}
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
-	trx_mutex_exit(trx);
+	trx->mutex.wr_unlock();
 
 	return(err);
 }
@@ -3586,7 +3580,9 @@ lock_table_ix_resurrect(
 		return;
 	}
 
-	lock_mutex_enter();
+	auto mutex= &trx->mutex;
+
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	/* We have to check if the new lock is compatible with any locks
 	other transactions have in the table lock queue. */
@@ -3594,10 +3590,10 @@ lock_table_ix_resurrect(
 	ut_ad(!lock_table_other_has_incompatible(
 		      trx, LOCK_WAIT, table, LOCK_IX));
 
-	trx_mutex_enter(trx);
+	mutex->wr_lock();
 	lock_table_create(table, LOCK_IX, trx);
-	lock_mutex_exit();
-	trx_mutex_exit(trx);
+	mysql_mutex_unlock(&lock_sys.mutex);
+	mutex->wr_unlock();
 }
 
 /*********************************************************************//**
@@ -3612,7 +3608,7 @@ lock_table_has_to_wait_in_queue(
 	const dict_table_t*	table;
 	const lock_t*		lock;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_ad(lock_get_wait(wait_lock));
 
 	table = wait_lock->un_member.tab_lock.table;
@@ -3642,7 +3638,7 @@ lock_table_dequeue(
 			behind will get their lock requests granted, if
 			they are now qualified to it */
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_a(lock_get_type_low(in_lock) == LOCK_TABLE);
 
 	lock_t*	lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, in_lock);
@@ -3748,7 +3744,7 @@ lock_rec_unlock(
 
 	heap_no = page_rec_get_heap_no(rec);
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	first_lock = lock_rec_get_first(&lock_sys.rec_hash, block, heap_no);
 
@@ -3762,7 +3758,7 @@ lock_rec_unlock(
 		}
 	}
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	{
 		ib::error	err;
@@ -3800,7 +3796,7 @@ released:
 		}
 	}
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 }
 
 #ifdef UNIV_DEBUG
@@ -3851,8 +3847,7 @@ void lock_release(trx_t* trx)
 	ulint		count = 0;
 	trx_id_t	max_trx_id = trx_sys.get_max_trx_id();
 
-	lock_mutex_enter();
-	ut_ad(!trx_mutex_own(trx));
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	for (lock_t* lock = UT_LIST_GET_LAST(trx->lock.trx_locks);
 	     lock != NULL;
@@ -3885,9 +3880,9 @@ void lock_release(trx_t* trx)
 			/* Release the  mutex for a while, so that we
 			do not monopolize it */
 
-			lock_mutex_exit();
+			mysql_mutex_unlock(&lock_sys.mutex);
 
-			lock_mutex_enter();
+			mysql_mutex_lock(&lock_sys.mutex);
 
 			count = 0;
 		}
@@ -3895,7 +3890,7 @@ void lock_release(trx_t* trx)
 		++count;
 	}
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 }
 
 /* True if a lock mode is S or X */
@@ -3913,14 +3908,12 @@ lock_trx_table_locks_remove(
 {
 	trx_t*		trx = lock_to_remove->trx;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	/* It is safe to read this because we are holding the lock mutex */
 	const bool have_mutex = trx->lock.cancel;
 	if (!have_mutex) {
-		trx_mutex_enter(trx);
-	} else {
-		ut_ad(trx_mutex_own(trx));
+		trx->mutex.wr_lock();
 	}
 
 	for (lock_list::iterator it = trx->lock.table_locks.begin(),
@@ -3935,7 +3928,7 @@ lock_trx_table_locks_remove(
 			*it = NULL;
 
 			if (!have_mutex) {
-				trx_mutex_exit(trx);
+				trx->mutex.wr_unlock();
 			}
 
 			return;
@@ -3955,7 +3948,7 @@ static
 void
 lock_table_print(FILE* file, const lock_t* lock)
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_a(lock_get_type_low(lock) == LOCK_TABLE);
 
 	fputs("TABLE LOCK table ", file);
@@ -3993,7 +3986,7 @@ lock_table_print(FILE* file, const lock_t* lock)
 @param[in,out]	mtr	mini-transaction for accessing the record */
 static void lock_rec_print(FILE* file, const lock_t* lock, mtr_t& mtr)
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_a(lock_get_type_low(lock) == LOCK_REC);
 
 	const page_id_t page_id(lock->un_member.rec_lock.page_id);
@@ -4090,7 +4083,7 @@ static ulint lock_get_n_rec_locks()
 	ulint	n_locks	= 0;
 	ulint	i;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	for (i = 0; i < lock_sys.rec_hash.n_cells; i++) {
 		const lock_t*	lock;
@@ -4123,8 +4116,8 @@ lock_print_info_summary(
 	otherwise return immediately if fail to obtain the
 	mutex. */
 	if (!nowait) {
-		lock_mutex_enter();
-	} else if (lock_mutex_enter_nowait()) {
+		mysql_mutex_lock(&lock_sys.mutex);
+	} else if (mysql_mutex_trylock(&lock_sys.mutex)) {
 		fputs("FAIL TO OBTAIN LOCK MUTEX,"
 		      " SKIP LOCK INFO PRINTING\n", file);
 		return(FALSE);
@@ -4264,12 +4257,12 @@ lock_print_info_all_transactions(
 /*=============================*/
 	FILE*		file)	/*!< in/out: file where to print */
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	fprintf(file, "LIST OF TRANSACTIONS FOR EACH SESSION:\n");
 
 	trx_sys.trx_list.for_each(lock_print_info(file, time(nullptr)));
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	ut_ad(lock_validate());
 }
@@ -4286,8 +4279,6 @@ lock_trx_table_locks_find(
 	const lock_t*	find_lock)	/*!< in: lock to find */
 {
 	bool		found = false;
-
-	ut_ad(trx_mutex_own(trx));
 
 	for (lock_list::const_iterator it = trx->lock.table_locks.begin(),
              end = trx->lock.table_locks.end(); it != end; ++it) {
@@ -4324,7 +4315,7 @@ lock_table_queue_validate(
 {
 	const lock_t*	lock;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	for (lock = UT_LIST_GET_FIRST(table->locks);
 	     lock != NULL;
@@ -4333,7 +4324,7 @@ lock_table_queue_validate(
 		/* lock->trx->state cannot change from or to NOT_STARTED
 		while we are holding the lock_sys.mutex. It may change
 		from ACTIVE or PREPARED to PREPARED or COMMITTED. */
-		trx_mutex_enter(lock->trx);
+		lock->trx->mutex.wr_lock();
 		check_trx_state(lock->trx);
 
 		if (lock->trx->state == TRX_STATE_COMMITTED_IN_MEMORY) {
@@ -4346,7 +4337,7 @@ lock_table_queue_validate(
 		}
 
 		ut_a(lock_trx_table_locks_find(lock->trx, lock));
-		trx_mutex_exit(lock->trx);
+		lock->trx->mutex.wr_unlock();
 	}
 
 	return(TRUE);
@@ -4376,15 +4367,16 @@ lock_rec_queue_validate(
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!page_rec_is_comp(rec) == !rec_offs_comp(offsets));
 	ut_ad(page_rec_is_leaf(rec));
-	ut_ad(lock_mutex_own() == locked_lock_trx_sys);
 	ut_ad(!index || dict_index_is_clust(index)
 	      || !dict_index_is_online_ddl(index));
 
 	heap_no = page_rec_get_heap_no(rec);
 
 	if (!locked_lock_trx_sys) {
-		lock_mutex_enter();
+		mysql_mutex_lock(&lock_sys.mutex);
 	}
+
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	if (!page_rec_is_user_rec(rec)) {
 
@@ -4395,25 +4387,25 @@ lock_rec_queue_validate(
 
 			ut_ad(!index || lock->index == index);
 
-			trx_mutex_enter(lock->trx);
+			lock->trx->mutex.wr_lock();
 			ut_ad(!trx_is_ac_nl_ro(lock->trx));
 			ut_ad(trx_state_eq(lock->trx,
 					   TRX_STATE_COMMITTED_IN_MEMORY)
 			      || !lock_get_wait(lock)
 			      || lock_rec_has_to_wait_in_queue(lock));
-			trx_mutex_exit(lock->trx);
+			lock->trx->mutex.wr_unlock();
 		}
 
 func_exit:
 		if (!locked_lock_trx_sys) {
-			lock_mutex_exit();
+			mysql_mutex_unlock(&lock_sys.mutex);
 		}
 
 		return true;
 	}
 
 	ut_ad(page_rec_is_leaf(rec));
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	const trx_id_t impl_trx_id = index && index->is_primary()
 		? lock_clust_rec_some_has_impl(rec, index, offsets)
@@ -4425,7 +4417,7 @@ func_exit:
 		/* impl_trx could have been committed before we
 		acquire its mutex, but not thereafter. */
 
-		mutex_enter(&impl_trx->mutex);
+		impl_trx->mutex.wr_lock();
 		ut_ad(impl_trx->state != TRX_STATE_NOT_STARTED);
 		if (impl_trx->state == TRX_STATE_COMMITTED_IN_MEMORY) {
 		} else if (const lock_t* other_lock
@@ -4476,7 +4468,7 @@ func_exit:
 			}
 		}
 
-		mutex_exit(&impl_trx->mutex);
+		impl_trx->mutex.wr_unlock();
 	}
 
 	for (lock = lock_rec_get_first(&lock_sys.rec_hash, block, heap_no);
@@ -4544,7 +4536,7 @@ static bool lock_rec_validate_page(const buf_block_t *block, bool latched)
 	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 loop:
 	lock = lock_sys.get_first(block->page.id());
 
@@ -4601,7 +4593,7 @@ loop:
 	goto loop;
 
 function_exit:
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	if (heap != NULL) {
 		mem_heap_free(heap);
@@ -4621,7 +4613,7 @@ lock_rec_validate(
 	page_id_t*	limit)		/*!< in/out: upper limit of
 					(space, page_no) */
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	for (const lock_t* lock = static_cast<const lock_t*>(
 		     HASH_GET_FIRST(&lock_sys.rec_hash, start));
@@ -4688,7 +4680,7 @@ static void lock_rec_block_validate(const page_id_t page_id)
 
 static my_bool lock_validate_table_locks(rw_trx_hash_element_t *element, void*)
 {
-  ut_ad(lock_mutex_own());
+  mysql_mutex_assert_owner(&lock_sys.mutex);
   mutex_enter(&element->mutex);
   if (element->trx)
   {
@@ -4716,7 +4708,7 @@ lock_validate()
 {
 	std::set<page_id_t> pages;
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	/* Validate table locks */
 	trx_sys.rw_trx_hash.iterate(lock_validate_table_locks);
@@ -4737,7 +4729,7 @@ lock_validate()
 		}
 	}
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	for (page_id_t page_id : pages) {
 		lock_rec_block_validate(page_id);
@@ -4793,7 +4785,7 @@ lock_rec_insert_check_and_lock(
 	ulint		heap_no = page_rec_get_heap_no(next_rec);
 	ut_ad(!rec_is_metadata(next_rec, *index));
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 	/* Because this code is invoked for a running transaction by
 	the thread that is serving the transaction, it is not necessary
 	to hold trx->mutex here. */
@@ -4808,7 +4800,7 @@ lock_rec_insert_check_and_lock(
 	if (lock == NULL) {
 		/* We optimize CPU time usage in the simplest case */
 
-		lock_mutex_exit();
+		mysql_mutex_unlock(&lock_sys.mutex);
 
 		if (inherit_in && !dict_index_is_clust(index)) {
 			/* Update the page max trx id field */
@@ -4848,7 +4840,7 @@ lock_rec_insert_check_and_lock(
 #endif /* WITH_WSREP */
 	    lock_rec_other_has_conflicting(type_mode, block, heap_no, trx)) {
 		/* Note that we may get DB_SUCCESS also here! */
-		trx_mutex_enter(trx);
+		trx->mutex.wr_lock();
 
 		err = lock_rec_enqueue_waiting(
 #ifdef WITH_WSREP
@@ -4856,12 +4848,12 @@ lock_rec_insert_check_and_lock(
 #endif /* WITH_WSREP */
 			type_mode, block, heap_no, index, thr, NULL);
 
-		trx_mutex_exit(trx);
+		trx->mutex.wr_unlock();
 	} else {
 		err = DB_SUCCESS;
 	}
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	switch (err) {
 	case DB_SUCCESS_LOCKED_REC:
@@ -4922,8 +4914,8 @@ lock_rec_convert_impl_to_expl_for_trx(
 	ut_ad(!rec_is_metadata(rec, *index));
 
 	DEBUG_SYNC_C("before_lock_rec_convert_impl_to_expl_for_trx");
-	lock_mutex_enter();
-	trx_mutex_enter(trx);
+	mysql_mutex_lock(&lock_sys.mutex);
+	trx->mutex.wr_lock();
 	ut_ad(!trx_state_eq(trx, TRX_STATE_NOT_STARTED));
 
 	if (!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY)
@@ -4933,8 +4925,8 @@ lock_rec_convert_impl_to_expl_for_trx(
 				      block, heap_no, index, trx, true);
 	}
 
-	lock_mutex_exit();
-	trx_mutex_exit(trx);
+	mysql_mutex_unlock(&lock_sys.mutex);
+	trx->mutex.wr_unlock();
 	trx->release_reference();
 
 	DEBUG_SYNC_C("after_lock_rec_convert_impl_to_expl_for_trx");
@@ -4957,7 +4949,7 @@ static my_bool lock_rec_other_trx_holds_expl_callback(
   mutex_enter(&element->mutex);
   if (element->trx)
   {
-    trx_mutex_enter(element->trx);
+    element->trx->mutex.wr_lock();
     ut_ad(element->trx->state != TRX_STATE_NOT_STARTED);
     lock_t *expl_lock= element->trx->state == TRX_STATE_COMMITTED_IN_MEMORY
       ? NULL : lock_rec_has_expl(LOCK_S | LOCK_REC_NOT_GAP, arg->block,
@@ -4967,7 +4959,7 @@ static my_bool lock_rec_other_trx_holds_expl_callback(
       lock.
     */
     ut_ad(!expl_lock || expl_lock->trx == arg->impl_trx);
-    trx_mutex_exit(element->trx);
+    element->trx->mutex.wr_unlock();
   }
   mutex_exit(&element->mutex);
   return 0;
@@ -4995,21 +4987,21 @@ static void lock_rec_other_trx_holds_expl(trx_t *caller_trx, trx_t *trx,
   if (trx)
   {
     ut_ad(!page_rec_is_metadata(rec));
-    lock_mutex_enter();
+    mysql_mutex_lock(&lock_sys.mutex);
     ut_ad(trx->is_referenced());
     const trx_state_t state{trx->state};
     ut_ad(state != TRX_STATE_NOT_STARTED);
     if (state == TRX_STATE_COMMITTED_IN_MEMORY)
     {
-      /* The transaction was committed before our lock_mutex_enter(). */
-      lock_mutex_exit();
+      /* The transaction was committed before our mysql_mutex_lock(&lock_sys.mutex). */
+      mysql_mutex_unlock(&lock_sys.mutex);
       return;
     }
     lock_rec_other_trx_holds_expl_arg arg= { page_rec_get_heap_no(rec), block,
                                              trx };
     trx_sys.rw_trx_hash.iterate(caller_trx,
                                 lock_rec_other_trx_holds_expl_callback, &arg);
-    lock_mutex_exit();
+    mysql_mutex_unlock(&lock_sys.mutex);
   }
 }
 #endif /* UNIV_DEBUG */
@@ -5043,7 +5035,7 @@ lock_rec_convert_impl_to_expl(
 {
 	trx_t*		trx;
 
-	ut_ad(!lock_mutex_own());
+	mysql_mutex_assert_not_owner(&lock_sys.mutex);
 	ut_ad(page_rec_is_user_rec(rec));
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!page_rec_is_comp(rec) == !rec_offs_comp(offsets));
@@ -5427,7 +5419,7 @@ lock_release_autoinc_last_lock(
 	ulint		last;
 	lock_t*		lock;
 
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_a(!ib_vector_is_empty(autoinc_locks));
 
 	/* The lock to be release must be the last lock acquired. */
@@ -5469,7 +5461,7 @@ lock_release_autoinc_locks(
 /*=======================*/
 	trx_t*		trx)		/*!< in/out: transaction */
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	/* If this is invoked for a running transaction by the thread
 	that is serving the transaction, then it is not necessary to
 	hold trx->mutex here. */
@@ -5599,8 +5591,7 @@ lock_cancel_waiting_and_release(
 {
 	que_thr_t*	thr;
 
-	ut_ad(lock_mutex_own());
-	ut_ad(trx_mutex_own(lock->trx));
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	lock->trx->lock.cancel = true;
 
@@ -5644,8 +5635,7 @@ lock_unlock_table_autoinc(
 /*======================*/
 	trx_t*	trx)	/*!< in/out: transaction */
 {
-	ut_ad(!lock_mutex_own());
-	ut_ad(!trx_mutex_own(trx));
+	mysql_mutex_assert_not_owner(&lock_sys.mutex);
 	ut_ad(!trx->lock.wait_lock);
 
 	/* This can be invoked on NOT_STARTED, ACTIVE, PREPARED,
@@ -5659,18 +5649,17 @@ lock_unlock_table_autoinc(
 	necessary to hold trx->mutex here. */
 
 	if (lock_trx_holds_autoinc_locks(trx)) {
-		lock_mutex_enter();
+		mysql_mutex_lock(&lock_sys.mutex);
 
 		lock_release_autoinc_locks(trx);
 
-		lock_mutex_exit();
+		mysql_mutex_unlock(&lock_sys.mutex);
 	}
 }
 
 static inline dberr_t lock_trx_handle_wait_low(trx_t* trx)
 {
-	ut_ad(lock_mutex_own());
-	ut_ad(trx_mutex_own(trx));
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	if (trx->lock.was_chosen_as_deadlock_victim) {
 		return DB_DEADLOCK;
@@ -5700,11 +5689,11 @@ lock_trx_handle_wait(
 		return lock_trx_handle_wait_low(trx);
 	}
 #endif /* WITH_WSREP */
-	lock_mutex_enter();
-	trx_mutex_enter(trx);
+	mysql_mutex_lock(&lock_sys.mutex);
+	trx->mutex.wr_lock();
 	dberr_t err = lock_trx_handle_wait_low(trx);
-	lock_mutex_exit();
-	trx_mutex_exit(trx);
+	mysql_mutex_unlock(&lock_sys.mutex);
+	trx->mutex.wr_unlock();
 	return err;
 }
 
@@ -5718,11 +5707,11 @@ lock_table_get_n_locks(
 {
 	ulint		n_table_locks;
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	n_table_locks = UT_LIST_GET_LEN(table->locks);
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	return(n_table_locks);
 }
@@ -5738,11 +5727,11 @@ lock_table_get_n_locks(
 static my_bool lock_table_locks_lookup(rw_trx_hash_element_t *element,
                                        const dict_table_t *table)
 {
-  ut_ad(lock_mutex_own());
+  mysql_mutex_assert_owner(&lock_sys.mutex);
   mutex_enter(&element->mutex);
   if (element->trx)
   {
-    trx_mutex_enter(element->trx);
+    element->trx->mutex.wr_lock();
     check_trx_state(element->trx);
     if (element->trx->state != TRX_STATE_COMMITTED_IN_MEMORY)
     {
@@ -5761,7 +5750,7 @@ static my_bool lock_table_locks_lookup(rw_trx_hash_element_t *element,
           ut_ad(lock->un_member.tab_lock.table != table);
       }
     }
-    trx_mutex_exit(element->trx);
+    element->trx->mutex.wr_unlock();
   }
   mutex_exit(&element->mutex);
   return 0;
@@ -5781,7 +5770,7 @@ lock_table_has_locks(
 	ibool			has_locks;
 
 	ut_ad(table != NULL);
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	has_locks = UT_LIST_GET_LEN(table->locks) > 0 || table->n_rec_locks > 0;
 
@@ -5791,7 +5780,7 @@ lock_table_has_locks(
 	}
 #endif /* UNIV_DEBUG */
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	return(has_locks);
 }
@@ -5830,7 +5819,7 @@ lock_trx_has_sys_table_locks(
 	const lock_t*	strongest_lock = 0;
 	lock_mode	strongest = LOCK_NONE;
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	const lock_list::const_iterator end = trx->lock.table_locks.end();
 	lock_list::const_iterator it = trx->lock.table_locks.begin();
@@ -5851,7 +5840,7 @@ lock_trx_has_sys_table_locks(
 	}
 
 	if (strongest == LOCK_NONE) {
-		lock_mutex_exit();
+		mysql_mutex_unlock(&lock_sys.mutex);
 		return(NULL);
 	}
 
@@ -5876,7 +5865,7 @@ lock_trx_has_sys_table_locks(
 		}
 	}
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	return(strongest_lock);
 }
@@ -5896,12 +5885,12 @@ lock_trx_has_expl_x_lock(
 {
 	ut_ad(heap_no > PAGE_HEAP_NO_SUPREMUM);
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 	ut_ad(lock_table_has(trx, table, LOCK_IX));
 	ut_ad(lock_table_has(trx, table, LOCK_X)
 	      || lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP, block, heap_no,
 				   trx));
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 	return(true);
 }
 #endif /* UNIV_DEBUG */
@@ -5912,7 +5901,7 @@ is enabled. */
 void
 DeadlockChecker::start_print()
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	rewind(lock_latest_err_file);
 	ut_print_timestamp(lock_latest_err_file);
@@ -5941,7 +5930,7 @@ DeadlockChecker::print(const char* msg)
 void
 DeadlockChecker::print(const trx_t* trx, ulint max_query_len)
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	ulint	n_rec_locks = lock_number_of_rows_locked(&trx->lock);
 	ulint	n_trx_locks = UT_LIST_GET_LEN(trx->lock.trx_locks);
@@ -5961,7 +5950,7 @@ DeadlockChecker::print(const trx_t* trx, ulint max_query_len)
 void
 DeadlockChecker::print(const lock_t* lock)
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	if (lock_get_type_low(lock) == LOCK_REC) {
 		mtr_t mtr;
@@ -5990,7 +5979,7 @@ Note: "next" here means PREV for table locks.
 const lock_t*
 DeadlockChecker::get_next_lock(const lock_t* lock, ulint heap_no) const
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	do {
 		if (lock_get_type_low(lock) == LOCK_REC) {
@@ -6030,7 +6019,7 @@ due to the way the record lock has is implemented.
 const lock_t*
 DeadlockChecker::get_first_lock(ulint* heap_no) const
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	const lock_t*	lock = m_wait_lock;
 
@@ -6079,7 +6068,7 @@ transaction info.
 void
 DeadlockChecker::notify(const lock_t* lock) const
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	start_print();
 
@@ -6116,7 +6105,7 @@ DeadlockChecker::notify(const lock_t* lock) const
 const trx_t*
 DeadlockChecker::select_victim() const
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	ut_ad(m_start->lock.wait_lock != 0);
 	ut_ad(m_wait_lock->trx != m_start);
 
@@ -6146,8 +6135,7 @@ have been granted its lock by the deadlock checks.
 const trx_t*
 DeadlockChecker::search()
 {
-	ut_ad(lock_mutex_own());
-	ut_ad(!trx_mutex_own(m_start));
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	ut_ad(m_start != NULL);
 	ut_ad(m_wait_lock != NULL);
@@ -6257,7 +6245,7 @@ DeadlockChecker::search()
 void
 DeadlockChecker::rollback_print(const trx_t* trx, const lock_t* lock)
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	/* If the lock search exceeds the max step
 	or the max depth, the current trx will be
@@ -6280,7 +6268,7 @@ DeadlockChecker::rollback_print(const trx_t* trx, const lock_t* lock)
 void
 DeadlockChecker::trx_rollback()
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	trx_t*	trx = m_wait_lock->trx;
 
@@ -6291,13 +6279,13 @@ DeadlockChecker::trx_rollback()
 	}
 #endif
 
-	trx_mutex_enter(trx);
+	trx->mutex.wr_lock();
 
 	trx->lock.was_chosen_as_deadlock_victim = true;
 
 	lock_cancel_waiting_and_release(trx->lock.wait_lock);
 
-	trx_mutex_exit(trx);
+	trx->mutex.wr_unlock();
 }
 
 /** Check if a joining lock request results in a deadlock.
@@ -6314,8 +6302,7 @@ or there is no deadlock (any more) */
 const trx_t*
 DeadlockChecker::check_and_resolve(const lock_t* lock, trx_t* trx)
 {
-	ut_ad(lock_mutex_own());
-	ut_ad(trx_mutex_own(trx));
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 	check_trx_state(trx);
 	ut_ad(!srv_read_only_mode);
 
@@ -6331,7 +6318,7 @@ DeadlockChecker::check_and_resolve(const lock_t* lock, trx_t* trx)
 	its state can only be changed by this thread, which is
 	currently associated with the transaction. */
 
-	trx_mutex_exit(trx);
+	trx->mutex.wr_unlock();
 
 	const trx_t*	victim_trx;
 	const bool	report_waiters = trx->mysql_thd
@@ -6388,7 +6375,7 @@ DeadlockChecker::check_and_resolve(const lock_t* lock, trx_t* trx)
 		lock_deadlock_found = true;
 	}
 
-	trx_mutex_enter(trx);
+	trx->mutex.wr_lock();
 
 	return(victim_trx);
 }
@@ -6410,7 +6397,7 @@ lock_update_split_and_merge(
 	ut_ad(page_is_leaf(right_block->frame));
 	ut_ad(page_align(orig_pred) == left_block->frame);
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	left_next_rec = page_rec_get_next_const(orig_pred);
 	ut_ad(!page_rec_is_metadata(left_next_rec));
@@ -6433,5 +6420,5 @@ lock_update_split_and_merge(
 				PAGE_HEAP_NO_SUPREMUM,
 				lock_get_min_heap_no(right_block));
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 }

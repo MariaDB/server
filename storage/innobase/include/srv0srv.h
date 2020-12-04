@@ -301,8 +301,10 @@ extern my_bool	srv_adaptive_flushing;
 extern my_bool	srv_flush_sync;
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
-/* When this event is reset we do not allow any file writes to take place. */
-extern os_event_t	srv_allow_writes_event;
+extern my_bool innodb_disallow_writes;
+void innodb_wait_allow_writes();
+#else
+# define innodb_wait_allow_writes() do {} while (0)
 #endif /* WITH_INNODB_DISALLOW_WRITES */
 
 /* If this flag is TRUE, then we will load the indexes' (and tables') metadata
@@ -715,6 +717,9 @@ void srv_init_purge_tasks();
 void
 srv_master_thread_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
 					const void* save);
+
+/** Enable the master thread on shutdown. */
+void srv_master_thread_enable();
 #endif /* UNIV_DEBUG */
 
 /** Status variables to be passed to MySQL */
@@ -862,7 +867,7 @@ struct export_var_t{
 
 /** Thread slot in the thread table.  */
 struct srv_slot_t{
-	ibool		in_use;			/*!< TRUE if this slot
+	bool		in_use;			/*!< true if this slot
 						is in use */
  	/** time(NULL) when the thread was suspended.
  	FIXME: Use my_interval_timer() or similar, to avoid bogus
@@ -877,9 +882,9 @@ struct srv_slot_t{
 						Initialized by
 						lock_wait_table_reserve_slot()
 						for lock wait */
-	os_event_t	event;			/*!< event used in suspending
-						the thread when it has nothing
-						to do */
+	mysql_cond_t	cond;			/*!< condition variable for
+						waking up suspended thread,
+						under lock_sys.mutex */
 	que_thr_t*	thr;			/*!< suspended query thread
 						(only used for user threads) */
 };

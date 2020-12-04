@@ -45,7 +45,7 @@ void
 lock_wait_table_print(void)
 /*=======================*/
 {
-	ut_ad(lock_wait_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
 
 	const srv_slot_t*	slot = lock_sys.waiting_threads;
 
@@ -74,7 +74,7 @@ lock_wait_table_release_slot(
 	srv_slot_t*	upper = lock_sys.waiting_threads + srv_max_n_threads;
 #endif /* UNIV_DEBUG */
 
-	lock_wait_mutex_enter();
+	mysql_mutex_lock(&lock_sys.wait_mutex);
 
 	ut_ad(slot->in_use);
 	ut_ad(slot->thr != NULL);
@@ -92,13 +92,13 @@ lock_wait_table_release_slot(
 	trx_t::mutex. To reduce contention on the lock mutex when reserving the
 	slot we avoid acquiring the lock mutex. */
 
-	lock_mutex_enter();
+	mysql_mutex_lock(&lock_sys.mutex);
 
 	slot->thr->slot = NULL;
 	slot->thr = NULL;
 	slot->in_use = FALSE;
 
-	lock_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	/* Scan backwards and adjust the last free slot pointer. */
 	for (slot = lock_sys.last_slot;
@@ -119,7 +119,7 @@ lock_wait_table_release_slot(
 	ut_ad(lock_sys.last_slot >= lock_sys.waiting_threads);
 	ut_ad(lock_sys.last_slot <= upper);
 
-	lock_wait_mutex_exit();
+	mysql_mutex_unlock(&lock_sys.wait_mutex);
 }
 
 /*********************************************************************//**
@@ -136,23 +136,15 @@ lock_wait_table_reserve_slot(
 	ulint		i;
 	srv_slot_t*	slot;
 
-	ut_ad(lock_wait_mutex_own());
-	ut_ad(trx_mutex_own(thr_get_trx(thr)));
+	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
 
 	slot = lock_sys.waiting_threads;
 
 	for (i = srv_max_n_threads; i--; ++slot) {
 		if (!slot->in_use) {
-			slot->in_use = TRUE;
+			slot->in_use = true;
 			slot->thr = thr;
 			slot->thr->slot = slot;
-
-			if (slot->event == NULL) {
-				slot->event = os_event_create(0);
-				ut_a(slot->event);
-			}
-
-			os_event_reset(slot->event);
 			slot->suspend_time = time(NULL);
 			slot->wait_timeout = wait_timeout;
 
@@ -198,15 +190,15 @@ wsrep_is_BF_lock_timeout(
 		ib::info() << "WSREP: BF lock wait long for trx:" << ib::hex(trx->id)
 			   << " query: " << wsrep_thd_query(trx->mysql_thd);
 		if (!locked) {
-			lock_mutex_enter();
+			mysql_mutex_lock(&lock_sys.mutex);
 		}
 
-		ut_ad(lock_mutex_own());
+		mysql_mutex_assert_owner(&lock_sys.mutex);
 
 		trx_print_latched(stderr, trx, 3000);
 
 		if (!locked) {
-			lock_mutex_exit();
+			mysql_mutex_unlock(&lock_sys.mutex);
 		}
 
 		srv_print_innodb_monitor 	= TRUE;
@@ -247,9 +239,8 @@ lock_wait_suspend_thread(
 	innodb_lock_wait_timeout, because trx->mysql_thd == NULL. */
 	lock_wait_timeout = trx_lock_wait_timeout_get(trx);
 
-	lock_wait_mutex_enter();
-
-	trx_mutex_enter(trx);
+	mysql_mutex_lock(&lock_sys.wait_mutex);
+	trx->mutex.wr_lock();
 
 	trx->error_state = DB_SUCCESS;
 
@@ -266,8 +257,8 @@ lock_wait_suspend_thread(
 			trx->lock.was_chosen_as_deadlock_victim = false;
 		}
 
-		lock_wait_mutex_exit();
-		trx_mutex_exit(trx);
+		mysql_mutex_unlock(&lock_sys.wait_mutex);
+		trx->mutex.wr_unlock();
 		return;
 	}
 
@@ -275,8 +266,8 @@ lock_wait_suspend_thread(
 
 	slot = lock_wait_table_reserve_slot(thr, lock_wait_timeout);
 
-	lock_wait_mutex_exit();
-	trx_mutex_exit(trx);
+	mysql_mutex_unlock(&lock_sys.wait_mutex);
+	trx->mutex.wr_unlock();
 
 	ulonglong start_time = 0;
 
@@ -293,12 +284,12 @@ lock_wait_suspend_thread(
 	current thread which owns the transaction. Only acquire the
 	mutex if the wait_lock is still active. */
 	if (const lock_t* wait_lock = trx->lock.wait_lock) {
-		lock_mutex_enter();
+		mysql_mutex_lock(&lock_sys.mutex);
 		wait_lock = trx->lock.wait_lock;
 		if (wait_lock) {
 			lock_type = lock_get_type_low(wait_lock);
 		}
-		lock_mutex_exit();
+		mysql_mutex_unlock(&lock_sys.mutex);
 	}
 
 	ulint	had_dict_lock = trx->dict_operation_lock_mode;
@@ -334,7 +325,11 @@ lock_wait_suspend_thread(
 		thd_wait_begin(trx->mysql_thd, THD_WAIT_TABLE_LOCK);
 	}
 
-	os_event_wait(slot->event);
+	mysql_mutex_lock(&lock_sys.mutex);
+	while (trx->lock.wait_lock) {
+		mysql_cond_wait(&slot->cond, &lock_sys.mutex);
+	}
+	mysql_mutex_unlock(&lock_sys.mutex);
 
 	thd_wait_end(trx->mysql_thd);
 
@@ -408,8 +403,7 @@ lock_wait_release_thread_if_suspended(
 	que_thr_t*	thr)	/*!< in: query thread associated with the
 				user OS thread	 */
 {
-	ut_ad(lock_mutex_own());
-	ut_ad(trx_mutex_own(thr_get_trx(thr)));
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	/* We own both the lock mutex and the trx_t::mutex but not the
 	lock wait mutex. This is OK because other threads will see the state
@@ -425,7 +419,7 @@ lock_wait_release_thread_if_suspended(
 			trx->lock.was_chosen_as_deadlock_victim = false;
 		}
 
-		os_event_set(thr->slot->event);
+		mysql_cond_signal(&thr->slot->cond);
 	}
 }
 
@@ -439,7 +433,7 @@ lock_wait_check_and_cancel(
 	const srv_slot_t*	slot)	/*!< in: slot reserved by a user
 					thread when the wait started */
 {
-	ut_ad(lock_wait_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
 	ut_ad(slot->in_use);
 
 	double wait_time = difftime(time(NULL), slot->suspend_time);
@@ -457,7 +451,7 @@ lock_wait_check_and_cancel(
 		possible that the lock has already been
 		granted: in that case do nothing */
 
-		lock_mutex_enter();
+		mysql_mutex_lock(&lock_sys.mutex);
 
 		if (trx->lock.wait_lock != NULL) {
 			ut_a(trx->lock.que_state == TRX_QUE_LOCK_WAIT);
@@ -465,22 +459,22 @@ lock_wait_check_and_cancel(
 #ifdef WITH_WSREP
                         if (!wsrep_is_BF_lock_timeout(trx)) {
 #endif /* WITH_WSREP */
-				mutex_enter(&trx->mutex);
+				trx->mutex.wr_lock();
 				lock_cancel_waiting_and_release(trx->lock.wait_lock);
-				mutex_exit(&trx->mutex);
+				trx->mutex.wr_unlock();
 #ifdef WITH_WSREP
                         }
 #endif /* WITH_WSREP */
 		}
 
-		lock_mutex_exit();
+		mysql_mutex_unlock(&lock_sys.mutex);
 	}
 }
 
 /** A task which wakes up threads whose lock wait may have lasted too long */
 void lock_wait_timeout_task(void*)
 {
-  lock_wait_mutex_enter();
+  mysql_mutex_lock(&lock_sys.wait_mutex);
 
   /* Check all slots for user threads that are waiting
   on locks, and if they have exceeded the time limit. */
@@ -503,5 +497,5 @@ void lock_wait_timeout_task(void*)
   else
     lock_sys.timeout_timer_active= false;
 
-  lock_wait_mutex_exit();
+  mysql_mutex_unlock(&lock_sys.wait_mutex);
 }

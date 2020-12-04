@@ -53,16 +53,15 @@ time will make sure the page is compressible within a couple of iterations. */
 /** Item in the work queue for btr_degrament_thread. */
 struct btr_defragment_item_t
 {
-	btr_pcur_t*	pcur;		/* persistent cursor where
-					btr_defragment_n_pages should start */
-	os_event_t	event;		/* if not null, signal after work
-					is done */
-	bool		removed;	/* Mark an item as removed */
-	ulonglong	last_processed;	/* timestamp of last time this index
-					is processed by defragment thread */
+  /** persistent cursor where btr_defragment_n_pages should start */
+  btr_pcur_t * const pcur;
+  /** completion signal */
+  mysql_cond_t *cond;
+  /** timestamp of last time this index is processed by defragment thread */
+  ulonglong last_processed= 0;
 
-	btr_defragment_item_t(btr_pcur_t* pcur, os_event_t event);
-	~btr_defragment_item_t();
+  btr_defragment_item_t(btr_pcur_t *pcur, mysql_cond_t *cond)
+    : pcur(pcur), cond(cond) {}
 };
 
 /* Work queue for defragmentation. */
@@ -70,9 +69,9 @@ typedef std::list<btr_defragment_item_t*>	btr_defragment_wq_t;
 static btr_defragment_wq_t	btr_defragment_wq;
 
 /* Mutex protecting the defragmentation work queue.*/
-ib_mutex_t		btr_defragment_mutex;
+static mysql_mutex_t btr_defragment_mutex;
 #ifdef UNIV_PFS_MUTEX
-UNIV_INTERN mysql_pfs_key_t	btr_defragment_mutex_key;
+mysql_pfs_key_t btr_defragment_mutex_key;
 #endif /* UNIV_PFS_MUTEX */
 
 /* Number of compression failures caused by defragmentation since server
@@ -87,42 +86,12 @@ the amount of effort wasted. */
 Atomic_counter<ulint> btr_defragment_count;
 
 bool btr_defragment_active;
-
-struct defragment_chunk_state_t
-{
-	btr_defragment_item_t* m_item;
-};
-
-static defragment_chunk_state_t defragment_chunk_state;
 static void btr_defragment_chunk(void*);
 
 static tpool::timer* btr_defragment_timer;
 static tpool::task_group task_group(1);
 static tpool::task btr_defragment_task(btr_defragment_chunk, 0, &task_group);
 static void btr_defragment_start();
-
-/******************************************************************//**
-Constructor for btr_defragment_item_t. */
-btr_defragment_item_t::btr_defragment_item_t(
-	btr_pcur_t* pcur,
-	os_event_t event)
-{
-	this->pcur = pcur;
-	this->event = event;
-	this->removed = false;
-	this->last_processed = 0;
-}
-
-/******************************************************************//**
-Destructor for btr_defragment_item_t. */
-btr_defragment_item_t::~btr_defragment_item_t() {
-	if (this->pcur) {
-		btr_pcur_free_for_mysql(this->pcur);
-	}
-	if (this->event) {
-		os_event_set(this->event);
-	}
-}
 
 static void submit_defragment_task(void*arg=0)
 {
@@ -135,8 +104,8 @@ void
 btr_defragment_init()
 {
 	srv_defragment_interval = 1000000000ULL / srv_defragment_frequency;
-	mutex_create(LATCH_ID_BTR_DEFRAGMENT_MUTEX, &btr_defragment_mutex);
-	defragment_chunk_state.m_item = 0;
+	mysql_mutex_init(btr_defragment_mutex_key, &btr_defragment_mutex,
+			 nullptr);
 	btr_defragment_timer = srv_thread_pool->create_timer(submit_defragment_task);
 	btr_defragment_active = true;
 }
@@ -151,15 +120,17 @@ btr_defragment_shutdown()
 	delete btr_defragment_timer;
 	btr_defragment_timer = 0;
 	task_group.cancel_pending(&btr_defragment_task);
-	mutex_enter(&btr_defragment_mutex);
+	mysql_mutex_lock(&btr_defragment_mutex);
 	std::list< btr_defragment_item_t* >::iterator iter = btr_defragment_wq.begin();
 	while(iter != btr_defragment_wq.end()) {
 		btr_defragment_item_t* item = *iter;
 		iter = btr_defragment_wq.erase(iter);
-		delete item;
+		if (item->cond) {
+			mysql_cond_signal(item->cond);
+		}
 	}
-	mutex_exit(&btr_defragment_mutex);
-	mutex_free(&btr_defragment_mutex);
+	mysql_mutex_unlock(&btr_defragment_mutex);
+	mysql_mutex_destroy(&btr_defragment_mutex);
 	btr_defragment_active = false;
 }
 
@@ -174,7 +145,7 @@ bool
 btr_defragment_find_index(
 	dict_index_t*	index)	/*!< Index to find. */
 {
-	mutex_enter(&btr_defragment_mutex);
+	mysql_mutex_lock(&btr_defragment_mutex);
 	for (std::list< btr_defragment_item_t* >::iterator iter = btr_defragment_wq.begin();
 	     iter != btr_defragment_wq.end();
 	     ++iter) {
@@ -183,65 +154,47 @@ btr_defragment_find_index(
 		btr_cur_t* cursor = btr_pcur_get_btr_cur(pcur);
 		dict_index_t* idx = btr_cur_get_index(cursor);
 		if (index->id == idx->id) {
-			mutex_exit(&btr_defragment_mutex);
+			mysql_mutex_unlock(&btr_defragment_mutex);
 			return true;
 		}
 	}
-	mutex_exit(&btr_defragment_mutex);
+	mysql_mutex_unlock(&btr_defragment_mutex);
 	return false;
 }
 
-/******************************************************************//**
-Query thread uses this function to add an index to btr_defragment_wq.
-Return a pointer to os_event for the query thread to wait on if this is a
-synchronized defragmentation. */
-os_event_t
-btr_defragment_add_index(
-	dict_index_t*	index,	/*!< index to be added  */
-	dberr_t*	err)	/*!< out: error code */
+/** Defragment an index.
+@param pcur      persistent cursor
+@param thd       current session, for checking thd_killed()
+@return whether the operation was interrupted */
+bool btr_defragment_add_index(btr_pcur_t *pcur, THD *thd)
 {
-	mtr_t mtr;
-	*err = DB_SUCCESS;
+  dict_stats_empty_defrag_summary(pcur->btr_cur.index);
+  mysql_cond_t cond;
+  mysql_cond_init(0, &cond, nullptr);
+  btr_defragment_item_t item(pcur, &cond);
+  mysql_mutex_lock(&btr_defragment_mutex);
+  btr_defragment_wq.push_back(&item);
+  if (btr_defragment_wq.size() == 1)
+    /* Kick off defragmentation work */
+    btr_defragment_start();
+  bool interrupted= false;
+  for (;;)
+  {
+    timespec abstime;
+    set_timespec(abstime, 1);
+    if (!mysql_cond_timedwait(&cond, &btr_defragment_mutex, &abstime))
+      break;
+    if (thd_killed(thd))
+    {
+      item.cond= nullptr;
+      interrupted= true;
+      break;
+    }
+  }
 
-	mtr_start(&mtr);
-	buf_block_t* block = btr_root_block_get(index, RW_NO_LATCH, &mtr);
-	page_t* page = NULL;
-
-	if (block) {
-		page = buf_block_get_frame(block);
-	}
-
-	if (page == NULL && !index->is_readable()) {
-		mtr_commit(&mtr);
-		*err = DB_DECRYPTION_FAILED;
-		return NULL;
-	}
-
-	ut_ad(fil_page_index_page_check(page));
-	ut_ad(!page_has_siblings(page));
-
-	if (page_is_leaf(page)) {
-		// Index root is a leaf page, no need to defragment.
-		mtr_commit(&mtr);
-		return NULL;
-	}
-	btr_pcur_t* pcur = btr_pcur_create_for_mysql();
-	os_event_t event = os_event_create(0);
-	btr_pcur_open_at_index_side(true, index, BTR_SEARCH_LEAF, pcur,
-				    true, 0, &mtr);
-	btr_pcur_move_to_next(pcur, &mtr);
-	btr_pcur_store_position(pcur, &mtr);
-	mtr_commit(&mtr);
-	dict_stats_empty_defrag_summary(index);
-	btr_defragment_item_t*	item = new btr_defragment_item_t(pcur, event);
-	mutex_enter(&btr_defragment_mutex);
-	btr_defragment_wq.push_back(item);
-	if(btr_defragment_wq.size() == 1){
-		/* Kick off defragmentation work */
-		btr_defragment_start();
-	}
-	mutex_exit(&btr_defragment_mutex);
-	return event;
+  mysql_cond_destroy(&cond);
+  mysql_mutex_unlock(&btr_defragment_mutex);
+  return interrupted;
 }
 
 /******************************************************************//**
@@ -252,95 +205,16 @@ void
 btr_defragment_remove_table(
 	dict_table_t*	table)	/*!< Index to be removed. */
 {
-	mutex_enter(&btr_defragment_mutex);
-	for (std::list< btr_defragment_item_t* >::iterator iter = btr_defragment_wq.begin();
-	     iter != btr_defragment_wq.end();
-	     ++iter) {
-		btr_defragment_item_t* item = *iter;
-		btr_pcur_t* pcur = item->pcur;
-		btr_cur_t* cursor = btr_pcur_get_btr_cur(pcur);
-		dict_index_t* idx = btr_cur_get_index(cursor);
-		if (table->id == idx->table->id) {
-			item->removed = true;
-		}
-	}
-	mutex_exit(&btr_defragment_mutex);
-}
-
-/******************************************************************//**
-Query thread uses this function to mark an index as removed in
-btr_efragment_wq. */
-void
-btr_defragment_remove_index(
-	dict_index_t*	index)	/*!< Index to be removed. */
-{
-	mutex_enter(&btr_defragment_mutex);
-	for (std::list< btr_defragment_item_t* >::iterator iter = btr_defragment_wq.begin();
-	     iter != btr_defragment_wq.end();
-	     ++iter) {
-		btr_defragment_item_t* item = *iter;
-		btr_pcur_t* pcur = item->pcur;
-		btr_cur_t* cursor = btr_pcur_get_btr_cur(pcur);
-		dict_index_t* idx = btr_cur_get_index(cursor);
-		if (index->id == idx->id) {
-			item->removed = true;
-			item->event = NULL;
-			break;
-		}
-	}
-	mutex_exit(&btr_defragment_mutex);
-}
-
-/******************************************************************//**
-Functions used by defragmentation thread: btr_defragment_xxx_item.
-Defragmentation thread operates on the work *item*. It gets/removes
-item from the work queue. */
-/******************************************************************//**
-Defragment thread uses this to remove an item from btr_defragment_wq.
-When an item is removed from the work queue, all resources associated with it
-are free as well. */
-void
-btr_defragment_remove_item(
-	btr_defragment_item_t*	item) /*!< Item to be removed. */
-{
-	mutex_enter(&btr_defragment_mutex);
-	for (std::list< btr_defragment_item_t* >::iterator iter = btr_defragment_wq.begin();
-	     iter != btr_defragment_wq.end();
-	     ++iter) {
-		if (item == *iter) {
-			btr_defragment_wq.erase(iter);
-			delete item;
-			break;
-		}
-	}
-	mutex_exit(&btr_defragment_mutex);
-}
-
-/******************************************************************//**
-Defragment thread uses this to get an item from btr_defragment_wq to work on.
-The item is not removed from the work queue so query threads can still access
-this item. We keep it this way so query threads can find and kill a
-defragmentation even if that index is being worked on. Be aware that while you
-work on this item you have no lock protection on it whatsoever. This is OK as
-long as the query threads and defragment thread won't modify the same fields
-without lock protection.
-*/
-btr_defragment_item_t*
-btr_defragment_get_item()
-{
-	if (btr_defragment_wq.empty()) {
-		return NULL;
-		//return nullptr;
-	}
-	mutex_enter(&btr_defragment_mutex);
-	std::list< btr_defragment_item_t* >::iterator iter = btr_defragment_wq.begin();
-	if (iter == btr_defragment_wq.end()) {
-		iter = btr_defragment_wq.begin();
-	}
-	btr_defragment_item_t* item = *iter;
-	iter++;
-	mutex_exit(&btr_defragment_mutex);
-	return item;
+  mysql_mutex_lock(&btr_defragment_mutex);
+  for (auto item : btr_defragment_wq)
+  {
+    if (item->cond && table == item->pcur->btr_cur.index->table)
+    {
+      mysql_cond_signal(item->cond);
+      item->cond= nullptr;
+    }
+  }
+  mysql_mutex_unlock(&btr_defragment_mutex);
 }
 
 /*********************************************************************//**
@@ -572,7 +446,7 @@ the process, if any page becomes empty, that page will be removed from
 the level list. Record locks, hash, and node pointers are updated after
 page reorganization.
 @return pointer to the last block processed, or NULL if reaching end of index */
-UNIV_INTERN
+static
 buf_block_t*
 btr_defragment_n_pages(
 	buf_block_t*	block,	/*!< in: starting block for defragmentation */
@@ -739,34 +613,32 @@ The state (current item) is stored in function parameter.
 */
 static void btr_defragment_chunk(void*)
 {
-	defragment_chunk_state_t* state = &defragment_chunk_state;
-
-	btr_pcur_t*	pcur;
-	btr_cur_t*	cursor;
-	dict_index_t*	index;
+	btr_defragment_item_t* item = nullptr;
 	mtr_t		mtr;
-	buf_block_t*	first_block;
-	buf_block_t*	last_block;
+
+	mysql_mutex_lock(&btr_defragment_mutex);
 
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
-		if (!state->m_item) {
-			state->m_item = btr_defragment_get_item();
-		}
-		/* If an index is marked as removed, we remove it from the work
-		queue. No other thread could be using this item at this point so
-		it's safe to remove now. */
-		while (state->m_item && state->m_item->removed) {
-			btr_defragment_remove_item(state->m_item);
-			state->m_item = btr_defragment_get_item();
-		}
-		if (!state->m_item) {
-			/* Queue empty */
-			return;
+		if (!item) {
+			if (btr_defragment_wq.empty()) {
+				mysql_mutex_unlock(&btr_defragment_mutex);
+				return;
+			}
+			item = *btr_defragment_wq.begin();
+			ut_ad(item);
 		}
 
-		pcur = state->m_item->pcur;
+		if (!item->cond) {
+processed:
+			btr_defragment_wq.remove(item);
+			item = nullptr;
+			continue;
+		}
+
+		mysql_mutex_unlock(&btr_defragment_mutex);
+
 		ulonglong now = my_interval_timer();
-		ulonglong elapsed = now - state->m_item->last_processed;
+		ulonglong elapsed = now - item->last_processed;
 
 		if (elapsed < srv_defragment_interval) {
 			/* If we see an index again before the interval
@@ -783,21 +655,19 @@ static void btr_defragment_chunk(void*)
 		}
 		log_free_check();
 		mtr_start(&mtr);
-		cursor = btr_pcur_get_btr_cur(pcur);
-		index = btr_cur_get_index(cursor);
+		dict_index_t *index = item->pcur->btr_cur.index;
 		index->set_modified(mtr);
 		/* To follow the latching order defined in WL#6326, acquire index->lock X-latch.
 		This entitles us to acquire page latches in any order for the index. */
 		mtr_x_lock_index(index, &mtr);
 		/* This will acquire index->lock SX-latch, which per WL#6363 is allowed
 		when we are already holding the X-latch. */
-		btr_pcur_restore_position(BTR_MODIFY_TREE, pcur, &mtr);
-		first_block = btr_cur_get_block(cursor);
-
-		last_block = btr_defragment_n_pages(first_block, index,
-						    srv_defragment_n_pages,
-						    &mtr);
-		if (last_block) {
+		btr_pcur_restore_position(BTR_MODIFY_TREE, item->pcur, &mtr);
+		buf_block_t* first_block = btr_pcur_get_block(item->pcur);
+		if (buf_block_t *last_block =
+		    btr_defragment_n_pages(first_block, index,
+					   srv_defragment_n_pages,
+					   &mtr)) {
 			/* If we haven't reached the end of the index,
 			place the cursor on the last record of last page,
 			store the cursor position, and put back in queue. */
@@ -806,18 +676,17 @@ static void btr_defragment_chunk(void*)
 				page_get_supremum_rec(last_page));
 			ut_a(page_rec_is_user_rec(rec));
 			page_cur_position(rec, last_block,
-					  btr_cur_get_page_cur(cursor));
-			btr_pcur_store_position(pcur, &mtr);
+					  btr_pcur_get_page_cur(item->pcur));
+			btr_pcur_store_position(item->pcur, &mtr);
 			mtr_commit(&mtr);
 			/* Update the last_processed time of this index. */
-			state->m_item->last_processed = now;
+			item->last_processed = now;
+			mysql_mutex_lock(&btr_defragment_mutex);
 		} else {
-			dberr_t err = DB_SUCCESS;
 			mtr_commit(&mtr);
 			/* Reaching the end of the index. */
 			dict_stats_empty_defrag_stats(index);
-			err = dict_stats_save_defrag_stats(index);
-			if (err != DB_SUCCESS) {
+			if (dberr_t err= dict_stats_save_defrag_stats(index)) {
 				ib::error() << "Saving defragmentation stats for table "
 					    << index->table->name
 					    << " index " << index->name()
@@ -833,8 +702,13 @@ static void btr_defragment_chunk(void*)
 				}
 			}
 
-			btr_defragment_remove_item(state->m_item);
-			state->m_item = NULL;
+			mysql_mutex_lock(&btr_defragment_mutex);
+			if (item->cond) {
+				mysql_cond_signal(item->cond);
+			}
+			goto processed;
 		}
 	}
+
+	mysql_mutex_unlock(&btr_defragment_mutex);
 }

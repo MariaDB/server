@@ -2610,9 +2610,9 @@ skip:
 	}
 
 	if (!srv_fast_shutdown && !trx_sys.any_active_transactions()) {
-		lock_mutex_enter();
+		mysql_mutex_lock(&lock_sys.mutex);
 		skip = UT_LIST_GET_LEN(table->locks) != 0;
-		lock_mutex_exit();
+		mysql_mutex_unlock(&lock_sys.mutex);
 		if (skip) {
 			/* We cannot drop tables that are locked by XA
 			PREPARE transactions. */

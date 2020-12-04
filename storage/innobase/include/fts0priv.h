@@ -424,8 +424,7 @@ Append deleted doc ids to vector and sort the vector. */
 void
 fts_cache_append_deleted_doc_ids(
 /*=============================*/
-	const fts_cache_t*
-			cache,		/*!< in: cache to use */
+	fts_cache_t*	cache,		/*!< in: cache to use */
 	ib_vector_t*	vector);	/*!< in: append to this vector */
 /******************************************************************//**
 Search the index specific cache for a particular FTS index.

@@ -75,9 +75,10 @@ bool have_multi_threaded_slave = false;
 bool have_gtid_slave = false;
 
 /* Kill long selects */
-os_event_t	kill_query_thread_started;
-os_event_t	kill_query_thread_stopped;
-os_event_t	kill_query_thread_stop;
+static mysql_mutex_t kill_query_thread_mutex;
+static bool kill_query_thread_running, kill_query_thread_stopping;
+static mysql_cond_t kill_query_thread_stopped;
+static mysql_cond_t kill_query_thread_stop;
 
 bool sql_thread_started = false;
 char *mysql_slave_position = NULL;
@@ -798,74 +799,73 @@ wait_for_no_updates(MYSQL *connection, uint timeout, uint threshold)
 	return(false);
 }
 
-static
-os_thread_ret_t
-DECLARE_THREAD(kill_query_thread)(
-/*===============*/
-	void *arg __attribute__((unused)))
+static os_thread_ret_t DECLARE_THREAD(kill_query_thread)(void*)
 {
-	MYSQL	*mysql;
-	time_t	start_time;
+  mysql_mutex_lock(&kill_query_thread_mutex);
 
-	start_time = time(NULL);
+  msg("Kill query timeout %d seconds.", opt_kill_long_queries_timeout);
 
-	os_event_set(kill_query_thread_started);
+  time_t start_time= time(nullptr);
+  timespec abstime;
+  set_timespec(abstime, opt_kill_long_queries_timeout);
 
-	msg("Kill query timeout %d seconds.",
-	       opt_kill_long_queries_timeout);
+  while (!kill_query_thread_stopping)
+    if (!mysql_cond_timedwait(&kill_query_thread_stop,
+                              &kill_query_thread_mutex, &abstime))
+      goto func_exit;
 
-	while (time(NULL) - start_time <
-				(time_t)opt_kill_long_queries_timeout) {
-		if (os_event_wait_time(kill_query_thread_stop, 1000) !=
-		    OS_SYNC_TIME_EXCEEDED) {
-			goto stop_thread;
-		}
-	}
+  if (MYSQL *mysql= xb_mysql_connect())
+  {
+    do
+    {
+      kill_long_queries(mysql, time(nullptr) - start_time);
+      set_timespec(abstime, 1);
+    }
+    while (mysql_cond_timedwait(&kill_query_thread_stop,
+                                &kill_query_thread_mutex, &abstime) &&
+	   !kill_query_thread_stopping);
+    mysql_close(mysql);
+  }
+  else
+    msg("Error: kill query thread failed");
 
-	if ((mysql = xb_mysql_connect()) == NULL) {
-		msg("Error: kill query thread failed");
-		goto stop_thread;
-	}
+func_exit:
+  msg("Kill query thread stopped");
 
-	while (true) {
-		kill_long_queries(mysql, time(NULL) - start_time);
-		if (os_event_wait_time(kill_query_thread_stop, 1000) !=
-		    OS_SYNC_TIME_EXCEEDED) {
-			break;
-		}
-	}
+  kill_query_thread_running= false;
+  mysql_cond_signal(&kill_query_thread_stopped);
+  mysql_mutex_unlock(&kill_query_thread_mutex);
 
-	mysql_close(mysql);
-
-stop_thread:
-	msg("Kill query thread stopped");
-
-	os_event_set(kill_query_thread_stopped);
-
-	os_thread_exit();
-	OS_THREAD_DUMMY_RETURN;
+  os_thread_exit();
+  OS_THREAD_DUMMY_RETURN;
 }
 
 
-static
-void
-start_query_killer()
+static void start_query_killer()
 {
-	kill_query_thread_stop		= os_event_create(0);
-	kill_query_thread_started	= os_event_create(0);
-	kill_query_thread_stopped	= os_event_create(0);
-
-	os_thread_create(kill_query_thread);
-
-	os_event_wait(kill_query_thread_started);
+  ut_ad(!kill_query_thread_running);
+  kill_query_thread_running= true;
+  kill_query_thread_stopping= false;
+  mysql_mutex_init(0, &kill_query_thread_mutex, nullptr);
+  mysql_cond_init(0, &kill_query_thread_stop, nullptr);
+  mysql_cond_init(0, &kill_query_thread_stopped, nullptr);
+  os_thread_create(kill_query_thread);
 }
 
-static
-void
-stop_query_killer()
+static void stop_query_killer()
 {
-	os_event_set(kill_query_thread_stop);
-	os_event_wait_time(kill_query_thread_stopped, 60000);
+  mysql_mutex_lock(&kill_query_thread_mutex);
+  kill_query_thread_stopping= true;
+  mysql_cond_signal(&kill_query_thread_stop);
+
+  do
+    mysql_cond_wait(&kill_query_thread_stopped, &kill_query_thread_mutex);
+  while (kill_query_thread_running);
+
+  mysql_cond_destroy(&kill_query_thread_stop);
+  mysql_cond_destroy(&kill_query_thread_stopped);
+  mysql_mutex_unlock(&kill_query_thread_mutex);
+  mysql_mutex_destroy(&kill_query_thread_mutex);
 }
 
 

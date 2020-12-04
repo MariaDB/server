@@ -46,7 +46,6 @@ Created 10/25/1995 Heikki Tuuri
 #include "trx0purge.h"
 #include "buf0lru.h"
 #include "ibuf0ibuf.h"
-#include "os0event.h"
 #include "sync0sync.h"
 #include "buf0flu.h"
 #ifdef UNIV_LINUX
@@ -1009,20 +1008,21 @@ fil_space_t *fil_space_t::create(const char *name, ulint id, ulint flags,
 		fil_system.max_assigned_id = id;
 	}
 
-	/* Inform key rotation that there could be something
-	to do */
-	if (purpose == FIL_TYPE_TABLESPACE
-	    && !srv_fil_crypt_rotate_key_age && fil_crypt_threads_event &&
-	    (mode == FIL_ENCRYPTION_ON || mode == FIL_ENCRYPTION_OFF
-	     || srv_encrypt_tables)) {
-		/* Key rotation is not enabled, need to inform background
-		encryption threads. */
+	const bool rotate= purpose == FIL_TYPE_TABLESPACE
+		&& (mode == FIL_ENCRYPTION_ON || mode == FIL_ENCRYPTION_OFF
+		    || srv_encrypt_tables)
+		&& !srv_fil_crypt_rotate_key_age
+		&& srv_n_fil_crypt_threads_started;
+
+	if (rotate) {
 		fil_system.rotation_list.push_back(*space);
 		space->is_in_rotation_list = true;
-		mutex_exit(&fil_system.mutex);
-		os_event_set(fil_crypt_threads_event);
-	} else {
-		mutex_exit(&fil_system.mutex);
+	}
+
+	mutex_exit(&fil_system.mutex);
+
+	if (rotate) {
+		fil_crypt_threads_signal();
 	}
 
 	return(space);
@@ -3365,7 +3365,7 @@ write_completed:
     if (dberr_t err= buf_page_read_complete(request.bpage, *request.node))
     {
       if (recv_recovery_is_on() && !srv_force_recovery)
-        recv_sys.found_corrupt_fs= true;
+        recv_sys.set_corrupt_fs();
 
       ib::error() << "Failed to read page " << id.page_no()
                   << " from file '" << request.node->name << "': " << err;

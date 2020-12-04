@@ -153,7 +153,6 @@ inline void trx_t::rollback_low(trx_savept_t *savept)
 @return error code or DB_SUCCESS */
 dberr_t trx_t::rollback(trx_savept_t *savept)
 {
-  ut_ad(!trx_mutex_own(this));
   if (state == TRX_STATE_NOT_STARTED)
   {
     error_state= DB_SUCCESS;
@@ -690,9 +689,9 @@ static my_bool trx_roll_count_callback(rw_trx_hash_element_t *element,
 void trx_roll_report_progress()
 {
 	time_t now = time(NULL);
-	mutex_enter(&recv_sys.mutex);
+	mysql_mutex_lock(&recv_sys.mutex);
 	bool report = recv_sys.report(now);
-	mutex_exit(&recv_sys.mutex);
+	mysql_mutex_unlock(&recv_sys.mutex);
 
 	if (report) {
 		trx_roll_count_callback_arg arg;
@@ -723,10 +722,10 @@ static my_bool trx_rollback_recovered_callback(rw_trx_hash_element_t *element,
   mutex_enter(&element->mutex);
   if (trx_t *trx= element->trx)
   {
-    mutex_enter(&trx->mutex);
+    trx->mutex.wr_lock();
     if (trx_state_eq(trx, TRX_STATE_ACTIVE) && trx->is_recovered)
       trx_list->push_back(trx);
-    mutex_exit(&trx->mutex);
+    trx->mutex.wr_unlock();
   }
   mutex_exit(&element->mutex);
   return 0;
@@ -768,10 +767,10 @@ void trx_rollback_recovered(bool all)
     trx_list.pop_back();
 
     ut_ad(trx);
-    ut_d(trx_mutex_enter(trx));
+    ut_d(trx->mutex.wr_lock());
     ut_ad(trx->is_recovered);
     ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
-    ut_d(trx_mutex_exit(trx));
+    ut_d(trx->mutex.wr_unlock());
 
     if (srv_shutdown_state != SRV_SHUTDOWN_NONE && !srv_undo_sources &&
         srv_fast_shutdown)
@@ -865,8 +864,6 @@ trx_roll_graph_build(
 	que_fork_t*	fork;
 	que_thr_t*	thr;
 
-	ut_ad(trx_mutex_own(trx));
-
 	heap = mem_heap_create(512);
 	fork = que_fork_create(NULL, NULL, QUE_FORK_ROLLBACK, heap);
 	fork->trx = trx;
@@ -891,8 +888,6 @@ trx_rollback_start(
 					partial undo), 0 if we are rolling back
 					the entire transaction */
 {
-	ut_ad(trx_mutex_own(trx));
-
 	/* Initialize the rollback field in the transaction */
 
 	ut_ad(!trx->roll_limit);
@@ -965,14 +960,13 @@ trx_rollback_step(
 
 		roll_limit = node->savept ? node->savept->least_undo_no : 0;
 
-		trx_mutex_enter(trx);
+		trx->mutex.wr_lock();
 
 		trx_commit_or_rollback_prepare(trx);
 
 		node->undo_thr = trx_rollback_start(trx, roll_limit);
 
-		trx_mutex_exit(trx);
-
+		trx->mutex.wr_unlock();
 	} else {
 		ut_ad(node->state == ROLL_NODE_WAIT);
 

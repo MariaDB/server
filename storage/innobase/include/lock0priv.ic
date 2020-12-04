@@ -131,7 +131,7 @@ lock_rec_get_next(
 	ulint	heap_no,/*!< in: heap number of the record */
 	lock_t*	lock)	/*!< in: lock */
 {
-	ut_ad(lock_mutex_own());
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	do {
 		ut_ad(lock_get_type_low(lock) == LOCK_REC);
@@ -206,7 +206,7 @@ lock_rec_get_next_on_page_const(
 /*============================*/
 	const lock_t*	lock)	/*!< in: a record lock */
 {
-  ut_ad(lock_mutex_own());
+  mysql_mutex_assert_owner(&lock_sys.mutex);
   ut_ad(lock_get_type_low(lock) == LOCK_REC);
 
   const page_id_t page_id(lock->un_member.rec_lock.page_id);

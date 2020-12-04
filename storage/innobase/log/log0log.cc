@@ -1003,6 +1003,7 @@ ATTRIBUTE_COLD void logs_empty_and_mark_files_at_shutdown()
 	dict_stats_shutdown();
 	btr_defragment_shutdown();
 
+	ut_d(srv_master_thread_enable());
 	srv_shutdown_state = SRV_SHUTDOWN_CLEANUP;
 
 	if (srv_buffer_pool_dump_at_shutdown &&
@@ -1077,7 +1078,7 @@ wait_suspend_loop:
 
 	ut_ad(!srv_any_background_activity());
 	if (srv_n_fil_crypt_threads_started) {
-		os_event_set(fil_crypt_threads_event);
+		fil_crypt_threads_signal(true);
 		thread_name = "fil_crypt_thread";
 		goto wait_suspend_loop;
 	}

@@ -542,7 +542,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(trx_pool_manager_mutex),
 	PSI_KEY(lock_mutex),
 	PSI_KEY(lock_wait_mutex),
-	PSI_KEY(trx_mutex),
 	PSI_KEY(srv_threads_mutex),
 	PSI_KEY(rtr_active_mutex),
 	PSI_KEY(rtr_match_mutex),
@@ -3058,6 +3057,11 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	reset_template();
 }
 
+#ifdef WITH_INNODB_DISALLOW_WRITES
+/** Condition variable for innodb_disallow_writes */
+static mysql_cond_t allow_writes_cond;
+#endif /* WITH_INNODB_DISALLOW_WRITES */
+
 /** Free tablespace resources allocated. */
 void innobase_space_shutdown()
 {
@@ -3074,7 +3078,7 @@ void innobase_space_shutdown()
 	srv_tmp_space.shutdown();
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
-	os_event_destroy(srv_allow_writes_event);
+	mysql_cond_destroy(&allow_writes_cond);
 #endif /* WITH_INNODB_DISALLOW_WRITES */
 
 	DBUG_VOID_RETURN;
@@ -3605,6 +3609,10 @@ static int innodb_init(void* p)
 
 	/* After this point, error handling has to use
 	innodb_init_abort(). */
+
+#ifdef WITH_INNODB_DISALLOW_WRITES
+	mysql_cond_init(0, &allow_writes_cond, nullptr);
+#endif /* WITH_INNODB_DISALLOW_WRITES */
 
 #ifdef HAVE_PSI_INTERFACE
 	/* Register keys with MySQL performance schema */
@@ -4411,9 +4419,9 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
       Also, BF thread should own trx mutex for the victim. */
       DBUG_VOID_RETURN;
 #endif /* WITH_WSREP */
-    lock_mutex_enter();
+    mysql_mutex_lock(&lock_sys.mutex);
     trx_sys.trx_list.freeze();
-    trx_mutex_enter(trx);
+    trx->mutex.wr_lock();
     /* It is possible that innobase_close_connection() is concurrently
     being executed on our victim. Even if the trx object is later
     reused for another client connection or a background transaction,
@@ -4432,8 +4440,8 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
     if (!cancel);
     else if (lock_t *lock= trx->lock.wait_lock)
       lock_cancel_waiting_and_release(lock);
-    lock_mutex_exit();
-    trx_mutex_exit(trx);
+    mysql_mutex_unlock(&lock_sys.mutex);
+    trx->mutex.wr_unlock();
   }
 
   DBUG_VOID_RETURN;
@@ -14266,90 +14274,64 @@ ha_innobase::analyze(THD*, HA_CHECK_OPT*)
 /*****************************************************************//**
 Defragment table.
 @return	error number */
-inline int ha_innobase::defragment_table(const char *name)
+inline int ha_innobase::defragment_table()
 {
-	char		norm_name[FN_REFLEN];
-	dict_table_t*	table = NULL;
-	dict_index_t*	index = NULL;
-	int		ret = 0;
-	dberr_t		err = DB_SUCCESS;
+  for (dict_index_t *index= dict_table_get_first_index(m_prebuilt->table);
+       index; index= dict_table_get_next_index(index))
+  {
+    if (index->is_corrupted() || index->is_spatial())
+      continue;
 
-	normalize_table_name(norm_name, name);
+    if (index->page == FIL_NULL)
+    {
+      /* Do not defragment auxiliary tables related to FULLTEXT INDEX. */
+      ut_ad(index->type & DICT_FTS);
+      continue;
+    }
 
-	table = dict_table_open_on_name(norm_name, FALSE,
-		FALSE, DICT_ERR_IGNORE_FK_NOKEY);
+    if (btr_defragment_find_index(index))
+    {
+      // We borrow this error code. When the same index is already in
+      // the defragmentation queue, issuing another defragmentation
+      // only introduces overhead. We return an error here to let the
+      // user know this is not necessary. Note that this will fail a
+      // query that's trying to defragment a full table if one of the
+      // indicies in that table is already in defragmentation.  We
+      // choose this behavior so user is aware of this rather than
+      // silently defragment other indicies of that table.
+      return ER_SP_ALREADY_EXISTS;
+    }
 
-	for (index = dict_table_get_first_index(table); index;
-	     index = dict_table_get_next_index(index)) {
+    btr_pcur_t pcur;
+    pcur.btr_cur.index = nullptr;
+    btr_pcur_init(&pcur);
 
-		if (index->is_corrupted()) {
-			continue;
-		}
+    mtr_t mtr;
+    mtr.start();
+    if (dberr_t err= btr_pcur_open_at_index_side(true, index,
+                                                 BTR_SEARCH_LEAF, &pcur,
+                                                 true, 0, &mtr))
+    {
+      mtr.commit();
+      return convert_error_code_to_mysql(err, 0, m_user_thd);
+    }
+    else if (btr_pcur_get_block(&pcur)->page.id().page_no() == index->page)
+    {
+      mtr.commit();
+      continue;
+    }
 
-		if (dict_index_is_spatial(index)) {
-			/* Do not try to defragment spatial indexes,
-			because doing it properly would require
-			appropriate logic around the SSN (split
-			sequence number). */
-			continue;
-		}
+    btr_pcur_move_to_next(&pcur, &mtr);
+    btr_pcur_store_position(&pcur, &mtr);
+    mtr.commit();
+    ut_ad(pcur.btr_cur.index == index);
+    const bool interrupted= btr_defragment_add_index(&pcur, m_user_thd);
+    btr_pcur_free(&pcur);
+    if (interrupted)
+      return ER_QUERY_INTERRUPTED;
+  }
 
-		if (index->page == FIL_NULL) {
-			/* Do not defragment auxiliary tables related
-			to FULLTEXT INDEX. */
-			ut_ad(index->type & DICT_FTS);
-			continue;
-		}
-
-		if (btr_defragment_find_index(index)) {
-			// We borrow this error code. When the same index is
-			// already in the defragmentation queue, issue another
-			// defragmentation only introduces overhead. We return
-			// an error here to let the user know this is not
-			// necessary. Note that this will fail a query that's
-			// trying to defragment a full table if one of the
-			// indicies in that table is already in defragmentation.
-			// We choose this behavior so user is aware of this
-			// rather than silently defragment other indicies of
-			// that table.
-			ret = ER_SP_ALREADY_EXISTS;
-			break;
-		}
-
-		os_event_t event = btr_defragment_add_index(index, &err);
-
-		if (err != DB_SUCCESS) {
-			push_warning_printf(
-				current_thd,
-				Sql_condition::WARN_LEVEL_WARN,
-				ER_NO_SUCH_TABLE,
-				"Table %s is encrypted but encryption service or"
-				" used key_id is not available. "
-				" Can't continue checking table.",
-				index->table->name.m_name);
-
-			ret = convert_error_code_to_mysql(err, 0, current_thd);
-			break;
-		}
-
-		if (event) {
-			while(os_event_wait_time(event, 1000000)) {
-				if (thd_killed(current_thd)) {
-					btr_defragment_remove_index(index);
-					ret = ER_QUERY_INTERRUPTED;
-					break;
-				}
-			}
-			os_event_destroy(event);
-		}
-
-		if (ret) {
-			break;
-		}
-	}
-
-	dict_table_close(table, FALSE, FALSE);
-	return ret;
+  return 0;
 }
 
 /**********************************************************************//**
@@ -14373,8 +14355,10 @@ ha_innobase::optimize(
 	calls to OPTIMIZE, which is undesirable. */
 	bool try_alter = true;
 
-	if (!m_prebuilt->table->is_temporary() && srv_defragment) {
-		int err = defragment_table(m_prebuilt->table->name.m_name);
+	if (!m_prebuilt->table->is_temporary()
+	    && m_prebuilt->table->is_readable()
+	    && srv_defragment) {
+		int err = defragment_table();
 
 		if (err == 0) {
 			try_alter = false;
@@ -18190,8 +18174,7 @@ int wsrep_innobase_kill_one_trx(THD *bf_thd, trx_t *victim_trx, bool signal)
 {
 	ut_ad(bf_thd);
 	ut_ad(victim_trx);
-	ut_ad(lock_mutex_own());
-	ut_ad(trx_mutex_own(victim_trx));
+	mysql_mutex_assert_owner(&lock_sys.mutex);
 
 	DBUG_ENTER("wsrep_innobase_kill_one_trx");
 
@@ -18293,12 +18276,12 @@ wsrep_abort_transaction(
 			wsrep_thd_transaction_state_str(victim_thd));
 
 	if (victim_trx) {
-		lock_mutex_enter();
-		trx_mutex_enter(victim_trx);
+		mysql_mutex_lock(&lock_sys.mutex);
+		victim_trx->mutex.wr_lock();
 		int rcode= wsrep_innobase_kill_one_trx(bf_thd,
 						       victim_trx, signal);
-		trx_mutex_exit(victim_trx);
-		lock_mutex_exit();
+		mysql_mutex_unlock(&lock_sys.mutex);
+		victim_trx->mutex.wr_unlock();
 		DBUG_RETURN(rcode);
 	} else {
 		wsrep_thd_bf_abort(bf_thd, victim_thd, signal);
@@ -19066,12 +19049,18 @@ static MYSQL_SYSVAR_ULONG(buf_dump_status_frequency, srv_buf_dump_status_frequen
   NULL, NULL, 0, 0, 100, 0);
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
-/*******************************************************
- *    innobase_disallow_writes variable definition     *
- *******************************************************/
- 
-/* Must always init to FALSE. */
-static my_bool	innobase_disallow_writes	= FALSE;
+my_bool innodb_disallow_writes;
+
+void innodb_wait_allow_writes()
+{
+  if (UNIV_UNLIKELY(innodb_disallow_writes))
+  {
+    mysql_mutex_lock(&LOCK_global_system_variables);
+    while (innodb_disallow_writes)
+      mysql_cond_wait(&allow_writes_cond, &LOCK_global_system_variables);
+    mysql_mutex_unlock(&LOCK_global_system_variables);
+  }
+}
 
 /**************************************************************************
 An "update" method for innobase_disallow_writes variable. */
@@ -19082,17 +19071,14 @@ innobase_disallow_writes_update(THD*, st_mysql_sys_var*,
 {
 	const my_bool val = *static_cast<const my_bool*>(save);
 	*static_cast<my_bool*>(var_ptr) = val;
-	ut_a(srv_allow_writes_event);
 	mysql_mutex_unlock(&LOCK_global_system_variables);
-	if (val) {
-		os_event_reset(srv_allow_writes_event);
-	} else {
-		os_event_set(srv_allow_writes_event);
+	if (!val) {
+		mysql_cond_broadcast(&allow_writes_cond);
 	}
 	mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
-static MYSQL_SYSVAR_BOOL(disallow_writes, innobase_disallow_writes,
+static MYSQL_SYSVAR_BOOL(disallow_writes, innodb_disallow_writes,
   PLUGIN_VAR_NOCMDOPT,
   "Tell InnoDB to stop any writes to disk",
   NULL, innobase_disallow_writes_update, FALSE);

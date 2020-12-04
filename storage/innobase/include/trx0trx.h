@@ -719,10 +719,9 @@ private:
 
 
 public:
-	TrxMutex	mutex;		/*!< Mutex protecting the fields
-					state and lock (except some fields
-					of lock, which are protected by
-					lock_sys.mutex) */
+  /** mutex protecting state and some of lock
+  (some are protected by lock_sys.mutex) */
+  srw_mutex mutex;
 
 	trx_id_t	id;		/*!< transaction id */
 
@@ -1168,19 +1167,6 @@ struct commit_node_t{
 			state;	/*!< node execution state */
 };
 
-
-/** Test if trx->mutex is owned. */
-#define trx_mutex_own(t) mutex_own(&t->mutex)
-
-/** Acquire the trx->mutex. */
-#define trx_mutex_enter(t) do {			\
-	mutex_enter(&t->mutex);			\
-} while (0)
-
-/** Release the trx->mutex. */
-#define trx_mutex_exit(t) do {			\
-	mutex_exit(&t->mutex);			\
-} while (0)
 
 #include "trx0trx.ic"
 

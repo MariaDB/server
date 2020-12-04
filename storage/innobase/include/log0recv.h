@@ -209,14 +209,25 @@ struct page_recv_t
 struct recv_sys_t
 {
   /** mutex protecting apply_log_recs and page_recv_t::state */
-  ib_mutex_t mutex;
+  mysql_mutex_t mutex;
+private:
+  /** condition variable for
+  !apply_batch_on || pages.empty() || found_corrupt_log || found_corrupt_fs */
+  mysql_cond_t cond;
+  /** whether recv_apply_hashed_log_recs() is running */
+  bool apply_batch_on;
+  /** set when finding a corrupt log block or record, or there is a
+  log parsing buffer overflow */
+  bool found_corrupt_log;
+  /** set when an inconsistency with the file system contents is detected
+  during log scan or apply */
+  bool found_corrupt_fs;
+public:
   /** whether we are applying redo log records during crash recovery */
   bool recovery_on;
   /** whether recv_recover_page(), invoked from buf_page_read_complete(),
   should apply log records*/
   bool apply_log_recs;
-	/** whether recv_apply_hashed_log_recs() is running */
-	bool		apply_batch_on;
 	byte*		buf;	/*!< buffer for parsing log records */
 	ulint		len;	/*!< amount of data in buf */
 	lsn_t		parse_start_lsn;
@@ -236,14 +247,6 @@ struct recv_sys_t
 	lsn_t		recovered_lsn;
 				/*!< the log records have been parsed up to
 				this lsn */
-	bool		found_corrupt_log;
-				/*!< set when finding a corrupt log
-				block or record, or there is a log
-				parsing buffer overflow */
-	bool		found_corrupt_fs;
-				/*!< set when an inconsistency with
-				the file system contents is detected
-				during log scan or apply */
 	lsn_t		mlog_checkpoint_lsn;
 				/*!< the LSN of a FILE_CHECKPOINT
 				record, or 0 if none was parsed */
@@ -381,6 +384,18 @@ public:
   This function should only be called when innodb_force_recovery is set.
   @param page_id  corrupted page identifier */
   ATTRIBUTE_COLD void free_corrupted_page(page_id_t page_id);
+
+  /** Flag data file corruption during recovery. */
+  ATTRIBUTE_COLD void set_corrupt_fs();
+  /** Flag log file corruption during recovery. */
+  ATTRIBUTE_COLD void set_corrupt_log();
+  /** Possibly finish a recovery batch. */
+  inline void maybe_finish_batch();
+
+  /** @return whether data file corruption was found */
+  bool is_corrupt_fs() const { return UNIV_UNLIKELY(found_corrupt_fs); }
+  /** @return whether log file corruption was found */
+  bool is_corrupt_log() const { return UNIV_UNLIKELY(found_corrupt_log); }
 
   /** Attempt to initialize a page based on redo log records.
   @param page_id  page identifier

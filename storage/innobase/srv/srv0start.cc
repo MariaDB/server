@@ -96,7 +96,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "row0row.h"
 #include "row0mysql.h"
 #include "btr0pcur.h"
-#include "os0event.h"
 #include "zlib.h"
 #include "ut0crc32.h"
 
@@ -825,7 +824,7 @@ static void srv_shutdown_threads()
 {
 	ut_ad(!srv_undo_sources);
 	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
-
+	ut_d(srv_master_thread_enable());
 	lock_sys.timeout_timer.reset();
 	srv_master_timer.reset();
 
@@ -1488,8 +1487,8 @@ file_checked:
 
 			recv_sys.apply(true);
 
-			if (recv_sys.found_corrupt_log
-			    || recv_sys.found_corrupt_fs) {
+			if (recv_sys.is_corrupt_log()
+			    || recv_sys.is_corrupt_fs()) {
 				return(srv_init_abort(DB_CORRUPTION));
 			}
 
@@ -1922,7 +1921,7 @@ skip_monitors:
 		/* Create thread(s) that handles key rotation. This is
 		needed already here as log_preflush_pool_modified_pages
 		will flush dirty pages and that might need e.g.
-		fil_crypt_threads_event. */
+		fil_crypt_threads_cond. */
 		fil_system_enter();
 		fil_crypt_threads_init();
 		fil_system_exit();
@@ -1940,6 +1939,8 @@ skip_monitors:
 void srv_shutdown_bg_undo_sources()
 {
 	srv_shutdown_state = SRV_SHUTDOWN_INITIATED;
+
+	ut_d(srv_master_thread_enable());
 
 	if (srv_undo_sources) {
 		ut_ad(!srv_read_only_mode);

@@ -2035,11 +2035,11 @@ withdraw_retry:
 			message_interval *= 2;
 		}
 
-		lock_mutex_enter();
+		mysql_mutex_lock(&lock_sys.mutex);
 		bool	found = false;
 		trx_sys.trx_list.for_each(find_interesting_trx{
 			found, withdraw_started, current_time});
-		lock_mutex_exit();
+		mysql_mutex_unlock(&lock_sys.mutex);
 
 		withdraw_started = current_time;
 	}

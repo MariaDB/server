@@ -132,8 +132,8 @@ longlong xtrabackup_use_memory;
 uint opt_protocol;
 long xtrabackup_throttle; /* 0:unlimited */
 static lint io_ticket;
-static os_event_t wait_throttle;
-static os_event_t log_copying_stop;
+static mysql_cond_t wait_throttle;
+static mysql_cond_t log_copying_stop;
 
 char *xtrabackup_incremental;
 lsn_t incremental_lsn;
@@ -184,7 +184,6 @@ lsn_t checkpoint_lsn_start;
 lsn_t checkpoint_no_start;
 static lsn_t log_copy_scanned_lsn;
 static bool log_copying_running;
-static bool io_watching_thread_running;
 
 int xtrabackup_parallel;
 
@@ -657,17 +656,14 @@ struct dbug_thread_param_t
 	const char *query;
 	int expect_err;
 	int expect_errno;
-	os_event_t done_event;
 };
 
 
 /* Thread procedure used in dbug_start_query_thread. */
-extern "C"
-os_thread_ret_t
-DECLARE_THREAD(dbug_execute_in_new_connection)(void *arg)
+static void *dbug_execute_in_new_connection(void *arg)
 {
 	mysql_thread_init();
-	dbug_thread_param_t *par= (dbug_thread_param_t *)arg;
+	dbug_thread_param_t *par= static_cast<dbug_thread_param_t*>(arg);
 	int err = mysql_query(par->con, par->query);
 	int err_no = mysql_errno(par->con);
 	if(par->expect_err != err)
@@ -684,12 +680,11 @@ DECLARE_THREAD(dbug_execute_in_new_connection)(void *arg)
 	}
 	mysql_close(par->con);
 	mysql_thread_end();
-	os_event_t done = par->done_event;
 	delete par;
-	os_event_set(done);
-	os_thread_exit();
-	return os_thread_ret_t(0);
+	return nullptr;
 }
+
+static pthread_t dbug_alter_thread;
 
 /*
 Execute query from a new connection, in own thread.
@@ -702,7 +697,7 @@ Execute query from a new connection, in own thread.
 @param expected_errno - if not 0, and query finished with error,
 	expected mysql_errno()
 */
-static os_event_t dbug_start_query_thread(
+static void dbug_start_query_thread(
 	const char *query,
 	const char *wait_state,
 	int expected_err,
@@ -713,12 +708,13 @@ static os_event_t dbug_start_query_thread(
 	par->query = query;
 	par->expect_err = expected_err;
 	par->expect_errno = expected_errno;
-	par->done_event = os_event_create(0);
 	par->con =  xb_mysql_connect();
-	os_thread_create(dbug_execute_in_new_connection, par);
+
+	mysql_thread_create(0, &dbug_alter_thread, nullptr,
+			    dbug_execute_in_new_connection, par);
 
 	if (!wait_state)
-		return par->done_event;
+		return;
 
 	char q[256];
 	snprintf(q, sizeof(q),
@@ -740,10 +736,7 @@ static os_event_t dbug_start_query_thread(
 end:
 	msg("query '%s' on connection %lu reached state '%s'", query,
 	mysql_thread_id(par->con), wait_state);
-	return par->done_event;
 }
-
-os_event_t dbug_alter_thread_done;
 #endif
 
 void mdl_lock_all()
@@ -2414,13 +2407,15 @@ xb_write_delta_metadata(const char *filename, const xb_delta_info_t *info)
 }
 
 /* ================= backup ================= */
-void
-xtrabackup_io_throttling(void)
+void xtrabackup_io_throttling()
 {
-	if (xtrabackup_backup && xtrabackup_throttle && (io_ticket--) < 0) {
-		os_event_reset(wait_throttle);
-		os_event_wait(wait_throttle);
-	}
+  if (!xtrabackup_backup)
+    return;
+
+  mysql_mutex_lock(&log_sys.mutex);
+  if (xtrabackup_throttle && (io_ticket--) < 0)
+    mysql_cond_wait(&wait_throttle, &log_sys.mutex);
+  mysql_mutex_unlock(&log_sys.mutex);
 }
 
 static
@@ -2916,6 +2911,8 @@ static lsn_t xtrabackup_copy_log(lsn_t start_lsn, lsn_t end_lsn, bool last)
 @return	whether the operation failed */
 static bool xtrabackup_copy_logfile(bool last = false)
 {
+	mysql_mutex_assert_owner(&log_sys.mutex);
+
 	ut_a(dst_log_file != NULL);
 	ut_ad(recv_sys.is_initialised());
 
@@ -2931,9 +2928,10 @@ static bool xtrabackup_copy_logfile(bool last = false)
 	do {
 		end_lsn = start_lsn + RECV_SCAN_SIZE;
 
-		xtrabackup_io_throttling();
+		if (xtrabackup_throttle && (io_ticket--) < 0) {
+			mysql_cond_wait(&wait_throttle, &log_sys.mutex);
+		}
 
-		mysql_mutex_lock(&log_sys.mutex);
 		lsn_t lsn= start_lsn;
 		for (int retries= 0; retries < 100; retries++) {
 			if (log_sys.log.read_log_seg(&lsn, end_lsn)
@@ -2945,22 +2943,20 @@ static bool xtrabackup_copy_logfile(bool last = false)
 		}
 
 		if (lsn == start_lsn) {
-			overwritten_block= !recv_sys.found_corrupt_log
+			overwritten_block= !recv_sys.is_corrupt_log()
 				&& log_block_calc_checksum_crc32(log_sys.buf) ==
 					log_block_get_checksum(log_sys.buf)
 				&& log_block_get_hdr_no(log_sys.buf) >
 					log_block_convert_lsn_to_no(start_lsn);
 			start_lsn = 0;
 		} else {
-			mutex_enter(&recv_sys.mutex);
+			mysql_mutex_lock(&recv_sys.mutex);
 			start_lsn = xtrabackup_copy_log(start_lsn, lsn, last);
-			mutex_exit(&recv_sys.mutex);
+			mysql_mutex_unlock(&recv_sys.mutex);
 		}
 
-		mysql_mutex_unlock(&log_sys.mutex);
-
 		if (!start_lsn) {
-			const char *reason = recv_sys.found_corrupt_log
+			const char *reason = recv_sys.is_corrupt_log()
 				? "corrupt log."
 				: (overwritten_block
 				   ? "redo log block is overwritten, please increase redo log size with innodb_log_file_size parameter."
@@ -3002,58 +2998,47 @@ extern lsn_t server_lsn_after_lock;
 
 static os_thread_ret_t DECLARE_THREAD(log_copying_thread)(void*)
 {
-	/*
-	  Initialize mysys thread-specific memory so we can
-	  use mysys functions in this thread.
-	*/
-	my_thread_init();
-
-	for (;;) {
-		os_event_reset(log_copying_stop);
-		os_event_wait_time_low(log_copying_stop,
-				       xtrabackup_log_copy_interval * 1000U,
-				       0);
-		if (xtrabackup_copy_logfile()) {
-			break;
-		}
-
-		mysql_mutex_lock(&log_sys.mutex);
-		bool completed = metadata_to_lsn
-			&& metadata_to_lsn <= log_copy_scanned_lsn;
-		mysql_mutex_unlock(&log_sys.mutex);
-		if (completed) {
-			break;
-		}
-	}
-
-	log_copying_running = false;
-	my_thread_end();
-	os_thread_exit();
-
-	return(0);
+  my_thread_init();
+  mysql_mutex_lock(&log_sys.mutex);
+  while (!xtrabackup_copy_logfile() &&
+         (!metadata_to_lsn || metadata_to_lsn > log_copy_scanned_lsn))
+  {
+    timespec abstime;
+    set_timespec_nsec(abstime, 1000ULL * xtrabackup_log_copy_interval);
+    mysql_cond_timedwait(&log_copying_stop, &log_sys.mutex, &abstime);
+  }
+  log_copying_running= false;
+  mysql_mutex_unlock(&log_sys.mutex);
+  my_thread_end();
+  os_thread_exit();
+  return 0;
 }
 
+static bool have_io_watching_thread;
+static pthread_t io_watching_thread_id;
+
 /* io throttle watching (rough) */
-static os_thread_ret_t DECLARE_THREAD(io_watching_thread)(void*)
+static void *io_watching_thread(void*)
 {
-	/* currently, for --backup only */
-	ut_a(xtrabackup_backup);
+  /* currently, for --backup only */
+  ut_a(xtrabackup_backup);
 
-	while (log_copying_running && !metadata_to_lsn) {
-		os_thread_sleep(1000000); /*1 sec*/
-		io_ticket = xtrabackup_throttle;
-		os_event_set(wait_throttle);
-	}
+  mysql_mutex_lock(&log_sys.mutex);
 
-	/* stop io throttle */
-	xtrabackup_throttle = 0;
-	os_event_set(wait_throttle);
+  while (log_copying_running && !metadata_to_lsn)
+  {
+    timespec abstime;
+    set_timespec(abstime, 1);
+    mysql_cond_timedwait(&log_copying_stop, &log_sys.mutex, &abstime);
+    io_ticket= xtrabackup_throttle;
+    mysql_cond_broadcast(&wait_throttle);
+  }
 
-	io_watching_thread_running = false;
-
-	os_thread_exit();
-
-	return(0);
+  /* stop io throttle */
+  xtrabackup_throttle= 0;
+  mysql_cond_broadcast(&wait_throttle);
+  mysql_mutex_unlock(&log_sys.mutex);
+  return nullptr;
 }
 
 #ifndef DBUG_OFF
@@ -4072,41 +4057,39 @@ end:
 # define xb_set_max_open_files(x) 0UL
 #endif
 
-static void stop_backup_threads()
+static void stop_backup_threads(bool running)
 {
-	if (log_copying_stop && log_copying_running) {
-		os_event_set(log_copying_stop);
-		fputs("mariabackup: Stopping log copying thread", stderr);
-		fflush(stderr);
-		while (log_copying_running) {
-			putc('.', stderr);
-			fflush(stderr);
-			os_thread_sleep(200000); /*0.2 sec*/
-		}
-		putc('\n', stderr);
-		os_event_destroy(log_copying_stop);
-	}
+  if (running)
+  {
+    fputs("mariabackup: Stopping log copying thread", stderr);
+    fflush(stderr);
+    while (log_copying_running)
+    {
+      putc('.', stderr);
+      fflush(stderr);
+      os_thread_sleep(200000); /*0.2 sec*/
+    }
+    putc('\n', stderr);
+    mysql_cond_destroy(&log_copying_stop);
+  }
 
-	if (wait_throttle) {
-		/* wait for io_watching_thread completion */
-		while (io_watching_thread_running) {
-			os_thread_sleep(1000000);
-		}
-		os_event_destroy(wait_throttle);
-	}
+  if (have_io_watching_thread)
+  {
+    pthread_join(io_watching_thread_id, nullptr);
+    mysql_cond_destroy(&wait_throttle);
+  }
 }
 
 /** Implement the core of --backup
 @return	whether the operation succeeded */
 static bool xtrabackup_backup_low()
 {
+	mysql_mutex_lock(&log_sys.mutex);
 	ut_ad(!metadata_to_lsn);
 
 	/* read the latest checkpoint lsn */
 	{
 		ulint	max_cp_field;
-
-		mysql_mutex_lock(&log_sys.mutex);
 
 		if (recv_find_max_checkpoint(&max_cp_field) == DB_SUCCESS
 		    && log_sys.log.format != 0) {
@@ -4123,16 +4106,21 @@ static bool xtrabackup_backup_low()
 		} else {
 			msg("Error: recv_find_max_checkpoint() failed.");
 		}
+
+		mysql_cond_broadcast(&log_copying_stop);
+		const bool running= log_copying_running;
 		mysql_mutex_unlock(&log_sys.mutex);
+		stop_backup_threads(running);
+		mysql_mutex_lock(&log_sys.mutex);
 	}
 
-	stop_backup_threads();
-
 	if (metadata_to_lsn && xtrabackup_copy_logfile(true)) {
+		mysql_mutex_unlock(&log_sys.mutex);
 		ds_close(dst_log_file);
 		dst_log_file = NULL;
 		return false;
 	}
+	mysql_mutex_unlock(&log_sys.mutex);
 
 	if (ds_close(dst_log_file) || !metadata_to_lsn) {
 		dst_log_file = NULL;
@@ -4220,8 +4208,14 @@ static bool xtrabackup_backup_func()
 	/* initialize components */
         if(innodb_init_param()) {
 fail:
-		metadata_to_lsn = log_copying_running;
-		stop_backup_threads();
+		if (log_copying_running) {
+			mysql_mutex_lock(&log_sys.mutex);
+			metadata_to_lsn = 1;
+			mysql_cond_broadcast(&log_copying_stop);
+			mysql_mutex_unlock(&log_sys.mutex);
+			stop_backup_threads(true);
+		}
+
 		log_file_op = NULL;
 		if (dst_log_file) {
 			ds_close(dst_log_file);
@@ -4254,11 +4248,6 @@ fail:
 	/* Reset the system variables in the recovery module. */
 	trx_pool_init();
 	recv_sys.create();
-
-#ifdef WITH_INNODB_DISALLOW_WRITES
-	srv_allow_writes_event = os_event_create(0);
-	os_event_set(srv_allow_writes_event);
-#endif
 
 	xb_filters_init();
 
@@ -4385,10 +4374,10 @@ reread_log_header:
 	/* start io throttle */
 	if(xtrabackup_throttle) {
 		io_ticket = xtrabackup_throttle;
-		wait_throttle = os_event_create(0);
-		io_watching_thread_running = true;
-
-		os_thread_create(io_watching_thread);
+		have_io_watching_thread = true;
+		mysql_cond_init(0, &wait_throttle, nullptr);
+		mysql_thread_create(0, &io_watching_thread_id, nullptr,
+				    io_watching_thread, nullptr);
 	}
 
 	/* Populate fil_system with tablespaces to copy */
@@ -4405,12 +4394,18 @@ fail_before_log_copying_thread_start:
 	log_copy_scanned_lsn = checkpoint_lsn_start;
 	recv_sys.recovered_lsn = log_copy_scanned_lsn;
 
-	if (xtrabackup_copy_logfile())
+	mysql_mutex_lock(&log_sys.mutex);
+
+	const bool log_copy_failed = xtrabackup_copy_logfile();
+
+	mysql_mutex_unlock(&log_sys.mutex);
+
+	if (log_copy_failed)
 		goto fail_before_log_copying_thread_start;
 
 	DBUG_MARIABACKUP_EVENT("before_innodb_log_copy_thread_started",0);
 
-	log_copying_stop = os_event_create(0);
+	mysql_cond_init(0, &log_copying_stop, nullptr);
 	os_thread_create(log_copying_thread);
 
 	/* FLUSH CHANGED_PAGE_BITMAPS call */
@@ -4431,7 +4426,6 @@ fail_before_log_copying_thread_start:
 		mdl_lock_all();
 
 		DBUG_EXECUTE_IF("check_mdl_lock_works",
-			dbug_alter_thread_done =
 			dbug_start_query_thread("ALTER TABLE test.t ADD COLUMN mdl_lock_column int",
 				"Waiting for table metadata lock", 0, 0););
 	}
@@ -4482,9 +4476,7 @@ fail_before_log_copying_thread_start:
 		backup_release();
 
 		DBUG_EXECUTE_IF("check_mdl_lock_works",
-			os_event_wait(dbug_alter_thread_done);
-			os_event_destroy(dbug_alter_thread_done);
-		);
+				pthread_join(dbug_alter_thread, nullptr););
 
 		if (ok) {
 			backup_finish();
@@ -5692,10 +5684,6 @@ static bool xtrabackup_prepare_func(char** argv)
 		log_sys.create();
 		recv_sys.recovery_on = true;
 
-#ifdef WITH_INNODB_DISALLOW_WRITES
-		srv_allow_writes_event = os_event_create(0);
-		os_event_set(srv_allow_writes_event);
-#endif
 		xb_fil_io_init();
 		if (dberr_t err = xb_load_tablespaces()) {
 			msg("mariabackup: error: xb_data_files_init() failed "
@@ -5718,9 +5706,6 @@ static bool xtrabackup_prepare_func(char** argv)
 		xb_filter_hash_free(&inc_dir_tables_hash);
 
 		fil_system.close();
-#ifdef WITH_INNODB_DISALLOW_WRITES
-		os_event_destroy(srv_allow_writes_event);
-#endif
 		innodb_free_param();
 		log_sys.close();
 		sync_check_close();
