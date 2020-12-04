@@ -506,6 +506,7 @@ master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `mysql`; DELETE FROM db WHERE host='localhost' AND user='@#@'
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Rotate	#	#	master-bin.000002;pos=POS
 drop table t1,t2,t3,tt1;
 reset master;
 create table t1 (a int not null auto_increment, primary key (a)) engine=myisam;
