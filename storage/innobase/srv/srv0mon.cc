@@ -1720,12 +1720,16 @@ srv_mon_process_existing_counter(
 
 	/* innodb_dblwr_writes */
 	case MONITOR_OVLD_SRV_DBLWR_WRITES:
-		value = srv_stats.dblwr_writes;
+		buf_dblwr.lock();
+		value = buf_dblwr.batches();
+		buf_dblwr.unlock();
 		break;
 
 	/* innodb_dblwr_pages_written */
 	case MONITOR_OVLD_SRV_DBLWR_PAGES_WRITTEN:
-		value = srv_stats.dblwr_pages_written;
+		buf_dblwr.lock();
+		value = buf_dblwr.written();
+		buf_dblwr.unlock();
 		break;
 
 	/* innodb_page_size */

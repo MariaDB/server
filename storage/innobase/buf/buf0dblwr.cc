@@ -583,6 +583,7 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
   const bool multi_batch= block1 + static_cast<uint32_t>(size) != block2 &&
     old_first_free > size;
   flushing_buffered_writes= 1 + multi_batch;
+  pages_submitted+= old_first_free;
   /* Now safe to release the mutex. */
   mysql_mutex_unlock(&mutex);
 #ifdef UNIV_DEBUG
@@ -617,7 +618,6 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
     os_aio(request, write_buf,
            os_offset_t{block1.page_no()} << srv_page_size_shift,
            old_first_free << srv_page_size_shift);
-  srv_stats.data_written.add(old_first_free);
   return true;
 }
 
@@ -634,17 +634,18 @@ void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
   ut_ad(batch_running);
   ut_ad(flushing_buffered_writes);
   ut_ad(flushing_buffered_writes <= 2);
-  const bool completed= !--flushing_buffered_writes;
-  mysql_mutex_unlock(&mutex);
-
-  if (!completed)
+  writes_completed++;
+  if (UNIV_UNLIKELY(--flushing_buffered_writes))
+  {
+    mysql_mutex_unlock(&mutex);
     return;
+  }
 
   slot *const flush_slot= active_slot == &slots[0] ? &slots[1] : &slots[0];
   ut_ad(flush_slot->reserved == flush_slot->first_free);
   /* increment the doublewrite flushed pages counter */
-  srv_stats.dblwr_pages_written.add(flush_slot->first_free);
-  srv_stats.dblwr_writes.inc();
+  pages_written+= flush_slot->first_free;
+  mysql_mutex_unlock(&mutex);
 
   /* Now flush the doublewrite buffer data to disk */
   fil_system.sys_space->flush();

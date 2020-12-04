@@ -66,6 +66,12 @@ class buf_dblwr_t
   bool batch_running;
   /** number of expected flush_buffered_writes_completed() calls */
   unsigned flushing_buffered_writes;
+  /** pages submitted to flush_buffered_writes() */
+  ulint pages_submitted;
+  /** number of flush_buffered_writes_completed() calls */
+  ulint writes_completed;
+  /** number of pages written by flush_buffered_writes_completed() */
+  ulint pages_written;
 
   slot slots[2];
   slot *active_slot= &slots[0];
@@ -83,6 +89,20 @@ public:
   bool create();
   /** Free the doublewrite buffer. */
   void close();
+
+  /** Acquire the mutex */
+  void lock() { mysql_mutex_lock(&mutex); }
+  /** @return the number of submitted page writes */
+  ulint submitted() const
+  { mysql_mutex_assert_owner(&mutex); return pages_submitted; }
+  /** @return the number of completed batches */
+  ulint batches() const
+  { mysql_mutex_assert_owner(&mutex); return writes_completed; }
+  /** @return the number of final pages written */
+  ulint written() const
+  { mysql_mutex_assert_owner(&mutex); return pages_written; }
+  /** Release the mutex */
+  void unlock() { mysql_mutex_unlock(&mutex); }
 
   /** Initialize the doublewrite buffer memory structure on recovery.
   If we are upgrading from a version before MySQL 4.1, then this
