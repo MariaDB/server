@@ -912,9 +912,9 @@ row_undo_mod_sec_flag_corrupted(
 		on the data dictionary during normal rollback,
 		we can only mark the index corrupted in the
 		data dictionary cache. TODO: fix this somehow.*/
-		mutex_enter(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 		dict_set_corrupted_index_cache_only(index);
-		mutex_exit(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 		break;
 	default:
 		ut_ad(0);
@@ -1230,9 +1230,9 @@ static bool row_undo_mod_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		node->table = dict_table_open_on_id(table_id, dict_locked,
 						    DICT_TABLE_OP_NORMAL);
 	} else if (!dict_locked) {
-		mutex_enter(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 		node->table = dict_sys.get_temporary_table(table_id);
-		mutex_exit(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 	} else {
 		node->table = dict_sys.get_temporary_table(table_id);
 	}

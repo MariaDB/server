@@ -1997,11 +1997,11 @@ retry_page_get:
 		trx_t*		trx = thr_get_trx(cursor->thr);
 		lock_prdt_t	prdt;
 
-		mysql_mutex_lock(&lock_sys.mutex);
+		lock_sys.mutex_lock();
 		lock_init_prdt_from_mbr(
 			&prdt, &cursor->rtr_info->mbr, mode,
 			trx->lock.lock_heap);
-		mysql_mutex_unlock(&lock_sys.mutex);
+		lock_sys.mutex_unlock();
 
 		if (rw_latch == RW_NO_LATCH && height != 0) {
 			block->lock.s_lock();

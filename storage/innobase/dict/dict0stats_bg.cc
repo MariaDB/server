@@ -51,7 +51,7 @@ my_bool				innodb_dict_stats_disabled_debug;
 #endif /* UNIV_DEBUG */
 
 /** This mutex protects the "recalc_pool" variable. */
-static ib_mutex_t		recalc_pool_mutex;
+static mysql_mutex_t recalc_pool_mutex;
 
 /** Allocator type, used by std::vector */
 typedef ut_allocator<table_id_t>
@@ -112,7 +112,7 @@ dict_stats_recalc_pool_add(
 {
 	ut_ad(!srv_read_only_mode);
 
-	mutex_enter(&recalc_pool_mutex);
+	mysql_mutex_lock(&recalc_pool_mutex);
 
 	/* quit if already in the list */
 	for (recalc_pool_iterator_t iter = recalc_pool.begin();
@@ -120,7 +120,7 @@ dict_stats_recalc_pool_add(
 	     ++iter) {
 
 		if (*iter == table->id) {
-			mutex_exit(&recalc_pool_mutex);
+			mysql_mutex_unlock(&recalc_pool_mutex);
 			return;
 		}
 	}
@@ -129,7 +129,7 @@ dict_stats_recalc_pool_add(
 	if (recalc_pool.size() == 1 && schedule_dict_stats_task) {
 		dict_stats_schedule_now();
 	}
-	mutex_exit(&recalc_pool_mutex);
+	mysql_mutex_unlock(&recalc_pool_mutex);
 
 }
 
@@ -147,7 +147,7 @@ void dict_stats_update_if_needed_func(dict_table_t *table)
 #endif
 {
 	ut_ad(table->stat_initialized);
-	ut_ad(!mutex_own(&dict_sys.mutex));
+	dict_sys.assert_not_locked();
 
 	ulonglong	counter = table->stat_modified_counter++;
 	ulonglong	n_rows = dict_table_get_n_rows(table);
@@ -215,10 +215,10 @@ dict_stats_recalc_pool_get(
 {
 	ut_ad(!srv_read_only_mode);
 
-	mutex_enter(&recalc_pool_mutex);
+	mysql_mutex_lock(&recalc_pool_mutex);
 
 	if (recalc_pool.empty()) {
-		mutex_exit(&recalc_pool_mutex);
+		mysql_mutex_unlock(&recalc_pool_mutex);
 		return(false);
 	}
 
@@ -226,7 +226,7 @@ dict_stats_recalc_pool_get(
 
 	recalc_pool.erase(recalc_pool.begin());
 
-	mutex_exit(&recalc_pool_mutex);
+	mysql_mutex_unlock(&recalc_pool_mutex);
 
 	return(true);
 }
@@ -240,9 +240,9 @@ dict_stats_recalc_pool_del(
 	const dict_table_t*	table)	/*!< in: table to remove */
 {
 	ut_ad(!srv_read_only_mode);
-	ut_ad(mutex_own(&dict_sys.mutex));
+	dict_sys.assert_locked();
 
-	mutex_enter(&recalc_pool_mutex);
+	mysql_mutex_lock(&recalc_pool_mutex);
 
 	ut_ad(table->id > 0);
 
@@ -257,7 +257,7 @@ dict_stats_recalc_pool_del(
 		}
 	}
 
-	mutex_exit(&recalc_pool_mutex);
+	mysql_mutex_unlock(&recalc_pool_mutex);
 }
 
 /*****************************************************************//**
@@ -286,26 +286,10 @@ Initialize global variables needed for the operation of dict_stats_thread()
 Must be called before dict_stats_thread() is started. */
 void dict_stats_init()
 {
-	ut_ad(!srv_read_only_mode);
-
-	/* The recalc_pool_mutex is acquired from:
-	1) the background stats gathering thread before any other latch
-	   and released without latching anything else in between (thus
-	   any level would do here)
-	2) from dict_stats_update_if_needed()
-	   and released without latching anything else in between. We know
-	   that dict_sys.mutex (SYNC_DICT) is not acquired when
-	   dict_stats_update_if_needed() is called and it may be acquired
-	   inside that function (thus a level <=SYNC_DICT would do).
-	3) from row_drop_table_for_mysql() after dict_sys.mutex (SYNC_DICT)
-	   and dict_sys.latch have been locked
-	   (thus a level <SYNC_DICT would do)
-	So we choose SYNC_STATS_AUTO_RECALC to be about below SYNC_DICT. */
-
-	mutex_create(LATCH_ID_RECALC_POOL, &recalc_pool_mutex);
-
-	dict_defrag_pool_init();
-	stats_initialised = true;
+  ut_ad(!srv_read_only_mode);
+  mysql_mutex_init(recalc_pool_mutex_key, &recalc_pool_mutex, nullptr);
+  dict_defrag_pool_init();
+  stats_initialised= true;
 }
 
 /*****************************************************************//**
@@ -323,7 +307,7 @@ void dict_stats_deinit()
 	dict_stats_recalc_pool_deinit();
 	dict_defrag_pool_deinit();
 
-	mutex_free(&recalc_pool_mutex);
+	mysql_mutex_destroy(&recalc_pool_mutex);
 }
 
 /**
@@ -345,28 +329,28 @@ next_table_id:
 
 	dict_table_t*	table;
 
-	mutex_enter(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 
 	table = dict_table_open_on_id(table_id, TRUE, DICT_TABLE_OP_NORMAL);
 
 	if (table == NULL) {
 		/* table does not exist, must have been DROPped
 		after its id was enqueued */
-		mutex_exit(&dict_sys.mutex);
-		goto next_table_id;
+		goto no_table;
 	}
 
 	ut_ad(!table->is_temporary());
 
 	if (!table->is_accessible()) {
 		dict_table_close(table, TRUE, FALSE);
-		mutex_exit(&dict_sys.mutex);
+no_table:
+		dict_sys.mutex_unlock();
 		goto next_table_id;
 	}
 
 	table->stats_bg_flag |= BG_STAT_IN_PROGRESS;
 
-	mutex_exit(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 
 	/* time() could be expensive, the current function
 	is called once every time a table has been changed more than 10% and
@@ -391,13 +375,13 @@ next_table_id:
 		ret = true;
 	}
 
-	mutex_enter(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 
 	table->stats_bg_flag = BG_STAT_NONE;
 
 	dict_table_close(table, TRUE, FALSE);
 
-	mutex_exit(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 	return ret;
 }
 

@@ -2724,9 +2724,9 @@ static my_bool xtrabackup_copy_datafile(fil_node_t *node, uint thread_n,
 	pthread_mutex_unlock(&backup_mutex);
 	if (was_dropped) {
 		if (node->is_open()) {
-			mutex_enter(&fil_system.mutex);
+			mysql_mutex_lock(&fil_system.mutex);
 			node->close();
-			mutex_exit(&fil_system.mutex);
+			mysql_mutex_unlock(&fil_system.mutex);
 		}
 		goto skip;
 	}
@@ -3315,10 +3315,11 @@ static void xb_load_single_table_tablespace(const char *dirname,
 
 		ut_a(space != NULL);
 		space->add(file->filepath(),
-			skip_node_page0 ? file->detach() : pfs_os_file_t(), 0, false, false);
-		mutex_enter(&fil_system.mutex);
+			   skip_node_page0 ? file->detach() : pfs_os_file_t(),
+			   0, false, false);
+		mysql_mutex_lock(&fil_system.mutex);
 		space->read_page0();
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 
 		if (srv_operation == SRV_OPERATION_RESTORE_DELTA
 		    || xb_close_files) {
@@ -4244,7 +4245,6 @@ fail:
                                                 computers */
         }
 	srv_thread_pool_init();
-	sync_check_init();
 	/* Reset the system variables in the recovery module. */
 	trx_pool_init();
 	recv_sys.create();
@@ -4631,9 +4631,9 @@ void backup_fix_ddl(CorruptedPages &corrupted_pages)
 		if (n->space->id == 0)
 			continue;
 		if (n->is_open()) {
-			mutex_enter(&fil_system.mutex);
+			mysql_mutex_lock(&fil_system.mutex);
 			n->close();
-			mutex_exit(&fil_system.mutex);
+			mysql_mutex_unlock(&fil_system.mutex);
 		}
 		fil_space_free(n->space->id, false);
 	}
@@ -4777,7 +4777,7 @@ xb_space_create_file(
 
 static fil_space_t* fil_space_get_by_name(const char* name)
 {
-	ut_ad(mutex_own(&fil_system.mutex));
+	mysql_mutex_assert_owner(&fil_system.mutex);
 	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
 	     space != NULL;
 	     space = UT_LIST_GET_NEXT(space_list, space))
@@ -4883,9 +4883,9 @@ exit:
 	HASH_INSERT(xb_filter_entry_t, name_hash, &inc_dir_tables_hash,
 			ut_fold_string(table->name), table);
 
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 	fil_space = fil_space_get_by_name(dest_space_name);
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 
 	if (fil_space != NULL) {
 		if (fil_space->id == info.space_id
@@ -4916,9 +4916,9 @@ exit:
 		die("Can't handle DDL operation on tablespace "
 		    "%s\n", dest_space_name);
 	}
-	mutex_enter(&fil_system.mutex);
+	mysql_mutex_lock(&fil_system.mutex);
 	fil_space = fil_space_get_by_id(info.space_id);
-	mutex_exit(&fil_system.mutex);
+	mysql_mutex_unlock(&fil_system.mutex);
 	if (fil_space != NULL) {
 		char	tmpname[FN_REFLEN];
 
@@ -5679,7 +5679,6 @@ static bool xtrabackup_prepare_func(char** argv)
 			goto error_cleanup;
 		}
 
-		sync_check_init();
 		recv_sys.create();
 		log_sys.create();
 		recv_sys.recovery_on = true;
@@ -5708,7 +5707,6 @@ static bool xtrabackup_prepare_func(char** argv)
 		fil_system.close();
 		innodb_free_param();
 		log_sys.close();
-		sync_check_close();
 		if (!ok) goto error_cleanup;
 	}
 

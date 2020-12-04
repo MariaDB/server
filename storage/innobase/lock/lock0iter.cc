@@ -49,7 +49,7 @@ lock_queue_iterator_reset(
 	ulint			bit_no)	/*!< in: record number in the
 					heap */
 {
-	mysql_mutex_assert_owner(&lock_sys.mutex);
+	lock_sys.mutex_assert_locked();
 
 	iter->current_lock = lock;
 
@@ -84,7 +84,7 @@ lock_queue_iterator_get_prev(
 {
 	const lock_t*	prev_lock;
 
-	mysql_mutex_assert_owner(&lock_sys.mutex);
+	lock_sys.mutex_assert_locked();
 
 	switch (lock_get_type_low(iter->current_lock)) {
 	case LOCK_REC:

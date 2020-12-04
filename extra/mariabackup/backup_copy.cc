@@ -1789,7 +1789,6 @@ copy_back()
 	}
 
 	srv_max_n_threads = 1000;
-	sync_check_init();
 
 	/* copy undo tablespaces */
 
@@ -1990,7 +1989,6 @@ cleanup:
 
 	ds_data = NULL;
 
-	sync_check_close();
 	return(ret);
 }
 
@@ -2086,7 +2084,6 @@ decrypt_decompress()
 	datadir_iter_t *it = NULL;
 
 	srv_max_n_threads = 1000;
-	sync_check_init();
 
 	/* cd to backup directory */
 	if (my_setwd(xtrabackup_target_dir, MYF(MY_WME)))
@@ -2114,8 +2111,6 @@ decrypt_decompress()
 	}
 
 	ds_data = NULL;
-
-	sync_check_close();
 
 	return(ret);
 }

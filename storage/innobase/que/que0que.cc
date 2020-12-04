@@ -182,7 +182,7 @@ que_thr_end_lock_wait(
 {
 	que_thr_t*	thr;
 
-	mysql_mutex_assert_owner(&lock_sys.mutex);
+	lock_sys.mutex_assert_locked();
 
 	thr = trx->lock.wait_thr;
 
@@ -1085,13 +1085,13 @@ que_eval_sql(
 	ut_a(trx->error_state == DB_SUCCESS);
 
 	if (reserve_dict_mutex) {
-		mutex_enter(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 	}
 
 	graph = pars_sql(info, sql);
 
 	if (reserve_dict_mutex) {
-		mutex_exit(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 	}
 
 	graph->trx = trx;
@@ -1104,13 +1104,13 @@ que_eval_sql(
 	que_run_threads(thr);
 
 	if (reserve_dict_mutex) {
-		mutex_enter(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 	}
 
 	que_graph_free(graph);
 
 	if (reserve_dict_mutex) {
-		mutex_exit(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 	}
 
 	DBUG_RETURN(trx->error_state);

@@ -61,8 +61,7 @@ Created 9/17/2000 Heikki Tuuri
 #include "trx0rec.h"
 #include "trx0roll.h"
 #include "trx0undo.h"
-#include "srv0start.h"
-#include "row0ext.h"
+#include "srv0mon.h"
 #include "srv0start.h"
 
 #include <algorithm>
@@ -94,7 +93,7 @@ more.  Protected by row_drop_list_mutex. */
 static UT_LIST_BASE_NODE_T(row_mysql_drop_t)	row_mysql_drop_list;
 
 /** Mutex protecting the background table drop list. */
-static ib_mutex_t row_drop_list_mutex;
+static mysql_mutex_t row_drop_list_mutex;
 
 /** Flag: has row_mysql_drop_list been initialized? */
 static bool row_mysql_drop_list_inited;
@@ -125,9 +124,9 @@ row_wait_for_background_drop_list_empty()
 {
 	bool	empty = false;
 	while (!empty) {
-		mutex_enter(&row_drop_list_mutex);
+		mysql_mutex_lock(&row_drop_list_mutex);
 		empty = (UT_LIST_GET_LEN(row_mysql_drop_list) == 0);
-		mutex_exit(&row_drop_list_mutex);
+		mysql_mutex_unlock(&row_drop_list_mutex);
 		os_thread_sleep(100000);
 	}
 }
@@ -2259,12 +2258,14 @@ data dictionary modification operation. */
 void
 row_mysql_lock_data_dictionary_func(
 /*================================*/
-	trx_t*		trx,	/*!< in/out: transaction */
+#ifdef UNIV_PFS_RWLOCK
 	const char*	file,	/*!< in: file name */
-	unsigned	line)	/*!< in: line number */
+	unsigned	line,	/*!< in: line number */
+#endif
+	trx_t*		trx)	/*!< in/out: transaction */
 {
 	ut_ad(trx->dict_operation_lock_mode == 0);
-	dict_sys.lock(file, line);
+	dict_sys.lock(SRW_LOCK_ARGS(file, line));
 	trx->dict_operation_lock_mode = RW_X_LATCH;
 }
 
@@ -2560,7 +2561,7 @@ row_drop_tables_for_mysql_in_background(void)
 	ulint			n_tables;
 	ulint			n_tables_dropped = 0;
 loop:
-	mutex_enter(&row_drop_list_mutex);
+	mysql_mutex_lock(&row_drop_list_mutex);
 
 	ut_a(row_mysql_drop_list_inited);
 next:
@@ -2568,7 +2569,7 @@ next:
 
 	n_tables = UT_LIST_GET_LEN(row_mysql_drop_list);
 
-	mutex_exit(&row_drop_list_mutex);
+	mysql_mutex_unlock(&row_drop_list_mutex);
 
 	if (drop == NULL) {
 		/* All tables dropped */
@@ -2584,7 +2585,7 @@ next:
 
 	if (!table) {
 		n_tables_dropped++;
-		mutex_enter(&row_drop_list_mutex);
+		mysql_mutex_lock(&row_drop_list_mutex);
 		UT_LIST_REMOVE(row_mysql_drop_list, drop);
 		MONITOR_DEC(MONITOR_BACKGROUND_DROP_TABLE);
 		ut_free(drop);
@@ -2599,7 +2600,7 @@ next:
 skip:
 		dict_table_close(table, FALSE, FALSE);
 
-		mutex_enter(&row_drop_list_mutex);
+		mysql_mutex_lock(&row_drop_list_mutex);
 		UT_LIST_REMOVE(row_mysql_drop_list, drop);
 		if (!skip) {
 			UT_LIST_ADD_LAST(row_mysql_drop_list, drop);
@@ -2610,9 +2611,9 @@ skip:
 	}
 
 	if (!srv_fast_shutdown && !trx_sys.any_active_transactions()) {
-		mysql_mutex_lock(&lock_sys.mutex);
+		lock_sys.mutex_lock();
 		skip = UT_LIST_GET_LEN(table->locks) != 0;
-		mysql_mutex_unlock(&lock_sys.mutex);
+		lock_sys.mutex_unlock();
 		if (skip) {
 			/* We cannot drop tables that are locked by XA
 			PREPARE transactions. */
@@ -2647,13 +2648,13 @@ row_get_background_drop_list_len_low(void)
 {
 	ulint	len;
 
-	mutex_enter(&row_drop_list_mutex);
+	mysql_mutex_lock(&row_drop_list_mutex);
 
 	ut_a(row_mysql_drop_list_inited);
 
 	len = UT_LIST_GET_LEN(row_mysql_drop_list);
 
-	mutex_exit(&row_drop_list_mutex);
+	mysql_mutex_unlock(&row_drop_list_mutex);
 
 	return(len);
 }
@@ -2743,7 +2744,7 @@ row_add_table_to_background_drop_list(table_id_t table_id)
 	row_mysql_drop_t*	drop;
 	bool			added = true;
 
-	mutex_enter(&row_drop_list_mutex);
+	mysql_mutex_lock(&row_drop_list_mutex);
 
 	ut_a(row_mysql_drop_list_inited);
 
@@ -2765,7 +2766,7 @@ row_add_table_to_background_drop_list(table_id_t table_id)
 
 	MONITOR_INC(MONITOR_BACKGROUND_DROP_TABLE);
 func_exit:
-	mutex_exit(&row_drop_list_mutex);
+	mysql_mutex_unlock(&row_drop_list_mutex);
 	return added;
 }
 
@@ -2881,7 +2882,7 @@ row_discard_tablespace_foreign_key_checks(
 	/* We only allow discarding a referenced table if
 	FOREIGN_KEY_CHECKS is set to 0 */
 
-	mutex_enter(&dict_foreign_err_mutex);
+	mysql_mutex_lock(&dict_foreign_err_mutex);
 
 	rewind(ef);
 
@@ -2894,7 +2895,7 @@ row_discard_tablespace_foreign_key_checks(
 	ut_print_name(ef, trx, foreign->foreign_table_name);
 	putc('\n', ef);
 
-	mutex_exit(&dict_foreign_err_mutex);
+	mysql_mutex_unlock(&dict_foreign_err_mutex);
 
 	return(DB_CANNOT_DROP_CONSTRAINT);
 }
@@ -3416,7 +3417,7 @@ row_drop_table_for_mysql(
 
 				err = DB_CANNOT_DROP_CONSTRAINT;
 
-				mutex_enter(&dict_foreign_err_mutex);
+				mysql_mutex_lock(&dict_foreign_err_mutex);
 				rewind(ef);
 				ut_print_timestamp(ef);
 
@@ -3427,7 +3428,7 @@ row_drop_table_for_mysql(
 				ut_print_name(ef, trx,
 					      foreign->foreign_table_name);
 				putc('\n', ef);
-				mutex_exit(&dict_foreign_err_mutex);
+				mysql_mutex_unlock(&dict_foreign_err_mutex);
 
 				goto funct_exit;
 			}
@@ -3938,9 +3939,9 @@ loop:
 		dict_table_close(table, TRUE, FALSE);
 
 		/* The dict_table_t object must not be accessed before
-		dict_table_open() or after dict_table_close(). But this is OK
-		if we are holding, the dict_sys.mutex. */
-		ut_ad(mutex_own(&dict_sys.mutex));
+		dict_table_open() or after dict_table_close() while
+		not holding dict_sys.mutex. */
+		dict_sys.assert_locked();
 
 		/* Disable statistics on the found table. */
 		if (!dict_stats_stop_bg(table)) {
@@ -4737,19 +4738,12 @@ not_ok:
 	goto loop;
 }
 
-/*********************************************************************//**
-Initialize this module */
-void
-row_mysql_init(void)
-/*================*/
+/** Initialize this module */
+void row_mysql_init()
 {
-	mutex_create(LATCH_ID_ROW_DROP_LIST, &row_drop_list_mutex);
-
-	UT_LIST_INIT(
-		row_mysql_drop_list,
-		&row_mysql_drop_t::row_mysql_drop_list);
-
-	row_mysql_drop_list_inited = true;
+  mysql_mutex_init(row_drop_list_mutex_key, &row_drop_list_mutex, nullptr);
+  UT_LIST_INIT(row_mysql_drop_list, &row_mysql_drop_t::row_mysql_drop_list);
+  row_mysql_drop_list_inited= true;
 }
 
 void row_mysql_close()
@@ -4759,7 +4753,7 @@ void row_mysql_close()
   if (row_mysql_drop_list_inited)
   {
     row_mysql_drop_list_inited= false;
-    mutex_free(&row_drop_list_mutex);
+    mysql_mutex_destroy(&row_drop_list_mutex);
 
     while (row_mysql_drop_t *drop= UT_LIST_GET_FIRST(row_mysql_drop_list))
     {

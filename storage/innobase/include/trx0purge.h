@@ -190,7 +190,7 @@ public:
 	purge_pq_t	purge_queue;	/*!< Binary min-heap, ordered on
 					TrxUndoRsegs::trx_no. It is protected
 					by the pq_mutex */
-	PQMutex		pq_mutex;	/*!< Mutex protecting purge_queue */
+	mysql_mutex_t	pq_mutex;	/*!< Mutex protecting purge_queue */
 
 	/** Undo tablespace file truncation (only accessed by the
 	srv_purge_coordinator_thread) */

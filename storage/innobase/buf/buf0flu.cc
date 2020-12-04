@@ -241,8 +241,6 @@ void buf_flush_remove_pages(ulint id)
 @return number dirty pages that there were for this tablespace */
 ulint buf_flush_dirty_pages(ulint id)
 {
-  ut_ad(!sync_check_iterate(dict_sync_check()));
-
   ulint n= 0;
 
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
@@ -2289,8 +2287,6 @@ ATTRIBUTE_COLD void buf_flush_buffer_pool()
 NOTE: The calling thread is not allowed to hold any buffer page latches! */
 void buf_flush_sync()
 {
-  ut_ad(!sync_check_iterate(dict_sync_check()));
-
   for (;;)
   {
     const ulint n_flushed= buf_flush_lists(srv_max_io_capacity, LSN_MAX);

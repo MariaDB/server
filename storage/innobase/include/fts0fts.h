@@ -377,12 +377,8 @@ extern ulong		fts_min_token_size;
 need a sync to free some memory */
 extern bool		fts_need_sync;
 
-#define	fts_que_graph_free(graph)			\
-do {							\
-	mutex_enter(&dict_sys.mutex);			\
-	que_graph_free(graph);				\
-	mutex_exit(&dict_sys.mutex);			\
-} while (0)
+/** Free a query graph */
+void fts_que_graph_free(que_t *graph);
 
 /******************************************************************//**
 Create a FTS cache. */

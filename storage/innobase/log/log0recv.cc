@@ -54,7 +54,6 @@ Created 9/20/1997 Heikki Tuuri
 #include "buf0rea.h"
 #include "srv0srv.h"
 #include "srv0start.h"
-#include "sync0sync.h"
 #include "fil0pagecompress.h"
 
 /** Read-ahead area in applying log records to file pages */

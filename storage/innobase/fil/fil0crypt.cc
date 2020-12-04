@@ -353,7 +353,7 @@ void fil_crypt_parse(fil_space_t* space, const byte* data)
 				static_cast<fil_encryption_t>
 				(data[10 + MY_AES_BLOCK_SIZE]));
 		memcpy(crypt_data->iv, data + 2, MY_AES_BLOCK_SIZE);
-		mutex_enter(&fil_system.mutex);
+		mysql_mutex_lock(&fil_system.mutex);
 		if (space->crypt_data) {
 			fil_space_merge_crypt_data(space->crypt_data,
 						   crypt_data);
@@ -362,7 +362,7 @@ void fil_crypt_parse(fil_space_t* space, const byte* data)
 		} else {
 			space->crypt_data = crypt_data;
 		}
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 	}
 }
 
@@ -997,12 +997,12 @@ fil_crypt_read_crypt_data(fil_space_t* space)
 	mtr.start();
 	if (buf_block_t* block = buf_page_get(page_id_t(space->id, 0),
 					      zip_size, RW_S_LATCH, &mtr)) {
-		mutex_enter(&fil_system.mutex);
+		mysql_mutex_lock(&fil_system.mutex);
 		if (!space->crypt_data) {
 			space->crypt_data = fil_space_read_crypt_data(
 				zip_size, block->frame);
 		}
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 	}
 	mtr.commit();
 }
@@ -1063,12 +1063,12 @@ func_exit:
 		crypt_data->rotate_state.starting = true;
 		crypt_data->rotate_state.active_threads = 1;
 
-		mutex_enter(&fil_system.mutex);
+		mysql_mutex_lock(&fil_system.mutex);
 		const bool stopping = space->is_stopping();
 		if (!stopping) {
 			space->crypt_data = crypt_data;
 		}
-		mutex_exit(&fil_system.mutex);
+		mysql_mutex_unlock(&fil_system.mutex);
 
 		if (stopping) {
 			goto abort;
@@ -1404,7 +1404,7 @@ the encryption parameters were changed
 inline fil_space_t *fil_system_t::keyrotate_next(fil_space_t *space,
                                                  bool recheck, bool encrypt)
 {
-  ut_ad(mutex_own(&mutex));
+  mysql_mutex_assert_owner(&mutex);
 
   sized_ilist<fil_space_t, rotation_list_tag_t>::iterator it=
     space && space->is_in_rotation_list ? space : rotation_list.begin();
@@ -1456,7 +1456,7 @@ encryption parameters were changed
 inline fil_space_t *fil_space_t::next(fil_space_t *space, bool recheck,
                                       bool encrypt)
 {
-  mutex_enter(&fil_system.mutex);
+  mysql_mutex_lock(&fil_system.mutex);
 
   if (!srv_fil_crypt_rotate_key_age)
     space= fil_system.keyrotate_next(space, recheck, encrypt);
@@ -1483,7 +1483,7 @@ inline fil_space_t *fil_space_t::next(fil_space_t *space, bool recheck,
     }
   }
 
-  mutex_exit(&fil_system.mutex);
+  mysql_mutex_unlock(&fil_system.mutex);
   return space;
 }
 
@@ -2143,7 +2143,7 @@ fil_crypt_set_thread_cnt(
 if innodb_encryption_rotate_key_age=0. */
 static void fil_crypt_rotation_list_fill()
 {
-	ut_ad(mutex_own(&fil_system.mutex));
+	mysql_mutex_assert_owner(&fil_system.mutex);
 
 	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
 	     space != NULL;
@@ -2193,11 +2193,11 @@ Adjust max key age
 void fil_crypt_set_rotate_key_age(uint val)
 {
   mysql_mutex_lock(&fil_crypt_threads_mutex);
-  mutex_enter(&fil_system.mutex);
+  mysql_mutex_lock(&fil_system.mutex);
   srv_fil_crypt_rotate_key_age= val;
   if (val == 0)
     fil_crypt_rotation_list_fill();
-  mutex_exit(&fil_system.mutex);
+  mysql_mutex_unlock(&fil_system.mutex);
   mysql_cond_broadcast(&fil_crypt_threads_cond);
   mysql_mutex_unlock(&fil_crypt_threads_mutex);
 }
@@ -2220,13 +2220,13 @@ void fil_crypt_set_encrypt_tables(ulong val)
 {
   mysql_mutex_lock(&fil_crypt_threads_mutex);
 
-  mutex_enter(&fil_system.mutex);
+  mysql_mutex_lock(&fil_system.mutex);
   srv_encrypt_tables= val;
 
   if (srv_fil_crypt_rotate_key_age == 0)
     fil_crypt_rotation_list_fill();
 
-  mutex_exit(&fil_system.mutex);
+  mysql_mutex_unlock(&fil_system.mutex);
 
   mysql_cond_broadcast(&fil_crypt_threads_cond);
   mysql_mutex_unlock(&fil_crypt_threads_mutex);
@@ -2234,9 +2234,7 @@ void fil_crypt_set_encrypt_tables(ulong val)
 
 /*********************************************************************
 Init threads for key rotation */
-UNIV_INTERN
-void
-fil_crypt_threads_init()
+void fil_crypt_threads_init()
 {
 	if (!fil_crypt_threads_inited) {
 		mysql_cond_init(0, &fil_crypt_cond, nullptr);
@@ -2290,7 +2288,7 @@ fil_space_crypt_close_tablespace(
 		mysql_mutex_unlock(&crypt_data->mutex);
 		/* release dict mutex so that scrub threads can release their
 		* table references */
-		dict_mutex_exit_for_mysql();
+		dict_sys.mutex_unlock();
 
 		/* wakeup throttle (all) sleepers */
 		mysql_mutex_lock(&fil_crypt_threads_mutex);
@@ -2299,7 +2297,7 @@ fil_space_crypt_close_tablespace(
 		mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
 		os_thread_sleep(20000);
-		dict_mutex_enter_for_mysql();
+		dict_sys.mutex_lock();
 		mysql_mutex_lock(&crypt_data->mutex);
 
 		time_t now = time(0);

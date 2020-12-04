@@ -30,6 +30,7 @@ Created 2/2/1994 Heikki Tuuri
 #include "dict0types.h"
 #include "mtr0types.h"
 #include "rem0types.h"
+#include "ut0new.h"
 
 #include <map>
 

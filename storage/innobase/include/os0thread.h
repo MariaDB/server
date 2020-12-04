@@ -59,11 +59,6 @@ extern "C"  { typedef void*	(*os_thread_func_t)(void*); }
 /* Define a function pointer type to use in a typecast */
 typedef void* (*os_posix_f_t) (void*);
 
-#ifdef HAVE_PSI_INTERFACE
-/* Define for performance schema registration key */
-typedef unsigned int    mysql_pfs_key_t;
-#endif /* HAVE_PSI_INTERFACE */
-
 #define os_thread_eq(a,b) IF_WIN(a == b, pthread_equal(a, b))
 #define os_thread_yield() IF_WIN(SwitchToThread(), sched_yield())
 #define os_thread_get_curr_id() IF_WIN(GetCurrentThreadId(), pthread_self())

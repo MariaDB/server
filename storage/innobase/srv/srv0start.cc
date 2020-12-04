@@ -560,7 +560,7 @@ err_exit:
   ut_a(space);
 
   fil_node_t *file= space->add(name, fh, 0, false, true);
-  mutex_enter(&fil_system.mutex);
+  mysql_mutex_lock(&fil_system.mutex);
 
   if (create)
   {
@@ -575,7 +575,7 @@ err_exit:
     fil_system.n_open--;
   }
 
-  mutex_exit(&fil_system.mutex);
+  mysql_mutex_unlock(&fil_system.mutex);
   return space_id;
 }
 
@@ -1076,8 +1076,6 @@ dberr_t srv_start(bool create_new_db)
 	ib::info() << "!!!!!!!! UNIV_IBUF_DEBUG switched on !!!!!!!!!";
 #endif
 
-	ib::info() << MUTEX_TYPE;
-
 	ib::info() << "Compressed tables use zlib " ZLIB_VERSION
 #ifdef UNIV_ZIP_DEBUG
 	      " with validation"
@@ -1120,10 +1118,13 @@ dberr_t srv_start(bool create_new_db)
 	ib::info() << my_crc32c_implementation();
 
 	if (!srv_read_only_mode) {
+		mysql_mutex_init(srv_monitor_file_mutex_key,
+				 &srv_monitor_file_mutex, nullptr);
+		mysql_mutex_init(srv_misc_tmpfile_mutex_key,
+				 &srv_misc_tmpfile_mutex, nullptr);
+	}
 
-		mutex_create(LATCH_ID_SRV_MONITOR_FILE,
-			     &srv_monitor_file_mutex);
-
+	if (!srv_read_only_mode) {
 		if (srv_innodb_status) {
 
 			srv_monitor_file_name = static_cast<char*>(
@@ -1158,9 +1159,6 @@ dberr_t srv_start(bool create_new_db)
 				err = DB_ERROR;
 			}
 		}
-
-		mutex_create(LATCH_ID_SRV_MISC_TMPFILE,
-			     &srv_misc_tmpfile_mutex);
 
 		srv_misc_tmpfile = os_file_create_tmpfile();
 
@@ -1683,8 +1681,7 @@ file_checked:
 
 	/* Note: When creating the extra rollback segments during an upgrade
 	we violate the latching order, even if the change buffer is empty.
-	We make an exception in sync0sync.cc and check srv_is_being_started
-	for that violation. It cannot create a deadlock because we are still
+	It cannot create a deadlock because we are still
 	running in single threaded mode essentially. Only the IO threads
 	should be running at this stage. */
 
@@ -1906,9 +1903,7 @@ skip_monitors:
 		needed already here as log_preflush_pool_modified_pages
 		will flush dirty pages and that might need e.g.
 		fil_crypt_threads_cond. */
-		fil_system_enter();
 		fil_crypt_threads_init();
-		fil_system_exit();
 
 		/* Initialize online defragmentation. */
 		btr_defragment_init();
@@ -2054,8 +2049,8 @@ void innodb_shutdown()
 	trx_pool_close();
 
 	if (!srv_read_only_mode) {
-		mutex_free(&srv_monitor_file_mutex);
-		mutex_free(&srv_misc_tmpfile_mutex);
+		mysql_mutex_destroy(&srv_monitor_file_mutex);
+		mysql_mutex_destroy(&srv_misc_tmpfile_mutex);
 	}
 
 	dict_sys.close();
@@ -2068,7 +2063,6 @@ void innodb_shutdown()
 
 	ut_ad(buf_pool.is_initialised() || !srv_was_started);
 	buf_pool.close();
-	sync_check_close();
 
 	if (srv_was_started && srv_print_verbose_log) {
 		ib::info() << "Shutdown completed; log sequence number "

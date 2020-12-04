@@ -2047,9 +2047,9 @@ trx_undo_report_row_operation(
 					mtr.set_log_mode(MTR_LOG_NO_REDO);
 				}
 
-				mutex_enter(&rseg->mutex);
+				mysql_mutex_lock(&rseg->mutex);
 				trx_undo_free_last_page(undo, &mtr);
-				mutex_exit(&rseg->mutex);
+				mysql_mutex_unlock(&rseg->mutex);
 
 				err = DB_UNDO_RECORD_TOO_BIG;
 				goto err_exit;

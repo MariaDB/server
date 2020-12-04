@@ -31,7 +31,6 @@ Created 10/13/2010 Jimmy Yang
 #include "btr0cur.h"
 #include "fts0plugin.h"
 #include "log0crypt.h"
-#include "sync0sync.h"
 
 /** Read the next record to buffer N.
 @param N index into array of merge info structure */

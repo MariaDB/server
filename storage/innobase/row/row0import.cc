@@ -1411,7 +1411,7 @@ row_import::set_root_by_heuristic() UNIV_NOTHROW
 			" the tablespace has " << m_n_indexes << " indexes";
 	}
 
-	dict_mutex_enter_for_mysql();
+	dict_sys.mutex_lock();
 
 	ulint	i = 0;
 	dberr_t	err = DB_SUCCESS;
@@ -1452,7 +1452,7 @@ row_import::set_root_by_heuristic() UNIV_NOTHROW
 		}
 	}
 
-	dict_mutex_exit_for_mysql();
+	dict_sys.mutex_unlock();
 
 	return(err);
 }

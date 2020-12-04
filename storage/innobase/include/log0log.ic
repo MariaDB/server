@@ -27,7 +27,6 @@ Created 12/9/1995 Heikki Tuuri
 #include "mach0data.h"
 #include "assume_aligned.h"
 #include "ut0crc32.h"
-#include "sync0debug.h"
 
 extern ulong srv_log_buffer_size;
 
@@ -304,17 +303,6 @@ log_free_check(void)
 	/* During row_log_table_apply(), this function will be called while we
 	are holding some latches. This is OK, as long as we are not holding
 	any latches on buffer blocks. */
-
-#ifdef UNIV_DEBUG
-	static const latch_level_t latches[] = {
-		SYNC_DICT,		/* dict_sys.mutex during
-					commit_try_rebuild() */
-	};
-#endif /* UNIV_DEBUG */
-
-	ut_ad(!sync_check_iterate(
-		      sync_allowed_latches(latches,
-					   latches + UT_ARR_SIZE(latches))));
 
 	if (log_sys.check_flush_or_checkpoint()) {
 

@@ -93,7 +93,7 @@ char* fts_get_table_name_prefix(const fts_table_t* fts_table)
 	char		table_id[FTS_AUX_MIN_TABLE_ID_LENGTH];
 	const size_t table_id_len = size_t(fts_get_table_id(fts_table,
 							    table_id)) + 1;
-	mutex_enter(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 	/* Include the separator as well. */
 	const size_t dbname_len = fts_table->table->name.dblen() + 1;
 	ut_ad(dbname_len > 1);
@@ -101,7 +101,7 @@ char* fts_get_table_name_prefix(const fts_table_t* fts_table)
 	char* prefix_name = static_cast<char*>(
 		ut_malloc_nokey(prefix_name_len));
 	memcpy(prefix_name, fts_table->table->name.m_name, dbname_len);
-	mutex_exit(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 	memcpy(prefix_name + dbname_len, "FTS_", 4);
 	memcpy(prefix_name + dbname_len + 4, table_id, table_id_len);
 	return prefix_name;
@@ -115,15 +115,15 @@ void fts_get_table_name(const fts_table_t* fts_table, char* table_name,
 			bool dict_locked)
 {
 	if (!dict_locked) {
-		mutex_enter(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 	}
-	ut_ad(mutex_own(&dict_sys.mutex));
+	dict_sys.assert_locked();
 	/* Include the separator as well. */
 	const size_t dbname_len = fts_table->table->name.dblen() + 1;
 	ut_ad(dbname_len > 1);
 	memcpy(table_name, fts_table->table->name.m_name, dbname_len);
 	if (!dict_locked) {
-		mutex_exit(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 	}
 	memcpy(table_name += dbname_len, "FTS_", 4);
 	table_name += 4;
@@ -152,17 +152,15 @@ fts_parse_sql(
 		       && fts_table->table->fts->dict_locked);
 
 	if (!dict_locked) {
-		ut_ad(!mutex_own(&dict_sys.mutex));
-
 		/* The InnoDB SQL parser is not re-entrant. */
-		mutex_enter(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 	}
 
 	graph = pars_sql(info, str);
 	ut_a(graph);
 
 	if (!dict_locked) {
-		mutex_exit(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 	}
 
 	ut_free(str);
@@ -182,7 +180,7 @@ fts_parse_sql_no_dict_lock(
 	char*		str;
 	que_t*		graph;
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	dict_sys.assert_locked();
 
 	str = ut_str3cat(fts_sql_begin, sql, fts_sql_end);
 

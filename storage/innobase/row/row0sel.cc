@@ -1098,13 +1098,13 @@ re_scan:
 			thr->lock_state = QUE_THR_LOCK_NOLOCK;
 			mtr->start();
 
-			mutex_enter(&match->rtr_match_mutex);
+			mysql_mutex_lock(&match->rtr_match_mutex);
 			if (!match->valid && match->matched_recs->empty()) {
-				mutex_exit(&match->rtr_match_mutex);
+				mysql_mutex_unlock(&match->rtr_match_mutex);
 				err = DB_RECORD_NOT_FOUND;
 				goto func_end;
 			}
-			mutex_exit(&match->rtr_match_mutex);
+			mysql_mutex_unlock(&match->rtr_match_mutex);
 
 			/* MDEV-14059 FIXME: why re-latch the block?
 			pcur is already positioned on it! */
@@ -2164,7 +2164,6 @@ stop_for_a_while:
 	btr_pcur_store_position(&(plan->pcur), &mtr);
 
 	mtr.commit();
-	ut_ad(!sync_check_iterate(sync_check()));
 
 	err = DB_SUCCESS;
 	goto func_exit;
@@ -2181,7 +2180,6 @@ commit_mtr_for_a_while:
 	mtr.commit();
 
 	mtr_has_extra_clust_latch = FALSE;
-	ut_ad(!sync_check_iterate(dict_sync_check()));
 
 	goto table_loop;
 
@@ -2196,8 +2194,6 @@ lock_wait_or_error:
 	mtr.commit();
 
 func_exit:
-	ut_ad(!sync_check_iterate(dict_sync_check()));
-
 	if (heap != NULL) {
 		mem_heap_free(heap);
 	}
@@ -3292,16 +3288,16 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 			|| rec != btr_pcur_get_rec(prebuilt->pcur))) {
 #ifdef UNIV_DEBUG
 			rtr_info_t*	rtr_info = btr_cur->rtr_info;
-			mutex_enter(&rtr_info->matches->rtr_match_mutex);
+			mysql_mutex_lock(&rtr_info->matches->rtr_match_mutex);
 			/* The page could be deallocated (by rollback etc.) */
 			if (!rtr_info->matches->valid) {
-				mutex_exit(&rtr_info->matches->rtr_match_mutex);
+				mysql_mutex_unlock(&rtr_info->matches->rtr_match_mutex);
 				clust_rec = NULL;
 
                                 err = DB_SUCCESS;
                                 goto func_exit;
 			}
-			mutex_exit(&rtr_info->matches->rtr_match_mutex);
+			mysql_mutex_unlock(&rtr_info->matches->rtr_match_mutex);
 
 			if (rec_get_deleted_flag(rec,
                                           dict_table_is_comp(sec_index->table))
@@ -4263,8 +4259,6 @@ row_search_mvcc(
 		DBUG_RETURN(DB_END_OF_INDEX);
 	}
 
-	ut_ad(!sync_check_iterate(sync_check()));
-
 	if (!prebuilt->table->space) {
 		DBUG_RETURN(DB_TABLESPACE_DELETED);
 	} else if (!prebuilt->table->is_readable()) {
@@ -4496,7 +4490,6 @@ aborted:
 				/* NOTE that we do NOT store the cursor
 				position */
 				trx->op_info = "";
-				ut_ad(!sync_check_iterate(sync_check()));
 				ut_ad(!did_semi_consistent_read);
 				if (UNIV_LIKELY_NULL(heap)) {
 					mem_heap_free(heap);
@@ -5785,8 +5778,6 @@ func_exit:
 			prebuilt->row_read_type = ROW_READ_TRY_SEMI_CONSISTENT;
 		}
 	}
-
-	ut_ad(!sync_check_iterate(sync_check()));
 
 	DEBUG_SYNC_C("innodb_row_search_for_mysql_exit");
 

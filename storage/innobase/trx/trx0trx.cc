@@ -47,7 +47,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0xa.h"
 #include "ut0pool.h"
 #include "ut0vec.h"
-#include "sync0sync.h"
 
 #include <set>
 #include <new>
@@ -253,49 +252,47 @@ struct TrxFactory {
 };
 
 /** The lock strategy for TrxPool */
-struct TrxPoolLock {
-	TrxPoolLock() { }
+class TrxPoolLock
+{
+  mysql_mutex_t mutex;
 
-	/** Create the mutex */
-	void create()
-	{
-		mutex_create(LATCH_ID_TRX_POOL, &m_mutex);
-	}
+public:
+  /** Create the mutex */
+  void create()
+  {
+    mysql_mutex_init(trx_pool_mutex_key, &mutex, nullptr);
+  }
 
-	/** Acquire the mutex */
-	void enter() { mutex_enter(&m_mutex); }
+  /** Acquire the mutex */
+  void enter() { mysql_mutex_lock(&mutex); }
 
-	/** Release the mutex */
-	void exit() { mutex_exit(&m_mutex); }
+  /** Release the mutex */
+  void exit() { mysql_mutex_unlock(&mutex); }
 
-	/** Free the mutex */
-	void destroy() { mutex_free(&m_mutex); }
-
-	/** Mutex to use */
-	ib_mutex_t	m_mutex;
+  /** Free the mutex */
+  void destroy() { mysql_mutex_destroy(&mutex); }
 };
 
 /** The lock strategy for the TrxPoolManager */
-struct TrxPoolManagerLock {
-	TrxPoolManagerLock() { }
+class TrxPoolManagerLock
+{
+  mysql_mutex_t mutex;
 
-	/** Create the mutex */
-	void create()
-	{
-		mutex_create(LATCH_ID_TRX_POOL_MANAGER, &m_mutex);
-	}
+public:
+  /** Create the mutex */
+  void create()
+  {
+    mysql_mutex_init(trx_pool_manager_mutex_key, &mutex, nullptr);
+  }
 
-	/** Acquire the mutex */
-	void enter() { mutex_enter(&m_mutex); }
+  /** Acquire the mutex */
+  void enter() { mysql_mutex_lock(&mutex); }
 
-	/** Release the mutex */
-	void exit() { mutex_exit(&m_mutex); }
+  /** Release the mutex */
+  void exit() { mysql_mutex_unlock(&mutex); }
 
-	/** Free the mutex */
-	void destroy() { mutex_free(&m_mutex); }
-
-	/** Mutex to use */
-	ib_mutex_t	m_mutex;
+  /** Free the mutex */
+  void destroy() { mysql_mutex_destroy(&mutex); }
 };
 
 /** Use explicit mutexes for the trx_t pool and its manager. */
@@ -614,10 +611,10 @@ trx_resurrect_table_locks(
 		if (dict_table_t* table = dict_table_open_on_id(
 			    *i, FALSE, DICT_TABLE_OP_LOAD_TABLESPACE)) {
 			if (!table->is_readable()) {
-				mutex_enter(&dict_sys.mutex);
+				dict_sys.mutex_lock();
 				dict_table_close(table, TRUE, FALSE);
 				dict_sys.remove(table);
-				mutex_exit(&dict_sys.mutex);
+				dict_sys.mutex_unlock();
 				continue;
 			}
 
@@ -883,12 +880,12 @@ static trx_rseg_t* trx_assign_rseg_low()
 		/* By now we have only selected the rseg but not marked it
 		allocated. By marking it allocated we are ensuring that it will
 		never be selected for UNDO truncate purge. */
-		mutex_enter(&rseg->mutex);
+		mysql_mutex_lock(&rseg->mutex);
 		if (!rseg->skip_allocation) {
 			rseg->trx_ref_count++;
 			allocated = true;
 		}
-		mutex_exit(&rseg->mutex);
+		mysql_mutex_unlock(&rseg->mutex);
 	} while (!allocated);
 
 	ut_ad(rseg->trx_ref_count > 0);
@@ -1021,10 +1018,10 @@ trx_serialise(trx_t* trx)
 {
 	trx_rseg_t *rseg = trx->rsegs.m_redo.rseg;
 	ut_ad(rseg);
-	ut_ad(mutex_own(&rseg->mutex));
+	mysql_mutex_assert_owner(&rseg->mutex);
 
 	if (rseg->last_page_no == FIL_NULL) {
-		mutex_enter(&purge_sys.pq_mutex);
+		mysql_mutex_lock(&purge_sys.pq_mutex);
 	}
 
 	trx_sys.assign_new_trx_no(trx);
@@ -1036,7 +1033,7 @@ trx_serialise(trx_t* trx)
 	if (rseg->last_page_no == FIL_NULL) {
 		purge_sys.purge_queue.push(TrxUndoRsegs(trx->rw_trx_hash_element->no,
 							*rseg));
-		mutex_exit(&purge_sys.pq_mutex);
+		mysql_mutex_unlock(&purge_sys.pq_mutex);
 	}
 }
 
@@ -1069,9 +1066,9 @@ trx_write_serialisation_history(
 		temp_mtr.start();
 		temp_mtr.set_log_mode(MTR_LOG_NO_REDO);
 
-		mutex_enter(&trx->rsegs.m_noredo.rseg->mutex);
+		mysql_mutex_lock(&trx->rsegs.m_noredo.rseg->mutex);
 		trx_undo_set_state_at_finish(undo, &temp_mtr);
-		mutex_exit(&trx->rsegs.m_noredo.rseg->mutex);
+		mysql_mutex_unlock(&trx->rsegs.m_noredo.rseg->mutex);
 		temp_mtr.commit();
 	}
 
@@ -1092,7 +1089,7 @@ trx_write_serialisation_history(
 	ut_ad(!trx->read_only);
 	ut_ad(!undo || undo->rseg == rseg);
 	ut_ad(!old_insert || old_insert->rseg == rseg);
-	mutex_enter(&rseg->mutex);
+	mysql_mutex_lock(&rseg->mutex);
 
 	/* Assign the transaction serialisation number and add any
 	undo log to the purge queue. */
@@ -1107,7 +1104,7 @@ trx_write_serialisation_history(
 		trx_purge_add_undo_to_history(trx, undo, mtr);
 	}
 
-	mutex_exit(&rseg->mutex);
+	mysql_mutex_unlock(&rseg->mutex);
 
 	MONITOR_INC(MONITOR_TRX_COMMIT_UNDO);
 }
@@ -1232,11 +1229,11 @@ trx_update_mod_tables_timestamp(
 	const time_t now = time(NULL);
 
 	trx_mod_tables_t::const_iterator	end = trx->mod_tables.end();
-#ifdef UNIV_DEBUG
+#if defined SAFE_MUTEX && defined UNIV_DEBUG
 	const bool preserve_tables = !innodb_evict_tables_on_commit_debug
 		|| trx->is_recovered /* avoid trouble with XA recovery */
 # if 1 /* if dict_stats_exec_sql() were not playing dirty tricks */
-		|| mutex_own(&dict_sys.mutex)
+		|| dict_sys.mutex_is_locked()
 # else /* this would be more proper way to do it */
 		|| trx->dict_operation_lock_mode || trx->dict_operation
 # endif
@@ -1257,7 +1254,7 @@ trx_update_mod_tables_timestamp(
 		intrusive. */
 		dict_table_t* table = it->first;
 		table->update_time = now;
-#ifdef UNIV_DEBUG
+#if defined SAFE_MUTEX && defined UNIV_DEBUG
 		if (preserve_tables || table->get_ref_count()
 		    || UT_LIST_GET_LEN(table->locks)) {
 			/* do not evict when committing DDL operations
@@ -1267,15 +1264,15 @@ trx_update_mod_tables_timestamp(
 		}
 		/* recheck while holding the mutex that blocks
 		table->acquire() */
-		mutex_enter(&dict_sys.mutex);
-		mysql_mutex_lock(&lock_sys.mutex);
+		dict_sys.mutex_lock();
+		lock_sys.mutex_lock();
 		const bool do_evict = !table->get_ref_count()
 			&& !UT_LIST_GET_LEN(table->locks);
-		mysql_mutex_unlock(&lock_sys.mutex);
+		lock_sys.mutex_unlock();
 		if (do_evict) {
 			dict_sys.remove(table, true);
 		}
-		mutex_exit(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 #endif
 	}
 
@@ -1396,10 +1393,10 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
 
   if (trx_rseg_t *rseg= rsegs.m_redo.rseg)
   {
-    mutex_enter(&rseg->mutex);
+    mysql_mutex_lock(&rseg->mutex);
     ut_ad(rseg->trx_ref_count > 0);
     --rseg->trx_ref_count;
-    mutex_exit(&rseg->mutex);
+    mysql_mutex_unlock(&rseg->mutex);
 
     if (trx_undo_t *&insert= rsegs.m_redo.old_insert)
     {
@@ -1874,7 +1871,7 @@ trx_print_latched(
 	ulint		max_query_len)	/*!< in: max query length to print,
 					or 0 to use the default max length */
 {
-	mysql_mutex_assert_owner(&lock_sys.mutex);
+	lock_sys.mutex_assert_locked();
 
 	trx_print_low(f, trx, max_query_len,
 		      lock_number_of_rows_locked(&trx->lock),
@@ -1897,11 +1894,11 @@ trx_print(
 	ulint	n_trx_locks;
 	ulint	heap_size;
 
-	mysql_mutex_lock(&lock_sys.mutex);
+	lock_sys.mutex_lock();
 	n_rec_locks = lock_number_of_rows_locked(&trx->lock);
 	n_trx_locks = UT_LIST_GET_LEN(trx->lock.trx_locks);
 	heap_size = mem_heap_get_size(trx->lock.lock_heap);
-	mysql_mutex_unlock(&lock_sys.mutex);
+	lock_sys.mutex_unlock();
 
 	trx_print_low(f, trx, max_query_len,
 		      n_rec_locks, n_trx_locks, heap_size);
@@ -1960,9 +1957,9 @@ trx_prepare_low(trx_t* trx)
 		mtr.start();
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 
-		mutex_enter(&undo->rseg->mutex);
+		mysql_mutex_lock(&undo->rseg->mutex);
 		trx_undo_set_state_at_prepare(trx, undo, false, &mtr);
-		mutex_exit(&undo->rseg->mutex);
+		mysql_mutex_unlock(&undo->rseg->mutex);
 
 		mtr.commit();
 	}
@@ -1984,9 +1981,9 @@ trx_prepare_low(trx_t* trx)
 	structure define the transaction as prepared in the file-based
 	world, at the serialization point of lsn. */
 
-	mutex_enter(&rseg->mutex);
+	mysql_mutex_lock(&rseg->mutex);
 	trx_undo_set_state_at_prepare(trx, undo, false, &mtr);
-	mutex_exit(&rseg->mutex);
+	mysql_mutex_unlock(&rseg->mutex);
 
 	/* Make the XA PREPARE durable. */
 	mtr.commit();
@@ -2062,7 +2059,7 @@ static my_bool trx_recover_for_mysql_callback(rw_trx_hash_element_t *element,
   trx_recover_for_mysql_callback_arg *arg)
 {
   DBUG_ASSERT(arg->len > 0);
-  mutex_enter(&element->mutex);
+  mysql_mutex_lock(&element->mutex);
   if (trx_t *trx= element->trx)
   {
     /*
@@ -2088,7 +2085,7 @@ static my_bool trx_recover_for_mysql_callback(rw_trx_hash_element_t *element,
       }
     }
   }
-  mutex_exit(&element->mutex);
+  mysql_mutex_unlock(&element->mutex);
   /* Do not terminate upon reaching arg->len; count all transactions */
   return false;
 }
@@ -2097,13 +2094,13 @@ static my_bool trx_recover_for_mysql_callback(rw_trx_hash_element_t *element,
 static my_bool trx_recover_reset_callback(rw_trx_hash_element_t *element,
   void*)
 {
-  mutex_enter(&element->mutex);
+  mysql_mutex_lock(&element->mutex);
   if (trx_t *trx= element->trx)
   {
     if (trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED))
       trx->state= TRX_STATE_PREPARED;
   }
-  mutex_exit(&element->mutex);
+  mysql_mutex_unlock(&element->mutex);
   return false;
 }
 
@@ -2152,7 +2149,7 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
   trx_get_trx_by_xid_callback_arg *arg)
 {
   my_bool found= 0;
-  mutex_enter(&element->mutex);
+  mysql_mutex_lock(&element->mutex);
   if (trx_t *trx= element->trx)
   {
     trx->mutex.wr_lock();
@@ -2174,7 +2171,7 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
     }
     trx->mutex.wr_unlock();
   }
-  mutex_exit(&element->mutex);
+  mysql_mutex_unlock(&element->mutex);
   return found;
 }
 

@@ -148,7 +148,7 @@ dict_stats_init(
 /*============*/
 	dict_table_t*	table)	/*!< in/out: table */
 {
-	ut_ad(!mutex_own(&dict_sys.mutex));
+	dict_sys.assert_not_locked();
 
 	if (table->stat_initialized) {
 		return;
@@ -174,7 +174,7 @@ dict_stats_deinit(
 /*==============*/
 	dict_table_t*	table)	/*!< in/out: table */
 {
-	ut_ad(mutex_own(&dict_sys.mutex));
+	dict_sys.assert_locked();
 
 	ut_a(table->get_ref_count() == 0);
 

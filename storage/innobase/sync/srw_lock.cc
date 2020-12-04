@@ -18,6 +18,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "srw_lock.h"
 #include "srv0srv.h"
+#include "my_cpu.h"
 
 #ifdef SRW_LOCK_DUMMY
 void ssux_lock_low::init()

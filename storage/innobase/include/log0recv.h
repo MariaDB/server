@@ -26,11 +26,10 @@ Created 9/20/1997 Heikki Tuuri
 
 #pragma once
 
-#include "ut0byte.h"
+#include "ut0new.h"
 #include "buf0types.h"
 #include "log0log.h"
 #include "mtr0types.h"
-#include "ut0mutex.h"
 
 #include <deque>
 

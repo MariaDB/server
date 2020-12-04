@@ -119,11 +119,7 @@ fts_config_get_value(
 	trx->op_info = "getting FTS config value";
 
 	error = fts_eval_sql(trx, graph);
-
-	mutex_enter(&dict_sys.mutex);
-	que_graph_free(graph);
-	mutex_exit(&dict_sys.mutex);
-
+	fts_que_graph_free(graph);
 	return(error);
 }
 

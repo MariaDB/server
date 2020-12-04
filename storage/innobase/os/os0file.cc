@@ -42,6 +42,7 @@ Created 10/21/1995 Heikki Tuuri
 # include <sys/stat.h>
 #endif
 
+#include "srv0mon.h"
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "fil0fil.h"
@@ -4477,7 +4478,7 @@ void fil_node_t::find_metadata(os_file_t file
 @return	whether the page was found valid */
 bool fil_node_t::read_page0()
 {
-	ut_ad(mutex_own(&fil_system.mutex));
+	mysql_mutex_assert_owner(&fil_system.mutex);
 	const unsigned psize = space->physical_size();
 #ifndef _WIN32
 	struct stat statbuf;

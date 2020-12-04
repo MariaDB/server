@@ -1005,10 +1005,7 @@ fts_table_fetch_doc_ids(
 
 	error = fts_eval_sql(trx, graph);
 	fts_sql_commit(trx);
-
-	mutex_enter(&dict_sys.mutex);
-	que_graph_free(graph);
-	mutex_exit(&dict_sys.mutex);
+	fts_que_graph_free(graph);
 
 	if (error == DB_SUCCESS) {
 		ib_vector_sort(doc_ids->doc_ids, fts_doc_id_cmp);
@@ -2594,7 +2591,7 @@ fts_optimize_remove_table(
 
   if (table->fts->in_queue)
   {
-    ut_ad(!mutex_own(&dict_sys.mutex));
+    dict_sys.assert_not_locked();
     fts_msg_t *msg= fts_optimize_create_msg(FTS_MSG_DEL_TABLE, nullptr);
     mysql_cond_t cond;
     mysql_cond_init(0, &cond, nullptr);
@@ -2938,7 +2935,7 @@ fts_optimize_init(void)
 	/* Add fts tables to fts_slots which could be skipped
 	during dict_load_table_one() because fts_optimize_thread
 	wasn't even started. */
-	mutex_enter(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 	for (dict_table_t* table = UT_LIST_GET_FIRST(dict_sys.table_LRU);
 	     table != NULL;
 	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
@@ -2953,7 +2950,7 @@ fts_optimize_init(void)
 		fts_optimize_new_table(table);
 		table->fts->in_queue = true;
 	}
-	mutex_exit(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 
 	mysql_cond_init(0, &fts_opt_shutdown_cond, nullptr);
 	last_check_sync_time = time(NULL);
@@ -2967,13 +2964,13 @@ fts_optimize_shutdown()
 
 	/* If there is an ongoing activity on dictionary, such as
 	srv_master_evict_from_table_cache(), wait for it */
-	dict_mutex_enter_for_mysql();
+	dict_sys.mutex_lock();
 	mysql_mutex_lock(&fts_optimize_wq->mutex);
 	/* Tells FTS optimizer system that we are exiting from
 	optimizer thread, message send their after will not be
 	processed */
 	fts_opt_start_shutdown = true;
-	dict_mutex_exit_for_mysql();
+	dict_sys.mutex_unlock();
 
 	/* We tell the OPTIMIZE thread to switch to state done, we
 	can't delete the work queue here because the add thread needs

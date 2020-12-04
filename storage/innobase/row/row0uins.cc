@@ -367,9 +367,9 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		node->table = dict_table_open_on_id(table_id, dict_locked,
 						    DICT_TABLE_OP_NORMAL);
 	} else if (!dict_locked) {
-		mutex_enter(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 		node->table = dict_sys.get_temporary_table(table_id);
-		mutex_exit(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 	} else {
 		node->table = dict_sys.get_temporary_table(table_id);
 	}
@@ -563,11 +563,11 @@ row_undo_ins(
 		if (node->table->id == DICT_INDEXES_ID) {
 			ut_ad(!node->table->is_temporary());
 			if (!dict_locked) {
-				mutex_enter(&dict_sys.mutex);
+				dict_sys.mutex_lock();
 			}
 			err = row_undo_ins_remove_clust_rec(node);
 			if (!dict_locked) {
-				mutex_exit(&dict_sys.mutex);
+				dict_sys.mutex_unlock();
 			}
 		} else {
 			err = row_undo_ins_remove_clust_rec(node);

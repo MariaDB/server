@@ -361,7 +361,7 @@ trx_rseg_mem_free(trx_rseg_t* rseg)
 	trx_undo_t*	undo;
 	trx_undo_t*	next_undo;
 
-	mutex_free(&rseg->mutex);
+	mysql_mutex_destroy(&rseg->mutex);
 
 	/* There can't be any active transactions. */
 	ut_a(UT_LIST_GET_LEN(rseg->undo_list) == 0);
@@ -400,10 +400,10 @@ trx_rseg_mem_create(ulint id, fil_space_t* space, uint32_t page_no)
 	rseg->last_page_no = FIL_NULL;
 	rseg->curr_size = 1;
 
-	mutex_create(rseg->is_persistent()
-		     ? LATCH_ID_REDO_RSEG : LATCH_ID_NOREDO_RSEG,
-		     &rseg->mutex);
-
+	mysql_mutex_init(rseg->is_persistent()
+			 ? redo_rseg_mutex_key
+			 : noredo_rseg_mutex_key,
+			 &rseg->mutex, nullptr);
 	UT_LIST_INIT(rseg->undo_list, &trx_undo_t::undo_list);
 	UT_LIST_INIT(rseg->old_insert_list, &trx_undo_t::undo_list);
 	UT_LIST_INIT(rseg->undo_cached, &trx_undo_t::undo_list);

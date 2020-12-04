@@ -38,7 +38,6 @@ Created 12/15/2009	Jimmy Yang
 
 #include <stdint.h>
 #include "my_atomic.h"
-#include "my_atomic_wrapper.h"
 
 /** Possible status values for "mon_status" in "struct monitor_value" */
 enum monitor_running_status {
@@ -418,10 +417,6 @@ enum monitor_id_t {
 	MONITOR_ICP_NO_MATCH,
 	MONITOR_ICP_OUT_OF_RANGE,
 	MONITOR_ICP_MATCH,
-
-	/* Mutex/RW-Lock related counters */
-	MONITOR_MODULE_LATCHES,
-	MONITOR_LATCHES,
 
 	/* This is used only for control system to turn
 	on/off and reset all monitor counters */

@@ -63,7 +63,6 @@ Created 11/5/1995 Heikki Tuuri
 #include "fil0pagecompress.h"
 #endif /* !UNIV_INNOCHECKSUM */
 #include "page0zip.h"
-#include "sync0sync.h"
 #include "buf0dump.h"
 #include <map>
 #include <sstream>
@@ -2035,11 +2034,11 @@ withdraw_retry:
 			message_interval *= 2;
 		}
 
-		mysql_mutex_lock(&lock_sys.mutex);
+		lock_sys.mutex_lock();
 		bool	found = false;
 		trx_sys.trx_list.for_each(find_interesting_trx{
 			found, withdraw_started, current_time});
-		mysql_mutex_unlock(&lock_sys.mutex);
+		lock_sys.mutex_unlock();
 
 		withdraw_started = current_time;
 	}

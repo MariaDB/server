@@ -158,7 +158,7 @@ rtr_pcur_getnext_from_path(
 		ulint		rw_latch = RW_X_LATCH;
 		ulint		tree_idx;
 
-		mutex_enter(&rtr_info->rtr_path_mutex);
+		mysql_mutex_lock(&rtr_info->rtr_path_mutex);
 		next_rec = rtr_info->path->back();
 		rtr_info->path->pop_back();
 		level = next_rec.level;
@@ -201,7 +201,7 @@ rtr_pcur_getnext_from_path(
 			      == rtr_info->parent_path->back().child_no);
 		}
 
-		mutex_exit(&rtr_info->rtr_path_mutex);
+		mysql_mutex_unlock(&rtr_info->rtr_path_mutex);
 
 		skip_parent = false;
 		new_split = false;
@@ -386,11 +386,11 @@ rtr_pcur_getnext_from_path(
 
 			trx_t*		trx = thr_get_trx(
 						btr_cur->rtr_info->thr);
-			mysql_mutex_lock(&lock_sys.mutex);
+			lock_sys.mutex_lock();
 			lock_init_prdt_from_mbr(
 				&prdt, &btr_cur->rtr_info->mbr,
 				mode, trx->lock.lock_heap);
-			mysql_mutex_unlock(&lock_sys.mutex);
+			lock_sys.mutex_unlock();
 
 			if (rw_latch == RW_NO_LATCH) {
 				block->lock.s_lock();
@@ -479,13 +479,13 @@ rtr_pcur_move_to_next(
 
 	ut_a(cursor->pos_state == BTR_PCUR_IS_POSITIONED);
 
-	mutex_enter(&rtr_info->matches->rtr_match_mutex);
+	mysql_mutex_lock(&rtr_info->matches->rtr_match_mutex);
 	/* First retrieve the next record on the current page */
 	if (!rtr_info->matches->matched_recs->empty()) {
 		rtr_rec_t	rec;
 		rec = rtr_info->matches->matched_recs->back();
 		rtr_info->matches->matched_recs->pop_back();
-		mutex_exit(&rtr_info->matches->rtr_match_mutex);
+		mysql_mutex_unlock(&rtr_info->matches->rtr_match_mutex);
 
 		cursor->btr_cur.page_cur.rec = rec.r_rec;
 		cursor->btr_cur.page_cur.block = &rtr_info->matches->block;
@@ -494,7 +494,7 @@ rtr_pcur_move_to_next(
 		return(true);
 	}
 
-	mutex_exit(&rtr_info->matches->rtr_match_mutex);
+	mysql_mutex_unlock(&rtr_info->matches->rtr_match_mutex);
 
 	/* Fetch the next page */
 	return(rtr_pcur_getnext_from_path(tuple, mode, &cursor->btr_cur,
@@ -920,20 +920,21 @@ rtr_create_rtr_info(
 
 		rtr_info->matches->bufp = page_align(rtr_info->matches->rec_buf
 						     + UNIV_PAGE_SIZE_MAX + 1);
-		mutex_create(LATCH_ID_RTR_MATCH_MUTEX,
-			     &rtr_info->matches->rtr_match_mutex);
+		mysql_mutex_init(rtr_match_mutex_key,
+				 &rtr_info->matches->rtr_match_mutex,
+				 nullptr);
 		rtr_info->matches->block.lock.init();
 	}
 
 	rtr_info->path = UT_NEW_NOKEY(rtr_node_path_t());
 	rtr_info->parent_path = UT_NEW_NOKEY(rtr_node_path_t());
 	rtr_info->need_prdt_lock = need_prdt;
-	mutex_create(LATCH_ID_RTR_PATH_MUTEX,
-		     &rtr_info->rtr_path_mutex);
+	mysql_mutex_init(rtr_path_mutex_key, &rtr_info->rtr_path_mutex,
+			 nullptr);
 
-	mutex_enter(&index->rtr_track->rtr_active_mutex);
+	mysql_mutex_lock(&index->rtr_track->rtr_active_mutex);
 	index->rtr_track->rtr_active.push_front(rtr_info);
-	mutex_exit(&index->rtr_track->rtr_active_mutex);
+	mysql_mutex_unlock(&index->rtr_track->rtr_active_mutex);
 	return(rtr_info);
 }
 
@@ -972,8 +973,8 @@ rtr_init_rtr_info(
 		rtr_info->parent_path = NULL;
 		rtr_info->matches = NULL;
 
-		mutex_create(LATCH_ID_RTR_PATH_MUTEX,
-			     &rtr_info->rtr_path_mutex);
+		mysql_mutex_init(rtr_path_mutex_key, &rtr_info->rtr_path_mutex,
+				 nullptr);
 
 		memset(rtr_info->tree_blocks, 0x0,
 		       sizeof(rtr_info->tree_blocks));
@@ -1004,9 +1005,9 @@ rtr_init_rtr_info(
 	rtr_info->cursor = cursor;
 	rtr_info->index = index;
 
-	mutex_enter(&index->rtr_track->rtr_active_mutex);
+	mysql_mutex_lock(&index->rtr_track->rtr_active_mutex);
 	index->rtr_track->rtr_active.push_front(rtr_info);
-	mutex_exit(&index->rtr_track->rtr_active_mutex);
+	mysql_mutex_unlock(&index->rtr_track->rtr_active_mutex);
 }
 
 /**************************************************************//**
@@ -1027,7 +1028,7 @@ rtr_clean_rtr_info(
 	index = rtr_info->index;
 
 	if (index) {
-		mutex_enter(&index->rtr_track->rtr_active_mutex);
+		mysql_mutex_lock(&index->rtr_track->rtr_active_mutex);
 	}
 
 	while (rtr_info->parent_path && !rtr_info->parent_path->empty()) {
@@ -1058,7 +1059,7 @@ rtr_clean_rtr_info(
 
 	if (index) {
 		index->rtr_track->rtr_active.remove(rtr_info);
-		mutex_exit(&index->rtr_track->rtr_active_mutex);
+		mysql_mutex_unlock(&index->rtr_track->rtr_active_mutex);
 	}
 
 	if (free_all) {
@@ -1069,7 +1070,8 @@ rtr_clean_rtr_info(
 
 			rtr_info->matches->block.lock.free();
 
-			mutex_destroy(&rtr_info->matches->rtr_match_mutex);
+			mysql_mutex_destroy(
+				&rtr_info->matches->rtr_match_mutex);
 		}
 
 		if (rtr_info->heap) {
@@ -1077,7 +1079,7 @@ rtr_clean_rtr_info(
 		}
 
 		if (initialized) {
-			mutex_destroy(&rtr_info->rtr_path_mutex);
+			mysql_mutex_destroy(&rtr_info->rtr_path_mutex);
 		}
 
 		if (rtr_info->allocated) {
@@ -1164,24 +1166,24 @@ rtr_check_discard_page(
 {
 	const ulint pageno = block->page.id().page_no();
 
-	mutex_enter(&index->rtr_track->rtr_active_mutex);
+	mysql_mutex_lock(&index->rtr_track->rtr_active_mutex);
 
 	for (const auto& rtr_info : index->rtr_track->rtr_active) {
 		if (cursor && rtr_info == cursor->rtr_info) {
 			continue;
 		}
 
-		mutex_enter(&rtr_info->rtr_path_mutex);
+		mysql_mutex_lock(&rtr_info->rtr_path_mutex);
 		for (const node_visit_t& node : *rtr_info->path) {
 			if (node.page_no == pageno) {
 				rtr_rebuild_path(rtr_info, pageno);
 				break;
 			}
 		}
-		mutex_exit(&rtr_info->rtr_path_mutex);
+		mysql_mutex_unlock(&rtr_info->rtr_path_mutex);
 
 		if (rtr_info->matches) {
-			mutex_enter(&rtr_info->matches->rtr_match_mutex);
+			mysql_mutex_lock(&rtr_info->matches->rtr_match_mutex);
 
 			if ((&rtr_info->matches->block)->page.id().page_no()
 			     == pageno) {
@@ -1192,16 +1194,16 @@ rtr_check_discard_page(
 				rtr_info->matches->valid = false;
 			}
 
-			mutex_exit(&rtr_info->matches->rtr_match_mutex);
+			mysql_mutex_unlock(&rtr_info->matches->rtr_match_mutex);
 		}
 	}
 
-	mutex_exit(&index->rtr_track->rtr_active_mutex);
+	mysql_mutex_unlock(&index->rtr_track->rtr_active_mutex);
 
-	mysql_mutex_lock(&lock_sys.mutex);
+	lock_sys.mutex_lock();
 	lock_prdt_page_free_from_discard(block, &lock_sys.prdt_hash);
 	lock_prdt_page_free_from_discard(block, &lock_sys.prdt_page_hash);
-	mysql_mutex_unlock(&lock_sys.mutex);
+	lock_sys.mutex_unlock();
 }
 
 /** Structure acts as functor to get the optimistic access of the page.

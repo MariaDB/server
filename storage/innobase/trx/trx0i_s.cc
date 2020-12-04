@@ -41,7 +41,6 @@ Created July 17, 2007 Vasil Dimov
 #include "rem0rec.h"
 #include "row0row.h"
 #include "srv0srv.h"
-#include "sync0sync.h"
 #include "trx0sys.h"
 #include "que0que.h"
 #include "trx0purge.h"
@@ -423,7 +422,7 @@ fill_trx_row(
 {
 	const char*	s;
 
-	mysql_mutex_assert_owner(&lock_sys.mutex);
+	lock_sys.mutex_assert_locked();
 
 	row->trx_id = trx_get_id_for_print(trx);
 	row->trx_started = trx->start_time;
@@ -1046,7 +1045,7 @@ add_trx_relevant_locks_to_cache(
 					requested lock row, or NULL or
 					undefined */
 {
-	mysql_mutex_assert_owner(&lock_sys.mutex);
+	lock_sys.mutex_assert_locked();
 
 	/* If transaction is waiting we add the wait lock and all locks
 	from another transactions that are blocking the wait lock. */
@@ -1194,7 +1193,7 @@ static void fetch_data_into_cache_low(trx_i_s_cache_t *cache, const trx_t *trx)
 
 static void fetch_data_into_cache(trx_i_s_cache_t *cache)
 {
-  mysql_mutex_assert_owner(&lock_sys.mutex);
+  lock_sys.mutex_assert_locked();
   trx_i_s_cache_clear(cache);
 
   /* Capture the state of transactions */
@@ -1225,9 +1224,9 @@ trx_i_s_possibly_fetch_data_into_cache(
 
 	/* We need to read trx_sys and record/table lock queues */
 
-	mysql_mutex_lock(&lock_sys.mutex);
+	lock_sys.mutex_lock();
 	fetch_data_into_cache(cache);
-	mysql_mutex_unlock(&lock_sys.mutex);
+	lock_sys.mutex_unlock();
 
 	/* update cache last read time */
 	cache->last_read = my_interval_timer();

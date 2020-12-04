@@ -48,7 +48,6 @@ Updated 14/02/2015
 #include "row0mysql.h"
 #include "buf0lru.h"
 #include "ibuf0ibuf.h"
-#include "sync0sync.h"
 #include "zlib.h"
 #ifdef __linux__
 #include <linux/fs.h>

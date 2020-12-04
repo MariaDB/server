@@ -52,6 +52,29 @@ Created 10/10/1995 Heikki Tuuri
 #include <tpool.h>
 #include <memory>
 
+/** Simple non-atomic counter
+@tparam	Type  the integer type of the counter */
+template <typename Type>
+struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_counter
+{
+  /** Increment the counter */
+  Type inc() { return add(1); }
+  /** Decrement the counter */
+  Type dec() { return add(Type(~0)); }
+
+  /** Add to the counter
+  @param i  amount to be added
+  @return the value of the counter after adding */
+  Type add(Type i) { return m_counter += i; }
+
+  /** @return the value of the counter */
+  operator Type() const { return m_counter; }
+
+private:
+  /** The counter */
+  Type m_counter;
+};
+
 /** Global counters used inside InnoDB. */
 struct srv_stats_t
 {
@@ -210,15 +233,13 @@ at a time */
 #define SRV_AUTO_EXTEND_INCREMENT (srv_sys_space.get_autoextend_increment())
 
 /** Mutex protecting page_zip_stat_per_index */
-extern ib_mutex_t	page_zip_stat_per_index_mutex;
-/* Mutex for locking srv_monitor_file. Not created if srv_read_only_mode */
-extern ib_mutex_t	srv_monitor_file_mutex;
+extern mysql_mutex_t page_zip_stat_per_index_mutex;
+/** Mutex for locking srv_monitor_file */
+extern mysql_mutex_t srv_monitor_file_mutex;
 /* Temporary file for innodb monitor output */
 extern FILE*	srv_monitor_file;
-/* Mutex for locking srv_misc_tmpfile. Only created if !srv_read_only_mode.
-This mutex has a very low rank; threads reserving it should not
-acquire any further latches or sleep before releasing this one. */
-extern ib_mutex_t	srv_misc_tmpfile_mutex;
+/** Mutex for locking srv_misc_tmpfile */
+extern mysql_mutex_t srv_misc_tmpfile_mutex;
 /* Temporary file for miscellanous diagnostic output */
 extern FILE*	srv_misc_tmpfile;
 
@@ -454,7 +475,6 @@ extern ulint	srv_log_writes_and_flush;
 
 #ifdef UNIV_DEBUG
 extern my_bool	innodb_evict_tables_on_commit_debug;
-extern my_bool	srv_sync_debug;
 extern my_bool	srv_purge_view_update_only_debug;
 
 /** Value of MySQL global used to disable master thread. */
@@ -479,9 +499,6 @@ extern uint srv_n_purge_threads;
 
 /* the number of pages to purge in one batch */
 extern ulong srv_purge_batch_size;
-
-/* the number of sync wait arrays */
-extern ulong srv_sync_array_size;
 
 /* print all user-level transactions deadlocks to mysqld stderr */
 extern my_bool srv_print_all_deadlocks;

@@ -26,6 +26,7 @@ Created 5/20/1997 Heikki Tuuri
 
 #pragma once
 #include "ut0rnd.h"
+#include "ut0new.h"
 
 struct hash_table_t;
 struct hash_cell_t{

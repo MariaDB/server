@@ -1415,7 +1415,8 @@ public:
   std::vector<pfs_os_file_t> detach(fil_space_t *space,
                                     bool detach_handle= false);
 
-	ib_mutex_t	mutex;		/*!< The mutex protecting the cache */
+  /** the mutex protecting most data fields, and some fields of fil_space_t */
+  mysql_mutex_t mutex;
 	fil_space_t*	sys_space;	/*!< The innodb_system tablespace */
 	fil_space_t*	temp_space;	/*!< The innodb_temporary tablespace */
   /** Map of fil_space_t::id to fil_space_t* */
@@ -1467,14 +1468,18 @@ extern fil_system_t	fil_system;
 inline void fil_space_t::reacquire()
 {
   ut_d(uint32_t n=) n_pending.fetch_add(1, std::memory_order_relaxed);
-  ut_d(if (mutex_own(&fil_system.mutex)) return);
+#ifdef SAFE_MUTEX
+  if (mysql_mutex_is_owner(&fil_system.mutex)) return;
   ut_ad(n & PENDING);
   ut_ad(UT_LIST_GET_FIRST(chain)->is_open());
+#endif /* SAFE_MUTEX */
 }
 
 inline bool fil_space_t::acquire_if_not_stopped(bool have_mutex)
 {
-  ut_ad(mutex_own(&fil_system.mutex) == have_mutex);
+#ifdef SAFE_MUTEX
+  ut_ad(mysql_mutex_is_owner(&fil_system.mutex) == have_mutex);
+#endif
   const uint32_t n= acquire_low();
   if (UNIV_LIKELY(!(n & (STOPPING | CLOSING))))
     return true;
@@ -1484,7 +1489,7 @@ inline bool fil_space_t::acquire_if_not_stopped(bool have_mutex)
 /** Note that operations on the tablespace must stop or can resume */
 inline void fil_space_t::set_stopping(bool stopping)
 {
-  ut_ad(mutex_own(&fil_system.mutex));
+  mysql_mutex_assert_owner(&fil_system.mutex);
   ut_d(auto n=) n_pending.fetch_xor(STOPPING, std::memory_order_relaxed);
   ut_ad(!(n & STOPPING) == stopping);
 }
@@ -1492,7 +1497,7 @@ inline void fil_space_t::set_stopping(bool stopping)
 /** Flush pending writes from the file system cache to the file. */
 template<bool have_reference> inline void fil_space_t::flush()
 {
-  ut_ad(!mutex_own(&fil_system.mutex));
+  mysql_mutex_assert_not_owner(&fil_system.mutex);
   ut_ad(!have_reference || (pending() & PENDING));
   ut_ad(purpose == FIL_TYPE_TABLESPACE || purpose == FIL_TYPE_IMPORT);
   if (srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)
@@ -1514,9 +1519,9 @@ inline uint32_t fil_space_t::get_size()
 {
   if (!size)
   {
-    mutex_enter(&fil_system.mutex);
+    mysql_mutex_lock(&fil_system.mutex);
     read_page0();
-    mutex_exit(&fil_system.mutex);
+    mysql_mutex_unlock(&fil_system.mutex);
   }
   return size;
 }
@@ -1788,11 +1793,6 @@ fil_space_read_name_and_filepath(
 char*
 fil_path_to_space_name(
 	const char*	filename);
-
-/** Acquire the fil_system mutex. */
-#define fil_system_enter()	mutex_enter(&fil_system.mutex)
-/** Release the fil_system mutex. */
-#define fil_system_exit()	mutex_exit(&fil_system.mutex)
 
 /*******************************************************************//**
 Returns the table space by a given id, NULL if not found. */

@@ -37,7 +37,6 @@ Full Text Search interface
 #include "dict0priv.h"
 #include "dict0stats.h"
 #include "btr0pcur.h"
-#include "sync0sync.h"
 
 static const ulint FTS_MAX_ID_LEN = 32;
 
@@ -188,6 +187,14 @@ struct fts_tokenize_param_t {
 	fts_doc_t*	result_doc;	/*!< Result doc for tokens */
 	ulint		add_pos;	/*!< Added position for tokens */
 };
+
+/** Free a query graph */
+void fts_que_graph_free(que_t *graph)
+{
+  dict_sys.mutex_lock();
+  que_graph_free(graph);
+  dict_sys.mutex_unlock();
+}
 
 /** Run SYNC on the table, i.e., write out data from the cache to the
 FTS auxiliary INDEX table and clear the cache at the end.
@@ -454,7 +461,7 @@ fts_load_user_stopword(
 	fts_stopword_t*	stopword_info)		/*!< in: Stopword info */
 {
 	if (!fts->dict_locked) {
-		mutex_enter(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 	}
 
 	/* Validate the user table existence in the right format */
@@ -463,7 +470,7 @@ fts_load_user_stopword(
 	if (!stopword_info->charset) {
 cleanup:
 		if (!fts->dict_locked) {
-			mutex_exit(&dict_sys.mutex);
+			dict_sys.mutex_unlock();
 		}
 
 		return ret;
@@ -905,15 +912,15 @@ fts_que_graph_free_check_lock(
 	}
 
 	if (!has_dict) {
-		mutex_enter(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 	}
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	dict_sys.assert_locked();
 
 	que_graph_free(graph);
 
 	if (!has_dict) {
-		mutex_exit(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 	}
 }
 
@@ -3514,7 +3521,9 @@ fts_add_doc_by_id(
 					"fts_instrument_sync",
 					fts_optimize_request_sync_table(table);
 					mysql_mutex_lock(&cache->lock);
-					mysql_cond_wait(&cache->sync->cond,
+					if (cache->sync->in_progress)
+						mysql_cond_wait(
+							&cache->sync->cond,
 							&cache->lock);
 					mysql_mutex_unlock(&cache->lock);
 				);
@@ -4311,7 +4320,7 @@ end_sync:
 	ut_ad(sync->in_progress);
 	sync->interrupted = false;
 	sync->in_progress = false;
-	mysql_cond_signal(&sync->cond);
+	mysql_cond_broadcast(&sync->cond);
 	mysql_mutex_unlock(&cache->lock);
 
 	/* We need to check whether an optimize is required, for that
@@ -5720,7 +5729,7 @@ fts parent table id and index id.
 				index id */
 static void fil_get_fts_spaces(fts_space_set_t& fts_space_set)
 {
-  mutex_enter(&fil_system.mutex);
+  mysql_mutex_lock(&fil_system.mutex);
 
   for (fil_space_t *space= UT_LIST_GET_FIRST(fil_system.space_list);
        space;
@@ -5734,7 +5743,7 @@ static void fil_get_fts_spaces(fts_space_set_t& fts_space_set)
       fts_space_set.insert(std::make_pair(table_id, index_id));
   }
 
-  mutex_exit(&fil_system.mutex);
+  mysql_mutex_unlock(&fil_system.mutex);
 }
 
 /** Check whether the parent table id and index id of fts auxilary
@@ -6205,7 +6214,7 @@ fts_init_index(
 	fts_cache_t*    cache = table->fts->cache;
 	bool		need_init = false;
 
-	ut_ad(!mutex_own(&dict_sys.mutex));
+	dict_sys.assert_not_locked();
 
 	/* First check cache->get_docs is initialized */
 	if (!has_cache_lock) {
@@ -6270,10 +6279,10 @@ func_exit:
 	}
 
 	if (need_init) {
-		mutex_enter(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 		/* Register the table with the optimize thread. */
 		fts_optimize_add_table(table);
-		mutex_exit(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 	}
 }
 

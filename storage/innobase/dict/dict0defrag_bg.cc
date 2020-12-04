@@ -30,11 +30,7 @@ Created 25/08/2016 Jan Lindström
 #include "btr0btr.h"
 #include "srv0start.h"
 
-static ib_mutex_t		defrag_pool_mutex;
-
-#ifdef MYSQL_PFS
-static mysql_pfs_key_t		defrag_pool_mutex_key;
-#endif
+static mysql_mutex_t defrag_pool_mutex;
 
 /** Iterator type for iterating over the elements of objects of type
 defrag_pool_t. */
@@ -52,9 +48,7 @@ dict_defrag_pool_init(void)
 /*=======================*/
 {
 	ut_ad(!srv_read_only_mode);
-
-	/* We choose SYNC_STATS_DEFRAG to be below SYNC_FSP_PAGE. */
-	mutex_create(LATCH_ID_DEFRAGMENT_MUTEX, &defrag_pool_mutex);
+	mysql_mutex_init(0, &defrag_pool_mutex, nullptr);
 }
 
 /*****************************************************************//**
@@ -66,7 +60,7 @@ dict_defrag_pool_deinit(void)
 {
 	ut_ad(!srv_read_only_mode);
 
-	mutex_free(&defrag_pool_mutex);
+	mysql_mutex_destroy(&defrag_pool_mutex);
 }
 
 /*****************************************************************//**
@@ -84,10 +78,10 @@ dict_stats_defrag_pool_get(
 {
 	ut_ad(!srv_read_only_mode);
 
-	mutex_enter(&defrag_pool_mutex);
+	mysql_mutex_lock(&defrag_pool_mutex);
 
 	if (defrag_pool.empty()) {
-		mutex_exit(&defrag_pool_mutex);
+		mysql_mutex_unlock(&defrag_pool_mutex);
 		return(false);
 	}
 
@@ -97,7 +91,7 @@ dict_stats_defrag_pool_get(
 
 	defrag_pool.pop_back();
 
-	mutex_exit(&defrag_pool_mutex);
+	mysql_mutex_unlock(&defrag_pool_mutex);
 
 	return(true);
 }
@@ -117,7 +111,7 @@ dict_stats_defrag_pool_add(
 
 	ut_ad(!srv_read_only_mode);
 
-	mutex_enter(&defrag_pool_mutex);
+	mysql_mutex_lock(&defrag_pool_mutex);
 
 	/* quit if already in the list */
 	for (defrag_pool_iterator_t iter = defrag_pool.begin();
@@ -125,7 +119,7 @@ dict_stats_defrag_pool_add(
 	     ++iter) {
 		if ((*iter).table_id == index->table->id
 		    && (*iter).index_id == index->id) {
-			mutex_exit(&defrag_pool_mutex);
+			mysql_mutex_unlock(&defrag_pool_mutex);
 			return;
 		}
 	}
@@ -137,7 +131,7 @@ dict_stats_defrag_pool_add(
 		/* Kick off dict stats optimizer work */
 		dict_stats_schedule_now();
 	}
-	mutex_exit(&defrag_pool_mutex);
+	mysql_mutex_unlock(&defrag_pool_mutex);
 }
 
 /*****************************************************************//**
@@ -151,9 +145,9 @@ dict_stats_defrag_pool_del(
 {
 	ut_a((table && !index) || (!table && index));
 	ut_ad(!srv_read_only_mode);
-	ut_ad(mutex_own(&dict_sys.mutex));
+	dict_sys.assert_locked();
 
-	mutex_enter(&defrag_pool_mutex);
+	mysql_mutex_lock(&defrag_pool_mutex);
 
 	defrag_pool_iterator_t iter = defrag_pool.begin();
 	while (iter != defrag_pool.end()) {
@@ -170,7 +164,7 @@ dict_stats_defrag_pool_del(
 		}
 	}
 
-	mutex_exit(&defrag_pool_mutex);
+	mysql_mutex_unlock(&defrag_pool_mutex);
 }
 
 /*****************************************************************//**
@@ -193,7 +187,7 @@ dict_stats_process_entry_from_defrag_pool()
 
 	dict_table_t*	table;
 
-	mutex_enter(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 
 	/* If the table is no longer cached, we've already lost the in
 	memory stats so there's nothing really to write to disk. */
@@ -208,11 +202,11 @@ dict_stats_process_entry_from_defrag_pool()
 		if (table) {
 			dict_table_close(table, TRUE, FALSE);
 		}
-		mutex_exit(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 		return;
 	}
 
-	mutex_exit(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 	dict_stats_save_defrag_stats(index);
 	dict_table_close(table, FALSE, FALSE);
 }
