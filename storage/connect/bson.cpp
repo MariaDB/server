@@ -21,6 +21,15 @@
 #include "plgdbsem.h"
 #include "bson.h"
 
+/***********************************************************************/
+/*  Check macro.                                                       */
+/***********************************************************************/
+#if defined(_DEBUG)
+#define CheckType(X,Y) if (!X || X ->Type != Y) throw MSG(VALTYPE_NOMATCH);
+#else
+#define CheckType(V)
+#endif
+
 #if defined(__WIN__)
 #define EL  "\r\n"
 #else
@@ -859,13 +868,14 @@ PBPR BJSON::SubAllocPair(OFFSET key, OFFSET val)
 /***********************************************************************/
 /* Return the number of pairs in this object.                          */
 /***********************************************************************/
-int BJSON::GetObjectSize(PBPR bop, bool b)
+int BJSON::GetObjectSize(PBVAL bop, bool b)
 {
+  CheckType(bop, TYPE_JOB);
   int n = 0;
 
-  for (PBPR brp = bop; brp; brp = MPP(brp->Next))
+  for (PBPR brp = GetObject(bop); brp; brp = GetNext(brp))
     // If b return only non null pairs
-    if (!b || (brp->Vlp && (MVP(brp->Vlp))->Type != TYPE_NULL))
+    if (!b || (brp->Vlp && GetVal(brp)->Type != TYPE_NULL))
       n++;
 
   return n;
@@ -874,64 +884,60 @@ int BJSON::GetObjectSize(PBPR bop, bool b)
 /***********************************************************************/
 /* Add a new pair to an Object and return it.                          */
 /***********************************************************************/
-PBPR BJSON::AddPair(PBPR bop, PSZ key, OFFSET val)
+void BJSON::AddPair(PBVAL bop, PSZ key, OFFSET val)
 {
-  PBPR brp, nrp = SubAllocPair(key, val);
+  CheckType(bop, TYPE_JOB);
+  PBPR   brp;
+  OFFSET nrp = MOF(SubAllocPair(key, val));
 
-  if (bop) {
-    for (brp = bop; brp->Next; brp = MPP(brp->Next));
+  if (bop->To_Val) {
+    for (brp = GetObject(bop); brp->Next; brp = GetNext(brp));
 
-    brp->Next = MOF(nrp);
+    brp->Next = nrp;
   } else
-    bop = nrp;
+    bop->To_Val = nrp;
 
-  return bop;
+  bop->Nd++;
 } // end of AddPair
 
 /***********************************************************************/
 /* Return all object keys as an array.                                 */
 /***********************************************************************/
-PBVAL BJSON::GetKeyList(PBPR bop)
+PBVAL BJSON::GetKeyList(PBVAL bop)
 {
-  PBVAL bvp, lvp, fvp = NULL;
+  CheckType(bop, TYPE_JOB);
+  PBVAL arp = NewVal(TYPE_JAR);
 
-  for (PBPR brp = bop; brp; brp = MPP(brp->Next))
-    if (fvp) {
-      bvp = SubAllocVal(brp->Key, TYPE_STRG);
-      lvp->Next = MOF(bvp);
-      lvp = bvp;
-    } else
-      lvp = fvp = SubAllocVal(brp->Key, TYPE_STRG);
+  for (PBPR brp = GetObject(bop); brp; brp = GetNext(brp))
+    AddArrayValue(arp, MOF(SubAllocVal(brp->Key, TYPE_STRG)));
 
-  return fvp;
+  return arp;
 } // end of GetKeyList
 
 /***********************************************************************/
 /* Return all object values as an array.                               */
 /***********************************************************************/
-PBVAL BJSON::GetObjectValList(PBPR bop)
+PBVAL BJSON::GetObjectValList(PBVAL bop)
 {
-  PBVAL bvp, lvp, fvp = NULL;
+  CheckType(bop, TYPE_JOB);
+  PBVAL arp = NewVal(TYPE_JAR);
 
-  for (PBPR brp = bop; brp; brp = MPP(brp->Next))
-    if (fvp) {
-      bvp = DupVal(MVP(brp->Vlp));
-      lvp->Next = MOF(bvp);
-      lvp = bvp;
-    } else
-      lvp = fvp = DupVal(MVP(brp->Vlp));
+  for (PBPR brp = GetObject(bop); brp; brp = GetNext(brp))
+    AddArrayValue(arp, brp->Vlp);
 
-  return fvp;
+  return arp;
 } // end of GetObjectValList
 
 /***********************************************************************/
 /* Get the value corresponding to the given key.                       */
 /***********************************************************************/
-PBVAL BJSON::GetKeyValue(PBPR bop, PSZ key)
+PBVAL BJSON::GetKeyValue(PBVAL bop, PSZ key)
 {
-  for (PBPR brp = bop; brp; brp = MPP(brp->Next))
-    if (!strcmp(MZP(brp->Key), key))
-      return MVP(brp->Vlp);
+  CheckType(bop, TYPE_JOB);
+
+  for (PBPR brp = GetObject(bop); brp; brp = GetNext(brp))
+    if (!strcmp(GetKey(brp), key))
+      return GetVal(brp);
 
   return NULL;
 } // end of GetKeyValue;
@@ -939,8 +945,11 @@ PBVAL BJSON::GetKeyValue(PBPR bop, PSZ key)
 /***********************************************************************/
 /* Return the text corresponding to all keys (XML like).               */
 /***********************************************************************/
-PSZ BJSON::GetObjectText(PGLOBAL g, PBPR bop, PSTRG text) {
-  if (bop) {
+PSZ BJSON::GetObjectText(PGLOBAL g, PBVAL bop, PSTRG text)
+{
+  CheckType(bop, TYPE_JOB);
+
+  if (bop->To_Val) {
     bool b;
 
     if (!text) {
@@ -977,8 +986,8 @@ PSZ BJSON::GetObjectText(PGLOBAL g, PBPR bop, PSTRG text) {
     } else
 #endif // 0
 
-    for (PBPR brp = bop; brp; brp = MPP(brp->Next)) {
-      GetValueText(g, MVP(brp->Vlp), text);
+    for (PBPR brp = GetObject(bop); brp; brp = GetNext(brp)) {
+      GetValueText(g, GetVal(brp), text);
 
       if (brp->Next)
         text->Append(' ');
@@ -998,39 +1007,44 @@ PSZ BJSON::GetObjectText(PGLOBAL g, PBPR bop, PSTRG text) {
 /***********************************************************************/
 /* Set or add a value corresponding to the given key.                  */
 /***********************************************************************/
-PBPR BJSON::SetKeyValue(PBPR bop, OFFSET bvp, PSZ key)
+void BJSON::SetKeyValue(PBVAL bop, OFFSET bvp, PSZ key)
 {
-  PBPR brp = bop, prp = NULL;
+  CheckType(bop, TYPE_JOB);
+  PBPR brp, prp = NULL;
 
-  if (brp) {
-    for (brp = bop; brp; brp = MPP(brp->Next))
-      if (!strcmp(MZP(brp->Key), key)) {
+  if (bop->To_Val) {
+    for (brp = GetObject(bop); brp; brp = GetNext(brp))
+      if (!strcmp(GetKey(brp), key)) {
         brp->Vlp = bvp;
-        break;
+        return;
       } else
         prp = brp;
 
     if (!brp)
-      prp->Vlp = MOF(SubAllocPair(key, bvp));
+      prp->Next = MOF(SubAllocPair(key, bvp));
 
   } else
-    bop = SubAllocPair(key, bvp);
+    bop->To_Val = MOF(SubAllocPair(key, bvp));
 
-  // Return the first pair of this object
-  return bop;
+  bop->Nd++;
 } // end of SetKeyValue
 
 /***********************************************************************/
 /* Merge two objects.                                                  */
 /***********************************************************************/
-PBPR BJSON::MergeObject(PBPR bop1, PBPR bop2)
+PBVAL BJSON::MergeObject(PBVAL bop1, PBVAL bop2)
 {
-  if (bop1)
-    for (PBPR brp = bop2; brp; brp = MPP(brp->Next))
-      SetKeyValue(bop1, brp->Vlp, MZP(brp->Key));
+  CheckType(bop1, TYPE_JOB);
+  CheckType(bop2, TYPE_JOB);
 
-  else
-    bop1 = bop2;
+  if (bop1->To_Val)
+    for (PBPR brp = GetObject(bop2); brp; brp = GetNext(brp))
+      SetKeyValue(bop1, brp->Vlp, GetKey(brp));
+
+  else {
+    bop1->To_Val = bop2->To_Val;
+    bop1->Nd = bop2->Nd;
+  } // endelse To_Val
 
   return bop1;
 } // end of MergeObject;
@@ -1038,30 +1052,33 @@ PBPR BJSON::MergeObject(PBPR bop1, PBPR bop2)
 /***********************************************************************/
 /* Delete a value corresponding to the given key.                      */
 /***********************************************************************/
-PBPR BJSON::DeleteKey(PBPR bop, PCSZ key)
+void BJSON::DeleteKey(PBVAL bop, PCSZ key)
 {
+  CheckType(bop, TYPE_JOB);
   PBPR brp, pbrp = NULL;
 
-  for (brp = bop; brp; brp = MPP(brp->Next))
+  for (brp = GetObject(bop); brp; brp = GetNext(brp))
     if (!strcmp(MZP(brp->Key), key)) {
       if (pbrp) {
         pbrp->Next = brp->Next;
-        return bop;
       } else
-        return MPP(brp->Next);
+        bop->To_Val = brp->Next;
 
+      bop->Nd--;
+      break;
     } else
       pbrp = brp;
 
-  return bop;
 } // end of DeleteKey
 
 /***********************************************************************/
 /* True if void or if all members are nulls.                           */
 /***********************************************************************/
-bool BJSON::IsObjectNull(PBPR bop)
+bool BJSON::IsObjectNull(PBVAL bop)
 {
-  for (PBPR brp = bop; brp; brp = MPP(brp->Next))
+  CheckType(bop, TYPE_JOB);
+
+  for (PBPR brp = GetObject(bop); brp; brp = GetNext(brp))
     if (brp->Vlp && (MVP(brp->Vlp))->Type != TYPE_NULL)
       return false;
 
@@ -1075,9 +1092,10 @@ bool BJSON::IsObjectNull(PBPR bop)
 /***********************************************************************/
 int BJSON::GetArraySize(PBVAL bap, bool b)
 {
+  CheckType(bap, TYPE_JAR);
   int n = 0;
 
-  for (PBVAL bvp = bap; bvp; bvp = MVP(bvp->Next))
+  for (PBVAL bvp = GetArray(bap); bvp; bvp = GetNext(bvp))
     //  If b, return only non null values
     if (!b || bvp->Type != TYPE_NULL)
       n++;
@@ -1090,13 +1108,12 @@ int BJSON::GetArraySize(PBVAL bap, bool b)
 /***********************************************************************/
 PBVAL BJSON::GetArrayValue(PBVAL bap, int n)
 {
+  CheckType(bap, TYPE_JAR);
   int i = 0;
 
-  for (PBVAL bvp = bap; bvp; bvp = MVP(bvp->Next))
+  for (PBVAL bvp = GetArray(bap); bvp; bvp = GetNext(bvp), i++)
     if (i == n)
       return bvp;
-    else
-      i++;
 
   return NULL;
 } // end of GetArrayValue
@@ -1104,80 +1121,78 @@ PBVAL BJSON::GetArrayValue(PBVAL bap, int n)
 /***********************************************************************/
 /* Add a Value to the Array Value list.                                */
 /***********************************************************************/
-PBVAL BJSON::AddArrayValue(PBVAL bap, PBVAL nvp, int* x)
+void BJSON::AddArrayValue(PBVAL bap, OFFSET nvp, int* x)
 {
+  CheckType(bap, TYPE_JAR);
   if (!nvp)
-    nvp = NewVal();
+    nvp = MOF(NewVal());
 
-  if (bap) {
+  if (bap->To_Val) {
     int   i = 0, n = (x) ? *x : INT_MAX32;
-    PBVAL bvp;
 
-    for (bvp = bap; bvp; bvp = MVP(bvp->Next), i++)
+    for (PBVAL bvp = GetArray(bap); bvp; bvp = GetNext(bvp), i++)
       if (!bvp->Next || (x && i == n)) {
-        nvp->Next = bvp->Next;
-        bvp->Next = MOF(nvp);
+        MVP(nvp)->Next = bvp->Next;
+        bvp->Next = nvp;
         break;
       } // endif Next
 
   } else
-    bap = nvp;
+    bap->To_Val = nvp;
 
-  return bap;
+  bap->Nd++;
 } // end of AddArrayValue
 
 /***********************************************************************/
 /* Merge two arrays.                                                   */
 /***********************************************************************/
-PBVAL BJSON::MergeArray(PBVAL bap1, PBVAL bap2)
+void BJSON::MergeArray(PBVAL bap1, PBVAL bap2)
 {
-  if (bap1) {
-    for (PBVAL bvp = bap2; bvp; bvp = MVP(bvp->Next))
-      AddArrayValue(bap1, bvp);
+  CheckType(bap1, TYPE_JAR);
+  CheckType(bap2, TYPE_JAR);
 
-    return bap1;
-  } else
-    return bap2;
+  if (bap1->To_Val) {
+    for (PBVAL bvp = GetArray(bap2); bvp; bvp = GetNext(bvp))
+      AddArrayValue(bap1, MOF(DupVal(bvp)));
+
+  } else {
+    bap1->To_Val = bap2->To_Val;
+    bap1->Nd = bap2->Nd;
+  } // endif To_Val
 
 } // end of MergeArray
 
 /***********************************************************************/
-/* Set the nth Value of the Array Value list or add it.                          */
+/* Set the nth Value of the Array Value list or add it.                */
 /***********************************************************************/
-PBVAL BJSON::SetArrayValue(PBVAL bap, PBVAL nvp, int n)
+void BJSON::SetArrayValue(PBVAL bap, PBVAL nvp, int n)
 {
-  PBVAL bvp = bap, pvp = NULL;
+  CheckType(bap, TYPE_JAR);
+  PBVAL bvp = NULL, pvp = NULL;
 
-  if (bvp) {
-    for (int i = 0; bvp; i++, bvp = MVP(bvp->Next))
+  if (bap->To_Val) {
+    for (int i = 0; bvp = GetArray(bap); i++, bvp = GetNext(bvp))
       if (i == n) {
-        bvp->To_Val = nvp->To_Val;
-        bvp->Nd = nvp->Nd;
-        bvp->Type = nvp->Type;
-        return bap;
+        SetValueVal(bvp, nvp);
+        return;
       } else
         pvp = bvp;
 
   } // endif bap
 
-  if (!bvp) {
-    bvp = DupVal(nvp);
+  if (!bvp)
+    AddArrayValue(bap, MOF(nvp));
 
-    if (pvp)
-      pvp->Next = MOF(bvp);
-    else
-      bap = bvp;
-
-  } // endif bvp
-
-  return bap;
 } // end of SetValue
 
 /***********************************************************************/
 /* Return the text corresponding to all values.                        */
 /***********************************************************************/
-PSZ BJSON::GetArrayText(PGLOBAL g, PBVAL bap, PSTRG text) {
-  if (bap) {
+PSZ BJSON::GetArrayText(PGLOBAL g, PBVAL bap, PSTRG text)
+{
+  CheckType(bap, TYPE_JAR);
+
+  if (bap->To_Val) {
     bool  b;
 
     if (!text) {
@@ -1192,7 +1207,7 @@ PSZ BJSON::GetArrayText(PGLOBAL g, PBVAL bap, PSTRG text) {
       b = false;
     } // endif text
 
-    for (PBVAL bvp = bap; bvp; bvp = MVP(bvp->Next)) {
+    for (PBVAL bvp = GetArray(bap); bvp; bvp = GetNext(bvp)) {
       GetValueText(g, bvp, text);
 
       if (bvp->Next)
@@ -1200,14 +1215,14 @@ PSZ BJSON::GetArrayText(PGLOBAL g, PBVAL bap, PSTRG text) {
       else if (!b)
         text->Append(')');
 
-    }	// endfor jp
+    }	// endfor bvp
 
     if (b) {
       text->Trim();
       return text->GetStr();
     }	// endif b
 
-  } // endif First
+  } // endif To_Val
 
   return NULL;
 } // end of GetText;
@@ -1215,22 +1230,23 @@ PSZ BJSON::GetArrayText(PGLOBAL g, PBVAL bap, PSTRG text) {
 /***********************************************************************/
 /* Delete a Value from the Arrays Value list.                          */
 /***********************************************************************/
-PBVAL BJSON::DeleteValue(PBVAL bap, int n)
+void BJSON::DeleteValue(PBVAL bap, int n)
 {
-  PBVAL bvp = bap, pvp = NULL;
+  CheckType(bap, TYPE_JAR);
+  int   i = 0;
+  PBVAL bvp, pvp = NULL;
 
-  if (bvp)
-    for (int i = 0; bvp; i++, bvp = MVP(bvp->Next))
+    for (bvp = GetArray(bap); bvp; i++, bvp = GetNext(bvp))
       if (i == n) {
         if (pvp)
           pvp->Next = bvp->Next;
         else
-          bap = bvp;
+          bap->To_Val = bvp->Next;
 
+        bap->Nd--;
         break;
       } // endif i
 
-  return bap;
 } // end of DeleteValue
 
 /***********************************************************************/
@@ -1238,7 +1254,9 @@ PBVAL BJSON::DeleteValue(PBVAL bap, int n)
 /***********************************************************************/
 bool BJSON::IsArrayNull(PBVAL bap)
 {
-  for (PBVAL bvp = bap; bvp; bvp = MVP(bvp->Next))
+  CheckType(bap, TYPE_JAR);
+
+  for (PBVAL bvp = GetArray(bap); bvp; bvp = GetNext(bvp))
     if (bvp->Type != TYPE_NULL)
       return false;
 
@@ -1288,9 +1306,10 @@ PBVAL BJSON::SubAllocStr(OFFSET toval, short nd)
 /***********************************************************************/
 /* Allocate a BVALUE with a given string or numeric value.             */
 /***********************************************************************/
-PBVAL BJSON::SubAllocVal(PVAL valp)
+PBVAL BJSON::NewVal(PVAL valp)
 {
   PBVAL vlp = NewVal();
+
   SetValue(vlp, valp);
   return vlp;
 } // end of SubAllocVal
@@ -1306,90 +1325,6 @@ PBVAL BJSON::DupVal(PBVAL bvlp) {
   return bvp;
 } // end of DupVal
 
-#if 0
-/***********************************************************************/
-/* Constructor for a JVALUE.                                           */
-/***********************************************************************/
-JVALUE::JVALUE(PJSON jsp) : JSON() {
-  if (jsp->GetType() == TYPE_JVAL) {
-    PJVAL jvp = (PJVAL)jsp;
-
-    //  Val = ((PJVAL)jsp)->GetVal();
-    if (jvp->DataType == TYPE_JSON) {
-      Jsp = jvp->GetJsp();
-      DataType = TYPE_JSON;
-      Nd = 0;
-    } else {
-      LLn = jvp->LLn;   // Must be LLn on 32 bit machines
-      Nd = jvp->Nd;
-      DataType = jvp->DataType;
-    } // endelse Jsp
-
-  } else {
-    Jsp = jsp;
-    //  Val = NULL;
-    DataType = TYPE_JSON;
-    Nd = 0;
-  } // endif Type
-
-  Next = NULL;
-  Del = false;
-  Type = TYPE_JVAL;
-} // end of JVALUE constructor
-
-/***********************************************************************/
-/* Constructor for a JVALUE with a given string or numeric value.      */
-/***********************************************************************/
-JVALUE::JVALUE(PGLOBAL g, PVL vlp) : JSON() {
-  Jsp = NULL;
-  Val = vlp;
-  Next = NULL;
-  Del = false;
-  Type = TYPE_JVAL;
-} // end of JVALUE constructor
-#endif // 0
-
-#if 0
-/***********************************************************************/
-/* Constructor for a given string.                                     */
-/***********************************************************************/
-JVALUE::JVALUE(PGLOBAL g, PCSZ strp) : JSON() {
-  Jsp = NULL;
-  //Val = AllocVal(g, TYPE_STRG);
-  Strp = (char*)strp;
-  DataType = TYPE_STRG;
-  Nd = 0;
-  Next = NULL;
-  Del = false;
-  Type = TYPE_JVAL;
-} // end of JVALUE constructor
-
-/***********************************************************************/
-/* Set or reset all Jvalue members.                                    */
-/***********************************************************************/
-void JVALUE::Clear(void) {
-  Jsp = NULL;
-  Next = NULL;
-  Type = TYPE_JVAL;
-  Del = false;
-  Nd = 0;
-  DataType = TYPE_NULL;
-} // end of Clear
-
-/***********************************************************************/
-/* Returns the type of the Value's value.                              */
-/***********************************************************************/
-JTYP JVALUE::GetValType(void) {
-  if (DataType == TYPE_JSON)
-    return Jsp->GetType();
-  //else if (Val)
-  //  return Val->Type;
-  else
-    return DataType;
-
-} // end of GetValType
-#endif // 0
-
 /***********************************************************************/
 /* Return the size of value's value.                                   */
 /***********************************************************************/
@@ -1397,36 +1332,14 @@ int BJSON::GetSize(PBVAL vlp, bool b)
 {
   switch (vlp->Type) {
   case TYPE_JAR:
-    return GetArraySize(MVP(vlp->To_Val));
+    return GetArraySize(vlp);
   case TYPE_JOB:
-    return GetObjectSize(MPP(vlp->To_Val));
+    return GetObjectSize(vlp);
   default:
     return 1;
   } // enswitch Type
 
 } // end of GetSize
-
-/***********************************************************************/
-/* Return the Value's Object value.                                    */
-/***********************************************************************/
-PBPR BJSON::GetObject(PBVAL vlp)
-{
-  if (vlp->Type == TYPE_JOB)
-    return MPP(vlp->To_Val);
-
-  return NULL;
-} // end of GetObject
-
-/***********************************************************************/
-/* Return the Value's Array value.                                     */
-/***********************************************************************/
-PBVAL BJSON::GetArray(PBVAL vlp)
-{
-  if (vlp->Type == TYPE_JAR)
-    return MVP(vlp->To_Val);
-
-  return NULL;
-} // end of GetArray
 
 /***********************************************************************/
 /* Return the Value's as a Value struct.                               */
@@ -1604,11 +1517,12 @@ PSZ BJSON::GetString(PBVAL vp, char* buff)
 /***********************************************************************/
 /* Return the Value's String value.                                    */
 /***********************************************************************/
-PSZ BJSON::GetValueText(PGLOBAL g, PBVAL vlp, PSTRG text) {
+PSZ BJSON::GetValueText(PGLOBAL g, PBVAL vlp, PSTRG text)
+{
   if (vlp->Type == TYPE_JOB)
-    return GetObjectText(g, MPP(vlp->To_Val), text);
+    return GetObjectText(g, vlp, text);
   else if (vlp->Type == TYPE_JAR)
-    return GetArrayText(g, MVP(vlp->To_Val), text);
+    return GetArrayText(g, vlp, text);
 
   char buff[32];
   PSZ  s = (vlp->Type == TYPE_NULL) ? NULL : GetString(vlp, buff);
@@ -1621,15 +1535,19 @@ PSZ BJSON::GetValueText(PGLOBAL g, PBVAL vlp, PSTRG text) {
   return NULL;
 } // end of GetText
 
-void BJSON::SetValueObj(PBVAL vlp, PBPR bop)
+void BJSON::SetValueObj(PBVAL vlp, PBVAL bop)
 {
-  vlp->To_Val = MOF(bop);
+  CheckType(bop, TYPE_JOB);
+  vlp->To_Val = bop->To_Val;
+  vlp->Nd = bop->Nd;
   vlp->Type = TYPE_JOB;
 } // end of SetValueObj;
 
 void BJSON::SetValueArr(PBVAL vlp, PBVAL bap)
 {
-  vlp->To_Val = MOF(bap);
+  CheckType(bap, TYPE_JAR);
+  vlp->To_Val = bap->To_Val;
+  vlp->Nd = bap->Nd;
   vlp->Type = TYPE_JAR;
 } // end of SetValue;
 
@@ -1640,14 +1558,17 @@ void BJSON::SetValueVal(PBVAL vlp, PBVAL vp)
   vlp->Type = vp->Type;
 } // end of SetValue;
 
-void BJSON::SetValue(PBVAL vlp, PVAL valp)
+PBVAL BJSON::SetValue(PBVAL vlp, PVAL valp)
 {
+  if (!vlp)
+    vlp = NewVal();
+
   if (!valp || valp->IsNull()) {
     vlp->Type = TYPE_NULL;
   } else switch (valp->GetType()) {
   case TYPE_DATE:
     if (((DTVAL*)valp)->IsFormatted())
-      vlp->To_Val = MOF(valp->GetCharValue());
+      vlp->To_Val = MOF(PlugDup(G, valp->GetCharValue()));
     else {
       char buf[32];
 
@@ -1657,7 +1578,7 @@ void BJSON::SetValue(PBVAL vlp, PVAL valp)
     vlp->Type = TYPE_DTM;
     break;
   case TYPE_STRING:
-    vlp->To_Val = MOF(valp->GetCharValue());
+    vlp->To_Val = MOF(PlugDup(G, valp->GetCharValue()));
     vlp->Type = TYPE_STRG;
     break;
   case TYPE_DOUBLE:
@@ -1702,6 +1623,7 @@ void BJSON::SetValue(PBVAL vlp, PVAL valp)
     throw(777);
   } // endswitch Type
 
+  return vlp;
 } // end of SetValue
 
 /***********************************************************************/
@@ -1769,10 +1691,10 @@ bool BJSON::IsValueNull(PBVAL vlp) {
     b = true;
     break;
   case TYPE_JOB:
-    b = IsObjectNull(MPP(vlp->To_Val));
+    b = IsObjectNull(vlp);
     break;
   case TYPE_JAR:
-    b = IsArrayNull(MVP(vlp->To_Val));
+    b = IsArrayNull(vlp);
     break;
   default:
     b = false;

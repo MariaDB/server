@@ -134,7 +134,7 @@ public:
   PVAL  MakeBson(PGLOBAL g, PBVAL jsp);
   PVAL  GetColumnValue(PGLOBAL g, PBVAL row, int i);
   PVAL  ExpandArray(PGLOBAL g, PBVAL arp, int n);
-  PVAL  CalculateArray(PBVAL arp, int n);
+  PVAL  CalculateArray(PGLOBAL g, PBVAL arp, int n);
   PBVAL GetRow(PGLOBAL g);
 
 protected:
@@ -243,7 +243,7 @@ public:
 
   // Methods
   virtual bool  SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
-  bool  ParseJpath(PGLOBAL g);
+          bool  ParseJpath(PGLOBAL g);
   virtual PSZ   GetJpath(PGLOBAL g, bool proj);
   virtual void  ReadColumn(PGLOBAL g);
   virtual void  WriteColumn(PGLOBAL g);
@@ -251,12 +251,6 @@ public:
 protected:
   bool  CheckExpand(PGLOBAL g, int i, PSZ nm, bool b);
   bool  SetArrayOptions(PGLOBAL g, char* p, int i, PSZ nm);
-//PVAL  GetColumnValue(PGLOBAL g, PBVAL row, int i);
-//PVAL  ExpandArray(PGLOBAL g, PBVAL arp, int n);
-//PVAL  CalculateArray(PGLOBAL g, PBVAL arp, int n);
-  PVAL  MakeBson(PGLOBAL g, PBVAL jsp);
-//void  SetJsonValue(PGLOBAL g, PVAL vp, PBVAL val);
-//PBVAL GetRow(PGLOBAL g);
 
   // Default constructor not to be used
   BSONCOL(void) {}

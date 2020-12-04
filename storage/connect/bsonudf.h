@@ -46,10 +46,10 @@ protected:
 	PBVAL   GetRow(PGLOBAL g);
 	my_bool CompareValues(PGLOBAL g, PBVAL v1, PBVAL v2);
 	my_bool LocateArray(PGLOBAL g, PBVAL jarp);
-	my_bool LocateObject(PGLOBAL g, PBPR jobp);
+	my_bool LocateObject(PGLOBAL g, PBVAL jobp);
 	my_bool LocateValue(PGLOBAL g, PBVAL jvp);
 	my_bool LocateArrayAll(PGLOBAL g, PBVAL jarp);
-	my_bool LocateObjectAll(PGLOBAL g, PBPR jobp);
+	my_bool LocateObjectAll(PGLOBAL g, PBVAL jobp);
 	my_bool LocateValueAll(PGLOBAL g, PBVAL jvp);
 	my_bool CompareTree(PGLOBAL g, PBVAL jp1, PBVAL jp2);
 	my_bool AddPath(void);

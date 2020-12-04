@@ -348,7 +348,7 @@ PVAL BJNX::MakeJson(PGLOBAL g, PBVAL bvp)
 } // end of MakeJson
 
 /*********************************************************************************/
-/*  SetValue: Set a value from a JVALUE contains.                                */
+/*  SetValue: Set a value from a BVALUE contains.                                */
 /*********************************************************************************/
 void BJNX::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL vlp)
 {
@@ -381,10 +381,10 @@ void BJNX::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL vlp)
 
 			break;
 		case TYPE_JAR:
-			vp->SetValue_psz(GetArrayText(g, MVP(vlp->To_Val), NULL));
+			vp->SetValue_psz(GetArrayText(g, vlp, NULL));
 			break;
 		case TYPE_JOB:
-			vp->SetValue_psz(GetObjectText(g, MPP(vlp->To_Val), NULL));
+			vp->SetValue_psz(GetObjectText(g, vlp, NULL));
 			break;
 		case TYPE_NULL:
 			vp->SetNull(true);
@@ -437,8 +437,8 @@ PBVAL BJNX::GetRowValue(PGLOBAL g, PBVAL row, int i, my_bool b)
 
 	for (; i < Nod && row; i++) {
 		if (Nodes[i].Op == OP_NUM) {
-			Value->SetValue(row->Type == TYPE_JAR ? GetArraySize(MVP(row->To_Val)) : 1);
-			vlp = SubAllocVal(Value);
+			Value->SetValue(row->Type == TYPE_JAR ? GetArraySize(row) : 1);
+			vlp = NewVal(Value);
 			return vlp;
 		} else if (Nodes[i].Op == OP_XX) {
 			Jb = b;
@@ -460,11 +460,11 @@ PBVAL BJNX::GetRowValue(PGLOBAL g, PBVAL row, int i, my_bool b)
 				} //endif Op
 
 			} else
-				vlp = GetKeyValue(MPP(row->To_Val), Nodes[i].Key);
+				vlp = GetKeyValue(row, Nodes[i].Key);
 
 			break;
 		case TYPE_JAR:
-			bap = MVP(row->To_Val);
+			bap = row;
 
 			if (!Nodes[i].Key) {
 				if (Nodes[i].Op == OP_EQ || Nodes[i].Op == OP_LE)
@@ -472,7 +472,7 @@ PBVAL BJNX::GetRowValue(PGLOBAL g, PBVAL row, int i, my_bool b)
 				else if (Nodes[i].Op == OP_EXP)
 					return (PBVAL)ExpandArray(g, bap, i);
 				else
-					return SubAllocVal(CalculateArray(g, bap, i));
+					return NewVal(CalculateArray(g, bap, i));
 
 			} else {
 				// Unexpected array, unwrap it as [0]
@@ -616,13 +616,13 @@ my_bool BJNX::CheckPath(PGLOBAL g)
 		} else switch (row->Type) {
 		case TYPE_JOB:
 			if (Nodes[i].Key)
-				val = GetKeyValue(MPP(row->To_Val), Nodes[i].Key);
+				val = GetKeyValue(row, Nodes[i].Key);
 
 			break;
 		case TYPE_JAR:
 			if (!Nodes[i].Key)
 				if (Nodes[i].Op == OP_EQ || Nodes[i].Op == OP_LE)
-					val = GetArrayValue(MVP(row->To_Val), Nodes[i].Rank);
+					val = GetArrayValue(row, Nodes[i].Rank);
 
 			break;
 		case TYPE_JVAL:
@@ -660,10 +660,10 @@ PBVAL BJNX::GetRow(PGLOBAL g)
 				// Expected Array was not there, wrap the value
 				continue;
 
-			val = GetKeyValue(MPP(row->To_Val), Nodes[i].Key);
+			val = GetKeyValue(row, Nodes[i].Key);
 			break;
 		case TYPE_JAR:
-			arp = MVP(row->To_Val);
+			arp = row;
 
 			if (!Nodes[i].Key) {
 				if (Nodes[i].Op == OP_EQ)
@@ -703,9 +703,9 @@ PBVAL BJNX::GetRow(PGLOBAL g)
 				nwr = NewVal();
 
 				if (row->Type == TYPE_JOB) {
-					SetKeyValue(MPP(row->To_Val), MOF(nwr), Nodes[i - 1].Key);
+					SetKeyValue(row, MOF(nwr), Nodes[i - 1].Key);
 				} else if (row->Type == TYPE_JAR) {
-					AddArrayValue(MVP(row->To_Val), nwr);
+					AddArrayValue(row, MOF(nwr));
 				} else {
 					strcpy(g->Message, "Wrong type when writing new row");
 					nwr = NULL;
@@ -727,7 +727,7 @@ PBVAL BJNX::GetRow(PGLOBAL g)
 /***********************************************************************/
 my_bool BJNX::WriteValue(PGLOBAL g, PBVAL jvalp)
 {
-	PBPR  objp = NULL;
+	PBVAL objp = NULL;
 	PBVAL arp = NULL;
 	PBVAL jvp = NULL;
 	PBVAL row = GetRow(g);
@@ -736,8 +736,8 @@ my_bool BJNX::WriteValue(PGLOBAL g, PBVAL jvalp)
 		return true;
 
 	switch (row->Type) {
-	case TYPE_JOB:  objp = MPP(row->To_Val); break;
-	case TYPE_JAR:  arp = MVP(row->To_Val);  break;
+	case TYPE_JOB:  objp = row; break;
+	case TYPE_JAR:  arp = row;  break;
 	case TYPE_JVAL: jvp = MVP(row->To_Val);  break;
 	default:
 		strcpy(g->Message, "Invalid target type");
@@ -749,7 +749,7 @@ my_bool BJNX::WriteValue(PGLOBAL g, PBVAL jvalp)
 			if (Nodes[Nod - 1].Op == OP_EQ)
 				SetArrayValue(arp, jvalp, Nodes[Nod - 1].Rank);
 			else
-				AddArrayValue(arp, jvalp);
+				AddArrayValue(arp, MOF(jvalp));
 
 		}	// endif Key
 
@@ -787,10 +787,10 @@ PSZ BJNX::Locate(PGLOBAL g, PBVAL jsp, PBVAL jvp, int k)
 
 		switch (jsp->Type) {
 		case TYPE_JAR:
-			err = LocateArray(g, MVP(jsp->To_Val));
+			err = LocateArray(g, jsp);
 			break;
 		case TYPE_JOB:
-			err = LocateObject(g, MPP(jsp->To_Val));
+			err = LocateObject(g, jsp);
 			break;
 		case TYPE_JVAL:
 			err = LocateValue(g, MVP(jsp->To_Val));
@@ -810,9 +810,7 @@ PSZ BJNX::Locate(PGLOBAL g, PBVAL jsp, PBVAL jvp, int k)
 		} // endif's
 
 	} catch (int n) {
-		if (trace(1))
-			htrc("Exception %d: %s\n", n, g->Message);
-
+		xtrc(1, "Exception %d: %s\n", n, g->Message);
 		PUSH_WARNING(g->Message);
 	} catch (const char* msg) {
 		strcpy(g->Message, msg);
@@ -848,7 +846,7 @@ my_bool BJNX::LocateArray(PGLOBAL g, PBVAL jarp)
 /*********************************************************************************/
 /*  Locate in a JSON Object.                                                     */
 /*********************************************************************************/
-my_bool BJNX::LocateObject(PGLOBAL g, PBPR jobp)
+my_bool BJNX::LocateObject(PGLOBAL g, PBVAL jobp)
 {
 	size_t m;
 
@@ -857,7 +855,7 @@ my_bool BJNX::LocateObject(PGLOBAL g, PBPR jobp)
 
 	m = Jp->N;
 
-	for (PBPR pair = jobp; pair && !Found; pair = MPP(pair->Next)) {
+	for (PBPR pair = GetObject(jobp); pair && !Found; pair = GetNext(pair)) {
 		Jp->N = m;
 
 		if (Jp->WriteStr(MZP(pair->Key)))
@@ -879,9 +877,9 @@ my_bool BJNX::LocateValue(PGLOBAL g, PBVAL jvp)
 	if (CompareTree(g, Bvalp, jvp))
 		Found = (--K == 0);
 	else if (jvp->Type == TYPE_JAR)
-		return LocateArray(g, GetArray(jvp));
+		return LocateArray(g, jvp);
 	else if (jvp->Type == TYPE_JOB)
-		return LocateObject(g, GetObject(jvp));
+		return LocateObject(g, jvp);
 
 	return false;
 } // end of LocateValue
@@ -914,10 +912,10 @@ PSZ BJNX::LocateAll(PGLOBAL g, PBVAL jsp, PBVAL bvp, int mx)
 
 		switch (jsp->Type) {
 		case TYPE_JAR:
-			err = LocateArrayAll(g, MVP(jsp->To_Val));
+			err = LocateArrayAll(g, jsp);
 			break;
 		case TYPE_JOB:
-			err = LocateObjectAll(g, MPP(jsp->To_Val));
+			err = LocateObjectAll(g, jsp);
 			break;
 		case TYPE_JVAL:
 			err = LocateValueAll(g, MVP(jsp->To_Val));
@@ -957,7 +955,7 @@ my_bool BJNX::LocateArrayAll(PGLOBAL g, PBVAL jarp)
 	if (I < Imax) {
 		Jpnp[++I].Type = TYPE_JAR;
 
-		for (PBVAL vp = jarp; vp; vp = MVP(vp->Next)) {
+		for (PBVAL vp = GetArray(jarp); vp; vp = GetNext(vp)) {
 			Jpnp[I].N = i;
 
 			if (LocateValueAll(g, GetArrayValue(jarp, i)))
@@ -975,12 +973,12 @@ my_bool BJNX::LocateArrayAll(PGLOBAL g, PBVAL jarp)
 /*********************************************************************************/
 /*  Locate in a JSON Object.                                                     */
 /*********************************************************************************/
-my_bool BJNX::LocateObjectAll(PGLOBAL g, PBPR jobp)
+my_bool BJNX::LocateObjectAll(PGLOBAL g, PBVAL jobp)
 {
 	if (I < Imax) {
 		Jpnp[++I].Type = TYPE_JOB;
 
-		for (PBPR pair = jobp; pair; pair = MPP(pair->Next)) {
+		for (PBPR pair = GetObject(jobp); pair; pair = GetNext(pair)) {
 			Jpnp[I].Key = MZP(pair->Key);
 
 			if (LocateValueAll(g, MVP(pair->Vlp)))
@@ -1002,9 +1000,9 @@ my_bool BJNX::LocateValueAll(PGLOBAL g, PBVAL jvp)
 	if (CompareTree(g, Bvalp, jvp))
 		return AddPath();
 	else if (jvp->Type == TYPE_JAR)
-		return LocateArrayAll(g, GetArray(jvp));
+		return LocateArrayAll(g, jvp);
 	else if (jvp->Type == TYPE_JOB)
-		return LocateObjectAll(g, GetObject(jvp));
+		return LocateObjectAll(g, jvp);
 
 	return false;
 } // end of LocateValueAll
@@ -1024,11 +1022,11 @@ my_bool BJNX::CompareTree(PGLOBAL g, PBVAL jp1, PBVAL jp2)
 			found = (CompareValues(g, GetArrayValue(jp1, i), GetArrayValue(jp2, i)));
 
 	} else if (jp1->Type == TYPE_JOB) {
-		PBPR p1 = MPP(jp1->To_Val), p2 = MPP(jp2->To_Val);
+		PBPR p1 = GetObject(jp1), p2 = GetObject(jp2);
 
 		// Keys can be differently ordered
 		for (; found && p1 && p2; p1 = MPP(p1->Next))
-			found = CompareValues(g, MVP(p1->Vlp), GetKeyValue(p2, MZP(p1->Key)));
+			found = CompareValues(g, MVP(p1->Vlp), GetKeyValue(jp2, MZP(p1->Key)));
 
 	} else if (jp1->Type == TYPE_JVAL) {
 		found = CompareTree(g, MVP(jp1->To_Val), (MVP(jp2->To_Val)));
@@ -1048,8 +1046,9 @@ my_bool BJNX::CompareValues(PGLOBAL g, PBVAL v1, PBVAL v2)
 	if (v1 && v2)
 		switch (v1->Type) {
 		case TYPE_JAR:
-			if (v2->Type == TYPE_JAR)
-				b = CompareTree(g, MVP(v1->To_Val), MVP(v2->To_Val));
+		case TYPE_JOB:
+			if (v2->Type == v1->Type)
+				b = CompareTree(g, v1, v2);
 
 			break;
 		case TYPE_STRG:
@@ -1297,12 +1296,10 @@ char* bson_make_array(UDF_INIT* initid, UDF_ARGS* args, char* result,
 	if (!g->Xchk) {
 		if (!CheckMemory(g, initid, args, args->arg_count, false)) {
 			BDOC  doc(g);
-			PBVAL bvp = NULL, arp = NULL;
+			PBVAL bvp = NULL, arp = doc.NewVal(TYPE_JAR);
 
 			for (uint i = 0; i < args->arg_count; i++)
-				bvp = doc.AddArrayValue(bvp, MakeBinValue(g, args, i));
-
-			arp = doc.SubAllocVal(bvp, TYPE_JAR);
+				doc.AddArrayValue(arp, MakeBinValue(g, args, i));
 
 			if (!(str = doc.Serialize(g, arp, NULL, 0)))
 				str = strcpy(result, g->Message);
@@ -1361,26 +1358,19 @@ char* bson_array_add_values(UDF_INIT* initid, UDF_ARGS* args, char* result,
 
 	if (!g->Xchk) {
 		if (!CheckMemory(g, initid, args, args->arg_count, true)) {
-			uint  n = 1;
-			bool  b = false;
+			uint  i = 0;
 			BDOC  doc(g);
-			PBVAL bvp = NULL, arp = MakeBinValue(g, args, 0);
+			PBVAL arp, bvp = MakeBinValue(g, args, 0);
 
-			if (arp->Type == TYPE_JAR) {
-				bvp = doc.GetArray(arp);
-				b = !bvp;
-			} else
-				n = 0;
+			if (bvp->Type == TYPE_JAR) {
+				arp = bvp;
+				i = 1;
+			} else		// First argument is not an array
+				arp = doc.NewVal(TYPE_JAR);
 
-			for (uint i = n; i < args->arg_count; i++)
-				bvp = doc.AddArrayValue(bvp, MakeBinValue(g, args, i));
+			for (; i < args->arg_count; i++)
+				doc.AddArrayValue(arp, MakeBinValue(g, args, i));
 
-			if (!n)
-				arp = doc.SubAllocVal(bvp, TYPE_JAR);
-			else if (b)
-				doc.SetValueArr(arp, bvp);
-
-//		str = MakeResult(g, args, top, args->arg_count);
 			str = doc.Serialize(g, arp, NULL, 0);
 		} // endif CheckMemory
 

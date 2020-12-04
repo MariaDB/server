@@ -220,34 +220,11 @@ DllExport char   *PlugDup(PGLOBAL g, const char *str);
 DllExport void    htrc(char const *fmt, ...);
 DllExport void    xtrc(uint, char const* fmt, ...);
 DllExport uint    GetTraceValue(void);
+DllExport void*   MakePtr(void* memp, size_t offset);
+DllExport size_t  MakeOff(void* memp, void* ptr);
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-
-/***********************************************************************/
-/*  Inline routine definitions.                                        */
-/***********************************************************************/
-/***********************************************************************/
-/* This routine makes a pointer from an offset to a memory pointer.    */
-/***********************************************************************/
-inline void* MakePtr(void* memp, size_t offset) {
-	// return ((offset == 0) ? NULL : &((char*)memp)[offset]);
-	return (!offset) ? NULL : (char *)memp + offset;
-} /* end of MakePtr */
-
-/***********************************************************************/
-/* This routine makes an offset from a pointer new format.             */
-/***********************************************************************/
-inline size_t MakeOff(void* memp, void* ptr) {
-	if (ptr) {
-#if defined(_DEBUG)
-		assert(ptr > memp);
-#endif   // _DEBUG
-		return (size_t)((char*)ptr - (size_t)memp);
-	} else
-		return 0;
-
-} /* end of MakeOff */
 
 /*-------------------------- End of Global.H --------------------------*/

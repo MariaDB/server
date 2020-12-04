@@ -17,13 +17,6 @@
 #endif
 
 #define ARGS    MY_MIN(24,(int)len-i),s+MY_MAX(i-3,0)
-#define MOF(X)  MakeOff(Base, X)
-#define MP(X)   MakePtr(Base, X)
-#define MPP(X)  (PBPR)MakePtr(Base, X)
-#define MVP(X)  (PBVAL)MakePtr(Base, X)
-#define MZP(X)  (PSZ)MakePtr(Base, X)
-#define LLN(X)	*(longlong*)MakePtr(Base, X)
-#define DBL(X)	*(double*)MakePtr(Base, X)
 
 class BDOC;
 class BOUT;
@@ -71,6 +64,15 @@ public:
 	// Constructor
 	BJSON(PGLOBAL g, PBVAL vp = NULL) { G = g, Base = G->Sarea; Bvp = vp; }
 
+	// Utility functions
+	inline OFFSET   MOF(void  *p) {return MakeOff(Base, p);}
+	inline void     *MP(OFFSET o) {return MakePtr(Base, o);} 
+	inline PBPR     MPP(OFFSET o) {return (PBPR)MakePtr(Base, o);}
+	inline PBVAL    MVP(OFFSET o) {return (PBVAL)MakePtr(Base, o);}
+	inline PSZ      MZP(OFFSET o) {return (PSZ)MakePtr(Base, o);}
+	inline longlong LLN(OFFSET o) {return *(longlong*)MakePtr(Base, o);}
+	inline double   DBL(OFFSET o) {return *(double*)MakePtr(Base, o);}
+
 	void* GetBase(void) { return Base; }
 	void  SubSet(bool b = false);
 	void  MemSave(void) {G->Saved_Size = ((PPOOLHEADER)G->Sarea)->To_Free;}
@@ -82,47 +84,49 @@ public:
 	PBPR  SubAllocPair(PSZ key, OFFSET val = 0)
 				{return SubAllocPair(MOF(key), val);}
 	PBVAL NewVal(int type = TYPE_NULL);
+	PBVAL NewVal(PVAL valp);
 	PBVAL SubAllocVal(OFFSET toval, int type = TYPE_NULL, short nd = 0);
 	PBVAL SubAllocVal(PBVAL toval, int type = TYPE_NULL, short nd = 0)
 				{return SubAllocVal(MOF(toval), type, nd);}
 	PBVAL SubAllocStr(OFFSET str, short nd = 0);
 	PBVAL SubAllocStr(PSZ str, short nd = 0)
 				{return SubAllocStr(MOF(str), nd);}
-	PBVAL SubAllocVal(PVAL valp);
 	PBVAL DupVal(PBVAL bvp);
 
 	// Array functions
+	inline PBVAL GetArray(PBVAL vlp) {return MVP(vlp->To_Val);}
 	int   GetArraySize(PBVAL bap, bool b = false);
 	PBVAL GetArrayValue(PBVAL bap, int i);
   PSZ   GetArrayText(PGLOBAL g, PBVAL bap, PSTRG text);
-	PBVAL MergeArray(PBVAL bap1,PBVAL bap2);
-	PBVAL DeleteValue(PBVAL bap, int n);
-	PBVAL AddArrayValue(PBVAL bap, PBVAL nvp = NULL, int* x = NULL);
-	PBVAL SetArrayValue(PBVAL bap, PBVAL nvp, int n);
+	void  MergeArray(PBVAL bap1,PBVAL bap2);
+	void  DeleteValue(PBVAL bap, int n);
+	void  AddArrayValue(PBVAL bap, OFFSET nvp = NULL, int* x = NULL);
+	inline void AddArrayValue(PBVAL bap, PBVAL nvp = NULL, int* x = NULL)
+				{AddArrayValue(bap, MOF(nvp), x);}
+	void  SetArrayValue(PBVAL bap, PBVAL nvp, int n);
 	bool  IsArrayNull(PBVAL bap);
 
 	// Object functions
-	int   GetObjectSize(PBPR bop, bool b = false);
-	PBPR  GetNext(PBPR prp) {return MPP(prp->Next);}
-  PSZ   GetObjectText(PGLOBAL g, PBPR bop, PSTRG text);
-	PBPR  MergeObject(PBPR bop1, PBPR bop2);
-	PBPR  AddPair(PBPR bop, PSZ key, OFFSET val = 0);
+	inline PBPR GetObject(PBVAL bop) {return MPP(bop->To_Val);}
+	inline PBPR	GetNext(PBPR brp) { return MPP(brp->Next); }
+	int   GetObjectSize(PBVAL bop, bool b = false);
+  PSZ   GetObjectText(PGLOBAL g, PBVAL bop, PSTRG text);
+	PBVAL MergeObject(PBVAL bop1, PBVAL bop2);
+	void  AddPair(PBVAL bop, PSZ key, OFFSET val = 0);
 	PSZ   GetKey(PBPR prp) {return MZP(prp->Key);}
 	PBVAL GetVal(PBPR prp) {return MVP(prp->Vlp);}
-	PBVAL GetKeyValue(PBPR bop, PSZ key);
-	PBVAL GetKeyList(PBPR bop);
-	PBVAL GetObjectValList(PBPR bop);
-	PBPR  SetKeyValue(PBPR bop, OFFSET bvp, PSZ key);
-	inline PBPR SetKeyValue(PBPR bop, PBVAL vlp, PSZ key)
-			{return SetKeyValue(bop, MOF(vlp), key);}
-	PBPR  DeleteKey(PBPR bop, PCSZ k);
-	bool  IsObjectNull(PBPR bop);
+	PBVAL GetKeyValue(PBVAL bop, PSZ key);
+	PBVAL GetKeyList(PBVAL bop);
+	PBVAL GetObjectValList(PBVAL bop);
+	void  SetKeyValue(PBVAL bop, OFFSET bvp, PSZ key);
+	inline void SetKeyValue(PBVAL bop, PBVAL vlp, PSZ key)
+				{SetKeyValue(bop, MOF(vlp), key);}
+	void  DeleteKey(PBVAL bop, PCSZ k);
+	bool  IsObjectNull(PBVAL bop);
 
 	// Value functions
 	int   GetSize(PBVAL vlp, bool b = false);
 	PBVAL GetNext(PBVAL vlp) {return MVP(vlp->Next);}
-	PBPR  GetObject(PBVAL vlp);
-	PBVAL GetArray(PBVAL vlp);
 	//PJSON GetJsp(void) { return (DataType == TYPE_JSON ? Jsp : NULL); }
 	PSZ   GetValueText(PGLOBAL g, PBVAL vlp, PSTRG text);
 	inline PBVAL GetBson(PBVAL bvp) { return IsJson(bvp) ? MVP(bvp->To_Val) : bvp; }
@@ -131,10 +135,10 @@ public:
 	long long GetBigint(PBVAL vp);
 	double GetDouble(PBVAL vp);
 	PVAL  GetValue(PGLOBAL g, PBVAL vp);
-	void  SetValueObj(PBVAL vlp, PBPR bop);
+	void  SetValueObj(PBVAL vlp, PBVAL bop);
 	void  SetValueArr(PBVAL vlp, PBVAL bap);
 	void  SetValueVal(PBVAL vlp, PBVAL vp);
-	void  SetValue(PBVAL vlp, PVAL valp);
+	PBVAL SetValue(PBVAL vlp, PVAL valp);
 	void  SetString(PBVAL vlp, PSZ s, int ci = 0);
 	void  SetInteger(PBVAL vlp, int n);
 	void  SetBigint(PBVAL vlp, longlong ll);

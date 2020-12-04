@@ -170,7 +170,8 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
         htrc("CreateFileMap: %s\n", g->Message);
 
       return (mode == MODE_READ && rc == ENOENT)
-              ? PushWarning(g, Tdbp) : true;
+        ? false : true;
+//      ? PushWarning(g, Tdbp) : true; --> assert fails into MariaDB
       } // endif hFile
 
     /*******************************************************************/
