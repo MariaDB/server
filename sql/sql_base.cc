@@ -5795,6 +5795,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* Check if there are sufficient access rights to the found field. */
     if (check_privileges &&
+        !table_list->is_derived() &&
         check_column_grant_in_table_ref(thd, *actual_table, name, length))
       fld= WRONG_GRANT;
     else
