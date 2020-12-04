@@ -18,6 +18,54 @@
 
 #include "filesort.h"
 
+
+/*
+  Encode a key into a particular format. The format depends whether
+  the key is of fixed size or variable size.
+
+  @notes
+    Currently this encoding is only done for variable size keys
+*/
+
+class Encode_key
+{
+protected:
+  /*
+    Packed record ptr for a record of the table, the packed value in this
+    record is added to the unique tree
+  */
+  uchar* rec_ptr;
+
+  String tmp_buffer;
+public:
+  virtual ~Encode_key();
+  virtual uchar* make_encoded_record(Sort_keys *keys, bool exclude_nulls) = 0;
+  bool init(uint length);
+  uchar *get_rec_ptr() { return rec_ptr; }
+};
+
+
+class Encode_variable_size_key : public Encode_key
+{
+public:
+  Encode_variable_size_key()
+  {
+    rec_ptr= NULL;
+  }
+  virtual ~Encode_variable_size_key() {}
+  uchar* make_encoded_record(Sort_keys *keys, bool exclude_nulls) override;
+};
+
+
+class Encode_key_for_group_concat : public Encode_variable_size_key
+{
+public:
+  Encode_key_for_group_concat() : Encode_variable_size_key(){}
+  ~Encode_key_for_group_concat() {}
+  uchar* make_encoded_record(Sort_keys *keys, bool exclude_nulls) override;
+};
+
+
 /*
 
   Descriptor class storing information about the keys that would be
@@ -25,6 +73,7 @@
   extended by other class to support descriptors for keys with fixed and
   variable size.
 */
+
 class Descriptor : public Sql_alloc
 {
 protected:
@@ -76,41 +125,7 @@ public:
 
   virtual uchar* make_record(bool exclude_nulls) { return NULL; }
   virtual bool is_single_arg() = 0;
-};
-
-
-/*
-  Class to encode a key into a particular format. The format depends whether
-  the key is of fixed size or variable size.
-
-  @note
-    Currently this encoding is only done for variable size keys
-*/
-class Encode_key
-{
-protected:
-  /*
-    Packed record ptr for a record of the table, the packed value in this
-    record is added to the unique tree
-  */
-  uchar* rec_ptr;
-
-  String tmp_buffer;
-public:
-  Encode_key() : rec_ptr(NULL) {}
-  virtual ~Encode_key();
-  virtual uchar* make_encoded_record(Sort_keys *keys, bool exclude_nulls);
-  bool init(uint length);
-  uchar *get_rec_ptr() { return rec_ptr; }
-};
-
-
-class Encode_key_for_group_concat : public Encode_key
-{
-public:
-  Encode_key_for_group_concat() : Encode_key() {}
-  ~Encode_key_for_group_concat() {}
-  uchar* make_encoded_record(Sort_keys *keys, bool exclude_nulls) override;
+  virtual bool init(THD *thd, uint count);
 };
 
 
@@ -165,7 +180,7 @@ public:
 
 
 /*
-  Descriptor for fixed size keys where a keypart can be NULL
+  Descriptor for fixed size keys where a key part can be NULL
   Used currently in JSON_ARRAYAGG
 */
 
@@ -221,7 +236,6 @@ public:
     return read_packed_length(ptr);
   }
   virtual int compare_keys(uchar *a, uchar *b) override { return 0; }
-  virtual bool init() { return false; }
   virtual bool is_single_arg() override { return false; }
 
   virtual bool setup_for_item(THD *thd, Item_sum *item,
@@ -245,21 +259,23 @@ public:
 /*
   Descriptor for variable size keys with only one component
 
-  Used by EITS, JSON_ARRAYAGG,
-  COUNT(DISTINCT col1) AND GROUP_CONCAT(DISTINCT col1) => only one item is allowed
+  Used by EITS, JSON_ARRAYAGG.
+  COUNT(DISTINCT col) AND GROUP_CONCAT(DISTINCT col) are also allowed
+  that the number of arguments with DISTINCT is 1.
 */
 
 class Variable_size_keys_simple : public Variable_size_keys_descriptor,
-                                  public Encode_key
+                                  public Encode_variable_size_key
 {
 public:
-  Variable_size_keys_simple(uint length);
-  virtual ~Variable_size_keys_simple() {}
+  Variable_size_keys_simple(uint length)
+    :Variable_size_keys_descriptor(length), Encode_variable_size_key() {}
+  ~Variable_size_keys_simple() {}
   int compare_keys(uchar *a, uchar *b) override;
   uchar* make_record(bool exclude_nulls) override;
   uchar* get_rec_ptr() { return rec_ptr; }
-  bool init() override;
   bool is_single_arg() override { return true; }
+  bool init(THD *thd, uint count) override;
 };
 
 
@@ -267,14 +283,15 @@ public:
   Descriptor for variable sized keys with multiple key parts
 */
 class Variable_size_composite_key_desc : public Variable_size_keys_descriptor,
-                                         public Encode_key
+                                         public Encode_variable_size_key
 {
 public:
-  Variable_size_composite_key_desc(uint length);
-  virtual ~Variable_size_composite_key_desc() {}
+  Variable_size_composite_key_desc(uint length)
+    : Variable_size_keys_descriptor(length), Encode_variable_size_key() {}
+  ~Variable_size_composite_key_desc() {}
   int compare_keys(uchar *a, uchar *b) override;
   uchar* make_record(bool exclude_nulls) override;
-  bool init() override;
+  bool init(THD *thd, uint count) override;
 };
 
 
@@ -284,16 +301,18 @@ public:
 */
 
 class Variable_size_composite_key_desc_for_gconcat :
-  public Variable_size_keys_descriptor , public Encode_key_for_group_concat
+                                         public Variable_size_keys_descriptor,
+                                         public Encode_key_for_group_concat
 {
 public:
-  Variable_size_composite_key_desc_for_gconcat(uint length);
-  virtual ~Variable_size_composite_key_desc_for_gconcat() {}
+  Variable_size_composite_key_desc_for_gconcat(uint length)
+    : Variable_size_keys_descriptor(length), Encode_key_for_group_concat() {}
+  ~Variable_size_composite_key_desc_for_gconcat() {}
   int compare_keys(uchar *a, uchar *b) override;
   uchar* make_record(bool exclude_nulls) override;
-  bool init() override;
   bool setup_for_item(THD *thd, Item_sum *item,
                       uint non_const_args, uint arg_count) override;
+  bool init(THD *thd, uint count) override;
 };
 
 
@@ -306,7 +325,7 @@ class Unique : public Sql_alloc {
 protected:
 
   /*
-    Storing all relevant information of the expressions whose value are
+    Storing all meta-data information of the expressions whose value are
     being added to the Unique tree
   */
   Descriptor *m_descriptor;
@@ -328,10 +347,10 @@ public:
   virtual size_t get_max_in_memory_size() const = 0;
   virtual bool is_in_memory() = 0;
 
-  // This will be renamed:
   virtual ulong elements_in_tree() = 0;
   Descriptor *get_descriptor() { return m_descriptor; }
 };
+
 
 /*
    Unique_impl -- class for unique (removing of duplicates).
@@ -355,13 +374,12 @@ class Unique_impl : public Unique {
 
   uint full_size;   /* Size of element + space needed to store the number of
                        duplicates found for the element. */
-  uint min_dupl_count;   /* Minimum number of occurences of element required for
+  uint min_dupl_count;   /* Minimum number of occurrences of element required for
                             it to be written to record_pointers.
                             always 0 for unions, > 0 for intersections */
   bool with_counters;
-  /*
-    size in bytes used for storing keys in the Unique tree
-  */
+
+  // size in bytes used for storing keys in the Unique tree
   size_t memory_used;
   ulong elements;
   SORT_INFO sort;
@@ -384,40 +402,15 @@ class Unique_impl : public Unique {
     return record_size > space_left();
   }
 
-public:
-
-  /*
-    @brief
-      Returns the number of elements in the unique instance
-
-    @details
-      If all the elements fit in the memeory, then this returns all the
-      distinct elements.
-  */
-  ulong get_n_elements() override
-  {
-    return is_in_memory() ? elements_in_tree() : elements;
-  }
-
-  SORT_INFO *get_sort() override { return &sort; }
-
-  Unique_impl(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
-         uint size_arg, size_t max_in_memory_size_arg,
-         uint min_dupl_count_arg, Descriptor *desc);
-  virtual ~Unique_impl();
-  ulong elements_in_tree() { return tree.elements_in_tree; }
-
-  bool unique_add(void *ptr) override
-  {
-    return unique_add(ptr, m_descriptor->get_length_of_key((uchar*)ptr));
-  }
-
   /*
     @brief
       Add a record to the Unique tree
     @param
       ptr                      key value
       size                     length of the key
+    @retval
+      TRUE                     ERROE
+      FALSE                    key successfully inserted in the Unique tree
   */
 
   bool unique_add(void *ptr, uint size_arg)
@@ -440,6 +433,34 @@ public:
       memory_used+= rec_size;
     }
     DBUG_RETURN(!res);
+  }
+
+public:
+
+  /*
+    @brief
+      Returns the number of elements in the unique instance
+
+    @details
+      If all the elements fit in the memory, then this returns all the
+      distinct elements.
+  */
+  ulong get_n_elements() override
+  {
+    return is_in_memory() ? elements_in_tree() : elements;
+  }
+
+  SORT_INFO *get_sort() override { return &sort; }
+
+  Unique_impl(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
+         uint size_arg, size_t max_in_memory_size_arg,
+         uint min_dupl_count_arg, Descriptor *desc);
+  ~Unique_impl();
+  ulong elements_in_tree() { return tree.elements_in_tree; }
+
+  bool unique_add(void *ptr) override
+  {
+    return unique_add(ptr, m_descriptor->get_length_of_key((uchar*)ptr));
   }
 
   bool is_in_memory() { return (my_b_tell(&file) == 0); }
@@ -476,10 +497,12 @@ public:
   size_t get_max_in_memory_size() const { return max_in_memory_size; }
   bool is_count_stored() { return with_counters; }
   IO_CACHE *get_file ()  { return &file; }
-  virtual int write_record_to_file(uchar *key);
+  int write_record_to_file(uchar *key);
 
   // returns TRUE if the unique tree stores packed values
   bool is_variable_sized() { return m_descriptor->is_variable_sized(); }
+
+  // returns TRUE if the key to be inserted has only one component
   bool is_single_arg() { return m_descriptor->is_single_arg(); }
   Descriptor* get_descriptor() { return m_descriptor; }
 
@@ -489,7 +512,7 @@ public:
   friend int unique_write_to_file_with_count(uchar* key, element_count count,
                                              Unique_impl *unique);
   friend int unique_intersect_write_to_ptrs(uchar* key, element_count count,
-				            Unique_impl *unique);
+                                            Unique_impl *unique);
 };
 
 #endif /* UNIQUE_INCLUDED */

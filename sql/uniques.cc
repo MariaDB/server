@@ -888,25 +888,6 @@ Variable_size_keys_descriptor::Variable_size_keys_descriptor(uint length)
 }
 
 
-Variable_size_composite_key_desc::Variable_size_composite_key_desc(uint length)
-   : Variable_size_keys_descriptor(length), Encode_key()
-{
-}
-
-
-Variable_size_composite_key_desc_for_gconcat::
-Variable_size_composite_key_desc_for_gconcat(uint length)
-   : Variable_size_keys_descriptor(length), Encode_key_for_group_concat()
-{
-}
-
-
-Variable_size_keys_simple::Variable_size_keys_simple(uint length)
-  : Variable_size_keys_descriptor(length), Encode_key()
-{
-}
-
-
 /*
   @brief
     Setup the structures that are used when Unique stores packed values
@@ -930,18 +911,11 @@ Variable_size_keys_descriptor::setup_for_item(THD *thd, Item_sum *item,
                                               uint non_const_args,
                                               uint arg_count)
 {
-  SORT_FIELD *sort,*pos;
-  if (init())
+  SORT_FIELD *pos;
+  if (init(thd, non_const_args))
     return true;
-  DBUG_ASSERT(sort_keys == NULL);
-  sortorder= (SORT_FIELD*) thd->alloc(sizeof(SORT_FIELD) * non_const_args);
-  pos= sort= sortorder;
-  if (!pos)
-    return true;
-  sort_keys= new Sort_keys(sortorder, non_const_args);
-  if (!sort_keys)
-    return true;
-  sort=pos= sortorder;
+  pos= sortorder;
+
   for (uint i= 0; i < arg_count; i++)
   {
     Item *arg= item->get_arg(i);
@@ -975,20 +949,11 @@ Variable_size_keys_descriptor::setup_for_item(THD *thd, Item_sum *item,
 
 bool Variable_size_keys_descriptor::setup_for_field(THD *thd, Field *field)
 {
-  SORT_FIELD *sort,*pos;
-  if (init())
+  SORT_FIELD *pos;
+  if (init(thd, 1))
     return true;
-
-  DBUG_ASSERT(sort_keys == NULL);
-  sortorder= (SORT_FIELD*) thd->alloc(sizeof(SORT_FIELD));
-  pos= sort= sortorder;
-  if (!pos)
-    return true;
-  sort_keys= new Sort_keys(sortorder, 1);
-  if (!sort_keys)
-    return true;
-  sort=pos= sortorder;
-  pos->setup_key_part_for_variable_size_key(field);  // Nulls are always excluded
+  pos= sortorder;
+  pos->setup_key_part_for_variable_size_key(field);
   return false;
 }
 
@@ -1067,7 +1032,8 @@ uchar* Variable_size_composite_key_desc::make_record(bool exclude_nulls)
   return make_encoded_record(sort_keys, exclude_nulls);
 }
 
-uchar* Variable_size_composite_key_desc_for_gconcat::make_record(bool exclude_nulls)
+uchar*
+Variable_size_composite_key_desc_for_gconcat::make_record(bool exclude_nulls)
 {
   return make_encoded_record(sort_keys, exclude_nulls);
 }
@@ -1079,21 +1045,51 @@ uchar* Variable_size_keys_simple::make_record(bool exclude_nulls)
 }
 
 
-bool Variable_size_composite_key_desc::init()
+/*
+  @brief
+    Create the sortorder and Sort keys structures for a descriptor
+
+  @param thd                   THD structure
+  @param count                 Number of key parts to be allocated
+
+  @retval
+    TRUE                       ERROR
+    FALSE                      structures successfully created
+*/
+
+bool Descriptor::init(THD *thd, uint count)
 {
-  return Encode_key::init(max_length);
+  if (sortorder)
+    return false;
+  DBUG_ASSERT(sort_keys == NULL);
+  sortorder= (SORT_FIELD*) thd->alloc(sizeof(SORT_FIELD) * count);
+  if (!sortorder)
+    return true;  // OOM
+  sort_keys= new Sort_keys(sortorder, count);
+  if (!sort_keys)
+    return true;  // OOM
+  return false;
 }
 
 
-bool Variable_size_composite_key_desc_for_gconcat::init()
+bool Variable_size_composite_key_desc::init(THD *thd, uint count)
 {
-  return Encode_key::init(max_length);
+  return Descriptor::init(thd, count) ||
+         Encode_variable_size_key::init(max_length);
 }
 
 
-bool Variable_size_keys_simple::init()
+bool Variable_size_composite_key_desc_for_gconcat::init(THD *thd, uint count)
 {
-  return Encode_key::init(max_length);
+  return Descriptor::init(thd, count) ||
+         Encode_key_for_group_concat::init(max_length);
+}
+
+
+bool Variable_size_keys_simple::init(THD *thd, uint count)
+{
+  return Descriptor::init(thd, count) ||
+         Encode_variable_size_key::init(max_length);
 }
 
 
@@ -1103,18 +1099,11 @@ Variable_size_composite_key_desc_for_gconcat::setup_for_item(THD *thd,
                                                           uint non_const_args,
                                                           uint arg_count)
 {
-  SORT_FIELD *sort,*pos;
-  if (init())
+  if (init(thd, non_const_args))
     return true;
-  DBUG_ASSERT(sort_keys == NULL);
-  sortorder= (SORT_FIELD*) thd->alloc(sizeof(SORT_FIELD) * non_const_args);
-  pos= sort= sortorder;
-  if (!pos)
-    return true;
-  sort_keys= new Sort_keys(sortorder, non_const_args);
-  if (!sort_keys)
-    return true;
-  sort=pos= sortorder;
+  SORT_FIELD *pos;
+  pos= sortorder;
+
   for (uint i= 0; i < arg_count; i++)
   {
     Item *arg= item->get_arg(i);
@@ -1155,18 +1144,11 @@ Fixed_size_keys_descriptor::setup_for_item(THD *thd, Item_sum *item,
                                            uint non_const_args,
                                            uint arg_count)
 {
-  SORT_FIELD *sort,*pos;
-  if (sortorder)
-    return false;
-  DBUG_ASSERT(sort_keys == NULL);
-  sortorder= (SORT_FIELD*) thd->alloc(sizeof(SORT_FIELD) * non_const_args);
-  pos= sort= sortorder;
-  if (!pos)
+  SORT_FIELD *pos;
+  if (Descriptor::init(thd, non_const_args))
     return true;
-  sort_keys= new Sort_keys(sortorder, non_const_args);
-  if (!sort_keys)
-    return true;
-  sort=pos= sortorder;
+  pos= sortorder;
+
   for (uint i= 0; i < arg_count; i++)
   {
     Item *arg= item->get_arg(i);
@@ -1186,19 +1168,10 @@ Fixed_size_keys_descriptor::setup_for_item(THD *thd, Item_sum *item,
 bool
 Fixed_size_keys_descriptor::setup_for_field(THD *thd, Field *field)
 {
-  SORT_FIELD *sort,*pos;
-  if (sortorder)
-    return false;
-
-  DBUG_ASSERT(sort_keys == NULL);
-  sortorder= (SORT_FIELD*) thd->alloc(sizeof(SORT_FIELD));
-  pos= sort= sortorder;
-  if (!pos)
+  SORT_FIELD *pos;
+  if (Descriptor::init(thd, 1))
     return true;
-  sort_keys= new Sort_keys(sortorder, 1);
-  if (!sort_keys)
-    return true;
-  sort=pos= sortorder;
+  pos= sortorder;
   pos->setup_key_part_for_fixed_size_key(field);
 
   return false;
@@ -1312,8 +1285,8 @@ Encode_key::~Encode_key()
     0         NULL value
     >0        length of the packed record
 */
-uchar* Encode_key::make_encoded_record(Sort_keys *sort_keys,
-                                     bool exclude_nulls)
+uchar* Encode_variable_size_key::make_encoded_record(Sort_keys *sort_keys,
+                                                     bool exclude_nulls)
 {
   Field *field;
   SORT_FIELD *sort_field;
