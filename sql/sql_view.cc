@@ -36,6 +36,7 @@
 #include "sql_derived.h"
 #include "sql_cte.h"    // check_dependencies_in_with_clauses()
 #include "opt_trace.h"
+#include "ddl_log.h"
 #include "wsrep_mysqld.h"
 #include "debug_sync.h" // debug_crash_here
 
@@ -1817,8 +1818,11 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
   bool delete_error= FALSE, wrong_object_name= FALSE;
   bool some_views_deleted= FALSE;
   bool something_wrong= FALSE;
-  uint not_exists_count= 0;
+  uint not_exists_count= 0, first_table= 0;
+  DDL_LOG_STATE ddl_log_state;
   DBUG_ENTER("mysql_drop_view");
+
+  bzero(&ddl_log_state, sizeof(ddl_log_state));
 
   /*
     We can't allow dropping of unlocked view under LOCK TABLES since this
@@ -1838,9 +1842,12 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
 
   for (view= views; view; view= view->next_local)
   {
+    LEX_CSTRING cpath;
     bool not_exist;
-    build_table_filename(path, sizeof(path) - 1,
-                         view->db.str, view->table_name.str, reg_ext, 0);
+    size_t length;
+    length= build_table_filename(path, sizeof(path) - 1,
+                                 view->db.str, view->table_name.str, reg_ext, 0);
+    lex_string_set3(&cpath, path, length);
 
     if ((not_exist= my_access(path, F_OK)) || !dd_frm_is_view(thd, path))
     {
@@ -1861,8 +1868,18 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
         not_exists_count++;
       continue;
     }
+    if (!first_table++)
+    {
+      if (ddl_log_drop_view_init(thd, &ddl_log_state))
+        DBUG_RETURN(TRUE);
+    }
+    if (ddl_log_drop_view(thd, &ddl_log_state, &cpath, &view->db,
+                          &view->table_name))
+      DBUG_RETURN(TRUE);
+    debug_crash_here("ddl_log_drop_before_delete_view");
     if (unlikely(mysql_file_delete(key_file_frm, path, MYF(MY_WME))))
       delete_error= TRUE;
+    debug_crash_here("ddl_log_drop_after_delete_view");
 
     some_views_deleted= TRUE;
 
@@ -1890,10 +1907,16 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     /* if something goes wrong, bin-log with possible error code,
        otherwise bin-log with error code cleared.
      */
+    debug_crash_here("ddl_log_drop_before_binlog");
+    thd->binlog_xid= thd->query_id;
+    ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
     if (unlikely(write_bin_log(thd, !something_wrong, thd->query(),
                                thd->query_length())))
       something_wrong= 1;
+    thd->binlog_xid= 0;
+    debug_crash_here("ddl_log_drop_after_binlog");
   }
+  ddl_log_complete(&ddl_log_state);
 
   if (unlikely(something_wrong))
   {

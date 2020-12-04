@@ -56,6 +56,7 @@
 #include "tztime.h"
 #include "sql_insert.h"                        // binlog_drop_table
 #include "ddl_log.h"
+#include "debug_sync.h"                         // debug_crash_here()
 #include <algorithm>
 
 #ifdef __WIN__
@@ -1137,7 +1138,10 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
   char path[FN_REFLEN + 1];
   LEX_CSTRING alias= null_clex_str;
   StringBuffer<160> unknown_tables(system_charset_info);
-  uint not_found_errors= 0;
+  DDL_LOG_STATE ddl_log_state;
+  const char *comment_start;
+  uint32 comment_len;
+  uint not_found_errors= 0, first_table= 0;
   int error= 0;
   int non_temp_tables_count= 0;
   bool non_tmp_error= 0;
@@ -1153,6 +1157,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
   DBUG_ENTER("mysql_rm_table_no_locks");
 
   unknown_tables.length(0);
+  comment_len= comment_length(thd, if_exists ? 17:9,
+                              &comment_start);
+
   /*
     Prepares the drop statements that will be written into the binary
     log as follows:
@@ -1203,6 +1210,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     built_non_trans_tmp_query.set_charset(system_charset_info);
     built_non_trans_tmp_query.copy(built_trans_tmp_query);
   }
+  bzero(&ddl_log_state, sizeof(ddl_log_state));
 
   for (table= tables; table; table= table->next_local)
   {
@@ -1212,6 +1220,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     bool table_dropped= 0;
     const LEX_CSTRING db= table->db;
     const LEX_CSTRING table_name= table->table_name;
+    LEX_CSTRING cpath= {0,0};
     handlerton *hton= 0;
     Table_type table_type;
     size_t path_length= 0;
@@ -1346,6 +1355,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       continue;
     }
 
+    lex_string_set3(&cpath, path, (size_t) (path_end - path));
+
     {
       char engine_buf[NAME_CHAR_LEN + 1];
       LEX_CSTRING engine= { engine_buf, 0 };
@@ -1362,6 +1373,17 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
 
     thd->replication_flags= 0;
     was_view= table_type == TABLE_TYPE_VIEW;
+
+    if (!first_table++)
+    {
+      LEX_CSTRING comment= {comment_start, (size_t) comment_len};
+      if (ddl_log_drop_table_init(thd, &ddl_log_state, &comment))
+      {
+        error= 1;
+        goto err;
+      }
+    }
+
     if ((table_type == TABLE_TYPE_UNKNOWN) || (was_view && !drop_view) ||
         (table_type != TABLE_TYPE_SEQUENCE && drop_sequence))
     {
@@ -1376,6 +1398,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       local_non_tmp_error= 1;
       error= table_type == TABLE_TYPE_UNKNOWN ? ENOENT : -1;
       tdc_remove_table(thd, db.str, table_name.str);
+      if (wrong_drop_sequence)
+        goto report_error;
     }
     else
     {
@@ -1411,7 +1435,17 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         log_if_exists= 1;
 
       bool enoent_warning= !dont_log_query && !(hton && hton->discover_table);
-      error= ha_delete_table(thd, hton, path, &db, &table_name, enoent_warning);
+
+      if (ddl_log_drop_table(thd, &ddl_log_state, hton, &cpath, &db,
+                             &table_name))
+      {
+        error= -1;
+        goto err;
+      }
+      debug_crash_here("ddl_log_drop_before_delete_table");
+      error= ha_delete_table(thd, hton, path, &db, &table_name,
+                             enoent_warning);
+      debug_crash_here("ddl_log_drop_after_delete_table");
 
       if (!error)
         table_dropped= 1;
@@ -1474,10 +1508,17 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       scan all engines try to drop the table from there.
       This is to ensure we don't have any partial table files left.
     */
-    if (non_existing_table_error(error) && !wrong_drop_sequence)
+    if (non_existing_table_error(error))
     {
       int ferror= 0;
       DBUG_ASSERT(!was_view);
+
+      if (ddl_log_drop_table(thd, &ddl_log_state, hton, &cpath, &db,
+                             &table_name))
+      {
+        error= -1;
+        goto err;
+      }
 
       /* Remove extension for delete */
       *path_end= '\0';
@@ -1512,13 +1553,19 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     if (thd->replication_flags & OPTION_IF_EXISTS)
       log_if_exists= 1;
 
+    debug_crash_here("ddl_log_drop_before_drop_trigger");
+    ddl_log_update_phase(&ddl_log_state, DDL_DROP_PHASE_TRIGGER);
+    debug_crash_here("ddl_log_drop_before_drop_trigger2");
+
     if (likely(!error) || non_existing_table_error(error))
     {
       if (Table_triggers_list::drop_all_triggers(thd, &db, &table_name,
                                                MYF(MY_WME | MY_IGNORE_ENOENT)))
         error= error ? error : -1;
     }
+    debug_crash_here("ddl_log_drop_after_drop_trigger");
 
+report_error:
     if (error)
     {
       StringBuffer<FN_REFLEN> tbl_name(system_charset_info);
@@ -1573,6 +1620,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                                 table_name.str, (uint)table_name.length);
       mysql_audit_drop_table(thd, table);
     }
+    ddl_log_update_phase(&ddl_log_state, DDL_DROP_PHASE_COLLECT);
 
     if (!dont_log_query &&
         (!error || table_dropped || non_existing_table_error(error)))
@@ -1629,6 +1677,7 @@ err:
     query_cache_invalidate3(thd, tables, 0);
     if (!dont_log_query && mysql_bin_log.is_open())
     {
+      debug_crash_here("ddl_log_drop_before_binlog");
       if (non_trans_tmp_table_deleted)
       {
           /* Chop of the last comma */
@@ -1656,8 +1705,6 @@ err:
       if (non_tmp_table_deleted)
       {
         String built_query;
-        const char *comment_start;
-        uint32 comment_len;
 
         built_query.set_charset(thd->charset());
         built_query.append(STRING_WITH_LEN("DROP "));
@@ -1667,8 +1714,7 @@ err:
           built_query.append(STRING_WITH_LEN("IF EXISTS "));
 
         /* Preserve comment in original query */
-        if ((comment_len= comment_length(thd, if_exists ? 17:9,
-                                         &comment_start)))
+        if (comment_len)
         {
           built_query.append(comment_start, comment_len);
           built_query.append(' ');
@@ -1679,14 +1725,19 @@ err:
         built_query.append(normal_tables.ptr(), normal_tables.length());
         built_query.append(generated_by_server);
         int error_code = non_tmp_error ?  thd->get_stmt_da()->sql_errno() : 0;
+        thd->binlog_xid= thd->query_id;
+        ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
         error |= (thd->binlog_query(THD::STMT_QUERY_TYPE,
                                     built_query.ptr(),
                                     built_query.length(),
                                     TRUE, FALSE, FALSE,
                                     error_code) > 0);
+        thd->binlog_xid= 0;
       }
+      debug_crash_here("ddl_log_drop_after_binlog");
     }
   }
+  ddl_log_complete(&ddl_log_state);
 
   if (!drop_temporary)
   {
