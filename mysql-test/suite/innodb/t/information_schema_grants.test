@@ -79,9 +79,6 @@ create sql security definer view d_sys_foreign_cols as select * from information
 create sql security invoker view i_sys_indexes as select * from information_schema.innodb_sys_indexes;
 create sql security definer view d_sys_indexes as select * from information_schema.innodb_sys_indexes;
 
-create sql security invoker view i_sys_semaphore_waits as select * from information_schema.innodb_sys_semaphore_waits;
-create sql security definer view d_sys_semaphore_waits as select * from information_schema.innodb_sys_semaphore_waits;
-
 create sql security invoker view i_sys_tables as select * from information_schema.innodb_sys_tables;
 create sql security definer view d_sys_tables as select * from information_schema.innodb_sys_tables;
 
@@ -235,12 +232,6 @@ select count(*) > -1 from information_schema.innodb_sys_indexes;
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 select count(*) > -1 from i_sys_indexes;
 select count(*) > -1 from d_sys_indexes;
-
---error ER_SPECIFIC_ACCESS_DENIED_ERROR
-select count(*) > -1 from information_schema.innodb_sys_semaphore_waits;
---error ER_SPECIFIC_ACCESS_DENIED_ERROR
-select count(*) > -1 from i_sys_semaphore_waits;
-select count(*) > -1 from d_sys_semaphore_waits;
 
 --error ER_SPECIFIC_ACCESS_DENIED_ERROR
 select count(*) > -1 from information_schema.innodb_sys_tables;

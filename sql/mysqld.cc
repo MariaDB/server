@@ -5049,6 +5049,7 @@ static int init_server_components()
       MARIADB_REMOVED_OPTION("innodb-replication-delay"),
       MARIADB_REMOVED_OPTION("innodb-scrub-log"),
       MARIADB_REMOVED_OPTION("innodb-scrub-log-speed"),
+      MARIADB_REMOVED_OPTION("innodb-sync-array-size"),
       MARIADB_REMOVED_OPTION("innodb-thread-concurrency"),
       MARIADB_REMOVED_OPTION("innodb-thread-sleep-delay"),
       MARIADB_REMOVED_OPTION("innodb-undo-logs"),

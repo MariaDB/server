@@ -26,5 +26,4 @@
 --enable-plugin-innodb-sys-foreign-cols
 --enable-plugin-innodb-sys-tablespaces
 --enable-plugin-innodb-sys-virtual
---enable-plugin-innodb-sys-semaphore-waits
 --enable-plugin-innodb-tablespaces-encryption

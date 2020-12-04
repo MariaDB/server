@@ -50,8 +50,6 @@ create sql security invoker view i_sys_foreign_cols as select * from information
 create sql security definer view d_sys_foreign_cols as select * from information_schema.innodb_sys_foreign_cols;
 create sql security invoker view i_sys_indexes as select * from information_schema.innodb_sys_indexes;
 create sql security definer view d_sys_indexes as select * from information_schema.innodb_sys_indexes;
-create sql security invoker view i_sys_semaphore_waits as select * from information_schema.innodb_sys_semaphore_waits;
-create sql security definer view d_sys_semaphore_waits as select * from information_schema.innodb_sys_semaphore_waits;
 create sql security invoker view i_sys_tables as select * from information_schema.innodb_sys_tables;
 create sql security definer view d_sys_tables as select * from information_schema.innodb_sys_tables;
 create sql security invoker view i_sys_tablespaces as select * from information_schema.innodb_sys_tablespaces;
@@ -220,13 +218,6 @@ ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) 
 select count(*) > -1 from i_sys_indexes;
 ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
 select count(*) > -1 from d_sys_indexes;
-count(*) > -1
-1
-select count(*) > -1 from information_schema.innodb_sys_semaphore_waits;
-ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
-select count(*) > -1 from i_sys_semaphore_waits;
-ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
-select count(*) > -1 from d_sys_semaphore_waits;
 count(*) > -1
 1
 select count(*) > -1 from information_schema.innodb_sys_tables;

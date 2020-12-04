@@ -100,7 +100,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "ut0crc32.h"
 
 /** We are prepared for a situation that we have this many threads waiting for
-a semaphore inside InnoDB. srv_start() sets the value. */
+a transactional lock inside InnoDB. srv_start() sets the value. */
 ulint srv_max_n_threads;
 
 /** Log sequence number at shutdown */
@@ -1109,27 +1109,11 @@ dberr_t srv_start(bool create_new_db)
 	mysql_stage_register("innodb", srv_stages,
 			     static_cast<int>(UT_ARR_SIZE(srv_stages)));
 
-	/* Set the maximum number of threads which can wait for a semaphore
-	inside InnoDB: this is the 'sync wait array' size */
-
-	srv_max_n_threads = 1   /* io_ibuf_thread */
-			    + 1 /* io_log_thread */
-			    + 1 /* srv_print_monitor_task */
-			    + 1 /* srv_purge_coordinator_thread */
-			    + 1 /* buf_dump_thread */
-			    + 1 /* dict_stats_thread */
-			    + 1 /* fts_optimize_thread */
-			    + 1 /* trx_rollback_all_recovered */
-			    + 128 /* added as margin, for use of
-				  InnoDB Memcached etc. */
-			    + 1/* buf_flush_page_cleaner */
-			    + max_connections
-			    + srv_n_read_io_threads
-			    + srv_n_write_io_threads
-			    + srv_n_purge_threads
-			    /* FTS Parallel Sort */
-			    + fts_sort_pll_degree * FTS_NUM_AUX_INDEX
-			      * max_connections;
+	srv_max_n_threads =
+		1 /* dict_stats_thread */
+		+ 1 /* fts_optimize_thread */
+		+ 128 /* safety margin */
+		+ max_connections;
 
 	srv_boot();
 

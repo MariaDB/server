@@ -178,8 +178,6 @@ LatchDebug internals in sync0debug.cc */
 enum latch_level_t {
 	SYNC_UNKNOWN = 0,
 
-	SYNC_MUTEX = 1,
-
 	RW_LOCK_SX,
 	RW_LOCK_X_WAIT,
 	RW_LOCK_S,

@@ -388,7 +388,6 @@ LatchDebug::LatchDebug()
 	m_mutex.init();
 
 	LEVEL_MAP_INSERT(SYNC_UNKNOWN);
-	LEVEL_MAP_INSERT(SYNC_MUTEX);
 	LEVEL_MAP_INSERT(RW_LOCK_SX);
 	LEVEL_MAP_INSERT(RW_LOCK_X_WAIT);
 	LEVEL_MAP_INSERT(RW_LOCK_S);
@@ -668,7 +667,6 @@ LatchDebug::check_order(
 		basic_check(latches, level, SYNC_DICT);
 		break;
 
-	case SYNC_MUTEX:
 	case SYNC_UNKNOWN:
 	case RW_LOCK_X:
 	case RW_LOCK_X_WAIT:
@@ -1030,8 +1028,6 @@ sync_check_init()
 
 	sync_latch_meta_init();
 
-	sync_array_init();
-
 	ut_d(sync_check_enable());
 }
 
@@ -1040,8 +1036,5 @@ void
 sync_check_close()
 {
 	ut_d(LatchDebug::shutdown());
-
-	sync_array_close();
-
 	sync_latch_meta_destroy();
 }
