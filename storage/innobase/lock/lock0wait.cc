@@ -137,7 +137,6 @@ lock_wait_table_reserve_slot(
 	srv_slot_t*	slot;
 
 	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
-	mysql_mutex_assert_owner(&thr->graph->trx->mutex);
 
 	slot = lock_sys.waiting_threads;
 
@@ -241,7 +240,7 @@ lock_wait_suspend_thread(
 	lock_wait_timeout = trx_lock_wait_timeout_get(trx);
 
 	mysql_mutex_lock(&lock_sys.wait_mutex);
-	mysql_mutex_lock(&trx->mutex);
+	trx->mutex.wr_lock();
 
 	trx->error_state = DB_SUCCESS;
 
@@ -259,7 +258,7 @@ lock_wait_suspend_thread(
 		}
 
 		mysql_mutex_unlock(&lock_sys.wait_mutex);
-		mysql_mutex_unlock(&trx->mutex);
+		trx->mutex.wr_unlock();
 		return;
 	}
 
@@ -268,7 +267,7 @@ lock_wait_suspend_thread(
 	slot = lock_wait_table_reserve_slot(thr, lock_wait_timeout);
 
 	mysql_mutex_unlock(&lock_sys.wait_mutex);
-	mysql_mutex_unlock(&trx->mutex);
+	trx->mutex.wr_unlock();
 
 	ulonglong start_time = 0;
 
@@ -405,7 +404,6 @@ lock_wait_release_thread_if_suspended(
 				user OS thread	 */
 {
 	mysql_mutex_assert_owner(&lock_sys.mutex);
-	mysql_mutex_assert_owner(&thr->graph->trx->mutex);
 
 	/* We own both the lock mutex and the trx_t::mutex but not the
 	lock wait mutex. This is OK because other threads will see the state
@@ -461,9 +459,9 @@ lock_wait_check_and_cancel(
 #ifdef WITH_WSREP
                         if (!wsrep_is_BF_lock_timeout(trx)) {
 #endif /* WITH_WSREP */
-				mysql_mutex_lock(&trx->mutex);
+				trx->mutex.wr_lock();
 				lock_cancel_waiting_and_release(trx->lock.wait_lock);
-				mysql_mutex_unlock(&trx->mutex);
+				trx->mutex.wr_unlock();
 #ifdef WITH_WSREP
                         }
 #endif /* WITH_WSREP */

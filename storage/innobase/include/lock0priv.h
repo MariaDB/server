@@ -630,7 +630,6 @@ inline void lock_set_lock_and_trx_wait(lock_t* lock, trx_t* trx)
 	ut_ad(lock->trx == trx);
 	ut_ad(trx->lock.wait_lock == NULL);
 	mysql_mutex_assert_owner(&lock_sys.mutex);
-	mysql_mutex_assert_owner(&trx->mutex);
 
 	trx->lock.wait_lock = lock;
 	lock->type_mode |= LOCK_WAIT;

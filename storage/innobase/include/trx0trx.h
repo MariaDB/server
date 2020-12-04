@@ -721,7 +721,7 @@ private:
 public:
   /** mutex protecting state and some of lock
   (some are protected by lock_sys.mutex) */
-  mysql_mutex_t mutex;
+  srw_mutex mutex;
 
 	trx_id_t	id;		/*!< transaction id */
 
