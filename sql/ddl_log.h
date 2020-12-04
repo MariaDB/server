@@ -46,8 +46,8 @@ enum ddl_log_entry_code
 
 
 /*
-  When adding things below, also add an entry to ddl_log_entry_phases in
-  ddl_log.cc
+  When adding things below, also add an entry to ddl_log_action_names and
+  ddl_log_entry_phases in ddl_log.cc
 */
 
 enum ddl_log_action_code
@@ -77,7 +77,11 @@ enum ddl_log_action_code
   */
   DDL_LOG_RENAME_TABLE_ACTION= 5,
   DDL_LOG_RENAME_VIEW_ACTION= 6,
-  DDL_LOG_LAST_ACTION                           /* End marker */
+  DDL_LOG_DROP_TABLE_INIT_ACTION= 7,
+  DDL_LOG_DROP_TABLE_ACTION= 8,
+  DDL_LOG_DROP_VIEW_INIT_ACTION= 9,
+  DDL_LOG_DROP_VIEW_ACTION= 10,
+  DDL_LOG_LAST_ACTION                          /* End marker */
 };
 
 
@@ -95,6 +99,14 @@ enum enum_ddl_log_rename_table_phase {
   DDL_RENAME_PHASE_TRIGGER= 0,
   DDL_RENAME_PHASE_STAT,
   DDL_RENAME_PHASE_TABLE,
+};
+
+enum enum_ddl_log_drop_table_phase {
+  DDL_DROP_PHASE_TABLE=0,
+  DDL_DROP_PHASE_TRIGGER,
+  DDL_DROP_PHASE_BINLOG,
+  DDL_DROP_PHASE_RESET,  /* Reset found list of dropped tables */
+  DDL_DROP_PHASE_END
 };
 
 /*
@@ -204,6 +216,17 @@ bool ddl_log_rename_view(THD *thd, DDL_LOG_STATE *ddl_state,
                          const LEX_CSTRING *org_alias,
                          const LEX_CSTRING *new_db,
                          const LEX_CSTRING *new_alias);
-
+bool ddl_log_drop_table_init(THD *thd, DDL_LOG_STATE *ddl_state,
+                             const LEX_CSTRING *comment);
+bool ddl_log_drop_view_init(THD *thd, DDL_LOG_STATE *ddl_state);
+bool ddl_log_drop_table(THD *thd, DDL_LOG_STATE *ddl_state,
+                        handlerton *hton,
+                        const LEX_CSTRING *path,
+                        const LEX_CSTRING *db,
+                        const LEX_CSTRING *table);
+bool ddl_log_drop_view(THD *thd, DDL_LOG_STATE *ddl_state,
+                        const LEX_CSTRING *path,
+                        const LEX_CSTRING *db,
+                        const LEX_CSTRING *table);
 extern mysql_mutex_t LOCK_gdl;
 #endif /* DDL_LOG_INCLUDED */

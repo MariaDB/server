@@ -9982,6 +9982,7 @@ int TC_LOG::using_heuristic_recover()
 int TC_LOG_BINLOG::open(const char *opt_name)
 {
   int      error= 1;
+  DBUG_ENTER("TC_LOG_BINLOG::open");
 
   DBUG_ASSERT(total_ha_2pc > 1);
   DBUG_ASSERT(opt_name);
@@ -9991,7 +9992,7 @@ int TC_LOG_BINLOG::open(const char *opt_name)
   {
     /* There was a failure to open the index file, can't open the binlog */
     cleanup();
-    return 1;
+    DBUG_RETURN(1);
   }
 
   if (using_heuristic_recover())
@@ -10001,12 +10002,12 @@ int TC_LOG_BINLOG::open(const char *opt_name)
     open(opt_name, 0, 0, WRITE_CACHE, max_binlog_size, 0, TRUE);
     mysql_mutex_unlock(&LOCK_log);
     cleanup();
-    return 1;
+    DBUG_RETURN(1);
   }
 
   error= do_binlog_recovery(opt_name, true);
   binlog_state_recover_done= true;
-  return error;
+  DBUG_RETURN(error);
 }
 
 /** This is called on shutdown, after ha_panic. */
@@ -10536,6 +10537,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
         Query_log_event *query_ev= (Query_log_event*) ev;
         if (query_ev->xid)
         {
+          DBUG_PRINT("QQ", ("xid: %llu xid"));
           DBUG_ASSERT(sizeof(query_ev->xid) == sizeof(my_xid));
           uchar *x= (uchar *) memdup_root(&mem_root,
                                           (uchar*) &query_ev->xid,

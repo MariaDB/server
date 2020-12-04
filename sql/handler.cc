@@ -566,7 +566,13 @@ static int hton_drop_table(handlerton *hton, const char *path)
   char tmp_path[FN_REFLEN];
   handler *file= get_new_handler(nullptr, current_thd->mem_root, hton);
   if (!file)
-    return ENOMEM;
+  {
+    /*
+      If file is not defined it means that the engine can't create a
+      handler if share is not set or we got an out of memory error
+    */
+    return my_errno == ENOMEM ? ENOMEM : ENOENT;
+  }
   path= get_canonical_filename(file, path, tmp_path);
   int error= file->delete_table(path);
   delete file;
