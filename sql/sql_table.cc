@@ -8486,6 +8486,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   }
   DBUG_ENTER("mysql_prepare_alter_table");
 
+  if (!alter_ctx->fk_add_backup(table->s))
+    DBUG_RETURN(1);
+
   /*
     Merge incompatible changes flag in case of upgrade of a table from an
     old MariaDB or MySQL version.  This ensures that we don't try to do an

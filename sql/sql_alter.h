@@ -402,6 +402,7 @@ public:
   */
   FK_share_backup* fk_add_backup(TABLE_SHARE *share)
   {
+    // NB: FK_share_backup ctor is used, ownership is still fk_shares
     return fk_ref_backup.emplace(NULL, share, share);
   }
   bool fk_install_frms();
