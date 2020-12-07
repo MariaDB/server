@@ -395,7 +395,7 @@ public:
   void fk_release_locks(THD *thd);
 
   // NB: shares are owned and released by fk_shares.
-  FK_ddl_vector fk_ref_backup;
+  FK_backup_storage fk_ref_backup;
   /*
      NB: backup is added only if not exists, fk_handle_alter() may try it multiple
      times per one share.

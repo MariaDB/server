@@ -52,7 +52,7 @@ struct TABLE_LIST;
 class ACL_internal_schema_access;
 class ACL_internal_table_access;
 class Field;
-class FK_ddl_vector;
+class FK_backup_storage;
 class Table_name;
 class Table_statistics;
 class With_element;
@@ -732,7 +732,7 @@ struct TABLE_SHARE
   KEY  *key_info;			/* data of keys in database */
   FK_list foreign_keys;
   FK_list referenced_keys;
-  bool fk_handle_create(THD *thd, FK_ddl_vector &shares, FK_list *fk_add= NULL);
+  bool fk_handle_create(THD *thd, FK_backup_storage &shares, FK_list *fk_add= NULL);
   bool fk_check_consistency(THD *thd);
   bool referenced_by_foreign_key() const
   {

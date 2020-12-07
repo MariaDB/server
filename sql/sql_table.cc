@@ -90,7 +90,7 @@ static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
                                   *check_constraint_list,
                                   const HA_CREATE_INFO *create_info);
 static
-bool fk_handle_drop(THD* thd, TABLE_LIST* table, FK_ddl_vector& shares,
+bool fk_handle_drop(THD* thd, TABLE_LIST* table, FK_backup_storage& shares,
                     bool drop_db);
 
 /**
@@ -2521,7 +2521,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
 	goto err;
       }
       bool enoent_warning;
-      FK_ddl_vector shares;
+      FK_backup_storage shares;
       error= fk_handle_drop(thd, table, shares, drop_db);
       if (unlikely(error))
         goto err;
@@ -9993,7 +9993,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
   if (likely(!error) && alter_ctx->is_table_renamed())
   {
     THD_STAGE_INFO(thd, stage_rename);
-    FK_ddl_vector fk_rename_backup;
+    FK_backup_storage fk_rename_backup;
     handlerton *old_db_type= table->s->db_type();
     /*
       Then do a 'simple' rename of the table. First we need to close all
@@ -12484,7 +12484,7 @@ wsrep_error_label:
 
 
 // Used in CREATE TABLE and in FK upgrade (fk_add != NULL)
-bool TABLE_SHARE::fk_handle_create(THD *thd, FK_ddl_vector &shares, FK_list *fk_add)
+bool TABLE_SHARE::fk_handle_create(THD *thd, FK_backup_storage &shares, FK_list *fk_add)
 {
   FK_list &fkeys= fk_add ? *fk_add : foreign_keys;
   if (fkeys.is_empty())
@@ -13043,7 +13043,7 @@ void Alter_table_ctx::fk_release_locks(THD* thd)
 /* Used in DROP TABLE: remove table from referenced_keys of referenced tables,
    prohibit if foreign_keys is not empty. */
 static
-bool fk_handle_drop(THD *thd, TABLE_LIST *table, FK_ddl_vector &shares,
+bool fk_handle_drop(THD *thd, TABLE_LIST *table, FK_backup_storage &shares,
                     bool drop_db)
 {
   DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, table->db.str,
@@ -13175,7 +13175,7 @@ bool fk_handle_drop(THD *thd, TABLE_LIST *table, FK_ddl_vector &shares,
 */
 bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db,
                       const LEX_CSTRING *new_table_name,
-                      FK_ddl_vector &fk_rename_backup)
+                      FK_backup_storage &fk_rename_backup)
 {
   DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, old_table->db.str,
                                              old_table->table_name.str,

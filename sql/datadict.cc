@@ -666,7 +666,7 @@ void FK_backup::fk_drop_backup_frm(ddl_log_info &log_info)
 }
 
 
-int FK_ddl_vector::write_shadow_frms()
+int FK_backup_storage::write_shadow_frms()
 {
   int err;
 #ifndef DBUG_OFF
@@ -694,7 +694,7 @@ int FK_ddl_vector::write_shadow_frms()
 }
 
 
-bool FK_ddl_vector::install_shadow_frms()
+bool FK_backup_storage::install_shadow_frms()
 {
   if (!size())
     return false;
@@ -738,7 +738,7 @@ bool FK_ddl_vector::install_shadow_frms()
 }
 
 
-void FK_ddl_vector::rollback(THD *thd)
+void FK_backup_storage::rollback(THD *thd)
 {
   for (auto &bak: *this)
     bak.second.rollback(*this);
@@ -756,7 +756,7 @@ void FK_ddl_vector::rollback(THD *thd)
 }
 
 
-void FK_ddl_vector::drop_backup_frms(THD *thd)
+void FK_backup_storage::drop_backup_frms(THD *thd)
 {
 #ifndef DBUG_OFF
   dbg_fail= true;

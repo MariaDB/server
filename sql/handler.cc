@@ -5511,7 +5511,7 @@ int ha_create_table(THD *thd, const char *path,
   char name_buff[FN_REFLEN];
   const char *name;
   TABLE_SHARE share;
-  FK_ddl_vector fk_shares;
+  FK_backup_storage fk_shares;
   bool temp_table __attribute__((unused)) =
     create_info->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER);
   DBUG_ENTER("ha_create_table");

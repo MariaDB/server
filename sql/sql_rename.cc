@@ -34,13 +34,13 @@
 static TABLE_LIST *rename_tables(THD *thd, TABLE_LIST *table_list,
                                  bool skip_error, bool if_exits,
                                  bool *force_if_exists,
-                                 FK_ddl_vector &fk_rename_backup);
+                                 FK_backup_storage &fk_rename_backup);
 static bool do_rename(THD *thd, TABLE_LIST *ren_table,
                       const LEX_CSTRING *new_db,
                       const LEX_CSTRING *new_table_name,
                       const LEX_CSTRING *new_table_alias,
                       bool skip_error, bool if_exists, bool *force_if_exists,
-		      FK_ddl_vector &fk_rename_backup);
+		      FK_backup_storage &fk_rename_backup);
 
 static TABLE_LIST *reverse_table_list(TABLE_LIST *table_list);
 
@@ -57,7 +57,7 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
   TABLE_LIST *ren_table= 0;
   int to_table;
   const char *rename_log_table[2]= {NULL, NULL};
-  FK_ddl_vector fk_rename_backup;
+  FK_backup_storage fk_rename_backup;
   DBUG_ENTER("mysql_rename_tables");
 
   /*
@@ -314,7 +314,7 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
           const LEX_CSTRING *new_table_name,
           const LEX_CSTRING *new_table_alias,
           bool skip_error, bool if_exists, bool *force_if_exists,
-          FK_ddl_vector &fk_rename_backup)
+          FK_backup_storage &fk_rename_backup)
 {
   int rc= 1;
   handlerton *hton, *new_hton;
@@ -479,7 +479,7 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
 static TABLE_LIST *
 rename_tables(THD *thd, TABLE_LIST *table_list, bool skip_error,
               bool if_exists, bool *force_if_exists,
-              FK_ddl_vector &fk_rename_backup)
+              FK_backup_storage &fk_rename_backup)
 {
   TABLE_LIST *ren_table, *new_table;
   DBUG_ENTER("rename_tables");

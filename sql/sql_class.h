@@ -1031,7 +1031,7 @@ class FK_ddl_backup : public FK_share_backup
   /*
      NB: if sa.share is not empty, share == sa.share. ALTER algorithms are more
      complex and shares are held and released in separate container alter_ctx.fk_shares.
-     To make DDL logging common for all commands we handle it via FK_ddl_vector interface, but
+     To make DDL logging common for all commands we handle it via FK_backup_storage interface, but
      without templating and virtual interfaces (these are overcomplexity for only 2 variations)
      we have to converge backup operations into single FK_ddl_backup.
   */
@@ -1064,8 +1064,7 @@ public:
    ifaces we just use mbd::map for everything. We are not going to hit bottleneck here:
    it is DDL (rare operation), it is less than hundred of foreign keys normally.
 */
-// FIXME: not a vector now, rename to something...
-class FK_ddl_vector: public mbd::map<TABLE_SHARE *, FK_ddl_backup>, public ddl_log_info
+class FK_backup_storage: public mbd::map<TABLE_SHARE *, FK_ddl_backup>, public ddl_log_info
 {
 public:
   int write_shadow_frms();

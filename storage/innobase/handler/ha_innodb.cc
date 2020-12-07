@@ -21510,7 +21510,7 @@ fk_upgrade_legacy_storage(dict_table_t* table, trx_t* trx, THD *thd, TABLE_SHARE
 
 	// Got legacy foreign keys, update referenced shares
 	FK_ddl_backup *share_backup;
-	FK_ddl_vector ref_shares;
+	FK_backup_storage ref_shares;
 	if (share->fk_handle_create(thd, ref_shares, &d.foreign_keys)) {
 		err = DB_ERROR;
 		goto rollback;
