@@ -388,13 +388,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
-#sqlx-nnnn_nnnn.ibd
-db.opt
-t1#P#p0.ibd
-t1#P#p1.ibd
-t1.frm
-t1.par
-t2.frm
+#sql-exchange.frm
 # State after crash recovery
 db.opt
 t1#P#p0.ibd
@@ -496,13 +490,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
-#sqlx-nnnn_nnnn.ibd
-db.opt
-t1#P#p0.ibd
-t1#P#p1.ibd
-t1.frm
-t1.par
-t2.frm
+#sql-exchange.frm
 # State after crash recovery
 db.opt
 t1#P#p0.ibd
@@ -604,13 +592,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
-#sqlx-nnnn_nnnn.ibd
-db.opt
-t1#P#p1.ibd
-t1.frm
-t1.par
-t2.frm
-t2.ibd
+#sql-exchange.ibd
 # State after crash recovery
 db.opt
 t1#P#p0.ibd
@@ -712,13 +694,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
-#sqlx-nnnn_nnnn.ibd
-db.opt
-t1#P#p1.ibd
-t1.frm
-t1.par
-t2.frm
-t2.ibd
+#sql-exchange.ibd
 # State after crash recovery
 db.opt
 t1#P#p0.ibd

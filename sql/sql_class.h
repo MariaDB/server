@@ -1023,7 +1023,7 @@ public:
 };
 
 
-// NB: FK_ddl_backup responds for share release unlike FK_table_backup
+// NB: FK_ddl_backup responds for share release unlike FK_share_backup
 class FK_ddl_backup : public FK_share_backup
 {
   /* NB: if sa.share is not empty, share is auto-released on destructor */
@@ -1032,7 +1032,7 @@ class FK_ddl_backup : public FK_share_backup
      NB: if sa.share is not empty, share == sa.share. ALTER algorithms are more
      complex and shares are held and released in separate container alter_ctx.fk_shares.
      To make DDL logging common for all commands we handle it via FK_backup_storage interface, but
-     without templating and virtual interfaces (these are overcomplexity for only 2 variations)
+     without templating and virtual interfaces (these are overcomplexity for only 2 variants)
      we have to converge backup operations into single FK_ddl_backup.
   */
 
@@ -1057,6 +1057,17 @@ public:
   bool backup_frm(ddl_log_info &log_info, Table_name table);
 };
 
+#ifndef DBUG_OFF
+// NB: we do want definite order of shares in test cases
+struct TABLE_SHARE_by_name
+{
+  bool operator() (const TABLE_SHARE *s1, const TABLE_SHARE *s2) const
+  {
+    return s1->cmp_db_table(s2->db, s2->table_name) < 0;
+  }
+};
+#endif
+
 
 /*
    NB: again, ALTER does require duplicate check hence mbd::map is used, while other commands
@@ -1064,7 +1075,12 @@ public:
    ifaces we just use mbd::map for everything. We are not going to hit bottleneck here:
    it is DDL (rare operation), it is less than hundred of foreign keys normally.
 */
-class FK_backup_storage: public mbd::map<TABLE_SHARE *, FK_ddl_backup>, public ddl_log_info
+class FK_backup_storage: public mbd::map<TABLE_SHARE *, FK_ddl_backup
+#ifndef DBUG_OFF
+                                         , TABLE_SHARE_by_name
+#endif
+                         >,
+                         public ddl_log_info
 {
 public:
   int write_shadow_frms();

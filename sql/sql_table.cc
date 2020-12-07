@@ -8191,7 +8191,8 @@ static bool mysql_inplace_alter_table(THD *thd,
   if (wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_RENAME))
     goto rollback;
 
-  if (alter_ctx->fk_handle_alter(thd))
+  if (alter_ctx->fk_handle_alter(thd) ||
+      alter_ctx->fk_ref_backup.install_shadow_frms())
     goto rollback;
 
   /* Set MDL_BACKUP_DDL */
@@ -8262,12 +8263,14 @@ static bool mysql_inplace_alter_table(THD *thd,
     {
       my_error(HA_ERR_INCOMPATIBLE_DEFINITION, MYF(0));
       alter_ctx->fk_ref_backup.rollback(thd);
-      // FIXME: why not goto rollback?
       goto cleanup;
     }
   }
 
   table->s->frm_image= NULL;
+
+  alter_ctx->fk_ref_backup.drop_backup_frms(thd);
+  alter_ctx->fk_ref_backup.clear();
 
   close_all_tables_for_name(thd, table->s,
                             alter_ctx->is_table_renamed() ?
@@ -8275,15 +8278,6 @@ static bool mysql_inplace_alter_table(THD *thd,
                             HA_EXTRA_NOT_USED,
                             NULL);
   table_list->table= table= NULL;
-
-  // FIXME: do right after fk_handle_alter?
-  if (alter_ctx->fk_ref_backup.install_shadow_frms())
-  {
-    alter_ctx->fk_ref_backup.rollback(thd);
-    DBUG_RETURN(true);
-  }
-
-  alter_ctx->fk_ref_backup.drop_backup_frms(thd);
 
   /*
     Replace the old .FRM with the new .FRM, but keep the old name for now.
@@ -8310,7 +8304,6 @@ static bool mysql_inplace_alter_table(THD *thd,
     if (mysql_rename_table(db_type, &alter_ctx->db, &alter_ctx->table_name,
                            &alter_ctx->new_db, &alter_ctx->new_alias, 0))
     {
-      // FIXME: rollback only table name
       /*
         If the rename fails we will still have a working table
         with the old name, but with other changes applied.
@@ -8331,7 +8324,6 @@ static bool mysql_inplace_alter_table(THD *thd,
       (void) mysql_rename_table(db_type,
                                 &alter_ctx->new_db, &alter_ctx->new_alias,
                                 &alter_ctx->db, &alter_ctx->alias, NO_FK_CHECKS);
-      // FIXME: if rename succeeds rollback only table name
       DBUG_RETURN(true);
     }
     rename_table_in_stat_tables(thd, &alter_ctx->db, &alter_ctx->alias,
@@ -11252,6 +11244,7 @@ do_continue:;
   if (wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_RENAME))
     goto err_new_table_cleanup;
 
+  alter_ctx.fk_ref_backup.erase(table->s);
   if (alter_ctx.fk_handle_alter(thd))
     // NB: now after lock upgrade it jumps to "err_with_mdl" as well
     goto err_new_table_cleanup;
@@ -13191,7 +13184,7 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
   if (share->foreign_keys.is_empty() && share->referenced_keys.is_empty())
     return false;
   mbd::set<Table_name> tables;
-  mbd::set<Table_name> already; // FIXME: do we need it for mbd::map?
+  mbd::set<Table_name> already;
   MDL_request_list mdl_list;
   for (auto &bak: fk_rename_backup)
   {

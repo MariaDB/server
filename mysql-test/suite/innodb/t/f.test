@@ -1,5 +1,9 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
+# Don't test this under valgrind, memory leaks will occur
+--source include/not_valgrind.inc
+# Crash tests don't work with embedded
+--source include/not_embedded.inc
 
 # In fail_fk_backup_frm the log is already written but rename is not done
 call mtr.add_suppression("Failed to execute action for entry");
@@ -60,8 +64,6 @@ let $debug_dbug="+d,crash_fk_install_shadow_frm";
 --source include/foreign_fail.inc
 call drop_tables;
 
-# FIXME: crash statements
-
 --echo # CREATE TABLE
 create table t1 (x int primary key);
 create table t2 (y int primary key);
@@ -100,11 +102,13 @@ let $debug_dbug="+d,fail_fk_backup_frm";
 let $debug_dbug="+d,fail_fk_install_shadow_frm";
 --source include/foreign_fail.inc
 let $crash_statement= $fail_statement;
-# TODO: rollback RENAME TABLE (and other DDL?) via DDL log
+# TODO: RENAME TABLE is not crash-safe itself, so rollback it via DDL log
 # NB: if we rename back in different order we'll lose some referenced hints
 # (Foreign_key_io::parse() skips them if it can't find table by name)
 # MDEV-23433 solves the problem of missing referenced hints
 let $fixup_statement= rename table xt4 to t4, xt3 to t3, xt2 to t2, xt1 to t1;
+let $debug_dbug="+d,crash_fk_write_shadow_frm";
+--source include/foreign_fail.inc
 let $debug_dbug="+d,crash_fk_backup_frm";
 --source include/foreign_fail.inc
 let $debug_dbug="+d,crash_fk_install_shadow_frm";
@@ -118,11 +122,13 @@ let $debug_dbug="+d,fail_fk_backup_frm";
 --source include/foreign_fail.inc
 let $debug_dbug="+d,fail_fk_install_shadow_frm";
 --source include/foreign_fail.inc
-#let $crash_statement= $fail_statement;
-#let $debug_dbug="+d,crash_fk_backup_frm";
-#--source include/foreign_fail.inc
-#let $debug_dbug="+d,crash_fk_install_shadow_frm";
-#--source include/foreign_fail.inc
+let $crash_statement= $fail_statement;
+let $debug_dbug="+d,crash_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_install_shadow_frm";
+--source include/foreign_fail.inc
 call drop_tables;
 
 --echo # RENAME COLUMN
@@ -136,16 +142,34 @@ let $debug_dbug="+d,fail_fk_backup_frm";
 --source include/foreign_fail.inc
 let $debug_dbug="+d,fail_fk_install_shadow_frm";
 --source include/foreign_fail.inc
+let $crash_statement= $fail_statement;
+let $debug_dbug="+d,crash_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_install_shadow_frm";
+--source include/foreign_fail.inc
 let $fail_statement= alter table t3 rename column z to z2, rename column y to y2, rename column x to x2, rename column c to c2;
+--let $crash_statement=
+let $debug_dbug="+d,fail_fk_write_shadow_frm";
+--source include/foreign_fail.inc
 let $debug_dbug="+d,fail_fk_backup_frm";
 --source include/foreign_fail.inc
 let $debug_dbug="+d,fail_fk_install_shadow_frm";
+--source include/foreign_fail.inc
+let $crash_statement= $fail_statement;
+let $debug_dbug="+d,crash_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_backup_frm";
+--source include/foreign_fail.inc
+let $debug_dbug="+d,crash_fk_install_shadow_frm";
 --source include/foreign_fail.inc
 call drop_tables;
 
 --echo # ADD/DROP FOREIGN KEY, DROP COLUMN
 call make_tables;
 --let $create_statement=
+--let $crash_statement=
 show create table t3;
 let $fail_statement= alter table t3
   drop foreign key fk_t3,
@@ -160,17 +184,15 @@ let $debug_dbug="+d,fail_fk_backup_frm";
 --source include/foreign_fail.inc
 let $debug_dbug="+d,fail_fk_install_shadow_frm";
 --source include/foreign_fail.inc
+let $crash_statement= $fail_statement;
+let $debug_dbug="+d,crash_fk_write_shadow_frm";
+--source include/foreign_fail.inc
+# TODO: ALTER TABLE is not crash-safe itself, so rollback it via DDL log
+#let $debug_dbug="+d,crash_fk_backup_frm";
+#--source include/foreign_fail.inc
+#let $debug_dbug="+d,crash_fk_install_shadow_frm";
+#--source include/foreign_fail.inc
 call drop_tables;
-
-
-#set @save_dbug=@@debug_dbug;
-#let $create_statement= create or replace table t1 (id int primary key);
-#let $create_statement2= create or replace table t2 (id int);
-#let $insert_statement= insert into t1 values(1);
-#let $insert_statement2= insert into t2 values(1);
-#set session debug_dbug="+d,crash_fk_alter_1";
-#let $crash_statement= alter table t2 add foreign key (id) references t1(id), algorithm=copy;
-#--source suite/parts/inc/partition_crash_t2.inc
 
 drop procedure make_tables;
 drop procedure drop_tables;

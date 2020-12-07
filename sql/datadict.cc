@@ -767,7 +767,7 @@ void FK_backup_storage::drop_backup_frms(THD *thd)
       continue;
     if (deactivate_ddl_log_entry(bak.second.restore_backup_entry->entry_pos))
     {
-      // FIXME: test getting into here (and other deactivate_ddl_log_entry() failures)
+      // TODO: test getting into here (and other deactivate_ddl_log_entry() failures)
       my_printf_error(ER_DDL_LOG_ERROR, "Deactivating restore backup entry %u failed",
                       MYF(0), bak.second.restore_backup_entry->entry_pos);
       // TODO: must be atomic
