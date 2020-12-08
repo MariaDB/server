@@ -866,6 +866,9 @@ bool Aggregator_distinct::setup(THD *thd)
       {
         compare_key= (qsort_cmp2) key_cmp;
         cmp_arg= (void*)this;
+        encoder= item_sum->get_encoder_for_variable_size_keys(non_const_items);
+        if (!encoder)
+          return TRUE; // OOM
       }
       DBUG_ASSERT(tree == 0);
 
@@ -881,7 +884,8 @@ bool Aggregator_distinct::setup(THD *thd)
       if (!tree ||
           (tree->get_descriptor()->setup_for_item(thd, item_sum,
                                                   non_const_items,
-                                                  item_sum->get_arg_count())))
+                                                  item_sum->get_arg_count()))||
+          (encoder && encoder->init(tree_key_length)))
         return TRUE;
     }
     return FALSE;
@@ -984,7 +988,7 @@ int Aggregator_distinct::insert_record_to_unique()
   {
     uchar *rec_ptr;
     Descriptor *descriptor= tree->get_descriptor();
-    if ((rec_ptr= descriptor->make_record(true)) == NULL)
+    if ((rec_ptr= encoder->make_encoded_record(descriptor->get_keys(), true)) == NULL)
       return -1; // NULL value
     DBUG_ASSERT(descriptor->get_length_of_key(rec_ptr) <= tree->get_size());
     return tree->unique_add(rec_ptr);
@@ -1845,6 +1849,7 @@ Aggregator_distinct::~Aggregator_distinct()
     delete tmp_table_param;
     tmp_table_param= NULL;
   }
+  delete encoder;
 }
 
 
@@ -4039,7 +4044,7 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
    warning_for_row(FALSE),
    force_copy_fields(0), row_limit(NULL),
    offset_limit(NULL), limit_clause(limit_clause),
-   copy_offset_limit(0), copy_row_limit(0), original(0)
+   copy_offset_limit(0), copy_row_limit(0), original(0), encoder(NULL)
 {
   Item *item_select;
   Item **arg_ptr;
@@ -4108,7 +4113,8 @@ Item_func_group_concat::Item_func_group_concat(THD *thd,
   force_copy_fields(item->force_copy_fields),
   row_limit(item->row_limit), offset_limit(item->offset_limit),
   limit_clause(item->limit_clause),copy_offset_limit(item->copy_offset_limit),
-  copy_row_limit(item->copy_row_limit), original(item)
+  copy_row_limit(item->copy_row_limit), original(item),
+  encoder(item->encoder)
 {
   quick_group= item->quick_group;
   result.set_charset(collation.collation);
@@ -4566,6 +4572,8 @@ bool Item_func_group_concat::setup(THD *thd)
 
   if (distinct)
   {
+    if (allow_packing)
+      encoder= get_encoder_for_variable_size_keys(non_const_items);
     unique_filter= get_unique(get_comparator_function_for_distinct(allow_packing),
                              (void*)this,
                              tree_key_length + get_null_bytes(),
@@ -4575,7 +4583,8 @@ bool Item_func_group_concat::setup(THD *thd)
     if (!unique_filter ||
         (unique_filter->get_descriptor()->setup_for_item(thd, this,
                                                          non_const_items,
-                                                         arg_count_field)))
+                                                         arg_count_field)) ||
+        (encoder && encoder->init(tree_key_length + get_null_bytes())))
       DBUG_RETURN(TRUE);
   }
   if ((row_limit && row_limit->cmp_type() != INT_RESULT) ||
@@ -4889,7 +4898,9 @@ void Item_func_group_concat::print(String *str, enum_query_type query_type)
 Item_func_group_concat::~Item_func_group_concat()
 {
   if (!original && unique_filter)
-    delete unique_filter;    
+    delete unique_filter;
+  if (!original && encoder)
+    delete encoder;
 }
 
 
@@ -4944,7 +4955,7 @@ int Item_func_group_concat::insert_packed_record_to_unique()
 {
   Descriptor *descriptor= unique_filter->get_descriptor();
   uchar *rec_ptr;
-  if ((rec_ptr= descriptor->make_record(skip_nulls())) == NULL)
+  if (!(rec_ptr= encoder->make_encoded_record(descriptor->get_keys(),skip_nulls())))
     return -1; // NULL value
   DBUG_ASSERT(descriptor->get_length_of_key(rec_ptr)
                         <= unique_filter->get_size());
@@ -4991,4 +5002,20 @@ Item_func_group_concat::get_descriptor_for_variable_size_keys(uint args_count,
     return new Variable_size_keys_simple(size_arg);
   else
     return new Variable_size_composite_key_desc_for_gconcat(size_arg);
+}
+
+
+Encode_key* Item_sum::get_encoder_for_variable_size_keys(uint args_count)
+{
+  return new Encode_variable_size_key();
+}
+
+
+Encode_key*
+Item_func_group_concat::get_encoder_for_variable_size_keys(uint args_count)
+{
+  if (args_count == 1)
+    return new Encode_variable_size_key();
+  else
+    return new Encode_key_for_group_concat();
 }

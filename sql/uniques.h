@@ -120,10 +120,9 @@ public:
   { return false; }
   virtual bool setup_for_field(THD *thd, Field *field) { return false; }
 
-  virtual Sort_keys *get_keys() { return sort_keys; }
-  SORT_FIELD *get_sortorder() { return sortorder; }
+  inline Sort_keys *get_keys() { return sort_keys; }
+  inline SORT_FIELD *get_sortorder() { return sortorder; }
 
-  virtual uchar* make_record(bool exclude_nulls) { return NULL; }
   virtual bool is_single_arg() = 0;
   virtual bool init(THD *thd, uint count);
 };
@@ -264,34 +263,27 @@ public:
   that the number of arguments with DISTINCT is 1.
 */
 
-class Variable_size_keys_simple : public Variable_size_keys_descriptor,
-                                  public Encode_variable_size_key
+class Variable_size_keys_simple : public Variable_size_keys_descriptor
 {
 public:
   Variable_size_keys_simple(uint length)
-    :Variable_size_keys_descriptor(length), Encode_variable_size_key() {}
+    :Variable_size_keys_descriptor(length){}
   ~Variable_size_keys_simple() {}
   int compare_keys(uchar *a, uchar *b) override;
-  uchar* make_record(bool exclude_nulls) override;
-  uchar* get_rec_ptr() { return rec_ptr; }
   bool is_single_arg() override { return true; }
-  bool init(THD *thd, uint count) override;
 };
 
 
 /*
   Descriptor for variable sized keys with multiple key parts
 */
-class Variable_size_composite_key_desc : public Variable_size_keys_descriptor,
-                                         public Encode_variable_size_key
+class Variable_size_composite_key_desc : public Variable_size_keys_descriptor
 {
 public:
   Variable_size_composite_key_desc(uint length)
-    : Variable_size_keys_descriptor(length), Encode_variable_size_key() {}
+    : Variable_size_keys_descriptor(length){}
   ~Variable_size_composite_key_desc() {}
   int compare_keys(uchar *a, uchar *b) override;
-  uchar* make_record(bool exclude_nulls) override;
-  bool init(THD *thd, uint count) override;
 };
 
 
@@ -301,18 +293,15 @@ public:
 */
 
 class Variable_size_composite_key_desc_for_gconcat :
-                                         public Variable_size_keys_descriptor,
-                                         public Encode_key_for_group_concat
+                                         public Variable_size_keys_descriptor
 {
 public:
   Variable_size_composite_key_desc_for_gconcat(uint length)
-    : Variable_size_keys_descriptor(length), Encode_key_for_group_concat() {}
+    : Variable_size_keys_descriptor(length) {}
   ~Variable_size_composite_key_desc_for_gconcat() {}
   int compare_keys(uchar *a, uchar *b) override;
-  uchar* make_record(bool exclude_nulls) override;
   bool setup_for_item(THD *thd, Item_sum *item,
                       uint non_const_args, uint arg_count) override;
-  bool init(THD *thd, uint count) override;
 };
 
 

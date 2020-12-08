@@ -1670,6 +1670,7 @@ protected:
 
   ulonglong distincts;
   ulonglong distincts_single_occurence;
+  Encode_key *encoder;
 
 public:
   
@@ -1695,12 +1696,13 @@ public:
     table_field= field;
     tree_key_length= 0;
     tree= NULL;
+    encoder= NULL;
   }
 
   virtual ~Count_distinct_field()
   {
     delete tree;
-    tree= NULL;
+    delete encoder;
   }
 
   /* 
@@ -1751,6 +1753,9 @@ public:
     if (table_field->is_packable())
     {
       tree_key_length= compute_packable_length(table_field);
+      encoder= new Encode_variable_size_key();
+      if (!encoder || encoder->init(tree_key_length))
+        return TRUE; // OOM
       desc= new Variable_size_keys_simple(tree_key_length);
     }
     else
@@ -1780,7 +1785,7 @@ public:
     if (tree->is_variable_sized())
     {
       Descriptor *descriptor= tree->get_descriptor();
-      uchar *rec_ptr=  descriptor->make_record(true);
+      uchar *rec_ptr=  encoder->make_encoded_record(descriptor->get_keys(), true);
       DBUG_ASSERT(descriptor->get_length_of_key(rec_ptr) <= tree->get_size());
       return tree->unique_add(rec_ptr);
     }

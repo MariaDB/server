@@ -1027,24 +1027,6 @@ int Variable_size_keys_simple::compare_keys(uchar *a, uchar *b)
 }
 
 
-uchar* Variable_size_composite_key_desc::make_record(bool exclude_nulls)
-{
-  return make_encoded_record(sort_keys, exclude_nulls);
-}
-
-uchar*
-Variable_size_composite_key_desc_for_gconcat::make_record(bool exclude_nulls)
-{
-  return make_encoded_record(sort_keys, exclude_nulls);
-}
-
-
-uchar* Variable_size_keys_simple::make_record(bool exclude_nulls)
-{
-  return make_encoded_record(sort_keys, exclude_nulls);
-}
-
-
 /*
   @brief
     Create the sortorder and Sort keys structures for a descriptor
@@ -1069,27 +1051,6 @@ bool Descriptor::init(THD *thd, uint count)
   if (!sort_keys)
     return true;  // OOM
   return false;
-}
-
-
-bool Variable_size_composite_key_desc::init(THD *thd, uint count)
-{
-  return Descriptor::init(thd, count) ||
-         Encode_variable_size_key::init(max_length);
-}
-
-
-bool Variable_size_composite_key_desc_for_gconcat::init(THD *thd, uint count)
-{
-  return Descriptor::init(thd, count) ||
-         Encode_key_for_group_concat::init(max_length);
-}
-
-
-bool Variable_size_keys_simple::init(THD *thd, uint count)
-{
-  return Descriptor::init(thd, count) ||
-         Encode_variable_size_key::init(max_length);
 }
 
 
