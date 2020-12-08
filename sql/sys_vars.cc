@@ -5927,6 +5927,21 @@ static Sys_var_uint Sys_wsrep_sync_wait(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(wsrep_sync_wait_update));
 
+static const char *wsrep_mode_names[]= 
+{
+  "BINLOG_ROW_FORMAT_ONLY",
+  "REQUIRED_PRIMARY_KEY",
+  NullS
+};
+static Sys_var_set Sys_wsrep_mode(
+       "wsrep_mode",
+       "Set of WSREP features that are enabled.",
+       GLOBAL_VAR(wsrep_mode), CMD_LINE(REQUIRED_ARG),
+       wsrep_mode_names,
+       DEFAULT(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_mode_check));
+
 static const char *wsrep_OSU_method_names[]= { "TOI", "RSU", NullS };
 static Sys_var_enum Sys_wsrep_OSU_method(
        "wsrep_OSU_method", "Method for Online Schema Upgrade",

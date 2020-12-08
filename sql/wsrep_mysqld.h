@@ -102,6 +102,7 @@ extern bool        wsrep_new_cluster;
 extern bool        wsrep_gtid_mode;
 extern my_bool     wsrep_strict_ddl;
 extern uint        wsrep_gtid_domain_id;
+extern ulonglong   wsrep_mode;
 
 enum enum_wsrep_reject_types {
   WSREP_REJECT_NONE,    /* nothing rejected */
@@ -131,6 +132,11 @@ enum enum_wsrep_ignore_apply_error {
     WSREP_IGNORE_ERRORS_ON_RECONCILING_DML= 0x2,
     WSREP_IGNORE_ERRORS_ON_DDL= 0x4,
     WSREP_IGNORE_ERRORS_MAX= 0x7
+};
+
+enum enum_wsrep_mode {
+  WSREP_MODE_BINLOG_ROW_FORMAT_ONLY= (1ULL << 0),
+  WSREP_MODE_REQURIED_PRIMARY_KEY= (1ULL << 1)
 };
 
 // Streaming Replication
@@ -209,6 +215,9 @@ extern void wsrep_close_applier_threads(int count);
 extern void wsrep_stop_replication(THD *thd);
 extern bool wsrep_start_replication();
 extern void wsrep_shutdown_replication();
+extern bool wsrep_check_mode (enum_wsrep_mode mask);
+extern bool wsrep_check_mode_after_open_table (THD *thd, legacy_db_type db_type);
+extern bool wsrep_check_mode_before_cmd_execute (THD *thd);
 extern bool wsrep_must_sync_wait (THD* thd, uint mask= WSREP_SYNC_WAIT_BEFORE_READ);
 extern bool wsrep_sync_wait (THD* thd, uint mask= WSREP_SYNC_WAIT_BEFORE_READ);
 extern enum wsrep::provider::status
