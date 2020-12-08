@@ -3707,6 +3707,11 @@ mysql_execute_command(THD *thd)
   thd->set_query_timer();
 
 #ifdef WITH_WSREP
+  /* Check wsrep_mode rules before command execution. */
+  if (WSREP(thd) &&
+      wsrep_thd_is_local(thd) && !wsrep_check_mode_before_cmd_execute(thd))
+    goto error;
+
   /*
     Always start a new transaction for a wsrep THD unless the
     current command is DDL or explicit BEGIN. This will guarantee that

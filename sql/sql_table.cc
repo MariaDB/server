@@ -2474,7 +2474,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     }
     else
     {
-      if (WSREP(thd) && hton && !wsrep_should_replicate_ddl(thd, hton->db_type))
+      if (WSREP(thd) && hton && !wsrep_should_replicate_ddl(thd, hton))
       {
         error= 1;
         goto err;
@@ -10001,7 +10001,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
       (thd->lex->sql_command == SQLCOM_ALTER_TABLE ||
        thd->lex->sql_command == SQLCOM_CREATE_INDEX ||
        thd->lex->sql_command == SQLCOM_DROP_INDEX) &&
-      !wsrep_should_replicate_ddl(thd, table_list->table->s->db_type()->db_type))
+      !wsrep_should_replicate_ddl(thd, table_list->table->s->db_type()))
     DBUG_RETURN(true);
 #endif
 

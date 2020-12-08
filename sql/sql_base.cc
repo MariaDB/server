@@ -4430,6 +4430,19 @@ restart:
       else
         tbl->reginfo.lock_type= tables->lock_type;
     }
+#ifdef WITH_WSREP
+    /* 
+       At this point we have SE associated with table so we can check wsrep_mode
+       rules at this point.
+    */
+    if (WSREP(thd) && 
+        wsrep_thd_is_local(thd) &&
+        !wsrep_check_mode_after_open_table(thd, tbl->file->ht->db_type))
+    {
+      error= TRUE;
+      goto error;
+    }
+#endif
   }
 
 #ifdef WITH_WSREP

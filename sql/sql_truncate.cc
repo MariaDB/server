@@ -305,7 +305,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
     hton= table->file->ht;
 #ifdef WITH_WSREP
     if (WSREP(thd) &&
-	!wsrep_should_replicate_ddl(thd, hton->db_type))
+	!wsrep_should_replicate_ddl(thd, hton))
       DBUG_RETURN(TRUE);
 #endif
 
@@ -329,7 +329,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
 #ifdef WITH_WSREP
     if (WSREP(thd) &&
 	hton != view_pseudo_hton &&
-	!wsrep_should_replicate_ddl(thd, hton->db_type))
+	!wsrep_should_replicate_ddl(thd, hton))
     {
       tdc_release_share(share);
       DBUG_RETURN(TRUE);

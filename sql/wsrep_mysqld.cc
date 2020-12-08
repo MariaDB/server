@@ -97,7 +97,8 @@ my_bool wsrep_restart_slave;                    // Should mysql slave thread be
                                                 // restarted, when node joins back?
 my_bool wsrep_desync;                           // De(re)synchronize the node from the
                                                 // cluster
-my_bool wsrep_strict_ddl;                       // Reject DDL to
+ulonglong wsrep_mode;
+my_bool wsrep_strict_ddl;                       // Deprecated: Reject DDL to
                                                 // effected tables not
                                                 // supporting Galera replication
 bool wsrep_service_started;                     // If Galera was initialized
@@ -1167,6 +1168,54 @@ bool wsrep_start_replication()
   return true;
 }
 
+bool wsrep_check_mode (enum_wsrep_mode mask)
+{
+  return wsrep_mode & mask;
+}
+
+bool wsrep_check_mode_after_open_table (THD *thd, legacy_db_type db_type)
+{
+  return true;
+}
+
+bool wsrep_check_mode_before_cmd_execute (THD *thd)
+{ 
+  bool ret= true;
+  if (wsrep_check_mode(WSREP_MODE_BINLOG_ROW_FORMAT_ONLY) && 
+      !thd->is_current_stmt_binlog_format_row() && is_update_query(thd->lex->sql_command))
+  {
+    my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_OPTION_PREVENTS_STATEMENT,
+                        "WSREP: wsrep_mode = BINLOG_ROW_FORMAT_ONLY enabled. Only ROW binlog format is supported.");
+    ret= false;
+  }
+  if (wsrep_check_mode(WSREP_MODE_REQURIED_PRIMARY_KEY) &&
+      thd->lex->sql_command == SQLCOM_CREATE_TABLE)
+  {
+    Key *key;
+    List_iterator<Key> key_iterator(thd->lex->alter_info.key_list);
+    bool primary_key_found= false;
+    while ((key= key_iterator++))
+    {
+      if (key->type == Key::PRIMARY)
+      {
+        primary_key_found= true;
+        break;
+      }
+    }
+    if (!primary_key_found)
+    {
+      my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_OPTION_PREVENTS_STATEMENT,
+                          "WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table should have PRIMARY KEY defined.");
+      ret= false;
+    }
+  }
+  return ret;
+}
+
 bool wsrep_must_sync_wait (THD* thd, uint mask)
 {
   bool ret= 0;
@@ -1848,20 +1897,19 @@ bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list)
     for (const TABLE_LIST* it= table_list; it; it= it->next_global)
     {
       if (it->table &&
-          !wsrep_should_replicate_ddl(thd, it->table->s->db_type()->db_type))
+          !wsrep_should_replicate_ddl(thd, it->table->s->db_type()))
         return false;
     }
   }
   return true;
 }
 
-bool wsrep_should_replicate_ddl(THD* thd,
-                                const enum legacy_db_type db_type)
+bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton)
 {
-  if (!wsrep_strict_ddl)
+  if (!wsrep_check_mode(WSREP_MODE_STRICT_REPLICATION))
     return true;
 
-  switch (db_type)
+  switch (hton->db_type)
   {
     case DB_TYPE_INNODB:
       return true;
@@ -1880,11 +1928,13 @@ bool wsrep_should_replicate_ddl(THD* thd,
       break;
   }
 
-  /* STRICT, treat as error */
+  /* wsrep_mode = STRICT_REPLICATION, treat as error */
   my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-	  ER_ILLEGAL_HA,
-	  "WSREP: wsrep_strict_ddl=true and storage engine does not support Galera replication.");
+                      ER_ILLEGAL_HA,
+                      "WSREP: wsrep_mode = STRICT_REPLICATION enabled. "
+                      "Storage engine %s not supported.",
+                      ha_resolve_storage_engine_name(hton));
   return false;
 }
 /*
@@ -1915,7 +1965,7 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
     {
       return false;
     }
-    if (!wsrep_should_replicate_ddl(thd, create_info->db_type->db_type))
+    if (!wsrep_should_replicate_ddl(thd, create_info->db_type))
     {
       return false;
     }
@@ -1992,7 +2042,7 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
     break;
   case SQLCOM_ALTER_TABLE:
     if (create_info &&
-        !wsrep_should_replicate_ddl(thd, create_info->db_type->db_type))
+        !wsrep_should_replicate_ddl(thd, create_info->db_type))
       return false;
     /* fallthrough */
   default:

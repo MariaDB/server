@@ -551,7 +551,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
 
 #ifdef WITH_WSREP
   if (WSREP(thd) &&
-      !wsrep_should_replicate_ddl(thd, table->s->db_type()->db_type))
+      !wsrep_should_replicate_ddl(thd, table->s->db_type()))
     goto wsrep_error_label;
 #endif
 

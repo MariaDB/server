@@ -891,6 +891,11 @@ bool wsrep_max_ws_size_update(sys_var *self, THD *thd, enum_var_type)
   return refresh_provider_options();
 }
 
+bool wsrep_mode_check(sys_var *self, THD* thd, set_var* var)
+{
+  return false;
+}
+
 #if UNUSED /* eaec266eb16c (Sergei Golubchik  2014-09-28) */
 static SHOW_VAR wsrep_status_vars[]=
 {
@@ -1017,5 +1022,16 @@ bool wsrep_gtid_domain_id_update(sys_var* self, THD *thd, enum_var_type)
   WSREP_DEBUG("wsrep_gtid_domain_id_update: %llu",
               wsrep_gtid_domain_id);
   wsrep_gtid_server.domain_id= wsrep_gtid_domain_id;
+  return false;
+}
+
+bool wsrep_strict_ddl_update(sys_var *self, THD* thd, enum_var_type var_type)
+{
+  // In case user still sets wsrep_strict_ddl we set new
+  // option to wsrep_mode
+  if (wsrep_strict_ddl)
+    wsrep_mode|= WSREP_MODE_STRICT_REPLICATION;
+  else
+    wsrep_mode&= (~WSREP_MODE_STRICT_REPLICATION);
   return false;
 }

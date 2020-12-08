@@ -7948,7 +7948,7 @@ ER_WARN_HISTORY_ROW_START_TIME
 ER_PART_STARTS_BEYOND_INTERVAL
         eng "%`s: STARTS is later than query time, first history partition may exceed INTERVAL value"
 ER_GALERA_REPLICATION_NOT_SUPPORTED
-        eng "DDL-statement is forbidden as table storage engine does not support Galera replication"
+        eng "Galera replication not supported"
 ER_LOAD_INFILE_CAPABILITY_DISABLED
         eng "The used command is not allowed because the MariaDB server or client has disabled the local infile capability"
         rum "Comanda folosită nu este permisă deoarece clientul sau serverul MariaDB a dezactivat această capabilitate"
