@@ -2691,5 +2691,40 @@ deallocate prepare stmt;
 drop table t1;
 
 --echo #
+--echo # MDEV-24019: query with recursive CTE when no default database is set
+--echo #
+
+drop database test;
+
+let $q=
+with recursive a as
+   (select 1 from dual union select * from a as r)
+select * from a;
+
+eval $q;
+
+create database db1;
+create table db1.t1 (a int);
+insert into db1.t1 values (3), (7), (1);
+
+let $q=
+with recursive cte as
+  (select * from db1.t1 union select * from (select * from cte) as t)
+select * from cte;
+
+eval $q;
+eval explain $q;
+
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop database db1;
+
+create database test;
+use test;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

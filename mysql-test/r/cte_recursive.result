@@ -4191,5 +4191,49 @@ a	b	c
 deallocate prepare stmt;
 drop table t1;
 #
+# MDEV-24019: query with recursive CTE when no default database is set
+#
+drop database test;
+with recursive a as
+(select 1 from dual union select * from a as r)
+select * from a;
+1
+1
+create database db1;
+create table db1.t1 (a int);
+insert into db1.t1 values (3), (7), (1);
+with recursive cte as
+(select * from db1.t1 union select * from (select * from cte) as t)
+select * from cte;
+a
+3
+7
+1
+explain with recursive cte as
+(select * from db1.t1 union select * from (select * from cte) as t)
+select * from cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	
+3	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	3	
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+prepare stmt from "with recursive cte as
+(select * from db1.t1 union select * from (select * from cte) as t)
+select * from cte";
+execute stmt;
+a
+3
+7
+1
+execute stmt;
+a
+3
+7
+1
+deallocate prepare stmt;
+drop database db1;
+create database test;
+use test;
+#
 # End of 10.2 tests
 #
