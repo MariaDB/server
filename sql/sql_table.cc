@@ -2424,6 +2424,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       // note that for TABLE_TYPE_VIEW and TABLE_TYPE_UNKNOWN hton == NULL
     }
 
+    thd->replication_flags= 0;
     was_view= table_type == TABLE_TYPE_VIEW;
     if ((table_type == TABLE_TYPE_UNKNOWN) || (was_view && !drop_view) ||
         (table_type != TABLE_TYPE_SEQUENCE && drop_sequence))
@@ -2473,7 +2474,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       if (hton && hton->flags & HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE)
         log_if_exists= 1;
 
-      thd->replication_flags= 0;
       bool enoent_warning= !dont_log_query && !(hton && hton->discover_table);
       error= ha_delete_table(thd, hton, path, &db, &table_name, enoent_warning);
 
@@ -2489,9 +2489,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
           goto err;
         }
       }
-      /* This may be set by the storage engine in handler::delete_table() */
-      if (thd->replication_flags & OPTION_IF_EXISTS)
-        log_if_exists= 1;
 
       /*
         Delete the .frm file if we managed to delete the table from the
@@ -2568,6 +2565,16 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       if (!error)
         error= ferror;
     }
+
+    /*
+      This may be set
+       - by the storage engine in handler::delete_table()
+       - when deleting a table without .frm file: delete_table_force() will
+         check if the storage engine that had the table had
+         HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE flag
+    */
+    if (thd->replication_flags & OPTION_IF_EXISTS)
+      log_if_exists= 1;
 
     if (likely(!error) || non_existing_table_error(error))
     {

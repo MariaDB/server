@@ -180,6 +180,26 @@ sync_slave_with_master;
 connection master;
 
 --echo #
+--echo # MDEV-24351: S3, same-backend replication: Dropping a table on master
+--echo #             causes error on slave
+--echo #
+show variables like 's3_replicate_alter_as_create_select';
+
+connection slave;
+create table t3 (a int, b int) engine=aria;
+insert into t3 values (1,1),(2,2),(3,3);
+alter table t3 engine=s3;
+
+connection master;
+let $binlog_start= query_get_value("SHOW MASTER STATUS", Position, 1);
+drop table t3;
+--echo # Must show "DROP TABLE IF EXISTS t3", not just "DROP TABLE t3"
+--source include/show_binlog_events.inc
+
+sync_slave_with_master;
+connection master;
+
+--echo #
 --echo # clean up
 --echo #
 --source drop_database.inc
