@@ -883,14 +883,20 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
   {
     space->reacquire();
     ut_ad(status == buf_page_t::NORMAL || status == buf_page_t::INIT_ON_FLUSH);
-    size_t size, orig_size;
+    size_t size;
+#if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
+    size_t orig_size;
+#endif
     IORequest::Type type= lru ? IORequest::WRITE_LRU : IORequest::WRITE_ASYNC;
 
     if (UNIV_UNLIKELY(!rw_lock)) /* ROW_FORMAT=COMPRESSED */
     {
       ut_ad(!space->full_crc32());
       ut_ad(!space->is_compressed()); /* not page_compressed */
-      orig_size= size= bpage->zip_size();
+      size= bpage->zip_size();
+#if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
+      orig_size= size;
+#endif
       buf_flush_update_zip_checksum(frame, size);
       frame= buf_page_encrypt(space, bpage, frame, &size);
       ut_ad(size == bpage->zip_size());
@@ -898,7 +904,10 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
     else
     {
       byte *page= block->frame;
-      orig_size= size= block->physical_size();
+      size= block->physical_size();
+#if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
+      orig_size= size;
+#endif
 
       if (space->full_crc32())
       {
