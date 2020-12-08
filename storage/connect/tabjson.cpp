@@ -3,6 +3,7 @@
 /*  (C) Copyright to the author Olivier BERTRAND          2014 - 2020  */
 /*  This program are the JSON class DB execution routines.             */
 /***********************************************************************/
+#undef BSON_SUPPORT
 
 /***********************************************************************/
 /*  Include relevant sections of the MariaDB header file.              */

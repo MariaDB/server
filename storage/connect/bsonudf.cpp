@@ -693,13 +693,8 @@ PBVAL BJNX::GetRow(PGLOBAL g)
 			for (i++; row && i < Nod; i++) {
 				if (Nodes[i].Op == OP_XX)
 					break;
-				//				else if (!Nodes[i].Key)
-									// Construct intermediate array
-				//					nwr = SubAllocVal(g);
-				//				else
-				//					nwr = SubAllocPair(g);
 
-								// Construct new row
+				// Construct new row
 				nwr = NewVal();
 
 				if (row->Type == TYPE_JOB) {

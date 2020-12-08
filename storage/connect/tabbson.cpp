@@ -1,5 +1,5 @@
 /************* tabbson C++ Program Source Code File (.CPP) *************/
-/* PROGRAM NAME: tabjson     Version 1.0                               */
+/* PROGRAM NAME: tabbson     Version 1.0                               */
 /*  (C) Copyright to the author Olivier BERTRAND          2020         */
 /*  This program are the BSON class DB execution routines.             */
 /***********************************************************************/
@@ -29,14 +29,12 @@
 #if defined(ZIP_SUPPORT)
 #include "filamzip.h"
 #endif   // ZIP_SUPPORT
-#if 0
 #if defined(JAVA_SUPPORT)
 #include "jmgfam.h"
 #endif   // JAVA_SUPPORT
 #if defined(CMGO_SUPPORT)
 #include "cmgfam.h"
 #endif   // CMGO_SUPPORT
-#endif // 0
 #include "tabmul.h"
 #include "checklvl.h"
 #include "resource.h"
@@ -266,38 +264,36 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 
     if (tdp->Zipped) {
 #if defined(ZIP_SUPPORT)
-      tjnp = new(g)TDBBSN(tdp->G, tdp, new(g) UNZFAM(tdp));
+      tjnp = new(g)TDBBSN(g, tdp, new(g) UNZFAM(tdp));
 #else   // !ZIP_SUPPORT
       sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
       return NULL;
 #endif  // !ZIP_SUPPORT
-#if 0
     } else if (tdp->Uri) {
       if (tdp->Driver && toupper(*tdp->Driver) == 'C') {
 #if defined(CMGO_SUPPORT)
-        tjnp = new(g) TDBBSN(G, tdp, new(g) CMGFAM(tdp));
+        tjnp = new(g) TDBBSN(g, tdp, new(g) CMGFAM(tdp));
 #else
         sprintf(g->Message, "Mongo %s Driver not available", "C");
         return 0;
 #endif
       } else if (tdp->Driver && toupper(*tdp->Driver) == 'J') {
 #if defined(JAVA_SUPPORT)
-        tjnp = new(g) TDBBSN(G, tdp, new(g) JMGFAM(tdp));
+        tjnp = new(g) TDBBSN(g, tdp, new(g) JMGFAM(tdp));
 #else
         sprintf(g->Message, "Mongo %s Driver not available", "Java");
         return 0;
 #endif
       } else {             // Driver not specified
 #if defined(CMGO_SUPPORT)
-        tjnp = new(g) TDBBSN(G, tdp, new(g) CMGFAM(tdp));
+        tjnp = new(g) TDBBSN(g, tdp, new(g) CMGFAM(tdp));
 #elif defined(JAVA_SUPPORT)
-        tjnp = new(g) TDBBSN(G, tdp, new(g) JMGFAM(tdp));
+        tjnp = new(g) TDBBSN(g, tdp, new(g) JMGFAM(tdp));
 #else
         sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "MONGO");
         return 0;
 #endif
       } // endif Driver
-#endif // 0
 
     } else if (tdp->Pretty >= 0)
       tjnp = new(g) TDBBSN(g, tdp, new(g) DOSFAM(tdp));
@@ -394,7 +390,7 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
   char  *p, *pc = colname + strlen(colname), buf[32];
   int    ars;
   size_t n;
-  PBPR   job;
+  PBVAL  job;
   PBVAL  jar;
 
   if (jvp && !bp->IsJson(jvp)) {
@@ -436,9 +432,9 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
 
     switch (jsp->Type) {
     case TYPE_JOB:
-      job = bp->GetObject(jsp);
+      job = jsp;
 
-      for (PBPR jrp = job; jrp; jrp = bp->GetNext(jrp)) {
+      for (PBPR jrp = bp->GetObject(job); jrp; jrp = bp->GetNext(jrp)) {
         PCSZ k = bp->GetKey(jrp);
 
         if (*k != '$') {
@@ -456,7 +452,7 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
 
       return false;
     case TYPE_JAR:
-      jar = bp->GetArray(jsp);
+      jar = jsp;
 
       if (all || (tdp->Xcol && !stricmp(tdp->Xcol, key)))
         ars = MY_MIN(bp->GetArraySize(jar), limit);
@@ -722,9 +718,11 @@ void BCUTIL::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL jvp)
     case TYPE_BINT:
     case TYPE_DBL:
     case TYPE_DTM:
+    case TYPE_FLOAT:
       switch (vp->GetType()) {
       case TYPE_STRING:
       case TYPE_DATE:
+      case TYPE_DECIM:
         vp->SetValue_psz(GetString(jvp));
         break;
       case TYPE_INT:
@@ -738,7 +736,7 @@ void BCUTIL::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL jvp)
       case TYPE_DOUBLE:
         vp->SetValue(GetDouble(jvp));
 
-        if (jvp->Type == TYPE_DBL)
+        if (jvp->Type == TYPE_DBL || jvp->Type == TYPE_FLOAT)
           vp->SetPrec(jvp->Nd);
 
         break;
@@ -1175,7 +1173,6 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
       return NULL;
     } // endif Lrecl
 
-#if 0
     if (Uri) {
       if (Driver && toupper(*Driver) == 'C') {
 #if defined(CMGO_SUPPORT)
@@ -1203,8 +1200,7 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
       } // endif Driver
 
     } else if (Zipped) {
-#endif // 0
-    if (Zipped) {
+//    if (Zipped) {
 #if defined(ZIP_SUPPORT)
       if (m == MODE_READ || m == MODE_ANY || m == MODE_ALTER) {
         txfp = new(g) UNZFAM(this);

@@ -1,11 +1,11 @@
 /************** CMGFAM C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: cmgfam.cpp                                            */
 /* -------------                                                       */
-/*  Version 1.4                                                        */
+/*  Version 1.5                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          20017        */
+/*  (C) Copyright to the author Olivier BERTRAND          20017 - 2020 */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -29,7 +29,11 @@
 #include "reldef.h"
 #include "filamtxt.h"
 #include "tabdos.h"
+#if defined(BSON_SUPPORT)
+#include "tabbson.h"
+#else
 #include "tabjson.h"
+#endif   // BSON_SUPPORT
 #include "cmgfam.h"
 
 #if defined(UNIX) || defined(UNIV_LINUX)
@@ -53,6 +57,7 @@ CMGFAM::CMGFAM(PJDEF tdp) : DOSFAM((PDOSDEF)NULL)
 		Pcg.Options = tdp->Options;
 		Pcg.Filter = tdp->Filter;
 		Pcg.Pipe = tdp->Pipe && tdp->Options != NULL;
+		Lrecl = tdp->Lrecl + tdp->Ending;
 	} else {
 		Pcg.Uristr = NULL;
 		Pcg.Db_name = NULL;
@@ -60,21 +65,55 @@ CMGFAM::CMGFAM(PJDEF tdp) : DOSFAM((PDOSDEF)NULL)
 		Pcg.Options = NULL;
 		Pcg.Filter = NULL;
 		Pcg.Pipe = false;
+		Lrecl = 0;
 	} // endif tdp
 
 	To_Fbt = NULL;
 	Mode = MODE_ANY;
 	Done = false;
-	Lrecl = tdp->Lrecl + tdp->Ending;
 } // end of CMGFAM standard constructor
  
- CMGFAM::CMGFAM(PCMGFAM tdfp) : DOSFAM(tdfp)
+#if defined(BSON_SUPPORT)
+	/***********************************************************************/
+/*  Constructors.                                                      */
+/***********************************************************************/
+CMGFAM::CMGFAM(PBDEF tdp) : DOSFAM((PDOSDEF)NULL)
 {
+	Cmgp = NULL;
+	Pcg.Tdbp = NULL;
+
+	if (tdp) {
+		Pcg.Uristr = tdp->Uri;
+		Pcg.Db_name = tdp->Schema;
+		Pcg.Coll_name = tdp->Collname;
+		Pcg.Options = tdp->Options;
+		Pcg.Filter = tdp->Filter;
+		Pcg.Pipe = tdp->Pipe && tdp->Options != NULL;
+		Lrecl = tdp->Lrecl + tdp->Ending;
+	} else {
+		Pcg.Uristr = NULL;
+		Pcg.Db_name = NULL;
+		Pcg.Coll_name = NULL;
+		Pcg.Options = NULL;
+		Pcg.Filter = NULL;
+		Pcg.Pipe = false;
+		Lrecl = 0;
+	} // endif tdp
+
+	To_Fbt = NULL;
+	Mode = MODE_ANY;
+	Done = false;
+} // end of CMGFAM standard constructor
+#endif    // BSON_SUPPORT
+
+CMGFAM::CMGFAM(PCMGFAM tdfp) : DOSFAM(tdfp)
+{
+	Cmgp = tdfp->Cmgp;
 	Pcg = tdfp->Pcg;
 	To_Fbt = tdfp->To_Fbt;
 	Mode = tdfp->Mode;
 	Done = tdfp->Done;
- } // end of CMGFAM copy constructor
+} // end of CMGFAM copy constructor
 
 /***********************************************************************/
 /*  Reset: reset position values at the beginning of file.             */

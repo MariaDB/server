@@ -82,11 +82,11 @@
 #endif   // JAVA_SUPPORT
 #include "tabpivot.h"
 #include "tabvir.h"
-#if defined(DEVELOPMENT)
+#if defined(BSON_SUPPORT)
 #include "tabbson.h"
 #else
 #include "tabjson.h"
-#endif   // DEVELOPMENT
+#endif   // BSON_SUPPORT
 #include "ha_connect.h"
 #if defined(XML_SUPPORT)
 #include "tabxml.h"
@@ -111,6 +111,9 @@ extern "C" HINSTANCE s_hModule;           // Saved module handle
 #if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
 bool MongoEnabled(void);
 #endif   // JAVA_SUPPORT || CMGO_SUPPORT
+#if defined(BSON_SUPPORT)
+bool Force_Bson(void);
+#endif   // BSON_SUPPORT
 
 /***********************************************************************/
 /*  Get the plugin directory.                                          */
@@ -134,25 +137,25 @@ TABTYPE GetTypeID(const char *type)
                  : (!stricmp(type, "DBF"))   ? TAB_DBF
 #if defined(XML_SUPPORT)
                  : (!stricmp(type, "XML"))   ? TAB_XML
-#endif
+#endif   // XML_SUPPORT
                  : (!stricmp(type, "INI"))   ? TAB_INI
                  : (!stricmp(type, "VEC"))   ? TAB_VEC
 #if defined(ODBC_SUPPORT)
                  : (!stricmp(type, "ODBC"))  ? TAB_ODBC
-#endif
+#endif   // ODBC_SUPPORT
 #if defined(JAVA_SUPPORT)
                  : (!stricmp(type, "JDBC"))  ? TAB_JDBC
-#endif
+#endif   // JAVA_SUPPORT
 #if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
                  : (!stricmp(type, "MONGO") && MongoEnabled()) ? TAB_MONGO
-#endif
+#endif   // JAVA_SUPPORT  ||         CMGO_SUPPORT
                  : (!stricmp(type, "MYSQL")) ? TAB_MYSQL
                  : (!stricmp(type, "MYPRX")) ? TAB_MYSQL
                  : (!stricmp(type, "DIR"))   ? TAB_DIR
 #if defined(__WIN__)
                  : (!stricmp(type, "MAC"))   ? TAB_MAC
                  : (!stricmp(type, "WMI"))   ? TAB_WMI
-#endif
+#endif   // __WIN__
                  : (!stricmp(type, "TBL"))   ? TAB_TBL
                  : (!stricmp(type, "XCOL"))  ? TAB_XCL
                  : (!stricmp(type, "OCCUR")) ? TAB_OCCUR
@@ -161,12 +164,12 @@ TABTYPE GetTypeID(const char *type)
                  : (!stricmp(type, "PIVOT")) ? TAB_PIVOT
                  : (!stricmp(type, "VIR"))   ? TAB_VIR
                  : (!stricmp(type, "JSON"))  ? TAB_JSON
-#if defined(DEVELOPMENT)
+#if defined(BSON_SUPPORT)
                  : (!stricmp(type, "BSON"))  ? TAB_BSON
-#endif
+#endif   // BSON_SUPPORT
 #if defined(ZIP_SUPPORT)
                  : (!stricmp(type, "ZIP"))   ? TAB_ZIP
-#endif
+#endif   // ZIP_SUPPORT
                  : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
   } // end of GetTypeID
 
@@ -188,9 +191,9 @@ bool IsFileType(TABTYPE type)
     case TAB_INI:
     case TAB_VEC:
     case TAB_JSON:
-#if defined(DEVELOPMENT)
+#if defined(BSON_SUPPORT)
     case TAB_BSON:
-#endif   // DEVELOPMENT
+#endif   // BSON_SUPPORT
     case TAB_REST:
  // case TAB_ZIP:
       isfile= true;
@@ -286,9 +289,9 @@ bool IsTypeIndexable(TABTYPE type)
     case TAB_VEC:
     case TAB_DBF:
     case TAB_JSON:
-#if defined(DEVELOPMENT)
+#if defined(BSON_SUPPORT)
     case TAB_BSON:
-#endif   // DEVELOPMENT
+#endif   // BSON_SUPPORT
       idx= true;
       break;
     default:
@@ -315,9 +318,9 @@ int GetIndexType(TABTYPE type)
     case TAB_VEC:
     case TAB_DBF:
     case TAB_JSON:
-#if defined(DEVELOPMENT)
+#if defined(BSON_SUPPORT)
     case TAB_BSON:
-#endif   // DEVELOPMENT
+#endif   // BSON_SUPPORT
       xtyp= 1;
       break;
     case TAB_MYSQL:
@@ -481,10 +484,18 @@ PTABDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
     case TAB_MYSQL: tdp= new(g) MYSQLDEF; break;
     case TAB_PIVOT: tdp= new(g) PIVOTDEF; break;
     case TAB_VIR: tdp= new(g) VIRDEF;   break;
-    case TAB_JSON: tdp= new(g) JSONDEF; break;
-#if defined(DEVELOPMENT)
+    case TAB_JSON:
+#if defined(BSON_SUPPORT)
+      if (Force_Bson())
+        tdp= new(g) BSONDEF;
+      else
+#endif   // BSON_SUPPORT
+        tdp= new(g) JSONDEF;
+
+      break;
+#if defined(BSON_SUPPORT)
     case TAB_BSON: tdp= new(g) BSONDEF; break;
-#endif   // DEVELOPMENT
+#endif   // BSON_SUPPORT
 #if defined(ZIP_SUPPORT)
     case TAB_ZIP: tdp= new(g) ZIPDEF;   break;
 #endif   // ZIP_SUPPORT

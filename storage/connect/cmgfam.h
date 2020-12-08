@@ -1,7 +1,7 @@
 /*************** CMGFam H Declares Source Code File (.H) ***************/
-/*  Name: cmgfam.h    Version 1.5                                      */
+/*  Name: cmgfam.h    Version 1.6                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2017         */
+/*  (C) Copyright to the author Olivier BERTRAND          2017 - 2020  */
 /*                                                                     */
 /*  This file contains the MongoDB access method classes declares.     */
 /***********************************************************************/
@@ -20,6 +20,9 @@ class DllExport CMGFAM : public DOSFAM {
 public:
 	// Constructor
 	CMGFAM(PJDEF tdp);
+#if defined(BSON_SUPPORT)
+	CMGFAM(PBDEF tdp);
+#endif   // BSON_SUPPORT
 	CMGFAM(PCMGFAM txfp);
 
 	// Implementation

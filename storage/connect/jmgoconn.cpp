@@ -121,7 +121,7 @@ JMgoConn::JMgoConn(PGLOBAL g, PCSZ collname, PCSZ wrapper)
 /***********************************************************************/
 void JMgoConn::AddJars(PSTRG jpop, char sep)
 {
-#if defined(DEVELOPMENT)
+#if defined(BSON_SUPPORT)
 	if (m_Version == 2) {
 		jpop->Append(sep);
 //	jpop->Append("C:/Eclipse/workspace/MongoWrap2/bin");
@@ -134,7 +134,7 @@ void JMgoConn::AddJars(PSTRG jpop, char sep)
 		jpop->Append(sep);
 		jpop->Append("C:/mongo-java-driver/mongo-java-driver-3.4.2.jar");
 	} // endif m_Version
-#endif   // DEVELOPMENT
+#endif   // BSON_SUPPORT
 } // end of AddJars
 
 /***********************************************************************/

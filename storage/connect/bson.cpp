@@ -108,7 +108,8 @@ BDOC::BDOC(PGLOBAL G) : BJSON(G, NULL)
 /* Parse a json string.                                                */
 /* Note: when pretty is not known, the caller set pretty to 3.         */
 /***********************************************************************/
-PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma) {
+PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma)
+{
   int   i, pretty = (ptyp) ? *ptyp : 3;
   bool  b = false;
 
@@ -233,7 +234,8 @@ OFFSET BDOC::ParseAsArray(int& i, int pretty, int* ptyp) {
 /***********************************************************************/
 /* Parse a JSON Array.                                                 */
 /***********************************************************************/
-OFFSET BDOC::ParseArray(int& i) {
+OFFSET BDOC::ParseArray(int& i)
+{
   int   level = 0;
   bool  b = (!i);
   PBVAL vlp, firstvlp, lastvlp;
@@ -290,7 +292,8 @@ OFFSET BDOC::ParseArray(int& i) {
 /***********************************************************************/
 /* Parse a JSON Object.                                                */
 /***********************************************************************/
-OFFSET BDOC::ParseObject(int& i) {
+OFFSET BDOC::ParseObject(int& i)
+{
   OFFSET key;
   int    level = 0;
   PBPR   bpp, firstbpp, lastbpp;
@@ -439,7 +442,8 @@ err:
 /***********************************************************************/
 /*  Unescape and parse a JSON string.                                  */
 /***********************************************************************/
-OFFSET BDOC::ParseString(int& i) {
+OFFSET BDOC::ParseString(int& i)
+{
   uchar* p;
   int    n = 0;
 
@@ -448,13 +452,13 @@ OFFSET BDOC::ParseString(int& i) {
     throw("ParseString: Out of memory");
 
   // The size to allocate is not known yet
-  p = (uchar*)PlugSubAlloc(G, NULL, 0);
+  p = (uchar*)BsonSubAlloc(0);
 
   for (; i < len; i++)
     switch (s[i]) {
     case '"':
       p[n++] = 0;
-      PlugSubAlloc(G, NULL, n);
+      BsonSubAlloc(n);
       return MOF(p);
     case '\\':
       if (++i < len) {
@@ -525,7 +529,8 @@ throw("Unexpected EOF in String");
 /***********************************************************************/
 /* Parse a JSON numeric value.                                         */
 /***********************************************************************/
-void BDOC::ParseNumeric(int& i, PBVAL vlp) {
+void BDOC::ParseNumeric(int& i, PBVAL vlp)
+{
   char  buf[50];
   int   n = 0;
   short nd = 0;
@@ -580,7 +585,7 @@ fin:
     if (has_dot || has_e) {
       double dv = strtod(buf, NULL);
 
-      if (nd > 6) {
+      if (nd > 5 || dv > FLT_MAX || dv < FLT_MIN) {
         double* dvp = (double*)PlugSubAlloc(G, NULL, sizeof(double));
 
         *dvp = dv;
@@ -620,7 +625,8 @@ err:
 /***********************************************************************/
 /* Serialize a BJSON document tree:                                    */
 /***********************************************************************/
-PSZ BDOC::Serialize(PGLOBAL g, PBVAL bvp, char* fn, int pretty) {
+PSZ BDOC::Serialize(PGLOBAL g, PBVAL bvp, char* fn, int pretty)
+{
   PSZ   str = NULL;
   bool  b = false, err = true;
   FILE* fs = NULL;
@@ -697,7 +703,8 @@ PSZ BDOC::Serialize(PGLOBAL g, PBVAL bvp, char* fn, int pretty) {
 /***********************************************************************/
 /* Serialize a JSON Array.                                             */
 /***********************************************************************/
-bool BDOC::SerializeArray(OFFSET arp, bool b) {
+bool BDOC::SerializeArray(OFFSET arp, bool b)
+{
   bool  first = true;
   PBVAL vp = MVP(arp);
 
@@ -740,7 +747,8 @@ bool BDOC::SerializeArray(OFFSET arp, bool b) {
 /***********************************************************************/
 /* Serialize a JSON Object.                                            */
 /***********************************************************************/
-bool BDOC::SerializeObject(OFFSET obp) {
+bool BDOC::SerializeObject(OFFSET obp)
+{
   bool first = true;
   PBPR prp = MPP(obp);
 
@@ -768,7 +776,8 @@ bool BDOC::SerializeObject(OFFSET obp) {
 /***********************************************************************/
 /* Serialize a JSON Value.                                             */
 /***********************************************************************/
-bool BDOC::SerializeValue(PBVAL jvp) {
+bool BDOC::SerializeValue(PBVAL jvp)
+{
   char buf[64];
 
   if (jvp) switch (jvp->Type) {
@@ -833,7 +842,22 @@ void* BJSON::BsonSubAlloc(size_t size)
   xtrc(16, "Done memp=%p used=%zd free=%zd\n",
     memp, pph->To_Free, pph->FreeBlk);
   return memp;
-} /* end of BsonSubAlloc */
+} // end of BsonSubAlloc
+
+/*********************************************************************************/
+/*  Program for SubSet re-initialization of the memory pool.                     */
+/*********************************************************************************/
+OFFSET BJSON::DupStr(PSZ str)
+{
+  if (str) {
+    PSZ sm = (PSZ)BsonSubAlloc(strlen(str) + 1);
+
+    strcpy(sm, str);
+    return MOF(sm);
+  } else
+    return NULL;
+
+} // end of DupStr
 
 /*********************************************************************************/
 /*  Program for SubSet re-initialization of the memory pool.                     */
@@ -888,7 +912,7 @@ void BJSON::AddPair(PBVAL bop, PSZ key, OFFSET val)
 {
   CheckType(bop, TYPE_JOB);
   PBPR   brp;
-  OFFSET nrp = MOF(SubAllocPair(key, val));
+  OFFSET nrp = NewPair(key, val);
 
   if (bop->To_Val) {
     for (brp = GetObject(bop); brp->Next; brp = GetNext(brp));
@@ -948,8 +972,9 @@ PBVAL BJSON::GetKeyValue(PBVAL bop, PSZ key)
 PSZ BJSON::GetObjectText(PGLOBAL g, PBVAL bop, PSTRG text)
 {
   CheckType(bop, TYPE_JOB);
+  PBPR brp = GetObject(bop);
 
-  if (bop->To_Val) {
+  if (brp) {
     bool b;
 
     if (!text) {
@@ -962,12 +987,11 @@ PSZ BJSON::GetObjectText(PGLOBAL g, PBVAL bop, PSTRG text)
       b = false;
     }	// endif text
 
-#if 0
-    if (b && !bop->Next && !strcmp(MZP(bop->Key), "$date")) {
+    if (b && !brp->Next && !strcmp(MZP(brp->Key), "$date")) {
       int i;
       PSZ s;
 
-      First->Val->GetText(g, text);
+      GetValueText(g, MVP(brp->Vlp), text);
       s = text->GetStr();
       i = (s[1] == '-' ? 2 : 1);
 
@@ -983,10 +1007,7 @@ PSZ BJSON::GetObjectText(PGLOBAL g, PBVAL bop, PSTRG text)
 
       } // endif text
 
-    } else
-#endif // 0
-
-    for (PBPR brp = GetObject(bop); brp; brp = GetNext(brp)) {
+    } else for (PBPR brp = GetObject(bop); brp; brp = GetNext(brp)) {
       GetValueText(g, GetVal(brp), text);
 
       if (brp->Next)
@@ -1021,10 +1042,10 @@ void BJSON::SetKeyValue(PBVAL bop, OFFSET bvp, PSZ key)
         prp = brp;
 
     if (!brp)
-      prp->Next = MOF(SubAllocPair(key, bvp));
+      prp->Next = NewPair(key, bvp);
 
   } else
-    bop->To_Val = MOF(SubAllocPair(key, bvp));
+    bop->To_Val = NewPair(key, bvp);
 
   bop->Nd++;
 } // end of SetKeyValue
@@ -1301,7 +1322,7 @@ PBVAL BJSON::SubAllocStr(OFFSET toval, short nd)
   bvp->To_Val = toval;
   bvp->Nd = nd;
   return bvp;
-} // end of SubAllocVal
+} // end of SubAllocStr
 
 /***********************************************************************/
 /* Allocate a BVALUE with a given string or numeric value.             */

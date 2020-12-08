@@ -170,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0002 December 02, 2020";
+       char version[]= "Version 1.07.0002 December 07, 2020";
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -230,9 +230,9 @@ char *GetUserVariable(PGLOBAL g, const uchar *varname)
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 PQRYRES VirColumns(PGLOBAL g, bool info);
 PQRYRES JSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info);
-#ifdef    DEVELOPMENT
+#ifdef    BSON_SUPPORT
 PQRYRES BSONColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt, bool info);
-#endif // DEVEOPMENT
+#endif // BSON_SUPPORT
 PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info);
 #if defined(REST_SUPPORT)
 PQRYRES RESTColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
@@ -259,6 +259,9 @@ bool    JsonAllPath(void);
 char   *GetJsonNull(void);
 uint    GetJsonGrpSize(void);
 char   *GetJavaWrapper(void);
+#if defined(BSON_SUPPORT)
+bool    Force_Bson(void);
+#endif   // BSON_SUPPORT
 size_t  GetWorkSize(void);
 void    SetWorkSize(size_t);
 extern "C" const char *msglang(void);
@@ -444,6 +447,13 @@ static MYSQL_THDVAR_BOOL(enable_mongo, PLUGIN_VAR_RQCMDARG,
 #endif  // !version 2,3
 #endif   // JAVA_SUPPORT || CMGO_SUPPORT   
 
+#if defined(BSON_SUPPORT)
+// Force using BSON for JSON tables
+static MYSQL_THDVAR_BOOL(force_bson, PLUGIN_VAR_RQCMDARG,
+  "Force using BSON for JSON tables",
+  NULL, NULL, 0);							// NO by default
+#endif   // BSON_SUPPORT
+
 #if defined(XMSG) || defined(NEWMSG)
 const char *language_names[]=
 {
@@ -505,6 +515,8 @@ char *GetJavaWrapper(void)
 #if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
 bool MongoEnabled(void) {return THDVAR(current_thd, enable_mongo);}
 #endif   // JAVA_SUPPORT || CMGO_SUPPORT
+
+bool Force_Bson(void) {return THDVAR(current_thd, force_bson);}
 
 #if defined(XMSG) || defined(NEWMSG)
 extern "C" const char *msglang(void)
@@ -4516,9 +4528,9 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
     case TAB_VEC:
 		case TAB_REST:
     case TAB_JSON:
-#if defined(DEVELOPMENT)
+#if defined(BSON_SUPPORT)
     case TAB_BSON:
-#endif   // DEVELOPMENT
+#endif   // BSON_SUPPORT
       if (options->filename && *options->filename) {
 				if (!quick) {
 					char path[FN_REFLEN], dbpath[FN_REFLEN];
@@ -5444,7 +5456,10 @@ static bool add_field(String* sql, TABTYPE ttp, const char* field_name, int typ,
 	if (fmt && *fmt) {
 		switch (ttp) {
 		case TAB_JSON: error |= sql->append(" JPATH='"); break;
-		case TAB_XML:  error |= sql->append(" XPATH='"); break;
+#if defined(BSON_SUPPORT)
+    case TAB_BSON: error |= sql->append(" JPATH='"); break;
+#endif   // BSON_SUPPORT
+    case TAB_XML:  error |= sql->append(" XPATH='"); break;
 		default:	     error |= sql->append(" FIELD_FORMAT='");
 		} // endswitch ttp
 
@@ -5686,9 +5701,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 		} else if (topt->http) {
 			switch (ttp) {
 				case TAB_JSON:
-#if defined(DEVELOPMENT)
+#if defined(BSON_SUPPORT)
         case TAB_BSON:
-#endif   // DEVELOPMENT
+#endif   // BSON_SUPPORT
         case TAB_XML:
 				case TAB_CSV:
 					ttp = TAB_REST;
@@ -5873,9 +5888,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			case TAB_XML:
 #endif   // LIBXML2_SUPPORT  ||         DOMDOC_SUPPORT
 			case TAB_JSON:
-#if defined(DEVELOPMENT)
+#if defined(BSON_SUPPORT)
       case TAB_BSON:
-#endif   // DEVELOPMENT
+#endif   // BSON_SUPPORT
 				dsn= strz(g, create_info->connect_string);
 
 				if (!fn && !zfn && !mul && !dsn)
@@ -6040,13 +6055,15 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					qrp= VirColumns(g, fnc == FNC_COL);
 					break;
 				case TAB_JSON:
+#if !defined(FORCE_BSON)
 					qrp= JSONColumns(g, db, dsn, topt, fnc == FNC_COL);
 					break;
-#if defined(DEVELOPMENT)
+#endif   // !FORCE_BSON
+#if defined(BSON_SUPPORT)
         case TAB_BSON:
           qrp= BSONColumns(g, db, dsn, topt, fnc == FNC_COL);
           break;
-#endif   // DEVELOPMENT
+#endif   // BSON_SUPPORT
 #if defined(JAVA_SUPPORT)
 				case TAB_MONGO:
 					url= strz(g, create_info->connect_string);
@@ -7426,7 +7443,10 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
 	MYSQL_SYSVAR(enable_mongo),
 #endif   // JAVA_SUPPORT || CMGO_SUPPORT   
 	MYSQL_SYSVAR(cond_push),
-	NULL
+#if defined(BSON_SUPPORT)
+  MYSQL_SYSVAR(force_bson),
+#endif   // BSON_SUPPORT
+  NULL
 };
 
 maria_declare_plugin(connect)

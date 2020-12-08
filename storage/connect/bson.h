@@ -81,8 +81,8 @@ public:
 	// SubAlloc functions
 	void* BsonSubAlloc(size_t size);
 	PBPR  SubAllocPair(OFFSET key, OFFSET val = 0);
-	PBPR  SubAllocPair(PSZ key, OFFSET val = 0)
-				{return SubAllocPair(MOF(key), val);}
+	OFFSET NewPair(PSZ key, OFFSET val = 0)
+				{return MOF(SubAllocPair(DupStr(key), val));}
 	PBVAL NewVal(int type = TYPE_NULL);
 	PBVAL NewVal(PVAL valp);
 	PBVAL SubAllocVal(OFFSET toval, int type = TYPE_NULL, short nd = 0);
@@ -90,8 +90,9 @@ public:
 				{return SubAllocVal(MOF(toval), type, nd);}
 	PBVAL SubAllocStr(OFFSET str, short nd = 0);
 	PBVAL SubAllocStr(PSZ str, short nd = 0)
-				{return SubAllocStr(MOF(str), nd);}
+				{return SubAllocStr(DupStr(str), nd);}
 	PBVAL DupVal(PBVAL bvp);
+	OFFSET DupStr(PSZ str);
 
 	// Array functions
 	inline PBVAL GetArray(PBVAL vlp) {return MVP(vlp->To_Val);}
