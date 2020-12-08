@@ -1706,3 +1706,127 @@ void bson_locate_all_deinit(UDF_INIT* initid) {
 	JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of bson_locate_all_deinit
 
+/*********************************************************************************/
+/*  Convert a pretty=0 Json file to binary BJSON.                                */
+/*********************************************************************************/
+my_bool bfile_bjson_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
+	unsigned long reslen, memlen;
+
+	if (args->arg_count != 2 && args->arg_count != 3) {
+		strcpy(message, "This function must have 2 or 3 arguments");
+		return true;
+	} else if (args->arg_count == 3 && args->arg_type[2] != INT_RESULT) {
+		strcpy(message, "Third Argument must be an integer (LRECL)");
+		return true;
+	} else for (int i = 0; i < 2; i++)
+		if (args->arg_type[i] != STRING_RESULT) {
+			sprintf(message, "Arguments %d must be a string (file name)", i + 1);
+			return true;
+		} // endif args
+
+	CalcLen(args, false, reslen, memlen);
+	memlen = memlen * M;
+	memlen += (args->arg_count == 3) ? (ulong)*(longlong*)args->args[2] : 1024;
+	return JsonInit(initid, args, message, false, reslen, memlen);
+} // end of bfile_bjson_init
+
+char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char*, char *error) {
+	char   *buf, *str = NULL, fn[_MAX_PATH], ofn[_MAX_PATH];
+	bool    loop;
+	ssize_t len, newloc;
+	size_t  lrecl, binszp;
+	PBVAL		jsp;
+	PBJNX   bnxp;
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	BDOC    doc(g);
+
+	strcpy(fn, MakePSZ(g, args, 0));
+	strcpy(ofn, MakePSZ(g, args, 1));
+
+	if (args->arg_count == 3)
+		lrecl = (size_t)*(longlong*)args->args[2];
+	else
+		lrecl = 1024;
+
+	if (!g->Xchk) {
+		int 	msgid = MSGID_OPEN_MODE_STRERROR;
+		FILE *fout;
+		FILE *fin;
+
+		if (!(fin = global_fopen(g, msgid, fn, "rt")))
+			str = strcpy(result, g->Message);
+		else if (!(fout = global_fopen(g, msgid, ofn, "wb")))
+			str = strcpy(result, g->Message);
+		else if ((buf = (char*)malloc(lrecl))) {
+			try {
+				do {
+					loop = false;
+					PlugSubSet(g->Sarea, g->Sarea_Size);
+
+					if (!fgets(buf, lrecl, fin)) {
+						if (!feof(fin)) {
+							sprintf(g->Message, "Error %d reading %zd bytes from %s",
+								errno, lrecl, fn);
+							str = strcpy(result, g->Message);
+						}	else
+							str = strcpy(result, ofn);
+
+					} else if ((len = strlen(buf))) {
+						if ((jsp = doc.ParseJson(g, buf, len))) {
+							newloc = (size_t)PlugSubAlloc(g, NULL, 0);
+							binszp = newloc - (size_t)jsp;
+
+							if (fwrite(&binszp, sizeof(binszp), 1, fout) != 1) {
+								sprintf(g->Message, "Error %d writing %zd bytes to %s", 
+									errno, sizeof(binszp), ofn);
+								str = strcpy(result, g->Message);
+							} else if (fwrite(jsp, binszp, 1, fout) != 1) {
+								sprintf(g->Message, "Error %d writing %zd bytes to %s", 
+									errno, binszp, ofn);
+								str = strcpy(result, g->Message);
+							} else
+								loop = true;
+
+						} else {
+							str = strcpy(result, g->Message);
+						}	// endif jsp
+
+					} else
+						loop = true;
+
+				} while (loop);
+
+			} catch (int) {
+				str = strcpy(result, g->Message);
+			} catch (const char* msg) {
+				str = strcpy(result, msg);
+			} // end catch
+
+			free(buf);
+		} else
+			str = strcpy(result, "Buffer malloc failed");
+
+		if (fin) fclose(fin);
+		if (fout) fclose(fout);
+		g->Xchk = str;
+	} else
+		str = (char*)g->Xchk;
+
+	if (!str) {
+		if (g->Message)
+			str = strcpy(result, g->Message);
+		else
+			str = strcpy(result, "Unexpected error");
+
+	} // endif str
+
+	*res_length = strlen(str);
+	return str;
+} // end of bfile_bjson
+
+void bfile_bjson_deinit(UDF_INIT* initid) {
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bfile_bjson_deinit
+
+

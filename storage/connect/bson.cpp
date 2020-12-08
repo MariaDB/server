@@ -1,9 +1,9 @@
-/*************** json CPP Declares Source Code File (.H) ***************/
-/*  Name: json.cpp   Version 1.5                                       */
+/*************** bson CPP Declares Source Code File (.H) ***************/
+/*  Name: bson.cpp   Version 1.0                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2020  */
+/*  (C) Copyright to the author Olivier BERTRAND          2020         */
 /*                                                                     */
-/*  This file contains the JSON classes functions.                     */
+/*  This file contains the BJSON classes functions.                    */
 /***********************************************************************/
 
 /***********************************************************************/
@@ -15,7 +15,7 @@
 /*  Include application header files:                                  */
 /*  global.h    is header containing all global declarations.          */
 /*  plgdbsem.h  is header containing the DB application declarations.  */
-/*  xjson.h     is header containing the JSON classes declarations.    */
+/*  bson.h      is header containing the BSON classes declarations.    */
 /***********************************************************************/
 #include "global.h"
 #include "plgdbsem.h"
@@ -112,6 +112,7 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma)
 {
   int   i, pretty = (ptyp) ? *ptyp : 3;
   bool  b = false;
+  PBVAL bvp = NULL;
 
   s = js;
   len = lng;
@@ -128,26 +129,26 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma)
     pty[0] = false;
 
   try {
-    Bvp = NewVal();
-    Bvp->Type = TYPE_UNKNOWN;
+    bvp = NewVal();
+    bvp->Type = TYPE_UNKNOWN;
 
     for (i = 0; i < len; i++)
       switch (s[i]) {
       case '[':
-        if (Bvp->Type != TYPE_UNKNOWN)
-          Bvp->To_Val = ParseAsArray(i, pretty, ptyp);
+        if (bvp->Type != TYPE_UNKNOWN)
+          bvp->To_Val = ParseAsArray(i, pretty, ptyp);
         else
-          Bvp->To_Val = ParseArray(++i);
+          bvp->To_Val = ParseArray(++i);
 
-        Bvp->Type = TYPE_JAR;
+        bvp->Type = TYPE_JAR;
         break;
       case '{':
-        if (Bvp->Type != TYPE_UNKNOWN) {
-          Bvp->To_Val = ParseAsArray(i, pretty, ptyp);
-          Bvp->Type = TYPE_JAR;
+        if (bvp->Type != TYPE_UNKNOWN) {
+          bvp->To_Val = ParseAsArray(i, pretty, ptyp);
+          bvp->Type = TYPE_JAR;
         } else {
-          Bvp->To_Val = ParseObject(++i);
-          Bvp->Type = TYPE_JOB;
+          bvp->To_Val = ParseObject(++i);
+          bvp->Type = TYPE_JOB;
         } // endif Type
 
         break;
@@ -157,7 +158,7 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma)
       case '\r':
         break;
       case ',':
-        if (Bvp->Type != TYPE_UNKNOWN && (pretty == 1 || pretty == 3)) {
+        if (bvp->Type != TYPE_UNKNOWN && (pretty == 1 || pretty == 3)) {
           if (comma)
             *comma = true;
 
@@ -177,18 +178,18 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma)
         } // endif b
 
       default:
-        if (Bvp->Type != TYPE_UNKNOWN) {
-          Bvp->To_Val = ParseAsArray(i, pretty, ptyp);
-          Bvp->Type = TYPE_JAR;
-        } else if ((Bvp->To_Val = MOF(ParseValue(i))))
-          Bvp->Type = TYPE_JVAL;
+        if (bvp->Type != TYPE_UNKNOWN) {
+          bvp->To_Val = ParseAsArray(i, pretty, ptyp);
+          bvp->Type = TYPE_JAR;
+        } else if ((bvp->To_Val = MOF(ParseValue(i))))
+          bvp->Type = TYPE_JVAL;
         else
           throw 4;
 
         break;
       }; // endswitch s[i]
 
-    if (Bvp->Type == TYPE_UNKNOWN)
+    if (bvp->Type == TYPE_UNKNOWN)
       sprintf(g->Message, "Invalid Json string '%.*s'", MY_MIN((int)len, 50), s);
     else if (ptyp && pretty == 3) {
       *ptyp = 3;     // Not recognized pretty
@@ -205,13 +206,13 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma)
     if (trace(1))
       htrc("Exception %d: %s\n", n, G->Message);
     GetMsg(g);
-    Bvp = NULL;
+    bvp = NULL;
   } catch (const char* msg) {
     strcpy(g->Message, msg);
-    Bvp = NULL;
+    bvp = NULL;
   } // end catch
 
-  return Bvp;
+  return bvp;
 } // end of ParseJson
 
 /***********************************************************************/
@@ -391,13 +392,11 @@ suite:
     bvp->Type = TYPE_JOB;
     break;
   case '"':
-    //    jvp->Val = AllocVal(g, TYPE_STRG);
     bvp->To_Val = ParseString(++i);
     bvp->Type = TYPE_STRG;
     break;
   case 't':
     if (!strncmp(s + i, "true", 4)) {
-      //      jvp->Val = AllocVal(g, TYPE_BOOL);
       bvp->B = true;
       bvp->Type = TYPE_BOOL;
       i += 3;
@@ -407,7 +406,6 @@ suite:
     break;
   case 'f':
     if (!strncmp(s + i, "false", 5)) {
-      //      jvp->Val = AllocVal(g, TYPE_BOOL);
       bvp->B = false;
       bvp->Type = TYPE_BOOL;
       i += 4;
@@ -872,7 +870,7 @@ void BJSON::SubSet(bool b)
   if (b)
     G->Saved_Size = 0;
 
-} /* end of JsonSubSet */
+} // end of SubSet
 
 /* ------------------------ Bobject functions ------------------------ */
 

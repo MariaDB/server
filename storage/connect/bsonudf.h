@@ -106,5 +106,8 @@ extern "C" {
 	DllExport my_bool bson_locate_all_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char* bson_locate_all(UDF_EXEC_ARGS);
 	DllExport void bson_locate_all_deinit(UDF_INIT*);
-} // extern "C"
 
+	DllExport my_bool bfile_bjson_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* bfile_bjson(UDF_EXEC_ARGS);
+	DllExport void bfile_bjson_deinit(UDF_INIT*);
+} // extern "C"

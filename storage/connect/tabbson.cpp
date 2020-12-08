@@ -259,7 +259,7 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
     } // endif Lrecl
 
     // Allocate the parse work memory
-    tdp->G = PlugInit(NULL, (size_t)tdp->Lrecl * (tdp->Pretty >= 0 ? 6 : 2));
+    tdp->G = PlugInit(NULL, (size_t)tdp->Lrecl * (tdp->Pretty >= 0 ? 4 : 2));
     tdp->Ending = GetIntegerTableOption(g, topt, "Ending", CRLF);
 
     if (tdp->Zipped) {
@@ -1167,7 +1167,7 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
 
     if (Lrecl) {
       // Allocate the parse work memory
-      G = PlugInit(NULL, (size_t)Lrecl * 6);
+      G = PlugInit(NULL, (size_t)Lrecl * 4);
     } else {
       strcpy(g->Message, "LRECL is not defined");
       return NULL;
@@ -1200,7 +1200,6 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
       } // endif Driver
 
     } else if (Zipped) {
-//    if (Zipped) {
 #if defined(ZIP_SUPPORT)
       if (m == MODE_READ || m == MODE_ANY || m == MODE_ALTER) {
         txfp = new(g) UNZFAM(this);
@@ -1226,9 +1225,9 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
 #endif  // !GZ_SUPPORT
     } else if (map)
       txfp = new(g) MAPFAM(this);
-    else if (Pretty < 0)	 // BJsonfile
+    else if (Pretty < 0) {	 // BJsonfile
       txfp = new(g) BINFAM(this);
-    else
+    } else
       txfp = new(g) DOSFAM(this);
 
     // Txfp must be set for TDBBSN
@@ -1436,7 +1435,6 @@ bool TDBBSN::OpenDB(PGLOBAL g)
   } // endif Use
 
   if (Pretty < 0) {
-#if 0
     /*******************************************************************/
     /*  Binary BJSON table.                                            */
     /*******************************************************************/
@@ -1450,7 +1448,7 @@ bool TDBBSN::OpenDB(PGLOBAL g)
       if (!To_Kindex) {
         Txfp->Rewind();       // see comment in Work.log
       } else // Table is to be accessed through a sorted index table
-        To_Kindex->Reset();
+        To_Kindex->Reset();   // TODO: NIY
 
       return false;
     } // endif use
@@ -1469,14 +1467,12 @@ bool TDBBSN::OpenDB(PGLOBAL g)
     /*********************************************************************/
     size_t linelen = Lrecl;
 
-    //To_Line = (char*)PlugSubAlloc(g, NULL, linelen);
-    //memset(To_Line, 0, linelen);
+    // Buffer should be the first allocated thing in G->Sarea
+    Txfp->AllocateBuffer(Bp->G);
     To_Line = Txfp->GetBuf();
+    memset(To_Line, 0, linelen);
+    Bp->MemSave();
     xtrc(1, "OpenJSN: R%hd mode=%d To_Line=%p\n", Tdb_No, Mode, To_Line);
-    return false;
-#endif // 0
-    strcpy(g->Message, "TDBBSN: Binary NIY");
-    return true;
   } else if (TDBDOS::OpenDB(g))
     return true;
 
@@ -1548,23 +1544,14 @@ int TDBBSN::ReadDB(PGLOBAL g)
         rc = RC_EF;
 
     } else {
-#if 0
       // Here we get a movable Json binary tree
-      PJSON jsp;
-      SWAP* swp;
-
-      jsp = (PJSON)To_Line;
-      swp = new(g) SWAP(G, jsp);
-      swp->SwapJson(jsp, false);		// Restore pointers from offsets
-      Row = jsp;
-      Row = FindRow(g);
+      Bp->SubSet();        // Perhaps Useful when updating
+      Row = (PBVAL)To_Line;
+      Row = Bp->FindRow(g);
       SameRow = 0;
       Fpos++;
       M = 1;
       rc = RC_OK;
-#endif // 0
-      strcpy(g->Message, "TDBBSN: Binary NIY");
-      rc = RC_FX;
     }	// endif Pretty
 
   } // endif ReadDB

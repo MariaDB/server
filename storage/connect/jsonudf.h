@@ -53,13 +53,13 @@ typedef struct _jnode {
 typedef class JSNX     *PJSNX;
 
 /*********************************************************************************/
-/*  The JSON tree node. Can be an Object or an Array.                     	  	 */
+/*  The JSON utility functions.                     	  	                       */
 /*********************************************************************************/
 bool    IsNum(PSZ s);
 char   *NextChr(PSZ s, char sep);
 char   *GetJsonNull(void);
 uint    GetJsonGrpSize(void);
-my_bool JsonSubSet(PGLOBAL g);
+my_bool JsonSubSet(PGLOBAL g, my_bool b = false);
 my_bool CalcLen(UDF_ARGS* args, my_bool obj, unsigned long& reslen,
 	              unsigned long& memlen, my_bool mod = false);
 my_bool JsonInit(UDF_INIT* initid, UDF_ARGS* args, char* message, my_bool mbn,

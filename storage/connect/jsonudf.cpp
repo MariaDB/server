@@ -1174,13 +1174,16 @@ static uint GetJsonGroupSize(void)
 /*********************************************************************************/
 /*  Program for SubSet re-initialization of the memory pool.                     */
 /*********************************************************************************/
-my_bool JsonSubSet(PGLOBAL g)
+my_bool JsonSubSet(PGLOBAL g, my_bool b)
 {
 	PPOOLHEADER pph = (PPOOLHEADER)g->Sarea;
 
 	pph->To_Free = (g->Saved_Size) ? g->Saved_Size : sizeof(POOLHEADER);
 	pph->FreeBlk = g->Sarea_Size - pph->To_Free;
-	g->Saved_Size = 0;
+
+	if (b)
+		g->Saved_Size = 0;
+
 	return FALSE;
 } /* end of JsonSubSet */
 
@@ -1458,7 +1461,7 @@ int IsJson(UDF_ARGS *args, uint i, bool b)
 		char   *sap;
 		PGLOBAL g = PlugInit(NULL, (size_t)args->lengths[i] * M + 1024);
 
-		JsonSubSet(g);
+//	JsonSubSet(g);
 		sap = MakePSZ(g, args, i);
 
 		if (ParseJson(g, sap, strlen(sap)))

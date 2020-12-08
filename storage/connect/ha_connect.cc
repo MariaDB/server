@@ -170,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0002 December 07, 2020";
+       char version[]= "Version 1.07.0002 December 12, 2020";
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -516,7 +516,9 @@ char *GetJavaWrapper(void)
 bool MongoEnabled(void) {return THDVAR(current_thd, enable_mongo);}
 #endif   // JAVA_SUPPORT || CMGO_SUPPORT
 
+#if defined(BSON_SUPPORT)
 bool Force_Bson(void) {return THDVAR(current_thd, force_bson);}
+#endif   // BSON_SUPPORT)
 
 #if defined(XMSG) || defined(NEWMSG)
 extern "C" const char *msglang(void)

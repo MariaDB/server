@@ -298,14 +298,6 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
     tjnp->SetMode(MODE_READ);
 
     // Allocate the parse work memory
-#if 0
-    PGLOBAL G = (PGLOBAL)PlugSubAlloc(g, NULL, sizeof(GLOBAL));
-    memset(G, 0, sizeof(GLOBAL));
-    G->Sarea_Size = (size_t)tdp->Lrecl * (tdp->Pretty >= 0 ? 10 : 2);
-    G->Sarea = PlugSubAlloc(g, NULL, G->Sarea_Size);
-    PlugSubSet(G->Sarea, G->Sarea_Size);
-    G->jump_level = 0;
-#endif // 0
     G = PlugInit(NULL, (size_t)tdp->Lrecl * (tdp->Pretty >= 0 ? 10 : 2));
     tjnp->SetG(G);
 

@@ -18,8 +18,8 @@
 /*  global pointer of the Plug application, and an optional pointer to */
 /*  the memory pool to use, defaulting to NULL meaning using the Plug  */
 /*  standard default memory pool, example:                             */
-/*    tabp = new(g) XTAB("EMPLOYEE");                                 */
-/*  allocates a XTAB class object in the standard Plug memory pool.   */
+/*    tabp = new(g) XTAB("EMPLOYEE");                                  */
+/*  allocates a XTAB class object in the standard Plug memory pool.    */
 /***********************************************************************/
 #if !defined(BLOCK_DEFINED)
 #define      BLOCK_DEFINED
