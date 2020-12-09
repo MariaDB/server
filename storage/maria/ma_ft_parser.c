@@ -86,10 +86,10 @@ my_bool maria_ft_boolean_check_syntax_string(const uchar *str)
   uint i, j;
 
   if (!str ||
-      (strlen((const char *) str) + 1 != sizeof(ft_boolean_syntax)) ||
+      (strlen((const char *) str) + 1 != strlen(ft_boolean_syntax)) ||
       (str[0] != ' ' && str[1] != ' '))
     return 1;
-  for (i=0; i<sizeof(ft_boolean_syntax); i++)
+  for (i=0; i<strlen(ft_boolean_syntax); i++)
   {
     /* limiting to 7-bit ascii only */
     if ((unsigned char)(str[i]) > 127 ||
