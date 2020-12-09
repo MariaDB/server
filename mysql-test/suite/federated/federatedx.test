@@ -2010,4 +2010,33 @@ connection master;
 --error ER_CANT_CREATE_FEDERATED_TABLE
 eval CREATE TABLE t1 (a INT) ENGINE=FEDERATED CONNECTION='mysql://@127.0.0.1:$SLAVE_MYPORT/federated/t1';
 
+--echo #
+--echo # MDEV-17573 Assertion in federatedx on multi-update
+--echo #
+create table t1 (
+  x int,
+  d datetime);
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval create table t1f engine=FEDERATED connection='mysql://root@127.0.0.1:$MASTER_MYPORT/test/t1';
+
+create table t2 (
+  x int, y int,
+  d datetime);
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval create table t2f engine=FEDERATED connection='mysql://root@127.0.0.1:$MASTER_MYPORT/test/t2';
+
+create table t3 (
+  x int, y int, z int,
+  d datetime);
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval create table t3f engine=FEDERATED connection='mysql://root@127.0.0.1:$MASTER_MYPORT/test/t3';
+
+insert into t1 values (1, "1990-01-01 00:00");
+insert into t1 values (1, "1991-01-01 11:11");
+insert into t2 values (2, 2, "1992-02-02 22:22");
+insert into t3 values (3, 3, 3, "1993-03-03 23:33");
+update t1f, t2f, t3f set t1f.x= 11, t2f.y= 22, t3f.z= 33;
+
+drop table t1f; drop table t2f; drop table t3f; drop table t1; drop table t2; drop table t3;
+
 source include/federated_cleanup.inc;
