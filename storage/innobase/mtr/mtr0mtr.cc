@@ -901,6 +901,7 @@ inline std::pair<lsn_t,bool> mtr_t::finish_write(ulint len)
 	m_log.for_each_block(write_log);
 	m_commit_lsn = log_sys.get_lsn();
 	bool flush = log_close(m_commit_lsn);
+	DBUG_EXECUTE_IF("ib_log_flush_ahead", flush=true;);
 
 	return std::make_pair(start_lsn, flush);
 }
