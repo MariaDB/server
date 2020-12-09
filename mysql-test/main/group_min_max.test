@@ -4,6 +4,7 @@
 #
 
 --source include/default_optimizer_switch.inc
+--source include/have_sequence.inc
 
 #
 # TODO:
@@ -1688,4 +1689,21 @@ drop table t1;
 
 --echo #
 --echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-24353: Adding GROUP BY slows down a query
+--echo #
+
+CREATE TABLE t1 (p int NOT NULL, a int NOT NULL, PRIMARY KEY (p,a));
+insert into t1 select 2,seq from seq_0_to_1000;
+
+EXPLAIN select MIN(a) from t1 where p = 2 group by p;
+SELECT MIN(a) from t1 where p = 2 group by p;
+EXPLAIN select MIN(a) from t1 group by p;
+SELECT MIN(a) from t1 where p = 2;
+drop table t1;
+
+--echo #
+--echo # End of 10.6 tests
 --echo #
