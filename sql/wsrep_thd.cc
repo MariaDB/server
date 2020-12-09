@@ -22,6 +22,7 @@
 //#include "global_threads.h" // LOCK_thread_count, etc.
 #include "sql_base.h" // close_thread_tables()
 #include "mysqld.h"   // start_wsrep_THD();
+#include "debug_sync.h"
 
 #include "slave.h"    // opt_log_slave_updates
 #include "rpl_filter.h"
@@ -370,6 +371,19 @@ void wsrep_replay_transaction(THD *thd)
       /* From trans_begin() */
       thd->variables.option_bits|= OPTION_BEGIN;
       thd->server_status|= SERVER_STATUS_IN_TRANS;
+
+      /* Allow tests to block the replayer thread using the DBUG facilities */
+#ifdef ENABLED_DEBUG_SYNC
+      DBUG_EXECUTE_IF("sync.wsrep_replay_cb",
+      {
+        const char act[]=
+          "now "
+          "SIGNAL sync.wsrep_replay_cb_reached "
+          "WAIT_FOR signal.wsrep_replay_cb";
+        DBUG_ASSERT(!debug_sync_set_action(thd,
+                                           STRING_WITH_LEN(act)));
+       };);
+#endif /* ENABLED_DEBUG_SYNC */
 
       int rcode = wsrep->replay_trx(wsrep,
                                     &thd->wsrep_ws_handle,
