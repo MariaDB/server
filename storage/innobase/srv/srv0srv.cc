@@ -1053,7 +1053,17 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_data_writes = os_n_file_writes;
 
-	export_vars.innodb_data_written = srv_stats.data_written;
+	ulint dblwr = 0;
+
+	if (buf_dblwr.is_initialised()) {
+		buf_dblwr.lock();
+		dblwr = buf_dblwr.submitted();
+		export_vars.innodb_dblwr_pages_written = buf_dblwr.written();
+		export_vars.innodb_dblwr_writes = buf_dblwr.batches();
+		buf_dblwr.unlock();
+	}
+
+	export_vars.innodb_data_written = srv_stats.data_written + dblwr;
 
 	export_vars.innodb_buffer_pool_read_requests
 		= buf_pool.stat.n_page_gets;
@@ -1128,11 +1138,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_log_write_requests = srv_stats.log_write_requests;
 
 	export_vars.innodb_log_writes = srv_stats.log_writes;
-
-	export_vars.innodb_dblwr_pages_written =
-		srv_stats.dblwr_pages_written;
-
-	export_vars.innodb_dblwr_writes = srv_stats.dblwr_writes;
 
 	export_vars.innodb_pages_created = buf_pool.stat.n_pages_created;
 

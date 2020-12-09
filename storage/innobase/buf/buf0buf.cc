@@ -205,7 +205,7 @@ the common LRU list.  That is, each manipulation of the common LRU
 list will result in the same manipulation of the unzip_LRU list.
 
 The chain of modified blocks (buf_pool.flush_list) contains the blocks
-holding file pages that have been modified in the memory
+holding persistent file pages that have been modified in the memory
 but not written to disk yet. The block with the oldest modification
 which has not yet been written to disk is at the end of the chain.
 The access to this list is protected by buf_pool.flush_list_mutex.
@@ -1338,6 +1338,12 @@ inline const buf_block_t *buf_pool_t::chunk_t::not_freed() const
         break;
       }
 
+      if (fsp_is_system_temporary(block->page.id().space()))
+      {
+        ut_ad(block->page.oldest_modification() <= 1);
+        break;
+      }
+
       if (!block->page.ready_for_replace())
         return block;
 
@@ -1490,8 +1496,10 @@ void buf_pool_t::close()
     /* The buffer pool must be clean during normal shutdown.
     Only on aborted startup (with recovery) or with innodb_fast_shutdown=2
     we may discard changes. */
-    ut_ad(!bpage->oldest_modification() || srv_is_being_started ||
-          srv_fast_shutdown == 2);
+    ut_d(const lsn_t oldest= bpage->oldest_modification();)
+    ut_ad(!oldest || srv_is_being_started ||
+          srv_fast_shutdown == 2 ||
+          (oldest == 1 && fsp_is_system_temporary(bpage->id().space())));
 
     if (bpage->state() != BUF_BLOCK_FILE_PAGE)
       buf_page_free_descriptor(bpage);
@@ -4194,6 +4202,7 @@ void buf_pool_t::validate()
 	for (buf_page_t* b = UT_LIST_GET_FIRST(flush_list); b;
 	     b = UT_LIST_GET_NEXT(list, b)) {
 		ut_ad(b->oldest_modification());
+		ut_ad(!fsp_is_system_temporary(b->id().space()));
 		n_flushing++;
 
 		switch (b->state()) {

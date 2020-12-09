@@ -105,13 +105,6 @@ struct srv_stats_t
 	space in the log buffer and have to flush it */
 	ulint_ctr_1_t		log_waits;
 
-	/** Count the number of times the doublewrite buffer was flushed */
-	ulint_ctr_1_t		dblwr_writes;
-
-	/** Store the number of pages that have been flushed to the
-	doublewrite buffer */
-	ulint_ctr_1_t		dblwr_pages_written;
-
 #if defined(LINUX_NATIVE_AIO)
 	ulint_ctr_1_t buffered_aio_submitted;
 #endif

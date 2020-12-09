@@ -5020,6 +5020,8 @@ static my_bool delete_table_force(THD *thd, plugin_ref plugin, void *arg)
       param->error= error;
     if (error == 0)
     {
+      if (hton && hton->flags & HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE)
+        thd->replication_flags |= OPTION_IF_EXISTS;
       param->error= 0;
       return TRUE;                                // Table was deleted
     }

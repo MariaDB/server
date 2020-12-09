@@ -873,6 +873,15 @@ public:
   /** Clear oldest_modification when removing from buf_pool.flush_list */
   inline void clear_oldest_modification();
 
+  /** Notify that a page in a temporary tablespace has been modified. */
+  void set_temp_modified()
+  {
+    ut_ad(fsp_is_system_temporary(id().space()));
+    ut_ad(state() == BUF_BLOCK_FILE_PAGE);
+    ut_ad(!oldest_modification());
+    oldest_modification_= 1;
+  }
+
   /** Prepare to release a file page to buf_pool.free. */
   void free_file_page()
   {
@@ -1472,18 +1481,22 @@ public:
   inline buf_block_t *block_from_ahi(const byte *ptr) const;
 #endif /* BTR_CUR_HASH_ADAPT */
 
-  /**
-  @return the smallest oldest_modification lsn for any page
-  @retval empty_lsn if all modified persistent pages have been flushed */
-  lsn_t get_oldest_modification(lsn_t empty_lsn)
+  /** @return the block that was made dirty the longest time ago */
+  const buf_page_t *get_oldest_modified() const
   {
     mysql_mutex_assert_owner(&flush_list_mutex);
     const buf_page_t *bpage= UT_LIST_GET_LAST(flush_list);
-#if 1 /* MDEV-12227 FIXME: remove this loop */
-    for (; bpage && fsp_is_system_temporary(bpage->id().space());
-         bpage= UT_LIST_GET_PREV(list, bpage))
-      ut_ad(bpage->oldest_modification());
-#endif
+    ut_ad(!bpage || !fsp_is_system_temporary(bpage->id().space()));
+    ut_ad(!bpage || bpage->oldest_modification());
+    return bpage;
+  }
+
+  /**
+  @return the smallest oldest_modification lsn for any page
+  @retval empty_lsn if all modified persistent pages have been flushed */
+  lsn_t get_oldest_modification(lsn_t empty_lsn) const
+  {
+    const buf_page_t *bpage= get_oldest_modified();
     return bpage ? bpage->oldest_modification() : empty_lsn;
   }
 
