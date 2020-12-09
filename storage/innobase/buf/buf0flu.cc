@@ -148,6 +148,7 @@ void buf_flush_insert_into_flush_list(buf_block_t* block, lsn_t lsn)
 	mysql_mutex_assert_not_owner(&buf_pool.mutex);
 	mysql_mutex_assert_owner(&log_sys.flush_order_mutex);
 	ut_ad(lsn);
+	ut_ad(!fsp_is_system_temporary(block->page.id().space()));
 
 	mysql_mutex_lock(&buf_pool.flush_list_mutex);
 	block->page.set_oldest_modification(lsn);
@@ -163,24 +164,27 @@ void buf_flush_insert_into_flush_list(buf_block_t* block, lsn_t lsn)
 	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 }
 
+/** Remove a block from buf_pool.flush_list */
+static void buf_flush_remove_low(buf_page_t *bpage)
+{
+  ut_ad(!fsp_is_system_temporary(bpage->id().space()));
+  mysql_mutex_assert_owner(&buf_pool.mutex);
+  mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
+  ut_ad(!bpage->oldest_modification());
+  buf_pool.flush_hp.adjust(bpage);
+  UT_LIST_REMOVE(buf_pool.flush_list, bpage);
+  buf_pool.stat.flush_list_bytes -= bpage->physical_size();
+#ifdef UNIV_DEBUG
+  buf_flush_validate_skip();
+#endif /* UNIV_DEBUG */
+}
+
 /** Remove a block from the flush list of modified blocks.
 @param[in,out]	bpage	block to be removed from the flush list */
 static void buf_flush_remove(buf_page_t *bpage)
 {
-	mysql_mutex_assert_owner(&buf_pool.mutex);
-	mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
-
-	/* Important that we adjust the hazard pointer before removing
-	the bpage from flush list. */
-	buf_pool.flush_hp.adjust(bpage);
-	UT_LIST_REMOVE(buf_pool.flush_list, bpage);
-	bpage->clear_oldest_modification();
-
-	buf_pool.stat.flush_list_bytes -= bpage->physical_size();
-
-#ifdef UNIV_DEBUG
-	buf_flush_validate_skip();
-#endif /* UNIV_DEBUG */
+  bpage->clear_oldest_modification();
+  buf_flush_remove_low(bpage);
 }
 
 /** Remove all dirty pages belonging to a given tablespace when we are
@@ -280,6 +284,7 @@ buf_flush_relocate_on_flush_list(
 	buf_page_t*	prev;
 
 	mysql_mutex_assert_owner(&buf_pool.mutex);
+	ut_ad(!fsp_is_system_temporary(bpage->id().space()));
 
 	if (!bpage->oldest_modification()) {
 		return;
@@ -356,11 +361,19 @@ void buf_page_write_complete(const IORequest &request)
   DBUG_PRINT("ib_buf", ("write page %u:%u",
                         bpage->id().space(), bpage->id().page_no()));
   ut_ad(request.is_LRU() ? buf_pool.n_flush_LRU : buf_pool.n_flush_list);
+  const bool temp= fsp_is_system_temporary(bpage->id().space());
 
   mysql_mutex_lock(&buf_pool.mutex);
   bpage->set_io_fix(BUF_IO_NONE);
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
-  buf_flush_remove(bpage);
+  ut_ad(!temp || bpage->oldest_modification() == 1);
+  bpage->clear_oldest_modification();
+
+  if (!temp)
+    buf_flush_remove_low(bpage);
+  else
+    ut_ad(request.is_LRU());
+
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
   if (dblwr)
@@ -787,8 +800,13 @@ static void buf_release_freed_page(buf_page_t *bpage)
   mysql_mutex_lock(&buf_pool.mutex);
   bpage->set_io_fix(BUF_IO_NONE);
   bpage->status= buf_page_t::NORMAL;
+  const bool temp= fsp_is_system_temporary(bpage->id().space());
+  ut_ad(!temp || uncompressed);
+  ut_ad(!temp || bpage->oldest_modification() == 1);
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
-  buf_flush_remove(bpage);
+  bpage->clear_oldest_modification();
+  if (!temp)
+    buf_flush_remove_low(bpage);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
   if (uncompressed)
@@ -1552,7 +1570,7 @@ ulint buf_flush_lists(ulint max_n, lsn_t lsn)
   const bool running= n_flush != 0;
   /* FIXME: we are performing a dirty read of buf_pool.flush_list.count
   while not holding buf_pool.flush_list_mutex */
-  if (running || !UT_LIST_GET_LEN(buf_pool.flush_list))
+  if (running || (lsn && !UT_LIST_GET_LEN(buf_pool.flush_list)))
   {
     if (!running)
       mysql_cond_broadcast(cond);
@@ -2098,7 +2116,6 @@ furious_flush:
 
     if (!dirty_blocks)
     {
-unemployed2:
       if (UNIV_UNLIKELY(lsn_limit != 0))
       {
         buf_flush_sync_lsn= 0;
@@ -2119,14 +2136,9 @@ unemployed:
     if (dirty_pct < srv_max_dirty_pages_pct_lwm && !lsn_limit)
       goto unemployed;
 
-    const lsn_t oldest_lsn= buf_pool.get_oldest_modification(0);
-
-#if 0 /* MDEV-12227 FIXME: enable this */
-    ut_ad(oldest_lsn); /* dirty_blocks implies this */
-#else
-    if (!oldest_lsn)
-      goto unemployed2;
-#endif
+    const lsn_t oldest_lsn= buf_pool.get_oldest_modified()
+      ->oldest_modification();
+    ut_ad(oldest_lsn);
 
     if (UNIV_UNLIKELY(lsn_limit != 0) && oldest_lsn >= lsn_limit)
       buf_flush_sync_lsn= 0;
@@ -2307,7 +2319,8 @@ void buf_flush_sync()
 struct	Check {
 	void operator()(const buf_page_t* elem) const
 	{
-		ut_a(elem->oldest_modification());
+		ut_ad(elem->oldest_modification());
+		ut_ad(!fsp_is_system_temporary(elem->id().space()));
 	}
 };
 

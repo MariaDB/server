@@ -12,7 +12,7 @@ SET AUTO_INCREMENT_INCREMENT = 1;
 --echo # MDEV-24348 InnoDB shutdown hang with innodb_flush_sync=0
 SET GLOBAL innodb_flush_sync=OFF;
 --echo # For the server to hang, we must have pages for temporary tables
---echo # (and this is only effective as long as MDEV-12227 is not fixed).
+--echo # (and the bug depended on MDEV-12227 not being fixed).
 CREATE TEMPORARY TABLE t (id SERIAL) ENGINE=InnoDB;
 SET debug_dbug= '+d,ib_log_flush_ahead';
 
