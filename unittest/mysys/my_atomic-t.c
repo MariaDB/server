@@ -24,7 +24,7 @@ pthread_handler_t test_atomic_add(void *arg)
 {
   int m= (*(int *)arg)/2;
   int32 x;
-  for (x= ((int)(intptr)(&m)); m ; m--)
+  for (x= ((int)(((intptr)(&m)) & INT_MAX32)); m ; m--)
   {
     x= (x*m+0x87654321) & INT_MAX32;
     my_atomic_add32(&bad, x);
@@ -86,7 +86,7 @@ pthread_handler_t test_atomic_cas(void *arg)
 {
   int m= (*(int *)arg)/2, ok= 0;
   int32 x, y;
-  for (x= ((int)(intptr)(&m)); m ; m--)
+  for (x= ((int)(((intptr)(&m)) & INT_MAX32)); m ; m--)
   {
     y= my_atomic_load32(&bad);
     x= (x*m+0x87654321) & INT_MAX32;
