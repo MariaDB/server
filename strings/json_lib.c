@@ -1145,8 +1145,8 @@ int json_path_setup(json_path_t *p,
       continue;
     case PS_KWD:
     case PS_AWD:
-      p->last_step->type|= JSON_PATH_WILD;
-      p->types_used|= JSON_PATH_WILD;
+      (int)p->last_step->type|= JSON_PATH_WILD;
+      (int)p->types_used|= JSON_PATH_WILD;
       continue;
     case PS_INT:
       p->last_step->n_item*= 10;
@@ -1164,7 +1164,7 @@ int json_path_setup(json_path_t *p,
       p->last_step++;
       if (p->last_step - p->steps >= JSON_DEPTH_LIMIT)
         return p->s.error= JE_DEPTH;
-      p->types_used|= p->last_step->type= JSON_PATH_KEY | double_wildcard;
+      (int)p->types_used|= (int)p->last_step->type= JSON_PATH_KEY | double_wildcard;
       double_wildcard= JSON_PATH_KEY_NULL;
       /* fall through */
     case PS_KEYX:
@@ -1178,7 +1178,7 @@ int json_path_setup(json_path_t *p,
       p->last_step++;
       if (p->last_step - p->steps >= JSON_DEPTH_LIMIT)
         return p->s.error= JE_DEPTH;
-      p->types_used|= p->last_step->type= JSON_PATH_ARRAY | double_wildcard;
+      (int)p->types_used|= (int)p->last_step->type= JSON_PATH_ARRAY | double_wildcard;
       double_wildcard= JSON_PATH_KEY_NULL;
       p->last_step->n_item= 0;
       continue;
@@ -1697,14 +1697,14 @@ int json_get_path_start(json_engine_t *je, CHARSET_INFO *i_cs,
                         json_path_t *p)
 {
   json_scan_start(je, i_cs, str, end);
-  p->last_step= p->steps - 1; 
+  p->last_step= NULL;
   return 0;
 }
 
 
 int json_get_path_next(json_engine_t *je, json_path_t *p)
 {
-  if (p->last_step < p->steps)
+  if (!p->last_step)
   {
     if (json_read_value(je))
       return 1;
