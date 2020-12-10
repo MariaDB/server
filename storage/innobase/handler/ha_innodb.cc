@@ -5119,12 +5119,12 @@ innobase_build_v_templ(
 	ut_ad(n_v_col > 0);
 
 	if (!locked) {
-		mysql_mutex_lock(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 	}
 
 	if (s_templ->vtempl) {
 		if (!locked) {
-			mysql_mutex_unlock(&dict_sys.mutex);
+			dict_sys.mutex_unlock();
 		}
 		DBUG_VOID_RETURN;
 	}
@@ -5230,7 +5230,7 @@ innobase_build_v_templ(
 	}
 
 	if (!locked) {
-		mysql_mutex_unlock(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 	}
 
 	s_templ->db_name = table->s->db.str;
@@ -5529,7 +5529,7 @@ ha_innobase::open(const char* name, int, uint)
 	key_used_on_scan = m_primary_key;
 
 	if (ib_table->n_v_cols) {
-		mysql_mutex_lock(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 		if (ib_table->vc_templ == NULL) {
 			ib_table->vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
 			innobase_build_v_templ(
@@ -5537,7 +5537,7 @@ ha_innobase::open(const char* name, int, uint)
 				true);
 		}
 
-		mysql_mutex_unlock(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 	}
 
 	if (!check_index_consistency(table, ib_table)) {
@@ -9449,7 +9449,7 @@ wsrep_append_foreign_key(
 		foreign->referenced_table : foreign->foreign_table)) {
 		WSREP_DEBUG("pulling %s table into cache",
 			    (referenced) ? "referenced" : "foreign");
-		mysql_mutex_lock(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 
 		if (referenced) {
 			foreign->referenced_table =
@@ -9479,7 +9479,7 @@ wsrep_append_foreign_key(
 						TRUE, FALSE);
 			}
 		}
-		mysql_mutex_unlock(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 	}
 
 	if ( !((referenced) ?
@@ -12616,9 +12616,9 @@ create_table_info_t::create_table_update_dict()
 			DBUG_RETURN(-1);
 		}
 
-		mysql_mutex_lock(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 		fts_optimize_add_table(innobase_table);
-		mysql_mutex_unlock(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 	}
 
 	if (const Field* ai = m_form->found_next_number_field) {
@@ -12885,12 +12885,12 @@ ha_innobase::discard_or_import_tablespace(
 	btr_cur_instant_init(). */
 	table_id_t id = m_prebuilt->table->id;
 	ut_ad(id);
-	mysql_mutex_lock(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 	dict_table_close(m_prebuilt->table, TRUE, FALSE);
 	dict_sys.remove(m_prebuilt->table);
 	m_prebuilt->table = dict_table_open_on_id(id, TRUE,
 						  DICT_TABLE_OP_NORMAL);
-	mysql_mutex_unlock(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 	if (!m_prebuilt->table) {
 		err = DB_TABLE_NOT_FOUND;
 	} else {
@@ -13975,7 +13975,7 @@ ha_innobase::info_low(
 
 	DEBUG_SYNC_C("ha_innobase_info_low");
 
-	mysql_mutex_assert_not_owner(&dict_sys.mutex);
+	dict_sys.assert_not_locked();
 
 	/* If we are forcing recovery at a high level, we will suppress
 	statistics calculation on tables, because that may crash the
@@ -14035,7 +14035,7 @@ ha_innobase::info_low(
 		ulint	stat_clustered_index_size;
 		ulint	stat_sum_of_other_index_sizes;
 
-		mysql_mutex_lock(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 
 		ut_a(ib_table->stat_initialized);
 
@@ -14047,7 +14047,7 @@ ha_innobase::info_low(
 		stat_sum_of_other_index_sizes
 			= ib_table->stat_sum_of_other_index_sizes;
 
-		mysql_mutex_unlock(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 
 		/*
 		The MySQL optimizer seems to assume in a left join that n_rows
@@ -14164,8 +14164,8 @@ ha_innobase::info_low(
 		}
 
 		struct Locking {
-			Locking() { mysql_mutex_lock(&dict_sys.mutex); }
-			~Locking() { mysql_mutex_unlock(&dict_sys.mutex); }
+			Locking() { dict_sys.mutex_lock(); }
+			~Locking() { dict_sys.mutex_unlock(); }
 		} locking;
 
 		ut_a(ib_table->stat_initialized);
@@ -14882,7 +14882,7 @@ get_foreign_key_info(
 
 		dict_table_t*	ref_table;
 
-		mysql_mutex_assert_owner(&dict_sys.mutex);
+		dict_sys.assert_locked();
 		ref_table = dict_table_open_on_name(
 			foreign->referenced_table_name_lookup,
 			TRUE, FALSE, DICT_ERR_IGNORE_NONE);
@@ -14937,7 +14937,7 @@ ha_innobase::get_foreign_key_list(
 
 	m_prebuilt->trx->op_info = "getting list of foreign keys";
 
-	mysql_mutex_lock(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 
 	for (dict_foreign_set::iterator it
 		= m_prebuilt->table->foreign_set.begin();
@@ -14954,7 +14954,7 @@ ha_innobase::get_foreign_key_list(
 		}
 	}
 
-	mysql_mutex_unlock(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 
 	m_prebuilt->trx->op_info = "";
 
@@ -14975,7 +14975,7 @@ ha_innobase::get_parent_foreign_key_list(
 
 	m_prebuilt->trx->op_info = "getting list of referencing foreign keys";
 
-	mysql_mutex_lock(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 
 	for (dict_foreign_set::iterator it
 		= m_prebuilt->table->referenced_set.begin();
@@ -14992,7 +14992,7 @@ ha_innobase::get_parent_foreign_key_list(
 		}
 	}
 
-	mysql_mutex_unlock(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 
 	m_prebuilt->trx->op_info = "";
 
@@ -19513,9 +19513,9 @@ TABLE* innobase_init_vc_templ(dict_table_t* table)
 		DBUG_RETURN(NULL);
 	}
 
-	mysql_mutex_lock(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 	innobase_build_v_templ(mysql_table, table, table->vc_templ, NULL, true);
-	mysql_mutex_unlock(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 	DBUG_RETURN(mysql_table);
 }
 

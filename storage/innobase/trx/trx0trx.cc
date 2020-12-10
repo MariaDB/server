@@ -611,10 +611,10 @@ trx_resurrect_table_locks(
 		if (dict_table_t* table = dict_table_open_on_id(
 			    *i, FALSE, DICT_TABLE_OP_LOAD_TABLESPACE)) {
 			if (!table->is_readable()) {
-				mysql_mutex_lock(&dict_sys.mutex);
+				dict_sys.mutex_lock();
 				dict_table_close(table, TRUE, FALSE);
 				dict_sys.remove(table);
-				mysql_mutex_unlock(&dict_sys.mutex);
+				dict_sys.mutex_unlock();
 				continue;
 			}
 
@@ -1233,7 +1233,7 @@ trx_update_mod_tables_timestamp(
 	const bool preserve_tables = !innodb_evict_tables_on_commit_debug
 		|| trx->is_recovered /* avoid trouble with XA recovery */
 # if 1 /* if dict_stats_exec_sql() were not playing dirty tricks */
-		|| mysql_mutex_is_owner(&dict_sys.mutex)
+		|| dict_sys.mutex_is_locked()
 # else /* this would be more proper way to do it */
 		|| trx->dict_operation_lock_mode || trx->dict_operation
 # endif
@@ -1264,7 +1264,7 @@ trx_update_mod_tables_timestamp(
 		}
 		/* recheck while holding the mutex that blocks
 		table->acquire() */
-		mysql_mutex_lock(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 		mysql_mutex_lock(&lock_sys.mutex);
 		const bool do_evict = !table->get_ref_count()
 			&& !UT_LIST_GET_LEN(table->locks);
@@ -1272,7 +1272,7 @@ trx_update_mod_tables_timestamp(
 		if (do_evict) {
 			dict_sys.remove(table, true);
 		}
-		mysql_mutex_unlock(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 #endif
 	}
 

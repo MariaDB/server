@@ -1395,14 +1395,11 @@ private:
   /** whether latch is being held in exclusive mode (by any thread) */
   bool latch_ex;
 #endif
+  /** Mutex protecting dict_sys. Whenever latch is acquired
+  exclusively, also the mutex will be acquired.
+  FIXME: merge the mutex and the latch, once MDEV-23484 has been fixed */
+  mysql_mutex_t mutex;
 public:
-	mysql_mutex_t	mutex;		/*!< mutex protecting the data
-					dictionary; protects also the
-					disk-based dictionary system tables;
-					this mutex serializes CREATE TABLE
-					and DROP TABLE, as well as reading
-					the dictionary data for a table from
-					system tables */
 	hash_table_t	table_hash;	/*!< hash table of the tables, based
 					on name */
 	/** hash table of persistent table IDs */
@@ -1542,25 +1539,27 @@ public:
   /** Acquire a reference to a cached table. */
   inline void acquire(dict_table_t* table);
 
-#ifdef UNIV_DEBUG
-  /** Assert that the data dictionary is locked */
-  void assert_locked() { mysql_mutex_assert_owner(&mutex); }
+  /** Assert that the mutex is locked */
+  void assert_locked() const { mysql_mutex_assert_owner(&mutex); }
+  /** Assert that the mutex is not locked */
+  void assert_not_locked() const { mysql_mutex_assert_not_owner(&mutex); }
+#ifdef SAFE_MUTEX
+  bool mutex_is_locked() const { return mysql_mutex_is_owner(&mutex); }
 #endif
+  /** Acquire the mutex */
+  void mutex_lock();
+  /** Release the mutex */
+  void mutex_unlock() { mysql_mutex_unlock(&mutex); }
+
   /** Lock the data dictionary cache. */
-  void lock(SRW_LOCK_ARGS(const char* file, unsigned line))
-  {
-    latch.wr_lock(SRW_LOCK_ARGS(file, line));
-    ut_ad(!latch_ex);
-    ut_d(latch_ex= true);
-    mysql_mutex_lock(&mutex);
-  }
+  void lock(SRW_LOCK_ARGS(const char *file, unsigned line));
 
   /** Unlock the data dictionary cache. */
   void unlock()
   {
     ut_ad(latch_ex);
     ut_d(latch_ex= false);
-    mysql_mutex_unlock(&mutex);
+    mutex_unlock();
     latch.wr_unlock();
   }
 

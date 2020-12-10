@@ -235,10 +235,10 @@ dict_stats_persistent_storage_check(
 	dberr_t		ret;
 
 	if (!caller_has_dict_sys_mutex) {
-		mysql_mutex_lock(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 	}
 
-	mysql_mutex_assert_owner(&dict_sys.mutex);
+	dict_sys.assert_locked();
 
 	/* first check table_stats */
 	ret = dict_table_schema_check(&table_stats_schema, errstr,
@@ -250,7 +250,7 @@ dict_stats_persistent_storage_check(
 	}
 
 	if (!caller_has_dict_sys_mutex) {
-		mysql_mutex_unlock(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 	}
 
 	if (ret != DB_SUCCESS && ret != DB_STATS_DO_NOT_EXIST) {
@@ -510,7 +510,7 @@ dict_stats_empty_index(
 {
 	ut_ad(!(index->type & DICT_FTS));
 	ut_ad(!dict_index_is_ibuf(index));
-	mysql_mutex_assert_owner(&dict_sys.mutex);
+	dict_sys.assert_locked();
 
 	ulint	n_uniq = index->n_uniq;
 
@@ -540,7 +540,7 @@ dict_stats_empty_table(
 	bool		empty_defrag_stats)
 				/*!< in: whether to empty defrag stats */
 {
-	mysql_mutex_lock(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 
 	/* Zero the stats members */
 	table->stat_n_rows = 0;
@@ -566,7 +566,7 @@ dict_stats_empty_table(
 	}
 
 	table->stat_initialized = TRUE;
-	mysql_mutex_unlock(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 }
 
 /*********************************************************************//**
@@ -665,7 +665,7 @@ dict_stats_copy(
                                              to have the same statistics as if
                                              the table was empty */
 {
-	mysql_mutex_assert_owner(&dict_sys.mutex);
+	dict_sys.assert_locked();
 
 	dst->stats_last_recalc = src->stats_last_recalc;
 	dst->stat_n_rows = src->stat_n_rows;
@@ -782,7 +782,7 @@ dict_table_t*
 dict_stats_snapshot_create(
 	dict_table_t*	table)
 {
-	mysql_mutex_lock(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 
 	dict_stats_assert_initialized(table);
 
@@ -797,7 +797,7 @@ dict_stats_snapshot_create(
 	t->stats_sample_pages = table->stats_sample_pages;
 	t->stats_bg_flag = table->stats_bg_flag;
 
-	mysql_mutex_unlock(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 
 	return(t);
 }
@@ -836,14 +836,14 @@ dict_stats_update_transient_for_index(
 		Initialize some bogus index cardinality
 		statistics, so that the data can be queried in
 		various means, also via secondary indexes. */
-		mysql_mutex_lock(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 		dict_stats_empty_index(index, false);
-		mysql_mutex_unlock(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 	} else if (ibuf_debug && !dict_index_is_clust(index)) {
-		mysql_mutex_lock(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 		dict_stats_empty_index(index, false);
-		mysql_mutex_unlock(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 	} else {
 		mtr_t	mtr;
@@ -864,9 +864,9 @@ dict_stats_update_transient_for_index(
 
 		switch (size) {
 		case ULINT_UNDEFINED:
-			mysql_mutex_lock(&dict_sys.mutex);
+			dict_sys.mutex_lock();
 			dict_stats_empty_index(index, false);
-			mysql_mutex_unlock(&dict_sys.mutex);
+			dict_sys.mutex_unlock();
 			return;
 		case 0:
 			/* The root node of the tree is a leaf */
@@ -883,8 +883,7 @@ dict_stats_update_transient_for_index(
 					index);
 
 			if (!stats.empty()) {
-				mysql_mutex_assert_not_owner(&dict_sys.mutex);
-				mysql_mutex_lock(&dict_sys.mutex);
+				dict_sys.mutex_lock();
 				for (size_t i = 0; i < stats.size(); ++i) {
 					index->stat_n_diff_key_vals[i]
 						= stats[i].n_diff_key_vals;
@@ -893,7 +892,7 @@ dict_stats_update_transient_for_index(
 					index->stat_n_non_null_key_vals[i]
 						= stats[i].n_non_null_key_vals;
 				}
-				mysql_mutex_unlock(&dict_sys.mutex);
+				dict_sys.mutex_unlock();
 			}
 		}
 	}
@@ -911,7 +910,7 @@ dict_stats_update_transient(
 /*========================*/
 	dict_table_t*	table)	/*!< in/out: table */
 {
-	mysql_mutex_assert_not_owner(&dict_sys.mutex);
+	dict_sys.assert_not_locked();
 
 	dict_index_t*	index;
 	ulint		sum_of_index_sizes	= 0;
@@ -944,9 +943,9 @@ dict_stats_update_transient(
 
 		if (dict_stats_should_ignore_index(index)
 		    || !index->is_readable()) {
-			mysql_mutex_lock(&dict_sys.mutex);
+			dict_sys.mutex_lock();
 			dict_stats_empty_index(index, false);
-			mysql_mutex_unlock(&dict_sys.mutex);
+			dict_sys.mutex_unlock();
 			continue;
 		}
 
@@ -955,7 +954,7 @@ dict_stats_update_transient(
 		sum_of_index_sizes += index->stat_index_size;
 	}
 
-	mysql_mutex_lock(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 
 	index = dict_table_get_first_index(table);
 
@@ -973,7 +972,7 @@ dict_stats_update_transient(
 
 	table->stat_initialized = TRUE;
 
-	mysql_mutex_unlock(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 }
 
 /* @{ Pseudo code about the relation between the following functions
@@ -1931,7 +1930,7 @@ static index_stats_t dict_stats_analyze_index(dict_index_t* index)
 	DBUG_PRINT("info", ("index: %s, online status: %d", index->name(),
 			    dict_index_get_online_status(index)));
 
-	mysql_mutex_assert_not_owner(&dict_sys.mutex); // this function is slow
+	dict_sys.assert_not_locked(); // this function is slow
 	ut_ad(index->table->get_ref_count());
 
 	/* Disable update statistic for Rtree */
@@ -2003,14 +2002,14 @@ static index_stats_t dict_stats_analyze_index(dict_index_t* index)
 
 		mtr.commit();
 
-		mysql_mutex_lock(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 		for (ulint i = 0; i < n_uniq; i++) {
 			result.stats[i].n_diff_key_vals = index->stat_n_diff_key_vals[i];
 			result.stats[i].n_sample_sizes = total_pages;
 			result.stats[i].n_non_null_key_vals = index->stat_n_non_null_key_vals[i];
 		}
 		result.n_leaf_pages = index->stat_n_leaf_pages;
-		mysql_mutex_unlock(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 
 		DBUG_RETURN(result);
 	}
@@ -2244,13 +2243,13 @@ dict_stats_update_persistent(
 	}
 
 	ut_ad(!dict_index_is_ibuf(index));
-	mysql_mutex_lock(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 	dict_stats_empty_index(index, false);
-	mysql_mutex_unlock(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 
 	index_stats_t stats = dict_stats_analyze_index(index);
 
-	mysql_mutex_lock(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 	index->stat_index_size = stats.index_size;
 	index->stat_n_leaf_pages = stats.n_leaf_pages;
 	for (size_t i = 0; i < stats.stats.size(); ++i) {
@@ -2286,9 +2285,9 @@ dict_stats_update_persistent(
 		}
 
 		if (!(table->stats_bg_flag & BG_STAT_SHOULD_QUIT)) {
-			mysql_mutex_unlock(&dict_sys.mutex);
+			dict_sys.mutex_unlock();
 			stats = dict_stats_analyze_index(index);
-			mysql_mutex_lock(&dict_sys.mutex);
+			dict_sys.mutex_lock();
 
 			index->stat_index_size = stats.index_size;
 			index->stat_n_leaf_pages = stats.n_leaf_pages;
@@ -2314,7 +2313,7 @@ dict_stats_update_persistent(
 
 	dict_stats_assert_initialized(table);
 
-	mysql_mutex_unlock(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 
 	return(DB_SUCCESS);
 }
@@ -2990,8 +2989,6 @@ dict_stats_fetch_from_ps(
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
 
-	mysql_mutex_assert_not_owner(&dict_sys.mutex);
-
 	/* Initialize all stats to dummy values before fetching because if
 	the persistent storage contains incomplete stats (e.g. missing stats
 	for some index) then we would end up with (partially) uninitialized
@@ -3126,13 +3123,13 @@ dict_stats_update_for_index(
 {
 	DBUG_ENTER("dict_stats_update_for_index");
 
-	mysql_mutex_assert_not_owner(&dict_sys.mutex);
+	dict_sys.assert_not_locked();
 
 	if (dict_stats_is_persistent_enabled(index->table)) {
 
 		if (dict_stats_persistent_storage_check(false)) {
 			index_stats_t stats = dict_stats_analyze_index(index);
-			mysql_mutex_lock(&dict_sys.mutex);
+			dict_sys.mutex_lock();
 			index->stat_index_size = stats.index_size;
 			index->stat_n_leaf_pages = stats.n_leaf_pages;
 			for (size_t i = 0; i < stats.stats.size(); ++i) {
@@ -3145,7 +3142,7 @@ dict_stats_update_for_index(
 			}
 			index->table->stat_sum_of_other_index_sizes
 				+= index->stat_index_size;
-			mysql_mutex_unlock(&dict_sys.mutex);
+			dict_sys.mutex_unlock();
 
 			dict_stats_save(index->table, &index->id);
 			DBUG_VOID_RETURN;
@@ -3186,7 +3183,7 @@ dict_stats_update(
 					the persistent statistics
 					storage */
 {
-	mysql_mutex_assert_not_owner(&dict_sys.mutex);
+	dict_sys.assert_not_locked();
 
 	if (!table->is_readable()) {
 		return (dict_stats_report_error(table));
@@ -3321,7 +3318,7 @@ dict_stats_update(
 		switch (err) {
 		case DB_SUCCESS:
 
-			mysql_mutex_lock(&dict_sys.mutex);
+			dict_sys.mutex_lock();
 
 			/* Pass reset_ignored_indexes=true as parameter
 			to dict_stats_copy. This will cause statictics
@@ -3330,7 +3327,7 @@ dict_stats_update(
 
 			dict_stats_assert_initialized(table);
 
-			mysql_mutex_unlock(&dict_sys.mutex);
+			dict_sys.mutex_unlock();
 
 			dict_stats_table_clone_free(t);
 
@@ -3416,7 +3413,7 @@ dict_stats_drop_index(
 	pars_info_t*	pinfo;
 	dberr_t		ret;
 
-	mysql_mutex_assert_not_owner(&dict_sys.mutex);
+	dict_sys.assert_not_locked();
 
 	/* skip indexes whose table names do not contain a database name
 	e.g. if we are dropping an index from SYS_TABLES */
@@ -3952,7 +3949,7 @@ test_dict_table_schema_check()
 	/* prevent any data dictionary modifications while we are checking
 	the tables' structure */
 
-	mysql_mutex_lock(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 
 	/* check that a valid table is reported as valid */
 	schema.n_cols = 7;
@@ -4028,7 +4025,7 @@ test_dict_table_schema_check()
 
 test_dict_table_schema_check_end:
 
-	mysql_mutex_unlock(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 }
 /* @} */
 

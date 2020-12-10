@@ -188,6 +188,14 @@ struct fts_tokenize_param_t {
 	ulint		add_pos;	/*!< Added position for tokens */
 };
 
+/** Free a query graph */
+void fts_que_graph_free(que_t *graph)
+{
+  dict_sys.mutex_lock();
+  que_graph_free(graph);
+  dict_sys.mutex_unlock();
+}
+
 /** Run SYNC on the table, i.e., write out data from the cache to the
 FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	sync		sync state
@@ -453,7 +461,7 @@ fts_load_user_stopword(
 	fts_stopword_t*	stopword_info)		/*!< in: Stopword info */
 {
 	if (!fts->dict_locked) {
-		mysql_mutex_lock(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 	}
 
 	/* Validate the user table existence in the right format */
@@ -462,7 +470,7 @@ fts_load_user_stopword(
 	if (!stopword_info->charset) {
 cleanup:
 		if (!fts->dict_locked) {
-			mysql_mutex_unlock(&dict_sys.mutex);
+			dict_sys.mutex_unlock();
 		}
 
 		return ret;
@@ -904,15 +912,15 @@ fts_que_graph_free_check_lock(
 	}
 
 	if (!has_dict) {
-		mysql_mutex_lock(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 	}
 
-	mysql_mutex_assert_owner(&dict_sys.mutex);
+	dict_sys.assert_locked();
 
 	que_graph_free(graph);
 
 	if (!has_dict) {
-		mysql_mutex_unlock(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 	}
 }
 
@@ -6206,7 +6214,7 @@ fts_init_index(
 	fts_cache_t*    cache = table->fts->cache;
 	bool		need_init = false;
 
-	mysql_mutex_assert_not_owner(&dict_sys.mutex);
+	dict_sys.assert_not_locked();
 
 	/* First check cache->get_docs is initialized */
 	if (!has_cache_lock) {
@@ -6271,10 +6279,10 @@ func_exit:
 	}
 
 	if (need_init) {
-		mysql_mutex_lock(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 		/* Register the table with the optimize thread. */
 		fts_optimize_add_table(table);
-		mysql_mutex_unlock(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 	}
 }
 

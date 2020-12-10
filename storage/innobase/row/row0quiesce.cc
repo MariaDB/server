@@ -486,7 +486,7 @@ row_quiesce_table_has_fts_index(
 {
 	bool			exists = false;
 
-	mysql_mutex_lock(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 
 	for (const dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
 	     index != 0;
@@ -498,7 +498,7 @@ row_quiesce_table_has_fts_index(
 		}
 	}
 
-	mysql_mutex_unlock(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 
 	return(exists);
 }

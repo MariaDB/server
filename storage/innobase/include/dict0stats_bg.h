@@ -67,7 +67,7 @@ dict_stats_stop_bg(
 	dict_table_t*	table)	/*!< in/out: table */
 {
 	ut_ad(!srv_read_only_mode);
-	mysql_mutex_assert_owner(&dict_sys.mutex);
+	dict_sys.assert_locked();
 
 	if (!(table->stats_bg_flag & BG_STAT_IN_PROGRESS)) {
 		return(true);

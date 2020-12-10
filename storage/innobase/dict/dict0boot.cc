@@ -235,7 +235,7 @@ dict_boot(void)
 
 	heap = mem_heap_create(450);
 
-	mysql_mutex_lock(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 
 	/* Get the dictionary header */
 	const byte* dict_hdr = &dict_hdr_get(&mtr)->frame[DICT_HDR];
@@ -429,7 +429,7 @@ dict_boot(void)
 		dict_load_sys_table(dict_sys.sys_fields);
 	}
 
-	mysql_mutex_unlock(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 
 	return(err);
 }

@@ -343,7 +343,7 @@ dict_build_table_def_step(
 	que_thr_t*	thr,	/*!< in: query thread */
 	tab_node_t*	node)	/*!< in: table create node */
 {
-	mysql_mutex_assert_owner(&dict_sys.mutex);
+	dict_sys.assert_locked();
 	dict_table_t*	table = node->table;
 	trx_t* trx = thr_get_trx(thr);
 	ut_ad(!table->is_temporary());
@@ -483,7 +483,7 @@ dict_create_sys_indexes_tuple(
 	dfield_t*	dfield;
 	byte*		ptr;
 
-	mysql_mutex_assert_owner(&dict_sys.mutex);
+	dict_sys.assert_locked();
 	ut_ad(index);
 	ut_ad(index->table->space || index->table->file_unreadable);
 	ut_ad(!index->table->space
@@ -712,7 +712,7 @@ dict_build_index_def_step(
 	dtuple_t*	row;
 	trx_t*		trx;
 
-	mysql_mutex_assert_owner(&dict_sys.mutex);
+	dict_sys.assert_locked();
 
 	trx = thr_get_trx(thr);
 
@@ -763,7 +763,7 @@ dict_build_index_def(
 	dict_index_t*		index,	/*!< in/out: index */
 	trx_t*			trx)	/*!< in/out: InnoDB transaction handle */
 {
-	mysql_mutex_assert_owner(&dict_sys.mutex);
+	dict_sys.assert_locked();
 
 	if (trx->table_id == 0) {
 		/* Record only the first table id. */
@@ -811,7 +811,7 @@ dict_create_index_tree_step(
 	dict_index_t*	index;
 	dtuple_t*	search_tuple;
 
-	mysql_mutex_assert_owner(&dict_sys.mutex);
+	dict_sys.assert_locked();
 
 	index = node->index;
 
@@ -880,7 +880,7 @@ dict_create_index_tree_in_mem(
 {
 	mtr_t		mtr;
 
-	mysql_mutex_assert_owner(&dict_sys.mutex);
+	dict_sys.assert_locked();
 	ut_ad(!(index->type & DICT_FTS));
 
 	mtr_start(&mtr);
@@ -910,7 +910,7 @@ void dict_drop_index_tree(btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
 	byte*	ptr;
 	ulint	len;
 
-	mysql_mutex_assert_owner(&dict_sys.mutex);
+	dict_sys.assert_locked();
 	ut_a(!dict_table_is_comp(dict_sys.sys_indexes));
 
 	ptr = rec_get_nth_field_old(rec, DICT_FLD__SYS_INDEXES__PAGE_NO, &len);
@@ -1056,7 +1056,7 @@ dict_create_table_step(
 	trx_t*		trx;
 
 	ut_ad(thr);
-	mysql_mutex_assert_owner(&dict_sys.mutex);
+	dict_sys.assert_locked();
 
 	trx = thr_get_trx(thr);
 
@@ -1199,7 +1199,7 @@ dict_create_index_step(
 	trx_t*		trx;
 
 	ut_ad(thr);
-	mysql_mutex_assert_owner(&dict_sys.mutex);
+	dict_sys.assert_locked();
 
 	trx = thr_get_trx(thr);
 
@@ -1359,7 +1359,7 @@ dict_check_if_system_table_exists(
 
 	ut_ad(!srv_any_background_activity());
 
-	mysql_mutex_lock(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 
 	sys_table = dict_table_get_low(tablename);
 
@@ -1377,7 +1377,7 @@ dict_check_if_system_table_exists(
 		dict_table_prevent_eviction(sys_table);
 	}
 
-	mysql_mutex_unlock(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 
 	return(error);
 }
@@ -1545,9 +1545,9 @@ dict_create_or_check_sys_virtual()
 		"SYS_VIRTUAL", DICT_NUM_FIELDS__SYS_VIRTUAL + 1, 1);
 
 	if (err == DB_SUCCESS) {
-		mysql_mutex_lock(&dict_sys.mutex);
+		dict_sys.mutex_lock();
 		dict_sys.sys_virtual = dict_table_get_low("SYS_VIRTUAL");
-		mysql_mutex_unlock(&dict_sys.mutex);
+		dict_sys.mutex_unlock();
 		return(DB_SUCCESS);
 	}
 
@@ -1620,9 +1620,9 @@ dict_create_or_check_sys_virtual()
 	dberr_t sys_virtual_err = dict_check_if_system_table_exists(
 		"SYS_VIRTUAL", DICT_NUM_FIELDS__SYS_VIRTUAL + 1, 1);
 	ut_a(sys_virtual_err == DB_SUCCESS);
-	mysql_mutex_lock(&dict_sys.mutex);
+	dict_sys.mutex_lock();
 	dict_sys.sys_virtual = dict_table_get_low("SYS_VIRTUAL");
-	mysql_mutex_unlock(&dict_sys.mutex);
+	dict_sys.mutex_unlock();
 
 	return(err);
 }
@@ -2019,7 +2019,7 @@ dict_create_add_foreigns_to_dictionary(
 	dict_foreign_t*	foreign;
 	dberr_t		error;
 
-	mysql_mutex_assert_owner(&dict_sys.mutex);
+	dict_sys.assert_locked();
 
 	if (NULL == dict_table_get_low("SYS_FOREIGN")) {
 
