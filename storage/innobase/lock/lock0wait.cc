@@ -92,13 +92,13 @@ lock_wait_table_release_slot(
 	trx_t::mutex. To reduce contention on the lock mutex when reserving the
 	slot we avoid acquiring the lock mutex. */
 
-	mysql_mutex_lock(&lock_sys.mutex);
+	lock_sys.mutex_lock();
 
 	slot->thr->slot = NULL;
 	slot->thr = NULL;
 	slot->in_use = FALSE;
 
-	mysql_mutex_unlock(&lock_sys.mutex);
+	lock_sys.mutex_unlock();
 
 	/* Scan backwards and adjust the last free slot pointer. */
 	for (slot = lock_sys.last_slot;
@@ -190,15 +190,15 @@ wsrep_is_BF_lock_timeout(
 		ib::info() << "WSREP: BF lock wait long for trx:" << ib::hex(trx->id)
 			   << " query: " << wsrep_thd_query(trx->mysql_thd);
 		if (!locked) {
-			mysql_mutex_lock(&lock_sys.mutex);
+			lock_sys.mutex_lock();
 		}
 
-		mysql_mutex_assert_owner(&lock_sys.mutex);
+		lock_sys.mutex_assert_locked();
 
 		trx_print_latched(stderr, trx, 3000);
 
 		if (!locked) {
-			mysql_mutex_unlock(&lock_sys.mutex);
+			lock_sys.mutex_unlock();
 		}
 
 		srv_print_innodb_monitor 	= TRUE;
@@ -284,12 +284,12 @@ lock_wait_suspend_thread(
 	current thread which owns the transaction. Only acquire the
 	mutex if the wait_lock is still active. */
 	if (const lock_t* wait_lock = trx->lock.wait_lock) {
-		mysql_mutex_lock(&lock_sys.mutex);
+		lock_sys.mutex_lock();
 		wait_lock = trx->lock.wait_lock;
 		if (wait_lock) {
 			lock_type = lock_get_type_low(wait_lock);
 		}
-		mysql_mutex_unlock(&lock_sys.mutex);
+		lock_sys.mutex_unlock();
 	}
 
 	ulint	had_dict_lock = trx->dict_operation_lock_mode;
@@ -325,11 +325,9 @@ lock_wait_suspend_thread(
 		thd_wait_begin(trx->mysql_thd, THD_WAIT_TABLE_LOCK);
 	}
 
-	mysql_mutex_lock(&lock_sys.mutex);
-	while (trx->lock.wait_lock) {
-		mysql_cond_wait(&slot->cond, &lock_sys.mutex);
-	}
-	mysql_mutex_unlock(&lock_sys.mutex);
+	lock_sys.mutex_lock();
+	lock_sys.wait_lock(&trx->lock.wait_lock, &slot->cond);
+	lock_sys.mutex_unlock();
 
 	thd_wait_end(trx->mysql_thd);
 
@@ -403,7 +401,7 @@ lock_wait_release_thread_if_suspended(
 	que_thr_t*	thr)	/*!< in: query thread associated with the
 				user OS thread	 */
 {
-	mysql_mutex_assert_owner(&lock_sys.mutex);
+	lock_sys.mutex_assert_locked();
 
 	/* We own both the lock mutex and the trx_t::mutex but not the
 	lock wait mutex. This is OK because other threads will see the state
@@ -451,7 +449,7 @@ lock_wait_check_and_cancel(
 		possible that the lock has already been
 		granted: in that case do nothing */
 
-		mysql_mutex_lock(&lock_sys.mutex);
+		lock_sys.mutex_lock();
 
 		if (trx->lock.wait_lock != NULL) {
 			ut_a(trx->lock.que_state == TRX_QUE_LOCK_WAIT);
@@ -467,7 +465,7 @@ lock_wait_check_and_cancel(
 #endif /* WITH_WSREP */
 		}
 
-		mysql_mutex_unlock(&lock_sys.mutex);
+		lock_sys.mutex_unlock();
 	}
 }
 

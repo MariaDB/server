@@ -182,7 +182,7 @@ que_thr_end_lock_wait(
 {
 	que_thr_t*	thr;
 
-	mysql_mutex_assert_owner(&lock_sys.mutex);
+	lock_sys.mutex_assert_locked();
 
 	thr = trx->lock.wait_thr;
 

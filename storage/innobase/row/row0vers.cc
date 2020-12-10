@@ -395,7 +395,7 @@ row_vers_impl_x_locked(
 	const rec_t*	clust_rec;
 	dict_index_t*	clust_index;
 
-	mysql_mutex_assert_not_owner(&lock_sys.mutex);
+	lock_sys.mutex_assert_unlocked();
 
 	mtr_start(&mtr);
 

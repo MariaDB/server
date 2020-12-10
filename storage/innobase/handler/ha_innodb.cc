@@ -4463,7 +4463,7 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
       Also, BF thread should own trx mutex for the victim. */
       DBUG_VOID_RETURN;
 #endif /* WITH_WSREP */
-    mysql_mutex_lock(&lock_sys.mutex);
+    lock_sys.mutex_lock();
     trx_sys.trx_list.freeze();
     trx->mutex.wr_lock();
     /* It is possible that innobase_close_connection() is concurrently
@@ -4484,7 +4484,7 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
     if (!cancel);
     else if (lock_t *lock= trx->lock.wait_lock)
       lock_cancel_waiting_and_release(lock);
-    mysql_mutex_unlock(&lock_sys.mutex);
+    lock_sys.mutex_unlock();
     trx->mutex.wr_unlock();
   }
 
@@ -17991,7 +17991,7 @@ int wsrep_innobase_kill_one_trx(THD *bf_thd, trx_t *victim_trx, bool signal)
 {
 	ut_ad(bf_thd);
 	ut_ad(victim_trx);
-	mysql_mutex_assert_owner(&lock_sys.mutex);
+	lock_sys.mutex_assert_locked();
 
 	DBUG_ENTER("wsrep_innobase_kill_one_trx");
 
@@ -18093,11 +18093,11 @@ wsrep_abort_transaction(
 			wsrep_thd_transaction_state_str(victim_thd));
 
 	if (victim_trx) {
-		mysql_mutex_lock(&lock_sys.mutex);
+		lock_sys.mutex_lock();
 		victim_trx->mutex.wr_lock();
 		int rcode= wsrep_innobase_kill_one_trx(bf_thd,
 						       victim_trx, signal);
-		mysql_mutex_unlock(&lock_sys.mutex);
+		lock_sys.mutex_unlock();
 		victim_trx->mutex.wr_unlock();
 		DBUG_RETURN(rcode);
 	} else {

@@ -386,11 +386,11 @@ rtr_pcur_getnext_from_path(
 
 			trx_t*		trx = thr_get_trx(
 						btr_cur->rtr_info->thr);
-			mysql_mutex_lock(&lock_sys.mutex);
+			lock_sys.mutex_lock();
 			lock_init_prdt_from_mbr(
 				&prdt, &btr_cur->rtr_info->mbr,
 				mode, trx->lock.lock_heap);
-			mysql_mutex_unlock(&lock_sys.mutex);
+			lock_sys.mutex_unlock();
 
 			if (rw_latch == RW_NO_LATCH) {
 				block->lock.s_lock();
@@ -1200,10 +1200,10 @@ rtr_check_discard_page(
 
 	mysql_mutex_unlock(&index->rtr_track->rtr_active_mutex);
 
-	mysql_mutex_lock(&lock_sys.mutex);
+	lock_sys.mutex_lock();
 	lock_prdt_page_free_from_discard(block, &lock_sys.prdt_hash);
 	lock_prdt_page_free_from_discard(block, &lock_sys.prdt_page_hash);
-	mysql_mutex_unlock(&lock_sys.mutex);
+	lock_sys.mutex_unlock();
 }
 
 /** Structure acts as functor to get the optimistic access of the page.

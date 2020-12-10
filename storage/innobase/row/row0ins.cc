@@ -704,11 +704,11 @@ row_ins_foreign_trx_print(
 
 	ut_ad(!srv_read_only_mode);
 
-	mysql_mutex_lock(&lock_sys.mutex);
+	lock_sys.mutex_lock();
 	n_rec_locks = lock_number_of_rows_locked(&trx->lock);
 	n_trx_locks = UT_LIST_GET_LEN(trx->lock.trx_locks);
 	heap_size = mem_heap_get_size(trx->lock.lock_heap);
-	mysql_mutex_unlock(&lock_sys.mutex);
+	lock_sys.mutex_unlock();
 
 	mysql_mutex_lock(&dict_foreign_err_mutex);
 	rewind(dict_foreign_err_file);

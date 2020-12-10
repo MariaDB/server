@@ -705,10 +705,9 @@ struct lock_op_t{
 class lock_sys_t
 {
   bool m_initialised;
-
-public:
   /** mutex proteting the locks */
   MY_ALIGNED(CACHE_LINE_SIZE) mysql_mutex_t mutex;
+public:
   /** record locks */
   hash_table_t rec_hash;
   /** predicate locks for SPATIAL INDEX */
@@ -741,6 +740,21 @@ public:
 
   bool is_initialised() { return m_initialised; }
 
+
+  /** Acquire lock_sys.mutex */
+  void mutex_lock();
+  /** Try to acquire lock_sys.mutex */
+  int mutex_trylock() { return mysql_mutex_trylock(&mutex); }
+  /** Release lock_sys.mutex */
+  void mutex_unlock() { mysql_mutex_unlock(&mutex); }
+  /** Assert that mutex_lock() has been invoked */
+  void mutex_assert_locked() const { mysql_mutex_assert_owner(&mutex); }
+  /** Assert that mutex_lock() has not been invoked */
+  void mutex_assert_unlocked() const { mysql_mutex_assert_not_owner(&mutex); }
+
+  /** Wait for a lock to be granted */
+  void wait_lock(lock_t **lock, mysql_cond_t *cond)
+  { while (*lock) mysql_cond_wait(cond, &mutex); }
 
   /**
     Creates the lock system at database start.

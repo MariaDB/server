@@ -1265,10 +1265,10 @@ trx_update_mod_tables_timestamp(
 		/* recheck while holding the mutex that blocks
 		table->acquire() */
 		dict_sys.mutex_lock();
-		mysql_mutex_lock(&lock_sys.mutex);
+		lock_sys.mutex_lock();
 		const bool do_evict = !table->get_ref_count()
 			&& !UT_LIST_GET_LEN(table->locks);
-		mysql_mutex_unlock(&lock_sys.mutex);
+		lock_sys.mutex_unlock();
 		if (do_evict) {
 			dict_sys.remove(table, true);
 		}
@@ -1871,7 +1871,7 @@ trx_print_latched(
 	ulint		max_query_len)	/*!< in: max query length to print,
 					or 0 to use the default max length */
 {
-	mysql_mutex_assert_owner(&lock_sys.mutex);
+	lock_sys.mutex_assert_locked();
 
 	trx_print_low(f, trx, max_query_len,
 		      lock_number_of_rows_locked(&trx->lock),
@@ -1894,11 +1894,11 @@ trx_print(
 	ulint	n_trx_locks;
 	ulint	heap_size;
 
-	mysql_mutex_lock(&lock_sys.mutex);
+	lock_sys.mutex_lock();
 	n_rec_locks = lock_number_of_rows_locked(&trx->lock);
 	n_trx_locks = UT_LIST_GET_LEN(trx->lock.trx_locks);
 	heap_size = mem_heap_get_size(trx->lock.lock_heap);
-	mysql_mutex_unlock(&lock_sys.mutex);
+	lock_sys.mutex_unlock();
 
 	trx_print_low(f, trx, max_query_len,
 		      n_rec_locks, n_trx_locks, heap_size);
