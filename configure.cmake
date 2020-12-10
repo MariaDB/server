@@ -804,7 +804,7 @@ CHECK_C_SOURCE_COMPILES("
     HAVE_WEAK_SYMBOL
 )
 
-CHECK_C_SOURCE_COMPILES("
+CHECK_CXX_SOURCE_COMPILES("
     void foo(int *x) { }
     int main() {
       int a __attribute__((cleanup(foo)));
