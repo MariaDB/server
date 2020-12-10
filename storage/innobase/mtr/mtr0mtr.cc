@@ -32,6 +32,7 @@ Created 11/26/1995 Heikki Tuuri
 #include "page0types.h"
 #include "mtr0log.h"
 #include "log0recv.h"
+#include <unordered_set>
 
 /** Iterate over a memo block in reverse. */
 template <typename Functor>
@@ -300,6 +301,50 @@ struct ReleaseAll {
   }
 };
 
+
+class WriteOptionCRC {
+public:
+  WriteOptionCRC(mtr_t &mtr) : m_mtr(mtr) {}
+  /** @return true always. */
+  bool operator()(mtr_memo_slot_t *slot)
+  {
+    if (slot->type & MTR_MEMO_MODIFY)
+    {
+#ifdef UNIV_DEBUG
+      switch (slot->type & ~MTR_MEMO_MODIFY) {
+        case MTR_MEMO_BUF_FIX:
+        case MTR_MEMO_PAGE_S_FIX:
+        case MTR_MEMO_PAGE_SX_FIX:
+        case MTR_MEMO_PAGE_X_FIX:
+          break;
+        default:
+          ut_ad("invalid type" == 0);
+          break;
+      }
+#endif /* UNIV_DEBUG */
+      buf_block_t *block= reinterpret_cast<buf_block_t*>(slot->object);
+      byte *page = block->frame;
+      ulonglong page_id_raw = block->page.id().raw();
+      if (!m_visited_pages.count(page_id_raw)) {
+        static_assert(FIL_PAGE_SPACE_OR_CHKSUM == FIL_PAGE_OFFSET - 4,
+                      "compatibility");
+        static_assert(FIL_PAGE_TYPE == FIL_PAGE_LSN + 8, "compatibility");
+        uint32_t crc = mtr_t::page_crc(page);
+        lsn_t lsn = mach_read_from_8(page + FIL_PAGE_LSN);
+       if (!m_mtr.page_is_freed(block->page.id()))
+          m_mtr.page_checksum(block->page.id(), crc, lsn);
+        m_visited_pages.insert(page_id_raw);
+      }
+    }
+    return true;
+  }
+
+private:
+  mtr_t &m_mtr;
+  std::unordered_set<ulonglong> m_visited_pages;
+};
+
+
 #ifdef UNIV_DEBUG
 /** Check that all slots have been handled. */
 struct DebugCheck {
@@ -399,6 +444,12 @@ void mtr_t::commit()
   if (m_modifications && (m_log_mode == MTR_LOG_NO_REDO || !m_log.empty()))
   {
     ut_ad(!srv_read_only_mode || m_log_mode == MTR_LOG_NO_REDO);
+
+    if (srv_redo_log_checksum)
+    {
+      Iterate<WriteOptionCRC> iteration(WriteOptionCRC(*this));
+      m_memo.for_each_block(iteration);
+    }
 
     std::pair<lsn_t,bool> lsns;
 
@@ -969,7 +1020,7 @@ bool mtr_t::memo_contains(const rw_lock_t &lock, mtr_memo_type_t type)
 /** Check if we are holding exclusive tablespace latch
 @param space  tablespace to search for
 @return whether space.latch is being held */
-bool mtr_t::memo_contains(const fil_space_t& space)
+bool mtr_t::memo_contains(const fil_space_t& space) const
 {
   Iterate<Find> iteration(Find(&space, MTR_MEMO_SPACE_X_LOCK));
   if (m_memo.for_each_block_in_reverse(iteration))

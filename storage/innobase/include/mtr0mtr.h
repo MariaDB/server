@@ -344,7 +344,7 @@ public:
   /** Check if we are holding exclusive tablespace latch
   @param space  tablespace to search for
   @return whether space.latch is being held */
-  bool memo_contains(const fil_space_t& space)
+  bool memo_contains(const fil_space_t& space) const
     MY_ATTRIBUTE((warn_unused_result));
 
 
@@ -378,7 +378,7 @@ public:
 	mtr_buf_t* get_memo() { return &m_memo; }
 
   /** @return true if system tablespace page has been freed */
-  bool is_freed_system_tablespace_page()
+  bool is_freed_system_tablespace_page() const
   {
     return m_freed_in_system_tablespace;
   }
@@ -577,6 +577,9 @@ public:
   @param id       first page identifier that will not be in the file */
   inline void trim_pages(const page_id_t id);
 
+  inline void page_checksum(const page_id_t id, uint32_t crc,
+                            lsn_t flushed_lsn);
+
   /** Write a log record about a file operation.
   @param type           file operation
   @param space_id       tablespace identifier
@@ -645,6 +648,42 @@ public:
   { ut_ad(!m_commit || m_start); return m_start && !m_commit; }
   /** @return whether the mini-transaction has been committed */
   bool has_committed() const { ut_ad(!m_commit || m_start); return m_commit; }
+  bool page_is_freed(page_id_t id) const
+  {
+    if (!m_freed_pages)
+      return false;
+    fil_space_t *freed_space= m_user_space;
+    /* Get the freed tablespace in case of predefined tablespace */
+    if (!freed_space)
+    {
+      ut_ad(is_freed_system_tablespace_page());
+      freed_space= fil_system.sys_space;
+    }
+
+    ut_ad(memo_contains(*freed_space));
+
+    if (id.space() != freed_space->id)
+      return false;
+
+    return m_freed_pages->contains(id.page_no());
+  }
+  static uint32_t page_crc(const byte* page)
+  {
+    /* Since the field FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, and in
+       versions <= 4.1.x FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, are written
+       outside the buffer pool to the first pages of data files, we have to
+       skip them in the page checksum calculation. We must also skip the
+       field FIL_PAGE_SPACE_OR_CHKSUM where the checksum is stored, and also
+       the last 8 bytes of page because there we store the old formula
+       checksum. */
+    return static_cast<uint32_t>(
+      ut_fold_binary(page + FIL_PAGE_OFFSET, FIL_PAGE_LSN - FIL_PAGE_OFFSET)
+      + ut_fold_binary(page + FIL_PAGE_TYPE,
+                       FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION - FIL_PAGE_PREV)
+      + ut_fold_binary(page + FIL_PAGE_DATA, srv_page_size - FIL_PAGE_DATA
+                                               - FIL_PAGE_END_LSN_OLD_CHKSUM));
+  }
+
 private:
   /** whether start() has been called */
   bool m_start= false;

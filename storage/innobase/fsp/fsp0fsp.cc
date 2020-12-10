@@ -2637,9 +2637,9 @@ fseg_free_extent(
 
 	for (ulint i = 0; i < FSP_EXTENT_SIZE; i++) {
 		if (!xdes_is_free(descr, i)) {
-			buf_page_free(
-			  page_id_t(space->id, first_page_in_extent + 1),
-			  mtr, __FILE__, __LINE__);
+			page_id_t freed_page_id(space->id, first_page_in_extent + 1);
+			buf_page_free(freed_page_id,  mtr, __FILE__, __LINE__);
+			mtr->add_freed_offset(freed_page_id);
 		}
 	}
 }

@@ -384,8 +384,8 @@ template<byte type>
 inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
                               size_t len, bool alloc, size_t offset)
 {
-  static_assert(!(type & 15) && type != RESERVED && type != OPTION &&
-                type <= FILE_CHECKPOINT, "invalid type");
+  static_assert(!(type & 15) && type != RESERVED && type <= FILE_CHECKPOINT,
+                "invalid type");
   ut_ad(type >= FILE_CREATE || is_named_space(id.space()));
   ut_ad(!bpage || bpage->id() == id);
   constexpr bool have_len= type != INIT_PAGE && type != FREE_PAGE;
@@ -541,9 +541,13 @@ inline void mtr_t::init(buf_block_t *b)
 inline void mtr_t::free(fil_space_t &space, uint32_t offset)
 {
   page_id_t freed_page_id(space.id, offset);
+
+  if (srv_redo_log_checksum || srv_immediate_scrub_data_uncompressed
+      || is_page_compressed())
+    add_freed_offset(freed_page_id);
+
   if (m_log_mode == MTR_LOG_ALL)
     m_log.close(log_write<FREE_PAGE>(freed_page_id, nullptr));
-
   ut_ad(!m_user_space || m_user_space == &space);
   if (&space == fil_system.sys_space)
     freed_system_tablespace_page();
@@ -672,4 +676,20 @@ inline void mtr_t::trim_pages(const page_id_t id)
   *l++= TRIM_PAGES;
   m_log.close(l);
   set_trim_pages();
+}
+
+inline void mtr_t::page_checksum(const page_id_t id, uint32_t crc,
+                                 lsn_t flushed_lsn)
+{
+  if (m_log_mode != MTR_LOG_ALL)
+    return;
+  static_assert(sizeof(crc) == 4, "compatibility");
+  static_assert(sizeof(flushed_lsn) == 8, "compatibility");
+  byte* l = log_write<OPTION>(id, nullptr, 4 + 8 + 1, true);
+  *l++ = CHECKSUM;
+  mach_write_to_4(l, crc);
+  l += 4;
+  mach_write_to_8(l, flushed_lsn);
+  l += 8;
+  m_log.close(l);
 }

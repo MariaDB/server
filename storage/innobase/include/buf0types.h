@@ -171,7 +171,7 @@ public:
     m_id= (m_id & ~uint64_t{0} << 32) | page_no;
   }
 
-  ulonglong raw() { return m_id; }
+  ulonglong raw() const { return m_id; }
 private:
   /** The page identifier */
   uint64_t m_id;

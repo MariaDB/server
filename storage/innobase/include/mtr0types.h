@@ -289,6 +289,9 @@ enum mrec_ext_t
   TRIM_PAGES= 10
 };
 
+enum mrec_opt_t {
+  CHECKSUM
+};
 
 /** Redo log record types for file-level operations. These bit
 patterns will be written to redo log files, so the existing codes or

@@ -2504,10 +2504,6 @@ void buf_page_free(const page_id_t page_id,
   buf_block_t *block= reinterpret_cast<buf_block_t*>
     (buf_pool.page_hash_get_low(page_id, fold));
 
-  /* TODO: try to all this part of mtr_t::free() */
-  if (srv_immediate_scrub_data_uncompressed || mtr->is_page_compressed())
-    mtr->add_freed_offset(page_id);
-
   if (!block || block->page.state() != BUF_BLOCK_FILE_PAGE)
   {
     /* FIXME: if block!=NULL, convert to BUF_BLOCK_FILE_PAGE,

@@ -266,7 +266,6 @@ public:
       next_not_same_page:
           last_offset= 1; /* the next record must not be same_page  */
         }
-      next:
         l+= rlen;
         continue;
       }
@@ -280,7 +279,32 @@ public:
 
       switch (b & 0x70) {
       case OPTION:
-        goto next;
+        {
+        if (UNIV_UNLIKELY(rlen != 1 + 4 + 8 || *l != CHECKSUM))
+          goto record_corrupted;
+        ++l;
+        uint32_t crc = mach_read_from_4(l);
+        l += 4;
+//        lsn_t flushed_lsn = mach_read_from_8(l);
+        l += 8;
+        uint32_t calc_crc = mtr_t::page_crc(frame);
+//        lsn_t flushed_lsn_from_page = mach_read_from_8(frame + FIL_PAGE_LSN);
+        if (calc_crc != crc) {
+          ib::warn() << "Page checksum stored in redo log record " << crc
+                      << " does not match counted checksum " << calc_crc
+                      << " for page " << block.page.id();
+        }
+        /*
+        if (flushed_lsn_from_page != flushed_lsn) {
+          ib::warn() << "Page LSN stored in redo log record " << flushed_lsn
+                      << " does not match " << flushed_lsn_from_page
+                      << " stored on page " << block.page.id();
+          failed = true;
+        }
+        */
+        applied = APPLIED_YES;
+        continue;
+      }
       case EXTENDED:
         if (UNIV_UNLIKELY(block.page.id().page_no() < 3 ||
                           block.page.zip.ssize))
@@ -1970,8 +1994,11 @@ same_page:
         }
         last_offset= FIL_PAGE_TYPE;
         break;
-      case RESERVED:
       case OPTION:
+        if (UNIV_UNLIKELY(rlen != 1 + 4 + 8 || *l != CHECKSUM))
+          goto record_corrupted;
+        break;
+      case RESERVED:
         continue;
       case WRITE:
       case MEMMOVE:
