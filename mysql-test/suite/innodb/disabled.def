@@ -12,4 +12,3 @@
 
 create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails
 innodb_wl6326_big : MDEV-24142 FIXME: no instrumentation
-innodb_sys_semaphore_waits : MDEV-21452 TODO: lock_sys.mutex
