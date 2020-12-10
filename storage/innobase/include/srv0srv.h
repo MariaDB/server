@@ -500,9 +500,6 @@ extern uint srv_n_purge_threads;
 /* the number of pages to purge in one batch */
 extern ulong srv_purge_batch_size;
 
-/* the number of sync wait arrays */
-extern ulong srv_sync_array_size;
-
 /* print all user-level transactions deadlocks to mysqld stderr */
 extern my_bool srv_print_all_deadlocks;
 

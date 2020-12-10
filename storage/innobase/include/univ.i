@@ -604,7 +604,6 @@ extern mysql_pfs_key_t trx_pool_manager_mutex_key;
 extern mysql_pfs_key_t lock_mutex_key;
 extern mysql_pfs_key_t lock_wait_mutex_key;
 extern mysql_pfs_key_t srv_threads_mutex_key;
-extern mysql_pfs_key_t sync_array_mutex_key;
 extern mysql_pfs_key_t thread_mutex_key;
 extern mysql_pfs_key_t row_drop_list_mutex_key;
 # endif /* UNIV_PFS_MUTEX */
