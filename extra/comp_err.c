@@ -42,14 +42,14 @@
 #define ER_PREFIX "ER_"
 #define ER_PREFIX2 "MARIA_ER_"
 #define WARN_PREFIX "WARN_"
-static char *OUTFILE= (char*) "errmsg.sys";
-static char *HEADERFILE= (char*) "mysqld_error.h";
-static char *NAMEFILE= (char*) "mysqld_ername.h";
-static char *STATEFILE= (char*) "sql_state.h";
-static char *TXTFILE= (char*) "../sql/share/errmsg-utf8.txt";
-static char *DATADIRECTORY= (char*) "../sql/share/";
+static const char *OUTFILE= "errmsg.sys";
+static const char *HEADERFILE= "mysqld_error.h";
+static const char *NAMEFILE= "mysqld_ername.h";
+static const char *STATEFILE= "sql_state.h";
+static const char *TXTFILE= "../sql/share/errmsg-utf8.txt";
+static const char *DATADIRECTORY= "../sql/share/";
 #ifndef DBUG_OFF
-static char *default_dbug_option= (char*) "d:t:O,/tmp/comp_err.trace";
+static const char *default_dbug_option= "d:t:O,/tmp/comp_err.trace";
 #endif
 
 /* Header for errmsg.sys files */
@@ -59,7 +59,7 @@ uint file_pos[MAX_ROWS+1];
 uint section_count,section_start;
 uchar section_header[MAX_SECTIONS*2];
 
-const char *empty_string= "";			/* For empty states */
+static const char *empty_string= "";			/* For empty states */
 /*
   Default values for command line options. See getopt structure for definitions
   for these.
@@ -307,7 +307,7 @@ static int create_header_files(struct errors *error_head)
 	      tmp_error->sql_code1, tmp_error->sql_code2);
     /*generating er_name file */
     er_msg= find_message(tmp_error, default_language, 0);
-    er_text = (er_msg ? er_msg->text : "");
+    er_text = (er_msg ? (const char *)er_msg->text : "");
     fprintf(er_namef, "{ \"%s\", %d, \"", tmp_error->er_name,
             tmp_error->d_code);
     print_escaped_string(er_namef, er_text);

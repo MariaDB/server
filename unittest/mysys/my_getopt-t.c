@@ -35,6 +35,7 @@ ulonglong opt_ull;
 ulong opt_ul;
 int arg_c, res;
 char **arg_v, *arg_s[100];
+const char *skipped_str= "<skipped>";
 
 ulong mopts_num;
 char *mopts_str;
@@ -72,7 +73,7 @@ void run(const char *arg, ...)
   va_list ap;
   va_start(ap, arg);
   arg_v= arg_s;
-  *arg_v++= (char*)"<skipped>";
+  *arg_v++= (char *)skipped_str;
   while (arg)
   {
     *arg_v++= (char*)arg;

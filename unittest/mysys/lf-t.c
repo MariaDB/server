@@ -75,7 +75,7 @@ pthread_handler_t test_lf_alloc(void *arg)
 
   pins= lf_alloc_get_pins(&lf_allocator);
 
-  for (x= ((int)(intptr)(&m)); m ; m--)
+  for (x= ((int)(((intptr)(&m)) & INT_MAX32)); m ; m--)
   {
     TLA *node1, *node2;
     x= (x*m+0x87654321) & INT_MAX32;
@@ -128,7 +128,7 @@ pthread_handler_t test_lf_hash(void *arg)
 
   pins= lf_hash_get_pins(&lf_hash);
 
-  for (x= ((int)(intptr)(&m)); m ; m--)
+  for (x= ((int)(((intptr)(&m)) & INT_MAX32)); m ; m--)
   {
     int i;
     y= x;
