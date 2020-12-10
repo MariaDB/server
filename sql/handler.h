@@ -3289,7 +3289,7 @@ public:
     mark_trx_read_write_done(0),
     check_table_binlog_row_based_done(0),
     check_table_binlog_row_based_result(0),
-    in_range_check_pushed_down(FALSE), lookup_errkey(-1), errkey(-1),
+    in_range_check_pushed_down(FALSE), lookup_errkey((uint)-1), errkey((uint)-1),
     key_used_on_scan(MAX_KEY),
     active_index(MAX_KEY), keyread(MAX_KEY),
     ref_length(sizeof(my_off_t)),
