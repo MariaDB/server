@@ -2499,13 +2499,6 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr,
   ut_ad(mtr);
   ut_ad(mtr->is_active());
 
-  if (srv_immediate_scrub_data_uncompressed
-#if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
-      || space->is_compressed()
-#endif
-      )
-    mtr->add_freed_offset(space, page);
-
   buf_pool.stat.n_page_gets++;
   const page_id_t page_id(space->id, page);
   const ulint fold= page_id.fold();

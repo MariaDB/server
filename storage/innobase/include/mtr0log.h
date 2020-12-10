@@ -384,8 +384,8 @@ template<byte type>
 inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
                               size_t len, bool alloc, size_t offset)
 {
-  static_assert(!(type & 15) && type != RESERVED && type != OPTION &&
-                type <= FILE_CHECKPOINT, "invalid type");
+  static_assert(!(type & 15) && type != RESERVED && type <= FILE_CHECKPOINT,
+                "invalid type");
   ut_ad(type >= FILE_CREATE || is_named_space(id.space()));
   ut_ad(!bpage || bpage->id() == id);
   constexpr bool have_len= type != INIT_PAGE && type != FREE_PAGE;
@@ -545,6 +545,13 @@ inline void mtr_t::free(fil_space_t &space, uint32_t offset)
   ut_ad(is_named_space(&space));
   ut_ad(!m_freed_space || m_freed_space == &space);
 
+  if (innodb_log_page_checksum || srv_immediate_scrub_data_uncompressed
+#if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
+      || space.is_compressed()
+#endif
+  )
+    add_freed_offset(&space, offset);
+
   if (m_log_mode == MTR_LOG_ALL)
     m_log.close(log_write<FREE_PAGE>({space.id, offset}, nullptr));
 }
@@ -670,4 +677,19 @@ inline void mtr_t::trim_pages(const page_id_t id)
   *l++= TRIM_PAGES;
   m_log.close(l);
   set_trim_pages();
+}
+
+/** Write checksum record for the certain page.
+@param id          id of the page for which crc is counted
+@param checksum    page's checksum */
+inline void mtr_t::page_checksum(const page_id_t id, uint32_t checksum)
+{
+  if (m_log_mode != MTR_LOG_ALL)
+      return;
+  static_assert(sizeof(checksum) == 4, "compatibility");
+  byte* l = log_write<OPTION>(id, nullptr, 4 + 1, true);
+  *l++ = CHECKSUM;
+  mach_write_to_4(l, checksum);
+  l += 4;
+  m_log.close(l);
 }

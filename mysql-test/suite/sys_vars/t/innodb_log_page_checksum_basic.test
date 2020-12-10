@@ -1,0 +1,41 @@
+# bool global
+--source include/have_innodb.inc
+
+SET @start_global_value = @@global.innodb_log_page_checksum;
+
+--echo #
+--echo # exists as global only
+--echo #
+select @@global.innodb_log_page_checksum;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.innodb_log_page_checksum;
+show global variables like 'innodb_log_page_checksum';
+show session variables like 'innodb_log_page_checksum';
+select * from information_schema.global_variables
+where variable_name='innodb_log_page_checksum';
+select * from information_schema.session_variables
+where variable_name='innodb_log_page_checksum';
+
+--echo #
+--echo # show that it's writable
+--echo #
+set global innodb_log_page_checksum=ON;
+select @@global.innodb_log_page_checksum;
+set global innodb_log_page_checksum=OFF;
+select @@global.innodb_log_page_checksum;
+set global innodb_log_page_checksum=1;
+select @@global.innodb_log_page_checksum;
+--error ER_GLOBAL_VARIABLE
+set session innodb_log_page_checksum=1;
+
+--echo #
+--echo # incorrect types
+--echo #
+--error ER_WRONG_TYPE_FOR_VAR
+set global innodb_log_page_checksum=1.1;
+--error ER_WRONG_TYPE_FOR_VAR
+set global innodb_log_page_checksum=1e1;
+--error ER_WRONG_VALUE_FOR_VAR
+set global innodb_log_page_checksum="foo";
+
+SET @@global.innodb_log_page_checksum = @start_global_value;

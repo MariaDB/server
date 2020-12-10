@@ -401,6 +401,7 @@ extern ulong	srv_max_purge_lag_delay;
 extern my_bool	innodb_encrypt_temporary_tables;
 
 extern my_bool  srv_immediate_scrub_data_uncompressed;
+extern my_bool  innodb_log_page_checksum;
 /*-------------------------------------------*/
 
 /** Modes of operation */

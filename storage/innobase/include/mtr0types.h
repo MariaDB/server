@@ -289,6 +289,13 @@ enum mrec_ext_t
   TRIM_PAGES= 10
 };
 
+/** OPTION record subtypes, must be ignored if not supported. */
+enum mrec_opt_t {
+  /** Checksum record. It's written on mtr commit for each modified page within
+  the mtr, except freed pages. On recovery the CRC in the record is compared
+  with counted CRC of the page. */
+  CHECKSUM
+};
 
 /** Redo log record types for file-level operations. These bit
 patterns will be written to redo log files, so the existing codes or

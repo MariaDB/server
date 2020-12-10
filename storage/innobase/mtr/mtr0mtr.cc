@@ -28,10 +28,12 @@ Created 11/26/1995 Heikki Tuuri
 
 #include "buf0buf.h"
 #include "buf0flu.h"
+#include "buf0checksum.h"
 #include "fsp0sysspace.h"
 #include "page0types.h"
 #include "mtr0log.h"
 #include "log0recv.h"
+#include <unordered_set>
 
 /** Iterate over a memo block in reverse. */
 template <typename Functor>
@@ -200,6 +202,21 @@ private:
 	mtr_memo_slot_t*	m_slot;
 };
 
+/** Counts page checksum for OPTION CHECKSUM redo log record.
+@param page       the pointer to a page
+@return checksum of the page */
+uint32_t mtr_t::calc_page_checksum(const byte *page)
+{
+  ut_a(page);
+
+  return ut_crc32(page + FIL_PAGE_OFFSET, FIL_PAGE_LSN - FIL_PAGE_OFFSET) ^
+         ut_crc32(page + FIL_PAGE_TYPE, 2) ^
+         ut_crc32(page + FIL_PAGE_DATA,
+                  srv_page_size -
+                      (FIL_PAGE_DATA + FIL_PAGE_END_LSN_OLD_CHKSUM));
+
+}
+
 /** Release latches and decrement the buffer fix count.
 @param slot	memo slot */
 static void memo_slot_release(mtr_memo_slot_t *slot)
@@ -298,6 +315,69 @@ struct ReleaseAll {
       memo_slot_release(slot);
     return true;
   }
+};
+
+/** Checks if page was freed within minitransaction.
+@param id    id of the page to check
+@return true if page was freed, false otherwise */
+inline bool mtr_t::page_is_freed(page_id_t id) const
+{
+  if (!m_freed_pages)
+    return false;
+
+  ut_ad(!m_freed_pages->empty());
+  ut_ad(m_freed_space);
+  ut_ad(memo_contains(*m_freed_space));
+  ut_ad(is_named_space(m_freed_space));
+
+  if (id.space() != m_freed_space->id)
+    return false;
+
+  return m_freed_pages->contains(id.page_no());
+}
+
+/** Count checksum for modified pages, except free pages, and writes OPTION
+CHECKSUM record */
+struct WriteChecksum
+{
+  WriteChecksum(mtr_t &mtr) : m_mtr(mtr) {}
+  /** @return true always. */
+  bool operator()(const mtr_memo_slot_t *slot)
+  {
+    if (slot->type & MTR_MEMO_MODIFY)
+    {
+#ifdef UNIV_DEBUG
+      switch (slot->type & ~MTR_MEMO_MODIFY) {
+      case MTR_MEMO_BUF_FIX:
+      case MTR_MEMO_PAGE_S_FIX:
+      case MTR_MEMO_PAGE_SX_FIX:
+      case MTR_MEMO_PAGE_X_FIX:
+        break;
+      default:
+        ut_ad("invalid type" == 0);
+        break;
+      }
+#endif /* UNIV_DEBUG */
+      buf_block_t *block= reinterpret_cast<buf_block_t *>(slot->object);
+      page_id_t page_id= block->page.id();
+      if (m_visited_pages.emplace(page_id.raw()).second &&
+          !block->page.zip.data && !m_mtr.page_is_freed(page_id))
+      {
+        uint32_t checksum= mtr_t::calc_page_checksum(block->frame);
+        DBUG_EXECUTE_IF("ib_log_corrupt_option_crc", checksum+= 10;);
+        m_mtr.page_checksum(page_id, checksum);
+      }
+    }
+    return true;
+  }
+
+private:
+  /** mtr object to write OPTION CHECKSUM record */
+  mtr_t &m_mtr;
+  /** there can be several elements in mtr_t::memo which refer to the same
+  page, this variable contains a set of already visited pages to avoid OPTION
+  CHECKSUM record duplicates */
+  std::unordered_set<ulonglong> m_visited_pages;
 };
 
 #ifdef UNIV_DEBUG
@@ -401,6 +481,12 @@ void mtr_t::commit()
   if (m_modifications && (m_log_mode == MTR_LOG_NO_REDO || !m_log.empty()))
   {
     ut_ad(!srv_read_only_mode || m_log_mode == MTR_LOG_NO_REDO);
+
+    if (UNIV_UNLIKELY(innodb_log_page_checksum))
+    {
+      Iterate<WriteChecksum> iteration(WriteChecksum(*this));
+      m_memo.for_each_block(iteration);
+    }
 
     std::pair<lsn_t,bool> lsns;
 
@@ -967,7 +1053,7 @@ bool mtr_t::memo_contains(const rw_lock_t &lock, mtr_memo_type_t type)
 /** Check if we are holding exclusive tablespace latch
 @param space  tablespace to search for
 @return whether space.latch is being held */
-bool mtr_t::memo_contains(const fil_space_t& space)
+bool mtr_t::memo_contains(const fil_space_t& space) const
 {
   Iterate<Find> iteration(Find(&space, MTR_MEMO_SPACE_X_LOCK));
   if (m_memo.for_each_block_in_reverse(iteration))

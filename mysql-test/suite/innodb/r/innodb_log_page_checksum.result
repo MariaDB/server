@@ -1,0 +1,83 @@
+call mtr.add_suppression("Page checksum stored in redo log record 0x[A-Fa-f0-9]+ does not match counted checksum 0x[A-Fa-f0-9]+ for page");
+# Restart without redo log encryption
+# restart: --skip-innodb-encrypt-log
+SET GLOBAL debug_dbug="+d,ib_log_checkpoint_avoid";
+SET GLOBAL innodb_page_cleaner_disabled_debug=ON;
+SET GLOBAL innodb_log_page_checksum=ON;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+CREATE TABLE t(i INT) ENGINE INNODB;
+INSERT INTO t VALUES (1);
+CREATE TABLE t_page_comp(i INT) ENGINE INNODB  page_compressed=1;
+INSERT INTO t_page_comp VALUES (1);
+CREATE TABLE t_rf_comp(i INT) ENGINE INNODB row_format=compressed;
+INSERT INTO t_rf_comp VALUES (1);
+CREATE TABLE t_enc(i INT) ENGINE INNODB encrypted=yes;
+INSERT INTO t_enc VALUES (1);
+CREATE TABLE t_enc_page_comp(i INT) ENGINE INNODB page_compressed=yes encrypted=yes;
+INSERT INTO t_enc_page_comp VALUES (1);
+CREATE TABLE t_enc_rf_comp(i INT) ENGINE INNODB row_format=compressed encrypted=yes;
+INSERT INTO t_enc_rf_comp VALUES (1);
+# Kill the server
+# restart: --skip-innodb-encrypt-log
+NOT FOUND /Page checksum stored in redo log record/ in mysqld.1.err
+SET GLOBAL debug_dbug="+d,ib_log_checkpoint_avoid";
+SET GLOBAL innodb_page_cleaner_disabled_debug=ON;
+SET GLOBAL innodb_log_page_checksum=ON;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+SET GLOBAL debug_dbug="+d,ib_log_corrupt_option_crc";
+INSERT INTO t VALUES (2);
+INSERT INTO t_page_comp VALUES (2);
+INSERT INTO t_rf_comp VALUES (2);
+INSERT INTO t_enc VALUES (2);
+INSERT INTO t_enc_page_comp VALUES (2);
+INSERT INTO t_enc_rf_comp VALUES (2);
+# Kill the server
+# restart: --skip-innodb-encrypt-log
+FOUND 27 /Page checksum stored in redo log record/ in mysqld.1.err
+DROP TABLE t;
+DROP TABLE t_page_comp;
+DROP TABLE t_rf_comp;
+DROP TABLE t_enc;
+DROP TABLE t_enc_page_comp;
+DROP TABLE t_enc_rf_comp;
+# Restart with redo log encryption
+# restart: --innodb-encrypt-log=ON
+SET GLOBAL debug_dbug="+d,ib_log_checkpoint_avoid";
+SET GLOBAL innodb_page_cleaner_disabled_debug=ON;
+SET GLOBAL innodb_log_page_checksum=ON;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+CREATE TABLE t(i INT) ENGINE INNODB;
+INSERT INTO t VALUES (1);
+CREATE TABLE t_page_comp(i INT) ENGINE INNODB  page_compressed=1;
+INSERT INTO t_page_comp VALUES (1);
+CREATE TABLE t_rf_comp(i INT) ENGINE INNODB row_format=compressed;
+INSERT INTO t_rf_comp VALUES (1);
+CREATE TABLE t_enc(i INT) ENGINE INNODB encrypted=yes;
+INSERT INTO t_enc VALUES (1);
+CREATE TABLE t_enc_page_comp(i INT) ENGINE INNODB page_compressed=yes encrypted=yes;
+INSERT INTO t_enc_page_comp VALUES (1);
+CREATE TABLE t_enc_rf_comp(i INT) ENGINE INNODB row_format=compressed encrypted=yes;
+INSERT INTO t_enc_rf_comp VALUES (1);
+# Kill the server
+# restart: --innodb-encrypt-log=ON
+FOUND 27 /Page checksum stored in redo log record/ in mysqld.1.err
+SET GLOBAL debug_dbug="+d,ib_log_checkpoint_avoid";
+SET GLOBAL innodb_page_cleaner_disabled_debug=ON;
+SET GLOBAL innodb_log_page_checksum=ON;
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+SET GLOBAL debug_dbug="+d,ib_log_corrupt_option_crc";
+INSERT INTO t VALUES (2);
+INSERT INTO t_page_comp VALUES (2);
+INSERT INTO t_rf_comp VALUES (2);
+INSERT INTO t_enc VALUES (2);
+INSERT INTO t_enc_page_comp VALUES (2);
+INSERT INTO t_enc_rf_comp VALUES (2);
+# Kill the server
+# restart: --innodb-encrypt-log=ON
+FOUND 54 /Page checksum stored in redo log record/ in mysqld.1.err
+DROP TABLE t;
+DROP TABLE t_page_comp;
+DROP TABLE t_rf_comp;
+DROP TABLE t_enc;
+DROP TABLE t_enc_page_comp;
+DROP TABLE t_enc_rf_comp;

@@ -389,6 +389,8 @@ my_bool innodb_encrypt_temporary_tables;
 
 my_bool srv_immediate_scrub_data_uncompressed;
 
+my_bool innodb_log_page_checksum;
+
 /* Array of English strings describing the current state of an
 i/o handler thread */
 

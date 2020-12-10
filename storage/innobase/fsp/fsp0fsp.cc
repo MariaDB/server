@@ -2639,6 +2639,12 @@ fseg_free_extent(
 		if (!xdes_is_free(descr, i)) {
 			buf_page_free(space, first_page_in_extent + 1, mtr,
 				      __FILE__, __LINE__);
+			if (innodb_log_page_checksum || srv_immediate_scrub_data_uncompressed
+#if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
+			|| space->is_compressed()
+#endif
+			)
+				mtr->add_freed_offset(space, first_page_in_extent + 1);
 		}
 	}
 }
