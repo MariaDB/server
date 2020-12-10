@@ -161,13 +161,13 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
     while (rec != recinfo)
     {
       rec--;
-      if (rec->type == (int) FIELD_SKIP_ZERO && rec->length == 1)
+      if (rec->type == FIELD_SKIP_ZERO && rec->length == 1)
       {
         /*
           NOTE1: here we change a field type FIELD_SKIP_ZERO ->
           FIELD_NORMAL
         */
-	rec->type=(int) FIELD_NORMAL;
+	rec->type= FIELD_NORMAL;
 	packed--;
 	min_pack_length++;
 	break;

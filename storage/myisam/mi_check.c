@@ -131,7 +131,7 @@ int chk_del(HA_CHECK *param, register MI_INFO *info, ulonglong test_flag)
 {
   reg2 ha_rows i;
   uint delete_link_length;
-  my_off_t empty,next_link,UNINIT_VAR(old_link);
+  my_off_t empty,next_link,old_link= 0;
   char buff[22],buff2[22];
   DBUG_ENTER("chk_del");
 
@@ -4308,7 +4308,7 @@ int recreate_table(HA_CHECK *param, MI_INFO **org_info, char *filename)
 	rec->type != FIELD_BLOB &&
 	rec->type != FIELD_VARCHAR &&
 	rec->type != FIELD_CHECK)
-      rec->type=(int) FIELD_NORMAL;
+      rec->type= FIELD_NORMAL;
   }
 
   /* Change the new key to point at the saved key segments */

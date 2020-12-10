@@ -306,7 +306,7 @@ int _mi_prefix_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
   const uchar *sort_order= keyinfo->seg->charset->sort_order;
   uchar tt_buff[HA_MAX_KEY_BUFF+2], *t_buff=tt_buff+2;
   uchar *UNINIT_VAR(saved_from), *UNINIT_VAR(saved_to);
-  uchar *UNINIT_VAR(saved_vseg);
+  uchar *saved_vseg= NULL;
   uint  saved_length=0, saved_prefix_len=0;
   uint  length_pack;
   DBUG_ENTER("_mi_prefix_search");

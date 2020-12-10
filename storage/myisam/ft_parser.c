@@ -193,7 +193,7 @@ uchar ft_get_word(CHARSET_INFO *cs, const uchar **start, const uchar *end,
   if (param->quot)
   {
     *start= doc;
-    param->type= 3; /* FT_RBR */
+    param->type= FT_TOKEN_RIGHT_PAREN; /* FT_RBR */
     goto ret;
   }
 ret:

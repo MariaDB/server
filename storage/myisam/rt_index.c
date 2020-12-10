@@ -497,9 +497,9 @@ static uchar *rtree_pick_key(MI_INFO *info, MI_KEYDEF *keyinfo, uchar *key,
 			     uint key_length, uchar *page_buf, uint nod_flag)
 {
   double increase;
-  double UNINIT_VAR(best_incr);
+  double best_incr= -1;
   double area;
-  double UNINIT_VAR(best_area);
+  double best_area= -1;
   uchar *best_key= NULL;
   uchar *k = rt_PAGE_FIRST_KEY(page_buf, nod_flag);
   uchar *last = rt_PAGE_END(page_buf);

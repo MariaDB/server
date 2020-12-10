@@ -496,7 +496,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
         share->has_varchar_fields= 1;
       offset+=share->rec[i].length;
     }
-    share->rec[i].type=(int) FIELD_LAST;	/* End marker */
+    share->rec[i].type= FIELD_LAST;	/* End marker */
     if (offset > share->base.reclength)
     {
       /* purecov: begin inspected */
@@ -1253,7 +1253,7 @@ uint mi_recinfo_write(File file, MI_COLUMNDEF *recinfo)
 
 uchar *mi_recinfo_read(uchar *ptr, MI_COLUMNDEF *recinfo)
 {
-   recinfo->type=  mi_sint2korr(ptr);	ptr +=2;
+   recinfo->type=  (enum en_fieldtype)mi_sint2korr(ptr);	ptr +=2;
    recinfo->length=mi_uint2korr(ptr);	ptr +=2;
    recinfo->null_bit= (uint8) *ptr++;
    recinfo->null_pos=mi_uint2korr(ptr); ptr +=2;
