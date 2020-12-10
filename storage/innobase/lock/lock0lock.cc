@@ -304,6 +304,12 @@ static bool lock_rec_validate_page(const buf_block_t *block, bool latched)
 /* The lock system */
 lock_sys_t lock_sys;
 
+/** Diagnostic message for exceeding the mutex_lock_wait() timeout */
+const char lock_sys_t::fatal_msg[]=
+  "innodb_fatal_semaphore_wait_threshold was exceeded for lock_sys.mutex. "
+  "Please refer to "
+  "https://mariadb.com/kb/en/how-to-produce-a-full-stack-trace-for-mysqld/";
+
 /** We store info on the latest deadlock error to this buffer. InnoDB
 Monitor will then fetch it and print */
 static bool	lock_deadlock_found = false;
@@ -470,8 +476,29 @@ void lock_sys_t::create(ulint n_cells)
 	timeout_timer_active = false;
 }
 
-void lock_sys_t::mutex_lock()
+void lock_sys_t::mutex_lock_wait()
 {
+  ulonglong now= my_hrtime_coarse().val, old= 0;
+  if (mutex_wait_start.compare_exchange_strong
+      (old, now, std::memory_order_relaxed, std::memory_order_relaxed))
+  {
+    mysql_mutex_lock(&mutex);
+    mutex_wait_start.compare_exchange_weak
+      (now, 0, std::memory_order_relaxed, std::memory_order_relaxed);
+    return;
+  }
+
+  ut_ad(old);
+  /* We could have old > now due to our use of my_hrtime_coarse(). */
+  ulong waited= old <= now ? static_cast<ulong>((now - old) / 1000000) : 0;
+  const ulong threshold= srv_fatal_semaphore_wait_threshold;
+
+  if (waited >= threshold)
+    ib::fatal() << fatal_msg;
+
+  if (waited > threshold / 4)
+    ib::warn() << "A long wait (" << waited
+               << " seconds) was observed for lock_sys.mutex";
   mysql_mutex_lock(&mutex);
 }
 

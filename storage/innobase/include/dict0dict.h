@@ -1380,7 +1380,9 @@ extern mysql_mutex_t dict_foreign_err_mutex;
 /** InnoDB data dictionary cache */
 class dict_sys_t
 {
-private:
+  /** The my_hrtime_coarse().val of the oldest mutex_lock_wait() start, or 0 */
+  std::atomic<ulonglong> mutex_wait_start;
+
   /** @brief the data dictionary rw-latch protecting dict_sys
 
   Table create, drop, etc. reserve this in X-mode (along with
@@ -1430,6 +1432,9 @@ private:
   /** The synchronization interval of row_id */
   static constexpr size_t ROW_ID_WRITE_MARGIN= 256;
 public:
+  /** Diagnostic message for exceeding the mutex_lock_wait() timeout */
+  static const char fatal_msg[];
+
   /** @return A new value for GEN_CLUST_INDEX(DB_ROW_ID) */
   inline row_id_t get_new_row_id();
 
@@ -1546,8 +1551,18 @@ public:
 #ifdef SAFE_MUTEX
   bool mutex_is_locked() const { return mysql_mutex_is_owner(&mutex); }
 #endif
+private:
   /** Acquire the mutex */
-  void mutex_lock();
+  ATTRIBUTE_NOINLINE void mutex_lock_wait();
+public:
+  /** @return the my_hrtime_coarse().val of the oldest mutex_lock_wait() start,
+  assuming that requests are served on a FIFO basis */
+  ulonglong oldest_wait() const
+  { return mutex_wait_start.load(std::memory_order_relaxed); }
+
+  /** Acquire the mutex */
+  void mutex_lock() { if (mysql_mutex_trylock(&mutex)) mutex_lock_wait(); }
+
   /** Release the mutex */
   void mutex_unlock() { mysql_mutex_unlock(&mutex); }
 

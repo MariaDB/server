@@ -80,6 +80,12 @@ extern uint	ibuf_debug;
 /** the dictionary system */
 dict_sys_t	dict_sys;
 
+/** Diagnostic message for exceeding the mutex_lock_wait() timeout */
+const char dict_sys_t::fatal_msg[]=
+  "innodb_fatal_semaphore_wait_threshold was exceeded for dict_sys.mutex. "
+  "Please refer to "
+  "https://mariadb.com/kb/en/how-to-produce-a-full-stack-trace-for-mysqld/";
+
 /** Percentage of compression failures that are allowed in a single
 round */
 ulong	zip_failure_threshold_pct = 5;
@@ -1061,8 +1067,29 @@ inline void dict_sys_t::acquire(dict_table_t* table)
   table->acquire();
 }
 
-void dict_sys_t::mutex_lock()
+void dict_sys_t::mutex_lock_wait()
 {
+  ulonglong now= my_hrtime_coarse().val, old= 0;
+  if (mutex_wait_start.compare_exchange_strong
+      (old, now, std::memory_order_relaxed, std::memory_order_relaxed))
+  {
+    mysql_mutex_lock(&mutex);
+    mutex_wait_start.compare_exchange_weak
+      (now, 0, std::memory_order_relaxed, std::memory_order_relaxed);
+    return;
+  }
+
+  ut_ad(old);
+  /* We could have old > now due to our use of my_hrtime_coarse(). */
+  ulong waited= old <= now ? static_cast<ulong>((now - old) / 1000000) : 0;
+  const ulong threshold= srv_fatal_semaphore_wait_threshold;
+
+  if (waited >= threshold)
+    ib::fatal() << fatal_msg;
+
+  if (waited > threshold / 4)
+    ib::warn() << "A long wait (" << waited
+               << " seconds) was observed for dict_sys.mutex";
   mysql_mutex_lock(&mutex);
 }
 
