@@ -4,7 +4,6 @@ dummy INSERT, the table should be empty
 dummy INSERT, the table should be empty
 ANALYZE TABLE test_innodb_stats;
 Table	Op	Msg_type	Msg_text
-test.test_innodb_stats	analyze	status	Engine-independent statistics collected
 test.test_innodb_stats	analyze	status	OK
 SELECT
 stat_name,
@@ -57,7 +56,6 @@ TRUNCATE TABLE test_innodb_stats;
 INSERT INTO test_innodb_stats (a) VALUES (1);
 ANALYZE TABLE test_innodb_stats;
 Table	Op	Msg_type	Msg_text
-test.test_innodb_stats	analyze	status	Engine-independent statistics collected
 test.test_innodb_stats	analyze	status	OK
 SELECT
 stat_name,
@@ -110,7 +108,6 @@ TRUNCATE TABLE test_innodb_stats;
 INSERT INTO test_innodb_stats (a) VALUES (1), (1);
 ANALYZE TABLE test_innodb_stats;
 Table	Op	Msg_type	Msg_text
-test.test_innodb_stats	analyze	status	Engine-independent statistics collected
 test.test_innodb_stats	analyze	status	OK
 SELECT
 stat_name,
@@ -163,7 +160,6 @@ TRUNCATE TABLE test_innodb_stats;
 INSERT INTO test_innodb_stats (a) VALUES (1), (1), (1);
 ANALYZE TABLE test_innodb_stats;
 Table	Op	Msg_type	Msg_text
-test.test_innodb_stats	analyze	status	Engine-independent statistics collected
 test.test_innodb_stats	analyze	status	OK
 SELECT
 stat_name,
@@ -216,7 +212,6 @@ TRUNCATE TABLE test_innodb_stats;
 INSERT INTO test_innodb_stats (a) VALUES (1), (1), (1), (1), (1), (1), (1), (1), (1), (1);
 ANALYZE TABLE test_innodb_stats;
 Table	Op	Msg_type	Msg_text
-test.test_innodb_stats	analyze	status	Engine-independent statistics collected
 test.test_innodb_stats	analyze	status	OK
 SELECT
 stat_name,
@@ -269,7 +264,6 @@ TRUNCATE TABLE test_innodb_stats;
 INSERT INTO test_innodb_stats (a) VALUES (1), (2);
 ANALYZE TABLE test_innodb_stats;
 Table	Op	Msg_type	Msg_text
-test.test_innodb_stats	analyze	status	Engine-independent statistics collected
 test.test_innodb_stats	analyze	status	OK
 SELECT
 stat_name,
@@ -322,7 +316,6 @@ TRUNCATE TABLE test_innodb_stats;
 INSERT INTO test_innodb_stats (a) VALUES (1), (1), (2);
 ANALYZE TABLE test_innodb_stats;
 Table	Op	Msg_type	Msg_text
-test.test_innodb_stats	analyze	status	Engine-independent statistics collected
 test.test_innodb_stats	analyze	status	OK
 SELECT
 stat_name,
@@ -375,7 +368,6 @@ TRUNCATE TABLE test_innodb_stats;
 INSERT INTO test_innodb_stats (a) VALUES (1), (2), (3);
 ANALYZE TABLE test_innodb_stats;
 Table	Op	Msg_type	Msg_text
-test.test_innodb_stats	analyze	status	Engine-independent statistics collected
 test.test_innodb_stats	analyze	status	OK
 SELECT
 stat_name,
@@ -428,7 +420,6 @@ TRUNCATE TABLE test_innodb_stats;
 INSERT INTO test_innodb_stats (a) VALUES (1), (1), (2), (3), (3);
 ANALYZE TABLE test_innodb_stats;
 Table	Op	Msg_type	Msg_text
-test.test_innodb_stats	analyze	status	Engine-independent statistics collected
 test.test_innodb_stats	analyze	status	OK
 SELECT
 stat_name,
@@ -481,7 +472,6 @@ TRUNCATE TABLE test_innodb_stats;
 INSERT INTO test_innodb_stats (a) VALUES (1), (2), (3), (4), (5), (1), (2), (3), (4), (5);
 ANALYZE TABLE test_innodb_stats;
 Table	Op	Msg_type	Msg_text
-test.test_innodb_stats	analyze	status	Engine-independent statistics collected
 test.test_innodb_stats	analyze	status	OK
 SELECT
 stat_name,
