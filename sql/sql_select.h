@@ -116,7 +116,7 @@ struct KEY_FIELD {
 
 class store_key;
 
-const int NO_REF_PART= (int)(uint)(-1);
+const uint NO_REF_PART= (uint)(-1);
 
 typedef struct st_table_ref
 {

@@ -865,7 +865,7 @@ list_copy_and_replace_each_value(List<T> &list, MEM_ROOT *mem_root)
   /* Make a deep copy of each element */
   List_iterator<T> it(list);
   T *el;
-  while ((el= it++))
+  while ((el= it++) != 0)
     it.replace(el->clone(mem_root));
 }
 

@@ -2712,7 +2712,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     KEY_PART_INFO *hash_keypart;
     Field *hash_field;
     uint offset= share->reclength - HA_HASH_FIELD_LENGTH * hash_fields;
-    for (uint i= 0; i < share->keys; i++, keyinfo++)
+    for (i= 0; i < share->keys; i++, keyinfo++)
     {
       /* We need set value in hash key_part */
       if (keyinfo->algorithm == HA_KEY_ALG_LONG_HASH)

@@ -106,7 +106,7 @@ PSI_stage_info MDL_key::m_namespace_to_wait_state_name[NAMESPACE_END]=
 };
 
 
-static const LEX_STRING lock_types[]=
+static const LEX_CSTRING lock_types[]=
 {
   { C_STRING_WITH_LEN("MDL_INTENTION_EXCLUSIVE") },
   { C_STRING_WITH_LEN("MDL_SHARED") },
@@ -121,7 +121,7 @@ static const LEX_STRING lock_types[]=
 };
 
 
-static const LEX_STRING backup_lock_types[]=
+static const LEX_CSTRING backup_lock_types[]=
 {
   { C_STRING_WITH_LEN("MDL_BACKUP_START") },
   { C_STRING_WITH_LEN("MDL_BACKUP_FLUSH") },
@@ -1875,7 +1875,7 @@ bool MDL_ticket::is_incompatible_when_waiting(enum_mdl_type type) const
 }
 
 
-static const LEX_STRING
+static const LEX_CSTRING
 *get_mdl_lock_name(MDL_key::enum_mdl_namespace mdl_namespace,
                    enum_mdl_type type)
 {
@@ -1885,12 +1885,12 @@ static const LEX_STRING
 }
 
 
-const LEX_STRING *MDL_ticket::get_type_name() const
+const LEX_CSTRING *MDL_ticket::get_type_name() const
 {
   return get_mdl_lock_name(get_key()->mdl_namespace(), m_type);
 }
 
-const LEX_STRING *MDL_ticket::get_type_name(enum_mdl_type type) const
+const LEX_CSTRING *MDL_ticket::get_type_name(enum_mdl_type type) const
 {
   return get_mdl_lock_name(get_key()->mdl_namespace(), type);
 }

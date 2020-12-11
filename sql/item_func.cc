@@ -6429,6 +6429,7 @@ class Func_handler_bit_xor_int_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
+  Func_handler_bit_xor_int_to_ulonglong() = default;
   Longlong_null to_longlong_null(Item_handled_func *item) const
   {
     DBUG_ASSERT(item->is_fixed());
@@ -6442,6 +6443,7 @@ class Func_handler_bit_xor_dec_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
+  Func_handler_bit_xor_dec_to_ulonglong() = default;
   Longlong_null to_longlong_null(Item_handled_func *item) const
   {
     DBUG_ASSERT(item->is_fixed());

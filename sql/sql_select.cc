@@ -27267,7 +27267,7 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
   {
     if (unit->union_needs_tmp_table() && unit->fake_select_lex)
     {
-      unit->fake_select_lex->select_number= FAKE_SELECT_LEX_ID; // just for initialization
+      unit->fake_select_lex->select_number= (uint)FAKE_SELECT_LEX_ID; // just for initialization
       unit->fake_select_lex->type= unit_operation_text[unit->common_op()];
       unit->fake_select_lex->options|= SELECT_DESCRIBE;
     }
