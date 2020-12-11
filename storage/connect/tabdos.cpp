@@ -2148,6 +2148,9 @@ bool TDBDOS::OpenDB(PGLOBAL g)
     } // endif use
 
   if (Mode == MODE_DELETE && !Next && Txfp->GetAmType() != TYPE_AM_DOS
+#if defined(BSON_SUPPORT)
+                                   && Txfp->GetAmType() != TYPE_AM_BIN
+#endif   // BSON_SUPPORT
 		                               && Txfp->GetAmType() != TYPE_AM_MGO) {
     // Delete all lines. Not handled in MAP or block mode
     Txfp = new(g) DOSFAM((PDOSDEF)To_Def);

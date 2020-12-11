@@ -215,16 +215,16 @@ class DllExport BLKFAM : public DOSFAM {
 /*  This is the DOS/UNIX Access Method class declaration for binary    */
 /*  files with variable record format (BJSON)                          */
 /***********************************************************************/
-class DllExport BINFAM : public TXTFAM {
+class DllExport BINFAM : public DOSFAM {
 public:
 	// Constructor
-	BINFAM(PDOSDEF tdp) : TXTFAM(tdp) {BStream = NULL; Recsize = 0;}
-	BINFAM(PBINFAM txfp) : TXTFAM(txfp) {BStream = txfp->BStream;}
+	BINFAM(PDOSDEF tdp) : DOSFAM(tdp) {Recsize = 0;}
+	BINFAM(PBINFAM txfp) : DOSFAM(txfp) {Recsize = txfp->Recsize;}
 
 	// Implementation
 	virtual AMT   GetAmType(void) {return TYPE_AM_BIN;}
-	virtual int   GetPos(void);
-	virtual int   GetNextPos(void);
+//virtual int   GetPos(void);
+//virtual int   GetNextPos(void);
 	virtual PTXF  Duplicate(PGLOBAL g) { return (PTXF)new(g) BINFAM(this); }
 
 	// Methods
@@ -233,23 +233,22 @@ public:
 	virtual int   Cardinality(PGLOBAL g);
 	virtual int   MaxBlkSize(PGLOBAL g, int s) {return s;}
 	virtual bool  AllocateBuffer(PGLOBAL g);
-	virtual int   GetRowID(void);
-	virtual bool  RecordPos(PGLOBAL g);
-	virtual bool  SetPos(PGLOBAL g, int recpos);
+//virtual int   GetRowID(void);
+//virtual bool  RecordPos(PGLOBAL g);
+//virtual bool  SetPos(PGLOBAL g, int recpos);
 	virtual int   SkipRecord(PGLOBAL g, bool header) {return 0;}
-	virtual bool  OpenTableFile(PGLOBAL g);
+//virtual bool  OpenTableFile(PGLOBAL g);
 	virtual int   ReadBuffer(PGLOBAL g);
 	virtual int   WriteBuffer(PGLOBAL g);
-	virtual int   DeleteRecords(PGLOBAL g, int irc) {return RC_FX;}
+//virtual int   DeleteRecords(PGLOBAL g, int irc);
 	virtual void  CloseTableFile(PGLOBAL g, bool abort);
 	virtual void  Rewind(void);
 
-protected:
+//protected:
 //virtual int   InitDelete(PGLOBAL g, int fpos, int spos);
 
 	// Members
-	FILE *BStream;             // Points to Bin file structure
-	size_t Recsize;						 // Length of last read record
+	size_t Recsize;		// Length of last read or next written record
 }; // end of class BINFAM
 
 #endif // __FILAMTXT_H

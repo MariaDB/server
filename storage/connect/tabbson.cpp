@@ -1012,7 +1012,7 @@ PBVAL BCUTIL::GetRow(PGLOBAL g)
   PBVAL  nwr, row = Tp->Row;
 
   for (int i = 0; i < nod && row; i++) {
-    if (nodes[i + 1].Op == OP_XX)
+    if (i < nod-1 && nodes[i+1].Op == OP_XX)
       break;
     else switch (row->Type) {
     case TYPE_JOB:
@@ -1411,28 +1411,30 @@ int TDBBSN::EstimatedLength(void)
 /***********************************************************************/
 bool TDBBSN::OpenDB(PGLOBAL g)
 {
+  TUSE use = Use;
+
+  if (Pretty < 0 && Mode == MODE_UPDATE) {
+    sprintf(g->Message, "Mode %d NIY for Bjson", Mode);
+    return true;
+  } // endif Mode
+
   if (Use == USE_OPEN) {
     /*******************************************************************/
-    /*  Table already open replace it at its beginning.                */
+    /*  Table already open replace it at its beginning.    ???         */
     /*******************************************************************/
     Fpos = -1;
     NextSame = 0;
     SameRow = 0;
-  } else {
-    /*******************************************************************/
-    /*  First opening.                                                 */
-    /*******************************************************************/
-    if (Mode == MODE_INSERT)
-      switch (Jmode) {
-      case MODE_OBJECT: Row = Bp->NewVal(TYPE_JOB);  break;
-      case MODE_ARRAY:  Row = Bp->NewVal(TYPE_JAR);  break;
-      case MODE_VALUE:  Row = Bp->NewVal(TYPE_JVAL); break;
-      default:
-        sprintf(g->Message, "Invalid Jmode %d", Jmode);
-        return true;
-      } // endswitch Jmode
-
   } // endif Use
+
+    /*********************************************************************/
+    /*  Open according to logical input/output mode required.            */
+    /*********************************************************************/
+  if (TDBDOS::OpenDB(g))
+    return true;
+
+  if (use == USE_OPEN)
+    return false;
 
   if (Pretty < 0) {
     /*******************************************************************/
@@ -1441,45 +1443,45 @@ bool TDBBSN::OpenDB(PGLOBAL g)
     xtrc(1, "JSN OpenDB: tdbp=%p tdb=R%d use=%d mode=%d\n",
       this, Tdb_No, Use, Mode);
 
-    if (Use == USE_OPEN) {
-      /*******************************************************************/
-      /*  Table already open, just replace it at its beginning.          */
-      /*******************************************************************/
-      if (!To_Kindex) {
-        Txfp->Rewind();       // see comment in Work.log
-      } else // Table is to be accessed through a sorted index table
-        To_Kindex->Reset();   // TODO: NIY
-
-      return false;
-    } // endif use
-
     /*********************************************************************/
-    /*  Open according to logical input/output mode required.            */
-    /*  Use conventionnal input/output functions.                        */
-    /*********************************************************************/
-    if (Txfp->OpenTableFile(g))
-      return true;
-
-    Use = USE_OPEN;       // Do it now in case we are recursively called
-
-    /*********************************************************************/
-    /*  Lrecl is Ok.                      															 */
+    /*  Lrecl is Ok.                                                     */
     /*********************************************************************/
     size_t linelen = Lrecl;
 
-    // Buffer should be the first allocated thing in G->Sarea
+    // Buffer must be set to G->Sarea
     Txfp->AllocateBuffer(Bp->G);
+
+    if (Mode == MODE_INSERT)
+      Bp->SubSet(true);
+    else
+      Bp->MemSave();
+
     To_Line = Txfp->GetBuf();
     memset(To_Line, 0, linelen);
-    Bp->MemSave();
     xtrc(1, "OpenJSN: R%hd mode=%d To_Line=%p\n", Tdb_No, Mode, To_Line);
-  } else if (TDBDOS::OpenDB(g))
-    return true;
+  } // endif Pretty
+
+    /***********************************************************************/
+    /*  First opening.                                                     */
+    /***********************************************************************/
+  if (Mode == MODE_INSERT) {
+    switch (Jmode) {
+    case MODE_OBJECT: Row = Bp->NewVal(TYPE_JOB);  break;
+    case MODE_ARRAY:  Row = Bp->NewVal(TYPE_JAR);  break;
+    case MODE_VALUE:  Row = Bp->NewVal(TYPE_JVAL); break;
+    default:
+      sprintf(g->Message, "Invalid Jmode %d", Jmode);
+      return true;
+    } // endswitch Jmode
+
+    Bp->MemSave();
+  } // endif Mode
 
   if (Xcol)
     To_Filter = NULL;              // Imcompatible
 
   return false;
+
 } // end of OpenDB
 
 /***********************************************************************/
@@ -1564,26 +1566,30 @@ int TDBBSN::ReadDB(PGLOBAL g)
 /***********************************************************************/
 bool TDBBSN::PrepareWriting(PGLOBAL g)
 {
-  PSZ s;
+  if (Pretty >= 0) {
+    PSZ s;
 
-  if (!(Top = Bp->MakeTopTree(g, Row)))
-    return true;
+    if (!(Top = Bp->MakeTopTree(g, Row)))
+      return true;
 
-  if ((s = Bp->SerialVal(g, Top, Pretty))) {
-    if (Comma)
-      strcat(s, ",");
+    if ((s = Bp->SerialVal(g, Top, Pretty))) {
+      if (Comma)
+        strcat(s, ",");
 
-    if ((signed)strlen(s) > Lrecl) {
-      strncpy(To_Line, s, Lrecl);
-      sprintf(g->Message, "Line truncated (lrecl=%d)", Lrecl);
-      return PushWarning(g, this);
+      if ((signed)strlen(s) > Lrecl) {
+        strncpy(To_Line, s, Lrecl);
+        sprintf(g->Message, "Line truncated (lrecl=%d)", Lrecl);
+        return PushWarning(g, this);
+      } else
+        strcpy(To_Line, s);
+
+      return false;
     } else
-      strcpy(To_Line, s);
-
-    return false;
+      return true;
   } else
-    return true;
-
+    ((BINFAM*)Txfp)->Recsize = ((size_t)PlugSubAlloc(Bp->G, NULL, 0)
+                              - (size_t)To_Line);
+  return false;
 } // end of PrepareWriting
 
 /***********************************************************************/
@@ -2034,6 +2040,7 @@ void BSONCOL::WriteColumn(PGLOBAL g)
       else
         Cp->AddArrayValue(row, jsp);
 
+      break;
     case TYPE_JOB:  
       if (Nodes[Nod - 1].Key)
         Cp->SetKeyValue(row, jsp, Nodes[Nod - 1].Key);

@@ -1737,7 +1737,6 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	ssize_t len, newloc;
 	size_t  lrecl, binszp;
 	PBVAL		jsp;
-	PBJNX   bnxp;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 	BDOC    doc(g);
 

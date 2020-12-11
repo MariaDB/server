@@ -145,7 +145,7 @@ public:
 	void  SetBigint(PBVAL vlp, longlong ll);
 	void  SetFloat(PBVAL vlp, double f);
 	void  SetBool(PBVAL vlp, bool b);
-	void  Clear(PBVAL vlp) { vlp->N = 0; vlp->Nd = 0; vlp->Next = 0; vlp->Type = TYPE_NULL; }
+	void  Clear(PBVAL vlp) { vlp->N = 0; vlp->Nd = 0; vlp->Next = 0; }
 	bool  IsValueNull(PBVAL vlp);
 	bool  IsJson(PBVAL vlp) {return (vlp->Type == TYPE_JAR || vlp->Type == TYPE_JOB);}
 
