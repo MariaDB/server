@@ -1,0 +1,31 @@
+drop table if exists t1,t2;
+#
+# MDEV-21958: Query having many NOT-IN clauses running forever
+#
+create table t2 (
+pk int primary key,
+key1 int,
+col1 int,
+key (key1, pk)
+);
+insert into t2 (pk, key1) values (1,1),(2,2),(3,3),(4,4),(5,5);
+set @tmp_21958=@@optimizer_trace;
+set optimizer_trace=1;
+explain select * from t2 where key1 in (1,2,3) and pk not in (1,2,3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	PRIMARY,key1	NULL	NULL	NULL	5	Using where
+# This should show only ranges in form "(1) <= (key1) <= (1)"
+#  ranges over "pk" should not be constructed.
+select json_detailed(JSON_EXTRACT(trace, '$**.ranges'))
+from information_schema.optimizer_trace;
+json_detailed(JSON_EXTRACT(trace, '$**.ranges'))
+[
+    
+    [
+        "(1) <= (key1) <= (1)",
+        "(2) <= (key1) <= (2)",
+        "(3) <= (key1) <= (3)"
+    ]
+]
+set optimizer_trace=@tmp_21958;
+drop table t2;
