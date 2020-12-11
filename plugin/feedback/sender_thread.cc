@@ -117,6 +117,7 @@ static int prepare_for_fill(TABLE_LIST *tables)
 
   tables->init_one_table(&INFORMATION_SCHEMA_NAME, &tbl_name, 0, TL_READ);
   tables->schema_table= i_s_feedback;
+  tables->schema_table_reformed= 1;
   tables->table= create_schema_table(thd, tables);
   if (!tables->table)
     return 1;
