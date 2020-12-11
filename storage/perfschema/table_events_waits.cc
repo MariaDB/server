@@ -554,7 +554,7 @@ void table_events_waits_common::make_row(PFS_events_waits *wait)
   Different similar operations (CLOSE vs STREAMCLOSE) are displayed
   with the same name 'close'.
 */
-static const LEX_STRING operation_names_map[]=
+static const LEX_CSTRING operation_names_map[]=
 {
   /* Mutex operations */
   { C_STRING_WITH_LEN("lock") },
@@ -647,7 +647,7 @@ int table_events_waits_common::read_row_values(TABLE *table,
                                                bool read_all)
 {
   Field *f;
-  const LEX_STRING *operation;
+  const LEX_CSTRING *operation;
 
   compile_time_assert(COUNT_OPERATION_TYPE ==
                       array_elements(operation_names_map));

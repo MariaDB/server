@@ -300,7 +300,7 @@ struct PFS_engine_table_share
   int write_row(TABLE *table, const unsigned char *buf, Field **fields) const;
 
   /** Table name. */
-  LEX_STRING m_name;
+  LEX_CSTRING m_name;
   /** Table ACL. */
   const ACL_internal_table_access *m_acl;
   /** Open table function. */
@@ -316,7 +316,7 @@ struct PFS_engine_table_share
   /** The lock, stored on behalf of the SQL layer. */
   THR_LOCK *m_thr_lock_ptr;
   /** Table definition. */
-  LEX_STRING sql;
+  LEX_CSTRING sql;
   /** Table is available even if the Performance Schema is disabled. */
   bool m_perpetual;
 };

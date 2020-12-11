@@ -40,7 +40,7 @@
 struct row_setup_timers
 {
   /** Column NAME. */
-  LEX_STRING m_name;
+  LEX_CSTRING m_name;
   /** Column TIMER_NAME. */
   enum_timer_name *m_timer_name_ptr;
 };

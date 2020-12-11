@@ -40,7 +40,7 @@
 struct row_setup_consumers
 {
   /** Column NAME. */
-  LEX_STRING m_name;
+  LEX_CSTRING m_name;
   /** Column ENABLED. */
   bool *m_enabled_ptr;
   /** Hidden column, instrument refresh. */
