@@ -213,7 +213,7 @@ int maria_chk_del(HA_CHECK *param, register MARIA_HA *info,
   MARIA_SHARE *share= info->s;
   reg2 ha_rows i;
   uint delete_link_length;
-  my_off_t empty,next_link,UNINIT_VAR(old_link);
+  my_off_t empty,next_link,old_link= 0;
   char buff[22],buff2[22];
   DBUG_ENTER("maria_chk_del");
 
@@ -1789,7 +1789,8 @@ static my_bool check_head_page(HA_CHECK *param, MARIA_HA *info, uchar *record,
       for (i= 0 ; i < info->cur_row.extents_count ; i++)
       {
         pgcache_page_no_t extent_page;
-        uint page_count, page_type;
+        uint page_count;
+	enum en_page_type page_type;
         extent_page= uint5korr(extents);
         page_count=  uint2korr(extents+5) & ~START_EXTENT_BIT;
         extents+=    ROW_EXTENT_SIZE;
@@ -1979,7 +1980,7 @@ static int check_block_record(HA_CHECK *param, MARIA_HA *info, int extend,
       param->used+= block_size;
       break;
     }
-    if (_ma_check_bitmap_data(info, page_type,
+    if (_ma_check_bitmap_data(info, (enum en_page_type)page_type,
                               full_dir ? 0 : empty_space,
                               bitmap_for_page))
     {
@@ -6594,7 +6595,8 @@ set_data_file_type(MARIA_SORT_INFO *sort_info, MARIA_SHARE *share)
       COMPRESSED_RECORD && sort_info->param->testflag & T_UNPACK)
   {
     MARIA_SHARE tmp;
-    sort_info->new_data_file_type= share->state.header.org_data_file_type;
+    sort_info->new_data_file_type=
+      (enum data_file_type)share->state.header.org_data_file_type;
     /* Set delete_function for sort_delete_record() */
     tmp= *share;
     tmp.state.header.data_file_type= tmp.state.header.org_data_file_type;
@@ -6611,7 +6613,8 @@ static void restore_data_file_type(MARIA_SHARE *share)
   mi_int2store(share->state.header.options,share->options);
   share->state.header.data_file_type=
     share->state.header.org_data_file_type;
-  share->data_file_type= share->state.header.data_file_type;
+  share->data_file_type=
+    (enum data_file_type)share->state.header.data_file_type;
   share->pack.header_length= 0;
 
   /* Use new virtual functions for key generation */

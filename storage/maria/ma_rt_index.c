@@ -570,7 +570,7 @@ static const uchar *maria_rtree_pick_key(const MARIA_KEY *key,
   double increase;
   double best_incr= DBL_MAX;
   double area;
-  double UNINIT_VAR(best_area);
+  double best_area= -1;
   const uchar *best_key= NULL;
   const uchar *k= rt_PAGE_FIRST_KEY(share, page->buff, page->node);
   const uchar *last= rt_PAGE_END(page);

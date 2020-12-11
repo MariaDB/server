@@ -194,23 +194,25 @@ static enum lockman_lock_type lock_combining_matrix[10][10]=
 #define L GOT_THE_LOCK_NEED_TO_INSTANT_LOCK_A_SUBRESOURCE
 #define A GOT_THE_LOCK
 #define x GOT_THE_LOCK
+#define O ((enum lockman_getlock_result) 0)
 static enum lockman_getlock_result getlock_result[10][10]=
 {/*    N    S   X    IS    IX  SIX    LS    LX   SLX   LSIX         */
-  {    0,   0,  0,    0,    0,   0,    0,    0,   0,    0}, /* N    */
-  {    0,   x,  0,    A,    0,   0,    x,    0,   0,    0}, /* S    */
-  {    0,   x,  x,    A,    A,   0,    x,    x,   0,    0}, /* X    */
-  {    0,   0,  0,    I,    0,   0,    0,    0,   0,    0}, /* IS   */
-  {    0,   0,  0,    I,    I,   0,    0,    0,   0,    0}, /* IX   */
-  {    0,   x,  0,    A,    I,   0,    x,    0,   0,    0}, /* SIX  */
-  {    0,   0,  0,    L,    0,   0,    x,    0,   0,    0}, /* LS   */
-  {    0,   0,  0,    L,    L,   0,    x,    x,   0,    0}, /* LX   */
-  {    0,   x,  0,    A,    L,   0,    x,    x,   0,    0}, /* SLX  */
-  {    0,   0,  0,    L,    I,   0,    x,    0,   0,    0}  /* LSIX */
+  {    O,   O,  O,    O,    O,   O,    O,    O,   O,    O}, /* N    */
+  {    O,   x,  O,    A,    O,   O,    x,    O,   O,    O}, /* S    */
+  {    O,   x,  x,    A,    A,   O,    x,    x,   O,    O}, /* X    */
+  {    O,   O,  O,    I,    O,   O,    O,    O,   O,    O}, /* IS   */
+  {    O,   O,  O,    I,    I,   O,    O,    O,   O,    O}, /* IX   */
+  {    O,   x,  O,    A,    I,   O,    x,    O,   O,    O}, /* SIX  */
+  {    O,   O,  O,    L,    O,   O,    x,    O,   O,    O}, /* LS   */
+  {    O,   O,  O,    L,    L,   O,    x,    x,   O,    O}, /* LX   */
+  {    O,   x,  O,    A,    L,   O,    x,    x,   O,    O}, /* SLX  */
+  {    O,   O,  O,    L,    I,   O,    x,    O,   O,    O}  /* LSIX */
 };
 #undef I
 #undef L
 #undef A
 #undef x
+#undef O
 
 typedef struct lockman_lock {
   uint64 resource;
@@ -254,7 +256,7 @@ static int lockfind(LOCK * volatile *head, LOCK *node,
 
   hashnr= node->hashnr;
   resource= node->resource;
-  lock= node->lock;
+  lock= (enum lockman_lock_type)node->lock;
   loid= node->loid;
   flags= node->flags;
 
@@ -281,7 +283,7 @@ retry:
     } while (cur_link != cursor->curr->link && LF_BACKOFF());
     cur_hashnr= cursor->curr->hashnr;
     cur_resource= cursor->curr->resource;
-    cur_lock= cursor->curr->lock;
+    cur_lock= (enum lockman_lock_type) cursor->curr->lock;
     cur_loid= cursor->curr->loid;
     cur_flags= cursor->curr->flags;
     if (*cursor->prev != (intptr)cursor->curr)
@@ -619,8 +621,8 @@ enum lockman_getlock_result lockman_getlock(LOCKMAN *lm, LOCK_OWNER *lo,
   res= lockinsert(el, node, pins, &blocker);
   if (res & ALREADY_HAVE)
   {
-    int r;
-    old_lock= blocker->lock;
+    enum lockman_getlock_result r;
+    old_lock= (enum lockman_lock_type)blocker->lock;
     lf_alloc_free(pins, node);
     r= getlock_result[old_lock][lock];
     DBUG_ASSERT(r);
@@ -701,7 +703,7 @@ enum lockman_getlock_result lockman_getlock(LOCKMAN *lm, LOCK_OWNER *lo,
         and release all locks at once - see lockman_release_locks()
       */
       lf_unpin(pins, 3);
-      return DIDNT_GET_THE_LOCK;
+      return (enum lockman_getlock_result)DIDNT_GET_THE_LOCK;
     }
   }
   lo->waiting_for= 0;

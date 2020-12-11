@@ -204,7 +204,8 @@ static CONTROL_FILE_ERROR create_control_file(const char *name,
   */
 
   /* init the file with these "undefined" values */
-  DBUG_RETURN(ma_control_file_write_and_force(LSN_IMPOSSIBLE,
+  DBUG_RETURN((CONTROL_FILE_ERROR)
+		  ma_control_file_write_and_force(LSN_IMPOSSIBLE,
                                               FILENO_IMPOSSIBLE, 0, 0));
 }
 
@@ -281,7 +282,7 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
   uint new_cf_create_time_size, new_cf_changeable_size, new_block_size;
   my_off_t file_size;
   int open_flags= O_BINARY | /*O_DIRECT |*/ O_RDWR | O_CLOEXEC;
-  int error= CONTROL_FILE_UNKNOWN_ERROR;
+  CONTROL_FILE_ERROR error= CONTROL_FILE_UNKNOWN_ERROR;
   DBUG_ENTER("ma_control_file_open");
 
   /*
@@ -293,7 +294,7 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
   DBUG_ASSERT(CF_FILENO_SIZE == 4);
 
   if (control_file_fd >= 0) /* already open */
-    DBUG_RETURN(0);
+    DBUG_RETURN(CONTROL_FILE_OK);
 
   if (fn_format(name, CONTROL_FILE_BASE_NAME,
                 maria_data_root, "", MYF(MY_WME)) == NullS)
@@ -449,7 +450,7 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
       (buffer + new_cf_create_time_size + CF_RECOV_FAIL_OFFSET)[0];
 
 ok:
-  DBUG_RETURN(0);
+  DBUG_RETURN(CONTROL_FILE_OK);
 
 err:
   if (print_error)

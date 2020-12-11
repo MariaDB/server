@@ -198,7 +198,7 @@ uchar maria_ft_get_word(CHARSET_INFO *cs, const uchar **start,
   if (param->quot)
   {
     param->quot= (char *)(*start= doc);
-    param->type= 3; /* FT_RBR */
+    param->type= FT_TOKEN_RIGHT_PAREN; /* FT_RBR */
     goto ret;
   }
 ret:

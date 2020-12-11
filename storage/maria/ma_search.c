@@ -436,7 +436,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
   uint nod_flag, UNINIT_VAR(length), len, matched, cmplen, kseg_len;
   uint page_flag, UNINIT_VAR(prefix_len),suffix_len;
   int key_len_skip, UNINIT_VAR(seg_len_pack), key_len_left;
-  uchar *end, *vseg, *UNINIT_VAR(saved_vseg), *UNINIT_VAR(saved_from);
+  uchar *end, *vseg, *saved_vseg= NULL, *UNINIT_VAR(saved_from);
   uchar *page;
   uchar tt_buff[MARIA_MAX_KEY_BUFF+2], *t_buff=tt_buff+2;
   uchar  *UNINIT_VAR(saved_to);

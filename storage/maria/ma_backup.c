@@ -76,7 +76,8 @@ int aria_get_capabilities(File kfile, ARIA_TABLE_CAPABILITIES *cap)
                          0) + KEYPAGE_KEYID_SIZE + KEYPAGE_FLAG_SIZE +
                         KEYPAGE_USED_SIZE);
   cap->block_size= share.base.block_size;
-  cap->data_file_type= share.state.header.data_file_type;
+  cap->data_file_type=
+    (enum data_file_type) share.state.header.data_file_type;
   cap->s3_block_size=  share.base.s3_block_size;
   cap->compression=    share.base.compression_algorithm;
   cap->encrypted=      MY_TEST(share.base.extra_options &

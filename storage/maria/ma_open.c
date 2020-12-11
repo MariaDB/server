@@ -843,7 +843,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       }
       share->ftkeys= ftkey_nr;
     }
-    share->data_file_type= share->state.header.data_file_type;
+    share->data_file_type= (enum data_file_type)share->state.header.data_file_type;
     share->base_length= (BASE_ROW_HEADER_SIZE +
                          share->base.is_nulls_extended +
                          share->base.null_bytes +
@@ -1917,16 +1917,16 @@ my_bool _ma_columndef_write(File file, MARIA_COLUMNDEF *columndef)
 uchar *_ma_columndef_read(uchar *ptr, MARIA_COLUMNDEF *columndef)
 {
   uint high_offset;
-  columndef->column_nr= mi_uint2korr(ptr);      ptr+= 2;
-  columndef->offset= mi_uint2korr(ptr);         ptr+= 2;
-  columndef->type=   mi_sint2korr(ptr);		ptr+= 2;
-  columndef->length= mi_uint2korr(ptr);		ptr+= 2;
-  columndef->fill_length= mi_uint2korr(ptr);	ptr+= 2;
-  columndef->null_pos= mi_uint2korr(ptr);	ptr+= 2;
-  columndef->empty_pos= mi_uint2korr(ptr);	ptr+= 2;
+  columndef->column_nr= mi_uint2korr(ptr);      	  ptr+= 2;
+  columndef->offset= mi_uint2korr(ptr);         	  ptr+= 2;
+  columndef->type= (enum en_fieldtype) mi_sint2korr(ptr); ptr+= 2;
+  columndef->length= mi_uint2korr(ptr);			  ptr+= 2;
+  columndef->fill_length= mi_uint2korr(ptr);		  ptr+= 2;
+  columndef->null_pos= mi_uint2korr(ptr);		  ptr+= 2;
+  columndef->empty_pos= mi_uint2korr(ptr);		  ptr+= 2;
   columndef->null_bit=  (uint8) *ptr++;
   columndef->empty_bit= (uint8) *ptr++;
-  high_offset=       mi_uint2korr(ptr);         ptr+= 2;
+  high_offset=       mi_uint2korr(ptr);         	  ptr+= 2;
   columndef->offset|= ((ulong) high_offset << 16);
   ptr+= 2;
   return ptr;

@@ -455,7 +455,8 @@ filter_flush_bitmap_pages(enum pagecache_page_type type
                           LSN rec_lsn __attribute__ ((unused)),
                           void *arg)
 {
-  return ((pageno % (*(ulong*)arg)) == 0);
+  return (enum pagecache_flush_filter_result)
+	  ((pageno % (*(ulong*)arg)) == 0);
 }
 
 

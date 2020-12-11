@@ -460,8 +460,9 @@ filter_flush_file_medium(enum pagecache_page_type type,
                          LSN rec_lsn, void *arg)
 {
   struct st_filter_param *param= (struct st_filter_param *)arg;
-  return (type == PAGECACHE_LSN_PAGE) &&
-    (cmp_translog_addr(rec_lsn, param->up_to_lsn) <= 0);
+  return (enum pagecache_flush_filter_result)
+    ((type == PAGECACHE_LSN_PAGE) &&
+       (cmp_translog_addr(rec_lsn, param->up_to_lsn) <= 0));
 }
 
 
@@ -483,7 +484,7 @@ filter_flush_file_full(enum pagecache_page_type type,
                        LSN rec_lsn __attribute__ ((unused)),
                        void *arg __attribute__ ((unused)))
 {
-  return (type == PAGECACHE_LSN_PAGE);
+  return (enum pagecache_flush_filter_result)(type == PAGECACHE_LSN_PAGE);
 }
 
 

@@ -2181,7 +2181,7 @@ prototype_redo_exec_hook(CLR_END)
   DBUG_ENTER("exec_REDO_LOGREC_CLR_END");
 
   previous_undo_lsn= lsn_korr(rec->header);
-  undone_record_type=
+  undone_record_type= (enum translog_record_type)
     clr_type_korr(rec->header + LSN_STORE_SIZE + FILEID_STORE_SIZE);
   log_desc= &log_record_type_descriptor[undone_record_type];
 

@@ -30,7 +30,7 @@
 int ma_commit(TRN *trn)
 {
   int res;
-  LSN commit_lsn;
+  LSN commit_lsn= -1;
   LEX_CUSTRING log_array[TRANSLOG_INTERNAL_PARTS];
   DBUG_ENTER("ma_commit");
 

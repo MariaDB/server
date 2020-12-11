@@ -7163,7 +7163,8 @@ int translog_read_record_header_from_buffer(uchar *page,
   DBUG_ASSERT(translog_is_LSN_chunk(page[page_offset]));
   DBUG_ASSERT(translog_status == TRANSLOG_OK ||
               translog_status == TRANSLOG_READONLY);
-  buff->type= (page[page_offset] & TRANSLOG_REC_TYPE);
+  buff->type= (enum translog_record_type)
+	        (page[page_offset] & TRANSLOG_REC_TYPE);
   buff->short_trid= uint2korr(page + page_offset + 1);
   DBUG_PRINT("info", ("Type %u, Short TrID %u, LSN " LSN_FMT,
                       (uint) buff->type, (uint)buff->short_trid,
