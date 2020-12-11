@@ -552,7 +552,7 @@ void CorruptedPages::zero_out_free_pages()
             *page_it, space_name.c_str());
       }
     }
-    space->flush();
+    space->flush<true>();
     space->release();
   }
   m_spaces.swap(non_free_pages);
