@@ -3838,7 +3838,7 @@ int Field_tiny::store(longlong nr, bool unsigned_val)
     }
     else if ((ulonglong) nr > (ulonglong) 255)
     {
-      *ptr= (char) 255;
+      *ptr= (uchar) 255;
       set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
       error= 1;
     }
@@ -3851,7 +3851,7 @@ int Field_tiny::store(longlong nr, bool unsigned_val)
       nr= 256;                                    // Generate overflow
     if (nr < -128)
     {
-      *ptr= (char) -128;
+      *ptr= (uchar) -128;
       set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
       error= 1;
     }

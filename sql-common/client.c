@@ -176,6 +176,8 @@ CHARSET_INFO *default_client_charset_info = &my_charset_latin1;
 unsigned int mysql_server_last_errno;
 char mysql_server_last_error[MYSQL_ERRMSG_SIZE];
 
+static const char *empty_string= "";
+
 /**
   Convert the connect timeout option to a timeout value for VIO
   functions (vio_socket_connect() and vio_io_wait()).
@@ -889,7 +891,8 @@ void mysql_read_default_options(struct st_mysql_options *options,
 				const char *filename,const char *group)
 {
   int argc;
-  char *argv_buff[1],**argv;
+  const char *argv_buff[1];
+  char **argv;
   const char *groups[5];
   DBUG_ENTER("mysql_read_default_options");
   DBUG_PRINT("enter",("file: %s  group: %s",filename,group ? group :"NULL"));
@@ -897,14 +900,14 @@ void mysql_read_default_options(struct st_mysql_options *options,
   compile_time_assert(OPT_keep_this_one_last ==
                       array_elements(default_options));
 
-  argc=1; argv=argv_buff; argv_buff[0]= (char*) "client";
-  groups[0]= (char*) "client";
-  groups[1]= (char*) "client-server";
-  groups[2]= (char*) "client-mariadb";
-  groups[3]= (char*) group;
+  argc=1; argv= (char **) argv_buff; argv_buff[0]= "client";
+  groups[0]= "client";
+  groups[1]= "client-server";
+  groups[2]= "client-mariadb";
+  groups[3]= group;
   groups[4]=0;
 
-  my_load_defaults(filename, groups, &argc, &argv, NULL);
+  my_load_defaults(filename, groups, &argc, (char ***) &argv, NULL);
   if (argc != 1)				/* If some default option */
   {
     char **option=argv;
@@ -1210,8 +1213,8 @@ unpack_fields(MYSQL *mysql, MYSQL_DATA *data,MEM_ROOT *alloc,uint fields,
       field->length= (uint) uint3korr(row->data[2]);
       field->type=   (enum enum_field_types) (uchar) row->data[3][0];
 
-      field->catalog=(char*)  "";
-      field->db=     (char*)  "";
+      field->catalog= (char *) empty_string;
+      field->db=      (char *) empty_string;
       field->catalog_length= 0;
       field->db_length= 0;
       field->org_table_length=	field->table_length=	lengths[0];
