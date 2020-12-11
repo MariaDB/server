@@ -706,15 +706,9 @@ class lock_sys_t
 {
   bool m_initialised;
 
-  /** The my_hrtime_coarse().val of the oldest mutex_lock_wait() start, or 0 */
-  std::atomic<ulonglong> mutex_wait_start;
-
   /** mutex proteting the locks */
   MY_ALIGNED(CACHE_LINE_SIZE) mysql_mutex_t mutex;
 public:
-  /** Diagnostic message for exceeding the mutex_lock_wait() timeout */
-  static const char fatal_msg[];
-
   /** record locks */
   hash_table_t rec_hash;
   /** predicate locks for SPATIAL INDEX */
@@ -747,25 +741,16 @@ public:
 
   bool is_initialised() { return m_initialised; }
 
-private:
-  /** Acquire lock_sys.mutex */
-  ATTRIBUTE_NOINLINE void mutex_lock_wait();
-public:
   /** Try to acquire lock_sys.mutex */
   int mutex_trylock() { return mysql_mutex_trylock(&mutex); }
   /** Aqcuire lock_sys.mutex */
-  void mutex_lock() { if (mutex_trylock()) mutex_lock_wait(); }
+  void mutex_lock() { mysql_mutex_lock(&mutex); }
   /** Release lock_sys.mutex */
   void mutex_unlock() { mysql_mutex_unlock(&mutex); }
   /** Assert that mutex_lock() has been invoked */
   void mutex_assert_locked() const { mysql_mutex_assert_owner(&mutex); }
   /** Assert that mutex_lock() has not been invoked */
   void mutex_assert_unlocked() const { mysql_mutex_assert_not_owner(&mutex); }
-
-  /** @return the my_hrtime_coarse().val of the oldest mutex_lock_wait() start,
-  assuming that requests are served on a FIFO basis */
-  ulonglong oldest_wait() const
-  { return mutex_wait_start.load(std::memory_order_relaxed); }
 
   /** Wait for a lock to be granted */
   void wait_lock(lock_t **lock, mysql_cond_t *cond)
