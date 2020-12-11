@@ -7787,6 +7787,30 @@ SEL_TREE *Item_func_in::get_func_mm_tree(RANGE_OPT_PARAM *param,
       if (array->count > NOT_IN_IGNORE_THRESHOLD || !value_item)
         DBUG_RETURN(0);
 
+      /*
+        If this is "unique_key NOT IN (...)", do not consider it sargable (for
+        any index, not just the unique one). The logic is as follows:
+         - if there are only a few constants, this condition is not selective
+           (unless the table is also very small in which case we won't gain
+           anything)
+         - If there are a lot of constants, the overhead of building and
+           processing enormous range list is not worth it.
+      */
+      if (param->using_real_indexes)
+      {
+        key_map::Iterator it(field->key_start);
+        uint key_no;
+        while ((key_no= it.next_bit()) != key_map::Iterator::BITMAP_END)
+        {
+          KEY *key_info= &param->table->key_info[key_no];
+          if (key_info->user_defined_key_parts == 1 &&
+              (key_info->flags & HA_NOSAME))
+          {
+            DBUG_RETURN(0);
+          }
+        }
+      }
+
       /* Get a SEL_TREE for "(-inf|NULL) < X < c_0" interval.  */
       uint i=0;
       do
