@@ -1074,8 +1074,7 @@ void dict_sys_t::mutex_lock_wait()
       (old, now, std::memory_order_relaxed, std::memory_order_relaxed))
   {
     mysql_mutex_lock(&mutex);
-    mutex_wait_start.compare_exchange_weak
-      (now, 0, std::memory_order_relaxed, std::memory_order_relaxed);
+    mutex_wait_start.store(0, std::memory_order_relaxed);
     return;
   }
 
