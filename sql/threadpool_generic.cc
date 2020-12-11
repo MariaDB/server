@@ -1327,7 +1327,10 @@ void TP_pool_generic::add(TP_connection *c)
   DBUG_VOID_RETURN;
 }
 
-
+void TP_pool_generic::resume(TP_connection* c)
+{
+  add(c);
+}
 
 /**
   MySQL scheduler callback: wait begin

@@ -23,6 +23,7 @@ The transaction
 
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
+#define MYSQL_SERVER
 
 #include "trx0trx.h"
 
@@ -1165,35 +1166,49 @@ trx_finalize_for_fts(
 	trx->fts_trx = NULL;
 }
 
-/**********************************************************************//**
-If required, flushes the log to disk based on the value of
-innodb_flush_log_at_trx_commit. */
-static
-void
-trx_flush_log_if_needed_low(
-/*========================*/
-	lsn_t	lsn)	/*!< in: lsn up to which logs are to be
-			flushed. */
+extern "C" MYSQL_THD thd_increment_pending_ops();
+extern "C" void thd_decrement_pending_ops(MYSQL_THD);
+
+
+#include "../log/log0sync.h"
+
+/*
+  If required, initiates write and optionally flush of the log to
+  disk
+  @param[in] lsn - lsn up to which logs are to be flushed.
+  @param[in] trx_state - if trx_state is PREPARED, the function will
+  also wait for the flush to complete.
+*/
+static void trx_flush_log_if_needed_low(lsn_t lsn, trx_state_t trx_state)
 {
-	bool	flush = srv_file_flush_method != SRV_NOSYNC;
+  if (!srv_flush_log_at_trx_commit)
+    return;
 
-	switch (srv_flush_log_at_trx_commit) {
-	case 3:
-	case 2:
-		/* Write the log but do not flush it to disk */
-		flush = false;
-		/* fall through */
-	case 1:
-		/* Write the log and optionally flush it to disk */
-		log_write_up_to(lsn, flush);
-		srv_inc_activity_count();
-		return;
-	case 0:
-		/* Do nothing */
-		return;
-	}
+  if (log_sys.get_flushed_lsn() > lsn)
+    return;
 
-	ut_error;
+  bool flush= srv_file_flush_method != SRV_NOSYNC &&
+              srv_flush_log_at_trx_commit == 1;
+
+  if (trx_state == TRX_STATE_PREPARED)
+  {
+    /* XA, which is used with binlog as well.
+    Be conservative, use synchronous wait.*/
+    log_write_up_to(lsn, flush);
+    return;
+  }
+
+  completion_callback cb;
+  if ((cb.m_param = thd_increment_pending_ops()))
+  {
+    cb.m_callback = (void (*)(void *)) thd_decrement_pending_ops;
+    log_write_up_to(lsn, flush, false, &cb);
+  }
+  else
+  {
+    /* No THD, synchronous write */
+    log_write_up_to(lsn, flush);
+  }
 }
 
 /**********************************************************************//**
@@ -1208,7 +1223,7 @@ trx_flush_log_if_needed(
 	trx_t*	trx)	/*!< in/out: transaction */
 {
 	trx->op_info = "flushing log";
-	trx_flush_log_if_needed_low(lsn);
+	trx_flush_log_if_needed_low(lsn,trx->state);
 	trx->op_info = "";
 }
 

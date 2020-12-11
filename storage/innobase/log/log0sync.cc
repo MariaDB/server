@@ -77,6 +77,7 @@ Note that if write operation is very fast, a) or b) can be fine as alternative.
 #include <log0types.h>
 #include "log0sync.h"
 #include <mysql/service_thd_wait.h>
+#include <sql_class.h>
 /**
   Helper class , used in group commit lock.
 
@@ -158,10 +159,10 @@ void binary_semaphore::wake()
 /* A thread helper structure, used in group commit lock below*/
 struct group_commit_waiter_t
 {
-  lsn_t m_value;
-  binary_semaphore m_sema;
-  group_commit_waiter_t* m_next;
-  group_commit_waiter_t() :m_value(), m_sema(), m_next() {}
+  lsn_t m_value=0;
+  binary_semaphore m_sema{};
+  group_commit_waiter_t* m_next{};
+  bool m_group_commit_leader=false;
 };
 
 group_commit_lock::group_commit_lock() :
@@ -188,7 +189,13 @@ void group_commit_lock::set_pending(group_commit_lock::value_type num)
 const unsigned int MAX_SPINS = 1; /** max spins in acquire */
 thread_local group_commit_waiter_t thread_local_waiter;
 
-group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num)
+static inline void do_completion_callback(const completion_callback* cb)
+{
+  if (cb)
+    cb->m_callback(cb->m_param);
+}
+
+group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num, const completion_callback *callback)
 {
   unsigned int spins = MAX_SPINS;
 
@@ -197,6 +204,7 @@ group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num)
     if (num <= value())
     {
       /* No need to wait.*/
+      do_completion_callback(callback);
       return lock_return_code::EXPIRED;
     }
 
@@ -212,17 +220,23 @@ group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num)
   }
 
   thread_local_waiter.m_value = num;
+  thread_local_waiter.m_group_commit_leader= false;
   std::unique_lock<std::mutex> lk(m_mtx, std::defer_lock);
   while (num > value())
   {
     lk.lock();
 
     /* Re-read current value after acquiring the lock*/
-    if (num <= value())
+    if (num <= value() &&
+     (!thread_local_waiter.m_group_commit_leader || m_lock))
     {
+      lk.unlock();
+      do_completion_callback(callback);
+      thread_local_waiter.m_group_commit_leader=false;
       return lock_return_code::EXPIRED;
     }
 
+    thread_local_waiter.m_group_commit_leader= false;
     if (!m_lock)
     {
       /* Take the lock, become group commit leader.*/
@@ -230,7 +244,19 @@ group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num)
 #ifndef DBUG_OFF
       m_owner_id = std::this_thread::get_id();
 #endif
+      if (callback)
+        m_pending_callbacks.push_back({num,*callback});
       return lock_return_code::ACQUIRED;
+    }
+
+    if (callback && m_waiters_list)
+    {
+      /*
+       We need to have at least one waiter,
+       so it can become the new group commit leader.
+      */
+      m_pending_callbacks.push_back({num, *callback});
+      return lock_return_code::CALLBACK_QUEUED;
     }
 
     /* Add yourself to waiters list.*/
@@ -244,11 +270,15 @@ group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num)
     thd_wait_end(0);
 
   }
+  do_completion_callback(callback);
   return lock_return_code::EXPIRED;
 }
 
 void group_commit_lock::release(value_type num)
 {
+  completion_callback callbacks[1000];
+  size_t callback_count = 0;
+
   std::unique_lock<std::mutex> lk(m_mtx);
   m_lock = false;
 
@@ -262,12 +292,21 @@ void group_commit_lock::release(value_type num)
   */
   group_commit_waiter_t* cur, * prev, * next;
   group_commit_waiter_t* wakeup_list = nullptr;
-  int extra_wake = 0;
+  for (auto& c : m_pending_callbacks)
+  {
+    if (c.first <= num)
+    {
+      if (callback_count < array_elements(callbacks))
+        callbacks[callback_count++] = c.second;
+      else
+        c.second.m_callback(c.second.m_param);
+    }
+  }
 
   for (prev= nullptr, cur= m_waiters_list; cur; cur= next)
   {
     next= cur->m_next;
-    if (cur->m_value <= num || extra_wake++ == 0)
+    if (cur->m_value <= num)
     {
       /* Move current waiter to wakeup_list*/
 
@@ -291,7 +330,42 @@ void group_commit_lock::release(value_type num)
       prev= cur;
     }
   }
+
+  auto it= std::remove_if(
+      m_pending_callbacks.begin(), m_pending_callbacks.end(),
+      [num](const std::pair<value_type,completion_callback> &c) { return c.first <= num; });
+
+  m_pending_callbacks.erase(it, m_pending_callbacks.end());
+
+  if (m_pending_callbacks.size() || m_waiters_list)
+  {
+    /*
+     Ensure that after this thread released the lock,
+     there is a new group commit leader
+     We take this from waiters list or wakeup list. It
+     might look like a spurious wake, but in fact we just
+     ensure the waiter do not wait for eternity.
+    */
+    if (!m_waiters_list && !wakeup_list)
+      abort(); /* Assert, also in release version */
+
+    if (m_waiters_list)
+    {
+      /* Move one waiter to wakeup list */
+      auto e= m_waiters_list;
+      m_waiters_list= m_waiters_list->m_next;
+      e->m_next= wakeup_list;
+      e->m_group_commit_leader= true;
+      wakeup_list = e;
+    }
+    else //if (wakeup_list)
+      wakeup_list->m_group_commit_leader=true;
+  }
+
   lk.unlock();
+
+  for (size_t i = 0; i < callback_count; i++)
+    callbacks[i].m_callback(callbacks[i].m_param);
 
   for (cur= wakeup_list; cur; cur= next)
   {

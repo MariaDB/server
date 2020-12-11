@@ -103,15 +103,21 @@ bool
 log_set_capacity(ulonglong file_size)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** Ensure that the log has been written to the log file up to a given
+/**
+Ensure that the log has been written to the log file up to a given
 log entry (such as that of a transaction commit). Start a new write, or
 wait and check if an already running write is covering the request.
 @param[in]	lsn		log sequence number that should be
 included in the redo log file write
 @param[in]	flush_to_disk	whether the written log should also
 be flushed to the file system
-@param[in]	rotate_key	whether to rotate the encryption key */
-void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key = false);
+@param[in]	rotate_key	whether to rotate the encryption key
+@param[in]  cb completion callback. If not NULL, the callback will be called
+  whenever lsn is written or flushed.
+*/
+struct completion_callback;
+void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key = false,
+  const completion_callback* cb=nullptr);
 
 /** write to the log file up to the last log entry.
 @param[in]	sync	whether we want the written log

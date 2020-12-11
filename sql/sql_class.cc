@@ -682,7 +682,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    m_stmt_da(&main_da),
    tdc_hash_pins(0),
    xid_hash_pins(0),
-   m_tmp_tables_locked(false)
+   m_tmp_tables_locked(false),
+   async_state()
 #ifdef HAVE_REPLICATION
    ,
    current_linfo(0),
@@ -4946,6 +4947,56 @@ void reset_thd(MYSQL_THD thd)
   thd->free_items();
   free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
 }
+
+/**
+  This function can be used by storage engine
+  to indicate a start of an async operation.
+
+  This asynchronous is such operation needs to be
+  finished before we write response to the client
+.
+  An example of this operation is Innodb's asynchronous
+  group commit. Server needs to wait for the end of it
+  before writing response to client, to provide durability
+  guarantees, in other words, server can't send OK packet
+  before modified data is durable in redo log.
+*/
+extern "C" MYSQL_THD thd_increment_pending_ops(void)
+{
+  THD *thd = current_thd;
+  if (!thd)
+    return NULL;
+  thd->async_state.inc_pending_ops();
+  return thd;
+}
+
+/**
+  This function can be used by plugin/engine to indicate
+  end of async operation (such as end of group commit
+  write flush)
+
+  @param thd THD
+*/
+extern "C" void thd_decrement_pending_ops(MYSQL_THD thd)
+{
+  DBUG_ASSERT(thd);
+  thd_async_state::enum_async_state state;
+  if (thd->async_state.dec_pending_ops(&state) == 0)
+  {
+    switch(state)
+    {
+    case thd_async_state::enum_async_state::SUSPENDED:
+      DBUG_ASSERT(thd->scheduler->thd_resume);
+      thd->scheduler->thd_resume(thd);
+      break;
+    case thd_async_state::enum_async_state::NONE:
+      break;
+    default:
+      DBUG_ASSERT(0);
+    }
+  }
+}
+
 
 unsigned long long thd_get_query_id(const MYSQL_THD thd)
 {
