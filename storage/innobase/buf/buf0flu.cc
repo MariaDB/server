@@ -939,10 +939,6 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
 #if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
       if (size != orig_size && space->punch_hole)
         type= lru ? IORequest::PUNCH_LRU : IORequest::PUNCH;
-#else
-      DBUG_EXECUTE_IF("ignore_punch_hole",
-                      if (size != orig_size && space->punch_hole)
-                        type= lru ? IORequest::PUNCH_LRU : IORequest::PUNCH;);
 #endif
       frame=page;
     }

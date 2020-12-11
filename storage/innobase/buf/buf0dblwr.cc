@@ -641,7 +641,7 @@ void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
   mysql_mutex_unlock(&mutex);
 
   /* Now flush the doublewrite buffer data to disk */
-  fil_system.sys_space->flush();
+  fil_system.sys_space->flush<false>();
 
   /* The writes have been flushed to disk now and in recovery we will
   find them in the doublewrite buffer blocks. Next, write the data pages. */

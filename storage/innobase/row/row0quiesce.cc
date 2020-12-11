@@ -545,7 +545,7 @@ row_quiesce_table_start(
 	if (!trx_is_interrupted(trx)) {
 		/* Ensure that all asynchronous IO is completed. */
 		os_aio_wait_until_no_pending_writes();
-		table->space->flush();
+		table->space->flush<false>();
 
 		if (row_quiesce_write_cfg(table, trx->mysql_thd)
 		    != DB_SUCCESS) {

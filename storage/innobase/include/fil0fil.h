@@ -975,7 +975,7 @@ public:
   fil_io_t io(const IORequest &type, os_offset_t offset, size_t len,
               void *buf, buf_page_t *bpage= nullptr);
   /** Flush pending writes from the file system cache to the file. */
-  inline void flush();
+  template<bool have_reference> inline void flush();
   /** Flush pending writes from the file system cache to the file. */
   void flush_low();
 
@@ -1495,18 +1495,23 @@ inline void fil_space_t::set_stopping(bool stopping)
 }
 
 /** Flush pending writes from the file system cache to the file. */
-inline void fil_space_t::flush()
+template<bool have_reference> inline void fil_space_t::flush()
 {
   mysql_mutex_assert_not_owner(&fil_system.mutex);
-
+  ut_ad(!have_reference || (pending() & PENDING));
   ut_ad(purpose == FIL_TYPE_TABLESPACE || purpose == FIL_TYPE_IMPORT);
   if (srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)
   {
     ut_ad(!is_in_unflushed_spaces);
     ut_ad(!needs_flush());
   }
-  else
+  else if (have_reference)
     flush_low();
+  else if (!(acquire_low() & STOPPING))
+  {
+    flush_low();
+    release();
+  }
 }
 
 /** @return the size in pages (0 if unreadable) */

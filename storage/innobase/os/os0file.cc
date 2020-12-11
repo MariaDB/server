@@ -3536,13 +3536,6 @@ short_warning:
 @return true if the file system supports sparse files */
 IF_WIN(static,) bool os_is_sparse_file_supported(os_file_t fh)
 {
-	/* In this debugging mode, we act as if punch hole is supported,
-	then we skip any calls to actually punch a hole.  In this way,
-	Transparent Page Compression is still being tested. */
-	DBUG_EXECUTE_IF("ignore_punch_hole",
-		return(true);
-	);
-
 #ifdef _WIN32
 	FILE_ATTRIBUTE_TAG_INFO info;
 	if (GetFileInformationByHandleEx(fh, FileAttributeTagInfo,
@@ -3793,13 +3786,6 @@ os_file_punch_hole(
 @return DB_SUCCESS or error code */
 dberr_t IORequest::punch_hole(os_offset_t off, ulint len) const
 {
-	/* In this debugging mode, we act as if punch hole is supported,
-	and then skip any calls to actually punch a hole here.
-	In this way, Transparent Page Compression is still being tested. */
-	DBUG_EXECUTE_IF("ignore_punch_hole",
-		return(DB_SUCCESS);
-	);
-
 	ulint trim_len = bpage ? bpage->physical_size() - len : 0;
 
 	if (trim_len == 0) {
