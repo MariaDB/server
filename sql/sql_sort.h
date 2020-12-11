@@ -140,19 +140,19 @@ public:
   }
 
   /// The current key for this chunk
-  uchar *m_current_key= nullptr;
+  uchar *m_current_key;
   /// Current position in the file to be sorted.
-  my_off_t m_file_position= 0;
+  my_off_t m_file_position;
   /// Start of main-memory buffer for this chunk.
-  uchar *m_buffer_start= nullptr;
+  uchar *m_buffer_start;
   /// End of main-memory buffer for this chunk.
-  uchar *m_buffer_end= nullptr;
+  uchar *m_buffer_end;
   /// Number of unread rows in this chunk.
-  ha_rows m_rowcount= 0;
+  ha_rows m_rowcount;
   /// Number of rows in the main-memory buffer.
-  ha_rows m_mem_count= 0;
+  ha_rows m_mem_count;
   /// If we have fixed-size rows: max number of rows in buffer.
-  ha_rows m_max_keys= 0;
+  ha_rows m_max_keys;
 };
 
 typedef Bounds_checked_array<SORT_ADDON_FIELD> Addon_fields_array;

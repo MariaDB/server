@@ -1039,6 +1039,7 @@ write_keys(Sort_param *param,  SORT_INFO *fs_info, uint count,
   Merge_chunk buffpek;
   DBUG_ENTER("write_keys");
 
+  bzero(&buffpek, 0);
   fs_info->sort_buffer(param, count);
 
   if (!my_b_inited(tempfile) &&
