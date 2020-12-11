@@ -244,7 +244,7 @@ Vio *mysql_socket_vio_new(MYSQL_SOCKET mysql_socket, enum enum_vio_type type, ui
   if ((vio = (Vio*) my_malloc(key_memory_vio, sizeof(*vio), MYF(MY_WME))))
   {
     vio_init(vio, type, sd, flags);
-    vio->desc= (vio->type == VIO_TYPE_SOCKET ? "socket" : "TCP/IP");
+    vio->desc= (vio->type == VIO_TYPE_SOCKET ? (const char *)"socket" : "TCP/IP");
     vio->mysql_socket= mysql_socket;
   }
   DBUG_RETURN(vio);
