@@ -1,2 +1,1 @@
 --sql_mode='NO_ENGINE_SUBSTITUTION'
---log-output=TABLE,FILE --general-log=0 --slow-query-log=0
