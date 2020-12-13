@@ -160,7 +160,7 @@ void init_client_psi_keys(void)
 
 uint            mariadb_deinitialize_ssl= 1;
 uint		mysql_port=0;
-char		*mysql_unix_port= 0;
+const char	*mysql_unix_port= 0;
 const char	*unknown_sqlstate= "HY000";
 const char	*not_error_sqlstate= "00000";
 const char	*cant_connect_sqlstate= "08001";

@@ -2898,7 +2898,7 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
   {
     char *str= to->str;
 
-    str += (to->length= sprintf(str, str_binlog));
+    str += (to->length= sprintf(str, "%s", str_binlog));
     if (my_b_read(cache, (uchar*) str, (size_t)cache->end_of_file))
       goto err;
     str += cache->end_of_file;

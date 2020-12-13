@@ -86,6 +86,7 @@ static time_t start_time, end_time;
 static double total_time;
 
 const char *default_dbug_option= "d:t:o,/tmp/mysql_client_test.trace";
+static const char *empty_str= "";
 
 struct my_tests_st
 {
@@ -1315,7 +1316,7 @@ get_one_option(const struct my_option *opt, char *argument,
     if (!embedded_server_arg_count)
     {
       embedded_server_arg_count= 1;
-      embedded_server_args[0]= (char*) "";
+      embedded_server_args[0]=  (char *) empty_str;
     }
     if (embedded_server_arg_count == MAX_SERVER_ARGS-1 ||
         !(embedded_server_args[embedded_server_arg_count++]=

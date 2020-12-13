@@ -127,6 +127,8 @@ static void get_options(int *argc,char ***argv)
   @brief maria_dump_log main function.
 */
 
+static const char * CURRENT_DIR= ".";
+
 int main(int argc, char **argv)
 {
   char **default_argv;
@@ -143,7 +145,7 @@ int main(int argc, char **argv)
     translog_table_init();
   translog_fill_overhead_table();
 
-  maria_data_root= (char *)".";
+  maria_data_root= (char *) CURRENT_DIR;
 
   if ((handler= my_open(opt_file, O_RDONLY, MYF(MY_WME))) < 0)
   {

@@ -45,7 +45,7 @@ static my_bool opt_force, opt_verbose, debug_info_flag, debug_check_flag,
                opt_systables_only, opt_version_check;
 static my_bool opt_not_used, opt_silent;
 static uint my_end_arg= 0;
-static char *opt_user= (char*)"root";
+static const char *opt_user= "root";
 
 static my_bool upgrade_from_mysql;
 
@@ -63,7 +63,7 @@ static my_bool tty_password= 0;
 static char opt_tmpdir[FN_REFLEN] = "";
 
 #ifndef DBUG_OFF
-static char *default_dbug_option= (char*) "d:t:O,/tmp/mariadb-upgrade.trace";
+static const char *default_dbug_option= "d:t:O,/tmp/mariadb-upgrade.trace";
 #endif
 
 static char **defaults_argv;
@@ -73,6 +73,7 @@ static my_bool not_used; /* Can't use GET_BOOL without a value pointer */
 char upgrade_from_version[sizeof("10.20.456-MariaDB")+1];
 
 static my_bool opt_write_binlog;
+static const char *empty_str;
 
 #define OPT_SILENT OPT_MAX_CLIENT_OPTION
 
@@ -297,7 +298,7 @@ get_one_option(const struct my_option *opt, char *argument,
 
   case 'p':
     if (argument == disabled_my_option)
-      argument= (char*) "";			/* Don't require password */
+      argument= (char *)empty_str;			/* Don't require password */
     add_option= FALSE;
     if (argument)
     {
@@ -776,9 +777,9 @@ static void print_conn_args(const char *tool_name)
 
 static int run_mysqlcheck_upgrade(my_bool mysql_db_only)
 {
-  const char *what= mysql_db_only ? "mysql database" : "tables";
-  const char *arg1= mysql_db_only ? "--databases" : "--all-databases";
-  const char *arg2= mysql_db_only ? "mysql" : "--skip-database=mysql";
+  const char *what= mysql_db_only ? (const char *)"mysql database" : "tables";
+  const char *arg1= mysql_db_only ? (const char *)"--databases" : "--all-databases";
+  const char *arg2= mysql_db_only ? (const char *)"mysql" : "--skip-database=mysql";
   int retch;
   if (opt_systables_only && !mysql_db_only)
   {

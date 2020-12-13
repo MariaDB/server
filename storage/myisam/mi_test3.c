@@ -87,11 +87,11 @@ int main(int argc,char **argv)
   keyinfo[1].flag =HA_NOSAME;
   keyinfo[1].block_length= 0;                   /* Default block length */
 
-  recinfo[0].type=0;
+  recinfo[0].type=(enum en_fieldtype)0;
   recinfo[0].length=sizeof(record.id);
-  recinfo[1].type=0;
+  recinfo[1].type=(enum en_fieldtype)0;
   recinfo[1].length=sizeof(record.nr);
-  recinfo[2].type=0;
+  recinfo[2].type=(enum en_fieldtype)0;
   recinfo[2].length=sizeof(record.text);
 
   puts("- Creating myisam-file");

@@ -4222,9 +4222,9 @@ static bool xtrabackup_backup_func()
 	    xb_open_files_limit,
 	    xb_set_max_open_files(xb_open_files_limit));
 
+	mysql_data_home_buff[0]=FN_CURLIB;		// all paths are relative from here
+	mysql_data_home_buff[1]=0;
 	mysql_data_home= mysql_data_home_buff;
-	mysql_data_home[0]=FN_CURLIB;		// all paths are relative from here
-	mysql_data_home[1]=0;
 
 	srv_n_purge_threads = 1;
 	srv_read_only_mode = TRUE;

@@ -42,7 +42,7 @@ pthread_handler_t test_trnman(void *arg)
   if (my_thread_init())
     BAIL_OUT("my_thread_init failed!");
 
-  for (x= ((int)(intptr)(&m)); m > 0; )
+  for (x= ((int)(((intptr)(&m)) & INT_MAX32)); m > 0; )
   {
     y= x= (x*3628273133LL + 1500450271LL) % 9576890767LL; /* three prime numbers */
     m-= n= x % MAX_ITER;

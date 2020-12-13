@@ -90,12 +90,13 @@ static int testflag, checkpoint, create_flag;
 static my_bool silent, transactional, die_in_middle_of_transaction,
   opt_versioning;
 static enum data_file_type record_type= DYNAMIC_RECORD;
+static const char *maria_data_root_str= ".";
 
 int main(int argc, char *argv[])
 {
   char buff[FN_REFLEN];  
   MY_INIT(argv[0]);
-  maria_data_root= (char *)".";
+  maria_data_root= (char *)maria_data_root_str;
   get_options(argc, argv);
   /* Maria requires that we always have a page cache */
   if (maria_init() ||

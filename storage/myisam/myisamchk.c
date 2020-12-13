@@ -704,7 +704,7 @@ get_one_option(const struct my_option *opt,
   case OPT_STATS_METHOD:
   {
     int method;
-    enum_handler_stats_method UNINIT_VAR(method_conv);
+    enum_handler_stats_method method_conv= (enum_handler_stats_method)0;
 
     myisam_stats_method_str= argument;
     if ((method= find_type(argument, &myisam_stats_method_typelib,

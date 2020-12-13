@@ -39,6 +39,7 @@ static ulonglong opt_page_buffer_size;
 static ulonglong opt_start_from_lsn, opt_lsn_redo_end, opt_lsn_undo_end;
 static char *start_from_lsn_buf, *lsn_redo_end_buf, *lsn_undo_end_buf;
 static MY_TMPDIR maria_chk_tmpdir;
+static const char *maria_data_root_str= ".";
 
 /*
   Get lsn from file number and offset
@@ -83,7 +84,7 @@ int main(int argc, char **argv)
   uint warnings_count;
   MY_INIT(argv[0]);
 
-  maria_data_root= (char *)".";
+  maria_data_root= (char *)maria_data_root_str;
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
   load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   default_argv= argv;

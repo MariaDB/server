@@ -89,7 +89,7 @@ static COND * const OOM= (COND*)1;
 
     SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE ...
 */
-static COND* make_cond(THD *thd, TABLE_LIST *tables, LEX_STRING *filter)
+static COND* make_cond(THD *thd, TABLE_LIST *tables, LEX_CSTRING *filter)
 {
   Item_cond_or *res= NULL;
   Name_resolution_context nrc;
@@ -137,7 +137,7 @@ static COND* make_cond(THD *thd, TABLE_LIST *tables, LEX_STRING *filter)
 /**
   System variables that we want to see in the feedback report
 */
-static LEX_STRING vars_filter[]= {
+static LEX_CSTRING vars_filter[]= {
   {C_STRING_WITH_LEN("auto\\_increment%")},
   {C_STRING_WITH_LEN("binlog\\_format")},
   {C_STRING_WITH_LEN("character\\_set\\_%")},
@@ -193,7 +193,7 @@ static LEX_STRING vars_filter[]= {
 
   (empty list = no WHERE condition)
 */
-static LEX_STRING status_filter[]= {{0, 0}};
+static LEX_CSTRING status_filter[]= {{0, 0}};
 
 /**
   Fill our I_S table with data

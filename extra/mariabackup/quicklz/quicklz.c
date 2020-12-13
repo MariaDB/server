@@ -76,9 +76,8 @@ static void reset_table_compress(qlz_state_compress *state)
 
 static void reset_table_decompress(qlz_state_decompress *state)
 {
-	int i;
+	int i = 0;
 	(void)state;
-	(void)i;
 #if QLZ_COMPRESSION_LEVEL == 2
 	for(i = 0; i < QLZ_HASH_VALUES; i++)
 	{

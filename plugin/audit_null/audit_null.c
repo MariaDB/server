@@ -132,7 +132,7 @@ static void audit_null_notify(MYSQL_THD thd __attribute__((unused)),
     switch (event_table->event_subclass)
     {
     case MYSQL_AUDIT_TABLE_LOCK:
-      op= event_table->read_only ? "read" : "write";
+      op= event_table->read_only ? (const char *)"read" : "write";
       break;
     case MYSQL_AUDIT_TABLE_CREATE:
       op= "create";
@@ -179,7 +179,7 @@ static struct st_mysql_show_var simple_status[]=
   { "general_error", (char *) &ncalls_general_error, SHOW_INT },
   { "general_log", (char *) &ncalls_general_log, SHOW_INT },
   { "general_result", (char *) &ncalls_general_result, SHOW_INT },
-  { 0, 0, 0}
+  { 0, 0, (enum enum_mysql_show_type)0}
 };
 
 

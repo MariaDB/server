@@ -241,9 +241,9 @@ int Url_http::send(const char* data, size_t data_length)
   }
 #endif
 
-  static const LEX_STRING boundary= 
+  static const LEX_CSTRING boundary=
   { C_STRING_WITH_LEN("----------------------------ba4f3696b39f") };
-  static const LEX_STRING header=
+  static const LEX_CSTRING header=
   { C_STRING_WITH_LEN("\r\n"
       "Content-Disposition: form-data; name=\"data\"; filename=\"-\"\r\n"
       "Content-Type: application/octet-stream\r\n\r\n")

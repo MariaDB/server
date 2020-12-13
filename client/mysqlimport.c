@@ -57,8 +57,8 @@ static uint opt_use_threads=0, opt_local_file=0, my_end_arg= 0;
 static char	*opt_password=0, *current_user=0,
 		*current_host=0, *current_db=0, *fields_terminated=0,
 		*lines_terminated=0, *enclosed=0, *opt_enclosed=0,
-		*escaped=0, *opt_columns=0, 
-		*default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME;
+		*escaped=0, *opt_columns=0;
+static const char *default_charset= MYSQL_AUTODETECT_CHARSET_NAME;
 static uint     opt_mysql_port= 0, opt_protocol= 0;
 static char * opt_mysql_unix_port=0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
@@ -66,6 +66,7 @@ static longlong opt_ignore_lines= -1;
 #include <sslopt-vars.h>
 
 static char **argv_to_free;
+static const char *empty_str= "";
 
 static struct my_option my_long_options[] =
 {
@@ -227,7 +228,7 @@ get_one_option(const struct my_option *opt, char *argument,
   switch(opt->id) {
   case 'p':
     if (argument == disabled_my_option)
-      argument= (char*) "";			/* Don't require password */
+      argument= (char *) empty_str;			/* Don't require password */
     if (argument)
     {
       char *start=argument;
@@ -465,7 +466,7 @@ static MYSQL *db_connect(char *host, char *database,
   if (opt_default_auth && *opt_default_auth)
     mysql_options(mysql, MYSQL_DEFAULT_AUTH, opt_default_auth);
   if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
-    default_charset= (char *)my_default_csname();
+    default_charset= my_default_csname();
   mysql_options(mysql, MYSQL_SET_CHARSET_NAME, my_default_csname());
   mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_RESET, 0);
   mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,

@@ -3314,7 +3314,7 @@ func_exit:
 /*============================ FILE I/O ================================*/
 
 /** Report information about an invalid page access. */
-ATTRIBUTE_COLD __attribute__((noreturn))
+ATTRIBUTE_COLD
 static void
 fil_report_invalid_page_access(const char *name,
                                os_offset_t offset, ulint len, bool is_read)

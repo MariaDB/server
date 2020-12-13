@@ -27,7 +27,8 @@
 static void usage();
 
 static int rec_pointer_size=0, flags[50];
-static int key_field=FIELD_SKIP_PRESPACE,extra_field=FIELD_SKIP_ENDSPACE;
+static enum en_fieldtype key_field=FIELD_SKIP_PRESPACE,
+                         extra_field=FIELD_SKIP_ENDSPACE;
 static int key_type=HA_KEYTYPE_NUM;
 static int create_flag=0;
 

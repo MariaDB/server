@@ -334,7 +334,7 @@ protected:
   /* This class must not be used directly */
   ATTRIBUTE_COLD ATTRIBUTE_NOINLINE logger() {}
 public:
-  template<typename T> ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
+  template<typename T> ATTRIBUTE_COLD
   logger& operator<<(const T& rhs)
   {
     m_oss << rhs;

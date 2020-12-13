@@ -210,7 +210,7 @@ extern int list_walk(LIST *,list_walk_action action,unsigned char * argument);
 }
 extern unsigned int mariadb_deinitialize_ssl;
 extern unsigned int mysql_port;
-extern char *mysql_unix_port;
+extern const char *mysql_unix_port;
 typedef struct st_mysql_const_lex_string MARIADB_CONST_STRING;
 typedef struct st_mysql_field {
   char *name;

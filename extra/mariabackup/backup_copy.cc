@@ -1788,7 +1788,7 @@ copy_back()
 	bool ret = false;
 	datadir_iter_t *it = NULL;
 	datadir_node_t node;
-	char *dst_dir;
+	const char *dst_dir;
 
 	memset(&node, 0, sizeof(node));
 

@@ -1257,6 +1257,9 @@ char * is_const(UDF_INIT *initid, UDF_ARGS *args __attribute__((unused)),
 
 my_bool check_const_len_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
+  static const char *not_constant= "Not constant";
+  static const char *correct_length= "Correct length";
+  static const char *wrong_length= "Wrong length";
   if (args->arg_count != 1)
   {
     strmov(message, "CHECK_CONST_LEN accepts only one argument");
@@ -1264,15 +1267,15 @@ my_bool check_const_len_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
   }
   if (args->args[0] == 0)
   {
-    initid->ptr= (char*)"Not constant";
+    initid->ptr= (char *)not_constant;
   }
   else if(strlen(args->args[0]) == args->lengths[0])
   {
-    initid->ptr= (char*)"Correct length";
+    initid->ptr= (char *)correct_length;
   }
   else
   {
-    initid->ptr= (char*)"Wrong length";
+    initid->ptr= (char *)wrong_length;
   }
   initid->max_length = 100;
   return 0;

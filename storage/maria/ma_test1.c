@@ -32,7 +32,8 @@ extern char *maria_data_root;
 static void usage();
 
 static int rec_pointer_size=0, flags[50], testflag, checkpoint;
-static int key_field=FIELD_SKIP_PRESPACE,extra_field=FIELD_SKIP_ENDSPACE;
+static enum en_fieldtype key_field=FIELD_SKIP_PRESPACE,
+                         extra_field=FIELD_SKIP_ENDSPACE;
 static int key_type=HA_KEYTYPE_NUM;
 static int create_flag=0;
 static ulong blob_length;
@@ -49,6 +50,8 @@ static MARIA_COLUMNDEF recinfo[4];
 static MARIA_KEYDEF keyinfo[10];
 static HA_KEYSEG keyseg[10];
 static HA_KEYSEG uniqueseg[10];
+
+static const char *maria_data_root_str= ".";
 
 static int run_test(const char *filename);
 static void get_options(int argc, char *argv[]);
@@ -75,7 +78,7 @@ int main(int argc,char *argv[])
   safe_mutex_deadlock_detector= 1;
 #endif
   MY_INIT(argv[0]);
-  maria_data_root= (char *)".";
+  maria_data_root= (char*) maria_data_root_str;
   get_options(argc,argv);
   /* Maria requires that we always have a page cache */
   if (maria_init() ||

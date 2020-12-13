@@ -170,7 +170,7 @@ int STDCALL mysql_server_init(int argc __attribute__((unused)),
 #ifdef __WIN__
       mysql_unix_port = (char*) MYSQL_NAMEDPIPE;
 #else
-      mysql_unix_port = (char*) MYSQL_UNIX_ADDR;
+      mysql_unix_port = MYSQL_UNIX_ADDR;
 #endif
       if ((env = getenv("MYSQL_UNIX_PORT")))
 	mysql_unix_port = env;
@@ -1027,7 +1027,7 @@ my_bool STDCALL mariadb_connection(MYSQL *mysql)
 const char * STDCALL
 mysql_get_server_name(MYSQL *mysql)
 {
-  return mariadb_connection(mysql) ? "MariaDB" : "MySQL";
+  return mariadb_connection(mysql) ? (const char *)"MariaDB" : "MySQL";
 }
 
 
@@ -1047,7 +1047,7 @@ mysql_get_proto_info(MYSQL *mysql)
 const char * STDCALL
 mysql_get_client_info(void)
 {
-  return (char*) MYSQL_SERVER_VERSION;
+  return MYSQL_SERVER_VERSION;
 }
 
 ulong STDCALL mysql_get_client_version(void)

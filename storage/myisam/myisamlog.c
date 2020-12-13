@@ -55,7 +55,7 @@ struct st_access_param
 
 extern int main(int argc,char * *argv);
 static void get_options(int *argc,char ***argv);
-static int examine_log(char * file_name,char **table_names);
+static int examine_log(const char * file_name,char **table_names);
 static int read_string(IO_CACHE *file,uchar* *to,uint length);
 static int file_info_compare(void *cmp_arg, void *a,void *b);
 static int test_if_open(struct file_info *key,element_count count,
@@ -72,7 +72,7 @@ static my_bool cmp_filename(struct file_info *file_info,char * name);
 
 static uint verbose=0,update=0,test_info=0,max_files=0,re_open_count=0,
   recover=0,prefix_remove=0,opt_processes=0;
-static char *log_filename=0, *filepath=0, *write_filename=0;
+static const char *log_filename=0, *filepath=0, *write_filename=0;
 static char *record_pos_file= 0;
 static ulong com_count[10][3],number_of_commands=(ulong) ~0L,
 	     isamlog_process;
@@ -297,7 +297,7 @@ static void get_options(register int *argc, register char ***argv)
 }
 
 
-static int examine_log(char * file_name, char **table_names)
+static int examine_log(const char * file_name, char **table_names)
 {
   uint command,result,files_open;
   ulong access_time,length;

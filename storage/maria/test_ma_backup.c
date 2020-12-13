@@ -32,6 +32,8 @@ static int create_test_table(const char *table_name, int stage);
 static int copy_table(const char *table_name, int stage);
 static void create_record(uchar *record,uint rownr);
 
+static const char *maria_data_root_str= ".";
+
 int main(int argc __attribute__((unused)), char *argv[])
 {
   int error= 1;
@@ -41,7 +43,7 @@ int main(int argc __attribute__((unused)), char *argv[])
   safe_mutex_deadlock_detector= 1;
 #endif
   MY_INIT(argv[0]);
-  maria_data_root= (char *)".";
+  maria_data_root= (char *)maria_data_root_str;
 
   /* Maria requires that we always have a page cache */
   if (maria_init() ||
@@ -175,7 +177,8 @@ static int create_test_table(const char *table_name, int type_of_table)
 {
   MARIA_HA *file;
   int i,error,uniques=0;
-  int key_field=FIELD_SKIP_PRESPACE,extra_field=FIELD_SKIP_ENDSPACE;
+  enum en_fieldtype key_field=FIELD_SKIP_PRESPACE,
+                    extra_field=FIELD_SKIP_ENDSPACE;
   int key_type=HA_KEYTYPE_NUM;
   int create_flag=0;
   uint offset_to_key;

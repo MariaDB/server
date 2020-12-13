@@ -613,7 +613,7 @@ static int load_plugin_data(char *plugin_name, char *config_file)
   FILE *file_ptr;
   char path[FN_REFLEN];
   char line[1024];
-  char *reason= 0;
+  const char *reason= 0;
   char *res;
   int i= -1;
 
@@ -624,14 +624,14 @@ static int load_plugin_data(char *plugin_name, char *config_file)
   }
   if (!file_exists(opt_plugin_ini))
   {
-    reason= (char *)"File does not exist.";
+    reason= "File does not exist.";
     goto error;
   }
 
   file_ptr= fopen(opt_plugin_ini, "r");
   if (file_ptr == NULL)
   {
-    reason= (char *)"Cannot open file.";
+    reason= "Cannot open file.";
     goto error;
   }
 
@@ -651,7 +651,7 @@ static int load_plugin_data(char *plugin_name, char *config_file)
     {
       if (i < 1)
       {
-        reason= (char *)"Bad format in plugin configuration file.";
+        reason= "Bad format in plugin configuration file.";
         fclose(file_ptr);
         goto error;        
       }

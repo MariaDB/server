@@ -50,7 +50,7 @@ static long test_passed= 0;
 static struct st_mysql_show_var test_sql_status[]=
 {
   {"test_sql_service_passed", (char *)&test_passed, SHOW_LONG},
-  {0,0,0}
+  {0,0, (enum enum_mysql_show_type)0}
 };
 
 static my_bool do_test= TRUE;

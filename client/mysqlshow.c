@@ -36,7 +36,7 @@ static my_bool tty_password= 0, opt_table_type= 0;
 static my_bool debug_info_flag= 0, debug_check_flag= 0;
 static uint my_end_arg= 0;
 static uint opt_verbose=0;
-static char *default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME;
+static const char *default_charset= MYSQL_AUTODETECT_CHARSET_NAME;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 
 static uint opt_protocol=0;
@@ -58,6 +58,7 @@ static void print_res_row(MYSQL_RES *result,MYSQL_ROW cur);
 static const char *load_default_groups[]=
 { "mysqlshow", "mariadb-show", "client", "client-server", "client-mariadb",
   0 };
+static const char *empty_str= "";
 static char * opt_mysql_unix_port=0;
 
 int main(int argc, char **argv)
@@ -132,7 +133,7 @@ int main(int argc, char **argv)
     mysql_options(&mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
 
   if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
-    default_charset= (char *)my_default_csname();
+    default_charset= my_default_csname();
   mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, default_charset);
 
   if (opt_plugin_dir && *opt_plugin_dir)
@@ -298,7 +299,7 @@ get_one_option(const struct my_option *opt, char *argument,
     break;
   case 'p':
     if (argument == disabled_my_option)
-      argument= (char*) "";			/* Don't require password */
+      argument= (char *) empty_str;			/* Don't require password */
     if (argument)
     {
       char *start=argument;

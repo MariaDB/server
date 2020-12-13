@@ -20,7 +20,7 @@
 #endif /* CLIENT_SETTINGS_INCLUDED */
 
 extern uint		mysql_port;
-extern char *	mysql_unix_port;
+extern const char *	mysql_unix_port;
 
 /*
  Note: CLIENT_CAPABILITIES is also defined in sql/client_settings.h.

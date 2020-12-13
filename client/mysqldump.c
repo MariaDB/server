@@ -203,7 +203,7 @@ static int do_start_slave_sql(MYSQL *mysql_con);
 */
 static const char *mysql_universal_client_charset=
   MYSQL_UNIVERSAL_CLIENT_CHARSET;
-static char *default_charset;
+static const char *default_charset;
 static CHARSET_INFO *charset_info= &my_charset_latin1;
 const char *default_dbug_option="d:t:o,/tmp/mariadb-dump.trace";
 /* have we seen any VIEWs during table scanning? */
@@ -215,6 +215,8 @@ const char *compatible_mode_names[]=
   "ANSI",
   NullS
 };
+
+static const char *empty_str= "";
 #define MASK_ANSI_QUOTES \
 (\
  (1U<<2)  | /* POSTGRESQL */\
@@ -854,7 +856,7 @@ get_one_option(const struct my_option *opt,
   switch (opt->id) {
   case 'p':
     if (argument == disabled_my_option)
-      argument= (char*) "";                     /* Don't require password */
+      argument= (char *) empty_str;                     /* Don't require password */
     if (argument)
     {
       char *start=argument;
@@ -1016,7 +1018,7 @@ get_one_option(const struct my_option *opt,
         been reset yet by --default-character-set=xxx.
       */
       if (default_charset == mysql_universal_client_charset)
-        default_charset= (char*) MYSQL_DEFAULT_CHARSET_NAME;
+        default_charset= MYSQL_DEFAULT_CHARSET_NAME;
       break;
     }
   case (int) OPT_MYSQL_PROTOCOL:
@@ -3002,8 +3004,9 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
   }
   else
     dynstr_set_checked(&select_field_names, "");
-  insert_option= ((delayed && opt_ignore) ? " DELAYED IGNORE " :
-                  delayed ? " DELAYED " : opt_ignore ? " IGNORE " : "");
+  insert_option= ((delayed && opt_ignore) ? (const char*)" DELAYED IGNORE " :
+                  delayed ? (const char *)" DELAYED " : opt_ignore ?
+		  (const char *)" IGNORE " : "");
 
   verbose_msg("-- Retrieving table structure for table %s...\n", table);
 
@@ -4819,7 +4822,7 @@ static int dump_all_servers()
       if (i == 7 || row[i][0] == '\0') /* Wrapper or empty string */
         continue;
       f= &tableres->fields[i];
-      qstring= (f->type == MYSQL_TYPE_STRING || f->type == MYSQL_TYPE_VAR_STRING) ? "'" : "";
+      qstring= (f->type == MYSQL_TYPE_STRING || f->type == MYSQL_TYPE_VAR_STRING) ? (const char *)"'" : "";
       fprintf(md_result_file, "%s%s %s%s%s",
               (comma_prepend ? ", " : ""), f->name, qstring, row[i], qstring);
       comma_prepend= 1;
@@ -5894,7 +5897,7 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
   char gtid_pos[MAX_GTID_LENGTH];
   char *file, *offset;
   const char *comment_prefix=
-    (opt_master_data == MYSQL_OPT_MASTER_DATA_COMMENTED_SQL) ? "-- " : "";
+    (opt_master_data == MYSQL_OPT_MASTER_DATA_COMMENTED_SQL) ? (const char *)"-- " : "";
 
   if (consistent_binlog_pos)
   {
@@ -6033,7 +6036,7 @@ static int do_show_slave_status(MYSQL *mysql_con, int use_gtid,
   MYSQL_RES *UNINIT_VAR(slave);
   MYSQL_ROW row;
   const char *comment_prefix=
-    (opt_slave_data == MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL) ? "-- " : "";
+    (opt_slave_data == MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL) ? (const char *)"-- " : "";
   const char *gtid_comment_prefix= (use_gtid ? comment_prefix : "-- ");
   const char *nogtid_comment_prefix= (!use_gtid ? comment_prefix : "-- ");
   int set_gtid_done= 0;

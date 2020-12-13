@@ -49,7 +49,8 @@ static uint verbose = 0, opt_mysql_port=0;
 static int my_end_arg;
 static char * opt_mysql_unix_port = 0;
 static char *opt_password = 0, *current_user = 0, 
-	    *default_charset= 0, *current_host= 0;
+	    *current_host = 0;
+static const char *default_charset;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 static int first_error = 0;
 static char *opt_skip_database;
@@ -117,8 +118,8 @@ static struct my_option my_long_options[] =
    &debug_info_flag, &debug_info_flag,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"default-character-set", OPT_DEFAULT_CHARSET,
-   "Set the default character set.", &default_charset,
-   &default_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   "Set the default character set.", (char **)&default_charset,
+   (char **)&default_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"default_auth", OPT_DEFAULT_AUTH,
    "Default authentication client-side plugin to use.",
    &opt_default_auth, &opt_default_auth, 0,
@@ -224,7 +225,7 @@ static struct my_option my_long_options[] =
 static const char *load_default_groups[]=
 { "mysqlcheck", "mariadb-check", "client", "client-server", "client-mariadb",
   0 };
-
+static const char *empty_str= "";
 
 static void print_version(void);
 static void usage(void);
@@ -321,7 +322,7 @@ get_one_option(const struct my_option *opt,
     break;
   case 'p':
     if (argument == disabled_my_option)
-      argument= (char*) "";			/* Don't require password */
+      argument= (char *)empty_str;			/* Don't require password */
     if (argument)
     {
       char *start = argument;
@@ -431,12 +432,12 @@ static int get_options(int *argc, char ***argv)
   if (!default_charset)
   {
     if (opt_fix_db_names || opt_fix_table_names)
-      default_charset= (char*) "utf8";
+      default_charset= "utf8";
     else
-      default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME;
+      default_charset= MYSQL_AUTODETECT_CHARSET_NAME;
   }
   if (!strcmp(default_charset, MYSQL_AUTODETECT_CHARSET_NAME))
-    default_charset= (char *)my_default_csname();
+    default_charset= my_default_csname();
 
   if (!get_charset_by_csname(default_charset, MY_CS_PRIMARY, MYF(MY_WME)))
   {
@@ -877,7 +878,7 @@ static int handle_request_for_tables(char *tables, size_t length,
   DBUG_ENTER("handle_request_for_tables");
 
   options[0] = 0;
-  tab_view= view ? " VIEW " : " TABLE ";
+  tab_view= view ? (const char *)" VIEW " : " TABLE ";
   end = options;
   switch (what_to_do) {
   case DO_CHECK:
@@ -898,7 +899,7 @@ static int handle_request_for_tables(char *tables, size_t length,
     if (opt_upgrade)            end = strmov(end, " FOR UPGRADE");
     break;
   case DO_REPAIR:
-    op= opt_write_binlog ?  "REPAIR" : "REPAIR NO_WRITE_TO_BINLOG";
+    op= opt_write_binlog ?  (const char *)"REPAIR" : "REPAIR NO_WRITE_TO_BINLOG";
     if (view)
     {
       if (opt_do_views == DO_VIEWS_FROM_MYSQL) end = strmov(end, " FROM MYSQL");
@@ -917,7 +918,7 @@ static int handle_request_for_tables(char *tables, size_t length,
       DBUG_RETURN(1);
     }
     DBUG_ASSERT(!view);
-    op= (opt_write_binlog) ? "ANALYZE" : "ANALYZE NO_WRITE_TO_BINLOG";
+    op= (opt_write_binlog) ? (const char *)"ANALYZE" : "ANALYZE NO_WRITE_TO_BINLOG";
     if (opt_persistent_all) end = strmov(end, " PERSISTENT FOR ALL");
     break;
   case DO_OPTIMIZE:
@@ -926,7 +927,7 @@ static int handle_request_for_tables(char *tables, size_t length,
       printf("%-50s %s\n", tables, "Can't run optimize on a view");
       DBUG_RETURN(1);
     }
-    op= (opt_write_binlog) ? "OPTIMIZE" : "OPTIMIZE NO_WRITE_TO_BINLOG";
+    op= (opt_write_binlog) ? (const char *)"OPTIMIZE" : "OPTIMIZE NO_WRITE_TO_BINLOG";
     break;
   case DO_FIX_NAMES:
     if (view)

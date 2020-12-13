@@ -54,6 +54,8 @@ static HA_KEYSEG glob_keyseg[MARIA_KEYS][MAX_PARTS];
 
 		/* Test program */
 
+static const char * CURRENT_DIR= ".";
+
 int main(int argc, char *argv[])
 {
   uint i;
@@ -76,7 +78,7 @@ int main(int argc, char *argv[])
 #endif
   MY_INIT(argv[0]);
 
-  maria_data_root= (char *)".";
+  maria_data_root= (char *) CURRENT_DIR;
   get_options(argc,argv);
   fn_format(filename, "test2", maria_data_root, "", MYF(0));
 
@@ -184,15 +186,15 @@ int main(int argc, char *argv[])
   keyinfo[5].flag = pack_type;
   keyinfo[5].block_length= 0;                   /* Default block length */
 
-  recinfo[0].type=pack_fields ? FIELD_SKIP_PRESPACE : 0;
+  recinfo[0].type=(enum en_fieldtype)(pack_fields ? FIELD_SKIP_PRESPACE : 0);
   recinfo[0].length=7;
   recinfo[0].null_bit=0;
   recinfo[0].null_pos=0;
-  recinfo[1].type=pack_fields ? FIELD_SKIP_PRESPACE : 0;
+  recinfo[1].type=(enum en_fieldtype)(pack_fields ? FIELD_SKIP_PRESPACE : 0);
   recinfo[1].length=5;
   recinfo[1].null_bit=0;
   recinfo[1].null_pos=0;
-  recinfo[2].type=pack_fields ? FIELD_SKIP_PRESPACE : 0;
+  recinfo[2].type=(enum en_fieldtype)(pack_fields ? FIELD_SKIP_PRESPACE : 0);
   recinfo[2].length=9;
   recinfo[2].null_bit=0;
   recinfo[2].null_pos=0;
@@ -200,11 +202,11 @@ int main(int argc, char *argv[])
   recinfo[3].length=STANDARD_LENGTH-7-5-9-4;
   recinfo[3].null_bit=0;
   recinfo[3].null_pos=0;
-  recinfo[4].type=pack_fields ? FIELD_SKIP_ZERO : 0;
+  recinfo[4].type=(enum en_fieldtype)(pack_fields ? FIELD_SKIP_ZERO : 0);
   recinfo[4].length=4;
   recinfo[4].null_bit=0;
   recinfo[4].null_pos=0;
-  recinfo[5].type=pack_fields ? FIELD_SKIP_ENDSPACE : 0;
+  recinfo[5].type=(enum en_fieldtype)(pack_fields ? FIELD_SKIP_ENDSPACE : 0);
   recinfo[5].length=60;
   recinfo[5].null_bit=0;
   recinfo[5].null_pos=0;

@@ -115,7 +115,8 @@ static void closelog() {}
 #define flogger_mutex_unlock(A) do{}while(0)
 
 static char **int_mysql_data_home;
-static char *default_home= (char *)".";
+static const char *default_home_str= ".";
+static char *default_home;
 #define mysql_data_home (*int_mysql_data_home)
 
 #define FLOGGER_SKIP_INCLUDES
@@ -551,7 +552,7 @@ static struct st_mysql_show_var audit_status[]=
   {"server_audit_current_log", current_log_buf, SHOW_CHAR},
   {"server_audit_writes_failed", (char *)&log_write_failures, SHOW_LONG},
   {"server_audit_last_error", last_error_buf, SHOW_CHAR},
-  {0,0,0}
+  {0,0,(enum enum_mysql_show_type)0}
 };
 
 #if defined(HAVE_PSI_INTERFACE) && !defined(FLOGGER_NO_PSI)
@@ -2461,6 +2462,7 @@ static void* find_sym(const char *sym)
 
 static int server_audit_init(void *p __attribute__((unused)))
 {
+  default_home= (char *)default_home_str;
   if (!serv_ver)
   {
     serv_ver= find_sym("server_version");

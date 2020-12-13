@@ -153,7 +153,7 @@ register int *argc;
 register char **argv[];
 {
   int help,version;
-  char *pos;
+  const char *pos;
 
   silent=verbose=help=0;
 
@@ -170,7 +170,7 @@ register char **argv[];
 	break;
       case '#':
 	DBUG_PUSH (++pos);
-	pos= (char*) " ";			/* Skip rest of arguments */
+	pos= " ";			/* Skip rest of arguments */
 	break;
       case 'V':
 	version=1;

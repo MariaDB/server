@@ -112,7 +112,7 @@ static char **defaults_argv;
 char **primary_keys;
 unsigned long long primary_keys_number_of;
 
-static char *host= NULL, *opt_password= NULL, *user= NULL,
+static const char *host= NULL, *user= NULL,
             *user_supplied_query= NULL,
             *user_supplied_pre_statements= NULL,
             *user_supplied_post_statements= NULL,
@@ -121,6 +121,7 @@ static char *host= NULL, *opt_password= NULL, *user= NULL,
             *post_system= NULL,
             *opt_mysql_unix_port= NULL,
             *opt_init_command= NULL;
+static char *opt_password= NULL;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 
 const char *delimiter= "\n";
@@ -154,7 +155,7 @@ static unsigned int num_int_cols_index= 0;
 static unsigned int num_char_cols_index= 0;
 static unsigned int iterations;
 static uint my_end_arg= 0;
-static char *default_charset= (char*) MYSQL_DEFAULT_CHARSET_NAME;
+static const char *default_charset= MYSQL_DEFAULT_CHARSET_NAME;
 static ulonglong actual_queries= 0;
 static ulonglong auto_actual_queries;
 static ulonglong auto_generate_sql_unique_write_number;
@@ -179,6 +180,8 @@ static uint opt_mysql_port= 0;
 static const char *load_default_groups[]=
 { "mysqlslap", "mariadb-slap", "client", "client-server", "client-mariadb",
   0 };
+static const char *empty_str= "";
+static const char *minus_str= "-";
 
 typedef struct statement statement;
 
@@ -736,7 +739,7 @@ get_one_option(const struct my_option *opt, char *argument,
     break;
   case 'p':
     if (argument == disabled_my_option)
-      argument= (char*) "";			/* Don't require password */
+      argument= (char*) empty_str;			/* Don't require password */
     if (argument)
     {
       char *start= argument;
@@ -773,7 +776,7 @@ get_one_option(const struct my_option *opt, char *argument,
     break;
   case OPT_SLAP_CSV:
     if (!argument)
-      argument= (char *)"-"; /* use stdout */
+      argument= (char *)minus_str; /* use stdout */
     opt_csv_str= argument;
     break;
 #include <sslopt-case.h>
@@ -1176,6 +1179,9 @@ get_options(int *argc,char ***argv)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   if (debug_check_flag)
     my_end_arg= MY_CHECK_ERROR;
+
+  if (!user)
+    user= "root";
 
   /*
     If something is created and --no-drop is not specified, we drop the

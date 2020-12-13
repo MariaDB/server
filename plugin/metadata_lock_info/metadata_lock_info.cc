@@ -20,7 +20,7 @@
 #include "sql_class.h"
 #include "sql_i_s.h"
 
-static const LEX_STRING metadata_lock_info_lock_name[] = {
+static const LEX_CSTRING metadata_lock_info_lock_name[] = {
   { C_STRING_WITH_LEN("Backup lock") },
   { C_STRING_WITH_LEN("Schema metadata lock") },
   { C_STRING_WITH_LEN("Table metadata lock") },

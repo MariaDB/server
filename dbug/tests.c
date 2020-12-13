@@ -16,7 +16,7 @@ char *push1=0;
 const char *func3()
 {
   DBUG_ENTER("func3");
-  DBUG_RETURN(DBUG_EVALUATE("ret3", "ok", "ko"));
+  DBUG_RETURN(DBUG_EVALUATE("ret3", (const char *)"ok", "ko"));
 }
 
 void func2()

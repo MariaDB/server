@@ -81,7 +81,7 @@ typedef int my_socket;
 
 extern unsigned int mariadb_deinitialize_ssl;
 extern unsigned int mysql_port;
-extern char *mysql_unix_port;
+extern const char *mysql_unix_port;
 
 #define CLIENT_NET_READ_TIMEOUT		(365*24*3600)	/* Timeout on read */
 #define CLIENT_NET_WRITE_TIMEOUT	(365*24*3600)	/* Timeout on write */

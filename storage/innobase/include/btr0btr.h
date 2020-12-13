@@ -176,7 +176,7 @@ record is in spatial index */
 /** Report that an index page is corrupted.
 @param[in]	buffer block
 @param[in]	index tree */
-ATTRIBUTE_COLD ATTRIBUTE_NORETURN __attribute__((nonnull))
+ATTRIBUTE_COLD __attribute__((nonnull))
 void btr_corruption_report(const buf_block_t* block,const dict_index_t* index);
 
 /** Assert that a B-tree page is not corrupted.

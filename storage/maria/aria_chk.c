@@ -74,6 +74,7 @@ static const char *bitmap_description[]=
 };
 
 static const char *maria_stats_method_str="nulls_unequal";
+static const char *maria_data_root_str=".";
 static char default_open_errmsg[]=  "%d when opening Aria table '%s'";
 static char default_close_errmsg[]= "%d when closing Aria table '%s'";
 
@@ -128,7 +129,7 @@ int main(int argc, char **argv)
   MY_INIT(argv[0]);
 
   my_setup_stacktrace();
-  default_log_dir= opt_log_dir= maria_data_root= (char *)".";
+  default_log_dir= opt_log_dir= maria_data_root= (char *)maria_data_root_str;
   maria_chk_init(&check_param);
   check_param.opt_lock_memory= 1;		/* Lock memory if possible */
   check_param.using_global_keycache = 0;
@@ -875,7 +876,7 @@ get_one_option(const struct my_option *opt,
   case OPT_STATS_METHOD:
   {
     int method;
-    enum_handler_stats_method UNINIT_VAR(method_conv);
+    enum_handler_stats_method method_conv= (enum_handler_stats_method) 0;
     maria_stats_method_str= argument;
     if ((method=find_type(argument, &maria_stats_method_typelib, 2)) <= 0)
     {

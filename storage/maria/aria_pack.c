@@ -205,6 +205,7 @@ static HUFF_COUNTS *global_count;
 static char zero_string[]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 static const char *load_default_groups[]= { "ariapack",0 };
 static char **default_argv;
+static const char *maria_data_root_str= ".";
 
 /*
   Register handler error messages for usage with my_error()
@@ -229,7 +230,7 @@ int main(int argc, char **argv)
   my_bool no_control_file= 0;
   MY_INIT(argv[0]);
 
-  maria_data_root= (char *)".";
+  maria_data_root= (char *)maria_data_root_str;
   load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   default_argv= argv;
   get_options(&argc,&argv);

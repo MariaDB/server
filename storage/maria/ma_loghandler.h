@@ -292,12 +292,12 @@ typedef struct st_translog_reader_data
 C_MODE_START
 
 /* Records types for unittests */
-#define LOGREC_FIXED_RECORD_0LSN_EXAMPLE 1
-#define LOGREC_VARIABLE_RECORD_0LSN_EXAMPLE 2
-#define LOGREC_FIXED_RECORD_1LSN_EXAMPLE 3
-#define LOGREC_VARIABLE_RECORD_1LSN_EXAMPLE 4
-#define LOGREC_FIXED_RECORD_2LSN_EXAMPLE 5
-#define LOGREC_VARIABLE_RECORD_2LSN_EXAMPLE 6
+#define LOGREC_FIXED_RECORD_0LSN_EXAMPLE (enum translog_record_type)1
+#define LOGREC_VARIABLE_RECORD_0LSN_EXAMPLE (enum translog_record_type)2
+#define LOGREC_FIXED_RECORD_1LSN_EXAMPLE (enum translog_record_type)3
+#define LOGREC_VARIABLE_RECORD_1LSN_EXAMPLE (enum translog_record_type)4
+#define LOGREC_FIXED_RECORD_2LSN_EXAMPLE (enum translog_record_type)5
+#define LOGREC_VARIABLE_RECORD_2LSN_EXAMPLE (enum translog_record_type)6
 
 extern void translog_example_table_init();
 extern void translog_table_init();
