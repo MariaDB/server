@@ -4010,10 +4010,10 @@ static bool is_linux_native_aio_supported()
 
 int os_aio_init()
 {
-  int max_write_events= int(srv_n_write_io_threads) *
-    OS_AIO_N_PENDING_IOS_PER_THREAD;
-  int max_read_events= int(srv_n_read_io_threads) *
-    OS_AIO_N_PENDING_IOS_PER_THREAD;
+  int max_write_events= int(srv_n_write_io_threads *
+                            OS_AIO_N_PENDING_IOS_PER_THREAD);
+  int max_read_events= int(srv_n_read_io_threads *
+                           OS_AIO_N_PENDING_IOS_PER_THREAD);
   int max_events= max_read_events + max_write_events;
   int ret;
 #if LINUX_NATIVE_AIO
