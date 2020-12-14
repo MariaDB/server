@@ -110,7 +110,7 @@ lsn_t	srv_shutdown_lsn;
 ibool	srv_start_raw_disk_in_use;
 
 /** Number of IO threads to use */
-ulint	srv_n_file_io_threads;
+uint	srv_n_file_io_threads;
 
 /** UNDO tablespaces starts with space id. */
 ulint	srv_undo_space_id_start;
@@ -1171,9 +1171,7 @@ dberr_t srv_start(bool create_new_db)
 		return(srv_init_abort(err));
 	}
 
-	srv_n_file_io_threads = srv_n_read_io_threads;
-
-	srv_n_file_io_threads += srv_n_write_io_threads;
+	srv_n_file_io_threads = srv_n_read_io_threads + srv_n_write_io_threads;
 
 	if (!srv_read_only_mode) {
 		/* Add the log and ibuf IO threads. */
@@ -1185,14 +1183,17 @@ dberr_t srv_start(bool create_new_db)
 
 	ut_a(srv_n_file_io_threads <= SRV_MAX_N_IO_THREADS);
 
-	if (!os_aio_init(srv_n_read_io_threads,
-			 srv_n_write_io_threads,
-			 SRV_MAX_N_PENDING_SYNC_IOS)) {
-
+	if (os_aio_init()) {
 		ib::error() << "Cannot initialize AIO sub-system";
 
 		return(srv_init_abort(DB_ERROR));
 	}
+
+#ifdef LINUX_NATIVE_AIO
+	if (srv_use_native_aio) {
+		ib::info() << "Using Linux native AIO";
+	}
+#endif
 
 	fil_system.create(srv_file_per_table ? 50000 : 5000);
 

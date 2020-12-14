@@ -7926,7 +7926,8 @@ best_access_path(JOIN      *join,
         access is to use the same index IDX, with the same or more key parts.
         (note: it is not clear how this rule is/should be extended to 
         index_merge quick selects). Also if we have a hash join we prefer that
-        over a table scan
+        over a table scan. This heuristic doesn't apply if the quick select
+        uses the group-by min-max optimization.
     (3) See above note about InnoDB.
     (4) NOT ("FORCE INDEX(...)" is used for table and there is 'ref' access
              path, but there is no quick select)
@@ -7944,7 +7945,9 @@ best_access_path(JOIN      *join,
   Json_writer_object trace_access_scan(thd);
   if ((records >= s->found_records || best > s->read_time) &&            // (1)
       !(best_key && best_key->key == MAX_KEY) &&                         // (2)
-      !(s->quick && best_key && s->quick->index == best_key->key &&      // (2)
+      !(s->quick &&
+        s->quick->get_type() != QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX && // (2)
+        best_key && s->quick->index == best_key->key &&      // (2)
         best_max_key_part >= s->table->opt_range[best_key->key].key_parts) &&// (2)
       !((s->table->file->ha_table_flags() & HA_TABLE_SCAN_ON_INDEX) &&   // (3)
         ! s->table->covering_keys.is_clear_all() && best_key && !s->quick) &&// (3)
