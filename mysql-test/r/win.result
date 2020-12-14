@@ -2391,8 +2391,7 @@ COUNT(*) OVER (PARTITION BY c)
 2
 2
 SELECT * FROM t1 WHERE i IN ( SELECT COUNT(*) OVER (PARTITION BY c) FROM t2 );
-i
-1
+ERROR 42000: This version of MariaDB doesn't yet support 'window functions inside IN/ALL/ANY/SOME subquery'
 DROP TABLE t1, t2;
 #
 # MDEV-9976: window function without PARTITION BY and ORDER BY
@@ -3153,8 +3152,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (c CHAR(8)) ENGINE=MyISAM;
 INSERT IGNORE INTO t1 VALUES ('foo');
 SELECT ('bar',1) IN ( SELECT c, ROW_NUMBER() OVER (PARTITION BY c) FROM t1);
-('bar',1) IN ( SELECT c, ROW_NUMBER() OVER (PARTITION BY c) FROM t1)
-0
+ERROR 42000: This version of MariaDB doesn't yet support 'window functions inside IN/ALL/ANY/SOME subquery'
 DROP TABLE t1;
 #
 # MDEV-13351: Server crashes in st_select_lex::set_explain_type upon UNION with window function 
@@ -3865,6 +3863,23 @@ NULL
 NULL
 DROP VIEW v1;
 DROP TABLE t1,t2;
+#
+# MDEV-22700: Assertion `subq_pred->engine->engine_type() == subselect_engine::SINGLE_SELECT_ENGINE'
+# failed in setup_jtbm_semi_joins
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2);
+SELECT * FROM t1 WHERE t1.a IN (SELECT  COUNT(t2.a) over () from t1 t2);
+ERROR 42000: This version of MariaDB doesn't yet support 'window functions inside IN/ALL/ANY/SOME subquery'
+SELECT * FROM t1 WHERE t1.a > ALL (SELECT  COUNT(t2.a) over () from t1 t2);
+ERROR 42000: This version of MariaDB doesn't yet support 'window functions inside IN/ALL/ANY/SOME subquery'
+SELECT * FROM t1 WHERE t1.a > ANY  (SELECT  COUNT(t2.a) over () from t1 t2);
+ERROR 42000: This version of MariaDB doesn't yet support 'window functions inside IN/ALL/ANY/SOME subquery'
+SELECT * FROM t1 WHERE EXISTS (SELECT row_number() OVER () FROM t1 A WHERE t1.a= A.a);
+a	b
+1	1
+2	2
+DROP TABLE t1;
 #
 # End of 10.2 tests
 #

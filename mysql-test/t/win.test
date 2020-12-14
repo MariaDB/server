@@ -1440,6 +1440,8 @@ INSERT INTO t2 VALUES ('foo'),('bar'),('foo');
 
 SELECT COUNT(*) OVER (PARTITION BY c) FROM t2;
 
+--error ER_NOT_SUPPORTED_YET
+
 SELECT * FROM t1 WHERE i IN ( SELECT COUNT(*) OVER (PARTITION BY c) FROM t2 );
 
 DROP TABLE t1, t2;
@@ -1941,6 +1943,8 @@ DROP TABLE t1;
 --echo #
 CREATE TABLE t1 (c CHAR(8)) ENGINE=MyISAM;
 INSERT IGNORE INTO t1 VALUES ('foo');
+--error ER_NOT_SUPPORTED_YET
+
 SELECT ('bar',1) IN ( SELECT c, ROW_NUMBER() OVER (PARTITION BY c) FROM t1);
 DROP TABLE t1;
 
@@ -2521,6 +2525,23 @@ SELECT NTH_VALUE(i1, i1) OVER (PARTITION BY i1) FROM v1;
 
 DROP VIEW v1;
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-22700: Assertion `subq_pred->engine->engine_type() == subselect_engine::SINGLE_SELECT_ENGINE'
+--echo # failed in setup_jtbm_semi_joins
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2);
+--error ER_NOT_SUPPORTED_YET
+SELECT * FROM t1 WHERE t1.a IN (SELECT  COUNT(t2.a) over () from t1 t2);
+--error ER_NOT_SUPPORTED_YET
+SELECT * FROM t1 WHERE t1.a > ALL (SELECT  COUNT(t2.a) over () from t1 t2);
+--error ER_NOT_SUPPORTED_YET
+SELECT * FROM t1 WHERE t1.a > ANY  (SELECT  COUNT(t2.a) over () from t1 t2);
+SELECT * FROM t1 WHERE EXISTS (SELECT row_number() OVER () FROM t1 A WHERE t1.a= A.a);
+
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.2 tests
