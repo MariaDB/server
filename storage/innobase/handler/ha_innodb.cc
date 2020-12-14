@@ -19439,7 +19439,7 @@ static MYSQL_SYSVAR_ULONG(read_io_threads, srv_n_read_io_threads,
 static MYSQL_SYSVAR_ULONG(write_io_threads, srv_n_write_io_threads,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Number of background write I/O threads in InnoDB.",
-  NULL, NULL, 4, 1, 64, 0);
+  NULL, NULL, 4, 2, 64, 0);
 
 static MYSQL_SYSVAR_ULONG(force_recovery, srv_force_recovery,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
