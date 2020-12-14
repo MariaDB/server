@@ -18675,6 +18675,7 @@ bool Create_tmp_table::finalize(THD *thd,
   if (table->file->set_ha_share_ref(&share->ha_share))
   {
     delete table->file;
+    table->file= 0;
     goto err;
   }
   table->file->set_table(table);
@@ -19913,11 +19914,14 @@ free_tmp_table(THD *thd, TABLE *entry)
 
   if (entry->file && entry->is_created())
   {
-    DBUG_ASSERT(entry->db_stat);
-    entry->file->ha_index_or_rnd_end();
-    entry->file->info(HA_STATUS_VARIABLE);
-    thd->tmp_tables_size+= (entry->file->stats.data_file_length +
-                            entry->file->stats.index_file_length);
+    if (entry->db_stat)
+    {
+      /* The table was properly opened in open_tmp_table() */
+      entry->file->ha_index_or_rnd_end();
+      entry->file->info(HA_STATUS_VARIABLE);
+      thd->tmp_tables_size+= (entry->file->stats.data_file_length +
+                              entry->file->stats.index_file_length);
+    }
     entry->file->ha_drop_table(entry->s->path.str);
     delete entry->file;
   }
