@@ -28,6 +28,7 @@ class sp_name;
 class Query_tables_list;
 struct TABLE_LIST;
 class Query_tables_list;
+typedef struct st_ddl_log_state DDL_LOG_STATE;
 
 /** Event on which trigger is invoked. */
 enum trg_event_type
@@ -220,7 +221,9 @@ public:
   ~Table_triggers_list();
 
   bool create_trigger(THD *thd, TABLE_LIST *table, String *stmt_query);
-  bool drop_trigger(THD *thd, TABLE_LIST *table, String *stmt_query);
+  bool drop_trigger(THD *thd, TABLE_LIST *table,
+                    LEX_CSTRING *sp_name,
+                    String *stmt_query, DDL_LOG_STATE *ddl_log_state);
   bool process_triggers(THD *thd, trg_event_type event,
                         trg_action_time_type time_type,
                         bool old_row_is_record1);
@@ -324,6 +327,8 @@ bool load_table_name_for_trigger(THD *thd,
                                  const LEX_CSTRING *trn_path,
                                  LEX_CSTRING *tbl_name);
 bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create);
+bool rm_trigname_file(char *path, const LEX_CSTRING *db,
+                      const LEX_CSTRING *trigger_name, myf MyFlags);
 
 extern const char * const TRG_EXT;
 extern const char * const TRN_EXT;

@@ -81,6 +81,7 @@ enum ddl_log_action_code
   DDL_LOG_DROP_TABLE_ACTION= 8,
   DDL_LOG_DROP_VIEW_INIT_ACTION= 9,
   DDL_LOG_DROP_VIEW_ACTION= 10,
+  DDL_LOG_DROP_TRIGGER_ACTION= 11,
   DDL_LOG_LAST_ACTION                          /* End marker */
 };
 
@@ -228,5 +229,10 @@ bool ddl_log_drop_view(THD *thd, DDL_LOG_STATE *ddl_state,
                         const LEX_CSTRING *path,
                         const LEX_CSTRING *db,
                         const LEX_CSTRING *table);
+bool ddl_log_drop_trigger(THD *thd, DDL_LOG_STATE *ddl_state,
+                          const LEX_CSTRING *db,
+                          const LEX_CSTRING *table,
+                          const LEX_CSTRING *trigger_name,
+                          const LEX_CSTRING *query);
 extern mysql_mutex_t LOCK_gdl;
 #endif /* DDL_LOG_INCLUDED */
