@@ -228,9 +228,9 @@ ulint	srv_lock_table_size	= ULINT_MAX;
 ulong	srv_idle_flush_pct;
 
 /** innodb_read_io_threads */
-ulong	srv_n_read_io_threads;
+uint	srv_n_read_io_threads;
 /** innodb_write_io_threads */
-ulong	srv_n_write_io_threads;
+uint	srv_n_write_io_threads;
 
 /** innodb_random_read_ahead */
 my_bool	srv_random_read_ahead;
