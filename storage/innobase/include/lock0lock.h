@@ -741,12 +741,21 @@ public:
 
   bool is_initialised() { return m_initialised; }
 
+#ifdef HAVE_PSI_MUTEX_INTERFACE
+  /** Try to acquire lock_sys.mutex */
+  ATTRIBUTE_NOINLINE int mutex_trylock();
+  /** Acquire lock_sys.mutex */
+  ATTRIBUTE_NOINLINE void mutex_lock();
+  /** Release lock_sys.mutex */
+  ATTRIBUTE_NOINLINE void mutex_unlock();
+#else
   /** Try to acquire lock_sys.mutex */
   int mutex_trylock() { return mysql_mutex_trylock(&mutex); }
   /** Aqcuire lock_sys.mutex */
   void mutex_lock() { mysql_mutex_lock(&mutex); }
   /** Release lock_sys.mutex */
   void mutex_unlock() { mysql_mutex_unlock(&mutex); }
+#endif
   /** Assert that mutex_lock() has been invoked */
   void mutex_assert_locked() const { mysql_mutex_assert_owner(&mutex); }
   /** Assert that mutex_lock() has not been invoked */

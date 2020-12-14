@@ -471,6 +471,16 @@ void lock_sys_t::create(ulint n_cells)
 }
 
 
+#ifdef HAVE_PSI_MUTEX_INTERFACE
+/** Try to acquire lock_sys.mutex */
+int lock_sys_t::mutex_trylock() { return mysql_mutex_trylock(&mutex); }
+/** Acquire lock_sys.mutex */
+void lock_sys_t::mutex_lock() { mysql_mutex_lock(&mutex); }
+/** Release lock_sys.mutex */
+void lock_sys_t::mutex_unlock() { mysql_mutex_unlock(&mutex); }
+#endif
+
+
 /** Calculates the fold value of a lock: used in migrating the hash table.
 @param[in]	lock	record lock object
 @return	folded value */

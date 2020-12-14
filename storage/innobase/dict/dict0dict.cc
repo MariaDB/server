@@ -1054,6 +1054,7 @@ void dict_sys_t::create()
                    nullptr);
 }
 
+
 /** Acquire a reference to a cached table. */
 inline void dict_sys_t::acquire(dict_table_t* table)
 {
@@ -1091,6 +1092,18 @@ void dict_sys_t::mutex_lock_wait()
                << " seconds) was observed for dict_sys.mutex";
   mysql_mutex_lock(&mutex);
 }
+
+#ifdef HAVE_PSI_MUTEX_INTERFACE
+/** Acquire the mutex */
+void dict_sys_t::mutex_lock()
+{
+  if (mysql_mutex_trylock(&mutex))
+    mutex_lock_wait();
+}
+
+/** Release the mutex */
+void dict_sys_t::mutex_unlock() { mysql_mutex_unlock(&mutex); }
+#endif
 
 /** Lock the data dictionary cache. */
 void dict_sys_t::lock(SRW_LOCK_ARGS(const char *file, unsigned line))

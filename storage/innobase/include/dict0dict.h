@@ -1560,11 +1560,18 @@ public:
   ulonglong oldest_wait() const
   { return mutex_wait_start.load(std::memory_order_relaxed); }
 
+#ifdef HAVE_PSI_MUTEX_INTERFACE
+  /** Acquire the mutex */
+  ATTRIBUTE_NOINLINE void mutex_lock();
+  /** Release the mutex */
+  ATTRIBUTE_NOINLINE void mutex_unlock();
+#else
   /** Acquire the mutex */
   void mutex_lock() { if (mysql_mutex_trylock(&mutex)) mutex_lock_wait(); }
 
   /** Release the mutex */
   void mutex_unlock() { mysql_mutex_unlock(&mutex); }
+#endif
 
   /** Lock the data dictionary cache. */
   void lock(SRW_LOCK_ARGS(const char *file, unsigned line));
