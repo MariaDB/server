@@ -2554,5 +2554,14 @@ SELECT 1 UNION SELECT a FROM t1 ORDER BY (row_number() over ());
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-15296: wrong result with window function inside a subquery
+--echo #
+
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1), (2);
+SELECT (SELECT SUM(a) OVER (partition BY a)) FROM t1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

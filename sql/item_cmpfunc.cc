@@ -1366,6 +1366,7 @@ bool Item_in_optimizer::fix_left(THD *thd)
   }
   eval_not_null_tables(NULL);
   with_sum_func= args[0]->with_sum_func;
+  DBUG_ASSERT(!args[0]->with_window_func);
   with_param= args[0]->with_param || args[1]->with_param;
   with_field= args[0]->with_field;
   if ((const_item_cache= args[0]->const_item()))
@@ -1414,6 +1415,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
     maybe_null=1;
   with_subselect= 1;
   with_sum_func= with_sum_func || args[1]->with_sum_func;
+  with_window_func= with_window_func || args[1]->with_window_func;
   with_field= with_field || args[1]->with_field;
   with_param= args[0]->with_param || args[1]->with_param; 
   used_tables_and_const_cache_join(args[1]);
@@ -1969,6 +1971,7 @@ bool Item_func_interval::fix_length_and_dec()
   used_tables_and_const_cache_join(row);
   not_null_tables_cache= row->not_null_tables();
   with_sum_func= with_sum_func || row->with_sum_func;
+  with_window_func= with_window_func || row->with_window_func;
   with_param= with_param || row->with_param;
   with_field= with_field || row->with_field;
   return FALSE;
@@ -6744,7 +6747,8 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
     used_tables_cache|= item->used_tables();
     tmp_table_map= item->not_null_tables();
     not_null_tables_cache|= tmp_table_map;
-    DBUG_ASSERT(!item->with_sum_func && !item->with_subselect);
+    DBUG_ASSERT(!item->with_sum_func && !item->with_subselect &&
+                !item->with_window_func);
     if (item->maybe_null)
       maybe_null= 1;
     if (!item->get_item_equal())

@@ -8172,6 +8172,7 @@ Item_cache_wrapper::Item_cache_wrapper(THD *thd, Item *item_arg):
   Type_std_attributes::set(orig_item);
   maybe_null= orig_item->maybe_null;
   with_sum_func= orig_item->with_sum_func;
+  with_window_func= orig_item->with_window_func;
   with_param= orig_item->with_param;
   with_field= orig_item->with_field;
   name= item_arg->name;

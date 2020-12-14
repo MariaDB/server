@@ -651,7 +651,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         1. Subquery predicate is an IN/=ANY subq predicate
         2. Subquery is a single SELECT (not a UNION)
         3. Subquery does not have GROUP BY or ORDER BY
-        4. Subquery does not use aggregate functions or HAVING
+        4. Subquery does not use aggregate functions or HAVING or window functions
         5. Subquery predicate is at the AND-top-level of ON/WHERE clause
         6. We are not in a subquery of a single table UPDATE/DELETE that 
              doesn't have a JOIN (TODO: We should handle this at some
@@ -669,6 +669,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         !select_lex->is_part_of_union() &&                            // 2
         !select_lex->group_list.elements && !join->order &&           // 3
         !join->having && !select_lex->with_sum_func &&                // 4
+        !select_lex->have_window_funcs() &&                           // 4
         in_subs->emb_on_expr_nest &&                                  // 5
         select_lex->outer_select()->join &&                           // 6
         parent_unit->first_select()->leaf_tables.elements &&          // 7

@@ -3889,5 +3889,15 @@ SELECT 1 UNION SELECT a FROM t1 ORDER BY (row_number() over ());
 ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
 DROP TABLE t1;
 #
+# MDEV-15296: wrong result with window function inside a subquery
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1), (2);
+SELECT (SELECT SUM(a) OVER (partition BY a)) FROM t1;
+(SELECT SUM(a) OVER (partition BY a))
+1
+2
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #

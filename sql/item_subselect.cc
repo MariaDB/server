@@ -1138,6 +1138,7 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
       !select_lex->table_list.elements &&
       select_lex->item_list.elements == 1 &&
       !select_lex->item_list.head()->with_sum_func &&
+      !select_lex->item_list.head()->with_window_func &&
       /*
 	We can't change name of Item_field or Item_ref, because it will
 	prevent its correct resolving, but we should save name of
