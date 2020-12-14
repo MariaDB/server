@@ -26,13 +26,14 @@
 #include "parse_file.h"
 #include "sp.h"
 #include "sql_base.h"
-#include "sql_show.h"                // append_definer, append_identifier
-#include "sql_table.h"                        // build_table_filename,
-                                              // check_n_cut_mysql50_prefix
-#include "sql_db.h"                        // get_default_db_collation
-#include "sql_handler.h"                        // mysql_ha_rm_tables
+#include "sql_show.h"                     // append_definer, append_identifier
+#include "sql_table.h"                    // build_table_filename,
+                                          // check_n_cut_mysql50_prefix
+#include "sql_db.h"                       // get_default_db_collation
+#include "sql_handler.h"                  // mysql_ha_rm_tables
 #include "sp_cache.h"                     // sp_invalidate_cache
 #include <mysys_err.h>
+#include <ddl_log.h>                      // ddl_log_state
 #include "debug_sync.h"
 #include "mysql/psi/mysql_sp.h"
 
@@ -398,10 +399,12 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   bool lock_upgrade_done= FALSE;
   MDL_ticket *mdl_ticket= NULL;
   Query_tables_list backup;
+  DDL_LOG_STATE ddl_log_state;
   DBUG_ENTER("mysql_create_or_drop_trigger");
 
   /* Charset of the buffer for statement must be system one. */
   stmt_query.set_charset(system_charset_info);
+  bzero(&ddl_log_state, sizeof(ddl_log_state));
 
   /*
     QQ: This function could be merged in mysql_alter_table() function
@@ -590,9 +593,15 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
                   };);
 #endif /* WITH_WSREP */
 
-  result= (create ?
-           table->triggers->create_trigger(thd, tables, &stmt_query):
-           table->triggers->drop_trigger(thd, tables, &stmt_query));
+  if (create)
+    result= table->triggers->create_trigger(thd, tables, &stmt_query);
+  else
+  {
+    result= table->triggers->drop_trigger(thd, tables,
+                                          &thd->lex->spname->m_name,
+                                          &stmt_query,
+                                          &ddl_log_state);
+  }
 
   close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
 
@@ -612,7 +621,15 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
 
 end:
   if (!result)
+  {
+    debug_crash_here("ddl_log_drop_before_binlog");
+    thd->binlog_xid= thd->query_id;
+    ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
     result= write_bin_log(thd, TRUE, stmt_query.ptr(), stmt_query.length());
+    thd->binlog_xid= 0;
+    debug_crash_here("ddl_log_drop_after_binlog");
+  }
+  ddl_log_complete(&ddl_log_state);
 
   /*
     If we are under LOCK TABLES we should restore original state of
@@ -852,13 +869,13 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   {
     if (lex->create_info.or_replace())
     {
-      String drop_trg_query;
+      LEX_CSTRING *sp_name= &thd->lex->spname->m_name; // alias
       /*
         The following can fail if the trigger is for another table or
         there exists a .TRN file but there was no trigger for it in
         the .TRG file
       */
-      if (unlikely(drop_trigger(thd, tables, &drop_trg_query)))
+      if (unlikely(drop_trigger(thd, tables, sp_name, 0, 0)))
         DBUG_RETURN(true);
     }
     else if (lex->create_info.if_not_exists())
@@ -1052,8 +1069,8 @@ static bool rm_trigger_file(char *path, const LEX_CSTRING *db,
     True    error
 */
 
-static bool rm_trigname_file(char *path, const LEX_CSTRING *db,
-                       const LEX_CSTRING *trigger_name, myf MyFlags)
+bool rm_trigname_file(char *path, const LEX_CSTRING *db,
+                      const LEX_CSTRING *trigger_name, myf MyFlags)
 {
   build_table_filename(path, FN_REFLEN - 1, db->str, trigger_name->str,
                        TRN_EXT, 0);
@@ -1151,13 +1168,15 @@ Trigger *Table_triggers_list::find_trigger(const LEX_CSTRING *name,
 */
 
 bool Table_triggers_list::drop_trigger(THD *thd, TABLE_LIST *tables,
-                                       String *stmt_query)
+                                       LEX_CSTRING *sp_name,
+                                       String *stmt_query,
+                                       DDL_LOG_STATE *ddl_log_state)
 {
-  const LEX_CSTRING *sp_name= &thd->lex->spname->m_name; // alias
   char path[FN_REFLEN];
   Trigger *trigger;
 
-  stmt_query->set(thd->query(), thd->query_length(), stmt_query->charset());
+  if (stmt_query)
+    stmt_query->set(thd->query(), thd->query_length(), stmt_query->charset());
 
   /* Find and delete trigger from list */
   if (!(trigger= find_trigger(sp_name, true)))
@@ -1166,6 +1185,22 @@ bool Table_triggers_list::drop_trigger(THD *thd, TABLE_LIST *tables,
                MYF(0));
     return 1;
   }
+
+  {
+    LEX_CSTRING query= {0,0};
+    if (stmt_query)
+    {
+      /* This code is executed in case of DROP TRIGGER */
+      lex_string_set3(&query, thd->query(), thd->query_length());
+    }
+
+    if (ddl_log_state)
+      if (ddl_log_drop_trigger(thd, ddl_log_state,
+                               &tables->db, &tables->table_name,
+                               sp_name, &query))
+        return 1;
+  }
+  debug_crash_here("ddl_log_drop_before_drop_trigger");
 
   if (!count)                                   // If no more triggers
   {
@@ -1184,8 +1219,12 @@ bool Table_triggers_list::drop_trigger(THD *thd, TABLE_LIST *tables,
       return 1;
   }
 
+  debug_crash_here("ddl_log_drop_before_drop_trn");
+
   if (rm_trigname_file(path, &tables->db, sp_name, MYF(MY_WME)))
     return 1;
+
+  debug_crash_here("ddl_log_drop_after_drop_trigger");
 
   delete trigger;
   return 0;
