@@ -5261,6 +5261,7 @@ void Item_func_like::print(String *str, enum_query_type query_type)
 longlong Item_func_like::val_int()
 {
   DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(escape != -1);
   String* res= args[0]->val_str(&cmp_value1);
   if (args[0]->null_value)
   {
@@ -5352,10 +5353,13 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
     my_error(ER_WRONG_ARGUMENTS,MYF(0),"ESCAPE");
     return TRUE;
   }
-  
+
+  IF_DBUG(*escape= -1,);
+
   if (escape_item->const_item())
   {
     /* If we are on execution stage */
+    /* XXX is it safe to evaluate is_expensive() items here? */
     String *escape_str= escape_item->val_str(tmp_str);
     if (escape_str)
     {
