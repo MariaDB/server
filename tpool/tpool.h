@@ -220,7 +220,7 @@ public:
   {
     if (use_native_aio)
       m_aio.reset(create_native_aio(max_io));
-    if (!m_aio)
+    else
       m_aio.reset(create_simulated_aio(this));
     return !m_aio ? -1 : 0;
   }

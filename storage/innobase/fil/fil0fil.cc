@@ -496,18 +496,16 @@ void fil_space_t::flush_low()
 {
   ut_ad(!mutex_own(&fil_system.mutex));
 
-  uint32_t n= 0;
-  while (!n_pending.compare_exchange_strong(n, (n + 1) | NEEDS_FSYNC,
+  uint32_t n= 1;
+  while (!n_pending.compare_exchange_strong(n, n | NEEDS_FSYNC,
                                             std::memory_order_acquire,
                                             std::memory_order_relaxed))
   {
+    ut_ad(n & PENDING);
     if (n & STOPPING)
       return;
-    if (!(n & NEEDS_FSYNC))
-      continue;
-    if (acquire_low() & STOPPING)
-      return;
-    break;
+    if (n & NEEDS_FSYNC)
+      break;
   }
 
   fil_n_pending_tablespace_flushes++;
@@ -535,7 +533,6 @@ void fil_space_t::flush_low()
   }
 
   clear_flush();
-  release();
   fil_n_pending_tablespace_flushes--;
 }
 
@@ -632,8 +629,10 @@ fil_space_extend_must_retry(
 	case TRX_SYS_SPACE:
 		srv_sys_space.set_last_file_size(pages_in_MiB);
 	do_flush:
+		space->reacquire();
 		mutex_exit(&fil_system.mutex);
 		space->flush_low();
+		space->release();
 		mutex_enter(&fil_system.mutex);
 		break;
 	default:
@@ -3395,8 +3394,10 @@ rescan:
   {
     if (space.needs_flush_not_stopping())
     {
+      space.reacquire();
       mutex_exit(&fil_system.mutex);
       space.flush_low();
+      space.release();
       goto rescan;
     }
   }

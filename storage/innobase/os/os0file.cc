@@ -3890,7 +3890,6 @@ versions where native aio is supported it won't work on tmpfs. In such
 cases we can't use native aio.
 
 @return: true if supported, false otherwise. */
-#include <libaio.h>
 static bool is_linux_native_aio_supported()
 {
 	File		fd;
@@ -4012,33 +4011,40 @@ static bool is_linux_native_aio_supported()
 }
 #endif
 
-
-
-bool os_aio_init(ulint n_reader_threads, ulint n_writer_threads, ulint)
+int os_aio_init()
 {
-  int max_write_events= int(n_writer_threads * OS_AIO_N_PENDING_IOS_PER_THREAD);
-  int max_read_events= int(n_reader_threads * OS_AIO_N_PENDING_IOS_PER_THREAD);
-  int max_events = max_read_events + max_write_events;
-	int ret;
-
+  int max_write_events= int(srv_n_write_io_threads *
+                            OS_AIO_N_PENDING_IOS_PER_THREAD);
+  int max_read_events= int(srv_n_read_io_threads *
+                           OS_AIO_N_PENDING_IOS_PER_THREAD);
+  int max_events= max_read_events + max_write_events;
+  int ret;
 #if LINUX_NATIVE_AIO
-	if (srv_use_native_aio && !is_linux_native_aio_supported())
-		srv_use_native_aio = false;
+  if (srv_use_native_aio && !is_linux_native_aio_supported())
+    goto disable;
 #endif
-	ret = srv_thread_pool->configure_aio(srv_use_native_aio, max_events);
-	if(ret) {
-		ut_a(srv_use_native_aio);
-		srv_use_native_aio = false;
+
+  ret= srv_thread_pool->configure_aio(srv_use_native_aio, max_events);
+
 #ifdef LINUX_NATIVE_AIO
-		ib::info() << "Linux native AIO disabled";
+  if (ret)
+  {
+    ut_ad(srv_use_native_aio);
+disable:
+    ib::warn() << "Linux Native AIO disabled.";
+    srv_use_native_aio= false;
+    ret= srv_thread_pool->configure_aio(false, max_events);
+  }
 #endif
-		ret = srv_thread_pool->configure_aio(srv_use_native_aio, max_events);
-		DBUG_ASSERT(!ret);
-	}
-	read_slots = new io_slots(max_read_events, (uint)n_reader_threads);
-	write_slots = new io_slots(max_write_events, (uint)n_writer_threads);
-	return true;
+
+  if (!ret)
+  {
+    read_slots= new io_slots(max_read_events, srv_n_read_io_threads);
+    write_slots= new io_slots(max_write_events, srv_n_write_io_threads);
+  }
+  return ret;
 }
+
 
 void os_aio_free()
 {
@@ -4157,8 +4163,8 @@ os_aio_print(FILE*	file)
 	time_t		current_time;
 	double		time_elapsed;
 
-	for (ulint i = 0; i < srv_n_file_io_threads; ++i) {
-		fprintf(file, "I/O thread " ULINTPF " state: %s (%s)",
+	for (uint i = 0; i < srv_n_file_io_threads; ++i) {
+		fprintf(file, "I/O thread %u state: %s (%s)",
 			i,
 			srv_io_thread_op_info[i],
 			srv_io_thread_function[i]);

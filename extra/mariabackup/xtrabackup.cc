@@ -552,7 +552,7 @@ void CorruptedPages::zero_out_free_pages()
             *page_it, space_name.c_str());
       }
     }
-    space->flush();
+    space->flush<true>();
     space->release();
   }
   m_spaces.swap(non_free_pages);
@@ -2120,9 +2120,9 @@ static bool innodb_init_param()
 	srv_buf_pool_size = (ulint) xtrabackup_use_memory;
 	srv_buf_pool_chunk_unit = (ulong)srv_buf_pool_size;
 
-	srv_n_file_io_threads = (ulint) innobase_file_io_threads;
-	srv_n_read_io_threads = innobase_read_io_threads;
-	srv_n_write_io_threads = innobase_write_io_threads;
+	srv_n_file_io_threads = (uint) innobase_file_io_threads;
+	srv_n_read_io_threads = (uint) innobase_read_io_threads;
+	srv_n_write_io_threads = (uint) innobase_write_io_threads;
 
 	srv_max_n_open_files = ULINT_UNDEFINED - 5;
 
@@ -4265,8 +4265,10 @@ fail:
 	xb_fil_io_init();
 	srv_n_file_io_threads = srv_n_read_io_threads;
 
-	os_aio_init(srv_n_read_io_threads, srv_n_write_io_threads,
-		    SRV_MAX_N_PENDING_SYNC_IOS);
+	if (os_aio_init()) {
+		msg("Error: cannot initialize AIO subsystem");
+		goto fail;
+	}
 
 	log_sys.create();
 	log_sys.log.create();

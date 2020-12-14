@@ -337,11 +337,11 @@ extern ulong srv_buf_pool_load_pages_abort;
 /** Lock table size in bytes */
 extern ulint	srv_lock_table_size;
 
-extern ulint	srv_n_file_io_threads;
+extern uint	srv_n_file_io_threads;
 extern my_bool	srv_random_read_ahead;
 extern ulong	srv_read_ahead_threshold;
-extern ulong	srv_n_read_io_threads;
-extern ulong	srv_n_write_io_threads;
+extern uint	srv_n_read_io_threads;
+extern uint	srv_n_write_io_threads;
 
 /* Defragmentation, Origianlly facebook default value is 100, but it's too high */
 #define SRV_DEFRAGMENT_FREQUENCY_DEFAULT 40
