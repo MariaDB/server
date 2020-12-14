@@ -22796,7 +22796,9 @@ int setup_order(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
       an ORDER BY clause
     */
 
-    if (for_union && (*order->item)->with_sum_func)
+    if (for_union &&
+        ((*order->item)->with_sum_func ||
+         (*order->item)->with_window_func))
     {
       my_error(ER_AGGREGATE_ORDER_FOR_UNION, MYF(0), number);
       return 1;
