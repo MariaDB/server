@@ -4029,7 +4029,8 @@ int os_aio_init()
     ut_ad(srv_use_native_aio);
 disable:
     ib::warn() << "Linux Native AIO disabled.";
-    ret= srv_thread_pool->configure_aio(srv_use_native_aio= false, max_events);
+    srv_use_native_aio= false;
+    ret= srv_thread_pool->configure_aio(false, max_events);
   }
 #endif
 
