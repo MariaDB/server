@@ -124,10 +124,10 @@ public:
   void init() { my_rwlock_init(&lock, nullptr); }
   void destroy() { rwlock_destroy(&lock); }
   void rd_lock() { rw_rdlock(&lock); }
-  bool rd_lock_try() { return rw_tryrdlock(&lock); }
+  bool rd_lock_try() { return !rw_tryrdlock(&lock); }
   void rd_unlock() { rw_unlock(&lock); }
   void wr_lock() { rw_wrlock(&lock); }
-  bool wr_lock_try() { return rw_trywrlock(&lock); }
+  bool wr_lock_try() { return !rw_trywrlock(&lock); }
   void wr_unlock() { rw_unlock(&lock); }
 # endif
 };
