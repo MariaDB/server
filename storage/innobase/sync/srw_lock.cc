@@ -20,7 +20,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "srv0srv.h"
 
 #ifdef SRW_LOCK_DUMMY
-void srw_lock_low::init()
+void ssux_lock_low::init()
 {
   DBUG_ASSERT(!is_locked_or_waiting());
   pthread_mutex_init(&mutex, nullptr);
@@ -28,7 +28,7 @@ void srw_lock_low::init()
   pthread_cond_init(&cond_exclusive, nullptr);
 }
 
-void srw_lock_low::destroy()
+void ssux_lock_low::destroy()
 {
   DBUG_ASSERT(!is_locked_or_waiting());
   pthread_mutex_destroy(&mutex);
@@ -36,23 +36,23 @@ void srw_lock_low::destroy()
   pthread_cond_destroy(&cond_exclusive);
 }
 
-inline void srw_lock_low::writer_wait(uint32_t l)
+inline void ssux_lock_low::writer_wait(uint32_t l)
 {
   pthread_mutex_lock(&mutex);
-  if (value() == l)
+  while (value() == l)
     pthread_cond_wait(&cond_exclusive, &mutex);
   pthread_mutex_unlock(&mutex);
 }
 
-inline void srw_lock_low::readers_wait(uint32_t l)
+inline void ssux_lock_low::readers_wait(uint32_t l)
 {
   pthread_mutex_lock(&mutex);
-  if (value() == l)
+  while (value() == l)
     pthread_cond_wait(&cond_shared, &mutex);
   pthread_mutex_unlock(&mutex);
 }
 
-inline void srw_lock_low::writer_wake()
+inline void ssux_lock_low::writer_wake()
 {
   pthread_mutex_lock(&mutex);
   uint32_t l= value();
@@ -72,12 +72,12 @@ static_assert(4 == sizeof(rw_lock), "ABI");
 # ifdef _WIN32
 #  include <synchapi.h>
 
-inline void srw_lock_low::writer_wait(uint32_t l)
+inline void ssux_lock_low::writer_wait(uint32_t l)
 {
   WaitOnAddress(word(), &l, 4, INFINITE);
 }
-inline void srw_lock_low::writer_wake() { WakeByAddressSingle(word()); }
-inline void srw_lock_low::readers_wake() { WakeByAddressAll(word()); }
+inline void ssux_lock_low::writer_wake() { WakeByAddressSingle(word()); }
+inline void ssux_lock_low::readers_wake() { WakeByAddressAll(word()); }
 # else
 #  ifdef __linux__
 #   include <linux/futex.h>
@@ -93,19 +93,19 @@ inline void srw_lock_low::readers_wake() { WakeByAddressAll(word()); }
 #   error "no futex support"
 #  endif
 
-inline void srw_lock_low::writer_wait(uint32_t l)
+inline void ssux_lock_low::writer_wait(uint32_t l)
 {
   SRW_FUTEX(word(), WAIT, l);
 }
-inline void srw_lock_low::writer_wake() { SRW_FUTEX(word(), WAKE, 1); }
-inline void srw_lock_low::readers_wake() { SRW_FUTEX(word(), WAKE, INT_MAX); }
+inline void ssux_lock_low::writer_wake() { SRW_FUTEX(word(), WAKE, 1); }
+inline void ssux_lock_low::readers_wake() { SRW_FUTEX(word(), WAKE, INT_MAX); }
 # endif
 # define readers_wait writer_wait
 #endif
 
 /** Wait for a read lock.
 @param lock word value from a failed read_trylock() */
-void srw_lock_low::read_lock(uint32_t l)
+void ssux_lock_low::read_lock(uint32_t l)
 {
   do
   {
@@ -114,12 +114,15 @@ void srw_lock_low::read_lock(uint32_t l)
     wake_writer:
 #ifdef SRW_LOCK_DUMMY
       pthread_mutex_lock(&mutex);
+      for (;;)
       {
-        pthread_cond_signal(&cond_exclusive);
-        pthread_cond_wait(&cond_shared, &mutex);
+        if (l == WRITER_WAITING)
+          pthread_cond_signal(&cond_exclusive);
         l= value();
+        if (!(l & WRITER_PENDING))
+          break;
+        pthread_cond_wait(&cond_shared, &mutex);
       }
-      while (l == WRITER_WAITING);
       pthread_mutex_unlock(&mutex);
       continue;
 #else
@@ -143,7 +146,7 @@ void srw_lock_low::read_lock(uint32_t l)
 
 /** Wait for an update lock.
 @param lock word value from a failed update_trylock() */
-void srw_lock_low::update_lock(uint32_t l)
+void ssux_lock_low::update_lock(uint32_t l)
 {
   do
   {
@@ -152,12 +155,15 @@ void srw_lock_low::update_lock(uint32_t l)
     wake_writer:
 #ifdef SRW_LOCK_DUMMY
       pthread_mutex_lock(&mutex);
+      for (;;)
       {
-        pthread_cond_signal(&cond_exclusive);
-        pthread_cond_wait(&cond_shared, &mutex);
+        if (l == WRITER_WAITING)
+          pthread_cond_signal(&cond_exclusive);
         l= value();
+        if (!(l & WRITER_PENDING))
+          break;
+        pthread_cond_wait(&cond_shared, &mutex);
       }
-      while (l == WRITER_WAITING);
       pthread_mutex_unlock(&mutex);
       continue;
 #else
@@ -181,7 +187,7 @@ void srw_lock_low::update_lock(uint32_t l)
 
 /** Wait for a write lock after a failed write_trylock() or upgrade_trylock()
 @param holding_u  whether we already hold u_lock() */
-void srw_lock_low::write_lock(bool holding_u)
+void ssux_lock_low::write_lock(bool holding_u)
 {
   for (;;)
   {
@@ -222,24 +228,70 @@ void srw_lock_low::write_lock(bool holding_u)
   }
 }
 
-void srw_lock_low::rd_unlock() { if (read_unlock()) writer_wake(); }
+void ssux_lock_low::rd_unlock() { if (read_unlock()) writer_wake(); }
 
-void srw_lock_low::u_unlock() { if (update_unlock()) writer_wake(); }
+void ssux_lock_low::u_unlock()
+{
+#ifdef SRW_LOCK_DUMMY
+  update_unlock();
+  writer_wake(); /* Wake up either write_lock() or update_lock() */
+#else
+  if (update_unlock())
+    writer_wake(); /* Wake up one waiter (hopefully the writer) */
+#endif
+}
 
-void srw_lock_low::wr_unlock() { write_unlock(); readers_wake(); }
+void ssux_lock_low::wr_unlock() { write_unlock(); readers_wake(); }
 
 #ifdef UNIV_PFS_RWLOCK
-template<bool support_u_lock>
 void srw_lock::psi_rd_lock(const char *file, unsigned line)
+{
+  PSI_rwlock_locker_state state;
+# if defined SRW_LOCK_DUMMY || defined _WIN32
+  const bool nowait= lock.rd_lock_try();
+#  define RD_LOCK() rd_lock()
+# else
+  uint32_t l;
+  const bool nowait= lock.read_trylock(l);
+#  define RD_LOCK() read_lock(l)
+# endif
+  if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_rdwait)
+      (&state, pfs_psi,
+       nowait ? PSI_RWLOCK_TRYREADLOCK : PSI_RWLOCK_READLOCK, file, line))
+  {
+    if (!nowait)
+      lock.RD_LOCK();
+    PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
+  }
+  else if (!nowait)
+    lock.RD_LOCK();
+# undef RD_LOCK
+}
+
+void srw_lock::psi_wr_lock(const char *file, unsigned line)
+{
+  PSI_rwlock_locker_state state;
+  const bool nowait= lock.wr_lock_try();
+  if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
+      (&state, pfs_psi,
+       nowait ? PSI_RWLOCK_TRYWRITELOCK : PSI_RWLOCK_WRITELOCK, file, line))
+  {
+    if (!nowait)
+      lock.wr_lock();
+    PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
+  }
+  else if (!nowait)
+    lock.wr_lock();
+}
+
+void ssux_lock::psi_rd_lock(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
   uint32_t l;
   const bool nowait= lock.read_trylock(l);
   if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_rdwait)
       (&state, pfs_psi,
-       support_u_lock
-       ? (nowait ? PSI_RWLOCK_TRYSHAREDLOCK : PSI_RWLOCK_SHAREDLOCK)
-       : (nowait ? PSI_RWLOCK_TRYREADLOCK : PSI_RWLOCK_READLOCK), file, line))
+       nowait ? PSI_RWLOCK_TRYSHAREDLOCK : PSI_RWLOCK_SHAREDLOCK, file, line))
   {
     if (!nowait)
       lock.read_lock(l);
@@ -249,10 +301,7 @@ void srw_lock::psi_rd_lock(const char *file, unsigned line)
     lock.read_lock(l);
 }
 
-template void srw_lock::psi_rd_lock<false>(const char *, unsigned);
-template void srw_lock::psi_rd_lock<true>(const char *, unsigned);
-
-void srw_lock::psi_u_lock(const char *file, unsigned line)
+void ssux_lock::psi_u_lock(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
   if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
@@ -265,16 +314,13 @@ void srw_lock::psi_u_lock(const char *file, unsigned line)
     lock.u_lock();
 }
 
-template<bool support_u_lock>
-void srw_lock::psi_wr_lock(const char *file, unsigned line)
+void ssux_lock::psi_wr_lock(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
   const bool nowait= lock.write_trylock();
   if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
       (&state, pfs_psi,
-       support_u_lock
-       ? (nowait ? PSI_RWLOCK_TRYEXCLUSIVELOCK : PSI_RWLOCK_EXCLUSIVELOCK)
-       : (nowait ? PSI_RWLOCK_TRYWRITELOCK : PSI_RWLOCK_WRITELOCK),
+       nowait ? PSI_RWLOCK_TRYEXCLUSIVELOCK : PSI_RWLOCK_EXCLUSIVELOCK,
        file, line))
   {
     if (!nowait)
@@ -285,10 +331,7 @@ void srw_lock::psi_wr_lock(const char *file, unsigned line)
     lock.wr_lock();
 }
 
-template void srw_lock::psi_wr_lock<false>(const char *, unsigned);
-template void srw_lock::psi_wr_lock<true>(const char *, unsigned);
-
-void srw_lock::psi_u_wr_upgrade(const char *file, unsigned line)
+void ssux_lock::psi_u_wr_upgrade(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
   const bool nowait= lock.upgrade_trylock();

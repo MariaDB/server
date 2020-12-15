@@ -27,7 +27,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 /** A "fat" rw-lock that supports
 S (shared), U (update, or shared-exclusive), and X (exclusive) modes
 as well as recursive U and X latch acquisition
-@tparam srw srw_lock_low or srw_lock */
+@tparam srw ssux_lock_low or ssux_lock */
 template<typename srw>
 class sux_lock final
 {
@@ -259,19 +259,19 @@ public:
 };
 
 /** needed for dict_index_t::clone() */
-template<> inline void sux_lock<srw_lock>::operator=(const sux_lock&)
+template<> inline void sux_lock<ssux_lock>::operator=(const sux_lock&)
 {
   memset((void*) this, 0, sizeof *this);
 }
 
-typedef sux_lock<srw_lock_low> block_lock;
+typedef sux_lock<ssux_lock_low> block_lock;
 
 #ifndef UNIV_PFS_RWLOCK
 typedef block_lock index_lock;
 #else
-typedef sux_lock<srw_lock> index_lock;
+typedef sux_lock<ssux_lock> index_lock;
 
-template<> inline void sux_lock<srw_lock_low>::init()
+template<> inline void sux_lock<ssux_lock_low>::init()
 {
   lock.init();
   ut_ad(!writer.load(std::memory_order_relaxed));
@@ -281,16 +281,16 @@ template<> inline void sux_lock<srw_lock_low>::init()
 }
 
 template<>
-inline void sux_lock<srw_lock>::s_lock(const char *file, unsigned line)
+inline void sux_lock<ssux_lock>::s_lock(const char *file, unsigned line)
 {
   ut_ad(!have_x());
   ut_ad(!have_s());
-  lock.template rd_lock<true>(file, line);
+  lock.rd_lock(file, line);
   ut_d(s_lock_register());
 }
 
 template<>
-inline void sux_lock<srw_lock>::u_lock(const char *file, unsigned line)
+inline void sux_lock<ssux_lock>::u_lock(const char *file, unsigned line)
 {
   os_thread_id_t id= os_thread_get_curr_id();
   if (writer.load(std::memory_order_relaxed) == id)
@@ -305,14 +305,14 @@ inline void sux_lock<srw_lock>::u_lock(const char *file, unsigned line)
 }
 
 template<>
-inline void sux_lock<srw_lock>::x_lock(const char *file, unsigned line)
+inline void sux_lock<ssux_lock>::x_lock(const char *file, unsigned line)
 {
   os_thread_id_t id= os_thread_get_curr_id();
   if (writer.load(std::memory_order_relaxed) == id)
     writer_recurse<false>();
   else
   {
-    lock.template wr_lock<true>(file, line);
+    lock.wr_lock(file, line);
     ut_ad(!recursive);
     recursive= RECURSIVE_X;
     set_first_owner(id);
@@ -320,7 +320,7 @@ inline void sux_lock<srw_lock>::x_lock(const char *file, unsigned line)
 }
 
 template<>
-inline void sux_lock<srw_lock>::u_x_upgrade(const char *file, unsigned line)
+inline void sux_lock<ssux_lock>::u_x_upgrade(const char *file, unsigned line)
 {
   ut_ad(have_u_not_x());
   lock.u_wr_upgrade(file, line);
@@ -329,16 +329,16 @@ inline void sux_lock<srw_lock>::u_x_upgrade(const char *file, unsigned line)
 #endif
 
 template<>
-inline void sux_lock<srw_lock_low>::s_lock()
+inline void sux_lock<ssux_lock_low>::s_lock()
 {
   ut_ad(!have_x());
   ut_ad(!have_s());
-  lock.template rd_lock<true>();
+  lock.rd_lock();
   ut_d(s_lock_register());
 }
 
 template<>
-inline void sux_lock<srw_lock_low>::u_lock()
+inline void sux_lock<ssux_lock_low>::u_lock()
 {
   os_thread_id_t id= os_thread_get_curr_id();
   if (writer.load(std::memory_order_relaxed) == id)
@@ -353,7 +353,7 @@ inline void sux_lock<srw_lock_low>::u_lock()
 }
 
 template<>
-inline void sux_lock<srw_lock_low>::x_lock(bool for_io)
+inline void sux_lock<ssux_lock_low>::x_lock(bool for_io)
 {
   os_thread_id_t id= os_thread_get_curr_id();
   if (writer.load(std::memory_order_relaxed) == id)
@@ -363,7 +363,7 @@ inline void sux_lock<srw_lock_low>::x_lock(bool for_io)
   }
   else
   {
-    lock.template wr_lock<true>();
+    lock.wr_lock();
     ut_ad(!recursive);
     recursive= RECURSIVE_X;
     set_first_owner(for_io ? FOR_IO : id);
@@ -371,14 +371,14 @@ inline void sux_lock<srw_lock_low>::x_lock(bool for_io)
 }
 
 template<>
-inline void sux_lock<srw_lock_low>::u_x_upgrade()
+inline void sux_lock<ssux_lock_low>::u_x_upgrade()
 {
   ut_ad(have_u_not_x());
   lock.u_wr_upgrade();
   recursive/= RECURSIVE_U;
 }
 
-template<> inline bool sux_lock<srw_lock_low>::x_lock_upgraded()
+template<> inline bool sux_lock<ssux_lock_low>::x_lock_upgraded()
 {
   os_thread_id_t id= os_thread_get_curr_id();
   if (writer.load(std::memory_order_relaxed) == id)
@@ -397,7 +397,7 @@ template<> inline bool sux_lock<srw_lock_low>::x_lock_upgraded()
   }
   else
   {
-    lock.template wr_lock<true>();
+    lock.wr_lock();
     ut_ad(!recursive);
     recursive= RECURSIVE_X;
     set_first_owner(id);
@@ -406,7 +406,7 @@ template<> inline bool sux_lock<srw_lock_low>::x_lock_upgraded()
 }
 
 template<>
-inline bool sux_lock<srw_lock_low>::u_lock_try(bool for_io)
+inline bool sux_lock<ssux_lock_low>::u_lock_try(bool for_io)
 {
   os_thread_id_t id= os_thread_get_curr_id();
   if (writer.load(std::memory_order_relaxed) == id)
@@ -427,7 +427,7 @@ inline bool sux_lock<srw_lock_low>::u_lock_try(bool for_io)
 }
 
 template<>
-inline bool sux_lock<srw_lock_low>::x_lock_try()
+inline bool sux_lock<ssux_lock_low>::x_lock_try()
 {
   os_thread_id_t id= os_thread_get_curr_id();
   if (writer.load(std::memory_order_relaxed) == id)
