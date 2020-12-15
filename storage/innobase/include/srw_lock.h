@@ -121,6 +121,7 @@ public:
   void wr_unlock() { ReleaseSRWLockExclusive(&lock); }
 # else
   rw_lock_t lock;
+public:
   void init() { my_rwlock_init(&lock, nullptr); }
   void destroy() { rwlock_destroy(&lock); }
   void rd_lock() { rw_rdlock(&lock); }
