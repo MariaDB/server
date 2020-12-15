@@ -4663,6 +4663,23 @@ prepare_inplace_alter_table_dict(
 				goto new_clustered_failed;
 			}
 
+			/** Note the FTS_DOC_ID name is case sensitive due
+			 to internal query parser.
+			 FTS_DOC_ID column must be of BIGINT NOT NULL type
+			 and it should be in all capitalized characters */
+			if (!innobase_strcasecmp(field->field_name,
+						 FTS_DOC_ID_COL_NAME)) {
+				if (col_type != DATA_INT
+				    || field->real_maybe_null()
+				    || col_len != sizeof(doc_id_t)
+				    || strcmp(field->field_name,
+					      FTS_DOC_ID_COL_NAME)) {
+					my_error(ER_WRONG_COLUMN_NAME, MYF(0),
+						 field->field_name);
+					goto new_clustered_failed;
+				}
+			}
+
 			if (is_virtual) {
 				dict_mem_table_add_v_col(
 					ctx->new_table, ctx->heap,
