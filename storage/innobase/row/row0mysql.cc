@@ -2304,6 +2304,8 @@ row_create_table_for_mysql(
 	ut_d(dict_sys.assert_locked());
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 
+	DEBUG_SYNC_C("create_table");
+
 	DBUG_EXECUTE_IF(
 		"ib_create_table_fail_at_start_of_row_create_table_for_mysql",
 		goto err_exit;
