@@ -5811,6 +5811,10 @@ static bool xtrabackup_prepare_func(char** argv)
 		ut_ad(inc_dir_tables_hash);
 	}
 
+	msg("open files limit requested %u, set to %u",
+	    (uint) xb_open_files_limit,
+	    xb_set_max_open_files(xb_open_files_limit));
+
 	/* Fix DDL for prepare. Process .del,.ren, and .new files.
 	The order in which files are processed, is important
 	(see MDEV-18185, MDEV-18201)
