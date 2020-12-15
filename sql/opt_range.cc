@@ -9930,11 +9930,53 @@ get_range(SEL_ARG **e1,SEL_ARG **e2,SEL_ARG *root1)
   return 0;
 }
 
+#ifndef DBUG_OFF
+/*
+  Verify SEL_TREE's weight.
+
+  Recompute the weight and compare
+*/
+uint SEL_ARG::verify_weight()
+{
+  uint computed_weight= 0;
+  SEL_ARG *first_arg= first();
+
+  if (first_arg)
+  {
+    for (SEL_ARG *arg= first_arg; arg; arg= arg->next)
+    {
+      computed_weight += 1;
+      if (arg->next_key_part)
+        computed_weight+= arg->next_key_part->verify_weight();
+    }
+  }
+  else
+  {
+    // first()=NULL means this is a special kind of SEL_ARG, e.g.
+    // SEL_ARG with type=MAYBE_KEY
+    computed_weight= 1;
+    if (next_key_part)
+      computed_weight += next_key_part->verify_weight();
+  }
+
+  if (computed_weight != weight)
+  {
+    sql_print_error("SEL_ARG weight mismatch: computed %u have %u\n",
+                    computed_weight, weight);
+  }
+  return computed_weight;
+}
+#endif
 
 static SEL_ARG *key_or_with_limit(RANGE_OPT_PARAM *param,
                                   SEL_ARG *key1, SEL_ARG *key2)
 {
-  return enforce_sel_arg_weight_limit(key_or(param, key1, key2));
+  SEL_ARG *res= enforce_sel_arg_weight_limit(key_or(param, key1, key2));
+#ifndef DBUG_OFF
+  if (res)
+    res->verify_weight();
+#endif
+  return res;
 }
 
 
@@ -9942,7 +9984,12 @@ static SEL_ARG *key_and_with_limit(RANGE_OPT_PARAM *param,
                                   SEL_ARG *key1, SEL_ARG *key2,
                                   uint clone_flag)
 {
-  return enforce_sel_arg_weight_limit(key_and(param, key1, key2, clone_flag));
+  SEL_ARG *res= enforce_sel_arg_weight_limit(key_and(param, key1, key2, clone_flag));
+#ifndef DBUG_OFF
+  if (res)
+    res->verify_weight();
+#endif
+  return res;
 }
 
 

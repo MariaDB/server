@@ -309,6 +309,9 @@ public:
   */
   uint weight;
   enum { MAX_WEIGHT = 32000 };
+#ifndef DBUG_OFF
+  uint verify_weight();
+#endif
 
   /* See RANGE_OPT_PARAM::alloced_sel_args */
   enum { MAX_SEL_ARGS = 16000 };
