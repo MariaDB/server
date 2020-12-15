@@ -76,6 +76,7 @@ public:
 	void* GetBase(void) { return Base; }
 	void  SubSet(bool b = false);
 	void  MemSave(void) {G->Saved_Size = ((PPOOLHEADER)G->Sarea)->To_Free;}
+	void  MemSet(size_t size);
 	void  GetMsg(PGLOBAL g) { if (g != G) strcpy(g->Message, G->Message); }
 
 	// SubAlloc functions

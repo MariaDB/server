@@ -805,8 +805,8 @@ int DOSFAM::ReadBuffer(PGLOBAL g)
     Placed = false;
 
   if (trace(2))
-    htrc(" About to read: stream=%p To_Buf=%p Buflen=%d\n",
-                          Stream, To_Buf, Buflen);
+    htrc(" About to read: stream=%p To_Buf=%p Buflen=%d Fpos=%d\n",
+                          Stream, To_Buf, Buflen, Fpos);
 
   if (fgets(To_Buf, Buflen, Stream)) {
     p = To_Buf + strlen(To_Buf) - 1;
@@ -1665,6 +1665,7 @@ void BLKFAM::Rewind(void)
 
 /* --------------------------- Class BINFAM -------------------------- */
 
+#if 0
 /***********************************************************************/
 /*  BIN GetFileLength: returns file size in number of bytes.           */
 /***********************************************************************/
@@ -1692,7 +1693,6 @@ int BINFAM::Cardinality(PGLOBAL g)
 	return (g) ? -1 : 0;
 } // end of Cardinality
 
-#if 0
 /***********************************************************************/
 /*  OpenTableFile: Open a DOS/UNIX table file using C standard I/Os.   */
 /***********************************************************************/
@@ -1742,16 +1742,34 @@ bool BINFAM::OpenTableFile(PGLOBAL g) {
 /***********************************************************************/
 bool BINFAM::AllocateBuffer(PGLOBAL g)
 {
-	MODE mode = Tdbp->GetMode();
+  MODE mode = Tdbp->GetMode();
 
-	// Lrecl is Ok
-	Buflen = Lrecl;
+  // Lrecl is Ok
+  Buflen = Lrecl;
 
-	if (trace(1))
-		htrc("SubAllocating a buffer of %d bytes\n", Buflen);
+  // Buffer will be allocated separately
+  if (mode == MODE_ANY) {
+    xtrc(1, "SubAllocating a buffer of %d bytes\n", Buflen);
+    To_Buf = (char*)PlugSubAlloc(g, NULL, Buflen);
+  } else if (UseTemp || mode == MODE_DELETE) {
+    // Have a big buffer to move lines
+    Dbflen = Buflen * DOS_BUFF_LEN;
+    DelBuf = PlugSubAlloc(g, NULL, Dbflen);
+  } // endif mode
 
-	To_Buf = (char*)PlugSubAlloc(g, NULL, Buflen);
-	return false;
+  return false;
+#if 0
+  MODE mode = Tdbp->GetMode();
+
+  // Lrecl is Ok
+  Dbflen = Buflen = Lrecl;
+
+  if (trace(1))
+    htrc("SubAllocating a buffer of %d bytes\n", Buflen);
+
+  DelBuf = To_Buf = (char*)PlugSubAlloc(g, NULL, Buflen);
+  return false;
+#endif // 0
 } // end of AllocateBuffer
 
 #if 0
@@ -1830,8 +1848,8 @@ int BINFAM::ReadBuffer(PGLOBAL g)
 	} else
 		Placed = false;
 
-	xtrc(2, " About to read: bstream=%p To_Buf=%p Buflen=%d\n",
-						Stream, To_Buf, Buflen);
+	xtrc(2, " About to read: bstream=%p To_Buf=%p Buflen=%d Fpos=%d\n",
+						Stream, To_Buf, Buflen, Fpos);
 
 	// Read the prefix giving the row length
 	if (!fread(&Recsize, sizeof(size_t), 1, Stream)) {
@@ -1848,7 +1866,6 @@ int BINFAM::ReadBuffer(PGLOBAL g)
 
 	if (fread(To_Buf, Recsize, 1, Stream)) {
 		xtrc(2, " Read: To_Buf=%p Recsize=%zd\n", To_Buf, Recsize);
-		// memcpy(Tdbp->GetLine(), To_Buf, Recsize);
 		num_read++;
 		rc = RC_OK;
 	} else if (feof(Stream)) {
@@ -1876,7 +1893,51 @@ int BINFAM::WriteBuffer(PGLOBAL g)
 	int   curpos = 0;
 	bool  moved = true;
 
-	/*********************************************************************/
+  // T_Stream is the temporary stream or the table file stream itself
+  if (!T_Stream) {
+    if (UseTemp && Tdbp->GetMode() == MODE_UPDATE) {
+      if (OpenTempFile(g))
+        return RC_FX;
+
+    } else
+      T_Stream = Stream;
+
+  } // endif T_Stream
+
+  if (Tdbp->GetMode() == MODE_UPDATE) {
+    /*******************************************************************/
+    /*  Here we simply rewrite a record on itself. There are two cases */
+    /*  were another method should be used, a/ when Update apply to    */
+    /*  the whole file, b/ when updating the last field of a variable  */
+    /*  length file. The method could be to rewrite a new file, then   */
+    /*  to erase the old one and rename the new updated file.          */
+    /*******************************************************************/
+    curpos = ftell(Stream);
+
+    if (trace(1))
+      htrc("Last : %d cur: %d\n", Fpos, curpos);
+
+    if (UseTemp) {
+      /*****************************************************************/
+      /*  We are using a temporary file.                               */
+      /*  Before writing the updated record, we must eventually copy   */
+      /*  all the intermediate records that have not been updated.     */
+      /*****************************************************************/
+      if (MoveIntermediateLines(g, &moved))
+        return RC_FX;
+
+      Spos = curpos;                            // New start position
+    } else
+      // Update is directly written back into the file,
+      //   with this (fast) method, record size cannot change.
+      if (fseek(Stream, Fpos, SEEK_SET)) {
+        sprintf(g->Message, MSG(FSETPOS_ERROR), 0);
+        return RC_FX;
+      } // endif
+
+  } // endif mode
+
+  /*********************************************************************/
 	/*  Prepare writing the line.                                        */
 	/*********************************************************************/
 //memcpy(To_Buf, Tdbp->GetLine(), Recsize);
@@ -1884,17 +1945,23 @@ int BINFAM::WriteBuffer(PGLOBAL g)
 	/*********************************************************************/
 	/*  Now start the writing process.                                   */
 	/*********************************************************************/
-	if (fwrite(&Recsize, sizeof(size_t), 1, Stream) != 1) {
+	if (fwrite(&Recsize, sizeof(size_t), 1, T_Stream) != 1) {
 		sprintf(g->Message, "Error %d writing prefix to %s",
 			errno, To_File);
 		return RC_FX;
-	} else if (fwrite(To_Buf, Recsize, 1, Stream) != 1) {
+	} else if (fwrite(To_Buf, Recsize, 1, T_Stream) != 1) {
 		sprintf(g->Message, "Error %d writing %zd bytes to %s",
 			errno, Recsize, To_File);
 		return RC_FX;
 	} // endif fwrite
 
-	xtrc(1, "write done\n");
+  if (Tdbp->GetMode() == MODE_UPDATE && moved)
+    if (fseek(Stream, curpos, SEEK_SET)) {
+      sprintf(g->Message, MSG(FSEEK_ERROR), strerror(errno));
+      return RC_FX;
+    } // endif
+
+  xtrc(1, "Binary write done\n");
 	return RC_OK;
 } // end of WriteBuffer
 
@@ -2023,7 +2090,6 @@ int DOSFAM::DeleteRecords(PGLOBAL g, int irc)
 
   return RC_OK;                                      // All is correct
 } // end of DeleteRecords
-#endif // 0
 
 /***********************************************************************/
 /*  Table file close routine for DOS access method.                    */
@@ -2049,4 +2115,4 @@ void BINFAM::Rewind(void)
 	Rows = 0;
 	OldBlk = CurBlk = -1;
 } // end of Rewind
-
+#endif // 0

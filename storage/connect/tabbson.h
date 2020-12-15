@@ -111,7 +111,7 @@ public:
   // Utility functions
   PBVAL FindRow(PGLOBAL g);
   PBVAL ParseLine(PGLOBAL g, int *pretty, bool *comma);
-  PBVAL MakeTopTree(PGLOBAL g, PBVAL jsp);
+  PBVAL MakeTopTree(PGLOBAL g, int type);
   PSZ   SerialVal(PGLOBAL g, PBVAL top, int pretty);
 
 protected:
@@ -196,10 +196,9 @@ protected:
 //int   MakeTopTree(PGLOBAL g, PBVAL jsp);
 
   // Members
-  PBTUT    Bp;                     // The BSUTIL handling class
+  PBTUT   Bp;                      // The BSUTIL handling class
   PBVAL   Top;                     // The top JSON tree
   PBVAL   Row;                     // The current row
-  PBVAL   Val;                     // The value of the current row
   PBSCOL  Colp;                    // The multiple column
   JMODE   Jmode;                   // MODE_OBJECT by default
   PCSZ    Objname;                 // The table object name

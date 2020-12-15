@@ -1665,7 +1665,7 @@ void JVALUE::SetValue(PGLOBAL g, PVAL valp)
   } else switch (valp->GetType()) {
   case TYPE_DATE:
 		if (((DTVAL*)valp)->IsFormatted())
-			Strp = valp->GetCharValue();
+			Strp = PlugDup(g, valp->GetCharValue());
 		else {
 			char buf[32];
 
@@ -1675,7 +1675,7 @@ void JVALUE::SetValue(PGLOBAL g, PVAL valp)
 		DataType = TYPE_DTM;
 		break;
 	case TYPE_STRING:
-    Strp = valp->GetCharValue();
+    Strp = PlugDup(g, valp->GetCharValue());
     DataType = TYPE_STRG;
     break;
   case TYPE_DOUBLE:

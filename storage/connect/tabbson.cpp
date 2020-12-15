@@ -634,29 +634,28 @@ PBVAL BTUTIL::ParseLine(PGLOBAL g, int *pretty, bool *comma)
 /***********************************************************************/
 /*  Make the top tree from the object path.                            */
 /***********************************************************************/
-PBVAL BTUTIL::MakeTopTree(PGLOBAL g, PBVAL jsp)
+PBVAL BTUTIL::MakeTopTree(PGLOBAL g, int type)
 {
-  PBVAL top = NULL;
+  PBVAL top = NULL, val = NULL;
 
   if (Tp->Objname) {
-    if (!Tp->Val) {
-      // Parse and allocate Objname item(s)
+    if (!Tp->Row) {
+      // Parse and allocate Objpath item(s)
       char* p;
-      char* objpath = PlugDup(g, Tp->Objname);
+      char *objpath = PlugDup(g, Tp->Objname);
       int   i;
       PBVAL objp = NULL;
       PBVAL arp = NULL;
-      PBVAL val = NULL;
 
       for (; objpath; objpath = p) {
         if ((p = strchr(objpath, Tp->Sep)))
           *p++ = 0;
 
         if (*objpath != '[' && !IsNum(objpath)) {
-          //        objp = new(g) JOBJECT;
+          objp = NewVal(TYPE_JOB);
 
           if (!top)
-            top = NewVal(TYPE_JOB);
+            top = objp;
 
           if (val)
             SetValueObj(val, objp);
@@ -687,12 +686,12 @@ PBVAL BTUTIL::MakeTopTree(PGLOBAL g, PBVAL jsp)
 
       } // endfor p
 
-      Tp->Val = val;
     } // endif Val
 
-    SetValueVal(Tp->Val, jsp);
+    Tp->Row = val;
+    Tp->Row->Type = type;
   } else
-    top = jsp;
+    top = Tp->Row = NewVal(type);
 
   return top;
 } // end of MakeTopTree
@@ -1270,7 +1269,6 @@ TDBBSN::TDBBSN(PGLOBAL g, PBDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
   Bp = new(g) BTUTIL(tdp->G, this);
   Top = NULL;
   Row = NULL;
-  Val = NULL;
   Colp = NULL;
 
   if (tdp) {
@@ -1306,7 +1304,6 @@ TDBBSN::TDBBSN(TDBBSN* tdbp) : TDBDOS(NULL, tdbp)
   Bp = tdbp->Bp;
   Top = tdbp->Top;
   Row = tdbp->Row;
-  Val = tdbp->Val;
   Colp = tdbp->Colp;
   Jmode = tdbp->Jmode;
   Objname = tdbp->Objname;
@@ -1413,11 +1410,6 @@ bool TDBBSN::OpenDB(PGLOBAL g)
 {
   TUSE use = Use;
 
-  if (Pretty < 0 && Mode == MODE_UPDATE) {
-    sprintf(g->Message, "Mode %d NIY for Bjson", Mode);
-    return true;
-  } // endif Mode
-
   if (Use == USE_OPEN) {
     /*******************************************************************/
     /*  Table already open replace it at its beginning.    ???         */
@@ -1437,19 +1429,20 @@ bool TDBBSN::OpenDB(PGLOBAL g)
     return false;
 
   if (Pretty < 0) {
-    /*******************************************************************/
-    /*  Binary BJSON table.                                            */
-    /*******************************************************************/
+    /*********************************************************************/
+    /*  Binary BJSON table.                                              */
+    /*********************************************************************/
     xtrc(1, "JSN OpenDB: tdbp=%p tdb=R%d use=%d mode=%d\n",
       this, Tdb_No, Use, Mode);
 
-    /*********************************************************************/
-    /*  Lrecl is Ok.                                                     */
-    /*********************************************************************/
+    // Lrecl is Ok
     size_t linelen = Lrecl;
+    MODE   mode = Mode;
 
-    // Buffer must be set to G->Sarea
+    // Buffer must be allocated in G->Sarea
+    Mode = MODE_ANY;
     Txfp->AllocateBuffer(Bp->G);
+    Mode = mode;
 
     if (Mode == MODE_INSERT)
       Bp->SubSet(true);
@@ -1461,27 +1454,29 @@ bool TDBBSN::OpenDB(PGLOBAL g)
     xtrc(1, "OpenJSN: R%hd mode=%d To_Line=%p\n", Tdb_No, Mode, To_Line);
   } // endif Pretty
 
-    /***********************************************************************/
-    /*  First opening.                                                     */
-    /***********************************************************************/
+  /***********************************************************************/
+  /*  First opening.                                                     */
+  /***********************************************************************/
   if (Mode == MODE_INSERT) {
+    int type;
+
     switch (Jmode) {
-    case MODE_OBJECT: Row = Bp->NewVal(TYPE_JOB);  break;
-    case MODE_ARRAY:  Row = Bp->NewVal(TYPE_JAR);  break;
-    case MODE_VALUE:  Row = Bp->NewVal(TYPE_JVAL); break;
-    default:
-      sprintf(g->Message, "Invalid Jmode %d", Jmode);
-      return true;
+      case MODE_OBJECT: type = TYPE_JOB;  break;
+      case MODE_ARRAY:  type = TYPE_JAR;  break;
+      case MODE_VALUE:  type = TYPE_JVAL; break;
+      default:
+        sprintf(g->Message, "Invalid Jmode %d", Jmode);
+        return true;
     } // endswitch Jmode
 
+    Top = Bp->MakeTopTree(g, type);
     Bp->MemSave();
   } // endif Mode
 
   if (Xcol)
-    To_Filter = NULL;              // Imcompatible
+    To_Filter = NULL;              // Not compatible
 
   return false;
-
 } // end of OpenDB
 
 /***********************************************************************/
@@ -1534,6 +1529,7 @@ int TDBBSN::ReadDB(PGLOBAL g)
       Bp->SubSet();
 
       if ((Row = Bp->ParseLine(g, &Pretty, &Comma))) {
+        Top = Row;
         Row = Bp->FindRow(g);
         SameRow = 0;
         Fpos++;
@@ -1545,10 +1541,9 @@ int TDBBSN::ReadDB(PGLOBAL g)
       } else
         rc = RC_EF;
 
-    } else {
-      // Here we get a movable Json binary tree
-      Bp->SubSet();        // Perhaps Useful when updating
-      Row = (PBVAL)To_Line;
+    } else { // Here we get a movable Json binary tree
+      Bp->MemSet(((BINFAM*)Txfp)->Recsize);  // Useful when updating
+      Row = Top = (PBVAL)To_Line;
       Row = Bp->FindRow(g);
       SameRow = 0;
       Fpos++;
@@ -1569,8 +1564,8 @@ bool TDBBSN::PrepareWriting(PGLOBAL g)
   if (Pretty >= 0) {
     PSZ s;
 
-    if (!(Top = Bp->MakeTopTree(g, Row)))
-      return true;
+//  if (!(Top = Bp->MakeTopTree(g, Row->Type)))
+//    return true;
 
     if ((s = Bp->SerialVal(g, Top, Pretty))) {
       if (Comma)
@@ -2030,25 +2025,44 @@ void BSONCOL::WriteColumn(PGLOBAL g)
         throw 666;
       } // endif jsp
 
+      switch (row->Type) {
+        case TYPE_JAR:
+          if (Nod > 1 && Nodes[Nod - 2].Op == OP_EQ)
+            Cp->SetArrayValue(row, jsp, Nodes[Nod - 2].Rank);
+          else
+            Cp->AddArrayValue(row, jsp);
+
+          break;
+        case TYPE_JOB:  
+          if (Nod > 1 && Nodes[Nod - 2].Key)
+            Cp->SetKeyValue(row, jsp, Nodes[Nod - 2].Key);
+
+          break;
+        case TYPE_JVAL:
+        default: 
+          Cp->SetValueVal(row, jsp);
+      } // endswitch Type
+
+      break;
     } else
       jsp = Cp->NewVal(Value);
 
     switch (row->Type) {
-    case TYPE_JAR:
-      if (Nodes[Nod - 1].Op == OP_EQ)
-        Cp->SetArrayValue(row, jsp, Nodes[Nod - 1].Rank);
-      else
-        Cp->AddArrayValue(row, jsp);
+      case TYPE_JAR:
+        if (Nodes[Nod - 1].Op == OP_EQ)
+          Cp->SetArrayValue(row, jsp, Nodes[Nod - 1].Rank);
+        else
+          Cp->AddArrayValue(row, jsp);
 
-      break;
-    case TYPE_JOB:  
-      if (Nodes[Nod - 1].Key)
-        Cp->SetKeyValue(row, jsp, Nodes[Nod - 1].Key);
+        break;
+      case TYPE_JOB:
+        if (Nodes[Nod - 1].Key)
+          Cp->SetKeyValue(row, jsp, Nodes[Nod - 1].Key);
 
-      break;
-    case TYPE_JVAL:
-    default: 
-      Cp->SetValueVal(row, jsp);
+        break;
+      case TYPE_JVAL:
+      default:
+        Cp->SetValueVal(row, jsp);
     } // endswitch Type
 
     break;
@@ -2103,9 +2117,10 @@ int TDBBSON::MakeNewDoc(PGLOBAL g)
   // Create a void table that will be populated
   Docp = Bp->NewVal(TYPE_JAR);
 
-  if (!(Top = Bp->MakeTopTree(g, Docp)))
+  if (!(Top = Bp->MakeTopTree(g, TYPE_JAR)))
     return RC_FX;
 
+  Docp = Row;
   Done = true;
   return RC_OK;
 } // end of MakeNewDoc

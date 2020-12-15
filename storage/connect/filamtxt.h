@@ -229,20 +229,20 @@ public:
 
 	// Methods
 //virtual void  Reset(void) {TXTFAM::Reset();}
-	virtual int   GetFileLength(PGLOBAL g);
-	virtual int   Cardinality(PGLOBAL g);
+//virtual int   GetFileLength(PGLOBAL g);
+//virtual int   Cardinality(PGLOBAL g);
 	virtual int   MaxBlkSize(PGLOBAL g, int s) {return s;}
 	virtual bool  AllocateBuffer(PGLOBAL g);
 //virtual int   GetRowID(void);
 //virtual bool  RecordPos(PGLOBAL g);
 //virtual bool  SetPos(PGLOBAL g, int recpos);
-	virtual int   SkipRecord(PGLOBAL g, bool header) {return 0;}
+	virtual int   SkipRecord(PGLOBAL g, bool header) {return RC_OK;}
 //virtual bool  OpenTableFile(PGLOBAL g);
 	virtual int   ReadBuffer(PGLOBAL g);
 	virtual int   WriteBuffer(PGLOBAL g);
 //virtual int   DeleteRecords(PGLOBAL g, int irc);
-	virtual void  CloseTableFile(PGLOBAL g, bool abort);
-	virtual void  Rewind(void);
+//virtual void  CloseTableFile(PGLOBAL g, bool abort);
+//virtual void  Rewind(void);
 
 //protected:
 //virtual int   InitDelete(PGLOBAL g, int fpos, int spos);

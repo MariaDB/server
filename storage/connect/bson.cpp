@@ -872,7 +872,18 @@ void BJSON::SubSet(bool b)
 
 } // end of SubSet
 
-/* ------------------------ Bobject functions ------------------------ */
+/*********************************************************************************/
+/*  Set the beginning of suballocations.                                         */
+/*********************************************************************************/
+void BJSON::MemSet(size_t size)
+{
+  PPOOLHEADER pph = (PPOOLHEADER)G->Sarea;
+
+  pph->To_Free = size + sizeof(POOLHEADER);
+  pph->FreeBlk = G->Sarea_Size - pph->To_Free;
+} // end of MemSet
+
+  /* ------------------------ Bobject functions ------------------------ */
 
 /***********************************************************************/
 /* Sub-allocate and initialize a BPAIR.                                */
@@ -1187,17 +1198,16 @@ void BJSON::MergeArray(PBVAL bap1, PBVAL bap2)
 void BJSON::SetArrayValue(PBVAL bap, PBVAL nvp, int n)
 {
   CheckType(bap, TYPE_JAR);
+  int   i = 0;
   PBVAL bvp = NULL, pvp = NULL;
 
-  if (bap->To_Val) {
-    for (int i = 0; bvp = GetArray(bap); i++, bvp = GetNext(bvp))
+  if (bap->To_Val)
+    for (bvp = GetArray(bap); bvp; i++, bvp = GetNext(bvp))
       if (i == n) {
         SetValueVal(bvp, nvp);
         return;
       } else
         pvp = bvp;
-
-  } // endif bap
 
   if (!bvp)
     AddArrayValue(bap, MOF(nvp));
@@ -1264,7 +1274,8 @@ void BJSON::DeleteValue(PBVAL bap, int n)
 
         bap->Nd--;
         break;
-      } // endif i
+      } else
+        pvp = bvp;
 
 } // end of DeleteValue
 
@@ -1587,17 +1598,17 @@ PBVAL BJSON::SetValue(PBVAL vlp, PVAL valp)
   } else switch (valp->GetType()) {
   case TYPE_DATE:
     if (((DTVAL*)valp)->IsFormatted())
-      vlp->To_Val = MOF(PlugDup(G, valp->GetCharValue()));
+      vlp->To_Val = DupStr(valp->GetCharValue());
     else {
       char buf[32];
 
-      vlp->To_Val = MOF(PlugDup(G, valp->GetCharString(buf)));
+      vlp->To_Val = DupStr(valp->GetCharString(buf));
     }	// endif Formatted
 
     vlp->Type = TYPE_DTM;
     break;
   case TYPE_STRING:
-    vlp->To_Val = MOF(PlugDup(G, valp->GetCharValue()));
+    vlp->To_Val = DupStr(valp->GetCharValue());
     vlp->Type = TYPE_STRG;
     break;
   case TYPE_DOUBLE:
@@ -1608,7 +1619,7 @@ PBVAL BJSON::SetValue(PBVAL vlp, PVAL valp)
       vlp->F = (float)valp->GetFloatValue();
       vlp->Type = TYPE_FLOAT;
     } else {
-      double *dp = (double*)PlugSubAlloc(G, NULL, sizeof(double));
+      double *dp = (double*)BsonSubAlloc(sizeof(double));
 
       *dp = valp->GetFloatValue();
       vlp->To_Val = MOF(dp);
@@ -1629,7 +1640,7 @@ PBVAL BJSON::SetValue(PBVAL vlp, PVAL valp)
       vlp->N = valp->GetIntValue();
       vlp->Type = TYPE_INTG;
     } else {
-      longlong* llp = (longlong*)PlugSubAlloc(G, NULL, sizeof(longlong));
+      longlong* llp = (longlong*)BsonSubAlloc(sizeof(longlong));
 
       *llp = valp->GetBigintValue();
       vlp->To_Val = MOF(llp);

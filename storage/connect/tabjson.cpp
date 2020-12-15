@@ -1925,7 +1925,7 @@ PJSON JSONCOL::GetRow(PGLOBAL g)
   PJSON nwr, row = Tjp->Row;
 
   for (int i = 0; i < Nod && row; i++) {
-    if (Nodes[i+1].Op == OP_XX)
+    if (i < Nod-1 && Nodes[i+1].Op == OP_XX)
       break;
     else switch (row->GetType()) {
       case TYPE_JOB:
