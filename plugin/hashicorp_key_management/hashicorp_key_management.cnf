@@ -1,0 +1,63 @@
+# Copyright (C) 2019, 2020 MariaDB Corporation
+#
+# This is a default configuration for the Hashicorp Vault plugin.
+# You can read more about the parameters of this plugin in the
+# hashicorp_key_management.txt file.
+#
+[mariadb]
+#
+# To use Hashicorp Vault KMS, the plugin must be preloaded and
+# activated on the server:
+#
+plugin-load-add=hashicorp_key_management.so
+#
+# Most of its parameters should not be changed during plugin
+# operation and therefore must be preconfigured as part of
+# the server configuration:
+#
+hashicorp-key-management-vault-url="<url>"
+#
+#   HTTP[s] URL that is used to connect to the Hashicorp Vault
+#   server. It must include the name of the scheme (https://
+#   for a secure connection) and, according to the API rules
+#   for storages of the key-value type in Hashicorp Vault,
+#   after the server address, the path must begin with the
+#   "/v1/" string (as prefix), for example:
+#
+#      https://127.0.0.1:8200/v1/my_secrets
+#
+hashicorp-key-management-token="<token>"
+#
+#   Authentication token that passed to the Hashicorp Vault
+#   in the request header.
+#
+#hashicorp-key-management-vault-ca="<path>"
+#
+#   Optional path to the Certificate Authority (CA) bundle
+#   (is a file that contains root and intermediate certificates).
+#
+hashicorp-key-management-timeout=15
+#
+#   Set the duration (in seconds) for the Hashicorp Vault server
+#   connection timeout. The allowed range is from 1 to 86400 seconds.
+#   The user can also specify a zero value, which means the default
+#   timeout value set by the libcurl library (currently 300 seconds).
+#
+hashicorp-key-management-retries=3
+#
+#   Number of server request retries in case of timeout.
+#
+hashicorp-key-management-caching-enabled="on"
+#
+#   Enable key caching (storing key values received from
+#   the Hashicorp Vault server in the local memory).
+#
+hashicorp-key-management-use-cache-on-timeout="off"
+#
+#   In case of timeout when accessing the vault server use the key
+#   values or version numbers taken from the cache.
+#
+#   The key values or version numbers will be read from the cache
+#   on timeout only after the number of attempts specified by the
+#   hashicorp-key-management-retries parameter has been exhausted.
+#

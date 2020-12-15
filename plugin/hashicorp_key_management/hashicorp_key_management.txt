@@ -1,4 +1,7 @@
-This is a plugin that implements interaction with Hashicorp Vault KMS:
+This file describes a hasicorp_key_management plugin that is used to
+implement encryption using keys stored in the Hashicorp Vault KMS.
+
+The current version of this plugin implements the following features:
 
 - Authentication is done using the Hashicorp Vault's token
   authentication method;
@@ -18,7 +21,7 @@ storage must be configured in Hashicorp Vault as a key-value storage
 that uses the interface of the second version. For example, you can
 create it as follows:
 
- vault secrets enable -path /test -version=2 kv
+~$ vault secrets enable -path /test -version=2 kv
 
 Key names must correspond to their numerical identifiers.
 Key identifiers itself, their possible values and rules of use
@@ -52,19 +55,20 @@ for creating and administering keys designed to work with Hashicorp
 Vault. But in the simplest case, keys can be created from the command
 line through the vault utility, for example, as follows:
 
-   vault kv put /test/1 data="0123456789ABCDEF0123456789ABCDEF"
+~$ vault kv put /test/1 data="0123456789ABCDEF0123456789ABCDEF"
 
 If you use default encryption (AES), you should ensure that the
 key length is 32 bytes, otherwise it may fail to use InnoDB as
 a data storage.
 
-The plugin currently does not unseal Hashicorp Vault itself,
+The plugin currently does not unseal Hashicorp Vault on its own,
 you must do this in advance and on your own.
 
 To use Hashicorp Vault KMS, the plugin must be preloaded and
-activated on the server. Its parameters should not change during
-operation and therefore should be pre-specified as part of the
-server configuration, for example, through command line options:
+activated on the server. Most of its parameters should not be
+changed during plugin operation and therefore must be preconfigured
+as part of the server configuration through configuration file or
+command line options:
 
 --plugin-load-add=hashicorp_key_management.so
 --loose-hashicorp-key-management
@@ -128,7 +132,7 @@ operation:
 --[loose-]hashicorp-key-management-use-cache-on-timeout="on"|"off"
 
   In case of timeout when accessing the vault server use the key
-  values or version numbers taken from the cache. y default this
+  values or version numbers taken from the cache. By default this
   option is disabled.
 
   The key values or version numbers will be read from the cache

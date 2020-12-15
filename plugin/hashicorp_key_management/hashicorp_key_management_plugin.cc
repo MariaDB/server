@@ -448,14 +448,6 @@ static unsigned int get_version (const char *js, int js_len,
                     0, response);
     return ENCRYPTION_KEY_VERSION_INVALID;
   }
-  if (version > UINT_MAX || (version == ULONG_MAX && errno))
-  {
-    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
-                    "Integer conversion error (for version number)"
-                    "(http response is: %s)",
-                    0, response);
-    return ENCRYPTION_KEY_VERSION_INVALID;
-  }
   *rc = 0;
   return (unsigned int) version;
 }
