@@ -1485,7 +1485,6 @@ public:
                                             const Item *outer,
                                             bool is_in_predicate) const
   {
-    DBUG_ASSERT(0);
     return false;
   }
   Field *make_num_distinct_aggregator_field(MEM_ROOT *, const Item *) const

@@ -2274,4 +2274,18 @@ set names default;
 set @@in_predicate_conversion_threshold= @save_in_predicate_conversion_threshold;
 DROP TABLE t1,t2;
 
+--echo #
+--echo # MDEV-22716: Assertion `0' failed in Type_handler_row::subquery_type_allows_materialization
+--echo #
+
+CREATE TABLE t1(a INT,b INT);
+INSERT INTO t1 VALUES (1,1), (2,2);
+
+set @save_in_predicate_conversion_threshold= @@in_predicate_conversion_threshold;
+SET SESSION in_predicate_conversion_threshold=2;
+EXPLAIN SELECT 1 FROM t1 WHERE ROW(a,(a,a)) IN ((1,(1,1)),(2,(2,1)));
+SELECT 1 FROM t1 WHERE ROW(a,(a,a)) IN ((1,(1,1)),(2,(2,1)));
+set @@in_predicate_conversion_threshold= @save_in_predicate_conversion_threshold;
+
+DROP TABLE t1;
 --echo # End of 10.3 tests
