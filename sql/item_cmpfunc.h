@@ -2672,24 +2672,14 @@ public:
 
 class Item_func_like :public Item_bool_func2
 {
-  const char* pattern;
-  Item *escape_item;
-  DTCollation cmp_collation;
-  String cmp_value1, cmp_value2;
-
   // Turbo Boyer-Moore data
+  bool        canDoTurboBM;	// pattern is '%abcd%' case
+  const char* pattern;
+  int         pattern_len;
+
   // TurboBM buffers, *this is owner
-  int *bmGs; //   good suffix shift table, size is pattern_len + 1
-  int *bmBc; // bad character shift table, size is alphabet_size
-  int  pattern_len;
-public:
-  int escape;
-  bool negated;
-private:
-  bool canDoTurboBM;	// pattern is '%abcd%' case
-  bool escape_item_evaluated;
-  bool escape_used_in_parsing;
-  bool use_sampling;
+  int* bmGs; //   good suffix shift table, size is pattern_len + 1
+  int* bmBc; // bad character shift table, size is alphabet_size
 
   void turboBM_compute_suffixes(int* suff);
   void turboBM_compute_good_suffix_shifts(int* suff);
@@ -2697,6 +2687,13 @@ private:
   bool turboBM_matches(const char* text, int text_len) const;
   enum { alphabet_size = 256 };
 
+  Item *escape_item;
+
+  bool escape_used_in_parsing;
+  bool use_sampling;
+
+  DTCollation cmp_collation;
+  String cmp_value1, cmp_value2;
   bool with_sargable_pattern() const;
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
@@ -2709,13 +2706,13 @@ protected:
                        KEY_PART *key_part,
                        Item_func::Functype type, Item *value);
 public:
+  int escape;
+  bool negated;
 
   Item_func_like(THD *thd, Item *a, Item *b, Item *escape_arg, bool escape_used):
-    Item_bool_func2(thd, a, b), pattern(0), escape_item(escape_arg),
-      bmGs(0), bmBc(0), pattern_len(0),  negated(0), canDoTurboBM(FALSE),
-      escape_item_evaluated(0), escape_used_in_parsing(escape_used),
-      use_sampling(0)
-  {}
+    Item_bool_func2(thd, a, b), canDoTurboBM(FALSE), pattern(0), pattern_len(0),
+    bmGs(0), bmBc(0), escape_item(escape_arg),
+    escape_used_in_parsing(escape_used), use_sampling(0), negated(0) {}
 
   bool get_negated() const { return negated; } // Used by ColumnStore
 
