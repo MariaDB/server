@@ -1,5 +1,5 @@
 --innodb-encryption-rotate-key-age=2
---innodb-encryption-threads=4
+--innodb-encryption-threads=1
 --innodb-tablespaces-encryption
 --plugin-load-add=$FILE_KEY_MANAGEMENT_SO
 --loose-file-key-management
