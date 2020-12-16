@@ -233,13 +233,8 @@ void ssux_lock_low::rd_unlock() { if (read_unlock()) writer_wake(); }
 
 void ssux_lock_low::u_unlock()
 {
-#ifdef SRW_LOCK_DUMMY
   update_unlock();
-  writer_wake(); /* Wake up either write_lock() or update_lock() */
-#else
-  if (update_unlock())
-    writer_wake(); /* Wake up one waiter (hopefully the writer) */
-#endif
+  readers_wake(); /* Wake up all write_lock(), update_lock() */
 }
 
 void ssux_lock_low::wr_unlock() { write_unlock(); readers_wake(); }

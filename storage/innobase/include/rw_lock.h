@@ -132,14 +132,13 @@ public:
     DBUG_ASSERT(!(l & WRITER)); /* no write lock must have existed */
     return (~WRITER_PENDING & l) == 1;
   }
-  /** Release an update lock.
-  @return whether any writers may have to be woken up */
-  bool update_unlock()
+  /** Release an update lock */
+  void update_unlock()
   {
-    auto l= lock.fetch_and(~UPDATER, std::memory_order_release);
+    IF_DBUG_ASSERT(auto l=,)
+    lock.fetch_and(~UPDATER, std::memory_order_release);
     /* the update lock must have existed */
     DBUG_ASSERT((l & (WRITER | UPDATER)) == UPDATER);
-    return !(~(WRITER_PENDING | UPDATER) & l);
   }
   /** Release an exclusive lock */
   void write_unlock()
