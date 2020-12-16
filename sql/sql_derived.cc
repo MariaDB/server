@@ -677,7 +677,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
       if (derived->is_with_table_recursive_reference())
       {
         /* Here 'derived" is a secondary recursive table reference */
-        unit->with_element->rec_result->rec_tables.push_back(derived->table);
+         unit->with_element->rec_result->rec_table_refs.push_back(derived);
       }
     }
     DBUG_ASSERT(derived->table || res);
@@ -733,7 +733,9 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 
   derived->fill_me= FALSE;
 
-  if (!(derived->derived_result= new (thd->mem_root) select_union(thd)))
+  if ((!derived->is_with_table_recursive_reference() ||
+       !derived->derived_result) &&
+      !(derived->derived_result= new (thd->mem_root) select_union(thd)))
     DBUG_RETURN(TRUE); // out of memory
 
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
@@ -752,7 +754,8 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     Depending on the result field translation will or will not
     be created.
   */
-  if (derived->init_derived(thd, FALSE))
+  if (!derived->is_with_table_recursive_reference() &&
+      derived->init_derived(thd, FALSE))
     goto exit;
 
   /*

@@ -211,7 +211,10 @@ select_union_recursive::create_result_table(THD *thd_arg,
                                         create_table, keep_row_order))
     return true;
   
-  if (! (incr_table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
+  incr_table_param.init();
+  incr_table_param.field_count= column_types->elements;
+  incr_table_param.bit_fields_as_long= bit_fields_as_long;
+  if (! (incr_table= create_tmp_table(thd_arg, &incr_table_param, *column_types,
                                       (ORDER*) 0, false, 1,
                                       options, HA_POS_ERROR, "",
                                       true, keep_row_order)))
@@ -220,20 +223,6 @@ select_union_recursive::create_result_table(THD *thd_arg,
   incr_table->keys_in_use_for_query.clear_all();
   for (uint i=0; i < table->s->fields; i++)
     incr_table->field[i]->flags &= ~(PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG);
-
-  TABLE *rec_table= 0;
-  if (! (rec_table= create_tmp_table(thd_arg, &tmp_table_param, *column_types,
-                                     (ORDER*) 0, false, 1,
-                                     options, HA_POS_ERROR, alias,
-                                     true, keep_row_order)))
-    return true;
-
-  rec_table->keys_in_use_for_query.clear_all();
-  for (uint i=0; i < table->s->fields; i++)
-    rec_table->field[i]->flags &= ~(PART_KEY_FLAG | PART_INDIRECT_KEY_FLAG);
-
-  if (rec_tables.push_back(rec_table))
-    return true;
 
   return false;
 }
@@ -272,23 +261,25 @@ void select_union_recursive::cleanup()
     free_tmp_table(thd, incr_table);
   }
 
-  List_iterator<TABLE> it(rec_tables);
-  TABLE *tab;
-  while ((tab= it++))
+  List_iterator<TABLE_LIST> it(rec_table_refs);
+  TABLE_LIST *tbl;
+  while ((tbl= it++))
   {
+    TABLE *tab= tbl->table;
     if (tab->is_created())
     {
       tab->file->extra(HA_EXTRA_RESET_STATE);
       tab->file->ha_delete_all_rows();
     }
-    /* 
+    /*
       The table will be closed later in close_thread_tables(),
       because it might be used in the statements like
       ANALYZE WITH r AS (...) SELECT * from r
-      where r is defined through recursion. 
+      where r is defined through recursion.
     */
     tab->next= thd->rec_tables;
     thd->rec_tables= tab;
+    tbl->derived_result= 0;
   }
 }
 
@@ -715,9 +706,29 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
           goto err;
         if (!derived->table)
         {
-          derived->table= with_element->rec_result->rec_tables.head();
-          if (derived->derived_result)
-            derived->derived_result->table= derived->table;
+          bool res= false;
+
+          if ((!derived->is_with_table_recursive_reference() ||
+               !derived->derived_result) &&
+              !(derived->derived_result= new (thd->mem_root) select_union(thd)))
+            goto err; // out of memory
+          thd->create_tmp_table_for_derived= TRUE;
+          res= derived->derived_result->create_result_table(thd,
+                                                            &types,
+                                                            FALSE,
+                                                            create_options,
+                                                            derived->alias,
+                                                            FALSE, FALSE);
+          thd->create_tmp_table_for_derived= FALSE;
+          if (res)
+            goto err;
+          derived->derived_result->set_unit(this);
+          derived->table= derived->derived_result->table;
+          if (derived->is_with_table_recursive_reference())
+          {
+            /* Here 'derived" is the primary recursive table reference */
+            derived->with->rec_result->rec_table_refs.push_back(derived);
+          }
         }
         with_element->mark_as_with_prepared_anchor();
         is_rec_result_table_created= true;
@@ -1272,11 +1283,11 @@ bool st_select_lex_unit::exec_recursive()
   TABLE *incr_table= with_element->rec_result->incr_table;
   st_select_lex *end= NULL;
   bool is_unrestricted= with_element->is_unrestricted();
-  List_iterator_fast<TABLE> li(with_element->rec_result->rec_tables);
+  List_iterator_fast<TABLE_LIST> li(with_element->rec_result->rec_table_refs);
   TMP_TABLE_PARAM *tmp_table_param= &with_element->rec_result->tmp_table_param;
   ha_rows examined_rows= 0;
   bool was_executed= executed;
-  TABLE *rec_table;
+  TABLE_LIST *rec_tbl;
 
   DBUG_ENTER("st_select_lex_unit::exec_recursive");
 
@@ -1335,8 +1346,9 @@ bool st_select_lex_unit::exec_recursive()
   else
     with_element->level++;
 
-  while ((rec_table= li++))
+  while ((rec_tbl= li++))
   {
+    TABLE *rec_table= rec_tbl->table;
     saved_error=
       incr_table->insert_all_rows_into_tmp_table(thd, rec_table,
                                                  tmp_table_param,

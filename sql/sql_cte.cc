@@ -1429,10 +1429,11 @@ void With_element::print(String *str, enum_query_type query_type)
 
 bool With_element::instantiate_tmp_tables()
 {
-  List_iterator_fast<TABLE> li(rec_result->rec_tables);
-  TABLE *rec_table;
-  while ((rec_table= li++))
+  List_iterator_fast<TABLE_LIST> li(rec_result->rec_table_refs);
+  TABLE_LIST *rec_tbl;
+  while ((rec_tbl= li++))
   {
+    TABLE *rec_table= rec_tbl->table;
     if (!rec_table->is_created() &&
         instantiate_tmp_table(rec_table,
                               rec_table->s->key_info,
