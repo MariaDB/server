@@ -302,3 +302,8 @@ select * from (select 1 like 2 escape (1 in (select 1 from t1))) x;
 1 like 2 escape (1 in (select 1 from t1))
 0
 drop table t1;
+create table t1 (f int);
+insert t1 values (1),(2);
+create view v1 as select * from t1 where (1 like 2 escape (3 in (('h', 'b') in (select 'k', 'k' union select 'g', 'j'))) and f >= 0);
+drop view v1;
+drop table t1;
