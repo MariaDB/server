@@ -23,7 +23,6 @@ galera_ssl_upgrade : MDEV-19950 Galera test failure on galera_ssl_upgrade
 galera_sst_mariabackup_encrypt_with_key : MDEV-21484 galera_sst_mariabackup_encrypt_with_key
 galera_var_node_address : MDEV-20485 Galera test failure
 galera_wan : MDEV-17259 Test failure on galera.galera_wan
-lp1376747-4 : MDEV-21911 Galera test failure on lp1376747-4
 partition : MDEV-19958 Galera test failure on galera.partition
 query_cache: MDEV-15805 Test failure on galera.query_cache
 sql_log_bin : MDEV-21491 galera.sql_log_bin
