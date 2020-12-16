@@ -1221,7 +1221,7 @@ int Fixed_size_keys_for_group_concat::compare_keys(uchar *key1, uchar *key2)
 }
 
 
-bool Encode_key::init(uint length)
+bool Key_encoder::init(uint length)
 {
   if (tmp_buffer.alloc(length))
     return true;
@@ -1232,7 +1232,7 @@ bool Encode_key::init(uint length)
 }
 
 
-Encode_key::~Encode_key()
+Key_encoder::~Key_encoder()
 {
   my_free(rec_ptr);
 }
@@ -1246,8 +1246,9 @@ Encode_key::~Encode_key()
     0         NULL value
     >0        length of the packed record
 */
-uchar* Encode_variable_size_key::make_encoded_record(Sort_keys *sort_keys,
-                                                     bool exclude_nulls)
+
+uchar* Key_encoder_for_variable_size_key::make_record(Sort_keys *sort_keys,
+                                                      bool exclude_nulls)
 {
   Field *field;
   SORT_FIELD *sort_field;
@@ -1290,8 +1291,7 @@ uchar* Encode_variable_size_key::make_encoded_record(Sort_keys *sort_keys,
 }
 
 
-uchar*
-Encode_key_for_group_concat::make_encoded_record(Sort_keys *sort_keys,
+uchar* Key_encoder_for_group_concat::make_record(Sort_keys *sort_keys,
                                                  bool exclude_nulls)
 {
   Field *field;

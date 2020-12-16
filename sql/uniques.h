@@ -27,7 +27,7 @@
     Currently this encoding is only done for variable size keys
 */
 
-class Encode_key
+class Key_encoder
 {
 protected:
   /*
@@ -38,36 +38,35 @@ protected:
 
   String tmp_buffer;
 public:
-  virtual ~Encode_key();
-  virtual uchar* make_encoded_record(Sort_keys *keys, bool exclude_nulls) = 0;
+  virtual ~Key_encoder();
+  virtual uchar* make_record(Sort_keys *keys, bool exclude_nulls) = 0;
   bool init(uint length);
   uchar *get_rec_ptr() { return rec_ptr; }
 };
 
 
-class Encode_variable_size_key : public Encode_key
+class Key_encoder_for_variable_size_key : public Key_encoder
 {
 public:
-  Encode_variable_size_key()
+  Key_encoder_for_variable_size_key()
   {
     rec_ptr= NULL;
   }
-  virtual ~Encode_variable_size_key() {}
-  uchar* make_encoded_record(Sort_keys *keys, bool exclude_nulls) override;
+  virtual ~Key_encoder_for_variable_size_key() {}
+  uchar* make_record(Sort_keys *keys, bool exclude_nulls) override;
 };
 
 
-class Encode_key_for_group_concat : public Encode_variable_size_key
+class Key_encoder_for_group_concat : public Key_encoder_for_variable_size_key
 {
 public:
-  Encode_key_for_group_concat() : Encode_variable_size_key(){}
-  ~Encode_key_for_group_concat() {}
-  uchar* make_encoded_record(Sort_keys *keys, bool exclude_nulls) override;
+  Key_encoder_for_group_concat() : Key_encoder_for_variable_size_key(){}
+  ~Key_encoder_for_group_concat() {}
+  uchar* make_record(Sort_keys *keys, bool exclude_nulls) override;
 };
 
 
 /*
-
   Descriptor class storing information about the keys that would be
   inserted in the Unique tree. This is an abstract class which is
   extended by other class to support descriptors for keys with fixed and
@@ -141,7 +140,7 @@ public:
   bool setup_for_field(THD *thd, Field *field);
   bool setup_for_item(THD *thd, Item_sum *item,
                       uint non_const_args, uint arg_count);
-  virtual int compare_keys(uchar *a, uchar *b) override;
+  int compare_keys(uchar *a, uchar *b) override;
   virtual bool is_single_arg() override { return true; }
 };
 
@@ -161,6 +160,8 @@ public:
 
 /*
   Descriptor for fixed size keys for rowid comparison
+
+  Used by index merge and delete queries
 */
 class Fixed_size_keys_for_rowids: public Fixed_size_keys_descriptor
 {
@@ -234,8 +235,8 @@ public:
   {
     return read_packed_length(ptr);
   }
-  virtual int compare_keys(uchar *a, uchar *b) override { return 0; }
-  virtual bool is_single_arg() override { return false; }
+  int compare_keys(uchar *a, uchar *b) override { return 0; }
+  bool is_single_arg() override { return false; }
 
   virtual bool setup_for_item(THD *thd, Item_sum *item,
                               uint non_const_args, uint arg_count) override;
@@ -261,6 +262,9 @@ public:
   Used by EITS, JSON_ARRAYAGG.
   COUNT(DISTINCT col) AND GROUP_CONCAT(DISTINCT col) are also allowed
   that the number of arguments with DISTINCT is 1.
+
+  Comparisons happens only for packable fields with a collation specific
+  function
 */
 
 class Variable_size_keys_simple : public Variable_size_keys_descriptor
@@ -275,8 +279,15 @@ public:
 
 
 /*
-  Descriptor for variable sized keys with multiple key parts
+  Descriptor for variable sized keys with multiple key parts for
+  COUNT(DISTINCT col1, col2 ....)
+
+  Comparison happens in the following way:
+  a) comparison for fixed fields happen with memcmp
+  b) comparison for packable fields happen with collation specific comparison
+     function
 */
+
 class Variable_size_composite_key_desc : public Variable_size_keys_descriptor
 {
 public:
@@ -289,7 +300,14 @@ public:
 
 
 /*
-  Descriptor for variable sized keys with multiple key parts for GROUP_CONCAT
+  Descriptor for variable sized keys with multiple key parts
+  for GROUP_CONCAT
+
+  Comparison happens in the following way:
+  a) comparison for fixed fields happen with original values,
+     so Field::cmp is used
+  b) comparison for packable fields happen with collation specific comparison
+     function
 */
 
 class Variable_size_composite_key_desc_for_gconcat :

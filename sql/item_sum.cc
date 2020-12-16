@@ -988,7 +988,7 @@ int Aggregator_distinct::insert_record_to_unique()
   {
     uchar *rec_ptr;
     Descriptor *descriptor= tree->get_descriptor();
-    if ((rec_ptr= encoder->make_encoded_record(descriptor->get_keys(), true)) == NULL)
+    if ((rec_ptr= encoder->make_record(descriptor->get_keys(), true)) == NULL)
       return -1; // NULL value
     DBUG_ASSERT(descriptor->get_length_of_key(rec_ptr) <= tree->get_size());
     return tree->unique_add(rec_ptr);
@@ -4955,7 +4955,7 @@ int Item_func_group_concat::insert_packed_record_to_unique()
 {
   Descriptor *descriptor= unique_filter->get_descriptor();
   uchar *rec_ptr;
-  if (!(rec_ptr= encoder->make_encoded_record(descriptor->get_keys(),skip_nulls())))
+  if (!(rec_ptr= encoder->make_record(descriptor->get_keys(),skip_nulls())))
     return -1; // NULL value
   DBUG_ASSERT(descriptor->get_length_of_key(rec_ptr)
                         <= unique_filter->get_size());
@@ -5005,17 +5005,17 @@ Item_func_group_concat::get_descriptor_for_variable_size_keys(uint args_count,
 }
 
 
-Encode_key* Item_sum::get_encoder_for_variable_size_keys(uint args_count)
+Key_encoder* Item_sum::get_encoder_for_variable_size_keys(uint args_count)
 {
-  return new Encode_variable_size_key();
+  return new Key_encoder_for_variable_size_key();
 }
 
 
-Encode_key*
+Key_encoder*
 Item_func_group_concat::get_encoder_for_variable_size_keys(uint args_count)
 {
   if (args_count == 1)
-    return new Encode_variable_size_key();
+    return new Key_encoder_for_variable_size_key();
   else
-    return new Encode_key_for_group_concat();
+    return new Key_encoder_for_group_concat();
 }

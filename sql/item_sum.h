@@ -313,7 +313,7 @@ class Window_spec;
   but still return false from Item_sum::const_item().
 */
 class Unique_impl;
-class Encode_key;
+class Key_encoder;
 
 class Item_sum :public Item_func_or_sum
 {
@@ -603,7 +603,7 @@ public:
                                                          uint size_arg);
   virtual Descriptor *get_descriptor_for_variable_size_keys(uint args_count,
                                                             uint size_arg);
-  virtual Encode_key* get_encoder_for_variable_size_keys(uint args_count);
+  virtual Key_encoder* get_encoder_for_variable_size_keys(uint args_count);
 };
 
 
@@ -689,7 +689,7 @@ class Aggregator_distinct : public Aggregator
     instead of calling the relevant val_..() method.
   */
   bool use_distinct_values;
-  Encode_key *encoder;
+  Key_encoder *encoder;
 
 public:
   Aggregator_distinct (Item_sum *sum) :
@@ -1919,7 +1919,7 @@ protected:
   */
   Item_func_group_concat *original;
 
-  Encode_key *encoder;
+  Key_encoder *encoder;
 
   /*
     Used by Item_func_group_concat and Item_func_json_arrayagg. The latter
@@ -2048,7 +2048,7 @@ public:
                                                  uint size_arg) override;
   Descriptor *get_descriptor_for_variable_size_keys(uint args_count,
                                                     uint size_arg) override;
-  Encode_key* get_encoder_for_variable_size_keys(uint args_count) override;
+  Key_encoder* get_encoder_for_variable_size_keys(uint args_count) override;
 };
 
 #endif /* ITEM_SUM_INCLUDED */
