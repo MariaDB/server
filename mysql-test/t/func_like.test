@@ -187,7 +187,7 @@ DROP TABLE t1;
 --echo #
 
 #
-# Item_func_line::print()
+# Item_func_like::print()
 #
 create view v1 as select 'foo!' like 'foo!!', 'foo!' like 'foo!!' escape '!';
 show create view v1;
@@ -206,4 +206,12 @@ flush tables;
 insert t1 (a) values ('3 f_'), ('3 f\_');
 set sql_mode=default;
 select * from t1;
+drop table t1;
+
+#
+# Item_func_like::fix_fields()
+#
+create table t1 (f int);
+insert t1 values (1),(2);
+select 1 from (select distinct * from t1) as x where f < (select 1 like 2 escape (3=1));
 drop table t1;

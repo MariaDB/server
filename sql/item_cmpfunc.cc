@@ -5413,7 +5413,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed == 0);
   if (Item_bool_func2::fix_fields(thd, ref) ||
-      escape_item->fix_fields(thd, &escape_item) ||
+      (!escape_item->fixed && escape_item->fix_fields(thd, &escape_item)) ||
       fix_escape_item(thd, escape_item, &cmp_value1, escape_used_in_parsing,
                       cmp_collation.collation, &escape))
     return TRUE;
