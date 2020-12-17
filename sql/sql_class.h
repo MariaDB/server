@@ -3281,7 +3281,7 @@ public:
   void update_all_stats();
   void update_stats(void);
   void change_user(void);
-  void cleanup(void);
+  void cleanup(bool have_mutex=false);
   void cleanup_after_query();
   void free_connection();
   void reset_for_reuse();
