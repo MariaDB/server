@@ -1402,13 +1402,10 @@ fil_crypt_realloc_iops(
 	fil_crypt_update_total_stat(state);
 }
 
-/***********************************************************************
-Return allocated iops to global
-@param[in,out]		state		Rotation state */
-static
-void
-fil_crypt_return_iops(
-	rotate_thread_t *state)
+/** Release excess allocated iops
+@param state   rotation state
+@param wake    whether to wake up other threads */
+static void fil_crypt_return_iops(rotate_thread_t *state, bool wake= true)
 {
 	if (state->allocated_iops > 0) {
 		uint iops = state->allocated_iops;
@@ -1424,7 +1421,9 @@ fil_crypt_return_iops(
 
 		n_fil_crypt_iops_allocated -= iops;
 		state->allocated_iops = 0;
-		os_event_set(fil_crypt_threads_event);
+		if (wake) {
+			os_event_set(fil_crypt_threads_event);
+		}
 		mutex_exit(&fil_crypt_threads_mutex);
 	}
 
@@ -1437,7 +1436,8 @@ fil_crypt_return_iops(
 the encryption parameters were changed
 @param encrypt expected state of innodb_encrypt_tables
 @return the next tablespace to process (n_pending_ops incremented)
-@retval NULL if this was the last */
+@retval fil_system.temp_space if there is no work to do
+@retval nullptr upon reaching the end of the iteration */
 inline fil_space_t *fil_system_t::keyrotate_next(fil_space_t *space,
                                                  bool recheck, bool encrypt)
 {
@@ -1472,15 +1472,20 @@ inline fil_space_t *fil_system_t::keyrotate_next(fil_space_t *space,
     }
   }
 
-  while (it != end)
+  if (it == end)
+    return temp_space;
+
+  do
   {
     space= &*it;
     if (space->acquire_if_not_stopped(true))
       return space;
-    while (++it != end && (!UT_LIST_GET_LEN(it->chain) || it->is_stopping()));
+    if (++it == end)
+      return nullptr;
   }
+  while (!UT_LIST_GET_LEN(it->chain) || it->is_stopping());
 
-  return NULL;
+  return nullptr;
 }
 
 /** Determine the next tablespace for encryption key rotation.
@@ -1489,6 +1494,7 @@ inline fil_space_t *fil_system_t::keyrotate_next(fil_space_t *space,
 encryption parameters were changed
 @param encrypt  expected state of innodb_encrypt_tables
 @return the next tablespace
+@retval fil_system.temp_space if there is no work to do
 @retval nullptr upon reaching the end of the iteration */
 inline fil_space_t *fil_space_t::next(fil_space_t *space, bool recheck,
                                       bool encrypt)
@@ -1561,10 +1567,25 @@ static bool fil_crypt_find_space_to_rotate(
 		state->space = NULL;
 	}
 
-	state->space = fil_space_t::next(state->space, *recheck,
-					 key_state->key_version != 0);
+	bool wake;
+	for (;;) {
+		state->space = fil_space_t::next(state->space, *recheck,
+						 key_state->key_version != 0);
+		wake = state->should_shutdown();
+		if (wake) {
+			break;
+		}
 
-	while (!state->should_shutdown() && state->space) {
+		if (state->space == fil_system.temp_space) {
+			goto done;
+		} else {
+			wake = true;
+		}
+
+		if (!state->space) {
+			break;
+		}
+
 		/* If there is no crypt data and we have not yet read
 		page 0 for this tablespace, we need to read it before
 		we can continue. */
@@ -1579,18 +1600,16 @@ static bool fil_crypt_find_space_to_rotate(
 			state->min_key_version_found = key_state->key_version;
 			return true;
 		}
-
-		state->space = fil_space_t::next(state->space, *recheck,
-					         key_state->key_version != 0);
 	}
 
 	if (state->space) {
 		state->space->release();
+done:
 		state->space = NULL;
 	}
 
 	/* no work to do; release our allocation of I/O capacity */
-	fil_crypt_return_iops(state);
+	fil_crypt_return_iops(state, wake);
 
 	return false;
 
