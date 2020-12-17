@@ -678,6 +678,19 @@ int Wsrep_replayer_service::apply_write_set(const wsrep::ws_meta& ws_meta,
   DBUG_ASSERT(thd->wsrep_trx().active());
   DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_replaying);
 
+  /* Allow tests to block the replayer thread using the DBUG facilities */
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("sync.wsrep_replay_cb",
+                 {
+                   const char act[]=
+                     "now "
+                     "SIGNAL sync.wsrep_replay_cb_reached "
+                     "WAIT_FOR signal.wsrep_replay_cb";
+                   DBUG_ASSERT(!debug_sync_set_action(thd,
+                                                      STRING_WITH_LEN(act)));
+                 };);
+#endif /* ENABLED_DEBUG_SYNC */
+
   wsrep_setup_uk_and_fk_checks(thd);
 
   int ret= 0;

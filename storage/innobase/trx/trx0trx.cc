@@ -158,6 +158,9 @@ trx_init(
 	trx->lock.rec_cached = 0;
 
 	trx->lock.table_cached = 0;
+#ifdef WITH_WSREP
+	trx->wsrep_UK_scan = false;
+#endif /* WITH_WSREP */
 }
 
 /** For managing the life-cycle of the trx_t instance that we get

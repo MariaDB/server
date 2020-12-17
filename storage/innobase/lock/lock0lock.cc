@@ -760,6 +760,11 @@ lock_rec_has_to_wait(
 
 		return false;
 	}
+#ifdef WITH_WSREP
+	if (trx->wsrep_UK_scan && wsrep_thd_is_BF(lock2->trx->mysql_thd, true)) {
+		return false;
+	}
+#endif /* WITH_WSREP */
 
 #ifdef WITH_WSREP
 	/* There should not be two conflicting locks that are
@@ -5491,8 +5496,17 @@ lock_sec_rec_modify_check_and_lock(
 	index record, and this would not have been possible if another active
 	transaction had modified this secondary index record. */
 
+#ifdef WITH_WSREP
+	trx_t *trx = thr_get_trx(thr);
+	if (wsrep_thd_is_BF(trx->mysql_thd, false)) {
+		trx->wsrep_UK_scan = true;
+	}
+#endif /* WITH_WSREP */
 	err = lock_rec_lock(TRUE, LOCK_X | LOCK_REC_NOT_GAP,
 			    block, heap_no, index, thr);
+#ifdef WITH_WSREP
+	trx->wsrep_UK_scan = false;
+#endif /* WITH_WSREP */
 
 #ifdef UNIV_DEBUG
 	{
@@ -5585,8 +5599,17 @@ lock_sec_rec_read_check_and_lock(
 		return DB_SUCCESS;
 	}
 
+#ifdef WITH_WSREP
+	trx_t *trx = thr_get_trx(thr);
+	if(wsrep_thd_is_BF(trx->mysql_thd, false)) {
+		trx->wsrep_UK_scan = true;
+	}
+#endif /* WITH_WSREP */
 	err = lock_rec_lock(FALSE, gap_mode | mode,
 			    block, heap_no, index, thr);
+#ifdef WITH_WSREP
+	thr_get_trx(thr)->wsrep_UK_scan = false;
+#endif /* WITH_WSREP */
 
 	ut_ad(lock_rec_queue_validate(FALSE, block, rec, index, offsets));
 

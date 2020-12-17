@@ -67,6 +67,9 @@ Created 10/16/1994 Heikki Tuuri
 #include "srv0start.h"
 #include "mysql_com.h"
 #include "dict0stats.h"
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#endif /* WITH_WSREP */
 
 /** Buffered B-tree operation types, introduced as part of delete buffering. */
 enum btr_op_t {
@@ -3261,9 +3264,18 @@ btr_cur_ins_lock_and_undo(
 				index, thr, mtr, &prdt);
 			*inherit = false;
 		} else {
+#ifdef WITH_WSREP
+		if (!index->is_clust() && (index->type & DICT_UNIQUE) &&
+                    wsrep_thd_is_BF(thr_get_trx(thr)->mysql_thd, false)) {
+                  thr_get_trx(thr)->wsrep_UK_scan = true;
+		}
+#endif /* WITH_WSREP */
 			err = lock_rec_insert_check_and_lock(
 				flags, rec, btr_cur_get_block(cursor),
 				index, thr, mtr, inherit);
+#ifdef WITH_WSREP
+                  thr_get_trx(thr)->wsrep_UK_scan = false;
+#endif /* WITH_WSREP */
 		}
 	}
 
