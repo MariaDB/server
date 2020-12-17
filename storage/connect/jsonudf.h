@@ -174,7 +174,7 @@ extern "C" {
 	DllExport void jsonget_real_deinit(UDF_INIT*);
 
 	DllExport my_bool jsoncontains_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long jsoncontains(UDF_EXEC_ARGS);
+	DllExport long long jsoncontains(UDF_INIT*, UDF_ARGS*, char*, char*);
 	DllExport void jsoncontains_deinit(UDF_INIT*);
 
 	DllExport my_bool jsonlocate_init(UDF_INIT*, UDF_ARGS*, char*);
@@ -186,7 +186,7 @@ extern "C" {
 	DllExport void json_locate_all_deinit(UDF_INIT*);
 
 	DllExport my_bool jsoncontains_path_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long jsoncontains_path(UDF_EXEC_ARGS);
+	DllExport long long jsoncontains_path(UDF_INIT*, UDF_ARGS*, char*, char*);
 	DllExport void jsoncontains_path_deinit(UDF_INIT*);
 
 	DllExport my_bool json_set_item_init(UDF_INIT*, UDF_ARGS*, char*);
@@ -294,7 +294,7 @@ extern "C" {
 #endif   // DEVELOPMENT
 
 	DllExport my_bool countin_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long countin(UDF_EXEC_ARGS);
+	DllExport long long countin(UDF_INIT*, UDF_ARGS*, char*, char*);
 } // extern "C"																											  
 
 

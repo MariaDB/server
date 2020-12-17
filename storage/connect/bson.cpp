@@ -27,7 +27,7 @@
 #if defined(_DEBUG)
 #define CheckType(X,Y) if (!X || X ->Type != Y) throw MSG(VALTYPE_NOMATCH);
 #else
-#define CheckType(V)
+#define CheckType(X,Y)
 #endif
 
 #if defined(__WIN__)

@@ -4066,17 +4066,14 @@ my_bool jsoncontains_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	return JsonInit(initid, args, message, false, reslen, memlen, more);
 } // end of jsoncontains_init
 
-long long jsoncontains(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+long long jsoncontains(UDF_INIT *initid, UDF_ARGS *args, char *, char *error)
 {
-	char         *p __attribute__((unused)), res[256];
-	long long     n;
+	char          isn, res[256];
 	unsigned long reslen;
 
-	*is_null = 0;
-	p = jsonlocate(initid, args, res, &reslen, is_null, error);
-	n = (*is_null) ? 0LL : 1LL;
-	return n;
+	isn = 0;
+	jsonlocate(initid, args, res, &reslen, &isn, error);
+	return (isn) ? 0LL : 1LL;
 } // end of jsoncontains
 
 void jsoncontains_deinit(UDF_INIT* initid)
@@ -4118,8 +4115,7 @@ my_bool jsoncontains_path_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	return JsonInit(initid, args, message, true, reslen, memlen, more);
 } // end of jsoncontains_path_init
 
-long long jsoncontains_path(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *error)
+long long jsoncontains_path(UDF_INIT *initid, UDF_ARGS *args, char *, char *error)
 {
 	char   *p, *path;
 	long long n;
@@ -4130,7 +4126,6 @@ long long jsoncontains_path(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	if (g->N) {
 		if (!g->Activityp) {
-			*is_null = 1;
 			return 0LL;
 		} else
 			return *(long long*)g->Activityp;
@@ -4188,7 +4183,6 @@ long long jsoncontains_path(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
  err:
 	if (g->Mrr) *error = 1;
-	*is_null = 1;
 	return 0LL;
 } // end of jsoncontains_path
 
@@ -6528,8 +6522,7 @@ my_bool countin_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	return false;
 } // end of countin_init
 
-long long countin(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, char *is_null, char *)
+long long countin(UDF_INIT *initid, UDF_ARGS *args, char *is_null, char *)
 {
 	PSZ str1, str2;
 	char *s;

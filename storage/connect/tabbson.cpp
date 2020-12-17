@@ -1161,18 +1161,19 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
     USETEMP tmp = UseTemp();
     bool    map = Mapped && Pretty >= 0 && m != MODE_INSERT &&
       !(tmp != TMP_NO && m == MODE_UPDATE) &&
-      !(tmp == TMP_FORCE &&
-        (m == MODE_UPDATE || m == MODE_DELETE));
+      !(tmp == TMP_FORCE && (m == MODE_UPDATE || m == MODE_DELETE));
 
     if (Lrecl) {
       // Allocate the parse work memory
-      G = PlugInit(NULL, (size_t)Lrecl * 4);
+      G = PlugInit(NULL, (size_t)Lrecl * (Pretty < 0 ? 2 : 4));
     } else {
       strcpy(g->Message, "LRECL is not defined");
       return NULL;
     } // endif Lrecl
 
-    if (Uri) {
+    if (Pretty < 0) {	 // BJsonfile
+      txfp = new(g) BINFAM(this);
+    } else if (Uri) {
       if (Driver && toupper(*Driver) == 'C') {
 #if defined(CMGO_SUPPORT)
         txfp = new(g) CMGFAM(this);
@@ -1222,10 +1223,8 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
       sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "GZ");
       return NULL;
 #endif  // !GZ_SUPPORT
-    } else if (map)
+    } else if (map) {
       txfp = new(g) MAPFAM(this);
-    else if (Pretty < 0) {	 // BJsonfile
-      txfp = new(g) BINFAM(this);
     } else
       txfp = new(g) DOSFAM(this);
 
