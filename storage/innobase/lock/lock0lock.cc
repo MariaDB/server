@@ -6453,6 +6453,7 @@ lock_cancel_waiting_and_release(
 
 	ut_ad(lock_mutex_own());
 	ut_ad(trx_mutex_own(lock->trx));
+	ut_ad(lock->trx->state == TRX_STATE_ACTIVE);
 
 	lock->trx->lock.cancel = true;
 
