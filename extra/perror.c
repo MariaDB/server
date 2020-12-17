@@ -263,6 +263,7 @@ int main(int argc,char *argv[])
   const char *msg;
   const char *name;
   char *unknown_error = 0;
+  char unknow_aix[30];
 #if defined(_WIN32)
   my_bool skip_win_message= 0;
 #endif
@@ -320,6 +321,9 @@ int main(int argc,char *argv[])
       code=atoi(*argv);
       msg = strerror(code);
 
+      // On AIX, unknow error return " Error <CODE> occurred."
+      snprintf(unknow_aix, sizeof(unknow_aix), " Error %3d occurred.", code);
+
       /*
         We don't print the OS error message if it is the same as the
         unknown_error message we retrieved above, or it starts with
@@ -330,11 +334,18 @@ int main(int argc,char *argv[])
                        (const uchar*) "Unknown Error", 13) &&
           (!unknown_error || strcmp(msg, unknown_error)))
       {
-	found= 1;
-	if (verbose)
-	  printf("OS error code %3d:  %s\n", code, msg);
-	else
-	  puts(msg);
+#ifdef _AIX
+        if (!strcmp(msg, unknow_aix))
+        {
+#endif
+          found= 1;
+          if (verbose)
+            printf("OS error code %3d:  %s\n", code, msg);
+          else
+            puts(msg);
+#ifdef _AIX
+        }
+#endif
       }
       if ((msg= get_ha_error_msg(code)))
       {

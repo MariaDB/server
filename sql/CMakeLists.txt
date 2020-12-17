@@ -214,17 +214,22 @@ ELSE()
   SET(MYSQLD_SOURCE main.cc ${DTRACE_PROBES_ALL})
 ENDIF()
 
-IF(MSVC)
+IF(MSVC OR CMAKE_SYSTEM_NAME MATCHES AIX)
   SET(libs_to_export_symbols sql mysys dbug strings)
   # Create shared library of already compiled object
   # Export all symbols from selected libraries, to be used
   # by plugins
+  IF(MSVC)
+    SET(VERSIONINFO_RC ${PROJECT_BINARY_DIR}/versioninfo_dll.rc)
+  ELSE()
+    SET(VERSIONINFO_RC)
+  ENDIF()
   ADD_LIBRARY(server SHARED
     $<TARGET_OBJECTS:sql>
     $<TARGET_OBJECTS:mysys>
     $<TARGET_OBJECTS:dbug>
     $<TARGET_OBJECTS:strings>
-    ${PROJECT_BINARY_DIR}/versioninfo_dll.rc
+    ${VERSIONINFO_RC}
   )
 
   # We need to add all dependencies of sql/mysys/dbug/strings
@@ -245,7 +250,11 @@ IF(MSVC)
    ${all_deps}
    sql_builtins
   )
-  SET_TARGET_PROPERTIES(server PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+  IF(MSVC)
+    SET_TARGET_PROPERTIES(server PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
+  ELSE()
+    SET_TARGET_PROPERTIES(server PROPERTIES AIX_EXPORT_ALL_SYMBOLS TRUE)
+  ENDIF()
   MYSQL_INSTALL_TARGETS(server DESTINATION  ${INSTALL_BINDIR} COMPONENT Server)
 ENDIF()
 
@@ -272,7 +281,7 @@ IF(NOT WITHOUT_DYNAMIC_PLUGINS)
   ENDIF()
 ENDIF(NOT WITHOUT_DYNAMIC_PLUGINS)
 
-IF(MSVC)
+IF(MSVC OR CMAKE_SYSTEM_NAME MATCHES AIX)
   TARGET_LINK_LIBRARIES(mariadbd server)
 ELSE()
   TARGET_LINK_LIBRARIES(mariadbd LINK_PRIVATE sql sql_builtins)

@@ -52,6 +52,11 @@ IF(APPLE)
   ADD_DEFINITIONS(-fno-common)
 ENDIF()
 
+IF(CMAKE_SYSTEM_NAME MATCHES AIX)
+  # Workaround linker bug on AIX
+  SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-berok")
+ENDIF()
+
 MYSQL_ADD_PLUGIN(aria ${ARIA_SOURCES} STORAGE_ENGINE MANDATORY
                  LINK_LIBRARIES myisam mysys mysys_ssl
                  RECOMPILE_FOR_EMBEDDED)

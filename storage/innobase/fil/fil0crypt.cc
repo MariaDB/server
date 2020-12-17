@@ -1377,18 +1377,20 @@ static bool fil_crypt_realloc_iops(rotate_thread_t *state)
 	return true;
 }
 
-/** Release allocated iops.
-@param[in,out]		state		Rotation state */
-static void fil_crypt_return_iops(rotate_thread_t *state)
+/** Release excess allocated iops
+@param state   rotation state
+@param wake    whether to wake up other threads */
+static void fil_crypt_return_iops(rotate_thread_t *state, bool wake= true)
 {
   mysql_mutex_assert_owner(&fil_crypt_threads_mutex);
 
-  if (uint iops = state->allocated_iops)
+  if (uint iops= state->allocated_iops)
   {
     ut_ad(n_fil_crypt_iops_allocated >= iops);
     n_fil_crypt_iops_allocated-= iops;
     state->allocated_iops= 0;
-    mysql_cond_broadcast(&fil_crypt_threads_cond);
+    if (wake)
+      mysql_cond_broadcast(&fil_crypt_threads_cond);
   }
 
   fil_crypt_update_total_stat(state);
@@ -1400,7 +1402,8 @@ static void fil_crypt_return_iops(rotate_thread_t *state)
 the encryption parameters were changed
 @param encrypt expected state of innodb_encrypt_tables
 @return the next tablespace to process (n_pending_ops incremented)
-@retval NULL if this was the last */
+@retval fil_system.temp_space if there is no work to do
+@retval nullptr upon reaching the end of the iteration */
 inline fil_space_t *fil_system_t::keyrotate_next(fil_space_t *space,
                                                  bool recheck, bool encrypt)
 {
@@ -1435,15 +1438,20 @@ inline fil_space_t *fil_system_t::keyrotate_next(fil_space_t *space,
     }
   }
 
-  while (it != end)
+  if (it == end)
+    return temp_space;
+
+  do
   {
     space= &*it;
     if (space->acquire_if_not_stopped(true))
       return space;
-    while (++it != end && (!UT_LIST_GET_LEN(it->chain) || it->is_stopping()));
+    if (++it == end)
+      return nullptr;
   }
+  while (!UT_LIST_GET_LEN(it->chain) || it->is_stopping());
 
-  return NULL;
+  return nullptr;
 }
 
 /** Determine the next tablespace for encryption key rotation.
@@ -1452,6 +1460,7 @@ inline fil_space_t *fil_system_t::keyrotate_next(fil_space_t *space,
 encryption parameters were changed
 @param encrypt  expected state of innodb_encrypt_tables
 @return the next tablespace
+@retval fil_system.temp_space if there is no work to do
 @retval nullptr upon reaching the end of the iteration */
 inline fil_space_t *fil_space_t::next(fil_space_t *space, bool recheck,
                                       bool encrypt)
@@ -1520,7 +1529,13 @@ static bool fil_crypt_find_space_to_rotate(
 	state->space = fil_space_t::next(state->space, *recheck,
 					 key_state->key_version != 0);
 
-	while (!state->should_shutdown() && state->space) {
+	bool wake = true;
+	while (state->space && !state->should_shutdown()) {
+		if (state->space == fil_system.temp_space) {
+			wake = false;
+			goto done;
+		}
+
 		mysql_mutex_unlock(&fil_crypt_threads_mutex);
 		/* If there is no crypt data and we have not yet read
 		page 0 for this tablespace, we need to read it before
@@ -1545,11 +1560,12 @@ static bool fil_crypt_find_space_to_rotate(
 
 	if (state->space) {
 		state->space->release();
+done:
 		state->space = NULL;
 	}
 
 	/* no work to do; release our allocation of I/O capacity */
-	fil_crypt_return_iops(state);
+	fil_crypt_return_iops(state, wake);
 	return true;
 }
 

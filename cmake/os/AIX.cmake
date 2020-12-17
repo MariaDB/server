@@ -16,7 +16,12 @@
 
 #Enable 64 bit file offsets
 SET(_LARGE_FILES 1)
+SET(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> -X32_64 qc <TARGET> <LINK_FLAGS> <OBJECTS>")
+SET(CMAKE_C_ARCHIVE_APPEND "<CMAKE_AR> -X32_64 q  <TARGET> <LINK_FLAGS> <OBJECTS>")
+SET(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> -X32_64 qc <TARGET> <LINK_FLAGS> <OBJECTS>")
+SET(CMAKE_CXX_ARCHIVE_APPEND "<CMAKE_AR> -X32_64 q  <TARGET> <LINK_FLAGS> <OBJECTS>")
 
+IF(__AIX_COMPILER_XL)
 # Fix xlC oddity - it complains about same inline function defined multiple times
 # in different compilation units  
 INCLUDE(CheckCXXCompilerFlag)
@@ -24,10 +29,7 @@ INCLUDE(CheckCXXCompilerFlag)
  IF(HAVE_QSTATICINLINE)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -qstaticinline")
  ENDIF()
- 
-# The following is required to export all symbols 
-# (also with leading underscore)
-STRING(REPLACE  "-bexpall" "-bexpfull" CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS
-  "${CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS}")
-STRING(REPLACE  "-bexpall" "-bexpfull" CMAKE_SHARED_LIBRARY_LINK_C_FLAGS
-  "${CMAKE_SHARED_LIBRARY_LINK_C_FLAGS}")
+ELSE()
+  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGE_FILES -maix64 -pthread -mcmodel=large")
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGE_FILES -maix64 -pthread -mcmodel=large")
+ENDIF()
