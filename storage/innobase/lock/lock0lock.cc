@@ -5600,6 +5600,7 @@ lock_cancel_waiting_and_release(
 	que_thr_t*	thr;
 
 	lock_sys.mutex_assert_locked();
+	ut_ad(lock->trx->state == TRX_STATE_ACTIVE);
 
 	lock->trx->lock.cancel = true;
 

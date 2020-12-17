@@ -1531,16 +1531,32 @@ void THD::reset_db(const LEX_CSTRING *new_db)
 
 /* Do operations that may take a long time */
 
-void THD::cleanup(void)
+void THD::cleanup(bool have_mutex)
 {
   DBUG_ENTER("THD::cleanup");
   DBUG_ASSERT(cleanup_done == 0);
 
-  set_killed(KILL_CONNECTION);
+  if (have_mutex)
+    set_killed_no_mutex(KILL_CONNECTION,0,0);
+  else
+    set_killed(KILL_CONNECTION);
 #ifdef WITH_WSREP
   if (wsrep_cs().state() != wsrep::client_state::s_none)
   {
+    // Below wsrep-lib function will take THD::LOCK_thd_data
+    // I do not like this, but at the moment there is no
+    // alternative.
+    if (have_mutex)
+    {
+      mysql_mutex_unlock(&LOCK_thd_kill);
+      mysql_mutex_unlock(&LOCK_thd_data);
+    }
     wsrep_cs().cleanup();
+    if (have_mutex)
+    {
+      mysql_mutex_lock(&LOCK_thd_data);
+      mysql_mutex_lock(&LOCK_thd_kill);
+    }
   }
   wsrep_client_thread= false;
 #endif /* WITH_WSREP */
@@ -1614,6 +1630,28 @@ void THD::cleanup(void)
 void THD::free_connection()
 {
   DBUG_ASSERT(free_connection_done == 0);
+  /* Make sure threads are not available via server_threads.  */
+  assert_not_linked();
+
+  /*
+    Other threads may have a lock on THD::LOCK_thd_data or
+    THD::LOCK_thd_kill to ensure that this THD is not deleted
+    while they access it. The following mutex_lock ensures
+    that no one else is using this THD and it's now safe to
+    continue.
+
+    For example consider KILL-statement execution on
+    sql_parse.cc kill_one_thread() that will use
+    THD::LOCK_thd_data to protect victim thread during
+    THD::awake().
+  */
+  mysql_mutex_lock(&LOCK_thd_data);
+  mysql_mutex_lock(&LOCK_thd_kill);
+
+#ifdef WITH_WSREP
+  delete wsrep_rgi;
+  wsrep_rgi= 0;
+#endif
   my_free((char*) db.str);
   db= null_clex_str;
 #ifndef EMBEDDED_LIBRARY
@@ -1622,8 +1660,8 @@ void THD::free_connection()
   net.vio= 0;
   net_end(&net);
 #endif
- if (!cleanup_done)
-   cleanup();
+  if (!cleanup_done)
+    cleanup(true); // We have locked THD::LOCK_thd_kill
   ha_close_connection(this);
   plugin_thdvar_cleanup(this);
   mysql_audit_free_thd(this);
@@ -1635,6 +1673,8 @@ void THD::free_connection()
   profiling.restart();                          // Reset profiling
 #endif
   debug_sync_reset_thread(this);
+  mysql_mutex_unlock(&LOCK_thd_kill);
+  mysql_mutex_unlock(&LOCK_thd_data);
 }
 
 /*
@@ -1690,24 +1730,10 @@ THD::~THD()
   if (!status_in_global)
     add_status_to_global();
 
-  /*
-    Other threads may have a lock on LOCK_thd_kill to ensure that this
-    THD is not deleted while they access it. The following mutex_lock
-    ensures that no one else is using this THD and it's now safe to delete
-  */
-  if (WSREP_NNULL(this)) mysql_mutex_lock(&LOCK_thd_data);
-  mysql_mutex_lock(&LOCK_thd_kill);
-  mysql_mutex_unlock(&LOCK_thd_kill);
-  if (WSREP_NNULL(this)) mysql_mutex_unlock(&LOCK_thd_data);
-
   if (!free_connection_done)
     free_connection();
 
 #ifdef WITH_WSREP
-  if (wsrep_rgi != NULL) {
-    delete wsrep_rgi;
-    wsrep_rgi = NULL;
-  }
   mysql_cond_destroy(&COND_wsrep_thd);
 #endif
   mdl_context.destroy();

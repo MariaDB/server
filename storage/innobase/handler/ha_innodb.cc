@@ -4452,36 +4452,22 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
 
   if (trx_t* trx= thd_to_trx(thd))
   {
+    ut_ad(trx->mysql_thd == thd);
 #ifdef WITH_WSREP
+    /* If victim has been signaled by BF thread and/or aborting is already
+       progressing, following query aborting is not necessary any more.
+       Also, BF thread should own trx mutex for the victim. */
     if (trx->is_wsrep() && wsrep_thd_is_aborting(thd))
-      /* if victim has been signaled by BF thread and/or aborting is already
-      progressing, following query aborting is not necessary any more.
-      Also, BF thread should own trx mutex for the victim. */
       DBUG_VOID_RETURN;
 #endif /* WITH_WSREP */
     lock_sys.mutex_lock();
-    trx_sys.trx_list.freeze();
-    trx->mutex.wr_lock();
-    /* It is possible that innobase_close_connection() is concurrently
-    being executed on our victim. Even if the trx object is later
-    reused for another client connection or a background transaction,
-    its trx->mysql_thd will differ from our thd.
-
-    trx_sys.trx_list is thread-safe. It's freezed to 'protect'
-    trx_t. However, trx_t::commit_in_memory() changes a trx_t::state
-    of autocommit non-locking transactions without any protection.
-
-    At this point, trx may have been reallocated for another client
-    connection, or for a background operation. In that case, either
-    trx_t::state or trx_t::mysql_thd should not match our expectations. */
-    bool cancel= trx->mysql_thd == thd && trx->state == TRX_STATE_ACTIVE &&
-      !trx->lock.was_chosen_as_deadlock_victim;
-    trx_sys.trx_list.unfreeze();
-    if (!cancel);
-    else if (lock_t *lock= trx->lock.wait_lock)
+    if (lock_t *lock= trx->lock.wait_lock)
+    {
+      trx->mutex.wr_lock();
       lock_cancel_waiting_and_release(lock);
+      trx->mutex.wr_unlock();
+    }
     lock_sys.mutex_unlock();
-    trx->mutex.wr_unlock();
   }
 
   DBUG_VOID_RETURN;
