@@ -864,8 +864,6 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
       goto err;
     spec_tables_tail= tbl;
   }
-  if (check_table_access(thd, SELECT_ACL, spec_tables, FALSE, UINT_MAX, FALSE))
-    goto err;
   if (spec_tables)
   {
     if (with_table->next_global)
@@ -891,6 +889,22 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
                         with_select));
   if (check_dependencies_in_with_clauses(lex->with_clauses_list))
     res= NULL;
+  /*
+    Resolve references to CTE from the spec_tables list that has not
+    been resolved yet.
+  */
+  for (TABLE_LIST *tbl= spec_tables;
+       tbl;
+       tbl= tbl->next_global)
+  {
+    if (!tbl->with)
+      tbl->with= with_select->find_table_def_in_with_clauses(tbl);
+    if (tbl == spec_tables_tail)
+      break;
+  }
+  if (check_table_access(thd, SELECT_ACL, spec_tables, FALSE, UINT_MAX, FALSE))
+    goto err;
+
   lex->sphead= NULL;    // in order not to delete lex->sphead
   lex_end(lex);
 err:
