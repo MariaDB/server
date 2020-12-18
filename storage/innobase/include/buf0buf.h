@@ -361,14 +361,13 @@ buf_page_release_latch(
 void buf_page_make_young(buf_page_t *bpage);
 /** Mark the page status as FREED for the given tablespace id and
 page number. If the page is not in buffer pool then ignore it.
-@param[in]	page_id	page_id
+@param[in,out]	space	tablespace
+@param[in]	page	page number
 @param[in,out]	mtr	mini-transaction
 @param[in]	file	file name
 @param[in]	line	line where called */
-void buf_page_free(const page_id_t page_id,
-                   mtr_t *mtr,
-                   const char *file,
-                   unsigned line);
+void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr,
+                   const char *file, unsigned line);
 
 /********************************************************************//**
 Reads the freed_page_clock of a buffer block.

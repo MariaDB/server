@@ -354,8 +354,10 @@ struct ReleaseBlocks
 void mtr_t::start()
 {
   ut_ad(!m_freed_pages);
+  ut_ad(!m_freed_space);
   MEM_UNDEFINED(this, sizeof *this);
-  MEM_MAKE_DEFINED(&m_freed_pages, sizeof(m_freed_pages));
+  MEM_MAKE_DEFINED(&m_freed_space, sizeof m_freed_space);
+  MEM_MAKE_DEFINED(&m_freed_pages, sizeof m_freed_pages);
 
   ut_d(m_start= true);
   ut_d(m_commit= false);
@@ -373,7 +375,7 @@ void mtr_t::start()
   ut_d(m_user_space_id= TRX_SYS_SPACE);
   m_user_space= nullptr;
   m_commit_lsn= 0;
-  m_freed_in_system_tablespace= m_trim_pages= false;
+  m_trim_pages= false;
 }
 
 /** Release the resources */
@@ -418,28 +420,23 @@ void mtr_t::commit()
     if (m_freed_pages)
     {
       ut_ad(!m_freed_pages->empty());
-      fil_space_t *freed_space= m_user_space;
-      /* Get the freed tablespace in case of predefined tablespace */
-      if (!freed_space)
-      {
-        ut_ad(is_freed_system_tablespace_page());
-        freed_space= fil_system.sys_space;
-      }
-
-      ut_ad(memo_contains(*freed_space));
+      ut_ad(m_freed_space);
+      ut_ad(memo_contains(*m_freed_space));
+      ut_ad(is_named_space(m_freed_space));
       /* Update the last freed lsn */
-      freed_space->update_last_freed_lsn(m_commit_lsn);
+      m_freed_space->update_last_freed_lsn(m_commit_lsn);
 
       if (!is_trim_pages())
         for (const auto &range : *m_freed_pages)
-          freed_space->add_free_range(range);
+          m_freed_space->add_free_range(range);
       else
-        freed_space->clear_freed_ranges();
+        m_freed_space->clear_freed_ranges();
       delete m_freed_pages;
       m_freed_pages= nullptr;
-      /* Reset of m_trim_pages and m_freed_in_system_tablespace
-      happens in mtr_t::start() */
+      /* mtr_t::start() will reset m_trim_pages */
     }
+    else
+      ut_ad(!m_freed_space);
 
     m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
                                      (ReleaseBlocks(lsns.first, m_commit_lsn,
@@ -476,8 +473,8 @@ void mtr_t::commit_files(lsn_t checkpoint_lsn)
 	ut_ad(!m_made_dirty);
 	ut_ad(m_memo.size() == 0);
 	ut_ad(!srv_read_only_mode);
+	ut_ad(!m_freed_space);
 	ut_ad(!m_freed_pages);
-	ut_ad(!m_freed_in_system_tablespace);
 
 	if (checkpoint_lsn) {
 		byte*	ptr = m_log.push<byte*>(SIZE_OF_FILE_CHECKPOINT);
