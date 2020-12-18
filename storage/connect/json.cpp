@@ -554,7 +554,7 @@ PJAR JDOC::ParseArray(PGLOBAL g, int& i)
 PJOB JDOC::ParseObject(PGLOBAL g, int& i)
 {
   PSZ   key;
-  int   level = 0;
+  int   level = -1;
   PJOB  jobp = new(g) JOBJECT;
   PJPR  jpp = NULL;
 
@@ -590,7 +590,7 @@ PJOB JDOC::ParseObject(PGLOBAL g, int& i)
 
         break;
       case '}':
-        if (level < 2) {
+        if (level == 0 || level == 1) {
           sprintf(g->Message, "Unexpected '}' near %.*s", ARGS);
           throw 2;
           } // endif level

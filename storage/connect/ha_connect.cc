@@ -170,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0002 December 12, 2020";
+       char version[]= "Version 1.07.0002 December 18, 2020";
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -1070,12 +1070,12 @@ static PGLOBAL GetPlug(THD *thd, PCONNECT& lxp)
 /****************************************************************************/
 TABTYPE ha_connect::GetRealType(PTOS pos)
 {
-  TABTYPE type;
+  TABTYPE type= TAB_UNDEF;
   
   if (pos || (pos= GetTableOptionStruct())) {
     type= GetTypeID(pos->type);
 
-    if (type == TAB_UNDEF)
+    if (type == TAB_UNDEF && !pos->http)
       type= pos->srcdef ? TAB_MYSQL : pos->tabname ? TAB_PRX : TAB_DOS;
 #if defined(REST_SUPPORT)
 		else if (pos->http)
@@ -1083,7 +1083,8 @@ TABTYPE ha_connect::GetRealType(PTOS pos)
 				case TAB_JSON:
 				case TAB_XML:
 				case TAB_CSV:
-					type = TAB_REST;
+        case TAB_UNDEF:
+          type = TAB_REST;
 					break;
 				case TAB_REST:
 					type = TAB_NIY;
@@ -1093,8 +1094,7 @@ TABTYPE ha_connect::GetRealType(PTOS pos)
 			}	// endswitch type
 #endif   // REST_SUPPORT
 
-  } else
-    type= TAB_UNDEF;
+  } // endif pos
 
   return type;
 } // end of GetRealType
@@ -5690,7 +5690,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 	try {
 		// Check table type
-		if (ttp == TAB_UNDEF) {
+		if (ttp == TAB_UNDEF && !topt->http) {
 			topt->type= (src) ? "MYSQL" : (tab) ? "PROXY" : "DOS";
 			ttp= GetTypeID(topt->type);
 			sprintf(g->Message, "No table_type. Was set to %s", topt->type);
@@ -5708,7 +5708,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // BSON_SUPPORT
         case TAB_XML:
 				case TAB_CSV:
-					ttp = TAB_REST;
+        case TAB_UNDEF:
+          ttp = TAB_REST;
 					break;
 				default:
 					break;
@@ -6131,8 +6132,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				} // endif !nblin
 
 				// Restore language type
-				if (ttp == TAB_REST)
-					ttp = GetTypeID(topt->type);
+				if (ttp == TAB_REST) {
+          ttp = GetTypeID(topt->type);
+          ttp = (ttp == TAB_UNDEF) ? TAB_JSON : ttp;
+        } // endif ttp
 
 				for (i= 0; !rc && i < qrp->Nblin; i++) {
 					typ= len= prec= dec= flg= 0;
