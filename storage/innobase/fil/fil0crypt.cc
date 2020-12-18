@@ -1530,10 +1530,17 @@ static bool fil_crypt_find_space_to_rotate(
 					 key_state->key_version != 0);
 
 	bool wake = true;
-	while (state->space && !state->should_shutdown()) {
+	while (state->space) {
 		if (state->space == fil_system.temp_space) {
 			wake = false;
 			goto done;
+		}
+
+		if (state->should_shutdown()) {
+			state->space->release();
+done:
+			state->space = nullptr;
+			break;
 		}
 
 		mysql_mutex_unlock(&fil_crypt_threads_mutex);
@@ -1556,12 +1563,6 @@ static bool fil_crypt_find_space_to_rotate(
 		state->space = fil_space_t::next(state->space, *recheck,
 						 key_state->key_version != 0);
 		mysql_mutex_lock(&fil_crypt_threads_mutex);
-	}
-
-	if (state->space) {
-		state->space->release();
-done:
-		state->space = NULL;
 	}
 
 	/* no work to do; release our allocation of I/O capacity */
