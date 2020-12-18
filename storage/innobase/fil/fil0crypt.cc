@@ -1572,12 +1572,11 @@ static bool fil_crypt_find_space_to_rotate(
 		state->space = fil_space_t::next(state->space, *recheck,
 						 key_state->key_version != 0);
 		wake = state->should_shutdown();
-		if (wake) {
-			break;
-		}
 
 		if (state->space == fil_system.temp_space) {
 			goto done;
+		} else if (wake) {
+			break;
 		} else {
 			wake = true;
 		}
