@@ -640,7 +640,8 @@ static bool create_tvc_name(THD *thd, st_select_lex *parent_select,
 bool table_value_constr::to_be_wrapped_as_with_tail()
 {
   return  select_lex->master_unit()->first_select()->next_select() &&
-          select_lex->order_list.elements && select_lex->explicit_limit;
+          select_lex->order_list.elements &&
+          select_lex->limit_params.explicit_limit;
 }
 
 
@@ -773,15 +774,11 @@ st_select_lex *wrap_tvc_with_tail(THD *thd, st_select_lex *tvc_sl)
     return NULL;
 
   wrapper_sl->order_list= tvc_sl->order_list;
-  wrapper_sl->select_limit= tvc_sl->select_limit;
-  wrapper_sl->offset_limit= tvc_sl->offset_limit;
+  wrapper_sl->limit_params= tvc_sl->limit_params;
   wrapper_sl->braces= tvc_sl->braces;
-  wrapper_sl->explicit_limit= tvc_sl->explicit_limit;
   tvc_sl->order_list.empty();
-  tvc_sl->select_limit= NULL;
-  tvc_sl->offset_limit= NULL;
+  tvc_sl->limit_params.empty();
   tvc_sl->braces= 0;
-  tvc_sl->explicit_limit= false;
   if (tvc_sl->select_number == 1)
   {
     tvc_sl->select_number= wrapper_sl->select_number;

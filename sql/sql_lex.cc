@@ -2960,7 +2960,7 @@ void st_select_lex::init_query()
   n_child_sum_items= 0;
   hidden_bit_fields= 0;
   fields_in_window_functions= 0;
-  subquery_in_having= explicit_limit= 0;
+  subquery_in_having= limit_params.explicit_limit= 0;
   is_item_list_lookup= 0;
   changed_elements= 0;
   first_natural_join_processing= 1;
@@ -3004,8 +3004,7 @@ void st_select_lex::init_select()
   ftfunc_list= &ftfunc_list_alloc;
   order_list.empty();
   /* Set limit and offset to default values */
-  select_limit= 0;      /* denotes the default limit = HA_POS_ERROR */
-  offset_limit= 0;      /* denotes the default offset = 0 */
+  limit_params.empty();
   is_set_query_expr_tail= false;
   with_sum_func= 0;
   with_all_modifier= 0;
@@ -3361,7 +3360,7 @@ bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
 */
 bool st_select_lex::test_limit()
 {
-  if (select_limit != 0)
+  if (limit_params.select_limit)
   {
     my_error(ER_NOT_SUPPORTED_YET, MYF(0),
              "LIMIT & IN/ALL/ANY/SOME subquery");
@@ -3382,12 +3381,13 @@ ha_rows st_select_lex::get_offset()
 {
   ulonglong val= 0;
 
-  if (offset_limit)
+  if (limit_params.offset_limit)
   {
     // see comment for st_select_lex::get_limit()
-    bool err= offset_limit->fix_fields_if_needed(master_unit()->thd, NULL);
+    bool err= limit_params.offset_limit->fix_fields_if_needed(
+                                                master_unit()->thd, NULL);
     DBUG_ASSERT(!err);
-    val= err ? HA_POS_ERROR : offset_limit->val_uint();
+    val= err ? HA_POS_ERROR : limit_params.offset_limit->val_uint();
   }
 
   return (ha_rows)val;
@@ -3398,7 +3398,7 @@ ha_rows st_select_lex::get_limit()
 {
   ulonglong val= HA_POS_ERROR;
 
-  if (select_limit)
+  if (limit_params.select_limit)
   {
     /*
       fix_fields() has not been called for select_limit. That's due to the
@@ -3426,9 +3426,9 @@ ha_rows st_select_lex::get_limit()
       fix_fields() implementation. Also added runtime check against a result
       of fix_fields() in order to handle error condition in non-debug build.
     */
-    bool err= select_limit->fix_fields_if_needed(master_unit()->thd, NULL);
+    bool err= limit_params.select_limit->fix_fields_if_needed(master_unit()->thd, NULL);
     DBUG_ASSERT(!err);
-    val= err ? HA_POS_ERROR : select_limit->val_uint();
+    val= err ? HA_POS_ERROR : limit_params.select_limit->val_uint();
   }
 
   return (ha_rows)val;
@@ -3604,10 +3604,10 @@ void LEX::print(String *str, enum_query_type query_type)
         (*ord->item)->print(str, query_type);
       }
     }
-    if (sel->select_limit)
+    if (sel->limit_params.select_limit)
     {
       str->append(STRING_WITH_LEN(" LIMIT "));
-      sel->select_limit->print(str, query_type);
+      sel->limit_params.select_limit->print(str, query_type);
     }
   }
   else if (sql_command == SQLCOM_DELETE)
@@ -3639,10 +3639,10 @@ void LEX::print(String *str, enum_query_type query_type)
         (*ord->item)->print(str, query_type);
       }
     }
-    if (sel->select_limit)
+    if (sel->limit_params.select_limit)
     {
       str->append(STRING_WITH_LEN(" LIMIT "));
-      sel->select_limit->print(str, query_type);
+      sel->limit_params.select_limit->print(str, query_type);
     }
   }
   else
@@ -3744,15 +3744,16 @@ void st_select_lex::print_limit(THD *thd,
       return;
     }
   }
-  if (explicit_limit && select_limit)
+  if (limit_params.explicit_limit &&
+      limit_params.select_limit)
   {
     str->append(STRING_WITH_LEN(" limit "));
-    if (offset_limit)
+    if (limit_params.offset_limit)
     {
-      offset_limit->print(str, query_type);
+      limit_params.offset_limit->print(str, query_type);
       str->append(',');
     }
-    select_limit->print(str, query_type);
+    limit_params.select_limit->print(str, query_type);
   }
 }
 
@@ -3960,7 +3961,7 @@ bool LEX::can_be_merged()
           first_select_lex()->with_sum_func == 0 &&
           first_select_lex()->table_list.elements >= 1 &&
           !(first_select_lex()->options & SELECT_DISTINCT) &&
-          first_select_lex()->select_limit == 0);
+          first_select_lex()->limit_params.select_limit == 0);
 }
 
 
@@ -9679,9 +9680,7 @@ bool Lex_order_limit_lock::set_to(SELECT_LEX *sel)
        return TRUE;
   }
   lock.set_to(sel);
-  sel->explicit_limit= limit.explicit_limit;
-  sel->select_limit= limit.select_limit;
-  sel->offset_limit= limit.offset_limit;
+  sel->limit_params= limit;
   if (order_list)
   {
     if (sel->get_linkage() != GLOBAL_OPTIONS_TYPE &&
@@ -10000,7 +9999,7 @@ LEX::add_tail_to_query_expression_body_ext_parens(SELECT_LEX_UNIT *unit,
   pop_select();
   if (sel->is_set_query_expr_tail)
   {
-    if (!l->order_list && !sel->explicit_limit)
+    if (!l->order_list && !sel->limit_params.explicit_limit)
       l->order_list= &sel->order_list;
     else
     {
