@@ -1083,7 +1083,8 @@ bool st_select_lex_unit::prepare_join(THD *thd_arg, SELECT_LEX *sl,
 
   thd_arg->lex->current_select= sl;
 
-  can_skip_order_by= is_union_select && !(sl->braces && sl->explicit_limit);
+  can_skip_order_by= is_union_select && !(sl->braces &&
+                                          sl->limit_params.explicit_limit);
 
   saved_error= join->prepare(sl->table_list.first,
                              (derived && derived->merged ? NULL : sl->where),
@@ -1449,7 +1450,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
         if (fake_select_lex)
 	{
           if (fake_select_lex->order_list.first ||
-              fake_select_lex->explicit_limit)
+              fake_select_lex->limit_params.explicit_limit)
           {
 	    my_error(ER_NOT_SUPPORTED_YET, MYF(0),
                      "global ORDER_BY/LIMIT in recursive CTE spec");
@@ -1509,7 +1510,7 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
       if (!unit->first_select()->next_select())
       {
         if (!unit->fake_select_lex)
-	{
+        {
           Query_arena *arena, backup_arena;
           arena= thd->activate_stmt_arena_if_needed(&backup_arena);
           bool rc= unit->add_fake_select_lex(thd);
@@ -1520,17 +1521,13 @@ bool st_select_lex_unit::prepare(TABLE_LIST *derived_arg,
         }
         SELECT_LEX *fake= unit->fake_select_lex;
         fake->order_list= sl->order_list;
-        fake->explicit_limit= sl->explicit_limit;
-        fake->select_limit= sl->select_limit;
-        fake->offset_limit= sl->offset_limit;
+        fake->limit_params= sl->limit_params;
         sl->order_list.empty();
-        sl->explicit_limit= 0;
-        sl->select_limit= 0;
-        sl->offset_limit= 0;
+        sl->limit_params.clear();
         if (describe)
           fake->options|= SELECT_DESCRIBE;
       }
-      else if (!sl->explicit_limit)
+      else if (!sl->limit_params.explicit_limit)
         sl->order_list.empty();
     }
   }

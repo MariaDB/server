@@ -50,22 +50,22 @@ class Select_limit_counters
      select_limit_cnt= 1;
    }
 
-   bool is_unlimited()
+   bool is_unlimited() const
    { return select_limit_cnt == HA_POS_ERROR; }
    bool is_unrestricted()
    { return select_limit_cnt == HA_POS_ERROR && offset_limit_cnt == 0; }
    void set_unlimited()
    { select_limit_cnt= HA_POS_ERROR; offset_limit_cnt= 0; }
 
-   bool check_offset(ha_rows sent)
+   bool check_offset(ha_rows sent) const
    {
      return sent < offset_limit_cnt;
    }
    void remove_offset() { offset_limit_cnt= 0; }
 
-   ha_rows get_select_limit()
+   ha_rows get_select_limit() const
    { return select_limit_cnt; }
-   ha_rows get_offset_limit()
+   ha_rows get_offset_limit() const
    { return offset_limit_cnt; }
 };
 

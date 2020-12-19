@@ -58,7 +58,7 @@ int Pushdown_query::execute(JOIN *join)
   {
     max_limit= join->unit->lim.get_select_limit();
     if (join->unit->fake_select_lex)
-      reset_item= &join->unit->fake_select_lex->select_limit;
+      reset_item= &join->unit->fake_select_lex->limit_params.select_limit;
   }
 
   while (!(err= handler->next_row()))

@@ -1448,7 +1448,8 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     DBUG_RETURN(false);
 
   /* Do not push conditions into unit with global ORDER BY ... LIMIT */
-  if (unit->fake_select_lex && unit->fake_select_lex->explicit_limit)
+  if (unit->fake_select_lex &&
+      unit->fake_select_lex->limit_params.explicit_limit)
     DBUG_RETURN(false);
 
   /* Check whether any select of 'unit' allows condition pushdown */

@@ -1191,7 +1191,8 @@ public:
 
   SQL_I_List<ORDER> order_list;   /* ORDER clause */
   SQL_I_List<ORDER> gorder_list;
-  Item *select_limit, *offset_limit;  /* LIMIT clause parameters */
+  Lex_select_limit limit_params;  /* LIMIT clause parameters */
+
   bool is_set_query_expr_tail;
 
   /// Array of pointers to top elements of all_fields list
@@ -1260,8 +1261,6 @@ public:
   /* Number of Item_sum-derived objects in children and descendant SELECTs */
   uint n_child_sum_items;
 
-  /* explicit LIMIT clause was used */
-  bool explicit_limit;
   /*
     This array is used to note  whether we have any candidates for
     expression caching in the corresponding clauses
@@ -1512,7 +1511,7 @@ public:
     return (next_select() == 0 && group_list.elements == 0 &&
             having == 0 && with_sum_func == 0 &&
             table_list.elements >= 1 && !(options & SELECT_DISTINCT) &&
-            select_limit == 0);
+            limit_params.select_limit == 0);
   }
   void mark_as_belong_to_derived(TABLE_LIST *derived);
   void increase_derived_records(ha_rows records);
@@ -1574,7 +1573,7 @@ public:
   ORDER *find_common_window_func_partition_fields(THD *thd);
 
   bool cond_pushdown_is_allowed() const
-  { return !olap && !explicit_limit && !tvc; }
+  { return !olap && !limit_params.explicit_limit && !tvc; }
   
   bool build_pushable_cond_for_having_pushdown(THD *thd, Item *cond);
   void pushdown_cond_into_where_clause(THD *thd, Item *extracted_cond,

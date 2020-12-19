@@ -4396,7 +4396,7 @@ mysql_execute_command(THD *thd)
     if (lex->ignore)
       lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_UPDATE_IGNORE);
 
-    DBUG_ASSERT(select_lex->offset_limit == 0);
+    DBUG_ASSERT(select_lex->limit_params.offset_limit == 0);
     unit->set_limit(select_lex);
     MYSQL_UPDATE_START(thd->query());
     res= up_result= mysql_update(thd, all_tables,
@@ -4772,7 +4772,7 @@ mysql_execute_command(THD *thd)
 
     if ((res= delete_precheck(thd, all_tables)))
       break;
-    DBUG_ASSERT(select_lex->offset_limit == 0);
+    DBUG_ASSERT(select_lex->limit_params.offset_limit == 0);
     unit->set_limit(select_lex);
 
     MYSQL_DELETE_START(thd->query());
@@ -6156,8 +6156,8 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
   /* assign global limit variable if limit is not given */
   {
     SELECT_LEX *param= lex->unit.global_parameters();
-    if (!param->explicit_limit)
-      param->select_limit=
+    if (!param->limit_params.explicit_limit)
+      param->limit_params.select_limit=
         new (thd->mem_root) Item_int(thd,
                                      (ulonglong) thd->variables.select_limit);
   }
@@ -7761,7 +7761,7 @@ void mysql_init_multi_delete(LEX *lex)
 {
   lex->sql_command=  SQLCOM_DELETE_MULTI;
   mysql_init_select(lex);
-  lex->first_select_lex()->select_limit= 0;
+  lex->first_select_lex()->limit_params.select_limit= 0;
   lex->unit.lim.set_unlimited();
   lex->first_select_lex()->table_list.
     save_and_clear(&lex->auxiliary_table_list);
@@ -8964,7 +8964,6 @@ bool st_select_lex_unit::add_fake_select_lex(THD *thd_arg)
   fake_select_lex->parent_lex= thd_arg->lex; /* Used in init_query. */
   fake_select_lex->make_empty_select();
   fake_select_lex->set_linkage(GLOBAL_OPTIONS_TYPE);
-  fake_select_lex->select_limit= 0;
 
   fake_select_lex->no_table_names_allowed= 1;
 

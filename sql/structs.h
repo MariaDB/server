@@ -824,13 +824,15 @@ public:
 class Lex_select_limit
 {
 public:
+  /* explicit LIMIT clause was used */
   bool explicit_limit;
   Item *select_limit, *offset_limit;
 
-  void empty()
+  void clear()
   {
-    explicit_limit= FALSE;
-    select_limit= offset_limit= NULL;
+    explicit_limit= FALSE;    // No explicit limit given by user
+    select_limit= NULL;       // denotes the default limit = HA_POS_ERROR
+    offset_limit= NULL;       // denotes the default offset = 0
   }
 };
 

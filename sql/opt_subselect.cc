@@ -615,9 +615,9 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
       // (1) - ORDER BY without LIMIT can be removed from IN/EXISTS subqueries
       // (2) - for EXISTS, can also remove "ORDER BY ... LIMIT n",
       //       but cannot remove "ORDER BY ... LIMIT n OFFSET m"
-      if (!select_lex->select_limit ||                               // (1)
+      if (!select_lex->limit_params.select_limit ||                  // (1)
           (substype == Item_subselect::EXISTS_SUBS &&                // (2)
-           !select_lex->offset_limit))                               // (2)
+           !select_lex->limit_params.offset_limit))                  // (2)
       {
         select_lex->join->order= 0;
         select_lex->join->skip_sort_order= 1;
@@ -6617,7 +6617,7 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
       Item_in_subselect::test_limit). However, once we allow this, here
       we should set the correct limit if given in the query.
     */
-    in_subs->unit->global_parameters()->select_limit= NULL;
+    in_subs->unit->global_parameters()->limit_params.select_limit= NULL;
     in_subs->unit->set_limit(unit->global_parameters());
     /*
       Set the limit of this JOIN object as well, because normally its being

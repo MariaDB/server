@@ -10181,16 +10181,16 @@ void ha_mroonga::check_fast_order_limit(grn_table_sort_key **sort_keys,
     !MRN_SELECT_LEX_GET_HAVING_COND(select_lex) &&
     select_lex->table_list.elements == 1 &&
     select_lex->order_list.elements &&
-    select_lex->explicit_limit &&
-    select_lex->select_limit &&
-    select_lex->select_limit->val_int() > 0
+    select_lex->limit_params.explicit_limit &&
+    select_lex->limit_params.select_limit &&
+    select_lex->limit_params.select_limit->val_int() > 0
   ) {
-    if (select_lex->offset_limit) {
-      *limit = select_lex->offset_limit->val_int();
+    if (select_lex->limit_params.offset_limit) {
+      *limit = select_lex->limit_params.offset_limit->val_int();
     } else {
       *limit = 0;
     }
-    *limit += select_lex->select_limit->val_int();
+    *limit += select_lex->limit_params.select_limit->val_int();
     if (*limit > (longlong)INT_MAX) {
       DBUG_PRINT("info",
                  ("mroonga: fast_order_limit = false: "
