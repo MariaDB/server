@@ -1396,6 +1396,19 @@ static void fil_crypt_return_iops(rotate_thread_t *state, bool wake= true)
   fil_crypt_update_total_stat(state);
 }
 
+/** Acquire a tablespace reference.
+@return whether a tablespace reference was successfully acquired */
+inline bool fil_space_t::acquire_if_not_stopped()
+{
+  mysql_mutex_assert_owner(&fil_system.mutex);
+  const uint32_t n= acquire_low();
+  if (UNIV_LIKELY(!(n & (STOPPING | CLOSING))))
+    return true;
+  if (UNIV_UNLIKELY(n & STOPPING))
+    return false;
+  return UNIV_LIKELY(!(n & CLOSING)) || prepare(true);
+}
+
 /** Return the next tablespace from rotation_list.
 @param space   previous tablespace (NULL to start from the start)
 @param recheck whether the removal condition needs to be rechecked after
@@ -1444,7 +1457,7 @@ inline fil_space_t *fil_system_t::keyrotate_next(fil_space_t *space,
   do
   {
     space= &*it;
-    if (space->acquire_if_not_stopped(true))
+    if (space->acquire_if_not_stopped())
       return space;
     if (++it == end)
       return nullptr;
@@ -2168,7 +2181,7 @@ static void fil_crypt_rotation_list_fill()
 		if (space->purpose != FIL_TYPE_TABLESPACE
 		    || space->is_in_rotation_list
 		    || UT_LIST_GET_LEN(space->chain) == 0
-		    || !space->acquire_if_not_stopped(true)) {
+		    || !space->acquire_if_not_stopped()) {
 			continue;
 		}
 

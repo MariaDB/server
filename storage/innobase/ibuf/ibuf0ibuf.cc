@@ -1935,7 +1935,7 @@ ibuf_remove_free_page(void)
 	ibuf_bitmap_page_set_bits<IBUF_BITMAP_IBUF>(
 		bitmap_page, page_id, srv_page_size, false, &mtr);
 
-	buf_page_free(page_id, &mtr);
+	buf_page_free(fil_system.sys_space, page_no, &mtr);
 
 	ibuf_mtr_commit(&mtr);
 }

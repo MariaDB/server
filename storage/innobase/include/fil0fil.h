@@ -527,8 +527,9 @@ private:
   }
 public:
   MY_ATTRIBUTE((warn_unused_result))
-  /** @return whether a tablespace reference was successfully acquired */
-  inline bool acquire_if_not_stopped(bool have_mutex= false);
+  /** Acquire a tablespace reference.
+  @return whether a tablespace reference was successfully acquired */
+  inline bool acquire_if_not_stopped();
 
   MY_ATTRIBUTE((warn_unused_result))
   /** Acquire a tablespace reference for I/O.
@@ -1473,17 +1474,6 @@ inline void fil_space_t::reacquire()
   ut_ad(n & PENDING);
   ut_ad(UT_LIST_GET_FIRST(chain)->is_open());
 #endif /* SAFE_MUTEX */
-}
-
-inline bool fil_space_t::acquire_if_not_stopped(bool have_mutex)
-{
-#ifdef SAFE_MUTEX
-  ut_ad(mysql_mutex_is_owner(&fil_system.mutex) == have_mutex);
-#endif
-  const uint32_t n= acquire_low();
-  if (UNIV_LIKELY(!(n & (STOPPING | CLOSING))))
-    return true;
-  return UNIV_LIKELY(!(n & CLOSING)) || prepare(have_mutex);
 }
 
 /** Note that operations on the tablespace must stop or can resume */

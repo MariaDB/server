@@ -2631,9 +2631,7 @@ fseg_free_extent(
 
 	for (ulint i = 0; i < FSP_EXTENT_SIZE; i++) {
 		if (!xdes_is_free(descr, i)) {
-			buf_page_free(
-			  page_id_t(space->id, first_page_in_extent + 1),
-			  mtr);
+			buf_page_free(space, first_page_in_extent + 1, mtr);
 		}
 	}
 }

@@ -2473,45 +2473,45 @@ retry:
   return nullptr;
 }
 
-/** Mark the page status as FREED for the given tablespace id and
-page number. If the page is not in the buffer pool then ignore it.
-X-lock should be taken on the page before marking the page status
-as FREED. It avoids the concurrent flushing of freed page.
-Currently, this function only marks the page as FREED if it is
-in buffer pool.
-@param[in]	page_id	page id
+/** Mark the page status as FREED for the given tablespace and page number.
+@param[in,out]	space	tablespace
+@param[in]	page	page number
 @param[in,out]	mtr	mini-transaction */
-void buf_page_free(const page_id_t page_id, mtr_t *mtr)
+void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
 {
   ut_ad(mtr);
   ut_ad(mtr->is_active());
-  buf_pool.stat.n_page_gets++;
 
+  if (srv_immediate_scrub_data_uncompressed
+#if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
+      || space->is_compressed()
+#endif
+      )
+    mtr->add_freed_offset(space, page);
+
+  buf_pool.stat.n_page_gets++;
+  const page_id_t page_id(space->id, page);
   const ulint fold= page_id.fold();
   page_hash_latch *hash_lock= buf_pool.page_hash.lock<false>(fold);
-  buf_block_t *block= reinterpret_cast<buf_block_t*>
-    (buf_pool.page_hash_get_low(page_id, fold));
-
-  /* TODO: try to all this part of mtr_t::free() */
-  if (srv_immediate_scrub_data_uncompressed || mtr->is_page_compressed())
-    mtr->add_freed_offset(page_id);
-
-  if (!block || block->page.state() != BUF_BLOCK_FILE_PAGE)
+  if (buf_block_t *block= reinterpret_cast<buf_block_t*>
+      (buf_pool.page_hash_get_low(page_id, fold)))
   {
-    /* FIXME: if block!=NULL, convert to BUF_BLOCK_FILE_PAGE,
-    but avoid buf_zip_decompress() */
-    hash_lock->read_unlock();
-    return;
+    if (block->page.state() != BUF_BLOCK_FILE_PAGE)
+      /* FIXME: convert, but avoid buf_zip_decompress() */;
+    else
+    {
+      buf_block_buf_fix_inc(block);
+      ut_ad(block->page.buf_fix_count());
+      hash_lock->read_unlock();
+
+      mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
+      block->lock.x_lock();
+
+      block->page.status= buf_page_t::FREED;
+      return;
+    }
   }
 
-
-  buf_block_buf_fix_inc(block);
-  ut_ad(block->page.buf_fix_count());
-
-  mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
-  block->lock.x_lock();
-
-  block->page.status= buf_page_t::FREED;
   hash_lock->read_unlock();
 }
 

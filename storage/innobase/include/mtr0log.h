@@ -511,16 +511,18 @@ inline void mtr_t::memcpy(const buf_block_t &b, void *dest, const void *str,
 @param[in,out]        b       buffer page */
 inline void mtr_t::init(buf_block_t *b)
 {
-  if (UNIV_LIKELY_NULL(m_freed_pages))
+  const page_id_t id{b->page.id()};
+  ut_ad(is_named_space(id.space()));
+  ut_ad(!m_freed_pages == !m_freed_space);
+
+  if (UNIV_LIKELY_NULL(m_freed_space) &&
+      m_freed_space->id == id.space() &&
+      m_freed_pages->remove_if_exists(b->page.id().page_no()) &&
+      m_freed_pages->empty())
   {
-    ut_ad(m_log_mode != MTR_LOG_ALL ||
-          m_user_space_id == b->page.id().space());
-    if (m_freed_pages->remove_if_exists(b->page.id().page_no()) &&
-        m_freed_pages->empty())
-    {
-      delete m_freed_pages;
-      m_freed_pages= nullptr;
-    }
+    delete m_freed_pages;
+    m_freed_pages= nullptr;
+    m_freed_space= nullptr;
   }
 
   b->page.status= buf_page_t::INIT_ON_FLUSH;
@@ -540,15 +542,11 @@ inline void mtr_t::init(buf_block_t *b)
 @param[in]	offset	page offset to be freed */
 inline void mtr_t::free(fil_space_t &space, uint32_t offset)
 {
-  page_id_t freed_page_id(space.id, offset);
-  if (m_log_mode == MTR_LOG_ALL)
-    m_log.close(log_write<FREE_PAGE>(freed_page_id, nullptr));
+  ut_ad(is_named_space(&space));
+  ut_ad(!m_freed_space || m_freed_space == &space);
 
-  ut_ad(!m_user_space || m_user_space == &space);
-  if (&space == fil_system.sys_space)
-    freed_system_tablespace_page();
-  else
-    m_user_space= &space;
+  if (m_log_mode == MTR_LOG_ALL)
+    m_log.close(log_write<FREE_PAGE>({space.id, offset}, nullptr));
 }
 
 /** Write an EXTENDED log record.
