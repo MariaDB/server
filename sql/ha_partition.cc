@@ -7224,7 +7224,7 @@ bool ha_partition::check_parallel_search()
   DBUG_PRINT("info",("partition select_lex: %p", select_lex));
   if (!select_lex)
     goto not_parallel;
-  if (!select_lex->explicit_limit)
+  if (!select_lex->limit_params.explicit_limit)
   {
     DBUG_PRINT("info",("partition not using explicit_limit"));
     goto parallel;
@@ -11521,13 +11521,13 @@ int ha_partition::direct_update_rows_init(List<Item> *update_fields)
       table_list= table_list->parent_l;
     st_select_lex *select_lex= table_list->select_lex;
     DBUG_PRINT("info", ("partition select_lex: %p", select_lex));
-    if (select_lex && select_lex->explicit_limit)
+    if (select_lex && select_lex->limit_params.explicit_limit)
     {
       DBUG_PRINT("info", ("partition explicit_limit=TRUE"));
       DBUG_PRINT("info", ("partition offset_limit: %p",
-                          select_lex->offset_limit));
+                          select_lex->limit_params.offset_limit));
       DBUG_PRINT("info", ("partition select_limit: %p",
-                          select_lex->select_limit));
+                          select_lex->limit_params.select_limit));
       DBUG_PRINT("info", ("partition FALSE by select_lex"));
       DBUG_RETURN(HA_ERR_WRONG_COMMAND);
     }
@@ -11713,13 +11713,13 @@ int ha_partition::direct_delete_rows_init()
       table_list= table_list->parent_l;
     st_select_lex *select_lex= table_list->select_lex;
     DBUG_PRINT("info", ("partition select_lex: %p", select_lex));
-    if (select_lex && select_lex->explicit_limit)
+    if (select_lex && select_lex->limit_params.explicit_limit)
     {
       DBUG_PRINT("info", ("partition explicit_limit: TRUE"));
       DBUG_PRINT("info", ("partition offset_limit: %p",
-                          select_lex->offset_limit));
+                          select_lex->limit_params.offset_limit));
       DBUG_PRINT("info", ("partition select_limit: %p",
-                          select_lex->select_limit));
+                          select_lex->limit_params.select_limit));
       DBUG_PRINT("info", ("partition FALSE by select_lex"));
       DBUG_RETURN(HA_ERR_WRONG_COMMAND);
     }

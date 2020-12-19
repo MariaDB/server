@@ -10885,13 +10885,13 @@ sum_expr:
                   Item_func_group_concat(thd, Lex->current_context(),
                                         $3, $5,
                                         sel->gorder_list, $7, $8,
-                                        sel->select_limit,
-                                        sel->offset_limit);
+                                        sel->limit_params.select_limit,
+                                        sel->limit_params.offset_limit);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
-            sel->select_limit= NULL;
-            sel->offset_limit= NULL;
-            sel->explicit_limit= 0;
+            sel->limit_params.select_limit= NULL;
+            sel->limit_params.offset_limit= NULL;
+            sel->limit_params.explicit_limit= 0;
             $5->empty();
             sel->gorder_list.empty();
           }
@@ -10917,13 +10917,13 @@ sum_expr:
                   Item_func_json_arrayagg(thd, Lex->current_context(),
                                           $3, args,
                                           sel->gorder_list, s, $7,
-                                          sel->select_limit,
-                                          sel->offset_limit);
+                                          sel->limit_params.select_limit,
+                                          sel->limit_params.offset_limit);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
-            sel->select_limit= NULL;
-            sel->offset_limit= NULL;
-            sel->explicit_limit= 0;
+            sel->limit_params.select_limit= NULL;
+            sel->limit_params.offset_limit= NULL;
+            sel->limit_params.explicit_limit= 0;
             $5->empty();
             sel->gorder_list.empty();
           }
@@ -11250,38 +11250,18 @@ opt_glimit_clause:
         | glimit_clause { $$ = 1; }
         ;
 
-glimit_clause_init:
-          LIMIT{}
-        ;
 
 glimit_clause:
-          glimit_clause_init glimit_options
+          LIMIT glimit_options
           {
             Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
           }
         ;
 
 glimit_options:
-          limit_option
+          limit_options
           {
-            SELECT_LEX *sel= Select;
-            sel->select_limit= $1;
-            sel->offset_limit= 0;
-            sel->explicit_limit= 1;
-          }
-        | limit_option ',' limit_option
-          {
-            SELECT_LEX *sel= Select;
-            sel->select_limit= $3;
-            sel->offset_limit= $1;
-            sel->explicit_limit= 1;
-          }
-        | limit_option OFFSET_SYM limit_option
-          {
-            SELECT_LEX *sel= Select;
-            sel->select_limit= $1;
-            sel->offset_limit= $3;
-            sel->explicit_limit= 1;
+            Select->limit_params= $1;
           }
         ;
 
@@ -12254,9 +12234,7 @@ limit_clause:
 opt_global_limit_clause:
           opt_limit_clause
           {
-            Select->explicit_limit= $1.explicit_limit;
-            Select->select_limit= $1.select_limit;
-            Select->offset_limit= $1.offset_limit;
+            Select->limit_params= $1;
           }
         ;
 
@@ -12319,8 +12297,7 @@ limit_option:
 limit_rows_option:
           limit_option
           { 
-            LEX *lex=Lex;
-            lex->limit_rows_examined= $1;
+            Lex->limit_rows_examined= $1;
           }
         ;
 
@@ -12328,14 +12305,14 @@ delete_limit_clause:
           /* empty */
           {
             LEX *lex=Lex;
-            lex->current_select->select_limit= 0;
+            lex->current_select->limit_params.select_limit= 0;
           }
         | LIMIT limit_option
           {
             SELECT_LEX *sel= Select;
-            sel->select_limit= $2;
+            sel->limit_params.select_limit= $2;
             Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
-            sel->explicit_limit= 1;
+            sel->limit_params.explicit_limit= 1;
           }
        | LIMIT ROWS_SYM EXAMINED_SYM { thd->parse_error(); MYSQL_YYABORT; }
        | LIMIT limit_option ROWS_SYM EXAMINED_SYM { thd->parse_error(); MYSQL_YYABORT; }
@@ -16758,27 +16735,26 @@ handler_tail:
             Item *one= new (thd->mem_root) Item_int(thd, (int32) 1);
             if (unlikely(one == NULL))
               MYSQL_YYABORT;
-            lex->current_select->select_limit= one;
-            lex->current_select->offset_limit= 0;
-            lex->limit_rows_examined= 0;
+            Select->limit_params.select_limit= one;
+            Select->limit_params.offset_limit= 0;
+            Lex->limit_rows_examined= 0;
             if (!lex->current_select->add_table_to_list(thd, $1, 0, 0))
               MYSQL_YYABORT;
           }
           handler_read_or_scan opt_where_clause opt_global_limit_clause
           {
-            LEX *lex=Lex;
-            lex->clause_that_disallows_subselect= NULL;
-            if (!lex->current_select->explicit_limit)
+            Lex->clause_that_disallows_subselect= NULL;
+            if (!Lex->current_select->limit_params.explicit_limit)
             {
               Item *one= new (thd->mem_root) Item_int(thd, (int32) 1);
               if (one == NULL)
                 MYSQL_YYABORT;
-              lex->current_select->select_limit= one;
-              lex->current_select->offset_limit= 0;
-              lex->limit_rows_examined= 0;
+              Select->limit_params.select_limit= one;
+              Select->limit_params.offset_limit= 0;
+              Lex->limit_rows_examined= 0;
             }
             /* Stored functions are not supported for HANDLER READ. */
-            if (lex->uses_stored_routines())
+            if (Lex->uses_stored_routines())
             {
               my_error(ER_NOT_SUPPORTED_YET, MYF(0),
                        "stored functions in HANDLER ... READ");
