@@ -8961,12 +8961,12 @@ void spider_get_select_limit_from_select_lex(
   DBUG_ENTER("spider_get_select_limit_from_select_lex");
   *select_limit = 9223372036854775807LL;
   *offset_limit = 0;
-  if (select_lex && select_lex->explicit_limit)
+  if (select_lex && select_lex->limit_params.explicit_limit)
   {
-    *select_limit = select_lex->select_limit ?
-      select_lex->select_limit->val_int() : 0;
-    *offset_limit = select_lex->offset_limit ?
-      select_lex->offset_limit->val_int() : 0;
+    *select_limit = select_lex->limit_params.select_limit ?
+      select_lex->limit_params.select_limit->val_int() : 0;
+    *offset_limit = select_lex->limit_params.offset_limit ?
+      select_lex->limit_params.offset_limit->val_int() : 0;
   }
   DBUG_VOID_RETURN;
 }
@@ -9158,13 +9158,13 @@ longlong spider_split_read_param(
     result_list->set_split_read = TRUE;
   }
   DBUG_PRINT("info",("spider result_list->semi_split_read=%f", result_list->semi_split_read));
-  DBUG_PRINT("info",("spider select_lex->explicit_limit=%d", select_lex ? select_lex->explicit_limit : 0));
+  DBUG_PRINT("info",("spider select_lex->explicit_limit=%d", select_lex ? select_lex->limit_params.explicit_limit : 0));
   DBUG_PRINT("info",("spider OPTION_FOUND_ROWS=%s", select_lex && (select_lex->options & OPTION_FOUND_ROWS) ? "TRUE" : "FALSE"));
   DBUG_PRINT("info",("spider select_lex->group_list.elements=%u", select_lex ? select_lex->group_list.elements : 0));
   DBUG_PRINT("info",("spider select_lex->with_sum_func=%s", select_lex && select_lex->with_sum_func ? "TRUE" : "FALSE"));
   if (
     result_list->semi_split_read > 0 &&
-    select_lex && select_lex->explicit_limit &&
+    select_lex && select_lex->limit_params.explicit_limit &&
     !(select_lex->options & OPTION_FOUND_ROWS) &&
     !select_lex->group_list.elements &&
     !select_lex->with_sum_func
@@ -9394,7 +9394,7 @@ bool spider_check_direct_order_limit(
         select_lex ? select_lex->order_list.elements : 0));
       if (
         !first_check ||
-        !select_lex->explicit_limit ||
+        !select_lex->limit_params.explicit_limit ||
         (select_lex->options & OPTION_FOUND_ROWS) ||
         (
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE

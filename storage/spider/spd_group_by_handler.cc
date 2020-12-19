@@ -1256,7 +1256,7 @@ int spider_group_by_handler::init_scan()
     share->direct_order_limit);
   if (
     direct_order_limit &&
-    select_lex->explicit_limit &&
+    select_lex->limit_params.explicit_limit &&
     !(select_lex->options & OPTION_FOUND_ROWS) &&
     select_limit < direct_order_limit /* - offset_limit */
   ) {
@@ -1291,7 +1291,7 @@ int spider_group_by_handler::init_scan()
     result_list->internal_limit >= result_list->split_read ?
     result_list->split_read : result_list->internal_limit;
 
-  if (select_lex->explicit_limit)
+  if (select_lex->limit_params.explicit_limit)
   {
     result_list->internal_offset += offset_limit;
   } else {

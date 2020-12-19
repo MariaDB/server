@@ -1646,9 +1646,9 @@ bool Item_exists_subselect::fix_length_and_dec()
   DBUG_ENTER("Item_exists_subselect::fix_length_and_dec");
   init_length_and_dec();
   // If limit is not set or it is constant more than 1
-  if (!unit->global_parameters()->select_limit ||
-      (unit->global_parameters()->select_limit->basic_const_item() &&
-       unit->global_parameters()->select_limit->val_int() > 1))
+  if (!unit->global_parameters()->limit_params.select_limit ||
+      (unit->global_parameters()->limit_params.select_limit->basic_const_item() &&
+       unit->global_parameters()->limit_params.select_limit->val_int() > 1))
   {
     /*
        We need only 1 row to determine existence (i.e. any EXISTS that is not
@@ -1657,9 +1657,9 @@ bool Item_exists_subselect::fix_length_and_dec()
     Item *item= new (thd->mem_root) Item_int(thd, (int32) 1);
     if (!item)
       DBUG_RETURN(TRUE);
-    thd->change_item_tree(&unit->global_parameters()->select_limit,
+    thd->change_item_tree(&unit->global_parameters()->limit_params.select_limit,
                           item);
-    unit->global_parameters()->explicit_limit= 1; // we set the limit
+    unit->global_parameters()->limit_params.explicit_limit= 1; // we set the limit
     DBUG_PRINT("info", ("Set limit to 1"));
   }
   DBUG_RETURN(FALSE);
@@ -2838,9 +2838,9 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
     select_lex->having->top_level_item();
     join_arg->having= select_lex->having;
   }
-  join_arg->thd->change_item_tree(&unit->global_parameters()->select_limit,
-                                  new (thd->mem_root)
-                                  Item_int(thd, (int32) 1));
+  SELECT_LEX *global_parameters= unit->global_parameters();
+  join_arg->thd->change_item_tree(&global_parameters->limit_params.select_limit,
+                                  new (thd->mem_root) Item_int(thd, (int32) 1));
   unit->lim.set_single_row();
 
   DBUG_RETURN(false);
@@ -3053,10 +3053,10 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
     (1a)  or is a "LIMIT 0" (see MDEV-19429)
     (2).  there is an OFFSET clause
   */
-  if ((first_select->select_limit &&                        // (1)
-       (!first_select->select_limit->basic_const_item() ||  // (1)
-        first_select->select_limit->val_uint() == 0)) ||    // (1a)
-      first_select->offset_limit)                           // (2)
+  if ((first_select->limit_params.select_limit &&                        // (1)
+       (!first_select->limit_params.select_limit->basic_const_item() ||  // (1)
+        first_select->limit_params.select_limit->val_uint() == 0)) ||    // (1a)
+      first_select->limit_params.offset_limit)                           // (2)
   {
     DBUG_RETURN(FALSE);
   }
@@ -3163,7 +3163,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
   /* make EXISTS->IN permanet (see Item_subselect::init()) */
   set_exists_transformed();
 
-  first_select->select_limit= NULL;
+  first_select->limit_params.select_limit= NULL;
   if (!(in_subs= new (thd->mem_root) Item_in_subselect(thd, left_exp,
                                                          first_select)))
   {

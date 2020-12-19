@@ -1936,7 +1936,7 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
   */
   if ((!view->view && !view->belong_to_view) ||
       thd->lex->sql_command == SQLCOM_INSERT ||
-      thd->lex->first_select_lex()->select_limit == 0)
+      thd->lex->first_select_lex()->limit_params.select_limit == 0)
     DBUG_RETURN(FALSE); /* it is normal table or query without LIMIT */
   table= view->table;
   view= view->top_table();
