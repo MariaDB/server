@@ -14,7 +14,7 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#define SPIDER_DB_WRAPPER_STR "mysql"
+#define SPIDER_DB_WRAPPER_STR "mariadb"
 #define SPIDER_DB_WRAPPER_LEN (sizeof(SPIDER_DB_WRAPPER_STR) - 1)
 #define SPIDER_DB_PK_NAME_STR "PRIMARY"
 #define SPIDER_DB_PK_NAME_LEN (sizeof(SPIDER_DB_PK_NAME_STR) - 1)

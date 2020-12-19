@@ -1,0 +1,5 @@
+--source ../include/delete_with_float_column_default_init.inc
+--source delete_with_float_column.inc
+--source ../include/delete_with_float_column_default_deinit.inc
+--echo
+--echo end of test
