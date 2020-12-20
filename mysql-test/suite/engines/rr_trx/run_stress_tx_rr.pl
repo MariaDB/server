@@ -1,4 +1,4 @@
-#!/usr/bin/env perl
+#!/usr/bin/perl
 ################################################################################
 #
 # This script runs the transactional stress test "stress_tx_rr" against the

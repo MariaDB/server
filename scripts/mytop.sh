@@ -1,4 +1,4 @@
-#!/usr/bin/env perl
+#!/usr/bin/perl
 #
 # $Id: mytop,v 1.99-maria6 2019/10/22 14:53:51 jweisbuch Exp $
 

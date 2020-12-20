@@ -1,4 +1,4 @@
-#!/usr/bin/env perl
+#!/usr/bin/perl
 # -*- cperl -*-
 
 # Copyright (c) 2008, 2013, Oracle and/or its affiliates. All rights reserved.

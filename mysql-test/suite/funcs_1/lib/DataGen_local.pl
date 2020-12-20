@@ -1,4 +1,4 @@
-#!/usr/bin/env perl
+#!/usr/bin/perl
 
 
 if ( (scalar(@ARGV) != 1 ) || ($ARGV[0] =~ /[^0-9]/i ) )

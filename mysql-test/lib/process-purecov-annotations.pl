@@ -1,4 +1,4 @@
-#!/usr/bin/env perl
+#!/usr/bin/perl
 # -*- cperl -*-
 
 # This script processes a .gcov coverage report to honor purecov 
