@@ -117,7 +117,10 @@ override_dh_auto_test:
 	[ ! -f debian/unstable-tests.$(DEB_HOST_ARCH) ] || cat debian/unstable-tests.$(DEB_HOST_ARCH) >> mysql-test/unstable-tests
 	# Run testsuite
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
-	cd $(BUILDDIR)/mysql-test && ./mtr --force --mem --parallel=$(NUMJOBS) --skip-rpl --suite=main --skip-test-list=unstable-tests  || $(TESTSUITE_FAIL_CMD) ;
+	cd $(BUILDDIR)/mysql-test && \
+	./mtr --force --mem \
+	      --parallel=$(NUMJOBS) --skip-rpl --suite=main \
+	      --skip-test-list=unstable-tests
 endif
 
 override_dh_auto_install:
@@ -149,7 +152,7 @@ endif
 	# to satisfy Debian reproducible build requirements
 	nm --defined-only $(BUILDDIR)/sql/mariadbd | LC_ALL=C sort | gzip -n -9 > $(TMP)/usr/share/doc/mariadb-server-10.5/mariadbd.sym.gz
 
-	# rename and install AppArmor profile
+	# Rename and install AppArmor profile
 	install -D -m 644 debian/apparmor-profile $(TMP)/etc/apparmor.d/usr.sbin.mariadbd
 
 	# Install libmariadbclient18 compatibility links

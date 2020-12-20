@@ -103,6 +103,7 @@ EOF
 	    rmdir $mysql_upgradedir 2>/dev/null || true
 
     done
+
     # Upgrading from mysql.com needs might have the root user as auth_socket.
     # auto.cnf is a sign of a mysql install, that doesn't exist in mariadb.
     # We use lsof to protect against concurrent access by mysqld (mariadb has
