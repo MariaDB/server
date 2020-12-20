@@ -1,31 +1,26 @@
 --source include/have_debug.inc
+--source include/have_innodb.inc
 --source include/have_log_bin.inc
 --source include/not_valgrind.inc
 
 #
-# Testing of atomic drop with crashes in a lot of different places
-# We also test having the tables in different databases
+# Testing of atomic DROP DATABASE with crashes in a lot of different places
 #
 
 call mtr.add_suppression("InnoDB: .* does not exist in the InnoDB internal");
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
-create database test2;
+let $engine_count=2;
+let $engines='aria','innodb';
 
-let $engine_count=1;
-let $engines='aria';
-
-let $crash_count=7;
-let $crash_points='ddl_log_drop_before_delete_table', 'ddl_log_drop_after_delete_table', 'ddl_log_drop_before_drop_trigger', 'ddl_log_drop_before_drop_trigger2', 'ddl_log_drop_after_drop_trigger', 'ddl_log_drop_before_binlog', 'ddl_log_drop_after_binlog';
-
-# Number of drops in the tested statement
-let $drops=3;
+let $crash_count=10;
+let $crash_points='ddl_log_drop_before_delete_table','ddl_log_drop_after_drop_tables','ddl_log_drop_before_ha_drop_database','ddl_log_drop_before_drop_db_routines','ddl_log_drop_after_drop_db_routines','ddl_log_drop_before_drop_option_file','ddl_log_drop_before_drop_dir','ddl_log_drop_after_drop_dir','ddl_log_drop_before_binlog','ddl_log_drop_after_binlog';
 
 let $old_debug=`select @@debug_dbug`;
 
 let $e=0;
 let $keep_include_silent=1;
-let $grep_script=DROP TABLE;
+let $grep_script=DROP;
 --disable_query_log
 
 while ($e < $engine_count)
@@ -45,6 +40,9 @@ while ($e < $engine_count)
     let $extra_option=transactional=0;
   }
 
+  # Number of tables that should be dropped (we try to crash after each drop)
+  let $drops=3;
+
   let $c=0;
   while ($c < $crash_count)
   {
@@ -54,38 +52,27 @@ while ($e < $engine_count)
     while ($r < $drops)
     {
       inc $r;
-     --eval set @@default_storage_engine=$default_engine
-     --eval create table t1 (a int not null) $extra_option;
-     --eval create table test2.t2 (b int not null) $extra_option;
-      create sequence ts;
-      insert into t1 values(1);
-      insert into test2.t2 values(2);
+      create database test2;
+      use test2;
+      --eval set @@default_storage_engine=$default_engine;
+      --eval create table t1 (a int not null) $extra_option;
+      create view t1v as select * from t1;
+      --eval create table t2 (b int not null) $extra_option;
+      create procedure foo()
+        insert into test.t1 values (42);
+  
       flush tables;
-
-      delimiter |;
-      create trigger t1_trg before insert on t1 for each row
-      begin
-        if isnull(new.a) then
-          set new.a:= 1000;
-        end if;
-      end|
-      create trigger test2.t2_trg before insert on test2.t2 for each row
-      begin
-        if isnull(new.b) then
-          set new.b:= 2000;
-        end if;
-      end|
-      delimiter ;|
+      use test;
 
       RESET MASTER;
 
       echo "engine: $engine  crash point: $crash  position: $r";
-      --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+     --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
       --disable_reconnect
       --eval set @@debug_dbug="+d,$crash",@debug_crash_counter=$r
       let $errno=0;
       --error 0,2013
-      drop table t1,test2.t2,ts;
+      DROP DATABASE test2;
       let $error=$errno;
       --enable_reconnect
       --source include/wait_until_connected_again.inc
@@ -96,9 +83,12 @@ while ($e < $engine_count)
       {
         echo "No crash!";
       }
+      use test;
       # Check which tables still exists
-      --list_files $MYSQLD_DATADIR/test t*
+      --error 0,1
       --list_files $MYSQLD_DATADIR/test2 t*
+      --error 0,ER_SP_DOES_NOT_EXIST
+      show create procedure test2.foo;
 
       --let $binlog_file=master-bin.000001
       --source include/show_binlog_events.inc
@@ -109,11 +99,14 @@ while ($e < $engine_count)
       }
       # Really drop the tables. The warnings will show what was dropped
       --disable_warnings
-      drop table if exists t1,test2.t2,ts;
+      --error 0, ER_DB_DROP_EXISTS
+      DROP DATABASE test2;
       --enable_warnings
     }
+    # We only need to test drops for all tables for the first crash point
+    let $drops=1;
   }
 }
-drop table if exists t1,test2.t2,ts;
-drop database test2;
+drop database if exists test2;
+
 --enable_query_log

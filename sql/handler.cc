@@ -837,9 +837,10 @@ static my_bool dropdb_handlerton(THD *unused1, plugin_ref plugin,
 }
 
 
-void ha_drop_database(char* path)
+void ha_drop_database(const char* path)
 {
-  plugin_foreach(NULL, dropdb_handlerton, MYSQL_STORAGE_ENGINE_PLUGIN, path);
+  plugin_foreach(NULL, dropdb_handlerton, MYSQL_STORAGE_ENGINE_PLUGIN,
+                 (char*) path);
 }
 
 

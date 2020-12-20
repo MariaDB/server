@@ -5110,7 +5110,7 @@ int ha_panic(enum ha_panic_function flag);
 void ha_close_connection(THD* thd);
 void ha_kill_query(THD* thd, enum thd_kill_levels level);
 bool ha_flush_logs();
-void ha_drop_database(char* path);
+void ha_drop_database(const char* path);
 void ha_checkpoint_state(bool disable);
 void ha_commit_checkpoint_request(void *cookie, void (*pre_hook)(void *));
 int ha_create_table(THD *thd, const char *path,

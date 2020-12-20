@@ -1870,7 +1870,7 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     }
     if (!first_table++)
     {
-      if (ddl_log_drop_view_init(thd, &ddl_log_state))
+      if (ddl_log_drop_view_init(thd, &ddl_log_state, &thd->db))
         DBUG_RETURN(TRUE);
     }
     if (ddl_log_drop_view(thd, &ddl_log_state, &cpath, &view->db,
