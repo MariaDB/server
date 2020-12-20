@@ -23,6 +23,18 @@ case "$1" in
         echo "  ln -sf mariadb.cnf /etc/mysql/my.cnf"
       fi
     fi
+
+    # Note that MySQL in Debian runs the configure-symlinks from the
+    # mysql-server-x.x.postinst and postrm files, while the MySQL.com (and
+    # Percona.com) packaging triggers update-alternatives directly form the
+    # mysql-common (and percona-x-common) package using priority 200.
+    #
+    # Thus, we need to ensure here that mariadb.cnf indeed became the primary
+    # alternative and override with priority 500 if needed.
+    if ! update-alternatives --query my.cnf | grep --quiet "Value: /etc/mysql/mariadb.cnf"
+    then
+      update-alternatives --install /etc/mysql/my.cnf my.cnf "/etc/mysql/mariadb.cnf" 500 || true
+    fi
   ;;
 esac
 
