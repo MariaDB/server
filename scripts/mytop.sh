@@ -348,7 +348,7 @@ if ($has_is_processlist == 1)
     if ($has_time_ms == 1)
     {
         ## Check if the server has the STAGE column on the I_S.PROCESSLIST
-        ## table (MariaDB) to retreive query completion informations
+        ## table (MariaDB) to retreive query completion information
         $has_progress = Execute("SELECT /*mytop*/ 1 FROM INFORMATION_SCHEMA.COLUMNS
                                 WHERE TABLE_SCHEMA = 'information_schema' AND
                                 TABLE_NAME = 'PROCESSLIST' AND
@@ -853,7 +853,7 @@ while (1)
     }
 
     ## a - progress column toggle (the column is only displayed
-    ##     if progress informations are available from the processlist)
+    ##     if progress information are available from the processlist)
 
     if ($key eq 'a')
     {

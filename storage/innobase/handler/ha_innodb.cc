@@ -19925,7 +19925,7 @@ static MYSQL_SYSVAR_UINT(simulate_comp_failures, srv_simulate_comp_failures,
 static MYSQL_SYSVAR_BOOL(force_primary_key,
   srv_force_primary_key,
   PLUGIN_VAR_OPCMDARG,
-  "Do not allow to create table without primary key (off by default)",
+  "Do not allow creating a table without primary key (off by default)",
   NULL, NULL, FALSE);
 
 static const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", "lzma", "bzip2", "snappy", 0 };

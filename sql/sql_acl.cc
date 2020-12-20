@@ -5023,7 +5023,7 @@ acl_update_proxy_user(ACL_PROXY_USER *new_value, bool is_revoke)
     {
       if (is_revoke)
       {
-        DBUG_PRINT("info", ("delting ACL_PROXY_USER"));
+        DBUG_PRINT("info", ("deleting ACL_PROXY_USER"));
         delete_dynamic_element(&acl_proxy_users, i);
       }
       else

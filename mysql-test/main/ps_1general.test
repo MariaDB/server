@@ -60,7 +60,7 @@ select * from t1 where a = @var ;
 
 # 3. DEALLOCATE PREPARE stmt_name;
 #
-#    Send the server the order to drop the parse informations.
+#    Send the server the order to drop the parse information.
 #    The server will reply with "Query Ok" or an error message.
 DEALLOCATE PREPARE stmt ;
 

@@ -21,7 +21,7 @@
 #include <aria_backup.h>
 
 /**
-  @brief Get capabilites for an Aria table
+  @brief Get capabilities for an Aria table
 
   @param kfile   key file (.MAI)
   @param cap     Capabilities are stored here

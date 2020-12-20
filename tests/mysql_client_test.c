@@ -18883,7 +18883,7 @@ static void test_bug58036()
   if (!mysql_change_user(conn, opt_user, opt_password, NULL))
   {
     if (!opt_silent)
-      printf("mysql_change_user() succedded, error expected!");
+      printf("mysql_change_user() succeeded, error expected!");
     mysql_close(conn);
     DIE("");
   }
