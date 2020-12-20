@@ -3715,7 +3715,7 @@ maria_declare_plugin(federatedx)
   &federatedx_storage_engine,
   "FEDERATED",
   "Patrick Galbraith",
-  "Allows to access tables on other MariaDB servers, supports transactions and more",
+  "Allows one to access tables on other MariaDB servers, supports transactions and more",
   PLUGIN_LICENSE_GPL,
   federatedx_db_init, /* Plugin Init */
   federatedx_done, /* Plugin Deinit */
@@ -3726,4 +3726,3 @@ maria_declare_plugin(federatedx)
   MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 }
 maria_declare_plugin_end;
-

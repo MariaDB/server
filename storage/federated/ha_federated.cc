@@ -3394,7 +3394,7 @@ maria_declare_plugin(federated)
   &federated_storage_engine,
   "FEDERATED",
   "Patrick Galbraith and Brian Aker, MySQL AB",
-  "Allows to access tables on other MariaDB servers",
+  "Allows accessing tables on other MariaDB servers",
   PLUGIN_LICENSE_GPL,
   federated_db_init, /* Plugin Init */
   federated_done, /* Plugin Deinit */

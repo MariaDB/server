@@ -1958,7 +1958,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     {
       info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
       return "Failed to replace GTID event with backwards-compatible event: "
-             "currupt event.";
+             "corrupt event.";
     }
     if (!need_dummy)
       return NULL;

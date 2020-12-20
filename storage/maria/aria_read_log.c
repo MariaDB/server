@@ -269,7 +269,7 @@ static struct my_option my_long_options[] =
    &opt_silent, &opt_silent, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"tables-to-redo", 'T',
-   "List of tables sepearated with , that we should apply REDO on. Use this if you only want to recover some tables",
+   "List of tables separated with , that we should apply REDO on. Use this if you only want to recover some tables",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"tmpdir", 't', "Path for temporary files. Multiple paths can be specified, "
    "separated by "

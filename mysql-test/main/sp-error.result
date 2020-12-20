@@ -2242,7 +2242,7 @@ H2
 Warnings:
 Warning	1642	Unhandled user-defined warning condition
 
-# -- Check that handlers are choosen properly in case of deep stack and
+# -- Check that handlers are chosen properly in case of deep stack and
 # -- nested SQL-blocks.
 
 CREATE PROCEDURE p10()

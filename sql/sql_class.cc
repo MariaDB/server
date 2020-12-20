@@ -3614,7 +3614,7 @@ int select_max_min_finder_subselect::send_data(List<Item> &items)
         break;
       case ROW_RESULT:
       case TIME_RESULT:
-        // This case should never be choosen
+        // This case should never be chosen
 	DBUG_ASSERT(0);
 	op= 0;
       }

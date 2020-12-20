@@ -1924,7 +1924,7 @@ static void add_table_options(THD *thd, TABLE *table,
     packet->append_ulonglong(share->stats_sample_pages);
   }
 
-  /* We use CHECKSUM, instead of TABLE_CHECKSUM, for backward compability */
+  /* We use CHECKSUM, instead of TABLE_CHECKSUM, for backward compatibility */
   if (create_info.options & HA_OPTION_CHECKSUM)
     packet->append(STRING_WITH_LEN(" CHECKSUM=1"));
   if (create_info.page_checksum != HA_CHOICE_UNDEF)
@@ -5504,7 +5504,7 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       str.qs_append(share->stats_sample_pages);
     }
 
-    /* We use CHECKSUM, instead of TABLE_CHECKSUM, for backward compability */
+    /* We use CHECKSUM, instead of TABLE_CHECKSUM, for backward compatibility */
     if (share->db_create_options & HA_OPTION_CHECKSUM)
       str.qs_append(STRING_WITH_LEN(" checksum=1"));
 

@@ -54,4 +54,4 @@ SELECT @@GLOBAL.innodb_scrub_log_speed;
 200 Expected
 SELECT innodb_scrub_log_speed;
 ERROR 42S22: Unknown column 'innodb_scrub_log_speed' in 'field list'
-Expected error 'Unknow column in field list'
+Expected error 'Unknown column in field list'

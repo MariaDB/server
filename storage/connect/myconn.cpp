@@ -120,7 +120,7 @@ static MYSQL_RES *connect_use_result(MYSQL *mysql)
 /************************************************************************/
 /*  MyColumns: constructs the result blocks containing all columns      */
 /*  of a MySQL table or view.                                           */
-/*  info = TRUE to get catalog column informations.                     */
+/*  info = TRUE to get catalog column information.                     */
 /************************************************************************/
 PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
                   const char *user, const char *pwd,

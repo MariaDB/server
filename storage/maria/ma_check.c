@@ -6428,7 +6428,7 @@ void _ma_update_auto_increment_key(HA_CHECK *param, MARIA_HA *info,
          keypart_k=c_k for arbitrary constants c_1 ... c_k)
 
      = {assuming that values have uniform distribution and index contains all
-        tuples from the domain (or that {c_1, ..., c_k} tuple is choosen from
+        tuples from the domain (or that {c_1, ..., c_k} tuple is chosen from
         index tuples}
 
      = #tuples-in-the-index / #distinct-tuples-in-the-index.
