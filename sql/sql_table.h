@@ -37,6 +37,7 @@ typedef struct st_key KEY;
 typedef struct st_key_cache KEY_CACHE;
 typedef struct st_lock_param_type ALTER_PARTITION_PARAM_TYPE;
 typedef struct st_order ORDER;
+typedef struct st_ddl_log_state DDL_LOG_STATE;
 
 enum enum_explain_filename_mode
 {
@@ -177,7 +178,10 @@ bool mysql_checksum_table(THD* thd, TABLE_LIST* table_list,
 bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
                     bool drop_temporary, bool drop_sequence,
                     bool dont_log_query);
-int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
+int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
+                            const LEX_CSTRING *db,
+                            DDL_LOG_STATE *ddl_log_state,
+                            bool if_exists,
                             bool drop_temporary, bool drop_view,
                             bool drop_sequence,
                             bool dont_log_query, bool dont_free_locks);

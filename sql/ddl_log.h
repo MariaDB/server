@@ -77,11 +77,11 @@ enum ddl_log_action_code
   */
   DDL_LOG_RENAME_TABLE_ACTION= 5,
   DDL_LOG_RENAME_VIEW_ACTION= 6,
-  DDL_LOG_DROP_TABLE_INIT_ACTION= 7,
+  DDL_LOG_DROP_INIT_ACTION= 7,
   DDL_LOG_DROP_TABLE_ACTION= 8,
-  DDL_LOG_DROP_VIEW_INIT_ACTION= 9,
-  DDL_LOG_DROP_VIEW_ACTION= 10,
-  DDL_LOG_DROP_TRIGGER_ACTION= 11,
+  DDL_LOG_DROP_VIEW_ACTION= 9,
+  DDL_LOG_DROP_TRIGGER_ACTION= 10,
+  DDL_LOG_DROP_DB_ACTION=11,
   DDL_LOG_LAST_ACTION                          /* End marker */
 };
 
@@ -93,13 +93,15 @@ extern const uchar ddl_log_entry_phases[DDL_LOG_LAST_ACTION];
 enum enum_ddl_log_exchange_phase {
   EXCH_PHASE_NAME_TO_TEMP= 0,
   EXCH_PHASE_FROM_TO_NAME= 1,
-  EXCH_PHASE_TEMP_TO_FROM= 2
+  EXCH_PHASE_TEMP_TO_FROM= 2,
+  EXCH_PHASE_END
 };
 
 enum enum_ddl_log_rename_table_phase {
   DDL_RENAME_PHASE_TRIGGER= 0,
   DDL_RENAME_PHASE_STAT,
   DDL_RENAME_PHASE_TABLE,
+  DDL_RENAME_PHASE_END
 };
 
 enum enum_ddl_log_drop_table_phase {
@@ -108,6 +110,12 @@ enum enum_ddl_log_drop_table_phase {
   DDL_DROP_PHASE_BINLOG,
   DDL_DROP_PHASE_RESET,  /* Reset found list of dropped tables */
   DDL_DROP_PHASE_END
+};
+
+enum enum_ddl_log_drop_db_phase {
+  DDL_DROP_DB_PHASE_INIT=0,
+  DDL_DROP_DB_PHASE_LOG,
+  DDL_DROP_DB_PHASE_END
 };
 
 /*
@@ -218,8 +226,10 @@ bool ddl_log_rename_view(THD *thd, DDL_LOG_STATE *ddl_state,
                          const LEX_CSTRING *new_db,
                          const LEX_CSTRING *new_alias);
 bool ddl_log_drop_table_init(THD *thd, DDL_LOG_STATE *ddl_state,
+                             const LEX_CSTRING *db,
                              const LEX_CSTRING *comment);
-bool ddl_log_drop_view_init(THD *thd, DDL_LOG_STATE *ddl_state);
+bool ddl_log_drop_view_init(THD *thd, DDL_LOG_STATE *ddl_state,
+                            const LEX_CSTRING *db);
 bool ddl_log_drop_table(THD *thd, DDL_LOG_STATE *ddl_state,
                         handlerton *hton,
                         const LEX_CSTRING *path,
@@ -234,5 +244,13 @@ bool ddl_log_drop_trigger(THD *thd, DDL_LOG_STATE *ddl_state,
                           const LEX_CSTRING *table,
                           const LEX_CSTRING *trigger_name,
                           const LEX_CSTRING *query);
+bool ddl_log_drop_view(THD *thd, DDL_LOG_STATE *ddl_state,
+                        const LEX_CSTRING *path,
+                        const LEX_CSTRING *db,
+                        const LEX_CSTRING *table);
+bool ddl_log_drop_view(THD *thd, DDL_LOG_STATE *ddl_state,
+                       const LEX_CSTRING *db);
+bool ddl_log_drop_db(THD *thd, DDL_LOG_STATE *ddl_state,
+                     const LEX_CSTRING *db, const LEX_CSTRING *path);
 extern mysql_mutex_t LOCK_gdl;
 #endif /* DDL_LOG_INCLUDED */
