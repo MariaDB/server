@@ -9899,7 +9899,10 @@ foreign_fail:
 		}
 	}
 
-	if (ctx0->num_to_drop_vcol || ctx0->num_to_add_vcol) {
+	if (ctx0->num_to_drop_vcol || ctx0->num_to_add_vcol
+	    || (ctx0->new_table->n_v_cols && !new_clustered
+		&& (ha_alter_info->alter_info->drop_list.elements
+		    || ha_alter_info->alter_info->create_list.elements))) {
 		DBUG_ASSERT(ctx0->old_table->get_ref_count() == 1);
 		trx_commit_for_mysql(m_prebuilt->trx);
 
