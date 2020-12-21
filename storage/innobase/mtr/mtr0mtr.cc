@@ -434,6 +434,7 @@ void mtr_t::commit()
         m_freed_space->clear_freed_ranges();
       delete m_freed_pages;
       m_freed_pages= nullptr;
+      m_freed_space= nullptr;
       /* mtr_t::start() will reset m_trim_pages */
     }
     else

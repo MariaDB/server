@@ -5613,61 +5613,6 @@ void Item_func_like::print(String *str, enum_query_type query_type)
 }
 
 
-static bool fix_escape_item_now(THD *thd, Item *escape_item, String *tmp_str,
-                               bool escape_used_in_parsing, CHARSET_INFO *cmp_cs,
-                               int *escape)
-{
-  String *escape_str= escape_item->val_str(tmp_str);
-  if (escape_str)
-  {
-    const char *escape_str_ptr= escape_str->ptr();
-    if (escape_used_in_parsing &&
-        ((((thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES) &&
-           escape_str->numchars() != 1) ||
-          escape_str->numchars() > 1)))
-    {
-      my_error(ER_WRONG_ARGUMENTS,MYF(0),"ESCAPE");
-      return TRUE;
-    }
-
-    if (cmp_cs->use_mb())
-    {
-      CHARSET_INFO *cs= escape_str->charset();
-      my_wc_t wc;
-      int rc= cs->mb_wc(&wc,
-                        (const uchar*) escape_str_ptr,
-                        (const uchar*) escape_str_ptr +
-                        escape_str->length());
-      *escape= (int) (rc > 0 ? wc : '\\');
-    }
-    else
-    {
-      /*
-        In the case of 8bit character set, we pass native
-        code instead of Unicode code as "escape" argument.
-        Convert to "cs" if charset of escape differs.
-      */
-      uint32 unused;
-      if (escape_str->needs_conversion(escape_str->length(),
-                                       escape_str->charset(),cmp_cs,&unused))
-      {
-        char ch;
-        uint errors;
-        uint32 cnvlen= copy_and_convert(&ch, 1, cmp_cs, escape_str_ptr,
-                                        escape_str->length(),
-                                        escape_str->charset(), &errors);
-        *escape= cnvlen ? ch : '\\';
-      }
-      else
-        *escape= escape_str_ptr ? *escape_str_ptr : '\\';
-    }
-  }
-  else
-    *escape= '\\';
-  return FALSE;
-}
-
-
 longlong Item_func_like::val_int()
 {
   DBUG_ASSERT(fixed == 1);
@@ -5686,17 +5631,6 @@ longlong Item_func_like::val_int()
   null_value=0;
   if (canDoTurboBM)
     return turboBM_matches(res->ptr(), res->length()) ? !negated : negated;
-  if (unlikely(!escape_item_evaluated))
-  {
-    if (fix_escape_item_now(current_thd, escape_item, &cmp_value1,
-                            escape_used_in_parsing,
-                            cmp_collation.collation, &escape))
-    {
-      null_value= 1;
-      return 0;
-    }
-    escape_item_evaluated= 1;
-  }
   return cmp_collation.collation->wildcmp(
 		    res->ptr(),res->ptr()+res->length(),
 		    res2->ptr(),res2->ptr()+res2->length(),
@@ -5777,12 +5711,57 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
   if (escape_item->const_item())
   {
     /* If we are on execution stage */
-    return fix_escape_item_now(thd, escape_item, tmp_str, escape_used_in_parsing,
-                               cmp_cs, escape);
+    String *escape_str= escape_item->val_str(tmp_str);
+    if (escape_str)
+    {
+      const char *escape_str_ptr= escape_str->ptr();
+      if (escape_used_in_parsing && (
+             (((thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES) &&
+                escape_str->numchars() != 1) ||
+               escape_str->numchars() > 1)))
+      {
+        my_error(ER_WRONG_ARGUMENTS,MYF(0),"ESCAPE");
+        return TRUE;
+      }
+
+      if (cmp_cs->use_mb())
+      {
+        CHARSET_INFO *cs= escape_str->charset();
+        my_wc_t wc;
+        int rc= cs->mb_wc(&wc,
+                          (const uchar*) escape_str_ptr,
+                          (const uchar*) escape_str_ptr +
+                          escape_str->length());
+        *escape= (int) (rc > 0 ? wc : '\\');
+      }
+      else
+      {
+        /*
+          In the case of 8bit character set, we pass native
+          code instead of Unicode code as "escape" argument.
+          Convert to "cs" if charset of escape differs.
+        */
+        uint32 unused;
+        if (escape_str->needs_conversion(escape_str->length(),
+                                         escape_str->charset(),cmp_cs,&unused))
+        {
+          char ch;
+          uint errors;
+          uint32 cnvlen= copy_and_convert(&ch, 1, cmp_cs, escape_str_ptr,
+                                          escape_str->length(),
+                                          escape_str->charset(), &errors);
+          *escape= cnvlen ? ch : '\\';
+        }
+        else
+          *escape= escape_str_ptr ? *escape_str_ptr : '\\';
+      }
+    }
+    else
+      *escape= '\\';
   }
+
   return FALSE;
 }
-
 
 bool Item_func_like::fix_fields(THD *thd, Item **ref)
 {
@@ -5793,10 +5772,8 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
                       cmp_collation.collation, &escape))
     return TRUE;
 
-  escape_item_evaluated= 0;
   if (escape_item->const_item())
   {
-    escape_item_evaluated= 1;
     /*
       We could also do boyer-more for non-const items, but as we would have to
       recompute the tables for each row it's not worth it.

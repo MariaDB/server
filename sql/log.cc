@@ -393,12 +393,12 @@ public:
       In the future, we can refactor this and change it to avoid
       the set_binlog_info. 
     */
-    DBUG_ASSERT(saved_max_binlog_cache_size == 0 &&
-                param_max_binlog_cache_size != 0 &&
-                ptr_binlog_cache_use == 0 &&
-                param_ptr_binlog_cache_use != 0 &&
-                ptr_binlog_cache_disk_use == 0 &&
-                param_ptr_binlog_cache_disk_use != 0);
+    DBUG_ASSERT(saved_max_binlog_cache_size == 0);
+    DBUG_ASSERT(param_max_binlog_cache_size != 0);
+    DBUG_ASSERT(ptr_binlog_cache_use == 0);
+    DBUG_ASSERT(param_ptr_binlog_cache_use != 0);
+    DBUG_ASSERT(ptr_binlog_cache_disk_use == 0);
+    DBUG_ASSERT(param_ptr_binlog_cache_disk_use != 0);
 
     saved_max_binlog_cache_size= param_max_binlog_cache_size;
     ptr_binlog_cache_use= param_ptr_binlog_cache_use;
@@ -1814,8 +1814,8 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
   }
   cache_mngr->reset(using_stmt, using_trx);
 
-  DBUG_ASSERT((!using_stmt || cache_mngr->stmt_cache.empty()) &&
-              (!using_trx || cache_mngr->trx_cache.empty()));
+  DBUG_ASSERT(!using_stmt || cache_mngr->stmt_cache.empty());
+  DBUG_ASSERT(!using_trx || cache_mngr->trx_cache.empty());
   DBUG_RETURN(error);
 }
 
@@ -9273,7 +9273,8 @@ int TC_LOG_MMAP::log_and_order(THD *thd, my_xid xid, bool all,
           prev= queue;
           queue= next;
         }
-        DBUG_ASSERT(prev == &entry && prev->thd == thd);
+        DBUG_ASSERT(prev == &entry);
+        DBUG_ASSERT(prev->thd == thd);
       }
       else
       {
@@ -9367,7 +9368,8 @@ int TC_LOG_MMAP::open(const char *opt_name)
   PAGE *pg;
 
   DBUG_ASSERT(total_ha_2pc > 1);
-  DBUG_ASSERT(opt_name && opt_name[0]);
+  DBUG_ASSERT(opt_name);
+  DBUG_ASSERT(opt_name[0]);
 
   tc_log_page_size= my_getpagesize();
 
@@ -9786,7 +9788,8 @@ int TC_LOG_MMAP::delete_entry(ulong cookie)
   PAGE *p=pages+(cookie/tc_log_page_size);
   my_xid *x=(my_xid *)(data+cookie);
 
-  DBUG_ASSERT(x >= p->start && x < p->end);
+  DBUG_ASSERT(x >= p->start);
+  DBUG_ASSERT(x < p->end);
 
   mysql_mutex_lock(&p->lock);
   *x=0;
@@ -9931,7 +9934,8 @@ int TC_LOG_BINLOG::open(const char *opt_name)
   int      error= 1;
 
   DBUG_ASSERT(total_ha_2pc > 1);
-  DBUG_ASSERT(opt_name && opt_name[0]);
+  DBUG_ASSERT(opt_name);
+  DBUG_ASSERT(opt_name[0]);
 
   if (!my_b_inited(&index_file))
   {

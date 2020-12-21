@@ -2739,14 +2739,24 @@ next_page:
     buf_pool.free_block(free_block);
 
     /* Wait until all the pages have been processed */
-    while (!pages.empty())
+    for (;;)
     {
+      const bool empty= pages.empty();
+      if (empty && !buf_pool.n_pend_reads)
+        break;
+
       if (!is_corrupt_fs() && !is_corrupt_log())
       {
         if (last_batch)
         {
           mysql_mutex_assert_not_owner(&log_sys.mutex);
-          mysql_cond_wait(&cond, &mutex);
+          if (!empty)
+            mysql_cond_wait(&cond, &mutex);
+          else
+          {
+            set_timespec_nsec(abstime, 100000ULL); /* 100ms */
+            mysql_cond_timedwait(&cond, &mutex, &abstime);
+          }
         }
         else
         {

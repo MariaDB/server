@@ -30,6 +30,13 @@ alter table innodb_redundant row_format=compact page_compressed=1;
 show create table innodb_redundant;
 drop table innodb_redundant;
 
+--echo #
+--echo # MDEV-24455 Assertion `!m_freed_space' failed in mtr_t::start
+--echo #
+CREATE TABLE t1 (a TEXT, b TEXT) ENGINE=InnoDB PAGE_COMPRESSED='ON';
+BEGIN; INSERT INTO t1 VALUES(REPEAT('x',81),REPEAT('x',8034)); ROLLBACK;
+DROP TABLE t1;
+
 delimiter //;
 create procedure innodb_insert_proc (repeat_count int)
 begin
