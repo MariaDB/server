@@ -2698,7 +2698,7 @@ next_page:
     buf_pool.free_block(free_block);
 
     /* Wait until all the pages have been processed */
-    while (!pages.empty())
+    while (!pages.empty() || buf_pool.n_pend_reads)
     {
       const bool abort= found_corrupt_log || found_corrupt_fs;
 
