@@ -38,6 +38,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0rseg.h"
 #include "row0row.h"
 #include "row0mysql.h"
+#include "row0ins.h"
 
 /** The search tuple corresponding to TRX_UNDO_INSERT_METADATA. */
 const dtuple_t trx_undo_metadata = {
@@ -371,19 +372,24 @@ trx_undo_report_insert_virtual(
 	return(true);
 }
 
-/**********************************************************************//**
-Reports in the undo log of an insert of a clustered index record.
+/** Reports in the undo log of an insert of a clustered index record.
+@param	undo_block	undo log page
+@param	trx		transaction
+@param	index		clustered index
+@param	clust_entry	index entry which will be inserted to the
+			clustered index
+@param	mtr		mini-transaction
+@param	write_empty	write empty table undo log record
 @return offset of the inserted entry on the page if succeed, 0 if fail */
 static
 uint16_t
 trx_undo_page_report_insert(
-/*========================*/
-	buf_block_t*	undo_block,	/*!< in: undo log page */
-	trx_t*		trx,		/*!< in: transaction */
-	dict_index_t*	index,		/*!< in: clustered index */
-	const dtuple_t*	clust_entry,	/*!< in: index entry which will be
-					inserted to the clustered index */
-	mtr_t*		mtr)		/*!< in: mtr */
+	buf_block_t*	undo_block,
+	trx_t*		trx,
+	dict_index_t*	index,
+	const dtuple_t*	clust_entry,
+	mtr_t*		mtr,
+	bool		write_empty)
 {
 	ut_ad(index->is_primary());
 	/* MariaDB 10.3.1+ in trx_undo_page_init() always initializes
@@ -411,6 +417,13 @@ trx_undo_page_report_insert(
 	*ptr++ = TRX_UNDO_INSERT_REC;
 	ptr += mach_u64_write_much_compressed(ptr, trx->undo_no);
 	ptr += mach_u64_write_much_compressed(ptr, index->table->id);
+
+	/* Table is in bulk operation */
+	if (write_empty) {
+		undo_block->frame[first_free + 2] = TRX_UNDO_EMPTY;
+		goto done;
+	}
+
 	/*----------------------------------------*/
 	/* Store then the fields required to uniquely determine the record
 	to be inserted in the clustered index */
@@ -488,7 +501,7 @@ trx_undo_rec_get_pars(
 	type_cmpl &= ~TRX_UNDO_UPD_EXTERN;
 	*type = type_cmpl & (TRX_UNDO_CMPL_INFO_MULT - 1);
 	ut_ad(*type >= TRX_UNDO_RENAME_TABLE);
-	ut_ad(*type <= TRX_UNDO_DEL_MARK_REC);
+	ut_ad(*type <= TRX_UNDO_EMPTY);
 	*cmpl_info = type_cmpl / TRX_UNDO_CMPL_INFO_MULT;
 
 	*undo_no = mach_read_next_much_compressed(&ptr);
@@ -2002,7 +2015,12 @@ trx_undo_report_row_operation(
 	buf_block_t*	undo_block = trx_undo_assign_low(trx, rseg, pundo,
 							 &err, &mtr);
 	trx_undo_t*	undo	= *pundo;
-
+	bool		write_empty = !rec && thr->run_node
+				      && que_node_get_type(thr->run_node)
+						== QUE_NODE_INSERT
+				      && static_cast<ins_node_t*>(
+						thr->run_node)->bulk_insert
+				      && !trx->allow_insert_undo(index->table);
 	ut_ad((err == DB_SUCCESS) == (undo_block != NULL));
 	if (UNIV_UNLIKELY(undo_block == NULL)) {
 		goto err_exit;
@@ -2013,7 +2031,8 @@ trx_undo_report_row_operation(
 	do {
 		uint16_t offset = !rec
 			? trx_undo_page_report_insert(
-				undo_block, trx, index, clust_entry, &mtr)
+				undo_block, trx, index, clust_entry, &mtr,
+				write_empty)
 			: trx_undo_page_report_modify(
 				undo_block, trx, index, rec, offsets, update,
 				cmpl_info, clust_entry, &mtr);
@@ -2102,8 +2121,12 @@ trx_undo_report_row_operation(
 				}
 			}
 
-			*roll_ptr = trx_undo_build_roll_ptr(
-				!rec, rseg->id, undo->top_page_no, offset);
+			if (!write_empty) {
+				*roll_ptr = trx_undo_build_roll_ptr(
+					!rec, rseg->id, undo->top_page_no,
+					offset);
+			}
+
 			return(DB_SUCCESS);
 		}
 

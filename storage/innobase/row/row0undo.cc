@@ -363,6 +363,7 @@ static bool row_undo_rec_get(undo_node_t* node)
 
 	switch (trx_undo_rec_get_type(node->undo_rec)) {
 	case TRX_UNDO_INSERT_METADATA:
+	case TRX_UNDO_EMPTY:
 		/* This record type was introduced in MDEV-11369
 		instant ADD COLUMN, which was implemented after
 		MDEV-12288 removed the insert_undo log. There is no

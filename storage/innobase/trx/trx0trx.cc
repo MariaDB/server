@@ -565,6 +565,7 @@ trx_resurrect_table_locks(
 {
 	mtr_t			mtr;
 	table_id_set		tables;
+	table_id_set		unempty_tables;
 
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
 	      trx_state_eq(trx, TRX_STATE_PREPARED));
@@ -599,6 +600,11 @@ trx_resurrect_table_locks(
 		trx_undo_rec_get_pars(
 			undo_rec, &type, &cmpl_info,
 			&updated_extern, &undo_no, &table_id);
+
+		if (type == TRX_UNDO_EMPTY) {
+			unempty_tables.insert(table_id);
+		}
+
 		tables.insert(table_id);
 
 		undo_rec = trx_undo_get_prev_rec(
@@ -625,7 +631,12 @@ trx_resurrect_table_locks(
 					trx_mod_tables_t::value_type(table,
 								     0));
 			}
-			lock_table_ix_resurrect(table, trx);
+
+			if (unempty_tables.find(*i) != unempty_tables.end()) {
+				lock_table_x_resurrect(table, trx);
+			} else {
+				lock_table_ix_resurrect(table, trx);
+			}
 
 			DBUG_LOG("ib_trx",
 				 "resurrect " << ib::hex(trx->id)
@@ -1744,6 +1755,7 @@ trx_mark_sql_stat_end(
 			fts_savepoint_laststmt_refresh(trx);
 		}
 
+		trx->set_allow_insert_undo();
 		return;
 	}
 

@@ -199,6 +199,10 @@ DROP TABLE t1, t2;
 
 CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB
 PARTITION BY key (pk) PARTITIONS 2;
+# MDEV-515 takes X-lock on the table for the first insert.
+# So concurrent insert won't happen on the table
+INSERT INTO t1 VALUES(100);
+INSERT INTO t1 VALUES(101);
 
 CREATE TABLE t2 (a INT) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (1),(2),(3),(4),(5),(6);

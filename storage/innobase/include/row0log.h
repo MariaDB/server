@@ -102,9 +102,8 @@ row_log_online_op(
 /*==============*/
 	dict_index_t*	index,	/*!< in/out: index, S or X latched */
 	const dtuple_t*	tuple,	/*!< in: index tuple */
-	trx_id_t	trx_id)	/*!< in: transaction ID for insert,
+	trx_id_t	trx_id);/*!< in: transaction ID for insert,
 				or 0 for delete */
-	ATTRIBUTE_COLD __attribute__((nonnull));
 
 /******************************************************//**
 Gets the error status of the online index rebuild log.
@@ -257,6 +256,12 @@ ulint
 row_log_estimate_work(
 	const dict_index_t*	index);
 #endif /* HAVE_PSI_STAGE_INTERFACE */
+
+/** Logs an empty operation of the table which means it should empty
+the table.
+@param index	clustered index */
+void row_log_table_empty(dict_index_t *index)
+ATTRIBUTE_COLD __attribute__((nonnull));
 
 #include "row0log.ic"
 

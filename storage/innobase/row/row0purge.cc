@@ -892,6 +892,7 @@ row_purge_parse_undo_rec(
 	switch (type) {
 	case TRX_UNDO_RENAME_TABLE:
 		return false;
+	case TRX_UNDO_EMPTY:
 	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_INSERT_REC:
 		/* These records do not store any transaction identifier.
@@ -982,6 +983,9 @@ err_exit:
 	if (type == TRX_UNDO_INSERT_METADATA) {
 		node->ref = &trx_undo_metadata;
 		return(true);
+	} else if (type == TRX_UNDO_EMPTY) {
+		node->ref = nullptr;
+		return true;
 	}
 
 	ptr = trx_undo_rec_get_row_ref(ptr, clust_index, &(node->ref),
@@ -1039,6 +1043,8 @@ row_purge_record_func(
 	ut_ad(!trx_undo_roll_ptr_is_insert(node->roll_ptr));
 
 	switch (node->rec_type) {
+	case TRX_UNDO_EMPTY:
+		break;
 	case TRX_UNDO_DEL_MARK_REC:
 		purged = row_purge_del_mark(node);
 		if (purged) {

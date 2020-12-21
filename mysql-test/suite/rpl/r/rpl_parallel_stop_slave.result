@@ -16,6 +16,8 @@ ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=MyISAM;
 CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES(100);
+INSERT INTO t3 VALUES(100, 100);
 connection server_2;
 include/stop_slave.inc
 connection server_1;
@@ -55,9 +57,11 @@ SELECT * FROM t2 WHERE a >= 20 ORDER BY a;
 a
 20
 21
+100
 SELECT * FROM t3 WHERE a >= 20 ORDER BY a;
 a	b
 20	20
+100	100
 include/start_slave.inc
 SELECT * FROM t1 WHERE a >= 20 ORDER BY a;
 a
@@ -66,11 +70,13 @@ SELECT * FROM t2 WHERE a >= 20 ORDER BY a;
 a
 20
 21
+100
 SELECT * FROM t3 WHERE a >= 20 ORDER BY a;
 a	b
 20	20
 21	21
 22	22
+100	100
 connection server_2;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;

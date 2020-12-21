@@ -30,6 +30,10 @@ CREATE DATABASE d2;
 CREATE TABLE d1.t (a INT) ENGINE=innodb;
 CREATE TABLE d2.t (a INT) ENGINE=innodb;
 
+# MDEV-515 takes X-lock on the table for the first insert.
+# So concurrent DML won't happen on the table
+INSERT INTO d1.t VALUES(100);
+
 connect (master_conn1, 127.0.0.1,root,,test,$MASTER_MYPORT,);
 --let $conn_id=`SELECT connection_id()`
 SET @@session.binlog_format= statement;

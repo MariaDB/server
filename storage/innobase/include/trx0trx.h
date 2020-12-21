@@ -560,17 +560,15 @@ class trx_mod_table_time_t
 	/** First modification of the table */
 	undo_no_t	first;
 	/** First modification of a system versioned column */
-	undo_no_t	first_versioned;
+	undo_no_t	first_versioned= UNVERSIONED;
 
 	/** Magic value signifying that a system versioned column of a
 	table was never modified in a transaction. */
 	static const undo_no_t UNVERSIONED = IB_ID_MAX;
-
 public:
 	/** Constructor
 	@param[in]	rows	number of modified rows so far */
-	trx_mod_table_time_t(undo_no_t rows)
-		: first(rows), first_versioned(UNVERSIONED) {}
+	trx_mod_table_time_t(undo_no_t rows) : first(rows) {}
 
 #ifdef UNIV_DEBUG
 	/** Validation
@@ -609,6 +607,10 @@ public:
 
 		return false;
 	}
+
+	/** Bulk insert is happening for the table. Allow undo for the
+	consecutive inserts. */
+	bool		bulk_insert_undo= false;
 };
 
 /** Collection of persistent tables and their first modification
@@ -1086,6 +1088,25 @@ public:
     ut_ad(dict_operation == TRX_DICT_OP_NONE);
   }
 
+  bool allow_insert_undo(dict_table_t *table)
+  {
+    auto it= mod_tables.find(table);
+    if (it == mod_tables.end())
+      return false;
+    return it->second.bulk_insert_undo;
+  }
+
+  void set_allow_insert_undo(dict_table_t *table)
+  {
+    auto it= mod_tables.find(table);
+    if (it != mod_tables.end())
+      it->second.bulk_insert_undo= true;
+  }
+
+  void set_allow_insert_undo()
+  {
+    for (auto &it : mod_tables) it.second.bulk_insert_undo= true;
+  }
 
 private:
 	/** Assign a rollback segment for modifying temporary tables.

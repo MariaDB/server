@@ -1750,6 +1750,18 @@ row_merge_read_clustered_index(
 	/* There is no previous tuple yet. */
 	prev_mtuple.fields = NULL;
 
+	/* Avoiding the reading of clustered index if the bulk
+	transaction is visible with the read view of the
+	current transaction */
+	if (trx_id_t bulk_trx_id = old_table->bulk_trx_id()) {
+		if (trx->read_view.is_open()
+		    && !trx->read_view.changes_visible(
+				bulk_trx_id, old_table->name)) {
+			trx->op_info="";
+			DBUG_RETURN(DB_SUCCESS);
+		}
+	}
+
 	for (ulint i = 0; i < n_index; i++) {
 		if (index[i]->type & DICT_FTS) {
 

@@ -977,6 +977,39 @@ btr_free_root_check(
 	return(block);
 }
 
+void
+btr_root_page_init(buf_block_t *block, index_id_t index_id,
+                   dict_index_t *index, mtr_t *mtr)
+{
+  constexpr uint16_t field = PAGE_HEADER + PAGE_INDEX_ID;
+  byte* page_index_id = my_assume_aligned<2>(field + block->frame);
+
+  /* Create a new index page on the allocated segment page */
+  if (UNIV_LIKELY_NULL(block->page.zip.data))
+  {
+    mach_write_to_8(page_index_id, index_id);
+    ut_ad(!page_has_siblings(block->page.zip.data));
+    page_create_zip(block, index, 0, 0, mtr);
+  }
+  else
+  {
+    page_create(block, mtr, index && index->table->not_redundant());
+    if (index && index->is_spatial())
+    {
+      static_assert(((FIL_PAGE_INDEX & 0xff00) | byte(FIL_PAGE_RTREE))
+                    == FIL_PAGE_RTREE, "compatibility");
+      mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->frame,
+                    byte(FIL_PAGE_RTREE));
+      if (mach_read_from_8(block->frame + FIL_RTREE_SPLIT_SEQ_NUM))
+        mtr->memset(block, FIL_RTREE_SPLIT_SEQ_NUM, 8, 0);
+    }
+    /* Set the level of the new index page */
+    mtr->write<2,mtr_t::MAYBE_NOP>(
+        *block, PAGE_HEADER + PAGE_LEVEL + block->frame, 0U);
+    mtr->write<8,mtr_t::MAYBE_NOP>(*block, page_index_id, index_id);
+  }
+}
+
 /** Create the root node for a new index tree.
 @param[in]	type			type of the index
 @param[in]	index_id		index id
@@ -1049,36 +1082,7 @@ btr_create(
 
 	ut_ad(!page_has_siblings(block->frame));
 
-	constexpr uint16_t field = PAGE_HEADER + PAGE_INDEX_ID;
-
-	byte* page_index_id = my_assume_aligned<2>(field + block->frame);
-
-	/* Create a new index page on the allocated segment page */
-	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
-		mach_write_to_8(page_index_id, index_id);
-		ut_ad(!page_has_siblings(block->page.zip.data));
-		page_create_zip(block, index, 0, 0, mtr);
-	} else {
-		page_create(block, mtr,
-			    index && index->table->not_redundant());
-		if (index && index->is_spatial()) {
-			static_assert(((FIL_PAGE_INDEX & 0xff00)
-				       | byte(FIL_PAGE_RTREE))
-				      == FIL_PAGE_RTREE, "compatibility");
-			mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->frame,
-				      byte(FIL_PAGE_RTREE));
-			if (mach_read_from_8(block->frame
-					     + FIL_RTREE_SPLIT_SEQ_NUM)) {
-				mtr->memset(block, FIL_RTREE_SPLIT_SEQ_NUM,
-					    8, 0);
-			}
-		}
-		/* Set the level of the new index page */
-		mtr->write<2,mtr_t::MAYBE_NOP>(*block, PAGE_HEADER + PAGE_LEVEL
-					       + block->frame, 0U);
-		mtr->write<8,mtr_t::MAYBE_NOP>(*block, page_index_id,
-					       index_id);
-	}
+	btr_root_page_init(block, index_id, index, mtr);
 
 	/* We reset the free bits for the page in a separate
 	mini-transaction to allow creation of several trees in the
@@ -1106,7 +1110,6 @@ btr_create(
 this by calling btr_free_root.
 @param[in,out]	block		root page
 @param[in]	log_mode	mtr logging mode */
-static
 void
 btr_free_but_not_root(
 	buf_block_t*	block,

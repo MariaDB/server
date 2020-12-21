@@ -12,6 +12,8 @@ connect  con3,localhost,root,,;
 connection con1;
 set @@autocommit=0;
 CREATE TABLE t1(s1 INT UNIQUE) ENGINE=innodb;
+INSERT INTO t1 VALUES (100);
+COMMIT;
 INSERT INTO t1 VALUES (1);
 connection con2;
 set @@autocommit=0;

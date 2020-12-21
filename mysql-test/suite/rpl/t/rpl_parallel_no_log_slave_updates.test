@@ -30,6 +30,7 @@ CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
 --delimiter ;
 SET sql_log_bin=1;
 CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (100, 100);
 --save_master_pos
 
 --connection server_2

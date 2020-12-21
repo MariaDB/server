@@ -490,6 +490,7 @@ connect con1, localhost, root,,;
 connection default;
 CREATE TABLE t1 (c1 INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (c1))
 ENGINE = 'InnoDB';
+INSERT INTO t1(c1) VALUES(100);
 START TRANSACTION;
 INSERT INTO t1 (c1) VALUES (2);
 INSERT INTO t1 (c1) VALUES (4);
@@ -510,17 +511,19 @@ connection con1;
 INSERT INTO t1 (c1) VALUES (NULL);
 SELECT * FROM t1 ORDER BY c1;
 c1
-5
 10
-22
-23
+100
+101
+104
+105
 COMMIT;
 SELECT * FROM t1 ORDER BY c1;
 c1
-5
 10
-22
-23
+100
+101
+104
+105
 disconnect con1;
 connection default;
 INSERT INTO t1 (c1) VALUES (NULL);
@@ -528,31 +531,33 @@ SELECT * FROM t1 ORDER BY c1;
 c1
 2
 4
-5
 10
-11
-12
 16
 19
 21
-22
-23
-24
+100
+101
+102
+103
+104
+105
+106
 COMMIT;
 SELECT * FROM t1 ORDER BY c1;
 c1
 2
 4
-5
 10
-11
-12
 16
 19
 21
-22
-23
-24
+100
+101
+102
+103
+104
+105
+106
 DROP TABLE t1;
 # Test with two threads + start transaction
 connect con1, localhost, root,,;
@@ -561,6 +566,8 @@ CREATE TABLE t1 (c1 INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (c1))
 ENGINE = 'InnoDB'
 PARTITION BY HASH(c1)
 PARTITIONS 2;
+INSERT INTO t1 (c1) VALUES (100);
+INSERT INTO t1 (c1) VALUES (101);
 START TRANSACTION;
 INSERT INTO t1 (c1) VALUES (2);
 INSERT INTO t1 (c1) VALUES (4);
@@ -578,17 +585,21 @@ connection con1;
 INSERT INTO t1 (c1) VALUES (NULL);
 SELECT * FROM t1 ORDER BY c1;
 c1
-5
 10
-22
-23
+100
+101
+102
+105
+106
 COMMIT;
 SELECT * FROM t1 ORDER BY c1;
 c1
-5
 10
-22
-23
+100
+101
+102
+105
+106
 disconnect con1;
 connection default;
 INSERT INTO t1 (c1) VALUES (NULL);
@@ -596,31 +607,35 @@ SELECT * FROM t1 ORDER BY c1;
 c1
 2
 4
-5
 10
-11
-12
 16
 19
 21
-22
-23
-24
+100
+101
+102
+103
+104
+105
+106
+107
 COMMIT;
 SELECT * FROM t1 ORDER BY c1;
 c1
 2
 4
-5
 10
-11
-12
 16
 19
 21
-22
-23
-24
+100
+101
+102
+103
+104
+105
+106
+107
 DROP TABLE t1;
 # Test with another column after
 CREATE TABLE t1 (

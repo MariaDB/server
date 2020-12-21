@@ -438,6 +438,12 @@ lock_table_ix_resurrect(
 	dict_table_t*	table,	/*!< in/out: table */
 	trx_t*		trx);	/*!< in/out: transaction */
 
+/** Creates a table X lock object for a resurrected transaction.
+@param	table	table to be X-locked
+@param	trx	transaction */
+void
+lock_table_x_resurrect(dict_table_t *table, trx_t *trx);
+
 /** Sets a lock on a table based on the given mode.
 @param[in]	table	table to lock
 @param[in,out]	trx	transaction

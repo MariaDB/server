@@ -17,6 +17,8 @@ ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=MyISAM;
 CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES(100);
+INSERT INTO t3 VALUES(100, 100);
 connection server_2;
 connection server_1;
 SET sql_log_bin=0;
@@ -80,6 +82,7 @@ a	b
 32	32
 33	33
 34	34
+100	100
 SET debug_sync='RESET';
 connection server_2;
 SET sql_log_bin=0;
@@ -98,6 +101,7 @@ STOP SLAVE IO_THREAD;
 SELECT * FROM t3 WHERE a >= 30 ORDER BY a;
 a	b
 31	31
+100	100
 SET debug_sync='RESET';
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
@@ -121,6 +125,7 @@ a	b
 33	33
 34	34
 39	0
+100	100
 SET sql_log_bin=0;
 DROP FUNCTION foo;
 CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
@@ -179,6 +184,7 @@ a	b
 42	42
 43	43
 44	44
+100	100
 SET debug_sync='RESET';
 connection server_2;
 SET debug_sync='now WAIT_FOR t2_query';
@@ -211,6 +217,7 @@ a	b
 43	43
 44	44
 49	0
+100	100
 SET sql_log_bin=0;
 DROP FUNCTION foo;
 CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
@@ -274,6 +281,7 @@ a	b
 52	52
 53	53
 54	54
+100	100
 SET debug_sync='RESET';
 connection server_2;
 SET debug_sync='now WAIT_FOR t2_query';
@@ -286,6 +294,7 @@ include/wait_for_slave_sql_error.inc [errno=1317,1927,1964]
 SELECT * FROM t3 WHERE a >= 50 ORDER BY a;
 a	b
 51	51
+100	100
 SET debug_sync='RESET';
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
@@ -309,6 +318,7 @@ a	b
 53	53
 54	54
 59	0
+100	100
 connection server_2;
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=slave_pos;

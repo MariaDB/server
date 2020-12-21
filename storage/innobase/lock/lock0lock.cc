@@ -2125,7 +2125,9 @@ lock_rec_inherit_to_gap_if_gap_lock(
 
 		if (!lock_rec_get_insert_intention(lock)
 		    && (heap_no == PAGE_HEAP_NO_SUPREMUM
-			|| !lock_rec_get_rec_not_gap(lock))) {
+			|| !lock_rec_get_rec_not_gap(lock))
+		    && !lock_table_has(lock->trx, lock->index->table,
+				      LOCK_X)) {
 
 			lock_rec_add_to_queue(
 				LOCK_REC | LOCK_GAP | lock_get_mode(lock),
@@ -3596,6 +3598,25 @@ lock_table_ix_resurrect(
 	lock_table_create(table, LOCK_IX, trx);
 	lock_sys.mutex_unlock();
 	mutex->wr_unlock();
+}
+
+void
+lock_table_x_resurrect(dict_table_t *table,trx_t *trx)
+{
+  ut_ad(trx->is_recovered);
+  if (lock_table_has(trx, table, LOCK_X))
+    return;
+
+  auto mutex= &trx->mutex;
+  lock_sys.mutex_lock();
+  /* We have to check if the new lock is compatible with any locks
+  other transactions have in the table lock queue. */
+  ut_ad(!lock_table_other_has_incompatible(trx, LOCK_WAIT, table, LOCK_X));
+
+  mutex->wr_lock();
+  lock_table_create(table, LOCK_X, trx);
+  lock_sys.mutex_unlock();
+  mutex->wr_unlock();
 }
 
 /*********************************************************************//**

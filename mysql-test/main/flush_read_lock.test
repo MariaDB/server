@@ -1679,6 +1679,9 @@ connection default;
 --echo # Reap XA COMMIT.
 --reap
 delete from t3_trans;
+# MDEV-515 takes X-lock on the table for the first insert.
+# So concurrent insert won't happen on the table
+INSERT INTO t3_trans VALUES(100);
 --echo #
 --echo # Check that XA COMMIT / ROLLBACK for prepared transaction from a
 --echo # disconnected session is blocked by active FTWRL in another connection.

@@ -87,6 +87,10 @@ create or replace table t1 (
   period for system_time (sys_start, sys_end)
 ) with system versioning;
 
+# MDEV-515 takes X-lock on the table for the first insert
+# So concurrent DML won't happen on the table 
+INSERT INTO t1 VALUES(100);
+
 set transaction isolation level read committed;
 start transaction;
 insert into t1 values (1);

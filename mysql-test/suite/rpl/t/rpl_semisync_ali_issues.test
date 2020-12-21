@@ -81,6 +81,10 @@ connection con1;
 select * from t1;
 truncate table t1;
 
+# MDEV-515 takes X-lock on the table
+# So concurrent DML won't happen on the table
+INSERT INTO  t1 VALUES (100);
+
 sync_slave_with_master;
 
 # Test more threads in one semisync queue

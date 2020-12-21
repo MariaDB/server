@@ -45,3 +45,12 @@ partition : MDEV-19958 Galera test failure on galera.partition
 query_cache: MDEV-15805 Test failure on galera.query_cache
 sql_log_bin : MDEV-21491 galera.sql_log_bin
 versioning_trx_id : MDEV-18590 galera.versioning_trx_id
+MDEV-6860 : MDEV-515 InnoDB bulk insert
+galera_mdev_15611 : MDEV-515 InnoDB bulk insert
+mysql-wsrep-features#32 : MDEV-515 InnoDB bulk insert
+GCF-572 : MDEV-515 InnoDB bulk insert
+GCF-900 : MDEV-515 InnoDB bulk insert
+galera_sr_cc_no_primary : MDEV-515 InnoDB bulk insert
+galera_sr_dupkey_error : MDEV-515 InnoDB bulk insert
+galera_sr_parallel_apply : MDEV-515 InnoDB bulk insert
+galera_sr_shutdown_slave : MDEV-515 InnoDB bulk insert

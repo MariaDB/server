@@ -2116,6 +2116,9 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
     goto after_trg_or_ignored_err;
   }
 
+  /* Notify the engine about insert ignore operation */
+  if (info->handle_duplicates == DUP_ERROR && info->ignore)
+    table->file->extra(HA_EXTRA_IGNORE_INSERT);
 after_trg_n_copied_inc:
   info->copied++;
   thd->record_first_successful_insert_id_in_cur_stmt(table->file->insert_id_for_cur_row);
@@ -4148,6 +4151,7 @@ bool select_insert::prepare_eof()
   if (info.ignore || info.handle_duplicates != DUP_ERROR)
       if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
         table->file->ha_rnd_end();
+  table->file->extra(HA_EXTRA_END_ALTER_COPY);
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
 
@@ -4740,7 +4744,10 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
   if (info.handle_duplicates == DUP_UPDATE)
     table->file->extra(HA_EXTRA_INSERT_WITH_UPDATE);
   if (thd->locked_tables_mode <= LTM_LOCK_TABLES)
+  {
     table->file->ha_start_bulk_insert((ha_rows) 0);
+    table->file->extra(HA_EXTRA_BEGIN_ALTER_COPY);
+  }
   thd->abort_on_warning= !info.ignore && thd->is_strict_mode();
   if (check_that_all_fields_are_given_values(thd, table, table_list))
     DBUG_RETURN(1);

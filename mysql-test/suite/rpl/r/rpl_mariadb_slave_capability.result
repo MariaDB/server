@@ -78,6 +78,7 @@ slave-relay-bin.000007	#	Query	#	#	COMMIT
 *** MDEV-5754: MySQL 5.5 slaves cannot replicate from MariaDB 10.0 ***
 connection master;
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES(100);
 connect  con1,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
 INSERT INTO t2 VALUES (1);
@@ -112,6 +113,7 @@ SELECT * FROM t2 ORDER BY a;
 a
 1
 2
+100
 # Test that slave which cannot tolerate holes in binlog stream but
 # knows the event does not get dummy event
 include/stop_slave.inc

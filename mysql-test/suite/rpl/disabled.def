@@ -19,3 +19,5 @@ rpl_semi_sync_after_sync  : fails after MDEV-16172
 rpl_auto_increment_update_failure  : disabled for now
 rpl_current_user          : waits for MDEV-22374 fix
 rpl_parallel2             : waits for MDEV-23089
+rpl_parallel_multilevel	  : Disabled for MDEV-515
+rpl_parallel_no_log_slave_updates  : Disabled for MDEV-515

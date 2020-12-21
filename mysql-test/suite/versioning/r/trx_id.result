@@ -89,6 +89,7 @@ sys_start bigint(20) unsigned as row start invisible,
 sys_end bigint(20) unsigned as row end invisible,
 period for system_time (sys_start, sys_end)
 ) with system versioning;
+INSERT INTO t1 VALUES(100);
 set transaction isolation level read committed;
 start transaction;
 insert into t1 values (1);
@@ -129,25 +130,31 @@ select @ts1 < @ts2, @ts2 < @ts3;
 # MVCC is resolved
 select * from t1 for system_time as of transaction @trx_id1;
 x
+100
 1
 2
 3
 select * from t1 for system_time as of timestamp @ts1;
 x
+100
 3
 select * from t1 for system_time as of transaction @trx_id2;
 x
+100
 2
 3
 select * from t1 for system_time as of timestamp @ts2;
 x
+100
 2
 3
 select * from t1 for system_time as of transaction @trx_id3;
 x
+100
 3
 select * from t1 for system_time as of timestamp @ts3;
 x
+100
 1
 2
 3

@@ -313,6 +313,14 @@ btr_node_ptr_get_child_page_no(
 	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 	MY_ATTRIBUTE((warn_unused_result));
 
+/** Initialize the root page of the b-tree
+@param[in,out]  block           root block
+@param[in]      index_id        index id
+@param[in]      index           index of root page
+@param[in,out]  mtr             mini-transaction */
+void btr_root_page_init(buf_block_t *block, index_id_t index_id,
+                        dict_index_t *index, mtr_t *mtr);
+
 /** Create the root node for a new index tree.
 @param[in]	type			type of the index
 @param[in,out]	space			tablespace where created
@@ -735,5 +743,12 @@ btr_lift_page_up(
 Global variable controlling if scrubbing should be performed */
 extern my_bool srv_immediate_scrub_data_uncompressed;
 extern Atomic_counter<uint32_t> btr_validate_index_running;
+
+/** Free a B-tree except the root page. The root page MUST be freed after
+this by calling btr_free_root.
+@param[in,out]	block		root page
+@param[in]	log_mode	mtr logging mode */
+void
+btr_free_but_not_root(buf_block_t *block, mtr_log_t log_mode);
 
 #endif

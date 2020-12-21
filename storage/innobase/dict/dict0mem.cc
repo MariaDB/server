@@ -38,6 +38,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "row0row.h"
 #include "sql_string.h"
 #include <iostream>
+#include "row0log.h"
 
 #define	DICT_HEAP_SIZE		100	/*!< initial memory heap size when
 					creating a table or index object */
@@ -1391,4 +1392,43 @@ dict_index_t::vers_history_row(
 		mem_heap_free(heap);
 	}
 	return(error);
+}
+
+void dict_table_t::empty_table(que_thr_t *thr)
+{
+  mtr_t mtr;
+  bool rebuild= false;
+  for (dict_index_t* index= UT_LIST_GET_FIRST(indexes);
+       index != NULL; index= UT_LIST_GET_NEXT(indexes, index))
+  {
+    if (index->online_status == ONLINE_INDEX_ABORTED
+        || index->online_status == ONLINE_INDEX_ABORTED_DROPPED)
+      continue;
+
+    if (index->type & DICT_FTS)
+      continue;
+
+#ifdef UNIV_DEBUG
+    if (!dict_index_is_clust(index))
+      DEBUG_SYNC_C("sec_index_bulk_rollback");
+#endif /* UNIV_DEBUG */
+    if (index->online_status == ONLINE_INDEX_CREATION)
+    {
+      if (dict_index_is_clust(index))
+      {
+        row_log_table_empty(index);
+        rebuild= true;
+      }
+      else if (!rebuild)
+      {
+        mtr.start();
+        mtr_s_lock_index(index, &mtr);
+        if (index->online_status == ONLINE_INDEX_CREATION)
+	  row_log_online_op(index, nullptr, 0);
+        mtr.commit();
+      }
+    }
+
+    index->empty(thr);
+  }
 }

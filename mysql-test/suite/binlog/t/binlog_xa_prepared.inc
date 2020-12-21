@@ -54,6 +54,10 @@ CREATE VIEW v_processlist  as SELECT * FROM performance_schema.threads where typ
 
 CREATE TABLE t (a INT) ENGINE=innodb;
 
+# MDEV-515 takes X-lock on the table for the first insert.
+# So concurrent insert won't happen on the table
+INSERT INTO t VALUES(100);
+
 # Counter is incremented at the end of post restart to
 # reflect number of loops done in correctness computation.
 --let $restart_number = 0

@@ -3,6 +3,7 @@ RESET MASTER;
 CREATE VIEW v_processlist  as SELECT * FROM performance_schema.threads where type = 'FOREGROUND';
 call mtr.add_suppression("Found 10 prepared XA transactions");
 CREATE TABLE t (a INT) ENGINE=innodb;
+INSERT INTO t VALUES(100);
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 SET @@sql_log_bin = OFF;
 CREATE TEMPORARY TABLE tmp1 (a int) ENGINE=innodb;
@@ -48,18 +49,21 @@ connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx1ro';
 SELECT * from t ORDER BY a;
 a
+100
 XA END     'trx1ro';
 XA PREPARE 'trx1ro';
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx2ro';
 SELECT * from t ORDER BY a;
 a
+100
 XA END     'trx2ro';
 XA PREPARE 'trx2ro';
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 XA START   'trx3ro';
 SELECT * from t ORDER BY a;
 a
+100
 XA END     'trx3ro';
 XA PREPARE 'trx3ro';
 connection default;
@@ -402,6 +406,7 @@ ERROR XAE08: XAER_DUPID: The XID already exists
 XA ROLLBACK 'trx_19';
 SELECT * FROM t;
 a
+100
 5
 6
 7
@@ -533,6 +538,7 @@ a
 12
 13
 14
+100
 XA END     'trx1ro';
 XA PREPARE 'trx1ro';
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
@@ -559,6 +565,7 @@ a
 12
 13
 14
+100
 XA END     'trx2ro';
 XA PREPARE 'trx2ro';
 connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
@@ -585,6 +592,7 @@ a
 12
 13
 14
+100
 XA END     'trx3ro';
 XA PREPARE 'trx3ro';
 connection default;
@@ -927,6 +935,7 @@ ERROR XAE08: XAER_DUPID: The XID already exists
 XA ROLLBACK 'trx_19';
 SELECT * FROM t;
 a
+100
 5
 6
 7
@@ -1036,7 +1045,7 @@ XA END     'one_phase_trx_4';
 XA COMMIT  'one_phase_trx_4' ONE PHASE;
 SELECT SUM(a) FROM t;
 SUM(a)
-290
+390
 DROP TABLE t;
 DROP VIEW v_processlist;
 include/show_binlog_events.inc
@@ -1048,6 +1057,9 @@ master-bin.000001	#	Query	#	#	use `mtr`; INSERT INTO test_suppressions (pattern)
 master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t (a INT) ENGINE=innodb
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t VALUES(100)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	XA START X'7472785f30',X'',1 GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t SET a=0
 master-bin.000001	#	Query	#	#	XA END X'7472785f30',X'',1

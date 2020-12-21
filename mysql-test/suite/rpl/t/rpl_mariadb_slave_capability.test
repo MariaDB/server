@@ -84,6 +84,9 @@ let $binlog_limit=7,5;
 
 --connection master
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+# MDEV-515 takes X-lock on the table for the first insert.
+# So concurrent insert won't happen on the table
+INSERT INTO t2 VALUES(100);
 let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
 let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
 

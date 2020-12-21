@@ -13,6 +13,9 @@ let incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
 
 CREATE TABLE t_aria(i INT) ENGINE ARIA;
 CREATE TABLE t(i INT PRIMARY KEY) ENGINE INNODB;
+# MDEV-515 takes X-lock on the table for the first insert.
+# So concurrent insert won't happen on the table
+INSERT INTO t VALUES(100);
 BEGIN;
 INSERT INTO t VALUES(2);
 connect (con1,localhost,root,,);
