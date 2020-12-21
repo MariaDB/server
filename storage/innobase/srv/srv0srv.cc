@@ -1346,20 +1346,23 @@ void srv_monitor_task(void*)
 	eviction policy. */
 	buf_LRU_stat_update();
 
-	const ulonglong now = my_hrtime_coarse().val;
+	ulonglong now = my_hrtime_coarse().val;
 	const ulong threshold = srv_fatal_semaphore_wait_threshold;
 
 	if (ulonglong start = dict_sys.oldest_wait()) {
-		ulong waited = static_cast<ulong>((now - start) / 1000000);
-		if (waited >= threshold) {
-			ib::fatal() << dict_sys.fatal_msg;
-		}
+		if (now >= start) {
+			now -= start;
+			ulong waited = static_cast<ulong>(now / 1000000);
+			if (waited >= threshold) {
+				ib::fatal() << dict_sys.fatal_msg;
+			}
 
-		if (waited == threshold / 4
-		    || waited == threshold / 2
-		    || waited == threshold / 4 * 3) {
-			ib::warn() << "Long wait (" << waited
-				   << " seconds) for dict_sys.mutex";
+			if (waited == threshold / 4
+			    || waited == threshold / 2
+			    || waited == threshold / 4 * 3) {
+				ib::warn() << "Long wait (" << waited
+					   << " seconds) for dict_sys.mutex";
+			}
 		}
 	}
 
