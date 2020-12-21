@@ -2754,7 +2754,7 @@ next_page:
             mysql_cond_wait(&cond, &mutex);
           else
           {
-            set_timespec_nsec(abstime, 100000ULL); /* 100ms */
+            set_timespec_nsec(abstime, 100000ULL); /* 0.1ms */
             mysql_cond_timedwait(&cond, &mutex, &abstime);
           }
         }
