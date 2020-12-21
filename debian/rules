@@ -85,6 +85,8 @@ ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
 	dh_auto_build --builddirectory=builddir-native -- import_executables
 endif
 
+	# Don't build ColumnStore as part of the native build, only build it when triggered
+	# by autobake-deb.sh. Saves build time and disk space.
 	mkdir -p $(BUILDDIR) && cd $(BUILDDIR) && \
 	sh -c  'PATH=$${MYSQL_BUILD_PATH:-"/usr/lib/ccache:/usr/local/bin:/usr/bin:/bin"} \
 	    	CC=${CC} \
@@ -99,6 +101,7 @@ endif
 	    -DPLUGIN_TOKUDB=NO \
 	    -DPLUGIN_CASSANDRA=NO \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
+	    -DPLUGIN_COLUMNSTORE=NO \
 	    -DDEB=$(DEB_VENDOR) ..'
 
 # This is needed, otherwise 'make test' will run before binaries have been built

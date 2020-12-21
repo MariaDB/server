@@ -22,6 +22,9 @@ if [[ -d storage/columnstore/columnstore/debian ]]; then
   cp -v storage/columnstore/columnstore/debian/mariadb-plugin-columnstore.* debian/
   echo >> debian/control
   cat storage/columnstore/columnstore/debian/control >> debian/control
+  # Don't build ColumnStore as part of the native build, only build it when triggered
+  # by autobake-deb.sh
+  sed 's|-DPLUGIN_COLUMNSTORE=NO|-DPLUGIN_COLUMNSTORE=YES|' -i debian/rules
 fi
 
 # General CI optimizations to keep build output smaller
