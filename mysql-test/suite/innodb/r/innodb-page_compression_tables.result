@@ -55,6 +55,14 @@ innodb_redundant	CREATE TABLE `innodb_redundant` (
   `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT `page_compressed`=1
 drop table innodb_redundant;
+#
+# MDEV-24455 Assertion `!m_freed_space' failed in mtr_t::start
+#
+CREATE TABLE t1 (a TEXT, b TEXT) ENGINE=InnoDB PAGE_COMPRESSED='ON';
+BEGIN;
+INSERT INTO t1 VALUES(REPEAT('x',81),REPEAT('x',8034));
+ROLLBACK;
+DROP TABLE t1;
 create procedure innodb_insert_proc (repeat_count int)
 begin
 declare current_num int;
