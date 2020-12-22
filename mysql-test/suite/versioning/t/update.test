@@ -301,4 +301,29 @@ delete history from t1;
 # cleanup
 drop table t1;
 
+--echo #
+--echo # MDEV-23446 UPDATE does not insert history row if the row is not changed
+--echo #
+replace_result $sys_datatype_expl SYS_DATATYPE;
+eval create table t1 (
+  a int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end)) with system versioning;
+insert into t1 values (1);
+update t1 set a= 1;
+select *, check_row(row_start, row_end) from t1 for system_time all order by row_end;
+
+--echo # multi-update
+create or replace table t2 like t1;
+create or replace table t3 like t1;
+insert into t2 values (1);
+insert into t3 values (1);
+update t2, t3 set t2.a= 1, t3.a= 1 where t2.a = t3.a;
+select *, check_row(row_start, row_end) from t2 for system_time all order by row_end;
+select *, check_row(row_start, row_end) from t2 for system_time all order by row_end;
+
+# cleanup
+drop tables t1, t2, t3;
+
 source suite/versioning/common_finish.inc;

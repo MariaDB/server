@@ -52,8 +52,9 @@
    compare_record(TABLE*).
  */
 bool records_are_comparable(const TABLE *table) {
-  return ((table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ) == 0) ||
-    bitmap_is_subset(table->write_set, table->read_set);
+  return !table->versioned(VERS_TRX_ID) &&
+          (((table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ) == 0) ||
+           bitmap_is_subset(table->write_set, table->read_set));
 }
 
 
@@ -960,25 +961,27 @@ update_begin:
         }
         else if (likely(!error))
         {
-          if (has_vers_fields && table->versioned())
-          {
-            if (table->versioned(VERS_TIMESTAMP))
-            {
-              store_record(table, record[2]);
-              table->mark_columns_per_binlog_row_image();
-              error= vers_insert_history_row(table);
-              restore_record(table, record[2]);
-            }
-            if (likely(!error))
-              updated_sys_ver++;
-          }
-          if (likely(!error))
-            updated++;
+          if (has_vers_fields && table->versioned(VERS_TRX_ID))
+            updated_sys_ver++;
+          updated++;
         }
 
         if (unlikely(error) &&
             (!ignore || table->file->is_fatal_error(error, HA_CHECK_ALL)))
         {
+          goto error;
+        }
+      }
+
+      if (likely(!error) && has_vers_fields && table->versioned(VERS_TIMESTAMP))
+      {
+        store_record(table, record[2]);
+        table->mark_columns_per_binlog_row_image();
+        error= vers_insert_history_row(table);
+        restore_record(table, record[2]);
+        if (unlikely(error))
+        {
+error:
           /*
             If (ignore && error is ignorable) we don't have to
             do anything; otherwise...
@@ -989,10 +992,11 @@ update_begin:
             flags|= ME_FATALERROR; /* Other handler errors are fatal */
 
           prepare_record_for_error_message(error, table);
-	  table->file->print_error(error,MYF(flags));
-	  error= 1;
-	  break;
-	}
+          table->file->print_error(error,MYF(flags));
+          error= 1;
+          break;
+        }
+        updated_sys_ver++;
       }
 
       if (table->triggers &&
@@ -2410,6 +2414,7 @@ int multi_update::send_data(List<Item> &not_used_values)
           if (!ignore ||
               table->file->is_fatal_error(error, HA_CHECK_ALL))
           {
+error:
             /*
               If (ignore && error == is ignorable) we don't have to
               do anything; otherwise...
@@ -2431,19 +2436,8 @@ int multi_update::send_data(List<Item> &not_used_values)
             error= 0;
             updated--;
           }
-          else if (has_vers_fields && table->versioned())
+          else if (has_vers_fields && table->versioned(VERS_TRX_ID))
           {
-            if (table->versioned(VERS_TIMESTAMP))
-            {
-              store_record(table, record[2]);
-              if (vers_insert_history_row(table))
-              {
-                restore_record(table, record[2]);
-                error= 1;
-                break;
-              }
-              restore_record(table, record[2]);
-            }
             updated_sys_ver++;
           }
           /* non-transactional or transactional table got modified   */
@@ -2456,6 +2450,17 @@ int multi_update::send_data(List<Item> &not_used_values)
             thd->transaction.stmt.modified_non_trans_table= TRUE;
           }
         }
+      }
+      if (has_vers_fields && table->versioned(VERS_TIMESTAMP))
+      {
+        store_record(table, record[2]);
+        if (vers_insert_history_row(table))
+        {
+          restore_record(table, record[2]);
+          goto error;
+        }
+        restore_record(table, record[2]);
+        updated_sys_ver++;
       }
       if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
