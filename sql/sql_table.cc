@@ -10956,6 +10956,8 @@ do_continue:;
   {
     /* The original table is the backup */
     backup_name= alter_ctx.table_name;
+    PSI_CALL_drop_table_share(0, alter_ctx.db.str, (int) alter_ctx.db.length,
+                              alter_ctx.table_name.str, (int) alter_ctx.table_name.length);
   }
 
   // Rename the new table to the correct name.
