@@ -48,12 +48,6 @@ ifeq (32,$(DEB_HOST_ARCH_BITS))
     CMAKEFLAGS += -DPLUGIN_ROCKSDB=NO
 endif
 
-# ColumnStore only attempts to build on a few platforms as dictated by CMake checks
-# Also note in debian/control the CS-only build deps marked '[amd64]'
-ifeq ($(DEB_HOST_ARCH),$(filter $(DEB_HOST_ARCH),amd64))
-    CMAKEFLAGS += -DPLUGIN_COLUMNSTORE=YES
-endif
-
 # Add extra flag to avoid WolfSSL code crashing the entire mariadbd on s390x. This
 # can be removed once upstream has made the code s390x compatible, see
 # https://jira.mariadb.org/browse/MDEV-21705 and
