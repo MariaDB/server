@@ -22,9 +22,9 @@ if [[ -d storage/columnstore/columnstore/debian ]]; then
   cp -v storage/columnstore/columnstore/debian/mariadb-plugin-columnstore.* debian/
   echo >> debian/control
   cat storage/columnstore/columnstore/debian/control >> debian/control
-  # Don't build ColumnStore as part of the native build, only build it when triggered
-  # by autobake-deb.sh
-  sed 's|#CMAKEFLAGS += -DPLUGIN_COLUMNSTORE=YES|CMAKEFLAGS += -DPLUGIN_COLUMNSTORE=YES|' -i debian/rules
+  # ColumnStore is explcitly disabled in the native build, so allow it now
+  # when build it when triggered by autobake-deb.sh
+  sed '/-DPLUGIN_COLUMNSTORE=NO/d' -i debian/rules
 fi
 
 # General CI optimizations to keep build output smaller
@@ -36,7 +36,7 @@ then
 
   # MCOL-4149: ColumnStore builds are so slow and big that they must be skipped on
   # both Travis-CI and Gitlab-CI
-  sed 's|-DPLUGIN_COLUMNSTORE=YES|-DPLUGIN_COLUMNSTORE=NO|' -i debian/rules
+  sed 's|$(CMAKEFLAGS)|$(CMAKEFLAGS) -DPLUGIN_COLUMNSTORE=NO|' -i debian/rules
   sed "/Package: mariadb-plugin-columnstore/,/^$/d" -i debian/control
 fi
 
