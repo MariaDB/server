@@ -3859,24 +3859,26 @@ os_file_get_status(
 
 extern void fil_aio_callback(const IORequest &request);
 
-static void io_callback(tpool::aiocb* cb)
+static void io_callback(tpool::aiocb *cb)
 {
   ut_a(cb->m_err == DB_SUCCESS);
-  const IORequest request(*static_cast<const IORequest*>
-                          (static_cast<const void*>(cb->m_userdata)));
+  const IORequest &request= *static_cast<const IORequest*>
+    (static_cast<const void*>(cb->m_userdata));
+
   /* Return cb back to cache*/
   if (cb->m_opcode == tpool::aio_opcode::AIO_PREAD)
   {
     ut_ad(read_slots->contains(cb));
+    fil_aio_callback(request);
     read_slots->release(cb);
   }
   else
   {
     ut_ad(write_slots->contains(cb));
+    const IORequest req{request};
     write_slots->release(cb);
+    fil_aio_callback(req);
   }
-
-  fil_aio_callback(request);
 }
 
 #ifdef LINUX_NATIVE_AIO
@@ -4070,6 +4072,12 @@ void os_aio_wait_until_no_pending_writes()
 {
   os_aio_wait_until_no_pending_writes_low();
   buf_dblwr.wait_flush_buffered_writes();
+}
+
+/** Wait until all pending asynchronous reads have completed. */
+void os_aio_wait_until_no_pending_reads()
+{
+  read_slots->wait();
 }
 
 /** Request a read or write.

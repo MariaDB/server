@@ -2754,8 +2754,11 @@ next_page:
             mysql_cond_wait(&cond, &mutex);
           else
           {
-            set_timespec_nsec(abstime, 100000ULL); /* 0.1ms */
-            mysql_cond_timedwait(&cond, &mutex, &abstime);
+            mysql_mutex_unlock(&mutex);
+            os_aio_wait_until_no_pending_reads();
+            ut_ad(!buf_pool.n_pend_reads);
+            mysql_mutex_lock(&mutex);
+            ut_ad(pages.empty());
           }
         }
         else

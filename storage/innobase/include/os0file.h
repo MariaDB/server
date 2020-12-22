@@ -1157,6 +1157,8 @@ be other, synchronous, pending writes. */
 void
 os_aio_wait_until_no_pending_writes();
 
+/** Wait until all pending asynchronous reads have completed. */
+void os_aio_wait_until_no_pending_reads();
 
 /** Prints info of the aio arrays.
 @param[in/out]	file		file where to print */
