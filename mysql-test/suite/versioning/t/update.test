@@ -147,6 +147,21 @@ select @tmp2 = sys_trx_start as B2, salary from t2;
 drop table t1;
 drop table t2;
 
+--echo # Ensure FTS retains correct history
+replace_result $sys_datatype_expl SYS_DATATYPE;
+eval create table t1 (
+  x int, y text, fulltext (y),
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end))
+with system versioning engine innodb;
+insert into t1 values (1, repeat('LONG', 2048));
+update t1 set x= x + 1;
+select x, left(y, 4), length(y), check_row(row_start, row_end) from t1 for system_time all order by x, y;
+update t1 set y= 'SHORT';
+select x, left(y, 4), length(y), check_row(row_start, row_end) from t1 for system_time all order by x, y;
+drop tables t1;
+
 --echo ### Issue tempesta-tech/mariadb#365, bug 7 (duplicate of historical row)
 create or replace table t1 (a int primary key, b int)
 with system versioning engine myisam;

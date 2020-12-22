@@ -2104,10 +2104,18 @@ row_mysql_unfreeze_data_dictionary(
 @param	buf	Buffer to hold start time data */
 void thd_get_query_start_data(THD *thd, char *buf);
 
-/** Function restores btr_pcur_t, creates dtuple_t from rec_t,
-sets row_end = CURRENT_TIMESTAMP/trx->id, inserts it to a table and updates
-table statistics.
-This is used in UPDATE CASCADE/SET NULL of a system versioning table.
+/** Insert history row when evaluating foreign key referential action.
+
+1. Create new dtuple_t 'row' from node->historical_row;
+2. Update its row_end to current timestamp;
+3. Insert it to a table;
+4. Update table statistics.
+
+This is used in UPDATE CASCADE/SET NULL of a system versioned referenced table.
+
+node->historical_row: dtuple_t containing pointers of row changed by refertial
+action.
+
 @param[in]	thr	current query thread
 @param[in]	node	a node which just updated a row in a foreign table
 @return DB_SUCCESS or some error */
@@ -2119,9 +2127,16 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 	dict_table_t* table = node->table;
 	ut_ad(table->versioned());
 
-	dtuple_t* row = node->historical_row;
-	ut_ad(row);
-	node->historical_row = NULL;
+	dtuple_t*       row;
+	const ulint     n_cols        = dict_table_get_n_cols(table);
+	const ulint     n_v_cols      = dict_table_get_n_v_cols(table);
+
+	ut_ad(n_cols == dtuple_get_n_fields(node->historical_row));
+	ut_ad(n_v_cols == dtuple_get_n_v_fields(node->historical_row));
+
+	row = dtuple_create_with_vcol(node->historical_heap, n_cols, n_v_cols);
+
+	dict_table_copy_types(row, table);
 
 	ins_node_t* insert_node =
 		ins_node_create(INS_DIRECT, table, node->historical_heap);
@@ -2133,6 +2148,22 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 
 	insert_node->common.parent = thr;
 	ins_node_set_new_row(insert_node, row);
+
+	ut_ad(n_cols > DATA_N_SYS_COLS);
+	// Exclude DB_ROW_ID, DB_TRX_ID, DB_ROLL_PTR
+	for (ulint i = 0; i < n_cols - DATA_N_SYS_COLS; i++) {
+		dfield_t *dst= dtuple_get_nth_field(row, i);
+		dfield_t *src= dtuple_get_nth_field(node->historical_row, i);
+		dfield_copy(dst, src);
+	}
+
+	for (ulint i = 0; i < n_v_cols; i++) {
+		dfield_t *dst= dtuple_get_nth_v_field(row, i);
+		dfield_t *src= dtuple_get_nth_v_field(node->historical_row, i);
+		dfield_copy(dst, src);
+	}
+
+	node->historical_row = NULL;
 
 	row_end = dtuple_get_nth_field(row, table->vers_end);
 	if (dict_table_get_nth_col(table, table->vers_end)->vers_native()) {

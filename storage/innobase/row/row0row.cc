@@ -294,6 +294,8 @@ row_build_index_entry_low(
 			continue;
 		}
 
+		ut_ad(!(index->type & DICT_FTS));
+
 		if ((!ind_field || ind_field->prefix_len == 0)
 		    && (!dfield_is_ext(dfield)
 			|| dict_index_is_clust(index))) {
