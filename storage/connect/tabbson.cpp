@@ -626,9 +626,11 @@ PBVAL BTUTIL::FindRow(PGLOBAL g)
 /***********************************************************************/
 /*  Parse the read line.                                               */
 /***********************************************************************/
-PBVAL BTUTIL::ParseLine(PGLOBAL g, int *pretty, bool *comma)
+PBVAL BTUTIL::ParseLine(PGLOBAL g, int prty, bool cma)
 {
-  return ParseJson(g, Tp->To_Line, strlen(Tp->To_Line), pretty, comma);
+  pretty = prty;
+  comma = cma;
+  return ParseJson(g, Tp->To_Line, strlen(Tp->To_Line));
 } // end of ParseLine
 
 /***********************************************************************/
@@ -1296,6 +1298,7 @@ TDBBSN::TDBBSN(PGLOBAL g, PBDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
   SameRow = 0;
   Xval = -1;
   Comma = false;
+  Bp->SetPretty(Pretty);
 } // end of TDBBSN standard constructor
 
 TDBBSN::TDBBSN(TDBBSN* tdbp) : TDBDOS(NULL, tdbp)
@@ -1527,7 +1530,7 @@ int TDBBSN::ReadDB(PGLOBAL g)
       // Recover the memory used for parsing
       Bp->SubSet();
 
-      if ((Row = Bp->ParseLine(g, &Pretty, &Comma))) {
+      if ((Row = Bp->ParseLine(g, Pretty, Comma))) {
         Top = Row;
         Row = Bp->FindRow(g);
         SameRow = 0;
@@ -2081,6 +2084,7 @@ TDBBSON::TDBBSON(PGLOBAL g, PBDEF tdp, PTXF txfp) : TDBBSN(g, tdp, txfp)
   Docp = NULL;
   Multiple = tdp->Multiple;
   Done = Changed = false;
+  Bp->SetPretty(2);
 } // end of TDBBSON standard constructor
 
 TDBBSON::TDBBSON(PBTDB tdbp) : TDBBSN(tdbp)
@@ -2165,7 +2169,7 @@ int TDBBSON::MakeDocument(PGLOBAL g)
   /*  Parse the json file and allocate its tree structure.             */
   /*********************************************************************/
   g->Message[0] = 0;
-  jsp = Top = Bp->ParseJson(g, memory, len, &Pretty);
+  jsp = Top = Bp->ParseJson(g, memory, len);
   Txfp->CloseTableFile(g, false);
   Mode = mode;             // Restore saved Mode
 

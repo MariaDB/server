@@ -13,6 +13,8 @@
 /***********************************************************************/
 #if defined(MARIADB)
 #include <my_global.h>    // All MariaDB stuff
+#include <mysqld.h>
+#include <sql_error.h>
 #else   // !MARIADB       OEM module
 #include "mini-global.h"
 #define _MAX_PATH 260
@@ -44,6 +46,12 @@
 #include "tabjson.h"
 #include "tabfmt.h"
 #include "tabrest.h"
+
+#if defined(connect_EXPORTS)
+#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, 0, M)
+#else
+#define PUSH_WARNING(M) htrc(M)
+#endif
 
 #if defined(__WIN__) || defined(_WINDOWS)
 #define popen  _popen
@@ -223,6 +231,8 @@ PQRYRES __stdcall ColREST(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
 
 		fn = filename;
 		tp->filename = PlugDup(g, fn);
+		sprintf(g->Message, "No file name. Table will use %s", fn);
+		PUSH_WARNING(g->Message);
 	}	// endif fn
 
   //  We used the file name relative to recorded datapath

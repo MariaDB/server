@@ -170,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0002 December 18, 2020";
+       char version[]= "Version 1.07.0002 December 19, 2020";
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -5701,14 +5701,20 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			goto err;
 #if defined(REST_SUPPORT)
 		} else if (topt->http) {
-			switch (ttp) {
+      if (ttp == TAB_UNDEF) {
+        topt->type = "JSON";
+        ttp= GetTypeID(topt->type);
+        sprintf(g->Message, "No table_type. Was set to %s", topt->type);
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+      } // endif ttp
+
+      switch (ttp) {
 				case TAB_JSON:
 #if defined(BSON_SUPPORT)
         case TAB_BSON:
 #endif   // BSON_SUPPORT
         case TAB_XML:
 				case TAB_CSV:
-        case TAB_UNDEF:
           ttp = TAB_REST;
 					break;
 				default:
@@ -5894,7 +5900,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(BSON_SUPPORT)
       case TAB_BSON:
 #endif   // BSON_SUPPORT
-				dsn= strz(g, create_info->connect_string);
+        dsn= strz(g, create_info->connect_string);
 
 				if (!fn && !zfn && !mul && !dsn)
 					sprintf(g->Message, "Missing %s file name", topt->type);
@@ -6132,10 +6138,8 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				} // endif !nblin
 
 				// Restore language type
-				if (ttp == TAB_REST) {
+				if (ttp == TAB_REST)
           ttp = GetTypeID(topt->type);
-          ttp = (ttp == TAB_UNDEF) ? TAB_JSON : ttp;
-        } // endif ttp
 
 				for (i= 0; !rc && i < qrp->Nblin; i++) {
 					typ= len= prec= dec= flg= 0;
@@ -6436,6 +6440,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   // Check table type
   if (type == TAB_UNDEF) {
     options->type= (options->srcdef)  ? "MYSQL" :
+#if defined(BSON_SUPPORT)
+                   (options->http) ? "JSON" :
+#endif   // BSON_SUPPORT
                    (options->tabname) ? "PROXY" : "DOS";
     type= GetTypeID(options->type);
     sprintf(g->Message, "No table_type. Will be set to %s", options->type);

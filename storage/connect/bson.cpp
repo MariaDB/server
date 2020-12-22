@@ -101,17 +101,19 @@ BDOC::BDOC(PGLOBAL G) : BJSON(G, NULL)
   jp = NULL;
   s = NULL;
   len = 0;
+  pretty = 3;
   pty[0] = pty[1] = pty[2] = true;
+  comma = false;
 } // end of BDOC constructor
 
 /***********************************************************************/
 /* Parse a json string.                                                */
 /* Note: when pretty is not known, the caller set pretty to 3.         */
 /***********************************************************************/
-PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma)
+PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng)
 {
-  int   i, pretty = (ptyp) ? *ptyp : 3;
-  bool  b = false;
+  int   i;
+  bool  b = false, ptyp = (bool *)pty;
   PBVAL bvp = NULL;
 
   s = js;
@@ -121,8 +123,7 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma)
   if (!s || !len) {
     strcpy(g->Message, "Void JSON object");
     return NULL;
-  } else if (comma)
-    *comma = false;
+  } // endif s
 
   // Trying to guess the pretty format
   if (s[0] == '[' && (s[1] == '\n' || (s[1] == '\r' && s[2] == '\n')))
@@ -136,7 +137,7 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma)
       switch (s[i]) {
       case '[':
         if (bvp->Type != TYPE_UNKNOWN)
-          bvp->To_Val = ParseAsArray(i, pretty, ptyp);
+          bvp->To_Val = ParseAsArray(i);
         else
           bvp->To_Val = ParseArray(++i);
 
@@ -144,7 +145,7 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma)
         break;
       case '{':
         if (bvp->Type != TYPE_UNKNOWN) {
-          bvp->To_Val = ParseAsArray(i, pretty, ptyp);
+          bvp->To_Val = ParseAsArray(i);
           bvp->Type = TYPE_JAR;
         } else {
           bvp->To_Val = ParseObject(++i);
@@ -159,9 +160,7 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma)
         break;
       case ',':
         if (bvp->Type != TYPE_UNKNOWN && (pretty == 1 || pretty == 3)) {
-          if (comma)
-            *comma = true;
-
+          comma = true;
           pty[0] = pty[2] = false;
           break;
         } // endif pretty
@@ -179,7 +178,7 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma)
 
       default:
         if (bvp->Type != TYPE_UNKNOWN) {
-          bvp->To_Val = ParseAsArray(i, pretty, ptyp);
+          bvp->To_Val = ParseAsArray(i);
           bvp->Type = TYPE_JAR;
         } else if ((bvp->To_Val = MOF(ParseValue(i))))
           bvp->Type = TYPE_JVAL;
@@ -191,12 +190,10 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma)
 
     if (bvp->Type == TYPE_UNKNOWN)
       sprintf(g->Message, "Invalid Json string '%.*s'", MY_MIN((int)len, 50), s);
-    else if (ptyp && pretty == 3) {
-      *ptyp = 3;     // Not recognized pretty
-
+    else if (pretty == 3) {
       for (i = 0; i < 3; i++)
         if (pty[i]) {
-          *ptyp = i;
+          pretty = i;
           break;
         } // endif pty
 
@@ -218,12 +215,12 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng, int* ptyp, bool* comma)
 /***********************************************************************/
 /* Parse several items as being in an array.                           */
 /***********************************************************************/
-OFFSET BDOC::ParseAsArray(int& i, int pretty, int* ptyp) {
+OFFSET BDOC::ParseAsArray(int& i) {
   if (pty[0] && (!pretty || pretty > 2)) {
     OFFSET jsp;
 
-    if ((jsp = ParseArray((i = 0))) && ptyp && pretty == 3)
-      *ptyp = (pty[0]) ? 0 : 3;
+    if ((jsp = ParseArray((i = 0))) && pretty == 3)
+      pretty = (pty[0]) ? 0 : 3;
 
     return jsp;
   } else

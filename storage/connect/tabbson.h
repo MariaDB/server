@@ -110,7 +110,7 @@ public:
 
   // Utility functions
   PBVAL FindRow(PGLOBAL g);
-  PBVAL ParseLine(PGLOBAL g, int *pretty, bool *comma);
+  PBVAL ParseLine(PGLOBAL g, int prty, bool cma);
   PBVAL MakeTopTree(PGLOBAL g, int type);
   PSZ   SerialVal(PGLOBAL g, PBVAL top, int pretty);
 

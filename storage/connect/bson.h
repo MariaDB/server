@@ -167,7 +167,12 @@ class BDOC : public BJSON {
 public:
 	BDOC(PGLOBAL G);
 
-	PBVAL ParseJson(PGLOBAL g, char* s, size_t n, int* prty = NULL, bool* b = NULL);
+	bool  GetComma(void) { return comma; }
+	int   GetPretty(void) { return pretty; }
+	void  SetPretty(int pty) { pretty = pty; }
+
+	// Methods
+	PBVAL ParseJson(PGLOBAL g, char* s, size_t n);
 	PSZ   Serialize(PGLOBAL g, PBVAL bvp, char* fn, int pretty);
 
 protected:
@@ -176,7 +181,7 @@ protected:
 	PBVAL  ParseValue(int& i);
 	OFFSET ParseString(int& i);
 	void   ParseNumeric(int& i, PBVAL bvp);
-	OFFSET ParseAsArray(int& i, int pretty, int* ptyp);
+	OFFSET ParseAsArray(int& i);
 	bool   SerializeArray(OFFSET arp, bool b);
 	bool   SerializeObject(OFFSET obp);
 	bool   SerializeValue(PBVAL vp);
@@ -185,7 +190,9 @@ protected:
 	JOUT* jp;						 // Used with serialize
 	char* s;						 // The Json string to parse
 	int   len;					 // The Json string length
+	int   pretty;				 // The pretty style of the file to parse
 	bool  pty[3];				 // Used to guess what pretty is
+	bool  comma;				 // True if Pretty = 1
 
 	// Default constructor not to be used
 	BDOC(void) {}
