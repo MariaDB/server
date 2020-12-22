@@ -102,9 +102,9 @@ create table t1 (
   foreign key r (f3) references t1 (f1) on delete set null)
 with system versioning engine innodb;
 insert into t1 values (1, repeat('a', 8193), 1), (1, repeat('b', 8193), 1);
-select f1, f3, check_row(row_start, row_end) from t1;
+select f1, f3, check_row_ts(row_start, row_end) from t1;
 delete from t1;
-select f1, f3, check_row(row_start, row_end) from t1 for system_time all;
+select f1, f3, check_row_ts(row_start, row_end) from t1 for system_time all;
 
 # cleanup
 drop table t1;

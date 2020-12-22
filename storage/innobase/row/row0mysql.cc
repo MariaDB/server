@@ -2125,6 +2125,7 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 	dfield_t* row_end;
 	char row_end_data[8];
 	dict_table_t* table = node->table;
+	page_size_t page_size= dict_table_page_size(table);
 	ut_ad(table->versioned());
 
 	dtuple_t*       row;
@@ -2152,9 +2153,27 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 	ut_ad(n_cols > DATA_N_SYS_COLS);
 	// Exclude DB_ROW_ID, DB_TRX_ID, DB_ROLL_PTR
 	for (ulint i = 0; i < n_cols - DATA_N_SYS_COLS; i++) {
-		dfield_t *dst= dtuple_get_nth_field(row, i);
 		dfield_t *src= dtuple_get_nth_field(node->historical_row, i);
+		dfield_t *dst= dtuple_get_nth_field(row, i);
 		dfield_copy(dst, src);
+		if (dfield_is_ext(src)) {
+			byte *field_data
+				= static_cast<byte*>(dfield_get_data(src));
+			ulint ext_len;
+			ulint field_len = dfield_get_len(src);
+
+			ut_a(field_len >= BTR_EXTERN_FIELD_REF_SIZE);
+
+			ut_a(memcmp(field_data + field_len
+				     - BTR_EXTERN_FIELD_REF_SIZE,
+				     field_ref_zero,
+				     BTR_EXTERN_FIELD_REF_SIZE));
+
+			byte *data = btr_copy_externally_stored_field(
+				&ext_len, field_data, page_size, field_len,
+				node->historical_heap);
+			dfield_set_data(dst, data, ext_len);
+		}
 	}
 
 	for (ulint i = 0; i < n_v_cols; i++) {

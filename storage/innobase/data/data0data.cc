@@ -738,7 +738,7 @@ void
 dtuple_convert_back_big_rec(
 /*========================*/
 	dict_index_t*	index MY_ATTRIBUTE((unused)),	/*!< in: index */
-	dtuple_t*	entry,	/*!< in: entry whose data was put to vector */
+	dtuple_t*	entry,	/*!< in/out: entry whose data was put to vector */
 	big_rec_t*	vector)	/*!< in, own: big rec vector; it is
 				freed in this function */
 {
