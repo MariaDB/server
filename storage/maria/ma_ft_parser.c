@@ -81,27 +81,6 @@ FT_WORD * maria_ft_linearize(TREE *wtree, MEM_ROOT *mem_root)
   DBUG_RETURN(wlist);
 }
 
-my_bool maria_ft_boolean_check_syntax_string(const uchar *str)
-{
-  uint i, j;
-
-  if (!str ||
-      (strlen((const char *) str) != strlen(ft_boolean_syntax)) ||
-      (str[0] != ' ' && str[1] != ' '))
-    return 1;
-  for (i=0; i<strlen(ft_boolean_syntax); i++)
-  {
-    /* limiting to 7-bit ascii only */
-    if ((unsigned char)(str[i]) > 127 ||
-        my_isalnum(default_charset_info, str[i]))
-      return 1;
-    for (j=0; j<i; j++)
-      if (str[i] == str[j] && (i != 11 || j != 10))
-        return 1;
-  }
-  return 0;
-}
-
 /*
   RETURN VALUE
   0 - eof
