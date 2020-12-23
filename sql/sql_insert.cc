@@ -2701,7 +2701,7 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
   delayed_row *row= 0;
   Delayed_insert *di=thd->di;
   const Discrete_interval *forced_auto_inc;
-  size_t user_len, host_len, ip_len;
+  size_t user_len, host_len, ip_length;
   DBUG_ENTER("write_delayed");
   DBUG_PRINT("enter", ("query = '%s' length %lu", query.str,
                        (ulong) query.length));
@@ -2735,7 +2735,7 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
     goto err;
   }
 
-  user_len= host_len= ip_len= 0;
+  user_len= host_len= ip_length= 0;
   row->user= row->host= row->ip= NULL;
   if (thd->security_ctx)
   {
@@ -2744,11 +2744,11 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
     if (thd->security_ctx->host)
       host_len= strlen(thd->security_ctx->host) + 1;
     if (thd->security_ctx->ip)
-      ip_len= strlen(thd->security_ctx->ip) + 1;
+      ip_length= strlen(thd->security_ctx->ip) + 1;
   }
   /* This can't be THREAD_SPECIFIC as it's freed in delayed thread */
   if (!(row->record= (char*) my_malloc(table->s->reclength +
-                                       user_len + host_len + ip_len,
+                                       user_len + host_len + ip_length,
                                        MYF(MY_WME))))
     goto err;
   memcpy(row->record, table->record[0], table->s->reclength);
@@ -2768,7 +2768,7 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
     if (thd->security_ctx->ip)
     {
       row->ip= row->record + table->s->reclength + user_len + host_len;
-      memcpy(row->ip, thd->security_ctx->ip, ip_len);
+      memcpy(row->ip, thd->security_ctx->ip, ip_length);
     }
   }
   row->query_id= thd->query_id;

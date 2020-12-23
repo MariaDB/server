@@ -1149,7 +1149,7 @@ bool JOIN_TAB::fix_splitting(SplM_plan_info *spl_plan,
 bool JOIN::fix_all_splittings_in_plan()
 {
   table_map prev_tables= 0;
-  table_map all_tables= (1 << table_count) - 1;
+  table_map all_tables= (table_map(1) << table_count) - 1;
   for (uint tablenr= 0; tablenr < table_count; tablenr++)
   {
     POSITION *cur_pos= &best_positions[tablenr];

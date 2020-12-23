@@ -14,7 +14,13 @@ create or replace table t1 (
   period for system_time (sys_trx_start, sys_trx_end)
 ) with system versioning;
 
+--echo # No history inside the transaction
+start transaction;
 insert into t1 (x) values (1);
+update t1 set x= x + 1;
+update t1 set x= x + 1;
+commit;
+select *, sys_trx_start > 1, sys_trx_end from t1 for system_time all;
 
 --echo # ALTER ADD SYSTEM VERSIONING should write to mysql.transaction_registry
 set @@system_versioning_alter_history=keep;

@@ -6020,12 +6020,9 @@ static bool xtrabackup_prepare_func(char** argv)
           srv_shutdown_bg_undo_sources();
           srv_purge_shutdown();
           buf_flush_sync_all_buf_pools();
-          innodb_shutdown();
-          innobase_space_shutdown();
         }
-        else
-          innodb_shutdown();
 
+        innodb_shutdown();
         innodb_free_param();
 
 	/* output to metadata file */

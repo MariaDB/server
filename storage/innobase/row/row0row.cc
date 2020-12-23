@@ -295,12 +295,14 @@ row_build_index_entry_low(
 			continue;
 		}
 
+		ut_ad(!(index->type & DICT_FTS));
+
 		ulint len = dfield_get_len(dfield);
 
 		if (f.prefix_len == 0
 		    && (!dfield_is_ext(dfield)
 			|| dict_index_is_clust(index))) {
-			/* The dfield_copy() above suffices for
+			/* The *dfield = *dfield2 above suffices for
 			columns that are stored in-page, or for
 			clustered index record columns that are not
 			part of a column prefix in the PRIMARY KEY. */

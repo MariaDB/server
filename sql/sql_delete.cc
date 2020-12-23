@@ -293,7 +293,15 @@ int TABLE::delete_row()
 
   store_record(this, record[1]);
   vers_update_end();
-  return file->ha_update_row(record[1], record[0]);
+  int err= file->ha_update_row(record[1], record[0]);
+  /*
+     MDEV-23644: we get HA_ERR_FOREIGN_DUPLICATE_KEY iff we already got history
+     row with same trx_id which is the result of foreign key action, so we
+     don't need one more history row.
+  */
+  if (err == HA_ERR_FOREIGN_DUPLICATE_KEY)
+    return file->ha_delete_row(record[0]);
+  return err;
 }
 
 

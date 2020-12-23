@@ -643,6 +643,15 @@ alter table t1 add partition (partition p2);
 # Cleanup
 drop table t1;
 
+--echo #
+--echo # MDEV-22178 Assertion `info->alias.str' failed in partition_info::check_partition_info instead of ER_VERS_WRONG_PARTS
+--echo #
+create or replace table t1 (a int) with system versioning;
+--error ER_VERS_WRONG_PARTS
+alter table t1 partition by system_time (partition pn current);
+# Cleanup
+drop table t1;
+
 --echo # End of 10.3 tests
 
 --echo #
