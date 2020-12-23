@@ -100,7 +100,6 @@ extern ulong       wsrep_running_applier_threads;
 extern ulong       wsrep_running_rollbacker_threads;
 extern bool        wsrep_new_cluster;
 extern bool        wsrep_gtid_mode;
-extern my_bool     wsrep_strict_ddl;
 extern uint        wsrep_gtid_domain_id;
 extern ulonglong   wsrep_mode;
 
@@ -135,8 +134,9 @@ enum enum_wsrep_ignore_apply_error {
 };
 
 enum enum_wsrep_mode {
-  WSREP_MODE_BINLOG_ROW_FORMAT_ONLY= (1ULL << 0),
-  WSREP_MODE_REQURIED_PRIMARY_KEY= (1ULL << 1)
+  WSREP_MODE_STRICT_REPLICATION= (1ULL << 0),
+  WSREP_MODE_BINLOG_ROW_FORMAT_ONLY= (1ULL << 1),
+  WSREP_MODE_REQURIED_PRIMARY_KEY= (1ULL << 2)
 };
 
 // Streaming Replication

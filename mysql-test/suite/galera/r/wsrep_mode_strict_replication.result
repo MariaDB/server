@@ -5,22 +5,22 @@ connection node_1;
 SET GLOBAL binlog_format='ROW';
 create table before_t1(a int, count int, b int, key(b)) engine=Aria;
 INSERT INTO before_t1 values (1,1,1);
-set @@global.wsrep_strict_ddl=ON;
-select @@global.wsrep_strict_ddl;
-@@global.wsrep_strict_ddl
-1
+SET @@global.wsrep_mode=STRICT_REPLICATION;
+select @@global.wsrep_mode;
+@@global.wsrep_mode
+STRICT_REPLICATION
 connection node_2;
-set @@global.wsrep_strict_ddl=ON;
-select @@global.wsrep_strict_ddl;
-@@global.wsrep_strict_ddl
-1
+SET @@global.wsrep_mode=STRICT_REPLICATION;
+select @@global.wsrep_mode;
+@@global.wsrep_mode
+STRICT_REPLICATION
 connection node_1;
 CREATE TABLE t1(a int) engine=Aria;
 ERROR HY000: Galera replication not supported
 SHOW WARNINGS;
 Level	Code	Message
 Error	4165	Galera replication not supported
-Warning	1031	WSREP: wsrep_strict_ddl=true and storage engine does not support Galera replication.
+Warning	1031	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine not supported. 
 connection node_2;
 SHOW CREATE TABLE t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
@@ -31,7 +31,7 @@ ERROR HY000: Galera replication not supported
 SHOW WARNINGS;
 Level	Code	Message
 Error	4165	Galera replication not supported
-Warning	1031	WSREP: wsrep_strict_ddl=true and storage engine does not support Galera replication.
+Warning	1031	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine not supported. 
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
@@ -181,14 +181,14 @@ before_t1	CREATE TABLE `before_t1` (
   KEY `b` (`b`)
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 connection node_1;
-set @@global.wsrep_strict_ddl=OFF;
-select @@global.wsrep_strict_ddl;
-@@global.wsrep_strict_ddl
-0
+set @@global.wsrep_mode=default;
+select @@global.wsrep_mode;
+@@global.wsrep_mode
+
 connection node_2;
-set @@global.wsrep_strict_ddl=OFF;
-select @@global.wsrep_strict_ddl;
-@@global.wsrep_strict_ddl
-0
+set @@global.wsrep_mode=default;
+select @@global.wsrep_mode;
+@@global.wsrep_mode
+
 DROP TABLE t2;
 DROP TABLE before_t1;

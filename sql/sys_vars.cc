@@ -5929,6 +5929,7 @@ static Sys_var_uint Sys_wsrep_sync_wait(
 
 static const char *wsrep_mode_names[]= 
 {
+  "STRICT_REPLICATION",
   "BINLOG_ROW_FORMAT_ONLY",
   "REQUIRED_PRIMARY_KEY",
   NullS
@@ -5956,14 +5957,6 @@ static Sys_var_mybool Sys_wsrep_desync (
        &PLock_wsrep_desync, NOT_IN_BINLOG,
        ON_CHECK(wsrep_desync_check),
        ON_UPDATE(wsrep_desync_update));
-
-static Sys_var_mybool Sys_wsrep_strict_ddl (
-       "wsrep_strict_ddl", "If set, reject DDL on affected tables not supporting Galera replication",
-       GLOBAL_VAR(wsrep_strict_ddl),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(0),
-       ON_UPDATE(0));
 
 static const char *wsrep_reject_queries_names[]= { "NONE", "ALL", "ALL_KILL", NullS };
 static Sys_var_enum Sys_wsrep_reject_queries(

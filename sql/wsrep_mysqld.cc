@@ -98,9 +98,6 @@ my_bool wsrep_restart_slave;                    // Should mysql slave thread be
 my_bool wsrep_desync;                           // De(re)synchronize the node from the
                                                 // cluster
 ulonglong wsrep_mode;
-my_bool wsrep_strict_ddl;                       // Reject DDL to
-                                                // effected tables not
-                                                // supporting Galera replication
 bool wsrep_service_started;                     // If Galera was initialized
 long wsrep_slave_threads;                       // No. of slave appliers threads
 ulong wsrep_retry_autocommit;                   // Retry aborted autocommit trx
@@ -1904,10 +1901,9 @@ bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list)
   return true;
 }
 
-bool wsrep_should_replicate_ddl(THD* thd,
-                                const enum legacy_db_type db_type)
+bool wsrep_should_replicate_ddl(THD* thd, const enum legacy_db_type db_type)
 {
-  if (!wsrep_strict_ddl)
+  if (!wsrep_check_mode(WSREP_MODE_STRICT_REPLICATION))
     return true;
 
   switch (db_type)
@@ -1929,11 +1925,12 @@ bool wsrep_should_replicate_ddl(THD* thd,
       break;
   }
 
-  /* STRICT, treat as error */
+  /* wsrep_mode = STRICT_REPLICATION, treat as error */
   my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-	  ER_ILLEGAL_HA,
-	  "WSREP: wsrep_strict_ddl=true and storage engine does not support Galera replication.");
+                      ER_ILLEGAL_HA,
+                      "WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine " \
+                      " not supported. ");
   return false;
 }
 /*
