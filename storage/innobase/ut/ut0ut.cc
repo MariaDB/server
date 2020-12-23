@@ -38,7 +38,6 @@ Created 5/11/1994 Heikki Tuuri
 #include <string>
 #include "log.h"
 #include "my_cpu.h"
-#include "rem0rec.h"
 
 /**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
@@ -627,43 +626,5 @@ fatal_or_error::~fatal_or_error()
 }
 
 } // namespace ib
-
-#ifndef DBUG_OFF
-const char * dbug_print_rec(const rec_t* rec, const rec_offs* offsets)
-{
-	rec_printer r(rec, offsets);
-	return r.str().c_str();
-}
-
-const char * dbug_print_rec(const rec_t* rec, ulint info, const rec_offs* offsets)
-{
-	rec_printer r(rec, info, offsets);
-	return r.str().c_str();
-}
-
-const char * dbug_print_rec(const dtuple_t* tuple)
-{
-	rec_printer r(tuple);
-	return r.str().c_str();
-}
-
-const char * dbug_print_rec(const dfield_t* field, ulint n)
-{
-	rec_printer r(field, n);
-	return r.str().c_str();
-}
-
-const char * dbug_print_rec(const rec_t* rec, dict_index_t* index)
-{
-	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
-	rec_offs*	offsets		= offsets_;
-	rec_offs_init(offsets_);
-	mem_heap_t*	tmp_heap	= NULL;
-	offsets = rec_get_offsets(rec, index, offsets, true,
-				  ULINT_UNDEFINED, &tmp_heap);
-	rec_printer r(rec, offsets);
-	return r.str().c_str();
-}
-#endif /* !DBUG_OFF */
 
 #endif /* !UNIV_INNOCHECKSUM */
