@@ -3484,10 +3484,12 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	reset_template();
 }
 
-/** Free tablespace resources allocated. */
-void innobase_space_shutdown()
+/*********************************************************************//**
+Free any resources that were allocated and return failure.
+@return always return 1 */
+static int innodb_init_abort()
 {
-	DBUG_ENTER("innobase_space_shutdown");
+	DBUG_ENTER("innodb_init_abort");
 
 	if (fil_system.temp_space) {
 		fil_system.temp_space->close();
@@ -3502,16 +3504,6 @@ void innobase_space_shutdown()
 #ifdef WITH_INNODB_DISALLOW_WRITES
 	os_event_destroy(srv_allow_writes_event);
 #endif /* WITH_INNODB_DISALLOW_WRITES */
-
-	DBUG_VOID_RETURN;
-}
-
-/** Free any resources that were allocated and return failure.
-@return always return 1 */
-static int innodb_init_abort()
-{
-	DBUG_ENTER("innodb_init_abort");
-	innobase_space_shutdown();
 	DBUG_RETURN(1);
 }
 
@@ -4322,7 +4314,6 @@ innobase_end(handlerton*, ha_panic_function)
 		}
 
 		innodb_shutdown();
-		innobase_space_shutdown();
 
 		mysql_mutex_destroy(&commit_cond_m);
 		mysql_cond_destroy(&commit_cond);

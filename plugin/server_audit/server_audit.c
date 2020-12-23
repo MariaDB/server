@@ -2069,13 +2069,9 @@ static void update_connection_info(struct connection_info *cn,
     {
       case MYSQL_AUDIT_CONNECTION_CONNECT:
         setup_connection_connect(cn, event);
-        if (event->status == 0 && event->proxy_user && event->proxy_user[0])
-          log_proxy(cn, event);
         break;
       case MYSQL_AUDIT_CONNECTION_CHANGE_USER:
         *after_action= AA_CHANGE_USER;
-        if (event->proxy_user && event->proxy_user[0])
-          log_proxy(cn, event);
         break;
       default:;
     }
@@ -2193,6 +2189,8 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
     {
       case MYSQL_AUDIT_CONNECTION_CONNECT:
         log_connection(cn, event, event->status ? "FAILED_CONNECT": "CONNECT");
+        if (event->status == 0 && event->proxy_user && event->proxy_user[0])
+          log_proxy(cn, event);
         break;
       case MYSQL_AUDIT_CONNECTION_DISCONNECT:
         if (use_event_data_for_disconnect)
@@ -2202,6 +2200,8 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
         break;
       case MYSQL_AUDIT_CONNECTION_CHANGE_USER:
         log_connection(cn, event, "CHANGEUSER");
+        if (event->proxy_user && event->proxy_user[0])
+          log_proxy(cn, event);
         break;
       default:;
     }
