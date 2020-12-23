@@ -894,7 +894,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 /*
   We should not introduce any further shift/reduce conflicts.
 */
-%expect 67
+%expect 60
 
 /*
    Comments for TOKENS.
@@ -1931,7 +1931,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <item>
         literal insert_ident order_ident temporal_literal
         simple_ident expr sum_expr in_sum_expr
-        variable variable_aux bool_pri
+        variable variable_aux
         predicate bit_expr parenthesized_expr
         table_wild simple_expr column_default_non_parenthesized_expr udf_expr
         primary_expr string_factor_expr mysql_concatenation_expr
@@ -9836,23 +9836,19 @@ expr:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | bool_pri
-        ;
-
-bool_pri:
-          bool_pri EQUAL_SYM predicate %prec EQUAL_SYM
+        | expr EQUAL_SYM predicate %prec EQUAL_SYM
           {
             $$= new (thd->mem_root) Item_func_equal(thd, $1, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | bool_pri comp_op predicate %prec '='
+        | expr comp_op predicate %prec '='
           {
             $$= (*$2)(0)->create(thd, $1, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
-        | bool_pri comp_op all_or_any '(' subselect ')' %prec '='
+        | expr comp_op all_or_any '(' subselect ')' %prec '='
           {
             $$= all_any_subquery_creator(thd, $1, $2, $3, $5);
             if (unlikely($$ == NULL))

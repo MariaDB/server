@@ -1179,7 +1179,7 @@ void end_connection(THD *thd)
 {
   NET *net= &thd->net;
 #ifdef WITH_WSREP
-  if (WSREP(thd))
+  if (WSREP(thd) && wsrep)
   {
     wsrep_status_t rcode= wsrep->free_connection(wsrep, thd->thread_id);
     if (rcode) {

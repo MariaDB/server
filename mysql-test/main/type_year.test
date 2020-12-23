@@ -1,9 +1,6 @@
 #
 # Test year
 #
---disable_warnings
-drop table if exists t1;
---enable_warnings
 
 create table t1 (y year,y2 year(2));
 insert into t1 values (0,0),(1999,1999),(2000,2000),(2001,2001),(70,70),(69,69);
@@ -12,24 +9,27 @@ select * from t1 order by y;
 select * from t1 order by y2;
 drop table t1;
 
-#
-# Bug 2335
-#
+--echo #
+--echo # Bug 2335
+--echo #
 
 create table t1 (y year);
 insert ignore into t1 values (now());
 select if(y = now(), 1, 0) from t1;
 drop table t1;
 
-#
-# Bug #27176: Assigning a string to an year column has unexpected results
-#
+--echo #
+--echo # Bug #27176: Assigning a string to an year column has unexpected results
+--echo #
+
 create table t1(a year);
 insert into t1 values (2000.5), ('2000.5'), ('2001a'), ('2.001E3');
 select * from t1;
 drop table t1;
 
---echo End of 5.0 tests
+--echo #
+--echo # End of 5.0 tests
+--echo #
 
 --echo #
 --echo # Bug #49480: WHERE using YEAR columns returns unexpected results
@@ -169,8 +169,9 @@ ALTER TABLE t1 MODIFY COLUMN c2 YEAR(2);
 DROP TABLE t1;
 
 --echo #
+--echo # End of 5.1 tests
+--echo #
 
---echo End of 5.1 tests
 #
 # fun with convert_const_to_int
 # in some cases 00 is equal to 2000, in others it is not.
@@ -230,10 +231,6 @@ DROP TABLE t1;
 --echo #
 
 --echo #
---echo # Start of 10.2 tests
---echo #
-
---echo #
 --echo # MDEV-9392 Copying from DECIMAL to YEAR is not consistent about warnings
 --echo #
 CREATE TABLE t1 (a YEAR);
@@ -268,6 +265,17 @@ SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t1 MODIFY a YEAR;
 DROP TABLE t1;
 
+--echo #
+--echo # Various widths of the YEAR
+--echo #
+create or replace table t1 (a YEAR(0)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(1)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(2)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(3)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(4)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(5)); SHOW CREATE TABLE t1;
+create or replace table t1 (a YEAR(100)); SHOW CREATE TABLE t1;
+drop table t1;
 
 --echo #
 --echo # End of 10.2 tests

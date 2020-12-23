@@ -146,11 +146,12 @@ static void wsrep_prepare_bf_thd(THD *thd, struct wsrep_thd_shadow* shadow)
 
   // Disable general logging on applier threads
   thd->variables.option_bits |= OPTION_LOG_OFF;
-  // Enable binlogging if opt_log_slave_updates is set
-  if (opt_log_slave_updates)
-    thd->variables.option_bits|= OPTION_BIN_LOG;
-  else
-    thd->variables.option_bits&= ~(OPTION_BIN_LOG);
+
+  /* enable binlogging regardless of log_slave_updates setting
+     this is for ensuring that both local and applier transaction go through
+     same commit ordering algorithm in group commit control
+   */
+  thd->variables.option_bits|= OPTION_BIN_LOG;
 
   if (!thd->wsrep_rgi) thd->wsrep_rgi= wsrep_relay_group_init(thd, "wsrep_relay");
 

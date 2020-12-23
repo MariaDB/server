@@ -41,4 +41,5 @@ source include/binlog_truncate.test;
 let $before_truncate = SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 source include/binlog_truncate.test;
 
-SET BINLOG_FORMAT=@old_binlog_format;
+SET @@global.binlog_format = @old_binlog_format;
+SET @@session.binlog_format = @old_binlog_format;

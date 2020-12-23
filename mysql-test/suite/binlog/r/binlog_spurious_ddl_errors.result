@@ -1,5 +1,5 @@
 SET @old_binlog_format= @@global.binlog_format;
-INSTALL PLUGIN example SONAME 'ha_example.so';
+INSTALL PLUGIN example SONAME 'ha_example';
 ################################################################################
 # Verifies if ER_BINLOG_STMT_MODE_AND_ROW_ENGINE happens by setting the binlog
 # format to STATEMENT and the transaction isolation level to READ COMMITTED as
@@ -18,7 +18,7 @@ ALTER TABLE t_row ADD COLUMN b INT;
 CREATE TRIGGER trig_row BEFORE INSERT ON t_row FOR EACH ROW INSERT INTO t_stmt VALUES (1);
 CREATE INDEX i ON t_row(a);
 CREATE TABLE t_row_new ENGINE = InnoDB SELECT * FROM t_row;
-ERROR HY000: Cannot execute statement: impossible to write to binary log since BINLOG_FORMAT = STATEMENT and at least one table uses a storage engine limited to row-based logging. InnoDB is limited to row-logging when transaction isolation level is READ COMMITTED or READ UNCOMMITTED.
+ERROR HY000: Cannot execute statement: impossible to write to binary log since BINLOG_FORMAT = STATEMENT and at least one table uses a storage engine limited to row-based logging.
 DROP TABLE t_row;
 
 
@@ -36,12 +36,11 @@ DROP TABLE t_row;
 SET binlog_format = ROW;
 CREATE TABLE t_stmt (a VARCHAR(100)) ENGINE = EXAMPLE;
 ALTER TABLE t_stmt ADD COLUMN b INT;
-ERROR 42000: This version of MySQL doesn't yet support 'ALTER TABLE'
 CREATE TRIGGER trig_stmt BEFORE INSERT ON t_stmt FOR EACH ROW INSERT INTO t_stmt VALUES (1);
 CREATE INDEX i ON t_stmt(a);
 ERROR 42000: Too many key parts specified; max 0 parts allowed
 CREATE TABLE t_stmt_new ENGINE = EXAMPLE SELECT * FROM t_stmt;
-ERROR HY000: Cannot execute statement: impossible to write to binary log since BINLOG_FORMAT = ROW and at least one table uses a storage engine limited to statement-based logging.
+ERROR HY000: Cannot execute statement: impossible to write to binary log since BINLOG_FORMAT = ROW and at least one table uses a storage engine limited to statement-based logging
 DROP TABLE t_stmt;
 
 

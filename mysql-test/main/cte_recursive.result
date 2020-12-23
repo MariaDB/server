@@ -818,7 +818,7 @@ where p.id = a.father or p.id = a.mother
 select * from ancestors;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with recursive ancestors as (select `folks`.`id` AS `id`,`folks`.`name` AS `name`,`folks`.`dob` AS `dob`,`folks`.`father` AS `father`,`folks`.`mother` AS `mother` from `folks` where `folks`.`name` = 'Me' and `folks`.`dob` = '2000-01-01' union select `p`.`id` AS `id`,`p`.`name` AS `name`,`p`.`dob` AS `dob`,`p`.`father` AS `father`,`p`.`mother` AS `mother` from (`folks` `p` join `ancestors` `a`) where `p`.`id` = `a`.`father` or `p`.`id` = `a`.`mother`)select `ancestors`.`id` AS `id`,`ancestors`.`name` AS `name`,`ancestors`.`dob` AS `dob`,`ancestors`.`father` AS `father`,`ancestors`.`mother` AS `mother` from `ancestors`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with recursive ancestors as (select `test`.`folks`.`id` AS `id`,`test`.`folks`.`name` AS `name`,`test`.`folks`.`dob` AS `dob`,`test`.`folks`.`father` AS `father`,`test`.`folks`.`mother` AS `mother` from `test`.`folks` where `test`.`folks`.`name` = 'Me' and `test`.`folks`.`dob` = '2000-01-01' union select `p`.`id` AS `id`,`p`.`name` AS `name`,`p`.`dob` AS `dob`,`p`.`father` AS `father`,`p`.`mother` AS `mother` from (`test`.`folks` `p` join `ancestors` `a`) where `p`.`id` = `a`.`father` or `p`.`id` = `a`.`mother`)select `ancestors`.`id` AS `id`,`ancestors`.`name` AS `name`,`ancestors`.`dob` AS `dob`,`ancestors`.`father` AS `father`,`ancestors`.`mother` AS `mother` from `ancestors`	latin1	latin1_swedish_ci
 select * from v1;
 id	name	dob	father	mother
 100	Me	2000-01-01	20	30
@@ -849,7 +849,7 @@ where p.id = ma.mother
 select * from ancestors;
 show create view v2;
 View	Create View	character_set_client	collation_connection
-v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS with recursive ancestors as (select `folks`.`id` AS `id`,`folks`.`name` AS `name`,`folks`.`dob` AS `dob`,`folks`.`father` AS `father`,`folks`.`mother` AS `mother` from `folks` where `folks`.`name` = 'Me' union select `p`.`id` AS `id`,`p`.`name` AS `name`,`p`.`dob` AS `dob`,`p`.`father` AS `father`,`p`.`mother` AS `mother` from (`folks` `p` join `ancestors` `fa`) where `p`.`id` = `fa`.`father` union select `p`.`id` AS `id`,`p`.`name` AS `name`,`p`.`dob` AS `dob`,`p`.`father` AS `father`,`p`.`mother` AS `mother` from (`folks` `p` join `ancestors` `ma`) where `p`.`id` = `ma`.`mother`)select `ancestors`.`id` AS `id`,`ancestors`.`name` AS `name`,`ancestors`.`dob` AS `dob`,`ancestors`.`father` AS `father`,`ancestors`.`mother` AS `mother` from `ancestors`	latin1	latin1_swedish_ci
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS with recursive ancestors as (select `test`.`folks`.`id` AS `id`,`test`.`folks`.`name` AS `name`,`test`.`folks`.`dob` AS `dob`,`test`.`folks`.`father` AS `father`,`test`.`folks`.`mother` AS `mother` from `test`.`folks` where `test`.`folks`.`name` = 'Me' union select `p`.`id` AS `id`,`p`.`name` AS `name`,`p`.`dob` AS `dob`,`p`.`father` AS `father`,`p`.`mother` AS `mother` from (`test`.`folks` `p` join `ancestors` `fa`) where `p`.`id` = `fa`.`father` union select `p`.`id` AS `id`,`p`.`name` AS `name`,`p`.`dob` AS `dob`,`p`.`father` AS `father`,`p`.`mother` AS `mother` from (`test`.`folks` `p` join `ancestors` `ma`) where `p`.`id` = `ma`.`mother`)select `ancestors`.`id` AS `id`,`ancestors`.`name` AS `name`,`ancestors`.`dob` AS `dob`,`ancestors`.`father` AS `father`,`ancestors`.`mother` AS `mother` from `ancestors`	latin1	latin1_swedish_ci
 select * from v2;
 id	name	dob	father	mother
 100	Me	2000-01-01	20	30
@@ -4236,6 +4236,269 @@ a	b	c
 4	3	1
 deallocate prepare stmt;
 drop table t1;
+#
+# MDEV-24019: query with recursive CTE when no default database is set
+#
+drop database test;
+with recursive a as
+(select 1 from dual union select * from a as r)
+select * from a;
+1
+1
+create database db1;
+create table db1.t1 (a int);
+insert into db1.t1 values (3), (7), (1);
+with recursive cte as
+(select * from db1.t1 union select * from (select * from cte) as t)
+select * from cte;
+a
+3
+7
+1
+explain with recursive cte as
+(select * from db1.t1 union select * from (select * from cte) as t)
+select * from cte;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	
+3	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	3	
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+prepare stmt from "with recursive cte as
+(select * from db1.t1 union select * from (select * from cte) as t)
+select * from cte";
+execute stmt;
+a
+3
+7
+1
+execute stmt;
+a
+3
+7
+1
+deallocate prepare stmt;
+drop database db1;
+create database test;
+use test;
+#
+# MDEV-23406: query with mutually recursive CTEs when big_tables=1
+#
+set @save_big_tables=@@big_tables;
+set big_tables=1;
+create table  folks(id int, name char(32), dob date, father int, mother int);
+insert into folks values
+(100, 'Me', '2000-01-01', 20, 30),
+(20, 'Dad', '1970-02-02', 10, 9),
+(30, 'Mom', '1975-03-03', 8, 7),
+(10, 'Grandpa Bill', '1940-04-05', null, null),
+(9, 'Grandma Ann', '1941-10-15', null, null),
+(25, 'Uncle Jim', '1968-11-18', 8, 7),
+(98, 'Sister Amy', '2001-06-20', 20, 30),
+(7, 'Grandma Sally', '1943-08-23', null, 6),
+(8, 'Grandpa Ben', '1940-10-21', null, null),
+(6, 'Grandgrandma Martha', '1923-05-17', null, null),
+(67, 'Cousin Eddie', '1992-02-28', 25, 27),
+(27, 'Auntie Melinda', '1971-03-29', null, null);
+with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+select h.*, w.*
+from folks h, folks w,  coupled_ancestors a
+where a.father = h.id AND a.mother = w.id
+union
+select h.*, w.*
+from folks v, folks h, folks w
+where v.name = 'Me' and
+(v.father = h.id AND v.mother= w.id)
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+select h_id, h_name, h_dob, h_father, h_mother
+from ancestor_couples
+union
+select w_id, w_name, w_dob, w_father, w_mother
+from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+from ancestor_couples;
+h_name	h_dob	w_name	w_dob
+Dad	1970-02-02	Mom	1975-03-03
+Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
+Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+explain with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+select h.*, w.*
+from folks h, folks w,  coupled_ancestors a
+where a.father = h.id AND a.mother = w.id
+union
+select h.*, w.*
+from folks v, folks h, folks w
+where v.name = 'Me' and
+(v.father = h.id AND v.mother= w.id)
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+select h_id, h_name, h_dob, h_father, h_mother
+from ancestor_couples
+union
+select w_id, w_name, w_dob, w_father, w_mother
+from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+from ancestor_couples;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	1728	
+4	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	1728	
+5	RECURSIVE UNION	<derived3>	ALL	NULL	NULL	NULL	NULL	1728	
+NULL	UNION RESULT	<union4,5>	ALL	NULL	NULL	NULL	NULL	NULL	
+3	DERIVED	v	ALL	NULL	NULL	NULL	NULL	12	Using where
+3	DERIVED	h	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
+3	DERIVED	w	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (incremental, BNL join)
+2	RECURSIVE UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	2	
+2	RECURSIVE UNION	h	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
+2	RECURSIVE UNION	w	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (incremental, BNL join)
+NULL	UNION RESULT	<union3,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+prepare stmt from "with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+select h.*, w.*
+from folks h, folks w,  coupled_ancestors a
+where a.father = h.id AND a.mother = w.id
+union
+select h.*, w.*
+from folks v, folks h, folks w
+where v.name = 'Me' and
+(v.father = h.id AND v.mother= w.id)
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+select h_id, h_name, h_dob, h_father, h_mother
+from ancestor_couples
+union
+select w_id, w_name, w_dob, w_father, w_mother
+from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+from ancestor_couples";
+execute stmt;
+h_name	h_dob	w_name	w_dob
+Dad	1970-02-02	Mom	1975-03-03
+Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
+Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+execute stmt;
+h_name	h_dob	w_name	w_dob
+Dad	1970-02-02	Mom	1975-03-03
+Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
+Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+deallocate prepare stmt;
+with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+select h.*, w.*
+from folks h, folks w,  coupled_ancestors a
+where a.father = h.id AND a.mother = w.id
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+select *
+from folks
+where name = 'Me'
+  union all
+select h_id, h_name, h_dob, h_father, h_mother
+from ancestor_couples
+union all
+select w_id, w_name, w_dob, w_father, w_mother
+from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+from ancestor_couples;
+h_name	h_dob	w_name	w_dob
+Dad	1970-02-02	Mom	1975-03-03
+Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
+Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+explain with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+select h.*, w.*
+from folks h, folks w,  coupled_ancestors a
+where a.father = h.id AND a.mother = w.id
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+select *
+from folks
+where name = 'Me'
+  union all
+select h_id, h_name, h_dob, h_father, h_mother
+from ancestor_couples
+union all
+select w_id, w_name, w_dob, w_father, w_mother
+from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+from ancestor_couples;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+3	DERIVED	folks	ALL	NULL	NULL	NULL	NULL	12	Using where
+4	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+5	RECURSIVE UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+NULL	UNION RESULT	<union3,4,5>	ALL	NULL	NULL	NULL	NULL	NULL	
+2	DERIVED	h	ALL	NULL	NULL	NULL	NULL	12	
+2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	w	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (incremental, BNL join)
+prepare stmt from "with recursive
+ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
+w_id, w_name, w_dob, w_father, w_mother)
+as
+(
+select h.*, w.*
+from folks h, folks w,  coupled_ancestors a
+where a.father = h.id AND a.mother = w.id
+),
+coupled_ancestors (id, name, dob, father, mother)
+as
+(
+select *
+from folks
+where name = 'Me'
+  union all
+select h_id, h_name, h_dob, h_father, h_mother
+from ancestor_couples
+union all
+select w_id, w_name, w_dob, w_father, w_mother
+from ancestor_couples
+)
+select h_name, h_dob, w_name, w_dob
+from ancestor_couples";
+execute stmt;
+h_name	h_dob	w_name	w_dob
+Dad	1970-02-02	Mom	1975-03-03
+Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
+Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+execute stmt;
+h_name	h_dob	w_name	w_dob
+Dad	1970-02-02	Mom	1975-03-03
+Grandpa Bill	1940-04-05	Grandma Ann	1941-10-15
+Grandpa Ben	1940-10-21	Grandma Sally	1943-08-23
+deallocate prepare stmt;
+drop table folks;
+set big_tables=@save_big_tables;
 #
 # End of 10.2 tests
 #

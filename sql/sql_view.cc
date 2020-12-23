@@ -291,6 +291,8 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
   {
     for (tbl= sl->get_table_list(); tbl; tbl= tbl->next_local)
     {
+      if (!tbl->with && tbl->select_lex)
+        tbl->with= tbl->select_lex->find_table_def_in_with_clauses(tbl);
       /*
         Ensure that we have some privileges on this table, more strict check
         will be done on column level after preparation,

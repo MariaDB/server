@@ -681,6 +681,7 @@ UPDATE user SET Delete_history_priv = Super_priv WHERE @had_user_delete_history_
 
 ALTER TABLE user ADD plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL AFTER max_user_connections,
                  ADD authentication_string TEXT NOT NULL AFTER plugin;
+ALTER TABLE user CHANGE auth_string authentication_string TEXT NOT NULL;
 ALTER TABLE user MODIFY plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL,
                  MODIFY authentication_string TEXT NOT NULL;
 ALTER TABLE user ADD password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER authentication_string;

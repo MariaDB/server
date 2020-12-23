@@ -2728,6 +2728,13 @@ public:
     return this;
   }
 
+  bool walk(Item_processor processor, bool walk_subquery, void *arg)
+  {
+    return walk_args(processor, walk_subquery, arg)
+      ||   escape_item->walk(processor, walk_subquery, arg)
+      ||  (this->*processor)(arg);
+  }
+
   bool find_selective_predicates_list_processor(void *arg);
   
   Item *get_copy(THD *thd)

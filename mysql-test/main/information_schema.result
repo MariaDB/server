@@ -858,6 +858,7 @@ where data_type = 'longtext' and table_schema != 'performance_schema'
 order by binary table_name, ordinal_position;
 table_schema	table_name	column_name
 information_schema	ALL_PLUGINS	PLUGIN_DESCRIPTION
+information_schema	CHECK_CONSTRAINTS	CHECK_CLAUSE
 information_schema	COLUMNS	COLUMN_DEFAULT
 information_schema	COLUMNS	COLUMN_TYPE
 information_schema	COLUMNS	GENERATION_EXPRESSION
@@ -2208,7 +2209,7 @@ SCHEMA_NAME
 SELECT * FROM INFORMATION_SCHEMA.`COLUMNS` LIMIT ROWS EXAMINED 10;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
 Warnings:
-Warning	1931	Query execution was interrupted. The query examined at least 671 rows, which exceeds LIMIT ROWS EXAMINED (10). The query result may be incomplete
+Warning	1931	Query execution was interrupted. The query examined at least ### rows, which exceeds LIMIT ROWS EXAMINED (10). The query result may be incomplete
 #
 # End of 10.2 Test
 #

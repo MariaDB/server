@@ -1233,8 +1233,6 @@ public:
                           const Type_std_attributes *item,
                           SORT_FIELD_ATTR *attr) const= 0;
 
-  virtual bool is_packable() const { return false; }
-
   virtual uint32 max_display_length(const Item *item) const= 0;
   virtual uint32 calc_pack_length(uint32 length) const= 0;
   virtual bool Item_save_in_value(Item *item, st_value *value) const= 0;
@@ -2238,8 +2236,6 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
-
-  bool is_packable()const { return true; }
 
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,

@@ -606,15 +606,15 @@ set character_set_results=default;
 #
 # max_sort_length
 set GLOBAL query_cache_size=1355776;
-create table t1 (id int auto_increment primary key, c char(25));
+create table t1 (id int auto_increment primary key, c char(65));
 insert into t1 set c = repeat('x',24);
-insert into t1 set c = concat(repeat('x',24),'x');
-insert into t1 set c = concat(repeat('x',24),'w');
-insert into t1 set c = concat(repeat('x',24),'y');
+insert into t1 set c = concat(repeat('x',64),'x');
+insert into t1 set c = concat(repeat('x',64),'w');
+insert into t1 set c = concat(repeat('x',64),'y');
 set max_sort_length=200;
 select c from t1 order by c, id;
 reset query cache;
-set max_sort_length=20;
+set max_sort_length=64;
 select c from t1 order by c, id;
 set max_sort_length=200;
 select c from t1 order by c, id;

@@ -378,9 +378,9 @@ char *PlugReadMessage(PGLOBAL g, int mid, char *m)
       if (atoi(buff) == mid)
         break;
 
-  if (sscanf(buff, " %*d %s \"%[^\"]", msgid, stmsg) < 2) {
+  if (sscanf(buff, " %*d %.31s \"%.255[^\"]", msgid, stmsg) < 2) {
     // Old message file
-    if (!sscanf(buff, " %*d \"%[^\"]", stmsg)) {
+    if (!sscanf(buff, " %*d \"%.255[^\"]", stmsg)) {
       sprintf(stmsg, "Bad message file for %d %s", mid, SVP(m));
       goto fin;
     } else

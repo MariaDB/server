@@ -1714,7 +1714,11 @@ int mysql_multi_update_prepare(THD *thd)
     During prepare phase acquire only S metadata locks instead of SW locks to
     keep prepare of multi-UPDATE compatible with concurrent LOCK TABLES WRITE
     and global read lock.
+
+    Don't evaluate any subqueries even if constant, because
+    tables aren't locked yet.
   */
+  lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
   if (thd->lex->sql_command == SQLCOM_UPDATE_MULTI)
   {
     if (open_tables(thd, &table_list, &table_count,
@@ -1737,6 +1741,9 @@ int mysql_multi_update_prepare(THD *thd)
   {
     DBUG_RETURN(TRUE);
   }
+
+  lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_DERIVED;
+
   (void) read_statistics_for_tables_if_needed(thd, table_list);
   /* @todo: downgrade the metadata locks here. */
 
