@@ -237,6 +237,7 @@ SET(INNOBASE_SOURCES
 	include/srv0mon.ic
 	include/srv0srv.h
 	include/srv0start.h
+	include/srw_lock.h
 	include/sux_lock.h
 	include/trx0i_s.h
 	include/trx0purge.h

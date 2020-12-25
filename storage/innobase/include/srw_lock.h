@@ -19,13 +19,13 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #pragma once
 #include "univ.i"
 
-#if !(defined __linux__ || defined _WIN32 || defined __OpenBSD__)
+#if !(defined __linux__ || defined __OpenBSD__)
 # define SRW_LOCK_DUMMY
 #elif 0 // defined SAFE_MUTEX
 # define SRW_LOCK_DUMMY /* Use dummy implementation for debugging purposes */
 #endif
 
-#ifdef SRW_LOCK_DUMMY
+#if defined SRW_LOCK_DUMMY && !(defined _WIN32)
 /** An exclusive-only variant of srw_lock */
 class srw_mutex
 {
