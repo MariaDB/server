@@ -23,22 +23,25 @@ Build-Depends: bison,
                libcrack2-dev (>= 2.9.0),
                libcurl4-openssl-dev | libcurl4-dev,
                libedit-dev,
+               libedit-dev:native,
                libjemalloc-dev [linux-any],
                libjudy-dev,
                libkrb5-dev,
                liblz4-dev,
                libncurses5-dev (>= 5.0-6~),
-               libnuma-dev [!armhf],
+               libncurses5-dev:native (>= 5.0-6~),
+               libnuma-dev [linux-any],
                libpam0g-dev,
                libpcre2-dev,
                libreadline-gplv2-dev [i386 amd64],
                libsnappy-dev,
-               libssl-dev | libssl1.0-dev,
+               libssl-dev,
+               libssl-dev:native,
                libsystemd-dev [linux-any],
                libxml2-dev,
                libzstd-dev,
                lsb-release,
-               perl,
+               perl:any,
                po-debconf,
                psmisc,
                unixodbc-dev,
@@ -52,7 +55,6 @@ Vcs-Git: https://github.com/MariaDB/server.git
 
 Package: libmariadb-dev
 Architecture: any
-Multi-Arch: same
 Section: libdevel
 Depends: libmariadb3 (= ${binary:Version}),
          zlib1g-dev,
@@ -188,7 +190,6 @@ Description: Virtual package to satisfy external libmysqlclient18 depends
 
 Package: libmariadbd19
 Architecture: any
-Multi-Arch: same
 Section: libs
 Depends: ${misc:Depends},
          ${shlibs:Depends}
@@ -204,7 +205,6 @@ Description: MariaDB embedded database, shared library
 
 Package: libmariadbd-dev
 Architecture: any
-Multi-Arch: same
 Section: libdevel
 Provides: libmysqld-dev
 Pre-Depends: ${misc:Pre-Depends}
