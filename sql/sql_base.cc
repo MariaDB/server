@@ -6231,6 +6231,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* Check if there are sufficient access rights to the found field. */
     if (check_privileges &&
+        !table_list->is_derived() &&
         check_column_grant_in_table_ref(thd, *actual_table, name, length, fld))
       fld= WRONG_GRANT;
     else
@@ -8092,36 +8093,23 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* 
-       Ensure that we have access rights to all fields to be inserted. Under
-       some circumstances, this check may be skipped.
+       Ensure that we have access rights to all fields to be inserted
+       the table 'tables'. Under some circumstances, this check may be skipped.
 
-       - If any_privileges is true, skip the check.
+       The check is skipped in the following cases:
 
-       - If the SELECT privilege has been found as fulfilled already for both
-         the TABLE and TABLE_LIST objects (and both of these exist, of
-         course), the check is skipped.
+       - any_privileges is true
 
-       - If the SELECT privilege has been found fulfilled for the TABLE object
-         and the TABLE_LIST represents a derived table other than a view (see
-         below), the check is skipped.
+       - the table is a derived table
 
-       - If the TABLE_LIST object represents a view, we may skip checking if
-         the SELECT privilege has been found fulfilled for it, regardless of
-         the TABLE object.
+       - the table is a view with SELECT privilege
 
-       - If there is no TABLE object, the test is skipped if either 
-         * the TABLE_LIST does not represent a view, or
-         * the SELECT privilege has been found fulfilled.         
-
-       A TABLE_LIST that is not a view may be a subquery, an
-       information_schema table, or a nested table reference. See the comment
-       for TABLE_LIST.
+       - the table is a base table with SELECT privilege
     */
-    if (!((table && tables->is_non_derived() &&
-          (table->grant.privilege & SELECT_ACL)) ||
-	  ((!tables->is_non_derived() && 
-	    (tables->grant.privilege & SELECT_ACL)))) &&
-        !any_privileges)
+    if (!any_privileges &&
+        !tables->is_derived() &&
+        !(tables->is_view() && (tables->grant.privilege & SELECT_ACL)) &&
+        !(table && (table->grant.privilege & SELECT_ACL)))
     {
       field_iterator.set(tables);
       if (check_grant_all_columns(thd, SELECT_ACL, &field_iterator))

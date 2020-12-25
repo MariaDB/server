@@ -252,6 +252,8 @@ With_element *With_clause::find_table_def(TABLE_LIST *table,
         !table->is_fqtn)
     {
       table->set_derived();
+      table->db.str= empty_c_string;
+      table->db.length= 0;
       return with_elem;
     }
   }
@@ -887,8 +889,6 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
       goto err;
     spec_tables_tail= tbl;
   }
-  if (check_table_access(thd, SELECT_ACL, spec_tables, FALSE, UINT_MAX, FALSE))
-    goto err;
   if (spec_tables)
   {
     if (with_table->next_global)
@@ -914,6 +914,22 @@ st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
                         with_select));
   if (check_dependencies_in_with_clauses(lex->with_clauses_list))
     res= NULL;
+  /*
+    Resolve references to CTE from the spec_tables list that has not
+    been resolved yet.
+  */
+  for (TABLE_LIST *tbl= spec_tables;
+       tbl;
+       tbl= tbl->next_global)
+  {
+    if (!tbl->with)
+      tbl->with= with_select->find_table_def_in_with_clauses(tbl);
+    if (tbl == spec_tables_tail)
+      break;
+  }
+  if (check_table_access(thd, SELECT_ACL, spec_tables, FALSE, UINT_MAX, FALSE))
+    goto err;
+
   lex->sphead= NULL;    // in order not to delete lex->sphead
   lex_end(lex);
 err:
@@ -1466,10 +1482,11 @@ void With_element::print(String *str, enum_query_type query_type)
 
 bool With_element::instantiate_tmp_tables()
 {
-  List_iterator_fast<TABLE> li(rec_result->rec_tables);
-  TABLE *rec_table;
-  while ((rec_table= li++))
+  List_iterator_fast<TABLE_LIST> li(rec_result->rec_table_refs);
+  TABLE_LIST *rec_tbl;
+  while ((rec_tbl= li++))
   {
+    TABLE *rec_table= rec_tbl->table;
     if (!rec_table->is_created() &&
         instantiate_tmp_table(rec_table,
                               rec_table->s->key_info,

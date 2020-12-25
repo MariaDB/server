@@ -894,7 +894,7 @@ row_ins_foreign_fill_virtual(
 	update->old_vrow = row_build(
 		ROW_COPY_DATA, index, rec,
 		offsets, index->table, NULL, NULL,
-		&ext, cascade->heap);
+		&ext, update->heap);
 	n_diff = update->n_fields;
 
 	if (index->table->vc_templ == NULL) {

@@ -6805,6 +6805,9 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
 bool check_single_table_access(THD *thd, ulong privilege, TABLE_LIST *tables,
                                bool no_errors)
 {
+  if (tables->derived)
+    return 0;
+
   Switch_to_definer_security_ctx backup_sctx(thd, tables);
 
   const char *db_name;

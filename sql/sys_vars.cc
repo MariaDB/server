@@ -2352,7 +2352,7 @@ static Sys_var_ulong Sys_max_sort_length(
        "the first max_sort_length bytes of each value are used; the rest "
        "are ignored)",
        SESSION_VAR(max_sort_length), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(8, 8192*1024L), DEFAULT(1024), BLOCK_SIZE(1));
+       VALID_RANGE(64, 8192*1024L), DEFAULT(1024), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_max_sp_recursion_depth(
        "max_sp_recursion_depth",
@@ -4570,11 +4570,11 @@ static Sys_var_ulong Sys_default_week_format(
        SESSION_VAR(default_week_format), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 7), DEFAULT(0), BLOCK_SIZE(1));
 
-static Sys_var_ulonglong Sys_group_concat_max_len(
+static Sys_var_uint Sys_group_concat_max_len(
        "group_concat_max_len",
        "The maximum length of the result of function GROUP_CONCAT()",
        SESSION_VAR(group_concat_max_len), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(4, SIZE_T_MAX), DEFAULT(1024*1024), BLOCK_SIZE(1));
+       VALID_RANGE(4, UINT_MAX32), DEFAULT(1024*1024), BLOCK_SIZE(1));
 
 static char *glob_hostname_ptr;
 static Sys_var_charptr Sys_hostname(

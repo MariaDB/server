@@ -1449,7 +1449,7 @@ void Query_cache::store_query(THD *thd, TABLE_LIST *tables_used)
     DBUG_PRINT("qcache", ("\
 long %d, 4.1: %d, eof: %d, bin_proto: %d, more results %d, pkt_nr: %d, \
 CS client: %u, CS result: %u, CS conn: %u, limit: %llu, TZ: %p, \
-sql mode: 0x%llx, sort len: %llu, conncat len: %llu, div_precision: %zu, \
+sql mode: 0x%llx, sort len: %llu, concat len: %u, div_precision: %zu, \
 def_week_frmt: %zu, in_trans: %d, autocommit: %d",
                           (int)flags.client_long_flag,
                           (int)flags.client_protocol_41,
@@ -1949,7 +1949,7 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
   DBUG_PRINT("qcache", ("\
 long %d, 4.1: %d, eof: %d, bin_proto: %d, more results %d, pkt_nr: %d, \
 CS client: %u, CS result: %u, CS conn: %u, limit: %llu, TZ: %p, \
-sql mode: 0x%llx, sort len: %llu, conncat len: %llu, div_precision: %zu, \
+sql mode: 0x%llx, sort len: %llu, concat len: %u, div_precision: %zu, \
 def_week_frmt: %zu, in_trans: %d, autocommit: %d",
                           (int)flags.client_long_flag,
                           (int)flags.client_protocol_41,

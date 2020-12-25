@@ -1931,7 +1931,8 @@ SELECT SCHEMA_NAME from information_schema.schemata where schema_name=REPEAT('a'
 --echo # Diagnostics_area::sql_errno upon query from I_S with LIMIT ROWS EXAMINED
 --echo #
 
-SELECT * FROM seq_1_to_100 LIMIT ROWS EXAMINED 10;
+replace_regex /at least \d+ rows/at least ### rows/;
+SELECT * FROM INFORMATION_SCHEMA.`COLUMNS` LIMIT ROWS EXAMINED 10;
 
 --echo #
 --echo # End of 10.2 Test

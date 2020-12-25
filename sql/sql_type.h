@@ -3655,8 +3655,6 @@ public:
                           const Type_std_attributes *item,
                           SORT_FIELD_ATTR *attr) const= 0;
 
-  virtual bool is_packable() const { return false; }
-
   virtual uint32 max_display_length(const Item *item) const= 0;
   virtual uint32 Item_decimal_notation_int_digits(const Item *item) const { return 0; }
   virtual uint32 calc_pack_length(uint32 length) const= 0;
@@ -4815,8 +4813,6 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
-
-  bool is_packable()const { return true; }
 
   bool union_element_finalize(const Item * item) const;
 

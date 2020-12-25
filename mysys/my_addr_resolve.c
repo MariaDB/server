@@ -170,7 +170,7 @@ static pid_t pid;
 static char addr2line_binary[1024];
 static char output[1024];
 static struct pollfd poll_fds;
-Dl_info info;
+static Dl_info info;
 
 int start_addr2line_fork(const char *binary_path)
 {

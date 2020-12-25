@@ -7800,9 +7800,9 @@ SEL_TREE *Item_func_in::get_func_mm_tree(RANGE_OPT_PARAM *param,
       {
         key_map::Iterator it(field->key_start);
         uint key_no;
-        while ((key_no= it.next_bit()) != key_map::Iterator::BITMAP_END)
+        while ((key_no= it++) != key_map::Iterator::BITMAP_END)
         {
-          KEY *key_info= &param->table->key_info[key_no];
+          KEY *key_info= &field->table->key_info[key_no];
           if (key_info->user_defined_key_parts == 1 &&
               (key_info->flags & HA_NOSAME))
           {

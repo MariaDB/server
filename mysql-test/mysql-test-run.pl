@@ -3222,6 +3222,7 @@ sub mysql_install_db {
   mtr_add_arg($args, "--tmpdir=%s", "$opt_vardir/tmp/");
   mtr_add_arg($args, "--core-file");
   mtr_add_arg($args, "--console");
+  mtr_add_arg($args, "--character-set-server=latin1");
 
   if ( $opt_debug )
   {
