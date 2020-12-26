@@ -342,7 +342,7 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
       strncpy(colname, bp->GetKey(jpp), 64);
       fmt[bf] = 0;
 
-      if (Find(g, bp->GetVal(jpp), colname, MY_MIN(lvl, 0)))
+      if (Find(g, bp->GetVlp(jpp), colname, MY_MIN(lvl, 0)))
         goto err;
 
     } // endfor jpp
@@ -444,7 +444,7 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
           strncat(strncat(colname, "_", n), k, n - 1);
         } // endif Key
 
-        if (Find(g, bp->GetVal(jrp), k, j + 1))
+        if (Find(g, bp->GetVlp(jrp), k, j + 1))
           return true;
 
         *p = *pc = 0;
@@ -691,7 +691,7 @@ PBVAL BTUTIL::MakeTopTree(PGLOBAL g, int type)
     } // endif Val
 
     Tp->Row = val;
-    Tp->Row->Type = type;
+    if (Tp->Row) Tp->Row->Type = type;
   } else
     top = Tp->Row = NewVal(type);
 
@@ -1052,18 +1052,20 @@ PBVAL BCUTIL::GetRow(PGLOBAL g)
     } else {
       // Construct missing objects
       for (i++; row && i < nod; i++) {
+        int type;
+
         if (nodes[i].Op == OP_XX)
           break;
         else if (!nodes[i].Key)
           // Construct intermediate array
-          nwr = NewVal(TYPE_JAR);
+          type = TYPE_JAR;
         else
-          nwr = NewVal(TYPE_JOB);
+          type = TYPE_JOB;
 
         if (row->Type == TYPE_JOB) {
-          SetKeyValue(row, MOF(nwr), nodes[i - 1].Key);
+          nwr = AddPair(row, nodes[i - 1].Key, type);
         } else if (row->Type == TYPE_JAR) {
-          AddArrayValue(row, nwr);
+          AddArrayValue(row, (nwr = NewVal(type)));
         } else {
           strcpy(g->Message, "Wrong type when writing new row");
           nwr = NULL;
@@ -2258,19 +2260,16 @@ int TDBBSON::MakeDocument(PGLOBAL g)
     Docp = jsp;
   else {
     // The table is void or is just one object or one value
-    Docp = Bp->NewVal(TYPE_JAR);
-
-    if (val)
-      Bp->AddArrayValue(Docp, val);
-    else if (jsp)
-      Bp->AddArrayValue(Docp, Bp->DupVal(jsp));
-
-    if (objp)
-      Bp->SetKeyValue(objp, Bp->DupVal(Docp), key);
-    else if (arp)
-      Bp->SetArrayValue(arp, Bp->DupVal(Docp), i);
-    else
-      Top = Docp;
+    if (objp) {
+      Docp = Bp->GetKeyValue(objp, key);
+      Docp->To_Val = Bp->MOF(Bp->DupVal(Docp));
+      Docp->Type = TYPE_JAR;
+    } else if (arp) {
+      Docp = Bp->NewVal(TYPE_JAR);
+      Bp->AddArrayValue(Docp, jsp);
+      Bp->SetArrayValue(arp, Docp, i);
+    } else
+      Top = Docp = Bp->NewVal(TYPE_JAR);
 
   } // endif jsp
 

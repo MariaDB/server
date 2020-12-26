@@ -170,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0002 December 19, 2020";
+       char version[]= "Version 1.07.0002 December 25, 2020";
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -6440,9 +6440,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   // Check table type
   if (type == TAB_UNDEF) {
     options->type= (options->srcdef)  ? "MYSQL" :
-#if defined(BSON_SUPPORT)
+#if defined(REST_SUPPORT)
                    (options->http) ? "JSON" :
-#endif   // BSON_SUPPORT
+#endif   // REST_SUPPORT
                    (options->tabname) ? "PROXY" : "DOS";
     type= GetTypeID(options->type);
     sprintf(g->Message, "No table_type. Will be set to %s", options->type);
@@ -6460,7 +6460,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
   inward= IsFileType(type) && !options->filename &&
-		     (type != TAB_JSON || !cnc.length);
+		     ((type != TAB_JSON && type != TAB_BSON) || !cnc.length);
 
   if (options->data_charset) {
     const CHARSET_INFO *data_charset;

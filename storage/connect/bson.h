@@ -37,7 +37,8 @@ typedef struct _jvalue {
 		bool   B;				  // A boolean value True or false (0)
 	};
 	short    Nd;				// Number of decimals
-	short    Type;      // The value type
+	char     Type;      // The value type
+	char     Ktp;       // The key type
 	OFFSET   Next;      // Offset to the next value in array
 } BVAL, *PBVAL;  // end of struct BVALUE
 
@@ -46,13 +47,12 @@ typedef struct _jvalue {
 /***********************************************************************/
 typedef struct _jpair {
 	OFFSET Key;    // Offset to this pair key name
-	OFFSET Vlp;    // To the value of the pair
-	OFFSET Next;   // Offset to the next pair in object
+	BVAL   Vlp;    // The value of the pair
 } BPAIR, *PBPR;  // end of struct BPAIR
 
 char* NextChr(PSZ s, char sep);
 char* GetJsonNull(void);
-const char* GetFmt(int type, bool un);
+const char* GetFmt(int type, bool un);														 
 
 DllExport bool IsNum(PSZ s);
 
@@ -81,9 +81,9 @@ public:
 
 	// SubAlloc functions
 	void* BsonSubAlloc(size_t size);
-	PBPR  SubAllocPair(OFFSET key, OFFSET val = 0);
-	OFFSET NewPair(PSZ key, OFFSET val = 0)
-				{return MOF(SubAllocPair(DupStr(key), val));}
+	PBPR  NewPair(OFFSET key, int type = TYPE_NULL);
+	OFFSET NewPair(PSZ key, int type = TYPE_NULL)
+				{return MOF(NewPair(DupStr(key), type));}
 	PBVAL NewVal(int type = TYPE_NULL);
 	PBVAL NewVal(PVAL valp);
 	PBVAL SubAllocVal(OFFSET toval, int type = TYPE_NULL, short nd = 0);
@@ -110,13 +110,15 @@ public:
 
 	// Object functions
 	inline PBPR GetObject(PBVAL bop) {return MPP(bop->To_Val);}
-	inline PBPR	GetNext(PBPR brp) { return MPP(brp->Next); }
+	inline PBPR	GetNext(PBPR brp) { return MPP(brp->Vlp.Next); }
+	void  SetPairValue(PBPR brp, PBVAL bvp);
 	int   GetObjectSize(PBVAL bop, bool b = false);
   PSZ   GetObjectText(PGLOBAL g, PBVAL bop, PSTRG text);
 	PBVAL MergeObject(PBVAL bop1, PBVAL bop2);
-	void  AddPair(PBVAL bop, PSZ key, OFFSET val = 0);
-	PSZ   GetKey(PBPR prp) {return MZP(prp->Key);}
-	PBVAL GetVal(PBPR prp) {return MVP(prp->Vlp);}
+	PBVAL AddPair(PBVAL bop, PSZ key, int type = TYPE_NULL);
+	PSZ   GetKey(PBPR prp) {return prp ? MZP(prp->Key) : NULL;}
+	PBVAL GetTo_Val(PBPR prp) {return prp ? MVP(prp->Vlp.To_Val) : NULL;}
+	PBVAL GetVlp(PBPR prp) {return prp ? (PBVAL)&prp->Vlp : NULL;}
 	PBVAL GetKeyValue(PBVAL bop, PSZ key);
 	PBVAL GetKeyList(PBVAL bop);
 	PBVAL GetObjectValList(PBVAL bop);
@@ -131,7 +133,7 @@ public:
 	PBVAL GetNext(PBVAL vlp) {return MVP(vlp->Next);}
 	//PJSON GetJsp(void) { return (DataType == TYPE_JSON ? Jsp : NULL); }
 	PSZ   GetValueText(PGLOBAL g, PBVAL vlp, PSTRG text);
-	inline PBVAL GetBson(PBVAL bvp) { return IsJson(bvp) ? MVP(bvp->To_Val) : bvp; }
+	PBVAL GetBson(PBVAL bvp);
 	PSZ   GetString(PBVAL vp, char* buff = NULL);
 	int   GetInteger(PBVAL vp);
 	long long GetBigint(PBVAL vp);
@@ -178,7 +180,7 @@ public:
 protected:
 	OFFSET ParseArray(int& i);
 	OFFSET ParseObject(int& i);
-	PBVAL  ParseValue(int& i);
+	PBVAL  ParseValue(int& i, PBVAL bvp);
 	OFFSET ParseString(int& i);
 	void   ParseNumeric(int& i, PBVAL bvp);
 	OFFSET ParseAsArray(int& i);

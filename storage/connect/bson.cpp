@@ -59,38 +59,6 @@ void trans_func(unsigned int u, _EXCEPTION_POINTERS* pExp) {
 char* GetExceptionDesc(PGLOBAL g, unsigned int e);
 #endif   // SE_CATCH
 
-#if 0
-char* GetJsonNull(void);
-
-/***********************************************************************/
-/* IsNum: check whether this string is all digits.                     */
-/***********************************************************************/
-bool IsNum(PSZ s) {
-  for (char* p = s; *p; p++)
-    if (*p == ']')
-      break;
-    else if (!isdigit(*p) || *p == '-')
-      return false;
-
-  return true;
-} // end of IsNum
-
-/***********************************************************************/
-/* NextChr: return the first found '[' or Sep pointer.                 */
-/***********************************************************************/
-char* NextChr(PSZ s, char sep) {
-  char* p1 = strchr(s, '[');
-  char* p2 = strchr(s, sep);
-
-  if (!p2)
-    return p1;
-  else if (p1)
-    return MY_MIN(p1, p2);
-
-  return p2;
-} // end of NextChr
-#endif // 0
-
 /* --------------------------- Class BDOC ---------------------------- */
 
 /***********************************************************************/
@@ -180,7 +148,7 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng)
         if (bvp->Type != TYPE_UNKNOWN) {
           bvp->To_Val = ParseAsArray(i);
           bvp->Type = TYPE_JAR;
-        } else if ((bvp->To_Val = MOF(ParseValue(i))))
+        } else if ((bvp->To_Val = MOF(ParseValue(i, NewVal()))))
           bvp->Type = TYPE_JVAL;
         else
           throw 4;
@@ -269,11 +237,11 @@ OFFSET BDOC::ParseArray(int& i)
         sprintf(G->Message, "Unexpected value near %.*s", ARGS);
         throw 1;
       } else if (lastvlp) {
-        vlp = ParseValue(i);
+        vlp = ParseValue(i, NewVal());
         lastvlp->Next = MOF(vlp);
         lastvlp = vlp;
       } else
-        firstvlp = lastvlp = ParseValue(i);
+        firstvlp = lastvlp = ParseValue(i, NewVal());
 
       level = (b) ? 1 : 2;
       break;
@@ -303,10 +271,10 @@ OFFSET BDOC::ParseObject(int& i)
     case '"':
       if (level < 2) {
         key = ParseString(++i);
-        bpp = SubAllocPair(key);
+        bpp = NewPair(key);
 
         if (lastbpp) {
-          lastbpp->Next = MOF(bpp);
+          lastbpp->Vlp.Next = MOF(bpp);
           lastbpp = bpp;
         } else 
           firstbpp = lastbpp = bpp;
@@ -320,7 +288,7 @@ OFFSET BDOC::ParseObject(int& i)
       break;
     case ':':
       if (level == 2) {
-        lastbpp->Vlp = MOF(ParseValue(++i));
+        ParseValue(++i, GetVlp(lastbpp));
         level = 3;
       } else {
         sprintf(G->Message, "Unexpected ':' near %.*s", ARGS);
@@ -362,10 +330,8 @@ OFFSET BDOC::ParseObject(int& i)
 /***********************************************************************/
 /* Parse a JSON Value.                                                 */
 /***********************************************************************/
-PBVAL BDOC::ParseValue(int& i)
+PBVAL BDOC::ParseValue(int& i, PBVAL bvp)
 {
-  PBVAL bvp = NewVal();
-
   for (; i < len; i++)
     switch (s[i]) {
     case '\n':
@@ -750,7 +716,7 @@ bool BDOC::SerializeObject(OFFSET obp)
   if (jp->WriteChr('{'))
     return true;
 
-  for (prp; prp; prp = MPP(prp->Next)) {
+  for (prp; prp; prp = GetNext(prp)) {
     if (first)
       first = false;
     else if (jp->WriteChr(','))
@@ -760,7 +726,7 @@ bool BDOC::SerializeObject(OFFSET obp)
       jp->WriteStr(MZP(prp->Key)) ||
       jp->WriteChr('"') ||
       jp->WriteChr(':') ||
-      SerializeValue(MVP(prp->Vlp)))
+      SerializeValue(GetVlp(prp)))
       return true;
 
   } // endfor i
@@ -883,15 +849,35 @@ void BJSON::MemSet(size_t size)
   /* ------------------------ Bobject functions ------------------------ */
 
 /***********************************************************************/
+/* Set a pair vlp to some PVAL values.                                 */
+/***********************************************************************/
+void BJSON::SetPairValue(PBPR brp, PBVAL bvp)
+{
+  if (bvp) {
+    brp->Vlp.To_Val = bvp->To_Val;
+    brp->Vlp.Nd = bvp->Nd;
+    brp->Vlp.Type = bvp->Type;
+  } else {
+    brp->Vlp.To_Val = 0;
+    brp->Vlp.Nd = 0;
+    brp->Vlp.Type = TYPE_NULL;
+  } // endif bvp
+
+} // end of SetPairValue
+
+  /***********************************************************************/
 /* Sub-allocate and initialize a BPAIR.                                */
 /***********************************************************************/
-PBPR BJSON::SubAllocPair(OFFSET key, OFFSET val)
+PBPR BJSON::NewPair(OFFSET key, int type)
 {
   PBPR bpp = (PBPR)BsonSubAlloc(sizeof(BPAIR));
 
   bpp->Key = key;
-  bpp->Vlp = val;
-  bpp->Next = 0;
+  bpp->Vlp.Ktp = TYPE_STRG;
+  bpp->Vlp.Type = type;
+  bpp->Vlp.To_Val = 0;
+  bpp->Vlp.Nd = 0;
+  bpp->Vlp.Next = 0;
   return bpp;
 } // end of SubAllocPair
 
@@ -905,7 +891,7 @@ int BJSON::GetObjectSize(PBVAL bop, bool b)
 
   for (PBPR brp = GetObject(bop); brp; brp = GetNext(brp))
     // If b return only non null pairs
-    if (!b || (brp->Vlp && GetVal(brp)->Type != TYPE_NULL))
+    if (!b || (brp->Vlp.To_Val && brp->Vlp.Type != TYPE_NULL))
       n++;
 
   return n;
@@ -914,20 +900,21 @@ int BJSON::GetObjectSize(PBVAL bop, bool b)
 /***********************************************************************/
 /* Add a new pair to an Object and return it.                          */
 /***********************************************************************/
-void BJSON::AddPair(PBVAL bop, PSZ key, OFFSET val)
+PBVAL BJSON::AddPair(PBVAL bop, PSZ key, int type)
 {
   CheckType(bop, TYPE_JOB);
   PBPR   brp;
-  OFFSET nrp = NewPair(key, val);
+  OFFSET nrp = NewPair(key, type);
 
   if (bop->To_Val) {
-    for (brp = GetObject(bop); brp->Next; brp = GetNext(brp));
+    for (brp = GetObject(bop); brp->Vlp.Next; brp = GetNext(brp));
 
-    brp->Next = nrp;
+    brp->Vlp.Next = nrp;
   } else
     bop->To_Val = nrp;
 
   bop->Nd++;
+  return GetVlp(MPP(nrp));
 } // end of AddPair
 
 /***********************************************************************/
@@ -953,7 +940,7 @@ PBVAL BJSON::GetObjectValList(PBVAL bop)
   PBVAL arp = NewVal(TYPE_JAR);
 
   for (PBPR brp = GetObject(bop); brp; brp = GetNext(brp))
-    AddArrayValue(arp, brp->Vlp);
+    AddArrayValue(arp, GetVlp(brp));
 
   return arp;
 } // end of GetObjectValList
@@ -967,7 +954,7 @@ PBVAL BJSON::GetKeyValue(PBVAL bop, PSZ key)
 
   for (PBPR brp = GetObject(bop); brp; brp = GetNext(brp))
     if (!strcmp(GetKey(brp), key))
-      return GetVal(brp);
+      return GetVlp(brp);
 
   return NULL;
 } // end of GetKeyValue;
@@ -993,11 +980,11 @@ PSZ BJSON::GetObjectText(PGLOBAL g, PBVAL bop, PSTRG text)
       b = false;
     }	// endif text
 
-    if (b && !brp->Next && !strcmp(MZP(brp->Key), "$date")) {
+    if (b && !brp->Vlp.Next && !strcmp(MZP(brp->Key), "$date")) {
       int i;
       PSZ s;
 
-      GetValueText(g, MVP(brp->Vlp), text);
+      GetValueText(g, GetVlp(brp), text);
       s = text->GetStr();
       i = (s[1] == '-' ? 2 : 1);
 
@@ -1013,10 +1000,10 @@ PSZ BJSON::GetObjectText(PGLOBAL g, PBVAL bop, PSTRG text)
 
       } // endif text
 
-    } else for (PBPR brp = GetObject(bop); brp; brp = GetNext(brp)) {
-      GetValueText(g, GetVal(brp), text);
+    } else for (; brp; brp = GetNext(brp)) {
+      GetValueText(g, GetVlp(brp), text);
 
-      if (brp->Next)
+      if (brp->Vlp.Next)
         text->Append(' ');
 
     }	// endfor brp
@@ -1041,18 +1028,18 @@ void BJSON::SetKeyValue(PBVAL bop, OFFSET bvp, PSZ key)
 
   if (bop->To_Val) {
     for (brp = GetObject(bop); brp; brp = GetNext(brp))
-      if (!strcmp(GetKey(brp), key)) {
-        brp->Vlp = bvp;
-        return;
-      } else
+      if (!strcmp(GetKey(brp), key))
+        break;
+      else
         prp = brp;
 
     if (!brp)
-      prp->Next = NewPair(key, bvp);
+      brp = MPP(prp->Vlp.Next = NewPair(key));
 
   } else
-    bop->To_Val = NewPair(key, bvp);
+    brp = MPP(bop->To_Val = NewPair(key));
 
+  SetPairValue(brp, MVP(bvp));
   bop->Nd++;
 } // end of SetKeyValue
 
@@ -1066,7 +1053,7 @@ PBVAL BJSON::MergeObject(PBVAL bop1, PBVAL bop2)
 
   if (bop1->To_Val)
     for (PBPR brp = GetObject(bop2); brp; brp = GetNext(brp))
-      SetKeyValue(bop1, brp->Vlp, GetKey(brp));
+      SetKeyValue(bop1, GetVlp(brp), GetKey(brp));
 
   else {
     bop1->To_Val = bop2->To_Val;
@@ -1087,9 +1074,9 @@ void BJSON::DeleteKey(PBVAL bop, PCSZ key)
   for (brp = GetObject(bop); brp; brp = GetNext(brp))
     if (!strcmp(MZP(brp->Key), key)) {
       if (pbrp) {
-        pbrp->Next = brp->Next;
+        pbrp->Vlp.Next = brp->Vlp.Next;
       } else
-        bop->To_Val = brp->Next;
+        bop->To_Val = brp->Vlp.Next;
 
       bop->Nd--;
       break;
@@ -1106,7 +1093,7 @@ bool BJSON::IsObjectNull(PBVAL bop)
   CheckType(bop, TYPE_JOB);
 
   for (PBPR brp = GetObject(bop); brp; brp = GetNext(brp))
-    if (brp->Vlp && (MVP(brp->Vlp))->Type != TYPE_NULL)
+    if (brp->Vlp.To_Val && brp->Vlp.Type != TYPE_NULL)
       return false;
 
   return true;
@@ -1368,6 +1355,25 @@ int BJSON::GetSize(PBVAL vlp, bool b)
 
 } // end of GetSize
 
+PBVAL BJSON::GetBson(PBVAL bvp)
+{ 
+  PBVAL bp = NULL;
+
+  switch (bvp->Type) {
+    case TYPE_JAR:
+      bp = MVP(bvp->To_Val);
+      break;
+    case TYPE_JOB:
+      bp = GetVlp(MPP(bvp->To_Val));
+      break;
+    default:
+      bp = bvp;
+      break;
+  } // endswitch Type
+
+  return bp;
+} // end of GetBson
+
 /***********************************************************************/
 /* Return the Value's as a Value struct.                               */
 /***********************************************************************/
@@ -1378,22 +1384,22 @@ PVAL BJSON::GetValue(PGLOBAL g, PBVAL vp)
   PBVAL  vlp = vp->Type == TYPE_JVAL ? MVP(vp->To_Val) : vp;
 
   switch (vlp->Type) {
-  case TYPE_STRG:
-  case TYPE_DBL:
-  case TYPE_BINT:
-    valp = AllocateValue(g, MP(vlp->To_Val), vlp->Type, vlp->Nd);
-    break;
-  case TYPE_INTG:
-  case TYPE_BOOL:
-    valp = AllocateValue(g, vlp, vlp->Type);
-    break;
-  case TYPE_FLOAT:
-    d = (double)vlp->F;
-    valp = AllocateValue(g, &d, TYPE_DOUBLE, vlp->Nd);
-    break;
-  default:
-    valp = NULL;
-    break;
+    case TYPE_STRG:
+    case TYPE_DBL:
+    case TYPE_BINT:
+      valp = AllocateValue(g, MP(vlp->To_Val), vlp->Type, vlp->Nd);
+      break;
+    case TYPE_INTG:
+    case TYPE_BOOL:
+      valp = AllocateValue(g, vlp, vlp->Type);
+      break;
+    case TYPE_FLOAT:
+      d = (double)vlp->F;
+      valp = AllocateValue(g, &d, TYPE_DOUBLE, vlp->Nd);
+      break;
+    default:
+      valp = NULL;
+      break;
   } // endswitch Type
 
   return valp;

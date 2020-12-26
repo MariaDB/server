@@ -856,7 +856,7 @@ my_bool BJNX::LocateObject(PGLOBAL g, PBVAL jobp)
 		if (Jp->WriteStr(MZP(pair->Key)))
 			return true;
 
-		if (LocateValue(g, MVP(pair->Vlp)))
+		if (LocateValue(g, GetVlp(pair)))
 			return true;
 
 	} // endfor i
@@ -976,7 +976,7 @@ my_bool BJNX::LocateObjectAll(PGLOBAL g, PBVAL jobp)
 		for (PBPR pair = GetObject(jobp); pair; pair = GetNext(pair)) {
 			Jpnp[I].Key = MZP(pair->Key);
 
-			if (LocateValueAll(g, MVP(pair->Vlp)))
+			if (LocateValueAll(g, GetVlp(pair)))
 				return true;
 
 		} // endfor i
@@ -1020,8 +1020,8 @@ my_bool BJNX::CompareTree(PGLOBAL g, PBVAL jp1, PBVAL jp2)
 		PBPR p1 = GetObject(jp1), p2 = GetObject(jp2);
 
 		// Keys can be differently ordered
-		for (; found && p1 && p2; p1 = MPP(p1->Next))
-			found = CompareValues(g, MVP(p1->Vlp), GetKeyValue(jp2, MZP(p1->Key)));
+		for (; found && p1 && p2; p1 = GetNext(p1))
+			found = CompareValues(g, GetVlp(p1), GetKeyValue(jp2, GetKey(p1)));
 
 	} else if (jp1->Type == TYPE_JVAL) {
 		found = CompareTree(g, MVP(jp1->To_Val), (MVP(jp2->To_Val)));
