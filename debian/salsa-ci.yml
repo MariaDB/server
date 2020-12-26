@@ -29,18 +29,19 @@ stages:
 build:
   extends: .build-package
   script: &autobake-deb-steps
+    # Run Salsa-CI .build-before-script equivalent
     - mkdir -p ${WORKING_DIR} ${CCACHE_WORK_DIR}
     - mv ${CCACHE_WORK_DIR} ${CCACHE_TMP_DIR}
-    - apt-get update && apt-get install --yes devscripts equivs ccache build-essential
-    # Installing build-essential (sic!) until https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=958414 is fixed
+    # Run Salsa-CI .build-script equivalent
     - export CCACHE_DIR="${CCACHE_TMP_DIR}"
+    - apt-get update && eatmydata apt-get install --yes --no-install-recommends aptitude devscripts ccache equivs
+    - cd ${WORKING_DIR}/${SOURCE_DIR}
+    - eatmydata install-build-deps.sh .
     - update-ccache-symlinks; ccache -z # Zero out ccache counters
-    - mk-build-deps debian/control -t "apt-get -y -o Debug::pkgProblemResolver=yes --no-install-recommends" -r -i
     - while true; do sleep 600; echo "10 minutes passed" >&2; done & # Progress keeper since build is long and silent
     - debian/autobake-deb.sh |& tail -n 10000 # Keep Gitlab-CI output under 4 MB
-    - cd ..; rm -rfv *.tmp # Clean away build files not to store as artifacts
-    - cp -v *.* ${WORKING_DIR}/
-    - rm -rf "${WORKING_DIR}/source_dir" # Remove excess source files
+    - cd ${WORKING_DIR}
+    - rm -rf ${WORKING_DIR}/${SOURCE_DIR}
     - du -shc ${WORKING_DIR}/* # Show total file size of artifacts. Must stay are under 100 MB.
     - ccache -s # Show ccache stats to validate it worked
     - mv ${CCACHE_TMP_DIR} ${CCACHE_WORK_DIR} || true
@@ -114,8 +115,10 @@ build native deb:
     ccache -s
     mv ${CCACHE_TMP_DIR} ${CCACHE_WORK_DIR}
 
-autopkgtest:
-  extends: .test-autopkgtest
+# Temporarily ignore until https://github.com/MariaDB/server/pull/1729 is merged
+missing-breaks:
+  extends: .test-missing-breaks
+  allow_failure: true
 
 piuparts:
   extends: .test-piuparts
