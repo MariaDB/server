@@ -860,14 +860,15 @@ SELECT * FROM tm1;
 ERROR HY000: Unable to open underlying table which is differently defined or of non-MyISAM type or doesn't exist
 DROP TABLE t1, tm1;
 CREATE TABLE t1(c1 VARCHAR(1));
-CREATE TABLE m1 LIKE t1;
+CREATE TABLE m1(c1 VARCHAR(1)) ENGINE=MERGE;
 ALTER TABLE m1 ENGINE=MERGE UNION=(t1);
 SELECT * FROM m1;
 c1
 DROP TABLE t1, m1;
 CREATE TABLE t1(c1 VARCHAR(4), c2 TINYINT, c3 TINYINT, c4 TINYINT,
 c5 TINYINT, c6 TINYINT, c7 TINYINT, c8 TINYINT, c9 TINYINT);
-CREATE TABLE m1 LIKE t1;
+CREATE TABLE m1(c1 VARCHAR(4), c2 TINYINT, c3 TINYINT, c4 TINYINT,
+c5 TINYINT, c6 TINYINT, c7 TINYINT, c8 TINYINT, c9 TINYINT) ENGINE=MERGE;
 ALTER TABLE m1 ENGINE=MERGE UNION=(t1);
 SELECT * FROM m1;
 c1	c2	c3	c4	c5	c6	c7	c8	c9
@@ -875,7 +876,8 @@ DROP TABLE t1, m1;
 CREATE TABLE t1 (a VARCHAR(255) CHARACTER SET latin1 COLLATE latin1_german2_ci,
 b INT, INDEX(a,b));
 CREATE TABLE t2 LIKE t1;
-CREATE TABLE t3 LIKE t1;
+CREATE TABLE t3 (a VARCHAR(255) CHARACTER SET latin1 COLLATE latin1_german2_ci,
+b INT, INDEX(a,b)) ENGINE=MERGE;
 ALTER TABLE t3 ENGINE=MERGE UNION=(t1,t2);
 INSERT INTO t1 VALUES ('ss',1);
 INSERT INTO t2 VALUES ('ss',2),(0xDF,2);
@@ -2442,7 +2444,7 @@ select A.a+10*B.a+100*C.a,
 A.a+10*B.a+100*C.a,
 'filler-data-FILLER-DATA-qqq' 
 from t1 A, t1 B, t1 C where C.a >= 5;
-create table t5 like t3;
+create table t5 (a int, b int, filler char(100), key(a), key(b)) ENGINE=MERGE;
 alter table t5 engine=merge;
 alter table t5 union(t3, t4);
 update t5 set b=999, a=999 where b>950;
@@ -2868,7 +2870,7 @@ DROP TABLE tm1, t1, t2, t3, t4, t5;
 #
 # Bug#47633 - assert in ha_myisammrg::info during OPTIMIZE
 #
-CREATE TEMPORARY TABLE t1 (c1 INT);
+CREATE TEMPORARY TABLE t1 (c1 INT) ENGINE=MERGE;
 ALTER TABLE t1 ENGINE=MERGE UNION(t_not_exists,t1);
 OPTIMIZE TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -3037,7 +3039,9 @@ c1	c2
 311	321
 411	421
 511	521
+DROP TABLE m1;
 #
+CREATE TEMPORARY TABLE m1 (c1 INT, c2 INT) ENGINE=MERGE;
 ALTER TABLE m1 ENGINE=MRG_MyISAM UNION=(t1,t2)
 INSERT_METHOD=LAST;
 SELECT * FROM m1;
@@ -3444,7 +3448,9 @@ c1	c2
 311	321
 411	421
 511	521
+DROP TABLE m1;
 #
+CREATE TEMPORARY TABLE m1 (c1 INT, c2 INT) ENGINE=MERGE;
 ALTER TABLE m1 ENGINE=MRG_MyISAM UNION=(t1,t2)
 INSERT_METHOD=LAST;
 SELECT * FROM m1;
@@ -3724,7 +3730,7 @@ drop table t1, t2, t3, m1, m2;
 #           REPAIR of merge table
 #
 DROP TABLE IF EXISTS t1, t2, t_not_exists;
-CREATE TABLE t1(a INT);
+CREATE TABLE t1(a INT) ENGINE=MERGE;
 ALTER TABLE t1 engine= MERGE UNION (t_not_exists);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -3919,3 +3925,11 @@ ERROR HY000: Unable to open underlying table which is differently defined or of 
 DROP TRIGGER trg1;
 DROP TABLE t1;
 DROP TABLE m1;
+#
+# MDEV-23485 - Change table to merge engine may cause table data lost.
+#
+CREATE TABLE t1(a INT);
+insert into t1() values(1);
+ALTER TABLE t1 engine=MRG_MYISAM;
+ERROR HY000: ALTER TABLE TO MERGE ENGINE is not supported for this operation, may cause table data lost.
+drop table t1;

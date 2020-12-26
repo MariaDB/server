@@ -21,7 +21,7 @@ CREATE TABLE t2 (a int) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (1), (2), (3);
 INSERT INTO t2 VALUES (4), (5), (6);
 # Changed a little to check also an issue reported on BUG#20574550
-CREATE TEMPORARY TABLE IF NOT EXISTS tt1_merge LIKE t1;
+CREATE TEMPORARY TABLE IF NOT EXISTS tt1_merge (a int) ENGINE=MERGE;
 ALTER TABLE tt1_merge ENGINE=MERGE UNION (t2, t1);
 CREATE TABLE t1_merge LIKE tt1_merge;
 

@@ -502,14 +502,15 @@ DROP TABLE t1, tm1;
 #             differences in tables
 #
 CREATE TABLE t1(c1 VARCHAR(1));
-CREATE TABLE m1 LIKE t1;
+CREATE TABLE m1(c1 VARCHAR(1)) ENGINE=MERGE;
 ALTER TABLE m1 ENGINE=MERGE UNION=(t1);
 SELECT * FROM m1;
 DROP TABLE t1, m1;
 
 CREATE TABLE t1(c1 VARCHAR(4), c2 TINYINT, c3 TINYINT, c4 TINYINT,
                 c5 TINYINT, c6 TINYINT, c7 TINYINT, c8 TINYINT, c9 TINYINT);
-CREATE TABLE m1 LIKE t1;
+CREATE TABLE m1(c1 VARCHAR(4), c2 TINYINT, c3 TINYINT, c4 TINYINT,
+                c5 TINYINT, c6 TINYINT, c7 TINYINT, c8 TINYINT, c9 TINYINT) ENGINE=MERGE;
 ALTER TABLE m1 ENGINE=MERGE UNION=(t1);
 SELECT * FROM m1;
 DROP TABLE t1, m1;
@@ -520,7 +521,8 @@ DROP TABLE t1, m1;
 CREATE TABLE t1 (a VARCHAR(255) CHARACTER SET latin1 COLLATE latin1_german2_ci,
                  b INT, INDEX(a,b));
 CREATE TABLE t2 LIKE t1;
-CREATE TABLE t3 LIKE t1;
+CREATE TABLE t3 (a VARCHAR(255) CHARACTER SET latin1 COLLATE latin1_german2_ci,
+                 b INT, INDEX(a,b)) ENGINE=MERGE;
 ALTER TABLE t3 ENGINE=MERGE UNION=(t1,t2);
 INSERT INTO t1 VALUES ('ss',1);
 INSERT INTO t2 VALUES ('ss',2),(0xDF,2);
@@ -1864,7 +1866,7 @@ insert into t4
          'filler-data-FILLER-DATA-qqq' 
   from t1 A, t1 B, t1 C where C.a >= 5;
 
-create table t5 like t3; 
+create table t5 (a int, b int, filler char(100), key(a), key(b)) ENGINE=MERGE;
 alter table t5 engine=merge;
 alter table t5 union(t3, t4);
 
@@ -2255,7 +2257,7 @@ DROP TABLE tm1, t1, t2, t3, t4, t5;
 --echo #
 --echo # Bug#47633 - assert in ha_myisammrg::info during OPTIMIZE
 --echo #
-CREATE TEMPORARY TABLE t1 (c1 INT);
+CREATE TEMPORARY TABLE t1 (c1 INT) ENGINE=MERGE;
 ALTER TABLE t1 ENGINE=MERGE UNION(t_not_exists,t1);
 OPTIMIZE TABLE t1;
 DROP TABLE t1;
@@ -2344,8 +2346,10 @@ ALTER TABLE m1 ENGINE=MyISAM;
 SHOW CREATE TABLE m1;
 INSERT INTO m1 VALUES (511, 521);
 SELECT * FROM m1;
+DROP TABLE m1;
 #
 --echo #
+CREATE TEMPORARY TABLE m1 (c1 INT, c2 INT) ENGINE=MERGE;
 ALTER TABLE m1 ENGINE=MRG_MyISAM UNION=(t1,t2)
   INSERT_METHOD=LAST;
 SELECT * FROM m1;
@@ -2510,8 +2514,10 @@ ALTER TABLE m1 ENGINE=MyISAM;
 SHOW CREATE TABLE m1;
 INSERT INTO m1 VALUES (511, 521);
 SELECT * FROM m1;
+DROP TABLE m1;
 #
 --echo #
+CREATE TEMPORARY TABLE m1 (c1 INT, c2 INT) ENGINE=MERGE;
 ALTER TABLE m1 ENGINE=MRG_MyISAM UNION=(t1,t2)
   INSERT_METHOD=LAST;
 SELECT * FROM m1;
@@ -2749,7 +2755,7 @@ drop table t1, t2, t3, m1, m2;
 DROP TABLE IF EXISTS t1, t2, t_not_exists;
 --enable_warnings
 
-CREATE TABLE t1(a INT);
+CREATE TABLE t1(a INT) ENGINE=MERGE;
 ALTER TABLE t1 engine= MERGE UNION (t_not_exists);
 # This caused the segfault
 ANALYZE TABLE t1;
@@ -2919,3 +2925,12 @@ set global default_storage_engine=@save_default_storage_engine;
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.
 --source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # MDEV-23485 - Change table to merge engine may cause table data lost.
+--echo #
+CREATE TABLE t1(a INT);
+insert into t1() values(1);
+--error ER_ALTER_TO_MERGE_ENGINE_NOT_SUPPORTED
+ALTER TABLE t1 engine=MRG_MYISAM;
+drop table t1;
