@@ -123,11 +123,6 @@ build native deb:
     ccache -s
     mv ${CCACHE_TMP_DIR} ${CCACHE_WORK_DIR}
 
-# Temporarily ignore until https://github.com/MariaDB/server/pull/1729 is merged
-missing-breaks:
-  extends: .test-missing-breaks
-  allow_failure: true
-
 piuparts:
   extends: .test-piuparts
   stage: test extras
