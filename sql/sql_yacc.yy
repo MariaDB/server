@@ -12400,7 +12400,7 @@ row_or_rows:
 
 fetch_first_clause:
           opt_offset_clause
-          FETCH_SYM first_or_next limit_options row_or_rows ONLY_SYM
+          FETCH_SYM first_or_next limit_option row_or_rows ONLY_SYM
           {
             $$.select_limit= $4;
             $$.offset_limit= $1;
@@ -12408,7 +12408,7 @@ fetch_first_clause:
             $$.with_ties= false;
           }
         | opt_offset_clause
-          FETCH_SYM first_or_next limit_options row_or_rows WITH TIES_SYM
+          FETCH_SYM first_or_next limit_option row_or_rows WITH TIES_SYM
           {
             $$.select_limit= $4;
             $$.offset_limit= $1;
