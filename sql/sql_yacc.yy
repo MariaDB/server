@@ -12229,7 +12229,55 @@ limit_clause:
             $$.empty();
             Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
           }
+        | fetch_first_clause
+          {
+            $$= $1;
+            if (!$$.select_limit->basic_const_item() ||
+                $$.select_limit->val_int() > 0)
+              Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
+          }
         ;
+
+fetch_first_clause:
+          FETCH_SYM first_or_next limit_option row_or_rows only_or_with_ties
+          {
+            $$.select_limit= $3;
+            $$.offset_limit= 0;
+            $$.explicit_limit= true;
+            $$.with_ties= $5;
+          }
+        | OFFSET_SYM limit_option
+          FETCH_SYM first_or_next limit_option row_or_rows only_or_with_ties
+          {
+            $$.select_limit= $5;
+            $$.offset_limit= $2;
+            $$.explicit_limit= true;
+            $$.with_ties= $7;
+          }
+        | FETCH_SYM first_or_next limit_option row_or_rows only_or_with_ties
+          OFFSET_SYM limit_option
+          {
+            $$.select_limit= $3;
+            $$.offset_limit= $7;
+            $$.explicit_limit= true;
+            $$.with_ties= $5;
+          }
+        ;
+
+first_or_next:
+          FIRST_SYM
+        | NEXT_SYM
+        ;
+row_or_rows:
+          ROW_SYM
+        | ROWS_SYM
+        ;
+
+only_or_with_ties:
+          ONLY_SYM      { $$= 0; }
+        | WITH TIES_SYM { $$= 1; }
+        ;
+
 
 opt_global_limit_clause:
           opt_limit_clause
@@ -12381,51 +12429,6 @@ opt_procedure_or_into:
           }
         ;
 
-first_or_next:
-          FIRST_SYM
-        | NEXT_SYM
-        ;
-row_or_rows:
-          ROW_SYM
-        | ROWS_SYM
-        ;
-
-only_or_with_ties:
-          ONLY_SYM
-          {
-            $$= 0;
-          }
-        | WITH TIES_SYM
-          {
-            $$= 1;
-          }
-
-fetch_first_clause:
-          FETCH_SYM first_or_next limit_option row_or_rows only_or_with_ties
-          {
-            $$.select_limit= $3;
-            $$.offset_limit= 0;
-            $$.explicit_limit= true;
-            $$.with_ties= $5;
-          }
-        | OFFSET_SYM limit_option
-          FETCH_SYM first_or_next limit_option row_or_rows only_or_with_ties
-          {
-            $$.select_limit= $5;
-            $$.offset_limit= $2;
-            $$.explicit_limit= true;
-            $$.with_ties= $7;
-          }
-        | FETCH_SYM first_or_next limit_option row_or_rows only_or_with_ties
-          OFFSET_SYM limit_option
-          {
-            $$.select_limit= $3;
-            $$.offset_limit= $7;
-            $$.explicit_limit= true;
-            $$.with_ties= $5;
-          }
-        ;
-
 
 order_or_limit:
           order_clause opt_limit_clause
@@ -12443,14 +12446,6 @@ order_or_limit:
               YYABORT;
             $$->order_list= NULL;
             $$->limit= $1;
-          }
-        | order_clause fetch_first_clause
-          {
-            $$= new(thd->mem_root) Lex_order_limit_lock;
-            if (!$$)
-              YYABORT;
-            $$->order_list= $1;
-            $$->limit= $2;
           }
         ;
 
@@ -15757,7 +15752,6 @@ keyword_sp_var_and_label:
         | NONE_SYM
         | NOTFOUND_SYM
         | OF_SYM
-        | OFFSET_SYM
         | OLD_PASSWORD_SYM
         | ONE_SYM
         | ONLINE_SYM
