@@ -333,7 +333,7 @@ static_assert(sizeof(YYSTYPE) == sizeof(void*)*2+8, "%union size check");
 bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %}
 
-%pure-parser                                    /* We have threads */
+%define api.pure                                    /* We have threads */
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
@@ -1472,7 +1472,6 @@ End SQL_MODE_ORACLE_SPECIFIC */
         simple_target_specification
         condition_number
         opt_versioning_interval_start
-        opt_offset_clause
 
 %type <item_param> param_marker
 
@@ -1703,6 +1702,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 
 %type <num> view_algorithm view_check_option
 %type <view_suid> view_suid opt_view_suid
+%type <num> only_or_with_ties
 
 %type <plsql_cursor_attr> plsql_cursor_attr
 %type <sp_suid> sp_suid
@@ -12238,14 +12238,6 @@ opt_global_limit_clause:
           }
         ;
 
-opt_offset_clause:
-        /* Empty */ { $$= 0; }  
-        | OFFSET_SYM limit_option
-          {
-            $$= $2;
-          }
-        ;
-
 limit_options:
           limit_option
           {
@@ -12398,22 +12390,39 @@ row_or_rows:
         | ROWS_SYM
         ;
 
-fetch_first_clause:
-          opt_offset_clause
-          FETCH_SYM first_or_next limit_option row_or_rows ONLY_SYM
+only_or_with_ties:
+          ONLY_SYM
           {
-            $$.select_limit= $4;
-            $$.offset_limit= $1;
-            $$.explicit_limit= true;
-            $$.with_ties= false;
+            $$= 0;
           }
-        | opt_offset_clause
-          FETCH_SYM first_or_next limit_option row_or_rows WITH TIES_SYM
+        | WITH TIES_SYM
           {
-            $$.select_limit= $4;
-            $$.offset_limit= $1;
+            $$= 1;
+          }
+
+fetch_first_clause:
+          FETCH_SYM first_or_next limit_option row_or_rows only_or_with_ties
+          {
+            $$.select_limit= $3;
+            $$.offset_limit= 0;
             $$.explicit_limit= true;
-            $$.with_ties= true;
+            $$.with_ties= $5;
+          }
+        | OFFSET_SYM limit_option
+          FETCH_SYM first_or_next limit_option row_or_rows only_or_with_ties
+          {
+            $$.select_limit= $5;
+            $$.offset_limit= $2;
+            $$.explicit_limit= true;
+            $$.with_ties= $7;
+          }
+        | FETCH_SYM first_or_next limit_option row_or_rows only_or_with_ties
+          OFFSET_SYM limit_option
+          {
+            $$.select_limit= $3;
+            $$.offset_limit= $7;
+            $$.explicit_limit= true;
+            $$.with_ties= $5;
           }
         ;
 
