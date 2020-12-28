@@ -2462,7 +2462,7 @@ apply:
 
 	/* Wait until all the pages have been processed */
 
-	while (recv_sys->n_addrs != 0) {
+	while (recv_sys->n_addrs || buf_get_n_pending_read_ios()) {
 		const bool abort = recv_sys->found_corrupt_log
 			|| recv_sys->found_corrupt_fs;
 
