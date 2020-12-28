@@ -52,8 +52,6 @@ class Select_limit_counters
 
    bool is_unlimited()
    { return select_limit_cnt == HA_POS_ERROR; }
-   bool is_unrestricted()
-   { return select_limit_cnt == HA_POS_ERROR && offset_limit_cnt == 0; }
    void set_unlimited()
    { select_limit_cnt= HA_POS_ERROR; offset_limit_cnt= 0; }
 
