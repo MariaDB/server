@@ -1578,22 +1578,27 @@ no_password:
 
 
 
-static int do_log_user(const char *name, int take_lock)
+static int do_log_user(const char *name, int len,
+                       const char *proxy, int proxy_len, int take_lock)
 {
-  size_t len;
   int result;
 
   if (!name)
     return 0;
-  len= strlen(name);
 
   if (take_lock)
     flogger_mutex_lock(&lock_operations);
 
   if (incl_user_coll.n_users)
-    result= coll_search(&incl_user_coll, name, len) != 0;
+  {
+    result= coll_search(&incl_user_coll, name, len) != 0 ||
+            (proxy && coll_search(&incl_user_coll, proxy, proxy_len) != 0);
+  }
   else if (excl_user_coll.n_users)
-    result=  coll_search(&excl_user_coll, name, len) == 0;
+  {
+    result= coll_search(&excl_user_coll, name, len) == 0 &&
+            (proxy && coll_search(&excl_user_coll, proxy, proxy_len) == 0);
+  }
   else
     result= 1;
 
@@ -2134,7 +2139,9 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
   }
 
   if (event_class == MYSQL_AUDIT_GENERAL_CLASS && FILTER(EVENT_QUERY) &&
-      cn && (cn->log_always || do_log_user(cn->user, 1)))
+      cn && (cn->log_always || do_log_user(cn->user, cn->user_length,
+                                           cn->proxy, cn->proxy_length,
+                                           1)))
   {
     const struct mysql_event_general *event =
       (const struct mysql_event_general *) ev;
@@ -2154,7 +2161,8 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
   {
     const struct mysql_event_table *event =
       (const struct mysql_event_table *) ev;
-    if (do_log_user(event->user, 1))
+    if (do_log_user(event->user, SAFE_STRLEN(event->user),
+                    cn->proxy, cn->proxy_length, 1))
     {
       switch (event->event_subclass)
       {

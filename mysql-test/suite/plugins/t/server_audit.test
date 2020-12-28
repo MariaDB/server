@@ -173,6 +173,7 @@ source include/wait_until_count_sessions.inc;
 drop user user1@localhost;
 
 set global server_audit_events='';
+set global server_audit_incl_users='root, plug_dest';
 
 CREATE USER plug IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
