@@ -2859,12 +2859,12 @@ static File create_file(THD *thd, char *path, sql_exchange *exchange,
   }
   /* Create the file world readable */
   if ((file= mysql_file_create(key_select_to_file,
-                               path, 0666, O_WRONLY|O_EXCL, MYF(MY_WME))) < 0)
+                               path, 0644, O_WRONLY|O_EXCL, MYF(MY_WME))) < 0)
     return file;
 #ifdef HAVE_FCHMOD
-  (void) fchmod(file, 0666);			// Because of umask()
+  (void) fchmod(file, 0644);			// Because of umask()
 #else
-  (void) chmod(path, 0666);
+  (void) chmod(path, 0644;
 #endif
   if (init_io_cache(cache, file, 0L, WRITE_CACHE, 0L, 1, MYF(MY_WME)))
   {
