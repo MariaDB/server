@@ -21762,7 +21762,7 @@ join_read_next_same_or_null(READ_RECORD *info)
 
 /* ARGSUSED */
 static enum_nested_loop_state
-end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
+end_send(JOIN *join, JOIN_TAB *join_tab,
 	 bool end_of_records)
 {
   DBUG_ENTER("end_send");
@@ -21775,104 +21775,103 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
   //TODO pass fields via argument
   List<Item> *fields= join_tab ? (join_tab-1)->fields : join->fields;
 
-  if (!end_of_records)
-  {
-    if (join->table_count &&
-        join->join_tab->is_using_loose_index_scan())
-    {
-      /* Copy non-aggregated fields when loose index scan is used. */
-      copy_fields(&join->tmp_table_param);
-    }
-    if (join->having && join->having->val_int() == 0)
-      DBUG_RETURN(NESTED_LOOP_OK);               // Didn't match having
-    if (join->procedure)
-    {
-      if (join->procedure->send_row(join->procedure_fields_list))
-        DBUG_RETURN(NESTED_LOOP_ERROR);
-      DBUG_RETURN(NESTED_LOOP_OK);
-    }
-    if (join->do_send_rows)
-    {
-      int error;
-      /* result < 0 if row was not accepted and should not be counted */
-      if (unlikely((error= join->result->send_data_with_check(*fields,
-                                                              join->unit,
-                                                              join->send_records))))
-      {
-        if (error > 0)
-          DBUG_RETURN(NESTED_LOOP_ERROR);
-        // error < 0 => duplicate row
-        join->duplicate_rows++;
-      }
-    }
-
-    ++join->send_records;
-    if (join->send_records >= join->unit->lim.get_select_limit() &&
-        !join->do_send_rows)
-    {
-      /*
-        If we have used Priority Queue for optimizing order by with limit,
-        then stop here, there are no more records to consume.
-        When this optimization is used, end_send is called on the next
-        join_tab.
-      */
-      if (join->order &&
-          join->select_options & OPTION_FOUND_ROWS &&
-          join_tab > join->join_tab &&
-          (join_tab - 1)->filesort && (join_tab - 1)->filesort->using_pq)
-      {
-        DBUG_PRINT("info", ("filesort NESTED_LOOP_QUERY_LIMIT"));
-        DBUG_RETURN(NESTED_LOOP_QUERY_LIMIT);
-      }
-    }
-    if (join->send_records >= join->unit->lim.get_select_limit() &&
-	join->do_send_rows)
-    {
-      if (join->select_options & OPTION_FOUND_ROWS)
-      {
-	JOIN_TAB *jt=join->join_tab;
-	if ((join->table_count == 1) && !join->sort_and_group
-	    && !join->send_group_parts && !join->having && !jt->select_cond &&
-	    !(jt->select && jt->select->quick) &&
-	    (jt->table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT) &&
-            (jt->ref.key < 0))
-	{
-	  /* Join over all rows in table;  Return number of found rows */
-	  TABLE *table=jt->table;
-
-	  if (jt->filesort_result)                     // If filesort was used
-	  {
-	    join->send_records= jt->filesort_result->found_rows;
-	  }
-	  else
-	  {
-	    table->file->info(HA_STATUS_VARIABLE);
-	    join->send_records= table->file->stats.records;
-	  }
-	}
-	else 
-	{
-	  join->do_send_rows= 0;
-	  if (join->unit->fake_select_lex)
-	    join->unit->fake_select_lex->limit_params.select_limit= 0;
-	  DBUG_RETURN(NESTED_LOOP_OK);
-	}
-      }
-      DBUG_RETURN(NESTED_LOOP_QUERY_LIMIT);      // Abort nicely
-    }
-    else if (join->send_records >= join->fetch_limit)
-    {
-      /*
-        There is a server side cursor and all rows for
-        this fetch request are sent.
-      */
-      DBUG_RETURN(NESTED_LOOP_CURSOR_LIMIT);
-    }
-  }
-  else
+  if (end_of_records)
   {
     if (join->procedure && join->procedure->end_of_records())
       DBUG_RETURN(NESTED_LOOP_ERROR);
+    DBUG_RETURN(NESTED_LOOP_OK);
+  }
+
+  if (join->table_count &&
+      join->join_tab->is_using_loose_index_scan())
+  {
+    /* Copy non-aggregated fields when loose index scan is used. */
+    copy_fields(&join->tmp_table_param);
+  }
+  if (join->having && join->having->val_int() == 0)
+    DBUG_RETURN(NESTED_LOOP_OK);               // Didn't match having
+  if (join->procedure)
+  {
+    if (join->procedure->send_row(join->procedure_fields_list))
+      DBUG_RETURN(NESTED_LOOP_ERROR);
+    DBUG_RETURN(NESTED_LOOP_OK);
+  }
+  if (join->do_send_rows)
+  {
+    int error;
+    /* result < 0 if row was not accepted and should not be counted */
+    if (unlikely((error= join->result->send_data_with_check(*fields,
+                                                            join->unit,
+                                                            join->send_records))))
+    {
+      if (error > 0)
+        DBUG_RETURN(NESTED_LOOP_ERROR);
+      // error < 0 => duplicate row
+      join->duplicate_rows++;
+    }
+  }
+
+  ++join->send_records;
+  if (join->send_records >= join->unit->lim.get_select_limit() &&
+      !join->do_send_rows)
+  {
+    /*
+      If we have used Priority Queue for optimizing order by with limit,
+      then stop here, there are no more records to consume.
+      When this optimization is used, end_send is called on the next
+      join_tab.
+    */
+    if (join->order &&
+        join->select_options & OPTION_FOUND_ROWS &&
+        join_tab > join->join_tab &&
+        (join_tab - 1)->filesort && (join_tab - 1)->filesort->using_pq)
+    {
+      DBUG_PRINT("info", ("filesort NESTED_LOOP_QUERY_LIMIT"));
+      DBUG_RETURN(NESTED_LOOP_QUERY_LIMIT);
+    }
+  }
+  if (join->send_records >= join->unit->lim.get_select_limit() &&
+      join->do_send_rows)
+  {
+    if (join->select_options & OPTION_FOUND_ROWS)
+    {
+      JOIN_TAB *jt=join->join_tab;
+      if ((join->table_count == 1) && !join->sort_and_group
+          && !join->send_group_parts && !join->having && !jt->select_cond &&
+          !(jt->select && jt->select->quick) &&
+          (jt->table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT) &&
+          (jt->ref.key < 0))
+      {
+        /* Join over all rows in table;  Return number of found rows */
+        TABLE *table=jt->table;
+
+        if (jt->filesort_result)                     // If filesort was used
+        {
+          join->send_records= jt->filesort_result->found_rows;
+        }
+        else
+        {
+          table->file->info(HA_STATUS_VARIABLE);
+          join->send_records= table->file->stats.records;
+        }
+      }
+      else
+      {
+        join->do_send_rows= 0;
+        if (join->unit->fake_select_lex)
+          join->unit->fake_select_lex->limit_params.select_limit= 0;
+        DBUG_RETURN(NESTED_LOOP_OK);
+      }
+    }
+    DBUG_RETURN(NESTED_LOOP_QUERY_LIMIT);      // Abort nicely
+  }
+  else if (join->send_records >= join->fetch_limit)
+  {
+    /*
+      There is a server side cursor and all rows for
+      this fetch request are sent.
+    */
+    DBUG_RETURN(NESTED_LOOP_CURSOR_LIMIT);
   }
   DBUG_RETURN(NESTED_LOOP_OK);
 }
@@ -21888,7 +21887,7 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 */
 
 enum_nested_loop_state
-end_send_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
+end_send_group(JOIN *join, JOIN_TAB *join_tab,
 	       bool end_of_records)
 {
   int idx= -1;
@@ -21918,7 +21917,7 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	{
 	  if (join->having && join->having->val_int() == 0)
 	    error= -1;				// Didn't satisfy having
- 	  else
+	  else
 	  {
 	    if (join->do_send_rows)
 	      error=join->procedure->send_row(*fields) ? 1 : 0;
