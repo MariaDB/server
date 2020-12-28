@@ -2761,9 +2761,24 @@ wsrep_rec_get_foreign_key(
 				break;
 			case DATA_BLOB:
 			case DATA_BINARY:
+			case DATA_FIXBINARY:
+			case DATA_GEOMETRY:
 				memcpy(buf, data, len);
 				break;
-			default: 
+
+			case DATA_FLOAT:
+			{
+				float f = mach_float_read(data);
+				memcpy(buf, &f, sizeof(float));
+			}
+			break;
+			case DATA_DOUBLE:
+			{
+				double d = mach_double_read(data);
+				memcpy(buf, &d, sizeof(double));
+			}
+			break;
+			default:
 				break;
 			}
 

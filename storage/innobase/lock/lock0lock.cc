@@ -659,6 +659,20 @@ static void wsrep_assert_no_bf_bf_wait(
 	if (UNIV_LIKELY(!wsrep_thd_is_BF(lock_rec2->trx->mysql_thd, FALSE)))
 		return;
 
+	/* if BF - BF order is honored, we can keep trx1 waiting for the lock */
+	if (wsrep_thd_order_before(trx1->mysql_thd, lock_rec2->trx->mysql_thd))
+		return;
+
+	/* avoiding BF-BF conflict assert, if victim is already aborting
+	   or rolling back for replaying
+	*/
+	wsrep_thd_LOCK(lock_rec2->trx->mysql_thd);
+	if (wsrep_thd_is_aborting(lock_rec2->trx->mysql_thd)) {
+		wsrep_thd_UNLOCK(lock_rec2->trx->mysql_thd);
+		return;
+	}
+	wsrep_thd_UNLOCK(lock_rec2->trx->mysql_thd);
+
 	mtr_t mtr;
 
 	if (lock_rec1) {
@@ -1453,11 +1467,6 @@ lock_rec_create_low(
 			}
 
 			trx_mutex_exit(c_lock->trx);
-
-			if (UNIV_UNLIKELY(wsrep_debug)) {
-				wsrep_report_bf_lock_wait(trx->mysql_thd, trx->id);
-				wsrep_report_bf_lock_wait(c_lock->trx->mysql_thd, c_lock->trx->id);
-			}
 
 			/* have to bail out here to avoid lock_set_lock... */
 			return(lock);
