@@ -12203,6 +12203,7 @@ order_dir:
         | DESC { $$= 0; }
         ;
 
+
 opt_limit_clause:
           /* empty */
           { $$.empty(); }
@@ -15346,6 +15347,7 @@ keyword_sysvar_name:
         | FUNCTION_SYM
         | WINDOW_SYM
         | EXCEPTION_ORACLE_SYM
+        | OFFSET_SYM
         ;
 
 keyword_set_usual_case:
@@ -15360,6 +15362,7 @@ keyword_set_usual_case:
         | FUNCTION_SYM
         | WINDOW_SYM
         | EXCEPTION_ORACLE_SYM
+        | OFFSET_SYM
         ;
 
 non_reserved_keyword_udt:
@@ -15370,6 +15373,7 @@ non_reserved_keyword_udt:
         | keyword_sp_block_section
         | keyword_sysvar_type
         | keyword_sp_var_and_label
+        | OFFSET_SYM
         ;
 
 /*
