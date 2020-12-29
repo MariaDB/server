@@ -2159,7 +2159,6 @@ int ha_connect::MakeRecord(char *buf)
   int            rc= 0;
   Field*        *field;
   Field         *fp;
-  my_bitmap_map *org_bitmap;
   CHARSET_INFO  *charset= tdbp->data_charset();
 //MY_BITMAP      readmap;
   MY_BITMAP     *map;
@@ -2174,7 +2173,7 @@ int ha_connect::MakeRecord(char *buf)
             *table->def_read_set.bitmap, *table->def_write_set.bitmap);
 
   // Avoid asserts in field::store() for columns that are not updated
-  org_bitmap= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *org_bitmap= dbug_tmp_use_all_columns(table, &table->write_set);
 
   // This is for variable_length rows
   memset(buf, 0, table->s->null_bytes);
@@ -2201,7 +2200,7 @@ int ha_connect::MakeRecord(char *buf)
           continue;
 
         htrc("Column %s not found\n", fp->field_name);
-        dbug_tmp_restore_column_map(table->write_set, org_bitmap);
+        dbug_tmp_restore_column_map(&table->write_set, org_bitmap);
         DBUG_RETURN(HA_ERR_WRONG_IN_RECORD);
         } // endif colp
 
@@ -2284,7 +2283,7 @@ int ha_connect::MakeRecord(char *buf)
     memcpy(buf, table->record[0], table->s->stored_rec_length);
 
   // This is copied from ha_tina and is necessary to avoid asserts
-  dbug_tmp_restore_column_map(table->write_set, org_bitmap);
+  dbug_tmp_restore_column_map(&table->write_set, org_bitmap);
   DBUG_RETURN(rc);
 } // end of MakeRecord
 
@@ -2304,7 +2303,7 @@ int ha_connect::ScanRecord(PGLOBAL g, const uchar *)
 //PTDBASE tp= (PTDBASE)tdbp;
   String  attribute(attr_buffer, sizeof(attr_buffer),
                     table->s->table_charset);
-  my_bitmap_map *bmap= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *bmap= dbug_tmp_use_all_columns(table, &table->read_set);
   const CHARSET_INFO *charset= tdbp->data_charset();
   String  data_charset_value(data_buffer, sizeof(data_buffer),  charset);
 
@@ -2426,7 +2425,7 @@ int ha_connect::ScanRecord(PGLOBAL g, const uchar *)
     } // endfor field
 
  err:
-  dbug_tmp_restore_column_map(table->read_set, bmap);
+  dbug_tmp_restore_column_map(&table->read_set, bmap);
   return rc;
 } // end of ScanRecord
 
@@ -2474,7 +2473,7 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
 	OPVAL            op;
 	Field           *fp;
 	const key_range *ranges[2];
-	my_bitmap_map   *old_map;
+	MY_BITMAP    *old_map;
 	KEY             *kfp;
   KEY_PART_INFO   *kpart;
 
@@ -2491,7 +2490,7 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
 		both= ranges[0] && ranges[1];
 
 	kfp= &table->key_info[active_index];
-	old_map= dbug_tmp_use_all_columns(table, table->write_set);
+	old_map= dbug_tmp_use_all_columns(table, &table->write_set);
 
 	for (i= 0; i <= 1; i++) {
 		if (ranges[i] == NULL)
@@ -2586,11 +2585,11 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
   if ((oom= qry->IsTruncated()))
     strcpy(g->Message, "Out of memory");
 
-	dbug_tmp_restore_column_map(table->write_set, old_map);
+	dbug_tmp_restore_column_map(&table->write_set, old_map);
 	return oom;
 
 err:
-	dbug_tmp_restore_column_map(table->write_set, old_map);
+	dbug_tmp_restore_column_map(&table->write_set, old_map);
 	return true;
 } // end of MakeKeyWhere
 
