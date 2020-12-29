@@ -4760,6 +4760,9 @@ pthread_handler_t handle_slave_io(void *arg)
   mysql_mutex_unlock(&mi->run_lock);
   mysql_cond_broadcast(&mi->start_cond);
   mi->rows_event_tracker.reset();
+  //QTODO
+  //mi->rpl_queue= new circular_buffer_queue<slave_queue_element>();
+  //mi->rpl_queue->init(20000000);
 
   DBUG_PRINT("master_info",("log_file_name: '%s'  position: %llu",
                             mi->master_log_name, mi->master_log_pos));
@@ -5157,6 +5160,7 @@ err_during_init:
   mi->abort_slave= 0;
   mi->slave_running= MYSQL_SLAVE_NOT_RUN;
   mi->io_thd= 0;
+  //mi->rpl_queue->destroy();
   /*
     Note: the order of the two following calls (first broadcast, then unlock)
     is important. Otherwise a killer_thread can execute between the calls and
@@ -7634,14 +7638,14 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
       MYSQL_BIN_LOG::open() will write the buffered description event.
     */
     old_pos= rli->event_relay_log_pos;
-   if ((ev= Log_event::read_log_event(rgi->rli->mi->rpl_queue, cur_log,
+    if ((ev= Log_event::read_log_event(cur_log,
                                     rli->relay_log.description_event_for_exec,
-                                    opt_slave_sql_verify_checksum)))
+                                    opt_slave_sql_verify_checksum, rgi->rli->mi->rpl_queue)))
      //slave_queue_element  *el;
      //if ((el= rgi->rli->mi->rpl_queue->dequeue()) && 
-      ////    (ev= Log_event::read_log_event((const char*)el->event, el->total_length, NULL,
-      //                                 rli->relay_log.description_event_for_exec,
-      //                                 opt_slave_sql_verify_checksum )))
+     //    (ev= Log_event::read_log_event((const char*)el->event, el->total_length, NULL,
+     //                                 rli->relay_log.description_event_for_exec,
+     //                                 opt_slave_sql_verify_checksum )))
     {
       /*
         read it while we have a lock, to avoid a mutex lock in

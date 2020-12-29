@@ -14,18 +14,18 @@ create table t1(a int, b int , c int );
 insert into t1 values(1,1,1);
 insert into t1 select * from t1;
 insert into t1 select * from t1;
-insert into t1 select * from t1;
-insert into t1 select * from t1;
-insert into t1 select * from t1;
-insert into t1 select * from t1;
-insert into t1 select * from t1;
-insert into t1 select * from t1;
-insert into t1 select * from t1;
-insert into t1 select * from t1;
-insert into t1 select * from t1;
-insert into t1 select * from t1;
-insert into t1 select * from t1;
-insert into t1 select * from t1;
+#insert into t1 select * from t1;
+#insert into t1 select * from t1;
+#insert into t1 select * from t1;
+#insert into t1 select * from t1;
+#insert into t1 select * from t1;
+#insert into t1 select * from t1;
+#insert into t1 select * from t1;
+#insert into t1 select * from t1;
+#insert into t1 select * from t1;
+#insert into t1 select * from t1;
+#insert into t1 select * from t1;
+#insert into t1 select * from t1;
 #insert into t1 select * from t1;
 #insert into t1 select * from t1;
 #insert into t1 select * from t1;
@@ -49,5 +49,7 @@ drop table t1;
 --connection slave
 --source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc
+
+--sleep 1000
 
 

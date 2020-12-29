@@ -5531,11 +5531,11 @@ bool MYSQL_BIN_LOG::write_event_buffer(r_queue *queue, uchar* buf, uint len)
 
     buf= ebuf;
   }
-  //if (my_b_append(&log_file, buf, len))
-    //goto err;
-  mysql_mutex_unlock(&LOCK_log);
-  queue->waited_enqueue(new slave_queue_element(buf));
-  mysql_mutex_lock(&LOCK_log);
+  if (my_b_append(&log_file, buf, len))
+    goto err;
+  //mysql_mutex_unlock(&LOCK_log);
+  //queue->waited_enqueue(new slave_queue_element(buf));
+  //mysql_mutex_lock(&LOCK_log);
   bytes_written+= len;
 
   error= 0;
@@ -10408,7 +10408,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   first_round= true;
   for (;;)
   {
-    while ((ev= Log_event::read_log_event(NULL, first_round ? first_log : &log,
+    while ((ev= Log_event::read_log_event(first_round ? first_log : &log,
                                           fdle, opt_master_verify_checksum))
            && ev->is_valid())
     {
@@ -10651,7 +10651,7 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
     return 1;
   }
 
-  if ((ev= Log_event::read_log_event(NULL, &log, &fdle,
+  if ((ev= Log_event::read_log_event(&log, &fdle,
                                      opt_master_verify_checksum)) &&
       ev->get_type_code() == FORMAT_DESCRIPTION_EVENT)
   {
@@ -10874,7 +10874,7 @@ get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
 
   *out_gtid_list= NULL;
 
-  if (!(ev= Log_event::read_log_event(NULL, cache, &init_fdle,
+  if (!(ev= Log_event::read_log_event(cache, &init_fdle,
                                       opt_master_verify_checksum)) ||
       ev->get_type_code() != FORMAT_DESCRIPTION_EVENT)
   {
@@ -10890,7 +10890,7 @@ get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
   {
     Log_event_type typ;
 
-    ev= Log_event::read_log_event(NULL, cache, fdle, opt_master_verify_checksum);
+    ev= Log_event::read_log_event(cache, fdle, opt_master_verify_checksum);
     if (!ev)
     {
       errormsg= "Could not read GTID list event while looking for GTID "

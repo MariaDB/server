@@ -4881,8 +4881,8 @@ int Execute_load_log_event::do_apply_event(rpl_group_info *rgi)
     goto err;
   }
   if (!(lev= (Load_log_event*)
-        Log_event::read_log_event(NULL, &file,
-                                  rli->relay_log.description_event_for_exec,
+        Log_event::read_log_event(&file,
+                                 rli->relay_log.description_event_for_exec,
                                   opt_slave_sql_verify_checksum)) ||
       lev->get_type_code() != NEW_LOAD_EVENT)
   {

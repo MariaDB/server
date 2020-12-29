@@ -545,7 +545,7 @@ read_relay_log_description_event(IO_CACHE *cur_log, ulonglong start_pos,
     if (my_b_tell(cur_log) >= start_pos)
       break;
 
-    if (!(ev= Log_event::read_log_event(NULL, cur_log, fdev,
+    if (!(ev= Log_event::read_log_event(cur_log, fdev,
                                         opt_slave_sql_verify_checksum)))
     {
       DBUG_PRINT("info",("could not read event, cur_log->error=%d",

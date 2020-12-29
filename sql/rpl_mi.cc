@@ -15,7 +15,6 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h" // For HAVE_REPLICATION
-#include "rpl_queue.h"
 #include "sql_priv.h"
 #include <my_dir.h>
 #include "rpl_mi.h"

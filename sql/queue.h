@@ -30,6 +30,7 @@ class circular_buffer_queue
   mysql_mutex_t lock_queue;
   mysql_mutex_t free_queue;
   mysql_cond_t free_cond;
+  uchar *head, *tail;
   ulong free_size()
   {
     if (head > tail)
@@ -42,7 +43,6 @@ class circular_buffer_queue
   {
     return buffer_size - free_size() -1;
   }
-  uchar *head, *tail;
   circular_buffer_queue(){};
 
   int init(ulong buffer_size)
@@ -113,6 +113,12 @@ class circular_buffer_queue
   {
     mysql_mutex_unlock(&lock_queue);
     mysql_cond_broadcast(&free_cond);
+  }
+
+  void do_wait(uint32 size)
+  {
+    while(free_size() < size)
+      mysql_cond_wait(&free_cond, &free_queue);
   }
 };
 

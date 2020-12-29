@@ -1471,7 +1471,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
       break;
 
     packet.length(0);
-    err= Log_event::read_log_event(NULL, &cache, &packet, fdev,
+    err= Log_event::read_log_event(&cache, &packet, fdev,
                          opt_master_verify_checksum ? current_checksum_alg
                                                     : BINLOG_CHECKSUM_ALG_OFF);
     if (unlikely(err))
@@ -2264,7 +2264,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     the binlog
   */
   info->last_pos= my_b_tell(log);
-  error= Log_event::read_log_event(NULL, log, packet, info->fdev,
+  error= Log_event::read_log_event(log, packet, info->fdev,
                                    opt_master_verify_checksum
                                    ? info->current_checksum_alg
                                    : BINLOG_CHECKSUM_ALG_OFF);
@@ -2398,7 +2398,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg))
     DBUG_RETURN(1);
   info->last_pos= linfo->pos;
-  error= Log_event::read_log_event(NULL, log, packet, info->fdev,
+  error= Log_event::read_log_event(log, packet, info->fdev,
                                    opt_master_verify_checksum
                                    ? info->current_checksum_alg
                                    : BINLOG_CHECKSUM_ALG_OFF);
@@ -2666,7 +2666,7 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
       return 1;
 
     info->last_pos= linfo->pos;
-    error= Log_event::read_log_event(NULL, log, packet, info->fdev,
+    error= Log_event::read_log_event(log, packet, info->fdev,
                        opt_master_verify_checksum ? info->current_checksum_alg
                                                   : BINLOG_CHECKSUM_ALG_OFF);
     linfo->pos= my_b_tell(log);
@@ -4101,7 +4101,7 @@ bool mysql_show_binlog_events(THD* thd)
     my_off_t scan_pos = BIN_LOG_HEADER_SIZE;
     while (scan_pos < pos)
     {
-      ev= Log_event::read_log_event(NULL, &log, description_event,
+      ev= Log_event::read_log_event(&log, description_event,
                                     opt_master_verify_checksum);
       scan_pos = my_b_tell(&log);
       if (ev == NULL || !ev->is_valid())
@@ -4171,7 +4171,7 @@ bool mysql_show_binlog_events(THD* thd)
     }
 
     for (event_count = 0;
-         (ev = Log_event::read_log_event(NULL, &log,
+         (ev = Log_event::read_log_event(&log,
                                          description_event,
                                          (opt_master_verify_checksum ||
                                           verify_checksum_once))); )

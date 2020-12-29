@@ -2823,7 +2823,7 @@ static Exit_status check_header(IO_CACHE* file,
         Format_description_log_event *new_description_event;
         my_b_seek(file, tmp_pos); /* seek back to event's start */
         if (!(new_description_event= (Format_description_log_event*) 
-              Log_event::read_log_event(NULL, file, glob_description_event,
+              Log_event::read_log_event(file, glob_description_event,
                                         opt_verify_binlog_checksum)))
           /* EOF can't be hit here normally, so it's a real error */
         {
@@ -2857,7 +2857,7 @@ static Exit_status check_header(IO_CACHE* file,
       {
         Log_event *ev;
         my_b_seek(file, tmp_pos); /* seek back to event's start */
-        if (!(ev= Log_event::read_log_event(NULL, file, glob_description_event,
+        if (!(ev= Log_event::read_log_event(file, glob_description_event,
                                             opt_verify_binlog_checksum)))
         {
           /* EOF can't be hit here normally, so it's a real error */
@@ -2971,7 +2971,7 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
     char llbuff[21];
     my_off_t old_off = my_b_tell(file);
 
-    Log_event* ev = Log_event::read_log_event(NULL, file, glob_description_event,
+    Log_event* ev = Log_event::read_log_event(file, glob_description_event,
                                               opt_verify_binlog_checksum);
     if (!ev)
     {

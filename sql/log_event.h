@@ -29,6 +29,7 @@
 #ifndef _log_event_h
 #define _log_event_h
 
+#include "queue.h"
 #if defined(USE_PRAGMA_INTERFACE) && defined(MYSQL_SERVER)
 #pragma interface			/* gcc class implementation */
 #endif
@@ -1325,10 +1326,10 @@ public:
     we detect the event's type, then call the specific event's
     constructor and pass description_event as an argument.
   */
-  static Log_event* read_log_event(r_queue*rpl_queue, IO_CACHE* file,
+  static Log_event* read_log_event(IO_CACHE* file,
                                    const Format_description_log_event
                                    *description_event,
-                                   my_bool crc_check);
+                                   my_bool crc_check, r_queue*rpl_queue= NULL);
 
   /**
     Reads an event from a binlog or relay log. Used by the dump thread
@@ -1353,9 +1354,10 @@ public:
     @retval LOG_READ_TRUNC      only a partial event could be read
     @retval LOG_READ_TOO_LARGE  event too large
    */
-  static int read_log_event(r_queue *rpl_queue, IO_CACHE* file, String* packet,
+  static int read_log_event(IO_CACHE* file, String* packet,
                             const Format_description_log_event *fdle,
-                            enum enum_binlog_checksum_alg checksum_alg_arg);
+                            enum enum_binlog_checksum_alg checksum_alg_arg,
+                            r_queue *rpl_queue= NULL);
   /* 
      The value is set by caller of FD constructor and
      Log_event::write_header() for the rest.
@@ -1470,9 +1472,10 @@ public:
   */
   virtual int get_data_size() { return 0;}
   static Log_event* read_log_event(const char* buf, uint event_len,
-				   const char **error,
+                                   const char **error,
                                    const Format_description_log_event
-                                   *description_event, my_bool crc_check);
+                                   *description_event, my_bool crc_check,
+                                   r_queue *rpl_queue= NULL);
   /**
     Returns the human readable name of the given event type.
   */
@@ -5776,5 +5779,8 @@ int query_event_uncompress(const Format_description_log_event *description_event
 int row_log_event_uncompress(const Format_description_log_event *description_event, bool contain_checksum,
                              const char *src, ulong src_len, char* buf, ulong buf_size, bool* is_malloc,
                              char **dst, ulong *newlen);
+Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
+                     const Format_description_log_event *fdle, uint event_type,
+                     r_queue *rpl_queue, uint32* size);
 
 #endif /* _log_event_h */
