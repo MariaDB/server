@@ -3744,6 +3744,7 @@ void st_select_lex::print_limit(THD *thd,
       return;
     }
   }
+  // TODO(cvicentiu) limit_params.with_ties requires different printing!
   if (limit_params.explicit_limit &&
       limit_params.select_limit)
   {
@@ -4160,7 +4161,7 @@ void st_select_lex_unit::set_limit(st_select_lex *sl)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
-  lim.set_limit(sl->get_limit(), sl->get_offset());
+  lim.set_limit(sl->get_limit(), sl->get_offset(), sl->limit_params.with_ties);
 }
 
 

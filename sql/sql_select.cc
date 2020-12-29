@@ -259,6 +259,7 @@ static TABLE *get_sort_by_table(ORDER *a,ORDER *b,List<TABLE_LIST> &tables,
 static void calc_group_buffer(JOIN *join,ORDER *group);
 static bool make_group_fields(JOIN *main_join, JOIN *curr_join);
 static bool alloc_group_fields(JOIN *join,ORDER *group);
+static bool alloc_order_fields(JOIN *join,ORDER *group);
 // Create list for using with tempory table
 static bool change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
 				     List<Item> &new_list1,
@@ -1351,10 +1352,24 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   if (res)
     DBUG_RETURN(res);
 
+  if (select_lex->limit_params.with_ties && !order)
+  {
+    my_error(ER_WITH_TIES_NEEDS_ORDER, MYF(0));
+    DBUG_RETURN(-1);
+  }
+
   if (order)
   {
     bool real_order= FALSE;
     ORDER *ord;
+    /* WITH TIES forces the results to be sorted, even if it's not sortable? */
+    // TODO(cvicentiu) -> Check this...
+    if (select_lex->limit_params.with_ties)
+    {
+      real_order= true;
+      alloc_order_fields(this, order);
+    }
+
     for (ord= order; ord; ord= ord->next)
     {
       Item *item= *ord->item;
@@ -3670,6 +3685,8 @@ bool JOIN::make_aggr_tables_info()
       sort_tab->filesort->limit=
         (has_group_by || (join_tab + top_join_tab_count > curr_tab + 1)) ?
          select_limit : unit->lim.get_select_limit();
+      if (unit->lim.is_with_ties())
+        sort_tab->filesort->limit= HA_POS_ERROR;
     }
     if (!only_const_tables() &&
         !join_tab[const_tables].filesort &&
@@ -21796,6 +21813,15 @@ end_send(JOIN *join, JOIN_TAB *join_tab,
       DBUG_RETURN(NESTED_LOOP_ERROR);
     DBUG_RETURN(NESTED_LOOP_OK);
   }
+
+  if (join->send_records >= join->unit->lim.get_select_limit() &&
+      join->unit->lim.is_with_ties())
+  {
+    /* Stop sending rows if the order fields have changed. */
+    if (test_if_item_cache_changed(join->order_fields) >= 0)
+      join->do_send_rows= false;
+  }
+
   if (join->do_send_rows)
   {
     int error;
@@ -21833,6 +21859,14 @@ end_send(JOIN *join, JOIN_TAB *join_tab,
   if (join->send_records >= join->unit->lim.get_select_limit() &&
       join->do_send_rows)
   {
+    if (join->unit->lim.is_with_ties())
+    {
+      /* Prepare the order_fields comparison for with ties. */
+      if (join->send_records == join->unit->lim.get_select_limit())
+        (void) test_if_group_changed(join->order_fields);
+      /* One more loop, to check if the next row matches with_ties or not. */
+      DBUG_RETURN(NESTED_LOOP_OK);
+    }
     if (join->select_options & OPTION_FOUND_ROWS)
     {
       JOIN_TAB *jt=join->join_tab;
@@ -25015,6 +25049,17 @@ make_group_fields(JOIN *main_join, JOIN *curr_join)
   return (0);
 }
 
+static bool
+fill_cached_item_list(THD *thd, List<Cached_item> *list, ORDER *order)
+{
+  for (; order ; order= order->next)
+  {
+    Cached_item *tmp= new_Cached_item(thd, *order->item, true);
+    if (!tmp || list->push_front(tmp))
+      return true;
+  }
+  return false;
+}
 
 /**
   Get a list of buffers for saving last group.
@@ -25023,21 +25068,19 @@ make_group_fields(JOIN *main_join, JOIN *curr_join)
 */
 
 static bool
-alloc_group_fields(JOIN *join,ORDER *group)
+alloc_group_fields(JOIN *join, ORDER *group)
 {
-  if (group)
-  {
-    for (; group ; group=group->next)
-    {
-      Cached_item *tmp=new_Cached_item(join->thd, *group->item, TRUE);
-      if (!tmp || join->group_fields.push_front(tmp))
-	return TRUE;
-    }
-  }
+  if (fill_cached_item_list(join->thd, &join->group_fields, group))
+    return true;
   join->sort_and_group=1;			/* Mark for do_select */
-  return FALSE;
+  return false;
 }
 
+static bool
+alloc_order_fields(JOIN *join, ORDER *order)
+{
+  return fill_cached_item_list(join->thd, &join->order_fields, order);
+}
 
 
 /*

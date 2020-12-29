@@ -1306,7 +1306,7 @@ public:
   */
   double   join_record_count;
   List<Item> *fields;
-  List<Cached_item> group_fields, group_fields_cache;
+  List<Cached_item> order_fields, group_fields, group_fields_cache;
   THD	   *thd;
   Item_sum  **sum_funcs, ***sum_funcs_end;
   /** second copy of sumfuncs (for queries with 2 temporary tables */
