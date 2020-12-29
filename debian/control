@@ -659,7 +659,7 @@ Description: Spider storage engine for MariaDB
 Package: mariadb-plugin-gssapi-server
 Architecture: any
 Depends: libgssapi-krb5-2,
-         mariadb-server-10.5 (= ${server:Version}),
+         mariadb-server-10.5,
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-gssapi-server-10.1,
@@ -700,7 +700,7 @@ Description: GSSAPI authentication plugin for MariaDB client
 Package: mariadb-plugin-cracklib-password-check
 Architecture: any
 Depends: libcrack2 (>= 2.9.0),
-         mariadb-server-10.5 (= ${server:Version}),
+         mariadb-server-10.5,
          ${misc:Depends},
          ${shlibs:Depends}
 Description: CrackLib Password Validation Plugin for MariaDB
