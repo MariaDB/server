@@ -2139,7 +2139,6 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                            !foreign_db_mode;
   bool check_options= !(sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS) &&
                       !create_info_arg;
-  my_bitmap_map *old_map;
   handlerton *hton;
   int error= 0;
   DBUG_ENTER("show_create_table");
@@ -2206,7 +2205,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     We have to restore the read_set if we are called from insert in case
     of row based replication.
   */
-  old_map= tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *old_map= tmp_use_all_columns(table, &table->read_set);
 
   bool not_the_first_field= false;
   for (ptr=table->field ; (field= *ptr); ptr++)
@@ -2492,7 +2491,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     }
   }
 #endif
-  tmp_restore_column_map(table->read_set, old_map);
+  tmp_restore_column_map(&table->read_set, old_map);
   DBUG_RETURN(error);
 }
 
@@ -5824,7 +5823,7 @@ static bool print_anchor_data_type(const Spvar_definition *def,
   Let's print it according to the current sql_mode.
   It will make output in line with the value in mysql.proc.param_list,
   so both I_S.XXX.DTD_IDENTIFIER and mysql.proc.param_list use the same notation:
-  default or Oracle, according to the sql_mode at the SP creation time. 
+  default or Oracle, according to the sql_mode at the SP creation time.
   The caller must make sure to set thd->variables.sql_mode to the routine sql_mode.
 */
 static bool print_anchor_dtd_identifier(THD *thd, const Spvar_definition *def,

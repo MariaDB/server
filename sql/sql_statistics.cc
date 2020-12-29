@@ -1043,9 +1043,8 @@ public:
   {
     char buff[MAX_FIELD_WIDTH];
     String val(buff, sizeof(buff), &my_charset_bin);
-    my_bitmap_map *old_map;
 
-    old_map= dbug_tmp_use_all_columns(stat_table, stat_table->read_set);
+    MY_BITMAP *old_map= dbug_tmp_use_all_columns(stat_table, &stat_table->read_set);
     for (uint i= COLUMN_STAT_MIN_VALUE; i <= COLUMN_STAT_HISTOGRAM; i++)
     {  
       Field *stat_field= stat_table->field[i];
@@ -1103,7 +1102,7 @@ public:
         }
       }
     }
-    dbug_tmp_restore_column_map(stat_table->read_set, old_map);
+    dbug_tmp_restore_column_map(&stat_table->read_set, old_map);
   }
 
 
