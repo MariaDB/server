@@ -67,6 +67,9 @@ CREATE TEMPORARY TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (2);
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
+--source include/wait_condition.inc
+
 TRUNCATE TABLE t1;
 
 SELECT COUNT(*) = 0 FROM t1;
