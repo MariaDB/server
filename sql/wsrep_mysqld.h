@@ -251,30 +251,30 @@ void WSREP_LOG(void (*fun)(const char* fmt, ...), const char* fmt, ...);
 #define WSREP_INFO(...)  WSREP_LOG(sql_print_information, ##__VA_ARGS__)
 #define WSREP_WARN(...)  WSREP_LOG(sql_print_warning,     ##__VA_ARGS__)
 #define WSREP_ERROR(...) WSREP_LOG(sql_print_error,       ##__VA_ARGS__)
+#define WSREP_UNKNOWN(fmt, ...) WSREP_ERROR("UNKNOWN: " fmt, ##__VA_ARGS__)
 
 #define WSREP_LOG_CONFLICT_THD(thd, role)                               \
-  WSREP_LOG(sql_print_information,                                      \
-            "%s: \n "                                                   \
-            "  THD: %lu, mode: %s, state: %s, conflict: %s, seqno: %lld\n " \
-            "  SQL: %s",                                                \
-            role,                                                       \
-            thd_get_thread_id(thd),                                     \
-            wsrep_thd_client_mode_str(thd),                             \
-            wsrep_thd_client_state_str(thd),                            \
-            wsrep_thd_transaction_state_str(thd),                       \
-            wsrep_thd_trx_seqno(thd),                                   \
-            wsrep_thd_query(thd)                                        \
+  WSREP_INFO("%s: \n "                                                  \
+             "  THD: %lu, mode: %s, state: %s, conflict: %s, seqno: %lld\n " \
+             "  SQL: %s",                                               \
+             role,                                                      \
+             thd_get_thread_id(thd),                                    \
+             wsrep_thd_client_mode_str(thd),                            \
+             wsrep_thd_client_state_str(thd),                           \
+             wsrep_thd_transaction_state_str(thd),                      \
+             wsrep_thd_trx_seqno(thd),                                  \
+             wsrep_thd_query(thd)                                       \
             );
 
 #define WSREP_LOG_CONFLICT(bf_thd, victim_thd, bf_abort)                \
   if (wsrep_debug || wsrep_log_conflicts)                               \
   {                                                                     \
-    WSREP_LOG(sql_print_information, "cluster conflict due to %s for threads:", \
-              (bf_abort) ? "high priority abort" : "certification failure" \
+    WSREP_INFO("cluster conflict due to %s for threads:",               \
+               (bf_abort) ? "high priority abort" : "certification failure" \
               );                                                        \
     if (bf_thd)     WSREP_LOG_CONFLICT_THD(bf_thd, "Winning thread");   \
     if (victim_thd) WSREP_LOG_CONFLICT_THD(victim_thd, "Victim thread"); \
-    WSREP_LOG(sql_print_information, "context: %s:%d", __FILE__, __LINE__); \
+    WSREP_INFO("context: %s:%d", __FILE__, __LINE__); \
   }
 
 #define WSREP_PROVIDER_EXISTS                                                  \

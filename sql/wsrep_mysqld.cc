@@ -316,29 +316,31 @@ wsp::node_status           local_status;
  */
 Wsrep_schema *wsrep_schema= 0;
 
-static void wsrep_log_cb(wsrep::log::level level, const char *msg)
+static void wsrep_log_cb(wsrep::log::level level,
+                         const char*, const char *msg)
 {
   /*
     Silence all wsrep related logging from lib and provider if
     wsrep is not enabled.
   */
-  if (WSREP_ON)
-  {
-    switch (level) {
-    case wsrep::log::info:
-      sql_print_information("WSREP: %s", msg);
-      break;
-    case wsrep::log::warning:
-      sql_print_warning("WSREP: %s", msg);
-      break;
-    case wsrep::log::error:
-    sql_print_error("WSREP: %s", msg);
+  if (!WSREP_ON) return;
+
+  switch (level) {
+  case wsrep::log::info:
+    WSREP_INFO("%s", msg);
     break;
-    case wsrep::log::debug:
-      if (wsrep_debug) sql_print_information ("[Debug] WSREP: %s", msg);
-    default:
-      break;
-    }
+  case wsrep::log::warning:
+    WSREP_WARN("%s", msg);
+    break;
+  case wsrep::log::error:
+    WSREP_ERROR("%s", msg);
+    break;
+  case wsrep::log::debug:
+    WSREP_DEBUG("%s", msg);
+    break;
+  case wsrep::log::unknown:
+    WSREP_UNKNOWN("%s", msg);
+    break;
   }
 }
 
