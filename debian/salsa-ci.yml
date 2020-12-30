@@ -21,7 +21,7 @@ stages:
   - build
   - test
   - upgrade in Sid
-  - upgrade from Buster/Stretch
+  - upgrade from Bullseye/Buster/Stretch
   - upgrade extras
   - test extras
   - publish # Stage referenced by Salsa-CI template aptly stanza, so must exist even though not used
@@ -45,6 +45,11 @@ build:
     - du -shc ${WORKING_DIR}/* # Show total file size of artifacts. Must stay are under 100 MB.
     - ccache -s # Show ccache stats to validate it worked
     - mv ${CCACHE_TMP_DIR} ${CCACHE_WORK_DIR} || true
+
+build bullseye-backports:
+  extends: .build-package
+  variables:
+    RELEASE: bullseye-backports
 
 build buster-backports:
   extends: .build-package
@@ -121,7 +126,6 @@ blhc:
   stage: test extras
   needs:
     - job: build native deb
-      artifacts: true
 
 # In addition to Salsa-CI, also run these fully MariaDB specific build jobs
 
@@ -148,9 +152,10 @@ blhc:
   dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
   service mysql status || service mariadb status # Early MariaDB 10.5 only had 'mariadb'
   mysql --skip-column-names -e "select @@version, @@version_comment" # Show version
-  echo 'SHOW DATABASES;' | mysql # List databases before upgrade
-  mysql -e "SELECT Host, User, plugin,authentication_string FROM user;" mysql
-  mysql -e "SELECT * FROM plugin;" mysql
+  mysql --table -e 'SHOW DATABASES;' # List databases before upgrade
+  mysql --table -e "SELECT host,user,plugin,authentication_string FROM user;" mysql
+  mysql --table -e "SELECT * FROM plugin;" mysql
+  mysql --table -e "SHOW PLUGINS;" mysql
 
 .test-enable-sid-repos: &test-enable-sid-repos |
   # Replace any old repos with just Sid
@@ -172,10 +177,12 @@ blhc:
   cp -ra /etc/mysql debug/etc-mysql
   cp -ra /var/log/mysql debug/var-log-mysql
   mariadb --skip-column-names -e "select @@version, @@version_comment" # Show version
-  echo 'SHOW DATABASES;' | mariadb # List databases
-  mariadb -e "create database test; use test; create table t(a int primary key) engine=innodb; insert into t values (1); select * from t; drop table t; drop database test;" # Test that InnoDB works
-  mariadb -e "SELECT Host, User, plugin,authentication_string FROM user;" mysql
-  mariadb -e "SELECT * FROM plugin;" mysql
+  mariadb --table -e 'SHOW DATABASES;' # List databases
+  mariadb --table -e "SELECT host,user,plugin,authentication_string FROM user;" mysql
+  mariadb --table -e "SELECT * FROM plugin;" mysql
+  mariadb --table -e "SHOW PLUGINS;" mysql
+  # Test that InnoDB works and that command 'mysql' is also still usable
+  mysql -e "CREATE DATABASE test; USE test; CREATE TABLE t(a INT PRIMARY KEY) ENGINE=INNODB; INSERT INTO t VALUEs (1); SELECT * FROM t; DROP TABLE t; DROP DATABASE test;"
 
 .test-verify-libs: &test-verify-libs
   # Don't use a collapsed command as Gitlab-CI would hide each command from the output
@@ -193,7 +200,6 @@ fresh install:
   stage: test
   needs:
     - job: build
-      artifacts: true
   image: debian:${RELEASE}
   artifacts:
     when: always
@@ -215,7 +221,6 @@ mariadb-10.5 Sid upgrade:
   stage: upgrade in Sid
   needs:
     - job: build
-      artifacts: true
   image: debian:${RELEASE}
   artifacts:
     when: always
@@ -233,11 +238,36 @@ mariadb-10.5 Sid upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb-10.3 Buster to mariadb-10.5 upgrade:
-  stage: upgrade from Buster/Stretch
+mariadb-10.5 Bullseye to mariadb-10.5 upgrade:
+  stage: upgrade from Bullseye/Buster/Stretch
   needs:
     - job: build
-      artifacts: true
+  image: debian:bullseye
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - *test-prepare-container
+    # Install everything MariaDB currently in Debian Bullseye
+    - apt-get install -y 'default-mysql*' 'mariadb-*' 'libmariadb*'
+    # Verify installation of MariaDB from Bullseye
+    - *test-verify-initial
+    - *test-enable-sid-repos
+    - *test-install
+    - service mariadb status
+    - *test-verify-final
+  variables:
+    GIT_STRATEGY: none
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+
+mariadb-10.3 Buster to mariadb-10.5 upgrade:
+  stage: upgrade from Bullseye/Buster/Stretch
+  needs:
+    - job: build
   image: debian:buster
   artifacts:
     when: always
@@ -261,10 +291,9 @@ mariadb-10.3 Buster to mariadb-10.5 upgrade:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
 mariadb-10.1 Stretch to mariadb-10.5 upgrade:
-  stage: upgrade from Buster/Stretch
+  stage: upgrade from Bullseye/Buster/Stretch
   needs:
     - job: build
-      artifacts: true
   image: debian:stretch
   artifacts:
     when: always
@@ -278,8 +307,7 @@ mariadb-10.1 Stretch to mariadb-10.5 upgrade:
     - apt-get install -y 'default-mysql*' 'mariadb-*' 'libmariadbd*' 'libmariadbclient*'
     # Verify installation of MariaDB from Stretch
     - *test-verify-initial
-    # Remove manpages 4.10 that conflicts with manpages-dev 5.10 on console_ioctl.4.gz
-    - apt-get remove -y manpages
+    - apt-get remove -y manpages  # Workaround for Bug#99375
     - *test-enable-sid-repos
     - *test-install
     - service mysql status
@@ -294,7 +322,6 @@ test basic features:
   stage: test
   needs:
     - job: build
-      artifacts: true
   image: debian:${RELEASE}
   artifacts:
     when: always
@@ -378,7 +405,6 @@ build mariadbclient consumer Python-MySQLdb:
   stage: test
   needs:
     - job: build
-      artifacts: true
   image: debian:${RELEASE}
   script:
     - *test-prepare-container
@@ -400,7 +426,6 @@ libmysql* to libmariadb* upgrade:
   stage: upgrade in Sid
   needs:
     - job: build
-      artifacts: true
   image: debian:${RELEASE}
   artifacts:
     when: always
@@ -434,7 +459,6 @@ default-libmysqlclient-dev Sid upgrade:
   stage: upgrade in Sid
   needs:
     - job: build
-      artifacts: true
   image: debian:${RELEASE}
   artifacts:
     when: always
@@ -452,10 +476,9 @@ default-libmysqlclient-dev Sid upgrade:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
 default-libmysqlclient-dev Buster upgrade:
-  stage: upgrade from Buster/Stretch
+  stage: upgrade from Bullseye/Buster/Stretch
   needs:
     - job: build
-      artifacts: true
   image: debian:buster
   artifacts:
     when: always
@@ -474,10 +497,9 @@ default-libmysqlclient-dev Buster upgrade:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
 default-libmysqlclient-dev Stretch upgrade:
-  stage: upgrade from Buster/Stretch
+  stage: upgrade from Bullseye/Buster/Stretch
   needs:
     - job: build
-      artifacts: true
   image: debian:stretch
   artifacts:
     when: always
@@ -488,8 +510,7 @@ default-libmysqlclient-dev Stretch upgrade:
     - *test-prepare-container
     - apt-get install -y pkg-config default-libmysqlclient-dev
     - pkg-config --list-all
-    # Remove manpages 4.10 that conflicts with manpages-dev 5.10 on console_ioctl.4.gz
-    - apt-get remove -y manpages
+    - apt-get remove -y manpages  # Workaround for Bug#99375
     - *test-enable-sid-repos
     - *test-install-all-libs
     - *test-verify-libs
@@ -497,13 +518,36 @@ default-libmysqlclient-dev Stretch upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
+mariadb-connector-c Stretch upgrade:
+  stage: upgrade from Bullseye/Buster/Stretch
+  needs:
+    - job: build
+  image: debian:stretch
+  artifacts:
+    when: always
+    name: "$CI_BUILD_NAME"
+    paths:
+      - ${WORKING_DIR}/debug
+  script:
+    - *test-prepare-container
+    - apt-get install -y pkg-config libmariadb2 libmariadb-dev libmariadb-dev-compat
+    - pkg-config --list-all
+    - apt-get remove -y manpages  # Workaround for Bug#99375
+    - *test-enable-sid-repos
+    - *test-install-all-libs
+    - *test-verify-libs
+  except:
+    variables:
+      - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
+  allow_failure: true
+  # Upgrading libc from Stretch to Bookworm is not possible due to Bug#993755
+
 # Upgrading from MySQL 8.0 with datadir in place is not possible. Users need to do a data dump.
 # The Debian maintainer scripts detect this situation and simply moves old datadir aside and start fresh.
 mysql-8.0 Sid to mariadb-10.5 upgrade:
   stage: upgrade in Sid
   needs:
     - job: build
-      artifacts: true
   image: debian:sid
   artifacts:
     when: always
@@ -531,7 +575,6 @@ mysql-8.0 Focal to mariadb-10.5 upgrade:
   stage: upgrade extras
   needs:
     - job: build buster-backports
-      artifacts: true
   image: debian:buster
   artifacts:
     when: always
@@ -565,7 +608,6 @@ mysql-5.7 Bionic to mariadb-10.5 upgrade:
   stage: upgrade extras
   needs:
     - job: build stretch-backports
-      artifacts: true
   image: debian:stretch
   artifacts:
     when: always
@@ -601,7 +643,6 @@ mariadb.org-10.5 to mariadb-10.5 upgrade:
   stage: upgrade extras
   needs:
     - job: build
-      artifacts: true
   image: debian:sid
   artifacts:
     when: always
@@ -614,7 +655,6 @@ mariadb.org-10.5 to mariadb-10.5 upgrade:
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
     - echo 'deb http://mirror.one.com/mariadb/repo/10.5/debian sid main' > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
-    - *test-install-readline-in-sid-for-backwards-compat
     # The 10.5.9 release is missing mariadb-plugin-columnstore, define all other packages but it to avoid hitting the error:
     #   The following packages have unmet dependencies:
     #   mariadb-plugin-columnstore : Depends: mariadb-server-10.5 (= 1:10.5.8+maria~sid) but 1:10.5.9+maria~sid is to be installed
@@ -641,7 +681,6 @@ mariadb.org-10.4 to mariadb-10.5 upgrade:
   stage: upgrade extras
   needs:
     - job: build
-      artifacts: true
   image: debian:sid
   artifacts:
     when: always
@@ -675,7 +714,6 @@ mariadb.org-10.3 to mariadb-10.5 upgrade:
   stage: upgrade extras
   needs:
     - job: build
-      artifacts: true
   image: debian:sid
   artifacts:
     when: always
@@ -712,7 +750,6 @@ mariadb.org-10.2 to mariadb-10.5 upgrade:
   stage: upgrade extras
   needs:
     - job: build
-      artifacts: true
   image: debian:sid
   artifacts:
     when: always
@@ -749,7 +786,6 @@ mysql.com-5.7 to mariadb-10.5 upgrade:
   stage: upgrade extras
   needs:
     - job: build buster-backports
-      artifacts: true
   image: debian:buster
   artifacts:
     when: always
@@ -781,7 +817,6 @@ percona-xtradb-5.7 to mariadb-10.5 upgrade (MDEV-22679):
   stage: upgrade extras
   needs:
     - job: build buster-backports
-      artifacts: true
   image: debian:buster
   artifacts:
     when: always

@@ -492,7 +492,7 @@ Recommends: libhtml-template-perl
 Pre-Depends: adduser (>= 3.40),
              debconf,
              mariadb-common (>= ${source:Version})
-Depends: galera-4 (>=26.4),
+Depends: galera-4 (>= 26.4),
          gawk,
          iproute2 [linux-any],
          libdbi-perl,
