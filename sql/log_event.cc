@@ -1033,172 +1033,181 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
               r_queue *rpl_queue, uint32* size)
 {
   Log_event *ev;
-  void *memory= NULL;
-  uint32 _size= 0;
-  //get the size of the Log_event object
-  create_log_event_or_get_size(NULL, 0, NULL, event_type, NULL, &_size);
+  void *memory __attribute__((unused)) =  NULL ;
+  uint32 ev_size= 0;
+  DBUG_ASSERT(buf == NULL || size == NULL);
+  if (rpl_queue && !size)
+  {
+    //get the size of the Log_event object
+    create_log_event_or_get_size(NULL, 0, NULL, event_type, NULL, &ev_size);
+    if (!ev_size)
+    {
+      return NULL;
+    }
+    memory= rpl_queue->enqueue_1(ev_size);
+  }
   switch(event_type) {
-  case QUERY_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(Query_log_event);
-      return NULL;
-    }
-    ev  = new  Query_log_event(buf, event_len, fdle, QUERY_EVENT);
-    break;
-  case QUERY_COMPRESSED_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(Query_compressed_log_event);
-      return NULL;
-    }
-    ev = new  Query_compressed_log_event(buf, event_len, fdle,
-                                        QUERY_COMPRESSED_EVENT);
-    break;
-  case LOAD_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(Load_log_event);
-      return NULL;
-    }
-    ev = new Load_log_event(buf, event_len, fdle);
-    break;
-  case NEW_LOAD_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(Load_log_event);
-      return NULL;
-    }
-    ev = new Load_log_event(buf, event_len, fdle);
-    break;
-  case ROTATE_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(Rotate_log_event);
-      return NULL;
-    }
-    ev = new Rotate_log_event(buf, event_len, fdle);
-    break;
-  case BINLOG_CHECKPOINT_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(Binlog_checkpoint_log_event);
-      return NULL;
-    }
-    ev = new Binlog_checkpoint_log_event(buf, event_len, fdle);
-    break;
-  case GTID_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(Gtid_log_event);
-      return NULL;
-    }
-    ev = new Gtid_log_event(buf, event_len, fdle);
-    break;
-  case GTID_LIST_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(Gtid_list_log_event);
-      return NULL;
-    }
-    ev = new Gtid_list_log_event(buf, event_len, fdle);
-    break;
-  case CREATE_FILE_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(Create_file_log_event);
-      return NULL;
-    }
-    ev = new Create_file_log_event(buf, event_len, fdle);
-    break;
-  case APPEND_BLOCK_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(Append_block_log_event);
-      return NULL;
-    }
-    ev = new Append_block_log_event(buf, event_len, fdle);
-    break;
-  case DELETE_FILE_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(Delete_file_log_event);
-      return NULL;
-    }
-    ev = new Delete_file_log_event(buf, event_len, fdle);
-    break;
-  case EXEC_LOAD_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(Execute_load_log_event);
-      return NULL;
-    }
-    ev = new Execute_load_log_event(buf, event_len, fdle);
-    break;
-  case START_EVENT_V3: /* this is sent only by MySQL <=4.x */
-    if (!buf)
-    {
-      *size= sizeof(Start_log_event_v3);
-      return NULL;
-    }
-    ev = new Start_log_event_v3(buf, event_len, fdle);
-    break;
-  case STOP_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(Stop_log_event);
-      return NULL;
-    }
-    ev = new Stop_log_event(buf, fdle);
-    break;
-  case INTVAR_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(Intvar_log_event);
-      return NULL;
-    }
-    ev = new Intvar_log_event(buf, fdle);
-    break;
-  case XID_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(Xid_log_event);
-      return NULL;
-    }
-    ev = new Xid_log_event(buf, fdle);
-    break;
-  case XA_PREPARE_LOG_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(XA_prepare_log_event);
-      return NULL;
-    }
-    ev = new XA_prepare_log_event(buf, fdle);
-    break;
-  case RAND_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(Rand_log_event);
-      return NULL;
-    }
-    ev = new Rand_log_event(buf, fdle);
-    break;
-  case USER_VAR_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(User_var_log_event);
-      return NULL;
-    }
-    ev = new User_var_log_event(buf, event_len, fdle);
-    break;
-  case FORMAT_DESCRIPTION_EVENT:
-    if (!buf)
-    {
-      *size= sizeof(Format_description_log_event);
-      return NULL;
-    }
-    ev = new Format_description_log_event(buf, event_len, fdle);
-    break;
+    case QUERY_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(Query_log_event);
+        return NULL;
+      }
+      ev  = new (memory) Query_log_event(buf, event_len, fdle, QUERY_EVENT);
+      break;
+    case QUERY_COMPRESSED_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(Query_compressed_log_event);
+        return NULL;
+      }
+      ev = new (memory) Query_compressed_log_event(buf, event_len, fdle,
+                                          QUERY_COMPRESSED_EVENT);
+      break;
+    case LOAD_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(Load_log_event);
+        return NULL;
+      }
+      ev = new (memory) Load_log_event(buf, event_len, fdle);
+      break;
+    case NEW_LOAD_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(Load_log_event);
+        return NULL;
+      }
+      ev = new (memory) Load_log_event(buf, event_len, fdle);
+      break;
+    case ROTATE_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(Rotate_log_event);
+        return NULL;
+      }
+      ev = new (memory) Rotate_log_event(buf, event_len, fdle);
+      break;
+    case BINLOG_CHECKPOINT_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(Binlog_checkpoint_log_event);
+        return NULL;
+      }
+      ev = new (memory) Binlog_checkpoint_log_event(buf, event_len, fdle);
+      break;
+    case GTID_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(Gtid_log_event);
+        return NULL;
+      }
+      ev = new (memory) Gtid_log_event(buf, event_len, fdle);
+      break;
+    case GTID_LIST_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(Gtid_list_log_event);
+        return NULL;
+      }
+      ev = new (memory) Gtid_list_log_event(buf, event_len, fdle);
+      break;
+    case CREATE_FILE_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(Create_file_log_event);
+        return NULL;
+      }
+      ev = new (memory) Create_file_log_event(buf, event_len, fdle);
+      break;
+    case APPEND_BLOCK_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(Append_block_log_event);
+        return NULL;
+      }
+      ev = new (memory) Append_block_log_event(buf, event_len, fdle);
+      break;
+    case DELETE_FILE_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(Delete_file_log_event);
+        return NULL;
+      }
+      ev = new (memory) Delete_file_log_event(buf, event_len, fdle);
+      break;
+    case EXEC_LOAD_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(Execute_load_log_event);
+        return NULL;
+      }
+      ev = new (memory) Execute_load_log_event(buf, event_len, fdle);
+      break;
+    case START_EVENT_V3: /* this is sent only by MySQL <=4.x */
+      if (!buf)
+      {
+        *size= sizeof(Start_log_event_v3);
+        return NULL;
+      }
+      ev = new (memory) Start_log_event_v3(buf, event_len, fdle);
+      break;
+    case STOP_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(Stop_log_event);
+        return NULL;
+      }
+      ev = new (memory) Stop_log_event(buf, fdle);
+      break;
+    case INTVAR_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(Intvar_log_event);
+        return NULL;
+      }
+      ev = new (memory) Intvar_log_event(buf, fdle);
+      break;
+    case XID_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(Xid_log_event);
+        return NULL;
+      }
+      ev = new (memory) Xid_log_event(buf, fdle);
+      break;
+    case XA_PREPARE_LOG_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(XA_prepare_log_event);
+        return NULL;
+      }
+      ev = new (memory) XA_prepare_log_event(buf, fdle);
+      break;
+    case RAND_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(Rand_log_event);
+        return NULL;
+      }
+      ev = new (memory) Rand_log_event(buf, fdle);
+      break;
+    case USER_VAR_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(User_var_log_event);
+        return NULL;
+      }
+      ev = new (memory) User_var_log_event(buf, event_len, fdle);
+      break;
+    case FORMAT_DESCRIPTION_EVENT:
+      if (!buf)
+      {
+        *size= sizeof(Format_description_log_event);
+        return NULL;
+      }
+      ev = new (memory) Format_description_log_event(buf, event_len, fdle);
+      break;
 #if defined(HAVE_REPLICATION) 
   case PRE_GA_WRITE_ROWS_EVENT:
     if (!buf)
@@ -1206,7 +1215,7 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
       *size= sizeof(Write_rows_log_event_old);
       return NULL;
     }
-    ev = new Write_rows_log_event_old(buf, event_len, fdle);
+    ev = new (memory) Write_rows_log_event_old(buf, event_len, fdle);
     break;
   case PRE_GA_UPDATE_ROWS_EVENT:
     if (!buf)
@@ -1214,7 +1223,7 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
       *size= sizeof(Update_rows_log_event_old);
       return NULL;
     }
-    ev = new Update_rows_log_event_old(buf, event_len, fdle);
+    ev = new (memory) Update_rows_log_event_old(buf, event_len, fdle);
     break;
   case PRE_GA_DELETE_ROWS_EVENT:
     if (!buf)
@@ -1222,7 +1231,7 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
       *size= sizeof(Delete_rows_log_event_old);
       return NULL;
     }
-    ev = new Delete_rows_log_event_old(buf, event_len, fdle);
+    ev = new (memory) Delete_rows_log_event_old(buf, event_len, fdle);
     break;
   case WRITE_ROWS_EVENT_V1:
   case WRITE_ROWS_EVENT:
@@ -1231,7 +1240,7 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
       *size= sizeof(Write_rows_log_event);
       return NULL;
     }
-    ev = new Write_rows_log_event(buf, event_len, fdle);
+    ev = new (memory) Write_rows_log_event(buf, event_len, fdle);
     break;
   case UPDATE_ROWS_EVENT_V1:
   case UPDATE_ROWS_EVENT:
@@ -1240,7 +1249,7 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
       *size= sizeof(Update_rows_log_event);
       return NULL;
     }
-    ev = new Update_rows_log_event(buf, event_len, fdle);
+    ev = new (memory) Update_rows_log_event(buf, event_len, fdle);
     break;
   case DELETE_ROWS_EVENT_V1:
   case DELETE_ROWS_EVENT:
@@ -1249,7 +1258,7 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
       *size= sizeof(Delete_rows_log_event);
       return NULL;
     }
-    ev = new Delete_rows_log_event(buf, event_len, fdle);
+    ev = new (memory) Delete_rows_log_event(buf, event_len, fdle);
     break;
 
   case WRITE_ROWS_COMPRESSED_EVENT:
@@ -1259,7 +1268,7 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
       *size= sizeof(Write_rows_compressed_log_event);
       return NULL;
     }
-    ev = new Write_rows_compressed_log_event(buf, event_len, fdle);
+    ev = new (memory) Write_rows_compressed_log_event(buf, event_len, fdle);
     break;
   case UPDATE_ROWS_COMPRESSED_EVENT:
   case UPDATE_ROWS_COMPRESSED_EVENT_V1:
@@ -1268,7 +1277,7 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
       *size= sizeof(Update_rows_compressed_log_event);
       return NULL;
     }
-    ev = new Update_rows_compressed_log_event(buf, event_len, fdle);
+    ev = new (memory) Update_rows_compressed_log_event(buf, event_len, fdle);
     break;
   case DELETE_ROWS_COMPRESSED_EVENT:
   case DELETE_ROWS_COMPRESSED_EVENT_V1:
@@ -1277,7 +1286,7 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
       *size= sizeof(Delete_rows_compressed_log_event);
       return NULL;
     }
-    ev = new Delete_rows_compressed_log_event(buf, event_len, fdle);
+    ev = new (memory) Delete_rows_compressed_log_event(buf, event_len, fdle);
     break;
 
     /* MySQL GTID events are ignored */
@@ -1291,7 +1300,7 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
       *size= sizeof(Ignorable_log_event);
       return NULL;
     }
-    ev= new Ignorable_log_event(buf, fdle,
+    ev= new (memory) Ignorable_log_event(buf, fdle,
                          Log_event::get_type_str((Log_event_type) event_type));
     break;
 
@@ -1301,7 +1310,7 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
       *size= sizeof(Table_map_log_event);
       return NULL;
     }
-    ev = new Table_map_log_event(buf, event_len, fdle);
+    ev = new (memory) Table_map_log_event(buf, event_len, fdle);
     break;
 #endif
   case BEGIN_LOAD_QUERY_EVENT:
@@ -1310,7 +1319,7 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
       *size= sizeof(Begin_load_query_log_event);
       return NULL;
     }
-    ev = new Begin_load_query_log_event(buf, event_len, fdle);
+    ev = new (memory) Begin_load_query_log_event(buf, event_len, fdle);
     break;
   case EXECUTE_LOAD_QUERY_EVENT:
     if (!buf)
@@ -1318,7 +1327,7 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
       *size= sizeof(Execute_load_query_log_event);
       return NULL;
     }
-    ev= new Execute_load_query_log_event(buf, event_len, fdle);
+    ev= new (memory) Execute_load_query_log_event(buf, event_len, fdle);
     break;
   case INCIDENT_EVENT:
     if (!buf)
@@ -1326,7 +1335,7 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
       *size= sizeof(Incident_log_event);
       return NULL;
     }
-    ev = new Incident_log_event(buf, event_len, fdle);
+    ev = new (memory) Incident_log_event(buf, event_len, fdle);
     break;
   case ANNOTATE_ROWS_EVENT:
     if (!buf)
@@ -1334,7 +1343,7 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
       *size= sizeof(Annotate_rows_log_event);
       return NULL;
     }
-    ev = new Annotate_rows_log_event(buf, event_len, fdle);
+    ev = new (memory) Annotate_rows_log_event(buf, event_len, fdle);
     break;
   case START_ENCRYPTION_EVENT:
     if (!buf)
@@ -1342,7 +1351,7 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
       *size= sizeof(Start_encryption_log_event);
       return NULL;
     }
-    ev = new Start_encryption_log_event(buf, event_len, fdle);
+    ev = new (memory) Start_encryption_log_event(buf, event_len, fdle);
     break;
   default:
     DBUG_PRINT("error",("Unknown event code: %d",
@@ -1351,6 +1360,8 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
     size= NULL;
     break;
   }
+  if (rpl_queue)
+    rpl_queue->enqueue_2(ev_size);
   return ev;
 }
 

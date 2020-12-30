@@ -50,6 +50,5 @@ drop table t1;
 --source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc
 
---sleep 1000
 
 

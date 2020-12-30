@@ -15,6 +15,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h" // For HAVE_REPLICATION
+#include "rpl_queue.h"
 #include "sql_priv.h"
 #include <my_dir.h>
 #include "rpl_mi.h"
@@ -666,7 +667,7 @@ file '%s')", fname);
   if (mi->rli.init(slave_info_fname))
     goto err;
 
-  mi->rpl_queue= new circular_buffer_queue<slave_queue_element>();
+  mi->rpl_queue= new circular_buffer_queue_events();
   mi->rpl_queue->init(20000000);
   mi->inited = 1;
   mi->rli.is_relay_log_recovery= FALSE;

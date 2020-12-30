@@ -2419,7 +2419,7 @@ int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
   {
     /* Save the information describing this binlog */
     copy_crypto_data(rli->relay_log.description_event_for_exec);
-    delete rli->relay_log.description_event_for_exec;
+    rli->relay_log.description_event_for_exec->~Format_description_log_event();
     rli->relay_log.description_event_for_exec= this;
   }
 

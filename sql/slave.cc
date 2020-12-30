@@ -5149,7 +5149,7 @@ err:
 
 err_during_init:
   /* Forget the relay log's format */
-  delete mi->rli.relay_log.description_event_for_queue;
+  mi->rli.relay_log.description_event_for_queue->~Log_event();
   mi->rli.relay_log.description_event_for_queue= 0;
   // TODO: make rpl_status part of Master_info
   change_rpl_status(RPL_ACTIVE_SLAVE,RPL_IDLE_SLAVE);
@@ -6048,7 +6048,7 @@ static int process_io_rotate(Master_info *mi, Rotate_log_event *rev)
     DBUG_ASSERT(mi->rli.relay_log.description_event_for_queue->checksum_alg ==
                 mi->rli.relay_log.relay_log_checksum_alg);
     
-    delete mi->rli.relay_log.description_event_for_queue;
+    mi->rli.relay_log.description_event_for_queue->~Log_event();
     /* start from format 3 (MySQL 4.0) again */
     mi->rli.relay_log.description_event_for_queue= new
       Format_description_log_event(3);
@@ -6198,7 +6198,8 @@ static int queue_binlog_ver_3_event(Master_info *mi, const char *buf,
   /* read_log_event() will adjust log_pos to be end_log_pos */
   Log_event *ev=
     Log_event::read_log_event(buf,event_len, &errmsg,
-                              mi->rli.relay_log.description_event_for_queue, 0);
+                              mi->rli.relay_log.description_event_for_queue, 0,
+                              mi->rpl_queue);
   if (unlikely(!ev))
   {
     sql_print_error("Read invalid event from master: '%s',\
@@ -6571,7 +6572,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
     if (!(tmp= (Format_description_log_event*)
           Log_event::read_log_event(buf, event_len, &errmsg,
                                     mi->rli.relay_log.description_event_for_queue,
-                                    1)))
+                                    1, mi->rpl_queue)))
     {
       error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
       goto err;

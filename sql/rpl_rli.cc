@@ -2245,7 +2245,7 @@ delete_or_keep_event_post_apply(rpl_group_info *rgi,
   default:
     DBUG_PRINT("info", ("Deleting the event after it has been executed"));
     if (!rgi->is_deferred_event(ev))
-      delete ev;
+      ev->~Log_event();
     break;
   }
 }

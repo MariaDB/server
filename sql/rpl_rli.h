@@ -893,7 +893,7 @@ struct rpl_group_info
     if (m_annotate_event)
     {
       this->thd->variables.binlog_annotate_row_events= 0;
-      delete m_annotate_event;
+      m_annotate_event->~Annotate_rows_log_event();
       m_annotate_event= 0;
     }
   }

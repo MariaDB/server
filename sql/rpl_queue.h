@@ -97,7 +97,6 @@ class slave_queue_element
   // Reserved for use by the circular queue
   // UNUSED_SPACE = 0xFF
 };
-typedef circular_buffer_queue<slave_queue_element> r_queue;
 /*
   Second implementation of queue.h element
   Features:- 
@@ -302,4 +301,6 @@ class circular_buffer_queue_events :public circular_buffer_queue<slave_queue_ele
   }
 
 };
+
+typedef circular_buffer_queue_events r_queue;
 #endif  //RPL_QUEUE_H

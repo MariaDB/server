@@ -6,6 +6,7 @@
 #include "my_pthread.h"
 #include "my_sys.h"
 #include "mysql/psi/mysql_thread.h"
+#include "mysql/psi/psi.h"
 #include <cstring>
 
 #define UNUSED_SPACE 0xFF
@@ -31,6 +32,8 @@ class circular_buffer_queue
   mysql_mutex_t free_queue;
   mysql_cond_t free_cond;
   uchar *head, *tail;
+  PSI_file_key k1, k2;
+  PSI_cond_key c1;
   ulong free_size()
   {
     if (head > tail)
@@ -53,9 +56,9 @@ class circular_buffer_queue
     this->buffer_size= buffer_size;
     buffer_end= buffer + buffer_size;
     head= tail= buffer;
-    mysql_mutex_init(0, &lock_queue, MY_MUTEX_INIT_SLOW);
-    mysql_mutex_init(0, &free_queue, MY_MUTEX_INIT_SLOW);
-    mysql_cond_init(0, &free_cond, 0);
+    mysql_mutex_init(k1, &lock_queue, MY_MUTEX_INIT_SLOW);
+    mysql_mutex_init(k2, &free_queue, MY_MUTEX_INIT_SLOW);
+    mysql_cond_init(c1, &free_cond, 0);
     return 0;
   }
 
