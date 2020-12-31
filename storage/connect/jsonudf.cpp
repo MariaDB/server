@@ -35,7 +35,7 @@ static PJSON JsonNew(PGLOBAL g, JTYP type);
 static PJVAL JvalNew(PGLOBAL g, JTYP type, void *vp = NULL);
 static PJSNX JsnxNew(PGLOBAL g, PJSON jsp, int type, int len = 64);
 
-static uint JsonGrpSize = 10;
+uint JsonGrpSize = 10;
 
 /*********************************************************************************/
 /*  SubAlloc a new JSNX class with protection against memory exhaustion.         */
@@ -1166,7 +1166,7 @@ static void SetChanged(PBSON bsp)
 /*********************************************************************************/
 /*  Replaces GetJsonGrpSize not usable when CONNECT is not installed.            */
 /*********************************************************************************/
-static uint GetJsonGroupSize(void)
+uint GetJsonGroupSize(void)
 {
 	return (JsonGrpSize) ? JsonGrpSize : GetJsonGrpSize();
 } // end of GetJsonGroupSize
@@ -5837,11 +5837,11 @@ my_bool jfile_convert_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 		} // endif args
 
 	CalcLen(args, false, reslen, memlen);
-	return JsonInit(initid, args, message, false, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen);
 } // end of jfile_convert_init
 
 char *jfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
-	                  unsigned long *res_length, char *, char *error) {
+	                  unsigned long *res_length, char *is_null, char *error) {
 	char   *str, *fn, *ofn;
 	int     lrecl = (int)*(longlong*)args->args[2];
 	PGLOBAL g = (PGLOBAL)initid->ptr;
@@ -5853,20 +5853,21 @@ char *jfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
 	if (!g->Xchk) {
 		JUP* jup = new(g) JUP(g);
 
-		str = strcpy(result, jup->UnprettyJsonFile(g, fn, ofn, lrecl));
+		str = jup->UnprettyJsonFile(g, fn, ofn, lrecl);
 		g->Xchk = str;
 	} else
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		if (g->Message)
-			str = strcpy(result, g->Message);
-		else
-			str = strcpy(result, "Unexpected error");
+		PUSH_WARNING(g->Message ? g->Message : "Unexpected error");
+		*is_null = 1;
+		*error = 1;
+		*res_length = 0;
+	} else {
+		strcpy(result, str);
+		*res_length = strlen(str);
+	}	// endif str
 
-	} // endif str
-
-	*res_length = strlen(str);
 	return str;
 } // end of jfile_convert
 

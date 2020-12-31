@@ -93,7 +93,8 @@ public:
 	PBVAL SubAllocStr(PSZ str, short nd = 0)
 				{return SubAllocStr(DupStr(str), nd);}
 	PBVAL DupVal(PBVAL bvp);
-	OFFSET DupStr(PSZ str);
+	OFFSET DupStr(PSZ str) { return MOF(NewStr(str)); }
+	PSZ   NewStr(PSZ str);
 
 	// Array functions
 	inline PBVAL GetArray(PBVAL vlp) {return MVP(vlp->To_Val);}
@@ -150,7 +151,8 @@ public:
 	void  SetBool(PBVAL vlp, bool b);
 	void  Clear(PBVAL vlp) { vlp->N = 0; vlp->Nd = 0; vlp->Next = 0; }
 	bool  IsValueNull(PBVAL vlp);
-	bool  IsJson(PBVAL vlp) {return (vlp->Type == TYPE_JAR || vlp->Type == TYPE_JOB);}
+	bool  IsJson(PBVAL vlp) 
+				{return vlp ? vlp->Type == TYPE_JAR || vlp->Type == TYPE_JOB : false;}
 
 	// Members
 	PGLOBAL G;

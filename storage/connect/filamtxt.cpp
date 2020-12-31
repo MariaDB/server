@@ -812,7 +812,7 @@ int DOSFAM::ReadBuffer(PGLOBAL g)
     p = To_Buf + strlen(To_Buf) - 1;
 
     if (trace(2))
-      htrc(" Read: To_Buf=%p p=%c\n", To_Buf, To_Buf, p);
+      htrc(" Read: To_Buf=%p p=%c\n", To_Buf, p);
 
 #if defined(__WIN__)
     if (Bin) {

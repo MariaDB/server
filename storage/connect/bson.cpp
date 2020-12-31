@@ -808,17 +808,17 @@ void* BJSON::BsonSubAlloc(size_t size)
 /*********************************************************************************/
 /*  Program for SubSet re-initialization of the memory pool.                     */
 /*********************************************************************************/
-OFFSET BJSON::DupStr(PSZ str)
+PSZ BJSON::NewStr(PSZ str)
 {
   if (str) {
     PSZ sm = (PSZ)BsonSubAlloc(strlen(str) + 1);
 
     strcpy(sm, str);
-    return MOF(sm);
+    return sm;
   } else
     return NULL;
 
-} // end of DupStr
+} // end of NewStr
 
 /*********************************************************************************/
 /*  Program for SubSet re-initialization of the memory pool.                     */
@@ -940,7 +940,7 @@ PBVAL BJSON::GetObjectValList(PBVAL bop)
   PBVAL arp = NewVal(TYPE_JAR);
 
   for (PBPR brp = GetObject(bop); brp; brp = GetNext(brp))
-    AddArrayValue(arp, GetVlp(brp));
+    AddArrayValue(arp, DupVal(GetVlp(brp)));
 
   return arp;
 } // end of GetObjectValList
@@ -1135,24 +1135,28 @@ PBVAL BJSON::GetArrayValue(PBVAL bap, int n)
 /***********************************************************************/
 /* Add a Value to the Array Value list.                                */
 /***********************************************************************/
-void BJSON::AddArrayValue(PBVAL bap, OFFSET nvp, int* x)
+void BJSON::AddArrayValue(PBVAL bap, OFFSET nbv, int* x)
 {
   CheckType(bap, TYPE_JAR);
-  if (!nvp)
-    nvp = MOF(NewVal());
+  int   i = 0;
+  PBVAL bvp, lbp = NULL;
 
-  if (bap->To_Val) {
-    int   i = 0, n = (x) ? *x : INT_MAX32;
+  if (!nbv)
+    nbv = MOF(NewVal());
 
-    for (PBVAL bvp = GetArray(bap); bvp; bvp = GetNext(bvp), i++)
-      if (!bvp->Next || (x && i == n)) {
-        MVP(nvp)->Next = bvp->Next;
-        bvp->Next = nvp;
-        break;
-      } // endif Next
+  for (bvp = GetArray(bap); bvp; bvp = GetNext(bvp), i++)
+    if (x && i == *x)
+      break;
+    else
+      lbp = bvp;
 
-  } else
-    bap->To_Val = nvp;
+  if (lbp) {
+    MVP(nbv)->Next = lbp->Next;
+    lbp->Next = nbv;
+  } else {
+    MVP(nbv)->Next = bap->To_Val;
+    bap->To_Val = nbv;
+  } // endif lbp
 
   bap->Nd++;
 } // end of AddArrayValue
