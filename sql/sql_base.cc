@@ -4341,6 +4341,70 @@ bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_STRING *db,
   return false;
 }
 
+/**
+  Extend the table_list to include foreign tables for prelocking.
+
+  @param[in]  thd              Thread context.
+  @param[in]  prelocking_ctx   Prelocking context of the statement.
+  @param[in]  table_list       Table list element for table.
+  @param[in]  sp               Routine body.
+  @param[out] need_prelocking  Set to TRUE if method detects that prelocking
+                               required, not changed otherwise.
+
+  @retval FALSE  Success.
+  @retval TRUE   Failure (OOM).
+*/
+inline bool
+prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
+                           TABLE_LIST *table_list, bool *need_prelocking,
+                           uint8 op)
+{
+  List <FOREIGN_KEY_INFO> fk_list;
+  List_iterator<FOREIGN_KEY_INFO> fk_list_it(fk_list);
+  FOREIGN_KEY_INFO *fk;
+  Query_arena *arena, backup;
+
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+
+  table_list->table->file->get_parent_foreign_key_list(thd, &fk_list);
+  if (thd->is_error())
+  {
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+    return TRUE;
+  }
+
+  *need_prelocking= TRUE;
+
+  while ((fk= fk_list_it++))
+  {
+    // FK_OPTION_RESTRICT and FK_OPTION_NO_ACTION only need read access
+    static bool can_write[]= { true, false, true, true, false, true };
+    thr_lock_type lock_type;
+
+    if ((op & (1 << TRG_EVENT_DELETE) && can_write[fk->delete_method])
+        || (op & (1 << TRG_EVENT_UPDATE) && can_write[fk->update_method]))
+      lock_type= TL_WRITE_ALLOW_WRITE;
+    else
+      lock_type= TL_READ;
+
+    if (table_already_fk_prelocked(prelocking_ctx->query_tables,
+          fk->foreign_db, fk->foreign_table,
+          lock_type))
+      continue;
+
+    TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+    tl->init_one_table_for_prelocking(fk->foreign_db->str, fk->foreign_db->length,
+        fk->foreign_table->str, fk->foreign_table->length,
+        NULL, lock_type, false, table_list->belong_to_view,
+        op, &prelocking_ctx->query_tables_last);
+  }
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+
+  return FALSE;
+}
+
 
 /**
   Defines how prelocking algorithm for DML statements should handle table list
@@ -4381,55 +4445,21 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
           add_tables_and_routines_for_triggers(thd, prelocking_ctx, table_list))
         return TRUE;
     }
-
     if (table_list->table->file->referenced_by_foreign_key())
     {
-      List <FOREIGN_KEY_INFO> fk_list;
-      List_iterator<FOREIGN_KEY_INFO> fk_list_it(fk_list);
-      FOREIGN_KEY_INFO *fk;
-      Query_arena *arena, backup;
-
-      arena= thd->activate_stmt_arena_if_needed(&backup);
-
-      table_list->table->file->get_parent_foreign_key_list(thd, &fk_list);
-      if (thd->is_error())
-      {
-        if (arena)
-          thd->restore_active_arena(arena, &backup);
-        return TRUE;
-      }
-
-      *need_prelocking= TRUE;
-
-      while ((fk= fk_list_it++))
-      {
-        // FK_OPTION_RESTRICT and FK_OPTION_NO_ACTION only need read access
-        static bool can_write[]= { true, false, true, true, false, true };
-        uint8 op= table_list->trg_event_map;
-        thr_lock_type lock_type;
-
-        if ((op & (1 << TRG_EVENT_DELETE) && can_write[fk->delete_method])
-         || (op & (1 << TRG_EVENT_UPDATE) && can_write[fk->update_method]))
-          lock_type= TL_WRITE_ALLOW_WRITE;
-        else
-          lock_type= TL_READ;
-
-        if (table_already_fk_prelocked(prelocking_ctx->query_tables,
-                                       fk->foreign_db, fk->foreign_table,
-                                       lock_type))
-          continue;
-
-        TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
-        tl->init_one_table_for_prelocking(fk->foreign_db->str, fk->foreign_db->length,
-                           fk->foreign_table->str, fk->foreign_table->length,
-                           NULL, lock_type, false, table_list->belong_to_view,
-                           op, &prelocking_ctx->query_tables_last);
-      }
-      if (arena)
-        thd->restore_active_arena(arena, &backup);
+      return (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
+                                         need_prelocking,
+                                         table_list->trg_event_map));
     }
   }
+  else if (table_list->slave_fk_event_map &&
+           table_list->table->file->referenced_by_foreign_key())
+  {
+      return (prepare_fk_prelocking_list(thd, prelocking_ctx,
+                                         table_list, need_prelocking,
+                                         table_list->slave_fk_event_map));
 
+  }
   return FALSE;
 }
 

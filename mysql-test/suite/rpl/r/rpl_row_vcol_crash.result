@@ -1,0 +1,380 @@
+include/master-slave.inc
+[connection master]
+#
+# Test case 1: KEY on a virtual column with ON DELETE CASCADE
+#
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3);
+CREATE TABLE t2 (id INT NOT NULL PRIMARY KEY,
+t1_id INT NOT NULL,
+v_col INT AS (t1_id+1) VIRTUAL, KEY (v_col), KEY (t1_id),
+CONSTRAINT a FOREIGN KEY (t1_id) REFERENCES t1 (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (90,1,NULL);
+INSERT INTO t2 VALUES (91,2,default);
+DELETE FROM t1 WHERE id=1;
+connection slave;
+#
+# Verify data consistency on slave
+#
+include/diff_tables.inc [master:test.t1, slave:test.t1]
+include/diff_tables.inc [master:test.t2, slave:test.t2]
+connection master;
+DROP TABLE t2,t1;
+connection slave;
+#
+# Test case 2: Verify "ON DELETE CASCADE" for parent->child->child scenario
+#              Parent table: users
+#              Child tables: matchmaking_groups, matchmaking_group_users
+#              Parent table: matchmaking_groups
+#              Child tables: matchmaking_group_users, matchmaking_group_maps
+#
+#              Deleting a row from parent table should be reflected in
+#              child tables.
+#              matchmaking_groups->matchmaking_group_users->matchmaking_group_maps
+#              users->matchmaking_group_users->matchmaking_group_maps
+#
+connection master;
+CREATE TABLE users (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(32) NOT NULL DEFAULT ''
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+CREATE TABLE matchmaking_groups (
+id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+host_user_id INT UNSIGNED NOT NULL UNIQUE,
+v_col INT AS (host_user_id+1) VIRTUAL, KEY (v_col),
+CONSTRAINT FOREIGN KEY (host_user_id) REFERENCES users (id)
+ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+CREATE TABLE matchmaking_group_users (
+matchmaking_group_id BIGINT UNSIGNED NOT NULL,
+user_id INT UNSIGNED NOT NULL,
+v_col1 int as (user_id+1) virtual, KEY (v_col1),
+PRIMARY KEY (matchmaking_group_id,user_id),
+UNIQUE KEY user_id (user_id),
+CONSTRAINT FOREIGN KEY (matchmaking_group_id)
+REFERENCES matchmaking_groups (id) ON DELETE CASCADE ON UPDATE CASCADE,
+CONSTRAINT FOREIGN KEY (user_id)
+REFERENCES users (id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+CREATE TABLE matchmaking_group_maps (
+matchmaking_group_id BIGINT UNSIGNED NOT NULL,
+map_id TINYINT UNSIGNED NOT NULL,
+v_col2 INT AS (map_id+1) VIRTUAL, KEY (v_col2),
+PRIMARY KEY (matchmaking_group_id,map_id),
+CONSTRAINT FOREIGN KEY (matchmaking_group_id)
+REFERENCES matchmaking_groups (id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+connection slave;
+connection master;
+INSERT INTO users VALUES (NULL,'foo'),(NULL,'bar');
+INSERT INTO matchmaking_groups VALUES (10,1,default),(11,2,default);
+INSERT INTO matchmaking_group_users VALUES (10,1,default),(11,2,default);
+INSERT INTO matchmaking_group_maps VALUES (10,55,default),(11,66,default);
+DELETE FROM matchmaking_groups WHERE id = 10;
+connection slave;
+#
+# No rows should be returned as ON DELETE CASCASE should have removed
+# corresponding rows from child tables. There should not any mismatch
+# of 'id' field between parent->child.
+#
+SELECT * FROM matchmaking_group_users WHERE matchmaking_group_id NOT IN (SELECT id FROM matchmaking_groups);
+matchmaking_group_id	user_id	v_col1
+SELECT * FROM matchmaking_group_maps WHERE matchmaking_group_id NOT IN (SELECT id FROM matchmaking_groups);
+matchmaking_group_id	map_id	v_col2
+#
+# Rows with id=11 should be present
+#
+SELECT * FROM matchmaking_group_users;
+matchmaking_group_id	user_id	v_col1
+11	2	3
+SELECT * FROM matchmaking_group_maps;
+matchmaking_group_id	map_id	v_col2
+11	66	67
+connection master;
+DELETE FROM users WHERE id = 2;
+connection slave;
+#
+# No rows should be present in both the child tables
+#
+SELECT * FROM matchmaking_group_users;
+matchmaking_group_id	user_id	v_col1
+SELECT * FROM matchmaking_group_maps;
+matchmaking_group_id	map_id	v_col2
+connection master;
+DROP TABLE matchmaking_group_maps, matchmaking_group_users, matchmaking_groups, users;
+connection slave;
+#
+# Test case 3: KEY on a virtual column with ON UPDATE CASCADE
+#
+connection master;
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY, b INT NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 80);
+CREATE TABLE t2 (a INT KEY, b INT,
+v_col int as (b+1) virtual, KEY (v_col),
+CONSTRAINT b FOREIGN KEY (b) REFERENCES t1(a) ON UPDATE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (51, 1, default);
+connection slave;
+connection master;
+UPDATE t1 SET a = 50 WHERE a = 1;
+#
+# Master: Verify that ON UPDATE CASCADE works fine
+# old_row: (51, 1, 2) ON UPDATE New_row: (51, 50, 51)
+#
+SELECT * FROM t2 WHERE b=50;
+a	b	v_col
+51	50	51
+connection slave;
+#
+# Slave: Verify that ON UPDATE CASCADE works fine
+# old_row: (51, 1, 2) ON UPDATE New_row: (51, 50, 51)
+#
+SELECT * FROM t2 WHERE b=50;
+a	b	v_col
+51	50	51
+connection master;
+DROP TABLE t2, t1;
+connection slave;
+#
+# Test case 4: Define triggers on master, their results should be 
+#              replicated as part of row events and they should be
+#              applied on slave with the default
+#              slave_run_triggers_for_rbr=NO
+#
+connection master;
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (count INT NOT NULL) ENGINE=InnoDB;
+CREATE TRIGGER trg AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES (1);
+INSERT INTO t1 VALUES (2),(3);
+connection slave;
+SHOW GLOBAL VARIABLES LIKE 'slave_run_triggers_for_rbr';
+Variable_name	Value
+slave_run_triggers_for_rbr	NO
+#
+# As two rows are inserted in table 't1', two rows should get inserted
+# into table 't2' as part of trigger.
+#
+include/assert.inc [Table t2 should have two rows.]
+connection master;
+DROP TABLE t1,t2;
+connection slave;
+#
+# Test case 5: Define triggers + Foreign Keys on master, their results
+#              should be replicated as part of row events and master
+#              and slave should be in sync.
+#
+connection master;
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (t1_id INT NOT NULL,
+v_col INT AS (t1_id+1) VIRTUAL, KEY (v_col), KEY (t1_id),
+CONSTRAINT a FOREIGN KEY (t1_id) REFERENCES t1 (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE t3 (count INT NOT NULL) ENGINE=InnoDB;
+CREATE TRIGGER trg AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t3 VALUES (1);
+INSERT INTO t1 VALUES (2),(3);
+INSERT INTO t2 VALUES (2, default), (3, default);
+connection slave;
+#
+# As two rows are inserted in table 't1', two rows should get inserted
+# into table 't3' as part of trigger.
+#
+include/assert.inc [Table t3 should have two rows.]
+#
+# Verify ON DELETE CASCASE correctness
+#
+connection master;
+DELETE FROM t1 WHERE id=2;
+connection slave;
+connection master;
+include/diff_tables.inc [master:test.t1, slave:test.t1]
+include/diff_tables.inc [master:test.t2, slave:test.t2]
+include/diff_tables.inc [master:test.t3, slave:test.t3]
+DROP TABLE t3,t2,t1;
+connection slave;
+#
+# Test case 6: Triggers are present only on slave and
+#              'slave_run_triggers_for_rbr=NO'
+#
+connection slave;
+SET @save_slave_run_triggers_for_rbr= @@GLOBAL.slave_run_triggers_for_rbr;
+SET GLOBAL slave_run_triggers_for_rbr= NO;;
+SHOW GLOBAL VARIABLES LIKE '%slave_run_triggers_for_rbr%';
+Variable_name	Value
+slave_run_triggers_for_rbr	NO
+connection master;
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (t1_id INT NOT NULL,
+v_col INT AS (t1_id+1) VIRTUAL, KEY (v_col),
+KEY (t1_id), CONSTRAINT a FOREIGN KEY (t1_id) REFERENCES t1 (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE t3 (count INT NOT NULL) ENGINE=InnoDB;
+connection slave;
+CREATE TRIGGER trg AFTER INSERT ON t2 FOR EACH ROW INSERT INTO t3 VALUES (1);
+connection master;
+INSERT INTO t1 VALUES (2),(3);
+INSERT INTO t2 VALUES (2, default), (3, default);
+connection slave;
+#
+# Count must be 0
+#
+include/assert.inc [Table t3 should have zero rows.]
+connection master;
+DELETE FROM t1 WHERE id=2;
+connection slave;
+SET GLOBAL slave_run_triggers_for_rbr= @save_slave_run_triggers_for_rbr;
+#
+# Verify t1, t2 are consistent on slave.
+#
+include/diff_tables.inc [master:test.t1, slave:test.t1]
+include/diff_tables.inc [master:test.t2, slave:test.t2]
+connection master;
+DROP TABLE t3,t2,t1;
+connection slave;
+#
+# Test case 7: Triggers are present only on slave and
+#              'slave_run_triggers_for_rbr=YES'
+#
+connection slave;
+SET @save_slave_run_triggers_for_rbr= @@GLOBAL.slave_run_triggers_for_rbr;
+SET GLOBAL slave_run_triggers_for_rbr= YES;;
+SHOW GLOBAL VARIABLES LIKE '%slave_run_triggers_for_rbr%';
+Variable_name	Value
+slave_run_triggers_for_rbr	YES
+connection master;
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (t1_id INT NOT NULL,
+v_col INT AS (t1_id+1) VIRTUAL, KEY (v_col),
+KEY (t1_id), CONSTRAINT a FOREIGN KEY (t1_id) REFERENCES t1 (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE t3 (count INT NOT NULL) ENGINE=InnoDB;
+connection slave;
+CREATE TRIGGER trg AFTER INSERT ON t2 FOR EACH ROW INSERT INTO t3 VALUES (1);
+connection master;
+INSERT INTO t1 VALUES (2),(3);
+INSERT INTO t2 VALUES (2, default), (3, default);
+connection slave;
+#
+# Count must be 2
+#
+include/assert.inc [Table t3 should have two rows.]
+connection master;
+DELETE FROM t1 WHERE id=2;
+connection slave;
+SET GLOBAL slave_run_triggers_for_rbr= @save_slave_run_triggers_for_rbr;
+#
+# Verify t1, t2 are consistent on slave.
+#
+include/diff_tables.inc [master:test.t1, slave:test.t1]
+include/diff_tables.inc [master:test.t2, slave:test.t2]
+connection master;
+DROP TABLE t3,t2,t1;
+connection slave;
+#
+# Test case 8: Triggers and Foreign Keys are present only on slave and
+#              'slave_run_triggers_for_rbr=NO'
+#
+connection slave;
+SET @save_slave_run_triggers_for_rbr= @@GLOBAL.slave_run_triggers_for_rbr;
+SET GLOBAL slave_run_triggers_for_rbr= NO;;
+SHOW GLOBAL VARIABLES LIKE '%slave_run_triggers_for_rbr%';
+Variable_name	Value
+slave_run_triggers_for_rbr	NO
+connection master;
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+SET sql_log_bin=0;
+CREATE TABLE t2 (t1_id INT NOT NULL,v_col INT AS (t1_id+1) VIRTUAL) ENGINE=INNODB;
+SET sql_log_bin=1;
+CREATE TABLE t3 (count INT NOT NULL) ENGINE=InnoDB;
+connection slave;
+CREATE TABLE t2 (t1_id INT NOT NULL,
+v_col INT AS (t1_id+1) VIRTUAL, KEY (v_col), KEY (t1_id),
+CONSTRAINT a FOREIGN KEY (t1_id) REFERENCES t1 (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+CREATE TRIGGER trg AFTER INSERT ON t2 FOR EACH ROW INSERT INTO t3 VALUES (1);
+connection master;
+INSERT INTO t1 VALUES (2),(3);
+INSERT INTO t2 VALUES (2, default), (3, default);
+connection slave;
+#
+# Count must be 0
+#
+include/assert.inc [Table t3 should have zero rows.]
+connection master;
+DELETE FROM t1 WHERE id=2;
+# t1: Should have one row
+SELECT * FROM t1;
+id
+3
+# t2: Should have two rows
+SELECT * FROM t2;
+t1_id	v_col
+2	3
+3	4
+connection slave;
+# t1: Should have one row
+SELECT * FROM t1;
+id
+3
+# t2: Should have one row on slave due to ON DELETE CASCASE
+SELECT * FROM t2;
+t1_id	v_col
+3	4
+SET GLOBAL slave_run_triggers_for_rbr= @save_slave_run_triggers_for_rbr;
+connection master;
+DROP TABLE t3,t2,t1;
+connection slave;
+#
+# Test case 9: Triggers are Foreign Keys are present only on slave and
+#              'slave_run_triggers_for_rbr=YES'
+#
+connection slave;
+SET @save_slave_run_triggers_for_rbr= @@GLOBAL.slave_run_triggers_for_rbr;
+SET GLOBAL slave_run_triggers_for_rbr= YES;;
+SHOW GLOBAL VARIABLES LIKE '%slave_run_triggers_for_rbr%';
+Variable_name	Value
+slave_run_triggers_for_rbr	YES
+connection master;
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+SET sql_log_bin=0;
+CREATE TABLE t2 (t1_id INT NOT NULL,v_col INT AS (t1_id+1) VIRTUAL) ENGINE=INNODB;
+SET sql_log_bin=1;
+CREATE TABLE t3 (count INT NOT NULL) ENGINE=InnoDB;
+connection slave;
+CREATE TABLE t2 (t1_id INT NOT NULL,
+v_col INT AS (t1_id+1) VIRTUAL, KEY (v_col), KEY (t1_id),
+CONSTRAINT a FOREIGN KEY (t1_id) REFERENCES t1 (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+CREATE TRIGGER trg AFTER INSERT ON t2 FOR EACH ROW INSERT INTO t3 VALUES (1);
+connection master;
+INSERT INTO t1 VALUES (2),(3);
+INSERT INTO t2 VALUES (2, default), (3, default);
+connection slave;
+#
+# Count must be 2
+#
+include/assert.inc [Table t3 should have two rows.]
+connection master;
+DELETE FROM t1 WHERE id=2;
+# t1: Should have one row
+SELECT * FROM t1;
+id
+3
+# t2: Should have two rows
+SELECT * FROM t2;
+t1_id	v_col
+2	3
+3	4
+connection slave;
+# t1: Should have one row
+SELECT * FROM t1;
+id
+3
+# t2: Should have one row on slave due to ON DELETE CASCASE
+SELECT * FROM t2;
+t1_id	v_col
+3	4
+SET GLOBAL slave_run_triggers_for_rbr= @save_slave_run_triggers_for_rbr;
+connection master;
+DROP TABLE t3,t2,t1;
+connection slave;
+include/rpl_end.inc

@@ -2277,8 +2277,12 @@ struct TABLE_LIST
     Indicates what triggers we need to pre-load for this TABLE_LIST
     when opening an associated TABLE. This is filled after
     the parsed tree is created.
+
+    slave_fk_event_map is filled on the slave side with bitmaps value
+    representing row-based event operation to help find and prelock
+    possible FK constrain-related child tables.
   */
-  uint8 trg_event_map;
+  uint8 trg_event_map, slave_fk_event_map;
   /* TRUE <=> this table is a const one and was optimized away. */
   bool optimized_away;
 
