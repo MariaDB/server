@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1975,13 +1975,6 @@ ha_innobase::check_if_supported_inplace_alter(
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
-	if (is_read_only()) {
-		ha_alter_info->unsupported_reason =
-			my_get_err_msg(ER_READ_ONLY_MODE);
-
-		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
-	}
-
 	if (altered_table->s->fields > REC_MAX_N_USER_FIELDS) {
 		/* Deny the inplace ALTER TABLE. MySQL will try to
 		re-create the table and ha_innobase::create() will
@@ -1993,6 +1986,13 @@ ha_innobase::check_if_supported_inplace_alter(
 	}
 
 	update_thd();
+
+	if (is_read_only()) {
+		ha_alter_info->unsupported_reason =
+			my_get_err_msg(ER_READ_ONLY_MODE);
+
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+	}
 
 	if (ha_alter_info->handler_flags
 	    & ~(INNOBASE_INPLACE_IGNORE
