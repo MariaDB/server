@@ -5149,7 +5149,7 @@ err:
 
 err_during_init:
   /* Forget the relay log's format */
-  mi->rli.relay_log.description_event_for_queue->~Log_event();
+  delete mi->rli.relay_log.description_event_for_queue;
   mi->rli.relay_log.description_event_for_queue= 0;
   // TODO: make rpl_status part of Master_info
   change_rpl_status(RPL_ACTIVE_SLAVE,RPL_IDLE_SLAVE);
@@ -6048,7 +6048,7 @@ static int process_io_rotate(Master_info *mi, Rotate_log_event *rev)
     DBUG_ASSERT(mi->rli.relay_log.description_event_for_queue->checksum_alg ==
                 mi->rli.relay_log.relay_log_checksum_alg);
     
-    mi->rli.relay_log.description_event_for_queue->~Log_event();
+    delete mi->rli.relay_log.description_event_for_queue;
     /* start from format 3 (MySQL 4.0) again */
     mi->rli.relay_log.description_event_for_queue= new
       Format_description_log_event(3);

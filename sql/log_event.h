@@ -1380,7 +1380,13 @@ public:
   }
 
   /* Placement version of the above operators */
-  static void *operator new(size_t, void* ptr) { return ptr; }
+  static void *operator new(size_t size, void* ptr)
+  {
+    if(ptr)
+      return ptr;
+    extern PSI_memory_key key_memory_log_event;
+    return my_malloc(key_memory_log_event, size, MYF(MY_WME|MY_FAE));
+  }
   static void operator delete(void*, void*) { }
 
 #ifdef MYSQL_SERVER
