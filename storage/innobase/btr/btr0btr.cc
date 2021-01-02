@@ -4094,12 +4094,13 @@ btr_discard_only_page_on_level(
 	mtr_t*		mtr)	/*!< in: mtr */
 {
 	ulint		page_level = 0;
-	trx_id_t	max_trx_id;
 
 	ut_ad(!index->is_dummy);
 
 	/* Save the PAGE_MAX_TRX_ID from the leaf page. */
-	max_trx_id = page_get_max_trx_id(buf_block_get_frame(block));
+	const trx_id_t max_trx_id = page_get_max_trx_id(block->frame);
+	const rec_t* r = page_rec_get_next(page_get_infimum_rec(block->frame));
+	ut_ad(rec_is_metadata(r, *index) == index->is_instant());
 
 	while (block->page.id.page_no() != dict_index_get_page(index)) {
 		btr_cur_t	cursor;
@@ -4154,9 +4155,6 @@ btr_discard_only_page_on_level(
 	const rec_t* rec = NULL;
 	rec_offs* offsets = NULL;
 	if (index->table->instant) {
-		const rec_t* r = page_rec_get_next(page_get_infimum_rec(
-							   block->frame));
-		ut_ad(rec_is_metadata(r, *index) == index->is_instant());
 		if (rec_is_alter_metadata(r, *index)) {
 			heap = mem_heap_create(srv_page_size);
 			offsets = rec_get_offsets(r, index, NULL, true,

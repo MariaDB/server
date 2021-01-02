@@ -327,7 +327,6 @@ FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
 22
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
 #
 # MDEV-21045 AddressSanitizer: use-after-poison in mem_heap_dup / row_log_table_get_pk_col
 #
@@ -370,3 +369,18 @@ b
 SET DEBUG_SYNC='RESET';
 disconnect con2;
 DROP TABLE t1;
+#
+# MDEV-24512 Assertion failed in rec_is_metadata()
+#            in btr_discard_only_page_on_level()
+#
+SET @save_limit= @@GLOBAL.innodb_limit_optimistic_insert_debug;
+SET GLOBAL innodb_limit_optimistic_insert_debug=2;
+CREATE TABLE t1 (c CHAR(1) UNIQUE) ENGINE=InnoDB;
+ALTER TABLE t1 ADD c2 INT NOT NULL DEFAULT 0 FIRST;
+INSERT INTO t1 (c) VALUES ('x'),('d'),('r'),('f'),('y'),('u'),('m'),('d');
+ERROR 23000: Duplicate entry 'd' for key 'c'
+SET GLOBAL innodb_limit_optimistic_insert_debug=@save_limit;
+SELECT * FROM t1;
+c2	c
+DROP TABLE t1;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;

@@ -361,8 +361,6 @@ SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
-
 --echo #
 --echo # MDEV-21045 AddressSanitizer: use-after-poison in mem_heap_dup / row_log_table_get_pk_col
 --echo #
@@ -414,3 +412,21 @@ SELECT * FROM t1;
 SET DEBUG_SYNC='RESET';
 --disconnect con2
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-24512 Assertion failed in rec_is_metadata()
+--echo #            in btr_discard_only_page_on_level()
+--echo #
+
+SET @save_limit= @@GLOBAL.innodb_limit_optimistic_insert_debug;
+SET GLOBAL innodb_limit_optimistic_insert_debug=2;
+CREATE TABLE t1 (c CHAR(1) UNIQUE) ENGINE=InnoDB;
+
+ALTER TABLE t1 ADD c2 INT NOT NULL DEFAULT 0 FIRST;
+--error ER_DUP_ENTRY
+INSERT INTO t1 (c) VALUES ('x'),('d'),('r'),('f'),('y'),('u'),('m'),('d');
+SET GLOBAL innodb_limit_optimistic_insert_debug=@save_limit;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
