@@ -1,0 +1,78 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+this test is for MDEV-24517
+
+drop and create databases
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+create table and insert
+connection child2_1;
+CHILD2_1_CREATE_TABLES
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+CREATE TABLE tbl_a (
+i INT,
+j JSON,
+PRIMARY KEY(i)
+) ENGINE=Spider PARTITION BY RANGE(i) (
+PARTITION pt1 VALUES LESS THAN (5) COMMENT='srv "s_2_1", table "ta_r2"',
+PARTITION pt2 VALUES LESS THAN (10) COMMENT='srv "s_2_1", table "ta_r3"',
+PARTITION pt3 VALUES LESS THAN MAXVALUE COMMENT='srv "s_2_1", table "ta_r4"'
+  )
+INSERT INTO tbl_a (i, j) VALUES
+(1, '{"ID": "3", "Name": "Barney", "Age": 18}'),
+(2, '{"ID": "4", "Name": "Betty", "Age": 19}'),
+(3, '{"ID": "2", "Name": "Wilma", "Age": 20}'),
+(4, '[10, 20, [30, 40]]');
+
+test 1
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+SELECT * FROM tbl_a WHERE JSON_EXTRACT(j, '$.Age')=19;
+i	j
+2	{"ID": "4", "Name": "Betty", "Age": 19}
+SELECT * FROM tbl_a WHERE JSON_EXTRACT(j, '$.Name')="Betty";
+i	j
+2	{"ID": "4", "Name": "Betty", "Age": 19}
+SELECT i, JSON_EXTRACT(j, "$.ID")
+FROM tbl_a
+WHERE JSON_EXTRACT(j, "$.ID") > 1 AND i < 4
+ORDER BY JSON_EXTRACT(j, "$.Name");
+i	JSON_EXTRACT(j, "$.ID")
+1	"3"
+2	"4"
+3	"2"
+SELECT * FROM tbl_a WHERE JSON_EXTRACT(j, '$[1]') = 20;
+i	j
+4	[10, 20, [30, 40]]
+SELECT * FROM tbl_a WHERE JSON_EXTRACT(j, '$[2][0]') = 30;
+i	j
+4	[10, 20, [30, 40]]
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+end of test
