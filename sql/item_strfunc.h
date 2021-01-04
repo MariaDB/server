@@ -2017,6 +2017,32 @@ public:
   { return get_item_copy<Item_func_uuid>(thd, this); }
 };
 
+class Item_func_sys_guid: public Item_str_func
+{
+public:
+  Item_func_sys_guid(THD *thd): Item_str_func(thd) {}
+  bool fix_length_and_dec() override
+  {
+    collation.set(DTCollation_numeric());
+    fix_char_length(MY_UUID_ORACLE_STRING_LENGTH);
+    return FALSE;
+  }
+  bool const_item() const override { return false; }
+  table_map used_tables() const override { return RAND_TABLE_BIT; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("sys_guid") };
+    return name;
+  }
+  String *val_str(String *) override;
+  bool check_vcol_func_processor(void *arg) override
+  {
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_NON_DETERMINISTIC);
+  }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_sys_guid>(thd, this); }
+};
+
 
 class Item_func_dyncol_create: public Item_str_func
 {

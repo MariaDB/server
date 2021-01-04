@@ -4359,6 +4359,20 @@ String *Item_func_uuid::val_str(String *str)
   return str;
 }
 
+String *Item_func_sys_guid::val_str(String *str)
+{
+  DBUG_ASSERT(fixed());
+  uchar guid[MY_UUID_SIZE];
+
+  str->alloc(MY_UUID_ORACLE_STRING_LENGTH+1);
+  str->length(MY_UUID_ORACLE_STRING_LENGTH);
+  str->set_charset(system_charset_info);
+  my_uuid(guid);
+  my_uuid2str_oracle(guid, (char *)str->ptr());
+
+  return str;
+}
+
 
 Item_func_dyncol_create::Item_func_dyncol_create(THD *thd, List<Item> &args,
                                                  DYNCALL_CREATE_DEF *dfs):

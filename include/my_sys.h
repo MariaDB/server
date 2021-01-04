@@ -1012,10 +1012,12 @@ int my_msync(int, void *, size_t, int);
 
 #define MY_UUID_SIZE 16
 #define MY_UUID_STRING_LENGTH (8+1+4+1+4+1+4+1+12)
+#define MY_UUID_ORACLE_STRING_LENGTH (8+4+4+4+12)
 
 void my_uuid_init(ulong seed1, ulong seed2);
 void my_uuid(uchar *guid);
 void my_uuid2str(const uchar *guid, char *s);
+void my_uuid2str_oracle(const uchar *guid, char *s);
 void my_uuid_end(void);
 
 const char *my_dlerror(const char *dlpath);
