@@ -44,24 +44,21 @@ public:
   /** Number of records to return */
   ha_rows limit;
   /** ORDER BY list with some precalculated info for filesort */
+  ha_rows *accepted_rows;                       /* For ROWNUM */
   SORT_FIELD *sortorder;
   /** select to use for getting records */
   SQL_SELECT *select;
+
   /** TRUE <=> free select on destruction */
   bool own_select;
-  /** true means we are using Priority Queue for order by with limit. */
+  /** TRUE means we are using Priority Queue for order by with limit. */
   bool using_pq;
-  
   /* 
     TRUE means sort operation must produce table rowids. 
     FALSE means that it halso has an option of producing {sort_key,
     addon_fields} pairs.
   */
   bool sort_positions;
-
-  Filesort_tracker *tracker;
-  Sort_keys *sort_keys;
-
   /*
     TRUE means all the fields of table of whose bitmap read_set is set
          need to be read while reading records in the sort buffer.
@@ -69,17 +66,24 @@ public:
   */
   bool set_all_read_bits;
 
+  Filesort_tracker *tracker;
+  Sort_keys *sort_keys;
+
+  /* Unpack temp table columns to base table columns*/
+  void (*unpack)(TABLE *);
+
   Filesort(ORDER *order_arg, ha_rows limit_arg, bool sort_positions_arg,
            SQL_SELECT *select_arg):
     order(order_arg),
     limit(limit_arg),
+    accepted_rows(0),
     sortorder(NULL),
     select(select_arg),
     own_select(false), 
     using_pq(false),
     sort_positions(sort_positions_arg),
+    set_all_read_bits(false),
     sort_keys(NULL),
-    set_all_read_bits(FALSE),
     unpack(NULL)
   {
     DBUG_ASSERT(order);
@@ -88,8 +92,6 @@ public:
   ~Filesort() { cleanup(); }
   /* Prepare ORDER BY list for sorting. */
   Sort_keys* make_sortorder(THD *thd, JOIN *join, table_map first_table_bit);
-  /* Unpack temp table columns to base table columns*/
-  void (*unpack)(TABLE *);
 
 private:
   void cleanup();

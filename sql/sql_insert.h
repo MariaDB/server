@@ -45,6 +45,7 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info,
 void kill_delayed_threads(void);
 bool binlog_create_table(THD *thd, TABLE *table, bool replace);
 bool binlog_drop_table(THD *thd, TABLE *table);
+void fix_rownum_pointers(THD *thd, SELECT_LEX *select_lex, ha_rows *ptr);
 
 #ifdef EMBEDDED_LIBRARY
 inline void kill_delayed_threads(void) {}

@@ -719,6 +719,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 %token  <kwd>  PACKAGE_MARIADB_SYM           // Oracle-R
 %token  <kwd>  RAISE_MARIADB_SYM             // PLSQL-R
 %token  <kwd>  ROWTYPE_MARIADB_SYM           // PLSQL-R
+%token  <kwd>  ROWNUM_SYM                    /* Oracle-R */
 
 /*
   Non-reserved keywords
@@ -10286,6 +10287,22 @@ function_call_nonkeyword:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+/* Start SQL_MODE_ORACLE_SPECIFIC
+         | ROWNUM_SYM optional_braces
+          {
+            $$= new (thd->mem_root) Item_func_rownum(thd);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+End SQL_MODE_ORACLE_SPECIFIC */
+/* Start SQL_MODE_DEFAULT_SPECIFIC */
+         | ROWNUM_SYM '(' ')'
+          {
+            $$= new (thd->mem_root) Item_func_rownum(thd);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+/* End SQL_MODE_DEFAULT_SPECIFIC */
         | SUBDATE_SYM '(' expr ',' expr ')'
           {
             $$= new (thd->mem_root) Item_date_add_interval(thd, $3, $5,
@@ -15813,6 +15830,9 @@ keyword_sp_var_and_label:
         | ROWTYPE_MARIADB_SYM
         | ROW_COUNT_SYM
         | ROW_FORMAT_SYM
+/* Start SQL_MODE_DEFAULT_SPECIFIC */
+        | ROWNUM_SYM
+/* End SQL_MODE_DEFAULT_SPECIFIC */
         | RTREE_SYM
         | SCHEDULE_SYM
         | SCHEMA_NAME_SYM

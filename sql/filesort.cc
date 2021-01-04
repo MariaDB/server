@@ -93,14 +93,16 @@ static uint32 read_keypart_length(const uchar *from, uint bytes)
 
 // @param sortlen  [Maximum] length of the sort key
 void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
-                                   ha_rows maxrows, bool sort_positions)
+                                   ha_rows maxrows, Filesort *filesort)
 {
   DBUG_ASSERT(addon_fields == NULL);
 
   sort_length= sortlen;
   ref_length= table->file->ref_length;
+  accepted_rows= filesort->accepted_rows;
+
   if (!(table->file->ha_table_flags() & HA_FAST_KEY_READ) &&
-      !table->fulltext_searched && !sort_positions)
+      !table->fulltext_searched && !filesort->sort_positions)
   {
     /* 
       Get the descriptors of all fields whose values are appended 
@@ -196,16 +198,15 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   size_t memory_available= (size_t)thd->variables.sortbuff_size;
   uint maxbuffer;
   Merge_chunk *buffpek;
-  ha_rows num_rows= HA_POS_ERROR;
+  ha_rows num_rows= HA_POS_ERROR, not_used=0;
   IO_CACHE tempfile, buffpek_pointers, *outfile; 
   Sort_param param;
   bool allow_packing_for_sortkeys;
   Bounded_queue<uchar, uchar> pq;
   SQL_SELECT *const select= filesort->select;
   ha_rows max_rows= filesort->limit;
-  uint s_length= 0;
+  uint s_length= 0, sort_len;
   Sort_keys *sort_keys;
-
   DBUG_ENTER("filesort");
 
   if (!(sort_keys= filesort->make_sortorder(thd, join, first_table_bit)))
@@ -247,9 +248,10 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   sort->found_rows= HA_POS_ERROR;
 
   param.sort_keys= sort_keys;
-  uint sort_len= sortlength(thd, sort_keys, &allow_packing_for_sortkeys);
-
-  param.init_for_filesort(sort_len, table, max_rows, filesort->sort_positions);
+  sort_len= sortlength(thd, sort_keys, &allow_packing_for_sortkeys);
+  param.init_for_filesort(sort_len, table, max_rows, filesort);
+  if (!param.accepted_rows)
+    param.accepted_rows= &not_used;
 
   param.set_all_read_bits= filesort->set_all_read_bits;
   param.unpack= filesort->unpack;
@@ -970,6 +972,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
         idx++;
       }
       num_records++;
+      (*param->accepted_rows)++;
     }
 
     /* It does not make sense to read more keys in case of a fatal error */

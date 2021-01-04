@@ -75,9 +75,9 @@ public:
                   SUSERVAR_FUNC, GUSERVAR_FUNC, COLLATE_FUNC,
                   EXTRACT_FUNC, CHAR_TYPECAST_FUNC, FUNC_SP, UDF_FUNC,
                   NEG_FUNC, GSYSVAR_FUNC, IN_OPTIMIZER_FUNC, DYNCOL_FUNC,
-                  JSON_EXTRACT_FUNC, JSON_VALID_FUNC,
+                  JSON_EXTRACT_FUNC, JSON_VALID_FUNC, ROWNUM_FUNC,
                   CASE_SEARCHED_FUNC, // Used by ColumnStore/Spider
-                  CASE_SIMPLE_FUNC    // Used by ColumnStore/spider
+                  CASE_SIMPLE_FUNC,   // Used by ColumnStore/spider,
                 };
   static scalar_comparison_op functype_to_scalar_comparison_op(Functype type)
   {
@@ -326,7 +326,7 @@ public:
 
   bool excl_dep_on_table(table_map tab_map) override
   {
-    if (used_tables() & OUTER_REF_TABLE_BIT)
+    if (used_tables() & (OUTER_REF_TABLE_BIT | RAND_TABLE_BIT))
       return false; 
     return !(used_tables() & ~tab_map) || 
            Item_args::excl_dep_on_table(tab_map);
@@ -2122,6 +2122,63 @@ public:
   }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_rand>(thd, this); }
+};
+
+
+class Item_func_rownum :public Item_longlong_func
+{
+  /*
+    This points to a variable that contains the number of rows
+    accpted so far in the result set
+  */
+  ha_rows *accepted_rows;
+  SELECT_LEX *select;
+public: 
+  Item_func_rownum(THD *thd);
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("rownum") };
+    return name;
+  }
+  enum Functype functype() const override { return ROWNUM_FUNC; }
+  void update_used_tables() override {}
+  bool const_item() const override { return 0; }
+  void fix_after_optimize(THD *thd) override;
+  bool fix_fields(THD* thd, Item **ref) override;
+  bool fix_length_and_dec() override
+  {
+    unsigned_flag= 1;
+    used_tables_cache= RAND_TABLE_BIT;
+    const_item_cache=0;
+    set_maybe_null();
+    return FALSE;
+  }
+  void cleanup() override
+  {
+    Item_longlong_func::cleanup();
+    /* Ensure we don't point to freed memory */
+    accepted_rows= 0;
+  }
+  bool check_vcol_func_processor(void *arg) override
+  {
+    return mark_unsupported_function(func_name(), "()", arg,
+                                     VCOL_IMPOSSIBLE);
+  }
+  bool check_handler_func_processor(void *arg) override
+  {
+    return mark_unsupported_function(func_name(), "()", arg,
+                                     VCOL_IMPOSSIBLE);
+  }
+  Item *get_copy(THD *thd) override
+  {
+    return this;
+  }
+  /* This function is used in insert, update and delete */
+  void store_pointer_to_row_counter(ha_rows *row_counter)
+  {
+    accepted_rows= row_counter;
+  }
 };
 
 

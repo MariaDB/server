@@ -5350,7 +5350,7 @@ Item *Item_cond::build_clone(THD *thd)
 
 bool Item_cond::excl_dep_on_table(table_map tab_map)
 {
-  if (used_tables() & OUTER_REF_TABLE_BIT)
+  if (used_tables() & (OUTER_REF_TABLE_BIT | RAND_TABLE_BIT))
     return false;
   if (!(used_tables() & ~tab_map))
     return true;

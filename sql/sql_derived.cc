@@ -656,14 +656,22 @@ static
 bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   SELECT_LEX_UNIT *unit= derived->get_unit();
-  bool res= FALSE;
+  SELECT_LEX *first_select;
+  bool res= FALSE, keep_row_order;
   DBUG_ENTER("mysql_derived_prepare");
   DBUG_PRINT("enter", ("unit: %p  table_list: %p  alias: '%s'",
                        unit, derived, derived->alias.str));
   if (!unit)
     DBUG_RETURN(FALSE);
 
-  SELECT_LEX *first_select= unit->first_select();
+  first_select= unit->first_select();
+  /*
+    If rownum() is used we have to preserve the insert row order
+    to make group by with filesort to work.
+   */
+  keep_row_order= (thd->lex->with_rownum &&
+                   (first_select->group_list.elements ||
+                    first_select->order_list.elements));
 
   if (derived->is_recursive_with_table() &&
       !derived->is_with_table_recursive_reference() &&
@@ -700,7 +708,8 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                                   (first_select->options |
                                    thd->variables.option_bits |
                                    TMP_TABLE_ALL_COLUMNS),
-                                  &derived->alias, FALSE, FALSE, FALSE, 0);
+                                  &derived->alias, FALSE, FALSE,
+                                  keep_row_order, 0);
     thd->create_tmp_table_for_derived= FALSE;
 
     if (likely(!res) && !derived->table)
@@ -848,7 +857,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                                                    thd->variables.option_bits |
                                                    TMP_TABLE_ALL_COLUMNS),
                                                    &derived->alias,
-                                                   FALSE, FALSE, FALSE,
+                                                   FALSE, FALSE, keep_row_order,
                                                    0))
   { 
     thd->create_tmp_table_for_derived= FALSE;

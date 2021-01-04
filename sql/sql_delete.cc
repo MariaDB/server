@@ -42,6 +42,7 @@
 #include "uniques.h"
 #include "sql_derived.h"                        // mysql_handle_derived
                                                 // end_read_record
+#include "sql_insert.h"          // fix_rownum_pointers
 #include "sql_partition.h"       // make_used_partitions_str
 
 #define MEM_STRIP_BUF_SIZE ((size_t) thd->variables.sortbuff_size)
@@ -779,6 +780,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   DBUG_ASSERT(table->file->inited != handler::NONE);
 
   THD_STAGE_INFO(thd, stage_updating);
+  fix_rownum_pointers(thd, thd->lex->current_select, &deleted);
+
   while (likely(!(error=info.read_record())) && likely(!thd->killed) &&
          likely(!thd->is_error()))
   {

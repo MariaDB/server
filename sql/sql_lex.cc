@@ -1282,6 +1282,7 @@ void LEX::start(THD *thd_arg)
   use_only_table_context= 0;
   escape_used= 0;
   default_used= 0;
+  with_rownum= FALSE;
   is_lex_started= 1;
 
   create_info.lex_start();
@@ -2949,6 +2950,7 @@ void st_select_lex::init_query()
   leaf_tables_prep.empty();
   leaf_tables.empty();
   item_list.empty();
+  fix_after_optimize.empty();
   min_max_opt_list.empty();
   join= 0;
   having= prep_having= where= prep_where= 0;
@@ -2960,7 +2962,7 @@ void st_select_lex::init_query()
   is_item_list_lookup= 0;
   have_merged_subqueries= 0;
   is_set_query_expr_tail= 0;
-  with_sum_func= 0;
+  with_sum_func= with_rownum= 0;
   braces= 0;
   automatic_brackets= 0;
   having_fix_field= 0;
@@ -3940,8 +3942,10 @@ void Query_tables_list::destroy_query_tables_list()
 */
 
 LEX::LEX()
-  : explain(NULL), result(0), part_info(NULL), arena_for_set_stmt(0), mem_root_for_set_stmt(0),
-    default_used(0), is_lex_started(0),  option_type(OPT_DEFAULT), context_analysis_only(0),
+  : explain(NULL), result(0), part_info(NULL), arena_for_set_stmt(0),
+    mem_root_for_set_stmt(0),
+    default_used(0), with_rownum(0), is_lex_started(0), option_type(OPT_DEFAULT),
+    context_analysis_only(0),
     sphead(0), limit_rows_examined_cnt(ULONGLONG_MAX)
 {
 
@@ -4218,6 +4222,13 @@ void st_select_lex_unit::set_limit(st_select_lex *sl)
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
   lim.set_limit(sl->get_limit(), sl->get_offset());
+}
+
+void st_select_lex_unit::set_limit_if_lower(ha_rows limit)
+{
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
+
+  lim.set_limit_if_lower(limit);
 }
 
 

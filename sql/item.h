@@ -1115,7 +1115,7 @@ public:
     return fix_fields_if_needed_for_scalar(thd, ref);
   }
   /*
-    By default we assume that an Item is fixed by the contstructor.
+    By default we assume that an Item is fixed by the constructor
   */
   virtual bool fix_fields(THD *, Item **)
   {
@@ -1142,6 +1142,12 @@ public:
                                  bool merge)
     {};
 
+  /*
+    This is for items that require a fixup after the JOIN::prepare()
+    is done.
+  */
+  virtual void fix_after_optimize(THD *thd)
+  {}
   /*
     This method should be used in case where we are sure that we do not need
     complete fix_fields() procedure.
@@ -2230,6 +2236,7 @@ public:
   {
     return mark_unsupported_function(full_name(), arg, VCOL_IMPOSSIBLE);
   }
+  virtual bool check_handler_func_processor(void *arg) { return 0; }
   virtual bool check_field_expression_processor(void *arg) { return 0; }
   virtual bool check_func_default_processor(void *arg) { return 0; }
   /*
