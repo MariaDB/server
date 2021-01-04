@@ -8302,6 +8302,11 @@ choose_plan(JOIN *join, table_map join_tables)
             jtab_sort_func, (void*)join->emb_sjm_nest);
 
   Json_writer_object wrapper(thd);
+
+  if (join->conds)
+    wrapper.add("cardinality_accurate",
+                join->conds->with_accurate_selectivity_estimation());
+
   Json_writer_array trace_plan(thd,"considered_execution_plans");
 
   if (!join->emb_sjm_nest)
@@ -29453,6 +29458,37 @@ void unpack_to_base_table_fields(TABLE *table)
   for (Copy_field *cp= tab->read_record.copy_field;
        cp != tab->read_record.copy_field_end; cp++)
     (*cp->do_copy)(cp);
+}
+
+
+
+/*
+  @brief
+    Checks if a predicate is a range predicate with a constant part
+
+  @param
+
+    @item          the item referring to the field of the table
+    @value         the item referring to the expression on the
+                   rhs of a predicate
+
+  @details
+    Range predicate is defined as the form of field op const
+    where op can be operators like </<=/=/>/>=/BETWEEN etc.
+    Also the statistics for the field should be available via
+    an index or statistical tables.
+
+  @retval
+    TRUE  : Success
+    FALSE : Otherwise
+*/
+
+bool is_range_predicate(Item *item, Item *value)
+{
+  if (item->is_non_const_field_item() &&
+     (value->const_item() && !value->is_expensive()))
+    return true;
+  return false;
 }
 
 

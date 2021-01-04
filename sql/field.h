@@ -832,6 +832,13 @@ public:
   uint32	flags;
   uint16        field_index;            // field number in fields array
   uchar		null_bit;		// Bit used to test null bit
+
+  /*
+    Caches the value of whether statistics are available for a field
+    This is reset for each query in THD::init()
+  */
+  uint8 stats_available;
+
   /**
      If true, this field was created in create_tmp_field_from_item from a NULL
      value. This means that the type of the field is just a guess, and the type
@@ -868,6 +875,13 @@ public:
     is collected by the function collect_statistics_for_table
   */
   Column_statistics_collected *collected_stats;
+
+  enum stats_availability
+  {
+    STATISTICS_CACHED=0,
+    STATISTICS_FOR_RANGE_PREDICATES_AVAILABLE,
+    STATISTICS_FOR_NDV_AVAILABLE
+  };
 
   /* 
     This is additional data provided for any computed(virtual) field,
@@ -1906,6 +1920,14 @@ public:
 
   /* Mark field in read map. Updates also virtual fields */
   void register_field_in_read_map();
+
+  void statistics_available_via_keys();
+  void statistics_available_via_stat_tables();
+  bool is_range_statistics_available();
+  bool is_ndv_available();
+  bool is_ndv_available_via_stat_tables();
+  bool is_ndv_available_via_keys();
+  bool is_eits_usable();
 
   virtual Compression_method *compression_method() const { return 0; }
 

@@ -2524,5 +2524,6 @@ void propagate_new_equalities(THD *thd, Item *cond,
                               List<Item_equal> *new_equalities,
                               COND_EQUAL *inherited,
                               bool *is_simplifiable_cond);
+bool is_range_predicate(Item *item, Item *value);
 
 #endif /* SQL_SELECT_INCLUDED */

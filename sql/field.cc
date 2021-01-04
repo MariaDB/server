@@ -36,6 +36,8 @@
 #include "tztime.h"                      // struct Time_zone
 #include "filesort.h"                    // change_double_for_sort
 #include "log_event.h"                   // class Table_map_log_event
+#include "sql_statistics.h"
+#include "sql_partition.h"
 #include <m_ctype.h>
 
 // Maximum allowed exponent value for converting string to decimal
@@ -1851,6 +1853,7 @@ Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
   field_index= 0;
   cond_selectivity= 1.0;
   next_equal_field= NULL;
+  stats_available= 0;
 }
 
 
@@ -11355,6 +11358,191 @@ Field::print_key_part_value(String *out, const uchar* key, uint32 length)
 void Field::print_key_value_binary(String *out, const uchar* key, uint32 length)
 {
   out->append_semi_hex((const char*)key, length, charset());
+}
+
+
+/*
+  @brief
+    Check if statistics for a column are available via keys
+
+  @details
+    If the column is the first component of a key, then statistics
+    for the column are available from the range optimizer.
+    Sets the bit in Field::stats_table
+      a)  Number of distinct values(NDV) is available
+      b) Statistics are available for the non-const argument of a
+         range predicate
+*/
+
+void Field::statistics_available_via_keys()
+{
+  uint key;
+  key_map::Iterator it(key_start);
+  while ((key= it++) != key_map::Iterator::BITMAP_END)
+  {
+    KEY *keyinfo= table->key_info + key;
+    DBUG_ASSERT(field_index + 1 == keyinfo->key_part->fieldnr);
+    stats_available|= (1 << STATISTICS_FOR_RANGE_PREDICATES_AVAILABLE);
+    if (keyinfo->actual_rec_per_key(0))
+    {
+      stats_available|= (1 << STATISTICS_FOR_NDV_AVAILABLE);
+      return;
+    }
+  }
+}
+
+
+/*
+  @brief
+    Check if statistics for a column are available via stat tables
+*/
+
+void Field::statistics_available_via_stat_tables()
+{
+  THD *thd= get_thd();
+  if (thd->variables.optimizer_use_condition_selectivity > 2 &&
+      check_eits_preferred(thd))
+  {
+    if (read_stats && !read_stats->no_stat_values_provided())
+    {
+      // Only need min and max values for a column to get range statistics
+      if (read_stats->min_max_values_are_provided())
+        stats_available|= (1 << STATISTICS_FOR_RANGE_PREDICATES_AVAILABLE);
+      if (!read_stats->is_null(COLUMN_STAT_AVG_FREQUENCY))
+        stats_available|= (1 << STATISTICS_FOR_NDV_AVAILABLE);
+    }
+  }
+}
+
+
+/*
+  @brief
+    Check if statistics for a column are available via indexes or stat tables
+
+  @details
+    This function checks if there are statistics for a column via indexes
+    or stat tables. Also if the member Field::stats_available
+    has not been updated then update it
+
+  @retval
+    TRUE   : statistics available for the column
+    FALSE  : OTHERWISE
+*/
+
+bool Field::is_range_statistics_available()
+{
+  if (!stats_available)
+  {
+    statistics_available_via_keys();
+    statistics_available_via_stat_tables();
+    stats_available|= (1 << STATISTICS_CACHED);
+  }
+
+  return (stats_available & (1 << STATISTICS_FOR_RANGE_PREDICATES_AVAILABLE));
+}
+
+/*
+  @brief
+    Check if number of distinct values (NDV) for a column are available
+    via indexes or stat tables
+
+  @retval
+    TRUE   : ndv available for the column
+    FALSE  : OTHERWISE
+*/
+
+bool Field::is_ndv_available()
+{
+  if (!stats_available)
+  {
+    stats_available|= (1 << STATISTICS_CACHED);
+    return is_ndv_available_via_keys() ||
+           is_ndv_available_via_stat_tables();
+  }
+  return (stats_available & (1 << STATISTICS_FOR_NDV_AVAILABLE));
+}
+
+
+/*
+  @brief
+    Check if number of distinct values(ndv) for a column are available via keys
+
+  @retval
+    TRUE     : ndv available from keys
+    FALSE    : otherwise
+*/
+
+bool Field::is_ndv_available_via_keys()
+{
+  uint key;
+  key_map::Iterator it(key_start);
+  while ((key= it++) != key_map::Iterator::BITMAP_END)
+  {
+    KEY *keyinfo= table->key_info + key;
+    if (keyinfo->actual_rec_per_key(0))
+    {
+      stats_available|= (1 << STATISTICS_FOR_NDV_AVAILABLE);
+      return true;
+    }
+  }
+  return false;
+}
+
+
+/*
+  @brief
+    Check if ndv for a column are available via statistical tables
+
+  @retval
+    TRUE     : ndv available from statistical tables
+    FALSE    : otherwise
+*/
+
+bool Field::is_ndv_available_via_stat_tables()
+{
+  if (check_eits_preferred(get_thd()))
+  {
+    if ((read_stats && !read_stats->no_stat_values_provided() &&
+         !read_stats->is_null(COLUMN_STAT_AVG_FREQUENCY)))
+    {
+      stats_available|= (1 << STATISTICS_FOR_NDV_AVAILABLE);
+      return true;
+    }
+  }
+  return false;
+}
+
+
+/*
+  Check whether EITS statistics for a field are usable or not
+
+  TRUE : Use EITS for the columns
+  FALSE: Otherwise
+*/
+
+bool Field::is_eits_usable()
+{
+  // check if column_statistics was allocated for this field
+  if (!read_stats)
+    return false;
+
+  DBUG_ASSERT(table->stats_is_read);
+
+  /*
+    (1): checks if we have EITS statistics for a particular column
+    (2): Don't use EITS for GEOMETRY columns
+    (3): Disabling reading EITS statistics for columns involved in the
+         partition list of a table. We assume the selectivity for
+         such columns would be handled during partition pruning.
+  */
+
+  return !read_stats->no_stat_values_provided() &&        //(1)
+          type() != MYSQL_TYPE_GEOMETRY &&              //(2)
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    (!table->part_info ||
+     !table->part_info->field_in_partition_expr(this)) &&     //(3)
+#endif
+    true;
 }
 
 

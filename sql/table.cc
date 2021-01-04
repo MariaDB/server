@@ -5435,6 +5435,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   {
     (*f_ptr)->next_equal_field= NULL;
     (*f_ptr)->cond_selectivity= 1.0;
+    (*f_ptr)->stats_available= 0;
   }
 
   notnull_cond= 0;

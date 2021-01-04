@@ -446,6 +446,26 @@ typedef struct replace_equal_field_arg
   struct st_join_table *context_tab;
 } REPLACE_EQUAL_FIELD_ARG;
 
+
+/*
+  Structure storing information for a field on which the entire predicate is
+  dependent on (directly or indirectly via equalities)
+*/
+typedef struct same_field
+{
+  /*
+    field item for the first encountered column while traversing
+    over the conditional predicate
+  */
+  Item *item;
+  /*
+    Set to true if the statistics for the field are available
+    directly (via keys or stat tables) or indirectly (via equalities)
+  */
+  bool is_stats_available;
+}SAME_FIELD;
+
+
 class Settable_routine_parameter
 {
 public:
@@ -1975,7 +1995,24 @@ public:
   virtual bool count_sargable_conds(void *arg) { return 0; }
   virtual bool limit_index_condition_pushdown_processor(void *arg) { return 0; }
   virtual bool exists2in_processor(void *arg) { return 0; }
+
   virtual bool find_selective_predicates_list_processor(void *arg) { return 0; }
+
+  bool with_accurate_selectivity_estimation();
+
+  /*
+    @brief
+      Check if selectivity of a predicate is available via indexes or EITS
+
+    @param
+      arg      Structure storing information whether the AND/OR conjunct
+               can be resolved via a single column.
+
+    @retval
+      FALSE  :  SUCCESS
+      TRUE   :  OTHERWISE
+  */
+  virtual bool predicate_selectivity_checker(void *arg) { return FALSE; }
   bool cleanup_is_expensive_cache_processor(void *arg)
   {
     is_expensive_cache= (int8)(-1);
@@ -2476,6 +2513,7 @@ public:
     Checks if this item consists in the left part of arg IN subquery predicate
   */
   bool pushable_equality_checker_for_subquery(uchar *arg);
+  bool is_non_const_field_item();
 };
 
 MEM_ROOT *get_thd_memroot(THD *thd);
@@ -3583,6 +3621,7 @@ public:
     return field->table->pos_in_table_list->outer_join;
   }
   bool check_index_dependence(void *arg);
+  bool predicate_selectivity_checker(void *arg);
   friend class Item_default_value;
   friend class Item_insert_value;
   friend class st_select_lex_unit;
@@ -5953,6 +5992,7 @@ public:
   Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg)
   { return this; }
   Item *remove_item_direct_ref() { return this; }
+  bool predicate_selectivity_checker(void *arg);
 };
 
 

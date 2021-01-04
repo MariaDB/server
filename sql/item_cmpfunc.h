@@ -227,6 +227,7 @@ public:
   bool fix_length_and_dec() { decimals=0; max_length=1; return FALSE; }
   uint decimal_precision() const { return 1; }
   bool need_parentheses_in_default() { return true; }
+  bool predicate_selectivity_checker(void *arg) { return TRUE; }
 };
 
 
@@ -418,6 +419,7 @@ public:
   COND *remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                         bool top_level);
   bool count_sargable_conds(void *arg);
+  bool predicate_selectivity_checker(void *arg);
   /*
     Specifies which result type the function uses to compare its arguments.
     This method is used in equal field propagation.
@@ -936,6 +938,7 @@ public:
   bool find_not_null_fields(table_map allowed);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   bool count_sargable_conds(void *arg);
+  bool predicate_selectivity_checker(void *arg);
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                       uint *and_level, table_map usable_tables,
                       SARGABLE_PARAM **sargables);
@@ -2473,6 +2476,7 @@ public:
   bool find_not_null_fields(table_map allowed);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref, bool merge);
   bool count_sargable_conds(void *arg);
+  bool predicate_selectivity_checker(void *arg);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_in>(thd, this); }
   Item *build_clone(THD *thd)
@@ -2570,6 +2574,7 @@ public:
     return FALSE;
   }
   bool count_sargable_conds(void *arg);
+  bool predicate_selectivity_checker(void *arg);
 };
 
 
@@ -2820,6 +2825,7 @@ public:
   
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_like>(thd, this); }
+  bool predicate_selectivity_checker(void *arg);
 };
 
 
@@ -3227,6 +3233,8 @@ public:
   uint elements_count() { return equal_items.elements; }
   friend class Item_equal_fields_iterator;
   bool count_sargable_conds(void *arg);
+  bool predicate_selectivity_checker(void *arg);
+  bool is_statistics_available();
   Item *multiple_equality_transformer(THD *thd, uchar *arg);
   friend class Item_equal_iterator<List_iterator_fast,Item>;
   friend class Item_equal_iterator<List_iterator,Item>;
@@ -3378,6 +3386,7 @@ public:
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_cond_and>(thd, this); }
+  bool predicate_selectivity_checker(void *arg) { return FALSE; }
 };
 
 inline bool is_cond_and(Item *item)
@@ -3402,6 +3411,7 @@ public:
   Item *neg_transformer(THD *thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_cond_or>(thd, this); }
+  bool predicate_selectivity_checker(void *arg) { return FALSE; }
 };
 
 class Item_func_dyncol_check :public Item_bool_func

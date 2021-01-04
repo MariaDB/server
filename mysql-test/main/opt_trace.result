@@ -124,6 +124,7 @@ select * from v1	{
             ]
           },
           {
+            "cardinality_accurate": true,
             "considered_execution_plans": [
               {
                 "plan_prefix": [],
@@ -270,6 +271,7 @@ select * from (select * from t1 where t1.a=1)q	{
             ]
           },
           {
+            "cardinality_accurate": true,
             "considered_execution_plans": [
               {
                 "plan_prefix": [],
@@ -421,6 +423,7 @@ select * from v2	{
                   ]
                 },
                 {
+                  "cardinality_accurate": true,
                   "considered_execution_plans": [
                     {
                       "plan_prefix": [],
@@ -985,6 +988,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
             ]
           },
           {
+            "cardinality_accurate": false,
             "considered_execution_plans": [
               {
                 "plan_prefix": [],
@@ -1434,6 +1438,7 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
             ]
           },
           {
+            "cardinality_accurate": true,
             "considered_execution_plans": [
               {
                 "plan_prefix": [],
@@ -1628,6 +1633,7 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
             ]
           },
           {
+            "cardinality_accurate": false,
             "considered_execution_plans": [
               {
                 "plan_prefix": [],
@@ -1811,6 +1817,7 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
             ]
           },
           {
+            "cardinality_accurate": false,
             "considered_execution_plans": [
               {
                 "plan_prefix": [],
@@ -2076,6 +2083,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
             ]
           },
           {
+            "cardinality_accurate": true,
             "considered_execution_plans": [
               {
                 "plan_prefix": [],
@@ -2848,6 +2856,7 @@ explain extended select * from t1 where a in (select pk from t10)	{
             "execution_plan_for_potential_materialization": {
               "steps": [
                 {
+                  "cardinality_accurate": true,
                   "considered_execution_plans": [
                     {
                       "plan_prefix": [],
@@ -2878,6 +2887,7 @@ explain extended select * from t1 where a in (select pk from t10)	{
             }
           },
           {
+            "cardinality_accurate": true,
             "considered_execution_plans": [
               {
                 "plan_prefix": [],
@@ -3296,6 +3306,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
             ]
           },
           {
+            "cardinality_accurate": true,
             "considered_execution_plans": [
               {
                 "plan_prefix": [],
@@ -3924,6 +3935,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
             ]
           },
           {
+            "cardinality_accurate": false,
             "considered_execution_plans": [
               {
                 "plan_prefix": [],
@@ -4422,6 +4434,7 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
             "execution_plan_for_potential_materialization": {
               "steps": [
                 {
+                  "cardinality_accurate": false,
                   "considered_execution_plans": [
                     {
                       "plan_prefix": [],
@@ -4499,6 +4512,7 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
             }
           },
           {
+            "cardinality_accurate": false,
             "considered_execution_plans": [
               {
                 "plan_prefix": [],
@@ -4948,6 +4962,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             }
           },
           {
+            "cardinality_accurate": false,
             "considered_execution_plans": [
               {
                 "plan_prefix": [],
@@ -6521,6 +6536,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             "execution_plan_for_potential_materialization": {
               "steps": [
                 {
+                  "cardinality_accurate": false,
                   "considered_execution_plans": [
                     {
                       "plan_prefix": [],
@@ -6595,6 +6611,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                   ]
                 },
                 {
+                  "cardinality_accurate": false,
                   "considered_execution_plans": [
                     {
                       "plan_prefix": [],
@@ -6672,6 +6689,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             }
           },
           {
+            "cardinality_accurate": false,
             "considered_execution_plans": [
               {
                 "plan_prefix": [],

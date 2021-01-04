@@ -7487,6 +7487,120 @@ Item *Item::build_pushable_cond(THD *thd,
 }
 
 
+/*
+  @brief
+    Check if selectivity estimates are accurate for a conditional formula
+
+  @details
+    This function checks whether this item belongs to a certain class of
+    condition for which we can calculate an accurate selectivity estimate.
+
+    The definition of the class of condition is recursive.
+    1. (base of recursive definition)
+         a. Formula in the form of range predicates:
+
+            The predicate would be of type:
+               col op const
+              where op can be  >/>=/</<=/=/<>
+              Also the other cases are with [NOT] IN predicate,
+              [NOT] NULL predicate and  LIKE predicate fall
+              in the same category.
+            The predicate should have only one non-constant argument and
+            this argument will be a reference to a column that is used either
+            as the first component of an index or statistics are available via
+            statistical tables.
+
+         b. Equalities:
+              For an equality to have accurate selectivity estimates,
+              the number of distinct values for each column in the equality
+              needs to be known.
+              Eg: t1.a= t2.a  is transformed to MULTIPLE_EQUAL(t1.a, t2.a)
+              For this case we need to make sure we know number of distinct
+              values for t1.a and t2.a
+
+              The number of distinct values for a column can be known by
+                1) from indexes via rec_per_key
+                2) from statistical tables via avg_frequency.
+
+      2. (recursive step)
+        AND / OR formula over formulas defined in section 1 of the
+        definition.
+
+        a) AND Formula
+         For AND formula the check for accurate selectivity estimates depends
+         whether or not the AND formula is at the top level.
+
+          i) Top level
+            For an AND formula at the top level, we need to check if
+            accurate estimates are available for all the predicates
+            inside an AND formula.
+            If this is true then accurate selectivity estimates are available
+            for the AND formula.
+
+              Eg: t1.a > 10 and t2.a < 5
+
+              if we have accurate selectivity estimates
+              for t1.a > 10 and t2.a < 5 via indexes or statistical tables,
+              then selectivity estimates for this AND formula are accurate
+
+          ii) Non-top level
+            For all the predicates inside an AND formula
+            accurate selectivity estimates are needed
+            and each predicate need to be resolved by one
+            column (table column). If this scenario is satisfied then
+            accurate selectivity estimates is available for the AND formula.
+              Eg: t1.a = t2.a AND ( (t1.a > 5 AND t2.a < 10) OR t1.a <= 0)
+
+      b) OR Formula
+
+          For an OR predicate, we need to make sure that the
+          whole OR predicate can be resolved by one column
+          directly or indirectly (that is via multiple equalities).
+          If this is possible then for the resolved column we need to have
+          statistics either from the first component of an index or
+          via statistical tables.
+
+          Eg: t1.a=t2.b and (t2.b > 5 or t1.a < 0);
+
+          In the end for all fields we may have selectivity from an index or
+          statistical tables.
+
+  @notes
+    The implementation for this function use the 'walk' method to traverse
+    the tree of this item with predicate_selectivity_checker() as the
+    call-back parameter of the method.
+    propagate_equal_fields() is called before this function is called so
+    Item_field::item_equal and Item_direct_view_ref::item_equal is set.
+
+  @retval
+    TRUE         selectivity estimates are accurate
+    FALSE        OTHERWISE
+*/
+
+bool Item::with_accurate_selectivity_estimation()
+{
+  /*
+    For the below test one could use a virtual function but that would
+    take a lot of space for other item as there will be entires in the vtable
+  */
+  if (type() == Item::COND_ITEM &&
+      ((Item_cond*) this)->functype() == Item_func::COND_AND_FUNC)
+  {
+    List_iterator<Item> li(*((Item_cond*) this)->argument_list());
+    Item *item;
+    while ((item= li++))
+    {
+      SAME_FIELD arg= {NULL, false};
+      if (item->walk(&Item::predicate_selectivity_checker, 0, &arg))
+        return false;
+    }
+    return true;
+  }
+  SAME_FIELD arg= {NULL, false};
+  return !walk(&Item::predicate_selectivity_checker, 0, &arg);
+}
+
+
 static
 Item *get_field_item_for_having(THD *thd, Item *item, st_select_lex *sel)
 {
@@ -9213,6 +9327,81 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
 }
 
 
+/*
+  @brief
+    Checks if a formula of a condition contains the same column
+
+  @details
+    In the function we try to check if a formula of a condition depends
+    (directly or indirectly through equalities inferred from the
+    conjuncted multiple equalities) only on one column.
+
+    Eg:
+      WHERE clause is:
+         t1.a=t2.b and (t1.a > 5 or t2.b < 1);
+
+      the predicate (t1.a > 5 or t2.b < 1) can be resolved with the help of
+      equalities to conclude that it depends on one column.
+
+    This is used mostly for OR conjuncts where we need to make sure
+    that the entire OR conjunct contains only one column, so that we may
+    get accurate estimates.
+    An example with top level OR conjunct would be:
+      WHERE A=1 or A between 100 and 200 or A > 1000
+
+  @retval
+    TRUE   : the formula does not depend on one column
+    FALSE  : OTHERWISE
+*/
+
+bool Item_field::predicate_selectivity_checker(void *arg)
+{
+  SAME_FIELD *same_field_arg= (SAME_FIELD*)arg;
+
+  /*
+    The same_field_arg is passed as a parameter because when we start walking
+    over the condition tree we don't know which column the predicate will be
+    dependent on. So as soon as we encounter a leaf of the condition tree
+    which is a field item, we set the SAME_FIELD::item to the found
+    field item and then compare the rest of the fields in the predicate with
+    the field item.
+  */
+
+  if (same_field_arg->item == NULL)
+  {
+    same_field_arg->item= this;
+    same_field_arg->is_stats_available=
+                     field->is_range_statistics_available() ||
+                     (item_equal && item_equal->is_statistics_available());
+    return false;
+  }
+
+  DBUG_ASSERT(same_field_arg->item->real_item()->type() == Item::FIELD_ITEM);
+  /* Found the same field while traversing the condition tree */
+  if (((Item_field*)same_field_arg->item->real_item())->field == field)
+    return false;
+
+  if (!same_field_arg->item->get_item_equal())
+    return true;
+
+  return !(same_field_arg->item->get_item_equal() == item_equal);
+}
+
+
+bool Item_direct_view_ref::predicate_selectivity_checker(void *arg)
+{
+  SAME_FIELD *same_field_arg= (SAME_FIELD*)arg;
+  if (same_field_arg->item == real_item())
+  {
+    DBUG_ASSERT(real_item()->type() == Item::FIELD_ITEM);
+    same_field_arg->item= this;
+    same_field_arg->is_stats_available|=
+                     (item_equal && item_equal->is_statistics_available());
+  }
+  return false;
+}
+
+
 bool Item_direct_view_ref::excl_dep_on_table(table_map tab_map)
 {
   table_map used= used_tables();
@@ -10614,4 +10803,17 @@ bool Item::cleanup_excluding_immutables_processor (void *arg)
     clear_extraction_flag();
     return false;
   }
+}
+
+
+bool Item::is_non_const_field_item()
+{
+  /*
+    calling real_item() here so that if the item is a REF_ITEM
+    then we would get the item field it is referring to
+  */
+  Item *field_item= real_item();
+  if (field_item->type() == Item::FIELD_ITEM && !field_item->const_item())
+    return true;
+  return false;
 }

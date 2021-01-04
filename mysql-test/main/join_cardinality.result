@@ -1,0 +1,1079 @@
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_trace=1;
+SET optimizer_switch='rowid_filter=off';
+CREATE TABLE t1(a INT, b INT, c INT, KEY(b), KEY(a));
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_100;
+CREATE TABLE t2(a INT, b INT, key(b));
+INSERT INTO t2 SELECT seq, seq from seq_1_to_100;
+#
+# RUNNING the join cardinality tests when statistics are
+# available only from indexes
+#
+#
+# BASIC CASES
+#
+EXPLAIN SELECT * FROM t1 WHERE t1.b <> 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	b	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * FROM t1 WHERE t1.b > 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	b	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * FROM t1 WHERE t1.b < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	b	b	5	NULL	5	Using index condition
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * FROM t1 WHERE t1.b = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	b	b	5	const	1	
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * FROM t1 WHERE t1.b+2 = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+EXPLAIN SELECT * FROM t1 WHERE a IN (1,2,3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	3	Using index condition
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN 1 and 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	3	Using index condition
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+# Equi-join condition
+EXPLAIN SELECT * FROM t1,t2 WHERE t1.a=t2.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	100	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t2.b	1	
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+# CASE where selectivity estimates are not accurate
+EXPLAIN SELECT * FROM t1 WHERE abs(t1.b) = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+#
+# The cardinality here would be not accurate because we don't have
+# selectivity for the predicate t1.c=10
+#
+EXPLAIN SELECT * FROM t1 WHERE t1.c = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+#
+# BASIC CASES FOR AND CONJUNCT
+#
+EXPLAIN SELECT * FROM t1 WHERE a >= 5 and b <= 6;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	b,a	b	5	NULL	3	Using index condition; Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN 1 AND 5 AND b <= 6;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	b,a	b	5	NULL	3	Using index condition; Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * FROM t1,t2 WHERE t1.a > 5 AND t2.b < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	b	b	5	NULL	5	Using index condition
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+#
+# BASIC CASES FOR OR CONJUNCT
+#
+EXPLAIN SELECT * FROM t1 WHERE a >= 5 OR a <= 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN 1 AND 5 OR a <= 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	4	Using index condition
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+# The cardinality here would be not accurate because for the
+# OR conjunct all predicates can't be resolved to one column
+EXPLAIN SELECT * FROM t1,t2 WHERE t1.a > 5 OR t2.b < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	100	
+1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+EXPLAIN SELECT * FROM t1 WHERE a >= 5 OR b <= 6;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	b,a	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+#
+# COMPLEX CASES WITH AND-OR CONJUNCTS
+#
+EXPLAIN SELECT * from t1,t2 WHERE t1.a=t2.b and (t1.a > 5 or t1.a < 10);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	100	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t2.b	1	
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * from t1,t2 WHERE t1.a=t2.b and (t1.a > 5 or t2.b < 10);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	100	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t2.b	1	
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * from t1,t2 WHERE t1.a=t2.b and (t1.a > 5 or t2.a < 10);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	100	Using where
+1	SIMPLE	t1	ref	a	a	5	test.t2.b	1	
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+EXPLAIN SELECT * FROM t1
+WHERE ((t1.a > 20  and t1.a < 30) or (t1.a > 40 and t1.a < 50)) AND
+((t1.a > 25 and t1.a < 35) or (t1.a > 45 and t1.a < 55)) OR
+((t1.a > 120 and t1.a < 130) or (t1.a > 140 and t1.a < 150)) AND
+((t1.a > 125 and t1.a < 135) or (t1.a > 145 and t1.a < 155));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	6	Using index condition
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN EXTENDED SELECT * from t1  WHERE ((t1.a IS NULL) or (t1.a = 5));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref_or_null	a	a	5	const	2	100.00	Using index condition
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` is null or `test`.`t1`.`a` = 5
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+#
+# Test with subquery
+#
+EXPLAIN SELECT * from t1  WHERE t1.a = (select t2.a from t2 limit 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ref	a	a	5	const	1	Using where
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	100	
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * from t1
+WHERE t1.a = (select t2.a from t2 where t1.b=t2.b limit 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+2	DEPENDENT SUBQUERY	t2	ref	b	b	5	test.t1.b	1	
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false,
+    false
+]
+EXPLAIN SELECT * from t1
+WHERE t1.a = (select t2.a from t2 where t2.b > 10 limit 1) AND abs(t1.b)= 11;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ref	a	a	5	const	1	Using where
+2	SUBQUERY	t2	range	b	b	5	NULL	95	Using index condition
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true,
+    false
+]
+DROP TABLE t1,t2;
+CREATE TABLE t1(a INT, b INT, c INT);
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_100;
+CREATE TABLE t2(a INT, b INT);
+INSERT INTO t2 SELECT seq, seq from seq_1_to_100;
+#
+# RUNNING the join cardinality tests when only statistics
+# are available from stat tables
+#
+#
+# BASIC CASES
+#
+EXPLAIN SELECT * FROM t1 WHERE t1.b <> 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * FROM t1 WHERE t1.b > 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * FROM t1 WHERE t1.b < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * FROM t1 WHERE t1.b = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * FROM t1 WHERE t1.b+2 = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+EXPLAIN SELECT * FROM t1 WHERE a IN (1,2,3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN 1 and 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+# Equi-join condition
+EXPLAIN SELECT * FROM t1,t2 WHERE t1.a=t2.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+# CASE where selectivity estimates are not accurate
+EXPLAIN SELECT * FROM t1 WHERE abs(t1.b) = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+#
+# The cardinality here would be not accurate because we don't have
+# selectivity for the predicate t1.c=10
+#
+EXPLAIN SELECT * FROM t1 WHERE t1.c = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+#
+# BASIC CASES FOR AND CONJUNCT
+#
+EXPLAIN SELECT * FROM t1 WHERE a >= 5 and b <= 6;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN 1 AND 5 AND b <= 6;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * FROM t1,t2 WHERE t1.a > 5 AND t2.b < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+#
+# BASIC CASES FOR OR CONJUNCT
+#
+EXPLAIN SELECT * FROM t1 WHERE a >= 5 OR a <= 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN 1 AND 5 OR a <= 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+# The cardinality here would be not accurate because for the
+# OR conjunct all predicates can't be resolved to one column
+EXPLAIN SELECT * FROM t1,t2 WHERE t1.a > 5 OR t2.b < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+EXPLAIN SELECT * FROM t1 WHERE a >= 5 OR b <= 6;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+#
+# COMPLEX CASES WITH AND-OR CONJUNCTS
+#
+EXPLAIN SELECT * from t1,t2 WHERE t1.a=t2.b and (t1.a > 5 or t1.a < 10);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * from t1,t2 WHERE t1.a=t2.b and (t1.a > 5 or t2.b < 10);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * from t1,t2 WHERE t1.a=t2.b and (t1.a > 5 or t2.a < 10);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+EXPLAIN SELECT * FROM t1
+WHERE ((t1.a > 20  and t1.a < 30) or (t1.a > 40 and t1.a < 50)) AND
+((t1.a > 25 and t1.a < 35) or (t1.a > 45 and t1.a < 55)) OR
+((t1.a > 120 and t1.a < 130) or (t1.a > 140 and t1.a < 150)) AND
+((t1.a > 125 and t1.a < 135) or (t1.a > 145 and t1.a < 155));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN EXTENDED SELECT * from t1  WHERE ((t1.a IS NULL) or (t1.a = 5));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	1.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c` from `test`.`t1` where `test`.`t1`.`a` is null or `test`.`t1`.`a` = 5
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+#
+# Test with subquery
+#
+EXPLAIN SELECT * from t1  WHERE t1.a = (select t2.a from t2 limit 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	100	
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * from t1
+WHERE t1.a = (select t2.a from t2 where t1.b=t2.b limit 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false,
+    false
+]
+EXPLAIN SELECT * from t1
+WHERE t1.a = (select t2.a from t2 where t2.b > 10 limit 1) AND abs(t1.b)= 11;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true,
+    false
+]
+DROP TABLE t1,t2;
+#
+# Combination with statistics from stat tables and
+# statistics from indexes
+#
+CREATE TABLE t1(a INT, b INT, KEY(a));
+INSERT INTO t1 SELECT seq, seq from seq_1_to_100;
+ANALYZE SELECT * from t1  WHERE t1.b > 3 AND t1.a=t1.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	100	100.00	98.00	97.00	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS (b) INDEXES ();
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+ANALYZE SELECT * from t1  WHERE t1.b > 3 AND t1.a=10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ref	a	a	5	const	1	1.00	97.66	100.00	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+ANALYZE SELECT * from t1  WHERE t1.b > 3 AND t1.a=t1.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	100	100.00	95.70	97.00	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+ANALYZE SELECT * from t1  WHERE t1.b > 3 OR t1.a=t1.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	100.00	100.00	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+DROP TABLE t1;
+#
+# Tests with simple predicates
+#
+CREATE TABLE t1(a INT, b INT, c VARCHAR(10), KEY(a), KEY(b));
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_10;
+#
+# Tests with LIKE PREDICATES
+#
+EXPLAIN SELECT * from t1 WHERE t1.a LIKE '%2%';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+EXPLAIN SELECT * from t1 WHERE t1.a LIKE '2%';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	10	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+#
+# Tests with NULL predicates
+#
+EXPLAIN SELECT * from t1 WHERE t1.a IS NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	5	const	1	Using index condition
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * from t1 WHERE t1.a IS NOT NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	10	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+#
+# Tests with </<=/>/>=/BETWEEN
+#
+EXPLAIN SELECT * from t1 WHERE t1.a > 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	10	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * from t1 WHERE 5 < t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	10	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * from t1 WHERE t1.a >= 10 and t1.b <= 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a,b	a	5	NULL	1	Using index condition; Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * from t1 WHERE  t1.a BETWEEN 1 AND 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	10	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * from t1 WHERE  5 BETWEEN 1 AND t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	10	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * from t1 WHERE  1 BETWEEN t1.a AND t1.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a,b	a	5	NULL	1	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+#
+# Tests with IN predicate
+#
+EXPLAIN SELECT * from t1 WHERE t1.a IN (1,2,3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	3	Using index condition
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * from t1 WHERE (t1.a,t1.b) IN ((1,1), (2,2), (3,3));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	a,b	a,a,a	5,5,5	NULL	3	Using union(a,a,a); Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+EXPLAIN SELECT * from t1 WHERE
+t1.a=t1.b AND (t1.a,t1.b) IN ((1,1), (2,2), (3,3));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	a,b	a,a,a	5,5,5	NULL	3	Using union(a,a,a); Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN SELECT * from t1
+WHERE t1.a=t1.b AND (abs(t1.a),t1.b) IN ((1,1), (2,2), (3,3));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a,b	b	5	NULL	3	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+#
+# Tests using different functional predicates
+#
+EXPLAIN SELECT * from t1 WHERE a < 5 XOR a > 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+EXPLAIN SELECT * from t1 WHERE abs(a) > 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+EXPLAIN SELECT * from t1 WHERE a > 10+1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	1	Using index condition
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+DROP TABLE t1;
+#
+# Tests when updating stats tables manually
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_100;
+INSERT INTO
+mysql.column_stats(db_name, table_name, column_name, nulls_ratio) VALUES ('test', 't1', 'a', 0);
+#
+# estimates from stat tables not available, all the fields should be NOT NULL
+#
+EXPLAIN SELECT * from t1 WHERE a < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+DROP TABLE t1;
+#
+# Using multiple equalities at the top level
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_10;
+CREATE TABLE t2(a INT, b INT);
+INSERT INTO t2 SELECT seq, seq from seq_1_to_10;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+EXPLAIN
+SELECT * FROM t1,t2 WHERE t1.a= t2.a AND t1.b= t2.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN
+SELECT * FROM t1,t2 WHERE t1.a= t2.a AND t1.b= t2.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+#
+# Tests with views (using Item_direct_view_ref)
+#
+CREATE VIEW v1 AS SELECT a, b  FROM t1;
+EXPLAIN SELECT * FROM v1,t1 where v1.b = 10 AND v1.b=t1.b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+DROP TABLE t1,t2;
+DROP VIEW v1;
+#
+# TESTS to get Number of distinct values(ndv) from rec_per_key
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_10;
+ALTER TABLE t1 ADD KEY k1(a);
+set @save_use_stat_tables= @@use_stat_tables;
+set use_stat_tables='never';
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+CREATE TABLE t2 like t1;
+INSERT INTO t2 SELECT * FROM t1;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+EXPLAIN SELECT * FROM t1, t2 where t1.a=t2.a and t2.a<3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	k1	k1	5	NULL	2	Using index condition
+1	SIMPLE	t2	ref	k1	k1	5	test.t1.a	1	
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+set use_stat_tables=@save_use_stat_tables;
+DROP TABLE t1,t2;
+#
+# Tests with multi-component keys
+#
+CREATE TABLE t1 (a INT, b INT, KEY(a,b));
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_10;
+EXPLAIN SELECT * FROM t1 where t1.a<3 AND t1.b < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	2	Using where; Using index
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+ALTER TABLE t1 ADD KEY k1(a);
+EXPLAIN SELECT * FROM t1 where t1.a<3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a,k1	a	5	NULL	2	Using where; Using index
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+DROP TABLE t1;
+#
+# Test FOR NOT BETWEEN
+#
+CREATE TABLE t1(a INT, b VARCHAR(10), KEY(a));
+INSERT INTO t1 SELECT seq, seq from seq_1_to_20;
+set optimizer_trace=1;
+EXPLAIN
+SELECT * FROM t1 WHERE a NOT BETWEEN 3 AND 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	20	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+#
+# Test FOR NOT IN
+#
+EXPLAIN
+SELECT * FROM t1 WHERE a NOT IN (1,2,3,4,5);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	20	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+#
+# Test FOR NOT LIKE
+# For this the range optimizer would not give accurate selectivity estimates
+#
+EXPLAIN
+SELECT * FROM t1 WHERE a NOT LIKE '1%';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+DROP TABLE t1;
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_10;
+set optimizer_trace=1;
+SET @save_use_stat_tables= @@use_stat_tables;
+SET @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+#
+# Test where EITS are available in the stat tables but the query cannot use it
+#
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SET use_stat_tables='never';
+EXPLAIN SELECT * from t1 WHERE t1.a > 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+#
+# Here statistics are available from stat tables and statistics can be used for the query
+#
+SET use_stat_tables='preferably';
+EXPLAIN SELECT * from t1 WHERE t1.a > 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+SET optimizer_use_condition_selectivity=1;
+#
+# Here statistics are available from stat tables but cannot be used because statistics from
+# stat tables are only used when optimizer_use_condition_selectivity > 1
+#
+EXPLAIN SELECT * from t1 WHERE t1.a > 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+SET @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+SET @@use_stat_tables= @save_use_stat_tables;
+SET @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+#
+# For predicates like these a=a, it would be good to have the removed but for these currently
+# we assume with such predicates we don't have accurate estimates for selectivity
+#
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a = a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` = `test`.`t1`.`a`
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+DROP TABLE t1;
+#
+# Tests where multiple eqaulities have a constant value like a=1 AND a=b
+# The muliple equality would be Item_equal(1,a,b), here both having
+# statistiscs for the range or ndv is fine
+#
+CREATE TABLE t1(a INT, b INT, c INT, d INT, KEY(a));
+INSERT INTO t1 SELECT seq, seq,seq,seq from seq_1_to_20;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+# DELETING the avg_frequency for column a and b from stat tables
+update mysql.column_stats set avg_frequency= NULL
+WHERE table_name='t1' AND (column_name='b' OR column_name='a');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	a	a	5	const	1	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`d` AS `d` from `test`.`t1` where `test`.`t1`.`a` = 1
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1 AND a=b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	a	a	5	const	1	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`d` AS `d` from `test`.`t1` where `test`.`t1`.`a` = 1 and `test`.`t1`.`b` = 1
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+DROP TABLE t1;
+#
+# Selectivity estimates will not be accurate here as multiple equality
+# is not created when the field involved in the equality are of different
+# data types
+#
+CREATE TABLE t1 (a VARCHAR(10), b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_10 ;
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t2 SELECT seq, seq from seq_1_to_10 ;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+EXPLAIN EXTENDED SELECT * FROM t1,t2 WHERE t1.a= t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` = `test`.`t2`.`a`
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+DROP TABLE t1,t2;
+SET optimizer_switch=@save_optimizer_switch;
