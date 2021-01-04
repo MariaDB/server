@@ -1,0 +1,266 @@
+--source include/have_sequence.inc
+
+CREATE TABLE t1(a INT, b INT, c INT, KEY(b), KEY(a));
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_100;
+
+CREATE TABLE t2(a INT, b INT, key(b));
+INSERT INTO t2 SELECT seq, seq from seq_1_to_100;
+
+
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_trace=1;
+SET optimizer_switch='rowid_filter=off';
+
+--echo #
+--echo # RUNNING the join cardinality tests when statistics are
+--echo # available only from indexes
+--echo #
+
+--source include/join_cardinality.inc
+
+DROP TABLE t1,t2;
+
+CREATE TABLE t1(a INT, b INT, c INT);
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_100;
+
+CREATE TABLE t2(a INT, b INT);
+INSERT INTO t2 SELECT seq, seq from seq_1_to_100;
+
+--disable_result_log
+--disable_query_log
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(a,b) INDEXES();
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+--enable_query_log
+--enable_result_log
+
+--echo #
+--echo # RUNNING the join cardinality tests when only statistics
+--echo # are available from stat tables
+--echo #
+
+--source include/join_cardinality.inc
+
+DROP TABLE t1,t2;
+
+
+--echo #
+--echo # Combination with statistics from stat tables and
+--echo # statistics from indexes
+--echo #
+
+CREATE TABLE t1(a INT, b INT, KEY(a));
+INSERT INTO t1 SELECT seq, seq from seq_1_to_100;
+
+ANALYZE SELECT * from t1  WHERE t1.b > 3 AND t1.a=t1.b;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS (b) INDEXES ();
+
+ANALYZE SELECT * from t1  WHERE t1.b > 3 AND t1.a=10;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+ANALYZE SELECT * from t1  WHERE t1.b > 3 AND t1.a=t1.b;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+ANALYZE SELECT * from t1  WHERE t1.b > 3 OR t1.a=t1.b;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Tests with simple predicates
+--echo #
+
+CREATE TABLE t1(a INT, b INT, c VARCHAR(10), KEY(a), KEY(b));
+INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_10;
+
+--echo #
+--echo # Tests with LIKE PREDICATES
+--echo #
+
+EXPLAIN SELECT * from t1 WHERE t1.a LIKE '%2%';
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+EXPLAIN SELECT * from t1 WHERE t1.a LIKE '2%';
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+--echo #
+--echo # Tests with NULL predicates
+--echo #
+
+EXPLAIN SELECT * from t1 WHERE t1.a IS NULL;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+EXPLAIN SELECT * from t1 WHERE t1.a IS NOT NULL;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+--echo #
+--echo # Tests with </<=/>/>=/BETWEEN
+--echo #
+
+EXPLAIN SELECT * from t1 WHERE t1.a > 5;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+EXPLAIN SELECT * from t1 WHERE 5 < t1.a;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+EXPLAIN SELECT * from t1 WHERE t1.a >= 10 and t1.b <= 10;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+EXPLAIN SELECT * from t1 WHERE  t1.a BETWEEN 1 AND 5;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+EXPLAIN SELECT * from t1 WHERE  5 BETWEEN 1 AND t1.a;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+EXPLAIN SELECT * from t1 WHERE  1 BETWEEN t1.a AND t1.b;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+--echo #
+--echo # Tests with IN predicate
+--echo #
+
+EXPLAIN SELECT * from t1 WHERE t1.a IN (1,2,3);
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+EXPLAIN SELECT * from t1 WHERE (t1.a,t1.b) IN ((1,1), (2,2), (3,3));
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+EXPLAIN SELECT * from t1 WHERE
+t1.a=t1.b AND (t1.a,t1.b) IN ((1,1), (2,2), (3,3));
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+EXPLAIN SELECT * from t1
+WHERE t1.a=t1.b AND (abs(t1.a),t1.b) IN ((1,1), (2,2), (3,3));
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+--echo #
+--echo # Tests using different functional predicates
+--echo #
+
+EXPLAIN SELECT * from t1 WHERE a < 5 XOR a > 10;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+EXPLAIN SELECT * from t1 WHERE abs(a) > 10;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+EXPLAIN SELECT * from t1 WHERE a > 10+1;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Tests when updating stats tables manually
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_100;
+
+INSERT INTO
+mysql.column_stats(db_name, table_name, column_name, nulls_ratio) VALUES ('test', 't1', 'a', 0);
+
+--echo #
+--echo # estimates from stat tables not available, all the fields should be NOT NULL
+--echo #
+
+EXPLAIN SELECT * from t1 WHERE a < 10;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Using multiple equalities at the top level
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_10;
+CREATE TABLE t2(a INT, b INT);
+INSERT INTO t2 SELECT seq, seq from seq_1_to_10;
+
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+
+EXPLAIN
+SELECT * FROM t1,t2 WHERE t1.a= t2.a AND t1.b= t2.b;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+EXPLAIN
+SELECT * FROM t1,t2 WHERE t1.a= t2.a AND t1.b= t2.b;
+
+--echo #
+--echo # Tests with views (using Item_direct_view_ref)
+--echo #
+
+CREATE VIEW v1 AS SELECT a, b  FROM t1;
+
+EXPLAIN SELECT * FROM v1,t1 where v1.b = 10 AND v1.b=t1.b;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+DROP TABLE t1,t2;
+DROP VIEW v1;
+
+
+--echo #
+--echo # TESTS to get ndv from rec_per_key 
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_10;
+ALTER TABLE t1 ADD KEY k1(a);
+
+set @save_use_stat_tables= @@use_stat_tables;
+set use_stat_tables='never';
+analyze table t1;
+
+CREATE TABLE t2 like t1;
+INSERT INTO t2 SELECT * FROM t1;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+EXPLAIN SELECT * FROM t1, t2 where t1.a=t2.a and t2.a<3;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+set use_stat_tables=@save_use_stat_tables;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # Tests with multi-component keys
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, KEY(a,b));
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_10;
+
+EXPLAIN SELECT * FROM t1 where t1.a<3 AND t1.b < 10;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+ALTER TABLE t1 ADD KEY k1(a);
+EXPLAIN SELECT * FROM t1 where t1.a<3;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+DROP TABLE t1;
+
+SET optimizer_switch=@save_optimizer_switch;
