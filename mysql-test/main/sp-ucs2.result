@@ -142,7 +142,10 @@ DROP FUNCTION bug48766;
 call mtr.add_suppression('invalid value in column mysql.proc.');
 set collation_connection=ucs2_general_ci;
 insert into mysql.proc (db, name, type, specific_name, language, sql_data_access, is_deterministic, security_type, param_list, returns, body, definer, created, modified, sql_mode, comment, character_set_client, collation_connection, db_collation, body_utf8 ) values ( 'a', 'a', 'function', 'bug14233_1', 'sql', 'reads_sql_data', 'no', 'definer', '', 'int(10)', 'select * from mysql.user', 'root@localhost', now(), '0000-00-00 00:00:00', '', '', '', '', '', 'select * from mysql.user' );
-select * from information_schema.routines where routine_name='a';
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+select routine_name from information_schema.routines where routine_name='a';
+routine_name
+a
+Warnings:
+Warning	1601	Creation context of stored routine `a`.`a` is invalid
 set collation_connection=default;
 delete from mysql.proc where name='a';
