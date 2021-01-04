@@ -660,6 +660,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     }
     table->file->prepare_for_insert(create_lookup_handler);
     thd_progress_init(thd, 2);
+    fix_rownum_pointers(thd, thd->lex->current_select, &info.copied);
     if (table_list->table->validate_default_values_of_unset_fields(thd))
     {
       read_info.error= true;

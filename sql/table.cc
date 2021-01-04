@@ -9340,6 +9340,10 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
   {
     /* A subquery might be forced to be materialized due to a side-effect. */
     if (!is_materialized_derived() && first_select->is_mergeable() &&
+        (unit->outer_select() && !unit->outer_select()->with_rownum) &&
+        (!thd->lex->with_rownum ||
+         (!first_select->group_list.elements &&
+          !first_select->order_list.elements)) &&
         optimizer_flag(thd, OPTIMIZER_SWITCH_DERIVED_MERGE) &&
         !thd->lex->can_not_use_merged(1) &&
         !is_recursive_with_table())

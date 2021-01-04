@@ -1083,8 +1083,9 @@ bool st_select_lex_unit::prepare_join(THD *thd_arg, SELECT_LEX *sl,
 
   thd_arg->lex->current_select= sl;
 
-  can_skip_order_by= is_union_select && !(sl->braces &&
-                                          sl->limit_params.explicit_limit);
+  can_skip_order_by= (is_union_select && !(sl->braces &&
+                                           sl->limit_params.explicit_limit) &&
+                      !thd->lex->with_rownum);
 
   saved_error= join->prepare(sl->table_list.first,
                              (derived && derived->merged ? NULL : sl->where),

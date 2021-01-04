@@ -1214,7 +1214,8 @@ public:
   Group_list_ptrs        *group_list_ptrs;
 
   List<Item>          item_list;  /* list of fields & expressions */
-  List<Item>          pre_fix; /* above list before fix_fields */
+  List<Item>          pre_fix;    /* above list before fix_fields */
+  List<Item>          fix_after_optimize;
   SQL_I_List<ORDER> order_list;   /* ORDER clause */
   SQL_I_List<ORDER> gorder_list;
   Lex_select_limit limit_params;  /* LIMIT clause parameters */
@@ -1234,6 +1235,7 @@ public:
   bool have_merged_subqueries:1;
   bool is_set_query_expr_tail:1;
   bool with_sum_func:1;   /* sum function indicator */
+  bool with_rownum:1;     /* rownum() function indicator */
   bool braces:1;    /* SELECT ... UNION (SELECT ... ) <- this braces */
   bool automatic_brackets:1; /* dummy select for INTERSECT precedence */
   /* TRUE when having fix field called in processing of this SELECT */
@@ -1524,7 +1526,7 @@ public:
   inline bool is_mergeable()
   {
     return (next_select() == 0 && group_list.elements == 0 &&
-            having == 0 && with_sum_func == 0 &&
+            having == 0 && with_sum_func == 0 && with_rownum == 0 &&
             table_list.elements >= 1 && !(options & SELECT_DISTINCT) &&
             limit_params.select_limit == 0);
   }
@@ -1590,7 +1592,7 @@ public:
   ORDER *find_common_window_func_partition_fields(THD *thd);
 
   bool cond_pushdown_is_allowed() const
-  { return !olap && !limit_params.explicit_limit && !tvc; }
+  { return !olap && !limit_params.explicit_limit && !tvc && !with_rownum; }
   
   bool build_pushable_cond_for_having_pushdown(THD *thd, Item *cond);
   void pushdown_cond_into_where_clause(THD *thd, Item *extracted_cond,
@@ -3376,7 +3378,8 @@ public:
   bool use_only_table_context:1;
   bool escape_used:1;
   bool default_used:1;    /* using default() function */
-  bool is_lex_started:1; /* If lex_start() did run. For debugging. */
+  bool with_rownum:1;     /* Using rownum() function */
+  bool is_lex_started:1;  /* If lex_start() did run. For debugging. */
   /*
     This variable is used in post-parse stage to declare that sum-functions,
     or functions which have sense only if GROUP BY is present, are allowed.

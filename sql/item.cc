@@ -2237,10 +2237,15 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
       return;
     }
   }
+  else if (type() == FUNC_ITEM &&
+           ((Item_func*)this)->functype() == Item_func::ROWNUM_FUNC)
+  {
+  }
   else
   {
     /* Not a SUM() function */
-    if (unlikely((!with_sum_func() && !(split_flags & SPLIT_SUM_SELECT))))
+    if (!with_sum_func() && !with_rownum_func() &&
+        !(split_flags & SPLIT_SUM_SELECT))
     {
       /*
         This is not a SUM function and there are no SUM functions inside.
@@ -9269,7 +9274,7 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
 bool Item_direct_view_ref::excl_dep_on_table(table_map tab_map)
 {
   table_map used= used_tables();
-  if (used & OUTER_REF_TABLE_BIT)
+  if (used & (OUTER_REF_TABLE_BIT | RAND_TABLE_BIT))
     return false;
   if (!(used & ~tab_map))
     return true; 

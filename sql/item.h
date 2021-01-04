@@ -761,7 +761,8 @@ enum class item_with_t : item_flags_t
   WINDOW_FUNC= (1<<1), // If item contains a window func
   FIELD=       (1<<2), // If any item except Item_sum contains a field.
   SUM_FUNC=    (1<<3), // If item contains a sum func
-  SUBQUERY=    (1<<4)  // If item containts a sub query
+  SUBQUERY=    (1<<4), // If item containts a sub query
+  ROWNUM_FUNC= (1<<5)
 };
 
 
@@ -1059,6 +1060,8 @@ public:
   { return (bool) (with_flags & item_with_t::SUM_FUNC); }
   inline bool with_subquery() const
   { return (bool) (with_flags & item_with_t::SUBQUERY); }
+  inline bool with_rownum_func() const
+  { return (bool) (with_flags & item_with_t::ROWNUM_FUNC); }
   inline void copy_flags(const Item *org, item_base_t mask)
   {
     base_flags= (item_base_t) (((item_flags_t) base_flags &
@@ -1131,7 +1134,7 @@ public:
     return fix_fields_if_needed_for_scalar(thd, ref);
   }
   /*
-    By default we assume that an Item is fixed by the contstructor.
+    By default we assume that an Item is fixed by the constructor
   */
   virtual bool fix_fields(THD *, Item **)
   {
@@ -1158,6 +1161,12 @@ public:
                                  bool merge)
     {};
 
+  /*
+    This is for items that require a fixup after the JOIN::prepare()
+    is done.
+  */
+  virtual void fix_after_optimize(THD *thd)
+  {}
   /*
     This method should be used in case where we are sure that we do not need
     complete fix_fields() procedure.
@@ -2259,6 +2268,7 @@ public:
   {
     return mark_unsupported_function(full_name(), arg, VCOL_IMPOSSIBLE);
   }
+  virtual bool check_handler_func_processor(void *arg) { return 0; }
   virtual bool check_field_expression_processor(void *arg) { return 0; }
   virtual bool check_func_default_processor(void *arg) { return 0; }
   /*

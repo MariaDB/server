@@ -264,10 +264,12 @@ typedef struct st_user_var_events
       was actually changed or not.
 */
 typedef struct st_copy_info {
-  ha_rows records; /**< Number of processed records */
-  ha_rows deleted; /**< Number of deleted records */
-  ha_rows updated; /**< Number of updated records */
-  ha_rows copied;  /**< Number of copied records */
+  ha_rows records;        /**< Number of processed records */
+  ha_rows deleted;        /**< Number of deleted records */
+  ha_rows updated;        /**< Number of updated records */
+  ha_rows copied;         /**< Number of copied records */
+  ha_rows accepted_rows;  /**< Number of accepted original rows
+                             (same as number of rows in RETURNING) */
   ha_rows error_count;
   ha_rows touched; /* Number of touched records */
   enum enum_duplicates handle_duplicates;

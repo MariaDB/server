@@ -30,6 +30,7 @@
   will be resolved later.
 */
 #include "sql_class.h"                          // set_var.h: THD
+#include "sql_parse.h"                          // sql_command_flags
 #include "set_var.h"
 #include "sp_head.h"
 #include "sp.h"

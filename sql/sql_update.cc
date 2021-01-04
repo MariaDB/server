@@ -383,7 +383,7 @@ int mysql_update(THD *thd,
   privilege_t   want_privilege(NO_ACL);
 #endif
   uint          table_count= 0;
-  ha_rows	updated, found;
+  ha_rows	updated, updated_or_same, found;
   key_map	old_covering_keys;
   TABLE		*table;
   SQL_SELECT	*select= NULL;
@@ -941,7 +941,7 @@ update_begin:
   if (init_read_record(&info, thd, table, select, file_sort, 0, 1, FALSE))
     goto err;
 
-  updated= found= 0;
+  updated= updated_or_same= found= 0;
   /*
     Generate an error (in TRADITIONAL mode) or warning
     when trying to set a NOT NULL field to NULL.
@@ -969,7 +969,8 @@ update_begin:
   }
 
   if ((table->file->ha_table_flags() & HA_CAN_FORCE_BULK_UPDATE) &&
-      !table->prepare_triggers_for_update_stmt_or_event())
+      !table->prepare_triggers_for_update_stmt_or_event() &&
+      !thd->lex->with_rownum)
     will_batch= !table->file->start_bulk_update();
 
   /*
@@ -993,6 +994,7 @@ update_begin:
   DBUG_ASSERT(table->file->inited != handler::NONE);
 
   THD_STAGE_INFO(thd, stage_updating);
+  fix_rownum_pointers(thd, thd->lex->current_select, &updated_or_same);
   while (!(error=info.read_record()) && !thd->killed)
   {
     explain->tracker.on_record_read();
@@ -1082,12 +1084,14 @@ update_begin:
         if (unlikely(record_was_same))
         {
           error= 0;
+          updated_or_same++;
         }
         else if (likely(!error))
         {
           if (has_vers_fields && table->versioned(VERS_TRX_ID))
             rows_inserted++;
           updated++;
+          updated_or_same++;
         }
 
         if (likely(!error) && !record_was_same && table_list->has_period())
@@ -1106,6 +1110,8 @@ update_begin:
           goto error;
         }
       }
+      else
+        updated_or_same++;
 
       if (likely(!error) && has_vers_fields && table->versioned(VERS_TIMESTAMP))
       {
@@ -2930,7 +2936,9 @@ int multi_update::do_updates()
           }
         }
         else
+        {
           local_error= 0;
+        }
       }
 
       if (table->triggers &&

@@ -7236,3 +7236,77 @@ void Item_func_setval::print(String *str, enum_query_type query_type)
   str->append_ulonglong(round);
   str->append(')');
 }
+
+
+/*
+  Return how many row combinations has accepted so far + 1
+
+  The + 1 is to ensure that, for example, 'WHERE ROWNUM <=1' returns one row
+*/
+
+longlong Item_func_rownum::val_int()
+{
+  if (!accepted_rows)
+  {
+    /*
+      Rownum is not properly set up. Probably used in wrong context when
+      it should not be used. In this case returning 0 is probably the best
+      solution.
+    */
+    return 0;
+  }
+  return (longlong) *accepted_rows+1;
+}
+
+
+Item_func_rownum::Item_func_rownum(THD *thd):
+  Item_longlong_func(thd),accepted_rows(0)
+{
+  /*
+    Remember the select context.
+    Add the function to the list fix_after_optimize in the select context
+    so that we can easily initializef all rownum functions with the pointers
+    to the row counters.
+  */
+  select= thd->lex->current_select;
+  select->fix_after_optimize.push_back(this, thd->mem_root);
+
+  /*
+    Mark that query is using rownum() and ensure that this select is
+    not merged with other selects
+  */
+  select->with_rownum= 1;
+  thd->lex->with_rownum= 1;
+  thd->lex->uncacheable(UNCACHEABLE_RAND);
+  with_flags= with_flags | item_with_t::ROWNUM_FUNC;
+
+  /* If this command changes data, mark it as unsafe for statement logging */
+  if (sql_command_flags[thd->lex->sql_command] &
+      (CF_UPDATES_DATA | CF_DELETES_DATA))
+    thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+}
+
+
+/*
+  Store a reference to the variable that contains number of accepted rows
+*/
+
+void Item_func_rownum::fix_after_optimize(THD *thd)
+{
+  accepted_rows= &select->join->accepted_rows;
+}
+
+/*
+  Inform all ROWNUM() function where the number of rows are stored
+*/
+
+void fix_rownum_pointers(THD *thd, SELECT_LEX *select_lex, ha_rows *ptr)
+{
+  List_iterator<Item> li(select_lex->fix_after_optimize);
+  while (Item *item= li++)
+  {
+    if (item->type() == Item::FUNC_ITEM &&
+        ((Item_func*) item)->functype() == Item_func::ROWNUM_FUNC)
+      ((Item_func_rownum*) item)->store_pointer_to_row_counter(ptr);
+  }
+}

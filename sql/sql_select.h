@@ -1238,7 +1238,7 @@ public:
   table_map outer_join;
   /* Bitmap of tables used in the select list items */
   table_map select_list_used_tables;
-  ha_rows  send_records,found_records,join_examined_rows;
+  ha_rows  send_records,found_records,join_examined_rows, accepted_rows;
 
   /*
     LIMIT for the JOIN operation. When not using aggregation or DISITNCT, this 
@@ -1398,6 +1398,11 @@ public:
     GROUP/ORDER BY.
   */
   bool simple_order, simple_group;
+  /*
+    Set to 1 if any field in field list has RAND_TABLE set. For example if
+    if one uses RAND() or ROWNUM() in field list
+  */
+  bool rand_table_in_field_list;
 
   /*
     ordered_index_usage is set if an ordered index access
@@ -1557,7 +1562,7 @@ public:
     first_record= 0;
     do_send_rows= 1;
     duplicate_rows= send_records= 0;
-    found_records= 0;
+    found_records= accepted_rows= 0;
     fetch_limit= HA_POS_ERROR;
     thd= thd_arg;
     sum_funcs= sum_funcs2= 0;
@@ -1573,6 +1578,7 @@ public:
     no_order= 0;
     simple_order= 0;
     simple_group= 0;
+    rand_table_in_field_list= 0;
     ordered_index_usage= ordered_index_void;
     need_distinct= 0;
     skip_sort_order= 0;
@@ -1816,6 +1822,9 @@ public:
   void make_notnull_conds_for_range_scans();
 
   bool transform_in_predicates_into_in_subq(THD *thd);
+
+  bool optimize_upper_rownum_func();
+
 private:
   /**
     Create a temporary table to be used for processing DISTINCT/ORDER

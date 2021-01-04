@@ -709,7 +709,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   List_item *values;
   Name_resolution_context *context;
   Name_resolution_context_state ctx_state;
-  SELECT_LEX   *returning= thd->lex->has_returning() ? thd->lex->returning() : 0;
+  SELECT_LEX *returning= thd->lex->has_returning() ? thd->lex->returning() : 0;
 
 #ifndef EMBEDDED_LIBRARY
   char *query= thd->query();
@@ -968,11 +968,16 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   */
   if (returning &&
       result->send_result_set_metadata(returning->item_list,
-                                Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+                                       Protocol::SEND_NUM_ROWS |
+                                       Protocol::SEND_EOF))
     goto values_loop_end;
 
   THD_STAGE_INFO(thd, stage_update);
   thd->decide_logging_format_low(table);
+  fix_rownum_pointers(thd, thd->lex->current_select, &info.accepted_rows);
+  if (returning)
+    fix_rownum_pointers(thd, thd->lex->returning(), &info.accepted_rows);
+
   do
   {
     DBUG_PRINT("info", ("iteration %llu", iteration));
@@ -1099,6 +1104,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
       error= write_record(thd, table, &info, result);
       if (unlikely(error))
         break;
+      info.accepted_rows++;
       thd->get_stmt_da()->inc_current_row_for_warning();
     }
     its.rewind();
@@ -2134,8 +2140,11 @@ ok:
     autoinc values (generated inside the handler::ha_write()) and
     values updated in ON DUPLICATE KEY UPDATE.
   */
-  if (sink && sink->send_data(thd->lex->returning()->item_list) < 0)
-    trg_error= 1;
+  if (sink)
+  {
+    if (sink->send_data(thd->lex->returning()->item_list) < 0)
+      trg_error= 1;
+  }
 
 after_trg_or_ignored_err:
   if (key)

@@ -434,6 +434,8 @@ bool table_value_constr::exec(SELECT_LEX *sl)
     DBUG_RETURN(true);
   }
 
+  fix_rownum_pointers(sl->parent_lex->thd, sl, &send_records);
+
   while ((elem= li++))
   {
     if (send_records >= sl->master_unit()->lim.get_select_limit())

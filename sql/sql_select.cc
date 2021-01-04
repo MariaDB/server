@@ -311,7 +311,10 @@ bool build_notnull_conds_for_range_scans(JOIN *join, COND *cond,
 static
 void build_notnull_conds_for_inner_nest_of_outer_join(JOIN *join,
                                                       TABLE_LIST *nest_tbl);
-
+static void fix_items_after_optimize(THD *thd, SELECT_LEX *select_lex);
+static void optimize_rownum(THD *thd, SELECT_LEX_UNIT *unit, Item *cond);
+static bool process_direct_rownum_comparison(THD *thd, SELECT_LEX_UNIT *unit,
+                                             Item *cond);
 
 #ifndef DBUG_OFF
 
@@ -362,6 +365,7 @@ bool dbug_user_var_equals_int(THD *thd, const char *name, int value)
   return FALSE;
 }
 #endif /* DBUG_OFF */
+
 
 /*
   Intialize POSITION structure.
@@ -1196,6 +1200,9 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   // simple check that we got usable conds
   dbug_print_item(conds);
 
+  /* Fix items that requires the join structure to exist */
+  fix_items_after_optimize(thd, select_lex);
+
   if (select_lex->handle_derived(thd->lex, DT_PREPARE))
     DBUG_RETURN(-1);
 
@@ -1296,6 +1303,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
                    &all_fields, &select_lex->pre_fix, 1))
     DBUG_RETURN(-1);
   thd->lex->current_select->context_analysis_place= save_place;
+  rand_table_in_field_list= select_lex->select_list_tables & RAND_TABLE_BIT;
 
   if (setup_without_group(thd, ref_ptrs, tables_list,
                           select_lex->leaf_tables, fields_list,
@@ -1462,7 +1470,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     }
   }
 
-  if (having && having->with_sum_func())
+  if (having && (having->with_sum_func() || having->with_rownum_func()))
     having->split_sum_func2(thd, ref_ptrs, all_fields,
                             &having, SPLIT_SUM_SKIP_REGISTERED);
   if (select_lex->inner_sum_func_list)
@@ -1848,7 +1856,6 @@ JOIN::init_range_rowid_filters()
   DBUG_RETURN(0);
 }
 
-
 /**
   global select optimisation.
 
@@ -1866,11 +1873,17 @@ JOIN::optimize_inner()
 {
   DBUG_ENTER("JOIN::optimize_inner");
   subq_exit_fl= false;
-  do_send_rows = (unit->lim.get_select_limit()) ? 1 : 0;
 
   DEBUG_SYNC(thd, "before_join_optimize");
-
   THD_STAGE_INFO(thd, stage_optimizing);
+
+  // rownum used somewhere in query, no limits and it is derived
+  if (unlikely(thd->lex->with_rownum &&
+               select_lex->first_cond_optimization &&
+               select_lex->master_unit()->derived))
+    optimize_upper_rownum_func();
+
+  do_send_rows = (unit->lim.get_select_limit()) ? 1 : 0;
 
   set_allowed_join_cache_types();
   need_distinct= TRUE;
@@ -1899,7 +1912,12 @@ JOIN::optimize_inner()
       transform_in_predicates_into_in_subq(thd))
     DBUG_RETURN(1);
 
-  // Update used tables after all handling derived table procedures
+  /*
+    Update used tables after all handling derived table procedures
+    After this call, select_lex->select_list_tables contains the table
+    bits of all items in the select list (but not bits from WHERE clause or
+    other items).
+  */
   select_lex->update_used_tables();
 
   /*
@@ -2087,6 +2105,9 @@ JOIN::optimize_inner()
     DBUG_PRINT("error",("Error from optimize_cond"));
     DBUG_RETURN(1);
   }
+  if (select_lex->with_rownum && ! order && ! group_list &&
+      !select_distinct && conds && select_lex == unit->global_parameters())
+    optimize_rownum(thd, unit, conds);
 
   having= optimize_cond(this, having, join_list, TRUE,
                         &having_value, &having_equal);
@@ -3279,11 +3300,11 @@ bool JOIN::make_aggr_tables_info()
   JOIN_TAB *curr_tab= join_tab + const_tables;
   TABLE *exec_tmp_table= NULL;
   bool distinct= false;
-  bool keep_row_order= false;
+  const bool has_group_by= this->group;
+  bool keep_row_order= thd->lex->with_rownum && (group_list || order);
   bool is_having_added_as_table_cond= false;
   DBUG_ENTER("JOIN::make_aggr_tables_info");
 
-  const bool has_group_by= this->group;
   
   sort_and_group_aggr_tab= NULL;
 
@@ -3460,7 +3481,7 @@ bool JOIN::make_aggr_tables_info()
 
     distinct= select_distinct && !group_list && 
               !select_lex->have_window_funcs();
-    keep_row_order= false;
+    keep_row_order= thd->lex->with_rownum && (group_list || order);
     bool save_sum_fields= (group_list && simple_group) ||
                            implicit_grouping_with_window_funcs;
     if (create_postjoin_aggr_table(curr_tab,
@@ -4208,6 +4229,7 @@ JOIN::reinit()
   first_record= false;
   group_sent= false;
   cleaned= false;
+  accepted_rows= 0;
 
   if (aggr_tables)
   {
@@ -14336,7 +14358,25 @@ static ORDER *
 remove_const(JOIN *join,ORDER *first_order, COND *cond,
              bool change_list, bool *simple_order)
 {
-  *simple_order= join->rollup.state == ROLLUP::STATE_NONE;
+  /*
+    We can't do ORDER BY using filesort if the select list contains a non
+    deterministic value like RAND() or ROWNUM().
+    For example:
+    SELECT a,ROWNUM() FROM t1 ORDER BY a;
+
+    If we would first sort the table 't1', the ROWNUM() column would be
+    generated during end_send() and the order would be wrong.
+
+    Previously we had here also a test of ROLLUP:
+    'join->rollup.state == ROLLUP::STATE_NONE'
+
+    I deleted this because the ROLLUP was never enforced because of a
+    bug where the inital value of simple_order was ignored.  Having
+    ROLLUP tested now when the code is fixed, causes many test failure
+    and some wrong results so better to leave the code as it was
+    related to ROLLUP.
+  */
+  *simple_order= !join->rand_table_in_field_list;
   if (join->only_const_tables())
     return change_list ? 0 : first_order;		// No need to sort
 
@@ -14370,7 +14410,7 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
       tab->cached_eq_ref_table= FALSE;
 
     JOIN_TAB *head= join->join_tab + join->const_tables;
-    *simple_order= head->on_expr_ref[0] == NULL;
+    *simple_order&= head->on_expr_ref[0] == NULL;
     if (*simple_order && head->table->file->ha_table_flags() & HA_SLOW_RND_POS)
     {
       uint u1, u2, u3, u4;
@@ -22086,7 +22126,8 @@ end_send(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     }
   }
 
-  ++join->send_records;
+  join->send_records++;
+  join->accepted_rows++;
   if (join->send_records >= join->unit->lim.get_select_limit())
   {
     if (!join->do_send_rows)
@@ -22299,11 +22340,13 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
       if (join->procedure)
 	join->procedure->add();
       join->group_sent= false;
+      join->accepted_rows++;
       DBUG_RETURN(ok_code);
     }
   }
   if (update_sum_func(join->sum_funcs))
     DBUG_RETURN(NESTED_LOOP_ERROR);
+  join->accepted_rows++;
   if (join->procedure)
     join->procedure->add();
   DBUG_RETURN(NESTED_LOOP_OK);
@@ -22328,6 +22371,7 @@ end_write(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     {
       int error;
       join->found_records++;
+      join->accepted_rows++;
       if ((error= table->file->ha_write_tmp_row(table->record[0])))
       {
         if (likely(!table->file->is_fatal_error(error, HA_CHECK_DUP)))
@@ -22443,6 +22487,7 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
   }
   join_tab->send_records++;
 end:
+  join->accepted_rows++;                        // For rownum()
   if (unlikely(join->thd->check_killed()))
   {
     DBUG_RETURN(NESTED_LOOP_KILLED);             /* purecov: inspected */
@@ -22471,6 +22516,7 @@ end_unique_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
   if (copy_funcs(join_tab->tmp_table_param->items_to_copy, join->thd))
     DBUG_RETURN(NESTED_LOOP_ERROR);           /* purecov: inspected */
 
+  join->accepted_rows++;
   if (likely(!(error= table->file->ha_write_tmp_row(table->record[0]))))
     join_tab->send_records++;			// New group
   else
@@ -22514,6 +22560,7 @@ end_unique_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
   {
     DBUG_RETURN(NESTED_LOOP_KILLED);             /* purecov: inspected */
   }
+  join->accepted_rows++;                        // For rownum()
   DBUG_RETURN(NESTED_LOOP_OK);
 }
 
@@ -22537,6 +22584,7 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
   int	  idx= -1;
   DBUG_ENTER("end_write_group");
 
+  join->accepted_rows++;
   if (!join->first_record || end_of_records ||
       (idx=test_if_group_changed(join->group_fields)) >= 0)
   {
@@ -24150,6 +24198,7 @@ create_sort_index(THD *thd, JOIN *join, JOIN_TAB *tab, Filesort *fsort)
 
   if (table->s->tmp_table)
     table->file->info(HA_STATUS_VARIABLE);	// Get record count
+  fsort->accepted_rows= &join->accepted_rows;   // For ROWNUM
   file_sort= filesort(thd, table, fsort, fsort->tracker, join, tab->table->map);
   DBUG_ASSERT(tab->filesort_result == 0);
   tab->filesort_result= file_sort;
@@ -26537,7 +26586,8 @@ int JOIN::rollup_send_data(uint idx)
     1   if write_data_failed()
 */
 
-int JOIN::rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param_arg, TABLE *table_arg)
+int JOIN::rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param_arg,
+                            TABLE *table_arg)
 {
   uint i;
   for (i= send_group_parts ; i-- > idx ; )
@@ -29741,6 +29791,224 @@ void unpack_to_base_table_fields(TABLE *table)
   for (Copy_field *cp= tab->read_record.copy_field;
        cp != tab->read_record.copy_field_end; cp++)
     (*cp->do_copy)(cp);
+}
+
+/*
+  Call item->fix_after_optimize for all items registered in
+  lex->fix_after_optimize
+
+  This is needed for items like ROWNUM(), which needs access to structures
+  created by the early optimizer pass, like JOIN
+*/
+
+static void fix_items_after_optimize(THD *thd, SELECT_LEX *select_lex)
+{
+  List_iterator<Item> li(select_lex->fix_after_optimize);
+
+  while (Item *item= li++)
+    item->fix_after_optimize(thd);
+}
+
+
+/*
+  Set a limit for the SELECT_LEX_UNIT based on ROWNUM usage.
+  The limit is shown in EXPLAIN
+*/
+
+static bool set_limit_for_unit(THD *thd, SELECT_LEX_UNIT *unit, ha_rows lim)
+{
+  SELECT_LEX *gpar= unit->global_parameters();
+  if (gpar->limit_params.select_limit != 0  &&
+       // limit can not be an expression but can be parameter
+      (!gpar->limit_params.select_limit->basic_const_item() ||
+       ((ha_rows)gpar->limit_params.select_limit->val_int()) < lim))
+    return false;
+
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+
+  gpar->limit_params.select_limit=
+    new (thd->mem_root) Item_int(thd, lim, MAX_BIGINT_WIDTH);
+  if (gpar->limit_params.select_limit == 0)
+    return true; // EOM
+
+  unit->set_limit(gpar);
+
+  gpar->limit_params.explicit_limit= true; // to show in EXPLAIN
+
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+
+  return false;
+}
+
+
+/**
+  Check possibility of LIMIT setting by rownum() of upper SELECT and do it
+
+  @note Ideal is to convert something like
+    SELECT ...
+      FROM (SELECT ...) table
+      WHERE rownum() < <CONSTANT>;
+  to
+    SELECT ...
+      FROM (SELECT ... LIMIT <CONSTANT>) table
+      WHERE rownum() < <CONSTANT>;
+
+  @retval true  EOM
+  @retval false no errors
+*/
+
+bool JOIN::optimize_upper_rownum_func()
+{
+  DBUG_ASSERT(select_lex->master_unit()->derived);
+
+  if (select_lex->master_unit()->first_select() != select_lex)
+    return false; // first will set parameter
+
+  if (select_lex->master_unit()->global_parameters()->
+      limit_params.offset_limit != NULL)
+    return false; // offset is set, we cannot set limit
+
+  SELECT_LEX *outer_select= select_lex->master_unit()->outer_select();
+  /*
+    Check that it is safe to use rownum-limit from the outer query
+    (the one that has 'WHERE rownum()...')
+  */
+  if (outer_select == NULL ||
+      !outer_select->with_rownum ||
+      (outer_select->options & SELECT_DISTINCT) ||
+      outer_select->table_list.elements != 1 ||
+      outer_select->where == NULL ||
+      outer_select->where->type() != Item::FUNC_ITEM)
+    return false;
+
+  return process_direct_rownum_comparison(thd, unit, outer_select->where);
+}
+
+/**
+  Test if the predicate compares rownum() with a constant
+
+  @return 1  No or invalid rownum() compare
+  @return 0  rownum() is compared with a constant.
+             In this case *args contains the constant and
+             *inv_order constains 1 if the rownum() was the right
+             argument, like in 'WHERE 2 >= rownum()'.
+*/
+
+static bool check_rownum_usage(Item_func *func_item, longlong *limit,
+                               bool *inv_order)
+{
+  Item *arg1, *arg2;
+  *inv_order= 0;
+  DBUG_ASSERT(func_item->argument_count() == 2);
+
+  /* 'rownum op const' or 'const op field' */
+  arg1= func_item->arguments()[0]->real_item();
+  if (arg1->type() == Item::FUNC_ITEM &&
+      ((Item_func*) arg1)->functype() == Item_func::ROWNUM_FUNC)
+  {
+    arg2= func_item->arguments()[1]->real_item();
+    if (arg2->can_eval_in_optimize())
+    {
+      *limit= arg2->val_int();
+      return *limit <= 0 || (ulonglong) *limit >= HA_POS_ERROR;
+    }
+  }
+  else if (arg1->can_eval_in_optimize())
+  {
+    arg2= func_item->arguments()[1]->real_item();
+    if (arg2->type() == Item::FUNC_ITEM &&
+        ((Item_func*) arg2)->functype() == Item_func::ROWNUM_FUNC)
+    {
+      *limit= arg1->val_int();
+      *inv_order= 1;
+      return *limit <= 0 || (ulonglong) *limit >= HA_POS_ERROR;
+    }
+  }
+  return 1;
+}
+
+
+/*
+  Limit optimization for ROWNUM()
+
+  Go through the WHERE clause and find out if there are any of the following
+  constructs on the top level:
+  rownum() <= integer_constant
+  rownum() <  integer_constant
+  rownum() = 1
+
+  If yes, then threat the select as if 'LIMIT integer_constant' would
+  have been used
+*/
+
+static void optimize_rownum(THD *thd, SELECT_LEX_UNIT *unit,
+                            Item *cond)
+{
+  DBUG_ENTER("optimize_rownum");
+
+  if (cond->type() == Item::COND_ITEM)
+  {
+    if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
+    {
+      List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
+      Item *item;
+      while ((item= li++))
+        optimize_rownum(thd, unit, item);
+    }
+    DBUG_VOID_RETURN;
+  }
+
+  process_direct_rownum_comparison(thd, unit, cond);
+  DBUG_VOID_RETURN;
+}
+
+
+static bool process_direct_rownum_comparison(THD *thd, SELECT_LEX_UNIT *unit,
+                                             Item *cond)
+{
+  DBUG_ENTER("process_direct_rownum_comparison");
+  if (cond->real_type() == Item::FUNC_ITEM)
+  {
+    Item_func *pred= (Item_func*) cond;
+    longlong limit;
+    bool inv;
+
+    if (pred->argument_count() != 2)
+      DBUG_RETURN(false);                         // Not a compare functions
+    if (check_rownum_usage(pred, &limit, &inv))
+      DBUG_RETURN(false);
+
+    Item_func::Functype pred_type= pred->functype();
+
+    if (inv && pred_type != Item_func::EQ_FUNC)
+    {
+      if (pred_type == Item_func::GT_FUNC)      // # > rownum()
+        pred_type= Item_func::LT_FUNC;
+      else if (pred_type == Item_func::GE_FUNC) // # >= rownum()
+        pred_type= Item_func::LE_FUNC;
+      else
+        DBUG_RETURN(false);
+    }
+    switch (pred_type) {
+    case Item_func::LT_FUNC:                    // rownum() < #
+    {
+      if (limit <= 0)
+        DBUG_RETURN(false);
+      DBUG_RETURN(set_limit_for_unit(thd, unit, limit - 1));
+    case Item_func::LE_FUNC:
+      DBUG_RETURN(set_limit_for_unit(thd, unit, limit));
+    case Item_func::EQ_FUNC:
+      if (limit == 1)
+        DBUG_RETURN(set_limit_for_unit(thd, unit, limit));
+      break;
+    default:
+      break;
+    }
+    }
+  }
+  DBUG_RETURN(false);
 }
 
 

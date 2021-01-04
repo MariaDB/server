@@ -7988,3 +7988,5 @@ ER_JSON_TABLE_MULTIPLE_MATCHES
         eng "Can't store multiple matches of the path in the column '%s' of JSON_TABLE '%s'."
 ER_WITH_TIES_NEEDS_ORDER
         eng "FETCH ... WITH TIES requires ORDER BY clause to be present"
+ER_FUNCTION_CANNOT_BE_USED_IN_CLAUSE
+        eng "Function '%s' cannot be used in the %s clause"
