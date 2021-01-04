@@ -154,7 +154,7 @@ static ulint	os_innodb_umask	= 0;
 
 #define WAIT_ALLOW_WRITES() innodb_wait_allow_writes()
 
-ulint	os_n_file_reads;
+Atomic_counter<ulint> os_n_file_reads;
 static ulint	os_bytes_read_since_printout;
 ulint	os_n_file_writes;
 ulint	os_n_fsyncs;
@@ -4190,7 +4190,7 @@ os_aio_print(FILE*	file)
 		ULINTPF " OS fsyncs\n",
 		log_sys.get_pending_flushes(),
 		ulint{fil_n_pending_tablespace_flushes},
-		os_n_file_reads,
+		ulint{os_n_file_reads},
 		os_n_file_writes,
 		os_n_fsyncs);
 

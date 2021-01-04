@@ -164,3 +164,13 @@ Warnings:
 Note	1051	Unknown table 'test.t0'
 FLUSH TABLE t0;
 DROP TABLE t0;
+#
+# MDEV-24364 Alter rename table does not remove PFS share
+#
+create or replace table yt4 (x int) engine innodb;
+alter table yt4 rename to t1, algorithm=copy;
+drop tables t1;
+select object_type, object_schema, object_name
+from performance_schema.objects_summary_global_by_type
+where object_schema="test";
+object_type	object_schema	object_name

@@ -38,6 +38,7 @@ Created 10/21/1995 Heikki Tuuri
 
 #include "fsp0types.h"
 #include "tpool.h"
+#include "my_counter.h"
 
 #ifndef _WIN32
 #include <dirent.h>
@@ -266,7 +267,7 @@ struct os_file_size_t {
 
 constexpr ulint OS_AIO_N_PENDING_IOS_PER_THREAD= 256;
 
-extern ulint	os_n_file_reads;
+extern Atomic_counter<ulint> os_n_file_reads;
 extern ulint	os_n_file_writes;
 extern ulint	os_n_fsyncs;
 

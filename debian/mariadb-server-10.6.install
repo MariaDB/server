@@ -3,7 +3,6 @@ debian/additions/debian-start.inc.sh usr/share/mysql
 debian/additions/echo_stderr usr/share/mysql
 debian/additions/mariadb.conf.d/50-mysqld_safe.cnf etc/mysql/mariadb.conf.d
 debian/additions/mariadb.conf.d/50-server.cnf etc/mysql/mariadb.conf.d
-support-files/rpm/enable_encryption.preset etc/mysql/mariadb.conf.d/99-enable-encryption.cnf.preset
 debian/additions/source_mariadb-10.6.py usr/share/apport/package-hooks
 etc/apparmor.d/usr.sbin.mariadbd
 etc/security/user_map.conf
@@ -11,6 +10,7 @@ lib/*/security/pam_user_map.so
 lib/systemd/system/mariadb@bootstrap.service.d/use_galera_new_cluster.conf
 lib/systemd/system/mysql.service
 lib/systemd/system/mysqld.service
+support-files/rpm/enable_encryption.preset etc/mysql/mariadb.conf.d/99-enable-encryption.cnf.preset
 usr/bin/aria_chk
 usr/bin/aria_dump_log
 usr/bin/aria_ftdump

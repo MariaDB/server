@@ -48,12 +48,6 @@ ifeq (32,$(DEB_HOST_ARCH_BITS))
     CMAKEFLAGS += -DPLUGIN_ROCKSDB=NO
 endif
 
-# ColumnStore only attempts to build on a few platforms as dictated by CMake checks
-# Also note in debian/control the CS-only build deps marked '[amd64]'
-ifeq ($(DEB_HOST_ARCH),$(filter $(DEB_HOST_ARCH),amd64))
-    CMAKEFLAGS += -DPLUGIN_COLUMNSTORE=YES
-endif
-
 # Add extra flag to avoid WolfSSL code crashing the entire mariadbd on s390x. This
 # can be removed once upstream has made the code s390x compatible, see
 # https://jira.mariadb.org/browse/MDEV-21705 and
@@ -85,6 +79,8 @@ ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
 	dh_auto_build --builddirectory=builddir-native -- import_executables
 endif
 
+	# Don't build ColumnStore as part of the native build, only build it when
+	# triggered by autobake-deb.sh. Saves build time and disk space.
 	mkdir -p $(BUILDDIR) && cd $(BUILDDIR) && \
 	sh -c  'PATH=$${MYSQL_BUILD_PATH:-"/usr/lib/ccache:/usr/local/bin:/usr/bin:/bin"} \
 	    	CC=${CC} \
@@ -97,6 +93,7 @@ endif
 	    -DCMAKE_SYSTEM_PROCESSOR=$(DEB_HOST_ARCH) \
 	    -DBUILD_CONFIG=mysql_release \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
+	    -DPLUGIN_COLUMNSTORE=NO \
 	    -DDEB=$(DEB_VENDOR) ..'
 
 # This is needed, otherwise 'make test' will run before binaries have been built

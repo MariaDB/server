@@ -287,3 +287,14 @@ enable_query_log;
 # an unexpected refcount.
 FLUSH TABLE t0;
 DROP TABLE t0;
+
+--echo #
+--echo # MDEV-24364 Alter rename table does not remove PFS share
+--echo #
+create or replace table yt4 (x int) engine innodb;
+alter table yt4 rename to t1, algorithm=copy;
+drop tables t1;
+
+select object_type, object_schema, object_name
+from performance_schema.objects_summary_global_by_type
+where object_schema="test";
