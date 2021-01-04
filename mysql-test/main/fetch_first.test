@@ -1,0 +1,209 @@
+--echo #
+--echo # Test basic syntax.
+--echo #
+
+create table t1 (a int);
+
+insert into t1 values (1), (1), (2), (3), (2);
+
+--echo # Syntax error
+--error 1064
+select * from t1
+order by a
+offset 2;
+
+--echo #
+--echo # Test syntax without a specific limit.
+--echo #
+select * from t1
+fetch first row only;
+
+select * from t1
+fetch first rows only;
+
+select * from t1
+fetch next row only;
+
+select * from t1
+fetch next rows only;
+
+select * from t1
+order by a
+offset 2
+fetch first row only;
+
+select * from t1
+order by a
+offset 2
+fetch first rows only;
+
+select * from t1
+order by a
+fetch first row only
+offset 2;
+
+select * from t1
+order by a
+fetch first rows only
+offset 2;
+
+select * from t1
+order by a
+offset 2
+fetch next rows only;
+
+select * from t1
+order by a
+fetch next rows only
+offset 2;
+
+
+--error ER_WITH_TIES_NEEDS_ORDER
+select * from t1
+fetch first row with ties;
+
+--error ER_WITH_TIES_NEEDS_ORDER
+select * from t1
+fetch first rows with ties;
+
+--error ER_WITH_TIES_NEEDS_ORDER
+select * from t1
+fetch next row with ties;
+
+--error ER_WITH_TIES_NEEDS_ORDER
+select * from t1
+fetch next rows with ties;
+
+select * from t1
+order by a
+fetch first row with ties;
+
+select * from t1
+order by a
+fetch first rows with ties;
+
+select * from t1
+order by a
+fetch next rows with ties;
+
+select * from t1
+order by a
+offset 2
+fetch next rows with ties;
+
+select * from t1
+order by a
+fetch next rows with ties
+offset 2;
+
+--echo #
+--echo # Test syntax with a specific limit
+--echo #
+select * from t1
+order by a
+fetch first 3 row only;
+
+select * from t1
+order by a
+fetch first 3 rows only;
+
+select * from t1
+order by a
+fetch next 3 row only;
+
+select * from t1
+order by a
+fetch next 3 rows only;
+
+select * from t1
+order by a
+offset 2
+fetch first 3 rows only;
+
+select * from t1
+order by a
+fetch first 3 rows only
+offset 2;
+
+
+
+
+
+select @@optimizer_switch;
+explain format=json select * from t1
+order by a
+FETCH FIRST 3 ROWS WITH TIES;
+
+
+select * from t1
+order by a
+FETCH FIRST 3 ROWS WITH TIES;
+
+
+
+select * from t1
+order by a
+FETCH FIRST 2 ROWS ONLY
+OFFSET 1;
+
+select * from t1
+order by a
+OFFSET 1
+FETCH FIRST 2 ROWS ONLY;
+
+select * from t1
+order by a
+OFFSET 1
+FETCH FIRST 2 ROWS WITH TIES;
+
+select * from t1
+order by a
+OFFSET 1
+FETCH FIRST 2 ROWS ONLY;
+
+select * from t1
+order by a
+limit 1;
+
+select * from t1
+order by a
+FETCH FIRST 2 ROWS WITH TIES;
+
+select * from t1
+FETCH FIRST 2 ROWS ONLY;
+
+--error ER_WITH_TIES_NEEDS_ORDER
+select * from t1
+FETCH FIRST 2 ROWS WITH TIES;
+
+select * from t1
+order by a
+FETCH FIRST 2 ROWS WITH TIES
+OFFSET 2;
+
+select * from t1
+order by a
+FETCH FIRST 3 ROWS WITH TIES;
+
+(select * from t1
+order by a
+fetch first 3 rows with ties
+offset 1)
+union all
+select * from t1
+order by a;
+
+drop table t1;
+
+
+# Subqueries
+# Aggregation
+# views
+# derived tables
+# CTEs
+# recursive CTEs
+# window functions
+# multiple order by
+# In stored functions.
+# With indexes / without indexes
+# With sequences?
