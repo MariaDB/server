@@ -709,7 +709,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   List_item *values;
   Name_resolution_context *context;
   Name_resolution_context_state ctx_state;
-  SELECT_LEX   *returning= thd->lex->has_returning() ? thd->lex->returning() : 0;
+  SELECT_LEX *returning= thd->lex->has_returning() ? thd->lex->returning() : 0;
 
 #ifndef EMBEDDED_LIBRARY
   char *query= thd->query();
@@ -745,6 +745,9 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
              table_list->table_name.str);
     DBUG_RETURN(TRUE);
   }
+
+  if (thd->lex->with_rownum && table_list->lock_type == TL_WRITE_DELAYED)
+    table_list->lock_type= TL_WRITE;
 
   if (table_list->lock_type == TL_WRITE_DELAYED)
   {
@@ -968,11 +971,16 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   */
   if (returning &&
       result->send_result_set_metadata(returning->item_list,
-                                Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+                                       Protocol::SEND_NUM_ROWS |
+                                       Protocol::SEND_EOF))
     goto values_loop_end;
 
   THD_STAGE_INFO(thd, stage_update);
   thd->decide_logging_format_low(table);
+  fix_rownum_pointers(thd, thd->lex->current_select, &info.copied);
+  if (returning)
+    fix_rownum_pointers(thd, thd->lex->returning(), &info.copied);
+
   do
   {
     DBUG_PRINT("info", ("iteration %llu", iteration));
@@ -2130,8 +2138,14 @@ ok:
     autoinc values (generated inside the handler::ha_write()) and
     values updated in ON DUPLICATE KEY UPDATE.
   */
-  if (sink && sink->send_data(thd->lex->returning()->item_list) < 0)
-    trg_error= 1;
+  if (sink)
+  {
+    /* We have to adjust 'copied' to make ROWNUM() work in RETURNING */
+    info->copied--;
+    if (sink->send_data(thd->lex->returning()->item_list) < 0)
+      trg_error= 1;
+    info->copied++;
+  }
 
 after_trg_or_ignored_err:
   if (key)
@@ -5122,4 +5136,19 @@ void select_create::abort_result_set()
     }
   }
   DBUG_VOID_RETURN;
+}
+
+/*
+  Inform all ROWNUM() function where the number of rows are stored
+*/
+
+void fix_rownum_pointers(THD *thd, SELECT_LEX *select_lex, ha_rows *ptr)
+{
+  List_iterator<Item> li(select_lex->fix_after_optimize);
+  while (Item *item= li++)
+  {
+    if (item->type() == Item::FUNC_ITEM &&
+        ((Item_func*) item)->functype() == Item_func::ROWNUM_FUNC)
+      ((Item_func_rownum*) item)->store_pointer_to_row_counter(ptr);
+  }
 }

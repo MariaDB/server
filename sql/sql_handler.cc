@@ -616,16 +616,28 @@ static SQL_HANDLER *mysql_ha_find_handler(THD *thd, const LEX_CSTRING *name)
 static bool
 mysql_ha_fix_cond_and_key(SQL_HANDLER *handler, 
                           enum enum_ha_read_modes mode, const char *keyname,
-                          List<Item> *key_expr, enum ha_rkey_function ha_rkey_mode,
+                          List<Item> *key_expr,
+                          enum ha_rkey_function ha_rkey_mode,
                           Item *cond, bool in_prepare)
 {
   THD *thd= handler->thd;
   TABLE *table= handler->table;
   if (cond)
   {
+    bool ret;
+    Item::vcol_func_processor_result res;
+
     /* This can only be true for temp tables */
     if (table->query_id != thd->query_id)
       cond->cleanup();                          // File was reopened
+
+    ret= cond->walk(&Item::check_handler_func_processor, 0, &res);
+    if (ret || res.errors)
+    {
+      my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
+               "WHERE", "HANDLER");
+      return 1;                                 // ROWNUM() used
+    }
     if (cond->fix_fields_if_needed_for_bool(thd, &cond))
       return 1;
   }
@@ -1019,7 +1031,8 @@ err0:
 SQL_HANDLER *mysql_ha_read_prepare(THD *thd, TABLE_LIST *tables,
                                    enum enum_ha_read_modes mode,
                                    const char *keyname,
-                                   List<Item> *key_expr, enum ha_rkey_function ha_rkey_mode,
+                                   List<Item> *key_expr,
+                                   enum ha_rkey_function ha_rkey_mode,
                                    Item *cond)
 {
   SQL_HANDLER *handler;

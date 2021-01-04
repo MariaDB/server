@@ -67,6 +67,15 @@ class Select_limit_counters
    { return select_limit_cnt; }
    ha_rows get_offset_limit()
    { return offset_limit_cnt; }
+
+   void set_limit_if_lower(ha_rows limit)
+   {
+     if (!offset_limit_cnt)
+     {
+       if (select_limit_cnt > limit)
+         select_limit_cnt= limit;
+     }
+   }
 };
 
 #endif // INCLUDES_MARIADB_SQL_LIMIT_H
