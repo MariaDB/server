@@ -2234,6 +2234,17 @@ protected:
   virtual ~Create_func_uuid() {}
 };
 
+class Create_func_sys_guid : public Create_func_arg0
+{
+public:
+  virtual Item *create_builder(THD *thd);
+
+  static Create_func_sys_guid s_singleton;
+
+protected:
+  Create_func_sys_guid() {}
+  virtual ~Create_func_sys_guid() {}
+};
 
 class Create_func_uuid_short : public Create_func_arg0
 {
@@ -5232,6 +5243,17 @@ Create_func_uuid::create_builder(THD *thd)
   DBUG_RETURN(new (thd->mem_root) Item_func_uuid(thd));
 }
 
+Create_func_sys_guid Create_func_sys_guid::s_singleton;
+
+Item*
+Create_func_sys_guid::create_builder(THD *thd)
+{
+  DBUG_ENTER("Create_func_sys_guid::create");
+  thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+  thd->lex->safe_to_cache_query= 0;
+  DBUG_RETURN(new (thd->mem_root) Item_func_sys_guid(thd));
+}
+
 
 Create_func_uuid_short Create_func_uuid_short::s_singleton;
 
@@ -5573,6 +5595,7 @@ static Native_func_registry func_array[] =
       BUILDER(Create_func_substr_oracle)},
   { { STRING_WITH_LEN("SUBSTRING_INDEX") }, BUILDER(Create_func_substr_index)},
   { { STRING_WITH_LEN("SUBTIME") }, BUILDER(Create_func_subtime)},
+  { { STRING_WITH_LEN("SYS_GUID") }, BUILDER(Create_func_sys_guid)},
   { { STRING_WITH_LEN("TAN") }, BUILDER(Create_func_tan)},
   { { STRING_WITH_LEN("TIMEDIFF") }, BUILDER(Create_func_timediff)},
   { { STRING_WITH_LEN("TIME_FORMAT") }, BUILDER(Create_func_time_format)},
