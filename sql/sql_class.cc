@@ -2864,7 +2864,7 @@ static File create_file(THD *thd, char *path, sql_exchange *exchange,
 #ifdef HAVE_FCHMOD
   (void) fchmod(file, 0644);			// Because of umask()
 #else
-  (void) chmod(path, 0644;
+  (void) chmod(path, 0644);
 #endif
   if (init_io_cache(cache, file, 0L, WRITE_CACHE, 0L, 1, MYF(MY_WME)))
   {
