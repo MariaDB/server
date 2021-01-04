@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1155,21 +1155,6 @@ lock_sec_rec_some_has_impl(
 	}
 
 	return(trx);
-}
-
-/*********************************************************************//**
-Return approximate number or record locks (bits set in the bitmap) for
-this transaction. Since delete-marked records may be removed, the
-record count will not be precise.
-The caller must be holding lock_sys.mutex. */
-ulint
-lock_number_of_rows_locked(
-/*=======================*/
-	const trx_lock_t*	trx_lock)	/*!< in: transaction locks */
-{
-	lock_sys.mutex_assert_locked();
-
-	return(trx_lock->n_rec_locks);
 }
 
 /*********************************************************************//**
@@ -5940,7 +5925,7 @@ DeadlockChecker::print(const trx_t* trx, ulint max_query_len)
 {
 	lock_sys.mutex_assert_locked();
 
-	ulint	n_rec_locks = lock_number_of_rows_locked(&trx->lock);
+	ulint	n_rec_locks = trx->lock.n_rec_locks;
 	ulint	n_trx_locks = UT_LIST_GET_LEN(trx->lock.trx_locks);
 	ulint	heap_size = mem_heap_get_size(trx->lock.lock_heap);
 

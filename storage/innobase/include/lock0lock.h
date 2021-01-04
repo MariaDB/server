@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -534,16 +534,6 @@ void
 lock_print_info_all_transactions(
 /*=============================*/
 	FILE*	file);	/*!< in: file where to print */
-/*********************************************************************//**
-Return approximate number or record locks (bits set in the bitmap) for
-this transaction. Since delete-marked records may be removed, the
-record count will not be precise.
-The caller must be holding lock_sys.mutex. */
-ulint
-lock_number_of_rows_locked(
-/*=======================*/
-	const trx_lock_t*	trx_lock)	/*!< in: transaction locks */
-	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
 Return the number of table locks for a transaction.

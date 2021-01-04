@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -515,6 +515,7 @@ lock_rec_set_nth_bit(
 @return previous value of the bit */
 inline byte lock_rec_reset_nth_bit(lock_t* lock, ulint i)
 {
+	lock_sys.mutex_assert_locked();
 	ut_ad(lock_get_type_low(lock) == LOCK_REC);
 	ut_ad(i < lock->un_member.rec_lock.n_bits);
 
@@ -524,8 +525,9 @@ inline byte lock_rec_reset_nth_bit(lock_t* lock, ulint i)
 	*b &= byte(~mask);
 
 	if (bit != 0) {
-		ut_ad(lock->trx->lock.n_rec_locks > 0);
-		--lock->trx->lock.n_rec_locks;
+		ut_d(auto n=)
+		lock->trx->lock.n_rec_locks--;
+		ut_ad(n);
 	}
 
 	return(bit);

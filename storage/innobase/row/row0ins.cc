@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -705,7 +705,7 @@ row_ins_foreign_trx_print(
 	ut_ad(!srv_read_only_mode);
 
 	lock_sys.mutex_lock();
-	n_rec_locks = lock_number_of_rows_locked(&trx->lock);
+	n_rec_locks = trx->lock.n_rec_locks;
 	n_trx_locks = UT_LIST_GET_LEN(trx->lock.trx_locks);
 	heap_size = mem_heap_get_size(trx->lock.lock_heap);
 	lock_sys.mutex_unlock();

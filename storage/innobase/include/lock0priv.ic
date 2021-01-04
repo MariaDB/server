@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -91,6 +91,7 @@ lock_rec_set_nth_bit(
 	ulint	byte_index;
 	ulint	bit_index;
 
+	lock_sys.mutex_assert_locked();
 	ut_ad(lock);
 	ut_ad(lock_get_type_low(lock) == LOCK_REC);
 	ut_ad(i < lock->un_member.rec_lock.n_bits);
@@ -106,7 +107,7 @@ lock_rec_set_nth_bit(
 #if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
 # pragma GCC diagnostic pop
 #endif
-	++lock->trx->lock.n_rec_locks;
+	lock->trx->lock.n_rec_locks++;
 }
 
 /*********************************************************************//**

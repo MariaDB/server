@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -245,7 +245,7 @@ trx_print_low(
 			/*!< in: max query length to print,
 			or 0 to use the default max length */
 	ulint		n_rec_locks,
-			/*!< in: lock_number_of_rows_locked(&trx->lock) */
+			/*!< in: trx->lock.n_rec_locks */
 	ulint		n_trx_locks,
 			/*!< in: length of trx->lock.trx_locks */
 	ulint		heap_size);
@@ -560,7 +560,8 @@ struct trx_lock_t {
 					mutex to prevent recursive deadlocks.
 					Protected by both the lock sys mutex
 					and the trx_t::mutex. */
-	ulint		n_rec_locks;	/*!< number of rec locks in this trx */
+  /** number of record locks; writes are protected by lock_sys.mutex */
+  ulint n_rec_locks;
 };
 
 /** Logical first modification time of a table in a transaction */

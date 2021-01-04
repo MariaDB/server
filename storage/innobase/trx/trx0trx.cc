@@ -1761,7 +1761,7 @@ trx_print_low(
 			/*!< in: max query length to print,
 			or 0 to use the default max length */
 	ulint		n_rec_locks,
-			/*!< in: lock_number_of_rows_locked(&trx->lock) */
+			/*!< in: trx->lock.n_rec_locks */
 	ulint		n_trx_locks,
 			/*!< in: length of trx->lock.trx_locks */
 	ulint		heap_size)
@@ -1872,7 +1872,7 @@ trx_print_latched(
 	lock_sys.mutex_assert_locked();
 
 	trx_print_low(f, trx, max_query_len,
-		      lock_number_of_rows_locked(&trx->lock),
+		      trx->lock.n_rec_locks,
 		      UT_LIST_GET_LEN(trx->lock.trx_locks),
 		      mem_heap_get_size(trx->lock.lock_heap));
 }
@@ -1893,7 +1893,7 @@ trx_print(
 	ulint	heap_size;
 
 	lock_sys.mutex_lock();
-	n_rec_locks = lock_number_of_rows_locked(&trx->lock);
+	n_rec_locks = trx->lock.n_rec_locks;
 	n_trx_locks = UT_LIST_GET_LEN(trx->lock.trx_locks);
 	heap_size = mem_heap_get_size(trx->lock.lock_heap);
 	lock_sys.mutex_unlock();
