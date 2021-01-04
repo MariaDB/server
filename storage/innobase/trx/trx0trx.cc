@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1323,10 +1323,8 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
     ut_a(!is_recovered);
     ut_ad(!rsegs.m_redo.rseg);
 
-    /* Note: We are asserting without holding the lock mutex. But
-    that is OK because this transaction is not waiting and cannot
-    be rolled back and no new locks can (or should) be added
-    because it is flagged as a non-locking read-only transaction. */
+    /* Note: We do not have to hold any lock_sys latch here, because
+    this is a non-locking transaction. */
     ut_a(UT_LIST_GET_LEN(lock.trx_locks) == 0);
 
     /* This state change is not protected by any mutex, therefore

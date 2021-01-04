@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -3436,13 +3436,13 @@ func_exit:
 	return(TRUE);
 }
 
-/** Given a tablespace id and page number tries to get that page. If the
-page is not in the buffer pool it is not loaded and NULL is returned.
-Suitable for using when holding the lock_sys_t::mutex.
-@param[in]	page_id	page id
-@param[in]	mtr	mini-transaction
-@return pointer to a page or NULL */
-buf_block_t* buf_page_try_get(const page_id_t page_id, mtr_t *mtr)
+/** Try to U-latch a page.
+Suitable for using when holding the lock_sys latches (as it avoids deadlock).
+@param[in]	page_id	page identifier
+@param[in,out]	mtr	mini-transaction
+@return the block
+@retval nullptr if an U-latch cannot be granted immediately */
+buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr)
 {
   ut_ad(mtr);
   ut_ad(mtr->is_active());
