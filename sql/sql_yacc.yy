@@ -1033,7 +1033,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
   Currently there are 98 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 98
+%expect 109
 
 /*
    Comments for TOKENS.
@@ -1774,7 +1774,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <field_type> int_type real_type
 
-%type <Lex_field_type> type_with_opt_collate field_type
+%type <Lex_field_type> field_type
 
 %type <Lex_dyncol_type> opt_dyncol_type dyncol_type
         numeric_dyncol_type temporal_dyncol_type string_dyncol_type
@@ -3010,11 +3010,12 @@ sp_param_name_and_type:
                                  thd->variables.collation_database);
             $<spvar>$= spvar;
           }
-          type_with_opt_collate
+          field_type
           {
             LEX *lex= Lex;
             sp_variable *spvar= $<spvar>2;
 
+            Lex->set_last_field_type($3);
             if (lex->sphead->fill_field_definition(thd, lex, lex->last_field))
             {
               MYSQL_YYABORT;
@@ -3096,14 +3097,15 @@ sp_decl:
             thd->lex->init_last_field(&spvar->field_def, spvar->name.str,
                                       thd->variables.collation_database);
           }
-          type_with_opt_collate
+          field_type
           sp_opt_default
           {
             LEX *lex= Lex;
             sp_pcontext *pctx= lex->spcont;
             uint num_vars= pctx->context_var_count();
             Item *dflt_value_item= $5;
-            
+            Lex->set_last_field_type($4);
+
             if (!dflt_value_item)
             {
               dflt_value_item= new (thd->mem_root) Item_null(thd);
@@ -6665,20 +6667,6 @@ serial_attribute:
         ;
 
 
-type_with_opt_collate:
-        field_type opt_collate
-        {
-          $$= $1;
-
-          if ($2)
-          {
-            if (!(Lex->charset= merge_charset_and_collation(Lex->charset, $2)))
-              MYSQL_YYABORT;
-          }
-          Lex->set_last_field_type($1);
-        }
-        ;
-
 charset:
           CHAR_SYM SET {}
         | CHARSET {}
@@ -6751,12 +6739,25 @@ charset_or_alias:
           }
         ;
 
+collate: COLLATE_SYM collation_name_or_default
+         {
+           Lex->charset= Lex->last_field->charset= $2;
+         }
+       ;
+
 opt_binary:
           /* empty */             { bincmp_collation(NULL, false); }
         | BYTE_SYM                { bincmp_collation(&my_charset_bin, false); }
         | charset_or_alias opt_bin_mod { bincmp_collation($1, $2); }
         | BINARY                  { bincmp_collation(NULL, true); }
         | BINARY charset_or_alias { bincmp_collation($2, true); }
+        | charset_or_alias collate
+          {
+            if (!my_charset_same(Lex->charset, $1))
+              my_yyabort_error((ER_COLLATION_CHARSET_MISMATCH, MYF(0),
+                                Lex->charset->name, $1->csname));
+          }
+        | collate { }
         ;
 
 opt_bin_mod:
@@ -16854,8 +16855,9 @@ sf_tail:
             lex->init_last_field(&lex->sphead->m_return_field_def, NULL,
                                  thd->variables.collation_database);
           }
-          type_with_opt_collate /* $11 */
+          field_type /* $11 */
           { /* $12 */
+            Lex->set_last_field_type($11);
             if (Lex->sphead->fill_field_definition(thd, Lex, Lex->last_field))
               MYSQL_YYABORT;
           }

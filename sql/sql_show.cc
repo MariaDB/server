@@ -2013,8 +2013,13 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       /*
 	For string types dump collation name only if
 	collation is not primary for the given charset
+
+        For generated fields don't print the COLLATE clause if
+        the collation matches the expression's collation.
       */
-      if (!(field->charset()->state & MY_CS_PRIMARY) && !field->vcol_info)
+      if (!(field->charset()->state & MY_CS_PRIMARY) &&
+          (!field->vcol_info ||
+           field->charset() != field->vcol_info->expr->collation.collation))
       {
 	packet->append(STRING_WITH_LEN(" COLLATE "));
 	packet->append(field->charset()->name);
