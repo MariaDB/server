@@ -576,6 +576,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 %token  <kwd> MEDIUMINT
 %token  <kwd> MEDIUMTEXT
 %token  <kwd> MIN_SYM                       /* SQL-2003-N */
+%token  <kwd> MINUS_ORACLE_SYM              /* Oralce-R   */
 %token  <kwd> MINUTE_MICROSECOND_SYM
 %token  <kwd> MINUTE_SECOND_SYM
 %token  <kwd> MODIFIES_SYM                  /* SQL-2003-R */
@@ -16037,6 +16038,7 @@ reserved_keyword_udt_not_param_type:
         | MINUTE_MICROSECOND_SYM
         | MINUTE_SECOND_SYM
         | MIN_SYM
+        | MINUS_ORACLE_SYM
         | MODIFIES_SYM
         | MOD_SYM
         | NATURAL
