@@ -592,6 +592,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 %token  <kwd> MEDIUMINT
 %token  <kwd> MEDIUMTEXT
 %token  <kwd> MIN_SYM                       /* SQL-2003-N */
+%token  <kwd> MINUS_ORACLE_SYM              /* Oracle-R   */
 %token  <kwd> MINUTE_MICROSECOND_SYM
 %token  <kwd> MINUTE_SECOND_SYM
 %token  <kwd> MODIFIES_SYM                  /* SQL-2003-R */
@@ -16037,6 +16038,9 @@ keyword_sp_var_and_label:
         | MICROSECOND_SYM
         | MIGRATE_SYM
         | MINUTE_SYM
+/* Start SQL_MODE_DEFAULT_SPECIFIC */
+        | MINUS_ORACLE_SYM
+/* End SQL_MODE_DEFAULT_SPECIFIC */
         | MINVALUE_SYM
         | MIN_ROWS
         | MODIFY_SYM
@@ -16329,6 +16333,9 @@ reserved_keyword_udt_not_param_type:
         | MINUTE_MICROSECOND_SYM
         | MINUTE_SECOND_SYM
         | MIN_SYM
+/* Start SQL_MODE_ORACLE_SPECIFIC
+        | MINUS_ORACLE_SYM
+End SQL_MODE_ORACLE_SPECIFIC */
         | MODIFIES_SYM
         | MOD_SYM
         | NATURAL

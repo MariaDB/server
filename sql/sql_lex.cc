@@ -1404,6 +1404,7 @@ int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
       case EXCEPTION_MARIADB_SYM:      return EXCEPTION_ORACLE_SYM;
       case EXIT_MARIADB_SYM:           return EXIT_ORACLE_SYM;
       case GOTO_MARIADB_SYM:           return GOTO_ORACLE_SYM;
+      case MINUS_ORACLE_SYM:           return EXCEPT_SYM;
       case NUMBER_MARIADB_SYM:         return NUMBER_ORACLE_SYM;
       case OTHERS_MARIADB_SYM:         return OTHERS_ORACLE_SYM;
       case PACKAGE_MARIADB_SYM:        return PACKAGE_ORACLE_SYM;
