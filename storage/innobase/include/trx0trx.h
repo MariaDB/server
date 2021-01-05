@@ -328,16 +328,6 @@ is estimated as the number of altered rows + the number of locked rows.
 @return transaction weight */
 #define TRX_WEIGHT(t)	((t)->undo_no + UT_LIST_GET_LEN((t)->lock.trx_locks))
 
-/*******************************************************************//**
-Compares the "weight" (or size) of two transactions. Transactions that
-have edited non-transactional tables are considered heavier than ones
-that have not.
-@return true if weight(a) >= weight(b) */
-bool
-trx_weight_ge(
-/*==========*/
-	const trx_t*	a,	/*!< in: the transaction to be compared */
-	const trx_t*	b);	/*!< in: the transaction to be compared */
 /* Maximum length of a string that can be returned by
 trx_get_que_state_str(). */
 #define TRX_QUE_STATE_STR_MAX_LEN	12 /* "ROLLING BACK" */

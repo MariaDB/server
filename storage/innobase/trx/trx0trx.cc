@@ -1902,41 +1902,6 @@ trx_print(
 		      n_rec_locks, n_trx_locks, heap_size);
 }
 
-/*******************************************************************//**
-Compares the "weight" (or size) of two transactions. Transactions that
-have edited non-transactional tables are considered heavier than ones
-that have not.
-@return TRUE if weight(a) >= weight(b) */
-bool
-trx_weight_ge(
-/*==========*/
-	const trx_t*	a,	/*!< in: transaction to be compared */
-	const trx_t*	b)	/*!< in: transaction to be compared */
-{
-	ibool	a_notrans_edit;
-	ibool	b_notrans_edit;
-
-	/* If mysql_thd is NULL for a transaction we assume that it has
-	not edited non-transactional tables. */
-
-	a_notrans_edit = a->mysql_thd != NULL
-		&& thd_has_edited_nontrans_tables(a->mysql_thd);
-
-	b_notrans_edit = b->mysql_thd != NULL
-		&& thd_has_edited_nontrans_tables(b->mysql_thd);
-
-	if (a_notrans_edit != b_notrans_edit) {
-
-		return(a_notrans_edit);
-	}
-
-	/* Either both had edited non-transactional tables or both had
-	not, we fall back to comparing the number of altered/locked
-	rows. */
-
-	return(TRX_WEIGHT(a) >= TRX_WEIGHT(b));
-}
-
 /** Prepare a transaction.
 @return	log sequence number that makes the XA PREPARE durable
 @retval	0	if no changes needed to be made durable */

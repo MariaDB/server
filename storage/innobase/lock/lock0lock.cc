@@ -6093,6 +6093,17 @@ DeadlockChecker::notify(const lock_t* lock) const
 	DBUG_PRINT("ib_lock", ("deadlock detected"));
 }
 
+/** Compare the "weight" (or size) of two transactions. Transactions that
+have edited non-transactional tables are considered heavier than ones
+that have not.
+@return whether a is heavier than b */
+inline bool trx_weight_ge(const trx_t *a, const trx_t *b)
+{
+  bool a_notrans= a->mysql_thd && thd_has_edited_nontrans_tables(a->mysql_thd);
+  bool b_notrans= b->mysql_thd && thd_has_edited_nontrans_tables(b->mysql_thd);
+  return a_notrans != b_notrans ? a_notrans : TRX_WEIGHT(a) >= TRX_WEIGHT(b);
+}
+
 /** Select the victim transaction that should be rolledback.
 @return victim transaction */
 const trx_t*
