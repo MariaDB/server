@@ -2161,7 +2161,7 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
   {
     const struct mysql_event_table *event =
       (const struct mysql_event_table *) ev;
-    if (do_log_user(event->user, SAFE_STRLEN(event->user),
+    if (do_log_user(event->user, (int) SAFE_STRLEN(event->user),
                     cn->proxy, cn->proxy_length, 1))
     {
       switch (event->event_subclass)
