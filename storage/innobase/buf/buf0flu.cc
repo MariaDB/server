@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -129,11 +129,13 @@ static void buf_flush_validate_skip()
 /** Wake up the page cleaner if needed */
 inline void buf_pool_t::page_cleaner_wakeup()
 {
-  if (page_cleaner_idle() &&
-      (srv_max_dirty_pages_pct_lwm == 0.0 ||
-       srv_max_dirty_pages_pct_lwm <=
-       double(UT_LIST_GET_LEN(buf_pool.flush_list)) * 100.0 /
-       double(UT_LIST_GET_LEN(buf_pool.LRU) + UT_LIST_GET_LEN(buf_pool.free))))
+  if (!page_cleaner_idle())
+    return;
+  double dirty_pct= double(UT_LIST_GET_LEN(buf_pool.flush_list)) * 100.0 /
+    double(UT_LIST_GET_LEN(buf_pool.LRU) + UT_LIST_GET_LEN(buf_pool.free));
+  double pct_lwm= srv_max_dirty_pages_pct_lwm;
+  if ((pct_lwm != 0.0 && pct_lwm <= dirty_pct) ||
+      srv_max_buf_pool_modified_pct <= dirty_pct)
   {
     page_cleaner_is_idle= false;
     mysql_cond_signal(&do_flush_list);
@@ -1989,7 +1991,9 @@ static ulint page_cleaner_flush_pages_recommendation(ulint last_pages_in,
 		sum_pages = 0;
 	}
 
-	const ulint pct_for_dirty = static_cast<ulint>
+	const ulint pct_for_dirty = srv_max_dirty_pages_pct_lwm == 0
+		? (dirty_pct >= max_pct ? 100 : 0)
+		: static_cast<ulint>
 		(max_pct > 0.0 ? dirty_pct / max_pct : dirty_pct);
 	ulint pct_total = std::max(pct_for_dirty, pct_for_lsn);
 
@@ -2129,7 +2133,11 @@ unemployed:
     const double dirty_pct= double(dirty_blocks) * 100.0 /
       double(UT_LIST_GET_LEN(buf_pool.LRU) + UT_LIST_GET_LEN(buf_pool.free));
 
-    if (dirty_pct < srv_max_dirty_pages_pct_lwm && !lsn_limit)
+    if (lsn_limit);
+    else if (dirty_pct < srv_max_buf_pool_modified_pct)
+      goto unemployed;
+    else if (srv_max_dirty_pages_pct_lwm == 0.0 ||
+             dirty_pct < srv_max_dirty_pages_pct_lwm)
       goto unemployed;
 
     const lsn_t oldest_lsn= buf_pool.get_oldest_modified()

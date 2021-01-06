@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -373,7 +373,7 @@ extern ulong	srv_innodb_stats_method;
 
 extern ulint	srv_max_n_open_files;
 
-extern double	srv_max_dirty_pages_pct;
+extern double	srv_max_buf_pool_modified_pct;
 extern double	srv_max_dirty_pages_pct_lwm;
 
 extern double	srv_adaptive_flushing_lwm;
@@ -400,10 +400,8 @@ extern my_bool			srv_stats_sample_traditional;
 extern my_bool	srv_use_doublewrite_buf;
 extern ulong	srv_checksum_algorithm;
 
-extern double	srv_max_buf_pool_modified_pct;
 extern my_bool	srv_force_primary_key;
 
-extern double	srv_max_buf_pool_modified_pct;
 extern ulong	srv_max_purge_lag;
 extern ulong	srv_max_purge_lag_delay;
 

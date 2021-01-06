@@ -1322,7 +1322,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	0.000000
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	DOUBLE
-VARIABLE_COMMENT	Percentage of dirty pages at which flushing kicks in.
+VARIABLE_COMMENT	Percentage of dirty pages at which flushing kicks in. The value 0 (default) means 'refer to innodb_max_dirty_pages_pct'.
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	99.999
 NUMERIC_BLOCK_SIZE	NULL

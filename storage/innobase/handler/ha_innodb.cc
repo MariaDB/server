@@ -19032,7 +19032,8 @@ static MYSQL_SYSVAR_DOUBLE(max_dirty_pages_pct, srv_max_buf_pool_modified_pct,
 static MYSQL_SYSVAR_DOUBLE(max_dirty_pages_pct_lwm,
   srv_max_dirty_pages_pct_lwm,
   PLUGIN_VAR_RQCMDARG,
-  "Percentage of dirty pages at which flushing kicks in.",
+  "Percentage of dirty pages at which flushing kicks in. "
+  "The value 0 (default) means 'refer to innodb_max_dirty_pages_pct'.",
   NULL, innodb_max_dirty_pages_pct_lwm_update, 0, 0, 99.999, 0);
 
 static MYSQL_SYSVAR_DOUBLE(adaptive_flushing_lwm,

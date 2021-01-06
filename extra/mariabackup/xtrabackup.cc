@@ -4,7 +4,7 @@ MariaBackup: hot backup tool for InnoDB
 Originally Created 3/3/2009 Yasufumi Kinoshita
 Written by Alexey Kopytov, Aleksandr Kuzminsky, Stewart Smith, Vadim Tkachenko,
 Yasufumi Kinoshita, Ignacio Nin and Baron Schwartz.
-(c) 2017, 2020, MariaDB Corporation.
+(c) 2017, 2021, MariaDB Corporation.
 Portions written by Marko Mäkelä.
 
 This program is free software; you can redistribute it and/or modify
@@ -2183,6 +2183,14 @@ error:
 static bool innodb_init()
 {
 	bool create_new_db = false;
+
+	if (srv_io_capacity >= SRV_MAX_IO_CAPACITY_LIMIT / 2) {
+		/* Avoid overflow. */
+		srv_max_io_capacity = SRV_MAX_IO_CAPACITY_LIMIT;
+	} else {
+		srv_max_io_capacity = std::max(2 * srv_io_capacity, 2000UL);
+	}
+
 	/* Check if the data files exist or not. */
 	dberr_t err = srv_sys_space.check_file_spec(&create_new_db, 5U << 20);
 
