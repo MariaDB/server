@@ -5847,6 +5847,14 @@ mysql_execute_command(THD *thd)
     break;
   }
   case SQLCOM_XA_START:
+#ifdef WITH_WSREP
+    if (WSREP(thd))
+    {
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "XA transactions with Galera replication");
+      break;
+    }
+#endif /* WITH_WSREP */
     if (trans_xa_start(thd))
       goto error;
     my_ok(thd);
@@ -6893,6 +6901,9 @@ check_access(THD *thd, privilege_t want_access,
 bool check_single_table_access(THD *thd, privilege_t privilege,
                                TABLE_LIST *tables, bool no_errors)
 {
+  if (tables->derived)
+    return 0;
+
   Switch_to_definer_security_ctx backup_sctx(thd, tables);
 
   const char *db_name;

@@ -3087,10 +3087,12 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	reset_template();
 }
 
-/** Free tablespace resources allocated. */
-void innobase_space_shutdown()
+/*********************************************************************//**
+Free any resources that were allocated and return failure.
+@return always return 1 */
+static int innodb_init_abort()
 {
-	DBUG_ENTER("innobase_space_shutdown");
+	DBUG_ENTER("innodb_init_abort");
 
 	if (fil_system.temp_space) {
 		fil_system.temp_space->close();
@@ -3105,16 +3107,6 @@ void innobase_space_shutdown()
 #ifdef WITH_INNODB_DISALLOW_WRITES
 	os_event_destroy(srv_allow_writes_event);
 #endif /* WITH_INNODB_DISALLOW_WRITES */
-
-	DBUG_VOID_RETURN;
-}
-
-/** Free any resources that were allocated and return failure.
-@return always return 1 */
-static int innodb_init_abort()
-{
-	DBUG_ENTER("innodb_init_abort");
-	innobase_space_shutdown();
 	DBUG_RETURN(1);
 }
 
@@ -3941,9 +3933,6 @@ static int innodb_init(void* p)
 	}
 #endif /* MYSQL_DYNAMIC_PLUGIN */
 
-	/* Currently, monitor counter information are not persistent. */
-	memset(monitor_set_tbl, 0, sizeof monitor_set_tbl);
-
 	memset(innodb_counter_value, 0, sizeof innodb_counter_value);
 
 	/* Do this as late as possible so server is fully starts up,
@@ -3997,7 +3986,6 @@ innobase_end(handlerton*, ha_panic_function)
 
 
 		innodb_shutdown();
-		innobase_space_shutdown();
 
 		mysql_mutex_destroy(&pending_checkpoint_mutex);
 	}
@@ -8337,6 +8325,18 @@ ha_innobase::update_row(
 		MySQL that the row is not really updated and it
 		should not increase the count of updated rows.
 		This is fix for http://bugs.mysql.com/29157 */
+		if (m_prebuilt->versioned_write
+		    && thd_sql_command(m_user_thd) != SQLCOM_ALTER_TABLE
+		    /* Multiple UPDATE of same rows in single transaction create
+		       historical rows only once. */
+		    && trx->id != table->vers_start_id()) {
+			error = row_insert_for_mysql((byte*) old_row,
+						     m_prebuilt,
+						     ROW_INS_HISTORICAL);
+			if (error != DB_SUCCESS) {
+				goto func_exit;
+			}
+		}
 		DBUG_RETURN(HA_ERR_RECORD_IS_THE_SAME);
 	} else {
 		const bool vers_set_fields = m_prebuilt->versioned_write

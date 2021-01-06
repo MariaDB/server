@@ -4397,7 +4397,7 @@ with t as (select * from t1 where a <=3)
 select * from t;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t as (select `t1`.`a` AS `a` from `t1` where `t1`.`a` <= 3)select `t`.`a` AS `a` from `t`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t as (select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` <= 3)select `t`.`a` AS `a` from `t`	latin1	latin1_swedish_ci
 select * from v1;
 a
 3
@@ -4413,7 +4413,7 @@ order by a desc limit 3 )
 select a from t1 where a=4 union select a from t where a=7;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t as (select `t1`.`a` AS `a` from `t1` where `t1`.`a` < 3 union select `t1`.`a` AS `a` from `t1` where `t1`.`a` > 3 order by `a` desc limit 3)select `t1`.`a` AS `a` from `t1` where `t1`.`a` = 4 union select `t`.`a` AS `a` from `t` where `t`.`a` = 7	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t as (select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 3 union select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 3 order by `a` desc limit 3)select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 4 union select `t`.`a` AS `a` from `t` where `t`.`a` = 7	latin1	latin1_swedish_ci
 select * from v1;
 a
 4
@@ -4429,7 +4429,7 @@ order by a desc limit 3 )
 (select a from t1 where a=4 union select a from t where a=7 order by a desc);
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t as ((select `t1`.`a` AS `a` from `t1` where `t1`.`a` < 3) union (select `t1`.`a` AS `a` from `t1` where `t1`.`a` > 3) order by `a` desc limit 3)select `t1`.`a` AS `a` from `t1` where `t1`.`a` = 4 union select `t`.`a` AS `a` from `t` where `t`.`a` = 7 order by `a` desc	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t as ((select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 3) union (select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 3) order by `a` desc limit 3)select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 4 union select `t`.`a` AS `a` from `t` where `t`.`a` = 7 order by `a` desc	latin1	latin1_swedish_ci
 select * from v1;
 a
 7
@@ -4469,7 +4469,7 @@ order by 1 desc limit 3 )
 select a from t1 where a=4 union select a from t where a=7 order by a desc;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t(`a`) as (values (2),(1) union (values (4),(7)) order by 1 desc limit 3)select `t1`.`a` AS `a` from `t1` where `t1`.`a` = 4 union select `t`.`a` AS `a` from `t` where `t`.`a` = 7 order by `a` desc	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t(`a`) as (values (2),(1) union (values (4),(7)) order by 1 desc limit 3)select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 4 union select `t`.`a` AS `a` from `t` where `t`.`a` = 7 order by `a` desc	latin1	latin1_swedish_ci
 select * from v1;
 a
 7
@@ -4484,7 +4484,7 @@ order by 1 desc limit 3 )
 select a from t1 where a=1 union select a from t where a=7 order by a desc;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t(`a`) as ((values (2),(1)) union (values (4),(7) order by 1 desc) order by 1 desc limit 3)select `t1`.`a` AS `a` from `t1` where `t1`.`a` = 1 union select `t`.`a` AS `a` from `t` where `t`.`a` = 7 order by `a` desc	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t(`a`) as ((values (2),(1)) union (values (4),(7) order by 1 desc) order by 1 desc limit 3)select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1 union select `t`.`a` AS `a` from `t` where `t`.`a` = 7 order by `a` desc	latin1	latin1_swedish_ci
 select * from v1;
 a
 7
@@ -4496,7 +4496,7 @@ s as (select * from t1 where a > 3)
 select a from t where a=1 union select a from s where a=7 order by a desc;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t as (select `t1`.`a` AS `a` from `t1` where `t1`.`a` < 3), s as (select `t1`.`a` AS `a` from `t1` where `t1`.`a` > 3)select `t`.`a` AS `a` from `t` where `t`.`a` = 1 union select `s`.`a` AS `a` from `s` where `s`.`a` = 7 order by `a` desc	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with t as (select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 3), s as (select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 3)select `t`.`a` AS `a` from `t` where `t`.`a` = 1 union select `s`.`a` AS `a` from `s` where `s`.`a` = 7 order by `a` desc	latin1	latin1_swedish_ci
 select * from v1;
 a
 7

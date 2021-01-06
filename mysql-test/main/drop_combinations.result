@@ -599,7 +599,8 @@ Note	4091	Unknown SEQUENCE: 'test.s4,test.s3'
 # Generating test tables
 drop temporary sequence if exists s1,t1,t2,s2;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.t1,test.t2'
+Note	4090	'test.t1' is not a SEQUENCE
+Note	4090	'test.t2' is not a SEQUENCE
 # Generating test tables
 drop temporary sequence if exists s1,v1,v2,s2;
 Warnings:
@@ -607,18 +608,24 @@ Note	4091	Unknown SEQUENCE: 'test.v1,test.v2'
 # Generating test tables
 drop temporary sequence if exists v1,t1,t2,v2,s2;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.v1,test.t1,test.t2,test.v2'
+Note	4090	'test.t1' is not a SEQUENCE
+Note	4090	'test.t2' is not a SEQUENCE
+Note	4091	Unknown SEQUENCE: 'test.v1,test.v2'
 # Generating test tables
 drop temporary sequence if exists s1,t1,v1,t3,s4;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.t1,test.v1,test.t3,test.s4'
+Note	4090	'test.t1' is not a SEQUENCE
+Note	4091	Unknown SEQUENCE: 'test.v1,test.t3,test.s4'
 drop temporary sequence if exists t2,v2,s2,s1;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.t2,test.v2,test.s1'
+Note	4090	'test.t2' is not a SEQUENCE
+Note	4091	Unknown SEQUENCE: 'test.v2,test.s1'
 # Generating test tables
 drop temporary sequence if exists t1,v1,t2,v2;
 Warnings:
-Note	4091	Unknown SEQUENCE: 'test.t1,test.v1,test.t2,test.v2'
+Note	4090	'test.t1' is not a SEQUENCE
+Note	4090	'test.t2' is not a SEQUENCE
+Note	4091	Unknown SEQUENCE: 'test.v1,test.v2'
 # Generating test tables
 drop temporary table t1,t2;
 drop temporary sequence s1,s2;

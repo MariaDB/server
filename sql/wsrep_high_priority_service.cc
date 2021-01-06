@@ -159,11 +159,12 @@ Wsrep_high_priority_service::Wsrep_high_priority_service(THD* thd)
 
   /* Disable general logging on applier threads */
   thd->variables.option_bits |= OPTION_LOG_OFF;
-  /* Enable binlogging if opt_log_slave_updates is set */
-  if (opt_log_slave_updates)
-    thd->variables.option_bits|= OPTION_BIN_LOG;
-  else
-    thd->variables.option_bits&= ~(OPTION_BIN_LOG);
+
+  /* enable binlogging regardless of log_slave_updates setting
+     this is for ensuring that both local and applier transaction go through
+     same commit ordering algorithm in group commit control
+   */
+  thd->variables.option_bits|= OPTION_BIN_LOG;
 
   thd->net.vio= 0;
   thd->reset_db(&db_str);
@@ -462,8 +463,24 @@ int Wsrep_high_priority_service::log_dummy_write_set(const wsrep::ws_handle& ws_
       cs.before_rollback();
       cs.after_rollback();
     }
+
+    if (!WSREP_EMULATE_BINLOG(m_thd))
+    {
+      wsrep_register_for_group_commit(m_thd);
+      ret = ret || cs.provider().commit_order_leave(ws_handle, ws_meta, err);
+      m_thd->wait_for_prior_commit();
+    }
+
     wsrep_set_SE_checkpoint(ws_meta.gtid(), wsrep_gtid_server.gtid());
-    ret= ret || cs.provider().commit_order_leave(ws_handle, ws_meta, err);
+
+    if (!WSREP_EMULATE_BINLOG(m_thd))
+    {
+      wsrep_unregister_from_group_commit(m_thd);
+    }
+    else
+    {
+      ret= ret || cs.provider().commit_order_leave(ws_handle, ws_meta, err);
+    }
     cs.after_applying();
   }
   DBUG_RETURN(ret);

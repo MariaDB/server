@@ -9472,7 +9472,8 @@ ST_FIELD_INFO check_constraints_fields_info[]=
   Column("CONSTRAINT_SCHEMA",  Name(),    NOT_NULL, OPEN_FULL_TABLE),
   Column("TABLE_NAME",         Name(),    NOT_NULL, OPEN_FULL_TABLE),
   Column("CONSTRAINT_NAME",    Name(),    NOT_NULL, OPEN_FULL_TABLE),
-  Column("CHECK_CLAUSE",       Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("CHECK_CLAUSE",       Longtext(MAX_FIELD_VARCHARLENGTH),
+                                          NOT_NULL, OPEN_FULL_TABLE),
   CEnd()
 };
 

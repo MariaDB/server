@@ -2101,6 +2101,17 @@ void innodb_shutdown()
 	buf_pool.close();
 	sync_check_close();
 
+	srv_sys_space.shutdown();
+	if (srv_tmp_space.get_sanity_check_status()) {
+		fil_system.temp_space->close();
+		srv_tmp_space.delete_files();
+	}
+	srv_tmp_space.shutdown();
+
+#ifdef WITH_INNODB_DISALLOW_WRITES
+	os_event_destroy(srv_allow_writes_event);
+#endif /* WITH_INNODB_DISALLOW_WRITES */
+
 	if (srv_was_started && srv_print_verbose_log) {
 		ib::info() << "Shutdown completed; log sequence number "
 			   << srv_shutdown_lsn

@@ -1765,6 +1765,8 @@ ab
 AE
 AE
 SET max_sort_length=8;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '8'
 SELECT * FROM t1 ORDER BY s1;
 s1
 ab

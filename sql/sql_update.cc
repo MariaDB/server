@@ -51,8 +51,9 @@
    compare_record(TABLE*).
  */
 bool records_are_comparable(const TABLE *table) {
-  return ((table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ) == 0) ||
-    bitmap_is_subset(table->write_set, table->read_set);
+  return !table->versioned(VERS_TRX_ID) &&
+          (((table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ) == 0) ||
+           bitmap_is_subset(table->write_set, table->read_set));
 }
 
 
@@ -1084,20 +1085,9 @@ update_begin:
         }
         else if (likely(!error))
         {
-          if (has_vers_fields && table->versioned())
-          {
-            if (table->versioned(VERS_TIMESTAMP))
-            {
-              store_record(table, record[2]);
-              table->mark_columns_per_binlog_row_image();
-              error= vers_insert_history_row(table);
-              restore_record(table, record[2]);
-            }
-            if (likely(!error))
-              rows_inserted++;
-          }
-          if (likely(!error))
-            updated++;
+          if (has_vers_fields && table->versioned(VERS_TRX_ID))
+            rows_inserted++;
+          updated++;
         }
 
         if (likely(!error) && !record_was_same && table_list->has_period())
@@ -1113,6 +1103,19 @@ update_begin:
         if (unlikely(error) &&
             (!ignore || table->file->is_fatal_error(error, HA_CHECK_ALL)))
         {
+          goto error;
+        }
+      }
+
+      if (likely(!error) && has_vers_fields && table->versioned(VERS_TIMESTAMP))
+      {
+        store_record(table, record[2]);
+        table->mark_columns_per_binlog_row_image();
+        error= vers_insert_history_row(table);
+        restore_record(table, record[2]);
+        if (unlikely(error))
+        {
+error:
           /*
             If (ignore && error is ignorable) we don't have to
             do anything; otherwise...
@@ -1123,10 +1126,11 @@ update_begin:
             flags|= ME_FATAL; /* Other handler errors are fatal */
 
           prepare_record_for_error_message(error, table);
-	  table->file->print_error(error,MYF(flags));
-	  error= 1;
-	  break;
-	}
+          table->file->print_error(error,MYF(flags));
+          error= 1;
+          break;
+        }
+        rows_inserted++;
       }
 
       if (table->triggers &&
@@ -1851,7 +1855,11 @@ int mysql_multi_update_prepare(THD *thd)
     During prepare phase acquire only S metadata locks instead of SW locks to
     keep prepare of multi-UPDATE compatible with concurrent LOCK TABLES WRITE
     and global read lock.
+
+    Don't evaluate any subqueries even if constant, because
+    tables aren't locked yet.
   */
+  lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
   if (thd->lex->sql_command == SQLCOM_UPDATE_MULTI)
   {
     if (open_tables(thd, &table_list, &table_count,
@@ -1872,6 +1880,8 @@ int mysql_multi_update_prepare(THD *thd)
   if (!thd->stmt_arena->is_stmt_prepare() &&
       lock_tables(thd, table_list, table_count, 0))
     DBUG_RETURN(TRUE);
+
+  lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_DERIVED;
 
   (void) read_statistics_for_tables_if_needed(thd, table_list);
   /* @todo: downgrade the metadata locks here. */
@@ -2551,6 +2561,7 @@ int multi_update::send_data(List<Item> &not_used_values)
           if (!ignore ||
               table->file->is_fatal_error(error, HA_CHECK_ALL))
           {
+error:
             /*
               If (ignore && error == is ignorable) we don't have to
               do anything; otherwise...
@@ -2572,19 +2583,8 @@ int multi_update::send_data(List<Item> &not_used_values)
             error= 0;
             updated--;
           }
-          else if (has_vers_fields && table->versioned())
+          else if (has_vers_fields && table->versioned(VERS_TRX_ID))
           {
-            if (table->versioned(VERS_TIMESTAMP))
-            {
-              store_record(table, record[2]);
-              if (vers_insert_history_row(table))
-              {
-                restore_record(table, record[2]);
-                error= 1;
-                break;
-              }
-              restore_record(table, record[2]);
-            }
             updated_sys_ver++;
           }
           /* non-transactional or transactional table got modified   */
@@ -2597,6 +2597,17 @@ int multi_update::send_data(List<Item> &not_used_values)
             thd->transaction->stmt.modified_non_trans_table= TRUE;
           }
         }
+      }
+      if (has_vers_fields && table->versioned(VERS_TIMESTAMP))
+      {
+        store_record(table, record[2]);
+        if (vers_insert_history_row(table))
+        {
+          restore_record(table, record[2]);
+          goto error;
+        }
+        restore_record(table, record[2]);
+        updated_sys_ver++;
       }
       if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,

@@ -3526,6 +3526,13 @@ int handler::update_auto_increment()
       (table->auto_increment_field_not_null &&
        thd->variables.sql_mode & MODE_NO_AUTO_VALUE_ON_ZERO))
   {
+
+    /*
+      There could be an error reported because value was truncated
+      when strict mode is enabled.
+    */
+    if (thd->is_error())
+      DBUG_RETURN(HA_ERR_AUTOINC_ERANGE);
     /*
       Update next_insert_id if we had already generated a value in this
       statement (case of INSERT VALUES(null),(3763),(null):

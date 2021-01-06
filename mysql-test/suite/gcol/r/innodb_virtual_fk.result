@@ -790,3 +790,31 @@ t1	CREATE TABLE `t1` (
 ALTER TABLE t1 DROP INDEX f1;
 ALTER TABLE t1 DROP f3;
 DROP TABLE t1;
+#
+# MDEV-24041 Generated column DELETE with FOREIGN KEY crash InnoDB
+#
+CREATE TABLE emails (
+id int,
+PRIMARY KEY (id)
+) ENGINE=InnoDB;
+CREATE TABLE email_stats (
+id int,
+email_id int,
+date_sent char(4),
+generated_email_id int as (email_id),
+PRIMARY KEY (id),
+KEY mautic_generated_sent_date_email_id (generated_email_id),
+FOREIGN KEY (email_id) REFERENCES emails (id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+CREATE TABLE emails_metadata (
+email_id int,
+PRIMARY KEY (email_id),
+CONSTRAINT FK FOREIGN KEY (email_id) REFERENCES emails (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO emails VALUES (1);
+INSERT INTO email_stats (id, email_id,  date_sent) VALUES (1,1,'Jan');
+INSERT INTO emails_metadata VALUES (1);
+DELETE FROM emails;
+DROP TABLE email_stats;
+DROP TABLE emails_metadata;
+DROP TABLE emails;
