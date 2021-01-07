@@ -3580,6 +3580,16 @@ static bool show_status_array(THD *thd, const char *wild,
 
         if (show_type == SHOW_SYS)
           mysql_mutex_lock(&LOCK_global_system_variables);
+        else if (show_type >= SHOW_LONG_STATUS && scope == OPT_GLOBAL &&
+                 !status_var->local_memory_used)
+        {
+          mysql_mutex_lock(&LOCK_status);
+          *status_var= global_status_var;
+          mysql_mutex_unlock(&LOCK_status);
+          calc_sum_of_all_status(status_var);
+          DBUG_ASSERT(status_var->local_memory_used);
+        }
+
         pos= get_one_variable(thd, var, scope, show_type, status_var,
                               &charset, buff, &length);
 
@@ -3620,8 +3630,6 @@ uint calc_sum_of_all_status(STATUS_VAR *to)
   I_List_iterator<THD> it(threads);
   THD *tmp;
 
-  /* Get global values as base */
-  *to= global_status_var;
   to->local_memory_used= 0;
 
   /* Add to this status from existing threads */
@@ -7586,13 +7594,7 @@ int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
   if (partial_cond)
     partial_cond->val_int();
 
-  if (scope == OPT_GLOBAL)
-  {
-    /* We only hold LOCK_status for summary status vars */
-    mysql_mutex_lock(&LOCK_status);
-    calc_sum_of_all_status(&tmp);
-    mysql_mutex_unlock(&LOCK_status);
-  }
+  tmp.local_memory_used= 0; // meaning tmp was not populated yet
 
   mysql_mutex_lock(&LOCK_show_status);
   res= show_status_array(thd, wild,
