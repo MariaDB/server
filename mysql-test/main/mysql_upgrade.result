@@ -484,8 +484,6 @@ even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@loca
 DROP USER very_long_user_name_number_1, very_long_user_name_number_2, even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost;
 DROP PROCEDURE test.pr;
 use test;
-call mtr.add_suppression('Column last_update in table `mysql`.`innodb_table_stats` is INT NOT NULL but should be');
-alter table mysql.innodb_table_stats modify last_update int not null;
 create table extralongname_extralongname_extralongname_extralongname_ext (
 id int(10) unsigned not null,
 created_date date not null,

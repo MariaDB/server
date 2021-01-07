@@ -41,6 +41,7 @@ addons:
       - g++-10   # In suites: focal, bionic (via ppa:ubuntu-toolchain-r/test)
       - gdb
       - libaio-dev
+      - libarchive-dev
       - libboost-atomic-dev
       - libboost-chrono-dev
       - libboost-date-time-dev
@@ -50,11 +51,12 @@ addons:
       - libboost-system-dev
       - libboost-thread-dev
       - libcrack2-dev
-      - libcurl3-dev
+      - libcurl4-openssl-dev
       - libdbd-mysql
       - libedit-dev
       - libjemalloc-dev
       - libjudy-dev
+      - libkrb5-dev
       - liblz4-dev
       - libncurses5-dev
       - libnuma-dev
@@ -63,7 +65,6 @@ addons:
       - libreadline-gplv2-dev
       - libsnappy-dev
       - libssl-dev
-      - libstemmer-dev
       - libxml2-dev
       - lsb-release
       - perl
@@ -136,7 +137,6 @@ jobs:
             - dh-exec
             - dh-systemd
             - fakeroot
-            - libdistro-info-perl
             - libsystemd-dev
             - libzstd-dev
             - po-debconf

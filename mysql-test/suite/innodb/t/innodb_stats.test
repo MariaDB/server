@@ -10,7 +10,7 @@
 DROP TABLE IF EXISTS test_innodb_stats;
 
 set @save_use_stat_tables= @@use_stat_tables;
-set @@use_stat_tables= COMPLEMENTARY;
+set @@use_stat_tables= NEVER;
 
 CREATE TABLE test_innodb_stats (
 	a INT,

@@ -5,6 +5,7 @@ Maintainer: MariaDB Developers <maria-developers@lists.launchpad.net>
 Build-Depends: bison,
                chrpath,
                cmake,
+               cracklib-runtime,
                debhelper (>= 9),
                dh-apparmor,
                dh-exec,
@@ -12,6 +13,7 @@ Build-Depends: bison,
                flex [i386 amd64],
                gdb,
                libaio-dev [linux-any],
+               libarchive-dev,
                libboost-atomic-dev [i386 amd64],
                libboost-chrono-dev [i386 amd64],
                libboost-date-time-dev [i386 amd64],
@@ -23,38 +25,41 @@ Build-Depends: bison,
                libcrack2-dev (>= 2.9.0),
                libcurl4-openssl-dev | libcurl4-dev,
                libedit-dev,
+               libedit-dev:native,
                libjemalloc-dev [linux-any],
                libjudy-dev,
                libkrb5-dev,
                liblz4-dev,
                libncurses5-dev (>= 5.0-6~),
-               libnuma-dev [!armhf],
+               libncurses5-dev:native (>= 5.0-6~),
+               libnuma-dev [linux-any],
                libpam0g-dev,
                libpcre2-dev,
                libreadline-gplv2-dev [i386 amd64],
                libsnappy-dev,
-               libssl-dev | libssl1.0-dev,
+               libssl-dev,
+               libssl-dev:native,
                libsystemd-dev [linux-any],
                libxml2-dev,
                libzstd-dev,
                lsb-release,
-               perl,
+               perl:any,
                po-debconf,
                psmisc,
                unixodbc-dev,
                uuid-dev,
                zlib1g-dev (>= 1:1.1.3-5~)
 Rules-Requires-Root: no
-Standards-Version: 3.8.2
+Standards-Version: 4.5.0
 Homepage: https://mariadb.org/
 Vcs-Browser: https://github.com/MariaDB/server/
 Vcs-Git: https://github.com/MariaDB/server.git
 
 Package: libmariadb-dev
 Architecture: any
-Multi-Arch: same
 Section: libdevel
 Depends: libmariadb3 (= ${binary:Version}),
+         libssl-dev,
          zlib1g-dev,
          ${misc:Depends},
          ${shlibs:Depends}
@@ -188,12 +193,12 @@ Description: Virtual package to satisfy external libmysqlclient18 depends
 
 Package: libmariadbd19
 Architecture: any
-Multi-Arch: same
 Section: libs
 Depends: ${misc:Depends},
          ${shlibs:Depends}
 Breaks: libmariadbd-dev (<< ${source:Version})
 Replaces: libmariadbd-dev (<< ${source:Version})
+Multi-Arch: same
 Description: MariaDB embedded database, shared library
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -204,7 +209,6 @@ Description: MariaDB embedded database, shared library
 
 Package: libmariadbd-dev
 Architecture: any
-Multi-Arch: same
 Section: libdevel
 Provides: libmysqld-dev
 Pre-Depends: ${misc:Pre-Depends}
@@ -241,6 +245,7 @@ Package: mariadb-common
 Architecture: all
 Depends: mysql-common (>= 5.6.25),
          ${misc:Depends}
+Multi-Arch: foreign
 Description: MariaDB common configuration files
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
  server. SQL (Structured Query Language) is the most popular database query
@@ -679,6 +684,7 @@ Description: GSSAPI authentication plugin for MariaDB server
 
 Package: mariadb-plugin-gssapi-client
 Architecture: any
+Multi-Arch: same
 Depends: libgssapi-krb5-2,
          mariadb-client-10.6 (= ${binary:Version}),
          ${misc:Depends},

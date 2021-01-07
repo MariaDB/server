@@ -1080,6 +1080,13 @@ create table t1 (a int) with system versioning partition by system_time
 alter table t1 add partition (partition p2);
 ERROR HY000: Wrong partitioning type, expected type: `SYSTEM_TIME`
 drop table t1;
+#
+# MDEV-22178 Assertion `info->alias.str' failed in partition_info::check_partition_info instead of ER_VERS_WRONG_PARTS
+#
+create or replace table t1 (a int) with system versioning;
+alter table t1 partition by system_time (partition pn current);
+ERROR HY000: Wrong partitions for `t1`: must have at least one HISTORY and exactly one last CURRENT
+drop table t1;
 # End of 10.3 tests
 #
 # MDEV-22283 Server crashes in key_copy or unexpected error 156: The table already existed in the storage engine

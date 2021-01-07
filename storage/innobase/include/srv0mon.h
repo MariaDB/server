@@ -36,8 +36,9 @@ Created 12/15/2009	Jimmy Yang
 #define __STDC_LIMIT_MACROS
 #endif /* __STDC_LIMIT_MACROS */
 
-#include <stdint.h>
+#include <cstdint>
 #include "my_atomic.h"
+#include "my_atomic_wrapper.h"
 
 /** Possible status values for "mon_status" in "struct monitor_value" */
 enum monitor_running_status {
@@ -467,23 +468,23 @@ enum mon_option_t {
 
 /** This "monitor_set_tbl" is a bitmap records whether a particular monitor
 counter has been turned on or off */
-extern ulint		monitor_set_tbl[(NUM_MONITOR + NUM_BITS_ULINT - 1) /
-					NUM_BITS_ULINT];
+extern Atomic_relaxed<ulint>
+    monitor_set_tbl[(NUM_MONITOR + NUM_BITS_ULINT - 1) / NUM_BITS_ULINT];
 
 /** Macros to turn on/off the control bit in monitor_set_tbl for a monitor
 counter option. */
-#define MONITOR_ON(monitor)					\
-	(monitor_set_tbl[unsigned(monitor) / NUM_BITS_ULINT] |=	\
-	 (ulint(1) << (unsigned(monitor) % NUM_BITS_ULINT)))
+#define MONITOR_ON(monitor)                                                   \
+  (monitor_set_tbl[unsigned(monitor) / NUM_BITS_ULINT].fetch_or(              \
+      (ulint(1) << (unsigned(monitor) % NUM_BITS_ULINT))))
 
-#define MONITOR_OFF(monitor)					\
-	(monitor_set_tbl[unsigned(monitor) / NUM_BITS_ULINT] &=	\
-	 ~(ulint(1) << (unsigned(monitor) % NUM_BITS_ULINT)))
+#define MONITOR_OFF(monitor)                                                  \
+  (monitor_set_tbl[unsigned(monitor) / NUM_BITS_ULINT].fetch_and(             \
+      ~(ulint(1) << (unsigned(monitor) % NUM_BITS_ULINT))))
 
 /** Check whether the requested monitor is turned on/off */
-#define MONITOR_IS_ON(monitor)					\
-	(monitor_set_tbl[unsigned(monitor) / NUM_BITS_ULINT] &	\
-	 (ulint(1) << (unsigned(monitor) % NUM_BITS_ULINT)))
+#define MONITOR_IS_ON(monitor)                                                \
+  (monitor_set_tbl[unsigned(monitor) / NUM_BITS_ULINT] &                      \
+   (ulint(1) << (unsigned(monitor) % NUM_BITS_ULINT)))
 
 /** The actual monitor counter array that records each monintor counter
 value */

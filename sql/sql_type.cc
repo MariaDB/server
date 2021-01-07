@@ -9289,11 +9289,18 @@ LEX_CSTRING Charset::collation_specific_name() const
     for character sets and collations, so a collation
     name not necessarily starts with the character set name.
   */
+  LEX_CSTRING retval;
   size_t csname_length= strlen(m_charset->csname);
   if (strncmp(m_charset->name, m_charset->csname, csname_length))
-    return {NULL, 0};
+  {
+    retval.str= NULL;
+    retval.length= 0;
+    return retval;
+  }
   const char *ptr= m_charset->name + csname_length;
-  return {ptr, strlen(ptr) };
+  retval.str= ptr;
+  retval.length= strlen(ptr);
+  return retval;
 }
 
 

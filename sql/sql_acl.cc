@@ -13201,15 +13201,6 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
 
   ACL_USER *user= find_user_or_anon(sctx->host, sctx->user, sctx->ip);
 
-  if (user && user->password_errors >= max_password_errors && !ignore_max_password_errors(user))
-  {
-    mysql_mutex_unlock(&acl_cache->lock);
-    my_error(ER_USER_IS_BLOCKED, MYF(0));
-    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
-      ER_THD(mpvio->auth_info.thd, ER_USER_IS_BLOCKED));
-    DBUG_RETURN(1);
-  }
-
   if (user)
     mpvio->acl_user= user->copy(mpvio->auth_info.thd->mem_root);
 
@@ -13244,6 +13235,15 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
     mysql_mutex_unlock(&acl_cache->lock);
 
     mpvio->make_it_fail= true;
+  }
+
+  if (mpvio->acl_user->password_errors >= max_password_errors &&
+      !ignore_max_password_errors(mpvio->acl_user))
+  {
+    my_error(ER_USER_IS_BLOCKED, MYF(0));
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+      ER_THD(mpvio->auth_info.thd, ER_USER_IS_BLOCKED));
+    DBUG_RETURN(1);
   }
 
   /* user account requires non-default plugin and the client is too old */
@@ -14586,6 +14586,7 @@ static int native_password_get_salt(const char *hash, size_t hash_length,
 {
   DBUG_ASSERT(sizeof(invalid_password) > SCRAMBLE_LENGTH);
   DBUG_ASSERT(*out_length >= SCRAMBLE_LENGTH);
+  DBUG_ASSERT(*out_length >= sizeof(invalid_password));
   if (hash_length == 0)
   {
     *out_length= 0;
@@ -14596,12 +14597,25 @@ static int native_password_get_salt(const char *hash, size_t hash_length,
   {
     if (hash_length == 7 && strcmp(hash, "invalid") == 0)
     {
-      memcpy(out, invalid_password, SCRAMBLED_PASSWORD_CHAR_LENGTH);
-      *out_length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
+      memcpy(out, invalid_password, sizeof(invalid_password));
+      *out_length= sizeof(invalid_password);
       return 0;
     }
     my_error(ER_PASSWD_LENGTH, MYF(0), SCRAMBLED_PASSWORD_CHAR_LENGTH);
     return 1;
+  }
+
+  for (const char *c= hash + 1; c < (hash + hash_length); c++)
+  {
+    /* If any non-hex characters are found, mark the password as invalid. */
+    if (!(*c >= '0' && *c <= '9') &&
+        !(*c >= 'A' && *c <= 'F') &&
+        !(*c >= 'a' && *c <= 'f'))
+    {
+      memcpy(out, invalid_password, sizeof(invalid_password));
+      *out_length= sizeof(invalid_password);
+      return 0;
+    }
   }
 
   *out_length= SCRAMBLE_LENGTH;

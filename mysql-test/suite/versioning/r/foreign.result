@@ -400,6 +400,8 @@ Warning	1265	Data truncated for column 'f12' at row 7
 SET timestamp = 9;
 REPLACE INTO t2 SELECT * FROM t2;
 DROP TABLE t1, t2;
+set timestamp= default;
+set time_zone='+00:00';
 #
 # MDEV-16210 FK constraints on versioned tables use historical rows, which may cause constraint violation
 #
@@ -429,6 +431,20 @@ insert into t2 values (1), (1);
 # DELETE from foreign table is allowed
 delete from t2;
 drop tables t2, t1;
+#
+# MDEV-23644 Assertion on evaluating foreign referential action for self-reference in system versioned table
+#
+create table t1 (pk int primary key, f1 int,f2 int, f3 text,
+key(f1), fulltext(f3), key(f3(10)),
+foreign key (f2) references t1 (f1) on delete set null
+) engine=innodb with system versioning;
+insert into t1 values (1, 8, 8, 'SHORT'), (2, 8, 8, repeat('LONG', 8071));
+delete from t1;
+select pk, f1, f2, left(f3, 4), check_row_ts(row_start, row_end) from t1 for system_time all order by pk;
+pk	f1	f2	left(f3, 4)	check_row_ts(row_start, row_end)
+1	8	8	SHOR	HISTORICAL ROW
+2	8	8	LONG	HISTORICAL ROW
+drop table t1;
 #
 # MDEV-20729 Fix REFERENCES constraint in column definition
 #

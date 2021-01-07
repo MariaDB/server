@@ -2311,8 +2311,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     Table_type table_type;
     size_t path_length= 0;
     char *path_end= 0;
-
     error= 0;
+
     DBUG_PRINT("table", ("table_l: '%s'.'%s'  table: %p  s: %p",
                          db.str, table_name.str,  table->table,
                          table->table ?  table->table->s : NULL));
@@ -2327,9 +2327,40 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                   thd->find_temporary_table(table) &&
                   table->mdl_request.ticket != NULL));
 
+    if (drop_sequence && table->table &&
+        table->table->s->table_type != TABLE_TYPE_SEQUENCE)
+    {
+      if (if_exists)
+      {
+        char buff[FN_REFLEN];
+        String tbl_name(buff, sizeof(buff), system_charset_info);
+        tbl_name.length(0);
+        tbl_name.append(&db);
+        tbl_name.append('.');
+        tbl_name.append(&table->table_name);
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_NOT_SEQUENCE2, ER_THD(thd, ER_NOT_SEQUENCE2),
+                            tbl_name.c_ptr_safe());
+
+        /*
+          Our job is done here. This statement was added to avoid executing
+          unnecessary code farther below which in some strange corner cases
+          caused the server to crash (see MDEV-17896).
+        */
+        continue;
+      }
+      /* "DROP SEQUENCE" but a sequence table was not found */
+      unknown_tables.append(&db);
+      unknown_tables.append('.');
+      unknown_tables.append(&table_name);
+      unknown_tables.append(',');
+      error= ENOENT;
+      not_found_errors++;
+      continue;
+    }
+
     /* First try to delete temporary tables and temporary sequences */
-    if ((table->open_type != OT_BASE_ONLY && is_temporary_table(table)) &&
-        (!drop_sequence || table->table->s->table_type == TABLE_TYPE_SEQUENCE))
+    if ((table->open_type != OT_BASE_ONLY && is_temporary_table(table)))
     {
       table_creation_was_logged= table->table->s->table_creation_was_logged;
       if (thd->drop_temporary_table(table->table, &is_trans, true))
@@ -10516,6 +10547,7 @@ do_continue:;
 
   tmp_disable_binlog(thd);
   create_info->options|=HA_CREATE_TMP_ALTER;
+  create_info->alias= alter_ctx.table_name;
   error= create_table_impl(thd, alter_ctx.db, alter_ctx.table_name,
                            alter_ctx.new_db, alter_ctx.tmp_name,
                            alter_ctx.get_tmp_path(),

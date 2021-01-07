@@ -103,6 +103,7 @@ EOF
 	    rmdir $mysql_upgradedir 2>/dev/null || true
 
     done
+
     # Upgrading from mysql.com needs might have the root user as auth_socket.
     # auto.cnf is a sign of a mysql install, that doesn't exist in mariadb.
     # We use lsof to protect against concurrent access by mysqld (mariadb has
@@ -184,13 +185,27 @@ EOF
     # And while it's not needed for new installations, we keep using
     # --defaults-file option for tools (for the sake of upgrades)
     # and thus need /etc/mysql/debian.cnf to exist, even if it's empty.
+    # In the long run the goal is to obsolete this file.
     dc=$mysql_cfgdir/debian.cnf;
     if [ ! -d "$mysql_cfgdir" ]; then
       install -o 0 -g 0 -m 0755 -d $mysql_cfgdir
     fi
     if [ ! -e "$dc" ]; then
         cat /dev/null > $dc
-        echo "# Automatically generated for Debian scripts. DO NOT TOUCH!" >>$dc
+        echo "# THIS FILE IS OBSOLETE. STOP USING IT IF POSSIBLE."       >>$dc
+        echo "# This file exists only for backwards compatibility for"   >>$dc
+        echo "# tools that run '--defaults-file=/etc/mysql/debian.cnf'"  >>$dc
+        echo "# and have root level access to the local filesystem."     >>$dc
+        echo "# With those permissions one can run 'mariadb' directly"   >>$dc
+        echo "# anyway thanks to unix socket authentication and hence"   >>$dc
+        echo "# this file is useless. See package README for more info." >>$dc
+        echo "[client]"                                                  >>$dc
+        echo "host     = localhost"                                      >>$dc
+        echo "user     = root"                                           >>$dc
+        echo "[mysql_upgrade]"                                           >>$dc
+        echo "host     = localhost"                                      >>$dc
+        echo "user     = root"                                           >>$dc
+        echo "# THIS FILE WILL BE REMOVED IN A FUTURE DEBIAN RELEASE."   >>$dc
     fi
     # Keep it only root-readable, as it always was
     chown 0:0 $dc

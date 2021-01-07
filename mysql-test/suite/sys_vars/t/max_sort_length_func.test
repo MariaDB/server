@@ -26,70 +26,40 @@
 
 SET @start_value= @@global.max_sort_length;
 
-SET @session_max_sort_length = @@Session.max_sort_length;
-
-
---disable_warnings
-DROP TABLE IF EXISTS t;
---enable_warnings
-
 #########################
 #   Creating new table  #
 #########################
 
-
 --echo ** creating tables **
-CREATE TABLE t
-(
-id INT AUTO_INCREMENT PRIMARY KEY,
-c TEXT(30)
-);
-
-CREATE TABLE t1
-(
-id INT AUTO_INCREMENT PRIMARY KEY,
-c BLOB(30)
-);
-
-CREATE TABLE t2
-(
-id INT AUTO_INCREMENT PRIMARY KEY,
-c TEXT(30)
-);
-
-
+CREATE TABLE t (id INT AUTO_INCREMENT PRIMARY KEY, c TEXT);
+CREATE TABLE t1 (id INT AUTO_INCREMENT PRIMARY KEY, c BLOB);
+CREATE TABLE t2 (id INT AUTO_INCREMENT PRIMARY KEY, c TEXT);
 
 --echo '#--------------------FN_DYNVARS_098_01-------------------------#'
 ##########################################################
 #    Test behavior of variable on new connection # 01    #
 ##########################################################
 
-
 connect (test_con1,localhost,root,,);
-connection test_con1;
-
-# Value of session & global vairable here should be 10
-SELECT @@global.max_sort_length = 10;
-SELECT @@session.max_sort_length = 10;
 
 # Setting global value of variable and inserting data in table
---echo ** Setting value to 30 and inserting data **
-SET @@global.max_sort_length = 30;
+--echo ** Setting value to 70 and inserting data **
+SET @@global.max_sort_length = 70;
 SELECT @@global.max_sort_length;
-INSERT INTO t set c = repeat('x',29);
-INSERT INTO t set c = concat(repeat('x',28),'r','x');
-INSERT INTO t set c = concat(repeat('x',28),'s','y');
-INSERT INTO t set c = concat(repeat('x',28),'g','w');
+INSERT INTO t set c = repeat('x',69);
+INSERT INTO t set c = concat(repeat('x',68),'r','x');
+INSERT INTO t set c = concat(repeat('x',68),'s','y');
+INSERT INTO t set c = concat(repeat('x',68),'g','w');
 SELECT c from t ORDER BY c, id;
 --echo ** Results should be sorted **
 
 # Setting session value of variable and inserting data in table
-SET @@session.max_sort_length = 29;
+SET @@session.max_sort_length = 69;
 SELECT @@session.max_sort_length;
-INSERT INTO t set c = repeat('x',29);
-INSERT INTO t set c = concat(repeat('x',28),'r','x');
-INSERT INTO t set c = concat(repeat('x',28),'s','y');
-INSERT INTO t set c = concat(repeat('x',28),'g','w');
+INSERT INTO t set c = repeat('x',69);
+INSERT INTO t set c = concat(repeat('x',68),'r','x');
+INSERT INTO t set c = concat(repeat('x',68),'s','y');
+INSERT INTO t set c = concat(repeat('x',68),'g','w');
 SELECT c from t ORDER BY c, id;
 --echo ** Results should be sorted **
 
@@ -99,72 +69,69 @@ SELECT c from t ORDER BY c, id;
 ##########################################################
 
 connect (test_con2,localhost,root,,);
-connection test_con2;
-
 
 ## Setting global value of variable and inserting data in table
-SET @@global.max_sort_length = 30;
+SET @@global.max_sort_length = 70;
 SELECT @@global.max_sort_length;
-INSERT INTO t set c = repeat('x',29);
-INSERT INTO t set c = concat(repeat('x',28),'r','x');
-INSERT INTO t set c = concat(repeat('x',28),'s','y');
-INSERT INTO t set c = concat(repeat('x',28),'g','w');
+INSERT INTO t set c = repeat('x',69);
+INSERT INTO t set c = concat(repeat('x',68),'r','x');
+INSERT INTO t set c = concat(repeat('x',68),'s','y');
+INSERT INTO t set c = concat(repeat('x',68),'g','w');
 SELECT c from t ORDER BY c, id;
 
 --echo ** Results should be sorted **
 
 # Setting session value of variable and inserting data in table
-SET @@session.max_sort_length = 20;
+SET @@session.max_sort_length = 64;
 SELECT @@session.max_sort_length;
-INSERT INTO t set c = repeat('x',29);
-INSERT INTO t set c = concat(repeat('x',28),'r','x');
-INSERT INTO t set c = concat(repeat('x',28),'s','y');
-INSERT INTO t set c = concat(repeat('x',28),'g','w');
+INSERT INTO t set c = repeat('x',69);
+INSERT INTO t set c = concat(repeat('x',68),'r','x');
+INSERT INTO t set c = concat(repeat('x',68),'s','y');
+INSERT INTO t set c = concat(repeat('x',68),'g','w');
 SELECT c from t ORDER BY c, id;
 
 --echo ** Results should not be sorted **
 
 --echo '#--------------------FN_DYNVARS_098_03-------------------------#'
 #########################################################
-#Check if sorting is applied with the max_sort_length=20#
+#Check if sorting is applied with the max_sort_length=64#
 #########################################################
 
 ###########################################
 #   Setting new value for max_sort_length #
 ###########################################
 
-SET max_sort_length=20;
+SET max_sort_length=64;
 
 ###################################
 #   Inserting values in  table t  #
 ###################################
 
-INSERT INTO t set c = repeat('x',29);
-INSERT INTO t set c = concat(repeat('x',28),'r','x');
-INSERT INTO t set c = concat(repeat('x',28),'s','y');
-INSERT INTO t set c = concat(repeat('x',28),'g','w');
+INSERT INTO t set c = repeat('x',69);
+INSERT INTO t set c = concat(repeat('x',68),'r','x');
+INSERT INTO t set c = concat(repeat('x',68),'s','y');
+INSERT INTO t set c = concat(repeat('x',68),'g','w');
 
 SELECT c from t ORDER BY c, id;
 --echo ** Results should not be sorted **
 
 RESET QUERY CACHE;
 
-
 --echo '#--------------------FN_DYNVARS_098_04-------------------------#'
 #########################################################
-#Check if sorting is applied with the max_sort_length=29#
+#Check if sorting is applied with the max_sort_length=69#
 #########################################################
 
-SET max_sort_length=29;
+SET max_sort_length=69;
 SELECT c from t ORDER BY c, id;
 --echo ** Results should be sorted **
 
 --echo '#--------------------FN_DYNVARS_098_05-------------------------#'
 #########################################################
-#Check if sorting is applied with the max_sort_length=30#
+#Check if sorting is applied with the max_sort_length=70#
 #########################################################
 
-SET max_sort_length=30;
+SET max_sort_length=70;
 SELECT c from t ORDER BY c, id;
 --echo ** Results should be sorted **
 
@@ -173,11 +140,10 @@ SELECT c from t ORDER BY c, id;
 #Check if sorting is applied with the max_sort_length=Default#
 ##############################################################
 
-
 SET max_sort_length=default;
+SELECT @@max_sort_length;
 SELECT c from t ORDER BY c, id;
 --echo ** Results should be sorted **
-
 
 --echo '#--------------------FN_DYNVARS_098_07-------------------------#'
 ###########################################
@@ -185,22 +151,22 @@ SELECT c from t ORDER BY c, id;
 ###########################################
 --echo Testing type BLOB
 # Setting global value of variable and inserting data in table
-SET @@global.max_sort_length = 30;
-SELECT @@global.max_sort_length;
-INSERT INTO t1 set c = repeat('x',29);
-INSERT INTO t1 set c = concat(repeat('x',28),'r','x');
-INSERT INTO t1 set c = concat(repeat('x',28),'s','y');
-INSERT INTO t1 set c = concat(repeat('x',28),'g','w');
-SELECT c from t1 ORDER BY c, id;
+SET @@max_sort_length = 70;
+SELECT @@max_sort_length;
+INSERT INTO t1 set c = repeat('x',69);
+INSERT INTO t1 set c = concat(repeat('x',68),'r','x');
+INSERT INTO t1 set c = concat(repeat('x',68),'s','y');
+INSERT INTO t1 set c = concat(repeat('x',68),'g','w');
+SELECT c from t1 ORDER BY c, id DESC;
 --echo ** Results should be sorted **
 
 # Setting session value of variable and inserting data in table
-SET @@session.max_sort_length = 20;
+SET @@session.max_sort_length = 64;
 SELECT @@session.max_sort_length;
-INSERT INTO t1 set c = repeat('x',29);
-INSERT INTO t1 set c = concat(repeat('x',28),'r','x');
-INSERT INTO t1 set c = concat(repeat('x',28),'s','y');
-INSERT INTO t1 set c = concat(repeat('x',28),'g','w');
+INSERT INTO t1 set c = repeat('x',69);
+INSERT INTO t1 set c = concat(repeat('x',68),'r','x');
+INSERT INTO t1 set c = concat(repeat('x',68),'s','y');
+INSERT INTO t1 set c = concat(repeat('x',68),'g','w');
 SELECT c from t1 ORDER BY c, id;
 --echo ** Results should not be sorted **
 
@@ -210,25 +176,24 @@ SELECT c from t1 ORDER BY c, id;
 ###########################################
 --echo Testing type CHAR
 # Setting global value of variable and inserting data in table
-SET @@global.max_sort_length = 30;
+SET @@global.max_sort_length = 70;
 SELECT @@global.max_sort_length;
-INSERT INTO t2 set c = repeat('x',29);
-INSERT INTO t2 set c = concat(repeat('x',28),'r','x');
-INSERT INTO t2 set c = concat(repeat('x',28),'s','y');
-INSERT INTO t2 set c = concat(repeat('x',28),'g','w');
+INSERT INTO t2 set c = repeat('x',69);
+INSERT INTO t2 set c = concat(repeat('x',68),'r','x');
+INSERT INTO t2 set c = concat(repeat('x',68),'s','y');
+INSERT INTO t2 set c = concat(repeat('x',68),'g','w');
 SELECT c from t2 ORDER BY c, id;
 --echo ** Results should not be sorted **
 
 # Setting session value of variable and inserting data in table
-SET @@session.max_sort_length = 20;
+SET @@session.max_sort_length = 64;
 SELECT @@session.max_sort_length;
-INSERT INTO t2 set c = repeat('x',29);
-INSERT INTO t2 set c = concat(repeat('x',28),'r','x');
-INSERT INTO t2 set c = concat(repeat('x',28),'s','y');
-INSERT INTO t2 set c = concat(repeat('x',28),'g','w');
+INSERT INTO t2 set c = repeat('x',69);
+INSERT INTO t2 set c = concat(repeat('x',68),'r','x');
+INSERT INTO t2 set c = concat(repeat('x',68),'s','y');
+INSERT INTO t2 set c = concat(repeat('x',68),'g','w');
 SELECT c from t2 ORDER BY c, id;
 --echo ** Results should not be sorted **
-
 
 #
 # Cleanup
@@ -239,12 +204,6 @@ connection default;
 disconnect test_con1;
 disconnect test_con2;
 
-SET @@SESSION.max_sort_length = @session_max_sort_length;
-
---disable_warnings
-DROP TABLE IF EXISTS t;
-DROP TABLE IF EXISTS t1;
-DROP TABLE IF EXISTS t2;
---enable_warnings
+DROP TABLE t, t1, t2;
 
 SET @@global.max_sort_length= @start_value;

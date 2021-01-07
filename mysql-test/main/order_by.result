@@ -845,18 +845,20 @@ col2	col	col
 2	2	2
 1	3	3
 drop table t1, t2;
-create table t1 (a char(25));
+create table t1 (a char(70));
 insert into t1 set a = repeat('x', 20);
-insert into t1 set a = concat(repeat('x', 19), 'z');
-insert into t1 set a = concat(repeat('x', 19), 'ab');
-insert into t1 set a = concat(repeat('x', 19), 'aa');
+insert into t1 set a = concat(repeat('x', 63), 'z');
+insert into t1 set a = concat(repeat('x', 63), 'ab');
+insert into t1 set a = concat(repeat('x', 63), 'aa');
 set max_sort_length=20;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '20'
 select a from t1 order by a;
 a
-xxxxxxxxxxxxxxxxxxxab
-xxxxxxxxxxxxxxxxxxxaa
 xxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxz
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxab
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxaa
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxz
 drop table t1;
 create table t1 (
 `sid` decimal(8,0) default null,
@@ -3317,6 +3319,8 @@ drop table t1;
 SET @save_sort_buffer_size= @@sort_buffer_size;
 SET @save_max_sort_length= @@max_sort_length;
 SET max_sort_length=8;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '8'
 SET sort_buffer_size=1024;
 CREATE TABLE t1(a INT, b DECIMAL(65), c BLOB);
 INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_25;
@@ -3384,6 +3388,8 @@ SET @save_max_sort_length= @@max_sort_length;
 SET @save_sort_buffer_size= @@sort_buffer_size;
 SET @save_max_length_for_sort_data= @@max_length_for_sort_data;
 SET max_sort_length=8;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '8'
 SET sort_buffer_size=1024;
 SET max_length_for_sort_data=7000;
 CREATE TABLE t1(a VARCHAR(64), b VARCHAR(2048))DEFAULT CHARSET=utf8;
@@ -3520,6 +3526,8 @@ INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4);
 SET max_length_for_sort_data= 30;
 SET sql_select_limit = 3;
 SET max_sort_length=8;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '8'
 SELECT * FROM t1 ORDER BY a+1;
 a	b
 1	1

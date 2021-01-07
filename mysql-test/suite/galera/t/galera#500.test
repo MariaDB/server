@@ -8,9 +8,10 @@
 --source include/galera_cluster.inc
 --source include/galera_have_debug_sync.inc
 
+# Save original auto_increment_offset values.
 --let $node_1=node_1
 --let $node_2=node_2
---source suite/galera/include/auto_increment_offset_save.inc
+--source include/auto_increment_offset_save.inc
 
 # Force node_2 gcomm background thread to terminate via exception.
 --connection node_2
@@ -41,4 +42,4 @@ SET SESSION wsrep_on=0;
 --connection node_2
 CALL mtr.add_suppression("WSREP: exception from gcomm, backend must be restarted: Gcomm backend termination was requested by setting gmcast.isolate=2.");
 
---source suite/galera/include/auto_increment_offset_restore.inc
+--source include/auto_increment_offset_restore.inc

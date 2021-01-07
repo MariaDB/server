@@ -164,20 +164,15 @@ connection slave;
 connection slave;
 include/stop_slave.inc
 connection master;
+include/kill_binlog_dump_threads.inc
 set global rpl_semi_sync_master_timeout= 5000;
 [ master status should be ON ]
-show status like 'Rpl_semi_sync_master_status';
-Variable_name	Value
-Rpl_semi_sync_master_status	ON
 show status like 'Rpl_semi_sync_master_no_tx';
 Variable_name	Value
 Rpl_semi_sync_master_no_tx	0
 show status like 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
 Rpl_semi_sync_master_yes_tx	14
-show status like 'Rpl_semi_sync_master_clients';
-Variable_name	Value
-Rpl_semi_sync_master_clients	0
 [ semi-sync replication of these transactions will fail ]
 insert into t1 values (500);
 [ master status should be OFF ]
@@ -235,9 +230,6 @@ max(a)
 500
 connection master;
 [ master status should be ON again after slave catches up ]
-show status like 'Rpl_semi_sync_master_status';
-Variable_name	Value
-Rpl_semi_sync_master_status	ON
 show status like 'Rpl_semi_sync_master_no_tx';
 Variable_name	Value
 Rpl_semi_sync_master_no_tx	12
@@ -304,8 +296,6 @@ connection master;
 create table t1 (a int) engine = ENGINE_TYPE;
 drop table t1;
 connection slave;
-show status like 'Rpl_relay%';
-Variable_name	Value
 [ test reset master ]
 connection master;
 reset master;
@@ -321,7 +311,7 @@ Rpl_semi_sync_master_yes_tx	0
 connection slave;
 include/stop_slave.inc
 reset slave;
-connection master;
+include/kill_binlog_dump_threads.inc
 connection slave;
 include/start_slave.inc
 connection master;
@@ -353,6 +343,7 @@ include/stop_slave.inc
 reset slave;
 connection master;
 reset master;
+include/kill_binlog_dump_threads.inc
 set sql_log_bin=0;
 grant replication slave on *.* to rpl@127.0.0.1 identified by 'rpl_password';
 flush privileges;
@@ -403,10 +394,8 @@ SHOW STATUS LIKE 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	OFF
 connection master;
+include/kill_binlog_dump_threads.inc
 [ Semi-sync status on master should be ON ]
-show status like 'Rpl_semi_sync_master_clients';
-Variable_name	Value
-Rpl_semi_sync_master_clients	0
 show status like 'Rpl_semi_sync_master_status';
 Variable_name	Value
 Rpl_semi_sync_master_status	ON

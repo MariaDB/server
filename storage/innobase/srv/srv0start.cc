@@ -2064,6 +2064,13 @@ void innodb_shutdown()
 	ut_ad(buf_pool.is_initialised() || !srv_was_started);
 	buf_pool.close();
 
+	srv_sys_space.shutdown();
+	if (srv_tmp_space.get_sanity_check_status()) {
+		fil_system.temp_space->close();
+		srv_tmp_space.delete_files();
+	}
+	srv_tmp_space.shutdown();
+
 	if (srv_was_started && srv_print_verbose_log) {
 		ib::info() << "Shutdown completed; log sequence number "
 			   << srv_shutdown_lsn

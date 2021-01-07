@@ -177,8 +177,8 @@ dict_stats_persistent_storage_check(
 		{"table_name", DATA_VARMYSQL,
 			DATA_NOT_NULL, 597},
 
-		{"last_update", DATA_FIXBINARY,
-			DATA_NOT_NULL, 4},
+		{"last_update", DATA_INT,
+			DATA_NOT_NULL | DATA_UNSIGNED, 4},
 
 		{"n_rows", DATA_INT,
 			DATA_NOT_NULL | DATA_UNSIGNED, 8},
@@ -208,8 +208,8 @@ dict_stats_persistent_storage_check(
 		{"index_name", DATA_VARMYSQL,
 			DATA_NOT_NULL, 192},
 
-		{"last_update", DATA_FIXBINARY,
-			DATA_NOT_NULL, 4},
+		{"last_update", DATA_INT,
+			DATA_NOT_NULL | DATA_UNSIGNED, 4},
 
 		{"stat_name", DATA_VARMYSQL,
 			DATA_NOT_NULL, 64*3},

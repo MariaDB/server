@@ -1177,9 +1177,6 @@ get_options(int *argc,char ***argv)
   if (debug_check_flag)
     my_end_arg= MY_CHECK_ERROR;
 
-  if (!user)
-    user= (char *)"root";
-
   /*
     If something is created and --no-drop is not specified, we drop the
     schema.

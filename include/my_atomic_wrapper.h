@@ -51,6 +51,10 @@ public:
   { return m.fetch_sub(i, o); }
   Type fetch_xor(const Type i, std::memory_order o= std::memory_order_relaxed)
   { return m.fetch_xor(i, o); }
+  Type fetch_and(const Type i, std::memory_order o= std::memory_order_relaxed)
+  { return m.fetch_and(i, o); }
+  Type fetch_or(const Type i, std::memory_order o= std::memory_order_relaxed)
+  { return m.fetch_or(i, o); }
   bool compare_exchange_strong(Type& i1, const Type i2,
                                std::memory_order o1= std::memory_order_relaxed,
                                std::memory_order o2= std::memory_order_relaxed)

@@ -8549,7 +8549,7 @@ int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
     DBUG_ASSERT(length <= max_data_length());
     
     new_length= length;
-    copy_length= (size_t)MY_MIN(UINT_MAX,table->in_use->variables.group_concat_max_len);
+    copy_length= table->in_use->variables.group_concat_max_len;
     if (new_length > copy_length)
     {
       new_length= Well_formed_prefix(cs,

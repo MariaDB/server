@@ -8016,4 +8016,8 @@ create or replace view v1 as select 1 IS TRUE IS FALSE, 2 IS FALSE IS UNKNOWN, 3
 Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
 view_definition
 select 1 is true is false AS `1 IS TRUE IS FALSE`,/*always not null*/ 1 is null AS `2 IS FALSE IS UNKNOWN`,/*always not null*/ 1 is null AS `3 IS UNKNOWN IS NULL`,/*always not null*/ 1 is null is true AS `4 IS NULL IS TRUE`
+create or replace view v1 as select 2 IS TRUE = 3, 2 IS FALSE = 3, 2 IS UNKNOWN = 3, 2 IS NULL = 3, ISNULL(2) = 1;
+Select view_definition from information_schema.views where table_schema='test' and table_name='v1';
+view_definition
+select 2 is true = 3 AS `2 IS TRUE = 3`,2 is false = 3 AS `2 IS FALSE = 3`,/*always not null*/ 1 is null = 3 AS `2 IS UNKNOWN = 3`,/*always not null*/ 1 is null = 3 AS `2 IS NULL = 3`,/*always not null*/ 1 is null = 1 AS `ISNULL(2) = 1`
 drop view v1;

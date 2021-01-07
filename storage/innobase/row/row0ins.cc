@@ -892,7 +892,7 @@ row_ins_foreign_fill_virtual(
 	update->old_vrow = row_build(
 		ROW_COPY_DATA, index, rec,
 		offsets, index->table, NULL, NULL,
-		&ext, cascade->heap);
+		&ext, update->heap);
 	n_diff = update->n_fields;
 
 	if (index->table->vc_templ == NULL) {
@@ -2370,6 +2370,18 @@ row_ins_duplicate_error_in_clust(
 duplicate:
 				trx->error_info = cursor->index;
 				err = DB_DUPLICATE_KEY;
+				if (cursor->index->table->versioned()
+				    && entry->vers_history_row())
+				{
+					ulint trx_id_len;
+					byte *trx_id = rec_get_nth_field(
+						rec, offsets, n_unique,
+						&trx_id_len);
+					ut_ad(trx_id_len == DATA_TRX_ID_LEN);
+					if (trx->id == trx_read_trx_id(trx_id)) {
+						err = DB_FOREIGN_DUPLICATE_KEY;
+					}
+				}
 				goto func_exit;
 			}
 		}
@@ -3569,6 +3581,16 @@ row_ins_get_row_from_select(
 	}
 }
 
+inline
+bool ins_node_t::vers_history_row() const
+{
+	if (!table->versioned())
+		return false;
+	dfield_t* row_end = dtuple_get_nth_field(row, table->vers_end);
+	return row_end->vers_history_row();
+}
+
+
 /***********************************************************//**
 Inserts a row to a table.
 @return DB_SUCCESS if operation successfully completed, else error
@@ -3607,12 +3629,31 @@ row_ins(
 	ut_ad(node->state == INS_NODE_INSERT_ENTRIES);
 
 	while (node->index != NULL) {
-		if (node->index->type != DICT_FTS) {
+		dict_index_t *index = node->index;
+		/*
+		   We do not insert history rows into FTS_DOC_ID_INDEX because
+		   it is unique by FTS_DOC_ID only and we do not want to add
+		   row_end to unique key. Fulltext field works the way new
+		   FTS_DOC_ID is created on every fulltext UPDATE, so holding only
+		   FTS_DOC_ID for history is enough.
+		*/
+		const unsigned type = index->type;
+		if (index->type & DICT_FTS) {
+		} else if (!(type & DICT_UNIQUE) || index->n_uniq > 1
+			   || !node->vers_history_row()) {
+
 			dberr_t err = row_ins_index_entry_step(node, thr);
 
 			if (err != DB_SUCCESS) {
 				DBUG_RETURN(err);
 			}
+		} else {
+			/* Unique indexes with system versioning must contain
+			the version end column. The only exception is a hidden
+			FTS_DOC_ID_INDEX that InnoDB may create on a hidden or
+			user-created FTS_DOC_ID column. */
+			ut_ad(!strcmp(index->name, FTS_DOC_ID_INDEX_NAME));
+			ut_ad(!strcmp(index->fields[0].name, FTS_DOC_ID_COL_NAME));
 		}
 
 		node->index = dict_table_get_next_index(node->index);

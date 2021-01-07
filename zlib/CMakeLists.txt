@@ -13,12 +13,6 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 
-cmake_minimum_required(VERSION 2.4.4)
-set(CMAKE_ALLOW_LOOSE_LOOP_CONSTRUCTS ON)
-
-project(zlib C)
-
-set(VERSION "1.2.11")
 
 include(CheckTypeSize)
 include(CheckFunctionExists)
@@ -110,40 +104,7 @@ set(ZLIB_SRCS
     zutil.c
 )
 
-if(NOT MINGW)
-    set(ZLIB_DLL_SRCS
-        win32/zlib1.rc # If present will override custom build rule below.
-    )
-endif()
-
-# parse the full version number from zlib.h and include in ZLIB_FULL_VERSION
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/zlib.h _zlib_h_contents)
-string(REGEX REPLACE ".*#define[ \t]+ZLIB_VERSION[ \t]+\"([-0-9A-Za-z.]+)\".*"
-    "\\1" ZLIB_FULL_VERSION ${_zlib_h_contents})
-
 ADD_CONVENIENCE_LIBRARY(zlib STATIC
   ${ZLIB_SRCS} ${ZLIB_PUBLIC_HDRS} ${ZLIB_PRIVATE_HDRS})
 RESTRICT_SYMBOL_EXPORTS(zlib)
 
-
-if(NOT CYGWIN)
-    # This property causes shared libraries on Linux to have the full version
-    # encoded into their final filename.  We disable this on Cygwin because
-    # it causes cygz-${ZLIB_FULL_VERSION}.dll to be created when cygz.dll
-    # seems to be the default.
-    #
-    # This has no effect with MSVC, on that platform the version info for
-    # the DLL comes from the resource file win32/zlib1.rc
-    set_target_properties(zlib PROPERTIES VERSION ${ZLIB_FULL_VERSION})
-endif()
-
-if(CMAKE_SYSTEM_NAME MATCHES "SunOS")
-    # On unix-like platforms the library is almost always called libz
-   set_target_properties(zlib PROPERTIES OUTPUT_NAME z)
-elseif(UNIX)
-    # On unix-like platforms the library is almost always called libz
-   set_target_properties(zlib PROPERTIES OUTPUT_NAME z)
-endif()
-
-
-RESTRICT_SYMBOL_EXPORTS(zlib)

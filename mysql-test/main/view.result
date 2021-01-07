@@ -6726,6 +6726,41 @@ DROP PROCEDURE sp;
 DROP VIEW v1;
 DROP TABLE t1;
 #
+# MDEV-24314: create view with derived table without default database
+#
+drop database test;
+create database db1;
+create table db1.t1 (a int);
+insert into db1.t1 values (3),(7),(1);
+create view db1.v1 as select * from (select * from db1.t1) t;
+show create view db1.v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `db1`.`v1` AS select `t`.`a` AS `a` from (select `db1`.`t1`.`a` AS `a` from `db1`.`t1`) `t`	latin1	latin1_swedish_ci
+select * from db1.v1;
+a
+3
+7
+1
+drop view db1.v1;
+prepare stmt from "
+create view db1.v1 as select * from (select * from db1.t1) t;
+";
+execute stmt;
+deallocate prepare stmt;
+show create view db1.v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `db1`.`v1` AS select `t`.`a` AS `a` from (select `db1`.`t1`.`a` AS `a` from `db1`.`t1`) `t`	latin1	latin1_swedish_ci
+select * from db1.v1;
+a
+3
+7
+1
+drop view db1.v1;
+drop table db1.t1;
+drop database db1;
+create database test;
+use test;
+#
 # End of 10.2 tests
 #
 #

@@ -741,6 +741,9 @@ static bool mysqld_help_internal(THD *thd, const char *mask)
 			      &name, &description, &example);
   delete select;
 
+  if (thd->is_error())
+    goto error;
+
   if (count_topics == 0)
   {
     int UNINIT_VAR(key_id);

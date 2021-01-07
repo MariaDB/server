@@ -12,13 +12,15 @@ include /usr/share/dpkg/default.mk
 CFLAGS+=$(CPPFLAGS)
 CXXFLAGS+=$(CPPFLAGS)
 
+# Only do a strict symbol checking on Linux
+ifneq (,$(filter linux,$(DEB_HOST_ARCH_OS)))
+    DPKG_GENSYMBOLS_CHECK_LEVEL := 4
+endif
+
 BUILDDIR := builddir
 DEB_VERSION_REVISION := $(shell echo $(DEB_VERSION) | sed -e 's/^.*-//')
 RELEASE := $(shell lsb_release -r -s) # Use changelog based DEB_DISTRIBUTION instead?
 TMP:=$(CURDIR)/debian/tmp
-
-CC := $(DEB_HOST_GNU_TYPE)-gcc
-CXX := $(DEB_HOST_GNU_TYPE)-g++
 
 # According to Debian Policy version 4.2.0 builds should be as verbose as
 # possible unless 'terse' is specifically passed.
@@ -36,16 +38,18 @@ else
     NUMJOBS = 1
 endif
 
-# Ignore test suite exit code on unstable platforms
-ifeq ($(DEB_HOST_ARCH),$(filter $(DEB_HOST_ARCH),mips mipsel mips64el alpha powerpc sh4 hurd-i386 sparc64 kfreebsd-i386 kfreebsd-amd64))
-    TESTSUITE_FAIL_CMD:=true
-else
-    TESTSUITE_FAIL_CMD:=exit 1
-endif
-
 # RocksDB cannot build on 32-bit platforms
 ifeq (32,$(DEB_HOST_ARCH_BITS))
     CMAKEFLAGS += -DPLUGIN_ROCKSDB=NO
+endif
+
+ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
+    ifneq (,$(filter $(DEB_HOST_ARCH_CPU),alpha amd64 arm arm64 i386 ia64 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64))
+        CMAKEFLAGS += -DSTACK_DIRECTION=-1
+    endif
+    ifneq (,$(filter $(DEB_HOST_ARCH_CPU),hppa))
+        CMAKEFLAGS += -DSTACK_DIRECTION=1
+    endif
 endif
 
 # Add extra flag to avoid WolfSSL code crashing the entire mariadbd on s390x. This
@@ -81,12 +85,12 @@ endif
 
 	# Don't build ColumnStore as part of the native build, only build it when
 	# triggered by autobake-deb.sh. Saves build time and disk space.
-	mkdir -p $(BUILDDIR) && cd $(BUILDDIR) && \
-	sh -c  'PATH=$${MYSQL_BUILD_PATH:-"/usr/lib/ccache:/usr/local/bin:/usr/bin:/bin"} \
-	    	CC=${CC} \
-	    	CXX=${CXX} \
-	    cmake -DCMAKE_INSTALL_PREFIX=/usr \
+	PATH=$${MYSQL_BUILD_PATH:-"/usr/lib/ccache:/usr/local/bin:/usr/bin:/bin"} \
+	    NO_UPDATE_BUILD_VERSION=1 \
+	    dh_auto_configure --builddirectory=$(BUILDDIR) -- \
+	    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
 	    $(CMAKEFLAGS) \
+	    $(if $(filter $(DEB_BUILD_ARCH),$(DEB_HOST_ARCH)),,-DIMPORT_EXECUTABLES=$(CURDIR)/builddir-native/import_executables.cmake) \
 	    -DCOMPILATION_COMMENT="mariadb.org binary distribution" \
 	    -DMYSQL_SERVER_SUFFIX="-$(DEB_VERSION_REVISION)" \
 	    -DSYSTEM_TYPE="debian-$(DEB_HOST_GNU_SYSTEM)" \
@@ -94,7 +98,7 @@ endif
 	    -DBUILD_CONFIG=mysql_release \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
 	    -DPLUGIN_COLUMNSTORE=NO \
-	    -DDEB=$(DEB_VENDOR) ..'
+	    -DDEB=$(DEB_VENDOR)
 
 # This is needed, otherwise 'make test' will run before binaries have been built
 override_dh_auto_build:
@@ -111,7 +115,10 @@ override_dh_auto_test:
 	[ ! -f debian/unstable-tests.$(DEB_HOST_ARCH) ] || cat debian/unstable-tests.$(DEB_HOST_ARCH) >> mysql-test/unstable-tests
 	# Run testsuite
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
-	cd $(BUILDDIR)/mysql-test && ./mtr --force --mem --parallel=$(NUMJOBS) --skip-rpl --suite=main --skip-test-list=unstable-tests  || $(TESTSUITE_FAIL_CMD) ;
+	cd $(BUILDDIR)/mysql-test && \
+	./mtr --force --mem \
+	      --parallel=$(NUMJOBS) --skip-rpl --suite=main \
+	      --skip-test-list=unstable-tests
 endif
 
 override_dh_auto_install:
@@ -143,7 +150,7 @@ endif
 	# to satisfy Debian reproducible build requirements
 	nm --defined-only $(BUILDDIR)/sql/mariadbd | LC_ALL=C sort | gzip -n -9 > $(TMP)/usr/share/doc/mariadb-server-10.6/mariadbd.sym.gz
 
-	# rename and install AppArmor profile
+	# Rename and install AppArmor profile
 	install -D -m 644 debian/apparmor-profile $(TMP)/etc/apparmor.d/usr.sbin.mariadbd
 
 	# Install libmariadbclient18 compatibility links
