@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2019, MariaDB
+   Copyright (c) 2008, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -117,14 +117,13 @@ When one supplies long data for a placeholder:
 #include <mysql.h>
 #else
 #include <mysql_com.h>
+/* Constants defining bits in parameter type flags. Flags are read from high byte of short value */
+static const uint PARAMETER_FLAG_UNSIGNED= 128U << 8;
 #endif
 #include "lock.h"                               // MYSQL_OPEN_FORCE_SHARED_MDL
 #include "sql_handler.h"
 #include "transaction.h"                        // trans_rollback_implicit
 #include "wsrep_mysqld.h"
-
-/* Constants defining bits in parameter type flags. Flags are read from high byte of short value */
-static const uint PARAMETER_FLAG_UNSIGNED = 128U << 8;
 
 /**
   A result class used to send cursor rows using the binary protocol.
