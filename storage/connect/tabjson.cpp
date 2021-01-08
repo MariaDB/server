@@ -310,7 +310,8 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
     case RC_FX:
       goto err;
     default:
-      jsp = tjnp->FindRow(g);
+//    jsp = tjnp->FindRow(g);    // FindRow was done in ReadDB
+      jsp = tjnp->Row;
     } // endswitch ReadDB
 
   } // endif pretty
@@ -360,7 +361,8 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
       case RC_FX:
         goto err;
       default:
-        jsp = tjnp->FindRow(g);
+//      jsp = tjnp->FindRow(g);
+        jsp = tjnp->Row;
       } // endswitch ReadDB
 
     } else
@@ -397,26 +399,26 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
 
 		jcol.Type = jvp->DataType;
 
-		switch (jvp->DataType) {
-		case TYPE_STRG:
-		case TYPE_DTM:
-			jcol.Len = (int)strlen(jvp->Strp);
-			break;
-		case TYPE_INTG:
-		case TYPE_BINT:
-			jcol.Len = (int)strlen(jvp->GetString(g));
-			break;
-		case TYPE_DBL:
-			jcol.Len = (int)strlen(jvp->GetString(g));
-			jcol.Scale = jvp->Nd;
-			break;
-		case TYPE_BOOL:
-			jcol.Len = 1;
-			break;
-		default:
-			jcol.Len = 0;
-			break;
-		} // endswitch Type
+    switch (jvp->DataType) {
+      case TYPE_STRG:
+      case TYPE_DTM:
+        jcol.Len = (int)strlen(jvp->Strp);
+        break;
+      case TYPE_INTG:
+      case TYPE_BINT:
+        jcol.Len = (int)strlen(jvp->GetString(g));
+        break;
+      case TYPE_DBL:
+        jcol.Len = (int)strlen(jvp->GetString(g));
+        jcol.Scale = jvp->Nd;
+        break;
+      case TYPE_BOOL:
+        jcol.Len = 1;
+        break;
+      default:
+        jcol.Len = 0;
+        break;
+    } // endswitch Type
 
     jcol.Scale = jvp->Nd;
     jcol.Cbn = jvp->DataType == TYPE_NULL;

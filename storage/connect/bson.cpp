@@ -544,9 +544,9 @@ fin:
     buf[n] = 0;
 
     if (has_dot || has_e) {
-      double dv = strtod(buf, NULL);
+      double dv = atof(buf);
 
-      if (nd > 5 || dv > FLT_MAX || dv < FLT_MIN) {
+      if (nd >= 6 || dv > FLT_MAX || dv < FLT_MIN) {
         double* dvp = (double*)PlugSubAlloc(G, NULL, sizeof(double));
 
         *dvp = dv;
@@ -557,7 +557,7 @@ fin:
         vlp->Type = TYPE_FLOAT;
       } // endif nd
 
-      vlp->Nd = nd;
+      vlp->Nd = MY_MIN(nd, 16);
     } else {
       longlong iv = strtoll(buf, NULL, 10);
 
@@ -765,6 +765,8 @@ bool BDOC::SerializeValue(PBVAL jvp)
     return jp->WriteStr(buf);
   case TYPE_NULL:
     return jp->WriteStr("null");
+  case TYPE_JVAL:
+    return SerializeValue(MVP(jvp->To_Val));
   default:
     return jp->WriteStr("???");   // TODO
   } // endswitch Type
@@ -793,7 +795,12 @@ void* BJSON::BsonSubAlloc(size_t size)
       "Not enough memory for request of %zd (used=%zd free=%zd)",
       size, pph->To_Free, pph->FreeBlk);
     xtrc(1, "BsonSubAlloc: %s\n", G->Message);
-    throw(1234);
+
+    if (Throw)
+      throw(1234);
+    else
+      return NULL;
+
   } /* endif size OS32 code */
 
   // Do the suballocation the simplest way
@@ -1066,7 +1073,7 @@ PBVAL BJSON::MergeObject(PBVAL bop1, PBVAL bop2)
 /***********************************************************************/
 /* Delete a value corresponding to the given key.                      */
 /***********************************************************************/
-void BJSON::DeleteKey(PBVAL bop, PCSZ key)
+bool BJSON::DeleteKey(PBVAL bop, PCSZ key)
 {
   CheckType(bop, TYPE_JOB);
   PBPR brp, pbrp = NULL;
@@ -1079,10 +1086,11 @@ void BJSON::DeleteKey(PBVAL bop, PCSZ key)
         bop->To_Val = brp->Vlp.Next;
 
       bop->Nd--;
-      break;
+      return true;;
     } else
       pbrp = brp;
 
+  return false;
 } // end of DeleteKey
 
 /***********************************************************************/
@@ -1247,24 +1255,25 @@ PSZ BJSON::GetArrayText(PGLOBAL g, PBVAL bap, PSTRG text)
 /***********************************************************************/
 /* Delete a Value from the Arrays Value list.                          */
 /***********************************************************************/
-void BJSON::DeleteValue(PBVAL bap, int n)
+bool BJSON::DeleteValue(PBVAL bap, int n)
 {
   CheckType(bap, TYPE_JAR);
   int   i = 0;
   PBVAL bvp, pvp = NULL;
 
-    for (bvp = GetArray(bap); bvp; i++, bvp = GetNext(bvp))
-      if (i == n) {
-        if (pvp)
-          pvp->Next = bvp->Next;
-        else
-          bap->To_Val = bvp->Next;
+  for (bvp = GetArray(bap); bvp; i++, bvp = GetNext(bvp))
+    if (i == n) {
+      if (pvp)
+        pvp->Next = bvp->Next;
+      else
+        bap->To_Val = bvp->Next;
 
-        bap->Nd--;
-        break;
-      } else
-        pvp = bvp;
+      bap->Nd--;
+      return true;;
+    } else
+      pvp = bvp;
 
+  return false;
 } // end of DeleteValue
 
 /***********************************************************************/
@@ -1510,7 +1519,7 @@ double BJSON::GetDouble(PBVAL vp)
   } // endswitch Type
 
   return d;
-} // end of GetFloat
+} // end of GetDouble
 
 /***********************************************************************/
 /* Return the Value's String value.                                    */
@@ -1603,61 +1612,64 @@ PBVAL BJSON::SetValue(PBVAL vlp, PVAL valp)
   if (!valp || valp->IsNull()) {
     vlp->Type = TYPE_NULL;
   } else switch (valp->GetType()) {
-  case TYPE_DATE:
-    if (((DTVAL*)valp)->IsFormatted())
+    case TYPE_DATE:
+      if (((DTVAL*)valp)->IsFormatted())
+        vlp->To_Val = DupStr(valp->GetCharValue());
+      else {
+        char buf[32];
+
+        vlp->To_Val = DupStr(valp->GetCharString(buf));
+      }	// endif Formatted
+
+      vlp->Type = TYPE_DTM;
+      break;
+    case TYPE_STRING:
       vlp->To_Val = DupStr(valp->GetCharValue());
-    else {
-      char buf[32];
+      vlp->Type = TYPE_STRG;
+      break;
+    case TYPE_DOUBLE:
+    case TYPE_DECIM:
+    { double d = valp->GetFloatValue();
+      int    nd = (IsTypeNum(valp->GetType())) ? valp->GetValPrec() : 0;
 
-      vlp->To_Val = DupStr(valp->GetCharString(buf));
-    }	// endif Formatted
+      if (nd <= 6 && d >= FLT_MIN && d <= FLT_MAX) {
+        vlp->F = (float)valp->GetFloatValue();
+        vlp->Type = TYPE_FLOAT;
+      } else {
+        double* dp = (double*)BsonSubAlloc(sizeof(double));
 
-    vlp->Type = TYPE_DTM;
-    break;
-  case TYPE_STRING:
-    vlp->To_Val = DupStr(valp->GetCharValue());
-    vlp->Type = TYPE_STRG;
-    break;
-  case TYPE_DOUBLE:
-  case TYPE_DECIM:
-    vlp->Nd = (IsTypeNum(valp->GetType())) ? valp->GetValPrec() : 0;
+        *dp = d;
+        vlp->To_Val = MOF(dp);
+        vlp->Type = TYPE_DBL;
+      } // endif Nd
 
-    if (vlp->Nd <= 6) {
-      vlp->F = (float)valp->GetFloatValue();
-      vlp->Type = TYPE_FLOAT;
-    } else {
-      double *dp = (double*)BsonSubAlloc(sizeof(double));
-
-      *dp = valp->GetFloatValue();
-      vlp->To_Val = MOF(dp);
-      vlp->Type = TYPE_DBL;
-    } // endif Nd
-
-    break;
-  case TYPE_TINY:
-    vlp->B = valp->GetTinyValue() != 0;
-    vlp->Type = TYPE_BOOL;
-  case TYPE_INT:
-    vlp->N = valp->GetIntValue();
-    vlp->Type = TYPE_INTG;
-    break;
-  case TYPE_BIGINT:
-    if (valp->GetBigintValue() >= INT_MIN32 && 
-        valp->GetBigintValue() <= INT_MAX32) {
+      vlp->Nd = MY_MIN(nd, 16);
+    } break;
+    case TYPE_TINY:
+      vlp->B = valp->GetTinyValue() != 0;
+      vlp->Type = TYPE_BOOL;
+      break;
+    case TYPE_INT:
       vlp->N = valp->GetIntValue();
       vlp->Type = TYPE_INTG;
-    } else {
-      longlong* llp = (longlong*)BsonSubAlloc(sizeof(longlong));
+      break;
+    case TYPE_BIGINT:
+      if (valp->GetBigintValue() >= INT_MIN32 &&
+        valp->GetBigintValue() <= INT_MAX32) {
+        vlp->N = valp->GetIntValue();
+        vlp->Type = TYPE_INTG;
+      } else {
+        longlong* llp = (longlong*)BsonSubAlloc(sizeof(longlong));
 
-      *llp = valp->GetBigintValue();
-      vlp->To_Val = MOF(llp);
-      vlp->Type = TYPE_BINT;
-    } // endif BigintValue
+        *llp = valp->GetBigintValue();
+        vlp->To_Val = MOF(llp);
+        vlp->Type = TYPE_BINT;
+      } // endif BigintValue
 
-    break;
-  default:
-    sprintf(G->Message, "Unsupported typ %d\n", valp->GetType());
-    throw(777);
+      break;
+    default:
+      sprintf(G->Message, "Unsupported typ %d\n", valp->GetType());
+      throw(777);
   } // endswitch Type
 
   return vlp;
@@ -1702,16 +1714,44 @@ void BJSON::SetBigint(PBVAL vlp, longlong ll)
 /***********************************************************************/
 /* Set the Value's value as the given DOUBLE.                          */
 /***********************************************************************/
-void BJSON::SetFloat(PBVAL vlp, double f) {
-  vlp->F = (float)f;
-  vlp->Nd = 6;
-  vlp->Type = TYPE_FLOAT;
+void BJSON::SetFloat(PBVAL vlp, double d, int nd)
+{
+  double* dp = (double*)BsonSubAlloc(sizeof(double));
+
+  *dp = d;
+  vlp->To_Val = MOF(dp);
+  vlp->Nd = MY_MIN(nd, 16);
+  vlp->Type = TYPE_DBL;
 } // end of SetFloat
 
 /***********************************************************************/
+/* Set the Value's value as the given DOUBLE representation.                          */
+/***********************************************************************/
+void BJSON::SetFloat(PBVAL vlp, PSZ s)
+{
+  char  *p = strchr(s, '.');
+  int    nd = 0;
+  double d = atof(s);
+
+  if (p) {
+    for (++p; isdigit(*p); nd++, p++);
+    for (--p; *p == '0'; nd--, p--);
+  } // endif p
+
+  if (nd < 6 && d >= FLT_MIN && d <= FLT_MAX) {
+    vlp->F = (float)d;
+    vlp->Nd = nd;
+    vlp->Type = TYPE_FLOAT;
+  } else
+    SetFloat(vlp, d, nd);
+
+} // end of SetFloat
+
+ /***********************************************************************/
 /* Set the Value's value as the given string.                          */
 /***********************************************************************/
-void BJSON::SetString(PBVAL vlp, PSZ s, int ci) {
+void BJSON::SetString(PBVAL vlp, PSZ s, int ci)
+{
   vlp->To_Val = MOF(s);
   vlp->Nd = ci;
   vlp->Type = TYPE_STRG;
@@ -1720,7 +1760,8 @@ void BJSON::SetString(PBVAL vlp, PSZ s, int ci) {
 /***********************************************************************/
 /* True when its JSON or normal value is null.                         */
 /***********************************************************************/
-bool BJSON::IsValueNull(PBVAL vlp) {
+bool BJSON::IsValueNull(PBVAL vlp)
+{
   bool b;
 
   switch (vlp->Type) {

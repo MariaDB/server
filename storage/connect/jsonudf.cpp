@@ -1155,7 +1155,7 @@ PBSON JbinAlloc(PGLOBAL g, UDF_ARGS *args, ulong len, PJSON jsp)
 /*********************************************************************************/
 /*  Set the BSON chain as changed.                                               */
 /*********************************************************************************/
-static void SetChanged(PBSON bsp)
+void SetChanged(PBSON bsp)
 {
 	if (bsp->Bsp)
 		SetChanged(bsp->Bsp);

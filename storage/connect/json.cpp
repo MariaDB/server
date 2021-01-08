@@ -333,25 +333,30 @@ bool JOUTSTR::WriteChr(const char c) {
 /***********************************************************************/
 /* Escape and Concatenate a string to the Serialize string.            */
 /***********************************************************************/
-bool JOUTSTR::Escape(const char* s) {
-  WriteChr('"');
+bool JOUTSTR::Escape(const char* s)
+{
+  if (s) {
+    WriteChr('"');
 
-  for (unsigned int i = 0; s[i]; i++)
-    switch (s[i]) {
-    case '"':
-    case '\\':
-    case '\t':
-    case '\n':
-    case '\r':
-    case '\b':
-    case '\f': WriteChr('\\');
-      // fall through
-    default:
-      WriteChr(s[i]);
-      break;
-    } // endswitch s[i]
+    for (unsigned int i = 0; s[i]; i++)
+      switch (s[i]) {
+        case '"':
+        case '\\':
+        case '\t':
+        case '\n':
+        case '\r':
+        case '\b':
+        case '\f': WriteChr('\\');
+          // fall through
+        default:
+          WriteChr(s[i]);
+          break;
+      } // endswitch s[i]
 
-  WriteChr('"');
+    WriteChr('"');
+  } else
+    WriteStr("null");
+
   return false;
 } // end of Escape
 
@@ -360,7 +365,8 @@ bool JOUTSTR::Escape(const char* s) {
 /***********************************************************************/
 /* Write a string to the Serialize file.                               */
 /***********************************************************************/
-bool JOUTFILE::WriteStr(const char* s) {
+bool JOUTFILE::WriteStr(const char* s)
+{
   // This is temporary
   fputs(s, Stream);
   return false;
@@ -369,7 +375,8 @@ bool JOUTFILE::WriteStr(const char* s) {
 /***********************************************************************/
 /* Write a character to the Serialize file.                            */
 /***********************************************************************/
-bool JOUTFILE::WriteChr(const char c) {
+bool JOUTFILE::WriteChr(const char c)
+{
   // This is temporary
   fputc(c, Stream);
   return false;
@@ -378,25 +385,30 @@ bool JOUTFILE::WriteChr(const char c) {
 /***********************************************************************/
 /* Escape and Concatenate a string to the Serialize string.            */
 /***********************************************************************/
-bool JOUTFILE::Escape(const char* s) {
+bool JOUTFILE::Escape(const char* s)
+{
   // This is temporary
-  fputc('"', Stream);
+  if (s) {
+    fputc('"', Stream);
 
-  for (unsigned int i = 0; s[i]; i++)
-    switch (s[i]) {
-    case '"':  fputs("\\\"", Stream); break;
-    case '\\': fputs("\\\\", Stream); break;
-    case '\t': fputs("\\t", Stream); break;
-    case '\n': fputs("\\n", Stream); break;
-    case '\r': fputs("\\r", Stream); break;
-    case '\b': fputs("\\b", Stream); break;
-    case '\f': fputs("\\f", Stream); break;
-    default:
-      fputc(s[i], Stream);
-      break;
-    } // endswitch s[i]
+    for (unsigned int i = 0; s[i]; i++)
+      switch (s[i]) {
+        case '"':  fputs("\\\"", Stream); break;
+        case '\\': fputs("\\\\", Stream); break;
+        case '\t': fputs("\\t", Stream); break;
+        case '\n': fputs("\\n", Stream); break;
+        case '\r': fputs("\\r", Stream); break;
+        case '\b': fputs("\\b", Stream); break;
+        case '\f': fputs("\\f", Stream); break;
+        default:
+          fputc(s[i], Stream);
+          break;
+      } // endswitch s[i]
 
-  fputc('"', Stream);
+    fputc('"', Stream);
+  } else
+    fputs("null", Stream);
+
   return false;
 } // end of Escape
 
@@ -405,7 +417,8 @@ bool JOUTFILE::Escape(const char* s) {
 /***********************************************************************/
 /* Write a string to the Serialize pretty file.                        */
 /***********************************************************************/
-bool JOUTPRT::WriteStr(const char* s) {
+bool JOUTPRT::WriteStr(const char* s)
+{
   // This is temporary
   if (B) {
     fputs(EL, Stream);
@@ -424,7 +437,8 @@ bool JOUTPRT::WriteStr(const char* s) {
 /***********************************************************************/
 /* Write a character to the Serialize pretty file.                     */
 /***********************************************************************/
-bool JOUTPRT::WriteChr(const char c) {
+bool JOUTPRT::WriteChr(const char c)
+{
   switch (c) {
   case ':':
     fputs(": ", Stream);

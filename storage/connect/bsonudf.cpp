@@ -1,6 +1,6 @@
 /****************** bsonudf C++ Program Source Code File (.CPP) ******************/
 /*  PROGRAM NAME: bsonudf     Version 1.0                                        */
-/*  (C) Copyright to the author Olivier BERTRAND          2020                   */
+/*  (C) Copyright to the author Olivier BERTRAND          2020 - 2021            */
 /*  This program are the BSON User Defined Functions.                            */
 /*********************************************************************************/
 
@@ -28,6 +28,7 @@
 #define M 6
 
 int  IsArgJson(UDF_ARGS* args, uint i);
+void SetChanged(PBSON bsp);
 
 /* --------------------------------- JSON UDF ---------------------------------- */
 
@@ -45,6 +46,29 @@ inline void JsonFreeMem(PGLOBAL g) {
 	g->Activityp = NULL;
 	g = PlugExit(g);
 } /* end of JsonFreeMem */
+
+/*********************************************************************************/
+/*  Allocate and initialize a BSON structure.                                    */
+/*********************************************************************************/
+PBSON BbinAlloc(PGLOBAL g, ulong len, PBVAL jsp)
+{
+	PBSON bsp = (PBSON)PlgDBSubAlloc(g, NULL, sizeof(BSON));
+
+	if (bsp) {
+		strcpy(bsp->Msg, "Binary Json");
+		bsp->Msg[BMX] = 0;
+		bsp->Filename = NULL;
+		bsp->G = g;
+		bsp->Pretty = 2;
+		bsp->Reslen = len;
+		bsp->Changed = false;
+		bsp->Top = bsp->Jsp = (PJSON)jsp;
+		bsp->Bsp = NULL;
+	} else
+		PUSH_WARNING(g->Message);
+
+	return bsp;
+} /* end of BbinAlloc */
 
 /* --------------------------- New Testing BJSON Stuff --------------------------*/
 
@@ -97,6 +121,8 @@ BJNX::BJNX(PGLOBAL g) : BDOC(g)
 	Found = false;
 	Wr = false;
 	Jb = false;
+	Changed = false;
+	Throw = false;
 } // end of BJNX constructor
 
 /*********************************************************************************/
@@ -126,6 +152,8 @@ BJNX::BJNX(PGLOBAL g, PBVAL row, int type, int len, int prec, my_bool wr) : BDOC
 	Found = false;
 	Wr = wr;
 	Jb = false;
+	Changed = false;
+	Throw = false;
 } // end of BJNX constructor
 
 /*********************************************************************************/
@@ -209,9 +237,7 @@ my_bool BJNX::SetArrayOptions(PGLOBAL g, char* p, int i, PSZ nm)
 		case '<': jnp->Op = OP_MIN;  break;
 		case '!': jnp->Op = OP_SEP;  break; // Average
 		case '#': jnp->Op = OP_NUM;  break;
-		case '*': // Expand this array
-			strcpy(g->Message, "Expand not supported by this function");
-			return true;
+		case '*': jnp->Op = OP_EXP;  break;
 		default:
 			sprintf(g->Message, "Invalid function specification %c", *p);
 			return true;
@@ -521,6 +547,9 @@ PBVAL BJNX::GetRowValue(PGLOBAL g, PBVAL row, int i, my_bool b)
 			Jb = b;
 			//		return DupVal(g, row);
 			return row;		 // or last line ???
+		} else if (Nodes[i].Op == OP_EXP) {
+			PUSH_WARNING("Expand not supported by this function");
+			return NULL;
 		} else switch (row->Type) {
 		case TYPE_JOB:
 			if (!Nodes[i].Key) {
@@ -685,7 +714,10 @@ PBVAL BJNX::GetRow(PGLOBAL g)
 	for (int i = 0; i < Nod - 1 && row; i++) {
 		if (Nodes[i].Op == OP_XX)
 			break;
-		else switch (row->Type) {
+		else if (Nodes[i].Op == OP_EXP) {
+			PUSH_WARNING("Expand not supported by this function");
+			return NULL;
+		} else switch (row->Type) {
 		case TYPE_JOB:
 			if (!Nodes[i].Key)
 				// Expected Array was not there, wrap the value
@@ -788,6 +820,90 @@ my_bool BJNX::WriteValue(PGLOBAL g, PBVAL jvalp)
 
 	return false;
 } // end of WriteValue
+
+/*********************************************************************************/
+/*  GetRowValue:                                                                 */
+/*********************************************************************************/
+my_bool BJNX::DeleteItem(PGLOBAL g, PBVAL row)
+{
+	int     n = -1;
+	my_bool b = false;
+	bool    loop;
+	PBVAL   vlp, pvp, rwp;
+
+	do {
+		loop = false;
+		vlp = NULL;
+		pvp = rwp = row;
+
+		for (int i = 0; i < Nod && rwp; i++) {
+			if (Nodes[i].Op == OP_XX)
+				break;
+			else switch (rwp->Type) {
+				case TYPE_JOB:
+					if (!Nodes[i].Key) {
+						vlp = NULL;
+					} else
+						vlp = GetKeyValue(rwp, Nodes[i].Key);
+
+					break;
+				case TYPE_JAR:
+					if (!Nodes[i].Key) {
+						if (Nodes[i].Op == OP_EXP) {
+							if (loop) {
+								PUSH_WARNING("Only one expand can be handled");
+								return b;
+							} // endif loop
+							n++;
+							loop = true;
+						} else
+							n = Nodes[i].Rank;
+
+						vlp = GetArrayValue(rwp, n);
+					} else
+						vlp = NULL;
+
+					break;
+				case TYPE_JVAL:
+					vlp = rwp;
+					break;
+				default:
+					vlp = NULL;
+			} // endswitch Type
+
+			pvp = rwp;
+			rwp = vlp;
+			vlp = NULL;
+		} // endfor i
+
+		if (rwp) {
+			if (Nodes[Nod - 1].Op == OP_XX) {
+				if (!IsJson(rwp))
+					rwp->Type = TYPE_NULL;
+
+				rwp->To_Val = 0;
+			} else switch (pvp->Type) {
+				case TYPE_JOB:
+					b = DeleteKey(pvp, Nodes[Nod - 1].Key);
+					break;
+				case TYPE_JAR:
+					if (Nodes[Nod - 1].Op == OP_EXP) {
+						pvp->To_Val = 0;
+						loop = false;
+					} else
+						b = DeleteValue(pvp, n);
+
+					break;
+				default:
+					break;
+			} // endswitch Type
+
+		} // endif rwp
+
+	} while (loop);
+
+	return b;
+} // end of DeleteItem
 
 /*********************************************************************************/
 /* CheckPath: Checks whether the path exists in the document.                    */
@@ -1248,12 +1364,13 @@ my_bool BJNX::AddPath(void)
 /*********************************************************************************/
 /*  Make a JSON value from the passed argument.                                  */
 /*********************************************************************************/
-PBVAL BJNX::MakeValue(PGLOBAL g, UDF_ARGS *args, uint i, PBVAL *top)
+PBVAL BJNX::MakeValue(UDF_ARGS *args, uint i, bool b, PBVAL *top)
 {
 	char *sap = (args->arg_count > i) ? args->args[i] : NULL;
 	int   n, len;
 	int   ci;
 	long long bigint;
+	PGLOBAL& g = G;
 	PBVAL jvp = NewVal();
 
 	if (top)
@@ -1267,15 +1384,25 @@ PBVAL BJNX::MakeValue(PGLOBAL g, UDF_ARGS *args, uint i, PBVAL *top)
 
 				if (n) {
 					if (n == 3) {
-//						if (top)
-//							*top = ((PBSON)sap)->Top;
+						if (i == 0) {
+							PBSON bsp = (PBSON)sap;
 
-//						jvp = ((PBSON)sap)->Jsp;
+							if (top)
+								*top = (PBVAL)bsp->Top;
+
+							jvp = (PBVAL)bsp->Jsp;
+							G = bsp->G;
+							Base = G->Sarea;
+						} else {
+							PUSH_WARNING("Only first argument can be binary");
+							return jvp;
+						} // endelse i
+
 					} else {
 						if (n == 2) {
 							if (!(sap = GetJsonFile(g, sap))) {
 								PUSH_WARNING(g->Message);
-								return NewVal();
+								return jvp;
 							} // endif sap
 
 							len = strlen(sap);
@@ -1289,8 +1416,38 @@ PBVAL BJNX::MakeValue(PGLOBAL g, UDF_ARGS *args, uint i, PBVAL *top)
 					} // endif's n
 
 				} else {
-					ci = (strnicmp(args->attributes[i], "ci", 2)) ? 0 : 1;
-					SetString(jvp, sap, ci);
+					PBVAL bp = NULL;
+
+					if (b) {
+						if (strchr("[{ \t\r\n", *sap)) {
+							// Check whether this string is a valid json string
+							JsonMemSave(g);
+
+							if (!(bp = ParseJson(g, sap, strlen(sap))))
+								JsonSubSet(g);			// Recover suballocated memory
+
+							g->Saved_Size = 0;
+						}	else {
+							// Perhaps a file name
+							char* s = GetJsonFile(g, sap);
+							
+							if (s)
+								bp = ParseJson(g, s, strlen(s));
+
+						}	// endif's
+
+					}	// endif b
+					
+					if (!bp) {
+						ci = (strnicmp(args->attributes[i], "ci", 2)) ? 0 : 1;
+						SetString(jvp, sap, ci);
+					}	else {
+						if (top)
+							*top = bp;
+
+						jvp = bp;
+					}	// endif bp
+
 				}	// endif n
 
 			} // endif len
@@ -1310,7 +1467,7 @@ PBVAL BJNX::MakeValue(PGLOBAL g, UDF_ARGS *args, uint i, PBVAL *top)
 			SetFloat(jvp, *(double*)sap);
 			break;
 		case DECIMAL_RESULT:
-			SetFloat(jvp, atof(MakePSZ(g, args, i)));
+			SetFloat(jvp, MakePSZ(g, args, i));
 			break;
 		case TIME_RESULT:
 		case ROW_RESULT:
@@ -1322,92 +1479,13 @@ PBVAL BJNX::MakeValue(PGLOBAL g, UDF_ARGS *args, uint i, PBVAL *top)
 } // end of MakeValue
 
 /*********************************************************************************/
-/*  Make a BVAL value from the passed argument.                                  */
-/*********************************************************************************/
-PBVAL BJNX::MakeBinValue(PGLOBAL g, UDF_ARGS* args, uint i)
-{
-	char* sap = (args->arg_count > i) ? args->args[i] : NULL;
-	int   n, len;
-	int   ci;
-	longlong bigint;
-	PBVAL bp, bvp = NewVal();
-
-	if (sap) {
-		if (args->arg_type[i] == STRING_RESULT) {
-			if ((len = args->lengths[i])) {
-				if ((n = IsArgJson(args, i)) < 3)
-					sap = MakePSZ(g, args, i);
-
-				if (n) {
-					if (n == 2) {
-						if (!(sap = GetJsonFile(g, sap))) {
-							PUSH_WARNING(g->Message);
-							return NULL;
-						} // endif sap
-
-						len = strlen(sap);
-					} // endif 2
-
-					if (!(bp = ParseJson(g, sap, strlen(sap)))) {
-						PUSH_WARNING(g->Message);
-						return NULL;
-					} else
-						bvp = bp;
-
-				} else {
-					// Check whether this string is a valid json string
-					JsonMemSave(g);
-
-					if (!(bp = ParseJson(g, sap, strlen(sap)))) {
-						// Recover suballocated memory
-						JsonSubSet(g);
-						ci = (strnicmp(args->attributes[i], "ci", 2)) ? 0 : 1;
-						SetString(bvp, sap, ci);
-					} else
-						bvp = bp;
-
-					g->Saved_Size = 0;
-				}	// endif n
-
-			} // endif len
-
-		} else switch (args->arg_type[i]) {
-			case INT_RESULT:
-				bigint = *(longlong*)sap;
-
-				if ((bigint == 0LL && !strcmp(args->attributes[i], "FALSE")) ||
-					(bigint == 1LL && !strcmp(args->attributes[i], "TRUE")))
-					SetBool(bvp, (bool)bigint);
-				else
-					SetBigint(bvp, bigint);
-
-				break;
-			case REAL_RESULT:
-				SetFloat(bvp, *(double*)sap);
-				break;
-			case DECIMAL_RESULT:
-				SetFloat(bvp, atof(MakePSZ(g, args, i)));
-				break;
-			case TIME_RESULT:
-			case ROW_RESULT:
-			default:
-				bvp->Type = TYPE_UNKNOWN;
-				break;
-		} // endswitch arg_type
-
-	} // endif sap
-
-	return bvp;
-} // end of MakeBinValue
-
-/*********************************************************************************/
 /*  Try making a JSON value of the passed type from the passed argument.         */
 /*********************************************************************************/
 PBVAL BJNX::MakeTypedValue(PGLOBAL g, UDF_ARGS *args, uint i, JTYP type, PBVAL *top)
 {
 	char *sap;
 	PBVAL jsp;
-	PBVAL jvp = MakeValue(g, args, i, top);
+	PBVAL jvp = MakeValue(args, i, false, top);
 
 	//if (type == TYPE_JSON) {
 	//	if (jvp->GetValType() >= TYPE_JSON)
@@ -1485,15 +1563,94 @@ PBVAL BJNX::ParseJsonFile(PGLOBAL g, char *fn, int& pty, size_t& len)
 	return jsp;
 } // end of ParseJsonFile
 
-/* -----------------------------Utility functions ------------------------------ */
+/*********************************************************************************/
+/*  Make the result according to the first argument type.                        */
+/*********************************************************************************/
+char *BJNX::MakeResult(UDF_ARGS *args, PBVAL top, uint n)
+{
+	char    *str = NULL;
+	PGLOBAL& g = G;
+
+	if (IsArgJson(args, 0) == 2) {
+		// Make the change in the json file
+		PSZ fn = MakePSZ(g, args, 0);
+
+		if (Changed) {
+			int pretty = 2;
+
+			for (uint i = n; i < args->arg_count; i++)
+				if (args->arg_type[i] == INT_RESULT) {
+					pretty = (int)*(longlong*)args->args[i];
+					break;
+				} // endif type
+
+			if (!Serialize(g, top, fn, pretty))
+				PUSH_WARNING(g->Message);
+
+			Changed = false;
+		}	// endif Changed
+
+		str = fn;
+	} else if (IsArgJson(args, 0) == 3) {
+		PBSON bsp = (PBSON)args->args[0];
+
+		if (bsp->Filename) {
+			if (Changed) {
+				// Make the change in the json file
+				if (!Serialize(g, (PBVAL)top, bsp->Filename, bsp->Pretty))
+					PUSH_WARNING(g->Message);
+
+				Changed = false;
+			}	// endif Changed
+
+			str = bsp->Filename;
+		} else if (!(str = Serialize(g, (PBVAL)top, NULL, 0)))
+			PUSH_WARNING(g->Message);
+
+	} else if (!(str = Serialize(g, top, NULL, 0)))
+		PUSH_WARNING(g->Message);
+
+	return str;
+} // end of MakeResult
 
 /*********************************************************************************/
-/*  GetMemPtr: returns the memory pointer used by this argument.                 */
+/*  Make the binary result according to the first argument type.                 */
 /*********************************************************************************/
-static PGLOBAL GetMemPtr(PGLOBAL g, UDF_ARGS *args, uint i)
+PBSON BJNX::MakeBinResult(PGLOBAL g, UDF_ARGS *args, PBVAL top, ulong len, int n)
 {
-	return (IsArgJson(args, i) == 3) ? ((PBSON)args->args[i])->G : g;
-} // end of GetMemPtr
+	char* filename = NULL;
+	int   pretty = 2;
+	PBSON bnp = NULL;
+
+	if (IsArgJson(args, 0) == 3) {
+		bnp = (PBSON)args->args[0];
+
+		if (bnp->Top != (PJSON)top)
+			bnp->Top = bnp->Jsp = (PJSON)top;
+
+		return bnp;
+	}	// endif 3
+
+	if (IsArgJson(args, 0) == 2) {
+		for (uint i = n; i < args->arg_count; i++)
+			if (args->arg_type[i] == INT_RESULT) {
+				pretty = (int)*(longlong*)args->args[i];
+				break;
+			} // endif type
+
+		filename = (char*)args->args[0];
+	} // endif 2
+
+	if ((bnp = BbinAlloc(g, len, top))) {
+		bnp->Filename = filename;
+		bnp->Pretty = pretty;
+		strcpy(bnp->Msg, "Json Binary item");
+	} //endif bnp
+
+	return bnp;
+} // end of MakeBinResult
+
+/* -----------------------------Utility functions ------------------------------ */
 
 /*********************************************************************************/
 /*  Returns a pointer to the first integer argument found from the nth argument. */
@@ -1559,49 +1716,6 @@ int IsArgJson(UDF_ARGS *args, uint i)
 } // end of IsArgJson
 
 /*********************************************************************************/
-/*  Make the result according to the first argument type.                        */
-/*********************************************************************************/
-static char *MakeResult(PGLOBAL g, UDF_ARGS *args, PBVAL top, uint n = 2)
-{
-	char *str = NULL;
-	BDOC  doc(g);
-
-	if (IsArgJson(args, 0) == 2) {
-		// Make the change in the json file
-		int pretty = 2;
-
-		for (uint i = n; i < args->arg_count; i++)
-			if (args->arg_type[i] == INT_RESULT) {
-				pretty = (int)*(longlong*)args->args[i];
-				break;
-			} // endif type
-
-		if (!doc.Serialize(g, top, MakePSZ(g, args, 0), pretty))
-			PUSH_WARNING(g->Message);
-
-		str = NULL;
-	} else if (IsArgJson(args, 0) == 3) {
-#if 0
-		PBSON bsp = (PBSON)args->args[0];
-
-		if (bsp->Filename) {
-			// Make the change in the json file
-			if (!Serialize(g, top, bsp->Filename, bsp->Pretty))
-				PUSH_WARNING(g->Message);
-
-			str = bsp->Filename;
-		} else if (!(str = Serialize(g, top, NULL, 0)))
-			PUSH_WARNING(g->Message);
-
-		SetChanged(bsp);
-#endif
-	} else if (!(str = doc.Serialize(g, top, NULL, 0)))
-		PUSH_WARNING(g->Message);
-
-	return str;
-} // end of MakeResult
-
-/*********************************************************************************/
 /*  GetFileLength: returns file size in number of bytes.                         */
 /*********************************************************************************/
 static long GetFileLength(char *fn)
@@ -1649,7 +1763,7 @@ char* bsonvalue(UDF_INIT* initid, UDF_ARGS* args, char* result,
 	if (!g->Xchk) {
 		if (!CheckMemory(g, initid, args, 1, false)) {
 			BJNX  bnx(g);
-			PBVAL bvp = bnx.MakeBinValue(g, args, 0);
+			PBVAL bvp = bnx.MakeValue(args, 0, true);
 
 			if (!(str = bnx.Serialize(g, bvp, NULL, 0)))
 				str = strcpy(result, g->Message);
@@ -1693,7 +1807,7 @@ char* bson_make_array(UDF_INIT* initid, UDF_ARGS* args, char* result,
 			PBVAL bvp = NULL, arp = bnx.NewVal(TYPE_JAR);
 
 			for (uint i = 0; i < args->arg_count; i++)
-				bnx.AddArrayValue(arp, bnx.MakeBinValue(g, args, i));
+				bnx.AddArrayValue(arp, bnx.MakeValue(args, i, true));
 
 			if (!(str = bnx.Serialize(g, arp, NULL, 0)))
 				str = strcpy(result, g->Message);
@@ -1752,20 +1866,19 @@ char* bson_array_add_values(UDF_INIT* initid, UDF_ARGS* args, char* result,
 
 	if (!g->Xchk) {
 		if (!CheckMemory(g, initid, args, args->arg_count, true)) {
-			uint  i = 0;
 			BJNX  bnx(g);
-			PBVAL arp, bvp = bnx.MakeBinValue(g, args, 0);
+			PBVAL arp = bnx.MakeValue(args, 0, true);
 
-			if (bvp->Type == TYPE_JAR) {
-				arp = bvp;
-				i = 1;
-			} else		// First argument is not an array
-				arp = bnx.NewVal(TYPE_JAR);
+			if (arp->Type != TYPE_JAR) {
+				PUSH_WARNING("First argument is not an array");
+				goto fin;
+			} // endif arp
 
-			for (; i < args->arg_count; i++)
-				bnx.AddArrayValue(arp, bnx.MakeBinValue(g, args, i));
+			for (uint  i = 1; i < args->arg_count; i++)
+				bnx.AddArrayValue(arp, bnx.MakeValue(args, i));
 
-			str = bnx.Serialize(g, arp, NULL, 0);
+			bnx.SetChanged(true);
+			str = bnx.MakeResult(args, arp, INT_MAX);
 		} // endif CheckMemory
 
 		if (!str) {
@@ -1778,6 +1891,7 @@ char* bson_array_add_values(UDF_INIT* initid, UDF_ARGS* args, char* result,
 	} else
 		str = (char*)g->Xchk;
 
+	fin:
 	if (!str) {
 		*res_length = 0;
 		*is_null = 1;
@@ -1840,7 +1954,7 @@ char *bson_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		uint	n = 2;
 		BJNX  bnx(g, NULL, TYPE_STRING);
 		PBVAL jsp, top;
-		PBVAL arp, jvp = bnx.MakeTypedValue(g, args, 0, TYPE_JAR, &top);
+		PBVAL arp, jvp = bnx.MakeValue(args, 0, true, &top);
 
 		jsp = jvp;
 		x = GetIntArgPtr(g, args, n);
@@ -1848,8 +1962,6 @@ char *bson_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		if (bnx.CheckPath(g, args, jsp, jvp, 2))
 			PUSH_WARNING(g->Message);
 		else if (jvp) {
-			PGLOBAL gb = GetMemPtr(g, args, 0);
-
 			if (jvp->Type != TYPE_JAR) {
 				if ((arp = bnx.NewVal(TYPE_JAR))) {
 					bnx.AddArrayValue(arp, jvp);
@@ -1863,10 +1975,11 @@ char *bson_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 				arp = jvp;
 
 			if (arp) {
-				bnx.AddArrayValue(arp, bnx.MakeValue(gb, args, 1), x);
-				str = MakeResult(g, args, top, n);
+				bnx.AddArrayValue(arp, bnx.MakeValue(args, 1), x);
+				bnx.SetChanged(true);
+				str = bnx.MakeResult(args, top, n);
 			}	else
-				PUSH_WARNING(gb->Message);
+				PUSH_WARNING(g->Message);
 
 		} else {
 			PUSH_WARNING("Target is not an array");
@@ -1919,7 +2032,7 @@ my_bool bson_array_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		g->N = (initid->const_item) ? 1 : 0;
 
 		// This is to avoid double execution when using prepared statements
-		if (IsJson(args, 0) > 1)
+		if (IsArgJson(args, 0) > 1)
 			initid->const_item = 0;
 
 		return false;
@@ -1943,9 +2056,9 @@ char *bson_array_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	if (!CheckMemory(g, initid, args, 1, false, false, true)) {
 		int  *x;
 		uint	n = 1;
-		BJNX  bnx(g, NULL, TYPE_STRING);
+		BJNX  bnx(g);
 		PBVAL arp, top;
-		PBVAL jvp = bnx.MakeTypedValue(g, args, 0, TYPE_JSON, &top);
+		PBVAL jvp = bnx.MakeValue(args, 0, true, &top);
 
 		if (!(x = GetIntArgPtr(g, args, n)))
 			PUSH_WARNING("Missing or null array index");
@@ -1953,7 +2066,8 @@ char *bson_array_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			PUSH_WARNING(g->Message);
 		else if (arp && arp->Type == TYPE_JAR) {
 			bnx.DeleteValue(arp, *x);
-			str = MakeResult(g, args, top, n);
+			bnx.SetChanged(true);
+			str = bnx.MakeResult(args, top, n);
 		} else {
 			PUSH_WARNING("First argument target is not an array");
 			//		if (g->Mrr) *error = 1;
@@ -2009,7 +2123,7 @@ char *bson_make_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 			if ((objp = bnx.NewVal(TYPE_JOB))) {
 				for (uint i = 0; i < args->arg_count; i++)
-					bnx.SetKeyValue(objp, bnx.MakeValue(g, args, i), bnx.MakeKey(args, i));
+					bnx.SetKeyValue(objp, bnx.MakeValue(args, i), bnx.MakeKey(args, i));
 
 				str = bnx.Serialize(g, objp, NULL, 0);
 			}	// endif objp
@@ -2058,7 +2172,7 @@ char *bson_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 			if ((objp = bnx.NewVal(TYPE_JOB))) {
 				for (uint i = 0; i < args->arg_count; i++)
-					if (!bnx.IsValueNull(jvp = bnx.MakeValue(g, args, i)))
+					if (!bnx.IsValueNull(jvp = bnx.MakeValue(args, i)))
 						bnx.SetKeyValue(objp, jvp, bnx.MakeKey(args, i));
 
 				str = bnx.Serialize(g, objp, NULL, 0);
@@ -2112,7 +2226,7 @@ char *bson_object_key(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 			if ((objp = bnx.NewVal(TYPE_JOB))) {
 				for (uint i = 0; i < args->arg_count; i += 2)
-					bnx.SetKeyValue(objp, bnx.MakeValue(g, args, i + 1), MakePSZ(g, args, i));
+					bnx.SetKeyValue(objp, bnx.MakeValue(args, i + 1), MakePSZ(g, args, i));
 
 				str = bnx.Serialize(g, objp, NULL, 0);
 			}	// endif objp
@@ -2159,7 +2273,7 @@ my_bool bson_object_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		g->N = (initid->const_item) ? 1 : 0;
 
 		// This is to avoid double execution when using prepared statements
-		if (IsJson(args, 0) > 1)
+		if (IsArgJson(args, 0) > 1)
 			initid->const_item = 0;
 
 		return false;
@@ -2182,20 +2296,21 @@ char *bson_object_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // endif Xchk
 
 	if (!CheckMemory(g, initid, args, 2, false, true, true)) {
-		BJNX  bnx(g, NULL, TYPE_STRG);
+		BJNX  bnx(g, NULL, TYPE_STRING);
 		PBVAL jvp, objp;
 		PBVAL jsp, top;
 
-		jsp = bnx.MakeValue(g, args, 0, &top);
+		jsp = bnx.MakeValue(args, 0, true, &top);
 
 		if (bnx.CheckPath(g, args, jsp, jvp, 2))
 			PUSH_WARNING(g->Message);
 		else if (jvp && jvp->Type == TYPE_JOB) {
 			objp = jvp;
-			jvp = bnx.MakeValue(g, args, 1);
+			jvp = bnx.MakeValue(args, 1);
 			key = bnx.MakeKey(args, 1);
 			bnx.SetKeyValue(objp, jvp, key);
-			str = MakeResult(g, args, top);
+			bnx.SetChanged(true);
+			str = bnx.MakeResult(args, top);
 		} else {
 			PUSH_WARNING("First argument target is not an object");
 			//		if (g->Mrr) *error = 1;			 (only if no path)
@@ -2253,7 +2368,7 @@ my_bool bson_object_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		g->N = (initid->const_item) ? 1 : 0;
 
 		// This is to avoid double execution when using prepared statements
-		if (IsJson(args, 0) > 1)
+		if (IsArgJson(args, 0) > 1)
 			initid->const_item = 0;
 
 		return false;
@@ -2275,21 +2390,22 @@ char *bson_object_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // endif Xchk
 
 	if (!CheckMemory(g, initid, args, 1, false, true, true)) {
+		bool  chg;
 		BJNX  bnx(g, NULL, TYPE_STRG);
 		PSZ   key;
 		PBVAL jsp, objp, top;
-		PBVAL jvp = bnx.MakeValue(g, args, 0, &top);
+		PBVAL jvp = bnx.MakeValue(args, 0, false, &top);
 
 		jsp = jvp;
 
 		if (bnx.CheckPath(g, args, jsp, jvp, 2))
 			PUSH_WARNING(g->Message);
 		else if (jvp && jvp->Type == TYPE_JOB) {
-//		key = MakeKey(GetMemPtr(g, args, 0), args, 1);
 			key = bnx.MakeKey(args, 1);
 			objp = jvp;
-			bnx.DeleteKey(objp, key);
-			str = MakeResult(g, args, top);
+			chg = bnx.DeleteKey(objp, key);
+			bnx.SetChanged(chg);
+			str = bnx.MakeResult(args, top);
 		} else {
 			PUSH_WARNING("First argument target is not an object");
 			//		if (g->Mrr) *error = 1;					(only if no path)
@@ -2349,18 +2465,8 @@ char *bson_object_list(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	if (!g->N) {
 		if (!CheckMemory(g, initid, args, 1, true, true)) {
 			BJNX  bnx(g);
-			char *p;
-			PBVAL jsp, jarp;
-			PBVAL jvp = bnx.MakeValue(g, args, 0);
-
-			if ((p = bnx.GetString(jvp))) {
-				if (!(jsp = bnx.ParseJson(g, p, strlen(p)))) {
-					PUSH_WARNING(g->Message);
-					return NULL;
-				} // endif jsp
-
-			} else
-				jsp = jvp;
+			PBVAL jarp;
+			PBVAL jsp = bnx.MakeValue(args, 0, true);
 
 			if (jsp->Type == TYPE_JOB) {
 				jarp = bnx.GetKeyList(jsp);
@@ -2408,7 +2514,7 @@ my_bool bson_object_values_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	if (args->arg_count != 1) {
 		strcpy(message, "This function must have 1 argument");
 		return true;
-	} else if (!IsJson(args, 0) && args->arg_type[0] != STRING_RESULT) {
+	} else if (!IsArgJson(args, 0) && args->arg_type[0] != STRING_RESULT) {
 		strcpy(message, "Argument must be a json object");
 		return true;
 	} else
@@ -2428,7 +2534,7 @@ char *bson_object_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			BJNX  bnx(g);
 			char *p;
 			PBVAL jsp, jarp;
-			PBVAL jvp = bnx.MakeValue(g, args, 0);
+			PBVAL jvp = bnx.MakeValue(args, 0);
 
 			if ((p = bnx.GetString(jvp))) {
 				if (!(jsp = bnx.ParseJson(g, p, strlen(p)))) {
@@ -2560,7 +2666,7 @@ void bson_array_grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
 	PBVAL   arp = (PBVAL)g->Activityp;
 
 	if (arp && g->N-- > 0)
-		bxp->AddArrayValue(arp, bxp->MakeValue(g, args, 0));
+		bxp->AddArrayValue(arp, bxp->MakeValue(args, 0));
 
 } // end of bson_array_grp_add
 
@@ -2597,7 +2703,7 @@ my_bool bson_object_grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	if (args->arg_count != 2) {
 		strcpy(message, "This function requires 2 arguments (key, value)");
 		return true;
-	} else if (IsJson(args, 0) == 3) {
+	} else if (IsArgJson(args, 0) == 3) {
 		strcpy(message, "This function does not support Jbin arguments");
 		return true;
 	} else
@@ -2633,7 +2739,7 @@ void bson_object_grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
 	PBVAL   bop = (PBVAL)g->Activityp;
 
 	if (g->N-- > 0)
-		bxp->SetKeyValue(bop, bxp->MakeValue(g, args, 0), MakePSZ(g, args, 1));
+		bxp->SetKeyValue(bop, bxp->MakeValue(args, 0), MakePSZ(g, args, 1));
 
 } // end of bson_object_grp_add
 
@@ -2699,7 +2805,12 @@ char* bson_test(UDF_INIT* initid, UDF_ARGS* args, char* result,
 				PUSH_WARNING("CheckMemory error");
 				*error = 1;
 				goto err;
-			} else if (!(bvp = bnx.MakeBinValue(g, args, 0))) {
+			} else		// Sarea may have been reallocated
+				bnx.Reset();
+
+			bvp = bnx.MakeValue(args, 0, true);
+
+			if (bvp->Type == TYPE_NULL) {
 				PUSH_WARNING(g->Message);
 				goto err;
 			}	// endif bvp
@@ -2806,24 +2917,33 @@ char* bsonlocate(UDF_INIT* initid, UDF_ARGS* args, char* result,
 				PUSH_WARNING("CheckMemory error");
 				*error = 1;
 				goto err;
-			} else
-				bvp = bnx.MakeBinValue(g, args, 0);
+			} else {
+				bnx.Reset();		// Sarea may have been re-allocated
+				bvp = bnx.MakeValue(args, 0, true);
 
-			if (!bvp) {
-				PUSH_WARNING("First argument is not a valid JSON item");
-				goto err;
-			}	// endif bvp
+				if (!bvp) {
+					bnx.GetMsg(g);
+					PUSH_WARNING(g->Message);
+					goto err;
+				} else if (bvp->Type == TYPE_NULL) {
+					PUSH_WARNING("First argument is not a valid JSON item");
+					goto err;
+				}	// endif bvp
 
-			if (g->Mrr) {			 // First argument is a constant
-				g->Xchk = bvp;
-				JsonMemSave(g);
-			} // endif Mrr
+				if (g->Mrr) {			 // First argument is a constant
+					g->Xchk = bvp;
+					JsonMemSave(g);
+				} // endif Mrr
+
+			} // endif CheckMemory
 
 		} else
 			bvp = (PBVAL)g->Xchk;
 
 		// The item to locate
-		if (!(bvp2 = bnx.MakeBinValue(g, args, 1))) {
+		bvp2 = bnx.MakeValue(args, 1, true);
+
+		if (bvp2->Type == TYPE_NULL) {
 			PUSH_WARNING("Invalid second argument");
 			goto err;
 		}	// endif bvp
@@ -2920,9 +3040,11 @@ char* bson_locate_all(UDF_INIT* initid, UDF_ARGS* args, char* result,
 				*error = 1;
 				goto err;
 			} else
-				bvp = bnx.MakeBinValue(g, args, 0);
+				bnx.Reset();
 
-			if (!bvp) {
+			bvp = bnx.MakeValue(args, 0, true);
+
+			if (bvp->Type == TYPE_NULL) {
 				PUSH_WARNING("First argument is not a valid JSON item");
 				goto err;
 			}	// endif bvp
@@ -2936,7 +3058,9 @@ char* bson_locate_all(UDF_INIT* initid, UDF_ARGS* args, char* result,
 			bvp = (PBVAL)g->Xchk;
 
 		// The item to locate
-		if (!(bvp2 = bnx.MakeBinValue(g, args, 1))) {
+		bvp2 = bnx.MakeValue(args, 1, true);
+
+		if (bvp2->Type == TYPE_NULL) {
 			PUSH_WARNING("Invalid second argument");
 			goto err;
 		}	// endif bvp
@@ -3006,7 +3130,7 @@ my_bool bson_contains_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	//memlen += more;
 
 	// TODO: calculate this
-	more += (IsJson(args, 0) != 3 ? 1000 : 0);
+	more += (IsArgJson(args, 0) != 3 ? 1000 : 0);
 
 	return JsonInit(initid, args, message, false, reslen, memlen, more);
 } // end of bson contains_init
@@ -3055,7 +3179,7 @@ my_bool bsoncontains_path_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	//memlen += more;
 
 	// TODO: calculate this
-	more += (IsJson(args, 0) != 3 ? 1000 : 0);
+	more += (IsArgJson(args, 0) != 3 ? 1000 : 0);
 
 	return JsonInit(initid, args, message, true, reslen, memlen, more);
 } // end of bsoncontains_path_init
@@ -3085,7 +3209,7 @@ long long bsoncontains_path(UDF_INIT *initid, UDF_ARGS *args, char *, char *erro
 		} else {
 			BJNX bnx(g);
 
-			jvp = bnx.MakeValue(g, args, 0);
+			jvp = bnx.MakeValue(args, 0);
 
 			if ((p = bnx.GetString(jvp))) {
 				if (!(jsp = bnx.ParseJson(g, p, strlen(p)))) {
@@ -3193,7 +3317,7 @@ char *bson_item_merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		PBVAL jsp[2] = {NULL, NULL};
 
 		for (int i = 0; i < 2; i++) {
-			jvp = bnx.MakeBinValue(g, args, i);
+			jvp = bnx.MakeValue(args, i, true);
 
 			if (i) {
 				if (jvp->Type != type) {
@@ -3220,7 +3344,8 @@ char *bson_item_merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		else
 			bnx.MergeObject(jsp[0], jsp[1]);
 
-		str = MakeResult(g, args, top);
+		bnx.SetChanged(true);
+		str = bnx.MakeResult(args, top);
 	} // endif CheckMemory
 
 	// In case of error or file, return unchanged first argument
@@ -3286,8 +3411,8 @@ my_bool bson_get_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 char *bson_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *)
 {
-	char   *p, *path, *str = NULL;
-	PBVAL   jsp, jvp;
+	char   *path, *str = NULL;
+	PBVAL   jvp;
 	PBJNX   bxp = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 
@@ -3304,29 +3429,20 @@ char *bson_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		} else {
 			BJNX bnx(g);
 
-			jvp = bnx.MakeValue(g, args, 0);
-
-			if ((p = bnx.GetString(jvp))) {
-				if (!(jsp = bnx.ParseJson(g, p, strlen(p)))) {
-					PUSH_WARNING(g->Message);
-					goto fin;
-				} // endif jsp
-
-			} else
-				jsp = jvp;
+			jvp = bnx.MakeValue(args, 0, true);
 
 			if (g->Mrr) {			 // First argument is a constant
-				g->Xchk = jsp;
+				g->Xchk = jvp;
 				JsonMemSave(g);
 			} // endif Mrr
 
 		}	// endelse CheckMemory
 
 	} else
-		jsp = (PBVAL)g->Xchk;
+		jvp = (PBVAL)g->Xchk;
 
 	path = MakePSZ(g, args, 1);
-	bxp = new(g) BJNX(g, jsp, TYPE_STRING, initid->max_length);
+	bxp = new(g) BJNX(g, jvp, TYPE_STRING, initid->max_length);
 
 	if (bxp->SetJpath(g, path, true)) {
 		PUSH_WARNING(g->Message);
@@ -3420,7 +3536,7 @@ char *bsonget_string(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			} else {
 				BJNX bnx(g);
 
-				jvp = bnx.MakeValue(g, args, 0);
+				jvp = bnx.MakeValue(args, 0);
 
 				if ((p = bnx.GetString(jvp))) {
 					if (!(jsp = bnx.ParseJson(g, p, strlen(p)))) {
@@ -3504,7 +3620,7 @@ my_bool bsonget_int_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		CalcLen(args, false, reslen, memlen);
 
 	// TODO: calculate this
-	more = (IsJson(args, 0) != 3) ? 1000 : 0;
+	more = (IsArgJson(args, 0) != 3) ? 1000 : 0;
 
 	return JsonInit(initid, args, message, true, reslen, memlen, more);
 } // end of bsonget_int_init
@@ -3537,7 +3653,7 @@ long long bsonget_int(UDF_INIT *initid, UDF_ARGS *args,
 		} else {
 			BJNX bnx(g);
 
-			jvp = bnx.MakeValue(g, args, 0);
+			jvp = bnx.MakeValue(args, 0);
 
 			if ((p = bnx.GetString(jvp))) {
 				if (!(jsp = bnx.ParseJson(g, p, strlen(p)))) {
@@ -3626,7 +3742,7 @@ my_bool bsonget_real_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	CalcLen(args, false, reslen, memlen);
 
 	// TODO: calculate this
-	more = (IsJson(args, 0) != 3) ? 1000 : 0;
+	more = (IsArgJson(args, 0) != 3) ? 1000 : 0;
 
 	return JsonInit(initid, args, message, true, reslen, memlen, more);
 } // end of bsonget_real_init
@@ -3659,7 +3775,7 @@ double bsonget_real(UDF_INIT *initid, UDF_ARGS *args,
 		} else {
 			BJNX bnx(g);
 
-			jvp = bnx.MakeValue(g, args, 0);
+			jvp = bnx.MakeValue(args, 0);
 
 			if ((p = bnx.GetString(jvp))) {
 				if (!(jsp = bnx.ParseJson(g, p, strlen(p)))) {
@@ -3721,19 +3837,130 @@ void bsonget_real_deinit(UDF_INIT* initid)
 } // end of bsonget_real_deinit
 
 /*********************************************************************************/
+/*  Delete items from a Json document.                                           */
+/*********************************************************************************/
+my_bool bson_delete_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	unsigned long reslen, memlen;
+
+	if (args->arg_count < 2) {
+		if (IsArgJson(args, 0) != 3) {
+			strcpy(message, "This function must have at least 2 arguments or one binary");
+			return true;
+		} // endif args
+
+	} // endif count
+
+	CalcLen(args, false, reslen, memlen, true);
+
+	if (!JsonInit(initid, args, message, true, reslen, memlen)) {
+		PGLOBAL g = (PGLOBAL)initid->ptr;
+
+		// Is this a constant function
+		g->N = (initid->const_item) ? 1 : 0;
+
+		// This is to avoid double execution when using prepared statements
+		if (IsArgJson(args, 0) > 1)
+			initid->const_item = 0;
+
+		return false;
+	} else
+		return true;
+
+} // end of bson_delete_item_init
+
+char *bson_delete_item(UDF_INIT *initid, UDF_ARGS *args, char *result, 
+	unsigned long *res_length, char *is_null, char *error)
+{
+	char   *path, *str = NULL;
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+
+	if (g->Xchk) {
+		// This constant function was recalled
+		str = (char*)g->Xchk;
+		goto fin;
+	} // endif Xchk
+
+	if (!CheckMemory(g, initid, args, 1, false, false, true)) {
+		BJNX  bnx(g, NULL, TYPE_STRING);
+		PBVAL top, jar = NULL;
+		PBVAL jvp = bnx.MakeValue(args, 0, true, &top);
+
+		if (args->arg_count == 1) {
+			// This	should be coming from bbin_locate_all
+			jar = jvp;		 // This is the array of paths
+			jvp = top;		 // And this is the document
+		}	else if(!bnx.IsJson(jvp)) {
+			PUSH_WARNING("First argument is not a JSON document");
+			goto fin;
+		}	else if (args->arg_count == 2) {
+			// Check whether this is an array of paths 
+			jar = bnx.MakeValue(args, 1, true);
+
+			if (jar && jar->Type != TYPE_JAR)
+				jar = NULL;
+
+		}	// endif arg_count
+
+		if (jar) {
+			// Do the deletion in reverse order
+			for(int i = bnx.GetArraySize(jar) - 1;	i >= 0; i--) {
+				path = bnx.GetString(bnx.GetArrayValue(jar, i));
+
+				if (bnx.SetJpath(g, path, false)) {
+					PUSH_WARNING(g->Message);
+					continue;
+				}	// endif SetJpath
+
+				bnx.SetChanged(bnx.DeleteItem(g, jvp));
+			}	// endfor i
+
+		}	else for (uint i = 1; i < args->arg_count; i++) {
+			path = MakePSZ(g, args, i);
+
+			if (bnx.SetJpath(g, path, false)) {
+				PUSH_WARNING(g->Message);
+				continue;
+			}	// endif SetJpath
+
+			bnx.SetChanged(bnx.DeleteItem(g, jvp));
+		} // endfor i
+
+		str = bnx.MakeResult(args, top, INT_MAX);
+	} // endif CheckMemory
+
+	if (g->N)
+		// Keep result of constant function
+		g->Xchk = str;
+
+fin:
+	if (!str) {
+		*is_null = 1;
+		*error = 1;
+		*res_length = 0;
+	} else
+		*res_length = strlen(str);
+
+	return str;
+} // end of bson_delete_item
+
+void bson_delete_item_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bson_delete_item_deinit
+
+/*********************************************************************************/
 /*  This function is used by the json_set/insert/update_item functions.          */
 /*********************************************************************************/
 static char *bson_handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)
 {
-	char   *p, *path, *str = NULL;
+	char   *path, *str = NULL;
 	int     w;
 	my_bool b = true;
 	PBJNX   bxp;
 	PBVAL   jsp, jvp;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
-//PGLOBAL gb = GetMemPtr(g, args, 0);
-	PGLOBAL gb = g;
 
 	if (g->Alchecked) {
 		str = (char*)g->Activityp;
@@ -3760,21 +3987,14 @@ static char *bson_handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			} else {
 				BJNX bnx(g);
 
-				jvp = bnx.MakeValue(g, args, 0);
-
-				if ((p = bnx.GetString(jvp))) {
-					if (!(jsp = bnx.ParseJson(g, p, strlen(p)))) {
-						throw 2;
-					} // endif jsp
-
-				} else
-					jsp = jvp;
+				jsp = bnx.MakeValue(args, 0, true);
 
 				if (g->Mrr) {			 // First argument is a constant
 					g->Xchk = jsp;
 					JsonMemSave(g);
 				} // endif Mrr
-			}	// endelse CheckMemory
+
+			}	// endif CheckMemory
 
 		} else
 			jsp = (PBVAL)g->Xchk;
@@ -3782,7 +4002,7 @@ static char *bson_handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		bxp = new(g)BJNX(g, jsp, TYPE_STRING, initid->max_length, 0, true);
 
 		for (uint i = 1; i + 1 < args->arg_count; i += 2) {
-			jvp = bxp->MakeValue(gb, args, i);
+			jvp = bxp->MakeValue(args, i);
 			path = MakePSZ(g, args, i + 1);
 
 			if (bxp->SetJpath(g, path, false)) {
@@ -3796,13 +4016,16 @@ static char *bson_handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 				b = (w == 1) ? b : !b;
 			}	// endif w
 
-			if (b && bxp->WriteValue(gb, jvp))
+			if (b && bxp->WriteValue(g, jvp)) {
 				PUSH_WARNING(g->Message);
+				continue;
+			}	// endif SetJpath
 
+			bxp->SetChanged(true);
 		} // endfor i
 
-			// In case of error or file, return unchanged argument
-		if (!(str = MakeResult(g, args, jsp, INT_MAX32)))
+		// In case of error or file, return unchanged argument
+		if (!(str = bxp->MakeResult(args, jsp, INT_MAX32)))
 			str = MakePSZ(g, args, 0);
 
 		if (g->N)
@@ -3866,7 +4089,7 @@ my_bool bson_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		g->N = (initid->const_item) ? 1 : 0;
 
 		// This is to avoid double execution when using prepared statements
-		if (IsJson(args, 0) > 1)
+		if (IsArgJson(args, 0) > 1)
 			initid->const_item = 0;
 
 		g->Alchecked = 0;
@@ -4083,24 +4306,25 @@ char *bfile_make(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} else if (initid->const_item)
 		g->N = 1;
 
-//	if ((n = IsArgJson(args, 0)) == 3) {
+	if ((n = IsArgJson(args, 0)) == 3) {
 		// Get default file name and pretty
-//		PBSON bsp = (PBSON)args->args[0];
+		PBSON bsp = (PBSON)args->args[0];
 
-//		fn = bsp->Filename;
-//		pretty = bsp->Pretty;
-//	} else
-	if ((n = IsArgJson(args, 0)) == 2)
+		fn = bsp->Filename;
+		pretty = bsp->Pretty;
+	} else if ((n = IsArgJson(args, 0)) == 2)
 		fn = args->args[0];
 
 	if (!g->Xchk) {
 		if (CheckMemory(g, initid, args, 1, true)) {
 			PUSH_WARNING("CheckMemory error");
 			goto fin;
-		}	else
-			jvp = bnx.MakeValue(g, args, 0);
+		} else
+			bnx.Reset();
 
-		if ((p = bnx.GetString(jvp))) {
+		jvp = bnx.MakeValue(args, 0);
+
+		if (!n && (p = bnx.GetString(jvp))) {
 			if (!strchr("[{ \t\r\n", *p)) {
 				// Is this a file name?
 				if (!(p = GetJsonFile(g, p))) {
@@ -4344,5 +4568,1393 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 void bfile_bjson_deinit(UDF_INIT* initid) {
 	JsonFreeMem((PGLOBAL)initid->ptr);
 } // end of bfile_bjson_deinit
+
+/*********************************************************************************/
+/*  Serialize a Json document.                .                                  */
+/*********************************************************************************/
+my_bool bson_serialize_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	unsigned long reslen, memlen;
+
+	if (args->args[0] && IsArgJson(args, 0) != 3) {
+		strcpy(message, "Argument must be a Jbin tree");
+		return true;
+	} else
+		CalcLen(args, false, reslen, memlen);
+
+	return JsonInit(initid, args, message, false, reslen, memlen);
+} // end of bson_serialize_init
+
+char *bson_serialize(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *, char *error)
+{
+	char   *str;
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+
+	if (!g->Xchk) {
+		if (IsArgJson(args, 0) == 3) {
+			PBSON bsp = (PBSON)args->args[0];
+			BJNX  bnx(bsp->G);
+			PBVAL bvp = (args->arg_count == 1) ? (PBVAL)bsp->Jsp : (PBVAL)bsp->Top;
+
+			if (!(str = bnx.Serialize(g, bvp, bsp->Filename, bsp->Pretty)))
+				str = strcpy(result, g->Message);
+
+			// Keep result of constant function
+			g->Xchk = (initid->const_item) ? str : NULL;
+		} else {
+			// *error = 1;
+			str = strcpy(result, "Argument is not a Jbin tree");
+		} // endif
+
+	} else
+		str = (char*)g->Xchk;
+
+	*res_length = strlen(str);
+	return str;
+} // end of bson_serialize
+
+void bson_serialize_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bson_serialize_deinit
+
+/*********************************************************************************/
+/*  Make and return a binary Json array containing all the parameters.           */
+/*********************************************************************************/
+my_bool bbin_make_array_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	unsigned long reslen, memlen;
+
+	CalcLen(args, false, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen);
+} // end of bbin_make_array_init
+
+char *bbin_make_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *error)
+{
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	PBSON   bsp = NULL;
+
+	if (!g->Xchk) {
+		if (!CheckMemory(g, initid, args, args->arg_count, false)) {
+			BJNX  bnx(g);
+			PBVAL arp;
+
+			if ((arp = bnx.NewVal(TYPE_JAR))) {
+				for (uint i = 0; i < args->arg_count; i++)
+					bnx.AddArrayValue(arp, bnx.MakeValue(args, i));
+
+				if ((bsp = BbinAlloc(g, initid->max_length, arp))) {
+					strcat(bsp->Msg, " array");
+
+					// Keep result of constant function
+					g->Xchk = (initid->const_item) ? bsp : NULL;
+				}	// endif bsp
+
+			}	// endif arp
+
+		} // endif CheckMemory
+
+	} else
+		bsp = (PBSON)g->Xchk;
+
+	if (!bsp) {
+		*is_null = 1;
+		*error = 1;
+		*res_length = 0;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_make_array
+
+void bbin_make_array_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_make_array_deinit
+
+/*********************************************************************************/
+/*  Add one value to a Json array.                                               */
+/*********************************************************************************/
+my_bool bbin_array_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	unsigned long reslen, memlen;
+
+	if (args->arg_count < 2) {
+		strcpy(message, "This function must have at least 2 arguments");
+		return true;
+	} else
+		CalcLen(args, false, reslen, memlen, true);
+
+	if (!JsonInit(initid, args, message, true, reslen, memlen)) {
+		PGLOBAL g = (PGLOBAL)initid->ptr;
+
+		// This is a constant function
+		g->N = (initid->const_item) ? 1 : 0;
+
+		// This is to avoid double execution when using prepared statements
+		if (IsArgJson(args, 0) > 1)
+			initid->const_item = 0;
+
+		return false;
+	} else
+		return true;
+
+} // end of bbin_array_add_init
+
+char *bbin_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result, 
+	unsigned long *res_length, char *is_null, char *error)
+{
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	PBSON   bsp = NULL;
+
+	if (g->Xchk) {
+		// This constant function was recalled
+		bsp = (PBSON)g->Xchk;
+		*res_length = sizeof(BSON);
+		return (char*)bsp;
+	} else if (!CheckMemory(g, initid, args, 2, false, false, true)) {
+		uint	n = 2;
+		int* x = GetIntArgPtr(g, args, n);
+		BJNX  bnx(g, NULL, TYPE_STRING);
+		PBVAL jarp, top, jvp = NULL;
+		PBVAL jsp = bnx.MakeValue(args, 0, true, &top);
+
+		if (bnx.CheckPath(g, args, jsp, jvp, 2))
+			PUSH_WARNING(g->Message);
+		else if (jvp && jvp->Type != TYPE_JAR) {
+			if ((jarp = bnx.NewVal(TYPE_JAR))) {
+				bnx.AddArrayValue(jarp, jvp);
+
+				if (!top)
+					top = jarp;
+
+			}	// endif jarp
+
+		} else
+			jarp = jvp;
+
+		if (jarp) {
+			bnx.AddArrayValue(jarp, bnx.MakeValue(args, 1), x);
+			bnx.SetChanged(true);
+			bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+
+			if (initid->const_item)
+				// Keep result of constant function
+				g->Xchk = bsp;
+
+		} else
+			PUSH_WARNING(g->Message);
+
+	} // endif CheckMemory
+
+	if (!bsp) {
+		*res_length = 0;
+		*is_null = 1;
+		*error = 1;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_array_add
+
+void bbin_array_add_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_array_add_deinit
+
+/*********************************************************************************/
+/*  Add one or several values to a Bson array.                                   */
+/*********************************************************************************/
+my_bool bbin_array_add_values_init(UDF_INIT* initid, UDF_ARGS* args, char* message)
+{
+	return bson_array_add_values_init(initid, args, message);
+} // end of bbin_array_add_values_init
+
+char* bbin_array_add_values(UDF_INIT* initid, UDF_ARGS* args, char* result,
+	unsigned long* res_length, char* is_null, char* error)
+{
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	PBSON   bsp = NULL;
+
+	if (!g->Xchk) {
+		if (!CheckMemory(g, initid, args, args->arg_count, true)) {
+			uint  i = 0;
+			BJNX  bnx(g);
+			PBVAL arp, top, jvp = NULL;
+			PBVAL bvp = bnx.MakeValue(args, 0, true, &top);
+
+			if (bvp->Type == TYPE_JAR) {
+				arp = bvp;
+				i = 1;
+			} else		// First argument is not an array
+				arp = bnx.NewVal(TYPE_JAR);
+
+			for (; i < args->arg_count; i++)
+				bnx.AddArrayValue(arp, bnx.MakeValue(args, i));
+
+			bnx.SetChanged(true);
+			bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+		} // endif CheckMemory
+
+		// Keep result of constant function
+		g->Xchk = (g->N) ? bsp : NULL;
+	} else
+		bsp = (PBSON)g->Xchk;
+
+	if (!bsp) {
+		*res_length = 0;
+		*is_null = 1;
+		*error = 1;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_array_add_values
+
+void bbin_array_add_values_deinit(UDF_INIT* initid) {
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_array_add_values_deinit
+
+/*********************************************************************************/
+/*  Make a Json array from values coming from rows.                              */
+/*********************************************************************************/
+my_bool bbin_array_grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	return bson_array_grp_init(initid, args, message);
+} // end of bbin_array_grp_init
+
+void bbin_array_grp_clear(UDF_INIT *initid, char *a, char *b)
+{
+	bson_array_grp_clear(initid, a, b);
+} // end of bbin_array_grp_clear
+
+void bbin_array_grp_add(UDF_INIT *initid, UDF_ARGS *args, char *a, char *b)
+{
+	bson_array_grp_add(initid, args, a, b);
+} // end of bbin_array_grp_add
+
+char *bbin_array_grp(UDF_INIT *initid, UDF_ARGS *, char *result, 
+	unsigned long *res_length, char *is_null, char *error)
+{
+	PBSON   bsp = NULL;
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	PBVAL   arp = (PBVAL)g->Activityp;
+
+	if (g->N < 0)
+		PUSH_WARNING("Result truncated to json_grp_size values");
+
+	if (arp)
+		if ((bsp = BbinAlloc(g, initid->max_length, arp)))
+			strcat(bsp->Msg, " array");
+
+	if (!bsp) {
+		*res_length = 0;
+		*is_null = 1;
+		*error = 1;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_array_grp
+
+void bbin_array_grp_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_array_grp_deinit
+
+/*********************************************************************************/
+/*  Make a Json object from values coming from rows.                             */
+/*********************************************************************************/
+my_bool bbin_object_grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	return bson_object_grp_init(initid, args, message);
+} // end of bbin_object_grp_init
+
+void bbin_object_grp_clear(UDF_INIT *initid, char *a, char *b)
+{
+	bson_object_grp_clear(initid, a, b);
+} // end of bbin_object_grp_clear
+
+void bbin_object_grp_add(UDF_INIT *initid, UDF_ARGS *args, char *a, char *b)
+{
+	bson_object_grp_add(initid, args, a, b);
+} // end of bbin_object_grp_add
+
+char *bbin_object_grp(UDF_INIT *initid, UDF_ARGS *, char *result, 
+	unsigned long *res_length, char *is_null, char *error)
+{
+	PBSON   bsp = NULL;
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	PBVAL   bop = (PBVAL)g->Activityp;
+
+	if (g->N < 0)
+		PUSH_WARNING("Result truncated to json_grp_size values");
+
+	if (bop)
+		if ((bsp = BbinAlloc(g, initid->max_length, bop)))
+			strcat(bsp->Msg, " object");
+
+	if (!bsp) {
+		*res_length = 0;
+		*is_null = 1;
+		*error = 1;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_object_grp
+
+void bbin_object_grp_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_object_grp_deinit
+
+/*********************************************************************************/
+/*  Make a Json Object containing all the parameters.                            */
+/*********************************************************************************/
+my_bool bbin_make_object_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	unsigned long reslen, memlen;
+
+	CalcLen(args, true, reslen, memlen);
+	return JsonInit(initid, args, message, false, reslen, memlen);
+} // end of bbin_make_object_init
+
+char *bbin_make_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *error)
+{
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	PBSON   bsp = (PBSON)g->Xchk;
+
+	if (!bsp) {
+		if (!CheckMemory(g, initid, args, args->arg_count, true)) {
+			BJNX  bnx(g);
+			PBVAL objp;
+
+			if ((objp = bnx.NewVal(TYPE_JOB))) {
+				for (uint i = 0; i < args->arg_count; i++)
+					bnx.SetKeyValue(objp, bnx.MakeValue(args, i), bnx.MakeKey(args, i));
+
+				if ((bsp = BbinAlloc(g, initid->max_length, objp))) {
+					strcat(bsp->Msg, " object");
+
+					// Keep result of constant function
+					g->Xchk = (initid->const_item) ? bsp : NULL;
+				}	// endif bsp
+
+			} // endif objp																												 
+
+		} // endif CheckMemory
+
+	} // endif Xchk
+
+	if (!bsp) {
+		*is_null = 1;
+		*error = 1;
+		*res_length = 0;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_make_object
+
+void bbin_make_object_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_make_object_deinit
+
+/*********************************************************************************/
+/*  Make a Json Object containing all not null parameters.                       */
+/*********************************************************************************/
+my_bool bbin_object_nonull_init(UDF_INIT *initid, UDF_ARGS *args,	char *message)
+{
+	unsigned long reslen, memlen;
+
+	CalcLen(args, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen);
+} // end of bbin_object_nonull_init
+
+char *bbin_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *error)
+{
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	PBSON   bsp = (PBSON)g->Xchk;
+
+	if (!bsp) {
+		if (!CheckMemory(g, initid, args, args->arg_count, false, true)) {
+			BJNX  bnx(g);
+			PBVAL jvp, objp;
+
+			if ((objp = bnx.NewVal(TYPE_JOB))) {
+				for (uint i = 0; i < args->arg_count; i++)
+					if (!bnx.IsValueNull(jvp = bnx.MakeValue(args, i)))
+						bnx.SetKeyValue(objp, jvp, bnx.MakeKey(args, i));
+
+				if ((bsp = BbinAlloc(g, initid->max_length, objp)))	{
+					strcat(bsp->Msg, " object");
+
+					// Keep result of constant function
+					g->Xchk = (initid->const_item) ? bsp : NULL;
+				}	// endif bsp
+
+			} // endif objp
+
+		} // endif CheckMemory
+
+	} // endif Xchk
+
+	if (!bsp) {
+		*is_null = 1;
+		*error = 1;
+		*res_length = 0;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_object_nonull
+
+void bbin_object_nonull_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_object_nonull_deinit
+
+/*********************************************************************************/
+/*  Make a Json Object containing all the key/value parameters.                  */
+/*********************************************************************************/
+my_bool bbin_object_key_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	unsigned long reslen, memlen;
+
+	if (args->arg_count % 2) {
+		strcpy(message, "This function must have an even number of arguments");
+		return true;
+	} // endif arg_count
+
+	CalcLen(args, true, reslen, memlen);
+	return JsonInit(initid, args, message, true, reslen, memlen);
+} // end of bbin_object_key_init
+
+char *bbin_object_key(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *error)
+{
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	PBSON   bsp = (PBSON)g->Xchk;
+
+	if (!bsp) {
+		if (!CheckMemory(g, initid, args, args->arg_count, false, true)) {
+			BJNX  bnx(g);
+			PBVAL objp;
+
+			if ((objp = bnx.NewVal(TYPE_JOB))) {
+				for (uint i = 0; i < args->arg_count; i += 2)
+					bnx.SetKeyValue(objp, bnx.MakeValue(args, i + 1), MakePSZ(g, args, i));
+
+				if ((bsp = BbinAlloc(g, initid->max_length, objp))) {
+					strcat(bsp->Msg, " object");
+
+					// Keep result of constant function
+					g->Xchk = (initid->const_item) ? bsp : NULL;
+				}	// endif bsp
+
+			} // endif objp
+
+		} // endif CheckMemory
+
+	} // endif Xchk
+
+	if (!bsp) {
+		*is_null = 1;
+		*error = 1;
+		*res_length = 0;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_object_key
+
+void bbin_object_key_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_object_key_deinit
+
+/*********************************************************************************/
+/*  Add or replace a value in a Json Object.                                     */
+/*********************************************************************************/
+my_bool bbin_object_add_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	unsigned long reslen, memlen;
+
+	if (args->arg_count < 2) {
+		strcpy(message, "This function must have at least 2 arguments");
+		return true;
+	} else if (!IsArgJson(args, 0)) {
+		strcpy(message, "First argument must be a json item");
+		return true;
+	} else
+		CalcLen(args, true, reslen, memlen, true);
+
+	return JsonInit(initid, args, message, true, reslen, memlen);
+} // end of bbin_object_add_init
+
+char *bbin_object_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *error)
+{
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	PBSON   bsp = NULL;
+
+	if (g->Xchk) {
+		// This constant function was recalled
+		bsp = (PBSON)g->Xchk;
+		*res_length = sizeof(BSON);
+		return (char*)bsp;
+	} else if (!CheckMemory(g, initid, args, 2, false, true, true)) {
+		PSZ   key;
+		BJNX  bnx(g, NULL, TYPE_STRING);
+		PBVAL top;
+		PBVAL jobp = bnx.MakeValue(args, 0, true, &top);
+		PBVAL jvp = jobp;
+
+		if (bnx.CheckPath(g, args, jvp, jobp, 2))
+			PUSH_WARNING(g->Message);
+		else if (jobp && jobp->Type == TYPE_JOB) {
+			jvp = bnx.MakeValue(args, 1);
+			key = bnx.MakeKey(args, 1);
+			bnx.SetKeyValue(jobp, jvp, key);
+			bnx.SetChanged(true);
+		} else {
+			PUSH_WARNING("First argument target is not an object");
+			//		if (g->Mrr) *error = 1;			 (only if no path)
+		} // endif jobp
+
+		// In case of error unchanged argument will be returned
+		bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+
+		if (initid->const_item)
+			// Keep result of constant function
+			g->Xchk = bsp;
+
+	} // endif CheckMemory
+
+	if (!bsp) {
+		*is_null = 1;
+		*error = 1;
+		*res_length = 0;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_object_add
+
+void bbin_object_add_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_object_add_deinit
+
+/*********************************************************************************/
+/*  Delete a value from a Json array.                                            */
+/*********************************************************************************/
+my_bool bbin_array_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	return bson_array_delete_init(initid, args, message);
+} // end of bbin_array_delete_init
+
+char *bbin_array_delete(UDF_INIT *initid, UDF_ARGS *args, char *result, 
+	unsigned long *res_length, char *is_null, char *error)
+{
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	PBSON   bsp = NULL;
+
+	if (g->Xchk) {
+		// This constant function was recalled
+		bsp = (PBSON)g->Xchk;
+	} else if (!CheckMemory(g, initid, args, 1, false, false, true)) {
+		int* x;
+		uint	n = 1;
+		BJNX  bnx(g);
+		PBVAL arp, top;
+		PBVAL jvp = bnx.MakeValue(args, 0, true, &top);
+
+		if (!(x = GetIntArgPtr(g, args, n)))
+			PUSH_WARNING("Missing or null array index");
+		else if (bnx.CheckPath(g, args, jvp, arp, 1))
+			PUSH_WARNING(g->Message);
+		else if (arp && arp->Type == TYPE_JAR) {
+			bnx.SetChanged(bnx.DeleteValue(arp, *x));
+			bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+		} else {
+			PUSH_WARNING("First argument target is not an array");
+			//		if (g->Mrr) *error = 1;
+		} // endif jvp
+
+		if (g->N)
+			// Keep result of constant function
+			g->Xchk = bsp;
+
+	} // endif CheckMemory
+
+	if (!bsp) {
+		*is_null = 1;
+		*error = 1;
+		*res_length = 0;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_array_delete
+
+void bbin_array_delete_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_array_delete_deinit
+
+/*********************************************************************************/
+/*  Delete a value from a Json object.                                           */
+/*********************************************************************************/
+my_bool bbin_object_delete_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	unsigned long reslen, memlen;
+
+	if (args->arg_count < 2) {
+		strcpy(message, "This function must have 2 or 3 arguments");
+		return true;
+	} else if (!IsArgJson(args, 0)) {
+		strcpy(message, "First argument must be a json item");
+		return true;
+	} else if (args->arg_type[1] != STRING_RESULT) {
+		strcpy(message, "Second argument must be a key string");
+		return true;
+	} else
+		CalcLen(args, true, reslen, memlen, true);
+
+	return JsonInit(initid, args, message, true, reslen, memlen);
+} // end of bbin_object_delete_init
+
+char *bbin_object_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *error)
+{
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	PBSON   bsp = NULL;
+
+	if (g->Xchk) {
+		// This constant function was recalled
+		bsp = (PBSON)g->Xchk;
+		*res_length = sizeof(BSON);
+		return (char*)bsp;
+	} else if (!CheckMemory(g, initid, args, 1, false, true, true)) {
+		PCSZ  key;
+		BJNX  bnx(g, NULL, TYPE_STRING);
+		PBVAL top;
+		PBVAL jobp = bnx.MakeValue(args, 0, true, &top);
+
+		if (bnx.CheckPath(g, args, top, jobp, 2))
+			PUSH_WARNING(g->Message);
+		else if (jobp && jobp->Type == TYPE_JOB) {
+			key = bnx.MakeKey(args, 1);
+			bnx.SetChanged(bnx.DeleteKey(jobp, key));
+		} else {
+			PUSH_WARNING("First argument target is not an object");
+			//		if (g->Mrr) *error = 1;					(only if no path)
+		} // endif jvp
+
+	  // In case of error unchanged argument will be returned
+		bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+
+		if (initid->const_item)
+			// Keep result of constant function
+			g->Xchk = bsp;
+
+	} // endif CheckMemory
+
+	if (!bsp) {
+		*is_null = 1;
+		*error = 1;
+		*res_length = 0;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_object_delete
+
+void bbin_object_delete_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_object_delete_deinit
+
+/*********************************************************************************/
+/*  Returns an array of the Json object keys.                                    */
+/*********************************************************************************/
+my_bool bbin_object_list_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	return bson_object_list_init(initid, args, message);
+} // end of bbin_object_list_init
+
+char *bbin_object_list(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *error)
+{
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	PBSON   bsp = (PBSON)g->Xchk;
+
+	if (!bsp) {
+		if (!CheckMemory(g, initid, args, 1, true, true)) {
+			BJNX  bnx(g);
+			PBVAL top, jarp = NULL;
+			PBVAL jsp = bnx.MakeValue(args, 0, true, &top);
+
+			if (jsp->Type == TYPE_JOB) {
+				jarp = bnx.GetKeyList(jsp);
+			} else {
+				PUSH_WARNING("First argument is not an object");
+				if (g->Mrr) *error = 1;
+			} // endif jsp type
+
+			// In case of error unchanged argument will be returned
+			bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+			bsp->Jsp = (PJSON)jarp;
+
+		} // endif CheckMemory
+
+		// Keep result of constant function
+		g->Xchk = (initid->const_item) ? bsp : NULL;
+	} // endif bsp
+
+	if (!bsp) {
+		*is_null = 1;
+		*error = 1;
+		*res_length = 0;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_object_list
+
+void bbin_object_list_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_object_list_deinit
+
+/*********************************************************************************/
+/*  Returns an array of the Json object values.                                  */
+/*********************************************************************************/
+my_bool bbin_object_values_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	return bson_object_values_init(initid, args, message);
+} // end of bbin_object_values_init
+
+char *bbin_object_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *error)
+{
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	PBSON   bsp = (PBSON)g->Xchk;
+
+	if (!bsp) {
+		if (!CheckMemory(g, initid, args, 1, true, true)) {
+			BJNX  bnx(g);
+			PBVAL top, jarp;
+			PBVAL jvp = bnx.MakeValue(args, 0, true, &top);
+
+			if (jvp->Type == TYPE_JOB) {
+				jarp = bnx.GetObjectValList(jvp);
+			} else {
+				PUSH_WARNING("First argument is not an object");
+				if (g->Mrr) *error = 1;
+			} // endif jvp
+
+			// In case of error unchanged argument will be returned
+			bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+			bsp->Jsp = (PJSON)jarp;
+
+		} // endif CheckMemory
+
+		if (initid->const_item) {
+			// Keep result of constant function
+			g->Xchk = bsp;
+		} // endif const_item
+
+	} // endif bsp
+
+	if (!bsp) {
+		*is_null = 1;
+		*error = 1;
+		*res_length = 0;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_object_values
+
+void bbin_object_values_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_object_values_deinit
+
+/*********************************************************************************/
+/*  Get a Json item from a Json document.                                        */
+/*********************************************************************************/
+my_bool bbin_get_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	return bson_get_item_init(initid, args, message);
+} // end of bbin_get_item_init
+
+char *bbin_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *error)
+{
+	PBSON   bsp = NULL;
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+
+	if (g->Xchk) {
+		bsp = (PBSON)g->Xchk;
+	} else if (!CheckMemory(g, initid, args, 1, true, true)) {
+		char *path = MakePSZ(g, args, 1);
+		BJNX  bnx(g, NULL, TYPE_STRING, initid->max_length);
+		PBVAL top, jvp = NULL;
+		PBVAL jsp = bnx.MakeValue(args, 0, true, &top);
+
+		if (bnx.CheckPath(g, args, jsp, jvp, 1))
+			PUSH_WARNING(g->Message);
+		else if (jvp) {
+			bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+			bsp->Jsp = (PJSON)jvp;
+
+			if (initid->const_item)
+				// Keep result of constant function
+				g->Xchk = bsp;
+
+		} // endif jvp
+
+	} else 
+		PUSH_WARNING("CheckMemory error");
+
+	if (!bsp) {
+		*is_null = 1;
+		*res_length = 0;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_get_item
+
+void bbin_get_item_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_get_item_deinit
+
+/*********************************************************************************/
+/*  Merge two arrays or objects.                                                 */
+/*********************************************************************************/
+my_bool bbin_item_merge_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	return bson_item_merge_init(initid, args, message);
+} // end of bbin_item_merge_init
+
+char *bbin_item_merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *error)
+{
+	PBSON   bsp = NULL;
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+
+	if (g->Xchk) {
+		// This constant function was recalled
+		bsp = (PBSON)g->Xchk;
+		goto fin;
+	} // endif Xchk
+
+	if (!CheckMemory(g, initid, args, 2, false, false, true)) {
+		JTYP  type;
+		BJNX  bnx(g);
+		PBVAL jvp, top = NULL;
+		PBVAL jsp[2] = {NULL, NULL};
+
+		for (int i = 0; i < 2; i++) {
+			if (i) {
+				jvp = bnx.MakeValue(args, i, true);
+
+				if (jvp->Type != type) {
+					PUSH_WARNING("Argument types mismatch");
+					goto fin;
+				}	// endif type
+
+			} else {
+				jvp = bnx.MakeValue(args, i, true, &top);
+				type = (JTYP)jvp->Type;
+
+				if (type != TYPE_JAR && type != TYPE_JOB) {
+					PUSH_WARNING("First argument is not an array or object");
+					goto fin;
+				} // endif type
+
+			}	// endif i
+
+			jsp[i] = jvp;
+		} // endfor i
+
+		if (type == TYPE_JAR)
+			bnx.MergeArray(jsp[0], jsp[1]);
+		else
+			bnx.MergeObject(jsp[0], jsp[1]);
+
+		bnx.SetChanged(true);
+		bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+	} // endif CheckMemory
+
+	if (g->N)
+		// Keep result of constant function
+		g->Xchk = bsp;
+
+fin:
+	if (!bsp) {
+		*res_length = 0;
+		*error = 1;
+		*is_null = 1;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_item_merge
+
+void bbin_item_merge_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_item_merge_deinit
+
+/*********************************************************************************/
+/*  This function is used by the jbin_set/insert/update_item functions.          */
+/*********************************************************************************/
+static char *bbin_handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *error)
+{
+	char   *path;
+	int     w;
+	my_bool b = true;
+	PBJNX   bxp;
+	PBVAL   jsp, jvp, top;
+	PBSON   bsp = NULL;
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+
+	if (g->Alchecked) {
+		bsp = (PBSON)g->Activityp;
+		goto fin;
+	} else if (g->N)
+		g->Alchecked = 1;
+
+	if (!strcmp(result, "$set"))
+		w = 0;
+	else if (!strcmp(result, "$insert"))
+		w = 1;
+	else if (!strcmp(result, "$update"))
+		w = 2;
+	else {
+		PUSH_WARNING("Logical error, please contact CONNECT developer");
+		goto fin;
+	}	// endelse
+
+	try {
+		if (!g->Xchk) {
+			if (CheckMemory(g, initid, args, 1, true, false, true)) {
+				throw 1;
+			} else {
+				BJNX bnx(g);
+
+				jsp = bnx.MakeValue(args, 0, true, &top);
+
+				if (g->Mrr) {			 // First argument is a constant
+					g->Xchk = jsp;
+					g->More = (size_t)top;
+					JsonMemSave(g);
+				} // endif Mrr
+
+			}	// endif CheckMemory
+
+		} else {
+			jsp = (PBVAL)g->Xchk;
+			top = (PBVAL)g->More;
+		}	// endif Xchk
+
+		bxp = new(g)BJNX(g, jsp, TYPE_STRING, initid->max_length, 0, true);
+
+		for (uint i = 1; i + 1 < args->arg_count; i += 2) {
+			jvp = bxp->MakeValue(args, i);
+			path = MakePSZ(g, args, i + 1);
+
+			if (bxp->SetJpath(g, path, false))
+				throw 2;
+
+			if (w) {
+				bxp->ReadValue(g);
+				b = bxp->GetValue()->IsNull();
+				b = (w == 1) ? b : !b;
+			}	// endif w
+
+			if (b && bxp->WriteValue(g, jvp))
+				throw 3;
+
+			bxp->SetChanged(true);
+		} // endfor i
+
+		if (!(bsp = bxp->MakeBinResult(g, args, top, initid->max_length)))
+			throw 4;
+
+		if (g->N)
+			// Keep result of constant function
+			g->Activityp = (PACTIVITY)bsp;
+
+	} catch (int n) {
+		if (trace(1))
+			htrc("Exception %d: %s\n", n, g->Message);
+
+		PUSH_WARNING(g->Message);
+	} catch (const char *msg) {
+		strcpy(g->Message, msg);
+		PUSH_WARNING(g->Message);
+	} // end catch
+
+fin:
+	if (!bsp) {
+		*is_null = 1;
+		*res_length = 0;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_handle_item
+
+/*********************************************************************************/
+/*  Set Json items of a Json document according to path.                         */
+/*********************************************************************************/
+my_bool bbin_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	return bson_set_item_init(initid, args, message);
+} // end of bbin_set_item_init
+
+char *bbin_set_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *p)
+{
+	strcpy(result, "$set");
+	return bbin_handle_item(initid, args, result, res_length, is_null, p);
+} // end of bbin_set_item
+
+void bbin_set_item_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_set_item_deinit
+
+/*********************************************************************************/
+/*  Insert Json items of a Json document according to path.                      */
+/*********************************************************************************/
+my_bool bbin_insert_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	return bson_set_item_init(initid, args, message);
+} // end of bbin_insert_item_init
+
+char *bbin_insert_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *p)
+{
+	strcpy(result, "$insert");
+	return bbin_handle_item(initid, args, result, res_length, is_null, p);
+} // end of bbin_insert_item
+
+void bbin_insert_item_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_insert_item_deinit
+
+/*********************************************************************************/
+/*  Update Json items of a Json document according to path.                      */
+/*********************************************************************************/
+my_bool bbin_update_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	return bson_set_item_init(initid, args, message);
+} // end of bbin_update_item_init
+
+char *bbin_update_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *p)
+{
+	strcpy(result, "$update");
+	return bbin_handle_item(initid, args, result, res_length, is_null, p);
+} // end of bbin_update_item
+
+void bbin_update_item_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_update_item_deinit
+
+/*********************************************************************************/
+/*  Delete items from a Json document.                                           */
+/*********************************************************************************/
+my_bool bbin_delete_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	return bson_delete_item_init(initid, args, message);
+} // end of bbin_delete_item_init
+
+char *bbin_delete_item(UDF_INIT *initid, UDF_ARGS *args, char *result, 
+	unsigned long *res_length, char *is_null, char *error)
+{
+	char   *path;
+	PBSON   bsp = NULL;
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+
+	if (g->Xchk) {
+		// This constant function was recalled
+		bsp = (PBSON)g->Xchk;
+		goto fin;
+	} // endif Xchk
+
+	if (!CheckMemory(g, initid, args, 1, false, false, true)) {
+		BJNX  bnx(g, NULL, TYPE_STRING);
+		PBVAL top, jar = NULL;
+		PBVAL jvp = bnx.MakeValue(args, 0, true, &top);
+
+		if (args->arg_count == 1) {
+			// This	should be coming from bbin_locate_all
+			jar = jvp;		 // This is the array of paths
+			jvp = top;		 // And this is the document
+		}	else if(!bnx.IsJson(jvp)) {
+			PUSH_WARNING("First argument is not a JSON document");
+			goto fin;
+		}	else if (args->arg_count == 2) {
+			// Check whether this is an array of paths 
+			jar = bnx.MakeValue(args, 1, true);
+
+			if (jar && jar->Type != TYPE_JAR)
+				jar = NULL;
+
+		}	// endif arg_count
+
+		if (jar) {
+			// Do the deletion in reverse order
+			for(int i = bnx.GetArraySize(jar) - 1;	i >= 0; i--) {
+				path = bnx.GetString(bnx.GetArrayValue(jar, i));
+
+				if (bnx.SetJpath(g, path, false)) {
+					PUSH_WARNING(g->Message);
+					continue;
+				}	// endif SetJpath
+
+				bnx.SetChanged(bnx.DeleteItem(g, jvp));
+			}	// endfor i
+
+		}	else for (uint i = 1; i < args->arg_count; i++) {
+			path = MakePSZ(g, args, i);
+
+			if (bnx.SetJpath(g, path, false)) {
+				PUSH_WARNING(g->Message);
+				continue;
+			}	// endif SetJpath
+
+			bnx.SetChanged(bnx.DeleteItem(g, jvp));
+		} // endfor i
+
+		bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+
+		if (args->arg_count == 1)
+			// Here Jsp was not a sub-item of top
+			bsp->Jsp = (PJSON)top;
+
+	} // endif CheckMemory
+
+	if (g->N)
+		// Keep result of constant function
+		g->Xchk = bsp;
+
+fin:
+	if (!bsp) {
+		*is_null = 1;
+		*error = 1;
+		*res_length = 0;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_delete_item
+
+void bbin_delete_item_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_delete_item_deinit
+
+/*********************************************************************************/
+/*  Returns a json file as a json binary tree.                                   */
+/*********************************************************************************/
+my_bool bbin_file_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	return bson_file_init(initid, args, message);
+} // end of bbin_file_init
+
+char *bbin_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
+	unsigned long *res_length, char *is_null, char *error)
+{
+	char   *fn;
+	int     pretty = 3;
+	size_t  len = 0;
+	PBVAL   jsp, jvp = NULL;
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	BJNX    bnx(g);
+	PBSON   bsp = (PBSON)g->Xchk;
+
+	if (bsp)
+		goto fin;
+
+	fn = MakePSZ(g, args, 0);
+
+	for (unsigned int i = 1; i < args->arg_count; i++)
+		if (args->arg_type[i] == INT_RESULT && *(longlong*)args->args[i] < 4) {
+			pretty = (int) * (longlong*)args->args[i];
+			break;
+		} // endif type
+
+	//  Parse the json file and allocate its tree structure
+	if (!(jsp = bnx.ParseJsonFile(g, fn, pretty, len))) {
+		PUSH_WARNING(g->Message);
+		*error = 1;
+		goto fin;
+	} // endif jsp
+
+//	if (pretty == 3)
+//		PUSH_WARNING("File pretty format cannot be determined");
+//	else if (pretty == 3)
+//		pretty = pty;
+
+	if ((bsp = BbinAlloc(g, len, jsp))) {
+		strcat(bsp->Msg, " file");
+		bsp->Filename = fn;
+		bsp->Pretty = pretty;
+	} else {
+		*error = 1;
+		goto fin;
+	}	// endif bsp
+
+	// Check whether a path was specified
+	if (bnx.CheckPath(g, args, jsp, jvp, 1)) {
+		PUSH_WARNING(g->Message);
+		bsp = NULL;
+		goto fin;
+	} else if (jvp)
+		bsp->Jsp = (PJSON)jvp;
+
+	if (initid->const_item)
+		// Keep result of constant function
+		g->Xchk = bsp;
+
+fin:
+	if (!bsp) {
+		*res_length = 0;
+		*is_null = 1;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_file
+
+void bbin_file_deinit(UDF_INIT* initid)
+{
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_file_deinit
+
+/*********************************************************************************/
+/*  Locate all occurences of a value in a Json tree.                             */
+/*********************************************************************************/
+my_bool bbin_locate_all_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
+	return bson_locate_all_init(initid, args, message);
+} // end of bbin_locate_all_init
+
+char* bbin_locate_all(UDF_INIT* initid, UDF_ARGS* args, char* result,
+	unsigned long* res_length, char* is_null, char* error) {
+	char   *path = NULL;
+	int     mx = 10;
+	PBVAL   bvp, bvp2;
+	PGLOBAL g = (PGLOBAL)initid->ptr;
+	PBSON   bsp = NULL;
+
+	if (g->N) {
+		if (g->Activityp) {
+			bsp = (PBSON)g->Activityp;
+			*res_length = sizeof(BSON);
+			return (char*)bsp;
+		} else {
+			*error = 1;
+			*res_length = 0;
+			*is_null = 1;
+			return NULL;
+		}	// endif Activityp
+
+	} else if (initid->const_item)
+		g->N = 1;
+
+	try {
+		PBVAL top = NULL;
+		BJNX  bnx(g);
+
+		if (!g->Xchk) {
+			if (CheckMemory(g, initid, args, 1, true)) {
+				PUSH_WARNING("CheckMemory error");
+				*error = 1;
+				goto err;
+			} else
+				bnx.Reset();
+
+			bvp = bnx.MakeValue(args, 0, true, &top);
+
+			if (bvp->Type == TYPE_NULL) {
+				PUSH_WARNING("First argument is not a valid JSON item");
+				goto err;
+			}	// endif bvp
+
+			if (g->Mrr) {			 // First argument is a constant
+				g->Xchk = bvp;
+				g->More = (size_t)top;
+				JsonMemSave(g);
+			} // endif Mrr
+
+		} else {
+			bvp = (PBVAL)g->Xchk;
+			top = (PBVAL)g->More;
+		}	// endif Xchk
+
+		// The item to locate
+		bvp2 = bnx.MakeValue(args, 1, true);
+
+		if (bvp2->Type == TYPE_NULL) {
+			PUSH_WARNING("Invalid second argument");
+			goto err;
+		}	// endif bvp2
+
+		if (args->arg_count > 2)
+			mx = (int)*(long long*)args->args[2];
+
+		if ((path = bnx.LocateAll(g, bvp, bvp2, mx))) {
+			bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+			bsp->Jsp = (PJSON)bnx.ParseJson(g, path, strlen(path));
+		}	// endif path
+
+		if (initid->const_item)
+			// Keep result of constant function
+			g->Activityp = (PACTIVITY)bsp;
+
+	} catch (int n) {
+		xtrc(1, "Exception %d: %s\n", n, g->Message);
+		PUSH_WARNING(g->Message);
+		*error = 1;
+		path = NULL;
+	} catch (const char* msg) {
+		strcpy(g->Message, msg);
+		PUSH_WARNING(g->Message);
+		*error = 1;
+		path = NULL;
+	} // end catch
+
+err:
+	if (!bsp) {
+		*res_length = 0;
+		*is_null = 1;
+	} else
+		*res_length = sizeof(BSON);
+
+	return (char*)bsp;
+} // end of bbin_locate_all
+
+void bbin_locate_all_deinit(UDF_INIT* initid) {
+	JsonFreeMem((PGLOBAL)initid->ptr);
+} // end of bbin_locate_all_deinit
 
 

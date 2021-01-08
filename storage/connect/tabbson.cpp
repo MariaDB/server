@@ -246,7 +246,8 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
       return 0;
 
     bp = tjsp->Bp;
-    bdp = tjsp->GetDoc() ? bp->GetBson(tjsp->GetDoc()) : NULL;
+//  bdp = tjsp->GetDoc() ? bp->GetBson(tjsp->GetDoc()) : NULL;
+    bdp = tjsp->GetDoc();
     jsp = bdp ? bp->GetArrayValue(bdp, 0) : NULL;
   } else {
     if (!((tdp->Lrecl = GetIntegerTableOption(g, topt, "Lrecl", 0)))) {
@@ -312,7 +313,7 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
     case RC_FX:
       goto err;
     default:
-      jsp = bp->FindRow(g);
+      jsp = tjnp->Row;
     } // endswitch ReadDB
 
   } // endif pretty
@@ -362,7 +363,7 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
       case RC_FX:
         goto err;
       default:
-        jsp = bp->FindRow(g);
+        jsp = tjnp->Row;
       } // endswitch ReadDB
 
     } else
@@ -400,21 +401,25 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
     jcol.Type = (JTYP)jvp->Type;
 
     switch (jvp->Type) {
-    case TYPE_STRG:
-    case TYPE_DTM:
-      jcol.Len = (int)strlen(bp->GetString(jvp));
-      break;
-    case TYPE_INTG:
-    case TYPE_BINT:
-    case TYPE_DBL:
-      jcol.Len = (int)strlen(bp->GetString(jvp, buf));
-      break;
-    case TYPE_BOOL:
-      jcol.Len = 1;
-      break;
-    default:
-      jcol.Len = 0;
-      break;
+      case TYPE_STRG:
+      case TYPE_DTM:
+        jcol.Len = (int)strlen(bp->GetString(jvp));
+        break;
+      case TYPE_INTG:
+      case TYPE_BINT:
+        jcol.Len = (int)strlen(bp->GetString(jvp, buf));
+        break;
+      case TYPE_DBL:
+      case TYPE_FLOAT:
+        jcol.Len = (int)strlen(bp->GetString(jvp, buf));
+        jcol.Scale = jvp->Nd;
+        break;
+      case TYPE_BOOL:
+        jcol.Len = 1;
+        break;
+      default:
+        jcol.Len = 0;
+        break;
     } // endswitch Type
 
     jcol.Scale = jvp->Nd;
@@ -513,7 +518,8 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
   return false;
 } // end of Find
 
-void BSONDISC::AddColumn(PGLOBAL g) {
+void BSONDISC::AddColumn(PGLOBAL g)
+{
   bool b = fmt[bf] != 0;     // True if formatted
 
   // Check whether this column was already found

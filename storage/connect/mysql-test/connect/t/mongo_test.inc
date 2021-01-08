@@ -126,6 +126,10 @@ IF ($TYPE == JSON)
 {
 SELECT name, borough, address_street, grades_score AS score FROM t1 WHERE grades_grade = 'B';
 }
+IF ($TYPE == BSON)
+{
+SELECT name, borough, address_street, grades_score AS score FROM t1 WHERE grades_grade = 'B';
+}
 DROP TABLE t1;
 
 --echo #

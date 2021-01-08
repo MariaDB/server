@@ -80,6 +80,19 @@ ELSE(NOT UNIX)
   ENDIF()
 ENDIF(UNIX)
 
+#
+# BSON: this the new version of JSON that is temporarily included here for testing
+# When fully tested, it will replace the old support (and be renamed to JSON)
+#
+
+OPTION(CONNECT_WITH_BSON "Compile CONNECT storage engine with BSON support" ON)
+
+IF(CONNECT_WITH_BSON)
+  SET(CONNECT_SOURCES ${CONNECT_SOURCES} 
+  bson.cpp tabbson.cpp bsonudf.cpp bson.h tabbson.h bsonudf.h)
+  add_definitions(-DBSON_SUPPORT)
+ENDIF(CONNECT_WITH_BSON)
+
 
 #
 # VCT: the VEC format might be not supported in future versions

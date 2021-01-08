@@ -62,7 +62,8 @@ DllExport bool IsNum(PSZ s);
 class BJSON : public BLOCK {
 public:
 	// Constructor
-	BJSON(PGLOBAL g, PBVAL vp = NULL) { G = g, Base = G->Sarea; Bvp = vp; }
+	BJSON(PGLOBAL g, PBVAL vp = NULL)
+	  { G = g, Base = G->Sarea; Bvp = vp; Throw = true; }
 
 	// Utility functions
 	inline OFFSET   MOF(void  *p) {return MakeOff(Base, p);}
@@ -73,6 +74,7 @@ public:
 	inline longlong LLN(OFFSET o) {return *(longlong*)MakePtr(Base, o);}
 	inline double   DBL(OFFSET o) {return *(double*)MakePtr(Base, o);}
 
+	void  Reset(void) {Base = G->Sarea;}
 	void* GetBase(void) { return Base; }
 	void  SubSet(bool b = false);
 	void  MemSave(void) {G->Saved_Size = ((PPOOLHEADER)G->Sarea)->To_Free;}
@@ -102,7 +104,7 @@ public:
 	PBVAL GetArrayValue(PBVAL bap, int i);
   PSZ   GetArrayText(PGLOBAL g, PBVAL bap, PSTRG text);
 	void  MergeArray(PBVAL bap1,PBVAL bap2);
-	void  DeleteValue(PBVAL bap, int n);
+	bool  DeleteValue(PBVAL bap, int n);
 	void  AddArrayValue(PBVAL bap, OFFSET nvp = NULL, int* x = NULL);
 	inline void AddArrayValue(PBVAL bap, PBVAL nvp = NULL, int* x = NULL)
 				{AddArrayValue(bap, MOF(nvp), x);}
@@ -126,7 +128,7 @@ public:
 	void  SetKeyValue(PBVAL bop, OFFSET bvp, PSZ key);
 	inline void SetKeyValue(PBVAL bop, PBVAL vlp, PSZ key)
 				{SetKeyValue(bop, MOF(vlp), key);}
-	void  DeleteKey(PBVAL bop, PCSZ k);
+	bool  DeleteKey(PBVAL bop, PCSZ k);
 	bool  IsObjectNull(PBVAL bop);
 
 	// Value functions
@@ -147,17 +149,20 @@ public:
 	void  SetString(PBVAL vlp, PSZ s, int ci = 0);
 	void  SetInteger(PBVAL vlp, int n);
 	void  SetBigint(PBVAL vlp, longlong ll);
-	void  SetFloat(PBVAL vlp, double f);
+	void  SetFloat(PBVAL vlp, double f, int nd = 16);
+	void  SetFloat(PBVAL vlp, PSZ s);
 	void  SetBool(PBVAL vlp, bool b);
 	void  Clear(PBVAL vlp) { vlp->N = 0; vlp->Nd = 0; vlp->Next = 0; }
 	bool  IsValueNull(PBVAL vlp);
-	bool  IsJson(PBVAL vlp) 
-				{return vlp ? vlp->Type == TYPE_JAR || vlp->Type == TYPE_JOB : false;}
+	bool  IsJson(PBVAL vlp)	{return vlp ? vlp->Type == TYPE_JAR ||
+		                                    vlp->Type == TYPE_JOB ||
+		                                    vlp->Type == TYPE_JVAL : false;}
 
 	// Members
 	PGLOBAL G;
 	PBVAL   Bvp;
 	void   *Base;
+	bool    Throw;
 
 protected:
 	// Default constructor not to be used

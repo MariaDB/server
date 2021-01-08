@@ -474,8 +474,10 @@ bool AllocSarea(PGLOBAL g, size_t size)
 	if (!g->Sarea) {
 		sprintf(g->Message, MSG(MALLOC_ERROR), "malloc");
 		g->Sarea_Size = 0;
-	}	else
-		g->Sarea_Size = size;
+	}	else {
+    g->Sarea_Size = size;
+    PlugSubSet(g->Sarea, size);
+  } // endif Sarea
 
 #if defined(DEVELOPMENT)
 	if (true) {
@@ -484,7 +486,6 @@ bool AllocSarea(PGLOBAL g, size_t size)
 #endif
     if (g->Sarea) {
       htrc("Work area of %zd allocated at %p\n", size, g->Sarea);
-      PlugSubSet(g->Sarea, size);
     } else
       htrc("SareaAlloc: %s\n", g->Message);
 
@@ -624,7 +625,7 @@ size_t MakeOff(void* memp, void* ptr)
 #if defined(_DEBUG) || defined(DEVELOPMENT)
     if (ptr <= memp) {
       fprintf(stderr, "ptr %p <= memp %p", ptr, memp);
-      throw 999;
+      DoThrow(999);
     } // endif ptr
 #endif   // _DEBUG  ||         DEVELOPMENT
     return (size_t)((char*)ptr - (size_t)memp);
@@ -633,4 +634,4 @@ size_t MakeOff(void* memp, void* ptr)
 
 } /* end of MakeOff */
 
-  /*--------------------- End of PLUGUTIL program -----------------------*/
+/*---------------------- End of PLUGUTIL program ------------------------*/

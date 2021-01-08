@@ -1,7 +1,7 @@
 /******************** tabjson H Declares Source Code File (.H) *******************/
 /*  Name: bsonudf.h   Version 1.0                                                */
 /*                                                                               */
-/*  (C) Copyright to the author Olivier BERTRAND          2020                   */
+/*  (C) Copyright to the author Olivier BERTRAND          2020 - 2021            */
 /*                                                                               */
 /*  This file contains the BSON UDF function and class declares.                 */
 /*********************************************************************************/
@@ -96,6 +96,7 @@ public:
 	int     GetPrecision(void) { return Prec; }
 	PVAL    GetValue(void) { return Value; }
 	void    SetRow(PBVAL vp) { Row = vp; }
+	void    SetChanged(my_bool b) { Changed = b; }
 
 	// Methods
 	my_bool SetJpath(PGLOBAL g, char* path, my_bool jb = false);
@@ -106,14 +107,16 @@ public:
 	my_bool CheckPath(PGLOBAL g);
 	my_bool CheckPath(PGLOBAL g, UDF_ARGS* args, PBVAL jsp, PBVAL& jvp, int n);
 	my_bool WriteValue(PGLOBAL g, PBVAL jvalp);
+	my_bool DeleteItem(PGLOBAL g, PBVAL vlp);
 	char   *Locate(PGLOBAL g, PBVAL jsp, PBVAL jvp, int k = 1);
 	char   *LocateAll(PGLOBAL g, PBVAL jsp, PBVAL jvp, int mx = 10);
 	PSZ     MakeKey(UDF_ARGS* args, int i);
-	PBVAL   MakeBinValue(PGLOBAL g, UDF_ARGS* args, uint i);
-	PBVAL   MakeValue(PGLOBAL g, UDF_ARGS* args, uint i, PBVAL* top = NULL);
+	PBVAL   MakeValue(UDF_ARGS* args, uint i, bool b = false, PBVAL* top = NULL);
 	PBVAL   MakeTypedValue(PGLOBAL g, UDF_ARGS* args, uint i,
 		                     JTYP type, PBVAL* top = NULL);
 	PBVAL   ParseJsonFile(PGLOBAL g, char* fn, int& pty, size_t& len);
+	char   *MakeResult(UDF_ARGS* args, PBVAL top, uint n = 2);
+	PBSON   MakeBinResult(PGLOBAL g, UDF_ARGS* args, PBVAL top, ulong len, int n = 2);
 
 protected:
 	my_bool SetArrayOptions(PGLOBAL g, char* p, int i, PSZ nm);
@@ -159,6 +162,7 @@ protected:
 	my_bool  Found;								// Item found by locate
 	my_bool  Wr;			  					// Write mode
 	my_bool  Jb;			  					// Must return json item
+	my_bool  Changed;			  			// True when contains was modified
 }; // end of class BJNX
 
 extern "C" {
@@ -268,6 +272,10 @@ extern "C" {
 	DllExport char *bson_object_grp(UDF_EXEC_ARGS);
 	DllExport void bson_object_grp_deinit(UDF_INIT*);
 
+	DllExport my_bool bson_delete_item_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *bson_delete_item(UDF_EXEC_ARGS);
+	DllExport void bson_delete_item_deinit(UDF_INIT*);
+
 	DllExport my_bool bson_set_item_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *bson_set_item(UDF_EXEC_ARGS);
 	DllExport void bson_set_item_deinit(UDF_INIT*);
@@ -295,4 +303,92 @@ extern "C" {
 	DllExport my_bool bfile_bjson_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char* bfile_bjson(UDF_EXEC_ARGS);
 	DllExport void bfile_bjson_deinit(UDF_INIT*);
+
+	DllExport my_bool bson_serialize_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *bson_serialize(UDF_EXEC_ARGS);
+	DllExport void bson_serialize_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_make_array_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* bbin_make_array(UDF_EXEC_ARGS);
+	DllExport void bbin_make_array_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_array_add_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* bbin_array_add(UDF_EXEC_ARGS);
+	DllExport void bbin_array_add_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_array_add_values_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* bbin_array_add_values(UDF_EXEC_ARGS);
+	DllExport void bbin_array_add_values_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_array_delete_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* bbin_array_delete(UDF_EXEC_ARGS);
+	DllExport void bbin_array_delete_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_array_grp_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport void bbin_array_grp_clear(UDF_INIT *, char *, char *);
+	DllExport void bbin_array_grp_add(UDF_INIT *, UDF_ARGS *, char *, char *);
+	DllExport char *bbin_array_grp(UDF_EXEC_ARGS);
+	DllExport void bbin_array_grp_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_object_grp_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport void bbin_object_grp_clear(UDF_INIT *, char *, char *);
+	DllExport void bbin_object_grp_add(UDF_INIT *, UDF_ARGS *, char *, char *);
+	DllExport char *bbin_object_grp(UDF_EXEC_ARGS);
+	DllExport void bbin_object_grp_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_make_object_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* bbin_make_object(UDF_EXEC_ARGS);
+	DllExport void bbin_make_object_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_object_nonull_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* bbin_object_nonull(UDF_EXEC_ARGS);
+	DllExport void bbin_object_nonull_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_object_key_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* bbin_object_key(UDF_EXEC_ARGS);
+	DllExport void bbin_object_key_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_object_add_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *bbin_object_add(UDF_EXEC_ARGS);
+	DllExport void bbin_object_add_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_object_delete_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *bbin_object_delete(UDF_EXEC_ARGS);
+	DllExport void bbin_object_delete_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_object_list_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *bbin_object_list(UDF_EXEC_ARGS);
+	DllExport void bbin_object_list_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_object_values_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* bbin_object_values(UDF_EXEC_ARGS);
+	DllExport void bbin_object_values_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_get_item_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *bbin_get_item(UDF_EXEC_ARGS);
+	DllExport void bbin_get_item_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_set_item_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *bbin_set_item(UDF_EXEC_ARGS);
+	DllExport void bbin_set_item_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_insert_item_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *bbin_insert_item(UDF_EXEC_ARGS);
+	DllExport void bbin_insert_item_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_update_item_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *bbin_update_item(UDF_EXEC_ARGS);
+	DllExport void bbin_update_item_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_delete_item_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *bbin_delete_item(UDF_EXEC_ARGS);
+	DllExport void bbin_delete_item_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_locate_all_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* bbin_locate_all(UDF_EXEC_ARGS);
+	DllExport void bbin_locate_all_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_file_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char *bbin_file(UDF_EXEC_ARGS);
+	DllExport void bbin_file_deinit(UDF_INIT*);
 } // extern "C"

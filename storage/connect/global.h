@@ -185,7 +185,7 @@ typedef struct _global {            /* Global structure                */
   size_t    Sarea_Size;             /* Work area size                  */
 	PACTIVITY Activityp;
   char      Message[MAX_STR];				/* Message (result, error, trace)  */
-	ulong     More;										/* Used by jsonudf                 */
+	size_t    More;										/* Used by jsonudf                 */
 	size_t    Saved_Size;             /* Saved work area to_free         */
 	bool      Createas;               /* To pass multi to ext tables     */
   void     *Xchk;                   /* indexes in create/alter         */
