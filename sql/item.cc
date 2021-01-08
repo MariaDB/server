@@ -9367,7 +9367,7 @@ bool Item_field::predicate_selectivity_checker(void *arg)
   {
     same_field_arg->item= this;
     same_field_arg->is_stats_available=
-                     field->is_statistics_available() ||
+                     field->is_range_statistics_available() ||
                      (item_equal && item_equal->is_statistics_available());
     return false;
   }

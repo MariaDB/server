@@ -832,6 +832,13 @@ public:
   uint32	flags;
   uint16        field_index;            // field number in fields array
   uchar		null_bit;		// Bit used to test null bit
+
+  /*
+    Caches the value of whether statistics are available for a field
+    This is reset for each query in THD::init()
+  */
+  uint8 stats_available;
+
   /**
      If true, this field was created in create_tmp_field_from_item from a NULL
      value. This means that the type of the field is just a guess, and the type
@@ -875,11 +882,6 @@ public:
     STATISTICS_FOR_RANGE_PREDICATES_AVAILABLE,
     STATISTICS_FOR_NDV_AVAILABLE
   };
-
-  /*
-    Caches the value of whether statistics are available for a field or not.
-  */
-  uint stats_available;
 
   /* 
     This is additional data provided for any computed(virtual) field,
@@ -1919,10 +1921,9 @@ public:
   /* Mark field in read map. Updates also virtual fields */
   void register_field_in_read_map();
 
-  bool is_first_component_of_key(KEY *key);
   void statistics_available_via_keys();
   void statistics_available_via_stat_tables();
-  bool is_statistics_available();
+  bool is_range_statistics_available();
   bool is_ndv_available();
   bool is_ndv_available_via_stat_tables();
   bool is_ndv_available_via_keys();

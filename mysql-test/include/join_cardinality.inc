@@ -43,7 +43,7 @@ FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 --echo #
 --echo # The cardinality here would be not accurate because we don't have
---echo # selectivity for the predicate t1.b=10
+--echo # selectivity for the predicate t1.c=10
 --echo #
 
 EXPLAIN SELECT * FROM t1 WHERE t1.c = 10;
@@ -127,5 +127,10 @@ FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 EXPLAIN SELECT * from t1
 WHERE t1.a = (select t2.a from t2 where t1.b=t2.b limit 1);
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+EXPLAIN SELECT * from t1
+WHERE t1.a = (select t2.a from t2 where t2.b > 10 limit 1) AND abs(t1.b)= 11;
 SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
 FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;

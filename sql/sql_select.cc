@@ -29478,6 +29478,10 @@ void unpack_to_base_table_fields(TABLE *table)
 
 bool is_range_predicate(Item *item, Item *value)
 {
+  /*
+    calling real_item() here so that if the item is a REF_ITEM
+    then we would get the item field it is referring to
+  */
   Item *field= item->real_item();
   if (field->type() == Item::FIELD_ITEM && !field->const_item() &&
       (!value || !value->is_expensive()))

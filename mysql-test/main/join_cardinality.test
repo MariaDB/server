@@ -1,15 +1,15 @@
 --source include/have_sequence.inc
 
+# Default settings for all following tests
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_trace=1;
+SET optimizer_switch='rowid_filter=off';
+
 CREATE TABLE t1(a INT, b INT, c INT, KEY(b), KEY(a));
 INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_100;
 
 CREATE TABLE t2(a INT, b INT, key(b));
 INSERT INTO t2 SELECT seq, seq from seq_1_to_100;
-
-
-SET @save_optimizer_switch=@@optimizer_switch;
-SET optimizer_trace=1;
-SET optimizer_switch='rowid_filter=off';
 
 --echo #
 --echo # RUNNING the join cardinality tests when statistics are
@@ -224,7 +224,7 @@ DROP VIEW v1;
 
 
 --echo #
---echo # TESTS to get ndv from rec_per_key 
+--echo # TESTS to get Number of distinct values(ndv) from rec_per_key
 --echo #
 
 CREATE TABLE t1 (a INT, b INT);

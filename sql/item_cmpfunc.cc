@@ -7244,7 +7244,7 @@ bool Item_equal::is_statistics_available()
   while (it++)
   {
     Field *field= it.get_curr_field();
-    if (field->is_statistics_available())
+    if (field->is_range_statistics_available())
       return true;
   }
   return false;

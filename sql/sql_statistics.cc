@@ -3158,10 +3158,7 @@ static void dump_stats_from_share_to_table(TABLE *table)
   Field **field_ptr= table_share->field;
   Field **table_field_ptr= table->field;
   for ( ; *field_ptr; field_ptr++, table_field_ptr++)
-  {
     (*table_field_ptr)->read_stats= (*field_ptr)->read_stats;
-    (*table_field_ptr)->stats_available= (*field_ptr)->stats_available;
-  }
   table->stats_is_read= true;
 }
 
