@@ -152,6 +152,7 @@ public:
     return *this;
   }
 
+  inline uint size() { return elements; }
   inline void empty() { elements=0; first= &end_of_list; last=&first;}
   inline base_list() { empty(); }
   /**
