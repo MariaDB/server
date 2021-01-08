@@ -20,17 +20,17 @@
 #include "mrn_debug_column_access.hpp"
 
 namespace mrn {
-  DebugColumnAccess::DebugColumnAccess(TABLE *table, MY_BITMAP *bitmap)
+  DebugColumnAccess::DebugColumnAccess(TABLE *table, MY_BITMAP **bitmap)
     : table_(table),
       bitmap_(bitmap) {
 #ifdef DBUG_ASSERT_EXISTS
-    map_ = dbug_tmp_use_all_columns(table_, &bitmap_);
+    map_ = dbug_tmp_use_all_columns(table_, bitmap_);
 #endif
   }
 
   DebugColumnAccess::~DebugColumnAccess() {
 #ifdef DBUG_ASSERT_EXISTS
-    dbug_tmp_restore_column_map(&bitmap_, map_);
+    dbug_tmp_restore_column_map(bitmap_, map_);
 #endif
   }
 }
