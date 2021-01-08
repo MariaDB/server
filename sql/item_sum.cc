@@ -30,6 +30,7 @@
 #include "sp.h"
 #include "sql_parse.h"
 #include "sp_head.h"
+#include "item_sum.h"
 
 /**
   Calculate the affordable RAM limit for structures like TREE or Unique
@@ -4594,5 +4595,158 @@ void Item_func_group_concat::print(String *str, enum_query_type query_type)
 Item_func_group_concat::~Item_func_group_concat()
 {
   if (!original && unique_filter)
-    delete unique_filter;    
+    delete unique_filter;
+}
+
+
+void Item_func_collect::clear() {
+  has_cached_result= false;
+  cached_result.free();
+  geometries.delete_elements();
+}
+
+
+void Item_func_collect::cleanup() {
+  List_iterator<String> geometries_iterator(geometries);
+  geometries.delete_elements();
+  Item_sum_int::cleanup();
+}
+
+
+bool Item_func_collect::add() {
+  String *wkb= args[0]->val_str(&value);
+  uint current_geometry_srid;
+  has_cached_result= false;
+
+  if (tmp_arg[0]->null_value)
+    return 0;
+
+  current_geometry_srid= uint4korr(wkb->ptr());
+  if (geometries.is_empty())
+    srid= current_geometry_srid;
+  else if(srid != current_geometry_srid)
+    my_error(ER_GIS_DIFFERENT_SRIDS_AGGREGATION, MYF(0), func_name(), srid,
+             current_geometry_srid);
+
+  String* buffer= new String(wkb->length());
+  buffer->copy(*wkb);
+  geometries.push_back(buffer);
+  return 0;
+}
+
+
+void Item_func_collect::remove() {
+  String value;
+  String *wkb= args[0]->val_str(&value);
+  has_cached_result= false;
+
+  if (args[0]->null_value) return;
+
+  List_iterator<String> geometries_iterator(geometries);
+  String* temp_geometry;
+  while ((temp_geometry= geometries_iterator++))
+  {
+    String temp(temp_geometry->ptr(), temp_geometry->length(), &my_charset_bin);
+
+    if (!wkb->eq(&temp, &my_charset_bin))
+      continue;
+
+    temp_geometry->free();
+    delete temp_geometry;
+    geometries_iterator.remove();
+    break;
+  }
+
+  return;
+}
+
+
+Item_func_collect::Item_func_collect(THD *thd, Item *item_par) :
+  Item_sum_int(thd, item_par),
+  mem_root(thd->mem_root),
+  group_collect_max_len(thd->variables.group_concat_max_len)
+{
+}
+
+
+Item_func_collect::Item_func_collect(THD *thd, Item_func_collect *item) :
+  Item_sum_int(thd, item),
+  mem_root(thd->mem_root),
+  group_collect_max_len(thd->variables.group_concat_max_len)
+{
+}
+
+
+String *Item_func_collect::val_str(String *str)
+{
+  Geometry_buffer buffer;
+  int type= Geometry::wkbType::wkb_last;
+  const int initial_type= Geometry::wkbType::wkb_last;
+  Geometry *geometry;
+  String content;
+
+  content.free();
+  str->free();
+
+  if (has_cached_result)
+  {
+    str->append(cached_result.ptr(), cached_result.length());
+    return str;
+  }
+
+  null_value= 1;
+  if (geometries.is_empty())
+    return NULL;
+
+  if (content.reserve(WKB_HEADER_SIZE + SRID_SIZE) ||
+      str->reserve(WKB_HEADER_SIZE + SRID_SIZE))
+    return NULL;
+
+  List_iterator<String> geometries_iterator(geometries);
+  String* temp_geometry;
+  while ((temp_geometry= geometries_iterator++))
+  {
+    if(!(geometry = Geometry::construct(&buffer, temp_geometry->ptr(),
+                                         temp_geometry->length())))
+      return NULL;
+
+    if (content.length() > group_collect_max_len)
+    {
+      THD *thd= current_thd;
+      report_cut_value_error(thd, 1, func_name());
+      return NULL;
+    }
+
+    if (type == initial_type)
+    {
+      type= geometry->get_class_info()->m_type_id;
+      content.append(temp_geometry->ptr() + SRID_SIZE,
+                     temp_geometry->length() - SRID_SIZE);
+      continue;
+    }
+
+    if (type != geometry->get_class_info()->m_type_id)
+      type= Geometry::wkbType::wkb_geometrycollection;
+
+    content.append(temp_geometry->ptr() + SRID_SIZE,
+                   temp_geometry->length() - SRID_SIZE);
+  }
+
+  str->q_append((uint32) srid);
+  str->q_append((char) Geometry::wkb_ndr);
+  str->q_append(type <= 3 ?
+                (uint32) type + 3 : (uint32) Geometry::wkb_geometrycollection);
+  str->q_append((uint32) geometries.size());
+  str->append(content.ptr(), content.length());
+
+  null_value= 0;
+  has_cached_result= true;
+  cached_result.free();
+  cached_result.append(str->ptr(), str->length());
+  return str;
+}
+
+
+Item *Item_func_collect::copy_or_same(THD *thd) {
+  return new (thd->mem_root) Item_func_collect(thd, this);
 }

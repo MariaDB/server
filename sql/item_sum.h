@@ -21,6 +21,8 @@
 
 #include <my_tree.h>
 #include "sql_udf.h"                            /* udf_handler */
+#include "item.h"
+#include "spatial.h"                            // Geometry_buffer, Geometry
 
 class Item_sum;
 class Aggregator_distinct;
@@ -352,7 +354,7 @@ public:
     CUME_DIST_FUNC, NTILE_FUNC, FIRST_VALUE_FUNC, LAST_VALUE_FUNC,
     NTH_VALUE_FUNC, LEAD_FUNC, LAG_FUNC, PERCENTILE_CONT_FUNC,
     PERCENTILE_DISC_FUNC, SP_AGGREGATE_FUNC, JSON_ARRAYAGG_FUNC,
-    JSON_OBJECTAGG_FUNC
+    JSON_OBJECTAGG_FUNC, GEOMETRY_COLLECT_FUNC
   };
 
   Item **ref_by; /* pointer to a ref to the object used to register it */
@@ -433,6 +435,7 @@ public:
     case UDF_SUM_FUNC:
     case GROUP_CONCAT_FUNC:
     case JSON_ARRAYAGG_FUNC:
+    case GEOMETRY_COLLECT_FUNC:
       return true;
     default:
       return false;
@@ -2115,4 +2118,52 @@ public:
 
 };
 
+
+class Item_func_collect :public Item_sum_int
+{
+  uint32 srid;
+  bool has_cached_result;
+  String cached_result;
+  MEM_ROOT *mem_root;
+  List<String> geometries;
+  String value;
+  const uint group_collect_max_len;
+
+  void clear() override;
+  bool add() override;
+  void cleanup() override;
+  void remove() override;
+
+public:
+  Item_func_collect(THD *thd, Item *item_par);
+  Item_func_collect(THD *thd, Item_func_collect *item);
+
+  enum Sumfunctype sum_func () const override
+  {
+    return GEOMETRY_COLLECT_FUNC;
+  }
+  void no_rows_in_result() override {; }
+  void make_const(longlong count_arg)
+  {
+    Item_sum_int::make_const();
+  }
+  const Type_handler *type_handler() const override
+  { return &type_handler_string; }
+  longlong val_int() override { return 0; }
+  String *val_str(String*str) override;
+  void reset_field() override {DBUG_ASSERT(0);}
+  void update_field() override {DBUG_ASSERT(0);}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return { STRING_WITH_LEN("st_collect(") };
+  }
+  Item *copy_or_same(THD* thd) override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_collect>(thd, this); }
+
+  bool supports_removal() const override
+  {
+    return true;
+  }
+};
 #endif /* ITEM_SUM_INCLUDED */
