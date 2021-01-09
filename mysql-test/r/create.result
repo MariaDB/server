@@ -2081,3 +2081,11 @@ drop table t1;
 #
 # End of 10.0 tests
 #
+#
+# MDEV-18428 Memory: If transactional=0 is specified in CREATE TABLE, it is not possible to ALTER TABLE
+#
+create table t1 (c int(10) unsigned) engine=memory transactional=0;
+ERROR HY000: Table storage engine 'MEMORY' does not support the create option 'TRANSACTIONAL=0'
+#
+# End of 10.2 tests
+#

@@ -544,7 +544,7 @@ drop table t0,t1,t2,t3,t4,t5,t6;
 CREATE TABLE t1 (f1 int(11), PRIMARY KEY (f1)) ;
 CREATE TABLE t2 (f4 varchar(1024), KEY (f4)) ;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 INSERT IGNORE INTO t2 VALUES ('xcddwntkbxyorzdv'),
 ('cnxxcddwntkbxyor'),('r'),('r'), ('did'),('I'),('when'),
 ('hczkfqjeggivdvac'),('e'),('okay'),('up');

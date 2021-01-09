@@ -2302,7 +2302,7 @@ Warnings:
 Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 create table t1 (v varchar(65530), key(v));
 Warnings:
-Warning	1071	Specified key was too long; max key length is 767 bytes
+Note	1071	Specified key was too long; max key length is 767 bytes
 SET GLOBAL innodb_large_prefix=default;
 Warnings:
 Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
@@ -2477,11 +2477,11 @@ Warning	131	Using innodb_large_prefix is deprecated and the parameter may be rem
 create table t1 (col1 varchar(768), index(col1))
 character set = latin1 engine = innodb;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 767 bytes
+Note	1071	Specified key was too long; max key length is 767 bytes
 create table t2 (col1 varbinary(768), index(col1))
 character set = latin1 engine = innodb;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 767 bytes
+Note	1071	Specified key was too long; max key length is 767 bytes
 create table t3 (col1 text, index(col1(768)))
 character set = latin1 engine = innodb;
 Warnings:

@@ -945,6 +945,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
   TABLE_SHARE share;
   Create_field *field;
   Check_level_instant_set old_count_cuted_fields(thd, CHECK_FIELD_WARN);
+  Abort_on_warning_instant_set old_abort_on_warning(thd, 0);
   DBUG_ENTER("make_empty_rec");
 
   /* We need a table to generate columns for default values */
