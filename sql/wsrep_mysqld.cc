@@ -110,6 +110,7 @@ ulong wsrep_mysql_replication_bundle;
 
 bool              wsrep_gtid_mode;              // Enable WSREP native GTID support
 Wsrep_gtid_server wsrep_gtid_server;
+uint  wsrep_gtid_domain_id=0;                   // Domain id on above structure
 
 /* Other configuration variables and their default values. */
 my_bool wsrep_incremental_data_collection= 0;   // Incremental data collection

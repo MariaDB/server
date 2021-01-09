@@ -101,6 +101,7 @@ extern ulong       wsrep_running_rollbacker_threads;
 extern bool        wsrep_new_cluster;
 extern bool        wsrep_gtid_mode;
 extern my_bool     wsrep_strict_ddl;
+extern uint        wsrep_gtid_domain_id;
 
 enum enum_wsrep_reject_types {
   WSREP_REJECT_NONE,    /* nothing rejected */
