@@ -1,7 +1,4 @@
 call mtr.add_suppression("table or database name 't-1'");
-drop table if exists t1,t2,t3,t4,t5;
-drop database if exists mysqltest;
-drop view if exists v1;
 create table t1 (b char(0));
 insert into t1 values (""),(null);
 select * from t1;
@@ -2066,10 +2063,21 @@ alter table t1 add
 key xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx0064 (f64) comment 'yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy';
 ERROR HY000: Cannot create table `t1`: index information is too long. Decrease number of indexes or use shorter index names or shorter comments.
 drop table t1;
-End of 5.5 tests
+#
+# End of 5.5 tests
+#
+#
+# MDEV-4880 Attempt to create a table without columns produces ER_ILLEGAL_HA instead of ER_TABLE_MUST_HAVE_COLUMNS
+#
 create table t1;
 ERROR 42000: A table must have at least 1 column
+#
+# MDEV-11231 Server crashes in check_duplicate_key on CREATE TABLE ... SELECT
+#
 create table t1 (i int, j int, key(i), key(i)) as select 1 as i, 2 as j;
 Warnings:
 Note	1831	Duplicate index `i_2`. This is deprecated and will be disallowed in a future release
 drop table t1;
+#
+# End of 10.0 tests
+#

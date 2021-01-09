@@ -5997,6 +5997,38 @@ class Sql_mode_save
   sql_mode_t old_mode; // SQL mode saved at construction time.
 };
 
+class Abort_on_warning_instant_set
+{
+  THD *m_thd;
+  bool m_save_abort_on_warning;
+public:
+  Abort_on_warning_instant_set(THD *thd, bool temporary_value)
+   :m_thd(thd), m_save_abort_on_warning(thd->abort_on_warning)
+  {
+    thd->abort_on_warning= temporary_value;
+  }
+  ~Abort_on_warning_instant_set()
+  {
+    m_thd->abort_on_warning= m_save_abort_on_warning;
+  }
+};
+
+class Check_level_instant_set
+{
+  THD *m_thd;
+  enum_check_fields m_check_level;
+public:
+  Check_level_instant_set(THD *thd, enum_check_fields temporary_value)
+   :m_thd(thd), m_check_level(thd->count_cuted_fields)
+  {
+    thd->count_cuted_fields= temporary_value;
+  }
+  ~Check_level_instant_set()
+  {
+    m_thd->count_cuted_fields= m_check_level;
+  }
+};
+
 class Switch_to_definer_security_ctx
 {
  public:
