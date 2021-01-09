@@ -128,3 +128,14 @@ show global status like 'Acl%';
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+--echo #
+--echo # MDEV-22966 Server crashes or hangs with SET ROLE when started with skip-grant-tables
+--echo #
+
+--error ER_OPTION_PREVENTS_STATEMENT
+set role x;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

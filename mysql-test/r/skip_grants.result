@@ -99,3 +99,11 @@ Acl_users	0
 #
 # End of 10.1 tests
 #
+#
+# MDEV-22966 Server crashes or hangs with SET ROLE when started with skip-grant-tables
+#
+set role x;
+ERROR HY000: The MariaDB server is running with the --skip-grant-tables option so it cannot execute this statement
+#
+# End of 10.2 tests
+#
