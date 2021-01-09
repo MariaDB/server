@@ -88,7 +88,7 @@ ENDIF(UNIX)
 OPTION(CONNECT_WITH_BSON "Compile CONNECT storage engine with BSON support" ON)
 
 IF(CONNECT_WITH_BSON)
-  SET(CONNECT_SOURCES ${CONNECT_SOURCES} 
+  SET(CONNECT_SOURCES ${CONNECT_SOURCES}
   bson.cpp tabbson.cpp bsonudf.cpp bson.h tabbson.h bsonudf.h)
   add_definitions(-DBSON_SUPPORT)
 ENDIF(CONNECT_WITH_BSON)
@@ -335,25 +335,31 @@ IF(CONNECT_WITH_REST)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabrest.cpp tabrest.h)
   add_definitions(-DREST_SUPPORT)
   FIND_PACKAGE(cpprestsdk QUIET)
-  IF (cpprestsdk_FOUND)
-	IF(UNIX)
+  IF (UNIX)
+    execute_process(COMMAND lsb_release -is
+    OUTPUT_VARIABLE LSB_RELEASE_ID_SHORT
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+    MESSAGE (STATUS ${LSB_RELEASE_ID_SHORT})
+  ENDIF(UNIX)
+  IF (cpprestsdk_FOUND OR ("${LSB_RELEASE_ID_SHORT}" STREQUAL "Ubuntu"))
+  IF(UNIX)
 #     INCLUDE_DIRECTORIES(${CPPRESTSDK_INCLUDE_DIR})
 #     If needed edit next line to set the path to libcpprest.so
       SET(REST_LIBRARY -lcpprest)
       MESSAGE (STATUS ${REST_LIBRARY})
-	ELSE(NOT UNIX)
+  ELSE(NOT UNIX)
 #     Next line sets debug compile mode matching cpprest_2_10d.dll
 #     when it was binary installed (can be change later in Visual Studio)
 #     Comment it out if not needed depending on your cpprestsdk installation.
-	  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
-	ENDIF(UNIX)
+    SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
+  ENDIF(UNIX)
 #   IF(REST_LIBRARY)     why this? how about Windows
     SET(CONNECT_SOURCES ${CONNECT_SOURCES} restget.cpp)
     add_definitions(-DREST_SOURCE)
 #   ENDIF()
 # ELSE(NOT cpprestsdk_FOUND)
 #   MESSAGE(STATUS "=====> cpprestsdk package not found")
-  ENDIF (cpprestsdk_FOUND)
+  ENDIF (cpprestsdk_FOUND OR ("${LSB_RELEASE_ID_SHORT}" STREQUAL "Ubuntu"))
 ENDIF(CONNECT_WITH_REST)
 
 #
