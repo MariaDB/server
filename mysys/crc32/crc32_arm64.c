@@ -2,10 +2,20 @@
 #include <string.h>
 #include <stdint.h>
 
-#if defined(__GNUC__) && defined(HAVE_ARMV8_CRC)
+#if defined(HAVE_ARMV8_CRC)
 
 #include <sys/auxv.h>
-#include <asm/hwcap.h>
+#if defined(__FreeBSD__)
+static unsigned long getauxval(unsigned int key)
+{
+  unsigned long val;
+  if (elf_aux_info(key, (void *)&val, (int)sizeof(val) != 0)
+    return 0ul;
+  return val;
+}
+#else
+# include <asm/hwcap.h>
+#endif
 
 #ifndef HWCAP_CRC32
 # define HWCAP_CRC32 (1 << 7)
@@ -40,7 +50,7 @@ const char *crc32c_aarch64_available(void)
     return "Using ARMv8 crc32 instructions";
 }
 
-#endif /* __GNUC__ && HAVE_ARMV8_CRC */
+#endif /* HAVE_ARMV8_CRC */
 
 #ifndef HAVE_ARMV8_CRC_CRYPTO_INTRINSICS
 

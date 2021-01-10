@@ -86,7 +86,14 @@ ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
       return ret;
     }
     #include <sys/auxv.h>
-    int main() { foo(0); getauxval(AT_HWCAP); }" HAVE_ARMV8_CRC)
+    int main() { foo(0);
+    #ifdef __linux__
+    getauxval(AT_HWCAP);
+    #else
+    unsigned long v;
+    elf_aux_info(AT_HWCAP, &v, sizeof(v));
+    #endif
+    }" HAVE_ARMV8_CRC)
 
     CHECK_CXX_SOURCE_COMPILES("
     asm(\".arch_extension crypto\");
@@ -95,7 +102,14 @@ ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
       return ret;
     }
     #include <sys/auxv.h>
-    int main() { foo(0); getauxval(AT_HWCAP); }" HAVE_ARMV8_CRYPTO)
+    int main() { foo(0);
+    #ifdef __linux__
+    getauxval(AT_HWCAP);
+    #else
+    unsigned long v;
+    elf_aux_info(AT_HWCAP, &v, sizeof(v));
+    #endif
+    }" HAVE_ARMV8_CRYPTO)
 
     CHECK_C_COMPILER_FLAG(-march=armv8-a+crc+crypto HAVE_ARMV8_CRC_CRYPTO_MARCH)
 
