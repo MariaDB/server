@@ -50,7 +50,7 @@ table_ews_by_user_by_event_name::m_share=
   sizeof(pos_ews_by_user_by_event_name),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_waits_summary_by_user_by_event_name("
-                      "USER CHAR(16) collate utf8_bin default null,"
+                      "USER CHAR(" STRINGIFY_ARG(USERNAME_CHAR_LENGTH) ") collate utf8_bin default null,"
                       "EVENT_NAME VARCHAR(128) not null,"
                       "COUNT_STAR BIGINT unsigned not null,"
                       "SUM_TIMER_WAIT BIGINT unsigned not null,"

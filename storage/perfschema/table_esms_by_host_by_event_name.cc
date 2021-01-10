@@ -50,7 +50,7 @@ table_esms_by_host_by_event_name::m_share=
   sizeof(pos_esms_by_host_by_event_name),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_statements_summary_by_host_by_event_name("
-                      "HOST CHAR(60) collate utf8_bin default null,"
+                      "HOST CHAR(" STRINGIFY_ARG(HOSTNAME_LENGTH) ") collate utf8_bin default null,"
                       "EVENT_NAME VARCHAR(128) not null,"
                       "COUNT_STAR BIGINT unsigned not null,"
                       "SUM_TIMER_WAIT BIGINT unsigned not null,"
