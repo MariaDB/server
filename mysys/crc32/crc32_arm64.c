@@ -5,7 +5,18 @@
 #if defined(__GNUC__) && defined(HAVE_ARMV8_CRC)
 
 #include <sys/auxv.h>
+#if defined(__FreeBSD__) && __FreeBSD_version >= 1200000
+
+static unsigned long getauxval(unsigned int key)
+{
+  unsigned long val;
+  if (elf_aux_info(key, (void *)&val, (int)sizeof(val) != 0)
+    return 0ul;
+  return val;
+}
+#else
 #include <asm/hwcap.h>
+#endif
 
 #ifndef HWCAP_CRC32
 # define HWCAP_CRC32 (1 << 7)
