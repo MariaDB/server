@@ -5439,11 +5439,11 @@ static int init_server_components()
     }
   }
 
-  if (init_io_cache_encryption())
-    unireg_abort(1);
-
   if (opt_abort)
     unireg_abort(0);
+
+  if (init_io_cache_encryption())
+    unireg_abort(1);
 
   /* if the errmsg.sys is not loaded, terminate to maintain behaviour */
   if (!DEFAULT_ERRMSGS[0][0])
