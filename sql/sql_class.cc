@@ -1357,15 +1357,12 @@ void THD::change_user(void)
 
 /* Do operations that may take a long time */
 
-void THD::cleanup(bool have_mutex)
+void THD::cleanup(void)
 {
   DBUG_ENTER("THD::cleanup");
   DBUG_ASSERT(cleanup_done == 0);
 
-  if (have_mutex)
-    set_killed_no_mutex(KILL_CONNECTION,0,0);
-  else
-    set_killed(KILL_CONNECTION);
+  set_killed(KILL_CONNECTION);
 #ifdef ENABLE_WHEN_BINLOG_WILL_BE_ABLE_TO_PREPARE
   if (transaction.xid_state.xa_state == XA_PREPARED)
   {
@@ -1440,28 +1437,6 @@ void THD::cleanup(bool have_mutex)
 void THD::free_connection()
 {
   DBUG_ASSERT(free_connection_done == 0);
-  /* Check that we have already called thd->unlink() */
-  DBUG_ASSERT(prev == 0 && next == 0);
-
-  /*
-    Other threads may have a lock on THD::LOCK_thd_data or
-    THD::LOCK_thd_kill to ensure that this THD is not deleted
-    while they access it. The following mutex_lock ensures
-    that no one else is using this THD and it's now safe to
-    continue.
-
-    For example consider KILL-statement execution on
-    sql_parse.cc kill_one_thread() that will use
-    THD::LOCK_thd_data to protect victim thread during
-    THD::awake().
-  */
-  mysql_mutex_lock(&LOCK_thd_data);
-  mysql_mutex_lock(&LOCK_thd_kill);
-
-#ifdef WITH_WSREP
-  delete wsrep_rgi;
-  wsrep_rgi= 0;
-#endif /* WITH_WSREP */
   my_free(db);
   db= NULL;
 #ifndef EMBEDDED_LIBRARY
@@ -1470,8 +1445,8 @@ void THD::free_connection()
   net.vio= 0;
   net_end(&net);
 #endif
-  if (!cleanup_done)
-    cleanup(true); // We have locked THD::LOCK_thd_kill
+ if (!cleanup_done)
+   cleanup();
   ha_close_connection(this);
   plugin_thdvar_cleanup(this);
   mysql_audit_free_thd(this);
@@ -1482,8 +1457,6 @@ void THD::free_connection()
 #if defined(ENABLED_PROFILING)
   profiling.restart();                          // Reset profiling
 #endif
-  mysql_mutex_unlock(&LOCK_thd_kill);
-  mysql_mutex_unlock(&LOCK_thd_data);
 }
 
 /*
@@ -1539,6 +1512,9 @@ THD::~THD()
   mysql_mutex_lock(&LOCK_thd_data);
   mysql_mutex_unlock(&LOCK_thd_data);
 
+#ifdef WITH_WSREP
+  delete wsrep_rgi;
+#endif
   if (!free_connection_done)
     free_connection();
 
