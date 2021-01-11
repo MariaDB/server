@@ -73,7 +73,7 @@ bool Wsrep_client_service::interrupted(
      Locking order is:
      1) LOCK_thd_data
      2) LOCK_thd_kill */
-  mysql_mutex_assert_owner(static_cast<mysql_mutex_t*>(lock.mutex().native()));
+  mysql_mutex_assert_owner(static_cast<mysql_mutex_t*>(lock.mutex()->native()));
   mysql_mutex_lock(&m_thd->LOCK_thd_kill);
   bool ret= (m_thd->killed != NOT_KILLED);
   if (ret)

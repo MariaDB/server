@@ -2027,6 +2027,8 @@ int write_record(THD *thd, TABLE *table, COPY_INFO *info, select_result *sink)
           if (likely(!error))
           {
             info->deleted++;
+            if (!table->file->has_transactions())
+              thd->transaction->stmt.modified_non_trans_table= TRUE;
             if (table->versioned(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);

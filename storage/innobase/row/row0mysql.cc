@@ -4335,6 +4335,8 @@ row_rename_table_for_mysql(
 			   "END;\n"
 			   , FALSE, trx);
 
+	ut_ad(err != DB_DUPLICATE_KEY);
+
 	/* SYS_TABLESPACES and SYS_DATAFILES need to be updated if
 	the table is in a single-table tablespace. */
 	if (err != DB_SUCCESS || !dict_table_is_file_per_table(table)) {

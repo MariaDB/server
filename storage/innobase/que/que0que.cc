@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -334,7 +334,6 @@ que_fork_start_command(
 
 		case QUE_THR_RUNNING:
 		case QUE_THR_LOCK_WAIT:
-		case QUE_THR_PROCEDURE_WAIT:
 			ut_error;
 		}
 	}

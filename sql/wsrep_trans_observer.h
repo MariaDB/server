@@ -476,12 +476,18 @@ wsrep_wait_rollback_complete_and_acquire_ownership(THD *thd)
   DBUG_VOID_RETURN;
 }
 
-static inline int wsrep_before_command(THD* thd)
+static inline int wsrep_before_command(THD* thd, bool keep_command_error)
 {
   return (thd->wsrep_cs().state() != wsrep::client_state::s_none &&
           !thd->internal_transaction() ?
-          thd->wsrep_cs().before_command() : 0);
+          thd->wsrep_cs().before_command(keep_command_error) : 0);
 }
+
+static inline int wsrep_before_command(THD* thd)
+{
+  return wsrep_before_command(thd, false);
+}
+
 /*
   Called after each command.
 

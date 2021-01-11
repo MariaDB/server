@@ -10,6 +10,9 @@ CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t1';
+--source include/wait_condition.inc
+
 ALTER TABLE t1 ADD COLUMN f2 INTEGER, LOCK=SHARED;
 
 --connection node_1

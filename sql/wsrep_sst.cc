@@ -29,6 +29,7 @@
 #include "wsrep_utils.h"
 #include "wsrep_xid.h"
 #include "wsrep_thd.h"
+#include "wsrep_mysqld.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -596,6 +597,7 @@ static void* sst_joiner_thread (void* a)
             goto err;
           } else {
             wsrep_gtid_server.domain_id= (uint32) domain_id;
+            wsrep_gtid_domain_id= (uint32)domain_id;
           }
         }
       }
