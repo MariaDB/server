@@ -147,7 +147,7 @@ TABLE_LIST *find_table_in_list(TABLE_LIST *table,
                                TABLE_LIST *TABLE_LIST::*link,
                                const char *db_name,
                                const char *table_name);
-void close_thread_tables(THD *thd);
+void close_thread_tables(THD *thd, bool have_mutex=false);
 void switch_to_nullable_trigger_fields(List<Item> &items, TABLE *);
 void switch_defaults_to_nullable_trigger_fields(TABLE *table);
 bool fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
@@ -269,7 +269,7 @@ bool open_normal_and_derived_tables(THD *thd, TABLE_LIST *tables, uint flags,
                                     uint dt_phases);
 bool lock_tables(THD *thd, TABLE_LIST *tables, uint counter, uint flags);
 int decide_logging_format(THD *thd, TABLE_LIST *tables);
-void close_thread_table(THD *thd, TABLE **table_ptr);
+void close_thread_table(THD *thd, TABLE **table_ptr, bool have_mutex=false);
 TABLE_LIST *unique_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
                          uint check_flag);
 bool is_equal(const LEX_STRING *a, const LEX_STRING *b);

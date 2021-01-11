@@ -717,7 +717,7 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
     leave prelocked mode if needed.
 */
 
-void close_thread_tables(THD *thd)
+void close_thread_tables(THD *thd, bool have_mutex)
 {
   TABLE *table;
   DBUG_ENTER("close_thread_tables");
@@ -856,7 +856,7 @@ void close_thread_tables(THD *thd)
     other thread tries to abort the MERGE lock in between.
   */
   while (thd->open_tables)
-    (void) close_thread_table(thd, &thd->open_tables);
+	  (void) close_thread_table(thd, &thd->open_tables, have_mutex);
 
   DBUG_VOID_RETURN;
 }
@@ -864,7 +864,7 @@ void close_thread_tables(THD *thd)
 
 /* move one table to free list */
 
-void close_thread_table(THD *thd, TABLE **table_ptr)
+void close_thread_table(THD *thd, TABLE **table_ptr, bool have_mutex)
 {
   TABLE *table= *table_ptr;
   DBUG_ENTER("close_thread_table");
@@ -889,9 +889,11 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
     table->file->update_global_index_stats();
   }
 
-  mysql_mutex_lock(&thd->LOCK_thd_data);
+  if (!have_mutex)
+    mysql_mutex_lock(&thd->LOCK_thd_data);
   *table_ptr=table->next;
-  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  if (!have_mutex)
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   if (! table->needs_reopen())
   {
@@ -2193,7 +2195,7 @@ Locked_tables_list::init_locked_tables(THD *thd)
 */
 
 void
-Locked_tables_list::unlock_locked_tables(THD *thd)
+Locked_tables_list::unlock_locked_tables(THD *thd, bool have_mutex)
 {
   DBUG_ASSERT(!thd->in_sub_stmt &&
               !(thd->state_flags & Open_tables_state::BACKUPS_AVAIL));
@@ -2221,7 +2223,7 @@ Locked_tables_list::unlock_locked_tables(THD *thd)
   TRANSACT_TRACKER(clear_trx_state(thd, TX_LOCKED_TABLES));
 
   DBUG_ASSERT(thd->transaction.stmt.is_empty());
-  close_thread_tables(thd);
+  close_thread_tables(thd, have_mutex);
 
   /*
     We rely on the caller to implicitly commit the

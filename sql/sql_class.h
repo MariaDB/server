@@ -1845,7 +1845,7 @@ public:
     init_sql_alloc(&m_locked_tables_root, MEM_ROOT_BLOCK_SIZE, 0,
                    MYF(MY_THREAD_SPECIFIC));
   }
-  void unlock_locked_tables(THD *thd);
+  void unlock_locked_tables(THD *thd, bool have_mutex=false);
   void unlock_locked_table(THD *thd, MDL_ticket *mdl_ticket);
   ~Locked_tables_list()
   {

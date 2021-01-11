@@ -1374,7 +1374,7 @@ void THD::cleanup(bool have_mutex)
 #endif
 
   mysql_ha_cleanup(this);
-  locked_tables_list.unlock_locked_tables(this);
+  locked_tables_list.unlock_locked_tables(this, have_mutex);
 
   delete_dynamic(&user_var_events);
   close_temporary_tables();

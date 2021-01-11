@@ -128,7 +128,7 @@ void destroy_thd(MYSQL_THD thd);
 void reset_thd(MYSQL_THD thd);
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 			const char *tb, size_t tblen);
-void close_thread_tables(THD* thd);
+void close_thread_tables(THD* thd, bool have_mutex=false);
 
 /** Check if user has used xtradb extended system variable that
 is not currently supported by innodb or marked as deprecated. */
