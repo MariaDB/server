@@ -410,7 +410,7 @@ void trx_t::free()
   /* do not poison mutex */
   MEM_NOACCESS(&id, sizeof id);
   MEM_NOACCESS(&no, sizeof no);
-  /* state is accessed by innobase_kill_connection() */
+  MEM_NOACCESS(&state, sizeof state);
   MEM_NOACCESS(&is_recovered, sizeof is_recovered);
 #ifdef WITH_WSREP
   MEM_NOACCESS(&wsrep, sizeof wsrep);
@@ -435,7 +435,7 @@ void trx_t::free()
   MEM_NOACCESS(&start_time_micro, sizeof start_time_micro);
   MEM_NOACCESS(&commit_lsn, sizeof commit_lsn);
   MEM_NOACCESS(&table_id, sizeof table_id);
-  /* mysql_thd is accessed by innobase_kill_connection() */
+  MEM_NOACCESS(&mysql_thd, sizeof mysql_thd);
   MEM_NOACCESS(&mysql_log_file_name, sizeof mysql_log_file_name);
   MEM_NOACCESS(&mysql_log_offset, sizeof mysql_log_offset);
   MEM_NOACCESS(&n_mysql_tables_in_use, sizeof n_mysql_tables_in_use);
