@@ -444,6 +444,7 @@ void thd_set_ha_data(THD *thd, const struct handlerton *hton,
                      const void *ha_data)
 {
   plugin_ref *lock= &thd->ha_data[hton->slot].lock;
+  DBUG_ASSERT(thd == current_thd);
   if (ha_data && !*lock)
     *lock= ha_lock_engine(NULL, (handlerton*) hton);
   else if (!ha_data && *lock)
@@ -451,7 +452,9 @@ void thd_set_ha_data(THD *thd, const struct handlerton *hton,
     plugin_unlock(NULL, *lock);
     *lock= NULL;
   }
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   *thd_ha_data(thd, hton)= (void*) ha_data;
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 }
 
 
