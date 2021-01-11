@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB
+   Copyright (c) 2008, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1140,6 +1140,14 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
   }
   return true;
 }
+
+static bool wsrep_command_no_result(char command)
+{
+  return (command == COM_STMT_PREPARE          ||
+          command == COM_STMT_FETCH            ||
+          command == COM_STMT_SEND_LONG_DATA   ||
+          command == COM_STMT_CLOSE);
+}
 #endif /* WITH_WSREP */
 #ifndef EMBEDDED_LIBRARY
 static enum enum_server_command fetch_command(THD *thd, char *packet)
@@ -1278,12 +1286,21 @@ bool do_command(THD *thd)
 #ifdef WITH_WSREP
   DEBUG_SYNC(thd, "wsrep_before_before_command");
   /*
-    Aborted by background rollbacker thread.
-    Handle error here and jump straight to out
+    If this command does not return a result, then we
+    instruct wsrep_before_command() to skip result handling.
+    This causes BF aborted transaction to roll back but keep
+    the error state until next command which is able to return
+    a result to the client.
   */
-  if (unlikely(wsrep_service_started) && wsrep_before_command(thd))
+  if (unlikely(wsrep_service_started) &&
+      wsrep_before_command(thd, wsrep_command_no_result(command)))
   {
-    thd->store_globals();
+    /*
+      Aborted by background rollbacker thread.
+      Handle error here and jump straight to out.
+      Notice that thd->store_globals() is called
+      in wsrep_before_command().
+    */
     WSREP_LOG_THD(thd, "enter found BF aborted");
     DBUG_ASSERT(!thd->mdl_context.has_locks());
     DBUG_ASSERT(!thd->get_stmt_da()->is_set());
@@ -2269,20 +2286,12 @@ dispatch_end:
   */
   if (unlikely(wsrep_service_started))
   {
-    /*
-      BF aborted before sending response back to client
-    */
     if (thd->killed == KILL_QUERY)
     {
       WSREP_DEBUG("THD is killed at dispatch_end");
     }
     wsrep_after_command_before_result(thd);
-    if (wsrep_current_error(thd) &&
-        !(command == COM_STMT_PREPARE          ||
-          command == COM_STMT_FETCH            ||
-          command == COM_STMT_SEND_LONG_DATA   ||
-          command == COM_STMT_CLOSE
-          ))
+    if (wsrep_current_error(thd) && !wsrep_command_no_result(command))
     {
       /* todo: Pass wsrep client state current error to override */
       wsrep_override_error(thd, wsrep_current_error(thd),

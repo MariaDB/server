@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -410,7 +410,6 @@ buf_block_t* buf_LRU_get_free_block(bool have_mutex)
 		mysql_mutex_assert_owner(&buf_pool.mutex);
 		goto got_mutex;
 	}
-loop:
 	mysql_mutex_lock(&buf_pool.mutex);
 got_mutex:
 	buf_LRU_check_size_of_non_data_objects();
@@ -493,11 +492,10 @@ not_found:
 		++flush_failures;
 	}
 
-	srv_stats.buf_pool_wait_free.inc();
-
 	n_iterations++;
-
-	goto loop;
+	mysql_mutex_lock(&buf_pool.mutex);
+	buf_pool.stat.LRU_waits++;
+	goto got_mutex;
 }
 
 /** Move the LRU_old pointer so that the length of the old blocks list

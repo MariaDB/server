@@ -4,7 +4,7 @@ Copyright (c) 2000, 2020, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -946,8 +946,7 @@ static SHOW_VAR innodb_status_variables[]= {
    &export_vars.innodb_buffer_pool_read_requests, SHOW_SIZE_T},
   {"buffer_pool_reads",
    &export_vars.innodb_buffer_pool_reads, SHOW_SIZE_T},
-  {"buffer_pool_wait_free",
-   &export_vars.innodb_buffer_pool_wait_free, SHOW_SIZE_T},
+  {"buffer_pool_wait_free", &buf_pool.stat.LRU_waits, SHOW_SIZE_T},
   {"buffer_pool_write_requests",
    &export_vars.innodb_buffer_pool_write_requests, SHOW_SIZE_T},
   {"checkpoint_age", &export_vars.innodb_checkpoint_age, SHOW_SIZE_T},
@@ -4432,7 +4431,7 @@ static int innobase_close_connection(handlerton *hton, THD *thd)
   return 0;
 }
 
-UNIV_INTERN void lock_cancel_waiting_and_release(lock_t* lock);
+void lock_cancel_waiting_and_release(lock_t *lock);
 
 /** Cancel any pending lock request associated with the current THD.
 @sa THD::awake() @sa ha_kill_query() */
@@ -4442,6 +4441,7 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
 
   if (trx_t* trx= thd_to_trx(thd))
   {
+    ut_ad(trx->mysql_thd == thd);
 #ifdef WITH_WSREP
     if (trx->is_wsrep() && wsrep_thd_is_aborting(thd))
       /* if victim has been signaled by BF thread and/or aborting is already
@@ -4450,28 +4450,13 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
       DBUG_VOID_RETURN;
 #endif /* WITH_WSREP */
     lock_sys.mutex_lock();
-    trx_sys.trx_list.freeze();
-    trx->mutex.wr_lock();
-    /* It is possible that innobase_close_connection() is concurrently
-    being executed on our victim. Even if the trx object is later
-    reused for another client connection or a background transaction,
-    its trx->mysql_thd will differ from our thd.
-
-    trx_sys.trx_list is thread-safe. It's freezed to 'protect'
-    trx_t. However, trx_t::commit_in_memory() changes a trx_t::state
-    of autocommit non-locking transactions without any protection.
-
-    At this point, trx may have been reallocated for another client
-    connection, or for a background operation. In that case, either
-    trx_t::state or trx_t::mysql_thd should not match our expectations. */
-    bool cancel= trx->mysql_thd == thd && trx->state == TRX_STATE_ACTIVE &&
-      !trx->lock.was_chosen_as_deadlock_victim;
-    trx_sys.trx_list.unfreeze();
-    if (!cancel);
-    else if (lock_t *lock= trx->lock.wait_lock)
+    if (lock_t *lock= trx->lock.wait_lock)
+    {
+      trx->mutex.wr_lock();
       lock_cancel_waiting_and_release(lock);
+      trx->mutex.wr_unlock();
+    }
     lock_sys.mutex_unlock();
-    trx->mutex.wr_unlock();
   }
 
   DBUG_VOID_RETURN;

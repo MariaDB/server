@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4296,6 +4296,7 @@ row_rename_table_for_mysql(
 			   , FALSE, trx);
 
 	if (err != DB_SUCCESS) {
+		ut_ad(err != DB_DUPLICATE_KEY);
 		goto end;
 	}
 

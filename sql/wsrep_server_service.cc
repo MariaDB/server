@@ -162,16 +162,19 @@ void Wsrep_server_service::log_message(enum wsrep::log::level level,
   switch (level)
   {
   case wsrep::log::debug:
-    sql_print_information("debug: %s", message);
+    WSREP_DEBUG("%s", message);
     break;
   case wsrep::log::info:
-    sql_print_information("%s", message);
+    WSREP_INFO("%s", message);
     break;
   case wsrep::log::warning:
-    sql_print_warning("%s", message);
+    WSREP_WARN("%s", message);
     break;
   case wsrep::log::error:
-    sql_print_error("%s", message);
+    WSREP_ERROR("%s", message);
+    break;
+  case wsrep::log::unknown:
+    WSREP_UNKNOWN("%s", message);
     break;
   }
 }

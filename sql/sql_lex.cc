@@ -5467,14 +5467,14 @@ void st_select_lex::set_explain_type(bool on_the_fly)
               /*
                 pos_in_table_list=NULL for e.g. post-join aggregation JOIN_TABs.
               */
-              if (!tab->table);
-              else if (const TABLE_LIST *pos= tab->table->pos_in_table_list)
+              if (!(tab->table && tab->table->pos_in_table_list))
+	        continue;
+              TABLE_LIST *tbl= tab->table->pos_in_table_list;
+              if (tbl->with && tbl->with->is_recursive &&
+                  tbl->is_with_table_recursive_reference())
               {
-                if (pos->with && pos->with->is_recursive)
-                {
-                  uses_cte= true;
-                  break;
-                }
+                uses_cte= true;
+                break;
               }
             }
             if (uses_cte)

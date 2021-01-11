@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1501,7 +1501,7 @@ srv_mon_process_existing_counter(
 
 	/* innodb_buffer_pool_wait_free */
 	case MONITOR_OVLD_BUF_POOL_WAIT_FREE:
-		value = srv_stats.buf_pool_wait_free;
+		value = buf_pool.stat.LRU_waits;
 		break;
 
 	/* innodb_buffer_pool_read_ahead */

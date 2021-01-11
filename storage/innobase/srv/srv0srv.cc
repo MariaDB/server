@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1070,9 +1070,6 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_buffer_pool_write_requests =
 		srv_stats.buf_pool_write_requests;
-
-	export_vars.innodb_buffer_pool_wait_free =
-		srv_stats.buf_pool_wait_free;
 
 	export_vars.innodb_buffer_pool_reads = srv_stats.buf_pool_reads;
 

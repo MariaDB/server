@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -5287,7 +5287,7 @@ int Rows_log_event::do_add_row_data(uchar *row_data, size_t length)
   There was the same problem with MERGE MYISAM tables and so here we try to
   go the same way.
 */
-static void restore_empty_query_table_list(LEX *lex)
+inline void restore_empty_query_table_list(LEX *lex)
 {
   if (lex->first_not_own_table())
       (*lex->first_not_own_table()->prev_global)= NULL;
@@ -5302,6 +5302,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   TABLE* table;
   DBUG_ENTER("Rows_log_event::do_apply_event(Relay_log_info*)");
   int error= 0;
+  LEX *lex= thd->lex;
+  uint8 new_trg_event_map= get_trg_event_map();
   /*
     If m_table_id == ~0ULL, then we have a dummy event that does not
     contain any data.  In that case, we just remove all tables in the
@@ -5392,25 +5394,28 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
                       DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(action)));
                     };);
 
-    if (slave_run_triggers_for_rbr)
+
+    /*
+      Trigger's procedures work with global table list. So we have to add
+      rgi->tables_to_lock content there to get trigger's in the list.
+
+      Then restore_empty_query_table_list() restore the list as it was
+    */
+    DBUG_ASSERT(lex->query_tables == NULL);
+    if ((lex->query_tables= rgi->tables_to_lock))
+      rgi->tables_to_lock->prev_global= &lex->query_tables;
+
+    for (TABLE_LIST *tables= rgi->tables_to_lock; tables;
+         tables= tables->next_global)
     {
-      LEX *lex= thd->lex;
-      uint8 new_trg_event_map= get_trg_event_map();
-
-      /*
-        Trigger's procedures work with global table list. So we have to add
-        rgi->tables_to_lock content there to get trigger's in the list.
-
-        Then restore_empty_query_table_list() restore the list as it was
-      */
-      DBUG_ASSERT(lex->query_tables == NULL);
-      if ((lex->query_tables= rgi->tables_to_lock))
-        rgi->tables_to_lock->prev_global= &lex->query_tables;
-
-      for (TABLE_LIST *tables= rgi->tables_to_lock; tables;
-           tables= tables->next_global)
+      if (slave_run_triggers_for_rbr)
       {
         tables->trg_event_map= new_trg_event_map;
+        lex->query_tables_last= &tables->next_global;
+      }
+      else if (!WSREP_ON)
+      {
+        tables->slave_fk_event_map= new_trg_event_map;
         lex->query_tables_last= &tables->next_global;
       }
     }
@@ -5771,8 +5776,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   }
 
   /* remove trigger's tables */
-  if (slave_run_triggers_for_rbr)
-    restore_empty_query_table_list(thd->lex);
+  restore_empty_query_table_list(thd->lex);
 
 #if defined(WITH_WSREP) && defined(HAVE_QUERY_CACHE)
     if (WSREP(thd) && wsrep_thd_is_applying(thd))
@@ -5791,8 +5795,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   DBUG_RETURN(error);
 
 err:
-  if (slave_run_triggers_for_rbr)
-    restore_empty_query_table_list(thd->lex);
+  restore_empty_query_table_list(thd->lex);
   rgi->slave_close_thread_tables(thd);
   DBUG_RETURN(error);
 }

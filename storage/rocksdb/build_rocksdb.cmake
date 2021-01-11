@@ -109,8 +109,8 @@ if(NOT WIN32)
 endif()
 
 include(CheckCCompilerFlag)
-# ppc64 or ppc64le
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
+# ppc64 or ppc64le or powerpc64 (BSD)
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64")
   CHECK_C_COMPILER_FLAG("-maltivec" HAS_ALTIVEC)
   if(HAS_ALTIVEC)
     message(STATUS " HAS_ALTIVEC yes")

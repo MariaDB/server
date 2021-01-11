@@ -1,5 +1,5 @@
 /* Copyright 2008-2015 Codership Oy <http://www.codership.com>
-   Copyright (c) 2020, MariaDB
+   Copyright (c) 2020, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -110,6 +110,7 @@ ulong wsrep_mysql_replication_bundle;
 
 bool              wsrep_gtid_mode;              // Enable WSREP native GTID support
 Wsrep_gtid_server wsrep_gtid_server;
+uint  wsrep_gtid_domain_id=0;                   // Domain id on above structure
 
 /* Other configuration variables and their default values. */
 my_bool wsrep_incremental_data_collection= 0;   // Incremental data collection
@@ -319,29 +320,31 @@ wsp::node_status           local_status;
  */
 Wsrep_schema *wsrep_schema= 0;
 
-static void wsrep_log_cb(wsrep::log::level level, const char *msg)
+static void wsrep_log_cb(wsrep::log::level level,
+                         const char*, const char *msg)
 {
   /*
     Silence all wsrep related logging from lib and provider if
     wsrep is not enabled.
   */
-  if (WSREP_ON)
-  {
-    switch (level) {
-    case wsrep::log::info:
-      sql_print_information("WSREP: %s", msg);
-      break;
-    case wsrep::log::warning:
-      sql_print_warning("WSREP: %s", msg);
-      break;
-    case wsrep::log::error:
-      sql_print_error("WSREP: %s", msg);
+  if (!WSREP_ON) return;
+
+  switch (level) {
+  case wsrep::log::info:
+    WSREP_INFO("%s", msg);
     break;
-    case wsrep::log::debug:
-      if (wsrep_debug) sql_print_information ("[Debug] WSREP: %s", msg);
-    default:
-      break;
-    }
+  case wsrep::log::warning:
+    WSREP_WARN("%s", msg);
+    break;
+  case wsrep::log::error:
+    WSREP_ERROR("%s", msg);
+    break;
+  case wsrep::log::debug:
+    WSREP_DEBUG("%s", msg);
+    break;
+  case wsrep::log::unknown:
+    WSREP_UNKNOWN("%s", msg);
+    break;
   }
 }
 
@@ -786,6 +789,7 @@ int wsrep_init_server()
 
 void wsrep_init_globals()
 {
+  wsrep_gtid_server.domain_id= wsrep_gtid_domain_id;
   wsrep_init_sidno(Wsrep_server_state::instance().connected_gtid().id());
   wsrep_init_gtid();
   /* Recover last written wsrep gtid */

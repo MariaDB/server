@@ -115,7 +115,7 @@ ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|AARCH64")
         COMPILE_FLAGS "-march=armv8-a+crc+crypto")
     ENDIF()
   ENDIF()
-ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
+ELSEIF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64")
   SET(MYSYS_SOURCES ${MYSYS_SOURCES} crc32/crc32_ppc64.c crc32/crc32c_ppc.c)
   SET_SOURCE_FILES_PROPERTIES(crc32/crc32_ppc64.c crc32/crc32c_ppc.c PROPERTIES
         COMPILE_FLAGS "${COMPILE_FLAGS} -maltivec -mvsx -mpower8-vector -mcrypto -mpower8-vector")

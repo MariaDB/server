@@ -944,3 +944,11 @@ void wsrep_free_status (THD* thd)
 {
   thd->wsrep_status_vars.clear();
 }
+
+bool wsrep_gtid_domain_id_update(sys_var* self, THD *thd, enum_var_type)
+{
+  WSREP_DEBUG("wsrep_gtid_domain_id_update: %llu",
+              wsrep_gtid_domain_id);
+  wsrep_gtid_server.domain_id= wsrep_gtid_domain_id;
+  return false;
+}

@@ -1,5 +1,5 @@
 /* Copyright 2008-2017 Codership Oy <http://www.codership.com>
-   Copyright (c) 2020, MariaDB
+   Copyright (c) 2020, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -101,6 +101,7 @@ extern ulong       wsrep_running_rollbacker_threads;
 extern bool        wsrep_new_cluster;
 extern bool        wsrep_gtid_mode;
 extern my_bool     wsrep_strict_ddl;
+extern uint        wsrep_gtid_domain_id;
 
 enum enum_wsrep_reject_types {
   WSREP_REJECT_NONE,    /* nothing rejected */
@@ -254,10 +255,11 @@ void WSREP_LOG(void (*fun)(const char* fmt, ...), const char* fmt, ...);
 #define WSREP_INFO(...)  sql_print_information( "WSREP: " __VA_ARGS__)
 #define WSREP_WARN(...)  sql_print_warning(     "WSREP: " __VA_ARGS__)
 #define WSREP_ERROR(...) sql_print_error(       "WSREP: " __VA_ARGS__)
+#define WSREP_UNKNOWN(fmt, ...) WSREP_ERROR("UNKNOWN: " fmt, ##__VA_ARGS__)
 
 #define WSREP_LOG_CONFLICT_THD(thd, role)                               \
-  sql_print_information(                                                \
-            "WSREP: %s: \n "                                            \
+  WSREP_INFO(                                                \
+            "%s: \n "                                            \
             "  THD: %lu, mode: %s, state: %s, conflict: %s, seqno: %lld\n " \
             "  SQL: %s",                                                \
             role,                                                       \
@@ -272,12 +274,12 @@ void WSREP_LOG(void (*fun)(const char* fmt, ...), const char* fmt, ...);
 #define WSREP_LOG_CONFLICT(bf_thd, victim_thd, bf_abort)                \
   if (wsrep_debug || wsrep_log_conflicts)                               \
   {                                                                     \
-    sql_print_information( "WSREP: cluster conflict due to %s for threads:", \
-              (bf_abort) ? "high priority abort" : "certification failure" \
+    WSREP_INFO("cluster conflict due to %s for threads:",               \
+               (bf_abort) ? "high priority abort" : "certification failure" \
               );                                                        \
     if (bf_thd)     WSREP_LOG_CONFLICT_THD(bf_thd, "Winning thread");   \
     if (victim_thd) WSREP_LOG_CONFLICT_THD(victim_thd, "Victim thread"); \
-    sql_print_information("WSREP: context: %s:%d", __FILE__, __LINE__); \
+    WSREP_INFO("context: %s:%d", __FILE__, __LINE__); \
   }
 
 #define WSREP_PROVIDER_EXISTS                                                  \

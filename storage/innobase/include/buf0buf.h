@@ -1279,6 +1279,8 @@ struct buf_pool_stat_t{
 				young because the first access
 				was not long enough ago, in
 				buf_page_peek_if_too_old() */
+	/** number of waits for eviction; writes protected by buf_pool.mutex */
+	ulint	LRU_waits;
 	ulint	LRU_bytes;	/*!< LRU size in bytes */
 	ulint	flush_list_bytes;/*!< flush_list size in bytes */
 };
@@ -1710,7 +1712,7 @@ public:
   static constexpr uint32_t READ_AHEAD_PAGES= 64;
 
   /** Buffer pool mutex */
-  mysql_mutex_t mutex;
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t mutex;
   /** Number of pending LRU flush. */
   Atomic_counter<ulint> n_flush_LRU;
   /** broadcast when n_flush_LRU reaches 0; protected by mutex */
@@ -1857,7 +1859,7 @@ public:
 
   /** mutex protecting flush_list, buf_page_t::set_oldest_modification()
   and buf_page_t::list pointers when !oldest_modification() */
-  mysql_mutex_t flush_list_mutex;
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t flush_list_mutex;
   /** "hazard pointer" for flush_list scans; protected by flush_list_mutex */
   FlushHp flush_hp;
   /** modified blocks (a subset of LRU) */
