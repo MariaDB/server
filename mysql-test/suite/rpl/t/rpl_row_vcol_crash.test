@@ -1,0 +1,425 @@
+# ==== Purpose ====
+#
+# Test verifies that, slave doesn't report any assert on UPDATE or DELETE of
+# row which tries to update the virtual columns with associated KEYs.
+#
+# Test scenarios are listed below.
+#   1) KEY on a virtual column with ON DELETE CASCADE
+#   2) Verify "ON DELETE CASCADE" for parent->child->child scenario
+#   3) KEY on a virtual column with ON UPDATE CASCADE
+#   4) Define triggers on master, their results should be replicated
+#      as part of row events and they should be applied on slave with
+#      the default slave_run_triggers_for_rbr=NO
+#   5) Define triggers + Foreign Keys on master, their results should be
+#      replicated as part of row events and master and slave should be in sync.
+#   6) Triggers are present only on slave and 'slave_run_triggers_for_rbr=NO'
+#   7) Triggers are present only on slave and 'slave_run_triggers_for_rbr=YES'
+#   8) Triggers and Foreign Keys are present only on slave and
+#      'slave_run_triggers_for_rbr=NO'
+#   9) Triggers are Foreign Keys are present only on slave and
+#      'slave_run_triggers_for_rbr=YES'
+#
+# ==== References ====
+#
+# MDEV-23033: All slaves crash once in ~24 hours and loop restart with signal 11
+#
+
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+
+--echo #
+--echo # Test case 1: KEY on a virtual column with ON DELETE CASCADE
+--echo #
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3);
+
+CREATE TABLE t2 (id INT NOT NULL PRIMARY KEY,
+  t1_id INT NOT NULL,
+  v_col INT AS (t1_id+1) VIRTUAL, KEY (v_col), KEY (t1_id),
+  CONSTRAINT a FOREIGN KEY (t1_id) REFERENCES t1 (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO t2 VALUES (90,1,NULL);
+INSERT INTO t2 VALUES (91,2,default);
+
+# Following query results in an assert on slave
+DELETE FROM t1 WHERE id=1;
+--sync_slave_with_master
+
+--echo #
+--echo # Verify data consistency on slave
+--echo #
+--let $diff_tables= master:test.t1, slave:test.t1
+--source include/diff_tables.inc
+--let $diff_tables= master:test.t2, slave:test.t2
+--source include/diff_tables.inc
+
+--connection master
+DROP TABLE t2,t1;
+--sync_slave_with_master
+
+--echo #
+--echo # Test case 2: Verify "ON DELETE CASCADE" for parent->child->child scenario
+--echo #              Parent table: users
+--echo #              Child tables: matchmaking_groups, matchmaking_group_users
+--echo #              Parent table: matchmaking_groups
+--echo #              Child tables: matchmaking_group_users, matchmaking_group_maps
+--echo #
+--echo #              Deleting a row from parent table should be reflected in
+--echo #              child tables.
+--echo #              matchmaking_groups->matchmaking_group_users->matchmaking_group_maps
+--echo #              users->matchmaking_group_users->matchmaking_group_maps
+--echo #
+
+--connection master
+CREATE TABLE users (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(32) NOT NULL DEFAULT ''
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE matchmaking_groups (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  host_user_id INT UNSIGNED NOT NULL UNIQUE,
+  v_col INT AS (host_user_id+1) VIRTUAL, KEY (v_col),
+  CONSTRAINT FOREIGN KEY (host_user_id) REFERENCES users (id)
+  ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE matchmaking_group_users (
+  matchmaking_group_id BIGINT UNSIGNED NOT NULL,
+  user_id INT UNSIGNED NOT NULL,
+  v_col1 int as (user_id+1) virtual, KEY (v_col1),
+  PRIMARY KEY (matchmaking_group_id,user_id),
+  UNIQUE KEY user_id (user_id),
+  CONSTRAINT FOREIGN KEY (matchmaking_group_id)
+  REFERENCES matchmaking_groups (id) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT FOREIGN KEY (user_id)
+  REFERENCES users (id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+CREATE TABLE matchmaking_group_maps (
+  matchmaking_group_id BIGINT UNSIGNED NOT NULL,
+  map_id TINYINT UNSIGNED NOT NULL,
+  v_col2 INT AS (map_id+1) VIRTUAL, KEY (v_col2),
+  PRIMARY KEY (matchmaking_group_id,map_id),
+  CONSTRAINT FOREIGN KEY (matchmaking_group_id)
+  REFERENCES matchmaking_groups (id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+--sync_slave_with_master
+
+--connection master
+INSERT INTO users VALUES (NULL,'foo'),(NULL,'bar');
+INSERT INTO matchmaking_groups VALUES (10,1,default),(11,2,default);
+INSERT INTO matchmaking_group_users VALUES (10,1,default),(11,2,default);
+INSERT INTO matchmaking_group_maps VALUES (10,55,default),(11,66,default);
+
+DELETE FROM matchmaking_groups WHERE id = 10;
+--sync_slave_with_master
+
+--echo #
+--echo # No rows should be returned as ON DELETE CASCASE should have removed
+--echo # corresponding rows from child tables. There should not any mismatch
+--echo # of 'id' field between parent->child.
+--echo #
+SELECT * FROM matchmaking_group_users WHERE matchmaking_group_id NOT IN (SELECT id FROM matchmaking_groups);
+SELECT * FROM matchmaking_group_maps WHERE matchmaking_group_id NOT IN (SELECT id FROM matchmaking_groups);
+
+--echo #
+--echo # Rows with id=11 should be present
+--echo #
+SELECT * FROM matchmaking_group_users;
+SELECT * FROM matchmaking_group_maps;
+
+--connection master
+DELETE FROM users WHERE id = 2;
+--sync_slave_with_master
+
+--echo #
+--echo # No rows should be present in both the child tables
+--echo #
+SELECT * FROM matchmaking_group_users;
+SELECT * FROM matchmaking_group_maps;
+
+--connection master
+DROP TABLE matchmaking_group_maps, matchmaking_group_users, matchmaking_groups, users;
+--sync_slave_with_master
+
+--echo #
+--echo # Test case 3: KEY on a virtual column with ON UPDATE CASCADE
+--echo #
+
+--connection master
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY, b INT NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 80);
+
+CREATE TABLE t2 (a INT KEY, b INT,
+  v_col int as (b+1) virtual, KEY (v_col),
+  CONSTRAINT b FOREIGN KEY (b) REFERENCES t1(a) ON UPDATE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (51, 1, default);
+--sync_slave_with_master
+
+--connection master
+UPDATE t1 SET a = 50 WHERE a = 1;
+
+--echo #
+--echo # Master: Verify that ON UPDATE CASCADE works fine
+--echo # old_row: (51, 1, 2) ON UPDATE New_row: (51, 50, 51)
+--echo #
+SELECT * FROM t2 WHERE b=50;
+--sync_slave_with_master
+
+--echo #
+--echo # Slave: Verify that ON UPDATE CASCADE works fine
+--echo # old_row: (51, 1, 2) ON UPDATE New_row: (51, 50, 51)
+--echo #
+SELECT * FROM t2 WHERE b=50;
+
+--connection master
+DROP TABLE t2, t1;
+--sync_slave_with_master
+
+--echo #
+--echo # Test case 4: Define triggers on master, their results should be 
+--echo #              replicated as part of row events and they should be
+--echo #              applied on slave with the default
+--echo #              slave_run_triggers_for_rbr=NO
+--echo #
+
+# In row-based replication, the binary log contains row changes. It will have
+# both the changes made by the statement itself, and the changes made by the
+# triggers that were invoked by the statement. Slave server(s) do not need to
+# run triggers for row changes they are applying.  Hence verify that this
+# property remains the same and data should be available as if trigger was
+# executed. Please note by default slave_run_triggers_for_rbr=NO.
+
+--connection master
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (count INT NOT NULL) ENGINE=InnoDB;
+CREATE TRIGGER trg AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES (1);
+INSERT INTO t1 VALUES (2),(3);
+--sync_slave_with_master
+
+SHOW GLOBAL VARIABLES LIKE 'slave_run_triggers_for_rbr';
+--echo #
+--echo # As two rows are inserted in table 't1', two rows should get inserted
+--echo # into table 't2' as part of trigger.
+--echo #
+--let $assert_cond= COUNT(*) = 2 FROM t2
+--let $assert_text= Table t2 should have two rows.
+--source include/assert.inc
+
+--connection master
+DROP TABLE t1,t2;
+--sync_slave_with_master
+
+--echo #
+--echo # Test case 5: Define triggers + Foreign Keys on master, their results
+--echo #              should be replicated as part of row events and master
+--echo #              and slave should be in sync.
+--echo #
+--connection master
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (t1_id INT NOT NULL,
+  v_col INT AS (t1_id+1) VIRTUAL, KEY (v_col), KEY (t1_id),
+  CONSTRAINT a FOREIGN KEY (t1_id) REFERENCES t1 (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE t3 (count INT NOT NULL) ENGINE=InnoDB;
+CREATE TRIGGER trg AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t3 VALUES (1);
+
+INSERT INTO t1 VALUES (2),(3);
+INSERT INTO t2 VALUES (2, default), (3, default);
+--sync_slave_with_master
+
+--echo #
+--echo # As two rows are inserted in table 't1', two rows should get inserted
+--echo # into table 't3' as part of trigger.
+--echo #
+--let $assert_cond= COUNT(*) = 2 FROM t3
+--let $assert_text= Table t3 should have two rows.
+--source include/assert.inc
+
+--echo #
+--echo # Verify ON DELETE CASCASE correctness
+--echo #
+--connection master
+DELETE FROM t1 WHERE id=2;
+--sync_slave_with_master
+
+--connection master
+--let $diff_tables= master:test.t1, slave:test.t1
+--source include/diff_tables.inc
+--let $diff_tables= master:test.t2, slave:test.t2
+--source include/diff_tables.inc
+--let $diff_tables= master:test.t3, slave:test.t3
+--source include/diff_tables.inc
+
+DROP TABLE t3,t2,t1;
+--sync_slave_with_master
+
+#
+# Test case: Triggers only on slave
+#
+--write_file $MYSQLTEST_VARDIR/tmp/trig_on_slave.inc PROCEDURE
+  if ($slave_run_triggers_for_rbr == '') {
+    --die !!!ERROR IN TEST: you must set $slave_run_triggers_for_rbr
+  }
+
+--connection slave
+SET @save_slave_run_triggers_for_rbr= @@GLOBAL.slave_run_triggers_for_rbr;
+--eval SET GLOBAL slave_run_triggers_for_rbr= $slave_run_triggers_for_rbr;
+SHOW GLOBAL VARIABLES LIKE '%slave_run_triggers_for_rbr%';
+
+--connection master
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (t1_id INT NOT NULL,
+  v_col INT AS (t1_id+1) VIRTUAL, KEY (v_col),
+  KEY (t1_id), CONSTRAINT a FOREIGN KEY (t1_id) REFERENCES t1 (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE t3 (count INT NOT NULL) ENGINE=InnoDB;
+--sync_slave_with_master
+
+CREATE TRIGGER trg AFTER INSERT ON t2 FOR EACH ROW INSERT INTO t3 VALUES (1);
+
+--connection master
+INSERT INTO t1 VALUES (2),(3);
+INSERT INTO t2 VALUES (2, default), (3, default);
+--sync_slave_with_master
+
+if ($slave_run_triggers_for_rbr == 'NO') {
+--echo #
+--echo # Count must be 0
+--echo #
+--let $assert_cond= COUNT(*) = 0 FROM t3
+--let $assert_text= Table t3 should have zero rows.
+--source include/assert.inc
+}
+if ($slave_run_triggers_for_rbr == 'YES') {
+--echo #
+--echo # Count must be 2
+--echo #
+--let $assert_cond= COUNT(*) = 2 FROM t3
+--let $assert_text= Table t3 should have two rows.
+--source include/assert.inc
+}
+
+--connection master
+DELETE FROM t1 WHERE id=2;
+--sync_slave_with_master
+SET GLOBAL slave_run_triggers_for_rbr= @save_slave_run_triggers_for_rbr;
+
+--echo #
+--echo # Verify t1, t2 are consistent on slave.
+--echo #
+--let $diff_tables= master:test.t1, slave:test.t1
+--source include/diff_tables.inc
+--let $diff_tables= master:test.t2, slave:test.t2
+--source include/diff_tables.inc
+
+--connection master
+DROP TABLE t3,t2,t1;
+--sync_slave_with_master
+#END OF
+PROCEDURE
+
+--echo #
+--echo # Test case 6: Triggers are present only on slave and
+--echo #              'slave_run_triggers_for_rbr=NO'
+--echo #
+--let $slave_run_triggers_for_rbr=NO
+--source $MYSQLTEST_VARDIR/tmp/trig_on_slave.inc
+
+--echo #
+--echo # Test case 7: Triggers are present only on slave and
+--echo #              'slave_run_triggers_for_rbr=YES'
+--echo #
+--let $slave_run_triggers_for_rbr=YES
+--source $MYSQLTEST_VARDIR/tmp/trig_on_slave.inc
+--remove_file $MYSQLTEST_VARDIR/tmp/trig_on_slave.inc
+
+#
+# Test case: Trigger and Foreign Key are present only on slave
+#
+--write_file $MYSQLTEST_VARDIR/tmp/trig_fk_on_slave.inc PROCEDURE
+  if ($slave_run_triggers_for_rbr == '') {
+    --die !!!ERROR IN TEST: you must set $slave_run_triggers_for_rbr
+  }
+
+--connection slave
+SET @save_slave_run_triggers_for_rbr= @@GLOBAL.slave_run_triggers_for_rbr;
+--eval SET GLOBAL slave_run_triggers_for_rbr= $slave_run_triggers_for_rbr;
+SHOW GLOBAL VARIABLES LIKE '%slave_run_triggers_for_rbr%';
+
+--connection master
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+SET sql_log_bin=0;
+CREATE TABLE t2 (t1_id INT NOT NULL,v_col INT AS (t1_id+1) VIRTUAL) ENGINE=INNODB;
+SET sql_log_bin=1;
+CREATE TABLE t3 (count INT NOT NULL) ENGINE=InnoDB;
+--sync_slave_with_master
+
+# Have foreign key and trigger on slave.
+CREATE TABLE t2 (t1_id INT NOT NULL,
+  v_col INT AS (t1_id+1) VIRTUAL, KEY (v_col), KEY (t1_id),
+  CONSTRAINT a FOREIGN KEY (t1_id) REFERENCES t1 (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+CREATE TRIGGER trg AFTER INSERT ON t2 FOR EACH ROW INSERT INTO t3 VALUES (1);
+
+--connection master
+INSERT INTO t1 VALUES (2),(3);
+INSERT INTO t2 VALUES (2, default), (3, default);
+--sync_slave_with_master
+
+if ($slave_run_triggers_for_rbr == 'NO') {
+--echo #
+--echo # Count must be 0
+--echo #
+--let $assert_cond= COUNT(*) = 0 FROM t3
+--let $assert_text= Table t3 should have zero rows.
+--source include/assert.inc
+}
+if ($slave_run_triggers_for_rbr == 'YES') {
+--echo #
+--echo # Count must be 2
+--echo #
+--let $assert_cond= COUNT(*) = 2 FROM t3
+--let $assert_text= Table t3 should have two rows.
+--source include/assert.inc
+}
+
+--connection master
+DELETE FROM t1 WHERE id=2;
+--echo # t1: Should have one row
+SELECT * FROM t1;
+--echo # t2: Should have two rows
+SELECT * FROM t2;
+--sync_slave_with_master
+--echo # t1: Should have one row
+SELECT * FROM t1;
+--echo # t2: Should have one row on slave due to ON DELETE CASCASE
+SELECT * FROM t2;
+SET GLOBAL slave_run_triggers_for_rbr= @save_slave_run_triggers_for_rbr;
+
+--connection master
+DROP TABLE t3,t2,t1;
+--sync_slave_with_master
+#END OF
+PROCEDURE
+
+--echo #
+--echo # Test case 8: Triggers and Foreign Keys are present only on slave and
+--echo #              'slave_run_triggers_for_rbr=NO'
+--echo #
+--let $slave_run_triggers_for_rbr=NO
+--source $MYSQLTEST_VARDIR/tmp/trig_fk_on_slave.inc
+
+--echo #
+--echo # Test case 9: Triggers are Foreign Keys are present only on slave and
+--echo #              'slave_run_triggers_for_rbr=YES'
+--echo #
+--let $slave_run_triggers_for_rbr=YES
+--source $MYSQLTEST_VARDIR/tmp/trig_fk_on_slave.inc
+--remove_file $MYSQLTEST_VARDIR/tmp/trig_fk_on_slave.inc
+
+--source include/rpl_end.inc

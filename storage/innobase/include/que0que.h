@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -303,7 +303,6 @@ que_fork_scheduler_round_robin(
 /** Query thread states */
 enum que_thr_state_t {
 	QUE_THR_RUNNING,
-	QUE_THR_PROCEDURE_WAIT,
 	/** in selects this means that the thread is at the end of its
 	result set (or start, in case of a scroll cursor); in other
 	statements, this means the thread has done its task */

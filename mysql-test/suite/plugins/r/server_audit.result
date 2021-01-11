@@ -227,6 +227,7 @@ set global server_audit_logging= on;
 disconnect cn1;
 drop user user1@localhost;
 set global server_audit_events='';
+set global server_audit_incl_users='root, plug_dest';
 CREATE USER plug IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 connect(localhost,plug,plug_dest,test,MYSQL_PORT,MYSQL_SOCK);
@@ -277,7 +278,7 @@ server_audit_file_path
 server_audit_file_rotate_now	OFF
 server_audit_file_rotate_size	1000000
 server_audit_file_rotations	9
-server_audit_incl_users	root
+server_audit_incl_users	root, plug_dest
 server_audit_logging	ON
 server_audit_mode	1
 server_audit_output_type	file
@@ -431,6 +432,7 @@ TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,roles_mapping,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global server_audit_events=\'\'',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global server_audit_incl_users=\'root, plug_dest\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,columns_priv,
@@ -454,6 +456,7 @@ TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,global_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'GRANT PROXY ON plug_dest TO plug',0
 TIME,HOSTNAME,plug,localhost,ID,0,CONNECT,test,,0
 TIME,HOSTNAME,plug,localhost,ID,0,PROXY_CONNECT,test,`plug_dest`@`%`,0
+TIME,HOSTNAME,plug,localhost,ID,ID,QUERY,test,'select USER(),CURRENT_USER()',0
 TIME,HOSTNAME,plug,localhost,ID,0,DISCONNECT,test,,0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,

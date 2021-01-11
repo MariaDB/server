@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -10150,6 +10150,44 @@ innobase_page_compression_try(
 	DBUG_RETURN(false);
 }
 
+static
+void
+dict_stats_try_drop_table(THD *thd, const table_name_t &name,
+                          const LEX_CSTRING &table_name)
+{
+  char errstr[1024];
+  if (dict_stats_drop_table(name.m_name, errstr, sizeof(errstr)) != DB_SUCCESS)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_ALTER_INFO,
+                        "Deleting persistent statistics"
+                        " for table '%s' in InnoDB failed: %s",
+                        table_name.str,
+                        errstr);
+  }
+}
+
+/** Evict the table from cache and reopen it. Drop outdated statistics.
+  @param thd                 mariadb THD entity
+  @param table               innodb table
+  @param maria_table_name    user-friendly table name for errors
+  @return newly opened table */
+static
+dict_table_t*
+innobase_reload_table(THD *thd, dict_table_t *table,
+                      const LEX_CSTRING &table_name)
+{
+  char *tb_name= strdup(table->name.m_name);
+  dict_table_close(table, true, false);
+  dict_sys.remove(table);
+  table= dict_table_open_on_name(tb_name, TRUE, TRUE,
+                                  DICT_ERR_IGNORE_FK_NOKEY);
+
+  /* Drop outdated table stats. */
+  dict_stats_try_drop_table(thd, table->name, table_name);
+  free(tb_name);
+  return table;
+}
+
 /** Commit the changes made during prepare_inplace_alter_table()
 and inplace_alter_table() inside the data dictionary tables,
 when not rebuilding the table.
@@ -11358,44 +11396,25 @@ foreign_fail:
 	Currently dict_load_column_low() is the only place where
 	num_base for virtual columns is assigned to nonzero. */
 	if (ctx0->num_to_drop_vcol || ctx0->num_to_add_vcol
+	    || (ctx0->new_table->n_v_cols && !new_clustered
+		&& (ha_alter_info->alter_info->drop_list.elements
+		    || ha_alter_info->alter_info->create_list.elements))
 	    || (ctx0->is_instant()
 		&& m_prebuilt->table->n_v_cols
 		&& ha_alter_info->handler_flags & ALTER_STORED_COLUMN_ORDER)) {
-		/* FIXME: this workaround does not seem to work with
-		partitioned tables */
 		DBUG_ASSERT(ctx0->old_table->get_ref_count() == 1);
-
 		trx_commit_for_mysql(m_prebuilt->trx);
 
-		char	tb_name[NAME_LEN * 2 + 1 + 1];
-		strcpy(tb_name, m_prebuilt->table->name.m_name);
-		dict_table_close(m_prebuilt->table, true, false);
 		if (ctx0->is_instant()) {
 			for (unsigned i = ctx0->old_n_v_cols; i--; ) {
 				ctx0->old_v_cols[i].~dict_v_col_t();
 			}
 			const_cast<unsigned&>(ctx0->old_n_v_cols) = 0;
 		}
-		dict_sys.remove(m_prebuilt->table);
-		m_prebuilt->table = dict_table_open_on_name(
-			tb_name, TRUE, TRUE, DICT_ERR_IGNORE_FK_NOKEY);
 
-		/* Drop outdated table stats. */
-		char	errstr[1024];
-		if (dict_stats_drop_table(
-			    m_prebuilt->table->name.m_name,
-			    errstr, sizeof(errstr))
-		    != DB_SUCCESS) {
-			push_warning_printf(
-				m_user_thd,
-				Sql_condition::WARN_LEVEL_WARN,
-				ER_ALTER_INFO,
-				"Deleting persistent statistics"
-				" for table '%s' in"
-				" InnoDB failed: %s",
-				table->s->table_name.str,
-				errstr);
-		}
+		m_prebuilt->table = innobase_reload_table(m_user_thd,
+                                                          m_prebuilt->table,
+                                                          table->s->table_name);
 
 		row_mysql_unlock_data_dictionary(trx);
 		trx->free();
@@ -11455,25 +11474,12 @@ foreign_fail:
 			old copy of the table (which was renamed to
 			ctx->tmp_name). */
 
-			char	errstr[1024];
-
 			DBUG_ASSERT(0 == strcmp(ctx->old_table->name.m_name,
 						ctx->tmp_name));
 
-			if (dict_stats_drop_table(
-				    ctx->new_table->name.m_name,
-				    errstr, sizeof(errstr))
-			    != DB_SUCCESS) {
-				push_warning_printf(
-					m_user_thd,
-					Sql_condition::WARN_LEVEL_WARN,
-					ER_ALTER_INFO,
-					"Deleting persistent statistics"
-					" for rebuilt table '%s' in"
-					" InnoDB failed: %s",
-					table->s->table_name.str,
-					errstr);
-			}
+			dict_stats_try_drop_table(m_user_thd,
+                                                  ctx->new_table->name,
+                                                  table->s->table_name);
 
 			DBUG_EXECUTE_IF("ib_ddl_crash_before_commit",
 					DBUG_SUICIDE(););

@@ -4,7 +4,7 @@ Copyright (c) 2000, 2020, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -5066,7 +5066,7 @@ rollback_and_free:
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN void lock_cancel_waiting_and_release(lock_t* lock);
+void lock_cancel_waiting_and_release(lock_t *lock);
 
 /** Cancel any pending lock request associated with the current THD.
 @sa THD::awake() @sa ha_kill_query() */
@@ -5076,6 +5076,7 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
 
   if (trx_t* trx= thd_to_trx(thd))
   {
+    ut_ad(trx->mysql_thd == thd);
 #ifdef WITH_WSREP
     if (trx->is_wsrep() && wsrep_thd_is_aborting(thd))
       /* if victim has been signaled by BF thread and/or aborting is already
@@ -5084,28 +5085,13 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
       DBUG_VOID_RETURN;
 #endif /* WITH_WSREP */
     lock_mutex_enter();
-    mutex_enter(&trx_sys.mutex);
-    trx_mutex_enter(trx);
-    /* It is possible that innobase_close_connection() is concurrently
-    being executed on our victim. Even if the trx object is later
-    reused for another client connection or a background transaction,
-    its trx->mysql_thd will differ from our thd.
-
-    trx_t::state changes are protected by trx_t::mutex, and
-    trx_sys.trx_list is protected by trx_sys.mutex, in
-    both trx_create() and trx_t::free().
-
-    At this point, trx may have been reallocated for another client
-    connection, or for a background operation. In that case, either
-    trx_t::state or trx_t::mysql_thd should not match our expectations. */
-    bool cancel= trx->mysql_thd == thd && trx->state == TRX_STATE_ACTIVE &&
-      !trx->lock.was_chosen_as_deadlock_victim;
-    mutex_exit(&trx_sys.mutex);
-    if (!cancel);
-    else if (lock_t *lock= trx->lock.wait_lock)
+    if (lock_t *lock= trx->lock.wait_lock)
+    {
+      trx_mutex_enter(trx);
       lock_cancel_waiting_and_release(lock);
+      trx_mutex_exit(trx);
+    }
     lock_mutex_exit();
-    trx_mutex_exit(trx);
   }
 
   DBUG_VOID_RETURN;

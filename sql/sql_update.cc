@@ -2485,6 +2485,7 @@ int multi_update::send_data(List<Item> &not_used_values)
 {
   TABLE_LIST *cur_table;
   DBUG_ENTER("multi_update::send_data");
+  int error= 0;
 
   for (cur_table= update_tables; cur_table; cur_table= cur_table->next_local)
   {
@@ -2531,7 +2532,6 @@ int multi_update::send_data(List<Item> &not_used_values)
       found++;
       if (!can_compare_record || compare_record(table))
       {
-	int error;
 
         if ((error= cur_table->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)
@@ -2614,7 +2614,6 @@ error:
     }
     else
     {
-      int error;
       TABLE *tmp_table= tmp_tables[offset];
       if (copy_funcs(tmp_table_param[offset].items_to_copy, thd))
         DBUG_RETURN(1);
