@@ -263,4 +263,83 @@ FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 DROP TABLE t1;
 
+--echo #
+--echo # Test FOR NOT BETWEEN
+--echo #
+
+CREATE TABLE t1(a INT, b VARCHAR(10), KEY(a));
+INSERT INTO t1 SELECT seq, seq from seq_1_to_20;
+set optimizer_trace=1;
+
+EXPLAIN
+SELECT * FROM t1 WHERE a NOT BETWEEN 3 AND 5;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+--echo #
+--echo # Test FOR NOT IN
+--echo #
+
+EXPLAIN
+SELECT * FROM t1 WHERE a NOT IN (1,2,3,4,5);
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+--echo #
+--echo # Test FOR NOT LIKE
+--echo # For this the range optimizer would not give accurate selectivity estimates
+--echo #
+
+EXPLAIN
+SELECT * FROM t1 WHERE a NOT LIKE '1%';
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+DROP TABLE t1;
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_10;
+set optimizer_trace=1;
+SET @save_use_stat_tables= @@use_stat_tables;
+SET @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+
+--echo #
+--echo # Test where EITS are available in the stat tables but the query cannot use it
+--echo #
+
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+SET use_stat_tables='never';
+
+EXPLAIN SELECT * from t1 WHERE t1.a > 5;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+--echo #
+--echo # Here statistics are available from stat tables and statistics can be used for the query
+--echo #
+
+SET use_stat_tables='preferably';
+EXPLAIN SELECT * from t1 WHERE t1.a > 5;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+SET optimizer_use_condition_selectivity=1;
+
+--echo #
+--echo # Here statistics are available from stat tables but cannot be used because statistics from
+--echo # stat tables are only used when optimizer_use_condition_selectivity > 1
+--echo #
+
+EXPLAIN SELECT * from t1 WHERE t1.a > 5;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+SET @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+
+SET @@use_stat_tables= @save_use_stat_tables;
+SET @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+
+DROP TABLE t1;
+
 SET optimizer_switch=@save_optimizer_switch;

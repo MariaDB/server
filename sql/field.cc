@@ -11399,11 +11399,18 @@ void Field::statistics_available_via_keys()
 
 void Field::statistics_available_via_stat_tables()
 {
-  if (read_stats && !read_stats->no_stat_values_provided())
+  THD *thd= get_thd();
+  if (thd->variables.optimizer_use_condition_selectivity > 1 &&
+      check_eits_preferred(thd))
   {
-    stats_available|= (1 << STATISTICS_FOR_RANGE_PREDICATES_AVAILABLE);
-    if (!read_stats->is_null(COLUMN_STAT_AVG_FREQUENCY))
-      stats_available|= (1 << STATISTICS_FOR_NDV_AVAILABLE);
+    if (read_stats && !read_stats->no_stat_values_provided())
+    {
+      // Only need min and max values for a column to get range statistics
+      if (read_stats->min_max_values_are_provided())
+        stats_available|= (1 << STATISTICS_FOR_RANGE_PREDICATES_AVAILABLE);
+      if (!read_stats->is_null(COLUMN_STAT_AVG_FREQUENCY))
+        stats_available|= (1 << STATISTICS_FOR_NDV_AVAILABLE);
+    }
   }
 }
 
@@ -11493,11 +11500,14 @@ bool Field::is_ndv_available_via_keys()
 
 bool Field::is_ndv_available_via_stat_tables()
 {
-  if ((read_stats && !read_stats->no_stat_values_provided() &&
-        !read_stats->is_null(COLUMN_STAT_AVG_FREQUENCY)))
+  if (check_eits_preferred(get_thd()))
   {
-    stats_available|= (1 << STATISTICS_FOR_NDV_AVAILABLE);
-    return true;
+    if ((read_stats && !read_stats->no_stat_values_provided() &&
+         !read_stats->is_null(COLUMN_STAT_AVG_FREQUENCY)))
+    {
+      stats_available|= (1 << STATISTICS_FOR_NDV_AVAILABLE);
+      return true;
+    }
   }
   return false;
 }
