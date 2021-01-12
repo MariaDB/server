@@ -703,3 +703,6 @@ bson_delete_item('[1,2,3,{"quatre":4,"Deux":2}]','$.[3].Deux')
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
+SELECT BsonSet_Grp_Size(10);
+BsonSet_Grp_Size(10)
+10
