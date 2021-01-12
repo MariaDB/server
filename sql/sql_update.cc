@@ -2461,7 +2461,7 @@ error:
       if (has_vers_fields && table->versioned(VERS_TIMESTAMP))
       {
         store_record(table, record[2]);
-        if (vers_insert_history_row(table))
+        if (unlikely(error= vers_insert_history_row(table)))
         {
           restore_record(table, record[2]);
           goto error;
