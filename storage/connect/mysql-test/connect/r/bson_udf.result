@@ -700,9 +700,6 @@ bson_delete_item('[1,2,3,{"quatre":4,"Deux":2}]','["[1]","[3].Deux"]')
 SELECT bson_delete_item('[1,2,3,{"quatre":4,"Deux":2}]','$.[3].Deux');
 bson_delete_item('[1,2,3,{"quatre":4,"Deux":2}]','$.[3].Deux')
 [1,2,3,{"quatre":4}]
-SELECT Bson_Item_Merge(Bson_Get_Item("C:/Data/Json/bibdoc.json", '$[0].AUTHOR'), Bson_Make_Array(Bson_Object_Key('FIRSTNAME','Olivier','LASTNAME','Bertrand'))) "Result";
-Result
-[{"FIRSTNAME":"Jean-Christophe","LASTNAME":"Bernadac"},{"FIRSTNAME":"François","LASTNAME":"Knab"},{"FIRSTNAME":"Olivier","LASTNAME":"Bertrand"}]
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;
