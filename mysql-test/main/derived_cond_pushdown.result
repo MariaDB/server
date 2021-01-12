@@ -17064,4 +17064,74 @@ id
 2
 3
 DROP TABLE t;
+#
+# MDEV-23804: Server crashes in st_select_lex::collect_grouping_fields_for_derived
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (3),(4);
+CREATE VIEW v1 AS SELECT a FROM t1 UNION VALUES (3),(4);
+ANALYZE FORMAT=JSON SELECT * from v1 WHERE a=3;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "r_loops": 1,
+      "rows": 4,
+      "r_rows": 2,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 50,
+      "attached_condition": "v1.a = 3",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "r_loops": 1,
+            "r_rows": 2,
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "r_loops": 1,
+                  "r_total_time_ms": "REPLACED",
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "r_loops": 1,
+                    "rows": 2,
+                    "r_rows": 2,
+                    "r_total_time_ms": "REPLACED",
+                    "filtered": 100,
+                    "r_filtered": 50,
+                    "attached_condition": "t1.a = 3"
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "table": {
+                    "message": "No tables used"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+SELECT * from v1 WHERE a=3;
+a
+3
+DROP VIEW v1;
+DROP TABLE t1;
 # End of 10.3 tests
