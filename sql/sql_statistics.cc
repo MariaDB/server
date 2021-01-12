@@ -2110,6 +2110,10 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   ulonglong *idx_avg_frequency= (ulonglong*) alloc_root(&table->mem_root,
                                                sizeof(ulonglong) * key_parts);
 
+  if (table->file->ha_rnd_init(TRUE))
+    DBUG_RETURN(1);
+  table->file->ha_rnd_end();
+
   uint columns= 0;
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
