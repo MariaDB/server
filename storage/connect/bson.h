@@ -193,7 +193,7 @@ protected:
 	OFFSET ParseAsArray(int& i);
 	bool   SerializeArray(OFFSET arp, bool b);
 	bool   SerializeObject(OFFSET obp);
-	bool   SerializeValue(PBVAL vp);
+	bool   SerializeValue(PBVAL vp, bool b = false);
 
 	// Members used when parsing and serializing
 	JOUT* jp;						 // Used with serialize

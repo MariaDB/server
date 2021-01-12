@@ -631,7 +631,7 @@ PSZ BDOC::Serialize(PGLOBAL g, PBVAL bvp, char* fn, int pretty)
       err = SerializeValue(MVP(bvp->To_Val));
       break;
     default:
-      err = SerializeValue(bvp);
+      err = SerializeValue(bvp, true);
     } // endswitch Type
 
     if (fs) {
@@ -737,7 +737,7 @@ bool BDOC::SerializeObject(OFFSET obp)
 /***********************************************************************/
 /* Serialize a JSON Value.                                             */
 /***********************************************************************/
-bool BDOC::SerializeValue(PBVAL jvp)
+bool BDOC::SerializeValue(PBVAL jvp, bool b)
 {
   char buf[64];
 
@@ -750,7 +750,11 @@ bool BDOC::SerializeValue(PBVAL jvp)
     return jp->WriteStr(jvp->B ? "true" : "false");
   case TYPE_STRG:
   case TYPE_DTM:
-    return jp->Escape(MZP(jvp->To_Val));
+    if (b) {
+      return jp->WriteStr(MZP(jvp->To_Val));
+    } else
+      return jp->Escape(MZP(jvp->To_Val));
+
   case TYPE_INTG:
     sprintf(buf, "%d", jvp->N);
     return jp->WriteStr(buf);
@@ -1505,8 +1509,12 @@ double BJSON::GetDouble(PBVAL vp)
     d = (double)vlp->N;
     break;
   case TYPE_FLOAT:
-    d = (double)vlp->F;
-    break;
+  { char buf[32];
+    int  n = (vlp->Nd) ? vlp->Nd : 5;
+
+    sprintf(buf, "%.*f", n, vlp->F);
+    d = atof(buf);
+  } break;
   case TYPE_DTM:
   case TYPE_STRG:
     d = atof(MZP(vlp->To_Val));
@@ -1632,7 +1640,7 @@ PBVAL BJSON::SetValue(PBVAL vlp, PVAL valp)
     { double d = valp->GetFloatValue();
       int    nd = (IsTypeNum(valp->GetType())) ? valp->GetValPrec() : 0;
 
-      if (nd <= 6 && d >= FLT_MIN && d <= FLT_MAX) {
+      if (nd > 0 && nd <= 6 && d >= FLT_MIN && d <= FLT_MAX) {
         vlp->F = (float)valp->GetFloatValue();
         vlp->Type = TYPE_FLOAT;
       } else {

@@ -334,26 +334,26 @@ IF(CONNECT_WITH_REST)
 # MESSAGE(STATUS "=====> REST support is ON")
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabrest.cpp tabrest.h)
   add_definitions(-DREST_SUPPORT)
-  FIND_PACKAGE(cpprestsdk QUIET)
-  IF (cpprestsdk_FOUND)
-	IF(UNIX)
-#     INCLUDE_DIRECTORIES(${CPPRESTSDK_INCLUDE_DIR})
-#     If needed edit next line to set the path to libcpprest.so
-      SET(REST_LIBRARY -lcpprest)
-      MESSAGE (STATUS ${REST_LIBRARY})
-	ELSE(NOT UNIX)
-#     Next line sets debug compile mode matching cpprest_2_10d.dll
-#     when it was binary installed (can be change later in Visual Studio)
-#     Comment it out if not needed depending on your cpprestsdk installation.
-	  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
-	ENDIF(UNIX)
-#   IF(REST_LIBRARY)     why this? how about Windows
-    SET(CONNECT_SOURCES ${CONNECT_SOURCES} restget.cpp)
-    add_definitions(-DREST_SOURCE)
-#   ENDIF()
-# ELSE(NOT cpprestsdk_FOUND)
-#   MESSAGE(STATUS "=====> cpprestsdk package not found")
-  ENDIF (cpprestsdk_FOUND)
+# FIND_PACKAGE(cpprestsdk QUIET)
+# IF (cpprestsdk_FOUND)
+#	IF(UNIX)
+##    INCLUDE_DIRECTORIES(${CPPRESTSDK_INCLUDE_DIR})
+##    If needed edit next line to set the path to libcpprest.so
+#     SET(REST_LIBRARY -lcpprest)
+#     MESSAGE (STATUS ${REST_LIBRARY})
+#	ELSE(NOT UNIX)
+##    Next line sets debug compile mode matching cpprest_2_10d.dll
+##    when it was binary installed (can be change later in Visual Studio)
+##    Comment it out if not needed depending on your cpprestsdk installation.
+#	  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd")
+#	ENDIF(UNIX)
+##  IF(REST_LIBRARY)     why this? how about Windows
+#   SET(CONNECT_SOURCES ${CONNECT_SOURCES} restget.cpp)
+#   add_definitions(-DREST_SOURCE)
+##  ENDIF()
+##ELSE(NOT cpprestsdk_FOUND)
+##  MESSAGE(STATUS "=====> cpprestsdk package not found")
+# ENDIF (cpprestsdk_FOUND)
 ENDIF(CONNECT_WITH_REST)
 
 #

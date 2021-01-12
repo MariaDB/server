@@ -116,7 +116,7 @@ public:
 		                     JTYP type, PBVAL* top = NULL);
 	PBVAL   ParseJsonFile(PGLOBAL g, char* fn, int& pty, size_t& len);
 	char   *MakeResult(UDF_ARGS* args, PBVAL top, uint n = 2);
-	PBSON   MakeBinResult(PGLOBAL g, UDF_ARGS* args, PBVAL top, ulong len, int n = 2);
+	PBSON   MakeBinResult(UDF_ARGS* args, PBVAL top, ulong len, int n = 2);
 
 protected:
 	my_bool SetArrayOptions(PGLOBAL g, char* p, int i, PSZ nm);
@@ -126,6 +126,11 @@ protected:
 	PVAL    MakeJson(PGLOBAL g, PBVAL bvp);
 	void    SetJsonValue(PGLOBAL g, PVAL vp, PBVAL vlp);
 	PBVAL   GetRow(PGLOBAL g);
+	PBVAL   MoveVal(PBVAL vlp);
+	PBVAL   MoveJson(PBJNX bxp, PBVAL jvp);
+	PBVAL   MoveArray(PBJNX bxp, PBVAL jvp);
+	PBVAL   MoveObject(PBJNX bxp, PBVAL jvp);
+	PBVAL   MoveValue(PBJNX bxp, PBVAL jvp);
 	my_bool CompareValues(PGLOBAL g, PBVAL v1, PBVAL v2);
 	my_bool LocateArray(PGLOBAL g, PBVAL jarp);
 	my_bool LocateObject(PGLOBAL g, PBVAL jobp);
@@ -367,6 +372,10 @@ extern "C" {
 	DllExport my_bool bbin_get_item_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *bbin_get_item(UDF_EXEC_ARGS);
 	DllExport void bbin_get_item_deinit(UDF_INIT*);
+
+	DllExport my_bool bbin_item_merge_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* bbin_item_merge(UDF_EXEC_ARGS);
+	DllExport void bbin_item_merge_deinit(UDF_INIT*);
 
 	DllExport my_bool bbin_set_item_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *bbin_set_item(UDF_EXEC_ARGS);

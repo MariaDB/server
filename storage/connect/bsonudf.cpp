@@ -36,7 +36,7 @@ void SetChanged(PBSON bsp);
 /*  Program for saving the status of the memory pools.                           */
 /*********************************************************************************/
 inline void JsonMemSave(PGLOBAL g) {
-	g->Saved_Size = ((PPOOLHEADER)g->Sarea)->To_Free;
+	g->Saved_Size = ((PPOOLHEADER)g->Sarea)->To_Free;							 
 } /* end of JsonMemSave */
 
 /*********************************************************************************/
@@ -854,12 +854,16 @@ my_bool BJNX::DeleteItem(PGLOBAL g, PBVAL row)
 								PUSH_WARNING("Only one expand can be handled");
 								return b;
 							} // endif loop
+
 							n++;
-							loop = true;
 						} else
 							n = Nodes[i].Rank;
 
 						vlp = GetArrayValue(rwp, n);
+
+						if (GetNext(vlp) && Nodes[i].Op == OP_EXP)
+							loop = true;
+
 					} else
 						vlp = NULL;
 
@@ -1384,9 +1388,9 @@ PBVAL BJNX::MakeValue(UDF_ARGS *args, uint i, bool b, PBVAL *top)
 
 				if (n) {
 					if (n == 3) {
-						if (i == 0) {
-							PBSON bsp = (PBSON)sap;
+						PBSON bsp = (PBSON)sap;
 
+						if (i == 0) {
 							if (top)
 								*top = (PBVAL)bsp->Top;
 
@@ -1394,8 +1398,9 @@ PBVAL BJNX::MakeValue(UDF_ARGS *args, uint i, bool b, PBVAL *top)
 							G = bsp->G;
 							Base = G->Sarea;
 						} else {
-							PUSH_WARNING("Only first argument can be binary");
-							return jvp;
+							BJNX bnx(bsp->G);
+
+							jvp = MoveJson(&bnx, (PBVAL)bsp->Jsp);
 						} // endelse i
 
 					} else {
@@ -1616,7 +1621,7 @@ char *BJNX::MakeResult(UDF_ARGS *args, PBVAL top, uint n)
 /*********************************************************************************/
 /*  Make the binary result according to the first argument type.                 */
 /*********************************************************************************/
-PBSON BJNX::MakeBinResult(PGLOBAL g, UDF_ARGS *args, PBVAL top, ulong len, int n)
+PBSON BJNX::MakeBinResult(UDF_ARGS *args, PBVAL top, ulong len, int n)
 {
 	char* filename = NULL;
 	int   pretty = 2;
@@ -1641,7 +1646,7 @@ PBSON BJNX::MakeBinResult(PGLOBAL g, UDF_ARGS *args, PBVAL top, ulong len, int n
 		filename = (char*)args->args[0];
 	} // endif 2
 
-	if ((bnp = BbinAlloc(g, len, top))) {
+	if ((bnp = BbinAlloc(G, len, top))) {
 		bnp->Filename = filename;
 		bnp->Pretty = pretty;
 		strcpy(bnp->Msg, "Json Binary item");
@@ -1650,6 +1655,114 @@ PBSON BJNX::MakeBinResult(PGLOBAL g, UDF_ARGS *args, PBVAL top, ulong len, int n
 	return bnp;
 } // end of MakeBinResult
 
+/***********************************************************************/
+/* Move a Json val block from one area to the current area.            */
+/***********************************************************************/
+PBVAL BJNX::MoveVal(PBVAL vlp)
+{
+	PBVAL nvp = NewVal(vlp->Type);
+
+	nvp->Nd = vlp->Nd;
+	return nvp;
+}	// end of MovedVal
+
+/***********************************************************************/
+/* Move a Json tree from one area to current area.                     */
+/***********************************************************************/
+PBVAL BJNX::MoveJson(PBJNX bxp, PBVAL jvp)
+{
+	PBVAL res = NULL;
+
+	if (jvp)
+		switch (jvp->Type) {
+			case TYPE_JAR:
+				res = MoveArray(bxp, jvp);
+				break;
+			case TYPE_JOB:
+				res = MoveObject(bxp, jvp);
+				break;
+			default:
+				res = MoveValue(bxp, jvp);
+				break;
+		} // endswitch Type
+
+	return res;
+} // end of MoveJson
+
+/***********************************************************************/
+/* Move an array.                                                      */
+/***********************************************************************/
+PBVAL BJNX::MoveArray(PBJNX bxp, PBVAL jap)
+{
+	PBVAL vlp, vmp, jvp = NULL, jarp = MoveVal(jap);
+
+	for (vlp = bxp->GetArray(jap); vlp; vlp = bxp->GetNext(vlp)) {
+		vmp = MoveJson(bxp, vlp);
+
+		if (jvp)
+			jvp->Next = MOF(vmp);
+		else
+			jarp->To_Val = MOF(vmp);
+
+		jvp = vmp;
+	}	// endfor vlp
+
+	return jarp;
+} // end of MoveArray
+
+/***********************************************************************/
+/* Replace all object pointers by offsets.                             */
+/***********************************************************************/
+PBVAL BJNX::MoveObject(PBJNX bxp, PBVAL jop)
+{
+	PBPR   mpp, prp, ppp = NULL;
+	PBVAL  vmp, jobp = MoveVal(jop);
+
+	for (prp = bxp->GetObject(jop); prp; prp = bxp->GetNext(prp)) {
+		vmp = MoveJson(bxp, GetVlp(prp));
+		mpp = NewPair(DupStr(bxp->MZP(prp->Key)));
+		SetPairValue(mpp, vmp);
+
+		if (ppp)
+			ppp->Vlp.Next = MOF(mpp);
+		else
+			jobp->To_Val = MOF(mpp);
+
+		ppp = mpp;
+	}	// endfor vlp
+
+	return jobp;
+} // end of MoffObject
+
+/***********************************************************************/
+/* Move a non json value.                                              */
+/***********************************************************************/
+PBVAL BJNX::MoveValue(PBJNX bxp, PBVAL jvp)
+{
+	double *dp;
+	PBVAL   nvp = MoveVal(jvp);
+
+	switch (jvp->Type) {
+		case TYPE_STRG:
+		case TYPE_DTM:
+			nvp->To_Val = DupStr(bxp->MZP(jvp->To_Val));
+			break;
+		case TYPE_DBL:
+			dp = (double*)BsonSubAlloc(sizeof(double));
+			*dp = bxp->DBL(jvp->To_Val);
+			nvp->To_Val = MOF(dp);
+			break;
+		case TYPE_JVAL:
+			nvp->To_Val = MOF(MoveJson(bxp, bxp->MVP(jvp->To_Val)));
+			break;
+		default:
+			nvp->To_Val = jvp->To_Val;
+			break;
+	}	// endswith Type
+
+	return nvp;
+} // end of MoveValue
+	
 /* -----------------------------Utility functions ------------------------------ */
 
 /*********************************************************************************/
@@ -1688,14 +1801,14 @@ int IsArgJson(UDF_ARGS *args, uint i)
 		         !strnicmp(args->attributes[i], "Json_", 5)) {
 		if (!args->args[i] || strchr("[{ \t\r\n", *args->args[i]))
 			n = 1;					 // arg should be is a json item
-		else
-			n = 2;           // A file name may have been returned
+//	else
+//		n = 2;           // A file name may have been returned
 
 	} else if (!strnicmp(args->attributes[i], "Bbin_", 5)) {
 		if (args->lengths[i] == sizeof(BSON))
 			n = 3;					 //	arg is a binary json item
-		else
-			n = 2;           // A file name may have been returned
+//	else
+//		n = 2;           // A file name may have been returned
 
 	} else if (!strnicmp(args->attributes[i], "Bfile_", 6) ||
 		         !strnicmp(args->attributes[i], "Jfile_", 6)) {
@@ -1785,7 +1898,8 @@ void bsonvalue_deinit(UDF_INIT* initid) {
 } // end of bsonvalue_deinit
 
 /*********************************************************************************/
-/*  Make a Bson array containing all the parameters.                             */
+/*  Make a Json array containing all the parameters.                             */
+/*  Note: jvp must be set before arp because it can be a binary argument.        */
 /*********************************************************************************/
 my_bool bson_make_array_init(UDF_INIT* initid, UDF_ARGS* args, char* message)
 {
@@ -1804,10 +1918,13 @@ char* bson_make_array(UDF_INIT* initid, UDF_ARGS* args, char* result,
 	if (!g->Xchk) {
 		if (!CheckMemory(g, initid, args, args->arg_count, false)) {
 			BJNX  bnx(g);
-			PBVAL bvp = NULL, arp = bnx.NewVal(TYPE_JAR);
+			PBVAL jvp = bnx.MakeValue(args, 0);
+			PBVAL arp = bnx.NewVal(TYPE_JAR);
 
-			for (uint i = 0; i < args->arg_count; i++)
-				bnx.AddArrayValue(arp, bnx.MakeValue(args, i, true));
+			for (uint i = 0; i < args->arg_count;) {
+				bnx.AddArrayValue(arp, jvp);
+				jvp = bnx.MakeValue(args, ++i);
+			} // endfor i
 
 			if (!(str = bnx.Serialize(g, arp, NULL, 0)))
 				str = strcpy(result, g->Message);
@@ -2056,7 +2173,7 @@ char *bson_array_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	if (!CheckMemory(g, initid, args, 1, false, false, true)) {
 		int  *x;
 		uint	n = 1;
-		BJNX  bnx(g);
+		BJNX  bnx(g, NULL, TYPE_STRING);
 		PBVAL arp, top;
 		PBVAL jvp = bnx.MakeValue(args, 0, true, &top);
 
@@ -4621,6 +4738,7 @@ void bson_serialize_deinit(UDF_INIT* initid)
 
 /*********************************************************************************/
 /*  Make and return a binary Json array containing all the parameters.           */
+/*  Note: jvp must be set before arp because it can be a binary argument.        */
 /*********************************************************************************/
 my_bool bbin_make_array_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
@@ -4639,20 +4757,20 @@ char *bbin_make_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	if (!g->Xchk) {
 		if (!CheckMemory(g, initid, args, args->arg_count, false)) {
 			BJNX  bnx(g);
-			PBVAL arp;
+			PBVAL jvp = bnx.MakeValue(args, 0);
+			PBVAL arp = bnx.NewVal(TYPE_JAR);
 
-			if ((arp = bnx.NewVal(TYPE_JAR))) {
-				for (uint i = 0; i < args->arg_count; i++)
-					bnx.AddArrayValue(arp, bnx.MakeValue(args, i));
+			for (uint i = 0; i < args->arg_count;) {
+				bnx.AddArrayValue(arp, jvp);
+				jvp = bnx.MakeValue(args, ++i);
+			} // endfor i
 
-				if ((bsp = BbinAlloc(g, initid->max_length, arp))) {
-					strcat(bsp->Msg, " array");
+			if ((bsp = BbinAlloc(bnx.G, initid->max_length, arp))) {
+				strcat(bsp->Msg, " array");
 
-					// Keep result of constant function
-					g->Xchk = (initid->const_item) ? bsp : NULL;
-				}	// endif bsp
-
-			}	// endif arp
+				// Keep result of constant function
+				g->Xchk = (initid->const_item) ? bsp : NULL;
+			}	// endif bsp
 
 		} // endif CheckMemory
 
@@ -4738,7 +4856,7 @@ char *bbin_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		if (jarp) {
 			bnx.AddArrayValue(jarp, bnx.MakeValue(args, 1), x);
 			bnx.SetChanged(true);
-			bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+			bsp = bnx.MakeBinResult(args, top, initid->max_length);
 
 			if (initid->const_item)
 				// Keep result of constant function
@@ -4795,7 +4913,7 @@ char* bbin_array_add_values(UDF_INIT* initid, UDF_ARGS* args, char* result,
 				bnx.AddArrayValue(arp, bnx.MakeValue(args, i));
 
 			bnx.SetChanged(true);
-			bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+			bsp = bnx.MakeBinResult(args, top, initid->max_length);
 		} // endif CheckMemory
 
 		// Keep result of constant function
@@ -4937,7 +5055,7 @@ char *bbin_make_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
 				for (uint i = 0; i < args->arg_count; i++)
 					bnx.SetKeyValue(objp, bnx.MakeValue(args, i), bnx.MakeKey(args, i));
 
-				if ((bsp = BbinAlloc(g, initid->max_length, objp))) {
+				if ((bsp = BbinAlloc(bnx.G, initid->max_length, objp))) {
 					strcat(bsp->Msg, " object");
 
 					// Keep result of constant function
@@ -4992,7 +5110,7 @@ char *bbin_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
 					if (!bnx.IsValueNull(jvp = bnx.MakeValue(args, i)))
 						bnx.SetKeyValue(objp, jvp, bnx.MakeKey(args, i));
 
-				if ((bsp = BbinAlloc(g, initid->max_length, objp)))	{
+				if ((bsp = BbinAlloc(bnx.G, initid->max_length, objp)))	{
 					strcat(bsp->Msg, " object");
 
 					// Keep result of constant function
@@ -5051,7 +5169,7 @@ char *bbin_object_key(UDF_INIT *initid, UDF_ARGS *args, char *result,
 				for (uint i = 0; i < args->arg_count; i += 2)
 					bnx.SetKeyValue(objp, bnx.MakeValue(args, i + 1), MakePSZ(g, args, i));
 
-				if ((bsp = BbinAlloc(g, initid->max_length, objp))) {
+				if ((bsp = BbinAlloc(bnx.G, initid->max_length, objp))) {
 					strcat(bsp->Msg, " object");
 
 					// Keep result of constant function
@@ -5129,7 +5247,7 @@ char *bbin_object_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		} // endif jobp
 
 		// In case of error unchanged argument will be returned
-		bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+		bsp = bnx.MakeBinResult(args, top, initid->max_length);
 
 		if (initid->const_item)
 			// Keep result of constant function
@@ -5182,7 +5300,7 @@ char *bbin_array_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			PUSH_WARNING(g->Message);
 		else if (arp && arp->Type == TYPE_JAR) {
 			bnx.SetChanged(bnx.DeleteValue(arp, *x));
-			bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+			bsp = bnx.MakeBinResult(args, top, initid->max_length);
 		} else {
 			PUSH_WARNING("First argument target is not an array");
 			//		if (g->Mrr) *error = 1;
@@ -5259,7 +5377,7 @@ char *bbin_object_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		} // endif jvp
 
 	  // In case of error unchanged argument will be returned
-		bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+		bsp = bnx.MakeBinResult(args, top, initid->max_length);
 
 		if (initid->const_item)
 			// Keep result of constant function
@@ -5310,7 +5428,7 @@ char *bbin_object_list(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			} // endif jsp type
 
 			// In case of error unchanged argument will be returned
-			bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+			bsp = bnx.MakeBinResult(args, top, initid->max_length);
 			bsp->Jsp = (PJSON)jarp;
 
 		} // endif CheckMemory
@@ -5362,7 +5480,7 @@ char *bbin_object_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			} // endif jvp
 
 			// In case of error unchanged argument will be returned
-			bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+			bsp = bnx.MakeBinResult(args, top, initid->max_length);
 			bsp->Jsp = (PJSON)jarp;
 
 		} // endif CheckMemory
@@ -5414,7 +5532,7 @@ char *bbin_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		if (bnx.CheckPath(g, args, jsp, jvp, 1))
 			PUSH_WARNING(g->Message);
 		else if (jvp) {
-			bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+			bsp = bnx.MakeBinResult(args, top, initid->max_length);
 			bsp->Jsp = (PJSON)jvp;
 
 			if (initid->const_item)
@@ -5495,7 +5613,7 @@ char *bbin_item_merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			bnx.MergeObject(jsp[0], jsp[1]);
 
 		bnx.SetChanged(true);
-		bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+		bsp = bnx.MakeBinResult(args, top, initid->max_length);
 	} // endif CheckMemory
 
 	if (g->N)
@@ -5592,7 +5710,7 @@ static char *bbin_handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			bxp->SetChanged(true);
 		} // endfor i
 
-		if (!(bsp = bxp->MakeBinResult(g, args, top, initid->max_length)))
+		if (!(bsp = bxp->MakeBinResult(args, top, initid->max_length)))
 			throw 4;
 
 		if (g->N)
@@ -5745,7 +5863,7 @@ char *bbin_delete_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			bnx.SetChanged(bnx.DeleteItem(g, jvp));
 		} // endfor i
 
-		bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+		bsp = bnx.MakeBinResult(args, top, initid->max_length);
 
 		if (args->arg_count == 1)
 			// Here Jsp was not a sub-item of top
@@ -5815,7 +5933,7 @@ char *bbin_file(UDF_INIT *initid, UDF_ARGS *args, char *result,
 //	else if (pretty == 3)
 //		pretty = pty;
 
-	if ((bsp = BbinAlloc(g, len, jsp))) {
+	if ((bsp = BbinAlloc(bnx.G, len, jsp))) {
 		strcat(bsp->Msg, " file");
 		bsp->Filename = fn;
 		bsp->Pretty = pretty;
@@ -5923,7 +6041,7 @@ char* bbin_locate_all(UDF_INIT* initid, UDF_ARGS* args, char* result,
 			mx = (int)*(long long*)args->args[2];
 
 		if ((path = bnx.LocateAll(g, bvp, bvp2, mx))) {
-			bsp = bnx.MakeBinResult(g, args, top, initid->max_length);
+			bsp = bnx.MakeBinResult(args, top, initid->max_length);
 			bsp->Jsp = (PJSON)bnx.ParseJson(g, path, strlen(path));
 		}	// endif path
 
