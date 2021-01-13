@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -296,11 +296,12 @@ record */
 					fields of the record can change */
 #define	TRX_UNDO_DEL_MARK_REC	14	/* delete marking of a record; fields
 					   do not change */
-/* Bulk insert operation. It is written only when the table is
-under exclusive lock. During rollback, it does empty the table and
-frees the leaf segment of all indexes, re-creates the new
-leaf segment and re-initialize the root page alone */
-#define TRX_UNDO_EMPTY		15
+/** Bulk insert operation. It is written only when the table is
+under exclusive lock and the clustered index root page latch is being held,
+and the clustered index is empty. Rollback will empty the table and
+free the leaf segment of all indexes, re-create the new
+leaf segment and re-initialize the root page alone. */
+#define	TRX_UNDO_EMPTY		15
 
 #define	TRX_UNDO_CMPL_INFO_MULT	16U	/* compilation info is multiplied by
 					this and ORed to the type above */
