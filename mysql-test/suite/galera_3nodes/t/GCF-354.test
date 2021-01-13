@@ -14,19 +14,20 @@
 # 1. Create different inconsistencies on nodes 2 and 3
 #
 --connection node_2
-SET wsrep_on=OFF;
+SET SESSION wsrep_on=OFF;
 DROP SCHEMA test;
 
 --connection node_3
 SET SESSION wsrep_on=OFF;
-CREATE TABLE test.t1 (f1 INTEGER) engine=innodb;
+CREATE TABLE test.t1 (f1 INTEGER NOT NULL PRIMARY KEY) engine=innodb;
 #
 # 2. The following should generate different errors on nodes 2 and 3 and 
 #    trigger voting with 3 different votes. node_1 should remain alone
 #    in the cluster.
 #
 --connection node_1
-CREATE TABLE test.t1 (f1 INTEGER) engine=innodb;
+CREATE TABLE test.t1 (f1 INTEGER NOT NULL PRIMARY KEY) engine=innodb;
+INSERT INTO test.t1 values (1);
 
 --let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc

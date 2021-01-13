@@ -6,13 +6,14 @@ connection node_1;
 connection node_2;
 connection node_3;
 connection node_2;
-SET wsrep_on=OFF;
+SET SESSION wsrep_on=OFF;
 DROP SCHEMA test;
 connection node_3;
 SET SESSION wsrep_on=OFF;
-CREATE TABLE test.t1 (f1 INTEGER) engine=innodb;
+CREATE TABLE test.t1 (f1 INTEGER NOT NULL PRIMARY KEY) engine=innodb;
 connection node_1;
-CREATE TABLE test.t1 (f1 INTEGER) engine=innodb;
+CREATE TABLE test.t1 (f1 INTEGER NOT NULL PRIMARY KEY) engine=innodb;
+INSERT INTO test.t1 values (1);
 SHOW STATUS LIKE 'wsrep_cluster_status';
 Variable_name	Value
 wsrep_cluster_status	Primary
