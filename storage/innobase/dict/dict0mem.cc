@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1401,20 +1401,16 @@ void dict_table_t::empty_table(que_thr_t *thr)
   for (dict_index_t* index= UT_LIST_GET_FIRST(indexes);
        index != NULL; index= UT_LIST_GET_NEXT(indexes, index))
   {
-    if (index->online_status == ONLINE_INDEX_ABORTED
-        || index->online_status == ONLINE_INDEX_ABORTED_DROPPED)
-      continue;
-
     if (index->type & DICT_FTS)
       continue;
 
-#ifdef UNIV_DEBUG
-    if (!dict_index_is_clust(index))
-      DEBUG_SYNC_C("sec_index_bulk_rollback");
-#endif /* UNIV_DEBUG */
-    if (index->online_status == ONLINE_INDEX_CREATION)
-    {
-      if (dict_index_is_clust(index))
+    switch (index->online_status) {
+    case ONLINE_INDEX_ABORTED:
+    case ONLINE_INDEX_ABORTED_DROPPED:
+      continue;
+
+    case ONLINE_INDEX_CREATION:
+      if (index->is_clust())
       {
         row_log_table_empty(index);
         rebuild= true;

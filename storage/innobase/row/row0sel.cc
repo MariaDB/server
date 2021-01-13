@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -3872,6 +3872,8 @@ exhausted:
 		return(SEL_EXHAUSTED);
 	}
 
+	/* FIXME: check index->table->bulk_trx_id! */
+
 	/* This is a non-locking consistent read: if necessary, fetch
 	a previous version of the record */
 
@@ -4709,7 +4711,22 @@ wait_table_again:
 		}
 	}
 
-	if (trx_id_t bulk_trx_id = index->table->bulk_trx_id()) {
+	/* Check early (without accessing index pages) if the table is empty.
+
+	If we read bulk_trx_id as an older transaction ID,
+	it is not incorrect to check here whether that transaction should
+	be visible to us. If not, the table must have been empty.
+	We would only update bulk_trx_id in row_ins_clust_index_entry_low()
+	if the table really was empty (everything had been purged).
+	So, this shortcut is safe.
+
+	Note: because we are not holding the clustered index root page latch
+	here, and likely not holding a table lock either, this is a dirty
+	read. It is possible that the table has been emptied again and
+	bulk_trx_id is being updated concurrently by an active insert
+	transaction. But, that must be an even later transaction than the
+	one that we might have checked here. */
+	if (trx_id_t bulk_trx_id = index->table->bulk_trx_id) {
 		if (trx->isolation_level != TRX_ISO_READ_UNCOMMITTED
 		    && trx->read_view.is_open()
 		    && !trx->read_view.changes_visible(
@@ -4719,6 +4736,9 @@ wait_table_again:
 			goto normal_return;
 		}
 	}
+
+	/* Note: we must recheck index->table->bulk_trx_id while
+	we are holding the clustered index root page latch. */
 
 rec_loop:
 	DEBUG_SYNC_C("row_search_rec_loop");

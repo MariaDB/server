@@ -44,6 +44,9 @@ Created 4/20/1996 Heikki Tuuri
 #include "buf0lru.h"
 #include "fts0fts.h"
 #include "fts0types.h"
+#ifdef BTR_CUR_HASH_ADAPT
+# include "btr0sea.h"
+#endif
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
 #endif /* WITH_WSREP */
@@ -2649,12 +2652,12 @@ row_ins_clust_index_entry_low(
 
 	block = btr_cur_get_block(cursor);
 
-	if (block->page.id().page_no() == index->page
-	    && !(flags & BTR_NO_UNDO_LOG_FLAG)
-	    && !index->table->is_temporary()
-	    && !entry->is_metadata() && !trx->duplicates
-	    && !trx->ddl && !trx->internal
+	if (!(flags & BTR_NO_UNDO_LOG_FLAG)
 	    && page_is_empty(block->frame)
+	    && !entry->is_metadata() && !trx->duplicates
+	    && !index->table->is_temporary()
+	    && !trx->ddl && !trx->internal
+	    && block->page.id().page_no() == index->page
 	    && !index->table->skip_alter_undo) {
 
 		DEBUG_SYNC_C("empty_root_page_insert");
@@ -2667,10 +2670,21 @@ row_ins_clust_index_entry_low(
 			goto func_exit;
 		}
 
-		index->table->set_bulk_trx_id(trx->id);
+#ifdef BTR_CUR_HASH_ADAPT
+		if (btr_search_enabled) {
+			btr_search_x_lock_all();
+			index->table->bulk_trx_id = trx->id;
+			btr_search_x_unlock_all();
+		} else {
+			index->table->bulk_trx_id = trx->id;
+		}
+#else /* BTR_CUR_HASH_ADAPT */
+		index->table->bulk_trx_id = trx->id;
+#endif /* BTR_CUR_HASH_ADAPT */
+
 		ins_node_t *run_node= static_cast<ins_node_t*>(
 					thr->run_node);
-		run_node->bulk_insert= true;
+		run_node->bulk_insert = true;
 	}
 
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {

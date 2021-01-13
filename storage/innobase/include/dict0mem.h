@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2138,6 +2138,11 @@ public:
 	loading the definition or CREATE TABLE, or ALTER TABLE (prepare,
 	commit, and rollback phases). */
 	trx_id_t				def_trx_id;
+	/** Last transaction that inserted into an empty table.
+	Updated while holding exclusive table lock and an exclusive
+	latch on the clustered index root page (which must also be
+	an empty leaf page), and an ahi_latch (if btr_search_enabled). */
+	Atomic_relaxed<trx_id_t>		bulk_trx_id;
 
 	/*!< set of foreign key constraints in the table; these refer to
 	columns in other tables */
@@ -2309,10 +2314,6 @@ private:
 	table is NOT allowed until this count gets to zero. MySQL does NOT
 	itself check the number of open handles at DROP. */
 	Atomic_counter<uint32_t>		n_ref_count;
-
-	/** Trx id of bulk insert operation. This is under the
-	protection of exclusive lock of table object */
-	Atomic_relaxed<trx_id_t>		bulk_trx_id_;
 public:
 	/** List of locks on the table. Protected by lock_sys.mutex. */
 	table_lock_list_t			locks;
@@ -2330,16 +2331,6 @@ public:
 	/** mysql_row_templ_t for base columns used for compute the virtual
 	columns */
 	dict_vcol_templ_t*			vc_templ;
-
-  trx_id_t bulk_trx_id() const
-  {
-    return bulk_trx_id_;
-  }
-
-  void set_bulk_trx_id(trx_id_t trx_id)
-  {
-    bulk_trx_id_= trx_id;
-  }
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const
