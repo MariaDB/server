@@ -1166,7 +1166,7 @@ drop table t1,t2;
 create table t1(f1 varchar(800) binary not null, key(f1))
 character set utf8 collate utf8_general_ci;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 767 bytes
+Note	1071	Specified key was too long; max key length is 767 bytes
 insert into t1 values('aaa');
 drop table t1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c FLOAT, KEY b(b)) ENGINE = INNODB;
