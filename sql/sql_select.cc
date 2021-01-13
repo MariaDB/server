@@ -3686,7 +3686,11 @@ bool JOIN::make_aggr_tables_info()
         (has_group_by || (join_tab + top_join_tab_count > curr_tab + 1)) ?
          select_limit : unit->lim.get_select_limit();
       if (unit->lim.is_with_ties())
+      {
+        if (alloc_order_fields(this, order))
+          DBUG_RETURN(true);
         sort_tab->filesort->limit= HA_POS_ERROR;
+      }
     }
     if (!only_const_tables() &&
         !join_tab[const_tables].filesort &&
