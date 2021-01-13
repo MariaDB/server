@@ -1,19 +1,44 @@
 --echo #
+--echo # The following entries are meant for testing the parser, ensuring
+--echo # the right values are passed down to the executor, for all possible
+--echo # syntax combinations.
+--echo #
 --echo # Test basic syntax.
 --echo #
 
 create table t1 (a int);
+create table t_keyword (`offset` int);
 
 insert into t1 values (1), (1), (2), (3), (2);
+insert into t_keyword values (1), (1), (2), (3), (2);
 
---echo # Syntax error
+--echo #
+--echo # Make sure the FETCH clause addition didn't introduce problems with
+--echo # the offset keyword.
+--echo #
 --error 1064
 select * from t1
 order by a
 offset 2;
 
 --echo #
---echo # Test syntax without a specific limit.
+--echo # Offset is now a reserved keyword. Column names can not have that name
+--echo # without escaping the identifier.
+--echo #
+--error 1064
+select * from t_keyword
+order by offset;
+
+select * from t_keyword
+order by `offset`;
+
+
+--echo #
+--echo # Test syntax without a specific limit. (implicit one row)
+--echo # Test the alias between row / rows and first / next.
+--echo # Test ONLY vs WITH TIES.
+--echo #
+--echo # Cover also the presence of offset before or after FETCH clause.
 --echo #
 select * from t1
 fetch first row only;
@@ -27,6 +52,9 @@ fetch next row only;
 select * from t1
 fetch next rows only;
 
+--echo #
+--echo # Include offset before fetch clause.
+--echo #
 select * from t1
 order by a
 offset 2
@@ -37,6 +65,18 @@ order by a
 offset 2
 fetch first rows only;
 
+select * from t1
+offset 2
+fetch next row only;
+
+select * from t1
+offset 2
+fetch next rows only;
+
+
+--echo #
+--echo # Include offset after fetch clause.
+--echo #
 select * from t1
 order by a
 fetch first row only
@@ -49,14 +89,18 @@ offset 2;
 
 select * from t1
 order by a
-offset 2
-fetch next rows only;
+fetch next row only
+offset 2;
 
 select * from t1
 order by a
 fetch next rows only
 offset 2;
 
+--echo #
+--echo # Repeat the tests, but now with WITH TIES.
+--echo # WITH TIES requires order by.
+--echo #
 
 --error ER_WITH_TIES_NEEDS_ORDER
 select * from t1
@@ -84,12 +128,51 @@ fetch first rows with ties;
 
 select * from t1
 order by a
+fetch next row with ties;
+
+select * from t1
+order by a
 fetch next rows with ties;
+
+--echo #
+--echo # Include offset before fetch clause.
+--echo #
+select * from t1
+order by a
+offset 2
+fetch first row with ties;
 
 select * from t1
 order by a
 offset 2
+fetch first rows with ties;
+
+select * from t1
+offset 2
+fetch next row with ties;
+
+select * from t1
+offset 2
 fetch next rows with ties;
+
+
+--echo #
+--echo # Include offset after fetch clause.
+--echo #
+select * from t1
+order by a
+fetch first row with ties
+offset 2;
+
+select * from t1
+order by a
+fetch first rows with ties
+offset 2;
+
+select * from t1
+order by a
+fetch next row with ties
+offset 2;
 
 select * from t1
 order by a
@@ -100,20 +183,24 @@ offset 2;
 --echo # Test syntax with a specific limit
 --echo #
 select * from t1
-order by a
 fetch first 3 row only;
 
 select * from t1
-order by a
 fetch first 3 rows only;
 
 select * from t1
-order by a
 fetch next 3 row only;
 
 select * from t1
-order by a
 fetch next 3 rows only;
+
+--echo #
+--echo # Include offset before fetch clause.
+--echo #
+select * from t1
+order by a
+offset 2
+fetch first 3 row only;
 
 select * from t1
 order by a
@@ -121,13 +208,118 @@ offset 2
 fetch first 3 rows only;
 
 select * from t1
+offset 2
+fetch next 3 row only;
+
+select * from t1
+offset 2
+fetch next 3 rows only;
+
+
+--echo #
+--echo # Include offset after fetch clause.
+--echo #
+select * from t1
+order by a
+fetch first 3 row only
+offset 2;
+
+select * from t1
 order by a
 fetch first 3 rows only
 offset 2;
 
+select * from t1
+order by a
+fetch next 3 row only
+offset 2;
+
+select * from t1
+order by a
+fetch next 3 rows only
+offset 2;
+
+--echo #
+--echo # Repeat the tests, but now with WITH TIES.
+--echo # WITH TIES requires order by.
+--echo #
+
+--error ER_WITH_TIES_NEEDS_ORDER
+select * from t1
+fetch first 3 row with ties;
+
+--error ER_WITH_TIES_NEEDS_ORDER
+select * from t1
+fetch first 3 rows with ties;
+
+--error ER_WITH_TIES_NEEDS_ORDER
+select * from t1
+fetch next 3 row with ties;
+
+--error ER_WITH_TIES_NEEDS_ORDER
+select * from t1
+fetch next 3 rows with ties;
+
+select * from t1
+order by a
+fetch first 3 row with ties;
+
+select * from t1
+order by a
+fetch first 3 rows with ties;
+
+select * from t1
+order by a
+fetch next 3 row with ties;
+
+select * from t1
+order by a
+fetch next 3 rows with ties;
+
+--echo #
+--echo # Include offset before fetch clause.
+--echo #
+select * from t1
+order by a
+offset 2
+fetch first 3 row with ties;
+
+select * from t1
+order by a
+offset 2
+fetch first 3 rows with ties;
+
+select * from t1
+offset 2
+fetch next 3 row with ties;
+
+select * from t1
+offset 2
+fetch next 3 rows with ties;
 
 
+--echo #
+--echo # Include offset after fetch clause.
+--echo #
+select * from t1
+order by a
+fetch first 3 row with ties
+offset 2;
 
+select * from t1
+order by a
+fetch first 3 rows with ties
+offset 2;
+
+select * from t1
+order by a
+fetch next 3 row with ties
+offset 2;
+
+select * from t1
+order by a
+fetch next 3 rows with ties
+offset 2;
 
 select @@optimizer_switch;
 explain format=json select * from t1
