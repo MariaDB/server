@@ -224,9 +224,6 @@ ulong srv_buf_pool_load_pages_abort = LONG_MAX;
 /** Lock table size in bytes */
 ulint	srv_lock_table_size	= ULINT_MAX;
 
-/** innodb_idle_flush_pct */
-ulong	srv_idle_flush_pct;
-
 /** innodb_read_io_threads */
 uint	srv_n_read_io_threads;
 /** innodb_write_io_threads */
