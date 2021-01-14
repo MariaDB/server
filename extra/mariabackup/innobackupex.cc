@@ -309,7 +309,7 @@ static struct my_option ibx_long_options[] =
 	{"force-non-empty-directories", OPT_FORCE_NON_EMPTY_DIRS, "This "
 	 "option, when specified, makes --copy-back or --move-back transfer "
 	 "files to non-empty directories. Note that no existing files will be "
-	 "overwritten. If --copy-back or --nove-back has to copy a file from "
+	 "overwritten. If --copy-back or --move-back has to copy a file from "
 	 "the backup directory which already exists in the destination "
 	 "directory, it will still fail with an error.",
 	 (uchar *) &opt_ibx_force_non_empty_dirs,
