@@ -10,18 +10,18 @@ Build-Depends: bison,
                dh-apparmor,
                dh-exec,
                dh-systemd,
-               flex [i386 amd64],
+               flex [amd64],
                gdb,
                libaio-dev [linux-any],
                libarchive-dev,
-               libboost-atomic-dev [i386 amd64],
-               libboost-chrono-dev [i386 amd64],
-               libboost-date-time-dev [i386 amd64],
+               libboost-atomic-dev [amd64],
+               libboost-chrono-dev [amd64],
+               libboost-date-time-dev [amd64],
                libboost-dev,
-               libboost-filesystem-dev [i386 amd64],
-               libboost-regex-dev [i386 amd64],
-               libboost-system-dev [i386 amd64],
-               libboost-thread-dev [i386 amd64],
+               libboost-filesystem-dev [amd64],
+               libboost-regex-dev [amd64],
+               libboost-system-dev [amd64],
+               libboost-thread-dev [amd64],
                libcrack2-dev (>= 2.9.0),
                libcurl4-openssl-dev | libcurl4-dev,
                libedit-dev,
@@ -35,7 +35,7 @@ Build-Depends: bison,
                libnuma-dev [linux-any],
                libpam0g-dev,
                libpcre2-dev,
-               libreadline-gplv2-dev [i386 amd64],
+               libreadline-gplv2-dev [amd64],
                libsnappy-dev,
                libssl-dev,
                libssl-dev:native,
@@ -448,7 +448,7 @@ Depends: galera-4 (>=26.4),
          lsb-base (>= 3.0-10),
          lsof [linux-any],
          mariadb-client-10.6 (>= ${source:Version}),
-         mariadb-server-core-10.6 (>= ${binary:Version}),
+         mariadb-server-core-10.6 (>= ${server:Version}),
          passwd,
          perl (>= 5.6),
          procps,
@@ -554,7 +554,7 @@ Description: Backup tool for MariaDB server
 Package: mariadb-plugin-connect
 Architecture: any
 Depends: libxml2,
-         mariadb-server-10.6 (= ${binary:Version}),
+         mariadb-server-10.6 (= ${server:Version}),
          unixodbc,
          ${misc:Depends},
          ${shlibs:Depends}
@@ -575,7 +575,7 @@ Description: Connect storage engine for MariaDB
 Package: mariadb-plugin-s3
 Architecture: any
 Depends: libcurl4,
-         mariadb-server-10.6 (= ${binary:Version}),
+         mariadb-server-10.6 (= ${server:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Amazon S3 archival storage engine for MariaDB
@@ -585,7 +585,7 @@ Description: Amazon S3 archival storage engine for MariaDB
 
 Package: mariadb-plugin-rocksdb
 Architecture: amd64 arm64 mips64el ppc64el
-Depends: mariadb-server-10.6 (= ${binary:Version}),
+Depends: mariadb-server-10.6 (= ${server:Version}),
          python3,
          rocksdb-tools,
          ${misc:Depends},
@@ -605,7 +605,7 @@ Description: RocksDB storage engine for MariaDB
 Package: mariadb-plugin-oqgraph
 Architecture: any
 Depends: libjudydebian1,
-         mariadb-server-10.6 (= ${binary:Version}),
+         mariadb-server-10.6 (= ${server:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-oqgraph-engine-10.1,
@@ -623,7 +623,7 @@ Description: OQGraph storage engine for MariaDB
 
 Package: mariadb-plugin-mroonga
 Architecture: any-alpha any-amd64 any-arm any-arm64 any-i386 any-ia64 any-mips64el any-mips64r6el any-mipsel any-mipsr6el any-nios2 any-powerpcel any-ppc64el any-sh3 any-sh4 any-tilegx
-Depends: mariadb-server-10.6 (= ${binary:Version}),
+Depends: mariadb-server-10.6 (= ${server:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-server-10.0,
@@ -643,7 +643,7 @@ Description: Mroonga storage engine for MariaDB
 
 Package: mariadb-plugin-spider
 Architecture: any
-Depends: mariadb-server-10.6 (= ${binary:Version}),
+Depends: mariadb-server-10.6 (= ${server:Version}),
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-server-10.0,
@@ -665,7 +665,7 @@ Description: Spider storage engine for MariaDB
 Package: mariadb-plugin-gssapi-server
 Architecture: any
 Depends: libgssapi-krb5-2,
-         mariadb-server-10.6 (= ${binary:Version}),
+         mariadb-server-10.6,
          ${misc:Depends},
          ${shlibs:Depends}
 Breaks: mariadb-gssapi-server-10.1,
@@ -706,7 +706,7 @@ Description: GSSAPI authentication plugin for MariaDB client
 Package: mariadb-plugin-cracklib-password-check
 Architecture: any
 Depends: libcrack2 (>= 2.9.0),
-         mariadb-server-10.6 (= ${binary:Version}),
+         mariadb-server-10.6,
          ${misc:Depends},
          ${shlibs:Depends}
 Description: CrackLib Password Validation Plugin for MariaDB
@@ -718,7 +718,7 @@ Description: CrackLib Password Validation Plugin for MariaDB
 Package: mariadb-test
 Architecture: any
 Depends: mariadb-client-10.6 (= ${binary:Version}),
-         mariadb-server-10.6 (= ${binary:Version}),
+         mariadb-server-10.6 (= ${server:Version}),
          mariadb-test-data (= ${source:Version}),
          virtual-mysql-testsuite,
          ${misc:Depends},

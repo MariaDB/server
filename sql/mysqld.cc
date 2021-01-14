@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB
+   Copyright (c) 2008, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -5016,6 +5016,7 @@ static int init_server_components()
 #if defined(__linux__)
       MARIADB_REMOVED_OPTION("super-large-pages"),
 #endif
+      MARIADB_REMOVED_OPTION("innodb-idle-flush-pct"),
       MARIADB_REMOVED_OPTION("innodb-locks-unsafe-for-binlog"),
       MARIADB_REMOVED_OPTION("innodb-rollback-segments"),
       MARIADB_REMOVED_OPTION("innodb-stats-sample-pages"),

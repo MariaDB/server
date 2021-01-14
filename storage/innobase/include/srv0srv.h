@@ -372,8 +372,6 @@ extern double	srv_defragment_fill_factor;
 extern uint	srv_defragment_frequency;
 extern ulonglong	srv_defragment_interval;
 
-extern ulong	srv_idle_flush_pct;
-
 extern uint	srv_change_buffer_max_size;
 
 /* Number of IO operations per second the server can do */
