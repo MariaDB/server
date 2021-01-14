@@ -212,8 +212,11 @@ bool wsrep_start_position_verify (const char* start_str)
     return true;
 
   char* endptr;
-  wsrep_seqno_t const seqno __attribute__((unused)) // to avoid GCC warnings
-    (strtoll(&start_str[uuid_len + 1], &endptr, 10));
+  wsrep_seqno_t const seqno(strtoll(&start_str[uuid_len + 1], &endptr, 10));
+
+  // Do not allow seqno < -1
+  if (*endptr == '\0' && seqno < -1)
+    return true;
 
   // Remaining string was seqno.
   if (*endptr == '\0') return false;
