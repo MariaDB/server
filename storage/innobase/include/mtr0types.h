@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -336,9 +336,9 @@ enum mtr_memo_type_t {
 
 	MTR_MEMO_SX_LOCK = RW_SX_LATCH << 5,
 
-	/** rd_lock() on fil_space_t::latch */
-	MTR_MEMO_SPACE_X_LOCK = MTR_MEMO_SX_LOCK << 1,
 	/** wr_lock() on fil_space_t::latch */
+	MTR_MEMO_SPACE_X_LOCK = MTR_MEMO_SX_LOCK << 1,
+	/** rd_lock() on fil_space_t::latch */
 	MTR_MEMO_SPACE_S_LOCK = MTR_MEMO_SX_LOCK << 2
 };
 #endif /* !UNIV_INNOCHECKSUM */

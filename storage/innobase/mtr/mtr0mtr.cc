@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -569,8 +569,8 @@ mtr_t::x_lock_space(ulint space_id)
 	return(space);
 }
 
-/** Acquire a tablespace X-latch.
-@param[in]	space	tablespace */
+/** Acquire an exclusive tablespace latch.
+@param space  tablespace */
 void mtr_t::x_lock_space(fil_space_t *space)
 {
   ut_ad(space->purpose == FIL_TYPE_TEMPORARY ||

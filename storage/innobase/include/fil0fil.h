@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -398,7 +398,7 @@ private:
   static constexpr uint32_t PENDING= ~(STOPPING | CLOSING | NEEDS_FSYNC);
   /** latch protecting all page allocation bitmap pages */
   srw_lock latch;
-  ut_d(os_thread_id_t latch_owner;)
+  os_thread_id_t latch_owner;
   ut_d(Atomic_relaxed<uint32_t> latch_count;)
 public:
 	UT_LIST_NODE_T(fil_space_t) named_spaces;
@@ -996,14 +996,14 @@ public:
 
 #ifdef UNIV_DEBUG
   bool is_latched() const { return latch_count != 0; }
-  bool is_owner() const { return latch_owner == os_thread_get_curr_id(); }
 #endif
+  bool is_owner() const { return latch_owner == os_thread_get_curr_id(); }
   /** Acquire the allocation latch in exclusive mode */
   void x_lock()
   {
     latch.wr_lock(SRW_LOCK_CALL);
     ut_ad(!latch_owner);
-    ut_d(latch_owner= os_thread_get_curr_id());
+    latch_owner= os_thread_get_curr_id();
     ut_ad(!latch_count.fetch_add(1));
   }
   /** Release the allocation latch from exclusive mode */
@@ -1011,12 +1011,13 @@ public:
   {
     ut_ad(latch_count.fetch_sub(1) == 1);
     ut_ad(latch_owner == os_thread_get_curr_id());
-    ut_d(latch_owner= 0);
+    latch_owner= 0;
     latch.wr_unlock();
   }
   /** Acquire the allocation latch in shared mode */
   void s_lock()
   {
+    ut_ad(!is_owner());
     latch.rd_lock(SRW_LOCK_CALL);
     ut_ad(!latch_owner);
     ut_d(latch_count.fetch_add(1));
