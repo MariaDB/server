@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -65,8 +65,8 @@ savepoint. */
 /** Push an object to an mtr memo stack. */
 #define mtr_memo_push(m, o, t)	(m)->memo_push(o, t)
 
-#define mtr_s_lock_space(s, m)	(m)->s_lock_space((s), __FILE__, __LINE__)
 #define mtr_x_lock_space(s, m)	(m)->x_lock_space((s), __FILE__, __LINE__)
+#define mtr_sx_lock_space(s, m) (m)->sx_lock_space((s), __FILE__, __LINE__)
 
 #define mtr_s_lock_index(i, m)	(m)->s_lock(&(i)->lock, __FILE__, __LINE__)
 #define mtr_x_lock_index(i, m)	(m)->x_lock(&(i)->lock, __FILE__, __LINE__)
@@ -252,18 +252,6 @@ struct mtr_t {
 		memo_push(lock, MTR_MEMO_SX_LOCK);
 	}
 
-	/** Acquire a tablespace S-latch.
-	@param[in]	space	tablespace
-	@param[in]	file	file name from where called
-	@param[in]	line	line number in file */
-	void s_lock_space(fil_space_t* space, const char* file, unsigned line)
-	{
-		ut_ad(space->purpose == FIL_TYPE_TEMPORARY
-		      || space->purpose == FIL_TYPE_IMPORT
-		      || space->purpose == FIL_TYPE_TABLESPACE);
-		s_lock(&space->latch, file, line);
-	}
-
 	/** Acquire a tablespace X-latch.
 	@param[in]	space	tablespace
 	@param[in]	file	file name from where called
@@ -276,6 +264,18 @@ struct mtr_t {
 		memo_push(space, MTR_MEMO_SPACE_X_LOCK);
 		rw_lock_x_lock_inline(&space->latch, 0, file, line);
 	}
+
+ /** Acquire a tablespace SX-latch.
+ @param[in]	space	tablespace
+ @param[in]	file	file name from where called
+ @param[in]	line	line number in file */
+ void sx_lock_space(fil_space_t *space, const char *file, unsigned line)
+ {
+   ut_ad(space->purpose == FIL_TYPE_TEMPORARY
+         || space->purpose == FIL_TYPE_IMPORT
+	 || space->purpose == FIL_TYPE_TABLESPACE);
+   sx_lock(&space->latch, file, line);
+ }
 
 	/** Release an object in the memo stack.
 	@param object	object

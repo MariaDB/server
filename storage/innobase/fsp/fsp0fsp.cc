@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -404,7 +404,7 @@ xdes_get_descriptor_const(
 	page_no_t		offset,
 	mtr_t*			mtr)
 {
-	ut_ad(mtr->memo_contains(space->latch, MTR_MEMO_S_LOCK));
+	ut_ad(mtr->memo_contains(space->latch, MTR_MEMO_SX_LOCK));
 	ut_ad(offset < space->free_limit);
 	ut_ad(offset < space->size_in_header);
 
@@ -2569,7 +2569,7 @@ fseg_page_is_free(fil_space_t* space, unsigned page)
 							  page);
 
 	mtr.start();
-	mtr_s_lock_space(space, &mtr);
+	mtr_sx_lock_space(space, &mtr);
 
 	if (page >= space->free_limit || page >= space->size_in_header) {
 		is_free = true;
