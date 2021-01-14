@@ -1784,4 +1784,13 @@ EXECUTE IMMEDIATE 'if(`systeminfo /FO LIST';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '`systeminfo /FO LIST' at line 1
 EXECUTE IMMEDIATE 'if(`systeminfo';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '`systeminfo' at line 1
+#
+# MDEV-23666 Assertion failed in Lex_input_stream::body_utf8_append
+#
+SET @@sql_mode='ANSI_QUOTES';
+EXECUTE IMMEDIATE 'CREATE PROCEDURE p() UPDATE t SET c=\'\'"';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"' at line 1
+EXECUTE IMMEDIATE 'CREATE PROCEDURE p() UPDATE t SET c=\'\'"abc';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"abc' at line 1
+SET @@sql_mode=@save_sql_mode;
 # End of 10.3 tests
