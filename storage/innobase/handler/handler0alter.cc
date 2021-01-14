@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4657,6 +4657,7 @@ prepare_inplace_alter_table_dict(
 			}
 
 			if (dict_col_name_is_reserved(field->field_name)) {
+wrong_column_name:
 				dict_mem_table_free(ctx->new_table);
 				my_error(ER_WRONG_COLUMN_NAME, MYF(0),
 					 field->field_name);
@@ -4674,9 +4675,7 @@ prepare_inplace_alter_table_dict(
 				    || col_len != sizeof(doc_id_t)
 				    || strcmp(field->field_name,
 					      FTS_DOC_ID_COL_NAME)) {
-					my_error(ER_WRONG_COLUMN_NAME, MYF(0),
-						 field->field_name);
-					goto new_clustered_failed;
+					goto wrong_column_name;
 				}
 			}
 
