@@ -225,10 +225,6 @@ struct ib_lock_t
 	@return the given output stream. */
 	std::ostream& print(std::ostream& out) const;
 
-	/** Convert the member 'type_mode' into a human readable string.
-	@return human readable string */
-	std::string type_mode_string() const;
-
 	const char* type_string() const
 	{
 		switch (type_mode & LOCK_TYPE_MASK) {
