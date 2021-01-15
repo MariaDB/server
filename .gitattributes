@@ -33,3 +33,16 @@ pcre/testdata/greppatN4 -text
 *.ic    diff=cpp
 *.cpp   diff=cpp
 *.java  diff=cpp
+
+# Github lists too many languages
+# curl   -H "Accept: application/vnd.github.v3+json"   https://api.github.com/repos/MariaDB/server/languages
+# Their detection is based on https://github.com/github/linguist#overrides so we use some overrides
+zlib/* linguist-vendored
+tests/*.tst linguist-language=SQL
+tests/*.res linguist-language=SQL
+storage/innobase/include/univ.i linguist-language=C
+*.inc linguist-language=MariaDB\ Test
+*.test linguist-language=MariaDB\ Test
+*.result linguist-language=MariaDB\ Test
+*.frm linguist-language=MariaDB\ Table
+*.h.pp linguist-language=C
