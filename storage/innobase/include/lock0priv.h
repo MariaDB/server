@@ -72,7 +72,19 @@ ib_lock_t::type_mode_string() const
 {
 	std::ostringstream sout;
 	sout << type_string();
-	sout << " | " << lock_mode_string(mode());
+	static_assert(LOCK_MODE_MASK == 7, "compatibility");
+	static_assert(LOCK_IS == 0, "compatibility");
+	static_assert(LOCK_IX == 1, "compatibility");
+	static_assert(LOCK_S == 2, "compatibility");
+	static_assert(LOCK_X == 3, "compatibility");
+	static_assert(LOCK_AUTO_INC == 4, "compatibility");
+	static_assert(LOCK_NONE == 5, "compatibility");
+	static_assert(LOCK_NONE_UNSET == 7, "compatibility");
+	const char * const modes[8] = {
+		"IS", "IX", "S", "X", "AUTO_INC", "NONE", "?", "NONE_UNSET"
+	};
+
+	sout << " | LOCK_" << modes[mode()];
 
 	if (is_record_not_gap()) {
 		sout << " | LOCK_REC_NOT_GAP";

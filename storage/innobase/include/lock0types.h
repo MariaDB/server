@@ -46,34 +46,8 @@ enum lock_mode {
 			in an exclusive mode */
 	LOCK_NONE,	/* this is used elsewhere to note consistent read */
 	LOCK_NUM = LOCK_NONE, /* number of lock modes */
-	LOCK_NONE_UNSET = 255
+	LOCK_NONE_UNSET = 7
 };
-
-/** Convert the given enum value into string.
-@param[in]	mode	the lock mode
-@return human readable string of the given enum value */
-inline
-const char* lock_mode_string(enum lock_mode mode)
-{
-	switch (mode) {
-	case LOCK_IS:
-		return("LOCK_IS");
-	case LOCK_IX:
-		return("LOCK_IX");
-	case LOCK_S:
-		return("LOCK_S");
-	case LOCK_X:
-		return("LOCK_X");
-	case LOCK_AUTO_INC:
-		return("LOCK_AUTO_INC");
-	case LOCK_NONE:
-		return("LOCK_NONE");
-	case LOCK_NONE_UNSET:
-		return("LOCK_NONE_UNSET");
-	default:
-		ut_error;
-	}
-}
 
 /** A table lock */
 struct lock_table_t {
@@ -121,7 +95,7 @@ operator<<(std::ostream& out, const lock_rec_t& lock)
 	return(lock.print(out));
 }
 
-#define LOCK_MODE_MASK	0xFUL	/*!< mask used to extract mode from the
+#define LOCK_MODE_MASK	0x7	/*!< mask used to extract mode from the
 				type_mode field in a lock */
 /** Lock types */
 /* @{ */
