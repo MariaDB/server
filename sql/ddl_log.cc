@@ -87,7 +87,8 @@ const char *ddl_log_action_name[DDL_LOG_LAST_ACTION]=
   "partitioning replace", "partitioning exchange",
   "rename table", "rename view",
   "initialize drop table", "drop table",
-  "drop view", "drop trigger", "drop db", "create table",
+  "drop view", "drop trigger", "drop db", "create table", "create view",
+  "delete tmp file",
 };
 
 /* Number of phases per entry */
@@ -96,7 +97,8 @@ const uchar ddl_log_entry_phases[DDL_LOG_LAST_ACTION]=
   0, 1, 1, 2,
   (uchar) EXCH_PHASE_END, (uchar) DDL_RENAME_PHASE_END, 1, 1,
   (uchar) DDL_DROP_PHASE_END, 1, 1,
-  (uchar) DDL_DROP_DB_PHASE_END, (uchar) DDL_CREATE_TABLE_PHASE_END
+  (uchar) DDL_DROP_DB_PHASE_END, (uchar) DDL_CREATE_TABLE_PHASE_END,
+  (uchar) DDL_CREATE_VIEW_PHASE_END, 0,
 };
 
 
@@ -355,6 +357,26 @@ bool ddl_log_disable_execute_entry(DDL_LOG_MEMORY_ENTRY **active_entry)
   return res;
 }
 
+
+/*
+  Check if an executive entry is active
+
+  @return 0  Entry is active
+  @return 1  Entry is not active
+*/
+
+static bool is_execute_entry_active(uint entry_pos)
+{
+  uchar buff[1];
+  DBUG_ENTER("disable_execute_entry");
+
+  if (mysql_file_pread(global_ddl_log.file_id, buff, sizeof(buff),
+                       global_ddl_log.io_size * entry_pos +
+                       DDL_LOG_ENTRY_TYPE_POS,
+                       MYF(MY_WME | MY_NABP)))
+    DBUG_RETURN(1);
+  DBUG_RETURN(buff[0] == (uchar) DDL_LOG_EXECUTE_CODE);
+}
 
 
 /**
@@ -1513,6 +1535,70 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
     break;
   }
+  case DDL_LOG_CREATE_VIEW_ACTION:
+  {
+    char *path= to_path;
+    size_t path_length= ddl_log_entry->tmp_name.length;
+    memcpy(path, ddl_log_entry->tmp_name.str, path_length+1);
+    path[path_length+1]= 0;               // Prepare for extending
+
+    /* Remove temporary parser file */
+    path[path_length]='~';
+    mysql_file_delete(key_file_fileparser, path,
+                      MYF(MY_WME|MY_IGNORE_ENOENT));
+    path[path_length]= 0;
+
+    switch (ddl_log_entry->phase) {
+    case DDL_CREATE_VIEW_PHASE_NO_OLD_VIEW:
+    {
+      /*
+        No old view exists, so we can just delete the .frm and temporary files
+      */
+      path[path_length]='-';
+      mysql_file_delete(key_file_fileparser, path,
+                        MYF(MY_WME|MY_IGNORE_ENOENT));
+      path[path_length]= 0;
+      mysql_file_delete(key_file_frm, path, MYF(MY_WME|MY_IGNORE_ENOENT));
+      break;
+    }
+    case DDL_CREATE_VIEW_PHASE_DELETE_VIEW_COPY:
+    {
+      /*
+        Old view existed. We crashed before we had done a copy and change
+        state to DDL_CREATE_VIEW_PHASE_OLD_VIEW_COPIED
+      */
+      path[path_length]='-';
+      mysql_file_delete(key_file_fileparser, path,
+                        MYF(MY_WME|MY_IGNORE_ENOENT));
+      path[path_length]= 0;
+      break;
+    }
+    case DDL_CREATE_VIEW_PHASE_OLD_VIEW_COPIED:
+    {
+      /*
+        Old view existed copied to '-' file. Restore it
+      */
+      memcpy(from_path, path, path_length+2);
+      from_path[path_length]='-';
+      if (!access(from_path, F_OK))
+        mysql_file_rename(key_file_fileparser, from_path, path, MYF(MY_WME));
+      break;
+    }
+    }
+    (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
+    break;
+  }
+  case DDL_LOG_DELETE_TMP_FILE_ACTION:
+  {
+    LEX_CSTRING path= ddl_log_entry->tmp_name;
+    DBUG_ASSERT(ddl_log_entry->unique_id <= UINT_MAX32);
+    if (!ddl_log_entry->unique_id ||
+        !is_execute_entry_active((uint) ddl_log_entry->unique_id))
+      mysql_file_delete(key_file_fileparser, path.str,
+                        MYF(MY_WME|MY_IGNORE_ENOENT));
+    (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
+    break;
+  }
   break;
   default:
     DBUG_ASSERT(0);
@@ -2437,5 +2523,51 @@ bool ddl_log_create_table(THD *thd, DDL_LOG_STATE *ddl_state,
   ddl_log_entry.tmp_name=     *const_cast<LEX_CSTRING*>(path);
   ddl_log_entry.unique_id=    only_frm;
 
+  DBUG_RETURN(ddl_log_write(ddl_state, &ddl_log_entry));
+}
+
+
+/**
+   Log CREATE VIEW
+*/
+
+bool ddl_log_create_view(THD *thd, DDL_LOG_STATE *ddl_state,
+                         const LEX_CSTRING *path,
+                         enum_ddl_log_create_view_phase phase)
+{
+  DDL_LOG_ENTRY ddl_log_entry;
+  DBUG_ENTER("ddl_log_create_view");
+
+  bzero(&ddl_log_entry, sizeof(ddl_log_entry));
+  ddl_log_entry.action_type=  DDL_LOG_CREATE_VIEW_ACTION;
+  ddl_log_entry.tmp_name=     *const_cast<LEX_CSTRING*>(path);
+  ddl_log_entry.phase=        (uchar) phase;
+  DBUG_RETURN(ddl_log_write(ddl_state, &ddl_log_entry));
+}
+
+
+/**
+  Log creation of temporary file that should be deleted during recovery
+
+  @param thd             Thread handler
+  @param ddl_log_state   ddl_state
+  @param path            Path to file to be deleted
+  @param depending_state If not NULL, then do not delete the temp file if this
+                         entry exists and is active.
+*/
+
+bool ddl_log_delete_tmp_file(THD *thd, DDL_LOG_STATE *ddl_state,
+                             const LEX_CSTRING *path,
+                             DDL_LOG_STATE *depending_state)
+{
+  DDL_LOG_ENTRY ddl_log_entry;
+  DBUG_ENTER("ddl_log_delete_tmp_file");
+
+  bzero(&ddl_log_entry, sizeof(ddl_log_entry));
+  ddl_log_entry.action_type=  DDL_LOG_DELETE_TMP_FILE_ACTION;
+  ddl_log_entry.next_entry=   ddl_state->list ? ddl_state->list->entry_pos : 0;
+  ddl_log_entry.tmp_name=     *const_cast<LEX_CSTRING*>(path);
+  if (depending_state)
+    ddl_log_entry.unique_id=  depending_state->execute_entry->entry_pos;
   DBUG_RETURN(ddl_log_write(ddl_state, &ddl_log_entry));
 }
