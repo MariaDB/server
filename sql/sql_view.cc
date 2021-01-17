@@ -44,7 +44,9 @@
 
 const LEX_CSTRING view_type= { STRING_WITH_LEN("VIEW") };
 
-static int mysql_register_view(THD *, TABLE_LIST *, enum_view_create_mode);
+static int mysql_register_view(THD *thd, DDL_LOG_STATE *ddl_log_state,
+                               TABLE_LIST *view, enum_view_create_mode mode,
+                               char *backup_file_name);
 
 /*
   Make a unique name for an anonymous view column
@@ -406,6 +408,8 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   SELECT_LEX *select_lex= lex->first_select_lex();
   SELECT_LEX *sl;
   SELECT_LEX_UNIT *unit= &lex->unit;
+  DDL_LOG_STATE ddl_log_state, ddl_log_state_tmp_file;
+  char backup_file_name[FN_REFLEN+2];
   bool res= FALSE;
   DBUG_ENTER("mysql_create_view");
 
@@ -413,6 +417,9 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   DBUG_ASSERT(!lex->proc_list.first && !lex->result &&
               !lex->param_list.elements);
 
+  bzero(&ddl_log_state, sizeof(ddl_log_state));
+  bzero(&ddl_log_state_tmp_file, sizeof(ddl_log_state_tmp_file));
+  backup_file_name[0]= 0;
   /*
     We can't allow taking exclusive meta-data locks of unlocked view under
     LOCK TABLES since this might lead to deadlock. Since at the moment we
@@ -649,7 +656,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   }
 #endif
 
-  res= mysql_register_view(thd, view, mode);
+  res= mysql_register_view(thd, &ddl_log_state, view, mode, backup_file_name);
 
   /*
     View TABLE_SHARE must be removed from the table definition cache in order to
@@ -710,10 +717,21 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       with statement based replication
     */
     thd->reset_unsafe_warnings();
+    thd->binlog_xid= thd->query_id;
+    ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
+    if (backup_file_name[0])
+    {
+      LEX_CSTRING cpath= {backup_file_name, strlen(backup_file_name) };
+      ddl_log_delete_tmp_file(thd, &ddl_log_state_tmp_file, &cpath,
+                              &ddl_log_state);
+    }
+    debug_crash_here("ddl_log_create_before_binlog");
     if (thd->binlog_query(THD::STMT_QUERY_TYPE,
                           buff.ptr(), buff.length(), FALSE, FALSE, FALSE,
                           errcode) > 0)
       res= TRUE;
+    thd->binlog_xid= 0;
+    debug_crash_here("ddl_log_create_after_binlog");
   }
 
   if (mode != VIEW_CREATE_NEW)
@@ -721,8 +739,14 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   if (res)
     goto err;
 
+  if (backup_file_name[0] &&
+      mysql_file_delete(key_file_fileparser, backup_file_name, MYF(MY_WME)))
+    goto err;                                   // Should be impossible
+
   my_ok(thd);
   lex->link_first_table_back(view, link_to_local);
+  ddl_log_complete(&ddl_log_state);
+  ddl_log_complete(&ddl_log_state_tmp_file);
   DBUG_RETURN(0);
 
 #ifdef WITH_WSREP
@@ -735,6 +759,10 @@ err:
   lex->link_first_table_back(view, link_to_local);
 err_no_relink:
   unit->cleanup();
+  if (backup_file_name[0])
+    mysql_file_delete(key_file_fileparser, backup_file_name, MYF(MY_WME));
+  ddl_log_complete(&ddl_log_state);
+  ddl_log_complete(&ddl_log_state_tmp_file);
   DBUG_RETURN(res || thd->is_error());
 }
 
@@ -891,6 +919,7 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
     thd		- thread handler
     view	- view description
     mode	- VIEW_CREATE_NEW, VIEW_ALTER, VIEW_CREATE_OR_REPLACE
+    backup_file_name  - Store name for backup of old view definition here
 
   RETURN
      0	OK
@@ -898,8 +927,9 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
      1	Error and error message given
 */
 
-static int mysql_register_view(THD *thd, TABLE_LIST *view,
-			       enum_view_create_mode mode)
+static int mysql_register_view(THD *thd, DDL_LOG_STATE *ddl_log_state,
+                               TABLE_LIST *view, enum_view_create_mode mode,
+                               char *backup_file_name)
 {
   LEX *lex= thd->lex;
 
@@ -936,11 +966,13 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
   char dir_buff[FN_REFLEN + 1], path_buff[FN_REFLEN + 1];
   LEX_CSTRING dir, file, path;
   int error= 0;
+  bool old_view_exists= 0;
   DBUG_ENTER("mysql_register_view");
 
   /* Generate view definition and IS queries. */
   view_query.length(0);
   is_query.length(0);
+  backup_file_name[0]= 0;
   {
     Sql_mode_instant_remove sms(thd, MODE_ANSI_QUOTES);
 
@@ -1042,6 +1074,7 @@ loop_out:
 
     if (ha_table_exists(thd, &view->db, &view->table_name))
     {
+      old_view_exists= 1;
       if (lex->create_info.if_not_exists())
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
@@ -1077,7 +1110,7 @@ loop_out:
       */
     }
     else
-   {
+    {
       if (mode == VIEW_ALTER)
       {
 	my_error(ER_NO_SUCH_TABLE, MYF(0), view->db.str, view->alias.str);
@@ -1137,12 +1170,35 @@ loop_out:
     goto err;
   }
 
+  ddl_log_create_view(thd, ddl_log_state, &path, old_view_exists ?
+                      DDL_CREATE_VIEW_PHASE_DELETE_VIEW_COPY :
+                      DDL_CREATE_VIEW_PHASE_NO_OLD_VIEW);
+
+  debug_crash_here("ddl_log_create_before_copy_view");
+
+  if (old_view_exists)
+  {
+    /* Make a backup that we can restore in case of crash */
+    memcpy(backup_file_name, path.str, path.length);
+    backup_file_name[path.length]='-';
+    backup_file_name[path.length+1]= 0;
+    if (my_copy(path.str, backup_file_name, MYF(MY_WME)))
+    {
+      error= 1;
+      goto err;
+    }
+    ddl_log_update_phase(ddl_log_state, DDL_CREATE_VIEW_PHASE_OLD_VIEW_COPIED);
+  }
+
+  debug_crash_here("ddl_log_create_before_create_view");
   if (sql_create_definition_file(&dir, &file, view_file_type,
 				 (uchar*)view, view_parameters))
   {
     error= thd->is_error() ? -1 : 1;
     goto err;
   }
+  debug_crash_here("ddl_log_create_after_create_view");
+
   DBUG_RETURN(0);
 err:
   view->select_stmt.str= NULL;
