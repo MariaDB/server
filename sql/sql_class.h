@@ -39,7 +39,7 @@
 #include "thr_lock.h"       /* thr_lock_type, THR_LOCK_DATA, THR_LOCK_INFO */
 #include "thr_timer.h"
 #include "thr_malloc.h"
-#include "log_slow.h"      /* LOG_SLOW_DISABLE_... */
+#include "log_slow.h"       /* LOG_SLOW_DISABLE_... */
 #include <my_tree.h>
 #include "sql_digest_stream.h"            // sql_digest_state
 #include <mysql/psi/mysql_stage.h>
@@ -50,6 +50,7 @@
 #include "session_tracker.h"
 #include "backup.h"
 #include "xa.h"
+#include "ddl_log.h"                            /* DDL_LOG_STATE */
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -5824,6 +5825,7 @@ class select_create: public select_insert {
   MYSQL_LOCK **m_plock;
   bool       exit_done;
   TMP_TABLE_SHARE *saved_tmp_table_share;
+  DDL_LOG_STATE ddl_log_state_create, ddl_log_state_rm;
 
 public:
   select_create(THD *thd_arg, TABLE_LIST *table_arg,
@@ -5839,7 +5841,10 @@ public:
     alter_info(alter_info_arg),
     m_plock(NULL), exit_done(0),
     saved_tmp_table_share(0)
-    {}
+    {
+      bzero(&ddl_log_state_create, sizeof(ddl_log_state_create));
+      bzero(&ddl_log_state_rm, sizeof(ddl_log_state_rm));
+    }
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
 
   void store_values(List<Item> &values);

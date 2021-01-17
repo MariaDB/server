@@ -290,6 +290,12 @@ public:
   const char *get_tmp_path() const
   { return tmp_path; }
 
+  const LEX_CSTRING get_tmp_cstring_path() const
+  {
+    LEX_CSTRING tmp= { tmp_path, strlen(tmp_path) };
+    return tmp;
+  };
+
   /**
     Mark ALTER TABLE as needing to produce foreign key error if
     it deletes a row from the table being changed.

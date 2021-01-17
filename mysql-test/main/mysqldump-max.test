@@ -1194,7 +1194,7 @@ source include/binlog_start_pos.inc;
 let _BINLOG_START_POS= $binlog_start_pos;
 --perl
 my $f= "$ENV{MYSQLTEST_VARDIR}/tmp/mwl136.sql";
-my $pos=$ENV{_BINLOG_START_POS} + 739;
+my $pos=$ENV{_BINLOG_START_POS} + 757;
 open F, '<', $f or die "Failed to open $f: $!\n";
 while (<F>) {
    s/$pos/<pos>/;

@@ -9,6 +9,4 @@ SELECT * FROM t1;
 connection default;
 # Waiting for mariadbd to crash
 # Crash was detected
-DROP TABLE t1, t2;
-Warnings:
-Warning	1932	Table 'test.t2' doesn't exist in engine
+DROP TABLE t1;

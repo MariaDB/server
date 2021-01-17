@@ -16,7 +16,7 @@ connect(con4,localhost,root,,);
 connection default;
 
 CREATE TABLE t1 (a INT, b VARCHAR(100), PRIMARY KEY (a,b)) ENGINE=innodb;
-let pos=`select $binlog_start_pos + 254`;
+let pos=`select $binlog_start_pos + 263`;
 --replace_result $pos <pos>
 SHOW MASTER STATUS;
 --replace_result $pos <pos>
@@ -53,10 +53,10 @@ COMMIT;
 
 connection default;
 SELECT * FROM t1 ORDER BY a,b;
-let pos=`select $binlog_start_pos + 788`;
+let pos=`select $binlog_start_pos + 806`;
 --replace_result $pos <pos>
 SHOW STATUS LIKE 'binlog_snapshot_%';
-let pos=`select $binlog_start_pos + 1164`;
+let pos=`select $binlog_start_pos + 1182`;
 --replace_result $pos <pos>
 SHOW MASTER STATUS;
 SELECT * FROM t2 ORDER BY a;
@@ -74,7 +74,7 @@ FLUSH LOGS;
 
 connection default;
 SELECT * FROM t1 ORDER BY a,b;
-let pos=`select $binlog_start_pos + 788`;
+let pos=`select $binlog_start_pos + 806`;
 --replace_result $pos <pos>
 SHOW STATUS LIKE 'binlog_snapshot_%';
 let pos=`select $binlog_start_pos + 131`;

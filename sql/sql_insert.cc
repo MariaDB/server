@@ -4391,7 +4391,8 @@ Field *Item::create_field_for_create_select(MEM_ROOT *root, TABLE *table)
 */
 
 TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
-                                      MYSQL_LOCK **lock, TABLEOP_HOOKS *hooks)
+                                              MYSQL_LOCK **lock,
+                                              TABLEOP_HOOKS *hooks)
 {
   TABLE tmp_table;		// Used during 'Create_field()'
   TABLE_SHARE share;
@@ -4489,7 +4490,8 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     open_table().
   */
 
-  if (!mysql_create_table_no_lock(thd, &create_table->db,
+  if (!mysql_create_table_no_lock(thd, &ddl_log_state_create, &ddl_log_state_rm,
+                                  &create_table->db,
                                   &create_table->table_name,
                                   create_info, alter_info, NULL,
                                   select_field_count, create_table))
@@ -4548,6 +4550,8 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   {
     if (likely(!thd->is_error()))             // CREATE ... IF NOT EXISTS
       my_ok(thd);                             //   succeed, but did nothing
+    ddl_log_complete(&ddl_log_state_rm);
+    ddl_log_complete(&ddl_log_state_create);
     DBUG_RETURN(NULL);
   }
 
@@ -4586,7 +4590,9 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       *lock= 0;
     }
     drop_open_table(thd, table, &create_table->db, &create_table->table_name);
-    DBUG_RETURN(0);
+    ddl_log_complete(&ddl_log_state_rm);
+    ddl_log_complete(&ddl_log_state_create);
+    DBUG_RETURN(NULL);
     /* purecov: end */
   }
   table->s->table_creation_was_logged= save_table_creation_was_logged;
@@ -4924,11 +4930,30 @@ bool select_create::send_eof()
   if (thd->slave_thread)
     thd->variables.binlog_annotate_row_events= 0;
 
+  debug_crash_here("ddl_log_create_before_binlog");
+
+  /*
+    In case of crash, we have to add DROP TABLE to the binary log as
+    the CREATE TABLE will already be logged if we are not using row based
+    replication.
+  */
+  if (!thd->is_current_stmt_binlog_format_row())
+  {
+    if (ddl_log_state_create.is_active())       // Not temporary table
+      ddl_log_update_phase(&ddl_log_state_create, DDL_CREATE_TABLE_PHASE_LOG);
+    /*
+      We can ignore if we replaced an old table as ddl_log_state_create will
+      now handle the logging of the drop if needed.
+    */
+    ddl_log_complete(&ddl_log_state_rm);
+  }
+
   if (prepare_eof())
   {
     abort_result_set();
     DBUG_RETURN(true);
   }
+  debug_crash_here("ddl_log_create_after_prepare_eof");
 
   if (table->s->tmp_table)
   {
@@ -4994,9 +5019,15 @@ bool select_create::send_eof()
       thd->get_stmt_da()->set_overwrite_status(true);
     }
 #endif /* WITH_WSREP */
+    thd->binlog_xid= thd->query_id;
+    /* Remember xid's for the case of row based logging */
+    ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
+    ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
     trans_commit_stmt(thd);
     if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
       trans_commit_implicit(thd);
+    thd->binlog_xid= 0;
+
 #ifdef WITH_WSREP
     if (WSREP(thd))
     {
@@ -5015,6 +5046,15 @@ bool select_create::send_eof()
     }
 #endif /* WITH_WSREP */
   }
+  /*
+    If are using statement based replication the table will be deleted here
+    in case of a crash as we can't use xid to check if the query was logged
+    (as the query was logged before commit!)
+  */
+  debug_crash_here("ddl_log_create_after_binlog");
+  ddl_log_complete(&ddl_log_state_rm);
+  ddl_log_complete(&ddl_log_state_create);
+  debug_crash_here("ddl_log_create_log_complete");
 
   /*
     exit_done must only be set after last potential call to
@@ -5131,10 +5171,20 @@ void select_create::abort_result_set()
       binlog_reset_cache(thd);
       /* Original table was deleted. We have to log it */
       if (table_creation_was_logged)
+      {
+        thd->binlog_xid= thd->query_id;
+        ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
+        ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
+        debug_crash_here("ddl_log_create_before_binlog");
         log_drop_table(thd, &create_table->db, &create_table->table_name,
                        tmp_table);
+        debug_crash_here("ddl_log_create_after_binlog");
+        thd->binlog_xid= 0;
+      }
     }
   }
+  ddl_log_complete(&ddl_log_state_rm);
+  ddl_log_complete(&ddl_log_state_create);
   DBUG_VOID_RETURN;
 }
 

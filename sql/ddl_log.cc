@@ -87,7 +87,7 @@ const char *ddl_log_action_name[DDL_LOG_LAST_ACTION]=
   "partitioning replace", "partitioning exchange",
   "rename table", "rename view",
   "initialize drop table", "drop table",
-  "drop view", "drop trigger", "drop db",
+  "drop view", "drop trigger", "drop db", "create table",
 };
 
 /* Number of phases per entry */
@@ -96,7 +96,7 @@ const uchar ddl_log_entry_phases[DDL_LOG_LAST_ACTION]=
   0, 1, 1, 2,
   (uchar) EXCH_PHASE_END, (uchar) DDL_RENAME_PHASE_END, 1, 1,
   (uchar) DDL_DROP_PHASE_END, 1, 1,
-  (uchar) DDL_DROP_DB_PHASE_END
+  (uchar) DDL_DROP_DB_PHASE_END, (uchar) DDL_CREATE_TABLE_PHASE_END
 };
 
 
@@ -1464,6 +1464,56 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     }
     break;
   }
+  case DDL_LOG_CREATE_TABLE_ACTION:
+  {
+    LEX_CSTRING db, table, path;
+    db=     ddl_log_entry->db;
+    table=  ddl_log_entry->name;
+    path=   ddl_log_entry->tmp_name;
+
+    /* Don't delete the table if we didn't create it */
+    if (ddl_log_entry->unique_id == 0)
+    {
+      if (hton)
+      {
+        if ((error= hton->drop_table(hton, path.str)))
+        {
+          if (!non_existing_table_error(error))
+            break;
+          error= -1;
+        }
+      }
+      else
+        error= ha_delete_table_force(thd, path.str, &db, &table);
+    }
+    strxnmov(to_path, sizeof(to_path)-1, path.str, reg_ext, NullS);
+    mysql_file_delete(key_file_frm, to_path, MYF(MY_WME|MY_IGNORE_ENOENT));
+    if (ddl_log_entry->phase == DDL_CREATE_TABLE_PHASE_LOG)
+    {
+      /*
+        The server logged CREATE TABLE ... SELECT into binary log
+        before crashing. As the commit failed and we have delete the
+        table above, we have now to log the DROP of the created table.
+      */
+
+      String *query= &recovery_state.drop_table;
+      query->length(0);
+      query->append(STRING_WITH_LEN("DROP TABLE IF EXISTS "));
+      append_identifier(thd, query, &db);
+      query->append('.');
+      append_identifier(thd, query, &table);
+      query->append(&end_comment);
+
+      mysql_mutex_unlock(&LOCK_gdl);
+      (void) thd->binlog_query(THD::STMT_QUERY_TYPE,
+                               query->ptr(), query->length(),
+                               TRUE, FALSE, FALSE, 0);
+      mysql_mutex_lock(&LOCK_gdl);
+    }
+    (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
+    break;
+  }
+  break;
   default:
     DBUG_ASSERT(0);
     break;
@@ -2356,5 +2406,36 @@ bool ddl_log_drop_db(THD *thd, DDL_LOG_STATE *ddl_state,
   ddl_log_entry.action_type=  DDL_LOG_DROP_DB_ACTION;
   ddl_log_entry.db=           *const_cast<LEX_CSTRING*>(db);
   ddl_log_entry.tmp_name=     *const_cast<LEX_CSTRING*>(path);
+  DBUG_RETURN(ddl_log_write(ddl_state, &ddl_log_entry));
+}
+
+
+/**
+   Log CREATE TABLE
+
+   @param only_frm  On recovery, only drop the .frm. This is needed for
+                    example when deleting a table that was discovered.
+*/
+
+bool ddl_log_create_table(THD *thd, DDL_LOG_STATE *ddl_state,
+                          handlerton *hton,
+                          const LEX_CSTRING *path,
+                          const LEX_CSTRING *db,
+                          const LEX_CSTRING *table,
+                          bool only_frm)
+{
+  DDL_LOG_ENTRY ddl_log_entry;
+  DBUG_ENTER("ddl_log_create_table");
+
+  bzero(&ddl_log_entry, sizeof(ddl_log_entry));
+  ddl_log_entry.action_type= DDL_LOG_CREATE_TABLE_ACTION;
+  if (hton)
+    lex_string_set(&ddl_log_entry.handler_name,
+                   ha_resolve_storage_engine_name(hton));
+  ddl_log_entry.db=           *const_cast<LEX_CSTRING*>(db);
+  ddl_log_entry.name=         *const_cast<LEX_CSTRING*>(table);
+  ddl_log_entry.tmp_name=     *const_cast<LEX_CSTRING*>(path);
+  ddl_log_entry.unique_id=    only_frm;
+
   DBUG_RETURN(ddl_log_write(ddl_state, &ddl_log_entry));
 }
