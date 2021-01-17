@@ -82,6 +82,7 @@ enum ddl_log_action_code
   DDL_LOG_DROP_VIEW_ACTION= 9,
   DDL_LOG_DROP_TRIGGER_ACTION= 10,
   DDL_LOG_DROP_DB_ACTION=11,
+  DDL_LOG_CREATE_TABLE_ACTION=12,
   DDL_LOG_LAST_ACTION                          /* End marker */
 };
 
@@ -116,6 +117,12 @@ enum enum_ddl_log_drop_db_phase {
   DDL_DROP_DB_PHASE_INIT=0,
   DDL_DROP_DB_PHASE_LOG,
   DDL_DROP_DB_PHASE_END
+};
+
+enum enum_ddl_log_create_table_phase {
+  DDL_CREATE_TABLE_PHASE_INIT=0,
+  DDL_CREATE_TABLE_PHASE_LOG,
+  DDL_CREATE_TABLE_PHASE_END
 };
 
 /*
@@ -172,6 +179,7 @@ typedef struct st_ddl_log_state
   DDL_LOG_MEMORY_ENTRY *list;
   /* One execute entry per list */
   DDL_LOG_MEMORY_ENTRY *execute_entry;
+  bool is_active() { return list != 0; }
 } DDL_LOG_STATE;
 
 
@@ -239,5 +247,11 @@ bool ddl_log_drop_view(THD *thd, DDL_LOG_STATE *ddl_state,
                        const LEX_CSTRING *db);
 bool ddl_log_drop_db(THD *thd, DDL_LOG_STATE *ddl_state,
                      const LEX_CSTRING *db, const LEX_CSTRING *path);
+bool ddl_log_create_table(THD *thd, DDL_LOG_STATE *ddl_state,
+                          handlerton *hton,
+                          const LEX_CSTRING *path,
+                          const LEX_CSTRING *db,
+                          const LEX_CSTRING *table,
+                          bool only_frm);
 extern mysql_mutex_t LOCK_gdl;
 #endif /* DDL_LOG_INCLUDED */

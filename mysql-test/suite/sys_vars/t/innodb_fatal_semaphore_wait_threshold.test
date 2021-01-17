@@ -65,4 +65,5 @@ connection default;
 # Call script that will poll the server waiting for it to be back online again
 source include/wait_until_connected_again.inc;
 
-DROP TABLE t1, t2;
+# We only have to do drop t1, as t2 as been automatically deleted by ddl recovery
+DROP TABLE t1;

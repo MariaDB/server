@@ -12,6 +12,8 @@ CREATE TABLE t1 (f1 INT PRIMARY KEY);
 SET SESSION wsrep_trx_fragment_unit='ROWS';
 SET SESSION wsrep_trx_fragment_size=1;
 
+--let $start_pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+
 INSERT INTO t1 VALUES (1), (2);
 
 #
@@ -37,6 +39,7 @@ SET SESSION wsrep_trx_fragment_unit=default;
 SET SESSION wsrep_trx_fragment_size=default;
 
 --replace_regex /table_id: [0-9]+/table_id: #/ /xid=[0-9]+/xid=#/
-SHOW BINLOG EVENTS IN 'mysqld-bin.000002' FROM 518;
+--replace_column 2 # 5 #
+--eval SHOW BINLOG EVENTS IN 'mysqld-bin.000002' FROM $start_pos
 
 DROP TABLE t1;
