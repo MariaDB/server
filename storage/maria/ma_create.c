@@ -1215,6 +1215,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
                 MY_UNPACK_FILENAME | MY_APPEND_EXT);
       create_flag= (flags & HA_CREATE_KEEP_FILES) ? 0 : MY_DELETE_OLD;
     }
+    ma_debug_crash_here("storage_engine_middle_of_create");
     if ((dfile=
          mysql_file_create_with_symlink(key_file_dfile, dlinkname_ptr,
                               dfilename, 0, create_mode,

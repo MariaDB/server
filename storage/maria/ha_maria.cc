@@ -45,6 +45,7 @@ C_MODE_END
 #include "key.h"
 #include "log.h"
 #include "sql_parse.h"
+#include "debug_sync.h"
 
 /*
   Note that in future versions, only *transactional* Maria tables can
@@ -994,6 +995,13 @@ static int maria_create_trn_for_mysql(MARIA_HA *info)
 my_bool ma_killed_in_mariadb(MARIA_HA *info)
 {
   return (((TABLE*) (info->external_ref))->in_use->killed != 0);
+}
+
+void maria_debug_crash_here(const char *keyword)
+{
+#ifndef DBUG_OFF
+  debug_crash_here(keyword);
+#endif /* DBUG_OFF */
 }
 
 } /* extern "C" */
@@ -3794,6 +3802,7 @@ static int ha_maria_init(void *p)
                       HTON_TRANSACTIONAL_AND_NON_TRANSACTIONAL);
   bzero(maria_log_pagecache, sizeof(*maria_log_pagecache));
   maria_tmpdir= &mysql_tmpdir_list;             /* For REDO */
+  ma_debug_crash_here= maria_debug_crash_here;
 
   if (!aria_readonly)
     res= maria_upgrade();

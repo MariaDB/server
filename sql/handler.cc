@@ -4563,6 +4563,7 @@ bool non_existing_table_error(int error)
 {
   return (error == ENOENT ||
           (error == EE_DELETE && my_errno == ENOENT) ||
+          error == EE_FILENOTFOUND ||
           error == HA_ERR_NO_SUCH_TABLE ||
           error == HA_ERR_UNSUPPORTED ||
           error == ER_NO_SUCH_TABLE ||

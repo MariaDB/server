@@ -1247,6 +1247,7 @@ extern ulong maria_checkpoint_min_log_activity;
 extern HASH maria_stored_state;
 extern int (*maria_create_trn_hook)(MARIA_HA *);
 extern my_bool (*ma_killed)(MARIA_HA *);
+extern void (*ma_debug_crash_here)(const char *keyword);
 
 #ifdef HAVE_PSI_INTERFACE
 extern PSI_mutex_key key_SHARE_BITMAP_lock, key_SORT_INFO_mutex,

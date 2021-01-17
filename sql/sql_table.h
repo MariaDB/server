@@ -125,7 +125,10 @@ bool add_keyword_to_query(THD *thd, String *result, const LEX_CSTRING *keyword,
 #define C_ALTER_TABLE_FRM_ONLY   -2
 #define C_ASSISTED_DISCOVERY     -3
 
-int mysql_create_table_no_lock(THD *thd, const LEX_CSTRING *db,
+int mysql_create_table_no_lock(THD *thd,
+                               DDL_LOG_STATE *ddl_log_state,
+                               DDL_LOG_STATE *ddl_log_state_rm,
+                               const LEX_CSTRING *db,
                                const LEX_CSTRING *table_name,
                                Table_specification_st *create_info,
                                Alter_info *alter_info, bool *is_trans,
