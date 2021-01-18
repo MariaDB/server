@@ -6,7 +6,7 @@ OPTIMIZER_TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE
 OPTIMIZER_TRACE	INSUFFICIENT_PRIVILEGES
 show variables like 'optimizer_trace';
 Variable_name	Value
-optimizer_trace	enabled=off
+optimizer_trace	enabled=on
 set optimizer_trace="enabled=on";
 show variables like 'optimizer_trace';
 Variable_name	Value
@@ -86,6 +86,13 @@ select * from v1	{
                   "resulting_condition": "multiple equal(1, t1.a)"
                 }
               ]
+            }
+          },
+          {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
             }
           },
           {
@@ -240,6 +247,13 @@ select * from (select * from t1 where t1.a=1)q	{
             }
           },
           {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
+            }
+          },
+          {
             "table_dependencies": [
               {
                 "table": "t1",
@@ -372,6 +386,13 @@ select * from v2	{
         "select_id": 1,
         "steps": [
           {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
+            }
+          },
+          {
             "join_optimization": {
               "select_id": 2,
               "steps": [
@@ -393,6 +414,13 @@ select * from v2	{
                         "resulting_condition": "multiple equal(1, t1.a)"
                       }
                     ]
+                  }
+                },
+                {
+                  "condition_processing": {
+                    "condition": "ON CLAUSE",
+                    "original_expr": [],
+                    "transformed_expr": []
                   }
                 },
                 {
@@ -627,6 +655,13 @@ explain select * from v2	{
         "select_id": 1,
         "steps": [
           {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
+            }
+          },
+          {
             "table_dependencies": [
               {
                 "table": "t2",
@@ -746,9 +781,23 @@ explain select * from v1	{
         "select_id": 1,
         "steps": [
           {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
+            }
+          },
+          {
             "join_optimization": {
               "select_id": 2,
               "steps": [
+                {
+                  "condition_processing": {
+                    "condition": "ON CLAUSE",
+                    "original_expr": [],
+                    "transformed_expr": []
+                  }
+                },
                 {
                   "table_dependencies": [
                     {
@@ -967,6 +1016,13 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                   "resulting_condition": "t1.a = t2.b + 2 and multiple equal(t2.a, t1.b)"
                 }
               ]
+            }
+          },
+          {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
             }
           },
           {
@@ -1201,6 +1257,13 @@ EXPLAIN SELECT DISTINCT a FROM t1	{
         "select_id": 1,
         "steps": [
           {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
+            }
+          },
+          {
             "table_dependencies": [
               {
                 "table": "t1",
@@ -1388,6 +1451,13 @@ EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
                   "resulting_condition": "multiple equal(2, t1.b) and multiple equal(3, t1.c)"
                 }
               ]
+            }
+          },
+          {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
             }
           },
           {
@@ -1609,6 +1679,13 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
             }
           },
           {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
+            }
+          },
+          {
             "table_dependencies": [
               {
                 "table": "t1",
@@ -1802,6 +1879,13 @@ EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
                   "resulting_condition": "t1.a = 20010104e0"
                 }
               ]
+            }
+          },
+          {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
             }
           },
           {
@@ -2025,6 +2109,13 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   "resulting_condition": "multiple equal(1, t1.a) and multiple equal(2, t1.b)"
                 }
               ]
+            }
+          },
+          {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
             }
           },
           {
@@ -2384,6 +2475,13 @@ select t1.a from t1 left join t2 on t1.a=t2.a	{
         "select_id": 1,
         "steps": [
           {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": ["t1.a = t2.a"],
+              "transformed_expr": ["multiple equal(t1.a, t2.a)"]
+            }
+          },
+          {
             "table_dependencies": [
               {
                 "table": "t1",
@@ -2513,6 +2611,13 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
       "join_optimization": {
         "select_id": 1,
         "steps": [
+          {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": ["t2.a = t1.a"],
+              "transformed_expr": ["multiple equal(t2.a, t1.a)"]
+            }
+          },
           {
             "table_dependencies": [
               {
@@ -2678,6 +2783,15 @@ explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
       "join_optimization": {
         "select_id": 1,
         "steps": [
+          {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": ["t2.a = t1.a and t3.a = t1.a and t2.b = t3.b"],
+              "transformed_expr": [
+                "multiple equal(t2.a, t1.a, t3.a) and multiple equal(t2.b, t3.b)"
+              ]
+            }
+          },
           {
             "table_dependencies": [
               {
@@ -2914,6 +3028,13 @@ explain extended select * from t1 where a in (select pk from t10)	{
                   "resulting_condition": "multiple equal(t1.a, t10.pk)"
                 }
               ]
+            }
+          },
+          {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
             }
           },
           {
@@ -3203,6 +3324,13 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                   "resulting_condition": "multiple equal(2, t1.pk) and multiple equal(5, t1.a) and multiple equal(1, t1.b)"
                 }
               ]
+            }
+          },
+          {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
             }
           },
           {
@@ -3548,6 +3676,13 @@ select f1(a) from t1	{
         "select_id": 1,
         "steps": [
           {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
+            }
+          },
+          {
             "table_dependencies": [
               {
                 "table": "t1",
@@ -3651,6 +3786,13 @@ select f2(a) from t1	{
         "select_id": 1,
         "steps": [
           {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
+            }
+          },
+          {
             "table_dependencies": [
               {
                 "table": "t1",
@@ -3746,7 +3888,7 @@ a
 2
 select length(trace) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 length(trace)
-2342
+2531
 set optimizer_trace_max_mem_size=100;
 select * from t1;
 a
@@ -3760,7 +3902,7 @@ select * from t1	{
       "join_preparation": {
         "select_id": 1,
         "steps": [
-        	2242	0
+        	2431	0
 set optimizer_trace_max_mem_size=0;
 select * from t1;
 a
@@ -3768,7 +3910,7 @@ a
 2
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
-select * from t1		2342	0
+select * from t1		2531	0
 drop table t1;
 set optimizer_trace='enabled=off';
 set @@optimizer_trace_max_mem_size= @save_optimizer_trace_max_mem_size;
@@ -3890,6 +4032,13 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                   "resulting_condition": "t1.a < 3 and multiple equal(t0.a, t1.a)"
                 }
               ]
+            }
+          },
+          {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
             }
           },
           {
@@ -4263,9 +4412,23 @@ explain select * from (select rand() from t1)q	{
             }
           },
           {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
+            }
+          },
+          {
             "join_optimization": {
               "select_id": 2,
               "steps": [
+                {
+                  "condition_processing": {
+                    "condition": "ON CLAUSE",
+                    "original_expr": [],
+                    "transformed_expr": []
+                  }
+                },
                 {
                   "table_dependencies": [
                     {
@@ -4511,6 +4674,13 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                   "resulting_condition": "multiple equal(t1.a, t_inner_1.a)"
                 }
               ]
+            }
+          },
+          {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
             }
           },
           {
@@ -4996,6 +5166,13 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                   "resulting_condition": "multiple equal(t_outer_1.a, t_inner_1.a) and multiple equal(t_outer_2.a, t_inner_3.a)"
                 }
               ]
+            }
+          },
+          {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
             }
           },
           {
@@ -6576,6 +6753,13 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                   "resulting_condition": "multiple equal(t_outer_1.a, t_inner_1.a) and multiple equal(t_outer_2.a, t_inner_3.a)"
                 }
               ]
+            }
+          },
+          {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
             }
           },
           {
@@ -8754,6 +8938,48 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.on_clause_after_substitution'))
     [
         "t3.a = t1.a"
     ]
+]
+#
+# MDEV-23646: Optimizer trace: optimize_cond() should show ON expression processing
+#
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.condition_processing')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.condition_processing'))
+[
+    
+    {
+        "condition": "WHERE",
+        "original_condition": "t1.a = t2.a",
+        "steps": 
+        [
+            
+            {
+                "transformation": "equality_propagation",
+                "resulting_condition": "multiple equal(t1.a, t2.a)"
+            },
+            
+            {
+                "transformation": "constant_propagation",
+                "resulting_condition": "multiple equal(t1.a, t2.a)"
+            },
+            
+            {
+                "transformation": "trivial_condition_removal",
+                "resulting_condition": "multiple equal(t1.a, t2.a)"
+            }
+        ]
+    },
+    
+    {
+        "condition": "ON CLAUSE",
+        "original_expr": 
+        [
+            "t2.a = t3.a"
+        ],
+        "transformed_expr": 
+        [
+            "multiple equal(t1.a, t2.a, t3.a)"
+        ]
+    }
 ]
 DROP TABLE t1,t2,t3;
 set optimizer_trace='enabled=off';

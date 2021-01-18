@@ -62,6 +62,13 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
             }
           },
           {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
+            }
+          },
+          {
             "table_dependencies": [
               {
                 "table": "t1",

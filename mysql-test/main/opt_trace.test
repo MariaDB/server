@@ -642,6 +642,12 @@ where t1.a = t2.a;
 SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.where_clause_after_substitution')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.having_clause_after_substitution')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.on_clause_after_substitution')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+--echo #
+--echo # MDEV-23646: Optimizer trace: optimize_cond() should show ON expression processing
+--echo #
+
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.condition_processing')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 DROP TABLE t1,t2,t3;
 
 set optimizer_trace='enabled=off';

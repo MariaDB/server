@@ -170,6 +170,12 @@ static COND *optimize_cond(JOIN *join, COND *conds,
                            Item::cond_result *cond_value, 
                            COND_EQUAL **cond_equal,
                            int flags= 0);
+
+static void optimize_on_expr(JOIN *join,
+                             List<TABLE_LIST> *join_list,
+                             bool ignore_on_conds,
+                             int flags= 0);
+
 bool const_expression_in_where(COND *conds,Item *item, Item **comp_item);
 static int do_select(JOIN *join, Procedure *procedure);
 
@@ -2014,8 +2020,10 @@ JOIN::optimize_inner()
         ignore_on_expr= true;
         break;
       }
-  conds= optimize_cond(this, conds, join_list, ignore_on_expr,
+  conds= optimize_cond(this, conds, join_list, TRUE,
                        &cond_value, &cond_equal, OPT_LINK_EQUAL_FIELDS);
+
+  optimize_on_expr(this, join_list, ignore_on_expr);
 
   if (thd->is_error())
   {
@@ -2472,11 +2480,19 @@ int JOIN::optimize_stage2()
 
   if (unlikely(thd->trace_started()))
   {
-    Json_writer_object trace_wrapper(thd);
-    trace_wrapper.add("where_clause_after_substitution", conds);
-    trace_wrapper.add("having_clause_after_substitution", having);
-    Json_writer_array trace_on_expr(thd, "on_clause_after_substitution");
-    print_on_expr(this, &trace_on_expr);
+    if (having || conds || outer_join)
+    {
+      Json_writer_object trace_wrapper(thd);
+      if (conds)
+        trace_wrapper.add("where_clause_after_substitution", conds);
+      if (having)
+        trace_wrapper.add("having_clause_after_substitution", having);
+      if (outer_join)
+      {
+        Json_writer_array trace_on_expr(thd, "on_clause_after_substitution");
+        print_on_expr(this, &trace_on_expr);
+      }
+    }
   }
 
   /*
@@ -17004,6 +17020,52 @@ optimize_cond(JOIN *join, COND *conds,
     DBUG_EXECUTE("info",print_where(conds,"after remove", QT_ORDINARY););
   }
   DBUG_RETURN(conds);
+}
+
+
+static void optimize_on_expr(JOIN *join,
+                             List<TABLE_LIST> *join_list,
+                             bool ignore_on_conds,
+                             int flags)
+{
+  if (ignore_on_conds || !join_list)
+    return;
+
+  THD *thd= join->thd;
+  Json_writer_object trace_wrapper(thd);
+  Json_writer_object trace_cond(thd, "condition_processing");
+  trace_cond.add("condition", "ON CLAUSE");
+  {
+    Json_writer_array trace_array(thd, "original_expr");
+    print_on_expr(thd, join_list, &trace_array);
+  }
+
+  if (join_list && !ignore_on_conds)
+  {
+    TABLE_LIST *table;
+    List_iterator<TABLE_LIST> li(*join_list);
+
+    while ((table= li++))
+    {
+      if (table->on_expr)
+      {
+        List<TABLE_LIST> *nested_join_list= table->nested_join ?
+          &table->nested_join->join_list : NULL;
+        /*
+          We can modify table->on_expr because its old value will
+          be restored before re-execution of PS/SP.
+        */
+        table->on_expr= build_equal_items(join, table->on_expr, join->cond_equal,
+                                          nested_join_list, ignore_on_conds,
+                                          &table->cond_equal);
+      }
+    }
+  }
+
+  {
+    Json_writer_array trace_array(thd, "transformed_expr");
+    print_on_expr(thd, join_list, &trace_array);
+  }
 }
 
 

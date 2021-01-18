@@ -54,6 +54,13 @@ explain select * from t1 where a=1 or b=1	{
             }
           },
           {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
+            }
+          },
+          {
             "table_dependencies": [
               {
                 "table": "t1",

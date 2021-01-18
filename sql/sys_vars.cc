@@ -2638,7 +2638,7 @@ static Sys_var_flagset Sys_optimizer_trace(
     " {enabled}"
     " and val is one of {on, off, default}",
     SESSION_VAR(optimizer_trace), CMD_LINE(REQUIRED_ARG),
-    Opt_trace_context::flag_names, DEFAULT(Opt_trace_context::FLAG_DEFAULT));
+    Opt_trace_context::flag_names, DEFAULT(Opt_trace_context::FLAG_ENABLED));
     // @see set_var::is_var_optimizer_trace()
 export sys_var *Sys_optimizer_trace_ptr = &Sys_optimizer_trace;
 

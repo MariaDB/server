@@ -108,6 +108,8 @@ void print_final_join_order(JOIN *join);
 void print_best_access_for_table(THD *thd, POSITION *pos,
                                  enum join_type type);
 void print_on_expr(JOIN *join, Json_writer_array *trace_on_expr);
+void print_on_expr(THD *thd, List<TABLE_LIST> *join_list,
+                   Json_writer_array *trace_array);
 /*
   Security related (need to add a proper comment here)
 */

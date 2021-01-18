@@ -689,6 +689,28 @@ void print_on_expr(JOIN *join, Json_writer_array *trace_on_expr)
 }
 
 
+void print_on_expr(THD *thd, List<TABLE_LIST> *join_list,
+                   Json_writer_array *trace_array)
+{
+  if (join_list == NULL)
+    return;
+  TABLE_LIST *table;
+  List_iterator<TABLE_LIST> li(*join_list);
+
+  while ((table= li++))
+  {
+    if (table->on_expr)
+    {
+      List<TABLE_LIST> *nested_join_list= table->nested_join ?
+        &table->nested_join->join_list : NULL;
+
+      trace_array->add(table->on_expr);
+      print_on_expr(thd, nested_join_list, trace_array);
+    }
+  }
+}
+
+
 /*
   Introduce enum_query_type flags parameter, maybe also allow
   EXPLAIN also use this function.

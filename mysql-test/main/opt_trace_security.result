@@ -65,6 +65,13 @@ select * from db1.t1	{
         "select_id": 1,
         "steps": [
           {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
+            }
+          },
+          {
             "table_dependencies": [
               {
                 "table": "t1",
@@ -192,6 +199,13 @@ select * from db1.v1	{
       "join_optimization": {
         "select_id": 1,
         "steps": [
+          {
+            "condition_processing": {
+              "condition": "ON CLAUSE",
+              "original_expr": [],
+              "transformed_expr": []
+            }
+          },
           {
             "table_dependencies": [
               {
