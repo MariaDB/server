@@ -1033,7 +1033,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
   Currently there are 98 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 109
+%expect 115
 
 /*
    Comments for TOKENS.
@@ -13525,7 +13525,7 @@ kill:
             lex->sql_command= SQLCOM_KILL;
             lex->kill_type= KILL_TYPE_ID;
           }
-          kill_type kill_option kill_expr
+          kill_type kill_option
           {
             Lex->kill_signal= (killed_state) ($3 | $4);
           }
@@ -13538,14 +13538,19 @@ kill_type:
         ;
 
 kill_option:
-          /* empty */    { $$= (int) KILL_CONNECTION; }
-        | CONNECTION_SYM { $$= (int) KILL_CONNECTION; }
-        | QUERY_SYM      { $$= (int) KILL_QUERY; }
-        | QUERY_SYM ID_SYM
+          opt_connection kill_expr { $$= (int) KILL_CONNECTION; }
+        | QUERY_SYM      kill_expr { $$= (int) KILL_QUERY; }
+        | QUERY_SYM ID_SYM expr
           {
             $$= (int) KILL_QUERY;
             Lex->kill_type= KILL_TYPE_QUERY;
+            Lex->value_list.push_front($3, thd->mem_root);
           }
+        ;
+
+opt_connection:
+          /* empty */    { }
+        | CONNECTION_SYM { }
         ;
 
 kill_expr:
@@ -13559,7 +13564,6 @@ kill_expr:
             Lex->kill_type= KILL_TYPE_USER;
           }
         ;
-
 
 shutdown:
         SHUTDOWN { Lex->sql_command= SQLCOM_SHUTDOWN; }
