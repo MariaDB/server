@@ -622,5 +622,27 @@ UPDATE t1 SET b=10 WHERE a=1;
 SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-23645: printing where and having after substitute_for_best_equal_field
+--echo #
+
+create table t1 (a varchar(3));
+insert into t1 values ('USA'), ('FRA');
+create table t2 select * from t1;
+insert into t2 values ('RUS');
+create table t3 select * from t2;
+create index idx on t3(a);
+
+set optimizer_trace=1;
+explain
+select * from t1, t2 left join t3 on ( t2.a = t3.a )
+where t1.a = t2.a;
+
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.where_clause_after_substitution')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.having_clause_after_substitution')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.on_clause_after_substitution')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+DROP TABLE t1,t2,t3;
+
 set optimizer_trace='enabled=off';
 --echo # End of 10.4 tests

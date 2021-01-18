@@ -677,6 +677,18 @@ void print_best_access_for_table(THD *thd, POSITION *pos,
 }
 
 
+void print_on_expr(JOIN *join, Json_writer_array *trace_on_expr)
+{
+  JOIN_TAB *tab;
+  for (tab= first_linear_tab(join, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES); tab;
+       tab= next_linear_tab(join, tab, WITH_BUSH_ROOTS))
+  {
+    if (*tab->on_expr_ref)
+      trace_on_expr->add(*tab->on_expr_ref);
+  }
+}
+
+
 /*
   Introduce enum_query_type flags parameter, maybe also allow
   EXPLAIN also use this function.

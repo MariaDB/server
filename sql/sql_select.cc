@@ -2469,6 +2469,16 @@ int JOIN::optimize_stage2()
     }
   }
 
+
+  if (unlikely(thd->trace_started()))
+  {
+    Json_writer_object trace_wrapper(thd);
+    trace_wrapper.add("where_clause_after_substitution", conds);
+    trace_wrapper.add("having_clause_after_substitution", having);
+    Json_writer_array trace_on_expr(thd, "on_clause_after_substitution");
+    print_on_expr(this, &trace_on_expr);
+  }
+
   /*
     Perform the optimization on fields evaliation mentioned above
     for all used ref items.
