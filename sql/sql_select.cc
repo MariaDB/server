@@ -3824,14 +3824,6 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
     {
       DBUG_PRINT("info",("Sorting for order"));
       THD_STAGE_INFO(thd, stage_sorting_for_order);
-      //DBUG_ASSERT(0);
-      if (select_lex->limit_params.with_ties)
-      {
-        // TODO see when this thing happens!
-        DBUG_ASSERT(0);
-        if (alloc_order_fields(this, order))
-          goto err;
-      }
 
       if (ordered_index_usage != ordered_index_order_by &&
           !only_const_tables() &&
