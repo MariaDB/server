@@ -1733,23 +1733,6 @@ row_merge_read_clustered_index(
 	DEBUG_FTS_SORT_PRINT("FTS_SORT: Start Create Index\n");
 #endif
 
-	/* Create and initialize memory for record buffers */
-
-	merge_buf = static_cast<row_merge_buf_t**>(
-		ut_malloc_nokey(n_index * sizeof *merge_buf));
-
-	row_merge_dup_t	clust_dup = {index[0], table, col_map, 0};
-	dfield_t*	prev_fields;
-	const ulint	n_uniq = dict_index_get_n_unique(index[0]);
-
-	ut_ad(trx->mysql_thd != NULL);
-
-	const char*	path = thd_innodb_tmpdir(trx->mysql_thd);
-
-	ut_ad(!skip_pk_sort || dict_index_is_clust(index[0]));
-	/* There is no previous tuple yet. */
-	prev_mtuple.fields = NULL;
-
 	/* Check early (without accessing index pages) if the table is empty.
 
 	If we read bulk_trx_id as an older transaction ID,
@@ -1766,6 +1749,23 @@ row_merge_read_clustered_index(
 			DBUG_RETURN(DB_SUCCESS);
 		}
 	}
+
+	/* Create and initialize memory for record buffers */
+
+	merge_buf = static_cast<row_merge_buf_t**>(
+		ut_malloc_nokey(n_index * sizeof *merge_buf));
+
+	row_merge_dup_t	clust_dup = {index[0], table, col_map, 0};
+	dfield_t*	prev_fields;
+	const ulint	n_uniq = dict_index_get_n_unique(index[0]);
+
+	ut_ad(trx->mysql_thd != NULL);
+
+	const char*	path = thd_innodb_tmpdir(trx->mysql_thd);
+
+	ut_ad(!skip_pk_sort || dict_index_is_clust(index[0]));
+	/* There is no previous tuple yet. */
+	prev_mtuple.fields = NULL;
 
 	/* Note: we must recheck old_table->bulk_trx_id after we have
 	acquired the page latch on the clustered index root page or
