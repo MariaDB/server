@@ -1,0 +1,6 @@
+--innodb-encryption-rotate-key-age=2
+--innodb-encryption-threads=4
+--innodb-tablespaces-encryption
+--plugin-load-add=$FILE_KEY_MANAGEMENT_SO
+--loose-file-key-management
+--loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/logkey.txt
