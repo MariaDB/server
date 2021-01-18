@@ -415,7 +415,7 @@ static bool null_part_in_key(KEY_PART *key_part, const uchar *key,
                              uint length);
 static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts);
 
-static SEL_ARG *enforce_sel_arg_weight_limit(SEL_ARG *sel_arg);
+static SEL_ARG *enforce_sel_arg_weight_limit(THD *thd, SEL_ARG *sel_arg);
 
 #include "opt_range_mrr.cc"
 
@@ -9971,7 +9971,8 @@ uint SEL_ARG::verify_weight()
 static SEL_ARG *key_or_with_limit(RANGE_OPT_PARAM *param,
                                   SEL_ARG *key1, SEL_ARG *key2)
 {
-  SEL_ARG *res= enforce_sel_arg_weight_limit(key_or(param, key1, key2));
+  SEL_ARG *res= enforce_sel_arg_weight_limit(param->thd, key_or(param,
+                                                                key1, key2));
 #ifndef DBUG_OFF
   if (res)
     res->verify_weight();
@@ -9984,7 +9985,9 @@ static SEL_ARG *key_and_with_limit(RANGE_OPT_PARAM *param,
                                   SEL_ARG *key1, SEL_ARG *key2,
                                   uint clone_flag)
 {
-  SEL_ARG *res= enforce_sel_arg_weight_limit(key_and(param, key1, key2, clone_flag));
+  SEL_ARG *res= enforce_sel_arg_weight_limit(param->thd, key_and(param, key1,
+                                                                 key2,
+                                                                 clone_flag));
 #ifndef DBUG_OFF
   if (res)
     res->verify_weight();
@@ -10770,14 +10773,15 @@ void prune_sel_arg_graph(SEL_ARG *sel_arg, uint max_part)
                   limit.
 */
 
-SEL_ARG *enforce_sel_arg_weight_limit(SEL_ARG *sel_arg)
+SEL_ARG *enforce_sel_arg_weight_limit(THD *thd, SEL_ARG *sel_arg)
 {
-  if (!sel_arg || sel_arg->type != SEL_ARG::KEY_RANGE)
+  if (!sel_arg || sel_arg->type != SEL_ARG::KEY_RANGE ||
+      !thd->variables.optimizer_max_sel_arg_weight)
     return sel_arg;
 
   while (1)
   {
-    if (sel_arg->weight <= SEL_ARG::MAX_WEIGHT)
+    if (sel_arg->weight <= thd->variables.optimizer_max_sel_arg_weight)
       return sel_arg;
 
     uint max_part= sel_arg->get_max_key_part();

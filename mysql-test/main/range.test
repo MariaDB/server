@@ -2133,6 +2133,8 @@ create table t1 (
 
 insert into t1 values (1,1,1,1),(2,2,2,2),(3,3,3,3);
 
+show variables like 'optimizer_max_sel_arg_weight';
+
 # 20 * 20 * 20 *20 = 400*400 = 160,000 ranges
 set @tmp_9750=@@optimizer_trace;
 set optimizer_trace=1;
@@ -2150,8 +2152,36 @@ set @json= (select json_detailed(JSON_EXTRACT(trace, '$**.range_scan_alternative
 --echo #  to keep the number of ranges at manageable level:
 select left(@json, 500);
 
+--echo ## Repeat the above with low max_weight:
+set @tmp9750_weight=@@optimizer_max_sel_arg_weight;
+set optimizer_max_sel_arg_weight=20;
+explain select * from t1 where 
+  kp1 in (1,2,3,4,5,6,7,8,9,10) and
+  kp2 in (1,2,3,4,5,6,7,8,9,10) and
+  kp3 in (1,2,3,4,5,6,7,8,9,10) and
+  kp4 in (1,2,3,4,5,6,7,8,9,10)
+;
+set @json= (select json_detailed(JSON_EXTRACT(trace, '$**.range_scan_alternatives'))
+            from information_schema.optimizer_trace);
+select left(@json, 500);
+
+--echo ## Repeat the above with a bit higher max_weight:
+set @tmp9750_weight=@@optimizer_max_sel_arg_weight;
+set optimizer_max_sel_arg_weight=120;
+explain select * from t1 where 
+  kp1 in (1,2,3,4,5,6,7,8,9,10) and
+  kp2 in (1,2,3,4,5,6,7,8,9,10) and
+  kp3 in (1,2,3,4,5,6,7,8,9,10) and
+  kp4 in (1,2,3,4,5,6,7,8,9,10)
+;
+set @json= (select json_detailed(JSON_EXTRACT(trace, '$**.range_scan_alternatives'))
+            from information_schema.optimizer_trace);
+select left(@json, 1500);
+
+set optimizer_max_sel_arg_weight= @tmp9750_weight;
 set optimizer_trace=@tmp_9750;
 drop table t1;
+
 
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
