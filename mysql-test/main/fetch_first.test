@@ -537,8 +537,57 @@ select * from (
 ) temp;
 
 
+select * from t2
+order by t2.location desc
+offset 0
+fetch first 2 rows with ties;
+
+create view v1 as (
+  select * from t2
+  order by t2.location desc
+  offset 0
+  fetch first 2 rows with ties
+);
+
+create view v2 as (
+  select * from t2
+  order by t2.location desc
+  offset 1
+  fetch first 2 rows with ties
+);
+
+create view v3 as (
+  select * from t2
+  order by t2.location desc
+  offset 2
+  fetch first row with ties
+);
+
+
+
+select * from v1;
+select * from v2;
+select * from v3;
+
+show create view v1;
+show create view v2;
+show create view v3;
+
+--echo #
+--echo # Test joins with views and order by referenced from the view.
+--echo #
+select *
+from t1 inner join v1 on t1.id = v1.fk
+order by v1.location desc, t1.first_name
+offset 1
+fetch first 1 rows with ties;
+
 drop table t1;
 drop table t2;
+drop view v1;
+drop view v2;
+drop view v3;
+
 
 
 #(select * from t1
