@@ -1362,13 +1362,10 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   {
     bool real_order= FALSE;
     ORDER *ord;
-    /* WITH TIES forces the results to be sorted, even if it's not sortable? */
-    // TODO(cvicentiu) -> Check this...
+    /* WITH TIES forces the results to be sorted, even if it's not sanely
+       sortable. */
     if (select_lex->limit_params.with_ties)
-    {
       real_order= true;
-      alloc_order_fields(this, order);
-    }
 
     for (ord= order; ord; ord= ord->next)
     {
