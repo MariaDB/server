@@ -7761,11 +7761,7 @@ best_access_path(JOIN      *join,
             tmp= COST_MULT(tmp, record_count);
           }
           else
-          {
-            if (!(found_part & 1))
-              cause= "no predicate for first keypart";
             tmp= best_time;                    // Do nothing
-          }
         }
 
         tmp= COST_ADD(tmp, s->startup_cost);
