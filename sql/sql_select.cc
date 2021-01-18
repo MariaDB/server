@@ -256,10 +256,10 @@ static ORDER *create_distinct_group(THD *thd, Ref_ptr_array ref_pointer_array,
 static bool test_if_subpart(ORDER *a,ORDER *b);
 static TABLE *get_sort_by_table(ORDER *a,ORDER *b,List<TABLE_LIST> &tables, 
                                 table_map const_tables);
-static void calc_group_buffer(JOIN *join,ORDER *group);
+static void calc_group_buffer(JOIN *join, ORDER *group);
 static bool make_group_fields(JOIN *main_join, JOIN *curr_join);
-static bool alloc_group_fields(JOIN *join,ORDER *group);
-static bool alloc_order_fields(JOIN *join,ORDER *group);
+static bool alloc_group_fields(JOIN *join, ORDER *group);
+static bool alloc_order_fields(JOIN *join, ORDER *group);
 // Create list for using with tempory table
 static bool change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
 				     List<Item> &new_list1,
