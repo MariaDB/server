@@ -64,12 +64,6 @@ const byte timestamp_max_bytes[7] = {
 
 static const ulint MAX_DETAILED_ERROR_LEN = 256;
 
-/** Set of table_id */
-typedef std::set<
-	table_id_t,
-	std::less<table_id_t>,
-	ut_allocator<table_id_t> >	table_id_set;
-
 /*************************************************************//**
 Set detailed error message for the transaction. */
 void
@@ -563,10 +557,6 @@ trx_resurrect_table_locks(
 	trx_t*			trx,	/*!< in/out: transaction */
 	const trx_undo_t*	undo)	/*!< in: undo log */
 {
-	mtr_t			mtr;
-	table_id_set		tables;
-	table_id_set		unempty_tables;
-
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
 	      trx_state_eq(trx, TRX_STATE_PREPARED));
 	ut_ad(undo->rseg == trx->rsegs.m_redo.rseg);
@@ -575,7 +565,9 @@ trx_resurrect_table_locks(
 		return;
 	}
 
-	mtr_start(&mtr);
+	mtr_t mtr;
+	std::map<table_id_t, bool> tables;
+	mtr.start();
 
 	/* trx_rseg_mem_create() may have acquired an X-latch on this
 	page, so we cannot acquire an S-latch. */
@@ -601,23 +593,18 @@ trx_resurrect_table_locks(
 			undo_rec, &type, &cmpl_info,
 			&updated_extern, &undo_no, &table_id);
 
-		if (type == TRX_UNDO_EMPTY) {
-			unempty_tables.insert(table_id);
-		}
-
-		tables.insert(table_id);
+		tables.emplace(table_id, type == TRX_UNDO_EMPTY);
 
 		undo_rec = trx_undo_get_prev_rec(
 			block, page_offset(undo_rec), undo->hdr_page_no,
 			undo->hdr_offset, false, &mtr);
 	} while (undo_rec);
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
-	for (table_id_set::const_iterator i = tables.begin();
-	     i != tables.end(); i++) {
+	for (auto p : tables) {
 		if (dict_table_t* table = dict_table_open_on_id(
-			    *i, FALSE, DICT_TABLE_OP_LOAD_TABLESPACE)) {
+			    p.first, FALSE, DICT_TABLE_OP_LOAD_TABLESPACE)) {
 			if (!table->is_readable()) {
 				dict_sys.mutex_lock();
 				dict_table_close(table, TRUE, FALSE);
@@ -632,7 +619,7 @@ trx_resurrect_table_locks(
 								     0));
 			}
 
-			if (unempty_tables.find(*i) != unempty_tables.end()) {
+			if (p.second) {
 				lock_table_x_resurrect(table, trx);
 			} else {
 				lock_table_ix_resurrect(table, trx);
