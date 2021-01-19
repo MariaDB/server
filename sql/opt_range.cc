@@ -399,9 +399,9 @@ static SEL_ARG *key_or(RANGE_OPT_PARAM *param,
 static SEL_ARG *key_and(RANGE_OPT_PARAM *param,
                         SEL_ARG *key1, SEL_ARG *key2,
                         uint clone_flag);
-static SEL_ARG *key_or_with_limit(RANGE_OPT_PARAM *param,
+static SEL_ARG *key_or_with_limit(RANGE_OPT_PARAM *param, uint keyno,
                                   SEL_ARG *key1, SEL_ARG *key2);
-static SEL_ARG *key_and_with_limit(RANGE_OPT_PARAM *param,
+static SEL_ARG *key_and_with_limit(RANGE_OPT_PARAM *param, uint keyno,
                                    SEL_ARG *key1, SEL_ARG *key2,
                                    uint clone_flag);
 static bool get_range(SEL_ARG **e1,SEL_ARG **e2,SEL_ARG *root1);
@@ -415,7 +415,9 @@ static bool null_part_in_key(KEY_PART *key_part, const uchar *key,
                              uint length);
 static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts);
 
-static SEL_ARG *enforce_sel_arg_weight_limit(THD *thd, SEL_ARG *sel_arg);
+static
+SEL_ARG *enforce_sel_arg_weight_limit(RANGE_OPT_PARAM *param, uint keyno,
+                                      SEL_ARG *sel_arg);
 
 #include "opt_range_mrr.cc"
 
@@ -713,7 +715,8 @@ int SEL_IMERGE::or_sel_tree_with_checks(RANGE_OPT_PARAM *param,
           SEL_ARG *key1= (*or_tree)->keys[key_no];
           SEL_ARG *key2= tree->keys[key_no];
           key2->incr_refs();
-          if ((result->keys[key_no]= key_or_with_limit(param, key1, key2)))
+          if ((result->keys[key_no]= key_or_with_limit(param, key_no, key1,
+                                                       key2)))
           {
             
             result_keys.set_bit(key_no);
@@ -5440,7 +5443,7 @@ TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
       if ((*tree)->keys[key_idx]) 
         (*tree)->keys[key_idx]->incr_refs(); 
       if (((*changed_tree)->keys[key_idx]=
-             key_or_with_limit(param, key, (*tree)->keys[key_idx])))
+             key_or_with_limit(param, key_idx, key, (*tree)->keys[key_idx])))
         (*changed_tree)->keys_map.set_bit(key_idx);
       *tree= NULL;
       removed_cnt++;
@@ -9102,7 +9105,8 @@ int and_range_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree1, SEL_TREE *tree2,
         key2->incr_refs();
     }
     SEL_ARG *key;
-    if ((result->keys[key_no]= key =key_and_with_limit(param, key1, key2, flag)))
+    if ((result->keys[key_no]= key= key_and_with_limit(param, key_no,
+                                                       key1, key2, flag)))
     {
       if (key && key->type == SEL_ARG::IMPOSSIBLE)
       {
@@ -9645,7 +9649,7 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
         key1->incr_refs();
         key2->incr_refs();
       }
-      if ((result->keys[key_no]= key_or_with_limit(param, key1, key2)))
+      if ((result->keys[key_no]= key_or_with_limit(param, key_no, key1, key2)))
         result->keys_map.set_bit(key_no);
     }
     result->type= tree1->type;
@@ -9968,11 +9972,12 @@ uint SEL_ARG::verify_weight()
 }
 #endif
 
-static SEL_ARG *key_or_with_limit(RANGE_OPT_PARAM *param,
-                                  SEL_ARG *key1, SEL_ARG *key2)
+static
+SEL_ARG *key_or_with_limit(RANGE_OPT_PARAM *param, uint keyno,
+                           SEL_ARG *key1, SEL_ARG *key2)
 {
-  SEL_ARG *res= enforce_sel_arg_weight_limit(param->thd, key_or(param,
-                                                                key1, key2));
+  SEL_ARG *res= key_or(param, key1, key2);
+  res= enforce_sel_arg_weight_limit(param, keyno, res);
 #ifndef DBUG_OFF
   if (res)
     res->verify_weight();
@@ -9981,13 +9986,12 @@ static SEL_ARG *key_or_with_limit(RANGE_OPT_PARAM *param,
 }
 
 
-static SEL_ARG *key_and_with_limit(RANGE_OPT_PARAM *param,
-                                  SEL_ARG *key1, SEL_ARG *key2,
-                                  uint clone_flag)
+static
+SEL_ARG *key_and_with_limit(RANGE_OPT_PARAM *param, uint keyno,
+                            SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
 {
-  SEL_ARG *res= enforce_sel_arg_weight_limit(param->thd, key_and(param, key1,
-                                                                 key2,
-                                                                 clone_flag));
+  SEL_ARG *res= key_and(param, key1, key2, clone_flag);
+  res= enforce_sel_arg_weight_limit(param, keyno, res);
 #ifndef DBUG_OFF
   if (res)
     res->verify_weight();
@@ -10773,33 +10777,42 @@ void prune_sel_arg_graph(SEL_ARG *sel_arg, uint max_part)
                   limit.
 */
 
-SEL_ARG *enforce_sel_arg_weight_limit(THD *thd, SEL_ARG *sel_arg)
+SEL_ARG *enforce_sel_arg_weight_limit(RANGE_OPT_PARAM *param, uint keyno,
+                                      SEL_ARG *sel_arg)
 {
   if (!sel_arg || sel_arg->type != SEL_ARG::KEY_RANGE ||
-      !thd->variables.optimizer_max_sel_arg_weight)
+      !param->thd->variables.optimizer_max_sel_arg_weight)
     return sel_arg;
+
+  uint weight1= sel_arg->weight;
 
   while (1)
   {
-    if (sel_arg->weight <= thd->variables.optimizer_max_sel_arg_weight)
-      return sel_arg;
+    if (sel_arg->weight <= param->thd->variables.optimizer_max_sel_arg_weight)
+      break;
 
     uint max_part= sel_arg->get_max_key_part();
     if (max_part == sel_arg->part)
-      return NULL;
-
-#ifdef EXTRA_DEBUG
-    uint weight1= sel_arg->weight;
-#endif
+    {
+      sel_arg= NULL;
+      break;
+    }
 
     max_part--;
     prune_sel_arg_graph(sel_arg, max_part);
-
-#ifdef EXTRA_DEBUG
-    DBUG_PRINT("info", ("enforce_sel_arg_weight_limit: %d->%d", weight1,
-                        sel_arg->weight));
-#endif
   }
+
+  uint weight2= sel_arg? sel_arg->weight : 0;
+
+  if (weight2 != weight1)
+  {
+    Json_writer_object wrapper(param->thd);
+    Json_writer_object obj(param->thd, "enforce_sel_arg_weight_limit");
+    obj.add("index", param->table->key_info[param->real_keynr[keyno]].name);
+    obj.add("old_weight", (longlong)weight1);
+    obj.add("new_weight", (longlong)weight2);
+  }
+  return sel_arg;
 }
 
 

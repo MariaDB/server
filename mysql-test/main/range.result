@@ -3193,8 +3193,8 @@ kp4 in (1,2,3,4,5,6,7,8,9,10)
 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	key1	key1	20	NULL	3	Using where; Using index
-set @json= (select json_detailed(JSON_EXTRACT(trace, '$**.range_scan_alternatives'))
-from information_schema.optimizer_trace);
+set @trace= (select trace from information_schema.optimizer_trace);
+set @json= json_detailed(json_extract(@trace, '$**.range_scan_alternatives'));
 select left(@json, 500);
 left(@json, 500)
 [
@@ -3216,6 +3216,41 @@ left(@json, 500)
                 "(9) <= (kp1) <= (9)",
                 "(10) <= (kp1) <= (10)"
            
+set @json= json_detailed(json_extract(@trace, '$**.setup_range_conditions'));
+select left(@json, 2500);
+left(@json, 2500)
+[
+    
+    [
+        
+        {
+            "enforce_sel_arg_weight_limit": 
+            {
+                "index": "key1",
+                "old_weight": 110,
+                "new_weight": 10
+            }
+        },
+        
+        {
+            "enforce_sel_arg_weight_limit": 
+            {
+                "index": "key1",
+                "old_weight": 110,
+                "new_weight": 10
+            }
+        },
+        
+        {
+            "enforce_sel_arg_weight_limit": 
+            {
+                "index": "key1",
+                "old_weight": 110,
+                "new_weight": 10
+            }
+        }
+    ]
+]
 ## Repeat the above with a bit higher max_weight:
 set @tmp9750_weight=@@optimizer_max_sel_arg_weight;
 set optimizer_max_sel_arg_weight=120;

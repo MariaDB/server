@@ -2161,9 +2161,12 @@ explain select * from t1 where
   kp3 in (1,2,3,4,5,6,7,8,9,10) and
   kp4 in (1,2,3,4,5,6,7,8,9,10)
 ;
-set @json= (select json_detailed(JSON_EXTRACT(trace, '$**.range_scan_alternatives'))
-            from information_schema.optimizer_trace);
+set @trace= (select trace from information_schema.optimizer_trace);
+set @json= json_detailed(json_extract(@trace, '$**.range_scan_alternatives'));
 select left(@json, 500);
+
+set @json= json_detailed(json_extract(@trace, '$**.setup_range_conditions'));
+select left(@json, 2500);
 
 --echo ## Repeat the above with a bit higher max_weight:
 set @tmp9750_weight=@@optimizer_max_sel_arg_weight;

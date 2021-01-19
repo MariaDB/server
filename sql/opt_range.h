@@ -228,36 +228,43 @@ class RANGE_OPT_PARAM;
 
     A SEL_ARG graph has a property we call weight, and we define it as follows:
 
+    <definition>
     If the SEL_ARG graph does not have any node with multiple incoming
     next_key_part edges, then its weight is the number of SEL_ARG objects used.
 
-    If there is a node with multiple next_key_part edges, clone the node (and
-    the nodes connected via prev/next links to it) and redirect one of the
-    incoming next_key_part to the clone. (If the node has "peer" nodes
-    connected to it via prev/next links, they will have to be cloned as well)
+    If there is a node with multiple incoming next_key_part edges, clone that
+    node, (and the nodes connected to it via prev/next links) and redirect one
+    of the incoming next_key_part edges to the clone.
 
-    Repeat this until we get a graph without multiple next_key_part edges
-    coming into the same node. Then, the number of SEL_ARG objects in the
-    graph is the weight.
+    Continue with cloning until we get a graph that has no nodes with multiple
+    incoming next_key_part edges. Then, the number of SEL_ARG objects in the
+    graph is the weight of the original graph.
+    </definition>
 
     Example:
 
+            kp1     $     kp2      $       kp3
+                    $              $
       |  +-------+  $              $
       \->| kp1=2 |--$--------------$-+
          +-------+  $              $ |   +--------+
              |      $              $  ==>| kp3=11 |
          +-------+  $              $ |   +--------+
-         | kp1=3 |--$--------------$-+       |
+         | kp1>3 |--$--------------$-+       |
          +-------+  $              $     +--------+
                     $              $     | kp3=14 |
                     $              $     +--------+
+                    $              $         |
+                    $              $     +--------+
+                    $              $     | kp3=14 |
+                    $              $     +--------+
 
-    Here, the weight is 2 + 2*2=6.
+    Here, the weight is 2 + 2*3=8.
 
-    The rationale behind the weight is:
+    The rationale behind using this definition of weight is:
     - it has the same order-of-magnitude as the number of ranges that the
       SEL_ARG graph is describing,
-    - it is a lot easier to compute,
+    - it is a lot easier to compute than computing the number of ranges,
     - it can be updated incrementally when performing AND/OR operations on
       parts of the graph.
 */
