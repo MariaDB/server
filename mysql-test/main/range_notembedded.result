@@ -87,29 +87,32 @@ left(@json, 2500)
     [
         
         {
-            "enforce_sel_arg_weight_limit": 
+            "sel_arg_weight_heuristic": 
             {
-                "index": "key1",
-                "old_weight": 110,
-                "new_weight": 10
+                "key1_field": "kp1",
+                "key2_field": "kp2",
+                "key1_weight": 10,
+                "key2_weight": 10
             }
         },
         
         {
-            "enforce_sel_arg_weight_limit": 
+            "sel_arg_weight_heuristic": 
             {
-                "index": "key1",
-                "old_weight": 110,
-                "new_weight": 10
+                "key1_field": "kp1",
+                "key2_field": "kp3",
+                "key1_weight": 10,
+                "key2_weight": 10
             }
         },
         
         {
-            "enforce_sel_arg_weight_limit": 
+            "sel_arg_weight_heuristic": 
             {
-                "index": "key1",
-                "old_weight": 110,
-                "new_weight": 10
+                "key1_field": "kp1",
+                "key2_field": "kp4",
+                "key1_weight": 10,
+                "key2_weight": 10
             }
         }
     ]

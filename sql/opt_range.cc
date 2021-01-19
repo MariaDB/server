@@ -418,6 +418,9 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts);
 static
 SEL_ARG *enforce_sel_arg_weight_limit(RANGE_OPT_PARAM *param, uint keyno,
                                       SEL_ARG *sel_arg);
+static
+bool sel_arg_and_weight_heuristic(RANGE_OPT_PARAM *param, SEL_ARG *key1,
+                                  SEL_ARG *key2);
 
 #include "opt_range_mrr.cc"
 
@@ -9723,6 +9726,9 @@ and_all_keys(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2,
   SEL_ARG *next;
   ulong use_count=key1->use_count;
 
+  if (sel_arg_and_weight_heuristic(param, key1, key2))
+    return key1;
+
   if (key1->elements != 1)
   {
     key2->use_count+=key1->elements-1; //psergey: why we don't count that key1 has n-k-p?
@@ -9800,14 +9806,7 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
     }
     // key1->part < key2->part
 
-    /*
-      Do not combine the trees if their total weight is likely to exceed the
-      MAX_WEIGHT.
-      (It is possible that key1 has next_key_part that has empty overlap with
-      key2. In this case, the combined tree will have a smaller weight than we
-      predict. We assume this is rare.)
-    */
-    if (key1->weight + key1->elements*key2->weight > SEL_ARG::MAX_WEIGHT)
+    if (sel_arg_and_weight_heuristic(param, key1, key2))
       return key1;
 
     key1->use_count--;
@@ -10771,6 +10770,9 @@ void prune_sel_arg_graph(SEL_ARG *sel_arg, uint max_part)
     We start with maximum used keypart and then remove one keypart after
     another until the graph's weight is within the limit.
 
+  @seealso
+     sel_arg_and_weight_heuristic();
+
   @return
     tree pointer  The tree after processing,
     NULL          If it was not possible to reduce the weight of the tree below the
@@ -10784,6 +10786,7 @@ SEL_ARG *enforce_sel_arg_weight_limit(RANGE_OPT_PARAM *param, uint keyno,
       !param->thd->variables.optimizer_max_sel_arg_weight)
     return sel_arg;
 
+  Field *field= sel_arg->field;
   uint weight1= sel_arg->weight;
 
   while (1)
@@ -10808,11 +10811,45 @@ SEL_ARG *enforce_sel_arg_weight_limit(RANGE_OPT_PARAM *param, uint keyno,
   {
     Json_writer_object wrapper(param->thd);
     Json_writer_object obj(param->thd, "enforce_sel_arg_weight_limit");
-    obj.add("index", param->table->key_info[param->real_keynr[keyno]].name);
+    if (param->using_real_indexes)
+      obj.add("index", param->table->key_info[param->real_keynr[keyno]].name);
+    else
+      obj.add("pseudo_index", field->field_name);
+
     obj.add("old_weight", (longlong)weight1);
     obj.add("new_weight", (longlong)weight2);
   }
   return sel_arg;
+}
+
+
+/*
+  @detail
+    Do not combine the trees if their total weight is likely to exceed the
+    MAX_WEIGHT.
+    (It is possible that key1 has next_key_part that has empty overlap with
+    key2. In this case, the combined tree will have a smaller weight than we
+    predict. We assume this is rare.)
+*/
+
+static
+bool sel_arg_and_weight_heuristic(RANGE_OPT_PARAM *param, SEL_ARG *key1,
+                                  SEL_ARG *key2)
+{
+  DBUG_ASSERT(key1->part < key2->part);
+
+  ulong max_weight= param->thd->variables.optimizer_max_sel_arg_weight;
+  if (max_weight && key1->weight + key1->elements*key2->weight > max_weight)
+  {
+    Json_writer_object wrapper(param->thd);
+    Json_writer_object obj(param->thd, "sel_arg_weight_heuristic");
+    obj.add("key1_field", key1->field->field_name);
+    obj.add("key2_field", key2->field->field_name);
+    obj.add("key1_weight", (longlong)key1->weight);
+    obj.add("key2_weight", (longlong)key2->weight);
+    return true; // Discard key2
+  }
+  return false;
 }
 
 
