@@ -7507,7 +7507,8 @@ Item *Item::build_pushable_cond(THD *thd,
                col op const
               where op can be  >/>=/</<=/=/<>
               Also the other cases are with [NOT] IN predicate,
-              [NOT] NULL predicate and  LIKE predicate fall in the same category.
+              [NOT] NULL predicate and  LIKE predicate fall
+              in the same category.
             The predicate should have only one non-constant argument and
             this argument will be a reference to a column that is used either
             as the first component of an index or statistics are available via
@@ -7572,7 +7573,8 @@ Item *Item::build_pushable_cond(THD *thd,
     The implementation for this function use the 'walk' method to traverse
     the tree of this item with predicate_selectivity_checker() as the
     call-back parameter of the method.
-
+    propagate_equal_fields() is called before this function is called so
+    Item_field::item_equal and Item_direct_view_ref::item_equal is set.
 
   @retval
     TRUE         selectivity estimates are accurate
@@ -7581,6 +7583,10 @@ Item *Item::build_pushable_cond(THD *thd,
 
 bool Item::with_accurate_selectivity_estimation()
 {
+  /*
+    For the below test one could use a virtual function but that would
+    take a lot of space for other item as there will be entires in the vtable
+  */
   if (type() == Item::COND_ITEM &&
       ((Item_cond*) this)->functype() == Item_func::COND_AND_FUNC)
   {
@@ -9344,6 +9350,8 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
     This is used mostly for OR conjuncts where we need to make sure
     that the entire OR conjunct contains only one column, so that we may
     get accurate estimates.
+    An example with top level OR conjunct would be:
+      WHERE A=1 or A between 100 and 200 or A > 1000
 
   @retval
     TRUE   : the formula does not depend on one column
@@ -10799,4 +10807,17 @@ bool Item::cleanup_excluding_immutables_processor (void *arg)
     clear_extraction_flag();
     return false;
   }
+}
+
+
+bool Item::is_non_const_field_item()
+{
+  /*
+    calling real_item() here so that if the item is a REF_ITEM
+    then we would get the item field it is referring to
+  */
+  Item *field_item= real_item();
+  if (field_item->type() == Item::FIELD_ITEM && !field_item->const_item())
+    return true;
+  return false;
 }

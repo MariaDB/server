@@ -340,6 +340,40 @@ SET @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selecti
 SET @@use_stat_tables= @save_use_stat_tables;
 SET @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 
+--echo #
+--echo # For predicates like these a=a, it would be good to have the removed but for these currently
+--echo # we assume with such predicates we don't have accurate estimates for selectivity
+--echo #
+
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a = a;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Tests where multiple eqaulities have a constant value like a=1 AND a=b
+--echo # The muliple equality would be Item_equal(1,a,b), here both having
+--echo # statistiscs for the range or ndv is fine
+--echo #
+
+CREATE TABLE t1(a INT, b INT, c INT, d INT, KEY(a));
+INSERT INTO t1 SELECT seq, seq,seq,seq from seq_1_to_20;
+
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+--echo # DELETING the avg_frequency for column a and b from stat tables
+update mysql.column_stats set avg_frequency= NULL
+WHERE table_name='t1' AND (column_name='b' OR column_name='a');
+
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1 AND a=b;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
 DROP TABLE t1;
 
 SET optimizer_switch=@save_optimizer_switch;

@@ -4320,8 +4320,9 @@ bool Item_func_in::predicate_selectivity_checker(void *arg)
   SAME_FIELD *field_arg= (SAME_FIELD*)arg;
   if (!field_arg->is_stats_available)
     return true;
-  all_items_are_consts(args + 1, arg_count - 1);
-  return false;
+  if (all_items_are_consts(args + 1, arg_count - 1))
+    return false;
+  return true;
 }
 
 
@@ -5557,7 +5558,7 @@ bool Item_func_null_predicate::predicate_selectivity_checker(void *arg)
   if (!field_arg->is_stats_available)
     return true;
 
-  if (is_range_predicate(args[0], NULL))
+  if (args[0]->is_non_const_field_item())
     return false;
   return true;
 }
@@ -5769,7 +5770,7 @@ bool Item_func_like::predicate_selectivity_checker(void *arg)
     return true;
 
   if (with_sargable_pattern())
-      return false;
+    return false;
   return true;
 }
 
@@ -7220,6 +7221,20 @@ bool Item_equal::predicate_selectivity_checker(void *arg)
     available for all the fields in the multiple equality or not.
   */
   Item_equal_fields_iterator it(*this);
+
+  if (with_const)
+  {
+    while (it++)
+    {
+      Field *field= it.get_curr_field();
+      if (!(field->is_range_statistics_available() ||
+            field->is_ndv_available()))
+        return true;
+    }
+    return false;
+  }
+
+
   while (it++)
   {
     Field *field= it.get_curr_field();

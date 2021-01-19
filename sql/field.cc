@@ -11400,7 +11400,7 @@ void Field::statistics_available_via_keys()
 void Field::statistics_available_via_stat_tables()
 {
   THD *thd= get_thd();
-  if (thd->variables.optimizer_use_condition_selectivity > 1 &&
+  if (thd->variables.optimizer_use_condition_selectivity > 2 &&
       check_eits_preferred(thd))
   {
     if (read_stats && !read_stats->no_stat_values_provided())

@@ -993,5 +993,57 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
 SET @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
 SET @@use_stat_tables= @save_use_stat_tables;
 SET @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+#
+# For predicates like these a=a, it would be good to have the removed but for these currently
+# we assume with such predicates we don't have accurate estimates for selectivity
+#
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a = a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` = `test`.`t1`.`a`
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+DROP TABLE t1;
+#
+# Tests where multiple eqaulities have a constant value like a=1 AND a=b
+# The muliple equality would be Item_equal(1,a,b), here both having
+# statistiscs for the range or ndv is fine
+#
+CREATE TABLE t1(a INT, b INT, c INT, d INT, KEY(a));
+INSERT INTO t1 SELECT seq, seq,seq,seq from seq_1_to_20;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+# DELETING the avg_frequency for column a and b from stat tables
+update mysql.column_stats set avg_frequency= NULL
+WHERE table_name='t1' AND (column_name='b' OR column_name='a');
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	a	a	5	const	1	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`d` AS `d` from `test`.`t1` where `test`.`t1`.`a` = 1
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1 AND a=b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	a	a	5	const	1	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`d` AS `d` from `test`.`t1` where `test`.`t1`.`a` = 1 and `test`.`t1`.`b` = 1
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true
+]
 DROP TABLE t1;
 SET optimizer_switch=@save_optimizer_switch;

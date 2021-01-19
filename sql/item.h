@@ -2506,6 +2506,7 @@ public:
     Checks if this item consists in the left part of arg IN subquery predicate
   */
   bool pushable_equality_checker_for_subquery(uchar *arg);
+  bool is_non_const_field_item();
 };
 
 MEM_ROOT *get_thd_memroot(THD *thd);
