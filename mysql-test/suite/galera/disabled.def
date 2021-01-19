@@ -23,6 +23,7 @@ galera_binlog_stmt_autoinc : MDEV-19959 Galera test failure on galera_binlog_stm
 galera_encrypt_tmp_files : Get error failed to enable encryption of temporary files
 galera_ftwrl : MDEV-21525 galera.galera_ftwrl
 galera_gcache_recover_manytrx : MDEV-18834 Galera test failure
+galera_ist_mysqldump : MDEV-24463 galera.galera_sst_mysqldump_with_key MTR failed: 'INSERT failed: 1213: Deadlock found when trying to get lock
 galera_kill_largechanges : MDEV-18179 Galera test failure on galera.galera_kill_largechanges
 galera_kill_nochanges : MDEV-18280 Galera test failure on galera_split_brain and galera_kill_nochanges
 galera_many_tables_nopk : MDEV-18182 Galera test failure on galera.galera_many_tables_nopk
@@ -33,6 +34,8 @@ galera_shutdown_nonprim : MDEV-21493 galera.galera_shutdown_nonprim
 galera_split_brain : MDEV-18280 Galera test failure on galera_split_brain and galera_kill_nochanges
 galera_ssl_upgrade : MDEV-19950 Galera test failure on galera_ssl_upgrade
 galera_sst_mariabackup_encrypt_with_key : MDEV-21484 galera_sst_mariabackup_encrypt_with_key
+galera_sst_mysqldump : MDEV-24463 galera.galera_sst_mysqldump_with_key MTR failed: 'INSERT failed: 1213: Deadlock found when trying to get lock
+galera_sst_mysqldump_with_key : MDEV-24463 galera.galera_sst_mysqldump_with_key MTR failed: 'INSERT failed: 1213: Deadlock found when trying to get lock
 galera_toi_ddl_nonconflicting : MDEV-21518 galera.galera_toi_ddl_nonconflicting
 galera_toi_truncate : MDEV-22996 Hang on galera_toi_truncate test case
 galera_var_node_address : MDEV-20485 Galera test failure

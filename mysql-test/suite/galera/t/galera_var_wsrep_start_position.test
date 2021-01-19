@@ -1,11 +1,12 @@
---source include/have_wsrep.inc
+--source include/galera_cluster.inc
 
 --echo #
 --echo # wsrep_start_position
 --echo #
 
-SET @wsrep_start_position_global_saved = @@global.wsrep_start_position;
+CALL mtr.add_suppression("WSREP: SST failed for position .*");
 
+SET @wsrep_start_position_global_saved = @@global.wsrep_start_position;
 --echo # default
 SELECT @@global.wsrep_start_position;
 
@@ -15,18 +16,19 @@ SELECT @@global.wsrep_start_position;
 SELECT @@session.wsrep_start_position;
 SELECT @@global.wsrep_start_position;
 
-
 --echo
 --echo # valid values
-SET @@global.wsrep_start_position='12345678-1234-1234-1234-123456789012:100';
-SELECT @@global.wsrep_start_position;
-SET @@global.wsrep_start_position='00000000-0000-0000-0000-000000000000:0';
-SELECT @@global.wsrep_start_position;
 SET @@global.wsrep_start_position='00000000-0000-0000-0000-000000000000:-1';
 SELECT @@global.wsrep_start_position;
 
 --echo
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_start_position='00000000-0000-0000-0000-000000000000:0';
+SELECT @@global.wsrep_start_position;
 --echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_start_position='12345678-1234-1234-1234-123456789012:100';
+SELECT @@global.wsrep_start_position;
 --error ER_WRONG_VALUE_FOR_VAR
 SET @@global.wsrep_start_position='00000000-0000-0000-0000-000000000000:-2';
 SELECT @@global.wsrep_start_position;

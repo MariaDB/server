@@ -308,12 +308,37 @@ bool wsrep_before_SE()
 }
 
 // Signal end of SST
-static void wsrep_sst_complete (THD*                thd,
-                                int const           rcode)
+static bool wsrep_sst_complete (THD*                thd,
+                                int const           rcode,
+                                wsrep::gtid const   sst_gtid)
 {
   Wsrep_client_service client_service(thd, thd->wsrep_cs());
-  Wsrep_server_state::instance().sst_received(client_service, rcode);
+  Wsrep_server_state& server_state= Wsrep_server_state::instance();
+  enum wsrep::server_state::state state= server_state.state();
+  bool failed= false;
+
+  // Do not call sst_received if we are not in joiner or
+  // initialized state on server. This is because it
+  // assumes we are on those states. Give error if we are
+  // in incorrect state.
+  if ((state == Wsrep_server_state::s_joiner ||
+       state == Wsrep_server_state::s_initialized))
+    Wsrep_server_state::instance().sst_received(client_service,
+       rcode);
+  else
+  {
+    char start_pos_buf[FN_REFLEN];
+    ssize_t len= wsrep::print_to_c_str(sst_gtid, start_pos_buf, FN_REFLEN-1);
+    start_pos_buf[len]='\0';
+    WSREP_ERROR("SST failed for position %s initialized %d server_state %s",
+                start_pos_buf,
+                server_state.is_initialized(),
+                wsrep::to_c_string(state));
+    failed= true;
+  }
+
   wsrep_joiner_monitor_end();
+  return failed;
 }
 
   /*
@@ -325,13 +350,15 @@ static void wsrep_sst_complete (THD*                thd,
   @param seqno     [IN]               Initial state sequence number
   @param state     [IN]               Always NULL, also ignored by wsrep provider (?)
   @param state_len [IN]               Always 0, also ignored by wsrep provider (?)
+  @return true when successful, false if error
 */
-void wsrep_sst_received (THD*                thd,
+bool wsrep_sst_received (THD*                thd,
                          const wsrep_uuid_t& uuid,
                          wsrep_seqno_t const seqno,
                          const void* const   state,
                          size_t const        state_len)
 {
+  bool error= false;
   /*
     To keep track of whether the local uuid:seqno should be updated. Also, note
     that local state (uuid:seqno) is updated/checkpointed only after we get an
@@ -371,8 +398,10 @@ void wsrep_sst_received (THD*                thd,
     if (WSREP_ON)
     {
       int const rcode(seqno < 0 ? seqno : 0);
-      wsrep_sst_complete(thd,rcode);
+      error= wsrep_sst_complete(thd,rcode, sst_gtid);
     }
+
+    return error;
 }
 
 static int sst_scan_uuid_seqno (const char* str,
@@ -653,7 +682,7 @@ err:
     /* Read committed isolation to avoid gap locking */
     thd->variables.tx_isolation= ISO_READ_COMMITTED;
 
-    wsrep_sst_complete (thd, -err);
+    wsrep_sst_complete (thd, -err, ret_gtid);
 
     delete thd;
     my_thread_end();
