@@ -977,12 +977,16 @@ btr_free_root_check(
 	return(block);
 }
 
-void
-btr_root_page_init(buf_block_t *block, index_id_t index_id,
-                   dict_index_t *index, mtr_t *mtr)
+/** Initialize the root page of the b-tree
+@param[in,out]  block           root block
+@param[in]      index_id        index id
+@param[in]      index           index of root page
+@param[in,out]  mtr             mini-transaction */
+void btr_root_page_init(buf_block_t *block, index_id_t index_id,
+                        dict_index_t *index, mtr_t *mtr)
 {
-  constexpr uint16_t field = PAGE_HEADER + PAGE_INDEX_ID;
-  byte* page_index_id = my_assume_aligned<2>(field + block->frame);
+  constexpr uint16_t field= PAGE_HEADER + PAGE_INDEX_ID;
+  byte *page_index_id= my_assume_aligned<2>(field + block->frame);
 
   /* Create a new index page on the allocated segment page */
   if (UNIV_LIKELY_NULL(block->page.zip.data))

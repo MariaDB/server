@@ -101,9 +101,10 @@ void
 row_log_online_op(
 /*==============*/
 	dict_index_t*	index,	/*!< in/out: index, S or X latched */
-	const dtuple_t*	tuple,	/*!< in: index tuple */
-	trx_id_t	trx_id);/*!< in: transaction ID for insert,
+	const dtuple_t*	tuple,	/*!< in: index tuple (NULL=empty the index) */
+	trx_id_t	trx_id)	/*!< in: transaction ID for insert,
 				or 0 for delete */
+	ATTRIBUTE_COLD;
 
 /******************************************************//**
 Gets the error status of the online index rebuild log.

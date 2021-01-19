@@ -1398,8 +1398,8 @@ void dict_table_t::empty_table(que_thr_t *thr)
 {
   mtr_t mtr;
   bool rebuild= false;
-  for (dict_index_t* index= UT_LIST_GET_FIRST(indexes);
-       index != NULL; index= UT_LIST_GET_NEXT(indexes, index))
+  for (dict_index_t *index= UT_LIST_GET_FIRST(indexes); index;
+       index= UT_LIST_GET_NEXT(indexes, index))
   {
     if (index->type & DICT_FTS)
       continue;
@@ -1420,7 +1420,7 @@ void dict_table_t::empty_table(que_thr_t *thr)
         mtr.start();
         mtr_s_lock_index(index, &mtr);
         if (index->online_status == ONLINE_INDEX_CREATION)
-	  row_log_online_op(index, nullptr, 0);
+          row_log_online_op(index, nullptr, 0);
         mtr.commit();
       }
     }

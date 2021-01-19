@@ -15128,12 +15128,12 @@ ha_innobase::extra(
 		m_prebuilt->sql_stat_start = true;
 		break;
 	case HA_EXTRA_IGNORE_INSERT:
-	{
-		ins_node_t* node = m_prebuilt->ins_node;
-		if (node && node->bulk_insert) {
-			m_prebuilt->trx->set_allow_insert_undo(node->table);
+		if (ins_node_t* node = m_prebuilt->ins_node) {
+			if (node->bulk_insert) {
+				m_prebuilt->trx->set_allow_insert_undo(
+					node->table);
+			}
 		}
-	}
 		break;
 	default:/* Do nothing */
 		;
