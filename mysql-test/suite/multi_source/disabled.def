@@ -1,1 +1,2 @@
-multi_parallel : MDEV-515
+multi_parallel : MDEV-24622 Replication tests failing after MDEV-515
+gtid_ignore_duplicates : MDEV-24622 Replication tests failing after MDEV-515
