@@ -254,7 +254,7 @@ static ORDER *create_distinct_group(THD *thd, Ref_ptr_array ref_pointer_array,
                                     ORDER *order, List<Item> &fields,
                                     List<Item> &all_fields,
 				    bool *all_order_by_fields_used);
-static bool test_if_subpart(ORDER *a,ORDER *b);
+static bool test_if_subpart(ORDER *group_by, ORDER *order_by);
 static TABLE *get_sort_by_table(ORDER *a,ORDER *b,List<TABLE_LIST> &tables, 
                                 table_map const_tables);
 static void calc_group_buffer(JOIN *join, ORDER *group);
@@ -2793,6 +2793,12 @@ int JOIN::optimize_stage2()
     calc_group_buffer(this, group_list);
   }
 
+  /*
+    Remove ORDER BY in the following cases:
+    - GROUP BY is more specific. Example GROUP BY a, b ORDER BY a
+    - If there are aggregate functions and no GROUP BY, this always leads
+      to one row result, no point in sorting.
+  */
   if (test_if_subpart(group_list, order) ||
       (!group_list && tmp_table_param.sum_func_count))
   {
@@ -25018,21 +25024,27 @@ count_field_types(SELECT_LEX *select_lex, TMP_TABLE_PARAM *param,
 /**
   Return 1 if second is a subpart of first argument.
 
-  If first parts has different direction, change it to second part
-  (group is sorted like order)
+  SIDE EFFECT:
+  For all the first items in the group by list that match, the sort
+  direction of the GROUP BY items are set to the same as those given by the
+  ORDER BY.
+  The direction of the group does not matter if the ORDER BY clause overrides
+  it anyway.
 */
 
 static bool
-test_if_subpart(ORDER *a,ORDER *b)
+test_if_subpart(ORDER *group_by, ORDER *order_by)
 {
-  for (; a && b; a=a->next,b=b->next)
+  while (group_by && order_by)
   {
-    if ((*a->item)->eq(*b->item,1))
-      a->direction=b->direction;
+    if ((*group_by->item)->eq(*order_by->item, 1))
+      group_by->direction= order_by->direction;
     else
       return 0;
+    group_by= group_by->next;
+    order_by= order_by->next;
   }
-  return MY_TEST(!b);
+  return MY_TEST(!order_by);
 }
 
 /**
