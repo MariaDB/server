@@ -5266,11 +5266,27 @@ new_clustered_failed:
 			}
 
 			if (dict_col_name_is_reserved(field->field_name.str)) {
+wrong_column_name:
 				dict_mem_table_free(ctx->new_table);
 				ctx->new_table = ctx->old_table;
 				my_error(ER_WRONG_COLUMN_NAME, MYF(0),
 					 field->field_name.str);
 				goto new_clustered_failed;
+			}
+
+			/** Note the FTS_DOC_ID name is case sensitive due
+			 to internal query parser.
+			 FTS_DOC_ID column must be of BIGINT NOT NULL type
+			 and it should be in all capitalized characters */
+			if (!innobase_strcasecmp(field->field_name.str,
+						 FTS_DOC_ID_COL_NAME)) {
+				if (col_type != DATA_INT
+				    || field->real_maybe_null()
+				    || col_len != sizeof(doc_id_t)
+				    || strcmp(field->field_name.str,
+					      FTS_DOC_ID_COL_NAME)) {
+					goto wrong_column_name;
+				}
 			}
 
 			if (is_virtual) {
