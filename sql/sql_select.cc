@@ -253,7 +253,7 @@ static ORDER *create_distinct_group(THD *thd, Ref_ptr_array ref_pointer_array,
                                     ORDER *order, List<Item> &fields,
                                     List<Item> &all_fields,
 				    bool *all_order_by_fields_used);
-static bool test_if_subpart(ORDER *a,ORDER *b);
+static bool test_if_subpart(ORDER *group_order, ORDER *final_order);
 static TABLE *get_sort_by_table(ORDER *a,ORDER *b,List<TABLE_LIST> &tables, 
                                 table_map const_tables);
 static void calc_group_buffer(JOIN *join,ORDER *group);
@@ -2731,6 +2731,13 @@ int JOIN::optimize_stage2()
     calc_group_buffer(this, group_list);
   }
 
+  /*
+     Remove ORDER BY if GROUP BY is more specific. Example
+     GROUP BY a, b ORDER BY a
+
+     Alternatively remove ORDER BY if there are aggregate functions and no
+     GROUP BY, this always leads to one row result, no point in sorting.
+  */
   if (test_if_subpart(group_list, order) ||
       (!group_list && tmp_table_param.sum_func_count))
   {
@@ -24824,14 +24831,18 @@ count_field_types(SELECT_LEX *select_lex, TMP_TABLE_PARAM *param,
 /**
   Return 1 if second is a subpart of first argument.
 
-  If first parts has different direction, change it to second part
-  (group is sorted like order)
+  SIDE EFFECT:
+  For all the first items in the list that match, the *direction of the
+  group is set to the same as order*. The direction of the group doesn't
+  matter if the ORDER BY clause overrides it anyway.
 */
 
 static bool
-test_if_subpart(ORDER *a,ORDER *b)
+test_if_subpart(ORDER *group_order, ORDER *final_order)
 {
-  for (; a && b; a=a->next,b=b->next)
+  ORDER *a= group_order;
+  ORDER *b= final_order;
+  for (;a && b; a=a->next,b=b->next)
   {
     if ((*a->item)->eq(*b->item,1))
       a->direction=b->direction;
