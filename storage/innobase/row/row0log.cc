@@ -360,6 +360,7 @@ row_log_online_op(
 	if (!tuple) {
 		mrec_size = 4;
 		extra_size = 0;
+		size = 2;
 	} else {
 		size = rec_get_converted_size_temp(
 			index, tuple->fields, tuple->n_fields, &extra_size);
@@ -416,11 +417,11 @@ row_log_online_op(
 		rec_convert_dtuple_to_temp(
 			b + extra_size, index, tuple->fields,
 			tuple->n_fields);
-		b += size;
 	} else {
-		*b++ = 0;
-		*b++ = 0;
+		memset(b, 0, 2);
 	}
+
+	b += size;
 
 	if (mrec_size >= avail_size) {
 		const os_offset_t	byte_offset
