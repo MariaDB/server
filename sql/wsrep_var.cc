@@ -234,7 +234,7 @@ bool wsrep_set_local_position(THD* thd, const char* const value,
   wsrep_seqno_t const seqno= strtoll(value + uuid_len + 1, NULL, 10);
 
   if (sst) {
-    wsrep_sst_received (thd, uuid, seqno, NULL, 0);
+    return (wsrep_sst_received (thd, uuid, seqno, NULL, 0));
   } else {
     local_uuid= uuid;
     local_seqno= seqno;
@@ -258,15 +258,28 @@ bool wsrep_start_position_check (sys_var *self, THD* thd, set_var* var)
   // Verify the format.
   if (wsrep_start_position_verify(start_pos_buf)) return true;
 
+  // Give error if position is updated when wsrep is not enabled or
+  // provider is not loaded.
+  if ((!WSREP_ON || !Wsrep_server_state::instance().is_provider_loaded())
+      && strcmp(start_pos_buf, "00000000-0000-0000-0000-000000000000:-1"))
+  {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_start_position' because "
+                  "wsrep is switched off or provider is not loaded");
+    goto err;
+  }
+
   /*
     As part of further verification, we try to update the value and catch
-    errors (if any).
+    errors (if any) only when value actually has been changed.
   */
-  if (wsrep_set_local_position(thd, var->save_result.string_value.str,
+  if (strcmp(start_pos_buf, wsrep_start_position))
+  {
+    if (wsrep_set_local_position(thd, var->save_result.string_value.str,
                                var->save_result.string_value.length,
                                true))
-  {
-    goto err;
+      goto err;
   }
 
   return false;
@@ -472,8 +485,19 @@ bool wsrep_reject_queries_update(sys_var *self, THD* thd, enum_var_type type)
 
 bool wsrep_debug_update(sys_var *self, THD* thd, enum_var_type type)
 {
-    Wsrep_server_state::instance().debug_log_level(wsrep_debug);
-    return false;
+  // Give warnings if wsrep_debug is set and wsrep is disabled or
+  // provider is not loaded
+  if ((!WSREP_ON || !Wsrep_server_state::instance().is_provider_loaded())
+      && wsrep_debug)
+  {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Setting 'wsrep_debug' has no effect because "
+                  "wsrep is switched off");
+  }
+
+  Wsrep_server_state::instance().debug_log_level(wsrep_debug);
+  return false;
 }
 
 static int wsrep_cluster_address_verify (const char* cluster_address_str)
@@ -745,6 +769,18 @@ bool wsrep_trx_fragment_size_update(sys_var* self, THD *thd, enum_var_type)
 {
   WSREP_DEBUG("wsrep_trx_fragment_size_update: %llu",
               thd->variables.wsrep_trx_fragment_size);
+
+  // Give error if wsrep_trx_fragment_size is set and wsrep is disabled or
+  // provider is not loaded
+  if (!WSREP_ON || !Wsrep_server_state::instance().is_provider_loaded())
+  {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_trx_fragment_size' because "
+                  "wsrep is switched off");
+    return true;
+  }
+
   if (thd->variables.wsrep_trx_fragment_size)
   {
     return thd->wsrep_cs().enable_streaming(
@@ -762,6 +798,18 @@ bool wsrep_trx_fragment_unit_update(sys_var* self, THD *thd, enum_var_type)
 {
   WSREP_DEBUG("wsrep_trx_fragment_unit_update: %lu",
               thd->variables.wsrep_trx_fragment_unit);
+
+  // Give error if wsrep_trx_fragment_unit is set and wsrep is disabled or
+  // provider is not loaded
+  if (!WSREP_ON || !Wsrep_server_state::instance().is_provider_loaded())
+  {
+    push_warning (thd, Sql_condition::WARN_LEVEL_WARN,
+                  ER_WRONG_VALUE_FOR_VAR,
+                  "Cannot set 'wsrep_trx_fragment_unit' because "
+                  "wsrep is switched off");
+    return true;
+  }
+
   if (thd->variables.wsrep_trx_fragment_size)
   {
     return thd->wsrep_cs().enable_streaming(
