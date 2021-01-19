@@ -247,20 +247,6 @@ ibool
 que_thr_peek_stop(
 /*==============*/
 	que_thr_t*	thr);	/*!< in: query thread */
-/***********************************************************************//**
-Returns TRUE if the query graph is for a SELECT statement.
-@return TRUE if a select */
-UNIV_INLINE
-ibool
-que_graph_is_select(
-/*================*/
-	que_t*		graph);		/*!< in: graph */
-/**********************************************************************//**
-Prints info of an SQL query graph node. */
-void
-que_node_print_info(
-/*================*/
-	que_node_t*	node);	/*!< in: query graph node */
 /*********************************************************************//**
 Evaluate the given SQL
 @return error code or DB_SUCCESS */
@@ -407,25 +393,17 @@ inline void que_thr_t::set_active(bool active) { graph->set_active(active); };
 #endif
 
 /* Query fork (or graph) types */
-#define QUE_FORK_SELECT_NON_SCROLL	1	/* forward-only cursor */
-#define QUE_FORK_SELECT_SCROLL		2	/* scrollable cursor */
-#define QUE_FORK_INSERT			3
-#define QUE_FORK_UPDATE			4
 #define QUE_FORK_ROLLBACK		5
 			/* This is really the undo graph used in rollback,
 			no signal-sending roll_node in this graph */
 #define QUE_FORK_PURGE			6
-#define	QUE_FORK_EXECUTE		7
 #define QUE_FORK_PROCEDURE		8
-#define QUE_FORK_PROCEDURE_CALL		9
 #define QUE_FORK_MYSQL_INTERFACE	10
 #define	QUE_FORK_RECOVERY		11
 
 /* Query fork (or graph) states */
 #define QUE_FORK_ACTIVE		1
 #define QUE_FORK_COMMAND_WAIT	2
-#define QUE_FORK_INVALID	3
-#define QUE_FORK_BEING_FREED	4
 
 /* Flag which is ORed to control structure statement node types */
 #define QUE_NODE_CONTROL_STAT	1024
