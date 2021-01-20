@@ -51,6 +51,7 @@ static my_bool upgrade_from_mysql;
 
 static DYNAMIC_STRING ds_args;
 static DYNAMIC_STRING conn_args;
+static DYNAMIC_STRING ds_plugin_data_types;
 
 static char *opt_password= 0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
@@ -187,6 +188,7 @@ static void free_used_memory(void)
 
   dynstr_free(&ds_args);
   dynstr_free(&conn_args);
+  dynstr_free(&ds_plugin_data_types);
   if (cnf_file_path)
     my_delete(cnf_file_path, MYF(MY_WME));
 }
@@ -965,6 +967,73 @@ static my_bool from_before_10_1()
 }
 
 
+static void uninstall_plugins(void)
+{
+  if (ds_plugin_data_types.length)
+  {
+    char *plugins= ds_plugin_data_types.str;
+    char *next= get_line(plugins);
+    char buff[512];
+    while(*plugins)
+    {
+      if (next[-1] == '\n')
+        next[-1]= 0;
+      verbose("uninstalling plugin for %s data type", plugins);
+      strxnmov(buff, sizeof(buff)-1, "UNINSTALL SONAME ", plugins,"", NULL);
+      run_query(buff, NULL, TRUE);
+      plugins= next;
+      next= get_line(next);
+    }
+  }
+}
+/**
+  @brief     Install plugins for missing data types
+  @details   Check for entries with "Unknown data type" in I_S.TABLES,
+             try to load plugins for these tables if available (MDEV-24093)
+
+  @return    Operation status
+    @retval  TRUE  - error
+    @retval  FALSE - success
+*/
+static int install_used_plugin_data_types(void)
+{
+  DYNAMIC_STRING ds_result;
+  const char *query = "SELECT table_comment FROM information_schema.tables"
+                      " WHERE table_comment LIKE 'Unknown data type: %'";
+  if (init_dynamic_string(&ds_result, "", 512, 512))
+    die("Out of memory");
+  run_query(query, &ds_result, TRUE);
+
+  if (ds_result.length)
+  {
+    char *line= ds_result.str;
+    char *next= get_line(line);
+    while(*line)
+    {
+      if (next[-1] == '\n')
+        next[-1]= 0;
+      if (strstr(line, "'MYSQL_JSON'"))
+      {
+        verbose("installing plugin for MYSQL_JSON data type");
+        if(!run_query("INSTALL SONAME 'type_mysql_json'", NULL, TRUE))
+        {
+          dynstr_append(&ds_plugin_data_types, "'type_mysql_json'");
+          dynstr_append(&ds_plugin_data_types, "\n");
+          break;
+        }
+        else
+        {
+          fprintf(stderr, "... can't %s\n", "INSTALL SONAME 'type_mysql_json'");
+          return 1;
+        }
+      }
+      line= next;
+      next= get_line(next);
+    }
+  }
+  dynstr_free(&ds_result);
+  return 0;
+}
 /*
   Check for entries with "Unknown storage engine" in I_S.TABLES,
   try to load plugins for these tables if available (MDEV-11942)
@@ -1218,7 +1287,8 @@ int main(int argc, char **argv)
   }
 
   if (init_dynamic_string(&ds_args, "", 512, 256) ||
-      init_dynamic_string(&conn_args, "", 512, 256))
+      init_dynamic_string(&conn_args, "", 512, 256) ||
+      init_dynamic_string(&ds_plugin_data_types, "", 512, 256))
     die("Out of memory");
 
   if (handle_options(&argc, &argv, my_long_options, get_one_option))
@@ -1281,6 +1351,7 @@ int main(int argc, char **argv)
   */
   if (run_mysqlcheck_upgrade(TRUE) ||
       install_used_engines() ||
+      install_used_plugin_data_types() ||
       run_mysqlcheck_views() ||
       run_sql_fix_privilege_tables() ||
       run_mysqlcheck_fixnames() ||
@@ -1288,6 +1359,7 @@ int main(int argc, char **argv)
       check_slave_repositories())
     die("Upgrade failed" );
 
+  uninstall_plugins();
   verbose("Phase %d/%d: Running 'FLUSH PRIVILEGES'", ++phase, phases_total);
   if (run_query("FLUSH PRIVILEGES", NULL, TRUE))
     die("Upgrade failed" );
