@@ -1733,30 +1733,13 @@ row_merge_read_clustered_index(
 	DEBUG_FTS_SORT_PRINT("FTS_SORT: Start Create Index\n");
 #endif
 
-	/* Check early (without accessing index pages) if the table is empty.
-
-	If we read bulk_trx_id as an older transaction ID,
-	it is not incorrect to check here whether that transaction should
-	be visible to us. If not, the table must have been empty.
-	We would only update bulk_trx_id in row_ins_clust_index_entry_low()
-	if the table really was empty (everything had been purged).
-	So, this shortcut is safe. */
-	if (trx_id_t bulk_trx_id = old_table->bulk_trx_id) {
-		if (trx->read_view.is_open()
-		    && !trx->read_view.changes_visible(
-				bulk_trx_id, old_table->name)) {
-			trx->op_info="";
-			DBUG_RETURN(DB_SUCCESS);
-		}
-	}
-
 	/* Create and initialize memory for record buffers */
 
 	merge_buf = static_cast<row_merge_buf_t**>(
 		ut_malloc_nokey(n_index * sizeof *merge_buf));
 
 	row_merge_dup_t	clust_dup = {index[0], table, col_map, 0};
-	dfield_t*	prev_fields;
+	dfield_t*	prev_fields = nullptr;
 	const ulint	n_uniq = dict_index_get_n_unique(index[0]);
 
 	ut_ad(trx->mysql_thd != NULL);
@@ -1766,10 +1749,6 @@ row_merge_read_clustered_index(
 	ut_ad(!skip_pk_sort || dict_index_is_clust(index[0]));
 	/* There is no previous tuple yet. */
 	prev_mtuple.fields = NULL;
-
-	/* Note: we must recheck old_table->bulk_trx_id after we have
-	acquired the page latch on the clustered index root page or
-	the leftmost leaf page. */
 
 	for (ulint i = 0; i < n_index; i++) {
 		if (index[i]->type & DICT_FTS) {
@@ -1859,6 +1838,34 @@ row_merge_read_clustered_index(
 		btr_pcur_move_to_prev_on_page(&pcur);
 	}
 
+	uint64_t n_rows = 0;
+
+	/* Check if the table is supposed to be empty for our read view.
+
+	If we read bulk_trx_id as an older transaction ID, it is not
+	incorrect to check here whether that transaction should be
+	visible to us. If bulk_trx_id is not visible to us, the table
+	must have been empty at an earlier point of time, also in our
+	read view.
+
+	An INSERT would only update bulk_trx_id in
+	row_ins_clust_index_entry_low() if the table really was empty
+	(everything had been purged), when holding a leaf page latch
+	in the clustered index (actually, the root page is the only
+	leaf page in that case).
+
+	We are holding a clustered index leaf page latch here.
+	That will obviously prevent any concurrent INSERT from
+	updating bulk_trx_id while we read it. */
+	if (!online) {
+	} else if (trx_id_t bulk_trx_id = old_table->bulk_trx_id) {
+		ut_ad(trx->read_view.is_open());
+		ut_ad(bulk_trx_id != trx->id);
+		if (!trx->read_view.changes_visible(bulk_trx_id)) {
+			goto func_exit;
+		}
+	}
+
 	if (old_table != new_table) {
 		/* The table is being rebuilt.  Identify the columns
 		that were flagged NOT NULL in the new table, so that
@@ -1905,13 +1912,10 @@ row_merge_read_clustered_index(
 		prev_fields = static_cast<dfield_t*>(
 			ut_malloc_nokey(n_uniq * sizeof *prev_fields));
 		mtuple_heap = mem_heap_create(sizeof(mrec_buf_t));
-	} else {
-		prev_fields = NULL;
 	}
 
 	mach_write_to_8(new_sys_trx_start, trx->id);
 	mach_write_to_8(new_sys_trx_end, TRX_ID_MAX);
-	uint64_t	n_rows = 0;
 
 	/* Scan the clustered index. */
 	for (;;) {
@@ -2741,7 +2745,7 @@ all_done:
 		UT_DELETE(clust_btr_bulk);
 	}
 
-	if (prev_fields != NULL) {
+	if (prev_fields) {
 		ut_free(prev_fields);
 		mem_heap_free(mtuple_heap);
 	}

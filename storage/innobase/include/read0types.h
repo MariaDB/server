@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -140,6 +140,20 @@ loop:
   */
   static void check_trx_id_sanity(trx_id_t id, const table_name_t &name);
 
+  /**
+    Check whether the changes by id are visible.
+    @param[in] id transaction id to check against the view
+    @return whether the view sees the modifications of id.
+  */
+  bool changes_visible(trx_id_t id) const
+  MY_ATTRIBUTE((warn_unused_result))
+  {
+    if (id >= m_low_limit_id)
+      return false;
+    return id < m_up_limit_id ||
+           m_ids.empty() ||
+           !std::binary_search(m_ids.begin(), m_ids.end(), id);
+  }
 
   /**
     Check whether the changes by id are visible.
@@ -266,7 +280,8 @@ public:
   */
   bool changes_visible(trx_id_t id, const table_name_t &name) const
   { return id == m_creator_trx_id || ReadViewBase::changes_visible(id, name); }
-
+  bool changes_visible(trx_id_t id) const
+  { return id == m_creator_trx_id || ReadViewBase::changes_visible(id); }
 
   /**
     A wrapper around ReadViewBase::append().

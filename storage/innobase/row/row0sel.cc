@@ -1450,7 +1450,9 @@ row_sel_try_search_shortcut(
 {
 	dict_index_t*	index = plan->index;
 
+	ut_ad(!index->table->is_temporary());
 	ut_ad(node->read_view);
+	ut_ad(node->read_view->is_open());
 	ut_ad(plan->unique_search);
 	ut_ad(!plan->must_get_clust);
 
@@ -1472,6 +1474,13 @@ retry:
 	if (btr_pcur_get_up_match(&(plan->pcur)) < plan->n_exact_match) {
 exhausted:
 		return(SEL_EXHAUSTED);
+	}
+
+	if (trx_id_t bulk_trx_id = index->table->bulk_trx_id) {
+		/* See row_search_mvcc() for a comment on bulk_trx_id */
+		if (!node->read_view->changes_visible(bulk_trx_id)) {
+			goto exhausted;
+		}
 	}
 
 	/* This is a non-locking consistent read: if necessary, fetch
@@ -1541,7 +1550,6 @@ row_sel(
 	rec_t*		rec;
 	rec_t*		old_vers;
 	rec_t*		clust_rec;
-	ibool		consistent_read;
 
 	/* The following flag becomes TRUE when we are doing a
 	consistent read from a non-clustered index and we must look
@@ -1564,21 +1572,11 @@ row_sel(
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets				= offsets_;
 	rec_offs_init(offsets_);
+	const trx_t*	trx = thr_get_trx(thr);
 
 	ut_ad(thr->run_node == node);
-
-	if (node->read_view) {
-		/* In consistent reads, we try to do with the hash index and
-		not to use the buffer page get. This is to reduce memory bus
-		load resulting from semaphore operations. The search latch
-		will be s-locked when we access an index with a unique search
-		condition, but not locked when we access an index with a
-		less selective search condition. */
-
-		consistent_read = TRUE;
-	} else {
-		consistent_read = FALSE;
-	}
+	ut_ad(!node->read_view || node->read_view == &trx->read_view);
+	ut_ad(!node->read_view || node->read_view->is_open());
 
 table_loop:
 	/* TABLE LOOP
@@ -1613,7 +1611,7 @@ table_loop:
 	mtr.start();
 
 #ifdef BTR_CUR_HASH_ADAPT
-	if (consistent_read && plan->unique_search && !plan->pcur_is_open
+	if (node->read_view && plan->unique_search && !plan->pcur_is_open
 	    && !plan->must_get_clust) {
 		switch (row_sel_try_search_shortcut(node, plan, &mtr)) {
 		case SEL_FOUND:
@@ -1658,6 +1656,15 @@ table_loop:
 		}
 	}
 
+	if (!node->read_view
+	    || trx->isolation_level == TRX_ISO_READ_UNCOMMITTED) {
+	} else if (trx_id_t bulk_trx_id = index->table->bulk_trx_id) {
+		/* See row_search_mvcc() for a comment on bulk_trx_id */
+		if (!trx->read_view.changes_visible(bulk_trx_id)) {
+			goto table_exhausted;
+		}
+	}
+
 rec_loop:
 	/* RECORD LOOP
 	-----------
@@ -1689,12 +1696,9 @@ rec_loop:
 		and it might be that these new records should appear in the
 		search result set, resulting in the phantom problem. */
 
-		if (!consistent_read) {
+		if (!node->read_view) {
 			rec_t*	next_rec = page_rec_get_next(rec);
 			unsigned lock_type;
-			trx_t*	trx;
-
-			trx = thr_get_trx(thr);
 
 			offsets = rec_get_offsets(next_rec, index, offsets,
 						  true,
@@ -1752,15 +1756,12 @@ skip_lock:
 		goto next_rec;
 	}
 
-	if (!consistent_read) {
+	if (!node->read_view) {
 		/* Try to place a lock on the index record */
 		unsigned lock_type;
-		trx_t*	trx;
 
 		offsets = rec_get_offsets(rec, index, offsets, true,
 					  ULINT_UNDEFINED, &heap);
-
-		trx = thr_get_trx(thr);
 
 		/* At READ UNCOMMITTED or READ COMMITTED isolation level,
 		we lock only the record, i.e., next-key locking is
@@ -1845,7 +1846,7 @@ skip_lock:
 	offsets = rec_get_offsets(rec, index, offsets, true,
 				  ULINT_UNDEFINED, &heap);
 
-	if (consistent_read) {
+	if (node->read_view) {
 		/* This is a non-locking consistent read: if necessary, fetch
 		a previous version of the record */
 
@@ -1970,7 +1971,7 @@ skip_lock:
 
 		if (clust_rec == NULL) {
 			/* The record did not exist in the read view */
-			ut_ad(consistent_read);
+			ut_ad(node->read_view);
 
 			goto next_rec;
 		}
@@ -3847,8 +3848,10 @@ row_sel_try_search_shortcut_for_mysql(
 	trx_t*		trx		= prebuilt->trx;
 	const rec_t*	rec;
 
-	ut_ad(dict_index_is_clust(index));
+	ut_ad(index->is_primary());
+	ut_ad(!index->table->is_temporary());
 	ut_ad(!prebuilt->templ_contains_blob);
+	ut_ad(trx->read_view.is_open());
 
 	srw_lock* ahi_latch = btr_search_sys.get_latch(*index);
 	ahi_latch->rd_lock(SRW_LOCK_CALL);
@@ -3872,7 +3875,13 @@ exhausted:
 		return(SEL_EXHAUSTED);
 	}
 
-	/* FIXME: check index->table->bulk_trx_id! */
+	if (trx->isolation_level == TRX_ISO_READ_UNCOMMITTED) {
+	} else if (trx_id_t bulk_trx_id = index->table->bulk_trx_id) {
+		/* See row_search_mvcc() for a comment on bulk_trx_id */
+		if (!trx->read_view.changes_visible(bulk_trx_id)) {
+			goto exhausted;
+		}
+	}
 
 	/* This is a non-locking consistent read: if necessary, fetch
 	a previous version of the record */
@@ -4415,6 +4424,7 @@ early_not_found:
 	    && unique_search
 	    && btr_search_enabled
 	    && dict_index_is_clust(index)
+	    && !index->table->is_temporary()
 	    && !prebuilt->templ_contains_blob
 	    && !prebuilt->used_in_HANDLER
 	    && (prebuilt->mysql_row_len < srv_page_size / 8)) {
@@ -4711,34 +4721,49 @@ wait_table_again:
 		}
 	}
 
-	/* Check early (without accessing index pages) if the table is empty.
+	/* Check if the table is supposed to be empty for our read view.
 
-	If we read bulk_trx_id as an older transaction ID,
-	it is not incorrect to check here whether that transaction should
-	be visible to us. If not, the table must have been empty.
-	We would only update bulk_trx_id in row_ins_clust_index_entry_low()
-	if the table really was empty (everything had been purged).
-	So, this shortcut is safe.
+	If we read bulk_trx_id as an older transaction ID, it is not
+	incorrect to check here whether that transaction should be
+	visible to us. If bulk_trx_id is not visible to us, the table
+	must have been empty at an earlier point of time, also in our
+	read view.
 
-	Note: because we are not holding the clustered index root page latch
-	here, and likely not holding a table lock either, this is a dirty
-	read. It is possible that the table has been emptied again and
-	bulk_trx_id is being updated concurrently by an active insert
-	transaction. But, that must be an even later transaction than the
-	one that we might have checked here. */
-	if (trx_id_t bulk_trx_id = index->table->bulk_trx_id) {
-		if (trx->isolation_level != TRX_ISO_READ_UNCOMMITTED
-		    && trx->read_view.is_open()
-		    && !trx->read_view.changes_visible(
-				bulk_trx_id, index->table->name)) {
+	An INSERT would only update bulk_trx_id in
+	row_ins_clust_index_entry_low() if the table really was empty
+	(everything had been purged), when holding a leaf page latch
+	in the clustered index (actually, the root page is the only
+	leaf page in that case).
+
+	We are already holding a leaf page latch here, either
+	in a secondary index or in a clustered index.
+
+	If we are holding a clustered index page latch, there clearly
+	is no potential for race condition with a concurrent INSERT:
+	such INSERT would be blocked by us.
+
+	If we are holding a secondary index page latch, then we are
+	not directly blocking a concurrent INSERT that might update
+	bulk_trx_id to something that does not exist in our read view.
+	But, in that case, the entire table (all indexes) must have
+	been empty. So, even if our read below missed the update of
+	index->table->bulk_trx_id, we can safely proceed to reading
+	the empty secondary index page. Our latch will prevent the
+	INSERT from proceeding to that page. It will first modify
+	the clustered index. Also, we may only look up something in
+	the clustered index if the secondary index page is not empty
+	to begin with. So, only if the table is corrupted
+	(the clustered index is empty but the secondary index is not)
+	we could return corrupted results. */
+	if (trx->isolation_level == TRX_ISO_READ_UNCOMMITTED
+	    || !trx->read_view.is_open()) {
+	} else if (trx_id_t bulk_trx_id = index->table->bulk_trx_id) {
+		if (!trx->read_view.changes_visible(bulk_trx_id)) {
 			trx->op_info = "";
 			err = DB_END_OF_INDEX;
 			goto normal_return;
 		}
 	}
-
-	/* Note: we must recheck index->table->bulk_trx_id while
-	we are holding the clustered index root page latch. */
 
 rec_loop:
 	DEBUG_SYNC_C("row_search_rec_loop");
