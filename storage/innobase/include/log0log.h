@@ -46,6 +46,11 @@ using st_::span;
 static const char LOG_FILE_NAME_PREFIX[] = "ib_logfile";
 static const char LOG_FILE_NAME[] = "ib_logfile0";
 
+#ifdef USE_PMDK
+extern my_bool innobase_use_pmem;
+extern bool    pmem_init;
+#endif /* USE_PMDK */
+
 /** Composes full path for a redo log file
 @param[in]	filename	name of the redo log file
 @return path with log file name*/
@@ -412,6 +417,32 @@ public:
 private:
   pfs_os_file_t m_fd{OS_FILE_CLOSED};
 };
+
+#ifdef USE_PMDK
+class file_pmem_io final: public file_io
+{
+public:
+	file_pmem_io()= default;
+	file_pmem_io(const file_os_io &)= delete;
+	file_pmem_io &operator=(const file_os_io &)= delete;
+	//file_pmem_io(file_os_io &&rhs);
+	//file_os_io &operator=(file_os_io &&rhs);
+	~file_pmem_io() noexcept;
+
+	dberr_t open(const char *path, bool read_only) noexcept final;
+	bool is_opened() const noexcept { return pmem_addr != NULL; }
+	dberr_t rename(const char *old_path, const char *new_path) noexcept final;
+	dberr_t close() noexcept final;
+	dberr_t read(os_offset_t offset, span<byte> buf) noexcept final;
+	dberr_t write(const char *path, os_offset_t offset,
+		      span<const byte> buf) noexcept final;
+	dberr_t flush() noexcept final;
+
+private:
+	char* pmem_addr = NULL;
+	ulint pmem_len = 0;
+};
+#endif/* USE_PMDK */
 
 /** File abstraction + path */
 class log_file_t
