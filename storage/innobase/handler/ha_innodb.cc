@@ -167,11 +167,8 @@ wsrep_ws_handle(THD* thd, const trx_t* trx) {
 
 extern TC_LOG* tc_log;
 extern void wsrep_cleanup_transaction(THD *thd);
-static int
-wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
-			my_bool signal);
-static void
-wsrep_fake_trx_id(handlerton* hton, THD *thd);
+static void wsrep_abort_transaction(handlerton*, THD *, THD *, my_bool);
+static void wsrep_fake_trx_id(handlerton* hton, THD *thd);
 static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 #endif /* WITH_WSREP */
@@ -19507,35 +19504,27 @@ wsrep_abort_slave_trx(
 /*******************************************************************//**
 This function is used to kill one transaction in BF. */
 UNIV_INTERN
-int
+void
 wsrep_innobase_kill_one_trx(
 /*========================*/
-	void * const bf_thd_ptr,
+	MYSQL_THD const bf_thd,
 	const trx_t * const bf_trx,
 	trx_t *victim_trx,
 	ibool signal)
 {
+        ut_ad(bf_thd);
+        ut_ad(victim_trx);
         ut_ad(lock_mutex_own());
         ut_ad(trx_mutex_own(victim_trx));
-        ut_ad(bf_thd_ptr);
-        ut_ad(victim_trx);
 
 	DBUG_ENTER("wsrep_innobase_kill_one_trx");
-	THD *bf_thd       = bf_thd_ptr ? (THD*) bf_thd_ptr : NULL;
 	THD *thd          = (THD *) victim_trx->mysql_thd;
-	int64_t bf_seqno  = (bf_thd) ? wsrep_thd_trx_seqno(bf_thd) : 0;
+	int64_t bf_seqno  = wsrep_thd_trx_seqno(bf_thd);
 
 	if (!thd) {
 		DBUG_PRINT("wsrep", ("no thd for conflicting lock"));
 		WSREP_WARN("no THD for trx: " TRX_ID_FMT, victim_trx->id);
-		DBUG_RETURN(1);
-	}
-
-	if (!bf_thd) {
-		DBUG_PRINT("wsrep", ("no BF thd for conflicting lock"));
-		WSREP_WARN("no BF THD for trx: " TRX_ID_FMT,
-			   bf_trx ? bf_trx->id : 0);
-		DBUG_RETURN(1);
+		DBUG_VOID_RETURN;
 	}
 
 	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
@@ -19566,7 +19555,7 @@ wsrep_innobase_kill_one_trx(
 		WSREP_DEBUG("kill trx EXITING for " TRX_ID_FMT,
 			    victim_trx->id);
 		wsrep_thd_UNLOCK(thd);
-		DBUG_RETURN(0);
+		DBUG_VOID_RETURN;
 	}
 
 	if (wsrep_thd_exec_mode(thd) != LOCAL_STATE) {
@@ -19584,7 +19573,7 @@ wsrep_innobase_kill_one_trx(
 			    victim_trx->id);
 		wsrep_thd_UNLOCK(thd);
 		wsrep_thd_awake(thd, signal);
-		DBUG_RETURN(0);
+		DBUG_VOID_RETURN;
 		break;
 	case ABORTED:
 	case ABORTING: // fall through
@@ -19592,7 +19581,7 @@ wsrep_innobase_kill_one_trx(
 		WSREP_DEBUG("victim " TRX_ID_FMT " in state %d",
 			    victim_trx->id, wsrep_thd_get_conflict_state(thd));
 		wsrep_thd_UNLOCK(thd);
-		DBUG_RETURN(0);
+		DBUG_VOID_RETURN;
 		break;
 	}
 
@@ -19622,7 +19611,7 @@ wsrep_innobase_kill_one_trx(
 					    victim_trx->id);
 				wsrep_thd_UNLOCK(thd);
 				wsrep_thd_awake(thd, signal);
-				DBUG_RETURN(1);
+				DBUG_VOID_RETURN;
 				break;
 			case WSREP_OK:
 				break;
@@ -19692,7 +19681,7 @@ wsrep_innobase_kill_one_trx(
 			wsrep_thd_UNLOCK(thd);
 			wsrep_abort_slave_trx(bf_seqno,
 					      wsrep_thd_trx_seqno(thd));
-			DBUG_RETURN(0);
+			DBUG_VOID_RETURN;
 		}
                 /* This will lock thd from proceeding after net_read() */
 		wsrep_thd_set_conflict_state(thd, ABORTING);
@@ -19724,11 +19713,11 @@ wsrep_innobase_kill_one_trx(
 		break;
 	}
 
-	DBUG_RETURN(0);
+	DBUG_VOID_RETURN;
 }
 
 static
-int
+void
 wsrep_abort_transaction(
 /*====================*/
 	handlerton* hton,
@@ -19736,7 +19725,7 @@ wsrep_abort_transaction(
 	THD *victim_thd,
 	my_bool signal)
 {
-	DBUG_ENTER("wsrep_innobase_abort_thd");
+	DBUG_ENTER("wsrep_abort_transaction");
 
 	trx_t* victim_trx	= thd_to_trx(victim_thd);
 	trx_t* bf_trx		= (bf_thd) ? thd_to_trx(bf_thd) : NULL;
@@ -19749,12 +19738,11 @@ wsrep_abort_transaction(
 	if (victim_trx) {
 		lock_mutex_enter();
 		trx_mutex_enter(victim_trx);
-		int rcode = wsrep_innobase_kill_one_trx(bf_thd, bf_trx,
-                                                        victim_trx, signal);
+		wsrep_innobase_kill_one_trx(bf_thd, bf_trx, victim_trx, signal);
 		lock_mutex_exit();
 		trx_mutex_exit(victim_trx);
 		wsrep_srv_conc_cancel_wait(victim_trx);
-		DBUG_RETURN(rcode);
+		DBUG_VOID_RETURN;
 	} else {
 		WSREP_DEBUG("victim does not have transaction");
 		wsrep_thd_LOCK(victim_thd);
@@ -19763,7 +19751,7 @@ wsrep_abort_transaction(
 		wsrep_thd_awake(victim_thd, signal);
 	}
 
-	DBUG_RETURN(-1);
+	DBUG_VOID_RETURN;
 }
 
 static
