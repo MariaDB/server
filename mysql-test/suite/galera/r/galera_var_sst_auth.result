@@ -1,6 +1,3 @@
-#
-# MDEV-10492: Assertion failure on shutdown when wsrep_sst_auth set in config
-#
 SELECT @@global.wsrep_sst_auth;
 @@global.wsrep_sst_auth
 ********
@@ -8,5 +5,14 @@ SET @@global.wsrep_sst_auth='foo:bar';
 SELECT @@global.wsrep_sst_auth;
 @@global.wsrep_sst_auth
 ********
-disconnect node_2;
-disconnect node_1;
+connection node_2;
+SET @@global.wsrep_sst_auth= 'abcdefghijklmnopqrstuvwxyz';
+SELECT @@global.wsrep_sst_auth;
+@@global.wsrep_sst_auth
+********
+Shutdown node_2
+connection node_1;
+connection node_2;
+SELECT @@global.wsrep_sst_auth;
+@@global.wsrep_sst_auth
+********
