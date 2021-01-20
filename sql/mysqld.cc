@@ -1772,10 +1772,11 @@ static void close_connections(void)
     server_threads.iterate(warn_threads_active_after_phase_1);
 
 #ifdef WITH_WSREP
+  WSREP_DEBUG("Shutdown wsrep_inited %d wsrep_sst_auth %p", wsrep_inited, wsrep_sst_auth);
+
   if (wsrep_inited == 1)
-  {
     wsrep_deinit(true);
-  }
+  wsrep_sst_auth_free();
 #endif
   /* All threads has now been aborted */
   DBUG_PRINT("quit", ("Waiting for threads to die (count=%u)",
@@ -1889,6 +1890,7 @@ extern "C" void unireg_abort(int exit_code)
     wsrep_deinit(true);
     wsrep_deinit_server();
   }
+  wsrep_sst_auth_free();
 #endif // WITH_WSREP
 
   clean_up(!opt_abort && (exit_code || !opt_bootstrap)); /* purecov: inspected */

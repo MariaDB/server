@@ -256,6 +256,7 @@ static bool sst_auth_real_set (const char* value)
 
   if (v)
   {
+    WSREP_DEBUG("wsrep_sst_auth_update: sst_auth %p auth_real %p", wsrep_sst_auth, sst_auth_real);
     // set sst_auth_real
     if (sst_auth_real) { my_free((void *) sst_auth_real); }
     sst_auth_real= v;
@@ -266,6 +267,13 @@ static bool sst_auth_real_set (const char* value)
       if (wsrep_sst_auth) { my_free((void*) wsrep_sst_auth); }
       wsrep_sst_auth= my_strdup(PSI_INSTRUMENT_ME, WSREP_SST_AUTH_MASK, MYF(0));
     }
+    else
+    {
+      if (wsrep_sst_auth) { my_free((void*) wsrep_sst_auth); }
+      wsrep_sst_auth= NULL;
+    }
+
+    WSREP_DEBUG("wsrep_sst_auth_update: sst_auth_end %p auth_real %p", wsrep_sst_auth, sst_auth_real);
     return 0;
   }
   return 1;
@@ -273,6 +281,7 @@ static bool sst_auth_real_set (const char* value)
 
 void wsrep_sst_auth_free()
 {
+  WSREP_DEBUG("wsrep_sst_auth_free: sst_auth %p auth_real %p", wsrep_sst_auth, sst_auth_real);
   if (wsrep_sst_auth) { my_free((void *) wsrep_sst_auth); }
   if (sst_auth_real) { my_free((void *) sst_auth_real); }
   wsrep_sst_auth= NULL;
@@ -281,6 +290,7 @@ void wsrep_sst_auth_free()
 
 bool wsrep_sst_auth_update (sys_var *self, THD* thd, enum_var_type type)
 {
+  WSREP_DEBUG("wsrep_sst_auth_update: sst_auth %p auth_real %p", wsrep_sst_auth, sst_auth_real);
   return sst_auth_real_set (wsrep_sst_auth);
 }
 

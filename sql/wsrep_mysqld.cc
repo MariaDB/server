@@ -996,6 +996,8 @@ void wsrep_deinit(bool free_options)
     free(p);
   }
 
+  WSREP_DEBUG("wsrep_deinit free_options %d wsrep_sst_auth %p", free_options, wsrep_sst_auth);
+
   if (free_options)
   {
     wsrep_sst_auth_free();
