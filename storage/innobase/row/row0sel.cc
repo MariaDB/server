@@ -875,6 +875,25 @@ row_sel_test_other_conds(
 	return(TRUE);
 }
 
+/** Check that a clustered index record is visible in a consistent read view.
+@param rec      clustered index record (in leaf page, or in memory)
+@param index    clustered index
+@param offsets  rec_get_offsets(rec, index)
+@param view     consistent read view
+@return whether rec is visible in view */
+static bool row_sel_clust_sees(const rec_t *rec, const dict_index_t &index,
+                               const rec_offs *offsets, const ReadView &view)
+{
+  ut_ad(index.is_primary());
+  ut_ad(page_rec_is_user_rec(rec));
+  ut_ad(rec_offs_validate(rec, &index, offsets));
+  ut_ad(!rec_is_metadata(rec, index));
+  ut_ad(!index.table->is_temporary());
+
+  return view.changes_visible(row_get_rec_trx_id(rec, &index, offsets),
+                              index.table->name);
+}
+
 /*********************************************************************//**
 Retrieves the clustered index record corresponding to a record in a
 non-clustered index. Does the necessary locking.
@@ -977,8 +996,8 @@ row_sel_get_clust_rec(
 
 		old_vers = NULL;
 
-		if (!lock_clust_rec_cons_read_sees(clust_rec, index, offsets,
-						   node->read_view)) {
+		if (!row_sel_clust_sees(clust_rec, *index, offsets,
+					*node->read_view)) {
 
 			err = row_sel_build_prev_vers(
 				node->read_view, index, clust_rec,
@@ -1494,14 +1513,16 @@ exhausted:
 				  ULINT_UNDEFINED, &heap);
 
 	if (dict_index_is_clust(index)) {
-		if (!lock_clust_rec_cons_read_sees(rec, index, offsets,
-						   node->read_view)) {
+		if (!row_sel_clust_sees(rec, *index, offsets,
+					*node->read_view)) {
 			goto retry;
 		}
-	} else if (!srv_read_only_mode
-		   && !lock_sec_rec_cons_read_sees(
-			rec, index, node->read_view)) {
-		goto retry;
+	} else if (!srv_read_only_mode) {
+		trx_id_t trx_id = page_get_max_trx_id(page_align(rec));
+		ut_ad(trx_id);
+		if (!node->read_view->sees(trx_id)) {
+			goto retry;
+		}
 	}
 
 	if (rec_get_deleted_flag(rec, dict_table_is_comp(plan->table))) {
@@ -1851,10 +1872,9 @@ skip_lock:
 		a previous version of the record */
 
 		if (dict_index_is_clust(index)) {
-
-			if (!lock_clust_rec_cons_read_sees(
-					rec, index, offsets, node->read_view)) {
-
+			if (!node->read_view->changes_visible(
+				    row_get_rec_trx_id(rec, index, offsets),
+				    index->table->name)) {
 				err = row_sel_build_prev_vers(
 					node->read_view, index, rec,
 					&offsets, &heap, &plan->old_vers_heap,
@@ -1901,11 +1921,12 @@ skip_lock:
 
 				rec = old_vers;
 			}
-		} else if (!srv_read_only_mode
-			   && !lock_sec_rec_cons_read_sees(
-				   rec, index, node->read_view)) {
-
-			cons_read_requires_clust_rec = TRUE;
+		} else if (!srv_read_only_mode) {
+			trx_id_t trx_id = page_get_max_trx_id(page_align(rec));
+			ut_ad(trx_id);
+			if (!node->read_view->sees(trx_id)) {
+				cons_read_requires_clust_rec = TRUE;
+			}
 		}
 	}
 
@@ -3404,13 +3425,13 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 
 		old_vers = NULL;
 
-		/* If the isolation level allows reading of uncommitted data,
-		then we never look for an earlier version */
-
-		if (trx->isolation_level > TRX_ISO_READ_UNCOMMITTED
-		    && !lock_clust_rec_cons_read_sees(
-			    clust_rec, clust_index, *offsets,
-			    &trx->read_view)) {
+		if (trx->isolation_level == TRX_ISO_READ_UNCOMMITTED
+		    || clust_index->table->is_temporary()) {
+			/* If the isolation level allows reading of
+			uncommitted data, then we never look for an
+			earlier version */
+		} else if (!row_sel_clust_sees(clust_rec, *clust_index,
+					       *offsets, trx->read_view)) {
 			const buf_page_t& bpage = btr_pcur_get_block(
 				prebuilt->clust_pcur)->page;
 
@@ -3889,8 +3910,7 @@ exhausted:
 	*offsets = rec_get_offsets(rec, index, *offsets, true,
 				   ULINT_UNDEFINED, heap);
 
-	if (!lock_clust_rec_cons_read_sees(rec, index, *offsets,
-					   &trx->read_view)) {
+	if (!row_sel_clust_sees(rec, *index, *offsets, trx->read_view)) {
 		goto retry;
 	}
 
@@ -5192,6 +5212,7 @@ no_gap_lock:
 		a previous version of the record */
 
 		if (trx->isolation_level == TRX_ISO_READ_UNCOMMITTED
+		    || prebuilt->table->is_temporary()
 		    || prebuilt->table->no_rollback()) {
 
 			/* Do nothing: we let a non-locking SELECT read the
@@ -5204,8 +5225,8 @@ no_gap_lock:
 			high force recovery level set, we try to avoid crashes
 			by skipping this lookup */
 
-			if (!lock_clust_rec_cons_read_sees(
-				    rec, index, offsets, &trx->read_view)) {
+			if (!row_sel_clust_sees(rec, *index, offsets,
+						trx->read_view)) {
 				ut_ad(srv_force_recovery
 				      < SRV_FORCE_NO_UNDO_LOG_SCAN);
 				rec_t*	old_vers;
@@ -5240,9 +5261,13 @@ no_gap_lock:
 
 			ut_ad(!dict_index_is_clust(index));
 
-			if (!srv_read_only_mode
-			    && !lock_sec_rec_cons_read_sees(
-					rec, index, &trx->read_view)) {
+			if (!srv_read_only_mode) {
+				trx_id_t trx_id = page_get_max_trx_id(
+					page_align(rec));
+				ut_ad(trx_id);
+				if (trx->read_view.sees(trx_id)) {
+					goto locks_ok;
+				}
 				/* We should look at the clustered index.
 				However, as this is a non-locking read,
 				we can skip the clustered index lookup if
