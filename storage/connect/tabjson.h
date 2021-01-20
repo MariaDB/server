@@ -192,7 +192,8 @@ protected:
 	char    Sep;                     // The Jpath separator
 	bool    Strict;                  // Strict syntax checking
 	bool    Comma;                   // Row has final comma
-  }; // end of class TDBJSN
+  bool    Xpdable;                 // False: expandable columns are NULL
+}; // end of class TDBJSN
 
 /* -------------------------- JSONCOL class -------------------------- */
 
@@ -247,7 +248,8 @@ public:
 	char    Sep;                  // The Jpath separator
 	bool    Xpd;                  // True for expandable column
   bool    Parsed;               // True when parsed
-  }; // end of class JSONCOL
+  bool    Warned;               // True when warning issued
+}; // end of class JSONCOL
 
 /* -------------------------- TDBJSON class -------------------------- */
 

@@ -265,6 +265,7 @@ protected:
   char    Sep;                  // The Jpath separator
   bool    Xpd;                  // True for expandable column
   bool    Parsed;               // True when parsed
+  bool    Warned;               // True when warning issued
 }; // end of class BSONCOL
 
 /* -------------------------- TDBBSON class -------------------------- */

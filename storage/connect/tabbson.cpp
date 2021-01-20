@@ -784,6 +784,12 @@ PVAL BCUTIL::MakeBson(PGLOBAL g, PBVAL jsp)
 {
   if (Cp->Value->IsTypeNum()) {
     strcpy(g->Message, "Cannot make Json for a numeric column");
+
+    if (!Cp->Warned) {
+      PushWarning(g, Tp);
+      Cp->Warned = true;
+    } // endif Warned
+
     Cp->Value->Reset();
 #if 0
   } else if (Value->GetType() == TYPE_BIN) {
@@ -1635,6 +1641,7 @@ BSONCOL::BSONCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
   Xnod = -1;
   Xpd = false;
   Parsed = false;
+  Warned = false;
 } // end of BSONCOL constructor
 
 /***********************************************************************/
@@ -1653,6 +1660,7 @@ BSONCOL::BSONCOL(BSONCOL* col1, PTDB tdbp) : DOSCOL(col1, tdbp)
   Xnod = col1->Xnod;
   Xpd = col1->Xpd;
   Parsed = col1->Parsed;
+  Warned = col1->Warned;
 } // end of BSONCOL copy constructor
 
 /***********************************************************************/
@@ -1986,8 +1994,10 @@ void BSONCOL::ReadColumn(PGLOBAL g)
   if (!Tbp->SameRow || Xnod >= Tbp->SameRow)
     Value->SetValue_pval(Cp->GetColumnValue(g, Tbp->Row, 0));
 
+#if defined(DEVELOPMENT)
   if (Xpd && Value->IsNull() && !((PBDEF)Tbp->To_Def)->Accept)
-    throw("Null expandable JSON value");
+    htrc("Null expandable JSON value for column %s\n", Name);
+#endif   // DEVELOPMENT
 
   // Set null when applicable
   if (!Nullable)
@@ -2274,8 +2284,10 @@ int TDBBSON::MakeDocument(PGLOBAL g)
       Docp = Bp->NewVal(TYPE_JAR);
       Bp->AddArrayValue(Docp, jsp);
       Bp->SetArrayValue(arp, Docp, i);
-    } else
+    } else {
       Top = Docp = Bp->NewVal(TYPE_JAR);
+      Bp->AddArrayValue(Docp, jsp);
+    } // endif's
 
   } // endif jsp
 

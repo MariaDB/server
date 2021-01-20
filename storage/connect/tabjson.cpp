@@ -1255,6 +1255,7 @@ JSONCOL::JSONCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
   Xnod = -1;
   Xpd = false;
   Parsed = false;
+  Warned = false;
 } // end of JSONCOL constructor
 
 /***********************************************************************/
@@ -1273,6 +1274,7 @@ JSONCOL::JSONCOL(JSONCOL *col1, PTDB tdbp) : DOSCOL(col1, tdbp)
   Xnod = col1->Xnod;
   Xpd = col1->Xpd;
   Parsed = col1->Parsed;
+  Warned = col1->Warned;
 } // end of JSONCOL copy constructor
 
 /***********************************************************************/
@@ -1606,6 +1608,12 @@ PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp)
 {
   if (Value->IsTypeNum()) {
     strcpy(g->Message, "Cannot make Json for a numeric column");
+
+    if (!Warned) {
+      PushWarning(g, Tjp);
+      Warned = true;
+    } // endif Warned
+
     Value->Reset();
 #if 0
 	} else if (Value->GetType() == TYPE_BIN) {
@@ -1703,8 +1711,8 @@ void JSONCOL::ReadColumn(PGLOBAL g)
   if (!Tjp->SameRow || Xnod >= Tjp->SameRow)
     Value->SetValue_pval(GetColumnValue(g, Tjp->Row, 0));
 
-  if (Xpd && Value->IsNull() && !((PJDEF)Tjp->To_Def)->Accept)
-    throw("Null expandable JSON value");
+//  if (Xpd && Value->IsNull() && !((PJDEF)Tjp->To_Def)->Accept)
+//    throw("Null expandable JSON value");
 
   // Set null when applicable
   if (!Nullable)
