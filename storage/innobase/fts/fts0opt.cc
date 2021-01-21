@@ -2658,6 +2658,13 @@ fts_optimize_request_sync_table(
 
 	mutex_enter(&fts_optimize_wq->mutex);
 
+	if (table->fts->sync_message) {
+		/* If the table already has SYNC message in
+		fts_optimize_wq queue then ignore it */
+		mutex_exit(&fts_optimize_wq->mutex);
+		return;
+	}
+
 	add_msg(msg, true);
 
 	table->fts->sync_message = true;
