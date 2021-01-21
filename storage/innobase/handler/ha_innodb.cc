@@ -3142,11 +3142,9 @@ static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
 	if (const trx_t* trx = thd_to_trx(thd)) {
 		*trx_id = trx->id;
 
-		for (trx_mod_tables_t::const_iterator t
-			     = trx->mod_tables.begin();
-		     t != trx->mod_tables.end(); t++) {
-			if (t->second.is_versioned()) {
-				DBUG_ASSERT(t->first->versioned_by_id());
+		for (const auto& t : trx->mod_tables) {
+			if (t.second.is_versioned()) {
+				DBUG_ASSERT(t.first->versioned_by_id());
 				DBUG_ASSERT(trx->rsegs.m_redo.rseg);
 
 				return trx_sys.get_new_trx_id();
@@ -12960,16 +12958,14 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 	SET AUTOCOMMIT=0;
 	CREATE TABLE t (PRIMARY KEY (a)) ENGINE=INNODB SELECT 1 AS a UNION
 	ALL SELECT 1 AS a; */
-	trx_mod_tables_t::const_iterator	iter;
-
-	for (iter = parent_trx->mod_tables.begin();
+	for (auto iter = parent_trx->mod_tables.begin();
 	     iter != parent_trx->mod_tables.end();
 	     ++iter) {
 
 		dict_table_t*	table_to_drop = iter->first;
 
 		if (strcmp(norm_name, table_to_drop->name.m_name) == 0) {
-			parent_trx->mod_tables.erase(table_to_drop);
+			parent_trx->mod_tables.erase(iter);
 			break;
 		}
 	}
@@ -15114,10 +15110,8 @@ ha_innobase::extra(
 			break;
 		}
 		trx_start_if_not_started(m_prebuilt->trx, true);
-		m_prebuilt->trx->mod_tables.insert(
-			trx_mod_tables_t::value_type(
-				const_cast<dict_table_t*>(m_prebuilt->table),
-				0))
+		m_prebuilt->trx->mod_tables.emplace(
+			const_cast<dict_table_t*>(m_prebuilt->table), 0)
 			.first->second.set_versioned(0);
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
@@ -15130,8 +15124,7 @@ ha_innobase::extra(
 	case HA_EXTRA_IGNORE_INSERT:
 		if (ins_node_t* node = m_prebuilt->ins_node) {
 			if (node->bulk_insert) {
-				m_prebuilt->trx->set_allow_insert_undo(
-					node->table);
+				m_prebuilt->trx->end_bulk_insert(*node->table);
 			}
 		}
 		break;

@@ -536,7 +536,7 @@ trx_savepoint_for_mysql(
 
 	UT_LIST_ADD_LAST(trx->trx_savepoints, savep);
 
-	trx->set_allow_insert_undo();
+	trx->end_bulk_insert();
 
 	return(DB_SUCCESS);
 }

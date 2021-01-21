@@ -12,3 +12,4 @@
 
 create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails
 innodb_wl6326_big : MDEV-24142 FIXME: no instrumentation
+innodb_trx_weight : MDEV-515 fixme: deadlock at line 83

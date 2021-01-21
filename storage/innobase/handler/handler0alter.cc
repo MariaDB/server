@@ -11474,11 +11474,14 @@ ib_sequence_t::operator++(int) UNIV_NOTHROW
 	return(current);
 }
 
-void dict_index_t::empty(que_thr_t *thr)
+void dict_index_t::clear(que_thr_t *thr)
 {
   mtr_t mtr;
   mtr.start();
-  mtr.set_named_space_id(table->space->id);
+  if (table->is_temporary())
+    mtr.set_log_mode(MTR_LOG_NO_REDO);
+  else
+    set_modified(mtr);
   /* Free the indexes */
   buf_block_t* root_block= buf_page_get(
     page_id_t(table->space->id, page),
@@ -11495,4 +11498,39 @@ void dict_index_t::empty(que_thr_t *thr)
   btr_root_page_init(root_block, id, this, &mtr);
 func_exit:
   mtr.commit();
+}
+
+void dict_table_t::clear(que_thr_t *thr)
+{
+  mtr_t mtr;
+  bool rebuild= false;
+  for (dict_index_t *index= UT_LIST_GET_FIRST(indexes); index;
+       index= UT_LIST_GET_NEXT(indexes, index))
+  {
+    if (index->type & DICT_FTS)
+      continue;
+
+    switch (index->online_status) {
+    case ONLINE_INDEX_ABORTED:
+    case ONLINE_INDEX_ABORTED_DROPPED:
+      continue;
+
+    case ONLINE_INDEX_CREATION:
+      if (index->is_clust())
+      {
+        row_log_table_empty(index);
+        rebuild= true;
+      }
+      else if (!rebuild)
+      {
+        mtr.start();
+        mtr_s_lock_index(index, &mtr);
+        if (index->online_status == ONLINE_INDEX_CREATION)
+          row_log_online_op(index, nullptr, 0);
+        mtr.commit();
+      }
+    }
+
+    index->clear(thr);
+  }
 }

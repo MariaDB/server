@@ -2632,6 +2632,7 @@ row_ins_clust_index_entry_low(
 				auto_inc, &mtr);
 	if (err != DB_SUCCESS) {
 		index->table->file_unreadable = true;
+commit_exit:
 		mtr.commit();
 		goto func_exit;
 	}
@@ -2655,36 +2656,34 @@ row_ins_clust_index_entry_low(
 	if (!(flags & BTR_NO_UNDO_LOG_FLAG)
 	    && page_is_empty(block->frame)
 	    && !entry->is_metadata() && !trx->duplicates
-	    && !index->table->is_temporary()
 	    && !trx->ddl && !trx->internal
 	    && block->page.id().page_no() == index->page
 	    && !index->table->skip_alter_undo) {
 
 		DEBUG_SYNC_C("empty_root_page_insert");
 
-		err = lock_table(0, index->table, LOCK_X, thr);
+		if (!index->table->is_temporary()) {
+			err = lock_table(0, index->table, LOCK_X, thr);
 
-		if (err != DB_SUCCESS) {
-			mtr_commit(&mtr);
-			trx->error_state = err;
-			goto func_exit;
-		}
+			if (err != DB_SUCCESS) {
+				trx->error_state = err;
+				goto commit_exit;
+			}
 
 #ifdef BTR_CUR_HASH_ADAPT
-		if (btr_search_enabled) {
-			btr_search_x_lock_all();
-			index->table->bulk_trx_id = trx->id;
-			btr_search_x_unlock_all();
-		} else {
-			index->table->bulk_trx_id = trx->id;
-		}
+			if (btr_search_enabled) {
+				btr_search_x_lock_all();
+				index->table->bulk_trx_id = trx->id;
+				btr_search_x_unlock_all();
+			} else {
+				index->table->bulk_trx_id = trx->id;
+			}
 #else /* BTR_CUR_HASH_ADAPT */
-		index->table->bulk_trx_id = trx->id;
+			index->table->bulk_trx_id = trx->id;
 #endif /* BTR_CUR_HASH_ADAPT */
+		}
 
-		ins_node_t *run_node= static_cast<ins_node_t*>(
-					thr->run_node);
-		run_node->bulk_insert = true;
+		static_cast<ins_node_t*>(thr->run_node)->bulk_insert = true;
 	}
 
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {

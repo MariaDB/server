@@ -362,8 +362,13 @@ static bool row_undo_rec_get(undo_node_t* node)
 	mtr.commit();
 
 	switch (trx_undo_rec_get_type(node->undo_rec)) {
-	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_EMPTY:
+		/* This record type was introduced in MDEV-515 bulk insert,
+		which was implemented after MDEV-12288 removed the
+		insert_undo log. */
+		ut_ad(undo == update || undo == temp);
+		goto insert_like;
+	case TRX_UNDO_INSERT_METADATA:
 		/* This record type was introduced in MDEV-11369
 		instant ADD COLUMN, which was implemented after
 		MDEV-12288 removed the insert_undo log. There is no
@@ -375,6 +380,7 @@ static bool row_undo_rec_get(undo_node_t* node)
 		ut_ad(undo == insert || undo == update);
 		/* fall through */
 	case TRX_UNDO_INSERT_REC:
+	insert_like:
 		ut_ad(undo == insert || undo == update || undo == temp);
 		node->roll_ptr |= 1ULL << ROLL_PTR_INSERT_FLAG_POS;
 		node->state = undo == temp

@@ -418,8 +418,8 @@ trx_undo_page_report_insert(
 	ptr += mach_u64_write_much_compressed(ptr, trx->undo_no);
 	ptr += mach_u64_write_much_compressed(ptr, index->table->id);
 
-	/* Table is in bulk operation */
 	if (write_empty) {
+		/* Table is in bulk operation */
 		undo_block->frame[first_free + 2] = TRX_UNDO_EMPTY;
 		goto done;
 	}
@@ -1994,6 +1994,23 @@ trx_undo_report_row_operation(
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 	ut_ad(!trx->in_rollback);
 
+	/* We must determine if this is the first time when this
+	transaction modifies this table. */
+	auto m = trx->mod_tables.emplace(index->table, trx->undo_no);
+	ut_ad(m.first->second.valid(trx->undo_no));
+
+	const bool bulk = !rec
+		&& ((!m.second && m.first->second.is_bulk_insert())
+		    || (thr->run_node
+			&& que_node_get_type(thr->run_node) == QUE_NODE_INSERT
+			&& static_cast<ins_node_t*>(thr->run_node)->bulk_insert
+			&& m.first->second.try_bulk_insert()));
+
+	if (bulk && !m.second) {
+		/* We already wrote a TRX_UNDO_EMPTY record. */
+		return DB_SUCCESS;
+	}
+
 	mtr.start();
 	trx_undo_t**	pundo;
 	trx_rseg_t*	rseg;
@@ -2015,15 +2032,11 @@ trx_undo_report_row_operation(
 	buf_block_t*	undo_block = trx_undo_assign_low(trx, rseg, pundo,
 							 &err, &mtr);
 	trx_undo_t*	undo	= *pundo;
-	bool		write_empty = !rec && thr->run_node
-				      && que_node_get_type(thr->run_node)
-						== QUE_NODE_INSERT
-				      && static_cast<ins_node_t*>(
-						thr->run_node)->bulk_insert
-				      && !trx->allow_insert_undo(index->table);
 	ut_ad((err == DB_SUCCESS) == (undo_block != NULL));
 	if (UNIV_UNLIKELY(undo_block == NULL)) {
-		goto err_exit;
+err_exit:
+		mtr.commit();
+		return err;
 	}
 
 	ut_ad(undo != NULL);
@@ -2032,7 +2045,7 @@ trx_undo_report_row_operation(
 		uint16_t offset = !rec
 			? trx_undo_page_report_insert(
 				undo_block, trx, index, clust_entry, &mtr,
-				write_empty)
+				bulk)
 			: trx_undo_page_report_modify(
 				undo_block, trx, index, rec, offsets, update,
 				cmpl_info, clust_entry, &mtr);
@@ -2070,6 +2083,12 @@ trx_undo_report_row_operation(
 				trx_undo_free_last_page(undo, &mtr);
 				mysql_mutex_unlock(&rseg->mutex);
 
+				if (m.second) {
+					/* We are not going to modify
+					this table after all. */
+					trx->mod_tables.erase(m.first);
+				}
+
 				err = DB_UNDO_RECORD_TOO_BIG;
 				goto err_exit;
 			} else {
@@ -2101,27 +2120,19 @@ trx_undo_report_row_operation(
 			ut_ad(!undo->empty());
 
 			if (!is_temp) {
-				const undo_no_t limit = undo->top_undo_no;
-				/* Determine if this is the first time
-				when this transaction modifies a
-				system-versioned column in this table. */
-				trx_mod_table_time_t& time
-					= trx->mod_tables.insert(
-						trx_mod_tables_t::value_type(
-							index->table, limit))
-					.first->second;
-				ut_ad(time.valid(limit));
+				trx_mod_table_time_t& time = m.first->second;
+				ut_ad(time.valid(undo->top_undo_no));
 
 				if (!time.is_versioned()
 				    && index->table->versioned_by_id()
 				    && (!rec /* INSERT */
 					|| (update
 					    && update->affects_versioned()))) {
-					time.set_versioned(limit);
+					time.set_versioned(undo->top_undo_no);
 				}
 			}
 
-			if (!write_empty) {
+			if (!bulk) {
 				*roll_ptr = trx_undo_build_roll_ptr(
 					!rec, rseg->id, undo->top_page_no,
 					offset);
@@ -2159,10 +2170,7 @@ trx_undo_report_row_operation(
 
 	/* Did not succeed: out of space */
 	err = DB_OUT_OF_FILE_SPACE;
-
-err_exit:
-	mtr_commit(&mtr);
-	return(err);
+	goto err_exit;
 }
 
 /*============== BUILDING PREVIOUS VERSION OF A RECORD ===============*/

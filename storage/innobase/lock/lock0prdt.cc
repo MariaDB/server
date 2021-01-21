@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -509,8 +509,6 @@ a predicate record.
 dberr_t
 lock_prdt_insert_check_and_lock(
 /*============================*/
-	ulint		flags,	/*!< in: if BTR_NO_LOCKING_FLAG bit is
-				set, does nothing */
 	const rec_t*	rec,	/*!< in: record after which to insert */
 	buf_block_t*	block,	/*!< in/out: buffer block of rec */
 	dict_index_t*	index,	/*!< in: index */
@@ -520,14 +518,8 @@ lock_prdt_insert_check_and_lock(
 				Rectangle */
 {
 	ut_ad(block->frame == page_align(rec));
-
-	if (flags & BTR_NO_LOCKING_FLAG) {
-
-		return(DB_SUCCESS);
-	}
-
 	ut_ad(!index->table->is_temporary());
-	ut_ad(!dict_index_is_clust(index));
+	ut_ad(index->is_spatial());
 
 	trx_t*	trx = thr_get_trx(thr);
 

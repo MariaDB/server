@@ -1415,6 +1415,7 @@ row_insert_for_mysql(
 		prebuilt->sql_stat_start = FALSE;
 	} else {
 		node->state = INS_NODE_ALLOC_ROW_ID;
+		node->trx_id = trx->id;
 	}
 
 	thr->start_running();

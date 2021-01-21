@@ -4696,8 +4696,6 @@ for a gap x-lock to the lock queue.
 dberr_t
 lock_rec_insert_check_and_lock(
 /*===========================*/
-	ulint		flags,	/*!< in: if BTR_NO_LOCKING_FLAG bit is
-				set, does nothing */
 	const rec_t*	rec,	/*!< in: record after which to insert */
 	buf_block_t*	block,	/*!< in/out: buffer block of rec */
 	dict_index_t*	index,	/*!< in: index */
@@ -4709,16 +4707,8 @@ lock_rec_insert_check_and_lock(
 				record */
 {
 	ut_ad(block->frame == page_align(rec));
-	ut_ad(!dict_index_is_online_ddl(index)
-	      || index->is_primary()
-	      || (flags & BTR_CREATE_FLAG));
 	ut_ad(mtr->is_named_space(index->table->space));
 	ut_ad(page_rec_is_leaf(rec));
-
-	if (flags & BTR_NO_LOCKING_FLAG) {
-
-		return(DB_SUCCESS);
-	}
 
 	ut_ad(!index->table->is_temporary());
 	ut_ad(page_is_leaf(block->frame));

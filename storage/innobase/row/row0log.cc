@@ -2405,18 +2405,6 @@ func_exit_committed:
 	goto func_exit;
 }
 
-/** Applies the empty table to a table that was rebuilt.
-@param  index   clustered index
-@retrun success if index gets emptied */
-static
-dberr_t
-row_log_table_apply_empty(dict_index_t* index, que_thr_t *thr)
-{
-  dict_table_t* new_table= index->online_log->table;
-  new_table->empty_table(thr);
-  return DB_SUCCESS;
-}
-
 /******************************************************//**
 Applies an operation to a table that was rebuilt.
 @return NULL on failure (mrec corruption) or when out of data;
@@ -2683,7 +2671,7 @@ row_log_table_apply_op(
 			mrec, offsets, offsets_heap, heap, dup, old_pk);
 		break;
 	case ROW_T_EMPTY:
-		*error = row_log_table_apply_empty(dup->index, thr);
+		dup->index->online_log->table->clear(thr);
 		log->head.total += 1;
 		next_mrec = mrec;
 		break;
@@ -3624,8 +3612,7 @@ row_log_apply_op(
 		que_fork_t* fork = que_fork_create(
 			NULL, NULL, QUE_FORK_MYSQL_INTERFACE, heap);
 		que_thr_t* thr = que_thr_create(fork, heap, nullptr);
-		index->empty(thr);
-		*error = DB_SUCCESS;
+		index->clear(thr);
 		mem_heap_free(heap);
 		return mrec + 4;
 	}

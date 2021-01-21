@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -38,7 +38,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "row0row.h"
 #include "sql_string.h"
 #include <iostream>
-#include "row0log.h"
 
 #define	DICT_HEAP_SIZE		100	/*!< initial memory heap size when
 					creating a table or index object */
@@ -1392,39 +1391,4 @@ dict_index_t::vers_history_row(
 		mem_heap_free(heap);
 	}
 	return(error);
-}
-
-void dict_table_t::empty_table(que_thr_t *thr)
-{
-  mtr_t mtr;
-  bool rebuild= false;
-  for (dict_index_t *index= UT_LIST_GET_FIRST(indexes); index;
-       index= UT_LIST_GET_NEXT(indexes, index))
-  {
-    if (index->type & DICT_FTS)
-      continue;
-
-    switch (index->online_status) {
-    case ONLINE_INDEX_ABORTED:
-    case ONLINE_INDEX_ABORTED_DROPPED:
-      continue;
-
-    case ONLINE_INDEX_CREATION:
-      if (index->is_clust())
-      {
-        row_log_table_empty(index);
-        rebuild= true;
-      }
-      else if (!rebuild)
-      {
-        mtr.start();
-        mtr_s_lock_index(index, &mtr);
-        if (index->online_status == ONLINE_INDEX_CREATION)
-          row_log_online_op(index, nullptr, 0);
-        mtr.commit();
-      }
-    }
-
-    index->empty(thr);
-  }
 }

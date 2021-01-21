@@ -3211,32 +3211,27 @@ btr_cur_ins_lock_and_undo(
 				should inherit LOCK_GAP type locks from the
 				successor record */
 {
-	dict_index_t*	index;
-	dberr_t		err = DB_SUCCESS;
-	rec_t*		rec;
-	roll_ptr_t	roll_ptr;
+	if (!(~flags | (BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG))) {
+		return DB_SUCCESS;
+	}
+
 	/* Check if we have to wait for a lock: enqueue an explicit lock
 	request if yes */
 
-	rec = btr_cur_get_rec(cursor);
-	index = cursor->index;
+	rec_t* rec = btr_cur_get_rec(cursor);
+	dict_index_t* index = cursor->index;
 
 	ut_ad(!dict_index_is_online_ddl(index)
 	      || dict_index_is_clust(index)
 	      || (flags & BTR_CREATE_FLAG));
+	ut_ad((flags & BTR_NO_UNDO_LOG_FLAG)
+	      || !index->table->skip_alter_undo);
+
 	ut_ad(mtr->is_named_space(index->table->space));
-	bool write_empty = thr
-			   && thr->run_node
-			   && que_node_get_type(thr->run_node)
-				== QUE_NODE_INSERT
-			   && static_cast<ins_node_t*>(
-				thr->run_node)->bulk_insert
-			   && !thr_get_trx(thr)->allow_insert_undo(
-				index->table);
 
 	/* Check if there is predicate or GAP lock preventing the insertion */
 	if (!(flags & BTR_NO_LOCKING_FLAG)) {
-		if (dict_index_is_spatial(index)) {
+		if (index->is_spatial()) {
 			lock_prdt_t	prdt;
 			rtr_mbr_t	mbr;
 
@@ -3248,59 +3243,55 @@ btr_cur_ins_lock_and_undo(
 			lock_init_prdt_from_mbr(
 				&prdt, &mbr, 0, NULL);
 
-			err = lock_prdt_insert_check_and_lock(
-				flags, rec, btr_cur_get_block(cursor),
-				index, thr, mtr, &prdt);
+			if (dberr_t err = lock_prdt_insert_check_and_lock(
+				    rec, btr_cur_get_block(cursor),
+				    index, thr, mtr, &prdt)) {
+				return err;
+			}
 			*inherit = false;
 		} else {
-			err = lock_rec_insert_check_and_lock(
-				flags, rec, btr_cur_get_block(cursor),
-				index, thr, mtr, inherit);
-		}
-	}
-
-	if (err != DB_SUCCESS
-	    || !(~flags | (BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG))
-	    || !dict_index_is_clust(index) || dict_index_is_ibuf(index)) {
-
-		return(err);
-	}
-
-	if (flags & BTR_NO_UNDO_LOG_FLAG) {
-		roll_ptr = roll_ptr_t(1) << ROLL_PTR_INSERT_FLAG_POS;
-		if (!(flags & BTR_KEEP_SYS_FLAG)) {
-upd_sys:
-			dfield_t* r = dtuple_get_nth_field(
-				entry, index->db_roll_ptr());
-			ut_ad(r->len == DATA_ROLL_PTR_LEN);
-			trx_write_roll_ptr(static_cast<byte*>(r->data),
-					   roll_ptr);
-		}
-	} else {
-		err = trx_undo_report_row_operation(thr, index, entry,
-						    NULL, 0, NULL, NULL,
-						    &roll_ptr);
-		if (err == DB_SUCCESS) {
-
-			if (index->table->no_rollback()) {
-			} else if (write_empty
-				   || index->table->skip_alter_undo) {
-				roll_ptr = roll_ptr_t(1)
-					<< ROLL_PTR_INSERT_FLAG_POS;
-			} else {
-				trx_t* trx = thr_get_trx(thr);
-				dfield_t *r = dtuple_get_nth_field(
-					entry, index->db_trx_id());
-				trx_write_trx_id(
-					static_cast<byte*>(r->data),
-					trx->id);
+			ut_ad(!dict_index_is_online_ddl(index)
+			      || index->is_primary()
+			      || (flags & BTR_CREATE_FLAG));
+			if (dberr_t err = lock_rec_insert_check_and_lock(
+				    rec, btr_cur_get_block(cursor),
+				    index, thr, mtr, inherit)) {
+				return err;
 			}
-
-			goto upd_sys;
 		}
 	}
 
-	return(err);
+	if (!index->is_primary() || !page_is_leaf(page_align(rec))) {
+		return DB_SUCCESS;
+	}
+
+	constexpr roll_ptr_t dummy_roll_ptr = roll_ptr_t{1}
+		<< ROLL_PTR_INSERT_FLAG_POS;
+	roll_ptr_t roll_ptr = dummy_roll_ptr;
+
+	if (!(flags & BTR_NO_UNDO_LOG_FLAG)) {
+		if (dberr_t err = trx_undo_report_row_operation(
+			    thr, index, entry, NULL, 0, NULL, NULL,
+			    &roll_ptr)) {
+			return err;
+		}
+
+		if (roll_ptr != dummy_roll_ptr) {
+			dfield_t* r = dtuple_get_nth_field(entry,
+							   index->db_trx_id());
+			trx_write_trx_id(static_cast<byte*>(r->data),
+					 thr_get_trx(thr)->id);
+		}
+	}
+
+	if (!(flags & BTR_KEEP_SYS_FLAG)) {
+		dfield_t* r = dtuple_get_nth_field(
+			entry, index->db_roll_ptr());
+		ut_ad(r->len == DATA_ROLL_PTR_LEN);
+		trx_write_roll_ptr(static_cast<byte*>(r->data), roll_ptr);
+	}
+
+	return DB_SUCCESS;
 }
 
 /**

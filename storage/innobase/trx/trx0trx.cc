@@ -614,9 +614,7 @@ trx_resurrect_table_locks(
 			}
 
 			if (trx->state == TRX_STATE_PREPARED) {
-				trx->mod_tables.insert(
-					trx_mod_tables_t::value_type(table,
-								     0));
+				trx->mod_tables.emplace(table, 0);
 			}
 
 			if (p.second) {
@@ -1228,7 +1226,6 @@ trx_update_mod_tables_timestamp(
 	expensive here */
 	const time_t now = time(NULL);
 
-	trx_mod_tables_t::const_iterator	end = trx->mod_tables.end();
 #if defined SAFE_MUTEX && defined UNIV_DEBUG
 	const bool preserve_tables = !innodb_evict_tables_on_commit_debug
 		|| trx->is_recovered /* avoid trouble with XA recovery */
@@ -1240,10 +1237,7 @@ trx_update_mod_tables_timestamp(
 		;
 #endif
 
-	for (trx_mod_tables_t::const_iterator it = trx->mod_tables.begin();
-	     it != end;
-	     ++it) {
-
+	for (const auto& p : trx->mod_tables) {
 		/* This could be executed by multiple threads concurrently
 		on the same table object. This is fine because time_t is
 		word size or less. And _purely_ _theoretically_, even if
@@ -1252,7 +1246,7 @@ trx_update_mod_tables_timestamp(
 		"garbage" in table->update_time is justified because
 		protecting it with a latch here would be too performance
 		intrusive. */
-		dict_table_t* table = it->first;
+		dict_table_t* table = p.first;
 		table->update_time = now;
 #if defined SAFE_MUTEX && defined UNIV_DEBUG
 		if (preserve_tables || table->get_ref_count()
@@ -1742,7 +1736,7 @@ trx_mark_sql_stat_end(
 			fts_savepoint_laststmt_refresh(trx);
 		}
 
-		trx->set_allow_insert_undo();
+		trx->end_bulk_insert();
 		return;
 	}
 

@@ -1369,11 +1369,12 @@ public:
 	of a field which made index records too big to fit on a page.*/
 	inline record_size_info_t record_size_info() const;
 
-	/** Empty the index content and reinitialize the root page.
-	It does frees the leaf segment and initialize the leaf segment.
-	This function called during rollback of bulk insert operation
-	@param	thr	query thread */
-	void empty(que_thr_t *thr);
+  /** Clear the index tree and reinitialize the root page, in the
+  rollback of TRX_UNDO_EMPTY.
+  The BTR_SEG_LEAF is freed and reinitialized.
+  This function called during rollback of bulk insert operation
+  @param thr query thread */
+  void clear(que_thr_t *thr);
 };
 
 /** Detach a virtual column from an index.
@@ -1956,10 +1957,8 @@ struct dict_table_t {
 			char (&tbl_name)[NAME_LEN + 1],
 			size_t *db_name_len, size_t *tbl_name_len) const;
 
-  /** Empty the table. It should empty the index content and
-  reinitialze the root page of all indexes. It is called during
-  rollback of bulk insert operation */
-  void empty_table(que_thr_t *thr);
+  /** Clear the table when rolling back TRX_UNDO_EMPTY */
+  void clear(que_thr_t *thr);
 
 private:
 	/** Initialize instant->field_map.

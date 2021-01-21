@@ -421,14 +421,16 @@ close_table:
 		clust_index = dict_table_get_first_index(node->table);
 
 		if (clust_index != NULL) {
-			if (node->rec_type == TRX_UNDO_INSERT_REC) {
+			switch (node->rec_type) {
+			case TRX_UNDO_INSERT_REC:
 				ptr = trx_undo_rec_get_row_ref(
 					ptr, clust_index, &node->ref,
 					node->heap);
-			} else if (node->rec_type == TRX_UNDO_EMPTY) {
+				break;
+			case TRX_UNDO_EMPTY:
 				node->ref = nullptr;
 				return true;
-			} else {
+			default:
 				node->ref = &trx_undo_metadata;
 				if (!row_undo_search_clust_to_pcur(node)) {
 					/* An error probably occurred during
@@ -602,7 +604,7 @@ row_undo_ins(
 		err = row_undo_ins_remove_clust_rec(node);
 		break;
 	case TRX_UNDO_EMPTY:
-		node->table->empty_table(thr);
+		node->table->clear(thr);
 		err = DB_SUCCESS;
 		break;
 	}
