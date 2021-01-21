@@ -2797,15 +2797,16 @@ static void fts_optimize_callback(void *)
 {
 	ut_ad(!srv_read_only_mode);
 
-	if (!fts_optimize_wq) {
+	static ulint	current;
+	static bool	done;
+	static ulint	n_optimize;
+
+	if (!fts_optimize_wq || done) {
 		/* Possibly timer initiated callback, can come after FTS_MSG_STOP.*/
 		return;
 	}
 
-	static ulint		current = 0;
-	static ibool		done = FALSE;
 	static ulint		n_tables = ib_vector_size(fts_slots);
-	static ulint		n_optimize = 0;
 
 	while (!done && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
 		/* If there is no message in the queue and we have tables
@@ -2846,7 +2847,7 @@ static void fts_optimize_callback(void *)
 
 			switch (msg->type) {
 			case FTS_MSG_STOP:
-				done = TRUE;
+				done = true;
 				break;
 
 			case FTS_MSG_ADD_TABLE:
