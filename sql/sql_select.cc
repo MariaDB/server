@@ -1556,7 +1556,7 @@ int JOIN::init_join_caches()
 int
 JOIN::optimize_inner()
 {
-  DBUG_ENTER("JOIN::optimize");
+  DBUG_ENTER("JOIN::optimize_inner");
   subq_exit_fl= false;
   do_send_rows = (unit->select_limit_cnt) ? 1 : 0;
 
@@ -1623,6 +1623,10 @@ JOIN::optimize_inner()
   eval_select_list_used_tables();
 
   table_count= select_lex->leaf_tables.elements;
+
+  if (select_lex->options & OPTION_SCHEMA_TABLE &&
+      optimize_schema_tables_memory_usage(select_lex->leaf_tables))
+    DBUG_RETURN(1);
 
   if (setup_ftfuncs(select_lex)) /* should be after having->fix_fields */
     DBUG_RETURN(-1);

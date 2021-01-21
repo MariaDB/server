@@ -8658,55 +8658,64 @@ end:
 }
 
 
-static int optimize_schema_tables_memory_usage(TABLE_LIST *table_list)
+bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
 {
-  TABLE *table= table_list->table;
-  THD *thd=table->in_use;
-  if (!table->is_created())
+  List_iterator<TABLE_LIST> tli(tables);
+
+  while (TABLE_LIST *table_list= tli++)
   {
-    TMP_TABLE_PARAM *p= table_list->schema_table_param;
-    TMP_ENGINE_COLUMNDEF *from_recinfo, *to_recinfo;
-    DBUG_ASSERT(table->s->keys == 0);
-    DBUG_ASSERT(table->s->uniques == 0);
+    TABLE *table= table_list->table;
+    THD *thd=table->in_use;
 
-    uchar *cur= table->field[0]->ptr;
-    /* first recinfo could be a NULL bitmap, not an actual Field */
-    from_recinfo= to_recinfo= p->start_recinfo + (cur != table->record[0]);
-    for (uint i=0; i < table->s->fields; i++, from_recinfo++)
-    {
-      Field *field= table->field[i];
-      DBUG_ASSERT(field->vcol_info == 0);
-      DBUG_ASSERT(from_recinfo->length);
-      DBUG_ASSERT(from_recinfo->length == field->pack_length_in_rec());
-      if (bitmap_is_set(table->read_set, i))
-      {
-        field->move_field(cur);
-        *to_recinfo++= *from_recinfo;
-        cur+= from_recinfo->length;
-      }
-      else
-      {
-        field= new (thd->mem_root) Field_string(cur, 0, field->null_ptr,
-                              field->null_bit, Field::NONE,
-                              &field->field_name, field->dtcollation());
-        field->init(table);
-        field->field_index= i;
-        DBUG_ASSERT(field->pack_length_in_rec() == 0);
-        table->field[i]= field;
-      }
-    }
-    if ((table->s->reclength= (ulong)(cur - table->record[0])) == 0)
-    {
-      /* all fields were optimized away. Force a non-0-length row */
-      table->s->reclength= to_recinfo->length= 1;
-      to_recinfo++;
-    }
-    p->recinfo= to_recinfo;
+    if (!table_list->schema_table || !thd->fill_information_schema_tables())
+      continue;
 
-    // TODO switch from Aria to Memory if all blobs were optimized away?
-    if (instantiate_tmp_table(table, p->keyinfo, p->start_recinfo, &p->recinfo,
-                 table_list->select_lex->options | thd->variables.option_bits))
-      return 1;
+    if (!table->is_created())
+    {
+      TMP_TABLE_PARAM *p= table_list->schema_table_param;
+      TMP_ENGINE_COLUMNDEF *from_recinfo, *to_recinfo;
+      DBUG_ASSERT(table->s->keys == 0);
+      DBUG_ASSERT(table->s->uniques == 0);
+
+      uchar *cur= table->field[0]->ptr;
+      /* first recinfo could be a NULL bitmap, not an actual Field */
+      from_recinfo= to_recinfo= p->start_recinfo + (cur != table->record[0]);
+      for (uint i=0; i < table->s->fields; i++, from_recinfo++)
+      {
+        Field *field= table->field[i];
+        DBUG_ASSERT(field->vcol_info == 0);
+        DBUG_ASSERT(from_recinfo->length);
+        DBUG_ASSERT(from_recinfo->length == field->pack_length_in_rec());
+        if (bitmap_is_set(table->read_set, i))
+        {
+          field->move_field(cur);
+          *to_recinfo++= *from_recinfo;
+          cur+= from_recinfo->length;
+        }
+        else
+        {
+          field= new (thd->mem_root) Field_string(cur, 0, field->null_ptr,
+                                field->null_bit, Field::NONE,
+                                &field->field_name, field->dtcollation());
+          field->init(table);
+          field->field_index= i;
+          DBUG_ASSERT(field->pack_length_in_rec() == 0);
+          table->field[i]= field;
+        }
+      }
+      if ((table->s->reclength= (ulong)(cur - table->record[0])) == 0)
+      {
+        /* all fields were optimized away. Force a non-0-length row */
+        table->s->reclength= to_recinfo->length= 1;
+        to_recinfo++;
+      }
+      p->recinfo= to_recinfo;
+
+      // TODO switch from Aria to Memory if all blobs were optimized away?
+      if (instantiate_tmp_table(table, p->keyinfo, p->start_recinfo, &p->recinfo,
+                   table_list->select_lex->options | thd->variables.option_bits))
+        return 1;
+    }
   }
   return 0;
 }
@@ -8732,9 +8741,6 @@ bool optimize_schema_tables_reads(JOIN *join)
     TABLE_LIST *table_list= tab->table->pos_in_table_list;
     if (table_list->schema_table && thd->fill_information_schema_tables())
     {
-      if (optimize_schema_tables_memory_usage(table_list))
-        DBUG_RETURN(1);
-
       /* A value of 0 indicates a dummy implementation */
       if (table_list->schema_table->fill_table == 0)
         continue;

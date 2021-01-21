@@ -2440,9 +2440,6 @@ int ha_maria::info(uint flag)
   MARIA_INFO maria_info;
   char name_buff[FN_REFLEN];
 
-  if (!table)
-    return 0;
-
   (void) maria_status(file, &maria_info, flag);
   if (flag & HA_STATUS_VARIABLE)
   {
