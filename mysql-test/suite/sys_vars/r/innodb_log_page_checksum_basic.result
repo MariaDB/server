@@ -4,23 +4,23 @@ SET @start_global_value = @@global.innodb_log_page_checksum;
 #
 select @@global.innodb_log_page_checksum;
 @@global.innodb_log_page_checksum
-0
+1
 select @@session.innodb_log_page_checksum;
 ERROR HY000: Variable 'innodb_log_page_checksum' is a GLOBAL variable
 show global variables like 'innodb_log_page_checksum';
 Variable_name	Value
-innodb_log_page_checksum	OFF
+innodb_log_page_checksum	ON
 show session variables like 'innodb_log_page_checksum';
 Variable_name	Value
-innodb_log_page_checksum	OFF
+innodb_log_page_checksum	ON
 select * from information_schema.global_variables
 where variable_name='innodb_log_page_checksum';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_LOG_PAGE_CHECKSUM	OFF
+INNODB_LOG_PAGE_CHECKSUM	ON
 select * from information_schema.session_variables
 where variable_name='innodb_log_page_checksum';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_LOG_PAGE_CHECKSUM	OFF
+INNODB_LOG_PAGE_CHECKSUM	ON
 #
 # show that it's writable
 #
