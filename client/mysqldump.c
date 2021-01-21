@@ -1052,6 +1052,20 @@ static int get_options(int *argc, char ***argv)
   if ((ho_error= handle_options(argc, argv, my_long_options, get_one_option)))
     return(ho_error);
 
+  /*
+    Dumping under --system=stats with --replace or --inser-ignore is safe and will not
+    retult into race condition. Otherwise dump only structure and ignore data by default
+    while dumping.
+  */
+  if (!(opt_system & OPT_SYSTEM_STATS) && !(opt_ignore || opt_replace_into))
+  {
+    if (my_hash_insert(&ignore_data,
+                       (uchar*) my_strdup("mysql.innodb_index_stats", MYF(MY_WME))) ||
+        my_hash_insert(&ignore_data,
+                       (uchar*) my_strdup("mysql.innodb_table_stats", MYF(MY_WME))))
+      return(EX_EOM);
+  }
+
   if (opt_system & OPT_SYSTEM_ALL)
       opt_system|= ~0;
 
