@@ -2659,6 +2659,8 @@ commit_exit:
 
 	block = btr_cur_get_block(cursor);
 
+	DBUG_EXECUTE_IF("row_ins_row_level", goto skip_bulk_insert;);
+
 	if (!(flags & BTR_NO_UNDO_LOG_FLAG)
 	    && page_is_empty(block->frame)
 	    && !entry->is_metadata() && !trx->duplicates
@@ -2693,6 +2695,9 @@ commit_exit:
 		static_cast<ins_node_t*>(thr->run_node)->bulk_insert = true;
 	}
 
+#ifndef DBUG_OFF
+skip_bulk_insert:
+#endif
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
 		ut_ad(entry->is_metadata());
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);

@@ -30,7 +30,6 @@ CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
 --delimiter ;
 SET sql_log_bin=1;
 CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
-INSERT INTO t3 VALUES (100, 100);
 --save_master_pos
 
 --connection server_2
@@ -58,6 +57,8 @@ SET sql_log_bin=1;
 --connect (con_temp3,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
 SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
 SET binlog_format=statement;
+
+SET debug_dbug='+d,row_ins_row_level';
 send INSERT INTO t3 VALUES (31, foo(31,
     'ha_commit_one_phase WAIT_FOR t2_waiting',
     'commit_one_phase_2 SIGNAL t1_ready WAIT_FOR t1_cont'));
@@ -68,6 +69,7 @@ SET debug_sync='now WAIT_FOR master_queued1';
 --connect (con_temp4,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
 SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
 SET binlog_format=statement;
+SET debug_dbug='+d,row_ins_row_level';
 BEGIN;
 # This insert is just so we can get T2 to wait while a query is running that we
 # can see in SHOW PROCESSLIST so we can get its thread_id to kill later.
@@ -87,6 +89,7 @@ SET debug_sync='now WAIT_FOR master_queued2';
 --connect (con_temp5,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
 SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued3';
 SET binlog_format=statement;
+SET debug_dbug='+d,row_ins_row_level';
 send INSERT INTO t3 VALUES (34, foo(34,
     '',
     ''));
