@@ -568,6 +568,10 @@ class trx_mod_table_time_t
   covered by a TRX_UNDO_EMPTY record (for the first statement to
   insert into an empty table) */
   static constexpr undo_no_t BULK= 1ULL << 63;
+  /** Flag in 'first' to indicate that some operations were
+  covered by a TRX_UNDO_EMPTY record (for the first statement to
+  insert into an empty table) */
+  static constexpr undo_no_t WAS_BULK= 1ULL << 63;
 
   /** First modification of the table, possibly ORed with BULK */
   undo_no_t first;
@@ -583,7 +587,7 @@ public:
   @param rows   number of modified rows so far
   @return whether the object is valid */
   bool valid(undo_no_t rows= NONE) const
-  { auto f= first & ~BULK; return f <= first_versioned && f <= rows; }
+  { auto f= first & LIMIT; return f <= first_versioned && f <= rows; }
 #endif /* UNIV_DEBUG */
   /** @return if versioned columns were modified */
   bool is_versioned() const { return first_versioned != NONE; }
@@ -598,13 +602,15 @@ public:
   }
 
   /** Notify the start of a bulk insert operation */
-  void start_bulk_insert() { first|= BULK; }
+  void start_bulk_insert() { first|= BULK | WAS_BULK; }
 
   /** Notify the end of a bulk insert operation */
   void end_bulk_insert() { first&= ~BULK; }
 
   /** @return whether an insert is covered by TRX_UNDO_EMPTY record */
   bool is_bulk_insert() const { return first & BULK; }
+  /** @return whether an insert was covered by TRX_UNDO_EMPTY record */
+  bool was_bulk_insert() const { return first & WAS_BULK; }
 
   /** Invoked after partial rollback
   @param limit	number of surviving modified rows (trx_t::undo_no)
@@ -612,7 +618,7 @@ public:
   bool rollback(undo_no_t limit)
   {
     ut_ad(valid());
-    if ((~BULK & first) >= limit)
+    if ((LIMIT & first) >= limit)
       return true;
     if (first_versioned < limit)
       first_versioned= NONE;

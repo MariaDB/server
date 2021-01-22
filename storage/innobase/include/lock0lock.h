@@ -405,11 +405,16 @@ lock_table_ix_resurrect(
 	dict_table_t*	table,	/*!< in/out: table */
 	trx_t*		trx);	/*!< in/out: transaction */
 
-/** Creates a table X lock object for a resurrected transaction.
-@param	table	table to be X-locked
-@param	trx	transaction */
-void
-lock_table_x_resurrect(dict_table_t *table, trx_t *trx);
+/** Create a table X lock object for a resurrected TRX_UNDO_EMPTY transaction.
+@param table    table to be X-locked
+@param trx      transaction */
+void lock_table_x_resurrect(dict_table_t *table, trx_t *trx);
+
+/** Release a table X lock after rolling back an insert into an empty table
+(which was covered by a TRX_UNDO_EMPTY record).
+@param table    table to be X-unlocked
+@param trx      transaction */
+void lock_table_x_unlock(dict_table_t *table, trx_t *trx);
 
 /** Sets a lock on a table based on the given mode.
 @param[in]	table	table to lock

@@ -1,0 +1,26 @@
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES(0);
+BEGIN;
+DELETE FROM t1;
+--error ER_DUP_ENTRY
+INSERT INTO t2 VALUES(1),(1);
+
+connect (con1,localhost,root,,);
+BEGIN;
+SELECT * FROM t2 LOCK IN SHARE MODE;
+
+connection default;
+SET innodb_lock_wait_timeout=1;
+--error ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t2 VALUES(2);
+disconnect con1;
+INSERT INTO t2 VALUES(3);
+COMMIT;
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+DROP TABLE t1, t2;

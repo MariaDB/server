@@ -1,0 +1,24 @@
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(0);
+BEGIN;
+DELETE FROM t1;
+INSERT INTO t2 VALUES(1),(1);
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+connect  con1,localhost,root,,;
+BEGIN;
+SELECT * FROM t2 LOCK IN SHARE MODE;
+a
+connection default;
+SET innodb_lock_wait_timeout=1;
+INSERT INTO t2 VALUES(2);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect con1;
+INSERT INTO t2 VALUES(3);
+COMMIT;
+SELECT * FROM t1;
+a
+SELECT * FROM t2;
+a
+3
+DROP TABLE t1, t2;

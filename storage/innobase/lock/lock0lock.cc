@@ -3523,8 +3523,10 @@ lock_table_ix_resurrect(
 	mutex->wr_unlock();
 }
 
-void
-lock_table_x_resurrect(dict_table_t *table,trx_t *trx)
+/** Create a table X lock object for a resurrected TRX_UNDO_EMPTY transaction.
+@param table    table to be X-locked
+@param trx      transaction */
+void lock_table_x_resurrect(dict_table_t *table, trx_t *trx)
 {
   ut_ad(trx->is_recovered);
   if (lock_table_has(trx, table, LOCK_X))
@@ -3606,6 +3608,32 @@ lock_table_dequeue(
 			lock_grant(lock);
 		}
 	}
+}
+
+/** Release a table X lock after rolling back an insert into an empty table
+(which was covered by a TRX_UNDO_EMPTY record).
+@param table    table to be X-unlocked
+@param trx      transaction */
+void lock_table_x_unlock(dict_table_t *table, trx_t *trx)
+{
+  ut_ad(!trx->is_recovered);
+
+  lock_sys.mutex_lock();
+
+  for (lock_t*& lock : trx->lock.table_locks)
+  {
+    if (lock && lock->trx == trx && lock->type_mode == (LOCK_TABLE | LOCK_X))
+    {
+      ut_ad(!lock_get_wait(lock));
+      lock_table_dequeue(lock);
+      lock= nullptr;
+      goto func_exit;
+    }
+  }
+  ut_ad("lock not found" == 0);
+
+func_exit:
+  lock_sys.mutex_unlock();
 }
 
 /** Sets a lock on a table based on the given mode.

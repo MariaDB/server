@@ -137,7 +137,11 @@ inline void trx_t::rollback_low(trx_savept_t *savept)
       trx_mod_tables_t::iterator j= i++;
       ut_ad(j->second.valid());
       if (j->second.rollback(limit))
+      {
+        if (j->second.was_bulk_insert() && !j->first->is_temporary())
+          lock_table_x_unlock(j->first, this);
         mod_tables.erase(j);
+      }
     }
     lock.que_state= TRX_QUE_RUNNING;
     MONITOR_INC(MONITOR_TRX_ROLLBACK_SAVEPOINT);
