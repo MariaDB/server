@@ -2285,8 +2285,7 @@ For stats, and timezones, \fB\-\-replace\fR and \fB\-\-insert\-into\fR have the 
 .sp
 Enabling specific options here will cause the relevant tables in the mysql database to be ignored when dumping the mysql database or \fB\-\-all\-databases\fR\&.
 .sp
-Experimentally this option is designed to be able to dump system information from MySQL-5\&.7 and 8\&.0 servers\&. SQL generated is also
-experimentally compatible with MySQL-5\&.7/8\&.0\&. Mappings of implemenation specific grants/plugins isn't always one-to-one however\&.
+To help in migrating from MySQL to MariaDB, this option is designed to be able to dump system information from MySQL-5\&.7 and 8\&.0 servers\&. SQL generated is also experimentally compatible with MySQL-5\&.7/8\&.0. Mappings of implementation specific grants/plugins isn't always one-to-one however between MariaDB and MySQL and will require manual changes\&.
 .sp
 .RE
 .RS 4
