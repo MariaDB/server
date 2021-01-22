@@ -4640,7 +4640,7 @@ static int dump_all_servers()
 
 static int dump_all_stats()
 {
-  my_bool prev_no_create_info;
+  my_bool prev_no_create_info, prev_opt_replace_into;
 
   if (mysql_select_db(mysql, "mysql"))
   {
@@ -4648,6 +4648,8 @@ static int dump_all_stats()
     return 1;                   /* If --force */
   }
   fprintf(md_result_file,"\nUSE mysql;\n");
+  prev_opt_replace_into= opt_replace_into;
+  opt_replace_into|= !opt_ignore;
   prev_no_create_info= opt_no_create_info;
   opt_no_create_info= 1; /* don't overwrite recreate tables */
   /* EITS added in 10.0.1 */
@@ -4666,6 +4668,7 @@ static int dump_all_stats()
     dump_table("innodb_table_stats", "mysql", NULL, 0);
   }
   opt_no_create_info= prev_no_create_info;
+  opt_replace_into= prev_opt_replace_into;
   return 0;
 }
 
@@ -4676,12 +4679,14 @@ static int dump_all_stats()
 
 static int dump_all_timezones()
 {
-  my_bool opt_prev_no_create_info;
+  my_bool opt_prev_no_create_info, opt_prev_replace_into;
   if (mysql_select_db(mysql, "mysql"))
   {
     DB_error(mysql, "when selecting the database");
     return 1;                   /* If --force */
   }
+  opt_prev_replace_into= opt_replace_into;
+  opt_replace_into|= !opt_ignore;
   opt_prev_no_create_info= opt_no_create_info;
   opt_no_create_info= 1;
   fprintf(md_result_file,"\nUSE mysql;\n");
@@ -4691,6 +4696,7 @@ static int dump_all_timezones()
   dump_table("time_zone_transition", "mysql", NULL, 0);
   dump_table("time_zone_transition_type", "mysql", NULL, 0);
   opt_no_create_info= opt_prev_no_create_info;
+  opt_replace_into= opt_prev_replace_into;
   return 0;
 }
 
