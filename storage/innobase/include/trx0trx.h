@@ -558,32 +558,32 @@ struct trx_lock_t {
 class trx_mod_table_time_t
 {
   /** Impossible value for trx_t::undo_no */
-  static constexpr undo_no_t NONE= IB_ID_MAX;
+  static constexpr undo_no_t NONE= ~undo_no_t{0};
+  /** Theoretical maximum value for trx_t::undo_no.
+  DB_ROLL_PTR is only 7 bytes, so it cannot point to more than
+  this many undo log records. */
+  static constexpr undo_no_t LIMIT= (undo_no_t{1} << (7 * 8)) - 1;
 
-  /** First modification of the table */
-  const undo_no_t first;
+  /** Flag in 'first' to indicate that subsequent operations are
+  covered by a TRX_UNDO_EMPTY record (for the first statement to
+  insert into an empty table) */
+  static constexpr undo_no_t BULK= 1ULL << 63;
+
+  /** First modification of the table, possibly ORed with BULK */
+  undo_no_t first;
   /** First modification of a system versioned column (or NONE) */
   undo_no_t first_versioned= NONE;
-
-  /** Whether first is a TRX_UNDO_EMPTY record, for an insert
-  into an empty table */
-  bool first_is_bulk= false;
-  /** The start of row-level undo logging, after first_is_bulk was set */
-  undo_no_t first_after_bulk= NONE;
 public:
   /** Constructor
   @param rows   number of modified rows so far */
-  trx_mod_table_time_t(undo_no_t rows) : first(rows) { ut_ad(rows != NONE); }
+  trx_mod_table_time_t(undo_no_t rows) : first(rows) { ut_ad(rows < LIMIT); }
 
 #ifdef UNIV_DEBUG
   /** Validation
   @param rows   number of modified rows so far
   @return whether the object is valid */
   bool valid(undo_no_t rows= NONE) const
-  {
-    return first <= first_versioned && first <= rows &&
-      first < first_after_bulk && (first_after_bulk == NONE || first_is_bulk);
-  }
+  { auto f= first & ~BULK; return f <= first_versioned && f <= rows; }
 #endif /* UNIV_DEBUG */
   /** @return if versioned columns were modified */
   bool is_versioned() const { return first_versioned != NONE; }
@@ -597,14 +597,14 @@ public:
     ut_ad(valid(rows));
   }
 
+  /** Notify the start of a bulk insert operation */
+  void start_bulk_insert() { first|= BULK; }
+
   /** Notify the end of a bulk insert operation */
-  void end_bulk_insert(undo_no_t rows)
-  {
-    ut_ad(rows != NONE);
-    ut_ad(valid(rows));
-    if (first_after_bulk == NONE && first_is_bulk)
-      first_after_bulk= rows;
-  }
+  void end_bulk_insert() { first&= ~BULK; }
+
+  /** @return whether an insert is covered by TRX_UNDO_EMPTY record */
+  bool is_bulk_insert() const { return first & BULK; }
 
   /** Invoked after partial rollback
   @param limit	number of surviving modified rows (trx_t::undo_no)
@@ -612,27 +612,11 @@ public:
   bool rollback(undo_no_t limit)
   {
     ut_ad(valid());
-    if (first >= limit)
+    if ((~BULK & first) >= limit)
       return true;
     if (first_versioned < limit)
       first_versioned= NONE;
-    if (first_after_bulk < limit)
-      first_after_bulk= NONE;
     return false;
-  }
-
-  /** @return whether an insert is covered by TRX_UNDO_EMPTY record */
-  bool is_bulk_insert() const
-  { return first_is_bulk && first_after_bulk == NONE; }
-
-  /** @return whether an insert can be covered by TRX_UNDO_EMPTY record */
-  bool try_bulk_insert()
-  {
-    ut_ad(valid());
-    if (first_is_bulk)
-      return first_after_bulk == NONE;
-    first_is_bulk= true;
-    return true;
   }
 };
 
@@ -1121,7 +1105,7 @@ public:
   {
     auto it= mod_tables.find(const_cast<dict_table_t*>(&table));
     if (it != mod_tables.end())
-      it->second.end_bulk_insert(undo_no);
+      it->second.end_bulk_insert();
   }
 
   /** This has to be invoked on SAVEPOINT or at the start of a statement.
@@ -1132,7 +1116,7 @@ public:
   void end_bulk_insert()
   {
     for (auto& t : mod_tables)
-      t.second.end_bulk_insert(undo_no);
+      t.second.end_bulk_insert();
   }
 
 private:

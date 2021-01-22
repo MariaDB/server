@@ -1999,16 +1999,26 @@ trx_undo_report_row_operation(
 	auto m = trx->mod_tables.emplace(index->table, trx->undo_no);
 	ut_ad(m.first->second.valid(trx->undo_no));
 
-	const bool bulk = !rec
-		&& ((!m.second && m.first->second.is_bulk_insert())
-		    || (thr->run_node
-			&& que_node_get_type(thr->run_node) == QUE_NODE_INSERT
-			&& static_cast<ins_node_t*>(thr->run_node)->bulk_insert
-			&& m.first->second.try_bulk_insert()));
+	bool bulk = !rec;
 
-	if (bulk && !m.second) {
+	if (!bulk) {
+		/* An UPDATE or DELETE must not be covered by an
+		earlier start_bulk_insert(). */
+		ut_ad(!m.first->second.is_bulk_insert());
+	} else if (m.first->second.is_bulk_insert()) {
+		/* Above, the emplace() tried to insert an object with
+		!is_bulk_insert(). Only an explicit start_bulk_insert()
+		(below) can set the flag. */
+		ut_ad(!m.second);
 		/* We already wrote a TRX_UNDO_EMPTY record. */
 		return DB_SUCCESS;
+	} else if (m.second
+		   && thr->run_node
+		   && que_node_get_type(thr->run_node) == QUE_NODE_INSERT
+		   && static_cast<ins_node_t*>(thr->run_node)->bulk_insert) {
+		m.first->second.start_bulk_insert();
+	} else {
+		bulk = false;
 	}
 
 	mtr.start();
