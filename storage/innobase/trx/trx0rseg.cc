@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -439,8 +439,14 @@ static
 void
 trx_rseg_mem_restore(trx_rseg_t* rseg, trx_id_t& max_trx_id, mtr_t* mtr)
 {
-	trx_rsegf_t*	rseg_header = trx_rsegf_get_new(
-		rseg->space->id, rseg->page_no, mtr);
+	/* This is based on trx_rsegf_get_new().
+	We need to access buf_block_t. */
+	buf_block_t *block = buf_page_get(
+		page_id_t(rseg->space->id, rseg->page_no),
+		univ_page_size, RW_S_LATCH, mtr);
+	buf_block_dbg_add_level(block, SYNC_RSEG_HEADER_NEW);
+
+	const trx_rsegf_t* rseg_header = TRX_RSEG + block->frame;
 
 	if (mach_read_from_4(rseg_header + TRX_RSEG_FORMAT) == 0) {
 		trx_id_t id = mach_read_from_8(rseg_header
@@ -451,32 +457,20 @@ trx_rseg_mem_restore(trx_rseg_t* rseg, trx_id_t& max_trx_id, mtr_t* mtr)
 		}
 
 		if (rseg_header[TRX_RSEG_BINLOG_NAME]) {
-			const char* binlog_name = reinterpret_cast<const char*>
-				(rseg_header) + TRX_RSEG_BINLOG_NAME;
+			lsn_t lsn = std::max(block->page.newest_modification,
+					     mach_read_from_8(FIL_PAGE_LSN
+							      + block->frame));
 			compile_time_assert(TRX_RSEG_BINLOG_NAME_LEN == sizeof
 					    trx_sys.recovered_binlog_filename);
-
-			int cmp = *trx_sys.recovered_binlog_filename
-				? strncmp(binlog_name,
-					  trx_sys.recovered_binlog_filename,
-					  TRX_RSEG_BINLOG_NAME_LEN)
-				: 1;
-
-			if (cmp >= 0) {
-				uint64_t binlog_offset = mach_read_from_8(
-					rseg_header + TRX_RSEG_BINLOG_OFFSET);
-				if (cmp) {
-					memcpy(trx_sys.
-					       recovered_binlog_filename,
-					       binlog_name,
-					       TRX_RSEG_BINLOG_NAME_LEN);
-					trx_sys.recovered_binlog_offset
-						= binlog_offset;
-				} else if (binlog_offset >
-					   trx_sys.recovered_binlog_offset) {
-					trx_sys.recovered_binlog_offset
-						= binlog_offset;
-				}
+			if (lsn > trx_sys.recovered_binlog_lsn) {
+				trx_sys.recovered_binlog_lsn = lsn;
+				trx_sys.recovered_binlog_offset
+					= mach_read_from_8(
+						rseg_header
+						+ TRX_RSEG_BINLOG_OFFSET);
+				memcpy(trx_sys.recovered_binlog_filename,
+				       rseg_header + TRX_RSEG_BINLOG_NAME,
+				       TRX_RSEG_BINLOG_NAME_LEN);
 			}
 
 #ifdef WITH_WSREP
