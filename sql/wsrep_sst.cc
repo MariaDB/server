@@ -316,6 +316,9 @@ static bool wsrep_sst_complete (THD*                thd,
   Wsrep_server_state& server_state= Wsrep_server_state::instance();
   enum wsrep::server_state::state state= server_state.state();
   bool failed= false;
+  char start_pos_buf[FN_REFLEN];
+  ssize_t len= wsrep::print_to_c_str(sst_gtid, start_pos_buf, FN_REFLEN-1);
+  start_pos_buf[len]='\0';
 
   // Do not call sst_received if we are not in joiner or
   // initialized state on server. This is because it
@@ -323,13 +326,13 @@ static bool wsrep_sst_complete (THD*                thd,
   // in incorrect state.
   if ((state == Wsrep_server_state::s_joiner ||
        state == Wsrep_server_state::s_initialized))
+  {
     Wsrep_server_state::instance().sst_received(client_service,
        rcode);
+    WSREP_INFO("SST succeeded for position %s", start_pos_buf);
+  }
   else
   {
-    char start_pos_buf[FN_REFLEN];
-    ssize_t len= wsrep::print_to_c_str(sst_gtid, start_pos_buf, FN_REFLEN-1);
-    start_pos_buf[len]='\0';
     WSREP_ERROR("SST failed for position %s initialized %d server_state %s",
                 start_pos_buf,
                 server_state.is_initialized(),

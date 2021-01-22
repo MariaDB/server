@@ -233,12 +233,24 @@ bool wsrep_set_local_position(THD* thd, const char* const value,
   size_t const uuid_len= wsrep_uuid_scan(value, length, &uuid);
   wsrep_seqno_t const seqno= strtoll(value + uuid_len + 1, NULL, 10);
 
-  if (sst) {
+  char start_pos_buf[FN_REFLEN];
+  memcpy(start_pos_buf, value, length);
+  start_pos_buf[length]='\0';
+
+  // If both are same as WSREP_START_POSITION_ZERO just set local
+  if (!strcmp(start_pos_buf, WSREP_START_POSITION_ZERO) &&
+      !strcmp(wsrep_start_position, WSREP_START_POSITION_ZERO))
+    goto set;
+  else
+    WSREP_INFO("SST setting local position to %s current %s", start_pos_buf, wsrep_start_position);
+
+  if (sst)
     return (wsrep_sst_received (thd, uuid, seqno, NULL, 0));
-  } else {
-    local_uuid= uuid;
-    local_seqno= seqno;
-  }
+
+set:
+  local_uuid= uuid;
+  local_seqno= seqno;
+
   return false;
 }
 
@@ -255,8 +267,13 @@ bool wsrep_start_position_check (sys_var *self, THD* thd, set_var* var)
          var->save_result.string_value.length);
   start_pos_buf[var->save_result.string_value.length]= 0;
 
+
+  WSREP_DEBUG("SST wsrep_start_position check for new position %s old %s",
+	     start_pos_buf, wsrep_start_position);
+
   // Verify the format.
   if (wsrep_start_position_verify(start_pos_buf)) return true;
+
 
   // Give error if position is updated when wsrep is not enabled or
   // provider is not loaded.
@@ -274,13 +291,10 @@ bool wsrep_start_position_check (sys_var *self, THD* thd, set_var* var)
     As part of further verification, we try to update the value and catch
     errors (if any) only when value actually has been changed.
   */
-  if (strcmp(start_pos_buf, wsrep_start_position))
-  {
-    if (wsrep_set_local_position(thd, var->save_result.string_value.str,
+  if (wsrep_set_local_position(thd, var->save_result.string_value.str,
                                var->save_result.string_value.length,
                                true))
-      goto err;
-  }
+    goto err;
 
   return false;
 
