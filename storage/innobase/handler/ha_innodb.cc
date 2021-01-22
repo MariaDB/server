@@ -15364,6 +15364,7 @@ ha_innobase::external_lock(
 	m_prebuilt->hint_need_to_fetch_extra_cols = 0;
 
 	reset_template();
+	trx->end_bulk_insert();
 
 	switch (m_prebuilt->table->quiesce) {
 	case QUIESCE_START:

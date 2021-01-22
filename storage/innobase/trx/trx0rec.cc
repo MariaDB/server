@@ -1978,7 +1978,6 @@ trx_undo_report_row_operation(
 					undo log record */
 {
 	trx_t*		trx;
-	mtr_t		mtr;
 #ifdef UNIV_DEBUG
 	int		loop_count	= 0;
 #endif /* UNIV_DEBUG */
@@ -2021,6 +2020,7 @@ trx_undo_report_row_operation(
 		bulk = false;
 	}
 
+	mtr_t		mtr;
 	mtr.start();
 	trx_undo_t**	pundo;
 	trx_rseg_t*	rseg;
