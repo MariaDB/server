@@ -2533,6 +2533,12 @@ row_ins_index_entry_big_rec(
 	return(error);
 }
 
+#ifdef HAVE_REPLICATION /* Working around MDEV-24622 */
+extern "C" int thd_is_slave(const MYSQL_THD thd);
+#else
+# define thd_is_slave(thd) 0
+#endif
+
 /***************************************************************//**
 Tries to insert an entry into a clustered index, ignoring foreign key
 constraints. If a record with the same unique key is found, the other
@@ -2658,8 +2664,9 @@ commit_exit:
 	    && !entry->is_metadata() && !trx->duplicates
 	    && !trx->ddl && !trx->internal
 	    && block->page.id().page_no() == index->page
-	    && !index->table->skip_alter_undo) {
-
+	    && !index->table->skip_alter_undo
+	    && !trx->is_wsrep() /* FIXME: MDEV-24623 */
+	    && !thd_is_slave(trx->mysql_thd) /* FIXME: MDEV-24622 */) {
 		DEBUG_SYNC_C("empty_root_page_insert");
 
 		if (!index->table->is_temporary()) {
