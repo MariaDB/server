@@ -952,7 +952,7 @@ public:
   void free_file_page()
   {
     ut_ad(state() == BUF_BLOCK_REMOVE_HASH);
-    ut_d(oldest_modification_= 0); /* for buf_LRU_free_page(this, false) */
+    ut_d(oldest_modification_= 0); /* for buf_LRU_block_free_non_file_page() */
     set_corrupt_id();
     ut_d(set_state(BUF_BLOCK_MEMORY));
   }
@@ -2167,8 +2167,17 @@ inline void buf_page_t::set_io_fix(buf_io_fix io_fix)
 
 inline void buf_page_t::set_corrupt_id()
 {
-  ut_ad(!oldest_modification());
 #ifdef UNIV_DEBUG
+  switch (oldest_modification()) {
+  case 0:
+    break;
+  case 1:
+    ut_ad(fsp_is_system_temporary(id().space()));
+    ut_d(oldest_modification_= 0); /* for buf_LRU_block_free_non_file_page() */
+    break;
+  default:
+    ut_ad("block is dirty" == 0);
+  }
   switch (state()) {
   case BUF_BLOCK_REMOVE_HASH:
     break;
