@@ -48,9 +48,7 @@ BEGIN {
       "Could not find the lib/ directory \n";
     exit(1);
   }
-}
 
-BEGIN {
   # Check backward compatibility support
   # By setting the environment variable MTR_VERSION
   # it's possible to use a previous version of
@@ -338,17 +336,7 @@ my %mysqld_logs;
 my $opt_debug_sync_timeout= 300; # Default timeout for WAIT_FOR actions.
 my $warn_seconds = 60;
 
-sub testcase_timeout ($) {
-  my ($tinfo)= @_;
-  if (exists $tinfo->{'case-timeout'}) {
-    # Return test specific timeout if *longer* that the general timeout
-    my $test_to= $tinfo->{'case-timeout'};
-    $test_to*= 10 if $opt_valgrind;
-    return $test_to * 60 if $test_to > $opt_testcase_timeout;
-  }
-  return $opt_testcase_timeout * 60;
-}
-
+sub testcase_timeout ($) { return $opt_testcase_timeout * 60; }
 sub check_timeout ($) { return testcase_timeout($_[0]); }
 
 our $opt_warnings= 1;
