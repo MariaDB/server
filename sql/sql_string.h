@@ -719,6 +719,7 @@ public:
   }
   int reserve(size_t space_needed, size_t grow_by);
 
+  bool strfill(char fill, size_t len);
   inline char *prep_append(uint32 arg_length, uint32 step_alloc)
   {
     uint32 new_length= arg_length + str_length;

@@ -7975,3 +7975,5 @@ ER_PK_INDEX_CANT_BE_IGNORED
         eng "A primary key cannot be marked as IGNORE"
 ER_FUNCTION_CANNOT_BE_USED_IN_CLAUSE
         eng "Function '%s' cannot be used in the %s clause"
+ER_ORACLE_COMPAT_FUNCTION_ERROR
+        eng "Oracle compatibility function error: %s"

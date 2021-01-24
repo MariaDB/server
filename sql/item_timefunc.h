@@ -978,6 +978,57 @@ public:
 };
 
 
+/* the max length of datetime format models string in Oracle is 144 */
+#define MAX_DATETIME_FORMAT_MODEL_LEN 144
+
+class Item_func_tochar :public Item_str_func
+{
+  const MY_LOCALE *locale;
+  THD *thd;
+  String warning_message;
+  bool fixed_length;
+
+  /*
+    When datetime format models is parsed, use uint16 integers to
+    represent the format models and store in fmt_array.
+  */
+  uint16 fmt_array[MAX_DATETIME_FORMAT_MODEL_LEN+1];
+
+  bool check_arguments() const override
+  {
+    return check_argument_types_can_return_text(1, arg_count);
+  }
+
+public:
+  Item_func_tochar(THD *thd, Item *a, Item *b):
+    Item_str_func(thd, a, b), locale(0)
+  {
+    /* NOTE: max length of warning message is 64 */
+    warning_message.alloc(64);
+    warning_message.length(0);
+  }
+  ~Item_func_tochar() { warning_message.free(); }
+  String *val_str(String *str) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("to_char") };
+    return name;
+  }
+  bool fix_length_and_dec() override;
+  bool parse_format_string(const String *format, uint *fmt_len);
+
+  bool check_vcol_func_processor(void *arg) override
+  {
+    if (arg_count > 2)
+      return false;
+    return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
+  }
+
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_tochar>(thd, this); }
+};
+
+
 class Item_func_from_unixtime :public Item_datetimefunc
 {
   bool check_arguments() const override

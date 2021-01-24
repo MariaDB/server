@@ -1275,3 +1275,15 @@ void Binary_string::shrink(size_t arg_length)
     }
   }
 }
+
+bool Binary_string::strfill(char fill, size_t len)
+{
+  if (len)
+  {
+    if (alloc(length() + len))
+      return 1;
+    memset(Ptr + str_length, fill, len);
+    str_length+= (uint32) len;
+  }
+  return 0;
+}
