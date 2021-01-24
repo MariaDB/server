@@ -740,7 +740,7 @@ public:
     thread_specific= s.thread_specific;
     s.alloced= 0;
   }
-  bool fill(uint32 max_length,char fill);
+  bool fill(size_t max_length,char fill);
   /*
     Replace substring with string
     If wrong parameter or not enough memory, do nothing

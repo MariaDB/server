@@ -2132,6 +2132,19 @@ protected:
 };
 
 
+class Create_func_to_char : public Create_native_func
+{
+public:
+  virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+
+  static Create_func_to_char s_singleton;
+
+protected:
+  Create_func_to_char() {}
+  virtual ~Create_func_to_char() {}
+};
+
+
 class Create_func_to_days : public Create_func_arg1
 {
 public:
@@ -5142,6 +5155,44 @@ Create_func_to_base64::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_to_char Create_func_to_char::s_singleton;
+
+Item*
+Create_func_to_char::create_native(THD *thd, LEX_CSTRING *name,
+				   List<Item> *item_list)
+{
+  Item *func= NULL;
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  switch (arg_count) {
+  case 1:
+  {
+    Item *param_1= item_list->pop();
+    Item *i0= new (thd->mem_root) Item_string_sys(thd, "YYYY-MM-DD HH24:MI:SS",  21);
+    func= new (thd->mem_root) Item_func_tochar(thd, param_1, i0);
+    break;
+  }
+  case 2:
+  {
+    Item *param_1= item_list->pop();
+    Item *param_2= item_list->pop();
+    func= new (thd->mem_root) Item_func_tochar(thd, param_1, param_2);
+    break;
+  }
+  default:
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    break;
+  }
+  }
+
+  return func;
+}
+
+
 Create_func_to_days Create_func_to_days::s_singleton;
 
 Item*
@@ -5601,6 +5652,7 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("TIME_FORMAT") }, BUILDER(Create_func_time_format)},
   { { STRING_WITH_LEN("TIME_TO_SEC") }, BUILDER(Create_func_time_to_sec)},
   { { STRING_WITH_LEN("TO_BASE64") }, BUILDER(Create_func_to_base64)},
+  { { STRING_WITH_LEN("TO_CHAR") }, BUILDER(Create_func_to_char)},
   { { STRING_WITH_LEN("TO_DAYS") }, BUILDER(Create_func_to_days)},
   { { STRING_WITH_LEN("TO_SECONDS") }, BUILDER(Create_func_to_seconds)},
   { { STRING_WITH_LEN("UCASE") }, BUILDER(Create_func_ucase)},

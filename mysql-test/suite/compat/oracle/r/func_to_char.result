@@ -1,0 +1,441 @@
+set @save_sql_mode=@@sql_mode;
+#
+# test for datetime
+#
+CREATE TABLE t_to_char1(c0 int, c1 date, c2 time, c3 datetime);
+INSERT INTO t_to_char1 VALUES (1, '1000-1-1', '00:00:00', '1000-1-1 00:00:00');
+INSERT INTO t_to_char1 VALUES (2, '9999-12-31', '23:59:59', '9999-12-31 23:59:59');
+INSERT INTO t_to_char1 VALUES (3, '2021-01-03', '08:30:00', '2021-01-03 08:30:00');
+INSERT INTO t_to_char1 VALUES (4, '2021-07-03', '18:30:00', '2021-07-03 18:30:00');
+CREATE TABLE t_to_char2(c1 timestamp);
+INSERT INTO t_to_char2 VALUES ('1980-01-11 04:50:39');
+INSERT INTO t_to_char2 VALUES ('2000-11-11 12:50:00');
+INSERT INTO t_to_char2 VALUES ('2030-11-11 18:20:10');
+SELECT TO_CHAR(c1, 'YYYY-MM-DD') FROM t_to_char2;
+TO_CHAR(c1, 'YYYY-MM-DD')
+1980-01-11
+2000-11-11
+2030-11-11
+SELECT TO_CHAR(c1, 'HH24-MI-SS') FROM t_to_char2;
+TO_CHAR(c1, 'HH24-MI-SS')
+04-50-39
+12-50-00
+18-20-10
+#
+# test YYYY/YY/MM/DD/HH/HH24/MI/SS
+#
+SELECT TO_CHAR(c1, 'YYYY-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'YY-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+1000-01-01	12:00:00	00-01-01 00:00:00
+9999-12-31	11:59:59	99-12-31 23:59:59
+2021-01-03	08:30:00	21-01-03 08:30:00
+2021-07-03	06:30:00	21-07-03 18:30:00
+SELECT TO_CHAR(c1, 'yyyy-mm-dd') AS C1, TO_CHAR(c2, 'hh:mi:ss') AS C2, TO_CHAR(c3, 'yy-mm-dd hh24:mi:ss') AS C3 FROM t_to_char1;
+C1	C2	C3
+1000-01-01	12:00:00	00-01-01 00:00:00
+9999-12-31	11:59:59	99-12-31 23:59:59
+2021-01-03	08:30:00	21-01-03 08:30:00
+2021-07-03	06:30:00	21-07-03 18:30:00
+#
+# test YYY/Y/MON/DD/DY/HH/HH12/MI/SS
+#
+SELECT TO_CHAR(c1, 'YYY-MON-DD') AS C1, TO_CHAR(c2, 'HH12:MI:SS') AS C2, TO_CHAR(c3, 'Y-MONTH-DY HH:MI:SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+000-Jan-01	12:00:00	0-January  -Wed 12:00:00
+999-Dec-31	11:59:59	9-December -Fri 11:59:59
+021-Jan-03	08:30:00	1-January  -Sun 08:30:00
+021-Jul-03	06:30:00	1-July     -Sat 06:30:00
+SELECT TO_CHAR(c1, 'yyy-Mon-Dd') AS C1, TO_CHAR(c2, 'Hh12:mi:Ss') AS C2, TO_CHAR(c3, 'y-Month-Dy Hh:Mi:Ss') AS C3 FROM t_to_char1;
+C1	C2	C3
+000-Jan-01	12:00:00	0-January  -Wed 12:00:00
+999-Dec-31	11:59:59	9-December -Fri 11:59:59
+021-Jan-03	08:30:00	1-January  -Sun 08:30:00
+021-Jul-03	06:30:00	1-July     -Sat 06:30:00
+#
+# test RRRR/RR/DAY
+#
+SELECT TO_CHAR(c1, 'RRRR-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'RRRR-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+1000-01-01	12:00:00	1000-01-01 00:00:00
+9999-12-31	11:59:59	9999-12-31 23:59:59
+2021-01-03	08:30:00	2021-01-03 08:30:00
+2021-07-03	06:30:00	2021-07-03 18:30:00
+SELECT TO_CHAR(c1, 'RR-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'YY-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+00-01-01	12:00:00	00-01-01 00:00:00
+99-12-31	11:59:59	99-12-31 23:59:59
+21-01-03	08:30:00	21-01-03 08:30:00
+21-07-03	06:30:00	21-07-03 18:30:00
+SELECT TO_CHAR(c1, 'Rrrr-Mm-Dd') AS C1, TO_CHAR(c2, 'hh:mi:ss') AS C2, TO_CHAR(c3, 'Rrrr-mm-dd Hh24:mi:ss') AS C3 FROM t_to_char1;
+C1	C2	C3
+1000-01-01	12:00:00	1000-01-01 00:00:00
+9999-12-31	11:59:59	9999-12-31 23:59:59
+2021-01-03	08:30:00	2021-01-03 08:30:00
+2021-07-03	06:30:00	2021-07-03 18:30:00
+SELECT TO_CHAR(c1, 'rr-mm-dd') AS C1, TO_CHAR(c2, 'hh:mi:ss') AS C2, TO_CHAR(c3, 'yy-mm-dd hh24:Mi:ss') AS C3 FROM t_to_char1;
+C1	C2	C3
+00-01-01	12:00:00	00-01-01 00:00:00
+99-12-31	11:59:59	99-12-31 23:59:59
+21-01-03	08:30:00	21-01-03 08:30:00
+21-07-03	06:30:00	21-07-03 18:30:00
+#
+# test AD/A.D./BC/B.C./AM/A.M./PM/P.M.
+#
+SELECT TO_CHAR(c1, 'ADYYYY-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'AD.YYYY-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+AD1000-01-01	12:00:00	AD.1000-01-01 00:00:00
+AD9999-12-31	11:59:59	AD.9999-12-31 23:59:59
+AD2021-01-03	08:30:00	AD.2021-01-03 08:30:00
+AD2021-07-03	06:30:00	AD.2021-07-03 18:30:00
+SELECT TO_CHAR(c1, 'A.D.YYYY-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'A.D..YYYY-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+A.D.1000-01-01	12:00:00	A.D..1000-01-01 00:00:00
+A.D.9999-12-31	11:59:59	A.D..9999-12-31 23:59:59
+A.D.2021-01-03	08:30:00	A.D..2021-01-03 08:30:00
+A.D.2021-07-03	06:30:00	A.D..2021-07-03 18:30:00
+SELECT TO_CHAR(c1, 'ADYYYY-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'AD.YYYY-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+AD1000-01-01	12:00:00	AD.1000-01-01 00:00:00
+AD9999-12-31	11:59:59	AD.9999-12-31 23:59:59
+AD2021-01-03	08:30:00	AD.2021-01-03 08:30:00
+AD2021-07-03	06:30:00	AD.2021-07-03 18:30:00
+SELECT TO_CHAR(c1, 'A.D.YYYY-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'A.D..YYYY-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+A.D.1000-01-01	12:00:00	A.D..1000-01-01 00:00:00
+A.D.9999-12-31	11:59:59	A.D..9999-12-31 23:59:59
+A.D.2021-01-03	08:30:00	A.D..2021-01-03 08:30:00
+A.D.2021-07-03	06:30:00	A.D..2021-07-03 18:30:00
+SELECT TO_CHAR(c1, 'BCYYYY-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'BCYYYY-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+AD1000-01-01	12:00:00	AD1000-01-01 00:00:00
+AD9999-12-31	11:59:59	AD9999-12-31 23:59:59
+AD2021-01-03	08:30:00	AD2021-01-03 08:30:00
+AD2021-07-03	06:30:00	AD2021-07-03 18:30:00
+SELECT TO_CHAR(c1, 'B.C.YYYY-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'B.C.YYYY-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+A.D.1000-01-01	12:00:00	A.D.1000-01-01 00:00:00
+A.D.9999-12-31	11:59:59	A.D.9999-12-31 23:59:59
+A.D.2021-01-03	08:30:00	A.D.2021-01-03 08:30:00
+A.D.2021-07-03	06:30:00	A.D.2021-07-03 18:30:00
+SELECT TO_CHAR(c1, 'bcyyyy-mm-dd') AS C1, TO_CHAR(c2, 'hh:mi:ss') AS C2, TO_CHAR(c3, 'BcYYyy-MM-DD Hh24:mi:sS') AS C3 FROM t_to_char1;
+C1	C2	C3
+AD1000-01-01	12:00:00	AD1000-01-01 00:00:00
+AD9999-12-31	11:59:59	AD9999-12-31 23:59:59
+AD2021-01-03	08:30:00	AD2021-01-03 08:30:00
+AD2021-07-03	06:30:00	AD2021-07-03 18:30:00
+SELECT TO_CHAR(c1, 'b.c.yyyy-mm-dd') AS C1, TO_CHAR(c2, 'hh:mI:Ss') AS C2, TO_CHAR(c3, 'b.C.Yyyy-Mm-dd hH24:MI:SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+A.D.1000-01-01	12:00:00	A.D.1000-01-01 00:00:00
+A.D.9999-12-31	11:59:59	A.D.9999-12-31 23:59:59
+A.D.2021-01-03	08:30:00	A.D.2021-01-03 08:30:00
+A.D.2021-07-03	06:30:00	A.D.2021-07-03 18:30:00
+SELECT TO_CHAR(c1, 'A.D.YYYY-MM-DD') AS C1, TO_CHAR(c2, 'PMHH:MI:SS') AS C2, TO_CHAR(c3, 'A.D..YYYY-MM-DD P.M.HH24:MI:SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+A.D.1000-01-01	AM12:00:00	A.D..1000-01-01 A.M.00:00:00
+A.D.9999-12-31	PM11:59:59	A.D..9999-12-31 P.M.23:59:59
+A.D.2021-01-03	AM08:30:00	A.D..2021-01-03 A.M.08:30:00
+A.D.2021-07-03	PM06:30:00	A.D..2021-07-03 P.M.18:30:00
+SELECT TO_CHAR(c1, 'A.D.YYYY-MM-DD') AS C1, TO_CHAR(c2, 'pmHH:MI:SS') AS C2, TO_CHAR(c3, 'A.D..YYYY-MM-DD p.m.HH24:MI:SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+A.D.1000-01-01	AM12:00:00	A.D..1000-01-01 A.M.00:00:00
+A.D.9999-12-31	PM11:59:59	A.D..9999-12-31 P.M.23:59:59
+A.D.2021-01-03	AM08:30:00	A.D..2021-01-03 A.M.08:30:00
+A.D.2021-07-03	PM06:30:00	A.D..2021-07-03 P.M.18:30:00
+SELECT TO_CHAR(c1, 'A.D.YYYY-MM-DD') AS C1, TO_CHAR(c2, 'AMHH:MI:SS') AS C2, TO_CHAR(c3, 'A.D..YYYY-MM-DD A.m.HH24:MI:SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+A.D.1000-01-01	AM12:00:00	A.D..1000-01-01 A.M.00:00:00
+A.D.9999-12-31	PM11:59:59	A.D..9999-12-31 P.M.23:59:59
+A.D.2021-01-03	AM08:30:00	A.D..2021-01-03 A.M.08:30:00
+A.D.2021-07-03	PM06:30:00	A.D..2021-07-03 P.M.18:30:00
+SELECT TO_CHAR(c1, 'A.D.YYYY-MM-DD') AS C1, TO_CHAR(c2, 'amHH:MI:SS') AS C2, TO_CHAR(c3, 'A.D..YYYY-MM-DD a.M.HH24:MI:SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+A.D.1000-01-01	AM12:00:00	A.D..1000-01-01 A.M.00:00:00
+A.D.9999-12-31	PM11:59:59	A.D..9999-12-31 P.M.23:59:59
+A.D.2021-01-03	AM08:30:00	A.D..2021-01-03 A.M.08:30:00
+A.D.2021-07-03	PM06:30:00	A.D..2021-07-03 P.M.18:30:00
+#
+# test format without order
+#
+SELECT TO_CHAR(c1, 'MM-YYYY-DD') AS C1, TO_CHAR(c2, 'HH:SS:MI') AS C2, TO_CHAR(c3, 'DD-YY-MM MI:SS:HH24') AS C3 FROM t_to_char1;
+C1	C2	C3
+01-1000-01	12:00:00	01-00-01 00:00:00
+12-9999-31	11:59:59	31-99-12 59:59:23
+01-2021-03	08:00:30	03-21-01 30:00:08
+07-2021-03	06:00:30	03-21-07 30:00:18
+SELECT TO_CHAR(c1, 'yyy-Dd-Mon') AS C1, TO_CHAR(c2, 'mi:Hh12:Ss') AS C2, TO_CHAR(c3, 'Ss:Hh:Mi Dy-y-Month') AS C3 FROM t_to_char1;
+C1	C2	C3
+000-01-Jan	00:12:00	00:12:00 Wed-0-January  
+999-31-Dec	59:11:59	59:11:59 Fri-9-December 
+021-03-Jan	30:08:00	00:08:30 Sun-1-January  
+021-03-Jul	30:06:00	00:06:30 Sat-1-July     
+SELECT TO_CHAR(c1, 'Dd-Mm-Rrrr') AS C1, TO_CHAR(c2, 'ss:hh:mi') AS C2, TO_CHAR(c3, 'ss:Rrrr-hh24-dd mon:mi') AS C3 FROM t_to_char1;
+C1	C2	C3
+01-01-1000	00:12:00	00:1000-00-01 Jan:00
+31-12-9999	59:11:59	59:9999-23-31 Dec:59
+03-01-2021	00:08:30	00:2021-08-03 Jan:30
+03-07-2021	00:06:30	00:2021-18-03 Jul:30
+SELECT TO_CHAR(c1, 'YYYYA.D.-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'A.D..YYYY-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+1000A.D.-01-01	12:00:00	A.D..1000-01-01 00:00:00
+9999A.D.-12-31	11:59:59	A.D..9999-12-31 23:59:59
+2021A.D.-01-03	08:30:00	A.D..2021-01-03 08:30:00
+2021A.D.-07-03	06:30:00	A.D..2021-07-03 18:30:00
+#
+# test for special characters
+#
+SELECT TO_CHAR(c1, 'YYYYMMDD') AS C1, TO_CHAR(c2, 'HHMISS') AS C2, TO_CHAR(c3, 'YYMMDDHH24MISS') AS C3 FROM t_to_char1;
+C1	C2	C3
+10000101	120000	000101000000
+99991231	115959	991231235959
+20210103	083000	210103083000
+20210703	063000	210703183000
+SELECT TO_CHAR(c1, 'YYYY!!MM@DD') AS C1, TO_CHAR(c2, 'HH#MI$SS') AS C2, TO_CHAR(c3, 'YY%MM^DD*HH24(MI)SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+1000!!01@01	12#00$00	00%01^01*00(00)00
+9999!!12@31	11#59$59	99%12^31*23(59)59
+2021!!01@03	08#30$00	21%01^03*08(30)00
+2021!!07@03	06#30$00	21%07^03*18(30)00
+SELECT TO_CHAR(c1, 'YYYY_MM+DD') AS C1, TO_CHAR(c2, 'HH=MI{SS') AS C2, TO_CHAR(c3, 'YY}MMDDHH24MISS') AS C3 FROM t_to_char1;
+C1	C2	C3
+1000_01+01	12=00{00	00}0101000000
+9999_12+31	11=59{59	99}1231235959
+2021_01+03	08=30{00	21}0103083000
+2021_07+03	06=30{00	21}0703183000
+SELECT TO_CHAR(c1, 'YYYY,MM.DD') AS C1, TO_CHAR(c2, 'HH/MI;SS') AS C2, TO_CHAR(c3, 'YY>MM<DD]HH24[MI\SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+1000,01.01	12/00;00	00>01<01]00[0000
+9999,12.31	11/59;59	99>12<31]23[5959
+2021,01.03	08/30;00	21>01<03]08[3000
+2021,07.03	06/30;00	21>07<03]18[3000
+SELECT TO_CHAR(c1, 'YYYY||||MM|DD') AS C1, TO_CHAR(c2, 'HH&|MI|&|SS') AS C2, TO_CHAR(c3, 'YY&&&\\MM|&&|DD HH24|| MI&||"abx"|SS') AS C3 FROM t_to_char1;
+C1	C2	C3
+1000|||0101	12&|00&|00	00&&&\01&&|01 00| 00&||abx00
+9999|||1231	11&|59&|59	99&&&\12&&|31 23| 59&||abx59
+2021|||0103	08&|30&|00	21&&&\01&&|03 08| 30&||abx00
+2021|||0703	06&|30&|00	21&&&\07&&|03 18| 30&||abx00
+SELECT TO_CHAR(c1, 'YYYY&MM-DD') FROM t_to_char1 where c0=1;
+ERROR HY000: Invalid argument error: date format not recognized at &MM-DD in function to_char.
+SELECT TO_CHAR(c1, 'YYYY"abx"MM"bsz"DD') AS C1 FROM t_to_char1;
+C1
+1000abx01bsz01
+9999abx12bsz31
+2021abx01bsz03
+2021abx07bsz03
+#
+# test for other locale
+#
+SET character_set_client='utf8';
+SET character_set_connection='utf8';
+SET character_set_results='utf8';
+SET lc_time_names='zh_TW';
+SELECT TO_CHAR(c1, 'YYYY-MON-DAY') FROM t_to_char1;
+TO_CHAR(c1, 'YYYY-MON-DAY')
+1000- 1月-週三
+9999-12月-週五
+2021- 1月-週日
+2021- 7月-週六
+SET lc_time_names='de_DE';
+SELECT TO_CHAR(c1, 'YYYY-MON-DAY') FROM t_to_char1;
+TO_CHAR(c1, 'YYYY-MON-DAY')
+1000-Jan-Mittwoch  
+9999-Dez-Freitag   
+2021-Jan-Sonntag   
+2021-Jul-Samstag   
+SET lc_time_names='en_US';
+SELECT TO_CHAR(c1, 'YYYY-MON-DAY') FROM t_to_char1;
+TO_CHAR(c1, 'YYYY-MON-DAY')
+1000-Jan-Wednesday
+9999-Dec-Friday   
+2021-Jan-Sunday   
+2021-Jul-Saturday 
+SET lc_time_names='zh_CN';
+SELECT TO_CHAR(c1, 'YYYY-MON-DAY') FROM t_to_char1;
+TO_CHAR(c1, 'YYYY-MON-DAY')
+1000- 1月-星期三
+9999-12月-星期五
+2021- 1月-星期日
+2021- 7月-星期六
+#
+# test for invalid format
+#
+SELECT TO_CHAR(c1, 'YYYYaxMON-DAY') FROM t_to_char1 where c0 = 1;
+ERROR HY000: Invalid argument error: date format not recognized at axMON-DA in function to_char.
+SELECT TO_CHAR(c1, 'YYYY\nMON-DAY') FROM t_to_char1 where c0 = 1;
+ERROR HY000: Invalid argument error: date format not recognized at 
+MON-DAY in function to_char.
+SELECT TO_CHAR(c1, 'YYYY\rMON-DAY') FROM t_to_char1 where c0 = 1;
+ERROR HY000: Invalid argument error: date format not recognized at MON-DAY in function to_char.
+SELECT TO_CHAR(c1, 'YYYY分隔MON-DAY') FROM t_to_char1 where c0 = 1;
+ERROR HY000: Invalid argument error: date format not recognized at 分隔MO in function to_char.
+SELECT TO_CHAR(c1, 'YYYY-分隔MON-DAY') FROM t_to_char1 where c0 = 1;
+ERROR HY000: Invalid argument error: date format not recognized at 分隔MO in function to_char.
+select to_char(c3, 'YYYYxDDD') from t_to_char1 where c0 = 1;
+ERROR HY000: Invalid argument error: date format not recognized at xDDD in function to_char.
+select to_char(c3, 'YYYY&DDD') from t_to_char1 where c0 = 1;
+ERROR HY000: Invalid argument error: date format not recognized at &DDD in function to_char.
+select to_char(c3, 'xxYYYY-DD') from t_to_char1 where c0 = 1;
+ERROR HY000: Invalid argument error: date format not recognized at xxYYYY-D in function to_char.
+SET character_set_client='latin1';
+SET character_set_connection='latin1';
+SET character_set_results='latin1';
+#
+# test for unusual format
+#
+select to_char(c3, 'YYYYYYYYYYYYYYY') from t_to_char1;
+to_char(c3, 'YYYYYYYYYYYYYYY')
+100010001000000
+999999999999999
+202120212021021
+202120212021021
+select to_char(c3, 'YYYYYYYYYYYYYYYDDDDDD') from t_to_char1;
+to_char(c3, 'YYYYYYYYYYYYYYYDDDDDD')
+100010001000000010101
+999999999999999313131
+202120212021021030303
+202120212021021030303
+#
+# oracle max length is 144
+#
+select to_char(c3, 'YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY') from t_to_char1 where c0 = 1;
+ERROR HY000: Invalid argument error: datetime format string is too long in function to_char.
+CREATE TABLE t_f(c1 varchar(150));
+insert into t_f values('YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY-DD');
+select to_char('2000-11-11', c1) from t_f;
+to_char('2000-11-11', c1)
+NULL
+Warnings:
+Warning	3047	Invalid argument error: datetime format string is too long in function to_char.
+DROP TABLE t_f;
+select to_char(c3, 'YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY-DD-MM') from t_to_char1 where c0 = 1;
+to_char(c3, 'YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY-DD-MM')
+100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000-01-01
+#
+# now only support two parameter.
+#
+select to_char(c3) from t_to_char1 where c0 =1;
+to_char(c3)
+1000-01-01 00:00:00
+select to_char(c3, "YYYY-MM-DD HH:MI:SS") from t_to_char1 where c0 =1;
+to_char(c3, "YYYY-MM-DD HH:MI:SS")
+1000-01-01 12:00:00
+select to_char(c3, "YYYY-MM-DD HH:MI:SS", "zh_CN") from t_to_char1 where c0 = 1;
+ERROR 42000: Incorrect parameter count in the call to native function 'to_char'
+select to_char(c3, "YYYY-MM-DD HH:MI:SS", "NLS_DATE_LANGUAGE = zh_CN") from t_to_char1 where c0 = 1;
+ERROR 42000: Incorrect parameter count in the call to native function 'to_char'
+#
+# oracle support format but mariadb does not support
+#
+select to_char(c3, 'DDD') from t_to_char1 where c0 = 1;
+ERROR HY000: Invalid argument error: date format not recognized at D in function to_char.
+select to_char(c3, 'D') from t_to_char1 where c0 = 1;
+ERROR HY000: Invalid argument error: date format not recognized at D in function to_char.
+select to_char(c3, 'DS') from t_to_char1 where c0 = 1;
+ERROR HY000: Invalid argument error: date format not recognized at DS in function to_char.
+select to_char(c3, 'IY') from t_to_char1 where c0 = 1;
+ERROR HY000: Invalid argument error: date format not recognized at IY in function to_char.
+select to_char(c3, 'IYYY') from t_to_char1 where c0 = 1;
+ERROR HY000: Invalid argument error: date format not recognized at IYYY in function to_char.
+#
+# test for first argument data type
+# 
+select to_char(1, 'yyyy');
+ERROR HY000: Invalid argument error: data type of first argument must be type date/datetime/time or string in function to_char.
+select to_char(1.1, 'yyyy');
+ERROR HY000: Invalid argument error: data type of first argument must be type date/datetime/time or string in function to_char.
+CREATE TABLE t_a(c1 int, c2 float, c3 decimal, c4 char(20), c5 varchar(20), c6 nchar(20), c7 nvarchar(20));
+insert into t_a VALUES (1, 3.2, 2002.02, '2000-11-11', '2000-11-11', '2000-11-11', '2000-11-11');
+Warnings:
+Note	1265	Data truncated for column 'c3' at row 1
+SELECT TO_CHAR(c1, 'YYYY') from t_a;
+ERROR HY000: Invalid argument error: data type of first argument must be type date/datetime/time or string in function to_char.
+SELECT TO_CHAR(c2, 'YYYY') from t_a;
+ERROR HY000: Invalid argument error: data type of first argument must be type date/datetime/time or string in function to_char.
+SELECT TO_CHAR(c3, 'YYYY') from t_a;
+ERROR HY000: Invalid argument error: data type of first argument must be type date/datetime/time or string in function to_char.
+SELECT TO_CHAR(c4, 'YYYY') from t_a;
+TO_CHAR(c4, 'YYYY')
+2000
+SELECT TO_CHAR(c5, 'YYYY') from t_a;
+TO_CHAR(c5, 'YYYY')
+2000
+SELECT TO_CHAR(c6, 'YYYY') from t_a;
+TO_CHAR(c6, 'YYYY')
+2000
+SELECT TO_CHAR(c7, 'YYYY') from t_a;
+TO_CHAR(c7, 'YYYY')
+2000
+DROP TABLE t_a;
+CREATE TABLE t_b(c0 int, c1 char(20), c2 varchar(20), c3 nchar(20), c4 nvarchar(20));
+INSERT INTO t_b VALUES (1111, 'YYYY-MM-DD', 'YYYY-MM-DD', 'YYYY-MM-DD', 'YYYY-MM-DD');
+SELECT TO_CHAR('2000-11-11', c0) FROM t_b;
+TO_CHAR('2000-11-11', c0)
+NULL
+Warnings:
+Warning	3047	Invalid argument error: date format not recognized at 1111 in function to_char.
+SELECT TO_CHAR('2000-11-11', c1) FROM t_b;
+TO_CHAR('2000-11-11', c1)
+2000-11-11
+SELECT TO_CHAR('2000-11-11', c2) FROM t_b;
+TO_CHAR('2000-11-11', c2)
+2000-11-11
+SELECT TO_CHAR('2000-11-11', c3) FROM t_b;
+TO_CHAR('2000-11-11', c3)
+2000-11-11
+SELECT TO_CHAR('2000-11-11', c4) FROM t_b;
+TO_CHAR('2000-11-11', c4)
+2000-11-11
+DROP TABLE t_b;
+EXPLAIN EXTENDED SELECT TO_CHAR(c1, 'YYYY-MM-DD') FROM t_to_char1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t_to_char1	ALL	NULL	NULL	NULL	NULL	4	100.00	
+Warnings:
+Note	1003	select to_char(`test`.`t_to_char1`.`c1`,'YYYY-MM-DD') AS `TO_CHAR(c1, 'YYYY-MM-DD')` from `test`.`t_to_char1`
+#
+# test for time type with date format string
+#
+SELECT TO_CHAR(c2, 'YYYY-MM-DD HH:MI:SS') from t_to_char1;
+TO_CHAR(c2, 'YYYY-MM-DD HH:MI:SS')
+0000-00-00 12:00:00
+0000-00-00 11:59:59
+0000-00-00 08:30:00
+0000-00-00 06:30:00
+SELECT TO_CHAR(c2, 'YYYY-MON-DY HH:MI:SS') from t_to_char1;
+TO_CHAR(c2, 'YYYY-MON-DY HH:MI:SS')
+0000-00-00 12:00:00
+0000-00-00 11:59:59
+0000-00-00 08:30:00
+0000-00-00 06:30:00
+SELECT TO_CHAR(c2, 'MON-YYYY-DY HH:MI:SS') from t_to_char1;
+TO_CHAR(c2, 'MON-YYYY-DY HH:MI:SS')
+00-0000-00 12:00:00
+00-0000-00 11:59:59
+00-0000-00 08:30:00
+00-0000-00 06:30:00
+SELECT TO_CHAR(c2, 'YYYY-MONTH-DAY HH:MI:SS') from t_to_char1;
+TO_CHAR(c2, 'YYYY-MONTH-DAY HH:MI:SS')
+0000-00-00 12:00:00
+0000-00-00 11:59:59
+0000-00-00 08:30:00
+0000-00-00 06:30:00
+DROP TABLE t_to_char1;
+DROP TABLE t_to_char2;
+#
+# Test strict mode
+#
+create table t1 (a datetime, b int, f varchar(30)) engine=myisam;
+insert into t1 values ("2021-01-24 19:22:10", 2014, "YYYY-MM-DD");
+insert into t1 values ("2021-01-24 19:22:10", 2014, "YYYY-MQ-DD");
+create table t2 (a varchar(30)) engine=myisam;
+insert into t2 select to_char(a,f) from t1;
+Warnings:
+Warning	3047	Invalid argument error: date format not recognized at MQ-DD in function to_char.
+set @@sql_mode="STRICT_ALL_TABLES";
+insert into t2 select to_char(a,f) from t1;
+ERROR HY000: Invalid argument error: date format not recognized at MQ-DD in function to_char.
+select * from t2;
+a
+2021-01-24
+NULL
+2021-01-24
+drop table t1,t2;
+set @local.sql_mode=@sql_mode;

@@ -502,16 +502,16 @@ bool String::set_ascii(const char *str, size_t arg_length)
 
 /* This is used by mysql.cc */
 
-bool Binary_string::fill(uint32 max_length,char fill_char)
+bool Binary_string::fill(size_t max_length,char fill_char)
 {
   if (str_length > max_length)
-    Ptr[str_length=max_length]=0;
+    Ptr[str_length= (uint32) max_length]=0;
   else
   {
     if (realloc(max_length))
       return TRUE;
     bfill(Ptr+str_length,max_length-str_length,fill_char);
-    str_length=max_length;
+    str_length= (uint32) max_length;
   }
   return FALSE;
 }
