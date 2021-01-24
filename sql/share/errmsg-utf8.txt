@@ -7973,3 +7973,5 @@ ER_DATA_WAS_COMMITED_UNDER_ROLLBACK
         eng "Engine %s does not support rollback. Changes were committed during rollback call"
 ER_FUNCTION_CANNOT_BE_USED_IN_CLAUSE
         eng "Function '%s' cannot be used in the %s clause"
+ER_ORACLE_COMPAT_FUNCTION_ERROR
+        eng "Oracle compatibility function error: %s"
