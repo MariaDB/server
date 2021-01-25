@@ -2988,7 +2988,7 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
       buf->append(STRING_WITH_LEN(" RETURN "));
     else
       buf->append(STRING_WITH_LEN(" RETURNS "));
-    buf->append(&returns);
+    buf->append(returns.str, returns.length);   // Not \0 terminated
   }
   buf->append('\n');
   switch (chistics.daccess) {

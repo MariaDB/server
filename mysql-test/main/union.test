@@ -1866,5 +1866,23 @@ select * from t1 where a > 4;
 drop table t1,t2,t3;
 
 --echo #
+--echo # MDEV-24387: Wrong number of decimal digits in certain UNION/Subqery
+--echo #             constellation
+--echo #
+
+--disable_ps_protocol
+--enable_metadata
+
+SELECT CAST(1 AS UNSIGNED) UNION ALL SELECT * from (SELECT NULL) t;
+SELECT CAST(1 AS SIGNED) UNION ALL SELECT * from (SELECT NULL) t;
+SELECT CAST(1 AS SIGNED) UNION ALL SELECT * from (SELECT CAST(1 AS UNSIGNED)) t;
+
+SELECT CAST(1 AS UNSIGNED) UNION ALL SELECT NULL;
+SELECT CAST(1 AS UNSIGNED) UNION ALL SELECT CAST(1 AS SIGNED);
+
+--disable_metadata
+--enable_ps_protocol
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

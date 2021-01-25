@@ -7,7 +7,6 @@
 --source include/have_debug_sync.inc
 --source include/galera_have_debug_sync.inc
 
-
 CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
 
 --let $galera_connection_name = ctrl

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -457,34 +457,25 @@ trx_rseg_mem_restore(trx_rseg_t* rseg, trx_id_t& max_trx_id, mtr_t* mtr)
 			max_trx_id = id;
 		}
 
-		const char* binlog_name = TRX_RSEG + TRX_RSEG_BINLOG_NAME
-			+ reinterpret_cast<const char*>(rseg_hdr->frame);
+		const byte* binlog_name = TRX_RSEG + TRX_RSEG_BINLOG_NAME
+			+ rseg_hdr->frame;
 		if (*binlog_name) {
+			lsn_t lsn = mach_read_from_8(my_assume_aligned<8>(
+							     FIL_PAGE_LSN
+							     + rseg_hdr
+							     ->frame));
 			compile_time_assert(TRX_RSEG_BINLOG_NAME_LEN == sizeof
 					    trx_sys.recovered_binlog_filename);
-
-			int cmp = *trx_sys.recovered_binlog_filename
-				? strncmp(binlog_name,
-					  trx_sys.recovered_binlog_filename,
-					  TRX_RSEG_BINLOG_NAME_LEN)
-				: 1;
-
-			if (cmp >= 0) {
-				uint64_t binlog_offset = mach_read_from_8(
-					TRX_RSEG + TRX_RSEG_BINLOG_OFFSET
-					+ rseg_hdr->frame);
-				if (cmp) {
-					memcpy(trx_sys.
-					       recovered_binlog_filename,
-					       binlog_name,
-					       TRX_RSEG_BINLOG_NAME_LEN);
-					trx_sys.recovered_binlog_offset
-						= binlog_offset;
-				} else if (binlog_offset >
-					   trx_sys.recovered_binlog_offset) {
-					trx_sys.recovered_binlog_offset
-						= binlog_offset;
-				}
+			if (lsn > trx_sys.recovered_binlog_lsn) {
+				trx_sys.recovered_binlog_lsn = lsn;
+				trx_sys.recovered_binlog_offset
+					= mach_read_from_8(
+						TRX_RSEG
+						+ TRX_RSEG_BINLOG_OFFSET
+						+ rseg_hdr->frame);
+				memcpy(trx_sys.recovered_binlog_filename,
+				       binlog_name,
+				       TRX_RSEG_BINLOG_NAME_LEN);
 			}
 
 #ifdef WITH_WSREP

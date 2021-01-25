@@ -1,0 +1,44 @@
+SELECT @@wsrep_on;
+@@wsrep_on
+1
+SET @wsrep_slave_threads_global_saved = @@global.wsrep_slave_threads;
+SET @wsrep_debug_saved = @@global.wsrep_debug;
+SET @wsrep_provider_options_saved= @@global.wsrep_provider_options;
+SET @wsrep_cluster_address_saved= @@global.wsrep_cluster_address;
+SET GLOBAL wsrep_provider=none;
+SET SESSION wsrep_trx_fragment_size=DEFAULT;
+ERROR HY000: Incorrect arguments to SET
+SELECT @@session.wsrep_trx_fragment_size;
+@@session.wsrep_trx_fragment_size
+0
+SET GLOBAL wsrep_start_position='12345678-1234-1234-1234-123456789012:100';
+ERROR 42000: Variable 'wsrep_start_position' can't be set to the value of '12345678-1234-1234-1234-123456789012:100'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1231	Cannot set 'wsrep_start_position' because wsrep is switched off or provider is not loaded
+Error	1231	Variable 'wsrep_start_position' can't be set to the value of '12345678-1234-1234-1234-123456789012:100'
+SELECT @@global.wsrep_start_position;
+@@global.wsrep_start_position
+00000000-0000-0000-0000-000000000000:-1
+SET GLOBAL wsrep_debug=1;
+Warnings:
+Warning	1231	Setting 'wsrep_debug' has no effect because wsrep is switched off
+SELECT @@global.wsrep_debug;
+@@global.wsrep_debug
+NONE
+SET GLOBAL wsrep_slave_threads=5;
+SELECT @@global.wsrep_slave_threads;
+@@global.wsrep_slave_threads
+5
+SET GLOBAL wsrep_desync=1;
+ERROR HY000: WSREP (galera) not started
+SELECT @@global.wsrep_desync;
+@@global.wsrep_desync
+0
+SET SESSION wsrep_trx_fragment_unit='rows';
+ERROR HY000: Incorrect arguments to SET
+SELECT @@session.wsrep_trx_fragment_unit;
+@@session.wsrep_trx_fragment_unit
+rows
+SET @@global.wsrep_slave_threads = @wsrep_slave_threads_global_saved;
+SET @@global.wsrep_debug = @wsrep_debug_saved;
