@@ -6238,7 +6238,7 @@ static Sys_var_set Sys_log_slow_filter(
        SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
        log_slow_filter_names,
        /* by default we log all queries except 'not_using_index' */
-       DEFAULT(my_set_bits(array_elements(log_slow_filter_names)-1) &
+       DEFAULT(my_set_low_bits(array_elements(log_slow_filter_names)-1) &
                ~QPLAN_NOT_USING_INDEX));
 
 static const char *log_slow_disabled_statements_names[]=
