@@ -332,7 +332,7 @@ void
 row_log_online_op(
 /*==============*/
 	dict_index_t*	index,	/*!< in/out: index, S or X latched */
-	const dtuple_t* tuple,	/*!< in: index tuple */
+	const dtuple_t*	tuple,	/*!< in: index tuple (NULL=empty the index) */
 	trx_id_t	trx_id)	/*!< in: transaction ID for insert,
 				or 0 for delete */
 {
@@ -399,7 +399,7 @@ row_log_online_op(
 		*b++ = ROW_OP_INSERT;
 		trx_write_trx_id(b, trx_id);
 		b += DATA_TRX_ID_LEN;
-	} else if (tuple == nullptr) {
+	} else if (!tuple) {
 		*b++ = ROW_OP_EMPTY;
 	} else {
 		*b++ = ROW_OP_DELETE;
@@ -4059,13 +4059,79 @@ row_log_apply(
 	DBUG_RETURN(error);
 }
 
-void row_log_table_empty(dict_index_t *index)
+/** Notify that the table was emptied by concurrent rollback or purge.
+@param index  clustered index */
+static void row_log_table_empty(dict_index_t *index)
 {
+  ut_ad(index->lock.have_any());
   row_log_t* log= index->online_log;
   ulint	avail_size;
-  if (byte* b = row_log_table_open(log, 1, &avail_size))
+  if (byte *b= row_log_table_open(log, 1, &avail_size))
   {
     *b++ = ROW_T_EMPTY;
     row_log_table_close(index, b, 1, avail_size);
+  }
+}
+
+void dict_index_t::clear(que_thr_t *thr)
+{
+  mtr_t mtr;
+  mtr.start();
+  if (table->is_temporary())
+    mtr.set_log_mode(MTR_LOG_NO_REDO);
+  else
+    set_modified(mtr);
+  /* Free the indexes */
+  buf_block_t* root_block= buf_page_get(
+    page_id_t(table->space->id, page),
+    table->space->zip_size(), RW_X_LATCH, &mtr);
+  if (root_block)
+    btr_free_but_not_root(root_block, mtr.get_log_mode());
+
+  mtr.memset(root_block, PAGE_HEADER + PAGE_BTR_SEG_LEAF,
+             FSEG_HEADER_SIZE, 0);
+  if (!fseg_create(table->space, PAGE_HEADER + PAGE_BTR_SEG_LEAF,
+                   &mtr, false, root_block))
+    goto func_exit;
+
+  btr_root_page_init(root_block, id, this, &mtr);
+func_exit:
+  mtr.commit();
+}
+
+void dict_table_t::clear(que_thr_t *thr)
+{
+  bool rebuild= false;
+  for (dict_index_t *index= UT_LIST_GET_FIRST(indexes); index;
+       index= UT_LIST_GET_NEXT(indexes, index))
+  {
+    if (index->type & DICT_FTS)
+      continue;
+
+    switch (dict_index_get_online_status(index)) {
+    case ONLINE_INDEX_ABORTED:
+    case ONLINE_INDEX_ABORTED_DROPPED:
+      continue;
+
+    case ONLINE_INDEX_COMPLETE:
+      break;
+
+    case ONLINE_INDEX_CREATION:
+      index->lock.u_lock(SRW_LOCK_CALL);
+      if (dict_index_get_online_status(index) == ONLINE_INDEX_CREATION)
+      {
+        if (index->is_clust())
+        {
+          row_log_table_empty(index);
+          rebuild= true;
+        }
+        else if (!rebuild)
+          row_log_online_op(index, nullptr, 0);
+      }
+
+      index->lock.u_unlock();
+    }
+
+    index->clear(thr);
   }
 }

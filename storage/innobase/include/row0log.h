@@ -258,12 +258,6 @@ row_log_estimate_work(
 	const dict_index_t*	index);
 #endif /* HAVE_PSI_STAGE_INTERFACE */
 
-/** Logs an empty operation of the table which means it should empty
-the table.
-@param index	clustered index */
-void row_log_table_empty(dict_index_t *index)
-ATTRIBUTE_COLD __attribute__((nonnull));
-
 #include "row0log.ic"
 
 #endif /* row0log.h */
