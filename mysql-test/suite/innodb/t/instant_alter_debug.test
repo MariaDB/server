@@ -233,6 +233,7 @@ connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR copied';
 let $wait_all_purged = 1;
 --source include/wait_all_purged.inc
+let $wait_all_purged = 0;
 INSERT INTO t1 SET a=1;
 INSERT INTO t1 SET a=2,b=3,c=4;
 SET DEBUG_SYNC = 'now SIGNAL logged';
