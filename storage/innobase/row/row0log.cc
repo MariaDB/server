@@ -4063,7 +4063,7 @@ row_log_apply(
 @param index  clustered index */
 static void row_log_table_empty(dict_index_t *index)
 {
-  ut_ad(index->lock.have_any());
+  ut_ad(index->lock.have_s());
   row_log_t* log= index->online_log;
   ulint	avail_size;
   if (byte *b= row_log_table_open(log, 1, &avail_size))
@@ -4091,7 +4091,7 @@ void dict_table_t::clear(que_thr_t *thr)
       break;
 
     case ONLINE_INDEX_CREATION:
-      index->lock.u_lock(SRW_LOCK_CALL);
+      index->lock.s_lock(SRW_LOCK_CALL);
       if (dict_index_get_online_status(index) == ONLINE_INDEX_CREATION)
       {
         if (index->is_clust())
@@ -4103,7 +4103,7 @@ void dict_table_t::clear(que_thr_t *thr)
           row_log_online_op(index, nullptr, 0);
       }
 
-      index->lock.u_unlock();
+      index->lock.s_unlock();
     }
 
     index->clear(thr);
