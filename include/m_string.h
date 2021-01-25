@@ -65,13 +65,17 @@
 extern "C" {
 #endif
 
-#ifdef DBUG_OFF
-#if defined(HAVE_STPCPY) && MY_GNUC_PREREQ(3, 4) && !defined(__INTEL_COMPILER)
+/*
+  The test for defined(MY_GNUC_PREREQ) below is there for projects
+  which has forgot to include <my_global.h>
+*/
+#if defined(DBUG_OFF) && defined(HAVE_STPCPY) && defined(MY_GNUC_PREREQ)
+#if MY_GNUC_PREREQ(3, 4) && !defined(__INTEL_COMPILER)
 #define strmov(A,B) __builtin_stpcpy((A),(B))
-#elif defined(HAVE_STPCPY)
+#else
 #define strmov(A,B) stpcpy((A),(B))
-#endif
-#endif
+#endif /* MY_GNUC_PREREQ(3, 4) && !defined(__INTEL_COMPILER) */
+#endif /* defined(DBUG_OFF) && defined(HAVE_STPCPY) && defined(MY_GNUC_PREREQ) */
 
 /* Declared in int2str() */
 extern const char _dig_vec_upper[];

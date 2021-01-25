@@ -217,7 +217,7 @@ uint32
 Type_handler_tiny_blob::max_display_length_for_field(const Conv_source &src)
                                                      const
 {
-  return (uint32) my_set_bits(1 * 8);
+  return (uint32) my_set_low_bits(1 * 8);
 }
 
 
@@ -225,7 +225,7 @@ uint32
 Type_handler_medium_blob::max_display_length_for_field(const Conv_source &src)
                                                        const
 {
-  return (uint32) my_set_bits(3 * 8);
+  return (uint32) my_set_low_bits(3 * 8);
 }
 
 
@@ -238,7 +238,7 @@ Type_handler_blob::max_display_length_for_field(const Conv_source &src)
     blobs are of type MYSQL_TYPE_BLOB. In that case, we have to look
     at the length instead to decide what the max display size is.
    */
-  return (uint32) my_set_bits(src.metadata() * 8);
+  return (uint32) my_set_low_bits(src.metadata() * 8);
 }
 
 
@@ -246,7 +246,7 @@ uint32
 Type_handler_blob_compressed::max_display_length_for_field(const Conv_source &src)
                                                     const
 {
-  return (uint32) my_set_bits(src.metadata() * 8);
+  return (uint32) my_set_low_bits(src.metadata() * 8);
 }
 
 
@@ -254,7 +254,7 @@ uint32
 Type_handler_long_blob::max_display_length_for_field(const Conv_source &src)
                                                      const
 {
-  return (uint32) my_set_bits(4 * 8);
+  return (uint32) my_set_low_bits(4 * 8);
 }
 
 

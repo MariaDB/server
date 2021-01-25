@@ -788,7 +788,7 @@ uint32
 Type_handler_geometry::max_display_length_for_field(const Conv_source &src)
                                                     const
 {
-  return (uint32) my_set_bits(4 * 8);
+  return (uint32) my_set_low_bits(4 * 8);
 }
 
 
