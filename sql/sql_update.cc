@@ -2350,10 +2350,10 @@ int multi_update::send_data(List<Item> &not_used_values)
 {
   TABLE_LIST *cur_table;
   DBUG_ENTER("multi_update::send_data");
-  int error= 0;
 
   for (cur_table= update_tables; cur_table; cur_table= cur_table->next_local)
   {
+    int error= 0;
     TABLE *table= cur_table->table;
     uint offset= cur_table->shared;
     /*
@@ -2423,21 +2423,7 @@ int multi_update::send_data(List<Item> &not_used_values)
           updated--;
           if (!ignore ||
               table->file->is_fatal_error(error, HA_CHECK_ALL))
-          {
-error:
-            /*
-              If (ignore && error == is ignorable) we don't have to
-              do anything; otherwise...
-            */
-            myf flags= 0;
-
-            if (table->file->is_fatal_error(error, HA_CHECK_ALL))
-              flags|= ME_FATALERROR; /* Other handler errors are fatal */
-
-            prepare_record_for_error_message(error, table);
-            table->file->print_error(error,MYF(flags));
-            DBUG_RETURN(1);
-          }
+            goto error;
         }
         else
         {
@@ -2513,7 +2499,22 @@ error:
         }
       }
     }
-  }
+    continue;
+error:
+    DBUG_ASSERT(error > 0);
+    /*
+      If (ignore && error == is ignorable) we don't have to
+      do anything; otherwise...
+    */
+    myf flags= 0;
+
+    if (table->file->is_fatal_error(error, HA_CHECK_ALL))
+      flags|= ME_FATALERROR; /* Other handler errors are fatal */
+
+    prepare_record_for_error_message(error, table);
+    table->file->print_error(error,MYF(flags));
+    DBUG_RETURN(1);
+  } // for (cur_table)
   DBUG_RETURN(0);
 }
 
