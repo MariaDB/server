@@ -2261,7 +2261,7 @@ servers \- remote (federated) servers as \fBCREATE SERVER\fR\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-stats \- statistics tables, InnoDB and Engine Independent Table Statistics (EITS), are dumped as \fBINSERT\fR/\fBREPLACE INTO\fR statements without (re)creating tables\&.
+stats \- statistics tables, InnoDB and Engine Independent Table Statistics (EITS), are dumped as \fBREPLACE INTO\fR (or \fBINSERT IGNORE\fR if \fB\-\-insert\-into\fR is specified) statements without (re)creating tables\&.
 .RE
 .RS 4
 .ie n \{\
@@ -2271,7 +2271,7 @@ stats \- statistics tables, InnoDB and Engine Independent Table Statistics (EITS
 .sp -1
 .IP \(bu 2.3
 .\}
-timezones \- timezone related system tables dumped as \fBINSERT\fR/\fBREPLACE INTO\fR statements without (re)creating tables\&.
+timezones \- timezone related system tables dumped as \fBREPLACE INTO\fR (or \fBINSERT IGNORE\fR if \fB\-\-insert\-into\fR is specified) statements without (re)creating tables\&.
 .RE
 .sp
 The format of the output is affected by \fB\-\-replace\fR and \fB\-\-insert\-into\fR\&. The \fB\-\-replace\fR option will output \fBCREATE OR REPLACE\fR
