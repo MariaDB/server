@@ -430,10 +430,6 @@ DROP TABLE t1;
 
 SET debug_dbug = @save_dbug;
 
-SELECT variable_value-@old_instant instants
-FROM information_schema.global_status
-WHERE variable_name = 'innodb_instant_alter_column';
-
 --echo #
 --echo # MDEV-24512 Assertion failed in rec_is_metadata()
 --echo #            in btr_discard_only_page_on_level()
@@ -453,3 +449,7 @@ DROP TABLE t1;
 --echo # End of 10.4 tests
 
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
+
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
