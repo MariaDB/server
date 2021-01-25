@@ -39,6 +39,9 @@ while ($_rpl_server)
 --connection server_1
 CREATE TABLE t1 (a INT NOT NULL AUTO_INCREMENT, b VARCHAR(100), c INT NOT NULL, PRIMARY KEY(a)) ENGINE=MyISAM;
 CREATE TABLE t2 (a INT NOT NULL AUTO_INCREMENT, b VARCHAR(100), c INT NOT NULL, PRIMARY KEY(a)) ENGINE=InnoDB;
+# MDEV-515 takes X-lock on the table. So it won't allow
+# concurrent DML to happen at the same time
+INSERT INTO t2 (b,c) VALUES('MDEV-515', 100);
 --source include/rpl_sync.inc
 --connection server_4
 call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received while applying a group that has non-transactional changes; waiting for completion of the group");

@@ -7,6 +7,7 @@ CREATE DATABASE d1;
 CREATE DATABASE d2;
 CREATE TABLE d1.t (a INT) ENGINE=innodb;
 CREATE TABLE d2.t (a INT) ENGINE=innodb;
+INSERT INTO d1.t VALUES(100);
 connect  master_conn1, 127.0.0.1,root,,test,$MASTER_MYPORT,;
 SET @@session.binlog_format= statement;
 XA START '1-stmt';
@@ -45,6 +46,9 @@ master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE d1.t (a INT) ENGINE=innodb
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE d2.t (a INT) ENGINE=innodb
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO d1.t VALUES(100)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	XA START X'312d73746d74',X'',1 GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO d1.t VALUES (1)
 master-bin.000001	#	Query	#	#	XA END X'312d73746d74',X'',1
@@ -90,6 +94,7 @@ connection master2;
 XA START '4';
 SELECT * FROM d1.t;
 a
+100
 1
 2
 XA END '4';

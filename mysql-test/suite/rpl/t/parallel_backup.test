@@ -10,6 +10,9 @@
 
 --connection master
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE = innodb;
+# MDEV-515 takes X-lock on the table for the first insert.
+# So concurrent insert won't happen on the table
+INSERT INTO t1 VALUES(100);
 
 --sync_slave_with_master
 --source include/stop_slave.inc

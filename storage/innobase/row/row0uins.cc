@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -384,6 +384,7 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		goto close_table;
 	case TRX_UNDO_INSERT_METADATA:
 	case TRX_UNDO_INSERT_REC:
+	case TRX_UNDO_EMPTY:
 		break;
 	case TRX_UNDO_RENAME_TABLE:
 		dict_table_t* table = node->table;
@@ -420,11 +421,16 @@ close_table:
 		clust_index = dict_table_get_first_index(node->table);
 
 		if (clust_index != NULL) {
-			if (node->rec_type == TRX_UNDO_INSERT_REC) {
+			switch (node->rec_type) {
+			case TRX_UNDO_INSERT_REC:
 				ptr = trx_undo_rec_get_row_ref(
 					ptr, clust_index, &node->ref,
 					node->heap);
-			} else {
+				break;
+			case TRX_UNDO_EMPTY:
+				node->ref = nullptr;
+				return true;
+			default:
 				node->ref = &trx_undo_metadata;
 				if (!row_undo_search_clust_to_pcur(node)) {
 					/* An error probably occurred during
@@ -596,6 +602,11 @@ row_undo_ins(
 		log_free_check();
 		ut_ad(!node->table->is_temporary());
 		err = row_undo_ins_remove_clust_rec(node);
+		break;
+	case TRX_UNDO_EMPTY:
+		node->table->clear(thr);
+		err = DB_SUCCESS;
+		break;
 	}
 
 	dict_table_close(node->table, dict_locked, FALSE);

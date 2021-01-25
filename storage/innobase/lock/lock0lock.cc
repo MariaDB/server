@@ -360,83 +360,6 @@ lock_check_trx_id_sanity(
   return true;
 }
 
-/*********************************************************************//**
-Checks that a record is seen in a consistent read.
-@return true if sees, or false if an earlier version of the record
-should be retrieved */
-bool
-lock_clust_rec_cons_read_sees(
-/*==========================*/
-	const rec_t*	rec,	/*!< in: user record which should be read or
-				passed over by a read cursor */
-	dict_index_t*	index,	/*!< in: clustered index */
-	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
-	ReadView*	view)	/*!< in: consistent read view */
-{
-	ut_ad(dict_index_is_clust(index));
-	ut_ad(page_rec_is_user_rec(rec));
-	ut_ad(rec_offs_validate(rec, index, offsets));
-	ut_ad(!rec_is_metadata(rec, *index));
-
-	/* Temp-tables are not shared across connections and multiple
-	transactions from different connections cannot simultaneously
-	operate on same temp-table and so read of temp-table is
-	always consistent read. */
-	if (index->table->is_temporary()) {
-		return(true);
-	}
-
-	/* NOTE that we call this function while holding the search
-	system latch. */
-
-	trx_id_t	trx_id = row_get_rec_trx_id(rec, index, offsets);
-
-	return(view->changes_visible(trx_id, index->table->name));
-}
-
-/*********************************************************************//**
-Checks that a non-clustered index record is seen in a consistent read.
-
-NOTE that a non-clustered index page contains so little information on
-its modifications that also in the case false, the present version of
-rec may be the right, but we must check this from the clustered index
-record.
-
-@return true if certainly sees, or false if an earlier version of the
-clustered index record might be needed */
-bool
-lock_sec_rec_cons_read_sees(
-/*========================*/
-	const rec_t*		rec,	/*!< in: user record which
-					should be read or passed over
-					by a read cursor */
-	const dict_index_t*	index,	/*!< in: index */
-	const ReadView*	view)	/*!< in: consistent read view */
-{
-	ut_ad(page_rec_is_user_rec(rec));
-	ut_ad(!index->is_primary());
-	ut_ad(!rec_is_metadata(rec, *index));
-
-	/* NOTE that we might call this function while holding the search
-	system latch. */
-
-	if (index->table->is_temporary()) {
-
-		/* Temp-tables are not shared across connections and multiple
-		transactions from different connections cannot simultaneously
-		operate on same temp-table and so read of temp-table is
-		always consistent read. */
-
-		return(true);
-	}
-
-	trx_id_t	max_trx_id = page_get_max_trx_id(page_align(rec));
-
-	ut_ad(max_trx_id > 0);
-
-	return(view->sees(max_trx_id));
-}
-
 
 /**
   Creates the lock system at database start.
@@ -2125,7 +2048,9 @@ lock_rec_inherit_to_gap_if_gap_lock(
 
 		if (!lock_rec_get_insert_intention(lock)
 		    && (heap_no == PAGE_HEAP_NO_SUPREMUM
-			|| !lock_rec_get_rec_not_gap(lock))) {
+			|| !lock_rec_get_rec_not_gap(lock))
+		    && !lock_table_has(lock->trx, lock->index->table,
+				      LOCK_X)) {
 
 			lock_rec_add_to_queue(
 				LOCK_REC | LOCK_GAP | lock_get_mode(lock),
@@ -3598,6 +3523,27 @@ lock_table_ix_resurrect(
 	mutex->wr_unlock();
 }
 
+/** Create a table X lock object for a resurrected TRX_UNDO_EMPTY transaction.
+@param table    table to be X-locked
+@param trx      transaction */
+void lock_table_x_resurrect(dict_table_t *table, trx_t *trx)
+{
+  ut_ad(trx->is_recovered);
+  if (lock_table_has(trx, table, LOCK_X))
+    return;
+
+  auto mutex= &trx->mutex;
+  lock_sys.mutex_lock();
+  /* We have to check if the new lock is compatible with any locks
+  other transactions have in the table lock queue. */
+  ut_ad(!lock_table_other_has_incompatible(trx, LOCK_WAIT, table, LOCK_X));
+
+  mutex->wr_lock();
+  lock_table_create(table, LOCK_X, trx);
+  lock_sys.mutex_unlock();
+  mutex->wr_unlock();
+}
+
 /*********************************************************************//**
 Checks if a waiting table lock request still has to wait in a queue.
 @return TRUE if still has to wait */
@@ -3662,6 +3608,32 @@ lock_table_dequeue(
 			lock_grant(lock);
 		}
 	}
+}
+
+/** Release a table X lock after rolling back an insert into an empty table
+(which was covered by a TRX_UNDO_EMPTY record).
+@param table    table to be X-unlocked
+@param trx      transaction */
+void lock_table_x_unlock(dict_table_t *table, trx_t *trx)
+{
+  ut_ad(!trx->is_recovered);
+
+  lock_sys.mutex_lock();
+
+  for (lock_t*& lock : trx->lock.table_locks)
+  {
+    if (lock && lock->trx == trx && lock->type_mode == (LOCK_TABLE | LOCK_X))
+    {
+      ut_ad(!lock_get_wait(lock));
+      lock_table_dequeue(lock);
+      lock= nullptr;
+      goto func_exit;
+    }
+  }
+  ut_ad("lock not found" == 0);
+
+func_exit:
+  lock_sys.mutex_unlock();
 }
 
 /** Sets a lock on a table based on the given mode.
@@ -4752,8 +4724,6 @@ for a gap x-lock to the lock queue.
 dberr_t
 lock_rec_insert_check_and_lock(
 /*===========================*/
-	ulint		flags,	/*!< in: if BTR_NO_LOCKING_FLAG bit is
-				set, does nothing */
 	const rec_t*	rec,	/*!< in: record after which to insert */
 	buf_block_t*	block,	/*!< in/out: buffer block of rec */
 	dict_index_t*	index,	/*!< in: index */
@@ -4765,16 +4735,8 @@ lock_rec_insert_check_and_lock(
 				record */
 {
 	ut_ad(block->frame == page_align(rec));
-	ut_ad(!dict_index_is_online_ddl(index)
-	      || index->is_primary()
-	      || (flags & BTR_CREATE_FLAG));
 	ut_ad(mtr->is_named_space(index->table->space));
 	ut_ad(page_rec_is_leaf(rec));
-
-	if (flags & BTR_NO_LOCKING_FLAG) {
-
-		return(DB_SUCCESS);
-	}
 
 	ut_ad(!index->table->is_temporary());
 	ut_ad(page_is_leaf(block->frame));

@@ -74,6 +74,7 @@ select * from t1;
 a
 1
 truncate table t1;
+INSERT INTO  t1 VALUES (100);
 connection slave;
 connection con1;
 SET DEBUG_SYNC= 'reset';
@@ -107,6 +108,7 @@ SET DEBUG_SYNC= "now WAIT_FOR after_commit_done";
 connection slave;
 select * from t1;
 a
+100
 1
 2
 3
@@ -114,6 +116,7 @@ a
 connection con2;
 select * from t1;
 a
+100
 1
 2
 3
@@ -123,6 +126,7 @@ connection con1;
 connection con1;
 select * from t1;
 a
+100
 1
 2
 3

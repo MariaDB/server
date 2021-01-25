@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB
+   Copyright (c) 2010, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11533,6 +11533,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     }
     else
     {
+      /* In case of alter ignore, notify the engine about it. */
+      if (ignore)
+        to->file->extra(HA_EXTRA_IGNORE_INSERT);
       DEBUG_SYNC(thd, "copy_data_between_tables_before");
       found_count++;
       mysql_stage_set_work_completed(thd->m_stage_progress_psi, found_count);

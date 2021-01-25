@@ -410,6 +410,17 @@ INSERT INTO mdev6076a SET b=NULL;
 SELECT * FROM mdev6076a;
 INSERT INTO mdev6076b SET b=NULL;
 SELECT * FROM mdev6076b;
+# MDEV-515 resets the PAGE_ROOT_AUTOINC field in
+# root page during rollback.
+--disable_query_log
+BEGIN;
+let $i = 55;
+WHILE ($i) {
+ eval INSERT INTO mdev6076empty SET b=$i;
+ dec $i;
+}
+ROLLBACK;
+--enable_query_log
 INSERT INTO mdev6076empty SET b=NULL;
 SELECT * FROM mdev6076empty;
 DROP TABLE mdev6076a, mdev6076b, mdev6076empty;

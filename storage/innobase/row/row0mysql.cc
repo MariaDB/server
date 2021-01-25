@@ -1096,6 +1096,12 @@ row_get_prebuilt_insert_row(
 		    && prebuilt->ins_node->entry_list.size()
 		    == UT_LIST_GET_LEN(table->indexes)) {
 
+			if (prebuilt->ins_node->bulk_insert
+			    && prebuilt->ins_node->trx_id
+			       != prebuilt->trx->id) {
+				prebuilt->ins_node->bulk_insert= false;
+			}
+
 			return(prebuilt->ins_node->row);
 		}
 
@@ -1409,6 +1415,7 @@ row_insert_for_mysql(
 		prebuilt->sql_stat_start = FALSE;
 	} else {
 		node->state = INS_NODE_ALLOC_ROW_ID;
+		node->trx_id = trx->id;
 	}
 
 	thr->start_running();
@@ -1437,7 +1444,8 @@ error_exit:
 
 		if (was_lock_wait) {
 			ut_ad(node->state == INS_NODE_INSERT_ENTRIES
-			      || node->state == INS_NODE_ALLOC_ROW_ID);
+			      || node->state == INS_NODE_ALLOC_ROW_ID
+			      || node->state == INS_NODE_SET_IX_LOCK);
 			goto run_again;
 		}
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -137,7 +137,11 @@ inline void trx_t::rollback_low(trx_savept_t *savept)
       trx_mod_tables_t::iterator j= i++;
       ut_ad(j->second.valid());
       if (j->second.rollback(limit))
+      {
+        if (j->second.was_bulk_insert() && !j->first->is_temporary())
+          lock_table_x_unlock(j->first, this);
         mod_tables.erase(j);
+      }
     }
     lock.que_state= TRX_QUE_RUNNING;
     MONITOR_INC(MONITOR_TRX_ROLLBACK_SAVEPOINT);
@@ -535,6 +539,8 @@ trx_savepoint_for_mysql(
 	savep->mysql_binlog_cache_pos = binlog_cache_pos;
 
 	UT_LIST_ADD_LAST(trx->trx_savepoints, savep);
+
+	trx->end_bulk_insert();
 
 	return(DB_SUCCESS);
 }

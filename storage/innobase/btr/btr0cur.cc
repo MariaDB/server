@@ -3,7 +3,7 @@
 Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -67,6 +67,7 @@ Created 10/16/1994 Heikki Tuuri
 #include "srv0start.h"
 #include "mysql_com.h"
 #include "dict0stats.h"
+#include "row0ins.h"
 
 /** Buffered B-tree operation types, introduced as part of delete buffering. */
 enum btr_op_t {
@@ -3210,25 +3211,27 @@ btr_cur_ins_lock_and_undo(
 				should inherit LOCK_GAP type locks from the
 				successor record */
 {
-	dict_index_t*	index;
-	dberr_t		err = DB_SUCCESS;
-	rec_t*		rec;
-	roll_ptr_t	roll_ptr;
+	if (!(~flags | (BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG))) {
+		return DB_SUCCESS;
+	}
 
 	/* Check if we have to wait for a lock: enqueue an explicit lock
 	request if yes */
 
-	rec = btr_cur_get_rec(cursor);
-	index = cursor->index;
+	rec_t* rec = btr_cur_get_rec(cursor);
+	dict_index_t* index = cursor->index;
 
 	ut_ad(!dict_index_is_online_ddl(index)
 	      || dict_index_is_clust(index)
 	      || (flags & BTR_CREATE_FLAG));
+	ut_ad((flags & BTR_NO_UNDO_LOG_FLAG)
+	      || !index->table->skip_alter_undo);
+
 	ut_ad(mtr->is_named_space(index->table->space));
 
 	/* Check if there is predicate or GAP lock preventing the insertion */
 	if (!(flags & BTR_NO_LOCKING_FLAG)) {
-		if (dict_index_is_spatial(index)) {
+		if (index->is_spatial()) {
 			lock_prdt_t	prdt;
 			rtr_mbr_t	mbr;
 
@@ -3240,44 +3243,55 @@ btr_cur_ins_lock_and_undo(
 			lock_init_prdt_from_mbr(
 				&prdt, &mbr, 0, NULL);
 
-			err = lock_prdt_insert_check_and_lock(
-				flags, rec, btr_cur_get_block(cursor),
-				index, thr, mtr, &prdt);
+			if (dberr_t err = lock_prdt_insert_check_and_lock(
+				    rec, btr_cur_get_block(cursor),
+				    index, thr, mtr, &prdt)) {
+				return err;
+			}
 			*inherit = false;
 		} else {
-			err = lock_rec_insert_check_and_lock(
-				flags, rec, btr_cur_get_block(cursor),
-				index, thr, mtr, inherit);
+			ut_ad(!dict_index_is_online_ddl(index)
+			      || index->is_primary()
+			      || (flags & BTR_CREATE_FLAG));
+			if (dberr_t err = lock_rec_insert_check_and_lock(
+				    rec, btr_cur_get_block(cursor),
+				    index, thr, mtr, inherit)) {
+				return err;
+			}
 		}
 	}
 
-	if (err != DB_SUCCESS
-	    || !(~flags | (BTR_NO_UNDO_LOG_FLAG | BTR_KEEP_SYS_FLAG))
-	    || !dict_index_is_clust(index) || dict_index_is_ibuf(index)) {
-
-		return(err);
+	if (!index->is_primary() || !page_is_leaf(page_align(rec))) {
+		return DB_SUCCESS;
 	}
 
-	if (flags & BTR_NO_UNDO_LOG_FLAG) {
-		roll_ptr = roll_ptr_t(1) << ROLL_PTR_INSERT_FLAG_POS;
-		if (!(flags & BTR_KEEP_SYS_FLAG)) {
-upd_sys:
-			dfield_t* r = dtuple_get_nth_field(
-				entry, index->db_roll_ptr());
-			ut_ad(r->len == DATA_ROLL_PTR_LEN);
-			trx_write_roll_ptr(static_cast<byte*>(r->data),
-					   roll_ptr);
+	constexpr roll_ptr_t dummy_roll_ptr = roll_ptr_t{1}
+		<< ROLL_PTR_INSERT_FLAG_POS;
+	roll_ptr_t roll_ptr = dummy_roll_ptr;
+
+	if (!(flags & BTR_NO_UNDO_LOG_FLAG)) {
+		if (dberr_t err = trx_undo_report_row_operation(
+			    thr, index, entry, NULL, 0, NULL, NULL,
+			    &roll_ptr)) {
+			return err;
 		}
-	} else {
-		err = trx_undo_report_row_operation(thr, index, entry,
-						    NULL, 0, NULL, NULL,
-						    &roll_ptr);
-		if (err == DB_SUCCESS) {
-			goto upd_sys;
+
+		if (roll_ptr != dummy_roll_ptr) {
+			dfield_t* r = dtuple_get_nth_field(entry,
+							   index->db_trx_id());
+			trx_write_trx_id(static_cast<byte*>(r->data),
+					 thr_get_trx(thr)->id);
 		}
 	}
 
-	return(err);
+	if (!(flags & BTR_KEEP_SYS_FLAG)) {
+		dfield_t* r = dtuple_get_nth_field(
+			entry, index->db_roll_ptr());
+		ut_ad(r->len == DATA_ROLL_PTR_LEN);
+		trx_write_roll_ptr(static_cast<byte*>(r->data), roll_ptr);
+	}
+
+	return DB_SUCCESS;
 }
 
 /**
@@ -3510,7 +3524,9 @@ fail_err:
 				ut_ad(thr->graph->trx->id
 				      == trx_read_trx_id(
 					      static_cast<const byte*>(
-						      trx_id->data)));
+						      trx_id->data))
+				      || static_cast<ins_node_t*>(
+					     thr->run_node)->bulk_insert);
 			}
 		}
 #endif
@@ -5506,6 +5522,7 @@ btr_cur_optimistic_delete_func(
 				/* MDEV-17383: free metadata BLOBs! */
 				index->clear_instant_alter();
 			}
+
 			page_cur_set_after_last(block,
 						btr_cur_get_page_cur(cursor));
 			goto func_exit;
@@ -5723,6 +5740,7 @@ btr_cur_pessimistic_delete(
 					/* MDEV-17383: free metadata BLOBs! */
 					index->clear_instant_alter();
 				}
+
 				page_cur_set_after_last(
 					block,
 					btr_cur_get_page_cur(cursor));

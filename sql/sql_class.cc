@@ -5062,6 +5062,14 @@ extern "C" enum enum_server_command thd_current_command(MYSQL_THD thd)
   return thd->get_command();
 }
 
+#ifdef HAVE_REPLICATION /* Working around MDEV-24622 */
+/** @return whether the current thread is for applying binlog in a replica */
+extern "C" int thd_is_slave(const MYSQL_THD thd)
+{
+  return thd && thd->slave_thread;
+}
+#endif /* HAVE_REPLICATION */
+
 /* Returns high resolution timestamp for the start
   of the current query. */
 extern "C" unsigned long long thd_start_utime(const MYSQL_THD thd)

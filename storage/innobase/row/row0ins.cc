@@ -44,6 +44,9 @@ Created 4/20/1996 Heikki Tuuri
 #include "buf0lru.h"
 #include "fts0fts.h"
 #include "fts0types.h"
+#ifdef BTR_CUR_HASH_ADAPT
+# include "btr0sea.h"
+#endif
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
 #endif /* WITH_WSREP */
@@ -2530,6 +2533,12 @@ row_ins_index_entry_big_rec(
 	return(error);
 }
 
+#ifdef HAVE_REPLICATION /* Working around MDEV-24622 */
+extern "C" int thd_is_slave(const MYSQL_THD thd);
+#else
+# define thd_is_slave(thd) 0
+#endif
+
 /***************************************************************//**
 Tries to insert an entry into a clustered index, ignoring foreign key
 constraints. If a record with the same unique key is found, the other
@@ -2564,6 +2573,8 @@ row_ins_clust_index_entry_low(
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets         = offsets_;
 	rec_offs_init(offsets_);
+	trx_t*		trx	= thr_get_trx(thr);
+	buf_block_t*	block;
 
 	DBUG_ENTER("row_ins_clust_index_entry_low");
 
@@ -2571,7 +2582,7 @@ row_ins_clust_index_entry_low(
 	ut_ad(!dict_index_is_unique(index)
 	      || n_uniq == dict_index_get_n_unique(index));
 	ut_ad(!n_uniq || n_uniq == dict_index_get_n_unique(index));
-	ut_ad(!thr_get_trx(thr)->in_rollback);
+	ut_ad(!trx->in_rollback);
 
 	mtr_start(&mtr);
 
@@ -2625,6 +2636,7 @@ row_ins_clust_index_entry_low(
 				auto_inc, &mtr);
 	if (err != DB_SUCCESS) {
 		index->table->file_unreadable = true;
+commit_exit:
 		mtr.commit();
 		goto func_exit;
 	}
@@ -2643,6 +2655,47 @@ row_ins_clust_index_entry_low(
 	}
 #endif /* UNIV_DEBUG */
 
+	block = btr_cur_get_block(cursor);
+
+	DBUG_EXECUTE_IF("row_ins_row_level", goto skip_bulk_insert;);
+
+	if (!(flags & BTR_NO_UNDO_LOG_FLAG)
+	    && page_is_empty(block->frame)
+	    && !entry->is_metadata() && !trx->duplicates
+	    && !trx->ddl && !trx->internal
+	    && block->page.id().page_no() == index->page
+	    && !index->table->skip_alter_undo
+	    && !trx->is_wsrep() /* FIXME: MDEV-24623 */
+	    && !thd_is_slave(trx->mysql_thd) /* FIXME: MDEV-24622 */) {
+		DEBUG_SYNC_C("empty_root_page_insert");
+
+		if (!index->table->is_temporary()) {
+			err = lock_table(0, index->table, LOCK_X, thr);
+
+			if (err != DB_SUCCESS) {
+				trx->error_state = err;
+				goto commit_exit;
+			}
+
+#ifdef BTR_CUR_HASH_ADAPT
+			if (btr_search_enabled) {
+				btr_search_x_lock_all();
+				index->table->bulk_trx_id = trx->id;
+				btr_search_x_unlock_all();
+			} else {
+				index->table->bulk_trx_id = trx->id;
+			}
+#else /* BTR_CUR_HASH_ADAPT */
+			index->table->bulk_trx_id = trx->id;
+#endif /* BTR_CUR_HASH_ADAPT */
+		}
+
+		static_cast<ins_node_t*>(thr->run_node)->bulk_insert = true;
+	}
+
+#ifndef DBUG_OFF
+skip_bulk_insert:
+#endif
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
 		ut_ad(entry->is_metadata());
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
@@ -2653,7 +2706,7 @@ row_ins_clust_index_entry_low(
 
 		if (rec_get_info_bits(rec, page_rec_is_comp(rec))
 		    & REC_INFO_MIN_REC_FLAG) {
-			thr_get_trx(thr)->error_info = index;
+			trx->error_info = index;
 			err = DB_DUPLICATE_KEY;
 			goto err_exit;
 		}
@@ -2686,7 +2739,7 @@ row_ins_clust_index_entry_low(
 				/* fall through */
 			case DB_SUCCESS_LOCKED_REC:
 			case DB_DUPLICATE_KEY:
-				thr_get_trx(thr)->error_info = cursor->index;
+				trx->error_info = cursor->index;
 			}
 		} else {
 			/* Note that the following may return also
@@ -2770,7 +2823,7 @@ do_insert:
 				log_write_up_to(mtr.commit_lsn(), true););
 			err = row_ins_index_entry_big_rec(
 				entry, big_rec, offsets, &offsets_heap, index,
-				thr_get_trx(thr)->mysql_thd);
+				trx->mysql_thd);
 			dtuple_convert_back_big_rec(index, entry, big_rec);
 		} else {
 			if (err == DB_SUCCESS
@@ -3734,10 +3787,6 @@ row_ins_step(
 		goto do_insert;
 	}
 
-	if (UNIV_LIKELY(!node->table->skip_alter_undo)) {
-		trx_write_trx_id(&node->sys_buf[DATA_ROW_ID_LEN], trx->id);
-	}
-
 	if (node->state == INS_NODE_SET_IX_LOCK) {
 
 		node->state = INS_NODE_ALLOC_ROW_ID;
@@ -3757,7 +3806,7 @@ row_ins_step(
 				err = DB_LOCK_WAIT;);
 
 		if (err != DB_SUCCESS) {
-
+			node->state = INS_NODE_SET_IX_LOCK;
 			goto error_handling;
 		}
 

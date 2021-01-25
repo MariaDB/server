@@ -388,6 +388,7 @@ DROP TABLE t1;
 SET DEBUG_SYNC = 'RESET';
 
 create table t1 (c1 int, c2 geometry not null, spatial index (c2))engine=innodb;
+insert into t1 values(100, point(100, 100));
 
 delimiter |;
 create procedure insert_t1(IN total int)

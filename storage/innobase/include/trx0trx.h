@@ -557,58 +557,73 @@ struct trx_lock_t {
 /** Logical first modification time of a table in a transaction */
 class trx_mod_table_time_t
 {
-	/** First modification of the table */
-	undo_no_t	first;
-	/** First modification of a system versioned column */
-	undo_no_t	first_versioned;
+  /** Impossible value for trx_t::undo_no */
+  static constexpr undo_no_t NONE= ~undo_no_t{0};
+  /** Theoretical maximum value for trx_t::undo_no.
+  DB_ROLL_PTR is only 7 bytes, so it cannot point to more than
+  this many undo log records. */
+  static constexpr undo_no_t LIMIT= (undo_no_t{1} << (7 * 8)) - 1;
 
-	/** Magic value signifying that a system versioned column of a
-	table was never modified in a transaction. */
-	static const undo_no_t UNVERSIONED = IB_ID_MAX;
+  /** Flag in 'first' to indicate that subsequent operations are
+  covered by a TRX_UNDO_EMPTY record (for the first statement to
+  insert into an empty table) */
+  static constexpr undo_no_t BULK= 1ULL << 63;
+  /** Flag in 'first' to indicate that some operations were
+  covered by a TRX_UNDO_EMPTY record (for the first statement to
+  insert into an empty table) */
+  static constexpr undo_no_t WAS_BULK= 1ULL << 63;
 
+  /** First modification of the table, possibly ORed with BULK */
+  undo_no_t first;
+  /** First modification of a system versioned column (or NONE) */
+  undo_no_t first_versioned= NONE;
 public:
-	/** Constructor
-	@param[in]	rows	number of modified rows so far */
-	trx_mod_table_time_t(undo_no_t rows)
-		: first(rows), first_versioned(UNVERSIONED) {}
+  /** Constructor
+  @param rows   number of modified rows so far */
+  trx_mod_table_time_t(undo_no_t rows) : first(rows) { ut_ad(rows < LIMIT); }
 
 #ifdef UNIV_DEBUG
-	/** Validation
-	@param[in]	rows	number of modified rows so far
-	@return	whether the object is valid */
-	bool valid(undo_no_t rows = UNVERSIONED) const
-	{
-		return first <= first_versioned && first <= rows;
-	}
+  /** Validation
+  @param rows   number of modified rows so far
+  @return whether the object is valid */
+  bool valid(undo_no_t rows= NONE) const
+  { auto f= first & LIMIT; return f <= first_versioned && f <= rows; }
 #endif /* UNIV_DEBUG */
-	/** @return if versioned columns were modified */
-	bool is_versioned() const { return first_versioned != UNVERSIONED; }
+  /** @return if versioned columns were modified */
+  bool is_versioned() const { return first_versioned != NONE; }
 
-	/** After writing an undo log record, set is_versioned() if needed
-	@param[in]	rows	number of modified rows so far */
-	void set_versioned(undo_no_t rows)
-	{
-		ut_ad(!is_versioned());
-		first_versioned = rows;
-		ut_ad(valid());
-	}
+  /** After writing an undo log record, set is_versioned() if needed
+  @param rows   number of modified rows so far */
+  void set_versioned(undo_no_t rows)
+  {
+    ut_ad(!is_versioned());
+    first_versioned= rows;
+    ut_ad(valid(rows));
+  }
 
-	/** Invoked after partial rollback
-	@param[in]	limit	number of surviving modified rows
-	@return	whether this should be erased from trx_t::mod_tables */
-	bool rollback(undo_no_t limit)
-	{
-		ut_ad(valid());
-		if (first >= limit) {
-			return true;
-		}
+  /** Notify the start of a bulk insert operation */
+  void start_bulk_insert() { first|= BULK | WAS_BULK; }
 
-		if (first_versioned < limit && is_versioned()) {
-			first_versioned = UNVERSIONED;
-		}
+  /** Notify the end of a bulk insert operation */
+  void end_bulk_insert() { first&= ~BULK; }
 
-		return false;
-	}
+  /** @return whether an insert is covered by TRX_UNDO_EMPTY record */
+  bool is_bulk_insert() const { return first & BULK; }
+  /** @return whether an insert was covered by TRX_UNDO_EMPTY record */
+  bool was_bulk_insert() const { return first & WAS_BULK; }
+
+  /** Invoked after partial rollback
+  @param limit	number of surviving modified rows (trx_t::undo_no)
+  @return	whether this should be erased from trx_t::mod_tables */
+  bool rollback(undo_no_t limit)
+  {
+    ut_ad(valid());
+    if ((LIMIT & first) >= limit)
+      return true;
+    if (first_versioned < limit)
+      first_versioned= NONE;
+    return false;
+  }
 };
 
 /** Collection of persistent tables and their first modification
@@ -1086,11 +1101,34 @@ public:
     ut_ad(dict_operation == TRX_DICT_OP_NONE);
   }
 
+  /** This has to be invoked on SAVEPOINT or at the end of a statement.
+  Even if a TRX_UNDO_EMPTY record was written for this table to cover an
+  insert into an empty table, subsequent operations will have to be covered
+  by row-level undo log records, so that ROLLBACK TO SAVEPOINT or a
+  rollback to the start of a statement will work.
+  @param table   table on which any preceding bulk insert ended */
+  void end_bulk_insert(const dict_table_t &table)
+  {
+    auto it= mod_tables.find(const_cast<dict_table_t*>(&table));
+    if (it != mod_tables.end())
+      it->second.end_bulk_insert();
+  }
+
+  /** This has to be invoked on SAVEPOINT or at the start of a statement.
+  Even if TRX_UNDO_EMPTY records were written for any table to cover an
+  insert into an empty table, subsequent operations will have to be covered
+  by row-level undo log records, so that ROLLBACK TO SAVEPOINT or a
+  rollback to the start of a statement will work. */
+  void end_bulk_insert()
+  {
+    for (auto& t : mod_tables)
+      t.second.end_bulk_insert();
+  }
 
 private:
-	/** Assign a rollback segment for modifying temporary tables.
-	@return the assigned rollback segment */
-	trx_rseg_t* assign_temp_rseg();
+  /** Assign a rollback segment for modifying temporary tables.
+  @return the assigned rollback segment */
+  trx_rseg_t *assign_temp_rseg();
 };
 
 /**

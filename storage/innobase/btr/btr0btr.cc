@@ -977,6 +977,43 @@ btr_free_root_check(
 	return(block);
 }
 
+/** Initialize the root page of the b-tree
+@param[in,out]  block           root block
+@param[in]      index_id        index id
+@param[in]      index           index of root page
+@param[in,out]  mtr             mini-transaction */
+static void btr_root_page_init(buf_block_t *block, index_id_t index_id,
+                               dict_index_t *index, mtr_t *mtr)
+{
+  constexpr uint16_t field= PAGE_HEADER + PAGE_INDEX_ID;
+  byte *page_index_id= my_assume_aligned<2>(field + block->frame);
+
+  /* Create a new index page on the allocated segment page */
+  if (UNIV_LIKELY_NULL(block->page.zip.data))
+  {
+    mach_write_to_8(page_index_id, index_id);
+    ut_ad(!page_has_siblings(block->page.zip.data));
+    page_create_zip(block, index, 0, 0, mtr);
+  }
+  else
+  {
+    page_create(block, mtr, index && index->table->not_redundant());
+    if (index && index->is_spatial())
+    {
+      static_assert(((FIL_PAGE_INDEX & 0xff00) | byte(FIL_PAGE_RTREE)) ==
+                    FIL_PAGE_RTREE, "compatibility");
+      mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->frame,
+                    byte(FIL_PAGE_RTREE));
+      if (mach_read_from_8(block->frame + FIL_RTREE_SPLIT_SEQ_NUM))
+        mtr->memset(block, FIL_RTREE_SPLIT_SEQ_NUM, 8, 0);
+    }
+    /* Set the level of the new index page */
+    mtr->write<2,mtr_t::MAYBE_NOP>(
+        *block, PAGE_HEADER + PAGE_LEVEL + block->frame, 0U);
+    mtr->write<8,mtr_t::MAYBE_NOP>(*block, page_index_id, index_id);
+  }
+}
+
 /** Create the root node for a new index tree.
 @param[in]	type			type of the index
 @param[in]	index_id		index id
@@ -1049,36 +1086,7 @@ btr_create(
 
 	ut_ad(!page_has_siblings(block->frame));
 
-	constexpr uint16_t field = PAGE_HEADER + PAGE_INDEX_ID;
-
-	byte* page_index_id = my_assume_aligned<2>(field + block->frame);
-
-	/* Create a new index page on the allocated segment page */
-	if (UNIV_LIKELY_NULL(block->page.zip.data)) {
-		mach_write_to_8(page_index_id, index_id);
-		ut_ad(!page_has_siblings(block->page.zip.data));
-		page_create_zip(block, index, 0, 0, mtr);
-	} else {
-		page_create(block, mtr,
-			    index && index->table->not_redundant());
-		if (index && index->is_spatial()) {
-			static_assert(((FIL_PAGE_INDEX & 0xff00)
-				       | byte(FIL_PAGE_RTREE))
-				      == FIL_PAGE_RTREE, "compatibility");
-			mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->frame,
-				      byte(FIL_PAGE_RTREE));
-			if (mach_read_from_8(block->frame
-					     + FIL_RTREE_SPLIT_SEQ_NUM)) {
-				mtr->memset(block, FIL_RTREE_SPLIT_SEQ_NUM,
-					    8, 0);
-			}
-		}
-		/* Set the level of the new index page */
-		mtr->write<2,mtr_t::MAYBE_NOP>(*block, PAGE_HEADER + PAGE_LEVEL
-					       + block->frame, 0U);
-		mtr->write<8,mtr_t::MAYBE_NOP>(*block, page_index_id,
-					       index_id);
-	}
+	btr_root_page_init(block, index_id, index, mtr);
 
 	/* We reset the free bits for the page in a separate
 	mini-transaction to allow creation of several trees in the
@@ -1165,6 +1173,33 @@ top_loop:
 	if (!finished) {
 		goto top_loop;
 	}
+}
+
+/** Clear the index tree and reinitialize the root page, in the
+rollback of TRX_UNDO_EMPTY. The BTR_SEG_LEAF is freed and reinitialized.
+@param thr query thread */
+void dict_index_t::clear(que_thr_t *thr)
+{
+  mtr_t mtr;
+  mtr.start();
+  if (table->is_temporary())
+    mtr.set_log_mode(MTR_LOG_NO_REDO);
+  else
+    set_modified(mtr);
+
+  if (buf_block_t *root_block= buf_page_get(page_id_t(table->space->id, page),
+                                            table->space->zip_size(),
+                                            RW_X_LATCH, &mtr))
+  {
+    btr_free_but_not_root(root_block, mtr.get_log_mode());
+    mtr.memset(root_block, PAGE_HEADER + PAGE_BTR_SEG_LEAF,
+               FSEG_HEADER_SIZE, 0);
+    if (fseg_create(table->space, PAGE_HEADER + PAGE_BTR_SEG_LEAF, &mtr, false,
+                    root_block))
+      btr_root_page_init(root_block, id, this, &mtr);
+  }
+
+  mtr.commit();
 }
 
 /** Free a persistent index tree if it exists.

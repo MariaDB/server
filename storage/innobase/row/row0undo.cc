@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -362,6 +362,12 @@ static bool row_undo_rec_get(undo_node_t* node)
 	mtr.commit();
 
 	switch (trx_undo_rec_get_type(node->undo_rec)) {
+	case TRX_UNDO_EMPTY:
+		/* This record type was introduced in MDEV-515 bulk insert,
+		which was implemented after MDEV-12288 removed the
+		insert_undo log. */
+		ut_ad(undo == update || undo == temp);
+		goto insert_like;
 	case TRX_UNDO_INSERT_METADATA:
 		/* This record type was introduced in MDEV-11369
 		instant ADD COLUMN, which was implemented after
@@ -374,6 +380,7 @@ static bool row_undo_rec_get(undo_node_t* node)
 		ut_ad(undo == insert || undo == update);
 		/* fall through */
 	case TRX_UNDO_INSERT_REC:
+	insert_like:
 		ut_ad(undo == insert || undo == update || undo == temp);
 		node->roll_ptr |= 1ULL << ROLL_PTR_INSERT_FLAG_POS;
 		node->state = undo == temp

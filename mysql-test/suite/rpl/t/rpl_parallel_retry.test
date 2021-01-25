@@ -266,6 +266,9 @@ SELECT * FROM t1 WHERE a >= 100 ORDER BY a;
 CREATE TABLE t3 (a INT PRIMARY KEY, b INT, KEY b_idx(b)) ENGINE=InnoDB;
 INSERT INTO t3 VALUES (1,NULL), (2,2), (3,NULL), (4,4), (5, NULL), (6, 6);
 CREATE TABLE t4 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+# MDEV-515 takes X-lock on the table for the first insert.
+# So concurrent insert won't happen on the table
+INSERT INTO t4 VALUES(100, 100);
 
 # We need statement binlog format to be able to inject debug_sync statements
 # on the slave with calls to foo().
@@ -390,7 +393,9 @@ DROP function foo;
 
 --connection server_1
 CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
-
+# MDEV-515 takes X-lock on the table for the first insert.
+# So concurrent insert won't happen on the table
+INSERT INTO t1 VALUES(100, 100);
 
 # Replicate create-t1 and prepare to re-start slave in optimistic mode
 --sync_slave_with_master server_2

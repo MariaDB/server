@@ -1372,6 +1372,7 @@ unlock tables;
 connection default;
 # Reap XA COMMIT.
 delete from t3_trans;
+INSERT INTO t3_trans VALUES(100);
 #
 # Check that XA COMMIT / ROLLBACK for prepared transaction from a
 # disconnected session is blocked by active FTWRL in another connection.

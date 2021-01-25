@@ -139,25 +139,25 @@ INSERT INTO articles (title, body) VALUES
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('MySQL');
 id	title	body
-6	MySQL Tutorial	DBMS stands for MySQL DataBase ...
-7	How To Use MySQL Well	After you went through a ...
-8	Optimizing MySQL	In this tutorial we will show ...
-9	1001 MySQL Tricks	How to use full-text search engine
+1	MySQL Tutorial	DBMS stands for MySQL DataBase ...
+2	How To Use MySQL Well	After you went through a ...
+3	Optimizing MySQL	In this tutorial we will show ...
+4	1001 MySQL Tricks	How to use full-text search engine
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('tutorial');
 id	title	body
-6	MySQL Tutorial	DBMS stands for MySQL DataBase ...
-8	Optimizing MySQL	In this tutorial we will show ...
+1	MySQL Tutorial	DBMS stands for MySQL DataBase ...
+3	Optimizing MySQL	In this tutorial we will show ...
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('Tricks');
 id	title	body
-9	1001 MySQL Tricks	How to use full-text search engine
-10	Go MariaDB Tricks	How to use full text search engine
+4	1001 MySQL Tricks	How to use full-text search engine
+5	Go MariaDB Tricks	How to use full text search engine
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('full text search');
 id	title	body
-10	Go MariaDB Tricks	How to use full text search engine
-9	1001 MySQL Tricks	How to use full-text search engine
+5	Go MariaDB Tricks	How to use full text search engine
+4	1001 MySQL Tricks	How to use full-text search engine
 SELECT COUNT(*) FROM articles;
 COUNT(*)
 5

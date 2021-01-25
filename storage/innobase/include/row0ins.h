@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -207,6 +207,9 @@ struct ins_node_t
 				and buffers for sys fields in row allocated */
         void vers_update_end(row_prebuilt_t *prebuilt, bool history_row);
 	bool vers_history_row() const; /* true if 'row' is historical */
+
+	/** Bulk insert enabled for this table */
+	bool		bulk_insert= false;
 };
 
 /** Create an insert object.

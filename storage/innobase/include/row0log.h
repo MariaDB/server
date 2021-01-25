@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -101,10 +101,10 @@ void
 row_log_online_op(
 /*==============*/
 	dict_index_t*	index,	/*!< in/out: index, S or X latched */
-	const dtuple_t*	tuple,	/*!< in: index tuple */
+	const dtuple_t*	tuple,	/*!< in: index tuple (NULL=empty the index) */
 	trx_id_t	trx_id)	/*!< in: transaction ID for insert,
 				or 0 for delete */
-	ATTRIBUTE_COLD __attribute__((nonnull));
+	ATTRIBUTE_COLD;
 
 /******************************************************//**
 Gets the error status of the online index rebuild log.

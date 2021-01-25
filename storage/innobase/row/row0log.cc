@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -54,7 +54,9 @@ enum row_tab_op {
 	/** Update a record in place */
 	ROW_T_UPDATE,
 	/** Delete (purge) a record */
-	ROW_T_DELETE
+	ROW_T_DELETE,
+	/** Empty the table */
+	ROW_T_EMPTY
 };
 
 /** Index record modification operations during online index creation */
@@ -62,7 +64,9 @@ enum row_op {
 	/** Insert a record */
 	ROW_OP_INSERT = 0x61,
 	/** Delete a record */
-	ROW_OP_DELETE
+	ROW_OP_DELETE,
+	/** Empy the index */
+	ROW_OP_EMPTY
 };
 
 /** Size of the modification log entry header, in bytes */
@@ -328,7 +332,7 @@ void
 row_log_online_op(
 /*==============*/
 	dict_index_t*	index,	/*!< in/out: index, S or X latched */
-	const dtuple_t* tuple,	/*!< in: index tuple */
+	const dtuple_t*	tuple,	/*!< in: index tuple (NULL=empty the index) */
 	trx_id_t	trx_id)	/*!< in: transaction ID for insert,
 				or 0 for delete */
 {
@@ -339,8 +343,8 @@ row_log_online_op(
 	ulint		avail_size;
 	row_log_t*	log;
 
-	ut_ad(dtuple_validate(tuple));
-	ut_ad(dtuple_get_n_fields(tuple) == dict_index_get_n_fields(index));
+	ut_ad(!tuple || dtuple_validate(tuple));
+	ut_ad(!tuple || dtuple_get_n_fields(tuple) == dict_index_get_n_fields(index));
 	ut_ad(index->lock.have_x() || index->lock.have_s());
 
 	if (index->is_corrupted()) {
@@ -353,14 +357,20 @@ row_log_online_op(
 	row_merge_buf_encode(), because here we do not encode
 	extra_size+1 (and reserve 0 as the end-of-chunk marker). */
 
-	size = rec_get_converted_size_temp(
-		index, tuple->fields, tuple->n_fields, &extra_size);
-	ut_ad(size >= extra_size);
-	ut_ad(size <= sizeof log->tail.buf);
+	if (!tuple) {
+		mrec_size = 4;
+		extra_size = 0;
+		size = 2;
+	} else {
+		size = rec_get_converted_size_temp(
+			index, tuple->fields, tuple->n_fields, &extra_size);
+		ut_ad(size >= extra_size);
+		ut_ad(size <= sizeof log->tail.buf);
 
-	mrec_size = ROW_LOG_HEADER_SIZE
-		+ (extra_size >= 0x80) + size
-		+ (trx_id ? DATA_TRX_ID_LEN : 0);
+		mrec_size = ROW_LOG_HEADER_SIZE
+			+ (extra_size >= 0x80) + size
+			+ (trx_id ? DATA_TRX_ID_LEN : 0);
+	}
 
 	log = index->online_log;
 	mysql_mutex_lock(&log->mutex);
@@ -389,6 +399,8 @@ row_log_online_op(
 		*b++ = ROW_OP_INSERT;
 		trx_write_trx_id(b, trx_id);
 		b += DATA_TRX_ID_LEN;
+	} else if (!tuple) {
+		*b++ = ROW_OP_EMPTY;
 	} else {
 		*b++ = ROW_OP_DELETE;
 	}
@@ -401,8 +413,14 @@ row_log_online_op(
 		*b++ = (byte) extra_size;
 	}
 
-	rec_convert_dtuple_to_temp(
-		b + extra_size, index, tuple->fields, tuple->n_fields);
+	if (tuple) {
+		rec_convert_dtuple_to_temp(
+			b + extra_size, index, tuple->fields,
+			tuple->n_fields);
+	} else {
+		memset(b, 0, 2);
+	}
+
 	b += size;
 
 	if (mrec_size >= avail_size) {
@@ -2422,11 +2440,6 @@ row_log_table_apply_op(
 
 	*error = DB_SUCCESS;
 
-	/* 3 = 1 (op type) + 1 (extra_size) + at least 1 byte payload */
-	if (mrec + 3 >= mrec_end) {
-		return(NULL);
-	}
-
 	const bool is_instant = log->is_instant(dup->index);
 	const mrec_t* const mrec_start = mrec;
 
@@ -2656,6 +2669,11 @@ row_log_table_apply_op(
 		*error = row_log_table_apply_update(
 			thr, new_trx_id_col,
 			mrec, offsets, offsets_heap, heap, dup, old_pk);
+		break;
+	case ROW_T_EMPTY:
+		dup->index->online_log->table->clear(thr);
+		log->head.total += 1;
+		next_mrec = mrec;
 		break;
 	}
 
@@ -3438,6 +3456,9 @@ row_log_apply_op_low(
 			}
 
 			goto duplicate;
+		case ROW_OP_EMPTY:
+			ut_ad(0);
+			break;
 		}
 	} else {
 		switch (op) {
@@ -3507,6 +3528,9 @@ insert_the_rec:
 				&rec, &big_rec,
 				0, NULL, &mtr);
 			ut_ad(!big_rec);
+			break;
+		case ROW_OP_EMPTY:
+			ut_ad(0);
 			break;
 		}
 		mem_heap_empty(offsets_heap);
@@ -3582,6 +3606,16 @@ row_log_apply_op(
 		op = static_cast<enum row_op>(*mrec++);
 		trx_id = 0;
 		break;
+	case ROW_OP_EMPTY:
+	{
+		mem_heap_t* heap = mem_heap_create(512);
+		que_fork_t* fork = que_fork_create(
+			NULL, NULL, QUE_FORK_MYSQL_INTERFACE, heap);
+		que_thr_t* thr = que_thr_create(fork, heap, nullptr);
+		index->clear(thr);
+		mem_heap_free(heap);
+		return mrec + 4;
+	}
 	default:
 corrupted:
 		ut_ad(0);
@@ -4023,4 +4057,55 @@ row_log_apply(
 	row_log_free(log);
 
 	DBUG_RETURN(error);
+}
+
+/** Notify that the table was emptied by concurrent rollback or purge.
+@param index  clustered index */
+static void row_log_table_empty(dict_index_t *index)
+{
+  ut_ad(index->lock.have_any());
+  row_log_t* log= index->online_log;
+  ulint	avail_size;
+  if (byte *b= row_log_table_open(log, 1, &avail_size))
+  {
+    *b++ = ROW_T_EMPTY;
+    row_log_table_close(index, b, 1, avail_size);
+  }
+}
+
+void dict_table_t::clear(que_thr_t *thr)
+{
+  bool rebuild= false;
+  for (dict_index_t *index= UT_LIST_GET_FIRST(indexes); index;
+       index= UT_LIST_GET_NEXT(indexes, index))
+  {
+    if (index->type & DICT_FTS)
+      continue;
+
+    switch (dict_index_get_online_status(index)) {
+    case ONLINE_INDEX_ABORTED:
+    case ONLINE_INDEX_ABORTED_DROPPED:
+      continue;
+
+    case ONLINE_INDEX_COMPLETE:
+      break;
+
+    case ONLINE_INDEX_CREATION:
+      index->lock.u_lock(SRW_LOCK_CALL);
+      if (dict_index_get_online_status(index) == ONLINE_INDEX_CREATION)
+      {
+        if (index->is_clust())
+        {
+          row_log_table_empty(index);
+          rebuild= true;
+        }
+        else if (!rebuild)
+          row_log_online_op(index, nullptr, 0);
+      }
+
+      index->lock.u_unlock();
+    }
+
+    index->clear(thr);
+  }
 }

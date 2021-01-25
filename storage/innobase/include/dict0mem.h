@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1368,6 +1368,11 @@ public:
 	everything in overflow) size of the longest possible row and index
 	of a field which made index records too big to fit on a page.*/
 	inline record_size_info_t record_size_info() const;
+
+  /** Clear the index tree and reinitialize the root page, in the
+  rollback of TRX_UNDO_EMPTY. The BTR_SEG_LEAF is freed and reinitialized.
+  @param thr query thread */
+  void clear(que_thr_t *thr);
 };
 
 /** Detach a virtual column from an index.
@@ -1950,6 +1955,9 @@ struct dict_table_t {
 			char (&tbl_name)[NAME_LEN + 1],
 			size_t *db_name_len, size_t *tbl_name_len) const;
 
+  /** Clear the table when rolling back TRX_UNDO_EMPTY */
+  void clear(que_thr_t *thr);
+
 private:
 	/** Initialize instant->field_map.
 	@param[in]	table	table definition to copy from */
@@ -2127,6 +2135,11 @@ public:
 	loading the definition or CREATE TABLE, or ALTER TABLE (prepare,
 	commit, and rollback phases). */
 	trx_id_t				def_trx_id;
+	/** Last transaction that inserted into an empty table.
+	Updated while holding exclusive table lock and an exclusive
+	latch on the clustered index root page (which must also be
+	an empty leaf page), and an ahi_latch (if btr_search_enabled). */
+	Atomic_relaxed<trx_id_t>		bulk_trx_id;
 
 	/*!< set of foreign key constraints in the table; these refer to
 	columns in other tables */
@@ -2298,7 +2311,6 @@ private:
 	table is NOT allowed until this count gets to zero. MySQL does NOT
 	itself check the number of open handles at DROP. */
 	Atomic_counter<uint32_t>		n_ref_count;
-
 public:
 	/** List of locks on the table. Protected by lock_sys.mutex. */
 	table_lock_list_t			locks;

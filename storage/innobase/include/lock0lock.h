@@ -250,8 +250,6 @@ for a gap x-lock to the lock queue.
 dberr_t
 lock_rec_insert_check_and_lock(
 /*===========================*/
-	ulint		flags,	/*!< in: if BTR_NO_LOCKING_FLAG bit is
-				set, does nothing */
 	const rec_t*	rec,	/*!< in: record after which to insert */
 	buf_block_t*	block,	/*!< in/out: buffer block of rec */
 	dict_index_t*	index,	/*!< in: index */
@@ -386,37 +384,6 @@ lock_clust_rec_read_check_and_lock_alt(
 	que_thr_t*		thr)	/*!< in: query thread */
 	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************************//**
-Checks that a record is seen in a consistent read.
-@return true if sees, or false if an earlier version of the record
-should be retrieved */
-bool
-lock_clust_rec_cons_read_sees(
-/*==========================*/
-	const rec_t*	rec,	/*!< in: user record which should be read or
-				passed over by a read cursor */
-	dict_index_t*	index,	/*!< in: clustered index */
-	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
-	ReadView*	view);	/*!< in: consistent read view */
-/*********************************************************************//**
-Checks that a non-clustered index record is seen in a consistent read.
-
-NOTE that a non-clustered index page contains so little information on
-its modifications that also in the case false, the present version of
-rec may be the right, but we must check this from the clustered index
-record.
-
-@return true if certainly sees, or false if an earlier version of the
-clustered index record might be needed */
-bool
-lock_sec_rec_cons_read_sees(
-/*========================*/
-	const rec_t*		rec,	/*!< in: user record which
-					should be read or passed over
-					by a read cursor */
-	const dict_index_t*     index,  /*!< in: index */
-	const ReadView*	view)	/*!< in: consistent read view */
-	MY_ATTRIBUTE((warn_unused_result));
-/*********************************************************************//**
 Locks the specified database table in the mode given. If the lock cannot
 be granted immediately, the query thread is put to wait.
 @return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
@@ -437,6 +404,17 @@ lock_table_ix_resurrect(
 /*====================*/
 	dict_table_t*	table,	/*!< in/out: table */
 	trx_t*		trx);	/*!< in/out: transaction */
+
+/** Create a table X lock object for a resurrected TRX_UNDO_EMPTY transaction.
+@param table    table to be X-locked
+@param trx      transaction */
+void lock_table_x_resurrect(dict_table_t *table, trx_t *trx);
+
+/** Release a table X lock after rolling back an insert into an empty table
+(which was covered by a TRX_UNDO_EMPTY record).
+@param table    table to be X-unlocked
+@param trx      transaction */
+void lock_table_x_unlock(dict_table_t *table, trx_t *trx);
 
 /** Sets a lock on a table based on the given mode.
 @param[in]	table	table to lock
