@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4482,11 +4482,13 @@ innobase_add_instant_try(
 	const rec_t* rec = btr_pcur_get_rec(&pcur);
 	que_thr_t* thr = pars_complete_graph_for_exec(
 		NULL, trx, ctx->heap, NULL);
+	const bool is_root = block->page.id.page_no() == index->page;
 
 	dberr_t err;
 	if (rec_is_metadata(rec, index)) {
 		ut_ad(page_rec_is_user_rec(rec));
-		if (!page_has_next(block->frame)
+		if (is_root
+		    && !page_has_next(block->frame)
 		    && page_rec_is_last(rec, block->frame)) {
 			goto empty_table;
 		}
@@ -4528,7 +4530,7 @@ innobase_add_instant_try(
 		}
 		btr_pcur_close(&pcur);
 		goto func_exit;
-	} else if (page_rec_is_supremum(rec)) {
+	} else if (is_root && page_rec_is_supremum(rec)) {
 empty_table:
 		/* The table is empty. */
 		ut_ad(fil_page_index_page_check(block->frame));

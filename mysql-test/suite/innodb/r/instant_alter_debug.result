@@ -263,7 +263,6 @@ a	b	vb
 4	NULL	NULL
 5	NULL	NULL
 DROP TABLE t1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
 #
 # MDEV-21045 AddressSanitizer: use-after-poison in mem_heap_dup / row_log_table_get_pk_col
 #
@@ -282,3 +281,21 @@ connection default;
 SET DEBUG_SYNC='RESET';
 disconnect con2;
 DROP TABLE t1;
+#
+# MDEV-24653 Assertion block->page.id.page_no() == index->page failed
+# in innobase_add_instant_try()
+#
+SET @saved_limit = @@GLOBAL.innodb_limit_optimistic_insert_debug;
+SET GLOBAL innodb_limit_optimistic_insert_debug = 2;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+ALTER TABLE t1 ADD COLUMN b INT;
+DELETE FROM t1;
+InnoDB		0 transactions not purged
+ALTER TABLE t1 ADD COLUMN c INT;
+SELECT * FROM t1;
+a	b	c
+DROP TABLE t1;
+SET GLOBAL innodb_limit_optimistic_insert_debug = @saved_limit;
+# End of 10.3 tests
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;

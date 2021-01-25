@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -128,13 +128,14 @@ btr_pcur_store_position(
 	cursor->old_stored = true;
 
 	if (page_is_empty(block->frame)) {
+		ut_ad(block->page.id.page_no() == index->page);
+empty_table:
 		/* It must be an empty index tree; NOTE that in this case
 		we do not store the modify_clock, but always do a search
 		if we restore the cursor position */
 
 		ut_a(!page_has_siblings(block->frame));
 		ut_ad(page_is_leaf(block->frame));
-		ut_ad(block->page.id.page_no() == index->page);
 
 		if (page_rec_is_supremum_low(offs)) {
 			cursor->rel_pos = BTR_PCUR_AFTER_LAST_IN_TREE;
@@ -150,7 +151,15 @@ before_first:
 		rec = page_rec_get_prev(rec);
 
 		ut_ad(!page_rec_is_infimum(rec));
-		ut_ad(!rec_is_metadata(rec, index));
+
+		if (UNIV_UNLIKELY(rec_is_metadata(rec, index))) {
+			/* The table may be empty such that it only
+			contains a metadata record, in a leaf page
+			that is not the root page. */
+			ut_ad(index->is_primary());
+			ut_ad(block->page.id.page_no() != index->page);
+			goto empty_table;
+		}
 
 		cursor->rel_pos = BTR_PCUR_AFTER;
 	} else if (page_rec_is_infimum_low(offs)) {
@@ -160,7 +169,9 @@ before_first:
 			ut_ad(!page_has_prev(block->frame));
 			rec = page_rec_get_next(rec);
 			if (page_rec_is_supremum(rec)) {
-				ut_ad(page_has_next(block->frame));
+				ut_ad(page_has_next(block->frame)
+				      || block->page.id.page_no()
+				      != index->page);
 				goto before_first;
 			}
 		}
