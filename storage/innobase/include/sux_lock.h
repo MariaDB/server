@@ -21,7 +21,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "my_atomic_wrapper.h"
 #include "os0thread.h"
 #ifdef UNIV_DEBUG
-# include <set>
+# include <unordered_set>
 #endif
 
 /** A "fat" rw-lock that supports
@@ -48,7 +48,7 @@ class sux_lock final
   /** Protects readers */
   mutable srw_mutex readers_lock;
   /** Threads that hold the lock in shared mode */
-  std::atomic<std::set<os_thread_id_t>*> readers;
+  std::atomic<std::unordered_multiset<os_thread_id_t>*> readers;
 #endif
 
   /** The multiplier in recursive for X locks */
@@ -130,14 +130,15 @@ private:
   /** Register the current thread as a holder of a shared lock */
   void s_lock_register()
   {
+    const os_thread_id_t id= os_thread_get_curr_id();
     readers_lock.wr_lock();
     auto r= readers.load(std::memory_order_relaxed);
     if (!r)
     {
-      r= new std::set<os_thread_id_t>();
+      r= new std::unordered_multiset<os_thread_id_t>();
       readers.store(r, std::memory_order_relaxed);
     }
-    ut_ad(r->emplace(os_thread_get_curr_id()).second);
+    r->emplace(id);
     readers_lock.wr_unlock();
   }
 #endif
@@ -218,10 +219,13 @@ public:
   void s_unlock()
   {
 #ifdef UNIV_DEBUG
+    const os_thread_id_t id= os_thread_get_curr_id();
     auto r= readers.load(std::memory_order_relaxed);
     ut_ad(r);
     readers_lock.wr_lock();
-    ut_ad(r->erase(os_thread_get_curr_id()) == 1);
+    auto i= r->find(id);
+    ut_ad(i != r->end());
+    r->erase(i);
     readers_lock.wr_unlock();
 #endif
     lock.rd_unlock();

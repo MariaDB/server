@@ -232,12 +232,12 @@ buf_page_optimistic_get(
 	ib_uint64_t	modify_clock,/*!< in: modify clock value */
 	mtr_t*		mtr);	/*!< in: mini-transaction */
 
-/** Try to U-latch a page.
+/** Try to S-latch a page.
 Suitable for using when holding the lock_sys latches (as it avoids deadlock).
 @param[in]	page_id	page identifier
 @param[in,out]	mtr	mini-transaction
 @return the block
-@retval nullptr if an U-latch cannot be granted immediately */
+@retval nullptr if an S-latch cannot be granted immediately */
 buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr);
 
 /** Get read access to a compressed page (usually of type

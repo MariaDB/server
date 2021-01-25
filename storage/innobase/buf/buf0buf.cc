@@ -3434,12 +3434,12 @@ func_exit:
 	return(TRUE);
 }
 
-/** Try to U-latch a page.
+/** Try to S-latch a page.
 Suitable for using when holding the lock_sys latches (as it avoids deadlock).
 @param[in]	page_id	page identifier
 @param[in,out]	mtr	mini-transaction
 @return the block
-@retval nullptr if an U-latch cannot be granted immediately */
+@retval nullptr if an S-latch cannot be granted immediately */
 buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr)
 {
   ut_ad(mtr);
@@ -3461,16 +3461,13 @@ buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr)
   buf_block_buf_fix_inc(block);
   hash_lock->read_unlock();
 
-  /* We will always try to acquire an U latch.
-  In lock_rec_print() we may already be holding an S latch on the page,
-  and recursive S latch acquisition is not allowed. */
-  if (!block->lock.u_lock_try(false))
+  if (!block->lock.s_lock_try())
   {
     buf_block_buf_fix_dec(block);
     return nullptr;
   }
 
-  mtr_memo_push(mtr, block, MTR_MEMO_PAGE_SX_FIX);
+  mtr_memo_push(mtr, block, MTR_MEMO_PAGE_S_FIX);
 
 #ifdef UNIV_DEBUG
   if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
