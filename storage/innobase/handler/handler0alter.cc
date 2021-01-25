@@ -5907,11 +5907,13 @@ add_all_virtual:
 	const rec_t* rec = btr_pcur_get_rec(&pcur);
 	que_thr_t* thr = pars_complete_graph_for_exec(
 		NULL, trx, ctx->heap, NULL);
+	const bool is_root = block->page.id.page_no() == index->page;
 
 	dberr_t err = DB_SUCCESS;
 	if (rec_is_metadata(rec, *index)) {
 		ut_ad(page_rec_is_user_rec(rec));
-		if (!rec_is_alter_metadata(rec, *index)
+		if (is_root
+		    && !rec_is_alter_metadata(rec, *index)
 		    && !index->table->instant
 		    && !page_has_next(block->frame)
 		    && page_rec_is_last(rec, block->frame)) {
@@ -5993,7 +5995,8 @@ add_all_virtual:
 		}
 		btr_pcur_close(&pcur);
 		goto func_exit;
-	} else if (page_rec_is_supremum(rec) && !index->table->instant) {
+	} else if (is_root && page_rec_is_supremum(rec)
+		   && !index->table->instant) {
 empty_table:
 		/* The table is empty. */
 		ut_ad(fil_page_index_page_check(block->frame));
@@ -6523,11 +6526,27 @@ new_clustered_failed:
 			}
 
 			if (dict_col_name_is_reserved(field->field_name.str)) {
+wrong_column_name:
 				dict_mem_table_free(ctx->new_table);
 				ctx->new_table = ctx->old_table;
 				my_error(ER_WRONG_COLUMN_NAME, MYF(0),
 					 field->field_name.str);
 				goto new_clustered_failed;
+			}
+
+			/** Note the FTS_DOC_ID name is case sensitive due
+			 to internal query parser.
+			 FTS_DOC_ID column must be of BIGINT NOT NULL type
+			 and it should be in all capitalized characters */
+			if (!innobase_strcasecmp(field->field_name.str,
+						 FTS_DOC_ID_COL_NAME)) {
+				if (col_type != DATA_INT
+				    || field->real_maybe_null()
+				    || col_len != sizeof(doc_id_t)
+				    || strcmp(field->field_name.str,
+					      FTS_DOC_ID_COL_NAME)) {
+					goto wrong_column_name;
+				}
 			}
 
 			if (is_virtual) {

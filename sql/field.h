@@ -1870,7 +1870,7 @@ public:
 	    uchar null_bit_arg, utype unireg_check_arg,
 	    const LEX_CSTRING *field_name_arg,
 	    const DTCollation &collation);
-  uint decimals() const { return NOT_FIXED_DEC; }
+  uint decimals() const { return is_created_from_null_item ? 0 : NOT_FIXED_DEC; }
   int  save_in_field(Field *to) { return save_in_field_str(to); }
   bool memcpy_field_possible(const Field *from) const
   {

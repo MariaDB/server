@@ -13,8 +13,7 @@ CREATE TABLE t1 (
 `name` varchar(32) default 'name')
 DEFAULT CHARSET=latin1;
 connection master;
-CREATE TABLE t1 ENGINE=FEDERATED
-CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
+CREATE TABLE t1 ENGINE=FEDERATED CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t1';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -38,6 +37,9 @@ id	group	a\\b	a\\	name
 1	1	2	NULL	foo
 2	1	2	NULL	fee
 DROP TABLE t1;
+#
+# MDEV-11311 Create federated table does not work as expected
+#
 create table t1 (
 a bigint(20) not null auto_increment,
 b bigint(20) not null,
@@ -57,8 +59,7 @@ t1	CREATE TABLE `t1` (
   KEY `b` (`b`,`c`,`d`(255))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 connection master;
-create table t1 engine=federated
-connection='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
+create table t1 engine=federated connection='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t1';
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -72,6 +73,12 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 connection slave;
 drop table t1;
+#
+# MDEV-17227 Server crash in TABLE_SHARE::init_from_sql_statement_string upon table discovery with non-existent database
+#
+connection master;
+create table t1 engine=federated connection='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t1';
+ERROR HY000: Unable to connect to foreign data source: Table 'test.t1' doesn't exist
 connection master;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;

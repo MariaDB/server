@@ -2289,6 +2289,8 @@ int Lex_input_stream::scan_ident_delimited(THD *thd,
         Return the quote character, to have the parser fail on syntax error.
       */
       m_ptr= (char *) m_tok_start + 1;
+      if (m_echo)
+        m_cpp_ptr= (char *) m_cpp_tok_start + 1;
       return quote_char;
     }
     int var_length= my_charlen(cs, get_ptr() - 1, get_end_of_query());

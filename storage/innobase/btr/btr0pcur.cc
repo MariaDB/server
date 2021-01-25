@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -151,7 +151,8 @@ before_first:
 
 		ut_ad(!page_rec_is_infimum(rec));
 		if (UNIV_UNLIKELY(rec_is_metadata(rec, *index))) {
-			ut_ad(index->table->instant);
+			ut_ad(index->table->instant
+			      || block->page.id.page_no() != index->page);
 			ut_ad(page_get_n_recs(block->frame) == 1);
 			ut_ad(page_is_leaf(block->frame));
 			ut_ad(!page_has_prev(block->frame));
@@ -169,7 +170,9 @@ before_first:
 			rec = page_rec_get_next(rec);
 			if (page_rec_is_supremum(rec)) {
 				ut_ad(page_has_next(block->frame)
-				      || rec_is_alter_metadata(p, *index));
+				      || rec_is_alter_metadata(p, *index)
+				      || block->page.id.page_no()
+				      != index->page);
 				goto before_first;
 			}
 		}
