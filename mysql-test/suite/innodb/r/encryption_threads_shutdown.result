@@ -1,0 +1,12 @@
+call mtr.add_suppression("Creating system tablespace with existing redo log file is not recommended.");
+call mtr.add_suppression("InnoDB: Database creation was aborted");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error.");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
+CREATE TABLE t(a INT) ENGINE=InnoDB;
+# Kill the server
+# restart
+SELECT * FROM t;
+ERROR 42000: Unknown storage engine 'InnoDB'
+# Kill the server
+# restart
+DROP TABLE t;

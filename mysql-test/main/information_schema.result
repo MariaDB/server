@@ -2304,5 +2304,14 @@ create table t2 (n int);
 insert into t1 set n = (select table_rows from information_schema.tables where table_name='t2');
 drop table t1, t2;
 #
+# MDEV-24593 Signal 11 when group by primary key of table joined to information_schema.columns
+#
+create table t1 (f varchar(64) primary key);
+select f from information_schema.columns i
+inner join t1 on f=i.column_name
+group by f;
+f
+drop table t1;
+#
 # End of 10.3 tests
 #

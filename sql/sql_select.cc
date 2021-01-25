@@ -1785,7 +1785,7 @@ JOIN::init_range_rowid_filters()
 int
 JOIN::optimize_inner()
 {
-  DBUG_ENTER("JOIN::optimize");
+  DBUG_ENTER("JOIN::optimize_inner");
   subq_exit_fl= false;
   do_send_rows = (unit->lim.get_select_limit()) ? 1 : 0;
 
@@ -1857,6 +1857,10 @@ JOIN::optimize_inner()
   eval_select_list_used_tables();
 
   table_count= select_lex->leaf_tables.elements;
+
+  if (select_lex->options & OPTION_SCHEMA_TABLE &&
+      optimize_schema_tables_memory_usage(select_lex->leaf_tables))
+    DBUG_RETURN(1);
 
   if (setup_ftfuncs(select_lex)) /* should be after having->fix_fields */
     DBUG_RETURN(-1);
@@ -18659,6 +18663,7 @@ bool Create_tmp_table::finalize(THD *thd,
   if (table->file->set_ha_share_ref(&share->ha_share))
   {
     delete table->file;
+    table->file= 0;
     goto err;
   }
   table->file->set_table(table);
@@ -19897,11 +19902,14 @@ free_tmp_table(THD *thd, TABLE *entry)
 
   if (entry->file && entry->is_created())
   {
-    DBUG_ASSERT(entry->db_stat);
-    entry->file->ha_index_or_rnd_end();
-    entry->file->info(HA_STATUS_VARIABLE);
-    thd->tmp_tables_size+= (entry->file->stats.data_file_length +
-                            entry->file->stats.index_file_length);
+    if (entry->db_stat)
+    {
+      /* The table was properly opened in open_tmp_table() */
+      entry->file->ha_index_or_rnd_end();
+      entry->file->info(HA_STATUS_VARIABLE);
+      thd->tmp_tables_size+= (entry->file->stats.data_file_length +
+                              entry->file->stats.index_file_length);
+    }
     entry->file->ha_drop_table(entry->s->path.str);
     delete entry->file;
   }

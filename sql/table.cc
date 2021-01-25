@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB
+   Copyright (c) 2008, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1166,7 +1166,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   thd->stmt_arena= table->expr_arena;
   thd->update_charset(&my_charset_utf8mb4_general_ci, table->s->table_charset);
   expr_str.append(&parse_vcol_keyword);
-  Sql_mode_instant_remove sms(thd, MODE_NO_BACKSLASH_ESCAPES);
+  Sql_mode_instant_remove sms(thd, MODE_NO_BACKSLASH_ESCAPES |
+                              MODE_EMPTY_STRING_IS_NULL);
 
   while (pos < end)
   {
@@ -3430,9 +3431,8 @@ ret:
   if (unlikely(thd->is_error() || error))
   {
     thd->clear_error();
-    my_error(ER_SQL_DISCOVER_ERROR, MYF(0),
-             plugin_name(db_plugin)->str, db.str, table_name.str,
-             sql_copy);
+    my_error(ER_SQL_DISCOVER_ERROR, MYF(0), hton_name(hton)->str,
+             db.str, table_name.str, sql_copy);
     DBUG_RETURN(HA_ERR_GENERIC);
   }
   /* Treat the table as normal table from binary logging point of view */

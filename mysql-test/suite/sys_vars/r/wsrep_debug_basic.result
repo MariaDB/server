@@ -16,9 +16,11 @@ SELECT @@global.wsrep_debug;
 @@global.wsrep_debug
 NONE
 SET @@global.wsrep_debug=1;
+Warnings:
+Warning	1231	Setting 'wsrep_debug' has no effect because wsrep is switched off
 SELECT @@global.wsrep_debug;
 @@global.wsrep_debug
-SERVER
+NONE
 
 # valid values
 SET @@global.wsrep_debug=NONE;
@@ -26,9 +28,11 @@ SELECT @@global.wsrep_debug;
 @@global.wsrep_debug
 NONE
 SET @@global.wsrep_debug=SERVER;
+Warnings:
+Warning	1231	Setting 'wsrep_debug' has no effect because wsrep is switched off
 SELECT @@global.wsrep_debug;
 @@global.wsrep_debug
-SERVER
+NONE
 SET @@global.wsrep_debug=default;
 SELECT @@global.wsrep_debug;
 @@global.wsrep_debug

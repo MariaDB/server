@@ -1130,6 +1130,12 @@ update_timing_fields_for_event(THD *thd,
 
   DBUG_ASSERT(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY);
 
+  /*
+    Take a savepoint to release only the lock on mysql.event
+    table at the end but keep the global read lock and
+    possible other locks taken by the caller.
+  */
+  MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
   if (open_event_table(thd, TL_WRITE, &table))
     DBUG_RETURN(1);
 
@@ -1162,6 +1168,7 @@ update_timing_fields_for_event(THD *thd,
 end:
   if (thd->commit_whole_transaction_and_close_tables())
     ret= 1;
+  thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
 
   DBUG_RETURN(MY_TEST(ret));
 }

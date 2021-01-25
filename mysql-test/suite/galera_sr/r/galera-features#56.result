@@ -18,21 +18,21 @@ set session wsrep_sync_wait=0;
 SET GLOBAL wsrep_slave_threads = 4;
 SET SESSION wsrep_trx_fragment_size = 1;
 connection node_1;
-INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;;
+INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2;;
 connection node_1a;
-INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;;
+INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2;;
 connection node_2;
-INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;;
+INSERT INTO t1 (f2) SELECT 1 FROM ten AS a1, ten AS a2;;
 connection node_1;
 connection node_1a;
 connection node_2;
 set session wsrep_sync_wait=15;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
-30000
+300
 SELECT COUNT(DISTINCT f1) FROM t1;
 COUNT(DISTINCT f1)
-30000
+300
 connection default;
 DROP TABLE t1;
 DROP TABLE ten;

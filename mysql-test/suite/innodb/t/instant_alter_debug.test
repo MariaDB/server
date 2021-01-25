@@ -326,42 +326,6 @@ SELECT * FROM t1;
 DROP TABLE t1;
 
 --echo #
---echo # MDEV-17899 Assertion failures on rollback of instant ADD/DROP
---echo # MDEV-18098 Crash after rollback of instant DROP COLUMN
---echo #
-
-SET @save_dbug = @@SESSION.debug_dbug;
-SET debug_dbug='+d,ib_commit_inplace_fail_1';
-CREATE TABLE t1 (a int, b int) ENGINE=InnoDB;
-INSERT INTO t1 VALUES (1,2);
---error ER_INTERNAL_ERROR
-ALTER TABLE t1 DROP COLUMN b;
---error ER_INTERNAL_ERROR
-ALTER TABLE t1 DROP COLUMN b;
---error ER_INTERNAL_ERROR
-ALTER TABLE t1 ADD COLUMN c INT;
-SELECT * FROM t1;
-DROP TABLE t1;
-
-CREATE TABLE t1 (a int, b int) ENGINE=InnoDB;
---error ER_INTERNAL_ERROR
-ALTER TABLE t1 ADD COLUMN c INT;
-BEGIN;
-INSERT INTO t1 VALUES(1, 1);
-ROLLBACK;
---error ER_INTERNAL_ERROR
-ALTER TABLE t1 DROP COLUMN b;
-INSERT INTO t1 values (1,1);
-SELECT * FROM t1;
-DROP TABLE t1;
-
-SET debug_dbug = @save_dbug;
-
-SELECT variable_value-@old_instant instants
-FROM information_schema.global_status
-WHERE variable_name = 'innodb_instant_alter_column';
-
---echo #
 --echo # MDEV-21045 AddressSanitizer: use-after-poison in mem_heap_dup / row_log_table_get_pk_col
 --echo #
 CREATE TABLE t1 (a TEXT) ENGINE = InnoDB ROW_FORMAT=REDUNDANT;
@@ -414,6 +378,63 @@ SET DEBUG_SYNC='RESET';
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-24653 Assertion block->page.id.page_no() == index->page failed
+--echo # in innobase_add_instant_try()
+--echo #
+
+SET @saved_limit = @@GLOBAL.innodb_limit_optimistic_insert_debug;
+SET GLOBAL innodb_limit_optimistic_insert_debug = 2;
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+ALTER TABLE t1 ADD COLUMN b INT;
+DELETE FROM t1;
+--source include/wait_all_purged.inc
+ALTER TABLE t1 ADD COLUMN c INT;
+
+SELECT * FROM t1;
+DROP TABLE t1;
+SET GLOBAL innodb_limit_optimistic_insert_debug = @saved_limit;
+
+--echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-17899 Assertion failures on rollback of instant ADD/DROP
+--echo # MDEV-18098 Crash after rollback of instant DROP COLUMN
+--echo #
+
+SET @save_dbug = @@SESSION.debug_dbug;
+SET debug_dbug='+d,ib_commit_inplace_fail_1';
+CREATE TABLE t1 (a int, b int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,2);
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 DROP COLUMN b;
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 DROP COLUMN b;
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 ADD COLUMN c INT;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a int, b int) ENGINE=InnoDB;
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 ADD COLUMN c INT;
+BEGIN;
+INSERT INTO t1 VALUES(1, 1);
+ROLLBACK;
+--error ER_INTERNAL_ERROR
+ALTER TABLE t1 DROP COLUMN b;
+INSERT INTO t1 values (1,1);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+SET debug_dbug = @save_dbug;
+
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+
+--echo #
 --echo # MDEV-24512 Assertion failed in rec_is_metadata()
 --echo #            in btr_discard_only_page_on_level()
 --echo #
@@ -428,6 +449,8 @@ INSERT INTO t1 (c) VALUES ('x'),('d'),('r'),('f'),('y'),('u'),('m'),('d');
 SET GLOBAL innodb_limit_optimistic_insert_debug=@save_limit;
 SELECT * FROM t1;
 DROP TABLE t1;
+
+--echo # End of 10.4 tests
 
 --echo #
 --echo # MDEV-22867 Assertion instant.n_core_fields == n_core_fields
@@ -474,5 +497,7 @@ INSERT INTO t1 VALUES (2),(3),(4);
 CHECK TABLE t1;
 DROP TABLE t1;
 SET DEBUG_SYNC=RESET;
+
+--echo # End of 10.5 tests
 
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;

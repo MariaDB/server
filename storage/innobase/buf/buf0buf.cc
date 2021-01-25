@@ -1614,8 +1614,10 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 				  + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
 		MEM_UNDEFINED(block->frame, srv_page_size);
 		block->page.set_state(BUF_BLOCK_REMOVE_HASH);
-		buf_flush_relocate_on_flush_list(&block->page,
-						 &new_block->page);
+		if (!fsp_is_system_temporary(id.space())) {
+			buf_flush_relocate_on_flush_list(&block->page,
+							 &new_block->page);
+		}
 		block->page.set_corrupt_id();
 
 		/* set other flags of buf_block_t */
@@ -1631,17 +1633,13 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 		new_block->n_fields	= 1;
 		new_block->left_side	= TRUE;
 #endif /* BTR_CUR_HASH_ADAPT */
-
-		hash_lock->write_unlock();
-
-		/* free block */
 		ut_d(block->page.set_state(BUF_BLOCK_MEMORY));
-		buf_LRU_block_free_non_file_page(block);
-	} else {
-		hash_lock->write_unlock();
-		buf_LRU_block_free_non_file_page(new_block);
+		/* free block */
+		new_block = block;
 	}
 
+	hash_lock->write_unlock();
+	buf_LRU_block_free_non_file_page(new_block);
 	return(true); /* free_list was enough */
 }
 

@@ -917,6 +917,13 @@ int Wsrep_schema::append_fragment(THD* thd,
               thd->thread_id,
               os.str().c_str(),
               transaction_id.get());
+  /* use private query table list for the duration of fragment storing,
+     populated query table list from "parent DML" may cause problems .e.g
+     for virtual column handling
+ */
+  Query_tables_list query_tables_list_backup;
+  thd->lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
+
   Wsrep_schema_impl::binlog_off binlog_off(thd);
   Wsrep_schema_impl::init_stmt(thd);
 
@@ -924,6 +931,7 @@ int Wsrep_schema::append_fragment(THD* thd,
   if (Wsrep_schema_impl::open_for_write(thd, sr_table_str.c_str(), &frag_table))
   {
     trans_rollback_stmt(thd);
+    thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
     DBUG_RETURN(1);
   }
 
@@ -937,9 +945,11 @@ int Wsrep_schema::append_fragment(THD* thd,
   if ((error= Wsrep_schema_impl::insert(frag_table))) {
     WSREP_ERROR("Failed to write to frag table: %d", error);
     trans_rollback_stmt(thd);
+    thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
     DBUG_RETURN(1);
   }
   Wsrep_schema_impl::finish_stmt(thd);
+  thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
   DBUG_RETURN(0);
 }
 
@@ -956,6 +966,13 @@ int Wsrep_schema::update_fragment_meta(THD* thd,
               ws_meta.seqno().get());
   DBUG_ASSERT(ws_meta.seqno().is_undefined() == false);
 
+  /* use private query table list for the duration of fragment storing,
+     populated query table list from "parent DML" may cause problems .e.g
+     for virtual column handling
+ */
+  Query_tables_list query_tables_list_backup;
+  thd->lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
+
   Wsrep_schema_impl::binlog_off binlog_off(thd);
   int error;
   uchar key[MAX_KEY_LENGTH+MAX_FIELD_WIDTH];
@@ -965,6 +982,7 @@ int Wsrep_schema::update_fragment_meta(THD* thd,
   Wsrep_schema_impl::init_stmt(thd);
   if (Wsrep_schema_impl::open_for_write(thd, sr_table_str.c_str(), &frag_table))
   {
+    thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
     DBUG_RETURN(1);
   }
 
@@ -985,6 +1003,7 @@ int Wsrep_schema::update_fragment_meta(THD* thd,
                  error);
     }
     Wsrep_schema_impl::finish_stmt(thd);
+    thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
     DBUG_RETURN(1);
   }
 
@@ -1000,11 +1019,13 @@ int Wsrep_schema::update_fragment_meta(THD* thd,
                 frag_table->s->table_name.str,
                 error);
     Wsrep_schema_impl::finish_stmt(thd);
+    thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
     DBUG_RETURN(1);
   }
 
   int ret= Wsrep_schema_impl::end_index_scan(frag_table);
   Wsrep_schema_impl::finish_stmt(thd);
+  thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
   DBUG_RETURN(ret);
 }
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2623,13 +2623,13 @@ fts_optimize_request_sync_table(
 	if (fts_opt_start_shutdown) {
 		ib::info() << "Try to sync table " << table->name
 			<< " after FTS optimize thread exiting.";
-		mysql_mutex_unlock(&fts_optimize_wq->mutex);
-		return;
+	} else if (table->fts->sync_message) {
+		/* If the table already has SYNC message in
+		fts_optimize_wq queue then ignore it */
+	} else {
+		add_msg(fts_optimize_create_msg(FTS_MSG_SYNC_TABLE, table));
+		table->fts->sync_message = true;
 	}
-
-	add_msg(fts_optimize_create_msg(FTS_MSG_SYNC_TABLE, table));
-
-	table->fts->sync_message = true;
 
 	mysql_mutex_unlock(&fts_optimize_wq->mutex);
 }

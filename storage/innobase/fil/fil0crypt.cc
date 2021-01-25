@@ -2141,6 +2141,8 @@ fil_crypt_set_thread_cnt(
 	const uint	new_cnt)
 {
 	if (!fil_crypt_threads_inited) {
+		if (srv_shutdown_state != SRV_SHUTDOWN_NONE)
+			return;
 		fil_crypt_threads_init();
 	}
 

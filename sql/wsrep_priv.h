@@ -42,7 +42,7 @@ extern wsrep_seqno_t local_seqno;
 extern Wsrep_schema* wsrep_schema;
 
 // a helper function
-void wsrep_sst_received(THD*, const wsrep_uuid_t&, wsrep_seqno_t,
+bool wsrep_sst_received(THD*, const wsrep_uuid_t&, wsrep_seqno_t,
                         const void*, size_t);
 
 void wsrep_notify_status(enum wsrep::server_state::state status,

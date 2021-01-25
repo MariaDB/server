@@ -5413,7 +5413,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         tables->trg_event_map= new_trg_event_map;
         lex->query_tables_last= &tables->next_global;
       }
-      else if (!WSREP_ON)
+      else
       {
         tables->slave_fk_event_map= new_trg_event_map;
         lex->query_tables_last= &tables->next_global;
