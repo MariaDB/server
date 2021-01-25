@@ -3466,6 +3466,19 @@ eval set statement optimizer_switch='split_materialized=on' for $q;
 
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-23804: Server crashes in st_select_lex::collect_grouping_fields_for_derived
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (3),(4);
+CREATE VIEW v1 AS SELECT a FROM t1 UNION VALUES (3),(4);
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON SELECT * from v1 WHERE a=3;
+SELECT * from v1 WHERE a=3;
+DROP VIEW v1;
+DROP TABLE t1;
+
 --echo # End of 10.3 tests
 
 --echo #

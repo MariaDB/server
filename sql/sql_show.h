@@ -246,6 +246,7 @@ public:
 };
 
 bool optimize_schema_tables_reads(JOIN *join);
+bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables);
 
 /* Handle the ignored database directories list for SHOW/I_S. */
 bool ignore_db_dirs_init();

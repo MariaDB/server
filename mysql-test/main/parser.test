@@ -1566,6 +1566,21 @@ EXECUTE IMMEDIATE 'if(`systeminfo /FO LIST';
 --error ER_PARSE_ERROR
 EXECUTE IMMEDIATE 'if(`systeminfo';
 
+--echo #
+--echo # MDEV-23666 Assertion failed in Lex_input_stream::body_utf8_append
+--echo #
+SET @@sql_mode='ANSI_QUOTES';
+
+# Without a patch execution of the following statements results in assertion
+# in Lex_input_stream::body_utf8_append on parsing the statement
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE 'CREATE PROCEDURE p() UPDATE t SET c=\'\'"';
+
+--error ER_PARSE_ERROR
+EXECUTE IMMEDIATE 'CREATE PROCEDURE p() UPDATE t SET c=\'\'"abc';
+
+SET @@sql_mode=@save_sql_mode;
+
 --echo # End of 10.3 tests
 
 --echo #

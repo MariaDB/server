@@ -291,43 +291,6 @@ a	b	vb
 5	NULL	NULL
 DROP TABLE t1;
 #
-# MDEV-17899 Assertion failures on rollback of instant ADD/DROP
-# MDEV-18098 Crash after rollback of instant DROP COLUMN
-#
-SET @save_dbug = @@SESSION.debug_dbug;
-SET debug_dbug='+d,ib_commit_inplace_fail_1';
-CREATE TABLE t1 (a int, b int) ENGINE=InnoDB;
-INSERT INTO t1 VALUES (1,2);
-ALTER TABLE t1 DROP COLUMN b;
-ERROR HY000: Internal error: Injected error!
-ALTER TABLE t1 DROP COLUMN b;
-ERROR HY000: Internal error: Injected error!
-ALTER TABLE t1 ADD COLUMN c INT;
-ERROR HY000: Internal error: Injected error!
-SELECT * FROM t1;
-a	b
-1	2
-DROP TABLE t1;
-CREATE TABLE t1 (a int, b int) ENGINE=InnoDB;
-ALTER TABLE t1 ADD COLUMN c INT;
-ERROR HY000: Internal error: Injected error!
-BEGIN;
-INSERT INTO t1 VALUES(1, 1);
-ROLLBACK;
-ALTER TABLE t1 DROP COLUMN b;
-ERROR HY000: Internal error: Injected error!
-INSERT INTO t1 values (1,1);
-SELECT * FROM t1;
-a	b
-1	1
-DROP TABLE t1;
-SET debug_dbug = @save_dbug;
-SELECT variable_value-@old_instant instants
-FROM information_schema.global_status
-WHERE variable_name = 'innodb_instant_alter_column';
-instants
-22
-#
 # MDEV-21045 AddressSanitizer: use-after-poison in mem_heap_dup / row_log_table_get_pk_col
 #
 CREATE TABLE t1 (a TEXT) ENGINE = InnoDB ROW_FORMAT=REDUNDANT;
@@ -370,6 +333,55 @@ SET DEBUG_SYNC='RESET';
 disconnect con2;
 DROP TABLE t1;
 #
+# MDEV-24653 Assertion block->page.id.page_no() == index->page failed
+# in innobase_add_instant_try()
+#
+SET @saved_limit = @@GLOBAL.innodb_limit_optimistic_insert_debug;
+SET GLOBAL innodb_limit_optimistic_insert_debug = 2;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+ALTER TABLE t1 ADD COLUMN b INT;
+DELETE FROM t1;
+InnoDB		0 transactions not purged
+ALTER TABLE t1 ADD COLUMN c INT;
+SELECT * FROM t1;
+a	b	c
+DROP TABLE t1;
+SET GLOBAL innodb_limit_optimistic_insert_debug = @saved_limit;
+# End of 10.3 tests
+#
+# MDEV-17899 Assertion failures on rollback of instant ADD/DROP
+# MDEV-18098 Crash after rollback of instant DROP COLUMN
+#
+SET @save_dbug = @@SESSION.debug_dbug;
+SET debug_dbug='+d,ib_commit_inplace_fail_1';
+CREATE TABLE t1 (a int, b int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,2);
+ALTER TABLE t1 DROP COLUMN b;
+ERROR HY000: Internal error: Injected error!
+ALTER TABLE t1 DROP COLUMN b;
+ERROR HY000: Internal error: Injected error!
+ALTER TABLE t1 ADD COLUMN c INT;
+ERROR HY000: Internal error: Injected error!
+SELECT * FROM t1;
+a	b
+1	2
+DROP TABLE t1;
+CREATE TABLE t1 (a int, b int) ENGINE=InnoDB;
+ALTER TABLE t1 ADD COLUMN c INT;
+ERROR HY000: Internal error: Injected error!
+BEGIN;
+INSERT INTO t1 VALUES(1, 1);
+ROLLBACK;
+ALTER TABLE t1 DROP COLUMN b;
+ERROR HY000: Internal error: Injected error!
+INSERT INTO t1 values (1,1);
+SELECT * FROM t1;
+a	b
+1	1
+DROP TABLE t1;
+SET debug_dbug = @save_dbug;
+#
 # MDEV-24512 Assertion failed in rec_is_metadata()
 #            in btr_discard_only_page_on_level()
 #
@@ -383,6 +395,7 @@ SET GLOBAL innodb_limit_optimistic_insert_debug=@save_limit;
 SELECT * FROM t1;
 c2	c
 DROP TABLE t1;
+# End of 10.4 tests
 #
 # MDEV-22867 Assertion instant.n_core_fields == n_core_fields
 # in dict_index_t::instant_add_field
@@ -421,4 +434,10 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
 SET DEBUG_SYNC=RESET;
+# End of 10.5 tests
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
+SELECT variable_value-@old_instant instants
+FROM information_schema.global_status
+WHERE variable_name = 'innodb_instant_alter_column';
+instants
+32

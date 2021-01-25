@@ -2588,18 +2588,17 @@ innobase_register_trx(
 	THD*		thd,	/* in: MySQL thd (connection) object */
 	trx_t*		trx)	/* in: transaction to register */
 {
-	const ulonglong	trx_id = static_cast<ulonglong>(
-		trx_get_id_for_print(trx));
+  ut_ad(!trx->active_commit_ordered);
+  const trx_id_t trx_id= trx->id;
 
-	trans_register_ha(thd, FALSE, hton, trx_id);
+  trans_register_ha(thd, false, hton, trx_id);
 
-	if (!trx_is_registered_for_2pc(trx)
-	    && thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) {
-
-		trans_register_ha(thd, TRUE, hton, trx_id);
-	}
-
-	trx_register_for_2pc(trx);
+  if (!trx->is_registered)
+  {
+    trx->is_registered= true;
+    if (thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+      trans_register_ha(thd, true, hton, trx_id);
+  }
 }
 
 /*	BACKGROUND INFO: HOW THE MYSQL QUERY CACHE WORKS WITH INNODB

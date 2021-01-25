@@ -18,7 +18,7 @@ ELSE()
    SET(GSSAPI_SERVER gssapi_server.cc)
    SET(GSSAPI_ERRMSG gssapi_errmsg.cc)
 
-   IF(APPLE)
+   IF(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
      SET_SOURCE_FILES_PROPERTIES(
        ${GSSAPI_CLIENT} ${GSSAPI_SERVER} ${GSSAPI_ERRMSG}
        PROPERTY COMPILE_FLAGS "-Wno-deprecated-declarations")

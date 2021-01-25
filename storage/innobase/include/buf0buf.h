@@ -232,12 +232,12 @@ buf_page_optimistic_get(
 	ib_uint64_t	modify_clock,/*!< in: modify clock value */
 	mtr_t*		mtr);	/*!< in: mini-transaction */
 
-/** Try to U-latch a page.
+/** Try to S-latch a page.
 Suitable for using when holding the lock_sys latches (as it avoids deadlock).
 @param[in]	page_id	page identifier
 @param[in,out]	mtr	mini-transaction
 @return the block
-@retval nullptr if an U-latch cannot be granted immediately */
+@retval nullptr if an S-latch cannot be granted immediately */
 buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr);
 
 /** Get read access to a compressed page (usually of type
@@ -886,7 +886,7 @@ public:
   void free_file_page()
   {
     ut_ad(state() == BUF_BLOCK_REMOVE_HASH);
-    ut_d(oldest_modification_= 0); /* for buf_LRU_free_page(this, false) */
+    ut_d(oldest_modification_= 0); /* for buf_LRU_block_free_non_file_page() */
     set_corrupt_id();
     ut_d(set_state(BUF_BLOCK_MEMORY));
   }
@@ -2088,8 +2088,17 @@ inline void buf_page_t::set_io_fix(buf_io_fix io_fix)
 
 inline void buf_page_t::set_corrupt_id()
 {
-  ut_ad(!oldest_modification());
 #ifdef UNIV_DEBUG
+  switch (oldest_modification()) {
+  case 0:
+    break;
+  case 1:
+    ut_ad(fsp_is_system_temporary(id().space()));
+    ut_d(oldest_modification_= 0); /* for buf_LRU_block_free_non_file_page() */
+    break;
+  default:
+    ut_ad("block is dirty" == 0);
+  }
   switch (state()) {
   case BUF_BLOCK_REMOVE_HASH:
     break;

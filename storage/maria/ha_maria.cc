@@ -1,6 +1,6 @@
 /* Copyright (C) 2004-2008 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
    Copyright (C) 2008-2009 Sun Microsystems, Inc.
-   Copyright (c) 2009, 2020, MariaDB Corporation Ab
+   Copyright (c) 2009, 2021, MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2549,9 +2549,6 @@ int ha_maria::info(uint flag)
 {
   MARIA_INFO maria_info;
   char name_buff[FN_REFLEN];
-
-  if (!file)
-    return 0;
 
   (void) maria_status(file, &maria_info, flag);
   if (flag & HA_STATUS_VARIABLE)

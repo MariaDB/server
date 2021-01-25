@@ -1452,6 +1452,8 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
   for (; sl; sl= sl->next_select())
   {
     Item *extracted_cond_copy;
+    if (!sl->cond_pushdown_is_allowed())
+      continue;
     /*
       For each select of the unit except the last one
       create a clone of extracted_cond

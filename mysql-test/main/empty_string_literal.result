@@ -179,3 +179,32 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select NULL AS `NULL`
+#
+# MDEV-20763 Table corruption or Assertion `btr_validate_index(index, 0, false)' failed in row_upd_sec_index_entry with virtual column and EMPTY_STRING_IS_NULL SQL mode
+#
+create table t1 (a int, b binary(1) generated always as (''), key(a,b));
+insert into t1 (a) values (1);
+set sql_mode= default;
+flush tables;
+update t1 set a = 2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` binary(1) GENERATED ALWAYS AS (NULL) VIRTUAL,
+  KEY `a` (`a`,`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 (a int, b binary(1) generated always as (''), key(a,b));
+insert into t1 (a) values (1);
+set sql_mode= 'empty_string_is_null';
+flush tables;
+update t1 set a = 2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` binary(1) GENERATED ALWAYS AS ('') VIRTUAL,
+  KEY `a` (`a`,`b`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;

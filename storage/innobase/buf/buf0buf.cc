@@ -1614,8 +1614,10 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 				  + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, 0xff, 4);
 		MEM_UNDEFINED(block->frame, srv_page_size);
 		block->page.set_state(BUF_BLOCK_REMOVE_HASH);
-		buf_flush_relocate_on_flush_list(&block->page,
-						 &new_block->page);
+		if (!fsp_is_system_temporary(id.space())) {
+			buf_flush_relocate_on_flush_list(&block->page,
+							 &new_block->page);
+		}
 		block->page.set_corrupt_id();
 
 		/* set other flags of buf_block_t */
@@ -1631,17 +1633,13 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 		new_block->n_fields	= 1;
 		new_block->left_side	= TRUE;
 #endif /* BTR_CUR_HASH_ADAPT */
-
-		hash_lock->write_unlock();
-
-		/* free block */
 		ut_d(block->page.set_state(BUF_BLOCK_MEMORY));
-		buf_LRU_block_free_non_file_page(block);
-	} else {
-		hash_lock->write_unlock();
-		buf_LRU_block_free_non_file_page(new_block);
+		/* free block */
+		new_block = block;
 	}
 
+	hash_lock->write_unlock();
+	buf_LRU_block_free_non_file_page(new_block);
 	return(true); /* free_list was enough */
 }
 
@@ -3436,12 +3434,12 @@ func_exit:
 	return(TRUE);
 }
 
-/** Try to U-latch a page.
+/** Try to S-latch a page.
 Suitable for using when holding the lock_sys latches (as it avoids deadlock).
 @param[in]	page_id	page identifier
 @param[in,out]	mtr	mini-transaction
 @return the block
-@retval nullptr if an U-latch cannot be granted immediately */
+@retval nullptr if an S-latch cannot be granted immediately */
 buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr)
 {
   ut_ad(mtr);
@@ -3463,16 +3461,13 @@ buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr)
   buf_block_buf_fix_inc(block);
   hash_lock->read_unlock();
 
-  /* We will always try to acquire an U latch.
-  In lock_rec_print() we may already be holding an S latch on the page,
-  and recursive S latch acquisition is not allowed. */
-  if (!block->lock.u_lock_try(false))
+  if (!block->lock.s_lock_try())
   {
     buf_block_buf_fix_dec(block);
     return nullptr;
   }
 
-  mtr_memo_push(mtr, block, MTR_MEMO_PAGE_SX_FIX);
+  mtr_memo_push(mtr, block, MTR_MEMO_PAGE_S_FIX);
 
 #ifdef UNIV_DEBUG
   if (!(++buf_dbg_counter % 5771)) buf_pool.validate();
