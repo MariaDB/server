@@ -4550,6 +4550,56 @@ void JOIN::cleanup_item_list(List<Item> &items) const
 
 
 /**
+  @brief
+    Look for provision of the select_handler interface by a foreign engine
+
+  @param thd   The thread handler
+
+  @details
+    The function checks that this is an upper level select and if so looks
+    through its tables searching for one whose handlerton owns a
+    create_select call-back function. If the call of this function returns
+    a select_handler interface object then the server will push the select
+    query into this engine.
+    This is a responsibility of the create_select call-back function to
+    check whether the engine can execute the query.
+
+  @retval the found select_handler if the search is successful
+          0  otherwise
+*/
+
+select_handler *find_select_handler(THD *thd,
+                                    SELECT_LEX* select_lex)
+{
+  if (select_lex->next_select())
+    return 0;
+  if (select_lex->master_unit()->outer_select())
+    return 0;
+
+  TABLE_LIST *tbl= thd->lex->query_tables; 
+  // For SQLCOM_INSERT_SELECT the server takes TABLE_LIST
+  // from thd->lex->query_tables and skips its first table
+  // b/c it is the target table for the INSERT..SELECT.
+  if (thd->lex->sql_command == SQLCOM_INSERT_SELECT)
+  {
+    tbl= tbl->next_global;
+  }
+
+  for (;tbl; tbl= tbl->next_global)
+  {
+    if (!tbl->table)
+      continue;
+    handlerton *ht= tbl->table->file->partition_ht();
+    if (!ht->create_select)
+      continue;
+    select_handler *sh= ht->create_select(thd, select_lex);
+    return sh;
+  }
+  return 0;
+}
+
+
+/**
   An entry point to single-unit select (a select without UNION).
 
   @param thd                  thread handler
@@ -4653,7 +4703,7 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
   }
 
   /* Look for a table owned by an engine with the select_handler interface */
-  select_lex->pushdown_select= select_lex->find_select_handler(thd);
+  select_lex->pushdown_select= find_select_handler(thd, select_lex);
 
   if ((err= join->optimize()))
   {
@@ -29039,46 +29089,6 @@ void JOIN_TAB::partial_cleanup()
   filesort_result= NULL;
   free_cache(&read_record);
 }
-
-
-/**
-  @brief
-    Look for provision of the select_handler interface by a foreign engine
-
-  @param thd   The thread handler
-
-  @details
-    The function checks that this is an upper level select and if so looks
-    through its tables searching for one whose handlerton owns a
-    create_select call-back function. If the call of this function returns
-    a select_handler interface object then the server will push the select
-    query into this engine.
-    This is a responsibility of the create_select call-back function to
-    check whether the engine can execute the query.
-
-  @retval the found select_handler if the search is successful
-          0  otherwise
-*/
-
-select_handler *SELECT_LEX::find_select_handler(THD *thd)
-{
-  if (next_select())
-      return 0;
-  if (master_unit()->outer_select())
-    return 0;
-  for (TABLE_LIST *tbl= join->tables_list; tbl; tbl= tbl->next_global)
-  {
-    if (!tbl->table)
-      continue;
-    handlerton *ht= tbl->table->file->partition_ht();
-    if (!ht->create_select)
-      continue;
-    select_handler *sh= ht->create_select(thd, this);
-    return sh;
-  }
-  return 0;
-}
-
 
 /**
   @brief
