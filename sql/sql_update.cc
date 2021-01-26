@@ -1108,6 +1108,7 @@ update_begin:
       {
         store_record(table, record[2]);
         table->mark_columns_per_binlog_row_image();
+        table->clone_handler_for_update();
         error= vers_insert_history_row(table);
         restore_record(table, record[2]);
         if (unlikely(error))
@@ -2599,6 +2600,7 @@ error:
       if (has_vers_fields && table->versioned(VERS_TIMESTAMP))
       {
         store_record(table, record[2]);
+        table->clone_handler_for_update();
         if (unlikely(error= vers_insert_history_row(table)))
         {
           restore_record(table, record[2]);
