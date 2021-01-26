@@ -1579,7 +1579,7 @@ trx_commit_or_rollback_prepare(
 		if (trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 
 			ut_a(trx->lock.wait_thr != NULL);
-			trx->lock.wait_thr->state = QUE_THR_SUSPENDED;
+			trx->lock.wait_thr->state = QUE_THR_COMMAND_WAIT;
 			trx->lock.wait_thr = NULL;
 
 			trx->lock.que_state = TRX_QUE_RUNNING;
@@ -1642,7 +1642,6 @@ trx_commit_step(
 
 		trx_commit_or_rollback_prepare(trx);
 
-		trx->lock.que_state = TRX_QUE_COMMITTING;
 		trx->commit();
 		ut_ad(trx->lock.wait_thr == NULL);
 		trx->lock.que_state = TRX_QUE_RUNNING;
@@ -1826,8 +1825,6 @@ state_ok:
 		fputs("LOCK WAIT ", f); break;
 	case TRX_QUE_ROLLING_BACK:
 		fputs("ROLLING BACK ", f); break;
-	case TRX_QUE_COMMITTING:
-		fputs("COMMITTING ", f); break;
 	default:
 		fprintf(f, "que state %lu ", (ulong) trx->lock.que_state);
 	}

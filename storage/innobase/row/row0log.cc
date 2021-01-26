@@ -3609,8 +3609,7 @@ row_log_apply_op(
 	case ROW_OP_EMPTY:
 	{
 		mem_heap_t* heap = mem_heap_create(512);
-		que_fork_t* fork = que_fork_create(
-			NULL, NULL, QUE_FORK_MYSQL_INTERFACE, heap);
+		que_fork_t* fork = que_fork_create(heap);
 		que_thr_t* thr = que_thr_create(fork, heap, nullptr);
 		index->clear(thr);
 		mem_heap_free(heap);

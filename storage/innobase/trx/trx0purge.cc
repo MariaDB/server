@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -148,8 +148,7 @@ purge_graph_build()
 	trx->op_info = "purge trx";
 
 	mem_heap_t*	heap = mem_heap_create(512);
-	que_fork_t*	fork = que_fork_create(
-		NULL, NULL, QUE_FORK_PURGE, heap);
+	que_fork_t*	fork = que_fork_create(heap);
 	fork->trx = trx;
 
 	for (auto i = innodb_purge_threads_MAX; i; i--) {

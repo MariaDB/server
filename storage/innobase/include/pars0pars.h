@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -378,8 +378,7 @@ pars_stored_procedure_call(
 /*=======================*/
 	sym_node_t*	sym_node);	/*!< in: stored procedure name */
 /** Completes a query graph by adding query thread and fork nodes
-above it and prepares the graph for running. The fork created is of
-type QUE_FORK_MYSQL_INTERFACE.
+above it and prepares the graph for running.
 @param[in]	node		root node for an incomplete query
 				graph, or NULL for dummy graph
 @param[in]	trx		transaction handle

@@ -328,20 +328,6 @@ is estimated as the number of altered rows + the number of locked rows.
 @return transaction weight */
 #define TRX_WEIGHT(t)	((t)->undo_no + UT_LIST_GET_LEN((t)->lock.trx_locks))
 
-/* Maximum length of a string that can be returned by
-trx_get_que_state_str(). */
-#define TRX_QUE_STATE_STR_MAX_LEN	12 /* "ROLLING BACK" */
-
-/*******************************************************************//**
-Retrieves transaction's que state in a human readable string. The string
-should not be free()'d or modified.
-@return string in the data segment */
-UNIV_INLINE
-const char*
-trx_get_que_state_str(
-/*==================*/
-	const trx_t*	trx);	/*!< in: transaction */
-
 /** Create the trx_t pool */
 void
 trx_pool_init();

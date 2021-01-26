@@ -90,7 +90,7 @@ The commit or rollback can be seen as a subprocedure call.
 When the transaction starts to handle a rollback or commit.
 It builds a query graph which, when executed, will roll back
 or commit the incomplete transaction. The transaction
-is moved to the TRX_QUE_ROLLING_BACK or TRX_QUE_COMMITTING state.
+may be moved to the TRX_QUE_ROLLING_BACK state.
 If specified, the SQL cursors opened by the transaction are closed.
 When the execution of the graph completes, it is like returning
 from a subprocedure: the query thread which requested the operation
@@ -100,14 +100,7 @@ starts running again. */
 Creates a query graph fork node.
 @return own: fork node */
 que_fork_t*
-que_fork_create(
-/*============*/
-	que_t*		graph,		/*!< in: graph, if NULL then this
-					fork node is assumed to be the
-					graph root */
-	que_node_t*	parent,		/*!< in: parent node */
-	ulint		fork_type,	/*!< in: fork type */
-	mem_heap_t*	heap)		/*!< in: memory heap where created */
+que_fork_create(mem_heap_t *heap)
 {
 	que_fork_t*	fork;
 
@@ -117,15 +110,11 @@ que_fork_create(
 
 	fork->heap = heap;
 
-	fork->fork_type = fork_type;
-
-	fork->common.parent = parent;
-
 	fork->common.type = QUE_NODE_FORK;
 
 	fork->state = QUE_FORK_COMMAND_WAIT;
 
-	fork->graph = (graph != NULL) ? graph : fork;
+	fork->graph = fork;
 
 	UT_LIST_INIT(fork->thrs, &que_thr_t::thrs);
 
@@ -252,7 +241,6 @@ que_fork_scheduler_round_robin(
 			que_thr_init_command(thr);
 			break;
 
-		case QUE_THR_SUSPENDED:
 		case QUE_THR_LOCK_WAIT:
 		default:
 			ut_error;
@@ -279,14 +267,12 @@ que_fork_start_command(
 	que_fork_t*	fork)	/*!< in: a query fork */
 {
 	que_thr_t*	thr;
-	que_thr_t*	suspended_thr = NULL;
 	que_thr_t*	completed_thr = NULL;
 
 	fork->state = QUE_FORK_ACTIVE;
 
 	fork->last_sel_node = NULL;
 
-	suspended_thr = NULL;
 	completed_thr = NULL;
 
 	/* Choose the query thread to run: usually there is just one thread,
@@ -294,8 +280,7 @@ que_fork_start_command(
 	there may be several to choose from */
 
 	/* First we try to find a query thread in the QUE_THR_COMMAND_WAIT
-	state. Then we try to find a query thread in the QUE_THR_SUSPENDED
-	state, finally we try to find a query thread in the QUE_THR_COMPLETED
+	state. Finally we try to find a query thread in the QUE_THR_COMPLETED
 	state */
 
 	/* We make a single pass over the thr list within which we note which
@@ -314,16 +299,6 @@ que_fork_start_command(
 
 			return(thr);
 
-		case QUE_THR_SUSPENDED:
-			/* In this case the execution of the thread was
-			suspended: no initial message is needed because
-			execution can continue from where it was left */
-			if (!suspended_thr) {
-				suspended_thr = thr;
-			}
-
-			break;
-
 		case QUE_THR_COMPLETED:
 			if (!completed_thr) {
 				completed_thr = thr;
@@ -337,10 +312,7 @@ que_fork_start_command(
 		}
 	}
 
-	if (suspended_thr) {
-		thr = suspended_thr;
-		thr->start_running();
-	} else if (completed_thr) {
+	if (completed_thr) {
 		thr = completed_thr;
 		que_thr_init_command(thr);
 	} else {
@@ -618,7 +590,7 @@ que_thr_stop(
 
 	if (graph->state == QUE_FORK_COMMAND_WAIT) {
 
-		thr->state = QUE_THR_SUSPENDED;
+		thr->state = QUE_THR_COMMAND_WAIT;
 
 	} else if (trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 
@@ -630,10 +602,6 @@ que_thr_stop(
 
 		/* Error handling built for the MySQL interface */
 		thr->state = QUE_THR_COMPLETED;
-
-	} else if (graph->fork_type == QUE_FORK_ROLLBACK) {
-
-		thr->state = QUE_THR_SUSPENDED;
 	} else {
 		ut_ad(graph->state == QUE_FORK_ACTIVE);
 
@@ -1095,8 +1063,6 @@ que_eval_sql(
 
 	graph->trx = trx;
 	trx->graph = NULL;
-
-	graph->fork_type = QUE_FORK_MYSQL_INTERFACE;
 
 	ut_a(thr = que_fork_start_command(graph));
 

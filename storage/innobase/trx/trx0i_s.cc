@@ -426,7 +426,21 @@ fill_trx_row(
 
 	row->trx_id = trx->id;
 	row->trx_started = trx->start_time;
-	row->trx_state = trx_get_que_state_str(trx);
+	switch (trx->lock.que_state) {
+	case TRX_QUE_RUNNING:
+		row->trx_state = trx->state == TRX_STATE_COMMITTED_IN_MEMORY
+			? "COMMITTING" : "RUNNING";
+		break;
+	case TRX_QUE_LOCK_WAIT:
+		row->trx_state = "LOCK WAIT";
+		break;
+	case TRX_QUE_ROLLING_BACK:
+		row->trx_state = "ROLLING BACK";
+		break;
+	default:
+		row->trx_state = nullptr;
+	}
+
 	row->requested_lock_row = requested_lock_row;
 	ut_ad(requested_lock_row == NULL
 	      || i_s_locks_row_validate(requested_lock_row));

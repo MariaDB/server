@@ -38,15 +38,7 @@ Created 5/27/1996 Heikki Tuuri
 /***********************************************************************//**
 Creates a query graph fork node.
 @return own: fork node */
-que_fork_t*
-que_fork_create(
-/*============*/
-	que_t*		graph,		/*!< in: graph, if NULL then this
-					fork node is assumed to be the
-					graph root */
-	que_node_t*	parent,		/*!< in: parent node */
-	ulint		fork_type,	/*!< in: fork type */
-	mem_heap_t*	heap);		/*!< in: memory heap where created */
+que_fork_t *que_fork_create(mem_heap_t* heap);
 /***********************************************************************//**
 Gets the first thr in a fork. */
 UNIV_INLINE
@@ -279,8 +271,7 @@ enum que_thr_state_t {
 	statements, this means the thread has done its task */
 	QUE_THR_COMPLETED,
 	QUE_THR_COMMAND_WAIT,
-	QUE_THR_LOCK_WAIT,
-	QUE_THR_SUSPENDED
+	QUE_THR_LOCK_WAIT
 };
 
 /** Query thread lock states */
@@ -356,7 +347,6 @@ struct que_thr_t{
 struct que_fork_t{
 	que_common_t	common;		/*!< type: QUE_NODE_FORK */
 	que_t*		graph;		/*!< query graph of this node */
-	ulint		fork_type;	/*!< fork type */
 #ifdef UNIV_DEBUG
   /** For the query graph root, updated in set_active() */
   ulint n_active_thrs;
@@ -391,15 +381,6 @@ struct que_fork_t{
 #ifdef UNIV_DEBUG
 inline void que_thr_t::set_active(bool active) { graph->set_active(active); };
 #endif
-
-/* Query fork (or graph) types */
-#define QUE_FORK_ROLLBACK		5
-			/* This is really the undo graph used in rollback,
-			no signal-sending roll_node in this graph */
-#define QUE_FORK_PURGE			6
-#define QUE_FORK_PROCEDURE		8
-#define QUE_FORK_MYSQL_INTERFACE	10
-#define	QUE_FORK_RECOVERY		11
 
 /* Query fork (or graph) states */
 #define QUE_FORK_ACTIVE		1

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1885,7 +1885,7 @@ pars_procedure_definition(
 
 	heap = pars_sym_tab_global->heap;
 
-	fork = que_fork_create(NULL, NULL, QUE_FORK_PROCEDURE, heap);
+	fork = que_fork_create(heap);
 	fork->trx = NULL;
 
 	thr = que_thr_create(fork, heap, NULL);
@@ -2020,8 +2020,7 @@ pars_sql(
 }
 
 /** Completes a query graph by adding query thread and fork nodes
-above it and prepares the graph for running. The fork created is of
-type QUE_FORK_MYSQL_INTERFACE.
+above it and prepares the graph for running.
 @param[in]	node		root node for an incomplete query
 				graph, or NULL for dummy graph
 @param[in]	trx		transaction handle
@@ -2038,7 +2037,7 @@ pars_complete_graph_for_exec(
 	que_fork_t*	fork;
 	que_thr_t*	thr;
 
-	fork = que_fork_create(NULL, NULL, QUE_FORK_MYSQL_INTERFACE, heap);
+	fork = que_fork_create(heap);
 	fork->trx = trx;
 
 	thr = que_thr_create(fork, heap, prebuilt);

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, 2020, MariaDB Corporation.
+Copyright (c) 2019, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -204,7 +204,6 @@ fts_eval_sql(
 	que_thr_t*	thr;
 
 	graph->trx = trx;
-	graph->fork_type = QUE_FORK_MYSQL_INTERFACE;
 
 	ut_a(thr = que_fork_start_command(graph));
 

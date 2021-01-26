@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -53,8 +53,7 @@ enum trx_que_t {
 	TRX_QUE_RUNNING,		/*!< transaction is running */
 	TRX_QUE_LOCK_WAIT,		/*!< transaction is waiting for
 					a lock */
-	TRX_QUE_ROLLING_BACK,		/*!< transaction is rolling back */
-	TRX_QUE_COMMITTING		/*!< transaction is committing */
+	TRX_QUE_ROLLING_BACK		/*!< transaction is rolling back */
 };
 
 /** Transaction states (trx_t::state) */

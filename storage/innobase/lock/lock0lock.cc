@@ -5538,12 +5538,11 @@ lock_cancel_waiting_and_release(
 /*============================*/
 	lock_t*	lock)	/*!< in/out: waiting lock request */
 {
-	que_thr_t*	thr;
-
 	lock_sys.mutex_assert_locked();
-	ut_ad(lock->trx->state == TRX_STATE_ACTIVE);
+	trx_t* trx = lock->trx;
+	ut_ad(trx->state == TRX_STATE_ACTIVE);
 
-	lock->trx->lock.cancel = true;
+	trx->lock.cancel = true;
 
 	if (lock_get_type_low(lock) == LOCK_REC) {
 
@@ -5551,9 +5550,9 @@ lock_cancel_waiting_and_release(
 	} else {
 		ut_ad(lock_get_type_low(lock) & LOCK_TABLE);
 
-		if (lock->trx->autoinc_locks != NULL) {
+		if (trx->autoinc_locks) {
 			/* Release the transaction's AUTOINC locks. */
-			lock_release_autoinc_locks(lock->trx);
+			lock_release_autoinc_locks(trx);
 		}
 
 		lock_table_dequeue(lock);
@@ -5565,15 +5564,11 @@ lock_cancel_waiting_and_release(
 
 	lock_reset_lock_and_trx_wait(lock);
 
-	/* The following function releases the trx from lock wait. */
-
-	thr = que_thr_end_lock_wait(lock->trx);
-
-	if (thr != NULL) {
+	if (que_thr_t *thr = que_thr_end_lock_wait(trx)) {
 		lock_wait_release_thread_if_suspended(thr);
 	}
 
-	lock->trx->lock.cancel = false;
+	trx->lock.cancel = false;
 }
 
 /*********************************************************************//**

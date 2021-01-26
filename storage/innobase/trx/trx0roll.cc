@@ -604,7 +604,7 @@ trx_rollback_active(
 
 	heap = mem_heap_create(512);
 
-	fork = que_fork_create(NULL, NULL, QUE_FORK_RECOVERY, heap);
+	fork = que_fork_create(heap);
 	fork->trx = trx;
 
 	thr = que_thr_create(fork, heap, NULL);
@@ -871,7 +871,7 @@ trx_roll_graph_build(
 	que_thr_t*	thr;
 
 	heap = mem_heap_create(512);
-	fork = que_fork_create(NULL, NULL, QUE_FORK_ROLLBACK, heap);
+	fork = que_fork_create(heap);
 	fork->trx = trx;
 
 	thr = que_thr_create(fork, heap, NULL);
