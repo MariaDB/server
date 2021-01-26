@@ -1331,14 +1331,14 @@ bool Query_log_event::write()
 
 bool Query_compressed_log_event::write()
 {
-  char *buffer;
+  uchar *buffer;
   uint32 alloc_size, compressed_size;
   bool ret= true;
 
   compressed_size= alloc_size= binlog_get_compress_len(q_len);
-  buffer= (char*) my_safe_alloca(alloc_size);
+  buffer= (uchar*) my_safe_alloca(alloc_size);
   if (buffer &&
-      !binlog_buf_compress(query, buffer, q_len, &compressed_size))
+      !binlog_buf_compress((uchar*) query, buffer, q_len, &compressed_size))
   {
     /*
       Write the compressed event. We have to temporarily store the event
@@ -1346,7 +1346,7 @@ bool Query_compressed_log_event::write()
     */
     const char *query_tmp= query;
     uint32 q_len_tmp= q_len;
-    query= buffer;
+    query= (char*) buffer;
     q_len= compressed_size;
     ret= Query_log_event::write();
     query= query_tmp;
@@ -2161,9 +2161,10 @@ Query_log_event::do_shall_skip(rpl_group_info *rgi)
 
 
 bool
-Query_log_event::peek_is_commit_rollback(const char *event_start,
+Query_log_event::peek_is_commit_rollback(const uchar *event_start,
                                          size_t event_len,
-                                         enum enum_binlog_checksum_alg checksum_alg)
+                                         enum enum_binlog_checksum_alg
+                                         checksum_alg)
 {
   if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
   {
@@ -3293,12 +3294,12 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
   fully contruct every Gtid_log_event() needlessly.
 */
 bool
-Gtid_log_event::peek(const char *event_start, size_t event_len,
+Gtid_log_event::peek(const uchar *event_start, size_t event_len,
                      enum enum_binlog_checksum_alg checksum_alg,
                      uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
                      uchar *flags2, const Format_description_log_event *fdev)
 {
-  const char *p;
+  const uchar *p;
 
   if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
   {
@@ -3319,7 +3320,7 @@ Gtid_log_event::peek(const char *event_start, size_t event_len,
   p+= 8;
   *domain_id= uint4korr(p);
   p+= 4;
-  *flags2= (uchar)*p;
+  *flags2= *p;
   return false;
 }
 
@@ -6004,14 +6005,15 @@ bool Rows_log_event::write_data_body()
 
 bool Rows_log_event::write_compressed()
 {
-  uchar *m_rows_buf_tmp = m_rows_buf;
-  uchar *m_rows_cur_tmp = m_rows_cur;
-  bool ret = true;
+  uchar *m_rows_buf_tmp= m_rows_buf;
+  uchar *m_rows_cur_tmp= m_rows_cur;
+  bool ret= true;
   uint32 comlen, alloc_size;
-  comlen= alloc_size= binlog_get_compress_len((uint32)(m_rows_cur_tmp - m_rows_buf_tmp));
-  m_rows_buf = (uchar *)my_safe_alloca(alloc_size);
+  comlen= alloc_size= binlog_get_compress_len((uint32)(m_rows_cur_tmp -
+                                                       m_rows_buf_tmp));
+  m_rows_buf= (uchar*) my_safe_alloca(alloc_size);
   if(m_rows_buf &&
-     !binlog_buf_compress((const char *)m_rows_buf_tmp, (char *)m_rows_buf,
+     !binlog_buf_compress(m_rows_buf_tmp, m_rows_buf,
                           (uint32)(m_rows_cur_tmp - m_rows_buf_tmp), &comlen))
   {
     m_rows_cur= comlen + m_rows_buf;
@@ -8445,9 +8447,8 @@ Log_event* wsrep_read_log_event(
   char **arg_buf, size_t *arg_buf_len,
   const Format_description_log_event *description_event)
 {
-  char *head= (*arg_buf);
+  uchar *head= (uchar*) (*arg_buf);
   uint data_len = uint4korr(head + EVENT_LEN_OFFSET);
-  char *buf= (*arg_buf);
   const char *error= 0;
   Log_event *res=  0;
   DBUG_ENTER("wsrep_read_log_event");
@@ -8458,15 +8459,16 @@ Log_event* wsrep_read_log_event(
     goto err;
   }
 
-  res= Log_event::read_log_event(buf, data_len, &error, description_event, false);
+  res= Log_event::read_log_event(head, data_len, &error, description_event,
+                                 false);
 
 err:
   if (!res)
   {
     DBUG_ASSERT(error != 0);
     sql_print_error("Error in Log_event::read_log_event(): "
-                    "'%s', data_len: %d, event_type: %d",
-		    error,data_len,(uchar)head[EVENT_TYPE_OFFSET]);
+                    "'%s', data_len: %u, event_type: %d",
+		    error, data_len, (int) head[EVENT_TYPE_OFFSET]);
   }
   (*arg_buf)+= data_len;
   (*arg_buf_len)-= data_len;
@@ -8476,8 +8478,7 @@ err:
 
 
 #if defined(HAVE_REPLICATION)
-int
-Incident_log_event::do_apply_event(rpl_group_info *rgi)
+int Incident_log_event::do_apply_event(rpl_group_info *rgi)
 {
   Relay_log_info const *rli= rgi->rli;
   DBUG_ENTER("Incident_log_event::do_apply_event");
@@ -8530,14 +8531,14 @@ void Ignorable_log_event::pack_info(Protocol *protocol)
 
 
 #if defined(HAVE_REPLICATION)
-Heartbeat_log_event::Heartbeat_log_event(const char* buf, uint event_len,
+Heartbeat_log_event::Heartbeat_log_event(const uchar *buf, uint event_len,
                     const Format_description_log_event* description_event)
   :Log_event(buf, description_event)
 {
   uint8 header_size= description_event->common_header_len;
   ident_len = event_len - header_size;
   set_if_smaller(ident_len,FN_REFLEN-1);
-  log_ident= buf + header_size;
+  log_ident= (char*) buf + header_size;
 }
 #endif
 
@@ -8552,9 +8553,9 @@ Heartbeat_log_event::Heartbeat_log_event(const char* buf, uint event_len,
    1 Don't write event
 */
 
-bool event_that_should_be_ignored(const char *buf)
+bool event_that_should_be_ignored(const uchar *buf)
 {
-  uint event_type= (uchar)buf[EVENT_TYPE_OFFSET];
+  uint event_type= buf[EVENT_TYPE_OFFSET];
   if (event_type == GTID_LOG_EVENT ||
       event_type == ANONYMOUS_GTID_LOG_EVENT ||
       event_type == PREVIOUS_GTIDS_LOG_EVENT ||

@@ -78,9 +78,9 @@ public:
    * Return:
    *  0: success;  non-zero: error
    */
-  int slave_read_sync_header(const char *header, unsigned long total_len,
+  int slave_read_sync_header(const uchar *header, unsigned long total_len,
                              int *semi_flags,
-                             const char **payload, unsigned long *payload_len);
+                             const uchar **payload, unsigned long *payload_len);
 
   /* A slave replies to the master indicating its replication process.  It
    * indicates that the slave has received all events before the specified

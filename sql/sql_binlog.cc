@@ -207,7 +207,7 @@ void mysql_client_binlog_statement(THD* thd)
   int err;
   Relay_log_info *rli;
   rpl_group_info *rgi;
-  char *buf= NULL;
+  uchar *buf= NULL;
   size_t coded_len= 0, decoded_len= 0;
 
   rli= thd->rli_fake;
@@ -243,7 +243,7 @@ void mysql_client_binlog_statement(THD* thd)
   }
 
   decoded_len= my_base64_needed_decoded_length((int)coded_len);
-  if (!(buf= (char *) my_malloc(key_memory_binlog_statement_buffer,
+  if (!(buf= (uchar *) my_malloc(key_memory_binlog_statement_buffer,
                                 decoded_len, MYF(MY_WME))))
   {
     my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 1);
@@ -299,7 +299,7 @@ void mysql_client_binlog_statement(THD* thd)
       Now we start to read events of the buffer, until there are no
       more.
     */
-    for (char *bufptr= buf ; bytes_decoded > 0 ; )
+    for (uchar *bufptr= buf ; bytes_decoded > 0 ; )
     {
       /*
         Checking that the first event in the buffer is not truncated.

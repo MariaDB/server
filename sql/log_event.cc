@@ -52,6 +52,7 @@
 #include "rpl_constants.h"
 #include "sql_digest.h"
 #include "zlib.h"
+#include "myisampack.h"
 
 #define my_b_write_string(A, B) my_b_write((A), (uchar*)(B), (uint) (sizeof(B) - 1))
 
@@ -143,7 +144,7 @@ public:
       constructor, but it would be possible to create a subclass
       holding the IO_CACHE itself.
    */
-  Write_on_release_cache(IO_CACHE *cache, FILE *file, flag_set flags = 0, Log_event *ev = NULL)
+  Write_on_release_cache(IO_CACHE *cache, FILE *file, flag_set flags= 0, Log_event *ev= NULL)
     : m_cache(cache), m_file(file), m_flags(flags), m_ev(ev)
   {
     reinit_io_cache(m_cache, WRITE_CACHE, 0L, FALSE, TRUE);
@@ -238,13 +239,13 @@ private:
   read_str()
 */
 
-static inline int read_str(const char **buf, const char *buf_end,
-                           const char **str, uint8 *len)
+static inline bool read_str(const uchar **buf, const uchar *buf_end,
+                            const char **str, uint8 *len)
 {
-  if (*buf + ((uint) (uchar) **buf) >= buf_end)
+  if (*buf + ((uint) **buf) >= buf_end)
     return 1;
   *len= (uint8) **buf;
-  *str= (*buf)+1;
+  *str= (char*) (*buf)+1;
   (*buf)+= (uint) *len+1;
   return 0;
 }
@@ -304,44 +305,44 @@ uint32 binlog_get_compress_len(uint32 len)
 
    return zero if successful, others otherwise.
 */
-int binlog_buf_compress(const char *src, char *dst, uint32 len, uint32 *comlen)
+int binlog_buf_compress(const uchar *src, uchar *dst, uint32 len, uint32 *comlen)
 {
   uchar lenlen;
   if (len & 0xFF000000)
   {
-    dst[1] = uchar(len >> 24);
-    dst[2] = uchar(len >> 16);
-    dst[3] = uchar(len >> 8);
-    dst[4] = uchar(len);
-    lenlen = 4;
+    dst[1]= uchar(len >> 24);
+    dst[2]= uchar(len >> 16);
+    dst[3]= uchar(len >> 8);
+    dst[4]= uchar(len);
+    lenlen= 4;
   }
   else if (len & 0x00FF0000)
   {
-    dst[1] = uchar(len >> 16);
-    dst[2] = uchar(len >> 8);
-    dst[3] = uchar(len);
-    lenlen = 3;
+    dst[1]= uchar(len >> 16);
+    dst[2]= uchar(len >> 8);
+    dst[3]= uchar(len);
+    lenlen= 3;
   }
   else if (len & 0x0000FF00)
   {
-    dst[1] = uchar(len >> 8);
-    dst[2] = uchar(len);
-    lenlen = 2;
+    dst[1]= uchar(len >> 8);
+    dst[2]= uchar(len);
+    lenlen= 2;
   }
   else 
   {
-    dst[1] = uchar(len);
-    lenlen = 1;
+    dst[1]= uchar(len);
+    lenlen= 1;
   }
-  dst[0] = 0x80 | (lenlen & 0x07);
+  dst[0]= 0x80 | (lenlen & 0x07);
 
-  uLongf tmplen = (uLongf)*comlen - BINLOG_COMPRESSED_HEADER_LEN - lenlen - 1;
+  uLongf tmplen= (uLongf)*comlen - BINLOG_COMPRESSED_HEADER_LEN - lenlen - 1;
   if (compress((Bytef *)dst + BINLOG_COMPRESSED_HEADER_LEN + lenlen, &tmplen,
                (const Bytef *)src, (uLongf)len) != Z_OK)
   {
     return 1;
   }
-  *comlen = (uint32)tmplen + BINLOG_COMPRESSED_HEADER_LEN + lenlen;
+  *comlen= (uint32)tmplen + BINLOG_COMPRESSED_HEADER_LEN + lenlen;
   return 0;
 }
 
@@ -360,16 +361,17 @@ int binlog_buf_compress(const char *src, char *dst, uint32 len, uint32 *comlen)
 
 int
 query_event_uncompress(const Format_description_log_event *description_event,
-                       bool contain_checksum, const char *src, ulong src_len, 
-                       char* buf, ulong buf_size, bool* is_malloc, char **dst,
+                       bool contain_checksum, const uchar *src, ulong src_len,
+                       uchar* buf, ulong buf_size, bool* is_malloc, uchar **dst,
                        ulong *newlen)
 {
-  ulong len = uint4korr(src + EVENT_LEN_OFFSET);
-  const char *tmp = src;
-  const char *end = src + len;
+  ulong len= uint4korr(src + EVENT_LEN_OFFSET);
+  const uchar *tmp= src;
+  const uchar *end= src + len;
+  uchar *new_dst;
 
   // bad event
-  if (src_len < len )
+  if (src_len < len)
     return 1;
 
   DBUG_ASSERT((uchar)src[EVENT_TYPE_OFFSET] == QUERY_COMPRESSED_EVENT);
@@ -378,97 +380,90 @@ query_event_uncompress(const Format_description_log_event *description_event,
   uint8 post_header_len=
     description_event->post_header_len[QUERY_COMPRESSED_EVENT-1];
 
-  *is_malloc = false;
+  *is_malloc= false;
 
-  tmp += common_header_len;
+  tmp+= common_header_len;
   // bad event
   if (end <= tmp)
     return 1;
 
-  uint db_len = (uint)tmp[Q_DB_LEN_OFFSET];
+  uint db_len= (uint)tmp[Q_DB_LEN_OFFSET];
   uint16 status_vars_len= uint2korr(tmp + Q_STATUS_VARS_LEN_OFFSET);
 
-  tmp += post_header_len + status_vars_len + db_len + 1;
+  tmp+= post_header_len + status_vars_len + db_len + 1;
   // bad event
   if (end <= tmp)
     return 1;
 
-  int32 comp_len = (int32)(len - (tmp - src) - 
-                  (contain_checksum ? BINLOG_CHECKSUM_LEN : 0));
-  uint32 un_len = binlog_get_uncompress_len(tmp);
+  int32 comp_len= (int32)(len - (tmp - src) -
+                          (contain_checksum ? BINLOG_CHECKSUM_LEN : 0));
+  uint32 un_len=  binlog_get_uncompress_len(tmp);
 
   // bad event 
   if (comp_len < 0 || un_len == 0)
     return 1;
 
-  *newlen = (ulong)(tmp - src) + un_len;
-  if(contain_checksum)
-    *newlen += BINLOG_CHECKSUM_LEN;
+  *newlen= (ulong)(tmp - src) + un_len;
+  if (contain_checksum)
+    *newlen+= BINLOG_CHECKSUM_LEN;
   
-  uint32 alloc_size = (uint32)ALIGN_SIZE(*newlen);
-  char *new_dst = NULL;
-
+  uint32 alloc_size= (uint32)ALIGN_SIZE(*newlen);
   
   if (alloc_size <= buf_size) 
-  {
-    new_dst = buf;
-  }
+    new_dst= buf;
   else 
   {
-    new_dst = (char *)my_malloc(PSI_INSTRUMENT_ME, alloc_size, MYF(MY_WME));
+    new_dst= (uchar *) my_malloc(PSI_INSTRUMENT_ME, alloc_size, MYF(MY_WME));
     if (!new_dst)
       return 1;
-
-    *is_malloc = true;
+    *is_malloc= true;
   }
 
   /* copy the head*/
   memcpy(new_dst, src , tmp - src);
-  if (binlog_buf_uncompress(tmp, new_dst + (tmp - src),
-                            comp_len, &un_len))
+  if (binlog_buf_uncompress(tmp, new_dst + (tmp - src), comp_len, &un_len))
   {
     if (*is_malloc)
+    {
+      *is_malloc= false;
       my_free(new_dst);
-
-    *is_malloc = false;
-
+    }
     return 1;
   }
 
-  new_dst[EVENT_TYPE_OFFSET] = QUERY_EVENT;
+  new_dst[EVENT_TYPE_OFFSET]= QUERY_EVENT;
   int4store(new_dst + EVENT_LEN_OFFSET, *newlen);
-  if(contain_checksum)
+  if (contain_checksum)
   {
-    ulong clear_len = *newlen - BINLOG_CHECKSUM_LEN;
+    ulong clear_len= *newlen - BINLOG_CHECKSUM_LEN;
     int4store(new_dst + clear_len,
               my_checksum(0L, (uchar *)new_dst, clear_len));
   }
-  *dst = new_dst;
+  *dst= new_dst;
   return 0;
 }
 
 int
 row_log_event_uncompress(const Format_description_log_event *description_event,
-                         bool contain_checksum, const char *src, ulong src_len,
-                         char* buf, ulong buf_size, bool* is_malloc, char **dst,
-                         ulong *newlen)
+                         bool contain_checksum, const uchar *src, ulong src_len,
+                         uchar* buf, ulong buf_size, bool* is_malloc,
+                         uchar **dst, ulong *newlen)
 {
-  Log_event_type type = (Log_event_type)(uchar)src[EVENT_TYPE_OFFSET];
-  ulong len = uint4korr(src + EVENT_LEN_OFFSET);
-  const char *tmp = src;
-  char *new_dst = NULL;
-  const char *end = tmp + len;
+  Log_event_type type= (Log_event_type)(uchar)src[EVENT_TYPE_OFFSET];
+  ulong len= uint4korr(src + EVENT_LEN_OFFSET);
+  const uchar *tmp= src;
+  uchar *new_dst= NULL;
+  const uchar *end= tmp + len;
 
-  // bad event
   if (src_len < len)
-    return 1;
+    return 1;                                   // bad event
 
   DBUG_ASSERT(LOG_EVENT_IS_ROW_COMPRESSED(type));
 
   uint8 common_header_len= description_event->common_header_len;
   uint8 post_header_len= description_event->post_header_len[type-1];
 
-  tmp += common_header_len + ROWS_HEADER_LEN_V1;
+  tmp+= common_header_len + ROWS_HEADER_LEN_V1;
   if (post_header_len == ROWS_HEADER_LEN_V2)
   {
     /*
@@ -476,15 +471,14 @@ row_log_event_uncompress(const Format_description_log_event *description_event,
       which includes length bytes
     */
 
-    // bad event
     if (end - tmp <= 2)
-      return 1;
+      return 1;                                 // bad event
 
     uint16 var_header_len= uint2korr(tmp);
     DBUG_ASSERT(var_header_len >= 2);
 
     /* skip over var-len header, extracting 'chunks' */
-    tmp += var_header_len;
+    tmp+= var_header_len;
 
     /* get the uncompressed event type */
     type=
@@ -497,51 +491,46 @@ row_log_event_uncompress(const Format_description_log_event *description_event,
       (type - WRITE_ROWS_COMPRESSED_EVENT_V1 + WRITE_ROWS_EVENT_V1);
   }
 
-  //bad event
   if (end <= tmp)
-    return 1;
+    return 1;                                   //bad event
 
-  ulong m_width = net_field_length((uchar **)&tmp);
-  tmp += (m_width + 7) / 8;
+  ulong m_width= net_field_length((uchar **)&tmp);
+  tmp+= (m_width + 7) / 8;
 
   if (type == UPDATE_ROWS_EVENT_V1 || type == UPDATE_ROWS_EVENT)
   {
-    tmp += (m_width + 7) / 8;
+    tmp+= (m_width + 7) / 8;
   }
 
-  //bad event
   if (end <= tmp)
-    return 1;
+    return 1;                                   //bad event
 
-  uint32 un_len = binlog_get_uncompress_len(tmp);
-  //bad event
+  uint32 un_len= binlog_get_uncompress_len(tmp);
   if (un_len == 0)
-    return 1;
+    return 1;                                   //bad event
 
-  int32 comp_len = (int32)(len - (tmp - src) - 
-    (contain_checksum ? BINLOG_CHECKSUM_LEN : 0));
-  //bad event
+  int32 comp_len= (int32)(len - (tmp - src) -
+                          (contain_checksum ? BINLOG_CHECKSUM_LEN : 0));
   if (comp_len <=0)
-    return 1;
+    return 1;                                   //bad event
 
-  *newlen = ulong(tmp - src) + un_len;
-  if(contain_checksum)
-    *newlen += BINLOG_CHECKSUM_LEN;
+  *newlen= ulong(tmp - src) + un_len;
+  if (contain_checksum)
+    *newlen+= BINLOG_CHECKSUM_LEN;
 
-  size_t alloc_size = ALIGN_SIZE(*newlen);
+  size_t alloc_size= ALIGN_SIZE(*newlen);
   
-  *is_malloc = false;
+  *is_malloc= false;
   if (alloc_size <= buf_size) 
   {
-    new_dst = buf;
+    new_dst= buf;
   }
   else
   {
-    new_dst = (char *)my_malloc(PSI_INSTRUMENT_ME, alloc_size, MYF(MY_WME));
+    new_dst= (uchar*) my_malloc(PSI_INSTRUMENT_ME, alloc_size, MYF(MY_WME));
     if (!new_dst)
       return 1;
-
-    *is_malloc = true;
+    *is_malloc= true;
   }
 
   /* Copy the head. */
@@ -552,18 +541,18 @@ row_log_event_uncompress(const Format_description_log_event *description_event,
   {
     if (*is_malloc)
       my_free(new_dst);
-
     return 1;
   }
 
-  new_dst[EVENT_TYPE_OFFSET] = type;
+  new_dst[EVENT_TYPE_OFFSET]= type;
   int4store(new_dst + EVENT_LEN_OFFSET, *newlen);
-  if(contain_checksum){
-    ulong clear_len = *newlen - BINLOG_CHECKSUM_LEN;
+  if (contain_checksum)
+  {
+    ulong clear_len= *newlen - BINLOG_CHECKSUM_LEN;
     int4store(new_dst + clear_len,
               my_checksum(0L, (uchar *)new_dst, clear_len));
   }
-  *dst = new_dst;
+  *dst= new_dst;
   return 0;
 }
 
@@ -572,33 +561,33 @@ row_log_event_uncompress(const Format_description_log_event *description_event,
   return 0 means error.
 */
 
-uint32 binlog_get_uncompress_len(const char *buf)
+uint32 binlog_get_uncompress_len(const uchar *buf)
 {
-  uint32 len = 0;
-  uint32 lenlen = 0;
+  uint32 len, lenlen;
 
   if ((buf == NULL) || ((buf[0] & 0xe0) != 0x80))
-    return len;
+    return 0;
 
-  lenlen = buf[0] & 0x07;
+  lenlen= buf[0] & 0x07;
 
-  switch(lenlen)
-  {
+  buf++;
+  /* Length is stored in high byte first order, like myisam keys */
+  switch(lenlen) {
   case 1:
-    len = uchar(buf[1]);
+    len= buf[0];
     break;
   case 2:
-    len = uchar(buf[1]) << 8 | uchar(buf[2]);
+    len= mi_uint2korr(buf);
     break;
   case 3:
-    len = uchar(buf[1]) << 16 | uchar(buf[2]) << 8 | uchar(buf[3]);
+    len= mi_uint3korr(buf);
     break;
   case 4:
-    len = uchar(buf[1]) << 24 | uchar(buf[2]) << 16 |
-          uchar(buf[3]) << 8 | uchar(buf[4]);
+    len= mi_uint4korr(buf);
     break;
   default:
     DBUG_ASSERT(lenlen >= 1 && lenlen <= 4);
+    len= 0;
     break;
   }
   return len;
@@ -615,27 +604,22 @@ uint32 binlog_get_uncompress_len(const char *buf)
 
    return zero if successful, others otherwise.
 */
-int binlog_buf_uncompress(const char *src, char *dst, uint32 len,
+int binlog_buf_uncompress(const uchar *src, uchar *dst, uint32 len,
                           uint32 *newlen)
 {
-  if((src[0] & 0x80) == 0)
-  {
+  if ((src[0] & 0x80) == 0)
     return 1;
-  }
 
   uint32 lenlen= src[0] & 0x07;
-  uLongf buflen= *newlen;
+  uLongf buflen= *newlen;                       // zlib type
 
-  uint32 alg = (src[0] & 0x70) >> 4;
-  switch(alg)
-  {
+  uint32 alg= (src[0] & 0x70) >> 4;
+  switch(alg) {
   case 0:
     // zlib
-    if(uncompress((Bytef *)dst, &buflen,
+    if (uncompress((Bytef *)dst, &buflen,
       (const Bytef*)src + 1 + lenlen, len - 1 - lenlen) != Z_OK)
-    {
       return 1;
-    }
     break;
   default:
     //TODO
@@ -644,7 +628,7 @@ int binlog_buf_uncompress(const char *src, char *dst, uint32 len,
   }
 
   DBUG_ASSERT(*newlen == (uint32)buflen);
-  *newlen = (uint32)buflen;
+  *newlen= (uint32)buflen;
   return 0;
 }
 
@@ -728,17 +712,17 @@ const char* Log_event::get_type_str()
   Log_event::Log_event()
 */
 
-Log_event::Log_event(const char* buf,
+Log_event::Log_event(const uchar *buf,
                      const Format_description_log_event* description_event)
   :temp_buf(0), exec_time(0), cache_type(Log_event::EVENT_INVALID_CACHE),
     checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF)
 {
 #ifndef MYSQL_CLIENT
-  thd = 0;
+  thd= 0;
 #endif
-  when = uint4korr(buf);
+  when= uint4korr(buf);
   when_sec_part= ~0UL;
-  server_id = uint4korr(buf + SERVER_ID_OFFSET);
+  server_id= uint4korr(buf + SERVER_ID_OFFSET);
   data_written= uint4korr(buf + EVENT_LEN_OFFSET);
   if (description_event->binlog_version==1)
   {
@@ -876,7 +860,7 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
       WolfSSL reads memory out of bounds with decryption/NOPAD)
       We allocate a little more memory therefore.
     */
-    sz += MY_AES_BLOCK_SIZE;
+    sz+= MY_AES_BLOCK_SIZE;
 #endif
     char *newpkt= (char*)my_malloc(PSI_INSTRUMENT_ME, sz, MYF(MY_WME));
     if (!newpkt)
@@ -909,10 +893,10 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
   {
     /* Corrupt the event for Dump thread*/
     DBUG_EXECUTE_IF("corrupt_read_log_event2",
-      uchar *debug_event_buf_c = (uchar*) packet->ptr() + ev_offset;
+      uchar *debug_event_buf_c= (uchar*) packet->ptr() + ev_offset;
       if (debug_event_buf_c[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT)
       {
-        int debug_cor_pos = rand() % (data_len - BINLOG_CHECKSUM_LEN);
+        int debug_cor_pos= rand() % (data_len - BINLOG_CHECKSUM_LEN);
         debug_event_buf_c[debug_cor_pos] =~ debug_event_buf_c[debug_cor_pos];
         DBUG_PRINT("info", ("Corrupt the event at Log_event::read_log_event: byte on position %d", debug_cor_pos));
         DBUG_SET("-d,corrupt_read_log_event2");
@@ -966,9 +950,9 @@ Log_event* Log_event::read_log_event(IO_CACHE* file,
       goto err;
   }
 
-  if ((res= read_log_event(event.ptr(), event.length(),
+  if ((res= read_log_event((uchar*) event.ptr(), event.length(),
                            &error, fdle, crc_check)))
-    res->register_temp_buf(event.release(), true);
+    res->register_temp_buf((uchar*) event.release(), true);
 
 err:
   if (unlikely(error))
@@ -1004,8 +988,8 @@ err:
   constructors.
 */
 
-Log_event* Log_event::read_log_event(const char* buf, uint event_len,
-				     const char **error,
+Log_event* Log_event::read_log_event(const uchar *buf, uint event_len,
+                                     const char **error,
                                      const Format_description_log_event *fdle,
                                      my_bool crc_check)
 {
@@ -1026,7 +1010,7 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
     DBUG_RETURN(NULL); // general sanity check - will fail on a partial read
   }
 
-  uint event_type= (uchar)buf[EVENT_TYPE_OFFSET];
+  uint event_type= buf[EVENT_TYPE_OFFSET];
   // all following START events in the current file are without checksum
   if (event_type == START_EVENT_V3)
     (const_cast< Format_description_log_event *>(fdle))->checksum_alg= BINLOG_CHECKSUM_ALG_OFF;
@@ -1055,15 +1039,14 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
   DBUG_EXECUTE_IF("corrupt_read_log_event_char",
     if (event_type != FORMAT_DESCRIPTION_EVENT)
     {
-      char *debug_event_buf_c = (char *)buf;
-      int debug_cor_pos = rand() % (event_len - BINLOG_CHECKSUM_LEN);
-      debug_event_buf_c[debug_cor_pos] =~ debug_event_buf_c[debug_cor_pos];
+      uchar *debug_event_buf_c= const_cast<uchar*>(buf);
+      int debug_cor_pos= rand() % (event_len - BINLOG_CHECKSUM_LEN);
+      debug_event_buf_c[debug_cor_pos]=~ debug_event_buf_c[debug_cor_pos];
       DBUG_PRINT("info", ("Corrupt the event at Log_event::read_log_event(char*,...): byte on position %d", debug_cor_pos));
       DBUG_SET("-d,corrupt_read_log_event_char");
     }
   );                                                 
-  if (crc_check &&
-      event_checksum_test((uchar *) buf, event_len, alg))
+  if (crc_check && event_checksum_test(const_cast<uchar*>(buf), event_len, alg))
   {
 #ifdef MYSQL_CLIENT
     *error= "Event crc check failed! Most likely there is event corruption.";
@@ -1135,100 +1118,100 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
     }
     switch(event_type) {
     case QUERY_EVENT:
-      ev  = new Query_log_event(buf, event_len, fdle, QUERY_EVENT);
+      ev= new Query_log_event(buf, event_len, fdle, QUERY_EVENT);
       break;
     case QUERY_COMPRESSED_EVENT:
-      ev = new Query_compressed_log_event(buf, event_len, fdle,
+      ev= new Query_compressed_log_event(buf, event_len, fdle,
                                           QUERY_COMPRESSED_EVENT);
       break;
     case LOAD_EVENT:
-      ev = new Load_log_event(buf, event_len, fdle);
+      ev= new Load_log_event(buf, event_len, fdle);
       break;
     case NEW_LOAD_EVENT:
-      ev = new Load_log_event(buf, event_len, fdle);
+      ev= new Load_log_event(buf, event_len, fdle);
       break;
     case ROTATE_EVENT:
-      ev = new Rotate_log_event(buf, event_len, fdle);
+      ev= new Rotate_log_event(buf, event_len, fdle);
       break;
     case BINLOG_CHECKPOINT_EVENT:
-      ev = new Binlog_checkpoint_log_event(buf, event_len, fdle);
+      ev= new Binlog_checkpoint_log_event(buf, event_len, fdle);
       break;
     case GTID_EVENT:
-      ev = new Gtid_log_event(buf, event_len, fdle);
+      ev= new Gtid_log_event(buf, event_len, fdle);
       break;
     case GTID_LIST_EVENT:
-      ev = new Gtid_list_log_event(buf, event_len, fdle);
+      ev= new Gtid_list_log_event(buf, event_len, fdle);
       break;
     case CREATE_FILE_EVENT:
-      ev = new Create_file_log_event(buf, event_len, fdle);
+      ev= new Create_file_log_event(buf, event_len, fdle);
       break;
     case APPEND_BLOCK_EVENT:
-      ev = new Append_block_log_event(buf, event_len, fdle);
+      ev= new Append_block_log_event(buf, event_len, fdle);
       break;
     case DELETE_FILE_EVENT:
-      ev = new Delete_file_log_event(buf, event_len, fdle);
+      ev= new Delete_file_log_event(buf, event_len, fdle);
       break;
     case EXEC_LOAD_EVENT:
-      ev = new Execute_load_log_event(buf, event_len, fdle);
+      ev= new Execute_load_log_event(buf, event_len, fdle);
       break;
     case START_EVENT_V3: /* this is sent only by MySQL <=4.x */
-      ev = new Start_log_event_v3(buf, event_len, fdle);
+      ev= new Start_log_event_v3(buf, event_len, fdle);
       break;
     case STOP_EVENT:
-      ev = new Stop_log_event(buf, fdle);
+      ev= new Stop_log_event(buf, fdle);
       break;
     case INTVAR_EVENT:
-      ev = new Intvar_log_event(buf, fdle);
+      ev= new Intvar_log_event(buf, fdle);
       break;
     case XID_EVENT:
-      ev = new Xid_log_event(buf, fdle);
+      ev= new Xid_log_event(buf, fdle);
       break;
     case XA_PREPARE_LOG_EVENT:
-      ev = new XA_prepare_log_event(buf, fdle);
+      ev= new XA_prepare_log_event(buf, fdle);
       break;
     case RAND_EVENT:
-      ev = new Rand_log_event(buf, fdle);
+      ev= new Rand_log_event(buf, fdle);
       break;
     case USER_VAR_EVENT:
-      ev = new User_var_log_event(buf, event_len, fdle);
+      ev= new User_var_log_event(buf, event_len, fdle);
       break;
     case FORMAT_DESCRIPTION_EVENT:
-      ev = new Format_description_log_event(buf, event_len, fdle);
+      ev= new Format_description_log_event(buf, event_len, fdle);
       break;
 #if defined(HAVE_REPLICATION) 
     case PRE_GA_WRITE_ROWS_EVENT:
-      ev = new Write_rows_log_event_old(buf, event_len, fdle);
+      ev= new Write_rows_log_event_old(buf, event_len, fdle);
       break;
     case PRE_GA_UPDATE_ROWS_EVENT:
-      ev = new Update_rows_log_event_old(buf, event_len, fdle);
+      ev= new Update_rows_log_event_old(buf, event_len, fdle);
       break;
     case PRE_GA_DELETE_ROWS_EVENT:
-      ev = new Delete_rows_log_event_old(buf, event_len, fdle);
+      ev= new Delete_rows_log_event_old(buf, event_len, fdle);
       break;
     case WRITE_ROWS_EVENT_V1:
     case WRITE_ROWS_EVENT:
-      ev = new Write_rows_log_event(buf, event_len, fdle);
+      ev= new Write_rows_log_event(buf, event_len, fdle);
       break;
     case UPDATE_ROWS_EVENT_V1:
     case UPDATE_ROWS_EVENT:
-      ev = new Update_rows_log_event(buf, event_len, fdle);
+      ev= new Update_rows_log_event(buf, event_len, fdle);
       break;
     case DELETE_ROWS_EVENT_V1:
     case DELETE_ROWS_EVENT:
-      ev = new Delete_rows_log_event(buf, event_len, fdle);
+      ev= new Delete_rows_log_event(buf, event_len, fdle);
       break;
 
     case WRITE_ROWS_COMPRESSED_EVENT:
     case WRITE_ROWS_COMPRESSED_EVENT_V1:
-      ev = new Write_rows_compressed_log_event(buf, event_len, fdle);
+      ev= new Write_rows_compressed_log_event(buf, event_len, fdle);
       break;
     case UPDATE_ROWS_COMPRESSED_EVENT:
     case UPDATE_ROWS_COMPRESSED_EVENT_V1:
-      ev = new Update_rows_compressed_log_event(buf, event_len, fdle);
+      ev= new Update_rows_compressed_log_event(buf, event_len, fdle);
       break;
     case DELETE_ROWS_COMPRESSED_EVENT:
     case DELETE_ROWS_COMPRESSED_EVENT_V1:
-      ev = new Delete_rows_compressed_log_event(buf, event_len, fdle);
+      ev= new Delete_rows_compressed_log_event(buf, event_len, fdle);
       break;
 
       /* MySQL GTID events are ignored */
@@ -1242,23 +1225,23 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
       break;
 
     case TABLE_MAP_EVENT:
-      ev = new Table_map_log_event(buf, event_len, fdle);
+      ev= new Table_map_log_event(buf, event_len, fdle);
       break;
 #endif
     case BEGIN_LOAD_QUERY_EVENT:
-      ev = new Begin_load_query_log_event(buf, event_len, fdle);
+      ev= new Begin_load_query_log_event(buf, event_len, fdle);
       break;
     case EXECUTE_LOAD_QUERY_EVENT:
       ev= new Execute_load_query_log_event(buf, event_len, fdle);
       break;
     case INCIDENT_EVENT:
-      ev = new Incident_log_event(buf, event_len, fdle);
+      ev= new Incident_log_event(buf, event_len, fdle);
       break;
     case ANNOTATE_ROWS_EVENT:
-      ev = new Annotate_rows_log_event(buf, event_len, fdle);
+      ev= new Annotate_rows_log_event(buf, event_len, fdle);
       break;
     case START_ENCRYPTION_EVENT:
-      ev = new Start_encryption_log_event(buf, event_len, fdle);
+      ev= new Start_encryption_log_event(buf, event_len, fdle);
       break;
     default:
       DBUG_PRINT("error",("Unknown event code: %d",
@@ -1362,8 +1345,7 @@ get_str_len_and_pointer(const Log_event::Byte **src,
   return 0;
 }
 
-static void copy_str_and_move(const char **src, 
-                              Log_event::Byte **dst, 
+static void copy_str_and_move(const char **src, Log_event::Byte **dst, 
                               size_t len)
 {
   memcpy(*dst, *src, len);
@@ -1430,7 +1412,7 @@ code_name(int code)
 /**
   This is used by the SQL slave thread to prepare the event before execution.
 */
-Query_log_event::Query_log_event(const char* buf, uint event_len,
+Query_log_event::Query_log_event(const uchar *buf, uint event_len,
                                  const Format_description_log_event
                                  *description_event,
                                  Log_event_type event_type)
@@ -1463,13 +1445,13 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
   */
   if (event_len < (uint)(common_header_len + post_header_len))
     DBUG_VOID_RETURN;				
-  data_len = event_len - (common_header_len + post_header_len);
+  data_len= event_len - (common_header_len + post_header_len);
   buf+= common_header_len;
   
-  thread_id = slave_proxy_id = uint4korr(buf + Q_THREAD_ID_OFFSET);
-  exec_time = uint4korr(buf + Q_EXEC_TIME_OFFSET);
-  db_len = (uchar)buf[Q_DB_LEN_OFFSET]; // TODO: add a check of all *_len vars
-  error_code = uint2korr(buf + Q_ERR_CODE_OFFSET);
+  thread_id= slave_proxy_id= uint4korr(buf + Q_THREAD_ID_OFFSET);
+  exec_time= uint4korr(buf + Q_EXEC_TIME_OFFSET);
+  db_len= buf[Q_DB_LEN_OFFSET]; // TODO: add a check of all *_len vars
+  error_code= uint2korr(buf + Q_ERR_CODE_OFFSET);
 
   /*
     5.0 format starts here.
@@ -1672,7 +1654,7 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
     */
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_QUERY_CACHE)
-  if (!(start= data_buf = (Log_event::Byte*) my_malloc(PSI_INSTRUMENT_ME,
+  if (!(start= data_buf= (Log_event::Byte*) my_malloc(PSI_INSTRUMENT_ME,
                                                        catalog_len + 1
                                                     +  time_zone_len + 1
                                                     +  user.length + 1
@@ -1684,7 +1666,7 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
                                                     +  QUERY_CACHE_FLAGS_SIZE,
                                                        MYF(MY_WME))))
 #else
-  if (!(start= data_buf = (Log_event::Byte*) my_malloc(PSI_INSTRUMENT_ME,
+  if (!(start= data_buf= (Log_event::Byte*) my_malloc(PSI_INSTRUMENT_ME,
                                                        catalog_len + 1
                                                     +  time_zone_len + 1
                                                     +  user.length + 1
@@ -1753,11 +1735,10 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
     DBUG_VOID_RETURN;
   }
 
-  uint32 max_length= uint32(event_len - ((const char*)(end + db_len + 1) -
+  uint32 max_length= uint32(event_len - ((end + db_len + 1) -
                                          (buf - common_header_len)));
   if (q_len != max_length ||
-      (event_len < uint((const char*)(end + db_len + 1) -
-                        (buf - common_header_len))))
+      (event_len < uint((end + db_len + 1) - (buf - common_header_len))))
   {
     q_len= 0;
     query= NULL;
@@ -1774,7 +1755,7 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
   DBUG_VOID_RETURN;
 }
 
-Query_compressed_log_event::Query_compressed_log_event(const char *buf,
+Query_compressed_log_event::Query_compressed_log_event(const uchar *buf,
       uint event_len,
       const Format_description_log_event
       *description_event,
@@ -1782,24 +1763,24 @@ Query_compressed_log_event::Query_compressed_log_event(const char *buf,
       :Query_log_event(buf, event_len, description_event, event_type),
        query_buf(NULL)
 {
-  if(query)
+  if (query)
   {
-    uint32 un_len=binlog_get_uncompress_len(query);
+    uint32 un_len= binlog_get_uncompress_len((uchar*) query);
     if (!un_len)
     {
-      query = 0;
+      query= 0;
       return;
     }
 
     /* Reserve one byte for '\0' */
-    query_buf = (Log_event::Byte*)my_malloc(PSI_INSTRUMENT_ME,
+    query_buf= (Log_event::Byte*) my_malloc(PSI_INSTRUMENT_ME,
                                             ALIGN_SIZE(un_len + 1), MYF(MY_WME));
-    if(query_buf &&
-       !binlog_buf_uncompress(query, (char *)query_buf, q_len, &un_len))
+    if (query_buf && !binlog_buf_uncompress((uchar*) query, (uchar *) query_buf,
+                                            q_len, &un_len))
     {
-      query_buf[un_len] = 0;
-      query = (const char *)query_buf;
-      q_len = un_len;
+      query_buf[un_len]= 0;
+      query= (char*) query_buf;
+      q_len= un_len;
     }
     else
     {
@@ -1807,6 +1788,7 @@ Query_compressed_log_event::Query_compressed_log_event(const char *buf,
     }
   }
 }
+
 
 /*
   Replace a binlog event read into a packet with a dummy event. Either a
@@ -1987,7 +1969,7 @@ Query_log_event::begin_event(String *packet, ulong ev_offset,
 **************************************************************************/
 
 
-Start_log_event_v3::Start_log_event_v3(const char* buf, uint event_len,
+Start_log_event_v3::Start_log_event_v3(const uchar *buf, uint event_len,
                                        const Format_description_log_event
                                        *description_event)
   :Log_event(buf, description_event), binlog_version(BINLOG_VERSION)
@@ -2085,9 +2067,9 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
         Hence, we need to be assign some value here, to avoid reading
         uninitialized memory when the array is written to disk.
       */
-      post_header_len[PRE_GA_WRITE_ROWS_EVENT-1] = 0;
-      post_header_len[PRE_GA_UPDATE_ROWS_EVENT-1] = 0;
-      post_header_len[PRE_GA_DELETE_ROWS_EVENT-1] = 0;
+      post_header_len[PRE_GA_WRITE_ROWS_EVENT-1]= 0;
+      post_header_len[PRE_GA_UPDATE_ROWS_EVENT-1]= 0;
+      post_header_len[PRE_GA_DELETE_ROWS_EVENT-1]= 0;
 
       post_header_len[TABLE_MAP_EVENT-1]=       TABLE_MAP_HEADER_LEN;
       post_header_len[WRITE_ROWS_EVENT_V1-1]=   ROWS_HEADER_LEN_V1;
@@ -2219,10 +2201,8 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
 */
 
 Format_description_log_event::
-Format_description_log_event(const char* buf,
-                             uint event_len,
-                             const
-                             Format_description_log_event*
+Format_description_log_event(const uchar *buf, uint event_len,
+                             const Format_description_log_event*
                              description_event)
   :Start_log_event_v3(buf, event_len, description_event),
    common_header_len(0), post_header_len(NULL), event_type_permutation(0)
@@ -2353,7 +2333,7 @@ Format_description_log_event::is_version_before_checksum(const master_version_sp
             checksum-unaware (effectively no checksum) and the actuall
             [1-254] range alg descriptor.
 */
-enum enum_binlog_checksum_alg get_checksum_alg(const char* buf, ulong len)
+enum enum_binlog_checksum_alg get_checksum_alg(const uchar *buf, ulong len)
 {
   enum enum_binlog_checksum_alg ret;
   char version[ST_SERVER_VER_LEN];
@@ -2376,17 +2356,17 @@ enum enum_binlog_checksum_alg get_checksum_alg(const char* buf, ulong len)
   DBUG_RETURN(ret);
 }
 
-Start_encryption_log_event::Start_encryption_log_event(
-    const char* buf, uint event_len,
-    const Format_description_log_event* description_event)
+Start_encryption_log_event::
+Start_encryption_log_event(const uchar *buf, uint event_len,
+                           const Format_description_log_event* description_event)
   :Log_event(buf, description_event)
 {
   if ((int)event_len ==
       LOG_EVENT_MINIMAL_HEADER_LEN + Start_encryption_log_event::get_data_size())
   {
-    buf += LOG_EVENT_MINIMAL_HEADER_LEN;
-    crypto_scheme = *(uchar*)buf;
-    key_version = uint4korr(buf + BINLOG_CRYPTO_SCHEME_LENGTH);
+    buf+= LOG_EVENT_MINIMAL_HEADER_LEN;
+    crypto_scheme= *buf;
+    key_version= uint4korr(buf + BINLOG_CRYPTO_SCHEME_LENGTH);
     memcpy(nonce,
            buf + BINLOG_CRYPTO_SCHEME_LENGTH + BINLOG_KEY_VERSION_LENGTH,
            BINLOG_NONCE_LENGTH);
@@ -2396,7 +2376,7 @@ Start_encryption_log_event::Start_encryption_log_event(
 }
 
 
-  /**************************************************************************
+/**************************************************************************
         Load_log_event methods
    General note about Load_log_event: the binlogging of LOAD DATA INFILE is
    going to be changed in 5.0 (or maybe in 5.1; not decided yet).
@@ -2411,16 +2391,18 @@ Start_encryption_log_event::Start_encryption_log_event(
    Note that I (Guilhem) manually tested replication of a big LOAD DATA INFILE
    between 3.23 and 5.0, and between 4.0 and 5.0, and it works fine (and the
    positions displayed in SHOW SLAVE STATUS then are fine too).
-  **************************************************************************/
+**************************************************************************/
 
 
 /**
   @note
-    The caller must do buf[event_len] = 0 before he starts using the
+    The caller must do buf[event_len]= 0 before he starts using the
     constructed event.
 */
-Load_log_event::Load_log_event(const char *buf, uint event_len,
-                               const Format_description_log_event *description_event)
+
+Load_log_event::Load_log_event(const uchar *buf, uint event_len,
+                               const Format_description_log_event
+                               *description_event)
   :Log_event(buf, description_event), num_fields(0), fields(0),
    field_lens(0),field_block_len(0),
    table_name(0), db(0), fname(0), local_fname(FALSE),
@@ -2452,52 +2434,51 @@ Load_log_event::Load_log_event(const char *buf, uint event_len,
   Load_log_event::copy_log_event()
 */
 
-int Load_log_event::copy_log_event(const char *buf, ulong event_len,
+int Load_log_event::copy_log_event(const uchar *buf, ulong event_len,
                                    int body_offset,
-                                   const Format_description_log_event *description_event)
+                                   const Format_description_log_event
+                                   *description_event)
 {
   DBUG_ENTER("Load_log_event::copy_log_event");
   uint data_len;
   if ((int) event_len <= body_offset)
     DBUG_RETURN(1);
-  char* buf_end = (char*)buf + event_len;
+  const uchar *buf_end= buf + event_len;
   /* this is the beginning of the post-header */
-  const char* data_head = buf + description_event->common_header_len;
+  const uchar *data_head= buf + description_event->common_header_len;
   thread_id= slave_proxy_id= uint4korr(data_head + L_THREAD_ID_OFFSET);
-  exec_time = uint4korr(data_head + L_EXEC_TIME_OFFSET);
-  skip_lines = uint4korr(data_head + L_SKIP_LINES_OFFSET);
-  table_name_len = (uint)data_head[L_TBL_LEN_OFFSET];
-  db_len = (uint)data_head[L_DB_LEN_OFFSET];
-  num_fields = uint4korr(data_head + L_NUM_FIELDS_OFFSET);
+  exec_time= uint4korr(data_head + L_EXEC_TIME_OFFSET);
+  skip_lines= uint4korr(data_head + L_SKIP_LINES_OFFSET);
+  table_name_len= (uint)data_head[L_TBL_LEN_OFFSET];
+  db_len= (uint)data_head[L_DB_LEN_OFFSET];
+  num_fields= uint4korr(data_head + L_NUM_FIELDS_OFFSET);
 
   /*
     Sql_ex.init() on success returns the pointer to the first byte after
     the sql_ex structure, which is the start of field lengths array.
   */
-  if (!(field_lens= (uchar*)sql_ex.init((char*)buf + body_offset,
-                                        buf_end,
-                                        (uchar)buf[EVENT_TYPE_OFFSET] != LOAD_EVENT)))
+  if (!(field_lens= (uchar*) sql_ex.init(buf + body_offset, buf_end,
+                                         buf[EVENT_TYPE_OFFSET] != LOAD_EVENT)))
     DBUG_RETURN(1);
 
-  data_len = event_len - body_offset;
+  data_len= event_len - body_offset;
   if (num_fields > data_len) // simple sanity check against corruption
     DBUG_RETURN(1);
-  for (uint i = 0; i < num_fields; i++)
-    field_block_len += (uint)field_lens[i] + 1;
+  for (uint i= 0; i < num_fields; i++)
+    field_block_len+= (uint)field_lens[i] + 1;
 
-  fields = (char*)field_lens + num_fields;
-  table_name  = fields + field_block_len;
+  fields= (char*) field_lens + num_fields;
+  table_name= fields + field_block_len;
   if (strlen(table_name) > NAME_LEN)
     goto err;
 
-  db = table_name + table_name_len + 1;
-  DBUG_EXECUTE_IF ("simulate_invalid_address",
-                   db_len = data_len;);
-  fname = db + db_len + 1;
-  if ((db_len > data_len) || (fname > buf_end))
+  db= table_name + table_name_len + 1;
+  DBUG_EXECUTE_IF("simulate_invalid_address", db_len= data_len;);
+  fname= db + db_len + 1;
+  if ((db_len > data_len) || (fname > (char*) buf_end))
     goto err;
-  fname_len = (uint) strlen(fname);
-  if ((fname_len > data_len) || (fname + fname_len > buf_end))
+  fname_len= (uint) strlen(fname);
+  if ((fname_len > data_len) || (fname + fname_len > (char*) buf_end))
     goto err;
   // null termination is accomplished by the caller doing buf[event_len]=0
 
@@ -2505,7 +2486,7 @@ int Load_log_event::copy_log_event(const char *buf, ulong event_len,
 
 err:
   // Invalid event.
-  table_name = 0;
+  table_name= 0;
   DBUG_RETURN(1);
 }
 
@@ -2514,8 +2495,9 @@ err:
   Rotate_log_event methods
 **************************************************************************/
 
-Rotate_log_event::Rotate_log_event(const char* buf, uint event_len,
-                                   const Format_description_log_event* description_event)
+Rotate_log_event::Rotate_log_event(const uchar *buf, uint event_len,
+                                   const Format_description_log_event*
+                                   description_event)
   :Log_event(buf, description_event) ,new_log_ident(0), flags(DUP_NAME)
 {
   DBUG_ENTER("Rotate_log_event::Rotate_log_event(char*,...)");
@@ -2529,7 +2511,8 @@ Rotate_log_event::Rotate_log_event(const char* buf, uint event_len,
   ident_len= (uint)(event_len - (LOG_EVENT_MINIMAL_HEADER_LEN + post_header_len));
   ident_offset= post_header_len;
   set_if_smaller(ident_len,FN_REFLEN-1);
-  new_log_ident= my_strndup(PSI_INSTRUMENT_ME, buf + ident_offset, (uint) ident_len, MYF(MY_WME));
+  new_log_ident= my_strndup(PSI_INSTRUMENT_ME, (char*) buf + ident_offset,
+                            (uint) ident_len, MYF(MY_WME));
   DBUG_PRINT("debug", ("new_log_ident: '%s'", new_log_ident));
   DBUG_VOID_RETURN;
 }
@@ -2540,7 +2523,7 @@ Rotate_log_event::Rotate_log_event(const char* buf, uint event_len,
 **************************************************************************/
 
 Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
-       const char *buf, uint event_len,
+       const uchar *buf, uint event_len,
        const Format_description_log_event *description_event)
   :Log_event(buf, description_event), binlog_file_name(0)
 {
@@ -2556,8 +2539,8 @@ Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
   binlog_file_len= uint4korr(buf);
   if (event_len - (header_size + post_header_len) < binlog_file_len)
     return;
-  binlog_file_name= my_strndup(PSI_INSTRUMENT_ME, buf + post_header_len, binlog_file_len,
-                               MYF(MY_WME));
+  binlog_file_name= my_strndup(PSI_INSTRUMENT_ME, (char*) buf + post_header_len,
+                               binlog_file_len, MYF(MY_WME));
   return;
 }
 
@@ -2566,8 +2549,9 @@ Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
         Global transaction ID stuff
 **************************************************************************/
 
-Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
-               const Format_description_log_event *description_event)
+Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
+                               const Format_description_log_event
+                               *description_event)
   : Log_event(buf, description_event), seq_no(0), commit_id(0)
 {
   uint8 header_size= description_event->common_header_len;
@@ -2610,8 +2594,9 @@ Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
 
 /* GTID list. */
 
-Gtid_list_log_event::Gtid_list_log_event(const char *buf, uint event_len,
-               const Format_description_log_event *description_event)
+Gtid_list_log_event::Gtid_list_log_event(const uchar *buf, uint event_len,
+                                         const Format_description_log_event
+                                         *description_event)
   : Log_event(buf, description_event), count(0), list(0), sub_id_list(0)
 {
   uint32 i;
@@ -2702,7 +2687,7 @@ Gtid_list_log_event::peek(const char *event_start, size_t event_len,
   p+= 4;
   count= count_field & ((1<<28)-1);
   if (event_len < (uint32)fdev->common_header_len + GTID_LIST_HEADER_LEN +
-      16 * count)
+      element_size * count)
     return true;
   if (!(gtid_list= (rpl_gtid *)my_malloc(PSI_INSTRUMENT_ME,
                           sizeof(rpl_gtid)*count + (count == 0), MYF(MY_WME))))
@@ -2732,7 +2717,7 @@ Gtid_list_log_event::peek(const char *event_start, size_t event_len,
   Intvar_log_event::Intvar_log_event()
 */
 
-Intvar_log_event::Intvar_log_event(const char* buf,
+Intvar_log_event::Intvar_log_event(const uchar *buf,
                                    const Format_description_log_event* description_event)
   :Log_event(buf, description_event)
 {
@@ -2762,7 +2747,7 @@ const char* Intvar_log_event::get_var_type_name()
   Rand_log_event methods
 **************************************************************************/
 
-Rand_log_event::Rand_log_event(const char* buf,
+Rand_log_event::Rand_log_event(const uchar *buf,
                                const Format_description_log_event* description_event)
   :Log_event(buf, description_event)
 {
@@ -2788,7 +2773,7 @@ Rand_log_event::Rand_log_event(const char* buf,
 */
 
 Xid_log_event::
-Xid_log_event(const char* buf,
+Xid_log_event(const uchar *buf,
               const Format_description_log_event *description_event)
   :Xid_apply_log_event(buf, description_event)
 {
@@ -2802,7 +2787,7 @@ Xid_log_event(const char* buf,
   XA_prepare_log_event methods
 **************************************************************************/
 XA_prepare_log_event::
-XA_prepare_log_event(const char* buf,
+XA_prepare_log_event(const uchar *buf,
                      const Format_description_log_event *description_event)
   :Xid_apply_log_event(buf, description_event)
 {
@@ -2841,7 +2826,7 @@ XA_prepare_log_event(const char* buf,
 **************************************************************************/
 
 User_var_log_event::
-User_var_log_event(const char* buf, uint event_len,
+User_var_log_event(const uchar *buf, uint event_len,
                    const Format_description_log_event* description_event)
   :Log_event(buf, description_event)
 #ifndef MYSQL_CLIENT
@@ -2849,7 +2834,7 @@ User_var_log_event(const char* buf, uint event_len,
 #endif
 {
   bool error= false;
-  const char* buf_start= buf, *buf_end= buf + event_len;
+  const uchar *buf_start= buf, *buf_end= buf + event_len;
 
   /* The Post-Header is empty. The Variable Data part begins immediately. */
   buf+= description_event->common_header_len +
@@ -2869,7 +2854,7 @@ User_var_log_event(const char* buf, uint event_len,
     may have the bigger value possible, is_null= True and there is no
     payload for val, or even that name_len is 0.
   */
-  if (name + name_len + UV_VAL_IS_NULL > buf_end)
+  if (name + name_len + UV_VAL_IS_NULL > (char*) buf_end)
   {
     error= true;
     goto err;
@@ -2890,7 +2875,7 @@ User_var_log_event(const char* buf, uint event_len,
     val= (char *) (buf + UV_VAL_IS_NULL + UV_VAL_TYPE_SIZE +
                    UV_CHARSET_NUMBER_SIZE + UV_VAL_LEN_SIZE);
 
-    if (val > buf_end)
+    if (val > (char*) buf_end)
     {
       error= true;
       goto err;
@@ -2912,7 +2897,7 @@ User_var_log_event(const char* buf, uint event_len,
       Old events will not have this extra byte, thence,
       we keep the flags set to UNDEF_F.
     */
-    size_t bytes_read= (val + val_len) - buf_start;
+    size_t bytes_read= (val + val_len) - (char*) buf_start;
     if (bytes_read > event_len)
     {
       error= true;
@@ -2940,16 +2925,19 @@ err:
   Create_file_log_event ctor
 */
 
-Create_file_log_event::Create_file_log_event(const char* buf, uint len,
-                                             const Format_description_log_event* description_event)
-  :Load_log_event(buf,0,description_event),fake_base(0),block(0),inited_from_old(0)
+Create_file_log_event::
+Create_file_log_event(const uchar *buf, uint len,
+                      const Format_description_log_event* description_event)
+  :Load_log_event(buf,0,description_event),fake_base(0),block(0),
+   inited_from_old(0)
 {
   DBUG_ENTER("Create_file_log_event::Create_file_log_event(char*,...)");
   uint block_offset;
   uint header_len= description_event->common_header_len;
   uint8 load_header_len= description_event->post_header_len[LOAD_EVENT-1];
   uint8 create_file_header_len= description_event->post_header_len[CREATE_FILE_EVENT-1];
-  if (!(event_buf= (char*) my_memdup(PSI_INSTRUMENT_ME, buf, len, MYF(MY_WME))) ||
+  if (!(event_buf= (uchar*) my_memdup(PSI_INSTRUMENT_ME, buf, len,
+                                      MYF(MY_WME))) ||
       copy_log_event(event_buf,len,
                      (((uchar)buf[EVENT_TYPE_OFFSET] == LOAD_EVENT) ?
                       load_header_len + header_len :
@@ -2979,13 +2967,13 @@ Create_file_log_event::Create_file_log_event(const char* buf, uint len,
                    create_file_header_len + 1);
     if (len < block_offset)
       DBUG_VOID_RETURN;
-    block = (uchar*)buf + block_offset;
-    block_len = len - block_offset;
+    block= const_cast<uchar*>(buf) + block_offset;
+    block_len= len - block_offset;
   }
   else
   {
     sql_ex.force_new_format();
-    inited_from_old = 1;
+    inited_from_old= 1;
   }
   DBUG_VOID_RETURN;
 }
@@ -2999,8 +2987,9 @@ Create_file_log_event::Create_file_log_event(const char* buf, uint len,
   Append_block_log_event ctor
 */
 
-Append_block_log_event::Append_block_log_event(const char* buf, uint len,
-                                               const Format_description_log_event* description_event)
+Append_block_log_event::
+Append_block_log_event(const uchar *buf, uint len,
+                       const Format_description_log_event* description_event)
   :Log_event(buf, description_event),block(0)
 {
   DBUG_ENTER("Append_block_log_event::Append_block_log_event(char*,...)");
@@ -3011,7 +3000,7 @@ Append_block_log_event::Append_block_log_event(const char* buf, uint len,
   if (len < total_header_len)
     DBUG_VOID_RETURN;
   file_id= uint4korr(buf + common_header_len + AB_FILE_ID_OFFSET);
-  block= (uchar*)buf + total_header_len;
+  block= const_cast<uchar*>(buf) + total_header_len;
   block_len= len - total_header_len;
   DBUG_VOID_RETURN;
 }
@@ -3025,8 +3014,9 @@ Append_block_log_event::Append_block_log_event(const char* buf, uint len,
   Delete_file_log_event ctor
 */
 
-Delete_file_log_event::Delete_file_log_event(const char* buf, uint len,
-                                             const Format_description_log_event* description_event)
+Delete_file_log_event::
+Delete_file_log_event(const uchar *buf, uint len,
+                      const Format_description_log_event* description_event)
   :Log_event(buf, description_event),file_id(0)
 {
   uint8 common_header_len= description_event->common_header_len;
@@ -3045,8 +3035,9 @@ Delete_file_log_event::Delete_file_log_event(const char* buf, uint len,
   Execute_load_log_event ctor
 */
 
-Execute_load_log_event::Execute_load_log_event(const char* buf, uint len,
-                                               const Format_description_log_event* description_event)
+Execute_load_log_event::
+Execute_load_log_event(const uchar *buf, uint len,
+                       const Format_description_log_event* description_event)
   :Log_event(buf, description_event), file_id(0)
 {
   uint8 common_header_len= description_event->common_header_len;
@@ -3062,7 +3053,7 @@ Execute_load_log_event::Execute_load_log_event(const char* buf, uint len,
 **************************************************************************/
 
 Begin_load_query_log_event::
-Begin_load_query_log_event(const char* buf, uint len,
+Begin_load_query_log_event(const uchar *buf, uint len,
                            const Format_description_log_event* desc_event)
   :Append_block_log_event(buf, len, desc_event)
 {
@@ -3075,7 +3066,7 @@ Begin_load_query_log_event(const char* buf, uint len,
 
 
 Execute_load_query_log_event::
-Execute_load_query_log_event(const char* buf, uint event_len,
+Execute_load_query_log_event(const uchar *buf, uint event_len,
                              const Format_description_log_event* desc_event):
   Query_log_event(buf, event_len, desc_event, EXECUTE_LOAD_QUERY_EVENT),
   file_id(0), fn_pos_start(0), fn_pos_end(0)
@@ -3111,10 +3102,10 @@ ulong Execute_load_query_log_event::get_post_header_size_for_derived()
   sql_ex_info::init()
 */
 
-const char *sql_ex_info::init(const char *buf, const char *buf_end,
+const uchar *sql_ex_info::init(const uchar *buf, const uchar *buf_end,
                               bool use_new_format)
 {
-  cached_new_format = use_new_format;
+  cached_new_format= use_new_format;
   if (use_new_format)
   {
     empty_flags=0;
@@ -3131,19 +3122,19 @@ const char *sql_ex_info::init(const char *buf, const char *buf_end,
         read_str(&buf, buf_end, &line_start, &line_start_len) ||
         read_str(&buf, buf_end, &escaped,    &escaped_len))
       return 0;
-    opt_flags = *buf++;
+    opt_flags= *buf++;
   }
   else
   {
     if (buf_end - buf < 7)
       return 0;                                 // Wrong data
     field_term_len= enclosed_len= line_term_len= line_start_len= escaped_len=1;
-    field_term = buf++;			// Use first byte in string
-    enclosed=	 buf++;
-    line_term=   buf++;
-    line_start=  buf++;
-    escaped=     buf++;
-    opt_flags =  *buf++;
+    field_term=  (char*) buf++;                 // Use first byte in string
+    enclosed=    (char*) buf++;
+    line_term=   (char*) buf++;
+    line_start=  (char*) buf++;
+    escaped=     (char*) buf++;
+    opt_flags=   *buf++;
     empty_flags= *buf++;
     if (empty_flags & FIELD_TERM_EMPTY)
       field_term_len=0;
@@ -3166,7 +3157,7 @@ const char *sql_ex_info::init(const char *buf, const char *buf_end,
 **************************************************************************/
 
 
-Rows_log_event::Rows_log_event(const char *buf, uint event_len,
+Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
                                const Format_description_log_event
                                *description_event)
   : Log_event(buf, description_event),
@@ -3201,7 +3192,7 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
 		      event_len, common_header_len,
 		      post_header_len));
 
-  const char *post_start= buf + common_header_len;
+  const uchar *post_start= buf + common_header_len;
   post_start+= RW_MAPID_OFFSET;
   if (post_header_len == 6)
   {
@@ -3238,9 +3229,9 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
     var_header_len-= 2;
 
     /* Iterate over var-len header, extracting 'chunks' */
-    const char* start= post_start + 2;
-    const char* end= start + var_header_len;
-    for (const char* pos= start; pos < end;)
+    const uchar *start= post_start + 2;
+    const uchar *end= start + var_header_len;
+    for (const uchar* pos= start; pos < end;)
     {
       switch(*pos++)
       {
@@ -3275,7 +3266,7 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
   uchar const *const ptr_width= var_start;
   uchar *ptr_after_width= (uchar*) ptr_width;
   DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
-  m_width = net_field_length(&ptr_after_width);
+  m_width= net_field_length(&ptr_after_width);
   DBUG_PRINT("debug", ("m_width=%lu", m_width));
 
   /* Avoid reading out of buffer */
@@ -3361,18 +3352,19 @@ Rows_log_event::Rows_log_event(const char *buf, uint event_len,
 
 void Rows_log_event::uncompress_buf()
 {
-  uint32 un_len = binlog_get_uncompress_len((char *)m_rows_buf);
+  uint32 un_len= binlog_get_uncompress_len(m_rows_buf);
   if (!un_len)
     return;
 
-  uchar *new_buf= (uchar*) my_malloc(PSI_INSTRUMENT_ME, ALIGN_SIZE(un_len), MYF(MY_WME));
+  uchar *new_buf= (uchar*) my_malloc(PSI_INSTRUMENT_ME, ALIGN_SIZE(un_len),
+                                     MYF(MY_WME));
   if (new_buf)
   {
-    if(!binlog_buf_uncompress((char *)m_rows_buf, (char *)new_buf,
+    if (!binlog_buf_uncompress(m_rows_buf, new_buf,
                               (uint32)(m_rows_cur - m_rows_buf), &un_len))
     {
       my_free(m_rows_buf);
-      m_rows_buf = new_buf;
+      m_rows_buf= new_buf;
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
       m_curr_row= m_rows_buf;
 #endif
@@ -3409,7 +3401,7 @@ int Rows_log_event::get_data_size()
                   (general_type_code == UPDATE_ROWS_EVENT ? no_bytes_in_map(&m_cols_ai) : 0) +
                   m_rows_cur - m_rows_buf););
   int data_size= 0;
-  Log_event_type type = get_type_code();
+  Log_event_type type= get_type_code();
   bool is_v2_event= LOG_EVENT_IS_ROW_V2(type);
   if (is_v2_event)
   {
@@ -3437,9 +3429,10 @@ int Rows_log_event::get_data_size()
 	Annotate_rows_log_event member functions
 **************************************************************************/
 
-Annotate_rows_log_event::Annotate_rows_log_event(const char *buf,
-                                                 uint event_len,
-                                      const Format_description_log_event *desc)
+Annotate_rows_log_event::
+Annotate_rows_log_event(const uchar *buf,
+                        uint event_len,
+                        const Format_description_log_event *desc)
   : Log_event(buf, desc),
     m_save_thd_query_txt(0),
     m_save_thd_query_len(0),
@@ -3518,7 +3511,7 @@ bool Annotate_rows_log_event::is_valid() const
   Constructor used by slave to read the event from the binary log.
  */
 #if defined(HAVE_REPLICATION)
-Table_map_log_event::Table_map_log_event(const char *buf, uint event_len,
+Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
                                          const Format_description_log_event
                                          *description_event)
 
@@ -3553,7 +3546,7 @@ Table_map_log_event::Table_map_log_event(const char *buf, uint event_len,
 		DBUG_VOID_RETURN;
 
   /* Read the post-header */
-  const char *post_start= buf + common_header_len;
+  const uchar *post_start= buf + common_header_len;
 
   post_start+= TM_MAPID_OFFSET;
   VALIDATE_BYTES_READ(post_start, buf, event_len);
@@ -3575,7 +3568,7 @@ Table_map_log_event::Table_map_log_event(const char *buf, uint event_len,
   m_flags= uint2korr(post_start);
 
   /* Read the variable part of the event */
-  const char *const vpart= buf + common_header_len + post_header_len;
+  const uchar *const vpart= buf + common_header_len + post_header_len;
 
   /* Extract the length of the various parts from the buffer */
   uchar const *const ptr_dblen= (uchar const*)vpart + 0;
@@ -3594,9 +3587,9 @@ Table_map_log_event::Table_map_log_event(const char *buf, uint event_len,
   m_colcnt= net_field_length(&ptr_after_colcnt);
 
   DBUG_PRINT("info",("m_dblen: %lu  off: %ld  m_tbllen: %lu  off: %ld  m_colcnt: %lu  off: %ld",
-                     (ulong) m_dblen, (long) (ptr_dblen-(const uchar*)vpart), 
-                     (ulong) m_tbllen, (long) (ptr_tbllen-(const uchar*)vpart),
-                     m_colcnt, (long) (ptr_colcnt-(const uchar*)vpart)));
+                     (ulong) m_dblen, (long) (ptr_dblen - vpart),
+                     (ulong) m_tbllen, (long) (ptr_tbllen - vpart),
+                     m_colcnt, (long) (ptr_colcnt - vpart)));
 
   /* Allocate mem for all fields in one go. If fails, caught in is_valid() */
   m_memory= (uchar*) my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
@@ -3906,7 +3899,7 @@ Optional_metadata_fields(unsigned char* optional_metadata,
   Constructor used by slave to read the event from the binary log.
  */
 #ifdef HAVE_REPLICATION
-Write_rows_log_event::Write_rows_log_event(const char *buf, uint event_len,
+Write_rows_log_event::Write_rows_log_event(const uchar *buf, uint event_len,
                                            const Format_description_log_event
                                            *description_event)
 : Rows_log_event(buf, event_len, description_event)
@@ -3914,7 +3907,7 @@ Write_rows_log_event::Write_rows_log_event(const char *buf, uint event_len,
 }
 
 Write_rows_compressed_log_event::Write_rows_compressed_log_event(
-                                           const char *buf, uint event_len,
+                                           const uchar *buf, uint event_len,
                                            const Format_description_log_event
                                            *description_event)
 : Write_rows_log_event(buf, event_len, description_event)
@@ -3932,7 +3925,7 @@ Write_rows_compressed_log_event::Write_rows_compressed_log_event(
   Constructor used by slave to read the event from the binary log.
  */
 #ifdef HAVE_REPLICATION
-Delete_rows_log_event::Delete_rows_log_event(const char *buf, uint event_len,
+Delete_rows_log_event::Delete_rows_log_event(const uchar *buf, uint event_len,
                                              const Format_description_log_event
                                              *description_event)
   : Rows_log_event(buf, event_len, description_event)
@@ -3940,7 +3933,7 @@ Delete_rows_log_event::Delete_rows_log_event(const char *buf, uint event_len,
 }
 
 Delete_rows_compressed_log_event::Delete_rows_compressed_log_event(
-                                           const char *buf, uint event_len,
+                                           const uchar *buf, uint event_len,
                                            const Format_description_log_event
                                            *description_event)
   : Delete_rows_log_event(buf, event_len, description_event)
@@ -3968,7 +3961,7 @@ Update_rows_log_event::~Update_rows_log_event()
   Constructor used by slave to read the event from the binary log.
  */
 #ifdef HAVE_REPLICATION
-Update_rows_log_event::Update_rows_log_event(const char *buf, uint event_len,
+Update_rows_log_event::Update_rows_log_event(const uchar *buf, uint event_len,
                                              const
                                              Format_description_log_event
                                              *description_event)
@@ -3977,7 +3970,7 @@ Update_rows_log_event::Update_rows_log_event(const char *buf, uint event_len,
 }
 
 Update_rows_compressed_log_event::Update_rows_compressed_log_event(
-                                             const char *buf, uint event_len,
+                                             const uchar *buf, uint event_len,
                                              const Format_description_log_event
                                              *description_event)
   : Update_rows_log_event(buf, event_len, description_event)
@@ -3986,7 +3979,7 @@ Update_rows_compressed_log_event::Update_rows_compressed_log_event(
 }
 #endif
 
-Incident_log_event::Incident_log_event(const char *buf, uint event_len,
+Incident_log_event::Incident_log_event(const uchar *buf, uint event_len,
                                        const Format_description_log_event *descr_event)
   : Log_event(buf, descr_event)
 {
@@ -4012,8 +4005,8 @@ Incident_log_event::Incident_log_event(const char *buf, uint event_len,
     DBUG_VOID_RETURN;
   }
   m_incident= static_cast<Incident>(incident_number);
-  char const *ptr= buf + common_header_len + post_header_len;
-  char const *const str_end= buf + event_len;
+  uchar const *ptr= buf + common_header_len + post_header_len;
+  uchar const *const str_end= buf + event_len;
   uint8 len= 0;                   // Assignment to keep compiler happy
   const char *str= NULL;          // Assignment to keep compiler happy
   if (read_str(&ptr, str_end, &str, &len))
@@ -4055,7 +4048,7 @@ Incident_log_event::description() const
 }
 
 
-Ignorable_log_event::Ignorable_log_event(const char *buf,
+Ignorable_log_event::Ignorable_log_event(const uchar *buf,
                                          const Format_description_log_event
                                          *descr_event,
                                          const char *event_name)
