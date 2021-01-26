@@ -2654,8 +2654,6 @@ fts_optimize_request_sync_table(
 		return;
 	}
 
-	fts_msg_t* msg = fts_optimize_create_msg(FTS_MSG_SYNC_TABLE, table);
-
 	mutex_enter(&fts_optimize_wq->mutex);
 
 	if (table->fts->sync_message) {
@@ -2664,6 +2662,8 @@ fts_optimize_request_sync_table(
 		mutex_exit(&fts_optimize_wq->mutex);
 		return;
 	}
+
+	fts_msg_t* msg = fts_optimize_create_msg(FTS_MSG_SYNC_TABLE, table);
 
 	add_msg(msg, true);
 
