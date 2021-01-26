@@ -3048,31 +3048,35 @@ lock_table_create(
 
 	check_trx_state(trx);
 
-	if ((type_mode & LOCK_MODE_MASK) == LOCK_AUTO_INC) {
+	switch (LOCK_MODE_MASK & type_mode) {
+	case LOCK_AUTO_INC:
 		++table->n_waiting_or_granted_auto_inc_locks;
+		/* For AUTOINC locking we reuse the lock instance only if
+		there is no wait involved else we allocate the waiting lock
+		from the transaction lock heap. */
+		if (type_mode == LOCK_AUTO_INC) {
+			lock = table->autoinc_lock;
+
+			ut_ad(!table->autoinc_trx);
+			table->autoinc_trx = trx;
+
+			ib_vector_push(trx->autoinc_locks, &lock);
+			goto allocated;
+		}
+
+		break;
+	case LOCK_X:
+	case LOCK_S:
+		++table->n_lock_x_or_s;
+		break;
 	}
 
-	/* For AUTOINC locking we reuse the lock instance only if
-	there is no wait involved else we allocate the waiting lock
-	from the transaction lock heap. */
-	if (type_mode == LOCK_AUTO_INC) {
+	lock = trx->lock.table_cached < array_elements(trx->lock.table_pool)
+		? &trx->lock.table_pool[trx->lock.table_cached++]
+		: static_cast<lock_t*>(
+			mem_heap_alloc(trx->lock.lock_heap, sizeof *lock));
 
-		lock = table->autoinc_lock;
-
-		table->autoinc_trx = trx;
-
-		ib_vector_push(trx->autoinc_locks, &lock);
-
-	} else if (trx->lock.table_cached
-		   < UT_ARR_SIZE(trx->lock.table_pool)) {
-		lock = &trx->lock.table_pool[trx->lock.table_cached++];
-	} else {
-
-		lock = static_cast<lock_t*>(
-			mem_heap_alloc(trx->lock.lock_heap, sizeof(*lock)));
-
-	}
-
+allocated:
 	lock->type_mode = ib_uint32_t(type_mode | LOCK_TABLE);
 	lock->trx = trx;
 
@@ -3231,7 +3235,8 @@ lock_table_remove_low(
 
 	/* Remove the table from the transaction's AUTOINC vector, if
 	the lock that is being released is an AUTOINC lock. */
-	if (lock->mode() == LOCK_AUTO_INC) {
+	switch (lock->mode()) {
+	case LOCK_AUTO_INC:
 		ut_ad((table->autoinc_trx == trx) == !lock->is_waiting());
 
 		if (table->autoinc_trx == trx) {
@@ -3246,8 +3251,16 @@ lock_table_remove_low(
 			lock_table_remove_autoinc_lock(lock, trx);
 		}
 
-		ut_a(table->n_waiting_or_granted_auto_inc_locks > 0);
-		table->n_waiting_or_granted_auto_inc_locks--;
+		ut_ad(table->n_waiting_or_granted_auto_inc_locks);
+		--table->n_waiting_or_granted_auto_inc_locks;
+		break;
+	case LOCK_X:
+	case LOCK_S:
+		ut_ad(table->n_lock_x_or_s);
+		--table->n_lock_x_or_s;
+		break;
+	default:
+		break;
 	}
 
 	UT_LIST_REMOVE(trx->lock.trx_locks, lock);
@@ -3355,12 +3368,17 @@ lock_table_other_has_incompatible(
 	const dict_table_t*	table,	/*!< in: table */
 	lock_mode		mode)	/*!< in: lock mode */
 {
-	lock_t*	lock;
-
 	lock_sys.mutex_assert_locked();
 
-	for (lock = UT_LIST_GET_LAST(table->locks);
-	     lock != NULL;
+	static_assert(LOCK_IS == 0, "compatibility");
+	static_assert(LOCK_IX == 1, "compatibility");
+
+	if (UNIV_LIKELY(mode <= LOCK_IX && !table->n_lock_x_or_s)) {
+		return(NULL);
+	}
+
+	for (lock_t* lock = UT_LIST_GET_LAST(table->locks);
+	     lock;
 	     lock = UT_LIST_GET_PREV(un_member.tab_lock.locks, lock)) {
 
 		if (lock->trx != trx
@@ -3544,7 +3562,15 @@ lock_table_has_to_wait_in_queue(
 	dict_table_t *table = wait_lock->un_member.tab_lock.table;
 	lock_sys.mutex_assert_locked();
 
-	for (const lock_t* lock = UT_LIST_GET_FIRST(table->locks);
+	static_assert(LOCK_IS == 0, "compatibility");
+	static_assert(LOCK_IX == 1, "compatibility");
+
+	if (UNIV_LIKELY(wait_lock->mode() <= LOCK_IX
+			&& !table->n_lock_x_or_s)) {
+		return(false);
+	}
+
+	for (const lock_t *lock = UT_LIST_GET_FIRST(table->locks);
 	     lock != wait_lock;
 	     lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock)) {
 
@@ -3569,13 +3595,20 @@ lock_table_dequeue(
 			behind will get their lock requests granted, if
 			they are now qualified to it */
 {
-	lock_sys.mutex_assert_locked();
 	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
 	ut_a(in_lock->is_table());
-
+	const dict_table_t* table = in_lock->un_member.tab_lock.table;
+	lock_sys.mutex_assert_locked();
 	lock_t*	lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, in_lock);
 
 	lock_table_remove_low(in_lock);
+
+	static_assert(LOCK_IS == 0, "compatibility");
+	static_assert(LOCK_IX == 1, "compatibility");
+
+	if (UNIV_LIKELY(in_lock->mode() <= LOCK_IX && !table->n_lock_x_or_s)) {
+		return;
+	}
 
 	/* Check if waiting locks in the queue can now be granted: grant
 	locks if there are no conflicting locks ahead. */

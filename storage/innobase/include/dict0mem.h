@@ -2279,19 +2279,21 @@ public:
 	/** Autoinc counter value to give to the next inserted row. */
 	ib_uint64_t				autoinc;
 
-	/** This counter is used to track the number of granted and pending
-	autoinc locks on this table. This value is set after acquiring the
-	lock_sys_t::mutex but we peek the contents to determine whether other
-	transactions have acquired the AUTOINC lock or not. Of course only one
-	transaction can be granted the lock but there can be multiple
-	waiters. */
-	ulong					n_waiting_or_granted_auto_inc_locks;
-
 	/** The transaction that currently holds the the AUTOINC lock on this
 	table. Protected by lock_sys.mutex. */
 	const trx_t*				autoinc_trx;
 
+  /** Number of granted or pending autoinc_lock on this table. This
+  value is set after acquiring lock_sys.mutex but
+  in innodb_autoinc_lock_mode=1 (the default),
+  ha_innobase::innobase_lock_autoinc() will perform a dirty read
+  to determine whether other transactions have acquired the autoinc_lock. */
+  uint32_t n_waiting_or_granted_auto_inc_locks;
+
 	/* @} */
+
+  /** Number of granted or pending LOCK_S or LOCK_X on the table */
+  uint32_t n_lock_x_or_s;
 
 	/** FTS specific state variables. */
 	fts_t*					fts;
