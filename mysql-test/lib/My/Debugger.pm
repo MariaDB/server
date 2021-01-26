@@ -79,6 +79,22 @@ my %debuggers = (
         if ::mtr_grab_file('/proc/sys/kernel/perf_event_paranoid') > 1;
     }
   },
+  valgdb => {
+    term => 1,
+    run => 'gdb',
+    options => '-x {script} {exe}',
+    script => <<EEE,
+py
+import subprocess,shlex,time
+valg=subprocess.Popen(shlex.split("""valgrind --tool=memcheck --show-reachable=yes --leak-check=yes --num-callers=16 --quiet --suppressions=valgrind.supp --vgdb-error=0 {exe} {args} --loose-wait-for-pos-timeout=1500"""))
+time.sleep(2)
+gdb.execute("target remote | /usr/lib64/valgrind/../../bin/vgdb --pid=" + str(valg.pid))
+EEE
+    pre => sub {
+      my $debug_libraries_path= "/usr/lib/debug";
+      $ENV{LD_LIBRARY_PATH} .= ":$debug_libraries_path" if -d $debug_libraries_path;
+    }
+  },
 
   # aliases
   vsjitdebugger => 'windbg',
@@ -147,16 +163,17 @@ sub do_args($$$$$) {
 
   my $options = subst($v->{options}, %vars);
   @$$args = map { unquote_for_mtr $_ } $options =~ /("[^"]+"|\S+)/g;
+  my $run = $v->{run} || $k;
 
   if ($opt =~ /^manual-/) {
     print "\nTo start $k for $type, type in another window:\n";
-    print "$k $options\n";
+    print "$run $options\n";
     $$exe= undef; # Indicate the exe should not be started
   } elsif ($v->{term}) {
-    unshift @$$args, '-title', $type, '-e', $k;
+    unshift @$$args, '-title', $type, '-e', $run;
     $$exe = 'xterm';
   } else {
-    $$exe = $k;
+    $$exe = $run;
   }
 }
 
