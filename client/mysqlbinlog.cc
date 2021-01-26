@@ -216,7 +216,7 @@ Log_event* read_remote_annotate_event(uchar* net_buf, ulong event_len,
   memcpy(event_buf, net_buf, event_len);
   event_buf[event_len]= 0;
 
-  if (!(event= Log_event::read_log_event((const char*) event_buf, event_len,
+  if (!(event= Log_event::read_log_event(event_buf, event_len,
                                          error_msg, glob_description_event,
                                          opt_verify_binlog_checksum)))
   {
@@ -227,7 +227,7 @@ Log_event* read_remote_annotate_event(uchar* net_buf, ulong event_len,
     Ensure the event->temp_buf is pointing to the allocated buffer.
     (TRUE = free temp_buf on the event deletion)
   */
-  event->register_temp_buf((char*)event_buf, TRUE);
+  event->register_temp_buf(event_buf, TRUE);
 
   return event;
 }
@@ -512,8 +512,7 @@ Exit_status Load_log_processor::load_old_format_file(NET* net,
       error("Illegal length of packet read from net.");
       return ERROR_STOP;
     }
-    if (my_write(file, (uchar*) net->read_pos, 
-		 (uint) packet_len, MYF(MY_WME|MY_NABP)))
+    if (my_write(file, net->read_pos, (uint) packet_len, MYF(MY_WME|MY_NABP)))
       return ERROR_STOP;
   }
   
@@ -2350,7 +2349,7 @@ static Exit_status handle_event_text_mode(PRINT_EVENT_INFO *print_event_info,
   }
   else
   {
-    if (!(ev= Log_event::read_log_event((const char*) net->read_pos + 1 ,
+    if (!(ev= Log_event::read_log_event(net->read_pos + 1 ,
                                         *len - 1, &error_msg,
                                         glob_description_event,
                                         opt_verify_binlog_checksum)))
@@ -2362,7 +2361,7 @@ static Exit_status handle_event_text_mode(PRINT_EVENT_INFO *print_event_info,
       If reading from a remote host, ensure the temp_buf for the
       Log_event class is pointing to the incoming stream.
     */
-    ev->register_temp_buf((char *) net->read_pos + 1, FALSE);
+    ev->register_temp_buf(net->read_pos + 1, FALSE);
   }
 
   Log_event_type type= ev->get_type_code();
@@ -2463,7 +2462,7 @@ static Exit_status handle_event_raw_mode(PRINT_EVENT_INFO *print_event_info,
                                          const char* logname, uint logname_len)
 {
   const char *error_msg;
-  const unsigned char *read_pos= mysql->net.read_pos + 1;
+  const uchar *read_pos= mysql->net.read_pos + 1;
   Log_event_type type;
   DBUG_ENTER("handle_event_raw_mode");
   DBUG_ASSERT(opt_raw_mode && remote_opt);
@@ -2476,7 +2475,7 @@ static Exit_status handle_event_raw_mode(PRINT_EVENT_INFO *print_event_info,
   if (type == ROTATE_EVENT || type == FORMAT_DESCRIPTION_EVENT)
   {
     Log_event *ev;
-    if (!(ev= Log_event::read_log_event((const char*) read_pos ,
+    if (!(ev= Log_event::read_log_event(read_pos ,
                                         *len - 1, &error_msg,
                                         glob_description_event,
                                         opt_verify_binlog_checksum)))
@@ -2489,7 +2488,7 @@ static Exit_status handle_event_raw_mode(PRINT_EVENT_INFO *print_event_info,
       If reading from a remote host, ensure the temp_buf for the
       Log_event class is pointing to the incoming stream.
     */
-    ev->register_temp_buf((char *) read_pos, FALSE);
+    ev->register_temp_buf(const_cast<uchar*>(read_pos), FALSE);
 
     if (type == ROTATE_EVENT)
     {

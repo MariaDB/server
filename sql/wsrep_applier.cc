@@ -39,7 +39,7 @@ static Log_event* wsrep_read_log_event(
   char *head= (*arg_buf);
 
   uint data_len= uint4korr(head + EVENT_LEN_OFFSET);
-  char *buf= (*arg_buf);
+  uchar *buf= (uchar*) (*arg_buf);
   const char *error= 0;
   Log_event *res=  0;
 

@@ -1519,9 +1519,10 @@ gtid_state_from_pos(const char *name, uint32 offset,
         goto end;
       }
 
-      current_checksum_alg= get_checksum_alg(packet.ptr(), packet.length());
+      current_checksum_alg= get_checksum_alg((uchar*) packet.ptr(),
+                                             packet.length());
       found_format_description_event= true;
-      if (unlikely(!(tmp= new Format_description_log_event(packet.ptr(),
+      if (unlikely(!(tmp= new Format_description_log_event((uchar*) packet.ptr(),
                                                            packet.length(),
                                                            fdev))))
       {
@@ -1539,7 +1540,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
       {
         sele_len -= BINLOG_CHECKSUM_LEN;
       }
-      Start_encryption_log_event sele(packet.ptr(), sele_len, fdev);
+      Start_encryption_log_event sele((uchar*) packet.ptr(), sele_len, fdev);
       if (fdev->start_decryption(&sele))
       {
         errormsg= "Could not start decryption of binlog.";
@@ -1596,7 +1597,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
     {
       rpl_gtid gtid;
       uchar flags2;
-      if (unlikely(Gtid_log_event::peek(packet.ptr(), packet.length(),
+      if (unlikely(Gtid_log_event::peek((uchar*) packet.ptr(), packet.length(),
                                         current_checksum_alg, &gtid.domain_id,
                                         &gtid.server_id, &gtid.seq_no, &flags2,
                                         fdev)))
@@ -1682,9 +1683,9 @@ is_until_reached(binlog_send_info *info, ulong *ev_offset,
     if (event_type != XID_EVENT && event_type != XA_PREPARE_LOG_EVENT &&
         (event_type != QUERY_EVENT ||    /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
          !Query_log_event::peek_is_commit_rollback
-               (info->packet->ptr()+*ev_offset,
-                info->packet->length()-*ev_offset,
-                info->current_checksum_alg)))
+         ((uchar*) info->packet->ptr() + *ev_offset,
+          info->packet->length() - *ev_offset,
+          info->current_checksum_alg)))
       return false;
     break;
   }
@@ -1762,7 +1763,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
       rpl_gtid event_gtid;
 
       if (ev_offset > len ||
-          Gtid_log_event::peek(packet->ptr()+ev_offset, len - ev_offset,
+          Gtid_log_event::peek((uchar*) packet->ptr()+ev_offset, len - ev_offset,
                                current_checksum_alg,
                                &event_gtid.domain_id, &event_gtid.server_id,
                                &event_gtid.seq_no, &flags2, info->fdev))
@@ -1916,7 +1917,8 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
   case GTID_SKIP_TRANSACTION:
     if (event_type == XID_EVENT || event_type == XA_PREPARE_LOG_EVENT ||
         (event_type == QUERY_EVENT && /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
-         Query_log_event::peek_is_commit_rollback(packet->ptr() + ev_offset,
+         Query_log_event::peek_is_commit_rollback((uchar*) packet->ptr() +
+                                                  ev_offset,
                                                   len - ev_offset,
                                                   current_checksum_alg)))
       info->gtid_skip_group= GTID_SKIP_NOT;
@@ -2320,7 +2322,8 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     DBUG_RETURN(1);
   }
 
-  info->current_checksum_alg= get_checksum_alg(packet->ptr() + ev_offset,
+  info->current_checksum_alg= get_checksum_alg((uchar*) packet->ptr() +
+                                               ev_offset,
                                                packet->length() - ev_offset);
 
   DBUG_ASSERT(info->current_checksum_alg == BINLOG_CHECKSUM_ALG_OFF ||
@@ -2345,7 +2348,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     ev_len-= BINLOG_CHECKSUM_LEN;
 
   Format_description_log_event *tmp;
-  if (!(tmp= new Format_description_log_event(packet->ptr() + ev_offset,
+  if (!(tmp= new Format_description_log_event((uchar*) packet->ptr() + ev_offset,
                                               ev_len, info->fdev)))
   {
     info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
@@ -2437,7 +2440,8 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   if (event_type == START_ENCRYPTION_EVENT)
   {
     Start_encryption_log_event *sele= (Start_encryption_log_event *)
-      Log_event::read_log_event(packet->ptr() + ev_offset, packet->length()
+      Log_event::read_log_event((uchar*) packet->ptr() + ev_offset,
+                                packet->length()
                                 - ev_offset, &info->errmsg, info->fdev,
                                 BINLOG_CHECKSUM_ALG_OFF);
     if (!sele)

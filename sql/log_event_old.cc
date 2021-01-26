@@ -1175,7 +1175,7 @@ Old_rows_log_event::Old_rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
 #endif
 
 
-Old_rows_log_event::Old_rows_log_event(const char *buf, uint event_len,
+Old_rows_log_event::Old_rows_log_event(const uchar *buf, uint event_len,
                                        Log_event_type event_type,
                                        const Format_description_log_event
                                        *description_event)
@@ -1198,8 +1198,8 @@ Old_rows_log_event::Old_rows_log_event(const char *buf, uint event_len,
 		      event_len, common_header_len,
 		      post_header_len));
 
-  const char *post_start= buf + common_header_len;
-  DBUG_DUMP("post_header", (uchar*) post_start, post_header_len);
+  const uchar *post_start= buf + common_header_len;
+  DBUG_DUMP("post_header", post_start, post_header_len);
   post_start+= RW_MAPID_OFFSET;
   if (post_header_len == 6)
   {
@@ -2417,7 +2417,7 @@ Write_rows_log_event_old::Write_rows_log_event_old(THD *thd_arg,
   Constructor used by slave to read the event from the binary log.
  */
 #ifdef HAVE_REPLICATION
-Write_rows_log_event_old::Write_rows_log_event_old(const char *buf,
+Write_rows_log_event_old::Write_rows_log_event_old(const uchar *buf,
                                                    uint event_len,
                                                    const Format_description_log_event
                                                    *description_event)
@@ -2530,12 +2530,13 @@ Delete_rows_log_event_old::Delete_rows_log_event_old(THD *thd_arg,
   Constructor used by slave to read the event from the binary log.
  */
 #ifdef HAVE_REPLICATION
-Delete_rows_log_event_old::Delete_rows_log_event_old(const char *buf,
-                                                     uint event_len,
-                                                     const Format_description_log_event
-                                                     *description_event)
-  : Old_rows_log_event(buf, event_len, PRE_GA_DELETE_ROWS_EVENT,
-                       description_event),
+Delete_rows_log_event_old::
+Delete_rows_log_event_old(const uchar *buf,
+                          uint event_len,
+                          const Format_description_log_event
+                          *description_event)
+  :Old_rows_log_event(buf, event_len, PRE_GA_DELETE_ROWS_EVENT,
+                      description_event),
     m_after_image(NULL), m_memory(NULL)
 {
 }
@@ -2544,8 +2545,8 @@ Delete_rows_log_event_old::Delete_rows_log_event_old(const char *buf,
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 
-int 
-Delete_rows_log_event_old::do_before_row_operations(const Slave_reporting_capability *const)
+int Delete_rows_log_event_old::
+do_before_row_operations(const Slave_reporting_capability *const)
 {
   if ((m_table->file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_POSITION) &&
       m_table->s->primary_key < MAX_KEY)
@@ -2636,7 +2637,7 @@ Update_rows_log_event_old::Update_rows_log_event_old(THD *thd_arg,
   Constructor used by slave to read the event from the binary log.
  */
 #ifdef HAVE_REPLICATION
-Update_rows_log_event_old::Update_rows_log_event_old(const char *buf,
+Update_rows_log_event_old::Update_rows_log_event_old(const uchar *buf,
                                                      uint event_len,
                                                      const
                                                      Format_description_log_event
@@ -2652,12 +2653,14 @@ Update_rows_log_event_old::Update_rows_log_event_old(const char *buf,
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 
 int 
-Update_rows_log_event_old::do_before_row_operations(const Slave_reporting_capability *const)
+Update_rows_log_event_old::
+do_before_row_operations(const Slave_reporting_capability *const)
 {
   if (m_table->s->keys > 0)
   {
     // Allocate buffer for key searches
-    m_key= (uchar*)my_malloc(key_memory_log_event_old, m_table->key_info->key_length, MYF(MY_WME));
+    m_key= (uchar*)my_malloc(key_memory_log_event_old,
+                             m_table->key_info->key_length, MYF(MY_WME));
     if (!m_key)
       return HA_ERR_OUT_OF_MEM;
   }
@@ -2667,8 +2670,8 @@ Update_rows_log_event_old::do_before_row_operations(const Slave_reporting_capabi
 
 
 int 
-Update_rows_log_event_old::do_after_row_operations(const Slave_reporting_capability *const,
-                                                   int error)
+Update_rows_log_event_old::
+do_after_row_operations(const Slave_reporting_capability *const, int error)
 {
   /*error= ToDo:find out what this should really be, this triggers close_scan in nbd, returning error?*/
   m_table->file->ha_index_or_rnd_end();

@@ -288,8 +288,15 @@ table_def::~table_def()
 
    @return  TRUE        if test fails
             FALSE       as success
+
+   @notes
+    event_buf will have same values on return. However during the process of
+    caluclating the checksum, it's temporary changed. Because of this the
+    event_buf argument is not a pointer to const.
+
 */
-bool event_checksum_test(uchar *event_buf, ulong event_len, enum enum_binlog_checksum_alg alg)
+bool event_checksum_test(uchar *event_buf, ulong event_len,
+                         enum enum_binlog_checksum_alg alg)
 {
   bool res= FALSE;
   uint16 flags= 0; // to store in FD's buffer flags orig value
