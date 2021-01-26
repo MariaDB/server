@@ -1757,7 +1757,7 @@ static void lock_grant_after_reset(lock_t* lock)
 	}
 
 	DBUG_PRINT("ib_lock", ("wait for trx " TRX_ID_FMT " ends",
-			       trx_get_id_for_print(lock->trx)));
+			       lock->trx->id));
 
 	/* If we are resolving a deadlock by choosing another transaction
 	as a victim, then our original transaction may not be in the
@@ -3928,7 +3928,7 @@ lock_table_print(FILE* file, const lock_t* lock)
 	fputs("TABLE LOCK table ", file);
 	ut_print_name(file, lock->trx,
 		      lock->un_member.tab_lock.table->name.m_name);
-	fprintf(file, " trx id " TRX_ID_FMT, trx_get_id_for_print(lock->trx));
+	fprintf(file, " trx id " TRX_ID_FMT, lock->trx->id);
 
 	if (lock_get_mode(lock) == LOCK_S) {
 		fputs(" lock mode S", file);
@@ -3971,7 +3971,7 @@ static void lock_rec_print(FILE* file, const lock_t* lock, mtr_t& mtr)
 		lock_rec_get_n_bits(lock),
 		lock->index->name());
 	ut_print_name(file, lock->trx, lock->index->table->name.m_name);
-	fprintf(file, " trx id " TRX_ID_FMT, trx_get_id_for_print(lock->trx));
+	fprintf(file, " trx id " TRX_ID_FMT, lock->trx->id);
 
 	if (lock_get_mode(lock) == LOCK_S) {
 		fputs(" lock mode S", file);
@@ -5456,17 +5456,6 @@ lock_get_type(
 	const lock_t*	lock)	/*!< in: lock */
 {
 	return(lock_get_type_low(lock));
-}
-
-/*******************************************************************//**
-Gets the id of the transaction owning a lock.
-@return transaction id */
-trx_id_t
-lock_get_trx_id(
-/*============*/
-	const lock_t*	lock)	/*!< in: lock */
-{
-	return(trx_get_id_for_print(lock->trx));
 }
 
 /*******************************************************************//**

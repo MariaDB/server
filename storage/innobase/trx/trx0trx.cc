@@ -1766,7 +1766,11 @@ trx_print_low(
 	ibool		newline;
 	const char*	op_info;
 
-	fprintf(f, "TRANSACTION " TRX_ID_FMT, trx_get_id_for_print(trx));
+	if (const trx_id_t id = trx->id) {
+		fprintf(f, "TRANSACTION " TRX_ID_FMT, trx->id);
+	} else {
+		fprintf(f, "TRANSACTION (%p)", trx);
+	}
 
 	switch (trx->state) {
 	case TRX_STATE_NOT_STARTED:

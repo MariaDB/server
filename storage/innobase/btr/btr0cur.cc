@@ -5377,7 +5377,7 @@ btr_cur_del_mark_set_clust_rec(
 	DBUG_LOG("ib_cur",
 		 "delete-mark clust " << index->table->name
 		 << " (" << index->id << ") by "
-		 << ib::hex(trx_get_id_for_print(trx)) << ": "
+		 << ib::hex(trx->id) << ": "
 		 << rec_printer(rec, offsets).str());
 
 	if (dict_index_is_online_ddl(index)) {

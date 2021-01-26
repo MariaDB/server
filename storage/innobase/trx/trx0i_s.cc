@@ -424,7 +424,7 @@ fill_trx_row(
 
 	lock_sys.mutex_assert_locked();
 
-	row->trx_id = trx_get_id_for_print(trx);
+	row->trx_id = trx->id;
 	row->trx_started = trx->start_time;
 	row->trx_state = trx_get_que_state_str(trx);
 	row->requested_lock_row = requested_lock_row;
