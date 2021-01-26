@@ -81,9 +81,7 @@ lock_rec_create(
 	lock_t*			c_lock,	/*!< conflicting lock */
 	que_thr_t*		thr,	/*!< thread owning trx */
 #endif
-	unsigned		type_mode,/*!< in: lock mode and wait
-					flag, type is ignored and
-					replaced by LOCK_REC */
+	unsigned		type_mode,/*!< in: lock mode and wait flag */
 	const buf_block_t*	block,	/*!< in: buffer block containing
 					the record */
 	ulint			heap_no,/*!< in: heap number of the record */

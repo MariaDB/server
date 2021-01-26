@@ -425,8 +425,7 @@ lock_t*
 lock_prdt_add_to_queue(
 /*===================*/
 	unsigned		type_mode,/*!< in: lock mode, wait, predicate
-					etc. flags; type is ignored
-					and replaced by LOCK_REC */
+					etc. flags */
 	const buf_block_t*	block,	/*!< in: buffer block containing
 					the record */
 	dict_index_t*		index,	/*!< in: index of record */
@@ -452,8 +451,6 @@ lock_prdt_add_to_queue(
 		ut_error;
 	}
 #endif /* UNIV_DEBUG */
-
-	type_mode |= LOCK_REC;
 
 	/* Try to extend a similar non-waiting lock on the same page */
 	if (type_mode & LOCK_WAIT) {
@@ -796,7 +793,7 @@ lock_prdt_lock(
 	} else {
 		if (lock_rec_get_next_on_page(lock)
 		    || lock->trx != trx
-		    || lock->type_mode != (LOCK_REC | prdt_mode)
+		    || lock->type_mode != prdt_mode
 		    || lock_rec_get_n_bits(lock) == 0
 		    || ((type_mode & LOCK_PREDICATE)
 		        && (!lock_prdt_consistent(
@@ -885,7 +882,7 @@ lock_place_prdt_page_lock(
 			lock = lock_rec_get_next_on_page_const(lock);
 		}
 
-		ut_ad(lock == NULL || lock->type_mode == (mode | LOCK_REC));
+		ut_ad(lock == NULL || lock->type_mode == mode);
 		ut_ad(lock == NULL || lock_rec_get_n_bits(lock) != 0);
 	}
 

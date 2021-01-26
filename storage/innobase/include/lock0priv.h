@@ -95,10 +95,10 @@ ib_lock_t::print(std::ostream& out) const
 
   out << ")";
 
-  if (is_record_lock())
-    out << un_member.rec_lock;
-  else
+  if (is_table())
     out << un_member.tab_lock;
+  else
+    out << un_member.rec_lock;
 
   out << "]";
   return out;
@@ -411,15 +411,6 @@ static const ulint      lock_types = UT_ARR_SIZE(lock_compatibility_matrix);
 #endif /* UNIV_DEBUG */
 
 /*********************************************************************//**
-Gets the type of a lock.
-@return LOCK_TABLE or LOCK_REC */
-UNIV_INLINE
-ulint
-lock_get_type_low(
-/*==============*/
-	const lock_t*	lock);	/*!< in: lock */
-
-/*********************************************************************//**
 Gets the previous record lock set on a record.
 @return previous lock on the same record, NULL if none exists */
 const lock_t*
@@ -492,8 +483,8 @@ lock_rec_set_nth_bit(
 @return previous value of the bit */
 inline byte lock_rec_reset_nth_bit(lock_t* lock, ulint i)
 {
+	ut_ad(!lock->is_table());
 	lock_sys.mutex_assert_locked();
-	ut_ad(lock_get_type_low(lock) == LOCK_REC);
 	ut_ad(i < lock->un_member.rec_lock.n_bits);
 
 	byte*	b = reinterpret_cast<byte*>(&lock[1]) + (i >> 3);

@@ -99,13 +99,8 @@ operator<<(std::ostream& out, const lock_rec_t& lock)
 				type_mode field in a lock */
 /** Lock types */
 /* @{ */
-#define LOCK_TABLE	16U	/*!< table lock */
-#define	LOCK_REC	32U	/*!< record lock */
-#define LOCK_TYPE_MASK	0xF0UL	/*!< mask used to extract lock type from the
-				type_mode field in a lock */
-#if LOCK_MODE_MASK & LOCK_TYPE_MASK
-# error "LOCK_MODE_MASK & LOCK_TYPE_MASK"
-#endif
+/** table lock (record lock if the flag is not set) */
+#define LOCK_TABLE	8U
 
 #define LOCK_WAIT	256U	/*!< Waiting lock flag; when set, it
 				means that the lock has not yet been
@@ -184,13 +179,6 @@ struct ib_lock_t
 					LOCK_INSERT_INTENTION,
 					wait flag, ORed */
 
-	/** Determine if the lock object is a record lock.
-	@return true if record lock, false otherwise. */
-	bool is_record_lock() const
-	{
-		return(type() == LOCK_REC);
-	}
-
 	bool is_waiting() const
 	{
 		return(type_mode & LOCK_WAIT);
@@ -211,9 +199,7 @@ struct ib_lock_t
 		return(type_mode & LOCK_INSERT_INTENTION);
 	}
 
-	ulint type() const {
-		return(type_mode & LOCK_TYPE_MASK);
-	}
+	bool is_table() const { return type_mode & LOCK_TABLE; }
 
 	enum lock_mode mode() const
 	{
@@ -226,16 +212,7 @@ struct ib_lock_t
 	std::ostream& print(std::ostream& out) const;
 
 	const char* type_string() const
-	{
-		switch (type_mode & LOCK_TYPE_MASK) {
-		case LOCK_REC:
-			return("LOCK_REC");
-		case LOCK_TABLE:
-			return("LOCK_TABLE");
-		default:
-			ut_error;
-		}
-	}
+	{ return is_table() ? "LOCK_TABLE" : "LOCK_REC"; }
 };
 
 typedef UT_LIST_BASE_NODE_T(ib_lock_t) trx_lock_list_t;

@@ -793,9 +793,7 @@ lock_rec_create(
 	lock_t*			c_lock,	/*!< conflicting lock */
 	que_thr_t*		thr,	/*!< thread owning trx */
 #endif
-	unsigned		type_mode,/*!< in: lock mode and wait
-					flag, type is ignored and
-					replaced by LOCK_REC */
+	unsigned		type_mode,/*!< in: lock mode and wait flag */
 	const buf_block_t*	block,	/*!< in: buffer block containing
 					the record */
 	ulint			heap_no,/*!< in: heap number of the record */
@@ -816,8 +814,7 @@ lock_rec_discard(
 
 /** Create a new record lock and inserts it to the lock queue,
 without checking for deadlocks or conflicts.
-@param[in]	type_mode	lock mode and wait flag; type will be replaced
-				with LOCK_REC
+@param[in]	type_mode	lock mode and wait flag
 @param[in]	page_id		index page number
 @param[in]	page		R-tree index page, or NULL
 @param[in]	heap_no		record heap number in the index page

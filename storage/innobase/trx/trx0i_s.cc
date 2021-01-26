@@ -177,7 +177,7 @@ trx_i_s_cache_t*	trx_i_s_cache = &trx_i_s_cache_static;
 @retval 0xFFFF for table locks */
 static uint16_t wait_lock_get_heap_no(const lock_t *lock)
 {
-  return lock_get_type(lock) == LOCK_REC
+  return !lock->is_table()
     ? static_cast<uint16_t>(lock_rec_find_set_bit(lock))
     : uint16_t{0xFFFF};
 }
@@ -601,7 +601,7 @@ fill_lock_data(
 	trx_i_s_cache_t*	cache)	/*!< in/out: cache where to store
 					volatile data */
 {
-	ut_a(lock_get_type(lock) == LOCK_REC);
+	ut_a(!lock->is_table());
 
 	switch (heap_no) {
 	case PAGE_HEAP_NO_INFIMUM:
@@ -705,12 +705,10 @@ static bool fill_locks_row(
 				volatile strings */
 {
 	row->lock_trx_id = lock->trx->id;
-	const auto lock_type = lock_get_type(lock);
-	ut_ad(lock_type == LOCK_REC || lock_type == LOCK_TABLE);
-
-	const bool is_gap_lock = lock_type == LOCK_REC
-		&& (lock->type_mode & LOCK_GAP);
-	switch (lock->type_mode & LOCK_MODE_MASK) {
+	const bool is_table = lock->is_table();
+	const bool is_gap_lock = lock->is_gap();
+	ut_ad(!is_gap_lock || !is_table);
+	switch (lock->mode()) {
 	case LOCK_S:
 		row->lock_mode = uint8_t(1 + is_gap_lock);
 		break;
@@ -741,7 +739,7 @@ static bool fill_locks_row(
 		return false;
 	}
 
-	if (lock_type == LOCK_REC) {
+	if (!is_table) {
 		row->lock_index = ha_storage_put_str_memlim(
 			cache->storage, lock_rec_get_index(lock)->name,
 			MAX_ALLOWED_FOR_STORAGE(cache));
@@ -824,26 +822,19 @@ fold_lock(
 #else
 	ulint	ret;
 
-	switch (lock_get_type(lock)) {
-	case LOCK_REC:
+	if (!lock->is_table()) {
 		ut_a(heap_no != 0xFFFF);
 		ret = ut_fold_ulint_pair((ulint) lock->trx->id,
 					 lock->un_member.rec_lock.page_id.
 					 fold());
 		ret = ut_fold_ulint_pair(ret, heap_no);
-
-		break;
-	case LOCK_TABLE:
+	} else {
 		/* this check is actually not necessary for continuing
 		correct operation, but something must have gone wrong if
 		it fails. */
 		ut_a(heap_no == 0xFFFF);
 
 		ret = (ulint) lock_get_table_id(lock);
-
-		break;
-	default:
-		ut_error;
 	}
 
 	return(ret);
@@ -867,15 +858,13 @@ locks_row_eq_lock(
 #ifdef TEST_NO_LOCKS_ROW_IS_EVER_EQUAL_TO_LOCK_T
 	return(0);
 #else
-	switch (lock_get_type(lock)) {
-	case LOCK_REC:
+	if (!lock->is_table()) {
 		ut_a(heap_no != 0xFFFF);
 
 		return(row->lock_trx_id == lock->trx->id
 		       && row->lock_page == lock->un_member.rec_lock.page_id
 		       && row->lock_rec == heap_no);
-
-	case LOCK_TABLE:
+	} else {
 		/* this check is actually not necessary for continuing
 		correct operation, but something must have gone wrong if
 		it fails. */
@@ -883,10 +872,6 @@ locks_row_eq_lock(
 
 		return(row->lock_trx_id == lock->trx->id
 		       && row->lock_table_id == lock_get_table_id(lock));
-
-	default:
-		ut_error;
-		return(FALSE);
 	}
 #endif
 }

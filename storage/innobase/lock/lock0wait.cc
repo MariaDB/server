@@ -165,7 +165,7 @@ dberr_t lock_wait(que_thr_t *thr)
     timespec abstime;
     set_timespec_time_nsec(abstime, suspend_time.val * 1000);
     abstime.MY_tv_sec+= innodb_lock_wait_timeout;
-    thd_wait_begin(trx->mysql_thd, lock_get_type_low(wait_lock) == LOCK_TABLE
+    thd_wait_begin(trx->mysql_thd, wait_lock->is_table()
                    ? THD_WAIT_TABLE_LOCK : THD_WAIT_ROW_LOCK);
     while (trx->lock.wait_lock)
     {
