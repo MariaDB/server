@@ -437,8 +437,10 @@ lock_prdt_add_to_queue(
 					/*!< in: TRUE if caller owns the
 					transaction mutex */
 {
+	const page_id_t id{block->page.id()};
 	lock_sys.mutex_assert_locked();
-	ut_ad(!dict_index_is_clust(index) && !dict_index_is_online_ddl(index));
+	ut_ad(index->is_spatial());
+	ut_ad(!dict_index_is_online_ddl(index));
 	ut_ad(type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE));
 
 #ifdef UNIV_DEBUG
@@ -453,42 +455,31 @@ lock_prdt_add_to_queue(
 
 	type_mode |= LOCK_REC;
 
-	/* Look for a waiting lock request on the same record or on a gap */
+	/* Try to extend a similar non-waiting lock on the same page */
+	if (type_mode & LOCK_WAIT) {
+		goto create;
+	}
 
-	lock_t*		lock;
-
-	for (lock = lock_sys.get_first(*lock_hash_get(type_mode),
-				       block->page.id());
-	     lock != NULL;
-	     lock = lock_rec_get_next_on_page(lock)) {
-
+	for (lock_t* lock = lock_sys.get_first(*lock_hash_get(type_mode), id);
+	     lock; lock = lock_rec_get_next_on_page(lock)) {
 		if (lock_get_wait(lock)
 		    && lock_rec_get_nth_bit(lock, PRDT_HEAPNO)
 		    && lock->type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE)) {
-
-			break;
+			goto create;
 		}
 	}
 
-	if (lock == NULL && !(type_mode & LOCK_WAIT)) {
-
-		/* Look for a similar record lock on the same page:
-		if one is found and there are no waiting lock requests,
-		we can just set the bit */
-
-		lock = lock_prdt_find_on_page(type_mode, block, prdt, trx);
-
-		if (lock != NULL) {
-
-			if (lock->type_mode & LOCK_PREDICATE) {
-				lock_prdt_enlarge_prdt(lock, prdt);
-			}
-
-			return(lock);
+	if (lock_t* lock = lock_prdt_find_on_page(type_mode, block,
+						  prdt, trx)) {
+		if (lock->type_mode & LOCK_PREDICATE) {
+			lock_prdt_enlarge_prdt(lock, prdt);
 		}
+
+		return lock;
 	}
 
-	lock = lock_rec_create(
+create:
+	lock_t* lock = lock_rec_create(
 #ifdef WITH_WSREP
 		NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
 #endif
@@ -640,7 +631,7 @@ lock_prdt_update_parent(
 			lock_prdt_add_to_queue(lock->type_mode,
 					       left_block, lock->index,
 					       lock->trx, lock_prdt,
-					       FALSE);
+					       false);
 		}
 
 		if (!lock_prdt_consistent(lock_prdt, right_prdt, op)
@@ -648,7 +639,7 @@ lock_prdt_update_parent(
 					       lock_prdt, lock->trx)) {
 			lock_prdt_add_to_queue(lock->type_mode, right_block,
 					       lock->index, lock->trx,
-					       lock_prdt, FALSE);
+					       lock_prdt, false);
 		}
 	}
 
@@ -673,16 +664,13 @@ lock_prdt_update_split_low(
 	for (lock = lock_sys.get_first(*lock_hash_get(type_mode), page_id);
 	     lock;
 	     lock = lock_rec_get_next_on_page(lock)) {
-		trx_t* trx = lock->trx;
 		/* First dealing with Page Lock */
 		if (lock->type_mode & LOCK_PRDT_PAGE) {
 			/* Duplicate the lock to new page */
-			trx->mutex.wr_lock();
 			lock_prdt_add_to_queue(lock->type_mode,
 					       new_block,
 					       lock->index,
-					       trx, NULL, TRUE);
-			trx->mutex.wr_unlock();
+					       lock->trx, nullptr, false);
 			continue;
 		}
 
@@ -701,11 +689,9 @@ lock_prdt_update_split_low(
 
 		if (!lock_prdt_consistent(lock_prdt, new_prdt, op)) {
 			/* Move the lock to new page */
-			trx->mutex.wr_lock();
 			lock_prdt_add_to_queue(lock->type_mode, new_block,
-					       lock->index, trx, lock_prdt,
-					       TRUE);
-			trx->mutex.wr_unlock();
+					       lock->index, lock->trx,
+					       lock_prdt, false);
 		}
 	}
 }
@@ -808,8 +794,6 @@ lock_prdt_lock(
 
 		status = LOCK_REC_SUCCESS_CREATED;
 	} else {
-		trx->mutex.wr_lock();
-
 		if (lock_rec_get_next_on_page(lock)
 		    || lock->trx != trx
 		    || lock->type_mode != (LOCK_REC | prdt_mode)
@@ -817,6 +801,7 @@ lock_prdt_lock(
 		    || ((type_mode & LOCK_PREDICATE)
 		        && (!lock_prdt_consistent(
 				lock_get_prdt_from_lock(lock), prdt, 0)))) {
+			trx->mutex.wr_lock();
 
 			lock = lock_prdt_has_lock(
 				mode, type_mode, block, prdt, trx);
@@ -850,8 +835,6 @@ lock_prdt_lock(
 
 			trx->mutex.wr_unlock();
 		} else {
-			trx->mutex.wr_unlock();
-
 			if (!lock_rec_get_nth_bit(lock, PRDT_HEAPNO)) {
 				lock_rec_set_nth_bit(lock, PRDT_HEAPNO);
 				status = LOCK_REC_SUCCESS_CREATED;
@@ -879,9 +862,9 @@ lock_place_prdt_page_lock(
 	que_thr_t*	thr)		/*!< in: query thread */
 {
 	ut_ad(thr != NULL);
-	ut_ad(!srv_read_only_mode);
+	ut_ad(!high_level_read_only);
 
-	ut_ad(!dict_index_is_clust(index));
+	ut_ad(index->is_spatial());
 	ut_ad(!dict_index_is_online_ddl(index));
 
 	/* Another transaction cannot have an implicit lock on the record,
@@ -967,7 +950,7 @@ lock_prdt_rec_move(
 
 		lock_prdt_add_to_queue(
 			type_mode, receiver, lock->index, lock->trx,
-			lock_prdt, FALSE);
+			lock_prdt, false);
 	}
 
 	lock_sys.mutex_unlock();

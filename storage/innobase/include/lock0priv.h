@@ -120,24 +120,6 @@ operator<<(std::ostream& out, const ib_lock_t& lock)
 extern ibool	lock_print_waits;
 #endif /* UNIV_DEBUG */
 
-/** Restricts the length of search we will do in the waits-for
-graph of transactions */
-static const ulint	LOCK_MAX_N_STEPS_IN_DEADLOCK_CHECK = 1000000;
-
-/** Restricts the search depth we will do in the waits-for graph of
-transactions */
-static const ulint	LOCK_MAX_DEPTH_IN_DEADLOCK_CHECK = 200;
-
-/** When releasing transaction locks, this specifies how often we release
-the lock mutex for a moment to give also others access to it */
-static const ulint	LOCK_RELEASE_INTERVAL = 1000;
-
-/* Safety margin when creating a new record lock: this many extra records
-can be inserted to the page without need to create a lock with a bigger
-bitmap */
-
-static const ulint	LOCK_PAGE_BITMAP_MARGIN = 64;
-
 /* An explicit record lock affects both the record and the gap before it.
 An implicit x-lock does not affect the gap, it only locks the index
 record from read or update.

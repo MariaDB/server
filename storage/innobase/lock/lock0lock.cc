@@ -120,10 +120,8 @@ private:
 	}
 
 	/** Check if the search is too deep. */
-	bool is_too_deep() const
-	{
-		return(m_n_elems > LOCK_MAX_DEPTH_IN_DEADLOCK_CHECK
-		       || m_cost > LOCK_MAX_N_STEPS_IN_DEADLOCK_CHECK);
+	bool is_too_deep() const {
+		return m_n_elems > 200 || m_cost > 1000000;
 	}
 
 	/** Save current state.
@@ -1177,7 +1175,6 @@ lock_rec_create_low(
 	bool		holds_trx_mutex)
 {
 	lock_t*		lock;
-	ulint		n_bits;
 	ulint		n_bytes;
 
 	lock_sys.mutex_assert_locked();
@@ -1202,9 +1199,7 @@ lock_rec_create_low(
 	}
 
 	if (UNIV_LIKELY(!(type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE)))) {
-		/* Make lock bitmap bigger by a safety margin */
-		n_bits = page_dir_get_n_heap(page) + LOCK_PAGE_BITMAP_MARGIN;
-		n_bytes = 1 + n_bits / 8;
+		n_bytes = (page_dir_get_n_heap(page) + 7) / 8;
 	} else {
 		ut_ad(heap_no == PRDT_HEAPNO);
 
@@ -1554,11 +1549,11 @@ lock_rec_add_to_queue(
 		if (lock_get_wait(lock)
 		    && lock_rec_get_nth_bit(lock, heap_no)) {
 
-			break;
+			goto create;
 		}
 	}
 
-	if (lock == NULL && !(type_mode & LOCK_WAIT)) {
+	if (first_lock && !(type_mode & LOCK_WAIT)) {
 
 		/* Look for a similar record lock on the same page:
 		if one is found and there are no waiting lock requests,
@@ -1575,6 +1570,7 @@ lock_rec_add_to_queue(
 		}
 	}
 
+create:
 	lock_rec_create(
 #ifdef WITH_WSREP
 		NULL, NULL,
@@ -3850,7 +3846,7 @@ void lock_release(trx_t* trx)
 			lock_table_dequeue(lock);
 		}
 
-		if (count == LOCK_RELEASE_INTERVAL) {
+		if (count == 1000) {
 			/* Release the  mutex for a while, so that we
 			do not monopolize it */
 
