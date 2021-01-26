@@ -688,14 +688,14 @@ row_mysql_handle_errors(
 
 	DBUG_ENTER("row_mysql_handle_errors");
 
-handle_new_error:
 	err = trx->error_state;
 
+handle_new_error:
 	ut_a(err != DB_SUCCESS);
 
 	trx->error_state = DB_SUCCESS;
 
-	DBUG_LOG("trx", "handle error: " << ut_strerr(err)
+	DBUG_LOG("trx", "handle error: " << err
 		 << ";id=" << ib::hex(trx->id) << ", " << trx);
 
 	switch (err) {
@@ -733,11 +733,8 @@ handle_new_error:
 		/* MySQL will roll back the latest SQL statement */
 		break;
 	case DB_LOCK_WAIT:
-		lock_wait_suspend_thread(thr);
-
-		if (trx->error_state != DB_SUCCESS) {
-			que_thr_stop_for_mysql(thr);
-
+		err = lock_wait(thr);
+		if (err != DB_SUCCESS) {
 			goto handle_new_error;
 		}
 
@@ -786,13 +783,12 @@ handle_new_error:
 		ib::fatal() << "Unknown error " << err;
 	}
 
-	if (trx->error_state != DB_SUCCESS) {
-		*new_err = trx->error_state;
+	if (dberr_t n_err = trx->error_state) {
+		trx->error_state = DB_SUCCESS;
+		*new_err = n_err;
 	} else {
 		*new_err = err;
 	}
-
-	trx->error_state = DB_SUCCESS;
 
 	DBUG_RETURN(false);
 }
@@ -1139,12 +1135,12 @@ row_get_prebuilt_insert_row(
 	dict_table_copy_types(row, table);
 
 	ins_node_set_new_row(node, row);
+	que_thr_t* fork = pars_complete_graph_for_exec(
+		node, prebuilt->trx, prebuilt->heap, prebuilt);
+	fork->state = QUE_THR_RUNNING;
 
 	prebuilt->ins_graph = static_cast<que_fork_t*>(
-		que_node_get_parent(
-			pars_complete_graph_for_exec(
-				node,
-				prebuilt->trx, prebuilt->heap, prebuilt)));
+		que_node_get_parent(fork));
 
 	prebuilt->ins_graph->state = QUE_FORK_ACTIVE;
 
@@ -1171,7 +1167,6 @@ row_lock_table_autoinc_for_mysql(
 	const dict_table_t*	table	= prebuilt->table;
 	que_thr_t*		thr;
 	dberr_t			err;
-	ibool			was_lock_wait;
 
 	/* If we already hold an AUTOINC lock on the table then do nothing.
 	Note: We peek at the value of the current owner without acquiring
@@ -1191,36 +1186,20 @@ row_lock_table_autoinc_for_mysql(
 
 	thr = que_fork_get_first_thr(prebuilt->ins_graph);
 
-	thr->start_running();
+	do {
+		thr->run_node = node;
+		thr->prev_node = node;
 
-run_again:
-	thr->run_node = node;
-	thr->prev_node = node;
+		/* It may be that the current session has not yet started
+		its transaction, or it has been committed: */
 
-	/* It may be that the current session has not yet started
-	its transaction, or it has been committed: */
+		trx_start_if_not_started_xa(trx, true);
 
-	trx_start_if_not_started_xa(trx, true);
+		err = lock_table(0, prebuilt->table, LOCK_AUTO_INC, thr);
 
-	err = lock_table(0, prebuilt->table, LOCK_AUTO_INC, thr);
-
-	trx->error_state = err;
-
-	if (err != DB_SUCCESS) {
-		que_thr_stop_for_mysql(thr);
-
-		was_lock_wait = row_mysql_handle_errors(&err, trx, thr, NULL);
-
-		if (was_lock_wait) {
-			goto run_again;
-		}
-
-		trx->op_info = "";
-
-		return(err);
-	}
-
-	thr->stop_no_error();
+		trx->error_state = err;
+	} while (err != DB_SUCCESS
+		 && row_mysql_handle_errors(&err, trx, thr, NULL));
 
 	trx->op_info = "";
 
@@ -1236,7 +1215,6 @@ row_lock_table(row_prebuilt_t* prebuilt)
 	trx_t*		trx		= prebuilt->trx;
 	que_thr_t*	thr;
 	dberr_t		err;
-	ibool		was_lock_wait;
 
 	trx->op_info = "setting table lock";
 
@@ -1250,39 +1228,20 @@ row_lock_table(row_prebuilt_t* prebuilt)
 
 	thr = que_fork_get_first_thr(prebuilt->sel_graph);
 
-	thr->start_running();
+	do {
+		thr->run_node = thr;
+		thr->prev_node = thr->common.parent;
 
-run_again:
-	thr->run_node = thr;
-	thr->prev_node = thr->common.parent;
+		/* It may be that the current session has not yet started
+		its transaction, or it has been committed: */
 
-	/* It may be that the current session has not yet started
-	its transaction, or it has been committed: */
+		trx_start_if_not_started_xa(trx, false);
 
-	trx_start_if_not_started_xa(trx, false);
-
-	err = lock_table(0, prebuilt->table,
-			 static_cast<enum lock_mode>(
-				 prebuilt->select_lock_type),
-			 thr);
-
-	trx->error_state = err;
-
-	if (err != DB_SUCCESS) {
-		que_thr_stop_for_mysql(thr);
-
-		was_lock_wait = row_mysql_handle_errors(&err, trx, thr, NULL);
-
-		if (was_lock_wait) {
-			goto run_again;
-		}
-
-		trx->op_info = "";
-
-		return(err);
-	}
-
-	thr->stop_no_error();
+		err = lock_table(0, prebuilt->table, static_cast<lock_mode>(
+					 prebuilt->select_lock_type), thr);
+		trx->error_state = err;
+	} while (err != DB_SUCCESS
+		 && row_mysql_handle_errors(&err, trx, thr, NULL));
 
 	trx->op_info = "";
 
@@ -1418,8 +1377,6 @@ row_insert_for_mysql(
 		node->trx_id = trx->id;
 	}
 
-	thr->start_running();
-
 run_again:
 	thr->run_node = node;
 	thr->prev_node = node;
@@ -1432,8 +1389,6 @@ run_again:
 
 	if (err != DB_SUCCESS) {
 error_exit:
-		que_thr_stop_for_mysql(thr);
-
 		/* FIXME: What's this ? */
 		thr->lock_state = QUE_THR_LOCK_ROW;
 
@@ -1521,8 +1476,6 @@ error_exit:
 		}
 	}
 
-	thr->stop_no_error();
-
 	if (table->is_system_db) {
 		srv_stats.n_system_rows_inserted.inc(size_t(trx->id));
 	} else {
@@ -1566,12 +1519,12 @@ row_prebuild_sel_graph(
 
 		node = sel_node_create(prebuilt->heap);
 
+		que_thr_t* fork = pars_complete_graph_for_exec(
+			node, prebuilt->trx, prebuilt->heap, prebuilt);
+		fork->state = QUE_THR_RUNNING;
+
 		prebuilt->sel_graph = static_cast<que_fork_t*>(
-			que_node_get_parent(
-				pars_complete_graph_for_exec(
-					static_cast<sel_node_t*>(node),
-					prebuilt->trx, prebuilt->heap,
-					prebuilt)));
+			que_node_get_parent(fork));
 
 		prebuilt->sel_graph->state = QUE_FORK_ACTIVE;
 	}
@@ -1834,8 +1787,6 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 
 	ut_ad(!prebuilt->sql_stat_start);
 
-	thr->start_running();
-
 	ut_ad(!prebuilt->versioned_write || node->table->versioned());
 
 	if (prebuilt->versioned_write) {
@@ -1859,8 +1810,6 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 			break;
 		}
 
-		que_thr_stop_for_mysql(thr);
-
 		if (err == DB_RECORD_NOT_FOUND) {
 			trx->error_state = DB_SUCCESS;
 			goto error;
@@ -1878,8 +1827,6 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 			goto error;
 		}
 	}
-
-	thr->stop_no_error();
 
 	if (dict_table_has_fts_index(table)
 	    && trx->fts_next_doc_id != UINT64_UNDEFINED) {
@@ -2189,10 +2136,7 @@ static dberr_t row_update_vers_insert(que_thr_t* thr, upd_node_t* node)
 
 		switch (trx->error_state) {
 		case DB_LOCK_WAIT:
-			que_thr_stop_for_mysql(thr);
-			lock_wait_suspend_thread(thr);
-
-			if (trx->error_state == DB_SUCCESS) {
+			if (lock_wait(thr) == DB_SUCCESS) {
 				continue;
 			}
 
@@ -2263,10 +2207,7 @@ row_update_cascade_for_mysql(
 
 		switch (trx->error_state) {
 		case DB_LOCK_WAIT:
-			que_thr_stop_for_mysql(thr);
-			lock_wait_suspend_thread(thr);
-
-			if (trx->error_state == DB_SUCCESS) {
+			if (lock_wait(thr) == DB_SUCCESS) {
 				continue;
 			}
 
@@ -3202,25 +3143,15 @@ row_mysql_lock_table(
 	thr = que_fork_get_first_thr(
 		static_cast<que_fork_t*>(que_node_get_parent(thr)));
 
-	thr->start_running();
+	do {
+		thr->run_node = thr;
+		thr->prev_node = thr->common.parent;
 
-run_again:
-	thr->run_node = thr;
-	thr->prev_node = thr->common.parent;
+		err = lock_table(0, table, mode, thr);
 
-	err = lock_table(0, table, mode, thr);
-
-	trx->error_state = err;
-
-	if (err == DB_SUCCESS) {
-		thr->stop_no_error();
-	} else {
-		que_thr_stop_for_mysql(thr);
-
-		if (row_mysql_handle_errors(&err, trx, thr, NULL)) {
-			goto run_again;
-		}
-	}
+		trx->error_state = err;
+	} while (err != DB_SUCCESS
+		 && row_mysql_handle_errors(&err, trx, thr, NULL));
 
 	que_graph_free(thr->graph);
 	trx->op_info = "";

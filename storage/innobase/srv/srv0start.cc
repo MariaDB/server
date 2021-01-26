@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -825,7 +825,6 @@ static void srv_shutdown_threads()
 	ut_ad(!srv_undo_sources);
 	srv_shutdown_state = SRV_SHUTDOWN_EXIT_THREADS;
 	ut_d(srv_master_thread_enable());
-	lock_sys.timeout_timer.reset();
 	srv_master_timer.reset();
 
 	if (purge_sys.enabled()) {
@@ -1787,11 +1786,6 @@ file_checked:
 	srv_startup_is_before_trx_rollback_phase = false;
 
 	if (!srv_read_only_mode) {
-		/* timer task which watches the timeouts
-		for lock waits */
-		lock_sys.timeout_timer.reset(srv_thread_pool->create_timer(
-			lock_wait_timeout_task));
-
 		DBUG_EXECUTE_IF("innodb_skip_monitors", goto skip_monitors;);
 		/* Create the task which warns of long semaphore waits */
 		srv_start_periodic_timer(srv_monitor_timer, srv_monitor_task,

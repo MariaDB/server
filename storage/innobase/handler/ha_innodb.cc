@@ -4428,8 +4428,6 @@ static int innobase_close_connection(handlerton *hton, THD *thd)
   return 0;
 }
 
-void lock_cancel_waiting_and_release(lock_t *lock);
-
 /** Cancel any pending lock request associated with the current THD.
 @sa THD::awake() @sa ha_kill_query() */
 static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
@@ -4446,14 +4444,20 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
       Also, BF thread should own trx mutex for the victim. */
       DBUG_VOID_RETURN;
 #endif /* WITH_WSREP */
-    lock_sys.mutex_lock();
-    if (lock_t *lock= trx->lock.wait_lock)
+    if (trx->lock.wait_lock)
     {
-      trx->mutex.wr_lock();
-      lock_cancel_waiting_and_release(lock);
-      trx->mutex.wr_unlock();
+      lock_sys.mutex_lock();
+      mysql_mutex_lock(&lock_sys.wait_mutex);
+      if (lock_t *lock= trx->lock.wait_lock)
+      {
+        trx->mutex.wr_lock();
+        trx->error_state= DB_INTERRUPTED;
+        lock_cancel_waiting_and_release(lock);
+        trx->mutex.wr_unlock();
+      }
+      lock_sys.mutex_unlock();
+      mysql_mutex_unlock(&lock_sys.wait_mutex);
     }
-    lock_sys.mutex_unlock();
   }
 
   DBUG_VOID_RETURN;
@@ -18031,10 +18035,10 @@ int wsrep_innobase_kill_one_trx(THD *bf_thd, trx_t *victim_trx, bool signal)
 	wsrep_thd_UNLOCK(thd);
 	DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
 
-	if (wsrep_thd_bf_abort(bf_thd, thd, signal))
-	{
-		lock_t*  wait_lock = victim_trx->lock.wait_lock;
-		if (wait_lock) {
+	if (!wsrep_thd_bf_abort(bf_thd, thd, signal)) {
+	} else if (victim_trx->lock.wait_lock) {
+		mysql_mutex_lock(&lock_sys.wait_mutex);
+		if (lock_t* wait_lock = victim_trx->lock.wait_lock) {
 			DBUG_ASSERT(victim_trx->is_wsrep());
 			WSREP_DEBUG("victim has wait flag: %lu",
 				    thd_get_thread_id(thd));
@@ -18043,6 +18047,7 @@ int wsrep_innobase_kill_one_trx(THD *bf_thd, trx_t *victim_trx, bool signal)
 			victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
 			lock_cancel_waiting_and_release(wait_lock);
 		}
+		mysql_mutex_unlock(&lock_sys.wait_mutex);
 	}
 
 	DBUG_RETURN(0);

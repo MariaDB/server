@@ -1110,7 +1110,6 @@ retry:
 re_scan:
 		mtr->commit();
 		trx->error_state = err;
-		que_thr_stop_for_mysql(thr);
 		thr->lock_state = QUE_THR_LOCK_ROW;
 		if (row_mysql_handle_errors(
 			&err, trx, thr, NULL)) {
@@ -4589,8 +4588,6 @@ aborted:
 
 	thr = que_fork_get_first_thr(prebuilt->sel_graph);
 
-	thr->start_running();
-
 	clust_index = dict_table_get_first_index(prebuilt->table);
 
 	dberr_t err = DB_SUCCESS;
@@ -5735,13 +5732,6 @@ lock_table_wait:
 	mtr_has_extra_clust_latch = FALSE;
 
 	trx->error_state = err;
-
-	/* The following is a patch for MySQL */
-
-	if (thr->is_active) {
-		que_thr_stop_for_mysql(thr);
-	}
-
 	thr->lock_state = QUE_THR_LOCK_ROW;
 
 	if (row_mysql_handle_errors(&err, trx, thr, NULL)) {
@@ -5796,16 +5786,6 @@ lock_table_wait:
 	goto func_exit;
 
 normal_return:
-	/*-------------------------------------------------------------*/
-	{
-		/* handler_index_cond_check() may pull TR_table search
-		   which initates another row_search_mvcc(). */
-		ut_d(ulint n_active_thrs= trx->lock.n_active_thrs);
-		ut_d(trx->lock.n_active_thrs= 1);
-		thr->stop_no_error();
-		ut_d(trx->lock.n_active_thrs= n_active_thrs - 1);
-	}
-
 	mtr.commit();
 
 	DEBUG_SYNC_C("row_search_for_mysql_before_return");

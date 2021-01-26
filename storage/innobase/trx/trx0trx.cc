@@ -143,8 +143,6 @@ trx_init(
 
 	trx->magic_n = TRX_MAGIC_N;
 
-	trx->lock.que_state = TRX_QUE_RUNNING;
-
 	trx->last_sql_stat_start.least_undo_no = 0;
 
 	ut_ad(!trx->read_view.is_open());
@@ -186,6 +184,7 @@ struct TrxFactory {
 
 		trx->lock.lock_heap = mem_heap_create_typed(
 			1024, MEM_HEAP_FOR_LOCK_HEAP);
+		mysql_cond_init(0, &trx->lock.cond, nullptr);
 
 		lock_trx_lock_list_init(&trx->lock.trx_locks);
 
@@ -226,6 +225,8 @@ struct TrxFactory {
 			mem_heap_free(trx->lock.lock_heap);
 			trx->lock.lock_heap = NULL;
 		}
+
+		mysql_cond_destroy(&trx->lock.cond);
 
 		ut_a(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
 		ut_ad(UT_LIST_GET_LEN(trx->lock.evicted_tables) == 0);
@@ -1573,19 +1574,7 @@ trx_commit_or_rollback_prepare(
 	case TRX_STATE_ACTIVE:
 	case TRX_STATE_PREPARED:
 	case TRX_STATE_PREPARED_RECOVERED:
-		/* If the trx is in a lock wait state, moves the waiting
-		query thread to the suspended state */
-
-		if (trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
-
-			ut_a(trx->lock.wait_thr != NULL);
-			trx->lock.wait_thr->state = QUE_THR_COMMAND_WAIT;
-			trx->lock.wait_thr = NULL;
-
-			trx->lock.que_state = TRX_QUE_RUNNING;
-		}
-
-		ut_ad(trx->lock.n_active_thrs == 1);
+		trx->lock.wait_thr = NULL;
 		return;
 
 	case TRX_STATE_COMMITTED_IN_MEMORY:
@@ -1638,13 +1627,11 @@ trx_commit_step(
 		trx = thr_get_trx(thr);
 
 		ut_a(trx->lock.wait_thr == NULL);
-		ut_a(trx->lock.que_state != TRX_QUE_LOCK_WAIT);
 
 		trx_commit_or_rollback_prepare(trx);
 
 		trx->commit();
 		ut_ad(trx->lock.wait_thr == NULL);
-		trx->lock.que_state = TRX_QUE_RUNNING;
 
 		thr = NULL;
 	} else {
@@ -1814,19 +1801,12 @@ state_ok:
 
 	newline = TRUE;
 
-	/* trx->lock.que_state of an ACTIVE transaction may change
-	while we are not holding trx->mutex. We perform a dirty read
-	for performance reasons. */
-
-	switch (trx->lock.que_state) {
-	case TRX_QUE_RUNNING:
-		newline = FALSE; break;
-	case TRX_QUE_LOCK_WAIT:
-		fputs("LOCK WAIT ", f); break;
-	case TRX_QUE_ROLLING_BACK:
-		fputs("ROLLING BACK ", f); break;
-	default:
-		fprintf(f, "que state %lu ", (ulong) trx->lock.que_state);
+	if (trx->in_rollback) { /* dirty read for performance reasons */
+		fputs("ROLLING BACK ", f);
+	} else if (trx->lock.wait_lock) {
+		fputs("LOCK WAIT ", f);
+	} else {
+		newline = FALSE;
 	}
 
 	if (n_trx_locks > 0 || heap_size > 400) {

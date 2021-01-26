@@ -424,35 +424,29 @@ fill_trx_row(
 
 	lock_sys.mutex_assert_locked();
 
+	const lock_t* wait_lock = trx->lock.wait_lock;
+
 	row->trx_id = trx->id;
 	row->trx_started = trx->start_time;
-	switch (trx->lock.que_state) {
-	case TRX_QUE_RUNNING:
-		row->trx_state = trx->state == TRX_STATE_COMMITTED_IN_MEMORY
-			? "COMMITTING" : "RUNNING";
-		break;
-	case TRX_QUE_LOCK_WAIT:
-		row->trx_state = "LOCK WAIT";
-		break;
-	case TRX_QUE_ROLLING_BACK:
+	if (trx->in_rollback) {
 		row->trx_state = "ROLLING BACK";
-		break;
-	default:
-		row->trx_state = nullptr;
+	} else if (trx->state == TRX_STATE_COMMITTED_IN_MEMORY) {
+		row->trx_state = "COMMITTING";
+	} else if (wait_lock) {
+		row->trx_state = "LOCK WAIT";
+	} else {
+		row->trx_state = "RUNNING";
 	}
 
 	row->requested_lock_row = requested_lock_row;
 	ut_ad(requested_lock_row == NULL
 	      || i_s_locks_row_validate(requested_lock_row));
 
-	if (trx->lock.wait_lock != NULL) {
+	ut_ad(!wait_lock == !requested_lock_row);
 
-		ut_a(requested_lock_row != NULL);
-		row->trx_wait_started = trx->lock.wait_started;
-	} else {
-		ut_a(requested_lock_row == NULL);
-		row->trx_wait_started = 0;
-	}
+	row->trx_wait_started = wait_lock
+		? hrtime_to_time(trx->lock.suspend_time)
+		: 0;
 
 	row->trx_weight = static_cast<uintmax_t>(TRX_WEIGHT(trx));
 
@@ -749,7 +743,7 @@ static bool fill_locks_row(
 
 	if (lock_type == LOCK_REC) {
 		row->lock_index = ha_storage_put_str_memlim(
-			cache->storage, lock_rec_get_index_name(lock),
+			cache->storage, lock_rec_get_index(lock)->name,
 			MAX_ALLOWED_FOR_STORAGE(cache));
 
 		/* memory could not be allocated */
@@ -1063,21 +1057,18 @@ add_trx_relevant_locks_to_cache(
 
 	/* If transaction is waiting we add the wait lock and all locks
 	from another transactions that are blocking the wait lock. */
-	if (trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
+	if (const lock_t *wait_lock = trx->lock.wait_lock) {
 
 		const lock_t*		curr_lock;
 		i_s_locks_row_t*	blocking_lock_row;
 		lock_queue_iterator_t	iter;
 
-		ut_a(trx->lock.wait_lock != NULL);
-
 		uint16_t wait_lock_heap_no
-			= wait_lock_get_heap_no(trx->lock.wait_lock);
+			= wait_lock_get_heap_no(wait_lock);
 
 		/* add the requested lock */
-		*requested_lock_row
-			= add_lock_to_cache(cache, trx->lock.wait_lock,
-					    wait_lock_heap_no);
+		*requested_lock_row = add_lock_to_cache(cache, wait_lock,
+							wait_lock_heap_no);
 
 		/* memory could not be allocated */
 		if (*requested_lock_row == NULL) {
@@ -1088,18 +1079,16 @@ add_trx_relevant_locks_to_cache(
 		/* then iterate over the locks before the wait lock and
 		add the ones that are blocking it */
 
-		lock_queue_iterator_reset(&iter, trx->lock.wait_lock,
-					  ULINT_UNDEFINED);
+		lock_queue_iterator_reset(&iter, wait_lock, ULINT_UNDEFINED);
 
 		for (curr_lock = lock_queue_iterator_get_prev(&iter);
 		     curr_lock != NULL;
 		     curr_lock = lock_queue_iterator_get_prev(&iter)) {
 
-			if (lock_has_to_wait(trx->lock.wait_lock,
-					     curr_lock)) {
+			if (lock_has_to_wait(wait_lock, curr_lock)) {
 
 				/* add the lock that is
-				blocking trx->lock.wait_lock */
+				blocking wait_lock */
 				blocking_lock_row
 					= add_lock_to_cache(
 						cache, curr_lock,

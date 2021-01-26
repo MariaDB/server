@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -36,141 +36,6 @@ Created 25/5/2010 Sunny Bains
 #include "row0mysql.h"
 #include "srv0start.h"
 #include "lock0priv.h"
-#include "srv0srv.h"
-
-/*********************************************************************//**
-Print the contents of the lock_sys_t::waiting_threads array. */
-static
-void
-lock_wait_table_print(void)
-/*=======================*/
-{
-	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
-
-	const srv_slot_t*	slot = lock_sys.waiting_threads;
-
-	for (ulint i = 0; i < srv_max_n_threads; i++, ++slot) {
-
-		fprintf(stderr,
-			"Slot %lu:"
-			" in use %lu, timeout %lu, time %lu\n",
-			(ulong) i,
-			(ulong) slot->in_use,
-			slot->wait_timeout,
-			(ulong) difftime(time(NULL), slot->suspend_time));
-	}
-}
-
-/*********************************************************************//**
-Release a slot in the lock_sys_t::waiting_threads. Adjust the array last pointer
-if there are empty slots towards the end of the table. */
-static
-void
-lock_wait_table_release_slot(
-/*=========================*/
-	srv_slot_t*	slot)		/*!< in: slot to release */
-{
-#ifdef UNIV_DEBUG
-	srv_slot_t*	upper = lock_sys.waiting_threads + srv_max_n_threads;
-#endif /* UNIV_DEBUG */
-
-	mysql_mutex_lock(&lock_sys.wait_mutex);
-
-	ut_ad(slot->in_use);
-	ut_ad(slot->thr != NULL);
-	ut_ad(slot->thr->slot != NULL);
-	ut_ad(slot->thr->slot == slot);
-
-	/* Must be within the array boundaries. */
-	ut_ad(slot >= lock_sys.waiting_threads);
-	ut_ad(slot < upper);
-
-	/* Note: When we reserve the slot we use the trx_t::mutex to update
-	the slot values to change the state to reserved. Here we are using the
-	lock mutex to change the state of the slot to free. This is by design,
-	because when we query the slot state we always hold both the lock and
-	trx_t::mutex. To reduce contention on the lock mutex when reserving the
-	slot we avoid acquiring the lock mutex. */
-
-	lock_sys.mutex_lock();
-
-	slot->thr->slot = NULL;
-	slot->thr = NULL;
-	slot->in_use = FALSE;
-
-	lock_sys.mutex_unlock();
-
-	/* Scan backwards and adjust the last free slot pointer. */
-	for (slot = lock_sys.last_slot;
-	     slot > lock_sys.waiting_threads && !slot->in_use;
-	     --slot) {
-		/* No op */
-	}
-
-	/* Either the array is empty or the last scanned slot is in use. */
-	ut_ad(slot->in_use || slot == lock_sys.waiting_threads);
-
-	lock_sys.last_slot = slot + 1;
-
-	/* The last slot is either outside of the array boundary or it's
-	on an empty slot. */
-	ut_ad(lock_sys.last_slot == upper || !lock_sys.last_slot->in_use);
-
-	ut_ad(lock_sys.last_slot >= lock_sys.waiting_threads);
-	ut_ad(lock_sys.last_slot <= upper);
-
-	mysql_mutex_unlock(&lock_sys.wait_mutex);
-}
-
-/*********************************************************************//**
-Reserves a slot in the thread table for the current user OS thread.
-@return reserved slot */
-static
-srv_slot_t*
-lock_wait_table_reserve_slot(
-/*=========================*/
-	que_thr_t*	thr,		/*!< in: query thread associated
-					with the user OS thread */
-	ulong		wait_timeout)	/*!< in: lock wait timeout value */
-{
-	ulint		i;
-	srv_slot_t*	slot;
-
-	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
-
-	slot = lock_sys.waiting_threads;
-
-	for (i = srv_max_n_threads; i--; ++slot) {
-		if (!slot->in_use) {
-			slot->in_use = true;
-			slot->thr = thr;
-			slot->thr->slot = slot;
-			slot->suspend_time = time(NULL);
-			slot->wait_timeout = wait_timeout;
-
-			if (slot == lock_sys.last_slot) {
-				++lock_sys.last_slot;
-			}
-
-			ut_ad(lock_sys.last_slot
-			      <= lock_sys.waiting_threads + srv_max_n_threads);
-			if (!lock_sys.timeout_timer_active) {
-				lock_sys.timeout_timer_active = true;
-				lock_sys.timeout_timer->set_time(1000, 0);
-			}
-			return(slot);
-		}
-	}
-
-	ib::error() << "There appear to be " << srv_max_n_threads << " user"
-		" threads currently waiting inside InnoDB, which is the upper"
-		" limit. Cannot continue operation. Before aborting, we print"
-		" a list of waiting threads.";
-	lock_wait_table_print();
-
-	ut_error;
-	return(NULL);
-}
 
 #ifdef WITH_WSREP
 /*********************************************************************//**
@@ -210,290 +75,160 @@ wsrep_is_BF_lock_timeout(
 }
 #endif /* WITH_WSREP */
 
-/***************************************************************//**
-Puts a user OS thread to wait for a lock to be released. If an error
-occurs during the wait trx->error_state associated with thr is
-!= DB_SUCCESS when we return. DB_LOCK_WAIT_TIMEOUT and DB_DEADLOCK
-are possible errors. DB_DEADLOCK is returned if selective deadlock
-resolution chose this transaction as a victim. */
-void
-lock_wait_suspend_thread(
-/*=====================*/
-	que_thr_t*	thr)	/*!< in: query thread associated with the
-				user OS thread */
+/** Note that a record lock wait started */
+inline void lock_sys_t::wait_start()
 {
-	srv_slot_t*	slot;
-	trx_t*		trx;
-	ulong		lock_wait_timeout;
-
-	ut_a(lock_sys.timeout_timer.get());
-	trx = thr_get_trx(thr);
-
-	if (trx->mysql_thd != 0) {
-		DEBUG_SYNC_C("lock_wait_suspend_thread_enter");
-	}
-
-	/* InnoDB system transactions (such as the purge, and
-	incomplete transactions that are being rolled back after crash
-	recovery) will use the global value of
-	innodb_lock_wait_timeout, because trx->mysql_thd == NULL. */
-	lock_wait_timeout = trx_lock_wait_timeout_get(trx);
-
-	mysql_mutex_lock(&lock_sys.wait_mutex);
-	trx->mutex.wr_lock();
-
-	trx->error_state = DB_SUCCESS;
-
-	if (thr->state == QUE_THR_RUNNING) {
-
-		ut_ad(thr->is_active);
-
-		/* The lock has already been released or this transaction
-		was chosen as a deadlock victim: no need to suspend */
-
-		if (trx->lock.was_chosen_as_deadlock_victim) {
-
-			trx->error_state = DB_DEADLOCK;
-			trx->lock.was_chosen_as_deadlock_victim = false;
-		}
-
-		mysql_mutex_unlock(&lock_sys.wait_mutex);
-		trx->mutex.wr_unlock();
-		return;
-	}
-
-	ut_ad(!thr->is_active);
-
-	slot = lock_wait_table_reserve_slot(thr, lock_wait_timeout);
-
-	mysql_mutex_unlock(&lock_sys.wait_mutex);
-	trx->mutex.wr_unlock();
-
-	ulonglong start_time = 0;
-
-	if (thr->lock_state == QUE_THR_LOCK_ROW) {
-		srv_stats.n_lock_wait_count.inc();
-		srv_stats.n_lock_wait_current_count++;
-		start_time = my_interval_timer();
-	}
-
-	ulint	lock_type = ULINT_UNDEFINED;
-
-	/* The wait_lock can be cleared by another thread when the
-	lock is released. But the wait can only be initiated by the
-	current thread which owns the transaction. Only acquire the
-	mutex if the wait_lock is still active. */
-	if (const lock_t* wait_lock = trx->lock.wait_lock) {
-		lock_sys.mutex_lock();
-		wait_lock = trx->lock.wait_lock;
-		if (wait_lock) {
-			lock_type = lock_get_type_low(wait_lock);
-		}
-		lock_sys.mutex_unlock();
-	}
-
-	ulint	had_dict_lock = trx->dict_operation_lock_mode;
-
-	switch (had_dict_lock) {
-	case 0:
-		break;
-	case RW_S_LATCH:
-		/* Release foreign key check latch */
-		row_mysql_unfreeze_data_dictionary(trx);
-
-		DEBUG_SYNC_C("lock_wait_release_s_latch_before_sleep");
-		break;
-	default:
-		/* There should never be a lock wait when the
-		dictionary latch is reserved in X mode.  Dictionary
-		transactions should only acquire locks on dictionary
-		tables, not other tables. All access to dictionary
-		tables should be covered by dictionary
-		transactions. */
-		ut_error;
-	}
-
-	ut_a(trx->dict_operation_lock_mode == 0);
-
-	/* Suspend this thread and wait for the event. */
-
-	/* Unknown is also treated like a record lock */
-	if (lock_type == ULINT_UNDEFINED || lock_type == LOCK_REC) {
-		thd_wait_begin(trx->mysql_thd, THD_WAIT_ROW_LOCK);
-	} else {
-		ut_ad(lock_type == LOCK_TABLE);
-		thd_wait_begin(trx->mysql_thd, THD_WAIT_TABLE_LOCK);
-	}
-
-	lock_sys.mutex_lock();
-	lock_sys.wait_lock(&trx->lock.wait_lock, &slot->cond);
-	lock_sys.mutex_unlock();
-
-	thd_wait_end(trx->mysql_thd);
-
-	/* After resuming, reacquire the data dictionary latch if
-	necessary. */
-
-	if (had_dict_lock) {
-
-		row_mysql_freeze_data_dictionary(trx);
-	}
-
-	double wait_time = difftime(time(NULL), slot->suspend_time);
-
-	/* Release the slot for others to use */
-
-	lock_wait_table_release_slot(slot);
-
-	if (thr->lock_state == QUE_THR_LOCK_ROW) {
-		const ulonglong finish_time = my_interval_timer();
-
-		if (finish_time >= start_time) {
-			const ulint diff_time = static_cast<ulint>
-				((finish_time - start_time) / 1000);
-			srv_stats.n_lock_wait_time.add(diff_time);
-			/* Only update the variable if we successfully
-			retrieved the start and finish times. See Bug#36819. */
-			if (diff_time > lock_sys.n_lock_max_wait_time) {
-				lock_sys.n_lock_max_wait_time = diff_time;
-			}
-			/* Record the lock wait time for this thread */
-			thd_storage_lock_wait(trx->mysql_thd, diff_time);
-		}
-
-		srv_stats.n_lock_wait_current_count--;
-
-		DBUG_EXECUTE_IF("lock_instrument_slow_query_log",
-			os_thread_sleep(1000););
-	}
-
-	/* The transaction is chosen as deadlock victim during sleep. */
-	if (trx->error_state == DB_DEADLOCK) {
-		return;
-	}
-
-	if (lock_wait_timeout < 100000000
-	    && wait_time > (double) lock_wait_timeout
-#ifdef WITH_WSREP
-	    && (!trx->is_wsrep()
-		|| (!wsrep_is_BF_lock_timeout(trx, false)
-		    && trx->error_state != DB_DEADLOCK))
-#endif /* WITH_WSREP */
-	    ) {
-
-		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
-
-		MONITOR_INC(MONITOR_TIMEOUT);
-	}
-
-	if (trx_is_interrupted(trx)) {
-
-		trx->error_state = DB_INTERRUPTED;
-	}
+  mysql_mutex_assert_owner(&wait_mutex);
+  wait_pending++;
+  wait_count++;
 }
 
-/********************************************************************//**
-Releases a user OS thread waiting for a lock to be released, if the
-thread is already suspended. */
-void
-lock_wait_release_thread_if_suspended(
-/*==================================*/
-	que_thr_t*	thr)	/*!< in: query thread associated with the
-				user OS thread	 */
+/** Note that a record lock wait resumed */
+inline
+void lock_sys_t::wait_resume(THD *thd, my_hrtime_t start, my_hrtime_t now)
 {
-	lock_sys.mutex_assert_locked();
-
-	/* We own both the lock mutex and the trx_t::mutex but not the
-	lock wait mutex. This is OK because other threads will see the state
-	of this slot as being in use and no other thread can change the state
-	of the slot to free unless that thread also owns the lock mutex. */
-
-	if (thr->slot != NULL && thr->slot->in_use && thr->slot->thr == thr) {
-		trx_t*	trx = thr_get_trx(thr);
-
-		if (trx->lock.was_chosen_as_deadlock_victim) {
-
-			trx->error_state = DB_DEADLOCK;
-			trx->lock.was_chosen_as_deadlock_victim = false;
-		}
-
-		mysql_cond_signal(&thr->slot->cond);
-	}
-}
-
-/*********************************************************************//**
-Check if the thread lock wait has timed out. Release its locks if the
-wait has actually timed out. */
-static
-void
-lock_wait_check_and_cancel(
-/*=======================*/
-	const srv_slot_t*	slot)	/*!< in: slot reserved by a user
-					thread when the wait started */
-{
-	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
-	ut_ad(slot->in_use);
-
-	double wait_time = difftime(time(NULL), slot->suspend_time);
-	trx_t* trx = thr_get_trx(slot->thr);
-
-	if (trx_is_interrupted(trx)
-	    || (slot->wait_timeout < 100000000
-		&& (wait_time > (double) slot->wait_timeout
-		   || wait_time < 0))) {
-
-		/* Timeout exceeded or a wrap-around in system
-		time counter: cancel the lock request queued
-		by the transaction and release possible
-		other transactions waiting behind; it is
-		possible that the lock has already been
-		granted: in that case do nothing */
-
-		lock_sys.mutex_lock();
-
-		if (trx->lock.wait_lock != NULL) {
-			ut_a(trx->lock.que_state == TRX_QUE_LOCK_WAIT);
-
-#ifdef WITH_WSREP
-                        if (!wsrep_is_BF_lock_timeout(trx)) {
-#endif /* WITH_WSREP */
-				trx->mutex.wr_lock();
-				lock_cancel_waiting_and_release(trx->lock.wait_lock);
-				trx->mutex.wr_unlock();
-#ifdef WITH_WSREP
-                        }
-#endif /* WITH_WSREP */
-		}
-
-		lock_sys.mutex_unlock();
-	}
-}
-
-/** A task which wakes up threads whose lock wait may have lasted too long */
-void lock_wait_timeout_task(void*)
-{
-  mysql_mutex_lock(&lock_sys.wait_mutex);
-
-  /* Check all slots for user threads that are waiting
-  on locks, and if they have exceeded the time limit. */
-  bool any_slot_in_use= false;
-  for (srv_slot_t *slot= lock_sys.waiting_threads;
-       slot < lock_sys.last_slot; ++slot)
+  mysql_mutex_assert_owner(&wait_mutex);
+  wait_pending--;
+  if (now.val >= start.val)
   {
-    /* We are doing a read without the lock mutex and/or the trx
-    mutex. This is OK because a slot can't be freed or reserved
-    without the lock wait mutex. */
-    if (slot->in_use)
+    const ulint diff_time= static_cast<ulint>((now.val - start.val) / 1000);
+    wait_time+= diff_time;
+
+    if (diff_time > wait_time_max)
+      wait_time_max= diff_time;
+
+    thd_storage_lock_wait(thd, diff_time);
+  }
+}
+
+/** Wait for a lock to be released.
+@retval DB_DEADLOCK if this transaction was chosen as the deadlock victim
+@retval DB_INTERRUPTED if the execution was interrupted by the user
+@retval DB_LOCK_WAIT_TIMEOUT if the lock wait timed out
+@retval DB_SUCCESS if the lock was granted */
+dberr_t lock_wait(que_thr_t *thr)
+{
+  trx_t *trx= thr_get_trx(thr);
+
+  if (trx->mysql_thd)
+    DEBUG_SYNC_C("lock_wait_suspend_thread_enter");
+
+  /* InnoDB system transactions may use the global value of
+  innodb_lock_wait_timeout, because trx->mysql_thd == NULL. */
+  const ulong innodb_lock_wait_timeout= trx_lock_wait_timeout_get(trx);
+  const bool no_timeout= innodb_lock_wait_timeout > 100000000;
+  const my_hrtime_t suspend_time= my_hrtime_coarse();
+  ut_ad(!trx->dict_operation_lock_mode ||
+        trx->dict_operation_lock_mode == RW_S_LATCH);
+  const bool row_lock_wait= thr->lock_state == QUE_THR_LOCK_ROW;
+  bool had_dict_lock= trx->dict_operation_lock_mode != 0;
+
+  mysql_mutex_lock(&lock_sys.wait_mutex);
+  trx->mutex.wr_lock();
+  trx->error_state= DB_SUCCESS;
+
+  if (!trx->lock.wait_lock)
+  {
+    /* The lock has already been released or this transaction
+    was chosen as a deadlock victim: no need to suspend */
+
+    if (trx->lock.was_chosen_as_deadlock_victim)
     {
-      any_slot_in_use= true;
-      lock_wait_check_and_cancel(slot);
+      trx->error_state= DB_DEADLOCK;
+      trx->lock.was_chosen_as_deadlock_victim= false;
+    }
+
+    mysql_mutex_unlock(&lock_sys.wait_mutex);
+    trx->mutex.wr_unlock();
+    return trx->error_state;
+  }
+
+  trx->lock.suspend_time= suspend_time;
+  trx->mutex.wr_unlock();
+
+  if (row_lock_wait)
+    lock_sys.wait_start();
+
+  int err= 0;
+
+  /* The wait_lock can be cleared by another thread in lock_grant(),
+  lock_rec_cancel(), or lock_cancel_waiting_and_release(). But, a wait
+  can only be initiated by the current thread which owns the transaction. */
+  if (const lock_t *wait_lock= trx->lock.wait_lock)
+  {
+    if (had_dict_lock) /* Release foreign key check latch */
+    {
+      mysql_mutex_unlock(&lock_sys.wait_mutex);
+      row_mysql_unfreeze_data_dictionary(trx);
+      mysql_mutex_lock(&lock_sys.wait_mutex);
+    }
+    timespec abstime;
+    set_timespec_time_nsec(abstime, suspend_time.val * 1000);
+    abstime.MY_tv_sec+= innodb_lock_wait_timeout;
+    thd_wait_begin(trx->mysql_thd, lock_get_type_low(wait_lock) == LOCK_TABLE
+                   ? THD_WAIT_TABLE_LOCK : THD_WAIT_ROW_LOCK);
+    while (trx->lock.wait_lock)
+    {
+      if (no_timeout)
+        mysql_cond_wait(&trx->lock.cond, &lock_sys.wait_mutex);
+      else
+        err= mysql_cond_timedwait(&trx->lock.cond, &lock_sys.wait_mutex,
+                                  &abstime);
+      switch (trx->error_state) {
+      default:
+        if (trx_is_interrupted(trx))
+          /* innobase_kill_query() can only set trx->error_state=DB_INTERRUPTED
+          for any transaction that is attached to a connection. */
+          trx->error_state= DB_INTERRUPTED;
+        else if (!err)
+          continue;
+        else
+          break;
+        /* fall through */
+      case DB_DEADLOCK:
+      case DB_INTERRUPTED:
+        err= 0;
+      }
+      break;
+    }
+    thd_wait_end(trx->mysql_thd);
+  }
+  else
+    had_dict_lock= false;
+
+  if (row_lock_wait)
+    lock_sys.wait_resume(trx->mysql_thd, suspend_time, my_hrtime_coarse());
+
+  mysql_mutex_unlock(&lock_sys.wait_mutex);
+
+  if (had_dict_lock)
+    row_mysql_freeze_data_dictionary(trx);
+
+  if (!err);
+#ifdef WITH_WSREP
+  else if (trx->is_wsrep() && wsrep_is_BF_lock_timeout(trx, false));
+#endif
+  else
+  {
+    trx->error_state= DB_LOCK_WAIT_TIMEOUT;
+    MONITOR_INC(MONITOR_TIMEOUT);
+  }
+
+  if (trx->lock.wait_lock)
+  {
+    {
+      lock_sys.mutex_lock();
+      mysql_mutex_lock(&lock_sys.wait_mutex);
+      if (lock_t *lock= trx->lock.wait_lock)
+      {
+        trx->mutex.wr_lock();
+        lock_cancel_waiting_and_release(lock);
+        trx->mutex.wr_unlock();
+      }
+      lock_sys.mutex_unlock();
+      mysql_mutex_unlock(&lock_sys.wait_mutex);
     }
   }
 
-  if (any_slot_in_use)
-    lock_sys.timeout_timer->set_time(1000, 0);
-  else
-    lock_sys.timeout_timer_active= false;
-
-  mysql_mutex_unlock(&lock_sys.wait_mutex);
+  return trx->error_state;
 }

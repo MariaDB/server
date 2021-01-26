@@ -88,42 +88,13 @@ que_graph_free(
 			to this graph: if not, then use
 			que_graph_free_recursive and free the heap
 			afterwards! */
-/**********************************************************************//**
-Stops a query thread if graph or trx is in a state requiring it. The
-conditions are tested in the order (1) graph, (2) trx. The lock_sys_t::mutex
-has to be reserved.
-@return TRUE if stopped */
-ibool
-que_thr_stop(
-/*=========*/
-	que_thr_t*	thr);	/*!< in: query thread */
 
-/**********************************************************************//**
-A patch for MySQL used to 'stop' a dummy query thread used in MySQL. The
-query thread is stopped and made inactive, except in the case where
-it was put to the lock wait state in lock0lock.cc, but the lock has already
-been granted or the transaction chosen as a victim in deadlock resolution. */
-void
-que_thr_stop_for_mysql(
-/*===================*/
-	que_thr_t*	thr);	/*!< in: query thread */
 /**********************************************************************//**
 Run a query thread. Handles lock waits. */
 void
 que_run_threads(
 /*============*/
 	que_thr_t*	thr);	/*!< in: query thread */
-/**********************************************************************//**
-Moves a suspended query thread to the QUE_THR_RUNNING state and release
-a worker thread to execute it. This function should be used to end
-the wait state of a query thread waiting for a lock or a stored procedure
-completion.
-@return query thread instance of thread to wakeup or NULL */
-que_thr_t*
-que_thr_end_lock_wait(
-/*==================*/
-	trx_t*		trx);		/*!< in: transaction in the
-					QUE_THR_LOCK_WAIT state */
 /**********************************************************************//**
 Starts execution of a command in a query fork. Picks a query thread which
 is not in the QUE_THR_RUNNING state and moves it to that state. If none
@@ -228,17 +199,6 @@ ulint
 que_node_list_get_len(
 /*==================*/
 	que_node_t*	node_list);	/*!< in: node list, or NULL */
-/**********************************************************************//**
-Checks if graph, trx, or session is in a state where the query thread should
-be stopped.
-@return TRUE if should be stopped; NOTE that if the peek is made
-without reserving the trx_t::mutex, then another peek with the mutex
-reserved is necessary before deciding the actual stopping */
-UNIV_INLINE
-ibool
-que_thr_peek_stop(
-/*==============*/
-	que_thr_t*	thr);	/*!< in: query thread */
 /*********************************************************************//**
 Evaluate the given SQL
 @return error code or DB_SUCCESS */
@@ -265,13 +225,11 @@ que_fork_scheduler_round_robin(
 
 /** Query thread states */
 enum que_thr_state_t {
-	QUE_THR_RUNNING,
 	/** in selects this means that the thread is at the end of its
 	result set (or start, in case of a scroll cursor); in other
 	statements, this means the thread has done its task */
 	QUE_THR_COMPLETED,
-	QUE_THR_COMMAND_WAIT,
-	QUE_THR_LOCK_WAIT
+	QUE_THR_RUNNING
 };
 
 /** Query thread lock states */
@@ -289,7 +247,6 @@ struct que_thr_t{
 	que_node_t*	child;		/*!< graph child node */
 	que_t*		graph;		/*!< graph where this node belongs */
 	que_thr_state_t	state;		/*!< state of the query thread */
-	bool		is_active;	/*!< whether the thread is active */
 	/*------------------------------*/
 	/* The following fields are private to the OS thread executing the
 	query thread, and are not protected by any mutex: */
@@ -303,9 +260,6 @@ struct que_thr_t{
 					thus far */
 	ulint		lock_state;	/*!< lock state of thread (table or
 					row) */
-	struct srv_slot_t*
-			slot;		/* The thread slot in the wait
-					array in srv_sys_t */
 	/*------------------------------*/
 	/* The following fields are links for the various lists that
 	this type can be on. */
@@ -320,39 +274,12 @@ struct que_thr_t{
 					related delete/updates */
 	row_prebuilt_t*	prebuilt;	/*!< prebuilt structure processed by
 					the query thread */
-
-#ifdef UNIV_DEBUG
-  /** Change the 'active' status */
-  inline void set_active(bool active);
-#endif
-  /** Transition to the QUE_THR_RUNNING state. */
-  inline void start_running()
-  {
-    ut_d(if (!is_active) set_active(true));
-    is_active= true;
-    state= QUE_THR_RUNNING;
-  }
-
-  /** Stop query execution when there is no error or lock wait. */
-  void stop_no_error()
-  {
-    ut_ad(is_active);
-    ut_d(set_active(false));
-    state= QUE_THR_COMPLETED;
-    is_active= false;
-  }
 };
 
 /* Query graph fork node: its fields are protected by the query thread mutex */
 struct que_fork_t{
 	que_common_t	common;		/*!< type: QUE_NODE_FORK */
 	que_t*		graph;		/*!< query graph of this node */
-#ifdef UNIV_DEBUG
-  /** For the query graph root, updated in set_active() */
-  ulint n_active_thrs;
-  /** Change the 'active' status */
-  void set_active(bool active);
-#endif
 	trx_t*		trx;		/*!< transaction: this is set only in
 					the root node */
 	ulint		state;		/*!< state of the fork node */
@@ -377,10 +304,6 @@ struct que_fork_t{
 					created */
 
 };
-
-#ifdef UNIV_DEBUG
-inline void que_thr_t::set_active(bool active) { graph->set_active(active); };
-#endif
 
 /* Query fork (or graph) states */
 #define QUE_FORK_ACTIVE		1

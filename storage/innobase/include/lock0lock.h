@@ -500,9 +500,9 @@ lock_print_info_summary(
 /** Prints transaction lock wait and MVCC state.
 @param[in,out]	file	file where to print
 @param[in]	trx	transaction
-@param[in]	now	current time */
-void
-lock_trx_print_wait_and_mvcc_state(FILE* file, const trx_t* trx, time_t now);
+@param[in]	now	current my_hrtime_coarse() */
+void lock_trx_print_wait_and_mvcc_state(FILE *file, const trx_t *trx,
+                                        my_hrtime_t now);
 
 /*********************************************************************//**
 Prints info of locks for each transaction. This function assumes that the
@@ -555,15 +555,6 @@ lock_rec_get_index(
 	const lock_t*	lock);	/*!< in: lock */
 
 /*******************************************************************//**
-For a record lock, gets the name of the index on which the lock is.
-The string should not be free()'d or modified.
-@return name of the index */
-const char*
-lock_rec_get_index_name(
-/*====================*/
-	const lock_t*	lock);	/*!< in: lock */
-
-/*******************************************************************//**
 Check if there are any locks (table or rec) against table.
 @return TRUE if locks exist */
 bool
@@ -573,29 +564,12 @@ lock_table_has_locks(
 					held on records in this table or on the
 					table itself */
 
-/** A task which wakes up threads whose lock wait may have lasted too long */
-void lock_wait_timeout_task(void*);
-
-/********************************************************************//**
-Releases a user OS thread waiting for a lock to be released, if the
-thread is already suspended. */
-void
-lock_wait_release_thread_if_suspended(
-/*==================================*/
-	que_thr_t*	thr);	/*!< in: query thread associated with the
-				user OS thread	 */
-
-/***************************************************************//**
-Puts a user OS thread to wait for a lock to be released. If an error
-occurs during the wait trx->error_state associated with thr is
-!= DB_SUCCESS when we return. DB_LOCK_WAIT_TIMEOUT and DB_DEADLOCK
-are possible errors. DB_DEADLOCK is returned if selective deadlock
-resolution chose this transaction as a victim. */
-void
-lock_wait_suspend_thread(
-/*=====================*/
-	que_thr_t*	thr);	/*!< in: query thread associated with the
-				user OS thread */
+/** Wait for a lock to be released.
+@retval DB_DEADLOCK if this transaction was chosen as the deadlock victim
+@retval DB_INTERRUPTED if the execution was interrupted by the user
+@retval DB_LOCK_WAIT_TIMEOUT if the lock wait timed out
+@retval DB_SUCCESS if the lock was granted */
+dberr_t lock_wait(que_thr_t *thr);
 /*********************************************************************//**
 Unlocks AUTO_INC type locks that were possibly reserved by a trx. This
 function should be called at the the end of an SQL statement, by the
@@ -684,20 +658,18 @@ public:
   /** page locks for SPATIAL INDEX */
   hash_table_t prdt_page_hash;
 
-  /** mutex protecting waiting_threads, last_slot */
+  /** mutex covering lock waits; @see trx_lock_t::wait_lock */
   MY_ALIGNED(CACHE_LINE_SIZE) mysql_mutex_t wait_mutex;
-	srv_slot_t*	waiting_threads;	/*!< Array  of user threads
-						suspended while waiting for
-						locks within InnoDB */
-	srv_slot_t*	last_slot;		/*!< highest slot ever used
-						in the waiting_threads array */
-
-	ulint		n_lock_max_wait_time;	/*!< Max wait time */
-
-	std::unique_ptr<tpool::timer>	timeout_timer; /*!< Thread pool timer task */
-	bool timeout_timer_active;
-
-
+private:
+  /** Pending number of lock waits; protected by wait_mutex */
+  ulint wait_pending;
+  /** Cumulative number of lock waits; protected by wait_mutex */
+  ulint wait_count;
+  /** Cumulative wait time; protected by wait_mutex */
+  ulint wait_time;
+  /** Longest wait time; protected by wait_mutex */
+  ulint wait_time_max;
+public:
   /**
     Constructor.
 
@@ -751,6 +723,22 @@ public:
 
   /** Closes the lock system at database shutdown. */
   void close();
+
+
+  /** Note that a record lock wait started */
+  inline void wait_start();
+
+  /** Note that a record lock wait resumed */
+  inline void wait_resume(THD *thd, my_hrtime_t start, my_hrtime_t now);
+
+  /** @return pending number of lock waits */
+  ulint get_wait_pending() const { return wait_pending; }
+  /** @return cumulative number of lock waits */
+  ulint get_wait_cumulative() const { return wait_count; }
+  /** Cumulative wait time; protected by wait_mutex */
+  ulint get_wait_time_cumulative() const { return wait_time; }
+  /** Longest wait time; protected by wait_mutex */
+  ulint get_wait_time_max() const { return wait_time_max; }
 
   /** @return the hash value for a page address */
   ulint hash(const page_id_t id) const
@@ -904,24 +892,8 @@ lock_rec_free_all_from_discard_page(
 /** The lock system */
 extern lock_sys_t lock_sys;
 
-#ifdef WITH_WSREP
-/*********************************************************************//**
-Cancels a waiting lock request and releases possible other transactions
-waiting behind it. */
-UNIV_INTERN
-void
-lock_cancel_waiting_and_release(
-/*============================*/
-	lock_t*	lock);	/*!< in/out: waiting lock request */
-
-/*******************************************************************//**
-Get lock mode and table/index name
-@return	string containing lock info */
-std::string
-lock_get_info(
-	const lock_t*);
-
-#endif /* WITH_WSREP */
+/** Cancel a waiting lock request and release possibly waiting transactions */
+void lock_cancel_waiting_and_release(lock_t *lock);
 
 #include "lock0lock.ic"
 

@@ -53,19 +53,6 @@ Created 5/7/1996 Heikki Tuuri
 /** The value of innodb_deadlock_detect */
 my_bool	innobase_deadlock_detect;
 
-/*********************************************************************//**
-Checks if a waiting record lock request still has to wait in a queue.
-@return lock that is causing the wait */
-static
-const lock_t*
-lock_rec_has_to_wait_in_queue(
-/*==========================*/
-	const lock_t*	wait_lock);	/*!< in: waiting record lock */
-
-/** Grant a lock to a waiting lock request and release the waiting transaction
-after lock_reset_lock_and_trx_wait() has been called. */
-static void lock_grant_after_reset(lock_t* lock);
-
 extern "C" void thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd);
 extern "C" int thd_need_wait_reports(const MYSQL_THD thd);
 extern "C" int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd);
@@ -366,29 +353,23 @@ lock_check_trx_id_sanity(
 */
 void lock_sys_t::create(ulint n_cells)
 {
-	ut_ad(this == &lock_sys);
+  ut_ad(this == &lock_sys);
+  ut_ad(!is_initialised());
 
-	m_initialised= true;
+  m_initialised= true;
 
-	waiting_threads = static_cast<srv_slot_t*>
-		(ut_zalloc_nokey(srv_max_n_threads * sizeof *waiting_threads));
-	last_slot = waiting_threads;
-	for (ulint i = srv_max_n_threads; i--; ) {
-		mysql_cond_init(0, &waiting_threads[i].cond, nullptr);
-	}
+  mysql_mutex_init(lock_mutex_key, &mutex, nullptr);
+  mysql_mutex_init(lock_wait_mutex_key, &wait_mutex, nullptr);
 
-	mysql_mutex_init(lock_mutex_key, &mutex, nullptr);
-	mysql_mutex_init(lock_wait_mutex_key, &wait_mutex, nullptr);
+  rec_hash.create(n_cells);
+  prdt_hash.create(n_cells);
+  prdt_page_hash.create(n_cells);
 
-	rec_hash.create(n_cells);
-	prdt_hash.create(n_cells);
-	prdt_page_hash.create(n_cells);
-
-	if (!srv_read_only_mode) {
-		lock_latest_err_file = os_file_create_tmpfile();
-		ut_a(lock_latest_err_file);
-	}
-	timeout_timer_active = false;
+  if (!srv_read_only_mode)
+  {
+    lock_latest_err_file= os_file_create_tmpfile();
+    ut_a(lock_latest_err_file);
+  }
 }
 
 
@@ -446,28 +427,25 @@ void lock_sys_t::resize(ulint n_cells)
 /** Closes the lock system at database shutdown. */
 void lock_sys_t::close()
 {
-	ut_ad(this == &lock_sys);
+  ut_ad(this == &lock_sys);
 
-	if (!m_initialised) return;
+  if (!m_initialised)
+    return;
 
-	if (lock_latest_err_file != NULL) {
-		my_fclose(lock_latest_err_file, MYF(MY_WME));
-		lock_latest_err_file = NULL;
-	}
+  if (lock_latest_err_file)
+  {
+    my_fclose(lock_latest_err_file, MYF(MY_WME));
+    lock_latest_err_file= nullptr;
+  }
 
-	rec_hash.free();
-	prdt_hash.free();
-	prdt_page_hash.free();
+  rec_hash.free();
+  prdt_hash.free();
+  prdt_page_hash.free();
 
-	mysql_mutex_destroy(&mutex);
-	mysql_mutex_destroy(&wait_mutex);
+  mysql_mutex_destroy(&mutex);
+  mysql_mutex_destroy(&wait_mutex);
 
-	for (ulint i = srv_max_n_threads; i--; ) {
-		mysql_cond_destroy(&waiting_threads[i].cond);
-	}
-
-	ut_free(waiting_threads);
-	m_initialised= false;
+  m_initialised= false;
 }
 
 /*********************************************************************//**
@@ -956,7 +934,7 @@ wsrep_kill_victim(
 		(wsrep_thd_order_before(
 			trx->mysql_thd, lock->trx->mysql_thd))) {
 
-		if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
+		if (lock->trx->lock.wait_thr) {
 			if (UNIV_UNLIKELY(wsrep_debug)) {
 				ib::info() << "WSREP: BF victim waiting\n";
 			}
@@ -1149,6 +1127,34 @@ wsrep_print_wait_locks(
 }
 #endif /* WITH_WSREP */
 
+/** Reset the wait status of a lock.
+@param[in,out]	lock	lock that was possibly being waited for */
+static void lock_reset_lock_and_trx_wait(lock_t *lock)
+{
+  lock_sys.mutex_assert_locked();
+  ut_ad(lock->is_waiting());
+  ut_ad(!lock->trx->lock.wait_lock || lock->trx->lock.wait_lock == lock);
+  lock->trx->lock.wait_lock= nullptr;
+  lock->type_mode&= ~LOCK_WAIT;
+}
+
+#ifdef WITH_WSREP
+/** Set the wait status of a lock.
+@param[in,out]	lock	lock that will be waited for
+@param[in,out]	trx	transaction that will wait for the lock */
+static void lock_set_lock_and_trx_wait(lock_t *lock, trx_t *trx)
+{
+  ut_ad(lock);
+  ut_ad(lock->trx == trx);
+  ut_ad(!trx->lock.wait_lock || trx->lock.wait_lock != lock);
+  ut_ad(!trx->lock.wait_lock || (*trx->lock.wait_lock).trx == trx);
+  lock_sys.mutex_assert_locked();
+
+  trx->lock.wait_lock= lock;
+  lock->type_mode|= LOCK_WAIT;
+}
+#endif
+
 /** Create a new record lock and inserts it to the lock queue,
 without checking for deadlocks or conflicts.
 @param[in]	type_mode	lock mode and wait flag; type will be replaced
@@ -1267,8 +1273,15 @@ lock_rec_create_low(
 		 * delayed conflict resolution '...kill_one_trx' was not called,
 		 * if victim was waiting for some other lock
 		 */
+		if (holds_trx_mutex) {
+			trx->mutex.wr_unlock();
+		}
+		mysql_mutex_lock(&lock_sys.wait_mutex);
+		if (holds_trx_mutex) {
+			trx->mutex.wr_lock();
+		}
 		c_lock->trx->mutex.wr_lock();
-		if (c_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
+		if (c_lock->trx->lock.wait_thr) {
 
 			c_lock->trx->lock.was_chosen_as_deadlock_victim = TRUE;
 
@@ -1276,12 +1289,10 @@ lock_rec_create_low(
 				wsrep_print_wait_locks(c_lock);
 			}
 
-			trx->lock.que_state = TRX_QUE_LOCK_WAIT;
 			lock_set_lock_and_trx_wait(lock, trx);
 			UT_LIST_ADD_LAST(trx->lock.trx_locks, lock);
 
 			trx->lock.wait_thr = thr;
-			thr->state = QUE_THR_LOCK_WAIT;
 
 			/* have to release trx mutex for the duration of
 			   victim lock release. This will eventually call
@@ -1300,8 +1311,10 @@ lock_rec_create_low(
 			c_lock->trx->mutex.wr_unlock();
 
 			/* have to bail out here to avoid lock_set_lock... */
+			mysql_mutex_unlock(&lock_sys.wait_mutex);
 			return(lock);
 		}
+		mysql_mutex_unlock(&lock_sys.wait_mutex);
 		c_lock->trx->mutex.wr_unlock();
 	} else
 #endif /* WITH_WSREP */
@@ -1312,7 +1325,9 @@ lock_rec_create_low(
 		trx->mutex.wr_lock();
 	}
 	if (type_mode & LOCK_WAIT) {
-		lock_set_lock_and_trx_wait(lock, trx);
+		ut_ad(!trx->lock.wait_lock
+		      || (*trx->lock.wait_lock).trx == trx);
+		trx->lock.wait_lock = lock;
 	}
 	UT_LIST_ADD_LAST(trx->lock.trx_locks, lock);
 	if (!holds_trx_mutex) {
@@ -1360,8 +1375,6 @@ lock_rec_enqueue_waiting(
 
 	trx_t* trx = thr_get_trx(thr);
 
-	ut_a(!que_thr_stop(thr));
-
 	switch (trx_get_dict_operation(trx)) {
 	case TRX_DICT_OP_NONE:
 		break;
@@ -1396,6 +1409,10 @@ lock_rec_enqueue_waiting(
 	if (ut_d(const trx_t* victim =)
 	    DeadlockChecker::check_and_resolve(lock, trx)) {
 		ut_ad(victim == trx);
+		/* There is no need to hold lock_sys.wait_mutex here,
+		because we are clearing the wait flag on a lock request
+		that is associated with the current transaction. So,
+		this is not conflicting with lock_wait(). */
 		lock_reset_lock_and_trx_wait(lock);
 		lock_rec_reset_nth_bit(lock, heap_no);
 		return DB_DEADLOCK;
@@ -1414,12 +1431,9 @@ lock_rec_enqueue_waiting(
 		return DB_SUCCESS_LOCKED_REC;
 	}
 
-	trx->lock.que_state = TRX_QUE_LOCK_WAIT;
+	trx->lock.wait_thr = thr;
 
 	trx->lock.was_chosen_as_deadlock_victim = false;
-	trx->lock.wait_started = time(NULL);
-
-	ut_a(que_thr_stop(thr));
 
 	DBUG_LOG("ib_lock", "trx " << ib::hex(trx->id)
 		 << " waits for lock in index " << index->name
@@ -1546,7 +1560,7 @@ lock_rec_add_to_queue(
 	     lock != NULL;
 	     lock = lock_rec_get_next_on_page(lock)) {
 
-		if (lock_get_wait(lock)
+		if (lock->is_waiting()
 		    && lock_rec_get_nth_bit(lock, heap_no)) {
 
 			goto create;
@@ -1709,7 +1723,7 @@ lock_rec_has_to_wait_in_queue(
 
 	ut_ad(wait_lock);
 	lock_sys.mutex_assert_locked();
-	ut_ad(lock_get_wait(wait_lock));
+	ut_ad(wait_lock->is_waiting());
 	ut_ad(lock_get_type_low(wait_lock) == LOCK_REC);
 
 	heap_no = lock_rec_find_set_bit(wait_lock);
@@ -1733,52 +1747,48 @@ lock_rec_has_to_wait_in_queue(
 	return(NULL);
 }
 
-/** Grant a lock to a waiting lock request and release the waiting transaction
-after lock_reset_lock_and_trx_wait() has been called. */
-static void lock_grant_after_reset(lock_t* lock)
+
+/** Resume a lock wait */
+static void lock_wait_end(trx_t *trx)
 {
-	lock_sys.mutex_assert_locked();
+  mysql_mutex_assert_owner(&lock_sys.wait_mutex);
 
-	if (lock_get_mode(lock) == LOCK_AUTO_INC) {
-		dict_table_t*	table = lock->un_member.tab_lock.table;
-
-		if (table->autoinc_trx == lock->trx) {
-			ib::error() << "Transaction already had an"
-				<< " AUTO-INC lock!";
-		} else {
-			table->autoinc_trx = lock->trx;
-
-			ib_vector_push(lock->trx->autoinc_locks, &lock);
-		}
-	}
-
-	DBUG_PRINT("ib_lock", ("wait for trx " TRX_ID_FMT " ends",
-			       lock->trx->id));
-
-	/* If we are resolving a deadlock by choosing another transaction
-	as a victim, then our original transaction may not be in the
-	TRX_QUE_LOCK_WAIT state, and there is no need to end the lock wait
-	for it */
-
-	if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
-		que_thr_t*	thr;
-
-		thr = que_thr_end_lock_wait(lock->trx);
-
-		if (thr != NULL) {
-			lock_wait_release_thread_if_suspended(thr);
-		}
-	}
+  que_thr_t *thr= trx->lock.wait_thr;
+  ut_ad(thr);
+  if (trx->lock.was_chosen_as_deadlock_victim)
+  {
+    trx->error_state= DB_DEADLOCK;
+    trx->lock.was_chosen_as_deadlock_victim= false;
+  }
+  trx->lock.wait_thr= nullptr;
+  mysql_cond_signal(&trx->lock.cond);
 }
 
-/** Grant a lock to a waiting lock request and release the waiting transaction. */
-static void lock_grant(lock_t* lock)
+/** Grant a waiting lock request and release the waiting transaction. */
+static void lock_grant(lock_t *lock)
 {
+  lock_sys.mutex_assert_locked();
+  mysql_mutex_assert_owner(&lock_sys.wait_mutex);
   lock_reset_lock_and_trx_wait(lock);
-  auto mutex= &lock->trx->mutex;
-  mutex->wr_lock();
-  lock_grant_after_reset(lock);
-  mutex->wr_unlock();
+  trx_t *trx= lock->trx;
+  trx->mutex.wr_lock();
+  if (lock->mode() == LOCK_AUTO_INC)
+  {
+    dict_table_t *table= lock->un_member.tab_lock.table;
+    ut_ad(!table->autoinc_trx);
+    table->autoinc_trx= trx;
+    ib_vector_push(trx->autoinc_locks, &lock);
+  }
+
+  DBUG_PRINT("ib_lock", ("wait for trx " TRX_ID_FMT " ends", trx->id));
+
+  /* If we are resolving a deadlock by choosing another transaction as
+  a victim, then our original transaction may not be waiting anymore */
+
+  if (trx->lock.wait_thr)
+    lock_wait_end(trx);
+
+  trx->mutex.wr_unlock();
 }
 
 /*************************************************************//**
@@ -1799,16 +1809,15 @@ lock_rec_cancel(
 
 	/* Reset the wait flag and the back pointer to lock in trx */
 
+	mysql_mutex_lock(&lock_sys.wait_mutex);
 	lock_reset_lock_and_trx_wait(lock);
 
 	/* The following releases the trx from lock wait */
 	trx_t *trx = lock->trx;
-	auto mutex = &trx->mutex;
-	mutex->wr_lock();
-	if (que_thr_t* thr = que_thr_end_lock_wait(trx)) {
-		lock_wait_release_thread_if_suspended(thr);
-	}
-	mutex->wr_unlock();
+	trx->mutex.wr_lock();
+	lock_wait_end(trx);
+	mysql_mutex_unlock(&lock_sys.wait_mutex);
+	trx->mutex.wr_unlock();
 }
 
 /** Remove a record lock request, waiting or granted, from the queue and
@@ -1820,6 +1829,7 @@ static void lock_rec_dequeue_from_page(lock_t* in_lock)
 	hash_table_t*	lock_hash;
 
 	lock_sys.mutex_assert_locked();
+	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
 	ut_ad(lock_get_type_low(in_lock) == LOCK_REC);
 	/* We may or may not be holding in_lock->trx->mutex here. */
 
@@ -2092,12 +2102,12 @@ lock_rec_move_low(
 	     lock != NULL;
 	     lock = lock_rec_get_next(donator_heap_no, lock)) {
 
-		const auto type_mode = lock->type_mode;
-
 		lock_rec_reset_nth_bit(lock, donator_heap_no);
 
+		const auto type_mode = lock->type_mode;
 		if (type_mode & LOCK_WAIT) {
-			lock_reset_lock_and_trx_wait(lock);
+			ut_ad(lock->trx->lock.wait_lock == lock);
+			lock->type_mode &= ~LOCK_WAIT;
 		}
 
 		/* Note that we FIRST reset the bit, and then set the lock:
@@ -2213,9 +2223,9 @@ lock_move_reorganize_page(
 		/* Reset bitmap of lock */
 		lock_rec_bitmap_reset(lock);
 
-		if (lock_get_wait(lock)) {
-
-			lock_reset_lock_and_trx_wait(lock);
+		if (lock->is_waiting()) {
+			ut_ad(lock->trx->lock.wait_lock == lock);
+			lock->type_mode &= ~LOCK_WAIT;
 		}
 
 		lock = lock_rec_get_next_on_page(lock);
@@ -2394,7 +2404,8 @@ lock_move_rec_list_end(
 				ut_ad(!page_rec_is_metadata(orec));
 
 				if (type_mode & LOCK_WAIT) {
-					lock_reset_lock_and_trx_wait(lock);
+					ut_ad(lock->trx->lock.wait_lock==lock);
+					lock->type_mode &= ~LOCK_WAIT;
 				}
 
 				lock_rec_add_to_queue(
@@ -2496,7 +2507,8 @@ lock_move_rec_list_start(
 				ut_ad(!page_rec_is_metadata(prev));
 
 				if (type_mode & LOCK_WAIT) {
-					lock_reset_lock_and_trx_wait(lock);
+					ut_ad(lock->trx->lock.wait_lock==lock);
+					lock->type_mode &= ~LOCK_WAIT;
 				}
 
 				lock_rec_add_to_queue(
@@ -2592,7 +2604,8 @@ lock_rtr_move_rec_list(
 			if (rec1_heap_no < lock->un_member.rec_lock.n_bits
 			    && lock_rec_reset_nth_bit(lock, rec1_heap_no)) {
 				if (type_mode & LOCK_WAIT) {
-					lock_reset_lock_and_trx_wait(lock);
+					ut_ad(lock->trx->lock.wait_lock==lock);
+					lock->type_mode &= ~LOCK_WAIT;
 				}
 
 				lock_rec_add_to_queue(
@@ -3098,9 +3111,11 @@ lock_table_create(
 			ut_list_append(table->locks, lock, TableLockGetNode());
 		}
 
+		trx->mutex.wr_unlock();
+		mysql_mutex_lock(&lock_sys.wait_mutex);
 		c_lock->trx->mutex.wr_lock();
 
-		if (c_lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
+		if (c_lock->trx->lock.wait_thr) {
 			c_lock->trx->lock.was_chosen_as_deadlock_victim = TRUE;
 
 			if (UNIV_UNLIKELY(wsrep_debug)) {
@@ -3111,20 +3126,21 @@ lock_table_create(
 
 			/* The lock release will call lock_grant(),
 			which would acquire trx->mutex again. */
-			trx->mutex.wr_unlock();
 			lock_cancel_waiting_and_release(
 				c_lock->trx->lock.wait_lock);
-			trx->mutex.wr_lock();
 		}
 
+		mysql_mutex_unlock(&lock_sys.wait_mutex);
 		c_lock->trx->mutex.wr_unlock();
+		trx->mutex.wr_lock();
 	} else
 #endif /* WITH_WSREP */
 	ut_list_append(table->locks, lock, TableLockGetNode());
 
 	if (type_mode & LOCK_WAIT) {
-
-		lock_set_lock_and_trx_wait(lock, trx);
+		ut_ad(!trx->lock.wait_lock
+		      || (*trx->lock.wait_lock).trx == trx);
+		trx->lock.wait_lock = lock;
 	}
 
 	lock->trx->lock.table_locks.push_back(lock);
@@ -3232,26 +3248,18 @@ lock_table_remove_low(
 
 	/* Remove the table from the transaction's AUTOINC vector, if
 	the lock that is being released is an AUTOINC lock. */
-	if (lock_get_mode(lock) == LOCK_AUTO_INC) {
+	if (lock->mode() == LOCK_AUTO_INC) {
+		ut_ad((table->autoinc_trx == trx) == !lock->is_waiting());
 
-		/* The table's AUTOINC lock can get transferred to
-		another transaction before we get here. */
 		if (table->autoinc_trx == trx) {
 			table->autoinc_trx = NULL;
-		}
+			/* The locks must be freed in the reverse order from
+			the one in which they were acquired. This is to avoid
+			traversing the AUTOINC lock vector unnecessarily.
 
-		/* The locks must be freed in the reverse order from
-		the one in which they were acquired. This is to avoid
-		traversing the AUTOINC lock vector unnecessarily.
-
-		We only store locks that were granted in the
-		trx->autoinc_locks vector (see lock_table_create()
-		and lock_grant()). Therefore it can be empty and we
-		need to check for that. */
-
-		if (!lock_get_wait(lock)
-		    && !ib_vector_is_empty(trx->autoinc_locks)) {
-
+			We only store locks that were granted in the
+			trx->autoinc_locks vector (see lock_table_create()
+			and lock_grant()). */
 			lock_table_remove_autoinc_lock(lock, trx);
 		}
 
@@ -3292,7 +3300,6 @@ lock_table_enqueue_waiting(
 	ut_ad(!srv_read_only_mode);
 
 	trx = thr_get_trx(thr);
-	ut_a(!que_thr_stop(thr));
 
 	switch (trx_get_dict_operation(trx)) {
 	case TRX_DICT_OP_NONE:
@@ -3321,12 +3328,15 @@ lock_table_enqueue_waiting(
 	const trx_t*	victim_trx =
 		DeadlockChecker::check_and_resolve(lock, trx);
 
-	if (victim_trx != 0) {
+	if (victim_trx) {
 		ut_ad(victim_trx == trx);
-
 		/* The order here is important, we don't want to
 		lose the state of the lock before calling remove. */
 		lock_table_remove_low(lock);
+		/* There is no need to hold lock_sys.wait_mutex here,
+		because we are clearing the wait flag on a lock request
+		that is associated with the current transaction. So,
+		this is not conflicting with lock_wait(). */
 		lock_reset_lock_and_trx_wait(lock);
 
 		return(DB_DEADLOCK);
@@ -3338,12 +3348,8 @@ lock_table_enqueue_waiting(
 		return(DB_SUCCESS);
 	}
 
-	trx->lock.que_state = TRX_QUE_LOCK_WAIT;
-
-	trx->lock.wait_started = time(NULL);
+	trx->lock.wait_thr = thr;
 	trx->lock.was_chosen_as_deadlock_victim = false;
-
-	ut_a(que_thr_stop(thr));
 
 	MONITOR_INC(MONITOR_TABLELOCK_WAIT);
 
@@ -3583,6 +3589,7 @@ lock_table_dequeue(
 			they are now qualified to it */
 {
 	lock_sys.mutex_assert_locked();
+	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
 	ut_a(lock_get_type_low(in_lock) == LOCK_TABLE);
 
 	lock_t*	lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, in_lock);
@@ -3615,12 +3622,13 @@ void lock_table_x_unlock(dict_table_t *table, trx_t *trx)
   ut_ad(!trx->is_recovered);
 
   lock_sys.mutex_lock();
+  mysql_mutex_lock(&lock_sys.wait_mutex);
 
   for (lock_t*& lock : trx->lock.table_locks)
   {
     if (lock && lock->trx == trx && lock->type_mode == (LOCK_TABLE | LOCK_X))
     {
-      ut_ad(!lock_get_wait(lock));
+      ut_ad(!lock->is_waiting());
       lock_table_dequeue(lock);
       lock= nullptr;
       goto func_exit;
@@ -3630,6 +3638,7 @@ void lock_table_x_unlock(dict_table_t *table, trx_t *trx)
 
 func_exit:
   lock_sys.mutex_unlock();
+  mysql_mutex_unlock(&lock_sys.wait_mutex);
 }
 
 /** Sets a lock on a table based on the given mode.
@@ -3660,8 +3669,6 @@ lock_table_for_trx(
 		que_fork_get_first_thr(
 			static_cast<que_fork_t*>(que_node_get_parent(thr))));
 
-	thr->start_running();
-
 run_again:
 	thr->run_node = thr;
 	thr->prev_node = thr->common.parent;
@@ -3670,11 +3677,7 @@ run_again:
 
 	trx->error_state = err;
 
-	if (UNIV_LIKELY(err == DB_SUCCESS)) {
-		thr->stop_no_error();
-	} else {
-		que_thr_stop_for_mysql(thr);
-
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 		if (row_mysql_handle_errors(&err, trx, thr, NULL)) {
 			goto run_again;
 		}
@@ -3758,7 +3761,9 @@ released:
 		if (!c) {
 			/* Grant the lock */
 			ut_ad(trx != lock->trx);
+			mysql_mutex_lock(&lock_sys.wait_mutex);
 			lock_grant(lock);
+			mysql_mutex_unlock(&lock_sys.wait_mutex);
 #ifdef WITH_WSREP
 		} else {
 			wsrep_assert_no_bf_bf_wait(c, lock, c->trx);
@@ -3818,6 +3823,7 @@ void lock_release(trx_t* trx)
 	trx_id_t	max_trx_id = trx_sys.get_max_trx_id();
 
 	lock_sys.mutex_lock();
+	mysql_mutex_lock(&lock_sys.wait_mutex);
 
 	for (lock_t* lock = UT_LIST_GET_LAST(trx->lock.trx_locks);
 	     lock != NULL;
@@ -3851,16 +3857,17 @@ void lock_release(trx_t* trx)
 			do not monopolize it */
 
 			lock_sys.mutex_unlock();
-
-			lock_sys.mutex_lock();
-
+			mysql_mutex_unlock(&lock_sys.wait_mutex);
 			count = 0;
+			lock_sys.mutex_lock();
+			mysql_mutex_lock(&lock_sys.wait_mutex);
 		}
 
 		++count;
 	}
 
 	lock_sys.mutex_unlock();
+	mysql_mutex_unlock(&lock_sys.wait_mutex);
 }
 
 /* True if a lock mode is S or X */
@@ -4133,27 +4140,26 @@ lock_print_info_summary(
 /** Prints transaction lock wait and MVCC state.
 @param[in,out]	file	file where to print
 @param[in]	trx	transaction
-@param[in]	now	current time */
-void
-lock_trx_print_wait_and_mvcc_state(FILE* file, const trx_t* trx, time_t now)
+@param[in]	now	current my_hrtime_coarse() */
+void lock_trx_print_wait_and_mvcc_state(FILE *file, const trx_t *trx,
+                                        my_hrtime_t now)
 {
 	fprintf(file, "---");
 
 	trx_print_latched(file, trx, 600);
 	trx->read_view.print_limits(file);
 
-	if (trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
-
+	if (const lock_t* wait_lock = trx->lock.wait_lock) {
 		fprintf(file,
-			"------- TRX HAS BEEN WAITING %lu SEC"
+			"------- TRX HAS BEEN WAITING %llu ns"
 			" FOR THIS LOCK TO BE GRANTED:\n",
-			(ulong) difftime(now, trx->lock.wait_started));
+			now.val - trx->lock.suspend_time.val);
 
-		if (lock_get_type_low(trx->lock.wait_lock) == LOCK_REC) {
+		if (lock_get_type_low(wait_lock) == LOCK_REC) {
 			mtr_t mtr;
-			lock_rec_print(file, trx->lock.wait_lock, mtr);
+			lock_rec_print(file, wait_lock, mtr);
 		} else {
-			lock_table_print(file, trx->lock.wait_lock);
+			lock_table_print(file, wait_lock);
 		}
 
 		fprintf(file, "------------------\n");
@@ -4198,9 +4204,9 @@ lock_trx_print_locks(
 /** Functor to display all transactions */
 struct lock_print_info
 {
-  lock_print_info(FILE* file, time_t now) :
+  lock_print_info(FILE* file, my_hrtime_t now) :
     file(file), now(now),
-    purge_trx(purge_sys.query ? purge_sys.query->trx : NULL)
+    purge_trx(purge_sys.query ? purge_sys.query->trx : nullptr)
   {}
 
   void operator()(const trx_t &trx) const
@@ -4214,7 +4220,7 @@ struct lock_print_info
   }
 
   FILE* const file;
-  const time_t now;
+  const my_hrtime_t now;
   const trx_t* const purge_trx;
 };
 
@@ -4231,7 +4237,7 @@ lock_print_info_all_transactions(
 
 	fprintf(file, "LIST OF TRANSACTIONS FOR EACH SESSION:\n");
 
-	trx_sys.trx_list.for_each(lock_print_info(file, time(nullptr)));
+	trx_sys.trx_list.for_each(lock_print_info(file, my_hrtime_coarse()));
 	lock_sys.mutex_unlock();
 
 	ut_ad(lock_validate());
@@ -5380,17 +5386,14 @@ lock_release_autoinc_last_lock(
 	lock_t*		lock;
 
 	lock_sys.mutex_assert_locked();
-	ut_a(!ib_vector_is_empty(autoinc_locks));
+	ut_ad(!ib_vector_is_empty(autoinc_locks));
 
 	/* The lock to be release must be the last lock acquired. */
 	last = ib_vector_size(autoinc_locks) - 1;
 	lock = *static_cast<lock_t**>(ib_vector_get(autoinc_locks, last));
 
-	/* Should have only AUTOINC locks in the vector. */
-	ut_a(lock_get_mode(lock) == LOCK_AUTO_INC);
-	ut_a(lock_get_type(lock) == LOCK_TABLE);
-
-	ut_a(lock->un_member.tab_lock.table != NULL);
+	ut_ad(lock->type_mode == (LOCK_AUTO_INC | LOCK_TABLE));
+	ut_ad(lock->un_member.tab_lock.table);
 
 	/* This will remove the lock from the trx autoinc_locks too. */
 	lock_table_dequeue(lock);
@@ -5422,6 +5425,7 @@ lock_release_autoinc_locks(
 	trx_t*		trx)		/*!< in/out: transaction */
 {
 	lock_sys.mutex_assert_locked();
+	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
 	/* If this is invoked for a running transaction by the thread
 	that is serving the transaction, then it is not necessary to
 	hold trx->mutex here. */
@@ -5514,61 +5518,33 @@ lock_rec_get_index(
 	return(lock->index);
 }
 
-/*******************************************************************//**
-For a record lock, gets the name of the index on which the lock is.
-The string should not be free()'d or modified.
-@return name of the index */
-const char*
-lock_rec_get_index_name(
-/*====================*/
-	const lock_t*	lock)	/*!< in: lock */
+/** Cancel a waiting lock request and release possibly waiting transactions */
+void lock_cancel_waiting_and_release(lock_t *lock)
 {
-	ut_a(lock_get_type_low(lock) == LOCK_REC);
-	ut_ad(dict_index_is_clust(lock->index)
-	      || !dict_index_is_online_ddl(lock->index));
+  lock_sys.mutex_assert_locked();
+  mysql_mutex_assert_owner(&lock_sys.wait_mutex);
+  trx_t *trx= lock->trx;
+  ut_ad(trx->state == TRX_STATE_ACTIVE);
 
-	return(lock->index->name);
-}
+  trx->lock.cancel= true;
 
-/*********************************************************************//**
-Cancels a waiting lock request and releases possible other transactions
-waiting behind it. */
-void
-lock_cancel_waiting_and_release(
-/*============================*/
-	lock_t*	lock)	/*!< in/out: waiting lock request */
-{
-	lock_sys.mutex_assert_locked();
-	trx_t* trx = lock->trx;
-	ut_ad(trx->state == TRX_STATE_ACTIVE);
+  if (lock_get_type_low(lock) == LOCK_REC)
+    lock_rec_dequeue_from_page(lock);
+  else
+  {
+    if (trx->autoinc_locks)
+      lock_release_autoinc_locks(trx);
+    lock_table_dequeue(lock);
+    /* Remove the lock from table lock vector too. */
+    lock_trx_table_locks_remove(lock);
+  }
 
-	trx->lock.cancel = true;
+  /* Reset the wait flag and the back pointer to lock in trx. */
+  lock_reset_lock_and_trx_wait(lock);
 
-	if (lock_get_type_low(lock) == LOCK_REC) {
+  lock_wait_end(trx);
 
-		lock_rec_dequeue_from_page(lock);
-	} else {
-		ut_ad(lock_get_type_low(lock) & LOCK_TABLE);
-
-		if (trx->autoinc_locks) {
-			/* Release the transaction's AUTOINC locks. */
-			lock_release_autoinc_locks(trx);
-		}
-
-		lock_table_dequeue(lock);
-		/* Remove the lock from table lock vector too. */
-		lock_trx_table_locks_remove(lock);
-	}
-
-	/* Reset the wait flag and the back pointer to lock in trx. */
-
-	lock_reset_lock_and_trx_wait(lock);
-
-	if (que_thr_t *thr = que_thr_end_lock_wait(trx)) {
-		lock_wait_release_thread_if_suspended(thr);
-	}
-
-	trx->lock.cancel = false;
+  trx->lock.cancel= false;
 }
 
 /*********************************************************************//**
@@ -5595,27 +5571,28 @@ lock_unlock_table_autoinc(
 
 	if (lock_trx_holds_autoinc_locks(trx)) {
 		lock_sys.mutex_lock();
+		mysql_mutex_lock(&lock_sys.wait_mutex);
 
 		lock_release_autoinc_locks(trx);
 
 		lock_sys.mutex_unlock();
+		mysql_mutex_unlock(&lock_sys.wait_mutex);
 	}
 }
 
 static inline dberr_t lock_trx_handle_wait_low(trx_t* trx)
 {
-	lock_sys.mutex_assert_locked();
+  lock_sys.mutex_assert_locked();
+  mysql_mutex_assert_owner(&lock_sys.wait_mutex);
 
-	if (trx->lock.was_chosen_as_deadlock_victim) {
-		return DB_DEADLOCK;
-	}
-	if (!trx->lock.wait_lock) {
-		/* The lock was probably granted before we got here. */
-		return DB_SUCCESS;
-	}
+  if (trx->lock.was_chosen_as_deadlock_victim)
+    return DB_DEADLOCK;
+  if (!trx->lock.wait_lock)
+    /* The lock was probably granted before we got here. */
+    return DB_SUCCESS;
 
-	lock_cancel_waiting_and_release(trx->lock.wait_lock);
-	return DB_LOCK_WAIT;
+  lock_cancel_waiting_and_release(trx->lock.wait_lock);
+  return DB_LOCK_WAIT;
 }
 
 /*********************************************************************//**
@@ -5629,17 +5606,19 @@ lock_trx_handle_wait(
 	trx_t*	trx)	/*!< in/out: trx lock state */
 {
 #ifdef WITH_WSREP
-	/* We already own mutexes */
-	if (trx->lock.was_chosen_as_wsrep_victim) {
-		return lock_trx_handle_wait_low(trx);
-	}
+  if (UNIV_UNLIKELY(trx->lock.was_chosen_as_wsrep_victim))
+    /* FIXME: we do not hold lock_sys.wait_mutex! */
+    return lock_trx_handle_wait_low(trx);
 #endif /* WITH_WSREP */
-	lock_sys.mutex_lock();
-	trx->mutex.wr_lock();
-	dberr_t err = lock_trx_handle_wait_low(trx);
-	lock_sys.mutex_unlock();
-	trx->mutex.wr_unlock();
-	return err;
+  dberr_t err;
+  lock_sys.mutex_lock();
+  mysql_mutex_lock(&lock_sys.wait_mutex);
+  trx->mutex.wr_lock();
+  err= lock_trx_handle_wait_low(trx);
+  lock_sys.mutex_unlock();
+  mysql_mutex_unlock(&lock_sys.wait_mutex);
+  trx->mutex.wr_unlock();
+  return err;
 }
 
 /*********************************************************************//**
@@ -6092,6 +6071,7 @@ const trx_t*
 DeadlockChecker::search()
 {
 	lock_sys.mutex_assert_locked();
+	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
 
 	ut_ad(m_start != NULL);
 	ut_ad(m_wait_lock != NULL);
@@ -6143,7 +6123,9 @@ DeadlockChecker::search()
 			continue;
 		}
 
-		if (lock->trx == m_start) {
+		trx_t *trx = lock->trx;
+
+		if (trx == m_start) {
 			/* Found a cycle. */
 			notify(lock);
 			return select_victim();
@@ -6163,10 +6145,12 @@ DeadlockChecker::search()
 		    && (lock_get_type_low(lock) != LOCK_TABLE
 			|| lock_get_mode(lock) != LOCK_AUTO_INC)) {
 			thd_rpl_deadlock_check(m_start->mysql_thd,
-					       lock->trx->mysql_thd);
+					       trx->mysql_thd);
 		}
 
-		if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
+		lock_t* wait_lock = trx->lock.wait_lock;
+
+		if (wait_lock && trx->lock.wait_thr) {
 			/* Another trx ahead has requested a lock in an
 			incompatible mode, and is itself waiting for a lock. */
 
@@ -6177,7 +6161,7 @@ DeadlockChecker::search()
 				return m_start;
 			}
 
-			m_wait_lock = lock->trx->lock.wait_lock;
+			m_wait_lock = wait_lock;
 
 			lock = get_first_lock(&heap_no);
 
@@ -6225,6 +6209,7 @@ void
 DeadlockChecker::trx_rollback()
 {
 	lock_sys.mutex_assert_locked();
+	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
 
 	trx_t*	trx = m_wait_lock->trx;
 
@@ -6234,13 +6219,9 @@ DeadlockChecker::trx_rollback()
 		wsrep_handle_SR_rollback(m_start->mysql_thd, trx->mysql_thd);
 	}
 #endif
-
 	trx->mutex.wr_lock();
-
 	trx->lock.was_chosen_as_deadlock_victim = true;
-
 	lock_cancel_waiting_and_release(trx->lock.wait_lock);
-
 	trx->mutex.wr_unlock();
 }
 
@@ -6282,6 +6263,7 @@ DeadlockChecker::check_and_resolve(const lock_t* lock, trx_t* trx)
 
 	/* Try and resolve as many deadlocks as possible. */
 	do {
+		mysql_mutex_lock(&lock_sys.wait_mutex);
 		DeadlockChecker	checker(trx, lock, s_lock_mark_counter,
 					report_waiters);
 
@@ -6300,7 +6282,7 @@ DeadlockChecker::check_and_resolve(const lock_t* lock, trx_t* trx)
 
 			MONITOR_INC(MONITOR_DEADLOCK);
 			srv_stats.lock_deadlock_count.inc();
-
+			mysql_mutex_unlock(&lock_sys.wait_mutex);
 			break;
 
 		} else if (victim_trx != NULL && victim_trx != trx) {
@@ -6315,6 +6297,7 @@ DeadlockChecker::check_and_resolve(const lock_t* lock, trx_t* trx)
 			srv_stats.lock_deadlock_count.inc();
 		}
 
+		mysql_mutex_unlock(&lock_sys.wait_mutex);
 	} while (victim_trx != NULL && victim_trx != trx);
 
 	/* If the joining transaction was selected as the victim. */

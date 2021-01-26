@@ -1921,7 +1921,7 @@ struct find_interesting_trx
       return;
     if (trx.mysql_thd == nullptr)
       return;
-    if (withdraw_started <= trx.start_time)
+    if (withdraw_started <= trx.start_time_micro)
       return;
 
     if (!found)
@@ -1939,8 +1939,9 @@ struct find_interesting_trx
   }
 
   bool &found;
-  time_t withdraw_started;
-  time_t current_time;
+  /** microsecond_interval_timer() */
+  const ulonglong withdraw_started;
+  const my_hrtime_t current_time;
 };
 
 } // namespace
@@ -2004,8 +2005,8 @@ inline void buf_pool_t::resize()
 
 	buf_resize_status("Withdrawing blocks to be shrunken.");
 
-	time_t		withdraw_started = time(NULL);
-	double		message_interval = 60;
+	ulonglong	withdraw_started = microsecond_interval_timer();
+	ulonglong	message_interval = 60ULL * 1000 * 1000;
 	ulint		retry_interval = 1;
 
 withdraw_retry:
@@ -2021,24 +2022,25 @@ withdraw_retry:
 	/* abort buffer pool load */
 	buf_load_abort();
 
-	const time_t current_time = time(NULL);
+	const ulonglong current_time = microsecond_interval_timer();
 
 	if (should_retry_withdraw
-	    && difftime(current_time, withdraw_started) >= message_interval) {
+	    && current_time - withdraw_started >= message_interval) {
 
-		if (message_interval > 900) {
-			message_interval = 1800;
+		if (message_interval > 900000000) {
+			message_interval = 1800000000;
 		} else {
 			message_interval *= 2;
 		}
 
-		lock_sys.mutex_lock();
-		bool	found = false;
-		trx_sys.trx_list.for_each(find_interesting_trx{
-			found, withdraw_started, current_time});
-		lock_sys.mutex_unlock();
-
+		bool found= false;
+		find_interesting_trx f
+			{found, withdraw_started, my_hrtime_coarse()};
 		withdraw_started = current_time;
+
+		lock_sys.mutex_lock();
+		trx_sys.trx_list.for_each(f);
+		lock_sys.mutex_unlock();
 	}
 
 	if (should_retry_withdraw) {

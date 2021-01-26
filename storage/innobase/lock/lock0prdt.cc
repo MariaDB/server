@@ -946,8 +946,10 @@ lock_prdt_rec_move(
 		lock_prdt_t*	lock_prdt = lock_get_prdt_from_lock(lock);
 
 		lock_rec_reset_nth_bit(lock, PRDT_HEAPNO);
-		lock_reset_lock_and_trx_wait(lock);
-
+		if (type_mode & LOCK_WAIT) {
+			ut_ad(lock->trx->lock.wait_lock == lock);
+			lock->type_mode &= ~LOCK_WAIT;
+		}
 		lock_prdt_add_to_queue(
 			type_mode, receiver, lock->index, lock->trx,
 			lock_prdt, false);

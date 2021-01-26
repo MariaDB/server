@@ -605,32 +605,6 @@ lock_table_has(
 	const dict_table_t*	table,	/*!< in: table */
 	enum lock_mode		mode);	/*!< in: lock mode */
 
-/** Set the wait status of a lock.
-@param[in,out]	lock	lock that will be waited for
-@param[in,out]	trx	transaction that will wait for the lock */
-inline void lock_set_lock_and_trx_wait(lock_t* lock, trx_t* trx)
-{
-	ut_ad(lock);
-	ut_ad(lock->trx == trx);
-	ut_ad(trx->lock.wait_lock == NULL);
-	lock_sys.mutex_assert_locked();
-
-	trx->lock.wait_lock = lock;
-	lock->type_mode |= LOCK_WAIT;
-}
-
-/** Reset the wait status of a lock.
-@param[in,out]	lock	lock that was possibly being waited for */
-inline void lock_reset_lock_and_trx_wait(lock_t* lock)
-{
-	ut_ad(lock_get_wait(lock));
-	lock_sys.mutex_assert_locked();
-	ut_ad(lock->trx->lock.wait_lock == NULL
-	      || lock->trx->lock.wait_lock == lock);
-	lock->trx->lock.wait_lock = NULL;
-	lock->type_mode &= ~LOCK_WAIT;
-}
-
 #include "lock0priv.ic"
 
 #endif /* lock0priv_h */

@@ -1106,25 +1106,21 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_pages_written = buf_pool.stat.n_pages_written;
 
-	export_vars.innodb_row_lock_waits = srv_stats.n_lock_wait_count;
+	mysql_mutex_lock(&lock_sys.wait_mutex);
+	export_vars.innodb_row_lock_waits = lock_sys.get_wait_cumulative();
 
-	export_vars.innodb_row_lock_current_waits =
-		srv_stats.n_lock_wait_current_count;
+	export_vars.innodb_row_lock_current_waits= lock_sys.get_wait_pending();
 
-	export_vars.innodb_row_lock_time = srv_stats.n_lock_wait_time / 1000;
+	export_vars.innodb_row_lock_time = lock_sys.get_wait_time_cumulative()
+		/ 1000;
+	export_vars.innodb_row_lock_time_max = lock_sys.get_wait_time_max()
+		/ 1000;
+	mysql_mutex_unlock(&lock_sys.wait_mutex);
 
-	if (srv_stats.n_lock_wait_count > 0) {
-
-		export_vars.innodb_row_lock_time_avg = (ulint)
-			(srv_stats.n_lock_wait_time
-			 / 1000 / srv_stats.n_lock_wait_count);
-
-	} else {
-		export_vars.innodb_row_lock_time_avg = 0;
-	}
-
-	export_vars.innodb_row_lock_time_max =
-		lock_sys.n_lock_max_wait_time / 1000;
+	export_vars.innodb_row_lock_time_avg= export_vars.innodb_row_lock_waits
+		? static_cast<ulint>(export_vars.innodb_row_lock_time
+				     / export_vars.innodb_row_lock_waits)
+		: 0;
 
 	export_vars.innodb_rows_read = srv_stats.n_rows_read;
 

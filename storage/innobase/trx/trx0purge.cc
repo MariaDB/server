@@ -1152,8 +1152,6 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 		purge_node_t*		node;
 		trx_purge_rec_t		purge_rec;
 
-		ut_a(!thr->is_active);
-
 		/* Get the purge node. */
 		node = (purge_node_t*) thr->child;
 		ut_a(que_node_get_type(node) == QUE_NODE_PURGE);
