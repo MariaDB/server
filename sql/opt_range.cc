@@ -9871,7 +9871,6 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
   key2->use_count--;
   SEL_ARG *e1=key1->first(), *e2=key2->first(), *new_tree=0;
   uint max_part_no= MY_MAX(key1->max_part_no, key2->max_part_no);
-  uint new_weight= 0;  // Weight of the result tree
 
   while (e1 && e2)
   {
@@ -9893,12 +9892,9 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
       if (!new_arg)
 	return &null_element;			// End of memory
       new_arg->next_key_part=next;
-      /*
-        We are going to add the 'new_arg' range to the new_tree.
-        the new_arg on its own has weight=1.
-        if it has non-null new_arg->next_key_part (=next), add its weight, too.
-      */
-      new_weight += 1 + (next? next->weight: 0);
+      if (new_arg->next_key_part)
+        new_arg->weight += new_arg->next_key_part->weight;
+
       if (!new_tree)
       {
 	new_tree=new_arg;
@@ -9916,7 +9912,6 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
   if (!new_tree)
     return &null_element;			// Impossible range
   new_tree->max_part_no= max_part_no;
-  new_tree->weight= new_weight;
   return new_tree;
 }
 
@@ -10901,8 +10896,13 @@ SEL_ARG::insert(SEL_ARG *key)
   SEL_ARG *root=rb_insert(key);			// rebalance tree
   root->use_count=this->use_count;		// copy root info
   root->elements= this->elements+1;
-  // Add the weight: weight of this element (=1) + next_key_part's weight
-  root->weight += 1 + (next_key_part? next_key_part->weight: 0);
+  /*
+    The new weight is:
+     old root's weight
+     +1 for the weight of the added element
+     + next_key_part's weight of the added element
+  */
+  root->weight = weight + 1 + (key->next_key_part? key->next_key_part->weight: 0);
   root->maybe_flag=this->maybe_flag;
   return root;
 }
