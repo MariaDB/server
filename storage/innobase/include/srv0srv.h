@@ -480,11 +480,6 @@ extern ulint	srv_dml_needed_delay;
 
 #define SRV_MAX_N_IO_THREADS	130
 
-/* Array of English strings describing the current state of an
-i/o handler thread */
-extern const char* srv_io_thread_op_info[];
-extern const char* srv_io_thread_function[];
-
 /** innodb_purge_threads; the number of purge tasks to use */
 extern uint srv_n_purge_threads;
 
@@ -616,19 +611,6 @@ srv_boot(void);
 Frees the data structures created in srv_init(). */
 void
 srv_free(void);
-/*==========*/
-/*********************************************************************//**
-Sets the info describing an i/o thread current state. */
-void
-srv_set_io_thread_op_info(
-/*======================*/
-	ulint		i,	/*!< in: the 'segment' of the i/o thread */
-	const char*	str);	/*!< in: constant char string describing the
-				state */
-/*********************************************************************//**
-Resets the info describing an i/o thread current state. */
-void
-srv_reset_io_thread_op_info();
 
 /** Wake up the purge if there is work to do. */
 void

@@ -384,12 +384,6 @@ my_bool innodb_encrypt_temporary_tables;
 
 my_bool srv_immediate_scrub_data_uncompressed;
 
-/* Array of English strings describing the current state of an
-i/o handler thread */
-
-const char* srv_io_thread_op_info[SRV_MAX_N_IO_THREADS];
-const char* srv_io_thread_function[SRV_MAX_N_IO_THREADS];
-
 static time_t	srv_last_monitor_time;
 
 static mysql_mutex_t srv_innodb_monitor_mutex;
@@ -609,33 +603,6 @@ srv_print_master_thread_info(
 		srv_main_idle_loops,
 		srv_log_writes_and_flush);
 }
-
-/*********************************************************************//**
-Sets the info describing an i/o thread current state. */
-void
-srv_set_io_thread_op_info(
-/*======================*/
-	ulint		i,	/*!< in: the 'segment' of the i/o thread */
-	const char*	str)	/*!< in: constant char string describing the
-				state */
-{
-	ut_a(i < SRV_MAX_N_IO_THREADS);
-
-	srv_io_thread_op_info[i] = str;
-}
-
-/*********************************************************************//**
-Resets the info describing an i/o thread current state. */
-void
-srv_reset_io_thread_op_info()
-/*=========================*/
-{
-	for (ulint i = 0; i < UT_ARR_SIZE(srv_io_thread_op_info); ++i) {
-		srv_io_thread_op_info[i] = "not started yet";
-	}
-}
-
-
 
 static void thread_pool_thread_init()
 {
