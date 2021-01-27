@@ -4160,15 +4160,6 @@ os_aio_print(FILE*	file)
 	time_t		current_time;
 	double		time_elapsed;
 
-	for (uint i = 0; i < srv_n_file_io_threads; ++i) {
-		fprintf(file, "I/O thread %u state: %s (%s)",
-			i,
-			srv_io_thread_op_info[i],
-			srv_io_thread_function[i]);
-
-		fprintf(file, "\n");
-	}
-
 	fputs("Pending normal aio reads:", file);
 
 
