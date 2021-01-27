@@ -22,3 +22,18 @@ SELECT * FROM t2;
 a
 3
 DROP TABLE t1, t2;
+#
+# MDEV-24700 Assertion "lock not found"==0 in lock_table_x_unlock()
+#
+SET FOREIGN_KEY_CHECKS=OFF;
+CREATE TABLE t1 (id INT PRIMARY KEY, f INT REFERENCES nonexistent(x))
+ENGINE=InnoDB;
+SET FOREIGN_KEY_CHECKS=ON;
+BEGIN;
+INSERT IGNORE INTO t1 VALUES (1,11);
+Warnings:
+Warning	1452	Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`f`) REFERENCES `nonexistent` (`x`))
+REPLACE INTO t1 VALUES (1,12);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`f`) REFERENCES `nonexistent` (`x`))
+COMMIT;
+DROP TABLE t1;

@@ -135,7 +135,6 @@ drop table t1;
 
 connection default;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT NOT NULL) ENGINE=InnoDB;
-
 INSERT INTO t1 VALUES(3,1);
 
 BEGIN;

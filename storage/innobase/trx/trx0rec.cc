@@ -2010,6 +2010,9 @@ trx_undo_report_row_operation(
 		(below) can set the flag. */
 		ut_ad(!m.second);
 		/* We already wrote a TRX_UNDO_EMPTY record. */
+		ut_ad(thr->run_node);
+		ut_ad(que_node_get_type(thr->run_node) == QUE_NODE_INSERT);
+		ut_ad(static_cast<ins_node_t*>(thr->run_node)->bulk_insert);
 		return DB_SUCCESS;
 	} else if (m.second
 		   && thr->run_node

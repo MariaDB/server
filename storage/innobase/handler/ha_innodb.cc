@@ -3039,6 +3039,9 @@ ha_innobase::reset_template(void)
 		m_prebuilt->pk_filter = NULL;
 		m_prebuilt->template_type = ROW_MYSQL_NO_TEMPLATE;
 	}
+	if (ins_node_t* node = m_prebuilt->ins_node) {
+		node->bulk_insert = false;
+	}
 }
 
 /*****************************************************************//**
@@ -15062,11 +15065,9 @@ ha_innobase::extra(
 	enum ha_extra_function operation)
 			   /*!< in: HA_EXTRA_FLUSH or some other flag */
 {
-	check_trx_exists(ha_thd());
-
-	/* Warning: since it is not sure that MySQL calls external_lock
-	before calling this function, the trx field in m_prebuilt can be
-	obsolete! */
+	/* Warning: since it is not sure that MariaDB calls external_lock()
+	before calling this function, m_prebuilt->trx can be obsolete! */
+	trx_t* trx = check_trx_exists(ha_thd());
 
 	switch (operation) {
 	case HA_EXTRA_FLUSH:
@@ -15076,7 +15077,19 @@ ha_innobase::extra(
 		break;
 	case HA_EXTRA_RESET_STATE:
 		reset_template();
-		thd_to_trx(ha_thd())->duplicates = 0;
+		trx->duplicates = 0;
+		/* fall through */
+	case HA_EXTRA_IGNORE_INSERT:
+		/* HA_EXTRA_IGNORE_INSERT is very similar to
+		HA_EXTRA_IGNORE_DUP_KEY, but with one crucial difference:
+		we want !trx->duplicates for INSERT IGNORE so that
+		row_ins_duplicate_error_in_clust() will acquire a
+		shared lock instead of an exclusive lock. */
+	stmt_boundary:
+		trx->end_bulk_insert(*m_prebuilt->table);
+		if (ins_node_t* node = m_prebuilt->ins_node) {
+			node->bulk_insert = false;
+		}
 		break;
 	case HA_EXTRA_NO_KEYREAD:
 		m_prebuilt->read_just_key = 0;
@@ -15087,33 +15100,27 @@ ha_innobase::extra(
 	case HA_EXTRA_KEYREAD_PRESERVE_FIELDS:
 		m_prebuilt->keep_other_fields_on_keyread = 1;
 		break;
-
-		/* IMPORTANT: m_prebuilt->trx can be obsolete in
-		this method, because it is not sure that MySQL
-		calls external_lock before this method with the
-		parameters below.  We must not invoke update_thd()
-		either, because the calling threads may change.
-		CAREFUL HERE, OR MEMORY CORRUPTION MAY OCCUR! */
 	case HA_EXTRA_INSERT_WITH_UPDATE:
-		thd_to_trx(ha_thd())->duplicates |= TRX_DUP_IGNORE;
-		break;
+		trx->duplicates |= TRX_DUP_IGNORE;
+		goto stmt_boundary;
 	case HA_EXTRA_NO_IGNORE_DUP_KEY:
-		thd_to_trx(ha_thd())->duplicates &= ~TRX_DUP_IGNORE;
-		break;
+		trx->duplicates &= ~TRX_DUP_IGNORE;
+		goto stmt_boundary;
 	case HA_EXTRA_WRITE_CAN_REPLACE:
-		thd_to_trx(ha_thd())->duplicates |= TRX_DUP_REPLACE;
-		break;
+		trx->duplicates |= TRX_DUP_REPLACE;
+		goto stmt_boundary;
 	case HA_EXTRA_WRITE_CANNOT_REPLACE:
-		thd_to_trx(ha_thd())->duplicates &= ~TRX_DUP_REPLACE;
-		break;
+		trx->duplicates &= ~TRX_DUP_REPLACE;
+		goto stmt_boundary;
 	case HA_EXTRA_BEGIN_ALTER_COPY:
 		m_prebuilt->table->skip_alter_undo = 1;
 		if (m_prebuilt->table->is_temporary()
 		    || !m_prebuilt->table->versioned_by_id()) {
 			break;
 		}
-		trx_start_if_not_started(m_prebuilt->trx, true);
-		m_prebuilt->trx->mod_tables.emplace(
+		ut_ad(trx == m_prebuilt->trx);
+		trx_start_if_not_started(trx, true);
+		trx->mod_tables.emplace(
 			const_cast<dict_table_t*>(m_prebuilt->table), 0)
 			.first->second.set_versioned(0);
 		break;
@@ -15123,14 +15130,7 @@ ha_innobase::extra(
 	case HA_EXTRA_FAKE_START_STMT:
 		trx_register_for_2pc(m_prebuilt->trx);
 		m_prebuilt->sql_stat_start = true;
-		break;
-	case HA_EXTRA_IGNORE_INSERT:
-		if (ins_node_t* node = m_prebuilt->ins_node) {
-			if (node->bulk_insert) {
-				m_prebuilt->trx->end_bulk_insert(*node->table);
-			}
-		}
-		break;
+		goto stmt_boundary;
 	default:/* Do nothing */
 		;
 	}
@@ -15195,6 +15195,7 @@ ha_innobase::start_stmt(
 	m_prebuilt->sql_stat_start = TRUE;
 	m_prebuilt->hint_need_to_fetch_extra_cols = 0;
 	reset_template();
+	trx->end_bulk_insert(*m_prebuilt->table);
 
 	if (m_prebuilt->table->is_temporary()
 	    && m_mysql_has_locked
@@ -15367,7 +15368,7 @@ ha_innobase::external_lock(
 	m_prebuilt->hint_need_to_fetch_extra_cols = 0;
 
 	reset_template();
-	trx->end_bulk_insert();
+	trx->end_bulk_insert(*m_prebuilt->table);
 
 	switch (m_prebuilt->table->quiesce) {
 	case QUIESCE_START:

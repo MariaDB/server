@@ -512,9 +512,9 @@ class trx_mod_table_time_t
   /** Flag in 'first' to indicate that some operations were
   covered by a TRX_UNDO_EMPTY record (for the first statement to
   insert into an empty table) */
-  static constexpr undo_no_t WAS_BULK= 1ULL << 63;
+  static constexpr undo_no_t WAS_BULK= 1ULL << 62;
 
-  /** First modification of the table, possibly ORed with BULK */
+  /** First modification of the table, possibly ORed with BULK or WAS_BULK */
   undo_no_t first;
   /** First modification of a system versioned column (or NONE) */
   undo_no_t first_versioned= NONE;
