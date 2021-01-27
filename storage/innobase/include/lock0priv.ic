@@ -104,7 +104,7 @@ lock_rec_get_next_on_page(
 /*======================*/
 	lock_t*	lock)	/*!< in: a record lock */
 {
-	return((lock_t*) lock_rec_get_next_on_page_const(lock));
+  return const_cast<lock_t*>(lock_rec_get_next_on_page_const(lock));
 }
 
 /*********************************************************************//**
@@ -120,7 +120,6 @@ lock_rec_get_next(
 	lock_sys.mutex_assert_locked();
 
 	do {
-		ut_ad(!lock->is_table());
 		lock = lock_rec_get_next_on_page(lock);
 	} while (lock && !lock_rec_get_nth_bit(lock, heap_no));
 
@@ -203,20 +202,6 @@ lock_rec_get_next_on_page_const(
 }
 
 /*********************************************************************//**
-Gets the mode of a lock.
-@return mode */
-UNIV_INLINE
-enum lock_mode
-lock_get_mode(
-/*==========*/
-	const lock_t*	lock)   /*!< in: lock */
-{
-	ut_ad(lock);
-
-	return(static_cast<enum lock_mode>(lock->type_mode & LOCK_MODE_MASK));
-}
-
-/*********************************************************************//**
 Calculates if lock mode 1 is compatible with lock mode 2.
 @return nonzero if mode1 compatible with mode2 */
 UNIV_INLINE
@@ -249,20 +234,6 @@ lock_mode_stronger_or_eq(
 }
 
 /*********************************************************************//**
-Gets the wait flag of a lock.
-@return LOCK_WAIT if waiting, 0 if not */
-UNIV_INLINE
-ulint
-lock_get_wait(
-/*==========*/
-	const lock_t*	lock)	/*!< in: lock */
-{
-	ut_ad(lock);
-
-	return(lock->type_mode & LOCK_WAIT);
-}
-
-/*********************************************************************//**
 Checks if a transaction has the specified table lock, or stronger. This
 function should only be called by the thread that owns the transaction.
 @return lock or NULL */
@@ -285,22 +256,16 @@ lock_table_has(
 			continue;
 		}
 
-		lock_mode	mode = lock_get_mode(lock);
-
 		ut_ad(trx == lock->trx);
 		ut_ad(lock->is_table());
 		ut_ad(lock->un_member.tab_lock.table);
 
 		if (table == lock->un_member.tab_lock.table
-		    && lock_mode_stronger_or_eq(mode, in_mode)) {
-
-			ut_ad(!lock_get_wait(lock));
-
+		    && lock_mode_stronger_or_eq(lock->mode(), in_mode)) {
+			ut_ad(!lock->is_waiting());
 			return(lock);
 		}
 	}
 
 	return(NULL);
 }
-
-/* vim: set filetype=c: */

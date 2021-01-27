@@ -542,15 +542,6 @@ lock_rec_get_first(
 	ulint			heap_no);/*!< in: heap number of the record */
 
 /*********************************************************************//**
-Gets the mode of a lock.
-@return mode */
-UNIV_INLINE
-enum lock_mode
-lock_get_mode(
-/*==========*/
-	const lock_t*	lock);	/*!< in: lock */
-
-/*********************************************************************//**
 Calculates if lock mode 1 is compatible with lock mode 2.
 @return nonzero if mode1 compatible with mode2 */
 UNIV_INLINE
@@ -569,15 +560,6 @@ lock_mode_stronger_or_eq(
 /*=====================*/
 	enum lock_mode	mode1,	/*!< in: lock mode */
 	enum lock_mode	mode2);	/*!< in: lock mode */
-
-/*********************************************************************//**
-Gets the wait flag of a lock.
-@return LOCK_WAIT if waiting, 0 if not */
-UNIV_INLINE
-ulint
-lock_get_wait(
-/*==========*/
-	const lock_t*	lock);	/*!< in: lock */
 
 /*********************************************************************//**
 Checks if a transaction has the specified table lock, or stronger. This

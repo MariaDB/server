@@ -517,15 +517,6 @@ lock_number_of_tables_locked(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*******************************************************************//**
-Gets the type of a lock. Non-inline version for using outside of the
-lock module.
-@return LOCK_TABLE or LOCK_REC */
-ulint
-lock_get_type(
-/*==========*/
-	const lock_t*	lock);	/*!< in: lock */
-
-/*******************************************************************//**
 Gets the id of the table on which the lock is.
 @return id of the table */
 table_id_t

@@ -82,7 +82,7 @@ lock_queue_iterator_get_prev(
     : UT_LIST_GET_PREV(un_member.tab_lock.locks, iter->current_lock);
 
   if (prev_lock)
-    iter->current_lock = prev_lock;
+    iter->current_lock= prev_lock;
 
   return prev_lock;
 }

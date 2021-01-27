@@ -175,7 +175,7 @@ lock_prdt_has_to_wait(
 	if (trx != lock2->trx
 	    && !lock_mode_compatible(static_cast<lock_mode>(
 			             LOCK_MODE_MASK & type_mode),
-				     lock_get_mode(lock2))) {
+				     lock2->mode())) {
 
 		/* If it is a page lock, then return true (conflict) */
 		if (type_mode & LOCK_PRDT_PAGE) {
@@ -249,17 +249,15 @@ lock_prdt_has_lock(
 		ut_ad(lock->type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE));
 
 		if (lock->trx == trx
-		    && !(lock->type_mode & LOCK_INSERT_INTENTION)
-		    && !lock_get_wait(lock)
+		    && !(lock->type_mode & (LOCK_INSERT_INTENTION | LOCK_WAIT))
 		    && lock_mode_stronger_or_eq(
-			    lock_get_mode(lock),
+			    lock->mode(),
 			    static_cast<lock_mode>(
 				    precise_mode & LOCK_MODE_MASK))) {
 			if (lock->type_mode & LOCK_PRDT_PAGE) {
 				return(lock);
 			}
 
-			ut_ad(lock->type_mode & LOCK_PREDICATE);
 			lock_prdt_t*	cur_prdt = lock_get_prdt_from_lock(
 							lock);
 
@@ -459,9 +457,9 @@ lock_prdt_add_to_queue(
 
 	for (lock_t* lock = lock_sys.get_first(*lock_hash_get(type_mode), id);
 	     lock; lock = lock_rec_get_next_on_page(lock)) {
-		if (lock_get_wait(lock)
-		    && lock_rec_get_nth_bit(lock, PRDT_HEAPNO)
-		    && lock->type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE)) {
+		if (lock->is_waiting()
+		    && lock->type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE)
+		    && lock_rec_get_nth_bit(lock, PRDT_HEAPNO)) {
 			goto create;
 		}
 	}
