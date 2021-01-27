@@ -10968,8 +10968,8 @@ SEL_ARG::tree_delete(SEL_ARG *key)
   uint new_weight= root->weight - (1 + (key->next_key_part?
                                         key->next_key_part->weight : 0));
 
-  DBUG_ASSERT(root->weight > (1 + (key->next_key_part ?
-                                   key->next_key_part->weight : 0)));
+  DBUG_ASSERT(root->weight >= (1 + (key->next_key_part ?
+                                    key->next_key_part->weight : 0)));
 
   /* Unlink from list */
   if (key->prev)
