@@ -1771,6 +1771,11 @@ fil_crypt_get_page_throttle_func(
 		return NULL;
 	}
 
+	if (fseg_page_is_free(space, state->offset)) {
+		/* page is already freed */
+		return NULL;
+	}
+
 	state->crypt_stat.pages_read_from_disk++;
 
 	const ulonglong start = my_interval_timer();
@@ -1874,6 +1879,9 @@ fil_crypt_rotate_page(
 			some dummy pages will be allocated, with 0 in
 			the FIL_PAGE_TYPE. Those pages should be
 			skipped from key rotation forever. */
+		} else if (block->page.status == buf_page_t::FREED) {
+			/* Do not modify freed pages to avoid an assertion
+			failure on recovery.*/
 		} else if (fil_crypt_needs_rotation(
 				crypt_data,
 				kv,

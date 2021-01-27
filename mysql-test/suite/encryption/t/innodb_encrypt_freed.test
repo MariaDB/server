@@ -1,0 +1,117 @@
+--source include/have_innodb.inc
+--source include/have_example_key_management_plugin.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+
+SHOW VARIABLES LIKE 'innodb_encrypt%';
+
+SET GLOBAL innodb_encrypt_tables = ON;
+
+CREATE TABLE t1(f1 BIGINT PRIMARY KEY, f2 int not null,
+		f3 int not null, index(f1), index idx_1(f2),
+		index(f2, f3)) ENGINE=InnoDB;
+--let $tables_count= `select count(*) + 1 from information_schema.tables where engine = 'InnoDB'`
+
+--echo # Wait max 10 min for key encryption threads to encrypt all spaces
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+
+CREATE TABLE t2 (f1 int not null)engine=innodb;
+let $restart_parameters="--debug=d,ib_log_checkpoint_avoid";
+--source include/restart_mysqld.inc
+
+# Stop the purge
+connect(con1,localhost,root,,,);
+begin;
+insert into t2 values(1);
+
+connection default;
+
+--let $tables_count= `select count(*) + 1 from information_schema.tables where engine = 'InnoDB'`
+set global innodb_encrypt_tables = OFF;
+
+--echo # Wait max 10 min for key encryption threads to decrypt all spaces
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+--source include/wait_condition.inc
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+
+# Free the index `idx_1`
+alter table t1 drop index idx_1;
+
+set global innodb_encrypt_tables = ON;
+
+--echo # Wait max 10 min for key encryption threads to encrypt all spaces
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+
+disconnect con1;
+let $shutdown_timeout=0;
+--source include/restart_mysqld.inc
+
+drop table t1, t2;
+
+#
+#
+CREATE TABLE t1(f1 BIGINT PRIMARY KEY, f2 int not null,
+		f3 int not null, index(f1), index idx_1(f2),
+		index(f2, f3)) ENGINE=InnoDB;
+--let $tables_count= `select count(*) + 1 from information_schema.tables where engine = 'InnoDB'`
+
+--echo # Wait max 10 min for key encryption threads to encrypt all spaces
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+
+CREATE TABLE t2 (f1 int not null)engine=innodb;
+--source include/restart_mysqld.inc
+
+# Stop the purge
+connect(con1,localhost,root,,,);
+begin;
+insert into t2 values(1);
+
+connection default;
+
+--let $tables_count= `select count(*) + 1 from information_schema.tables where engine = 'InnoDB'`
+set global innodb_encrypt_tables = OFF;
+
+--echo # Wait max 10 min for key encryption threads to decrypt all spaces
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+--source include/wait_condition.inc
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+
+# Free the index `idx_1`
+alter table t1 drop index idx_1;
+
+disconnect con1;
+--source include/restart_mysqld.inc
+
+# Stop the purge
+connect(con1,localhost,root,,,);
+begin;
+insert into t2 values(1);
+
+connection default;
+set global innodb_encrypt_tables = ON;
+
+--echo # Wait max 10 min for key encryption threads to encrypt all spaces
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+
+disconnect con1;
+drop table t2, t1;

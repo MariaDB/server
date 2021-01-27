@@ -2705,10 +2705,11 @@ fseg_free_step(
 		DBUG_RETURN(true);
 	}
 
-	fseg_free_page_low(
-		inode, iblock, space,
-		fseg_get_nth_frag_page_no(inode, n),
-		mtr);
+	page_no_t page_no = fseg_get_nth_frag_page_no(inode, n);
+
+	fseg_free_page_low(inode, iblock, space, page_no, mtr);
+
+	buf_page_free(space, page_no, mtr, __FILE__, __LINE__);
 
 	n = fseg_find_last_used_frag_page_slot(inode);
 
@@ -2770,6 +2771,7 @@ fseg_free_step_not_header(
 	}
 
 	fseg_free_page_low(inode, iblock, space, page_no, mtr);
+	buf_page_free(space, page_no, mtr, __FILE__, __LINE__);
 	return false;
 }
 

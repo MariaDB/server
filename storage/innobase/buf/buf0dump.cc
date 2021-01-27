@@ -332,6 +332,10 @@ buf_dump(
 			continue;
 		}
 
+		if (bpage->status == buf_page_t::FREED) {
+			continue;
+		}
+
 		dump[j++] = id;
 	}
 
