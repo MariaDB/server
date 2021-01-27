@@ -658,6 +658,11 @@ static void wsrep_assert_no_bf_bf_wait(
 {
 	ut_ad(!lock_rec1 || lock_get_type_low(lock_rec1) == LOCK_REC);
 	ut_ad(lock_get_type_low(lock_rec2) == LOCK_REC);
+	ut_ad(lock_mutex_own());
+
+	/* Note that we are holding lock_sys->mutex, thus we should
+	not acquire THD::LOCK_thd_data mutex below to avoid mutexing
+	order violation. */
 
 	if (!trx1->is_wsrep() || !lock_rec2->trx->is_wsrep())
 		return;
@@ -673,12 +678,8 @@ static void wsrep_assert_no_bf_bf_wait(
 	/* avoiding BF-BF conflict assert, if victim is already aborting
 	   or rolling back for replaying
 	*/
-	wsrep_thd_LOCK(lock_rec2->trx->mysql_thd);
-	if (wsrep_trx_is_aborting(lock_rec2->trx->mysql_thd)) {
-		wsrep_thd_UNLOCK(lock_rec2->trx->mysql_thd);
+	if (wsrep_trx_is_aborting(lock_rec2->trx->mysql_thd))
 		return;
-	}
-	wsrep_thd_UNLOCK(lock_rec2->trx->mysql_thd);
 
 	mtr_t mtr;
 
@@ -735,6 +736,7 @@ lock_rec_has_to_wait(
 {
 	ut_ad(trx && lock2);
 	ut_ad(lock_get_type_low(lock2) == LOCK_REC);
+	ut_ad(lock_mutex_own());
 
 	if (trx != lock2->trx
 	    && !lock_mode_compatible(static_cast<lock_mode>(
@@ -821,9 +823,12 @@ lock_rec_has_to_wait(
 		(brute force). If conflicting transaction is also wsrep high
 		priority transaction we should avoid lock conflict because
 		ordering of these transactions is already decided and
-		conflicting transaction will be later replayed. */
+		conflicting transaction will be later replayed. Note
+		that thread holding conflicting lock can't be
+		committed or rolled back while we hold
+		lock_sys->mutex. */
 		if (trx->is_wsrep_UK_scan()
-		    && wsrep_thd_is_BF(lock2->trx->mysql_thd, true)) {
+		    && wsrep_thd_is_BF(lock2->trx->mysql_thd, false)) {
 			return (FALSE);
 		}
 
