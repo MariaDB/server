@@ -4002,6 +4002,7 @@ skip_apply:
 	mutex_enter(&recv_sys->mutex);
 
 	recv_sys->apply_log_recs = TRUE;
+	recv_no_ibuf_operations = is_mariabackup_restore_or_export();
 
 	mutex_exit(&recv_sys->mutex);
 
