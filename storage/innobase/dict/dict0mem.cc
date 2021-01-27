@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -187,7 +187,7 @@ dict_table_t *dict_mem_table_create(const char *name, fil_space_t *space,
 	}
 
 	table->autoinc_lock = static_cast<ib_lock_t*>(
-		mem_heap_alloc(heap, lock_get_size()));
+		mem_heap_alloc(heap, sizeof *table->autoinc_lock));
 
 	/* If the table has an FTS index or we are in the process
 	of building one, create the table->fts */

@@ -445,16 +445,6 @@ void lock_sys_t::close()
 }
 
 /*********************************************************************//**
-Gets the size of a lock struct.
-@return size in bytes */
-ulint
-lock_get_size(void)
-/*===============*/
-{
-	return((ulint) sizeof(lock_t));
-}
-
-/*********************************************************************//**
 Gets the gap flag of a record lock.
 @return LOCK_GAP or 0 */
 UNIV_INLINE

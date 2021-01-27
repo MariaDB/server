@@ -46,12 +46,6 @@ class ReadView;
 extern my_bool	innobase_deadlock_detect;
 
 /*********************************************************************//**
-Gets the size of a lock struct.
-@return size in bytes */
-ulint
-lock_get_size(void);
-/*===============*/
-/*********************************************************************//**
 Gets the heap_no of the smallest user record on a page.
 @return heap_no of smallest user record, or PAGE_HEAP_NO_SUPREMUM */
 UNIV_INLINE
