@@ -9769,8 +9769,8 @@ and_all_keys(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2,
   if (!key1)
     return &null_element;			// Impossible ranges
   key1->use_count++;
-  key1->max_part_no= MY_MAX(key2->max_part_no, key2->part+1);
   key1->weight= new_weight;
+  key1->max_part_no= MY_MAX(key2->max_part_no, key2->part+1);
   return key1;
 }
 
@@ -9840,7 +9840,7 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
       key1->next_key_part=key_and(param, key1->next_key_part, 
                                   key2->next_key_part, clone_flag);
 
-      key1->weight = 1 + (key1->next_key_part? key1->next_key_part->weight : 0);
+      key1->weight= 1 + (key1->next_key_part? key1->next_key_part->weight : 0);
 
       if (key1->next_key_part &&
 	  key1->next_key_part->type == SEL_ARG::IMPOSSIBLE)
@@ -9893,6 +9893,11 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
       if (!new_arg)
 	return &null_element;			// End of memory
       new_arg->next_key_part=next;
+      /*
+        We are going to add the 'new_arg' range to the new_tree.
+        the new_arg on its own has weight=1.
+        if it has non-null new_arg->next_key_part (=next), add its weight, too.
+      */
       new_weight += 1 + (next? next->weight: 0);
       if (!new_tree)
       {
@@ -9948,7 +9953,7 @@ uint SEL_ARG::verify_weight()
   {
     for (SEL_ARG *arg= first_arg; arg; arg= arg->next)
     {
-      computed_weight += 1;
+      computed_weight++;
       if (arg->next_key_part)
         computed_weight+= arg->next_key_part->verify_weight();
     }
@@ -9966,6 +9971,7 @@ uint SEL_ARG::verify_weight()
   {
     sql_print_error("SEL_ARG weight mismatch: computed %u have %u\n",
                     computed_weight, weight);
+    DBUG_ASSERT(computed_weight == weight);  // Fail an assertion
   }
   return computed_weight;
 }
@@ -10715,7 +10721,7 @@ uint SEL_ARG::get_max_key_part() const
     if (cur->next_key_part)
     {
       uint mp= cur->next_key_part->get_max_key_part();
-      max_part = MY_MAX(part, mp);
+      max_part= MY_MAX(part, mp);
     }
   }
   return max_part;
@@ -10746,10 +10752,9 @@ void prune_sel_arg_graph(SEL_ARG *sel_arg, uint max_part)
       }
       else
       {
-        uint old_weight = cur->next_key_part->weight;
+        uint old_weight= cur->next_key_part->weight;
         prune_sel_arg_graph(cur->next_key_part, max_part);
-        old_weight -= cur->next_key_part->weight;
-        sel_arg->weight -= old_weight;
+        sel_arg->weight -= (old_weight - cur->next_key_part->weight);
       }
     }
   }
@@ -10791,12 +10796,17 @@ SEL_ARG *enforce_sel_arg_weight_limit(RANGE_OPT_PARAM *param, uint keyno,
 
   while (1)
   {
-    if (sel_arg->weight <= param->thd->variables.optimizer_max_sel_arg_weight)
+    if (likely(sel_arg->weight <= param->thd->variables.
+                                  optimizer_max_sel_arg_weight))
       break;
 
     uint max_part= sel_arg->get_max_key_part();
     if (max_part == sel_arg->part)
     {
+      /*
+        We don't return NULL right away as we want to have the information
+        about the changed tree in the optimizer trace.
+      */
       sel_arg= NULL;
       break;
     }
@@ -10950,11 +10960,17 @@ SEL_ARG::tree_delete(SEL_ARG *key)
   root=this;
   this->parent= 0;
 
-  // Compute the weight the tree will have after the element is removed
-  //  We remove the element itself (weight=1)
-  //  and the sub-graph connected to its next_key_part.
+  /*
+    Compute the weight the tree will have after the element is removed.
+    We remove the element itself (weight=1)
+    and the sub-graph connected to its next_key_part.
+  */
   uint new_weight= root->weight - (1 + (key->next_key_part?
                                         key->next_key_part->weight : 0));
+
+  DBUG_ASSERT(root->weight > (1 + (key->next_key_part ?
+                                   key->next_key_part->weight : 0)));
+
   /* Unlink from list */
   if (key->prev)
     key->prev->next=key->next;
@@ -11006,7 +11022,7 @@ SEL_ARG::tree_delete(SEL_ARG *key)
   test_rb_tree(root,root->parent);
 
   root->use_count=this->use_count;		// Fix root counters
-  root->weight = new_weight;
+  root->weight= new_weight;
   root->elements=this->elements-1;
   root->maybe_flag=this->maybe_flag;
   DBUG_RETURN(root);
