@@ -9033,9 +9033,6 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   if (!cond_equal || !cond_equal->current_level.elements)
     return sel;
 
-   if (!s->keyuse)
-    return sel;
-
   Item_equal *item_equal;
   List_iterator_fast<Item_equal> it(cond_equal->current_level);
   TABLE *table= s->table;
@@ -9126,7 +9123,7 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
         curr_eq_fld_sel= get_column_avg_frequency(fld) /
                          fld->table->stat_records();
         if (curr_eq_fld_sel < 1.0)
-          set_if_bigger(eq_fld_sel, curr_eq_fld_sel);
+          set_if_smaller(eq_fld_sel, curr_eq_fld_sel);
       }
       sel*= eq_fld_sel;
     }

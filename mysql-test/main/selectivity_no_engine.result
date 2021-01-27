@@ -273,7 +273,7 @@ Note	1003	select `test`.`ta`.`a` AS `a`,`test`.`tb`.`a` AS `a` from `test`.`t1` 
 explain extended select * from t1 ta, t2 tb where ta.a < 40 and tb.a < 100 and tb.a=ta.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	ta	ALL	NULL	NULL	NULL	NULL	1000	4.95	Using where
-1	SIMPLE	tb	ALL	NULL	NULL	NULL	NULL	1000	4.95	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	tb	ALL	NULL	NULL	NULL	NULL	1000	0.10	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select `test`.`ta`.`a` AS `a`,`test`.`tb`.`a` AS `a` from `test`.`t1` `ta` join `test`.`t2` `tb` where `test`.`tb`.`a` = `test`.`ta`.`a` and `test`.`ta`.`a` < 40 and `test`.`ta`.`a` < 100
 drop table t0,t1,t2;

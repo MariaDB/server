@@ -2393,7 +2393,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
 2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 3	MATERIALIZED	t2	range	PRIMARY,col_date_key,ch2,id2	ch2	4	NULL	2	100.00	Using where; Using index
-3	MATERIALIZED	bt1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where; Using join buffer (flat, BNL join)
+3	MATERIALIZED	bt1	ALL	NULL	NULL	NULL	NULL	10	11.11	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'test.t3.id' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select 1 AS `1` from `test`.`t3` where <in_optimizer>(1,<expr_cache><`test`.`t3`.`id`>(exists(/* select#2 */ select 1 from `test`.`t1` where <expr_cache><`test`.`t3`.`id`>(<in_optimizer>(`test`.`t3`.`id`,`test`.`t3`.`id` in ( <materialize> (/* select#3 */ select `test`.`bt1`.`id` from `test`.`t2` join `test`.`t1` `bt1` where `test`.`bt1`.`id` = `test`.`t2`.`pk` and `test`.`t2`.`ch2` <= 'g' ), <primary_index_lookup>(`test`.`t3`.`id` in <temporary table> on distinct_key where `test`.`t3`.`id` = `<subquery3>`.`id`)))) or `test`.`t1`.`id2` = `test`.`t1`.`id` limit 1)))
@@ -2416,7 +2416,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
 2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 3	MATERIALIZED	t2	range	PRIMARY,col_date_key,ch2,id2	ch2	4	NULL	2	100.00	Using where; Using index
-3	MATERIALIZED	bt1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where; Using join buffer (flat, BNL join)
+3	MATERIALIZED	bt1	ALL	NULL	NULL	NULL	NULL	10	1.23	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'test.t3.id' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select 1 AS `1` from `test`.`t3` where <in_optimizer>(1,<expr_cache><`test`.`t3`.`id`>(exists(/* select#2 */ select 1 from `test`.`t1` where <expr_cache><`test`.`t3`.`id`>(<in_optimizer>(`test`.`t3`.`id`,`test`.`t3`.`id` in ( <materialize> (/* select#3 */ select `test`.`bt1`.`id` from `test`.`t2` join `test`.`t1` `bt1` where `test`.`bt1`.`ch` = `test`.`t2`.`ch2` and `test`.`bt1`.`id` = `test`.`t2`.`pk` and `test`.`t2`.`ch2` <= 'g' ), <primary_index_lookup>(`test`.`t3`.`id` in <temporary table> on distinct_key where `test`.`t3`.`id` = `<subquery3>`.`id`)))) or `test`.`t1`.`id2` = `test`.`t1`.`id` limit 1)))
