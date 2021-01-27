@@ -1326,8 +1326,8 @@ WHERE t4.c1 < 'o'
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where
+1	PRIMARY	t3	ALL	PRIMARY,v_idx	NULL	NULL	NULL	9	Range checked for each record (index map: 0x3)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
 2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
@@ -1382,8 +1382,8 @@ WHERE t4.c1 < 'o'
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	eq_ref	PRIMARY,v_idx,v_idx2	PRIMARY	4	test.t4.i1	1	Using where
+1	PRIMARY	t3	ALL	PRIMARY,v_idx,v_idx2	NULL	NULL	NULL	9	Range checked for each record (index map: 0x7)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
 2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
@@ -1440,8 +1440,8 @@ WHERE t4.c1 < 'o'
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	eq_ref	PRIMARY,v_idx2	PRIMARY	4	test.t4.i1	1	Using where
+1	PRIMARY	t3	ALL	PRIMARY,v_idx2	NULL	NULL	NULL	9	Range checked for each record (index map: 0x3)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
 2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
@@ -1507,8 +1507,8 @@ WHERE t4.c1 < 'o'
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where
+1	PRIMARY	t3	ALL	PRIMARY,v_idx	NULL	NULL	NULL	9	Range checked for each record (index map: 0x3)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
 2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1, t3.i1

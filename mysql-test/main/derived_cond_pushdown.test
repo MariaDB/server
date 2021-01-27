@@ -3138,10 +3138,15 @@ SELECT c FROM t3
 let $q1=
 SELECT * FROM t4 WHERE c IN ( SELECT c FROM v1 ) and a < 2;
 
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=1;
+
 eval $no_splitting $q1;
 eval $q1;
 eval explain extended $q1;
 eval explain format=json $q1;
+
+set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 
 DROP VIEW v1;
 DROP TABLE t1,t2,t3,t4;

@@ -2943,7 +2943,8 @@ explain extended select * from t1 where a in (select pk from t10)	{
                         "chosen_strategy": "SJ-Materialization"
                       }
                     ],
-                    "estimated_join_cardinality": 3
+                    "selectivity": 0.333333333,
+                    "estimated_join_cardinality": 1
                   }
                 ]
               },
