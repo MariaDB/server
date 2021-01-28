@@ -112,11 +112,6 @@ override_dh_auto_install:
 	dh_testdir
 	dh_testroot
 
-# Skip TokuDB if arch is not amd64
-ifneq ($(ARCH), amd64)
-	sed -i -e "/Package: mariadb-plugin-tokudb/,+16d" debian/control
-endif
-
 	# Copy systemd files to a location available for dh_installinit
 	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.2.mariadb.service
 	cp $(BUILDDIR)/support-files/mariadb@.service debian/mariadb-server-10.2.mariadb@.service
