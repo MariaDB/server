@@ -1,5 +1,6 @@
 # This test is for MDEV-24612 fix
 --source include/have_innodb.inc
+--source include/not_embedded.inc
 
 call mtr.add_suppression("Creating system tablespace with existing redo log file is not recommended.");
 call mtr.add_suppression("InnoDB: Database creation was aborted");
