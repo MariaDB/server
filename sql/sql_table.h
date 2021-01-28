@@ -242,6 +242,7 @@ bool mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
 bool mysql_backup_table(THD* thd, TABLE_LIST* table_list);
 bool mysql_restore_table(THD* thd, TABLE_LIST* table_list);
 
+void fill_checksum_table_metadata_fields(THD *thd, List<Item> *fields);
 bool mysql_checksum_table(THD* thd, TABLE_LIST* table_list,
                           HA_CHECK_OPT* check_opt);
 bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,

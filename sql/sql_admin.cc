@@ -474,6 +474,38 @@ static bool wsrep_toi_replication(THD *thd, TABLE_LIST *tables)
 }
 #endif /* WITH_WSREP */
 
+
+/**
+  Collect field names of result set that will be sent to a client
+
+  @param      thd     Thread data object
+  @param[out] fields  List of fields whose metadata should be collected for
+                      sending to client
+*/
+
+void fill_check_table_metadata_fields(THD *thd, List<Item>* fields)
+{
+  Item *item;
+
+  item= new (thd->mem_root) Item_empty_string(thd, "Table", NAME_CHAR_LEN * 2);
+  item->maybe_null= 1;
+  fields->push_back(item, thd->mem_root);
+
+  item= new (thd->mem_root) Item_empty_string(thd, "Op", 10);
+  item->maybe_null= 1;
+  fields->push_back(item, thd->mem_root);
+
+  item= new (thd->mem_root) Item_empty_string(thd, "Msg_type", 10);
+  item->maybe_null= 1;
+  fields->push_back(item, thd->mem_root);
+
+  item= new (thd->mem_root) Item_empty_string(thd, "Msg_text",
+                                              SQL_ADMIN_MSG_TEXT_SIZE);
+  item->maybe_null = 1;
+  fields->push_back(item, thd->mem_root);
+}
+
+
 /*
   RETURN VALUES
     FALSE Message sent to net (admin operation went ok)
@@ -496,7 +528,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 {
   TABLE_LIST *table;
   List<Item> field_list;
-  Item *item;
   Protocol *protocol= thd->protocol;
   LEX *lex= thd->lex;
   int result_code;
@@ -506,21 +537,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   DBUG_ENTER("mysql_admin_table");
   DBUG_PRINT("enter", ("extra_open_options: %u", extra_open_options));
 
-  field_list.push_back(item= new (thd->mem_root)
-                       Item_empty_string(thd, "Table",
-                                         NAME_CHAR_LEN * 2), thd->mem_root);
-  item->maybe_null = 1;
-  field_list.push_back(item= new (thd->mem_root)
-                       Item_empty_string(thd, "Op", 10), thd->mem_root);
-  item->maybe_null = 1;
-  field_list.push_back(item= new (thd->mem_root)
-                       Item_empty_string(thd, "Msg_type", 10), thd->mem_root);
-  item->maybe_null = 1;
-  field_list.push_back(item= new (thd->mem_root)
-                       Item_empty_string(thd, "Msg_text",
-                                         SQL_ADMIN_MSG_TEXT_SIZE),
-                       thd->mem_root);
-  item->maybe_null = 1;
+  fill_check_table_metadata_fields(thd, &field_list);
+
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);

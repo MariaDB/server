@@ -99,7 +99,7 @@ void mysql_init_multi_delete(LEX *lex);
 bool multi_delete_set_locks_and_link_aux_tables(LEX *lex);
 void create_table_set_open_action_and_adjust_tables(LEX *lex);
 int bootstrap(MYSQL_FILE *file);
-int mysql_execute_command(THD *thd);
+int mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt=false);
 bool do_command(THD *thd);
 bool dispatch_command(enum enum_server_command command, THD *thd,
 		      char* packet, uint packet_length);

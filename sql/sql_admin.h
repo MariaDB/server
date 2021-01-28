@@ -24,7 +24,7 @@ bool mysql_assign_to_keycache(THD* thd, TABLE_LIST* table_list,
 bool mysql_preload_keys(THD* thd, TABLE_LIST* table_list);
 int reassign_keycache_tables(THD* thd, KEY_CACHE *src_cache,
                              KEY_CACHE *dst_cache);
-
+void fill_check_table_metadata_fields(THD *thd, List<Item>* fields);
 /**
   Sql_cmd_analyze_table represents the ANALYZE TABLE statement.
 */

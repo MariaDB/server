@@ -257,7 +257,6 @@ static const char *opt_suite_dir, *opt_overlay_dir;
 static size_t suite_dir_len, overlay_dir_len;
 
 /* Precompiled re's */
-static regex_t ps_re;     /* the query can be run using PS protocol */
 static regex_t sp_re;     /* the query can be run as a SP */
 static regex_t view_re;   /* the query can be run as a view*/
 
@@ -8702,8 +8701,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
     statement already and we can't do it twice
   */
   if (ps_protocol_enabled &&
-      complete_query &&
-      match_re(&ps_re, query))
+      complete_query)
     run_query_stmt(cn, command, query, query_len, ds, &ds_warnings);
   else
     run_query_normal(cn, command, flags, query, query_len,
@@ -8778,9 +8776,9 @@ void init_re(void)
 {
   /*
     Filter for queries that can be run using the
-    MySQL Prepared Statements C API
+    Stored procedures
   */
-  const char *ps_re_str =
+  const char *sp_re_str =
     "^("
     "[[:space:]]*ALTER[[:space:]]+SEQUENCE[[:space:]]|"
     "[[:space:]]*ALTER[[:space:]]+TABLE[[:space:]]|"
@@ -8834,19 +8832,12 @@ void init_re(void)
     ")";
 
   /*
-    Filter for queries that can be run using the
-    Stored procedures
-  */
-  const char *sp_re_str =ps_re_str;
-
-  /*
     Filter for queries that can be run as views
   */
   const char *view_re_str =
     "^("
     "[[:space:]]*SELECT[[:space:]])";
 
-  init_re_comp(&ps_re, ps_re_str);
   init_re_comp(&sp_re, sp_re_str);
   init_re_comp(&view_re, view_re_str);
 }
@@ -8882,7 +8873,6 @@ int match_re(regex_t *re, char *str)
 
 void free_re(void)
 {
-  regfree(&ps_re);
   regfree(&sp_re);
   regfree(&view_re);
 }
