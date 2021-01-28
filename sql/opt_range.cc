@@ -398,6 +398,11 @@ static SEL_ARG *key_or(RANGE_OPT_PARAM *param,
 static SEL_ARG *key_and(RANGE_OPT_PARAM *param,
                         SEL_ARG *key1, SEL_ARG *key2,
                         uint clone_flag);
+static SEL_ARG *key_or_with_limit(RANGE_OPT_PARAM *param, uint keyno,
+                                  SEL_ARG *key1, SEL_ARG *key2);
+static SEL_ARG *key_and_with_limit(RANGE_OPT_PARAM *param, uint keyno,
+                                   SEL_ARG *key1, SEL_ARG *key2,
+                                   uint clone_flag);
 static bool get_range(SEL_ARG **e1,SEL_ARG **e2,SEL_ARG *root1);
 bool get_quick_keys(PARAM *param,QUICK_RANGE_SELECT *quick,KEY_PART *key,
                     SEL_ARG *key_tree, uchar *min_key,uint min_key_flag,
@@ -408,6 +413,13 @@ SEL_ARG null_element(SEL_ARG::IMPOSSIBLE);
 static bool null_part_in_key(KEY_PART *key_part, const uchar *key,
                              uint length);
 static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts);
+
+static
+SEL_ARG *enforce_sel_arg_weight_limit(RANGE_OPT_PARAM *param, uint keyno,
+                                      SEL_ARG *sel_arg);
+static
+bool sel_arg_and_weight_heuristic(RANGE_OPT_PARAM *param, SEL_ARG *key1,
+                                  SEL_ARG *key2);
 
 #include "opt_range_mrr.cc"
 
@@ -706,7 +718,8 @@ int SEL_IMERGE::or_sel_tree_with_checks(RANGE_OPT_PARAM *param,
           SEL_ARG *key1= (*or_tree)->keys[key_no];
           SEL_ARG *key2= tree->keys[key_no];
           key2->incr_refs();
-          if ((result->keys[key_no]= key_or(param, key1, key2)))
+          if ((result->keys[key_no]= key_or_with_limit(param, key_no, key1,
+                                                       key2)))
           {
             
             result_keys.set_bit(key_no);
@@ -1872,9 +1885,13 @@ SEL_ARG::SEL_ARG(SEL_ARG &arg) :Sql_alloc()
   next_key_part=arg.next_key_part;
   max_part_no= arg.max_part_no;
   use_count=1; elements=1;
+  weight=1;
   next= 0;
   if (next_key_part)
+  {
     ++next_key_part->use_count;
+    weight += next_key_part->weight;
+  }
 }
 
 
@@ -1891,7 +1908,7 @@ SEL_ARG::SEL_ARG(Field *f,const uchar *min_value_arg,
   :min_flag(0), max_flag(0), maybe_flag(0), maybe_null(f->real_maybe_null()),
    elements(1), use_count(1), field(f), min_value((uchar*) min_value_arg),
    max_value((uchar*) max_value_arg), next(0),prev(0),
-   next_key_part(0), color(BLACK), type(KEY_RANGE)
+   next_key_part(0), color(BLACK), type(KEY_RANGE), weight(1)
 {
   left=right= &null_element;
   max_part_no= 1;
@@ -1903,7 +1920,7 @@ SEL_ARG::SEL_ARG(Field *field_,uint8 part_,
   :min_flag(min_flag_),max_flag(max_flag_),maybe_flag(maybe_flag_),
    part(part_),maybe_null(field_->real_maybe_null()), elements(1),use_count(1),
    field(field_), min_value(min_value_), max_value(max_value_),
-   next(0),prev(0),next_key_part(0),color(BLACK),type(KEY_RANGE)
+   next(0),prev(0),next_key_part(0),color(BLACK),type(KEY_RANGE), weight(1)
 {
   max_part_no= part+1;
   left=right= &null_element;
@@ -5447,7 +5464,7 @@ TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
       if ((*tree)->keys[key_idx]) 
         (*tree)->keys[key_idx]->incr_refs(); 
       if (((*changed_tree)->keys[key_idx]=
-             key_or(param, key, (*tree)->keys[key_idx])))
+             key_or_with_limit(param, key_idx, key, (*tree)->keys[key_idx])))
         (*changed_tree)->keys_map.set_bit(key_idx);
       *tree= NULL;
       removed_cnt++;
@@ -9116,7 +9133,8 @@ int and_range_trees(RANGE_OPT_PARAM *param, SEL_TREE *tree1, SEL_TREE *tree2,
         key2->incr_refs();
     }
     SEL_ARG *key;
-    if ((result->keys[key_no]= key =key_and(param, key1, key2, flag)))
+    if ((result->keys[key_no]= key= key_and_with_limit(param, key_no,
+                                                       key1, key2, flag)))
     {
       if (key && key->type == SEL_ARG::IMPOSSIBLE)
       {
@@ -9678,7 +9696,7 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
         key1->incr_refs();
         key2->incr_refs();
       }
-      if ((result->keys[key_no]= key_or(param, key1, key2)))
+      if ((result->keys[key_no]= key_or_with_limit(param, key_no, key1, key2)))
         result->keys_map.set_bit(key_no);
     }
     result->type= tree1->type;
@@ -9752,6 +9770,9 @@ and_all_keys(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2,
   SEL_ARG *next;
   ulong use_count=key1->use_count;
 
+  if (sel_arg_and_weight_heuristic(param, key1, key2))
+    return key1;
+
   if (key1->elements != 1)
   {
     key2->use_count+=key1->elements-1; //psergey: why we don't count that key1 has n-k-p?
@@ -9764,6 +9785,8 @@ and_all_keys(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2,
     key1->right= key1->left= &null_element;
     key1->next= key1->prev= 0;
   }
+  uint new_weight= 0;
+
   for (next=key1->first(); next ; next=next->next)
   {
     if (next->next_key_part)
@@ -9775,17 +9798,22 @@ and_all_keys(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2,
 	continue;
       }
       next->next_key_part=tmp;
+      new_weight += 1 + tmp->weight;
       if (use_count)
 	next->increment_use_count(use_count);
       if (param->alloced_sel_args > SEL_ARG::MAX_SEL_ARGS)
         break;
     }
     else
+    {
+      new_weight += 1 + key2->weight;
       next->next_key_part=key2;
+    }
   }
   if (!key1)
     return &null_element;			// Impossible ranges
   key1->use_count++;
+  key1->weight= new_weight;
   key1->max_part_no= MY_MAX(key2->max_part_no, key2->part+1);
   return key1;
 }
@@ -9821,6 +9849,10 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
       clone_flag=swap_clone_flag(clone_flag);
     }
     // key1->part < key2->part
+
+    if (sel_arg_and_weight_heuristic(param, key1, key2))
+      return key1;
+
     key1->use_count--;
     if (key1->use_count > 0)
       if (!(key1= key1->clone_tree(param)))
@@ -9851,6 +9883,9 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
     {						// Both are maybe key
       key1->next_key_part=key_and(param, key1->next_key_part, 
                                   key2->next_key_part, clone_flag);
+
+      key1->weight= 1 + (key1->next_key_part? key1->next_key_part->weight : 0);
+
       if (key1->next_key_part &&
 	  key1->next_key_part->type == SEL_ARG::IMPOSSIBLE)
 	return key1;
@@ -9901,6 +9936,9 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
       if (!new_arg)
 	return &null_element;			// End of memory
       new_arg->next_key_part=next;
+      if (new_arg->next_key_part)
+        new_arg->weight += new_arg->next_key_part->weight;
+
       if (!new_tree)
       {
 	new_tree=new_arg;
@@ -9937,6 +9975,72 @@ get_range(SEL_ARG **e1,SEL_ARG **e2,SEL_ARG *root1)
     }
   }
   return 0;
+}
+
+#ifndef DBUG_OFF
+/*
+  Verify SEL_TREE's weight.
+
+  Recompute the weight and compare
+*/
+uint SEL_ARG::verify_weight()
+{
+  uint computed_weight= 0;
+  SEL_ARG *first_arg= first();
+
+  if (first_arg)
+  {
+    for (SEL_ARG *arg= first_arg; arg; arg= arg->next)
+    {
+      computed_weight++;
+      if (arg->next_key_part)
+        computed_weight+= arg->next_key_part->verify_weight();
+    }
+  }
+  else
+  {
+    // first()=NULL means this is a special kind of SEL_ARG, e.g.
+    // SEL_ARG with type=MAYBE_KEY
+    computed_weight= 1;
+    if (next_key_part)
+      computed_weight += next_key_part->verify_weight();
+  }
+
+  if (computed_weight != weight)
+  {
+    sql_print_error("SEL_ARG weight mismatch: computed %u have %u\n",
+                    computed_weight, weight);
+    DBUG_ASSERT(computed_weight == weight);  // Fail an assertion
+  }
+  return computed_weight;
+}
+#endif
+
+static
+SEL_ARG *key_or_with_limit(RANGE_OPT_PARAM *param, uint keyno,
+                           SEL_ARG *key1, SEL_ARG *key2)
+{
+  SEL_ARG *res= key_or(param, key1, key2);
+  res= enforce_sel_arg_weight_limit(param, keyno, res);
+#ifndef DBUG_OFF
+  if (res)
+    res->verify_weight();
+#endif
+  return res;
+}
+
+
+static
+SEL_ARG *key_and_with_limit(RANGE_OPT_PARAM *param, uint keyno,
+                            SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
+{
+  SEL_ARG *res= key_and(param, key1, key2, clone_flag);
+  res= enforce_sel_arg_weight_limit(param, keyno, res);
+#ifndef DBUG_OFF
+  if (res)
+    res->verify_weight();
+#endif
+  return res;
 }
 
 
@@ -10595,6 +10699,19 @@ end:
   }
   key1->use_count++;
 
+  /* Re-compute the result tree's weight. */
+  {
+    uint new_weight= 0;
+    const SEL_ARG *sl;
+    for (sl= key1->first(); sl ; sl= sl->next)
+    {
+      new_weight++;
+      if (sl->next_key_part)
+        new_weight += sl->next_key_part->weight;
+    }
+    key1->weight= new_weight;
+  }
+
   key1->max_part_no= max_part_no;
   return key1;
 }
@@ -10629,6 +10746,160 @@ static bool eq_tree(SEL_ARG* a,SEL_ARG *b)
       return 0;
   }
   return 1;
+}
+
+
+/*
+  Compute the MAX(key part) in this SEL_ARG graph.
+*/
+uint SEL_ARG::get_max_key_part() const
+{
+  const SEL_ARG *cur;
+  uint max_part= part;
+  for (cur= first(); cur ; cur=cur->next)
+  {
+    if (cur->next_key_part)
+    {
+      uint mp= cur->next_key_part->get_max_key_part();
+      max_part= MY_MAX(part, mp);
+    }
+  }
+  return max_part;
+}
+
+
+/*
+  Remove the SEL_ARG graph elements which have part > max_part.
+
+  @detail
+    Also update weight for the graph and any modified subgraphs.
+*/
+
+void prune_sel_arg_graph(SEL_ARG *sel_arg, uint max_part)
+{
+  SEL_ARG *cur;
+  DBUG_ASSERT(max_part >= sel_arg->part);
+
+  for (cur= sel_arg->first(); cur ; cur=cur->next)
+  {
+    if (cur->next_key_part)
+    {
+      if (cur->next_key_part->part > max_part)
+      {
+        // Remove cur->next_key_part.
+        sel_arg->weight -= cur->next_key_part->weight;
+        cur->next_key_part= NULL;
+      }
+      else
+      {
+        uint old_weight= cur->next_key_part->weight;
+        prune_sel_arg_graph(cur->next_key_part, max_part);
+        sel_arg->weight -= (old_weight - cur->next_key_part->weight);
+      }
+    }
+  }
+}
+
+
+/*
+  @brief
+    Make sure the passed SEL_ARG graph's weight is below SEL_ARG::MAX_WEIGHT,
+    by cutting off branches if necessary.
+
+  @detail
+    @see declaration of SEL_ARG::weight for definition of weight.
+
+    This function attempts to reduce the graph's weight by cutting off
+    SEL_ARG::next_key_part connections if necessary.
+
+    We start with maximum used keypart and then remove one keypart after
+    another until the graph's weight is within the limit.
+
+  @seealso
+     sel_arg_and_weight_heuristic();
+
+  @return
+    tree pointer  The tree after processing,
+    NULL          If it was not possible to reduce the weight of the tree below the
+                  limit.
+*/
+
+SEL_ARG *enforce_sel_arg_weight_limit(RANGE_OPT_PARAM *param, uint keyno,
+                                      SEL_ARG *sel_arg)
+{
+  if (!sel_arg || sel_arg->type != SEL_ARG::KEY_RANGE ||
+      !param->thd->variables.optimizer_max_sel_arg_weight)
+    return sel_arg;
+
+  Field *field= sel_arg->field;
+  uint weight1= sel_arg->weight;
+
+  while (1)
+  {
+    if (likely(sel_arg->weight <= param->thd->variables.
+                                  optimizer_max_sel_arg_weight))
+      break;
+
+    uint max_part= sel_arg->get_max_key_part();
+    if (max_part == sel_arg->part)
+    {
+      /*
+        We don't return NULL right away as we want to have the information
+        about the changed tree in the optimizer trace.
+      */
+      sel_arg= NULL;
+      break;
+    }
+
+    max_part--;
+    prune_sel_arg_graph(sel_arg, max_part);
+  }
+
+  uint weight2= sel_arg? sel_arg->weight : 0;
+
+  if (weight2 != weight1)
+  {
+    Json_writer_object wrapper(param->thd);
+    Json_writer_object obj(param->thd, "enforce_sel_arg_weight_limit");
+    if (param->using_real_indexes)
+      obj.add("index", param->table->key_info[param->real_keynr[keyno]].name);
+    else
+      obj.add("pseudo_index", field->field_name);
+
+    obj.add("old_weight", (longlong)weight1);
+    obj.add("new_weight", (longlong)weight2);
+  }
+  return sel_arg;
+}
+
+
+/*
+  @detail
+    Do not combine the trees if their total weight is likely to exceed the
+    MAX_WEIGHT.
+    (It is possible that key1 has next_key_part that has empty overlap with
+    key2. In this case, the combined tree will have a smaller weight than we
+    predict. We assume this is rare.)
+*/
+
+static
+bool sel_arg_and_weight_heuristic(RANGE_OPT_PARAM *param, SEL_ARG *key1,
+                                  SEL_ARG *key2)
+{
+  DBUG_ASSERT(key1->part < key2->part);
+
+  ulong max_weight= param->thd->variables.optimizer_max_sel_arg_weight;
+  if (max_weight && key1->weight + key1->elements*key2->weight > max_weight)
+  {
+    Json_writer_object wrapper(param->thd);
+    Json_writer_object obj(param->thd, "sel_arg_weight_heuristic");
+    obj.add("key1_field", key1->field->field_name);
+    obj.add("key2_field", key2->field->field_name);
+    obj.add("key1_weight", (longlong)key1->weight);
+    obj.add("key2_weight", (longlong)key2->weight);
+    return true; // Discard key2
+  }
+  return false;
 }
 
 
@@ -10670,6 +10941,13 @@ SEL_ARG::insert(SEL_ARG *key)
   SEL_ARG *root=rb_insert(key);			// rebalance tree
   root->use_count=this->use_count;		// copy root info
   root->elements= this->elements+1;
+  /*
+    The new weight is:
+     old root's weight
+     +1 for the weight of the added element
+     + next_key_part's weight of the added element
+  */
+  root->weight = weight + 1 + (key->next_key_part? key->next_key_part->weight: 0);
   root->maybe_flag=this->maybe_flag;
   return root;
 }
@@ -10727,6 +11005,17 @@ SEL_ARG::tree_delete(SEL_ARG *key)
   root=this;
   this->parent= 0;
 
+  /*
+    Compute the weight the tree will have after the element is removed.
+    We remove the element itself (weight=1)
+    and the sub-graph connected to its next_key_part.
+  */
+  uint new_weight= root->weight - (1 + (key->next_key_part?
+                                        key->next_key_part->weight : 0));
+
+  DBUG_ASSERT(root->weight >= (1 + (key->next_key_part ?
+                                    key->next_key_part->weight : 0)));
+
   /* Unlink from list */
   if (key->prev)
     key->prev->next=key->next;
@@ -10778,6 +11067,7 @@ SEL_ARG::tree_delete(SEL_ARG *key)
   test_rb_tree(root,root->parent);
 
   root->use_count=this->use_count;		// Fix root counters
+  root->weight= new_weight;
   root->elements=this->elements-1;
   root->maybe_flag=this->maybe_flag;
   DBUG_RETURN(root);

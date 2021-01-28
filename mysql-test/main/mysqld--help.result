@@ -681,6 +681,9 @@ The following specify which files/extra groups are read (specified before remain
  max_connections*5 or max_connections + table_cache*2
  (whichever is larger) number of file descriptors
  (Automatically configured unless set explicitly)
+ --optimizer-max-sel-arg-weight=# 
+ The maximum weight of the SEL_ARG graph. Set to 0 for no
+ limit
  --optimizer-prune-level=# 
  Controls the heuristic(s) applied during query
  optimization to prune less-promising partial plans from
@@ -1637,6 +1640,7 @@ old-alter-table DEFAULT
 old-mode 
 old-passwords FALSE
 old-style-user-limits FALSE
+optimizer-max-sel-arg-weight 32000
 optimizer-prune-level 1
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
