@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2005, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1616,6 +1616,9 @@ public:
     }
     return part_recs;
   }
+
+  int notify_tabledef_changed(LEX_CSTRING *db, LEX_CSTRING *table,
+                              LEX_CUSTRING *frm, LEX_CUSTRING *version);
 
   friend int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
   friend int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);

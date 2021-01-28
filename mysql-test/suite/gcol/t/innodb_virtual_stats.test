@@ -52,6 +52,5 @@ ALTER TABLE t DROP INDEX vidxcd;
 SELECT index_name, stat_name, stat_description
 FROM mysql.innodb_index_stats
 WHERE database_name = 'test' AND table_name = 't';
--- echo # MDEV-24564 FIXME: Do reload statistics after the above ALTER TABLE!
 
 DROP TABLE t;

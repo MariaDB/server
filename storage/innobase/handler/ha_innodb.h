@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -210,6 +210,8 @@ public:
 	inline int defragment_table(const char* name);
 	int check(THD* thd, HA_CHECK_OPT* check_opt) override;
 	char* update_table_comment(const char* comment) override;
+
+	inline void reload_statistics();
 
 	char* get_foreign_key_create_info() override;
 

@@ -11263,12 +11263,18 @@ foreign_fail:
 		&& m_prebuilt->table->n_v_cols
 		&& ha_alter_info->handler_flags & ALTER_STORED_COLUMN_ORDER)) {
 		DBUG_ASSERT(ctx0->old_table->get_ref_count() == 1);
+		ut_ad(ctx0->prebuilt == m_prebuilt);
 		trx_commit_for_mysql(m_prebuilt->trx);
 
-		m_prebuilt->table = innobase_reload_table(m_user_thd,
-							  m_prebuilt->table,
-							  table->s->table_name,
-							  *ctx0);
+		for (inplace_alter_handler_ctx** pctx = ctx_array; *pctx;
+		     pctx++) {
+			auto ctx= static_cast<ha_innobase_inplace_ctx*>(*pctx);
+			ctx->prebuilt->table = innobase_reload_table(
+				m_user_thd, ctx->prebuilt->table,
+				table->s->table_name, *ctx0);
+			innobase_copy_frm_flags_from_table_share(
+				ctx->prebuilt->table, altered_table->s);
+		}
 
 		row_mysql_unlock_data_dictionary(trx);
 		trx->free();

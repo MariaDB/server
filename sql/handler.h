@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -1681,7 +1681,8 @@ struct handlerton
   */
   int (*notify_tabledef_changed)(handlerton *hton, LEX_CSTRING *db,
                                  LEX_CSTRING *table_name, LEX_CUSTRING *frm,
-                                 LEX_CUSTRING *org_tabledef_version);
+                                 LEX_CUSTRING *org_tabledef_version,
+                                 handler *file);
 
    /*
      System Versioning
