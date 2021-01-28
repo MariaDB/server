@@ -5417,6 +5417,10 @@ static int init_server_components()
       that there are unprocessed options.
     */
     my_getopt_skip_unknown= 0;
+#ifdef WITH_WSREP
+    if (wsrep_recovery)
+      my_getopt_skip_unknown= TRUE;
+#endif
 
     if ((ho_error= handle_options(&remaining_argc, &remaining_argv, no_opts,
                                   mysqld_get_one_option)))
@@ -5426,12 +5430,19 @@ static int init_server_components()
     remaining_argv--;
     my_getopt_skip_unknown= TRUE;
 
-    if (remaining_argc > 1)
+#ifdef WITH_WSREP
+    if (!wsrep_recovery)
     {
-      fprintf(stderr, "%s: Too many arguments (first extra is '%s').\n",
-              my_progname, remaining_argv[1]);
-      unireg_abort(1);
+#endif
+      if (remaining_argc > 1)
+      {
+        fprintf(stderr, "%s: Too many arguments (first extra is '%s').\n",
+                my_progname, remaining_argv[1]);
+        unireg_abort(1);
+      }
+#ifdef WITH_WSREP
     }
+#endif
   }
 
   if (opt_abort)
