@@ -4746,7 +4746,8 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
   if (thd->locked_tables_mode <= LTM_LOCK_TABLES)
   {
     table->file->ha_start_bulk_insert((ha_rows) 0);
-    table->file->extra(HA_EXTRA_BEGIN_ALTER_COPY);
+    if (thd->lex->duplicates == DUP_ERROR && !thd->lex->ignore)
+      table->file->extra(HA_EXTRA_BEGIN_ALTER_COPY);
   }
   thd->abort_on_warning= !info.ignore && thd->is_strict_mode();
   if (check_that_all_fields_are_given_values(thd, table, table_list))
