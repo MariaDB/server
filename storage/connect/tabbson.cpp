@@ -719,7 +719,10 @@ void BCUTIL::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL jvp)
   if (jvp) {
     vp->SetNull(false);
 
-    switch (jvp->Type) {
+    if (Jb) {
+      vp->SetValue_psz(Serialize(g, jvp, NULL, 0));
+      Jb = false;
+    } else switch (jvp->Type) {
     case TYPE_STRG:
     case TYPE_INTG:
     case TYPE_BINT:
@@ -727,29 +730,29 @@ void BCUTIL::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL jvp)
     case TYPE_DTM:
     case TYPE_FLOAT:
       switch (vp->GetType()) {
-      case TYPE_STRING:
-      case TYPE_DATE:
-      case TYPE_DECIM:
-        vp->SetValue_psz(GetString(jvp));
-        break;
-      case TYPE_INT:
-      case TYPE_SHORT:
-      case TYPE_TINY:
-        vp->SetValue(GetInteger(jvp));
-        break;
-      case TYPE_BIGINT:
-        vp->SetValue(GetBigint(jvp));
-        break;
-      case TYPE_DOUBLE:
-        vp->SetValue(GetDouble(jvp));
+        case TYPE_STRING:
+        case TYPE_DATE:
+        case TYPE_DECIM:
+          vp->SetValue_psz(GetString(jvp));
+          break;
+        case TYPE_INT:
+        case TYPE_SHORT:
+        case TYPE_TINY:
+          vp->SetValue(GetInteger(jvp));
+          break;
+        case TYPE_BIGINT:
+          vp->SetValue(GetBigint(jvp));
+          break;
+        case TYPE_DOUBLE:
+          vp->SetValue(GetDouble(jvp));
 
-        if (jvp->Type == TYPE_DBL || jvp->Type == TYPE_FLOAT)
-          vp->SetPrec(jvp->Nd);
+          if (jvp->Type == TYPE_DBL || jvp->Type == TYPE_FLOAT)
+            vp->SetPrec(jvp->Nd);
 
-        break;
-      default:
-        sprintf(G->Message, "Unsupported column type %d", vp->GetType());
-        throw 888;
+          break;
+        default:
+          sprintf(G->Message, "Unsupported column type %d", vp->GetType());
+          throw 888;
       } // endswitch Type
 
       break;
@@ -780,53 +783,59 @@ void BCUTIL::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL jvp)
 /***********************************************************************/
 /*  MakeJson: Serialize the json item and set value to it.             */
 /***********************************************************************/
-PVAL BCUTIL::MakeBson(PGLOBAL g, PBVAL jsp)
+PBVAL BCUTIL::MakeBson(PGLOBAL g, PBVAL jsp, int n)
 {
-  if (Cp->Value->IsTypeNum()) {
-    strcpy(g->Message, "Cannot make Json for a numeric column");
+  PBVAL vlp, jvp = jsp;
 
-    if (!Cp->Warned) {
-      PushWarning(g, Tp);
-      Cp->Warned = true;
-    } // endif Warned
+  if (n < Cp->Nod - 1) {
+    if (jsp->Type == TYPE_JAR) {
+      int    ars = GetArraySize(jsp);
+      PJNODE jnp = &Cp->Nodes[n];
 
-    Cp->Value->Reset();
-#if 0
-  } else if (Value->GetType() == TYPE_BIN) {
-    if ((unsigned)Value->GetClen() >= sizeof(BSON)) {
-      ulong len = Tjp->Lrecl ? Tjp->Lrecl : 500;
-      PBSON bsp = JbinAlloc(g, NULL, len, jsp);
+      jvp = NewVal(TYPE_JAR);
+      jnp->Op = OP_EQ;
 
-      strcat(bsp->Msg, " column");
-      ((BINVAL*)Value)->SetBinValue(bsp, sizeof(BSON));
-    } else {
-      strcpy(g->Message, "Column size too small");
-      Value->SetValue_char(NULL, 0);
-    } // endif Clen
-#endif // 0
-  }	else
-    Cp->Value->SetValue_psz(Serialize(g, jsp, NULL, 0));
+      for (int i = 0; i < ars; i++) {
+        jnp->Rank = i;
+        vlp = GetRowValue(g, jsp, n);
+        AddArrayValue(jvp,DupVal(vlp));
+      } // endfor i
 
-  return Cp->Value;
-} // end of MakeJson
+      jnp->Op = OP_XX;
+      jnp->Rank = 0;
+    } else if (jsp->Type == TYPE_JOB) {
+      jvp = NewVal(TYPE_JOB);
+
+      for (PBPR prp = GetObject(jsp); prp; prp = GetNext(prp)) {
+        vlp = GetRowValue(g, GetVlp(prp), n + 1);
+        SetKeyValue(jvp, vlp, MZP(prp->Key));
+      }	// endfor prp
+
+    } // endif Type
+
+  } // endif's
+
+  Jb = true;
+  return jvp;
+} // end of MakeBson
 
 /***********************************************************************/
-/*  GetColumnValue:                                                    */
+/*  GetRowValue:                                                       */
 /***********************************************************************/
-PVAL BCUTIL::GetColumnValue(PGLOBAL g, PBVAL row, int i)
+PBVAL BCUTIL::GetRowValue(PGLOBAL g, PBVAL row, int i)
 {
   int    nod = Cp->Nod, n = nod - 1;
   JNODE *nodes = Cp->Nodes;
-  PVAL   value = Cp->Value;
   PBVAL  arp;
   PBVAL  bvp = NULL;
 
   for (; i < nod && row; i++) {
     if (nodes[i].Op == OP_NUM) {
-      value->SetValue(row->Type == TYPE_JAR ? GetSize(row) : 1);
-      return(value);
+      bvp = NewVal(TYPE_INT);
+      bvp->N = (row->Type == TYPE_JAR) ? GetSize(row) : 1;
+      return(bvp);
     } else if (nodes[i].Op == OP_XX) {
-      return MakeBson(g, row);
+      return MakeBson(g, row, i);
     } else switch (row->Type) {
     case TYPE_JOB:
       if (!nodes[i].Key) {
@@ -847,9 +856,9 @@ PVAL BCUTIL::GetColumnValue(PGLOBAL g, PBVAL row, int i)
         if (nodes[i].Op == OP_EQ)
           bvp = GetArrayValue(arp, nodes[i].Rank);
         else if (nodes[i].Op == OP_EXP)
-          return ExpandArray(g, arp, i);
+          return NewVal(ExpandArray(g, arp, i));
         else
-          return CalculateArray(g, arp, i);
+          return NewVal(CalculateArray(g, arp, i));
 
       } else {
         // Unexpected array, unwrap it as [0]
@@ -870,6 +879,17 @@ PVAL BCUTIL::GetColumnValue(PGLOBAL g, PBVAL row, int i)
       row = bvp;
 
   } // endfor i
+
+  return bvp;
+} // end of GetColumnValue
+
+/***********************************************************************/
+/*  GetColumnValue:                                                    */
+/***********************************************************************/
+PVAL BCUTIL::GetColumnValue(PGLOBAL g, PBVAL row, int i)
+{
+  PVAL  value = Cp->Value;
+  PBVAL bvp = GetRowValue(g, row, i);
 
   SetJsonValue(g, value, bvp);
   return value;

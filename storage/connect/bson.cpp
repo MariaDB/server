@@ -37,6 +37,8 @@
 #undef     SE_CATCH                  // Does not work for Linux
 #endif
 
+int GetJsonDefPrec(void);
+
 #if defined(SE_CATCH)
 /**************************************************************************/
 /*  This is the support of catching C interrupts to prevent crashes.      */
@@ -1722,14 +1724,22 @@ void BJSON::SetBigint(PBVAL vlp, longlong ll)
 /***********************************************************************/
 /* Set the Value's value as the given DOUBLE.                          */
 /***********************************************************************/
-void BJSON::SetFloat(PBVAL vlp, double d, int nd)
+void BJSON::SetFloat(PBVAL vlp, double d, int prec)
 {
-  double* dp = (double*)BsonSubAlloc(sizeof(double));
+  int nd = MY_MIN((prec < 0) ? GetJsonDefPrec() : prec, 16);
 
-  *dp = d;
-  vlp->To_Val = MOF(dp);
-  vlp->Nd = MY_MIN(nd, 16);
-  vlp->Type = TYPE_DBL;
+  if (nd < 6 && d >= FLT_MIN && d <= FLT_MAX) {
+    vlp->F = (float)d;
+    vlp->Type = TYPE_FLOAT;
+  } else {
+    double* dp = (double*)BsonSubAlloc(sizeof(double));
+
+    *dp = d;
+    vlp->To_Val = MOF(dp);
+    vlp->Type = TYPE_DBL;
+  } // endif nd
+
+  vlp->Nd = nd;
 } // end of SetFloat
 
 /***********************************************************************/
@@ -1746,13 +1756,7 @@ void BJSON::SetFloat(PBVAL vlp, PSZ s)
     for (--p; *p == '0'; nd--, p--);
   } // endif p
 
-  if (nd < 6 && d >= FLT_MIN && d <= FLT_MAX) {
-    vlp->F = (float)d;
-    vlp->Nd = nd;
-    vlp->Type = TYPE_FLOAT;
-  } else
-    SetFloat(vlp, d, nd);
-
+  SetFloat(vlp, d, nd);
 } // end of SetFloat
 
  /***********************************************************************/
