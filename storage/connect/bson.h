@@ -105,7 +105,7 @@ public:
   PSZ   GetArrayText(PGLOBAL g, PBVAL bap, PSTRG text);
 	void  MergeArray(PBVAL bap1,PBVAL bap2);
 	bool  DeleteValue(PBVAL bap, int n);
-	void  AddArrayValue(PBVAL bap, OFFSET nvp = NULL, int* x = NULL);
+	void  AddArrayValue(PBVAL bap, OFFSET nvp = 0, int* x = NULL);
 	inline void AddArrayValue(PBVAL bap, PBVAL nvp = NULL, int* x = NULL)
 				{AddArrayValue(bap, MOF(nvp), x);}
 	void  SetArrayValue(PBVAL bap, PBVAL nvp, int n);

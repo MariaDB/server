@@ -30,6 +30,8 @@
 int  IsArgJson(UDF_ARGS* args, uint i);
 void SetChanged(PBSON bsp);
 
+static PBSON BbinAlloc(PGLOBAL g, ulong len, PBVAL jsp);
+
 /* --------------------------------- JSON UDF ---------------------------------- */
 
 /*********************************************************************************/
@@ -50,7 +52,7 @@ inline void JsonFreeMem(PGLOBAL g) {
 /*********************************************************************************/
 /*  Allocate and initialize a BSON structure.                                    */
 /*********************************************************************************/
-PBSON BbinAlloc(PGLOBAL g, ulong len, PBVAL jsp)
+static PBSON BbinAlloc(PGLOBAL g, ulong len, PBVAL jsp)
 {
 	PBSON bsp = (PBSON)PlgDBSubAlloc(g, NULL, sizeof(BSON));
 
@@ -415,7 +417,7 @@ PSZ BJNX::MakeKey(UDF_ARGS *args, int i)
 			} // endif *s
 
 			if (n < 1)
-				return NewStr("Key");
+				return NewStr((PSZ)"Key");
 
 			if (!b) {
 				p = (PSZ)BsonSubAlloc(n + 1);
@@ -429,7 +431,7 @@ PSZ BJNX::MakeKey(UDF_ARGS *args, int i)
 		return NewStr((PSZ)s);
 	} // endif count
 
-	return NewStr("Key");
+	return NewStr((PSZ)"Key");
 } // end of MakeKey
 
 /*********************************************************************************/

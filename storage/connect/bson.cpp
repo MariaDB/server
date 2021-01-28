@@ -1199,15 +1199,14 @@ void BJSON::SetArrayValue(PBVAL bap, PBVAL nvp, int n)
 {
   CheckType(bap, TYPE_JAR);
   int   i = 0;
-  PBVAL bvp = NULL, pvp = NULL;
+  PBVAL bvp = NULL;
 
   if (bap->To_Val)
     for (bvp = GetArray(bap); bvp; i++, bvp = GetNext(bvp))
       if (i == n) {
         SetValueVal(bvp, nvp);
         return;
-      } else
-        pvp = bvp;
+      }
 
   if (!bvp)
     AddArrayValue(bap, MOF(nvp));
