@@ -116,7 +116,7 @@ BJNX::BJNX(PGLOBAL g) : BDOC(g)
 	Value = NULL;
 	MulVal = NULL;
 	Jpath = NULL;
-	Buf_Type = TYPE_NULL;
+	Buf_Type = TYPE_STRING;
 	Long = len;
 	Prec = 0;
 	Nod = 0;
@@ -171,10 +171,9 @@ BJNX::BJNX(PGLOBAL g, PBVAL row, int type, int len, int prec, my_bool wr) : BDOC
 my_bool BJNX::SetJpath(PGLOBAL g, char* path, my_bool jb)
 {
 	// Check Value was allocated
-	if (!Value)
-		return true;
+	if (Value)
+		Value->SetNullable(true);
 
-	Value->SetNullable(true);
 	Jpath = path;
 
 	// Parse the json path
@@ -697,8 +696,10 @@ PVAL BJNX::GetCalcValue(PGLOBAL g, PBVAL bap, int n)
 			if (IsTypeChar(Buf_Type)) {
 				type = TYPE_DOUBLE;
 				prec = 2;
-			} else
+			} else {
 				type = Buf_Type;
+				prec = GetPrecision();
+			} // endif Buf_Type
 
 			break;
 		case OP_MIN:
@@ -711,7 +712,7 @@ PVAL BJNX::GetCalcValue(PGLOBAL g, PBVAL bap, int n)
 			type = TYPE_STRING;
 
 			if (IsTypeChar(Buf_Type)) {
-				lng = Long;
+				lng = (Long) ? Long : 512;
 				prec = GetPrecision();
 			} else
 				lng = 512;
@@ -740,79 +741,87 @@ PVAL BJNX::CalculateArray(PGLOBAL g, PBVAL bap, int n)
 	vp->Reset();
 	xtrc(1, "CalculateArray size=%d op=%d\n", ars, op);
 
-	for (i = 0; i < ars; i++) {
-		bvrp = GetArrayValue(bap, i);
-		xtrc(1, "i=%d nv=%d\n", i, nv);
+	try {
+		for (i = 0; i < ars; i++) {
+			bvrp = GetArrayValue(bap, i);
+			xtrc(1, "i=%d nv=%d\n", i, nv);
 
-		if (!IsValueNull(bvrp) || (op == OP_CNC && GetJsonNull())) {
-			if (IsValueNull(bvrp)) {
-				SetString(bvrp, NewStr(GetJsonNull()), 0);
-				bvp = bvrp;
-			} else if (n < Nod - 1 && IsJson(bvrp)) {
-				SetValue(&bval, GetColumnValue(g, bvrp, n + 1));
-				bvp = &bval;
-			} else
-				bvp = bvrp;
+			if (!IsValueNull(bvrp) || (op == OP_CNC && GetJsonNull())) {
+				if (IsValueNull(bvrp)) {
+					SetString(bvrp, NewStr(GetJsonNull()), 0);
+					bvp = bvrp;
+				} else if (n < Nod - 1 && IsJson(bvrp)) {
+					SetValue(&bval, GetColumnValue(g, bvrp, n + 1));
+					bvp = &bval;
+				} else
+					bvp = bvrp;
 
-			if (trace(1))
-				htrc("bvp=%s null=%d\n",
-					GetString(bvp), IsValueNull(bvp) ? 1 : 0);
+				if (trace(1))
+					htrc("bvp=%s null=%d\n",
+						GetString(bvp), IsValueNull(bvp) ? 1 : 0);
 
-			if (!nv++) {
-				SetJsonValue(g, vp, bvp);
-				continue;
-			} else
-				SetJsonValue(g, mulval, bvp);
+				if (!nv++) {
+					SetJsonValue(g, vp, bvp);
+					continue;
+				} else
+					SetJsonValue(g, mulval, bvp);
 
-			if (!mulval->IsNull()) {
-				switch (op) {
-					case OP_CNC:
-						if (Nodes[n].CncVal) {
-							val[0] = Nodes[n].CncVal;
+				if (!mulval->IsNull()) {
+					switch (op) {
+						case OP_CNC:
+							if (Nodes[n].CncVal) {
+								val[0] = Nodes[n].CncVal;
+								err = vp->Compute(g, val, 1, op);
+							} // endif CncVal
+
+							val[0] = mulval;
 							err = vp->Compute(g, val, 1, op);
-						} // endif CncVal
+							break;
+							// case OP_NUM:
+						case OP_SEP:
+							val[0] = vp;
+							val[1] = mulval;
+							err = vp->Compute(g, val, 2, OP_ADD);
+							break;
+						default:
+							val[0] = vp;
+							val[1] = mulval;
+							err = vp->Compute(g, val, 2, op);
+					} // endswitch Op
 
-						val[0] = mulval;
-						err = vp->Compute(g, val, 1, op);
-						break;
-			 // case OP_NUM:
-					case OP_SEP:
-						val[0] = vp;
-						val[1] = mulval;
-						err = vp->Compute(g, val, 2, OP_ADD);
-						break;
-					default:
-						val[0] = vp;
-						val[1] = mulval;
-						err = vp->Compute(g, val, 2, op);
-				} // endswitch Op
+					if (err)
+						vp->Reset();
 
-				if (err)
-					vp->Reset();
+					if (trace(1)) {
+						char buf(32);
 
-				if (trace(1)) {
-					char buf(32);
+						htrc("vp='%s' err=%d\n",
+							vp->GetCharString(&buf), err ? 1 : 0);
+					} // endif trace
 
-					htrc("vp='%s' err=%d\n",
-						vp->GetCharString(&buf), err ? 1 : 0);
-				} // endif trace
+				} // endif Zero
 
-			} // endif Zero
+			}	// endif jvrp
 
-		}	// endif jvrp
+		} // endfor i
 
-	} // endfor i
+		if (op == OP_SEP) {
+			// Calculate average
+			mulval->SetValue(nv);
+			val[0] = vp;
+			val[1] = mulval;
 
-	if (op == OP_SEP) {
-		// Calculate average
-		mulval->SetValue(nv);
-		val[0] = vp;
-		val[1] = mulval;
+			if (vp->Compute(g, val, 2, OP_DIV))
+				vp->Reset();
 
-		if (vp->Compute(g, val, 2, OP_DIV))
-			vp->Reset();
+		} // endif Op
 
-	} // endif Op
+	} catch (int n) {
+		xtrc(1, "Exception %d: %s\n", n, g->Message);
+		PUSH_WARNING(g->Message);
+	} catch (const char* msg) {
+		strcpy(g->Message, msg);
+	} // end catch
 
 	return vp;
 } // end of CalculateArray
@@ -4024,8 +4033,8 @@ double bsonget_real(UDF_INIT *initid, UDF_ARGS *args,
 	char   *p, *path;
 	double  d;
 	PBVAL   jsp, jvp;
-	PBJNX   bxp = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
+	BJNX    bnx(g);
 
 	if (g->N) {
 		if (!g->Activityp) {
@@ -4044,8 +4053,6 @@ double bsonget_real(UDF_INIT *initid, UDF_ARGS *args,
 			*is_null = 1;
 			return 0.0;
 		} else {
-			BJNX bnx(g);
-
 			jvp = bnx.MakeValue(args, 0);
 
 			if ((p = bnx.GetString(jvp))) {
@@ -4068,21 +4075,22 @@ double bsonget_real(UDF_INIT *initid, UDF_ARGS *args,
 		jsp = (PBVAL)g->Xchk;
 
 	path = MakePSZ(g, args, 1);
-	bxp = new(g) BJNX(g, jsp, TYPE_DOUBLE);
+//bxp = new(g) BJNX(g, jsp, TYPE_DOUBLE, 32, jsp->Nd);
 
-	if (bxp->SetJpath(g, path)) {
+	if (bnx.SetJpath(g, path)) {
 		PUSH_WARNING(g->Message);
 		*is_null = 1;
 		return 0.0;
 	}	else
-		bxp->ReadValue(g);
+		jvp = bnx.GetRowValue(g, jsp, 0);
 
-	if (bxp->GetValue()->IsNull()) {
+	if (!jvp || bnx.IsValueNull(jvp)) {
 		*is_null = 1;
 		return 0.0;
-	}	// endif IsNull
-
-	d = bxp->GetValue()->GetFloatValue();
+	}	else if (args->arg_count == 2) {
+		d = atof(bnx.GetString(jvp));
+	} else
+		d = bnx.GetDouble(jvp);
 
 	if (initid->const_item) {
 		// Keep result of constant function

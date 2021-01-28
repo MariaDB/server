@@ -606,14 +606,12 @@ Bson_File('test/fx.json', 0)
 [{"_id":5,"type":"food","item":"beer","taste":"light","price":5.65,"ratings":[5,8,9]},{"_id":6,"type":"car","item":"roadster","mileage":56000,"ratings":[6,9]},{"_id":7,"type":"food","item":"meat","origin":"argentina","ratings":[2,4]},{"_id":8,"type":"furniture","item":"table","size":{"W":60,"L":80,"H":40},"ratings":[5,8,7]}]
 SELECT Bson_File('test/fx.json', '0');
 Bson_File('test/fx.json', '0')
-NULL
-Warnings:
-Warning	1105	
+{"_id":5,"type":"food","item":"beer","taste":"light","price":5.65,"ratings":[5,8,9]}
 SELECT Bson_File('test/fx.json', '[?]');
 Bson_File('test/fx.json', '[?]')
 NULL
 Warnings:
-Warning	1105	
+Warning	1105	Invalid function specification ?
 SELECT BsonGet_String(Bson_File('test/fx.json'), '1.*');
 BsonGet_String(Bson_File('test/fx.json'), '1.*')
 {"_id":6,"type":"car","item":"roadster","mileage":56000,"ratings":[6,9]}
@@ -628,57 +626,33 @@ Price
 5.65
 SELECT Bson_Array_Add(Bson_File('test/fx.json', '2'), 6, 'ratings');
 Bson_Array_Add(Bson_File('test/fx.json', '2'), 6, 'ratings')
-NULL
-Warnings:
-Warning	1105	
-Warning	1105	No sub-item at 'ratings'
+{"_id":7,"type":"food","item":"meat","origin":"argentina","ratings":[2,4,6]}
 SELECT Bson_Array_Add(Bson_File('test/fx.json', '2'), 6, 1, 'ratings');
 Bson_Array_Add(Bson_File('test/fx.json', '2'), 6, 1, 'ratings')
-NULL
-Warnings:
-Warning	1105	
-Warning	1105	No sub-item at 'ratings'
+{"_id":7,"type":"food","item":"meat","origin":"argentina","ratings":[2,6,4]}
 SELECT Bson_Array_Add(Bson_File('test/fx.json', '2'), 6, 'ratings', 1);
 Bson_Array_Add(Bson_File('test/fx.json', '2'), 6, 'ratings', 1)
-NULL
-Warnings:
-Warning	1105	
-Warning	1105	No sub-item at 'ratings'
+{"_id":7,"type":"food","item":"meat","origin":"argentina","ratings":[2,6,4]}
 SELECT Bson_Array_Add(Bson_File('test/fx.json', '2.ratings'), 6, 0);
 Bson_Array_Add(Bson_File('test/fx.json', '2.ratings'), 6, 0)
-[6,null]
-Warnings:
-Warning	1105	
+[6,2,4]
 SELECT Bson_Array_Delete(Bson_File('test/fx.json', '2'), 'ratings', 1);
 Bson_Array_Delete(Bson_File('test/fx.json', '2'), 'ratings', 1)
-NULL
-Warnings:
-Warning	1105	
-Warning	1105	No sub-item at 'ratings'
+{"_id":7,"type":"food","item":"meat","origin":"argentina","ratings":[2]}
 SELECT Bson_Object_Add(Bson_File('test/fx.json', '2'), 'france' origin);
 Bson_Object_Add(Bson_File('test/fx.json', '2'), 'france' origin)
-NULL
-Warnings:
-Warning	1105	
-Warning	1105	First argument target is not an object
+{"_id":7,"type":"food","item":"meat","origin":"france","ratings":[2,4]}
 SELECT Bson_Object_Add(Bson_File('test/fx.json', '2'), 70 H, 'size');
 Bson_Object_Add(Bson_File('test/fx.json', '2'), 70 H, 'size')
-NULL
+{"_id":7,"type":"food","item":"meat","origin":"argentina","ratings":[2,4]}
 Warnings:
-Warning	1105	
 Warning	1105	No sub-item at 'size'
 SELECT Bson_Object_Add(Bson_File('test/fx.json', '3'), 70 H, 'size');
 Bson_Object_Add(Bson_File('test/fx.json', '3'), 70 H, 'size')
-NULL
-Warnings:
-Warning	1105	
-Warning	1105	No sub-item at 'size'
+{"_id":8,"type":"furniture","item":"table","size":{"W":60,"L":80,"H":70},"ratings":[5,8,7]}
 SELECT Bson_Object_List(Bson_File('test/fx.json', '3.size'));
 Bson_Object_List(Bson_File('test/fx.json', '3.size'))
-NULL
-Warnings:
-Warning	1105	
-Warning	1105	First argument is not an object
+["W","L","H"]
 #
 # Testing new functions
 #

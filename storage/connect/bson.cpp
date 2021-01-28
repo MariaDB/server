@@ -1501,31 +1501,27 @@ double BJSON::GetDouble(PBVAL vp)
   PBVAL vlp = (vp->Type == TYPE_JVAL) ? MVP(vp->To_Val) : vp;
 
   switch (vlp->Type) {
-  case TYPE_DBL:
-    d = *(double*)MP(vlp->To_Val);
-    break;
-  case TYPE_BINT:
-    d = (double)*(longlong*)MP(vlp->To_Val);
-    break;
-  case TYPE_INTG:
-    d = (double)vlp->N;
-    break;
-  case TYPE_FLOAT:
-  { char buf[32];
-    int  n = (vlp->Nd) ? vlp->Nd : 5;
-
-    sprintf(buf, "%.*f", n, vlp->F);
-    d = atof(buf);
-  } break;
-  case TYPE_DTM:
-  case TYPE_STRG:
-    d = atof(MZP(vlp->To_Val));
-    break;
-  case TYPE_BOOL:
-    d = (vlp->B) ? 1.0 : 0.0;
-    break;
-  default:
-    d = 0.0;
+    case TYPE_DBL:
+      d = *(double*)MP(vlp->To_Val);
+      break;
+    case TYPE_BINT:
+      d = (double)*(longlong*)MP(vlp->To_Val);
+      break;
+    case TYPE_INTG:
+      d = (double)vlp->N;
+      break;
+    case TYPE_FLOAT:
+      d = (double)vlp->F;
+      break;
+    case TYPE_DTM:
+    case TYPE_STRG:
+      d = atof(MZP(vlp->To_Val));
+      break;
+    case TYPE_BOOL:
+      d = (vlp->B) ? 1.0 : 0.0;
+      break;
+    default:
+      d = 0.0;
   } // endswitch Type
 
   return d;
