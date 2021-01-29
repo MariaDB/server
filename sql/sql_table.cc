@@ -19,6 +19,7 @@
 /* drop and alter of tables */
 
 #include "mariadb.h"
+#include "sql_class.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "debug_sync.h"
@@ -58,6 +59,9 @@
 #include "ddl_log.h"
 #include "debug.h"                     // debug_crash_here()
 #include <algorithm>
+#include "rpl_mi.h"
+#include "log.h"
+
 
 #ifdef _WIN32
 #include <io.h>
@@ -89,6 +93,12 @@ static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
 static uint blob_length_by_type(enum_field_types type);
 static bool fix_constraints_names(THD *, List<Virtual_column_info> *,
                                   const HA_CREATE_INFO *);
+bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
+                               uint64 start_alter_id, bool log_if_exists,
+                               MEM_ROOT *mem);
+static bool wait_for_master(THD *thd);
+static int process_master_state(THD *thd, int alter_result,
+                                uint64 &start_alter_id);
 
 /**
   @brief Helper function for explain_filename
@@ -984,7 +994,8 @@ end:
 */
 
 int write_bin_log(THD *thd, bool clear_error,
-                  char const *query, ulong query_length, bool is_trans)
+                  char const *query, ulong query_length, bool is_trans,
+                  bool log_zero_errcode)
 {
   int error= 0;
   if (mysql_bin_log.is_open())
@@ -997,7 +1008,7 @@ int write_bin_log(THD *thd, bool clear_error,
       errcode= query_error_code(thd, TRUE);
     error= thd->binlog_query(THD::STMT_QUERY_TYPE,
                              query, query_length, is_trans, FALSE, FALSE,
-                             errcode) > 0;
+                             log_zero_errcode? 0 : errcode) > 0;
     thd_proc_info(thd, 0);
   }
   return error;
@@ -1011,14 +1022,23 @@ int write_bin_log(THD *thd, bool clear_error,
 */
 
 int write_bin_log_with_if_exists(THD *thd, bool clear_error,
-                                 bool is_trans, bool add_if_exists)
+                                 bool is_trans, bool add_if_exists,
+                                 bool commit_alter)
 {
   int result;
   ulonglong save_option_bits= thd->variables.option_bits;
   if (add_if_exists)
     thd->variables.option_bits|= OPTION_IF_EXISTS;
+  if (commit_alter)
+    thd->set_binlog_flags_for_alter(Log_event::FL_COMMIT_ALTER_E1);
+
   result= write_bin_log(thd, clear_error, thd->query(), thd->query_length(),
                         is_trans);
+  if (commit_alter)
+  {
+    thd->set_binlog_flags_for_alter(0);
+    thd->set_binlog_start_alter_seq_no(0);
+  }
   thd->variables.option_bits= save_option_bits;
   return result;
 }
@@ -7283,6 +7303,51 @@ static bool notify_tabledef_changed(TABLE_LIST *table_list)
   DBUG_RETURN(0);
 }
 
+/*
+  The function is invoked in error branches of ALTER processing.
+  Write Rollback alter in case of partial_alter is true else
+  call process_master_state.
+
+  Returns
+  false on Success
+  true  otherwise
+*/
+bool write_bin_log_start_alter_rollback(THD *thd, uint64 &start_alter_id,
+                                        bool &partial_alter, bool if_exists)
+{
+  if (start_alter_id)
+  {
+    start_alter_info *info= thd->rgi_slave->sa_info;
+    if (info->sa_seq_no == 0)
+    {
+      /*
+         Error occurred before SA got to processing incl its binlogging.
+         So it's a failure to apply and thus no need to wait for master's
+         completion result.
+      */
+      return true;
+    }
+    /*
+      We have to call wait for master here because in main calculation
+      we can error out before calling wait for master
+      (for example if copy_data_between_tables fails)
+    */
+    if (info->state == start_alter_state::REGISTERED)
+      wait_for_master(thd);
+    if(process_master_state(thd, 1, start_alter_id))
+      return true;
+  }
+  else if (partial_alter) // Write only if SA written
+  {
+    // Send the rollback message
+    Write_log_with_flags wlwf(thd, Log_event::FL_ROLLBACK_ALTER_E1);
+    if(write_bin_log_with_if_exists(thd, false, false, if_exists, false))
+      return true;
+    partial_alter= false;
+  }
+  return false;
+}
+
 
 /**
   Perform in-place alter table.
@@ -7297,8 +7362,9 @@ static bool notify_tabledef_changed(TABLE_LIST *table_list)
   @param target_mdl_request Metadata request/lock on the target table name.
   @param alter_ctx          ALTER TABLE runtime context.
 
-  @retval   true              Error
-  @retval   false             Success
+  @retval   >=1               Error{ 1= ROLLBACK recieved from master , 2= error
+                                    in alter so no ROLLBACK in binlog }
+  @retval   0                 Success
 
   @note
     If mysql_alter_table does not need to copy the table, it is
@@ -7321,13 +7387,16 @@ static bool mysql_inplace_alter_table(THD *thd,
                                       MDL_request *target_mdl_request,
                                       DDL_LOG_STATE *ddl_log_state,
                                       TRIGGER_RENAME_PARAM *trigger_param,
-                                      Alter_table_ctx *alter_ctx)
+                                      Alter_table_ctx *alter_ctx,
+                                      bool &partial_alter,
+                                      uint64 &start_alter_id, bool if_exists)
 {
   Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN | MYSQL_OPEN_IGNORE_KILLED);
   handlerton *db_type= table->s->db_type();
   Alter_info *alter_info= ha_alter_info->alter_info;
   bool reopen_tables= false;
   bool res, commit_succeded_with_error= 0;
+
   const enum_alter_inplace_result inplace_supported=
     ha_alter_info->inplace_supported;
   DBUG_ENTER("mysql_inplace_alter_table");
@@ -7406,11 +7475,22 @@ static bool mysql_inplace_alter_table(THD *thd,
                                            MDL_SHARED_NO_WRITE,
                                            thd->variables.lock_wait_timeout))
     goto cleanup;
+  // If alter_algorithm == Instant.
+  if ((table->s->tmp_table == NO_TMP_TABLE || table->s->table_creation_was_logged
+       || start_alter_id)
+      && alter_info->algorithm(thd) != Alter_info::ALTER_TABLE_ALGORITHM_INSTANT)
+    if (write_bin_log_start_alter(thd, partial_alter, start_alter_id,
+                                  if_exists, &table->s->mem_root))
+      goto cleanup;
+
+  DBUG_EXECUTE_IF("start_alter_kill_after_binlog", {
+      DBUG_SUICIDE();
+      });
+
 
   // It's now safe to take the table level lock.
   if (lock_tables(thd, table_list, alter_ctx->tables_opened, 0))
     goto cleanup;
-
   DEBUG_SYNC(thd, "alter_table_inplace_after_lock_upgrade");
   THD_STAGE_INFO(thd, stage_alter_inplace_prepare);
 
@@ -7489,13 +7569,22 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   DEBUG_SYNC(thd, "alter_table_inplace_after_lock_downgrade");
   THD_STAGE_INFO(thd, stage_alter_inplace);
+  DBUG_EXECUTE_IF("start_alter_delay_master", {
+    debug_sync_set_action(thd,
+                          STRING_WITH_LEN("now wait_for alter_cont"));
+      });
 
   /* We can abort alter table for any table type */
   thd->abort_on_warning= !ha_alter_info->ignore && thd->is_strict_mode();
   res= table->file->ha_inplace_alter_table(altered_table, ha_alter_info);
   thd->abort_on_warning= false;
+
+  if (start_alter_id && wait_for_master(thd))
+    goto rollback;
+
   if (res)
     goto rollback;
+
 
   DEBUG_SYNC(thd, "alter_table_inplace_before_lock_upgrade");
   // Upgrade to EXCLUSIVE before commit.
@@ -7605,7 +7694,7 @@ static bool mysql_inplace_alter_table(THD *thd,
                          thd->is_error())
   {
     // Since changes were done in-place, we can't revert them.
-    DBUG_RETURN(true);
+    goto err;
   }
   debug_crash_here("ddl_log_alter_after_rename_frm");
 
@@ -7622,7 +7711,7 @@ static bool mysql_inplace_alter_table(THD *thd,
         If the rename fails we will still have a working table
         with the old name, but with other changes applied.
       */
-      DBUG_RETURN(true);
+      goto err;
     }
     debug_crash_here("ddl_log_alter_before_rename_triggers");
     if (Table_triggers_list::change_table_name(thd, trigger_param,
@@ -7667,6 +7756,12 @@ static bool mysql_inplace_alter_table(THD *thd,
     if (thd->locked_tables_list.reopen_tables(thd, false))
       thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
   }
+
+err:
+  if (partial_alter || start_alter_id)
+    write_bin_log_start_alter_rollback(thd, start_alter_id, partial_alter,
+                                       if_exists);
+
   DBUG_RETURN(true);
 }
 
@@ -9367,6 +9462,124 @@ static bool log_and_ok(THD *thd)
   return(0);
 }
 
+/*
+  Wait for master to send result of Alter table.
+  Returns
+     true    when Rollback is decided
+     false   otherwise
+*/
+static bool wait_for_master(THD *thd)
+{
+  start_alter_info* info= thd->rgi_slave->sa_info;
+  Master_info *mi= thd->rgi_slave->rli->mi;
+
+  DBUG_ASSERT(info);
+  DBUG_ASSERT(info->state != start_alter_state::INVALID);
+  DBUG_ASSERT(mi);
+
+  mysql_mutex_lock(&mi->start_alter_lock);
+  while (info->state == start_alter_state::REGISTERED)
+  {
+    mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
+  }
+  if (info->state == start_alter_state::ROLLBACK_ALTER)
+  {
+    /*
+      SA thread will not give error , We will set the error in info->error
+      and then RA worker will output the error
+      We can modify the info->error without taking mutex, because CA worker
+      will be waiting on ::COMPLETED wait condition
+    */
+    if(thd->is_error())
+    {
+      info->error= thd->get_stmt_da()->sql_errno();
+      info->err_msg= thd->get_stmt_da()->message();
+    }
+    thd->clear_error();
+  }
+  mysql_mutex_unlock(&mi->start_alter_lock);
+
+  return info->state == start_alter_state::ROLLBACK_ALTER;
+}
+
+/*
+  In this function, we are going to change info->state to ::COMPLETED.
+  This means we are messaging CA/RA worker that we have binlogged, so our
+  here is finished.
+*/
+static void alter_committed(THD *thd, start_alter_info* info, Master_info *mi)
+{
+  start_alter_state tmp= info->state;
+  mysql_mutex_lock(&mi->start_alter_lock);
+  info->state= start_alter_state::COMPLETED;
+  mysql_cond_broadcast(&info->start_alter_cond);
+  mysql_mutex_unlock(&mi->start_alter_lock);
+  if (tmp == start_alter_state::ROLLBACK_ALTER)
+    thd->clear_error();
+}
+
+/*
+  process_master_state:- process the info->state recieved from master
+  We will comapre master state with  alter_result
+    In the case of ROLLBACK_ALTER alter_result > 0
+    In the case of COMMIT_ALTER alter_result == 0
+  if the condition is not satisfied we will report error and
+  Return 1. Make sure wait_for_master is called before calling this function
+  This function should be called only at the write binlog time of commit/
+  rollback alter. We will alter_committed if everything is fine.
+
+  @retval 1 error
+  @retval 0 Ok
+*/
+static int process_master_state(THD *thd, int alter_result,
+                                uint64 &start_alter_id)
+{
+  start_alter_info *info= thd->rgi_slave->sa_info;
+
+  DBUG_ASSERT(info->state > start_alter_state::REGISTERED);
+  /* this function shouldn't be called twice */
+  DBUG_ASSERT(start_alter_id);
+
+  start_alter_id= 0;
+  if ((info->state == start_alter_state::ROLLBACK_ALTER && alter_result > 0)
+      || (info->state == start_alter_state::COMMIT_ALTER && !alter_result))
+  {
+    alter_committed(thd, info, thd->rgi_slave->rli->mi);
+    return 0;
+  }
+  else
+  {
+    thd->rgi_slave->rli->report(ERROR_LEVEL, 0, thd->rgi_slave->gtid_info(),
+                "Query caused different errors on master and slave.     "
+                "Error on master: message (format)='%s' error code=%d ; "
+                "Error on slave: actual message='%s', error code=%d. "
+                "Default database: '%s'. Query: '%s'",
+                ER_THD(thd, 0),
+                0, thd->get_stmt_da()->message() ,
+                thd->get_stmt_da()->sql_errno(),
+                thd->get_db(), thd->query());
+    thd->is_slave_error= 1;
+    return 1;
+  }
+}
+
+/*
+  Returns a (global unique) identifier of START Alter when slave applier
+  executes mysql_alter_table().
+  In non-slave context it is zero.
+*/
+static uint64 get_start_alter_id(THD *thd)
+{
+  DBUG_ASSERT(!(thd->rgi_slave &&
+                (thd->rgi_slave->gtid_ev_flags_extra &
+                 Log_event::FL_START_ALTER_E1)) ||
+              !thd->rgi_slave->direct_commit_alter);
+  return
+    thd->rgi_slave &&
+    (thd->rgi_slave->gtid_ev_flags_extra & Log_event::FL_START_ALTER_E1) ?
+    thd->variables.gtid_seq_no : 0;
+}
+
 
 /**
   Alter table
@@ -9424,6 +9637,14 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   bool partition_changed= false;
   bool fast_alter_partition= false;
 #endif
+  bool partial_alter= false;
+  /*
+    start_alter_id is the gtid seq no of the START Alter - the 1st part
+    of two-phase loggable ALTER. The variable is meaningful only
+    on slave execution.
+  */
+  uint64 start_alter_id= get_start_alter_id(thd);
+
   /*
     Create .FRM for new version of table with a temporary name.
     We don't log the statement, it will be logged later.
@@ -10342,7 +10563,8 @@ do_continue:;
                                          &ha_alter_info,
                                          &target_mdl_request, &ddl_log_state,
                                          &trigger_param,
-                                         &alter_ctx);
+                                         &alter_ctx, partial_alter,
+                                         start_alter_id, if_exists);
       thd->count_cuted_fields= org_count_cuted_fields;
       inplace_alter_table_committed= ha_alter_info.inplace_alter_table_committed;
       inplace_alter_table_committed_argument=
@@ -10353,7 +10575,6 @@ do_continue:;
         goto err_cleanup;
       }
       cleanup_table_after_inplace_alter_keep_files(&altered_table);
-
       goto end_inplace;
     }
     else
@@ -10396,7 +10617,24 @@ do_continue:;
   }
   else
     thd->close_unused_temporary_table_instances(table_list);
+  /*
+    We are going to log start alter
+    1. not a tmp table
+    2. tmp_table but binlog_format != row
+    3. start_alter_id != 0 (master logged it)
+   */
+  if (table->s->tmp_table == NO_TMP_TABLE ||
+        (!thd->is_current_stmt_binlog_format_row() &&
+        table_creation_was_logged && !binlog_as_create_select) ||
+       start_alter_id)
+    if (write_bin_log_start_alter(thd, partial_alter, start_alter_id,
+                                  if_exists, &table->s->mem_root))
+      goto err_new_table_cleanup;
 
+  DBUG_EXECUTE_IF("start_alter_delay_master", {
+    debug_sync_set_action(thd,
+                          STRING_WITH_LEN("now wait_for alter_cont"));
+      });
   // It's now safe to take the table level lock.
   if (lock_tables(thd, table_list, alter_ctx.tables_opened,
                   MYSQL_LOCK_USE_MALLOC))
@@ -10509,6 +10747,13 @@ do_continue:;
   }
   thd->count_cuted_fields= CHECK_FIELD_IGNORE;
 
+  if (start_alter_id)
+  {
+    DBUG_ASSERT(thd->slave_thread);
+
+    if (wait_for_master(thd))
+      goto err_new_table_cleanup;
+  }
   if (table->s->tmp_table != NO_TMP_TABLE)
   {
     /* Release lock if this is a transactional temporary table */
@@ -10552,15 +10797,22 @@ do_continue:;
       binlog_commit(thd, true);
     }
 
+    if(start_alter_id)
+    {
+      thd->mark_tmp_table_as_free_for_reuse(new_table);
+      if (process_master_state(thd, 0, start_alter_id))
+        DBUG_RETURN(true);
+    }
     /* We don't replicate alter table statement on temporary tables */
-    if (!thd->is_current_stmt_binlog_format_row() &&
+    else if (!thd->is_current_stmt_binlog_format_row() &&
         table_creation_was_logged &&
         !binlog_as_create_select)
     {
       int tmp_error;
       thd->binlog_xid= thd->query_id;
       ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
-      tmp_error= write_bin_log_with_if_exists(thd, true, false, log_if_exists);
+      tmp_error= write_bin_log_with_if_exists(thd, true, false, log_if_exists,
+                                              partial_alter);
       thd->binlog_xid= 0;
       if (tmp_error)
         goto err_cleanup;
@@ -10790,12 +11042,19 @@ end_inplace:
   DBUG_ASSERT(!(mysql_bin_log.is_open() &&
                 thd->is_current_stmt_binlog_format_row() &&
                 (create_info->tmp_table())));
-  if (!binlog_as_create_select)
+
+  if(start_alter_id)
+  {
+    if (process_master_state(thd, 0, start_alter_id))
+      DBUG_RETURN(true);
+  }
+  else if (!binlog_as_create_select)
   {
     int tmp_error;
     thd->binlog_xid= thd->query_id;
     ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
-    tmp_error= write_bin_log_with_if_exists(thd, true, false, log_if_exists);
+    tmp_error= write_bin_log_with_if_exists(thd, true, false, log_if_exists,
+                                            partial_alter);
     thd->binlog_xid= 0;
     if (tmp_error)
       goto err_cleanup;
@@ -10892,6 +11151,10 @@ err_cleanup:
     /* Signal to storage engine that ddl log is committed */
     (*inplace_alter_table_committed)(inplace_alter_table_committed_argument);
   }
+  DEBUG_SYNC(thd, "alter_table_after_temp_table_drop");
+  if (partial_alter || start_alter_id)
+    write_bin_log_start_alter_rollback(thd, start_alter_id, partial_alter,
+                                       if_exists);
   DBUG_RETURN(true);
 
 err_with_mdl:
@@ -10902,6 +11165,9 @@ err_with_mdl:
     remove all references to the altered table from the list of locked
     tables and release the exclusive metadata lock.
   */
+  if (partial_alter || start_alter_id)
+    write_bin_log_start_alter_rollback(thd, start_alter_id, partial_alter,
+                                       if_exists);
   thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
   if (!table_list->table)
     thd->mdl_context.release_all_locks_for_name(mdl_ticket);

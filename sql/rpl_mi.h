@@ -227,7 +227,7 @@ class Master_info : public Slave_reporting_capability
   File fd; // we keep the file open, so we need to remember the file pointer
   IO_CACHE file;
 
-  mysql_mutex_t data_lock, run_lock, sleep_lock, start_stop_lock;
+  mysql_mutex_t data_lock, run_lock, sleep_lock, start_stop_lock, start_alter_lock, start_alter_list_lock;
   mysql_cond_t data_cond, start_cond, stop_cond, sleep_cond;
   THD *io_thd;
   MYSQL* mysql;
@@ -352,6 +352,17 @@ class Master_info : public Slave_reporting_capability
     ACK from slave, or if delay_master is enabled.
   */
   int semi_ack;
+  List <start_alter_info> start_alter_list;
+};
+
+struct start_alter_thd_args
+{
+  rpl_group_info *rgi;
+  LEX_CSTRING query;
+  LEX_CSTRING *db;
+  char *catalog;
+  bool shutdown;
+  CHARSET_INFO *cs;
 };
 
 int init_master_info(Master_info* mi, const char* master_info_fname,

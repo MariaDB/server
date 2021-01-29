@@ -240,7 +240,8 @@ class String;
                                    1 + 8          /* type, table_map_for_update */ + \
                                    1 + 4          /* type, master_data_written */ + \
                                    1 + 3          /* type, sec_part of NOW() */ + \
-                                   1 + 16 + 1 + 60/* type, user_len, user, host_len, host */)
+                                   1 + 16 + 1 + 60/* type, user_len, user, host_len, host */ + \
+                                   1 + 2 + 8      /* type, flags3, seq_no */)
 #define MAX_LOG_EVENT_HEADER   ( /* in order of Query_log_event::write */ \
   LOG_EVENT_HEADER_LEN + /* write_header */ \
   QUERY_HEADER_LEN     + /* write_data */   \
@@ -321,6 +322,7 @@ class String;
 #define Q_HRNOW 128
 #define Q_XID   129
 
+#define Q_GTID_FLAGS3 130
 /* Intvar event post-header */
 
 /* Intvar event data */
@@ -1193,6 +1195,15 @@ public:
     */
     EVENT_CACHE_COUNT
   };
+
+  /*
+    _E1 suffix below stands for Extra to infer the extra flags,
+    their "1st" generation (more *generations* can come when necessary).
+    Used in Gtid_log_event as well as Query_log_event
+  */
+  static const uint16 FL_START_ALTER_E1= 2;
+  static const uint16 FL_COMMIT_ALTER_E1= 4;
+  static const uint16 FL_ROLLBACK_ALTER_E1= 8;
 
   /*
     The following type definition is to be used whenever data is placed 
@@ -2148,6 +2159,12 @@ public:
     Q_MASTER_DATA_WRITTEN_CODE to the slave's server binlog.
   */
   uint32 master_data_written;
+  /*
+    A copy of Gtid event's extra flags that is relevant for two-phase
+    logged ALTER.
+  */
+  uint16 gtid_extra_flags;
+  uint64 sa_seq_no;  /* data part for CA/RA flags */
 
 #ifdef MYSQL_SERVER
 
@@ -2159,6 +2176,7 @@ public:
 #endif /* HAVE_REPLICATION */
 #else
   bool print_query_header(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info);
+  bool print_verbose(IO_CACHE* cache, PRINT_EVENT_INFO* print_event_info);
   bool print(FILE* file, PRINT_EVENT_INFO* print_event_info);
 #endif
 
@@ -2172,8 +2190,10 @@ public:
       my_free(data_buf);
   }
   Log_event_type get_type_code() { return QUERY_EVENT; }
-  static int dummy_event(String *packet, ulong ev_offset, enum enum_binlog_checksum_alg checksum_alg);
-  static int begin_event(String *packet, ulong ev_offset, enum enum_binlog_checksum_alg checksum_alg);
+  static int dummy_event(String *packet, ulong ev_offset,
+                         enum enum_binlog_checksum_alg checksum_alg);
+  static int begin_event(String *packet, ulong ev_offset,
+                         enum enum_binlog_checksum_alg checksum_alg);
 #ifdef MYSQL_SERVER
   bool write();
   virtual bool write_post_header_for_derived() { return FALSE; }
@@ -2199,6 +2219,9 @@ public:        /* !!! Public in this patch to allow old usage */
                                       size_t event_len,
                                       enum enum_binlog_checksum_alg
                                       checksum_alg);
+  int handle_split_alter_query_log_event(rpl_group_info *rgi,
+                                         bool &skip_error_check);
+
 #endif /* HAVE_REPLICATION */
   /*
     If true, the event always be applied by slave SQL thread or be printed by
@@ -3606,6 +3629,7 @@ public:
   uint64 seq_no;
   uint64 commit_id;
   uint32 domain_id;
+  uint64 sa_seq_no;   // start alter identifier for CA/RA
 #ifdef MYSQL_SERVER
   event_xid_t xid;
 #else

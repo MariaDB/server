@@ -81,6 +81,7 @@ class Wsrep_applier_service;
 class Reprepare_observer;
 class Relay_log_info;
 struct rpl_group_info;
+struct rpl_parallel_thread;
 class Rpl_filter;
 class Query_log_event;
 class Load_log_event;
@@ -853,6 +854,7 @@ typedef struct system_variables
 
   vers_asof_timestamp_t vers_asof_timestamp;
   ulong vers_alter_history;
+  ulong binlog_alter_two_phase;
 } SV;
 
 /**
@@ -2996,6 +2998,11 @@ public:
   }
   bool binlog_table_should_be_logged(const LEX_CSTRING *db);
 
+  // Accessors and setters of two-phase loggable ALTER binlog properties
+  uint16 get_binlog_flags_for_alter();
+  void   set_binlog_flags_for_alter(uint16);
+  uint64 get_binlog_start_alter_seq_no();
+  void   set_binlog_start_alter_seq_no(uint64);
 #endif /* MYSQL_CLIENT */
 
 public:
@@ -7775,6 +7782,31 @@ extern THD_list server_threads;
 
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps,
                                     uint field_count);
+
+/*
+  RAII utility class to ease binlogging with temporary setting
+  THD etc context and restoring the original one upon logger execution.
+*/
+class Write_log_with_flags
+{
+  THD*   m_thd;
+
+public:
+~Write_log_with_flags()
+  {
+    m_thd->set_binlog_flags_for_alter(0);
+    m_thd->set_binlog_start_alter_seq_no(0);
+  }
+
+  Write_log_with_flags(THD *thd, uint16 flags, uint64 seq_no= 0) : m_thd(thd)
+  {
+    m_thd->set_binlog_flags_for_alter(flags);
+    if (seq_no == 0)
+      seq_no= m_thd->get_binlog_start_alter_seq_no();
+    if (seq_no != 0)
+      m_thd->set_binlog_start_alter_seq_no(seq_no);
+  }
+};
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_CLASS_INCLUDED */

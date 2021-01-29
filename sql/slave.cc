@@ -3930,6 +3930,10 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
   DBUG_PRINT("info", ("apply_event error = %d", exec_res));
   if (exec_res == 0)
   {
+    if (thd->rgi_slave && (thd->rgi_slave->gtid_ev_flags_extra &
+                           Log_event::FL_START_ALTER_E1) &&
+        thd->rgi_slave->get_finish_event_group_called())
+      DBUG_RETURN(exec_res ? 1 : 0);
     int error= ev->update_pos(rgi);
  #ifndef DBUG_OFF
     DBUG_PRINT("info", ("update_pos error = %d", error));
@@ -5570,8 +5574,32 @@ pthread_handler_t handle_slave_sql(void *arg)
 
  err:
   if (mi->using_parallel())
+  {
     rli->parallel.wait_for_done(thd, rli);
-  /* Gtid_list_log_event::do_apply_event has already reported the GTID until */
+    /*
+     shutdown the loner alter threads waiting on C/R ALter
+    */
+    start_alter_info *info=NULL;
+    mysql_mutex_lock(&mi->start_alter_list_lock);
+    List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
+    while ((info= info_iterator++))
+    {
+      mysql_mutex_lock(&mi->start_alter_lock);
+      info->state= start_alter_state::ROLLBACK_ALTER;
+      mysql_cond_broadcast(&info->start_alter_cond);
+      mysql_mutex_unlock(&mi->start_alter_lock);
+      mysql_mutex_lock(&mi->start_alter_lock);
+      while(info->state == start_alter_state::ROLLBACK_ALTER)
+        mysql_cond_wait(&info->start_alter_cond, &mi->start_alter_lock);
+      mysql_mutex_unlock(&mi->start_alter_lock);
+      DBUG_ASSERT(info->state == start_alter_state::COMPLETED);
+      info_iterator.remove();
+      mysql_cond_destroy(&info->start_alter_cond);
+      my_free(info);
+    }
+    mysql_mutex_unlock(&mi->start_alter_list_lock);
+  };
+ /* Gtid_list_log_event::do_apply_event has already reported the GTID until */
   if (rli->stop_for_until && rli->until_condition != Relay_log_info::UNTIL_GTID)
   {
     if (global_system_variables.log_warnings > 2)
@@ -5692,7 +5720,7 @@ err_during_init:
   /* Forget the relay log's format */
   delete rli->relay_log.description_event_for_exec;
   rli->relay_log.description_event_for_exec= 0;
-  rli->reset_inuse_relaylog();
+  //rli->reset_inuse_relaylog();
   /* Wake up master_pos_wait() */
   mysql_mutex_unlock(&rli->data_lock);
   DBUG_PRINT("info",("Signaling possibly waiting master_pos_wait() functions"));
@@ -6294,12 +6322,19 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
     Rotate_log_event rev(buf, checksum_alg != BINLOG_CHECKSUM_ALG_OFF ?
                          event_len - BINLOG_CHECKSUM_LEN : event_len,
                          mi->rli.relay_log.description_event_for_queue);
+    bool master_changed= false;
+    bool maybe_crashed= false;
+    // Exclude server start scenario
+    if ((mi->prev_master_id && mi->master_id) &&
+        (mi->prev_master_id != mi->master_id))
+      master_changed= true;
+    if ((mi->master_log_name[0]!='\0') &&
+        (strcmp(rev.new_log_ident, mi->master_log_name) != 0))
+      maybe_crashed= true;
 
-    if (unlikely(mi->gtid_reconnect_event_skip_count) &&
-        unlikely(!mi->gtid_event_seen) &&
-        rev.is_artificial_event() &&
-        (mi->prev_master_id != mi->master_id ||
-         strcmp(rev.new_log_ident, mi->master_log_name) != 0))
+    if (unlikely((mi->gtid_reconnect_event_skip_count && master_changed) ||
+                 maybe_crashed) &&
+        unlikely(!mi->gtid_event_seen) && rev.is_artificial_event())
     {
       /*
         Artificial Rotate_log_event is the first event we receive at the start
@@ -6335,26 +6370,37 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
         case likewise rollback the partially received event group.
       */
       Format_description_log_event fdle(4);
+      fdle.checksum_alg= checksum_alg;
 
-      if (mi->prev_master_id != mi->master_id)
-        sql_print_warning("The server_id of master server changed in the "
-                          "middle of GTID %u-%u-%llu. Assuming a change of "
-                          "master server, so rolling back the previously "
-                          "received partial transaction. Expected: %lu, "
-                          "received: %lu", mi->last_queued_gtid.domain_id,
-                          mi->last_queued_gtid.server_id,
-                          mi->last_queued_gtid.seq_no,
-                          mi->prev_master_id, mi->master_id);
-      else if (strcmp(rev.new_log_ident, mi->master_log_name) != 0)
-        sql_print_warning("Unexpected change of master binlog file name in the "
-                          "middle of GTID %u-%u-%llu, assuming that master has "
-                          "crashed and rolling back the transaction. Expected: "
-                          "'%s', received: '%s'",
-                          mi->last_queued_gtid.domain_id,
-                          mi->last_queued_gtid.server_id,
-                          mi->last_queued_gtid.seq_no,
-                          mi->master_log_name, rev.new_log_ident);
+      /*
+        Possible crash is flagged in being created FD' common header
+        to conduct any necessary cleanup by the slave applier.
+      */
+      if (maybe_crashed)
+        fdle.flags |= LOG_EVENT_BINLOG_IN_USE_F;
 
+
+      if (mi->gtid_reconnect_event_skip_count)
+      {
+        if (master_changed)
+          sql_print_warning("The server_id of master server changed in the "
+                            "middle of GTID %u-%u-%llu. Assuming a change of "
+                            "master server, so rolling back the previously "
+                            "received partial transaction. Expected: %lu, "
+                            "received: %lu", mi->last_queued_gtid.domain_id,
+                            mi->last_queued_gtid.server_id,
+                            mi->last_queued_gtid.seq_no,
+                            mi->prev_master_id, mi->master_id);
+        else
+          sql_print_warning("Unexpected change of master binlog file name in "
+                            "the middle of GTID %u-%u-%llu, assuming that "
+                            "master has crashed and rolling back the "
+                            "transaction. Expected: '%s', received: '%s'",
+                            mi->last_queued_gtid.domain_id,
+                            mi->last_queued_gtid.server_id,
+                            mi->last_queued_gtid.seq_no, mi->master_log_name,
+                            rev.new_log_ident);
+      }
       mysql_mutex_lock(log_lock);
       if (likely(!rli->relay_log.write_event(&fdle) &&
                  !rli->relay_log.flush_and_sync(NULL)))

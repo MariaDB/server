@@ -20,6 +20,7 @@
 #include "sql_parse.h"
 #include "sql_acl.h"
 #include "rpl_rli.h"
+#include "rpl_mi.h"
 #include "slave.h"
 #include "log_event.h"
 
@@ -70,7 +71,8 @@ static int check_event_type(int type, Relay_log_info *rli)
 
     /* It is always allowed to execute FD events. */
     return 0;
-    
+
+  case QUERY_EVENT:
   case TABLE_MAP_EVENT:
   case WRITE_ROWS_EVENT_V1:
   case UPDATE_ROWS_EVENT_V1:
@@ -213,13 +215,20 @@ void mysql_client_binlog_statement(THD* thd)
   rli= thd->rli_fake;
   if (!rli && (rli= thd->rli_fake= new Relay_log_info(FALSE, "BINLOG_BASE64_EVENT")))
     rli->sql_driver_thd= thd;
+  static LEX_CSTRING connection_name= { STRING_WITH_LEN("BINLOG_BASE64_EVENT") };
+  rli->mi= new Master_info(&connection_name, false);
   if (!(rgi= thd->rgi_fake))
     rgi= thd->rgi_fake= new rpl_group_info(rli);
   rgi->thd= thd;
-
+  thd->system_thread_info.rpl_sql_info=
+    new rpl_sql_thread_info(rli->mi->rpl_filter);
   const char *error= 0;
   Log_event *ev = 0;
   my_bool is_fragmented= FALSE;
+  sql_digest_state *m_digest;
+  PSI_statement_locker *m_statement_psi;
+  LEX_CSTRING save_db;
+  my_thread_id thread_id= 0;
 
   /*
     Out of memory check
@@ -373,7 +382,30 @@ void mysql_client_binlog_statement(THD* thd)
         LEX *backup_lex;
 
         thd->backup_and_reset_current_lex(&backup_lex);
+        if (ev->get_type_code() == QUERY_EVENT)
+        {
+          m_digest= thd->m_digest;
+          m_statement_psi= thd->m_statement_psi;
+          save_db.str= my_strndup(key_memory_THD_db, thd->db.str,
+              thd->db.length, MYF(MY_WME));
+          save_db.length= thd->db.length;
+          if (save_db.str == NULL)
+          {
+            my_error(ER_OUT_OF_RESOURCES, MYF(0));
+            goto end;
+          }
+          thd->m_digest= NULL;
+          thd->m_statement_psi= NULL;
+          thread_id= thd->variables.pseudo_thread_id;
+        }
         err= ev->apply_event(rgi);
+        if (ev->get_type_code() == QUERY_EVENT)
+        {
+          thd->m_digest= m_digest;
+          thd->m_statement_psi= m_statement_psi;
+          thd->reset_db(&save_db);
+          thd->variables.pseudo_thread_id= thread_id;
+        }
         thd->restore_current_lex(backup_lex);
       }
       thd->variables.option_bits=
@@ -413,5 +445,9 @@ end:
   thd->variables.option_bits= thd_options;
   rgi->slave_close_thread_tables(thd);
   my_free(buf);
+  delete rli->mi;
+  delete thd->system_thread_info.rpl_sql_info;
+  delete rgi;
+  rgi= thd->rgi_fake= NULL;
   DBUG_VOID_RETURN;
 }

@@ -2409,6 +2409,14 @@ static Sys_var_bit Sys_skip_parallel_replication(
        SESSION_ONLY(option_bits), NO_CMD_LINE, OPTION_RPL_SKIP_PARALLEL,
        DEFAULT(FALSE));
 
+static const char *binlog_alter_two_phase_enum[]=
+       {"No","Yes", NullS};
+static Sys_var_enum Sys_binlog_alter_two_phase(
+       "binlog_alter_two_phase",
+       "If set split the alter into 2 statement START ALTER and COMMIT/ROLLBACK"
+       "ALTER",
+       SESSION_VAR(binlog_alter_two_phase), CMD_LINE(REQUIRED_ARG), binlog_alter_two_phase_enum,
+       DEFAULT(0));
 
 static bool
 check_gtid_ignore_duplicates(sys_var *self, THD *thd, set_var *var)

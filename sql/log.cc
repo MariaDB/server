@@ -57,6 +57,7 @@
 #include "semisync_master.h"
 #include "sp_rcontext.h"
 #include "sp_head.h"
+#include "sql_table.h"
 
 #include "wsrep_mysqld.h"
 #ifdef WITH_WSREP
@@ -576,12 +577,77 @@ public:
   ulong binlog_id;
   /* Set if we get an error during commit that must be returned from unlog(). */
   bool delayed_error;
-
+  //Will be reset when gtid is written into binlog
+  uint16 gtid_flags3;
+  uint64 sa_seq_no;
 private:
 
   binlog_cache_mngr& operator=(const binlog_cache_mngr& info);
   binlog_cache_mngr(const binlog_cache_mngr& info);
 };
+
+bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
+                               uint64 start_alter_id, bool if_exists,
+                               MEM_ROOT *mem)
+{
+  if (start_alter_id)
+  {
+    {
+      Write_log_with_flags wlwf (thd, Log_event::FL_START_ALTER_E1);
+      if (write_bin_log(thd, true, thd->query(), thd->query_length()))
+      {
+        DBUG_ASSERT(thd->is_error());
+        return true;
+      }
+    }
+    Master_info *mi= thd->rgi_slave->rli->mi;
+    start_alter_info *info= thd->rgi_slave->sa_info;
+
+    info->sa_seq_no= start_alter_id;
+    info->domain_id= thd->variables.gtid_domain_id;
+    info->state= start_alter_state::REGISTERED;
+    mysql_mutex_lock(&mi->start_alter_list_lock);
+    mi->start_alter_list.push_back(info, mem);
+    mysql_mutex_unlock(&mi->start_alter_list_lock);
+    thd->rgi_slave->start_alter_ev->update_pos(thd->rgi_slave);
+    thd->rgi_slave->commit_orderer.wait_for_prior_commit(thd);
+    thd->rgi_slave->mark_start_commit();
+    thd->wakeup_subsequent_commits(0);
+    thd->rgi_slave->finish_start_alter_event_group();
+    thd->rgi_slave->set_finish_event_group_called(true);
+    return false;
+  }
+
+  rpl_group_info *rgi= thd->rgi_slave ? thd->rgi_slave : thd->rgi_fake;
+
+  if (!(rgi && rgi->direct_commit_alter) &&
+      thd->variables.binlog_alter_two_phase)
+  {
+    /* slave applier can handle here only regular ALTER */
+    DBUG_ASSERT(!rgi || !(rgi->gtid_ev_flags_extra &
+                          (Log_event::FL_START_ALTER_E1 |
+                           Log_event::FL_COMMIT_ALTER_E1 |
+                           Log_event::FL_ROLLBACK_ALTER_E1)));
+
+    // After logging binlog state stays flagged with SA flags3 an seq_no
+    thd->binlog_setup_trx_data()->gtid_flags3|= Log_event::FL_START_ALTER_E1;
+    if(write_bin_log_with_if_exists(thd, false, true, if_exists, false))
+    {
+      DBUG_ASSERT(thd->is_error());
+      return true;
+    }
+    partial_alter= true;
+  }
+  else if (rgi && rgi->direct_commit_alter)
+  {
+    DBUG_ASSERT(rgi->gtid_ev_flags_extra &
+                Log_event::FL_COMMIT_ALTER_E1);
+
+    partial_alter= true;
+  }
+
+  return false;
+}
 
 bool LOGGER::is_log_table_enabled(uint log_table_type)
 {
@@ -5752,6 +5818,33 @@ binlog_cache_mngr *THD::binlog_setup_trx_data()
   DBUG_RETURN(cache_mngr);
 }
 
+
+/*
+  Two phase logged ALTER getter and setter methods.
+*/
+uint16 THD::get_binlog_flags_for_alter()
+{
+  return mysql_bin_log.is_open() ? binlog_setup_trx_data()->gtid_flags3 : 0;
+}
+
+void THD::set_binlog_flags_for_alter(uint16 flags)
+{
+  if (mysql_bin_log.is_open())
+    binlog_setup_trx_data()->gtid_flags3= flags;
+}
+
+uint64 THD::get_binlog_start_alter_seq_no()
+{
+  return mysql_bin_log.is_open() ? binlog_setup_trx_data()->sa_seq_no : 0;
+}
+
+void THD::set_binlog_start_alter_seq_no(uint64 s_no)
+{
+  if (mysql_bin_log.is_open())
+    binlog_setup_trx_data()->sa_seq_no= s_no;
+}
+
+
 /*
   Function to start a statement and optionally a transaction for the
   binary log.
@@ -6264,6 +6357,8 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
     DBUG_RETURN(true);
 
   thd->set_last_commit_gtid(gtid);
+  if (thd->get_binlog_flags_for_alter() & Log_event::FL_START_ALTER_E1)
+    thd->set_binlog_start_alter_seq_no(gtid.seq_no);
 
   Gtid_log_event gtid_event(thd, seq_no, domain_id, standalone,
                             LOG_EVENT_SUPPRESS_USE_F, is_transactional,
@@ -6446,7 +6541,6 @@ MYSQL_BIN_LOG::lookup_domain_in_binlog_state(uint32 domain_id,
 
   return false;
 }
-
 
 int
 MYSQL_BIN_LOG::bump_seq_no_counter_if_needed(uint32 domain_id, uint64 seq_no)
