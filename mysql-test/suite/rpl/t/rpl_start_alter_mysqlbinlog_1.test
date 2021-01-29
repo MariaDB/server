@@ -1,0 +1,39 @@
+#
+# Start Alter with binlog applied using mysqlbinlog
+#  single maser with only one domain id
+#
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/master-slave.inc
+
+--connection master
+set global binlog_alter_two_phase=true;
+--connection slave
+--source include/stop_slave.inc
+change master to master_use_gtid= current_pos;
+set global gtid_strict_mode=1;
+
+--echo # Legacy Master Slave
+--let $domain_1=0
+--let $domain_2=0
+--let $M_port= $MASTER_MYPORT
+--let $S_port= $SLAVE_MYPORT
+--let $sync_slave=0
+
+--source include/start_alter_include.inc
+--connection master
+--let $MYSQLD_DATADIR= `select @@datadir;`
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/master.sql
+select @@gtid_binlog_state;
+RESET master;
+
+--connection slave
+--exec $MYSQL --host=127.0.0.1 --port=$SLAVE_MYPORT -e "source $MYSQLTEST_VARDIR/tmp/master.sql"
+select @@gtid_binlog_state;
+set global gtid_strict_mode=0;
+--source include/start_slave.inc
+
+--connection master
+set global binlog_alter_two_phase=false;
+remove_file $MYSQLTEST_VARDIR/tmp/master.sql;
+--source include/rpl_end.inc

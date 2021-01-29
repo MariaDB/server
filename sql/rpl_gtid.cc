@@ -607,6 +607,8 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   wait_for_commit* suspended_wfc;
   void *hton= NULL;
   LEX_CSTRING gtid_pos_table_name;
+  TABLE *tbl= nullptr;
+  MDL_savepoint m_start_of_statement_svp(thd->mdl_context.mdl_savepoint());
   DBUG_ENTER("record_gtid");
 
   *out_hton= NULL;
@@ -625,6 +627,18 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   if (!in_statement)
     thd->reset_for_next_command();
 
+  if (thd->rgi_slave && (thd->rgi_slave->gtid_ev_flags_extra &
+                         Gtid_log_event::FL_START_ALTER_E1))
+  {
+    /*
+     store the open table table list in ptr, so that is close_thread_tables
+     is called start alter tables are not closed
+    */
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+    tbl= thd->open_tables;
+    thd->open_tables= nullptr;
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  }
   /*
     Only the SQL thread can call select_gtid_pos_table without a mutex
     Other threads needs to use a mutex and take into account that the
@@ -734,12 +748,23 @@ end:
   {
     if (err || (err= ha_commit_trans(thd, FALSE)))
       ha_rollback_trans(thd, FALSE);
-
     close_thread_tables(thd);
-    if (in_transaction)
-      thd->mdl_context.release_statement_locks();
-    else
-      thd->release_transactional_locks();
+    if (!thd->rgi_slave || !(thd->rgi_slave->gtid_ev_flags_extra &
+                             Gtid_log_event::FL_START_ALTER_E1))
+    {
+      if (in_transaction)
+        thd->mdl_context.release_statement_locks();
+      else
+        thd->release_transactional_locks();
+    }
+  }
+  if (thd->rgi_slave &&
+      thd->rgi_slave->gtid_ev_flags_extra & Gtid_log_event::FL_START_ALTER_E1)
+  {
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+    thd->open_tables= tbl;
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    thd->mdl_context.rollback_to_savepoint(m_start_of_statement_svp);
   }
   thd->lex->restore_backup_query_tables_list(&lex_backup);
   thd->variables.option_bits= thd_saved_option;

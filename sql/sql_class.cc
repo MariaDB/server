@@ -5286,6 +5286,16 @@ thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd)
     return 0;
   if (rgi->gtid_sub_id > other_rgi->gtid_sub_id)
     return 0;
+  if (rgi->finish_event_group_called || other_rgi->finish_event_group_called)
+  {
+    /*
+      If either of two transactions has already performed commit
+      (e.g split ALTER, asserted below) there won't be any deadlock.
+    */
+    DBUG_ASSERT(rgi->sa_info || other_rgi->sa_info);
+
+    return 0;
+  }
   /*
     This transaction is about to wait for another transaction that is required
     by replication binlog order to commit after. This would cause a deadlock.

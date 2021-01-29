@@ -107,6 +107,8 @@ let $script=
   s{block_len=[0-9]+}{block_len=#};
   s{Server ver:.*DOLLAR}{SERVER_VERSION, BINLOG_VERSION};
   s{GTID [0-9]+-[0-9]+-[0-9]+}{GTID #-#-#};
+  s{COMMIT ALTER id=[0-9]+}{COMMIT ALTER id=#};
+  s{ROLLBACK ALTER id=[0-9]+}{ROLLBACK ALTER id=#};
   s{\[([0-9]-[0-9]-[0-9]+,?)+\]}{[#-#-#]};
   s{cid=[0-9]+}{cid=#};
   s{SQL_LOAD-[a-z,0-9,-]*.[a-z]*}{SQL_LOAD-<SERVER UUID>-<MASTER server-id>-<file-id>.<extension>};
