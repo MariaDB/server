@@ -3693,8 +3693,8 @@ char *bson_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 {
 	char   *path, *str = NULL;
 	PBVAL   jvp;
-	PBJNX   bxp = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
+	BJNX    bnx(g, NULL, TYPE_STRING, initid->max_length);
 
 	if (g->N) {
 		str = (char*)g->Activityp;
@@ -3707,8 +3707,6 @@ char *bson_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			PUSH_WARNING("CheckMemory error");
 			goto fin;
 		} else {
-			BJNX bnx(g);
-
 			jvp = bnx.MakeValue(args, 0, true);
 
 			if (g->Mrr) {			 // First argument is a constant
@@ -3722,16 +3720,16 @@ char *bson_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		jvp = (PBVAL)g->Xchk;
 
 	path = MakePSZ(g, args, 1);
-	bxp = new(g) BJNX(g, jvp, TYPE_STRING, initid->max_length);
 
-	if (bxp->SetJpath(g, path, true)) {
-		PUSH_WARNING(g->Message);
+	if (bnx.SetJpath(g, path, true)) {
 		goto fin;
 	}	else
-		bxp->ReadValue(g);
+		jvp = bnx.GetRowValue(g, jvp, 0);
 
-	if (!bxp->GetValue()->IsNull())
-		str = bxp->GetValue()->GetCharValue();
+	if (!bnx.IsJson(jvp)) {
+		strcpy(g->Message, "Not a Json item");
+	}	else
+		str = bnx.Serialize(g, jvp, NULL, 0);
 
 	if (initid->const_item)
 		// Keep result of constant function
@@ -3739,6 +3737,7 @@ char *bson_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 fin:
 	if (!str) {
+		PUSH_WARNING(g->Message);
 		*is_null = 1;
 		*res_length = 0;
 	} else
