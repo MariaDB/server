@@ -767,7 +767,7 @@ bool BDOC::SerializeValue(PBVAL jvp, bool b)
   case TYPE_DBL:
     sprintf(buf, "%.*lf", jvp->Nd, *(double*)MakePtr(Base, jvp->To_Val));
     return jp->WriteStr(buf);
-  case TYPE_NULL:
+  case (char)TYPE_NULL:
     return jp->WriteStr("null");
   case TYPE_JVAL:
     return SerializeValue(MVP(jvp->To_Val));
@@ -1557,7 +1557,7 @@ PSZ BJSON::GetString(PBVAL vp, char* buff)
   case TYPE_BOOL:
     p = (PSZ)((vlp->B) ? "true" : "false");
     break;
-  case TYPE_NULL:
+  case (char)TYPE_NULL:
     p = (PSZ)"null";
     break;
   default:
@@ -1772,7 +1772,7 @@ bool BJSON::IsValueNull(PBVAL vlp)
   bool b;
 
   switch (vlp->Type) {
-  case TYPE_NULL:
+  case (char)TYPE_NULL:
     b = true;
     break;
   case TYPE_JOB:
