@@ -2079,6 +2079,7 @@ SEL_ARG *SEL_ARG::clone(RANGE_OPT_PARAM *param, SEL_ARG *new_parent,
   tmp->color= color;
   tmp->elements= this->elements;
   tmp->max_part_no= max_part_no;
+  tmp->weight= weight;
   return tmp;
 }
 
@@ -9036,6 +9037,19 @@ SEL_ARG *Field::stored_field_make_mm_leaf_exact(RANGE_OPT_PARAM *param,
 ******************************************************************************/
 
 /*
+  Update weights for SEL_ARG graph that is connected only via next_key_part
+  (and not left/right) links
+*/
+static uint update_weight_for_single_arg(SEL_ARG *arg)
+{
+  if (arg->next_key_part)
+    return (arg->weight= 1 + update_weight_for_single_arg(arg->next_key_part));
+  else
+    return (arg->weight= 1);
+}
+
+
+/*
   Add a new key test to a key when scanning through all keys
   This will never be called for same key parts.
 */
@@ -9067,6 +9081,8 @@ sel_add(SEL_ARG *key1,SEL_ARG *key2)
     }
   }
   *key_link=key1 ? key1 : key2;
+
+  update_weight_for_single_arg(root);
   return root;
 }
 
@@ -10020,6 +10036,13 @@ static
 SEL_ARG *key_or_with_limit(RANGE_OPT_PARAM *param, uint keyno,
                            SEL_ARG *key1, SEL_ARG *key2)
 {
+#ifndef DBUG_OFF
+  if (key1)
+    key1->verify_weight();
+  if (key2)
+    key2->verify_weight();
+#endif
+
   SEL_ARG *res= key_or(param, key1, key2);
   res= enforce_sel_arg_weight_limit(param, keyno, res);
 #ifndef DBUG_OFF
@@ -10034,6 +10057,12 @@ static
 SEL_ARG *key_and_with_limit(RANGE_OPT_PARAM *param, uint keyno,
                             SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
 {
+#ifndef DBUG_OFF
+  if (key1)
+    key1->verify_weight();
+  if (key2)
+    key2->verify_weight();
+#endif
   SEL_ARG *res= key_and(param, key1, key2, clone_flag);
   res= enforce_sel_arg_weight_limit(param, keyno, res);
 #ifndef DBUG_OFF

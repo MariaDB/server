@@ -214,3 +214,14 @@ left(@json, 1500)
 set optimizer_max_sel_arg_weight= @tmp9750_weight;
 set optimizer_trace=@tmp_9750;
 drop table t1;
+#
+# MDEV-24739: Assertion `root->weight >= ...' failed in SEL_ARG::tree_delete
+#
+SELECT *
+FROM mysql.help_relation
+WHERE NOT (help_topic_id != 8 AND help_keyword_id != 0 OR help_keyword_id = 2 OR help_topic_id < 1900);
+help_topic_id	help_keyword_id
+SELECT *
+FROM mysql.help_relation ignore index (help_topic_id)
+WHERE (help_topic_id = 8 OR help_keyword_id = 0) AND help_keyword_id != 2 AND help_topic_id >= 1900;
+help_topic_id	help_keyword_id
