@@ -990,7 +990,10 @@ public:
   subselect_uniquesubquery_engine(THD *thd_arg, st_join_table *tab_arg,
 				  Item_in_subselect *subs, Item *where)
     :subselect_engine(subs, 0), tab(tab_arg), cond(where)
-  { DBUG_ASSERT(subs); }
+  {
+    thd= thd_arg;
+    DBUG_ASSERT(subs);
+  }
   ~subselect_uniquesubquery_engine();
   void cleanup();
   int prepare(THD *);
@@ -1407,7 +1410,8 @@ protected:
 protected:
   virtual bool partial_match()= 0;
 public:
-  subselect_partial_match_engine(subselect_uniquesubquery_engine *engine_arg,
+  subselect_partial_match_engine(THD *thd,
+                                 subselect_uniquesubquery_engine *engine_arg,
                                  TABLE *tmp_table_arg, Item_subselect *item_arg,
                                  select_result_interceptor *result_arg,
                                  List<Item> *equi_join_conds_arg,
@@ -1501,7 +1505,8 @@ protected:
   bool exists_complementing_null_row(MY_BITMAP *keys_to_complement);
   bool partial_match();
 public:
-  subselect_rowid_merge_engine(subselect_uniquesubquery_engine *engine_arg,
+  subselect_rowid_merge_engine(THD *thd,
+                               subselect_uniquesubquery_engine *engine_arg,
                                TABLE *tmp_table_arg, uint merge_keys_count_arg,
                                bool has_covering_null_row_arg,
                                bool has_covering_null_columns_arg,
@@ -1509,7 +1514,7 @@ public:
                                Item_subselect *item_arg,
                                select_result_interceptor *result_arg,
                                List<Item> *equi_join_conds_arg)
-    :subselect_partial_match_engine(engine_arg, tmp_table_arg,
+    :subselect_partial_match_engine(thd, engine_arg, tmp_table_arg,
                                     item_arg, result_arg, equi_join_conds_arg,
                                     has_covering_null_row_arg,
                                     has_covering_null_columns_arg,
@@ -1528,7 +1533,8 @@ class subselect_table_scan_engine: public subselect_partial_match_engine
 protected:
   bool partial_match();
 public:
-  subselect_table_scan_engine(subselect_uniquesubquery_engine *engine_arg,
+  subselect_table_scan_engine(THD *thd,
+                              subselect_uniquesubquery_engine *engine_arg,
                               TABLE *tmp_table_arg, Item_subselect *item_arg,
                               select_result_interceptor *result_arg,
                               List<Item> *equi_join_conds_arg,
