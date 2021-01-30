@@ -9728,10 +9728,12 @@ do_continue:;
         Set the truncated column values of thd as warning
         for alter table.
       */
-      Check_level_instant_set check_level_save(thd, CHECK_FIELD_WARN);
+      enum_check_fields org_count_cuted_fields= thd->count_cuted_fields;
+      thd->count_cuted_fields= CHECK_FIELD_WARN;
       int res= mysql_inplace_alter_table(thd, table_list, table, &altered_table,
                                          &ha_alter_info,
                                          &target_mdl_request, &alter_ctx);
+      thd->count_cuted_fields= org_count_cuted_fields;
       my_free(const_cast<uchar*>(frm.str));
 
       if (res)
