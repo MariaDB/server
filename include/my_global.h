@@ -152,7 +152,7 @@
 #  if defined(__i386__) || defined(__ppc__)
 #    define SIZEOF_CHARP 4
 #    define SIZEOF_LONG 4
-#  elif defined(__x86_64__) || defined(__ppc64__) || defined(__aarch64__)
+#  elif defined(__x86_64__) || defined(__ppc64__) || defined(__aarch64__) || defined(__arm64__)
 #    define SIZEOF_CHARP 8
 #    define SIZEOF_LONG 8
 #  else
