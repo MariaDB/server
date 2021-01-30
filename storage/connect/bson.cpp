@@ -886,7 +886,6 @@ PBPR BJSON::NewPair(OFFSET key, int type)
   PBPR bpp = (PBPR)BsonSubAlloc(sizeof(BPAIR));
 
   bpp->Key = key;
-  bpp->Vlp.Ktp = TYPE_STRG;
   bpp->Vlp.Type = type;
   bpp->Vlp.To_Val = 0;
   bpp->Vlp.Nd = 0;
