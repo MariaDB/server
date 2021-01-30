@@ -1154,16 +1154,30 @@ public:
 
           switch (i) {
           case COLUMN_STAT_MIN_VALUE:
-	    table_field->read_stats->min_value->set_notnull();
-            stat_field->val_str(&val);
-            table_field->read_stats->min_value->store(val.ptr(), val.length(),
-                                                      &my_charset_bin);
+            table_field->read_stats->min_value->set_notnull();
+            if (table_field->type() == MYSQL_TYPE_BIT)
+              table_field->read_stats->min_value->store(stat_field->val_int(),
+                                                        true);
+            else
+            {
+              stat_field->val_str(&val);
+              table_field->read_stats->min_value->store(val.ptr(),
+                                                        val.length(),
+                                                        &my_charset_bin);
+            }
             break;
           case COLUMN_STAT_MAX_VALUE:
-	    table_field->read_stats->max_value->set_notnull();
-            stat_field->val_str(&val);
-            table_field->read_stats->max_value->store(val.ptr(), val.length(),
-                                                      &my_charset_bin);
+            table_field->read_stats->max_value->set_notnull();
+            if (table_field->type() == MYSQL_TYPE_BIT)
+              table_field->read_stats->max_value->store(stat_field->val_int(),
+                                                        true);
+            else
+            {
+              stat_field->val_str(&val);
+              table_field->read_stats->max_value->store(val.ptr(),
+                                                        val.length(),
+                                                        &my_charset_bin);
+            }
             break;
           case COLUMN_STAT_NULLS_RATIO:
             table_field->read_stats->set_nulls_ratio(stat_field->val_real());
