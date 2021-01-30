@@ -821,9 +821,9 @@ bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
 bool Item_subselect::exec()
 {
   subselect_engine *org_engine= engine;
-
   DBUG_ENTER("Item_subselect::exec");
   DBUG_ASSERT(fixed());
+  DBUG_ASSERT(thd);
 
   DBUG_EXECUTE_IF("Item_subselect",
     Item::Print print(this,
@@ -999,6 +999,8 @@ bool Item_in_subselect::exec()
 {
   DBUG_ENTER("Item_in_subselect::exec");
   DBUG_ASSERT(fixed());
+  DBUG_ASSERT(thd);
+
   /*
     Initialize the cache of the left predicate operand. This has to be done as
     late as now, because Cached_item directly contains a resolved field (not
@@ -4005,11 +4007,10 @@ int join_read_next_same_or_null(READ_RECORD *info);
 
 int subselect_single_select_engine::exec()
 {
-  DBUG_ENTER("subselect_single_select_engine::exec");
-
   char const *save_where= thd->where;
   SELECT_LEX *save_select= thd->lex->current_select;
   thd->lex->current_select= select_lex;
+  DBUG_ENTER("subselect_single_select_engine::exec");
 
   if (join->optimization_state == JOIN::NOT_OPTIMIZED)
   {
@@ -4219,7 +4220,7 @@ bool subselect_uniquesubquery_engine::copy_ref_key(bool skip_constants)
     enum store_key::store_key_result store_res;
     if (skip_constants && (*copy)->store_key_is_const())
       continue;
-    store_res= (*copy)->copy();
+    store_res= (*copy)->copy(thd);
     tab->ref.key_err= store_res;
 
     if (store_res == store_key::STORE_KEY_FATAL)
@@ -4271,6 +4272,7 @@ int subselect_uniquesubquery_engine::exec()
   table->status= 0;
   Item_in_subselect *in_subs= item->get_IN_subquery();
   DBUG_ASSERT(in_subs);
+  DBUG_ASSERT(thd);
 
   if (!tab->preread_init_done && tab->preread_init())
     DBUG_RETURN(1);
@@ -4431,6 +4433,7 @@ int subselect_indexsubquery_engine::exec()
   bool null_finding= 0;
   TABLE *table= tab->table;
   Item_in_subselect *in_subs= item->get_IN_subquery();
+  DBUG_ASSERT(thd);
 
   in_subs->value= 0;
   empty_result_set= TRUE;
@@ -5650,7 +5653,6 @@ int subselect_hash_sj_engine::exec()
   SELECT_LEX *save_select= thd->lex->current_select;
   subselect_partial_match_engine *pm_engine= NULL;
   int res= 0;
-
   DBUG_ENTER("subselect_hash_sj_engine::exec");
 
   /*
@@ -5757,7 +5759,8 @@ int subselect_hash_sj_engine::exec()
     {
       pm_engine=
         (new (thd->mem_root)
-         subselect_rowid_merge_engine((subselect_uniquesubquery_engine*)
+         subselect_rowid_merge_engine(thd,
+                                      (subselect_uniquesubquery_engine*)
                                       lookup_engine, tmp_table,
                                       count_pm_keys,
                                       has_covering_null_row,
@@ -5771,9 +5774,10 @@ int subselect_hash_sj_engine::exec()
             init(nn_key_parts, &partial_match_key_parts))
       {
         /*
-          The call to init() would fail if there was not enough memory to allocate
-          all buffers for the rowid merge strategy. In this case revert to table
-          scanning which doesn't need any big buffers.
+          The call to init() would fail if there was not enough memory
+          to allocate all buffers for the rowid merge strategy. In
+          this case revert to table scanning which doesn't need any
+          big buffers.
         */
         delete pm_engine;
         pm_engine= NULL;
@@ -5785,7 +5789,8 @@ int subselect_hash_sj_engine::exec()
     {
       if (!(pm_engine=
             (new (thd->mem_root)
-             subselect_table_scan_engine((subselect_uniquesubquery_engine*)
+             subselect_table_scan_engine(thd,
+                                         (subselect_uniquesubquery_engine*)
                                          lookup_engine, tmp_table,
                                          item, result,
                                          semi_join_conds->argument_list(),
@@ -6255,6 +6260,7 @@ void Ordered_key::print(String *str)
 
 
 subselect_partial_match_engine::subselect_partial_match_engine(
+  THD *thd_arg,
   subselect_uniquesubquery_engine *engine_arg,
   TABLE *tmp_table_arg, Item_subselect *item_arg,
   select_result_interceptor *result_arg,
@@ -6268,13 +6274,16 @@ subselect_partial_match_engine::subselect_partial_match_engine(
    has_covering_null_row(has_covering_null_row_arg),
    has_covering_null_columns(has_covering_null_columns_arg),
    count_columns_with_nulls(count_columns_with_nulls_arg)
-{}
+{
+  thd= thd_arg;
+}
 
 
 int subselect_partial_match_engine::exec()
 {
   Item_in_subselect *item_in= item->get_IN_subquery();
   int lookup_res;
+  DBUG_ASSERT(thd);
 
   DBUG_ASSERT(!(item_in->left_expr_has_null() &&
                 item_in->is_top_level_item()));
@@ -6877,6 +6886,7 @@ end:
 
 
 subselect_table_scan_engine::subselect_table_scan_engine(
+  THD *thd,
   subselect_uniquesubquery_engine *engine_arg,
   TABLE *tmp_table_arg,
   Item_subselect *item_arg,
@@ -6885,7 +6895,7 @@ subselect_table_scan_engine::subselect_table_scan_engine(
   bool has_covering_null_row_arg,
   bool has_covering_null_columns_arg,
   uint count_columns_with_nulls_arg)
-  :subselect_partial_match_engine(engine_arg, tmp_table_arg, item_arg,
+  :subselect_partial_match_engine(thd, engine_arg, tmp_table_arg, item_arg,
                                   result_arg, equi_join_conds_arg,
                                   has_covering_null_row_arg,
                                   has_covering_null_columns_arg,

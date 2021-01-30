@@ -1205,10 +1205,9 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
   TABLE *table;
   char definer_buf[USER_HOST_BUFF_SIZE];
   LEX_CSTRING definer;
-  sql_mode_t saved_mode= thd->variables.sql_mode;
-
+  sql_mode_t org_sql_mode= thd->variables.sql_mode;
+  enum_check_fields org_count_cuted_fields= thd->count_cuted_fields;
   CHARSET_INFO *db_cs= get_default_db_collation(thd, sp->m_db.str);
-
   bool store_failed= FALSE;
   DBUG_ENTER("sp_create_routine");
   DBUG_PRINT("enter", ("type: %s  name: %.*s",
@@ -1241,8 +1240,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
 
   /* Reset sql_mode during data dictionary operations. */
   thd->variables.sql_mode= 0;
-
-  Check_level_instant_set check_level_save(thd, CHECK_FIELD_WARN);
+  thd->count_cuted_fields= CHECK_FIELD_WARN;
 
   if (!(table= open_proc_table_for_update(thd)))
   {
@@ -1390,7 +1388,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
 
     store_failed= store_failed ||
       table->field[MYSQL_PROC_FIELD_SQL_MODE]->
-        store((longlong)saved_mode, TRUE);
+        store((longlong) org_sql_mode, TRUE);
 
     if (sp->comment().str)
     {
@@ -1478,13 +1476,13 @@ log:
                        sp->chistics(),
                        thd->lex->definer[0],
                        thd->lex->create_info,
-                       saved_mode))
+                       org_sql_mode))
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto done;
     }
     /* restore sql_mode when binloging */
-    thd->variables.sql_mode= saved_mode;
+    thd->variables.sql_mode= org_sql_mode;
     /* Such a statement can always go directly to binlog, no trans cache */
     if (thd->binlog_query(THD::STMT_QUERY_TYPE,
                           log_query.ptr(), log_query.length(),
@@ -1493,12 +1491,12 @@ log:
       my_error(ER_ERROR_ON_WRITE, MYF(0), "binary log", -1);
       goto done;
     }
-    thd->variables.sql_mode= 0;
   }
   ret= FALSE;
 
 done:
-  thd->variables.sql_mode= saved_mode;
+  thd->variables.sql_mode= org_sql_mode;
+  thd->count_cuted_fields= org_count_cuted_fields;
   DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
   DBUG_RETURN(ret);
 }
