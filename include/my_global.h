@@ -1049,7 +1049,9 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 static inline char *dlerror(void)
 {
   static char win_errormsg[2048];
-  FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM,
+  FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM
+      | FORMAT_MESSAGE_IGNORE_INSERTS
+      | FORMAT_MESSAGE_MAX_WIDTH_MASK,
     0, GetLastError(), 0, win_errormsg, 2048, NULL);
   return win_errormsg;
 }
