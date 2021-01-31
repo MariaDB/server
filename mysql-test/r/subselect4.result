@@ -2686,4 +2686,12 @@ SELECT * FROM t2;
 f
 bar
 DROP TABLE t1, t2;
+#
+# MDEV-23449: alias do not exist and a query do not report an error
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4), (5,5);
+SELECT a, b FROM t1 WHERE a IN (SELECT A.a FROM t1 A GROUP BY s.id);
+ERROR 42S22: Unknown column 's.id' in 'group statement'
+DROP TABLE t1;
 # End of 10.2 tests

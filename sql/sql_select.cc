@@ -729,22 +729,6 @@ JOIN::prepare(TABLE_LIST *tables_init,
                                     tables_list, select_lex->leaf_tables,
                                     FALSE, SELECT_ACL, SELECT_ACL, FALSE))
       DBUG_RETURN(-1);
-
-  /*
-    Permanently remove redundant parts from the query if
-      1) This is a subquery
-      2) This is the first time this query is optimized (since the
-         transformation is permanent
-      3) Not normalizing a view. Removal should take place when a
-         query involving a view is optimized, not when the view
-         is created
-  */
-  if (select_lex->master_unit()->item &&                               // 1)
-      select_lex->first_cond_optimization &&                           // 2)
-      !thd->lex->is_view_context_analysis())                           // 3)
-  {
-    remove_redundant_subquery_clauses(select_lex);
-  }
   
   /*
     TRUE if the SELECT list mixes elements with and without grouping,
@@ -824,6 +808,23 @@ JOIN::prepare(TABLE_LIST *tables_init,
                           &hidden_group_fields,
                           &select_lex->select_n_reserved))
     DBUG_RETURN(-1);
+
+  /*
+    Permanently remove redundant parts from the query if
+      1) This is a subquery
+      2) This is the first time this query is optimized (since the
+         transformation is permanent
+      3) Not normalizing a view. Removal should take place when a
+         query involving a view is optimized, not when the view
+         is created
+  */
+  if (select_lex->master_unit()->item &&                               // 1)
+      select_lex->first_cond_optimization &&                           // 2)
+      !thd->lex->is_view_context_analysis())                           // 3)
+  {
+    remove_redundant_subquery_clauses(select_lex);
+  }
+
   /* Resolve the ORDER BY that was skipped, then remove it. */
   if (skip_order_by && select_lex !=
                        select_lex->master_unit()->global_parameters())
