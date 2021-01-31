@@ -1,0 +1,89 @@
+--source include/have_debug.inc
+
+#
+# Testing of atomic CREATE TRIGGER when write fails in create_definition_file
+#
+
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+let $engine_count=1;
+let $engines='aria';
+let $old_debug=`select @@debug_dbug`;
+
+let $e=0;
+--disable_query_log
+
+create table t1 (a int not null, b int not null);
+insert into t1 values(1,1);
+flush tables;
+
+# sql_create_definition_file is called twice per CREATE TRIGGER and 1 more
+# in case we drop an existing trigger, so we need to test 3*2 +1 failures
+# and also when there is no failures (= 8)
+let $try_count=8;
+
+let $r=0;
+while ($r < $try_count)
+{
+  inc $r;
+
+  echo "position: $r";
+  --eval set @@debug_dbug="+d,definition_file_simulate_write_error",@debug_error_counter=$r;
+  let $errno=0;
+  delimiter |;
+  --error 0,3
+  create trigger t1_trg before insert on t1 for each row
+  begin
+    if isnull(new.a) then
+      set new.a:= 1000;
+    end if;
+  end|
+  delimiter ;|
+  let $error=$errno;
+  if ($error == 0)
+  {
+    delimiter |;
+    --error 0,3
+    create or replace trigger t2_trg before insert on t1 for each row
+    begin
+      if isnull(new.b) then
+        set new.b:= 2000;
+      end if;
+    end|
+    delimiter ;|
+    let $error=$errno;
+  }
+  if ($error == 0)
+  {
+    delimiter |;
+    --error 0,3
+    create or replace trigger t2_trg before insert on t1 for each row
+    begin
+      if isnull(new.b) then
+        set new.b:= 3000;
+      end if;
+    end|
+    delimiter ;|
+    let $error=$errno;
+  }
+  --eval set @@debug_dbug="$old_debug"
+
+  # Check which tables still exists
+  --list_files $MYSQLD_DATADIR/test *TR*
+  --list_files $MYSQLD_DATADIR/test *sql*
+
+  --replace_column 7 #
+  --error 0,ER_TRG_DOES_NOT_EXIST
+  SHOW CREATE TRIGGER t1_trg;
+  --replace_column 7 #
+  --error 0,ER_TRG_DOES_NOT_EXIST
+  SHOW CREATE TRIGGER t2_trg;
+  --disable_warnings
+  drop trigger if exists t1_trg;
+  drop trigger if exists t2_trg;
+  --enable_warnings
+}
+
+drop table t1;
+
+--enable_query_log
