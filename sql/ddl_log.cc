@@ -90,7 +90,7 @@ const char *ddl_log_action_name[DDL_LOG_LAST_ACTION]=
   "rename table", "rename view",
   "initialize drop table", "drop table",
   "drop view", "drop trigger", "drop db", "create table", "create view",
-  "delete tmp file",
+  "delete tmp file", "create trigger",
 };
 
 /* Number of phases per entry */
@@ -100,7 +100,7 @@ const uchar ddl_log_entry_phases[DDL_LOG_LAST_ACTION]=
   (uchar) EXCH_PHASE_END, (uchar) DDL_RENAME_PHASE_END, 1, 1,
   (uchar) DDL_DROP_PHASE_END, 1, 1,
   (uchar) DDL_DROP_DB_PHASE_END, (uchar) DDL_CREATE_TABLE_PHASE_END,
-  (uchar) DDL_CREATE_VIEW_PHASE_END, 0,
+  (uchar) DDL_CREATE_VIEW_PHASE_END, 0, (uchar) DDL_CREATE_TRIGGER_PHASE_END,
 };
 
 
@@ -1639,7 +1639,96 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
     break;
   }
-  break;
+  case DDL_LOG_CREATE_TRIGGER_ACTION:
+  {
+    LEX_CSTRING db, table, trigger;
+    db=      ddl_log_entry->db;
+    table=   ddl_log_entry->name;
+    trigger= ddl_log_entry->tmp_name;
+
+    /* Delete backup .TRG (trigger file) if it exists */
+    (void) build_filename_and_delete_tmp_file(to_path, sizeof(to_path) - 1,
+                                              &db, &table,
+                                              TRG_EXT,
+                                              key_file_fileparser);
+    (void) build_filename_and_delete_tmp_file(to_path, sizeof(to_path) - 1,
+                                              &db, &trigger,
+                                              TRN_EXT,
+                                              key_file_fileparser);
+    switch (ddl_log_entry->phase) {
+    case DDL_CREATE_TRIGGER_PHASE_DELETE_COPY:
+    {
+      size_t length;
+      /* Delete copy of .TRN and .TRG files */
+      length= build_table_filename(to_path, sizeof(to_path) - 1,
+                                   db.str, table.str, TRG_EXT, 0);
+      to_path[length]= '-';
+      to_path[length+1]= 0;
+      mysql_file_delete(key_file_fileparser, to_path,
+                        MYF(MY_WME|MY_IGNORE_ENOENT));
+
+      length= build_table_filename(to_path, sizeof(to_path) - 1,
+                                   db.str, trigger.str, TRN_EXT, 0);
+      to_path[length]= '-';
+      to_path[length+1]= 0;
+      mysql_file_delete(key_file_fileparser, to_path,
+                        MYF(MY_WME|MY_IGNORE_ENOENT));
+    }
+    /* Nothing else to do */
+    (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
+    break;
+    case DDL_CREATE_TRIGGER_PHASE_OLD_COPIED:
+    {
+      LEX_CSTRING path= {to_path, 0};
+      size_t length;
+      /* Restore old version if the .TRN and .TRG files */
+      length= build_table_filename(to_path, sizeof(to_path) - 1,
+                                   db.str, table.str, TRG_EXT, 0);
+      to_path[length]='-';
+      to_path[length+1]= 0;
+      path.length= length+1;
+      /* an old TRN file only exist in the case if REPLACE was used */
+      if (!access(to_path, F_OK))
+        sql_restore_definition_file(&path);
+
+      length= build_table_filename(to_path, sizeof(to_path) - 1,
+                                   db.str, trigger.str, TRN_EXT, 0);
+      to_path[length]='-';
+      to_path[length+1]= 0;
+      path.length= length+1;
+      if (!access(to_path, F_OK))
+        sql_restore_definition_file(&path);
+      else
+      {
+        /*
+          There was originally no .TRN for this trigger.
+          Delete the newly created one.
+        */
+        to_path[length]= 0;
+        mysql_file_delete(key_file_fileparser, to_path,
+                          MYF(MY_WME|MY_IGNORE_ENOENT));
+      }
+      (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
+      break;
+    }
+    case DDL_CREATE_TRIGGER_PHASE_NO_OLD_TRIGGER:
+    {
+      /* No old trigger existed. We can just delete the .TRN and .TRG files */
+      build_table_filename(to_path, sizeof(to_path) - 1,
+                           db.str, table.str, TRG_EXT, 0);
+      mysql_file_delete(key_file_fileparser, to_path,
+                        MYF(MY_WME|MY_IGNORE_ENOENT));
+      build_table_filename(to_path, sizeof(to_path) - 1,
+                           db.str, trigger.str, TRN_EXT, 0);
+      mysql_file_delete(key_file_fileparser, to_path,
+                        MYF(MY_WME|MY_IGNORE_ENOENT));
+      (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
+      break;
+    }
+    }
+    break;
+  }
+  }
   default:
     DBUG_ASSERT(0);
     break;
@@ -2627,5 +2716,27 @@ bool ddl_log_delete_tmp_file(THD *thd, DDL_LOG_STATE *ddl_state,
   ddl_log_entry.tmp_name=     *const_cast<LEX_CSTRING*>(path);
   if (depending_state)
     ddl_log_entry.unique_id= depending_state->execute_entry->entry_pos;
+  DBUG_RETURN(ddl_log_write(ddl_state, &ddl_log_entry));
+}
+
+
+/**
+   Log CREATE TRIGGER
+*/
+
+bool ddl_log_create_trigger(THD *thd, DDL_LOG_STATE *ddl_state,
+                            const LEX_CSTRING *db, const LEX_CSTRING *table,
+                            const LEX_CSTRING *trigger_name,
+                            enum_ddl_log_create_trigger_phase phase)
+{
+  DDL_LOG_ENTRY ddl_log_entry;
+  DBUG_ENTER("ddl_log_create_view");
+
+  bzero(&ddl_log_entry, sizeof(ddl_log_entry));
+  ddl_log_entry.action_type=  DDL_LOG_CREATE_TRIGGER_ACTION;
+  ddl_log_entry.db=           *const_cast<LEX_CSTRING*>(db);
+  ddl_log_entry.name=         *const_cast<LEX_CSTRING*>(table);
+  ddl_log_entry.tmp_name=     *const_cast<LEX_CSTRING*>(trigger_name);
+  ddl_log_entry.phase=        (uchar) phase;
   DBUG_RETURN(ddl_log_write(ddl_state, &ddl_log_entry));
 }

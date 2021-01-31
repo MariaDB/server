@@ -1,0 +1,94 @@
+"position: 1"
+"position: 2"
+"position: 3"
+t1.TRG
+t1_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` trigger t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+"position: 4"
+t1.TRG
+t1_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` trigger t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+"position: 5"
+t1.TRG
+t1_trg.TRN
+t2_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` trigger t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t2_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` trigger t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 2000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+"position: 6"
+t1.TRG
+t1_trg.TRN
+t2_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` trigger t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t2_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` trigger t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 2000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+"position: 7"
+t1.TRG
+t1_trg.TRN
+t2_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` trigger t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t2_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` trigger t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 2000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+"position: 8"
+t1.TRG
+t1_trg.TRN
+t2_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` trigger t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t2_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` trigger t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 3000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#

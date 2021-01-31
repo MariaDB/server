@@ -1178,11 +1178,8 @@ loop_out:
 
   if (old_view_exists)
   {
-    /* Make a backup that we can restore in case of crash */
-    memcpy(backup_file_name, path.str, path.length);
-    backup_file_name[path.length]='-';
-    backup_file_name[path.length+1]= 0;
-    if (my_copy(path.str, backup_file_name, MYF(MY_WME)))
+    LEX_CSTRING backup_name= { backup_file_name, 0 };
+    if (sql_backup_definition_file(&path, &backup_name))
     {
       error= 1;
       goto err;

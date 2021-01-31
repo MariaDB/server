@@ -85,6 +85,7 @@ enum ddl_log_action_code
   DDL_LOG_CREATE_TABLE_ACTION=12,
   DDL_LOG_CREATE_VIEW_ACTION=13,
   DDL_LOG_DELETE_TMP_FILE_ACTION=14,
+  DDL_LOG_CREATE_TRIGGER_ACTION=15,
   DDL_LOG_LAST_ACTION                          /* End marker */
 };
 
@@ -132,6 +133,13 @@ enum enum_ddl_log_create_view_phase {
   DDL_CREATE_VIEW_PHASE_DELETE_VIEW_COPY,
   DDL_CREATE_VIEW_PHASE_OLD_VIEW_COPIED,
   DDL_CREATE_VIEW_PHASE_END
+};
+
+enum enum_ddl_log_create_trigger_phase {
+  DDL_CREATE_TRIGGER_PHASE_NO_OLD_TRIGGER,
+  DDL_CREATE_TRIGGER_PHASE_DELETE_COPY,
+  DDL_CREATE_TRIGGER_PHASE_OLD_COPIED,
+  DDL_CREATE_TRIGGER_PHASE_END
 };
 
 
@@ -269,5 +277,9 @@ bool ddl_log_create_view(THD *thd, DDL_LOG_STATE *ddl_state,
 bool ddl_log_delete_tmp_file(THD *thd, DDL_LOG_STATE *ddl_state,
                              const LEX_CSTRING *path,
                              DDL_LOG_STATE *depending_state);
+bool ddl_log_create_trigger(THD *thd, DDL_LOG_STATE *ddl_state,
+                            const LEX_CSTRING *db, const LEX_CSTRING *table,
+                            const LEX_CSTRING *trigger_name,
+                            enum_ddl_log_create_trigger_phase phase);
 extern mysql_mutex_t LOCK_gdl;
 #endif /* DDL_LOG_INCLUDED */
