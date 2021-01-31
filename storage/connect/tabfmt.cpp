@@ -311,12 +311,13 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
 
       } else if (*p == q) {
         if (phase == 0) {
-          if (blank)
+          if (blank) {
             if (++nerr > mxr) {
               sprintf(g->Message, MSG(MISPLACED_QUOTE), num_read);
               goto err;
             } else
               goto skip;
+          }
 
           n = 0;
           phase = digit = 1;
@@ -341,12 +342,13 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
           goto skip;
 
       } else {
-        if (phase == 2)
+        if (phase == 2) {
           if (++nerr > mxr) {
             sprintf(g->Message, MSG(MISPLACED_QUOTE), num_read);
             goto err;
           } else
             goto skip;
+        }
 
         // isdigit cannot be used here because of debug assert
         if (!strchr("0123456789", *p)) {
@@ -362,12 +364,13 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
         blank = 1;
       } // endif's *p
 
-    if (phase == 1)
+    if (phase == 1) {
       if (++nerr > mxr) {
         sprintf(g->Message, MSG(UNBALANCE_QUOTE), num_read);
         goto err;
       } else
         goto skip;
+    }
 
     if (n) {
       len[i] = MY_MAX(len[i], n);
@@ -741,7 +744,7 @@ bool TDBCSV::OpenDB(PGLOBAL g)
     int     i, len;
     PCSVCOL colp;
 
-    if (!Fields)              // May have been set in TABFMT::OpenDB
+    if (!Fields) {            // May have been set in TABFMT::OpenDB
       if (Mode != MODE_UPDATE && Mode != MODE_INSERT) {
         for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
           if (!colp->IsSpecial() && !colp->IsVirtual())
@@ -754,6 +757,7 @@ bool TDBCSV::OpenDB(PGLOBAL g)
         for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext())
           if (!cdp->IsSpecial() && !cdp->IsVirtual())
             Fields++;
+    }
 
     Offset = (int*)PlugSubAlloc(g, NULL, sizeof(int) * Fields);
     Fldlen = (int*)PlugSubAlloc(g, NULL, sizeof(int) * Fields);
@@ -774,7 +778,7 @@ bool TDBCSV::OpenDB(PGLOBAL g)
 
       } // endfor i
 
-    if (Field)
+    if (Field) {
       // Prepare writing fields
       if (Mode != MODE_UPDATE) {
         for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
@@ -797,6 +801,7 @@ bool TDBCSV::OpenDB(PGLOBAL g)
             Fldlen[i] = len;
             Fldtyp[i] = IsTypeNum(cdp->GetType());
             } // endif cdp
+    }
 
     } // endif Use
 
@@ -1046,7 +1051,7 @@ bool TDBCSV::PrepareWriting(PGLOBAL g)
     if (i)
       strcat(To_Line, sep);
 
-    if (Field[i])
+    if (Field[i]) {
       if (!strlen(Field[i])) {
         // Generally null fields are not quoted
         if (Quoted > 2)
@@ -1054,7 +1059,7 @@ bool TDBCSV::PrepareWriting(PGLOBAL g)
           strcat(strcat(To_Line, qot), qot);
 
       } else if (Qot && (strchr(Field[i], Sep) || *Field[i] == Qot
-              || Quoted > 1 || (Quoted == 1 && !Fldtyp[i])))
+              || Quoted > 1 || (Quoted == 1 && !Fldtyp[i]))) {
         if (strchr(Field[i], Qot)) {
           // Field contains quotes that must be doubled
           int j, k = strlen(To_Line), n = strlen(Field[i]);
@@ -1072,9 +1077,11 @@ bool TDBCSV::PrepareWriting(PGLOBAL g)
           To_Line[k] = '\0';
         } else
           strcat(strcat(strcat(To_Line, qot), Field[i]), qot);
+      }
 
       else
         strcat(To_Line, Field[i]);
+    }
 
     } // endfor i
 

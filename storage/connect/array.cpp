@@ -599,10 +599,12 @@ int ARRAY::Convert(PGLOBAL g, int k, PVAL vp)
   /*  Converting STRING to DATE can be done according to date format.  */
   /*********************************************************************/
   if (Type == TYPE_DATE && ovblp->GetType() == TYPE_STRING && vp)
+  {
     if (((DTVAL*)Value)->SetFormat(g, vp))
       return TYPE_ERROR;
     else
       b = true;  // Sort the new array on date internal values
+  }
 
   /*********************************************************************/
   /*  Do the actual conversion.                                        */
