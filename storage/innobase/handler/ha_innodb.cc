@@ -4,7 +4,7 @@ Copyright (c) 2000, 2020, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -60,6 +60,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include <my_service_manager.h>
 #include <key.h>
+#include <sql_manager.h>
 
 /* Include necessary InnoDB headers */
 #include "btr0btr.h"
@@ -156,11 +157,8 @@ wsrep_ws_handle(THD* thd, const trx_t* trx) {
 }
 
 extern void wsrep_cleanup_transaction(THD *thd);
-static int
-wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
-			my_bool signal);
-static void
-wsrep_fake_trx_id(handlerton* hton, THD *thd);
+static void wsrep_abort_transaction(handlerton*, THD *, THD *, my_bool);
+static void wsrep_fake_trx_id(handlerton* hton, THD *thd);
 static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 #endif /* WITH_WSREP */
@@ -3507,6 +3505,12 @@ static int innodb_init_abort()
 	DBUG_RETURN(1);
 }
 
+/** Deprecation message about innodb_idle_flush_pct */
+static const char*	deprecated_idle_flush_pct
+	= "innodb_idle_flush_pct is DEPRECATED and has no effect.";
+
+static ulong innodb_idle_flush_pct;
+
 /** If applicable, emit a message that log checksums cannot be disabled.
 @param[in,out]	thd	client session, or NULL if at startup
 @param[in]	check	whether redo log block checksums are enabled
@@ -5023,6 +5027,7 @@ innobase_close_connection(
 
 	if (trx) {
 
+		thd_set_ha_data(thd, hton, NULL);
 		if (!trx_is_registered_for_2pc(trx) && trx_is_started(trx)) {
 
 			sql_print_error("Transaction not registered for MariaDB 2PC, "
@@ -17288,7 +17293,8 @@ innodb_io_capacity_update(
 				    " higher than innodb_io_capacity_max %lu",
 				    in_val, srv_max_io_capacity);
 
-		srv_max_io_capacity = in_val * 2;
+		srv_max_io_capacity = (in_val & ~(~0UL >> 1))
+			? in_val : in_val * 2;
 
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
@@ -18743,69 +18749,57 @@ wsrep_abort_slave_trx(
 		(long long)bf_seqno, (long long)victim_seqno);
 	abort();
 }
-/*******************************************************************//**
-This function is used to kill one transaction in BF. */
-UNIV_INTERN
-int
-wsrep_innobase_kill_one_trx(
-/*========================*/
-	void * const bf_thd_ptr,
-	const trx_t * const bf_trx,
-	trx_t *victim_trx,
-	ibool signal)
+
+struct bg_wsrep_kill_trx_arg {
+	my_thread_id	thd_id;
+	trx_id_t	trx_id;
+	int64_t		bf_seqno;
+	ibool		signal;
+};
+
+static void bg_wsrep_kill_trx(
+	void *void_arg)
 {
-        ut_ad(lock_mutex_own());
-        ut_ad(trx_mutex_own(victim_trx));
-        ut_ad(bf_thd_ptr);
-        ut_ad(victim_trx);
+	bg_wsrep_kill_trx_arg *arg = (bg_wsrep_kill_trx_arg*)void_arg;
+	THD *thd 		   = find_thread_by_id(arg->thd_id, false);
+	trx_t *victim_trx 	   = NULL;
+	bool awake 		   = false;
+	DBUG_ENTER("bg_wsrep_kill_trx");
 
-	DBUG_ENTER("wsrep_innobase_kill_one_trx");
-	THD *bf_thd       = bf_thd_ptr ? (THD*) bf_thd_ptr : NULL;
-	THD *thd          = (THD *) victim_trx->mysql_thd;
-	int64_t bf_seqno  = (bf_thd) ? wsrep_thd_trx_seqno(bf_thd) : 0;
+	if (thd) {
+		victim_trx = thd_to_trx(thd);
+		lock_mutex_enter();
+		trx_mutex_enter(victim_trx);
+		if (victim_trx->id != arg->trx_id)
+		{
+			trx_mutex_exit(victim_trx);
+			lock_mutex_exit();
+			wsrep_thd_UNLOCK(thd);
+			victim_trx = NULL;
+		}
+	}
 
-	if (!thd) {
+	if (!victim_trx) {
+		/* it can happen that trx_id was meanwhile rolled back */
 		DBUG_PRINT("wsrep", ("no thd for conflicting lock"));
-		WSREP_WARN("no THD for trx: " TRX_ID_FMT, victim_trx->id);
-		DBUG_RETURN(1);
+		goto ret;
 	}
-
-	if (!bf_thd) {
-		DBUG_PRINT("wsrep", ("no BF thd for conflicting lock"));
-		WSREP_WARN("no BF THD for trx: " TRX_ID_FMT,
-			   bf_trx ? bf_trx->id : 0);
-		DBUG_RETURN(1);
-	}
-
-	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
 
 	WSREP_DEBUG("BF kill (" ULINTPF ", seqno: " INT64PF
 		    "), victim: (%lu) trx: " TRX_ID_FMT,
-		    signal, bf_seqno,
+		    arg->signal, arg->bf_seqno,
 		    thd_get_thread_id(thd),
 		    victim_trx->id);
 
 	WSREP_DEBUG("Aborting query: %s conf %d trx: %" PRId64,
-		    (thd && wsrep_thd_query(thd)) ? wsrep_thd_query(thd) : "void",
+		    (wsrep_thd_query(thd)) ? wsrep_thd_query(thd) : "void",
 		    wsrep_thd_conflict_state(thd, FALSE),
 		    wsrep_thd_ws_handle(thd)->trx_id);
-
-	wsrep_thd_LOCK(thd);
-        DBUG_EXECUTE_IF("sync.wsrep_after_BF_victim_lock",
-                 {
-                   const char act[]=
-                     "now "
-                     "wait_for signal.wsrep_after_BF_victim_lock";
-                   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
-                                                      STRING_WITH_LEN(act)));
-                 };);
-
 
 	if (wsrep_thd_query_state(thd) == QUERY_EXITING) {
 		WSREP_DEBUG("kill trx EXITING for " TRX_ID_FMT,
 			    victim_trx->id);
-		wsrep_thd_UNLOCK(thd);
-		DBUG_RETURN(0);
+		goto ret_unlock;
 	}
 
 	if (wsrep_thd_exec_mode(thd) != LOCAL_STATE) {
@@ -18821,18 +18815,13 @@ wsrep_innobase_kill_one_trx(
         case MUST_ABORT:
 		WSREP_DEBUG("victim " TRX_ID_FMT " in MUST ABORT state",
 			    victim_trx->id);
-		wsrep_thd_UNLOCK(thd);
-		wsrep_thd_awake(thd, signal);
-		DBUG_RETURN(0);
-		break;
+		goto ret_awake;
 	case ABORTED:
 	case ABORTING: // fall through
 	default:
 		WSREP_DEBUG("victim " TRX_ID_FMT " in state %d",
 			    victim_trx->id, wsrep_thd_get_conflict_state(thd));
-		wsrep_thd_UNLOCK(thd);
-		DBUG_RETURN(0);
-		break;
+		goto ret_unlock;
 	}
 
 	switch (wsrep_thd_query_state(thd)) {
@@ -18845,12 +18834,12 @@ wsrep_innobase_kill_one_trx(
 			    victim_trx->id);
 
 		if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
-			wsrep_abort_slave_trx(bf_seqno,
+			wsrep_abort_slave_trx(arg->bf_seqno,
 					      wsrep_thd_trx_seqno(thd));
 		} else {
 			wsrep_t *wsrep= get_wsrep();
 			rcode = wsrep->abort_pre_commit(
-				wsrep, bf_seqno,
+				wsrep, arg->bf_seqno,
 				(wsrep_trx_id_t)wsrep_thd_ws_handle(thd)->trx_id
 			);
 
@@ -18859,10 +18848,7 @@ wsrep_innobase_kill_one_trx(
 				WSREP_DEBUG("cancel commit warning: "
 					    TRX_ID_FMT,
 					    victim_trx->id);
-				wsrep_thd_UNLOCK(thd);
-				wsrep_thd_awake(thd, signal);
-				DBUG_RETURN(1);
-				break;
+				goto ret_awake;
 			case WSREP_OK:
 				break;
 			default:
@@ -18875,12 +18861,9 @@ wsrep_innobase_kill_one_trx(
 				 * kill the lock holder first.
 				 */
 				abort();
-				break;
 			}
 		}
-		wsrep_thd_UNLOCK(thd);
-		wsrep_thd_awake(thd, signal);
-		break;
+		goto ret_awake;
 	case QUERY_EXEC:
 		/* it is possible that victim trx is itself waiting for some
 		 * other lock. We need to cancel this waiting
@@ -18901,26 +18884,20 @@ wsrep_innobase_kill_one_trx(
 				lock_cancel_waiting_and_release(wait_lock);
 			}
 
-			wsrep_thd_UNLOCK(thd);
-			wsrep_thd_awake(thd, signal);
 		} else {
 			/* abort currently executing query */
 			DBUG_PRINT("wsrep",("sending KILL_QUERY to: %lu",
                                             thd_get_thread_id(thd)));
 			WSREP_DEBUG("kill query for: %ld",
 				thd_get_thread_id(thd));
-			/* Note that innobase_kill_query will take lock_mutex
-			and trx_mutex */
-			wsrep_thd_UNLOCK(thd);
-			wsrep_thd_awake(thd, signal);
 
 			/* for BF thd, we need to prevent him from committing */
 			if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
-				wsrep_abort_slave_trx(bf_seqno,
+				wsrep_abort_slave_trx(arg->bf_seqno,
 						    wsrep_thd_trx_seqno(thd));
 			}
 		}
-		break;
+		goto ret_awake;
 	case QUERY_IDLE:
 	{
 		WSREP_DEBUG("kill IDLE for " TRX_ID_FMT, victim_trx->id);
@@ -18928,10 +18905,9 @@ wsrep_innobase_kill_one_trx(
 		if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
 			WSREP_DEBUG("kill BF IDLE, seqno: %lld",
 				    (long long)wsrep_thd_trx_seqno(thd));
-			wsrep_thd_UNLOCK(thd);
-			wsrep_abort_slave_trx(bf_seqno,
+			wsrep_abort_slave_trx(arg->bf_seqno,
 					      wsrep_thd_trx_seqno(thd));
-			DBUG_RETURN(0);
+			goto ret_unlock;
 		}
                 /* This will lock thd from proceeding after net_read() */
 		wsrep_thd_set_conflict_state(thd, ABORTING);
@@ -18952,22 +18928,72 @@ wsrep_innobase_kill_one_trx(
 		DBUG_PRINT("wsrep",("signalling wsrep rollbacker"));
 		WSREP_DEBUG("signaling aborter");
 		wsrep_unlock_rollback();
-		wsrep_thd_UNLOCK(thd);
-
-		break;
+		goto ret_unlock;
 	}
 	default:
 		WSREP_WARN("bad wsrep query state: %d",
 			  wsrep_thd_query_state(thd));
-		wsrep_thd_UNLOCK(thd);
-		break;
+		goto ret_unlock;
 	}
 
-	DBUG_RETURN(0);
+ret_awake:
+	awake = true;
+
+ret_unlock:
+	trx_mutex_exit(victim_trx);
+	lock_mutex_exit();
+	if (awake)
+		wsrep_thd_awake(thd, arg->signal);
+	wsrep_thd_UNLOCK(thd);
+
+ret:
+	free(arg);
+	DBUG_VOID_RETURN;
+
+}
+
+/*******************************************************************//**
+This function is used to kill one transaction in BF. */
+UNIV_INTERN
+void
+wsrep_innobase_kill_one_trx(
+/*========================*/
+	MYSQL_THD const bf_thd,
+	const trx_t * const bf_trx,
+	trx_t *victim_trx,
+	ibool signal)
+{
+	ut_ad(bf_thd);
+	ut_ad(victim_trx);
+	ut_ad(lock_mutex_own());
+	ut_ad(trx_mutex_own(victim_trx));
+
+	bg_wsrep_kill_trx_arg *arg = (bg_wsrep_kill_trx_arg*)malloc(sizeof(*arg));
+	arg->thd_id	= thd_get_thread_id(victim_trx->mysql_thd);
+	arg->trx_id	= victim_trx->id;
+	arg->bf_seqno	= wsrep_thd_trx_seqno((THD*)bf_thd);
+	arg->signal	= signal;
+
+	DBUG_ENTER("wsrep_innobase_kill_one_trx");
+
+	WSREP_LOG_CONFLICT(bf_thd, victim_trx->mysql_thd, TRUE);
+
+	DBUG_EXECUTE_IF("sync.wsrep_after_BF_victim_lock",
+		{
+		  const char act[]=
+		    "now "
+		    "wait_for signal.wsrep_after_BF_victim_lock";
+		  DBUG_ASSERT(!debug_sync_set_action(bf_thd,
+						     STRING_WITH_LEN(act)));
+		};);
+
+
+	mysql_manager_submit(bg_wsrep_kill_trx, arg);
+	DBUG_VOID_RETURN;
 }
 
 static
-int
+void
 wsrep_abort_transaction(
 /*====================*/
 	handlerton*,
@@ -18975,7 +19001,7 @@ wsrep_abort_transaction(
 	THD *victim_thd,
 	my_bool signal)
 {
-	DBUG_ENTER("wsrep_innobase_abort_thd");
+	DBUG_ENTER("wsrep_abort_transaction");
 
 	trx_t* victim_trx	= thd_to_trx(victim_thd);
 	trx_t* bf_trx		= (bf_thd) ? thd_to_trx(bf_thd) : NULL;
@@ -18988,12 +19014,11 @@ wsrep_abort_transaction(
 	if (victim_trx) {
 		lock_mutex_enter();
 		trx_mutex_enter(victim_trx);
-		int rcode = wsrep_innobase_kill_one_trx(bf_thd, bf_trx,
-                                                        victim_trx, signal);
+		wsrep_innobase_kill_one_trx(bf_thd, bf_trx, victim_trx, signal);
 		lock_mutex_exit();
 		trx_mutex_exit(victim_trx);
 		wsrep_srv_conc_cancel_wait(victim_trx);
-		DBUG_RETURN(rcode);
+		DBUG_VOID_RETURN;
 	} else {
 		WSREP_DEBUG("victim does not have transaction");
 		wsrep_thd_LOCK(victim_thd);
@@ -19002,7 +19027,7 @@ wsrep_abort_transaction(
 		wsrep_thd_awake(victim_thd, signal);
 	}
 
-	DBUG_RETURN(-1);
+	DBUG_VOID_RETURN;
 }
 
 static
@@ -19045,6 +19070,14 @@ static void wsrep_fake_trx_id(handlerton *, THD *thd)
 }
 
 #endif /* WITH_WSREP */
+
+static void innodb_idle_flush_pct_update(THD *thd, st_mysql_sys_var *var,
+                                         void*, const void *save)
+{
+  innodb_idle_flush_pct = *static_cast<const ulong*>(save);
+  push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+               HA_ERR_WRONG_COMMAND, deprecated_idle_flush_pct);
+}
 
 /* plugin options */
 
@@ -19130,12 +19163,10 @@ static MYSQL_SYSVAR_ULONG(io_capacity_max, srv_max_io_capacity,
   SRV_MAX_IO_CAPACITY_DUMMY_DEFAULT, 100,
   SRV_MAX_IO_CAPACITY_LIMIT, 0);
 
-static MYSQL_SYSVAR_ULONG(idle_flush_pct,
-  srv_idle_flush_pct,
+static MYSQL_SYSVAR_ULONG(idle_flush_pct, innodb_idle_flush_pct,
   PLUGIN_VAR_RQCMDARG,
-  "Up to what percentage of dirty pages should be flushed when innodb "
-  "finds it has spare resources to do so.",
-  NULL, NULL, 100, 0, 100, 0);
+  "DEPRECATED. This setting has no effect.",
+  NULL, innodb_idle_flush_pct_update, 100, 0, 100, 0);
 
 #ifdef UNIV_DEBUG
 static MYSQL_SYSVAR_BOOL(background_drop_list_empty,
@@ -20682,7 +20713,7 @@ static bool table_name_parse(
 	memcpy(tbl_buf, tbl_name.m_name + dbnamelen + 1, tblnamelen);
 	tbl_buf[tblnamelen] = 0;
 
-	filename_to_tablename(db_buf, dbname, MAX_DATABASE_NAME_LEN + 1, true);
+	dbnamelen = filename_to_tablename(db_buf, dbname, MAX_DATABASE_NAME_LEN + 1, true);
 
 	if (tblnamelen > TEMP_FILE_PREFIX_LENGTH
 	    && !strncmp(tbl_buf, TEMP_FILE_PREFIX, TEMP_FILE_PREFIX_LENGTH)) {
@@ -20694,7 +20725,7 @@ static bool table_name_parse(
 		tblnamelen = is_part - tbl_buf;
 	}
 
-	filename_to_tablename(tbl_buf, tblname, MAX_TABLE_NAME_LEN + 1, true);
+	tblnamelen = filename_to_tablename(tbl_buf, tblname, MAX_TABLE_NAME_LEN + 1, true);
 	return true;
 }
 

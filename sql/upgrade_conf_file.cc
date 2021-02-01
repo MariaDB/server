@@ -75,6 +75,7 @@ static const char *removed_variables[] =
 "innodb_ibuf_accel_rate",
 "innodb_ibuf_active_contract",
 "innodb_ibuf_max_size",
+"innodb_idle_flush_pct",
 "innodb_import_table_from_xtrabackup",
 "innodb_instrument_semaphores",
 "innodb_kill_idle_transaction",

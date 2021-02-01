@@ -10425,6 +10425,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
   uint keynr= param->real_keynr[idx];
   DBUG_ENTER("check_quick_select");
   
+  param->is_ror_scan= FALSE;
   /* Handle cases when we don't have a valid non-empty list of range */
   if (!tree)
     DBUG_RETURN(HA_POS_ERROR);

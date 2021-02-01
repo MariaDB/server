@@ -1,0 +1,23 @@
+create table t1(f1 char(10), f2 char(10) not null, f3 int not null,
+f4 int not null, primary key(f3))engine=innodb;
+insert into t1 values('a','a', 1, 1), ('b','b', 2, 2), ('c', 'c', 3, 3), ('d', 'd', 4, 4);
+SET DEBUG_SYNC="row_merge_after_scan SIGNAL con1_start WAIT_FOR con1_insert";
+SET DEBUG_SYNC="innodb_commit_inplace_alter_table_wait SIGNAL con1_wait WAIT_FOR con1_update";
+ALTER TABLE t1 ADD UNIQUE INDEX(f1(3), f4), ADD UNIQUE INDEX(f2), ALGORITHM=INPLACE;
+connect con1,localhost,root,,,;
+SET DEBUG_SYNC="now WAIT_FOR con1_start";
+begin;
+INSERT INTO t1 VALUES('e','e',5, 5);
+SET DEBUG_SYNC="now SIGNAL con1_insert";
+SET DEBUG_SYNC="now WAIT_FOR con1_wait";
+SET DEBUG_SYNC="before_row_upd_sec_new_index_entry SIGNAL con1_update WAIT_FOR alter_rollback";
+UPDATE t1 set f4 = 10 order by f1 desc limit 2;
+connection default;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET DEBUG_SYNC="now SIGNAL alter_rollback";
+connection con1;
+commit;
+connection default;
+disconnect con1;
+DROP TABLE t1;
+SET DEBUG_SYNC="RESET";

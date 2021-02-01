@@ -185,7 +185,7 @@ typedef struct _global {            /* Global structure                */
   size_t    Sarea_Size;             /* Work area size                  */
 	PACTIVITY Activityp;
   char      Message[MAX_STR];				/* Message (result, error, trace)  */
-	ulong     More;										/* Used by jsonudf                 */
+	size_t    More;										/* Used by jsonudf                 */
 	size_t    Saved_Size;             /* Saved work area to_free         */
 	bool      Createas;               /* To pass multi to ext tables     */
   void     *Xchk;                   /* indexes in create/alter         */
@@ -208,7 +208,7 @@ DllExport char   *PlugGetMessage(PGLOBAL, int);
 DllExport short   GetLineLength(PGLOBAL);   // Console line length
 #endif   // __WIN__
 DllExport PGLOBAL PlugInit(LPCSTR, size_t); // Plug global initialization
-DllExport int     PlugExit(PGLOBAL);        // Plug global termination
+DllExport PGLOBAL PlugExit(PGLOBAL);        // Plug global termination
 DllExport LPSTR   PlugRemoveType(LPSTR, LPCSTR);
 DllExport LPCSTR  PlugSetPath(LPSTR to, LPCSTR prefix, LPCSTR name, LPCSTR dir);
 DllExport BOOL    PlugIsAbsolutePath(LPCSTR path);
@@ -220,30 +220,11 @@ DllExport char   *PlugDup(PGLOBAL g, const char *str);
 DllExport void    htrc(char const *fmt, ...);
 DllExport void    xtrc(uint, char const* fmt, ...);
 DllExport uint    GetTraceValue(void);
+DllExport void*   MakePtr(void* memp, size_t offset);
+DllExport size_t  MakeOff(void* memp, void* ptr);
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-
-/***********************************************************************/
-/*  Inline routine definitions.                                        */
-/***********************************************************************/
-/***********************************************************************/
-/* This routine makes a pointer from an offset to a memory pointer.    */
-/***********************************************************************/
-inline void* MakePtr(void* memp, size_t offset) {
-	// return ((offset == 0) ? NULL : &((char*)memp)[offset]);
-	return (!offset) ? NULL : (char *)memp + offset;
-} /* end of MakePtr */
-
-/***********************************************************************/
-/* This routine makes an offset from a pointer new format.             */
-/***********************************************************************/
-inline size_t MakeOff(void* memp, void* ptr) {
-#if defined(_DEBUG)
-	assert(ptr > memp);
-#endif   // _DEBUG
-	return ((!ptr) ? 0 : (size_t)((char*)ptr - (size_t)memp));
-} /* end of MakeOff */
 
 /*-------------------------- End of Global.H --------------------------*/

@@ -2747,6 +2747,29 @@ INSERT INTO t1 (a) VALUES (1),(2),(3);
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --triggers --no-data --no-create-info --add-drop-trigger --skip-comments --databases test
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-20939: Race condition between mysqldump import and InnoDB
+--echo #             persistent statistics calculation
+--echo #
+
+--let $ignore= --ignore-table=mysql.proxies_priv --ignore-table=mysql.user --ignore-table=mysql.column_stats --ignore-table=mysql.columns_priv --ignore-table=mysql.db --ignore-table=mysql.event --ignore-table=mysql.func --ignore-table=mysql.gtid_slave_pos --ignore-table=mysql.help_category --ignore-table=mysql.help_keyword --ignore-table=mysql.help_relation --ignore-table=mysql.help_topic --ignore-table=mysql.host --ignore-table=mysql.index_stats --ignore-table=mysql.plugin --ignore-table=mysql.proc --ignore-table=mysql.procs_priv --ignore-table=mysql.roles_mapping --ignore-table=mysql.servers --ignore-table=mysql.table_stats --ignore-table=mysql.tables_priv --ignore-table=mysql.time_zone --ignore-table=mysql.time_zone_leap_second --ignore-table=mysql.time_zone_name --ignore-table=mysql.time_zone_transition --ignore-table=mysql.time_zone_transition_type --ignore-table=mysql.general_log --ignore-table=mysql.slow_log
+--let $skip_opts= --skip-dump-date --skip-comments
+
+--echo #
+--echo # Without --replace and --insert-ignore
+--echo #
+--exec $MYSQL_DUMP $ignore $skip_opts mysql
+
+--echo #
+--echo # With --replace
+--echo #
+--exec $MYSQL_DUMP $ignore $skip_opts --replace mysql
+
+--echo #
+--echo # With --insert-ignore
+--echo #
+--exec $MYSQL_DUMP $ignore $skip_opts --insert-ignore mysql
+
 --echo # End of 10.2 tests
 
 --echo #

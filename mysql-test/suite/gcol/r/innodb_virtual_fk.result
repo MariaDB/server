@@ -793,6 +793,9 @@ DROP TABLE t1;
 #
 # MDEV-24041 Generated column DELETE with FOREIGN KEY crash InnoDB
 #
+SET FOREIGN_KEY_CHECKS=1;
+CREATE DATABASE `a-b`;
+USE `a-b`;
 CREATE TABLE emails (
 id int,
 PRIMARY KEY (id)
@@ -802,6 +805,7 @@ id int,
 email_id int,
 date_sent char(4),
 generated_email_id int as (email_id),
+#generated_sent_date DATE GENERATED ALWAYS AS (date_sent),
 PRIMARY KEY (id),
 KEY mautic_generated_sent_date_email_id (generated_email_id),
 FOREIGN KEY (email_id) REFERENCES emails (id) ON DELETE SET NULL
@@ -818,3 +822,4 @@ DELETE FROM emails;
 DROP TABLE email_stats;
 DROP TABLE emails_metadata;
 DROP TABLE emails;
+DROP DATABASE `a-b`;

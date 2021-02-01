@@ -96,6 +96,12 @@ then
   sed '/Package: mariadb-plugin-rocksdb/,/^$/d' -i debian/control
 fi
 
+## Skip TokuDB if arch is not amd64
+if [[ ! $(dpkg-architecture -q DEB_BUILD_ARCH) =~ amd64 ]]
+then
+  sed '/Package: mariadb-plugin-tokudb/,/^$/d' -i debian/control
+fi
+
 # Always remove aws plugin, see -DNOT_FOR_DISTRIBUTION in CMakeLists.txt
 sed '/Package: mariadb-plugin-aws-key-management-10.2/,/^$/d' -i debian/control
 

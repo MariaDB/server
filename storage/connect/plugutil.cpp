@@ -96,7 +96,7 @@ char *msglang(void);
 typedef struct {
   ushort Segsize;
   ushort Size;
-  } AREASIZE;
+} AREASIZE;
 
 ACTIVITY defActivity = {            /* Describes activity and language */
   NULL,                             /* Points to user work area(s)     */
@@ -184,7 +184,7 @@ PGLOBAL PlugInit(LPCSTR Language, size_t worksize)
 /***********************************************************************/
 /*  PlugExit: Terminate Plug operations.                               */
 /***********************************************************************/
-int PlugExit(PGLOBAL g)
+PGLOBAL PlugExit(PGLOBAL g)
 {
 	if (g) {
 		PDBUSER dup = PlgGetUser(g);
@@ -196,7 +196,7 @@ int PlugExit(PGLOBAL g)
 		delete g;
 	}	// endif g
 
-  return 0;
+  return NULL;
 } // end of PlugExit
 
 /***********************************************************************/
@@ -204,7 +204,7 @@ int PlugExit(PGLOBAL g)
 /*  Note: this routine is not really implemented for Unix.             */
 /***********************************************************************/
 LPSTR PlugRemoveType(LPSTR pBuff, LPCSTR FileName)
-  {
+{
 #if defined(__WIN__)
   char drive[_MAX_DRIVE];
 #else
@@ -228,8 +228,7 @@ LPSTR PlugRemoveType(LPSTR pBuff, LPCSTR FileName)
     htrc("buff='%s'\n", pBuff);
 
   return pBuff;
-  } // end of PlugRemoveType
-
+} // end of PlugRemoveType
 
 BOOL PlugIsAbsolutePath(LPCSTR path)
 {
@@ -246,7 +245,7 @@ BOOL PlugIsAbsolutePath(LPCSTR path)
 /*  Note: this routine is not really implemented for Unix.             */
 /***********************************************************************/
 LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
-  {
+{
   char newname[_MAX_PATH];
   char direc[_MAX_DIR], defdir[_MAX_DIR], tmpdir[_MAX_DIR];
   char fname[_MAX_FNAME];
@@ -347,14 +346,14 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
   } else
     return FileName;     // Error, return unchanged name
 
-  } // end of PlugSetPath
+} // end of PlugSetPath
 
 #if defined(XMSG)
 /***********************************************************************/
 /*  PlugGetMessage: get a message from the message file.               */
 /***********************************************************************/
 char *PlugReadMessage(PGLOBAL g, int mid, char *m)
-  {
+{
   char  msgfile[_MAX_PATH], msgid[32], buff[256];
   char *msg;
   FILE *mfile = NULL;
@@ -405,14 +404,14 @@ char *PlugReadMessage(PGLOBAL g, int mid, char *m)
     msg =  stmsg;
 
   return msg;
-  } // end of PlugReadMessage
+} // end of PlugReadMessage
 
 #elif defined(NEWMSG)
 /***********************************************************************/
 /*  PlugGetMessage: get a message from the resource string table.      */
 /***********************************************************************/
 char *PlugGetMessage(PGLOBAL g, int mid)
-  {
+{
   char *msg;
 
 #if 0 // was !defined(UNIX) && !defined(UNIV_LINUX)
@@ -440,7 +439,7 @@ char *PlugGetMessage(PGLOBAL g, int mid)
     msg =  stmsg;
 
   return msg;
-  } // end of PlugGetMessage
+} // end of PlugGetMessage
 #endif     // NEWMSG
 
 #if defined(__WIN__)
@@ -448,13 +447,13 @@ char *PlugGetMessage(PGLOBAL g, int mid)
 /*  Return the line length of the console screen buffer.               */
 /***********************************************************************/
 short GetLineLength(PGLOBAL g)
-  {
+{
   CONSOLE_SCREEN_BUFFER_INFO coninfo;
   HANDLE  hcons = GetStdHandle(STD_OUTPUT_HANDLE);
   BOOL    b = GetConsoleScreenBufferInfo(hcons, &coninfo);
 
   return (b) ? coninfo.dwSize.X : 0;
-  } // end of GetLineLength
+} // end of GetLineLength
 #endif   // __WIN__
 
 /***********************************************************************/
@@ -475,17 +474,19 @@ bool AllocSarea(PGLOBAL g, size_t size)
 	if (!g->Sarea) {
 		sprintf(g->Message, MSG(MALLOC_ERROR), "malloc");
 		g->Sarea_Size = 0;
-	}	else
-		g->Sarea_Size = size;
+	}	else {
+    g->Sarea_Size = size;
+    PlugSubSet(g->Sarea, size);
+  } // endif Sarea
 
 #if defined(DEVELOPMENT)
 	if (true) {
 #else
 	if (trace(8)) {
 #endif
-    if (g->Sarea)
+    if (g->Sarea) {
       htrc("Work area of %zd allocated at %p\n", size, g->Sarea);
-    else
+    } else
       htrc("SareaAlloc: %s\n", g->Message);
 
   } // endif trace
@@ -526,13 +527,13 @@ void FreeSarea(PGLOBAL g)
 /*  the address and size not larger than memory size.                  */
 /***********************************************************************/
 BOOL PlugSubSet(void *memp, size_t size)
-  {
+{
   PPOOLHEADER pph = (PPOOLHEADER)memp;
 
   pph->To_Free = (size_t)sizeof(POOLHEADER);
   pph->FreeBlk = size - pph->To_Free;
   return FALSE;
-  } /* end of PlugSubSet */
+} /* end of PlugSubSet */
 
 /***********************************************************************/
 /*  Use it to export a function that do throwing.                      */
@@ -595,7 +596,7 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
 /*  Program for sub-allocating and copying a string in a storage area. */
 /***********************************************************************/
 char *PlugDup(PGLOBAL g, const char *str)
-  {
+{
   if (str) {
     char *sm = (char*)PlugSubAlloc(g, NULL, strlen(str) + 1);
 
@@ -604,6 +605,33 @@ char *PlugDup(PGLOBAL g, const char *str)
   } else
     return NULL;
 
-  } // end of PlugDup 
+} // end of PlugDup 
 
-/*--------------------- End of PLUGUTIL program -----------------------*/
+/*************************************************************************/
+/* This routine makes a pointer from an offset to a memory pointer.      */
+/*************************************************************************/
+void* MakePtr(void* memp, size_t offset)
+{
+  // return ((offset == 0) ? NULL : &((char*)memp)[offset]);
+  return (!offset) ? NULL : (char *)memp + offset;
+} /* end of MakePtr */
+
+/*************************************************************************/
+/* This routine makes an offset from a pointer new format.               */
+/*************************************************************************/
+size_t MakeOff(void* memp, void* ptr)
+{
+  if (ptr) {
+#if defined(_DEBUG) || defined(DEVELOPMENT)
+    if (ptr <= memp) {
+      fprintf(stderr, "ptr %p <= memp %p", ptr, memp);
+      DoThrow(999);
+    } // endif ptr
+#endif   // _DEBUG  ||         DEVELOPMENT
+    return (size_t)((char*)ptr - (size_t)memp);
+  } else
+    return 0;
+
+} /* end of MakeOff */
+
+/*---------------------- End of PLUGUTIL program ------------------------*/

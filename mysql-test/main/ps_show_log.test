@@ -1,0 +1,73 @@
+--echo #
+--echo # MDEV-24208 SHOW RELAYLOG EVENTS command is not supported in the prepared
+--echo #            statement protocol yet
+--echo #
+
+CREATE USER u1;
+
+--source include/have_binlog_format_statement.inc
+--source include/master-slave.inc
+--connection master
+CREATE TABLE t1(n INT);
+
+DROP TABLE t1;
+
+--sync_slave_with_master
+PREPARE stmt_1 FROM 'SHOW BINLOG EVENTS';
+
+--replace_column 2 # 4 # 5 #
+--replace_regex /Server ver:.*Binlog ver: .*/#/ /slave-bin.*/#/
+EXECUTE stmt_1;
+
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the statement
+--echo # 'SHOW BINLOG EVENTS' were damaged.
+
+--replace_column 2 # 4 # 5 #
+--replace_regex /Server ver:.*Binlog ver: .*/#/ /slave-bin.*/#/
+EXECUTE stmt_1;
+
+DEALLOCATE PREPARE stmt_1;
+
+--connection slave
+PREPARE stmt_1 FROM 'SHOW RELAYLOG EVENTS';
+--replace_column 2 # 4 # 5 #
+--replace_regex /Server ver:.*Binlog ver: .*/#/ /slave-relay-bin.*;pos=.*/#/
+EXECUTE stmt_1;
+
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the statement
+--echo # 'SHOW RELAYLOG EVENTS' were damaged.
+
+--replace_column 2 # 4 # 5 #
+--replace_regex /Server ver:.*Binlog ver: .*/#/ /slave-relay-bin.*;pos=.*/#/
+EXECUTE stmt_1;
+
+DEALLOCATE PREPARE stmt_1;
+
+--echo # Create the user u1 without the REPLICATION SLAVE privilege required
+--echo # for running the statements SHOW BINLOG EVENTS/SHOW RELAYLOG EVENTS
+--echo # and check that attempt to execute the statements SHOW BINLOG EVENTS/
+--echo # SHOW RELAYLOG EVENTS as a prepred statements by a user without required
+--echo # privileges results in error.
+
+--connect (con2,localhost,u1,,test)
+PREPARE stmt_1 FROM 'SHOW BINLOG EVENTS';
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+EXECUTE stmt_1;
+
+PREPARE stmt_1 FROM 'SHOW RELAYLOG EVENTS';
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+EXECUTE stmt_1;
+
+DEALLOCATE PREPARE stmt_1;
+
+--source include/rpl_end.inc
+
+--connection default
+# Clean up
+DROP USER u1;
+
+--echo # End of 10.2 tests

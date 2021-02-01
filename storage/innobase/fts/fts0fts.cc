@@ -1708,7 +1708,7 @@ fts_drop_tables(
 
 	error = fts_drop_common_tables(trx, &fts_table);
 
-	if (error == DB_SUCCESS) {
+	if (error == DB_SUCCESS && table->fts) {
 		error = fts_drop_all_index_tables(trx, table->fts);
 	}
 

@@ -142,7 +142,7 @@ SELECT @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= '';
 SELECT @@global.wsrep_sst_auth;
 @@global.wsrep_sst_auth
-
+NULL
 SET @@global.wsrep_sst_auth= NULL;
 SELECT @@global.wsrep_sst_auth;
 @@global.wsrep_sst_auth

@@ -5102,13 +5102,16 @@ public:
     return Item_ref::fix_fields(thd, it);
   }
   void save_val(Field *to);
+  /* Below we should have all val() methods as in Item_ref */
   double val_real();
   longlong val_int();
-  String *val_str(String* tmp);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool();
+  String *val_str(String* tmp);
   bool is_null();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  longlong val_datetime_packed();
+  longlong val_time_packed();
   virtual Ref_Type ref_type() { return DIRECT_REF; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_direct_ref>(thd, this); }
@@ -5422,6 +5425,20 @@ public:
       return 1;
     }
     return Item_direct_ref::get_date(ltime, fuzzydate);
+  }
+  longlong val_time_packed()
+  {
+    if (check_null_ref())
+      return 0;
+    else
+      return Item_direct_ref::val_time_packed();
+  }
+  longlong val_datetime_packed()
+  {
+    if (check_null_ref())
+      return 0;
+    else
+      return Item_direct_ref::val_datetime_packed();
   }
   bool send(Protocol *protocol, st_value *buffer);
   void save_org_in_field(Field *field,

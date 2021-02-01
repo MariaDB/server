@@ -894,7 +894,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 /*
   We should not introduce any further shift/reduce conflicts.
 */
-%expect 60
+%expect 81
 
 /*
    Comments for TOKENS.
@@ -1860,7 +1860,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <type_handler> int_type real_type
 
-%type <Lex_field_type> type_with_opt_collate field_type
+%type <Lex_field_type> field_type field_type_all
         qualified_field_type
         field_type_numeric
         field_type_string
@@ -3390,7 +3390,7 @@ sp_param_name:
         ;
 
 sp_param_name_and_type:
-          sp_param_name type_with_opt_collate
+          sp_param_name field_type
           {
             if (unlikely(Lex->sp_param_fill_definition($$= $1)))
               MYSQL_YYABORT;
@@ -3536,7 +3536,7 @@ row_field_name:
         ;
 
 row_field_definition:
-          row_field_name type_with_opt_collate
+          row_field_name field_type
         ;
 
 row_field_definition_list:
@@ -3570,7 +3570,7 @@ sp_decl_idents_init_vars:
 
 sp_decl_variable_list:
           sp_decl_idents_init_vars
-          type_with_opt_collate
+          field_type
           sp_opt_default
           {
             if (unlikely(Lex->sp_variable_declarations_finalize(thd, $1,
@@ -6922,19 +6922,26 @@ column_default_expr:
           }
         ;
 
+field_type: field_type_all
+        {
+          Lex->map_data_type(Lex_ident_sys(), &($$= $1));
+          Lex->last_field->set_attributes($$, Lex->charset);
+        }
+        ;
+
 qualified_field_type:
-          field_type
+          field_type_all
           {
             Lex->map_data_type(Lex_ident_sys(), &($$= $1));
           }
-        | sp_decl_ident '.' field_type
+        | sp_decl_ident '.' field_type_all
           {
             if (Lex->map_data_type($1, &($$= $3)))
               MYSQL_YYABORT;
           }
         ;
 
-field_type:
+field_type_all:
           field_type_numeric
         | field_type_temporal
         | field_type_string
@@ -7397,20 +7404,6 @@ with_or_without_system:
         ;
 
 
-type_with_opt_collate:
-        field_type opt_collate
-        {
-          Lex->map_data_type(Lex_ident_sys(), &($$= $1));
-
-          if ($2)
-          {
-            if (unlikely(!(Lex->charset= merge_charset_and_collation(Lex->charset, $2))))
-              MYSQL_YYABORT;
-          }
-          Lex->last_field->set_attributes($$, Lex->charset);
-        }
-        ;
-
 charset:
           CHAR_SYM SET {}
         | CHARSET {}
@@ -7484,6 +7477,12 @@ charset_or_alias:
           }
         ;
 
+collate: COLLATE_SYM collation_name_or_default
+         {
+           Lex->charset= $2;
+         }
+       ;
+
 opt_binary:
           /* empty */             { bincmp_collation(NULL, false); }
         | binary {}
@@ -7494,6 +7493,13 @@ binary:
         | charset_or_alias opt_bin_mod { bincmp_collation($1, $2); }
         | BINARY                  { bincmp_collation(NULL, true); }
         | BINARY charset_or_alias { bincmp_collation($2, true); }
+        | charset_or_alias collate
+          {
+            if (!my_charset_same(Lex->charset, $1))
+              my_yyabort_error((ER_COLLATION_CHARSET_MISMATCH, MYF(0),
+                                Lex->charset->name, $1->csname));
+          }
+        | collate { }
         ;
 
 opt_bin_mod:
@@ -14763,7 +14769,7 @@ kill:
             lex->sql_command= SQLCOM_KILL;
             lex->kill_type= KILL_TYPE_ID;
           }
-          kill_type kill_option kill_expr
+          kill_type kill_option
           {
             Lex->kill_signal= (killed_state) ($3 | $4);
           }
@@ -14776,14 +14782,19 @@ kill_type:
         ;
 
 kill_option:
-          /* empty */    { $$= (int) KILL_CONNECTION; }
-        | CONNECTION_SYM { $$= (int) KILL_CONNECTION; }
-        | QUERY_SYM      { $$= (int) KILL_QUERY; }
-        | QUERY_SYM ID_SYM
+          opt_connection kill_expr { $$= (int) KILL_CONNECTION; }
+        | QUERY_SYM      kill_expr { $$= (int) KILL_QUERY; }
+        | QUERY_SYM ID_SYM expr
           {
             $$= (int) KILL_QUERY;
             Lex->kill_type= KILL_TYPE_QUERY;
+            Lex->value_list.push_front($3, thd->mem_root);
           }
+        ;
+
+opt_connection:
+          /* empty */    { }
+        | CONNECTION_SYM { }
         ;
 
 kill_expr:
@@ -14797,7 +14808,6 @@ kill_expr:
             Lex->kill_type= KILL_TYPE_USER;
           }
         ;
-
 
 shutdown:
         SHUTDOWN { Lex->sql_command= SQLCOM_SHUTDOWN; }
@@ -17969,7 +17979,7 @@ sf_return_type:
                                  &empty_clex_str,
                                  thd->variables.collation_database);
           }
-          type_with_opt_collate
+          field_type
           {
             if (unlikely(Lex->sphead->fill_field_definition(thd,
                                                             Lex->last_field)))
