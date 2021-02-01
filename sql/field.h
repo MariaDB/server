@@ -920,7 +920,7 @@ public:
   {
     reset();
   }
-  virtual int  store(const char *to, size_t length,CHARSET_INFO *cs)=0;
+  virtual int  store(const char *from, size_t length,CHARSET_INFO *cs)=0;
   /*
     This is used by engines like CSV and Federated to signal the field
     that the data is going to be in text (rather than binary) representation,
@@ -930,13 +930,13 @@ public:
     we cannot call store(str,length,&my_charset_bin),
     to avoid "field" mis-interpreting the data format as binary.
   */
-  virtual int  store_text(const char *to, size_t length, CHARSET_INFO *cs)
+  virtual int  store_text(const char *from, size_t length, CHARSET_INFO *cs)
   {
-    return store(to, length, cs);
+    return store(from, length, cs);
   }
-  virtual int  store_binary(const char *to, size_t length)
+  virtual int  store_binary(const char *from, size_t length)
   {
-    return store(to, length, &my_charset_bin);
+    return store(from, length, &my_charset_bin);
   }
   virtual int  store_hex_hybrid(const char *str, size_t length);
   virtual int  store(double nr)=0;
