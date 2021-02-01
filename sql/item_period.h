@@ -30,16 +30,21 @@ public:
 
 class Item_func_overlaps: public Item_bool_func // TODO Item_bool_func2
 {
+  // We remember the operands to access args without type downcast
+  Item_row *left, *right;
 public:
   Item_func_overlaps(THD *thd, Item_row *left, Item_row *right)
-  : Item_bool_func(thd, left, right)
+  : Item_bool_func(thd, left, right), left(left), right(right)
   {
-
   }
 
   longlong val_int()
   {
+    longlong al= left->element_index(0)->val_int();
+    longlong ar= left->element_index(0)->val_int();
+    longlong br= right->element_index(1)->val_int();
 
+    return br <= ar && br > al;
   }
   const char *func_name() const { return "overlaps"; }
   Item *get_copy(THD *thd)
