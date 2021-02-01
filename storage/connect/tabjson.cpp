@@ -1024,8 +1024,14 @@ bool TDBJSN::OpenDB(PGLOBAL g)
 		/*  Lrecl is Ok.                      															 */
 		/*********************************************************************/
 		size_t linelen = Lrecl;
+    MODE   mode = Mode;
 
-		//To_Line = (char*)PlugSubAlloc(g, NULL, linelen);
+    // Buffer must be allocated in g->Sarea
+    Mode = MODE_ANY;
+    Txfp->AllocateBuffer(g);
+    Mode = mode;
+
+    //To_Line = (char*)PlugSubAlloc(g, NULL, linelen);
 		//memset(To_Line, 0, linelen);
 		To_Line = Txfp->GetBuf();
 		xtrc(1, "OpenJSN: R%hd mode=%d To_Line=%p\n", Tdb_No, Mode, To_Line);
