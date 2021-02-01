@@ -31,7 +31,7 @@ public:
 class Item_func_overlaps: public Item_bool_func // TODO Item_bool_func2
 {
 public:
-  Item_func_overlaps(THD *thd, Item_period *left, Item_period *right)
+  Item_func_overlaps(THD *thd, Item_row *left, Item_row *right)
   : Item_bool_func(thd, left, right)
   {
 
@@ -41,4 +41,7 @@ public:
   {
 
   }
+  const char *func_name() const { return "overlaps"; }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_overlaps>(thd, this); }
 };

@@ -244,6 +244,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   DYNCALL_CREATE_DEF *dyncol_def;
   Diagnostics_information *diag_info;
   Item *item;
+  Item_row *item_row;
   Item_num *item_num;
   Item_param *item_param;
   Item_basic_constant *item_basic_constant;
@@ -1443,7 +1444,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
         literal insert_ident order_ident temporal_literal
         simple_ident expr sum_expr in_sum_expr
         variable variable_aux bool_pri
-        predicate period_predicand bit_expr parenthesized_expr
+        predicate bit_expr parenthesized_expr
         table_wild simple_expr column_default_non_parenthesized_expr udf_expr
         primary_expr string_factor_expr mysql_concatenation_expr
         select_sublist_qualified_asterisk
@@ -1469,6 +1470,9 @@ End SQL_MODE_ORACLE_SPECIFIC */
         simple_target_specification
         condition_number
         opt_versioning_interval_start
+
+%type <item_row>
+        period_predicand
 
 %type <item_param> param_marker
 
