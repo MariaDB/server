@@ -8,3 +8,11 @@ PARTITION BY RANGE(a)
 PARTITION pb VALUES LESS THAN (4));
 ERROR HY000: Partitioned tables do not support FOREIGN KEY
 DROP TABLE t1;
+#
+# MDEV-24754 Server crash in
+# ha_partition_inplace_ctx::~ha_partition_inplace_ctx
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, a INT, va INT AS (a) VIRTUAL)
+ENGINE=InnoDB PARTITION BY HASH(id) PARTITIONS 2;
+ALTER TABLE t1 ADD b INT, ALGORITHM=INSTANT;
+DROP TABLE t1;

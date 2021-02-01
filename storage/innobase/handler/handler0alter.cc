@@ -11271,7 +11271,7 @@ foreign_fail:
 			auto ctx= static_cast<ha_innobase_inplace_ctx*>(*pctx);
 			ctx->prebuilt->table = innobase_reload_table(
 				m_user_thd, ctx->prebuilt->table,
-				table->s->table_name, *ctx0);
+				table->s->table_name, *ctx);
 			innobase_copy_frm_flags_from_table_share(
 				ctx->prebuilt->table, altered_table->s);
 		}
