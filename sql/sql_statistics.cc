@@ -2155,15 +2155,13 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
 
   for (field_ptr= table->field; *field_ptr; field_ptr++, column_stats++)
   {
-    (*field_ptr)->collected_stats= column_stats;
-    (*field_ptr)->collected_stats->max_value= NULL;
-    (*field_ptr)->collected_stats->min_value= NULL;
     if (bitmap_is_set(table->read_set, (*field_ptr)->field_index))
     {
       column_stats->histogram.set_size(hist_size);
       column_stats->histogram.set_type(hist_type);
       column_stats->histogram.set_values(histogram);
       histogram+= hist_size;
+      (*field_ptr)->collected_stats= column_stats;
     }
   }
 
@@ -2612,7 +2610,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
     table_field= *field_ptr;   
-    if (!bitmap_is_set(table->read_set, table_field->field_index))
+    if (!table_field->collected_stats)
       continue; 
     table_field->collected_stats->init(thd, table_field);
   }
@@ -2639,7 +2637,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
       for (field_ptr= table->field; *field_ptr; field_ptr++)
       {
         table_field= *field_ptr;
-        if (!bitmap_is_set(table->read_set, table_field->field_index))
+        if (!table_field->collected_stats)
           continue;  
         if ((rc= table_field->collected_stats->add(rows)))
           break;
@@ -2667,7 +2665,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
     table_field= *field_ptr;
-    if (!bitmap_is_set(table->read_set, table_field->field_index))
+    if (!table_field->collected_stats)
       continue;
     bitmap_set_bit(table->write_set, table_field->field_index); 
     if (!rc)
@@ -2771,7 +2769,7 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   for (Field **field_ptr= table->field; *field_ptr; field_ptr++)
   {
     Field *table_field= *field_ptr;
-    if (!bitmap_is_set(table->read_set, table_field->field_index))
+    if (!table_field->collected_stats)
       continue;
     restore_record(stat_table, s->default_values);
     column_stat.set_key_fields(table_field);
