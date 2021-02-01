@@ -2359,6 +2359,8 @@ static int initialize_variables_for_repair(HA_CHECK *param,
                                            MARIA_SHARE *org_share)
 {
   MARIA_SHARE *share= info->s;
+  size_t tmp;
+  uint threads;
 
   /*
     We have to clear these variables first, as the cleanup-in-case-of-error
@@ -2419,6 +2421,7 @@ static int initialize_variables_for_repair(HA_CHECK *param,
 
   /* calculate max_records */
   sort_info->filelength= my_seek(info->dfile.file, 0L, MY_SEEK_END, MYF(0));
+
   param->max_progress= sort_info->filelength;
   if ((param->testflag & T_CREATE_MISSING_KEYS) ||
       sort_info->org_data_file_type == COMPRESSED_RECORD)
@@ -2430,6 +2433,19 @@ static int initialize_variables_for_repair(HA_CHECK *param,
                     share->base.min_block_length);
     sort_info->max_records= (ha_rows) (sort_info->filelength / rec_length);
   }
+
+  /* We don't need a bigger sort buffer than file_length * 8 */
+  threads= (param->testflag & T_REP_PARALLEL) ? (uint) share->base.keys : 1;
+  tmp= (size_t) MY_MIN(sort_info->filelength,
+                       (my_off_t) (SIZE_T_MAX/10/threads));
+  tmp= MY_MAX(tmp * 8 * threads, (size_t) 65536);         /* Some margin */
+  set_if_smaller(param->sort_buffer_length, tmp);
+  /* Protect against too big sort buffer length */
+#if SIZEOF_SIZE_T >= 8
+  set_if_smaller(param->sort_buffer_length, 16LL*1024LL*1024LL*1024LL);
+#else
+  set_if_smaller(param->sort_buffer_length, 1L*1024L*1024L*1024L);
+#endif
 
   /* Set up transaction handler so that we can see all rows */
   if (param->max_trid == 0)

@@ -1,0 +1,9 @@
+--- suite/sys_vars/r/aria_sort_buffer_size_basic.result	2021-02-02 02:58:55.686921205 +0200
++++ suite/sys_vars/r/aria_sort_buffer_size_basic.reject	2021-02-02 11:02:12.361178360 +0200
+@@ -44,5 +44,5 @@
+ set session aria_sort_buffer_size=cast(-1 as unsigned int);
+ select @@session.aria_sort_buffer_size;
+ @@session.aria_sort_buffer_size
+-9223372036854775807
++2147483647
+ SET @@global.aria_sort_buffer_size = @start_global_value;

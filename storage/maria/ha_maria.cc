@@ -268,8 +268,9 @@ static MYSQL_THDVAR_ULONG(repair_threads, PLUGIN_VAR_RQCMDARG,
 
 static MYSQL_THDVAR_ULONGLONG(sort_buffer_size, PLUGIN_VAR_RQCMDARG,
        "The buffer that is allocated when sorting the index when doing a "
-       "REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE.", NULL, NULL,
-       SORT_BUFFER_INIT, MIN_SORT_BUFFER, SIZE_T_MAX, 1);
+       "REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE.",
+       NULL, NULL,
+       SORT_BUFFER_INIT, MIN_SORT_BUFFER, SIZE_T_MAX/2, 1);
 
 static MYSQL_THDVAR_ENUM(stats_method, PLUGIN_VAR_RQCMDARG,
        "Specifies how Aria index statistics collection code should treat "
