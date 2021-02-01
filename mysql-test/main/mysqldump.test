@@ -19,27 +19,13 @@ let collation=utf8_unicode_ci;
 # There are tables in 'mysql' database of type innodb
 --source include/have_innodb.inc
 
-# This test is slow on buildbot.
---source include/big_test.inc
-
-disable_query_log;
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
-enable_query_log;
 
 --echo # Bug#37938 Test "mysqldump" lacks various insert statements
 --echo # Turn off concurrent inserts to avoid random errors
 --echo # NOTE:  We reset the variable back to saved value at the end of test
 SET @OLD_CONCURRENT_INSERT = @@GLOBAL.CONCURRENT_INSERT;
 SET @@GLOBAL.CONCURRENT_INSERT = 0;
-
-
---disable_warnings
-DROP TABLE IF EXISTS t1, `"t"1`, t1aa, t2, t2aa, t3;
-drop database if exists mysqldump_test_db;
-drop database if exists db1;
-drop database if exists db2;
-drop view if exists v1, v2, v3;
---enable_warnings
 
 # XML output
 

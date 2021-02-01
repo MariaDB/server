@@ -1,14 +1,10 @@
 call mtr.add_suppression("@003f.frm' \\(errno: 22\\)");
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 # Bug#37938 Test "mysqldump" lacks various insert statements
 # Turn off concurrent inserts to avoid random errors
 # NOTE:  We reset the variable back to saved value at the end of test
 SET @OLD_CONCURRENT_INSERT = @@GLOBAL.CONCURRENT_INSERT;
 SET @@GLOBAL.CONCURRENT_INSERT = 0;
-DROP TABLE IF EXISTS t1, `"t"1`, t1aa, t2, t2aa, t3;
-drop database if exists mysqldump_test_db;
-drop database if exists db1;
-drop database if exists db2;
-drop view if exists v1, v2, v3;
 CREATE TABLE t1(a INT, KEY (a)) KEY_BLOCK_SIZE=1024;
 INSERT INTO t1 VALUES (1), (2);
 <?xml version="1.0"?>
