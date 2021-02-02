@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_sequence.inc
 
 --echo #
 --echo # MDEV-24715 Assertion !node->table->skip_alter_undo
@@ -12,3 +13,16 @@ CREATE TEMPORARY TABLE t (a INT UNIQUE) ENGINE=InnoDB
 REPLACE SELECT 1 AS a, 2 AS b UNION SELECT 1 AS a, 3 AS c;
 SELECT * FROM t;
 DROP TEMPORARY TABLE t;
+
+--echo #
+--echo # MDEV-24720 AHI removal during bulk index rollback
+--echo #
+SET @save_ahi = @@global.innodb_adaptive_hash_index;
+SET GLOBAL innodb_adaptive_hash_index = 1;
+CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 SELECT * FROM seq_1_to_65536;
+ROLLBACK;
+CHECK TABLE t1;
+DROP TABLE t1;
+SET GLOBAL innodb_adaptive_hash_index = @save_ahi;

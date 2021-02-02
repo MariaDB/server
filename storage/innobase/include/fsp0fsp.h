@@ -493,29 +493,42 @@ fseg_free_page(
 bool
 fseg_page_is_free(fil_space_t* space, unsigned page)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/**********************************************************************//**
-Frees part of a segment. This function can be used to free a segment
-by repeatedly calling this function in different mini-transactions.
-Doing the freeing in a single mini-transaction might result in
-too big a mini-transaction.
+
+/** Frees part of a segment. This function can be used to free
+a segment by repeatedly calling this function in different
+mini-transactions. Doing the freeing in a single mini-transaction
+might result in too big a mini-transaction.
+@param	header	segment header; NOTE: if the header resides on first
+		page of the frag list of the segment, this pointer
+		becomes obsolete after the last freeing step
+@param	mtr	mini-transaction
+@param	ahi	Drop the adaptive hash index
 @return whether the freeing was completed */
 bool
 fseg_free_step(
-	fseg_header_t*	header,	/*!< in, own: segment header; NOTE: if the header
-				resides on the first page of the frag list
-				of the segment, this pointer becomes obsolete
-				after the last freeing step */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+	fseg_header_t*	header,
+	mtr_t*		mtr
+#ifdef BTR_CUR_HASH_ADAPT
+	,bool		ahi=false
+#endif /* BTR_CUR_HASH_ADAPT */
+	)
 	MY_ATTRIBUTE((warn_unused_result));
-/**********************************************************************//**
-Frees part of a segment. Differs from fseg_free_step because this function
-leaves the header page unfreed.
+
+/** Frees part of a segment. Differs from fseg_free_step because
+this function leaves the header page unfreed.
+@param	header	segment header which must reside on the first
+		fragment page of the segment
+@param	mtr	mini-transaction
+@param	ahi	drop the adaptive hash index
 @return whether the freeing was completed, except for the header page */
 bool
 fseg_free_step_not_header(
-	fseg_header_t*	header,	/*!< in: segment header which must reside on
-				the first fragment page of the segment */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+	fseg_header_t*	header,
+	mtr_t*		mtr
+#ifdef BTR_CUR_HASH_ADAPT
+	,bool		ahi=false
+#endif /* BTR_CUR_HASH_ADAPT */
+	)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Reset the page type.
