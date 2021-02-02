@@ -31,6 +31,7 @@ int  JsonDefPrec = -1;
 int  GetDefaultPrec(void);
 int  IsArgJson(UDF_ARGS* args, uint i);
 void SetChanged(PBSON bsp);
+int  GetJsonDefPrec(void);
 
 static PBSON BbinAlloc(PGLOBAL g, ulong len, PBVAL jsp);
 
