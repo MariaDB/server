@@ -93,7 +93,7 @@ CREATE DEFINER='mariadb.sys'@'localhost' SQL SECURITY DEFINER VIEW IF NOT EXISTS
   CAST(IFNULL(JSON_VALUE(Priv, '$.max_user_connections'), 0) AS SIGNED) AS max_user_connections,
   IFNULL(JSON_VALUE(Priv, '$.plugin'), '') AS plugin,
   IFNULL(JSON_VALUE(Priv, '$.authentication_string'), '') AS authentication_string,
-  'N' AS password_expired,
+  IF(IFNULL(JSON_VALUE(Priv, '$.password_last_changed'), 1) = 0, 'Y', 'N') AS password_expired,
   ELT(IFNULL(JSON_VALUE(Priv, '$.is_role'), 0) + 1, 'N', 'Y') AS is_role,
   IFNULL(JSON_VALUE(Priv, '$.default_role'), '') AS default_role,
   CAST(IFNULL(JSON_VALUE(Priv, '$.max_statement_time'), 0.0) AS DECIMAL(12,6)) AS max_statement_time
