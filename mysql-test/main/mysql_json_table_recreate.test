@@ -1,8 +1,5 @@
 --source include/have_utf8.inc
-
-if (!$TYPE_MYSQL_JSON_SO) {
-  skip Need MYSQL_JSON plugin;
-}
+--source include/have_type_mysql_json.inc
 
 --echo #
 --echo # The following test takes 2 tables containing a JSON column and attempts

@@ -31,7 +31,7 @@ Field	Type	Null	Key	Default	Extra
 GROUP_ID	int(6)	NO		0	
 POSITION	int(6)	NO		0	
 PRIORITY	int(1)	NO		0	
-CONNECTION_ID	bigint(19) unsigned	NO		0	
+CONNECTION_ID	bigint(19) unsigned	YES		NULL	
 QUEUEING_TIME_MICROSECONDS	bigint(19)	NO		0	
 DESC INFORMATION_SCHEMA.THREAD_POOL_STATS;
 Field	Type	Null	Key	Default	Extra

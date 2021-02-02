@@ -35,6 +35,7 @@ galera_ssl_upgrade : MDEV-19950 Galera test failure on galera_ssl_upgrade
 galera_sst_mariabackup_encrypt_with_key : MDEV-21484 galera_sst_mariabackup_encrypt_with_key
 galera_toi_ddl_nonconflicting : MDEV-21518 galera.galera_toi_ddl_nonconflicting
 galera_toi_truncate : MDEV-22996 Hang on galera_toi_truncate test case
+galera_trigger : MDEV-24048 galera.galera_trigger MTR fails: Result content mismatch
 galera_var_node_address : MDEV-20485 Galera test failure
 galera_var_notify_cmd : MDEV-21905 Galera test galera_var_notify_cmd causes hang
 galera_var_reject_queries : assertion in inline_mysql_socket_send

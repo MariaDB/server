@@ -1,15 +1,11 @@
-call mtr.add_suppression("Table rebuild required");
-call mtr.add_suppression("is marked as crashed");
-call mtr.add_suppression("Checking");
+#
+# MDEV-24093: Detect during mysql_upgrade if type_mysql_json.so 
+# is needed and load it
+#
 SET NAMES utf8;
-set sql_mode="";
-show create table tempty;
-ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.tempty` FORCE" or dump/reload to fix it!
+call mtr.add_suppression("Table rebuild required");
 show create table mysql_json_test;
 ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test` FORCE" or dump/reload to fix it!
-show create table mysql_json_test_big;
-ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.mysql_json_test_big` FORCE" or dump/reload to fix it!
-# Run mysql_upgrade to fix the tables containing JSON.
 Phase 1/7: Checking and upgrading mysql database
 Processing databases
 mysql
@@ -25,8 +21,12 @@ mysql.help_keyword                                 OK
 mysql.help_relation                                OK
 mysql.help_topic                                   OK
 mysql.index_stats                                  OK
-mysql.innodb_index_stats                           OK
-mysql.innodb_table_stats                           OK
+mysql.innodb_index_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
@@ -40,7 +40,20 @@ mysql.time_zone_leap_second                        OK
 mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
-mysql.transaction_registry                         OK
+mysql.transaction_registry
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+
+Repairing tables
+mysql.innodb_index_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.transaction_registry
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
 Phase 2/7: Installing used storage engines... Skipped
 Phase 3/7: Fixing views
 mysql.user                                         OK
@@ -56,23 +69,12 @@ performance_schema
 test
 test.mysql_json_test                               Needs upgrade
 test.mysql_json_test_big                           Needs upgrade
-test.tempty                                        Needs upgrade
 
 Repairing tables
 test.mysql_json_test                               OK
 test.mysql_json_test_big                           OK
-test.tempty                                        OK
 Phase 7/7: Running 'FLUSH PRIVILEGES'
 OK
-#
-# Now check if the table structure is correct and that the data
-# is still present.
-#
-show create table tempty;
-Table	Create Table
-tempty	CREATE TABLE `tempty` (
-  `t` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show create table mysql_json_test;
 Table	Create Table
 mysql_json_test	CREATE TABLE `mysql_json_test` (
@@ -87,18 +89,7 @@ mysql_json_test_big	CREATE TABLE `mysql_json_test_big` (
   `expected` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `actual` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-select count(*) as 'Total_Number_of_Tests',
-sum(expected = actual) as 'Succesful_Tests',
-sum(JSON_VALID(actual)) as 'String_is_valid_JSON'
-from mysql_json_test;
-Total_Number_of_Tests	Succesful_Tests	String_is_valid_JSON
-100	100	100
-select count(*) as 'Total_Number_of_Tests',
-sum(expected = actual) as 'Succesful_Tests',
-sum(JSON_VALID(actual)) as 'String_is_valid_JSON'
-from mysql_json_test_big;
-Total_Number_of_Tests	Succesful_Tests	String_is_valid_JSON
-1	1	1
-drop table tempty;
+select * from mysql.plugin;
+name	dl
 drop table mysql_json_test;
 drop table mysql_json_test_big;

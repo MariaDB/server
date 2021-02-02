@@ -2272,12 +2272,13 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 	ut_d(lsn_t recv_start_lsn = 0);
 	const lsn_t init_lsn = init ? init->lsn : 0;
 
+	bool skipped_after_init = false;
+
 	for (const log_rec_t* recv : p->second.log) {
 		const log_phys_t* l = static_cast<const log_phys_t*>(recv);
 		ut_ad(l->lsn);
 		ut_ad(end_lsn <= l->lsn);
-		end_lsn = l->lsn;
-		ut_ad(end_lsn <= log_sys.log.scanned_lsn);
+		ut_ad(l->lsn <= log_sys.log.scanned_lsn);
 
 		ut_ad(l->start_lsn);
 		ut_ad(recv_start_lsn <= l->start_lsn);
@@ -2290,6 +2291,8 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 					      block->page.id().space(),
 					      block->page.id().page_no(),
 					      l->start_lsn, page_lsn));
+			skipped_after_init = true;
+			end_lsn = l->lsn;
 			continue;
 		}
 
@@ -2299,9 +2302,24 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 					      block->page.id().space(),
 					      block->page.id().page_no(),
 					      l->start_lsn, init_lsn));
+			skipped_after_init = false;
+			end_lsn = l->lsn;
 			continue;
 		}
 
+		/* There is no need to check LSN for just initialized pages. */
+		if (skipped_after_init) {
+			skipped_after_init = false;
+			ut_ad(end_lsn == page_lsn);
+			if (end_lsn != page_lsn)
+				ib::warn()
+					<< "The last skipped log record LSN "
+					<< end_lsn
+					<< " is not equal to page LSN "
+					<< page_lsn;
+		}
+
+		end_lsn = l->lsn;
 
 		if (UNIV_UNLIKELY(srv_print_verbose_log == 2)) {
 			ib::info() << "apply " << l->start_lsn

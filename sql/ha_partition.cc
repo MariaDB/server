@@ -92,6 +92,61 @@ static handler *partition_create_handler(handlerton *hton,
 static uint partition_flags();
 static alter_table_operations alter_table_flags(alter_table_operations flags);
 
+
+int ha_partition::notify_tabledef_changed(LEX_CSTRING *db,
+                                          LEX_CSTRING *org_table_name,
+                                          LEX_CUSTRING *frm,
+                                          LEX_CUSTRING *version)
+{
+  char from_buff[FN_REFLEN + 1], from_lc_buff[FN_REFLEN + 1];
+  const char *from_path, *name_buffer_ptr, *from;
+  int res= 0;
+  handler **file= m_file;
+  DBUG_ENTER("ha_partition::notify_tabledef_changed");
+
+  from= table->s->normalized_path.str;
+
+  /* setup m_name_buffer_ptr */
+  if (read_par_file(table->s->normalized_path.str))
+    DBUG_RETURN(1);
+
+  from_path= get_canonical_filename(*file, from, from_lc_buff);
+  name_buffer_ptr= m_name_buffer_ptr;
+  do
+  {
+    LEX_CSTRING table_name;
+    const char *table_name_ptr;
+    if (create_partition_name(from_buff, sizeof(from_buff),
+                              from_path, name_buffer_ptr,
+                              NORMAL_PART_NAME, FALSE))
+      res=1;
+    table_name_ptr= from_buff + dirname_length(from_buff);
+
+    lex_string_set3(&table_name, table_name_ptr, strlen(table_name_ptr));
+
+    if (((*file)->ht)->notify_tabledef_changed((*file)->ht, db, &table_name,
+                                               frm, version, *file))
+      res=1;
+    name_buffer_ptr= strend(name_buffer_ptr) + 1;
+  } while (*(++file));
+  DBUG_RETURN(res);
+}
+
+
+static int
+partition_notify_tabledef_changed(handlerton *,
+                                  LEX_CSTRING *db,
+                                  LEX_CSTRING *table,
+                                  LEX_CUSTRING *frm,
+                                  LEX_CUSTRING *version,
+                                  handler *file)
+{
+  DBUG_ENTER("partition_notify_tabledef_changed");
+  DBUG_RETURN(static_cast<ha_partition*>
+              (file)->notify_tabledef_changed(db, table, frm, version));
+}
+
+
 /*
   If frm_error() is called then we will use this to to find out what file
   extensions exist for the storage engine. This is also used by the default
@@ -149,7 +204,9 @@ static int partition_initialize(void *p)
 
   partition_hton->db_type= DB_TYPE_PARTITION_DB;
   partition_hton->create= partition_create_handler;
+
   partition_hton->partition_flags= partition_flags;
+  partition_hton->notify_tabledef_changed= partition_notify_tabledef_changed;
   partition_hton->alter_table_flags= alter_table_flags;
   partition_hton->flags= HTON_NOT_USER_SELECTABLE |
                          HTON_HIDDEN |
@@ -210,25 +267,6 @@ static handler *partition_create_handler(handlerton *hton,
   }
   return file;
 }
-
-/*
-  HA_CAN_PARTITION:
-  Used by storage engines that can handle partitioning without this
-  partition handler
-  (Partition, NDB)
-
-  HA_CAN_UPDATE_PARTITION_KEY:
-  Set if the handler can update fields that are part of the partition
-  function.
-
-  HA_CAN_PARTITION_UNIQUE:
-  Set if the handler can handle unique indexes where the fields of the
-  unique key are not part of the fields of the partition function. Thus
-  a unique key can be set on all fields.
-
-  HA_USE_AUTO_PARTITION
-  Set if the handler sets all tables to be partitioned by default.
-*/
 
 static uint partition_flags()
 {

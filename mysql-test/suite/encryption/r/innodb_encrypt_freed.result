@@ -1,0 +1,96 @@
+SHOW VARIABLES LIKE 'innodb_encrypt%';
+Variable_name	Value
+innodb_encrypt_log	ON
+innodb_encrypt_tables	ON
+innodb_encrypt_temporary_tables	OFF
+innodb_encryption_rotate_key_age	1
+innodb_encryption_rotation_iops	100
+innodb_encryption_threads	1
+SET GLOBAL innodb_encrypt_tables = ON;
+CREATE TABLE t1(f1 BIGINT PRIMARY KEY, f2 int not null,
+f3 int not null, index(f1), index idx_1(f2),
+index(f2, f3)) ENGINE=InnoDB;
+# Wait max 10 min for key encryption threads to encrypt all spaces
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+NAME
+innodb_system
+mysql/innodb_index_stats
+mysql/innodb_table_stats
+mysql/transaction_registry
+test/t1
+CREATE TABLE t2 (f1 int not null)engine=innodb;
+# restart: --debug=d,ib_log_checkpoint_avoid
+connect con1,localhost,root,,,;
+begin;
+insert into t2 values(1);
+connection default;
+set global innodb_encrypt_tables = OFF;
+# Wait max 10 min for key encryption threads to decrypt all spaces
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+NAME
+innodb_system
+mysql/innodb_index_stats
+mysql/innodb_table_stats
+mysql/transaction_registry
+test/t1
+test/t2
+alter table t1 drop index idx_1;
+set global innodb_encrypt_tables = ON;
+# Wait max 10 min for key encryption threads to encrypt all spaces
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+NAME
+innodb_system
+mysql/innodb_index_stats
+mysql/innodb_table_stats
+mysql/transaction_registry
+test/t1
+test/t2
+disconnect con1;
+# restart: --debug=d,ib_log_checkpoint_avoid
+drop table t1, t2;
+CREATE TABLE t1(f1 BIGINT PRIMARY KEY, f2 int not null,
+f3 int not null, index(f1), index idx_1(f2),
+index(f2, f3)) ENGINE=InnoDB;
+# Wait max 10 min for key encryption threads to encrypt all spaces
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+NAME
+innodb_system
+mysql/innodb_index_stats
+mysql/innodb_table_stats
+mysql/transaction_registry
+test/t1
+CREATE TABLE t2 (f1 int not null)engine=innodb;
+# restart: --debug=d,ib_log_checkpoint_avoid
+connect con1,localhost,root,,,;
+begin;
+insert into t2 values(1);
+connection default;
+set global innodb_encrypt_tables = OFF;
+# Wait max 10 min for key encryption threads to decrypt all spaces
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+NAME
+innodb_system
+mysql/innodb_index_stats
+mysql/innodb_table_stats
+mysql/transaction_registry
+test/t1
+test/t2
+alter table t1 drop index idx_1;
+disconnect con1;
+# restart: --debug=d,ib_log_checkpoint_avoid
+connect con1,localhost,root,,,;
+begin;
+insert into t2 values(1);
+connection default;
+set global innodb_encrypt_tables = ON;
+# Wait max 10 min for key encryption threads to encrypt all spaces
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+NAME
+innodb_system
+mysql/innodb_index_stats
+mysql/innodb_table_stats
+mysql/transaction_registry
+test/t1
+test/t2
+disconnect con1;
+drop table t2, t1;

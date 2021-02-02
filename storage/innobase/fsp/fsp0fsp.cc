@@ -2631,9 +2631,9 @@ fseg_free_extent(
 
 	fsp_free_extent(space, page, mtr);
 
-	for (ulint i = 0; i < FSP_EXTENT_SIZE; i++) {
+	for (uint32_t i = 0; i < FSP_EXTENT_SIZE; i++) {
 		if (!xdes_is_free(descr, i)) {
-			buf_page_free(space, first_page_in_extent + 1, mtr);
+			buf_page_free(space, first_page_in_extent + i, mtr);
 		}
 	}
 }
@@ -2700,10 +2700,11 @@ fseg_free_step(
 		DBUG_RETURN(true);
 	}
 
-	fseg_free_page_low(
-		inode, iblock, space,
-		fseg_get_nth_frag_page_no(inode, n),
-		mtr);
+	page_no_t page_no = fseg_get_nth_frag_page_no(inode, n);
+
+	fseg_free_page_low(inode, iblock, space, page_no, mtr);
+
+	buf_page_free(space, page_no, mtr);
 
 	n = fseg_find_last_used_frag_page_slot(inode);
 
@@ -2765,6 +2766,7 @@ fseg_free_step_not_header(
 	}
 
 	fseg_free_page_low(inode, iblock, space, page_no, mtr);
+	buf_page_free(space, page_no, mtr);
 	return false;
 }
 

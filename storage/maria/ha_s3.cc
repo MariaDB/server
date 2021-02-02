@@ -1,4 +1,4 @@
-/* Copyright (C) 2019, 2020 MariaDB Corporation Ab
+/* Copyright (C) 2019, 2021 MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -887,16 +887,20 @@ int ha_s3::discover_check_version()
   Update the .frm file in S3
 */
 
-static int s3_notify_tabledef_changed(handlerton *hton __attribute__((unused)),
+static int s3_notify_tabledef_changed(handlerton *,
                                       LEX_CSTRING *db, LEX_CSTRING *table,
                                       LEX_CUSTRING *frm,
-                                      LEX_CUSTRING *org_tabledef_version)
+                                      LEX_CUSTRING *org_tabledef_version,
+                                      handler *)
 {
   char aws_path[AWS_PATH_LENGTH];
   S3_INFO s3_info;
   ms3_st *s3_client;
   int error= 0;
   DBUG_ENTER("s3_notify_tabledef_changed");
+
+  if (strstr(table->str, "#P#"))
+    DBUG_RETURN(0);                             // Ignore partitions
 
   if (s3_info_init(&s3_info))
     DBUG_RETURN(0);
@@ -916,7 +920,7 @@ static int s3_notify_tabledef_changed(handlerton *hton __attribute__((unused)),
            NullS);
 
   if (s3_put_object(s3_client, s3_info.bucket.str, aws_path, (uchar*) frm->str,
-                         frm->length, 0))
+                    frm->length, 0))
     error= 2;
 
 err:

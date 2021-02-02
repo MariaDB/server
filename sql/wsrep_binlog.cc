@@ -381,9 +381,7 @@ void wsrep_register_for_group_commit(THD *thd)
 
 void wsrep_unregister_from_group_commit(THD *thd)
 {
-  DBUG_ASSERT(thd->wsrep_trx().state() == wsrep::transaction::s_ordered_commit||
-              // ordered_commit() failure results in s_aborting state
-              thd->wsrep_trx().state() == wsrep::transaction::s_aborting);
+  DBUG_ASSERT(thd->wsrep_trx().ordered());
   wait_for_commit *wfc= thd->wait_for_commit_ptr;
 
   if (wfc)

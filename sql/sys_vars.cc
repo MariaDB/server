@@ -6711,6 +6711,12 @@ static Sys_var_uint Sys_in_subquery_conversion_threshold(
        SESSION_VAR(in_subquery_conversion_threshold), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(IN_SUBQUERY_CONVERSION_THRESHOLD), BLOCK_SIZE(1));
 
+static Sys_var_ulong Sys_optimizer_max_sel_arg_weight(
+       "optimizer_max_sel_arg_weight",
+       "The maximum weight of the SEL_ARG graph. Set to 0 for no limit",
+       SESSION_VAR(optimizer_max_sel_arg_weight), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, ULONG_MAX), DEFAULT(SEL_ARG::MAX_WEIGHT), BLOCK_SIZE(1));
+
 static Sys_var_enum Sys_secure_timestamp(
        "secure_timestamp", "Restricts direct setting of a session "
        "timestamp. Possible levels are: YES - timestamp cannot deviate from "

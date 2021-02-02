@@ -1357,6 +1357,30 @@ innobase_show_status(
 	stat_print_fn*		stat_print,
 	enum ha_stat_type	stat_type);
 
+/** After ALTER TABLE, recompute statistics. */
+inline void ha_innobase::reload_statistics()
+{
+  if (dict_table_t *table= m_prebuilt ? m_prebuilt->table : nullptr)
+  {
+    if (table->is_readable())
+      dict_stats_init(table);
+    else
+      table->stat_initialized= 1;
+  }
+}
+
+/** After ALTER TABLE, recompute statistics. */
+static int innodb_notify_tabledef_changed(handlerton *,
+                                          LEX_CSTRING *, LEX_CSTRING *,
+                                          LEX_CUSTRING *, LEX_CUSTRING *,
+                                          handler *handler)
+{
+  DBUG_ENTER("innodb_notify_tabledef_changed");
+  if (handler)
+    static_cast<ha_innobase*>(handler)->reload_statistics();
+  DBUG_RETURN(0);
+}
+
 /****************************************************************//**
 Parse and enable InnoDB monitor counters during server startup.
 User can enable monitor counters/groups by specifying
@@ -3591,6 +3615,7 @@ static int innodb_init(void* p)
 
 	innobase_hton->flush_logs = innobase_flush_logs;
 	innobase_hton->show_status = innobase_show_status;
+	innobase_hton->notify_tabledef_changed= innodb_notify_tabledef_changed;
 	innobase_hton->flags =
 		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS
 		| HTON_NATIVE_SYS_VERSIONING | HTON_WSREP_REPLICATION;
@@ -15672,6 +15697,7 @@ innobase_show_status(
 	/* Success */
 	return(false);
 }
+
 /*********************************************************************//**
 Returns number of THR_LOCK locks used for one instance of InnoDB table.
 InnoDB no longer relies on THR_LOCK locks so 0 value is returned.

@@ -4,6 +4,29 @@
 
 #if defined(HAVE_ARMV8_CRC)
 
+#if defined(__APPLE__)
+#include <sys/sysctl.h>
+
+static int pmull_supported;
+
+int crc32_aarch64_available(void)
+{
+  int ret;
+  size_t len = sizeof(ret);
+  if (sysctlbyname("hw.optional.armv8_crc32", &ret, &len, NULL, 0) == -1)
+    return 0;
+  return ret;
+}
+
+const char *crc32c_aarch64_available(void)
+{
+  if (crc32_aarch64_available() == 0)
+    return NULL;
+  pmull_supported = 1;
+  return "Using ARMv8 crc32 + pmull instructions";
+}
+
+#else
 #include <sys/auxv.h>
 #if defined(__FreeBSD__)
 static unsigned long getauxval(unsigned int key)
@@ -50,6 +73,7 @@ const char *crc32c_aarch64_available(void)
     return "Using ARMv8 crc32 instructions";
 }
 
+#endif /* __APPLE__ */
 #endif /* HAVE_ARMV8_CRC */
 
 #ifndef HAVE_ARMV8_CRC_CRYPTO_INTRINSICS

@@ -1,0 +1,198 @@
+#
+# MDEV-24093: Detect during mysql_upgrade if type_mysql_json.so 
+# is needed and load it
+#
+SET NAMES utf8;
+show create table mysql_json_test;
+ERROR HY000: Unknown data type: 'MYSQL_JSON'
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv                                  OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+
+Repairing tables
+mysql.innodb_index_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.transaction_registry
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+Phase 2/7: Installing used storage engines... Skipped
+installing plugin for MYSQL_JSON data type
+Phase 3/7: Fixing views
+mysql.user                                         OK
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+test.mysql_json_test                               Needs upgrade
+test.mysql_json_test_big                           Needs upgrade
+
+Repairing tables
+test.mysql_json_test                               OK
+test.mysql_json_test_big                           OK
+uninstalling plugin for 'type_mysql_json' data type
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+show create table mysql_json_test;
+Table	Create Table
+mysql_json_test	CREATE TABLE `mysql_json_test` (
+  `description` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `expected` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `actual` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+select * from mysql_json_test;
+description	expected	actual
+Raw integers as JSON	0	0
+Raw integers as JSON	-127	-127
+Raw integers as JSON	128	128
+Raw integers as JSON	32767	32767
+Raw integers as JSON	-32768	-32768
+Raw integers as JSON	65535	65535
+Raw integers as JSON	65536	65536
+Raw integers as JSON	-2147483648	-2147483648
+Raw integers as JSON	2147483647	2147483647
+Raw integers as JSON	4294967295	4294967295
+Raw integers as JSON	-9223372036854775807	-9223372036854775807
+Raw integers as JSON	9223372036854775807	9223372036854775807
+Raw integers as JSON	18446744073709551615	18446744073709551615
+Raw doubles as JSON	3.14	3.14
+Raw doubles as JSON	-5678.987	-5678.987
+Raw doubles as JSON	-2.2250738585072014e-308	-2.2250738585072014e-308
+Raw doubles as JSON	2.2250738585072014e-308	2.2250738585072014e-308
+Simple JSON test	{"key1": "val1", "key2": "val2"}	{"key1": "val1", "key2": "val2"}
+Raw doubles as JSON	0.0	0.0
+Simple Array as Value	{"a": [1, 2], "b": ["x", "y"]}	{"a": [1, 2], "b": ["x", "y"]}
+Simple Array as Base Key	[1, 2, 3, 4, 5, [], "a", "b", "c"]	[1, 2, 3, 4, 5, [], "a", "b", "c"]
+GeoJSON	{"type": "MultiPoint", "coordinates": [[1, 1], [2, 2], [3, 3]]}	{"type": "MultiPoint", "coordinates": [[1, 1], [2, 2], [3, 3]]}
+GeoJSON	{"type": "LineString", "coordinates": [[0, 5], [5, 10], [10, 15]]}	{"type": "LineString", "coordinates": [[0, 5], [5, 10], [10, 15]]}
+GeoJSON	{"type": "GeometryCollection", "geometries": []}	{"type": "GeometryCollection", "geometries": []}
+GeoJSON	{"type": "Point", "coordinates": [11.1111, 12.22222]}	{"type": "Point", "coordinates": [11.1111, 12.22222]}
+Opaque Types: opaque_mysql_type_set	"b,c"	"b,c"
+Opaque Types: opaque_mysql_type_enum	"b"	"b"
+Opaque Types: opaque_mysql_type_date	"2015-01-15"	"2015-01-15"
+Opaque Types: opaque_mysql_type_time	"23:24:25.000000"	"23:24:25.000000"
+Opaque Types: opaque_mysql_type_datetime	"2015-01-15 23:24:25.000000"	"2015-01-15 23:24:25.000000"
+Opaque Types: opaque_mysql_type_geom	{"type": "Point", "coordinates": [1, 1]}	{"type": "Point", "coordinates": [1, 1]}
+Opaque Types: opaque_mysql_type_bit	"base64:type16:yv4="	"base64:type16:yv4="
+Opaque Types: opaque_mysql_type_year	"base64:type13:MjAxOQ=="	"base64:type13:MjAxOQ=="
+Opaque Types: opaque_mysql_type_blob	"base64:type252:yv66vg=="	"base64:type252:yv66vg=="
+Opaque Types: opaque_mysql_type_longblob	"base64:type251:yv66vg=="	"base64:type251:yv66vg=="
+Opaque Types: opaque_mysql_type_mediumblob	"base64:type250:yv66vg=="	"base64:type250:yv66vg=="
+Opaque Types: opaque_mysql_type_tinyblob	"base64:type249:yv66vg=="	"base64:type249:yv66vg=="
+Opaque Types: opaque_mysql_type_varchar	"base64:type15:Zm9v"	"base64:type15:Zm9v"
+DateTime as Raw Value: 	"2015-01-15 23:24:25.000000"	"2015-01-15 23:24:25.000000"
+Opaque Types: opaque_mysql_type_varbinary	"base64:type15:YWJj"	"base64:type15:YWJj"
+Opaque Types: opaque_mysql_type_binary	"base64:type254:YWJjAAAAAAAAAA=="	"base64:type254:YWJjAAAAAAAAAA=="
+DateTime as Raw Value: 	"23:24:25.000000"	"23:24:25.000000"
+DateTime as Raw Value: 	"2015-01-15"	"2015-01-15"
+DateTime as Raw Value: 	"2015-01-15 23:24:25.000000"	"2015-01-15 23:24:25.000000"
+UTF8 Characters: 	{"Person": "EMP", "details": {"Name": "Anel Husaković - test: đžšćč"}}	{"Person": "EMP", "details": {"Name": "Anel Husaković - test: đžšćč"}}
+UTF8 Characters: 	"Anel Husaković - test: đžšćč"	"Anel Husaković - test: đžšćč"
+UTF8 Characters: 	{"Name": "Anel Husaković - test: đžšćč"}	{"Name": "Anel Husaković - test: đžšćč"}
+UTF8 Characters: 	{"details": {"Name": "Anel Husaković - test: đžšćč"}, "\"Anel Husaković - test: đžšćč\"": "EMP"}	{"details": {"Name": "Anel Husaković - test: đžšćč"}, "\"Anel Husaković - test: đžšćč\"": "EMP"}
+Special Characters: 	{"{": "}"}	{"{": "}"}
+Special Characters: 	"key1 - with \" val "	"key1 - with \" val "
+Special Characters: 	{"key1 and \n\"key2\"": "val1\t val2"}	{"key1 and \n\"key2\"": "val1\t val2"}
+Special Characters: 	"'"	"'"
+Special Characters: 	"q"	"q"
+Special Characters: 	{"[": "]"}	{"[": "]"}
+Special Characters: 	{"{": "}"}	{"{": "}"}
+Empty JSON Object/Array: 	[]	[]
+Special Characters: 	"some_string"	"some_string"
+Special Characters: 	"'"	"'"
+Special Characters: 	"\""	"\""
+Special Characters: 	""	""
+Special Characters: 	"'"	"'"
+Special Characters: 	"''"	"''"
+Empty JSON Object/Array: 	{}	{}
+Special Characters: 	"f"	"f"
+Special Characters: 	"\\"	"\\"
+Special Characters: 	"\n"	"\n"
+Special Characters: 	"\f"	"\f"
+Special Characters: 	"\t"	"\t"
+Special Characters: 	"\r"	"\r"
+Special Characters: 	"\b"	"\b"
+Special Characters: 	"\\b"	"\\b"
+Special Characters: 	{"key \n key": "val \n val"}	{"key \n key": "val \n val"}
+Special Characters: 	{"key \f key": "val \f val"}	{"key \f key": "val \f val"}
+Special Characters: 	{"key \t key": "val \t val"}	{"key \t key": "val \t val"}
+Special Characters: 	{"key \r key": "val \r val"}	{"key \r key": "val \r val"}
+Special Characters: 	{"key \b key": "val \b val"}	{"key \b key": "val \b val"}
+Special Characters: 	{"key \\0 key": "val \n val"}	{"key \\0 key": "val \n val"}
+Special Characters: 	{"key \\ key": "val \\ val"}	{"key \\ key": "val \\ val"}
+Special Characters: 	{"key \" key": "val \" val"}	{"key \" key": "val \" val"}
+Special Characters: 	{"key ' key": "val ' val"}	{"key ' key": "val ' val"}
+Special Characters: 	{"key \\Z key": "val ' val"}	{"key \\Z key": "val ' val"}
+Special Characters: 	["a \f b", "c \f d"]	["a \f b", "c \f d"]
+Special Characters: 	["a \t b", "c \t d"]	["a \t b", "c \t d"]
+Special Characters: 	["a \r b", "c \r d"]	["a \r b", "c \r d"]
+Special Characters: 	["a \b b", "c \b d"]	["a \b b", "c \b d"]
+Special Characters: 	["a \\ b", "c \\ d"]	["a \\ b", "c \\ d"]
+Special Characters: 	["a \" b", "c \" d"]	["a \" b", "c \" d"]
+Special Characters: 	["a ' b", "c ' d"]	["a ' b", "c ' d"]
+Special String Cases: 	{"": ""}	{"": ""}
+Special String Cases: 	[""]	[""]
+Raw LITERALS: 	true	true
+Raw LITERALS: 	false	false
+Raw LITERALS: 	null	null
+JSON LITERALS: 	{"val": true}	{"val": true}
+JSON LITERALS: 	{"val": false}	{"val": false}
+JSON LITERALS: 	{"val": null}	{"val": null}
+Timestamp as RawValue	"2019-12-26 19:56:03.000000"	"2019-12-26 19:56:03.000000"
+Array LITERALS: 	["prefix", null, "suffix", 1]	["prefix", null, "suffix", 1]
+Array LITERALS: 	["prefix", false, "suffix", 1]	["prefix", false, "suffix", 1]
+Array LITERALS: 	["prefix", true, "suffix", 1]	["prefix", true, "suffix", 1]
+show create table mysql_json_test_big;
+Table	Create Table
+mysql_json_test_big	CREATE TABLE `mysql_json_test_big` (
+  `description` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `expected` longtext COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `actual` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+select * from mysql.plugin;
+name	dl
+drop table mysql_json_test;
+drop table mysql_json_test_big;

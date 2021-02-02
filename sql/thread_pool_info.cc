@@ -92,7 +92,7 @@ static ST_FIELD_INFO queues_field_info[] =
   Column("GROUP_ID",                   SLong(6),      NOT_NULL),
   Column("POSITION",                   SLong(6),      NOT_NULL),
   Column("PRIORITY",                   SLong(1),      NOT_NULL),
-  Column("CONNECTION_ID",              ULonglong(19), NOT_NULL),
+  Column("CONNECTION_ID",              ULonglong(19), NULLABLE),
   Column("QUEUEING_TIME_MICROSECONDS", SLonglong(19), NOT_NULL),
   CEnd()
 };
@@ -130,7 +130,8 @@ static int queues_fill_table(THD* thd, TABLE_LIST* tables, COND*)
         /* PRIORITY */
         table->field[2]->store(prio, true);
         /* CONNECTION_ID */
-        table->field[3]->store(c->thd->thread_id, true);
+        if (c->thd)
+          table->field[3]->store(c->thd->thread_id, true);
         /* QUEUEING_TIME */
         table->field[4]->store(now - c->enqueue_time, true);
 

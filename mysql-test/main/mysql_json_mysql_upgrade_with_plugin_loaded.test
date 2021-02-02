@@ -1,0 +1,35 @@
+--echo #
+--echo # MDEV-24093: Detect during mysql_upgrade if type_mysql_json.so 
+--echo # is needed and load it
+--echo #
+# Let's now load plugin first
+-- source include/have_utf8.inc
+-- source include/have_type_mysql_json.inc
+-- source include/mysql_upgrade_preparation.inc
+
+SET NAMES utf8;
+call mtr.add_suppression("Table rebuild required");
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--copy_file std_data/mysql_json/mysql_json_test.frm $MYSQLD_DATADIR/test/mysql_json_test.frm
+--copy_file std_data/mysql_json/mysql_json_test.MYI $MYSQLD_DATADIR/test/mysql_json_test.MYI
+--copy_file std_data/mysql_json/mysql_json_test.MYD $MYSQLD_DATADIR/test/mysql_json_test.MYD
+
+--copy_file std_data/mysql_json/mysql_json_test_big.frm $MYSQLD_DATADIR/test/mysql_json_test_big.frm
+--copy_file std_data/mysql_json/mysql_json_test_big.MYI $MYSQLD_DATADIR/test/mysql_json_test_big.MYI
+--copy_file std_data/mysql_json/mysql_json_test_big.MYD $MYSQLD_DATADIR/test/mysql_json_test_big.MYD
+
+# In the previous example (mysql_json_mysql_upgrade.test) 
+# instead of ER_TABLE_NEEDS_REBUILD we had ER_UNKNOWN_DATA_TYPE
+--error ER_TABLE_NEEDS_REBUILD
+show create table mysql_json_test;
+
+--exec $MYSQL_UPGRADE --force 2>&1
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+show create table mysql_json_test;
+show create table mysql_json_test_big;
+select * from mysql.plugin;
+drop table mysql_json_test;
+drop table mysql_json_test_big;

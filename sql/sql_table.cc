@@ -7934,7 +7934,6 @@ static bool mysql_inplace_alter_table(THD *thd,
   Alter_info *alter_info= ha_alter_info->alter_info;
   bool reopen_tables= false;
   bool res;
-  handlerton *hton;
 
   const enum_alter_inplace_result inplace_supported=
     ha_alter_info->inplace_supported;
@@ -8145,20 +8144,22 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   /* Notify the engine that the table definition has changed */
 
-  hton= table->file->partition_ht();
-  if (hton->notify_tabledef_changed)
+  if (table->file->partition_ht()->notify_tabledef_changed)
   {
     char db_buff[FN_REFLEN], table_buff[FN_REFLEN];
+    handlerton *hton= table->file->ht;
     LEX_CSTRING tmp_db, tmp_table;
-    tmp_db.str=    db_buff;
-    tmp_table.str= table_buff;
+
+    tmp_db.str=       db_buff;
+    tmp_table.str=    table_buff;
     tmp_db.length=    tablename_to_filename(table_list->db.str,
                                          db_buff, sizeof(db_buff));
     tmp_table.length= tablename_to_filename(table_list->table_name.str,
                                             table_buff, sizeof(table_buff));
     if ((hton->notify_tabledef_changed)(hton, &tmp_db, &tmp_table,
                                         table->s->frm_image,
-                                        &table->s->tabledef_version))
+                                        &table->s->tabledef_version,
+                                        table->file))
     {
       my_error(HA_ERR_INCOMPATIBLE_DEFINITION, MYF(0));
       DBUG_RETURN(true);
