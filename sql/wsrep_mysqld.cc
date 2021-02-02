@@ -2747,7 +2747,7 @@ extern "C" void wsrep_thd_awake(THD *thd, my_bool signal)
 {
   if (signal)
   {
-    thd->awake(KILL_QUERY);
+    thd->awake_no_mutex(KILL_QUERY);
   }
   else
   {

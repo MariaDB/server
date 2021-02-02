@@ -18767,15 +18767,17 @@ static void bg_wsrep_kill_trx(
 	DBUG_ENTER("bg_wsrep_kill_trx");
 
 	if (thd) {
+		wsrep_thd_LOCK(thd);
 		victim_trx = thd_to_trx(thd);
 		lock_mutex_enter();
 		trx_mutex_enter(victim_trx);
+		wsrep_thd_UNLOCK(thd);
 		if (victim_trx->id != arg->trx_id)
 		{
 			trx_mutex_exit(victim_trx);
 			lock_mutex_exit();
-			wsrep_thd_UNLOCK(thd);
 			victim_trx = NULL;
+			wsrep_thd_kill_UNLOCK(thd);
 		}
 	}
 
@@ -18944,7 +18946,7 @@ ret_unlock:
 	lock_mutex_exit();
 	if (awake)
 		wsrep_thd_awake(thd, arg->signal);
-	wsrep_thd_UNLOCK(thd);
+	wsrep_thd_kill_UNLOCK(thd);
 
 ret:
 	free(arg);
@@ -19021,10 +19023,12 @@ wsrep_abort_transaction(
 		DBUG_VOID_RETURN;
 	} else {
 		WSREP_DEBUG("victim does not have transaction");
+		wsrep_thd_kill_LOCK(victim_thd);
 		wsrep_thd_LOCK(victim_thd);
 		wsrep_thd_set_conflict_state(victim_thd, MUST_ABORT);
 		wsrep_thd_UNLOCK(victim_thd);
 		wsrep_thd_awake(victim_thd, signal);
+		wsrep_thd_kill_UNLOCK(victim_thd);
 	}
 
 	DBUG_VOID_RETURN;
