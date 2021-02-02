@@ -92,6 +92,12 @@ void wsrep_thd_LOCK(THD *)
 void wsrep_thd_UNLOCK(THD *)
 { }
 
+void wsrep_thd_kill_LOCK(THD *)
+{ }
+
+void wsrep_thd_kill_UNLOCK(THD *)
+{ }
+
 void wsrep_thd_awake(THD *, my_bool)
 { }
 
