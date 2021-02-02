@@ -526,7 +526,7 @@ void BJNX::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL vlp)
 		case TYPE_JOB:
 			vp->SetValue_psz(GetObjectText(g, vlp, NULL));
 			break;
-		case (char)TYPE_NULL:
+		case TYPE_NULL:
 			vp->SetNull(true);
 		default:
 			vp->Reset();
@@ -1444,7 +1444,7 @@ my_bool BJNX::CompareValues(PGLOBAL g, PBVAL v1, PBVAL v2)
 				b = (v1->B == v2->B);
 
 			break;
-		case (char)TYPE_NULL:
+		case TYPE_NULL:
 			b = (v2->Type == TYPE_NULL);
 			break;
 		default:
