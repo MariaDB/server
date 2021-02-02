@@ -2635,9 +2635,9 @@ fseg_free_extent(
 
 	fsp_free_extent(space, page, mtr);
 
-	for (ulint i = 0; i < FSP_EXTENT_SIZE; i++) {
+	for (uint32_t i = 0; i < FSP_EXTENT_SIZE; i++) {
 		if (!xdes_is_free(descr, i)) {
-			buf_page_free(space, first_page_in_extent + 1, mtr,
+			buf_page_free(space, first_page_in_extent + i, mtr,
 				      __FILE__, __LINE__);
 		}
 	}
