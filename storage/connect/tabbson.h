@@ -127,11 +127,13 @@ protected:
 class BCUTIL : public BTUTIL {
 public:
   // Constructor
-  BCUTIL(PGLOBAL G, PBSCOL cp, TDBBSN* tp) : BTUTIL(G, tp) { Cp = cp; }
+  BCUTIL(PGLOBAL G, PBSCOL cp, TDBBSN* tp) : BTUTIL(G, tp)
+    { Cp = cp; Jb = false; }
 
   // Utility functions
   void  SetJsonValue(PGLOBAL g, PVAL vp, PBVAL jvp);
-  PVAL  MakeBson(PGLOBAL g, PBVAL jsp);
+  PBVAL MakeBson(PGLOBAL g, PBVAL jsp, int n);
+  PBVAL GetRowValue(PGLOBAL g, PBVAL row, int i);
   PVAL  GetColumnValue(PGLOBAL g, PBVAL row, int i);
   PVAL  ExpandArray(PGLOBAL g, PBVAL arp, int n);
   PVAL  CalculateArray(PGLOBAL g, PBVAL arp, int n);
@@ -140,6 +142,7 @@ public:
 protected:
   // Member
   PBSCOL  Cp;
+  bool    Jb;
 }; // end of class BCUTIL
 
    /* -------------------------- TDBBSN class --------------------------- */

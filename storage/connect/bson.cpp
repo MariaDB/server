@@ -37,6 +37,8 @@
 #undef     SE_CATCH                  // Does not work for Linux
 #endif
 
+int GetJsonDefPrec(void);
+
 #if defined(SE_CATCH)
 /**************************************************************************/
 /*  This is the support of catching C interrupts to prevent crashes.      */
@@ -884,7 +886,6 @@ PBPR BJSON::NewPair(OFFSET key, int type)
   PBPR bpp = (PBPR)BsonSubAlloc(sizeof(BPAIR));
 
   bpp->Key = key;
-  bpp->Vlp.Ktp = TYPE_STRG;
   bpp->Vlp.Type = type;
   bpp->Vlp.To_Val = 0;
   bpp->Vlp.Nd = 0;
@@ -1498,31 +1499,27 @@ double BJSON::GetDouble(PBVAL vp)
   PBVAL vlp = (vp->Type == TYPE_JVAL) ? MVP(vp->To_Val) : vp;
 
   switch (vlp->Type) {
-  case TYPE_DBL:
-    d = *(double*)MP(vlp->To_Val);
-    break;
-  case TYPE_BINT:
-    d = (double)*(longlong*)MP(vlp->To_Val);
-    break;
-  case TYPE_INTG:
-    d = (double)vlp->N;
-    break;
-  case TYPE_FLOAT:
-  { char buf[32];
-    int  n = (vlp->Nd) ? vlp->Nd : 5;
-
-    sprintf(buf, "%.*f", n, vlp->F);
-    d = atof(buf);
-  } break;
-  case TYPE_DTM:
-  case TYPE_STRG:
-    d = atof(MZP(vlp->To_Val));
-    break;
-  case TYPE_BOOL:
-    d = (vlp->B) ? 1.0 : 0.0;
-    break;
-  default:
-    d = 0.0;
+    case TYPE_DBL:
+      d = *(double*)MP(vlp->To_Val);
+      break;
+    case TYPE_BINT:
+      d = (double)*(longlong*)MP(vlp->To_Val);
+      break;
+    case TYPE_INTG:
+      d = (double)vlp->N;
+      break;
+    case TYPE_FLOAT:
+      d = (double)vlp->F;
+      break;
+    case TYPE_DTM:
+    case TYPE_STRG:
+      d = atof(MZP(vlp->To_Val));
+      break;
+    case TYPE_BOOL:
+      d = (vlp->B) ? 1.0 : 0.0;
+      break;
+    default:
+      d = 0.0;
   } // endswitch Type
 
   return d;
@@ -1721,14 +1718,22 @@ void BJSON::SetBigint(PBVAL vlp, longlong ll)
 /***********************************************************************/
 /* Set the Value's value as the given DOUBLE.                          */
 /***********************************************************************/
-void BJSON::SetFloat(PBVAL vlp, double d, int nd)
+void BJSON::SetFloat(PBVAL vlp, double d, int prec)
 {
-  double* dp = (double*)BsonSubAlloc(sizeof(double));
+  int nd = MY_MIN((prec < 0) ? GetJsonDefPrec() : prec, 16);
 
-  *dp = d;
-  vlp->To_Val = MOF(dp);
-  vlp->Nd = MY_MIN(nd, 16);
-  vlp->Type = TYPE_DBL;
+  if (nd < 6 && d >= FLT_MIN && d <= FLT_MAX) {
+    vlp->F = (float)d;
+    vlp->Type = TYPE_FLOAT;
+  } else {
+    double* dp = (double*)BsonSubAlloc(sizeof(double));
+
+    *dp = d;
+    vlp->To_Val = MOF(dp);
+    vlp->Type = TYPE_DBL;
+  } // endif nd
+
+  vlp->Nd = nd;
 } // end of SetFloat
 
 /***********************************************************************/
@@ -1745,13 +1750,7 @@ void BJSON::SetFloat(PBVAL vlp, PSZ s)
     for (--p; *p == '0'; nd--, p--);
   } // endif p
 
-  if (nd < 6 && d >= FLT_MIN && d <= FLT_MAX) {
-    vlp->F = (float)d;
-    vlp->Nd = nd;
-    vlp->Type = TYPE_FLOAT;
-  } else
-    SetFloat(vlp, d, nd);
-
+  SetFloat(vlp, d, nd);
 } // end of SetFloat
 
  /***********************************************************************/

@@ -37,8 +37,7 @@ typedef struct _jvalue {
 		bool   B;				  // A boolean value True or false (0)
 	};
 	short    Nd;				// Number of decimals
-	char     Type;      // The value type
-	char     Ktp;       // The key type
+	short    Type;      // The value type
 	OFFSET   Next;      // Offset to the next value in array
 } BVAL, *PBVAL;  // end of struct BVALUE
 
@@ -149,7 +148,7 @@ public:
 	void  SetString(PBVAL vlp, PSZ s, int ci = 0);
 	void  SetInteger(PBVAL vlp, int n);
 	void  SetBigint(PBVAL vlp, longlong ll);
-	void  SetFloat(PBVAL vlp, double f, int nd = 16);
+	void  SetFloat(PBVAL vlp, double f, int nd = -1);
 	void  SetFloat(PBVAL vlp, PSZ s);
 	void  SetBool(PBVAL vlp, bool b);
 	void  Clear(PBVAL vlp) { vlp->N = 0; vlp->Nd = 0; vlp->Next = 0; }

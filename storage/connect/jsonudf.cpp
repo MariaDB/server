@@ -356,8 +356,10 @@ void JSNX::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val)
 				vp->SetValue_psz(val->GetString(g));
 				break;
 			case TYPE_INTG:
-			case TYPE_BINT:
 				vp->SetValue(val->GetInteger());
+				break;
+			case TYPE_BINT:
+				vp->SetValue(val->GetBigint());
 				break;
 			case TYPE_DBL:
 				if (vp->IsTypeNum())
