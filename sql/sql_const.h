@@ -297,6 +297,14 @@
 */
 #define MAX_TIME_ZONE_NAME_LENGTH       (NAME_LEN + 1)
 
+
+/**
+  Average record length is the number of bytes for the record.
+  It is just a rough estimate which is needed to calculate
+  the cost of filling, reading and sorting the temporary table.
+*/
+#define AVG_REC_LEN  50
+
 #if defined(__WIN__)
 
 #define INTERRUPT_PRIOR -2

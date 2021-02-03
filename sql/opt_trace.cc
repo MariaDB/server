@@ -579,6 +579,13 @@ void Json_writer::add_table_name(const JOIN_TAB *tab)
                            ctab->emb_sj_nest->sj_subq_pred->get_identifier());
       add_str(table_name_buffer, len);
     }
+    else if (tab->is_sort_nest)
+    {
+      size_t len= my_snprintf(table_name_buffer,
+                           sizeof(table_name_buffer)-1,
+                           "<sort-nest>");
+      add_str(table_name_buffer, len);
+    }
     else
     {
       TABLE_LIST *real_table= tab->table->pos_in_table_list;
@@ -676,6 +683,42 @@ void print_best_access_for_table(THD *thd, POSITION *pos,
     uint key_no= pos->range_rowid_filter_info->key_no;
     obj.add("rowid_filter_key",
             pos->table->table->key_info[key_no].name);
+  }
+}
+
+
+/*
+  Add the tables that are inside the sort-nest
+  in the optimizer trace
+*/
+void add_sort_nest_tables_to_trace(JOIN *join,
+                                   Mat_join_tab_nest_info* nest_info)
+{
+  JOIN_TAB *end_tab, *tab;
+  THD *thd= join->thd;
+  end_tab= nest_info->nest_tab;
+  Json_writer_object trace_wrapper(thd);
+  Json_writer_array sort_nest(thd, "sort-nest");
+  for (tab= join->join_tab + join->const_tables; tab < end_tab; tab++)
+    sort_nest.add_table_name(tab);
+}
+
+
+/*
+  This function is used during best_access_path to print the sort-nest
+  that were considered doing the cost based analysis of the various
+  join orders.
+*/
+
+void trace_sort_nest(JOIN *join, uint idx, table_map remaining_tables)
+{
+  THD *const thd= join->thd;
+  Json_writer_array plan_prefix(thd, "sort-nest");
+  for (uint i= 0; i < idx; i++)
+  {
+    TABLE *tr= join->positions[i].table->table;
+    if (tr->map & remaining_tables)
+      plan_prefix.add_table_name(join->positions[i].table);
   }
 }
 
