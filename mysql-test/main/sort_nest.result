@@ -1,0 +1,1407 @@
+set optimizer_switch='cost_based_order_by_limit=on';
+set optimizer_switch='rowid_filter=off';
+set optimizer_trace=1;
+CREATE TABLE t1(a int, b int);
+INSERT INTO t1 SELECT seq-1, seq-1 from seq_1_to_20;
+CREATE TABLE t2(a int, b int);
+INSERT INTO t2   SELECT seq-1, seq-1 from seq_1_to_10;
+CREATE TABLE t3(a int, b int);
+INSERT INTO t3 SELECT seq-1, seq-1 from seq_1_to_100;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+
+# sorting on table t2
+# t2.b <= 5 would be attached to table t2
+# t1.b=t2.a would be attached to table t1;
+
+EXPLAIN SELECT * FROM t1,t2,t3
+WHERE t1.a=t2.a AND t1.b = t3.a AND t2.b <= 5
+ORDER BY t2.b DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using filesort
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	100	Using where
+ANALYZE SELECT * FROM t1,t2,t3
+WHERE t1.a=t2.a AND t1.b = t3.a AND t2.b <= 5
+ORDER BY t2.b DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	5.00	59.38	100.00	Using where; Using filesort
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	20	16.40	10.00	6.10	Using where
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	100	80.40	5.00	1.24	Using where
+SELECT * FROM t1,t2,t3
+WHERE t1.a=t2.a AND t1.b = t3.a AND t2.b <= 5
+ORDER BY t2.b DESC
+LIMIT 5;
+a	b	a	b	a	b
+5	5	5	5	5	5
+4	4	4	4	4	4
+3	3	3	3	3	3
+2	2	2	2	2	2
+1	1	1	1	1	1
+# {t1,t2} part of the nest
+# t1.a <= 10 would be attached to table t1
+# t3 uses ref access on sort-nest.b
+
+ALTER TABLE t3 ADD KEY(a);
+EXPLAIN SELECT * FROM t1,t2,t3
+WHERE t1.a <= 10 AND t1.a=t2.a AND t1.b = t3.a
+ORDER BY t2.b
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+1	SIMPLE	t3	ref	a	a	5	sort-nest.b	1	
+ANALYZE SELECT * FROM t1,t2,t3
+WHERE t1.a <= 10 AND t1.a=t2.a AND t1.b = t3.a
+ORDER BY t2.b
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	20	20.00	54.69	55.00	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	10.00	5.00	9.09	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	5.00	100.00	100.00	Using filesort
+1	SIMPLE	t3	ref	a	a	5	sort-nest.b	1	1.00	100.00	100.00	
+SELECT * FROM t1,t2,t3
+WHERE t1.a <= 10 AND t1.a=t2.a AND t1.b = t3.a
+ORDER BY t2.b
+LIMIT 5;
+a	b	a	b	a	b
+0	0	0	0	0	0
+1	1	1	1	1	1
+2	2	2	2	2	2
+3	3	3	3	3	3
+4	4	4	4	4	4
+ALTER TABLE t3 DROP KEY a;
+#
+# Removing constant from the order by clause
+#
+EXPLAIN SELECT * FROM t1,t2
+WHERE t1.a <= 10  and t1.a=t2.a
+ORDER BY t2.a DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+ANALYZE SELECT * FROM t1,t2
+WHERE t1.a <= 10  and t1.a=t2.a
+ORDER BY t2.a DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	20	20.00	54.69	55.00	Using where; Using temporary; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	10.00	5.00	9.09	Using where; Using join buffer (flat, BNL join)
+SELECT * FROM t1,t2
+WHERE t1.a <= 10  and t1.a=t2.a
+ORDER BY t2.a DESC
+LIMIT 5;
+a	b	a	b
+9	9	9	9
+8	8	8	8
+7	7	7	7
+6	6	6	6
+5	5	5	5
+EXPLAIN SELECT * FROM t1,t2
+WHERE t1.a <= 10  and t1.a=t2.a
+ORDER BY 1+2,t2.a DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+ANALYZE SELECT * FROM t1,t2
+WHERE t1.a <= 10  and t1.a=t2.a
+ORDER BY 1+2,t2.a DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	20	20.00	54.69	55.00	Using where; Using temporary; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	10.00	5.00	9.09	Using where; Using join buffer (flat, BNL join)
+SELECT * FROM t1,t2
+WHERE t1.a <= 10  and t1.a=t2.a
+ORDER BY 1+2,t2.a DESC
+LIMIT 5;
+a	b	a	b
+9	9	9	9
+8	8	8	8
+7	7	7	7
+6	6	6	6
+5	5	5	5
+#
+# Equality propagation, both the queries should use a
+# sort nest on {t1,t2}
+#
+EXPLAIN EXTENDED SELECT t3.b, t2.a, t1.b, t1.a
+FROM t1,t2,t3
+WHERE t1.b=t3.b
+ORDER BY t1.b DESC, t2.a DESC
+LIMIT 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	100	5.00	Using where
+Warnings:
+Note	1003	select `test`.`t3`.`b` AS `b`,`sort-nest`.`a` AS `a`,`sort-nest`.`b` AS `b`,`sort-nest`.`a` AS `a` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t3`.`b` = `sort-nest`.`b` order by `sort-nest`.`b` desc,`sort-nest`.`a` desc limit 3
+SELECT t3.b, t2.a, t1.b, t1.a
+FROM t1,t2,t3
+WHERE t1.b=t3.b
+ORDER BY t1.b DESC, t2.a DESC
+LIMIT 3;
+b	a	b	a
+19	9	19	19
+19	8	19	19
+19	7	19	19
+EXPLAIN EXTENDED SELECT t3.b, t2.a, t1.b, t1.a
+FROM t1,t2,t3
+WHERE t1.b=t3.b
+ORDER BY t3.b DESC, t2.a DESC
+LIMIT 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	100	5.00	Using where
+Warnings:
+Note	1003	select `test`.`t3`.`b` AS `b`,`sort-nest`.`a` AS `a`,`sort-nest`.`b` AS `b`,`sort-nest`.`a` AS `a` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t3`.`b` = `sort-nest`.`b` order by `sort-nest`.`b` desc,`sort-nest`.`a` desc limit 3
+SELECT t3.b, t2.a, t1.b, t1.a
+FROM t1,t2,t3
+WHERE t1.b=t3.b
+ORDER BY t3.b DESC, t2.a DESC
+LIMIT 3;
+b	a	b	a
+19	9	19	19
+19	8	19	19
+19	7	19	19
+#
+# Equality propagation also for arguments of expressions,
+# the plan should use a sort nest on {t1,t2}
+#
+EXPLAIN EXTENDED SELECT t3.b,t2.a, t1.b, t1.a
+FROM t1,t2,t3
+WHERE t1.b=t3.b
+ORDER BY t3.b + 1 DESC, t2.a DESC
+LIMIT 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	20	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	100	5.00	Using where
+Warnings:
+Note	1003	select `test`.`t3`.`b` AS `b`,`sort-nest`.`a` AS `a`,`sort-nest`.`b` AS `b`,`sort-nest`.`a` AS `a` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t3`.`b` = `sort-nest`.`b` order by `sort-nest`.`b` + 1 desc,`sort-nest`.`a` desc limit 3
+SELECT t3.b,t2.a, t1.b, t1.a
+FROM t1,t2,t3
+WHERE t1.b=t3.b
+ORDER BY t3.b + 1 DESC, t2.a DESC
+LIMIT 3;
+b	a	b	a
+19	9	19	19
+19	8	19	19
+19	7	19	19
+#
+# With having clause we can't have a sort-nest
+#
+EXPLAIN EXTENDED SELECT * FROM t1,t2,t3
+WHERE t1.a=t2.a AND t1.b = t3.a
+HAVING t1.a <= 5
+ORDER BY t2.b,t1.b
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	100.00	Using temporary; Using filesort
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	20	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where; Using join buffer (incremental, BNL join)
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t1`.`a` = `test`.`t2`.`a` and `test`.`t3`.`a` = `test`.`t1`.`b` having 1 order by `test`.`t2`.`b`,`test`.`t1`.`b` limit 5
+SELECT * FROM t1,t2,t3
+WHERE t1.a=t2.a AND t1.b = t3.a
+HAVING t1.a <= 5
+ORDER BY t2.b,t1.b
+LIMIT 5;
+a	b	a	b	a	b
+0	0	0	0	0	0
+1	1	1	1	1	1
+2	2	2	2	2	2
+3	3	3	3	3	3
+4	4	4	4	4	4
+EXPLAIN EXTENDED SELECT * FROM t1,t2,t3
+WHERE t1.a <= 5 AND t1.a=t2.a AND t1.b = t3.a
+ORDER BY t2.b,t1.b
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	20	29.69	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	5.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	100.00	Using filesort
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	100	5.00	Using where
+Warnings:
+Note	1003	select `sort-nest`.`a` AS `a`,`sort-nest`.`b` AS `b`,`sort-nest`.`a` AS `a`,`sort-nest`.`b` AS `b`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t3`.`a` = `sort-nest`.`b` order by `sort-nest`.`b`,`sort-nest`.`b` limit 5
+SELECT * FROM t1,t2,t3
+WHERE t1.a <= 5 AND t1.a=t2.a AND t1.b = t3.a
+ORDER BY t2.b,t1.b
+LIMIT 5;
+a	b	a	b	a	b
+0	0	0	0	0	0
+1	1	1	1	1	1
+2	2	2	2	2	2
+3	3	3	3	3	3
+4	4	4	4	4	4
+DROP TABLE t1,t2,t3;
+
+Tests with views and derived tables
+
+#
+# merge-able view inside a sort-nest
+#
+#
+# merge-able view inside a sort-nest
+#
+CREATE TABLE t0 (a int, b INT);
+CREATE TABLE t1 (a int, b INT, KEY(a));
+CREATE TABLE t2 (a INT, b INT, c INT, KEY(b));
+INSERT INTO t0 SELECT seq, seq FROM seq_1_to_100;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_50;
+INSERT INTO t2 SELECT seq,seq, seq FROM seq_1_to_10;
+ANALYZE TABLE t0 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t0	analyze	status	Engine-independent statistics collected
+test.t0	analyze	status	OK
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+CREATE VIEW v1 as SELECT t2.b,t2.c FROM t1, t2 WHERE t1.a=t2.b;
+EXPLAIN EXTENDED SELECT v1.b FROM t0, v1
+WHERE v1.b <= 45 AND v1.c= t0.a
+ORDER BY t0.b DESC, v1.b DESC
+LIMIT 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	100	100.00	
+1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	10	1.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	100.00	Using filesort
+1	SIMPLE	t1	ref	a	a	5	sort-nest.b	1	100.00	Using index
+Warnings:
+Note	1003	select `sort-nest`.`b` AS `b` from `test`.`t0` join `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` = `sort-nest`.`b` order by `sort-nest`.`b` desc,`sort-nest`.`b` desc limit 10
+SELECT v1.b FROM t0, v1
+WHERE v1.b <= 45 AND v1.c= t0.a
+ORDER BY t0.b DESC, v1.b DESC
+LIMIT 10;
+b
+10
+9
+8
+7
+6
+5
+4
+3
+2
+1
+DROP VIEW v1;
+#
+# merge-able derived table inside a sort-nest
+#
+EXPLAIN EXTENDED SELECT q.b FROM t0, (SELECT t2.b,t2.c FROM t1, t2 WHERE t1.a=t2.b)q
+WHERE q.b <= 45 AND q.c= t0.a
+ORDER BY t0.b DESC, q.b DESC
+LIMIT 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	100	100.00	
+1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	10	1.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	100.00	Using filesort
+1	SIMPLE	t1	ref	a	a	5	sort-nest.b	1	100.00	Using index
+Warnings:
+Note	1003	select `sort-nest`.`b` AS `b` from `test`.`t0` join `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` = `sort-nest`.`b` order by `sort-nest`.`b` desc,`sort-nest`.`b` desc limit 10
+SELECT q.b FROM t0, (SELECT t2.b,t2.c FROM t1, t2 WHERE t1.a=t2.b)q
+WHERE q.b <= 45 AND q.c= t0.a
+ORDER BY t0.b DESC, q.b DESC
+LIMIT 10;
+b
+10
+9
+8
+7
+6
+5
+4
+3
+2
+1
+#
+# Non merge-able view, optimization cannot be used as estimates for
+# join cardinality are not accurate
+#
+CREATE VIEW v1 as SELECT DISTINCT t2.b,t2.c FROM t1, t2 WHERE t1.a=t2.b;
+EXPLAIN SELECT v1.b FROM t0, v1
+WHERE v1.b <= 45 AND t0.a= v1.c
+ORDER BY v1.b DESC
+LIMIT 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
+1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t2	ALL	b	NULL	NULL	NULL	10	Using where; Using temporary
+2	DERIVED	t1	ref	a	a	5	test.t2.b	1	Using index; Distinct
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    true,
+    false
+]
+SELECT v1.b FROM t0, v1
+WHERE v1.b <= 45 AND t0.a= v1.c
+ORDER BY v1.b DESC
+LIMIT 10;
+b
+10
+9
+8
+7
+6
+5
+4
+3
+2
+1
+DROP TABLE t0,t1,t2;
+DROP VIEW v1;
+#
+# Primary key considered as the key that could achieve ordering
+#
+CREATE TABLE t1 (id char(32) NOT NULL primary key);
+INSERT INTO t1 VALUES (0), (1), (2), (3), (4), (5), (6), (7), (8), (9);
+CREATE TABLE t2 (id char(32) NOT NULL primary key);
+INSERT INTO t2 VALUES (0), (1), (2), (3);
+EXPLAIN EXTENDED SELECT t1.id
+FROM t1 INNER JOIN t2 ON t1.id=t2.id
+ORDER BY t2.id LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	index	PRIMARY	PRIMARY	32	NULL	2	100.00	Using index
+1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	32	test.t2.id	1	100.00	Using index
+Warnings:
+Note	1003	select `test`.`t1`.`id` AS `id` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`id` = `test`.`t2`.`id` order by `test`.`t2`.`id` limit 2
+SELECT t1.id
+FROM t1 INNER JOIN t2 ON t1.id=t2.id
+ORDER BY t2.id LIMIT 2;
+id
+0
+1
+DROP TABLE t1,t2;
+#
+# Tests with Outer Joins
+#
+CREATE TABLE t1 (a int, b int);
+INSERT INTO t1 SELECT seq-1, seq-1 from seq_1_to_10;
+CREATE TABLE t2 as SELECT * from t1;
+CREATE TABLE t3 (a int, b int, KEY(a));
+INSERT INTO t3 SELECT seq-1, seq-1 from seq_1_to_100;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+# sort-nest(t2,t1) and t3 outside the nest
+EXPLAIN EXTENDED SELECT * FROM t2, t1 LEFT JOIN t3 ON t3.a=t1.b
+ORDER BY t2.a DESC,t1.a DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+1	SIMPLE	t3	ref	a	a	5	sort-nest.b	1	100.00	Using where
+Warnings:
+Note	1003	select `sort-nest`.`a` AS `a`,`sort-nest`.`b` AS `b`,`sort-nest`.`a` AS `a`,`sort-nest`.`b` AS `b`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t2` join `test`.`t1` left join `test`.`t3` on(`test`.`t3`.`a` = `sort-nest`.`b` and `sort-nest`.`b` is not null) where 1 order by `sort-nest`.`a` desc,`sort-nest`.`a` desc limit 5
+SELECT * FROM t2, t1 LEFT JOIN t3 ON t3.a=t1.b
+ORDER BY t2.a DESC,t1.a DESC
+LIMIT 5;
+a	b	a	b	a	b
+9	9	9	9	9	9
+9	9	8	8	8	8
+9	9	7	7	7	7
+9	9	6	6	6	6
+9	9	5	5	5	5
+#
+# no sort-nest as all the inner tables of the outer join will be
+# inside the nest, this should use temporary table to sort after the
+# entire join is computed
+#
+EXPLAIN SELECT * FROM t2 LEFT JOIN (t1 LEFT JOIN t3 ON t3.a=t1.b)
+ON t2.b=t1.a
+ORDER BY t2.a DESC,t1.a DESC LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t3	ref	a	a	5	test.t1.b	1	Using where
+SELECT * FROM t2 LEFT JOIN (t1 LEFT JOIN t3 ON t3.a=t1.b)
+ON t2.b=t1.a
+ORDER BY t2.a DESC,t1.a DESC LIMIT 5;
+a	b	a	b	a	b
+9	9	9	9	9	9
+8	8	8	8	8	8
+7	7	7	7	7	7
+6	6	6	6	6	6
+5	5	5	5	5	5
+DROP TABLE t1,t2,t3;
+#
+# Sort-nest with prepared statements
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 SELECT seq-1,seq-1 from seq_1_to_10;
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t2 SELECT seq-1,seq-1 from seq_1_to_10;
+CREATE TABLE t3 (a int, b int, KEY(a));
+INSERT INTO t3 SELECT seq-1, seq-1 from seq_1_to_100;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+# sort-nest on table t1,t2
+prepare ps1 from "EXPLAIN SELECT * FROM t1,t2,t3
+                  WHERE t1.a=t2.a AND t2.b= t3.a
+                  ORDER BY t2.b DESC,t1.b DESC
+                  LIMIT 5";
+EXECUTE ps1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+1	SIMPLE	t3	ref	a	a	5	sort-nest.b	1	
+EXECUTE ps1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+1	SIMPLE	t3	ref	a	a	5	sort-nest.b	1	
+# sort-nest on table t1,t2
+PREPARE ps2 from "SELECT * FROM t1,t2,t3
+                  WHERE t1.a=t2.a AND t2.b= t3.a
+                  ORDER BY t2.b DESC,t1.b DESC
+                  LIMIT 5";
+EXECUTE ps2;
+a	b	a	b	a	b
+9	9	9	9	9	9
+8	8	8	8	8	8
+7	7	7	7	7	7
+6	6	6	6	6	6
+5	5	5	5	5	5
+EXECUTE ps2;
+a	b	a	b	a	b
+9	9	9	9	9	9
+8	8	8	8	8	8
+7	7	7	7	7	7
+6	6	6	6	6	6
+5	5	5	5	5	5
+DEALLOCATE PREPARE ps1;
+DEALLOCATE PREPARE ps2;
+DROP TABLE t1,t2,t3;
+#
+#  Tests with subqueries
+#
+# INDEPENDENT SUBQUERIES
+CREATE TABLE t1 (a int, b int, KEY(a));
+INSERT INTO t1 SELECT seq, seq from seq_1_to_10;
+CREATE TABLE t2(a INT, b INT, KEY(a), KEY(b));
+INSERT INTO t2 SELECT seq,seq from seq_1_to_10;
+CREATE TABLE t3 (a int, b int, c int, KEY(b));
+INSERT INTO t3 SELECT seq, seq, seq from seq_1_to_100;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+#
+# sort-nest(t2,t1) and independent subquery in the SELECT list
+#
+EXPLAIN SELECT (SELECT A.a FROM t3 A WHERE A.a > 5 limit 1) as x,
+t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a AND t2.b=t3.b
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	a	NULL	NULL	NULL	10	Using where
+1	PRIMARY	t2	ref	a,b	a	5	test.t1.a	1	
+1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+1	PRIMARY	t3	ref	b	b	5	sort-nest.b	1	
+2	SUBQUERY	A	ALL	NULL	NULL	NULL	NULL	100	Using where
+SELECT (SELECT A.a FROM t3 A WHERE A.a > 5 limit 1) as x,
+t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a AND t2.b=t3.b
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+x	b	b	a
+6	10	10	10
+6	9	9	9
+6	8	8	8
+6	7	7	7
+6	6	6	6
+DROP TABLE t1,t2,t3;
+#
+#  Const tables should not form the sort-nest
+#
+CREATE TABLE t1 (i1 integer NOT NULL PRIMARY KEY);
+CREATE TABLE t2 (i2 integer NOT NULL PRIMARY KEY);
+CREATE TABLE t3 (i3 integer);
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5), (6), (7), (8);
+INSERT INTO t1 VALUES (9), (10), (11), (12);
+INSERT INTO t2 SELECT * FROM t1;
+EXPLAIN SELECT t1.*, t2.*
+FROM t1 JOIN t2 ON t1.i1 = t2.i2
+LEFT JOIN t3 ON t2.i2 = t3.i3
+ORDER BY t1.i1
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	12	Using index
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.i1	1	Using index
+SELECT t1.*, t2.*
+FROM t1 JOIN t2 ON t1.i1 = t2.i2
+LEFT JOIN t3 ON t2.i2 = t3.i3
+ORDER BY t1.i1
+LIMIT 5;
+i1	i2
+1	1
+2	2
+3	3
+4	4
+5	5
+DROP TABLE t1,t2,t3;
+# All tables are const tables
+CREATE TABLE t1 (a int, b int);
+INSERT INTO t1 VALUES (0,0);
+CREATE TABLE t2(a int, b int);
+INSERT INTO t2 VALUES (0,0);
+CREATE TABLE t3(a int, b int);
+INSERT INTO t3 VALUES (0,0);
+EXPLAIN SELECT t1.a,t2.a,t3.a
+FROM t1,t2,t3
+WHERE t1.b = t2.b AND t3.b=t1.b
+ORDER BY t2.a DESC,t1.a DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t3	system	NULL	NULL	NULL	NULL	1	
+SELECT t1.a,t2.a,t3.a
+FROM t1,t2,t3
+WHERE t1.b = t2.b AND t3.b=t1.b
+ORDER BY t2.a DESC,t1.a DESC
+LIMIT 5;
+a	a	a
+0	0	0
+DROP TABLE t1,t2,t3;
+#
+# Testing ORDER BY LIMIT with OFFSET, should show the same plan and same
+# estimate of rows for the sort-nest
+#
+CREATE TABLE t0 (a int);
+INSERT INTO t0 SELECT seq-1 from seq_1_to_10;
+CREATE TABLE t1 (a int, b int);
+INSERT INTO t1 SELECT a, a from t0;
+CREATE TABLE t2 as SELECT * from t1;
+CREATE TABLE t3(a int, b int, c int, key(a));
+INSERT INTO t3  SELECT seq-1, seq-1, seq-1 from seq_1_to_100;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+EXPLAIN SELECT t1.a, t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a=t2.a AND t2.b = t3.a
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	10	Using filesort
+1	SIMPLE	t3	ref	a	a	5	sort-nest.b	1	Using index
+SELECT t1.a, t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a=t2.a AND t2.b = t3.a
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 10;
+a	b	b	a
+9	9	9	9
+8	8	8	8
+7	7	7	7
+6	6	6	6
+5	5	5	5
+4	4	4	4
+3	3	3	3
+2	2	2	2
+1	1	1	1
+0	0	0	0
+EXPLAIN SELECT t1.a, t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a=t2.a AND t2.b = t3.a
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5 OFFSET 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	10	Using filesort
+1	SIMPLE	t3	ref	a	a	5	sort-nest.b	1	Using index
+SELECT t1.a, t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a=t2.a AND t2.b = t3.a
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5 OFFSET 5;
+a	b	b	a
+4	4	4	4
+3	3	3	3
+2	2	2	2
+1	1	1	1
+0	0	0	0
+DROP TABLE t0,t1,t2,t3;
+#
+# ORDER BY clause containing expressions
+#
+CREATE TABLE t0 (a int);
+INSERT INTO t0 SELECT seq-1 from seq_1_to_10;
+CREATE TABLE t1 (a int, b int, c int);
+INSERT INTO t1 SELECT a, a, a from t0 where a <5;
+CREATE TABLE t2 as SELECT * from t1 where a < 5;
+CREATE TABLE t3(a int, b int, c int, key(a));
+INSERT INTO t3  SELECT seq-1, seq-1, seq-1 from seq_1_to_10;
+CREATE TABLE t4 as SELECT * from t1 where a < 5;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+ANALYZE TABLE t4 PERSISTENT FOR ALL;
+EXPLAIN SELECT t1.a, t2.b, t1.b, t1.b + t2.b
+FROM t1,t2, t3
+WHERE t1.a=t2.b and t2.a=t3.a
+ORDER BY abs(t3.a+t1.b) DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+1	SIMPLE	t3	ref	a	a	5	sort-nest.a	1	Using index
+SELECT t1.a, t2.b, t1.b, t1.b + t2.b
+FROM t1,t2, t3
+WHERE t1.a=t2.b and t2.a=t3.a
+ORDER BY abs(t3.a+t1.b) DESC
+LIMIT 5;
+a	b	b	t1.b + t2.b
+4	4	4	8
+3	3	3	6
+2	2	2	4
+1	1	1	2
+0	0	0	0
+#
+# No sort nest where ORDER BY item are expensive to compute like 
+# stored functions, subqueries etc
+CREATE FUNCTION f1(a INT) RETURNS INT
+BEGIN
+RETURN a;
+END|
+EXPLAIN SELECT t1.a, t2.b, t1.b, t1.b + t2.b
+FROM t1,t2, t3
+WHERE t1.a=t2.b and t2.a=t3.a
+ORDER BY f1(t3.a+t1.b) DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	Using index
+SELECT t1.a, t2.b, t1.b, t1.b + t2.b
+FROM t1,t2, t3
+WHERE t1.a=t2.b and t2.a=t3.a
+ORDER BY f1(t3.a+t1.b) DESC
+LIMIT 5;
+a	b	b	t1.b + t2.b
+4	4	4	8
+3	3	3	6
+2	2	2	4
+1	1	1	2
+0	0	0	0
+DROP FUNCTION f1;
+#
+# Window function in order by clause, sort-nest not allowed
+#
+EXPLAIN SELECT t1.a, t2.b, t1.b, t1.b + t2.b
+FROM t1,t2, t3
+WHERE t1.a=t2.b AND t2.a=t3.a
+ORDER BY row_number() OVER (ORDER BY t1.a) DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	Using index
+SELECT t1.a, t2.b, t1.b, t1.b + t2.b
+FROM t1,t2, t3
+WHERE t1.a=t2.b AND t2.a=t3.a
+ORDER BY row_number() OVER (ORDER BY t1.a) DESC
+LIMIT 5;
+a	b	b	t1.b + t2.b
+4	4	4	8
+3	3	3	6
+2	2	2	4
+1	1	1	2
+0	0	0	0
+DROP TABLE t0, t1,t2,t3, t4;
+#
+#  Tests with Indexes
+#
+CREATE TABLE t1 (a int, b int, c int, KEY a_b (a,b), KEY a_c (a,c));
+insert into t1 values (0,1,0), (0,2,0), (0,3,0), (0,4,0), (0,5,0), (0,6,0);
+insert into t1 values (1,7,1), (1,8,1), (1,9,1), (1,10,1), (1,11,1), (1,12,1);
+insert into t1 values (1,7,2), (1,8,2), (1,9,2), (1,10,2), (1,11,2), (1,12,2);
+insert into t1 values (1,7,2), (1,8,2), (1,9,2), (1,10,2), (1,11,2), (1,12,2);
+#
+# index a_b should be used, no need for filesort
+#
+select a,b,c from t1 where a=1 and c=2 order by b limit 5;
+a	b	c
+1	7	2
+1	7	2
+1	8	2
+1	8	2
+1	9	2
+explain select a,b,c from t1 where a=1 and c=2 order by b limit 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a_b,a_c	a_b	5	NULL	18	Using where
+drop table t1;
+#
+# Tests where Index(scan, ref or range access) satisfies the ORDERING
+#
+CREATE TABLE t1 (a int, b int, c int, KEY a_b (a,b), KEY a_c (a,c));
+insert into t1 values (0,1,0), (0,2,0), (0,3,0), (0,4,0), (0,5,0), (0,6,0);
+insert into t1 values (1,7,1), (1,8,1), (1,9,1), (1,10,1), (1,11,1), (1,12,1);
+insert into t1 values (1,7,2), (1,8,2), (1,9,2), (1,10,2), (1,11,2), (1,12,2);
+insert into t1 values (1,7,2), (1,8,2), (1,9,2), (1,10,2), (1,11,2), (1,12,2);
+insert into t1 values (1,1,2);
+#
+# index key a_b, no need for filesort
+# Also index condition pushdown is used here
+#
+select a,b from t1 where a=1 and c=2 order by b limit 10;
+a	b
+1	1
+1	7
+1	7
+1	8
+1	8
+1	9
+1	9
+1	10
+1	10
+1	11
+explain select a,b from t1 where a=1 and c=2 order by b limit 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a_b,a_c	a_b	5	NULL	19	Using where
+drop table t1;
+CREATE TABLE t1(
+a int NOT NULL,
+b char NULL,
+PRIMARY KEY(a)
+);
+INSERT INTO t1 VALUES (1,'a'), (2,'b'), (3,'c'), (4,'d');
+#
+# Should use index condition
+#
+SELECT * FROM t1 WHERE a BETWEEN 1 and 2 ORDER BY a LIMIT 2;
+a	b
+1	a
+2	b
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN 1 and 2 ORDER BY a LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	Using index condition
+#
+# Should not use index condition as ORDER by DESC is used
+#
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN 1 and 2 ORDER BY a DESC LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	Using where
+SELECT * FROM t1 WHERE a BETWEEN 1 and 2 ORDER BY a DESC LIMIT 2;
+a	b
+2	b
+1	a
+drop table t1;
+create table t1(a int, b int, c int, key(a), key a_b(a,b));
+insert into t1 values (0,1,0), (0,2,0), (0,3,0);
+insert into t1 values (1,6,1), (1,7,1), (1,5,1);
+insert into t1 values (2,8,2), (2,9,3), (2,10,4);
+insert into t1 values (3,1,5);
+create table t2(a int, b int, c int, key(b), key(c));
+insert into t2 select a, b, c from t1;
+#
+# Testing using of Indexes on first non-const table
+#
+#
+#  Using range scan
+#
+SELECT * FROM t1,t2
+WHERE
+t1.a=2 AND t2.b > 8 AND
+t1.b=t2.b
+ORDER BY t1.b LIMIT 10;
+a	b	c	a	b	c
+2	9	3	2	9	3
+2	10	4	2	10	4
+EXPLAIN SELECT * FROM t1,t2
+WHERE
+t1.a=2 AND t2.b > 8 AND
+t1.b=t2.b
+ORDER BY t1.b LIMIT 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a,a_b	a_b	10	NULL	2	Using index condition
+1	SIMPLE	t2	ref	b	b	5	test.t1.b	1	
+#
+#  Using ref access
+#
+SELECT * FROM t1,t2
+WHERE
+t1.a=2 AND t2.c >= 1 AND
+t1.b=t2.b
+ORDER BY t1.b LIMIT 10;
+a	b	c	a	b	c
+2	8	2	2	8	2
+2	9	3	2	9	3
+2	10	4	2	10	4
+EXPLAIN SELECT * FROM t1,t2
+WHERE
+t1.a=2 AND t2.c >= 1 AND
+t1.b=t2.b
+ORDER BY t1.b LIMIT 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a,a_b	a_b	5	const	3	Using where
+1	SIMPLE	t2	ref	b,c	b	5	test.t1.b	1	Using where
+#
+# Using index condition should not be present
+#
+SELECT * FROM t1,t2
+WHERE
+t1.a=2 AND t2.c >= 1 AND
+t1.b=t2.b
+ORDER BY t1.b DESC LIMIT 10;
+a	b	c	a	b	c
+2	10	4	2	10	4
+2	9	3	2	9	3
+2	8	2	2	8	2
+EXPLAIN SELECT * FROM t1,t2
+WHERE
+t1.a=2 AND t2.c >= 1 AND
+t1.b=t2.b
+ORDER BY t1.b DESC LIMIT 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a,a_b	a_b	5	const	3	Using where
+1	SIMPLE	t2	ref	b,c	b	5	test.t1.b	1	Using where
+drop table t1,t2;
+# TESTS with INDEX HINTS
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, b int,c int, key idx1(a), key idx2(a,b), key idx3(c));
+insert into t1 select a,a,a from t0 where a <5;
+analyze table t1 persistent for all;
+#
+# Index idx1 to be used for index scan
+#
+SELECT * from t1 where b > 0 order by t1.a limit 2;
+a	b	c
+1	1	1
+2	2	2
+EXPLAIN SELECT * from t1 where b > 0 order by t1.a limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	idx1	5	NULL	2	Using where
+#
+# Index idx2 to be used for index scan(USE INDEX is used)
+#
+SELECT * from t1 USE INDEX(idx2) WHERE b > 0 ORDER BY t1.a LIMIT 2;
+a	b	c
+1	1	1
+2	2	2
+EXPLAIN SELECT * from t1 USE INDEX(idx2) WHERE b > 0 ORDER BY t1.a LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	idx2	10	NULL	2	Using where
+#
+# Index idx2 to be used for index scan(USE INDEX for ORDER BY  is used)
+#
+SELECT * from t1 USE INDEX FOR ORDER BY(idx2)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+a	b	c
+1	1	1
+2	2	2
+EXPLAIN SELECT * from t1 USE INDEX FOR ORDER BY(idx2)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	idx2	10	NULL	2	Using where
+#
+# Use Filesort as idx3 does not resolve ORDER BY clause
+#
+SELECT * from t1 USE INDEX FOR ORDER BY(idx3)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+a	b	c
+1	1	1
+2	2	2
+EXPLAIN SELECT * from t1 USE INDEX FOR ORDER BY(idx3)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using filesort
+#
+# Using index idx2 as idx1 is ignored
+#
+SELECT * from t1 IGNORE INDEX(idx1)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+a	b	c
+1	1	1
+2	2	2
+EXPLAIN SELECT * from t1 IGNORE INDEX(idx1)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	idx2	10	NULL	2	Using where
+#
+# Use index idx2 for sorting, it is forced here
+#
+SELECT * from t1 FORCE INDEX(idx2)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+a	b	c
+1	1	1
+2	2	2
+EXPLAIN SELECT * from t1 FORCE INDEX(idx2)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	idx2	10	NULL	2	Using where
+#
+# Use FILESORT as idx3 cannot resolve ORDER BY clause
+#
+SELECT * from t1 FORCE INDEX FOR ORDER BY(idx3)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+a	b	c
+1	1	1
+2	2	2
+EXPLAIN SELECT * from t1 FORCE INDEX FOR ORDER BY(idx3)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using filesort
+drop table t0,t1;
+#
+# Tests with Subqueries
+#
+CREATE TABLE t0 (a int);
+INSERT INTO t0 SELECT seq-1 from seq_1_to_10;
+CREATE TABLE t1 (a int, b int, c int);
+INSERT INTO t1 SELECT a, a, a from t0 where a <5;
+CREATE TABLE t2 as SELECT * from t1 where a < 5;
+CREATE TABLE t3(a int, b int, c int, key(a));
+INSERT INTO t3  SELECT seq-1, seq-1, seq-1 from seq_1_to_10;
+CREATE TABLE t4 as SELECT * from t1 where a < 5;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+ANALYZE TABLE t4 PERSISTENT FOR ALL;
+#
+# Dependent subqueries cannot have a sort-nest
+#
+EXPLAIN SELECT *
+FROM t1
+WHERE
+t1.b = (select t2.b from t2,t3,t4
+where t2.a=t1.a and t3.b=t4.b
+ORDER BY t2.c,t3.c limit 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+2	DEPENDENT SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
+2	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (incremental, BNL join)
+SELECT *
+FROM t1
+WHERE
+t1.b = (select t2.b from t2,t3,t4
+where t2.a=t1.a and t3.b=t4.b
+ORDER BY t2.c,t3.c limit 1);
+a	b	c
+0	0	0
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+#
+# Independent subqueries can have a sort-nest
+#
+EXPLAIN SELECT *
+FROM t1
+WHERE
+t1.b = (select t2.b from t2,t3,t4
+where t2.a=t3.a and t3.b=t4.b
+ORDER BY t2.c,t3.c limit 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+2	SUBQUERY	t3	ref	a	a	5	test.t2.a	1	
+2	SUBQUERY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	2	Using filesort
+2	SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	5	Using where
+SELECT *
+FROM t1
+WHERE
+t1.b = (select t2.b from t2,t3,t4
+where t2.a=t3.a and t3.b=t4.b
+ORDER BY t2.c,t3.c limit 1);
+a	b	c
+0	0	0
+#
+# Sort nest inside a derived table
+#
+EXPLAIN SELECT *
+FROM (SELECT t1.a as t, t2.b as u, t1.b as v, t3.a as x
+FROM t1,t2,t3
+WHERE t1.a=t2.a AND t2.b=t3.a
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5)q;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+2	DERIVED	t3	ref	a	a	5	sort-nest.b	1	Using index
+SELECT *
+FROM (SELECT t1.a as t, t2.b as u, t1.b as v, t3.a as x
+FROM t1,t2,t3
+WHERE t1.a=t2.a AND t2.b=t3.a
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5)q;
+t	u	v	x
+4	4	4	4
+3	3	3	3
+2	2	2	2
+1	1	1	1
+0	0	0	0
+#
+# sort-nest(t2,t1) and independent subquery in the SELECT list
+#
+EXPLAIN SELECT (SELECT A.a FROM t3 A WHERE A.a > 5 limit 1) as x,
+t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
+1	PRIMARY	t3	index	NULL	a	5	NULL	10	Using index
+2	SUBQUERY	A	range	a	a	5	NULL	4	Using where; Using index
+SELECT (SELECT A.a FROM t3 A WHERE A.a > 5 limit 1) as x,
+t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+x	b	b	a
+6	4	4	0
+6	4	4	1
+6	4	4	2
+6	4	4	3
+6	4	4	4
+#
+# sort-nest(t2,t1) and dependent subquery in the SELECT list
+#
+EXPLAIN SELECT (SELECT A.a FROM t3 A WHERE A.a = t1.b limit 1) as x,
+t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	2	Using filesort
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	A	ref	a	a	5	sort-nest.b	1	Using index
+SELECT (SELECT A.a FROM t3 A WHERE A.a = t1.b limit 1) as x,
+t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+x	b	b	a
+4	4	4	4
+3	3	3	3
+2	2	2	2
+1	1	1	1
+0	0	0	0
+#
+# Dependent Subquery in the WHERE clause, so estimates for join
+# cardinality are not accurate. Sort-nest cannot be used here.
+# Use temptable + filesort here
+#
+EXPLAIN SELECT t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a AND t2.c = t3.c AND
+t1.b=(SELECT A.a FROM t3 A WHERE A.b > 1 and t3.b=t1.b limit 1)
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (incremental, BNL join)
+2	DEPENDENT SUBQUERY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false,
+    false
+]
+SELECT t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a AND t2.c = t3.c AND
+t1.b=(SELECT A.a FROM t3 A WHERE A.b > 1 and t3.b=t1.b limit 1)
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+b	b	a
+2	2	2
+#
+# sort-nest(t2,t1) and independent subquery in the ORDER BY clause
+#
+# Subquery will be a constant in ORDER BY and will be removed
+EXPLAIN SELECT t2.b, t1.b, t3.c
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b, t1.b,
+(SELECT A.a FROM t3 A WHERE A.a < 5 limit 1)
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	2	Using filesort
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	SUBQUERY	A	range	a	a	5	NULL	5	Using where; Using index
+SELECT t2.b, t1.b, t3.c
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b, t1.b,
+(SELECT A.a FROM t3 A WHERE A.a < 5 limit 1)
+LIMIT 5;
+b	b	c
+0	0	0
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+#
+# sort-nest(t2,t1) and dependent subquery in the ORDER BY clause
+#
+# Subquery is expensive to evaluate, so don't use a sort-nest
+EXPLAIN SELECT t2.b, t1.b, t3.c
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b, t1.b,
+(SELECT A.a FROM t3 A WHERE A.a = t1.c limit 1)
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (incremental, BNL join)
+2	DEPENDENT SUBQUERY	A	ref	a	a	5	test.t1.c	1	Using index
+SELECT t2.b, t1.b, t3.c
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b, t1.b,
+(SELECT A.a FROM t3 A WHERE A.a = t1.c limit 1)
+LIMIT 5;
+b	b	c
+0	0	0
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+DROP TABLE t0,t1,t2,t3,t4;
+#
+# SORT-NEST WITH SEMI JOINS
+#
+CREATE TABLE t0(a int);
+CREATE TABLE t1 (a int, b int, c int, key(a), key(b));
+CREATE TABLE t2 (a int, b int, c int, key(a));
+CREATE TABLE t3 (a int, b int, c int, key(a));
+CREATE TABLE t4 (a int, b int, c int, key(a));
+INSERT INTO t0 SELECT seq-1 FROM seq_1_to_10;
+INSERT INTO t1 SELECT seq-1, seq-1, seq-1 FROM seq_1_to_100;
+INSERT INTO t2 SELECT a,a,a FROM t0;
+INSERT INTO t3 SELECT a,a,a FROM t0 WHERE a < 5;
+INSERT INTO t3 SELECT a,a,a FROM t0 WHERE a < 5;
+INSERT INTO t4 SELECT a,a,a FROM t0 WHERE a < 5;
+INSERT INTO t4 SELECT a,a,a FROM t0 WHERE a < 5;
+ANALYZE TABLE t0 PERSISTENT FOR ALL;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+ANALYZE TABLE t4 PERSISTENT FOR ALL;
+#
+# SJM Lookup with sort-nest, where SJM lookup table is outside the
+# sort-nest
+#
+EXPLAIN SELECT t1.a, t2.a, t1.b,t2.b
+FROM t1, t2, t2 ot
+WHERE t1.a=t2.a AND t2.b=ot.a AND t2.b <= 4 AND
+t1.b IN (SELECT it1.b FROM t3 it1,t4 it2
+WHERE it1.a <= 4 AND it1.a=it2.a)
+ORDER BY t2.b DESC ,t1.b DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	ot	range	a	a	5	NULL	5	Using where; Using index
+1	PRIMARY	t2	ALL	a	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t1	ref	a,b	a	5	test.t2.a	1	
+1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	2	Using filesort
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	it1	ALL	a	NULL	NULL	NULL	10	Using where
+2	MATERIALIZED	it2	ref	a	a	5	test.it1.a	2	Using index
+SELECT t1.a, t2.a, t1.b,t2.b
+FROM t1, t2, t2 ot
+WHERE t1.a=t2.a AND t2.b=ot.a AND t2.b <= 4 AND
+t1.b IN (SELECT it1.b FROM t3 it1,t4 it2
+WHERE it1.a <= 4 AND it1.a=it2.a)
+ORDER BY t2.b DESC ,t1.b DESC
+LIMIT 5;
+a	a	b	b
+4	4	4	4
+3	3	3	3
+2	2	2	2
+1	1	1	1
+0	0	0	0
+drop table t0,t1,t2,t3,t4;
+#
+# Firstmatch strategy
+#
+CREATE TABLE t0(a int);
+CREATE TABLE t1 (a int, b int, c int);
+CREATE TABLE t2 (a int, b int, c int, key(a));
+CREATE TABLE t3 (a int, b int, c int, key(b));
+CREATE TABLE t4 (a int, b int, c int, key(a));
+INSERT INTO t0 SELECT seq-1 FROM seq_1_to_10;
+INSERT INTO t1 SELECT seq-1, seq-1, seq-1 FROM seq_1_to_100;
+INSERT INTO t2 SELECT a,a,a FROM t0;
+INSERT INTO t3 SELECT a,a,a FROM t0 where a < 5;
+INSERT INTO t3 SELECT a,a,a FROM t0 where a < 5;
+INSERT INTO t4 SELECT a,a,a FROM t0 where a < 5;
+INSERT INTO t4 SELECT a,a,a FROM t0 where a < 5;
+ANALYZE TABLE t0 PERSISTENT FOR ALL;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+ANALYZE TABLE t4 PERSISTENT FOR ALL;
+EXPLAIN SELECT t1.a, t2.a, t1.b,t2.b
+FROM t1, t2
+WHERE t1.a=t2.a AND
+t1.b IN (SELECT t3.b FROM t3,t4 WHERE t3.a <= 5 and t3.c = t2.b)
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	a	NULL	NULL	NULL	10	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	100	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+1	PRIMARY	t3	ref	b	b	5	sort-nest.b	2	Using where
+1	PRIMARY	t4	index	NULL	a	5	NULL	10	Using index; FirstMatch(<sort-nest>)
+SELECT t1.a, t2.a, t1.b,t2.b
+FROM t1, t2
+WHERE t1.a=t2.a AND
+t1.b IN (SELECT t3.b FROM t3,t4 WHERE t3.a <= 5 and t3.c = t2.b)
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+a	a	b	b
+4	4	4	4
+3	3	3	3
+2	2	2	2
+1	1	1	1
+0	0	0	0
+#
+# Duplicate weedout
+#
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='firstmatch=off';
+EXPLAIN SELECT t1.a, t2.a, t1.b,t2.b
+FROM t1, t2
+WHERE t1.a=t2.a AND
+t1.b IN (SELECT t3.b FROM t3,t4 WHERE t3.a <= 5 and t3.c = t2.b)
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	100	
+1	PRIMARY	t2	ALL	a	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<sort-nest>	ALL	NULL	NULL	NULL	NULL	1	Using filesort
+1	PRIMARY	t3	ref	b	b	5	sort-nest.b	2	Using where; Start temporary
+1	PRIMARY	t4	index	NULL	a	5	NULL	10	Using index; End temporary
+SELECT t1.a, t2.a, t1.b,t2.b
+FROM t1, t2
+WHERE t1.a=t2.a AND
+t1.b IN (SELECT t3.b FROM t3,t4 WHERE t3.a <= 5 and t3.c = t2.b)
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+a	a	b	b
+4	4	4	4
+3	3	3	3
+2	2	2	2
+1	1	1	1
+0	0	0	0
+set @@optimizer_switch= @save_optimizer_switch;
+drop table t0,t1,t2,t3,t4;
+
+# NON-MERGED SEMI JOINS cannot use a sort-nest as the estimates for
+# join cardinality are not accurate, so use temp table + Filesort here
+
+create table t0 (a int);
+INSERT INTO t0 SELECT seq-1 FROM seq_1_to_10;
+create table t1 (a int, b int);
+insert into t1 SELECT a,a from t0 where a <5;
+create table t2 as SELECT * from t1 where a < 5;
+create table t3(a int, b int);
+INSERT INTO t3 SELECT seq-1, seq-1 FROM seq_1_to_100;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+<subquery2> outside the sort-nest
+EXPLAIN SELECT * from t2,t1
+WHERE t2.b=t1.b
+AND
+t1.a IN (SELECT max(t3.a) FROM t3 GROUP BY t3.b)
+ORDER BY t2.a DESC,t1.a DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	test.t1.a	1	
+2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	100	Using temporary
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+[
+    false
+]
+SELECT * from t2,t1
+WHERE t2.b=t1.b
+AND
+t1.a IN (SELECT max(t3.a) FROM t3 GROUP BY t3.b)
+ORDER BY t2.a DESC,t1.a DESC
+LIMIT 5;
+a	b	a	b
+4	4	4	4
+3	3	3	3
+2	2	2	2
+1	1	1	1
+0	0	0	0
+DROP TABLE t0,t1,t2,t3;

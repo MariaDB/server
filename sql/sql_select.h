@@ -366,6 +366,12 @@ typedef struct st_join_table {
   uint		used_fields;
   ulong         used_fieldlength;
   ulong         max_used_fieldlength;
+  /*
+    Estimate for the length of a record that would be stored in the nest.
+    The estimate contains length of all the fields that have bitmap read_set
+    set for them.
+  */
+  ulong         used_rec_length_for_nest;
   uint          used_blobs;
   uint          used_null_fields;
   uint          used_uneven_bit_fields;
@@ -524,6 +530,12 @@ typedef struct st_join_table {
   /* Becomes true just after the used range filter has been built / filled */
   bool is_rowid_filter_built;
 
+  /*
+    Set to TRUE if we picked a join order that would use a sort-nest on
+    a prefix that satisfies the ORDER BY clause.
+  */
+  bool is_sort_nest;
+
   void build_range_rowid_filter_if_needed();
 
   void cleanup();
@@ -611,6 +623,7 @@ typedef struct st_join_table {
     return tmp_select_cond;
   }
   void calc_used_field_length(bool max_fl);
+  ulong get_estimated_record_length();
   ulong get_used_fieldlength()
   {
     if (!used_fieldlength)
@@ -680,6 +693,10 @@ typedef struct st_join_table {
                                         table_map remaining_tables);
   bool fix_splitting(SplM_plan_info *spl_plan, table_map remaining_tables,
                      bool is_const_table);
+  int get_index_on_table();
+  void find_keys_that_can_achieve_ordering();
+  bool check_if_index_satisfies_ordering(int index_used);
+  bool needs_filesort(uint idx, int index_used);
 } JOIN_TAB;
 
 
@@ -725,6 +742,10 @@ public:
                          struct st_position *loose_scan_pos) = 0;
 
   virtual void mark_used() = 0;
+  virtual bool sort_nest_allowed_for_sj(table_map prefix_tables)
+  {
+    return TRUE;
+  }
 
   virtual ~Semi_join_strategy_picker() {} 
 };
@@ -766,6 +787,7 @@ public:
                  struct st_position *loose_scan_pos);
 
   void mark_used() { is_used= TRUE; }
+  bool sort_nest_allowed_for_sj(table_map remaining_tables);
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 };
 
@@ -853,7 +875,6 @@ public:
                  sj_strategy_enum *strategy,
                  struct st_position *loose_scan_pos);
   void mark_used() { is_used= TRUE; }
-
   friend class Loose_scan_opt;
   friend void best_access_path(JOIN      *join,
                                JOIN_TAB  *s,
@@ -863,7 +884,9 @@ public:
                                bool      disable_jbuf,
                                double    record_count,
                                struct st_position *pos,
-                               struct st_position *loose_scan_pos);
+                               struct st_position *loose_scan_pos,
+                               table_map sort_nest_tables,
+                               bool nest_created, double sort_nest_records);
   friend bool get_best_combination(JOIN *join);
   friend int setup_semijoin_loosescan(JOIN *join);
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
@@ -996,6 +1019,20 @@ typedef struct st_position
   /* Cost info for the range filter used at this position */
   Range_rowid_filter_cost_info *range_rowid_filter_info;
 
+  /*
+    Flag to be set to TRUE if prefix of a join satisfies the ORDER BY CLAUSE
+    This flag is only set at the join planner stage.
+  */
+  bool sort_nest_operation_here;
+  /*
+    set to the index number for the first non-const table only if it
+    satisfies the ORDER BY CLAUSE and has the lowest cost of accessing
+    the table.
+    -1 otherwise
+    This is set only at the join planner stage.
+  */
+  int index_no;
+
 } POSITION;
 
 typedef Bounds_checked_array<Item_null_result*> Item_null_array;
@@ -1066,6 +1103,101 @@ private:
   Next_select_func write_func;
   enum_nested_loop_state put_record(bool end_of_records);
   bool prepare_tmp_table();
+};
+
+
+/**
+  Structure which consists of an item of the base table and the corresponding
+  item to the base item in the nest.
+*/
+
+class Item_pair :public Sql_alloc
+{
+public:
+  Item *base_item;
+  Item *nest_item;
+  Item_pair(Item *a, Item *b)
+    :base_item(a), nest_item(b) {}
+};
+
+
+/*
+  A subset of joined tables that are joined together is called a join table
+  nest. If the result of the join these tables is materialized in a temporary
+  table then the nest is called a materialized join table nest.
+  The class declared below is used for the objects created to handle
+  materialized join tables nests. These objects are supposed to be used at the
+  optimization an execution phases.
+*/
+
+class Mat_join_tab_nest_info : public Sql_alloc
+{
+protected:
+  /* The join which the joined tables from the nest belongs to */
+  JOIN *join;
+  /* Number of joined tables in the nest */
+  uint n_tables;
+  /* The bitmap of joined tables from the nest */
+  table_map nest_tables_map;
+  /* Condition extracted from the WHERE condition and pushed into the nest */
+  Item *nest_cond;
+  /* TRUE <=> materialization already performed */
+  bool materialized;
+
+public:
+  Mat_join_tab_nest_info(JOIN *join_arg, uint tables, table_map tables_map)
+  {
+    join= join_arg;
+    table= NULL;
+    nest_tab= NULL;
+    n_tables= tables;
+    nest_tables_map= tables_map;
+    nest_cond= NULL;
+    materialized= FALSE;
+  }
+
+  virtual ~Mat_join_tab_nest_info() {}
+
+  TMP_TABLE_PARAM tmp_table_param;
+  List<Item> nest_base_table_cols;
+
+  /*
+    List containing the mapping of items of the base tables with the
+    corresponding items in the nest
+  */
+  List<Item_pair> mapping_of_items;
+  st_join_table *nest_tab;
+  TABLE *table;
+
+  uint number_of_tables() { return n_tables; }
+  table_map get_tables_map() { return nest_tables_map; }
+  void set_nest_cond(Item *cond) { nest_cond= cond; }
+  Item *get_nest_cond()   { return nest_cond; }
+  void set_materialized() { materialized= TRUE; }
+  bool is_materialized()  { return materialized; }
+  virtual const char *get_name() { return "nest"; }
+  JOIN *get_join() { return join; }
+};
+
+/*
+  A derived class for the sort-nest.
+*/
+
+class Sort_nest_info : public Mat_join_tab_nest_info
+{
+public:
+  Sort_nest_info(JOIN *join_arg, uint tables, table_map tables_map)
+                :Mat_join_tab_nest_info(join_arg, tables, tables_map)
+  {
+    index_used= -1;
+  }
+  /*
+    >=0 set to the index that satisfies the ORDER BY clause and does an index
+        scan on the first non-const table.
+    -1 otherwise
+  */
+  int index_used;
+  const char *get_name() { return "sort-nest"; }
 };
 
 
@@ -1513,6 +1645,45 @@ public:
   */
   bool is_orig_degenerated;
 
+  /*
+    NOT NULL  sort nest present
+    NULL      Otherwise
+  */
+  Sort_nest_info *sort_nest_info;
+
+  /*
+    Set to TRUE if the query can use ORDER BY LIMIT optimization with
+    sort-nest. It caches the value that tells if the join optimizer
+    should consider using a sort-nest or not.
+    @see sort_nest_allowed()
+  */
+  bool sort_nest_possible;
+
+  /*
+    SET to TRUE when one wants to get an estimate of the cardinality for a
+    join.
+  */
+  bool get_cardinality_estimate;
+
+  /*
+    Set to the estimate of the rows that the join planner expects to be in the
+    output of the join.
+  */
+  double cardinality_estimate;
+
+  /*
+    The fraction of records we would read of the sort-nest or the first table
+    that satisfies the ORDER BY clause, after the sorting is done.
+  */
+  double fraction_output_for_nest;
+
+  /*
+    Caches that a prefix resolved the ORDER BY clause. This is done so that
+    we don't walk through the order by list everytime when we extend the prefix
+    to check if the extended prefix satifies the ordering or not.
+  */
+  bool prefix_resolves_ordering;
+
   JOIN(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
        select_result *result_arg)
     :fields_list(fields_arg)
@@ -1608,6 +1779,12 @@ public:
     sjm_lookup_tables= 0;
     sjm_scan_tables= 0;
     is_orig_degenerated= false;
+    sort_nest_info= NULL;
+    sort_nest_possible= FALSE;
+    fraction_output_for_nest= 1;
+    prefix_resolves_ordering= FALSE;
+    get_cardinality_estimate= FALSE;
+    cardinality_estimate= DBL_MAX;
   }
 
   /* True if the plan guarantees that it will be returned zero or one row */
@@ -1728,7 +1905,8 @@ public:
   JOIN_TAB *get_sort_by_join_tab()
   {
     return (need_tmp || !sort_by_table || skip_sort_order ||
-            ((group || tmp_table_param.sum_func_count) && !group_list)) ?
+            ((group || tmp_table_param.sum_func_count) && !group_list) ||
+            sort_nest_info) ?
               NULL : join_tab+const_tables;
   }
   bool setup_subquery_caches();
@@ -1747,6 +1925,7 @@ public:
     and one of the following conditions holds:
     - We are using DISTINCT (simple distinct's are already optimized away)
     - We are using an ORDER BY or GROUP BY on fields not in the first table
+    - We are not using the sort nest for ORDER BY with LIMIT
     - We are using different ORDER BY and GROUP BY orders
     - The user wants us to buffer the result.
     - We are using WINDOW functions.
@@ -1756,12 +1935,51 @@ public:
   bool test_if_need_tmp_table()
   {
     return ((const_tables != table_count &&
-	    ((select_distinct || !simple_order || !simple_group) ||
+	    ((select_distinct || (!simple_order && !sort_nest_info) || !simple_group) ||
 	     (group_list && order) ||
              MY_TEST(select_options & OPTION_BUFFER_RESULT))) ||
             (rollup.state != ROLLUP::STATE_NONE && select_distinct) ||
             select_lex->have_window_funcs());
   }
+
+  /*
+    TRUE   if the sort-nest contains more than one table
+    FALSE  otherwise
+  */
+  bool sort_nest_needed()
+  {
+    if (!sort_nest_info)
+      return FALSE;
+    return sort_nest_info->number_of_tables() == 1 ? FALSE : TRUE;
+  }
+
+  bool sort_nest_allowed();
+  bool is_order_by_expensive();
+  bool estimate_cardinality_for_join(table_map joined_tables);
+  bool check_if_sort_nest_present(uint* n_tables, table_map *tables_map);
+  bool create_sort_nest_info(uint n_tables, table_map nest_tables_map);
+  bool remove_const_from_order_by();
+  bool make_sort_nest(Mat_join_tab_nest_info *nest_info);
+  double calculate_record_count_for_sort_nest(uint n_tables);
+  void
+  substitute_base_with_nest_field_items(Mat_join_tab_nest_info* nest_info);
+  void substitute_best_fields_for_order_by_items();
+  void substitute_ref_items(JOIN_TAB *tab, Mat_join_tab_nest_info* nest_info);
+  void substitutions_for_sjm_lookup(JOIN_TAB *sjm_tab,
+                                    Mat_join_tab_nest_info* nest_info);
+  void extract_condition_for_the_nest(Mat_join_tab_nest_info* nest_info);
+  void propagate_equal_field_for_orderby();
+  void setup_index_use_for_ordering(int index_no);
+  void setup_range_scan(JOIN_TAB *tab, uint idx, double records);
+  bool is_join_buffering_allowed(JOIN_TAB *tab);
+  bool check_join_prefix_resolves_ordering(table_map previous_tables);
+  bool consider_adding_sort_nest(table_map previous_tables, uint idx);
+  bool extend_prefix_to_ensure_duplicate_removal(table_map prefix_tables, uint idx);
+  void set_fraction_output_for_nest();
+  double sort_nest_oper_cost(double join_record_count, uint idx,
+                             ulong rec_len);
+  bool is_index_with_ordering_allowed(uint idx);
+
   bool choose_subquery_plan(table_map join_tables);
   void get_partial_cost_and_fanout(int end_tab_idx,
                                    table_map filter_map,
@@ -2079,7 +2297,9 @@ void best_access_path(JOIN *join, JOIN_TAB *s,
                       table_map remaining_tables,
                       const POSITION *join_positions, uint idx,
                       bool disable_jbuf, double record_count,
-                      POSITION *pos, POSITION *loose_scan_pos);
+                      POSITION *pos, POSITION *loose_scan_pos,
+                      table_map sort_nest_tables, bool nest_created,
+                      double sort_nest_records);
 bool cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref);
 bool error_if_full_join(JOIN *join);
 int report_error(TABLE *table, int error);
@@ -2106,6 +2326,14 @@ bool mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &list,
 void free_underlaid_joins(THD *thd, SELECT_LEX *select);
 bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit,
                          select_result *result);
+double calculate_record_count_for_sort_nest(JOIN *join, uint n_tables);
+void check_cond_extraction_for_nest(THD *thd, Item *cond,
+                                    Pushdown_checker checker, uchar* arg);
+void resetup_access_for_ordering(JOIN_TAB* tab, int idx);
+int get_best_index_for_order_by_limit(JOIN_TAB *tab,
+                                      ha_rows select_limit_arg,
+                                      double *read_time, double *records,
+                                      int index_used, uint idx);
 
 /*
   General routine to change field->ptr of a NULL-terminated array of Field
@@ -2449,10 +2677,13 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
                            ulonglong options);
 bool open_tmp_table(TABLE *table);
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps);
-double prev_record_reads(const POSITION *positions, uint idx, table_map found_ref);
+double prev_record_reads(const POSITION *positions, uint idx, table_map found_ref,
+                         table_map sort_nest_tables,
+                         bool nest_created, double sort_nest_records);
+
 void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist);
-double get_tmp_table_lookup_cost(THD *thd, double row_count, uint row_size);
-double get_tmp_table_write_cost(THD *thd, double row_count, uint row_size);
+double get_tmp_table_lookup_cost(THD *thd, double row_count, ulong row_size);
+double get_tmp_table_write_cost(THD *thd, double row_count, ulong row_size);
 void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array);
 bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
                             bool skip_unprefixed_keyparts);

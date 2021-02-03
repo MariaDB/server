@@ -1,0 +1,303 @@
+SET @@default_storage_engine ='InnoDB';
+create database dbt3;
+use dbt3;
+Table	Op	Msg_type	Msg_text
+dbt3.customer	analyze	status	Engine-independent statistics collected
+dbt3.customer	analyze	status	OK
+Table	Op	Msg_type	Msg_text
+dbt3.orders	analyze	status	Engine-independent statistics collected
+dbt3.orders	analyze	status	OK
+Table	Op	Msg_type	Msg_text
+dbt3.lineitem	analyze	status	Engine-independent statistics collected
+dbt3.lineitem	analyze	status	OK
+Table	Op	Msg_type	Msg_text
+dbt3.nation	analyze	status	Engine-independent statistics collected
+dbt3.nation	analyze	status	OK
+# done use filter for now
+set optimizer_switch='rowid_filter=off';
+set optimizer_switch='cost_based_order_by_limit=on';
+#
+# USING INDEXES FOR ORDERING
+#
+#
+# Using index scan on first table
+#
+explain SELECT
+c_nationkey, c_name, o_orderDate, o_totalprice, c_acctbal
+FROM
+orders, customer
+WHERE
+c_custkey= o_custkey
+ORDER BY o_orderDATE DESC 
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	orders	index	i_o_custkey	i_o_orderdate	4	NULL	5	Using where
+1	SIMPLE	customer	eq_ref	PRIMARY	PRIMARY	4	dbt3.orders.o_custkey	1	
+SELECT
+c_nationkey, c_name, o_orderDate, o_totalprice, c_acctbal
+FROM
+orders, customer
+WHERE
+c_custkey= o_custkey
+ORDER BY o_orderDATE DESC 
+LIMIT 5;
+c_nationkey	c_name	o_orderDate	o_totalprice	c_acctbal
+16	Customer#000000088	1998-08-02	131752.07	8031.44
+0	Customer#000000080	1998-07-30	141858.97	7383.53
+10	Customer#000000049	1998-07-29	37776.79	4573.94
+3	Customer#000000022	1998-07-28	139104.17	591.98
+3	Customer#000000022	1998-07-27	82746.74	591.98
+#
+# Using range access for customer with index on (c), this does
+# the ordering
+#
+alter table orders add key o_orderdate(o_orderDATE, o_custkey);
+explain SELECT
+o_custkey, c_name, o_orderDate, o_totalprice, c_acctbal
+FROM
+orders, customer 
+WHERE
+c_custkey= o_custkey AND
+o_orderDATE >='1997-07-30' and o_orderDATE <= '1998-07-30' 
+ORDER BY o_orderDATE, o_custkey DESC 
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	orders	range	i_o_orderdate,i_o_custkey,o_orderdate	i_o_orderdate	4	NULL	217	Using index condition; Using where; Using filesort
+1	SIMPLE	customer	eq_ref	PRIMARY	PRIMARY	4	dbt3.orders.o_custkey	1	
+SELECT
+o_custkey, c_name, o_orderDate, o_totalprice, c_acctbal
+FROM
+orders, customer 
+WHERE
+c_custkey= o_custkey AND
+o_orderDATE >='1997-07-30' and o_orderDATE <= '1998-07-30' 
+ORDER BY o_orderDATE, o_custkey DESC 
+LIMIT 5;
+o_custkey	c_name	o_orderDate	o_totalprice	c_acctbal
+130	Customer#000000130	1997-07-30	67979.49	5073.58
+101	Customer#000000101	1997-07-31	79189.58	7470.96
+13	Customer#000000013	1997-07-31	125188.72	3857.34
+64	Customer#000000064	1997-08-03	76164.41	-646.64
+50	Customer#000000050	1997-08-03	20791.5	4266.13
+alter table orders drop key o_orderDate;
+#
+# USING FILESORT
+#
+#
+# Filesort on first table (orders)
+#
+explain SELECT
+c_nationkey, c_name, o_orderDate, o_totalprice, c_acctbal, n_name
+FROM
+orders, customer, nation 
+WHERE
+c_custkey= o_custkey AND c_nationkey=n_nationkey AND
+o_orderDATE >='1997-01-30' and o_orderDATE <= '1997-12-31' 
+ORDER BY o_totalprice DESC 
+LIMIT 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	orders	range	i_o_orderdate,i_o_custkey	i_o_orderdate	4	NULL	201	Using index condition; Using where; Using filesort
+1	SIMPLE	customer	eq_ref	PRIMARY,i_c_nationkey	PRIMARY	4	dbt3.orders.o_custkey	1	Using where
+1	SIMPLE	nation	eq_ref	PRIMARY	PRIMARY	4	dbt3.customer.c_nationkey	1	
+SELECT
+c_nationkey, c_name, o_orderDate, o_totalprice, c_acctbal, n_name
+FROM
+orders, customer, nation 
+WHERE
+c_custkey= o_custkey AND c_nationkey=n_nationkey AND
+o_orderDATE >='1997-01-30' and o_orderDATE <= '1997-12-31' 
+ORDER BY o_totalprice DESC 
+LIMIT 10;
+c_nationkey	c_name	o_orderDate	o_totalprice	c_acctbal	n_name
+5	Customer#000000010	1997-04-04	258779.02	2753.54	ETHIOPIA
+0	Customer#000000076	1997-08-24	231831.35	5745.33	ALGERIA
+9	Customer#000000094	1997-10-17	224382.57	5500.11	INDONESIA
+6	Customer#000000046	1997-05-26	216826.73	5744.59	FRANCE
+3	Customer#000000005	1997-04-23	210643.96	794.47	CANADA
+11	Customer#000000148	1997-07-25	206179.68	2135.6	IRAQ
+2	Customer#000000101	1997-07-28	204163.1	7470.96	BRAZIL
+3	Customer#000000005	1997-11-09	190142.17	794.47	CANADA
+9	Customer#000000094	1997-11-30	187516.29	5500.11	INDONESIA
+3	Customer#000000005	1997-11-12	185496.66	794.47	CANADA
+#
+# Filesort on first table (lineitem)
+#
+explain SELECT
+l_extendedprice, o_orderkey, o_totalprice, l_shipDATE
+FROM
+orders, lineitem
+WHERE
+o_orderkey = l_orderkey AND
+l_shipDATE >= '1996-01-01' AND l_shipDATE <= '1996-12-31'
+            ORDER BY l_extendedprice DESC
+LIMIT 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	lineitem	range	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate	4	NULL	910	Using index condition; Using filesort
+1	SIMPLE	orders	eq_ref	PRIMARY	PRIMARY	4	dbt3.lineitem.l_orderkey	1	
+SELECT
+l_extendedprice, o_orderkey, o_totalprice, l_shipDATE
+FROM
+orders, lineitem
+WHERE
+o_orderkey = l_orderkey AND
+l_shipDATE >= '1996-01-01' AND l_shipDATE <= '1996-12-31'
+            ORDER BY l_extendedprice DESC
+LIMIT 10;
+l_extendedprice	o_orderkey	o_totalprice	l_shipDATE
+54559.5	1574	179923.54	1996-12-14
+53508.5	2342	104038.78	1996-08-28
+53458	1153	220727.97	1996-06-27
+53075.82	2721	59180.25	1996-02-14
+52830.33	1284	106122.38	1996-04-11
+52657.5	2276	141159.63	1996-07-13
+52290.84	4773	196080.26	1996-01-26
+51752.16	1607	166335.03	1996-02-22
+51751.35	1700	89143.36	1996-09-26
+51709.4	1254	94649.25	1996-03-07
+#
+# Using Filesort with Sort Nest
+#
+#
+#  FILESORT USING SORT-NEST on (orders, customer)
+#
+explain SELECT
+c_nationkey, c_name, o_orderDate, o_totalprice, c_acctbal, n_name
+FROM
+orders, customer, nation 
+WHERE
+c_custkey= o_custkey AND c_nationkey=n_nationkey AND
+o_orderDATE >='1997-07-01' and o_orderDATE <= '1997-07-31' 
+ORDER BY o_orderDATE DESC, c_acctbal DESC
+LIMIT 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	orders	range	i_o_orderdate,i_o_custkey	i_o_orderdate	4	NULL	20	Using index condition; Using where
+1	SIMPLE	customer	eq_ref	PRIMARY,i_c_nationkey	PRIMARY	4	dbt3.orders.o_custkey	1	
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	10	Using filesort
+1	SIMPLE	nation	eq_ref	PRIMARY	PRIMARY	4	sort-nest.c_nationkey	1	
+SELECT
+c_nationkey, c_name, o_orderDate, o_totalprice, c_acctbal, n_name
+FROM
+orders, customer, nation 
+WHERE
+c_custkey= o_custkey AND c_nationkey=n_nationkey AND
+o_orderDATE >='1997-07-01' and o_orderDATE <= '1997-07-31' 
+ORDER BY o_orderDATE DESC, c_acctbal DESC
+LIMIT 10;
+c_nationkey	c_name	o_orderDate	o_totalprice	c_acctbal	n_name
+2	Customer#000000101	1997-07-31	79189.58	7470.96	BRAZIL
+3	Customer#000000013	1997-07-31	125188.72	3857.34	CANADA
+9	Customer#000000130	1997-07-30	67979.49	5073.58	INDONESIA
+11	Customer#000000148	1997-07-29	88448.24	2135.6	IRAQ
+2	Customer#000000101	1997-07-28	204163.1	7470.96	BRAZIL
+11	Customer#000000052	1997-07-28	46393.97	5630.28	IRAQ
+4	Customer#000000004	1997-07-25	11405.4	2866.83	EGYPT
+11	Customer#000000148	1997-07-25	206179.68	2135.6	IRAQ
+18	Customer#000000082	1997-07-20	15082.82	9468.34	CHINA
+10	Customer#000000055	1997-07-16	46380.69	4572.11	IRAN
+#
+# Sort-nest on table (lineitem, orders)
+#
+explain SELECT
+c_acctbal, c_name, o_orderDate, l_extendedprice, l_orderkey
+FROM
+orders, customer, lineitem
+WHERE
+c_custkey= o_custkey
+AND
+l_orderkey = o_orderkey
+AND
+l_orderkey between 5500 AND 6000
+AND
+l_shipDATE >= '1997-01-01' and l_shipDATE <=  '1998-08-10'
+            ORDER BY l_extendedprice DESC, o_orderDATE DESC
+LIMIT 20;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	orders	range	PRIMARY,i_o_custkey	PRIMARY	4	NULL	125	Using where
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3.orders.o_orderkey	4	Using where
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	20	Using filesort
+1	SIMPLE	customer	eq_ref	PRIMARY	PRIMARY	4	sort-nest.o_custkey	1	
+SELECT
+c_acctbal, c_name, o_orderDate, l_extendedprice, l_orderkey
+FROM
+orders, customer, lineitem
+WHERE
+c_custkey= o_custkey
+AND
+l_orderkey = o_orderkey
+AND
+l_orderkey between 5500 AND 6000
+AND
+l_shipDATE >= '1997-01-01' and l_shipDATE <=  '1998-08-10'
+            ORDER BY l_extendedprice DESC, o_orderDATE DESC
+LIMIT 20;
+c_acctbal	c_name	o_orderDate	l_extendedprice	l_orderkey
+1842.49	Customer#000000124	1997-11-06	54759.5	5857
+2135.6	Customer#000000148	1997-04-14	53909.8	5952
+4681.03	Customer#000000016	1998-07-06	53811.31	5761
+794.47	Customer#000000005	1997-04-23	53758.5	5859
+-234.12	Customer#000000125	1997-01-11	53468.31	5829
+5121.28	Customer#000000079	1998-05-31	53208	5633
+5744.59	Customer#000000046	1998-04-14	50770.37	5604
+-917.75	Customer#000000037	1997-07-13	50310.72	5793
+121.65	Customer#000000002	1998-05-28	49830.24	5507
+121.65	Customer#000000002	1998-05-28	49542.24	5507
+7470.96	Customer#000000101	1997-05-27	49411.82	5923
+5327.38	Customer#000000095	1997-10-04	48859.36	5505
+1842.49	Customer#000000124	1997-11-06	48661.41	5857
+4573.94	Customer#000000049	1997-02-14	48557.11	5762
+-646.64	Customer#000000064	1997-01-01	48219.92	5895
+-646.64	Customer#000000064	1997-01-01	48039.64	5895
+5121.28	Customer#000000079	1998-05-31	48004.8	5633
+9904.28	Customer#000000043	1998-02-06	47339.52	5671
+8959.65	Customer#000000149	1996-11-12	47247.52	5606
+5744.59	Customer#000000046	1998-04-14	45589.72	5604
+#
+# Sort-nest on table (orders, customer, lineitem)
+#
+explain SELECT
+l_extendedprice, c_acctbal, o_totalprice, o_orderDate, l_orderkey
+FROM
+orders, customer, lineitem, nation
+WHERE
+c_custkey= o_custkey
+AND
+l_orderkey = o_orderkey
+AND
+n_nationkey = c_nationkey
+AND
+l_orderkey between 5500 AND 6000
+AND
+c_custkey between 1 and 10
+ORDER BY
+l_extendedprice DESC, c_acctbal DESC, o_totalprice DESC
+LIMIT 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	orders	range	PRIMARY,i_o_custkey	PRIMARY	4	NULL	125	Using where
+1	SIMPLE	customer	eq_ref	PRIMARY,i_c_nationkey	PRIMARY	4	dbt3.orders.o_custkey	1	
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3.orders.o_orderkey	4	
+1	SIMPLE	<sort-nest>	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+1	SIMPLE	nation	eq_ref	PRIMARY	PRIMARY	4	sort-nest.c_nationkey	1	Using index
+SELECT
+l_extendedprice, c_acctbal, o_totalprice, o_orderDate, l_orderkey
+FROM
+orders, customer, lineitem, nation
+WHERE
+c_custkey= o_custkey
+AND
+l_orderkey = o_orderkey
+AND
+n_nationkey = c_nationkey
+AND
+l_orderkey between 5500 AND 6000
+AND
+c_custkey between 1 and 10
+ORDER BY
+l_extendedprice DESC, c_acctbal DESC, o_totalprice DESC
+LIMIT 5;
+l_extendedprice	c_acctbal	o_totalprice	o_orderDate	l_orderkey
+53758.5	794.47	210643.96	1997-04-23	5859
+49830.24	121.65	140363.7	1998-05-28	5507
+49542.24	121.65	140363.7	1998-05-28	5507
+48745.11	6819.74	122823.78	1993-04-05	5794
+47992.64	6819.74	140838.11	1998-06-26	5763
+drop database dbt3;

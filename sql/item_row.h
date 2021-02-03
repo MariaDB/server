@@ -119,7 +119,8 @@ public:
       return true;
     return (this->*processor)(arg);
   }
-  Item *transform(THD *thd, Item_transformer transformer, uchar *arg);
+  Item *transform(THD *thd, Item_transformer transformer,
+                  bool transform_subquery, uchar *arg);
   bool eval_not_null_tables(void *opt_arg);
   bool find_not_null_fields(table_map allowed);
 
@@ -136,9 +137,9 @@ public:
     return this;
   }
 
-  bool excl_dep_on_table(table_map tab_map)
+  bool excl_dep_on_tables(table_map tab_map, bool multi_eq_checked)
   {
-    return Item_args::excl_dep_on_table(tab_map);
+    return Item_args::excl_dep_on_tables(tab_map, multi_eq_checked);
   }
 
   bool excl_dep_on_grouping_fields(st_select_lex *sel)

@@ -1,0 +1,169 @@
+create database dbt3;
+use dbt3;
+--disable_query_log
+--source include/dbt3_s001.inc
+
+
+analyze table customer persistent for all;
+analyze table orders   persistent for all;
+analyze table lineitem persistent for all;
+analyze table nation   persistent for all;
+--enable_query_log
+
+--echo # done use filter for now
+set optimizer_switch='rowid_filter=off';
+set optimizer_switch='cost_based_order_by_limit=on';
+
+--echo #
+--echo # USING INDEXES FOR ORDERING
+--echo #
+
+
+--echo #
+--echo # Using index scan on first table
+--echo #
+
+let $query= SELECT
+             c_nationkey, c_name, o_orderDate, o_totalprice, c_acctbal
+            FROM
+              orders, customer
+            WHERE
+              c_custkey= o_custkey
+            ORDER BY o_orderDATE DESC 
+            LIMIT 5;
+
+eval explain $query;
+eval $query;
+
+--echo #
+--echo # Using range access for customer with index on (c), this does
+--echo # the ordering
+--echo #
+
+alter table orders add key o_orderdate(o_orderDATE, o_custkey);
+
+let $query= SELECT
+              o_custkey, c_name, o_orderDate, o_totalprice, c_acctbal
+            FROM
+              orders, customer 
+            WHERE
+              c_custkey= o_custkey AND
+              o_orderDATE >='1997-07-30' and o_orderDATE <= '1998-07-30' 
+            ORDER BY o_orderDATE, o_custkey DESC 
+            LIMIT 5;
+
+eval explain $query;
+eval $query;
+
+alter table orders drop key o_orderDate;
+
+--echo #
+--echo # USING FILESORT
+--echo #
+
+--echo #
+--echo # Filesort on first table (orders)
+--echo #
+
+let $query= SELECT
+              c_nationkey, c_name, o_orderDate, o_totalprice, c_acctbal, n_name
+            FROM
+              orders, customer, nation 
+            WHERE
+              c_custkey= o_custkey AND c_nationkey=n_nationkey AND
+              o_orderDATE >='1997-01-30' and o_orderDATE <= '1997-12-31' 
+            ORDER BY o_totalprice DESC 
+            LIMIT 10;
+
+eval explain $query;
+eval $query;
+
+
+--echo #
+--echo # Filesort on first table (lineitem)
+--echo #
+
+let $query= SELECT
+              l_extendedprice, o_orderkey, o_totalprice, l_shipDATE
+            FROM
+              orders, lineitem
+            WHERE
+             o_orderkey = l_orderkey AND
+             l_shipDATE >= '1996-01-01' AND l_shipDATE <= '1996-12-31'
+            ORDER BY l_extendedprice DESC
+            LIMIT 10;
+
+eval explain $query;
+eval $query;
+
+--echo #
+--echo # Using Filesort with Sort Nest
+--echo #
+
+--echo #
+--echo #  FILESORT USING SORT-NEST on (orders, customer)
+--echo #
+
+let $query= SELECT
+              c_nationkey, c_name, o_orderDate, o_totalprice, c_acctbal, n_name
+            FROM
+              orders, customer, nation 
+            WHERE
+              c_custkey= o_custkey AND c_nationkey=n_nationkey AND
+              o_orderDATE >='1997-07-01' and o_orderDATE <= '1997-07-31' 
+            ORDER BY o_orderDATE DESC, c_acctbal DESC
+            LIMIT 10;
+
+eval explain $query;
+eval $query;
+
+--echo #
+--echo # Sort-nest on table (lineitem, orders)
+--echo #
+
+let $query= SELECT
+              c_acctbal, c_name, o_orderDate, l_extendedprice, l_orderkey
+            FROM
+              orders, customer, lineitem
+            WHERE
+              c_custkey= o_custkey
+             AND
+              l_orderkey = o_orderkey
+             AND
+              l_orderkey between 5500 AND 6000
+             AND
+              l_shipDATE >= '1997-01-01' and l_shipDATE <=  '1998-08-10'
+            ORDER BY l_extendedprice DESC, o_orderDATE DESC
+            LIMIT 20;
+
+
+eval explain $query;
+eval $query;
+
+--echo #
+--echo # Sort-nest on table (orders, customer, lineitem)
+--echo #
+
+let $query= SELECT
+              l_extendedprice, c_acctbal, o_totalprice, o_orderDate, l_orderkey
+            FROM
+              orders, customer, lineitem, nation
+            WHERE
+              c_custkey= o_custkey
+             AND
+              l_orderkey = o_orderkey
+             AND
+              n_nationkey = c_nationkey
+             AND
+              l_orderkey between 5500 AND 6000
+             AND
+              c_custkey between 1 and 10
+            ORDER BY
+              l_extendedprice DESC, c_acctbal DESC, o_totalprice DESC
+            LIMIT 5;
+
+
+eval explain $query;
+eval $query;
+
+drop database dbt3;

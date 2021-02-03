@@ -237,6 +237,8 @@ public:
   virtual void reset_value_registration() {}
   enum_parsing_place place() { return parsing_place; }
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
+  Item* transform(THD *thd, Item_transformer transformer,
+                  bool transform_subquery, uchar *arg);
   bool unknown_splocal_processor(void *arg) override;
   bool mark_as_eliminated_processor(void *arg) override;
   bool eliminate_subselect_processor(void *arg) override;
@@ -773,6 +775,7 @@ public:
   { return left_expr; }
   inline Item* left_exp_orig() const
   { return left_expr_orig; }
+  void set_left_exp(Item *expr) { left_expr= expr; }
 
   friend class Item_ref_null_helper;
   friend class Item_is_not_null_test;
