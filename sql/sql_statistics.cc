@@ -3672,7 +3672,7 @@ void set_statistics_for_table(THD *thd, TABLE *table)
 
 /**
   @brief
-  Get the average frequency for a column 
+  Get the average frequency for a column via stat tables
 
   @param
   field       The column whose average frequency is required
@@ -3681,7 +3681,7 @@ void set_statistics_for_table(THD *thd, TABLE *table)
   The required average frequency
 */
 
-double get_column_avg_frequency(Field * field)
+double get_column_avg_frequency_via_stat_tables(Field * field)
 {
   double res;
   TABLE *table= field->table;
@@ -3699,12 +3699,55 @@ double get_column_avg_frequency(Field * field)
  
   Column_statistics *col_stats= field->read_stats;
 
-  if (!col_stats)
-    res= (double)table->stat_records();
-  else
+  if (field->is_eits_usable())
     res= col_stats->get_avg_frequency();
+  else
+    res= (double)table->stat_records();
   return res;
-} 
+}
+
+/**
+  @brief
+  Get the average frequency for a column via indexes
+
+  @param
+  field       The column whose average frequency is required
+
+  @retval
+  The required average frequency
+*/
+
+double get_column_avg_frequency_via_indexes(Field * field)
+{
+  uint key;
+  key_map::Iterator it(field->key_start);
+  double avg_freq= 0;
+  while ((key= it++) != key_map::Iterator::BITMAP_END)
+  {
+    DBUG_ASSERT(field->table);
+    KEY *keyinfo= field->table->key_info + key;
+    if ((avg_freq= keyinfo->actual_rec_per_key(0)))
+      return avg_freq;
+  }
+  return avg_freq;
+}
+
+
+/**
+  @brief
+  Get the average frequency for a column
+
+  @param
+  field       The column whose average frequency is required
+
+  @retval
+  The required average frequency
+*/
+double get_column_avg_frequency(Field * field)
+{
+  return get_column_avg_frequency_via_indexes(field) ||
+         get_column_avg_frequency_via_stat_tables(field);
+}
 
 
 /**
