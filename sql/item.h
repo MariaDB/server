@@ -1931,7 +1931,8 @@ public:
     return (this->*processor)(arg);
   }
 
-  virtual Item* transform(THD *thd, Item_transformer transformer, uchar *arg);
+  virtual Item* transform(THD *thd, Item_transformer transformer,
+                          bool transform_subquery, uchar *arg);
 
   /*
     This function performs a generic "compilation" of the Item tree.
@@ -2027,8 +2028,14 @@ public:
     TRUE if the expression depends only on the table indicated by tab_map
     or can be converted to such an exression using equalities.
     Not to be used for AND/OR formulas.
+
+    @param multi_eq_checked       set to TRUE if substitution for best field
+                                  item inside the multiple equality is already
+                                  done
   */
-  virtual bool excl_dep_on_table(table_map tab_map) { return false; }
+  virtual bool excl_dep_on_tables(table_map tab_map, bool multi_eq_checked)
+  { return false; }
+
   /*
     TRUE if the expression depends only on grouping fields of sel
     or can be converted to such an expression using equalities.
@@ -2298,6 +2305,8 @@ public:
   { return this; }
   virtual Item *multiple_equality_transformer(THD *thd, uchar *arg)
   { return this; }
+  virtual Item *replace_with_nest_items(THD *thd, uchar *arg)
+  { return this; }
   virtual bool expr_cache_is_needed(THD *) { return FALSE; }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   bool needs_charset_converter(uint32 length, CHARSET_INFO *tocs) const
@@ -2494,10 +2503,32 @@ public:
     marker &= ~EXTRACTION_MASK;
   }
   void check_pushable_cond(Pushdown_checker excl_dep_func, uchar *arg);
-  bool pushable_cond_checker_for_derived(uchar *arg)
+
+  void check_pushable_cond_extraction(Pushdown_checker checker, uchar *arg);
+
+  /*
+    This function is used for the cases when we don't want to take into account
+    multiple equalities while finding dependency of items on tables.
+  */
+  bool pushable_cond_checker_for_tables(uchar *arg)
   {
-    return excl_dep_on_table(*((table_map *)arg));
+    return excl_dep_on_tables(*(table_map *)arg, TRUE);
   }
+
+  /*
+    This function is used for the cases when we want to take into account
+    multiple equalities while finding dependency of items on tables.
+  */
+  bool pushable_cond_checker_for_tables_with_equalities(uchar *arg)
+  {
+    return excl_dep_on_tables(*(table_map *)arg, FALSE);
+  }
+
+  bool pushable_cond_checker_for_grouping_fields(uchar *arg)
+  {
+    return excl_dep_on_grouping_fields((st_select_lex*)arg);
+  }
+
   bool pushable_cond_checker_for_subquery(uchar *arg)
   {
     DBUG_ASSERT(((Item*) arg)->get_IN_subquery());
@@ -2506,6 +2537,7 @@ public:
   Item *build_pushable_cond(THD *thd,
                             Pushdown_checker checker,
                             uchar *arg);
+  Item *build_pushable_condition(THD *thd, bool no_top_clones);
   /*
     Checks if this item depends only on the arg table
   */
@@ -2636,15 +2668,16 @@ protected:
     }
     return false;
   }
-  bool transform_args(THD *thd, Item_transformer transformer, uchar *arg);
+  bool transform_args(THD *thd, Item_transformer transformer,
+                      bool transform_subquery, uchar *arg);
   void propagate_equal_fields(THD *, const Item::Context &, COND_EQUAL *);
-  bool excl_dep_on_table(table_map tab_map)
+  bool excl_dep_on_tables(table_map tab_map, bool multi_eq_checked)
   {
     for (uint i= 0; i < arg_count; i++)
     {
       if (args[i]->const_item())
         continue;
-      if (!args[i]->excl_dep_on_table(tab_map))
+      if (!args[i]->excl_dep_on_tables(tab_map, multi_eq_checked))
         return false;
     }
     return true;
@@ -3610,7 +3643,7 @@ public:
   Item *in_subq_field_transformer_for_where(THD *thd, uchar *arg);
   Item *in_subq_field_transformer_for_having(THD *thd, uchar *arg);
   virtual void print(String *str, enum_query_type query_type);
-  bool excl_dep_on_table(table_map tab_map);
+  bool excl_dep_on_tables(table_map tab_map, bool multi_eq_checked);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred);
   bool cleanup_excluding_fields_processor(void *arg)
@@ -3626,6 +3659,7 @@ public:
     return field->table->pos_in_table_list->outer_join;
   }
   bool check_index_dependence(void *arg);
+  Item *replace_with_nest_items(THD *thd, uchar *arg);
   friend class Item_default_value;
   friend class Item_insert_value;
   friend class st_select_lex_unit;
@@ -5477,7 +5511,8 @@ public:
     else
       return FALSE;
   }
-  Item* transform(THD *thd, Item_transformer, uchar *arg);
+  Item* transform(THD *thd, Item_transformer,
+                  bool transform_subquery, uchar *arg);
   Item* compile(THD *thd, Item_analyzer analyzer, uchar **arg_p,
                 Item_transformer transformer, uchar *arg_t);
   bool enumerate_field_refs_processor(void *arg)
@@ -5554,13 +5589,15 @@ public:
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_ref>(thd, this); }
-  bool excl_dep_on_table(table_map tab_map)
+  bool excl_dep_on_tables(table_map tab_map, bool multi_eq_checked)
   { 
     table_map used= used_tables();
     if (used & OUTER_REF_TABLE_BIT)
       return false;
-    return (used == tab_map) || (*ref)->excl_dep_on_table(tab_map);
+    return (!(used & ~tab_map) ||
+            (*ref)->excl_dep_on_tables(tab_map, multi_eq_checked));
   }
+
   bool excl_dep_on_grouping_fields(st_select_lex *sel)
   { return (*ref)->excl_dep_on_grouping_fields(sel); }
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred)
@@ -5886,7 +5923,7 @@ public:
       view_arg->view_used_tables|= (*ref)->used_tables();
     return 0;
   }
-  bool excl_dep_on_table(table_map tab_map);
+  bool excl_dep_on_tables(table_map tab_map, bool multi_eq_checked);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
   bool excl_dep_on_in_subq_left_part(Item_in_subselect *subq_pred);
   Item *derived_field_transformer_for_having(THD *thd, uchar *arg);
@@ -6481,7 +6518,8 @@ public:
       (this->*processor)(args);
   }
 
-  Item *transform(THD *thd, Item_transformer transformer, uchar *args);
+  Item *transform(THD *thd, Item_transformer transformer,
+                  bool transform_subquery, uchar *args);
 };
 
 
@@ -6884,6 +6922,22 @@ public:
     if (example && example->walk(processor, walk_subquery, arg))
       return TRUE;
     return (this->*processor)(arg);
+  }
+  // TODO:varun need to enable this
+  Item *transform(THD *thd, Item_transformer transformer,
+                  bool transform_subquery, uchar *arg)
+  {
+    if (transform_subquery)
+    {
+      if (example)
+      {
+        Item *new_item= example->transform(thd, transformer,
+                                           transform_subquery, arg);
+        if (new_item != example)
+          setup(thd, new_item);
+      }
+    }
+    return (this->*transformer)(thd, arg);
   }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   void split_sum_func2_example(THD *thd,  Ref_ptr_array ref_pointer_array,

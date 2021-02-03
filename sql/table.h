@@ -1524,6 +1524,8 @@ public:
   */
   SplM_opt_info *spl_opt_info;
   key_map keys_usable_for_splitting;
+  /* Map of keys that can be used to resolve the ORDER BY clause */
+  key_map keys_with_ordering;
 
   /*
     Conjunction of the predicates of the form IS NOT NULL(f) where f refers to

@@ -593,7 +593,8 @@ bool Item::cleanup_processor(void *arg)
     pointer to newly allocated item is returned.
 */
 
-Item* Item::transform(THD *thd, Item_transformer transformer, uchar *arg)
+Item* Item::transform(THD *thd, Item_transformer transformer,
+                      bool transform_subquery, uchar *arg)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
@@ -6277,6 +6278,52 @@ Item *Item_field::replace_equal_field(THD *thd, uchar *arg)
 }
 
 
+/*
+  Replace any Item_field object with the item in the nest table.
+  This is needed to substitute the item that are evaluated in the
+  post ORDER BY context that is when a sort-nest was created
+  and the ordering was already done.
+
+  @param arg   NULL or points to the JOIN structure
+
+  @note
+    This function is supposed to be called as a callback parameter in calls
+    of the transformer method.
+
+  @return
+    - pointer to the nest items corresponding to the current item
+    - this - otherwise.
+*/
+
+Item *Item_field::replace_with_nest_items(THD *thd, uchar *arg)
+{
+  Mat_join_tab_nest_info *nest_info= (Mat_join_tab_nest_info*)arg;
+
+  if (!(used_tables() & nest_info->get_tables_map()) &&
+      !(used_tables() & OUTER_REF_TABLE_BIT))
+    return this;
+
+  List_iterator_fast<Item_pair> li(nest_info->mapping_of_items);
+  Item_pair *item_pair;
+  while((item_pair= li++))
+  {
+    Item *field_item= item_pair->base_item->real_item();
+    if (field->eq(((Item_field*)field_item)->field))
+    {
+      if (used_tables() == OUTER_REF_TABLE_BIT)
+      {
+        Item_field *clone_item= new (thd->mem_root) Item_field(thd, this);
+        Item *nest_item= item_pair->nest_item;
+        clone_item->set_field(((Item_field*)nest_item)->field);
+        return clone_item;
+      }
+      return item_pair->nest_item;
+    }
+  }
+  return this;
+}
+
+
 void Item::init_make_send_field(Send_field *tmp_field,
                                 const Type_handler *h)
 {
@@ -7317,7 +7364,7 @@ Item *Item_field::update_value_transformer(THD *thd, uchar *select_arg)
   @note
     This method is called for pushdown conditions into materialized
     derived tables/views optimization.
-    Item::pushable_cond_checker_for_derived() is passed as the actual callback
+    Item::pushable_cond_checker_for_tables() is passed as the actual callback
     function.
     Also it is called for pushdown conditions in materialized IN subqueries.
     Item::pushable_cond_checker_for_subquery is passed as the actual
@@ -7354,6 +7401,86 @@ void Item::check_pushable_cond(Pushdown_checker checker, uchar *arg)
     set_extraction_flag(NO_EXTRACTION_FL);
 }
 
+
+/**
+  @brief
+   For a condition check possibility of exraction a formula over grouping fields
+
+  @param thd      The thread handle
+  @param cond     The condition whose subformulas are to be analyzed
+  @param checker  The checker callback function to be applied to the nodes
+                  of the tree of the object
+
+  @details
+    This method traverses the AND-OR condition cond and for each subformula of
+    the condition it checks whether it can be usable for the extraction of a
+    condition over the grouping fields of this select. The method uses
+    the call-back parameter checker to check whether a primary formula
+    depends only on grouping fields.
+    The subformulas that are not usable are marked with the flag NO_EXTRACTION_FL.
+    The subformulas that can be entierly extracted are marked with the flag
+    FULL_EXTRACTION_FL.
+  @note
+    This method is called before any call of extract_cond_for_grouping_fields.
+    The flag NO_EXTRACTION_FL set in a subformula allows to avoid building clone
+    for the subformula when extracting the pushable condition.
+    The flag FULL_EXTRACTION_FL allows to delete later all top level conjuncts
+    from cond.
+
+  TODO varun:
+    rewrite the comments to make sense
+    also a note for sort-nest using this would make sense
+
+*/
+
+void Item::check_pushable_cond_extraction(Pushdown_checker checker, uchar *arg)
+{
+  if (get_extraction_flag() == NO_EXTRACTION_FL)
+    return;
+  clear_extraction_flag();
+  if (type() == Item::COND_ITEM)
+  {
+    Item_cond_and *and_cond=
+      (((Item_cond*) this)->functype() == Item_func::COND_AND_FUNC) ?
+      ((Item_cond_and*) this) : 0;
+
+    List<Item> *arg_list=  ((Item_cond*) this)->argument_list();
+    List_iterator<Item> li(*arg_list);
+    uint count= 0;         // to count items not containing NO_EXTRACTION_FL
+    uint count_full= 0;    // to count items with FULL_EXTRACTION_FL
+    Item *item;
+    while ((item=li++))
+    {
+      item->check_pushable_cond_extraction(checker, arg);
+      if (item->get_extraction_flag() !=  NO_EXTRACTION_FL)
+      {
+        count++;
+        if (item->get_extraction_flag() == FULL_EXTRACTION_FL)
+          count_full++;
+      }
+      else if (!and_cond)
+        break;
+    }
+    if ((and_cond && count == 0) || item)
+      set_extraction_flag(NO_EXTRACTION_FL);
+    if (count_full == arg_list->elements)
+    {
+      set_extraction_flag(FULL_EXTRACTION_FL);
+    }
+    if (get_extraction_flag() != 0)
+    {
+      li.rewind();
+      while ((item=li++))
+        item->clear_extraction_flag();
+    }
+  }
+  else
+  {
+    int fl= ((this->*checker) (arg)) ?
+            FULL_EXTRACTION_FL : NO_EXTRACTION_FL;
+    set_extraction_flag(fl);
+  }
+}
 
 /**
   @brief
@@ -7483,6 +7610,99 @@ Item *Item::build_pushable_cond(THD *thd,
   }
   else if (get_extraction_flag() != NO_EXTRACTION_FL)
     return build_clone(thd);
+  return 0;
+}
+
+/**
+  @brief
+  Build condition extractable from the given one depended on grouping fields
+
+  @param thd           The thread handle
+  @param cond          The condition from which the condition depended
+                       on grouping fields is to be extracted
+  @param no_top_clones If it's true then no clones for the top MODE_ONLY_FULL_GROUP_BY
+                       extractable conjuncts are built
+
+  @details
+    For the given condition cond this method finds out what condition depended
+    only on the grouping fields can be extracted from cond. If such condition C
+    exists the method builds the item for it.
+    This method uses the flags NO_EXTRACTION_FL and FULL_EXTRACTION_FL set by the
+    preliminary call of st_select_lex::check_cond_extraction_for_grouping_fields
+    to figure out whether a subformula depends only on these fields or not.
+  @note
+    The built condition C is always implied by the condition cond
+    (cond => C). The method tries to build the least restictive such
+    condition (i.e. for any other condition C' such that cond => C'
+    we have C => C').
+  @note
+    The build item is not ready for usage: substitution for the field items
+    has to be done and it has to be re-fixed.
+
+  @retval
+    the built condition depended only on grouping fields if such a condition
+    exists
+    NULL if there is no such a condition
+*/
+
+Item *Item::build_pushable_condition(THD *thd, bool no_top_clones)
+{
+  if (get_extraction_flag() == FULL_EXTRACTION_FL)
+  {
+    if (no_top_clones)
+      return this;
+    clear_extraction_flag();
+    return build_clone(thd);
+  }
+  if (type() == Item::COND_ITEM)
+  {
+    bool cond_and= false;
+    Item_cond *new_cond;
+    if (((Item_cond*) this)->functype() == Item_func::COND_AND_FUNC)
+    {
+      cond_and= true;
+      new_cond=  new (thd->mem_root) Item_cond_and(thd);
+    }
+    else
+      new_cond= new (thd->mem_root) Item_cond_or(thd);
+    if (unlikely(!new_cond))
+      return 0;
+    List_iterator<Item> li(*((Item_cond*) this)->argument_list());
+    Item *item;
+    while ((item=li++))
+    {
+      if (item->get_extraction_flag() == NO_EXTRACTION_FL)
+      {
+        DBUG_ASSERT(cond_and);
+        item->clear_extraction_flag();
+        continue;
+      }
+      Item *fix= item->build_pushable_condition(thd, no_top_clones & cond_and);
+      if (unlikely(!fix))
+      {
+        if (cond_and)
+          continue;
+        break;
+      }
+      new_cond->argument_list()->push_back(fix, thd->mem_root);
+    }
+
+    if (!cond_and && item)
+    {
+      while((item= li++))
+        item->clear_extraction_flag();
+      return 0;
+    }
+    switch (new_cond->argument_list()->elements)
+    {
+    case 0:
+      return 0;
+    case 1:
+      return new_cond->argument_list()->head();
+    default:
+      return new_cond;
+    }
+  }
   return 0;
 }
 
@@ -8228,13 +8448,15 @@ void Item_ref::cleanup()
     @retval NULL  Out of memory error
 */
 
-Item* Item_ref::transform(THD *thd, Item_transformer transformer, uchar *arg)
+Item* Item_ref::transform(THD *thd, Item_transformer transformer,
+                          bool transform_subquery,uchar *arg)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
   DBUG_ASSERT((*ref) != NULL);
 
   /* Transform the object we are referencing. */
-  Item *new_item= (*ref)->transform(thd, transformer, arg);
+  Item *new_item= (*ref)->transform(thd, transformer,
+                                    transform_subquery, arg);
   if (!new_item)
     return NULL;
 
@@ -9342,10 +9564,12 @@ Item *Item_direct_view_ref::replace_equal_field(THD *thd, uchar *arg)
 }
 
 
-bool Item_field::excl_dep_on_table(table_map tab_map)
+bool Item_field::excl_dep_on_tables(table_map tab_map, bool multi_eq_checked)
 {
-  return used_tables() == tab_map ||
-         (item_equal && (item_equal->used_tables() & tab_map));
+  return !(used_tables() & ~tab_map) ||
+         (multi_eq_checked ?
+          FALSE:
+          (item_equal && (item_equal->used_tables() & tab_map)));
 }
 
 
@@ -9356,7 +9580,8 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
 }
 
 
-bool Item_direct_view_ref::excl_dep_on_table(table_map tab_map)
+bool Item_direct_view_ref::excl_dep_on_tables(table_map tab_map,
+                                              bool multi_eq_checked)
 {
   table_map used= used_tables();
   if (used & OUTER_REF_TABLE_BIT)
@@ -9368,7 +9593,7 @@ bool Item_direct_view_ref::excl_dep_on_table(table_map tab_map)
     DBUG_ASSERT(real_item()->type() == Item::FIELD_ITEM);
     return item_equal->used_tables() & tab_map;
   }
-  return (*ref)->excl_dep_on_table(tab_map);
+  return (*ref)->excl_dep_on_tables(tab_map, multi_eq_checked);
 }
 
 
@@ -9610,12 +9835,13 @@ table_map Item_default_value::used_tables() const
 */ 
 
 Item *Item_default_value::transform(THD *thd, Item_transformer transformer,
-                                    uchar *args)
+                                    bool transform_subquery, uchar *args)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
   DBUG_ASSERT(arg);
 
-  Item *new_item= arg->transform(thd, transformer, args);
+  Item *new_item= arg->transform(thd, transformer,
+                                 transform_subquery, args);
   if (!new_item)
     return 0;
 

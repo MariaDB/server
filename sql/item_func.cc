@@ -474,11 +474,13 @@ void Item_func::traverse_cond(Cond_traverser traverser,
 }
 
 
-bool Item_args::transform_args(THD *thd, Item_transformer transformer, uchar *arg)
+bool Item_args::transform_args(THD *thd, Item_transformer transformer,
+                               bool transform_subquery, uchar *arg)
 {
   for (uint i= 0; i < arg_count; i++)
   {
-    Item *new_item= args[i]->transform(thd, transformer, arg);
+    Item *new_item= args[i]->transform(thd, transformer,
+                                       transform_subquery, arg);
     if (!new_item)
       return true;
     /*
@@ -511,10 +513,11 @@ bool Item_args::transform_args(THD *thd, Item_transformer transformer, uchar *ar
     Item returned as the result of transformation of the root node
 */
 
-Item *Item_func::transform(THD *thd, Item_transformer transformer, uchar *argument)
+Item *Item_func::transform(THD *thd, Item_transformer transformer,
+                           bool transform_subquery, uchar *argument)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
-  if (transform_args(thd, transformer, argument))
+  if (transform_args(thd, transformer, transform_subquery, argument))
     return 0;
   return (this->*transformer)(thd, argument);
 }

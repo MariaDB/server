@@ -1,0 +1,1018 @@
+--source include/have_sequence.inc
+set optimizer_switch='cost_based_order_by_limit=on';
+set optimizer_switch='rowid_filter=off';
+set optimizer_trace=1;
+
+
+CREATE TABLE t1(a int, b int);
+INSERT INTO t1 SELECT seq-1, seq-1 from seq_1_to_20;
+CREATE TABLE t2(a int, b int);
+INSERT INTO t2   SELECT seq-1, seq-1 from seq_1_to_10;
+CREATE TABLE t3(a int, b int);
+INSERT INTO t3 SELECT seq-1, seq-1 from seq_1_to_100;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+
+let $query=
+SELECT * FROM t1,t2,t3
+WHERE t1.a=t2.a AND t1.b = t3.a AND t2.b <= 5
+ORDER BY t2.b DESC
+LIMIT 5;
+
+--echo
+--echo # sorting on table t2
+--echo # t2.b <= 5 would be attached to table t2
+--echo # t1.b=t2.a would be attached to table t1;
+--echo
+
+eval EXPLAIN $query;
+eval ANALYZE $query;
+eval $query;
+
+--echo # {t1,t2} part of the nest
+--echo # t1.a <= 10 would be attached to table t1
+--echo # t3 uses ref access on sort-nest.b
+--echo
+
+let $query=
+SELECT * FROM t1,t2,t3
+WHERE t1.a <= 10 AND t1.a=t2.a AND t1.b = t3.a
+ORDER BY t2.b
+LIMIT 5;
+
+ALTER TABLE t3 ADD KEY(a);
+eval EXPLAIN $query;
+eval ANALYZE $query;
+eval $query;
+
+ALTER TABLE t3 DROP KEY a;
+
+--echo #
+--echo # Removing constant from the order by clause
+--echo #
+
+let $query=
+SELECT * FROM t1,t2
+WHERE t1.a <= 10  and t1.a=t2.a
+ORDER BY t2.a DESC
+LIMIT 5;
+
+eval EXPLAIN $query;
+eval ANALYZE $query;
+eval $query;
+
+let $query=
+SELECT * FROM t1,t2
+WHERE t1.a <= 10  and t1.a=t2.a
+ORDER BY 1+2,t2.a DESC
+LIMIT 5;
+
+eval EXPLAIN $query;
+eval ANALYZE $query;
+eval $query;
+
+
+--echo #
+--echo # Equality propagation, both the queries should use a
+--echo # sort nest on {t1,t2}
+--echo #
+
+let $query=
+SELECT t3.b, t2.a, t1.b, t1.a
+FROM t1,t2,t3
+WHERE t1.b=t3.b
+ORDER BY t1.b DESC, t2.a DESC
+LIMIT 3;
+
+eval EXPLAIN EXTENDED $query;
+eval $query;
+
+let $query=
+SELECT t3.b, t2.a, t1.b, t1.a
+FROM t1,t2,t3
+WHERE t1.b=t3.b
+ORDER BY t3.b DESC, t2.a DESC
+LIMIT 3;
+
+eval EXPLAIN EXTENDED $query;
+eval $query;
+
+--echo #
+--echo # Equality propagation also for arguments of expressions,
+--echo # the plan should use a sort nest on {t1,t2}
+--echo #
+
+let $query=
+SELECT t3.b,t2.a, t1.b, t1.a
+FROM t1,t2,t3
+WHERE t1.b=t3.b
+ORDER BY t3.b + 1 DESC, t2.a DESC
+LIMIT 3;
+
+eval EXPLAIN EXTENDED $query;
+eval $query;
+
+--echo #
+--echo # With having clause we can't have a sort-nest
+--echo #
+
+let $query=
+SELECT * FROM t1,t2,t3
+WHERE t1.a=t2.a AND t1.b = t3.a
+HAVING t1.a <= 5
+ORDER BY t2.b,t1.b
+LIMIT 5;
+
+eval EXPLAIN EXTENDED $query;
+eval $query;
+
+let $query=
+SELECT * FROM t1,t2,t3
+WHERE t1.a <= 5 AND t1.a=t2.a AND t1.b = t3.a
+ORDER BY t2.b,t1.b
+LIMIT 5;
+
+eval EXPLAIN EXTENDED $query;
+eval $query;
+
+
+DROP TABLE t1,t2,t3;
+
+--echo
+--echo Tests with views and derived tables
+--echo
+
+--echo #
+--echo # merge-able view inside a sort-nest
+--echo #
+
+--echo #
+--echo # merge-able view inside a sort-nest
+--echo #
+
+CREATE TABLE t0 (a int, b INT);
+CREATE TABLE t1 (a int, b INT, KEY(a));
+CREATE TABLE t2 (a INT, b INT, c INT, KEY(b));
+
+INSERT INTO t0 SELECT seq, seq FROM seq_1_to_100;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_50;
+INSERT INTO t2 SELECT seq,seq, seq FROM seq_1_to_10;
+
+--disable_warnings
+ANALYZE TABLE t0 PERSISTENT FOR ALL;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+--enable_warnings
+
+CREATE VIEW v1 as SELECT t2.b,t2.c FROM t1, t2 WHERE t1.a=t2.b;
+
+let $query=
+SELECT v1.b FROM t0, v1
+WHERE v1.b <= 45 AND v1.c= t0.a
+ORDER BY t0.b DESC, v1.b DESC
+LIMIT 10;
+
+eval EXPLAIN EXTENDED $query;
+eval $query;
+DROP VIEW v1;
+
+--echo #
+--echo # merge-able derived table inside a sort-nest
+--echo #
+
+let $query=
+SELECT q.b FROM t0, (SELECT t2.b,t2.c FROM t1, t2 WHERE t1.a=t2.b)q
+WHERE q.b <= 45 AND q.c= t0.a
+ORDER BY t0.b DESC, q.b DESC
+LIMIT 10;
+
+eval EXPLAIN EXTENDED $query;
+eval $query;
+
+
+--echo #
+--echo # Non merge-able view, optimization cannot be used as estimates for
+--echo # join cardinality are not accurate
+--echo #
+
+CREATE VIEW v1 as SELECT DISTINCT t2.b,t2.c FROM t1, t2 WHERE t1.a=t2.b;
+let $query=
+SELECT v1.b FROM t0, v1
+WHERE v1.b <= 45 AND t0.a= v1.c
+ORDER BY v1.b DESC
+LIMIT 10;
+
+eval EXPLAIN $query;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+eval $query;
+DROP TABLE t0,t1,t2;
+DROP VIEW v1;
+
+--echo #
+--echo # Primary key considered as the key that could achieve ordering
+--echo #
+
+CREATE TABLE t1 (id char(32) NOT NULL primary key);
+INSERT INTO t1 VALUES (0), (1), (2), (3), (4), (5), (6), (7), (8), (9);
+CREATE TABLE t2 (id char(32) NOT NULL primary key);
+INSERT INTO t2 VALUES (0), (1), (2), (3);
+
+let $query=
+SELECT t1.id
+FROM t1 INNER JOIN t2 ON t1.id=t2.id
+ORDER BY t2.id LIMIT 2;
+
+eval EXPLAIN EXTENDED $query;
+eval $query;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # Tests with Outer Joins
+--echo #
+
+CREATE TABLE t1 (a int, b int);
+INSERT INTO t1 SELECT seq-1, seq-1 from seq_1_to_10;
+CREATE TABLE t2 as SELECT * from t1;
+
+CREATE TABLE t3 (a int, b int, KEY(a));
+INSERT INTO t3 SELECT seq-1, seq-1 from seq_1_to_100;
+
+--disable_result_log
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+--enable_result_log
+
+let $query=
+SELECT * FROM t2, t1 LEFT JOIN t3 ON t3.a=t1.b
+ORDER BY t2.a DESC,t1.a DESC
+LIMIT 5;
+
+--echo # sort-nest(t2,t1) and t3 outside the nest
+eval EXPLAIN EXTENDED $query;
+eval $query;
+
+--echo #
+--echo # no sort-nest as all the inner tables of the outer join will be
+--echo # inside the nest, this should use temporary table to sort after the
+--echo # entire join is computed
+--echo #
+
+let $query=
+SELECT * FROM t2 LEFT JOIN (t1 LEFT JOIN t3 ON t3.a=t1.b)
+ON t2.b=t1.a
+ORDER BY t2.a DESC,t1.a DESC LIMIT 5;
+
+eval EXPLAIN $query;
+eval $query;
+DROP TABLE t1,t2,t3;
+
+
+--echo #
+--echo # Sort-nest with prepared statements
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 SELECT seq-1,seq-1 from seq_1_to_10;
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t2 SELECT seq-1,seq-1 from seq_1_to_10;
+
+CREATE TABLE t3 (a int, b int, KEY(a));
+INSERT INTO t3 SELECT seq-1, seq-1 from seq_1_to_100;
+
+--disable_result_log
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+--enable_result_log
+
+--echo # sort-nest on table t1,t2
+prepare ps1 from "EXPLAIN SELECT * FROM t1,t2,t3
+                  WHERE t1.a=t2.a AND t2.b= t3.a
+                  ORDER BY t2.b DESC,t1.b DESC
+                  LIMIT 5";
+
+EXECUTE ps1;
+EXECUTE ps1;
+
+
+--echo # sort-nest on table t1,t2
+PREPARE ps2 from "SELECT * FROM t1,t2,t3
+                  WHERE t1.a=t2.a AND t2.b= t3.a
+                  ORDER BY t2.b DESC,t1.b DESC
+                  LIMIT 5";
+EXECUTE ps2;
+EXECUTE ps2;
+
+DEALLOCATE PREPARE ps1;
+DEALLOCATE PREPARE ps2;
+DROP TABLE t1,t2,t3;
+
+
+--echo #
+--echo #  Tests with subqueries
+--echo #
+
+--echo # INDEPENDENT SUBQUERIES
+
+CREATE TABLE t1 (a int, b int, KEY(a));
+INSERT INTO t1 SELECT seq, seq from seq_1_to_10;
+
+CREATE TABLE t2(a INT, b INT, KEY(a), KEY(b));
+INSERT INTO t2 SELECT seq,seq from seq_1_to_10;
+
+CREATE TABLE t3 (a int, b int, c int, KEY(b));
+INSERT INTO t3 SELECT seq, seq, seq from seq_1_to_100;
+
+--disable_result_log
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+--enable_result_log
+
+--echo #
+--echo # sort-nest(t2,t1) and independent subquery in the SELECT list
+--echo #
+
+let $query=
+SELECT (SELECT A.a FROM t3 A WHERE A.a > 5 limit 1) as x,
+        t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a AND t2.b=t3.b
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+
+eval EXPLAIN $query;
+eval $query;
+
+DROP TABLE t1,t2,t3;
+
+
+--echo #
+--echo #  Const tables should not form the sort-nest
+--echo #
+
+CREATE TABLE t1 (i1 integer NOT NULL PRIMARY KEY);
+CREATE TABLE t2 (i2 integer NOT NULL PRIMARY KEY);
+CREATE TABLE t3 (i3 integer);
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5), (6), (7), (8);
+INSERT INTO t1 VALUES (9), (10), (11), (12);
+
+INSERT INTO t2 SELECT * FROM t1;
+
+let $query=
+SELECT t1.*, t2.*
+FROM t1 JOIN t2 ON t1.i1 = t2.i2
+     LEFT JOIN t3 ON t2.i2 = t3.i3
+ORDER BY t1.i1
+LIMIT 5;
+
+eval EXPLAIN $query;
+eval $query;
+
+DROP TABLE t1,t2,t3;
+
+--echo # All tables are const tables
+
+CREATE TABLE t1 (a int, b int);
+INSERT INTO t1 VALUES (0,0);
+CREATE TABLE t2(a int, b int);
+INSERT INTO t2 VALUES (0,0);
+CREATE TABLE t3(a int, b int);
+INSERT INTO t3 VALUES (0,0);
+
+let $query=
+SELECT t1.a,t2.a,t3.a
+FROM t1,t2,t3
+WHERE t1.b = t2.b AND t3.b=t1.b
+ORDER BY t2.a DESC,t1.a DESC
+LIMIT 5;
+
+eval EXPLAIN $query;
+eval $query;
+
+DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # Testing ORDER BY LIMIT with OFFSET, should show the same plan and same
+--echo # estimate of rows for the sort-nest
+--echo #
+
+CREATE TABLE t0 (a int);
+INSERT INTO t0 SELECT seq-1 from seq_1_to_10;
+CREATE TABLE t1 (a int, b int);
+INSERT INTO t1 SELECT a, a from t0;
+CREATE TABLE t2 as SELECT * from t1;
+CREATE TABLE t3(a int, b int, c int, key(a));
+INSERT INTO t3  SELECT seq-1, seq-1, seq-1 from seq_1_to_100;
+
+--disable_result_log
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+--enable_result_log
+
+let $query=
+SELECT t1.a, t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a=t2.a AND t2.b = t3.a
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 10;
+
+eval EXPLAIN $query;
+eval $query;
+
+let $query=
+SELECT t1.a, t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a=t2.a AND t2.b = t3.a
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5 OFFSET 5;
+
+eval EXPLAIN $query;
+eval $query;
+
+DROP TABLE t0,t1,t2,t3;
+
+--echo #
+--echo # ORDER BY clause containing expressions
+--echo #
+
+CREATE TABLE t0 (a int);
+INSERT INTO t0 SELECT seq-1 from seq_1_to_10;
+CREATE TABLE t1 (a int, b int, c int);
+INSERT INTO t1 SELECT a, a, a from t0 where a <5;
+CREATE TABLE t2 as SELECT * from t1 where a < 5;
+CREATE TABLE t3(a int, b int, c int, key(a));
+INSERT INTO t3  SELECT seq-1, seq-1, seq-1 from seq_1_to_10;
+CREATE TABLE t4 as SELECT * from t1 where a < 5;
+
+--disable_result_log
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+ANALYZE TABLE t4 PERSISTENT FOR ALL;
+--enable_result_log
+
+let $query=
+SELECT t1.a, t2.b, t1.b, t1.b + t2.b
+FROM t1,t2, t3
+WHERE t1.a=t2.b and t2.a=t3.a
+ORDER BY abs(t3.a+t1.b) DESC
+LIMIT 5;
+
+eval EXPLAIN $query;
+eval $query;
+
+--echo #
+--echo # No sort nest where ORDER BY item are expensive to compute like 
+--echo # stored functions, subqueries etc
+
+delimiter |;
+
+CREATE FUNCTION f1(a INT) RETURNS INT
+BEGIN
+  RETURN a;
+END|
+
+delimiter ;|
+
+let $query=
+SELECT t1.a, t2.b, t1.b, t1.b + t2.b
+FROM t1,t2, t3
+WHERE t1.a=t2.b and t2.a=t3.a
+ORDER BY f1(t3.a+t1.b) DESC
+LIMIT 5;
+
+eval EXPLAIN $query;
+eval $query;
+
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # Window function in order by clause, sort-nest not allowed
+--echo #
+
+let $query=
+SELECT t1.a, t2.b, t1.b, t1.b + t2.b
+FROM t1,t2, t3
+WHERE t1.a=t2.b AND t2.a=t3.a
+ORDER BY row_number() OVER (ORDER BY t1.a) DESC
+LIMIT 5;
+
+eval EXPLAIN $query;
+eval $query;
+
+DROP TABLE t0, t1,t2,t3, t4;
+
+--echo #
+--echo #  Tests with Indexes
+--echo #
+
+CREATE TABLE t1 (a int, b int, c int, KEY a_b (a,b), KEY a_c (a,c));
+
+insert into t1 values (0,1,0), (0,2,0), (0,3,0), (0,4,0), (0,5,0), (0,6,0);
+insert into t1 values (1,7,1), (1,8,1), (1,9,1), (1,10,1), (1,11,1), (1,12,1);
+insert into t1 values (1,7,2), (1,8,2), (1,9,2), (1,10,2), (1,11,2), (1,12,2);
+insert into t1 values (1,7,2), (1,8,2), (1,9,2), (1,10,2), (1,11,2), (1,12,2);
+
+--echo #
+--echo # index a_b should be used, no need for filesort
+--echo #
+
+let $query= select a,b,c from t1 where a=1 and c=2 order by b limit 5;
+eval $query;
+eval explain $query;
+
+drop table t1;
+
+--echo #
+--echo # Tests where Index(scan, ref or range access) satisfies the ORDERING
+--echo #
+
+CREATE TABLE t1 (a int, b int, c int, KEY a_b (a,b), KEY a_c (a,c));
+
+insert into t1 values (0,1,0), (0,2,0), (0,3,0), (0,4,0), (0,5,0), (0,6,0);
+insert into t1 values (1,7,1), (1,8,1), (1,9,1), (1,10,1), (1,11,1), (1,12,1);
+insert into t1 values (1,7,2), (1,8,2), (1,9,2), (1,10,2), (1,11,2), (1,12,2);
+insert into t1 values (1,7,2), (1,8,2), (1,9,2), (1,10,2), (1,11,2), (1,12,2);
+insert into t1 values (1,1,2);
+
+--echo #
+--echo # index key a_b, no need for filesort
+--echo # Also index condition pushdown is used here
+--echo #
+
+let $query= select a,b from t1 where a=1 and c=2 order by b limit 10;
+
+eval $query;
+eval explain $query;
+
+drop table t1;
+
+CREATE TABLE t1(
+   a int NOT NULL,
+   b char NULL,
+   PRIMARY KEY(a)
+);
+
+INSERT INTO t1 VALUES (1,'a'), (2,'b'), (3,'c'), (4,'d');
+
+--echo #
+--echo # Should use index condition
+--echo #
+
+let $query= SELECT * FROM t1 WHERE a BETWEEN 1 and 2 ORDER BY a LIMIT 2;
+
+eval $query;
+eval EXPLAIN $query;
+
+--echo #
+--echo # Should not use index condition as ORDER by DESC is used
+--echo #
+
+let $query= SELECT * FROM t1 WHERE a BETWEEN 1 and 2 ORDER BY a DESC LIMIT 2;
+
+eval EXPLAIN $query;
+eval $query;
+
+drop table t1;
+
+create table t1(a int, b int, c int, key(a), key a_b(a,b)); # 10 rows
+insert into t1 values (0,1,0), (0,2,0), (0,3,0);
+insert into t1 values (1,6,1), (1,7,1), (1,5,1);
+insert into t1 values (2,8,2), (2,9,3), (2,10,4);
+insert into t1 values (3,1,5);
+
+create table t2(a int, b int, c int, key(b), key(c)); # 10 rows
+insert into t2 select a, b, c from t1;
+
+--echo #
+--echo # Testing using of Indexes on first non-const table
+--echo #
+
+--echo #
+--echo #  Using range scan
+--echo #
+
+let $query=
+SELECT * FROM t1,t2
+WHERE
+  t1.a=2 AND t2.b > 8 AND
+  t1.b=t2.b
+ORDER BY t1.b LIMIT 10;
+
+eval $query;
+eval EXPLAIN $query;
+
+--echo #
+--echo #  Using ref access
+--echo #
+let $query=
+SELECT * FROM t1,t2
+WHERE
+  t1.a=2 AND t2.c >= 1 AND
+  t1.b=t2.b
+ORDER BY t1.b LIMIT 10;
+
+eval $query;
+eval EXPLAIN $query;
+
+--echo #
+--echo # Using index condition should not be present
+--echo #
+
+let $query=
+SELECT * FROM t1,t2
+WHERE
+  t1.a=2 AND t2.c >= 1 AND
+  t1.b=t2.b
+ORDER BY t1.b DESC LIMIT 10;
+
+eval $query;
+eval EXPLAIN $query;
+
+drop table t1,t2;
+
+
+--echo # TESTS with INDEX HINTS
+
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, b int,c int, key idx1(a), key idx2(a,b), key idx3(c));
+insert into t1 select a,a,a from t0 where a <5; # 5 rows
+
+--disable_result_log
+analyze table t1 persistent for all;
+--enable_result_log
+
+--echo #
+--echo # Index idx1 to be used for index scan
+--echo #
+
+let $query= SELECT * from t1 where b > 0 order by t1.a limit 2;
+eval $query;
+eval EXPLAIN $query;
+
+--echo #
+--echo # Index idx2 to be used for index scan(USE INDEX is used)
+--echo #
+
+let $query= SELECT * from t1 USE INDEX(idx2) WHERE b > 0 ORDER BY t1.a LIMIT 2;
+eval $query;
+eval EXPLAIN $query;
+
+--echo #
+--echo # Index idx2 to be used for index scan(USE INDEX for ORDER BY  is used)
+--echo #
+
+let $query=
+SELECT * from t1 USE INDEX FOR ORDER BY(idx2)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+
+eval $query;
+eval EXPLAIN $query;
+
+--echo #
+--echo # Use Filesort as idx3 does not resolve ORDER BY clause
+--echo #
+
+let $query=
+SELECT * from t1 USE INDEX FOR ORDER BY(idx3)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+
+eval $query;
+eval EXPLAIN $query;
+
+--echo #
+--echo # Using index idx2 as idx1 is ignored
+--echo #
+
+let $query=
+SELECT * from t1 IGNORE INDEX(idx1)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+
+eval $query;
+eval EXPLAIN $query;
+
+--echo #
+--echo # Use index idx2 for sorting, it is forced here
+--echo #
+
+let $query=
+SELECT * from t1 FORCE INDEX(idx2)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+
+eval $query;
+eval EXPLAIN $query;
+
+--echo #
+--echo # Use FILESORT as idx3 cannot resolve ORDER BY clause
+--echo #
+
+let $query=
+SELECT * from t1 FORCE INDEX FOR ORDER BY(idx3)
+WHERE b > 0
+ORDER BY t1.a LIMIT 2;
+
+eval $query;
+eval EXPLAIN $query;
+
+drop table t0,t1;
+
+
+--echo #
+--echo # Tests with Subqueries
+--echo #
+
+CREATE TABLE t0 (a int);
+INSERT INTO t0 SELECT seq-1 from seq_1_to_10;
+CREATE TABLE t1 (a int, b int, c int);
+INSERT INTO t1 SELECT a, a, a from t0 where a <5;
+CREATE TABLE t2 as SELECT * from t1 where a < 5;
+CREATE TABLE t3(a int, b int, c int, key(a));
+INSERT INTO t3  SELECT seq-1, seq-1, seq-1 from seq_1_to_10;
+CREATE TABLE t4 as SELECT * from t1 where a < 5;
+
+--disable_result_log
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+ANALYZE TABLE t4 PERSISTENT FOR ALL;
+--enable_result_log
+
+--echo #
+--echo # Dependent subqueries cannot have a sort-nest
+--echo #
+
+let $query=
+SELECT *
+FROM t1
+WHERE
+t1.b = (select t2.b from t2,t3,t4
+        where t2.a=t1.a and t3.b=t4.b
+        ORDER BY t2.c,t3.c limit 1);
+
+eval EXPLAIN $query;
+eval $query;
+
+--echo #
+--echo # Independent subqueries can have a sort-nest
+--echo #
+
+let $query=
+SELECT *
+FROM t1
+WHERE
+t1.b = (select t2.b from t2,t3,t4
+        where t2.a=t3.a and t3.b=t4.b
+        ORDER BY t2.c,t3.c limit 1);
+
+eval EXPLAIN $query;
+eval $query;
+
+--echo #
+--echo # Sort nest inside a derived table
+--echo #
+
+let $query=
+SELECT *
+FROM (SELECT t1.a as t, t2.b as u, t1.b as v, t3.a as x
+      FROM t1,t2,t3
+      WHERE t1.a=t2.a AND t2.b=t3.a
+      ORDER BY t2.b DESC, t1.b DESC
+      LIMIT 5)q;
+
+eval EXPLAIN $query;
+eval $query;
+
+--echo #
+--echo # sort-nest(t2,t1) and independent subquery in the SELECT list
+--echo #
+
+let $query=
+SELECT (SELECT A.a FROM t3 A WHERE A.a > 5 limit 1) as x,
+        t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+
+eval EXPLAIN $query;
+eval $query;
+
+--echo #
+--echo # sort-nest(t2,t1) and dependent subquery in the SELECT list
+--echo #
+
+let $query=
+SELECT (SELECT A.a FROM t3 A WHERE A.a = t1.b limit 1) as x,
+       t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+
+eval EXPLAIN $query;
+eval $query;
+
+--echo #
+--echo # Dependent Subquery in the WHERE clause, so estimates for join
+--echo # cardinality are not accurate. Sort-nest cannot be used here.
+--echo # Use temptable + filesort here
+--echo #
+
+let $query=
+SELECT t2.b, t1.b, t3.a
+FROM t1,t2,t3
+WHERE t1.a = t2.a AND t2.c = t3.c AND
+t1.b=(SELECT A.a FROM t3 A WHERE A.b > 1 and t3.b=t1.b limit 1)
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+
+eval EXPLAIN $query;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+eval $query;
+
+--echo #
+--echo # sort-nest(t2,t1) and independent subquery in the ORDER BY clause
+--echo #
+
+--echo # Subquery will be a constant in ORDER BY and will be removed
+
+let $query=
+SELECT t2.b, t1.b, t3.c
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b, t1.b,
+         (SELECT A.a FROM t3 A WHERE A.a < 5 limit 1)
+LIMIT 5;
+
+eval EXPLAIN $query;
+eval $query;
+
+--echo #
+--echo # sort-nest(t2,t1) and dependent subquery in the ORDER BY clause
+--echo #
+
+--echo # Subquery is expensive to evaluate, so don't use a sort-nest
+
+let $query=
+SELECT t2.b, t1.b, t3.c
+FROM t1,t2,t3
+WHERE t1.a = t2.a and t2.c=t3.c
+ORDER BY t2.b, t1.b,
+         (SELECT A.a FROM t3 A WHERE A.a = t1.c limit 1)
+LIMIT 5;
+
+eval EXPLAIN $query;
+eval $query;
+
+
+DROP TABLE t0,t1,t2,t3,t4;
+
+--echo #
+--echo # SORT-NEST WITH SEMI JOINS
+--echo #
+
+CREATE TABLE t0(a int);
+CREATE TABLE t1 (a int, b int, c int, key(a), key(b));
+CREATE TABLE t2 (a int, b int, c int, key(a));
+CREATE TABLE t3 (a int, b int, c int, key(a));
+CREATE TABLE t4 (a int, b int, c int, key(a));
+
+INSERT INTO t0 SELECT seq-1 FROM seq_1_to_10;
+INSERT INTO t1 SELECT seq-1, seq-1, seq-1 FROM seq_1_to_100;
+INSERT INTO t2 SELECT a,a,a FROM t0;
+INSERT INTO t3 SELECT a,a,a FROM t0 WHERE a < 5;
+INSERT INTO t3 SELECT a,a,a FROM t0 WHERE a < 5;
+INSERT INTO t4 SELECT a,a,a FROM t0 WHERE a < 5;
+INSERT INTO t4 SELECT a,a,a FROM t0 WHERE a < 5;
+
+--disable_result_log
+ANALYZE TABLE t0 PERSISTENT FOR ALL;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+ANALYZE TABLE t4 PERSISTENT FOR ALL;
+--enable_result_log
+
+--echo #
+--echo # SJM Lookup with sort-nest, where SJM lookup table is outside the
+--echo # sort-nest
+--echo #
+
+let $query=
+SELECT t1.a, t2.a, t1.b,t2.b
+FROM t1, t2, t2 ot
+  WHERE t1.a=t2.a AND t2.b=ot.a AND t2.b <= 4 AND
+        t1.b IN (SELECT it1.b FROM t3 it1,t4 it2
+                 WHERE it1.a <= 4 AND it1.a=it2.a)
+ORDER BY t2.b DESC ,t1.b DESC
+LIMIT 5;
+
+eval EXPLAIN $query;
+eval $query;
+
+drop table t0,t1,t2,t3,t4;
+
+--echo #
+--echo # Firstmatch strategy
+--echo #
+
+CREATE TABLE t0(a int);
+CREATE TABLE t1 (a int, b int, c int);
+CREATE TABLE t2 (a int, b int, c int, key(a));
+CREATE TABLE t3 (a int, b int, c int, key(b));
+CREATE TABLE t4 (a int, b int, c int, key(a));
+
+INSERT INTO t0 SELECT seq-1 FROM seq_1_to_10;
+INSERT INTO t1 SELECT seq-1, seq-1, seq-1 FROM seq_1_to_100;
+INSERT INTO t2 SELECT a,a,a FROM t0;
+INSERT INTO t3 SELECT a,a,a FROM t0 where a < 5;
+INSERT INTO t3 SELECT a,a,a FROM t0 where a < 5;
+INSERT INTO t4 SELECT a,a,a FROM t0 where a < 5;
+INSERT INTO t4 SELECT a,a,a FROM t0 where a < 5;
+
+--disable_result_log
+ANALYZE TABLE t0 PERSISTENT FOR ALL;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+ANALYZE TABLE t4 PERSISTENT FOR ALL;
+--enable_result_log
+
+let $query=
+SELECT t1.a, t2.a, t1.b,t2.b
+FROM t1, t2
+  WHERE t1.a=t2.a AND
+        t1.b IN (SELECT t3.b FROM t3,t4 WHERE t3.a <= 5 and t3.c = t2.b)
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+
+eval EXPLAIN $query;
+eval $query;
+
+--echo #
+--echo # Duplicate weedout
+--echo #
+
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='firstmatch=off';
+
+let $query=
+SELECT t1.a, t2.a, t1.b,t2.b
+FROM t1, t2
+  WHERE t1.a=t2.a AND
+        t1.b IN (SELECT t3.b FROM t3,t4 WHERE t3.a <= 5 and t3.c = t2.b)
+ORDER BY t2.b DESC, t1.b DESC
+LIMIT 5;
+
+eval EXPLAIN $query;
+eval $query;
+
+set @@optimizer_switch= @save_optimizer_switch;
+drop table t0,t1,t2,t3,t4;
+
+--echo
+--echo # NON-MERGED SEMI JOINS cannot use a sort-nest as the estimates for
+--echo # join cardinality are not accurate, so use temp table + Filesort here
+--echo
+
+create table t0 (a int);
+INSERT INTO t0 SELECT seq-1 FROM seq_1_to_10;
+create table t1 (a int, b int);
+insert into t1 SELECT a,a from t0 where a <5;
+create table t2 as SELECT * from t1 where a < 5;
+create table t3(a int, b int);
+INSERT INTO t3 SELECT seq-1, seq-1 FROM seq_1_to_100;
+
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+
+--echo <subquery2> outside the sort-nest
+
+let $query=
+SELECT * from t2,t1
+WHERE t2.b=t1.b
+AND
+t1.a IN (SELECT max(t3.a) FROM t3 GROUP BY t3.b)
+ORDER BY t2.a DESC,t1.a DESC
+LIMIT 5;
+
+eval EXPLAIN $query;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+eval $query;
+
+DROP TABLE t0,t1,t2,t3;
