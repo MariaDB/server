@@ -4,6 +4,7 @@ use strict;
 use warnings;
 use Text::Wrap;
 use Cwd;
+use My::Platform;
 
 # 1. options to support:
 #       --xxx[=ARGS]
@@ -139,8 +140,8 @@ sub do_args($$$$$) {
   # on windows mtr args are quoted (for system), otherwise not (for exec)
   sub quote($) { $_[0] =~ / / ? "\"$_[0]\"" : $_[0] }
   sub unquote($) { $_[0] =~ s/^"(.*)"$/$1/; $_[0] }
-  sub quote_from_mtr($) { ::IS_WINDOWS ? $_[0] : quote($_[0]) }
-  sub unquote_for_mtr($) { ::IS_WINDOWS ? $_[0] : unquote($_[0]) }
+  sub quote_from_mtr($) { IS_WINDOWS() ? $_[0] : quote($_[0]) }
+  sub unquote_for_mtr($) { IS_WINDOWS() ? $_[0] : unquote($_[0]) }
 
   my %vars = (
     vardir => $::opt_vardir,
@@ -240,7 +241,7 @@ sub setup_client_args($$) {
       if ($opt_vals{$opt}) {
         die "--$opt and --$found cannot be used at the same time$embedded\n" if $found;
         $found=$opt;
-        do_args($args, $exe, ::IS_WINDOWS ? 'NUL' : '/dev/null', 'client', $found);
+        do_args($args, $exe, IS_WINDOWS() ? 'NUL' : '/dev/null', 'client', $found);
       }
     }
   }
@@ -255,7 +256,7 @@ sub setup_args($$$) {
       if ($opt_vals{$opt}) {
         die "--$opt and --$found cannot be used at the same time\n" if $found;
         $found=$opt;
-        do_args($args, $exe, ::IS_WINDOWS ? 'NUL' : '/dev/null', $type, $found);
+        do_args($args, $exe, IS_WINDOWS() ? 'NUL' : '/dev/null', $type, $found);
       }
     }
   }
