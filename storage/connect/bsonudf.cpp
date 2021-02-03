@@ -1670,7 +1670,7 @@ PBVAL BJNX::ParseJsonFile(PGLOBAL g, char *fn, int& pty, size_t& len)
 	len = (size_t)mm.lenL;
 
 	if (mm.lenH)
-		len += ((size_t)mm.lenH * 0x000000001LL);
+		len += mm.lenH;
 
 	memory = (char *)mm.memory;
 

@@ -82,7 +82,7 @@ BDOC::BDOC(PGLOBAL G) : BJSON(G, NULL)
 /***********************************************************************/
 PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng)
 {
-  int   i;
+  size_t i;
   bool  b = false, ptyp = (bool *)pty;
   PBVAL bvp = NULL;
 
@@ -185,7 +185,7 @@ PBVAL BDOC::ParseJson(PGLOBAL g, char* js, size_t lng)
 /***********************************************************************/
 /* Parse several items as being in an array.                           */
 /***********************************************************************/
-OFFSET BDOC::ParseAsArray(int& i) {
+OFFSET BDOC::ParseAsArray(size_t& i) {
   if (pty[0] && (!pretty || pretty > 2)) {
     OFFSET jsp;
 
@@ -202,7 +202,7 @@ OFFSET BDOC::ParseAsArray(int& i) {
 /***********************************************************************/
 /* Parse a JSON Array.                                                 */
 /***********************************************************************/
-OFFSET BDOC::ParseArray(int& i)
+OFFSET BDOC::ParseArray(size_t& i)
 {
   int   level = 0;
   bool  b = (!i);
@@ -214,7 +214,7 @@ OFFSET BDOC::ParseArray(int& i)
     switch (s[i]) {
     case ',':
       if (level < 2) {
-        sprintf(G->Message, "Unexpected ',' near %.*s", ARGS);
+        sprintf(G->Message, "Unexpected ',' near %.*s", (int) ARGS);
         throw 1;
       } else
         level = 1;
@@ -222,7 +222,7 @@ OFFSET BDOC::ParseArray(int& i)
       break;
     case ']':
       if (level == 1) {
-        sprintf(G->Message, "Unexpected ',]' near %.*s", ARGS);
+        sprintf(G->Message, "Unexpected ',]' near %.*s", (int) ARGS);
         throw 1;
       } // endif level
 
@@ -236,7 +236,7 @@ OFFSET BDOC::ParseArray(int& i)
       break;
     default:
       if (level == 2) {
-        sprintf(G->Message, "Unexpected value near %.*s", ARGS);
+        sprintf(G->Message, "Unexpected value near %.*s", (int) ARGS);
         throw 1;
       } else if (lastvlp) {
         vlp = ParseValue(i, NewVal());
@@ -260,7 +260,7 @@ OFFSET BDOC::ParseArray(int& i)
 /***********************************************************************/
 /* Parse a JSON Object.                                                */
 /***********************************************************************/
-OFFSET BDOC::ParseObject(int& i)
+OFFSET BDOC::ParseObject(size_t& i)
 {
   OFFSET key;
   int    level = 0;
@@ -283,7 +283,7 @@ OFFSET BDOC::ParseObject(int& i)
 
         level = 2;
       } else {
-        sprintf(G->Message, "misplaced string near %.*s", ARGS);
+        sprintf(G->Message, "misplaced string near %.*s", (int) ARGS);
         throw 2;
       } // endif level
 
@@ -293,14 +293,14 @@ OFFSET BDOC::ParseObject(int& i)
         ParseValue(++i, GetVlp(lastbpp));
         level = 3;
       } else {
-        sprintf(G->Message, "Unexpected ':' near %.*s", ARGS);
+        sprintf(G->Message, "Unexpected ':' near %.*s", (int) ARGS);
         throw 2;
       } // endif level
 
       break;
     case ',':
       if (level < 3) {
-        sprintf(G->Message, "Unexpected ',' near %.*s", ARGS);
+        sprintf(G->Message, "Unexpected ',' near %.*s", (int) ARGS);
         throw 2;
       } else
         level = 1;
@@ -308,7 +308,7 @@ OFFSET BDOC::ParseObject(int& i)
       break;
     case '}':
       if (!(level == 0 || level == 3)) {
-        sprintf(G->Message, "Unexpected '}' near %.*s", ARGS);
+        sprintf(G->Message, "Unexpected '}' near %.*s", (int) ARGS);
         throw 2;
       } // endif level
 
@@ -321,7 +321,7 @@ OFFSET BDOC::ParseObject(int& i)
       break;
     default:
       sprintf(G->Message, "Unexpected character '%c' near %.*s",
-        s[i], ARGS);
+        s[i], (int) ARGS);
       throw 2;
     }; // endswitch s[i]
 
@@ -332,7 +332,7 @@ OFFSET BDOC::ParseObject(int& i)
 /***********************************************************************/
 /* Parse a JSON Value.                                                 */
 /***********************************************************************/
-PBVAL BDOC::ParseValue(int& i, PBVAL bvp)
+PBVAL BDOC::ParseValue(size_t& i, PBVAL bvp)
 {
   for (; i < len; i++)
     switch (s[i]) {
@@ -398,14 +398,14 @@ suite:
   return bvp;
 
 err:
-  sprintf(G->Message, "Unexpected character '%c' near %.*s", s[i], ARGS);
+  sprintf(G->Message, "Unexpected character '%c' near %.*s", s[i], (int) ARGS);
   throw 3;
 } // end of ParseValue
 
 /***********************************************************************/
 /*  Unescape and parse a JSON string.                                  */
 /***********************************************************************/
-OFFSET BDOC::ParseString(int& i)
+OFFSET BDOC::ParseString(size_t& i)
 {
   uchar* p;
   int    n = 0;
@@ -492,7 +492,7 @@ throw("Unexpected EOF in String");
 /***********************************************************************/
 /* Parse a JSON numeric value.                                         */
 /***********************************************************************/
-void BDOC::ParseNumeric(int& i, PBVAL vlp)
+void BDOC::ParseNumeric(size_t& i, PBVAL vlp)
 {
   char  buf[50];
   int   n = 0;

@@ -184,12 +184,12 @@ public:
 	PSZ   Serialize(PGLOBAL g, PBVAL bvp, char* fn, int pretty);
 
 protected:
-	OFFSET ParseArray(int& i);
-	OFFSET ParseObject(int& i);
-	PBVAL  ParseValue(int& i, PBVAL bvp);
-	OFFSET ParseString(int& i);
-	void   ParseNumeric(int& i, PBVAL bvp);
-	OFFSET ParseAsArray(int& i);
+	OFFSET ParseArray(size_t& i);
+	OFFSET ParseObject(size_t& i);
+	PBVAL  ParseValue(size_t& i, PBVAL bvp);
+	OFFSET ParseString(size_t& i);
+	void   ParseNumeric(size_t& i, PBVAL bvp);
+	OFFSET ParseAsArray(size_t& i);
 	bool   SerializeArray(OFFSET arp, bool b);
 	bool   SerializeObject(OFFSET obp);
 	bool   SerializeValue(PBVAL vp, bool b = false);
@@ -197,7 +197,7 @@ protected:
 	// Members used when parsing and serializing
 	JOUT* jp;						 // Used with serialize
 	char* s;						 // The Json string to parse
-	int   len;					 // The Json string length
+	size_t len;					 // The Json string length
 	int   pretty;				 // The pretty style of the file to parse
 	bool  pty[3];				 // Used to guess what pretty is
 	bool  comma;				 // True if Pretty = 1
