@@ -1211,6 +1211,7 @@ lock_rec_create_low(
 		if (c_lock->trx->lock.wait_thr) {
 
 			c_lock->trx->lock.was_chosen_as_deadlock_victim = TRUE;
+			c_lock->trx->lock.was_chosen_as_wsrep_victim = TRUE;
 
 			if (UNIV_UNLIKELY(wsrep_debug)) {
 				wsrep_print_wait_locks(c_lock);

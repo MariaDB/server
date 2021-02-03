@@ -132,7 +132,12 @@ dberr_t lock_wait(que_thr_t *thr)
     /* The lock has already been released or this transaction
     was chosen as a deadlock victim: no need to suspend */
 
-    if (trx->lock.was_chosen_as_deadlock_victim)
+#ifdef WITH_WSREP
+    if (trx->lock.was_chosen_as_deadlock_victim ||
+        trx->lock.was_chosen_as_wsrep_victim)
+#else
+      if (trx->lock.was_chosen_as_deadlock_victim)
+#endif /* WITH_WSREP */
     {
       trx->error_state= DB_DEADLOCK;
       trx->lock.was_chosen_as_deadlock_victim= false;
