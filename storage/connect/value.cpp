@@ -385,16 +385,16 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec,
       break;
     case TYPE_INT:
       if (uns)
-        valp = new(g) TYPVAL<uint>((uint)0, TYPE_INT, 0, true);
+        valp = new(g) TYPVAL<uint>(0u, TYPE_INT, 0, true);
       else
-        valp = new(g) TYPVAL<int>((int)0, TYPE_INT);
+        valp = new(g) TYPVAL<int>(0, TYPE_INT);
 
       break;
     case TYPE_BIGINT:
       if (uns)
-        valp = new(g) TYPVAL<ulonglong>((ulonglong)0, TYPE_BIGINT, 0, true);
+        valp = new(g) TYPVAL<ulonglong>(0ull, TYPE_BIGINT, 0, true);
       else
-        valp = new(g) TYPVAL<longlong>((longlong)0, TYPE_BIGINT);
+        valp = new(g) TYPVAL<longlong>(0ll, TYPE_BIGINT);
 
       break;
     case TYPE_SHORT:
@@ -1053,7 +1053,7 @@ TYPE TYPVAL<TYPE>::SafeAdd(TYPE n1, TYPE n2)
     // Overflow
     strcpy(g->Message, MSG(FIX_OVFLW_ADD));
 		throw 138;
-	} else if ((n2 < 0) && (n > n1)) {
+	} else if ((n2 <= 0) && (n > n1)) {
     // Underflow
     strcpy(g->Message, MSG(FIX_UNFLW_ADD));
 		throw 138;

@@ -877,7 +877,10 @@ my_string_metadata_get_mb(MY_STRING_METADATA *metadata,
     if (mblen > 0) /* Assigned character */
     {
       if (wc > 0x7F)
-        (uint)metadata->repertoire|= MY_REPERTOIRE_EXTENDED;
+      {
+        metadata->repertoire= (my_repertoire_t)
+          (metadata->repertoire | MY_REPERTOIRE_EXTENDED);
+      }
       str+= mblen;
     }
     else if (mblen == MY_CS_ILSEQ) /* Bad byte sequence */
