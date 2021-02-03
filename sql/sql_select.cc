@@ -9327,7 +9327,7 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
         Field *fld= fi.get_curr_field();
         if (!(fld->table->map & ~(table_bit | rem_tables)))
           continue;
-        curr_eq_fld_sel= get_column_avg_frequency(fld) /
+        curr_eq_fld_sel= get_column_avg_frequency_via_stat_tables(fld) /
                          fld->table->stat_records();
         if (curr_eq_fld_sel < 1.0)
           set_if_bigger(eq_fld_sel, curr_eq_fld_sel);
@@ -9335,6 +9335,157 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
       sel*= eq_fld_sel;
     }
   } 
+  return sel;
+}
+
+
+/**
+  @brief
+  Get the selectivity of equalities between columns when joining a table
+
+  @param join       The optimized join
+  @param idx        The number of tables in the evaluated partual join
+  @param s          The table to be joined for evaluation
+  @param rem_tables The bitmap of tables to be joined later
+  @param keyparts   The number of key parts to used when joining s
+  @param ref_keyuse_steps Array of references to keyuses employed to join s
+
+  @note this function is only used for the ORDER BY LIMIT optimization
+*/
+
+static
+double multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
+                                 table_map rem_tables, uint keyparts,
+                                 uint16 *ref_keyuse_steps)
+{
+  double sel= 1.0;
+  COND_EQUAL *cond_equal= join->cond_equal;
+  if (!cond_equal || !cond_equal->current_level.elements)
+    return sel;
+
+  Item_equal *item_equal;
+  List_iterator_fast<Item_equal> it(cond_equal->current_level);
+  TABLE *table= s->table;
+  table_map table_bit= table->map;
+  POSITION *pos= &join->positions[idx];
+  while ((item_equal= it++))
+  {
+    /*
+      Check whether we need to take into account the selectivity of
+      multiple equality item_equal. If this is the case multiply
+      the current value of sel by this selectivity
+    */
+    table_map used_tables= item_equal->used_tables();
+    /*
+      The multiple equality int consideration should have a field of the
+      current table that is being considered for join evaluation.
+      Let us take an example here, the query is like
+        SELECT * FROM t1,t2,t3 WHERE t1.a=t2.a AND t1.b=t3.b AND t2.c=t3.c
+      And lets consider our current join prefix is:
+        t1, t2
+      so the equalities that we can consider for table t2 are:
+         t1.a= t2.a  (1)
+         t2.c= t3.c  (2)
+      The other requisite for calculate of selectivity of equi-join conditions
+      is that for candidate equalities (that is (1) AND (2)) here, there
+      should be at least a field from the preceding tables of the current
+      partial join prefix.
+      So in this case the equality we will take into account would be (1)
+    */
+    if (!(used_tables & table_bit))
+      continue;
+    /*
+      If the multiple equality involves a constant, then the selectivity for
+      all the predicates is already taken into account in
+      table_cond_selectivity
+    */
+    if (item_equal->get_const())
+      continue;
+    bool adjust_sel= FALSE;
+    Item_equal_fields_iterator fi(*item_equal);
+    while((fi++) && !adjust_sel)
+    {
+      Field *fld= fi.get_curr_field();
+      if (fld->table->map != table_bit)
+        continue;
+      if (pos->key == 0)
+        adjust_sel= TRUE;
+      else
+      {
+        uint i;
+        KEYUSE *keyuse= pos->key;
+        uint key= keyuse->key;
+        for (i= 0; i < keyparts; i++)
+        {
+          if (i > 0)
+            keyuse+= ref_keyuse_steps[i-1];
+          uint fldno;
+          if (is_hash_join_key_no(key))
+            fldno= keyuse->keypart;
+          else
+            fldno= table->key_info[key].key_part[i].fieldnr - 1;
+          if (fld->field_index == fldno)
+            break;
+        }
+        keyuse= pos->key;
+        if (i == keyparts)
+        {
+          /*
+            Field fld is included in multiple equality item_equal
+            and is not a part of the ref key.
+            The selectivity of the multiple equality must be taken
+            into account unless one of the ref arguments is
+            equal to fld.
+          */
+          adjust_sel= TRUE;
+          for (uint j= 0; j < keyparts && adjust_sel; j++)
+          {
+            if (j > 0)
+              keyuse+= ref_keyuse_steps[j-1];
+            Item *ref_item= keyuse->val;
+            if (ref_item->real_item()->type() == Item::FIELD_ITEM)
+            {
+              Item_field *field_item= (Item_field *) (ref_item->real_item());
+              if (item_equal->contains(field_item->field))
+                adjust_sel= FALSE;
+            }
+          }
+        }
+      }
+    }
+    if (adjust_sel)
+    {
+      /*
+        If ref == 0 and there are no fields in the multiple equality
+        item_equal that belong to the tables joined prior to s
+        then the selectivity of multiple equality will be set to 1.0.
+      */
+      double eq_fld_sel= 1.0;
+      fi.rewind();
+
+      /*
+        The formula used to calculate the selectivity for an equi-join
+        predicate(col1=col2) is:
+           selectivity(col1=col2) =  1/max(ndv(col1), ndv(col2));
+      */
+      while ((fi++))
+      {
+        double curr_eq_fld_sel;
+        Field *fld= fi.get_curr_field();
+        /*
+          Consider field in the multiple equality that depend only on
+          preceding tables in the partial join prefix
+        */
+        if (!(fld->table->map & ~(table_bit | rem_tables)))
+          continue;
+        curr_eq_fld_sel= get_column_avg_frequency(fld) /
+                         fld->table->stat_records();
+        if (curr_eq_fld_sel < 1.0)
+          set_if_smaller(eq_fld_sel, curr_eq_fld_sel);
+      }
+      sel*= eq_fld_sel;
+    }
+  }
   return sel;
 }
 
@@ -9565,6 +9716,10 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
       }
     }
   }
+
+  if (join->sort_nest_possible)
+    sel*= multi_eq_cond_selectivity(join, idx, s, rem_tables,
+                                    keyparts, ref_keyuse_steps);
 
   sel*= table_multi_eq_cond_selectivity(join, idx, s, rem_tables,
                                         keyparts, ref_keyuse_steps);
