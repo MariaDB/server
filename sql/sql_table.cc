@@ -76,9 +76,8 @@ static int copy_data_between_tables(THD *, TABLE *,TABLE *,
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
                                       uint *, handler *, KEY **, uint *, int);
 static uint blob_length_by_type(enum_field_types type);
-static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
-                                  *check_constraint_list,
-                                  const HA_CREATE_INFO *create_info);
+static bool fix_constraints_names(THD *, List<Virtual_column_info> *,
+                                  const HA_CREATE_INFO *);
 
 /**
   @brief Helper function for explain_filename
@@ -4347,8 +4346,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         const Virtual_column_info *dup_check;
         while ((dup_check= dup_it++) && dup_check != check)
         {
-          if (!dup_check->name.length || dup_check->automatic_name)
-            continue;
           if (!lex_string_cmp(system_charset_info,
                               &check->name, &dup_check->name))
           {
@@ -8682,37 +8679,28 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
       }
 
-      // NB: `check` is TABLE resident, we must keep it intact.
-      if (keep)
-      {
-        check= check->clone(thd);
-        if (!check)
-        {
-          my_error(ER_OUT_OF_RESOURCES, MYF(0));
-          goto err;
-        }
-      }
-
       if (share->period.constr_name.streq(check->name.str))
       {
-        if (drop_period)
-        {
-          keep= false;
-        }
-        else if(!keep)
+        if (!drop_period && !keep)
         {
           my_error(ER_PERIOD_CONSTRAINT_DROP, MYF(0), check->name.str,
                    share->period.name.str);
           goto err;
         }
-        else
+        keep= keep && !drop_period;
+
+        DBUG_ASSERT(create_info->period_info.constr == NULL || drop_period);
+
+        if (keep)
         {
-          DBUG_ASSERT(create_info->period_info.constr == NULL);
+          Item *expr_copy= check->expr->get_copy(thd);
+          check= new Virtual_column_info();
+          check->name= share->period.constr_name;
+          check->automatic_name= true;
+          check->expr= expr_copy;
           create_info->period_info.constr= check;
-          create_info->period_info.constr->automatic_name= true;
         }
       }
-
       /* see if the constraint depends on *only* on dropped fields */
       if (keep && dropped_fields)
       {

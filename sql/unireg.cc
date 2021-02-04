@@ -57,13 +57,7 @@ static bool make_empty_rec(THD *, uchar *, uint, List<Create_field> &, uint,
 */
 static uchar *extra2_write_len(uchar *pos, size_t len)
 {
-  /* TODO: should be
-     if (len > 0 && len <= 255)
-       *pos++= (uchar)len;
-     ...
-     because extra2_read_len() uses 0 for 2-byte lengths.
-     extra2_str_size() must be fixed too.
-  */
+  DBUG_ASSERT(len);
   if (len <= 255)
     *pos++= (uchar)len;
   else
