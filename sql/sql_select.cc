@@ -4563,7 +4563,9 @@ select_handler *find_select_handler(THD *thd,
 {
   if (select_lex->next_select())
     return 0;
-  if (select_lex->master_unit()->outer_select())
+  // Quit early if this is a subquery or query has a set operation.
+  if (select_lex->master_unit()->outer_select() ||
+      select_lex->master_unit()->first_select()->next_select())
     return 0;
 
   TABLE_LIST *tbl= nullptr;
