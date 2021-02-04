@@ -1,6 +1,6 @@
 
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2014, 2020, MariaDB Corporation.
+# Copyright (c) 2014, 2021, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -278,7 +278,6 @@ SET(INNOBASE_SOURCES
 	lock/lock0iter.cc
 	lock/lock0prdt.cc
 	lock/lock0lock.cc
-	lock/lock0wait.cc
 	log/log0log.cc
 	log/log0recv.cc
 	log/log0crypt.cc

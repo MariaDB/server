@@ -21,7 +21,7 @@ NAME	SUBSYSTEM	COUNT	MAX_COUNT	MIN_COUNT	AVG_COUNT	COUNT_RESET	MAX_COUNT_RESET	M
 metadata_table_handles_opened	metadata	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of table handles opened
 metadata_table_handles_closed	metadata	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of table handles closed
 metadata_table_reference_count	metadata	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Table reference counter
-lock_deadlocks	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of deadlocks
+lock_deadlocks	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Number of deadlocks
 lock_timeouts	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of lock timeouts
 lock_rec_lock_waits	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of times enqueued into record lock wait queue
 lock_table_lock_waits	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of times enqueued into table lock wait queue

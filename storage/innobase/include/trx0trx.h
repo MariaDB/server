@@ -418,7 +418,8 @@ typedef std::vector<ib_lock_t*, ut_allocator<ib_lock_t*> >	lock_list;
 
 /** The locks and state of an active transaction. Protected by
 lock_sys.mutex, trx->mutex or both. */
-struct trx_lock_t {
+struct trx_lock_t
+{
   /** Lock request being waited for.
   Set to nonnull when holding lock_sys.mutex, lock_sys.wait_mutex and
   trx->mutex, by the thread that is executing the transaction.
@@ -432,13 +433,10 @@ struct trx_lock_t {
 	ib_uint64_t	deadlock_mark;	/*!< A mark field that is initialized
 					to and checked against lock_mark_counter
 					by lock_deadlock_recursive(). */
-	bool		was_chosen_as_deadlock_victim;
-					/*!< when the transaction decides to
-					wait for a lock, it sets this to false;
-					if another transaction chooses this
-					transaction as a victim in deadlock
-					resolution, it sets this to true.
-					Protected by trx->mutex. */
+  /** When the transaction decides to wait for a lock, it clears this;
+  set if another transaction chooses this transaction as a victim in deadlock
+  resolution. Protected by lock_sys.mutex and lock_sys.wait_mutex. */
+  bool was_chosen_as_deadlock_victim;
 	que_thr_t*	wait_thr;	/*!< query thread belonging to this
 					trx that is in waiting
 					state. For threads suspended in a
@@ -666,88 +664,94 @@ private:
 
 
 public:
+  /** Transaction identifier (0 if no locks were acquired).
+  Set by trx_sys_t::register_rw() or trx_resurrect() before
+  the transaction is added to trx_sys.rw_trx_hash.
+  Cleared in commit_in_memory() after commit_state(),
+  trx_sys_t::deregister_rw(), release_locks(). */
+  trx_id_t id;
+
   /** mutex protecting state and some of lock
   (some are protected by lock_sys.mutex) */
   srw_mutex mutex;
 
-	trx_id_t	id;		/*!< transaction id */
+  /** State of the trx from the point of view of concurrency control
+  and the valid state transitions.
 
-	/** State of the trx from the point of view of concurrency control
-	and the valid state transitions.
+  Possible states:
 
-	Possible states:
+  TRX_STATE_NOT_STARTED
+  TRX_STATE_ACTIVE
+  TRX_STATE_PREPARED
+  TRX_STATE_PREPARED_RECOVERED (special case of TRX_STATE_PREPARED)
+  TRX_STATE_COMMITTED_IN_MEMORY (alias below COMMITTED)
 
-	TRX_STATE_NOT_STARTED
-	TRX_STATE_ACTIVE
-	TRX_STATE_PREPARED
-	TRX_STATE_PREPARED_RECOVERED (special case of TRX_STATE_PREPARED)
-	TRX_STATE_COMMITTED_IN_MEMORY (alias below COMMITTED)
+  Valid state transitions are:
 
-	Valid state transitions are:
+  Regular transactions:
+  * NOT_STARTED -> ACTIVE -> COMMITTED -> NOT_STARTED
 
-	Regular transactions:
-	* NOT_STARTED -> ACTIVE -> COMMITTED -> NOT_STARTED
+  Auto-commit non-locking read-only:
+  * NOT_STARTED -> ACTIVE -> NOT_STARTED
 
-	Auto-commit non-locking read-only:
-	* NOT_STARTED -> ACTIVE -> NOT_STARTED
+  XA (2PC):
+  * NOT_STARTED -> ACTIVE -> PREPARED -> COMMITTED -> NOT_STARTED
 
-	XA (2PC):
-	* NOT_STARTED -> ACTIVE -> PREPARED -> COMMITTED -> NOT_STARTED
+  Recovered XA:
+  * NOT_STARTED -> PREPARED -> COMMITTED -> (freed)
 
-	Recovered XA:
-	* NOT_STARTED -> PREPARED -> COMMITTED -> (freed)
+  Recovered XA followed by XA ROLLBACK:
+  * NOT_STARTED -> PREPARED -> ACTIVE -> COMMITTED -> (freed)
 
-	Recovered XA followed by XA ROLLBACK:
-	* NOT_STARTED -> PREPARED -> ACTIVE -> COMMITTED -> (freed)
+  XA (2PC) (shutdown or disconnect before ROLLBACK or COMMIT):
+  * NOT_STARTED -> PREPARED -> (freed)
 
-	XA (2PC) (shutdown or disconnect before ROLLBACK or COMMIT):
-	* NOT_STARTED -> PREPARED -> (freed)
+  Disconnected XA PREPARE transaction can become recovered:
+  * ... -> ACTIVE -> PREPARED (connected) -> PREPARED (disconnected)
 
-	Disconnected XA can become recovered:
-	* ... -> ACTIVE -> PREPARED (connected) -> PREPARED (disconnected)
-	Disconnected means from mysql e.g due to the mysql client disconnection.
-	Latching and various transaction lists membership rules:
+  Latching and various transaction lists membership rules:
 
-	XA (2PC) transactions are always treated as non-autocommit.
+  XA (2PC) transactions are always treated as non-autocommit.
 
-	Transitions to ACTIVE or NOT_STARTED occur when transaction
-	is not in rw_trx_hash.
+  Transitions to ACTIVE or NOT_STARTED occur when transaction
+  is not in rw_trx_hash.
 
-	Autocommit non-locking read-only transactions move between states
-	without holding any mutex. They are not in rw_trx_hash.
+  Autocommit non-locking read-only transactions move between states
+  without holding any mutex. They are not in rw_trx_hash.
 
-	All transactions, unless they are determined to be ac-nl-ro,
-	explicitly tagged as read-only or read-write, will first be put
-	on the read-only transaction list. Only when a !read-only transaction
-	in the read-only list tries to acquire an X or IX lock on a table
-	do we remove it from the read-only list and put it on the read-write
-	list. During this switch we assign it a rollback segment.
+  All transactions, unless they are determined to be ac-nl-ro,
+  explicitly tagged as read-only or read-write, will first be put
+  on the read-only transaction list. Only when a !read-only transaction
+  in the read-only list tries to acquire an X or IX lock on a table
+  do we remove it from the read-only list and put it on the read-write
+  list. During this switch we assign it a rollback segment.
 
-	When a transaction is NOT_STARTED, it can be in trx_list. It cannot be
-	in rw_trx_hash.
+  When a transaction is NOT_STARTED, it can be in trx_list. It cannot be
+  in rw_trx_hash.
 
-	ACTIVE->PREPARED->COMMITTED is only possible when trx is in rw_trx_hash.
-	The transition ACTIVE->PREPARED is protected by trx->mutex.
+  ACTIVE->PREPARED->COMMITTED is only possible when trx is in rw_trx_hash.
+  The transition ACTIVE->PREPARED is protected by trx->mutex.
 
-	ACTIVE->COMMITTED is possible when the transaction is in
-	rw_trx_hash.
+  ACTIVE->COMMITTED is possible when the transaction is in
+  rw_trx_hash.
 
-	Transitions to COMMITTED are protected by trx_t::mutex. */
+  Transitions to COMMITTED are protected by trx_t::mutex. */
   Atomic_relaxed<trx_state_t> state;
+
+  /** The locks of the transaction. Protected by lock_sys.mutex
+  (insertions also by trx_t::mutex). */
+  trx_lock_t lock;
+
 #ifdef WITH_WSREP
-	/** whether wsrep_on(mysql_thd) held at the start of transaction */
-	bool		wsrep;
-	bool is_wsrep() const { return UNIV_UNLIKELY(wsrep); }
+  /** whether wsrep_on(mysql_thd) held at the start of transaction */
+  bool wsrep;
+  bool is_wsrep() const { return UNIV_UNLIKELY(wsrep); }
 #else /* WITH_WSREP */
-	bool is_wsrep() const { return false; }
+  bool is_wsrep() const { return false; }
 #endif /* WITH_WSREP */
 
-	ReadView	read_view;	/*!< consistent read view used in the
-					transaction, or NULL if not yet set */
-	trx_lock_t	lock;		/*!< Information about the transaction
-					locks and state. Protected by
-					lock_sys.mutex (insertions also
-					by trx_t::mutex). */
+  /** Consistent read view of the transaction */
+  ReadView read_view;
 
 	/* These fields are not protected by any mutex. */
 

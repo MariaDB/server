@@ -961,7 +961,7 @@ static SHOW_VAR innodb_status_variables[]= {
   {"data_written", &export_vars.innodb_data_written, SHOW_SIZE_T},
   {"dblwr_pages_written", &export_vars.innodb_dblwr_pages_written,SHOW_SIZE_T},
   {"dblwr_writes", &export_vars.innodb_dblwr_writes, SHOW_SIZE_T},
-  {"deadlocks", &srv_stats.lock_deadlock_count, SHOW_SIZE_T},
+  {"deadlocks", &lock_sys.deadlocks, SHOW_SIZE_T},
   {"history_list_length", &export_vars.innodb_history_list_length,SHOW_SIZE_T},
   {"ibuf_discarded_delete_marks", &ibuf.n_discarded_ops[IBUF_OP_DELETE_MARK],
    SHOW_SIZE_T},

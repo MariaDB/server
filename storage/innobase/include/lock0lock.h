@@ -642,6 +642,8 @@ public:
   hash_table_t prdt_hash;
   /** page locks for SPATIAL INDEX */
   hash_table_t prdt_page_hash;
+  /** number of deadlocks detected; protected by mutex */
+  ulint deadlocks;
 
   /** mutex covering lock waits; @see trx_lock_t::wait_lock */
   MY_ALIGNED(CACHE_LINE_SIZE) mysql_mutex_t wait_mutex;
@@ -766,6 +768,16 @@ public:
   { return get_first(prdt_page_hash, id); }
 };
 
+/** The lock system */
+extern lock_sys_t lock_sys;
+
+/** lock_sys.mutex guard */
+struct LockMutexGuard
+{
+  LockMutexGuard() { lock_sys.mutex_lock(); }
+  ~LockMutexGuard() { lock_sys.mutex_unlock(); }
+};
+
 /*********************************************************************//**
 Creates a new record lock and inserts it to the lock queue. Does NOT check
 for deadlocks or lock compatibility!
@@ -835,9 +847,7 @@ Check for deadlocks.
 @param[in,out]	thr		query thread
 @param[in]	prdt		minimum bounding box (spatial index)
 @retval	DB_LOCK_WAIT		if the waiting lock was enqueued
-@retval	DB_DEADLOCK		if this transaction was chosen as the victim
-@retval	DB_SUCCESS_LOCKED_REC	if the other transaction was chosen as a victim
-				(or it happened to commit) */
+@retval	DB_DEADLOCK		if this transaction was chosen as the victim */
 dberr_t
 lock_rec_enqueue_waiting(
 #ifdef WITH_WSREP
@@ -870,9 +880,6 @@ void
 lock_rec_free_all_from_discard_page(
 /*================================*/
 	const buf_block_t*	block);		/*!< in: page to be discarded */
-
-/** The lock system */
-extern lock_sys_t lock_sys;
 
 /** Cancel a waiting lock request and release possibly waiting transactions */
 void lock_cancel_waiting_and_release(lock_t *lock);

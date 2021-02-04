@@ -571,18 +571,11 @@ lock_prdt_insert_check_and_lock(
 
 	lock_sys.mutex_unlock();
 
-	switch (err) {
-	case DB_SUCCESS_LOCKED_REC:
-		err = DB_SUCCESS;
-		/* fall through */
-	case DB_SUCCESS:
+	if (err == DB_SUCCESS) {
 		/* Update the page max trx id field */
 		page_update_max_trx_id(block,
 				       buf_block_get_page_zip(block),
 				       trx->id, mtr);
-	default:
-		/* We only care about the two return values. */
-		break;
 	}
 
 	return(err);

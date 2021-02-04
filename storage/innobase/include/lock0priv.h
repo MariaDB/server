@@ -391,9 +391,6 @@ static const byte lock_strength_matrix[5][5] = {
  /* AI */ {  FALSE, FALSE, FALSE, FALSE,  TRUE}
 };
 
-/** Maximum depth of the DFS stack. */
-static const ulint MAX_STACK_SIZE = 4096;
-
 #define PRDT_HEAPNO	PAGE_HEAP_NO_INFIMUM
 /** Record locking request status */
 enum lock_rec_req_status {

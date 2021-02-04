@@ -187,9 +187,6 @@ struct srv_stats_t
 
 	/** Number of temporary tablespace blocks decrypted */
 	ulint_ctr_64_t		n_temp_blocks_decrypted;
-
-	/** Number of lock deadlocks */
-	ulint_ctr_1_t		lock_deadlock_count;
 };
 
 /** We are prepared for a situation that we have this many threads waiting for

@@ -91,7 +91,8 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_DEFAULT_START, MONITOR_MODULE_LOCK},
 
 	{"lock_deadlocks", "lock", "Number of deadlocks",
-	 MONITOR_DEFAULT_ON,
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DEFAULT_ON | MONITOR_DISPLAY_CURRENT),
 	 MONITOR_DEFAULT_START, MONITOR_DEADLOCK},
 
 	{"lock_timeouts", "lock", "Number of lock timeouts",
@@ -1878,6 +1879,9 @@ srv_mon_process_existing_counter(
 		break;
         case MONITOR_OVLD_PAGES_DECRYPTED:
 		value = srv_stats.pages_decrypted;
+		break;
+	case MONITOR_DEADLOCK:
+		value = lock_sys.deadlocks;
 		break;
 
 	default:
