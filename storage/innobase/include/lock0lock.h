@@ -384,25 +384,17 @@ be granted immediately, the query thread is put to wait.
 dberr_t
 lock_table(
 /*=======*/
-	unsigned	flags,	/*!< in: if BTR_NO_LOCKING_FLAG bit is set,
-				does nothing */
 	dict_table_t*	table,	/*!< in/out: database table
 				in dictionary cache */
 	lock_mode	mode,	/*!< in: lock mode */
 	que_thr_t*	thr)	/*!< in: query thread */
 	MY_ATTRIBUTE((warn_unused_result));
-/*********************************************************************//**
-Creates a table IX lock object for a resurrected transaction. */
-void
-lock_table_ix_resurrect(
-/*====================*/
-	dict_table_t*	table,	/*!< in/out: table */
-	trx_t*		trx);	/*!< in/out: transaction */
 
-/** Create a table X lock object for a resurrected TRX_UNDO_EMPTY transaction.
+/** Create a table lock object for a resurrected transaction.
 @param table    table to be X-locked
-@param trx      transaction */
-void lock_table_x_resurrect(dict_table_t *table, trx_t *trx);
+@param trx      transaction
+@param mode     LOCK_X or LOCK_IX */
+void lock_table_resurrect(dict_table_t *table, trx_t *trx, lock_mode mode);
 
 /** Release a table X lock after rolling back an insert into an empty table
 (which was covered by a TRX_UNDO_EMPTY record).

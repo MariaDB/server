@@ -618,15 +618,12 @@ trx_resurrect_table_locks(
 				trx->mod_tables.emplace(table, 0);
 			}
 
-			if (p.second) {
-				lock_table_x_resurrect(table, trx);
-			} else {
-				lock_table_ix_resurrect(table, trx);
-			}
+			lock_table_resurrect(table, trx,
+					     p.second ? LOCK_X : LOCK_IX);
 
 			DBUG_LOG("ib_trx",
 				 "resurrect " << ib::hex(trx->id)
-				 << " IX lock on " << table->name);
+				 << " lock on " << table->name);
 
 			dict_table_close(table, FALSE, FALSE);
 		}

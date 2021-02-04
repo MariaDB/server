@@ -2278,8 +2278,7 @@ row_sel_step(
 					que_node_get_next(table_node))) {
 
 				dberr_t	err = lock_table(
-					0, table_node->table, i_lock_mode,
-					thr);
+					table_node->table, i_lock_mode, thr);
 
 				if (err != DB_SUCCESS) {
 					trx_t*	trx;
@@ -4610,7 +4609,7 @@ aborted:
 			trx->read_view.open(trx);
 		} else {
 wait_table_again:
-			err = lock_table(0, prebuilt->table,
+			err = lock_table(prebuilt->table,
 					 prebuilt->select_lock_type == LOCK_S
 					 ? LOCK_IS : LOCK_IX, thr);
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3084,7 +3084,7 @@ row_upd_step(
 			/* It may be that the current session has not yet
 			started its transaction, or it has been committed: */
 
-			err = lock_table(0, node->table, LOCK_IX, thr);
+			err = lock_table(node->table, LOCK_IX, thr);
 
 			if (err != DB_SUCCESS) {
 

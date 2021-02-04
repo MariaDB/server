@@ -1166,7 +1166,7 @@ row_ins_foreign_check_on_constraint(
 
 	/* Set an X-lock on the row to delete or update in the child table */
 
-	err = lock_table(0, table, LOCK_IX, thr);
+	err = lock_table(table, LOCK_IX, thr);
 
 	if (err == DB_SUCCESS) {
 		/* Here it suffices to use a LOCK_REC_NOT_GAP type lock;
@@ -1609,7 +1609,7 @@ row_ins_check_foreign_constraint(
 		/* We already have a LOCK_IX on table, but not necessarily
 		on check_table */
 
-		err = lock_table(0, check_table, LOCK_IS, thr);
+		err = lock_table(check_table, LOCK_IS, thr);
 
 		if (err != DB_SUCCESS) {
 
@@ -2667,7 +2667,7 @@ commit_exit:
 		DEBUG_SYNC_C("empty_root_page_insert");
 
 		if (!index->table->is_temporary()) {
-			err = lock_table(0, index->table, LOCK_X, thr);
+			err = lock_table(index->table, LOCK_X, thr);
 
 			if (err != DB_SUCCESS) {
 				trx->error_state = err;
@@ -3797,7 +3797,7 @@ row_ins_step(
 			goto same_trx;
 		}
 
-		err = lock_table(0, node->table, LOCK_IX, thr);
+		err = lock_table(node->table, LOCK_IX, thr);
 
 		DBUG_EXECUTE_IF("ib_row_ins_ix_lock_wait",
 				err = DB_LOCK_WAIT;);

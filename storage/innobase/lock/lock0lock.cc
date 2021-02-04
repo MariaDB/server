@@ -1542,7 +1542,6 @@ lock_rec_lock(
 	que_thr_t*		thr)	/*!< in: query thread */
 {
   trx_t *trx= thr_get_trx(thr);
-  dberr_t err= DB_SUCCESS;
 
   ut_ad(!srv_read_only_mode);
   ut_ad(((LOCK_MODE_MASK | LOCK_TABLE) & mode) == LOCK_S ||
@@ -1551,16 +1550,22 @@ lock_rec_lock(
   ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
   DBUG_EXECUTE_IF("innodb_report_deadlock", return DB_DEADLOCK;);
 
-  lock_sys.mutex_lock();
   ut_ad((LOCK_MODE_MASK & mode) != LOCK_S ||
         lock_table_has(trx, index->table, LOCK_IS));
   ut_ad((LOCK_MODE_MASK & mode) != LOCK_X ||
          lock_table_has(trx, index->table, LOCK_IX));
 
   if (lock_table_has(trx, index->table,
-                     static_cast<lock_mode>(LOCK_MODE_MASK & mode)));
-  else if (lock_t *lock= lock_sys.get_first(block->page.id()))
+                     static_cast<lock_mode>(LOCK_MODE_MASK & mode)))
+    return DB_SUCCESS;
+
+  MONITOR_ATOMIC_INC(MONITOR_NUM_RECLOCK_REQ);
+  const page_id_t id{block->page.id()};
+  LockMutexGuard g;
+
+  if (lock_t *lock= lock_sys.get_first(id))
   {
+    dberr_t err= DB_SUCCESS;
     trx->mutex.wr_lock();
     if (lock_rec_get_next_on_page(lock) ||
         lock->trx != trx ||
@@ -1608,6 +1613,7 @@ lock_rec_lock(
       }
     }
     trx->mutex.wr_unlock();
+    return err;
   }
   else
   {
@@ -1622,11 +1628,8 @@ lock_rec_lock(
 #endif
         mode, block, heap_no, index, trx, false);
 
-    err= DB_SUCCESS_LOCKED_REC;
+    return DB_SUCCESS_LOCKED_REC;
   }
-  lock_sys.mutex_unlock();
-  MONITOR_ATOMIC_INC(MONITOR_NUM_RECLOCK_REQ);
-  return err;
 }
 
 /*********************************************************************//**
@@ -2137,7 +2140,7 @@ lock_rec_inherit_to_gap_if_gap_lock(
 		    && (heap_no == PAGE_HEAP_NO_SUPREMUM
 			|| !lock->is_record_not_gap())
 		    && !lock_table_has(lock->trx, lock->index->table,
-				      LOCK_X)) {
+				       LOCK_X)) {
 			lock_rec_add_to_queue(LOCK_GAP | lock->mode(), block,
 					      heir_heap_no,
 					      lock->index, lock->trx, false);
@@ -3481,8 +3484,6 @@ be granted immediately, the query thread is put to wait.
 dberr_t
 lock_table(
 /*=======*/
-	unsigned	flags,	/*!< in: if BTR_NO_LOCKING_FLAG bit is set,
-				does nothing */
 	dict_table_t*	table,	/*!< in/out: database table
 				in dictionary cache */
 	lock_mode	mode,	/*!< in: lock mode */
@@ -3492,28 +3493,18 @@ lock_table(
 	dberr_t		err;
 	lock_t*		wait_for;
 
-	ut_ad(table && thr);
-
-	/* Given limited visibility of temp-table we can avoid
-	locking overhead */
-	if ((flags & BTR_NO_LOCKING_FLAG)
-	    || srv_read_only_mode
-	    || table->is_temporary()) {
-
-		return(DB_SUCCESS);
+	if (table->is_temporary()) {
+		return DB_SUCCESS;
 	}
-
-	ut_a(flags == 0);
 
 	trx = thr_get_trx(thr);
 
 	/* Look for equal or stronger locks the same trx already
-	has on the table. No need to acquire the lock mutex here
+	has on the table. No need to acquire LockMutexGuard here
 	because only this transacton can add/access table locks
 	to/from trx_t::table_locks. */
 
-	if (lock_table_has(trx, table, mode)) {
-
+	if (lock_table_has(trx, table, mode) || srv_read_only_mode) {
 		return(DB_SUCCESS);
 	}
 
@@ -3558,55 +3549,26 @@ lock_table(
 	return(err);
 }
 
-/*********************************************************************//**
-Creates a table IX lock object for a resurrected transaction. */
-void
-lock_table_ix_resurrect(
-/*====================*/
-	dict_table_t*	table,	/*!< in/out: table */
-	trx_t*		trx)	/*!< in/out: transaction */
-{
-	ut_ad(trx->is_recovered);
-
-	if (lock_table_has(trx, table, LOCK_IX)) {
-		return;
-	}
-
-	auto mutex= &trx->mutex;
-
-	lock_sys.mutex_lock();
-
-	/* We have to check if the new lock is compatible with any locks
-	other transactions have in the table lock queue. */
-
-	ut_ad(!lock_table_other_has_incompatible(
-		      trx, LOCK_WAIT, table, LOCK_IX));
-
-	mutex->wr_lock();
-	lock_table_create(table, LOCK_IX, trx);
-	lock_sys.mutex_unlock();
-	mutex->wr_unlock();
-}
-
-/** Create a table X lock object for a resurrected TRX_UNDO_EMPTY transaction.
+/** Create a table lock object for a resurrected transaction.
 @param table    table to be X-locked
-@param trx      transaction */
-void lock_table_x_resurrect(dict_table_t *table, trx_t *trx)
+@param trx      transaction
+@param mode     LOCK_X or LOCK_IX */
+void lock_table_resurrect(dict_table_t *table, trx_t *trx, lock_mode mode)
 {
   ut_ad(trx->is_recovered);
-  if (lock_table_has(trx, table, LOCK_X))
+  ut_ad(mode == LOCK_X || mode == LOCK_IX);
+
+  if (lock_table_has(trx, table, mode))
     return;
 
-  auto mutex= &trx->mutex;
-  lock_sys.mutex_lock();
-  /* We have to check if the new lock is compatible with any locks
-  other transactions have in the table lock queue. */
-  ut_ad(!lock_table_other_has_incompatible(trx, LOCK_WAIT, table, LOCK_X));
+  {
+    LockMutexGuard g;
+    ut_ad(!lock_table_other_has_incompatible(trx, LOCK_WAIT, table, mode));
 
-  mutex->wr_lock();
-  lock_table_create(table, LOCK_X, trx);
-  lock_sys.mutex_unlock();
-  mutex->wr_unlock();
+    trx->mutex.wr_lock();
+    lock_table_create(table, mode, trx);
+  }
+  trx->mutex.wr_unlock();
 }
 
 /*********************************************************************//**
@@ -3751,7 +3713,7 @@ run_again:
 	thr->run_node = thr;
 	thr->prev_node = thr->common.parent;
 
-	err = lock_table(0, table, mode, thr);
+	err = lock_table(table, mode, thr);
 
 	trx->error_state = err;
 
@@ -4870,7 +4832,6 @@ lock_rec_insert_check_and_lock(
 	    lock_t* c_lock =
 #endif /* WITH_WSREP */
 	    lock_rec_other_has_conflicting(type_mode, block, heap_no, trx)) {
-		/* Note that we may get DB_SUCCESS also here! */
 		trx->mutex.wr_lock();
 
 		err = lock_rec_enqueue_waiting(
