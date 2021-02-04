@@ -693,3 +693,45 @@ delete from t1;
 set statement system_versioning_alter_history=keep for
 alter table t1 drop system versioning, modify column a tinyint;
 drop table t1;
+#
+# MDEV-24690 Dropping primary key column from versioned table always fails with 1072
+#
+create table t1 (a int, b int primary key) with system versioning;
+alter table t1 drop column b;
+create or replace table t1 (
+a int, b int primary key,
+row_start timestamp(6) as row start,
+row_end timestamp(6) as row end,
+period for system_time(row_start, row_end)
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PRIMARY KEY (`b`,`row_end`),
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t1 drop column b;
+ERROR 42000: Key column 'b' doesn't exist in table
+create or replace table t1 (
+a int, b int primary key,
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time(row_start, row_end)
+) with system versioning;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PRIMARY KEY (`b`,`row_end`),
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t1 drop column b;
+ERROR 42000: Key column 'b' doesn't exist in table
+drop table t1;

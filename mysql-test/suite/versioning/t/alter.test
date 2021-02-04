@@ -592,3 +592,32 @@ alter table t1 drop system versioning, modify column a tinyint;
 
 # cleanup
 drop table t1;
+
+--echo #
+--echo # MDEV-24690 Dropping primary key column from versioned table always fails with 1072
+--echo #
+create table t1 (a int, b int primary key) with system versioning;
+alter table t1 drop column b;
+
+create or replace table t1 (
+  a int, b int primary key,
+  row_start timestamp(6) as row start,
+  row_end timestamp(6) as row end,
+  period for system_time(row_start, row_end)
+) with system versioning;
+show create table t1;
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+alter table t1 drop column b;
+
+create or replace table t1 (
+a int, b int primary key,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time(row_start, row_end)
+) with system versioning;
+show create table t1;
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+alter table t1 drop column b;
+
+# cleanup
+drop table t1;

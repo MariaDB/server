@@ -8375,6 +8375,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
 
     const char *dropped_key_part= NULL;
+    bool user_keyparts= false; // some user-defined keyparts left
     KEY_PART_INFO *key_part= key_info->key_part;
     key_parts.empty();
     bool delete_index_stat= FALSE;
@@ -8450,6 +8451,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       key_parts.push_back(new (thd->mem_root) Key_part_spec(&cfield->field_name,
                                                             key_part_length, true),
                           thd->mem_root);
+      if (cfield->invisible < INVISIBLE_SYSTEM)
+        user_keyparts= true;
     }
     if (table->s->tmp_table == NO_TMP_TABLE)
     {
@@ -8493,7 +8496,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           key_type= Key::PRIMARY;
         else
           key_type= Key::UNIQUE;
-        if (dropped_key_part)
+        if (dropped_key_part && user_keyparts)
         {
           my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), dropped_key_part);
           goto err;
