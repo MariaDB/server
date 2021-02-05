@@ -122,9 +122,11 @@ SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL built WAIT_FOR log';
 ALTER TABLE t1 DROP j, FORCE;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR built';
+SET DEBUG_DBUG='+d,row_ins_row_level';
 INSERT INTO t1 (i) VALUES (0),(0);
 ERROR 23000: Duplicate entry '0' for key 'i'
 SET DEBUG_SYNC='now SIGNAL log';
+SET DEBUG_DBUG=@saved_debug_dbug;
 connection con1;
 ERROR 23000: Duplicate entry '0' for key 'i'
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL built2 WAIT_FOR log2';

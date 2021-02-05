@@ -129,9 +129,11 @@ ALTER TABLE t1 DROP j, FORCE;
 
 --connection default
 SET DEBUG_SYNC='now WAIT_FOR built';
+SET DEBUG_DBUG='+d,row_ins_row_level';
 --error ER_DUP_ENTRY
 INSERT INTO t1 (i) VALUES (0),(0);
 SET DEBUG_SYNC='now SIGNAL log';
+SET DEBUG_DBUG=@saved_debug_dbug;
 
 --connection con1
 --error ER_DUP_ENTRY
