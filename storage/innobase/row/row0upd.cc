@@ -2840,7 +2840,7 @@ row_upd_clust_step(
 
 	if (!flags && !node->has_clust_rec_x_lock) {
 		err = lock_clust_rec_modify_check_and_lock(
-			0, btr_pcur_get_block(pcur),
+			btr_pcur_get_block(pcur),
 			rec, index, offsets, thr);
 		if (err != DB_SUCCESS) {
 			mtr.commit();
@@ -2850,8 +2850,8 @@ row_upd_clust_step(
 
 	ut_ad(index->table->no_rollback() || index->table->is_temporary()
 	      || row_get_rec_trx_id(rec, index, offsets) == trx->id
-	      || lock_trx_has_expl_x_lock(trx, index->table,
-					  btr_pcur_get_block(pcur),
+	      || lock_trx_has_expl_x_lock(*trx, *index->table,
+					  btr_pcur_get_block(pcur)->page.id(),
 					  page_rec_get_heap_no(rec)));
 
 	/* NOTE: the following function calls will also commit mtr */

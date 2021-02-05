@@ -1988,7 +1988,7 @@ row_unlock_for_mysql(
 
 			lock_rec_unlock(
 				trx,
-				btr_pcur_get_block(pcur),
+				btr_pcur_get_block(pcur)->page.id(),
 				rec,
 				static_cast<enum lock_mode>(
 					prebuilt->select_lock_type));
@@ -1998,7 +1998,8 @@ row_unlock_for_mysql(
 
 				lock_rec_unlock(
 					trx,
-					btr_pcur_get_block(clust_pcur),
+					btr_pcur_get_block(clust_pcur)
+					->page.id(),
 					rec,
 					static_cast<enum lock_mode>(
 						prebuilt->select_lock_type));

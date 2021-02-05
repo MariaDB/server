@@ -136,25 +136,7 @@ lock_rec_get_next_const(
 	ulint		heap_no,/*!< in: heap number of the record */
 	const lock_t*	lock)	/*!< in: lock */
 {
-	return(lock_rec_get_next(heap_no, (lock_t*) lock));
-}
-
-/*********************************************************************//**
-Gets the first explicit lock request on a record.
-@return	first lock, NULL if none exists */
-UNIV_INLINE
-lock_t*
-lock_rec_get_first(
-/*===============*/
-	hash_table_t*		hash,	/*!< in: hash chain the lock on */
-	const buf_block_t*	block,	/*!< in: block containing the record */
-	ulint			heap_no)/*!< in: heap number of the record */
-{
-  for (lock_t *lock= lock_sys.get_first(*hash, block->page.id());
-       lock; lock= lock_rec_get_next_on_page(lock))
-    if (lock_rec_get_nth_bit(lock, heap_no))
-      return lock;
-  return nullptr;
+  return lock_rec_get_next(heap_no, const_cast<lock_t*>(lock));
 }
 
 /*********************************************************************//**
@@ -192,7 +174,7 @@ lock_rec_get_next_on_page_const(
 {
   ut_ad(!lock->is_table());
 
-  const page_id_t page_id(lock->un_member.rec_lock.page_id);
+  const page_id_t page_id{lock->un_member.rec_lock.page_id};
   lock_sys.mutex_assert_locked();
 
   while (!!(lock= static_cast<const lock_t*>(HASH_GET_NEXT(hash, lock))))

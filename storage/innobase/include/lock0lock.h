@@ -112,28 +112,17 @@ lock_update_merge_right(
 	const buf_block_t*	left_block);	/*!< in: merged index
 						page which will be
 						discarded */
-/*************************************************************//**
-Updates the lock table when the root page is copied to another in
-btr_root_raise_and_insert. Note that we leave lock structs on the
+/** Update locks when the root page is copied to another in
+btr_root_raise_and_insert(). Note that we leave lock structs on the
 root page, even though they do not make sense on other than leaf
 pages: the reason is that in a pessimistic update the infimum record
 of the root page will act as a dummy carrier of the locks of the record
 to be updated. */
-void
-lock_update_root_raise(
-/*===================*/
-	const buf_block_t*	block,	/*!< in: index page to which copied */
-	const buf_block_t*	root);	/*!< in: root page */
-/*************************************************************//**
-Updates the lock table when a page is copied to another and the original page
-is removed from the chain of leaf pages, except if page is the root! */
-void
-lock_update_copy_and_discard(
-/*=========================*/
-	const buf_block_t*	new_block,	/*!< in: index page to
-						which copied */
-	const buf_block_t*	block);		/*!< in: index page;
-						NOT the root! */
+void lock_update_root_raise(const buf_block_t &block, const page_id_t root);
+/** Update the lock table when a page is copied to another.
+@param new_block  the target page
+@param old        old page (not index root page) */
+void lock_update_copy_and_discard(const buf_block_t &new_block, page_id_t old);
 /*************************************************************//**
 Updates the lock table when a page is split to the left. */
 void
@@ -141,18 +130,12 @@ lock_update_split_left(
 /*===================*/
 	const buf_block_t*	right_block,	/*!< in: right page */
 	const buf_block_t*	left_block);	/*!< in: left page */
-/*************************************************************//**
-Updates the lock table when a page is merged to the left. */
-void
-lock_update_merge_left(
-/*===================*/
-	const buf_block_t*	left_block,	/*!< in: left page to
-						which merged */
-	const rec_t*		orig_pred,	/*!< in: original predecessor
-						of supremum on the left page
-						before merge */
-	const buf_block_t*	right_block);	/*!< in: merged index page
-						which will be discarded */
+/** Update the lock table when a page is merged to the left.
+@param left      left page
+@param orig_pred original predecessor of supremum on the left page before merge
+@param right     merged, to-be-discarded right page */
+void lock_update_merge_left(const buf_block_t& left, const rec_t *orig_pred,
+                            const page_id_t right);
 /*************************************************************//**
 Updates the lock table when a page is split and merged to
 two pages. */
@@ -169,9 +152,9 @@ inherited from rec. */
 void
 lock_rec_reset_and_inherit_gap_locks(
 /*=================================*/
-	const buf_block_t*	heir_block,	/*!< in: block containing the
+	const buf_block_t&	heir_block,	/*!< in: block containing the
 						record which inherits */
-	const buf_block_t*	block,		/*!< in: block containing the
+	const page_id_t		donor,		/*!< in: page containing the
 						record from which inherited;
 						does NOT reset the locks on
 						this record */
@@ -220,20 +203,14 @@ lock_rec_store_on_page_infimum(
 					record of the same page; lock
 					bits are reset on the
 					record */
-/*********************************************************************//**
-Restores the state of explicit lock requests on a single record, where the
-state was stored on the infimum of the page. */
-void
-lock_rec_restore_from_page_infimum(
-/*===============================*/
-	const buf_block_t*	block,	/*!< in: buffer block containing rec */
-	const rec_t*		rec,	/*!< in: record whose lock state
-					is restored */
-	const buf_block_t*	donator);/*!< in: page (rec is not
-					necessarily on this page)
-					whose infimum stored the lock
-					state; lock bits are reset on
-					the infimum */
+/** Restore the explicit lock requests on a single record, where the
+state was stored on the infimum of a page.
+@param block   buffer block containing rec
+@param rec     record whose lock state is restored
+@param donator page (rec is not necessarily on this page)
+whose infimum stored the lock state; lock bits are reset on the infimum */
+void lock_rec_restore_from_page_infimum(const buf_block_t &block,
+					const rec_t *rec, page_id_t donator);
 /*********************************************************************//**
 Checks if locks of other transactions prevent an immediate insert of
 a record. If they do, first tests if the query thread should anyway
@@ -266,8 +243,6 @@ lock queue.
 dberr_t
 lock_clust_rec_modify_check_and_lock(
 /*=================================*/
-	ulint			flags,	/*!< in: if BTR_NO_LOCKING_FLAG
-					bit is set, does nothing */
 	const buf_block_t*	block,	/*!< in: buffer block of rec */
 	const rec_t*		rec,	/*!< in: record which should be
 					modified */
@@ -423,7 +398,7 @@ lock_rec_unlock(
 /*============*/
 	trx_t*			trx,	/*!< in/out: transaction that has
 					set a record lock */
-	const buf_block_t*	block,	/*!< in: buffer block containing rec */
+	const page_id_t		id,	/*!< in: page containing rec */
 	const rec_t*		rec,	/*!< in: record */
 	lock_mode		lock_mode);/*!< in: LOCK_S or LOCK_X */
 
@@ -589,16 +564,11 @@ lock_trx_has_sys_table_locks(
 /** Check if the transaction holds an explicit exclusive lock on a record.
 @param[in]	trx	transaction
 @param[in]	table	table
-@param[in]	block	leaf page
+@param[in]	id	leaf page identifier
 @param[in]	heap_no	heap number identifying the record
 @return whether an explicit X-lock is held */
-bool
-lock_trx_has_expl_x_lock(
-	const trx_t*		trx,	/*!< in: transaction to check */
-	const dict_table_t*	table,	/*!< in: table to check */
-	const buf_block_t*	block,	/*!< in: buffer block of the record */
-	ulint			heap_no)/*!< in: record heap number */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+bool lock_trx_has_expl_x_lock(const trx_t &trx, const dict_table_t &table,
+                              page_id_t id, ulint heap_no);
 #endif /* UNIV_DEBUG */
 
 /** Lock operation struct */
@@ -811,6 +781,7 @@ lock_rec_create_low(
 	dict_index_t*	index,
 	trx_t*		trx,
 	bool		holds_trx_mutex);
+
 /** Enqueue a waiting request for a lock which cannot be granted immediately.
 Check for deadlocks.
 @param[in]	type_mode	the requested lock mode (LOCK_S or LOCK_X)
@@ -820,7 +791,8 @@ Check for deadlocks.
 				waiting lock request is set
 				when performing an insert of
 				an index record
-@param[in]	block		leaf page in the index
+@param[in]	id		page identifier
+@param[in]	page		leaf page in the index
 @param[in]	heap_no		record heap number in the block
 @param[in]	index		index tree
 @param[in,out]	thr		query thread
@@ -833,7 +805,8 @@ lock_rec_enqueue_waiting(
 	lock_t*			c_lock,	/*!< conflicting lock */
 #endif
 	unsigned		type_mode,
-	const buf_block_t*	block,
+	const page_id_t		id,
+	const page_t*		page,
 	ulint			heap_no,
 	dict_index_t*		index,
 	que_thr_t*		thr,
@@ -851,14 +824,10 @@ lock_rtr_move_rec_list(
 						moved */
 	ulint			num_move);	/*!< in: num of rec to move */
 
-/*************************************************************//**
-Removes record lock objects set on an index page which is discarded. This
+/** Remove record locks for an index page which is discarded. This
 function does not move locks, or check for waiting locks, therefore the
 lock bitmaps must already be reset when this function is called. */
-void
-lock_rec_free_all_from_discard_page(
-/*================================*/
-	const buf_block_t*	block);		/*!< in: page to be discarded */
+void lock_rec_free_all_from_discard_page(const page_id_t page_id);
 
 /** Cancel a waiting lock request and release possibly waiting transactions */
 void lock_cancel_waiting_and_release(lock_t *lock);

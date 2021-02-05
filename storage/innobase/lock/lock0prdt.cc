@@ -229,8 +229,7 @@ lock_prdt_has_lock(
 /*===============*/
 	ulint			precise_mode,	/*!< in: LOCK_S or LOCK_X */
 	unsigned		type_mode,	/*!< in: LOCK_PREDICATE etc. */
-	const buf_block_t*	block,		/*!< in: buffer block
-						containing the record */
+	const page_id_t		id,		/*!< in: page identifier */
 	lock_prdt_t*		prdt,		/*!< in: The predicate to be
 						attached to the new lock */
 	const trx_t*		trx)		/*!< in: transaction */
@@ -243,7 +242,7 @@ lock_prdt_has_lock(
 	ut_ad(!(precise_mode & LOCK_INSERT_INTENTION));
 
 	for (lock = lock_rec_get_first(
-		lock_hash_get(type_mode), block, PRDT_HEAPNO);
+		lock_hash_get(type_mode), id, PRDT_HEAPNO);
 	     lock != NULL;
 	     lock = lock_rec_get_next(PRDT_HEAPNO, lock)) {
 		ut_ad(lock->type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE));
@@ -286,8 +285,7 @@ lock_prdt_other_has_conflicting(
 	unsigned		mode,	/*!< in: LOCK_S or LOCK_X,
 					possibly ORed to LOCK_PREDICATE or
 					LOCK_PRDT_PAGE, LOCK_INSERT_INTENTION */
-	const buf_block_t*	block,	/*!< in: buffer block containing
-					the record */
+	const page_id_t		id,	/*!< in: page identifier */
 	lock_prdt_t*		prdt,    /*!< in: Predicates (currently)
 					the Minimum Bounding Rectangle)
 					the new lock will be on */
@@ -296,7 +294,7 @@ lock_prdt_other_has_conflicting(
 	lock_sys.mutex_assert_locked();
 
 	for (lock_t* lock = lock_rec_get_first(
-		lock_hash_get(mode), block, PRDT_HEAPNO);
+		lock_hash_get(mode), id, PRDT_HEAPNO);
 	     lock != NULL;
 	     lock = lock_rec_get_next(PRDT_HEAPNO, lock)) {
 
@@ -509,6 +507,7 @@ lock_prdt_insert_check_and_lock(
 	ut_ad(index->is_spatial());
 
 	trx_t*	trx = thr_get_trx(thr);
+	const page_id_t id{block->page.id()};
 
 	lock_sys.mutex_lock();
 
@@ -521,7 +520,7 @@ lock_prdt_insert_check_and_lock(
 	lock_t*		lock;
 
 	/* Only need to check locks on prdt_hash */
-	lock = lock_rec_get_first(&lock_sys.prdt_hash, block, PRDT_HEAPNO);
+	lock = lock_rec_get_first(&lock_sys.prdt_hash, id, PRDT_HEAPNO);
 
 	if (lock == NULL) {
 		lock_sys.mutex_unlock();
@@ -547,7 +546,7 @@ lock_prdt_insert_check_and_lock(
 	const ulint	mode = LOCK_X | LOCK_PREDICATE | LOCK_INSERT_INTENTION;
 
 	const lock_t*	wait_for = lock_prdt_other_has_conflicting(
-		mode, block, prdt, trx);
+		mode, id, prdt, trx);
 
 	if (wait_for != NULL) {
 		rtr_mbr_t*	mbr = prdt_get_mbr_from_prdt(prdt);
@@ -563,7 +562,7 @@ lock_prdt_insert_check_and_lock(
 			NULL, /* FIXME: replicate SPATIAL INDEX locks */
 #endif
 			LOCK_X | LOCK_PREDICATE | LOCK_INSERT_INTENTION,
-			block, PRDT_HEAPNO, index, thr, prdt);
+			id, block->frame, PRDT_HEAPNO, index, thr, prdt);
 
 		trx->mutex_unlock();
 	} else {
@@ -762,6 +761,7 @@ lock_prdt_lock(
 	const hash_table_t& hash = type_mode == LOCK_PREDICATE
 		? lock_sys.prdt_hash
 		: lock_sys.prdt_page_hash;
+	const page_id_t id{block->page.id()};
 
 	/* Another transaction cannot have an implicit lock on the record,
 	because when we come here, we already have modified the clustered
@@ -771,7 +771,7 @@ lock_prdt_lock(
 	lock_sys.mutex_lock();
 
 	const unsigned	prdt_mode = type_mode | mode;
-	lock_t*		lock = lock_sys.get_first(hash, block->page.id());
+	lock_t*		lock = lock_sys.get_first(hash, id);
 
 	if (lock == NULL) {
 		lock = lock_rec_create(
@@ -793,14 +793,14 @@ lock_prdt_lock(
 			trx->mutex_lock();
 
 			lock = lock_prdt_has_lock(
-				mode, type_mode, block, prdt, trx);
+				mode, type_mode, id, prdt, trx);
 
 			if (lock == NULL) {
 
 				lock_t*	wait_for;
 
 				wait_for = lock_prdt_other_has_conflicting(
-					prdt_mode, block, prdt, trx);
+					prdt_mode, id, prdt, trx);
 
 				if (wait_for != NULL) {
 
@@ -810,7 +810,7 @@ lock_prdt_lock(
 						      SPATIAL INDEX locks */
 #endif
 						prdt_mode,
-						block, PRDT_HEAPNO,
+						id, block->frame, PRDT_HEAPNO,
 						index, thr, prdt);
 				} else {
 
@@ -921,8 +921,7 @@ lock_prdt_rec_move(
 /*===============*/
 	const buf_block_t*	receiver,	/*!< in: buffer block containing
 						the receiving record */
-	const buf_block_t*	donator)	/*!< in: buffer block containing
-						the donating record */
+	const page_id_t		donator)	/*!< in: target page */
 {
 	lock_sys.mutex_lock();
 
@@ -948,19 +947,17 @@ lock_prdt_rec_move(
 }
 
 /** Removes predicate lock objects set on an index page which is discarded.
-@param[in]	block		page to be discarded
+@param[in]	id		page to be discarded
 @param[in]	lock_hash	lock hash */
 void
-lock_prdt_page_free_from_discard(
-	const buf_block_t*      block,
-	hash_table_t*		lock_hash)
+lock_prdt_page_free_from_discard(const page_id_t id, hash_table_t *lock_hash)
 {
 	lock_t*	lock;
 	lock_t*	next_lock;
 
 	lock_sys.mutex_assert_locked();
 
-	lock = lock_sys.get_first(*lock_hash, block->page.id());
+	lock = lock_sys.get_first(*lock_hash, id);
 
 	while (lock != NULL) {
 		next_lock = lock_rec_get_next_on_page(lock);

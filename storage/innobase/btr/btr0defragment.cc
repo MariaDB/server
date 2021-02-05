@@ -397,8 +397,8 @@ btr_defragment_merge_pages(
 	if (n_recs_to_move == n_recs) {
 		/* The whole page is merged with the previous page,
 		free it. */
-		lock_update_merge_left(to_block, orig_pred,
-				       from_block);
+		const page_id_t from{from_block->page.id()};
+		lock_update_merge_left(*to_block, orig_pred, from);
 		btr_search_drop_page_hash_index(from_block);
 		btr_level_list_remove(*from_block, *index, mtr);
 		btr_page_get_father(index, from_block, mtr, &parent);

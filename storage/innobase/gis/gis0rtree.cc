@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -769,7 +769,7 @@ rtr_split_page_move_rec_list(
 			ut_a(rec);
 
 			lock_rec_restore_from_page_infimum(
-				new_block, rec, block);
+				*new_block, rec, block->page.id());
 
 			page_cur_move_to_next(&new_page_cursor);
 

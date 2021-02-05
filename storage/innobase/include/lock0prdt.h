@@ -181,8 +181,7 @@ lock_prdt_rec_move(
 /*===============*/
 	const buf_block_t*	receiver,	/*!< in: buffer block containing
 						the receiving record */
-	const buf_block_t*	donator);	/*!< in: buffer block containing
-						the donating record */
+	const page_id_t		donator);	/*!< in: target page */
 
 /** Check whether there are R-tree Page lock on a page
 @param[in]	trx	trx to test the lock
@@ -191,12 +190,9 @@ lock_prdt_rec_move(
 bool lock_test_prdt_page_lock(const trx_t *trx, const page_id_t page_id);
 
 /** Removes predicate lock objects set on an index page which is discarded.
-@param[in]	block		page to be discarded
+@param[in]	id		page to be discarded
 @param[in]	lock_hash	lock hash */
 void
-lock_prdt_page_free_from_discard(
-/*=============================*/
-	const buf_block_t*	block,
-	hash_table_t*		lock_hash);
+lock_prdt_page_free_from_discard(const page_id_t id, hash_table_t *lock_hash);
 
 #endif

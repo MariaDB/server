@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2016, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1164,7 +1164,7 @@ rtr_check_discard_page(
 				the root page */
 	buf_block_t*	block)	/*!< in: block of page to be discarded */
 {
-	const ulint pageno = block->page.id().page_no();
+	const page_id_t id{block->page.id()};
 
 	mysql_mutex_lock(&index->rtr_track->rtr_active_mutex);
 
@@ -1175,8 +1175,8 @@ rtr_check_discard_page(
 
 		mysql_mutex_lock(&rtr_info->rtr_path_mutex);
 		for (const node_visit_t& node : *rtr_info->path) {
-			if (node.page_no == pageno) {
-				rtr_rebuild_path(rtr_info, pageno);
+			if (node.page_no == id.page_no()) {
+				rtr_rebuild_path(rtr_info, node.page_no);
 				break;
 			}
 		}
@@ -1185,8 +1185,7 @@ rtr_check_discard_page(
 		if (rtr_info->matches) {
 			mysql_mutex_lock(&rtr_info->matches->rtr_match_mutex);
 
-			if ((&rtr_info->matches->block)->page.id().page_no()
-			     == pageno) {
+			if ((&rtr_info->matches->block)->page.id() == id) {
 				if (!rtr_info->matches->matched_recs->empty()) {
 					rtr_info->matches->matched_recs->clear();
 				}
@@ -1200,10 +1199,9 @@ rtr_check_discard_page(
 
 	mysql_mutex_unlock(&index->rtr_track->rtr_active_mutex);
 
-	lock_sys.mutex_lock();
-	lock_prdt_page_free_from_discard(block, &lock_sys.prdt_hash);
-	lock_prdt_page_free_from_discard(block, &lock_sys.prdt_page_hash);
-	lock_sys.mutex_unlock();
+	LockMutexGuard g;
+	lock_prdt_page_free_from_discard(id, &lock_sys.prdt_hash);
+	lock_prdt_page_free_from_discard(id, &lock_sys.prdt_page_hash);
 }
 
 /** Structure acts as functor to get the optimistic access of the page.

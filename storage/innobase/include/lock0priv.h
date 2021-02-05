@@ -527,16 +527,21 @@ lock_rec_get_next_const(
 	ulint		heap_no,/*!< in: heap number of the record */
 	const lock_t*	lock);	/*!< in: lock */
 
-/*********************************************************************//**
-Gets the first explicit lock request on a record.
-@return first lock, NULL if none exists */
-UNIV_INLINE
-lock_t*
-lock_rec_get_first(
-/*===============*/
-	hash_table_t*		hash,	/*!< in: hash chain the lock on */
-	const buf_block_t*	block,	/*!< in: block containing the record */
-	ulint			heap_no);/*!< in: heap number of the record */
+/** Get the first explicit lock request on a record.
+@param hash     lock hash table
+@param id       page identifier
+@param heap_no  record identifier in page
+@return first lock
+@retval nullptr if none exists */
+inline lock_t*
+lock_rec_get_first(hash_table_t *hash, const page_id_t id, ulint heap_no)
+{
+  for (lock_t *lock= lock_sys.get_first(*hash, id);
+       lock; lock= lock_rec_get_next_on_page(lock))
+    if (lock_rec_get_nth_bit(lock, heap_no))
+      return lock;
+  return nullptr;
+}
 
 /*********************************************************************//**
 Calculates if lock mode 1 is compatible with lock mode 2.
