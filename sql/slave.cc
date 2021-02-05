@@ -1069,11 +1069,7 @@ terminate_slave_thread(THD *thd,
     int error __attribute__((unused));
     DBUG_PRINT("loop", ("killing slave thread"));
 
-#ifdef WITH_WSREP
-    /* awake_no_mutex() requires LOCK_thd_data to be locked if wsrep
-       is enabled */
-    if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
-#endif /* WITH_WSREP */
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     mysql_mutex_lock(&thd->LOCK_thd_kill);
 #ifndef DONT_USE_THR_ALARM
     /*
@@ -1087,9 +1083,7 @@ terminate_slave_thread(THD *thd,
     thd->awake_no_mutex(NOT_KILLED);
 
     mysql_mutex_unlock(&thd->LOCK_thd_kill);
-#ifdef WITH_WSREP
-    if (WSREP(thd)) mysql_mutex_unlock(&thd->LOCK_thd_data);
-#endif /* WITH_WSREP */
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
 
     /*
       There is a small chance that slave thread might miss the first

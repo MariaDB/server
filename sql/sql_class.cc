@@ -1868,7 +1868,7 @@ void THD::awake_no_mutex(killed_state state_to_set)
   DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
                        this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);
-  if (WSREP_NNULL(this)) mysql_mutex_assert_owner(&LOCK_thd_data);
+  mysql_mutex_assert_owner(&LOCK_thd_data);
   mysql_mutex_assert_owner(&LOCK_thd_kill);
 
   print_aborted_warning(3, "KILLED");

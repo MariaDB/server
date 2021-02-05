@@ -1521,11 +1521,9 @@ static void end_ssl();
 /* common callee of two shutdown phases */
 static void kill_thread(THD *thd)
 {
-  if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
   mysql_mutex_lock(&thd->LOCK_thd_kill);
   thd->abort_current_cond_wait(true);
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
-  if (WSREP(thd)) mysql_mutex_unlock(&thd->LOCK_thd_data);
 }
 
 

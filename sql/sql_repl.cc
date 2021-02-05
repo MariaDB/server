@@ -3474,7 +3474,7 @@ static my_bool kill_callback(THD *thd, kill_callback_arg *arg)
       thd->variables.server_id == arg->slave_server_id)
   {
     arg->thd= thd;
-    if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     mysql_mutex_lock(&thd->LOCK_thd_kill);    // Lock from delete
     return 1;
   }
@@ -3496,7 +3496,7 @@ void kill_zombie_dump_threads(uint32 slave_server_id)
     */
     arg.thd->awake_no_mutex(KILL_SLAVE_SAME_ID);
     mysql_mutex_unlock(&arg.thd->LOCK_thd_kill);
-    if (WSREP(arg.thd)) mysql_mutex_unlock(&arg.thd->LOCK_thd_data);
+    mysql_mutex_unlock(&arg.thd->LOCK_thd_data);
   }
 }
 
