@@ -957,12 +957,13 @@ lock_rec_other_has_conflicting(
 		if (lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
 #ifdef WITH_WSREP
 			if (trx->is_wsrep()) {
-				lock->trx->mutex.wr_lock();
+				trx_t* lock_trx = lock->trx;
+				lock_trx->mutex.wr_lock();
 				/* Below function will roll back either trx
 				or lock->trx depending on priority of the
 				transaction. */
 				wsrep_kill_victim(const_cast<trx_t*>(trx), lock);
-				lock->trx->mutex.wr_unlock();
+				lock_trx->mutex.wr_unlock();
 			}
 #endif /* WITH_WSREP */
 			return(lock);
@@ -1237,8 +1238,7 @@ lock_rec_create_low(
 		trx_t *ctrx = c_lock->trx;
 		ctrx->mutex.wr_lock();
 		if (ctrx->lock.wait_thr) {
-			ctrx->lock.was_chosen_as_deadlock_victim = true;
-			ctrx->lock.was_chosen_as_wsrep_victim = true;
+			ctrx->lock.was_chosen_as_deadlock_victim = 3;
 
 			if (UNIV_UNLIKELY(wsrep_debug)) {
 				wsrep_print_wait_locks(c_lock);
@@ -1360,7 +1360,8 @@ lock_rec_enqueue_waiting(
 	}
 
 	trx->lock.wait_thr = thr;
-	trx->lock.was_chosen_as_deadlock_victim = false;
+	trx->lock.was_chosen_as_deadlock_victim
+		IF_WSREP(.fetch_and(byte(~1)), = false);
 
 	DBUG_LOG("ib_lock", "trx " << ib::hex(trx->id)
 		 << " waits for lock in index " << index->name
@@ -1729,10 +1730,10 @@ dberr_t lock_wait(que_thr_t *thr)
     was chosen as a deadlock victim: no need to suspend */
 
     if (trx->lock.was_chosen_as_deadlock_victim
-        IF_WSREP(|| trx->lock.was_chosen_as_wsrep_victim,))
+        IF_WSREP(.fetch_and(byte(~1)),))
     {
+      IF_WSREP(,trx->lock.was_chosen_as_deadlock_victim= false);
       trx->error_state= DB_DEADLOCK;
-      trx->lock.was_chosen_as_deadlock_victim= false;
     }
 
     mysql_mutex_unlock(&lock_sys.wait_mutex);
@@ -1779,10 +1780,10 @@ dberr_t lock_wait(que_thr_t *thr)
     while (trx->lock.wait_lock)
     {
       if (no_timeout)
-        mysql_cond_wait(&trx->lock.cond, &lock_sys.wait_mutex);
+        my_cond_wait(&trx->lock.cond, &lock_sys.wait_mutex.m_mutex);
       else
-        err= mysql_cond_timedwait(&trx->lock.cond, &lock_sys.wait_mutex,
-                                  &abstime);
+        err= my_cond_timedwait(&trx->lock.cond, &lock_sys.wait_mutex.m_mutex,
+                               &abstime);
       switch (trx->error_state) {
       default:
         if (trx_is_interrupted(trx))
@@ -1851,13 +1852,13 @@ static void lock_wait_end(trx_t *trx)
   ut_ad(trx->state == TRX_STATE_ACTIVE);
   ut_ad(trx->lock.wait_thr);
 
-  if (trx->lock.was_chosen_as_deadlock_victim)
+  if (trx->lock.was_chosen_as_deadlock_victim IF_WSREP(.fetch_and(byte(~1)),))
   {
+    IF_WSREP(,trx->lock.was_chosen_as_deadlock_victim= false);
     trx->error_state= DB_DEADLOCK;
-    trx->lock.was_chosen_as_deadlock_victim= false;
   }
   trx->lock.wait_thr= nullptr;
-  mysql_cond_signal(&trx->lock.cond);
+  pthread_cond_signal(&trx->lock.cond);
 }
 
 /** Grant a waiting lock request and release the waiting transaction. */
@@ -3417,7 +3418,8 @@ lock_table_enqueue_waiting(
 			  );
 
 	trx->lock.wait_thr = thr;
-	trx->lock.was_chosen_as_deadlock_victim = false;
+	trx->lock.was_chosen_as_deadlock_victim
+		IF_WSREP(.fetch_and(byte(~1)), = false);
 
 	MONITOR_INC(MONITOR_TABLELOCK_WAIT);
 	return(DB_LOCK_WAIT);
@@ -3900,6 +3902,7 @@ void lock_release(trx_t* trx)
 		++count;
 	}
 
+	trx->lock.was_chosen_as_deadlock_victim = false;
 	lock_sys.mutex_unlock();
 	mysql_mutex_unlock(&lock_sys.wait_mutex);
 }
@@ -5613,16 +5616,16 @@ lock_trx_handle_wait(
 	trx_t*	trx)	/*!< in/out: trx lock state */
 {
 #ifdef WITH_WSREP
-  if (UNIV_UNLIKELY(trx->lock.was_chosen_as_wsrep_victim))
-    /* FIXME: we do not hold lock_sys.wait_mutex! */
+  if (UNIV_UNLIKELY(trx->lock.was_chosen_as_deadlock_victim & 2))
     return lock_trx_handle_wait_low(trx);
 #endif /* WITH_WSREP */
   dberr_t err;
-  lock_sys.mutex_lock();
-  mysql_mutex_lock(&lock_sys.wait_mutex);
-  trx->mutex.wr_lock();
-  err= lock_trx_handle_wait_low(trx);
-  lock_sys.mutex_unlock();
+  {
+    LockMutexGuard g;
+    mysql_mutex_lock(&lock_sys.wait_mutex);
+    trx->mutex.wr_lock();
+    err= lock_trx_handle_wait_low(trx);
+  }
   mysql_mutex_unlock(&lock_sys.wait_mutex);
   trx->mutex.wr_unlock();
   return err;
@@ -6274,7 +6277,8 @@ self_victim:
         return false;
       }
       print("*** WE ROLL BACK TRANSACTION (1)\n");
-      victim_trx->lock.was_chosen_as_deadlock_victim= true;
+      victim_trx->lock.was_chosen_as_deadlock_victim
+        IF_WSREP(.fetch_or(1),= true);
       lock_cancel_waiting_and_release(victim_trx->lock.wait_lock);
       mysql_mutex_unlock(&lock_sys.wait_mutex);
       victim_trx->mutex.wr_unlock();

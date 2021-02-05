@@ -426,17 +426,35 @@ struct trx_lock_t
   Set to nullptr when holding lock_sys.wait_mutex. */
   Atomic_relaxed<lock_t*> wait_lock;
   /** condition variable for !wait_lock; used with lock_sys.wait_mutex */
-  mysql_cond_t cond;
+  pthread_cond_t cond;
   /** lock wait start time, protected only by lock_sys.wait_mutex */
   my_hrtime_t suspend_time;
 
 	ib_uint64_t	deadlock_mark;	/*!< A mark field that is initialized
 					to and checked against lock_mark_counter
 					by lock_deadlock_recursive(). */
+#ifdef WITH_WSREP
+  /** 2=high priority wsrep thread has marked this trx to abort;
+  1=another transaction chose this as a victim in deadlock resolution. */
+  Atomic_relaxed<byte> was_chosen_as_deadlock_victim;
+#else
   /** When the transaction decides to wait for a lock, it clears this;
   set if another transaction chooses this transaction as a victim in deadlock
   resolution. Protected by lock_sys.mutex and lock_sys.wait_mutex. */
   bool was_chosen_as_deadlock_victim;
+#endif
+  /** Whether the transaction is being rolled back either via deadlock
+  detection or timeout. The caller has to acquire the trx_t::mutex in
+  order to cancel the locks. In lock_trx_table_locks_remove() we must
+  avoid reacquiring the trx_t::mutex to prevent recursive
+  deadlocks. Protected by both lock_sys.mutex and trx_t::mutex. */
+  bool cancel;
+
+  /** Next available rec_pool[] entry */
+  byte rec_cached;
+  /** Next available table_pool[] entry */
+  byte table_cached;
+
 	que_thr_t*	wait_thr;	/*!< query thread belonging to this
 					trx that is in waiting
 					state. For threads suspended in a
@@ -444,11 +462,6 @@ struct trx_lock_t
 					lock_sys.mutex. Otherwise, this may
 					only be modified by the thread that is
 					serving the running transaction. */
-#ifdef WITH_WSREP
-	bool		was_chosen_as_wsrep_victim;
-					/*!< high priority wsrep thread has
-					marked this trx to abort */
-#endif /* WITH_WSREP */
 
 	/** Pre-allocated record locks */
 	struct {
@@ -457,12 +470,6 @@ struct trx_lock_t
 
 	/** Pre-allocated table locks */
 	ib_lock_t	table_pool[8];
-
-	/** Next available rec_pool[] entry */
-	unsigned	rec_cached;
-
-	/** Next available table_pool[] entry */
-	unsigned	table_cached;
 
 	mem_heap_t*	lock_heap;	/*!< memory heap for trx_locks;
 					protected by lock_sys.mutex */
@@ -478,17 +485,6 @@ struct trx_lock_t
 	/** List of pending trx_t::evict_table() */
 	UT_LIST_BASE_NODE_T(dict_table_t) evicted_tables;
 
-	bool		cancel;		/*!< true if the transaction is being
-					rolled back either via deadlock
-					detection or due to lock timeout. The
-					caller has to acquire the trx_t::mutex
-					in order to cancel the locks. In
-					lock_trx_table_locks_remove() we
-					check for this cancel of a transaction's
-					locks and avoid reacquiring the trx
-					mutex to prevent recursive deadlocks.
-					Protected by both the lock sys mutex
-					and the trx_t::mutex. */
   /** number of record locks; writes are protected by lock_sys.mutex */
   ulint n_rec_locks;
 };
@@ -1034,9 +1030,7 @@ public:
     ut_ad(!has_logged());
     ut_ad(!is_referenced());
     ut_ad(!is_wsrep());
-#ifdef WITH_WSREP
-    ut_ad(!lock.was_chosen_as_wsrep_victim);
-#endif
+    ut_ad(!lock.was_chosen_as_deadlock_victim);
     ut_ad(!read_view.is_open());
     ut_ad(!lock.wait_thr);
     ut_ad(!lock.wait_lock);

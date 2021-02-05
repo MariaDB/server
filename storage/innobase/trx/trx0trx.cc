@@ -184,7 +184,7 @@ struct TrxFactory {
 
 		trx->lock.lock_heap = mem_heap_create_typed(
 			1024, MEM_HEAP_FOR_LOCK_HEAP);
-		mysql_cond_init(0, &trx->lock.cond, nullptr);
+		pthread_cond_init(&trx->lock.cond, nullptr);
 
 		lock_trx_lock_list_init(&trx->lock.trx_locks);
 
@@ -226,7 +226,7 @@ struct TrxFactory {
 			trx->lock.lock_heap = NULL;
 		}
 
-		mysql_cond_destroy(&trx->lock.cond);
+		pthread_cond_destroy(&trx->lock.cond);
 
 		ut_a(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
 		ut_ad(UT_LIST_GET_LEN(trx->lock.evicted_tables) == 0);
@@ -1464,7 +1464,8 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
     wsrep= false;
     wsrep_commit_ordered(mysql_thd);
   }
-  lock.was_chosen_as_wsrep_victim= false;
+  ut_ad(!(lock.was_chosen_as_deadlock_victim & byte(~2U)));
+  lock.was_chosen_as_deadlock_victim= false;
 #endif /* WITH_WSREP */
   mutex.wr_lock();
   dict_operation= TRX_DICT_OP_NONE;

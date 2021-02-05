@@ -18049,7 +18049,7 @@ int wsrep_innobase_kill_one_trx(THD *bf_thd, trx_t *victim_trx, bool signal)
 		wsrep_thd_query(thd));
 
 	/* Mark transaction as a victim for Galera abort */
-	victim_trx->lock.was_chosen_as_wsrep_victim= true;
+	victim_trx->lock.was_chosen_as_deadlock_victim.fetch_or(2);
 	if (wsrep_thd_set_wsrep_aborter(bf_thd, thd))
 	{
 	  WSREP_DEBUG("innodb kill transaction skipped due to wsrep_aborter set");
@@ -18071,7 +18071,7 @@ int wsrep_innobase_kill_one_trx(THD *bf_thd, trx_t *victim_trx, bool signal)
 				    thd_get_thread_id(thd));
 
 			WSREP_DEBUG("canceling wait lock");
-			victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
+			victim_trx->lock.was_chosen_as_deadlock_victim= 3;
 			lock_cancel_waiting_and_release(wait_lock);
 		}
 		mysql_mutex_unlock(&lock_sys.wait_mutex);
