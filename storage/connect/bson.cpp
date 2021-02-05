@@ -1138,6 +1138,9 @@ PBVAL BJSON::GetArrayValue(PBVAL bap, int n)
   CheckType(bap, TYPE_JAR);
   int i = 0;
 
+  if (n < 0)
+    n += GetArraySize(bap);
+
   for (PBVAL bvp = GetArray(bap); bvp; bvp = GetNext(bvp), i++)
     if (i == n)
       return bvp;

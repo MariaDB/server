@@ -58,11 +58,19 @@ char *GetJsonNull(void);
 /***********************************************************************/
 /* IsNum: check whether this string is all digits.                     */
 /***********************************************************************/
-bool IsNum(PSZ s) {
-  for (char* p = s; *p; p++)
+bool IsNum(PSZ s)
+{
+  char* p = s;
+
+  if (*p == '-')
+    p++;
+
+  if (*p == ']')
+    return false;
+  else for (; *p; p++)
     if (*p == ']')
       break;
-    else if (!isdigit(*p) || *p == '-')
+    else if (!isdigit(*p))
       return false;
 
   return true;
@@ -1257,6 +1265,8 @@ PJVAL JARRAY::GetArrayValue(int i)
 {
   if (Mvals && i >= 0 && i < Size)
     return Mvals[i];
+  else if (Mvals && i < 0 && i >= -Size)
+    return Mvals[Size + i];
   else
     return NULL;
 } // end of GetValue
