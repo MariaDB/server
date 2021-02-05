@@ -81,6 +81,7 @@ typedef struct _jpn {
 extern uint JsonGrpSize;
 uint GetJsonGroupSize(void);
 
+
 typedef class BJNX* PBJNX;
 
 /*********************************************************************************/
@@ -102,7 +103,7 @@ public:
 	my_bool SetJpath(PGLOBAL g, char* path, my_bool jb = false);
 	my_bool ParseJpath(PGLOBAL g);
 	void    ReadValue(PGLOBAL g);
-	PBVAL   GetRowValue(PGLOBAL g, PBVAL row, int i, my_bool b = true);
+	PBVAL   GetRowValue(PGLOBAL g, PBVAL row, int i);
 	PBVAL   GetJson(PGLOBAL g);
 	my_bool CheckPath(PGLOBAL g);
 	my_bool CheckPath(PGLOBAL g, UDF_ARGS* args, PBVAL jsp, PBVAL& jvp, int n);
@@ -123,7 +124,8 @@ protected:
 	PVAL    GetColumnValue(PGLOBAL g, PBVAL row, int i);
 	PVAL    ExpandArray(PGLOBAL g, PBVAL arp, int n);
 	PVAL    CalculateArray(PGLOBAL g, PBVAL arp, int n);
-	PVAL    MakeJson(PGLOBAL g, PBVAL bvp);
+	PVAL    GetCalcValue(PGLOBAL g, PBVAL bap, int n);
+	PBVAL   MakeJson(PGLOBAL g, PBVAL bvp, int n);
 	void    SetJsonValue(PGLOBAL g, PVAL vp, PBVAL vlp);
 	PBVAL   GetRow(PGLOBAL g);
 	PBVAL   MoveVal(PBVAL vlp);
@@ -258,6 +260,12 @@ extern "C" {
 	DllExport my_bool bsonget_real_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport double bsonget_real(UDF_INIT*, UDF_ARGS*, char*, char*);
 	DllExport void bsonget_real_deinit(UDF_INIT*);
+
+	DllExport my_bool bsonset_def_prec_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport long long bsonset_def_prec(UDF_INIT*, UDF_ARGS*, char*, char*);
+
+	DllExport my_bool bsonget_def_prec_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport long long bsonget_def_prec(UDF_INIT*, UDF_ARGS*, char*, char*);
 
 	DllExport my_bool bsonset_grp_size_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport long long bsonset_grp_size(UDF_INIT*, UDF_ARGS*, char*, char*);

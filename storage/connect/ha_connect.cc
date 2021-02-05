@@ -170,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0002 December 25, 2020";
+       char version[]= "Version 1.07.0002 January 27, 2021";
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -255,6 +255,7 @@ USETEMP UseTemp(void);
 int     GetConvSize(void);
 TYPCONV GetTypeConv(void);
 int     GetDefaultDepth(void);
+int     GetDefaultPrec(void);
 bool    JsonAllPath(void);
 char   *GetJsonNull(void);
 uint    GetJsonGrpSize(void);
@@ -418,9 +419,15 @@ static MYSQL_THDVAR_INT(default_depth,
 	"Default depth used by Json, XML and Mongo discovery",
 	NULL, NULL, 5, -1, 16, 1);			 // Defaults to 5
 
+// Default precision for doubles
+static MYSQL_THDVAR_INT(default_prec,
+  PLUGIN_VAR_RQCMDARG,
+  "Default precision used for doubles",
+  NULL, NULL, 6, 0, 16, 1);			 // Defaults to 6
+
 // Estimate max number of rows for JSON aggregate functions
 static MYSQL_THDVAR_UINT(json_grp_size,
-       PLUGIN_VAR_RQCMDARG,             // opt
+       PLUGIN_VAR_RQCMDARG,      // opt
        "max number of rows for JSON aggregate functions.",
        NULL, NULL, JSONMAX, 1, INT_MAX, 1);
 
@@ -493,6 +500,7 @@ TYPCONV GetTypeConv(void) {return (TYPCONV)THDVAR(current_thd, type_conv);}
 char *GetJsonNull(void)
 	{return connect_hton ? THDVAR(current_thd, json_null) : NULL;}
 int GetDefaultDepth(void) {return THDVAR(current_thd, default_depth);}
+int GetDefaultPrec(void) {return THDVAR(current_thd, default_prec);}
 uint GetJsonGrpSize(void)
   {return connect_hton ? THDVAR(current_thd, json_grp_size) : 10;}
 size_t GetWorkSize(void) {return (size_t)THDVAR(current_thd, work_size);}
@@ -4831,6 +4839,7 @@ int ha_connect::start_stmt(THD *thd, thr_lock_type lock_type)
   lock.cc by lock_external() and unlock_external() in lock.cc;
   the section "locking functions for mysql" in lock.cc;
   copy_data_between_tables() in sql_table.cc.
+
 */
 int ha_connect::external_lock(THD *thd, int lock_type)
 {
@@ -7444,7 +7453,8 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
 	MYSQL_SYSVAR(json_null),
 	MYSQL_SYSVAR(json_all_path),
 	MYSQL_SYSVAR(default_depth),
-	MYSQL_SYSVAR(json_grp_size),
+  MYSQL_SYSVAR(default_prec),
+  MYSQL_SYSVAR(json_grp_size),
 #if defined(JAVA_SUPPORT)
 	MYSQL_SYSVAR(jvm_path),
 	MYSQL_SYSVAR(class_path),
