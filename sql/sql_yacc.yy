@@ -749,6 +749,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 %token  <kwd>  ACTION                        /* SQL-2003-N */
 %token  <kwd>  ADMIN_SYM                     /* SQL-2003-N */
 %token  <kwd>  ADDDATE_SYM                   /* MYSQL-FUNC */
+%token  <kwd>  ADD_MONTHS_SYM                /* Oracle FUNC*/
 %token  <kwd>  AFTER_SYM                     /* SQL-2003-N */
 %token  <kwd>  AGAINST
 %token  <kwd>  AGGREGATE_SYM
@@ -10242,7 +10243,14 @@ function_call_keyword:
   discouraged.
 */
 function_call_nonkeyword:
-          ADDDATE_SYM '(' expr ',' expr ')'
+          ADD_MONTHS_SYM '(' expr ',' expr ')'
+          {
+            $$= new (thd->mem_root) Item_date_add_interval(thd, $3, $5,
+                                                           INTERVAL_MONTH, 0);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | ADDDATE_SYM '(' expr ',' expr ')'
           {
             $$= new (thd->mem_root) Item_date_add_interval(thd, $3, $5,
                                                              INTERVAL_DAY, 0);
@@ -15870,6 +15878,7 @@ keyword_sp_var_and_label:
           ACTION
         | ACCOUNT_SYM
         | ADDDATE_SYM
+        | ADD_MONTHS_SYM
         | ADMIN_SYM
         | AFTER_SYM
         | AGAINST

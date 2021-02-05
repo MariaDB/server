@@ -748,6 +748,7 @@ static SYMBOL symbols[] = {
 
 static SYMBOL sql_functions[] = {
   { "ADDDATE",		SYM(ADDDATE_SYM)},
+  { "ADD_MONTHS",	SYM(ADD_MONTHS_SYM)},
   { "BIT_AND",		SYM(BIT_AND)},
   { "BIT_OR",		SYM(BIT_OR)},
   { "BIT_XOR",		SYM(BIT_XOR)},
