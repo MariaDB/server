@@ -1845,9 +1845,9 @@ end_wait:
 static void lock_wait_end(trx_t *trx)
 {
   mysql_mutex_assert_owner(&lock_sys.wait_mutex);
+  ut_ad(trx->state == TRX_STATE_ACTIVE);
+  ut_ad(trx->lock.wait_thr);
 
-  que_thr_t *thr= trx->lock.wait_thr;
-  ut_ad(thr);
   if (trx->lock.was_chosen_as_deadlock_victim)
   {
     trx->error_state= DB_DEADLOCK;
@@ -6181,8 +6181,7 @@ inline trx_t* DeadlockChecker::search()
 		layer. These locks are released before commit, so they
 		can not cause deadlocks with binlog-fixed commit
 		order. */
-		if (m_report_waiters) {
-			ut_ad(!(lock->type_mode & LOCK_AUTO_INC));
+		if (m_report_waiters && !(lock->type_mode & LOCK_AUTO_INC)) {
 			thd_rpl_deadlock_check(m_start->mysql_thd,
 					       trx->mysql_thd);
 		}
