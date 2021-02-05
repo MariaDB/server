@@ -18,10 +18,20 @@ set -e
 export DEB_BUILD_OPTIONS="nocheck $DEB_BUILD_OPTIONS"
 
 # Take the files and part of control from MCS directory
-if [[ -d storage/columnstore/columnstore/debian ]]; then
+if [[ -d storage/columnstore/columnstore/debian ]]
+then
   cp -v storage/columnstore/columnstore/debian/mariadb-plugin-columnstore.* debian/
   echo >> debian/control
   cat storage/columnstore/columnstore/debian/control >> debian/control
+
+  # From Debian Bullseye/Ubuntu Hirsute onwards libreadline is gone, so build with it
+  # only on older releases where it is still available. This can be removed once
+  # MCOL-4535 lands in MariaDB.
+  if apt-cache madison libreadline-gplv2-dev | grep 'libreadline-gplv2-dev' >/dev/null 2>&1
+  then
+    sed 's/libpcre2-dev,/libpcre2-dev, libreadline-gplv2-dev [amd64],/' -i debian/control
+  fi
+
   # ColumnStore is explcitly disabled in the native build, so allow it now
   # when build it when triggered by autobake-deb.sh
   sed '/-DPLUGIN_COLUMNSTORE=NO/d' -i debian/rules
@@ -75,7 +85,7 @@ then
   echo "usr/bin/sst_dump" >> debian/mariadb-plugin-rocksdb.install
 fi
 
-# From Debian Buster/Ubuntu Bionic, libcurl4 replaces libcurl3.
+# From Debian Buster/Ubuntu Bionic, libcurl4 replaces libcurl3
 if ! apt-cache madison libcurl4 | grep 'libcurl4' >/dev/null 2>&1
 then
   sed 's/libcurl4/libcurl3/g' -i debian/control
