@@ -187,11 +187,10 @@ static MYSQL_SYSVAR_BOOL(page_checksum, maria_page_checksums, 0,
        "with PAGE_CHECKSUM clause in CREATE TABLE)", 0, 0, 1);
 
 /* It is only command line argument */
-static MYSQL_SYSVAR_STR(log_dir_path, maria_data_root,
+static MYSQL_SYSVAR_CONST_STR(log_dir_path, maria_data_root,
        PLUGIN_VAR_NOSYSVAR | PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "Path to the directory where to store transactional log",
        NULL, NULL, mysql_real_data_home);
-
 
 static MYSQL_SYSVAR_ULONG(log_file_size, log_file_size,
        PLUGIN_VAR_RQCMDARG,

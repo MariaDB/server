@@ -143,7 +143,7 @@ int main(int argc, char **argv)
     translog_table_init();
   translog_fill_overhead_table();
 
-  maria_data_root= (char *)".";
+  maria_data_root= ".";
 
   if ((handler= my_open(opt_file, O_RDONLY, MYF(MY_WME))) < 0)
   {

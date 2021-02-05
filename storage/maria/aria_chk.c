@@ -128,7 +128,7 @@ int main(int argc, char **argv)
   MY_INIT(argv[0]);
 
   my_setup_stacktrace();
-  default_log_dir= opt_log_dir= maria_data_root= (char *)".";
+  default_log_dir= opt_log_dir= maria_data_root= ".";
   maria_chk_init(&check_param);
   check_param.opt_lock_memory= 1;		/* Lock memory if possible */
   check_param.using_global_keycache = 0;
@@ -322,7 +322,7 @@ static struct my_option my_long_options[] =
    0, GET_ULL, REQUIRED_ARG, -1, 0, 0, 0, 0, 0},
   {"datadir", 'h',
    "Path for control file (and logs if --logdir not used).",
-   &maria_data_root, 0, 0, GET_STR, REQUIRED_ARG,
+   (char**) &maria_data_root, 0, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
   {"logdir", OPT_LOG_DIR,
    "Path for log files.",

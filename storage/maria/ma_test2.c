@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
 #endif
   MY_INIT(argv[0]);
 
-  maria_data_root= (char *)".";
+  maria_data_root= ".";
   get_options(argc,argv);
   fn_format(filename, "test2", maria_data_root, "", MYF(0));
 
