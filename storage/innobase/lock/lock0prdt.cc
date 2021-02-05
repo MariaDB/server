@@ -436,6 +436,7 @@ lock_prdt_add_to_queue(
 {
 	const page_id_t id{block->page.id()};
 	lock_sys.mutex_assert_locked();
+	ut_ad(caller_owns_trx_mutex == trx->mutex_is_owner());
 	ut_ad(index->is_spatial());
 	ut_ad(!dict_index_is_online_ddl(index));
 	ut_ad(type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE));
@@ -555,7 +556,7 @@ lock_prdt_insert_check_and_lock(
 		lock_init_prdt_from_mbr(prdt, mbr, 0, trx->lock.lock_heap);
 
 		/* Note that we may get DB_SUCCESS also here! */
-		trx->mutex.wr_lock();
+		trx->mutex_lock();
 
 		err = lock_rec_enqueue_waiting(
 #ifdef WITH_WSREP
@@ -564,7 +565,7 @@ lock_prdt_insert_check_and_lock(
 			LOCK_X | LOCK_PREDICATE | LOCK_INSERT_INTENTION,
 			block, PRDT_HEAPNO, index, thr, prdt);
 
-		trx->mutex.wr_unlock();
+		trx->mutex_unlock();
 	} else {
 		err = DB_SUCCESS;
 	}
@@ -789,7 +790,7 @@ lock_prdt_lock(
 		    || ((type_mode & LOCK_PREDICATE)
 		        && (!lock_prdt_consistent(
 				lock_get_prdt_from_lock(lock), prdt, 0)))) {
-			trx->mutex.wr_lock();
+			trx->mutex_lock();
 
 			lock = lock_prdt_has_lock(
 				mode, type_mode, block, prdt, trx);
@@ -821,7 +822,7 @@ lock_prdt_lock(
 				}
 			}
 
-			trx->mutex.wr_unlock();
+			trx->mutex_unlock();
 		} else {
 			if (!lock_rec_get_nth_bit(lock, PRDT_HEAPNO)) {
 				lock_rec_set_nth_bit(lock, PRDT_HEAPNO);

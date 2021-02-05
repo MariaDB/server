@@ -195,7 +195,7 @@ struct TrxFactory {
 			trx->trx_savepoints,
 			&trx_named_savept_t::trx_savepoints);
 
-		trx->mutex.init();
+		trx->mutex_init();
 	}
 
 	/** Release resources held by the transaction object.
@@ -234,7 +234,7 @@ struct TrxFactory {
 		UT_DELETE(trx->xid);
 		ut_free(trx->detailed_error);
 
-		trx->mutex.destroy();
+		trx->mutex_destroy();
 
 		trx->mod_tables.~trx_mod_tables_t();
 
@@ -1946,9 +1946,9 @@ trx_prepare(
 	DBUG_EXECUTE_IF("ib_trx_crash_during_xa_prepare_step", DBUG_SUICIDE(););
 
 	ut_a(trx->state == TRX_STATE_ACTIVE);
-	trx->mutex.wr_lock();
+	trx->mutex_lock();
 	trx->state = TRX_STATE_PREPARED;
-	trx->mutex.wr_unlock();
+	trx->mutex_unlock();
 
 	if (lsn) {
 		/* Depending on the my.cnf options, we may now write the log
@@ -2090,7 +2090,7 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
   mysql_mutex_lock(&element->mutex);
   if (trx_t *trx= element->trx)
   {
-    trx->mutex.wr_lock();
+    trx->mutex_lock();
     if (trx->is_recovered &&
 	(trx_state_eq(trx, TRX_STATE_PREPARED) ||
 	 trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)) &&
@@ -2107,7 +2107,7 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
       arg->trx= trx;
       found= 1;
     }
-    trx->mutex.wr_unlock();
+    trx->mutex_unlock();
   }
   mysql_mutex_unlock(&element->mutex);
   return found;

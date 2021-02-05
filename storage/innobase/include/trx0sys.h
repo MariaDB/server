@@ -517,12 +517,12 @@ class rw_trx_hash_t
     ut_ad(!trx->read_only || !trx->rsegs.m_redo.rseg);
     ut_ad(!trx_is_autocommit_non_locking(trx));
     /* trx->state can be anything except TRX_STATE_NOT_STARTED */
-    ut_d(trx->mutex.wr_lock());
+    ut_d(trx->mutex_lock());
     ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
           trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY) ||
           trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED) ||
           trx_state_eq(trx, TRX_STATE_PREPARED));
-    ut_d(trx->mutex.wr_unlock());
+    ut_d(trx->mutex_unlock());
   }
 
 

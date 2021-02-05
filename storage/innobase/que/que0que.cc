@@ -177,7 +177,7 @@ que_fork_scheduler_round_robin(
 	que_fork_t*	fork,		/*!< in: a query fork */
 	que_thr_t*	thr)		/*!< in: current pos */
 {
-	fork->trx->mutex.wr_lock();
+	fork->trx->mutex_lock();
 
 	/* If no current, start first available. */
 	if (thr == NULL) {
@@ -195,7 +195,7 @@ que_fork_scheduler_round_robin(
 		que_thr_init_command(thr);
 	}
 
-	fork->trx->mutex.wr_unlock();
+	fork->trx->mutex_unlock();
 
 	return(thr);
 }
@@ -466,14 +466,14 @@ que_thr_node_step(
 	}
 
 	trx_t *trx= thr->graph->trx;
-	trx->mutex.wr_lock();
+	trx->mutex_lock();
 
 	if (!trx->lock.wait_thr && thr->graph->state == QUE_FORK_ACTIVE) {
 		thr->state = QUE_THR_COMPLETED;
 		thr = NULL;
 	}
 
-	trx->mutex.wr_unlock();
+	trx->mutex_unlock();
 	return(thr);
 }
 
@@ -688,18 +688,14 @@ que_run_threads_low(
 /*================*/
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	trx_t*		trx;
-	que_thr_t*	next_thr;
-
 	ut_ad(thr->state == QUE_THR_RUNNING);
-	ut_a(thr_get_trx(thr)->error_state == DB_SUCCESS);
 
 	/* cumul_resource counts how much resources the OS thread (NOT the
 	query thread) has spent in this function */
 
-	trx = thr_get_trx(thr);
-
-	do {
+	for (trx_t* trx = thr_get_trx(thr);;) {
+		ut_ad(!trx->mutex_is_owner());
+		ut_a(trx->error_state == DB_SUCCESS);
 		/* Check that there is enough space in the log to accommodate
 		possible log entries by this query step; if the operation can
 		touch more than about 4 pages, checks must be made also within
@@ -710,17 +706,14 @@ que_run_threads_low(
 		/* Perform the actual query step: note that the query thread
 		may change if, e.g., a subprocedure call is made */
 
-		/*-------------------------*/
-		next_thr = que_thr_step(thr);
-		/*-------------------------*/
-
-		if (next_thr) {
-			ut_a(trx->error_state == DB_SUCCESS);
-			ut_a(next_thr == thr);
+		que_thr_t* next_thr = que_thr_step(thr);
+		ut_ad(trx == thr_get_trx(thr));
+		if (!next_thr) {
+			return;
 		}
 
-		ut_ad(trx == thr_get_trx(thr));
-	} while (next_thr != NULL);
+		ut_a(next_thr == thr);
+	}
 }
 
 /**********************************************************************//**

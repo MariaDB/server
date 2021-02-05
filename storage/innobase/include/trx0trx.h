@@ -667,9 +667,41 @@ public:
   trx_sys_t::deregister_rw(), release_locks(). */
   trx_id_t id;
 
+private:
   /** mutex protecting state and some of lock
   (some are protected by lock_sys.mutex) */
   srw_mutex mutex;
+#ifdef UNIV_DEBUG
+  /** The owner of mutex (0 if none); protected by mutex */
+  std::atomic<os_thread_id_t> mutex_owner{0};
+#endif /* UNIV_DEBUG */
+public:
+  void mutex_init() { mutex.init(); }
+  void mutex_destroy() { mutex.destroy(); }
+
+  /** Acquire the mutex */
+  void mutex_lock()
+  {
+    ut_ad(!mutex_is_owner());
+    mutex.wr_lock();
+    ut_ad(!mutex_owner.exchange(os_thread_get_curr_id(),
+                                std::memory_order_relaxed));
+  }
+  /** Release the mutex */
+  void mutex_unlock()
+  {
+    ut_ad(mutex_owner.exchange(0, std::memory_order_relaxed)
+	  == os_thread_get_curr_id());
+    mutex.wr_unlock();
+  }
+#ifdef UNIV_DEBUG
+  /** @return whether the current thread holds the mutex */
+  bool mutex_is_owner() const
+  {
+    return mutex_owner.load(std::memory_order_relaxed) ==
+      os_thread_get_curr_id();
+  }
+#endif /* UNIV_DEBUG */
 
   /** State of the trx from the point of view of concurrency control
   and the valid state transitions.
@@ -1027,6 +1059,7 @@ public:
   {
     ut_ad(state == TRX_STATE_NOT_STARTED);
     ut_ad(!id);
+    ut_ad(!mutex_is_owner());
     ut_ad(!has_logged());
     ut_ad(!is_referenced());
     ut_ad(!is_wsrep());
