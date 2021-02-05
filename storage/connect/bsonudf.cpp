@@ -3022,7 +3022,7 @@ void bson_object_grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
 	PBVAL   bop = (PBVAL)g->Activityp;
 
 	if (g->N-- > 0)
-		bxp->SetKeyValue(bop, bxp->MakeValue(args, 0), MakePSZ(g, args, 1));
+                bxp->SetKeyValue(bop, bxp->MakeValue(args, 1), MakePSZ(g, args, 0));
 
 } // end of bson_object_grp_add
 
