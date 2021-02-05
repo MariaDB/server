@@ -1523,27 +1523,7 @@ static void kill_thread(THD *thd)
 {
   if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
   mysql_mutex_lock(&thd->LOCK_thd_kill);
-  if (thd->mysys_var)
-  {
-    thd->mysys_var->abort= 1;
-    mysql_mutex_lock(&thd->mysys_var->mutex);
-    if (thd->mysys_var->current_cond)
-    {
-      for (uint i= 0; i < 2; i++)
-      {
-        int ret= mysql_mutex_trylock(thd->mysys_var->current_mutex);
-        mysql_cond_broadcast(thd->mysys_var->current_cond);
-        if (!ret)
-        {
-          /* Thread has surely got the signal, unlock and abort */
-          mysql_mutex_unlock(thd->mysys_var->current_mutex);
-          break;
-        }
-        sleep(1);
-      }
-    }
-    mysql_mutex_unlock(&thd->mysys_var->mutex);
-  }
+  thd->abort_current_cond_wait(true);
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
   if (WSREP(thd)) mysql_mutex_unlock(&thd->LOCK_thd_data);
 }

@@ -2384,18 +2384,7 @@ static void wsrep_close_thread(THD *thd)
   thd->set_killed(KILL_CONNECTION);
   MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (thd));
   mysql_mutex_lock(&thd->LOCK_thd_kill);
-  if (thd->mysys_var)
-  {
-    thd->mysys_var->abort=1;
-    mysql_mutex_lock(&thd->mysys_var->mutex);
-    if (thd->mysys_var->current_cond)
-    {
-      mysql_mutex_lock(thd->mysys_var->current_mutex);
-      mysql_cond_broadcast(thd->mysys_var->current_cond);
-      mysql_mutex_unlock(thd->mysys_var->current_mutex);
-    }
-    mysql_mutex_unlock(&thd->mysys_var->mutex);
-  }
+  thd->abort_current_cond_wait(true);
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
 }
 

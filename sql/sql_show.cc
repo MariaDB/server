@@ -3256,11 +3256,8 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
     }
     DBUG_RETURN(bres);
   }
-  else
-  {
-    my_error(ER_NO_SUCH_THREAD, MYF(0), (ulong) thread_id);
-    DBUG_RETURN(1);
-  }
+  my_error(ER_NO_SUCH_THREAD, MYF(0), (ulong) thread_id);
+  DBUG_RETURN(1);
 }
 
 

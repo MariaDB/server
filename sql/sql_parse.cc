@@ -9079,10 +9079,9 @@ struct find_thread_callback_arg
 };
 
 
-my_bool find_thread_callback(THD *thd, find_thread_callback_arg *arg)
+static my_bool find_thread_callback(THD *thd, find_thread_callback_arg *arg)
 {
-  if (thd->get_command() != COM_DAEMON &&
-      arg->id == (arg->query_id ? thd->query_id : (longlong) thd->thread_id))
+  if (arg->id == (arg->query_id ? thd->query_id : (longlong) thd->thread_id))
   {
     mysql_mutex_lock(&thd->LOCK_thd_kill);    // Lock from delete
     arg->thd= thd;
@@ -9100,10 +9099,9 @@ THD *find_thread_by_id(longlong id, bool query_id)
 }
 
 #ifdef WITH_WSREP
-my_bool find_thread_with_thd_data_lock_callback(THD *thd, find_thread_callback_arg *arg)
+static my_bool find_thread_with_thd_data_lock_callback(THD *thd, find_thread_callback_arg *arg)
 {
-  if (thd->get_command() != COM_DAEMON &&
-      arg->id == (arg->query_id ? thd->query_id : (longlong) thd->thread_id))
+  if (arg->id == (arg->query_id ? thd->query_id : (longlong) thd->thread_id))
   {
     if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
     mysql_mutex_lock(&thd->LOCK_thd_kill);    // Lock from delete
@@ -9137,10 +9135,14 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
   DBUG_ENTER("kill_one_thread");
   DBUG_PRINT("enter", ("id: %lld  signal: %u", id, (uint) kill_signal));
 #ifdef WITH_WSREP
-  if (id && (tmp= find_thread_by_id_with_thd_data_lock(id, type == KILL_TYPE_QUERY)))
+  tmp= find_thread_by_id_with_thd_data_lock(id, type == KILL_TYPE_QUERY);
 #else
-  if (id && (tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY)))
+  tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY);
 #endif
+  if (!tmp)
+    DBUG_RETURN(error);
+
+  if (tmp->get_command() != COM_DAEMON)
   {
     /*
       If we're SUPER, we can KILL anything, including system-threads.
@@ -9194,11 +9196,11 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
     else
       error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
                                         ER_KILL_DENIED_ERROR);
-#ifdef WITH_WSREP
-    if (WSREP(tmp)) mysql_mutex_unlock(&tmp->LOCK_thd_data);
-#endif
-    mysql_mutex_unlock(&tmp->LOCK_thd_kill);
   }
+#ifdef WITH_WSREP
+  if (WSREP(tmp)) mysql_mutex_unlock(&tmp->LOCK_thd_data);
+#endif
+  mysql_mutex_unlock(&tmp->LOCK_thd_kill);
   DBUG_PRINT("exit", ("%d", error));
   DBUG_RETURN(error);
 }
