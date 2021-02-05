@@ -311,7 +311,7 @@ char *opt_incremental_history_name;
 char *opt_incremental_history_uuid;
 
 char *opt_user;
-char *opt_password;
+const char *opt_password;
 char *opt_host;
 char *opt_defaults_group;
 char *opt_socket;
@@ -1861,7 +1861,7 @@ check_if_param_set(const char *param)
 
 my_bool
 xb_get_one_option(const struct my_option *opt,
-		  char *argument, const char *)
+		  const char *argument, const char *)
 {
   switch(opt->id) {
   case 'h':
@@ -6348,9 +6348,10 @@ void handle_options(int argc, char **argv, char ***argv_server,
 
         if (opt_password)
         {
-          char *argument= opt_password;
-          char *start= argument;
-          opt_password= my_strdup(PSI_NOT_INSTRUMENTED, opt_password, MYF(MY_FAE));
+          char *argument= (char*) opt_password;
+          char *start= (char*) opt_password;
+          opt_password= my_strdup(PSI_NOT_INSTRUMENTED, opt_password,
+                                  MYF(MY_FAE));
           while (*argument)
             *argument++= 'x'; // Destroy argument
           if (*start)

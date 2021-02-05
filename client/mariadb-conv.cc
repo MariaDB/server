@@ -76,7 +76,7 @@ static struct my_option long_options[] =
 
 my_bool
 get_one_option(const struct my_option *opt,
-               char *value, const char *filename)
+               const char *value, const char *filename)
 {
   return 0;
 }

@@ -270,7 +270,7 @@ static void add_one_option_cnf_file(DYNAMIC_STRING *ds,
 }
 
 static my_bool
-get_one_option(const struct my_option *opt, char *argument,
+get_one_option(const struct my_option *opt, const char *argument,
                const char *filename __attribute__((unused)))
 {
   my_bool add_option= TRUE;
@@ -301,10 +301,17 @@ get_one_option(const struct my_option *opt, char *argument,
     add_option= FALSE;
     if (argument)
     {
+      /*
+        One should not really change the argument, but we make an
+        exception for passwords
+      */
+      char *start= (char*) argument;
       /* Add password to ds_args before overwriting the arg with x's */
       add_one_option_cnf_file(&ds_args, opt, argument);
       while (*argument)
-        *argument++= 'x';                       /* Destroy argument */
+        *(char*)argument++= 'x';                /* Destroy argument */
+      if (*start)
+        start[1]= 0;
       tty_password= 0;
     }
     else

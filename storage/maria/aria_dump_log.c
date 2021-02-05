@@ -88,7 +88,7 @@ static void usage(void)
 
 static my_bool
 get_one_option(const struct my_option *opt,
-               char *argument __attribute__((unused)),
+               const char *argument __attribute__((unused)),
                const char *filename __attribute__((unused)))
 {
   switch (opt->id) {

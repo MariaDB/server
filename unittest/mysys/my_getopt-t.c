@@ -61,7 +61,7 @@ static struct my_option mopts_options[]=
 };
 
 my_bool dummy_get_one_option(const struct my_option *opt __attribute__((unused)),
-                             char *argument __attribute__((unused)),
+                             const char *argument __attribute__((unused)),
                              const char *filename __attribute__((unused)))
 {
   return FALSE;
@@ -235,7 +235,7 @@ static struct my_option auto_options[]=
 
 
 my_bool auto_get_one_option(const struct my_option *opt,
-                            char *argument,
+                            const char *argument,
                             const char *filename __attribute__((unused)))
 {
   if (argument == autoset_my_option)

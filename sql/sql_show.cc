@@ -618,8 +618,7 @@ db_dirs_hash_get_key(const uchar *data, size_t *len_ret,
   @retval FALSE success
 */
 
-bool
-push_ignored_db_dir(char *path)
+bool push_ignored_db_dir(const char *path)
 {
   LEX_CSTRING *new_elt;
   char *new_elt_buffer;

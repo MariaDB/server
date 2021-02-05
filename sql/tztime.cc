@@ -2656,7 +2656,8 @@ static struct my_option my_long_options[] =
 
 
 C_MODE_START
-static my_bool get_one_option(const struct my_option *, char *, const char *);
+static my_bool get_one_option(const struct my_option *, const char *,
+                              const char *);
 C_MODE_END
 
 static void print_version(void)
@@ -2678,7 +2679,7 @@ static void print_usage(void)
 
 
 static my_bool
-get_one_option(const struct my_option *opt, char *argument, const char *)
+get_one_option(const struct my_option *opt, const char *argument, const char *)
 {
   switch(opt->id) {
   case '#':

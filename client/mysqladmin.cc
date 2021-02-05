@@ -69,7 +69,7 @@ static uint ex_var_count, max_var_length, max_val_length;
 static void print_version(void);
 static void usage(void);
 extern "C" my_bool get_one_option(int optid, const struct my_option *opt,
-                                  char *argument);
+                                  const char *argument);
 static my_bool sql_connect(MYSQL *mysql, uint wait);
 static int execute_commands(MYSQL *mysql,int argc, char **argv);
 static char **mask_password(int argc, char ***argv);
@@ -241,7 +241,7 @@ static const char *load_default_groups[]=
   0 };
 
 my_bool
-get_one_option(const struct my_option *opt, char *argument, const char *)
+get_one_option(const struct my_option *opt, const char *argument, const char *)
 {
   switch(opt->id) {
   case 'c':
@@ -252,10 +252,15 @@ get_one_option(const struct my_option *opt, char *argument, const char *)
       argument= (char*) "";			// Don't require password
     if (argument)
     {
-      char *start=argument;
+      /*
+        One should not really change the argument, but we make an
+        exception for passwords
+      */
+      char *start= (char*) argument;
       my_free(opt_password);
       opt_password=my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
-      while (*argument) *argument++= 'x';		/* Destroy argument */
+      while (*argument)
+        *(char*) argument++= 'x';		/* Destroy argument */
       if (*start)
 	start[1]=0;				/* Cut length of argument */
       tty_password= 0;

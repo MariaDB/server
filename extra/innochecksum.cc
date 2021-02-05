@@ -1332,7 +1332,7 @@ static void usage(void)
 extern "C" my_bool
 innochecksum_get_one_option(
 	const struct my_option	*opt,
-	char			*argument MY_ATTRIBUTE((unused)),
+	const char		*argument MY_ATTRIBUTE((unused)),
         const char *)
 {
 	switch (opt->id) {

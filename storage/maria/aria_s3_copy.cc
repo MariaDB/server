@@ -138,7 +138,7 @@ ATTRIBUTE_NORETURN static void my_exit(int exit_code)
 
 extern "C" my_bool get_one_option(const struct my_option *opt
                                   __attribute__((unused)),
-                                  char *argument, const char *filename)
+                                  const char *argument, const char *filename)
 {
   switch (opt->id) {
   case 'V':

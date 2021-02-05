@@ -317,7 +317,8 @@ static void usage(void)
 
 static my_bool
 get_one_option(const struct my_option *opt,
-	       char *argument, const char *filename __attribute__((unused)))
+	       const char *argument,
+               const char *filename __attribute__((unused)))
 {
   uint length;
 

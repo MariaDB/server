@@ -343,7 +343,8 @@ static uchar* my_hash_get_string(const uchar *record, size_t *length,
 
 static my_bool
 get_one_option(const struct my_option *opt,
-               char *argument, const char *filename __attribute__((unused)))
+               const char *argument,
+               const char *filename __attribute__((unused)))
 {
   switch (opt->id) {
   case '?':

@@ -218,7 +218,7 @@ static void tee_print_sized_data(const char *, unsigned int, unsigned int, bool)
 /* The names of functions that actually do the manipulation. */
 static int get_options(int argc,char **argv);
 extern "C" my_bool get_one_option(int optid, const struct my_option *opt,
-                                  char *argument);
+                                  const char *argument);
 static int com_quit(String *str,char*),
 	   com_go(String *str,char*), com_ego(String *str,char*),
 	   com_print(String *str,char*),
@@ -1715,7 +1715,7 @@ static void usage(int version)
 
 
 my_bool
-get_one_option(const struct my_option *opt, char *argument, const char *)
+get_one_option(const struct my_option *opt, const char *argument, const char *)
 {
   switch(opt->id) {
   case OPT_CHARSETS_DIR:
@@ -1816,7 +1816,8 @@ get_one_option(const struct my_option *opt, char *argument, const char *)
     status.add_to_history= 0;
     if (!status.line_buff)
       ignore_errors= 0;                         // do it for the first -e only
-    if (!(status.line_buff= batch_readline_command(status.line_buff, argument)))
+    if (!(status.line_buff= batch_readline_command(status.line_buff,
+                                                   (char*) argument)))
       return 1;
     break;
   case 'o':
@@ -1830,10 +1831,15 @@ get_one_option(const struct my_option *opt, char *argument, const char *)
       argument= (char*) "";			// Don't require password
     if (argument)
     {
-      char *start= argument;
+      /*
+        One should not really change the argument, but we make an
+        exception for passwords
+      */
+      char *start= (char*) argument;
       my_free(opt_password);
       opt_password= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
-      while (*argument) *argument++= 'x';		// Destroy argument
+      while (*argument)
+        *(char*)argument++= 'x';		// Destroy argument
       if (*start)
 	start[1]=0 ;
       tty_password= 0;

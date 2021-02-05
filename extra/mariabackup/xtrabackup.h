@@ -144,7 +144,7 @@ extern char		*opt_incremental_history_name;
 extern char		*opt_incremental_history_uuid;
 
 extern char		*opt_user;
-extern char		*opt_password;
+extern const char	*opt_password;
 extern char		*opt_host;
 extern char		*opt_defaults_group;
 extern char		*opt_socket;
