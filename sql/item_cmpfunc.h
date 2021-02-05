@@ -227,7 +227,6 @@ public:
   bool fix_length_and_dec() { decimals=0; max_length=1; return FALSE; }
   uint decimal_precision() const { return 1; }
   bool need_parentheses_in_default() { return true; }
-  bool predicate_selectivity_checker(void *arg) { return TRUE; }
 };
 
 
@@ -420,6 +419,7 @@ public:
                         bool top_level);
   bool count_sargable_conds(void *arg);
   bool predicate_selectivity_checker(void *arg);
+
   /*
     Specifies which result type the function uses to compare its arguments.
     This method is used in equal field propagation.
@@ -3386,7 +3386,6 @@ public:
   SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_cond_and>(thd, this); }
-  bool predicate_selectivity_checker(void *arg) { return FALSE; }
 };
 
 inline bool is_cond_and(Item *item)
@@ -3411,7 +3410,6 @@ public:
   Item *neg_transformer(THD *thd);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_cond_or>(thd, this); }
-  bool predicate_selectivity_checker(void *arg) { return FALSE; }
 };
 
 class Item_func_dyncol_check :public Item_bool_func

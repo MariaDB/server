@@ -733,7 +733,7 @@ SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
 FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
 [
-    true
+    false
 ]
 EXPLAIN SELECT * from t1
 WHERE t1.a=t1.b AND (abs(t1.a),t1.b) IN ((1,1), (2,2), (3,3));

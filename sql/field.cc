@@ -11403,7 +11403,8 @@ void Field::statistics_available_via_stat_tables()
   if (thd->variables.optimizer_use_condition_selectivity > 2 &&
       check_eits_preferred(thd))
   {
-    if (read_stats && !read_stats->no_stat_values_provided())
+    if (table && table->stats_is_read &&
+        read_stats && !read_stats->no_stat_values_provided())
     {
       // Only need min and max values for a column to get range statistics
       if (read_stats->min_max_values_are_provided())
@@ -11502,7 +11503,8 @@ bool Field::is_ndv_available_via_stat_tables()
 {
   if (check_eits_preferred(get_thd()))
   {
-    if ((read_stats && !read_stats->no_stat_values_provided() &&
+    if ((table && table->stats_is_read &&
+         read_stats && !read_stats->no_stat_values_provided() &&
          !read_stats->is_null(COLUMN_STAT_AVG_FREQUENCY)))
     {
       stats_available|= (1 << STATISTICS_FOR_NDV_AVAILABLE);

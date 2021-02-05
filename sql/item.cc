@@ -7509,7 +7509,6 @@ Item *Item::build_pushable_cond(THD *thd,
             this argument will be a reference to a column that is used either
             as the first component of an index or statistics are available via
             statistical tables.
-
          b. Equalities:
               For an equality to have accurate selectivity estimates,
               the number of distinct values for each column in the equality
@@ -7521,7 +7520,6 @@ Item *Item::build_pushable_cond(THD *thd,
               The number of distinct values for a column can be known by
                 1) from indexes via rec_per_key
                 2) from statistical tables via avg_frequency.
-
       2. (recursive step)
         AND / OR formula over formulas defined in section 1 of the
         definition.
@@ -7564,11 +7562,14 @@ Item *Item::build_pushable_cond(THD *thd,
 
           In the end for all fields we may have selectivity from an index or
           statistical tables.
+    3. (optional additional non-recursive step)
+       Conjunction of formulas described in sections 1 and 2.
 
   @notes
-    The implementation for this function use the 'walk' method to traverse
-    the tree of this item with predicate_selectivity_checker() as the
-    call-back parameter of the method.
+    The implementation for this function use the recursive descent to walk
+    over the condition tree. A call-back function
+    predicate_selectivity_checker() is passed as a parameter to this function.
+
     propagate_equal_fields() is called before this function is called so
     Item_field::item_equal and Item_direct_view_ref::item_equal is set.
 
@@ -7577,27 +7578,55 @@ Item *Item::build_pushable_cond(THD *thd,
     FALSE        OTHERWISE
 */
 
-bool Item::with_accurate_selectivity_estimation()
+bool Item::with_accurate_selectivity_estimation(Predicate_checker checker,
+                                                void *arg, bool top_level)
 {
-  /*
-    For the below test one could use a virtual function but that would
-    take a lot of space for other item as there will be entires in the vtable
-  */
-  if (type() == Item::COND_ITEM &&
-      ((Item_cond*) this)->functype() == Item_func::COND_AND_FUNC)
+  if (type() == Item::COND_ITEM)
   {
-    List_iterator<Item> li(*((Item_cond*) this)->argument_list());
+    Item_cond_and *and_cond=
+      (((Item_cond*) this)->functype() == Item_func::COND_AND_FUNC) ?
+      ((Item_cond_and*) this) : 0;
+
+    List<Item> *arg_list=  ((Item_cond*) this)->argument_list();
+    List_iterator<Item> li(*arg_list);
     Item *item;
-    while ((item= li++))
+
+    if (and_cond)
     {
-      SAME_FIELD arg= {NULL, false};
-      if (item->walk(&Item::predicate_selectivity_checker, 0, &arg))
-        return false;
+      uint counter=0;
+      while ((item=li++))
+      {
+        SAME_FIELD arg_same_field= {NULL, FALSE};
+        if (item->with_accurate_selectivity_estimation(checker,
+                                                       (top_level ?
+                                                       (void *)&arg_same_field :
+                                                        arg),
+                                                        top_level))
+        {
+          counter++;
+        }
+      }
+
+      if (counter == arg_list->elements)
+        return true;
     }
-    return true;
+    else
+    {
+      uint counter=0;
+      while ((item=li++))
+      {
+        if (item->with_accurate_selectivity_estimation(checker, arg, FALSE))
+        {
+          counter++;
+        }
+      }
+      if (counter == arg_list->elements)
+        return true;
+    }
+    return false;
   }
-  SAME_FIELD arg= {NULL, false};
-  return !walk(&Item::predicate_selectivity_checker, 0, &arg);
+
+  return !((this->*checker) (arg));
 }
 
 
@@ -9327,81 +9356,6 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
 }
 
 
-/*
-  @brief
-    Checks if a formula of a condition contains the same column
-
-  @details
-    In the function we try to check if a formula of a condition depends
-    (directly or indirectly through equalities inferred from the
-    conjuncted multiple equalities) only on one column.
-
-    Eg:
-      WHERE clause is:
-         t1.a=t2.b and (t1.a > 5 or t2.b < 1);
-
-      the predicate (t1.a > 5 or t2.b < 1) can be resolved with the help of
-      equalities to conclude that it depends on one column.
-
-    This is used mostly for OR conjuncts where we need to make sure
-    that the entire OR conjunct contains only one column, so that we may
-    get accurate estimates.
-    An example with top level OR conjunct would be:
-      WHERE A=1 or A between 100 and 200 or A > 1000
-
-  @retval
-    TRUE   : the formula does not depend on one column
-    FALSE  : OTHERWISE
-*/
-
-bool Item_field::predicate_selectivity_checker(void *arg)
-{
-  SAME_FIELD *same_field_arg= (SAME_FIELD*)arg;
-
-  /*
-    The same_field_arg is passed as a parameter because when we start walking
-    over the condition tree we don't know which column the predicate will be
-    dependent on. So as soon as we encounter a leaf of the condition tree
-    which is a field item, we set the SAME_FIELD::item to the found
-    field item and then compare the rest of the fields in the predicate with
-    the field item.
-  */
-
-  if (same_field_arg->item == NULL)
-  {
-    same_field_arg->item= this;
-    same_field_arg->is_stats_available=
-                     field->is_range_statistics_available() ||
-                     (item_equal && item_equal->is_statistics_available());
-    return false;
-  }
-
-  DBUG_ASSERT(same_field_arg->item->real_item()->type() == Item::FIELD_ITEM);
-  /* Found the same field while traversing the condition tree */
-  if (((Item_field*)same_field_arg->item->real_item())->field == field)
-    return false;
-
-  if (!same_field_arg->item->get_item_equal())
-    return true;
-
-  return !(same_field_arg->item->get_item_equal() == item_equal);
-}
-
-
-bool Item_direct_view_ref::predicate_selectivity_checker(void *arg)
-{
-  SAME_FIELD *same_field_arg= (SAME_FIELD*)arg;
-  if (same_field_arg->item == real_item())
-  {
-    DBUG_ASSERT(real_item()->type() == Item::FIELD_ITEM);
-    same_field_arg->item= this;
-    same_field_arg->is_stats_available|=
-                     (item_equal && item_equal->is_statistics_available());
-  }
-  return false;
-}
-
-
 bool Item_direct_view_ref::excl_dep_on_table(table_map tab_map)
 {
   table_map used= used_tables();
@@ -10816,4 +10770,58 @@ bool Item::is_non_const_field_item()
   if (field_item->type() == Item::FIELD_ITEM && !field_item->const_item())
     return true;
   return false;
+}
+
+
+/*
+  @brief
+    Checks if a formula of a condition contains the same column
+
+  @details
+    In the function we try to check if a formula of a condition depends
+    (directly or indirectly through equalities inferred from the
+    conjuncted multiple equalities) only on one column.
+
+    Eg:
+      WHERE clause is:
+         t1.a=t2.b and (t1.a > 5 or t2.b < 1);
+
+      the predicate (t1.a > 5 or t2.b < 1) can be resolved with the help of
+      equalities to conclude that it depends on one column.
+
+    This is used mostly for OR conjuncts where we need to make sure
+    that the entire OR conjunct contains only one column, so that we may
+    get accurate estimates.
+    An example with top level OR conjunct would be:
+      WHERE A=1 or A between 100 and 200 or A > 1000
+
+  @retval
+    TRUE   : the formula depends on one column
+    FALSE  : OTHERWISE
+*/
+
+bool Item::is_resolved_by_same_column(void *arg)
+{
+  SAME_FIELD *same_field_arg= (SAME_FIELD*) arg;
+  if (same_field_arg->item  == NULL)
+  {
+    Field *field= ((Item_field *)real_item())->field;
+    same_field_arg->item= this;
+    same_field_arg->is_stats_available=
+             (field->is_range_statistics_available() ||
+             (get_item_equal() &&
+              get_item_equal()->is_statistics_available()));
+    return true;
+  }
+
+  Item *item= same_field_arg->item;
+
+  if (((Item_field*)item->real_item())->field ==
+      ((Item_field*)real_item())->field)
+    return true;
+
+  if (!item->get_item_equal())
+    return false;
+
+  return (item->get_item_equal() == get_item_equal());
 }

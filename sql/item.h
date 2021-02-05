@@ -624,6 +624,9 @@ typedef bool (Item::*Item_analyzer) (uchar **argp);
 typedef Item* (Item::*Item_transformer) (THD *thd, uchar *arg);
 typedef void (*Cond_traverser) (const Item *item, void *arg);
 typedef bool (Item::*Pushdown_checker) (uchar *arg);
+typedef bool (Item::*Predicate_checker) (void *arg);
+
+
 
 struct st_cond_statistic;
 
@@ -1998,7 +2001,8 @@ public:
 
   virtual bool find_selective_predicates_list_processor(void *arg) { return 0; }
 
-  bool with_accurate_selectivity_estimation();
+  bool with_accurate_selectivity_estimation(Predicate_checker checker,
+                                            void *arg, bool top_level);
 
   /*
     @brief
@@ -2514,6 +2518,7 @@ public:
   */
   bool pushable_equality_checker_for_subquery(uchar *arg);
   bool is_non_const_field_item();
+  bool is_resolved_by_same_column(void *arg);
 };
 
 MEM_ROOT *get_thd_memroot(THD *thd);
@@ -3621,7 +3626,6 @@ public:
     return field->table->pos_in_table_list->outer_join;
   }
   bool check_index_dependence(void *arg);
-  bool predicate_selectivity_checker(void *arg);
   friend class Item_default_value;
   friend class Item_insert_value;
   friend class st_select_lex_unit;
@@ -5992,7 +5996,6 @@ public:
   Item *field_transformer_for_having_pushdown(THD *thd, uchar *arg)
   { return this; }
   Item *remove_item_direct_ref() { return this; }
-  bool predicate_selectivity_checker(void *arg);
 };
 
 

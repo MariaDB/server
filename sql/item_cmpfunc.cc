@@ -2103,18 +2103,16 @@ bool Item_func_between::count_sargable_conds(void *arg)
   return 0;
 }
 
+
 bool Item_func_between::predicate_selectivity_checker(void *arg)
 {
-  SAME_FIELD *field_arg= (SAME_FIELD*)arg;
-  if (!field_arg->is_stats_available)
-    return true;
-
   if (arguments()[0]->real_item()->type() == Item::FIELD_ITEM)
   {
-    if (is_range_predicate(args[0], args[1]) &&
-        is_range_predicate(args[0], args[2]))
-      return false;
-    return true;
+    if (!(is_range_predicate(args[0], args[1]) &&
+          is_range_predicate(args[0], args[2])))
+      return true;
+    return !(args[0]->is_resolved_by_same_column(arg) &&
+             ((SAME_FIELD*)arg)->is_stats_available);
   }
 
   for (uint i= 1 ; i < arg_count ; i++)
@@ -2122,6 +2120,9 @@ bool Item_func_between::predicate_selectivity_checker(void *arg)
     if (arguments()[i]->real_item()->type() == Item::FIELD_ITEM)
     {
       if (!is_range_predicate(args[i], args[0]))
+        return true;
+      if (!((args[i]->is_resolved_by_same_column(arg) &&
+             ((SAME_FIELD*)arg)->is_stats_available)))
         return true;
     }
   }
@@ -4314,11 +4315,23 @@ bool Item_func_in::count_sargable_conds(void *arg)
 
 bool Item_func_in::predicate_selectivity_checker(void *arg)
 {
-  SAME_FIELD *field_arg= (SAME_FIELD*)arg;
-  if (!field_arg->is_stats_available)
+  if (!all_items_are_consts(args + 1, arg_count - 1))
     return true;
-  if (all_items_are_consts(args + 1, arg_count - 1))
-    return false;
+
+  if (args[0]->type() == Item::ROW_ITEM)
+  {
+    /*
+      Currently not walking inside the row item to check if all the fields are
+      same or not, that is not a case that users would be using, so just
+      disallowing such predicates and returning that selectivity for the
+      predicate is not available
+    */
+    return true;
+  }
+
+  if (args[0]->is_non_const_field_item())
+    return !(args[0]->is_resolved_by_same_column(arg) &&
+             ((SAME_FIELD*)arg)->is_stats_available);
   return true;
 }
 
@@ -5551,13 +5564,10 @@ bool Item_func_null_predicate::count_sargable_conds(void *arg)
 
 bool Item_func_null_predicate::predicate_selectivity_checker(void *arg)
 {
-  SAME_FIELD *field_arg= (SAME_FIELD*)arg;
-  if (!field_arg->is_stats_available)
+  if (!args[0]->is_non_const_field_item())
     return true;
-
-  if (args[0]->is_non_const_field_item())
-    return false;
-  return true;
+  return !(args[0]->is_resolved_by_same_column(arg) &&
+           ((SAME_FIELD*)arg)->is_stats_available);
 }
 
 
@@ -5645,14 +5655,14 @@ bool Item_bool_func2::count_sargable_conds(void *arg)
 
 bool Item_bool_func2::predicate_selectivity_checker(void *arg)
 {
-  SAME_FIELD *field_arg= (SAME_FIELD*)arg;
-  if (!field_arg->is_stats_available)
+  if (!(is_range_predicate(args[0], args[1]) ||
+        is_range_predicate(args[1], args[0])))
     return true;
 
-  if (is_range_predicate(args[0], args[1]) ||
-      is_range_predicate(args[1], args[0]))
-    return false;
-  return true;
+  Item *item= args[0]->is_non_const_field_item() ? args[0] : args[1];
+
+  return !(item->is_resolved_by_same_column(arg) &&
+           ((SAME_FIELD*)arg)->is_stats_available);
 }
 
 
@@ -5763,13 +5773,10 @@ SEL_TREE *Item_func_like::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 
 bool Item_func_like::predicate_selectivity_checker(void *arg)
 {
-  SAME_FIELD *field_arg= (SAME_FIELD*)arg;
-  if (!field_arg->is_stats_available)
+  if (!with_sargable_pattern())
     return true;
-
-  if (with_sargable_pattern())
-    return false;
-  return true;
+  return !(args[0]->is_resolved_by_same_column(arg) &&
+           ((SAME_FIELD*)arg)->is_stats_available);
 }
 
 
@@ -7243,17 +7250,29 @@ bool Item_equal::predicate_selectivity_checker(void *arg)
             field->is_ndv_available()))
         return true;
     }
+  }
+  else
+  {
+    while (it++)
+    {
+      Field *field= it.get_curr_field();
+      field->is_range_statistics_available();
+      if (!field->is_ndv_available())
+        return true;
+    }
+  }
+
+  it.rewind();
+  Item *item= (it++);
+  SAME_FIELD *same_field_arg= (SAME_FIELD *) arg;
+
+  if (same_field_arg->item == NULL)
+  {
+    item->is_resolved_by_same_column(arg);
     return false;
   }
 
-
-  while (it++)
-  {
-    Field *field= it.get_curr_field();
-    if (!(field->is_ndv_available()))
-      return true;
-  }
-  return false;
+  return !item->is_resolved_by_same_column(arg);
 }
 
 

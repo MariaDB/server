@@ -8303,10 +8303,13 @@ choose_plan(JOIN *join, table_map join_tables)
 
   Json_writer_object wrapper(thd);
 
-  if (join->conds)
+   if (join->conds)
+  {
+    SAME_FIELD arg= {NULL, false};
     wrapper.add("cardinality_accurate",
-                join->conds->with_accurate_selectivity_estimation());
-
+    join->conds->with_accurate_selectivity_estimation(&Item::predicate_selectivity_checker,
+                                                      &arg, TRUE));
+  }
   Json_writer_array trace_plan(thd,"considered_execution_plans");
 
   if (!join->emb_sjm_nest)
