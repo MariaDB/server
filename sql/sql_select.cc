@@ -8486,7 +8486,12 @@ choose_plan(JOIN *join, table_map join_tables)
   if (join->conds && (join->sort_nest_possible || thd->trace_started()))
   {
     bool cardinality_accurate;
-    cardinality_accurate= join->conds->with_accurate_selectivity_estimation();
+    SAME_FIELD arg= {NULL, FALSE};
+    cardinality_accurate=
+     join->conds->
+       with_accurate_selectivity_estimation(&Item::predicate_selectivity_checker,
+                                            &arg, TRUE);
+
     wrapper.add("cardinality_accurate", cardinality_accurate);
 
     if (!cardinality_accurate)
