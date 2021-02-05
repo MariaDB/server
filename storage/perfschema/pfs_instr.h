@@ -698,7 +698,7 @@ void update_socket_derived_flags();
 /** Update derived flags for all instruments. */
 void update_instruments_derived_flags();
 
-extern LF_HASH filename_hash;
+extern LF_HASH pfs_filename_hash;
 
 /** @} */
 #endif
