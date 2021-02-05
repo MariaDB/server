@@ -1920,10 +1920,13 @@ lock_rec_cancel(
 /** Remove a record lock request, waiting or granted, from the queue and
 grant locks to other transactions in the queue if they now are entitled
 to a lock. NOTE: all record locks contained in in_lock are removed.
-@param[in,out]	in_lock		record lock */
-static void lock_rec_dequeue_from_page(lock_t* in_lock)
+@param[in,out]	in_lock		record lock
+@param[in]	owns_wait_mutex	whether lock_sys.wait_mutex is held */
+static void lock_rec_dequeue_from_page(lock_t *in_lock, bool owns_wait_mutex)
 {
-	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
+#ifdef SAFE_MUTEX
+	ut_ad(owns_wait_mutex == mysql_mutex_is_owner(&lock_sys.wait_mutex));
+#endif /* SAFE_MUTEX */
 	ut_ad(!in_lock->is_table());
 	/* We may or may not be holding in_lock->trx->mutex here. */
 
@@ -1941,6 +1944,8 @@ static void lock_rec_dequeue_from_page(lock_t* in_lock)
 	MONITOR_INC(MONITOR_RECLOCK_REMOVED);
 	MONITOR_DEC(MONITOR_NUM_RECLOCK);
 
+	bool acquired = false;
+
 	/* Check if waiting locks in the queue can now be granted:
 	grant locks if there are no conflicting locks ahead. Stop at
 	the first X lock that is waiting or has been granted. */
@@ -1952,6 +1957,10 @@ static void lock_rec_dequeue_from_page(lock_t* in_lock)
 		if (!lock->is_waiting()) {
 			continue;
 		}
+		if (!owns_wait_mutex) {
+			mysql_mutex_lock(&lock_sys.wait_mutex);
+			acquired = owns_wait_mutex = true;
+		}
 		const lock_t* c = lock_rec_has_to_wait_in_queue(lock);
 		if (!c) {
 			/* Grant the lock */
@@ -1962,6 +1971,10 @@ static void lock_rec_dequeue_from_page(lock_t* in_lock)
 			wsrep_assert_no_bf_bf_wait(c, lock, c->trx);
 #endif /* WITH_WSREP */
 		}
+	}
+
+	if (acquired) {
+		mysql_mutex_unlock(&lock_sys.wait_mutex);
 	}
 }
 
@@ -3318,11 +3331,13 @@ Removes a table lock request from the queue and the trx list of locks;
 this is a low-level function which does NOT check if waiting requests
 can now be granted. */
 UNIV_INLINE
-void
+const dict_table_t*
 lock_table_remove_low(
 /*==================*/
 	lock_t*	lock)	/*!< in/out: table lock */
 {
+	ut_ad(lock->is_table());
+
 	trx_t*		trx;
 	dict_table_t*	table;
 
@@ -3366,6 +3381,7 @@ lock_table_remove_low(
 
 	MONITOR_INC(MONITOR_TABLELOCK_REMOVED);
 	MONITOR_DEC(MONITOR_NUM_TABLELOCK);
+	return table;
 }
 
 /*********************************************************************//**
@@ -3612,22 +3628,18 @@ lock_table_has_to_wait_in_queue(
 /*************************************************************//**
 Removes a table lock request, waiting or granted, from the queue and grants
 locks to other transactions in the queue, if they now are entitled to a
-lock. */
-static
-void
-lock_table_dequeue(
-/*===============*/
-	lock_t*	in_lock)/*!< in/out: table lock object; transactions waiting
-			behind will get their lock requests granted, if
-			they are now qualified to it */
+lock.
+@param[in,out]	in_lock		table lock
+@param[in]	owns_wait_mutex	whether lock_sys.wait_mutex is held */
+static void lock_table_dequeue(lock_t *in_lock, bool owns_wait_mutex)
 {
-	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
-	ut_a(in_lock->is_table());
-	const dict_table_t* table = in_lock->un_member.tab_lock.table;
+#ifdef SAFE_MUTEX
+	ut_ad(owns_wait_mutex == mysql_mutex_is_owner(&lock_sys.wait_mutex));
+#endif
 	lock_sys.mutex_assert_locked();
 	lock_t*	lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, in_lock);
 
-	lock_table_remove_low(in_lock);
+	const dict_table_t* table = lock_table_remove_low(in_lock);
 
 	static_assert(LOCK_IS == 0, "compatibility");
 	static_assert(LOCK_IX == 1, "compatibility");
@@ -3636,6 +3648,8 @@ lock_table_dequeue(
 		return;
 	}
 
+	bool acquired = false;
+
 	/* Check if waiting locks in the queue can now be granted: grant
 	locks if there are no conflicting locks ahead. */
 
@@ -3643,13 +3657,24 @@ lock_table_dequeue(
 	     lock != NULL;
 	     lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock)) {
 
-		if (lock->is_waiting()
-		    && !lock_table_has_to_wait_in_queue(lock)) {
+		if (!lock->is_waiting()) {
+			continue;
+		}
 
+		if (!owns_wait_mutex) {
+			mysql_mutex_lock(&lock_sys.wait_mutex);
+			acquired = owns_wait_mutex = true;
+		}
+
+		if (!lock_table_has_to_wait_in_queue(lock)) {
 			/* Grant the lock */
 			ut_ad(in_lock->trx != lock->trx);
 			lock_grant(lock);
 		}
+	}
+
+	if (acquired) {
+		mysql_mutex_unlock(&lock_sys.wait_mutex);
 	}
 }
 
@@ -3661,26 +3686,21 @@ void lock_table_x_unlock(dict_table_t *table, trx_t *trx)
 {
   ut_ad(!trx->is_recovered);
 
-  lock_sys.mutex_lock();
-  mysql_mutex_lock(&lock_sys.wait_mutex);
-
   for (lock_t*& lock : trx->lock.table_locks)
   {
     if (!lock || lock->trx != trx)
       continue;
     ut_ad(!lock->is_waiting());
-    if (lock->type_mode == (LOCK_TABLE | LOCK_X))
+    if (lock->type_mode != (LOCK_TABLE | LOCK_X))
+      continue;
     {
-      lock_table_dequeue(lock);
-      lock= nullptr;
-      goto func_exit;
+      LockMutexGuard g;
+      lock_table_dequeue(lock, false);
     }
+    lock= nullptr;
+    return;
   }
   ut_ad("lock not found" == 0);
-
-func_exit:
-  lock_sys.mutex_unlock();
-  mysql_mutex_unlock(&lock_sys.wait_mutex);
 }
 
 /** Sets a lock on a table based on the given mode.
@@ -3865,8 +3885,7 @@ void lock_release(trx_t* trx)
 	ulint		count = 0;
 	trx_id_t	max_trx_id = trx_sys.get_max_trx_id();
 
-	lock_sys.mutex_lock();
-	mysql_mutex_lock(&lock_sys.wait_mutex);
+	LockMutexGuard g;
 
 	for (lock_t* lock = UT_LIST_GET_LAST(trx->lock.trx_locks);
 	     lock != NULL;
@@ -3875,7 +3894,7 @@ void lock_release(trx_t* trx)
 		ut_d(lock_check_dict_lock(lock));
 
 		if (!lock->is_table()) {
-			lock_rec_dequeue_from_page(lock);
+			lock_rec_dequeue_from_page(lock, false);
 		} else {
 			if (lock->mode() != LOCK_IS && trx->undo_no) {
 				/* The trx may have modified the table. We
@@ -3885,7 +3904,7 @@ void lock_release(trx_t* trx)
 					->query_cache_inv_trx_id = max_trx_id;
 			}
 
-			lock_table_dequeue(lock);
+			lock_table_dequeue(lock, false);
 		}
 
 		if (count == 1000) {
@@ -3893,18 +3912,14 @@ void lock_release(trx_t* trx)
 			do not monopolize it */
 
 			lock_sys.mutex_unlock();
-			mysql_mutex_unlock(&lock_sys.wait_mutex);
 			count = 0;
 			lock_sys.mutex_lock();
-			mysql_mutex_lock(&lock_sys.wait_mutex);
 		}
 
 		++count;
 	}
 
 	trx->lock.was_chosen_as_deadlock_victim = false;
-	lock_sys.mutex_unlock();
-	mysql_mutex_unlock(&lock_sys.wait_mutex);
 }
 
 /*********************************************************************//**
@@ -5404,33 +5419,6 @@ lock_clust_rec_read_check_and_lock_alt(
 }
 
 /*******************************************************************//**
-Release the last lock from the transaction's autoinc locks. */
-UNIV_INLINE
-void
-lock_release_autoinc_last_lock(
-/*===========================*/
-	ib_vector_t*	autoinc_locks)	/*!< in/out: vector of AUTOINC locks */
-{
-	lock_t*		lock;
-
-	lock_sys.mutex_assert_locked();
-
-	/* The lock to be release must be the last lock acquired. */
-	ulint size = ib_vector_size(autoinc_locks);
-	ut_a(size);
-	lock = *static_cast<lock_t**>(ib_vector_get(autoinc_locks, size - 1));
-
-	ut_ad(lock->type_mode == (LOCK_AUTO_INC | LOCK_TABLE));
-	ut_ad(lock->un_member.tab_lock.table);
-
-	/* This will remove the lock from the trx autoinc_locks too. */
-	lock_table_dequeue(lock);
-
-	/* Remove from the table vector too. */
-	lock_trx_table_locks_remove(lock);
-}
-
-/*******************************************************************//**
 Check if a transaction holds any autoinc locks.
 @return TRUE if the transaction holds any AUTOINC locks. */
 static
@@ -5446,32 +5434,29 @@ lock_trx_holds_autoinc_locks(
 
 /*******************************************************************//**
 Release all the transaction's autoinc locks. */
-static
-void
-lock_release_autoinc_locks(
-/*=======================*/
-	trx_t*		trx)		/*!< in/out: transaction */
+static void lock_release_autoinc_locks(trx_t *trx, bool owns_wait_mutex)
 {
-	lock_sys.mutex_assert_locked();
-	mysql_mutex_assert_owner(&lock_sys.wait_mutex);
-	/* If this is invoked for a running transaction by the thread
-	that is serving the transaction, then it is not necessary to
-	hold trx->mutex here. */
+  lock_sys.mutex_assert_locked();
+#ifdef SAFE_MUTEX
+  ut_ad(owns_wait_mutex == mysql_mutex_is_owner(&lock_sys.wait_mutex));
+#endif /* SAFE_MUTEX */
+  /* Because this is invoked for a running transaction by the thread
+  that is serving the transaction, it is not necessary to hold trx->mutex. */
+  auto autoinc_locks= trx->autoinc_locks;
+  ut_a(autoinc_locks);
 
-	ut_a(trx->autoinc_locks != NULL);
-
-	/* We release the locks in the reverse order. This is to
-	avoid searching the vector for the element to delete at
-	the lower level. See (lock_table_remove_low()) for details. */
-	while (!ib_vector_is_empty(trx->autoinc_locks)) {
-
-		/* lock_table_remove_low() will also remove the lock from
-		the transaction's autoinc_locks vector. */
-		lock_release_autoinc_last_lock(trx->autoinc_locks);
-	}
-
-	/* Should release all locks. */
-	ut_a(ib_vector_is_empty(trx->autoinc_locks));
+  /* We release the locks in the reverse order. This is to avoid
+  searching the vector for the element to delete at the lower level.
+  See (lock_table_remove_low()) for details. */
+  while (ulint size= ib_vector_size(autoinc_locks))
+  {
+    lock_t *lock= *static_cast<lock_t**>
+      (ib_vector_get(autoinc_locks, size - 1));
+    ut_ad(lock->type_mode == (LOCK_AUTO_INC | LOCK_TABLE));
+    ut_ad(lock->un_member.tab_lock.table);
+    lock_table_dequeue(lock, owns_wait_mutex);
+    lock_trx_table_locks_remove(lock);
+  }
 }
 
 /*******************************************************************//**
@@ -5539,12 +5524,12 @@ void lock_cancel_waiting_and_release(lock_t *lock)
   trx->lock.cancel= true;
 
   if (!lock->is_table())
-    lock_rec_dequeue_from_page(lock);
+    lock_rec_dequeue_from_page(lock, true);
   else
   {
     if (trx->autoinc_locks)
-      lock_release_autoinc_locks(trx);
-    lock_table_dequeue(lock);
+      lock_release_autoinc_locks(trx, true);
+    lock_table_dequeue(lock, true);
     /* Remove the lock from table lock vector too. */
     lock_trx_table_locks_remove(lock);
   }
@@ -5580,13 +5565,8 @@ lock_unlock_table_autoinc(
 	necessary to hold trx->mutex here. */
 
 	if (lock_trx_holds_autoinc_locks(trx)) {
-		lock_sys.mutex_lock();
-		mysql_mutex_lock(&lock_sys.wait_mutex);
-
-		lock_release_autoinc_locks(trx);
-
-		lock_sys.mutex_unlock();
-		mysql_mutex_unlock(&lock_sys.wait_mutex);
+		LockMutexGuard g;
+		lock_release_autoinc_locks(trx, false);
 	}
 }
 
