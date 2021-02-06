@@ -2788,8 +2788,7 @@ int JOIN::optimize_stage2()
     Yet the current implementation of FORCE INDEX hints does not
     allow us to do it in a clean manner.
   */
-  no_jbuf_after= 1 ? table_count
-                   : make_join_orderinfo(this);
+  no_jbuf_after= 1 ? table_count : make_join_orderinfo(this);
 
   // Don't use join buffering when we use MATCH
   select_opts_for_readinfo=
@@ -5378,9 +5377,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   if (join->remove_const_from_order_by())
     DBUG_RETURN(TRUE);
 
-  if (join->sort_nest_allowed() && !join->is_order_by_expensive())
-    join->sort_nest_possible= TRUE;
-
+  join->sort_nest_possible= join->sort_nest_allowed();
   join->propagate_equal_field_for_orderby();
 
   join->join_tab= stat;
@@ -7355,10 +7352,14 @@ double adjust_quick_cost(double quick_cost, ha_rows records)
   @param pos              OUT Table access plan
   @param loose_scan_pos   OUT Table plan that uses loosescan, or set cost to 
                               DBL_MAX if not possible.
-  @param cardinality      contains the estimate of records for the best
-                          join order (if the join optimizer is run once
-                          to get the best cardinality else it is set to
-                          DBL_MAX)
+  @param sort_nest_tables set of tables that satisfy the ORDER BY clause
+                          If ORDER BY clause is not satisfied it contains
+                          set of all tables in the prefix
+  @param nest_created     set to TRUE if a prefix join order satisfied
+                          the ORDER BY clause and we can add a sort-nest
+                          on the found prefix
+  @param sort_nest_records  estimate of records to be read from the sort-nest
+
   @return
     None
 */
@@ -7373,7 +7374,8 @@ best_access_path(JOIN      *join,
                  double    record_count,
                  POSITION *pos,
                  POSITION *loose_scan_pos,
-                 table_map sort_nest_tables, bool nest_created,
+                 table_map sort_nest_tables,
+                 bool nest_created,
                  double sort_nest_records)
 {
   THD *thd= join->thd;
@@ -9843,15 +9845,16 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
                           (values: 0 = EXHAUSTIVE, 1 = PRUNE_BY_TIME_OR_ROWS)
   @param use_cond_selectivity  specifies how the selectivity of the conditions
                           pushed to a table should be taken into account
-  @param sort_nest_tables set of tables that satify the ORDER BY clause
-                          If ORDER BY clause is not satisfield it contains
+  @param sort_nest_tables set of tables that satisfy the ORDER BY clause
+                          If ORDER BY clause is not satisfied it contains
                           set of all tables in the prefix
   @param nest_created     set to TRUE if a prefix join order satisfied
                           the ORDER BY clause and we can add a sort-nest
                           on the found prefix
-  @param limit_applied_to_nest TRUE if limit is applied for the sort-nest
-                                    cost calculation
+  @param limit_applied_to_nest  TRUE if limit is applied for the sort-nest
                                 FALSE otherwise
+  @param sort_nest_records      estimate of records to be read from
+                                the sort-nest
 
   @retval
     FALSE       ok
@@ -10425,6 +10428,9 @@ cache_record_length(JOIN *join,uint idx)
 /*
   @brief
     Get an estimate of record length for a materialized nest.
+
+  @param join             JOIN structure
+  @param idx              corresponds to the current depth of the search tree
 */
 
 static ulong
@@ -10453,6 +10459,10 @@ cache_record_length_for_nest(JOIN *join,uint idx)
                  partial join order is in join->positions[0..idx-1])
       found_ref  Bitmap of tables for which we need to find # of distinct
                  row combinations.
+      nest_created     set to TRUE if a prefix join order satisfied
+                          the ORDER BY clause and we can add a sort-nest
+                          on the found prefix
+      sort_nest_records  estimate of records to be read from the sort-nest
 
   DESCRIPTION
     Given a partial join order (in join->positions[0..idx-1]) and a subset of
@@ -13090,6 +13100,10 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 }
 
 
+/*
+  @brief
+  end_select-compatible function that writes the record into a materialized nest
+*/
 enum_nested_loop_state
 end_nest_materialization(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 {
@@ -13872,16 +13886,22 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
 	}
 	if (!table->no_keyread)
 	{
-	  if (tab->select && tab->select->quick &&
-              tab->select->quick->index != MAX_KEY && //not index_merge
-	      table->covering_keys.is_set(tab->select->quick->index))
-            table->file->ha_start_keyread(tab->select->quick->index);
-	  else if ((!table->covering_keys.is_clear_all() &&
-              !(tab->select && tab->select->quick)) ||
-              (sort_nest_info && sort_nest_info->nest_tab == tab &&
-              sort_nest_info->number_of_tables() == 1 &&
-              sort_nest_info->index_used >= 0))
-	  {					// Only read index tree
+	  if (!(tab->select && tab->select->quick &&
+          tab->select->quick->index != MAX_KEY && //not index_merge
+	        table->covering_keys.is_set(tab->select->quick->index)) &&
+           ((!table->covering_keys.is_clear_all() &&
+             !(tab->select && tab->select->quick)) ||
+              /*
+                 The checks here is
+                 1) We have a sort-nest
+                 2) Sort-nest has only 1 table
+                 3) Access method uses an index that resolves the
+                    ORDER BY CLAUSE
+              */
+              (sort_nest_info && sort_nest_info->nest_tab == tab &&  // (1)
+              sort_nest_info->number_of_tables() == 1 &&             // (2)
+              sort_nest_info->index_used >= 0)))                     // (3)
+	     {		// Only read index tree
             if (tab->loosescan_match_tab)
               tab->index= tab->loosescan_key;
             else 
@@ -20824,8 +20844,7 @@ do_select(JOIN *join, Procedure *procedure)
     JOIN_TAB *join_tab= join->join_tab +
                         (join->tables_list ? join->const_tables : 0);
     Sort_nest_info *sort_nest_info= join->sort_nest_info;
-    join_tab= sort_nest_info ? sort_nest_info->nest_tab
-                              : join_tab;
+    join_tab= sort_nest_info ? sort_nest_info->nest_tab : join_tab;
 
     if (join->outer_ref_cond && !join->outer_ref_cond->val_int())
       error= NESTED_LOOP_NO_MORE_ROWS;

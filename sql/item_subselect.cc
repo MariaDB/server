@@ -767,13 +767,6 @@ Item* Item_subselect::transform(THD *thd, Item_transformer transformer,
     return (this->*transformer)(thd, arg);
   }
 
-  /*
-      TODO(varun): this is needed for the sort-nest when we have dependent
-      subqueries, for such cases we would need to introduce a new
-      parameter to transform function like transform_subquery,
-      if set to TRUE we would change the inner contents of the
-      subquery also.
-  */
   if (transform_subquery)
   {
     for (SELECT_LEX *lex= unit->first_select(); lex; lex= lex->next_select())

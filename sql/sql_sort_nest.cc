@@ -685,13 +685,16 @@ bool JOIN::create_sort_nest_info(uint n_tables, table_map nest_tables_map)
 }
 
 
+/*
+  @brief
+    Substitute the ORDER by items with the best field in accordance
+    with the chosen plan
+*/
+
 void JOIN::substitute_best_fields_for_order_by_items()
 {
   ORDER *ord;
-  /*
-    Substitute the ORDER by items with the best field so that equality
-    propagation considered during best_access_path can be used.
-  */
+
   for (ord= order; ord; ord=ord->next)
   {
     Item *item= ord->item[0];
@@ -740,12 +743,6 @@ bool JOIN::make_sort_nest(Mat_join_tab_nest_info *nest_info)
     of the sort-nest. Currently Item_field objects are created for the tables
     inside the sort-nest for all the  fields which have bitmap read_set
     set for them.
-
-    TODO varun:
-      An improvement would be if to remove the fields from this
-      list that are completely internal to the nest because such
-      fields would not be used in computing expression in the post
-      ORDER BY context
   */
 
   for (j= join_tab + const_tables; j < nest_info->nest_tab; j++)
@@ -1392,17 +1389,20 @@ void JOIN::set_fraction_output_for_nest()
     So this function disables the use of sort-nest for such operations.
 
     Sort nest is not allowed for
-    1) No ORDER BY clause
-    2) Only constant tables in the join
-    3) DISTINCT CLAUSE
-    4) GROUP BY CLAUSE
-    5) HAVING clause
-    6) Aggregate Functions
-    7) Window Functions
-    8) Using ROLLUP
-    9) Using SQL_BUFFER_RESULT
-    10) LIMIT is absent
-    11) Only SELECT queries can use the sort nest
+    1) ORDER BY LIMIT optimization is disabled
+    2) No ORDER BY clause
+    3) Only constant tables in the join
+    4) DISTINCT CLAUSE
+    5) GROUP BY CLAUSE
+    6) HAVING clause
+    7) Aggregate Functions
+    8) Window Functions
+    9) Using ROLLUP
+    10) Using SQL_BUFFER_RESULT
+    11) LIMIT is absent
+    12) Only SELECT queries can use the sort nest
+    13) SELECT is not a DEPENDENT SUBQUERY
+    14) NO STRAIGHT JOIN
 
   @retval
    TRUE     Sort-nest is allowed
@@ -1424,7 +1424,8 @@ bool JOIN::sort_nest_allowed()
            select_limit == HA_POS_ERROR ||
            thd->lex->sql_command != SQLCOM_SELECT ||
            select_lex->uncacheable & UNCACHEABLE_DEPENDENT ||
-           MY_TEST(select_options & SELECT_STRAIGHT_JOIN));
+           MY_TEST(select_options & SELECT_STRAIGHT_JOIN) ||
+           is_order_by_expensive());
 }
 
 
@@ -1433,6 +1434,7 @@ bool JOIN::sort_nest_allowed()
     Consider adding a sort-nest on a prefix of the join
 
   @param prefix_tables           map of all the tables in the prefix
+  @param idx                     the length of the partial plan
 
   @details
     This function is used during the join planning stage, where the join
@@ -1443,7 +1445,9 @@ bool JOIN::sort_nest_allowed()
       2) Join planner is run to get the cardinality of the join
       3) All inner tables of an outer join are inside the nest or outside
       4) All inner tables of a semi-join are inside the nest or outside
-      5) Given prefix cannot resolve the ORDER BY clause
+      5) Give prefix does not ensure duplicate removal with duplicate weedout
+         strategy
+      6) Given prefix cannot resolve the ORDER BY clause
 
   @retval
     TRUE   sort-nest can be added on a prefix of a join
@@ -1456,15 +1460,27 @@ bool JOIN::consider_adding_sort_nest(table_map prefix_tables, uint idx)
       get_cardinality_estimate ||                   // (2)
       cur_embedding_map ||                          // (3)
       cur_sj_inner_tables ||                        // (4)
-      extend_prefix_to_ensure_duplicate_removal(prefix_tables, idx))
+      extend_prefix_to_ensure_duplicate_removal(prefix_tables, idx)) // (5)
     return FALSE;
 
-  return check_join_prefix_resolves_ordering(prefix_tables);  // (5)
+  return check_join_prefix_resolves_ordering(prefix_tables);  // (6)
 }
 
 
+/*
+@brief
+  Check if a current join prefix can ensure duplicate removal
+
+@param prefix_tables          map of tables in the prefix of the partial plan
+@idx                          length of current partial plan
+
+@retval
+  TRUE    Extend the join prefix to ensure duplicate removal
+  FALSE   OTHERWISE
+*/
 bool
-JOIN::extend_prefix_to_ensure_duplicate_removal(table_map prefix_tables, uint idx)
+JOIN::extend_prefix_to_ensure_duplicate_removal(table_map prefix_tables,
+                                                uint idx)
 {
   if (!select_lex->have_merged_subqueries)
     return FALSE;
@@ -1481,7 +1497,7 @@ JOIN::extend_prefix_to_ensure_duplicate_removal(table_map prefix_tables, uint id
   Semi_join_strategy_picker **strategy;
   for (strategy= pickers; *strategy != NULL; strategy++)
   {
-    if ((*strategy)->sort_nest_allowed_for_sj(prefix_tables))
+    if (!(*strategy)->sort_nest_allowed_for_sj(prefix_tables))
       return TRUE;
   }
   return FALSE;

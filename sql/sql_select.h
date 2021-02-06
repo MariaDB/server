@@ -742,7 +742,10 @@ public:
                          struct st_position *loose_scan_pos) = 0;
 
   virtual void mark_used() = 0;
-  virtual bool sort_nest_allowed_for_sj(table_map prefix_tables) = 0;
+  virtual bool sort_nest_allowed_for_sj(table_map prefix_tables)
+  {
+    return TRUE;
+  }
 
   virtual ~Semi_join_strategy_picker() {} 
 };
@@ -830,7 +833,6 @@ public:
                  struct st_position *loose_scan_pos);
 
   void mark_used() { is_used= TRUE; }
-  bool sort_nest_allowed_for_sj(table_map remaining_tables) { return FALSE; }
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 };
 
@@ -873,7 +875,6 @@ public:
                  sj_strategy_enum *strategy,
                  struct st_position *loose_scan_pos);
   void mark_used() { is_used= TRUE; }
-  bool sort_nest_allowed_for_sj(table_map remaining_tables) { return FALSE; }
   friend class Loose_scan_opt;
   friend void best_access_path(JOIN      *join,
                                JOIN_TAB  *s,
@@ -923,7 +924,6 @@ public:
                  sj_strategy_enum *strategy,
                  struct st_position *loose_scan_pos);
   void mark_used() { is_used= TRUE; }
-  bool sort_nest_allowed_for_sj(table_map remaining_tables) { return FALSE; }
 
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 };

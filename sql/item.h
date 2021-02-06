@@ -6923,22 +6923,6 @@ public:
       return TRUE;
     return (this->*processor)(arg);
   }
-  // TODO:varun need to enable this
-  Item *transform(THD *thd, Item_transformer transformer,
-                  bool transform_subquery, uchar *arg)
-  {
-    if (transform_subquery)
-    {
-      if (example)
-      {
-        Item *new_item= example->transform(thd, transformer,
-                                           transform_subquery, arg);
-        if (new_item != example)
-          setup(thd, new_item);
-      }
-    }
-    return (this->*transformer)(thd, arg);
-  }
   virtual Item *safe_charset_converter(THD *thd, CHARSET_INFO *tocs);
   void split_sum_func2_example(THD *thd,  Ref_ptr_array ref_pointer_array,
                                List<Item> &fields, uint flags)
