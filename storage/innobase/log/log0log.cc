@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1086,7 +1086,7 @@ wait_suspend_loop:
 
 	if (buf_page_cleaner_is_active) {
 		thread_name = "page cleaner thread";
-		mysql_cond_signal(&buf_pool.do_flush_list);
+		pthread_cond_signal(&buf_pool.do_flush_list);
 		goto wait_suspend_loop;
 	}
 

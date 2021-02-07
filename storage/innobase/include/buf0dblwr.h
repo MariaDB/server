@@ -61,7 +61,7 @@ class buf_dblwr_t
   /** mutex protecting the data members below */
   mysql_mutex_t mutex;
   /** condition variable for !batch_running */
-  mysql_cond_t cond;
+  pthread_cond_t cond;
   /** whether a batch is being written from the doublewrite buffer */
   bool batch_running;
   /** number of expected flush_buffered_writes_completed() calls */
@@ -160,7 +160,7 @@ public:
     {
       mysql_mutex_lock(&mutex);
       while (batch_running)
-        mysql_cond_wait(&cond, &mutex);
+        my_cond_wait(&cond, &mutex.m_mutex);
       mysql_mutex_unlock(&mutex);
     }
   }

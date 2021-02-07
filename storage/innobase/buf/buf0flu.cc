@@ -138,7 +138,7 @@ inline void buf_pool_t::page_cleaner_wakeup()
       srv_max_buf_pool_modified_pct <= dirty_pct)
   {
     page_cleaner_is_idle= false;
-    mysql_cond_signal(&do_flush_list);
+    pthread_cond_signal(&do_flush_list);
   }
 }
 
@@ -396,12 +396,12 @@ void buf_page_write_complete(const IORequest &request)
   {
     buf_LRU_free_page(bpage, true);
     if (!--buf_pool.n_flush_LRU)
-      mysql_cond_broadcast(&buf_pool.done_flush_LRU);
+      pthread_cond_broadcast(&buf_pool.done_flush_LRU);
   }
   else
   {
     if (!--buf_pool.n_flush_list)
-      mysql_cond_broadcast(&buf_pool.done_flush_list);
+      pthread_cond_broadcast(&buf_pool.done_flush_list);
   }
 
   mysql_mutex_unlock(&buf_pool.mutex);
@@ -1512,11 +1512,11 @@ void buf_flush_wait_batch_end(bool lru)
     tpool::tpool_wait_begin();
     thd_wait_begin(nullptr, THD_WAIT_DISKIO);
     do
-      mysql_cond_wait(cond, &buf_pool.mutex);
+      my_cond_wait(cond, &buf_pool.mutex.m_mutex);
     while (n_flush);
     tpool::tpool_wait_end();
     thd_wait_end(nullptr);
-    mysql_cond_broadcast(cond);
+    pthread_cond_broadcast(cond);
   }
 }
 
@@ -1571,7 +1571,7 @@ ulint buf_flush_lists(ulint max_n, lsn_t lsn)
   if (running || (lsn && !UT_LIST_GET_LEN(buf_pool.flush_list)))
   {
     if (!running)
-      mysql_cond_broadcast(cond);
+      pthread_cond_broadcast(cond);
     mysql_mutex_unlock(&buf_pool.mutex);
     return 0;
   }
@@ -1588,7 +1588,7 @@ ulint buf_flush_lists(ulint max_n, lsn_t lsn)
   mysql_mutex_unlock(&buf_pool.mutex);
 
   if (!n_flushing)
-    mysql_cond_broadcast(cond);
+    pthread_cond_broadcast(cond);
 
   buf_dblwr.flush_buffered_writes();
 
@@ -1749,14 +1749,15 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn)
     if (buf_flush_sync_lsn < sync_lsn)
     {
       buf_flush_sync_lsn= sync_lsn;
-      mysql_cond_signal(&buf_pool.do_flush_list);
+      pthread_cond_signal(&buf_pool.do_flush_list);
     }
 
     do
     {
       tpool::tpool_wait_begin();
       thd_wait_begin(nullptr, THD_WAIT_DISKIO);
-      mysql_cond_wait(&buf_pool.done_flush_list, &buf_pool.flush_list_mutex);
+      my_cond_wait(&buf_pool.done_flush_list,
+                   &buf_pool.flush_list_mutex.m_mutex);
       thd_wait_end(nullptr);
       tpool::tpool_wait_end();
 
@@ -1788,7 +1789,7 @@ void buf_flush_ahead(lsn_t lsn)
     if (buf_flush_sync_lsn < lsn)
     {
       buf_flush_sync_lsn= lsn;
-      mysql_cond_signal(&buf_pool.do_flush_list);
+      pthread_cond_signal(&buf_pool.do_flush_list);
     }
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   }
@@ -1866,7 +1867,7 @@ ATTRIBUTE_COLD static void buf_flush_sync_for_checkpoint(lsn_t lsn)
       buf_flush_sync_lsn= 0;
 
     /* wake up buf_flush_wait_flushed() */
-    mysql_cond_broadcast(&buf_pool.done_flush_list);
+    pthread_cond_broadcast(&buf_pool.done_flush_list);
 
     lsn= std::max(lsn, target);
 
@@ -2095,10 +2096,11 @@ furious_flush:
       break;
 
     if (buf_pool.page_cleaner_idle())
-      mysql_cond_wait(&buf_pool.do_flush_list, &buf_pool.flush_list_mutex);
+      my_cond_wait(&buf_pool.do_flush_list,
+                   &buf_pool.flush_list_mutex.m_mutex);
     else
-      mysql_cond_timedwait(&buf_pool.do_flush_list, &buf_pool.flush_list_mutex,
-                           &abstime);
+      my_cond_timedwait(&buf_pool.do_flush_list,
+                        &buf_pool.flush_list_mutex.m_mutex, &abstime);
 
     set_timespec(abstime, 1);
 
@@ -2120,7 +2122,7 @@ furious_flush:
       {
         buf_flush_sync_lsn= 0;
         /* wake up buf_flush_wait_flushed() */
-        mysql_cond_broadcast(&buf_pool.done_flush_list);
+        pthread_cond_broadcast(&buf_pool.done_flush_list);
       }
 unemployed:
       buf_pool.page_cleaner_set_idle(true);
@@ -2156,7 +2158,7 @@ unemployed:
     {
       n_flushed= buf_flush_lists(srv_max_io_capacity, lsn_limit);
       /* wake up buf_flush_wait_flushed() */
-      mysql_cond_broadcast(&buf_pool.done_flush_list);
+      pthread_cond_broadcast(&buf_pool.done_flush_list);
       goto try_checkpoint;
     }
     else if (!srv_adaptive_flushing)
@@ -2233,7 +2235,7 @@ next:
   if (UNIV_UNLIKELY(lsn_limit != 0))
     goto furious_flush;
   buf_page_cleaner_is_active= false;
-  mysql_cond_broadcast(&buf_pool.done_flush_list);
+  pthread_cond_broadcast(&buf_pool.done_flush_list);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
   my_thread_end();
@@ -2287,8 +2289,8 @@ ATTRIBUTE_COLD void buf_flush_buffer_pool()
       set_timespec(abstime, INNODB_EXTEND_TIMEOUT_INTERVAL / 2);
       mysql_mutex_lock(&buf_pool.mutex);
       while (buf_pool.n_flush_list)
-        mysql_cond_timedwait(&buf_pool.done_flush_list, &buf_pool.mutex,
-                             &abstime);
+        my_cond_timedwait(&buf_pool.done_flush_list, &buf_pool.mutex.m_mutex,
+                          &abstime);
       mysql_mutex_unlock(&buf_pool.mutex);
     }
   }

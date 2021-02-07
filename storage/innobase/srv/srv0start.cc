@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -2017,9 +2017,9 @@ void innodb_shutdown()
 		}
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 		while (buf_page_cleaner_is_active) {
-			mysql_cond_signal(&buf_pool.do_flush_list);
-			mysql_cond_wait(&buf_pool.done_flush_list,
-					&buf_pool.flush_list_mutex);
+			pthread_cond_signal(&buf_pool.do_flush_list);
+			my_cond_wait(&buf_pool.done_flush_list,
+				     &buf_pool.flush_list_mutex.m_mutex);
 		}
 		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 		break;
