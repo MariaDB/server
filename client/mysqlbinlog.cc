@@ -89,6 +89,7 @@ static uint opt_protocol= 0;
 static FILE *result_file;
 static char *result_file_name= 0;
 static const char *output_prefix= "";
+static char **defaults_argv= 0;
 
 #ifndef DBUG_OFF
 static const char *default_dbug_option = "d:t:o,/tmp/mysqlbinlog.trace";
@@ -1881,13 +1882,26 @@ static void cleanup()
   delete glob_description_event;
   if (mysql)
     mysql_close(mysql);
+  free_defaults(defaults_argv);
+  free_annotate_event();
+  my_free_open_file_info();
+  load_processor.destroy();
+  mysql_server_end();
   DBUG_VOID_RETURN;
+}
+
+
+static void die()
+{
+  cleanup();
+  my_end(MY_DONT_FREE_DBUG);
+  exit(1);
 }
 
 
 static void print_version()
 {
-  printf("%s Ver 3.4 for %s at %s\n", my_progname, SYSTEM_TYPE, MACHINE_TYPE);
+  printf("%s Ver 3.5 for %s at %s\n", my_progname, SYSTEM_TYPE, MACHINE_TYPE);
 }
 
 
@@ -1918,7 +1932,7 @@ static my_time_t convert_str_to_timestamp(const char* str)
       l_time.time_type != MYSQL_TIMESTAMP_DATETIME || status.warnings)
   {
     error("Incorrect date and time argument: %s", str);
-    exit(1);
+    die();
   }
   /*
     Note that Feb 30th, Apr 31st cause no error messages and are mapped to
@@ -1977,7 +1991,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
                                               opt->name)) <= 0)
     {
       sf_leaking_memory= 1; /* no memory leak reports here */
-      exit(1);
+      die();
     }
     break;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
@@ -2002,7 +2016,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
                                        opt->name)) <= 0)
       {
         sf_leaking_memory= 1; /* no memory leak reports here */
-        exit(1);
+        die();
       }
       opt_base64_output_mode= (enum_base64_output_mode) (val - 1);
     }
@@ -2087,7 +2101,9 @@ static int parse_args(int *argc, char*** argv)
   int ho_error;
 
   if ((ho_error=handle_options(argc, argv, my_options, get_one_option)))
-    exit(ho_error);
+  {
+    die();
+  }
   if (debug_info_flag)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   else if (debug_check_flag)
@@ -3007,7 +3023,6 @@ end:
 
 int main(int argc, char** argv)
 {
-  char **defaults_argv;
   Exit_status retval= OK_CONTINUE;
   ulonglong save_stop_position;
   MY_INIT(argv[0]);
@@ -3058,7 +3073,7 @@ int main(int argc, char** argv)
     if (!remote_opt)
     {
       error("The --raw mode only works with --read-from-remote-server");
-      exit(1);
+      die();
     }
     if (one_database)
       warning("The --database option is ignored in raw mode");
@@ -3080,7 +3095,7 @@ int main(int argc, char** argv)
                                   O_WRONLY | O_BINARY, MYF(MY_WME))))
       {
         error("Could not create log file '%s'", result_file_name);
-        exit(1);
+        die();
       }
     }
     else
@@ -3201,11 +3216,6 @@ int main(int argc, char** argv)
   if (result_file && result_file != stdout)
     my_fclose(result_file, MYF(0));
   cleanup();
-  free_annotate_event();
-  free_defaults(defaults_argv);
-  my_free_open_file_info();
-  load_processor.destroy();
-  mysql_server_end();
   /* We cannot free DBUG, it is used in global destructors after exit(). */
   my_end(my_end_arg | MY_DONT_FREE_DBUG);
 
@@ -3215,7 +3225,6 @@ int main(int argc, char** argv)
 
 err:
   cleanup();
-  free_defaults(defaults_argv);
   my_end(my_end_arg);
   exit(retval == ERROR_STOP ? 1 : 0);
   DBUG_RETURN(retval == ERROR_STOP ? 1 : 0);
