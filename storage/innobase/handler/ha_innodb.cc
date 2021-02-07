@@ -509,19 +509,12 @@ const struct _ft_vft_ext ft_vft_ext_result = {innobase_fts_get_version,
 /* All RWLOCK used in Innodb are SX-locks */
 # define PSI_RWLOCK_KEY(n) {&n##_key, #n, PSI_RWLOCK_FLAG_SX}
 
-/* Keys to register pthread mutexes/cond in the current file with
+/* Keys to register pthread mutexes in the current file with
 performance schema */
-static mysql_pfs_key_t	commit_cond_mutex_key;
-static mysql_pfs_key_t	commit_cond_key;
 static mysql_pfs_key_t	pending_checkpoint_mutex_key;
 
 static PSI_mutex_info	all_pthread_mutexes[] = {
-	PSI_KEY(commit_cond_mutex),
 	PSI_KEY(pending_checkpoint_mutex),
-};
-
-static PSI_cond_info	all_innodb_conds[] = {
-	PSI_KEY(commit_cond)
 };
 
 # ifdef UNIV_PFS_MUTEX
@@ -3917,9 +3910,6 @@ static int innodb_init(void* p)
 	count = array_elements(all_innodb_files);
 	mysql_file_register("innodb", all_innodb_files, count);
 # endif /* UNIV_PFS_IO */
-
-	count = array_elements(all_innodb_conds);
-	mysql_cond_register("innodb", all_innodb_conds, count);
 #endif /* HAVE_PSI_INTERFACE */
 
 	bool	create_new_db = false;
