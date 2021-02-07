@@ -8229,6 +8229,8 @@ best_access_path(JOIN      *join,
     join->sort_by_table= (TABLE*) 1;  // Must use temporary table
   }
 
+  trace_access_scan.end();
+
   /*
     Use the estimate of rows read for a table for range/table scan
     from TABLE::quick_condition_rows. This is due to the reason
@@ -8297,7 +8299,6 @@ best_access_path(JOIN      *join,
   pos->sort_nest_operation_here= FALSE;
   pos->index_no= index_picked;
 
-  trace_access_scan.end();
   trace_paths.end();
 
   loose_scan_opt.save_to_position(s, loose_scan_pos);
@@ -13923,7 +13924,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
                   sort_nest_info->index_used >= 0)
               {
                 tab->index= sort_nest_info->index_used;
-                tab->limit= tab->records_read;
+                tab->limit= (ha_rows)tab->records_read;
               }
               else
                 tab->index=find_shortest_key(table, &table->covering_keys);
@@ -29140,7 +29141,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
         } /* group */
 
         find_cost_of_index_with_ordering(thd, tab, table, &select_limit,
-                                         fanout, refkey_rows_estimate,
+                                         fanout, (double) refkey_rows_estimate,
                                          nr, &index_scan_time,
                                          &possible_key);
 
