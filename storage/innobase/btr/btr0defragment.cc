@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2012, 2014 Facebook, Inc. All Rights Reserved.
-Copyright (C) 2014, 2020, MariaDB Corporation.
+Copyright (C) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -56,11 +56,11 @@ struct btr_defragment_item_t
   /** persistent cursor where btr_defragment_n_pages should start */
   btr_pcur_t * const pcur;
   /** completion signal */
-  mysql_cond_t *cond;
+  pthread_cond_t *cond;
   /** timestamp of last time this index is processed by defragment thread */
   ulonglong last_processed= 0;
 
-  btr_defragment_item_t(btr_pcur_t *pcur, mysql_cond_t *cond)
+  btr_defragment_item_t(btr_pcur_t *pcur, pthread_cond_t *cond)
     : pcur(pcur), cond(cond) {}
 };
 
@@ -126,7 +126,7 @@ btr_defragment_shutdown()
 		btr_defragment_item_t* item = *iter;
 		iter = btr_defragment_wq.erase(iter);
 		if (item->cond) {
-			mysql_cond_signal(item->cond);
+			pthread_cond_signal(item->cond);
 		}
 	}
 	mysql_mutex_unlock(&btr_defragment_mutex);
@@ -169,8 +169,8 @@ btr_defragment_find_index(
 bool btr_defragment_add_index(btr_pcur_t *pcur, THD *thd)
 {
   dict_stats_empty_defrag_summary(pcur->btr_cur.index);
-  mysql_cond_t cond;
-  mysql_cond_init(0, &cond, nullptr);
+  pthread_cond_t cond;
+  pthread_cond_init(&cond, nullptr);
   btr_defragment_item_t item(pcur, &cond);
   mysql_mutex_lock(&btr_defragment_mutex);
   btr_defragment_wq.push_back(&item);
@@ -182,7 +182,7 @@ bool btr_defragment_add_index(btr_pcur_t *pcur, THD *thd)
   {
     timespec abstime;
     set_timespec(abstime, 1);
-    if (!mysql_cond_timedwait(&cond, &btr_defragment_mutex, &abstime))
+    if (!my_cond_timedwait(&cond, &btr_defragment_mutex.m_mutex, &abstime))
       break;
     if (thd_killed(thd))
     {
@@ -192,7 +192,7 @@ bool btr_defragment_add_index(btr_pcur_t *pcur, THD *thd)
     }
   }
 
-  mysql_cond_destroy(&cond);
+  pthread_cond_destroy(&cond);
   mysql_mutex_unlock(&btr_defragment_mutex);
   return interrupted;
 }
@@ -210,7 +210,7 @@ btr_defragment_remove_table(
   {
     if (item->cond && table == item->pcur->btr_cur.index->table)
     {
-      mysql_cond_signal(item->cond);
+      pthread_cond_signal(item->cond);
       item->cond= nullptr;
     }
   }
@@ -704,7 +704,7 @@ processed:
 
 			mysql_mutex_lock(&btr_defragment_mutex);
 			if (item->cond) {
-				mysql_cond_signal(item->cond);
+				pthread_cond_signal(item->cond);
 			}
 			goto processed;
 		}

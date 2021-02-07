@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -295,7 +295,7 @@ fts_cache_destroy(fts_cache_t* cache)
 	mysql_mutex_destroy(&cache->init_lock);
 	mysql_mutex_destroy(&cache->deleted_lock);
 	mysql_mutex_destroy(&cache->doc_id_lock);
-	mysql_cond_destroy(&cache->sync->cond);
+	pthread_cond_destroy(&cache->sync->cond);
 
 	if (cache->stopword_info.cached_stopword) {
 		rbt_free(cache->stopword_info.cached_stopword);
@@ -636,7 +636,7 @@ fts_cache_create(
 		mem_heap_zalloc(heap, sizeof(fts_sync_t)));
 
 	cache->sync->table = table;
-	mysql_cond_init(0, &cache->sync->cond, nullptr);
+	pthread_cond_init(&cache->sync->cond, nullptr);
 
 	/* Create the index cache vector that will hold the inverted indexes. */
 	cache->indexes = ib_vector_create(
@@ -3522,9 +3522,9 @@ fts_add_doc_by_id(
 					fts_optimize_request_sync_table(table);
 					mysql_mutex_lock(&cache->lock);
 					if (cache->sync->in_progress)
-						mysql_cond_wait(
+						my_cond_wait(
 							&cache->sync->cond,
-							&cache->lock);
+							&cache->lock.m_mutex);
 					mysql_mutex_unlock(&cache->lock);
 				);
 
@@ -4249,7 +4249,7 @@ fts_sync(
 			return(DB_SUCCESS);
 		}
 		do {
-			mysql_cond_wait(&sync->cond, &cache->lock);
+			my_cond_wait(&sync->cond, &cache->lock.m_mutex);
 		} while (sync->in_progress);
 	}
 
@@ -4320,7 +4320,7 @@ end_sync:
 	ut_ad(sync->in_progress);
 	sync->interrupted = false;
 	sync->in_progress = false;
-	mysql_cond_broadcast(&sync->cond);
+	pthread_cond_broadcast(&sync->cond);
 	mysql_mutex_unlock(&cache->lock);
 
 	/* We need to check whether an optimize is required, for that

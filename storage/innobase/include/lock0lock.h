@@ -668,8 +668,8 @@ public:
   void mutex_assert_unlocked() const { mysql_mutex_assert_not_owner(&mutex); }
 
   /** Wait for a lock to be granted */
-  void wait_lock(lock_t **lock, mysql_cond_t *cond)
-  { while (*lock) mysql_cond_wait(cond, &mutex); }
+  void wait_lock(lock_t **lock, pthread_cond_t *cond)
+  { while (*lock) my_cond_wait(cond, &mutex.m_mutex); }
 
   /**
     Creates the lock system at database start.

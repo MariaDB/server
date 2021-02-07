@@ -3118,7 +3118,7 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
 /** Condition variable for innodb_disallow_writes */
-static mysql_cond_t allow_writes_cond;
+static pthread_cond_t allow_writes_cond;
 #endif /* WITH_INNODB_DISALLOW_WRITES */
 
 /*********************************************************************//**
@@ -3139,7 +3139,7 @@ static int innodb_init_abort()
 	srv_tmp_space.shutdown();
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
-	mysql_cond_destroy(&allow_writes_cond);
+	pthread_cond_destroy(&allow_writes_cond);
 #endif /* WITH_INNODB_DISALLOW_WRITES */
 	DBUG_RETURN(1);
 }
@@ -3661,7 +3661,7 @@ static int innodb_init(void* p)
 	innodb_init_abort(). */
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
-	mysql_cond_init(0, &allow_writes_cond, nullptr);
+	pthread_cond_init(&allow_writes_cond, nullptr);
 #endif /* WITH_INNODB_DISALLOW_WRITES */
 
 #ifdef HAVE_PSI_INTERFACE
@@ -3780,7 +3780,7 @@ innobase_end(handlerton*, ha_panic_function)
 
 		innodb_shutdown();
 #ifdef WITH_INNODB_DISALLOW_WRITES
-		mysql_cond_destroy(&allow_writes_cond);
+		pthread_cond_destroy(&allow_writes_cond);
 #endif /* WITH_INNODB_DISALLOW_WRITES */
 		mysql_mutex_destroy(&pending_checkpoint_mutex);
 	}
@@ -18868,7 +18868,7 @@ void innodb_wait_allow_writes()
   {
     mysql_mutex_lock(&LOCK_global_system_variables);
     while (innodb_disallow_writes)
-      mysql_cond_wait(&allow_writes_cond, &LOCK_global_system_variables);
+      my_cond_wait(&allow_writes_cond, &LOCK_global_system_variables.m_mutex);
     mysql_mutex_unlock(&LOCK_global_system_variables);
   }
 }
@@ -18884,7 +18884,7 @@ innobase_disallow_writes_update(THD*, st_mysql_sys_var*,
 	*static_cast<my_bool*>(var_ptr) = val;
 	mysql_mutex_unlock(&LOCK_global_system_variables);
 	if (!val) {
-		mysql_cond_broadcast(&allow_writes_cond);
+		pthread_cond_broadcast(&allow_writes_cond);
 	}
 	mysql_mutex_lock(&LOCK_global_system_variables);
 }

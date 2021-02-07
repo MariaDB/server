@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -216,7 +216,7 @@ row_fts_psort_info_init(
 	common_info->old_zip_size = old_zip_size;
 	common_info->trx = trx;
 	common_info->all_info = psort_info;
-	mysql_cond_init(0, &common_info->sort_cond, nullptr);
+	pthread_cond_init(&common_info->sort_cond, nullptr);
 	common_info->opt_doc_id_size = opt_doc_id_size;
 
 	if (log_tmp_is_encrypted()) {
@@ -336,7 +336,7 @@ row_fts_psort_info_destroy(
 			mysql_mutex_destroy(&psort_info[j].mutex);
 		}
 
-		mysql_cond_destroy(&merge_info[0].psort_common->sort_cond);
+		pthread_cond_destroy(&merge_info[0].psort_common->sort_cond);
 		ut_free(merge_info[0].psort_common->dup);
 		ut_free(merge_info[0].psort_common);
 		ut_free(psort_info);
@@ -1052,7 +1052,7 @@ func_exit:
 
 	mysql_mutex_lock(&psort_info->mutex);
 	psort_info->child_status = FTS_CHILD_COMPLETE;
-	mysql_cond_signal(&psort_info->psort_common->sort_cond);
+	pthread_cond_signal(&psort_info->psort_common->sort_cond);
 	mysql_mutex_unlock(&psort_info->mutex);
 }
 

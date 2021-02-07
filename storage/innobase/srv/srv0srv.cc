@@ -151,7 +151,7 @@ ulong	innodb_compression_algorithm;
 /** Used by SET GLOBAL innodb_master_thread_disabled_debug = X. */
 my_bool	srv_master_thread_disabled_debug;
 /** Event used to inform that master thread is disabled. */
-static mysql_cond_t srv_master_thread_disabled_cond;
+static pthread_cond_t srv_master_thread_disabled_cond;
 #endif /* UNIV_DEBUG */
 
 /*------------------------- LOG FILES ------------------------ */
@@ -648,7 +648,7 @@ static void srv_init()
 	UT_LIST_INIT(srv_sys.tasks, &que_thr_t::queue);
 
 	need_srv_free = true;
-	ut_d(mysql_cond_init(0, &srv_master_thread_disabled_cond, nullptr));
+	ut_d(pthread_cond_init(&srv_master_thread_disabled_cond, nullptr));
 
 	mysql_mutex_init(page_zip_stat_per_index_mutex_key,
 			 &page_zip_stat_per_index_mutex, nullptr);
@@ -672,7 +672,7 @@ srv_free(void)
 	mysql_mutex_destroy(&page_zip_stat_per_index_mutex);
 	mysql_mutex_destroy(&srv_sys.tasks_mutex);
 
-	ut_d(mysql_cond_destroy(&srv_master_thread_disabled_cond));
+	ut_d(pthread_cond_destroy(&srv_master_thread_disabled_cond));
 
 	trx_i_s_cache_free(trx_i_s_cache);
 	srv_thread_pool_end();
@@ -1544,8 +1544,8 @@ static void srv_master_do_disabled_loop()
   srv_main_thread_op_info = "disabled";
   mysql_mutex_lock(&LOCK_global_system_variables);
   while (srv_master_thread_disabled_debug)
-    mysql_cond_wait(&srv_master_thread_disabled_cond,
-                    &LOCK_global_system_variables);
+    my_cond_wait(&srv_master_thread_disabled_cond,
+                 &LOCK_global_system_variables.m_mutex);
   mysql_mutex_unlock(&LOCK_global_system_variables);
   srv_main_thread_op_info = "";
 }
@@ -1561,7 +1561,7 @@ srv_master_thread_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
   const bool disable= *static_cast<const my_bool*>(save);
   srv_master_thread_disabled_debug= disable;
   if (!disable)
-    mysql_cond_signal(&srv_master_thread_disabled_cond);
+    pthread_cond_signal(&srv_master_thread_disabled_cond);
 }
 
 /** Enable the master thread on shutdown. */
@@ -1571,7 +1571,7 @@ void srv_master_thread_enable()
   {
     mysql_mutex_lock(&LOCK_global_system_variables);
     srv_master_thread_disabled_debug= FALSE;
-    mysql_cond_signal(&srv_master_thread_disabled_cond);
+    pthread_cond_signal(&srv_master_thread_disabled_cond);
     mysql_mutex_unlock(&LOCK_global_system_variables);
   }
 }

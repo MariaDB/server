@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -212,7 +212,7 @@ struct recv_sys_t
 private:
   /** condition variable for
   !apply_batch_on || pages.empty() || found_corrupt_log || found_corrupt_fs */
-  mysql_cond_t cond;
+  pthread_cond_t cond;
   /** whether recv_apply_hashed_log_recs() is running */
   bool apply_batch_on;
   /** set when finding a corrupt log block or record, or there is a

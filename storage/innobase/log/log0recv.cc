@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -939,7 +939,7 @@ void recv_sys_t::close()
 
     last_stored_lsn= 0;
     mysql_mutex_destroy(&mutex);
-    mysql_cond_destroy(&cond);
+    pthread_cond_destroy(&cond);
   }
 
   recv_spaces.clear();
@@ -954,7 +954,7 @@ void recv_sys_t::create()
 	ut_ad(this == &recv_sys);
 	ut_ad(!is_initialised());
 	mysql_mutex_init(recv_sys_mutex_key, &mutex, nullptr);
-	mysql_cond_init(0, &cond, nullptr);
+	pthread_cond_init(&cond, nullptr);
 
 	apply_log_recs = false;
 	apply_batch_on = false;
@@ -998,7 +998,7 @@ inline void recv_sys_t::clear()
     block= prev_block;
   }
 
-  mysql_cond_broadcast(&cond);
+  pthread_cond_broadcast(&cond);
 }
 
 /** Free most recovery data structures. */
@@ -2465,7 +2465,7 @@ ATTRIBUTE_COLD void recv_sys_t::free_corrupted_page(page_id_t page_id)
     pages.erase(p);
   }
   if (pages.empty())
-    mysql_cond_broadcast(&cond);
+    pthread_cond_broadcast(&cond);
   mysql_mutex_unlock(&mutex);
 }
 
@@ -2475,14 +2475,14 @@ inline void recv_sys_t::maybe_finish_batch()
   mysql_mutex_assert_owner(&mutex);
   ut_ad(recovery_on);
   if (!apply_batch_on || pages.empty() || is_corrupt_log() || is_corrupt_fs())
-    mysql_cond_broadcast(&cond);
+    pthread_cond_broadcast(&cond);
 }
 
 ATTRIBUTE_COLD void recv_sys_t::set_corrupt_log()
 {
   mysql_mutex_lock(&mutex);
   found_corrupt_log= true;
-  mysql_cond_broadcast(&cond);
+  pthread_cond_broadcast(&cond);
   mysql_mutex_unlock(&mutex);
 }
 
@@ -2490,7 +2490,7 @@ ATTRIBUTE_COLD void recv_sys_t::set_corrupt_fs()
 {
   mysql_mutex_lock(&mutex);
   found_corrupt_fs= true;
-  mysql_cond_broadcast(&cond);
+  pthread_cond_broadcast(&cond);
   mysql_mutex_unlock(&mutex);
 }
 
@@ -2611,7 +2611,7 @@ inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
       map::iterator r= p++;
       pages.erase(r);
       if (pages.empty())
-        mysql_cond_signal(&cond);
+        pthread_cond_signal(&cond);
     }
     space->release();
   }
@@ -2668,13 +2668,13 @@ void recv_sys_t::apply(bool last_batch)
     if (last_batch)
     {
       mysql_mutex_assert_not_owner(&log_sys.mutex);
-      mysql_cond_wait(&cond, &mutex);
+      my_cond_wait(&cond, &mutex.m_mutex);
     }
     else
     {
       mysql_mutex_unlock(&mutex);
       set_timespec_nsec(abstime, 500000000ULL); /* 0.5s */
-      mysql_cond_timedwait(&cond, &log_sys.mutex, &abstime);
+      my_cond_timedwait(&cond, &log_sys.mutex.m_mutex, &abstime);
       mysql_mutex_lock(&mutex);
     }
   }
@@ -2769,7 +2769,7 @@ next_page:
         {
           mysql_mutex_assert_not_owner(&log_sys.mutex);
           if (!empty)
-            mysql_cond_wait(&cond, &mutex);
+            my_cond_wait(&cond, &mutex.m_mutex);
           else
           {
             mysql_mutex_unlock(&mutex);
@@ -2783,7 +2783,7 @@ next_page:
         {
           mysql_mutex_unlock(&mutex);
           set_timespec_nsec(abstime, 500000000ULL); /* 0.5s */
-          mysql_cond_timedwait(&cond, &log_sys.mutex, &abstime);
+          my_cond_timedwait(&cond, &log_sys.mutex.m_mutex, &abstime);
           mysql_mutex_lock(&mutex);
         }
         continue;

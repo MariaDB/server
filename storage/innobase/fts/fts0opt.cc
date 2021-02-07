@@ -60,7 +60,7 @@ static bool fts_opt_start_shutdown = false;
 
 /** Condition variable for shutting down the optimize thread.
 Protected by fts_optimize_wq->mutex. */
-static mysql_cond_t fts_opt_shutdown_cond;
+static pthread_cond_t fts_opt_shutdown_cond;
 
 /** Initial size of nodes in fts_word_t. */
 static const ulint FTS_WORD_NODES_INIT_SIZE = 64;
@@ -201,7 +201,7 @@ struct fts_msg_del_t
   /** the table to remove */
   dict_table_t *table;
   /** condition variable to signal message consumption */
-  mysql_cond_t *cond;
+  pthread_cond_t *cond;
 };
 
 /** The FTS optimize message work queue message type. */
@@ -2593,13 +2593,13 @@ fts_optimize_remove_table(
   {
     dict_sys.assert_not_locked();
     fts_msg_t *msg= fts_optimize_create_msg(FTS_MSG_DEL_TABLE, nullptr);
-    mysql_cond_t cond;
-    mysql_cond_init(0, &cond, nullptr);
+    pthread_cond_t cond;
+    pthread_cond_init(&cond, nullptr);
     msg->ptr= new(mem_heap_alloc(msg->heap, sizeof(fts_msg_del_t)))
       fts_msg_del_t{table, &cond};
     add_msg(msg);
-    mysql_cond_wait(&cond, &fts_optimize_wq->mutex);
-    mysql_cond_destroy(&cond);
+    my_cond_wait(&cond, &fts_optimize_wq->mutex.m_mutex);
+    pthread_cond_destroy(&cond);
     ut_ad(!table->fts->in_queue);
   }
 
@@ -2684,7 +2684,7 @@ static bool fts_optimize_del_table(fts_msg_del_t *remove)
 
 			mysql_mutex_lock(&fts_optimize_wq->mutex);
 			table->fts->in_queue = false;
-			mysql_cond_signal(remove->cond);
+			pthread_cond_signal(remove->cond);
 			mysql_mutex_unlock(&fts_optimize_wq->mutex);
 			slot->table = NULL;
 			return true;
@@ -2692,7 +2692,7 @@ static bool fts_optimize_del_table(fts_msg_del_t *remove)
 	}
 
 	mysql_mutex_lock(&fts_optimize_wq->mutex);
-	mysql_cond_signal(remove->cond);
+	pthread_cond_signal(remove->cond);
 	mysql_mutex_unlock(&fts_optimize_wq->mutex);
 	return false;
 }
@@ -2902,7 +2902,7 @@ static void fts_optimize_callback(void *)
 	ib_vector_free(fts_slots);
 	mysql_mutex_lock(&fts_optimize_wq->mutex);
 	fts_slots = NULL;
-	mysql_cond_broadcast(&fts_opt_shutdown_cond);
+	pthread_cond_broadcast(&fts_opt_shutdown_cond);
 	mysql_mutex_unlock(&fts_optimize_wq->mutex);
 
 	ib::info() << "FTS optimize thread exiting.";
@@ -2953,7 +2953,7 @@ fts_optimize_init(void)
 	}
 	dict_sys.mutex_unlock();
 
-	mysql_cond_init(0, &fts_opt_shutdown_cond, nullptr);
+	pthread_cond_init(&fts_opt_shutdown_cond, nullptr);
 	last_check_sync_time = time(NULL);
 }
 
@@ -2982,12 +2982,13 @@ fts_optimize_shutdown()
 	add_msg(fts_optimize_create_msg(FTS_MSG_STOP, nullptr));
 
 	while (fts_slots) {
-		mysql_cond_wait(&fts_opt_shutdown_cond, &fts_optimize_wq->mutex);
+		my_cond_wait(&fts_opt_shutdown_cond,
+			     &fts_optimize_wq->mutex.m_mutex);
 	}
 
 	innobase_destroy_background_thd(fts_opt_thd);
 	fts_opt_thd = NULL;
-	mysql_cond_destroy(&fts_opt_shutdown_cond);
+	pthread_cond_destroy(&fts_opt_shutdown_cond);
 	mysql_mutex_unlock(&fts_optimize_wq->mutex);
 
 	ib_wqueue_free(fts_optimize_wq);

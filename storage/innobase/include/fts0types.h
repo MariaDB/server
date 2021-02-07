@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -115,7 +115,7 @@ struct fts_sync_t {
 	bool		unlock_cache;	/*!< flag whether unlock cache when
 					write fts node */
   /** condition variable for in_progress; used with table->fts->cache->lock */
-  mysql_cond_t cond;
+  pthread_cond_t cond;
 };
 
 /** The cache for the FTS system. It is a memory-based inverted index
