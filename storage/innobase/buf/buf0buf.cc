@@ -1452,9 +1452,9 @@ bool buf_pool_t::create()
   mysql_mutex_init(flush_list_mutex_key, &flush_list_mutex,
                    MY_MUTEX_INIT_FAST);
 
-  mysql_cond_init(0, &done_flush_LRU, nullptr);
-  mysql_cond_init(0, &done_flush_list, nullptr);
-  mysql_cond_init(0, &do_flush_list, nullptr);
+  pthread_cond_init(&done_flush_LRU, nullptr);
+  pthread_cond_init(&done_flush_list, nullptr);
+  pthread_cond_init(&do_flush_list, nullptr);
 
   try_LRU_scan= true;
 
@@ -1515,9 +1515,9 @@ void buf_pool_t::close()
     allocator.deallocate_large_dodump(chunk->mem, &chunk->mem_pfx);
   }
 
-  mysql_cond_destroy(&done_flush_LRU);
-  mysql_cond_destroy(&done_flush_list);
-  mysql_cond_destroy(&do_flush_list);
+  pthread_cond_destroy(&done_flush_LRU);
+  pthread_cond_destroy(&done_flush_list);
+  pthread_cond_destroy(&do_flush_list);
 
   ut_free(chunks);
   chunks= nullptr;
@@ -3543,8 +3543,8 @@ loop:
           We must not hold buf_pool.mutex while waiting. */
           timespec abstime;
           set_timespec_nsec(abstime, 1000000);
-          mysql_cond_timedwait(&buf_pool.done_flush_list, &buf_pool.mutex,
-                               &abstime);
+          my_cond_timedwait(&buf_pool.done_flush_list, &buf_pool.mutex.m_mutex,
+                            &abstime);
         }
         mtr_memo_push(mtr, block, MTR_MEMO_PAGE_X_FIX);
       }
@@ -3568,8 +3568,8 @@ loop:
         /* Wait for buf_page_write_complete() to release the I/O fix. */
         timespec abstime;
         set_timespec_nsec(abstime, 1000000);
-        mysql_cond_timedwait(&buf_pool.done_flush_list, &buf_pool.mutex,
-                             &abstime);
+        my_cond_timedwait(&buf_pool.done_flush_list, &buf_pool.mutex.m_mutex,
+                          &abstime);
         goto loop;
       }
 

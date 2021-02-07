@@ -78,6 +78,8 @@ void *my_malloc(PSI_memory_key key, size_t size, myf my_flags)
   /* Safety */
   if (!size)
     size=1;
+  if (size > SIZE_T_MAX - 1024L*1024L*16L)           /* Wrong call */
+    return 0;
 
   /* We have to align size as we store MY_THREAD_SPECIFIC flag in the LSB */
   size= ALIGN_SIZE(size);

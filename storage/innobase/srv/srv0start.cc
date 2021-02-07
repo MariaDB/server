@@ -1975,9 +1975,9 @@ void innodb_shutdown()
 		}
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 		while (buf_page_cleaner_is_active) {
-			mysql_cond_signal(&buf_pool.do_flush_list);
-			mysql_cond_wait(&buf_pool.done_flush_list,
-					&buf_pool.flush_list_mutex);
+			pthread_cond_signal(&buf_pool.do_flush_list);
+			my_cond_wait(&buf_pool.done_flush_list,
+				     &buf_pool.flush_list_mutex.m_mutex);
 		}
 		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 		break;

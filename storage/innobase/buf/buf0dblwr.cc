@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -55,7 +55,7 @@ inline void buf_dblwr_t::init(const byte *header)
   ut_ad(!batch_running);
 
   mysql_mutex_init(buf_dblwr_mutex_key, &mutex, nullptr);
-  mysql_cond_init(0, &cond, nullptr);
+  pthread_cond_init(&cond, nullptr);
   block1= page_id_t(0, mach_read_from_4(header + TRX_SYS_DOUBLEWRITE_BLOCK1));
   block2= page_id_t(0, mach_read_from_4(header + TRX_SYS_DOUBLEWRITE_BLOCK2));
 
@@ -445,7 +445,7 @@ void buf_dblwr_t::close()
   ut_ad(!active_slot->first_free);
   ut_ad(!batch_running);
 
-  mysql_cond_destroy(&cond);
+  pthread_cond_destroy(&cond);
   for (int i= 0; i < 2; i++)
   {
     aligned_free(slots[i].write_buf);
@@ -482,7 +482,7 @@ void buf_dblwr_t::write_completed()
     /* We can now reuse the doublewrite memory buffer: */
     flush_slot->first_free= 0;
     batch_running= false;
-    mysql_cond_broadcast(&cond);
+    pthread_cond_broadcast(&cond);
   }
 
   mysql_mutex_unlock(&mutex);
@@ -559,7 +559,7 @@ bool buf_dblwr_t::flush_buffered_writes(const ulint size)
       return false;
     if (!batch_running)
       break;
-    mysql_cond_wait(&cond, &mutex);
+    my_cond_wait(&cond, &mutex.m_mutex);
   }
 
   ut_ad(active_slot->reserved == active_slot->first_free);

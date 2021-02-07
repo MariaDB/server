@@ -115,9 +115,10 @@ void *sf_malloc(size_t size, myf my_flags)
     init_done= 1;
   }
 
-  irem= (struct st_irem *) malloc (sizeof(struct st_irem) + size + 4);
+  if (size > SIZE_T_MAX - 1024L*1024L*16L)           /* Wrong call */
+    return 0;
 
-  if (!irem)
+  if (!(irem= (struct st_irem *) malloc (sizeof(struct st_irem) + size + 4)))
     return 0;
 
   /* we guarantee the alignment */

@@ -1716,11 +1716,11 @@ public:
   /** Number of pending LRU flush. */
   Atomic_counter<ulint> n_flush_LRU;
   /** broadcast when n_flush_LRU reaches 0; protected by mutex */
-  mysql_cond_t done_flush_LRU;
+  pthread_cond_t done_flush_LRU;
   /** Number of pending flush_list flush. */
   Atomic_counter<ulint> n_flush_list;
   /** broadcast when n_flush_list reaches 0; protected by mutex */
-  mysql_cond_t done_flush_list;
+  pthread_cond_t done_flush_list;
 
 	/** @name General fields */
 	/* @{ */
@@ -1869,7 +1869,7 @@ private:
   bool page_cleaner_is_idle;
 public:
   /** signalled to wake up the page_cleaner; protected by flush_list_mutex */
-  mysql_cond_t do_flush_list;
+  pthread_cond_t do_flush_list;
 
   /** @return whether the page cleaner must sleep due to being idle */
   bool page_cleaner_idle() const
