@@ -5621,25 +5621,6 @@ lock_trx_handle_wait(
   return err;
 }
 
-/*********************************************************************//**
-Get the number of locks on a table.
-@return number of locks */
-ulint
-lock_table_get_n_locks(
-/*===================*/
-	const dict_table_t*	table)	/*!< in: table */
-{
-	ulint		n_table_locks;
-
-	lock_sys.mutex_lock();
-
-	n_table_locks = UT_LIST_GET_LEN(table->locks);
-
-	lock_sys.mutex_unlock();
-
-	return(n_table_locks);
-}
-
 #ifdef UNIV_DEBUG
 /**
   Do an exhaustive check for any locks (table or rec) against the table.
@@ -5718,17 +5699,6 @@ lock_table_lock_list_init(
 {
 	UT_LIST_INIT(*lock_list, &lock_table_t::locks);
 }
-
-/*******************************************************************//**
-Initialise the trx lock list. */
-void
-lock_trx_lock_list_init(
-/*====================*/
-	trx_lock_list_t*	lock_list)	/*!< List to initialise */
-{
-	UT_LIST_INIT(*lock_list, &lock_t::trx_locks);
-}
-
 
 #ifdef UNIV_DEBUG
 /*******************************************************************//**

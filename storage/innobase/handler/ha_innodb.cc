@@ -2692,17 +2692,18 @@ static bool innobase_query_caching_table_check_low(
 	For read-only transaction: should satisfy (1) and (3)
 	For read-write transaction: should satisfy (1), (2), (3) */
 
-	if (lock_table_get_n_locks(table)) {
-		return false;
-	}
-
 	if (trx->id && trx->id < table->query_cache_inv_trx_id) {
 		return false;
 	}
 
-	return !trx->read_view.is_open()
-		|| trx->read_view.low_limit_id()
-		>= table->query_cache_inv_trx_id;
+	if (trx->read_view.is_open()
+	    && trx->read_view.low_limit_id()
+	    < table->query_cache_inv_trx_id) {
+		return false;
+	}
+
+	LockMutexGuard g;
+	return UT_LIST_GET_LEN(table->locks) == 0;
 }
 
 /** Checks if MySQL at the moment is allowed for this table to retrieve a

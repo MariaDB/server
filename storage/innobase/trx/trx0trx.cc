@@ -186,8 +186,7 @@ struct TrxFactory {
 			1024, MEM_HEAP_FOR_LOCK_HEAP);
 		pthread_cond_init(&trx->lock.cond, nullptr);
 
-		lock_trx_lock_list_init(&trx->lock.trx_locks);
-
+		UT_LIST_INIT(trx->lock.trx_locks, &lock_t::trx_locks);
 		UT_LIST_INIT(trx->lock.evicted_tables,
 			     &dict_table_t::table_LRU);
 

@@ -564,19 +564,6 @@ dberr_t
 lock_trx_handle_wait(
 /*=================*/
 	trx_t*	trx);	/*!< in/out: trx lock state */
-/*********************************************************************//**
-Get the number of locks on a table.
-@return number of locks */
-ulint
-lock_table_get_n_locks(
-/*===================*/
-	const dict_table_t*	table);	/*!< in: table */
-/*******************************************************************//**
-Initialise the trx lock list. */
-void
-lock_trx_lock_list_init(
-/*====================*/
-	trx_lock_list_t*	lock_list);	/*!< List to initialise */
 
 /*********************************************************************//**
 Checks that a transaction id is sensible, i.e., not in the future.
