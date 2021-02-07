@@ -69,20 +69,13 @@ bool Wsrep_client_service::interrupted(
   wsrep::unique_lock<wsrep::mutex>& lock WSREP_UNUSED) const
 {
   DBUG_ASSERT(m_thd == current_thd);
-  /* Underlying mutex in lock object points to LOCK_thd_data, which
-     protects m_thd->wsrep_trx(), LOCK_thd_kill protects m_thd->killed.
-     Locking order is:
-     1) LOCK_thd_data
-     2) LOCK_thd_kill */
   mysql_mutex_assert_owner(static_cast<mysql_mutex_t*>(lock.mutex()->native()));
-  mysql_mutex_lock(&m_thd->LOCK_thd_kill);
   bool ret= (m_thd->killed != NOT_KILLED);
   if (ret)
   {
     WSREP_DEBUG("wsrep state is interrupted, THD::killed %d trx state %d",
                 m_thd->killed,  m_thd->wsrep_trx().state());
   }
-  mysql_mutex_unlock(&m_thd->LOCK_thd_kill);
   return ret;
 }
 

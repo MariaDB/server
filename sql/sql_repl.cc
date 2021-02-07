@@ -3474,8 +3474,8 @@ static my_bool kill_callback(THD *thd, kill_callback_arg *arg)
       thd->variables.server_id == arg->slave_server_id)
   {
     arg->thd= thd;
-    mysql_mutex_lock(&thd->LOCK_thd_data);
     mysql_mutex_lock(&thd->LOCK_thd_kill);    // Lock from delete
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     return 1;
   }
   return 0;

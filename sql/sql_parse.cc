@@ -9102,8 +9102,8 @@ static my_bool find_thread_with_thd_data_lock_callback(THD *thd, find_thread_cal
 {
   if (arg->id == (arg->query_id ? thd->query_id : (longlong) thd->thread_id))
   {
-    mysql_mutex_lock(&thd->LOCK_thd_data);
     mysql_mutex_lock(&thd->LOCK_thd_kill);    // Lock from delete
+    mysql_mutex_lock(&thd->LOCK_thd_data); // XXX DELME
     arg->thd= thd;
     return 1;
   }
@@ -9238,8 +9238,8 @@ static my_bool kill_threads_callback(THD *thd, kill_threads_callback_arg *arg)
         return 1;
       if (!arg->threads_to_kill.push_back(thd, arg->thd->mem_root))
       {
-        mysql_mutex_lock(&thd->LOCK_thd_data);
         mysql_mutex_lock(&thd->LOCK_thd_kill); // Lock from delete
+        mysql_mutex_lock(&thd->LOCK_thd_data);
       }
     }
   }
