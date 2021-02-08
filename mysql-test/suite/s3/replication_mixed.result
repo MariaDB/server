@@ -105,6 +105,8 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
 connection master;
 drop table t2;
+connection slave;
+connection master;
 #
 # Test RENAME
 #
