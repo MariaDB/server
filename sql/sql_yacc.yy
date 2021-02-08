@@ -14426,8 +14426,6 @@ opt_flush_lock:
           for (; tables; tables= tables->next_global)
           {
             tables->mdl_request.set_type(MDL_SHARED_NO_WRITE);
-            /* Don't try to flush views. */
-            tables->required_type= TABLE_TYPE_NORMAL;
             /* Ignore temporary tables. */
             tables->open_type= OT_BASE_ONLY;
           }
