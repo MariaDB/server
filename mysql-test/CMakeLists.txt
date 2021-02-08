@@ -19,27 +19,53 @@ INSTALL_MYSQL_TEST("." ".")
 IF(NOT ${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
   # Enable running mtr from build directory
   CONFIGURE_FILE(
-    ${CMAKE_CURRENT_SOURCE_DIR}/mtr.out-of-source 
-    ${CMAKE_CURRENT_BINARY_DIR}/mysql-test-run.pl
+    ${CMAKE_CURRENT_SOURCE_DIR}/mtr.out-of-source
+    ${CMAKE_CURRENT_BINARY_DIR}/mariadb-test-run.pl
     @ONLY
   )
   SET(out_of_source_build TRUE)
 ENDIF()
 IF(UNIX)
   EXECUTE_PROCESS(
-  COMMAND chmod +x  mysql-test-run.pl
-  COMMAND ${CMAKE_COMMAND} -E create_symlink 
-   ./mysql-test-run.pl mtr
-  COMMAND ${CMAKE_COMMAND} -E create_symlink 
-   ./mysql-test-run.pl mysql-test-run
+  COMMAND chmod +x  mariadb-test-run.pl
+  COMMAND ${CMAKE_COMMAND} -E create_symlink
+   ./mariadb-test-run.pl mysql-test-run.pl
+  COMMAND ${CMAKE_COMMAND} -E create_symlink
+   ./mariadb-test-run.pl mysql-test-run
+  COMMAND ${CMAKE_COMMAND} -E create_symlink
+   ./mariadb-test-run.pl mtr
+  COMMAND ${CMAKE_COMMAND} -E create_symlink
+   ./mariadb-test-run.pl mariadb-test-run
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  ) 
+  )
+  EXECUTE_PROCESS(
+  COMMAND chmod +x mariadb-stress-test.pl
+  COMMAND ${CMAKE_COMMAND} -E create_symlink
+  mariadb-stress-test.pl mysql-stress-test.pl
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  )
   IF(INSTALL_MYSQLTESTDIR AND out_of_source_build)
     INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mtr
       ${CMAKE_CURRENT_BINARY_DIR}/mysql-test-run
+      ${CMAKE_CURRENT_BINARY_DIR}/mysql-test-run.pl
+      ${CMAKE_CURRENT_BINARY_DIR}/mariadb-test-run
       DESTINATION ${INSTALL_MYSQLTESTDIR}
       COMPONENT Test)
   ENDIF()
+ELSE()
+    FILE(REMOVE mysql-test-run.pl)
+    EXECUTE_PROCESS(COMMAND mklink /H
+                     mysql-test-run.pl mariadb-test-run.pl
+                     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    EXECUTE_PROCESS(COMMAND mklink /H
+                     mysql-stress-test.pl mariadb-stress-test.pl
+                     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    IF(INSTALL_MYSQLTESTDIR)
+      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb-test-run.pl
+               RENAME mysql-test-run.pl
+               DESTINATION ${INSTALL_MYSQLTESTDIR}
+               COMPONENT Test)
+    ENDIF()
 ENDIF()
 
 IF(CMAKE_GENERATOR MATCHES "Visual Studio")

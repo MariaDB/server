@@ -599,16 +599,28 @@ SCRIPTS_DIR=$(cd "$script_binary"; pwd -P)
 EXTRA_DIR="$SCRIPTS_DIR/../extra"
 CLIENT_DIR="$SCRIPTS_DIR/../client"
 
-if [ -x "$CLIENT_DIR/mysql" ]; then
-    MYSQL_CLIENT="$CLIENT_DIR/mysql"
+if [ -x "$CLIENT_DIR/mariadb" ]; then
+    MYSQL_CLIENT="$CLIENT_DIR/mariadb"
 else
+<<<<<<< HEAD
     MYSQL_CLIENT="$(command -v mysql)"
+||||||| constructed merge base
+    MYSQL_CLIENT=mysql
+=======
+    MYSQL_CLIENT=mariadb
+>>>>>>> MDEV-22010: use executables MariaDB named in scripts
 fi
 
-if [ -x "$CLIENT_DIR/mysqldump" ]; then
-    MYSQLDUMP="$CLIENT_DIR/mysqldump"
+if [ -x "$CLIENT_DIR/mariadb-dump" ]; then
+    MYSQLDUMP="$CLIENT_DIR/mariadb-dump"
 else
+<<<<<<< HEAD
     MYSQLDUMP="$(command -v mysqldump)"
+||||||| constructed merge base
+    MYSQLDUMP=mysqldump
+=======
+    MYSQLDUMP=mariadb-dump
+>>>>>>> MDEV-22010: use executables MariaDB named in scripts
 fi
 
 if [ -x "$SCRIPTS_DIR/my_print_defaults" ]; then

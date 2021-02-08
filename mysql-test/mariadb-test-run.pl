@@ -35,7 +35,7 @@ use warnings;
 
 BEGIN {
   # Check that mysql-test-run.pl is started from mysql-test/
-  unless ( -f "mysql-test-run.pl" )
+  unless ( -f "mariadb-test-run.pl" )
   {
     print "**** ERROR **** ",
       "You must start mysql-test-run from the mysql-test/ directory\n";
@@ -57,10 +57,10 @@ BEGIN {
   if ( $version == 1 )
   {
     print "=======================================================\n";
-    print "  WARNING: Using mysql-test-run.pl version 1!  \n";
+    print "  WARNING: Using mariadb-test-run.pl version 1!  \n";
     print "=======================================================\n";
     # Should use exec() here on *nix but this appears not to work on Windows
-    exit(system($^X, "lib/v1/mysql-test-run.pl", @ARGV) >> 8);
+    exit(system($^X, "lib/v1/mariadb-test-run.pl", @ARGV) >> 8);
   }
   elsif ( $version == 2 )
   {
@@ -69,7 +69,7 @@ BEGIN {
   }
   else
   {
-    print "ERROR: Version $version of mysql-test-run does not exist!\n";
+    print "ERROR: Version $version of mariadb-test-run does not exist!\n";
     exit(1);
   }
 }
