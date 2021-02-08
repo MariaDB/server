@@ -603,16 +603,16 @@ SCRIPTS_DIR=$(cd "$script_binary"; pwd -P)
 EXTRA_DIR="$SCRIPTS_DIR/../extra"
 CLIENT_DIR="$SCRIPTS_DIR/../client"
 
-if [ -x "$CLIENT_DIR/mysql" ]; then
-    MYSQL_CLIENT="$CLIENT_DIR/mysql"
+if [ -x "$CLIENT_DIR/mariadb" ]; then
+    MYSQL_CLIENT="$CLIENT_DIR/mariadb"
 else
-    MYSQL_CLIENT="$(command -v mysql)"
+    MYSQL_CLIENT="$(command -v mariadb)"
 fi
 
-if [ -x "$CLIENT_DIR/mysqldump" ]; then
-    MYSQLDUMP="$CLIENT_DIR/mysqldump"
+if [ -x "$CLIENT_DIR/mariadb-dump" ]; then
+    MYSQLDUMP="$CLIENT_DIR/mariadb-dump"
 else
-    MYSQLDUMP="$(command -v mysqldump)"
+    MYSQLDUMP="$(command -v mariadb-dump)"
 fi
 
 wsrep_log()

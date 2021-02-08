@@ -531,7 +531,8 @@ else
   ledir='@libexecdir@'
 fi
 
-helper=`find_in_bin mysqld_safe_helper`
+helper=`find_in_bin mariadbd-safe-helper`
+
 print_defaults=`find_in_bin my_print_defaults`
 # Check if helper exists
 command -v $helper --help >/dev/null 2>&1

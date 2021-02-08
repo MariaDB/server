@@ -90,6 +90,9 @@ mysql-test/lib/My/SafeProcess/my_safe_process
 mysql-test/lib/My/SafeProcess/wsrep_check_version
 mysql-test/mtr
 mysql-test/mysql-test-run
+mysql-test/mariadb-test-run
+mysql-test/mysql-stress-test.pl
+mysql-test/mysql-test-run.pl
 mysql-test/var*
 mysql-test-gcov.err
 mysql-test-gcov.msg
