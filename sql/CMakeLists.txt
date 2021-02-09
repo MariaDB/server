@@ -35,7 +35,8 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     wsrep_schema.cc
     wsrep_plugin.cc
     service_wsrep.cc
-  )
+    )
+  MYSQL_ADD_PLUGIN(wsrep_provider ${WSREP_SOURCES} DEFAULT NOT_EMBEDDED LINK_LIBRARIES wsrep-lib wsrep_api_v26)
   MYSQL_ADD_PLUGIN(wsrep ${WSREP_SOURCES} MANDATORY NOT_EMBEDDED EXPORT_SYMBOLS LINK_LIBRARIES wsrep-lib wsrep_api_v26)
 ELSE()
   ADD_LIBRARY(wsrep STATIC wsrep_dummy.cc)

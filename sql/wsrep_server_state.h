@@ -1,4 +1,4 @@
-/* Copyright 2018 Codership Oy <info@codership.com>
+/* Copyright 2018-2021 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 /* wsrep-lib */
 #include "wsrep/server_state.hpp"
 #include "wsrep/provider.hpp"
+#include "wsrep/provider_options.hpp"
 
 /* implementation */
 #include "wsrep_server_service.h"
@@ -34,6 +35,10 @@ public:
                         const std::string& working_dir,
                         const wsrep::gtid& initial_position,
                         int max_protocol_version);
+  static int init_provider(const std::string& provider,
+                           const std::string& options);
+  static int init_options();
+  static void deinit_provider();
   static void destroy();
 
   static Wsrep_server_state& instance()
@@ -49,6 +54,11 @@ public:
   static wsrep::provider& get_provider()
   {
     return instance().provider();
+  }
+
+  static wsrep::provider_options* get_options()
+  {
+    return m_options.get();
   }
 
   static bool has_capability(int capability)
@@ -68,7 +78,11 @@ private:
   Wsrep_condition_variable m_cond;
   Wsrep_server_service m_service;
   static Wsrep_server_state* m_instance;
-
+  static std::unique_ptr<wsrep::provider_options> m_options;
+  // Sysvars for provider plugin. We keep these here because
+  // they are allocated dynamically and must be freed at some
+  // point during shutdown (after the plugin is deinitialized).
+  static std::vector<st_mysql_sys_var *> m_sysvars;
 };
 
 #endif // WSREP_SERVER_STATE_H

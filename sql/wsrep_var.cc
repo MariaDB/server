@@ -27,6 +27,7 @@
 #include <cstdlib>
 #include "wsrep_trans_observer.h"
 #include "wsrep_server_state.h"
+#include "wsrep_plugin.h" /* wsrep_provider_plugin_is_enabled() */
 
 ulong   wsrep_reject_queries;
 
@@ -88,6 +89,11 @@ static bool refresh_provider_options()
     WSREP_ERROR("Failed to get provider options");
     return true;
   }
+}
+
+bool wsrep_refresh_provider_options()
+{
+  return refresh_provider_options();
 }
 
 void wsrep_set_wsrep_on()
@@ -420,6 +426,12 @@ static int wsrep_provider_verify (const char* provider_str)
 
 bool wsrep_provider_check (sys_var *self, THD* thd, set_var* var)
 {
+  if (wsrep_provider_plugin_enabled())
+  {
+    my_error(ER_INCORRECT_GLOBAL_LOCAL_VAR, MYF(0), var->var->name.str, "read only");
+    return true;
+  }
+
   char wsrep_provider_buf[FN_REFLEN];
 
   if ((! var->save_result.string_value.str) ||
@@ -509,6 +521,11 @@ bool wsrep_provider_options_check(sys_var *self, THD* thd, set_var* var)
   if (!WSREP_ON)
   {
     my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) not started", MYF(0));
+    return true;
+  }
+  if (wsrep_provider_plugin_enabled())
+  {
+    my_error(ER_INCORRECT_GLOBAL_LOCAL_VAR, MYF(0), var->var->name.str, "read only");
     return true;
   }
   return false;
