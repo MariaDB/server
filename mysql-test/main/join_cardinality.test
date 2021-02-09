@@ -1,4 +1,5 @@
 --source include/have_sequence.inc
+--source include/not_embedded.inc
 
 # Default settings for all following tests
 SET @save_optimizer_switch=@@optimizer_switch;

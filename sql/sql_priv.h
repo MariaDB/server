@@ -265,7 +265,8 @@
                                     OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_SUBQUERY | \
                                     OPTIMIZER_SWITCH_USE_ROWID_FILTER | \
                                     OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING | \
-                                    OPTIMIZER_SWITCH_OPTIMIZE_JOIN_BUFFER_SIZE)
+                                    OPTIMIZER_SWITCH_OPTIMIZE_JOIN_BUFFER_SIZE | \
+                                    OPTIMIZER_SWITCH_COST_BASED_ORDER_BY_LIMIT)
 
 /*
   Replication uses 8 bytes to store SQL_MODE in the binary log. The day you

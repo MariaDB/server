@@ -155,8 +155,12 @@ update t1 set a=1 where pk between 0 and 180;
 update t1 set b=2 where pk between 0 and 20;
 analyze table t1;
 set optimizer_trace='enabled=on';
+
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='cost_based_order_by_limit=off';
 explain  select * from t1 where a=1 and b=2 order by c limit 1;
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+set optimizer_switch=@save_optimizer_switch;
 drop table t1,ten,one_k;
 
 --echo #
