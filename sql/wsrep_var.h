@@ -1,4 +1,4 @@
-/* Copyright (C) 2013-2021 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2022 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -37,6 +37,7 @@ class THD;
 
 int wsrep_init_vars();
 void wsrep_set_wsrep_on(THD *thd);
+bool wsrep_refresh_provider_options();
 
 #define CHECK_ARGS   (sys_var *self, THD* thd, set_var *var)
 #define UPDATE_ARGS  (sys_var *self, THD* thd, enum_var_type type)

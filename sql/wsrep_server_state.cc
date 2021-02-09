@@ -1,4 +1,4 @@
-/* Copyright 2018 Codership Oy <info@codership.com>
+/* Copyright 2018-2022 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 #include "wsrep_server_state.h"
 #include "wsrep_allowlist_service.h"
 #include "wsrep_binlog.h" /* init/deinit group commit */
+#include "wsrep_plugin.h" /* make/destroy sysvar helpers */
 
 mysql_mutex_t LOCK_wsrep_server_state;
 mysql_cond_t  COND_wsrep_server_state;
@@ -28,6 +29,10 @@ PSI_cond_key  key_COND_wsrep_server_state;
 #endif
 
 wsrep::provider::services Wsrep_server_state::m_provider_services;
+
+Wsrep_server_state* Wsrep_server_state::m_instance;
+std::unique_ptr<wsrep::provider_options> Wsrep_server_state::m_options;
+std::vector<st_mysql_sys_var*> Wsrep_server_state::m_sysvars;
 
 Wsrep_server_state::Wsrep_server_state(const std::string& name,
                                        const std::string& incoming_address,
@@ -75,6 +80,48 @@ void Wsrep_server_state::init_once(const std::string& name,
   }
 }
 
+int Wsrep_server_state::init_provider(const std::string& provider,
+                                      const std::string& options)
+{
+  DBUG_ASSERT(m_instance);
+  int ret= m_instance->load_provider(provider, options);
+  if (ret)
+  {
+    WSREP_ERROR("Failed to load provider %s with options %s",
+                provider.c_str(), options.c_str());
+    return ret;
+  }
+  return 0;
+}
+
+int Wsrep_server_state::init_options()
+{
+  if (!m_instance) return 1;
+  m_options= std::unique_ptr<wsrep::provider_options>(
+     new wsrep::provider_options(m_instance->provider()));
+  int ret= m_options->initial_options();
+  if (ret)
+  {
+    WSREP_ERROR("Failed to initialize provider options");
+    m_options = nullptr;
+    m_instance->unload_provider();
+    return ret;
+  }
+  m_options->for_each([](wsrep::provider_options::option *opt) {
+    struct st_mysql_sys_var *var= wsrep_make_sysvar_for_option(opt);
+    m_sysvars.push_back(var);
+  });
+  m_sysvars.push_back(nullptr);
+  wsrep_provider_plugin_set_sysvars(&m_sysvars[0]);
+  return 0;
+}
+
+void Wsrep_server_state::deinit_provider()
+{
+  m_options = nullptr;
+  m_instance->unload_provider();
+}
+
 void Wsrep_server_state::destroy()
 {
   if (m_instance)
@@ -83,6 +130,14 @@ void Wsrep_server_state::destroy()
     m_instance= 0;
     mysql_mutex_destroy(&LOCK_wsrep_server_state);
     mysql_cond_destroy(&COND_wsrep_server_state);
+    for (auto var : m_sysvars)
+    {
+      if (var)
+      {
+        wsrep_destroy_sysvar(var);
+      }
+    }
+    m_sysvars.clear();
   }
 }
 
