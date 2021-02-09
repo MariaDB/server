@@ -3732,6 +3732,7 @@ double get_column_range_cardinality(Field *field,
   if (!table->stats_is_read)
     return tab_records;
 
+  THD *thd= table->in_use;
   double col_nulls= tab_records * col_stats->get_nulls_ratio();
 
   double col_non_nulls= tab_records - col_nulls;
@@ -3762,7 +3763,7 @@ double get_column_range_cardinality(Field *field,
           col_stats->min_max_values_are_provided())
       {
         Histogram *hist= &col_stats->histogram;
-        if (hist->is_available())
+        if (hist->is_usable(thd))
         {
           store_key_image_to_rec(field, (uchar *) min_endp->key,
                                  field->key_length());
@@ -3806,10 +3807,10 @@ double get_column_range_cardinality(Field *field,
         max_mp_pos= 1.0;
 
       Histogram *hist= &col_stats->histogram;
-      if (!hist->is_available())
-        sel= (max_mp_pos - min_mp_pos);
-      else
+      if (hist->is_usable(thd))
         sel= hist->range_selectivity(min_mp_pos, max_mp_pos);
+      else
+        sel= (max_mp_pos - min_mp_pos);
       res= col_non_nulls * sel;
       set_if_bigger(res, col_stats->get_avg_frequency());
     }
