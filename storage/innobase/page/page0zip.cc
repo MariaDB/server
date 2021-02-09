@@ -388,6 +388,7 @@ page_zip_compress_write_log(
 	ut_ad(!dict_index_is_ibuf(index));
 
 	log_ptr = mlog_open(mtr, 11 + 2 + 2);
+	mtr->memo_modify_page(page);
 
 	if (!log_ptr) {
 
@@ -4001,6 +4002,8 @@ page_zip_write_blob_ptr(
 	if (mtr) {
 		byte*	log_ptr	= mlog_open(
 			mtr, 11 + 2 + 2 + BTR_EXTERN_FIELD_REF_SIZE);
+		mtr->memo_modify_page((byte *)field);
+
 		if (UNIV_UNLIKELY(!log_ptr)) {
 			return;
 		}
@@ -4139,6 +4142,8 @@ page_zip_write_node_ptr(
 	if (mtr) {
 		byte*	log_ptr	= mlog_open(mtr,
 					    11 + 2 + 2 + REC_NODE_PTR_SIZE);
+		mtr->memo_modify_page(field);
+
 		if (UNIV_UNLIKELY(!log_ptr)) {
 			return;
 		}
@@ -4654,6 +4659,7 @@ page_zip_write_header_log(
 	ut_ad(length > 0);
 	ut_ad(length < 256);
 
+	mtr->memo_modify_page(data);
 	/* If no logging is requested, we may return now */
 	if (UNIV_UNLIKELY(!log_ptr)) {
 

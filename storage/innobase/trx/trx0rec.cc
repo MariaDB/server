@@ -59,6 +59,7 @@ trx_undof_page_add_undo_rec_log(
 	ulint		len;
 
 	log_ptr = mlog_open(mtr, 11 + 13 + MLOG_BUF_MARGIN);
+	mtr->memo_modify_page(undo_page);
 
 	if (log_ptr == NULL) {
 

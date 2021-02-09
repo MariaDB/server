@@ -223,7 +223,6 @@ mlog_write_initial_log_record_fast(
 	ulint		offset;
 
 	ut_ad(log_ptr);
-	ut_d(mtr->memo_modify_page(ptr));
 
 	page = (const byte*) ut_align_down(ptr, UNIV_PAGE_SIZE);
 	space = mach_read_from_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);

@@ -360,6 +360,16 @@ struct mtr_t {
 		m_flush_observer = observer;
 	}
 
+	/** Check if memo contains the given page.
+	@param[in]	ptr	pointer to within buffer frame
+	@param[in]	flags	specify types of object with OR of
+				MTR_MEMO_PAGE_S_FIX... values
+	@return	the block
+	@retval	NULL	if not found */
+	buf_block_t* memo_contains_page_flagged(
+		const byte*	ptr,
+		ulint		flags) const;
+
 #ifdef UNIV_DEBUG
 	/** Check if memo contains the given item.
 	@param memo	memo stack
@@ -379,20 +389,6 @@ struct mtr_t {
 	@return true if contains */
 	bool memo_contains_flagged(const void* ptr, ulint flags) const;
 
-	/** Check if memo contains the given page.
-	@param[in]	ptr	pointer to within buffer frame
-	@param[in]	flags	specify types of object with OR of
-				MTR_MEMO_PAGE_S_FIX... values
-	@return	the block
-	@retval	NULL	if not found */
-	buf_block_t* memo_contains_page_flagged(
-		const byte*	ptr,
-		ulint		flags) const;
-
-	/** Mark the given latched page as modified.
-	@param[in]	ptr	pointer to within buffer frame */
-	void memo_modify_page(const byte* ptr);
-
 	/** Print info of an mtr handle. */
 	void print() const;
 
@@ -408,6 +404,15 @@ struct mtr_t {
 	/** @return the memo stack */
 	mtr_buf_t* get_memo() { return &m_memo; }
 #endif /* UNIV_DEBUG */
+
+	/** Mark the given latched page as modified.
+	@param[in]	ptr	pointer to within buffer frame */
+	void memo_modify_page(const byte* ptr);
+
+	/** Mark the given latched page as modified.
+	@param[in]	space	page's space id
+	@param[in]	page	page number*/
+	void memo_modify_page(ulint space, ulint page);
 
 	/** @return true if a record was added to the mini-transaction */
 	bool is_dirty() const { return m_made_dirty; }

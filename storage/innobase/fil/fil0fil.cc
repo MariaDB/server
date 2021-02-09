@@ -2160,6 +2160,8 @@ fil_op_write_log(
 	      || !strcmp(&path[strlen(path) - strlen(DOT_IBD)], DOT_IBD));
 
 	log_ptr = mlog_open(mtr, 11 + 4 + 2 + 1);
+	/* There is no need to mark page 0 as modified for file operations
+	because they do not really modify the page */
 
 	if (log_ptr == NULL) {
 		/* Logging in mtr is switched off during crash recovery:

@@ -1372,6 +1372,10 @@ buf_page_release_latch(
 	} else if (rw_latch == RW_X_LATCH) {
 		rw_lock_x_unlock(&block->lock);
 	}
+#ifdef UNIV_DEBUG
+	else
+		ut_a(rw_latch == RW_NO_LATCH);
+#endif
 }
 
 #ifdef UNIV_DEBUG

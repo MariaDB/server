@@ -816,6 +816,7 @@ page_cur_insert_rec_write_log(
 	const byte* log_end;
 	ulint	i;
 
+	mtr->memo_modify_page(insert_rec);
 	if (dict_table_is_temporary(index->table)) {
 		mtr->set_modified();
 		ut_ad(mtr->get_log_mode() == MTR_LOG_NO_REDO);
