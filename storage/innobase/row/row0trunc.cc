@@ -446,6 +446,8 @@ public:
 			mtr_start(&mtr);
 
 			log_ptr = mlog_open(&mtr, 11 + 8);
+			mtr.memo_modify_page(m_table->space, 0);
+
 			log_ptr = mlog_write_initial_log_record_low(
 				MLOG_TRUNCATE, m_table->space, 0,
 				log_ptr, &mtr);

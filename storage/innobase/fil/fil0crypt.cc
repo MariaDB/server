@@ -410,6 +410,7 @@ fil_space_crypt_t::write_page0(
 	DBUG_EXECUTE_IF("ib_do_not_log_crypt_data", return;);
 
 	byte* log_ptr = mlog_open(mtr, 11 + 17 + len);
+	mtr->memo_modify_page(page);
 
 	if (log_ptr != NULL) {
 		log_ptr = mlog_write_initial_log_record_fast(

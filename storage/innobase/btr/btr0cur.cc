@@ -4952,6 +4952,7 @@ btr_cur_del_mark_set_sec_rec_log(
 	ut_ad(val <= 1);
 
 	log_ptr = mlog_open(mtr, 11 + 1 + 2);
+	mtr->memo_modify_page(rec);
 
 	if (!log_ptr) {
 		/* Logging in mtr is switched off during crash recovery:

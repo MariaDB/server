@@ -4480,6 +4480,7 @@ void row_merge_write_redo(const dict_index_t* index)
 	mtr_t mtr;
 	mtr.start();
 	byte* log_ptr = mlog_open(&mtr, 11 + 8);
+	mtr.memo_modify_page(index->space, index->page);
 	log_ptr = mlog_write_initial_log_record_low(
 		MLOG_INDEX_LOAD,
 		index->space, index->page, log_ptr, &mtr);

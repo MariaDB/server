@@ -68,6 +68,7 @@ mlog_write_initial_log_record(
 	ut_ad(type > MLOG_8BYTES);
 
 	log_ptr = mlog_open(mtr, 11);
+	mtr->memo_modify_page(ptr);
 
 	/* If no logging is requested, we may return now */
 	if (log_ptr == NULL) {
@@ -255,7 +256,7 @@ mlog_write_ulint(
 
 	if (mtr != 0) {
 		byte*	log_ptr = mlog_open(mtr, 11 + 2 + 5);
-
+		mtr->memo_modify_page(ptr);
 		/* If no logging is requested, we may return now */
 
 		if (log_ptr != 0) {
@@ -287,6 +288,7 @@ mlog_write_ull(
 
 	if (mtr != 0) {
 		byte*	log_ptr = mlog_open(mtr, 11 + 2 + 9);
+		mtr->memo_modify_page(ptr);
 
 		/* If no logging is requested, we may return now */
 		if (log_ptr != 0) {
@@ -339,6 +341,7 @@ mlog_log_string(
 	ut_ad(len <= UNIV_PAGE_SIZE);
 
 	log_ptr = mlog_open(mtr, 30);
+	mtr->memo_modify_page(ptr);
 
 	/* If no logging is requested, we may return now */
 	if (log_ptr == NULL) {
@@ -432,6 +435,7 @@ mlog_open_and_write_index(
 
 	if (!page_rec_is_comp(rec)) {
 		log_start = log_ptr = mlog_open(mtr, 11 + size);
+		mtr->memo_modify_page(rec);
 		if (!log_ptr) {
 			return(NULL); /* logging is disabled */
 		}
@@ -457,6 +461,7 @@ mlog_open_and_write_index(
 		}
 
 		log_start = log_ptr = mlog_open(mtr, alloc);
+		mtr->memo_modify_page(rec);
 
 		if (!log_ptr) {
 			return(NULL); /* logging is disabled */

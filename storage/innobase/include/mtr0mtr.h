@@ -389,10 +389,6 @@ struct mtr_t {
 		const byte*	ptr,
 		ulint		flags) const;
 
-	/** Mark the given latched page as modified.
-	@param[in]	ptr	pointer to within buffer frame */
-	void memo_modify_page(const byte* ptr);
-
 	/** Print info of an mtr handle. */
 	void print() const;
 
@@ -408,6 +404,15 @@ struct mtr_t {
 	/** @return the memo stack */
 	mtr_buf_t* get_memo() { return &m_memo; }
 #endif /* UNIV_DEBUG */
+
+	/** Mark the given latched page as modified.
+	@param[in]	ptr	pointer to within buffer frame */
+	void memo_modify_page(const byte* ptr);
+
+	/** Mark the given latched page as modified.
+	@param[in]	space	page's space id
+	@param[in]	page	page number*/
+	void memo_modify_page(ulint space, ulint page);
 
 	/** @return true if a record was added to the mini-transaction */
 	bool is_dirty() const { return m_made_dirty; }

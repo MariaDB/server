@@ -417,6 +417,12 @@ public:
 		return(m_heap == NULL);
 	}
 
+	/** @return whether the buffer is empty */
+	bool empty()
+	{
+		return !(const_cast<const block_t*>(back()))->m_used;
+	}
+
 private:
 	// Disable copying
 	dyn_buf_t(const dyn_buf_t&);
