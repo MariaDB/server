@@ -1,0 +1,15 @@
+--source include/have_wsrep.inc
+--source include/have_innodb.inc
+
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME LIKE 'wsrep_provider%';
+
+--vertical_results
+SELECT * FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES
+WHERE VARIABLE_NAME LIKE 'wsrep_provider_%' AND VARIABLE_NAME NOT IN (
+      'wsrep_provider',
+      'wsrep_provider_options',
+      'wsrep_provider_base_dir',
+      'wsrep_provider_base_port',
+      'wsrep_provider_gcache_dir',
+      'wsrep_provider_gmcast_listen_addr')
+ORDER BY VARIABLE_NAME;
