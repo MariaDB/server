@@ -114,7 +114,7 @@ struct Find {
 	/** @return false if the object was found. */
 	bool operator()(mtr_memo_slot_t* slot)
 	{
-		if (m_object == slot->object && m_type == slot->type) {
+		if (m_object == slot->object && m_type == (slot->type & ~MTR_MEMO_MODIFY)) {
 			m_slot = slot;
 			return(false);
 		}
@@ -159,7 +159,7 @@ struct FindPage
 	{
 		ut_ad(m_slot == NULL);
 
-		if (!(m_flags & slot->type) || slot->object == NULL) {
+		if (!(m_flags & (slot->type & ~MTR_MEMO_MODIFY)) || slot->object == NULL) {
 			return(true);
 		}
 
@@ -204,14 +204,12 @@ private:
 @param slot	memo slot */
 static void memo_slot_release(mtr_memo_slot_t *slot)
 {
-  switch (slot->type) {
-#ifdef UNIV_DEBUG
+  switch (slot->type & ~MTR_MEMO_MODIFY) {
   default:
     ut_ad(!"invalid type");
     break;
   case MTR_MEMO_MODIFY:
     break;
-#endif /* UNIV_DEBUG */
   case MTR_MEMO_S_LOCK:
     rw_lock_s_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
     break;
@@ -233,7 +231,7 @@ static void memo_slot_release(mtr_memo_slot_t *slot)
   case MTR_MEMO_PAGE_SX_FIX:
   case MTR_MEMO_PAGE_X_FIX:
     buf_block_t *block= reinterpret_cast<buf_block_t*>(slot->object);
-    buf_page_release_latch(block, slot->type);
+    buf_page_release_latch(block, slot->type & ~MTR_MEMO_MODIFY);
     buf_block_unfix(block);
     break;
   }
@@ -247,14 +245,12 @@ struct ReleaseLatches {
   {
     if (!slot->object)
       return true;
-    switch (slot->type) {
-#ifdef UNIV_DEBUG
+    switch (slot->type & ~MTR_MEMO_MODIFY) {
     default:
       ut_ad(!"invalid type");
       break;
     case MTR_MEMO_MODIFY:
       break;
-#endif /* UNIV_DEBUG */
     case MTR_MEMO_S_LOCK:
       rw_lock_s_unlock(reinterpret_cast<rw_lock_t*>(slot->object));
       break;
@@ -276,7 +272,7 @@ struct ReleaseLatches {
     case MTR_MEMO_PAGE_SX_FIX:
     case MTR_MEMO_PAGE_X_FIX:
       buf_block_t *block= reinterpret_cast<buf_block_t*>(slot->object);
-      buf_page_release_latch(block, slot->type);
+      buf_page_release_latch(block, slot->type & ~MTR_MEMO_MODIFY);
       buf_block_unfix(block);
       break;
     }
@@ -338,9 +334,10 @@ struct ReleaseBlocks {
 	bool operator()(mtr_memo_slot_t* slot) const
 	{
 		if (slot->object != NULL) {
-
-			if (slot->type == MTR_MEMO_PAGE_X_FIX
-			    || slot->type == MTR_MEMO_PAGE_SX_FIX) {
+                        ulint type = slot->type;// & ~MTR_MEMO_MODIFY;
+			if (type == (MTR_MEMO_PAGE_X_FIX | MTR_MEMO_MODIFY)
+			    || type == (MTR_MEMO_PAGE_SX_FIX | MTR_MEMO_MODIFY)
+			    /*&& (slot->type & MTR_MEMO_MODIFY)*/) {
 
 				add_dirty_page_to_flush_list(slot);
 			}
@@ -814,7 +811,7 @@ struct FindBlockX
   /** @return whether the block was not found x-latched */
   bool operator()(const mtr_memo_slot_t *slot) const
   {
-    return slot->object != &block || slot->type != MTR_MEMO_PAGE_X_FIX;
+    return slot->object != &block || (slot->type & ~MTR_MEMO_MODIFY) != MTR_MEMO_PAGE_X_FIX;
   }
 };
 
@@ -952,6 +949,17 @@ mtr_t::memo_contains_flagged(const void* ptr, ulint flags) const
 		CIterate<FlaggedCheck>(FlaggedCheck(ptr, flags)));
 }
 
+/** Print info of an mtr handle. */
+void
+mtr_t::print() const
+{
+	ib::info() << "Mini-transaction handle: memo size "
+		<< m_memo.size() << " bytes log size "
+		<< get_log()->size() << " bytes";
+}
+
+#endif /* UNIV_DEBUG */
+
 /** Check if memo contains the given page.
 @param[in]	ptr	pointer to within buffer frame
 @param[in]	flags	specify types of object with OR of
@@ -968,11 +976,65 @@ mtr_t::memo_contains_page_flagged(
 		? NULL : iteration.functor.get_block();
 }
 
+
+/** Find a block, preferrably in MTR_MEMO_MODIFY state */
+struct FindModifiedSpacePage
+{
+  mtr_memo_slot_t *found= nullptr;
+//  const byte *ptr;
+  ulint space;
+  ulint page;
+
+//  FindModified(ulint space, ulint page) : space(space), page(page) {}
+  FindModifiedSpacePage(ulint space, ulint page) : space(space), page(page) {}
+
+  bool operator()(mtr_memo_slot_t *slot)
+  {
+    if (!(slot->type & (MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX)))
+      return true;
+
+    const byte *frame = static_cast<buf_block_t *>(slot->object)->frame;
+    uint32_t page_space = mach_read_from_4(frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+    uint32_t page_no = mach_read_from_4(frame + FIL_PAGE_OFFSET);
+
+    if (page_space != space || page_no != page)
+      return true;
+
+    found= slot;
+    return !(slot->type & (MTR_MEMO_MODIFY |
+                           MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX));
+  }
+};
+
+struct FindModifiedPtr
+{
+  mtr_memo_slot_t *found= nullptr;
+  const byte *ptr;
+
+  FindModifiedPtr(const byte *ptr) : ptr(ptr) {}
+
+  bool operator()(mtr_memo_slot_t *slot)
+  {
+    if (!slot->object
+        || !(slot->type & (MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX))
+        || ptr < static_cast<buf_block_t *>(slot->object)->frame
+        || ptr >= (static_cast<buf_block_t *>(slot->object)->frame
+          + static_cast<buf_block_t *>(slot->object)->page.size.logical()))
+      return true;
+    found= slot;
+    return !(slot->type & (MTR_MEMO_MODIFY |
+                           MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX));
+  }
+};
+
+
 /** Mark the given latched page as modified.
 @param[in]	ptr	pointer to within buffer frame */
 void
-mtr_t::memo_modify_page(const byte* ptr)
+//mtr_t::memo_modify_page(const byte* ptr)
+mtr_t::memo_modify_page(ulint space, ulint page)
 {
+/*
 	buf_block_t*	block = memo_contains_page_flagged(
 		ptr, MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX);
 	ut_ad(block != NULL);
@@ -980,15 +1042,39 @@ mtr_t::memo_modify_page(const byte* ptr)
 	if (!memo_contains(get_memo(), block, MTR_MEMO_MODIFY)) {
 		memo_push(block, MTR_MEMO_MODIFY);
 	}
+*/
+  Iterate<FindModifiedSpacePage> iteration((FindModifiedSpacePage(space, page)));
+  if (UNIV_UNLIKELY(m_memo.for_each_block(iteration)))
+  {
+    ut_ad("modifying an unlatched page" == 0);
+    return;
+  }
+  iteration.functor.found->type= static_cast<mtr_memo_type_t>
+    (iteration.functor.found->type | MTR_MEMO_MODIFY);
 }
 
-/** Print info of an mtr handle. */
+
 void
-mtr_t::print() const
+mtr_t::memo_modify_page(const byte* ptr)
 {
-	ib::info() << "Mini-transaction handle: memo size "
-		<< m_memo.size() << " bytes log size "
-		<< get_log()->size() << " bytes";
-}
+/*
+	buf_block_t*	block = memo_contains_page_flagged(
+		ptr, MTR_MEMO_PAGE_X_FIX | MTR_MEMO_PAGE_SX_FIX);
+	ut_ad(block != NULL);
 
-#endif /* UNIV_DEBUG */
+	if (!memo_contains(get_memo(), block, MTR_MEMO_MODIFY)) {
+		memo_push(block, MTR_MEMO_MODIFY);
+	}
+*/
+
+  Iterate<FindModifiedPtr> iteration((FindModifiedPtr(ptr)));
+  if (UNIV_UNLIKELY(m_memo.for_each_block(iteration)))
+  {
+    ut_ad("modifying an unlatched page" == 0);
+    return;
+  }
+
+  iteration.functor.found->type= static_cast<mtr_memo_type_t>
+    (iteration.functor.found->type | MTR_MEMO_MODIFY);
+
+}

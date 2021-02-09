@@ -255,9 +255,7 @@ enum mtr_memo_type_t {
 
 	MTR_MEMO_BUF_FIX = RW_NO_LATCH,
 
-#ifdef UNIV_DEBUG
 	MTR_MEMO_MODIFY = 16,
-#endif /* UNIV_DEBUG */
 
 	MTR_MEMO_S_LOCK = RW_S_LATCH << 5,
 
