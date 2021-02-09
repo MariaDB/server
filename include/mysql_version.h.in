@@ -28,6 +28,8 @@
 #define MYSQL_PORT                      MARIADB_PORT
 #define MYSQL_UNIX_ADDR                 MARIADB_UNIX_ADDR
 
+#define SAMURAI_VERSION_COMMIT_HASH	"@VERSION_COMMIT_HASH@"
+
 #ifdef WITH_WSREP
 #define WSREP_PATCH_VERSION             "@WSREP_PATCH_VERSION@"
 #endif

@@ -3929,6 +3929,13 @@ static Sys_var_charptr Sys_version_comment(
        CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(MYSQL_COMPILATION_COMMENT));
 
+static char *server_version_commit_hash_ptr;
+static Sys_var_charptr Sys_version_commit_hash(
+       "version_commit_hash", "Hash denoting Samurai source configuration.",
+       READ_ONLY GLOBAL_VAR(server_version_commit_hash_ptr),
+       CMD_LINE_HELP_ONLY,
+       IN_SYSTEM_CHARSET, DEFAULT(SAMURAI_VERSION_COMMIT_HASH));
+
 static char *server_version_compile_machine_ptr;
 static Sys_var_charptr Sys_version_compile_machine(
        "version_compile_machine", "The machine type or architecture "
