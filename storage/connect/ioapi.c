@@ -94,6 +94,7 @@ static int     ZCALLBACK ferror_file_func OF((voidpf opaque, voidpf stream));
 
 static voidpf ZCALLBACK fopen_file_func (voidpf opaque __attribute__((unused)), const char* filename, int mode)
 {
+    (void)opaque;
     FILE* file = NULL;
     const char* mode_fopen = NULL;
     if ((mode & ZLIB_FILEFUNC_MODE_READWRITEFILTER)==ZLIB_FILEFUNC_MODE_READ)
@@ -112,6 +113,7 @@ static voidpf ZCALLBACK fopen_file_func (voidpf opaque __attribute__((unused)), 
 
 static voidpf ZCALLBACK fopen64_file_func (voidpf opaque __attribute__((unused)), const void* filename, int mode)
 {
+    (void)opaque;
     FILE* file = NULL;
     const char* mode_fopen = NULL;
     if ((mode & ZLIB_FILEFUNC_MODE_READWRITEFILTER)==ZLIB_FILEFUNC_MODE_READ)
@@ -131,6 +133,7 @@ static voidpf ZCALLBACK fopen64_file_func (voidpf opaque __attribute__((unused))
 
 static uLong ZCALLBACK fread_file_func (voidpf opaque __attribute__((unused)), voidpf stream, void* buf, uLong size)
 {
+    (void)opaque;
     uLong ret;
     ret = (uLong)fread(buf, 1, (size_t)size, (FILE *)stream);
     return ret;
@@ -138,6 +141,7 @@ static uLong ZCALLBACK fread_file_func (voidpf opaque __attribute__((unused)), v
 
 static uLong ZCALLBACK fwrite_file_func (voidpf opaque __attribute__((unused)), voidpf stream, const void* buf, uLong size)
 {
+    (void)opaque;
     uLong ret;
     ret = (uLong)fwrite(buf, 1, (size_t)size, (FILE *)stream);
     return ret;
@@ -145,6 +149,7 @@ static uLong ZCALLBACK fwrite_file_func (voidpf opaque __attribute__((unused)), 
 
 static long ZCALLBACK ftell_file_func (voidpf opaque __attribute__((unused)), voidpf stream)
 {
+    (void)opaque;
     long ret;
     ret = ftell((FILE *)stream);
     return ret;
@@ -153,6 +158,7 @@ static long ZCALLBACK ftell_file_func (voidpf opaque __attribute__((unused)), vo
 
 static ZPOS64_T ZCALLBACK ftell64_file_func (voidpf opaque __attribute__((unused)), voidpf stream)
 {
+    (void)opaque;
     ZPOS64_T ret;
     ret = FTELLO_FUNC((FILE *)stream);
     return ret;
@@ -160,6 +166,7 @@ static ZPOS64_T ZCALLBACK ftell64_file_func (voidpf opaque __attribute__((unused
 
 static long ZCALLBACK fseek_file_func (voidpf  opaque __attribute__((unused)), voidpf stream, uLong offset, int origin)
 {
+    (void)opaque;
     int fseek_origin=0;
     long ret;
     switch (origin)
@@ -183,6 +190,7 @@ static long ZCALLBACK fseek_file_func (voidpf  opaque __attribute__((unused)), v
 
 static long ZCALLBACK fseek64_file_func (voidpf opaque __attribute__((unused)), voidpf stream, ZPOS64_T offset, int origin)
 {
+    (void)opaque;
     int fseek_origin=0;
     long ret;
     switch (origin)
@@ -209,6 +217,7 @@ static long ZCALLBACK fseek64_file_func (voidpf opaque __attribute__((unused)), 
 
 static int ZCALLBACK fclose_file_func (voidpf opaque __attribute__((unused)), voidpf stream)
 {
+    (void)opaque;
     int ret;
     ret = fclose((FILE *)stream);
     return ret;
@@ -216,6 +225,7 @@ static int ZCALLBACK fclose_file_func (voidpf opaque __attribute__((unused)), vo
 
 static int ZCALLBACK ferror_file_func (voidpf opaque __attribute__((unused)), voidpf stream)
 {
+    (void)opaque;
     int ret;
     ret = ferror((FILE *)stream);
     return ret;
