@@ -11446,7 +11446,7 @@ bool LEX::add_column_foreign_key(const LEX_CSTRING &field_name,
     return true;
   last_key->columns.push_back(key);
   Foreign_key &fk= static_cast<Foreign_key &>(*last_key);
-  fk.init(ref_table_name.db, ref_table_name.table, this);
+  fk.init(ref_table_name.db, ref_table_name.table, fk_options, &ref_list);
   return false;
 }
 

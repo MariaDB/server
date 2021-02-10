@@ -9483,8 +9483,8 @@ void FK_info::assign(Foreign_key &src, Table_name table)
   foreign_table= table.name;
   referenced_db= src.ref_db;
   referenced_table= src.ref_table;
-  update_method= src.update_opt;
-  delete_method= src.delete_opt;
+  update_method= src.fk_options.upd;
+  delete_method= src.fk_options.del;
 
   List_iterator_fast<Key_part_spec> fk_it(src.columns);
   List_iterator_fast<Key_part_spec> ref_it(src.ref_columns);

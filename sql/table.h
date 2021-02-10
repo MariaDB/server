@@ -1846,6 +1846,17 @@ enum enum_schema_table_state
 
 enum enum_fk_option { FK_OPTION_UNDEF= 0, FK_OPTION_RESTRICT, FK_OPTION_CASCADE,
                FK_OPTION_SET_NULL, FK_OPTION_NO_ACTION, FK_OPTION_SET_DEFAULT};
+
+enum fk_match_opt { FK_MATCH_UNDEF, FK_MATCH_FULL,
+  FK_MATCH_PARTIAL, FK_MATCH_SIMPLE};
+
+struct st_fk_options
+{
+  enum_fk_option upd;
+  enum_fk_option del;
+  enum fk_match_opt match;
+};
+
 class Foreign_key;
 class Table_name;
 

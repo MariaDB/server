@@ -3507,7 +3507,7 @@ without_overlaps_err:
           continue;
         DBUG_ASSERT(key != key2);
         Foreign_key *fk= (Foreign_key*) key2;
-        if (fk->update_opt != FK_OPTION_CASCADE)
+        if (fk->fk_options.upd != FK_OPTION_CASCADE)
           continue;
         for (Key_part_spec& kp: key->columns)
         {
@@ -5915,8 +5915,8 @@ drop_create_field:
           List_iterator_fast<Key_part_spec> col_it;
           while ((fk= fk_it++))
           {
-            if (fk->update_method != new_fk->update_opt ||
-                fk->delete_method != new_fk->delete_opt ||
+            if (fk->update_method != new_fk->fk_options.upd ||
+                fk->delete_method != new_fk->fk_options.del ||
                 fk->foreign_fields.size() != new_fk->columns.elements)
               continue;
             if (cmp_table(fk->ref_db(), new_fk->ref_db.str ?

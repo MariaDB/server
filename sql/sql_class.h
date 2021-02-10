@@ -702,14 +702,11 @@ public:
 
 class Foreign_key: public Key {
 public:
-  enum fk_match_opt { FK_MATCH_UNDEF, FK_MATCH_FULL,
-		      FK_MATCH_PARTIAL, FK_MATCH_SIMPLE};
   LEX_CSTRING constraint_name;
   LEX_CSTRING ref_db;
   LEX_CSTRING ref_table;
   List<Key_part_spec> ref_columns;
-  enum enum_fk_option delete_opt, update_opt;
-  enum fk_match_opt match_opt;
+  st_fk_options fk_options;
   Foreign_key(const LEX_CSTRING *name_arg,
               const LEX_CSTRING *constraint_name_arg,
               DDL_options ddl_options)
@@ -724,8 +721,7 @@ public:
     constraint_name(src.foreign_id),
     ref_db(src.referenced_db),
     ref_table(src.referenced_table),
-    delete_opt(src.delete_method),
-    update_opt(src.update_method)
+    fk_options{src.update_method, src.delete_method, FK_MATCH_UNDEF}
   {
     for (const Lex_cstring &src_f: src.foreign_fields)
     {
@@ -747,8 +743,8 @@ public:
   {
     return !foreign;
   }
-  void init(const LEX_CSTRING &_ref_db, const LEX_CSTRING &_ref_table,
-            const LEX *lex);
+  void init(const LEX_CSTRING& _ref_db, const LEX_CSTRING& _ref_table,
+            st_fk_options _fk_options, List<Key_part_spec> *_ref_columns);
   Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root);
   /**
     Used to make a clone of this object for ALTER/CREATE TABLE

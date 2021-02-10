@@ -3390,9 +3390,7 @@ public:
   enum enum_drop_mode drop_mode;
 
   enum backup_stages backup_stage;
-  enum Foreign_key::fk_match_opt fk_match_option;
-  enum_fk_option fk_update_opt;
-  enum_fk_option fk_delete_opt;
+  st_fk_options fk_options;
   enum enum_yes_no_unknown tx_chain, tx_release;
   st_parsing_options parsing_options;
   /*

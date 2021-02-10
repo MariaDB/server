@@ -1506,7 +1506,7 @@ bool Item_field::check_vcol_func_processor(void *arg)
       if (!k.foreign)
         continue;
       Foreign_key *fk= (Foreign_key*) &k;
-      if (fk->update_opt != FK_OPTION_CASCADE)
+      if (fk->fk_options.upd != FK_OPTION_CASCADE)
         continue;
       for (Key_part_spec& kp: fk->columns)
       {
