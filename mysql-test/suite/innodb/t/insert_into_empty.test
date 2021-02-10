@@ -24,5 +24,12 @@ BEGIN;
 INSERT INTO t1 SELECT * FROM seq_1_to_65536;
 ROLLBACK;
 CHECK TABLE t1;
+--echo #
+--echo # MDEV-24832 Root page AHI Removal fails fails during
+--echo #		bulk index rollback
+--echo #
+BEGIN;
+INSERT INTO t1 SELECT * FROM seq_1_to_500;
+ROLLBACK;
 DROP TABLE t1;
 SET GLOBAL innodb_adaptive_hash_index = @save_ahi;

@@ -25,5 +25,12 @@ ROLLBACK;
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
+#
+# MDEV-24832 Root page AHI Removal fails fails during
+#		bulk index rollback
+#
+BEGIN;
+INSERT INTO t1 SELECT * FROM seq_1_to_500;
+ROLLBACK;
 DROP TABLE t1;
 SET GLOBAL innodb_adaptive_hash_index = @save_ahi;

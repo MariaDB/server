@@ -1209,16 +1209,16 @@ void dict_index_t::clear(que_thr_t *thr)
 #endif
                          );
 
-    mtr.memset(root_block, PAGE_HEADER + PAGE_BTR_SEG_LEAF,
-               FSEG_HEADER_SIZE, 0);
-    if (fseg_create(table->space, PAGE_HEADER + PAGE_BTR_SEG_LEAF, &mtr, false,
-                    root_block))
-      btr_root_page_init(root_block, id, this, &mtr);
 #ifdef BTR_CUR_HASH_ADAPT
     if (root_block->index)
       btr_search_drop_page_hash_index(root_block);
     ut_ad(n_ahi_pages() == 0);
 #endif
+    mtr.memset(root_block, PAGE_HEADER + PAGE_BTR_SEG_LEAF,
+               FSEG_HEADER_SIZE, 0);
+    if (fseg_create(table->space, PAGE_HEADER + PAGE_BTR_SEG_LEAF, &mtr, false,
+                    root_block))
+      btr_root_page_init(root_block, id, this, &mtr);
   }
 
   mtr.commit();
