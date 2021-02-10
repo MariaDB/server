@@ -146,6 +146,12 @@ blhc:
   # Prime the apt cache so later apt commands can run
   apt-get update
 
+# Readline was removed from Debian Sid (and Bullseye) in Feb 2021. To be able to install older
+# versions of MariaDB that depend on it, fetch and install it from Buster.
+.test-install-readline-in-sid-for-backwards-compat: &test-install-readline-in-sid-for-backwards-compat |
+  curl -O http://ftp.de.debian.org/debian/pool/main/r/readline5/libreadline5_5.2+dfsg-3+b13_amd64.deb
+  apt install -y ./libreadline5_5.2+dfsg-3+b13_amd64.deb
+
 .test-verify-initial: &test-verify-initial |
   dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
   service mysql status || service mariadb status # Early MariaDB 10.5 only had 'mariadb'
@@ -664,6 +670,7 @@ mariadb.org-10.5 to mariadb-10.5 upgrade:
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
     - echo 'deb http://mirror.one.com/mariadb/repo/10.5/debian sid main' > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
+    - *test-install-readline-in-sid-for-backwards-compat
     # Package libmariadbclient-dev from mariadb.org conficts with libmariadb-dev in Sid, so cannot use wildcard that would include it
     - apt-get install -y 'mariadb*' libmariadb3 'libmariadb-*' 'libmariadbd*'
     - *test-verify-initial
@@ -698,6 +705,7 @@ mariadb.org-10.4 to mariadb-10.5 upgrade:
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
     - echo 'deb http://mirror.one.com/mariadb/repo/10.4/debian sid main' > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
+    - *test-install-readline-in-sid-for-backwards-compat
     - apt-get install -y mariadb-server-10.4
     # MariaDB.org version of 10.4 and early 10.5 do not install an init file, so
     # it must be installed here manually
@@ -731,6 +739,7 @@ mariadb.org-10.3 to mariadb-10.5 upgrade:
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
     - echo 'deb http://mirror.one.com/mariadb/repo/10.3/debian sid main' > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
+    - *test-install-readline-in-sid-for-backwards-compat
     - apt-get install -y mariadb-server-10.3
     # Verify initial state before upgrade
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
@@ -767,6 +776,7 @@ mariadb.org-10.2 to mariadb-10.5 upgrade:
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
     - echo 'deb http://mirror.one.com/mariadb/repo/10.2/debian sid main' > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
+    - *test-install-readline-in-sid-for-backwards-compat
     - apt-get install -y mariadb-server-10.2
     # Verify initial state before upgrade
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
