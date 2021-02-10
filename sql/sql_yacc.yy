@@ -5916,7 +5916,7 @@ key_def:
           '(' key_list ')' references
           {
             Foreign_key &fk= static_cast<Foreign_key &>(*Lex->last_key);
-            fk.init($10->db, $10->table, Lex);
+            fk.init($10->db, $10->table, Lex->fk_options, &Lex->ref_list);
           }
 	;
 
@@ -6878,47 +6878,47 @@ ref_list:
 
 opt_match_clause:
           /* empty */
-          { Lex->fk_match_option= Foreign_key::FK_MATCH_UNDEF; }
+          { Lex->fk_options.match= FK_MATCH_UNDEF; }
         | MATCH FULL
-          { Lex->fk_match_option= Foreign_key::FK_MATCH_FULL; }
+          { Lex->fk_options.match= FK_MATCH_FULL; }
         | MATCH PARTIAL
-          { Lex->fk_match_option= Foreign_key::FK_MATCH_PARTIAL; }
+          { Lex->fk_options.match= FK_MATCH_PARTIAL; }
         | MATCH SIMPLE_SYM
-          { Lex->fk_match_option= Foreign_key::FK_MATCH_SIMPLE; }
+          { Lex->fk_options.match= FK_MATCH_SIMPLE; }
         ;
 
 opt_on_update_delete:
           /* empty */
           {
             LEX *lex= Lex;
-            lex->fk_update_opt= FK_OPTION_UNDEF;
-            lex->fk_delete_opt= FK_OPTION_UNDEF;
+            lex->fk_options.upd= FK_OPTION_UNDEF;
+            lex->fk_options.del= FK_OPTION_UNDEF;
           }
         | ON UPDATE_SYM delete_option
           {
             LEX *lex= Lex;
-            lex->fk_update_opt= $3;
-            lex->fk_delete_opt= FK_OPTION_UNDEF;
+            lex->fk_options.upd= $3;
+            lex->fk_options.del= FK_OPTION_UNDEF;
           }
         | ON DELETE_SYM delete_option
           {
             LEX *lex= Lex;
-            lex->fk_update_opt= FK_OPTION_UNDEF;
-            lex->fk_delete_opt= $3;
+            lex->fk_options.upd= FK_OPTION_UNDEF;
+            lex->fk_options.del= $3;
           }
         | ON UPDATE_SYM delete_option
           ON DELETE_SYM delete_option
           {
             LEX *lex= Lex;
-            lex->fk_update_opt= $3;
-            lex->fk_delete_opt= $6;
+            lex->fk_options.upd= $3;
+            lex->fk_options.del= $6;
           }
         | ON DELETE_SYM delete_option
           ON UPDATE_SYM delete_option
           {
             LEX *lex= Lex;
-            lex->fk_update_opt= $6;
-            lex->fk_delete_opt= $3;
+            lex->fk_options.upd= $6;
+            lex->fk_options.del= $3;
           }
         ;
 

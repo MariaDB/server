@@ -196,27 +196,24 @@ Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
   ref_db(rhs.ref_db),
   ref_table(rhs.ref_table),
   ref_columns(rhs.ref_columns,mem_root),
-  delete_opt(rhs.delete_opt),
-  update_opt(rhs.update_opt),
-  match_opt(rhs.match_opt)
+  fk_options(rhs.fk_options)
 {
   list_copy_and_replace_each_value(ref_columns, mem_root);
 }
 
-void Foreign_key::init(const LEX_CSTRING& _ref_db, const LEX_CSTRING& _ref_table,
-                       const LEX* lex)
+void Foreign_key::init(const LEX_CSTRING& _ref_db,
+                       const LEX_CSTRING& _ref_table,
+                       st_fk_options _fk_options,
+                       List<Key_part_spec> *_ref_columns)
 {
-  DBUG_ASSERT(lex);
   ref_db= _ref_db;
   ref_table= _ref_table;
-  ref_columns= lex->ref_list;
+  ref_columns= *_ref_columns;
   if (ref_columns.is_empty())
   {
     ref_columns= columns;
   }
-  delete_opt= lex->fk_delete_opt;
-  update_opt= lex->fk_update_opt;
-  match_opt= lex->fk_match_option;
+  fk_options= _fk_options;
 }
 
 /*
@@ -337,19 +334,19 @@ bool Foreign_key::validate(const LEX_CSTRING &db, const LEX_CSTRING &table_name,
     }
     if (sql_field->vcol_info)
     {
-      if (delete_opt == FK_OPTION_SET_NULL)
+      if (fk_options.del == FK_OPTION_SET_NULL)
       {
         my_error(ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN, MYF(0), 
                  "ON DELETE SET NULL");
         DBUG_RETURN(TRUE);
       }
-      if (update_opt == FK_OPTION_SET_NULL)
+      if (fk_options.upd == FK_OPTION_SET_NULL)
       {
         my_error(ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN, MYF(0), 
                  "ON UPDATE SET NULL");
         DBUG_RETURN(TRUE);
       }
-      if (update_opt == FK_OPTION_CASCADE)
+      if (fk_options.upd == FK_OPTION_CASCADE)
       {
         my_error(ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN, MYF(0), 
                  "ON UPDATE CASCADE");
