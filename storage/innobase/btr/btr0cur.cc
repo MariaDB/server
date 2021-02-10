@@ -1498,7 +1498,8 @@ x_latch_index:
 		if (!srv_read_only_mode) {
 			if (s_latch_by_caller) {
 				ut_ad(mtr->memo_contains_flagged(
-					      &index->lock, MTR_MEMO_S_LOCK));
+					      &index->lock, MTR_MEMO_S_LOCK
+					      | MTR_MEMO_SX_LOCK));
 			} else if (!modify_external) {
 				/* BTR_SEARCH_TREE is intended to be used with
 				BTR_ALREADY_S_LATCHED */
