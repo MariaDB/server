@@ -255,12 +255,10 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 ALTER IGNORE TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (b);
-ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR 42S02: Table 'test.t2' doesn't exist
 SHOW WARNINGS;
 Level	Code	Message
-Warning	150	Alter  table `test`.`t1` with foreign key (a) constraint failed. Referenced table `test`.`t2` not found in the data dictionary.
-Error	1005	Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
-Warning	1215	Cannot add foreign key constraint for `t1`
+Error	1146	Table 'test.t2' doesn't exist
 DROP TABLE t1;
 #
 # MDEV-18139 ALTER IGNORE ... ADD FOREIGN KEY causes bogus error

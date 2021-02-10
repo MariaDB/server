@@ -4998,6 +4998,12 @@ bool sp_create_assignment_instr(THD *thd, bool no_lookahead,
                                 bool need_set_keyword= true);
 
 void mark_or_conds_to_avoid_pushdown(Item *cond);
+TABLE_LIST *find_table_in_list(TABLE_LIST *table,
+                               TABLE_LIST *TABLE_LIST::*link,
+                               const LEX_CSTRING *db_name,
+                               const LEX_CSTRING *table_name);
 
+int add_foreign_key_to_list(LEX *lex, LEX_CSTRING *name, Table_ident *table_name,
+                            DDL_options ddl_options);
 #endif /* MYSQL_SERVER */
 #endif /* SQL_LEX_INCLUDED */

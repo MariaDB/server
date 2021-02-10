@@ -190,9 +190,11 @@ drop table rename_column_and_index;
 --echo #
 
 CREATE TABLE t1 (f1 INT, f2 INT, f3 INT);
+CREATE TABLE xx (f2 INT);
 ALTER TABLE t1 ADD FOREIGN KEY f (f2) REFERENCES xx(f2);
 ALTER TABLE t1 ADD FOREIGN KEY (f2) REFERENCES t1(f2), ADD KEY (f3), ADD KEY (f1);
 DROP TABLE t1;
+DROP TABLE xx;
 
 --echo #
 --echo # MDEV-21669 InnoDB: Table ... contains <n> indexes inside InnoDB, which is different from the number of indexes <n> defined in the MariaDB

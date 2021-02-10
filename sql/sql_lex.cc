@@ -11250,11 +11250,37 @@ bool LEX::add_table_foreign_key(const LEX_CSTRING *name,
                                 Table_ident *ref_table_name,
                                 DDL_options ddl_options)
 {
+  if (ref_table_name->db.str == NULL)
+    ref_table_name->db= query_tables->db;
+
+  if (ref_table_name->db.str == NULL)
+    copy_db_to(&ref_table_name->db);
+  TABLE_LIST *ref_table= find_table_in_list(query_tables,
+                                            &TABLE_LIST::next_global,
+                                            &ref_table_name->db,
+                                            &ref_table_name->table);
+
+  if (ref_table == NULL &&
+      !(thd->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS))
+  {
+    ref_table= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+    if (unlikely(ref_table == NULL))
+      return 1;
+    ref_table->init_one_table_for_prelocking(&ref_table_name->db,
+                                             &ref_table_name->table,
+                                             NULL, TL_READ,
+                                             TABLE_LIST::PRELOCK_NONE,
+                                             0, 0,
+                                             &query_tables_last,
+                                             false);
+  }
+
   Key *key= new (thd->mem_root) Foreign_key(name,
                                             &last_key->columns,
                                             constraint_name,
                                             &ref_table_name->db,
                                             &ref_table_name->table,
+                                            ref_table,
                                             &ref_list,
                                             fk_delete_opt,
                                             fk_update_opt,
