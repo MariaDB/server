@@ -24,6 +24,7 @@
 #include <sql_class.h>
 #include <sql_parse.h>
 #include <sql_base.h> /* find_temporary_table() */
+#include <sql_statistics.h> /* is_stat_table() */
 #include "slave.h"
 #include "rpl_mi.h"
 #include "sql_repl.h"
@@ -1169,15 +1170,273 @@ bool wsrep_check_mode (enum_wsrep_mode mask)
   return wsrep_mode & mask;
 }
 
-bool wsrep_check_mode_after_open_table (THD *thd, legacy_db_type db_type)
+//seconds after which the limit warnings suppression will be activated
+#define WSREP_WARNING_ACTIVATION_TIMEOUT 5*60
+//number of limit warnings after which the suppression will be activated
+#define WSREP_WARNING_ACTIVATION_THRESHOLD 10
+
+enum wsrep_warning_type {
+  WSREP_DISABLED = 0,
+  WSREP_REQUIRE_PRIMARY_KEY= 1,
+  WSREP_REQUIRE_INNODB= 2,
+  WSREP_REQUIRE_MAX=3,
+};
+
+static ulonglong wsrep_warning_start_time=0;
+static bool wsrep_warning_active[WSREP_REQUIRE_MAX+1];
+static ulonglong wsrep_warning_count[WSREP_REQUIRE_MAX+1];
+static ulonglong wsrep_total_warnings_count=0;
+
+/**
+  Auxiliary function to reset the limit of wsrep warnings.
+  This is done without mutex protection, but this should be good
+  enough as it doesn't matter if we loose a couple of suppressed
+  messages or if this is called multiple times.
+*/
+
+static void wsrep_reset_warnings(ulonglong now)
 {
+  uint i;
+
+  wsrep_warning_start_time= now;
+  wsrep_total_warnings_count= 0;
+
+  for (i= 0 ; i < WSREP_REQUIRE_MAX ; i++)
+  {
+    wsrep_warning_active[i]= false;
+    wsrep_warning_count[i]= 0;
+  }
+}
+
+static const char* wsrep_warning_name(const enum wsrep_warning_type type)
+{
+  switch(type)
+  {
+  case WSREP_REQUIRE_PRIMARY_KEY:
+    return "WSREP_REQUIRE_PRIMARY_KEY"; break;
+  case WSREP_REQUIRE_INNODB:
+    return "WSREP_REQUIRE_INNODB"; break;
+  default: assert(0);
+  }
+}
+/**
+  Auxiliary function to check if the warning statements should be
+  thrown or suppressed.
+
+  Logic is:
+  - If we get more than WSREP_WARNING_ACTIVATION_THRESHOLD errors
+    of one type, that type of errors will be suppressed for
+    WSREP_WARNING_ACTIVATION_TIMEOUT.
+  - When the time limit has been reached, all suppressions are reset.
+
+  This means that if one gets many different types of errors, some of them
+  may be reset less than WSREP_WARNING_ACTIVATION_TIMEOUT. However at
+  least one error is disabled for this time.
+
+  SYNOPSIS:
+  @params
+   warning_type - The type of warning.
+
+  RETURN:
+    0   0k to log
+    1   Message suppressed
+*/
+
+static bool wsrep_protect_against_warning_flood(
+              enum wsrep_warning_type warning_type)
+{
+  ulonglong count;
+  ulonglong now= my_interval_timer()/1000000000ULL;
+
+  count= ++wsrep_warning_count[warning_type];
+  wsrep_total_warnings_count++;
+
+  /*
+    INITIALIZING:
+    If this is the first time this function is called with log warning
+    enabled, the monitoring the warnings should start.
+  */
+  if (wsrep_warning_start_time == 0)
+  {
+    wsrep_reset_warnings(now);
+    return false;
+  }
+
+  /*
+    The following is true if we got too many errors or if the error was
+    already suppressed
+  */
+  if (count >= WSREP_WARNING_ACTIVATION_THRESHOLD)
+  {
+    ulonglong diff_time= (now - wsrep_warning_start_time);
+
+    if (!wsrep_warning_active[warning_type])
+    {
+      /*
+        ACTIVATION:
+        We got WSREP_WARNING_ACTIVATION_THRESHOLD warnings in
+        less than WSREP_WARNING_ACTIVATION_TIMEOUT we activate the
+        suppression.
+      */
+      if (diff_time <= WSREP_WARNING_ACTIVATION_TIMEOUT)
+      {
+        wsrep_warning_active[warning_type]= true;
+        WSREP_INFO("Suppressing warnings of type '%s' for up to %d seconds because of flooding",
+                   wsrep_warning_name(warning_type),
+                   WSREP_WARNING_ACTIVATION_TIMEOUT);
+      }
+      else
+      {
+        /*
+          There is no flooding till now, therefore we restart the monitoring
+        */
+        wsrep_reset_warnings(now);
+      }
+    }
+    else
+    {
+      /* This type of warnings was suppressed */
+      if (diff_time > WSREP_WARNING_ACTIVATION_TIMEOUT)
+      {
+        ulonglong save_count= wsrep_total_warnings_count;
+        /* Print a suppression note and remove the suppression */
+        wsrep_reset_warnings(now);
+        WSREP_INFO("Suppressed %lu unsafe warnings during "
+                              "the last %d seconds",
+                              save_count, (int) diff_time);
+      }
+    }
+  }
+
+  return wsrep_warning_active[warning_type];
+}
+
+/**
+  Auxiliary function to push warning to client and to the error log
+*/
+static void wsrep_push_warning(THD *thd,
+                               enum wsrep_warning_type type,
+                               const handlerton *hton,
+                               const TABLE_LIST *tables)
+{
+  switch(type)
+  {
+  case WSREP_REQUIRE_PRIMARY_KEY:
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_OPTION_PREVENTS_STATEMENT,
+                        "WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. "
+                        "Table '%s'.'%s' should have PRIMARY KEY defined.",
+                        tables->db.str, tables->table_name.str);
+    if (global_system_variables.log_warnings > 1 &&
+	!wsrep_protect_against_warning_flood(type))
+      WSREP_WARN("wsrep_mode = REQUIRED_PRIMARY_KEY enabled. "
+                 "Table '%s'.'%s' should have PRIMARY KEY defined",
+                 tables->db.str, tables->table_name.str);
+    break;
+  case WSREP_REQUIRE_INNODB:
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_OPTION_PREVENTS_STATEMENT,
+                        "WSREP: wsrep_mode = STRICT_REPLICATION enabled. "
+                        "Storage engine %s for table '%s'.'%s' is "
+                        "not supported in Galera",
+                        ha_resolve_storage_engine_name(hton),
+                        tables->db.str, tables->table_name.str);
+    if (global_system_variables.log_warnings > 1 &&
+	!wsrep_protect_against_warning_flood(type))
+      WSREP_WARN("wsrep_mode = STRICT_REPLICATION enabled. "
+                 "Storage engine %s for table '%s'.'%s' is "
+                 "not supported in Galera",
+                 ha_resolve_storage_engine_name(hton),
+                 tables->db.str, tables->table_name.str);
+    break;
+
+  default: assert(0); break;
+  }
+}
+
+bool wsrep_check_mode_after_open_table (THD *thd,
+	const handlerton *hton,
+	TABLE_LIST *tables)
+{
+  enum_sql_command sql_command= thd->lex->sql_command;
+  bool is_dml_stmt= thd->get_command() != COM_STMT_PREPARE &&
+                    (sql_command == SQLCOM_INSERT ||
+                     sql_command == SQLCOM_INSERT_SELECT ||
+                     sql_command == SQLCOM_REPLACE ||
+                     sql_command == SQLCOM_REPLACE_SELECT ||
+                     sql_command == SQLCOM_UPDATE ||
+                     sql_command == SQLCOM_UPDATE_MULTI ||
+                     sql_command == SQLCOM_LOAD ||
+                     sql_command == SQLCOM_DELETE);
+
+  if (!is_dml_stmt)
+    return true;
+
+  const legacy_db_type db_type= hton->db_type;
+  bool replicate= (wsrep_replicate_myisam && db_type == DB_TYPE_MYISAM);
+  TABLE *tbl= tables->table;
+
+  if (replicate)
+  {
+    /* It is not recommended to replicate MyISAM as it lacks rollback feature
+    but if user demands then actions are replicated using TOI.
+    Following code will kick-start the TOI but this has to be done only once
+    per statement.
+    Note: kick-start will take-care of creating isolation key for all tables
+    involved in the list (provided all of them are MYISAM tables). */
+    if (!is_stat_table(&tables->db, &tables->alias))
+    {
+      if (tbl->s->primary_key == MAX_KEY &&
+          wsrep_check_mode(WSREP_MODE_REQUIRED_PRIMARY_KEY))
+      {
+        /* Other replicated table doesn't have explicit primary-key defined. */
+        wsrep_push_warning(thd, WSREP_REQUIRE_PRIMARY_KEY, hton, tables);
+      }
+
+      wsrep_before_rollback(thd, true);
+      wsrep_after_rollback(thd, true);
+      wsrep_after_statement(thd);
+      WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (tables));
+    }
+  } else if (db_type != DB_TYPE_UNKNOWN &&
+             db_type != DB_TYPE_PERFORMANCE_SCHEMA)
+  {
+    bool is_system_db= (tbl &&
+                       ((strcmp(tbl->s->db.str, "mysql") == 0) ||
+                        (strcmp(tbl->s->db.str, "information_schema") == 0)));
+
+    if (!is_system_db &&
+	!is_temporary_table(tables))
+    {
+
+      if (db_type != DB_TYPE_INNODB &&
+	  wsrep_check_mode(WSREP_MODE_STRICT_REPLICATION))
+      {
+        /* Table is not an InnoDB table and strict replication is requested*/
+        wsrep_push_warning(thd, WSREP_REQUIRE_INNODB, hton, tables);
+      }
+
+      if (tbl->s->primary_key == MAX_KEY &&
+          db_type == DB_TYPE_INNODB &&
+          wsrep_check_mode(WSREP_MODE_REQUIRED_PRIMARY_KEY))
+      {
+        /* InnoDB table doesn't have explicit primary-key defined. */
+        wsrep_push_warning(thd, WSREP_REQUIRE_PRIMARY_KEY, hton, tables);
+      }
+    }
+  }
+
+
   return true;
+
+wsrep_error_label:
+  return false;
 }
 
 bool wsrep_check_mode_before_cmd_execute (THD *thd)
-{ 
+{
   bool ret= true;
-  if (wsrep_check_mode(WSREP_MODE_BINLOG_ROW_FORMAT_ONLY) && 
+  if (wsrep_check_mode(WSREP_MODE_BINLOG_ROW_FORMAT_ONLY) &&
       !thd->is_current_stmt_binlog_format_row() && is_update_query(thd->lex->sql_command))
   {
     my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
@@ -1186,7 +1445,7 @@ bool wsrep_check_mode_before_cmd_execute (THD *thd)
                         "WSREP: wsrep_mode = BINLOG_ROW_FORMAT_ONLY enabled. Only ROW binlog format is supported.");
     ret= false;
   }
-  if (wsrep_check_mode(WSREP_MODE_REQURIED_PRIMARY_KEY) &&
+  if (wsrep_check_mode(WSREP_MODE_REQUIRED_PRIMARY_KEY) &&
       thd->lex->sql_command == SQLCOM_CREATE_TABLE)
   {
     Key *key;

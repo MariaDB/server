@@ -26,9 +26,7 @@ SELECT @@default_storage_engine;
 @@default_storage_engine
 MyISAM
 SET GLOBAL wsrep_replicate_myisam=OFF;
-SET GLOBAL wsrep_strict_ddl=ON;
-Warnings:
-Warning	1287	'@@wsrep_strict_ddl' is deprecated and will be removed in a future release. Please use '@@wsrep_mode=STRICT_REPLICATION' instead
+SET GLOBAL wsrep_mode=STRICT_REPLICATION;
 CREATE TABLE t3 (c1 VARCHAR(10)) ENGINE=InnoDB;
 ALTER TABLE t3 ENGINE=NonExistentEngine;
 ERROR HY000: Galera replication not supported
@@ -38,5 +36,3 @@ t3	CREATE TABLE `t3` (
   `c1` varchar(10) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE t3;
-Warnings:
-Warning	1287	'@@wsrep_strict_ddl' is deprecated and will be removed in a future release. Please use '@@wsrep_mode=STRICT_REPLICATION' instead

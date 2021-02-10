@@ -137,7 +137,7 @@ enum enum_wsrep_ignore_apply_error {
 enum enum_wsrep_mode {
   WSREP_MODE_STRICT_REPLICATION= (1ULL << 0),
   WSREP_MODE_BINLOG_ROW_FORMAT_ONLY= (1ULL << 1),
-  WSREP_MODE_REQURIED_PRIMARY_KEY= (1ULL << 2)
+  WSREP_MODE_REQUIRED_PRIMARY_KEY= (1ULL << 2)
 };
 
 // Streaming Replication
@@ -217,7 +217,8 @@ extern void wsrep_stop_replication(THD *thd);
 extern bool wsrep_start_replication(const char *wsrep_cluster_address);
 extern void wsrep_shutdown_replication();
 extern bool wsrep_check_mode (enum_wsrep_mode mask);
-extern bool wsrep_check_mode_after_open_table (THD *thd, legacy_db_type db_type);
+extern bool wsrep_check_mode_after_open_table (THD *thd, const handlerton *hton,
+                                               TABLE_LIST *tables);
 extern bool wsrep_check_mode_before_cmd_execute (THD *thd);
 extern bool wsrep_must_sync_wait (THD* thd, uint mask= WSREP_SYNC_WAIT_BEFORE_READ);
 extern bool wsrep_sync_wait (THD* thd, uint mask= WSREP_SYNC_WAIT_BEFORE_READ);

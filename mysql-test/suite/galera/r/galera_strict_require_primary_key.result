@@ -1,0 +1,86 @@
+connection node_2;
+connection node_1;
+call mtr.add_suppression("WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table .*");
+CREATE TABLE t1(a int, b varchar(50)) ENGINE=INNODB;
+CREATE TABLE t2(a int, b varchar(50)) ENGINE=MYISAM;
+CREATE TABLE t3(a int, b varchar(50)) ENGINE=MEMORY;
+SET GLOBAL wsrep_replicate_myisam=ON;
+SET GLOBAL log_warnings=2;
+SET GLOBAL wsrep_mode= REQUIRED_PRIMARY_KEY;
+INSERT INTO t1 values (1,'test1');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t2 values (1,'myisam1');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t3 values (1,'memory');
+SET GLOBAL wsrep_replicate_myisam=OFF;
+INSERT INTO t2 values (2,'mysam2');
+INSERT INTO t1 values (2,'test2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (3,'test3');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (4,'test4');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (5,'test5');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+SET GLOBAL log_warnings=1;
+INSERT INTO t1 values (21,'not1');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (22,'not2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+include/assert_grep.inc [WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled.]
+SET GLOBAL log_warnings=2;
+INSERT INTO t1 values (6,'test6');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (7,'test7');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (8,'test8');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (9,'test9');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (10,'test10');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (11,'test11');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (12,'test12');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (13,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+SELECT COUNT(*) AS EXPECT_15 FROM t1;
+EXPECT_15
+15
+SELECT COUNT(*) AS EXPECT_2 FROM t2;
+EXPECT_2
+2
+SELECT COUNT(*) AS EXPECT_1 FROM t3;
+EXPECT_1
+1
+connection node_2;
+SELECT COUNT(*) AS EXPECT_15 FROM t1;
+EXPECT_15
+15
+SELECT COUNT(*) AS EXPECT_1 FROM t2;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_0 FROM t3;
+EXPECT_0
+0
+connection node_1;
+DROP TABLE t1,t2,t3;
+include/assert_grep.inc [WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled.]
+include/assert_grep.inc [WSREP: Suppressing warnings of type 'WSREP_REQUIRE_PRIMARY_KEY' for up to 300 seconds because of flooding]
