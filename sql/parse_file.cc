@@ -354,6 +354,9 @@ err_w_file:
   @retval
     1   Error (only if renaming of frm failed)
 */
+/*
+commented out(357-387) for- https://jira.mariadb.org/browse/MDEV-23962
+
 my_bool rename_in_schema_file(THD *thd,
                               const char *schema, const char *old_name, 
                               const char *new_db, const char *new_name)
@@ -369,7 +372,7 @@ my_bool rename_in_schema_file(THD *thd,
     return 1;
 
   /* check if arc_dir exists: disabled unused feature (see bug #17823). */
-  build_table_filename(arc_path, sizeof(arc_path) - 1, schema, "arc", "", 0);
+  /* build_table_filename(arc_path, sizeof(arc_path) - 1, schema, "arc", "", 0);
   
   { // remove obsolete 'arc' directory and files if any
     MY_DIR *new_dirp;
@@ -381,6 +384,7 @@ my_bool rename_in_schema_file(THD *thd,
   }
   return 0;
 }
+*/
 
 /**
   Prepare frm to parse (read to memory).
