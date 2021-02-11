@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -607,7 +607,6 @@ extern mysql_pfs_key_t srv_monitor_file_mutex_key;
 extern mysql_pfs_key_t buf_dblwr_mutex_key;
 extern mysql_pfs_key_t trx_pool_mutex_key;
 extern mysql_pfs_key_t trx_pool_manager_mutex_key;
-extern mysql_pfs_key_t lock_mutex_key;
 extern mysql_pfs_key_t lock_wait_mutex_key;
 extern mysql_pfs_key_t srv_threads_mutex_key;
 extern mysql_pfs_key_t thread_mutex_key;
@@ -622,5 +621,6 @@ extern mysql_pfs_key_t trx_purge_latch_key;
 extern mysql_pfs_key_t index_tree_rw_lock_key;
 extern mysql_pfs_key_t index_online_log_key;
 extern mysql_pfs_key_t trx_sys_rw_lock_key;
+extern mysql_pfs_key_t lock_latch_key;
 # endif /* UNIV_PFS_RWLOCK */
 #endif /* HAVE_PSI_INTERFACE */

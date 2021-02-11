@@ -481,7 +481,7 @@ lock_rec_set_nth_bit(
 inline byte lock_rec_reset_nth_bit(lock_t* lock, ulint i)
 {
 	ut_ad(!lock->is_table());
-	lock_sys.mutex_assert_locked();
+	lock_sys.assert_locked();
 	ut_ad(i < lock->un_member.rec_lock.n_bits);
 
 	byte*	b = reinterpret_cast<byte*>(&lock[1]) + (i >> 3);

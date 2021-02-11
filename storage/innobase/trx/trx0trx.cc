@@ -1258,7 +1258,7 @@ trx_update_mod_tables_timestamp(
 		table->acquire() */
 		dict_sys.mutex_lock();
 		{
-			LockMutexGuard g;
+			LockMutexGuard g{SRW_LOCK_CALL};
 			if (!table->get_ref_count()
 			    && !UT_LIST_GET_LEN(table->locks)) {
 				dict_sys.remove(table, true);
@@ -1833,7 +1833,7 @@ state_ok:
 
 /**********************************************************************//**
 Prints info about a transaction.
-The caller must hold lock_sys.mutex.
+The caller must hold lock_sys.latch.
 When possible, use trx_print() instead. */
 void
 trx_print_latched(
@@ -1843,7 +1843,7 @@ trx_print_latched(
 	ulint		max_query_len)	/*!< in: max query length to print,
 					or 0 to use the default max length */
 {
-	lock_sys.mutex_assert_locked();
+	lock_sys.assert_locked();
 
 	trx_print_low(f, trx, max_query_len,
 		      trx->lock.n_rec_locks,
@@ -1853,7 +1853,7 @@ trx_print_latched(
 
 /**********************************************************************//**
 Prints info about a transaction.
-Acquires and releases lock_sys.mutex. */
+Acquires and releases lock_sys.latch. */
 void
 trx_print(
 /*======*/
@@ -1864,7 +1864,7 @@ trx_print(
 {
   ulint n_rec_locks, n_trx_locks, heap_size;
   {
-    LockMutexGuard g;
+    LockMutexGuard g{SRW_LOCK_CALL};
     n_rec_locks= trx->lock.n_rec_locks;
     n_trx_locks= UT_LIST_GET_LEN(trx->lock.trx_locks);
     heap_size= mem_heap_get_size(trx->lock.lock_heap);

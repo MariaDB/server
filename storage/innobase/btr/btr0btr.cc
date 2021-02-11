@@ -3355,7 +3355,7 @@ btr_lift_page_up(
 		const page_id_t id{block->page.id()};
 		/* Free predicate page locks on the block */
 		if (index->is_spatial()) {
-			LockMutexGuard g;
+			LockMutexGuard g{SRW_LOCK_CALL};
 			lock_prdt_page_free_from_discard(
 				id, &lock_sys.prdt_page_hash);
 		}
@@ -3609,7 +3609,7 @@ retry:
 			}
 
 			/* No GAP lock needs to be worrying about */
-			LockMutexGuard g;
+			LockMutexGuard g{SRW_LOCK_CALL};
 			lock_prdt_page_free_from_discard(
 				id, &lock_sys.prdt_page_hash);
 			lock_rec_free_all_from_discard_page(id);
@@ -3762,7 +3762,7 @@ retry:
 							 merge_page, mtr);
 			}
 			const page_id_t id{block->page.id()};
-			LockMutexGuard g;
+			LockMutexGuard g{SRW_LOCK_CALL};
 			lock_prdt_page_free_from_discard(
 				id, &lock_sys.prdt_page_hash);
 			lock_rec_free_all_from_discard_page(id);

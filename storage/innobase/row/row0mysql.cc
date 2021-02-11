@@ -1170,7 +1170,7 @@ row_lock_table_autoinc_for_mysql(
 
 	/* If we already hold an AUTOINC lock on the table then do nothing.
 	Note: We peek at the value of the current owner without acquiring
-	the lock mutex. */
+	lock_sys.latch. */
 	if (trx == table->autoinc_trx) {
 
 		return(DB_SUCCESS);
@@ -2614,7 +2614,7 @@ skip:
 
 	if (!srv_fast_shutdown && !trx_sys.any_active_transactions()) {
 		{
-			LockMutexGuard g;
+			LockMutexGuard g{SRW_LOCK_CALL};
 			skip = UT_LIST_GET_LEN(table->locks) != 0;
 		}
 		if (skip) {

@@ -449,13 +449,12 @@ lock_report_trx_id_insanity(
 	trx_id_t	max_trx_id);	/*!< in: trx_sys.get_max_trx_id() */
 /*********************************************************************//**
 Prints info of locks for all transactions.
-@return FALSE if not able to obtain lock mutex and exits without
-printing info */
+@return FALSE if not able to acquire lock_sys.latch (and display info) */
 ibool
 lock_print_info_summary(
 /*====================*/
 	FILE*	file,	/*!< in: file where to print */
-	ibool   nowait)	/*!< in: whether to wait for the lock mutex */
+	ibool   nowait)	/*!< in: whether to wait for lock_sys.latch */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Prints transaction lock wait and MVCC state.
@@ -466,9 +465,8 @@ void lock_trx_print_wait_and_mvcc_state(FILE *file, const trx_t *trx,
                                         my_hrtime_t now);
 
 /*********************************************************************//**
-Prints info of locks for each transaction. This function assumes that the
-caller holds the lock mutex and more importantly it will release the lock
-mutex on behalf of the caller. (This should be fixed in the future). */
+Prints info of locks for each transaction. This function will release
+lock_sys.latch, which the caller must be holding in exclusive mode. */
 void
 lock_print_info_all_transactions(
 /*=============================*/
@@ -476,7 +474,7 @@ lock_print_info_all_transactions(
 
 /*********************************************************************//**
 Return the number of table locks for a transaction.
-The caller must be holding lock_sys.mutex. */
+The caller must be holding lock_sys.latch. */
 ulint
 lock_number_of_tables_locked(
 /*=========================*/
@@ -583,7 +581,13 @@ class lock_sys_t
   bool m_initialised;
 
   /** mutex proteting the locks */
-  MY_ALIGNED(CACHE_LINE_SIZE) mysql_mutex_t mutex;
+  MY_ALIGNED(CACHE_LINE_SIZE) srw_lock latch;
+#ifdef UNIV_DEBUG
+  /** The owner of exclusive latch (0 if none); protected by latch */
+  std::atomic<os_thread_id_t> writer{0};
+  /** Number of shared latches */
+  std::atomic<ulint> readers{0};
+#endif
 public:
   /** record locks */
   hash_table_t rec_hash;
@@ -615,31 +619,77 @@ public:
   lock_sys_t(): m_initialised(false) {}
 
 
-  bool is_initialised() { return m_initialised; }
+  bool is_initialised() const { return m_initialised; }
 
-#ifdef HAVE_PSI_MUTEX_INTERFACE
-  /** Try to acquire lock_sys.mutex */
-  ATTRIBUTE_NOINLINE int mutex_trylock();
-  /** Acquire lock_sys.mutex */
-  ATTRIBUTE_NOINLINE void mutex_lock();
-  /** Release lock_sys.mutex */
-  ATTRIBUTE_NOINLINE void mutex_unlock();
+#ifdef UNIV_PFS_RWLOCK
+  /** Acquire exclusive lock_sys.latch */
+  ATTRIBUTE_NOINLINE
+  void wr_lock(const char *file, unsigned line);
+  /** Release exclusive lock_sys.latch */
+  ATTRIBUTE_NOINLINE void wr_unlock();
+  /** Acquire shared lock_sys.latch */
+  ATTRIBUTE_NOINLINE void rd_lock(const char *file, unsigned line);
+  /** Release shared lock_sys.latch */
+  ATTRIBUTE_NOINLINE void rd_unlock();
 #else
-  /** Try to acquire lock_sys.mutex */
-  int mutex_trylock() { return mysql_mutex_trylock(&mutex); }
-  /** Aqcuire lock_sys.mutex */
-  void mutex_lock() { mysql_mutex_lock(&mutex); }
-  /** Release lock_sys.mutex */
-  void mutex_unlock() { mysql_mutex_unlock(&mutex); }
+  /** Acquire exclusive lock_sys.latch */
+  void wr_lock()
+  {
+    ut_ad(!is_writer());
+    latch.wr_lock();
+    ut_ad(!writer.exchange(os_thread_get_curr_id(),
+                           std::memory_order_relaxed));
+  }
+  /** Release exclusive lock_sys.latch */
+  void wr_unlock()
+  {
+    ut_ad(writer.exchange(0, std::memory_order_relaxed) ==
+          os_thread_get_curr_id());
+    latch.wr_unlock();
+  }
+  /** Acquire shared lock_sys.latch */
+  void rd_lock()
+  {
+    ut_ad(!is_writer());
+    latch.rd_lock();
+    ut_ad(!writer.load(std::memory_order_relaxed));
+    ut_d(readers.fetch_add(1, std::memory_order_relaxed));
+  }
+  /** Release shared lock_sys.latch */
+  void rd_unlock()
+  {
+    ut_ad(!is_writer());
+    ut_ad(readers.fetch_sub(1, std::memory_order_relaxed));
+    latch.rd_unlock();
+  }
 #endif
-  /** Assert that mutex_lock() has been invoked */
-  void mutex_assert_locked() const { mysql_mutex_assert_owner(&mutex); }
-  /** Assert that mutex_lock() has not been invoked */
-  void mutex_assert_unlocked() const { mysql_mutex_assert_not_owner(&mutex); }
+  /** Try to acquire exclusive lock_sys.latch
+  @return whether the latch was acquired */
+  bool wr_lock_try()
+  {
+    ut_ad(!is_writer());
+    if (!latch.wr_lock_try()) return false;
+    ut_ad(!writer.exchange(os_thread_get_curr_id(),
+                           std::memory_order_relaxed));
+    return true;
+  }
 
-  /** Wait for a lock to be granted */
-  void wait_lock(lock_t **lock, pthread_cond_t *cond)
-  { while (*lock) my_cond_wait(cond, &mutex.m_mutex); }
+  /** Assert that wr_lock() has been invoked by this thread */
+  void assert_locked() const { ut_ad(is_writer()); }
+  /** Assert that wr_lock() has not been invoked by this thread */
+  void assert_unlocked() const { ut_ad(!is_writer()); }
+#ifdef UNIV_DEBUG
+  /** @return whether the current thread is the lock_sys.latch writer */
+  bool is_writer() const
+  { return writer.load(std::memory_order_relaxed) == os_thread_get_curr_id(); }
+  /** Assert that a lock shard is exclusively latched by this thread */
+  void assert_locked(const lock_t &lock) const;
+  /** Assert that a table lock shard is exclusively latched by this thread */
+  void assert_locked(const dict_table_t &table) const;
+#else
+  void assert_locked(const lock_t &) const {}
+  void assert_locked(const dict_table_t &) const {}
+#endif
 
   /**
     Creates the lock system at database start.
@@ -678,7 +728,7 @@ public:
 
   /** @return the hash value for a page address */
   ulint hash(const page_id_t id) const
-  { mysql_mutex_assert_owner(&mutex); return rec_hash.calc_hash(id.fold()); }
+  { assert_locked(); return rec_hash.calc_hash(id.fold()); }
 
   /** Get the first lock on a page.
   @param lock_hash   hash table to look at
@@ -720,11 +770,12 @@ public:
 /** The lock system */
 extern lock_sys_t lock_sys;
 
-/** lock_sys.mutex guard */
+/** lock_sys.latch guard */
 struct LockMutexGuard
 {
-  LockMutexGuard() { lock_sys.mutex_lock(); }
-  ~LockMutexGuard() { lock_sys.mutex_unlock(); }
+  LockMutexGuard(SRW_LOCK_ARGS(const char *file, unsigned line))
+  { lock_sys.wr_lock(SRW_LOCK_ARGS(file, line)); }
+  ~LockMutexGuard() { lock_sys.wr_unlock(); }
 };
 
 /*********************************************************************//**

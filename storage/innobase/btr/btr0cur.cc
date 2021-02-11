@@ -1999,11 +1999,12 @@ retry_page_get:
 		trx_t*		trx = thr_get_trx(cursor->thr);
 		lock_prdt_t	prdt;
 
-		lock_sys.mutex_lock();
-		lock_init_prdt_from_mbr(
-			&prdt, &cursor->rtr_info->mbr, mode,
-			trx->lock.lock_heap);
-		lock_sys.mutex_unlock();
+		{
+			LockMutexGuard g{SRW_LOCK_CALL};
+			lock_init_prdt_from_mbr(
+				&prdt, &cursor->rtr_info->mbr, mode,
+				trx->lock.lock_heap);
+		}
 
 		if (rw_latch == RW_NO_LATCH && height != 0) {
 			block->lock.s_lock();

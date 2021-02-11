@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -145,7 +145,7 @@ operator<<(std::ostream& out, const lock_rec_t& lock)
 #endif
 /* @} */
 
-/** Lock struct; protected by lock_sys.mutex */
+/** Lock struct; protected by lock_sys.latch */
 struct ib_lock_t
 {
 	trx_t*		trx;		/*!< transaction owning the

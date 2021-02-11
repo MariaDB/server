@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -395,7 +395,7 @@ row_vers_impl_x_locked(
 	const rec_t*	clust_rec;
 	dict_index_t*	clust_index;
 
-	lock_sys.mutex_assert_unlocked();
+	lock_sys.assert_unlocked();
 
 	mtr_start(&mtr);
 

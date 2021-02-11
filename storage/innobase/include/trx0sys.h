@@ -593,10 +593,10 @@ public:
     the transaction may get committed before this method returns.
 
     With do_ref_count == false the caller may dereference returned trx pointer
-    only if lock_sys.mutex was acquired before calling find().
+    only if lock_sys.latch was acquired before calling find().
 
     With do_ref_count == true caller may dereference trx even if it is not
-    holding lock_sys.mutex. Caller is responsible for calling
+    holding lock_sys.latch. Caller is responsible for calling
     trx->release_reference() when it is done playing with trx.
 
     Ideally this method should get caller rw_trx_hash_pins along with trx

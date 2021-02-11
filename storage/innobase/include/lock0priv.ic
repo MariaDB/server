@@ -78,7 +78,7 @@ lock_rec_set_nth_bit(
 	ulint	bit_index;
 
 	ut_ad(!lock->is_table());
-	lock_sys.mutex_assert_locked();
+	lock_sys.assert_locked();
 	ut_ad(i < lock->un_member.rec_lock.n_bits);
 
 	byte_index = i / 8;
@@ -117,7 +117,7 @@ lock_rec_get_next(
 	ulint	heap_no,/*!< in: heap number of the record */
 	lock_t*	lock)	/*!< in: lock */
 {
-	lock_sys.mutex_assert_locked();
+	lock_sys.assert_locked();
 
 	do {
 		lock = lock_rec_get_next_on_page(lock);
@@ -175,7 +175,7 @@ lock_rec_get_next_on_page_const(
   ut_ad(!lock->is_table());
 
   const page_id_t page_id{lock->un_member.rec_lock.page_id};
-  lock_sys.mutex_assert_locked();
+  lock_sys.assert_locked();
 
   while (!!(lock= static_cast<const lock_t*>(HASH_GET_NEXT(hash, lock))))
     if (lock->un_member.rec_lock.page_id == page_id)

@@ -387,7 +387,7 @@ rtr_pcur_getnext_from_path(
 			trx_t*		trx = thr_get_trx(
 						btr_cur->rtr_info->thr);
 			{
-				LockMutexGuard g;
+				LockMutexGuard g{SRW_LOCK_CALL};
 				lock_init_prdt_from_mbr(
 					&prdt, &btr_cur->rtr_info->mbr,
 					mode, trx->lock.lock_heap);
@@ -1197,7 +1197,7 @@ rtr_check_discard_page(
 
 	mysql_mutex_unlock(&index->rtr_track->rtr_active_mutex);
 
-	LockMutexGuard g;
+	LockMutexGuard g{SRW_LOCK_CALL};
 	lock_prdt_page_free_from_discard(id, &lock_sys.prdt_hash);
 	lock_prdt_page_free_from_discard(id, &lock_sys.prdt_page_hash);
 }

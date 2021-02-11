@@ -708,7 +708,7 @@ row_ins_foreign_trx_print(
 	ut_ad(!srv_read_only_mode);
 
 	{
-		LockMutexGuard g;
+		LockMutexGuard g{SRW_LOCK_CALL};
 		n_rec_locks = trx->lock.n_rec_locks;
 		n_trx_locks = UT_LIST_GET_LEN(trx->lock.trx_locks);
 		heap_size = mem_heap_get_size(trx->lock.lock_heap);
@@ -1019,8 +1019,8 @@ row_ins_foreign_check_on_constraint(
 	/* Since we are going to delete or update a row, we have to invalidate
 	the MySQL query cache for table. A deadlock of threads is not possible
 	here because the caller of this function does not hold any latches with
-	the mutex rank above the lock_sys_t::mutex. The query cache mutex
-	has a rank just above the lock_sys_t::mutex. */
+	the mutex rank above the lock_sys.latch. The query cache mutex
+	has a rank just above the lock_sys.latch. */
 
 	row_ins_invalidate_query_cache(thr, table->name.m_name);
 

@@ -2261,7 +2261,7 @@ public:
 	kept in trx_t. In order to quickly determine whether a transaction has
 	locked the AUTOINC lock we keep a pointer to the transaction here in
 	the 'autoinc_trx' member. This is to avoid acquiring the
-	lock_sys_t::mutex and scanning the vector in trx_t.
+	lock_sys.latch and scanning the vector in trx_t.
 	When an AUTOINC lock has to wait, the corresponding lock instance is
 	created on the trx lock heap rather than use the pre-allocated instance
 	in autoinc_lock below. */
@@ -2280,11 +2280,11 @@ public:
 	ib_uint64_t				autoinc;
 
 	/** The transaction that currently holds the the AUTOINC lock on this
-	table. Protected by lock_sys.mutex. */
+	table. Protected by lock_sys.latch. */
 	const trx_t*				autoinc_trx;
 
   /** Number of granted or pending autoinc_lock on this table. This
-  value is set after acquiring lock_sys.mutex but
+  value is set after acquiring lock_sys.latch but
   in innodb_autoinc_lock_mode=1 (the default),
   ha_innobase::innobase_lock_autoinc() will perform a dirty read
   to determine whether other transactions have acquired the autoinc_lock. */
@@ -2292,7 +2292,8 @@ public:
 
 	/* @} */
 
-  /** Number of granted or pending LOCK_S or LOCK_X on the table */
+  /** Number of granted or pending LOCK_S or LOCK_X on the table.
+  Protected by lock_sys.assert_locked(*this). */
   uint32_t n_lock_x_or_s;
 
 	/** FTS specific state variables. */
@@ -2305,8 +2306,8 @@ public:
 
 	/** Count of the number of record locks on this table. We use this to
 	determine whether we can evict the table from the dictionary cache.
-	It is protected by lock_sys.mutex. */
-	ulint					n_rec_locks;
+	Protected by LockGuard. */
+	ulint n_rec_locks;
 
 private:
 	/** Count of how many handles are opened to this table. Dropping of the
@@ -2314,8 +2315,8 @@ private:
 	itself check the number of open handles at DROP. */
 	Atomic_counter<uint32_t>		n_ref_count;
 public:
-	/** List of locks on the table. Protected by lock_sys.mutex. */
-	table_lock_list_t			locks;
+  /** List of locks on the table. Protected by lock_sys.assert_locked(lock). */
+  table_lock_list_t locks;
 
 	/** Timestamp of the last modification of this table. */
 	time_t					update_time;

@@ -531,7 +531,6 @@ mysql_pfs_key_t	srv_monitor_file_mutex_key;
 mysql_pfs_key_t	buf_dblwr_mutex_key;
 mysql_pfs_key_t	trx_pool_mutex_key;
 mysql_pfs_key_t	trx_pool_manager_mutex_key;
-mysql_pfs_key_t	lock_mutex_key;
 mysql_pfs_key_t	lock_wait_mutex_key;
 mysql_pfs_key_t	trx_sys_mutex_key;
 mysql_pfs_key_t	srv_threads_mutex_key;
@@ -571,7 +570,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(buf_dblwr_mutex),
 	PSI_KEY(trx_pool_mutex),
 	PSI_KEY(trx_pool_manager_mutex),
-	PSI_KEY(lock_mutex),
 	PSI_KEY(lock_wait_mutex),
 	PSI_KEY(srv_threads_mutex),
 	PSI_KEY(rtr_active_mutex),
@@ -588,6 +586,7 @@ mysql_pfs_key_t	index_online_log_key;
 mysql_pfs_key_t	fil_space_latch_key;
 mysql_pfs_key_t trx_i_s_cache_lock_key;
 mysql_pfs_key_t	trx_purge_latch_key;
+mysql_pfs_key_t lock_latch_key;
 
 /* all_innodb_rwlocks array contains rwlocks that are
 performance schema instrumented if "UNIV_PFS_RWLOCK"
@@ -601,6 +600,7 @@ static PSI_rwlock_info all_innodb_rwlocks[] =
   { &fil_space_latch_key, "fil_space_latch", 0 },
   { &trx_i_s_cache_lock_key, "trx_i_s_cache_lock", 0 },
   { &trx_purge_latch_key, "trx_purge_latch", 0 },
+  { &lock_latch_key, "lock_latch", 0 },
   { &index_tree_rw_lock_key, "index_tree_rw_lock", PSI_RWLOCK_FLAG_SX }
 };
 # endif /* UNIV_PFS_RWLOCK */
@@ -2307,7 +2307,7 @@ innobase_trx_init(
 	DBUG_ASSERT(thd == trx->mysql_thd);
 
 	/* Ensure that thd_lock_wait_timeout(), which may be called
-	while holding lock_sys.mutex, by lock_rec_enqueue_waiting(),
+	while holding lock_sys.latch, by lock_rec_enqueue_waiting(),
 	will not end up acquiring LOCK_global_system_variables in
 	intern_sys_var_ptr(). */
 	THDVAR(thd, lock_wait_timeout);
@@ -2695,7 +2695,7 @@ static bool innobase_query_caching_table_check_low(
 		return false;
 	}
 
-	LockMutexGuard g;
+	LockMutexGuard g{SRW_LOCK_CALL};
 	return UT_LIST_GET_LEN(table->locks) == 0;
 }
 
@@ -4466,7 +4466,7 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
     if (trx->lock.wait_lock)
     {
       {
-        LockMutexGuard g;
+        LockMutexGuard g{SRW_LOCK_CALL};
         mysql_mutex_lock(&lock_sys.wait_mutex);
         if (lock_t *lock= trx->lock.wait_lock)
         {
@@ -17998,7 +17998,7 @@ int wsrep_innobase_kill_one_trx(THD *bf_thd, trx_t *victim_trx, bool signal)
 {
 	ut_ad(bf_thd);
 	ut_ad(victim_trx);
-	lock_sys.mutex_assert_locked();
+	lock_sys.assert_locked();
 	ut_ad(victim_trx->mutex_is_owner());
 
 	DBUG_ENTER("wsrep_innobase_kill_one_trx");
@@ -18102,7 +18102,7 @@ wsrep_abort_transaction(
 			wsrep_thd_transaction_state_str(victim_thd));
 
 	if (victim_trx) {
-		LockMutexGuard g;
+		LockMutexGuard g{SRW_LOCK_CALL};
 		victim_trx->mutex_lock();
 		int rcode= wsrep_innobase_kill_one_trx(bf_thd,
 						       victim_trx, signal);

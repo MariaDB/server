@@ -234,7 +234,7 @@ lock_prdt_has_lock(
 						attached to the new lock */
 	const trx_t*		trx)		/*!< in: transaction */
 {
-	lock_sys.mutex_assert_locked();
+	lock_sys.assert_locked();
 	ut_ad((precise_mode & LOCK_MODE_MASK) == LOCK_S
 	      || (precise_mode & LOCK_MODE_MASK) == LOCK_X);
 	ut_ad(!(precise_mode & LOCK_INSERT_INTENTION));
@@ -426,7 +426,7 @@ lock_prdt_add_to_queue(
 					transaction mutex */
 {
 	const page_id_t id{block->page.id()};
-	lock_sys.mutex_assert_locked();
+	lock_sys.assert_locked();
 	ut_ad(caller_owns_trx_mutex == trx->mutex_is_owner());
 	ut_ad(index->is_spatial());
 	ut_ad(!dict_index_is_online_ddl(index));
@@ -504,7 +504,7 @@ lock_prdt_insert_check_and_lock(
   dberr_t err= DB_SUCCESS;
 
   {
-    LockMutexGuard g;
+    LockMutexGuard g{SRW_LOCK_CALL};
     /* Because this code is invoked for a running transaction by
     the thread that is serving the transaction, it is not necessary
     to hold trx->mutex here. */
@@ -561,7 +561,7 @@ lock_prdt_update_parent(
         lock_prdt_t*	right_prdt,	/*!< in: MBR on the new page */
 	const page_id_t	page_id)	/*!< in: parent page */
 {
-	LockMutexGuard g;
+	LockMutexGuard g{SRW_LOCK_CALL};
 
 	/* Get all locks in parent */
 	for (lock_t *lock = lock_sys.get_first_prdt(page_id);
@@ -660,7 +660,7 @@ lock_prdt_update_split(
 	lock_prdt_t*	new_prdt,	/*!< in: MBR on the new page */
 	const page_id_t	page_id)	/*!< in: page number */
 {
-	LockMutexGuard g;
+	LockMutexGuard g{SRW_LOCK_CALL};
 
 	lock_prdt_update_split_low(new_block, prdt, new_prdt,
 				   page_id, LOCK_PREDICATE);
@@ -732,7 +732,7 @@ lock_prdt_lock(
 	index record, and this would not have been possible if another active
 	transaction had modified this secondary index record. */
 
-	LockMutexGuard g;
+	LockMutexGuard g{SRW_LOCK_CALL};
 
 	const unsigned	prdt_mode = type_mode | mode;
 	lock_t*		lock = lock_sys.get_first(hash, id);
@@ -823,7 +823,7 @@ lock_place_prdt_page_lock(
 	index record, and this would not have been possible if another active
 	transaction had modified this secondary index record. */
 
-	LockMutexGuard g;
+	LockMutexGuard g{SRW_LOCK_CALL};
 
 	const lock_t*	lock = lock_sys.get_first_prdt_page(page_id);
 	const ulint	mode = LOCK_S | LOCK_PRDT_PAGE;
@@ -862,7 +862,7 @@ lock_place_prdt_page_lock(
 @return	true if there is none */
 bool lock_test_prdt_page_lock(const trx_t *trx, const page_id_t page_id)
 {
-  LockMutexGuard g;
+  LockMutexGuard g{SRW_LOCK_CALL};
   lock_t *lock= lock_sys.get_first_prdt_page(page_id);
   return !lock || trx == lock->trx;
 }
@@ -877,7 +877,7 @@ lock_prdt_rec_move(
 						the receiving record */
 	const page_id_t		donator)	/*!< in: target page */
 {
-	LockMutexGuard g;
+	LockMutexGuard g{SRW_LOCK_CALL};
 
 	for (lock_t *lock = lock_rec_get_first(&lock_sys.prdt_hash,
 					       donator, PRDT_HEAPNO);
@@ -904,7 +904,7 @@ lock_prdt_rec_move(
 void
 lock_prdt_page_free_from_discard(const page_id_t id, hash_table_t *lock_hash)
 {
-  lock_sys.mutex_assert_locked();
+  lock_sys.assert_locked();
 
   for (lock_t *lock= lock_sys.get_first(*lock_hash, id), *next; lock;
        lock= next)
