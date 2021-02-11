@@ -485,7 +485,7 @@ struct trx_lock_t
 	/** List of pending trx_t::evict_table() */
 	UT_LIST_BASE_NODE_T(dict_table_t) evicted_tables;
 
-  /** number of record locks; writes are protected by lock_sys.mutex */
+  /** number of record locks; writers use LockGuard or LockMutexGuard */
   ulint n_rec_locks;
 };
 

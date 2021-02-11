@@ -4465,16 +4465,17 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
 #endif /* WITH_WSREP */
     if (trx->lock.wait_lock)
     {
-      lock_sys.mutex_lock();
-      mysql_mutex_lock(&lock_sys.wait_mutex);
-      if (lock_t *lock= trx->lock.wait_lock)
       {
-        trx->mutex_lock();
-        trx->error_state= DB_INTERRUPTED;
-        lock_cancel_waiting_and_release(lock);
-        trx->mutex_unlock();
+        LockMutexGuard g;
+        mysql_mutex_lock(&lock_sys.wait_mutex);
+        if (lock_t *lock= trx->lock.wait_lock)
+        {
+          trx->mutex_lock();
+          trx->error_state= DB_INTERRUPTED;
+          lock_cancel_waiting_and_release(lock);
+          trx->mutex_unlock();
+        }
       }
-      lock_sys.mutex_unlock();
       mysql_mutex_unlock(&lock_sys.wait_mutex);
     }
   }
@@ -18101,11 +18102,10 @@ wsrep_abort_transaction(
 			wsrep_thd_transaction_state_str(victim_thd));
 
 	if (victim_trx) {
-		lock_sys.mutex_lock();
+		LockMutexGuard g;
 		victim_trx->mutex_lock();
 		int rcode= wsrep_innobase_kill_one_trx(bf_thd,
 						       victim_trx, signal);
-		lock_sys.mutex_unlock();
 		victim_trx->mutex_unlock();
 		DBUG_RETURN(rcode);
 	} else {

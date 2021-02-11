@@ -386,11 +386,12 @@ rtr_pcur_getnext_from_path(
 
 			trx_t*		trx = thr_get_trx(
 						btr_cur->rtr_info->thr);
-			lock_sys.mutex_lock();
-			lock_init_prdt_from_mbr(
-				&prdt, &btr_cur->rtr_info->mbr,
-				mode, trx->lock.lock_heap);
-			lock_sys.mutex_unlock();
+			{
+				LockMutexGuard g;
+				lock_init_prdt_from_mbr(
+					&prdt, &btr_cur->rtr_info->mbr,
+					mode, trx->lock.lock_heap);
+			}
 
 			if (rw_latch == RW_NO_LATCH) {
 				block->lock.s_lock();
@@ -1182,18 +1183,15 @@ rtr_check_discard_page(
 		}
 		mysql_mutex_unlock(&rtr_info->rtr_path_mutex);
 
-		if (rtr_info->matches) {
-			mysql_mutex_lock(&rtr_info->matches->rtr_match_mutex);
+		if (auto matches = rtr_info->matches) {
+			mysql_mutex_lock(&matches->rtr_match_mutex);
 
-			if ((&rtr_info->matches->block)->page.id() == id) {
-				if (!rtr_info->matches->matched_recs->empty()) {
-					rtr_info->matches->matched_recs->clear();
-				}
-				ut_ad(rtr_info->matches->matched_recs->empty());
-				rtr_info->matches->valid = false;
+			if (matches->block.page.id() == id) {
+				matches->matched_recs->clear();
+				matches->valid = false;
 			}
 
-			mysql_mutex_unlock(&rtr_info->matches->rtr_match_mutex);
+			mysql_mutex_unlock(&matches->rtr_match_mutex);
 		}
 	}
 

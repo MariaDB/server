@@ -1181,7 +1181,7 @@ static void fetch_data_into_cache_low(trx_i_s_cache_t *cache, const trx_t *trx)
 
 static void fetch_data_into_cache(trx_i_s_cache_t *cache)
 {
-  lock_sys.mutex_assert_locked();
+  LockMutexGuard g;
   trx_i_s_cache_clear(cache);
 
   /* Capture the state of transactions */
@@ -1211,10 +1211,7 @@ trx_i_s_possibly_fetch_data_into_cache(
 	}
 
 	/* We need to read trx_sys and record/table lock queues */
-
-	lock_sys.mutex_lock();
 	fetch_data_into_cache(cache);
-	lock_sys.mutex_unlock();
 
 	/* update cache last read time */
 	cache->last_read = my_interval_timer();

@@ -2613,9 +2613,10 @@ skip:
 	}
 
 	if (!srv_fast_shutdown && !trx_sys.any_active_transactions()) {
-		lock_sys.mutex_lock();
-		skip = UT_LIST_GET_LEN(table->locks) != 0;
-		lock_sys.mutex_unlock();
+		{
+			LockMutexGuard g;
+			skip = UT_LIST_GET_LEN(table->locks) != 0;
+		}
 		if (skip) {
 			/* We cannot drop tables that are locked by XA
 			PREPARE transactions. */

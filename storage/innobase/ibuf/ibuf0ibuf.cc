@@ -3280,10 +3280,8 @@ commit_exit:
 		ibuf_mtr_commit(&bitmap_mtr);
 		goto fail_exit;
 	} else {
-		lock_sys.mutex_lock();
-		const auto lock_exists = lock_sys.get_first(page_id);
-		lock_sys.mutex_unlock();
-		if (lock_exists) {
+		LockMutexGuard g;
+		if (lock_sys.get_first(page_id)) {
 			goto commit_exit;
 		}
 	}

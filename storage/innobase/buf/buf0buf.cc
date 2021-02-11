@@ -2038,9 +2038,8 @@ withdraw_retry:
 			{found, withdraw_started, my_hrtime_coarse()};
 		withdraw_started = current_time;
 
-		lock_sys.mutex_lock();
+		LockMutexGuard g;
 		trx_sys.trx_list.for_each(f);
-		lock_sys.mutex_unlock();
 	}
 
 	if (should_retry_withdraw) {
