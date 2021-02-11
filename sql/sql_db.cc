@@ -54,10 +54,12 @@ const char *del_exts[]= {".BAK", ".opt", NullS};
 static TYPELIB deletable_extensions=
 {array_elements(del_exts)-1,"del_exts", del_exts, NULL};
 
+/* Removing this for- https://jira.mariadb.org/browse/MDEV-23962
+
 static bool find_db_tables_and_rm_known_files(THD *, MY_DIR *, const char *,
                                               const char *, TABLE_LIST **);
 
-long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path);
+long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path);  */
 static my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error);
 static void mysql_change_db_impl(THD *thd,
                                  LEX_CSTRING *new_db_name,
