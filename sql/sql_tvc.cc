@@ -779,11 +779,12 @@ st_select_lex *wrap_tvc_with_tail(THD *thd, st_select_lex *tvc_sl)
     SELECT * FROM (VALUES (v1), ... (vn)) tvc_x
     and replaces the subselect with the result of the transformation.
 
-  @retval false if successfull
-          true  otherwise
+  @retval wrapping select if successful
+          0  otherwise
 */
 
-bool Item_subselect::wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl)
+st_select_lex *
+Item_subselect::wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl)
 {
   LEX *lex= thd->lex;
   /* SELECT_LEX object where the transformation is performed */
@@ -794,12 +795,12 @@ bool Item_subselect::wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl)
     if (engine->engine_type() == subselect_engine::SINGLE_SELECT_ENGINE)
       ((subselect_single_select_engine *) engine)->change_select(wrapper_sl);
     lex->current_select= wrapper_sl;
-    return false;
+    return wrapper_sl;
   }
   else
   {
     lex->current_select= parent_select;
-    return true;
+    return 0;
   }
 }
 

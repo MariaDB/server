@@ -2674,4 +2674,72 @@ values (1,2);
 values ((select min(a), max(b) from t1));
 ERROR 21000: Operand should contain 1 column(s)
 drop table t1;
+#
+# MDEV-24840: union of TVCs in IN subquery
+#
+create table t1 (a int) engine=myisam;
+insert into t1 values (3), (7), (1);
+select a from t1 where a in (values (7) union values (8));
+a
+7
+explain extended select a from t1 where a in (values (7) union values (8));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+4	DEPENDENT SUBQUERY	<derived2>	ref	key0	key0	4	func	2	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+5	DEPENDENT UNION	<derived3>	ref	key0	key0	4	func	2	100.00	
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,<exists>(/* select#4 */ select `tvc_0`.`7` from (values (7)) `tvc_0` where <cache>(`test`.`t1`.`a`) = `tvc_0`.`7` union /* select#5 */ select `tvc_0`.`8` from (values (8)) `tvc_0` where <cache>(`test`.`t1`.`a`) = `tvc_0`.`8`)))
+prepare stmt from "select a from t1 where a in (values (7) union values (8))";
+execute stmt;
+a
+7
+execute stmt;
+a
+7
+deallocate prepare stmt;
+select a from t1 where a not in (values (7) union values (8));
+a
+3
+1
+explain extended select a from t1 where a not in (values (7) union values (8));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+4	DEPENDENT SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+5	DEPENDENT UNION	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where !<expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,<exists>(/* select#4 */ select `tvc_0`.`7` from (values (7)) `tvc_0` where trigcond(<cache>(`test`.`t1`.`a`) = `tvc_0`.`7`) union /* select#5 */ select `tvc_0`.`8` from (values (8)) `tvc_0` where trigcond(<cache>(`test`.`t1`.`a`) = `tvc_0`.`8`))))
+select a from t1 where a < all(values (7) union values (8));
+a
+3
+1
+explain extended select a from t1 where a < all(values (7) union values (8));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+4	SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+5	UNION	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <not>(<in_optimizer>(`test`.`t1`.`a`,<min>(/* select#4 */ select `tvc_0`.`7` from (values (7)) `tvc_0` union /* select#5 */ select `tvc_0`.`8` from (values (8)) `tvc_0`) <= <cache>(`test`.`t1`.`a`)))
+select a from t1 where a >= any(values (7) union values (8));
+a
+7
+explain extended select a from t1 where a >= any(values (7) union values (8));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+4	SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+5	UNION	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <nop>(<in_optimizer>(`test`.`t1`.`a`,<min>(/* select#4 */ select `tvc_0`.`7` from (values (7)) `tvc_0` union /* select#5 */ select `tvc_0`.`8` from (values (8)) `tvc_0`) <= <cache>(`test`.`t1`.`a`)))
+drop table t1;
 End of 10.3 tests

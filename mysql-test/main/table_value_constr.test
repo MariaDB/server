@@ -1401,4 +1401,37 @@ values ((select min(a), max(b) from t1));
 
 drop table t1;
 
+--echo #
+--echo # MDEV-24840: union of TVCs in IN subquery
+--echo #
+
+create table t1 (a int) engine=myisam;
+insert into t1 values (3), (7), (1);
+
+let $q=
+select a from t1 where a in (values (7) union values (8));
+eval $q;
+eval explain extended $q;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q=
+select a from t1 where a not in (values (7) union values (8));
+eval $q;
+eval explain extended $q;
+
+let $q=
+select a from t1 where a < all(values (7) union values (8));
+eval $q;
+eval explain extended $q;
+
+let $q=
+select a from t1 where a >= any(values (7) union values (8));
+eval $q;
+eval explain extended $q;
+
+drop table t1;
+
 --echo End of 10.3 tests
