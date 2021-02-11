@@ -25,12 +25,12 @@ else
 {
   if (!$ENV{'S3_HOST_NAME'})
   {
-    return "Environment variable S3_HOST_NAME need to be set";
+    $ENV{'S3_HOST_NAME'} = "s3.amazonaws.com";
   }
 
   if (!$ENV{'S3_BUCKET'})
   {
-    return "Environment variable S3_BUCKET need to be set";
+    $ENV{'S3_BUCKET'} = "MariaDB";
   }
 
   if (!$ENV{'S3_REGION'})
