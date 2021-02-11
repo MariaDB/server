@@ -62,7 +62,7 @@ PAGECACHE *maria_pagecache= &maria_pagecache_var;
 PAGECACHE maria_log_pagecache_var;
 PAGECACHE *maria_log_pagecache= &maria_log_pagecache_var;
 MY_TMPDIR *maria_tmpdir;                        /* Tempdir for redo */
-char *maria_data_root;
+const char *maria_data_root;
 HASH maria_stored_state;
 int (*maria_create_trn_hook)(MARIA_HA *);
 

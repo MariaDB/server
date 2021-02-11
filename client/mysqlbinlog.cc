@@ -95,6 +95,8 @@ static uint opt_protocol= 0;
 static FILE *result_file;
 static char *result_file_name= 0;
 static const char *output_prefix= "";
+static char **defaults_argv= 0;
+static MEM_ROOT glob_root;
 
 #ifndef DBUG_OFF
 static const char *default_dbug_option = "d:t:o,/tmp/mariadb-binlog.trace";
@@ -1888,18 +1890,32 @@ static void cleanup()
   my_free(const_cast<char*>(dirname_for_local_load));
   my_free(start_datetime_str);
   my_free(stop_datetime_str);
+  free_root(&glob_root, MYF(0));
 
   delete binlog_filter;
   delete glob_description_event;
   if (mysql)
     mysql_close(mysql);
+  free_defaults(defaults_argv);
+  free_annotate_event();
+  my_free_open_file_info();
+  load_processor.destroy();
+  mysql_server_end();
   DBUG_VOID_RETURN;
+}
+
+
+static void die()
+{
+  cleanup();
+  my_end(MY_DONT_FREE_DBUG);
+  exit(1);
 }
 
 
 static void print_version()
 {
-  printf("%s Ver 3.4 for %s at %s\n", my_progname, SYSTEM_TYPE, MACHINE_TYPE);
+  printf("%s Ver 3.5 for %s at %s\n", my_progname, SYSTEM_TYPE, MACHINE_TYPE);
 }
 
 
@@ -1930,7 +1946,7 @@ static my_time_t convert_str_to_timestamp(const char* str)
       l_time.time_type != MYSQL_TIMESTAMP_DATETIME || status.warnings)
   {
     error("Incorrect date and time argument: %s", str);
-    exit(1);
+    die();
   }
   /*
     Note that Feb 30th, Apr 31st cause no error messages and are mapped to
@@ -1943,7 +1959,7 @@ static my_time_t convert_str_to_timestamp(const char* str)
 
 
 extern "C" my_bool
-get_one_option(const struct my_option *opt, char *argument, const char *)
+get_one_option(const struct my_option *opt, const char *argument, const char *)
 {
   bool tty_password=0;
   switch (opt->id) {
@@ -1967,10 +1983,15 @@ get_one_option(const struct my_option *opt, char *argument, const char *)
       argument= (char*) "";                     // Don't require password
     if (argument)
     {
+      /*
+        One should not really change the argument, but we make an
+        exception for passwords
+      */
       my_free(pass);
-      char *start=argument;
+      char *start= (char*) argument;
       pass= my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
-      while (*argument) *argument++= 'x';		/* Destroy argument */
+      while (*argument)
+        *(char*)argument++= 'x';		/* Destroy argument */
       if (*start)
         start[1]=0;				/* Cut length of argument */
     }
@@ -1988,7 +2009,7 @@ get_one_option(const struct my_option *opt, char *argument, const char *)
                                               opt->name)) <= 0)
     {
       sf_leaking_memory= 1; /* no memory leak reports here */
-      exit(1);
+      die();
     }
     break;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
@@ -2013,7 +2034,7 @@ get_one_option(const struct my_option *opt, char *argument, const char *)
                                        opt->name)) <= 0)
       {
         sf_leaking_memory= 1; /* no memory leak reports here */
-        exit(1);
+        die();
       }
       opt_base64_output_mode= (enum_base64_output_mode) (val - 1);
     }
@@ -2021,46 +2042,46 @@ get_one_option(const struct my_option *opt, char *argument, const char *)
   case OPT_REWRITE_DB:    // db_from->db_to
   {
     /* See also handling of OPT_REPLICATE_REWRITE_DB in sql/mysqld.cc */
-    char* ptr;
-    char* key= argument;  // db-from
-    char* val;            // db-to
+    const char* ptr;
+    const char* key= argument;  // db-from
+    const char* val;            // db-to
 
-    // Where key begins
+    // Skipp pre-space in key
     while (*key && my_isspace(&my_charset_latin1, *key))
       key++;
 
     // Where val begins
-    if (!(ptr= strstr(argument, "->")))
+    if (!(ptr= strstr(key, "->")))
     {
-      sql_print_error("Bad syntax in rewrite-db: missing '->'!\n");
+      sql_print_error("Bad syntax in rewrite-db: missing '->'\n");
       return 1;
     }
     val= ptr + 2;
+
+    // Skip blanks at the end of key
+    while (ptr > key && my_isspace(&my_charset_latin1, ptr[-1]))
+      ptr--;
+
+    if (ptr == key)
+    {
+      sql_print_error("Bad syntax in rewrite-db: empty FROM db\n");
+      return 1;
+    }
+    key= strmake_root(&glob_root, key, (size_t) (ptr-key));
+
+    /* Skipp pre space in value */
     while (*val && my_isspace(&my_charset_latin1, *val))
       val++;
 
-    // Write \0 and skip blanks at the end of key
-    *ptr-- = 0;
-    while (my_isspace(&my_charset_latin1, *ptr) && ptr > argument)
-      *ptr-- = 0;
-
-    if (!*key)
+    // Value ends with \0 or space
+    for (ptr= val; *ptr && !my_isspace(&my_charset_latin1, *ptr) ; ptr++)
+    {}
+    if (ptr == val)
     {
-      sql_print_error("Bad syntax in rewrite-db: empty db-from!\n");
+      sql_print_error("Bad syntax in rewrite-db: empty TO db\n");
       return 1;
     }
-
-    // Skip blanks at the end of val
-    ptr= val;
-    while (*ptr && !my_isspace(&my_charset_latin1, *ptr))
-      ptr++;
-    *ptr= 0;
-
-    if (!*val)
-    {
-      sql_print_error("Bad syntax in rewrite-db: empty db-to!\n");
-      return 1;
-    }
+    val= strmake_root(&glob_root, val, (size_t) (ptr-val));
 
     binlog_filter->add_db_rewrite(key, val);
     break;
@@ -2098,7 +2119,9 @@ static int parse_args(int *argc, char*** argv)
   int ho_error;
 
   if ((ho_error=handle_options(argc, argv, my_options, get_one_option)))
-    exit(ho_error);
+  {
+    die();
+  }
   if (debug_info_flag)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   else if (debug_check_flag)
@@ -3017,7 +3040,6 @@ end:
 
 int main(int argc, char** argv)
 {
-  char **defaults_argv;
   Exit_status retval= OK_CONTINUE;
   ulonglong save_stop_position;
   MY_INIT(argv[0]);
@@ -3029,6 +3051,8 @@ int main(int argc, char** argv)
 
   load_defaults_or_exit("my", load_groups, &argc, &argv);
   defaults_argv= argv;
+
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &glob_root, 1024, 0, MYF(0));
 
   if (!(binlog_filter= new Rpl_filter))
   {
@@ -3068,7 +3092,7 @@ int main(int argc, char** argv)
     if (!remote_opt)
     {
       error("The --raw mode only works with --read-from-remote-server");
-      exit(1);
+      die();
     }
     if (one_database)
       warning("The --database option is ignored in raw mode");
@@ -3090,7 +3114,7 @@ int main(int argc, char** argv)
                                   O_WRONLY | O_BINARY, MYF(MY_WME))))
       {
         error("Could not create log file '%s'", result_file_name);
-        exit(1);
+        die();
       }
     }
     else
@@ -3211,11 +3235,6 @@ int main(int argc, char** argv)
   if (result_file && result_file != stdout)
     my_fclose(result_file, MYF(0));
   cleanup();
-  free_annotate_event();
-  free_defaults(defaults_argv);
-  my_free_open_file_info();
-  load_processor.destroy();
-  mysql_server_end();
   /* We cannot free DBUG, it is used in global destructors after exit(). */
   my_end(my_end_arg | MY_DONT_FREE_DBUG);
 
@@ -3225,7 +3244,6 @@ int main(int argc, char** argv)
 
 err:
   cleanup();
-  free_defaults(defaults_argv);
   my_end(my_end_arg);
   exit(retval == ERROR_STOP ? 1 : 0);
   DBUG_RETURN(retval == ERROR_STOP ? 1 : 0);

@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
 {
   char buff[FN_REFLEN];  
   MY_INIT(argv[0]);
-  maria_data_root= (char *)".";
+  maria_data_root= ".";
   get_options(argc, argv);
   /* Maria requires that we always have a page cache */
   if (maria_init() ||
@@ -616,8 +616,8 @@ static struct my_option my_long_options[] =
 #endif
   {"help", '?', "Display help and exit",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"datadir", 'h', "Path to the database root.", &maria_data_root,
-   &maria_data_root, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"datadir", 'h', "Path to the database root.", (char**) &maria_data_root,
+   (char**) &maria_data_root, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"row-fixed-size", 'S', "Fixed size records",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"rows-in-block", 'M', "Store rows in block format",
@@ -645,7 +645,7 @@ static struct my_option my_long_options[] =
 
 static my_bool
 get_one_option(const struct my_option *opt,
-	       char *argument __attribute__((unused)),
+	       const char *argument __attribute__((unused)),
                const char *filename __attribute__((unused)))
 {
   switch(opt->id) {

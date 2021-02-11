@@ -130,6 +130,7 @@ select "--- reading stdin --" as "";
 # postion is constant to correspond to an event in pre-recorded binlog
 --let $binlog_start_pos=79
 --exec $MYSQL_BINLOG --short-form --start-position=$binlog_start_pos - < $MYSQL_TEST_DIR/std_data/trunc_binlog.000001
+
 drop table t1,t2;
 
 #
@@ -595,3 +596,30 @@ eval SET GLOBAL SERVER_ID = $old_server_id;
 #
 replace_regex /.*mysqlbinlog(\.exe)? Ver .* for .* at [-_a-zA-Z0-9]+/mysqlbinlog Ver VER for OS at ARCH/;
 exec $MYSQL_BINLOG --version;
+
+--echo #
+--echo # Test --rewrite-db
+--echo #
+
+RESET MASTER;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 values(1);
+DROP TABLE t1;
+FLUSH LOGS;
+
+--error 1
+--exec $MYSQL_BINLOG --rewrite-db=a --short-form $MYSQLD_DATADIR/master-bin.000001 2>&1
+
+--error 1
+--exec $MYSQL_BINLOG --rewrite-db="a->" --short-form $MYSQLD_DATADIR/master-bin.000001 2>&1
+
+--error 1
+--exec $MYSQL_BINLOG --rewrite-db="a-> " --short-form $MYSQLD_DATADIR/master-bin.000001 2>&1
+
+--error 1
+--exec $MYSQL_BINLOG --rewrite-db="->b" --short-form $MYSQLD_DATADIR/master-bin.000001 2>&1
+
+--error 1
+--exec $MYSQL_BINLOG --rewrite-db=" ->" --short-form $MYSQLD_DATADIR/master-bin.000001 2>&1
+
+--exec $MYSQL_BINLOG --rewrite-db=" test -> foo " --short-form $MYSQLD_DATADIR/master-bin.000001 > /dev/null 2> $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn

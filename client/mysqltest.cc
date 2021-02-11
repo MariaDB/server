@@ -96,7 +96,8 @@ static int setenv(const char *name, const char *value, int overwrite);
 
 C_MODE_START
 static sig_handler signal_handler(int sig);
-static my_bool get_one_option(const struct my_option *, char *, const char *);
+static my_bool get_one_option(const struct my_option *, const char *,
+                              const char *);
 C_MODE_END
 
 enum {
@@ -7138,7 +7139,7 @@ void read_embedded_server_arguments(const char *name)
 
 
 static my_bool
-get_one_option(const struct my_option *opt, char *argument, const char *)
+get_one_option(const struct my_option *opt, const char *argument, const char *)
 {
   switch(opt->id) {
   case '#':
@@ -7186,9 +7187,14 @@ get_one_option(const struct my_option *opt, char *argument, const char *)
       argument= const_cast<char*>("");         // Don't require password
     if (argument)
     {
+      /*
+        One should not really change the argument, but we make an
+        exception for passwords
+      */
       my_free(opt_pass);
       opt_pass= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
-      while (*argument) *argument++= 'x';		/* Destroy argument */
+      while (*argument)
+        *(char*)argument++= 'x';		/* Destroy argument */
       tty_password= 0;
     }
     else

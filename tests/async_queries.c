@@ -335,7 +335,7 @@ add_query(const char *q)
 
 
 static my_bool
-handle_option(const struct my_option *opt, char *arg,
+handle_option(const struct my_option *opt, const char *arg,
               const char *filename __attribute__((unused)))
 {
   switch (opt->id)

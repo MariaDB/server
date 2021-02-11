@@ -182,11 +182,11 @@ const char *get_type(TYPELIB *typelib, uint nr)
     a integer representation of the supplied string
 */
 
-my_ulonglong find_typeset(char *x, TYPELIB *lib, int *err)
+my_ulonglong find_typeset(const char *x, TYPELIB *lib, int *err)
 {
   my_ulonglong result;
   int find;
-  char *i;
+  const char *i;
   DBUG_ENTER("find_set");
   DBUG_PRINT("enter",("x: '%s'  lib: %p", x, lib));
 

@@ -332,7 +332,7 @@ static my_bool opt_debugging= 0, opt_external_locking= 0, opt_console= 0;
 static my_bool opt_short_log_format= 0, opt_silent_startup= 0;
 
 ulong max_used_connections;
-static char *mysqld_user, *mysqld_chroot;
+static const char *mysqld_user, *mysqld_chroot;
 static char *default_character_set_name;
 static char *character_set_filesystem_name;
 static char *lc_messages;
@@ -375,6 +375,8 @@ uint volatile global_disable_checkpoint;
 #if defined(_WIN32)
 ulong slow_start_timeout;
 #endif
+static MEM_ROOT startup_root;
+
 /**
    @brief 'grant_option' is used to indicate if privileges needs
    to be checked, in which case the lock, LOCK_grant, is used
@@ -1476,7 +1478,8 @@ static int mysql_init_variables(void);
 static int get_options(int *argc_ptr, char ***argv_ptr);
 static bool add_terminator(DYNAMIC_ARRAY *options);
 static bool add_many_options(DYNAMIC_ARRAY *, my_option *, size_t);
-extern "C" my_bool mysqld_get_one_option(const struct my_option *, char *, const char *);
+extern "C" my_bool mysqld_get_one_option(const struct my_option *, const char *,
+                                         const char *);
 static int init_thread_environment();
 static char *get_relative_path(const char *path);
 static int fix_paths(void);
@@ -2028,6 +2031,7 @@ static void clean_up(bool print_message)
   thread_scheduler= 0;
   mysql_library_end();
   finish_client_errs();
+  free_root(&startup_root, MYF(0));
   cleanup_errmsgs();
   free_error_messages();
   /* Tell main we are ready */
@@ -3628,6 +3632,7 @@ static int init_early_variables()
   set_current_thd(0);
   set_malloc_size_cb(my_malloc_size_cb_func);
   global_status_var.global_memory_used= 0;
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &startup_root, 1024, 0, MYF(0));
   return 0;
 }
 
@@ -7674,7 +7679,7 @@ static int mysql_init_variables(void)
 }
 
 my_bool
-mysqld_get_one_option(const struct my_option *opt, char *argument,
+mysqld_get_one_option(const struct my_option *opt, const char *argument,
                       const char *filename)
 {
   if (opt->app_type)
@@ -7851,31 +7856,43 @@ mysqld_get_one_option(const struct my_option *opt, char *argument,
   case (int)OPT_REPLICATE_REWRITE_DB:
   {
     /* See also OPT_REWRITE_DB handling in client/mysqlbinlog.cc */
-    char* key = argument,*p, *val;
+    const char* key= argument, *ptr, *val;
 
-    if (!(p= strstr(argument, "->")))
+    // Skipp pre-space in key
+    while (*key && my_isspace(mysqld_charset, *key))
+      key++;
+
+    // Where val begins
+    if (!(ptr= strstr(key, "->")))
     {
-      sql_print_error("Bad syntax in replicate-rewrite-db - missing '->'!");
+      sql_print_error("Bad syntax in replicate-rewrite-db: missing '->'");
       return 1;
     }
-    val= p--;
-    while (my_isspace(mysqld_charset, *p) && p > argument)
-      *p-- = 0;
-    /* Db name can be one char also */
-    if (p == argument && my_isspace(mysqld_charset, *p))
+    val= ptr+2;
+
+    // Skip blanks at the end of key
+    while (ptr > key && my_isspace(mysqld_charset, ptr[-1]))
+      ptr--;
+    if (ptr == key)
     {
-      sql_print_error("Bad syntax in replicate-rewrite-db - empty FROM db!");
+      sql_print_error("Bad syntax in replicate-rewrite-db - empty FROM db");
       return 1;
     }
-    *val= 0;
-    val+= 2;
+    key= strmake_root(&startup_root, key, (size_t) (ptr-key));
+
+    /* Skipp pre space in value */
     while (*val && my_isspace(mysqld_charset, *val))
       val++;
-    if (!*val)
+
+    // Value ends with \0 or space
+    for (ptr= val; *ptr && !my_isspace(&my_charset_latin1, *ptr) ; ptr++)
+    {}
+    if (ptr == val)
     {
-      sql_print_error("Bad syntax in replicate-rewrite-db - empty TO db!");
+      sql_print_error("Bad syntax in replicate-rewrite-db - empty TO db");
       return 1;
     }
+    val= strmake_root(&startup_root, val, (size_t) (ptr-val));
 
     cur_rpl_filter->add_db_rewrite(key, val);
     break;
@@ -7902,7 +7919,7 @@ mysqld_get_one_option(const struct my_option *opt, char *argument,
   {
     if (cur_rpl_filter->add_do_table(argument))
     {
-      sql_print_error("Could not add do table rule '%s'!", argument);
+      sql_print_error("Could not add do table rule '%s'", argument);
       return 1;
     }
     break;
@@ -7911,7 +7928,7 @@ mysqld_get_one_option(const struct my_option *opt, char *argument,
   {
     if (cur_rpl_filter->add_wild_do_table(argument))
     {
-      sql_print_error("Could not add do table rule '%s'!", argument);
+      sql_print_error("Could not add do table rule '%s'", argument);
       return 1;
     }
     break;
@@ -7920,7 +7937,7 @@ mysqld_get_one_option(const struct my_option *opt, char *argument,
   {
     if (cur_rpl_filter->add_wild_ignore_table(argument))
     {
-      sql_print_error("Could not add ignore table rule '%s'!", argument);
+      sql_print_error("Could not add ignore table rule '%s'", argument);
       return 1;
     }
     break;
@@ -7929,7 +7946,7 @@ mysqld_get_one_option(const struct my_option *opt, char *argument,
   {
     if (cur_rpl_filter->add_ignore_table(argument))
     {
-      sql_print_error("Could not add ignore table rule '%s'!", argument);
+      sql_print_error("Could not add ignore table rule '%s'", argument);
       return 1;
     }
     break;
@@ -8040,10 +8057,14 @@ mysqld_get_one_option(const struct my_option *opt, char *argument,
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 #ifndef EMBEDDED_LIBRARY
     /* Parse instrument name and value from argument string */
-    char* name = argument,*p, *val;
+    const char *name= argument, *ptr, *val;
+
+    /* Trim leading spaces from instrument name */
+    while (*name && my_isspace(mysqld_charset, *name))
+      name++;
 
     /* Assignment required */
-    if (!(p= strchr(argument, '=')))
+    if (!(ptr= strchr(name, '=')))
     {
        my_getopt_error_reporter(WARNING_LEVEL,
                              "Missing value for performance_schema_instrument "
@@ -8052,54 +8073,43 @@ mysqld_get_one_option(const struct my_option *opt, char *argument,
     }
 
     /* Option value */
-    val= p + 1;
-    if (!*val)
-    {
-       my_getopt_error_reporter(WARNING_LEVEL,
-                             "Missing value for performance_schema_instrument "
-                             "'%s'", argument);
-      return 0;
-    }
-
-    /* Trim leading spaces from instrument name */
-    while (*name && my_isspace(mysqld_charset, *name))
-      name++;
+    val= ptr + 1;
 
     /* Trim trailing spaces and slashes from instrument name */
-    while (p > argument && (my_isspace(mysqld_charset, p[-1]) || p[-1] == '/'))
-      p--;
-    *p= 0;
-
-    if (!*name)
+    while (ptr > name && (my_isspace(mysqld_charset, ptr[-1]) ||
+                          ptr[-1] == '/'))
+      ptr--;
+    if (ptr == name)
     {
        my_getopt_error_reporter(WARNING_LEVEL,
                              "Invalid instrument name for "
-                             "performance_schema_instrument '%s'", argument);
-      return 0;
+                             "performance_schema_instrument '%s'", name);
+       return 0;
     }
+    name= strmake_root(&startup_root, name, (size_t) (ptr - name));
 
     /* Trim leading spaces from option value */
     while (*val && my_isspace(mysqld_charset, *val))
       val++;
 
-    /* Trim trailing spaces from option value */
-    if ((p= my_strchr(mysqld_charset, val, val+strlen(val), ' ')) != NULL)
-      *p= 0;
-
-    if (!*val)
+    /* Find end of value */
+    for (ptr= val; *ptr && !my_isspace(mysqld_charset, *ptr) ; ptr++)
+    {}
+    if (ptr == val)
     {
        my_getopt_error_reporter(WARNING_LEVEL,
-                             "Invalid value for performance_schema_instrument "
-                             "'%s'", argument);
+                             "No value for performance_schema_instrument "
+                             "'%s'", name);
       return 0;
     }
+    val= strmake_root(&startup_root, val, (size_t) (ptr - val));
 
     /* Add instrument name and value to array of configuration options */
     if (add_pfs_instr_to_array(name, val))
     {
        my_getopt_error_reporter(WARNING_LEVEL,
                              "Invalid value for performance_schema_instrument "
-                             "'%s'", argument);
+                             "'%s'", name);
       return 0;
     }
 #endif /* EMBEDDED_LIBRARY */
@@ -8266,7 +8276,8 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   /* Skip unknown options so that they may be processed later by plugins */
   my_getopt_skip_unknown= TRUE;
 
-  if ((ho_error= handle_options(argc_ptr, argv_ptr, (my_option*)(all_options.buffer),
+  if ((ho_error= handle_options(argc_ptr, argv_ptr,
+                                (my_option*) (all_options.buffer),
                                 mysqld_get_one_option)))
     return ho_error;
 

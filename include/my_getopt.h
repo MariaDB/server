@@ -89,7 +89,7 @@ struct my_option
   void       *app_type;                 /**< To be used by an application */
 };
 
-typedef my_bool (*my_get_one_option)(const struct my_option *, char *, const char *);
+typedef my_bool (*my_get_one_option)(const struct my_option *, const char *, const char *);
 
 /**
   Used to retrieve a reference to the object (variable) that holds the value

@@ -25,7 +25,7 @@
 #include "trnman.h"
 
 extern PAGECACHE *maria_log_pagecache;
-extern char *maria_data_root;
+extern const char *maria_data_root;
 
 #define MAX_REC_LENGTH 1024
 
@@ -75,7 +75,7 @@ int main(int argc,char *argv[])
   safe_mutex_deadlock_detector= 1;
 #endif
   MY_INIT(argv[0]);
-  maria_data_root= (char *)".";
+  maria_data_root= ".";
   get_options(argc,argv);
   /* Maria requires that we always have a page cache */
   if (maria_init() ||
@@ -739,8 +739,8 @@ static struct my_option my_long_options[] =
   {"debug", '#', "Undocumented",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"datadir", 'h', "Path to the database root.", &maria_data_root,
-   &maria_data_root, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"datadir", 'h', "Path to the database root.", (char**) &maria_data_root,
+   (char**) &maria_data_root, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"delete-rows", 'd', "Abort after this many rows has been deleted",
    (uchar**) &remove_count, (uchar**) &remove_count, 0, GET_UINT, REQUIRED_ARG,
    1000, 0, 0, 0, 0, 0},
@@ -813,7 +813,7 @@ static struct my_option my_long_options[] =
 
 static my_bool
 get_one_option(const struct my_option *opt,
-	       char *argument __attribute__((unused)),
+	       const char *argument __attribute__((unused)),
                const char *filename __attribute__((unused)))
 {
   switch(opt->id) {

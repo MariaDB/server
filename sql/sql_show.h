@@ -253,7 +253,7 @@ bool ignore_db_dirs_init();
 void ignore_db_dirs_free();
 void ignore_db_dirs_reset();
 bool ignore_db_dirs_process_additions();
-bool push_ignored_db_dir(char *path);
+bool push_ignored_db_dir(const char *path);
 extern char *opt_ignore_db_dirs;
 
 #endif /* SQL_SHOW_H */

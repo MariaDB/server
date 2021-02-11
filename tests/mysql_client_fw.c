@@ -1272,7 +1272,7 @@ static struct my_tests_st *get_my_tests();  /* To be defined in main .c file */
 static struct my_tests_st *my_testlist= 0;
 
 static my_bool
-get_one_option(const struct my_option *opt, char *argument,
+get_one_option(const struct my_option *opt, const char *argument,
                const char *filename __attribute__((unused)))
 {
   switch (opt->id) {
@@ -1285,10 +1285,15 @@ get_one_option(const struct my_option *opt, char *argument,
   case 'p':
     if (argument)
     {
-      char *start=argument;
+      /*
+        One should not really change the argument, but we make an
+        exception for passwords
+      */
+      char *start= (char*) argument;
       my_free(opt_password);
       opt_password= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
-      while (*argument) *argument++= 'x';               /* Destroy argument */
+      while (*argument)
+        *(char*) argument++= 'x';               /* Destroy argument */
       if (*start)
         start[1]=0;
     }

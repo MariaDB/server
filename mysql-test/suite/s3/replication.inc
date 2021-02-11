@@ -81,6 +81,8 @@ show create table t2;
 
 connection master;
 drop table t2;
+sync_slave_with_master;
+connection master;
 
 --echo #
 --echo # Test RENAME

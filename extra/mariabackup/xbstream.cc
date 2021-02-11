@@ -90,7 +90,7 @@ static int get_options(int *argc, char ***argv);
 static int mode_create(int argc, char **argv);
 static int mode_extract(int n_threads, int argc, char **argv);
 static my_bool get_one_option(const struct my_option *opt,
-			      char *argument, const char *filename);
+			      const char *argument, const char *filename);
 
 int
 main(int argc, char **argv)
@@ -138,7 +138,8 @@ get_options(int *argc, char ***argv)
 	int ho_error;
 
 	if ((ho_error= handle_options(argc, argv, my_long_options,
-				      get_one_option))) {
+				      get_one_option)))
+        {
 		exit(EXIT_FAILURE);
 	}
 
@@ -191,7 +192,7 @@ set_run_mode(run_mode_t mode)
 
 static
 my_bool
-get_one_option(const struct my_option *opt, char *, const char *)
+get_one_option(const struct my_option *opt, const char *, const char *)
 {
 	switch (opt->id) {
 	case 'c':

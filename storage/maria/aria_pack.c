@@ -229,7 +229,7 @@ int main(int argc, char **argv)
   my_bool no_control_file= 0;
   MY_INIT(argv[0]);
 
-  maria_data_root= (char *)".";
+  maria_data_root= ".";
   load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   default_argv= argv;
   get_options(&argc,&argv);
@@ -316,7 +316,7 @@ static struct my_option my_long_options[] =
    (char**) &charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"datadir", 'h',
    "Path for control file (and logs if --logdir not used).",
-   &maria_data_root, 0, 0, GET_STR, REQUIRED_ARG,
+   (char**) &maria_data_root, 0, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
   {"debug", '#', "Output debug log. Often this is 'd:t:o,filename'.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
@@ -381,7 +381,8 @@ static void usage(void)
 
 static my_bool
 get_one_option(const struct my_option *opt,
-	       char *argument, const char *filename __attribute__((unused)))
+	       const char *argument,
+               const char *filename __attribute__((unused)))
 {
   uint length;
 

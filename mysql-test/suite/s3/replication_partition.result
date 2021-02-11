@@ -13,10 +13,14 @@ PARTITION BY HASH (c1)
 PARTITIONS 3;
 INSERT INTO t1 VALUE (1), (2), (101), (102), (201), (202);
 ALTER TABLE t1 ENGINE=S3;
+connection slave;
+connection master;
 ALTER TABLE t1 ADD PARTITION PARTITIONS 6;
 select sum(c1) from t1;
 sum(c1)
 609
+connection slave;
+connection master;
 ALTER TABLE t1 ADD COLUMN c INT;
 select sum(c1) from t1;
 sum(c1)
@@ -107,6 +111,8 @@ connection slave;
 select sum(c1) from t1;
 ERROR 42S02: Table 'database.t1' doesn't exist
 start slave;
+connection master;
+connection slave;
 connection master;
 #
 # Check altering partitioned table to S3 and back

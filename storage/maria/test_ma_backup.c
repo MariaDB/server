@@ -41,7 +41,7 @@ int main(int argc __attribute__((unused)), char *argv[])
   safe_mutex_deadlock_detector= 1;
 #endif
   MY_INIT(argv[0]);
-  maria_data_root= (char *)".";
+  maria_data_root= ".";
 
   /* Maria requires that we always have a page cache */
   if (maria_init() ||

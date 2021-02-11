@@ -726,7 +726,7 @@ static void usage(void)
 
 
 static my_bool
-get_one_option(const struct my_option *opt, char *argument,
+get_one_option(const struct my_option *opt, const char *argument,
                const char *filename __attribute__((unused)))
 {
   DBUG_ENTER("get_one_option");
@@ -739,10 +739,15 @@ get_one_option(const struct my_option *opt, char *argument,
       argument= (char*) "";			/* Don't require password */
     if (argument)
     {
-      char *start= argument;
+      /*
+        One should not really change the argument, but we make an
+        exception for passwords
+      */
+      char *start= (char*) argument;
       my_free(opt_password);
       opt_password= my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
-      while (*argument) *argument++= 'x';		/* Destroy argument */
+      while (*argument)
+        *(char*) argument++= 'x';		/* Destroy argument */
       if (*start)
         start[1]= 0;				/* Cut length of argument */
       tty_password= 0;

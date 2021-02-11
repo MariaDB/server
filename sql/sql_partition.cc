@@ -7174,23 +7174,24 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
       4) Close the table that have already been opened but didn't stumble on
          the abort locked previously. This is done as part of the
          alter_close_table call.
-      5) Write the bin log
-         Unfortunately the writing of the binlog is not synchronised with
-         other logging activities. So no matter in which order the binlog
-         is written compared to other activities there will always be cases
-         where crashes make strange things occur. In this placement it can
-         happen that the ALTER TABLE DROP PARTITION gets performed in the
-         master but not in the slaves if we have a crash, after writing the
-         ddl log but before writing the binlog. A solution to this would
-         require writing the statement first in the ddl log and then
-         when recovering from the crash read the binlog and insert it into
-         the binlog if not written already.
+      5) Old place for binary logging
       6) Install the previously written shadow frm file
       7) Prepare handlers for drop of partitions
       8) Drop the partitions
       9) Remove entries from ddl log
       10) Reopen table if under lock tables
-      11) Complete query
+      11) Write the bin log
+          Unfortunately the writing of the binlog is not synchronised with
+          other logging activities. So no matter in which order the binlog
+          is written compared to other activities there will always be cases
+          where crashes make strange things occur. In this placement it can
+          happen that the ALTER TABLE DROP PARTITION gets performed in the
+          master but not in the slaves if we have a crash, after writing the
+          ddl log but before writing the binlog. A solution to this would
+          require writing the statement first in the ddl log and then
+          when recovering from the crash read the binlog and insert it into
+          the binlog if not written already.
+      12) Complete query
 
       We insert Error injections at all places where it could be interesting
       to test if recovery is properly done.
@@ -7211,9 +7212,6 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         alter_close_table(lpt) ||
         ERROR_INJECT_CRASH("crash_drop_partition_5") ||
         ERROR_INJECT_ERROR("fail_drop_partition_5") ||
-        ((!thd->lex->no_write_to_binlog) &&
-         (write_bin_log(thd, FALSE,
-                        thd->query(), thd->query_length()), FALSE)) ||
         ERROR_INJECT_CRASH("crash_drop_partition_6") ||
         ERROR_INJECT_ERROR("fail_drop_partition_6") ||
         (frm_install= TRUE, FALSE) ||
@@ -7225,6 +7223,9 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT_CRASH("crash_drop_partition_8") ||
         ERROR_INJECT_ERROR("fail_drop_partition_8") ||
         (write_log_completed(lpt, FALSE), FALSE) ||
+        ((!thd->lex->no_write_to_binlog) &&
+         (write_bin_log(thd, FALSE,
+                        thd->query(), thd->query_length()), FALSE)) ||
         ERROR_INJECT_CRASH("crash_drop_partition_9") ||
         ERROR_INJECT_ERROR("fail_drop_partition_9"))
     {
@@ -7257,7 +7258,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
       3) Write an entry to remove the new parttions if crash occurs
       4) Add the new partitions.
       5) Close all instances of the table and remove them from the table cache.
-      6) Write binlog
+      6) Old place for write binlog
       7) Now the change is completed except for the installation of the
          new frm file. We thus write an action in the log to change to
          the shadow frm file
@@ -7265,7 +7266,8 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
          added to the table.
       9) Remove entries from ddl log
       10)Reopen tables if under lock tables
-      11)Complete query
+      11)Write to binlog
+      12)Complete query
     */
     if (write_log_drop_shadow_frm(lpt) ||
         ERROR_INJECT_CRASH("crash_add_partition_1") ||
@@ -7285,9 +7287,6 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         alter_close_table(lpt) ||
         ERROR_INJECT_CRASH("crash_add_partition_6") ||
         ERROR_INJECT_ERROR("fail_add_partition_6") ||
-        ((!thd->lex->no_write_to_binlog) &&
-         (write_bin_log(thd, FALSE,
-                        thd->query(), thd->query_length()), FALSE)) ||
         ERROR_INJECT_CRASH("crash_add_partition_7") ||
         ERROR_INJECT_ERROR("fail_add_partition_7") ||
         write_log_rename_frm(lpt) ||
@@ -7300,6 +7299,9 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT_CRASH("crash_add_partition_9") ||
         ERROR_INJECT_ERROR("fail_add_partition_9") ||
         (write_log_completed(lpt, FALSE), FALSE) ||
+        ((!thd->lex->no_write_to_binlog) &&
+         (write_bin_log(thd, FALSE,
+                        thd->query(), thd->query_length()), FALSE)) ||
         ERROR_INJECT_CRASH("crash_add_partition_10") ||
         ERROR_INJECT_ERROR("fail_add_partition_10"))
     {
@@ -7356,13 +7358,14 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
       5) Close the table.
       6) Log that operation is completed and log all complete actions
          needed to complete operation from here.
-      7) Write bin log.
+      7) Old place for write bin log.
       8) Prepare handlers for rename and delete of partitions.
       9) Rename and drop the reorged partitions such that they are no
          longer used and rename those added to their real new names.
       10) Install the shadow frm file.
       11) Reopen the table if under lock tables.
-      12) Complete query.
+      12) Write to binlog
+      13) Complete query.
     */
     if (write_log_drop_shadow_frm(lpt) ||
         ERROR_INJECT_CRASH("crash_change_partition_1") ||
@@ -7386,9 +7389,6 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         (action_completed= TRUE, FALSE) ||
         ERROR_INJECT_CRASH("crash_change_partition_7") ||
         ERROR_INJECT_ERROR("fail_change_partition_7") ||
-        ((!thd->lex->no_write_to_binlog) &&
-         (write_bin_log(thd, FALSE,
-                        thd->query(), thd->query_length()), FALSE)) ||
         ERROR_INJECT_CRASH("crash_change_partition_8") ||
         ERROR_INJECT_ERROR("fail_change_partition_8") ||
         ((frm_install= TRUE), FALSE) ||
@@ -7403,6 +7403,9 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT_CRASH("crash_change_partition_11") ||
         ERROR_INJECT_ERROR("fail_change_partition_11") ||
         (write_log_completed(lpt, FALSE), FALSE) ||
+        ((!thd->lex->no_write_to_binlog) &&
+         (write_bin_log(thd, FALSE,
+                        thd->query(), thd->query_length()), FALSE)) ||
         ERROR_INJECT_CRASH("crash_change_partition_12") ||
         ERROR_INJECT_ERROR("fail_change_partition_12"))
     {

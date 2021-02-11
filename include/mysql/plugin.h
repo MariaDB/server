@@ -313,6 +313,12 @@ typedef void (*mysql_var_update_func)(MYSQL_THD thd,
   const type def_val;                 \
 } MYSQL_SYSVAR_NAME(name)
 
+#define DECLARE_MYSQL_SYSVAR_CONST_BASIC(name, type) struct { \
+  MYSQL_PLUGIN_VAR_HEADER;      \
+  const type *value;                  \
+  const type def_val;                 \
+} MYSQL_SYSVAR_NAME(name)
+
 #define DECLARE_MYSQL_SYSVAR_SIMPLE(name, type) struct { \
   MYSQL_PLUGIN_VAR_HEADER;      \
   type *value; type def_val;    \
@@ -364,6 +370,11 @@ DECLARE_MYSQL_SYSVAR_BASIC(name, char) = { \
 
 #define MYSQL_SYSVAR_STR(name, varname, opt, comment, check, update, def) \
 DECLARE_MYSQL_SYSVAR_BASIC(name, char *) = { \
+  PLUGIN_VAR_STR | ((opt) & PLUGIN_VAR_MASK), \
+  #name, comment, check, update, &varname, def}
+
+#define MYSQL_SYSVAR_CONST_STR(name, varname, opt, comment, check, update, def) \
+DECLARE_MYSQL_SYSVAR_CONST_BASIC(name, char *) = { \
   PLUGIN_VAR_STR | ((opt) & PLUGIN_VAR_MASK), \
   #name, comment, check, update, &varname, def}
 
