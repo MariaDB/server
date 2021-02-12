@@ -32,6 +32,7 @@
 #include "sp_head.h"
 #include "sql_show.h"
 #include "sp.h"
+#include "handler.h"
 #include "wsrep_priv.h"
 #include "wsrep_thd.h"
 #include "wsrep_sst.h"
@@ -1991,10 +1992,23 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
     return true;
     break;
   case SQLCOM_ALTER_TABLE:
-    if (create_info &&
-        !wsrep_should_replicate_ddl(thd, create_info->db_type->db_type))
-      return false;
-    /* fallthrough */
+  {
+    if (create_info)
+    {
+      enum legacy_db_type db_type;
+
+      if (create_info->db_type)
+        db_type= create_info->db_type->db_type;
+      else
+      {
+	const handlerton *hton= ha_default_handlerton(thd);
+	db_type= hton->db_type;
+      }
+      if (!wsrep_should_replicate_ddl(thd, db_type))
+        return false;
+    }
+  }
+  /* fallthrough */
   default:
     if (table && !thd->find_temporary_table(db, table))
     {
