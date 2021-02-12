@@ -3047,14 +3047,18 @@ bool multi_update::send_eof()
   DBUG_ASSERT(trans_safe || !updated ||
               thd->transaction.stmt.modified_non_trans_table);
 
-  if (likely(local_error != 0))
-    error_handled= TRUE; // to force early leave from ::abort_result_set()
-
-  if (unlikely(local_error > 0)) // if the above log write did not fail ...
+  if (unlikely(local_error))
   {
-    /* Safety: If we haven't got an error before (can happen in do_updates) */
-    my_message(ER_UNKNOWN_ERROR, "An error occurred in multi-table update",
-	       MYF(0));
+    error_handled= TRUE; // to force early leave from ::abort_result_set()
+    if (thd->killed == NOT_KILLED && !thd->get_stmt_da()->is_set())
+    {
+      /*
+        No error message was sent and query was not killed (in which case
+        mysql_execute_command() will send the error mesage).
+      */
+      my_message(ER_UNKNOWN_ERROR, "An error occurred in multi-table update",
+                 MYF(0));
+    }
     DBUG_RETURN(TRUE);
   }
 
