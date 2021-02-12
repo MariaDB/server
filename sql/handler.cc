@@ -2956,7 +2956,7 @@ int handler::ha_close(void)
   tracker= NULL;
   /* We use ref as way to check that open succeded */
   ref= 0;
-  
+
   DBUG_ASSERT(m_lock_type == F_UNLCK);
   DBUG_ASSERT(inited == NONE);
   DBUG_RETURN(close());
@@ -6733,6 +6733,35 @@ int handler::check_duplicate_long_entries_update(const uchar *new_rec)
   return 0;
 }
 
+static int period_locate_overlapping_record(handler *handler,
+                                            uchar *key_buf,
+                                            const uchar *record_to_cmp,
+                                            uchar *record,
+                                            const KEY &key_to_cmp,
+                                            const KEY &key)
+{
+  // number of key parts not including period fields
+  auto base_parts= key.user_defined_key_parts - 2;
+  const uint period_field_length= key_to_cmp.key_part[base_parts].length;
+  const uint key_base_length= key_to_cmp.key_length - 2 * period_field_length;
+
+
+  key_copy(key_buf, record_to_cmp, &key_to_cmp, 0);
+
+  /*
+    Copy period_start to period_end.
+    the value in period_start field is not significant, but anyway let's leave
+    it defined to avoid uninitialized memory access
+  */
+  memcpy(key_buf + key_base_length,
+         key_buf + key_base_length + period_field_length,
+         period_field_length);
+
+  int error= handler->ha_index_read_map(record, key_buf,
+                                        PREV_BITS(ulong, base_parts + 1),
+                                        HA_READ_AFTER_KEY);
+  return error;
+}
 
 int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
 {
@@ -6780,6 +6809,9 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
         continue;
     }
 
+    if (key_rec_is_null(key_info, new_data))
+      continue;
+
     error= handler->ha_index_init(key_nr, 0);
     if (error)
       return error;
@@ -6787,23 +6819,9 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
     error= handler->ha_start_keyread(key_nr);
     DBUG_ASSERT(!error);
 
-    const uint period_field_length= key_info.key_part[key_parts - 1].length;
-    const uint key_base_length= key_info.key_length - 2 * period_field_length;
-
-    key_copy(lookup_buffer, new_data, &key_info, 0);
-
-    /* Copy period_start to period_end.
-       the value in period_start field is not significant, but anyway let's leave
-       it defined to avoid uninitialized memory access
-     */
-    memcpy(lookup_buffer + key_base_length,
-           lookup_buffer + key_base_length + period_field_length,
-           period_field_length);
-
-    /* Find row with period_end > (period_start of new_data) */
-    error = handler->ha_index_read_map(record_buffer, lookup_buffer,
-                                       key_part_map((1 << (key_parts - 1)) - 1),
-                                       HA_READ_AFTER_KEY);
+    error= period_locate_overlapping_record(handler, lookup_buffer,
+                                            new_data, record_buffer,
+                                            key_info, key_info);
 
     if (!error && is_update)
     {
@@ -6949,6 +6967,10 @@ int handler::ha_write_row(const uchar *buf)
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
 
+  error= period_row_ins_fk_check(buf);
+  if (unlikely(error))
+    DBUG_RETURN(error);
+
   if (table->s->long_unique_table && this == table->file)
   {
     DBUG_ASSERT(inited == NONE || lookup_handler != this);
@@ -7005,6 +7027,9 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
   {
     return error;
   }
+  error= period_row_upd_fk_check(old_data, new_data);
+  if (error)
+    return error;
 
   TABLE_IO_WAIT(tracker, PSI_TABLE_UPDATE_ROW, active_index, 0,
                       { error= update_row(old_data, new_data);})
@@ -7055,6 +7080,279 @@ int handler::update_first_row(const uchar *new_data)
 }
 
 
+static int period_find_first_overlapping_record(handler *handler,
+                                                uchar *key_buf,
+                                                const uchar *record_to_cmp,
+                                                uchar *record,
+                                                const KEY &key_to_cmp,
+                                                const KEY &key)
+{
+  /*
+    We should evaluate SELECT start, end WHERE start < @end and end > @start.
+    one is < and one is >, so we can not do it by O(1) queries to btree.
+    You can think about spatial tree, but don't forget about base_parts
+    to check! So it's actually WHERE idx1 = @idx1 and idx2 = @idx2,...
+
+    What we can do here is to apply merge optimization, to decide whether is
+    better to use spatial tree (when available), or btree.
+
+    Or we can use a btree with an rtree in leaves, if it will ever be
+    implemented.
+
+    In ordinary btree, like now, since we have period_start, period_end at the
+    end of the key, we can find a row such that row
+    period_end > (period_start of record_to_cmp) and then scan until
+    period_start < (period_end of record_to_cmp) is satisfied.
+    This
+
+    Note that WITHOUT OVERLAPS on key makes it O(1).
+  */
+
+  int error= period_locate_overlapping_record(handler, key_buf,
+                                              record_to_cmp, record,
+                                              key_to_cmp, key);
+  if (unlikely(error))
+      return error;
+
+  while (key_period_compare_bases(key, key_to_cmp, record, record_to_cmp) == 0)
+  {
+    int overlap= key_period_compare_periods(key, key_to_cmp,
+                                            record, record_to_cmp);
+
+    if (overlap > 0) // all the rest will definitely succeed tested record
+      return HA_ERR_KEY_NOT_FOUND;
+    else if (overlap == 0)
+      return 0;
+
+    error= handler->ha_index_next(record);
+    if (unlikely(error == HA_ERR_END_OF_FILE))
+      return HA_ERR_KEY_NOT_FOUND;
+    else if (unlikely(error))
+      return error;
+  }
+
+  return HA_ERR_KEY_NOT_FOUND;
+}
+
+
+static
+void set_bits_with_key(MY_BITMAP *map, const KEY *key, uint key_parts)
+{
+  for (uint i = 0; i < key_parts; i++)
+    bitmap_set_bit(map, key->key_part[i].fieldnr - 1);
+}
+
+/**
+@param record                      record to update from, or a deleted record */
+int handler::period_row_del_fk_check(const uchar *record)
+{
+  if (!table->referenced_keys)
+    return 0;
+  if (table->versioned() && !table->vers_end_field()->is_max(record))
+    return 0;
+
+  for(int k= 0; k < table->referenced_keys; k++)
+  {
+    auto &fk= table->referenced[k];
+    if (!fk.has_period)
+      continue;
+
+    DBUG_ASSERT(fk.fields_num == fk.foreign_key->user_defined_key_parts);
+    DBUG_ASSERT(fk.fields_num == fk.referenced_key->user_defined_key_parts);
+
+    handler *foreign_handler= fk.foreign_key->table->file;
+
+    foreign_handler->alloc_lookup_buffer();
+
+    /*
+      We shouldn't save cursor here, since this handler is never used.
+       The foreign table is only opened for FK matches.
+    */
+    int error= foreign_handler->ha_index_init(fk.foreign_key_nr, false);
+    if(error)
+      return error;
+
+    set_bits_with_key(fk.foreign_key->table->read_set,
+                      fk.foreign_key, fk.fields_num);
+    auto *record_buffer= foreign_handler->get_table()->record[0];
+    auto *key_buffer= foreign_handler->lookup_buffer;
+
+    error= period_find_first_overlapping_record(foreign_handler,
+                                                key_buffer,
+                                                record,
+                                                record_buffer,
+                                                *fk.referenced_key,
+                                                *fk.foreign_key);
+
+    int end_error= foreign_handler->ha_index_end();
+
+    if (error == HA_ERR_KEY_NOT_FOUND) // no key matched
+      return end_error;
+    if (error)
+      return error;
+    if (end_error)
+      return end_error;
+    if (key_period_compare_periods(*fk.referenced_key,
+                                   *fk.foreign_key,
+                                   record, record_buffer) == 0)
+      return HA_ERR_ROW_IS_REFERENCED;
+  }
+  return 0;
+}
+
+/**
+   A lightweight wrapper around memcmp for equal-sized buffers
+ */
+class Binary_value
+{
+  uchar *ptr;
+  uint size;
+  int cmp(const Binary_value &rhs) const
+  {
+    DBUG_ASSERT(rhs.size == size);
+    return memcmp(ptr, rhs.ptr, size);
+  }
+public:
+  Binary_value(uchar *ptr, uint size): ptr(ptr), size(size) {}
+  bool operator < (const Binary_value &rhs) const { return cmp(rhs) < 0; }
+  bool operator > (const Binary_value &rhs) const { return cmp(rhs) > 0; }
+  bool operator == (const Binary_value &rhs) const { return cmp(rhs) == 0; }
+  bool operator != (const Binary_value &rhs) const { return cmp(rhs) != 0; }
+  bool operator <= (const Binary_value &rhs) const { return cmp(rhs) <= 0; }
+  bool operator >= (const Binary_value &rhs) const { return cmp(rhs) >= 0; }
+  void fill(const uchar *rhs)
+  {
+    memcpy(ptr, rhs, size);
+  }
+  void fill(const Binary_value &val)
+  {
+    fill(val.ptr);
+  }
+  Binary_value &operator = (const Binary_value &) = delete;
+};
+
+/*
+ @return  0                      All the range from record is covered by ref_key
+          HA_ERR_KEY_NOT_FOUND   Some part of the range is not covered
+          other value            Handler returned error, and it's not
+                                 HA_ERR_KEY_NOT_FOUND and not HA_ERR_END_OF_FILE
+ */
+static int period_check_row_references(handler *ref_handler,
+                                       uchar *key_buf,
+                                       const uchar *record,
+                                       uchar *ref_record,
+                                       const KEY &key,
+                                       const KEY &ref_key)
+{
+  int error= period_find_first_overlapping_record(ref_handler, key_buf,
+                                                  record, ref_record,
+                                                  key, ref_key);
+  if (error)
+    return error;
+
+  auto period_start= key.user_defined_key_parts - 1;
+  auto period_end= key.user_defined_key_parts - 2;
+
+  auto *foreign_start_field= key.key_part[period_start].field;
+  auto *foreign_end_field= key.key_part[period_end].field;
+  auto *ref_start_field= ref_key.key_part[period_start].field;
+  auto *ref_end_field= ref_key.key_part[period_end].field;
+
+  uchar values[4][Type_handler_datetime::hires_bytes(MAX_DATETIME_PRECISION)];
+  auto field_len= key.key_part[period_start].field->pack_length();
+
+  Binary_value foreign_start(values[0], field_len);
+  Binary_value foreign_end(values[1], field_len);
+  Binary_value last_start(values[2], field_len);
+  Binary_value last_end(values[3], field_len);
+
+  foreign_start.fill(foreign_start_field->ptr_in_record(record));
+  foreign_end.fill(foreign_end_field->ptr_in_record(record));
+  last_start.fill(ref_start_field->ptr_in_record(ref_record));
+  last_end.fill(ref_end_field->ptr_in_record(ref_record));
+
+  // leftmost referenced record is to the right from foreign record
+  if (foreign_start < last_start)
+    return HA_ERR_KEY_NOT_FOUND;
+
+  while (last_end < foreign_end)
+  {
+    error= ref_handler->ha_index_next(ref_record);
+
+    if (unlikely(error == HA_ERR_END_OF_FILE))
+      return HA_ERR_KEY_NOT_FOUND;
+    else if (unlikely(error))
+      return error;
+
+    if (key_period_compare_periods(key, ref_key, record, ref_record) != 0)
+      return HA_ERR_KEY_NOT_FOUND;
+
+    last_start.fill(ref_start_field->ptr_in_record(ref_record));
+    if (last_end != last_start)
+      return HA_ERR_KEY_NOT_FOUND;
+    last_end.fill(ref_end_field->ptr_in_record(ref_record));
+  }
+  DBUG_ASSERT(!error);
+  return 0;
+}
+
+
+int handler::period_row_ins_fk_check(const uchar *record)
+{
+  if (!table->foreign_keys)
+    return 0;
+
+  for(int k= 0; k < table->foreign_keys; k++)
+  {
+    auto &fk= table->foreign[k];
+    if (!fk.has_period)
+      continue;
+    if (table->versioned() && !table->vers_end_field()->is_max(record))
+      return 0;
+
+    DBUG_ASSERT(fk.fields_num == fk.foreign_key->user_defined_key_parts);
+    DBUG_ASSERT(fk.fields_num == fk.referenced_key->user_defined_key_parts);
+
+    handler *ref_handler= fk.referenced_key->table->file;
+
+  ref_handler->alloc_lookup_buffer();
+
+  int error= ref_handler->ha_index_init(fk.referenced_key_nr, false);
+  if(error)
+    return error;
+
+    set_bits_with_key(fk.referenced_key->table->read_set,
+                      fk.referenced_key, fk.fields_num);
+
+    auto *ref_record= ref_handler->get_table()->record[0];
+    auto *key_buffer= ref_handler->lookup_buffer;
+
+    bool row_references;
+    error= period_check_row_references(ref_handler, key_buffer,
+                                       record, ref_record,
+                                       *fk.foreign_key, *fk.referenced_key);
+
+    int end_error= ref_handler->ha_index_end();
+
+    if (error == HA_ERR_KEY_NOT_FOUND)
+      return HA_ERR_NO_REFERENCED_ROW;
+    else if (error)
+      return error;
+    else if (end_error)
+      return end_error;
+  }
+  return 0;
+}
+
+
+int handler::period_row_upd_fk_check(const uchar *old_data, const uchar *new_data)
+{
+  int error= period_row_del_fk_check(old_data);
+  if (!error)
+    error= period_row_ins_fk_check(new_data);
+  return error;
+}
+
 int handler::ha_delete_row(const uchar *buf)
 {
   int error;
@@ -7065,6 +7363,10 @@ int handler::ha_delete_row(const uchar *buf)
   */
   DBUG_ASSERT(buf == table->record[0] ||
               buf == table->record[1]);
+
+  error= period_row_del_fk_check(buf);
+  if (unlikely(error))
+    return error;
 
   MYSQL_DELETE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();

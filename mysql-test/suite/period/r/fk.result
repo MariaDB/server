@@ -1,0 +1,309 @@
+set default_storage_engine= innodb;
+create or replace table t (id int, x int, s date, e date, period for p(s,e),
+unique(id, x, p without overlaps));
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+foreign key(id, x, period fp)
+references t(id, x, period p)
+on delete restrict);
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `id` int(11) DEFAULT NULL,
+  `x` int(11) DEFAULT NULL,
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `fp` (`s`, `e`),
+  KEY `id` (`id`,`x`,`e`,`s`),
+  CONSTRAINT `s_ibfk_1` FOREIGN KEY (`id`, `x`, period `fp`) REFERENCES `t` (`id`, `x`, period `p`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+flush tables;
+insert into s values(1, 1, '2017-01-03', '2017-01-20');
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails
+insert into t values(1, 1, '2017-01-03', '2017-01-20');
+insert into t values(1, 1, '2017-01-20', '2017-01-25');
+insert into t values(1, 1, '2017-01-25', '2017-01-26');
+insert into t values(1, 1, '2017-01-26', '2017-01-30');
+insert into s values(1, 1, '2017-01-03', '2017-01-20');
+select * from t;
+id	x	s	e
+1	1	2017-01-03	2017-01-20
+1	1	2017-01-20	2017-01-25
+1	1	2017-01-25	2017-01-26
+1	1	2017-01-26	2017-01-30
+select * from s;
+id	x	s	e
+1	1	2017-01-03	2017-01-20
+delete from t;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+select * from t;
+id	x	s	e
+1	1	2017-01-03	2017-01-20
+1	1	2017-01-20	2017-01-25
+1	1	2017-01-25	2017-01-26
+1	1	2017-01-26	2017-01-30
+select * from s;
+id	x	s	e
+1	1	2017-01-03	2017-01-20
+delete from t where s = '2017-01-03' and e = '2017-01-20';
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+# no error
+delete from t where s = '2017-01-20' and e = '2017-01-25';
+insert into t values(1, 1, '2017-01-20', '2017-01-25');
+insert into s values (1, 1, '2017-01-27', '2017-01-30');
+delete from t where s = '2017-01-26' and e = '2017-01-30';
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+delete from t where s = '2017-01-25' and e = '2017-01-26';
+insert into s values (1, 1, '2017-01-22', '2017-01-28');
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails
+insert into t values (1, 1, '2017-01-25', '2017-01-26');
+select * from t;
+id	x	s	e
+1	1	2017-01-03	2017-01-20
+1	1	2017-01-20	2017-01-25
+1	1	2017-01-25	2017-01-26
+1	1	2017-01-26	2017-01-30
+select * from s;
+id	x	s	e
+1	1	2017-01-03	2017-01-20
+1	1	2017-01-27	2017-01-30
+insert into s values (1, 1, '2017-01-03', '2017-01-15');
+insert into s values (1, 1, '2017-01-07', '2017-01-15');
+insert into s values (1, 1, '2017-01-07', '2017-01-20');
+insert into s values (1, 1, '2017-01-07', '2017-01-26');
+insert into s values (1, 1, '2017-01-07', '2017-01-27');
+insert into s values (1, 1, '2017-01-01', '2017-02-28');
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails
+insert into s values (1, 1, '2017-01-01', '2017-01-30');
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails
+select * from t;
+id	x	s	e
+1	1	2017-01-03	2017-01-20
+1	1	2017-01-20	2017-01-25
+1	1	2017-01-25	2017-01-26
+1	1	2017-01-26	2017-01-30
+select * from s;
+id	x	s	e
+1	1	2017-01-03	2017-01-15
+1	1	2017-01-03	2017-01-20
+1	1	2017-01-07	2017-01-15
+1	1	2017-01-07	2017-01-20
+1	1	2017-01-07	2017-01-26
+1	1	2017-01-07	2017-01-27
+1	1	2017-01-27	2017-01-30
+update t set x= 2 where s='2017-01-03' and e='2017-01-20';
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+update s set x= 2 where s = '2017-01-03' and e = '2017-01-20';
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails
+update s set s= '2017-01-05' where s < '2017-01-05' and e > '2017-01-05';
+update s set s= '2017-01-01' where s < '2017-01-26' and e > '2017-01-25';
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails
+# Free period ('2017-01-25', '2017-01-26') from references
+update s set s= '2017-01-26', e= '2017-01-30' where s < '2017-01-26'
+                                                    and e > '2017-01-25';
+update t set x= 2 where s = '2017-01-25' and e = '2017-01-26';
+update t set s= '2017-01-26', e= '2017-01-30' where s = '2017-01-25'
+                                                    and e = '2017-01-26';
+update s set x= 2 where s = '2017-01-26' and e = '2017-01-30';
+update s set s= '2017-01-28', e = '2017-01-29' where x = 2;
+select * from t;
+id	x	s	e
+1	1	2017-01-03	2017-01-20
+1	1	2017-01-20	2017-01-25
+1	1	2017-01-26	2017-01-30
+1	2	2017-01-26	2017-01-30
+select * from s;
+id	x	s	e
+1	1	2017-01-05	2017-01-15
+1	1	2017-01-05	2017-01-20
+1	1	2017-01-07	2017-01-15
+1	1	2017-01-07	2017-01-20
+1	1	2017-01-27	2017-01-30
+1	2	2017-01-28	2017-01-29
+1	2	2017-01-28	2017-01-29
+update t set x= 2 where s='2017-01-03' and e='2017-01-20';
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+#
+# False-positives
+#
+# Expand left
+update t set s= '2017-01-01' where s = '2017-01-03' and e = '2017-01-20';
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+# Shrink left
+update t set s= '2017-01-05' where e = '2017-01-20';
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+# Expand right
+update t set e= '2017-02-10' where s = '2017-01-26' and e = '2017-01-30';
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+# Shrink right
+update t set e= '2017-01-29' where s = '2017-01-26';
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+delete from s where s = '2017-01-27' and e = '2017-01-30';
+update t set e= '2017-01-29' where s = '2017-01-26' and x = 1;
+# Shrink both
+# Not a false-positive
+update t set s= '2017-01-27', e= '2017-01-28' where x = 2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+# False-positive
+update t set s= '2017-01-28', e= '2017-01-29' where x = 2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+# Expand both
+update t set s= '2017-01-20', e= '2017-02-05' where x = 2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+# Move right
+# Not a false-positive
+update t set s= '2017-02-02', e= '2017-02-25' where x = 2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+# False-positive
+update t set s= '2017-01-28', e= '2017-02-25' where x = 2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+# Move left
+# Not a false-positive
+update t set s= '2017-01-20', e= '2017-01-27' where x = 2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+# False-positive
+update t set s= '2017-01-20', e= '2017-01-29' where x = 2;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+create or replace table s (x int, y int, z char(200), pk int,
+e date, s date, period for fp(s,e),
+unique(x), unique(z),
+foreign key(pk, y, period fp)
+references t(id, x, period p)
+on delete restrict);
+delete from t;
+insert into t values(1, 1, '2017-01-03', '2017-01-20');
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL,
+  `z` char(200) DEFAULT NULL,
+  `pk` int(11) DEFAULT NULL,
+  `e` date NOT NULL,
+  `s` date NOT NULL,
+  PERIOD FOR `fp` (`s`, `e`),
+  UNIQUE KEY `x` (`x`),
+  UNIQUE KEY `z` (`z`),
+  KEY `pk` (`pk`,`y`,`e`,`s`),
+  CONSTRAINT `s_ibfk_1` FOREIGN KEY (`pk`, `y`, period `fp`) REFERENCES `t` (`id`, `x`, period `p`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+select * from t;
+id	x	s	e
+1	1	2017-01-03	2017-01-20
+insert into s values (-1, 1, '0', 1, '2017-01-15', '2017-01-05');
+insert into s values ( 0, 1, '1', 1, '2017-02-20', '2017-02-03');
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails
+delete from t;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+delete from s;
+delete from t;
+call mtr.add_suppression("In ALTER TABLE .* has or is referenced in foreign key constraints which are not compatible with the new table definition.");
+alter table t drop period for p, drop constraint id;
+ERROR HY000: Error on rename of 'OLD_FILE_NAME' to 'NEW_FILE_NAME' (errno: 150 "Foreign key constraint is incorrectly formed")
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL,
+  `z` char(200) DEFAULT NULL,
+  `pk` int(11) DEFAULT NULL,
+  `e` date NOT NULL,
+  `s` date NOT NULL,
+  PERIOD FOR `fp` (`s`, `e`),
+  UNIQUE KEY `x` (`x`),
+  UNIQUE KEY `z` (`z`),
+  KEY `pk` (`pk`,`y`,`e`,`s`),
+  CONSTRAINT `s_ibfk_1` FOREIGN KEY (`pk`, `y`, period `fp`) REFERENCES `t` (`id`, `x`, period `p`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+alter table t drop period for p, drop constraint id, add period for pop(s, e),
+add unique(id, x, pop without overlaps);
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL,
+  `z` char(200) DEFAULT NULL,
+  `pk` int(11) DEFAULT NULL,
+  `e` date NOT NULL,
+  `s` date NOT NULL,
+  PERIOD FOR `fp` (`s`, `e`),
+  UNIQUE KEY `x` (`x`),
+  UNIQUE KEY `z` (`z`),
+  KEY `pk` (`pk`,`y`,`e`,`s`),
+  CONSTRAINT `s_ibfk_1` FOREIGN KEY (`pk`, `y`, period `fp`) REFERENCES `t` (`id`, `x`, period `pop`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+alter table t drop period for pop, drop constraint id,
+add unique(id, x, s, e);
+ERROR HY000: Error on rename of 'OLD_FILE_NAME' to 'NEW_FILE_NAME' (errno: 150 "Foreign key constraint is incorrectly formed")
+show create table s;
+Table	Create Table
+s	CREATE TABLE `s` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL,
+  `z` char(200) DEFAULT NULL,
+  `pk` int(11) DEFAULT NULL,
+  `e` date NOT NULL,
+  `s` date NOT NULL,
+  PERIOD FOR `fp` (`s`, `e`),
+  UNIQUE KEY `x` (`x`),
+  UNIQUE KEY `z` (`z`),
+  KEY `pk` (`pk`,`y`,`e`,`s`),
+  CONSTRAINT `s_ibfk_1` FOREIGN KEY (`pk`, `y`, period `fp`) REFERENCES `t` (`id`, `x`, period `pop`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+foreign key(id, x, period no_such_p)
+references t(id, x, period p)
+on delete restrict);
+ERROR HY000: Period `no_such_p` is not found in table
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+foreign key(id, x, s, e)
+references t(id, x, period p)
+on delete restrict);
+ERROR 42000: Incorrect foreign key definition for 'foreign key without name': Key reference and table reference don't match
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+foreign key(id, x, period fp)
+references t(id, x, s, e)
+on delete restrict);
+ERROR 42000: Incorrect foreign key definition for 'foreign key without name': Key reference and table reference don't match
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+foreign key(id, x, period fp)
+references t(id, x, period no_such_p)
+on delete restrict);
+ERROR HY000: Period `no_such_p` is not found in referenced table `test`.`t`
+create or replace table t1 (id int, x int, s timestamp, e timestamp, period for p(s,e),
+unique(id, x, p without overlaps));
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+foreign key(id, x, period fp)
+references t1(id, x, period p)
+on delete restrict);
+ERROR HY000: Fields of `fp` and `test`.`t1`.`p` have different types
+create or replace table s (id int, x int, s timestamp(6), e timestamp(6),
+period for fp(s,e),
+foreign key(id, x, period fp)
+references t1(id, x, period p)
+on delete restrict);
+ERROR HY000: Fields of `fp` and `test`.`t1`.`p` have different types
+create or replace table s (id int, x int, s date, e date);
+alter table s add period for fp(s,e),
+add foreign key(id, x, period fp)
+references t1(id, x, period no_such_p)
+on delete restrict;
+ERROR HY000: Period `no_such_p` is not found in referenced table `test`.`t1`
+alter table s add period for fp(s,e),
+add foreign key(id, x, period fp)
+references t1(id, x, period p)
+on delete restrict;
+ERROR HY000: Fields of `fp` and `test`.`t1`.`p` have different types
+alter table s change s s timestamp(6), change e e timestamp(6),
+add period for fp(s, e),
+add foreign key(id, x, period fp)
+references t1(id, x, period p)
+on delete restrict;
+ERROR HY000: Fields of `fp` and `test`.`t1`.`p` have different types
+alter table s change s s timestamp(6), change e e timestamp(6),
+add period for fp(s, e);
+alter table s add foreign key(id, x, period fp)
+references t1(id, x, period p)
+on delete restrict;
+ERROR HY000: Fields of `fp` and `test`.`t1`.`p` have different types
+drop database test;
+create database test;

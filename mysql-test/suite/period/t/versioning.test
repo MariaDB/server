@@ -58,4 +58,23 @@ select *, if(row_start = @ins_time, "OLD", "NEW"), check_row(row_start, row_end)
 
 drop table t,log_tbl;
 drop procedure log;
+
+create or replace table t (id int, x int, s date, e date, period for p(s,e),
+                           unique(id, x, p without overlaps))
+                           with system versioning;
+
+--error ER_WRONG_FK_DEF
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+                           foreign key(id, x, period fp)
+                             references t(id, x, period p)
+                             on delete restrict);
+
+create or replace table s (id int, x int, s date, e date, period for fp(s,e),
+                           foreign key(id, x, period fp)
+                             references t(id, x, period p)
+                             on delete restrict) with system versioning;
+--error ER_DROP_INDEX_FK
+alter table t drop system versioning;
+alter table s drop system versioning;
+
 source suite/versioning/common_finish.inc;

@@ -5887,7 +5887,7 @@ key_def:
               MYSQL_YYABORT;
             Lex->option_list= NULL;
           }
-          '(' key_list ')' references
+          '(' key_list_fk ')' references
           {
             if (unlikely(Lex->add_table_foreign_key($5.str ? &$5 : &$1,
                                                     $1.str ? &$1 : &$5, $10, $4)))
@@ -6838,6 +6838,10 @@ ref_list:
               MYSQL_YYABORT;
             Lex->ref_list.push_back(key, thd->mem_root);
           }
+        | ref_list ',' PERIOD_SYM ident
+          {
+            Lex->fk_ref_period= $4;
+          }
         | ident
           {
             Key_part_spec *key= new (thd->mem_root) Key_part_spec(&$1, 0);
@@ -7051,6 +7055,21 @@ btree_or_rtree:
           BTREE_SYM { $$= HA_KEY_ALG_BTREE; }
         | RTREE_SYM { $$= HA_KEY_ALG_RTREE; }
         | HASH_SYM  { $$= HA_KEY_ALG_HASH; }
+        ;
+
+key_list_fk:
+          key_list_fk ',' key_part order_dir
+          {
+            Lex->last_key->columns.push_back($3, thd->mem_root);
+          }
+        | key_list_fk ',' PERIOD_SYM ident
+          {
+            Lex->last_key->period= $4;
+          }
+        | key_part order_dir
+          {
+            Lex->last_key->columns.push_back($1, thd->mem_root);
+          }
         ;
 
 key_list:

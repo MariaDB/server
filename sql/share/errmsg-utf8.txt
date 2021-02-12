@@ -7961,3 +7961,7 @@ ER_KEY_CONTAINS_PERIOD_FIELDS
         eng "Key %`s cannot explicitly include column %`s"
 ER_KEY_CANT_HAVE_WITHOUT_OVERLAPS
         eng "Key %`s cannot have WITHOUT OVERLAPS"
+ER_PERIOD_FK_TYPES_MISMATCH
+        eng "Fields of %`s and %`s.%`s.%`s have different types"
+ER_PERIOD_FK_NOT_FOUND
+        eng "Period %`s is not found in referenced table %`s.%`s"

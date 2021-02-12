@@ -897,3 +897,70 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
   }
   return FALSE;
 }
+
+
+bool key_rec_is_null(const KEY &key, const uchar *rec)
+{
+  for (int p= 0; p < key.user_defined_key_parts; p++)
+  {
+    KEY_PART_INFO &part= key.key_part[p];
+    if (part.field->is_null_in_record(rec))
+      return true;
+  }
+  return false;
+}
+
+int key_period_compare_bases(const KEY &lhs_key, const KEY &rhs_key,
+                             const uchar *lhs, const uchar *rhs)
+{
+  uint base_part_nr= lhs_key.user_defined_key_parts - 2;
+  int cmp_res= 0;
+  for (uint part_nr= 0; !cmp_res && part_nr < base_part_nr; part_nr++)
+  {
+    Field *fl= lhs_key.key_part[part_nr].field;
+    Field *fr= rhs_key.key_part[part_nr].field;
+
+    bool lhs_null= fl->is_null_in_record(lhs);
+    bool rhs_null= fr->is_null_in_record(rhs);
+    if (lhs_null || rhs_null)
+    {
+      if (lhs_null && rhs_null)
+        continue;
+      return lhs_null ? -1 : 1;
+    }
+
+    uint kp_len= MY_MIN(lhs_key.key_part[part_nr].length,
+                        rhs_key.key_part[part_nr].length);
+    cmp_res= fl->cmp_max(fl->ptr_in_record(lhs), fr->ptr_in_record(rhs),
+                         kp_len);
+  }
+
+  return cmp_res;
+}
+
+int key_period_compare_periods(const KEY &lhs_key, const KEY &rhs_key,
+                               const uchar *lhs, const uchar *rhs)
+{
+  uint base_part_nr= lhs_key.user_defined_key_parts - 2;
+
+  DBUG_ASSERT(!lhs_key.key_part[base_part_nr].null_bit);
+  DBUG_ASSERT(!lhs_key.key_part[base_part_nr + 1].null_bit);
+  DBUG_ASSERT(!rhs_key.key_part[base_part_nr].null_bit);
+  DBUG_ASSERT(!rhs_key.key_part[base_part_nr + 1].null_bit);
+
+  Field *lhs_fields[]= {lhs_key.key_part[base_part_nr + 1].field,
+                        lhs_key.key_part[base_part_nr].field};
+
+  Field *rhs_fields[]= {rhs_key.key_part[base_part_nr + 1].field,
+                        rhs_key.key_part[base_part_nr].field};
+
+  const Field *f= lhs_fields[0];
+
+  if (f->cmp(lhs_fields[1]->ptr_in_record(lhs),
+             rhs_fields[0]->ptr_in_record(rhs)) <= 0)
+    return -1;
+  if (f->cmp(lhs_fields[0]->ptr_in_record(lhs),
+             rhs_fields[1]->ptr_in_record(rhs)) >= 0)
+    return 1;
+  return 0;
+}

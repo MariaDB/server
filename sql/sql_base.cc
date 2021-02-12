@@ -3544,6 +3544,13 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
   DBUG_RETURN(FALSE);
 }
 
+static bool table_can_need_prelocking(THD *thd, TABLE_LIST *table)
+{
+  return (table->updating && table->lock_type >= TL_WRITE_ALLOW_WRITE)
+         || thd->lex->default_used
+         || thd->lex->sql_command == SQLCOM_SHOW_CREATE;
+}
+
 /*
   If we are not already in prelocked mode and extended table list is not
   yet built we might have to build the prelocking set for this statement.
@@ -3558,12 +3565,9 @@ bool extend_table_list(THD *thd, TABLE_LIST *tables,
 {
   bool error= false;
   LEX *lex= thd->lex;
-  bool maybe_need_prelocking=
-    (tables->updating && tables->lock_type >= TL_WRITE_ALLOW_WRITE)
-    || thd->lex->default_used;
 
   if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
-      ! has_prelocking_list && maybe_need_prelocking)
+      ! has_prelocking_list && table_can_need_prelocking(thd, tables))
   {
     bool need_prelocking= FALSE;
     TABLE_LIST **save_query_tables_last= lex->query_tables_last;
@@ -4169,6 +4173,82 @@ open_tables_check_upgradable_mdl(THD *thd, TABLE_LIST *tables_start,
   return FALSE;
 }
 
+static int find_index_by_fields(const TABLE *table,
+                                const List<LEX_CSTRING> &names)
+{
+
+  for (uint k= 0; k < table->s->keys; k++)
+  {
+    auto &key= table->key_info[k];
+    if (names.elements > key.user_defined_key_parts)
+      continue;
+
+    bool match= true;
+    uint kp= 0;
+    for(const auto &name: names)
+    {
+      if (!Lex_ident(name).streq(key.key_part[kp].field->field_name))
+      {
+        match= false;
+        break;
+      }
+      kp++;
+    }
+
+    if (match)
+      return k;
+  }
+  return -1;
+}
+
+TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
+                          const char *table, size_t table_len);
+
+
+static
+FOREIGN_KEY *convert_foreign_key_list(THD *thd,
+                                      TABLE *foreign_table_init,
+                                      TABLE *referenced_table_init,
+                                      const List<FOREIGN_KEY_INFO> &fk_list,
+                                      MEM_ROOT *table_root)
+{
+  auto *fk_buf= (FOREIGN_KEY*)
+                alloc_root(table_root, fk_list.elements * sizeof(FOREIGN_KEY));
+  auto * const fk_buf_result= fk_buf;
+
+  for(const auto &fk: fk_list)
+  {
+    TABLE *foreign_table = foreign_table_init
+                           ? foreign_table_init
+                           : find_fk_open_table(thd, fk.foreign_db->str,
+                                                fk.foreign_db->length,
+                                                fk.foreign_table->str,
+                                                fk.foreign_table->length);
+    TABLE *referenced_table = referenced_table_init
+                              ? referenced_table_init
+                              : find_fk_open_table(thd, fk.referenced_db->str,
+                                                   fk.referenced_db->length,
+                                                   fk.referenced_table->str,
+                                                   fk.referenced_table->length);
+    DBUG_ASSERT(referenced_table != NULL && foreign_table != NULL);
+
+    int fk_no= find_index_by_fields(foreign_table, fk.foreign_fields);
+    int ref_no= find_index_by_fields(referenced_table, fk.referenced_fields);
+
+    DBUG_ASSERT(fk_no >= 0 && ref_no >= 0);
+
+    // Emplace the new object in fk_buf
+    new(fk_buf) FOREIGN_KEY {uint(fk_no), uint(ref_no),
+                             &foreign_table->key_info[fk_no],
+                             &referenced_table->key_info[ref_no],
+                             fk.referenced_fields.elements,
+                             fk.has_period,
+                             fk.delete_method,
+                             fk.update_method};
+    fk_buf++;
+  }
+  return fk_buf_result;
+}
 
 /**
   Open all tables in list
@@ -4470,6 +4550,53 @@ restart:
     }
   }
 
+  /* After all the tables are opened, including prelocked foreign key
+     child and parent tables, we can fill out the foreign and referential info.
+   */
+  for (tables= *start; tables; tables= tables->next_global)
+  {
+    /*
+       FK-prelocked tables are ignored -- anyway, they'll miss their parents or
+       childs.
+       When FK handling will be moved to sql, we'll perhaps need to prelock
+       referential tables recursively when CASCADE option is specified, and
+       then we'll need to fill FK-prelocked tables as well.
+     */
+    if (tables->prelocking_placeholder == TABLE_LIST::PRELOCK_FK)
+      continue;
+
+    auto *table= tables->table;
+    bool fks_prelocked= thd->locked_tables_mode <= LTM_LOCK_TABLES &&
+                        !has_prelocking_list &&
+                        table_can_need_prelocking(thd, tables);
+    /* Some tables will miss FK data in cases, like:
+       * Temporary tables
+       * Views
+       * Tables opened for read (SHOW CREATE will use TABLE_SHARE text data)
+       * Prelocking mode
+    */
+    if (!table)
+      continue;
+    List<FOREIGN_KEY_INFO> fk;
+    List<FOREIGN_KEY_INFO> ref_fk;
+    int result= table->file->get_parent_foreign_key_list(thd, &ref_fk);
+    DBUG_ASSERT(result == 0);
+    result= table->file->get_foreign_key_list(thd, &fk);
+    DBUG_ASSERT(result == 0);
+
+    table->foreign_keys= fk.elements;
+    table->foreign= NULL;
+    table->referenced_keys= ref_fk.elements;
+    table->referenced= NULL;
+    if (!fks_prelocked)
+      continue;
+
+    table->foreign= convert_foreign_key_list(thd, table, NULL, fk,
+                                             &table->mem_root);
+    table->referenced= convert_foreign_key_list(thd, NULL, table, ref_fk,
+                                                &table->mem_root);
+  }
+
 #ifdef WITH_WSREP
   if (WSREP_ON                                         &&
       wsrep_replicate_myisam                           &&
@@ -4695,10 +4822,9 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
   DBUG_ENTER("handle_table");
   TABLE *table= table_list->table;
   /* We rely on a caller to check that table is going to be changed. */
-  DBUG_ASSERT(table_list->lock_type >= TL_WRITE_ALLOW_WRITE ||
-              thd->lex->default_used);
+  DBUG_ASSERT(table_can_need_prelocking(thd, table_list));
 
-  if (table_list->trg_event_map)
+  if (table_list->trg_event_map || thd->lex->sql_command == SQLCOM_SHOW_CREATE)
   {
     if (table->triggers)
     {

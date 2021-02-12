@@ -196,6 +196,12 @@ constexpr uint8_t DATA_MBR_LEN= uint8_t(SPDIMS * 2 * sizeof(double));
 /** system-versioned user data column */
 #define DATA_VERSIONED (DATA_VERS_START|DATA_VERS_END)
 
+/** Application-time periods */
+#define DATA_PERIOD_START	65536U	/* start system field */
+#define DATA_PERIOD_END		131072U	/* end system field */
+
+#define DATA_PRTYPE_MAX DATA_PERIOD_END
+
 /** Check whether locking is disabled (never). */
 #define dict_table_is_locking_disabled(table) false
 
@@ -354,7 +360,7 @@ UNIV_INLINE
 uint32_t
 dtype_form_prtype(ulint old_prtype, ulint charset_coll)
 {
-	ut_ad(old_prtype < 256 * 256);
+	ut_ad(old_prtype < DATA_PRTYPE_MAX << 1);
 	ut_ad(charset_coll <= MAX_CHAR_COLL_NUM);
 	return(uint32_t(old_prtype + (charset_coll << 16)));
 }

@@ -72,7 +72,10 @@ combination of types */
 				other flags */
 #define	DICT_VIRTUAL	128	/* Index on Virtual column */
 
-#define	DICT_IT_BITS	8	/*!< number of bits used for
+#define	DICT_PERIOD	256	/* Last two user fields treated as period
+				of the unique index */
+
+#define	DICT_IT_BITS	9	/*!< number of bits used for
 				SYS_INDEXES.TYPE */
 /* @} */
 
@@ -731,6 +734,7 @@ public:
 			&& mbmaxlen == other.mbmaxlen
 			&& !((prtype ^ other.prtype)
 			     & ~(DATA_NOT_NULL | DATA_VERSIONED
+			         | DATA_PERIOD_START | DATA_PERIOD_END
 				 | CHAR_COLL_MASK << 16
 				 | DATA_LONG_TRUE_VARCHAR));
 	}
@@ -1386,6 +1390,11 @@ struct dict_foreign_t{
 					as the first fields are as mentioned */
 	unsigned	type:6;		/*!< 0 or DICT_FOREIGN_ON_DELETE_CASCADE
 					or DICT_FOREIGN_ON_DELETE_SET_NULL */
+	bool		has_period:1;	/*!< true if a reference contains an
+ 					Application-time period.
+ 					The referenced key should be
+ 					WITHOUT OVERLAPS, thus, flagged with
+ 					DICT_PERIOD */
 	char*		foreign_table_name;/*!< foreign table name */
 	char*		foreign_table_name_lookup;
 				/*!< foreign table name used for dict lookup */
@@ -2034,6 +2043,13 @@ public:
 				/*!< System Versioning: row start col index */
 	unsigned	vers_end:10;
 				/*!< System Versioning: row end col index */
+	unsigned	period_start:10;
+				/*!< Period start column index */
+	unsigned	period_end:10;
+				/*!< Period end column index */
+	bool		has_period:1;
+				/*!< True if table has period. In this case,
+				 * period_start and period_end have a meaning */
 	bool		is_system_db;
 				/*!< True if the table belongs to a system
 				database (mysql, information_schema or

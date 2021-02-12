@@ -1847,14 +1847,14 @@ dict_create_add_foreign_to_dictionary(
 	pars_info_add_str_literal(info, "ref_name",
 				  foreign->referenced_table_name);
 
-	pars_info_add_int4_literal(info, "n_cols",
-				   ulint(foreign->n_fields)
-				   | (ulint(foreign->type) << 24));
+	uint32_t n_cols = uint32_t(foreign->n_fields)
+			  | (uint32_t(foreign->type) << 24U)
+			  | (uint32_t(foreign->has_period) << 30U);
+	pars_info_add_int4_literal(info, "n_cols", n_cols);
 
 	DBUG_PRINT("dict_create_add_foreign_to_dictionary",
 		   ("'%s', '%s', '%s', %d", foreign->id, name,
-		    foreign->referenced_table_name,
-		    foreign->n_fields + (foreign->type << 24)));
+		    foreign->referenced_table_name, n_cols));
 
 	error = dict_foreign_eval_sql(info,
 				      "PROCEDURE P () IS\n"

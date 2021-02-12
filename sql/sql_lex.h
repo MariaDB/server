@@ -3354,6 +3354,7 @@ public:
   enum Foreign_key::fk_match_opt fk_match_option;
   enum_fk_option fk_update_opt;
   enum_fk_option fk_delete_opt;
+  Lex_ident fk_ref_period;
   uint slave_thd_opt, start_transaction_opt;
   int nest_level;
   /*
