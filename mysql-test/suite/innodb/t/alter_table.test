@@ -79,3 +79,18 @@ ALTER TABLE t ENGINE INNODB;
 --error ER_TABLESPACE_DISCARDED
 ALTER TABLE t FORCE;
 DROP TABLE t;
+
+--echo #
+--echo # MDEV-24763 ALTER TABLE fails to rename a column in SYS_FIELDS
+--echo #
+CREATE TABLE t1 (a INT, b TEXT, c INT, PRIMARY KEY(b(9)), INDEX(c,a))
+ENGINE=InnoDB;
+ALTER TABLE t1 CHANGE COLUMN a u INT;
+--replace_column 1 ID
+SELECT sf.* FROM information_schema.innodb_sys_fields sf
+INNER JOIN information_schema.innodb_sys_indexes si ON sf.index_id=si.index_id
+INNER JOIN information_schema.innodb_sys_tables st ON si.table_id=st.table_id
+WHERE st.name='test/t1' ORDER BY pos;
+DROP TABLE t1;
+
+--echo # End of 10.2 tests
