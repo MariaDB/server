@@ -4742,6 +4742,10 @@ private:
     return HA_ERR_WRONG_COMMAND;
   }
 
+  int period_row_del_fk_check(const uchar *record);
+  int period_row_ins_fk_check(const uchar *record);
+  int period_row_upd_fk_check(const uchar *old_data, const uchar *new_data);
+
   /* Perform initialization for a direct update request */
 public:
   int ha_direct_update_rows(ha_rows *update_rows, ha_rows *found_rows);

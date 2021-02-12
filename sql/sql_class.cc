@@ -195,6 +195,7 @@ Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
   ref_table(rhs.ref_table),
   ref_table_list(rhs.ref_table_list),
   ref_columns(rhs.ref_columns,mem_root),
+  ref_period(rhs.ref_period),
   delete_opt(rhs.delete_opt),
   update_opt(rhs.update_opt),
   match_opt(rhs.match_opt)
@@ -4909,6 +4910,11 @@ void reset_thd(MYSQL_THD thd)
 unsigned long long thd_get_query_id(const MYSQL_THD thd)
 {
   return((unsigned long long)thd->query_id);
+}
+
+TABLE *thd_get_open_tables(const MYSQL_THD thd)
+{
+  return thd->open_tables;
 }
 
 void thd_clear_error(MYSQL_THD thd)

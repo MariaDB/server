@@ -1564,6 +1564,10 @@ row_ins_check_foreign_constraint(
 		goto exit_func;
 	}
 
+	/* Temporal referential constraints are handled on sql layer */
+	if (foreign->has_period)
+		goto exit_func;
+
 	/* If any of the foreign key fields in entry is SQL NULL, we
 	suppress the foreign key check: this is compatible with Oracle,
 	for example */

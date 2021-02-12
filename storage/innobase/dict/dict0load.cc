@@ -2502,7 +2502,8 @@ dict_load_indexes(
 		subsequent checks are relevant for the supported types. */
 		if (index->type & ~(DICT_CLUSTERED | DICT_UNIQUE
 				    | DICT_CORRUPT | DICT_FTS
-				    | DICT_SPATIAL | DICT_VIRTUAL)) {
+				    | DICT_SPATIAL | DICT_VIRTUAL
+				    | DICT_PERIOD)) {
 
 			ib::error() << "Unknown type " << index->type
 				<< " of index " << index->name
@@ -3456,8 +3457,9 @@ dict_load_foreign(
 
 	/* We store the type in the bits 24..29 of n_fields_and_type. */
 
-	foreign->type = (n_fields_and_type >> 24) & ((1U << 6) - 1);
+	foreign->type = (n_fields_and_type >> 24U) & ((1U << 6) - 1);
 	foreign->n_fields = n_fields_and_type & dict_index_t::MAX_N_FIELDS;
+	foreign->has_period = (unsigned) (n_fields_and_type >> 30U);
 
 	foreign->id = mem_heap_strdupl(foreign->heap, id, id_len);
 
