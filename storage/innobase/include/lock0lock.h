@@ -581,8 +581,10 @@ class lock_sys_t
   {
     /** Wait for an exclusive lock */
     void wait();
+    /** Try to acquire a lock */
+    bool try_acquire() { return write_trylock(); }
     /** Acquire a lock */
-    void acquire() { if (!write_trylock()) wait(); }
+    void acquire() { if (!try_acquire()) wait(); }
     /** Release a lock */
     void release();
 #else
@@ -590,6 +592,8 @@ class lock_sys_t
   private:
     srw_lock_low lock;
   public:
+    /** Try to acquire a lock */
+    bool try_acquire() { return lock.wr_lock_try(); }
     /** Acquire a lock */
     void acquire() { lock.wr_lock(); }
     /** Release a lock */

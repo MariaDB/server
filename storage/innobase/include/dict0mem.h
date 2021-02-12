@@ -1972,6 +1972,14 @@ struct dict_table_t {
     lock_mutex.wr_lock();
     ut_ad(!lock_mutex_owner.exchange(os_thread_get_curr_id()));
   }
+  /** Try to acquire lock_mutex */
+  bool lock_mutex_trylock()
+  {
+    ut_ad(!lock_mutex_is_owner());
+    bool acquired= lock_mutex.wr_lock_try();
+    ut_ad(!acquired || !lock_mutex_owner.exchange(os_thread_get_curr_id()));
+    return acquired;
+  }
   /** Release lock_mutex */
   void lock_mutex_unlock()
   {
