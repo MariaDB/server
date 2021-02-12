@@ -18583,8 +18583,10 @@ static void bg_wsrep_kill_trx(void *void_arg)
 	trx_t *victim_trx;
 	bool aborting= false;
 
-	bf_thd= find_thread_by_id_with_thd_data_lock(arg->bf_thd_id);
-	thd= find_thread_by_id_with_thd_data_lock(arg->thd_id);
+	if ((bf_thd= find_thread_by_id(arg->bf_thd_id)))
+		wsrep_thd_LOCK(bf_thd);
+	if ((thd= find_thread_by_id(arg->thd_id)))
+		wsrep_thd_LOCK(thd);
 
 	if (!thd || !bf_thd || !(victim_trx= thd_to_trx(thd)))
 		goto ret0;
