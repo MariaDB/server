@@ -491,7 +491,7 @@ inline void trx_t::release_locks()
   if (UT_LIST_GET_LEN(lock.trx_locks))
   {
     lock_release(this);
-    lock.n_rec_locks = 0;
+    ut_ad(!lock.n_rec_locks);
     ut_ad(UT_LIST_GET_LEN(lock.trx_locks) == 0);
     ut_ad(ib_vector_is_empty(autoinc_locks));
     mem_heap_empty(lock.lock_heap);
@@ -1209,66 +1209,50 @@ trx_flush_log_if_needed(
 	trx->op_info = "";
 }
 
-/**********************************************************************//**
-For each table that has been modified by the given transaction: update
-its dict_table_t::update_time with the current timestamp. Clear the list
-of the modified tables at the end. */
-static
-void
-trx_update_mod_tables_timestamp(
-/*============================*/
-	trx_t*	trx)	/*!< in: transaction */
+/** Process tables that were modified by the committing transaction. */
+inline void trx_t::commit_tables()
 {
-	/* consider using trx->start_time if calling time() is too
-	expensive here */
-	const time_t now = time(NULL);
+  if (!undo_no || mod_tables.empty())
+    return;
 
 #if defined SAFE_MUTEX && defined UNIV_DEBUG
-	const bool preserve_tables = !innodb_evict_tables_on_commit_debug
-		|| trx->is_recovered /* avoid trouble with XA recovery */
+  const bool preserve_tables= !innodb_evict_tables_on_commit_debug ||
+    is_recovered || /* avoid trouble with XA recovery */
 # if 1 /* if dict_stats_exec_sql() were not playing dirty tricks */
-		|| dict_sys.mutex_is_locked()
+    dict_sys.mutex_is_locked();
 # else /* this would be more proper way to do it */
-		|| trx->dict_operation_lock_mode || trx->dict_operation
+    dict_operation_lock_mode || dict_operation;
 # endif
-		;
 #endif
 
-	for (const auto& p : trx->mod_tables) {
-		/* This could be executed by multiple threads concurrently
-		on the same table object. This is fine because time_t is
-		word size or less. And _purely_ _theoretically_, even if
-		time_t write is not atomic, likely the value of 'now' is
-		the same in all threads and even if it is not, getting a
-		"garbage" in table->update_time is justified because
-		protecting it with a latch here would be too performance
-		intrusive. */
-		dict_table_t* table = p.first;
-		table->update_time = now;
+  const trx_id_t max_trx_id= trx_sys.get_max_trx_id();
+  const auto now= start_time;
+
+  for (const auto& p : mod_tables)
+  {
+    dict_table_t *table= p.first;
+    table->update_time= now;
+    table->query_cache_inv_trx_id= max_trx_id;
+
 #if defined SAFE_MUTEX && defined UNIV_DEBUG
-		if (preserve_tables || table->get_ref_count()
-		    || table->is_temporary()
-		    || UT_LIST_GET_LEN(table->locks)) {
-			/* do not evict when committing DDL operations
-			or if some other transaction is holding the
-			table handle */
-			continue;
-		}
-		/* recheck while holding the mutex that blocks
-		table->acquire() */
-		dict_sys.mutex_lock();
-		{
-			LockMutexGuard g{SRW_LOCK_CALL};
-			if (!table->get_ref_count()
-			    && !UT_LIST_GET_LEN(table->locks)) {
-				dict_sys.remove(table, true);
-			}
-		}
-		dict_sys.mutex_unlock();
+    if (preserve_tables || table->get_ref_count() || table->is_temporary() ||
+        UT_LIST_GET_LEN(table->locks))
+      /* do not evict when committing DDL operations or if some other
+      transaction is holding the table handle */
+      continue;
+    /* recheck while holding the mutex that blocks
+    table->acquire() */
+    dict_sys.mutex_lock();
+    {
+      LockMutexGuard g{SRW_LOCK_CALL};
+      if (!table->get_ref_count() && !UT_LIST_GET_LEN(table->locks))
+        dict_sys.remove(table, true);
+    }
+    dict_sys.mutex_unlock();
 #endif
-	}
+  }
 
-	trx->mod_tables.clear();
+  mod_tables.clear();
 }
 
 /** Evict a table definition due to the rollback of ALTER TABLE.
@@ -1366,7 +1350,7 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
     }
     else
     {
-      trx_update_mod_tables_timestamp(this);
+      commit_tables();
       MONITOR_INC(MONITOR_TRX_RW_COMMIT);
       is_recovered= false;
     }

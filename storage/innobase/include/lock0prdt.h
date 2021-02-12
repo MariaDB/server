@@ -189,10 +189,4 @@ lock_prdt_rec_move(
 @return	true if there is none */
 bool lock_test_prdt_page_lock(const trx_t *trx, const page_id_t page_id);
 
-/** Removes predicate lock objects set on an index page which is discarded.
-@param[in]	id		page to be discarded
-@param[in]	lock_hash	lock hash */
-void
-lock_prdt_page_free_from_discard(const page_id_t id, hash_table_t *lock_hash);
-
 #endif

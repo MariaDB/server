@@ -3479,8 +3479,7 @@ defer:
 	shouldn't have to. There should never be record locks on a table
 	that is going to be dropped. */
 
-	if (table->get_ref_count() > 0 || table->n_rec_locks > 0
-	    || lock_table_has_locks(table)) {
+	if (table->get_ref_count() > 0 || lock_table_has_locks(table)) {
 		goto defer;
 	}
 

@@ -481,7 +481,7 @@ lock_rec_set_nth_bit(
 inline byte lock_rec_reset_nth_bit(lock_t* lock, ulint i)
 {
 	ut_ad(!lock->is_table());
-	lock_sys.assert_locked();
+	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner());
 	ut_ad(i < lock->un_member.rec_lock.n_bits);
 
 	byte*	b = reinterpret_cast<byte*>(&lock[1]) + (i >> 3);
@@ -533,10 +533,10 @@ lock_rec_get_next_const(
 @param heap_no  record identifier in page
 @return first lock
 @retval nullptr if none exists */
-inline lock_t*
-lock_rec_get_first(hash_table_t *hash, const page_id_t id, ulint heap_no)
+inline lock_t *lock_sys_t::get_first(lock_sys_t::hash_table &hash,
+                                     const page_id_t id, ulint heap_no)
 {
-  for (lock_t *lock= lock_sys.get_first(*hash, id);
+  for (lock_t *lock= hash.get_first(id);
        lock; lock= lock_rec_get_next_on_page(lock))
     if (lock_rec_get_nth_bit(lock, heap_no))
       return lock;

@@ -1197,9 +1197,7 @@ rtr_check_discard_page(
 
 	mysql_mutex_unlock(&index->rtr_track->rtr_active_mutex);
 
-	LockMutexGuard g{SRW_LOCK_CALL};
-	lock_prdt_page_free_from_discard(id, &lock_sys.prdt_hash);
-	lock_prdt_page_free_from_discard(id, &lock_sys.prdt_page_hash);
+	lock_sys.prdt_page_free_from_discard(id, true);
 }
 
 /** Structure acts as functor to get the optimistic access of the page.

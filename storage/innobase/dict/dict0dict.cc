@@ -1247,7 +1247,8 @@ inline void dict_sys_t::add(dict_table_t* table)
 
 	ulint fold = ut_fold_string(table->name.m_name);
 
-	new (&table->autoinc_mutex) std::mutex();
+	table->autoinc_mutex.init();
+	table->lock_mutex_init();
 
 	/* Look for a table with the same name: error if such exists */
 	{
@@ -2038,7 +2039,8 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 		UT_DELETE(table->vc_templ);
 	}
 
-	table->autoinc_mutex.~mutex();
+	table->autoinc_mutex.destroy();
+	table->lock_mutex_destroy();
 
 	if (keep) {
 		return;

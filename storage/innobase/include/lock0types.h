@@ -148,11 +148,11 @@ operator<<(std::ostream& out, const lock_rec_t& lock)
 /** Lock struct; protected by lock_sys.latch */
 struct ib_lock_t
 {
-	trx_t*		trx;		/*!< transaction owning the
-					lock */
-	UT_LIST_NODE_T(ib_lock_t)
-			trx_locks;	/*!< list of the locks of the
-					transaction */
+  /** the owner of the lock */
+  trx_t *trx;
+  /** other locks of the transaction; protected by
+  lock_sys.is_writer() and trx->mutex_is_owner(); @see trx_lock_t::trx_locks */
+  UT_LIST_NODE_T(ib_lock_t) trx_locks;
 
 	dict_index_t*	index;		/*!< index for a record lock */
 

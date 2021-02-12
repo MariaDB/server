@@ -406,14 +406,6 @@ lock_rec_unlock(
 and release possible other transactions waiting because of these locks. */
 void lock_release(trx_t* trx);
 
-/*************************************************************//**
-Get the lock hash table */
-UNIV_INLINE
-hash_table_t*
-lock_hash_get(
-/*==========*/
-	ulint	mode);	/*!< in: lock mode */
-
 /**********************************************************************//**
 Looks for a set bit in a record lock bitmap. Returns ULINT_UNDEFINED,
 if none found.
@@ -578,28 +570,141 @@ struct lock_op_t{
 /** The lock system struct */
 class lock_sys_t
 {
+  friend struct LockGuard;
+  friend struct LockMultiGuard;
+  friend struct LockGGuard;
+
+  /** Hash table latch */
+  struct hash_latch
+#if defined SRW_LOCK_DUMMY && !defined _WIN32
+  : private rw_lock
+  {
+    /** Wait for an exclusive lock */
+    void wait();
+    /** Acquire a lock */
+    void acquire() { if (!write_trylock()) wait(); }
+    /** Release a lock */
+    void release();
+#else
+  {
+  private:
+    srw_lock_low lock;
+  public:
+    /** Acquire a lock */
+    void acquire() { lock.wr_lock(); }
+    /** Release a lock */
+    void release() { lock.wr_unlock(); }
+#endif
+#ifdef UNIV_DEBUG
+    /** @return whether this latch is possibly held by any thread */
+    bool is_locked() const
+    { return memcmp(this, field_ref_zero, sizeof *this); }
+#endif
+  };
+  static_assert(sizeof(hash_latch) <= sizeof(void*), "compatibility");
+
+public:
+  struct hash_table
+  {
+    /** Number of array[] elements per hash_latch.
+    Must be one less than a power of 2. */
+    static constexpr size_t ELEMENTS_PER_LATCH= CPU_LEVEL1_DCACHE_LINESIZE /
+      sizeof(void*) - 1;
+
+    /** number of payload elements in array[]. Protected by lock_sys.latch. */
+    ulint n_cells;
+    /** the hash table, with pad(n_cells) elements, aligned to L1 cache size;
+    in any hash chain, lock_t::is_waiting() entries must not precede
+    granted locks */
+    hash_cell_t *array;
+
+    /** Create the hash table.
+    @param n  the lower bound of n_cells */
+    void create(ulint n);
+
+    /** Resize the hash table.
+    @param n  the lower bound of n_cells */
+    void resize(ulint n);
+
+    /** Free the hash table. */
+    void free() { aligned_free(array); array= nullptr; }
+
+    /** @return the index of an array element */
+    inline ulint calc_hash(ulint fold) const;
+    /** @return raw array index converted to padded index */
+    static ulint pad(ulint h) { return 1 + (h / ELEMENTS_PER_LATCH) + h; }
+    /** Get a latch. */
+    inline hash_latch *lock_get(ulint fold) const;
+
+#ifdef UNIV_DEBUG
+    void assert_locked(const page_id_t id) const;
+#else
+    void assert_locked(const page_id_t) const {}
+#endif
+
+    /** Get the first lock on a page.
+    @param id          page number
+    @return first lock
+    @retval nullptr if none exists */
+    lock_t *get_first(const page_id_t id) const
+    {
+      assert_locked(id);
+      for (auto lock= static_cast<lock_t*>(array[calc_hash(id.fold())].node);
+         lock; lock= lock->hash)
+        if (lock->un_member.rec_lock.page_id == id)
+          return lock;
+      return nullptr;
+    }
+
+  private:
+    /** @return the hash value before any ELEMENTS_PER_LATCH padding */
+    static ulint hash(ulint fold, ulint n) { return ut_hash_ulint(fold, n); }
+
+    /** @return the index of an array element */
+    static ulint calc_hash(ulint fold, ulint n_cells)
+    {
+      return pad(hash(fold, n_cells));
+    }
+    /** Get a page_hash latch. */
+    hash_latch *lock_get(ulint fold, ulint n) const
+    {
+      static_assert(!((ELEMENTS_PER_LATCH + 1) & ELEMENTS_PER_LATCH),
+                    "must be one less than a power of 2");
+      return reinterpret_cast<hash_latch*>
+        (&array[calc_hash(fold, n) & ~ELEMENTS_PER_LATCH]);
+    }
+  };
+
+private:
   bool m_initialised;
 
   /** mutex proteting the locks */
-  MY_ALIGNED(CACHE_LINE_SIZE) srw_lock latch;
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) srw_lock latch;
 #ifdef UNIV_DEBUG
   /** The owner of exclusive latch (0 if none); protected by latch */
   std::atomic<os_thread_id_t> writer{0};
   /** Number of shared latches */
   std::atomic<ulint> readers{0};
 #endif
+#if defined SRW_LOCK_DUMMY && !defined _WIN32
+protected:
+  /** mutex for hash_latch::wait() */
+  pthread_mutex_t hash_mutex;
+  /** condition variable for hash_latch::wait() */
+  pthread_cond_t hash_cond;
+#endif
 public:
   /** record locks */
-  hash_table_t rec_hash;
+  hash_table rec_hash;
   /** predicate locks for SPATIAL INDEX */
-  hash_table_t prdt_hash;
+  hash_table prdt_hash;
   /** page locks for SPATIAL INDEX */
-  hash_table_t prdt_page_hash;
+  hash_table prdt_page_hash;
   /** number of deadlocks detected; protected by mutex */
   ulint deadlocks;
 
   /** mutex covering lock waits; @see trx_lock_t::wait_lock */
-  MY_ALIGNED(CACHE_LINE_SIZE) mysql_mutex_t wait_mutex;
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t wait_mutex;
 private:
   /** Pending number of lock waits; protected by wait_mutex */
   ulint wait_pending;
@@ -609,6 +714,7 @@ private:
   ulint wait_time;
   /** Longest wait time; protected by wait_mutex */
   ulint wait_time_max;
+
 public:
   /**
     Constructor.
@@ -726,49 +832,55 @@ public:
   /** Longest wait time; protected by wait_mutex */
   ulint get_wait_time_max() const { return wait_time_max; }
 
-  /** @return the hash value for a page address */
-  ulint hash(const page_id_t id) const
-  { assert_locked(); return rec_hash.calc_hash(id.fold()); }
-
-  /** Get the first lock on a page.
-  @param lock_hash   hash table to look at
-  @param id          page number
-  @return first lock
-  @retval nullptr if none exists */
-  lock_t *get_first(const hash_table_t &lock_hash, const page_id_t id) const
+  /** Get the lock hash table for a mode */
+  hash_table &hash_get(ulint mode)
   {
-    ut_ad(&lock_hash == &rec_hash || &lock_hash == &prdt_hash ||
-          &lock_hash == &prdt_page_hash);
-    for (lock_t *lock= static_cast<lock_t*>
-         (HASH_GET_FIRST(&lock_hash, hash(id)));
-         lock; lock= static_cast<lock_t*>(HASH_GET_NEXT(hash, lock)))
-      if (lock->un_member.rec_lock.page_id == id)
-         return lock;
-    return nullptr;
+    if (UNIV_LIKELY(!(mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE))))
+      return rec_hash;
+    return (mode & LOCK_PREDICATE) ? prdt_hash : prdt_page_hash;
   }
 
-  /** Get the first record lock on a page.
-  @param id          page number
+  /** Get the lock hash table for predicate a mode */
+  hash_table &prdt_hash_get(bool page)
+  { return page ? prdt_page_hash : prdt_hash; }
+
+  lock_t *get_first(ulint type_mode, const page_id_t id)
+  {
+    return hash_get(type_mode).get_first(id);
+  }
+
+  /** Get the first explicit lock request on a record.
+  @param hash     lock hash table
+  @param id       page identifier
+  @param heap_no  record identifier in page
   @return first lock
   @retval nullptr if none exists */
-  lock_t *get_first(const page_id_t id) const
-  { return get_first(rec_hash, id); }
-  /** Get the first predicate lock on a SPATIAL INDEX page.
-  @param id          page number
-  @return first lock
-  @retval nullptr if none exists */
-  lock_t *get_first_prdt(const page_id_t id) const
-  { return get_first(prdt_hash, id); }
-  /** Get the first predicate lock on a SPATIAL INDEX page.
-  @param id          page number
-  @return first lock
-  @retval nullptr if none exists */
-  lock_t *get_first_prdt_page(const page_id_t id) const
-  { return get_first(prdt_page_hash, id); }
+  inline lock_t *get_first(hash_table &hash, const page_id_t id,
+                           ulint heap_no);
+
+  /** Remove locks on a discarded SPATIAL INDEX page.
+  @param id   page to be discarded
+  @param page whether to discard also from lock_sys.prdt_hash */
+  void prdt_page_free_from_discard(const page_id_t id, bool all= false);
 };
 
 /** The lock system */
 extern lock_sys_t lock_sys;
+
+/** @return the index of an array element */
+inline ulint lock_sys_t::hash_table::calc_hash(ulint fold) const
+{
+  ut_ad(lock_sys.is_writer() || lock_sys.readers);
+  return calc_hash(fold, n_cells);
+}
+
+/** Get a latch. */
+inline
+lock_sys_t::hash_latch *lock_sys_t::hash_table::lock_get(ulint fold) const
+{
+  ut_ad(lock_sys.is_writer() || lock_sys.readers);
+  return lock_get(fold, n_cells);
+}
 
 /** lock_sys.latch guard */
 struct LockMutexGuard
@@ -776,6 +888,44 @@ struct LockMutexGuard
   LockMutexGuard(SRW_LOCK_ARGS(const char *file, unsigned line))
   { lock_sys.wr_lock(SRW_LOCK_ARGS(file, line)); }
   ~LockMutexGuard() { lock_sys.wr_unlock(); }
+};
+
+/** lock_sys.latch guard for a page_id_t shard */
+struct LockGuard
+{
+  LockGuard(lock_sys_t::hash_table &hash, const page_id_t id);
+  ~LockGuard()
+  {
+    latch->release();
+    /* Must be last, to avoid a race with lock_sys_t::hash_table::resize() */
+    lock_sys.rd_unlock();
+  }
+private:
+  /** The hash bucket */
+  lock_sys_t::hash_latch *latch;
+};
+
+#ifdef WITH_WSREP
+/** lock_sys.latch guard for a page_id_t shard */
+struct LockGGuard
+{
+  LockGGuard(lock_sys_t::hash_table &hash, const page_id_t id, bool all);
+  ~LockGGuard();
+private:
+  /** The hash bucket (nullptr if all of them) */
+  lock_sys_t::hash_latch *latch;
+};
+#endif
+
+/** lock_sys.latch guard for 2 page_id_t shards */
+struct LockMultiGuard
+{
+  LockMultiGuard(lock_sys_t::hash_table &hash,
+                 const page_id_t id1, const page_id_t id2);
+  ~LockMultiGuard();
+private:
+  /** The hash buckets */
+  lock_sys_t::hash_latch *latch1, *latch2;
 };
 
 /*********************************************************************//**
@@ -800,14 +950,10 @@ lock_rec_create(
 					/*!< in: true if caller owns
 					trx mutex */
 
-/*************************************************************//**
-Removes a record lock request, waiting or granted, from the queue. */
-void
-lock_rec_discard(
-/*=============*/
-	lock_t*		in_lock);	/*!< in: record lock object: all
-					record locks which are contained
-					in this lock object are removed */
+/** Remove a record lock request, waiting or granted, on a discarded page
+@param hash     hash table
+@param in_lock  lock object */
+void lock_rec_discard(lock_sys_t::hash_table &lock_hash, lock_t *in_lock);
 
 /** Create a new record lock and inserts it to the lock queue,
 without checking for deadlocks or conflicts.
@@ -874,11 +1020,6 @@ lock_rtr_move_rec_list(
 	rtr_rec_move_t*		rec_move,	/*!< in: recording records
 						moved */
 	ulint			num_move);	/*!< in: num of rec to move */
-
-/** Remove record locks for an index page which is discarded. This
-function does not move locks, or check for waiting locks, therefore the
-lock bitmaps must already be reset when this function is called. */
-void lock_rec_free_all_from_discard_page(const page_id_t page_id);
 
 /** Cancel a waiting lock request and release possibly waiting transactions */
 void lock_cancel_waiting_and_release(lock_t *lock);

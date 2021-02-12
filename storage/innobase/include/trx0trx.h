@@ -430,9 +430,10 @@ struct trx_lock_t
   /** lock wait start time, protected only by lock_sys.wait_mutex */
   my_hrtime_t suspend_time;
 
-	ib_uint64_t	deadlock_mark;	/*!< A mark field that is initialized
-					to and checked against lock_mark_counter
-					by lock_deadlock_recursive(). */
+  /** DeadlockChecker::search() uses this to keep track of visited locks.
+  Protected by lock_sys.is_writer(). */
+  uint64_t deadlock_mark;
+
 #ifdef WITH_WSREP
   /** 2=high priority wsrep thread has marked this trx to abort;
   1=another transaction chose this as a victim in deadlock resolution. */
@@ -443,12 +444,6 @@ struct trx_lock_t
   resolution. Protected by lock_sys.latch and lock_sys.wait_mutex. */
   bool was_chosen_as_deadlock_victim;
 #endif
-  /** Whether the transaction is being rolled back either via deadlock
-  detection or timeout. The caller has to acquire the trx_t::mutex in
-  order to cancel the locks. In lock_trx_table_locks_remove() we must
-  avoid reacquiring the trx_t::mutex to prevent recursive
-  deadlocks. Protected by both lock_sys.latch and trx_t::mutex. */
-  bool cancel;
 
   /** Next available rec_pool[] entry */
   byte rec_cached;
@@ -471,13 +466,15 @@ struct trx_lock_t
 	/** Pre-allocated table locks */
 	ib_lock_t	table_pool[8];
 
-	mem_heap_t*	lock_heap;	/*!< memory heap for trx_locks;
-					protected by lock_sys.latch */
+  /** Memory heap for trx_locks. Protected by lock_sys.assert_locked()
+  and lock_sys.is_writer() || trx->mutex_is_owner(). */
+  mem_heap_t *lock_heap;
 
-	trx_lock_list_t trx_locks;	/*!< locks requested by the transaction;
-					insertions are protected by trx->mutex
-					and lock_sys.latch; removals are
-					protected by lock_sys.latch */
+  /** Locks held by the transaction. Protected by lock_sys.assert_locked()
+  and lock_sys.is_writer() || trx->mutex_is_owner().
+  (If lock_sys.latch is only held in shared mode, then the modification
+  must be protected by trx->mutex.) */
+  trx_lock_list_t trx_locks;
 
 	lock_list	table_locks;	/*!< All table locks requested by this
 					transaction, including AUTOINC locks */
@@ -485,7 +482,7 @@ struct trx_lock_t
 	/** List of pending trx_t::evict_table() */
 	UT_LIST_BASE_NODE_T(dict_table_t) evicted_tables;
 
-  /** number of record locks; writers use LockGuard or LockMutexGuard */
+  /** number of record locks; protected by lock_sys.assert_locked(page_id) */
   ulint n_rec_locks;
 };
 
@@ -1019,6 +1016,8 @@ public:
   @retval false if the rollback was aborted by shutdown */
   inline bool rollback_finish();
 private:
+  /** Process tables that were modified by the committing transaction. */
+  inline void commit_tables();
   /** Mark a transaction committed in the main memory data structures. */
   inline void commit_in_memory(const mtr_t *mtr);
   /** Commit the transaction in a mini-transaction.

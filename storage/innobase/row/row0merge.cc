@@ -2838,12 +2838,8 @@ wait_again:
 	}
 
 	if (vers_update_trt) {
-		trx_mod_table_time_t& time =
-			trx->mod_tables
-				.insert(trx_mod_tables_t::value_type(
-					const_cast<dict_table_t*>(new_table), 0))
-				.first->second;
-		time.set_versioned(0);
+		trx->mod_tables.emplace(new_table, 0)
+			.first->second.set_versioned(0);
 	}
 
 	trx->op_info = "";

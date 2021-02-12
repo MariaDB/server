@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -182,33 +182,6 @@ do {									\
 			break;						\
 		}							\
 	}								\
-} while (0)
-
-/****************************************************************//**
-Move all hash table entries from OLD_TABLE to NEW_TABLE. */
-
-#define HASH_MIGRATE(OLD_TABLE, NEW_TABLE, NODE_TYPE, PTR_NAME, FOLD_FUNC) \
-do {\
-	ulint		i2222;\
-	ulint		cell_count2222;\
-\
-	cell_count2222 = (OLD_TABLE)->n_cells;	\
-\
-	for (i2222 = 0; i2222 < cell_count2222; i2222++) {\
-		NODE_TYPE*	node2222 = static_cast<NODE_TYPE*>(\
-			HASH_GET_FIRST((OLD_TABLE), i2222));\
-\
-		while (node2222) {\
-			NODE_TYPE*	next2222 = static_cast<NODE_TYPE*>(\
-				node2222->PTR_NAME);\
-			ulint		fold2222 = FOLD_FUNC(node2222);\
-\
-			HASH_INSERT(NODE_TYPE, PTR_NAME, (NEW_TABLE),\
-				fold2222, node2222);\
-\
-			node2222 = next2222;\
-		}\
-	}\
 } while (0)
 
 /** Hash table with singly-linked overflow lists */

@@ -52,23 +52,6 @@ lock_get_min_heap_no(
 	}
 }
 
-/*************************************************************//**
-Get the lock hash table */
-UNIV_INLINE
-hash_table_t*
-lock_hash_get(
-/*==========*/
-	ulint	mode)	/*!< in: lock mode */
-{
-	if (mode & LOCK_PREDICATE) {
-		return &lock_sys.prdt_hash;
-	} else if (mode & LOCK_PRDT_PAGE) {
-		return &lock_sys.prdt_page_hash;
-	} else {
-		return &lock_sys.rec_hash;
-	}
-}
-
 /*********************************************************************//**
 Creates a new record lock and inserts it to the lock queue. Does NOT check
 for deadlocks or lock compatibility!

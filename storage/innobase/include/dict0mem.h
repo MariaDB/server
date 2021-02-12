@@ -1958,6 +1958,26 @@ struct dict_table_t {
   /** Clear the table when rolling back TRX_UNDO_EMPTY */
   void clear(que_thr_t *thr);
 
+#ifdef UNIV_DEBUG
+  /** @return whether the current thread holds the lock_mutex */
+  bool lock_mutex_is_owner() const
+  { return lock_mutex_owner == os_thread_get_curr_id(); }
+#endif /* UNIV_DEBUG */
+  void lock_mutex_init() { lock_mutex.init(); }
+  void lock_mutex_destroy() { lock_mutex.destroy(); }
+  /** Acquire lock_mutex */
+  void lock_mutex_lock()
+  {
+    ut_ad(!lock_mutex_is_owner());
+    lock_mutex.wr_lock();
+    ut_ad(!lock_mutex_owner.exchange(os_thread_get_curr_id()));
+  }
+  /** Release lock_mutex */
+  void lock_mutex_unlock()
+  {
+    ut_ad(lock_mutex_owner.exchange(0) == os_thread_get_curr_id());
+    lock_mutex.wr_unlock();
+  }
 private:
 	/** Initialize instant->field_map.
 	@param[in]	table	table definition to copy from */
@@ -2118,18 +2138,12 @@ public:
 	/** Maximum recursive level we support when loading tables chained
 	together with FK constraints. If exceeds this level, we will stop
 	loading child table into memory along with its parent table. */
-	unsigned				fk_max_recusive_level:8;
+	byte					fk_max_recusive_level;
 
 	/** Count of how many foreign key check operations are currently being
 	performed on the table. We cannot drop the table while there are
 	foreign key checks running on it. */
 	Atomic_counter<int32_t>			n_foreign_key_checks_running;
-
-	/** Transactions whose view low limit is greater than this number are
-	not allowed to store to the MySQL query cache or retrieve from it.
-	When a trx with undo logs commits, it sets this to the value of the
-	transaction id. */
-	trx_id_t				query_cache_inv_trx_id;
 
 	/** Transaction id that last touched the table definition. Either when
 	loading the definition or CREATE TABLE, or ALTER TABLE (prepare,
@@ -2273,15 +2287,27 @@ public:
 	from a select. */
 	lock_t*					autoinc_lock;
 
-	/** Mutex protecting the autoincrement counter. */
-	std::mutex				autoinc_mutex;
+  /** Mutex protecting autoinc. */
+  srw_mutex autoinc_mutex;
+private:
+  /** Mutex protecting locks on this table. */
+  srw_mutex lock_mutex;
+#ifdef UNIV_DEBUG
+  /** The owner of lock_mutex (0 if none) */
+  Atomic_relaxed<os_thread_id_t> lock_mutex_owner{0};
+#endif
+public:
+  /** Autoinc counter value to give to the next inserted row. */
+  uint64_t autoinc;
 
-	/** Autoinc counter value to give to the next inserted row. */
-	ib_uint64_t				autoinc;
-
-	/** The transaction that currently holds the the AUTOINC lock on this
-	table. Protected by lock_sys.latch. */
-	const trx_t*				autoinc_trx;
+  /** The transaction that currently holds the the AUTOINC lock on this table.
+  Protected by lock_mutex.
+  The thread that is executing autoinc_trx may read this field without
+  holding a latch, in row_lock_table_autoinc_for_mysql().
+  Only the autoinc_trx thread may clear this field; it cannot be
+  modified on the behalf of a transaction that is being handled by a
+  different thread. */
+  Atomic_relaxed<const trx_t*> autoinc_trx;
 
   /** Number of granted or pending autoinc_lock on this table. This
   value is set after acquiring lock_sys.latch but
@@ -2293,7 +2319,7 @@ public:
 	/* @} */
 
   /** Number of granted or pending LOCK_S or LOCK_X on the table.
-  Protected by lock_sys.assert_locked(*this). */
+  Protected by lock_mutex. */
   uint32_t n_lock_x_or_s;
 
 	/** FTS specific state variables. */
@@ -2304,22 +2330,29 @@ public:
 	in X mode of this table's indexes. */
 	ib_quiesce_t				quiesce;
 
-	/** Count of the number of record locks on this table. We use this to
-	determine whether we can evict the table from the dictionary cache.
-	Protected by LockGuard. */
-	ulint n_rec_locks;
+  /** Count of the number of record locks on this table. We use this to
+  determine whether we can evict the table from the dictionary cache.
+  Modified when lock_sys.is_writer(), or
+  lock_sys.assert_locked(page_id) and trx->mutex_is_owner() hold.
+  @see trx_lock_t::trx_locks */
+  Atomic_counter<uint32_t> n_rec_locks;
 
 private:
-	/** Count of how many handles are opened to this table. Dropping of the
-	table is NOT allowed until this count gets to zero. MySQL does NOT
-	itself check the number of open handles at DROP. */
-	Atomic_counter<uint32_t>		n_ref_count;
+  /** Count of how many handles are opened to this table. Dropping of the
+  table is NOT allowed until this count gets to zero. MySQL does NOT
+  itself check the number of open handles at DROP. */
+  Atomic_counter<uint32_t> n_ref_count;
 public:
   /** List of locks on the table. Protected by lock_sys.assert_locked(lock). */
   table_lock_list_t locks;
 
-	/** Timestamp of the last modification of this table. */
-	time_t					update_time;
+  /** Timestamp of the last modification of this table. */
+  Atomic_relaxed<time_t> update_time;
+  /** Transactions whose view low limit is greater than this number are
+  not allowed to store to the query cache or retrieve from it.
+  When a trx with undo logs commits, it sets this to the value of the
+  transaction id. */
+  Atomic_relaxed<trx_id_t> query_cache_inv_trx_id;
 
 #ifdef UNIV_DEBUG
 	/** Value of 'magic_n'. */

@@ -3280,8 +3280,8 @@ commit_exit:
 		ibuf_mtr_commit(&bitmap_mtr);
 		goto fail_exit;
 	} else {
-		LockMutexGuard g{SRW_LOCK_CALL};
-		if (lock_sys.get_first(page_id)) {
+		LockGuard g{lock_sys.rec_hash, page_id};
+		if (lock_sys.rec_hash.get_first(page_id)) {
 			goto commit_exit;
 		}
 	}
