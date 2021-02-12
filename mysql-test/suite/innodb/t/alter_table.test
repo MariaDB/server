@@ -90,7 +90,7 @@ ALTER TABLE t1 CHANGE COLUMN a u INT;
 SELECT sf.* FROM information_schema.innodb_sys_fields sf
 INNER JOIN information_schema.innodb_sys_indexes si ON sf.index_id=si.index_id
 INNER JOIN information_schema.innodb_sys_tables st ON si.table_id=st.table_id
-WHERE st.name='test/t1' ORDER BY pos;
+WHERE st.name='test/t1' ORDER BY sf.index_id,sf.pos;
 DROP TABLE t1;
 
 --echo # End of 10.2 tests
