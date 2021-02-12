@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2020, MariaDB Corporation.
+Copyright (c) 2020, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -193,6 +193,14 @@ public:
   /** Upgrade an update lock */
   inline void u_x_upgrade();
   inline void u_x_upgrade(const char *file, unsigned line);
+  /** Downgrade a single exclusive lock to an update lock */
+  void x_u_downgrade()
+  {
+    ut_ad(have_u_or_x());
+    ut_ad(recursive <= RECURSIVE_MAX);
+    recursive*= RECURSIVE_U;
+    lock.wr_u_downgrade();
+  }
 
   /** Acquire an exclusive lock or upgrade an update lock
   @return whether U locks were upgraded to X */

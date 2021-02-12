@@ -93,6 +93,7 @@ public:
   void u_lock() { uint32_t l; if (!update_trylock(l)) update_lock(l); }
   bool u_lock_try() { uint32_t l; return update_trylock(l); }
   void u_wr_upgrade() { if (!upgrade_trylock()) write_lock(true); }
+  void wr_u_downgrade() { downgrade(); }
   void wr_lock() { if (!write_trylock()) write_lock(false); }
   void rd_unlock();
   void u_unlock();

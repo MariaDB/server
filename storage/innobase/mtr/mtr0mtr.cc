@@ -988,13 +988,11 @@ static void mtr_defer_drop_ahi(buf_block_t *block, mtr_memo_type_t fix_type)
     block->lock.s_lock();
     break;
   case MTR_MEMO_PAGE_SX_FIX:
-    block->lock.u_unlock();
-    block->lock.x_lock();
+    block->lock.u_x_upgrade();
     if (dict_index_t *index= block->index)
       if (index->freed())
         btr_search_drop_page_hash_index(block);
-    block->lock.u_lock();
-    block->lock.x_unlock();
+    block->lock.x_u_downgrade();
     break;
   default:
     ut_ad(fix_type == MTR_MEMO_PAGE_X_FIX);

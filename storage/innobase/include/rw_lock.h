@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2020, MariaDB Corporation.
+Copyright (c) 2020, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -104,6 +104,14 @@ protected:
     DBUG_ASSERT((l & ~WRITER_WAITING) == UPDATER);
     return true;
   }
+  /** Downgrade an exclusive lock to an update lock. */
+  void downgrade()
+  {
+    IF_DBUG_ASSERT(auto l=,)
+    lock.fetch_xor(WRITER | UPDATER, std::memory_order_relaxed);
+    DBUG_ASSERT((l & ~WRITER_WAITING) == WRITER);
+  }
+
   /** Wait for an exclusive lock.
   @return whether the exclusive lock was acquired */
   bool write_lock_poll()
