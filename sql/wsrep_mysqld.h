@@ -203,7 +203,7 @@ extern void wsrep_close_applier_threads(int count);
 
 /* new defines */
 extern void wsrep_stop_replication(THD *thd);
-extern bool wsrep_start_replication();
+extern bool wsrep_start_replication(const char *wsrep_cluster_address);
 extern void wsrep_shutdown_replication();
 extern bool wsrep_must_sync_wait (THD* thd, uint mask= WSREP_SYNC_WAIT_BEFORE_READ);
 extern bool wsrep_sync_wait (THD* thd, uint mask= WSREP_SYNC_WAIT_BEFORE_READ);
@@ -279,6 +279,13 @@ void WSREP_LOG(void (*fun)(const char* fmt, ...), const char* fmt, ...);
 
 #define WSREP_PROVIDER_EXISTS                                                  \
   (wsrep_provider && strncasecmp(wsrep_provider, WSREP_NONE, FN_REFLEN))
+
+static inline bool wsrep_cluster_address_exists()
+{
+  if (mysqld_server_started)
+    mysql_mutex_assert_owner(&LOCK_global_system_variables);
+  return wsrep_cluster_address && wsrep_cluster_address[0];
+}
 
 #define WSREP_QUERY(thd) (thd->query())
 
@@ -501,6 +508,7 @@ wsrep::key wsrep_prepare_key_for_toi(const char* db, const char* table,
 #define wsrep_thr_deinit() do {} while(0)
 #define wsrep_init_globals() do {} while(0)
 #define wsrep_create_appliers(X) do {} while(0)
+#define wsrep_cluster_address_exists() (false)
 
 #endif /* WITH_WSREP */
 

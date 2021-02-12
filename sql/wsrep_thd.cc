@@ -125,11 +125,7 @@ bool wsrep_create_appliers(long threads, bool mutex_protected)
     return false;
   }
 
-  if (!wsrep_cluster_address || wsrep_cluster_address[0]== 0)
-  {
-    WSREP_DEBUG("wsrep_create_appliers exit due to empty address");
-    return false;
-  }
+  DBUG_ASSERT(wsrep_cluster_address[0]);
 
   long wsrep_threads=0;
 
@@ -284,16 +280,14 @@ static void wsrep_rollback_process(THD *rollbacker,
 
 void wsrep_create_rollbacker()
 {
-  if (wsrep_cluster_address && wsrep_cluster_address[0] != 0)
-  {
-    Wsrep_thd_args* args(new Wsrep_thd_args(wsrep_rollback_process,
-                                            WSREP_ROLLBACKER_THREAD,
-                                            pthread_self()));
+  DBUG_ASSERT(wsrep_cluster_address[0]);
+  Wsrep_thd_args* args(new Wsrep_thd_args(wsrep_rollback_process,
+                                          WSREP_ROLLBACKER_THREAD,
+                                          pthread_self()));
 
-    /* create rollbacker */
-    if (create_wsrep_THD(args, false))
-      WSREP_WARN("Can't create thread to manage wsrep rollback");
-   }
+  /* create rollbacker */
+  if (create_wsrep_THD(args, false))
+    WSREP_WARN("Can't create thread to manage wsrep rollback");
 }
 
 /*
