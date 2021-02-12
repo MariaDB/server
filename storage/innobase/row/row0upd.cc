@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2306,7 +2306,9 @@ row_upd_sec_index_entry(
 		break;
 	}
 
-	if (!index->is_committed()) {
+	bool uncommitted = !index->is_committed();
+
+	if (uncommitted) {
 		/* The index->online_status may change if the index is
 		or was being created online, but not committed yet. It
 		is protected by index->lock. */
@@ -2503,10 +2505,37 @@ row_upd_sec_index_entry(
 
 	mem_heap_empty(heap);
 
+	DEBUG_SYNC_C_IF_THD(trx->mysql_thd,
+			    "before_row_upd_sec_new_index_entry");
+
+	uncommitted = !index->is_committed();
+	if (uncommitted) {
+		mtr.start();
+		/* The index->online_status may change if the index is
+		being rollbacked. It is protected by index->lock. */
+
+		mtr_s_lock_index(index, &mtr);
+
+		switch (dict_index_get_online_status(index)) {
+		case ONLINE_INDEX_COMPLETE:
+		case ONLINE_INDEX_CREATION:
+		       break;
+		case ONLINE_INDEX_ABORTED:
+		case ONLINE_INDEX_ABORTED_DROPPED:
+		       mtr_commit(&mtr);
+		       goto func_exit;
+		}
+
+	}
+
 	/* Build a new index entry */
 	entry = row_build_index_entry(node->upd_row, node->upd_ext,
 				      index, heap);
 	ut_a(entry);
+
+	if (uncommitted) {
+		mtr_commit(&mtr);
+	}
 
 	/* Insert new index entry */
 	err = row_ins_sec_index_entry(index, entry, thr, !node->is_delete);

@@ -1354,6 +1354,56 @@ EXECUTE IMMEDIATE 'VALUES (?)' USING IGNORE;
 --error ER_UNKNOWN_ERROR
 EXECUTE IMMEDIATE 'VALUES (?)' USING DEFAULT;
 
+--echo #
+--echo # MDEV-24675: TVC using subqueries
+--echo #
+
+values((select 1));
+
+values (2), ((select 1));
+
+values ((select 1)), (2), ((select 3));
+
+values ((select 1), 2), (3,4), (5, (select 6));
+
+create table t1 (a int, b int);
+insert into t1 values (1,3), (2,3), (3,2), (1,2);
+
+values((select max(a) from t1));
+
+values((select min(b) from t1));
+
+values ((select max(a) from t1), (select min(b) from t1));
+
+values((select *  from (select max(b) from t1) as t));
+
+drop table t1;
+
+--echo #
+--echo # MDEV-24618: TVC contains extra parenthesis for row expressions
+--echo #             in value list
+--echo #
+
+create table t1 (a int, b int);
+insert into t1 values (1,3), (2,3);
+--error ER_OPERAND_COLUMNS
+insert into t1 values ((5,4));
+
+--error ER_OPERAND_COLUMNS
+values ((1,2));
+
+--error ER_OPERAND_COLUMNS
+select * from (values ((1,2))) dt;
+
+values (1,2);
+--error ER_OPERAND_COLUMNS
+values ((select min(a), max(b) from t1));
+
+drop table t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
 
 --echo #
 --echo # MDEV-22610 Crash in INSERT INTO t1 (VALUES (DEFAULT) UNION VALUES (DEFAULT))
@@ -1369,3 +1419,7 @@ INSERT INTO t1 (VALUES (DEFAULT) UNION VALUES (DEFAULT));
 --error ER_UNKNOWN_ERROR
 INSERT INTO t1 (VALUES (IGNORE) UNION VALUES (IGNORE));
 DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #

@@ -77,9 +77,9 @@ DROP TABLE t1;
 --echo # Testing mixed tag and attribute values
 --echo #
 CREATE TABLE t1 (
-  ISBN CHAR(15) FIELD_FORMAT='@',
-  LANG CHAR(2)  FIELD_FORMAT='@',
-  SUBJECT CHAR(32) FIELD_FORMAT='@',
+  ISBN CHAR(15) XPATH='@',
+  LANG CHAR(2)  XPATH='@',
+  SUBJECT CHAR(32) XPATH='@',
   AUTHOR CHAR(50),
   TITLE CHAR(32),
   TRANSLATOR CHAR(40),
@@ -98,9 +98,9 @@ DROP TABLE t1;
 --copy_file $MTR_SUITE_DIR/std_data/xsample.xml $MYSQLD_DATADIR/test/xsample2.xml
 --chmod 0644 $MYSQLD_DATADIR/test/xsample2.xml
 CREATE TABLE t1 (
-  ISBN CHAR(15) FIELD_FORMAT='@',
-  LANG CHAR(2)  FIELD_FORMAT='@',
-  SUBJECT CHAR(32) FIELD_FORMAT='@',
+  ISBN CHAR(15) XPATH='@',
+  LANG CHAR(2)  XPATH='@',
+  SUBJECT CHAR(32) XPATH='@',
   AUTHOR CHAR(50),
   TITLE CHAR(32),
   TRANSLATOR CHAR(40),
@@ -123,18 +123,18 @@ DROP TABLE t1;
 --echo # Testing XPath
 --echo #
 CREATE TABLE t1 (
-  isbn       CHAR(15) FIELD_FORMAT='@ISBN',
-  language   CHAR(2)  FIELD_FORMAT='@LANG',
-  subject    CHAR(32) FIELD_FORMAT='@SUBJECT',
-  authorfn   CHAR(20) FIELD_FORMAT='AUTHOR/FIRSTNAME',
-  authorln   CHAR(20) FIELD_FORMAT='AUTHOR/LASTNAME',
-  title      CHAR(32) FIELD_FORMAT='TITLE',
-  translated CHAR(32) FIELD_FORMAT='TRANSLATOR/@PREFIX',
-  tranfn     CHAR(20) FIELD_FORMAT='TRANSLATOR/FIRSTNAME',
-  tranln     CHAR(20) FIELD_FORMAT='TRANSLATOR/LASTNAME',
-  publisher  CHAR(20) FIELD_FORMAT='PUBLISHER/NAME',
-  location   CHAR(20) FIELD_FORMAT='PUBLISHER/PLACE',
-  year       INT(4)   FIELD_FORMAT='DATEPUB'
+  isbn       CHAR(15) XPATH='@ISBN',
+  language   CHAR(2)  XPATH='@LANG',
+  subject    CHAR(32) XPATH='@SUBJECT',
+  authorfn   CHAR(20) XPATH='AUTHOR/FIRSTNAME',
+  authorln   CHAR(20) XPATH='AUTHOR/LASTNAME',
+  title      CHAR(32) XPATH='TITLE',
+  translated CHAR(32) XPATH='TRANSLATOR/@PREFIX',
+  tranfn     CHAR(20) XPATH='TRANSLATOR/FIRSTNAME',
+  tranln     CHAR(20) XPATH='TRANSLATOR/LASTNAME',
+  publisher  CHAR(20) XPATH='PUBLISHER/NAME',
+  location   CHAR(20) XPATH='PUBLISHER/PLACE',
+  year       INT(4)   XPATH='DATEPUB'
 ) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
   TABNAME='BIBLIO' OPTION_LIST='rownode=BOOK,skipnull=1,xmlsup=libxml2';
 SELECT * FROM t1;
@@ -150,8 +150,8 @@ DROP TABLE t1;
 #--echo # Relative paths are not supported
 #--echo #
 #CREATE TABLE t1 (
-#  authorfn   CHAR(20) FIELD_FORMAT='//FIRSTNAME',
-#  authorln   CHAR(20) FIELD_FORMAT='//LASTNAME'
+#  authorfn   CHAR(20) XPATH='//FIRSTNAME',
+#  authorln   CHAR(20) XPATH='//LASTNAME'
 #) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
 #  TABNAME='BIBLIO' OPTION_LIST='rownode=BOOK,skipnull=1';
 #SELECT * FROM t1;
@@ -165,8 +165,8 @@ DROP TABLE t1;
 #--echo # Absolute path is not supported
 #--echo #
 #CREATE TABLE t1 (
-#  authorfn   CHAR(20) FIELD_FORMAT='/BIBLIO/BOOK/AUTHOR/FIRSTNAME',
-#  authorln   CHAR(20) FIELD_FORMAT='/BIBLIO/BOOK/AUTHOR/LASTNAME'
+#  authorfn   CHAR(20) XPATH='/BIBLIO/BOOK/AUTHOR/FIRSTNAME',
+#  authorln   CHAR(20) XPATH='/BIBLIO/BOOK/AUTHOR/LASTNAME'
 #) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
 #  TABNAME='BIBLIO' OPTION_LIST='rownode=BOOK,skipnull=1';
 #SELECT * FROM t1;
@@ -178,7 +178,7 @@ DROP TABLE t1;
 --echo #
 CREATE TABLE t1
 (
-  isbn       CHAR(15) FIELD_FORMAT='@isbn'
+  isbn       CHAR(15) XPATH='@isbn'
 ) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
   TABNAME='BIBLIO' OPTION_LIST='rownode=BOOK,skipnull=1,xmlsup=libxml2';
 SELECT * FROM t1;

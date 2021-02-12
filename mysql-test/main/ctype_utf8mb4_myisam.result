@@ -1443,7 +1443,7 @@ a varchar(255) NOT NULL default '',
 KEY a (a)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_general_ci;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 insert into t1 values (_utf8mb4 0xe880bd);
 insert into t1 values (_utf8mb4 0x5b);
 select hex(a) from t1;
@@ -1491,7 +1491,7 @@ Warnings:
 Note	1051	Unknown table 'test.t1'
 CREATE TABLE t1(a VARCHAR(255), KEY(a)) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 INSERT INTO t1 VALUES('uuABCDEFGHIGKLMNOPRSTUVWXYZ̈bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb');
 INSERT INTO t1 VALUES('uu');
 check table t1;

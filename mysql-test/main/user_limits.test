@@ -216,3 +216,29 @@ drop table t1;
 --source include/wait_until_count_sessions.inc
 
 set global max_user_connections= @my_max_user_connections;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-17852 Altered connection limits for user have no effect
+--echo #
+create user foo@'%' with max_user_connections 1;
+--connect con1,localhost,foo
+select current_user();
+--replace_result $MASTER_MYPORT MYSQL_PORT $MASTER_MYSOCK MYSQL_SOCK
+--error ER_USER_LIMIT_REACHED
+--connect con2,localhost,foo
+--connection default
+alter user foo with max_user_connections 2;
+--connect con3,localhost,foo
+select current_user();
+--disconnect con3
+--disconnect con1
+--connection default
+drop user foo@'%';
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

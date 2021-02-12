@@ -265,6 +265,12 @@ static bool sst_auth_real_set (const char* value)
       if (wsrep_sst_auth) { my_free((void*) wsrep_sst_auth); }
       wsrep_sst_auth= my_strdup(WSREP_SST_AUTH_MASK, MYF(0));
     }
+    else
+    {
+      if (wsrep_sst_auth) { my_free((void*) wsrep_sst_auth); }
+      wsrep_sst_auth= NULL;
+    }
+
     return 0;
   }
   return 1;

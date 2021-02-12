@@ -122,6 +122,7 @@ When one supplies long data for a placeholder:
 static const uint PARAMETER_FLAG_UNSIGNED= 128U << 8;
 #endif
 #include "lock.h"                               // MYSQL_OPEN_FORCE_SHARED_MDL
+#include "log_event.h"                          // class Log_event
 #include "sql_handler.h"
 #include "transaction.h"                        // trans_rollback_implicit
 #ifdef WITH_WSREP
@@ -2487,6 +2488,16 @@ static bool check_prepared_statement(Prepared_statement *stmt)
       DBUG_RETURN(FALSE);
     }
     break;
+  case SQLCOM_SHOW_BINLOG_EVENTS:
+  case SQLCOM_SHOW_RELAYLOG_EVENTS:
+    {
+      List<Item> field_list;
+      Log_event::init_show_field_list(thd, &field_list);
+
+      if ((res= send_stmt_metadata(thd, stmt, &field_list)) == 2)
+        DBUG_RETURN(FALSE);
+    }
+  break;
 #endif /* EMBEDDED_LIBRARY */
   case SQLCOM_SHOW_CREATE_PROC:
     if ((res= mysql_test_show_create_routine(stmt, &sp_handler_procedure)) == 2)

@@ -1489,12 +1489,12 @@ void Rdb_key_def::pack_with_make_sort_key(
   DBUG_ASSERT(*dst != nullptr);
 
   const int max_len = fpi->m_max_image_len;
-  my_bitmap_map *old_map;
+  MY_BITMAP*old_map;
 
   old_map= dbug_tmp_use_all_columns(field->table,
-                                    field->table->read_set);
+                                    &field->table->read_set);
   field->sort_string(*dst, max_len);
-  dbug_tmp_restore_column_map(field->table->read_set, old_map);
+  dbug_tmp_restore_column_map(&field->table->read_set, old_map);
   *dst += max_len;
 }
 

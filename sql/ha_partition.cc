@@ -4282,7 +4282,7 @@ int ha_partition::write_row(const uchar * buf)
   int error;
   longlong func_value;
   bool have_auto_increment= table->next_number_field && buf == table->record[0];
-  my_bitmap_map *old_map;
+  MY_BITMAP *old_map;
   THD *thd= ha_thd();
   sql_mode_t saved_sql_mode= thd->variables.sql_mode;
   bool saved_auto_inc_field_not_null= table->auto_increment_field_not_null;
@@ -4324,9 +4324,9 @@ int ha_partition::write_row(const uchar * buf)
     }
   }
 
-  old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   error= m_part_info->get_partition_id(m_part_info, &part_id, &func_value);
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
   if (unlikely(error))
   {
     m_part_info->err_value= func_value;
@@ -11326,13 +11326,12 @@ int ha_partition::bulk_update_row(const uchar *old_data, const uchar *new_data,
   int error= 0;
   uint32 part_id;
   longlong func_value;
-  my_bitmap_map *old_map;
   DBUG_ENTER("ha_partition::bulk_update_row");
 
-  old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   error= m_part_info->get_partition_id(m_part_info, &part_id,
                                        &func_value);
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
   if (unlikely(error))
   {
     m_part_info->err_value= func_value;

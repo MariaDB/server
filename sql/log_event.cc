@@ -13741,11 +13741,11 @@ int Rows_log_event::update_sequence()
     /* This event come from a setval function executed on the master.
        Update the sequence next_number and round, like we do with setval()
     */
-    my_bitmap_map *old_map= dbug_tmp_use_all_columns(table,
-                                                     table->read_set);
+    MY_BITMAP *old_map= dbug_tmp_use_all_columns(table,
+                                                 &table->read_set);
     longlong nextval= table->field[NEXT_FIELD_NO]->val_int();
     longlong round= table->field[ROUND_FIELD_NO]->val_int();
-    dbug_tmp_restore_column_map(table->read_set, old_map);
+    dbug_tmp_restore_column_map(&table->read_set, old_map);
 
     return table->s->sequence->set_value(table, nextval, round, 0) > 0;
   }

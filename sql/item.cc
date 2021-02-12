@@ -1423,9 +1423,9 @@ int Item::save_in_field_no_warnings(Field *field, bool no_conversions)
   Sql_mode_save sql_mode(thd);
   thd->variables.sql_mode&= ~(MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
   thd->variables.sql_mode|= MODE_INVALID_DATES;
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
   res= save_in_field(field, no_conversions);
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
   return res;
 }
 
@@ -5753,7 +5753,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   Field *from_field= (Field *)not_found_field;
   bool outer_fixed= false;
   SELECT_LEX *select= thd->lex->current_select;
-  
+
   if (select && select->in_tvc)
   {
     my_error(ER_FIELD_REFERENCE_IN_TVC, MYF(0), full_name());
@@ -6652,7 +6652,7 @@ Item *Item_string::make_odbc_literal(THD *thd, const LEX_CSTRING *typestr)
 }
 
 
-static int save_int_value_in_field (Field *field, longlong nr, 
+static int save_int_value_in_field (Field *field, longlong nr,
                                     bool null_value, bool unsigned_flag)
 {
   if (null_value)
@@ -8424,6 +8424,22 @@ bool Item_direct_ref::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydat
 bool Item_direct_ref::val_native(THD *thd, Native *to)
 {
   return val_native_from_item(thd, *ref, to);
+}
+
+
+longlong Item_direct_ref::val_time_packed(THD *thd)
+{
+  longlong tmp = (*ref)->val_time_packed(thd);
+  null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
+longlong Item_direct_ref::val_datetime_packed(THD *thd)
+{
+  longlong tmp = (*ref)->val_datetime_packed(thd);
+  null_value= (*ref)->null_value;
+  return tmp;
 }
 
 

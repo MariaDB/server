@@ -664,3 +664,9 @@ ALTER TABLE t2 DROP c;
 UNLOCK TABLES;
 DROP VIEW v1;
 DROP TABLE t1, t2;
+
+--echo #
+--echo # KILL QUERY ID USER
+--echo #
+--error ER_BAD_FIELD_ERROR
+kill query id user 'foo';

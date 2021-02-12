@@ -3052,7 +3052,7 @@ int ha_sphinx::get_rec ( byte * buf, const byte *, uint )
 	}
 
 	#if MYSQL_VERSION_ID>50100
-	my_bitmap_map * org_bitmap = dbug_tmp_use_all_columns ( table, table->write_set );
+	MY_BITMAP * org_bitmap = dbug_tmp_use_all_columns ( table, &table->write_set );
 	#endif
 	Field ** field = table->field;
 
@@ -3198,7 +3198,7 @@ int ha_sphinx::get_rec ( byte * buf, const byte *, uint )
 	m_iCurrentPos++;
 
 	#if MYSQL_VERSION_ID > 50100
-	dbug_tmp_restore_column_map ( table->write_set, org_bitmap );
+	dbug_tmp_restore_column_map ( &table->write_set, org_bitmap );
 	#endif
 
 	SPH_RET(0);

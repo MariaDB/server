@@ -37,6 +37,16 @@ extern "C" void wsrep_thd_UNLOCK(const THD *thd)
   mysql_mutex_unlock(&thd->LOCK_thd_data);
 }
 
+extern "C" void wsrep_thd_kill_LOCK(const THD *thd)
+{
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
+}
+
+extern "C" void wsrep_thd_kill_UNLOCK(const THD *thd)
+{
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
+}
+
 extern "C" const char* wsrep_thd_client_state_str(const THD *thd)
 {
   return wsrep::to_c_string(thd->wsrep_cs().state());

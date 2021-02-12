@@ -1948,8 +1948,8 @@ class store_key_field: public store_key
   enum store_key_result copy_inner()
   {
     TABLE *table= copy_field.to_field->table;
-    my_bitmap_map *old_map= dbug_tmp_use_all_columns(table,
-                                                     table->write_set);
+    MY_BITMAP *old_map= dbug_tmp_use_all_columns(table,
+                                                 &table->write_set);
 
     /* 
       It looks like the next statement is needed only for a simplified
@@ -1960,7 +1960,7 @@ class store_key_field: public store_key
     bzero(copy_field.to_ptr,copy_field.to_length);
 
     copy_field.do_copy(&copy_field);
-    dbug_tmp_restore_column_map(table->write_set, old_map);
+    dbug_tmp_restore_column_map(&table->write_set, old_map);
     null_key= to_field->is_null();
     return err != 0 ? STORE_KEY_FATAL : STORE_KEY_OK;
   }
@@ -1995,8 +1995,8 @@ public:
   enum store_key_result copy_inner()
   {
     TABLE *table= to_field->table;
-    my_bitmap_map *old_map= dbug_tmp_use_all_columns(table,
-                                                     table->write_set);
+    MY_BITMAP *old_map= dbug_tmp_use_all_columns(table,
+                                                 &table->write_set);
     int res= FALSE;
 
     /* 
@@ -2017,7 +2017,7 @@ public:
     */
     if (!res && table->in_use->is_error())
       res= 1; /* STORE_KEY_FATAL */
-    dbug_tmp_restore_column_map(table->write_set, old_map);
+    dbug_tmp_restore_column_map(&table->write_set, old_map);
     null_key= to_field->is_null() || item->null_value;
     return ((err != 0 || res < 0 || res > 2) ? STORE_KEY_FATAL : 
             (store_key_result) res);
@@ -2053,8 +2053,8 @@ protected:
     {
       inited=1;
       TABLE *table= to_field->table;
-      my_bitmap_map *old_map= dbug_tmp_use_all_columns(table,
-                                                       table->write_set);
+      MY_BITMAP *old_map= dbug_tmp_use_all_columns(table,
+                                                   &table->write_set);
       if ((res= item->save_in_field(to_field, 1)))
       {       
         if (!err)
@@ -2066,7 +2066,7 @@ protected:
         */
       if (!err && to_field->table->in_use->is_error())
         err= 1; /* STORE_KEY_FATAL */
-      dbug_tmp_restore_column_map(table->write_set, old_map);
+      dbug_tmp_restore_column_map(&table->write_set, old_map);
     }
     null_key= to_field->is_null() || item->null_value;
     return (err > 2 ? STORE_KEY_FATAL : (store_key_result) err);

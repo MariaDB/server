@@ -1,9 +1,10 @@
 set connect_enable_mongo=1;
+set connect_json_all_path=0;
 
 --echo #
 --echo # Test the MONGO table type
 --echo #
-eval CREATE TABLE t1 (Document varchar(1024) field_format='*')
+eval CREATE TABLE t1 (Document varchar(1024) JPATH='*')
 ENGINE=CONNECT TABLE_TYPE=$TYPE TABNAME=restaurants $CONN
 OPTION_LIST='Driver=$DRV,Version=$VERS' DATA_CHARSET=utf8;
 SELECT * from t1 limit 3;
@@ -13,7 +14,7 @@ DROP TABLE t1;
 --echo # Test catfunc
 --echo #
 eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=$TYPE TABNAME=restaurants CATFUNC=columns
-OPTION_LIST='Level=1,Driver=$DRV,Version=$VERS' DATA_CHARSET=utf8 $CONN;
+OPTION_LIST='Depth=1,Driver=$DRV,Version=$VERS' DATA_CHARSET=utf8 $CONN;
 SELECT * from t1;
 DROP TABLE t1;
 
@@ -36,7 +37,7 @@ DROP TABLE t1;
 --echo # Test discovery
 --echo #
 eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=$TYPE TABNAME=restaurants
-OPTION_LIST='Level=1,Driver=$DRV,Version=$VERS' $CONN DATA_CHARSET=utf8;
+OPTION_LIST='Depth=1,Driver=$DRV,Version=$VERS' $CONN DATA_CHARSET=utf8;
 SHOW CREATE TABLE t1;
 SELECT * FROM t1 LIMIT 5;
 DROP TABLE t1;
@@ -58,12 +59,12 @@ _id VARCHAR(24) NOT NULL,
 name VARCHAR(64) NOT NULL,
 cuisine CHAR(200) NOT NULL,
 borough CHAR(16) NOT NULL,
-street VARCHAR(65) FIELD_FORMAT='address.street',
-building CHAR(16) FIELD_FORMAT='address.building',
-zipcode CHAR(5) FIELD_FORMAT='address.zipcode',
-grade CHAR(1) FIELD_FORMAT='grades.0.grade',
-score INT(4) NOT NULL FIELD_FORMAT='grades.0.score',
-`date` DATE FIELD_FORMAT='grades.0.date',
+street VARCHAR(65) JPATH='address.street',
+building CHAR(16) JPATH='address.building',
+zipcode CHAR(5) JPATH='address.zipcode',
+grade CHAR(1) JPATH='grades.0.grade',
+score INT(4) NOT NULL JPATH='grades.0.score',
+`date` DATE JPATH='grades.0.date',
 restaurant_id VARCHAR(255) NOT NULL)
 ENGINE=CONNECT TABLE_TYPE=$TYPE TABNAME='restaurants' DATA_CHARSET=utf8
 OPTION_LIST='Driver=$DRV,Version=$VERS' $CONN;
@@ -125,6 +126,10 @@ IF ($TYPE == JSON)
 {
 SELECT name, borough, address_street, grades_score AS score FROM t1 WHERE grades_grade = 'B';
 }
+IF ($TYPE == BSON)
+{
+SELECT name, borough, address_street, grades_score AS score FROM t1 WHERE grades_grade = 'B';
+}
 DROP TABLE t1;
 
 --echo #
@@ -156,8 +161,8 @@ DROP TABLE t1;
 eval CREATE TABLE t1 (
   _id char(5) NOT NULL,
   city char(16) NOT NULL,
-  loc_0 double(12,6) NOT NULL `FIELD_FORMAT`='loc.0',
-  loc_1 char(12) NOT NULL `FIELD_FORMAT`='loc.1',
+  loc_0 double(12,6) NOT NULL `JPATH`='loc.0',
+  loc_1 char(12) NOT NULL `JPATH`='loc.1',
   pop int(11) NOT NULL,
   state char(2) NOT NULL)
 ENGINE=CONNECT CONNECTION='mongodb://localhost:27017' TABLE_TYPE=$TYPE TABNAME='cities'
@@ -181,11 +186,11 @@ DROP TABLE t1;
 eval CREATE TABLE t1 (
   _id int(4) NOT NULL,
   item CHAR(8) NOT NULL,
-  prices_0 INT(6) FIELD_FORMAT='prices.0',
-  prices_1 INT(6) FIELD_FORMAT='prices.1',
-  prices_2 INT(6) FIELD_FORMAT='prices.2',
-  prices_3 INT(6) FIELD_FORMAT='prices.3',
-  prices_4 INT(6) FIELD_FORMAT='prices.4')
+  prices_0 INT(6) JPATH='prices.0',
+  prices_1 INT(6) JPATH='prices.1',
+  prices_2 INT(6) JPATH='prices.2',
+  prices_3 INT(6) JPATH='prices.3',
+  prices_4 INT(6) JPATH='prices.4')
 ENGINE=CONNECT TABLE_TYPE=$TYPE TABNAME='testcoll' DATA_CHARSET=utf8
 OPTION_LIST='Driver=$DRV,Version=$VERS' $CONN;
 INSERT INTO t1 VALUES

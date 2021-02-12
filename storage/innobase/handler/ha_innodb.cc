@@ -1849,9 +1849,7 @@ thd_to_trx_id(
 	return(thd_to_trx(thd)->id);
 }
 
-static int
-wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
-			my_bool signal);
+static void wsrep_abort_transaction(handlerton*, THD *, THD *, my_bool);
 static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 #endif /* WITH_WSREP */
@@ -3496,6 +3494,12 @@ static int innodb_init_abort()
 	DBUG_RETURN(1);
 }
 
+/** Deprecation message about innodb_idle_flush_pct */
+static const char*	deprecated_idle_flush_pct
+	= "innodb_idle_flush_pct is DEPRECATED and has no effect.";
+
+static ulong innodb_idle_flush_pct;
+
 /** If applicable, emit a message that log checksums cannot be disabled.
 @param[in,out]	thd	client session, or NULL if at startup
 @param[in]	check	whether redo log block checksums are enabled
@@ -5028,6 +5032,7 @@ innobase_close_connection(
 
 	if (trx) {
 
+		thd_set_ha_data(thd, hton, NULL);
 		if (!trx_is_registered_for_2pc(trx) && trx_is_started(trx)) {
 
 			sql_print_error("Transaction not registered for MariaDB 2PC, "
@@ -17111,7 +17116,8 @@ innodb_io_capacity_update(
 				    " higher than innodb_io_capacity_max %lu",
 				    in_val, srv_max_io_capacity);
 
-		srv_max_io_capacity = in_val * 2;
+		srv_max_io_capacity = (in_val & ~(~0UL >> 1))
+			? in_val : in_val * 2;
 
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
@@ -18574,7 +18580,7 @@ comparison as in the local certification failure.
 @param[in,out]	victim_trx	Vimtim trx to be killed
 @param[in]	signal		Should victim be signaled */
 UNIV_INTERN
-int
+void
 wsrep_innobase_kill_one_trx(
 	THD* bf_thd,
 	trx_t *victim_trx,
@@ -18631,7 +18637,7 @@ wsrep_innobase_kill_one_trx(
 	{
 	  WSREP_DEBUG("innodb kill transaction skipped due to wsrep_aborter set");
 	  wsrep_thd_UNLOCK(thd);
-	  DBUG_RETURN(0);
+	  DBUG_VOID_RETURN;
 	}
 
 	/* Note that we need to release this as it will be acquired
@@ -18653,7 +18659,7 @@ wsrep_innobase_kill_one_trx(
 		}
 	}
 
-	DBUG_RETURN(0);
+	DBUG_VOID_RETURN;
 }
 
 /** This function forces the victim transaction to abort. Aborting the
@@ -18666,14 +18672,14 @@ wsrep_innobase_kill_one_trx(
   @return -1 victim thread was aborted (no transaction)
 */
 static
-int
+void
 wsrep_abort_transaction(
 	handlerton*,
 	THD *bf_thd,
 	THD *victim_thd,
 	my_bool signal)
 {
-	DBUG_ENTER("wsrep_innobase_abort_thd");
+	DBUG_ENTER("wsrep_abort_transaction");
 	ut_ad(bf_thd);
 	ut_ad(victim_thd);
 
@@ -18687,17 +18693,16 @@ wsrep_abort_transaction(
 	if (victim_trx) {
 		lock_mutex_enter();
 		trx_mutex_enter(victim_trx);
-		int rcode= wsrep_innobase_kill_one_trx(bf_thd,
-						       victim_trx, signal);
+		wsrep_innobase_kill_one_trx(bf_thd, victim_trx, signal);
 		trx_mutex_exit(victim_trx);
 		lock_mutex_exit();
 		wsrep_srv_conc_cancel_wait(victim_trx);
-		DBUG_RETURN(rcode);
+		DBUG_VOID_RETURN;
 	} else {
 		wsrep_thd_bf_abort(bf_thd, victim_thd, signal);
 	}
 
-	DBUG_RETURN(-1);
+	DBUG_VOID_RETURN;
 }
 
 static
@@ -18731,6 +18736,14 @@ innobase_wsrep_get_checkpoint(
         return 0;
 }
 #endif /* WITH_WSREP */
+
+static void innodb_idle_flush_pct_update(THD *thd, st_mysql_sys_var *var,
+                                         void*, const void *save)
+{
+  innodb_idle_flush_pct = *static_cast<const ulong*>(save);
+  push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+               HA_ERR_WRONG_COMMAND, deprecated_idle_flush_pct);
+}
 
 /* plugin options */
 
@@ -18821,12 +18834,10 @@ static MYSQL_SYSVAR_ULONG(io_capacity_max, srv_max_io_capacity,
   SRV_MAX_IO_CAPACITY_DUMMY_DEFAULT, 100,
   SRV_MAX_IO_CAPACITY_LIMIT, 0);
 
-static MYSQL_SYSVAR_ULONG(idle_flush_pct,
-  srv_idle_flush_pct,
+static MYSQL_SYSVAR_ULONG(idle_flush_pct, innodb_idle_flush_pct,
   PLUGIN_VAR_RQCMDARG,
-  "Up to what percentage of dirty pages should be flushed when innodb "
-  "finds it has spare resources to do so.",
-  NULL, NULL, 100, 0, 100, 0);
+  "DEPRECATED. This setting has no effect.",
+  NULL, innodb_idle_flush_pct_update, 100, 0, 100, 0);
 
 #ifdef UNIV_DEBUG
 static MYSQL_SYSVAR_BOOL(background_drop_list_empty,
@@ -20359,7 +20370,7 @@ static bool table_name_parse(
 	memcpy(tbl_buf, tbl_name.m_name + dbnamelen + 1, tblnamelen);
 	tbl_buf[tblnamelen] = 0;
 
-	filename_to_tablename(db_buf, dbname, MAX_DATABASE_NAME_LEN + 1, true);
+	dbnamelen = filename_to_tablename(db_buf, dbname, MAX_DATABASE_NAME_LEN + 1, true);
 
 	if (tblnamelen > TEMP_FILE_PREFIX_LENGTH
 	    && !strncmp(tbl_buf, TEMP_FILE_PREFIX, TEMP_FILE_PREFIX_LENGTH)) {
@@ -20371,7 +20382,7 @@ static bool table_name_parse(
 		tblnamelen = is_part - tbl_buf;
 	}
 
-	filename_to_tablename(tbl_buf, tblname, MAX_TABLE_NAME_LEN + 1, true);
+	tblnamelen = filename_to_tablename(tbl_buf, tblname, MAX_TABLE_NAME_LEN + 1, true);
 	return true;
 }
 
@@ -20803,11 +20814,11 @@ innobase_get_computed_value(
 
 	field = dtuple_get_nth_v_field(row, col->v_pos);
 
-	my_bitmap_map*	old_write_set = dbug_tmp_use_all_columns(mysql_table, mysql_table->write_set);
-	my_bitmap_map*	old_read_set = dbug_tmp_use_all_columns(mysql_table, mysql_table->read_set);
+	MY_BITMAP *old_write_set = dbug_tmp_use_all_columns(mysql_table, &mysql_table->write_set);
+	MY_BITMAP *old_read_set = dbug_tmp_use_all_columns(mysql_table, &mysql_table->read_set);
 	ret = mysql_table->update_virtual_field(mysql_table->field[col->m_col.ind]);
-	dbug_tmp_restore_column_map(mysql_table->read_set, old_read_set);
-	dbug_tmp_restore_column_map(mysql_table->write_set, old_write_set);
+	dbug_tmp_restore_column_map(&mysql_table->read_set, old_read_set);
+	dbug_tmp_restore_column_map(&mysql_table->write_set, old_write_set);
 
 	if (ret != 0) {
 		DBUG_RETURN(NULL);

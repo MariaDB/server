@@ -22,10 +22,11 @@
   that is defined in plugin.h
 */
 #define SHOW_always_last SHOW_KEY_CACHE_LONG, \
-            SHOW_LONG_STATUS, SHOW_DOUBLE_STATUS, \
             SHOW_HAVE, SHOW_MY_BOOL, SHOW_HA_ROWS, SHOW_SYS, \
-            SHOW_LONG_NOFLUSH, SHOW_LONGLONG_STATUS, SHOW_UINT32_STATUS, \
-            SHOW_LEX_STRING, SHOW_ATOMIC_COUNTER_UINT32_T
+            SHOW_LONG_NOFLUSH, SHOW_LEX_STRING, SHOW_ATOMIC_COUNTER_UINT32_T, \
+      /* SHOW_*_STATUS must be at the end, SHOW_LONG_STATUS being first */ \
+            SHOW_LONG_STATUS, SHOW_DOUBLE_STATUS, SHOW_LONGLONG_STATUS, \
+            SHOW_UINT32_STATUS
 #include "mariadb.h"
 #undef SHOW_always_last
 
@@ -204,4 +205,3 @@ extern void sync_dynamic_session_variables(THD* thd, bool global_lock);
 extern void wsrep_plugins_pre_init();
 extern void wsrep_plugins_post_init();
 #endif /* WITH_WSREP */
-

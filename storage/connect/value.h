@@ -65,7 +65,8 @@ DllExport BYTE OpBmp(PGLOBAL g, OPVAL opc);
 /***********************************************************************/
 class DllExport VALUE : public BLOCK {
   friend class CONSTANT; // The only object allowed to use SetConstFormat
- public:
+	friend class SWAP;     // The only class allowed to access protected
+public:
   // Constructors
 
   // Implementation
@@ -260,7 +261,8 @@ class DllExport TYPVAL : public VALUE {
 /***********************************************************************/
 template <>
 class DllExport TYPVAL<PSZ>: public VALUE {
- public:
+	friend class SWAP;     // The only class allowed to offsets Strg
+public:
   // Constructors
   TYPVAL(PSZ s, short c = 0);
   TYPVAL(PGLOBAL g, PSZ s, int n, int c);
@@ -346,7 +348,8 @@ class DllExport DECVAL: public TYPVAL<PSZ> {
 /*  Specific BINARY class.                                             */
 /***********************************************************************/
 class DllExport BINVAL: public VALUE {
- public:
+	friend class SWAP;     // The only class allowed to offsets pointers
+public:
   // Constructors
 //BINVAL(void *p);
   BINVAL(PGLOBAL g, void *p, int cl, int n);
@@ -415,7 +418,8 @@ class DllExport DTVAL : public TYPVAL<int> {
   virtual bool   SetValue_char(const char *p, int n);
   virtual void   SetValue_psz(PCSZ s);
   virtual void   SetValue_pvblk(PVBLK blk, int n);
-  virtual char  *GetCharString(char *p);
+	virtual PSZ    GetCharValue(void) { return Sdate; }
+	virtual char  *GetCharString(char *p);
   virtual int    ShowValue(char *buf, int len);
   virtual bool   FormatValue(PVAL vp, PCSZ fmt);
           bool   SetFormat(PGLOBAL g, PCSZ fmt, int len, int year = 0);

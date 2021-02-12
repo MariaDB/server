@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -2548,7 +2548,9 @@ void innodb_shutdown()
 
 	srv_sys_space.shutdown();
 	if (srv_tmp_space.get_sanity_check_status()) {
-		fil_system.temp_space->close();
+		if (fil_system.temp_space) {
+			fil_system.temp_space->close();
+		}
 		srv_tmp_space.delete_files();
 	}
 	srv_tmp_space.shutdown();

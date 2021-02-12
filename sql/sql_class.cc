@@ -450,6 +450,7 @@ void thd_set_ha_data(THD *thd, const struct handlerton *hton,
                      const void *ha_data)
 {
   plugin_ref *lock= &thd->ha_data[hton->slot].lock;
+  DBUG_ASSERT(thd == current_thd);
   if (ha_data && !*lock)
     *lock= ha_lock_engine(NULL, (handlerton*) hton);
   else if (!ha_data && *lock)
@@ -457,7 +458,9 @@ void thd_set_ha_data(THD *thd, const struct handlerton *hton,
     plugin_unlock(NULL, *lock);
     *lock= NULL;
   }
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   *thd_ha_data(thd, hton)= (void*) ha_data;
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 }
 
 
@@ -1512,30 +1515,15 @@ void THD::reset_db(const LEX_CSTRING *new_db)
 
 /* Do operations that may take a long time */
 
-void THD::cleanup(bool have_mutex)
+void THD::cleanup(void)
 {
   DBUG_ENTER("THD::cleanup");
   DBUG_ASSERT(cleanup_done == 0);
 
-  if (have_mutex)
-    set_killed_no_mutex(KILL_CONNECTION,0,0);
-  else
-    set_killed(KILL_CONNECTION);
+  set_killed(KILL_CONNECTION);
 #ifdef WITH_WSREP
   if (wsrep_cs().state() != wsrep::client_state::s_none)
-  {
-    if (have_mutex)
-    {
-      mysql_mutex_assert_owner(static_cast<mysql_mutex_t*>
-                               (m_wsrep_mutex.native()));
-      // Below wsrep-lib function will not acquire any mutexes
-      wsrep::unique_lock<wsrep::mutex> lock(m_wsrep_mutex, std::adopt_lock);
-      wsrep_cs().cleanup(lock);
-      lock.release();
-    }
-    else
-      wsrep_cs().cleanup();
-  }
+    wsrep_cs().cleanup();
   wsrep_client_thread= false;
 #endif /* WITH_WSREP */
 
@@ -1611,28 +1599,6 @@ void THD::cleanup(bool have_mutex)
 void THD::free_connection()
 {
   DBUG_ASSERT(free_connection_done == 0);
-  /* Make sure threads are not available via server_threads.  */
-  assert_not_linked();
-
-  /*
-    Other threads may have a lock on THD::LOCK_thd_data or
-    THD::LOCK_thd_kill to ensure that this THD is not deleted
-    while they access it. The following mutex_lock ensures
-    that no one else is using this THD and it's now safe to
-    continue.
-
-    For example consider KILL-statement execution on
-    sql_parse.cc kill_one_thread() that will use
-    THD::LOCK_thd_data to protect victim thread during
-    THD::awake().
-  */
-  mysql_mutex_lock(&LOCK_thd_data);
-  mysql_mutex_lock(&LOCK_thd_kill);
-
-#ifdef WITH_WSREP
-  delete wsrep_rgi;
-  wsrep_rgi= nullptr;
-#endif /* WITH_WSREP */
   my_free(const_cast<char*>(db.str));
   db= null_clex_str;
 #ifndef EMBEDDED_LIBRARY
@@ -1641,8 +1607,8 @@ void THD::free_connection()
   net.vio= nullptr;
   net_end(&net);
 #endif
-  if (!cleanup_done)
-    cleanup(true); // We have locked THD::LOCK_thd_kill
+ if (!cleanup_done)
+   cleanup();
   ha_close_connection(this);
   plugin_thdvar_cleanup(this);
   mysql_audit_free_thd(this);
@@ -1653,8 +1619,6 @@ void THD::free_connection()
 #if defined(ENABLED_PROFILING)
   profiling.restart();                          // Reset profiling
 #endif
-  mysql_mutex_unlock(&LOCK_thd_kill);
-  mysql_mutex_unlock(&LOCK_thd_data);
 }
 
 /*
@@ -1708,6 +1672,17 @@ THD::~THD()
   if (!status_in_global)
     add_status_to_global();
 
+  /*
+    Other threads may have a lock on LOCK_thd_kill to ensure that this
+    THD is not deleted while they access it. The following mutex_lock
+    ensures that no one else is using this THD and it's now safe to delete
+  */
+  mysql_mutex_lock(&LOCK_thd_kill);
+  mysql_mutex_unlock(&LOCK_thd_kill);
+
+#ifdef WITH_WSREP
+  delete wsrep_rgi;
+#endif
   if (!free_connection_done)
     free_connection();
 
@@ -5085,6 +5060,16 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
   DBUG_EXECUTE_IF("disable_thd_need_ordering_with", return 1;);
   if (!thd || !other_thd)
     return 1;
+#ifdef WITH_WSREP
+  /* wsrep applier, replayer and TOI processing threads are ordered
+     by replication provider, relaxed GAP locking protocol can be used
+     between high priority wsrep threads
+  */
+  if (WSREP_ON &&
+      wsrep_thd_is_BF(const_cast<THD *>(thd), false) &&
+      wsrep_thd_is_BF(const_cast<THD *>(other_thd), true))
+    return 0;
+#endif /* WITH_WSREP */
   rgi= thd->rgi_slave;
   other_rgi= other_thd->rgi_slave;
   if (!rgi || !other_rgi)

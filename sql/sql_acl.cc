@@ -3159,6 +3159,12 @@ end:
 
 int acl_check_setrole(THD *thd, const char *rolename, ulonglong *access)
 {
+  if (!initialized)
+  {
+    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-grant-tables");
+    return 1;
+  }
+
   return check_user_can_set_role(thd, thd->security_ctx->priv_user,
            thd->security_ctx->host, thd->security_ctx->ip, rolename, access);
 }

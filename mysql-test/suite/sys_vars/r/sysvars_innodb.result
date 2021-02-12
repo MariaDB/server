@@ -1106,7 +1106,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	100
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Up to what percentage of dirty pages should be flushed when innodb finds it has spare resources to do so.
+VARIABLE_COMMENT	DEPRECATED. This setting has no effect.
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	100
 NUMERIC_BLOCK_SIZE	0

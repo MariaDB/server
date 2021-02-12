@@ -1557,6 +1557,7 @@ DROP TABLE t1;
 # MariaDB: Note that the table will still have 'TRANSACTIONAL=1' attribute.
 # That's the intended behavior atm.
 #
+set statement sql_mode='' for
 create table t1 (n int not null, c char(1)) transactional=1;
 show create table t1;
 drop table t1;

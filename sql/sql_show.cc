@@ -2147,7 +2147,6 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                            !foreign_db_mode;
   bool check_options= !(sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS) &&
                       !create_info_arg;
-  my_bitmap_map *old_map;
   handlerton *hton;
   int error= 0;
   DBUG_ENTER("show_create_table");
@@ -2214,7 +2213,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     We have to restore the read_set if we are called from insert in case
     of row based replication.
   */
-  old_map= tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *old_map= tmp_use_all_columns(table, &table->read_set);
 
   bool not_the_first_field= false;
   for (ptr=table->field ; (field= *ptr); ptr++)
@@ -2259,8 +2258,13 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       /*
 	For string types dump collation name only if
 	collation is not primary for the given charset
+
+        For generated fields don't print the COLLATE clause if
+        the collation matches the expression's collation.
       */
-      if (!(field->charset()->state & MY_CS_PRIMARY) && !field->vcol_info)
+      if (!(field->charset()->state & MY_CS_PRIMARY) &&
+          (!field->vcol_info ||
+           field->charset() != field->vcol_info->expr->collation.collation))
       {
 	packet->append(STRING_WITH_LEN(" COLLATE "));
 	packet->append(field->charset()->name);
@@ -2516,7 +2520,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     }
   }
 #endif
-  tmp_restore_column_map(table->read_set, old_map);
+  tmp_restore_column_map(&table->read_set, old_map);
   DBUG_RETURN(error);
 }
 
@@ -3832,6 +3836,16 @@ static bool show_status_array(THD *thd, const char *wild,
 
         if (show_type == SHOW_SYS)
           mysql_mutex_lock(&LOCK_global_system_variables);
+        else if (show_type >= SHOW_LONG_STATUS && scope == OPT_GLOBAL &&
+                 !status_var->local_memory_used)
+        {
+          mysql_mutex_lock(&LOCK_status);
+          *status_var= global_status_var;
+          mysql_mutex_unlock(&LOCK_status);
+          calc_sum_of_all_status(status_var);
+          DBUG_ASSERT(status_var->local_memory_used);
+        }
+
         pos= get_one_variable(thd, var, scope, show_type, status_var,
                               &charset, buff, &length);
 
@@ -3889,7 +3903,6 @@ uint calc_sum_of_all_status(STATUS_VAR *to)
   calc_sum_callback_arg arg(to);
   DBUG_ENTER("calc_sum_of_all_status");
 
-  *to= global_status_var;
   to->local_memory_used= 0;
   /* Add to this status from existing threads */
   server_threads.iterate(calc_sum_callback, &arg);
@@ -5298,6 +5311,12 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
                 continue;
             }
 
+            if (thd->killed == ABORT_QUERY)
+            {
+              error= 0;
+              goto err;
+            }
+
             DEBUG_SYNC(thd, "before_open_in_get_all_tables");
             if (fill_schema_table_by_open(thd, &tmp_mem_root, FALSE,
                                           table, schema_table,
@@ -5866,7 +5885,7 @@ static bool print_anchor_data_type(const Spvar_definition *def,
   Let's print it according to the current sql_mode.
   It will make output in line with the value in mysql.proc.param_list,
   so both I_S.XXX.DTD_IDENTIFIER and mysql.proc.param_list use the same notation:
-  default or Oracle, according to the sql_mode at the SP creation time. 
+  default or Oracle, according to the sql_mode at the SP creation time.
   The caller must make sure to set thd->variables.sql_mode to the routine sql_mode.
 */
 static bool print_anchor_dtd_identifier(THD *thd, const Spvar_definition *def,
@@ -7970,10 +7989,7 @@ int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
   if (partial_cond)
     partial_cond->val_int();
 
-  if (scope == OPT_GLOBAL)
-  {
-    calc_sum_of_all_status(&tmp);
-  }
+  tmp.local_memory_used= 0; // meaning tmp was not populated yet
 
   mysql_rwlock_rdlock(&LOCK_all_status_vars);
   res= show_status_array(thd, wild,

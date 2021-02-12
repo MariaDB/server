@@ -22,7 +22,6 @@
 #include "rpl_rli.h"
 #include "log_event.h"
 #include "sql_parse.h"
-#include "sql_base.h" // close_thread_tables()
 #include "mysqld.h"   // start_wsrep_THD();
 #include "wsrep_applier.h"   // start_wsrep_THD();
 #include "mysql/service_wsrep.h"

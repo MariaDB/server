@@ -2097,7 +2097,7 @@ JOIN::optimize_inner()
             join->optimization_state == JOIN::OPTIMIZATION_PHASE_1_DONE &&
             join->with_two_phase_optimization)
           continue;
-        /* 
+        /*
           Do not push conditions from where into materialized inner tables
           of outer joins: this is not valid.
         */
@@ -2298,7 +2298,7 @@ setup_subq_exit:
   if (with_two_phase_optimization)
     optimization_state= JOIN::OPTIMIZATION_PHASE_1_DONE;
   else
-  { 
+  {
     if (optimize_stage2())
       DBUG_RETURN(1);
   }
@@ -2318,7 +2318,7 @@ int JOIN::optimize_stage2()
 
   if (unlikely(thd->check_killed()))
     DBUG_RETURN(1);
-  
+
   /* Generate an execution plan from the found optimal join order. */
   if (get_best_combination())
     DBUG_RETURN(1);
@@ -3965,7 +3965,7 @@ bool JOIN::setup_subquery_caches()
     if (tmp_having)
     {
       DBUG_ASSERT(having == NULL);
-      if (!(tmp_having= 
+      if (!(tmp_having=
             tmp_having->transform(thd,
                                   &Item::expr_cache_insert_transformer,
                                   NULL)))
@@ -6893,7 +6893,7 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   Special treatment for ft-keys.
 */
 
-bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse, 
+bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
                             bool skip_unprefixed_keyparts)
 {
   KEYUSE key_end, *prev, *save_pos, *use;
@@ -8064,7 +8064,7 @@ best_access_path(JOIN      *join,
   pos->use_join_buffer= best_uses_jbuf;
   pos->spl_plan= spl_plan;
   pos->range_rowid_filter_info= best_filter;
-   
+
   loose_scan_opt.save_to_position(s, loose_scan_pos);
 
   if (!best_key &&
@@ -10208,7 +10208,7 @@ bool JOIN::check_two_phase_optimization(THD *thd)
     return true;
   return false;
 }
-  
+
 
 bool JOIN::inject_cond_into_where(Item *injected_cond)
 {
@@ -10239,7 +10239,7 @@ bool JOIN::inject_cond_into_where(Item *injected_cond)
       and_args->push_back(elem, thd->mem_root);
     }
   }
-  
+
   return false;
 
 }
@@ -24036,7 +24036,7 @@ bool
 cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref)
 {
   Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
   bool result= 0;
 
   for (store_key **copy=ref->key_copy ; *copy ; copy++)
@@ -24047,7 +24047,7 @@ cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref)
       break;
     }
   }
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
   return result;
 }
 
@@ -25718,7 +25718,7 @@ bool JOIN::rollup_init()
   {
     if (!(rollup.null_items[i]= new (thd->mem_root) Item_null_result(thd)))
       return true;
-    
+
     List<Item> *rollup_fields= &rollup.fields[i];
     rollup_fields->empty();
     rollup.ref_pointer_arrays[i]= Ref_ptr_array(ref_array, all_fields.elements);
@@ -26228,7 +26228,7 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
   {
     JOIN_TAB *ctab= bush_children->start;
     /* table */
-    size_t len= my_snprintf(table_name_buffer, 
+    size_t len= my_snprintf(table_name_buffer,
                          sizeof(table_name_buffer)-1,
                          "<subquery%d>", 
                          ctab->emb_sj_nest->sj_subq_pred->get_identifier());
@@ -27403,7 +27403,7 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
 void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 {
   DBUG_ASSERT(thd);
-  
+
   if (tvc)
   {
     tvc->print(thd, str, query_type);

@@ -2220,6 +2220,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       break;
     general_log_print(thd, command, NullS);
     status_var_increment(thd->status_var.com_stat[SQLCOM_SHOW_STATUS]);
+    *current_global_status_var= global_status_var;
     calc_sum_of_all_status(current_global_status_var);
     if (!(uptime= (ulong) (thd->start_time - server_start_time)))
       queries_per_second1000= 0;

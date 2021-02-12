@@ -908,7 +908,7 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
   bmove_align(buf, table->s->default_values, table->s->reclength);
   key_restore(buf, (byte*) key, key_info, key_len);
 
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   my_ptrdiff_t ptrdiff= buf - table->record[0];
 
   if (ptrdiff)
@@ -937,7 +937,7 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
           field[1]->move_field_offset(-ptrdiff);
           field[2]->move_field_offset(-ptrdiff);
         }
-        dbug_tmp_restore_column_map(table->read_set, old_map);
+        dbug_tmp_restore_column_map(&table->read_set, old_map);
         return error_code(oqgraph::NO_MORE_DATA);
       }
     }
@@ -962,7 +962,7 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
     field[1]->move_field_offset(-ptrdiff);
     field[2]->move_field_offset(-ptrdiff);
   }
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
 
   // Keep the latch around so we can use it in the query result later -
   // See fill_record().
@@ -995,7 +995,7 @@ int ha_oqgraph::fill_record(byte *record, const open_query::row &row)
 
   bmove_align(record, table->s->default_values, table->s->reclength);
 
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
   my_ptrdiff_t ptrdiff= record - table->record[0];
 
   if (ptrdiff)
@@ -1071,7 +1071,7 @@ int ha_oqgraph::fill_record(byte *record, const open_query::row &row)
     field[4]->move_field_offset(-ptrdiff);
     field[5]->move_field_offset(-ptrdiff);
   }
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
 
   return 0;
 }
