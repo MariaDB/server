@@ -457,15 +457,21 @@ bool wsrep_provider_options_check(sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_provider_options_update(sys_var *self, THD* thd, enum_var_type type)
 {
-  enum wsrep::provider::status ret=
-    Wsrep_server_state::instance().provider().options(wsrep_provider_options);
-  if (ret)
+  if (wsrep_provider_options)
   {
-    WSREP_ERROR("Set options returned %d", ret);
-    refresh_provider_options();
-    return true;
+    enum wsrep::provider::status ret=
+      Wsrep_server_state::instance().provider().options(wsrep_provider_options);
+    if (ret)
+    {
+      WSREP_ERROR("Set options returned %d", ret);
+      goto err;
+    }
+
+    return refresh_provider_options();
   }
-  return refresh_provider_options();
+err:
+  refresh_provider_options();
+  return true;
 }
 
 void wsrep_provider_options_init(const char* value)
