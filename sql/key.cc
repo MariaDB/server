@@ -906,9 +906,12 @@ int key_period_compare_bases(const KEY &lhs_key, const KEY &rhs_key,
   int cmp_res= 0;
   for (uint part_nr= 0; !cmp_res && part_nr < base_part_nr; part_nr++)
   {
-    Field *f= lhs_key.key_part[part_nr].field;
-    cmp_res= f->cmp(f->ptr_in_record(lhs),
-                    rhs_key.key_part[part_nr].field->ptr_in_record(rhs));
+    Field *fl= lhs_key.key_part[part_nr].field;
+    Field *fr= rhs_key.key_part[part_nr].field;
+    uint kp_len= MY_MIN(lhs_key.key_part[part_nr].length,
+                        rhs_key.key_part[part_nr].length);
+    cmp_res= fl->cmp_max(fl->ptr_in_record(lhs), fr->ptr_in_record(rhs),
+                         kp_len);
   }
 
   return cmp_res;
@@ -925,17 +928,13 @@ int key_period_compare_periods(const KEY &lhs_key, const KEY &rhs_key,
   Field *rhs_fields[]= {rhs_key.key_part[base_part_nr + 1].field,
                         rhs_key.key_part[base_part_nr].field};
 
-  int cmp[2][2]; /* l1 > l2, l1 > r2, r1 > l2, r1 > r2 */
-  for (int i= 0; i < 2; i++)
-  {
-    for (int j= 0; j < 2; j++)
-    {
-      cmp[i][j]= lhs_fields[0]->cmp(lhs_fields[i]->ptr_in_record(lhs),
-                                    rhs_fields[j]->ptr_in_record(rhs));
-    }
-  }
+  const Field *f= lhs_fields[0];
 
-  bool overlaps = (cmp[0][0] <= 0 && cmp[1][0] > 0)
-                  || (cmp[0][0] >= 0 && cmp[0][1] < 0);
-  return overlaps ? 0 : cmp[0][0];
+  if (f->cmp(lhs_fields[1]->ptr_in_record(lhs),
+             rhs_fields[0]->ptr_in_record(rhs)) <= 0)
+    return -1;
+  if (f->cmp(lhs_fields[0]->ptr_in_record(lhs),
+             rhs_fields[1]->ptr_in_record(rhs)) >= 0)
+    return 1;
+  return 0;
 }

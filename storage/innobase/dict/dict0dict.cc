@@ -2961,7 +2961,7 @@ dict_foreign_add_to_cache(
 			ref_table, NULL,
 			for_in_cache->referenced_col_names,
 			for_in_cache->n_fields, for_in_cache->foreign_index,
-			check_charsets, false, foreign->has_period);
+			check_charsets, false, for_in_cache->has_period);
 
 		if (index == NULL
 		    && !(ignore_err & DICT_ERR_IGNORE_FK_NOKEY)) {
