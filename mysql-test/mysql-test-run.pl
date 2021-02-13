@@ -268,8 +268,12 @@ our %gprof_dirs;
 
 our $glob_debugger= 0;
 our $opt_gdb;
+my $opt_rr;
+my $opt_rr_dir;
+my @rr_record_args;
 our $opt_client_gdb;
 my $opt_boot_gdb;
+my $opt_boot_rr;
 our $opt_dbx;
 our $opt_client_dbx;
 my $opt_boot_dbx;
@@ -1323,10 +1327,14 @@ sub command_line_setup {
              'debug-common'             => \$opt_debug_common,
              'debug-server'             => \$opt_debug_server,
              'gdb=s'                    => \$opt_gdb,
+             'rr'                       => \$opt_rr,
+             'rr-arg=s'                 => \@rr_record_args,
+             'rr-dir=s'                 => \$opt_rr_dir,
              'client-gdb'               => \$opt_client_gdb,
              'manual-gdb'               => \$opt_manual_gdb,
              'manual-lldb'              => \$opt_manual_lldb,
 	     'boot-gdb'                 => \$opt_boot_gdb,
+	     'boot-rr'                  => \$opt_boot_rr,
              'manual-debug'             => \$opt_manual_debug,
              'ddd'                      => \$opt_ddd,
              'client-ddd'               => \$opt_client_ddd,
@@ -1801,8 +1809,8 @@ sub command_line_setup {
   $ENV{LSAN_OPTIONS}= "suppressions=${glob_mysql_test_dir}/lsan.supp"
     if -f "$glob_mysql_test_dir/lsan.supp" and not IS_WINDOWS;
 
-  if ( $opt_gdb || $opt_client_gdb || $opt_ddd || $opt_client_ddd || 
-       $opt_manual_gdb || $opt_manual_lldb || $opt_manual_ddd || 
+  if ( $opt_gdb || $opt_client_gdb || $opt_ddd || $opt_client_ddd || $opt_rr ||
+       $opt_manual_gdb || $opt_manual_lldb || $opt_manual_ddd ||
        $opt_manual_debug || $opt_dbx || $opt_client_dbx || $opt_manual_dbx || 
        $opt_debugger || $opt_client_debugger )
   {
@@ -1822,6 +1830,16 @@ sub command_line_setup {
     $opt_shutdown_timeout= 24 * 60;
     # One day for PID file creation (this is given in seconds not minutes)
     $opt_start_timeout= 24 * 60 * 60;
+    if ($opt_rr && open(my $fh, '<', '/proc/sys/kernel/perf_event_paranoid'))
+    {
+      my $perf_event_paranoid= <$fh>;
+      close $fh;
+      chomp $perf_event_paranoid;
+      if ($perf_event_paranoid == 0)
+      {
+        mtr_error("rr requires kernel.perf_event_paranoid set to 1");
+      }
+    }
   }
   mtr_verbose("ASAN_OPTIONS=$ENV{ASAN_OPTIONS}");
 
@@ -3424,6 +3442,13 @@ sub mysql_install_db {
     if ($opt_boot_ddd) {
       ddd_arguments(\$args, \$exe_mysqld_bootstrap, $mysqld->name(),
         $bootstrap_sql_file);
+    }
+    if ($opt_boot_rr) {
+      $args= ["record", @rr_record_args, $exe_mysqld_bootstrap, @$args];
+      $exe_mysqld_bootstrap= "rr";
+      my $rr_dir= $opt_rr_dir ? $opt_rr_dir : "$opt_vardir/rr.boot";
+      $ENV{'_RR_TRACE_DIR'}= $rr_dir;
+      mkpath($rr_dir);
     }
 
     my $path_sql= my_find_file($install_basedir,
@@ -5420,6 +5445,14 @@ sub mysqld_start ($$) {
      # Indicate the exe should not be started
     $exe= undef;
   }
+  elsif ( $opt_rr )
+  {
+    $args= ["record", @rr_record_args, "$exe", @$args];
+    $exe= "rr";
+    my $rr_dir= $opt_rr_dir ? $opt_rr_dir : "$opt_vardir/rr". $mysqld->after('mysqld');
+    $ENV{'_RR_TRACE_DIR'}= $rr_dir;
+    mkpath($rr_dir);
+  }
   else
   {
     # Default to not wait until pid file has been created
@@ -6603,6 +6636,15 @@ Options for strace
   strace-option=ARGS    Option to give strace, appends to existing options.
   stracer=<EXE>         Specify name and path to the trace program to use.
                         Default is "strace". Example: $0 --stracer=ktrace.
+
+Options for rr (Record and Replay)
+  rr                    Run the "mysqld" executables using rr. Default run
+                        option is "rr record mysqld mysqld_options"
+  boot-rr               Start bootstrap server in rr
+  rr-arg=ARG            Option to give rr record, can be specified more then once
+  rr-dir=DIR            The directory where rr recordings are stored. Defaults
+                        to 'vardir'/rr.0 (rr.boot for bootstrap instance and
+                        rr.1, ..., rr.N for slave instances).
 
 Misc options
   user=USER             User for connecting to mysqld(default: $opt_user)
