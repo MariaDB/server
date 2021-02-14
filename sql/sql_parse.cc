@@ -1168,24 +1168,54 @@ static enum enum_server_command fetch_command(THD *thd, char *packet)
 
 /**
   Read one command from connection and execute it (query or simple command).
-  This function is called in loop from thread function.
+  This function is to be used by different schedulers (one-thread-per-connection,
+  pool-of-threads)
 
   For profiling to work, it must never be called recursively.
 
+  @param thd - client connection context
+
+  @param blocking - wait for command to finish.
+                    if false (nonblocking), then the function might
+                    return when command is "half-finished", with
+                    DISPATCH_COMMAND_WOULDBLOCK.
+                    Currenly, this can *only* happen when using
+                    threadpool. The command will resume, after all outstanding
+                    async operations (i.e group commit) finish.
+                    Threadpool scheduler takes care of "resume".
+
   @retval
-    0  success
+    DISPATCH_COMMAND_SUCCESS - success
   @retval
-    1  request of thread shutdown (see dispatch_command() description)
+    DISPATCH_COMMAND_CLOSE_CONNECTION  request of THD shutdown
+          (s. dispatch_command() description)
+  @retval
+    DISPATCH_COMMAND_WOULDBLOCK - need to wait for asyncronous operations
+                                  to finish. Only returned if parameter
+                                  'blocking' is false.
 */
 
-bool do_command(THD *thd)
+dispatch_command_return do_command(THD *thd, bool blocking)
 {
-  bool return_value;
+  dispatch_command_return return_value;
   char *packet= 0;
   ulong packet_length;
   NET *net= &thd->net;
   enum enum_server_command command;
   DBUG_ENTER("do_command");
+
+  DBUG_ASSERT(!thd->async_state.pending_ops());
+  if (thd->async_state.m_state == thd_async_state::enum_async_state::RESUMED)
+  {
+    /*
+     Resuming previously suspended command.
+     Restore the state
+    */
+    command = thd->async_state.m_command;
+    packet = thd->async_state.m_packet.str;
+    packet_length = (ulong)thd->async_state.m_packet.length;
+    goto resume;
+  }
 
   /*
     indicator of uninitialized lex => normal flow of errors handling
@@ -1253,12 +1283,12 @@ bool do_command(THD *thd)
 
     if (net->error != 3)
     {
-      return_value= TRUE;                       // We have to close it.
+      return_value= DISPATCH_COMMAND_CLOSE_CONNECTION;     // We have to close it.
       goto out;
     }
 
     net->error= 0;
-    return_value= FALSE;
+    return_value= DISPATCH_COMMAND_SUCCESS;
     goto out;
   }
 
@@ -1325,7 +1355,7 @@ bool do_command(THD *thd)
       MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
       thd->m_statement_psi= NULL;
       thd->m_digest= NULL;
-      return_value= FALSE;
+      return_value= DISPATCH_COMMAND_SUCCESS;
 
       wsrep_after_command_before_result(thd);
       goto out;
@@ -1351,7 +1381,7 @@ bool do_command(THD *thd)
       thd->m_statement_psi= NULL;
       thd->m_digest= NULL;
 
-      return_value= FALSE;
+      return_value= DISPATCH_COMMAND_SUCCESS;
       wsrep_after_command_before_result(thd);
       goto out;
     }
@@ -1362,8 +1392,18 @@ bool do_command(THD *thd)
 
   DBUG_ASSERT(packet_length);
   DBUG_ASSERT(!thd->apc_target.is_enabled());
+
+resume:
   return_value= dispatch_command(command, thd, packet+1,
-                                 (uint) (packet_length-1));
+                                 (uint) (packet_length-1), blocking);
+  if (return_value == DISPATCH_COMMAND_WOULDBLOCK)
+  {
+    /* Save current state, and resume later.*/
+    thd->async_state.m_command= command;
+    thd->async_state.m_packet={packet,packet_length};
+    DBUG_RETURN(return_value);
+  }
+
   DBUG_ASSERT(!thd->apc_target.is_enabled());
 
 out:
@@ -1510,6 +1550,13 @@ public:
   @param packet_length   length of packet + 1 (to show that data is
                          null-terminated) except for COM_SLEEP, where it
                          can be zero.
+  @param blocking        if false (nonblocking), then the function might
+                         return when command is "half-finished", with
+                         DISPATCH_COMMAND_WOULDBLOCK.
+                         Currenly, this can *only* happen when using threadpool.
+                         The current command will resume, after all outstanding
+                         async operations (i.e group commit) finish.
+                         Threadpool scheduler takes care of "resume".
 
   @todo
     set thd->lex->sql_command to SQLCOM_END here.
@@ -1522,8 +1569,8 @@ public:
     1   request of thread shutdown, i. e. if command is
         COM_QUIT/COM_SHUTDOWN
 */
-bool dispatch_command(enum enum_server_command command, THD *thd,
-		      char* packet, uint packet_length)
+dispatch_command_return dispatch_command(enum enum_server_command command, THD *thd,
+		      char* packet, uint packet_length, bool blocking)
 {
   NET *net= &thd->net;
   bool error= 0;
@@ -1534,6 +1581,12 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
                        command_name[command].str :
                        "<?>")));
   bool drop_more_results= 0;
+
+  if (thd->async_state.m_state == thd_async_state::enum_async_state::RESUMED)
+  {
+    thd->async_state.m_state = thd_async_state::enum_async_state::NONE;
+    goto resume;
+  }
 
   /* keep it withing 1 byte */
   compile_time_assert(COM_END == 255);
@@ -2265,6 +2318,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     general_log_print(thd, command, NullS);
     my_eof(thd);
     break;
+
   case COM_SLEEP:
   case COM_CONNECT:				// Impossible here
   case COM_TIME:				// Impossible from client
@@ -2278,7 +2332,18 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   }
 
 dispatch_end:
-  do_end_of_statement= true;
+  /*
+   For the threadpool i.e if non-blocking call, if not all async operations
+   are finished, return without cleanup. The cleanup will be done on
+   later, when command execution is resumed.
+  */
+  if (!blocking && !error && thd->async_state.pending_ops())
+  {
+    DBUG_RETURN(DISPATCH_COMMAND_WOULDBLOCK);
+  }
+
+resume:
+
 #ifdef WITH_WSREP
   /*
     Next test should really be WSREP(thd), but that causes a failure when doing
@@ -2382,7 +2447,7 @@ dispatch_end:
   /* Check that some variables are reset properly */
   DBUG_ASSERT(thd->abort_on_warning == 0);
   thd->lex->restore_set_statement_var();
-  DBUG_RETURN(error);
+  DBUG_RETURN(error?DISPATCH_COMMAND_CLOSE_CONNECTION: DISPATCH_COMMAND_SUCCESS);
 }
 
 static bool slow_filter_masked(THD *thd, ulonglong mask)

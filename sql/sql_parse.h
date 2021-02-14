@@ -100,9 +100,16 @@ bool multi_delete_set_locks_and_link_aux_tables(LEX *lex);
 void create_table_set_open_action_and_adjust_tables(LEX *lex);
 int bootstrap(MYSQL_FILE *file);
 int mysql_execute_command(THD *thd);
-bool do_command(THD *thd);
-bool dispatch_command(enum enum_server_command command, THD *thd,
-		      char* packet, uint packet_length);
+enum dispatch_command_return
+{
+  DISPATCH_COMMAND_SUCCESS=0,
+  DISPATCH_COMMAND_CLOSE_CONNECTION= 1,
+  DISPATCH_COMMAND_WOULDBLOCK= 2
+};
+
+dispatch_command_return do_command(THD *thd, bool blocking = true);
+dispatch_command_return dispatch_command(enum enum_server_command command, THD *thd,
+                                         char* packet, uint packet_length, bool blocking = true);
 void log_slow_statement(THD *thd);
 bool append_file_to_dir(THD *thd, const char **filename_ptr,
                         const LEX_CSTRING *table_name);

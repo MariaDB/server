@@ -640,8 +640,20 @@ net_real_write(NET *net,const uchar *packet, size_t len)
   my_bool net_blocking = vio_is_blocking(net->vio);
   DBUG_ENTER("net_real_write");
 
-#if defined(MYSQL_SERVER) && defined(USE_QUERY_CACHE)
-  query_cache_insert(net->thd, (char*) packet, len, net->pkt_nr);
+#if defined(MYSQL_SERVER)
+  THD *thd= (THD *)net->thd;
+#if defined(USE_QUERY_CACHE)
+  query_cache_insert(thd, (char*) packet, len, net->pkt_nr);
+#endif
+  if (likely(thd))
+  {
+    /*
+      Wait until pending operations (currently it is engine
+      asynchronous group commit) are finished before replying
+      to the client, to keep durability promise.
+    */
+    thd->async_state.wait_for_pending_ops();
+  }
 #endif
 
   if (unlikely(net->error == 2))

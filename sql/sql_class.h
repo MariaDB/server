@@ -2309,6 +2309,164 @@ struct THD_count
   ~THD_count() { thread_count--; }
 };
 
+/**
+  Support structure for asynchronous group commit, or more generally
+  any asynchronous operation that needs to finish before server writes
+  response to client.
+
+  An engine, or any other server component, can signal that there is
+  a pending operation by incrementing a counter, i.e inc_pending_ops()
+  and that pending operation is finished by decrementing that counter
+  dec_pending_ops().
+
+  NOTE: Currently, pending operations can not fail, i.e there is no
+  way to pass a return code in dec_pending_ops()
+
+  The server does not write response to the client before the counter
+  becomes 0. In  case of group commit it ensures that data is persistent
+  before success reported to client, i.e durability in ACID.
+*/
+struct thd_async_state
+{
+  enum class enum_async_state
+  {
+    NONE,
+    SUSPENDED, /* do_command() did not finish, and needs to be resumed */
+    RESUMED    /* do_command() is resumed*/
+  };
+  enum_async_state m_state{enum_async_state::NONE};
+
+  /* Stuff we need to resume do_command where we finished last time*/
+  enum enum_server_command m_command{COM_SLEEP};
+  LEX_STRING m_packet{};
+
+  mysql_mutex_t m_mtx;
+  mysql_cond_t m_cond;
+
+  /** Pending counter*/
+  Atomic_counter<int> m_pending_ops=0;
+
+#ifndef DBUG_OFF
+  /* Checks */
+  pthread_t m_dbg_thread;
+#endif
+
+  thd_async_state()
+  {
+    mysql_mutex_init(PSI_NOT_INSTRUMENTED, &m_mtx, 0);
+    mysql_cond_init(PSI_INSTRUMENT_ME, &m_cond, 0);
+  }
+
+  /*
+   Currently only used with threadpool, one can "suspend" and "resume" a THD.
+   Suspend only means leaving do_command earlier, after saving some state.
+   Resume is continuing suspended THD's do_command(), from where it finished last time.
+  */
+  bool try_suspend()
+  {
+    bool ret;
+    mysql_mutex_lock(&m_mtx);
+    DBUG_ASSERT(m_state == enum_async_state::NONE);
+    DBUG_ASSERT(m_pending_ops >= 0);
+
+    if(m_pending_ops)
+    {
+      ret=true;
+      m_state= enum_async_state::SUSPENDED;
+    }
+    else
+    {
+      /*
+        If there is no pending operations, can't suspend, since
+        nobody can resume it.
+      */
+      ret=false;
+    }
+    mysql_mutex_unlock(&m_mtx);
+    return ret;
+  }
+
+  ~thd_async_state()
+  {
+    wait_for_pending_ops();
+    mysql_mutex_destroy(&m_mtx);
+    mysql_cond_destroy(&m_cond);
+  }
+
+  /*
+    Increment pending asynchronous operations.
+    The client response may not be written if
+    this count > 0.
+    So, without threadpool query needs to wait for
+    the operations to finish.
+    With threadpool, THD can be suspended and resumed
+    when this counter goes to 0.
+  */
+  void inc_pending_ops()
+  {
+    mysql_mutex_lock(&m_mtx);
+
+#ifndef DBUG_OFF
+    /*
+     Check that increments are always done by the same thread.
+    */
+    if (!m_pending_ops)
+      m_dbg_thread= pthread_self();
+    else
+      DBUG_ASSERT(pthread_equal(pthread_self(),m_dbg_thread));
+#endif
+
+    m_pending_ops++;
+    mysql_mutex_unlock(&m_mtx);
+  }
+
+  int dec_pending_ops(enum_async_state* state)
+  {
+    int ret;
+    mysql_mutex_lock(&m_mtx);
+    ret= --m_pending_ops;
+    if (!ret)
+      mysql_cond_signal(&m_cond);
+    *state = m_state;
+    mysql_mutex_unlock(&m_mtx);
+    return ret;
+  }
+
+  /*
+    This is used for "dirty" reading pending ops,
+    when dirty read is OK.
+  */
+  int pending_ops()
+  {
+    return m_pending_ops;
+  }
+
+  /* Wait for pending operations to finish.*/
+  void wait_for_pending_ops()
+  {
+    /*
+      It is fine to read m_pending_ops and compare it with 0,
+      without mutex protection.
+
+      The value is only incremented by the current thread, and will
+      be decremented by another one, thus "dirty" may show positive number
+      when it is really 0, but this is not a problem, and the only
+      bad thing from that will be rechecking under mutex.
+    */
+    if (!pending_ops())
+      return;
+
+    mysql_mutex_lock(&m_mtx);
+    DBUG_ASSERT(m_pending_ops >= 0);
+    while (m_pending_ops)
+      mysql_cond_wait(&m_cond, &m_mtx);
+    mysql_mutex_unlock(&m_mtx);
+  }
+};
+
+extern "C" MYSQL_THD thd_increment_pending_ops(void);
+extern "C" void thd_decrement_pending_ops(MYSQL_THD);
+
 
 /**
   @class THD
@@ -5025,6 +5183,7 @@ private:
   }
 
 public:
+  thd_async_state async_state;
 #ifdef HAVE_REPLICATION
   /*
     If we do a purge of binary logs, log index info of the threads
