@@ -15,7 +15,7 @@ user_variables	CREATE TEMPORARY TABLE `user_variables` (
   `VARIABLE_VALUE` varchar(2048) DEFAULT NULL,
   `VARIABLE_TYPE` varchar(64) NOT NULL DEFAULT '',
   `CHARACTER_SET_NAME` varchar(32) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=utf8
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3
 FLUSH USER_VARIABLES;
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.USER_VARIABLES;
 COUNT(*)
@@ -44,7 +44,7 @@ null_var	NULL	VARCHAR	binary
 str_var	Value of string variable	VARCHAR	latin1
 time_var	2016-02-25	VARCHAR	latin1
 uint_var	2	INT UNSIGNED	latin1
-utf8str_var	UTF8 string value	VARCHAR	utf8
+utf8str_var	UTF8 string value	VARCHAR	utf8mb3
 SHOW USER_VARIABLES;
 Variable_name	Value
 	Value of variable with empty name

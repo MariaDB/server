@@ -1182,7 +1182,7 @@ extern struct charset_info_st my_charset_utf8mb4_general_nopad_ci;
 extern struct charset_info_st my_charset_utf8mb4_unicode_ci;
 extern struct charset_info_st my_charset_utf8mb4_unicode_nopad_ci;
 
-#define MY_UTF8MB3                 "utf8"
+#define MY_UTF8MB3                 "utf8mb3"
 #define MY_UTF8MB4                 "utf8mb4"
 
 my_bool my_cs_have_contractions(CHARSET_INFO *cs);

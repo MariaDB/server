@@ -37,7 +37,7 @@
 */
 
 const char charset_name_latin2[]= "latin2";
-const char charset_name_utf8[]= "utf8";
+const char charset_name_utf8mb3[]= "utf8mb3";
 const char charset_name_utf16[]= "utf16";
 const char charset_name_utf32[]= "utf32";
 const char charset_name_ucs2[]= "ucs2";

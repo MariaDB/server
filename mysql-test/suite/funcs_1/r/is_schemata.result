@@ -43,7 +43,7 @@ SCHEMATA	CREATE TEMPORARY TABLE `SCHEMATA` (
   `DEFAULT_COLLATION_NAME` varchar(32) NOT NULL DEFAULT '',
   `SQL_PATH` varchar(512) DEFAULT NULL,
   `SCHEMA_COMMENT` varchar(1024) NOT NULL DEFAULT ''
-) ENGINE=MEMORY DEFAULT CHARSET=utf8
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3
 SHOW COLUMNS FROM information_schema.SCHEMATA;
 Field	Type	Null	Key	Default	Extra
 CATALOG_NAME	varchar(512)	NO			
@@ -139,7 +139,7 @@ ALTER SCHEMA db_datadict CHARACTER SET 'utf8';
 SELECT schema_name, default_character_set_name
 FROM information_schema.schemata WHERE schema_name = 'db_datadict';
 schema_name	default_character_set_name
-db_datadict	utf8
+db_datadict	utf8mb3
 ALTER SCHEMA db_datadict CHARACTER SET 'latin1';
 SELECT schema_name, default_collation_name FROM information_schema.schemata
 WHERE schema_name = 'db_datadict';

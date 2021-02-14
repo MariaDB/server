@@ -875,14 +875,14 @@ set names utf8;
 -- resultset is non-binary for string type. This should be changed
 -- after Bug#29394 is implemented.
 ----------------------------------------------------------------
-SHOW CHARACTER SET LIKE 'utf8';
+SHOW CHARACTER SET LIKE 'utf8mb3';
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	information_schema	CHARACTER_SETS	CHARACTER_SETS	CHARACTER_SET_NAME	Charset	253	96	4	N	1	0	33
+def	information_schema	CHARACTER_SETS	CHARACTER_SETS	CHARACTER_SET_NAME	Charset	253	96	7	N	1	0	33
 def	information_schema	CHARACTER_SETS	CHARACTER_SETS	DESCRIPTION	Description	253	180	13	N	1	0	33
-def	information_schema	CHARACTER_SETS	CHARACTER_SETS	DEFAULT_COLLATE_NAME	Default collation	253	96	15	N	1	0	33
+def	information_schema	CHARACTER_SETS	CHARACTER_SETS	DEFAULT_COLLATE_NAME	Default collation	253	96	18	N	1	0	33
 def	information_schema	CHARACTER_SETS	CHARACTER_SETS	MAXLEN	Maxlen	8	3	1	N	32769	0	63
 Charset	Description	Default collation	Maxlen
-utf8	UTF-8 Unicode	utf8_general_ci	3
+utf8mb3	UTF-8 Unicode	utf8mb3_general_ci	3
 ----------------------------------------------------------------
 SHOW COLLATION LIKE 'latin1_bin';
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
@@ -1266,7 +1266,7 @@ PRIMARY KEY  (Codigo)
 show create table t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
 def					Table	253	192	2	N	1	39	33
-def					Create Table	253	3072	458	N	1	39	33
+def					Create Table	253	3072	461	N	1	39	33
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `Codigo` int(10) unsigned NOT NULL AUTO_INCREMENT,
@@ -1279,7 +1279,7 @@ t1	CREATE TABLE `t1` (
   `Provincia` varchar(255) DEFAULT NULL,
   `Poblacion` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`Codigo`)
-) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8
+) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb3
 drop table t1;
 End of 5.0 tests
 SHOW AUTHORS;
@@ -1532,7 +1532,7 @@ LOCK TABLE t1 WRITE;
 connection default;
 SHOW CREATE TRIGGER t1_bi;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
-t1_bi	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET new.a = 1	utf8	utf8_general_ci	latin1_swedish_ci	#
+t1_bi	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET new.a = 1	utf8mb3	utf8mb3_general_ci	latin1_swedish_ci	#
 connection con1;
 UNLOCK TABLES;
 # Test 2: ALTER TABLE with SHOW CREATE TRIGGER in transaction
@@ -1540,7 +1540,7 @@ connection default;
 START TRANSACTION;
 SHOW CREATE TRIGGER t1_bi;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
-t1_bi	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET new.a = 1	utf8	utf8_general_ci	latin1_swedish_ci	#
+t1_bi	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET new.a = 1	utf8mb3	utf8mb3_general_ci	latin1_swedish_ci	#
 connection con1;
 ALTER TABLE t1 CHARACTER SET = utf8;
 disconnect con1;

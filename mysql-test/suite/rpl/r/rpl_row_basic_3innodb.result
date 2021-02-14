@@ -565,7 +565,7 @@ INSERT INTO t5 VALUES (1, "", 1);
 INSERT INTO t5 VALUES (2, repeat(_utf8'a', 255), 2);
 connection slave;
 include/wait_for_slave_sql_error.inc [errno=1677]
-Last_SQL_Error = 'Column 1 of table 'test.t5' cannot be converted from type 'char(765 octets)' to type 'char(48 octets) character set utf8''
+Last_SQL_Error = 'Column 1 of table 'test.t5' cannot be converted from type 'char(765 octets)' to type 'char(48 octets) character set utf8mb3''
 include/rpl_reset.inc
 [expecting slave to stop]
 connection master;
@@ -573,7 +573,7 @@ INSERT INTO t6 VALUES (1, "", 1);
 INSERT INTO t6 VALUES (2, repeat(_utf8'a', 255), 2);
 connection slave;
 include/wait_for_slave_sql_error.inc [errno=1677]
-Last_SQL_Error = 'Column 1 of table 'test.t6' cannot be converted from type 'char(765 octets)' to type 'char(384 octets) character set utf8''
+Last_SQL_Error = 'Column 1 of table 'test.t6' cannot be converted from type 'char(765 octets)' to type 'char(384 octets) character set utf8mb3''
 include/rpl_reset.inc
 [expecting slave to replicate correctly]
 connection master;

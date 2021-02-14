@@ -2461,12 +2461,12 @@ SELECT CHAR(0xff,0x8f USING utf8);
 CHAR(0xff,0x8f USING utf8)
 NULL
 Warnings:
-Warning	1300	Invalid utf8 character string: 'FF8F'
+Warning	1300	Invalid utf8mb3 character string: 'FF8F'
 SELECT CHAR(0xff,0x8f USING utf8) IS NULL;
 CHAR(0xff,0x8f USING utf8) IS NULL
 1
 Warnings:
-Warning	1300	Invalid utf8 character string: 'FF8F'
+Warning	1300	Invalid utf8mb3 character string: 'FF8F'
 SET SQL_MODE=@orig_sql_mode;
 select substring('abc', cast(2 as unsigned int));
 substring('abc', cast(2 as unsigned int))
@@ -5031,10 +5031,10 @@ create database mysqltest1 CHARACTER SET = 'utf8' COLLATE = 'utf8_bin';
 use mysqltest1;
 select charset(chr(65)), length(chr(65)),char_length(chr(65));
 charset(chr(65))	length(chr(65))	char_length(chr(65))
-utf8	1	1
+utf8mb3	1	1
 select charset(chr(14844588)), length(chr(14844588)),char_length(chr(14844588));
 charset(chr(14844588))	length(chr(14844588))	char_length(chr(14844588))
-utf8	3	1
+utf8mb3	3	1
 drop database mysqltest1;
 use test;
 #
@@ -5086,9 +5086,9 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `cn` char(0) CHARACTER SET utf8 DEFAULT NULL,
-  `c0` char(0) CHARACTER SET utf8 DEFAULT NULL,
-  `c1` char(0) CHARACTER SET utf8 DEFAULT NULL
+  `cn` char(0) CHARACTER SET utf8mb3 DEFAULT NULL,
+  `c0` char(0) CHARACTER SET utf8mb3 DEFAULT NULL,
+  `c1` char(0) CHARACTER SET utf8mb3 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1, t2;
 #
@@ -5104,9 +5104,9 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `cn` char(0) CHARACTER SET utf8 DEFAULT NULL,
-  `c0` char(0) CHARACTER SET utf8 DEFAULT NULL,
-  `c1` char(0) CHARACTER SET utf8 DEFAULT NULL
+  `cn` char(0) CHARACTER SET utf8mb3 DEFAULT NULL,
+  `c0` char(0) CHARACTER SET utf8mb3 DEFAULT NULL,
+  `c1` char(0) CHARACTER SET utf8mb3 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1, t2;
 CREATE TABLE t1 (i BIGINT);
@@ -5119,9 +5119,9 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `cn` char(0) CHARACTER SET utf8 DEFAULT NULL,
-  `c0` char(0) CHARACTER SET utf8 DEFAULT NULL,
-  `c1` char(0) CHARACTER SET utf8 DEFAULT NULL
+  `cn` char(0) CHARACTER SET utf8mb3 DEFAULT NULL,
+  `c0` char(0) CHARACTER SET utf8mb3 DEFAULT NULL,
+  `c1` char(0) CHARACTER SET utf8mb3 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1, t2;
 CREATE TABLE t1 (i BIGINT);
@@ -5134,9 +5134,9 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `cn` char(0) CHARACTER SET utf8 DEFAULT NULL,
-  `c0` char(0) CHARACTER SET utf8 DEFAULT NULL,
-  `c1` char(0) CHARACTER SET utf8 DEFAULT NULL
+  `cn` char(0) CHARACTER SET utf8mb3 DEFAULT NULL,
+  `c0` char(0) CHARACTER SET utf8mb3 DEFAULT NULL,
+  `c1` char(0) CHARACTER SET utf8mb3 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1, t2;
 CREATE TABLE t1 (i BIGINT);
@@ -5149,9 +5149,9 @@ FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `cn` char(0) CHARACTER SET utf8 DEFAULT NULL,
-  `c0` char(0) CHARACTER SET utf8 DEFAULT NULL,
-  `c1` varchar(20) CHARACTER SET utf8 DEFAULT NULL
+  `cn` char(0) CHARACTER SET utf8mb3 DEFAULT NULL,
+  `c0` char(0) CHARACTER SET utf8mb3 DEFAULT NULL,
+  `c1` varchar(20) CHARACTER SET utf8mb3 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT c1 FROM t2;
 c1
@@ -5175,7 +5175,7 @@ conv(i,16,2)
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `conv(i,16,2)` varchar(64) CHARACTER SET utf8 DEFAULT NULL
+  `conv(i,16,2)` varchar(64) CHARACTER SET utf8mb3 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1,t2;
 #

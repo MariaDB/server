@@ -1673,7 +1673,7 @@ create table t1 (v char(10) character set utf8);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `v` char(10) CHARACTER SET utf8 DEFAULT NULL
+  `v` char(10) CHARACTER SET utf8mb3 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 (v varchar(10), c char(10)) row_format=fixed;
@@ -1725,7 +1725,7 @@ Note	1246	Converting column 'v' from VARCHAR to TEXT
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `v` mediumtext CHARACTER SET utf8 DEFAULT NULL
+  `v` mediumtext CHARACTER SET utf8mb3 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 set statement sql_mode='' for
@@ -2403,7 +2403,7 @@ KEY (c2)
 
 MyISAM file:         MYSQLD_DATADIR/test/t1
 Record format:       Packed
-Character set:       utf8_general_ci (33)
+Character set:       utf8mb3_general_ci (33)
 Data records:                    0  Deleted blocks:                 0
 Recordlength:                   94
 

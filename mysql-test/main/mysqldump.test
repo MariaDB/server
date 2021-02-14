@@ -10,7 +10,7 @@ call mtr.add_suppression("@003f.frm' \\(errno: 22\\)");
 --source include/have_log_bin.inc
 
 # utf8 is required
-let collation=utf8_unicode_ci;
+let collation=utf8mb3_unicode_ci;
 --source include/have_collation.inc
 
 # Save the initial number of concurrent sessions

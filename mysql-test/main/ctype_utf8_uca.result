@@ -16,9 +16,9 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'utf8_unicode_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE utf8_unicode_nopad_ci NOT NULL,
+  `a` varchar(10) COLLATE utf8mb3_unicode_nopad_ci NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_nopad_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
 SELECT HEX(a), a FROM t1 ORDER BY a;
 HEX(a)	a
@@ -154,9 +154,9 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'utf8_unicode_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE utf8_unicode_nopad_ci NOT NULL,
+  `a` varchar(10) COLLATE utf8mb3_unicode_nopad_ci NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MEMORY DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_nopad_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
 SELECT HEX(a), a FROM t1 ORDER BY a;
 HEX(a)	a
@@ -293,9 +293,9 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'utf8_unicode_520_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE utf8_unicode_520_nopad_ci NOT NULL,
+  `a` varchar(10) COLLATE utf8mb3_unicode_520_nopad_ci NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_520_nopad_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_520_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
 SELECT HEX(a), a FROM t1 ORDER BY a;
 HEX(a)	a
@@ -431,9 +431,9 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'utf8_unicode_520_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE utf8_unicode_520_nopad_ci NOT NULL,
+  `a` varchar(10) COLLATE utf8mb3_unicode_520_nopad_ci NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MEMORY DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_520_nopad_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_520_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
 SELECT HEX(a), a FROM t1 ORDER BY a;
 HEX(a)	a
@@ -568,8 +568,8 @@ ALTER TABLE t1 ADD KEY(a), ADD KEY(b);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(50) CHARACTER SET utf8 COLLATE utf8_unicode_nopad_ci DEFAULT NULL,
-  `b` varchar(50) CHARACTER SET utf8 COLLATE utf8_unicode_nopad_ci DEFAULT NULL,
+  `a` varchar(50) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
+  `b` varchar(50) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_nopad_ci DEFAULT NULL,
   KEY `a` (`a`),
   KEY `b` (`b`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1

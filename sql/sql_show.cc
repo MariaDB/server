@@ -9743,8 +9743,9 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
   sql_mode_string_representation(thd, trigger->sql_mode, &trg_sql_mode_str);
 
   /* Resolve trigger client character set. */
-
-  if (resolve_charset(trigger->client_cs_name.str, NULL, &trg_client_cs))
+  myf utf8_flag= thd->get_utf8_flag();
+  if (resolve_charset(trigger->client_cs_name.str, NULL, &trg_client_cs,
+                      MYF(utf8_flag)))
     return TRUE;
 
   /* Send header. */

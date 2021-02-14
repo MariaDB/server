@@ -323,7 +323,7 @@ select convert('admin𝌆' using utf8);
 convert('admin𝌆' using utf8)
 admin????
 Warnings:
-Warning	1300	Invalid utf8 character string: '\xF0\x9D\x8C\x86'
+Warning	1300	Invalid utf8mb3 character string: '\xF0\x9D\x8C\x86'
 install plugin foo soname 'admin𝌆';
 ERROR HY000: No paths allowed for shared library
 # End of 5.5 test

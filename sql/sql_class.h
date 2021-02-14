@@ -189,6 +189,7 @@ enum enum_binlog_row_image {
 #define OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE	(1 << 0)
 #define OLD_MODE_NO_PROGRESS_INFO			(1 << 1)
 #define OLD_MODE_ZERO_DATE_TIME_CAST                    (1 << 2)
+#define OLD_MODE_UTF8_IS_UTF8MB3      (1 << 3)
 
 extern char internal_table_name[2];
 extern char empty_c_string[1];
@@ -1054,13 +1055,14 @@ static inline void update_global_memory_status(int64 size)
   @retval         Pointter to CHARSET_INFO with the given name on success
 */
 static inline CHARSET_INFO *
-mysqld_collation_get_by_name(const char *name,
+mysqld_collation_get_by_name(const char *name, myf utf8_flag,
                              CHARSET_INFO *name_cs= system_charset_info)
 {
   CHARSET_INFO *cs;
   MY_CHARSET_LOADER loader;
   my_charset_loader_init_mysys(&loader);
-  if (!(cs= my_collation_get_by_name(&loader, name, MYF(0))))
+
+  if (!(cs= my_collation_get_by_name(&loader, name, MYF(utf8_flag))))
   {
     ErrConvString err(name, name_cs);
     my_error(ER_UNKNOWN_COLLATION, MYF(0), err.ptr());
@@ -5437,6 +5439,11 @@ public:
   Item *sp_prepare_func_item(Item **it_addr, uint cols= 1);
   bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
 
+  myf get_utf8_flag()
+  {
+    return (variables.old_behavior & OLD_MODE_UTF8_IS_UTF8MB3 ?
+            MY_UTF8_IS_UTF8MB3 : 0);
+  }
 };
 
 

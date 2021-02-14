@@ -2777,8 +2777,10 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
   if (resolve_introducer && m_tok_start[0] == '_')
   {
     ErrConvString csname(str->str + 1, str->length - 1, &my_charset_bin);
+    myf utf8_flag= thd->get_utf8_flag();
     CHARSET_INFO *cs= get_charset_by_csname(csname.ptr(),
-                                            MY_CS_PRIMARY, MYF(0));
+                                                 MY_CS_PRIMARY,
+                                             MYF(utf8_flag));
     if (cs)
     {
       body_utf8_append(m_cpp_text_start, m_cpp_tok_start + length);

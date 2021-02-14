@@ -3239,7 +3239,8 @@ com_charset(String *buffer __attribute__((unused)), char *line)
     return put_info("Usage: \\C charset_name | charset charset_name", 
 		    INFO_ERROR, 0);
   }
-  new_cs= get_charset_by_csname(param, MY_CS_PRIMARY, MYF(MY_WME));
+  new_cs= get_charset_by_csname(param, MY_CS_PRIMARY,
+                                MYF(MY_UTF8_IS_UTF8MB3 | MY_WME));
   if (new_cs)
   {
     charset_info= new_cs;
@@ -4779,7 +4780,7 @@ sql_real_connect(char *host,char *database,char *user,char *password,
     return -1;					// Retryable
   }
 
-  if (!(charset_info= get_charset_by_name(mysql.charset->name, MYF(0))))
+  if (!(charset_info= get_charset_by_name(mysql.charset->name, MYF(MY_UTF8_IS_UTF8MB3))))
   {
     put_info("Unknown default character set", INFO_ERROR);
     return 1;

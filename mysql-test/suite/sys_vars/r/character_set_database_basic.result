@@ -21,7 +21,7 @@ ERROR 42S22: Unknown column 'character_set_database' in 'field list'
 SET character_set_database=utf8;
 SELECT @@session.character_set_database;
 @@session.character_set_database
-utf8
+utf8mb3
 SET session character_set_database=utf8;
 SELECT session character_set_database;
 ERROR 42S22: Unknown column 'session' in 'field list'
@@ -43,14 +43,14 @@ latin1
 SET @@session.character_set_database = utf8;
 SELECT @@session.character_set_database;
 @@session.character_set_database
-utf8
+utf8mb3
 SET @@global.character_set_database = latin2;
 SELECT @@global.character_set_database;
 @@global.character_set_database
 latin2
 SELECT @@session.character_set_database AS res_is_utf8;
 res_is_utf8
-utf8
+utf8mb3
 SET @@session.character_set_database = latin5;
 SELECT @@session.character_set_database;
 @@session.character_set_database
@@ -160,7 +160,7 @@ armscii8
 SET @@session.character_set_database = utf8;
 SELECT @@session.character_set_database;
 @@session.character_set_database
-utf8
+utf8mb3
 SET @@session.character_set_database = ucs2;
 SELECT @@session.character_set_database;
 @@session.character_set_database
@@ -305,7 +305,7 @@ armscii8
 SET @@global.character_set_database = utf8;
 SELECT @@global.character_set_database;
 @@global.character_set_database
-utf8
+utf8mb3
 SET @@global.character_set_database = ucs2;
 SELECT @@global.character_set_database;
 @@global.character_set_database
@@ -366,15 +366,15 @@ eucjpms
 SET @@character_set_database = UTF8;
 SELECT @@character_set_database;
 @@character_set_database
-utf8
+utf8mb3
 SET @@character_set_database = utf8;
 SELECT @@character_set_database;
 @@character_set_database
-utf8
+utf8mb3
 SET @@global.character_set_database = uTf8;
 SELECT @@global.character_set_database;
 @@global.character_set_database
-utf8
+utf8mb3
 '#--------------------FN_DYNVARS_012_09-------------------------#'
 SET @@character_set_database = 1;
 SELECT @@character_set_database;

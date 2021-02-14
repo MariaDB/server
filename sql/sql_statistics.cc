@@ -111,12 +111,12 @@ TABLE_FIELD_TYPE table_stat_fields[TABLE_STAT_N_FIELDS] =
   {
     { STRING_WITH_LEN("db_name") },
     { STRING_WITH_LEN("varchar(64)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("table_name") },
     { STRING_WITH_LEN("varchar(64)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("cardinality") },
@@ -134,17 +134,17 @@ TABLE_FIELD_TYPE column_stat_fields[COLUMN_STAT_N_FIELDS] =
   {
     { STRING_WITH_LEN("db_name") },
     { STRING_WITH_LEN("varchar(64)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("table_name") },
     { STRING_WITH_LEN("varchar(64)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("column_name") },
     { STRING_WITH_LEN("varchar(64)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("min_value") },
@@ -179,7 +179,7 @@ TABLE_FIELD_TYPE column_stat_fields[COLUMN_STAT_N_FIELDS] =
   {
     { STRING_WITH_LEN("hist_type") },
     { STRING_WITH_LEN("enum('SINGLE_PREC_HB','DOUBLE_PREC_HB')") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("histogram") },
@@ -197,17 +197,17 @@ TABLE_FIELD_TYPE index_stat_fields[INDEX_STAT_N_FIELDS] =
   {
     { STRING_WITH_LEN("db_name") },
     { STRING_WITH_LEN("varchar(64)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("table_name") },
     { STRING_WITH_LEN("varchar(64)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("index") },
     { STRING_WITH_LEN("varchar(64)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("prefix_arity") },

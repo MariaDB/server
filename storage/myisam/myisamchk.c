@@ -794,7 +794,7 @@ static void get_options(register int *argc,register char ***argv)
 
   if (set_collation_name)
     if (!(set_collation= get_charset_by_name(set_collation_name,
-                                             MYF(MY_WME))))
+                                             MYF(MY_UTF8_IS_UTF8MB3 | MY_WME))))
       exit(1);
 
   myisam_block_size=(uint) 1 << my_bit_log2_uint64(opt_myisam_block_size);

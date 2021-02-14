@@ -1109,12 +1109,12 @@ show create table mysqltest.t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3
 show create table mysqltest.t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `test` varchar(4) CHARACTER SET latin1 NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3
 drop table mysqltest.t1;
 drop table mysqltest.t2;
 alter database mysqltest character set latin1;
@@ -1728,7 +1728,7 @@ set @@character_set_server= utf8;
 execute stmt;
 show create database mysqltest_1;
 Database	Create Database
-mysqltest_1	CREATE DATABASE `mysqltest_1` /*!40100 DEFAULT CHARACTER SET utf8 */
+mysqltest_1	CREATE DATABASE `mysqltest_1` /*!40100 DEFAULT CHARACTER SET utf8mb3 */
 drop database mysqltest_1;
 deallocate prepare stmt;
 set @@character_set_server= @old_character_set_server;
@@ -2979,7 +2979,7 @@ execute stmt;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` char(100) CHARACTER SET utf8 DEFAULT NULL,
+  `c` char(100) CHARACTER SET utf8mb3 DEFAULT NULL,
   KEY `c` (`c`(10))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
@@ -2987,7 +2987,7 @@ execute stmt;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` char(100) CHARACTER SET utf8 DEFAULT NULL,
+  `c` char(100) CHARACTER SET utf8mb3 DEFAULT NULL,
   KEY `c` (`c`(10))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
@@ -5273,7 +5273,7 @@ CREATE TABLE t1 AS SELECT @a AS c1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext CHARACTER SET utf8 DEFAULT NULL
+  `c1` longtext CHARACTER SET utf8mb3 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 DROP PROCEDURE p1;

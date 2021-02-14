@@ -8,7 +8,7 @@ connect  con1,localhost,root,,,,;
 connection con1;
 SELECT @@global.character_set_connection;
 @@global.character_set_connection
-utf8
+utf8mb3
 SELECT @@session.character_set_connection;
 @@session.character_set_connection
 latin1

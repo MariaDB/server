@@ -759,9 +759,10 @@ static bool check_charset(sys_var *self, THD *thd, set_var *var)
     else
     {
       ErrConvString err(res); /* Get utf8 '\0' terminated string */
+      myf utf8_flag= thd->get_utf8_flag();
       if (!(var->save_result.ptr= get_charset_by_csname(err.ptr(),
-                                                         MY_CS_PRIMARY,
-                                                         MYF(0))) &&
+                                                             MY_CS_PRIMARY,
+                                                             MYF(utf8_flag))) &&
           !(var->save_result.ptr= get_old_charset_by_name(err.ptr())))
       {
         my_error(ER_UNKNOWN_CHARACTER_SET, MYF(0), err.ptr());
@@ -875,7 +876,7 @@ static bool check_collation_not_null(sys_var *self, THD *thd, set_var *var)
 {
   if (!var->value)
     return false;
-
+  myf utf8_flag= thd->get_utf8_flag();
   char buff[STRING_BUFFER_USUAL_SIZE];
   if (var->value->result_type() == STRING_RESULT)
   {
@@ -885,7 +886,7 @@ static bool check_collation_not_null(sys_var *self, THD *thd, set_var *var)
     else
     {
       ErrConvString err(res); /* Get utf8 '\0'-terminated string */
-      if (!(var->save_result.ptr= get_charset_by_name(err.ptr(), MYF(0))))
+      if (!(var->save_result.ptr= get_charset_by_name(err.ptr(), MYF(utf8_flag))))
       {
         my_error(ER_UNKNOWN_COLLATION, MYF(0), err.ptr());
         return true;
@@ -3726,6 +3727,7 @@ static const char *old_mode_names[]=
   "NO_DUP_KEY_WARNINGS_WITH_IGNORE",
   "NO_PROGRESS_INFO",
   "ZERO_DATE_TIME_CAST",
+  "UTF8_IS_UTF8MB3",
   0
 };
 
@@ -3737,7 +3739,7 @@ static Sys_var_set Sys_old_behavior(
        "old_mode",
        "Used to emulate old behavior from earlier MariaDB or MySQL versions",
        SESSION_VAR(old_behavior), CMD_LINE(REQUIRED_ARG),
-       old_mode_names, DEFAULT(0));
+       old_mode_names, DEFAULT(OLD_MODE_UTF8_IS_UTF8MB3));
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 #define SSL_OPT(X) CMD_LINE(REQUIRED_ARG,X)

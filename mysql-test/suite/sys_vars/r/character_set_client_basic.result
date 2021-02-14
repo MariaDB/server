@@ -18,7 +18,7 @@ ERROR 42S22: Unknown column 'character_set_client' in 'field list'
 SET character_set_client=utf8;
 SELECT @@session.character_set_client;
 @@session.character_set_client
-utf8
+utf8mb3
 SET session character_set_client=utf8;
 SELECT session character_set_client;
 ERROR 42S22: Unknown column 'session' in 'field list'
@@ -40,14 +40,14 @@ SELECT @@global.character_set_client= @global_start_value;
 SET @@session.character_set_client = utf8;
 SELECT @@session.character_set_client;
 @@session.character_set_client
-utf8
+utf8mb3
 SET @@global.character_set_client = latin2;
 SELECT @@global.character_set_client;
 @@global.character_set_client
 latin2
 SELECT @@session.character_set_client AS res_is_utf8;
 res_is_utf8
-utf8
+utf8mb3
 SET @@session.character_set_client = latin5;
 SELECT @@session.character_set_client;
 @@session.character_set_client
@@ -157,7 +157,7 @@ armscii8
 SET @@character_set_client = utf8;
 SELECT @@character_set_client;
 @@character_set_client
-utf8
+utf8mb3
 SET @@character_set_client = utf8mb4;
 SELECT @@character_set_client;
 @@character_set_client
@@ -308,11 +308,11 @@ armscii8
 SET @@global.character_set_client = utf8;
 SELECT @@global.character_set_client;
 @@global.character_set_client
-utf8
+utf8mb3
 SET @@global.character_set_client = ucs2;
 SELECT @@global.character_set_client;
 @@global.character_set_client
-utf8
+utf8mb3
 SET @@global.character_set_client = cp866;
 SELECT @@global.character_set_client;
 @@global.character_set_client
@@ -369,15 +369,15 @@ eucjpms
 SET @@character_set_client = UTF8;
 SELECT @@character_set_client;
 @@character_set_client
-utf8
+utf8mb3
 SET @@character_set_client = utf8;
 SELECT @@character_set_client;
 @@character_set_client
-utf8
+utf8mb3
 SET @@global.character_set_client = uTf8;
 SELECT @@global.character_set_client;
 @@global.character_set_client
-utf8
+utf8mb3
 '#--------------------FN_DYNVARS_010_09-------------------------#'
 SET @@character_set_client = 1;
 SELECT @@character_set_client;

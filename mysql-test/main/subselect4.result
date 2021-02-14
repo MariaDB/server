@@ -2578,7 +2578,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	
 Warnings:
-Note	1003	/* select#1 */ select `test`.`t1`.`l1` AS `l1`,`test`.`t1`.`i2` AS `i2` from `test`.`t1` where <nop>(<in_optimizer>(`test`.`t1`.`l1`,<max>(/* select#2 */ select max(`test`.`t2`.`v1`) from `test`.`t2`) > convert(<cache>(`test`.`t1`.`l1`) using utf8)))
+Note	1003	/* select#1 */ select `test`.`t1`.`l1` AS `l1`,`test`.`t1`.`i2` AS `i2` from `test`.`t1` where <nop>(<in_optimizer>(`test`.`t1`.`l1`,<max>(/* select#2 */ select max(`test`.`t2`.`v1`) from `test`.`t2`) > convert(<cache>(`test`.`t1`.`l1`) using utf8mb3)))
 SELECT * FROM t1 where  ( t1.l1 < ANY (SELECT MAX(t2.v1) FROM t2));
 l1	i2
 e	2

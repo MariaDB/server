@@ -75,6 +75,11 @@ C_MODE_START
 #define MY_FORCE_LOCK   128U    /* use my_lock() even if disable_locking */
 #define MY_NO_WAIT      256U	/* my_lock() don't wait at all */
 /*
+  If old_mode is UTF8_IS_UTF8MB3, then pass this flag. It mean utf8 is
+  alias for utf8mb3. Otherwise utf8 is alias for utf8mb4.
+*/
+#define MY_UTF8_IS_UTF8MB3 1024U
+/*
   init_dynamic_array() has init buffer; Internal flag, not to be used by
   caller.
 */
@@ -1022,8 +1027,8 @@ const char *my_dlerror(const char *dlpath);
 
 /* character sets */
 extern void my_charset_loader_init_mysys(MY_CHARSET_LOADER *loader);
-extern uint get_charset_number(const char *cs_name, uint cs_flags);
-extern uint get_collation_number(const char *name);
+extern uint get_charset_number(const char *cs_name, uint cs_flags, myf flags);
+extern uint get_collation_number(const char *name,myf flags);
 extern const char *get_charset_name(uint cs_number);
 
 extern CHARSET_INFO *get_charset(uint cs_number, myf flags);
@@ -1037,10 +1042,12 @@ extern CHARSET_INFO *my_charset_get_by_name(MY_CHARSET_LOADER *loader,
                                             uint cs_flags, myf my_flags);
 extern my_bool resolve_charset(const char *cs_name,
                                CHARSET_INFO *default_cs,
-                               CHARSET_INFO **cs);
+                               CHARSET_INFO **cs,
+                               myf flags);
 extern my_bool resolve_collation(const char *cl_name,
                                  CHARSET_INFO *default_cl,
-                                 CHARSET_INFO **cl);
+                                 CHARSET_INFO **cl,
+                                 myf my_flags);
 extern void free_charsets(void);
 extern char *get_charsets_dir(char *buf);
 static inline my_bool my_charset_same(CHARSET_INFO *cs1, CHARSET_INFO *cs2)

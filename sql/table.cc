@@ -208,14 +208,14 @@ View_creation_ctx * View_creation_ctx::create(THD *thd,
   /* Resolve cs names. Throw a warning if there is unknown cs name. */
 
   bool invalid_creation_ctx;
-
+  myf utf8_flag= thd->get_utf8_flag();
   invalid_creation_ctx= resolve_charset(view->view_client_cs_name.str,
                                         system_charset_info,
-                                        &ctx->m_client_cs);
+                                        &ctx->m_client_cs, MYF(utf8_flag));
 
   invalid_creation_ctx= resolve_collation(view->view_connection_cl_name.str,
                                           system_charset_info,
-                                          &ctx->m_connection_cl) ||
+                                          &ctx->m_connection_cl, MYF(utf8_flag)) ||
                         invalid_creation_ctx;
 
   if (invalid_creation_ctx)
@@ -2578,8 +2578,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (!f_is_blob(attr.pack_flag))
         {
           // 3.23 or 4.0 string
+          myf utf8_flag= thd->get_utf8_flag();
           if (!(attr.charset= get_charset_by_csname(share->table_charset->csname,
-                                                    MY_CS_BINSORT, MYF(0))))
+                                                         MY_CS_BINSORT,
+                                                    MYF(utf8_flag))))
             attr.charset= &my_charset_bin;
         }
       }

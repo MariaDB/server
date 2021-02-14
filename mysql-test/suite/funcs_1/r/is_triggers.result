@@ -77,7 +77,7 @@ TRIGGERS	CREATE TEMPORARY TABLE `TRIGGERS` (
   `CHARACTER_SET_CLIENT` varchar(32) NOT NULL DEFAULT '',
   `COLLATION_CONNECTION` varchar(32) NOT NULL DEFAULT '',
   `DATABASE_COLLATION` varchar(32) NOT NULL DEFAULT ''
-)  DEFAULT CHARSET=utf8
+)  DEFAULT CHARSET=utf8mb3
 SHOW COLUMNS FROM information_schema.TRIGGERS;
 Field	Type	Null	Key	Default	Extra
 TRIGGER_CATALOG	varchar(512)	NO			
@@ -114,12 +114,12 @@ def	sys	sys_config_insert_set_user	INSERT	def	sys	sys_config	1	NULL	BEGIN
     IF @sys.ignore_sys_config_triggers != true AND NEW.set_by IS NULL THEN
         SET NEW.set_by = USER();
     END IF;
-END	ROW	BEFORE	NULL	NULL	OLD	NEW	#		root@localhost	utf8	utf8_general_ci	utf8_general_ci
+END	ROW	BEFORE	NULL	NULL	OLD	NEW	#		root@localhost	utf8mb3	utf8mb3_general_ci	utf8mb3_general_ci
 def	sys	sys_config_update_set_user	UPDATE	def	sys	sys_config	1	NULL	BEGIN
     IF @sys.ignore_sys_config_triggers != true AND NEW.set_by IS NULL THEN
         SET NEW.set_by = USER();
     END IF;
-END	ROW	BEFORE	NULL	NULL	OLD	NEW	#		root@localhost	utf8	utf8_general_ci	utf8_general_ci
+END	ROW	BEFORE	NULL	NULL	OLD	NEW	#		root@localhost	utf8mb3	utf8mb3_general_ci	utf8mb3_general_ci
 ##################################################################################
 # Testcase 3.2.18.2 + 3.2.18.3: INFORMATION_SCHEMA.TRIGGERS accessible information
 ##################################################################################

@@ -11,7 +11,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
-  `b` varchar(100) CHARACTER SET utf8 DEFAULT NULL,
+  `b` varchar(100) CHARACTER SET utf8mb3 DEFAULT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SET character_set_client=latin1;

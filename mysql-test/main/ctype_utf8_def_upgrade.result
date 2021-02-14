@@ -52,11 +52,11 @@ SET @@character_set_database=DEFAULT;
 # Emulate a pre-4.1 database without db.opt
 SHOW CREATE DATABASE db1;
 Database	Create Database
-db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8 */
+db1	CREATE DATABASE `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 */
 USE db1;
 SELECT @@character_set_database, 'taken from defaults' AS comment;
 @@character_set_database	comment
-utf8	taken from defaults
+utf8mb3	taken from defaults
 USE test;
 ALTER DATABASE db1 DEFAULT CHARACTER SET latin1;
 USE db1;

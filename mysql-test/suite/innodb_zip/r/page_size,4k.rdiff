@@ -1,5 +1,5 @@
 --- page_size.result
-+++ page_size,4k.result
++++ page_size,4k.reject
 @@ -3,7 +3,7 @@
  SELECT variable_value FROM information_schema.global_status
  WHERE LOWER(variable_name) = 'innodb_page_size';
@@ -339,7 +339,7 @@
 -  `d` text NOT NULL,
 -  PRIMARY KEY (`a`,`b`(255),`c`(255)),
 -  KEY `b` (`b`(767))
--) ENGINE=InnoDB DEFAULT CHARSET=utf8 STATS_PERSISTENT=0
+-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 STATS_PERSISTENT=0
 -CHECK TABLE t1;
 -Table	Op	Msg_type	Msg_text
 -test.t1	check	status	OK
@@ -434,7 +434,7 @@
  ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
  DROP TABLE t1;
  # Bug#12547647 UPDATE LOGGING COULD EXCEED LOG PAGE SIZE
-@@ -565,27 +385,25 @@
+@@ -569,27 +389,25 @@
  DROP TABLE t1;
  CREATE TABLE t1(
  c text NOT NULL, d text NOT NULL,

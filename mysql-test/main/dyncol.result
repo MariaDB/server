@@ -157,7 +157,7 @@ select hex(COLUMN_CREATE(1, "afaf" AS char character set utf8,
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select hex(column_create(1,'afaf' AS char charset utf8 ,2,1212 AS unsigned int,3,1212 AS int,4,12.12 AS double,4 + 1,12.12 AS decimal,6,'2011-04-05' AS date,7,'- 0:45:49.000001' AS time,8,'2011-04-05 0:45:49.000001' AS datetime)) AS `hex(COLUMN_CREATE(1, "afaf" AS char character set utf8,
+Note	1003	select hex(column_create(1,'afaf' AS char charset utf8mb3 ,2,1212 AS unsigned int,3,1212 AS int,4,12.12 AS double,4 + 1,12.12 AS decimal,6,'2011-04-05' AS date,7,'- 0:45:49.000001' AS time,8,'2011-04-05 0:45:49.000001' AS datetime)) AS `hex(COLUMN_CREATE(1, "afaf" AS char character set utf8,
 2, 1212 AS unsigned int,
 3, 1212 AS int,
 4, 12.12 AS double,
@@ -368,7 +368,7 @@ select column_get(column_create(1, "1212" AS char charset utf8), 1 as char chars
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select column_get(column_create(1,'1212' AS char charset utf8 ),1 as char charset utf8) AS `column_get(column_create(1, "1212" AS char charset utf8), 1 as char charset utf8)`
+Note	1003	select column_get(column_create(1,'1212' AS char charset utf8mb3 ),1 as char charset utf8mb3) AS `column_get(column_create(1, "1212" AS char charset utf8), 1 as char charset utf8)`
 select column_get(column_create(1, 1212 AS unsigned int), 1 as char charset utf8);
 column_get(column_create(1, 1212 AS unsigned int), 1 as char charset utf8)
 1212
@@ -428,7 +428,7 @@ select column_get(column_create(1, "1212" AS char charset utf8), 1 as char chars
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
-Note	1003	select column_get(column_create(1,'1212' AS char charset utf8 ),1 as char charset binary) AS `column_get(column_create(1, "1212" AS char charset utf8), 1 as char charset binary)`
+Note	1003	select column_get(column_create(1,'1212' AS char charset utf8mb3 ),1 as char charset binary) AS `column_get(column_create(1, "1212" AS char charset utf8), 1 as char charset binary)`
 #
 # column get real
 #
@@ -1901,7 +1901,7 @@ drop table t1;
 create view v1 as select column_get(column_add(column_create(1 , 'blue' as char), 2, 'ttt'), 1 as char);
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select column_get(column_add(column_create(1,'blue' AS char charset utf8 ),2,'ttt'),1 as char charset utf8) AS `Name_exp_1`	utf8	utf8_general_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select column_get(column_add(column_create(1,'blue' AS char charset utf8mb3 ),2,'ttt'),1 as char charset utf8mb3) AS `Name_exp_1`	utf8mb3	utf8mb3_general_ci
 select * from v1;
 Name_exp_1
 blue
@@ -1929,9 +1929,9 @@ t1	CREATE TABLE `t1` (
   `name` varchar(10) DEFAULT NULL,
   `value` varchar(10) DEFAULT NULL,
   `dyncol0` blob DEFAULT column_create(`name`,`value`),
-  `value_dyncol0_name0` varchar(10) DEFAULT (column_get(`dyncol0`,'name0' as char charset utf8)),
+  `value_dyncol0_name0` varchar(10) DEFAULT (column_get(`dyncol0`,'name0' as char charset utf8mb3)),
   `dyncol1` blob DEFAULT column_add(`dyncol0`,'name1','value1'),
-  `value_dyncol1_name1` varchar(10) DEFAULT (column_get(`dyncol1`,'name1' as char charset utf8)),
+  `value_dyncol1_name1` varchar(10) DEFAULT (column_get(`dyncol1`,'name1' as char charset utf8mb3)),
   `dyncol2` blob DEFAULT column_add(`dyncol1`,'name1',NULL AS int),
   `dyncol2_exists_name0` int(11) DEFAULT column_exists(`dyncol2`,'name0'),
   `dyncol2_exists_name1` int(11) DEFAULT column_exists(`dyncol2`,'name1'),

@@ -172,7 +172,7 @@ SET @@global.old_mode = 4;
 SELECT @@global.old_mode;
 
 --Error ER_WRONG_VALUE_FOR_VAR
-SET @@global.old_mode = 8;
+SET @@global.old_mode = 16;
 SELECT @@global.old_mode;
 
 # use of decimal values
@@ -236,6 +236,83 @@ SELECT @@global.old_mode;
 
 SET @@session.old_mode = @session_start_value;
 SELECT @@session.old_mode;
+
+--echo #
+--echo # Beginning of 10.6 test
+--echo #
+--echo # MDEV-8334: Rename utf8 to utf8mb3
+--echo #
+--echo # Save and display old values
+SET @save_old_mode = @@OLD_MODE;
+SET @save_character_set_server = @@character_set_server;
+SET @save_character_set_client = @@character_set_client;
+SET @save_character_set_results = @@character_set_results;
+SET @save_character_set_connection = @@character_set_connection;
+SET @save_character_set_filesystem = @@character_set_filesystem;
+SET @save_character_set_database = @@character_set_database;
+SET @save_collation_connection = @@collation_connection;
+SET @save_collation_server = @@collation_server;
+SET @save_collation_database = @@collation_database;
+SELECT @@OLD_MODE;
+SELECT @@character_set_server,@@character_set_client,@@character_set_results,
+@@character_set_connection, @@character_set_filesystem, @@character_set_database,
+@@collation_connection, @@collation_server, @@collation_database;
+--echo #
+--echo # UTF8MB3 alias for UTF8
+--echo #
+SET @@character_set_server = utf8;
+SET @@character_set_client = utf8;
+SET @@character_set_results = utf8;
+SET @@character_set_connection = utf8;
+SET @@character_set_filesystem = utf8;
+SET @@character_set_database = utf8;
+SET @@collation_connection = utf8_general_ci;
+SET @@collation_server = utf8_unicode_ci;
+SET @@collation_database = utf8_bin;
+SELECT @@character_set_server, @@character_set_client, @@character_set_results,
+@@character_set_connection, @@character_set_filesystem, @@character_set_database,
+@@collation_connection, @@collation_server, @@collation_database;
+CREATE DATABASE db1 CHARACTER SET = 'utf8' COLLATE = 'utf8_general_ci';
+ALTER DATABASE db1 CHARACTER SET = 'utf8' COLLATE = 'utf8_unicode_ci';
+CREATE TABLE tb1 (id1 INT) CHARACTER SET 'utf8' COLLATE 'utf8_bin';
+SHOW CREATE TABLE tb1;
+DROP TABLE tb1;
+DROP DATABASE db1;
+--echo #
+--echo # UTF8MB4 is alias for UTF8
+--echo #
+SET @@OLD_MODE=0;
+SET @@character_set_server = utf8;
+SET @@character_set_client = utf8;
+SET @@character_set_results = utf8;
+SET @@character_set_connection = utf8;
+SET @@character_set_filesystem = utf8;
+SET @@character_set_database = utf8;
+SET @@collation_connection = utf8_general_ci;
+SET @@collation_server = utf8_unicode_ci;
+SET @@collation_database = utf8_bin;
+SELECT @@character_set_server, @@character_set_client, @@character_set_results,
+@@character_set_connection, @@character_set_filesystem, @@character_set_database,
+@@collation_connection, @@collation_server, @@collation_database;
+CREATE DATABASE db1 CHARACTER SET = 'utf8' COLLATE = 'utf8_general_ci';
+ALTER DATABASE db1 CHARACTER SET = 'utf8' COLLATE = 'utf8_unicode_ci';
+CREATE TABLE tb1 (id1 INT) CHARACTER SET 'utf8' COLLATE 'utf8_bin';
+SHOW CREATE TABLE tb1;
+DROP TABLE tb1;
+DROP DATABASE db1;
+SET @@OLD_MODE = @save_old_mode;
+SET @@character_set_server = @save_character_set_server;
+SET @@character_set_client = @save_character_set_client;
+SET @@character_set_results = @save_character_set_results;
+SET @@character_set_connection = @save_character_set_connection;
+SET @@character_set_filesystem = @save_character_set_filesystem;
+SET @@character_set_database = @save_character_set_database;
+SET @@collation_connection = @save_collation_connection;
+SET @@collation_server = @save_collation_server;
+SET @@collation_database = @save_collation_database;
+--echo #
+--echo # End of 10.6 test
+--echo #
 
 ################################################################
 #                    END OF old_mode TESTS                     #

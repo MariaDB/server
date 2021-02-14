@@ -6037,7 +6037,7 @@ USE d1;
 CREATE TABLE t1 (c CHAR(10), KEY(c));
 SHOW FULL COLUMNS FROM t1;
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
-c	char(10)	utf8_swedish_ci	YES	MUL	NULL			
+c	char(10)	utf8mb3_swedish_ci	YES	MUL	NULL			
 INSERT INTO t1 VALUES ('aaa'),('aaaa'),('aaaaa');
 SELECT c as want3results FROM t1 WHERE c LIKE 'aaa%';
 want3results
@@ -6048,7 +6048,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (c1 varchar(15), KEY c1 (c1(2)));
 SHOW FULL COLUMNS FROM t1;
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
-c1	varchar(15)	utf8_swedish_ci	YES	MUL	NULL			
+c1	varchar(15)	utf8mb3_swedish_ci	YES	MUL	NULL			
 INSERT INTO t1 VALUES ('location'),('loberge'),('lotre'),('boabab');
 SELECT c1 as want3results from t1 where c1 like 'l%';
 want3results
@@ -6104,7 +6104,7 @@ SET character_set_connection= @test_character_set;
 SET collation_connection= @test_collation;
 SELECT COLLATION('.'), SUBSTRING_INDEX('.wwwmysqlcom', '.', -2) AS c1;
 COLLATION('.')	c1
-utf8_swedish_ci	.wwwmysqlcom
+utf8mb3_swedish_ci	.wwwmysqlcom
 set names utf8;
 create table t1 (
 name varchar(10),
@@ -6112,9 +6112,9 @@ level smallint unsigned);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `name` varchar(10) COLLATE utf8_swedish_ci DEFAULT NULL,
+  `name` varchar(10) COLLATE utf8mb3_swedish_ci DEFAULT NULL,
   `level` smallint(5) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_swedish_ci
 insert into t1 values ('string',1);
 select concat(name,space(level)), concat(name, repeat(' ',level)) from t1;
 concat(name,space(level))	concat(name, repeat(' ',level))
@@ -6143,16 +6143,16 @@ delete from t1;
 insert into t1 values ('a'), ('a '), ('a\t');
 select collation(a),hex(a) from t1 order by a;
 collation(a)	hex(a)
-utf8_unicode_ci	6109
-utf8_unicode_ci	61
-utf8_unicode_ci	6120
+utf8mb3_unicode_ci	6109
+utf8mb3_unicode_ci	61
+utf8mb3_unicode_ci	6120
 drop table t1;
 #
 # MDEV-5453 Assertion `src' fails in my_strnxfrm_unicode on GROUP BY MID(..) WITH ROLLUP
 #
 SELECT @@collation_connection;
 @@collation_connection
-utf8_unicode_ci
+utf8mb3_unicode_ci
 CREATE TABLE t1 (i INT) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (1),(2);
 SELECT * FROM t1 GROUP BY MID(CURRENT_USER,0) WITH ROLLUP;
@@ -6169,7 +6169,7 @@ DROP TABLE t1;
 #
 SELECT @@collation_connection;
 @@collation_connection
-utf8_unicode_ci
+utf8mb3_unicode_ci
 CREATE TABLE t1 ENGINE=MEMORY AS SELECT REPEAT('a',5) AS a LIMIT 0;
 INSERT INTO t1 (a) VALUES ("a");
 INSERT INTO t1 (a) VALUES ("b");
@@ -6217,7 +6217,7 @@ a
 DROP TABLE t1;
 select @@collation_connection;
 @@collation_connection
-utf8_unicode_ci
+utf8mb3_unicode_ci
 create table t1 ROW_FORMAT=DYNAMIC select repeat('a',50) as c1 ;
 insert into t1 values('abcdef');
 insert into t1 values('_bcdef');
@@ -6235,7 +6235,7 @@ ab_def
 drop table t1;
 SELECT @@collation_connection;
 @@collation_connection
-utf8_unicode_ci
+utf8mb3_unicode_ci
 SELECT '\%b' LIKE '%\%';
 '\%b' LIKE '%\%'
 0
@@ -6244,7 +6244,7 @@ drop table if exists t1;
 create table t1 as select repeat(' ', 64) as s1;
 select collation(s1) from t1;
 collation(s1)
-utf8_unicode_ci
+utf8mb3_unicode_ci
 delete from t1;
 INSERT INTO t1 VALUES ('ud'),('uf');
 INSERT INTO t1 VALUES ('od'),('of');
@@ -6332,7 +6332,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',1) AS a, 1 AS b LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL,
+  `a` varchar(1) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci DEFAULT NULL,
   `b` int(1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('s',0),(_latin1 0xDF,1);
@@ -6548,7 +6548,7 @@ End of 5.1 tests
 SET collation_connection=utf8_czech_ci;
 SELECT @@collation_connection;
 @@collation_connection
-utf8_czech_ci
+utf8mb3_czech_ci
 #
 # Bug#57737 Character sets: search fails with like, contraction, index
 #
@@ -6574,7 +6574,7 @@ ch
 DROP TABLE t1;
 SELECT @@collation_connection;
 @@collation_connection
-utf8_czech_ci
+utf8mb3_czech_ci
 #
 # Bug#57737 Character sets: search fails with like, contraction, index
 # Part#2 - ignorable characters
@@ -6740,7 +6740,7 @@ ADD KEY(ch);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `ch` varchar(60) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL,
+  `ch` varchar(60) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci DEFAULT NULL,
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id`),
   KEY `ch` (`ch`)
@@ -6959,7 +6959,7 @@ ADD KEY(ch);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `ch` varchar(60) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL,
+  `ch` varchar(60) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci DEFAULT NULL,
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id`),
   KEY `ch` (`ch`)
@@ -7424,12 +7424,12 @@ F6FDF6FD9FF1B5F1CCF1
 set @@collation_connection=utf8_unicode_ci;
 select @@collation_connection;
 @@collation_connection
-utf8_unicode_ci
+utf8mb3_unicode_ci
 CREATE TABLE t1 AS SELECT 'a' AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET utf8 COLLATE utf8_unicode_ci NOT NULL
+  `a` varchar(1) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -7449,7 +7449,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',5) AS a;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(5) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL
+  `a` varchar(5) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
@@ -7565,7 +7565,7 @@ hex(weight_string('abc',25, 4, 0xC0))
 0E330E4A0E6002090209020902090209020902090209020902
 select @@collation_connection;
 @@collation_connection
-utf8_unicode_ci
+utf8mb3_unicode_ci
 select hex(weight_string(cast(_latin1 0x80 as char)));
 hex(weight_string(cast(_latin1 0x80 as char)))
 0E23
@@ -7637,7 +7637,7 @@ hex(weight_string(cast(_latin1 0x808080 as char),25, 4, 0xC0))
 0E230E230E2302090209020902090209020902090209020902
 select @@collation_connection;
 @@collation_connection
-utf8_unicode_ci
+utf8mb3_unicode_ci
 select hex(weight_string('a' LEVEL 1));
 hex(weight_string('a' LEVEL 1))
 0E33
@@ -7668,10 +7668,10 @@ F6FDF6FD9FF1B5F1CCF1
 set @@collation_connection=utf8_czech_ci;
 select @@collation_connection;
 @@collation_connection
-utf8_czech_ci
+utf8mb3_czech_ci
 select collation(cast(_latin1 0xDF as char));
 collation(cast(_latin1 0xDF as char))
-utf8_czech_ci
+utf8mb3_czech_ci
 select hex(weight_string('s'));
 hex(weight_string('s'))
 0FEA
@@ -7987,7 +7987,7 @@ drop table if exists t1;
 create table t1 as select repeat(' ', 64) as s1;
 select collation(s1) from t1;
 collation(s1)
-utf8_german2_ci
+utf8mb3_german2_ci
 delete from t1;
 INSERT INTO t1 VALUES ('ud'),('uf');
 INSERT INTO t1 VALUES ('od'),('of');
@@ -8077,7 +8077,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',1) AS a, 1 AS b LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(1) CHARACTER SET utf8 COLLATE utf8_german2_ci DEFAULT NULL,
+  `a` varchar(1) CHARACTER SET utf8mb3 COLLATE utf8mb3_german2_ci DEFAULT NULL,
   `b` int(1) NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('s',0),(_latin1 0xDF,1);
@@ -8411,7 +8411,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS c1 LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(10) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL
+  `c1` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('a'),('a ');
 SELECT * FROM t1 WHERE CONCAT(c1)='a';
@@ -8434,7 +8434,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS c1 LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(10) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL
+  `c1` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('a'),('a ');
 SELECT * FROM t1 WHERE 'a'=CONCAT(c1);
@@ -8457,7 +8457,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS c1 LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(10) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL
+  `c1` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('%'),('% ');
 SELECT * FROM t1 WHERE '% '=CONCAT(c1);
@@ -8480,7 +8480,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS c1 LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(10) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL
+  `c1` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('%'),('% ');
 SELECT * FROM t1 WHERE '%'=CONCAT(c1);
@@ -8506,7 +8506,7 @@ CREATE TABLE t1 AS SELECT SPACE(10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL
+  `a` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('a'),('a ');
 SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ';
@@ -8531,7 +8531,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',10) AS c1 LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(10) CHARACTER SET utf8 COLLATE utf8_unicode_ci DEFAULT NULL
+  `c1` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('ae'),('ä');
 SELECT * FROM t1 WHERE c1='ä';
@@ -8569,7 +8569,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS c1 LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(10) CHARACTER SET utf8 COLLATE utf8_german2_ci DEFAULT NULL
+  `c1` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_german2_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('a'),('a ');
 SELECT * FROM t1 WHERE CONCAT(c1)='a';
@@ -8592,7 +8592,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS c1 LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(10) CHARACTER SET utf8 COLLATE utf8_german2_ci DEFAULT NULL
+  `c1` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_german2_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('a'),('a ');
 SELECT * FROM t1 WHERE 'a'=CONCAT(c1);
@@ -8615,7 +8615,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS c1 LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(10) CHARACTER SET utf8 COLLATE utf8_german2_ci DEFAULT NULL
+  `c1` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_german2_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('%'),('% ');
 SELECT * FROM t1 WHERE '% '=CONCAT(c1);
@@ -8638,7 +8638,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a', 10) AS c1 LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(10) CHARACTER SET utf8 COLLATE utf8_german2_ci DEFAULT NULL
+  `c1` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_german2_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('%'),('% ');
 SELECT * FROM t1 WHERE '%'=CONCAT(c1);
@@ -8664,7 +8664,7 @@ CREATE TABLE t1 AS SELECT SPACE(10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET utf8 COLLATE utf8_german2_ci DEFAULT NULL
+  `a` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_german2_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('a'),('a ');
 SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ';
@@ -8689,7 +8689,7 @@ CREATE TABLE t1 AS SELECT REPEAT('a',10) AS c1 LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(10) CHARACTER SET utf8 COLLATE utf8_german2_ci DEFAULT NULL
+  `c1` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_german2_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('ae'),('ä');
 SELECT * FROM t1 WHERE c1='ä';
@@ -8732,7 +8732,7 @@ SET NAMES utf8 COLLATE utf8_myanmar_ci;
 #
 SELECT @@collation_connection;
 @@collation_connection
-utf8_myanmar_ci
+utf8mb3_myanmar_ci
 CREATE TABLE t1 AS SELECT 100000 AS id, REPEAT(' ', 64) AS s1 LIMIT 0;
 SELECT COLLATION(s1) FROM t1;
 COLLATION(s1)
@@ -8742,7 +8742,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `s1` varchar(64) CHARACTER SET utf8 COLLATE utf8_myanmar_ci DEFAULT NULL,
+  `s1` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_myanmar_ci DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (s1) VALUES
@@ -13966,12 +13966,12 @@ SET NAMES utf8 COLLATE utf8_thai_520_w2;
 #
 SELECT @@collation_connection;
 @@collation_connection
-utf8_thai_520_w2
+utf8mb3_thai_520_w2
 SELECT ID, SORTLEN, COLLATION_NAME, CHARACTER_SET_NAME
 FROM INFORMATION_SCHEMA.COLLATIONS
 WHERE COLLATION_NAME LIKE @@collation_connection;
 ID	SORTLEN	COLLATION_NAME	CHARACTER_SET_NAME
-578	4	utf8_thai_520_w2	utf8
+578	4	utf8mb3_thai_520_w2	utf8mb3
 #
 # Testing strnxfrm
 #
@@ -13979,7 +13979,7 @@ CREATE TABLE t1 AS SELECT SPACE(3) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(3) CHARACTER SET utf8 COLLATE utf8_thai_520_w2 DEFAULT NULL
+  `a` varchar(3) CHARACTER SET utf8mb3 COLLATE utf8mb3_thai_520_w2 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (SPACE(0)),(SPACE(1)),(SPACE(2));
 SELECT HEX(a), HEX(WEIGHT_STRING(a AS CHAR(8))) FROM t1;
@@ -14012,7 +14012,7 @@ CREATE TABLE t1 AS SELECT SPACE(10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET utf8 COLLATE utf8_thai_520_w2 DEFAULT NULL
+  `a` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_thai_520_w2 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (_ucs2 0x3400);
 INSERT INTO t1 VALUES (_ucs2 0xF001);
@@ -14025,7 +14025,7 @@ CREATE TABLE t1 AS SELECT SPACE(10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET utf8 COLLATE utf8_thai_520_w2 DEFAULT NULL
+  `a` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_thai_520_w2 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('A'),('À'),('Á'),('Â'),('Ã'),('Ä'),('Å');
 SELECT a, HEX(WEIGHT_STRING(a LEVEL 2)) FROM t1 ORDER BY a;
@@ -14059,7 +14059,7 @@ SET collation_connection=@backup_collation_connection;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` char(10) CHARACTER SET utf8 COLLATE utf8_thai_520_w2 DEFAULT NULL
+  `a` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_thai_520_w2 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT a, HEX(WEIGHT_STRING(a LEVEL 2)) FROM t1 ORDER BY a;
 a	HEX(WEIGHT_STRING(a LEVEL 2))
@@ -14084,7 +14084,7 @@ CREATE TABLE t1 AS SELECT SPACE(10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) CHARACTER SET utf8 COLLATE utf8_thai_520_w2 DEFAULT NULL
+  `a` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_thai_520_w2 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES ('cota'),('cote'),('cotz');
 INSERT INTO t1 VALUES ('coté'),('côte'),('côté'),('cotë'),('côtë');
@@ -14228,7 +14228,7 @@ SET collation_connection=@backup_collation_connection;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(30) CHARACTER SET utf8 COLLATE utf8_thai_520_w2 DEFAULT NULL,
+  `a` varchar(30) CHARACTER SET utf8mb3 COLLATE utf8mb3_thai_520_w2 DEFAULT NULL,
   `id` int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (`id`),
   KEY `a_id` (`a`,`id`)

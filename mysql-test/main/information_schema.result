@@ -13,8 +13,8 @@ select * from information_schema.SCHEMATA where schema_name > 'm';
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
 def	mtr	latin1	latin1_swedish_ci	NULL	
 def	mysql	latin1	latin1_swedish_ci	NULL	
-def	performance_schema	utf8	utf8_general_ci	NULL	
-def	sys	utf8	utf8_general_ci	NULL	
+def	performance_schema	utf8mb3	utf8mb3_general_ci	NULL	
+def	sys	utf8mb3	utf8mb3_general_ci	NULL	
 def	test	latin1	latin1_swedish_ci	NULL	
 select schema_name from information_schema.schemata;
 schema_name
@@ -225,10 +225,10 @@ Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
 a	int(11)	NULL	YES	MUL	NULL		select,insert,update,references	
 show full columns from mysql.db like "Insert%";
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
-Insert_priv	enum('N','Y')	utf8_general_ci	NO		N		select,insert,update,references	
+Insert_priv	enum('N','Y')	utf8mb3_general_ci	NO		N		select,insert,update,references	
 show full columns from v1;
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
-c	varchar(64)	utf8_general_ci	NO				select,insert,update,references	
+c	varchar(64)	utf8mb3_general_ci	NO				select,insert,update,references	
 select * from information_schema.COLUMNS where table_name="t1"
 and column_name= "a";
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
@@ -611,7 +611,7 @@ CHARACTER_SETS	CREATE TEMPORARY TABLE `CHARACTER_SETS` (
   `DEFAULT_COLLATE_NAME` varchar(32) NOT NULL DEFAULT '',
   `DESCRIPTION` varchar(60) NOT NULL DEFAULT '',
   `MAXLEN` bigint(3) NOT NULL DEFAULT 0
-) ENGINE=MEMORY DEFAULT CHARSET=utf8
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3
 set names latin2;
 SHOW CREATE TABLE INFORMATION_SCHEMA.character_sets;
 Table	Create Table
@@ -620,7 +620,7 @@ CHARACTER_SETS	CREATE TEMPORARY TABLE `CHARACTER_SETS` (
   `DEFAULT_COLLATE_NAME` varchar(32) NOT NULL DEFAULT '',
   `DESCRIPTION` varchar(60) NOT NULL DEFAULT '',
   `MAXLEN` bigint(3) NOT NULL DEFAULT 0
-) ENGINE=MEMORY DEFAULT CHARSET=utf8
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3
 set names latin1;
 create table t1 select * from information_schema.CHARACTER_SETS
 where CHARACTER_SET_NAME like "latin1";
@@ -635,7 +635,7 @@ t1	CREATE TABLE `t1` (
   `DEFAULT_COLLATE_NAME` varchar(32) NOT NULL DEFAULT '',
   `DESCRIPTION` varchar(60) NOT NULL DEFAULT '',
   `MAXLEN` bigint(3) NOT NULL DEFAULT 0
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3
 drop table t1;
 create view v1 as select * from information_schema.TABLES;
 drop view v1;
@@ -1163,7 +1163,7 @@ drop procedure p1;
 drop procedure p2;
 show create database information_schema;
 Database	Create Database
-information_schema	CREATE DATABASE `information_schema` /*!40100 DEFAULT CHARACTER SET utf8 */
+information_schema	CREATE DATABASE `information_schema` /*!40100 DEFAULT CHARACTER SET utf8mb3 */
 create table t1(f1 LONGBLOB, f2 LONGTEXT);
 select column_name,data_type,CHARACTER_OCTET_LENGTH,
 CHARACTER_MAXIMUM_LENGTH
@@ -1744,7 +1744,7 @@ information_schema
 SELECT TABLE_COLLATION FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_SCHEMA='mysql' and TABLE_NAME= 'db';
 TABLE_COLLATION
-utf8_bin
+utf8mb3_bin
 select * from information_schema.columns where table_schema = NULL;
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	PRIVILEGES	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
 select * from `information_schema`.`COLUMNS` where `TABLE_NAME` = NULL;

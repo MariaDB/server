@@ -59,13 +59,15 @@ static my_bool mrn_snippet_prepare(st_mrn_snip_info *snip_info, UDF_ARGS *args,
   grn_snip_mapping *mapping = NULL;
   grn_rc rc;
   String *result_str = &snip_info->result_str;
+  myf utf8_flag= current_thd->get_utf8_flag();
 
   *snippet = NULL;
   snip_max_len = *((long long *) args->args[1]);
   snip_max_num = *((long long *) args->args[2]);
 
   if (args->arg_type[3] == STRING_RESULT) {
-    if (!(cs = get_charset_by_name(args->args[3], MYF(0)))) {
+    if (!(cs = get_charset_by_name(args->args[3],
+                                   MYF(utf8_flag)))) {
       snprintf(message, MYSQL_ERRMSG_SIZE,
                "Unknown charset: <%s>", args->args[3]);
       goto error;

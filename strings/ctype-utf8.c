@@ -5473,7 +5473,7 @@ struct charset_info_st my_charset_utf8mb3_general_ci=
 {
     33,0,0,             /* number       */
     MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM|MY_CS_UNICODE,  /* state  */
-    charset_name_utf8,         /* cs name      */
+    charset_name_utf8mb3,         /* cs name      */
     MY_UTF8MB3 "_general_ci", /* name   */
     "",                 /* comment      */
     NULL,               /* tailoring    */
@@ -5506,7 +5506,7 @@ struct charset_info_st my_charset_utf8mb3_general_mysql500_ci=
 {
   223,0,0,                                      /* number           */
   MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_UNICODE,  /* state            */
-  charset_name_utf8,                                   /* cs name          */
+  charset_name_utf8mb3,                                   /* cs name          */
   MY_UTF8MB3 "_general_mysql500_ci",            /* name             */
   "",                                           /* comment          */
   NULL,                                         /* tailoring        */
@@ -5539,7 +5539,7 @@ struct charset_info_st my_charset_utf8mb3_bin=
 {
     83,0,0,             /* number       */
     MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_BINSORT|MY_CS_UNICODE, /* state  */
-    charset_name_utf8,         /* cs name      */
+    charset_name_utf8mb3,         /* cs name      */
     MY_UTF8MB3 "_bin",  /* name         */
     "",                 /* comment      */
     NULL,               /* tailoring    */
@@ -5572,7 +5572,7 @@ struct charset_info_st my_charset_utf8mb3_general_nopad_ci=
 {
     MY_NOPAD_ID(33),0,0,      /* number           */
     MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NOPAD, /* state */
-    charset_name_utf8,               /* cs name          */
+    charset_name_utf8mb3,               /* cs name          */
     MY_UTF8MB3 "_general_nopad_ci", /* name       */
     "",                       /* comment          */
     NULL,                     /* tailoring        */
@@ -5605,7 +5605,7 @@ struct charset_info_st my_charset_utf8mb3_nopad_bin=
 {
     MY_NOPAD_ID(83),0,0,/* number           */
     MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_BINSORT|MY_CS_UNICODE|MY_CS_NOPAD,
-    charset_name_utf8,         /* cs name          */
+    charset_name_utf8mb3,         /* cs name          */
     MY_UTF8MB3 "_nopad_bin", /* name        */
     "",                 /* comment          */
     NULL,               /* tailoring        */
@@ -5767,7 +5767,7 @@ struct charset_info_st my_charset_utf8mb3_general_cs=
 {
     254,0,0,		/* number       */
     MY_CS_COMPILED|MY_CS_UNICODE, /* state */
-    charset_name_utf8,		/* cs name      */
+    charset_name_utf8mb3,		/* cs name      */
     MY_UTF8MB3 "_general_cs", /* name   */
     "",			/* comment      */
     NULL,		/* tailoring    */

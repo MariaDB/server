@@ -676,7 +676,7 @@ The following specify which files/extra groups are read (specified before remain
  --old-mode=name     Used to emulate old behavior from earlier MariaDB or
  MySQL versions. Any combination of: 
  NO_DUP_KEY_WARNINGS_WITH_IGNORE, NO_PROGRESS_INFO, 
- ZERO_DATE_TIME_CAST
+ ZERO_DATE_TIME_CAST, UTF8_IS_UTF8MB3
  --old-passwords     Use old password encryption method (needed for 4.0 and
  older clients)
  --old-style-user-limits 
@@ -1647,7 +1647,7 @@ net-retry-count 10
 net-write-timeout 60
 old FALSE
 old-alter-table DEFAULT
-old-mode 
+old-mode UTF8_IS_UTF8MB3
 old-passwords FALSE
 old-style-user-limits FALSE
 optimizer-max-sel-arg-weight 32000

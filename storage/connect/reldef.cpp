@@ -361,7 +361,8 @@ bool TABDEF::Define(PGLOBAL g, PCATLG cat,
   Read_Only = GetBoolCatInfo("ReadOnly", false);
   const char *data_charset_name= GetStringCatInfo(g, "Data_charset", NULL);
   m_data_charset= data_charset_name ?
-                  get_charset_by_csname(data_charset_name, MY_CS_PRIMARY, 0):
+                  get_charset_by_csname(data_charset_name, MY_CS_PRIMARY,
+                                        MYF(MY_UTF8_IS_UTF8MB3)):
                   NULL;
   csname = GetStringCatInfo(g, "Table_charset", NULL);
 

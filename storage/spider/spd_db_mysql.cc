@@ -1768,6 +1768,8 @@ int spider_db_mbase_result::fetch_table_for_discover_table_structure(
 ) {
   int error_num;
   MYSQL_ROW mysql_row;
+  myf utf8_flag= global_system_variables.old_behavior &
+                 OLD_MODE_UTF8_IS_UTF8MB3 ? MY_UTF8_IS_UTF8MB3 : 0;
   DBUG_ENTER("spider_db_mbase_result::fetch_table_for_discover_table_structure");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!(mysql_row = mysql_fetch_row(db_result)))
@@ -1796,7 +1798,8 @@ int spider_db_mbase_result::fetch_table_for_discover_table_structure(
   DBUG_PRINT("info",("spider mysql_row[14]=%s", mysql_row[14]));
   if (!spider_share->table_share->table_charset)
   {
-    spider_share->table_share->table_charset = get_charset_by_name(mysql_row[14], MYF(MY_WME));
+    spider_share->table_share->table_charset = get_charset_by_name(mysql_row[14],
+                                                                   MYF(utf8_flag | MY_WME));
   }
   DBUG_RETURN(0);
 }

@@ -986,7 +986,7 @@ static void get_options(register int *argc,register char ***argv)
 
   if (set_collation_name)
     if (!(set_collation= get_charset_by_name(set_collation_name,
-                                             MYF(MY_WME))))
+                                             MYF(MY_UTF8_IS_UTF8MB3 | MY_WME))))
       my_exit(1);
 
   if (maria_data_root != default_log_dir && opt_log_dir == default_log_dir)

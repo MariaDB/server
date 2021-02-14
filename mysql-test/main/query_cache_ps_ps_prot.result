@@ -408,9 +408,9 @@ EXECUTE stmt_a_2;
 SELECT * FROM mysqltest1.t1;
 msg
 mysqltest1
-utf8_unicode_ci
+utf8mb3_unicode_ci
 mysqltest1
-utf8_unicode_ci
+utf8mb3_unicode_ci
 
 SELECT * FROM mysqltest2.t1;
 msg
@@ -484,7 +484,7 @@ NULL	latin1_swedish_ci
 
 EXECUTE stmt_c_1;
 DATABASE()	@@collation_database
-mysqltest1	utf8_unicode_ci
+mysqltest1	utf8mb3_unicode_ci
 
 SELECT DATABASE(), @@collation_database;
 DATABASE()	@@collation_database
@@ -516,7 +516,7 @@ Note	1049	Unknown database 'mysqltest2'
 
 SELECT DATABASE(), @@collation_database;
 DATABASE()	@@collation_database
-mysqltest1	utf8_unicode_ci
+mysqltest1	utf8mb3_unicode_ci
 
 EXECUTE stmt_c_3;
 DATABASE()	@@collation_database
@@ -524,7 +524,7 @@ NULL	latin1_swedish_ci
 
 SELECT DATABASE(), @@collation_database;
 DATABASE()	@@collation_database
-mysqltest1	utf8_unicode_ci
+mysqltest1	utf8mb3_unicode_ci
 
 DROP DATABASE mysqltest1;
 

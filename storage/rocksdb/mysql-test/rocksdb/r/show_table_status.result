@@ -9,7 +9,7 @@ SHOW TABLE STATUS WHERE name IN ( 't1', 't2', 't3' );
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
 t1	ROCKSDB	10	Fixed	1000	#	#	0	0	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			0	N
 t2	ROCKSDB	10	Fixed	1000	#	#	0	0	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			0	N
-t3	ROCKSDB	10	Fixed	1000	#	#	0	0	0	NULL	#	#	NULL	utf8_general_ci	NULL			0	N
+t3	ROCKSDB	10	Fixed	1000	#	#	0	0	0	NULL	#	#	NULL	utf8mb3_general_ci	NULL			0	N
 SHOW TABLE STATUS WHERE name LIKE 't2';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
 t2	ROCKSDB	10	Fixed	1000	#	#	0	0	0	NULL	#	#	NULL	latin1_swedish_ci	NULL			0	N

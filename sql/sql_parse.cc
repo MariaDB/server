@@ -10457,7 +10457,10 @@ merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl)
 CHARSET_INFO *find_bin_collation(CHARSET_INFO *cs)
 {
   const char *csname= cs->csname;
-  cs= get_charset_by_csname(csname, MY_CS_BINSORT, MYF(0));
+  THD *thd= current_thd;
+  myf utf8_flag= thd->get_utf8_flag();
+
+  cs= get_charset_by_csname(csname, MY_CS_BINSORT, MYF(utf8_flag));
   if (!cs)
   {
     char tmp[65];

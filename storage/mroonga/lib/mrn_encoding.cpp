@@ -42,7 +42,7 @@ namespace mrn {
       {
         if (!cs[0])
           continue;
-        if (!strcmp(cs[0]->csname, "utf8"))
+        if (!strcmp(cs[0]->csname, "utf8mb3"))
         {
           DBUG_PRINT("info", ("mroonga: %s is %s [%p]",
                               cs[0]->name, cs[0]->csname, cs[0]->cset));

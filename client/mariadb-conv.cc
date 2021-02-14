@@ -43,7 +43,7 @@ public:
   { }
   static CHARSET_INFO *csinfo_by_name(const char *csname)
   {
-    return get_charset_by_csname(csname, MY_CS_PRIMARY, MYF(0));
+    return get_charset_by_csname(csname, MY_CS_PRIMARY, MYF(MY_UTF8_IS_UTF8MB3));
   }
   CHARSET_INFO *csinfo_from() const
   {

@@ -2,7 +2,7 @@
 # Tests with the utf8 character set
 #
 
-let collation=utf8_unicode_ci;
+let collation=utf8mb3_unicode_ci;
 --source include/have_collation.inc
 SET TIME_ZONE='+03:00';
 

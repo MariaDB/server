@@ -1327,7 +1327,8 @@ static int get_options(int *argc, char ***argv)
   }
   if (strcmp(default_charset, MYSQL_AUTODETECT_CHARSET_NAME) &&
       !(charset_info= get_charset_by_csname(default_charset,
-                                            MY_CS_PRIMARY, MYF(MY_WME))))
+                                            MY_CS_PRIMARY,
+                                            MYF(MY_UTF8_IS_UTF8MB3 | MY_WME))))
     exit(1);
   if ((*argc < 1 && (!opt_alldbs && !opt_system)) || (*argc > 0 && opt_alldbs))
   {
@@ -1638,7 +1639,7 @@ static int switch_db_collation(FILE *sql_file,
     char quoted_db_buf[NAME_LEN * 2 + 3];
     char *quoted_db_name= quote_name(db_name, quoted_db_buf, FALSE);
 
-    CHARSET_INFO *db_cl= get_charset_by_name(required_db_cl_name, MYF(0));
+    CHARSET_INFO *db_cl= get_charset_by_name(required_db_cl_name, MYF(MY_UTF8_IS_UTF8MB3));
 
     if (!db_cl)
       return 1;
@@ -1669,7 +1670,7 @@ static int restore_db_collation(FILE *sql_file,
   char quoted_db_buf[NAME_LEN * 2 + 3];
   char *quoted_db_name= quote_name(db_name, quoted_db_buf, FALSE);
 
-  CHARSET_INFO *db_cl= get_charset_by_name(db_cl_name, MYF(0));
+  CHARSET_INFO *db_cl= get_charset_by_name(db_cl_name, MYF(MY_UTF8_IS_UTF8MB3));
 
   if (!db_cl)
     return 1;

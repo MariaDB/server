@@ -3,7 +3,7 @@
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
-let collation=utf8_unicode_ci;
+let collation=utf8mb3_unicode_ci;
 --source include/have_collation.inc
 
 create temporary table t (a char(1) character set filename) engine=innodb;

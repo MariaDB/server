@@ -3,7 +3,7 @@ database()
 test
 select charset(database());
 charset(database())
-utf8
+utf8mb3
 select database() = "test";
 database() = "test"
 1
@@ -24,7 +24,7 @@ user() like _latin1"%@%"
 1
 select charset(user());
 charset(user())
-utf8
+utf8mb3
 select version()>="03.23.29";
 version()>="03.23.29"
 1
@@ -36,7 +36,7 @@ version()>=_latin1"03.23.29"
 1
 select charset(version());
 charset(version())
-utf8
+utf8mb3
 explain extended select database(), user();
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
@@ -46,23 +46,23 @@ create table t1 (version char(60)) select database(), user(), version() as 'vers
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `database()` varchar(34) CHARACTER SET utf8 DEFAULT NULL,
-  `user()` varchar(384) CHARACTER SET utf8 DEFAULT NULL,
+  `database()` varchar(34) CHARACTER SET utf8mb3 DEFAULT NULL,
+  `user()` varchar(384) CHARACTER SET utf8mb3 DEFAULT NULL,
   `version` char(60) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select charset(charset(_utf8'a')), charset(collation(_utf8'a'));
 charset(charset(_utf8'a'))	charset(collation(_utf8'a'))
-utf8	utf8
+utf8mb3	utf8mb3
 select collation(charset(_utf8'a')), collation(collation(_utf8'a'));
 collation(charset(_utf8'a'))	collation(collation(_utf8'a'))
-utf8_general_ci	utf8_general_ci
+utf8mb3_general_ci	utf8mb3_general_ci
 create table t1 select charset(_utf8'a'), collation(_utf8'a');
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `charset(_utf8'a')` varchar(64) CHARACTER SET utf8 DEFAULT NULL,
-  `collation(_utf8'a')` varchar(64) CHARACTER SET utf8 DEFAULT NULL
+  `charset(_utf8'a')` varchar(64) CHARACTER SET utf8mb3 DEFAULT NULL,
+  `collation(_utf8'a')` varchar(64) CHARACTER SET utf8mb3 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select TRUE,FALSE,NULL;

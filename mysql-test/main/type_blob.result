@@ -31,7 +31,7 @@ t3	CREATE TABLE `t3` (
 show create TABLE t4;
 Table	Create Table
 t4	CREATE TABLE `t4` (
-  `c` mediumtext CHARACTER SET utf8 NOT NULL
+  `c` mediumtext CHARACTER SET utf8mb3 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1,t2,t3,t4;
 CREATE TABLE t1 (a char(257) default "hello");
@@ -1081,7 +1081,7 @@ CREATE TABLE t1 (a TEXT(1431655798) CHARACTER SET utf8);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` longtext CHARACTER SET utf8 DEFAULT NULL
+  `a` longtext CHARACTER SET utf8mb3 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 create table t1 (a int);

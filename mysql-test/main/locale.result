@@ -111,9 +111,9 @@ Warnings:
 Note	1265	Data truncated for column 'd' at row 1
 SET lc_time_names=ru_RU;
 SELECT c FROM t1 WHERE DAYNAME(d)<>c;
-ERROR HY000: Illegal mix of collations (utf8_general_ci,COERCIBLE) and (latin1_swedish_ci,IMPLICIT) for operation '<>'
+ERROR HY000: Illegal mix of collations (utf8mb3_general_ci,COERCIBLE) and (latin1_swedish_ci,IMPLICIT) for operation '<>'
 SELECT c FROM t1 WHERE MONTHNAME(d)<>c;
-ERROR HY000: Illegal mix of collations (utf8_general_ci,COERCIBLE) and (latin1_swedish_ci,IMPLICIT) for operation '<>'
+ERROR HY000: Illegal mix of collations (utf8mb3_general_ci,COERCIBLE) and (latin1_swedish_ci,IMPLICIT) for operation '<>'
 SET lc_time_names=en_US;
 SELECT c FROM t1 WHERE DAYNAME(d)<>c;
 c
@@ -238,7 +238,7 @@ a	a1	b	b1
 10 Oct October	10 Окт Октября	123,456,789.00	123'456'789,00
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select date_format('2001-10-02','%c %b %M') AS `a`,date_format('2001-10-02','%c %b %M','ru_RU') AS `a1`,format(123456789,2) AS `b`,format(123456789,2,'rm_CH') AS `b1`	utf8	utf8_general_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select date_format('2001-10-02','%c %b %M') AS `a`,date_format('2001-10-02','%c %b %M','ru_RU') AS `a1`,format(123456789,2) AS `b`,format(123456789,2,'rm_CH') AS `b1`	utf8mb3	utf8mb3_general_ci
 drop view v1;
 #
 # End of 10.2 tests

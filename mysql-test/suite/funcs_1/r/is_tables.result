@@ -77,7 +77,7 @@ TABLES	CREATE TEMPORARY TABLE `TABLES` (
   `TABLE_COMMENT` varchar(2048) NOT NULL DEFAULT '',
   `MAX_INDEX_LENGTH` bigint(21) unsigned DEFAULT NULL,
   `TEMPORARY` varchar(1) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=utf8
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3
 SHOW COLUMNS FROM information_schema.TABLES;
 Field	Type	Null	Key	Default	Extra
 TABLE_CATALOG	varchar(512)	NO			
@@ -268,11 +268,11 @@ ALTER TABLE db_datadict.t1_my_tablex DEFAULT CHARACTER SET utf8;
 SELECT table_name, table_collation FROM information_schema.tables
 WHERE table_name = 't1_my_tablex';
 table_name	table_collation
-t1_my_tablex	utf8_general_ci
+t1_my_tablex	utf8mb3_general_ci
 SELECT table_name, table_collation FROM information_schema.tables
 WHERE table_name = 't1_my_tablex';
 table_name	table_collation
-t1_my_tablex	utf8_general_ci
+t1_my_tablex	utf8mb3_general_ci
 ALTER TABLE db_datadict.t1_my_tablex
 DEFAULT CHARACTER SET latin1 COLLATE latin1_german1_ci;
 SELECT table_name, table_collation FROM information_schema.tables
