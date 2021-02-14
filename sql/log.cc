@@ -6390,8 +6390,9 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       DBUG_ASSERT(!thd->backup_commit_lock);
 
       mdl_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT, MDL_EXPLICIT);
-      thd->mdl_context.acquire_lock(&mdl_request,
-                                    thd->variables.lock_wait_timeout);
+      if (thd->mdl_context.acquire_lock(&mdl_request,
+                                        thd->variables.lock_wait_timeout))
+        DBUG_RETURN(1);
       thd->backup_commit_lock= &mdl_request;
 
       if ((res= thd->wait_for_prior_commit()))
