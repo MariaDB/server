@@ -1717,6 +1717,18 @@ FROM t1 JOIN t2 ON c = b GROUP BY b WITH ROLLUP;
 DROP TABLE t1,t2;
 
 --echo #
+--echo # MDEV-24855 ER_CRASHED_ON_USAGE or Assertion `length <= column->length'
+--echo # failed in ma_blockrec.c
+--echo #
+
+CREATE TABLE t1 (a BIT(5), c BINARY(179));
+INSERT INTO t1 VALUES (b'1100','foo'),(b'0','bar');
+--disable_result_log
+SELECT c, GROUP_CONCAT(CASE NULL WHEN 0 THEN a END, CASE 'foo' WHEN c THEN 1 END) AS f FROM t1 GROUP BY ExtractValue('<a></a>', '/a'), UUID();
+--enable_result_log
+DROP TABLE t1;
+
+--echo #
 --echo # MDEV-6129: Server crashes during UNION with ORDER BY field IS NULL
 --echo #
 

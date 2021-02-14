@@ -18504,9 +18504,9 @@ bool Create_tmp_table::add_fields(THD *thd,
       distinct_record_structure= true;
     }
   li.rewind();
-  uint uneven_delta= 0;
   while ((item=li++))
   {
+    uint uneven_delta;
     current_counter= (((param->hidden_field_count < (fieldnr + 1)) &&
                        distinct_record_structure &&
                        (!m_with_cycle ||
@@ -18569,8 +18569,8 @@ bool Create_tmp_table::add_fields(THD *thd,
 
           uneven_delta= m_uneven_bit_length;
           add_field(table, new_field, fieldnr++, param->force_not_null_cols);
-          uneven_delta= m_uneven_bit_length - uneven_delta;
           m_field_count[current_counter]++;
+          m_uneven_bit[current_counter]+= (m_uneven_bit_length - uneven_delta);
 
           if (!(new_field->flags & NOT_NULL_FLAG))
           {
@@ -18651,8 +18651,8 @@ bool Create_tmp_table::add_fields(THD *thd,
 
       uneven_delta= m_uneven_bit_length;
       add_field(table, new_field, fieldnr++, param->force_not_null_cols);
-      uneven_delta= m_uneven_bit_length - uneven_delta;
       m_field_count[current_counter]++;
+      m_uneven_bit[current_counter]+= (m_uneven_bit_length - uneven_delta);
 
       if (item->marker == 4 && item->maybe_null)
       {
@@ -18662,7 +18662,6 @@ bool Create_tmp_table::add_fields(THD *thd,
       if (current_counter == distinct)
         new_field->flags|= FIELD_PART_OF_TMP_UNIQUE;
     }
-    m_uneven_bit[current_counter]+= uneven_delta;
   }
   DBUG_ASSERT(fieldnr == m_field_count[other] + m_field_count[distinct]);
   DBUG_ASSERT(m_blob_count == m_blobs_count[other] + m_blobs_count[distinct]);
@@ -18821,7 +18820,6 @@ bool Create_tmp_table::finalize(THD *thd,
 
     if (!(field->flags & NOT_NULL_FLAG))
     {
-
       recinfo->null_bit= (uint8)1 << (null_counter[current_counter] & 7);
       recinfo->null_pos= (null_pack_base[current_counter] +
                           null_counter[current_counter]/8);
