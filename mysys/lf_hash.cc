@@ -28,13 +28,14 @@
 #include <my_bit.h>
 #include <lf.h>
 #include "my_cpu.h"
+#include "assume_aligned.h"
 
 /* An element of the list */
 typedef struct {
-  intptr volatile link; /* a pointer to the next element in a list and a flag */
-  uint32 hashnr;        /* reversed hash number, for sorting                 */
+  intptr link;   /* a pointer to the next element in a list and a flag */
   const uchar *key;
   size_t keylen;
+  uint32 hashnr; /* reversed hash number, for sorting */
   /*
     data is stored here, directly after the keylen.
     thus the pointer to data is (void*)(slist_element_ptr+1)
@@ -48,7 +49,7 @@ const int LF_HASH_OVERHEAD= sizeof(LF_SLIST);
   in a list) from l_find to l_insert/l_delete
 */
 typedef struct {
-  intptr volatile *prev;
+  intptr *prev;
   LF_SLIST *curr, *next;
 } CURSOR;
 
@@ -85,7 +86,7 @@ typedef struct {
              0 - ok
              1 - error (callbck returned 1)
 */
-static int l_find(LF_SLIST * volatile *head, CHARSET_INFO *cs, uint32 hashnr,
+static int l_find(LF_SLIST **head, CHARSET_INFO *cs, uint32 hashnr,
                  const uchar *key, size_t keylen, CURSOR *cursor, LF_PINS *pins,
                  my_hash_walk_action callback)
 {
@@ -98,11 +99,11 @@ static int l_find(LF_SLIST * volatile *head, CHARSET_INFO *cs, uint32 hashnr,
   DBUG_ASSERT(!keylen || !callback);    /* should not be set both */
 
 retry:
-  cursor->prev= (intptr *)head;
+  cursor->prev= (intptr *) my_assume_aligned<sizeof(intptr)>(head);
   do { /* PTR() isn't necessary below, head is a dummy node */
-    cursor->curr= (LF_SLIST *)(*cursor->prev);
+    cursor->curr= my_assume_aligned<sizeof(LF_SLIST *)>((LF_SLIST *)(*cursor->prev));
     lf_pin(pins, 1, cursor->curr);
-  } while (my_atomic_loadptr((void**)cursor->prev) != cursor->curr &&
+  } while (my_atomic_loadptr((void **)my_assume_aligned<sizeof(LF_SLIST *)>(cursor->prev)) != cursor->curr &&
            LF_BACKOFF());
   for (;;)
   {
@@ -111,11 +112,14 @@ retry:
 
     cur_hashnr= cursor->curr->hashnr;
     cur_keylen= cursor->curr->keylen;
+    /* The key element needs to be aligned, not necessary what it points to */
+    my_assume_aligned<sizeof(const uchar *)>(&cursor->curr->key);
     cur_key= cursor->curr->key;
 
     do {
+      /* attempting to my_assume_aligned onlink below broke the implementation */
       link= cursor->curr->link;
-      cursor->next= PTR(link);
+      cursor->next= my_assume_aligned<sizeof(LF_SLIST *)>(PTR(link));
       lf_pin(pins, 0, cursor->next);
     } while (link != cursor->curr->link && LF_BACKOFF());
 
@@ -155,6 +159,10 @@ retry:
   }
 }
 
+
+/* static l_find is the only user my_assume_aligned, keep the rest as c scoped */
+C_MODE_START
+
 /*
   DESCRIPTION
     insert a 'node' in the list that starts from 'head' in the correct
@@ -168,7 +176,7 @@ retry:
     it uses pins[0..2], on return all pins are removed.
     if there're nodes with the same key value, a new node is added before them.
 */
-static LF_SLIST *l_insert(LF_SLIST * volatile *head, CHARSET_INFO *cs,
+static LF_SLIST *l_insert(LF_SLIST **head, CHARSET_INFO *cs,
                          LF_SLIST *node, LF_PINS *pins, uint flags)
 {
   CURSOR         cursor;
@@ -220,7 +228,7 @@ static LF_SLIST *l_insert(LF_SLIST * volatile *head, CHARSET_INFO *cs,
   NOTE
     it uses pins[0..2], on return all pins are removed.
 */
-static int l_delete(LF_SLIST * volatile *head, CHARSET_INFO *cs, uint32 hashnr,
+static int l_delete(LF_SLIST **head, CHARSET_INFO *cs, uint32 hashnr,
                    const uchar *key, uint keylen, LF_PINS *pins)
 {
   CURSOR cursor;
@@ -278,7 +286,7 @@ static int l_delete(LF_SLIST * volatile *head, CHARSET_INFO *cs, uint32 hashnr,
     it uses pins[0..2], on return the pin[2] keeps the node found
     all other pins are removed.
 */
-static LF_SLIST *l_search(LF_SLIST * volatile *head, CHARSET_INFO *cs,
+static LF_SLIST *l_search(LF_SLIST **head, CHARSET_INFO *cs,
                          uint32 hashnr, const uchar *key, uint keylen,
                          LF_PINS *pins)
 {
@@ -319,12 +327,13 @@ static inline my_hash_value_type calc_hash(CHARSET_INFO *cs,
 
 #define MAX_LOAD 1.0    /* average number of elements in a bucket */
 
-static int initialize_bucket(LF_HASH *, LF_SLIST * volatile*, uint, LF_PINS *);
+static int initialize_bucket(LF_HASH *, LF_SLIST **, uint, LF_PINS *);
 
 static void default_initializer(LF_HASH *hash, void *dst, const void *src)
 {
   memcpy(dst, src, hash->element_size);
 }
+
 
 /*
   Initializes lf_hash, the arguments are compatible with hash_init
@@ -398,7 +407,7 @@ void lf_hash_destroy(LF_HASH *hash)
 int lf_hash_insert(LF_HASH *hash, LF_PINS *pins, const void *data)
 {
   int csize, bucket, hashnr;
-  LF_SLIST *node, * volatile *el;
+  LF_SLIST *node, **el;
 
   node= (LF_SLIST *)lf_alloc_new(pins);
   if (unlikely(!node))
@@ -407,7 +416,7 @@ int lf_hash_insert(LF_HASH *hash, LF_PINS *pins, const void *data)
   node->key= hash_key(hash, (uchar *)(node+1), &node->keylen);
   hashnr= hash->hash_function(hash->charset, node->key, node->keylen) & INT_MAX32;
   bucket= hashnr % hash->size;
-  el= lf_dynarray_lvalue(&hash->array, bucket);
+  el= (LF_SLIST **)lf_dynarray_lvalue(&hash->array, bucket);
   if (unlikely(!el))
     return -1;
   if (*el == NULL && unlikely(initialize_bucket(hash, el, bucket, pins)))
@@ -437,7 +446,7 @@ int lf_hash_insert(LF_HASH *hash, LF_PINS *pins, const void *data)
 */
 int lf_hash_delete(LF_HASH *hash, LF_PINS *pins, const void *key, uint keylen)
 {
-  LF_SLIST * volatile *el;
+  LF_SLIST **el;
   uint bucket, hashnr;
 
   hashnr= hash->hash_function(hash->charset, (uchar *)key, keylen) & INT_MAX32;
@@ -445,7 +454,7 @@ int lf_hash_delete(LF_HASH *hash, LF_PINS *pins, const void *key, uint keylen)
   /* hide OOM errors - if we cannot initialize a bucket, try the previous one */
   for (bucket= hashnr % hash->size; ;bucket= my_clear_highest_bit(bucket))
   {
-    el= lf_dynarray_lvalue(&hash->array, bucket);
+    el= (LF_SLIST **)lf_dynarray_lvalue(&hash->array, bucket);
     if (el && (*el || initialize_bucket(hash, el, bucket, pins) == 0))
       break;
     if (unlikely(bucket == 0))
@@ -473,13 +482,13 @@ void *lf_hash_search_using_hash_value(LF_HASH *hash, LF_PINS *pins,
                                       my_hash_value_type hashnr,
                                       const void *key, uint keylen)
 {
-  LF_SLIST * volatile *el, *found;
+  LF_SLIST **el, *found;
   uint bucket;
 
   /* hide OOM errors - if we cannot initialize a bucket, try the previous one */
   for (bucket= hashnr % hash->size; ;bucket= my_clear_highest_bit(bucket))
   {
-    el= lf_dynarray_lvalue(&hash->array, bucket);
+    el= (LF_SLIST **)lf_dynarray_lvalue(&hash->array, bucket);
     if (el && (*el || initialize_bucket(hash, el, bucket, pins) == 0))
       break;
     if (unlikely(bucket == 0))
@@ -507,9 +516,9 @@ int lf_hash_iterate(LF_HASH *hash, LF_PINS *pins,
   CURSOR cursor;
   uint bucket= 0;
   int res;
-  LF_SLIST * volatile *el;
+  LF_SLIST **el;
 
-  el= lf_dynarray_lvalue(&hash->array, bucket);
+  el= (LF_SLIST **)lf_dynarray_lvalue(&hash->array, bucket);
   if (unlikely(!el))
     return 0; /* if there's no bucket==0, the hash is empty */
   if (*el == NULL && unlikely(initialize_bucket(hash, el, bucket, pins)))
@@ -539,14 +548,14 @@ static const uchar *dummy_key= (uchar*)"";
     0 - ok
    -1 - out of memory
 */
-static int initialize_bucket(LF_HASH *hash, LF_SLIST * volatile *node,
+static int initialize_bucket(LF_HASH *hash, LF_SLIST **node,
                               uint bucket, LF_PINS *pins)
 {
   uint parent= my_clear_highest_bit(bucket);
   LF_SLIST *dummy= (LF_SLIST *)my_malloc(key_memory_lf_slist,
                                          sizeof(LF_SLIST), MYF(MY_WME));
   LF_SLIST **tmp= 0, *cur;
-  LF_SLIST * volatile *el= lf_dynarray_lvalue(&hash->array, parent);
+  LF_SLIST **el= (LF_SLIST **)lf_dynarray_lvalue(&hash->array, parent);
   if (unlikely(!el || !dummy))
     return -1;
   if (*el == NULL && bucket &&
@@ -574,3 +583,5 @@ static int initialize_bucket(LF_HASH *hash, LF_SLIST * volatile *node,
   */
   return 0;
 }
+
+C_MODE_END
