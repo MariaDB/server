@@ -7378,15 +7378,12 @@ int handler::period_row_upd_fk_check(const uchar *old_data, const uchar *new_dat
       4. Enlarge emits insert check on enlarged area.
          Shrink emits delete check on shrinked area.
  */
-  if (!check_overlaps_buffer)
-    check_overlaps_buffer= (uchar*)alloc_root(&table_share->mem_root,
-                                              table_share->max_unique_length
-                                              + table_share->reclength);
+  alloc_lookup_buffer();
   auto *start_field= table->field[table->s->period.start_fieldno];
   auto *end_field= table->field[table->s->period.end_fieldno];
   auto field_len= start_field->pack_length();
 
-  auto record_dup= check_overlaps_buffer;
+  auto record_dup= lookup_buffer;
   // note that these two store pointers to fields in record_dup
   Binary_value dup_start(start_field->ptr_in_record(record_dup), field_len);
   Binary_value dup_end(end_field->ptr_in_record(record_dup), field_len);
@@ -7417,7 +7414,7 @@ int handler::period_row_upd_fk_check(const uchar *old_data, const uchar *new_dat
     DBUG_ASSERT(key.table->alias.eq(&table->alias, table->alias.charset()));
 
     int error= 0;
-    if (TABLE::check_period_overlaps(key, key, old_data, new_data) != 0)
+    if (TABLE::check_period_overlaps(key, old_data, new_data))
     {
       error= period_row_check_delete_for_key(old_data, fk);
       if (error)
@@ -7459,7 +7456,7 @@ int handler::period_row_upd_fk_check(const uchar *old_data, const uchar *new_dat
     DBUG_ASSERT(key.table->alias.eq(&table->alias, table->alias.charset()));
 
     int error= 0;
-    if (TABLE::check_period_overlaps(key, key, old_data, new_data) != 0)
+    if (TABLE::check_period_overlaps(key, old_data, new_data) != 0)
     {
       error= period_row_check_insert_for_key(new_data, fk);
       if (error)
