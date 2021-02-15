@@ -7305,11 +7305,11 @@ int handler::period_row_ins_fk_check(const uchar *record)
 
     handler *ref_handler= fk.referenced_key->table->file;
 
-    ref_handler->alloc_lookup_buffer();
+  ref_handler->alloc_lookup_buffer();
 
-    int error= ref_handler->ha_index_init(fk.referenced_key_nr, false);
-    if(error)
-      return error;
+  int error= ref_handler->ha_index_init(fk.referenced_key_nr, false);
+  if(error)
+    return error;
 
     set_bits_with_key(fk.referenced_key->table->read_set,
                       fk.referenced_key, fk.fields_num);
