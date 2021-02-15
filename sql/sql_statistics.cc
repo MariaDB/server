@@ -3745,8 +3745,11 @@ double get_column_avg_frequency_via_indexes(Field * field)
 */
 double get_column_avg_frequency(Field * field)
 {
-  return get_column_avg_frequency_via_indexes(field) ||
-         get_column_avg_frequency_via_stat_tables(field);
+  double avg_freq_via_indexes= get_column_avg_frequency_via_indexes(field);
+
+  if (avg_freq_via_indexes == 0)
+    return get_column_avg_frequency_via_stat_tables(field);
+  return avg_freq_via_indexes;
 }
 
 

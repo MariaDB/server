@@ -467,6 +467,8 @@ void JOIN::substitutions_for_sjm_lookup(JOIN_TAB *sjm_tab,
 
 void JOIN::extract_condition_for_the_nest(Mat_join_tab_nest_info* nest_info)
 {
+  if (!conds)
+    return;
   DBUG_ASSERT(nest_info);
   Item *orig_cond= conds;
   Item *extracted_cond;
