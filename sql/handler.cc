@@ -6733,6 +6733,13 @@ int handler::check_duplicate_long_entries_update(const uchar *new_rec)
   return 0;
 }
 
+static int period_find_first_overlapping_record(handler *handler,
+                                                uchar *key_buf,
+                                                const uchar *record_to_cmp,
+                                                uchar *record,
+                                                const KEY &key_to_cmp,
+                                                const KEY &key,
+                                                bool ignore_self_refs);
 
 int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
 {
