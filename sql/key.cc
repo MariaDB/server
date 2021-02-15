@@ -908,6 +908,12 @@ int key_period_compare_bases(const KEY &lhs_key, const KEY &rhs_key,
   {
     Field *fl= lhs_key.key_part[part_nr].field;
     Field *fr= rhs_key.key_part[part_nr].field;
+    if (lhs_key.key_part[part_nr].null_bit)
+    {
+      DBUG_ASSERT(rhs_key.key_part[part_nr].null_bit);
+      if (fl->is_null_in_record(lhs) || fr->is_null_in_record(rhs))
+        return false;
+    }
     uint kp_len= MY_MIN(lhs_key.key_part[part_nr].length,
                         rhs_key.key_part[part_nr].length);
     cmp_res= fl->cmp_max(fl->ptr_in_record(lhs), fr->ptr_in_record(rhs),
