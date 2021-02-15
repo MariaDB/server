@@ -5390,5 +5390,17 @@ ERROR HY000: Default/ignore value is not supported for such parameter usage
 EXECUTE IMMEDIATE 'SHOW DATABASES WHERE ?' USING 0;
 Database
 #
+# MDEV-24779: main.subselect fails in buildbot with --ps-protocol
+#
+CREATE TABLE t1(a INT);
+PREPARE stmt FROM "SELECT EXISTS(SELECT 1 FROM t1 GROUP BY a IN (select a from t1))";
+EXECUTE stmt;
+EXISTS(SELECT 1 FROM t1 GROUP BY a IN (select a from t1))
+0
+EXECUTE stmt;
+EXISTS(SELECT 1 FROM t1 GROUP BY a IN (select a from t1))
+0
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #

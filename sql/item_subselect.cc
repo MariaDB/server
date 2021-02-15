@@ -368,7 +368,7 @@ bool Item_subselect::mark_as_eliminated_processor(void *arg)
 bool Item_subselect::eliminate_subselect_processor(void *arg)
 {
   unit->item= NULL;
-  unit->exclude_from_tree();
+  unit->exclude();
   eliminated= TRUE;
   return FALSE;
 }
