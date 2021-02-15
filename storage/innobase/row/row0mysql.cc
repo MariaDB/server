@@ -4335,6 +4335,7 @@ row_rename_table_for_mysql(
 			   "END;\n"
 			   , FALSE, trx);
 
+	/* Assume the caller guarantees destination name doesn't exist. */
 	ut_ad(err != DB_DUPLICATE_KEY);
 
 	/* SYS_TABLESPACES and SYS_DATAFILES need to be updated if
