@@ -4641,7 +4641,13 @@ extern "C" void thd_progress_report(MYSQL_THD thd,
     return;
   if (thd->progress.max_counter != max_progress)        // Simple optimization
   {
-    mysql_mutex_lock(&thd->LOCK_thd_data);
+    /*
+      Better to not wait in the unlikely event that LOCK_thd_data is locked
+      as Galera can potentially have this locked for a long time.
+      Progress counters will fix themselves after the next call.
+    */
+    if (mysql_mutex_trylock(&thd->LOCK_thd_data))
+      return;
     thd->progress.counter= progress;
     thd->progress.max_counter= max_progress;
     mysql_mutex_unlock(&thd->LOCK_thd_data);
