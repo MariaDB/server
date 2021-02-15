@@ -114,7 +114,7 @@ BJNX::BJNX(PGLOBAL g) : BDOC(g)
 	Jp = NULL;
 	Nodes = NULL;
 	Value = NULL;
-	MulVal = NULL;
+	//MulVal = NULL;
 	Jpath = NULL;
 	Buf_Type = TYPE_STRING;
 	Long = len;
@@ -145,7 +145,7 @@ BJNX::BJNX(PGLOBAL g, PBVAL row, int type, int len, int prec, my_bool wr) : BDOC
 	Jp = NULL;
 	Nodes = NULL;
 	Value = AllocateValue(g, type, len, prec);
-	MulVal = NULL;
+	//MulVal = NULL;
 	Jpath = NULL;
 	Buf_Type = type;
 	Long = len;
@@ -269,40 +269,6 @@ my_bool BJNX::SetArrayOptions(PGLOBAL g, char* p, int i, PSZ nm)
 		strcpy(g->Message, "Wrong array specification");
 		return true;
 	} // endif's
-
-#if 0
-	// For calculated arrays, a local Value must be used
-	switch (jnp->Op) {
-	case OP_NUM:
-		jnp->Valp = AllocateValue(g, TYPE_INT);
-		break;
-	case OP_ADD:
-	case OP_MULT:
-	case OP_SEP:
-		if (!IsTypeChar(Buf_Type))
-			jnp->Valp = AllocateValue(g, Buf_Type, 0, GetPrecision());
-		else
-			jnp->Valp = AllocateValue(g, TYPE_DOUBLE, 0, 2);
-
-		break;
-	case OP_MIN:
-	case OP_MAX:
-		jnp->Valp = AllocateValue(g, Buf_Type, Long, GetPrecision());
-		break;
-	case OP_CNC:
-		if (IsTypeChar(Buf_Type))
-			jnp->Valp = AllocateValue(g, TYPE_STRING, Long, GetPrecision());
-		else
-			jnp->Valp = AllocateValue(g, TYPE_STRING, 512);
-
-		break;
-	default:
-		break;
-	} // endswitch Op
-
-	if (jnp->Valp)
-		MulVal = AllocateValue(g, jnp->Valp);
-#endif // 0
 
 	return false;
 } // end of SetArrayOptions
@@ -448,6 +414,8 @@ PSZ BJNX::MakeKey(UDF_ARGS *args, int i)
 PBVAL BJNX::MakeJson(PGLOBAL g, PBVAL bvp, int n)
 {
 	PBVAL vlp, jvp = bvp;
+
+	Jb = false;
 
 	if (n < Nod -1) {
 		if (bvp->Type == TYPE_JAR) {

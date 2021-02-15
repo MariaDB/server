@@ -1610,7 +1610,7 @@ PSZ JSONCOL::GetJpath(PGLOBAL g, bool proj)
 /***********************************************************************/
 /*  MakeJson: Serialize the json item and set value to it.             */
 /***********************************************************************/
-PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp)
+PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp, int n)
 {
   if (Value->IsTypeNum()) {
     strcpy(g->Message, "Cannot make Json for a numeric column");
@@ -1621,6 +1621,7 @@ PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp)
     } // endif Warned
 
     Value->Reset();
+    return Value;
 #if 0
 	} else if (Value->GetType() == TYPE_BIN) {
 		if ((unsigned)Value->GetClen() >= sizeof(BSON)) {
@@ -1634,11 +1635,64 @@ PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp)
 			Value->SetValue_char(NULL, 0);
 		} // endif Clen
 #endif // 0
-	}	else
-    Value->SetValue_psz(Serialize(g, jsp, NULL, 0));
+	}	else if (n < Nod - 1) {
+    if (jsp->GetType() == TYPE_JAR) {
+      int    ars = jsp->GetSize(false);
+      PJNODE jnp = &Nodes[n];
+      PJAR   jvp = new(g) JARRAY;
 
+      for (jnp->Rank = 0; jnp->Rank < ars; jnp->Rank++)
+        jvp->AddArrayValue(g, GetRowValue(g, jsp, n));
+
+      jnp->Rank = 0;
+      jvp->InitArray(g);
+      jsp = jvp;
+    } else if (jsp->Type == TYPE_JOB) {
+      PJOB jvp = new(g) JOBJECT;
+
+      for (PJPR prp = ((PJOB)jsp)->GetFirst(); prp; prp = prp->Next)
+        jvp->SetKeyValue(g, GetRowValue(g, prp->Val, n + 1), prp->Key);
+
+      jsp = jvp;
+    } // endif Type
+
+  } // endif
+
+  Value->SetValue_psz(Serialize(g, jsp, NULL, 0));
   return Value;
 } // end of MakeJson
+
+/***********************************************************************/
+/*  GetRowValue:                                                       */
+/***********************************************************************/
+PJVAL JSONCOL::GetRowValue(PGLOBAL g, PJSON row, int i)
+{
+  int   n = Nod - 1;
+  PJVAL val = NULL;
+
+  for (; i < Nod && row; i++) {
+    switch (row->GetType()) {
+      case TYPE_JOB:
+        val = (Nodes[i].Key) ? ((PJOB)row)->GetKeyValue(Nodes[i].Key) : NULL;
+        break;
+      case TYPE_JAR:
+        val = ((PJAR)row)->GetArrayValue(Nodes[i].Rank);
+        break;
+      case TYPE_JVAL:
+        val = (PJVAL)row;
+        break;
+      default:
+        sprintf(g->Message, "Invalid row JSON type %d", row->GetType());
+        val = NULL;
+    } // endswitch Type
+
+    if (i < Nod-1)
+      row = (val) ? val->GetJson() : NULL;
+
+  } // endfor i
+
+  return val;
+} // end of GetRowValue
 
 /***********************************************************************/
 /*  SetValue: Set a value from a JVALUE contains.                      */
@@ -1740,7 +1794,7 @@ PVAL JSONCOL::GetColumnValue(PGLOBAL g, PJSON row, int i)
       Value->SetValue(row->GetType() == TYPE_JAR ? ((PJAR)row)->size() : 1);
       return(Value);
     } else if (Nodes[i].Op == OP_XX) {
-      return MakeJson(G, row);
+      return MakeJson(G, row, i);
     } else switch (row->GetType()) {
       case TYPE_JOB:
         if (!Nodes[i].Key) {

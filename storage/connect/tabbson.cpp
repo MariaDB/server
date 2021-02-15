@@ -881,7 +881,7 @@ PBVAL BCUTIL::GetRowValue(PGLOBAL g, PBVAL row, int i)
   } // endfor i
 
   return bvp;
-} // end of GetColumnValue
+} // end of GetRowValue
 
 /***********************************************************************/
 /*  GetColumnValue:                                                    */

@@ -1352,12 +1352,17 @@ PBVAL BJSON::NewVal(PVAL valp)
 /***********************************************************************/
 /* Sub-allocate and initialize a BVAL from another BVAL.               */
 /***********************************************************************/
-PBVAL BJSON::DupVal(PBVAL bvlp) {
-  PBVAL bvp = NewVal();
+PBVAL BJSON::DupVal(PBVAL bvlp)
+{
+  if (bvlp) {
+    PBVAL bvp = NewVal();
 
-  *bvp = *bvlp;
-  bvp->Next = 0;
-  return bvp;
+    *bvp = *bvlp;
+    bvp->Next = 0;
+    return bvp;
+  } else
+    return NULL;
+
 } // end of DupVal
 
 /***********************************************************************/

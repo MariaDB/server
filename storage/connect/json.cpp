@@ -54,6 +54,7 @@ char *GetExceptionDesc(PGLOBAL g, unsigned int e);
 #endif   // SE_CATCH
 
 char *GetJsonNull(void);
+int   GetDefaultPrec(void);
 
 /***********************************************************************/
 /* IsNum: check whether this string is all digits.                     */
@@ -1762,7 +1763,7 @@ void JVALUE::SetBigint(PGLOBAL g, long long ll)
 void JVALUE::SetFloat(PGLOBAL g, double f)
 {
   F = f;
-  Nd = 6;
+  Nd = GetDefaultPrec();
   DataType = TYPE_DBL;
 } // end of SetFloat
 

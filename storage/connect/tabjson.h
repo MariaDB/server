@@ -230,8 +230,9 @@ public:
   PVAL  GetColumnValue(PGLOBAL g, PJSON row, int i);
   PVAL  ExpandArray(PGLOBAL g, PJAR arp, int n);
   PVAL  CalculateArray(PGLOBAL g, PJAR arp, int n);
-  PVAL  MakeJson(PGLOBAL g, PJSON jsp);
-	void  SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val);
+  PVAL  MakeJson(PGLOBAL g, PJSON jsp, int n);
+  PJVAL GetRowValue(PGLOBAL g, PJSON row, int i);
+  void  SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val);
 	PJSON GetRow(PGLOBAL g);
 
   // Default constructor not to be used
