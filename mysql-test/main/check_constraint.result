@@ -235,3 +235,15 @@ a	b
 insert t1 (b) values (1);
 ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
 drop table t1;
+#
+# MDEV-24274 ALTER TABLE with CHECK CONSTRAINTS gives "Out of Memory" error
+#
+create table t1 (id varchar(2), constraint id check (id regexp '[a-z]'));
+alter table t1 force;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` varchar(2) DEFAULT NULL,
+  CONSTRAINT `id` CHECK (`id` regexp '[a-z]')
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;

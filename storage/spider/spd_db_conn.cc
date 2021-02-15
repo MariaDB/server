@@ -1758,7 +1758,7 @@ int spider_db_append_key_where_internal(
   DBUG_PRINT("info", ("spider end_key_part_map=%lu", end_key_part_map));
 
 #ifndef DBUG_OFF
-  my_bitmap_map *tmp_map = dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *tmp_map = dbug_tmp_use_all_columns(table, &table->read_set);
 #endif
 
   if (sql_kind == SPIDER_SQL_KIND_HANDLER)
@@ -2688,7 +2688,7 @@ end:
   if (sql_kind == SPIDER_SQL_KIND_SQL)
     dbton_hdl->set_order_pos(sql_type);
 #ifndef DBUG_OFF
-  dbug_tmp_restore_column_map(table->read_set, tmp_map);
+  dbug_tmp_restore_column_map(&table->read_set, tmp_map);
 #endif
   DBUG_RETURN(0);
 }
@@ -3226,8 +3226,8 @@ int spider_db_fetch_table(
         bitmap_is_set(table->write_set, (*field)->field_index)
       )) {
 #ifndef DBUG_OFF
-        my_bitmap_map *tmp_map =
-          dbug_tmp_use_all_columns(table, table->write_set);
+        MY_BITMAP *tmp_map =
+          dbug_tmp_use_all_columns(table, &table->write_set);
 #endif
         DBUG_PRINT("info", ("spider bitmap is set %s",
           SPIDER_field_name_str(*field)));
@@ -3235,7 +3235,7 @@ int spider_db_fetch_table(
           spider_db_fetch_row(share, *field, row, ptr_diff)))
           DBUG_RETURN(error_num);
 #ifndef DBUG_OFF
-        dbug_tmp_restore_column_map(table->write_set, tmp_map);
+        dbug_tmp_restore_column_map(&table->write_set, tmp_map);
 #endif
       } else {
         DBUG_PRINT("info", ("spider bitmap is not set %s",
@@ -3406,8 +3406,8 @@ int spider_db_fetch_key(
       bitmap_is_set(table->write_set, field->field_index)
     )) {
 #ifndef DBUG_OFF
-      my_bitmap_map *tmp_map =
-        dbug_tmp_use_all_columns(table, table->write_set);
+      MY_BITMAP *tmp_map =
+        dbug_tmp_use_all_columns(table, &table->write_set);
 #endif
       DBUG_PRINT("info", ("spider bitmap is set %s",
         SPIDER_field_name_str(field)));
@@ -3415,7 +3415,7 @@ int spider_db_fetch_key(
         spider_db_fetch_row(share, field, row, ptr_diff)))
         DBUG_RETURN(error_num);
 #ifndef DBUG_OFF
-      dbug_tmp_restore_column_map(table->write_set, tmp_map);
+      dbug_tmp_restore_column_map(&table->write_set, tmp_map);
 #endif
     }
     row->next();
@@ -3531,15 +3531,15 @@ int spider_db_fetch_minimum_columns(
         bitmap_is_set(table->write_set, (*field)->field_index)
       )) {
 #ifndef DBUG_OFF
-        my_bitmap_map *tmp_map =
-          dbug_tmp_use_all_columns(table, table->write_set);
+        MY_BITMAP *tmp_map =
+          dbug_tmp_use_all_columns(table, &table->write_set);
 #endif
         DBUG_PRINT("info", ("spider bitmap is set %s",
           SPIDER_field_name_str(*field)));
         if ((error_num = spider_db_fetch_row(share, *field, row, ptr_diff)))
           DBUG_RETURN(error_num);
 #ifndef DBUG_OFF
-        dbug_tmp_restore_column_map(table->write_set, tmp_map);
+        dbug_tmp_restore_column_map(&table->write_set, tmp_map);
 #endif
       }
       row->next();
@@ -6134,8 +6134,8 @@ int spider_db_seek_tmp_table(
       bitmap_is_set(table->write_set, (*field)->field_index)
     )) {
 #ifndef DBUG_OFF
-      my_bitmap_map *tmp_map =
-        dbug_tmp_use_all_columns(table, table->write_set);
+      MY_BITMAP *tmp_map =
+        dbug_tmp_use_all_columns(table, &table->write_set);
 #endif
       DBUG_PRINT("info", ("spider bitmap is set %s",
         SPIDER_field_name_str(*field)));
@@ -6143,7 +6143,7 @@ int spider_db_seek_tmp_table(
         spider_db_fetch_row(spider->share, *field, row, ptr_diff)))
         DBUG_RETURN(error_num);
 #ifndef DBUG_OFF
-      dbug_tmp_restore_column_map(table->write_set, tmp_map);
+      dbug_tmp_restore_column_map(&table->write_set, tmp_map);
 #endif
     }
     row->next();
@@ -6222,8 +6222,8 @@ int spider_db_seek_tmp_key(
       bitmap_is_set(table->write_set, field->field_index)
     )) {
 #ifndef DBUG_OFF
-      my_bitmap_map *tmp_map =
-        dbug_tmp_use_all_columns(table, table->write_set);
+      MY_BITMAP *tmp_map =
+        dbug_tmp_use_all_columns(table, &table->write_set);
 #endif
       DBUG_PRINT("info", ("spider bitmap is set %s",
         SPIDER_field_name_str(field)));
@@ -6231,7 +6231,7 @@ int spider_db_seek_tmp_key(
         spider_db_fetch_row(spider->share, field, row, ptr_diff)))
         DBUG_RETURN(error_num);
 #ifndef DBUG_OFF
-      dbug_tmp_restore_column_map(table->write_set, tmp_map);
+      dbug_tmp_restore_column_map(&table->write_set, tmp_map);
 #endif
     }
     row->next();
@@ -6313,8 +6313,8 @@ int spider_db_seek_tmp_minimum_columns(
         bitmap_is_set(table->write_set, (*field)->field_index)));
 */
 #ifndef DBUG_OFF
-      my_bitmap_map *tmp_map =
-        dbug_tmp_use_all_columns(table, table->write_set);
+      MY_BITMAP *tmp_map =
+        dbug_tmp_use_all_columns(table, &table->write_set);
 #endif
       DBUG_PRINT("info", ("spider bitmap is set %s",
         SPIDER_field_name_str(*field)));
@@ -6323,7 +6323,7 @@ int spider_db_seek_tmp_minimum_columns(
         DBUG_RETURN(error_num);
       row->next();
 #ifndef DBUG_OFF
-      dbug_tmp_restore_column_map(table->write_set, tmp_map);
+      dbug_tmp_restore_column_map(&table->write_set, tmp_map);
 #endif
     }
     else if (bitmap_is_set(table->read_set, (*field)->field_index))
@@ -10159,7 +10159,7 @@ int spider_db_open_item_string(
   {
     THD *thd = NULL;
     TABLE *UNINIT_VAR(table);
-    my_bitmap_map *saved_map = NULL;
+    MY_BITMAP *saved_map = NULL;
     Time_zone *UNINIT_VAR(saved_time_zone);
     String str_value;
     char tmp_buf[MAX_FIELD_WIDTH];
@@ -10188,7 +10188,7 @@ int spider_db_open_item_string(
         */
         table = field->table;
         thd = table->in_use;
-        saved_map = dbug_tmp_use_all_columns(table, table->write_set);
+        saved_map = dbug_tmp_use_all_columns(table, &table->write_set);
         item->save_in_field(field, FALSE);
         saved_time_zone = thd->variables.time_zone;
         thd->variables.time_zone = UTC;
@@ -10235,7 +10235,7 @@ end:
     if (thd)
     {
       thd->variables.time_zone = saved_time_zone;
-      dbug_tmp_restore_column_map(table->write_set, saved_map);
+      dbug_tmp_restore_column_map(&table->write_set, saved_map);
     }
   }
 
@@ -10277,7 +10277,7 @@ int spider_db_open_item_int(
   {
     THD *thd = NULL;
     TABLE *table;
-    my_bitmap_map *saved_map;
+    MY_BITMAP *saved_map;
     Time_zone *saved_time_zone;
     String str_value;
     bool print_quoted_string;
@@ -10305,7 +10305,7 @@ int spider_db_open_item_int(
       */
       table = field->table;
       thd = table->in_use;
-      saved_map = dbug_tmp_use_all_columns(table, table->write_set);
+      saved_map = dbug_tmp_use_all_columns(table, &table->write_set);
       item->save_in_field(field, FALSE);
       saved_time_zone = thd->variables.time_zone;
       thd->variables.time_zone = UTC;
@@ -10351,7 +10351,7 @@ end:
     if (thd)
     {
       thd->variables.time_zone = saved_time_zone;
-      dbug_tmp_restore_column_map(table->write_set, saved_map);
+      dbug_tmp_restore_column_map(&table->write_set, saved_map);
     }
   }
 
@@ -10697,8 +10697,8 @@ int spider_db_udf_fetch_table(
     DBUG_RETURN(HA_ERR_END_OF_FILE);
 
 #ifndef DBUG_OFF
-  my_bitmap_map *tmp_map =
-    dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *tmp_map =
+    dbug_tmp_use_all_columns(table, &table->write_set);
 #endif
   for (
     roop_count = 0,
@@ -10711,7 +10711,7 @@ int spider_db_udf_fetch_table(
       spider_db_udf_fetch_row(trx, *field, row)))
     {
 #ifndef DBUG_OFF
-      dbug_tmp_restore_column_map(table->write_set, tmp_map);
+      dbug_tmp_restore_column_map(&table->write_set, tmp_map);
 #endif
       DBUG_RETURN(error_num);
     }
@@ -10721,7 +10721,7 @@ int spider_db_udf_fetch_table(
   for (; roop_count < set_off; roop_count++, field++)
     (*field)->set_default();
 #ifndef DBUG_OFF
-  dbug_tmp_restore_column_map(table->write_set, tmp_map);
+  dbug_tmp_restore_column_map(&table->write_set, tmp_map);
 #endif
   table->status = 0;
   DBUG_RETURN(0);

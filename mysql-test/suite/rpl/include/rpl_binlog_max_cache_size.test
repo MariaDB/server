@@ -49,14 +49,14 @@ connection master;
 
 --echo *** Single statement on transactional table ***
 --disable_query_log
---error ER_TRANS_CACHE_FULL, ER_STMT_CACHE_FULL, ER_ERROR_ON_WRITE
+--error ER_TRANS_CACHE_FULL, ER_STMT_CACHE_FULL, ER_ERROR_ON_WRITE, 1534
 eval INSERT INTO t1 (a, data) VALUES (1,
      CONCAT($data, $data, $data, $data, $data));
 --enable_query_log
 
 --echo *** Single statement on non-transactional table ***
 --disable_query_log
---error ER_TRANS_CACHE_FULL, ER_STMT_CACHE_FULL, ER_ERROR_ON_WRITE
+--error ER_TRANS_CACHE_FULL, ER_STMT_CACHE_FULL, ER_ERROR_ON_WRITE, 1534
 eval INSERT INTO t2 (a, data) VALUES (2,
        CONCAT($data, $data, $data, $data, $data, $data));
 --enable_query_log

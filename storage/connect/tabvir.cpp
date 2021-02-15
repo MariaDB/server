@@ -168,17 +168,16 @@ int TDBVIR::TestFilter(PFIL filp, bool nop)
           } // endswitch op
 
 			if (!nop) switch (op) {
-                          case OP_LT:	l1--;
-                                        /* falls through */
-                          case OP_LE: limit = l1;   break;
-                          default: ok = false;
-			} // endswitch op
+		    case OP_LT:	l1--; /* fall through */
+				case OP_LE: limit = l1;   break;
+				default: ok = false;
+				} // endswitch op
+
 			else switch (op) {
-		        case OP_GE:	l1--;
-                                        /* falls through */
-                        case OP_GT: limit = l1;   break;
-                        default: ok = false;
-			} // endswitch op
+		    case OP_GE:	l1--; /* fall through */
+				case OP_GT: limit = l1;   break;
+				default: ok = false;
+				} // endswitch op
 
 			limit = MY_MIN(MY_MAX(0, limit), Size);
 

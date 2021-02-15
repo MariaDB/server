@@ -603,30 +603,31 @@ bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
   /* stop replication is heavy operation, and includes closing all client
      connections. Closing clients may need to get LOCK_global_system_variables
      at least in MariaDB.
-
-     Note: releasing LOCK_global_system_variables may cause race condition, if
-     there can be several concurrent clients changing wsrep_provider
   */
+  char *tmp= my_strdup(PSI_INSTRUMENT_ME, wsrep_cluster_address, MYF(MY_WME));
   WSREP_DEBUG("wsrep_cluster_address_update: %s", wsrep_cluster_address);
   mysql_mutex_unlock(&LOCK_global_system_variables);
+
+  mysql_mutex_lock(&LOCK_wsrep_cluster_config);
   wsrep_stop_replication(thd);
 
-  if (wsrep_start_replication())
+  if (*tmp && wsrep_start_replication(tmp))
   {
     wsrep_create_rollbacker();
     WSREP_DEBUG("Cluster address update creating %ld applier threads running %lu",
 	    wsrep_slave_threads, wsrep_running_applier_threads);
     wsrep_create_appliers(wsrep_slave_threads);
   }
-  /* locking order to be enforced is:
-     1. LOCK_global_system_variables
-     2. LOCK_wsrep_cluster_config
-     => have to juggle mutexes to comply with this
-  */
-
   mysql_mutex_unlock(&LOCK_wsrep_cluster_config);
+
   mysql_mutex_lock(&LOCK_global_system_variables);
-  mysql_mutex_lock(&LOCK_wsrep_cluster_config);
+  if (strcmp(tmp, wsrep_cluster_address))
+  {
+    my_free((void*)wsrep_cluster_address);
+    wsrep_cluster_address= tmp;
+  }
+  else
+    my_free(tmp);
 
   return false;
 }
@@ -723,7 +724,12 @@ static void wsrep_slave_count_change_update ()
 
 bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
 {
+  if (!wsrep_cluster_address_exists())
+    return false;
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_wsrep_slave_threads);
+  mysql_mutex_lock(&LOCK_global_system_variables);
   bool res= false;
 
   wsrep_slave_count_change_update();

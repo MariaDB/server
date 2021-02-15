@@ -46,7 +46,7 @@ table_accounts::m_share=
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE accounts("
                       "USER CHAR(" USERNAME_CHAR_LENGTH_STR ") collate utf8_bin default null,"
-                      "HOST CHAR(60) collate utf8_bin default null,"
+                      "HOST CHAR(" HOSTNAME_LENGTH_STR ") collate utf8_bin default null,"
                       "CURRENT_CONNECTIONS bigint not null,"
                       "TOTAL_CONNECTIONS bigint not null)") },
   false  /* perpetual */

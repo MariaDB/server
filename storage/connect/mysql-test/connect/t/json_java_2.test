@@ -3,6 +3,7 @@
 
 --disable_query_log
 eval SET GLOBAL connect_class_path='$MTR_SUITE_DIR/std_data/Mongo2.jar';
+set connect_json_all_path=0;
 --enable_query_log
 let $DRV= Java;
 let $VERS= 2;

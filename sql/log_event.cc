@@ -3408,7 +3408,6 @@ int Rows_log_event::get_data_size()
                   return (int)(6 + no_bytes_in_map(&m_cols) + (end - buf) +
                   (general_type_code == UPDATE_ROWS_EVENT ? no_bytes_in_map(&m_cols_ai) : 0) +
                   m_rows_cur - m_rows_buf););
-
   int data_size= 0;
   Log_event_type type = get_type_code();
   bool is_v2_event= LOG_EVENT_IS_ROW_V2(type);

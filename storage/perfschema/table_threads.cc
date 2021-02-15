@@ -46,7 +46,7 @@ table_threads::m_share=
                       "TYPE VARCHAR(10) not null,"
                       "PROCESSLIST_ID BIGINT unsigned,"
                       "PROCESSLIST_USER VARCHAR(" USERNAME_CHAR_LENGTH_STR "),"
-                      "PROCESSLIST_HOST VARCHAR(60),"
+                      "PROCESSLIST_HOST VARCHAR(" HOSTNAME_LENGTH_STR "),"
                       "PROCESSLIST_DB VARCHAR(64),"
                       "PROCESSLIST_COMMAND VARCHAR(16),"
                       "PROCESSLIST_TIME BIGINT,"

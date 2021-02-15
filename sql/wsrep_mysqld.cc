@@ -946,13 +946,13 @@ void wsrep_init_startup (bool sst_first)
   if (!strcmp(wsrep_provider, WSREP_NONE)) return;
 
   /* Skip replication start if no cluster address */
-  if (!wsrep_cluster_address || wsrep_cluster_address[0] == 0) return;
+  if (!wsrep_cluster_address_exists()) return;
 
   /*
     Read value of wsrep_new_cluster before wsrep_start_replication(),
     the value is reset to FALSE inside wsrep_start_replication.
   */
-  if (!wsrep_start_replication()) unireg_abort(1);
+  if (!wsrep_start_replication(wsrep_cluster_address)) unireg_abort(1);
 
   wsrep_create_rollbacker();
   wsrep_create_appliers(1);
@@ -1113,7 +1113,7 @@ void wsrep_shutdown_replication()
   set_current_thd(nullptr);
 }
 
-bool wsrep_start_replication()
+bool wsrep_start_replication(const char *wsrep_cluster_address)
 {
   int rcode;
   WSREP_DEBUG("wsrep_start_replication");
@@ -1128,12 +1128,7 @@ bool wsrep_start_replication()
     return true;
   }
 
-  if (!wsrep_cluster_address || wsrep_cluster_address[0]== 0)
-  {
-    // if provider is non-trivial, but no address is specified, wait for address
-    WSREP_DEBUG("wsrep_start_replication exit due to empty address");
-    return true;
-  }
+  DBUG_ASSERT(wsrep_cluster_address[0]);
 
   bool const bootstrap(TRUE == wsrep_new_cluster);
 
@@ -2593,18 +2588,7 @@ static void wsrep_close_thread(THD *thd)
   thd->set_killed(KILL_CONNECTION);
   MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (thd));
   mysql_mutex_lock(&thd->LOCK_thd_kill);
-  if (thd->mysys_var)
-  {
-    thd->mysys_var->abort=1;
-    mysql_mutex_lock(&thd->mysys_var->mutex);
-    if (thd->mysys_var->current_cond)
-    {
-      mysql_mutex_lock(thd->mysys_var->current_mutex);
-      mysql_cond_broadcast(thd->mysys_var->current_cond);
-      mysql_mutex_unlock(thd->mysys_var->current_mutex);
-    }
-    mysql_mutex_unlock(&thd->mysys_var->mutex);
-  }
+  thd->abort_current_cond_wait(true);
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
 }
 

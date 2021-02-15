@@ -2622,6 +2622,62 @@ ERROR HY000: 'ignore' is not allowed in this context
 EXECUTE IMMEDIATE 'VALUES (?)' USING DEFAULT;
 ERROR HY000: 'default' is not allowed in this context
 #
+# MDEV-24675: TVC using subqueries
+#
+values((select 1));
+(select 1)
+1
+values (2), ((select 1));
+2
+2
+1
+values ((select 1)), (2), ((select 3));
+(select 1)
+1
+2
+3
+values ((select 1), 2), (3,4), (5, (select 6));
+(select 1)	2
+1	2
+3	4
+5	6
+create table t1 (a int, b int);
+insert into t1 values (1,3), (2,3), (3,2), (1,2);
+values((select max(a) from t1));
+(select max(a) from t1)
+3
+values((select min(b) from t1));
+(select min(b) from t1)
+2
+values ((select max(a) from t1), (select min(b) from t1));
+(select max(a) from t1)	(select min(b) from t1)
+3	2
+values((select *  from (select max(b) from t1) as t));
+(select *  from (select max(b) from t1) as t)
+3
+drop table t1;
+#
+# MDEV-24618: TVC contains extra parenthesis for row expressions
+#             in value list
+#
+create table t1 (a int, b int);
+insert into t1 values (1,3), (2,3);
+insert into t1 values ((5,4));
+ERROR 21000: Operand should contain 1 column(s)
+values ((1,2));
+ERROR 21000: Operand should contain 1 column(s)
+select * from (values ((1,2))) dt;
+ERROR 21000: Operand should contain 1 column(s)
+values (1,2);
+1	2
+1	2
+values ((select min(a), max(b) from t1));
+ERROR 21000: Operand should contain 1 column(s)
+drop table t1;
+#
+# End of 10.3 tests
+#
+#
 # MDEV-22610 Crash in INSERT INTO t1 (VALUES (DEFAULT) UNION VALUES (DEFAULT))
 #
 VALUES (DEFAULT) UNION VALUES (DEFAULT);
@@ -2634,3 +2690,6 @@ ERROR HY000: 'default' is not allowed in this context
 INSERT INTO t1 (VALUES (IGNORE) UNION VALUES (IGNORE));
 ERROR HY000: 'ignore' is not allowed in this context
 DROP TABLE t1;
+#
+# End of 10.4 tests
+#

@@ -63,7 +63,7 @@ int wsrep_check_opts()
   else
   {
     // non-mysqldump SST requires wsrep_cluster_address on startup
-    if (!wsrep_cluster_address || !wsrep_cluster_address[0])
+    if (!wsrep_cluster_address_exists())
     {
       WSREP_ERROR ("%s SST method requires wsrep_cluster_address to be "
                    "configured on startup.", wsrep_sst_method);

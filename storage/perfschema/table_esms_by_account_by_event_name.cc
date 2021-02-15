@@ -51,7 +51,7 @@ table_esms_by_account_by_event_name::m_share=
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_statements_summary_by_account_by_event_name("
                       "USER CHAR(" USERNAME_CHAR_LENGTH_STR ") collate utf8_bin default null,"
-                      "HOST CHAR(60) collate utf8_bin default null,"
+                      "HOST CHAR(" HOSTNAME_LENGTH_STR ") collate utf8_bin default null,"
                       "EVENT_NAME VARCHAR(128) not null,"
                       "COUNT_STAR BIGINT unsigned not null,"
                       "SUM_TIMER_WAIT BIGINT unsigned not null,"
