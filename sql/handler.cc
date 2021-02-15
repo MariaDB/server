@@ -6787,23 +6787,9 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
     error= handler->ha_start_keyread(key_nr);
     DBUG_ASSERT(!error);
 
-    const uint period_field_length= key_info.key_part[key_parts - 1].length;
-    const uint key_base_length= key_info.key_length - 2 * period_field_length;
-
-    key_copy(lookup_buffer, new_data, &key_info, 0);
-
-    /* Copy period_start to period_end.
-       the value in period_start field is not significant, but anyway let's leave
-       it defined to avoid uninitialized memory access
-     */
-    memcpy(lookup_buffer + key_base_length,
-           lookup_buffer + key_base_length + period_field_length,
-           period_field_length);
-
-    /* Find row with period_end > (period_start of new_data) */
-    error = handler->ha_index_read_map(record_buffer, lookup_buffer,
-                                       key_part_map((1 << (key_parts - 1)) - 1),
-                                       HA_READ_AFTER_KEY);
+    error= period_find_first_overlapping_record(handler, lookup_buffer,
+                                                new_data, record_buffer,
+                                                key_info, key_info);
 
     if (!error && is_update)
     {
