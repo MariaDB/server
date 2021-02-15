@@ -1226,44 +1226,46 @@ trx_flush_log_if_needed(
 /** Process tables that were modified by the committing transaction. */
 inline void trx_t::commit_tables()
 {
-  if (!undo_no || mod_tables.empty())
+  if (mod_tables.empty())
     return;
 
+  if (undo_no)
+  {
 #if defined SAFE_MUTEX && defined UNIV_DEBUG
-  const bool preserve_tables= !innodb_evict_tables_on_commit_debug ||
-    is_recovered || /* avoid trouble with XA recovery */
+    const bool preserve_tables= !innodb_evict_tables_on_commit_debug ||
+      is_recovered || /* avoid trouble with XA recovery */
 # if 1 /* if dict_stats_exec_sql() were not playing dirty tricks */
-    dict_sys.mutex_is_locked();
+      dict_sys.mutex_is_locked();
 # else /* this would be more proper way to do it */
-    dict_operation_lock_mode || dict_operation;
+      dict_operation_lock_mode || dict_operation;
 # endif
 #endif
 
-  const trx_id_t max_trx_id= trx_sys.get_max_trx_id();
-  const auto now= start_time;
+    const trx_id_t max_trx_id= trx_sys.get_max_trx_id();
+    const auto now= start_time;
 
-  for (const auto& p : mod_tables)
-  {
-    dict_table_t *table= p.first;
-    table->update_time= now;
-    table->query_cache_inv_trx_id= max_trx_id;
+    for (const auto& p : mod_tables)
+    {
+      dict_table_t *table= p.first;
+      table->update_time= now;
+      table->query_cache_inv_trx_id= max_trx_id;
 
 #if defined SAFE_MUTEX && defined UNIV_DEBUG
-    if (preserve_tables || table->get_ref_count() || table->is_temporary() ||
-        UT_LIST_GET_LEN(table->locks))
-      /* do not evict when committing DDL operations or if some other
-      transaction is holding the table handle */
-      continue;
-    /* recheck while holding the mutex that blocks
-    table->acquire() */
-    dict_sys.mutex_lock();
-    {
-      LockMutexGuard g{SRW_LOCK_CALL};
-      if (!table->get_ref_count() && !UT_LIST_GET_LEN(table->locks))
-        dict_sys.remove(table, true);
-    }
-    dict_sys.mutex_unlock();
+      if (preserve_tables || table->get_ref_count() || table->is_temporary() ||
+          UT_LIST_GET_LEN(table->locks))
+        /* do not evict when committing DDL operations or if some other
+        transaction is holding the table handle */
+        continue;
+      /* recheck while holding the mutex that blocks table->acquire() */
+      dict_sys.mutex_lock();
+      {
+        LockMutexGuard g{SRW_LOCK_CALL};
+        if (!table->get_ref_count() && !UT_LIST_GET_LEN(table->locks))
+          dict_sys.remove(table, true);
+      }
+      dict_sys.mutex_unlock();
 #endif
+    }
   }
 
   mod_tables.clear();
