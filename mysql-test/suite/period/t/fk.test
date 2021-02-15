@@ -243,5 +243,53 @@ alter table s add foreign key(id, x, period fp)
                references t1(id, x, period p)
                on delete restrict;
 
+--echo # Check self-referenced table
+create or replace table tg (id int, prev int,
+                            s date, e date, period for p(s, e),
+                            unique(id, p without overlaps),
+                            foreign key(prev, period p) references tg(id, period p));
+show create table tg;
+
+--error ER_NO_REFERENCED_ROW_2
+insert into tg values(1, 0, '2017-01-03', '2017-01-20');
+
+insert into tg values(1, 1, '2017-01-01', '2017-01-22');
+insert into tg values(2, 1, '2017-01-03', '2017-01-20');
+
+--sorted_result
+select * from tg where prev>=0;
+--error ER_ROW_IS_REFERENCED_2
+delete from tg where id = 1;
+
+--error ER_DUP_ENTRY
+insert into tg values(1, 0, '2017-01-02', '2017-01-22');
+--error ER_NO_REFERENCED_ROW_2
+insert into tg values(1, 0, '2017-01-22', '2017-01-25');
+insert into tg values(0, 0, '2017-01-20', '2017-01-30');
+select * from tg where id = 0 and s > '2017-01-15';
+insert into tg values(1, 0, '2017-01-22', '2017-01-25');
+
+--sorted_result
+select * from tg;
+delete from tg where id = 1 and e = '2017-01-20';
+--sorted_result
+select * from tg;
+--error ER_ROW_IS_REFERENCED_2
+delete from tg where id = 0;
+--sorted_result
+select * from tg;
+
+update tg set e= '2017-01-25' where id = 0 and e = '2017-01-30';
+--sorted_result
+select * from tg;
+
+update tg set s= '2017-01-22', e= '2017-01-28' where id = 0 and e = '2017-01-25';
+--sorted_result
+select * from tg;
+
+--error ER_ROW_IS_REFERENCED_2
+delete from tg order by id asc;
+delete from tg order by id desc;
+
 drop database test;
 create database test;

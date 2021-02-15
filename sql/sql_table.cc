@@ -3743,11 +3743,13 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 
       if (fk_key->ref_period)
       {
-        auto *ref_table= fk_key->ref_table_list->table->s;
-        if (!fk_key->ref_period.streq(ref_table->period.name))
+        auto &ref_table_period = fk_key->ref_table_list->table ?
+                                 fk_key->ref_table_list->table->s->period.name :
+                                 create_info->period_info.name;
+        if (!fk_key->ref_period.streq(ref_table_period))
         {
           my_error(ER_PERIOD_FK_NOT_FOUND, MYF(0), fk_key->ref_period.str,
-                   ref_table->db.str, ref_table->table_name.str);
+                   fk_key->ref_db.str, fk_key->ref_table.str);
         }
 
         Create_field *period_start= NULL;
@@ -3762,14 +3764,28 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         }
         DBUG_ASSERT(period_start);
 
-        auto *ref_period_start= ref_table->period.start_field(ref_table);
-
-        if (ref_period_start->type_handler() != period_start->type_handler()
-            || ref_period_start->pack_length() != period_start->pack_length)
+        if (fk_key->ref_table_list->table)
         {
-          my_error(ER_PERIOD_FK_TYPES_MISMATCH, MYF(0), fk_key->period.str,
-                   ref_table->db.str, ref_table->table_name.str,
-                   ref_table->period.name.str);
+          auto *ref_table= fk_key->ref_table_list->table->s;
+          auto *ref_period_start= ref_table->period.start_field(ref_table);
+
+          if (ref_period_start->type_handler() != period_start->type_handler()
+              || ref_period_start->pack_length() != period_start->pack_length)
+          {
+            my_error(ER_PERIOD_FK_TYPES_MISMATCH, MYF(0), fk_key->period.str,
+                     ref_table->db.str, ref_table->table_name.str,
+                     ref_table->period.name.str);
+          }
+        }
+        else
+        {
+          // table is NULL if this is a self-referencing key
+          DBUG_ASSERT(my_strnncoll(table_alias_charset,
+                                   (uchar *) create_info->alias.str,
+                                   create_info->alias.length,
+                                   (uchar *) fk_key->ref_table.str,
+                                   fk_key->ref_table.length) == 0);
+          // No check is required
         }
       }
       continue;
@@ -4718,20 +4734,31 @@ static bool append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
         my_error(ER_PERIOD_NOT_FOUND, MYF(0), key->period.str);
         return true;
       }
-      const auto &period_start= create_info->period_info.period.start;
-      const auto &period_end= create_info->period_info.period.end;
-      key->columns.push_back(new Key_part_spec(&period_end, 0));
-      key->columns.push_back(new Key_part_spec(&period_start, 0));
+      const LEX_CSTRING *period_start= &create_info->period_info.period.start;
+      const LEX_CSTRING *period_end= &create_info->period_info.period.end;
+      key->columns.push_back(new Key_part_spec(period_end, 0));
+      key->columns.push_back(new Key_part_spec(period_start, 0));
 
       if (key->type == Key::FOREIGN_KEY)
       {
         auto *fk= static_cast<Foreign_key*>(key);
-        const auto &ref_period= fk->ref_table_list->table->s->period;
-        const auto *field= fk->ref_table_list->table->field;
-        const auto &ref_period_start= field[ref_period.start_fieldno]->field_name;
-        const auto &ref_period_end= field[ref_period.end_fieldno]->field_name;
-        fk->ref_columns.push_back(new Key_part_spec(&ref_period_end, 0));
-        fk->ref_columns.push_back(new Key_part_spec(&ref_period_start, 0));
+
+        if (fk->ref_table_list->table)
+        {
+          const auto &ref_period= fk->ref_table_list->table->s->period;
+          const auto *field= fk->ref_table_list->table->field;
+          period_start= &field[ref_period.start_fieldno]->field_name;
+          period_end= &field[ref_period.end_fieldno]->field_name;
+        }
+        else
+        {
+          // Self-referencing FK. Field names are already set above
+          DBUG_ASSERT(my_strcasecmp(system_charset_info,
+                                    fk->ref_table_list->table_name.str,
+                                    create_info->alias.str) == 0);
+        }
+        fk->ref_columns.push_back(new Key_part_spec(period_end, 0));
+        fk->ref_columns.push_back(new Key_part_spec(period_start, 0));
       }
     }
   }

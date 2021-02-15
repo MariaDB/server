@@ -289,5 +289,79 @@ alter table s add foreign key(id, x, period fp)
 references t1(id, x, period p)
 on delete restrict;
 ERROR HY000: Fields of `fp` and `test`.`t1`.`p` have different types
+# Check self-referenced table
+create or replace table tg (id int, prev int,
+s date, e date, period for p(s, e),
+unique(id, p without overlaps),
+foreign key(prev, period p) references tg(id, period p));
+show create table tg;
+Table	Create Table
+tg	CREATE TABLE `tg` (
+  `id` int(11) DEFAULT NULL,
+  `prev` int(11) DEFAULT NULL,
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `p` (`s`, `e`),
+  UNIQUE KEY `id` (`id`,`p` WITHOUT OVERLAPS),
+  KEY `prev` (`prev`,`e`,`s`),
+  CONSTRAINT `tg_ibfk_1` FOREIGN KEY (`prev`, period `p`) REFERENCES `tg` (`id`, period `p`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+insert into tg values(1, 0, '2017-01-03', '2017-01-20');
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails
+insert into tg values(1, 1, '2017-01-01', '2017-01-22');
+insert into tg values(2, 1, '2017-01-03', '2017-01-20');
+select * from tg where prev>=0;
+id	prev	s	e
+1	1	2017-01-01	2017-01-22
+2	1	2017-01-03	2017-01-20
+delete from tg where id = 1;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+insert into tg values(1, 0, '2017-01-02', '2017-01-22');
+ERROR 23000: Duplicate entry '1-2017-01-22-2017-01-02' for key 'id'
+insert into tg values(1, 0, '2017-01-22', '2017-01-25');
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails
+insert into tg values(0, 0, '2017-01-20', '2017-01-30');
+select * from tg where id = 0 and s > '2017-01-15';
+id	prev	s	e
+0	0	2017-01-20	2017-01-30
+insert into tg values(1, 0, '2017-01-22', '2017-01-25');
+select * from tg;
+id	prev	s	e
+0	0	2017-01-20	2017-01-30
+1	0	2017-01-22	2017-01-25
+1	1	2017-01-01	2017-01-22
+2	1	2017-01-03	2017-01-20
+delete from tg where id = 1 and e = '2017-01-20';
+select * from tg;
+id	prev	s	e
+0	0	2017-01-20	2017-01-30
+1	0	2017-01-22	2017-01-25
+1	1	2017-01-01	2017-01-22
+2	1	2017-01-03	2017-01-20
+delete from tg where id = 0;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+select * from tg;
+id	prev	s	e
+0	0	2017-01-20	2017-01-30
+1	0	2017-01-22	2017-01-25
+1	1	2017-01-01	2017-01-22
+2	1	2017-01-03	2017-01-20
+update tg set e= '2017-01-25' where id = 0 and e = '2017-01-30';
+select * from tg;
+id	prev	s	e
+0	0	2017-01-20	2017-01-25
+1	0	2017-01-22	2017-01-25
+1	1	2017-01-01	2017-01-22
+2	1	2017-01-03	2017-01-20
+update tg set s= '2017-01-22', e= '2017-01-28' where id = 0 and e = '2017-01-25';
+select * from tg;
+id	prev	s	e
+0	0	2017-01-22	2017-01-28
+1	0	2017-01-22	2017-01-25
+1	1	2017-01-01	2017-01-22
+2	1	2017-01-03	2017-01-20
+delete from tg order by id asc;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+delete from tg order by id desc;
 drop database test;
 create database test;
