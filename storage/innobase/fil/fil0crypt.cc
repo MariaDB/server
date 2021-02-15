@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -991,10 +991,13 @@ fil_crypt_read_crypt_data(fil_space_t* space)
 	const ulint zip_size = space->zip_size();
 	mtr_t	mtr;
 	mtr.start();
-	if (buf_block_t* block = buf_page_get(page_id_t(space->id, 0),
-					      zip_size, RW_S_LATCH, &mtr)) {
+	if (buf_block_t* block = buf_page_get_gen(page_id_t(space->id, 0),
+						  zip_size, RW_S_LATCH,
+						  nullptr,
+						  BUF_GET_POSSIBLY_FREED,
+						  __FILE__, __LINE__, &mtr)) {
 		mutex_enter(&fil_system.mutex);
-		if (!space->crypt_data) {
+		if (!space->crypt_data && !space->is_stopping()) {
 			space->crypt_data = fil_space_read_crypt_data(
 				zip_size, block->frame);
 		}
