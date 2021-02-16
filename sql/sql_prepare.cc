@@ -2568,11 +2568,6 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     }
     break;
   case SQLCOM_CREATE_VIEW:
-    if (lex->create_view->mode == VIEW_ALTER)
-    {
-      my_message(ER_UNSUPPORTED_PS, ER_THD(thd, ER_UNSUPPORTED_PS), MYF(0));
-      goto error;
-    }
     res= mysql_test_create_view(stmt);
     break;
   case SQLCOM_DO:

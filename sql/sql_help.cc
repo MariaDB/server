@@ -436,7 +436,6 @@ void get_all_items_for_category(THD *thd, TABLE *items, Field *pfname,
   @param      thd         Thread data object
   @param[out] field_list  List of fields whose metadata should be collected for
                           sending to client
-  @param is_it_category - need column 'source_category_name'
 */
 
 static void fill_answer_1_fields(THD *thd, List<Item> *field_list)
@@ -515,10 +514,10 @@ static int send_answer_1(Protocol *protocol, String *s1, String *s2, String *s3)
 /**
   Collect field names of HELP header that will be sent to a client
 
-  @param      thd         Thread data object
-  @param[out] field_list  List of fields whose metadata should be collected for
-                          sending to client
-  @param is_it_category - need column 'source_category_name'
+  @param      thd          Thread data object
+  @param[out] field_list   List of fields whose metadata should be collected for
+                           sending to client
+  @param      for_category need column 'source_category_name'
 */
 
 static void fill_header_2_fields(THD *thd, List<Item> *field_list,
@@ -544,7 +543,7 @@ static void fill_header_2_fields(THD *thd, List<Item> *field_list,
   SYNOPSIS
    send_header_2()
     protocol       - protocol for sending
-    is_it_category - need column 'source_category_name'
+    for_category   - need column 'source_category_name'
 
   IMPLEMENTATION
    +-                    -+
