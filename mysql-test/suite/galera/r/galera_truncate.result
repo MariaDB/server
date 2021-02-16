@@ -32,6 +32,17 @@ SELECT AUTO_INCREMENT = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME IN ('t
 AUTO_INCREMENT = 1
 1
 1
+connection node_1;
+TRUNCATE TABLE mysql.user;
+ERROR 42S02: Table 'mysql.user' doesn't exist
+TRUNCATE TABLE performance_schema.threads;
+ERROR HY000: Invalid performance_schema usage
+TRUNCATE TABLE information_schema.tables;
+ERROR 42000: Access denied for user 'root'@'localhost' to database 'information_schema'
+TRUNCATE TABLE mysql.innodb_index_stats;
+TRUNCATE TABLE foo.bar;
+ERROR 42S02: Table 'foo.bar' doesn't exist
+TRUNCATE TABLE t1;
 DROP TABLE t1;
 DROP TABLE t2;
 DROP TABLE t3;

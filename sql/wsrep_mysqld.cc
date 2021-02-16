@@ -1184,10 +1184,17 @@ void wsrep_keys_free(wsrep_key_arr_t* key_arr)
     key_arr->keys_len= 0;
 }
 
-void
+/*!
+ * @param thd    thread
+ * @param tables list of tables
+ * @param keys   prepared keys
+
+ * @return true if parent table append was successfull, otherwise false.
+*/
+bool
 wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* keys)
 {
-  if (!WSREP(thd) || !WSREP_CLIENT(thd)) return;
+    bool fail= false;
     TABLE_LIST *table;
 
     thd->release_transactional_locks();
@@ -1198,6 +1205,8 @@ wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* key
          open_tables(thd, &tables, &counter, MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL))
     {
       WSREP_DEBUG("unable to open table for FK checks for %s", thd->query());
+      fail= true;
+      goto exit;
     }
 
     for (table= tables; table; table= table->next_local)
@@ -1219,14 +1228,18 @@ wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* key
       }
     }
 
+exit:
     /* close the table and release MDL locks */
     close_thread_tables(thd);
     thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
     for (table= tables; table; table= table->next_local)
     {
       table->table= NULL;
+      table->next_global= NULL;
       table->mdl_request.ticket= NULL;
     }
+
+    return fail;
 }
 
 /*!
@@ -1965,7 +1978,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
 {
   DBUG_ASSERT(thd->variables.wsrep_OSU_method == WSREP_OSU_TOI);
 
-  WSREP_DEBUG("TOI Begin");
+  WSREP_DEBUG("TOI Begin for %s", WSREP_QUERY(thd));
   if (wsrep_can_run_in_toi(thd, db, table, table_list) == false)
   {
     WSREP_DEBUG("No TOI for %s", WSREP_QUERY(thd));
@@ -2055,22 +2068,20 @@ static void wsrep_TOI_end(THD *thd) {
   wsrep_to_isolation--;
   wsrep::client_state& client_state(thd->wsrep_cs());
   DBUG_ASSERT(wsrep_thd_is_local_toi(thd));
-  WSREP_DEBUG("TO END: %lld: %s", client_state.toi_meta().seqno().get(),
-              WSREP_QUERY(thd));
 
-  if (wsrep_thd_is_local_toi(thd))
+  wsrep_set_SE_checkpoint(client_state.toi_meta().gtid());
+
+  int ret= client_state.leave_toi_local(wsrep::mutable_buffer());
+
+  if (!ret)
   {
-    wsrep_set_SE_checkpoint(client_state.toi_meta().gtid());
-    int ret= client_state.leave_toi_local(wsrep::mutable_buffer());
-    if (!ret)
-    {
-      WSREP_DEBUG("TO END: %lld", client_state.toi_meta().seqno().get());
-    }
-    else
-    {
-      WSREP_WARN("TO isolation end failed for: %d, schema: %s, sql: %s",
-                 ret, (thd->db.str ? thd->db.str : "(null)"), WSREP_QUERY(thd));
-    }
+    WSREP_DEBUG("TO END: %lld: %s",
+                client_state.toi_meta().seqno().get(), WSREP_QUERY(thd));
+  }
+  else
+  {
+    WSREP_WARN("TO isolation end failed for: %d, sql: %s",
+                ret, WSREP_QUERY(thd));
   }
 }
 

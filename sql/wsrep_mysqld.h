@@ -212,7 +212,7 @@ wsrep_sync_wait_upto (THD* thd, wsrep_gtid_t* upto, int timeout);
 extern void wsrep_last_committed_id (wsrep_gtid_t* gtid);
 extern int  wsrep_check_opts();
 extern void wsrep_prepend_PATH (const char* path);
-void wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* table, wsrep::key_array* keys);
+extern bool wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* table, wsrep::key_array* keys);
 
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
