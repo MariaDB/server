@@ -121,6 +121,7 @@ void lock_sys_t::hash_table::resize(ulint n)
     }
   }
 
+  aligned_free(array);
   array= new_array;
   n_cells= new_n_cells;
 }
