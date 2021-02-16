@@ -230,6 +230,7 @@ static int open_table(THD* thd,
   tables.init_one_table(schema_name,
                         table_name,
                         NULL, lock_type);
+  thd->lex->query_tables_own_last= 0;
 
   if (!open_n_lock_single_table(thd, &tables, tables.lock_type, flags)) {
     if (thd->is_error()) {
