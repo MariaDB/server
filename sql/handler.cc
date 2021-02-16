@@ -6738,8 +6738,7 @@ static int period_find_first_overlapping_record(handler *handler,
                                                 const uchar *record_to_cmp,
                                                 uchar *record,
                                                 const KEY &key_to_cmp,
-                                                const KEY &key,
-                                                bool ignore_self_refs);
+                                                const KEY &key);
 
 int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
 {
