@@ -182,13 +182,13 @@ alter table t drop period for p, drop constraint id;
 
 show create table s;
 alter table t drop period for p, drop constraint id, add period for pop(s, e),
-              add primary key(id, x, pop without overlaps);
+              add unique(id, x, pop without overlaps);
 show create table s;
 
 --replace_regex  /Error on rename of '.*' to '.*'/Error on rename of 'OLD_FILE_NAME' to 'NEW_FILE_NAME'/
 --error ER_ERROR_ON_RENAME
-alter table t drop period for pop, drop primary key,
-              add primary key(id, x, s, e);
+alter table t drop period for pop, drop constraint id,
+              add unique(id, x, s, e);
 show create table s;
 
 --error ER_PERIOD_NOT_FOUND

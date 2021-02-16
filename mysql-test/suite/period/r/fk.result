@@ -8,8 +8,8 @@ on delete restrict);
 show create table s;
 Table	Create Table
 s	CREATE TABLE `s` (
-  `id` int(11) NOT NULL,
-  `x` int(11) NOT NULL,
+  `id` int(11) DEFAULT NULL,
+  `x` int(11) DEFAULT NULL,
   `s` date NOT NULL,
   `e` date NOT NULL,
   PERIOD FOR `fp` (`s`, `e`),
@@ -175,9 +175,9 @@ show create table s;
 Table	Create Table
 s	CREATE TABLE `s` (
   `x` int(11) DEFAULT NULL,
-  `y` int(11) NOT NULL,
+  `y` int(11) DEFAULT NULL,
   `z` char(200) DEFAULT NULL,
-  `pk` int(11) NOT NULL,
+  `pk` int(11) DEFAULT NULL,
   `e` date NOT NULL,
   `s` date NOT NULL,
   PERIOD FOR `fp` (`s`, `e`),
@@ -203,9 +203,9 @@ show create table s;
 Table	Create Table
 s	CREATE TABLE `s` (
   `x` int(11) DEFAULT NULL,
-  `y` int(11) NOT NULL,
+  `y` int(11) DEFAULT NULL,
   `z` char(200) DEFAULT NULL,
-  `pk` int(11) NOT NULL,
+  `pk` int(11) DEFAULT NULL,
   `e` date NOT NULL,
   `s` date NOT NULL,
   PERIOD FOR `fp` (`s`, `e`),
@@ -215,14 +215,14 @@ s	CREATE TABLE `s` (
   CONSTRAINT `s_ibfk_1` FOREIGN KEY (`pk`, `y`, period `fp`) REFERENCES `t` (`id`, `x`, period `p`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 alter table t drop period for p, drop constraint id, add period for pop(s, e),
-add primary key(id, x, pop without overlaps);
+add unique(id, x, pop without overlaps);
 show create table s;
 Table	Create Table
 s	CREATE TABLE `s` (
   `x` int(11) DEFAULT NULL,
-  `y` int(11) NOT NULL,
+  `y` int(11) DEFAULT NULL,
   `z` char(200) DEFAULT NULL,
-  `pk` int(11) NOT NULL,
+  `pk` int(11) DEFAULT NULL,
   `e` date NOT NULL,
   `s` date NOT NULL,
   PERIOD FOR `fp` (`s`, `e`),
@@ -231,16 +231,16 @@ s	CREATE TABLE `s` (
   KEY `pk` (`pk`,`y`,`e`,`s`),
   CONSTRAINT `s_ibfk_1` FOREIGN KEY (`pk`, `y`, period `fp`) REFERENCES `t` (`id`, `x`, period `pop`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
-alter table t drop period for pop, drop primary key,
-add primary key(id, x, s, e);
+alter table t drop period for pop, drop constraint id,
+add unique(id, x, s, e);
 ERROR HY000: Error on rename of 'OLD_FILE_NAME' to 'NEW_FILE_NAME' (errno: 150 "Foreign key constraint is incorrectly formed")
 show create table s;
 Table	Create Table
 s	CREATE TABLE `s` (
   `x` int(11) DEFAULT NULL,
-  `y` int(11) NOT NULL,
+  `y` int(11) DEFAULT NULL,
   `z` char(200) DEFAULT NULL,
-  `pk` int(11) NOT NULL,
+  `pk` int(11) DEFAULT NULL,
   `e` date NOT NULL,
   `s` date NOT NULL,
   PERIOD FOR `fp` (`s`, `e`),
