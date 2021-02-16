@@ -37,6 +37,7 @@ bool Binary_string::real_alloc(size_t length)
   DBUG_ASSERT(arg_length > length);
   if (arg_length <= length)
     return TRUE;                                 /* Overflow */
+  DBUG_ASSERT(length < UINT_MAX32);              // cast to uint32 is safe
   str_length=0;
   if (Alloced_length < arg_length)
   {
@@ -45,7 +46,6 @@ bool Binary_string::real_alloc(size_t length)
                                 arg_length,MYF(MY_WME | (thread_specific ?
                                                 MY_THREAD_SPECIFIC : 0)))))
       return TRUE;
-    DBUG_ASSERT(length < UINT_MAX32);
     Alloced_length=(uint32) arg_length;
     alloced=1;
   }
@@ -504,6 +504,7 @@ bool String::set_ascii(const char *str, size_t arg_length)
 
 bool Binary_string::fill(size_t max_length,char fill_char)
 {
+  DBUG_ASSERT(max_length < UINT_MAX32); // cast to uint32 is safe
   if (str_length > max_length)
     Ptr[str_length= (uint32) max_length]=0;
   else
@@ -529,7 +530,7 @@ void String::strip_sp()
 
 bool String::append(const char *s,size_t size)
 {
-  DBUG_ASSERT(size <= UINT_MAX32);
+  DBUG_ASSERT(size <= UINT_MAX32);              // cast to uint32 is safe
   uint32 arg_length= (uint32) size;
   if (!arg_length)
     return FALSE;
