@@ -136,16 +136,6 @@ drop user test@localhost;
 #
 SET @wsrep_sst_auth_saved= @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= 'user:pass';
-SELECT @@global.wsrep_sst_auth;
-@@global.wsrep_sst_auth
-********
 SET @@global.wsrep_sst_auth= '';
-SELECT @@global.wsrep_sst_auth;
-@@global.wsrep_sst_auth
-NULL
 SET @@global.wsrep_sst_auth= NULL;
-SELECT @@global.wsrep_sst_auth;
-@@global.wsrep_sst_auth
-NULL
-SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
 # End of test.

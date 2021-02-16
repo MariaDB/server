@@ -152,15 +152,13 @@ drop user test@localhost;
 --echo #
 SET @wsrep_sst_auth_saved= @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= 'user:pass';
-SELECT @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= '';
-SELECT @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= NULL;
-SELECT @@global.wsrep_sst_auth;
-SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
 
 # Reset (for mtr internal checks)
 --disable_query_log
+
+SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
 SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
 eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
 SET GLOBAL wsrep_cluster_address= @wsrep_cluster_address_saved;
