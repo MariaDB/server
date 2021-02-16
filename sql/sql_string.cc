@@ -37,6 +37,8 @@ bool Binary_string::real_alloc(size_t length)
   DBUG_ASSERT(arg_length > length);
   if (arg_length <= length)
     return TRUE;                                 /* Overflow */
+  if (arg_length >= UINT_MAX32)
+    return FALSE;
   str_length=0;
   if (Alloced_length < arg_length)
   {
@@ -45,7 +47,6 @@ bool Binary_string::real_alloc(size_t length)
                                 arg_length,MYF(MY_WME | (thread_specific ?
                                                 MY_THREAD_SPECIFIC : 0)))))
       return TRUE;
-    DBUG_ASSERT(length < UINT_MAX32);
     Alloced_length=(uint32) arg_length;
     alloced=1;
   }
