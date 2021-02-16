@@ -355,9 +355,8 @@ void group_commit_lock::release(value_type num)
       e->m_group_commit_leader= true;
       wakeup_list = e;
     }
-    else
+    else if (wakeup_list)
     {
-      ut_a(wakeup_list);
       wakeup_list->m_group_commit_leader=true;
     }
   }
