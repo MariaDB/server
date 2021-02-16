@@ -7414,7 +7414,7 @@ int handler::period_row_upd_fk_check(const uchar *old_data, const uchar *new_dat
     DBUG_ASSERT(key.table->alias.eq(&table->alias, table->alias.charset()));
 
     int error= 0;
-    if (TABLE::check_period_overlaps(key, old_data, new_data))
+    if (!TABLE::check_period_overlaps(key, old_data, new_data))
     {
       error= period_row_check_delete_for_key(old_data, fk);
       if (error)
@@ -7456,7 +7456,7 @@ int handler::period_row_upd_fk_check(const uchar *old_data, const uchar *new_dat
     DBUG_ASSERT(key.table->alias.eq(&table->alias, table->alias.charset()));
 
     int error= 0;
-    if (TABLE::check_period_overlaps(key, old_data, new_data) != 0)
+    if (!TABLE::check_period_overlaps(key, old_data, new_data))
     {
       error= period_row_check_insert_for_key(new_data, fk);
       if (error)
