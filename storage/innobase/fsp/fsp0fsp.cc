@@ -406,8 +406,11 @@ xdes_get_descriptor_const(
 
 	const ulint zip_size = space->zip_size();
 
-	if (buf_block_t* block = buf_page_get(page_id_t(space->id, page),
-					      zip_size, RW_S_LATCH, mtr)) {
+	if (buf_block_t* block = buf_page_get_gen(page_id_t(space->id, page),
+						  zip_size, RW_S_LATCH,
+						  nullptr,
+						  BUF_GET_POSSIBLY_FREED,
+						  mtr)) {
 		ut_ad(page != 0 || space->free_limit == mach_read_from_4(
 			      FSP_FREE_LIMIT + FSP_HEADER_OFFSET
 			      + block->frame));

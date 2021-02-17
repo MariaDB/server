@@ -24,6 +24,7 @@
 #include "my_decimal_limits.h"
 
 #define HOSTNAME_LENGTH 60
+#define HOSTNAME_LENGTH_STR STRINGIFY_ARG(HOSTNAME_LENGTH)
 #define SYSTEM_CHARSET_MBMAXLEN 3
 #define NAME_CHAR_LEN	64              /* Field/table name length */
 #define USERNAME_CHAR_LENGTH 128

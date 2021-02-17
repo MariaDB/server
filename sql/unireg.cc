@@ -57,13 +57,7 @@ static bool make_empty_rec(THD *, uchar *, uint, List<Create_field> &, uint,
 */
 static uchar *extra2_write_len(uchar *pos, size_t len)
 {
-  /* TODO: should be
-     if (len > 0 && len <= 255)
-       *pos++= (uchar)len;
-     ...
-     because extra2_read_len() uses 0 for 2-byte lengths.
-     extra2_str_size() must be fixed too.
-  */
+  DBUG_ASSERT(len);
   if (len <= 255)
     *pos++= (uchar)len;
   else
@@ -1151,6 +1145,8 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
   TABLE table;
   TABLE_SHARE share;
   Create_field *field;
+  Check_level_instant_set old_count_cuted_fields(thd, CHECK_FIELD_WARN);
+  Abort_on_warning_instant_set old_abort_on_warning(thd, 0);
   DBUG_ENTER("make_empty_rec");
 
   /* We need a table to generate columns for default values */
@@ -1169,7 +1165,6 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
   null_pos= buff;
 
   List_iterator<Create_field> it(create_fields);
-  Check_level_instant_set check_level_save(thd, CHECK_FIELD_WARN);
   while ((field=it++))
   {
     Record_addr addr(buff + field->offset + data_offset,

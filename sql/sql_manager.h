@@ -18,6 +18,6 @@
 
 void start_handle_manager();
 void stop_handle_manager();
-bool mysql_manager_submit(void (*action)());
+bool mysql_manager_submit(void (*action)(void *), void *data);
 
 #endif /* SQL_MANAGER_INCLUDED */

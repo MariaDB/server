@@ -995,10 +995,13 @@ fil_crypt_read_crypt_data(fil_space_t* space)
 	const ulint zip_size = space->zip_size();
 	mtr_t	mtr;
 	mtr.start();
-	if (buf_block_t* block = buf_page_get(page_id_t(space->id, 0),
-					      zip_size, RW_S_LATCH, &mtr)) {
+	if (buf_block_t* block = buf_page_get_gen(page_id_t(space->id, 0),
+						  zip_size, RW_S_LATCH,
+						  nullptr,
+						  BUF_GET_POSSIBLY_FREED,
+						  &mtr)) {
 		mysql_mutex_lock(&fil_system.mutex);
-		if (!space->crypt_data) {
+		if (!space->crypt_data && !space->is_stopping()) {
 			space->crypt_data = fil_space_read_crypt_data(
 				zip_size, block->frame);
 		}

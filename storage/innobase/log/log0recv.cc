@@ -490,7 +490,7 @@ page_corrupted:
         llen= len;
         if ((b & 0x70) == MEMSET)
         {
-          ut_ad(rlen < llen);
+          ut_ad(rlen <= llen);
           if (UNIV_UNLIKELY(rlen != 1))
           {
             size_t s;
@@ -499,7 +499,7 @@ page_corrupted:
             memcpy(frame + last_offset + s, l, llen - s);
           }
           else
-          memset(frame + last_offset, *l, llen);
+            memset(frame + last_offset, *l, llen);
           goto next_after_applying_write;
         }
         const size_t slen= mlog_decode_varint_length(*l);
@@ -3668,6 +3668,7 @@ completed:
 
 	mysql_mutex_lock(&recv_sys.mutex);
 	recv_sys.apply_log_recs = true;
+	recv_no_ibuf_operations = false;
 	mysql_mutex_unlock(&recv_sys.mutex);
 	mysql_mutex_unlock(&log_sys.mutex);
 

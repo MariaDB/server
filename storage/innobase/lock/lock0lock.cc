@@ -494,6 +494,11 @@ static void wsrep_assert_no_bf_bf_wait(
 {
 	ut_ad(!lock_rec1 || !lock_rec1->is_table());
 	ut_ad(!lock_rec2->is_table());
+	ut_d(if (lock_rec1) lock_sys.assert_locked(*lock_rec1));
+	ut_d(if (lock_rec2) lock_sys.assert_locked(*lock_rec2));
+	/* Note that we are holding lock_sys.latch, thus we should
+	not wait for THD::LOCK_thd_data mutex below to avoid latching
+	order violation. */
 
 	if (!trx1->is_wsrep() || !lock_rec2->trx->is_wsrep())
 		return;
@@ -603,6 +608,8 @@ lock_rec_has_to_wait(
 {
 	ut_ad(trx);
 	ut_ad(!lock2->is_table());
+	ut_d(lock_sys.hash_get(type_mode).assert_locked(
+		     lock2->un_member.rec_lock.page_id));
 
 	if (trx == lock2->trx
 	    || lock_mode_compatible(
@@ -684,9 +691,20 @@ lock_rec_has_to_wait(
 #endif /* HAVE_REPLICATION */
 
 #ifdef WITH_WSREP
-	/* There should not be two conflicting locks that are
-	brute force. If there is it is a bug. */
-	wsrep_assert_no_bf_bf_wait(NULL, lock2, trx);
+		/* New lock request from a transaction is using unique key
+		scan and this transaction is a wsrep high priority transaction
+		(brute force). If conflicting transaction is also wsrep high
+		priority transaction we should avoid lock conflict because
+		ordering of these transactions is already decided and
+		conflicting transaction will be later replayed. */
+		if (trx->is_wsrep_UK_scan()
+		    && wsrep_thd_is_BF(lock2->trx->mysql_thd, false)) {
+			return false;
+		}
+
+		/* There should not be two conflicting locks that are
+		brute force. If there is it is a bug. */
+		wsrep_assert_no_bf_bf_wait(NULL, lock2, trx);
 #endif /* WITH_WSREP */
 
 	return true;
@@ -902,27 +920,37 @@ ATTRIBUTE_COLD
 static void wsrep_kill_victim(const trx_t *trx, const lock_t *lock)
 {
 	lock_sys.assert_locked();
-	ut_ad(lock->trx->mutex_is_owner());
 	ut_ad(trx->is_wsrep());
+	ut_ad(lock->trx != trx);
 
 	if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 		return;
 	}
 
-	my_bool bf_other = wsrep_thd_is_BF(lock->trx->mysql_thd, FALSE);
+	trx_t* lock_trx = lock->trx;
+
+	lock_trx->mutex_lock();
+
+	if (lock_trx->state == TRX_STATE_COMMITTED_IN_MEMORY
+	    || lock_trx->lock.was_chosen_as_deadlock_victim & 2) {
+		lock_trx->mutex_unlock();
+		return;
+	}
+
+	my_bool bf_other = wsrep_thd_is_BF(lock_trx->mysql_thd, FALSE);
 	mtr_t mtr;
 
 	if ((!bf_other) ||
 		(wsrep_thd_order_before(
-			trx->mysql_thd, lock->trx->mysql_thd))) {
+			trx->mysql_thd, lock_trx->mysql_thd))) {
 
-		if (lock->trx->lock.wait_thr) {
+		if (lock_trx->lock.wait_lock) {
 			if (UNIV_UNLIKELY(wsrep_debug)) {
 				ib::info() << "WSREP: BF victim waiting\n";
 			}
 			/* cannot release lock, until our lock
 			is in the queue*/
-		} else if (lock->trx != trx) {
+		} else {
 			if (wsrep_log_conflicts) {
 				ib::info() << "*** Priority TRANSACTION:";
 
@@ -933,7 +961,7 @@ static void wsrep_kill_victim(const trx_t *trx, const lock_t *lock)
 				} else {
 					ib::info() << "*** Victim TRANSACTION:";
 				}
-                                trx_print_latched(stderr, lock->trx, 3000);
+                                trx_print_latched(stderr, lock_trx, 3000);
 
 				ib::info() << "*** WAITING FOR THIS LOCK TO BE GRANTED:";
 
@@ -946,13 +974,15 @@ static void wsrep_kill_victim(const trx_t *trx, const lock_t *lock)
 				ib::info() << " SQL1: "
 					   << wsrep_thd_query(trx->mysql_thd);
 				ib::info() << " SQL2: "
-					   << wsrep_thd_query(lock->trx->mysql_thd);
+					   << wsrep_thd_query(lock_trx->mysql_thd);
 			}
 
 			wsrep_innobase_kill_one_trx(trx->mysql_thd,
-						    lock->trx, true);
+						    lock_trx, true);
 		}
 	}
+
+	lock->trx->mutex_unlock();
 }
 #endif /* WITH_WSREP */
 
@@ -979,13 +1009,7 @@ lock_rec_other_has_conflicting(
 		if (lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
 #ifdef WITH_WSREP
 			if (trx->is_wsrep()) {
-				trx_t* lock_trx = lock->trx;
-				lock_trx->mutex_lock();
-				/* Below function will roll back either trx
-				or lock->trx depending on priority of the
-				transaction. */
 				wsrep_kill_victim(trx, lock);
-				lock_trx->mutex_unlock();
 			}
 #endif /* WITH_WSREP */
 			return(lock);
@@ -1160,14 +1184,14 @@ static bool lock_rec_create_wsrep(lock_t *c_lock, que_thr_t *thr, lock_t *lock,
   ut_ad(!lock->is_table());
   lock_sys.assert_locked();
 
-  lock_t *hash= static_cast<lock_t*>(c_lock->hash);
+  lock_t *hash= c_lock->hash;
   lock_t *prev= nullptr;
 
   while (hash && wsrep_thd_is_BF(hash->trx->mysql_thd, false) &&
          wsrep_thd_order_before(hash->trx->mysql_thd, trx->mysql_thd))
   {
     prev= hash;
-    hash= static_cast<lock_t*>(hash->hash);
+    hash= hash->hash;
   }
   lock->hash= hash;
   if (prev)
@@ -3544,9 +3568,7 @@ lock_table_other_has_incompatible(
 					ib::info() << " SQL: "
 					   << wsrep_thd_query(lock->trx->mysql_thd);
 				}
-				lock_trx->mutex_lock();
 				wsrep_kill_victim(trx, lock);
-				lock_trx->mutex_unlock();
 			}
 #endif /* WITH_WSREP */
 
@@ -5245,6 +5267,19 @@ lock_sec_rec_modify_check_and_lock(
 
 	heap_no = page_rec_get_heap_no(rec);
 
+#ifdef WITH_WSREP
+	trx_t *trx= thr_get_trx(thr);
+	/* If transaction scanning an unique secondary key is wsrep
+	high priority thread (brute force) this scanning may involve
+	GAP-locking in the index. As this locking happens also when
+	applying replication events in high priority applier threads,
+	there is a probability for lock conflicts between two wsrep
+	high priority threads. To avoid this GAP-locking we mark that
+	this transaction is using unique key scan here. */
+	if (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, false))
+		trx->wsrep = 3;
+#endif /* WITH_WSREP */
+
 	/* Another transaction cannot have an implicit lock on the record,
 	because when we come here, we already have modified the clustered
 	index record, and this would not have been possible if another active
@@ -5252,6 +5287,10 @@ lock_sec_rec_modify_check_and_lock(
 
 	err = lock_rec_lock(true, LOCK_X | LOCK_REC_NOT_GAP,
 			    block, heap_no, index, thr);
+
+#ifdef WITH_WSREP
+	if (trx->wsrep == 3) trx->wsrep = 1;
+#endif /* WITH_WSREP */
 
 #ifdef UNIV_DEBUG
 	{
@@ -5346,8 +5385,25 @@ lock_sec_rec_read_check_and_lock(
 		return DB_SUCCESS;
 	}
 
+#ifdef WITH_WSREP
+	trx_t *trx= thr_get_trx(thr);
+	/* If transaction scanning an unique secondary key is wsrep
+	high priority thread (brute force) this scanning may involve
+	GAP-locking in the index. As this locking happens also when
+	applying replication events in high priority applier threads,
+	there is a probability for lock conflicts between two wsrep
+	high priority threads. To avoid this GAP-locking we mark that
+	this transaction is using unique key scan here. */
+	if (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, false))
+		trx->wsrep = 3;
+#endif /* WITH_WSREP */
+
 	err = lock_rec_lock(false, gap_mode | mode,
 			    block, heap_no, index, thr);
+
+#ifdef WITH_WSREP
+	if (trx->wsrep == 3) trx->wsrep = 1;
+#endif /* WITH_WSREP */
 
 	ut_ad(lock_rec_queue_validate(false, id, rec, index, offsets));
 

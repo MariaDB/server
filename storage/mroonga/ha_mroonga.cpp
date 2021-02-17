@@ -5887,7 +5887,7 @@ int ha_mroonga::wrapper_write_row_index(const uchar *buf)
     DBUG_RETURN(0);
   }
 
-  mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+  mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
   uint i;
   uint n_keys = table->s->keys;
   for (i = 0; i < n_keys; i++) {
@@ -5962,7 +5962,7 @@ int ha_mroonga::storage_write_row(const uchar *buf)
       DBUG_RETURN(error);
   }
 
-  mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+  mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
   for (i = 0; i < n_columns; i++) {
     Field *field = table->field[i];
 
@@ -6243,7 +6243,7 @@ int ha_mroonga::storage_write_row_multiple_column_indexes(const uchar *buf,
 
   int error = 0;
 
-  mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+  mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
   uint i;
   uint n_keys = table->s->keys;
   for (i = 0; i < n_keys; i++) {
@@ -6530,7 +6530,7 @@ int ha_mroonga::wrapper_update_row_index(const uchar *old_data,
     DBUG_RETURN(0);
   }
 
-  mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+  mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
   uint i;
   uint n_keys = table->s->keys;
   for (i = 0; i < n_keys; i++) {
@@ -6651,7 +6651,7 @@ int ha_mroonga::storage_update_row(const uchar *old_data,
       grn_obj new_value;
       GRN_VOID_INIT(&new_value);
       {
-        mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+        mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
         generic_store_bulk(field, &new_value);
       }
       grn_obj casted_value;
@@ -6680,7 +6680,7 @@ int ha_mroonga::storage_update_row(const uchar *old_data,
   storage_store_fields_for_prep_update(old_data, new_data, record_id);
   {
     mrn::Lock lock(&(share->record_mutex), have_unique_index());
-    mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+    mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
     if ((error = storage_prepare_delete_row_unique_indexes(old_data,
                                                            record_id))) {
       DBUG_RETURN(error);
@@ -6705,7 +6705,7 @@ int ha_mroonga::storage_update_row(const uchar *old_data,
 #endif
 
     if (bitmap_is_set(table->write_set, field->field_index)) {
-      mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+      mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
       DBUG_PRINT("info", ("mroonga: update column %d(%d)",i,field->field_index));
 
       if (field->is_null()) continue;
@@ -6782,7 +6782,7 @@ int ha_mroonga::storage_update_row(const uchar *old_data,
   if (table->found_next_number_field &&
       !table->s->next_number_keypart &&
       new_data == table->record[0]) {
-    mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+    mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
     Field_num *field = (Field_num *) table->found_next_number_field;
     if (field->unsigned_flag || field->val_int() > 0) {
       MRN_LONG_TERM_SHARE *long_term_share = share->long_term_share;
@@ -6837,7 +6837,7 @@ int ha_mroonga::storage_update_row_index(const uchar *old_data,
   GRN_TEXT_INIT(&new_key, 0);
   GRN_TEXT_INIT(&new_encoded_key, 0);
 
-  mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+  mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
   uint i;
   uint n_keys = table->s->keys;
   mrn_change_encoding(ctx, NULL);
@@ -7045,7 +7045,7 @@ int ha_mroonga::wrapper_delete_row_index(const uchar *buf)
     DBUG_RETURN(0);
   }
 
-  mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+  mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
   uint i;
   uint n_keys = table->s->keys;
   for (i = 0; i < n_keys; i++) {
@@ -7196,7 +7196,7 @@ int ha_mroonga::storage_delete_row_index(const uchar *buf)
   GRN_TEXT_INIT(&key, 0);
   GRN_TEXT_INIT(&encoded_key, 0);
 
-  mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+  mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
   uint i;
   uint n_keys = table->s->keys;
   mrn_change_encoding(ctx, NULL);
@@ -11394,7 +11394,7 @@ void ha_mroonga::storage_store_fields(uchar *buf, grn_id record_id)
         }
       }
 
-      mrn::DebugColumnAccess debug_column_access(table, table->write_set);
+      mrn::DebugColumnAccess debug_column_access(table, &table->write_set);
       DBUG_PRINT("info", ("mroonga: store column %d(%d)",i,field->field_index));
       field->move_field_offset(ptr_diff);
       if (strcmp(MRN_COLUMN_NAME_ID, column_name) == 0) {
@@ -11459,7 +11459,7 @@ void ha_mroonga::storage_store_fields_for_prep_update(const uchar *old_data,
       )
 #endif
     ) {
-      mrn::DebugColumnAccess debug_column_access(table, table->write_set);
+      mrn::DebugColumnAccess debug_column_access(table, &table->write_set);
       DBUG_PRINT("info", ("mroonga: store column %d(%d)",i,field->field_index));
       grn_obj value;
       GRN_OBJ_INIT(&value, GRN_BULK, 0, grn_obj_get_range(ctx, grn_columns[i]));
@@ -11495,7 +11495,7 @@ void ha_mroonga::storage_store_fields_by_index(uchar *buf)
   if (KEY_N_KEY_PARTS(key_info) == 1) {
     my_ptrdiff_t ptr_diff = PTR_BYTE_DIFF(buf, table->record[0]);
     Field *field = key_info->key_part->field;
-    mrn::DebugColumnAccess debug_column_access(table, table->write_set);
+    mrn::DebugColumnAccess debug_column_access(table, &table->write_set);
     field->move_field_offset(ptr_diff);
     storage_store_field(field, (const char *)key, key_length);
     field->move_field_offset(-ptr_diff);

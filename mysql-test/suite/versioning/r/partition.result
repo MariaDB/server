@@ -136,9 +136,7 @@ t1	CREATE TABLE `t1` (
  PARTITION `pn` CURRENT ENGINE = DEFAULT_ENGINE)
 # merge and split doesn't (MDEV-19938)
 create or replace table t1 (x int) with system versioning
-partition by system_time partitions 3;
-Warnings:
-Warning	4115	Maybe missing parameters: no rotation condition for multiple HISTORY partitions.
+partition by system_time limit 10 partitions 3;
 alter table t1 reorganize partition p0, p1 into (partition p00 history);
 ERROR HY000: REORGANIZE PARTITION can only be used to reorganize partitions not to change their numbers
 alter table t1 reorganize partition p1 into (partition p1 history, partition p2 history);
@@ -952,15 +950,13 @@ select PARTITION_NAME, PARTITION_METHOD, PARTITION_DESCRIPTION from information_
 PARTITION_NAME	PARTITION_METHOD	PARTITION_DESCRIPTION
 p0	SYSTEM_TIME	NULL
 pn	SYSTEM_TIME	CURRENT
-create or replace table t1 (x int) with system versioning partition by system_time partitions 4;
-Warnings:
-Warning	4115	Maybe missing parameters: no rotation condition for multiple HISTORY partitions.
+create or replace table t1 (x int) with system versioning partition by system_time limit 10 partitions 4;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
- PARTITION BY SYSTEM_TIME 
+ PARTITION BY SYSTEM_TIME LIMIT 10
 PARTITIONS 4
 # 4 partitions are created: p0, p1, p2 and pn
 select PARTITION_NAME, PARTITION_METHOD, PARTITION_DESCRIPTION from information_schema.partitions where table_name = 't1' order by PARTITION_NAME;

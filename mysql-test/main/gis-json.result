@@ -104,6 +104,9 @@ a
 NULL
 Warnings:
 Warning	4076	Incorrect GeoJSON format - empty 'coordinates' array.
+SELECT ST_GEOMFROMGEOJSON("{ \"type\": \"Feature\", \"geometry\": [10, 20] }");
+ST_GEOMFROMGEOJSON("{ \"type\": \"Feature\", \"geometry\": [10, 20] }")
+NULL
 #
 # End of 10.2 tests
 #

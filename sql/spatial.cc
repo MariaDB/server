@@ -631,6 +631,7 @@ Geometry *Geometry::create_from_json(Geometry_buffer *buffer,
         if (feature_type_found)
           goto handle_geometry_key;
       }
+      goto err_return;
     }
     else
     {

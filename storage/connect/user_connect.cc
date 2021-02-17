@@ -113,7 +113,6 @@ bool user_connect::user_init()
       printf("%s\n", g->Message);
 
     (void) PlugExit(g);
-    g= NULL;
 
 		if (dup)
 	    free(dup);

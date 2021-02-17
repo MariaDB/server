@@ -59,6 +59,12 @@ void wsrep_thd_LOCK(const THD *)
 void wsrep_thd_UNLOCK(const THD *)
 { }
 
+void wsrep_thd_kill_LOCK(const THD *)
+{ }
+
+void wsrep_thd_kill_UNLOCK(const THD *)
+{ }
+
 const char *wsrep_thd_conflict_state_str(THD *)
 { return 0; }
 

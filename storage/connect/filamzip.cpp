@@ -154,10 +154,10 @@ static bool ZipFiles(PGLOBAL g, ZIPUTIL *zutp, PCSZ pat, char *buf)
 	strcpy(filename, pat);
 
 #if defined(__WIN__)
+	int  rc;
 	char   drive[_MAX_DRIVE], direc[_MAX_DIR];
 	WIN32_FIND_DATA FileData;
 	HANDLE hSearch;
-	int rc;
 
 	_splitpath(filename, drive, direc, NULL, NULL);
 

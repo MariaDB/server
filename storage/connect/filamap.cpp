@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2020    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -102,7 +102,7 @@ int MAPFAM::GetFileLength(PGLOBAL g)
 bool MAPFAM::OpenTableFile(PGLOBAL g)
   {
   char    filename[_MAX_PATH];
-  int     len;
+  size_t  len;
   MODE    mode = Tdbp->GetMode();
   PFBLOCK fp;
   PDBUSER dbuserp = (PDBUSER)g->Activityp->Aptr;
@@ -170,13 +170,18 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
         htrc("CreateFileMap: %s\n", g->Message);
 
       return (mode == MODE_READ && rc == ENOENT)
-              ? PushWarning(g, Tdbp) : true;
+        ? false : true;
+//      ? PushWarning(g, Tdbp) : true; --> assert fails into MariaDB
       } // endif hFile
 
     /*******************************************************************/
-    /*  Get the file size (assuming file is smaller than 4 GB)         */
+    /*  Get the file size.                                             */
     /*******************************************************************/
-    len = mm.lenL;
+		len = (size_t)mm.lenL;
+		
+		if (mm.lenH)
+			len += ((size_t)mm.lenH * 0x000000001LL);
+
     Memory = (char *)mm.memory;
 
     if (!len) {              // Empty or deleted file

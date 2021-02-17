@@ -1706,7 +1706,7 @@ a	b
 drop table t1;
 create table t1 (v varchar(65530), key(v));
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 drop table if exists t1;
 set statement sql_mode = 'NO_ENGINE_SUBSTITUTION' for
 create table t1 (v varchar(65536));
@@ -1980,7 +1980,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (a varchar(2048), key `a` (a));
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1990,7 +1990,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (a varchar(2048), key `a` (a) key_block_size=1024);
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2000,7 +2000,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (a int not null, b varchar(2048), key (a), key(b)) key_block_size=1024;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2046,7 +2046,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (a int not null, b varchar(2048), key (a), key(b)) key_block_size=8192;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2136,7 +2136,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (a int not null, b varchar(2048), key (a) key_block_size=1024, key(b)) key_block_size=8192;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2166,7 +2166,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (a varchar(2048), key `a` (a) key_block_size=1000000000000000000);
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2412,6 +2412,7 @@ Key Start Len Index   Type
 1   2     30  multip. varchar              
 2   33    30  multip. char NULL            
 DROP TABLE t1;
+set statement sql_mode='' for
 create table t1 (n int not null, c char(1)) transactional=1;
 Warnings:
 Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'

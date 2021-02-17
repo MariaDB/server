@@ -3912,6 +3912,19 @@ int Xid_apply_log_event::do_record_gtid(THD *thd, rpl_group_info *rgi,
   return err;
 }
 
+static bool wsrep_must_replay(THD *thd)
+{
+#ifdef WITH_WSREP
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  bool res= WSREP(thd) && thd->wsrep_trx().state() == wsrep::transaction::s_must_replay;
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  return res;
+#else
+  return false;
+#endif
+}
+
+
 int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
 {
   bool res;
@@ -3970,21 +3983,13 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
       return err;
   }
 
-#ifdef WITH_WSREP
-  if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
-  if ((!res || (WSREP(thd) && thd->wsrep_trx().state() == wsrep::transaction::s_must_replay )) && sub_id)
-#else
-  if (likely(!res) && sub_id)
-#endif /* WITH_WSREP */
+  if (sub_id && (!res || wsrep_must_replay(thd)))
     rpl_global_gtid_slave_state->update_state_hash(sub_id, &gtid, hton, rgi);
-#ifdef WITH_WSREP
-  if (WSREP(thd)) mysql_mutex_unlock(&thd->LOCK_thd_data);
-#endif /* WITH_WSREP */
   /*
     Increment the global status commit count variable
   */
-  enum enum_sql_command cmd= !thd->transaction->xid_state.is_explicit_XA() ?
-    SQLCOM_COMMIT : SQLCOM_XA_PREPARE;
+  enum enum_sql_command cmd= !thd->transaction->xid_state.is_explicit_XA()
+    ? SQLCOM_COMMIT : SQLCOM_XA_PREPARE;
   status_var_increment(thd->status_var.com_stat[cmd]);
 
   return res;
@@ -7460,11 +7465,11 @@ int Rows_log_event::update_sequence()
     /* This event come from a setval function executed on the master.
        Update the sequence next_number and round, like we do with setval()
     */
-    my_bitmap_map *old_map= dbug_tmp_use_all_columns(table,
-                                                     table->read_set);
+    MY_BITMAP *old_map= dbug_tmp_use_all_columns(table,
+                                                 &table->read_set);
     longlong nextval= table->field[NEXT_FIELD_NO]->val_int();
     longlong round= table->field[ROUND_FIELD_NO]->val_int();
-    dbug_tmp_restore_column_map(table->read_set, old_map);
+    dbug_tmp_restore_column_map(&table->read_set, old_map);
 
     return table->s->sequence->set_value(table, nextval, round, 0) > 0;
   }

@@ -133,7 +133,7 @@ show create table t1;
 
 --echo # merge and split doesn't (MDEV-19938)
 create or replace table t1 (x int) with system versioning
-partition by system_time partitions 3;
+partition by system_time limit 10 partitions 3;
 --error ER_REORG_HASH_ONLY_ON_SAME_NO
 alter table t1 reorganize partition p0, p1 into (partition p00 history);
 --error ER_REORG_HASH_ONLY_ON_SAME_NO
@@ -805,7 +805,7 @@ show create table t1;
 --echo # 2 partitions are created: p0 and pn
 select PARTITION_NAME, PARTITION_METHOD, PARTITION_DESCRIPTION from information_schema.partitions where table_name = 't1' order by PARTITION_NAME;
 
-create or replace table t1 (x int) with system versioning partition by system_time partitions 4;
+create or replace table t1 (x int) with system versioning partition by system_time limit 10 partitions 4;
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 --echo # 4 partitions are created: p0, p1, p2 and pn

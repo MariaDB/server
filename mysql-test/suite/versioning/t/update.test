@@ -326,4 +326,28 @@ select *, check_row(row_start, row_end) from t2 for system_time all order by row
 # cleanup
 drop tables t1, t2, t3;
 
+--echo #
+--echo # MDEV-24522 Assertion `inited==NONE' fails upon UPDATE on versioned table with unique blob
+--echo
+create table t1 (a int, b int, c text, unique(c), key (b)) engine=myisam with system versioning;
+insert into t1 values (1, 1, 'foo'), (2, 11, 'bar');
+
+update t1 set a = 3 where b <= 9;
+update t1 set a = 3 where b <= 10;
+
+# cleanup
+drop table t1;
+
+create table t1 (a int, b int, c text, unique(c), key (b)) engine=myisam with system versioning;
+create table t2 (a int, b int, c text, unique(c), key (b)) engine=myisam with system versioning;
+insert into t1 values (1, 1, 'foo'), (2, 11, 'bar');
+insert into t2 values (1, 1, 'foo'), (2, 11, 'bar');
+
+update t1 set a = 3 where b <= 9;
+update t2 set a = 3 where b <= 9;
+update t1, t2 set t1.a = 3, t2.a = 3 where t1.b <= 10 and t2.b <= 10 and t1.b = t2.b;
+
+# cleanup
+drop tables t1, t2;
+
 source suite/versioning/common_finish.inc;

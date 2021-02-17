@@ -1,0 +1,385 @@
+set connect_enable_mongo=1;
+set connect_json_all_path=0;
+#
+# Test the MONGO table type
+#
+CREATE TABLE t1 (Document varchar(1024) JPATH='*')
+ENGINE=CONNECT TABLE_TYPE=BSON TABNAME=restaurants CONNECTION='mongodb://localhost:27017' LRECL=4096
+OPTION_LIST='Driver=Java,Version=2' DATA_CHARSET=utf8;
+SELECT * from t1 limit 3;
+Document
+{"_id":{"$oid":"58ada47de5a51ddfcd5ed51c"},"address":{"building":"1007","coord":[-73.856077,40.848447],"street":"Morris Park Ave","zipcode":"10462"},"borough":"Bronx","cuisine":"Bakery","grades":[{"date":{"$date":"2014-03-03T00:00:00.000Z"},"grade":"A","score":2},{"date":{"$date":"2013-09-11T00:00:00.000Z"},"grade":"A","score":6},{"date":{"$date":"2013-01-24T00:00:00.000Z"},"grade":"A","score":10},{"date":{"$date":"2011-11-23T00:00:00.000Z"},"grade":"A","score":9},{"date":{"$date":"2011-03-10T00:00:00.000Z"},"grade":"B","score":14}],"name":"Morris Park Bake Shop","restaurant_id":"30075445"}
+{"_id":{"$oid":"58ada47de5a51ddfcd5ed51d"},"address":{"building":"469","coord":[-73.961704,40.662942],"street":"Flatbush Avenue","zipcode":"11225"},"borough":"Brooklyn","cuisine":"Hamburgers","grades":[{"date":{"$date":"2014-12-30T00:00:00.000Z"},"grade":"A","score":8},{"date":{"$date":"2014-07-01T00:00:00.000Z"},"grade":"B","score":23},{"date":{"$date":"2013-04-30T00:00:00.000Z"},"grade":"A","score":12},{"date":{"$date":"2012-05-08T00:00:00.000Z"},"grade":"A","score":12}],"name":"Wendy'S","restaurant_id":"30112340"}
+{"_id":{"$oid":"58ada47de5a51ddfcd5ed51e"},"address":{"building":"351","coord":[-73.98513559999999,40.7676919],"street":"West   57 Street","zipcode":"10019"},"borough":"Manhattan","cuisine":"Irish","grades":[{"date":{"$date":"2014-09-06T00:00:00.000Z"},"grade":"A","score":2},{"date":{"$date":"2013-07-22T00:00:00.000Z"},"grade":"A","score":11},{"date":{"$date":"2012-07-31T00:00:00.000Z"},"grade":"A","score":12},{"date":{"$date":"2011-12-29T00:00:00.000Z"},"grade":"A","score":12}],"name":"Dj Reynolds Pub And Restaurant","restaurant_id":"30191841"}
+DROP TABLE t1;
+#
+# Test catfunc
+#
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=BSON TABNAME=restaurants CATFUNC=columns
+OPTION_LIST='Depth=1,Driver=Java,Version=2' DATA_CHARSET=utf8 CONNECTION='mongodb://localhost:27017' LRECL=4096;
+SELECT * from t1;
+Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Nullable	Jpath
+_id	1	CHAR	24	24	0	0	_id
+address_building	1	CHAR	10	10	0	0	address.building
+address_coord	1	CHAR	1024	1024	0	1	address.coord
+address_street	1	CHAR	38	38	0	0	address.street
+address_zipcode	1	CHAR	5	5	0	0	address.zipcode
+borough	1	CHAR	13	13	0	0	
+cuisine	1	CHAR	64	64	0	0	
+grades_date	1	CHAR	1024	1024	0	1	grades.0.date
+grades_grade	1	CHAR	14	14	0	1	grades.0.grade
+grades_score	7	INTEGER	2	2	0	1	grades.0.score
+name	1	CHAR	98	98	0	0	
+restaurant_id	1	CHAR	8	8	0	0	
+DROP TABLE t1;
+#
+# Explicit columns
+#
+CREATE TABLE t1 (
+_id VARCHAR(24) NOT NULL,
+name VARCHAR(255) NOT NULL,
+cuisine VARCHAR(255) NOT NULL,
+borough VARCHAR(255) NOT NULL,
+restaurant_id VARCHAR(255) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=BSON TABNAME=restaurants
+CONNECTION='mongodb://localhost:27017' LRECL=1024 DATA_CHARSET=utf8
+OPTION_LIST='Driver=Java,Version=2';
+SELECT * FROM t1 LIMIT 10;
+_id	name	cuisine	borough	restaurant_id
+58ada47de5a51ddfcd5ed51c	Morris Park Bake Shop	Bakery	Bronx	30075445
+58ada47de5a51ddfcd5ed51d	Wendy'S	Hamburgers	Brooklyn	30112340
+58ada47de5a51ddfcd5ed51e	Dj Reynolds Pub And Restaurant	Irish	Manhattan	30191841
+58ada47de5a51ddfcd5ed51f	Riviera Caterer	American	Brooklyn	40356018
+58ada47de5a51ddfcd5ed520	Tov Kosher Kitchen	Jewish/Kosher	Queens	40356068
+58ada47de5a51ddfcd5ed521	Brunos On The Boulevard	American	Queens	40356151
+58ada47de5a51ddfcd5ed522	Kosher Island	Jewish/Kosher	Staten Island	40356442
+58ada47de5a51ddfcd5ed523	Wilken'S Fine Food	Delicatessen	Brooklyn	40356483
+58ada47de5a51ddfcd5ed524	Regina Caterers	American	Brooklyn	40356649
+58ada47de5a51ddfcd5ed525	Taste The Tropics Ice Cream	Ice Cream, Gelato, Yogurt, Ices	Brooklyn	40356731
+DROP TABLE t1;
+#
+# Test discovery
+#
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=BSON TABNAME=restaurants
+OPTION_LIST='Depth=1,Driver=Java,Version=2' CONNECTION='mongodb://localhost:27017' LRECL=4096 DATA_CHARSET=utf8;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `_id` char(24) NOT NULL `JPATH`='_id',
+  `address_building` char(10) NOT NULL `JPATH`='address.building',
+  `address_coord` varchar(1024) DEFAULT NULL `JPATH`='address.coord',
+  `address_street` char(38) NOT NULL `JPATH`='address.street',
+  `address_zipcode` char(5) NOT NULL `JPATH`='address.zipcode',
+  `borough` char(13) NOT NULL,
+  `cuisine` char(64) NOT NULL,
+  `grades_date` varchar(1024) DEFAULT NULL `JPATH`='grades.0.date',
+  `grades_grade` char(14) DEFAULT NULL `JPATH`='grades.0.grade',
+  `grades_score` int(2) DEFAULT NULL `JPATH`='grades.0.score',
+  `name` char(98) NOT NULL,
+  `restaurant_id` char(8) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='mongodb://localhost:27017' `TABLE_TYPE`='BSON' `TABNAME`='restaurants' `OPTION_LIST`='Depth=1,Driver=Java,Version=2' `DATA_CHARSET`='utf8' `LRECL`=4096
+SELECT * FROM t1 LIMIT 5;
+_id	address_building	address_coord	address_street	address_zipcode	borough	cuisine	grades_date	grades_grade	grades_score	name	restaurant_id
+58ada47de5a51ddfcd5ed51c	1007	-73.856077, 40.848447	Morris Park Ave	10462	Bronx	Bakery	2014-03-03T00:00:00.000Z	A	2	Morris Park Bake Shop	30075445
+58ada47de5a51ddfcd5ed51d	469	-73.961704, 40.662942	Flatbush Avenue	11225	Brooklyn	Hamburgers	2014-12-30T00:00:00.000Z	A	8	Wendy'S	30112340
+58ada47de5a51ddfcd5ed51e	351	-73.98513559999999, 40.7676919	West   57 Street	10019	Manhattan	Irish	2014-09-06T00:00:00.000Z	A	2	Dj Reynolds Pub And Restaurant	30191841
+58ada47de5a51ddfcd5ed51f	2780	-73.98241999999999, 40.579505	Stillwell Avenue	11224	Brooklyn	American	2014-06-10T00:00:00.000Z	A	5	Riviera Caterer	40356018
+58ada47de5a51ddfcd5ed520	97-22	-73.8601152, 40.7311739	63 Road	11374	Queens	Jewish/Kosher	2014-11-24T00:00:00.000Z	Z	20	Tov Kosher Kitchen	40356068
+DROP TABLE t1;
+#
+# Dropping a column
+#
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=BSON TABNAME=restaurants DATA_CHARSET=utf8
+COLIST='{"grades":0}' OPTION_LIST='Driver=Java,Version=2,level=0' CONNECTION='mongodb://localhost:27017' LRECL=4096;
+SELECT * FROM t1 LIMIT 10;
+_id	address	borough	cuisine	name	restaurant_id
+58ada47de5a51ddfcd5ed51c	1007 (-73.856077, 40.848447) Morris Park Ave 10462	Bronx	Bakery	Morris Park Bake Shop	30075445
+58ada47de5a51ddfcd5ed51d	469 (-73.961704, 40.662942) Flatbush Avenue 11225	Brooklyn	Hamburgers	Wendy'S	30112340
+58ada47de5a51ddfcd5ed51e	351 (-73.98513559999999, 40.7676919) West   57 Street 10019	Manhattan	Irish	Dj Reynolds Pub And Restaurant	30191841
+58ada47de5a51ddfcd5ed51f	2780 (-73.98241999999999, 40.579505) Stillwell Avenue 11224	Brooklyn	American	Riviera Caterer	40356018
+58ada47de5a51ddfcd5ed520	97-22 (-73.8601152, 40.7311739) 63 Road 11374	Queens	Jewish/Kosher	Tov Kosher Kitchen	40356068
+58ada47de5a51ddfcd5ed521	8825 (-73.8803827, 40.7643124) Astoria Boulevard 11369	Queens	American	Brunos On The Boulevard	40356151
+58ada47de5a51ddfcd5ed522	2206 (-74.1377286, 40.6119572) Victory Boulevard 10314	Staten Island	Jewish/Kosher	Kosher Island	40356442
+58ada47de5a51ddfcd5ed523	7114 (-73.9068506, 40.6199034) Avenue U 11234	Brooklyn	Delicatessen	Wilken'S Fine Food	40356483
+58ada47de5a51ddfcd5ed524	6409 (-74.00528899999999, 40.628886) 11 Avenue 11219	Brooklyn	American	Regina Caterers	40356649
+58ada47de5a51ddfcd5ed525	1839 (-73.9482609, 40.6408271) Nostrand Avenue 11226	Brooklyn	Ice Cream, Gelato, Yogurt, Ices	Taste The Tropics Ice Cream	40356731
+DROP TABLE t1;
+#
+# Specifying Jpath
+#
+CREATE TABLE t1 (
+_id VARCHAR(24) NOT NULL,
+name VARCHAR(64) NOT NULL,
+cuisine CHAR(200) NOT NULL,
+borough CHAR(16) NOT NULL,
+street VARCHAR(65) JPATH='address.street',
+building CHAR(16) JPATH='address.building',
+zipcode CHAR(5) JPATH='address.zipcode',
+grade CHAR(1) JPATH='grades.0.grade',
+score INT(4) NOT NULL JPATH='grades.0.score',
+`date` DATE JPATH='grades.0.date',
+restaurant_id VARCHAR(255) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=BSON TABNAME='restaurants' DATA_CHARSET=utf8
+OPTION_LIST='Driver=Java,Version=2' CONNECTION='mongodb://localhost:27017' LRECL=4096;
+SELECT * FROM t1 LIMIT 1;
+_id	58ada47de5a51ddfcd5ed51c
+name	Morris Park Bake Shop
+cuisine	Bakery
+borough	Bronx
+street	Morris Park Ave
+building	1007
+zipcode	10462
+grade	A
+score	2
+date	1970-01-01
+restaurant_id	30075445
+SELECT name, street, score, date FROM t1 LIMIT 5;
+name	street	score	date
+Morris Park Bake Shop	Morris Park Ave	2	1970-01-01
+Wendy'S	Flatbush Avenue	8	1970-01-01
+Dj Reynolds Pub And Restaurant	West   57 Street	2	1970-01-01
+Riviera Caterer	Stillwell Avenue	5	1970-01-01
+Tov Kosher Kitchen	63 Road	20	1970-01-01
+SELECT name, cuisine, borough FROM t1 WHERE grade = 'A' LIMIT 10;
+name	cuisine	borough
+Morris Park Bake Shop	Bakery	Bronx
+Wendy'S	Hamburgers	Brooklyn
+Dj Reynolds Pub And Restaurant	Irish	Manhattan
+Riviera Caterer	American	Brooklyn
+Kosher Island	Jewish/Kosher	Staten Island
+Wilken'S Fine Food	Delicatessen	Brooklyn
+Regina Caterers	American	Brooklyn
+Taste The Tropics Ice Cream	Ice Cream, Gelato, Yogurt, Ices	Brooklyn
+Wild Asia	American	Bronx
+C & C Catering Service	American	Brooklyn
+SELECT COUNT(*) FROM t1 WHERE grade = 'A';
+COUNT(*)
+20687
+SELECT * FROM t1 WHERE cuisine = 'English';
+_id	name	cuisine	borough	street	building	zipcode	grade	score	date	restaurant_id
+58ada47de5a51ddfcd5ed83d	Tea And Sympathy	English	Manhattan	Greenwich Avenue	108	10011	A	8	1970-01-01	40391531
+58ada47de5a51ddfcd5ed85c	Tartine	English	Manhattan	West   11 Street	253	10014	A	11	1970-01-01	40392496
+58ada47de5a51ddfcd5ee1f3	The Park Slope Chipshop	English	Brooklyn	5 Avenue	383	11215	B	17	1970-01-01	40816202
+58ada47de5a51ddfcd5ee7e4	Pound And Pence	English	Manhattan	Liberty Street	55	10005	A	7	1970-01-01	41022701
+58ada47de5a51ddfcd5ee999	Chip Shop	English	Brooklyn	Atlantic Avenue	129	11201	A	9	1970-01-01	41076583
+58ada47ee5a51ddfcd5efe3f	The Breslin Bar & Dining Room	English	Manhattan	West   29 Street	16	10001	A	13	1970-01-01	41443706
+58ada47ee5a51ddfcd5efe99	Highlands Restaurant	English	Manhattan	West   10 Street	150	10014	A	12	1970-01-01	41448559
+58ada47ee5a51ddfcd5f0413	The Fat Radish	English	Manhattan	Orchard Street	17	10002	A	12	1970-01-01	41513545
+58ada47ee5a51ddfcd5f0777	Jones Wood Foundry	English	Manhattan	East   76 Street	401	10021	A	12	1970-01-01	41557377
+58ada47ee5a51ddfcd5f0ea2	Whitehall	English	Manhattan	Greenwich Avenue	19	10014	Z	15	1970-01-01	41625263
+58ada47ee5a51ddfcd5f1004	The Churchill Tavern	English	Manhattan	East   28 Street	45	10016	A	13	1970-01-01	41633327
+58ada47ee5a51ddfcd5f13d5	The Monro	English	Brooklyn	5 Avenue	481	11215	A	7	1970-01-01	41660253
+58ada47ee5a51ddfcd5f1454	The Cock & Bull	English	Manhattan	West   45 Street	23	10036	A	7	1970-01-01	41664704
+58ada47ee5a51ddfcd5f176e	Dear Bushwick	English	Brooklyn	Wilson Avenue	41	11237	A	12	1970-01-01	41690534
+58ada47ee5a51ddfcd5f1e91	Snowdonia Pub	English	Queens	32 Street	34-55	11106	A	12	1970-01-01	50000290
+58ada47ee5a51ddfcd5f2ddc	Oscar'S Place	English	Manhattan	Hudson Street	466	10014	A	10	1970-01-01	50011097
+SELECT * FROM t1 WHERE score = building;
+_id	name	cuisine	borough	street	building	zipcode	grade	score	date	restaurant_id
+DROP TABLE t1;
+#
+# Specifying Filter
+#
+CREATE TABLE t1 (
+_id CHAR(24) NOT NULL,
+name CHAR(64) NOT NULL,
+borough CHAR(16) NOT NULL,
+restaurant_id CHAR(8) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=BSON TABNAME=restaurants DATA_CHARSET=utf8
+FILTER='{"cuisine":"French","borough":{"$ne":"Manhattan"}}'
+OPTION_LIST='Driver=Java,Version=2' CONNECTION='mongodb://localhost:27017' LRECL=4096;
+SELECT name FROM t1 WHERE borough = 'Queens';
+name
+La Baraka Restaurant
+Air France Lounge
+Tournesol
+Winegasm
+Cafe Henri
+Bistro 33
+Domaine Wine Bar
+Cafe Triskell
+Cannelle Patisserie
+La Vie
+Dirty Pierres Bistro
+Fresca La Crepe
+Bliss 46  Bistro
+Bear
+Cuisine By Claudette
+Paris Baguette
+The Baroness Bar
+Francis Cafe
+Madame Sou Sou
+Crepe 'N' Tearia
+Aperitif Bayside Llc
+DROP TABLE t1;
+#
+# Testing pipeline
+#
+CREATE TABLE t1 (
+name VARCHAR(64) NOT NULL,
+borough CHAR(16) NOT NULL,
+date DATETIME NOT NULL,
+grade CHAR(1) NOT NULL,
+score INT(4) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=BSON TABNAME='restaurants' DATA_CHARSET=utf8
+COLIST='{"pipeline":[{"$match":{"cuisine":"French"}},{"$unwind":"$grades"},{"$project":{"_id":0,"name":1,"borough":1,"date":"$grades.date","grade":"$grades.grade","score":"$grades.score"}}]}'
+OPTION_LIST='Driver=Java,Version=2,Pipeline=1' CONNECTION='mongodb://localhost:27017' LRECL=4096;
+SELECT * FROM t1 LIMIT 10;
+name	borough	date	grade	score
+Tout Va Bien	Manhattan	1970-01-01 01:33:34	B	15
+Tout Va Bien	Manhattan	1970-01-01 01:33:34	A	13
+Tout Va Bien	Manhattan	1970-01-01 01:33:33	C	36
+Tout Va Bien	Manhattan	1970-01-01 01:33:33	B	22
+Tout Va Bien	Manhattan	1970-01-01 01:33:32	C	36
+Tout Va Bien	Manhattan	1970-01-01 01:33:32	C	7
+La Grenouille	Manhattan	1970-01-01 01:33:34	A	10
+La Grenouille	Manhattan	1970-01-01 01:33:33	A	9
+La Grenouille	Manhattan	1970-01-01 01:33:32	A	13
+Le Perigord	Manhattan	1970-01-01 01:33:34	B	14
+SELECT name, grade, score, date FROM t1 WHERE borough = 'Bronx';
+name	grade	score	date
+Bistro Sk	A	10	1970-01-01 01:33:34
+Bistro Sk	A	12	1970-01-01 01:33:34
+Bistro Sk	B	18	1970-01-01 01:33:33
+DROP TABLE t1;
+#
+# try level 2 discovery
+#
+CREATE TABLE t1
+ENGINE=CONNECT TABLE_TYPE=BSON TABNAME=restaurants
+FILTER='{"cuisine":"French","borough":{"$ne":"Manhattan"}}'
+COLIST='{"cuisine":0}' CONNECTION='mongodb://localhost:27017' LRECL=4096
+OPTION_LIST='Driver=Java,level=2,version=2';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `_id` char(24) NOT NULL `JPATH`='_id',
+  `address_building` char(10) NOT NULL `JPATH`='address.building',
+  `address_coord` double(18,16) DEFAULT NULL `JPATH`='address.coord.0',
+  `address_street` char(38) NOT NULL `JPATH`='address.street',
+  `address_zipcode` char(5) NOT NULL `JPATH`='address.zipcode',
+  `borough` char(13) NOT NULL,
+  `grades_date` char(24) DEFAULT NULL `JPATH`='grades.0.date',
+  `grades_grade` char(14) DEFAULT NULL `JPATH`='grades.0.grade',
+  `grades_score` int(2) DEFAULT NULL `JPATH`='grades.0.score',
+  `name` char(98) NOT NULL,
+  `restaurant_id` char(8) NOT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='mongodb://localhost:27017' `TABLE_TYPE`='BSON' `TABNAME`='restaurants' `COLIST`='{"cuisine":0}' `FILTER`='{"cuisine":"French","borough":{"$ne":"Manhattan"}}' `OPTION_LIST`='Driver=Java,level=2,version=2' `LRECL`=4096
+SELECT name, borough, address_street, grades_score AS score FROM t1 WHERE grades_grade = 'B';
+name	borough	address_street	score
+Le Gamin	Brooklyn	Vanderbilt Avenue	24
+Bistro 33	Queens	Ditmars Boulevard	15
+Dirty Pierres Bistro	Queens	Station Square	22
+Santos Anne	Brooklyn	Union Avenue	26
+Le Paddock	Brooklyn	Prospect Avenue	17
+La Crepe Et La Vie	Brooklyn	Foster Avenue	24
+Francis Cafe	Queens	Ditmars Boulevard	19
+DROP TABLE t1;
+#
+# try CRUD operations
+#
+false
+CREATE TABLE t1 (_id INT(4) NOT NULL, msg CHAR(64))
+ENGINE=CONNECT TABLE_TYPE=BSON TABNAME='testcoll'
+OPTION_LIST='Driver=Java,Version=2' CONNECTION='mongodb://localhost:27017' LRECL=4096;
+DELETE FROM t1;
+INSERT INTO t1 VALUES(0,NULL),(1,'One'),(2,'Two'),(3,'Three');
+SELECT * FROM t1;
+_id	msg
+0	NULL
+1	One
+2	Two
+3	Three
+UPDATE t1 SET msg = 'Deux' WHERE _id = 2;
+DELETE FROM t1 WHERE msg IS NULL;
+SELECT * FROM t1;
+_id	msg
+1	One
+2	Deux
+3	Three
+DELETE FROM t1;
+DROP TABLE t1;
+true
+#
+# List states whose population is equal or more than 10 millions
+#
+false
+CREATE TABLE t1 (
+_id char(5) NOT NULL,
+city char(16) NOT NULL,
+loc_0 double(12,6) NOT NULL `JPATH`='loc.0',
+loc_1 char(12) NOT NULL `JPATH`='loc.1',
+pop int(11) NOT NULL,
+state char(2) NOT NULL)
+ENGINE=CONNECT CONNECTION='mongodb://localhost:27017' TABLE_TYPE=BSON TABNAME='cities'
+OPTION_LIST='Driver=Java,Version=2' CONNECTION='mongodb://localhost:27017' LRECL=4096 DATA_CHARSET='utf8';
+# Using SQL for grouping
+SELECT state, sum(pop) AS totalPop FROM t1 GROUP BY state HAVING totalPop >= 10000000 ORDER BY totalPop DESC;
+state	totalPop
+CA	29754890
+NY	17990402
+TX	16984601
+FL	12686644
+PA	11881643
+IL	11427576
+OH	10846517
+DROP TABLE t1;
+# Using a pipeline for grouping
+CREATE TABLE t1 (_id CHAR(2) NOT NULL, totalPop INT(11) NOT NULL)
+ENGINE=CONNECT TABLE_TYPE=BSON TABNAME='cities' DATA_CHARSET=utf8
+COLIST='{"pipeline":[{"$group":{"_id":"$state","totalPop":{"$sum":"$pop"}}},{"$match":{"totalPop":{"$gte":10000000}}},{"$sort":{"totalPop":-1}}]}'
+OPTION_LIST='Driver=Java,Version=2,Pipeline=1' CONNECTION='mongodb://localhost:27017' LRECL=4096;
+SELECT * FROM t1;
+_id	totalPop
+CA	29754890
+NY	17990402
+TX	16984601
+FL	12686644
+PA	11881643
+IL	11427576
+OH	10846517
+DROP TABLE t1;
+true
+#
+# Test making array
+#
+CREATE TABLE t1 (
+_id int(4) NOT NULL,
+item CHAR(8) NOT NULL,
+prices_0 INT(6) JPATH='prices.0',
+prices_1 INT(6) JPATH='prices.1',
+prices_2 INT(6) JPATH='prices.2',
+prices_3 INT(6) JPATH='prices.3',
+prices_4 INT(6) JPATH='prices.4')
+ENGINE=CONNECT TABLE_TYPE=BSON TABNAME='testcoll' DATA_CHARSET=utf8
+OPTION_LIST='Driver=Java,Version=2' CONNECTION='mongodb://localhost:27017' LRECL=4096;
+INSERT INTO t1 VALUES
+(1,'journal',87,45,63,12,78),
+(2,'notebook',123,456,789,NULL,NULL),
+(3,'paper',5,7,3,8,NULL),
+(4,'planner',25,71,NULL,44,27),
+(5,'postcard',5,7,3,8,NULL);
+SELECT * FROM t1;
+_id	item	prices_0	prices_1	prices_2	prices_3	prices_4
+1	journal	87	45	63	12	78
+2	notebook	123	456	789	NULL	NULL
+3	paper	5	7	3	8	NULL
+4	planner	25	71	NULL	44	27
+5	postcard	5	7	3	8	NULL
+DROP TABLE t1;
+#
+# Test array aggregation
+#
+CREATE TABLE t1
+ENGINE=CONNECT TABLE_TYPE=BSON TABNAME='testcoll'
+COLIST='{"pipeline":[{"$project":{"_id":0,"item":1,"total":{"$sum":"$prices"},"average":{"$avg":"$prices"}}}]}'
+OPTION_LIST='Driver=Java,Version=2,Pipeline=YES' CONNECTION='mongodb://localhost:27017' LRECL=4096;
+SELECT * FROM t1;
+item	total	average
+journal	285	57.00
+notebook	1368	456.00
+paper	23	5.75
+planner	167	41.75
+postcard	23	5.75
+DROP TABLE t1;
+true
+set connect_enable_mongo=0;

@@ -1,0 +1,282 @@
+--source bson_udf.inc
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--copy_file $MTR_SUITE_DIR/std_data/biblio.json $MYSQLD_DATADIR/test/biblio.json
+--copy_file $MTR_SUITE_DIR/std_data/employee.dat $MYSQLD_DATADIR/test/employee.dat
+
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=VIR BLOCK_SIZE=5;
+
+--echo #
+--echo # Test UDF's with constant arguments
+--echo #
+--error ER_CANT_INITIALIZE_UDF
+SELECT BsonValue(56, 3.1416, 'foo', NULL);
+SELECT BsonValue(3.1416);
+SELECT BsonValue(-80);
+SELECT BsonValue('foo');
+SELECT BsonValue(9223372036854775807);
+SELECT BsonValue(NULL);
+SELECT BsonValue(TRUE);
+SELECT BsonValue(FALSE);
+SELECT BsonValue();
+SELECT BsonValue('[11, 22, 33]' json_) FROM t1;
+#
+SELECT Bson_Make_Array();
+SELECT Bson_Make_Array(56, 3.1416, 'My name is "Foo"', NULL);
+SELECT Bson_Make_Array(Bson_Make_Array(56, 3.1416, 'foo'), TRUE);
+#
+--error ER_CANT_INITIALIZE_UDF
+SELECT Bson_Array_Add(Bson_Make_Array(56, 3.1416, 'foo', NULL)) Array;
+SELECT Bson_Array_Add(Bson_Make_Array(56, 3.1416, 'foo', NULL), 'One more') Array;
+#--error ER_CANT_INITIALIZE_UDF
+SELECT Bson_Array_Add(BsonValue('one value'), 'One more');
+#--error ER_CANT_INITIALIZE_UDF
+SELECT Bson_Array_Add('one value', 'One more');
+SELECT Bson_Array_Add('one value' json_, 'One more');
+#--error ER_CANT_INITIALIZE_UDF
+SELECT Bson_Array_Add(5 json_, 'One more');
+SELECT Bson_Array_Add('[5,3,8,7,9]' json_, 4, 0);
+SELECT Bson_Array_Add('[5,3,8,7,9]' json_, 4, 2) Array;
+SELECT Bson_Array_Add('[5,3,8,7,9]' json_, 4, 9);
+SELECT Bson_Array_Add(Bson_Make_Array(1, 2, Bson_Make_Array(11, 22)), '[2]', 33, 1);
+SELECT Bson_Array_Add(Bson_Make_Array(1, 2, Bson_Make_Array(11, 22)), 33, '[2]', 1);
+SELECT Bson_Array_Add(Bson_Make_Array(1, 2, Bson_Make_Array(11, 22)), 33, 1, '[2]');
+#
+SELECT Bson_Array_Add_Values(Bson_Make_Array(56, 3.1416, 'machin', NULL), 'One more', 'Two more') Array;
+SELECT Bson_Array_Add_Values(Bson_Make_Array(56, 3.1416, 'machin'), 'One more', 'Two more') Array FROM t1;
+SELECT Bson_Array_Add_Values(Bson_Make_Array(56, 3.1416, 'machin'), n) Array FROM t1;
+SELECT Bson_Array_Add_Values(Bson_Make_Array(n, 3.1416, 'machin'), n) Array FROM t1;
+SELECT Bson_Array_Add_Values('[56]', 3.1416, 'machin') Array;
+#
+SELECT Bson_Array_Delete(Bson_Make_Array(56, 3.1416, 'My name is "Foo"', NULL), 0);
+SELECT Bson_Array_Delete(Bson_Make_Object(56, 3.1416, 'My name is Foo', NULL), 2);
+SELECT Bson_Array_Delete(Bson_Make_Array(56, 3.1416, 'My name is "Foo"', NULL), '2');
+SELECT Bson_Array_Delete(Bson_Make_Array(56, 3.1416, 'My name is "Foo"', NULL), '2', 2); /* WARNING VOID */
+#
+SELECT Bson_Make_Object(56, 3.1416, 'foo', NULL);
+SELECT Bson_Make_Object(56 qty, 3.1416 price, 'foo' truc, NULL garanty);
+SELECT Bson_Make_Object();
+SELECT Bson_Make_Object(Bson_Make_Array(56, 3.1416, 'foo'), NULL);
+SELECT Bson_Make_Array(Bson_Make_Object(56 "qty", 3.1416 "price", 'foo') ,NULL);
+SELECT Bson_Object_Key('qty', 56, 'price', 3.1416, 'truc', 'machin', 'garanty', NULL);
+--error ER_CANT_INITIALIZE_UDF
+SELECT Bson_Object_Key('qty', 56, 'price', 3.1416, 'truc', 'machin', 'garanty');
+#
+SELECT Bson_Object_Add(Bson_Make_Object(56 qty, 3.1416 price, 'machin' truc,  NULL garanty),  'blue' color);
+SELECT Bson_Object_Add(Bson_Make_Object(56 qty, 3.1416 price, 'machin' truc,  NULL garanty),  45.99 price);
+SELECT Bson_Object_Add(Bson_File('notexist.json'), 'cheese' item, '[1]', 1);
+#
+SELECT Bson_Object_Delete(Bson_Make_Object(56 qty, 3.1416 price, 'machin' truc,  NULL garanty),  'truc');
+SELECT Bson_Object_Delete(Bson_Make_Object(56 qty, 3.1416 price, 'machin' truc,  NULL garanty),  'chose');
+#
+SELECT Bson_Object_List(Bson_Make_Object(56 qty, 3.1416 price, 'machin' truc,  NULL garanty)) "Key List";
+SELECT Bson_Object_List('{"qty":56, "price":3.1416, "truc":"machin", "garanty":null}') "Key List";
+SELECT Bson_Object_Values('{"One":1,"Two":2,"Three":3}') "Value List";
+
+--echo #
+--echo # Test UDF's with column arguments
+--echo #
+SELECT Bsonset_Def_Prec(2);
+CREATE TABLE t2
+(
+  ISBN CHAR(15),
+  LANG CHAR(2),
+  SUBJECT CHAR(32),
+  AUTHOR CHAR(64),
+  TITLE CHAR(32),
+  TRANSLATION CHAR(32),
+  TRANSLATOR CHAR(80),
+  PUBLISHER CHAR(32),
+  DATEPUB int(4)
+) ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='biblio.json';
+
+SELECT Bson_Make_Array(AUTHOR, TITLE, DATEPUB) FROM t2;
+SELECT Bson_Make_Object(AUTHOR, TITLE, DATEPUB) FROM t2;
+--error ER_CANT_INITIALIZE_UDF
+SELECT Bson_Array_Grp(TITLE, DATEPUB) FROM t2;
+SELECT Bson_Array_Grp(TITLE) FROM t2;
+
+CREATE TABLE t3 (
+  SERIALNO CHAR(5) NOT NULL,
+  NAME VARCHAR(12) NOT NULL FLAG=6,
+  SEX SMALLINT(1) NOT NULL,
+  TITLE VARCHAR(15) NOT NULL FLAG=20,
+  MANAGER CHAR(5) DEFAULT NULL,
+  DEPARTMENT CHAr(4) NOT NULL FLAG=41,
+  SECRETARY CHAR(5) DEFAULT NULL FLAG=46,
+  SALARY DOUBLE(8,2) NOT NULL FLAG=52
+) ENGINE=CONNECT TABLE_TYPE=FIX BLOCK_SIZE=8 FILE_NAME='employee.dat' ENDING=1;
+
+SELECT Bson_Make_Object(SERIALNO, NAME, TITLE, SALARY) FROM t3 WHERE NAME = 'MERCHANT';
+SELECT DEPARTMENT, Bson_Array_Grp(NAME) FROM t3 GROUP BY DEPARTMENT;
+#SET connect_json_grp_size=30;           Deprecated
+SELECT BsonSet_Grp_Size(30);
+SELECT Bson_Make_Object(title, Bson_Array_Grp(name) `json_names`) from t3 GROUP BY title;
+SELECT Bson_Make_Array(DEPARTMENT, Bson_Array_Grp(NAME)) FROM t3 GROUP BY DEPARTMENT;
+SELECT Bson_Make_Object(DEPARTMENT, Bson_Array_Grp(NAME) json_NAMES) FROM t3 GROUP BY DEPARTMENT;
+SELECT Bson_Make_Object(DEPARTMENT, Bson_Array_Grp(Bson_Make_Object(SERIALNO, NAME, TITLE, SALARY)) json_EMPLOYES) FROM t3 GROUP BY DEPARTMENT;
+SELECT Bson_Make_Object(DEPARTMENT, TITLE, Bson_Array_Grp(Bson_Make_Object(SERIALNO, NAME, SALARY)) json_EMPLOYES) FROM t3 GROUP BY DEPARTMENT, TITLE;
+--error ER_CANT_INITIALIZE_UDF
+SELECT Bson_Object_Grp(SALARY) FROM t3;
+SELECT Bson_Object_Grp(NAME, SALARY) FROM t3;
+SELECT Bson_Make_Object(DEPARTMENT, Bson_Object_Grp(NAME, SALARY) "Json_SALARIES") FROM t3 GROUP BY DEPARTMENT;
+SELECT Bson_Array_Grp(NAME) FROM t3;
+#
+SELECT Bson_Object_Key(name, title) FROM t3 WHERE DEPARTMENT = 318;
+SELECT Bson_Object_Grp(name, title) FROM t3 WHERE DEPARTMENT = 318;
+
+--echo #
+--echo # Test value getting UDF's
+--echo #
+SELECT BsonGet_String(Bson_Array_Grp(name),'[#]') FROM t3;
+SELECT BsonGet_String(Bson_Array_Grp(name),'[","]') FROM t3;
+SELECT BsonGet_String(Bson_Array_Grp(name),'[>]') FROM t3;
+SET @j1 = '[45,28,36,45,89]';
+SELECT BsonGet_String(@j1,'1');
+SELECT BsonGet_String(@j1 json_,'3');
+SELECT BsonGet_String(Bson_Make_Array(45,28,36,45,89),'3');
+SELECT BsonGet_String(Bson_Make_Array(45,28,36,45,89),'["+"]') "list",'=' as "egal",BsonGet_String(Bson_Make_Array(45,28,36,45,89),'[+]') "sum";
+SELECT BsonGet_String(Bson_Make_Array(Bson_Make_Array(45,28),Bson_Make_Array(36,45,89)),'1.0');
+SELECT BsonGet_String(Bson_Make_Array(Bson_Make_Array(45,28),Bson_Make_Array(36,45,89)),'1.*');
+SELECT BsonGet_String(Bson_Make_Object(56 qty,3.1416 price,'machin' truc, NULL garanty),'truc');
+SET @j2 = '{"qty":56,"price":3.141600,"truc":"machin","garanty":null}';
+SELECT BsonGet_String(@j2 json_,'truc');
+SELECT BsonGet_String(@j2,'truc');
+SELECT BsonGet_String(@j2,'chose');
+SELECT BsonGet_String(NULL json_, NULL); /* NULL WARNING */
+SELECT department, BsonGet_String(Bson_Make_Object(department, Bson_Array_Grp(salary) "Json_salaries"),'salaries.[+]') Sumsal FROM t3 GROUP BY department;
+#
+SELECT BsonGet_Int(@j1, '4');
+SELECT BsonGet_Int(@j1, '[#]');
+SELECT BsonGet_Int(@j1, '[+]');
+SELECT BsonGet_Int(@j1 json_, '3');
+SELECT BsonGet_Int(Bson_Make_Array(45,28,36,45,89), '3');
+SELECT BsonGet_Int(Bson_Make_Array(45,28,36,45,89), '["+"]');
+SELECT BsonGet_Int(Bson_Make_Array(45,28,36,45,89), '[+]');
+SELECT BsonGet_Int(Bson_Make_Array(Bson_Make_Array(45,28), Bson_Make_Array(36,45,89)), '1.0');
+SELECT BsonGet_Int(Bson_Make_Array(Bson_Make_Array(45,28), Bson_Make_Array(36,45,89)), '0.1');
+SELECT BsonGet_Int(Bson_Make_Object(56 qty, 3.1416 price, 'machin' truc, NULL garanty), 'qty');
+SELECT BsonGet_Int(@j2 json_, 'price');
+SELECT BsonGet_Int(@j2, 'qty');
+SELECT BsonGet_Int('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}', 'chose');
+SELECT BsonGet_Int(BsonGet_String(Bson_Make_Array(Bson_Make_Array(45,28),Bson_Make_Array(36,45,89)), '1.*'), '[+]') sum;
+SELECT department, BsonGet_Int(Bson_Make_Object(department, Bson_Array_Grp(salary) "Json_salaries"), 'salaries.[+]') Sumsal FROM t3 GROUP BY department;
+#
+SELECT BsonGet_Real(@j1, '2');
+SELECT BsonGet_Real(@j1 json_, '3', 2);
+SELECT BsonGet_Real(Bson_Make_Array(45,28,36,45,89), '3');
+SELECT BsonGet_Real(Bson_Make_Array(45,28,36,45,89), '["+"]');
+SELECT BsonGet_Real(Bson_Make_Array(45,28,36,45,89), '[+]');
+SELECT BsonGet_Real(Bson_Make_Array(45,28,36,45,89), '[!]');
+SELECT BsonGet_Real(Bson_Make_Array(Bson_Make_Array(45,28), Bson_Make_Array(36,45,89)), '1.0');
+SELECT BsonGet_Real(Bson_Make_Object(56 qty, 3.1416 price, 'machin' truc, NULL garanty), 'price');
+SELECT BsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}' json_, 'qty');
+SELECT BsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}', 'price');
+SELECT BsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}', 'price', 4);
+SELECT BsonGet_Real('{"qty":56,"price":3.141600,"truc":"machin","garanty":null}', 'chose');
+SELECT department, BsonGet_Real(Bson_Make_Object(department, Bson_Array_Grp(salary) "Json_salaries"),'salaries.[+]') Sumsal FROM t3 GROUP BY department;
+
+--echo #
+--echo # Documentation examples
+--echo #
+SELECT
+  BsonGet_Int(Bson_Make_Array(45,28,36,45,89), '4') "Rank",
+  BsonGet_Int(Bson_Make_Array(45,28,36,45,89), '[#]') "Number",
+  BsonGet_String(Bson_Make_Array(45,28,36,45,89), '[","]') "Concat",
+  BsonGet_Int(Bson_Make_Array(45,28,36,45,89), '[+]') "Sum",
+  BsonGet_Real(Bson_Make_Array(45,28,36,45,89), '[!]', 2) "Avg";
+SELECT
+  BsonGet_String('{"qty":7,"price":29.50,"garanty":null}', 'price') "String",
+  BsonGet_Int('{"qty":7,"price":29.50,"garanty":null}', 'price') "Int",
+  BsonGet_Real('{"qty":7,"price":29.50,"garanty":null}', 'price') "Real";
+SELECT BsonGet_Real('{"qty":7,"price":29.50,"garanty":null}', 'price', 3) "Real";
+
+--echo #
+--echo # Testing Locate
+--echo #
+SELECT BsonLocate(Bson_Make_Object(56 qty,3.1416 price,'machin' truc, NULL garanty),'machin');
+SELECT BsonLocate(Bson_Make_Object(56 qty,3.1416 price,'machin' truc, NULL garanty),56);
+SELECT BsonLocate(Bson_Make_Object(56 qty,3.1416 price,'machin' truc, NULL garanty),3.1416);
+SELECT BsonLocate(Bson_Make_Object(56 qty,3.1416 price,'machin' truc, NULL garanty),'chose');
+SELECT BsonLocate('{"AUTHORS":[{"FN":"Jules", "LN":"Verne"}, {"FN":"Jack", "LN":"London"}]}' json_, 'Jack') Path;
+SELECT BsonLocate('{"AUTHORS":[{"FN":"Jules", "LN":"Verne"}, {"FN":"Jack", "LN":"London"}]}' json_, 'jack' ci) Path;
+SELECT BsonLocate('{"AUTHORS":[{"FN":"Jules", "LN":"Verne"}, {"FN":"Jack", "LN":"London"}]}' json_, '{"FN":"Jack", "LN":"London"}' json_) Path;
+SELECT BsonLocate('{"AUTHORS":[{"FN":"Jules", "LN":"Verne"}, {"FN":"Jack", "LN":"London"}]}' json_, '{"FN":"jack", "LN":"London"}' json_) Path;
+SELECT BsonLocate('[45,28,36,45,89]',36);
+SELECT BsonLocate('[45,28,36,45,89]' json_,28.0);
+SELECT Bson_Locate_All('[45,28,36,45,89]',10);
+SELECT Bson_Locate_All('[45,28,36,45,89]',45);
+SELECT Bson_Locate_All('[[45,28],36,45,89]',45);
+SELECT Bson_Locate_All('[[45,28,45],36,45,89]',45);
+SELECT Bson_Locate_All('[[45,28,45],36,45,89]',BsonGet_Int('[3,45]','[1]'));
+SELECT BsonLocate('[[45,28,45],36,45,89]',45,n) from t1;
+SELECT BsonGet_String(Bson_Locate_All('[[45,28,45],36,45,89]',45),concat('[',n-1,']')) FROM t1;
+SELECT BsonGet_String(Bson_Locate_All('[[45,28,45],36,45,89]',45),concat('[',n-1,']')) AS `Path` FROM t1 GROUP BY n HAVING `Path` IS NOT NULL;
+SELECT Bson_Locate_All('[45,28,[36,45,89]]',45);
+SELECT Bson_Locate_All('[[45,28],[36,45.0,89]]',BsonValue(45.0));
+SELECT Bson_Locate_All('[[45,28],[36,45.0,89]]',45.0);
+SELECT BsonLocate('[[45,28],[36,45,89]]','[36,45,89]' json_);
+SELECT BsonLocate('[[45,28],[36,45,89]]','[45,28]' json_);
+SELECT Bson_Locate_All('[[45,28],[[36,45],89]]','45') "All paths";
+SELECT Bson_Locate_All('[[45,28],[[36,45],89]]','[36,45]' json_);
+SELECT BsonGet_Int(Bson_Locate_All('[[45,28],[[36,45],89]]',45), '[#]') "Nb of occurs";
+SELECT Bson_Locate_All('[[45,28],[[36,45],89]]',45,2);
+SELECT BsonGet_String(Bson_Locate_All('[45,28,36,45,89]',45),'0');
+SELECT BsonLocate(Bson_File('test/biblio.json'), 'Knab');
+SELECT Bson_Locate_All('test/biblio.json' jfile_, 'Knab');
+
+--echo #
+--echo # Testing json files
+--echo #
+SELECT Bfile_Make('[{"_id":5,"type":"food","item":"beer","taste":"light","price":5.65,"ratings":[5,8,9]},
+{"_id":6,"type":"car","item":"roadster","mileage":56000,"ratings":[6,9]},
+{"_id":7,"type":"food","item":"meat","origin":"argentina","ratings":[2,4]},
+{"_id":8,"type":"furniture","item":"table","size":{"W":60,"L":80,"H":40},"ratings":[5,8,7]}]', 'test/fx.json', 0) AS NewFile;
+SELECT Bfile_Make('test/fx.json', 1);
+SELECT Bfile_Make('test/fx.json' jfile_);
+SELECT Bfile_Make(Bbin_File('test/fx.json'), 0);
+SELECT Bson_File('test/fx.json', 1);
+SELECT Bson_File('test/fx.json', 2);
+SELECT Bson_File('test/fx.json', 0);
+SELECT Bson_File('test/fx.json', '0');
+SELECT Bson_File('test/fx.json', '[?]');
+SELECT BsonGet_String(Bson_File('test/fx.json'), '1.*');
+SELECT BsonGet_String(Bson_File('test/fx.json'), '1');
+SELECT BsonGet_Int(Bson_File('test/fx.json'), '1.mileage') AS Mileage;
+SELECT BsonGet_Real(Bson_File('test/fx.json'), '0.price', 2) AS Price;
+SELECT Bson_Array_Add(Bson_File('test/fx.json', '2'), 6, 'ratings');
+SELECT Bson_Array_Add(Bson_File('test/fx.json', '2'), 6, 1, 'ratings');
+SELECT Bson_Array_Add(Bson_File('test/fx.json', '2'), 6, 'ratings', 1);
+SELECT Bson_Array_Add(Bson_File('test/fx.json', '2.ratings'), 6, 0);
+SELECT Bson_Array_Delete(Bson_File('test/fx.json', '2'), 'ratings', 1);
+SELECT Bson_Object_Add(Bson_File('test/fx.json', '2'), 'france' origin);
+SELECT Bson_Object_Add(Bson_File('test/fx.json', '2'), 70 H, 'size');
+SELECT Bson_Object_Add(Bson_File('test/fx.json', '3'), 70 H, 'size');
+SELECT Bson_Object_List(Bson_File('test/fx.json', '3.size'));
+
+--echo #
+--echo # Testing new functions
+--echo #
+SELECT Bson_Item_Merge('["a","b","c"]','["d","e","f"]') as "Result";
+SELECT Bson_Item_Merge(Bson_Make_Array('a','b','c'), Bson_Make_Array('d','e','f')) as "Result";
+SELECT
+Bson_Set_Item('[1,2,3,{"quatre":4}]', 'foo', '$[1]', 5, '$[3].cinq') as "Set",
+Bson_Insert_Item('[1,2,3,{"quatre":4}]', 'foo', '$[1]', 5, '$[3].cinq') as "Insert",
+Bson_Update_Item(Bson_Make_Array(1,2,3,Bson_Object_Key('quatre',4)),'foo','$[1]',5,'$[3].cinq') "Update";
+SELECT bson_delete_item('[1,2,3,{"quatre":4,"Deux":2}]','1','[2].Deux');
+SELECT bson_delete_item('[1,2,3,{"quatre":4,"Deux":2}]','["[1]","[3].Deux"]');
+SELECT bson_delete_item('[1,2,3,{"quatre":4,"Deux":2}]','$.[3].Deux');
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+SELECT BsonSet_Grp_Size(10);
+
+#
+# Clean up
+#
+--source bson_udf2.inc
+--remove_file $MYSQLD_DATADIR/test/biblio.json
+--remove_file $MYSQLD_DATADIR/test/employee.dat
+--remove_file $MYSQLD_DATADIR/test/fx.json
+
