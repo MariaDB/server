@@ -3605,6 +3605,7 @@ completed:
 	mutex_enter(&recv_sys.mutex);
 
 	recv_sys.apply_log_recs = true;
+	recv_no_ibuf_operations = false;
 
 	mutex_exit(&recv_sys.mutex);
 

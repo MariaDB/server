@@ -428,7 +428,7 @@ f5 varchar(2048) COLLATE latin1_bin,
 KEY (f5)
 ) ENGINE=Aria TRANSACTIONAL=0 ;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 2000 bytes
+Note	1071	Specified key was too long; max key length is 2000 bytes
 # Fill the table with some data
 SELECT alias2.* , alias1.f2 
 FROM 

@@ -2313,7 +2313,7 @@ int ha_tokudb::pack_row_in_buff(
     int r = ENOSYS;
     memset((void *) row, 0, sizeof(*row));
 
-    my_bitmap_map *old_map = dbug_tmp_use_all_columns(table, table->write_set);
+    MY_BITMAP *old_map = dbug_tmp_use_all_columns(table, &table->write_set);
     
     // Copy null bytes
     memcpy(row_buff, record, table_share->null_bytes);
@@ -2362,7 +2362,7 @@ int ha_tokudb::pack_row_in_buff(
     row->size = (size_t) (var_field_data_ptr - row_buff);
     r = 0;
 
-    dbug_tmp_restore_column_map(table->write_set, old_map);
+    dbug_tmp_restore_column_map(&table->write_set, old_map);
     return r;
 }
 
@@ -2758,7 +2758,7 @@ DBT* ha_tokudb::create_dbt_key_from_key(
 {
     uint32_t size = 0;
     uchar* tmp_buff = buff;
-    my_bitmap_map *old_map = dbug_tmp_use_all_columns(table, table->write_set);
+    MY_BITMAP *old_map = dbug_tmp_use_all_columns(table, &table->write_set);
 
     key->data = buff;
 
@@ -2797,7 +2797,7 @@ DBT* ha_tokudb::create_dbt_key_from_key(
 
     key->size = size;
     DBUG_DUMP("key", (uchar *) key->data, key->size);
-    dbug_tmp_restore_column_map(table->write_set, old_map);
+    dbug_tmp_restore_column_map(&table->write_set, old_map);
     return key;
 }
 
@@ -2890,7 +2890,7 @@ DBT* ha_tokudb::pack_key(
     KEY* key_info = &table->key_info[keynr];
     KEY_PART_INFO* key_part = key_info->key_part;
     KEY_PART_INFO* end = key_part + key_info->user_defined_key_parts;
-    my_bitmap_map* old_map = dbug_tmp_use_all_columns(table, table->write_set);
+    MY_BITMAP* old_map = dbug_tmp_use_all_columns(table, &table->write_set);
 
     memset((void *) key, 0, sizeof(*key));
     key->data = buff;
@@ -2927,7 +2927,7 @@ DBT* ha_tokudb::pack_key(
 
     key->size = (buff - (uchar *) key->data);
     DBUG_DUMP("key", (uchar *) key->data, key->size);
-    dbug_tmp_restore_column_map(table->write_set, old_map);
+    dbug_tmp_restore_column_map(&table->write_set, old_map);
     DBUG_RETURN(key);
 }
 
@@ -2955,7 +2955,7 @@ DBT* ha_tokudb::pack_ext_key(
     KEY* key_info = &table->key_info[keynr];
     KEY_PART_INFO* key_part = key_info->key_part;
     KEY_PART_INFO* end = key_part + key_info->user_defined_key_parts;
-    my_bitmap_map* old_map = dbug_tmp_use_all_columns(table, table->write_set);
+    MY_BITMAP* old_map = dbug_tmp_use_all_columns(table, &table->write_set);
 
     memset((void *) key, 0, sizeof(*key));
     key->data = buff;
@@ -3034,7 +3034,7 @@ DBT* ha_tokudb::pack_ext_key(
 
     key->size = (buff - (uchar *) key->data);
     DBUG_DUMP("key", (uchar *) key->data, key->size);
-    dbug_tmp_restore_column_map(table->write_set, old_map);
+    dbug_tmp_restore_column_map(&table->write_set, old_map);
     DBUG_RETURN(key);
 }
 #endif  // defined(TOKU_INCLUDE_EXTENDED_KEYS) && TOKU_INCLUDE_EXTENDED_KEYS

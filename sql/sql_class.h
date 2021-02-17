@@ -2381,7 +2381,7 @@ public:
     - mysys_var (used by KILL statement and shutdown).
     - Also ensures that THD is not deleted while mutex is hold
   */
-  mysql_mutex_t LOCK_thd_kill;
+  mutable mysql_mutex_t LOCK_thd_kill;
 
   /* all prepared statements and cursors of this connection */
   Statement_map stmt_map;
@@ -3422,7 +3422,7 @@ public:
   void update_all_stats();
   void update_stats(void);
   void change_user(void);
-  void cleanup(bool have_mutex=false);
+  void cleanup(void);
   void cleanup_after_query();
   void free_connection();
   void reset_for_reuse();
@@ -3450,19 +3450,13 @@ public:
   void awake_no_mutex(killed_state state_to_set);
   void awake(killed_state state_to_set)
   {
-    bool wsrep_on_local= variables.wsrep_on;
-    /*
-      mutex locking order (LOCK_thd_data - LOCK_thd_kill)) requires
-      to grab LOCK_thd_data here
-    */
-    if (wsrep_on_local)
-      mysql_mutex_lock(&LOCK_thd_data);
     mysql_mutex_lock(&LOCK_thd_kill);
+    mysql_mutex_lock(&LOCK_thd_data);
     awake_no_mutex(state_to_set);
+    mysql_mutex_unlock(&LOCK_thd_data);
     mysql_mutex_unlock(&LOCK_thd_kill);
-    if (wsrep_on_local)
-      mysql_mutex_unlock(&LOCK_thd_data);
   }
+  void abort_current_cond_wait(bool force);
  
   /** Disconnect the associated communication endpoint. */
   void disconnect();
@@ -4218,8 +4212,7 @@ public:
     mysql_mutex_lock(&LOCK_thd_kill);
     int err= killed_errno();
     if (err)
-      my_message(err, killed_err ? killed_err->msg : ER_THD(this, err),
-                 MYF(0));
+      my_message(err, killed_err ? killed_err->msg : ER_THD(this, err), MYF(0));
     mysql_mutex_unlock(&LOCK_thd_kill);
   }
   /* return TRUE if we will abort query if we make a warning now */

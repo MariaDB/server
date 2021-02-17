@@ -20,12 +20,10 @@ INSERT INTO child VALUES (1,'row one'), (2,'row two');
 connection node_2;
 DELETE FROM parent;
 connection node_1;
-SELECT COUNT(*), COUNT(*) = 0 FROM parent;
-COUNT(*)	COUNT(*) = 0
-0	1
-SELECT COUNT(*), COUNT(*) = 0 FROM child;
-COUNT(*)	COUNT(*) = 0
-0	1
+SELECT * FROM parent;
+id
+SELECT * FROM child;
+id	parent_id
 DROP TABLE child;
 DROP TABLE parent;
 #
@@ -60,11 +58,9 @@ SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 SET GLOBAL debug_dbug = "";
 SET DEBUG_SYNC = "RESET";
 connection node_1;
-SELECT COUNT(*), COUNT(*) = 0 FROM parent;
-COUNT(*)	COUNT(*) = 0
-0	1
-SELECT COUNT(*), COUNT(*) = 0 FROM child;
-COUNT(*)	COUNT(*) = 0
-0	1
+SELECT * FROM parent;
+id
+SELECT * FROM child;
+id	j	parent_id
 DROP TABLE child;
 DROP TABLE parent;

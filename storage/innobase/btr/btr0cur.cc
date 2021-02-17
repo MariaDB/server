@@ -67,6 +67,9 @@ Created 10/16/1994 Heikki Tuuri
 #include "srv0start.h"
 #include "mysql_com.h"
 #include "dict0stats.h"
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#endif /* WITH_WSREP */
 
 /** Buffered B-tree operation types, introduced as part of delete buffering. */
 enum btr_op_t {
@@ -3244,7 +3247,8 @@ btr_cur_ins_lock_and_undo(
 
 	/* Check if there is predicate or GAP lock preventing the insertion */
 	if (!(flags & BTR_NO_LOCKING_FLAG)) {
-		if (dict_index_is_spatial(index)) {
+		const unsigned type = index->type;
+		if (UNIV_UNLIKELY(type & DICT_SPATIAL)) {
 			lock_prdt_t	prdt;
 			rtr_mbr_t	mbr;
 
@@ -3261,9 +3265,30 @@ btr_cur_ins_lock_and_undo(
 				index, thr, mtr, &prdt);
 			*inherit = false;
 		} else {
+#ifdef WITH_WSREP
+			trx_t* trx= thr_get_trx(thr);
+			/* If transaction scanning an unique secondary
+			key is wsrep high priority thread (brute
+			force) this scanning may involve GAP-locking
+			in the index. As this locking happens also
+			when applying replication events in high
+			priority applier threads, there is a
+			probability for lock conflicts between two
+			wsrep high priority threads. To avoid this
+			GAP-locking we mark that this transaction
+			is using unique key scan here. */
+			if ((type & (DICT_CLUSTERED | DICT_UNIQUE)) == DICT_UNIQUE
+			    && trx->is_wsrep()
+			    && wsrep_thd_is_BF(trx->mysql_thd, false)) {
+				trx->wsrep_UK_scan= true;
+			}
+#endif /* WITH_WSREP */
 			err = lock_rec_insert_check_and_lock(
 				flags, rec, btr_cur_get_block(cursor),
 				index, thr, mtr, inherit);
+#ifdef WITH_WSREP
+			trx->wsrep_UK_scan= false;
+#endif /* WITH_WSREP */
 		}
 	}
 

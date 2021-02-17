@@ -70,6 +70,13 @@ then
   sed "/Package: libmariadbd-dev/,/^$/d" -i debian/control
 fi
 
+## Skip TokuDB if arch is not amd64
+if [[ ! $(dpkg-architecture -q DEB_BUILD_ARCH) =~ amd64 ]]
+then
+  sed '/Package: mariadb-plugin-tokudb/,/^$/d' -i debian/control
+fi
+
+
 if [[ $(arch) =~ i[346]86 ]]
 then
   sed "/Package: mariadb-plugin-rocksdb/,/^$/d" -i debian/control

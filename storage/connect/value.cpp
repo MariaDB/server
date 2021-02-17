@@ -197,7 +197,7 @@ const char *GetFormatType(int type)
     case TYPE_DOUBLE: c = "F"; break;
     case TYPE_DATE:   c = "D"; break;
     case TYPE_TINY:   c = "T"; break;
-    case TYPE_DECIM:  c = "M"; break;
+    case TYPE_DECIM:  c = "F"; break;
     case TYPE_BIN:    c = "B"; break;
     case TYPE_PCHAR:  c = "P"; break;
   } // endswitch type
@@ -380,8 +380,8 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec,
     case TYPE_STRING:
       valp = new(g) TYPVAL<PSZ>(g, (PSZ)NULL, len, prec);
       break;
-    case TYPE_DATE:
-      valp = new(g) DTVAL(g, len, prec, fmt);
+		case TYPE_DATE:
+			valp = new(g) DTVAL(g, len, prec, fmt);
       break;
     case TYPE_INT:
       if (uns)

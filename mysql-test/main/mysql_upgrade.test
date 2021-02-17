@@ -243,10 +243,42 @@ FLUSH PRIVILEGES;
 SET ROLE `aRole`;
 SELECT `User`, `is_role` FROM `mysql`.`user`;
 
+DROP ROLE aRole;
+
+--echo #
+--echo # MDEV-24122 Fix previously MySQL-5.7 data directories that upgraded prior to MDEV-23201
+--echo #
+
+--source include/switch_to_mysql_user.inc
+drop view mysql.user_bak;
+drop table mysql.user;
+truncate table mysql.tables_priv;
+--copy_file std_data/mysql57user.frm $MYSQLD_DATADIR/mysql/user.frm
+--copy_file std_data/mysql57user.MYI $MYSQLD_DATADIR/mysql/user.MYI
+--copy_file std_data/mysql57user.MYD $MYSQLD_DATADIR/mysql/user.MYD
+FLUSH TABLES mysql.user;
+
+# What prior to MDEV-23201 would of done:
+ALTER TABLE mysql.user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
+ALTER TABLE mysql.user ADD default_role char(80) binary DEFAULT '' NOT NULL;
+ALTER TABLE mysql.user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL;
+FLUSH PRIVILEGES;
+
+--exec $MYSQL_UPGRADE --force 2>&1
+SHOW CREATE TABLE mysql.user;
+
+CREATE ROLE `aRole`;
+SET DEFAULT ROLE aRole;
+SHOW GRANTS;
+SET DEFAULT ROLE NONE;
+SHOW GRANTS;
+
 DROP ROLE `aRole`;
 --exec $MYSQL mysql < $MYSQLTEST_VARDIR/tmp/user.sql
 FLUSH PRIVILEGES;
 --remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
 
 --echo # End of 10.2 tests
 

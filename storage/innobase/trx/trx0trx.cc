@@ -158,6 +158,10 @@ trx_init(
 	trx->lock.rec_cached = 0;
 
 	trx->lock.table_cached = 0;
+#ifdef WITH_WSREP
+	ut_ad(!trx->wsrep);
+	ut_ad(!trx->wsrep_UK_scan);
+#endif /* WITH_WSREP */
 }
 
 /** For managing the life-cycle of the trx_t instance that we get
@@ -366,6 +370,10 @@ trx_t *trx_create()
 	ut_ad(trx->lock.rec_cached == 0);
 	ut_ad(UT_LIST_GET_LEN(trx->lock.evicted_tables) == 0);
 
+#ifdef WITH_WSREP
+	ut_ad(!trx->wsrep_UK_scan);
+#endif /* WITH_WSREP */
+
 	trx_sys.register_trx(trx);
 
 	return(trx);
@@ -462,6 +470,10 @@ void trx_t::free()
   MEM_NOACCESS(&xid, sizeof xid);
   MEM_NOACCESS(&mod_tables, sizeof mod_tables);
   MEM_NOACCESS(&detailed_error, sizeof detailed_error);
+#ifdef WITH_WSREP
+  ut_ad(!wsrep_UK_scan);
+  MEM_NOACCESS(&wsrep_UK_scan, sizeof wsrep_UK_scan);
+#endif /* WITH_WSREP */
   MEM_NOACCESS(&magic_n, sizeof magic_n);
   trx_pools->mem_free(this);
 }

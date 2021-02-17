@@ -8,7 +8,7 @@ SELECT @@innodb_file_per_table;
 SET SQL_MODE=strict_all_tables;
 CREATE TABLE tab0 (c1 VARCHAR(65530), KEY(c1(3073))) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 3072 bytes
+Note	1071	Specified key was too long; max key length is 3072 bytes
 SHOW CREATE TABLE tab0;
 Table	Create Table
 tab0	CREATE TABLE `tab0` (
