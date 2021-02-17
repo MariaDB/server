@@ -92,16 +92,22 @@ protected:
   bool upgrade_trylock()
   {
     auto l= UPDATER;
-    while (!lock.compare_exchange_strong(l, l ^ (WRITER | UPDATER),
+    while (!lock.compare_exchange_strong(l, WRITER,
                                          std::memory_order_acquire,
                                          std::memory_order_relaxed))
     {
-      DBUG_ASSERT(!(~l & (UPDATER - 1)));
+      /* Either conflicting (read) locks have been granted, or
+      the WRITER_WAITING flag was set by some thread that is waiting
+      to become WRITER. */
+      DBUG_ASSERT(!(~l & (UPDATER - 1)) || l == (UPDATER | WRITER_WAITING));
       DBUG_ASSERT(((WRITER | UPDATER) & l) == UPDATER);
       if (~(WRITER_WAITING | UPDATER) & l)
         return false;
     }
     DBUG_ASSERT((l & ~WRITER_WAITING) == UPDATER);
+    /* Any thread that had set WRITER_WAITING will eventually be woken
+    up by ssux_lock_low::x_unlock() or ssux_lock_low::u_unlock()
+    (not ssux_lock_low::wr_u_downgrade() to keep the code simple). */
     return true;
   }
   /** Downgrade an exclusive lock to an update lock. */

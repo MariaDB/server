@@ -204,7 +204,8 @@ void ssux_lock_low::write_lock(bool holding_u)
       ut_delay(srv_spin_wait_delay);
     }
 
-    l= holding_u ? WRITER_WAITING | UPDATER : WRITER_WAITING;
+    const uint32_t e= holding_u ? WRITER_WAITING | UPDATER : WRITER_WAITING;
+    l= e;
     if (write_lock_wait_try(l))
       return;
 
@@ -220,7 +221,11 @@ void ssux_lock_low::write_lock(bool holding_u)
         if (holding_u && upgrade_trylock())
           return;
       }
-      l= write_lock_wait_start() | WRITER_WAITING;
+
+      for (l= write_lock_wait_start() | WRITER_WAITING;
+           (l | WRITER_WAITING) == e; )
+        if (write_lock_wait_try(l))
+          return;
     }
     else
       DBUG_ASSERT(~WRITER_WAITING & l);
