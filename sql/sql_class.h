@@ -2338,7 +2338,7 @@ struct thd_async_state
 
   /* Stuff we need to resume do_command where we finished last time*/
   enum enum_server_command m_command{COM_SLEEP};
-  LEX_STRING m_packet{};
+  LEX_STRING m_packet{0,0};
 
   mysql_mutex_t m_mtx;
   mysql_cond_t m_cond;
