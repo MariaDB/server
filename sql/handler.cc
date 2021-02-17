@@ -7147,8 +7147,6 @@ static int period_row_check_delete_for_key(const uchar *record,
 {
   handler *foreign_handler= fk.foreign_key->table->file;
 
-  foreign_handler->alloc_lookup_buffer();
-
   /*
     We shouldn't save cursor here, since this handler is never used.
     The foreign table is only opened for FK matches.
@@ -7199,6 +7197,8 @@ int handler::period_row_del_fk_check(const uchar *record)
 
     DBUG_ASSERT(fk.fields_num == fk.foreign_key->user_defined_key_parts);
     DBUG_ASSERT(fk.fields_num == fk.referenced_key->user_defined_key_parts);
+
+    fk.foreign_key->table->file->alloc_lookup_buffer();
 
     int res= period_row_check_delete_for_key(record, fk);
     if(res)
@@ -7308,8 +7308,6 @@ static int period_row_check_insert_for_key(const uchar *record,
 {
   handler *ref_handler= fk.referenced_key->table->file;
 
-  ref_handler->alloc_lookup_buffer();
-
   int error= ref_handler->ha_index_init(fk.referenced_key_nr, false);
   if(error)
     return error;
@@ -7348,6 +7346,8 @@ int handler::period_row_ins_fk_check(const uchar *record)
 
     DBUG_ASSERT(fk.fields_num == fk.foreign_key->user_defined_key_parts);
     DBUG_ASSERT(fk.fields_num == fk.referenced_key->user_defined_key_parts);
+
+    fk.referenced_key->table->file->alloc_lookup_buffer();
 
     int res= period_row_check_insert_for_key(record, fk);
     if (res)
@@ -7413,6 +7413,8 @@ int handler::period_row_upd_fk_check(const uchar *old_data, const uchar *new_dat
     const auto &key= *fk.referenced_key;
     DBUG_ASSERT(key.table->alias.eq(&table->alias, table->alias.charset()));
 
+    fk.foreign_key->table->file->alloc_lookup_buffer();
+
     int error= 0;
     if (!TABLE::check_period_overlaps(key, old_data, new_data))
     {
@@ -7454,6 +7456,8 @@ int handler::period_row_upd_fk_check(const uchar *old_data, const uchar *new_dat
 
     const auto &key= *fk.foreign_key;
     DBUG_ASSERT(key.table->alias.eq(&table->alias, table->alias.charset()));
+
+    fk.referenced_key->table->file->alloc_lookup_buffer();
 
     int error= 0;
     if (!TABLE::check_period_overlaps(key, old_data, new_data))
