@@ -3,7 +3,7 @@
 Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -4149,7 +4149,16 @@ void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
 			}
 
 			ut_ad(!index->table->not_redundant());
-			if (ulint size = rec_get_nth_field_size(rec, n)) {
+			switch (ulint size = rec_get_nth_field_size(rec, n)) {
+			case 0:
+				break;
+			case 1:
+				mtr->write<1,mtr_t::MAYBE_NOP>(
+					*block,
+					rec_get_field_start_offs(rec, n) + rec,
+					0U);
+				break;
+			default:
 				mtr->memset(
 					block,
 					page_offset(rec_get_field_start_offs(

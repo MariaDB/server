@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -490,7 +490,7 @@ page_corrupted:
         llen= len;
         if ((b & 0x70) == MEMSET)
         {
-          ut_ad(rlen < llen);
+          ut_ad(rlen <= llen);
           if (UNIV_UNLIKELY(rlen != 1))
           {
             size_t s;
@@ -499,7 +499,7 @@ page_corrupted:
             memcpy(frame + last_offset + s, l, llen - s);
           }
           else
-          memset(frame + last_offset, *l, llen);
+            memset(frame + last_offset, *l, llen);
           goto next_after_applying_write;
         }
         const size_t slen= mlog_decode_varint_length(*l);
