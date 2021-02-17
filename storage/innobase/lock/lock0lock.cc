@@ -459,8 +459,8 @@ static bool lock_rec_validate_page(const buf_block_t *block, bool latched)
 /* The lock system */
 lock_sys_t lock_sys;
 
-/** Only created if !srv_read_only_mode */
-static FILE*		lock_latest_err_file;
+/** Only created if !srv_read_only_mode. Protected by lock_sys.latch. */
+static FILE *lock_latest_err_file;
 
 /*********************************************************************//**
 Reports that a transaction id is insensible, i.e., in the future. */
