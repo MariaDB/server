@@ -131,11 +131,13 @@ operation:
 
 --[loose-]hashicorp-key-management-use-cache-on-timeout="on"|"off"
 
-  In case of timeout when accessing the vault server use the key
-  values or version numbers taken from the cache. By default this
+  This parameter instructs the plugin to use the key values
+  or version numbers taken from the cache in the event of a
+  timeout when accessing the vault server. By default this
   option is disabled.
 
-  The key values or version numbers will be read from the cache
-  on timeout only after the number of attempts specified by the
-  --[loose-]hashicorp-key-management-retries parameter has been
-  exhausted.
+  Please note that key values or version numbers will be read
+  from the cache when the timeout expires only after the number
+  of attempts to read them from the storage server that specified
+  by the --[loose-]hashicorp-key-management-retries parameter
+  has been exhausted.

@@ -835,6 +835,6 @@ maria_declare_plugin(hashicorp_key_management)
   NULL, /* status variables */
   settings,
   "1.03",
-  MariaDB_PLUGIN_MATURITY_BETA
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
