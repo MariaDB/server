@@ -109,7 +109,7 @@ enum commands {
   ADMIN_FLUSH_TABLE_STATISTICS, ADMIN_FLUSH_INDEX_STATISTICS,
   ADMIN_FLUSH_USER_STATISTICS, ADMIN_FLUSH_CLIENT_STATISTICS,
   ADMIN_FLUSH_USER_RESOURCES,
-  ADMIN_FLUSH_ALL_STATUS, ADMIN_FLUSH_ALL_STATISTICS
+  ADMIN_FLUSH_ALL_STATUS, ADMIN_FLUSH_ALL_STATISTICS, ADMIN_FLUSH_SSL
 };
 static const char *command_names[]= {
   "create",               "drop",                "shutdown",
@@ -124,7 +124,7 @@ static const char *command_names[]= {
   "flush-error-log", "flush-general-log", "flush-relay-log", "flush-slow-log",
   "flush-table-statistics", "flush-index-statistics",
   "flush-user-statistics", "flush-client-statistics", "flush-user-resources",
-  "flush-all-status", "flush-all-statistics",
+  "flush-all-status", "flush-all-statistics", "flush-ssl",
   NullS
 };
 
@@ -623,7 +623,14 @@ int flush(MYSQL *mysql, const char *what)
   char buf[FN_REFLEN];
   my_snprintf(buf, sizeof(buf), "flush %s%s",
               (opt_local && !sql_log_bin_off ? "local " : ""), what);
-  return mysql_query(mysql, buf);
+
+  if (mysql_query(mysql, buf))
+  {
+    my_printf_error(0, "flush %s failed; error: '%s'", error_flags, what,
+                    mysql_error(mysql));
+    return -1;
+  }
+  return 0;
 }
 
 
@@ -739,11 +746,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     case ADMIN_FLUSH_PRIVILEGES:
     case ADMIN_RELOAD:
       if (flush(mysql, "privileges"))
-      {
-	my_printf_error(0, "reload failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     case ADMIN_REFRESH:
       if (mysql_refresh(mysql,
@@ -943,173 +946,111 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     case ADMIN_FLUSH_LOGS:
     {
       if (flush(mysql, "logs"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_BINARY_LOG:
     {
       if (flush(mysql, "binary logs"))
-      {
-        my_printf_error(0, "flush failed; error: '%s'", error_flags,
-                        mysql_error(mysql));
         return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_ENGINE_LOG:
     {
       if (flush(mysql, "engine logs"))
-      {
-        my_printf_error(0, "flush failed; error: '%s'", error_flags,
-                        mysql_error(mysql));
         return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_ERROR_LOG:
     {
       if (flush(mysql, "error logs"))
-      {
-        my_printf_error(0, "flush failed; error: '%s'", error_flags,
-                        mysql_error(mysql));
         return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_GENERAL_LOG:
     {
       if (flush(mysql, "general logs"))
-      {
-        my_printf_error(0, "flush failed; error: '%s'", error_flags,
-                        mysql_error(mysql));
         return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_RELAY_LOG:
     {
       if (flush(mysql, "relay logs"))
-      {
-        my_printf_error(0, "flush failed; error: '%s'", error_flags,
-                        mysql_error(mysql));
         return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_SLOW_LOG:
     {
       if (flush(mysql, "slow logs"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_HOSTS:
     {
       if (flush(mysql, "hosts"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_TABLES:
     {
       if (flush(mysql, "tables"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_STATUS:
     {
       if (flush(mysql, "status"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_TABLE_STATISTICS:
     {
       if (flush(mysql, "table_statistics"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_INDEX_STATISTICS:
     {
       if (flush(mysql, "index_statistics"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
+      break;
+    }
+    case ADMIN_FLUSH_SSL:
+    {
+      if (flush(mysql, "ssl"))
+	return -1;
       break;
     }
     case ADMIN_FLUSH_USER_STATISTICS:
     {
       if (flush(mysql, "user_statistics"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_USER_RESOURCES:
     {
       if (flush(mysql, "user_resources"))
-      {
-        my_printf_error(0, "flush failed; error: '%s'", error_flags,
-                        mysql_error(mysql));
         return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_CLIENT_STATISTICS:
     {
       if (flush(mysql, "client_statistics"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_ALL_STATISTICS:
     {
       if (flush(mysql, "table_statistics,index_statistics,"
                        "user_statistics,client_statistics"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_ALL_STATUS:
     {
       if (flush(mysql, "status,table_statistics,index_statistics,"
                        "user_statistics,client_statistics"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     }
     case ADMIN_OLD_PASSWORD:
@@ -1418,6 +1359,7 @@ static void usage(void)
   flush-general-log       Flush general log\n\
   flush-relay-log         Flush relay log\n\
   flush-slow-log          Flush slow query log\n\
+  flush-ssl               Flush SSL certificates\n\
   flush-status            Clear status variables\n\
   flush-table-statistics  Clear table statistics\n\
   flush-tables            Flush all tables\n\
