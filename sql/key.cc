@@ -899,6 +899,17 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
 }
 
 
+bool key_rec_is_null(const KEY &key, const uchar *rec)
+{
+  for (int p= 0; p < key.user_defined_key_parts; p++)
+  {
+    KEY_PART_INFO &part= key.key_part[p];
+    if (part.null_bit && part.field->is_null_in_record(rec))
+      return true;
+  }
+  return false;
+}
+
 int key_period_compare_bases(const KEY &lhs_key, const KEY &rhs_key,
                              const uchar *lhs, const uchar *rhs)
 {
@@ -911,8 +922,15 @@ int key_period_compare_bases(const KEY &lhs_key, const KEY &rhs_key,
     if (lhs_key.key_part[part_nr].null_bit)
     {
       DBUG_ASSERT(rhs_key.key_part[part_nr].null_bit);
-      if (fl->is_null_in_record(lhs) || fr->is_null_in_record(rhs))
-        return false;
+      bool lhs_null= fl->is_null_in_record(lhs);
+      bool rhs_null= fr->is_null_in_record(rhs);
+
+      if (lhs_null && rhs_null)
+        continue;
+
+      if (lhs_null != rhs_null)
+        return lhs_null ? -1 : 1;
+
     }
     uint kp_len= MY_MIN(lhs_key.key_part[part_nr].length,
                         rhs_key.key_part[part_nr].length);
@@ -927,6 +945,11 @@ int key_period_compare_periods(const KEY &lhs_key, const KEY &rhs_key,
                                const uchar *lhs, const uchar *rhs)
 {
   uint base_part_nr= lhs_key.user_defined_key_parts - 2;
+
+  DBUG_ASSERT(!lhs_key.key_part[base_part_nr].null_bit);
+  DBUG_ASSERT(!lhs_key.key_part[base_part_nr + 1].null_bit);
+  DBUG_ASSERT(!rhs_key.key_part[base_part_nr].null_bit);
+  DBUG_ASSERT(!rhs_key.key_part[base_part_nr + 1].null_bit);
 
   Field *lhs_fields[]= {lhs_key.key_part[base_part_nr + 1].field,
                         lhs_key.key_part[base_part_nr].field};

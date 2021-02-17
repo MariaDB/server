@@ -8629,28 +8629,8 @@ void TABLE::evaluate_update_default_function()
 bool TABLE::check_period_overlaps(const KEY &key,
                                  const uchar *lhs, const uchar *rhs)
 {
-  DBUG_ASSERT(key.without_overlaps);
-  uint base_part_nr= key.user_defined_key_parts - 2;
-  for (uint part_nr= 0; part_nr < base_part_nr; part_nr++)
-  {
-    Field *f= key.key_part[part_nr].field;
-    if (key.key_part[part_nr].null_bit)
-      if (f->is_null_in_record(lhs) || f->is_null_in_record(rhs))
-        return false;
-    if (f->cmp(f->ptr_in_record(lhs), f->ptr_in_record(rhs)) != 0)
-      return false;
-  }
-
-  uint period_start= key.user_defined_key_parts - 1;
-  uint period_end= key.user_defined_key_parts - 2;
-  const Field *fs= key.key_part[period_start].field;
-  const Field *fe= key.key_part[period_end].field;
-
-  if (fs->cmp(fe->ptr_in_record(lhs), fs->ptr_in_record(rhs)) <= 0)
-    return false;
-  if (fs->cmp(fs->ptr_in_record(lhs), fe->ptr_in_record(rhs)) >= 0)
-    return false;
-  return true;
+  return key_period_compare_bases(key, key, lhs, rhs) == 0
+         && key_period_compare_periods(key, key, lhs, rhs) == 0;
 }
 
 void TABLE::vers_update_fields()

@@ -6733,12 +6733,35 @@ int handler::check_duplicate_long_entries_update(const uchar *new_rec)
   return 0;
 }
 
-static int period_find_first_overlapping_record(handler *handler,
-                                                uchar *key_buf,
-                                                const uchar *record_to_cmp,
-                                                uchar *record,
-                                                const KEY &key_to_cmp,
-                                                const KEY &key);
+static int period_locate_overlapping_record(handler *handler,
+                                            uchar *key_buf,
+                                            const uchar *record_to_cmp,
+                                            uchar *record,
+                                            const KEY &key_to_cmp,
+                                            const KEY &key)
+{
+  // number of key parts not including period fields
+  auto base_parts= key.user_defined_key_parts - 2;
+  const uint period_field_length= key_to_cmp.key_part[base_parts].length;
+  const uint key_base_length= key_to_cmp.key_length - 2 * period_field_length;
+
+
+  key_copy(key_buf, record_to_cmp, &key_to_cmp, 0);
+
+  /*
+    Copy period_start to period_end.
+    the value in period_start field is not significant, but anyway let's leave
+    it defined to avoid uninitialized memory access
+  */
+  memcpy(key_buf + key_base_length,
+         key_buf + key_base_length + period_field_length,
+         period_field_length);
+
+  int error= handler->ha_index_read_map(record, key_buf,
+                                        PREV_BITS(ulong, base_parts + 1),
+                                        HA_READ_AFTER_KEY);
+  return error;
+}
 
 int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
 {
@@ -6786,6 +6809,9 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
         continue;
     }
 
+    if (key_rec_is_null(key_info, new_data))
+      continue;
+
     error= handler->ha_index_init(key_nr, 0);
     if (error)
       return error;
@@ -6793,9 +6819,9 @@ int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
     error= handler->ha_start_keyread(key_nr);
     DBUG_ASSERT(!error);
 
-    error= period_find_first_overlapping_record(handler, lookup_buffer,
-                                                new_data, record_buffer,
-                                                key_info, key_info);
+    error= period_locate_overlapping_record(handler, lookup_buffer,
+                                            new_data, record_buffer,
+                                            key_info, key_info);
 
     if (!error && is_update)
     {
@@ -7061,11 +7087,6 @@ static int period_find_first_overlapping_record(handler *handler,
                                                 const KEY &key_to_cmp,
                                                 const KEY &key)
 {
-  // number of key parts not including period fields
-  auto base_parts= key.user_defined_key_parts - 2;
-  const uint period_field_length= key_to_cmp.key_part[base_parts].length;
-  const uint key_base_length= key_to_cmp.key_length - 2 * period_field_length;
-
   /*
     We should evaluate SELECT start, end WHERE start < @end and end > @start.
     one is < and one is >, so we can not do it by O(1) queries to btree.
@@ -7086,20 +7107,10 @@ static int period_find_first_overlapping_record(handler *handler,
 
     Note that WITHOUT OVERLAPS on key makes it O(1).
   */
-  key_copy(key_buf, record_to_cmp, &key_to_cmp, 0);
 
-  /*
-    Copy period_start to period_end.
-    the value in period_start field is not significant, but anyway let's leave
-    it defined to avoid uninitialized memory access
-  */
-  memcpy(key_buf + key_base_length,
-         key_buf + key_base_length + period_field_length,
-         period_field_length);
-
-  int error= handler->ha_index_read_map(record, key_buf,
-                                        PREV_BITS(ulong, base_parts + 1),
-                                        HA_READ_AFTER_KEY);
+  int error= period_locate_overlapping_record(handler, key_buf,
+                                              record_to_cmp, record,
+                                              key_to_cmp, key);
   if (unlikely(error))
       return error;
 
