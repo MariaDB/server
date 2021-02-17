@@ -5894,14 +5894,15 @@ namespace Deadlock
   @return nullptr if no deadlock */
   static trx_t *report(trx_t *const trx, bool current_trx= true)
   {
-    mysql_mutex_unlock(&lock_sys.wait_mutex);
+    mysql_mutex_assert_owner(&lock_sys.wait_mutex);
+    ut_ad(lock_sys.is_writer() == !current_trx);
 
     /* Normally, trx should be a direct part of the deadlock
     cycle. However, if innodb_deadlock_detect had been OFF in the
-    past, our trx may be waiting for a lock that is held by a
-    participant of a pre-existing deadlock, without being part of the
-    deadlock itself. That is, the path to the deadlock may be P-shaped
-    instead of O-shaped, with trx being at the foot of the P.
+    past, or if current_trx=false, trx may be waiting for a lock that
+    is held by a participant of a pre-existing deadlock, without being
+    part of the deadlock itself. That is, the path to the deadlock may be
+    P-shaped instead of O-shaped, with trx being at the foot of the P.
 
     We will process the entire path leading to a cycle, and we will
     choose the victim (to be aborted) among the cycle. */
@@ -5909,23 +5910,31 @@ namespace Deadlock
     static const char rollback_msg[]= "*** WE ROLL BACK TRANSACTION (%u)\n";
     char buf[9 + sizeof rollback_msg];
 
-    /* trx is owned by this thread; we can safely call these without
-    holding any mutex */
+    /* If current_trx=true, trx is owned by this thread, and we can
+    safely invoke these without holding trx->mutex or lock_sys.latch.
+    If current_trx=false, a concurrent commit is protected by both
+    lock_sys.latch and lock_sys.wait_mutex. */
     const undo_no_t trx_weight= TRX_WEIGHT(trx) |
       (trx->mysql_thd && thd_has_edited_nontrans_tables(trx->mysql_thd)
        ? 1ULL << 63 : 0);
     trx_t *victim= nullptr;
     undo_no_t victim_weight= ~0ULL;
     unsigned victim_pos= 0, trx_pos= 0;
+
+    if (current_trx && !lock_sys.wr_lock_try())
+    {
+      mysql_mutex_unlock(&lock_sys.wait_mutex);
+      lock_sys.wr_lock(SRW_LOCK_CALL);
+      mysql_mutex_lock(&lock_sys.wait_mutex);
+    }
+
     {
       unsigned l= 0;
-      LockMutexGuard g{SRW_LOCK_CALL};
-      mysql_mutex_lock(&lock_sys.wait_mutex);
       /* Now that we are holding lock_sys.wait_mutex again, check
       whether a cycle still exists. */
       trx_t *cycle= find_cycle(trx);
       if (!cycle)
-        return nullptr; /* One of the transactions was already aborted. */
+        goto func_exit; /* One of the transactions was already aborted. */
       for (trx_t *next= cycle;;)
       {
         next= next->lock.wait_trx;
@@ -6027,6 +6036,9 @@ namespace Deadlock
 #endif
     }
 
+func_exit:
+    if (current_trx)
+      lock_sys.wr_unlock();
     return victim;
   }
 }
@@ -6058,11 +6070,27 @@ void lock_sys_t::deadlock_check()
 {
   lock_sys.assert_unlocked();
   mysql_mutex_assert_owner(&lock_sys.wait_mutex);
+  bool locked= false;
+
   if (Deadlock::to_be_checked)
   {
-    while (!Deadlock::to_check.empty())
+    for (;;)
     {
       auto i= Deadlock::to_check.begin();
+      if (i == Deadlock::to_check.end())
+        break;
+      if (!locked)
+      {
+        locked= lock_sys.wr_lock_try();
+        if (!locked)
+        {
+          locked= true;
+          mysql_mutex_unlock(&lock_sys.wait_mutex);
+          lock_sys.wr_lock(SRW_LOCK_CALL);
+          mysql_mutex_lock(&lock_sys.wait_mutex);
+          continue;
+        }
+      }
       trx_t *trx= *i;
       Deadlock::to_check.erase(i);
       if (Deadlock::find_cycle(trx))
@@ -6071,6 +6099,8 @@ void lock_sys_t::deadlock_check()
     Deadlock::to_be_checked= false;
   }
   ut_ad(Deadlock::to_check.empty());
+  if (locked)
+    lock_sys.wr_unlock();
 }
 
 
