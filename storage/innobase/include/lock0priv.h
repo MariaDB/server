@@ -417,14 +417,6 @@ lock_rec_get_prev(
 	ulint		heap_no);/*!< in: heap number of the record */
 
 /*********************************************************************//**
-Cancels a waiting lock request and releases possible other transactions
-waiting behind it. */
-void
-lock_cancel_waiting_and_release(
-/*============================*/
-	lock_t*	lock);	/*!< in/out: waiting lock request */
-
-/*********************************************************************//**
 Checks if some transaction has an implicit x-lock on a record in a clustered
 index.
 @return transaction id of the transaction which has the x-lock, or 0 */

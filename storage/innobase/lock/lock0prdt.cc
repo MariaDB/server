@@ -463,12 +463,16 @@ lock_prdt_add_to_queue(
 	}
 
 create:
-	lock_t* lock = lock_rec_create(
+	/* Note: We will not pass any conflicting lock to lock_rec_create(),
+	because we should be moving an existing waiting lock request. */
+	ut_ad(!(type_mode & LOCK_WAIT) || trx->lock.wait_trx);
+
+	lock_t* lock = lock_rec_create(nullptr,
 #ifdef WITH_WSREP
-		NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
+				       nullptr,
 #endif
-		type_mode, block, PRDT_HEAPNO, index, trx,
-		caller_owns_trx_mutex);
+				       type_mode, block, PRDT_HEAPNO, index,
+				       trx, caller_owns_trx_mutex);
 
 	if (lock->type_mode & LOCK_PREDICATE) {
 		lock_prdt_set_prdt(lock, prdt);
@@ -529,11 +533,8 @@ lock_prdt_insert_check_and_lock(
         trx->mutex_lock();
         /* Allocate MBR on the lock heap */
         lock_init_prdt_from_mbr(prdt, mbr, 0, trx->lock.lock_heap);
-        err= lock_rec_enqueue_waiting(
-#ifdef WITH_WSREP
-          c_lock,
-#endif
-          mode, id, block->frame, PRDT_HEAPNO, index, thr, prdt);
+        err= lock_rec_enqueue_waiting(c_lock, mode, id, block->frame,
+                                      PRDT_HEAPNO, index, thr, prdt);
         trx->mutex_unlock();
       }
     }
@@ -732,8 +733,9 @@ lock_prdt_lock(
 
 	if (lock == NULL) {
 		lock = lock_rec_create(
+			NULL,
 #ifdef WITH_WSREP
-			NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
+			NULL, /* FIXME: replicate SPATIAL INDEX locks */
 #endif
 			prdt_mode, block, PRDT_HEAPNO,
 			index, trx, FALSE);
@@ -762,10 +764,7 @@ lock_prdt_lock(
 				if (wait_for != NULL) {
 
 					err = lock_rec_enqueue_waiting(
-#ifdef WITH_WSREP
-						NULL, /* FIXME: replicate
-						      SPATIAL INDEX locks */
-#endif
+						wait_for,
 						prdt_mode,
 						id, block->frame, PRDT_HEAPNO,
 						index, thr, prdt);
@@ -835,8 +834,9 @@ lock_place_prdt_page_lock(
 
 	if (lock == NULL) {
 		lock = lock_rec_create_low(
+			NULL,
 #ifdef WITH_WSREP
-			NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
+			NULL, /* FIXME: replicate SPATIAL INDEX locks */
 #endif
 			mode, page_id, NULL, PRDT_HEAPNO,
 			index, trx, FALSE);

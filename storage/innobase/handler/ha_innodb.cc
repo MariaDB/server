@@ -372,6 +372,26 @@ TYPELIB innodb_flush_method_typelib = {
 	NULL
 };
 
+/** Names of allowed values of innodb_deadlock_report */
+static const char *innodb_deadlock_report_names[]= {
+	"off", /* Do not report any details of deadlocks */
+	"basic", /* Report waiting transactions and lock requests */
+	"full", /* Also report blocking locks */
+	NullS
+};
+
+static_assert(Deadlock::REPORT_OFF == 0, "compatibility");
+static_assert(Deadlock::REPORT_BASIC == 1, "compatibility");
+static_assert(Deadlock::REPORT_FULL == 2, "compatibility");
+
+/** Enumeration of innodb_deadlock_report */
+static TYPELIB innodb_deadlock_report_typelib = {
+	array_elements(innodb_deadlock_report_names) - 1,
+	"innodb_deadlock_report_typelib",
+	innodb_deadlock_report_names,
+	NULL
+};
+
 /** Allowed values of innodb_change_buffering */
 static const char* innodb_change_buffering_names[] = {
 	"none",		/* IBUF_USE_NONE */
@@ -4476,6 +4496,7 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
           trx->mutex_unlock();
         }
       }
+      lock_sys.deadlock_check();
       mysql_mutex_unlock(&lock_sys.wait_mutex);
     }
   }
@@ -18601,12 +18622,17 @@ static MYSQL_SYSVAR_ULONG(flush_neighbors, srv_flush_neighbors,
   " when flushing a block",
   NULL, NULL, 1, 0, 2, 0);
 
-static MYSQL_SYSVAR_BOOL(deadlock_detect, innobase_deadlock_detect,
+static MYSQL_SYSVAR_BOOL(deadlock_detect, innodb_deadlock_detect,
   PLUGIN_VAR_NOCMDARG,
   "Enable/disable InnoDB deadlock detector (default ON)."
   " if set to OFF, deadlock detection is skipped,"
   " and we rely on innodb_lock_wait_timeout in case of deadlock.",
   NULL, NULL, TRUE);
+
+static MYSQL_SYSVAR_ENUM(deadlock_report, innodb_deadlock_report,
+  PLUGIN_VAR_RQCMDARG,
+  "How to report deadlocks (if innodb_deadlock_detect=ON).",
+  NULL, NULL, Deadlock::REPORT_FULL, &innodb_deadlock_report_typelib);
 
 static MYSQL_SYSVAR_UINT(fill_factor, innobase_fill_factor,
   PLUGIN_VAR_RQCMDARG,
@@ -19190,6 +19216,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(force_load_corrupted),
   MYSQL_SYSVAR(lock_wait_timeout),
   MYSQL_SYSVAR(deadlock_detect),
+  MYSQL_SYSVAR(deadlock_report),
   MYSQL_SYSVAR(page_size),
   MYSQL_SYSVAR(log_buffer_size),
   MYSQL_SYSVAR(log_file_size),

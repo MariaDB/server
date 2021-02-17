@@ -104,6 +104,10 @@ disconnect con2;
 connection default;
 SET @@global.innodb_strict_mode = @old_innodb_strict_mode;
 SET @@global.innodb_file_per_table = @old_innodb_file_per_table;
+SET @save_detect= @@GLOBAL.innodb_deadlock_detect;
+SET @save_report= @@GLOBAL.innodb_deadlock_report;
+SET GLOBAL innodb_deadlock_detect=ON;
+SET GLOBAL innodb_deadlock_report=BASIC;
 SET NAMES utf8;
 CREATE TABLE `t``\""e` (a INT, PRIMARY KEY (a))
 ENGINE=InnoDB
@@ -148,6 +152,8 @@ set sql_mode = 'ANSI_QUOTES';
 SHOW ENGINE InnoDB STATUS;
 Type	Name	Status
 InnoDB		index PRIMARY of table `test`.`t``\""e` /* Partition `p0``\""e`, Subpartition `sp0``\""e` */
+SET GLOBAL innodb_deadlock_detect= @save_detect;
+SET GLOBAL innodb_deadlock_report= @save_report;
 set @@sql_mode = @old_sql_mode;
 connection con1;
 ROLLBACK;

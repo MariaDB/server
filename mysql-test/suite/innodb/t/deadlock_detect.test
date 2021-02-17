@@ -39,14 +39,18 @@ connection con2;
 if (!$have_deadlock) {
 --error ER_LOCK_WAIT_TIMEOUT
 reap;
+disconnect con1;
 }
 if ($have_deadlock) {
---error 0,ER_LOCK_DEADLOCK
+connection con1;
+COMMIT;
+disconnect con1;
+connection con2;
+--error 0,ER_LOCK_DEADLOCK,ER_LOCK_WAIT_TIMEOUT
 reap;
 }
 ROLLBACK;
 disconnect con2;
-disconnect con1;
 
 #
 # Note here that con1 is the older transaction as it

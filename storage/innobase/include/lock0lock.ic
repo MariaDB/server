@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -60,8 +60,8 @@ UNIV_INLINE
 lock_t*
 lock_rec_create(
 /*============*/
-#ifdef WITH_WSREP
 	lock_t*			c_lock,	/*!< conflicting lock */
+#ifdef WITH_WSREP
 	que_thr_t*		thr,	/*!< thread owning trx */
 #endif
 	unsigned		type_mode,/*!< in: lock mode and wait flag */
@@ -76,8 +76,9 @@ lock_rec_create(
 {
 	btr_assert_not_corrupted(block, index);
 	return lock_rec_create_low(
+		c_lock,
 #ifdef WITH_WSREP
-		c_lock, thr,
+		thr,
 #endif
 		type_mode, block->page.id(), block->frame, heap_no,
 		index, trx, caller_owns_trx_mutex);
