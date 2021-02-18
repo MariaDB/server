@@ -1840,28 +1840,24 @@ static void lock_wait_rpl_report(trx_t *trx)
     mysql_mutex_unlock(&lock_sys.wait_mutex);
     lock_sys.wr_lock(SRW_LOCK_CALL);
     mysql_mutex_lock(&lock_sys.wait_mutex);
-  }
-  wait_lock= trx->lock.wait_lock;
-  if (!wait_lock)
-  {
+    wait_lock= trx->lock.wait_lock;
+    if (!wait_lock)
+    {
 func_exit:
-    lock_sys.wr_unlock();
-    return;
+      lock_sys.wr_unlock();
+      return;
+    }
   }
   ut_ad(wait_lock->is_waiting());
   ut_ad(!(wait_lock->type_mode & LOCK_AUTO_INC));
 
   if (wait_lock->is_table())
   {
-    if (lock_t *lock=
-        UT_LIST_GET_FIRST(wait_lock->un_member.tab_lock.table->locks))
-    {
-      do
-        if (!(lock->type_mode & LOCK_AUTO_INC) &&
-            lock->trx->mysql_thd != thd)
-          thd_rpl_deadlock_check(thd, lock->trx->mysql_thd);
-      while ((lock= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock)));
-    }
+    dict_table_t *table= wait_lock->un_member.tab_lock.table;
+    for (lock_t *lock= UT_LIST_GET_FIRST(table->locks); lock;
+         lock= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock))
+      if (!(lock->type_mode & LOCK_AUTO_INC) && lock->trx != trx)
+        thd_rpl_deadlock_check(thd, lock->trx->mysql_thd);
   }
   else if (lock_t *lock=
            (wait_lock->type_mode & LOCK_PREDICATE
