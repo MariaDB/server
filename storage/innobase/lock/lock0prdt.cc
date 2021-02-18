@@ -468,9 +468,6 @@ create:
 	ut_ad(!(type_mode & LOCK_WAIT) || trx->lock.wait_trx);
 
 	lock_t* lock = lock_rec_create(nullptr,
-#ifdef WITH_WSREP
-				       nullptr,
-#endif
 				       type_mode, block, PRDT_HEAPNO, index,
 				       trx, caller_owns_trx_mutex);
 
@@ -734,9 +731,6 @@ lock_prdt_lock(
 	if (lock == NULL) {
 		lock = lock_rec_create(
 			NULL,
-#ifdef WITH_WSREP
-			NULL, /* FIXME: replicate SPATIAL INDEX locks */
-#endif
 			prdt_mode, block, PRDT_HEAPNO,
 			index, trx, FALSE);
 
@@ -835,9 +829,6 @@ lock_place_prdt_page_lock(
 	if (lock == NULL) {
 		lock = lock_rec_create_low(
 			NULL,
-#ifdef WITH_WSREP
-			NULL, /* FIXME: replicate SPATIAL INDEX locks */
-#endif
 			mode, page_id, NULL, PRDT_HEAPNO,
 			index, trx, FALSE);
 

@@ -580,7 +580,6 @@ class lock_sys_t
 {
   friend struct LockGuard;
   friend struct LockMultiGuard;
-  friend struct LockGGuard;
 
   /** Hash table latch */
   struct hash_latch
@@ -920,18 +919,6 @@ private:
   lock_sys_t::hash_latch *latch;
 };
 
-#ifdef WITH_WSREP
-/** lock_sys.latch guard for a page_id_t shard */
-struct LockGGuard
-{
-  LockGGuard(lock_sys_t::hash_table &hash, const page_id_t id, bool all);
-  ~LockGGuard();
-private:
-  /** The hash bucket (nullptr if all of them) */
-  lock_sys_t::hash_latch *latch;
-};
-#endif
-
 /** lock_sys.latch guard for 2 page_id_t shards */
 struct LockMultiGuard
 {
@@ -952,9 +939,6 @@ lock_t*
 lock_rec_create(
 /*============*/
 	lock_t*			c_lock,	/*!< conflicting lock */
-#ifdef WITH_WSREP
-	que_thr_t*		thr,	/*!< thread owning trx */
-#endif
 	unsigned		type_mode,/*!< in: lock mode and wait flag */
 	const buf_block_t*	block,	/*!< in: buffer block containing
 					the record */
@@ -984,9 +968,6 @@ without checking for deadlocks or conflicts.
 lock_t*
 lock_rec_create_low(
 	lock_t*		c_lock,
-#ifdef WITH_WSREP
-	que_thr_t*	thr,	/*!< thread owning trx */
-#endif
 	unsigned	type_mode,
 	const page_id_t	page_id,
 	const page_t*	page,

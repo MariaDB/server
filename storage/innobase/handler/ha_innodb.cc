@@ -17991,162 +17991,66 @@ static struct st_mysql_storage_engine innobase_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
 #ifdef WITH_WSREP
-
-struct bg_wsrep_kill_trx_arg {
-       my_thread_id    thd_id, bf_thd_id;
-       trx_id_t        trx_id, bf_trx_id;
-       bool            signal;
-};
-
-/** Kill one transaction from a background manager thread
-
-wsrep_innobase_kill_one_trx() is invoked when lock_sys.mutex and trx mutex
-are taken, wsrep_thd_bf_abort() cannot be used there as it takes THD mutexes
-that must be taken before lock_sys.mutex and trx mutex. That's why
-wsrep_innobase_kill_one_trx only posts the killing task to the manager thread
-and the actual killing happens asynchronously here.
-
-As no mutexes were held we don't know whether THD or trx pointers are still
-valid, so we need to pass thread/trx ids and perform a lookup.
-*/
-static void bg_wsrep_kill_trx(void *void_arg)
+/** Request a transaction to be killed that holds a conflicting lock.
+@param bf_trx    brute force applier transaction
+@param thd_id    thd_get_thread_id(victim_trx->mysql_htd)
+@param trx_id    victim_trx->id */
+void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
 {
-	bg_wsrep_kill_trx_arg *arg= (bg_wsrep_kill_trx_arg *)void_arg;
-	THD *thd, *bf_thd;
-	trx_t *victim_trx;
-	bool aborting= false;
+  THD *bf_thd= bf_trx->mysql_thd;
 
-	if ((bf_thd= find_thread_by_id(arg->bf_thd_id)))
-		wsrep_thd_LOCK(bf_thd);
-	if ((thd= find_thread_by_id(arg->thd_id)))
-		wsrep_thd_LOCK(thd);
-
-	if (!thd || !bf_thd || !(victim_trx= thd_to_trx(thd)))
-		goto ret0;
-
-	lock_sys.wr_lock(SRW_LOCK_CALL);
-	mysql_mutex_lock(&lock_sys.wait_mutex);
-	victim_trx->mutex_lock();
-	if (victim_trx->id != arg->trx_id ||
-	    victim_trx->state == TRX_STATE_COMMITTED_IN_MEMORY)
-	{
-		/* apparently victim trx was meanwhile rolled back. */
-		goto ret1;
-	}
-
-	DBUG_ASSERT(wsrep_on(bf_thd));
-
-	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
-
-	WSREP_DEBUG("Aborter %s trx_id: " TRX_ID_FMT " thread: %ld "
-		"seqno: %lld client_state: %s client_mode: %s transaction_mode: %s "
-		"query: %s",
-		wsrep_thd_is_BF(bf_thd, false) ? "BF" : "normal",
-		arg->bf_trx_id,
-		thd_get_thread_id(bf_thd),
-		wsrep_thd_trx_seqno(bf_thd),
-		wsrep_thd_client_state_str(bf_thd),
-		wsrep_thd_client_mode_str(bf_thd),
-		wsrep_thd_transaction_state_str(bf_thd),
-		wsrep_thd_query(bf_thd));
-
-	WSREP_DEBUG("Victim %s trx_id: " TRX_ID_FMT " thread: %ld "
-		"seqno: %lld client_state: %s  client_mode: %s transaction_mode: %s "
-		"query: %s",
-		wsrep_thd_is_BF(thd, false) ? "BF" : "normal",
-		victim_trx->id,
-		thd_get_thread_id(thd),
-		wsrep_thd_trx_seqno(thd),
-		wsrep_thd_client_state_str(thd),
-		wsrep_thd_client_mode_str(thd),
-		wsrep_thd_transaction_state_str(thd),
-		wsrep_thd_query(thd));
-
-	/* Mark transaction as a victim for Galera abort */
-	victim_trx->lock.was_chosen_as_deadlock_victim.fetch_or(2);
-	if (wsrep_thd_set_wsrep_aborter(bf_thd, thd))
-	{
-	  WSREP_DEBUG("innodb kill transaction skipped due to wsrep_aborter set");
-	  goto ret1;
-	}
-
-	aborting= true;
-
-ret1:
-	victim_trx->mutex_unlock();
-	lock_sys.wr_unlock();
-	mysql_mutex_unlock(&lock_sys.wait_mutex);
-ret0:
-	if (thd) {
-		wsrep_thd_UNLOCK(thd);
-		if (aborting) {
-			DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
-			wsrep_thd_bf_abort(bf_thd, thd, arg->signal);
-		}
-		wsrep_thd_kill_UNLOCK(thd);
-	}
-	if (bf_thd) {
-		wsrep_thd_UNLOCK(bf_thd);
-		wsrep_thd_kill_UNLOCK(bf_thd);
-	}
-	free(arg);
-}
-
-/** This function is used to kill one transaction.
-
-This transaction was open on this node (not-yet-committed), and a
-conflicting writeset from some other node that was being applied
-caused a locking conflict.  First committed (from other node)
-wins, thus open transaction is rolled back.  BF stands for
-brute-force: any transaction can get aborted by galera any time
-it is necessary.
-
-This conflict can happen only when the replicated writeset (from
-other node) is being applied, not when it’s waiting in the queue.
-If our local transaction reached its COMMIT and this conflicting
-writeset was in the queue, then it should fail the local
-certification test instead.
-
-A brute force abort is only triggered by a locking conflict
-between a writeset being applied by an applier thread (slave thread)
-and an open transaction on the node, not by a Galera writeset
-comparison as in the local certification failure.
-
-@param[in]	bf_thd		Brute force (BF) thread
-@param[in,out]	victim_trx	Vimtim trx to be killed
-@param[in]	signal		Should victim be signaled */
-void
-wsrep_innobase_kill_one_trx(
-	THD* bf_thd,
-	trx_t *victim_trx,
-	bool signal)
-{
-	ut_ad(bf_thd);
-	ut_ad(victim_trx);
-	ut_ad(victim_trx->mutex_is_owner());
-
-	DBUG_ENTER("wsrep_innobase_kill_one_trx");
-
-	DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
-			 {
-			   const char act[]=
-			     "now "
-			     "SIGNAL sync.before_wsrep_thd_abort_reached "
-			     "WAIT_FOR signal.before_wsrep_thd_abort";
-			   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
-							      STRING_WITH_LEN(act)));
-			 };);
-
-	trx_t* bf_trx= thd_to_trx(bf_thd);
-	bg_wsrep_kill_trx_arg *arg = (bg_wsrep_kill_trx_arg*)malloc(sizeof(*arg));
-	arg->thd_id     = thd_get_thread_id(victim_trx->mysql_thd);
-	arg->trx_id     = victim_trx->id;
-	arg->bf_thd_id  = thd_get_thread_id(bf_thd);
-	arg->bf_trx_id  = bf_trx ? bf_trx->id : TRX_ID_MAX;
-	arg->signal     = signal;
-	mysql_manager_submit(bg_wsrep_kill_trx, arg);
-
-	DBUG_VOID_RETURN;
+  if (THD *vthd= find_thread_by_id(thd_id))
+  {
+    bool aborting= false;
+    wsrep_thd_LOCK(vthd);
+    if (trx_t *vtrx= thd_to_trx(vthd))
+    {
+      lock_sys.wr_lock(SRW_LOCK_CALL);
+      mysql_mutex_lock(&lock_sys.wait_mutex);
+      vtrx->mutex_lock();
+      if (vtrx->id == trx_id && vtrx->state == TRX_STATE_ACTIVE)
+      {
+        WSREP_LOG_CONFLICT(bf_thd, vthd, TRUE);
+        WSREP_DEBUG("Aborter BF trx_id: " TRX_ID_FMT " thread: %ld "
+                    "seqno: %lld client_state: %s "
+                    "client_mode: %s transaction_mode: %s query: %s",
+                    bf_trx->id,
+                    thd_get_thread_id(bf_thd),
+                    wsrep_thd_trx_seqno(bf_thd),
+                    wsrep_thd_client_state_str(bf_thd),
+                    wsrep_thd_client_mode_str(bf_thd),
+                    wsrep_thd_transaction_state_str(bf_thd),
+                    wsrep_thd_query(bf_thd));
+        WSREP_DEBUG("Victim %s trx_id: " TRX_ID_FMT " thread: %ld "
+                    "seqno: %lld client_state: %s "
+                    "client_mode: %s transaction_mode: %s query: %s",
+                    wsrep_thd_is_BF(vthd, false) ? "BF" : "normal",
+                    vtrx->id,
+                    thd_get_thread_id(vthd),
+                    wsrep_thd_trx_seqno(vthd),
+                    wsrep_thd_client_state_str(vthd),
+                    wsrep_thd_client_mode_str(vthd),
+                    wsrep_thd_transaction_state_str(vthd),
+                    wsrep_thd_query(vthd));
+        /* Mark transaction as a victim for Galera abort */
+        vtrx->lock.was_chosen_as_deadlock_victim.fetch_or(2);
+        if (!wsrep_thd_set_wsrep_aborter(bf_thd, vthd))
+          aborting= true;
+        else
+          WSREP_DEBUG("kill transaction skipped due to wsrep_aborter set");
+      }
+      lock_sys.wr_unlock();
+      mysql_mutex_unlock(&lock_sys.wait_mutex);
+      vtrx->mutex_unlock();
+    }
+    wsrep_thd_UNLOCK(vthd);
+    if (aborting)
+    {
+      DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
+      wsrep_thd_bf_abort(bf_thd, vthd, true);
+    }
+    wsrep_thd_kill_UNLOCK(vthd);
+  }
 }
 
 /** This function forces the victim transaction to abort. Aborting the

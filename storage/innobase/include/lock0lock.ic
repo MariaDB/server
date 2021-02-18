@@ -61,9 +61,6 @@ lock_t*
 lock_rec_create(
 /*============*/
 	lock_t*			c_lock,	/*!< conflicting lock */
-#ifdef WITH_WSREP
-	que_thr_t*		thr,	/*!< thread owning trx */
-#endif
 	unsigned		type_mode,/*!< in: lock mode and wait flag */
 	const buf_block_t*	block,	/*!< in: buffer block containing
 					the record */
@@ -77,9 +74,6 @@ lock_rec_create(
 	btr_assert_not_corrupted(block, index);
 	return lock_rec_create_low(
 		c_lock,
-#ifdef WITH_WSREP
-		thr,
-#endif
 		type_mode, block->page.id(), block->frame, heap_no,
 		index, trx, caller_owns_trx_mutex);
 }
