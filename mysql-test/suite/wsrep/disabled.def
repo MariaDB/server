@@ -10,3 +10,5 @@
 #
 ##############################################################################
 
+
+mdev_6832: wsrep_provider is read-only for security reasons
