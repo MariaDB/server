@@ -1,7 +1,6 @@
 --echo Unloading wsrep provider ...
 
 --let $wsrep_cluster_address_orig = `SELECT @@wsrep_cluster_address`
---let $wsrep_provider_orig = `SELECT @@wsrep_provider`
 --let $wsrep_provider_options_orig = `SELECT @@wsrep_provider_options`
 --let $wsrep_error_log_orig = `SELECT @@log_error`
 if(!$wsrep_log_error_orig)
@@ -12,4 +11,4 @@ if(!$wsrep_log_error_orig)
 }
 --let LOG_FILE= $wsrep_log_error_orig
 
-SET GLOBAL wsrep_provider = 'none';
+SET GLOBAL wsrep_cluster_address = '';
