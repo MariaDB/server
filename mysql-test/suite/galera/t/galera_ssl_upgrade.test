@@ -11,6 +11,11 @@
 SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
 SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
+--connection node_1
+call mtr.add_suppression("WSREP: write_handler(): protocol is shutdown.*");
+--connection node_2
+call mtr.add_suppression("WSREP: write_handler(): protocol is shutdown.*");
+
 # Setup galera ports
 --connection node_1
 --source suite/galera/include/galera_base_port.inc
