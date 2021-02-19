@@ -7398,7 +7398,7 @@ int handler::period_row_upd_fk_check(const uchar *old_data, const uchar *new_dat
   new_start.fill(start_field->ptr_in_record(new_data));
   new_end.fill(end_field->ptr_in_record(new_data));
 
-  // we will use record_dup instead of old_data to modify period values
+  // We will use record_dup instead of old_data to modify period values
   memcpy(record_dup, old_data, table->s->reclength);
 
   for(int k= 0; !is_history_update && k < table->referenced_keys; k++)
