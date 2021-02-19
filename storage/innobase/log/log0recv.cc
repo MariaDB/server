@@ -2072,6 +2072,8 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 
 	lsn_t start_lsn = 0, end_lsn = 0;
 
+	bool skipped_after_init = false;
+
 	if (srv_is_tablespace_truncated(recv_addr->space)) {
 		/* The table will be truncated after applying
 		normal redo log records. */
@@ -2081,8 +2083,7 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 	for (recv_t* recv = UT_LIST_GET_FIRST(recv_addr->rec_list);
 	     recv; recv = UT_LIST_GET_NEXT(rec_list, recv)) {
 		ut_ad(recv->start_lsn);
-		end_lsn = recv->end_lsn;
-		ut_ad(end_lsn <= log_sys->log.scanned_lsn);
+		ut_ad(recv->end_lsn <= log_sys->log.scanned_lsn);
 
 		if (recv->start_lsn < page_lsn) {
 			/* Ignore this record, because there are later changes
@@ -2091,16 +2092,22 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 				 << get_mlog_string(recv->type)
 				 << " LSN " << recv->start_lsn << " < "
 				 << page_lsn);
+			skipped_after_init = true;
+			end_lsn = recv->end_lsn;
 		} else if (recv->start_lsn < init_lsn) {
 			DBUG_LOG("ib_log", "init skip "
 				 << get_mlog_string(recv->type)
 				 << " LSN " << recv->start_lsn << " < "
 				 << init_lsn);
+			skipped_after_init = false;
+			end_lsn = recv->end_lsn;
 		} else if (srv_was_tablespace_truncated(
 				   fil_space_get(recv_addr->space))
 			   && recv->start_lsn
 			   < truncate_t::get_truncated_tablespace_init_lsn(
 				   recv_addr->space)) {
+			skipped_after_init = false;
+			end_lsn = recv->end_lsn;
 			/* If per-table tablespace was truncated and
 			there exist REDO records before truncate that
 			are to be applied as part of recovery
@@ -2108,6 +2115,25 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 			done) skip such records using lsn check as
 			they may not stand valid post truncate. */
 		} else {
+
+			if (skipped_after_init) {
+				skipped_after_init = false;
+				fil_space_t* space =
+					fil_space_get(recv_addr->space);
+				ut_a(space);
+				if (!space->enable_lsn
+					&& srv_safe_truncate
+					&& (end_lsn != page_lsn)) {
+					ib::warn()
+					<< "The last skipped log record LSN "
+					<< end_lsn
+					<< " is not equal to page LSN "
+					<< page_lsn;
+					ut_ad(0);
+				}
+			}
+			end_lsn = recv->end_lsn;
+
 			if (!start_lsn) {
 				start_lsn = recv->start_lsn;
 			}
@@ -2168,7 +2194,15 @@ skip_log:
 
 	if (start_lsn) {
 		log_flush_order_mutex_enter();
-		buf_flush_recv_note_modification(block, start_lsn, end_lsn);
+		buf_flush_recv_note_modification(block, start_lsn,
+		/* When some record is applied, end_lsn is counted as
+		recv->start_lsn + recv->len, i.e. this is the end lsn of
+		the last applied record for the current page,
+		but not mtr commit lsn, but mtr can modify
+		several pages. When mtr is committed,
+		buf_page_t::newest_modification is updated with mtr commit lsn,
+		let's do the same when page is recovered. */
+			UT_LIST_GET_LAST(recv_addr->rec_list)->end_lsn);
 		log_flush_order_mutex_exit();
 	}
 
