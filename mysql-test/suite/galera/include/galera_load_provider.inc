@@ -1,8 +1,6 @@
 --echo Loading wsrep provider ...
 
 --disable_query_log
---eval SET GLOBAL wsrep_provider = '$wsrep_provider_orig';
-
 #
 # count occurences of successful node starts in error log
 #
