@@ -6742,11 +6742,11 @@ static int period_locate_overlapping_record(handler *handler,
 {
   // number of key parts not including period fields
   auto base_parts= key.user_defined_key_parts - 2;
-  const uint period_field_length= key_to_cmp.key_part[base_parts].length;
-  const uint key_base_length= key_to_cmp.key_length - 2 * period_field_length;
+  const uint period_field_length= key.key_part[base_parts].length;
+  DBUG_ASSERT(period_field_length == key_to_cmp.key_part[base_parts].length);
+  const uint key_base_length= key.key_length - 2 * period_field_length;
 
-
-  key_copy(key_buf, record_to_cmp, &key_to_cmp, 0);
+  key_copy(key_buf, record_to_cmp, &key_to_cmp, &key, 0);
 
   /*
     Copy period_start to period_end.
@@ -7210,6 +7210,8 @@ int handler::period_row_del_fk_check(const uchar *record)
   {
     const auto &fk= table->referenced[k];
 
+    if (key_rec_is_null(*fk.referenced_key, record))
+      continue;
     if (!fk.has_period)
       continue;
 
@@ -7362,6 +7364,9 @@ int handler::period_row_ins_fk_check(const uchar *record)
   for(int k= 0; k < table->foreign_keys; k++)
   {
     const auto &fk= table->foreign[k];
+
+    if(key_rec_is_null(*fk.foreign_key, record))
+      return 0;
     if (!fk.has_period)
       continue;
     if (table->versioned() && !table->vers_end_field()->is_max(record))
@@ -7427,6 +7432,8 @@ int handler::period_row_upd_fk_check(const uchar *old_data, const uchar *new_dat
   for(int k= 0; !is_history_update && k < table->referenced_keys; k++)
   {
     const auto &fk= table->referenced[k];
+    if (key_rec_is_null(*fk.referenced_key, old_data))
+      continue;
     if (!fk.has_period)
       continue;
 
@@ -7471,6 +7478,9 @@ int handler::period_row_upd_fk_check(const uchar *old_data, const uchar *new_dat
   for(int k= 0; !is_versioned_delete && k < table->foreign_keys; k++)
   {
     const auto &fk= table->foreign[k];
+
+    if (key_rec_is_null(*fk.foreign_key, new_data))
+      continue;
     if (!fk.has_period)
       continue;
 

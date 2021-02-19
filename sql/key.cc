@@ -107,27 +107,32 @@ int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
 
   @param to_key      buffer that will be used as a key
   @param from_record full record to be copied from
-  @param key_info    descriptor of the index
+  @param from_key_info  a descriptor of the index that corresponds a data to be
+                        copied from the record
+  @param to_key_info    a descriptor of the index that describes a key structre
+                        to copy to. It may differ in case of foreign key
+                        lookups: basically the key part structures may be
+                        different in whether it store the null part or not.
   @param key_length  specifies length of all keyparts that will be copied
   @param with_zerofill  skipped bytes in the key buffer to be filled with 0
 */
 
-void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
-              uint key_length, bool with_zerofill)
+void key_copy(uchar *to_key, const uchar *from_record, const KEY *from_key_info,
+              const KEY *to_key_info, uint key_length, bool with_zerofill)
 {
   uint length;
-  KEY_PART_INFO *key_part;
+  KEY_PART_INFO *key_part, *to_key_part;
 
   if (key_length == 0)
-    key_length= key_info->key_length;
-  for (key_part= key_info->key_part;
+    key_length= to_key_info->key_length;
+  for (key_part= from_key_info->key_part, to_key_part= to_key_info->key_part;
        (int) key_length > 0;
-       key_part++, to_key+= length, key_length-= length)
+       key_part++, to_key_part++, to_key+= length, key_length-= length)
   {
-    if (key_part->null_bit)
+    if (to_key_part->null_bit)
     {
       *to_key++= MY_TEST(from_record[key_part->null_offset] &
-                         key_part->null_bit);
+                         to_key_part->null_bit);
       key_length--;
       if (to_key[-1])
       {
@@ -147,8 +152,9 @@ void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
     {
       key_length-= HA_KEY_BLOB_LENGTH;
       length= MY_MIN(key_length, key_part->length);
+      bool spatial= from_key_info->flags & HA_SPATIAL;
       uint bytes= key_part->field->get_key_image(to_key, length, from_ptr,
-		      key_info->flags & HA_SPATIAL ? Field::itMBR : Field::itRAW);
+                                         spatial ? Field::itMBR : Field::itRAW);
       if (with_zerofill && bytes < length)
         bzero((char*) to_key + bytes, length - bytes);
       to_key+= HA_KEY_BLOB_LENGTH;
@@ -165,6 +171,11 @@ void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
   }
 }
 
+void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
+              uint key_length, bool with_zerofill)
+{
+  key_copy(to_key, from_record, key_info, key_info, key_length, with_zerofill);
+}
 
 /**
   Restore a key from some buffer to record.
