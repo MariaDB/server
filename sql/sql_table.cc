@@ -3975,6 +3975,13 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
     List_iterator<partition_element> part_it(part_info->partitions);
     partition_element *part_elem;
 
+    DBUG_ASSERT(foreign_keys.elements == 0);
+    if (referenced_keys.elements > 0)
+    {
+      my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0), "FOREIGN KEY");
+      goto err;
+    }
+
     while ((part_elem= part_it++))
     {
       if (part_elem->part_comment)
@@ -4141,7 +4148,7 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
     {
       if (key->foreign)
       {
-        my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0), 
+        my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0),
                  "FOREIGN KEY");
         goto err;
       }
@@ -11677,6 +11684,11 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_backup_storage &shares, FK_list 
       }
       return true;
     }
+    else if (ref_sa.share->partitioned())
+    {
+      my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0), "FOREIGN KEY");
+      return true;
+    }
     FK_ddl_backup *bak= shares.emplace(NULL, ref_sa.share, std::move(ref_sa));
     if (!bak)
     {
@@ -12116,6 +12128,11 @@ bool Alter_table_ctx::fk_handle_alter(THD *thd)
     if (!ref_table.share)
       return true;
     TABLE_SHARE *ref_share= ref_table.share;
+    if (ref_share->partitioned())
+    {
+      my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0), "FOREIGN KEY");
+      return true;
+    }
     FK_share_backup *ref_bak= fk_add_backup(ref_share);
     if (!ref_bak)
       return true;

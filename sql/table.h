@@ -909,6 +909,11 @@ struct TABLE_SHARE
   plugin_ref default_part_plugin;
 #endif
 
+  bool partitioned() const
+  {
+    return IF_PARTITIONING(partition_info_str != NULL, false);
+  }
+
   /**
     System versioning and application-time periods support.
   */
