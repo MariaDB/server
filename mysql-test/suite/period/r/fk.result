@@ -292,17 +292,17 @@ ERROR HY000: Fields of `fp` and `test`.`t1`.`p` have different types
 # Check self-referenced table
 create or replace table tg (id int, prev int,
 s date, e date, period for p(s, e),
-unique(id, p without overlaps),
+primary key(id, p without overlaps),
 foreign key(prev, period p) references tg(id, period p));
 show create table tg;
 Table	Create Table
 tg	CREATE TABLE `tg` (
-  `id` int(11) DEFAULT NULL,
+  `id` int(11) NOT NULL,
   `prev` int(11) DEFAULT NULL,
   `s` date NOT NULL,
   `e` date NOT NULL,
   PERIOD FOR `p` (`s`, `e`),
-  UNIQUE KEY `id` (`id`,`p` WITHOUT OVERLAPS),
+  PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS),
   KEY `prev` (`prev`,`e`,`s`),
   CONSTRAINT `tg_ibfk_1` FOREIGN KEY (`prev`, period `p`) REFERENCES `tg` (`id`, period `p`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -317,7 +317,7 @@ id	prev	s	e
 delete from tg where id = 1;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 insert into tg values(1, 0, '2017-01-02', '2017-01-22');
-ERROR 23000: Duplicate entry '1-2017-01-22-2017-01-02' for key 'id'
+ERROR 23000: Duplicate entry '1-2017-01-22-2017-01-02' for key 'PRIMARY'
 insert into tg values(1, 0, '2017-01-22', '2017-01-25');
 ERROR 23000: Cannot add or update a child row: a foreign key constraint fails
 insert into tg values(0, 0, '2017-01-20', '2017-01-30');

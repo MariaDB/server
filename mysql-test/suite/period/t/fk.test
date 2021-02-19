@@ -246,7 +246,7 @@ alter table s add foreign key(id, x, period fp)
 --echo # Check self-referenced table
 create or replace table tg (id int, prev int,
                             s date, e date, period for p(s, e),
-                            unique(id, p without overlaps),
+                            primary key(id, p without overlaps),
                             foreign key(prev, period p) references tg(id, period p));
 show create table tg;
 
