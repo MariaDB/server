@@ -61,13 +61,11 @@ enum srv_flush_t
   /** do not flush after writing */
   SRV_NOSYNC,
   /** invoke os_file_set_nocache() on data files. This implies using
-  non-buffered IO but still using fsync, the reason for which is that
-  some FS do not flush meta-data when unbuffered IO happens */
+  unbuffered I/O but still fdatasync(), because some filesystems might
+  not flush meta-data on write completion */
   SRV_O_DIRECT,
-  /** do not use fsync() when using direct IO i.e.: it can be set to
-  avoid the fsync() call that we make when using SRV_UNIX_O_DIRECT.
-  However, in this case user/DBA should be sure about the integrity of
-  the meta-data */
+  /** Like O_DIRECT, but skip fdatasync(), assuming that the data is
+  durable on write completion */
   SRV_O_DIRECT_NO_FSYNC
 #ifdef _WIN32
   /** Traditional Windows appoach to open all files without caching,

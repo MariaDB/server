@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -1112,12 +1112,8 @@ os_file_create_simple_func(
 	/* This function is always called for data files, we should disable
 	OS caching (O_DIRECT) here as we do in os_file_create_func(), so
 	we open the same file in the same mode, see man page of open(2). */
-       if (!srv_read_only_mode
-	   && *success
-	   && (srv_file_flush_method == SRV_O_DIRECT
-	       || srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)) {
-
-	       os_file_set_nocache(file, name, mode_str);
+	if (!srv_read_only_mode && *success) {
+		os_file_set_nocache(file, name, mode_str);
 	}
 
 #ifdef USE_FILE_LOCK
@@ -1426,11 +1422,8 @@ os_file_create_func(
 	if (!read_only
 	    && *success
 	    && type != OS_LOG_FILE && type != OS_DATA_TEMP_FILE
-	    && type != OS_DATA_FILE_NO_O_DIRECT
-	    && (srv_file_flush_method == SRV_O_DIRECT
-		|| srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)) {
-
-	       os_file_set_nocache(file, name, mode_str);
+	    && type != OS_DATA_FILE_NO_O_DIRECT) {
+		os_file_set_nocache(file, name, mode_str);
 	}
 
 #ifdef USE_FILE_LOCK
@@ -3484,6 +3477,15 @@ os_file_set_nocache(
 	const char*	file_name	MY_ATTRIBUTE((unused)),
 	const char*	operation_name	MY_ATTRIBUTE((unused)))
 {
+	const auto innodb_flush_method = srv_file_flush_method;
+	switch (innodb_flush_method) {
+	case SRV_O_DIRECT:
+	case SRV_O_DIRECT_NO_FSYNC:
+		break;
+	default:
+		return;
+	}
+
 	/* some versions of Solaris may not have DIRECTIO_ON */
 #if defined(UNIV_SOLARIS) && defined(DIRECTIO_ON)
 	if (directio(fd, DIRECTIO_ON) == -1) {
@@ -3502,23 +3504,11 @@ os_file_set_nocache(
 		if (errno_save == EINVAL) {
 			if (!warning_message_printed) {
 				warning_message_printed = true;
-# ifdef UNIV_LINUX
-				ib::warn()
-					<< "Failed to set O_DIRECT on file"
-					<< file_name << "; " << operation_name
-					<< ": " << strerror(errno_save) << ", "
-					"continuing anyway. O_DIRECT is "
-					"known to result in 'Invalid argument' "
-					"on Linux on tmpfs, "
-					"see MySQL Bug#26662.";
-# else /* UNIV_LINUX */
-				goto short_warning;
-# endif /* UNIV_LINUX */
+				ib::info()
+					<< "Setting O_DIRECT on file "
+					<< file_name << " failed";
 			}
 		} else {
-# ifndef UNIV_LINUX
-short_warning:
-# endif
 			ib::warn()
 				<< "Failed to set O_DIRECT on file "
 				<< file_name << "; " << operation_name

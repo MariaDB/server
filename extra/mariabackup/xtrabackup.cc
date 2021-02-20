@@ -1506,7 +1506,7 @@ struct my_option xb_server_options[] =
    "With which method to flush data.",
    &srv_file_flush_method, &srv_file_flush_method,
    &innodb_flush_method_typelib, GET_ENUM, REQUIRED_ARG,
-   IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_FSYNC), 0, 0, 0, 0, 0},
+   IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_O_DIRECT), 0, 0, 0, 0, 0},
 
   {"innodb_log_buffer_size", OPT_INNODB_LOG_BUFFER_SIZE,
    "The size of the buffer which InnoDB uses to write log to the log files on disk.",

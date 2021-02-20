@@ -18308,7 +18308,7 @@ static MYSQL_SYSVAR_ULONG(flush_log_at_trx_commit, srv_flush_log_at_trx_commit,
 static MYSQL_SYSVAR_ENUM(flush_method, innodb_flush_method,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "With which method to flush data.",
-  NULL, NULL, IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_FSYNC),
+  NULL, NULL, IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_O_DIRECT),
   &innodb_flush_method_typelib);
 
 static MYSQL_SYSVAR_BOOL(force_load_corrupted, srv_load_corrupted,
