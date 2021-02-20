@@ -5579,7 +5579,7 @@ int ha_create_table(THD *thd, const char *path,
   share.m_psi= PSI_CALL_get_table_share(temp_table, &share);
 
   if (open_table_from_share(thd, &share, &empty_clex_str, 0, READ_ALL, 0,
-                            &table, true))
+                            &table))
   {
     goto err;
   }

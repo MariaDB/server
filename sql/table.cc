@@ -26,7 +26,7 @@
 #include "sql_parse.h"                          // free_items
 #include "strfunc.h"                            // unhex_type2
 #include "ha_partition.h"        // PART_EXT
-                                 // mysql_unpack_partition,
+                                 // unpack_partition,
                                  // fix_partition_func, partition_info
 #include "sql_base.h"
 #include "create_options.h"
@@ -511,6 +511,12 @@ void TABLE_SHARE::destroy()
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   plugin_unlock(NULL, default_part_plugin);
+  if (part_info)
+  {
+    /* Allocated through table->mem_root, freed below */
+    free_items(part_info->item_free_list);
+    part_info->item_free_list= 0;
+  }
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
 
   PSI_CALL_release_table_share(m_psi);
@@ -1920,15 +1926,39 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     {
       uint32 partition_info_str_len = uint4korr(next_chunk);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-      if ((share->partition_info_buffer_size=
-             share->partition_info_str_len= partition_info_str_len))
+      if ((share->partition_info_buffer_size= partition_info_str_len))
       {
-        if (!(share->partition_info_str= (char*)
+        if (!(share->part_sql.str= (char*)
               memdup_root(&share->mem_root, next_chunk + 4,
                           partition_info_str_len + 1)))
         {
           goto err;
         }
+        share->part_sql.length= partition_info_str_len;
+        /*
+          In this execution we must avoid calling thd->change_item_tree since
+          we might release memory before statement is completed. We do this
+          by changing to a new statement arena. As part of this arena we also
+          set the memory root to be the memory root of the table since we
+          call the parser and fix_fields which both can allocate memory for
+          item objects. We keep the arena to ensure that we can release the
+          free_list when closing the table object.
+          SEE Bug #21658
+        */
+
+        Query_arena *backup_stmt_arena_ptr= thd->stmt_arena;
+        Query_arena backup_arena;
+        Query_arena part_func_arena(&mem_root, Query_arena::STMT_INITIALIZED);
+        thd->set_n_backup_active_arena(&part_func_arena, &backup_arena);
+        thd->stmt_arena= &part_func_arena;
+
+        bool error=
+          share->unpack_partition(thd, plugin_hton(share->default_part_plugin));
+        thd->stmt_arena= backup_stmt_arena_ptr;
+        thd->restore_active_arena(&part_func_arena, &backup_arena);
+        share->part_info->item_free_list= part_func_arena.free_list;
+        if (error)
+          goto err;
       }
 #else
       if (partition_info_str_len)
@@ -3381,12 +3411,11 @@ bool TABLE_SHARE::write_par_image(const uchar *par, size_t len)
 
 int TABLE_SHARE::read_frm_image(const uchar **frm, size_t *len)
 {
-  if (IF_PARTITIONING(partition_info_str, 0))   // cannot discover a partition
+  if (IF_PARTITIONING(part_info, 0))   // cannot discover a partition
   {
     DBUG_ASSERT(db_type()->discover_table == 0);
     return 1;
   }
-
   if (frm_image)
   {
     *frm= frm_image->str;
@@ -3602,7 +3631,7 @@ unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   if (parser_state.init(thd, expr_str->c_ptr_safe(), expr_str->length()))
     goto end;
 
-  if (init_lex_with_single_table(thd, table, &lex))
+  if (init_lex_with_single_table(thd, table, NULL, &lex))
     goto end;
 
   lex.parse_vcol_expr= true;
@@ -3812,7 +3841,7 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
 enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                        const LEX_CSTRING *alias, uint db_stat, uint prgflag,
                        uint ha_open_flags, TABLE *outparam,
-                       bool is_create_table, List<String> *partitions_to_open)
+                       List<String> *partitions_to_open)
 {
   enum open_frm_error error;
   uint records, i, bitmap_size, bitmap_count;
@@ -4015,69 +4044,43 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  bool work_part_info_used;
-  if (share->partition_info_str_len && outparam->file)
+  bool err;
+  if (share->part_sql.length && outparam->file)
   {
-  /*
-    In this execution we must avoid calling thd->change_item_tree since
-    we might release memory before statement is completed. We do this
-    by changing to a new statement arena. As part of this arena we also
-    set the memory root to be the memory root of the table since we
-    call the parser and fix_fields which both can allocate memory for
-    item objects. We keep the arena to ensure that we can release the
-    free_list when closing the table object.
-    SEE Bug #21658
-  */
+    DBUG_ASSERT(share->part_info);
+    outparam->part_info= share->part_info->get_clone(&outparam->mem_root);
+
+    if (!outparam->part_info)
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      error_reported= true;
+      goto err;
+    }
+
+    outparam->part_info->table= outparam;
+    outparam->file->set_part_info(outparam->part_info);
+    outparam->part_info->is_auto_partitioned= share->auto_partitioned;
+    DBUG_PRINT("info", ("autopartitioned: %u", share->auto_partitioned));
 
     Query_arena *backup_stmt_arena_ptr= thd->stmt_arena;
     Query_arena backup_arena;
-    Query_arena part_func_arena(&outparam->mem_root,
-                                Query_arena::STMT_INITIALIZED);
+    Query_arena part_func_arena(&outparam->mem_root, Query_arena::STMT_INITIALIZED);
     thd->set_n_backup_active_arena(&part_func_arena, &backup_arena);
     thd->stmt_arena= &part_func_arena;
-    bool tmp;
 
-    tmp= mysql_unpack_partition(thd, share->partition_info_str,
-                                share->partition_info_str_len,
-                                outparam, is_create_table,
-                                plugin_hton(share->default_part_plugin),
-                                &work_part_info_used);
-    if (tmp)
-    {
-      thd->stmt_arena= backup_stmt_arena_ptr;
-      thd->restore_active_arena(&part_func_arena, &backup_arena);
-      goto partititon_err;
-    }
-    outparam->part_info->is_auto_partitioned= share->auto_partitioned;
-    DBUG_PRINT("info", ("autopartitioned: %u", share->auto_partitioned));
-    /* 
-      We should perform the fix_partition_func in either local or
-      caller's arena depending on work_part_info_used value.
-    */
-    if (!work_part_info_used)
-      tmp= fix_partition_func(thd, outparam, is_create_table);
+    if (share->part_info->part_expr)
+      outparam->part_info->part_expr= share->part_info->part_expr->build_clone(thd);
+
+    if (share->part_info->subpart_expr)
+      outparam->part_info->subpart_expr= share->part_info->subpart_expr->build_clone(thd);
+
+    err= fix_partition_func(thd, outparam);
     thd->stmt_arena= backup_stmt_arena_ptr;
     thd->restore_active_arena(&part_func_arena, &backup_arena);
-    if (!tmp)
-    {
-      if (work_part_info_used)
-        tmp= fix_partition_func(thd, outparam, is_create_table);
-    }
     outparam->part_info->item_free_list= part_func_arena.free_list;
-partititon_err:
-    if (tmp)
-    {
-      if (is_create_table)
-      {
-        /*
-          During CREATE/ALTER TABLE it is ok to receive errors here.
-          It is not ok if it happens during the opening of an frm
-          file as part of a normal query.
-        */
-        error_reported= TRUE;
-      }
+
+    if (err)
       goto err;
-    }
   }
 #endif
 

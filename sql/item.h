@@ -2125,6 +2125,24 @@ public:
     return 0;
   }
 
+  /**
+    Check db/table_name if they defined in item and match arg values
+
+    @param arg Pointer to Check_table_name_prm structure
+
+    @retval true Match failed
+    @retval false Match succeeded
+  */
+  virtual bool check_table_name_processor(void *arg) { return false; }
+  /**
+    Update db/table_name if they are defined in item to arg values
+
+    @param arg Pointer to Check_table_name_prm structure
+
+    @return Always false
+  */
+  virtual bool update_table_name_processor(void *arg) { return false; }
+
   /* 
     TRUE if the expression depends only on the table indicated by tab_map
     or can be converted to such an exression using equalities.
@@ -2323,6 +2341,15 @@ public:
     uint count;
     int nest_level;
     bool collect;
+  };
+
+  struct Check_table_name_prm
+  {
+    LEX_CSTRING db;
+    LEX_CSTRING table_name;
+    String field;
+    Check_table_name_prm(LEX_CSTRING _db, LEX_CSTRING _table_name) :
+      db(_db), table_name(_table_name) {}
   };
 
   /*
@@ -3641,6 +3668,9 @@ public:
     }
     return 0;
   }
+  bool check_table_name_processor(void *arg) override;
+  bool update_table_name_processor(void *arg) override;
+
   void cleanup() override;
   Item_equal *get_item_equal() override { return item_equal; }
   void set_item_equal(Item_equal *item_eq) override { item_equal= item_eq; }

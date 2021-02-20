@@ -5088,7 +5088,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE *table,
 
   if (!open_table_from_share(thd, share, table_name, 0,
                              (EXTRA_RECORD | OPEN_FRM_FILE_ONLY),
-                             thd->open_options, &tbl, FALSE))
+                             thd->open_options, &tbl))
   {
     tbl.s= share;
     table_list.table= &tbl;
@@ -5536,7 +5536,7 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     if (share->db_type() == partition_hton &&
-        share->partition_info_str_len)
+        share->part_sql.length)
     {
       tmp_db_type= plugin_hton(share->default_part_plugin);
       is_partitioned= TRUE;

@@ -854,12 +854,12 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
           error= 1;
           goto err;
         }
-        share->partition_info_str= tmp_part_syntax_str;
+        share->part_sql.str= tmp_part_syntax_str;
       }
       else
-        memcpy((char*) share->partition_info_str, part_syntax_buf,
+        memcpy((char*) share->part_sql.str, part_syntax_buf,
                syntax_len + 1);
-      share->partition_info_str_len= part_info->part_info_len= syntax_len;
+      share->part_sql.length= part_info->part_info_len= syntax_len;
       part_info->part_info_string= part_syntax_buf;
     }
 #endif
@@ -4064,6 +4064,23 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
       goto err;
     }
 
+    Item::Check_table_name_prm p(db, table_name);
+    if (part_info->part_expr &&
+        part_info->part_expr->walk(&Item::check_table_name_processor, false,
+                                   (void *) &p))
+    {
+      my_error(ER_BAD_FIELD_ERROR, MYF(0), p.field.c_ptr(), "partition function");
+      goto err;
+    }
+
+    if (part_info->subpart_expr &&
+        part_info->subpart_expr->walk(&Item::check_table_name_processor, false,
+                                      (void *) &p))
+    {
+      my_error(ER_BAD_FIELD_ERROR, MYF(0), p.field.c_ptr(), "subpartition function");
+      goto err;
+    }
+
     /*
       We reverse the partitioning parser and generate a standard format
       for syntax stored in frm file.
@@ -5153,7 +5170,23 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   /* Partition info is not handled by mysql_prepare_alter_table() call. */
   if (src_table->table->part_info)
-    thd->work_part_info= src_table->table->part_info->get_clone(thd);
+  {
+    partition_info *part_info= src_table->table->part_info->get_clone(thd->mem_root);
+    part_info->table= NULL;
+    if (part_info->part_expr)
+    {
+      Item::Check_table_name_prm p(table->db, table->table_name);
+      (void) part_info->part_expr->walk(&Item::update_table_name_processor, false,
+                                        (void *) &p);
+    }
+    if (part_info->subpart_expr)
+    {
+      Item::Check_table_name_prm p(table->db, table->table_name);
+      (void) part_info->subpart_expr->walk(&Item::update_table_name_processor, false,
+                                           (void *) &p);
+    }
+    thd->work_part_info= part_info;
+  }
 #endif
 
   /*
@@ -9201,8 +9234,7 @@ static int create_table_for_inplace_alter(THD *thd,
                        alter_ctx.new_name.str, alter_ctx.get_tmp_path());
   if (share->init_from_binary_frm_image(thd, true, frm->str, frm->length) ||
       open_table_from_share(thd, share, &alter_ctx.new_name, 0,
-                            EXTRA_RECORD, thd->open_options,
-                            table, false))
+                            EXTRA_RECORD, thd->open_options, table))
   {
     free_table_share(share);
     deletefrm(alter_ctx.get_tmp_path());

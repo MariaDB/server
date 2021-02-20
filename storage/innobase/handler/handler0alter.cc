@@ -2427,8 +2427,8 @@ next_column:
 				   | ALTER_STORED_COLUMN_ORDER);
 		}
 		if (flags != 0
-		    || IF_PARTITIONING((altered_table->s->partition_info_str
-			&& altered_table->s->partition_info_str_len), 0)
+		    || IF_PARTITIONING((altered_table->s->part_sql.str
+			&& altered_table->s->part_sql.length), 0)
 		    || (!check_v_col_in_order(
 			this->table, altered_table, ha_alter_info))) {
 			ha_alter_info->unsupported_reason =

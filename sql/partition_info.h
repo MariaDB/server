@@ -330,7 +330,11 @@ public:
   }
   ~partition_info() {}
 
-  partition_info *get_clone(THD *thd);
+  partition_info *get_clone(MEM_ROOT *mem_root);
+  partition_info *get_clone(THD *thd)
+  {
+    return get_clone(thd->mem_root);
+  }
   bool set_named_partition_bitmap(const char *part_name, size_t length);
   bool set_partition_bitmaps(List<String> *partition_names);
   bool set_partition_bitmaps_from_table(TABLE_LIST *table_list);

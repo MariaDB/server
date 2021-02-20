@@ -903,15 +903,18 @@ struct TABLE_SHARE
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   /* filled in when reading from frm */
   bool auto_partitioned;
-  char *partition_info_str;
-  uint  partition_info_str_len;
-  uint  partition_info_buffer_size;
+  /* NB: yyUnput() requires write access to sql buffer */
+  LEX_STRING part_sql;
+  uint partition_info_buffer_size;
   plugin_ref default_part_plugin;
+  partition_info *part_info;
+
+  bool unpack_partition(THD *thd, handlerton *default_db_type);
 #endif
 
   bool partitioned() const
   {
-    return IF_PARTITIONING(partition_info_str != NULL, false);
+    return IF_PARTITIONING(part_sql.str != NULL, false);
   }
 
   /**
@@ -3215,7 +3218,6 @@ void init_mdl_requests(TABLE_LIST *table_list);
 enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                        const LEX_CSTRING *alias, uint db_stat, uint prgflag,
                        uint ha_open_flags, TABLE *outparam,
-                       bool is_create_table,
                        List<String> *partitions_to_open= NULL);
 bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root);
 bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol);

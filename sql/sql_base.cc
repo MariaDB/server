@@ -607,8 +607,7 @@ bool flush_tables(THD *thd, flush_tables_type flag)
       if (!open_table_from_share(thd, share, &empty_clex_str,
                                  HA_OPEN_KEYFILE, 0,
                                  HA_OPEN_FOR_ALTER | HA_OPEN_FOR_FLUSH,
-                                 tmp_table, FALSE,
-                                 NULL))
+                                 tmp_table))
       {
         (void) tmp_table->file->extra(HA_EXTRA_FLUSH);
         /*
@@ -2001,7 +2000,7 @@ retry_share:
     error= open_table_from_share(thd, share, &table_list->alias,
                                  HA_OPEN_KEYFILE | HA_TRY_READ_ONLY,
                                  EXTRA_RECORD,
-                                 thd->open_options, table, FALSE,
+                                 thd->open_options, table,
                                  IF_PARTITIONING(table_list->partition_names,0));
 
     if (unlikely(error))
@@ -3040,7 +3039,7 @@ static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
                             HA_OPEN_KEYFILE | HA_TRY_READ_ONLY,
                             EXTRA_RECORD,
                             ha_open_options | HA_OPEN_FOR_REPAIR,
-                            &entry, FALSE) || ! entry.file ||
+                            &entry) || ! entry.file ||
       (entry.file->is_crashed() && entry.file->ha_check_and_repair(thd)))
   {
     /* Give right error message */

@@ -2101,7 +2101,7 @@ int spider_parse_connect_info(
   DBUG_PRINT("info",("spider partition_info=%s", table_share->partition_info));
 #else
   DBUG_PRINT("info",("spider partition_info=%s",
-    table_share->partition_info_str));
+    table_share->part_sql.str));
 #endif
   DBUG_PRINT("info",("spider part_info=%p", part_info));
 #endif
