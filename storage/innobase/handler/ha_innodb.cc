@@ -12047,17 +12047,6 @@ create_table_info_t::create_foreign_key(
 			return (DB_CANNOT_ADD_CONSTRAINT);
 		}
 
-		/* Don't allow foreign keys on partitioned tables yet. */
-		if (foreign->referenced_table
-		    && dict_table_is_partition(foreign->referenced_table)) {
-			/* How could one make a referenced table to be a
-			 * partition? */
-			ut_ad(0);
-			my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING,
-				 MYF(0), "FOREIGN KEY");
-			return (DB_CANNOT_ADD_CONSTRAINT);
-		}
-
 		col_it.init(fk->referenced_fields);
 		while ((col = col_it++)) {
 			ref_column_names[j] = mem_heap_strdupl(
