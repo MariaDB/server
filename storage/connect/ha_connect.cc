@@ -1849,8 +1849,8 @@ bool ha_connect::CheckVirtualIndex(TABLE_SHARE *s)
 bool ha_connect::IsPartitioned(void)
 {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-	if (tshp)
-    return tshp->partition_info_str_len > 0;
+  if (tshp)
+    return tshp->part_info != NULL;
   else if (table && table->part_info)
     return true;
   else

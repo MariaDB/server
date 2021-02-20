@@ -144,7 +144,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
       DBUG_RETURN(0);				// Can't open frm file
 
     if (open_table_from_share(thd, share, &empty_clex_str, 0, 0, 0,
-                              &tmp_table, FALSE))
+                              &tmp_table))
     {
       tdc_release_share(share);
       DBUG_RETURN(0);                           // Out of memory

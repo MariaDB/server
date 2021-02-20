@@ -1117,7 +1117,7 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
                             EXTRA_RECORD,
                             (ha_open_options |
                              (open_options & HA_OPEN_FOR_CREATE)),
-                            table, false))
+                            table))
   {
     my_free(table);
     DBUG_RETURN(NULL);

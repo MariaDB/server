@@ -3023,3 +3023,72 @@ DROP TABLE t1,t2;
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+--echo #
+--echo # MDEV-12483 Refactoring for part_info in TABLE_SHARE
+--echo #
+create table t1 (x int, y int)
+partition by range(x)
+subpartition by hash(y)
+subpartitions 10 (
+    partition p0 values less than (10),
+    partition p1 values less than maxvalue
+);
+
+show create table t1;
+create table t2 like t1;
+create database d;
+use d;
+create table t3 like test.t1;
+use test;
+
+--error ER_BAD_FIELD_ERROR
+create table t3 (x int, y int)
+partition by range(t1.y)
+subpartition by hash(x)
+subpartitions 2 (
+    partition p0 values less than (10),
+    partition p1 values less than maxvalue
+);
+
+--error ER_BAD_FIELD_ERROR
+create table t3 (x int, y int)
+partition by range(d.t3.y)
+subpartition by hash(x)
+subpartitions 2 (
+    partition p0 values less than (10),
+    partition p1 values less than maxvalue
+);
+
+
+--error ER_BAD_FIELD_ERROR
+create table t3 (x int, y int)
+partition by range(y)
+subpartition by hash(t1.x)
+subpartitions 2 (
+    partition p0 values less than (10),
+    partition p1 values less than maxvalue
+);
+
+--error ER_BAD_FIELD_ERROR
+create table t3 (x int, y int)
+partition by range(y)
+subpartition by hash(d.t3.x)
+subpartitions 2 (
+    partition p0 values less than (10),
+    partition p1 values less than maxvalue
+);
+
+create table t3 (x int, y int)
+partition by range(t3.y)
+subpartition by hash(t3.x)
+subpartitions 2 (
+    partition p0 values less than (10),
+    partition p1 values less than maxvalue
+);
+
+show create table t2;
+show create table t3;
+show create table d.t3;
+drop database d;
+drop tables t1, t2, t3;

@@ -728,6 +728,35 @@ bool Item_ident::collect_outer_ref_processor(void *param)
 }
 
 
+bool Item_field::check_table_name_processor(void *arg)
+{
+  if (!table_name.length)
+    return false;
+  Check_table_name_prm &p= *(Check_table_name_prm *) arg;
+  Table_name a(p.db, p.table_name);
+  Table_name b(db_name.length ? db_name : p.db, table_name);
+  if (a.cmp(b))
+  {
+    print(&p.field, (enum_query_type) (QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                       QT_NO_DATA_EXPANSION |
+                                       QT_TO_SYSTEM_CHARSET));
+    return true;
+  }
+  return false;
+}
+
+
+bool Item_field::update_table_name_processor(void *arg)
+{
+  if (!table_name.length)
+    return false;
+  Check_table_name_prm &p= *(Check_table_name_prm *) arg;
+  db_name= p.db;
+  table_name= p.table_name;
+  return false;
+}
+
+
 /**
   Store the pointer to this item field into a list if not already there.
 

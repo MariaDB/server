@@ -2018,7 +2018,7 @@ PARTITION BY RANGE (t2.b) (
 PARTITION p1 VALUES LESS THAN (10),
 PARTITION p2 VALUES LESS THAN (20)
 ) select * from t2;
-ERROR 42S22: Unknown column 't2.b' in 'partition function'
+ERROR 42S22: Unknown column '`t2`.`b`' in 'partition function'
 create table t1 (a int)
 PARTITION BY RANGE (b) (
 PARTITION p1 VALUES LESS THAN (10),
@@ -2820,3 +2820,103 @@ DROP TABLE t1,t2;
 #
 # End of 10.1 tests
 #
+#
+# MDEV-12483 Refactoring for part_info in TABLE_SHARE
+#
+create table t1 (x int, y int)
+partition by range(x)
+subpartition by hash(y)
+subpartitions 10 (
+partition p0 values less than (10),
+partition p1 values less than maxvalue
+);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`x`)
+SUBPARTITION BY HASH (`y`)
+SUBPARTITIONS 10
+(PARTITION `p0` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+create table t2 like t1;
+create database d;
+use d;
+create table t3 like test.t1;
+use test;
+create table t3 (x int, y int)
+partition by range(t1.y)
+subpartition by hash(x)
+subpartitions 2 (
+partition p0 values less than (10),
+partition p1 values less than maxvalue
+);
+ERROR 42S22: Unknown column '`t1`.`y`' in 'partition function'
+create table t3 (x int, y int)
+partition by range(d.t3.y)
+subpartition by hash(x)
+subpartitions 2 (
+partition p0 values less than (10),
+partition p1 values less than maxvalue
+);
+ERROR 42S22: Unknown column '`d`.`t3`.`y`' in 'partition function'
+create table t3 (x int, y int)
+partition by range(y)
+subpartition by hash(t1.x)
+subpartitions 2 (
+partition p0 values less than (10),
+partition p1 values less than maxvalue
+);
+ERROR 42S22: Unknown column '`t1`.`x`' in 'subpartition function'
+create table t3 (x int, y int)
+partition by range(y)
+subpartition by hash(d.t3.x)
+subpartitions 2 (
+partition p0 values less than (10),
+partition p1 values less than maxvalue
+);
+ERROR 42S22: Unknown column '`d`.`t3`.`x`' in 'subpartition function'
+create table t3 (x int, y int)
+partition by range(t3.y)
+subpartition by hash(t3.x)
+subpartitions 2 (
+partition p0 values less than (10),
+partition p1 values less than maxvalue
+);
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`x`)
+SUBPARTITION BY HASH (`y`)
+SUBPARTITIONS 10
+(PARTITION `p0` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+show create table t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`y`)
+SUBPARTITION BY HASH (`x`)
+SUBPARTITIONS 2
+(PARTITION `p0` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+show create table d.t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`x`)
+SUBPARTITION BY HASH (`y`)
+SUBPARTITIONS 10
+(PARTITION `p0` VALUES LESS THAN (10) ENGINE = MyISAM,
+ PARTITION `p1` VALUES LESS THAN MAXVALUE ENGINE = MyISAM)
+drop database d;
+drop tables t1, t2, t3;

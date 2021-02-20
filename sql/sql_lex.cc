@@ -708,10 +708,15 @@ void lex_free(void)
 */
 
 int
-init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
+init_lex_with_single_table(THD *thd, TABLE *table, TABLE_SHARE *s, LEX *lex)
 {
   TABLE_LIST *table_list;
   Table_ident *table_ident;
+  if (table)
+  {
+    DBUG_ASSERT(!s);
+    s= table->s;
+  }
   SELECT_LEX *select_lex= lex->first_select_lex();
   Name_resolution_context *context= &select_lex->context;
   /*
@@ -726,8 +731,8 @@ init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
   lex_start(thd);
   context->init();
   if (unlikely((!(table_ident= new Table_ident(thd,
-                                               &table->s->db,
-                                               &table->s->table_name,
+                                               &s->db,
+                                               &s->table_name,
                                                TRUE)))) ||
       (unlikely(!(table_list= select_lex->add_table_to_list(thd,
                                                             table_ident,
@@ -738,8 +743,11 @@ init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex)
   lex->use_only_table_context= TRUE;
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_VCOL_EXPR;
   select_lex->cur_pos_in_select_list= UNDEF_POS;
-  table->map= 1; //To ensure correct calculation of const item
-  table_list->table= table;
+  if (table)
+  {
+    table->map= 1; //To ensure correct calculation of const item
+    table_list->table= table;
+  }
   table_list->cacheable_table= false;
   lex->create_last_non_select_table= table_list;
   return FALSE;
