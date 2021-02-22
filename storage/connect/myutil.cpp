@@ -169,10 +169,9 @@ const char *PLGtoMYSQLtype(int type, bool dbf, char v)
     case TYPE_BIGINT:   return "BIGINT";
     case TYPE_TINY:     return "TINYINT";
     case TYPE_DECIM:    return "DECIMAL";
-    default:            return "CHAR(0)";
+    default:            return (v) ? "VARCHAR" : "CHAR";
     } // endswitch mytype
 
-  return "CHAR(0)";
   } // end of PLGtoMYSQLtype
 
 /************************************************************************/

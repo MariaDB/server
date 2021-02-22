@@ -187,11 +187,11 @@ DATEPUB int(4)
 ) ENGINE=CONNECT TABLE_TYPE=JSON FILE_NAME='biblio.json';
 SELECT Json_Make_Array(AUTHOR, TITLE, DATEPUB) FROM t2;
 Json_Make_Array(AUTHOR, TITLE, DATEPUB)
-["Jean-Christophe Bernadac","Construire une application XML",1999]
+[" Jean-Christophe Bernadac, François Knab","Construire une application XML",1999]
 ["William J. Pardi","XML en Action",1999]
 SELECT Json_Make_Object(AUTHOR, TITLE, DATEPUB) FROM t2;
 Json_Make_Object(AUTHOR, TITLE, DATEPUB)
-{"AUTHOR":"Jean-Christophe Bernadac","TITLE":"Construire une application XML","DATEPUB":1999}
+{"AUTHOR":" Jean-Christophe Bernadac, François Knab","TITLE":"Construire une application XML","DATEPUB":1999}
 {"AUTHOR":"William J. Pardi","TITLE":"XML en Action","DATEPUB":1999}
 SELECT Json_Array_Grp(TITLE, DATEPUB) FROM t2;
 ERROR HY000: Can't initialize function 'json_array_grp'; This function can only accept 1 argument
@@ -610,7 +610,7 @@ JsonGet_String(Json_File('test/fx.json'), '1.*')
 {"_id":6,"type":"car","item":"roadster","mileage":56000,"ratings":[6,9]}
 SELECT JsonGet_String(Json_File('test/fx.json'), '1');
 JsonGet_String(Json_File('test/fx.json'), '1')
-6 car roadster 56000 6 9
+6 car roadster 56000 (6, 9)
 SELECT JsonGet_Int(Json_File('test/fx.json'), '1.mileage') AS Mileage;
 Mileage
 56000

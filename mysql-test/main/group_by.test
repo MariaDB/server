@@ -1987,7 +1987,6 @@ drop table t1;
 --echo # GROUP BY leads to crash
 --echo #
 
-
 CALL mtr.add_suppression("Out of sort memory");
 CALL mtr.add_suppression("Sort aborted");
 SET @save_max_sort_length= @@max_sort_length;
@@ -2000,6 +1999,40 @@ GROUP BY t.table_name;
 SET max_sort_length= @save_max_sort_length;
 
 --echo #
+--echo # MDEV-23826: ORDER BY in view definition leads to wrong result with GROUP BY on query using view
+--echo #
+
+CREATE TABLE t1
+(
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  dt datetime,
+  INDEX(dt),
+  foo int
+);
+
+INSERT INTO t1 VALUES (1,'2020-09-26 12:00:00',1);
+INSERT INTO t1 VALUES (2,'2020-09-26 13:00:00',1);
+INSERT INTO t1 VALUES (3,'2020-09-27 13:00:00',1);
+INSERT INTO t1 VALUES (4,'2020-09-27 12:00:00',1);
+INSERT INTO t1 VALUES (5,'2020-09-28 12:00:00',1);
+INSERT INTO t1 VALUES (6,'2020-09-28 13:00:00',1);
+INSERT INTO t1 VALUES (7,'2020-09-25 12:00:00',1);
+INSERT INTO t1 VALUES (8,'2020-09-25 13:00:00',1);
+INSERT INTO t1 VALUES (9,'2020-09-26 13:00:00',1);
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE VIEW v2 AS SELECT * FROM t1 ORDER BY dt;
+SELECT dt, sum(foo) AS foo FROM v1 WHERE dt>DATE_SUB('2020-09-27 00:00:00', INTERVAL 3 DAY) GROUP BY dt;
+SELECT dt, sum(foo) AS foo FROM v2 WHERE dt>DATE_SUB('2020-09-27 00:00:00', INTERVAL 3 DAY) GROUP BY dt;
+
+DROP TABLE t1;
+DROP VIEW v1,v2;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
 --echo # MDEV-16170
 --echo # Server crashes in Item_null_result::type_handler on SELECT with ROLLUP
 --echo #
@@ -2009,4 +2042,6 @@ INSERT INTO t1 VALUES ('2032-10-08');
 SELECT d != '2023-03-04' AS f, COUNT(*) FROM t1 GROUP BY d WITH ROLLUP;
 DROP TABLE t1;
 
+--echo #
 --echo # End of 10.3 tests
+--echo #

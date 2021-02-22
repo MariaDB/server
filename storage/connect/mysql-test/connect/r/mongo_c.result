@@ -1,8 +1,9 @@
 set connect_enable_mongo=1;
+set connect_json_all_path=0;
 #
 # Test the MONGO table type
 #
-CREATE TABLE t1 (Document varchar(1024) field_format='*')
+CREATE TABLE t1 (Document varchar(1024) JPATH='*')
 ENGINE=CONNECT TABLE_TYPE=MONGO TABNAME=restaurants 
 OPTION_LIST='Driver=C,Version=0' DATA_CHARSET=utf8;
 SELECT * from t1 limit 3;
@@ -15,7 +16,7 @@ DROP TABLE t1;
 # Test catfunc
 #
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MONGO TABNAME=restaurants CATFUNC=columns
-OPTION_LIST='Level=1,Driver=C,Version=0' DATA_CHARSET=utf8 ;
+OPTION_LIST='Depth=1,Driver=C,Version=0' DATA_CHARSET=utf8 ;
 SELECT * from t1;
 Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Nullable	Bpath
 _id	1	CHAR	24	24	0	0	
@@ -58,7 +59,7 @@ DROP TABLE t1;
 # Test discovery
 #
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=MONGO TABNAME=restaurants
-OPTION_LIST='Level=1,Driver=C,Version=0'  DATA_CHARSET=utf8;
+OPTION_LIST='Depth=1,Driver=C,Version=0'  DATA_CHARSET=utf8;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -72,7 +73,7 @@ t1	CREATE TABLE `t1` (
   `grades_0` varchar(512) DEFAULT NULL `FIELD_FORMAT`='grades.0',
   `name` char(98) NOT NULL,
   `restaurant_id` char(8) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='MONGO' `TABNAME`='restaurants' `OPTION_LIST`='Level=1,Driver=C,Version=0' `DATA_CHARSET`='utf8'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='MONGO' `TABNAME`='restaurants' `OPTION_LIST`='Depth=1,Driver=C,Version=0' `DATA_CHARSET`='utf8'
 SELECT * FROM t1 LIMIT 5;
 _id	address_building	address_coord	address_street	address_zipcode	borough	cuisine	grades_0	name	restaurant_id
 58ada47de5a51ddfcd5ed51c	1007		Morris Park Ave	10462	Bronx	Bakery	{"date":{"$date":1393804800000},"grade":"A","score":2}	Morris Park Bake Shop	30075445
@@ -107,12 +108,12 @@ _id VARCHAR(24) NOT NULL,
 name VARCHAR(64) NOT NULL,
 cuisine CHAR(200) NOT NULL,
 borough CHAR(16) NOT NULL,
-street VARCHAR(65) FIELD_FORMAT='address.street',
-building CHAR(16) FIELD_FORMAT='address.building',
-zipcode CHAR(5) FIELD_FORMAT='address.zipcode',
-grade CHAR(1) FIELD_FORMAT='grades.0.grade',
-score INT(4) NOT NULL FIELD_FORMAT='grades.0.score',
-`date` DATE FIELD_FORMAT='grades.0.date',
+street VARCHAR(65) JPATH='address.street',
+building CHAR(16) JPATH='address.building',
+zipcode CHAR(5) JPATH='address.zipcode',
+grade CHAR(1) JPATH='grades.0.grade',
+score INT(4) NOT NULL JPATH='grades.0.score',
+`date` DATE JPATH='grades.0.date',
 restaurant_id VARCHAR(255) NOT NULL)
 ENGINE=CONNECT TABLE_TYPE=MONGO TABNAME='restaurants' DATA_CHARSET=utf8
 OPTION_LIST='Driver=C,Version=0' ;
@@ -301,8 +302,8 @@ false
 CREATE TABLE t1 (
 _id char(5) NOT NULL,
 city char(16) NOT NULL,
-loc_0 double(12,6) NOT NULL `FIELD_FORMAT`='loc.0',
-loc_1 char(12) NOT NULL `FIELD_FORMAT`='loc.1',
+loc_0 double(12,6) NOT NULL `JPATH`='loc.0',
+loc_1 char(12) NOT NULL `JPATH`='loc.1',
 pop int(11) NOT NULL,
 state char(2) NOT NULL)
 ENGINE=CONNECT CONNECTION='mongodb://localhost:27017' TABLE_TYPE=MONGO TABNAME='cities'
@@ -340,11 +341,11 @@ true
 CREATE TABLE t1 (
 _id int(4) NOT NULL,
 item CHAR(8) NOT NULL,
-prices_0 INT(6) FIELD_FORMAT='prices.0',
-prices_1 INT(6) FIELD_FORMAT='prices.1',
-prices_2 INT(6) FIELD_FORMAT='prices.2',
-prices_3 INT(6) FIELD_FORMAT='prices.3',
-prices_4 INT(6) FIELD_FORMAT='prices.4')
+prices_0 INT(6) JPATH='prices.0',
+prices_1 INT(6) JPATH='prices.1',
+prices_2 INT(6) JPATH='prices.2',
+prices_3 INT(6) JPATH='prices.3',
+prices_4 INT(6) JPATH='prices.4')
 ENGINE=CONNECT TABLE_TYPE=MONGO TABNAME='testcoll' DATA_CHARSET=utf8
 OPTION_LIST='Driver=C,Version=0' ;
 INSERT INTO t1 VALUES

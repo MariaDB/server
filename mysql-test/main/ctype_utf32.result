@@ -1306,7 +1306,7 @@ create table t1 (a varchar(334) character set utf32 primary key);
 ERROR 42000: Specified key was too long; max key length is 1000 bytes
 create table t1 (a varchar(333) character set utf32, key(a));
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 insert into t1 values (repeat('a',333)), (repeat('b',333));
 flush tables;
 check table t1;

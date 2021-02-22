@@ -3244,6 +3244,23 @@ SELECT * FROM t1 JOIN t2 ON (t2.code = t1.b) WHERE t1.a NOT IN ('baz', 'qux') OR
 id	a	b	code	num
 DROP TABLE t1, t2;
 #
+# MDEV-22251: get_key_scans_params: Conditional jump or move depends on uninitialised value
+#
+create table t1 (pk int, i int, v int, primary key (pk), key(v));
+insert into t1 (pk,i,v) values (1,1,2),(2,2,4),(3,3,6),(4,4,8),(5,5,10),(6,6,12),(7,7,14),(8,8,16);
+create table t2 (a int, b int);
+insert into t2 values (1,2),(2,4);
+EXPLAIN
+select * from t1 inner join t2 on ( t2.b = t1.v or t2.a = t1.pk);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t1	ALL	PRIMARY,v	NULL	NULL	NULL	8	Range checked for each record (index map: 0x3)
+select * from t1 inner join t2 on ( t2.b = t1.v or t2.a = t1.pk);
+pk	i	v	a	b
+1	1	2	1	2
+2	2	4	2	4
+drop table t1, t2;
+#
 # End of 10.2 tests
 #
 #

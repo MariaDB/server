@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2020    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -1328,7 +1328,7 @@ VCMFAM::VCMFAM(PVCMFAM txfp) : VCTFAM(txfp)
 bool VCMFAM::OpenTableFile(PGLOBAL g)
   {
   char    filename[_MAX_PATH];
-  int    len;
+  size_t  len;
   MODE    mode = Tdbp->GetMode();
   PFBLOCK fp = NULL;
   PDBUSER dbuserp = (PDBUSER)g->Activityp->Aptr;
@@ -1422,10 +1422,14 @@ bool VCMFAM::OpenTableFile(PGLOBAL g)
       } // endif hFile
 
     /*******************************************************************/
-    /*  Get the file size (assuming file is smaller than 4 GB)         */
+    /*  Get the file size.                                             */
     /*******************************************************************/
-    len = mm.lenL;
-    Memory = (char *)mm.memory;
+		len = (size_t)mm.lenL;
+
+		if (mm.lenH)
+			len += ((size_t)mm.lenH * 0x000000001LL);
+
+		Memory = (char *)mm.memory;
 
     if (!len) {             // Empty or deleted file
       CloseFileHandle(hFile);
@@ -2763,7 +2767,7 @@ bool VMPFAM::OpenTableFile(PGLOBAL g)
 bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
   {
   char    filename[_MAX_PATH];
-  int    len;
+  size_t  len;
   HANDLE  hFile;
   MEMMAP  mm;
   PFBLOCK fp;
@@ -2817,8 +2821,12 @@ bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
     /*****************************************************************/
     /*  Get the file size (assuming file is smaller than 4 GB)       */
     /*****************************************************************/
-    len = mm.lenL;
-    Memcol[i] = (char *)mm.memory;
+		len = (size_t)mm.lenL;
+
+		if (mm.lenH)
+			len += ((size_t)mm.lenH * 0x000000001LL);
+
+		Memcol[i] = (char *)mm.memory;
 
     if (!len) {             // Empty or deleted file
       CloseFileHandle(hFile);

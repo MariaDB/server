@@ -1269,15 +1269,15 @@ bool Protocol_text::store(Field *field)
   CHARSET_INFO *tocs= this->thd->variables.character_set_results;
 #ifdef DBUG_ASSERT_EXISTS
   TABLE *table= field->table;
-  my_bitmap_map *old_map= 0;
+  MY_BITMAP *old_map= 0;
   if (table->file)
-    old_map= dbug_tmp_use_all_columns(table, table->read_set);
+    old_map= dbug_tmp_use_all_columns(table, &table->read_set);
 #endif
 
   field->val_str(&str);
 #ifdef DBUG_ASSERT_EXISTS
   if (old_map)
-    dbug_tmp_restore_column_map(table->read_set, old_map);
+    dbug_tmp_restore_column_map(&table->read_set, old_map);
 #endif
 
   return store_string_aux(str.ptr(), str.length(), str.charset(), tocs);

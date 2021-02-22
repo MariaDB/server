@@ -112,8 +112,7 @@ bool user_connect::user_init()
     if (g)
       printf("%s\n", g->Message);
 
-    int rc __attribute__((unused))= PlugExit(g);
-    g= NULL;
+    g= PlugExit(g);
 
 		if (dup)
 	    free(dup);

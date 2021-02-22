@@ -1935,6 +1935,23 @@ replace_regex /at least \d+ rows/at least ### rows/;
 SELECT * FROM INFORMATION_SCHEMA.`COLUMNS` LIMIT ROWS EXAMINED 10;
 
 --echo #
+--echo # MDEV-24179: AAssertion `m_status == DA_ERROR || m_status == DA_OK ||
+--echo # m_status == DA_OK_BULK' failed in Diagnostics_area::message()
+--echo #
+
+call mtr.add_suppression("Sort aborted.*");
+
+DROP DATABASE test;
+CREATE DATABASE test;
+USE test;
+CREATE VIEW v AS SELECT table_schema  AS object_schema, table_name  AS object_name, table_type AS object_type FROM information_schema.tables ORDER BY object_schema;
+
+--error ER_FILSORT_ABORT
+SELECT * FROM v LIMIT ROWS EXAMINED 9;
+
+DROP VIEW v;
+
+--echo #
 --echo # End of 10.2 Test
 --echo #
 

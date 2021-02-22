@@ -650,8 +650,7 @@ UPDATE user SET Delete_history_priv = Super_priv WHERE @had_user_delete_history_
 ALTER TABLE user ADD plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL AFTER max_user_connections,
                  ADD authentication_string TEXT NOT NULL AFTER plugin;
 ALTER TABLE user CHANGE auth_string authentication_string TEXT NOT NULL;
-ALTER TABLE user MODIFY plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL,
-                 MODIFY authentication_string TEXT NOT NULL;
+
 ALTER TABLE user ADD password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER authentication_string;
 ALTER TABLE user ADD password_last_changed timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL after password_expired;
 ALTER TABLE user ADD password_lifetime smallint unsigned DEFAULT NULL after password_last_changed;
@@ -659,10 +658,25 @@ ALTER TABLE user ADD account_locked enum('N', 'Y') COLLATE utf8_general_ci DEFAU
 ALTER TABLE user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER account_locked;
 ALTER TABLE user ADD default_role char(80) binary DEFAULT '' NOT NULL AFTER is_role;
 ALTER TABLE user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL AFTER default_role;
+
 -- Somewhere above, we ran ALTER TABLE user .... CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin.
---  we want password_expired column to have collation utf8_general_ci.
-ALTER TABLE user MODIFY password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
-ALTER TABLE user MODIFY is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
+-- we want password_expired column to have collation utf8_general_ci.
+-- Order columns correctly that were not ordered until MDEV-23201 (ff8ffef3e1915d7a9caa07d9461cd8d47c4baf98)
+
+ALTER TABLE user MODIFY plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL AFTER max_user_connections,
+                 MODIFY authentication_string TEXT NOT NULL AFTER plugin,
+                 MODIFY password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER authentication_string,
+                 MODIFY is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL AFTER password_expired,
+                 MODIFY default_role char(80) binary DEFAULT '' NOT NULL AFTER is_role,
+                 MODIFY max_statement_time decimal(12,6) DEFAULT 0 NOT NULL AFTER default_role,
+-- MDEV-24122 formerly mysql5.7 users may have the following columns password_last_changed,
+-- password_lifetime and account_locked. Ensure they are beyond the end of the user columns
+-- used by MariaDB. MariaDB-10.4 will use these in the creation of mysql.global_priv.
+-- password_last_changed has a DEFAULT/ON UPDATE of CURRENT_TIMESTAMP to keep track of
+-- time until 10.4 added.
+                 MODIFY IF EXISTS password_last_changed timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER max_statement_time,
+                 MODIFY IF EXISTS password_lifetime smallint unsigned DEFAULT NULL AFTER password_last_changed,
+                 MODIFY IF EXISTS account_locked enum('N', 'Y') CHARACTER SET utf8 DEFAULT 'N' NOT NULL after password_lifetime;
 
 -- Checking for any duplicate hostname and username combination are exists.
 -- If exits we will throw error.

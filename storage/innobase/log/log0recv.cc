@@ -3871,6 +3871,7 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	mutex_enter(&recv_sys.mutex);
 
 	recv_sys.apply_log_recs = true;
+	recv_no_ibuf_operations = is_mariabackup_restore_or_export();
 
 	mutex_exit(&recv_sys.mutex);
 

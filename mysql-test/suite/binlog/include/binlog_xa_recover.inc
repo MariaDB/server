@@ -180,12 +180,11 @@ connection default;
 # commit checkpoint, otherwise we get nondeterministic results.
 SET @old_dbug= @@global.DEBUG_DBUG;
 SET GLOBAL debug_dbug="+d,binlog_background_checkpoint_processed";
-
+SET DEBUG_SYNC= "now WAIT_FOR binlog_background_checkpoint_processed";
 SET DEBUG_SYNC= "now SIGNAL con12_cont";
 connection con12;
 reap;
 connection default;
-SET DEBUG_SYNC= "now WAIT_FOR binlog_background_checkpoint_processed";
 SET GLOBAL debug_dbug= @old_dbug;
 
 SET DEBUG_SYNC= "now SIGNAL con11_cont";

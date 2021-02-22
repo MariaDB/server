@@ -4983,6 +4983,9 @@ bool LEX::save_prep_leaf_tables()
 
 bool st_select_lex::save_prep_leaf_tables(THD *thd)
 {
+  if (prep_leaf_list_state == SAVED)
+    return FALSE;
+
   List_iterator_fast<TABLE_LIST> li(leaf_tables);
   TABLE_LIST *table;
 

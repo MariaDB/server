@@ -3433,9 +3433,9 @@ innobase_row_to_mysql(
 		}
 	}
 	if (table->vfield) {
-		my_bitmap_map*	old_read_set = tmp_use_all_columns(table, table->read_set);
+		MY_BITMAP*	old_read_set = tmp_use_all_columns(table, &table->read_set);
 		table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
-		tmp_restore_column_map(table->read_set, old_read_set);
+		tmp_restore_column_map(&table->read_set, old_read_set);
 	}
 }
 

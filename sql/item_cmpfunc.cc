@@ -321,13 +321,13 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
     TABLE *table= field->table;
     Sql_mode_save sql_mode(thd);
     Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
-    my_bitmap_map *old_maps[2] = { NULL, NULL };
+    MY_BITMAP *old_maps[2] = { NULL, NULL };
     ulonglong UNINIT_VAR(orig_field_val); /* original field value if valid */
 
     /* table->read_set may not be set if we come here from a CREATE TABLE */
     if (table && table->read_set)
       dbug_tmp_use_all_columns(table, old_maps,
-                               table->read_set, table->write_set);
+                               &table->read_set, &table->write_set);
     /* For comparison purposes allow invalid dates like 2000-01-32 */
     thd->variables.sql_mode= (thd->variables.sql_mode & ~MODE_NO_ZERO_DATE) |
                              MODE_INVALID_DATES;
@@ -368,7 +368,7 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
       DBUG_ASSERT(!result);
     }
     if (table && table->read_set)
-      dbug_tmp_restore_column_maps(table->read_set, table->write_set, old_maps);
+      dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_maps);
   }
   return result;
 }
@@ -1198,9 +1198,9 @@ longlong Item_func_truth::val_int()
 
 bool Item_in_optimizer::is_top_level_item()
 {
-  if (invisible_mode())
-    return FALSE;
-  return ((Item_in_subselect *)args[1])->is_top_level_item();
+  if (!invisible_mode())
+    return ((Item_in_subselect *)args[1])->is_top_level_item();
+  return false;
 }
 
 
@@ -3196,7 +3196,7 @@ bool Item_func_decode_oracle::fix_length_and_dec()
 /*
   Aggregate all THEN and ELSE expression types
   and collations when string result
-  
+
   @param THD       - current thd
   @param start     - an element in args to start aggregating from
 */

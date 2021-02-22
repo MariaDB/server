@@ -936,7 +936,7 @@ uint ha_federated::convert_row_to_internal_format(uchar *record,
 {
   ulong *lengths;
   Field **field;
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
   DBUG_ENTER("ha_federated::convert_row_to_internal_format");
 
   lengths= mysql_fetch_lengths(result);
@@ -965,7 +965,7 @@ uint ha_federated::convert_row_to_internal_format(uchar *record,
     }
     (*field)->move_field_offset(-old_ptr);
   }
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
   DBUG_RETURN(0);
 }
 
@@ -1293,14 +1293,13 @@ bool ha_federated::create_where_from_key(String *to,
   char tmpbuff[FEDERATED_QUERY_BUFFER_SIZE];
   String tmp(tmpbuff, sizeof(tmpbuff), system_charset_info);
   const key_range *ranges[2]= { start_key, end_key };
-  my_bitmap_map *old_map;
   DBUG_ENTER("ha_federated::create_where_from_key");
 
   tmp.length(0); 
   if (start_key == NULL && end_key == NULL)
     DBUG_RETURN(1);
 
-  old_map= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
   for (uint i= 0; i <= 1; i++)
   {
     bool needs_quotes;
@@ -1477,7 +1476,7 @@ prepare_for_next_key_part:
                   tmp.c_ptr_quick()));
     }
   }
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
 
   if (both_not_null)
     if (tmp.append(STRING_WITH_LEN(") ")))
@@ -1492,7 +1491,7 @@ prepare_for_next_key_part:
   DBUG_RETURN(0);
 
 err:
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
   DBUG_RETURN(1);
 }
 
@@ -1841,7 +1840,7 @@ int ha_federated::write_row(const uchar *buf)
   String insert_field_value_string(insert_field_value_buffer,
                                    sizeof(insert_field_value_buffer),
                                    &my_charset_bin);
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   DBUG_ENTER("ha_federated::write_row");
 
   values_string.length(0);
@@ -1895,7 +1894,7 @@ int ha_federated::write_row(const uchar *buf)
       values_string.append(STRING_WITH_LEN(", "));
     }
   }
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
 
   /*
     if there were no fields, we don't want to add a closing paren
@@ -2203,7 +2202,7 @@ int ha_federated::update_row(const uchar *old_data, const uchar *new_data)
       else
       {
         /* otherwise = */
-        my_bitmap_map *old_map= tmp_use_all_columns(table, table->read_set);
+        MY_BITMAP *old_map= tmp_use_all_columns(table, &table->read_set);
         bool needs_quote= (*field)->str_needs_quotes();
 	(*field)->val_str(&field_value);
         if (needs_quote)
@@ -2212,7 +2211,7 @@ int ha_federated::update_row(const uchar *old_data, const uchar *new_data)
         if (needs_quote)
           update_string.append(value_quote_char);
         field_value.length(0);
-        tmp_restore_column_map(table->read_set, old_map);
+        tmp_restore_column_map(&table->read_set, old_map);
       }
       update_string.append(STRING_WITH_LEN(", "));
     }

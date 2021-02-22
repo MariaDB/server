@@ -136,7 +136,7 @@ bool sequence_definition::check_and_adjust(bool set_reserved_until)
 
 void sequence_definition::read_fields(TABLE *table)
 {
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   reserved_until= table->field[0]->val_int();
   min_value=      table->field[1]->val_int();
   max_value=      table->field[2]->val_int();
@@ -145,7 +145,7 @@ void sequence_definition::read_fields(TABLE *table)
   cache=          table->field[5]->val_int();
   cycle=          table->field[6]->val_int();
   round=          table->field[7]->val_int();
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
   used_fields= ~(uint) 0;
   print_dbug();
 }
@@ -157,7 +157,7 @@ void sequence_definition::read_fields(TABLE *table)
 
 void sequence_definition::store_fields(TABLE *table)
 {
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
 
   /* zero possible delete markers & null bits */
   memcpy(table->record[0], table->s->default_values, table->s->null_bytes);
@@ -170,7 +170,7 @@ void sequence_definition::store_fields(TABLE *table)
   table->field[6]->store((longlong) cycle != 0, 0);
   table->field[7]->store((longlong) round, 1);
 
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
   print_dbug();
 }
 
@@ -527,12 +527,11 @@ int SEQUENCE::read_initial_values(TABLE *table)
 int SEQUENCE::read_stored_values(TABLE *table)
 {
   int error;
-  my_bitmap_map *save_read_set;
   DBUG_ENTER("SEQUENCE::read_stored_values");
 
-  save_read_set= tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *save_read_set= tmp_use_all_columns(table, &table->read_set);
   error= table->file->ha_read_first_row(table->record[0], MAX_KEY);
-  tmp_restore_column_map(table->read_set, save_read_set);
+  tmp_restore_column_map(&table->read_set, save_read_set);
 
   if (unlikely(error))
   {

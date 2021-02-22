@@ -87,6 +87,8 @@ extern struct wsrep_service_st {
   bool                        (*wsrep_thd_set_wsrep_aborter_func)(MYSQL_THD bf_thd, MYSQL_THD thd);
   void                        (*wsrep_report_bf_lock_wait_func)(const MYSQL_THD thd,
                                                                 unsigned long long trx_id);
+  void                        (*wsrep_thd_kill_LOCK_func)(const MYSQL_THD thd);
+  void                        (*wsrep_thd_kill_UNLOCK_func)(const MYSQL_THD thd);
 } *wsrep_service;
 
 #define MYSQL_SERVICE_WSREP_INCLUDED
@@ -104,6 +106,8 @@ extern struct wsrep_service_st {
 #define wsrep_prepare_key_for_innodb(A,B,C,D,E,F,G) wsrep_service->wsrep_prepare_key_for_innodb_func(A,B,C,D,E,F,G)
 #define wsrep_thd_LOCK(T) wsrep_service->wsrep_thd_LOCK_func(T)
 #define wsrep_thd_UNLOCK(T) wsrep_service->wsrep_thd_UNLOCK_func(T)
+#define wsrep_thd_kill_LOCK(T) wsrep_service->wsrep_thd_kill_LOCK_func(T)
+#define wsrep_thd_kill_UNLOCK(T) wsrep_service->wsrep_thd_kill_UNLOCK_func(T)
 #define wsrep_thd_query(T) wsrep_service->wsrep_thd_query_func(T)
 #define wsrep_thd_retry_counter(T) wsrep_service->wsrep_thd_retry_counter_func(T)
 #define wsrep_thd_ignore_table(T) wsrep_service->wsrep_thd_ignore_table_func(T)
@@ -163,6 +167,9 @@ extern "C" my_bool wsrep_on(const MYSQL_THD thd);
 extern "C" void wsrep_thd_LOCK(const MYSQL_THD thd);
 /* Unlock thd wsrep lock */
 extern "C" void wsrep_thd_UNLOCK(const MYSQL_THD thd);
+
+extern "C" void wsrep_thd_kill_LOCK(const MYSQL_THD thd);
+extern "C" void wsrep_thd_kill_UNLOCK(const MYSQL_THD thd);
 
 /* Return thd client state string */
 extern "C" const char* wsrep_thd_client_state_str(const MYSQL_THD thd);

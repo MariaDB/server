@@ -413,3 +413,8 @@ ALTER TABLE t2 DROP c;
 UNLOCK TABLES;
 DROP VIEW v1;
 DROP TABLE t1, t2;
+#
+# KILL QUERY ID USER
+#
+kill query id user 'foo';
+ERROR 42S22: Unknown column 'user' in 'field list'

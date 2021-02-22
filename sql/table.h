@@ -3087,25 +3087,25 @@ typedef struct st_open_table_list{
 } OPEN_TABLE_LIST;
 
 
-static inline my_bitmap_map *tmp_use_all_columns(TABLE *table,
-                                                 MY_BITMAP *bitmap)
+static inline MY_BITMAP *tmp_use_all_columns(TABLE *table,
+                                             MY_BITMAP **bitmap)
 {
-  my_bitmap_map *old= bitmap->bitmap;
-  bitmap->bitmap= table->s->all_set.bitmap;
+  MY_BITMAP *old= *bitmap;
+  *bitmap= &table->s->all_set;
   return old;
 }
 
 
-static inline void tmp_restore_column_map(MY_BITMAP *bitmap,
-                                          my_bitmap_map *old)
+static inline void tmp_restore_column_map(MY_BITMAP **bitmap,
+                                          MY_BITMAP *old)
 {
-  bitmap->bitmap= old;
+  *bitmap= old;
 }
 
 /* The following is only needed for debugging */
 
-static inline my_bitmap_map *dbug_tmp_use_all_columns(TABLE *table,
-                                                      MY_BITMAP *bitmap)
+static inline MY_BITMAP *dbug_tmp_use_all_columns(TABLE *table,
+                                                      MY_BITMAP **bitmap)
 {
 #ifdef DBUG_ASSERT_EXISTS
   return tmp_use_all_columns(table, bitmap);
@@ -3114,8 +3114,8 @@ static inline my_bitmap_map *dbug_tmp_use_all_columns(TABLE *table,
 #endif
 }
 
-static inline void dbug_tmp_restore_column_map(MY_BITMAP *bitmap,
-                                               my_bitmap_map *old)
+static inline void dbug_tmp_restore_column_map(MY_BITMAP **bitmap,
+                                               MY_BITMAP *old)
 {
 #ifdef DBUG_ASSERT_EXISTS
   tmp_restore_column_map(bitmap, old);
@@ -3128,22 +3128,22 @@ static inline void dbug_tmp_restore_column_map(MY_BITMAP *bitmap,
   Provide for the possiblity of the read set being the same as the write set
 */
 static inline void dbug_tmp_use_all_columns(TABLE *table,
-                                            my_bitmap_map **save,
-                                            MY_BITMAP *read_set,
-                                            MY_BITMAP *write_set)
+                                            MY_BITMAP **save,
+                                            MY_BITMAP **read_set,
+                                            MY_BITMAP **write_set)
 {
 #ifdef DBUG_ASSERT_EXISTS
-  save[0]= read_set->bitmap;
-  save[1]= write_set->bitmap;
+  save[0]= *read_set;
+  save[1]= *write_set;
   (void) tmp_use_all_columns(table, read_set);
   (void) tmp_use_all_columns(table, write_set);
 #endif
 }
 
 
-static inline void dbug_tmp_restore_column_maps(MY_BITMAP *read_set,
-                                                MY_BITMAP *write_set,
-                                                my_bitmap_map **old)
+static inline void dbug_tmp_restore_column_maps(MY_BITMAP **read_set,
+                                                MY_BITMAP **write_set,
+                                                MY_BITMAP **old)
 {
 #ifdef DBUG_ASSERT_EXISTS
   tmp_restore_column_map(read_set, old[0]);

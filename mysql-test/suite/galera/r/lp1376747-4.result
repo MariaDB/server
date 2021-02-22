@@ -5,32 +5,34 @@ CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 connection node_2;
 SET session wsrep_sync_wait=0;
-FLUSH TABLE WITH READ LOCK;
+FLUSH TABLES WITH READ LOCK;
 connection node_1;
 ALTER TABLE t1 ADD COLUMN f2 INTEGER;
 INSERT INTO t1 VALUES (2,3);
 connection node_2a;
 SET session wsrep_sync_wait=0;
-# node_1 DDL should not yet be applied
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SET debug_sync='flush_tables_with_read_lock_after_acquire_locks SIGNAL parked2 WAIT_FOR go2';
 FLUSH TABLES t1 WITH READ LOCK;;
 connection node_2;
+SET debug_sync='now WAIT_FOR parked2';
+SET debug_sync='now SIGNAL go2';
 UNLOCK TABLES;
-# node_1 DDL should not yet be applied 2
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
+set debug_sync= 'RESET';
 connection node_2a;
 UNLOCK TABLES;
-# node_1 DDL should be applied 2
+SET SESSION wsrep_sync_wait = DEFAULT;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

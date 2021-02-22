@@ -1718,6 +1718,9 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
   if (select_lex->handle_derived(thd->lex, DT_MERGE))
     DBUG_RETURN(1);
 
+  if (thd->lex->save_prep_leaf_tables())
+    DBUG_RETURN(1);
+
   List<Item> *fields= &lex->first_select_lex()->item_list;
   if (setup_fields_with_no_wrap(thd, Ref_ptr_array(),
                                 *fields, MARK_COLUMNS_WRITE, 0, 0))

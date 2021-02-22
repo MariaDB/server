@@ -48,10 +48,16 @@ DROP PROCEDURE p3;
 DROP FUNCTION f1;
 DROP FUNCTION f2;
 DROP FUNCTION f3;
+#
+# Bug #26807 "set global event_scheduler=1" and --skip-grant-tables crashes server
+#
 set global event_scheduler=1;
 Warnings:
 Note	1408	Event Scheduler: Loaded 0 events
 set global event_scheduler=0;
+#
+# Bug#26285 Selecting information_schema crahes server
+#
 select count(*) from information_schema.COLUMN_PRIVILEGES;
 count(*)
 0
@@ -64,14 +70,21 @@ count(*)
 select count(*) from information_schema.USER_PRIVILEGES;
 count(*)
 0
-End of 5.0 tests
+#
+# End of 5.0 tests
+#
 #
 # Bug#29817 Queries with UDF fail with non-descriptive error
 # if mysql.proc is missing
 #
 select no_such_function(1);
 ERROR 42000: FUNCTION test.no_such_function does not exist
-End of 5.1 tests
+#
+# End of 5.1 tests
+#
+#
+# MDEV-8280 crash in 'show global status' with --skip-grant-tables
+#
 show global status like 'Acl%';
 Variable_name	Value
 Acl_column_grants	0
@@ -85,6 +98,17 @@ Acl_role_grants	0
 Acl_roles	0
 Acl_table_grants	0
 Acl_users	0
+#
+# End of 10.1 tests
+#
+#
+# MDEV-22966 Server crashes or hangs with SET ROLE when started with skip-grant-tables
+#
+set role x;
+ERROR HY000: The MariaDB server is running with the --skip-grant-tables option so it cannot execute this statement
+#
+# End of 10.2 tests
+#
 show create user root@localhost;
 ERROR HY000: The MariaDB server is running with the --skip-grant-tables option so it cannot execute this statement
 insert mysql.global_priv values ('foo', 'bar', '{}');
@@ -112,3 +136,6 @@ CREATE USER `baz`@`baz` IDENTIFIED BY PASSWORD '*E52096EF8EB0240275A7FE9E069101C
 drop user bar@foo;
 drop user baz@baz;
 # restart
+#
+# End of 10.3 tests
+#

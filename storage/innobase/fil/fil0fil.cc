@@ -2802,7 +2802,6 @@ fil_rename_tablespace(
 	ut_ad(strchr(new_file_name, OS_PATH_SEPARATOR) != NULL);
 
 	if (!recv_recovery_is_on()) {
-		fil_name_write_rename(id, old_file_name, new_file_name);
 		log_mutex_enter();
 	}
 

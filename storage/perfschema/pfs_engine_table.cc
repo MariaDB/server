@@ -188,17 +188,15 @@ ha_rows PFS_engine_table_share::get_row_count(void) const
 int PFS_engine_table_share::write_row(TABLE *table, const unsigned char *buf,
                                       Field **fields) const
 {
-  my_bitmap_map *org_bitmap;
-
   if (m_write_row == NULL)
   {
     return HA_ERR_WRONG_COMMAND;
   }
 
   /* We internally read from Fields to support the write interface */
-  org_bitmap= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *org_bitmap= dbug_tmp_use_all_columns(table, &table->read_set);
   int result= m_write_row(table, buf, fields);
-  dbug_tmp_restore_column_map(table->read_set, org_bitmap);
+  dbug_tmp_restore_column_map(&table->read_set, org_bitmap);
 
   return result;
 }
@@ -256,7 +254,6 @@ int PFS_engine_table::read_row(TABLE *table,
                                unsigned char *buf,
                                Field **fields)
 {
-  my_bitmap_map *org_bitmap;
   Field *f;
   Field **fields_reset;
 
@@ -264,7 +261,7 @@ int PFS_engine_table::read_row(TABLE *table,
   bool read_all= !bitmap_is_clear_all(table->write_set);
 
   /* We internally write to Fields to support the read interface */
-  org_bitmap= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *org_bitmap= dbug_tmp_use_all_columns(table, &table->write_set);
 
   /*
     Some callers of the storage engine interface do not honor the
@@ -276,7 +273,7 @@ int PFS_engine_table::read_row(TABLE *table,
     f->reset();
 
   int result= read_row_values(table, buf, fields, read_all);
-  dbug_tmp_restore_column_map(table->write_set, org_bitmap);
+  dbug_tmp_restore_column_map(&table->write_set, org_bitmap);
 
   return result;
 }
@@ -294,12 +291,10 @@ int PFS_engine_table::update_row(TABLE *table,
                                  const unsigned char *new_buf,
                                  Field **fields)
 {
-  my_bitmap_map *org_bitmap;
-
   /* We internally read from Fields to support the write interface */
-  org_bitmap= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *org_bitmap= dbug_tmp_use_all_columns(table, &table->read_set);
   int result= update_row_values(table, old_buf, new_buf, fields);
-  dbug_tmp_restore_column_map(table->read_set, org_bitmap);
+  dbug_tmp_restore_column_map(&table->read_set, org_bitmap);
 
   return result;
 }
@@ -308,12 +303,10 @@ int PFS_engine_table::delete_row(TABLE *table,
                                  const unsigned char *buf,
                                  Field **fields)
 {
-  my_bitmap_map *org_bitmap;
-
   /* We internally read from Fields to support the delete interface */
-  org_bitmap= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *org_bitmap= dbug_tmp_use_all_columns(table, &table->read_set);
   int result= delete_row_values(table, buf, fields);
-  dbug_tmp_restore_column_map(table->read_set, org_bitmap);
+  dbug_tmp_restore_column_map(&table->read_set, org_bitmap);
 
   return result;
 }

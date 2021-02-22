@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -799,6 +799,9 @@ public:
 	/** whether wsrep_on(mysql_thd) held at the start of transaction */
 	bool		wsrep;
 	bool is_wsrep() const { return UNIV_UNLIKELY(wsrep); }
+	/** true, if BF thread is performing unique secondary index scanning */
+	bool wsrep_UK_scan;
+	bool is_wsrep_UK_scan() const { return UNIV_UNLIKELY(wsrep_UK_scan); }
 #else /* WITH_WSREP */
 	bool is_wsrep() const { return false; }
 #endif /* WITH_WSREP */

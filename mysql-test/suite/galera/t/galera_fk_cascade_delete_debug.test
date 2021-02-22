@@ -25,16 +25,25 @@ INSERT INTO parent VALUES ('row one'), ('row two');
 INSERT INTO child VALUES (1,'row one'), (2,'row two');
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'parent'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'child'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 2 FROM parent;
+--source include/wait_condition.inc
 --let $wait_condition = SELECT COUNT(*) = 2 FROM child;
 --source include/wait_condition.inc
+
 DELETE FROM parent;
 
 --connection node_1
+--let $wait_condition = SELECT COUNT(*) = 0 FROM parent;
+--source include/wait_condition.inc
 --let $wait_condition = SELECT COUNT(*) = 0 FROM child;
 --source include/wait_condition.inc
 
-SELECT COUNT(*), COUNT(*) = 0 FROM parent;
-SELECT COUNT(*), COUNT(*) = 0 FROM child;
+SELECT * FROM parent;
+SELECT * FROM child;
 
 DROP TABLE child;
 DROP TABLE parent;
@@ -62,6 +71,12 @@ INSERT INTO parent VALUES (1);
 INSERT INTO child VALUES (1,0,1);
 
 --connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'parent'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'child'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM parent;
+--source include/wait_condition.inc
 --let $wait_condition = SELECT COUNT(*) = 1 FROM child;
 --source include/wait_condition.inc
 
@@ -89,11 +104,13 @@ SET DEBUG_SYNC = "RESET";
 
 --connection node_1
 --reap
-
+--let $wait_condition = SELECT COUNT(*) = 0 FROM parent;
+--source include/wait_condition.inc
 --let $wait_condition = SELECT COUNT(*) = 0 FROM child;
 --source include/wait_condition.inc
-SELECT COUNT(*), COUNT(*) = 0 FROM parent;
-SELECT COUNT(*), COUNT(*) = 0 FROM child;
+
+SELECT * FROM parent;
+SELECT * FROM child;
 
 DROP TABLE child;
 DROP TABLE parent;

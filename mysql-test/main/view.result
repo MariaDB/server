@@ -6758,6 +6758,22 @@ drop database db1;
 create database test;
 use test;
 #
+# MDEV-16940: update of multi-table view returning error used in SP
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (2), (3);
+CREATE VIEW v1 AS SELECT a, b FROM t1,t2;
+CREATE PROCEDURE sp1() UPDATE v1 SET a = 8, b = 9;
+CALL sp1;
+ERROR HY000: Can not modify more than one base table through a join view 'test.v1'
+CALL sp1;
+ERROR HY000: Can not modify more than one base table through a join view 'test.v1'
+DROP PROCEDURE sp1;
+DROP VIEW v1;
+DROP TABLE t1, t2;
+#
 # End of 10.2 tests
 #
 #
