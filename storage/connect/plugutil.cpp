@@ -628,7 +628,7 @@ size_t MakeOff(void* memp, void* ptr)
       DoThrow(999);
     } // endif ptr
 #endif   // _DEBUG  ||         DEVELOPMENT
-    return (size_t)((char*)ptr - (size_t)memp);
+    return (size_t)(((char*)ptr) - ((char*)memp));
   } else
     return 0;
 

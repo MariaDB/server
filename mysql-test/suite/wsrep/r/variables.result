@@ -14,7 +14,6 @@ SET SESSION wsrep_replicate_myisam= ON;
 ERROR HY000: Variable 'wsrep_replicate_myisam' is a GLOBAL variable and should be set with SET GLOBAL
 SET GLOBAL wsrep_replicate_myisam= ON;
 SET GLOBAL wsrep_replicate_myisam= OFF;
-SET GLOBAL wsrep_provider=none;
 #
 # MDEV#5790: SHOW GLOBAL STATUS LIKE does not show the correct list of
 # variables when using "_"
@@ -26,7 +25,6 @@ wsrep_local_state_comment	#
 # Should show nothing.
 SHOW STATUS LIKE 'x';
 Variable_name	Value
-SET GLOBAL wsrep_provider=none;
 
 SHOW STATUS LIKE 'wsrep_local_state_uuid';
 Variable_name	Value
@@ -35,7 +33,6 @@ wsrep_local_state_uuid	#
 SHOW STATUS LIKE 'wsrep_last_committed';
 Variable_name	Value
 wsrep_last_committed	#
-SET GLOBAL wsrep_provider=none;
 
 #
 # MDEV#6206: wsrep_slave_threads subtracts from max_connections
@@ -49,7 +46,7 @@ SELECT @@global.wsrep_slave_threads;
 1
 SELECT @@global.wsrep_cluster_address;
 @@global.wsrep_cluster_address
-
+gcomm://
 SELECT @@global.wsrep_on;
 @@global.wsrep_on
 1
@@ -58,14 +55,14 @@ Variable_name	Value
 Threads_connected	1
 SHOW STATUS LIKE 'wsrep_thread_count';
 Variable_name	Value
-wsrep_thread_count	0
+wsrep_thread_count	2
 
 SELECT @@global.wsrep_provider;
 @@global.wsrep_provider
 libgalera_smm.so
 SELECT @@global.wsrep_cluster_address;
 @@global.wsrep_cluster_address
-
+gcomm://
 SELECT @@global.wsrep_on;
 @@global.wsrep_on
 1
@@ -74,11 +71,10 @@ Variable_name	Value
 Threads_connected	1
 SHOW STATUS LIKE 'wsrep_thread_count';
 Variable_name	Value
-wsrep_thread_count	0
+wsrep_thread_count	2
 
 # Setting wsrep_cluster_address triggers the creation of
 # applier/rollbacker threads.
-SET GLOBAL wsrep_cluster_address= 'gcomm://';
 # Wait for applier thread to get created 1.
 # Wait for applier thread to get created 2.
 SELECT VARIABLE_VALUE AS EXPECT_1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
@@ -138,4 +134,5 @@ SET @wsrep_sst_auth_saved= @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= 'user:pass';
 SET @@global.wsrep_sst_auth= '';
 SET @@global.wsrep_sst_auth= NULL;
+SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
 # End of test.
