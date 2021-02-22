@@ -645,27 +645,19 @@ public:
     /** @return raw array index converted to padded index */
     static ulint pad(ulint h) { return 1 + (h / ELEMENTS_PER_LATCH) + h; }
     /** Get a latch. */
-    inline hash_latch *lock_get(ulint fold) const;
+    static hash_latch *latch(hash_cell_t *cell)
+    {
+      void *l= ut_align_down(cell, (ELEMENTS_PER_LATCH + 1) * sizeof *cell);
+      return static_cast<hash_latch*>(l);
+    }
+    /** Get a hash table cell. */
+    inline hash_cell_t *cell_get(ulint fold) const;
 
 #ifdef UNIV_DEBUG
     void assert_locked(const page_id_t id) const;
 #else
     void assert_locked(const page_id_t) const {}
 #endif
-
-    /** Get the first lock on a page.
-    @param id          page number
-    @return first lock
-    @retval nullptr if none exists */
-    lock_t *get_first(const page_id_t id) const
-    {
-      assert_locked(id);
-      for (auto lock= static_cast<lock_t*>(array[calc_hash(id.fold())].node);
-         lock; lock= lock->hash)
-        if (lock->un_member.rec_lock.page_id == id)
-          return lock;
-      return nullptr;
-    }
 
   private:
     /** @return the hash value before any ELEMENTS_PER_LATCH padding */
@@ -675,14 +667,6 @@ public:
     static ulint calc_hash(ulint fold, ulint n_cells)
     {
       return pad(hash(fold, n_cells));
-    }
-    /** Get a page_hash latch. */
-    hash_latch *lock_get(ulint fold, ulint n) const
-    {
-      static_assert(!((ELEMENTS_PER_LATCH + 1) & ELEMENTS_PER_LATCH),
-                    "must be one less than a power of 2");
-      return reinterpret_cast<hash_latch*>
-        (&array[calc_hash(fold, n) & ~ELEMENTS_PER_LATCH]);
     }
   };
 
@@ -798,13 +782,16 @@ public:
   /** @return whether the current thread is the lock_sys.latch writer */
   bool is_writer() const
   { return writer.load(std::memory_order_relaxed) == os_thread_get_curr_id(); }
-  /** Assert that a lock shard is exclusively latched by this thread */
+  /** Assert that a lock shard is exclusively latched (by some thread) */
   void assert_locked(const lock_t &lock) const;
   /** Assert that a table lock shard is exclusively latched by this thread */
   void assert_locked(const dict_table_t &table) const;
+  /** Assert that a hash table cell is exclusively latched (by some thread) */
+  void assert_locked(const hash_cell_t &cell) const;
 #else
   void assert_locked(const lock_t &) const {}
   void assert_locked(const dict_table_t &) const {}
+  void assert_locked(const hash_cell_t &) const {}
 #endif
 
   /**
@@ -858,19 +845,21 @@ public:
   hash_table &prdt_hash_get(bool page)
   { return page ? prdt_page_hash : prdt_hash; }
 
-  lock_t *get_first(ulint type_mode, const page_id_t id)
-  {
-    return hash_get(type_mode).get_first(id);
-  }
+  /** Get the first lock on a page.
+  @param cell        hash table cell
+  @param id          page number
+  @return first lock
+  @retval nullptr if none exists */
+  static inline lock_t *get_first(const hash_cell_t &cell, page_id_t id);
 
   /** Get the first explicit lock request on a record.
-  @param hash     lock hash table
+  @param cell     first lock hash table cell
   @param id       page identifier
   @param heap_no  record identifier in page
   @return first lock
   @retval nullptr if none exists */
-  inline lock_t *get_first(hash_table &hash, const page_id_t id,
-                           ulint heap_no);
+  static inline lock_t *get_first(const hash_cell_t &cell, page_id_t id,
+                                  ulint heap_no);
 
   /** Remove locks on a discarded SPATIAL INDEX page.
   @param id   page to be discarded
@@ -888,15 +877,31 @@ inline ulint lock_sys_t::hash_table::calc_hash(ulint fold) const
   return calc_hash(fold, n_cells);
 }
 
-/** Get a latch. */
-inline
-lock_sys_t::hash_latch *lock_sys_t::hash_table::lock_get(ulint fold) const
+/** Get a hash table cell. */
+inline hash_cell_t *lock_sys_t::hash_table::cell_get(ulint fold) const
 {
   ut_ad(lock_sys.is_writer() || lock_sys.readers);
-  return lock_get(fold, n_cells);
+  return &array[calc_hash(fold)];
 }
 
-/** lock_sys.latch guard */
+/** Get the first lock on a page.
+@param cell        hash table cell
+@param id          page number
+@return first lock
+@retval nullptr if none exists */
+inline lock_t *lock_sys_t::get_first(const hash_cell_t &cell, page_id_t id)
+{
+  lock_sys.assert_locked(cell);
+  for (auto lock= static_cast<lock_t*>(cell.node); lock; lock= lock->hash)
+  {
+    ut_ad(!lock->is_table());
+    if (lock->un_member.rec_lock.page_id == id)
+      return lock;
+  }
+  return nullptr;
+}
+
+/** lock_sys.latch exclusive guard */
 struct LockMutexGuard
 {
   LockMutexGuard(SRW_LOCK_ARGS(const char *file, unsigned line))
@@ -904,30 +909,39 @@ struct LockMutexGuard
   ~LockMutexGuard() { lock_sys.wr_unlock(); }
 };
 
-/** lock_sys.latch guard for a page_id_t shard */
+/** lock_sys latch guard for 1 page_id_t */
 struct LockGuard
 {
   LockGuard(lock_sys_t::hash_table &hash, const page_id_t id);
   ~LockGuard()
   {
-    latch->release();
+    lock_sys_t::hash_table::latch(cell_)->release();
     /* Must be last, to avoid a race with lock_sys_t::hash_table::resize() */
     lock_sys.rd_unlock();
   }
+  /** @return the hash array cell */
+  hash_cell_t &cell() const { return *cell_; }
 private:
-  /** The hash bucket */
-  lock_sys_t::hash_latch *latch;
+  /** The hash array cell */
+  hash_cell_t *cell_;
 };
 
-/** lock_sys.latch guard for 2 page_id_t shards */
+/** lock_sys latch guard for 2 page_id_t */
 struct LockMultiGuard
 {
   LockMultiGuard(lock_sys_t::hash_table &hash,
                  const page_id_t id1, const page_id_t id2);
   ~LockMultiGuard();
+
+  /** @return the first hash array cell */
+  hash_cell_t &cell1() const { return *cell1_; }
+  /** @return the second hash array cell */
+  hash_cell_t &cell2() const { return *cell2_; }
 private:
-  /** The hash buckets */
-  lock_sys_t::hash_latch *latch1, *latch2;
+  /** The first hash array cell */
+  hash_cell_t *cell1_;
+  /** The second hash array cell */
+  hash_cell_t *cell2_;
 };
 
 /*********************************************************************//**

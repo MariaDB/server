@@ -520,18 +520,23 @@ lock_rec_get_next_const(
 	const lock_t*	lock);	/*!< in: lock */
 
 /** Get the first explicit lock request on a record.
-@param hash     lock hash table
+@param cell     first lock hash table cell
 @param id       page identifier
 @param heap_no  record identifier in page
 @return first lock
 @retval nullptr if none exists */
-inline lock_t *lock_sys_t::get_first(lock_sys_t::hash_table &hash,
-                                     const page_id_t id, ulint heap_no)
+inline lock_t *lock_sys_t::get_first(const hash_cell_t &cell, page_id_t id,
+                                     ulint heap_no)
 {
-  for (lock_t *lock= hash.get_first(id);
-       lock; lock= lock_rec_get_next_on_page(lock))
-    if (lock_rec_get_nth_bit(lock, heap_no))
+  lock_sys.assert_locked(cell);
+
+  for (lock_t *lock= static_cast<lock_t*>(cell.node); lock; lock= lock->hash)
+  {
+    ut_ad(!lock->is_table());
+    if (lock->un_member.rec_lock.page_id == id &&
+        lock_rec_get_nth_bit(lock, heap_no))
       return lock;
+  }
   return nullptr;
 }
 

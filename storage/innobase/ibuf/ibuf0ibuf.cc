@@ -3281,7 +3281,7 @@ commit_exit:
 		goto fail_exit;
 	} else {
 		LockGuard g{lock_sys.rec_hash, page_id};
-		if (lock_sys.rec_hash.get_first(page_id)) {
+		if (lock_sys_t::get_first(g.cell(), page_id)) {
 			goto commit_exit;
 		}
 	}

@@ -228,7 +228,7 @@ lock_t*
 lock_prdt_has_lock(
 /*===============*/
 	ulint			precise_mode,	/*!< in: LOCK_S or LOCK_X */
-	unsigned		type_mode,	/*!< in: LOCK_PREDICATE etc. */
+	hash_cell_t&		cell,		/*!< hash table cell of id */
 	const page_id_t		id,		/*!< in: page identifier */
 	lock_prdt_t*		prdt,		/*!< in: The predicate to be
 						attached to the new lock */
@@ -238,8 +238,7 @@ lock_prdt_has_lock(
 	      || (precise_mode & LOCK_MODE_MASK) == LOCK_X);
 	ut_ad(!(precise_mode & LOCK_INSERT_INTENTION));
 
-	for (lock_t*lock= lock_sys.get_first(lock_sys.hash_get(type_mode),
-					     id, PRDT_HEAPNO);
+	for (lock_t*lock= lock_sys_t::get_first(cell, id, PRDT_HEAPNO);
 	     lock;
 	     lock = lock_rec_get_next(PRDT_HEAPNO, lock)) {
 		ut_ad(lock->type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE));
@@ -282,14 +281,14 @@ lock_prdt_other_has_conflicting(
 	unsigned		mode,	/*!< in: LOCK_S or LOCK_X,
 					possibly ORed to LOCK_PREDICATE or
 					LOCK_PRDT_PAGE, LOCK_INSERT_INTENTION */
+	const hash_cell_t&	cell,	/*!< in: hash table cell */
 	const page_id_t		id,	/*!< in: page identifier */
 	lock_prdt_t*		prdt,    /*!< in: Predicates (currently)
 					the Minimum Bounding Rectangle)
 					the new lock will be on */
 	const trx_t*		trx)	/*!< in: our transaction */
 {
-	for (lock_t* lock = lock_sys.get_first(lock_sys.hash_get(mode),
-					       id, PRDT_HEAPNO);
+	for (lock_t* lock = lock_sys_t::get_first(cell, id, PRDT_HEAPNO);
 	     lock != NULL;
 	     lock = lock_rec_get_next(PRDT_HEAPNO, lock)) {
 
@@ -381,9 +380,10 @@ lock_prdt_find_on_page(
 	lock_prdt_t*		prdt,		/*!< in: MBR with the lock */
 	const trx_t*		trx)		/*!< in: transaction */
 {
-	lock_t*	lock;
+	const page_id_t id{block->page.id()};
+	hash_cell_t& cell = *lock_sys.hash_get(type_mode).cell_get(id.fold());
 
-	for (lock = lock_sys.get_first(type_mode, block->page.id());
+	for (lock_t *lock = lock_sys_t::get_first(cell, id);
 	     lock != NULL;
 	     lock = lock_rec_get_next_on_page(lock)) {
 
@@ -440,26 +440,29 @@ lock_prdt_add_to_queue(
 #endif /* UNIV_DEBUG */
 
 	/* Try to extend a similar non-waiting lock on the same page */
-	if (type_mode & LOCK_WAIT) {
-		goto create;
-	}
+	if (!(type_mode & LOCK_WAIT)) {
+		const page_id_t id{block->page.id()};
+		hash_cell_t& cell = *lock_sys.hash_get(type_mode).
+			cell_get(id.fold());
 
-	for (lock_t* lock = lock_sys.get_first(type_mode, block->page.id());
-	     lock; lock = lock_rec_get_next_on_page(lock)) {
-		if (lock->is_waiting()
-		    && lock->type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE)
-		    && lock_rec_get_nth_bit(lock, PRDT_HEAPNO)) {
-			goto create;
-		}
-	}
-
-	if (lock_t* lock = lock_prdt_find_on_page(type_mode, block,
-						  prdt, trx)) {
-		if (lock->type_mode & LOCK_PREDICATE) {
-			lock_prdt_enlarge_prdt(lock, prdt);
+		for (lock_t* lock = lock_sys_t::get_first(cell, id);
+		     lock; lock = lock_rec_get_next_on_page(lock)) {
+			if (lock->is_waiting()
+			    && lock->type_mode
+			    & (LOCK_PREDICATE | LOCK_PRDT_PAGE)
+			    && lock_rec_get_nth_bit(lock, PRDT_HEAPNO)) {
+				goto create;
+			}
 		}
 
-		return lock;
+		if (lock_t* lock = lock_prdt_find_on_page(type_mode, block,
+							  prdt, trx)) {
+			if (lock->type_mode & LOCK_PREDICATE) {
+				lock_prdt_enlarge_prdt(lock, prdt);
+			}
+
+			return lock;
+		}
 	}
 
 create:
@@ -509,8 +512,7 @@ lock_prdt_insert_check_and_lock(
     ut_ad(lock_table_has(trx, index->table, LOCK_IX));
 
     /* Only need to check locks on prdt_hash */
-    if (ut_d(lock_t *lock=)
-        lock_sys.get_first(lock_sys.prdt_hash, id, PRDT_HEAPNO))
+    if (ut_d(lock_t *lock=) lock_sys_t::get_first(g.cell(), id, PRDT_HEAPNO))
     {
       ut_ad(lock->type_mode & LOCK_PREDICATE);
 
@@ -522,7 +524,8 @@ lock_prdt_insert_check_and_lock(
       with each other */
 
       const ulint mode= LOCK_X | LOCK_PREDICATE | LOCK_INSERT_INTENTION;
-      lock_t *c_lock= lock_prdt_other_has_conflicting(mode, id, prdt, trx);
+      lock_t *c_lock= lock_prdt_other_has_conflicting(mode, g.cell(), id,
+                                                      prdt, trx);
 
       if (c_lock)
       {
@@ -556,10 +559,12 @@ lock_prdt_update_parent(
         lock_prdt_t*	right_prdt,	/*!< in: MBR on the new page */
 	const page_id_t	page_id)	/*!< in: parent page */
 {
+	auto fold= page_id.fold();
 	LockMutexGuard g{SRW_LOCK_CALL};
+	hash_cell_t& cell = *lock_sys.prdt_hash.cell_get(fold);
 
 	/* Get all locks in parent */
-	for (lock_t *lock = lock_sys.prdt_hash.get_first(page_id);
+	for (lock_t *lock = lock_sys_t::get_first(cell, page_id);
 	     lock;
 	     lock = lock_rec_get_next_on_page(lock)) {
 		lock_prdt_t*	lock_prdt;
@@ -604,13 +609,13 @@ lock_prdt_update_split_low(
 	buf_block_t*	new_block,	/*!< in/out: the new half page */
 	lock_prdt_t*	prdt,		/*!< in: MBR on the old page */
 	lock_prdt_t*	new_prdt,	/*!< in: MBR on the new page */
-	const page_id_t	page_id,	/*!< in: page number */
+	const page_id_t	id,		/*!< in: page number */
 	unsigned	type_mode)	/*!< in: LOCK_PREDICATE or
 					LOCK_PRDT_PAGE */
 {
-	lock_t*		lock;
+	hash_cell_t& cell = *lock_sys.hash_get(type_mode).cell_get(id.fold());
 
-	for (lock = lock_sys.get_first(type_mode, page_id);
+	for (lock_t* lock = lock_sys_t::get_first(cell, id);
 	     lock;
 	     lock = lock_rec_get_next_on_page(lock)) {
 		/* First dealing with Page Lock */
@@ -726,7 +731,7 @@ lock_prdt_lock(
 	LockGuard g{hash, id};
 
 	const unsigned	prdt_mode = type_mode | mode;
-	lock_t*		lock = hash.get_first(id);
+	lock_t*		lock = lock_sys_t::get_first(g.cell(), id);
 
 	if (lock == NULL) {
 		lock = lock_rec_create(
@@ -746,14 +751,14 @@ lock_prdt_lock(
 			trx->mutex_lock();
 
 			lock = lock_prdt_has_lock(
-				mode, type_mode, id, prdt, trx);
+				mode, g.cell(), id, prdt, trx);
 
 			if (lock == NULL) {
 
 				lock_t*	wait_for;
 
 				wait_for = lock_prdt_other_has_conflicting(
-					prdt_mode, id, prdt, trx);
+					prdt_mode, g.cell(), id, prdt, trx);
 
 				if (wait_for != NULL) {
 
@@ -811,7 +816,7 @@ lock_place_prdt_page_lock(
 
 	LockGuard g{lock_sys.prdt_page_hash, page_id};
 
-	const lock_t*	lock = lock_sys.prdt_page_hash.get_first(page_id);
+	const lock_t*	lock = lock_sys_t::get_first(g.cell(), page_id);
 	const ulint	mode = LOCK_S | LOCK_PRDT_PAGE;
 	trx_t*		trx = thr_get_trx(thr);
 
@@ -847,7 +852,7 @@ lock_place_prdt_page_lock(
 bool lock_test_prdt_page_lock(const trx_t *trx, const page_id_t page_id)
 {
   LockGuard g{lock_sys.prdt_page_hash, page_id};
-  lock_t *lock= lock_sys.prdt_page_hash.get_first(page_id);
+  lock_t *lock= lock_sys_t::get_first(g.cell(), page_id);
   return !lock || trx == lock->trx;
 }
 
@@ -863,9 +868,9 @@ lock_prdt_rec_move(
 {
 	LockMultiGuard g{lock_sys.prdt_hash, receiver->page.id(), donator};
 
-	for (lock_t *lock = lock_sys.get_first(lock_sys.prdt_hash,
-					       donator, PRDT_HEAPNO);
-	     lock != NULL;
+	for (lock_t *lock = lock_sys_t::get_first(g.cell2(), donator,
+						  PRDT_HEAPNO);
+	     lock;
 	     lock = lock_rec_get_next(PRDT_HEAPNO, lock)) {
 
 		const auto type_mode = lock->type_mode;
@@ -889,11 +894,11 @@ void lock_sys_t::prdt_page_free_from_discard(const page_id_t id, bool all)
 {
   const auto id_fold= id.fold();
   rd_lock(SRW_LOCK_CALL);
-  auto latch= prdt_page_hash.lock_get(id_fold);
+  auto cell= prdt_page_hash.cell_get(id_fold);
+  auto latch= hash_table::latch(cell);
   latch->acquire();
 
-  for (lock_t *lock= lock_sys.prdt_page_hash.get_first(id), *next; lock;
-       lock= next)
+  for (lock_t *lock= get_first(*cell, id), *next; lock; lock= next)
   {
     next= lock_rec_get_next_on_page(lock);
     lock_rec_discard(prdt_page_hash, lock);
@@ -902,10 +907,10 @@ void lock_sys_t::prdt_page_free_from_discard(const page_id_t id, bool all)
   if (all)
   {
     latch->release();
-    latch= prdt_hash.lock_get(id_fold);
+    cell= prdt_hash.cell_get(id_fold);
+    latch= hash_table::latch(cell);
     latch->acquire();
-    for (lock_t *lock= lock_sys.prdt_hash.get_first(id), *next; lock;
-         lock= next)
+    for (lock_t *lock= get_first(*cell, id), *next; lock; lock= next)
     {
       next= lock_rec_get_next_on_page(lock);
       lock_rec_discard(prdt_hash, lock);
@@ -913,11 +918,11 @@ void lock_sys_t::prdt_page_free_from_discard(const page_id_t id, bool all)
   }
 
   latch->release();
-  latch= rec_hash.lock_get(id_fold);
+  cell= rec_hash.cell_get(id_fold);
+  latch= hash_table::latch(cell);
   latch->acquire();
 
-  for (lock_t *lock= lock_sys.rec_hash.get_first(id), *next; lock;
-       lock= next)
+  for (lock_t *lock= get_first(*cell, id), *next; lock; lock= next)
   {
     next= lock_rec_get_next_on_page(lock);
     lock_rec_discard(rec_hash, lock);
