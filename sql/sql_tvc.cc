@@ -342,6 +342,13 @@ int table_value_constr::save_explain_data_intern(THD *thd,
   if (select_lex->master_unit()->derived)
     explain->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
 
+  for (SELECT_LEX_UNIT *unit= select_lex->first_inner_unit();
+       unit;
+       unit= unit->next_unit())
+  {
+    explain->add_child(unit->first_select()->select_number);
+  }
+
   output->add_node(explain);
 
   if (select_lex->is_top_level_node())
@@ -366,9 +373,14 @@ bool table_value_constr::optimize(THD *thd)
       thd->lex->explain && // for "SET" command in SPs.
       (!thd->lex->explain->get_select(select_lex->select_number)))
   {
-    return save_explain_data_intern(thd, thd->lex->explain);
+    if (save_explain_data_intern(thd, thd->lex->explain))
+      return true;
   }
-  return 0;
+
+  if (select_lex->optimize_unflattened_subqueries(true))
+    return true;
+
+  return false;
 }
 
 

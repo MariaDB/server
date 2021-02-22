@@ -1434,4 +1434,29 @@ eval explain extended $q;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-24934:EXPLAIN for queries based on TVC using subqueries
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+
+let $q1=
+values (8), ((select * from t1 where a between 2 and 4));
+eval $q1;
+eval explain $q1;
+
+let $q2=
+values  ((select * from t1 where a between 2 and 4)),
+         ((select * from t1 where a > 10));
+eval $q2;
+eval explain $q2;
+
+let $q3=
+values (10,11), ((select * from t1 where a = 7) + 1, 21);
+eval $q3;
+eval explain $q3;
+
+drop table t1;
+
 --echo End of 10.3 tests
