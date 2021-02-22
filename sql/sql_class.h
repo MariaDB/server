@@ -3291,7 +3291,7 @@ public:
   void update_all_stats();
   void update_stats(void);
   void change_user(void);
-  void cleanup(bool have_mutex=false);
+  void cleanup(void);
   void cleanup_after_query();
   void free_connection();
   void reset_for_reuse();
@@ -6574,6 +6574,22 @@ class Sql_mode_save
  private:
   THD *thd;
   sql_mode_t old_mode; // SQL mode saved at construction time.
+};
+
+class Abort_on_warning_instant_set
+{
+  THD *m_thd;
+  bool m_save_abort_on_warning;
+public:
+  Abort_on_warning_instant_set(THD *thd, bool temporary_value)
+   :m_thd(thd), m_save_abort_on_warning(thd->abort_on_warning)
+  {
+    thd->abort_on_warning= temporary_value;
+  }
+  ~Abort_on_warning_instant_set()
+  {
+    m_thd->abort_on_warning= m_save_abort_on_warning;
+  }
 };
 
 class Switch_to_definer_security_ctx

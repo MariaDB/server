@@ -3,9 +3,9 @@ SET NAMES utf8;
 # Testing expanded values
 #
 CREATE TABLE `bookstore` (
-`category` CHAR(16) NOT NULL FIELD_FORMAT='@',
+`category` CHAR(16) NOT NULL XPATH='@',
 `title` VARCHAR(50) NOT NULL,
-`lang` char(2) NOT NULL FIELD_FORMAT='title/@',
+`lang` char(2) NOT NULL XPATH='title/@',
 `author` VARCHAR(24) NOT NULL,
 `year` INT(4) NOT NULL,
 `price` DOUBLE(8,2) NOT NULL)

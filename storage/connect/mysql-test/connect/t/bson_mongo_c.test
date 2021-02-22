@@ -1,0 +1,10 @@
+-- source mongo.inc
+
+let $DRV= C;
+let $VERS= 0;
+let $PROJ= {"projection":;
+let $ENDP= };
+let $TYPE= BSON;
+let $CONN= CONNECTION='mongodb://localhost:27017' LRECL=1024;
+
+-- source mongo_test.inc

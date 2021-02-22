@@ -10,7 +10,15 @@
 #
 ##############################################################################
 
+GAL-501 : MDEV-24645 galera_3nodes.GAL-501 MTR failed: failed to open gcomm backend connection: 110
 galera_gtid_2_cluster : MDEV-23775 Galera test failure on galera_3nodes.galera_gtid_2_cluster
+galera_ipv6_mariabackup : MDEV-24440: galera_3nodes.galera_ipv6_mariabackup MTR fails sporadically: Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '[::1]:16028/xtrabackup_sst//1'
+galera_ipv6_mariabackup_section : MDEV-22195: galera_3nodes.galera_ipv6_mariabackup_section MTR failed: assert_grep.inc failed
+galera_ipv6_mysqldump : MDEV-24036: galera_3nodes.galera_ipv6_mysqldump: rare random crashes during shutdown
+galera_ipv6_rsync_section : MDEV-23580: galera_3nodes.galera_ipv6_rsync_section MTR failed: WSREP_SST: [ERROR] rsync daemon port '16008' has been taken
 galera_ist_gcache_rollover : MDEV-23578 WSREP: exception caused by message: {v=0,t=1,ut=255,o=4,s=0,sr=0,as=1,f=6,src=50524cfe,srcvid=view_id(REG,50524cfe,4),insvid=view_id(UNKNOWN,00000000,0),ru=00000000,r=[-1,-1],fs=75,nl=(}
-galera_slave_options_do :MDEV-8798
+galera_load_data_ist :  MDEV-24639 galera_3nodes.galera_load_data_ist MTR failed with SIGABRT: query 'reap' failed: 2013: Lost connection to MySQL server during query
+galera_load_data_ist :  MDEV-24639 galera_3nodes.galera_load_data_ist MTR failed with SIGABRT: query 'reap' failed: 2013: Lost connection to MySQL server during query
+galera_pc_bootstrap : MDEV-24650 galera_pc_bootstrap MTR failed: Could not execute 'check-testcase' before testcase
+galera_slave_options_do : MDEV-8798
 galera_slave_options_ignore : MDEV-8798

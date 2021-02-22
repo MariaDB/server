@@ -4045,8 +4045,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	    {
 	      /* not a critical problem */
 	      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                                  ER_TOO_LONG_KEY,
-                                  ER_THD(thd, ER_TOO_LONG_KEY),
+                                  ER_TOO_LONG_KEY, ER_THD(thd, ER_TOO_LONG_KEY),
                                   key_part_length);
               /* Align key length to multibyte char boundary */
               key_part_length-= key_part_length % sql_field->charset->mbmaxlen;
@@ -4092,7 +4091,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	if (key->type == Key::MULTIPLE)
 	{
 	  /* not a critical problem */
-	  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+	  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                               ER_TOO_LONG_KEY, ER_THD(thd, ER_TOO_LONG_KEY),
                               key_part_length);
           /* Align key length to multibyte char boundary */
@@ -4329,7 +4328,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                           ER_ILLEGAL_HA_CREATE_OPTION,
                           ER_THD(thd, ER_ILLEGAL_HA_CREATE_OPTION),
                           file->engine_name()->str,
-                          "TRANSACTIONAL=1");
+                          create_info->transactional == HA_CHOICE_YES
+                          ? "TRANSACTIONAL=1" : "TRANSACTIONAL=0");
 
   if (parse_option_list(thd, file->partition_ht(), &create_info->option_struct,
                           &create_info->option_list,
@@ -5264,6 +5264,9 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   if (!opt_explicit_defaults_for_timestamp)
     promote_first_timestamp_column(&alter_info->create_list);
 
+  /* We can abort create table for any table type */
+  thd->abort_on_warning= thd->is_strict_mode();
+
   if (mysql_create_table_no_lock(thd, &create_table->db,
                                  &create_table->table_name, create_info,
                                  alter_info,
@@ -5301,6 +5304,8 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   }
 
 err:
+  thd->abort_on_warning= 0;
+
   /* In RBR or readonly server we don't need to log CREATE TEMPORARY TABLE */
   if (!result && create_info->tmp_table() &&
       (thd->is_current_stmt_binlog_format_row() || (opt_readonly && !thd->slave_thread)))

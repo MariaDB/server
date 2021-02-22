@@ -5,24 +5,27 @@ set storage_engine=example;
 connection slave;
 connection master;
 create table t1 (a int not null) ull=12340;
+alter table t1 ull=12350;
+Warnings:
+Note	1105	EXAMPLE DEBUG: ULL 12340 -> 12350
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `ull`=12340
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `ull`=12350
 connection slave;
 connection slave;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 /* `ull`=12340 */
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 /* `ull`=12350 */
 set sql_mode=ignore_bad_table_options;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 `ull`=12340
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 `ull`=12350
 connection master;
 drop table t1;
 set storage_engine=default;

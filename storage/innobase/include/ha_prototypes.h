@@ -231,8 +231,8 @@ innobase_casedn_str(
 
 #ifdef WITH_WSREP
 UNIV_INTERN
-int
-wsrep_innobase_kill_one_trx(void * const thd_ptr,
+void
+wsrep_innobase_kill_one_trx(MYSQL_THD const thd_ptr,
                             const trx_t * const bf_trx,
                             trx_t *victim_trx,
                             ibool signal);

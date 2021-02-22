@@ -8559,6 +8559,22 @@ bool Item_direct_ref::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 }
 
 
+longlong Item_direct_ref::val_time_packed()
+{
+  longlong tmp = (*ref)->val_time_packed();
+  null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
+longlong Item_direct_ref::val_datetime_packed()
+{
+  longlong tmp = (*ref)->val_datetime_packed();
+  null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
 Item_cache_wrapper::~Item_cache_wrapper()
 {
   DBUG_ASSERT(expr_cache == 0);
