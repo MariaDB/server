@@ -239,6 +239,17 @@ public:
 
   bool is_available() { return get_size() > 0 && get_values(); }
 
+  /*
+    This function checks that histograms should be usable only when
+      1) the level of optimizer_use_condition_selectivity > 3
+      2) histograms have been collected
+  */
+  bool is_usable(THD *thd)
+  {
+    return thd->variables.optimizer_use_condition_selectivity > 3 &&
+           is_available();
+  }
+
   void set_value(uint i, double val)
   {
     switch (type) {

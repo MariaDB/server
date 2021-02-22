@@ -1281,6 +1281,51 @@ drop table t1;
 
 --echo # End of 10.1 tests
 
+--echo #
+--echo # MDEV-22583: Selectivity for BIT columns in filtered column for EXPLAIN is incorrect
+--echo #
+
+SET optimizer_use_condition_selectivity=4;
+SET histogram_size=255;
+CREATE TABLE t1 (a BIT(32), b INT);
+INSERT INTO t1 VALUES (80, 80), (81, 81), (82, 82);
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+EXPLAIN EXTENDED SELECT * from t1 where t1.a >= 81;
+SELECT HEX(a), b from t1 where t1.a >= 81;
+
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set histogram_size=@save_histogram_size;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-19474: Histogram statistics are used even with optimizer_use_condition_selectivity=3
+--echo #
+
+CREATE TABLE t1(a int);
+INSERT INTO t1 values (1),(2),(2),(3),(4);
+SET optimizer_use_condition_selectivity=4;
+SET histogram_size= 255;
+
+set use_stat_tables='preferably';
+
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
+SET optimizer_use_condition_selectivity=3;
+
+--echo # filtered should show 25 %
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
+FLUSH TABLES;
+
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set histogram_size=@save_histogram_size;
+set use_stat_tables= @save_use_stat_tables;
+
+DROP TABLE t1;
+
+--echo # End of 10.2 tests
+
 #
 # Clean up
 #

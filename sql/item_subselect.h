@@ -256,6 +256,7 @@ public:
     @retval FALSE otherwise
   */
   bool is_expensive_processor(void *arg) { return is_expensive(); }
+  bool update_table_bitmaps_processor(void *arg);
 
   /**
     Get the SELECT_LEX structure associated with this Item.
@@ -277,7 +278,7 @@ public:
   Item* build_clone(THD *thd) { return 0; }
   Item* get_copy(THD *thd) { return 0; }
 
-  bool wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl);
+  st_select_lex *wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl);
 
   friend class select_result_interceptor;
   friend class Item_in_optimizer;

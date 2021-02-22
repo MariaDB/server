@@ -341,6 +341,13 @@ int table_value_constr::save_explain_data_intern(THD *thd,
   if (select_lex->master_unit()->derived)
     explain->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
 
+  for (SELECT_LEX_UNIT *unit= select_lex->first_inner_unit();
+       unit;
+       unit= unit->next_unit())
+  {
+    explain->add_child(unit->first_select()->select_number);
+  }
+
   output->add_node(explain);
 
   if (select_lex->is_top_level_node())
@@ -365,9 +372,14 @@ bool table_value_constr::optimize(THD *thd)
       thd->lex->explain && // for "SET" command in SPs.
       (!thd->lex->explain->get_select(select_lex->select_number)))
   {
-    return save_explain_data_intern(thd, thd->lex->explain);
+    if (save_explain_data_intern(thd, thd->lex->explain))
+      return true;
   }
-  return 0;
+
+  if (select_lex->optimize_unflattened_subqueries(true))
+    return true;
+
+  return false;
 }
 
 
@@ -778,11 +790,12 @@ st_select_lex *wrap_tvc_with_tail(THD *thd, st_select_lex *tvc_sl)
     SELECT * FROM (VALUES (v1), ... (vn)) tvc_x
     and replaces the subselect with the result of the transformation.
 
-  @retval false if successfull
-          true  otherwise
+  @retval wrapping select if successful
+          0  otherwise
 */
 
-bool Item_subselect::wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl)
+st_select_lex *
+Item_subselect::wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl)
 {
   LEX *lex= thd->lex;
   /* SELECT_LEX object where the transformation is performed */
@@ -793,12 +806,12 @@ bool Item_subselect::wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl)
     if (engine->engine_type() == subselect_engine::SINGLE_SELECT_ENGINE)
       ((subselect_single_select_engine *) engine)->change_select(wrapper_sl);
     lex->current_select= wrapper_sl;
-    return false;
+    return wrapper_sl;
   }
   else
   {
     lex->current_select= parent_select;
-    return true;
+    return 0;
   }
 }
 

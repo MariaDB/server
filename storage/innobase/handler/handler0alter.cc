@@ -8956,6 +8956,7 @@ innobase_rename_column_try(
 	const char*			to)
 {
 	dberr_t		error;
+	bool clust_has_prefixes = false;
 
 	DBUG_ENTER("innobase_rename_column_try");
 
@@ -9015,6 +9016,39 @@ innobase_rename_column_try(
 			if (error != DB_SUCCESS) {
 				goto err_exit;
 			}
+
+			if (!has_prefixes || !clust_has_prefixes
+			    || f.prefix_len) {
+				continue;
+			}
+
+			/* For secondary indexes, the
+			has_prefixes check can be 'polluted'
+			by PRIMARY KEY column prefix. Try also
+			the simpler encoding of SYS_FIELDS.POS. */
+			info = pars_info_create();
+
+			pars_info_add_ull_literal(info, "indexid", index->id);
+			pars_info_add_int4_literal(info, "nth", i);
+			pars_info_add_str_literal(info, "new", to);
+
+			error = que_eval_sql(
+				info,
+				"PROCEDURE RENAME_SYS_FIELDS_PROC () IS\n"
+				"BEGIN\n"
+				"UPDATE SYS_FIELDS SET COL_NAME=:new\n"
+				"WHERE INDEX_ID=:indexid\n"
+				"AND POS=:nth;\n"
+				"END;\n",
+				FALSE, trx);
+
+			if (error != DB_SUCCESS) {
+				goto err_exit;
+			}
+		}
+
+		if (index == dict_table_get_first_index(ctx.old_table)) {
+			clust_has_prefixes = has_prefixes;
 		}
 	}
 

@@ -146,29 +146,12 @@ master-bin.000004	#	Xid	#	#	COMMIT /* XID */
 SET DEBUG_SYNC= "now SIGNAL con10_cont";
 connection con10;
 connection default;
-SET @old_dbug= @@global.DEBUG_DBUG;
-SET GLOBAL debug_dbug="+d,binlog_background_checkpoint_processed";
-SET DEBUG_SYNC= "now WAIT_FOR binlog_background_checkpoint_processed";
 SET DEBUG_SYNC= "now SIGNAL con12_cont";
 connection con12;
 connection default;
-SET GLOBAL debug_dbug= @old_dbug;
 SET DEBUG_SYNC= "now SIGNAL con11_cont";
 connection con11;
 connection default;
-Checking that master-bin.000004 is the last binlog checkpoint
-include/show_binlog_events.inc
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000004	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
-master-bin.000004	#	Gtid_list	#	#	[#-#-#]
-master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000001
-master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000004	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (13, NULL)
-master-bin.000004	#	Table_map	#	#	table_id: # (test.t1)
-master-bin.000004	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
-master-bin.000004	#	Xid	#	#	COMMIT /* XID */
-master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000002
-master-bin.000004	#	Binlog_checkpoint	#	#	master-bin.000004
 Now crash the server
 SET SESSION debug_dbug="+d,crash_commit_after_log";
 INSERT INTO t1 VALUES (14, NULL);

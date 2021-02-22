@@ -9295,8 +9295,9 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   memcpy((void *)def_field, (void *)field_arg->field,
          field_arg->field->size_of());
   def_field->reset_fields();
-  // If non-constant default value expression
-  if (def_field->default_value && def_field->default_value->flags)
+  // If non-constant default value expression or a blob
+  if (def_field->default_value &&
+      (def_field->default_value->flags || def_field->flags & BLOB_FLAG))
   {
     uchar *newptr= (uchar*) thd->alloc(1+def_field->pack_length());
     if (!newptr)

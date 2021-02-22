@@ -2036,5 +2036,15 @@ group by f;
 drop table t1;
 
 --echo #
+--echo # MDEV-24929 Server crash in thr_multi_unlock or in
+--echo # get_schema_tables_result upon select from I_S with joins
+--echo #
+
+CREATE TABLE t1 (a TIMESTAMP, KEY (a));
+INSERT INTO t1 VALUES ('2012-12-12'),('2021-11-11');
+SELECT count(*) FROM t1 AS t1a LEFT JOIN (t1 AS t1b JOIN INFORMATION_SCHEMA.ROUTINES) ON (t1b.a IS NULL);
+SELECT count(*) FROM t1 AS t1a LEFT JOIN (t1 AS t1b JOIN INFORMATION_SCHEMA.PROFILING) ON (t1b.a IS NULL);
+DROP TABLE t1;
+--echo #
 --echo # End of 10.3 tests
 --echo #

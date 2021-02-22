@@ -8885,6 +8885,16 @@ bool get_schema_tables_result(JOIN *join,
       if (table_list->schema_table->fill_table == 0)
         continue;
 
+      /*
+        Do not fill in tables thare are marked as JT_CONST as these will never
+        be read and they also don't have a tab->read_record.table set!
+        This can happen with queries like
+        SELECT * FROM t1 LEFT JOIN (t1 AS t1b JOIN INFORMATION_SCHEMA.ROUTINES)
+        ON (t1b.a IS NULL);
+      */
+      if (tab->type == JT_CONST)
+        continue;
+
       /* skip I_S optimizations specific to get_all_tables */
       if (lex->describe &&
           (table_list->schema_table->fill_table != get_all_tables))

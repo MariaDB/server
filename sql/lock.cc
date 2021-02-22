@@ -729,6 +729,9 @@ static int unlock_external(THD *thd, TABLE **table,uint count)
            - GET_LOCK_STORE_LOCKS : Store lock info in TABLE
            - GET_LOCK_SKIP_SEQUENCES : Ignore sequences (for temporary unlock)
            - GET_LOCK_ON_THD      : Store lock in thd->mem_root
+
+  Temporary tables are not locked (as these are single user), except for
+  TRANSACTIONAL_TMP_TABLES as locking is needed to handle transactions.
 */
 
 MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
@@ -745,8 +748,8 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
   {
     TABLE *t= table_ptr[i];
     
-    if (t->s->tmp_table != NON_TRANSACTIONAL_TMP_TABLE && 
-        t->s->tmp_table != INTERNAL_TMP_TABLE &&
+    if ((likely(!t->s->tmp_table) ||
+         (t->s->tmp_table == TRANSACTIONAL_TMP_TABLE)) &&
         (!(flags & GET_LOCK_SKIP_SEQUENCES) || t->s->sequence == 0))
     {
       lock_count+= t->file->lock_count();
@@ -774,13 +777,13 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
 
   for (i=0 ; i < count ; i++)
   {
-    TABLE *table;
+    TABLE *table= table_ptr[i];
     enum thr_lock_type lock_type;
     THR_LOCK_DATA **locks_start;
-    table= table_ptr[i];
-    if (table->s->tmp_table == NON_TRANSACTIONAL_TMP_TABLE ||
-        table->s->tmp_table == INTERNAL_TMP_TABLE ||
-        ((flags & GET_LOCK_SKIP_SEQUENCES) && table->s->sequence))
+
+    if (!((likely(!table->s->tmp_table) ||
+           (table->s->tmp_table == TRANSACTIONAL_TMP_TABLE)) &&
+          (!(flags & GET_LOCK_SKIP_SEQUENCES) || table->s->sequence == 0)))
       continue;
     lock_type= table->reginfo.lock_type;
     DBUG_ASSERT(lock_type != TL_WRITE_DEFAULT && lock_type != TL_READ_DEFAULT);

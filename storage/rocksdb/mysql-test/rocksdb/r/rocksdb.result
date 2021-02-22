@@ -546,7 +546,7 @@ pk	key1	col1
 explain
 select key1 from t30;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	index	NULL	key1	20	NULL	#	Using index
+1	SIMPLE	t30	index	NULL	key1	18	NULL	#	Using index
 select key1 from t30;
 key1
 row1-key
@@ -618,7 +618,7 @@ row3	row3-key	row3-data
 explain 
 select * from t30 order by key1 limit 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	index	NULL	key1	20	NULL	#	
+1	SIMPLE	t30	index	NULL	key1	18	NULL	#	
 select * from t30 order by key1 limit 3;
 pk	key1	col1
 row1	row1-key	row1-data
@@ -627,7 +627,7 @@ row3	row3-key	row3-data
 explain 
 select * from t30 order by key1 desc limit 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t30	index	NULL	key1	20	NULL	#	
+1	SIMPLE	t30	index	NULL	key1	18	NULL	#	
 select * from t30 order by key1 desc limit 3;
 pk	key1	col1
 row5	row5-key	row5-data

@@ -770,8 +770,20 @@ static size_t estimate_cmd_len (bool* extra_args)
       char c;
       while ((c = *arg++) != 0)
       {
-        /* A whitespace or a single quote requires double quotation marks: */
-        if (isspace(c) || c == '\'')
+        /*
+          Space, single quote, ampersand, and I/O redirection characters
+          require text to be enclosed in double quotes:
+        */
+        if (isspace(c) || c == '\'' || c == '&' || c == '|' ||
+#ifdef __WIN__
+                          c == '>'  || c == '<')
+#else
+        /*
+          The semicolon is used to separate shell commands, so it must be
+          enclosed in double quotes as well:
+        */
+                          c == '>'  || c == '<' || c == ';')
+#endif
         {
           quotation= true;
         }
@@ -794,10 +806,19 @@ static size_t estimate_cmd_len (bool* extra_args)
           while ((c = *arg++) != 0)
           {
             /*
-              A whitespace or a single quote requires double
-              quotation marks:
+              Space, single quote, ampersand, and I/O redirection characters
+              require text to be enclosed in double quotes:
             */
-            if (isspace(c) || c == '\'')
+            if (isspace(c) || c == '\'' || c == '&' || c == '|' ||
+#ifdef __WIN__
+                              c == '>'  || c == '<')
+#else
+            /*
+              The semicolon is used to separate shell commands, so it must be
+              enclosed in double quotes as well:
+            */
+                              c == '>'  || c == '<' || c == ';')
+#endif
             {
               quotation= true;
             }
@@ -878,8 +899,20 @@ static void copy_orig_argv (char* cmd_str)
       char c;
       while ((c = *arg_scan++) != 0)
       {
-        /* A whitespace or a single quote requires double quotation marks: */
-        if (isspace(c) || c == '\'')
+        /*
+          Space, single quote, ampersand, and I/O redirection characters
+          require text to be enclosed in double quotes:
+        */
+        if (isspace(c) || c == '\'' || c == '&' || c == '|' ||
+#ifdef __WIN__
+                          c == '>'  || c == '<')
+#else
+        /*
+          The semicolon is used to separate shell commands, so it must be
+          enclosed in double quotes as well:
+        */
+                          c == '>'  || c == '<' || c == ';')
+#endif
         {
           quotation= true;
         }
@@ -953,10 +986,19 @@ static void copy_orig_argv (char* cmd_str)
           while ((c = *arg_scan++) != 0)
           {
             /*
-              A whitespace or a single quote requires double
-              quotation marks:
+              Space, single quote, ampersand, and I/O redirection characters
+              require text to be enclosed in double quotes:
             */
-            if (isspace(c) || c == '\'')
+            if (isspace(c) || c == '\'' || c == '&' || c == '|' ||
+#ifdef __WIN__
+                              c == '>'  || c == '<')
+#else
+            /*
+              The semicolon is used to separate shell commands, so it must be
+              enclosed in double quotes as well:
+            */
+                              c == '>'  || c == '<' || c == ';')
+#endif
             {
               quotation= true;
             }

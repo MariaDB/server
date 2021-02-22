@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -666,6 +666,12 @@ btr_search_update_hash_ref(
 		return;
 	}
 
+	if (cursor->index != index) {
+		ut_ad(cursor->index->id == index->id);
+		btr_search_drop_page_hash_index(block);
+		return;
+	}
+
 	ut_ad(block->page.id.space() == index->table->space_id);
 	ut_ad(index == cursor->index);
 	ut_ad(!dict_index_is_ibuf(index));
@@ -1125,15 +1131,26 @@ retry:
 		% btr_ahi_parts;
 	latch = btr_search_latches[ahi_slot];
 
-	rw_lock_s_lock(latch);
+	dict_index_t* index = block->index;
+
+	bool is_freed = index && index->freed();
+	if (is_freed) {
+		rw_lock_x_lock(latch);
+	} else {
+		rw_lock_s_lock(latch);
+	}
+
 	assert_block_ahi_valid(block);
 
-	if (!block->index || !btr_search_enabled) {
-		rw_lock_s_unlock(latch);
+	if (!index || !btr_search_enabled) {
+		if (is_freed) {
+			rw_lock_x_unlock(latch);
+		} else {
+			rw_lock_s_unlock(latch);
+		}
 		return;
 	}
 
-	dict_index_t* index = block->index;
 #ifdef MYSQL_INDEX_DISABLE_AHI
 	ut_ad(!index->disable_ahi);
 #endif
@@ -1149,7 +1166,9 @@ retry:
 	/* NOTE: The AHI fields of block must not be accessed after
 	releasing search latch, as the index page might only be s-latched! */
 
-	rw_lock_s_unlock(latch);
+	if (!is_freed) {
+		rw_lock_s_unlock(latch);
+	}
 
 	ut_a(n_fields > 0 || n_bytes > 0);
 
@@ -1200,15 +1219,17 @@ next_rec:
 		mem_heap_free(heap);
 	}
 
-	rw_lock_x_lock(latch);
+	if (!is_freed) {
+		rw_lock_x_lock(latch);
 
-	if (UNIV_UNLIKELY(!block->index)) {
-		/* Someone else has meanwhile dropped the hash index */
+		if (UNIV_UNLIKELY(!block->index)) {
+			/* Someone else has meanwhile dropped the
+			hash index */
+			goto cleanup;
+		}
 
-		goto cleanup;
+		ut_a(block->index == index);
 	}
-
-	ut_a(block->index == index);
 
 	if (block->curr_n_fields != n_fields
 	    || block->curr_n_bytes != n_bytes) {
@@ -1583,6 +1604,7 @@ btr_search_move_or_delete_hash_entries(
 	rw_lock_t* ahi_latch = index ? btr_get_search_latch(index) : NULL;
 
 	if (new_block->index) {
+drop_exit:
 		btr_search_drop_page_hash_index(block);
 		return;
 	}
@@ -1594,6 +1616,12 @@ btr_search_move_or_delete_hash_entries(
 	rw_lock_s_lock(ahi_latch);
 
 	if (block->index) {
+
+		if (block->index != index) {
+			rw_lock_s_unlock(ahi_latch);
+			goto drop_exit;
+		}
+
 		ulint	n_fields = block->curr_n_fields;
 		ulint	n_bytes = block->curr_n_bytes;
 		ibool	left_side = block->curr_left_side;
@@ -1614,7 +1642,6 @@ btr_search_move_or_delete_hash_entries(
 		ut_ad(left_side == block->curr_left_side);
 		return;
 	}
-
 	rw_lock_s_unlock(ahi_latch);
 }
 
@@ -1649,6 +1676,12 @@ void btr_search_update_hash_on_delete(btr_cur_t* cursor)
 
 	if (!index) {
 
+		return;
+	}
+
+	if (index != cursor->index) {
+		ut_ad(index->id == cursor->index->id);
+		btr_search_drop_page_hash_index(block);
 		return;
 	}
 
@@ -1722,6 +1755,12 @@ btr_search_update_hash_node_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch)
 
 	if (!index) {
 
+		return;
+	}
+
+	if (cursor->index != index) {
+		ut_ad(cursor->index->id == index->id);
+		btr_search_drop_page_hash_index(block);
 		return;
 	}
 
@@ -1814,6 +1853,12 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch)
 #ifdef MYSQL_INDEX_DISABLE_AHI
 	ut_a(!index->disable_ahi);
 #endif
+	if (index != cursor->index) {
+		ut_ad(index->id == cursor->index->id);
+		btr_search_drop_page_hash_index(block);
+		return;
+	}
+
 	ut_a(index == cursor->index);
 	ut_ad(!dict_index_is_ibuf(index));
 

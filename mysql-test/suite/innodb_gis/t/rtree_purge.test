@@ -1,7 +1,7 @@
 # This test case will test R-tree purge.
 
 --source include/innodb_page_size.inc
-# Valgrind takes too much time on PB2 even in the --big-test runs.
+--source include/have_sequence.inc
 --source include/not_valgrind.inc
 
 SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
@@ -16,9 +16,7 @@ set @p=point(1,1);
 let $n=200;
 while ($n) {
 begin;
-insert into t values(@p,@p),(@p,@p);
-insert into t select @p,@p
-from t a,t b,t c,t d,t e,t f,t g;
+insert into t select @p,@p from seq_1_to_130;
 delete from t;
 commit;
 dec $n;
