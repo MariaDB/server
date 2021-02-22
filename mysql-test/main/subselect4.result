@@ -2687,6 +2687,15 @@ f
 bar
 DROP TABLE t1, t2;
 #
+# MDEV-23449: alias do not exist and a query do not report an error
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4), (5,5);
+SELECT a, b FROM t1 WHERE a IN (SELECT A.a FROM t1 A GROUP BY s.id);
+ERROR 42S22: Unknown column 's.id' in 'group statement'
+DROP TABLE t1;
+# End of 10.2 tests
+#
 # MDEV-18335: Assertion `!error || error == 137' failed in subselect_rowid_merge_engine::init
 #
 CREATE TABLE t1 (i1 int,v1 varchar(1),KEY (v1,i1));
@@ -2717,7 +2726,6 @@ Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 3020 rows, which exceeds LIMIT ROWS EXAMINED (500). The query result may be incomplete
 SET join_cache_level= @save_join_cache_level;
 DROP TABLE t1,t2,t3,t4;
-# End of 10.2 tests
 #
 # MDEV-21265: IN predicate conversion to IN subquery should be allowed for a broader set of datatype comparison
 #

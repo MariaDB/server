@@ -25,17 +25,11 @@ SET DEBUG_SYNC = 'now WAIT_FOR dml_restart';
 ROLLBACK;
 
 BEGIN;
-INSERT INTO t1 SELECT '','','','','','','','' FROM seq_1_to_16384;
-INSERT INTO t1 SELECT '','','','','','','','' FROM seq_1_to_16384;
-INSERT INTO t1 SELECT '','','','','','','','' FROM seq_1_to_16384;
-INSERT INTO t1 SELECT '','','','','','','','' FROM seq_1_to_16384;
-INSERT INTO t1 SELECT '','','','','','','','' FROM seq_1_to_16384;
+INSERT INTO t1 SELECT '','','','','','','','' FROM seq_1_to_81920;
 ROLLBACK;
 
 BEGIN;
-INSERT INTO t1 SELECT * FROM t1;
-INSERT INTO t1 SELECT * FROM t1;
-INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT '','','','','','','','' FROM seq_1_to_114688;
 ROLLBACK;
 
 SET DEBUG_SYNC = 'now SIGNAL dml_done';

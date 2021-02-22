@@ -4983,11 +4983,13 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
 #ifdef WITH_WSREP
   /* wsrep applier, replayer and TOI processing threads are ordered
      by replication provider, relaxed GAP locking protocol can be used
-     between high priority wsrep threads
+     between high priority wsrep threads. Note that this function
+     is called while holding lock_sys mutex, therefore we can't
+     use THD::LOCK_thd_data mutex below to follow mutex ordering rules.
   */
   if (WSREP_ON &&
       wsrep_thd_is_BF(const_cast<THD *>(thd), false) &&
-      wsrep_thd_is_BF(const_cast<THD *>(other_thd), true))
+      wsrep_thd_is_BF(const_cast<THD *>(other_thd), false))
     return 0;
 #endif /* WITH_WSREP */
   rgi= thd->rgi_slave;

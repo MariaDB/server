@@ -377,7 +377,7 @@ bool Item_subselect::mark_as_eliminated_processor(void *arg)
 bool Item_subselect::eliminate_subselect_processor(void *arg)
 {
   unit->item= NULL;
-  unit->exclude_from_tree();
+  unit->exclude();
   eliminated= TRUE;
   return FALSE;
 }
@@ -439,6 +439,26 @@ bool Item_subselect::mark_as_dependent(THD *thd, st_select_lex *select,
     upper->select= select;
     upper->item= item;
     if (upper_refs.push_back(upper, thd->stmt_arena->mem_root))
+      return TRUE;
+  }
+  return FALSE;
+}
+
+
+/*
+  @brief
+    Update the table bitmaps for the outer references used within a subquery
+*/
+
+bool Item_subselect::update_table_bitmaps_processor(void *arg)
+{
+  List_iterator<Ref_to_outside> it(upper_refs);
+  Ref_to_outside *upper;
+
+  while ((upper= it++))
+  {
+    if (upper->item &&
+        upper->item->walk(&Item::update_table_bitmaps_processor, FALSE, arg))
       return TRUE;
   }
   return FALSE;
