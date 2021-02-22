@@ -77,9 +77,6 @@ dict_hdr_get_new_id(
 
 	mtr_start(&mtr);
 	if (table) {
-		if (table->is_temporary()) {
-			mtr.set_log_mode(MTR_LOG_NO_REDO);
-		}
 	} else if (disable_redo) {
 		/* In non-read-only mode we need to ensure that space-id header
 		page is written to disk else if page is removed from buffer
