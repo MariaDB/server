@@ -1480,6 +1480,8 @@ bool buf_pool_t::create()
   srv_buf_pool_old_size= srv_buf_pool_size;
   srv_buf_pool_base_size= srv_buf_pool_size;
 
+  last_activity_count= srv_get_activity_count();
+
   chunk_t::map_ref= chunk_t::map_reg;
   buf_LRU_old_ratio_update(100 * 3 / 8, false);
   btr_search_sys_create();
