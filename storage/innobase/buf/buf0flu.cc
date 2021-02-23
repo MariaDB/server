@@ -134,7 +134,34 @@ inline void buf_pool_t::page_cleaner_wakeup()
   double dirty_pct= double(UT_LIST_GET_LEN(buf_pool.flush_list)) * 100.0 /
     double(UT_LIST_GET_LEN(buf_pool.LRU) + UT_LIST_GET_LEN(buf_pool.free));
   double pct_lwm= srv_max_dirty_pages_pct_lwm;
+
+  /* if pct_lwm != 0.0 means adpative flushing is enabled.
+  signal buf page cleaner thread
+  - if pct_lwm <= dirty_pct then it will invoke apdative flushing flow
+  - if pct_lwm > dirty_pct then it will invoke idle flushing flow.
+
+  idle_flushing:
+  dirty_pct < innodb_max_dirty_pages_pct_lwm so it could be an
+  idle flushing use-case.
+
+  Why is last_activity_count not updated always?
+  - let's first understand when is server activity count updated.
+  - it is updated on commit of a transaction trx_t::commit() and not
+    on adding a page to the flush list.
+  - page_cleaner_wakeup is called when a page is added to the flush list.
+
+  - now let's say the first user thread, updates the count from X -> Y but
+    is yet to commit the transaction (so activity count is still Y).
+    followup user threads will see the updated count as (Y) that is matching
+    the universal server activity count (Y), giving a false impression that
+    the server is idle.
+
+  How to avoid this?
+  - by allowing last_activity_count to updated when page-cleaner is made
+    active and has work to do. This ensures that the last_activity signal
+    is consumed by the page-cleaner before the next one is generated. */
   if ((pct_lwm != 0.0 && pct_lwm <= dirty_pct) ||
+      (pct_lwm != 0.0 && last_activity_count == srv_get_activity_count()) ||
       srv_max_buf_pool_modified_pct <= dirty_pct)
   {
     page_cleaner_is_idle= false;
@@ -2076,6 +2103,7 @@ static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
 
   lsn_t lsn_limit;
+  ulint last_activity_count= srv_get_activity_count();
 
   for (;;)
   {
@@ -2095,9 +2123,14 @@ furious_flush:
     else if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED)
       break;
 
-    if (buf_pool.page_cleaner_idle())
-      my_cond_wait(&buf_pool.do_flush_list,
-                   &buf_pool.flush_list_mutex.m_mutex);
+
+    /* If buf pager cleaner is idle and there is no work
+    (either dirty pages are all flushed or adaptive flushing
+    is not enabled) then opt for non-timed wait */
+    if (buf_pool.page_cleaner_idle() &&
+        (!UT_LIST_GET_LEN(buf_pool.flush_list) ||
+         srv_max_dirty_pages_pct_lwm == 0.0))
+      my_cond_wait(&buf_pool.do_flush_list, &buf_pool.flush_list_mutex.m_mutex);
     else
       my_cond_timedwait(&buf_pool.do_flush_list,
                         &buf_pool.flush_list_mutex.m_mutex, &abstime);
@@ -2135,10 +2168,26 @@ unemployed:
     const double dirty_pct= double(dirty_blocks) * 100.0 /
       double(UT_LIST_GET_LEN(buf_pool.LRU) + UT_LIST_GET_LEN(buf_pool.free));
 
+    bool idle_flush= false;
+
     if (lsn_limit);
     else if (srv_max_dirty_pages_pct_lwm != 0.0)
     {
-      if (dirty_pct < srv_max_dirty_pages_pct_lwm)
+      const ulint activity_count= srv_get_activity_count();
+      if (activity_count != last_activity_count)
+        last_activity_count= activity_count;
+      else if (buf_pool.page_cleaner_idle() && buf_pool.n_pend_reads == 0)
+      {
+         /* reaching here means 3 things:
+         - last_activity_count == activity_count: suggesting server is idle
+           (no trx_t::commit activity)
+         - page cleaner is idle (dirty_pct < srv_max_dirty_pages_pct_lwm)
+         - there are no pending reads but there are dirty pages to flush */
+        idle_flush= true;
+        buf_pool.update_last_activity_count(activity_count);
+      }
+
+      if (!idle_flush && dirty_pct < srv_max_dirty_pages_pct_lwm)
         goto unemployed;
     }
     else if (dirty_pct < srv_max_buf_pool_modified_pct)
@@ -2163,7 +2212,7 @@ unemployed:
       pthread_cond_broadcast(&buf_pool.done_flush_list);
       goto try_checkpoint;
     }
-    else if (!srv_adaptive_flushing)
+    else if (idle_flush || !srv_adaptive_flushing)
     {
       n_flushed= buf_flush_lists(srv_io_capacity, LSN_MAX);
 try_checkpoint:
@@ -2220,6 +2269,12 @@ do_checkpoint:
 next:
 #endif /* !DBUG_OFF */
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
+
+    /* when idle flushing kicks in page_cleaner is marked active.
+    reset it back to idle since the it was made active as part of
+    idle flushing stage. */
+    if (idle_flush)
+      buf_pool.page_cleaner_set_idle(true);
   }
 
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
