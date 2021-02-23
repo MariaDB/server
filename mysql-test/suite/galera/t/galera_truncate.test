@@ -3,8 +3,7 @@
 #
 
 --source include/galera_cluster.inc
---source include/have_innodb.inc
-
+--source include/have_perfschema.inc
 #
 # Simple case
 #
@@ -56,6 +55,23 @@ TRUNCATE TABLE t4;
 
 --connection node_2
 SELECT AUTO_INCREMENT = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME IN ('t3', 't4');
+
+
+#
+# MDEV-24865 : Server crashes when truncate mysql user table
+#
+--connection node_1
+
+--error ER_NO_SUCH_TABLE
+TRUNCATE TABLE mysql.user;
+--error ER_WRONG_PERFSCHEMA_USAGE
+TRUNCATE TABLE performance_schema.threads;
+--error ER_DBACCESS_DENIED_ERROR
+TRUNCATE TABLE information_schema.tables;
+TRUNCATE TABLE mysql.innodb_index_stats;
+--error ER_NO_SUCH_TABLE
+TRUNCATE TABLE foo.bar;
+TRUNCATE TABLE t1;
 
 DROP TABLE t1;
 DROP TABLE t2;

@@ -139,11 +139,8 @@ drop user test@localhost;
 --echo #
 SET @wsrep_sst_auth_saved= @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= 'user:pass';
-SELECT @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= '';
-SELECT @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= NULL;
-SELECT @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
 
 --source include/galera_wait_ready.inc

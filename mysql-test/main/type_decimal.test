@@ -670,6 +670,50 @@ DROP TABLE t1;
 DROP TABLE t1dec102;
 
 --echo #
+--echo # MDEV-24790 CAST('0e1111111111' AS DECIMAL(38,0)) returns a wrong result
+--echo #
+
+SELECT CAST('0e111111111' AS DECIMAL(38,0)) AS a;
+SELECT CAST('0e1111111111' AS DECIMAL(38,0)) AS a;
+SELECT CAST('.00000000000000000000000000000000000001e111111111111111111111' AS DECIMAL(38,0)) AS a;
+
+CREATE TABLE t1 (str VARCHAR(128), comment VARCHAR(128));
+INSERT INTO t1 VALUES
+('0e111111111111111111111', 'Zero mantissa and a huge positive exponent'),
+('1e111111111111111111111', 'Non-zero mantissa, huge positive exponent'),
+('0e-111111111111111111111', 'Zero mantissa and a huge negative exponent'),
+('1e-111111111111111111111', 'Non-zero mantissa and a huge negative exponent');
+
+# The loop below issues SHOW WARNINGS manually, disable automatic warnings
+--disable_warnings
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE vstr, vcomment VARCHAR(128);
+  DECLARE cur1 CURSOR FOR SELECT str, comment FROM t1 ORDER BY str;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+  OPEN cur1;
+read_loop:
+  LOOP
+    FETCH cur1 INTO vstr, vcomment;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+    SELECT vstr AS `--------`, vcomment AS `--------`;
+    SELECT CAST(str AS DECIMAL(38,0)) FROM t1 WHERE str=vstr;
+    SHOW WARNINGS;
+    SELECT CAST(CONCAT(str,'garbage') AS DECIMAL(38,0)) FROM t1 WHERE str=vstr;
+    SHOW WARNINGS;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+--enable_warnings
+
+
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

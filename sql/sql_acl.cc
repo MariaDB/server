@@ -9052,6 +9052,16 @@ static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
 
 }
 
+static void append_auto_expiration_policy(ACL_USER *acl_user, String *r) {
+    if (!acl_user->password_lifetime)
+      r->append(STRING_WITH_LEN(" PASSWORD EXPIRE NEVER"));
+    else if (acl_user->password_lifetime > 0)
+    {
+      r->append(STRING_WITH_LEN(" PASSWORD EXPIRE INTERVAL "));
+      r->append_longlong(acl_user->password_lifetime);
+      r->append(STRING_WITH_LEN(" DAY"));
+    }
+}
 
 bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
 {
@@ -9111,14 +9121,8 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
 
   if (acl_user->password_expired)
     result.append(STRING_WITH_LEN(" PASSWORD EXPIRE"));
-  else if (!acl_user->password_lifetime)
-    result.append(STRING_WITH_LEN(" PASSWORD EXPIRE NEVER"));
-  else if (acl_user->password_lifetime > 0)
-  {
-    result.append(STRING_WITH_LEN(" PASSWORD EXPIRE INTERVAL "));
-    result.append_longlong(acl_user->password_lifetime);
-    result.append(STRING_WITH_LEN(" DAY"));
-  }
+  else
+    append_auto_expiration_policy(acl_user, &result);
 
   protocol->prepare_for_resend();
   protocol->store(result.ptr(), result.length(), result.charset());
@@ -9126,6 +9130,28 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
   {
     error= true;
   }
+
+  /* MDEV-24114 - PASSWORD EXPIRE and PASSWORD EXPIRE [NEVER | INTERVAL X DAY]
+   are two different mechanisms. To make sure a tool can restore the state
+   of a user account, including both the manual expiration state of the
+   account and the automatic expiration policy attached to it, we should
+   print two statements here, a CREATE USER (printed above) and an ALTER USER */
+  if (acl_user->password_expired && acl_user->password_lifetime > -1) {
+    result.length(0);
+    result.append("ALTER USER ");
+    append_identifier(thd, &result, username, strlen(username));
+    result.append('@');
+    append_identifier(thd, &result, acl_user->host.hostname,
+                      acl_user->hostname_length);
+    append_auto_expiration_policy(acl_user, &result);
+    protocol->prepare_for_resend();
+    protocol->store(result.ptr(), result.length(), result.charset());
+    if (protocol->write())
+    {
+      error= true;
+    }
+  }
+
   my_eof(thd);
 
 end:

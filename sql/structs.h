@@ -92,7 +92,7 @@ class engine_option_value;
 struct ha_index_option_struct;
 
 typedef struct st_key {
-  uint	key_length;			/* Tot length of key */
+  uint	key_length;			/* total length of user defined key parts  */
   ulong flags;                          /* dupp key and pack flags */
   uint	user_defined_key_parts;	   /* How many key_parts */
   uint	usable_key_parts; /* Should normally be = user_defined_key_parts */
