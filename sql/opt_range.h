@@ -316,6 +316,8 @@ public:
   */
   uint weight;
   enum { MAX_WEIGHT = 32000 };
+
+  void update_weight_locally();
 #ifndef DBUG_OFF
   uint verify_weight();
 #endif
