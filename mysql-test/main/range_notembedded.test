@@ -82,7 +82,6 @@ set @json= json_detailed(json_extract(@trace, '$**.setup_range_conditions'));
 select left(@json, 2500);
 
 --echo ## Repeat the above with a bit higher max_weight:
-set @tmp9750_weight=@@optimizer_max_sel_arg_weight;
 set optimizer_max_sel_arg_weight=120;
 explain select * from t1 where 
   kp1 in (1,2,3,4,5,6,7,8,9,10) and
@@ -110,3 +109,34 @@ SELECT *
 FROM mysql.help_relation ignore index (help_topic_id)
 WHERE (help_topic_id = 8 OR help_keyword_id = 0) AND help_keyword_id != 2 AND help_topic_id >= 1900;
 
+--echo #
+--echo # MDEV-24953: 10.5.9 crashes with large IN() list
+--echo #
+--source include/have_sequence.inc
+
+CREATE TABLE t1 (
+  notification_type_id smallint(4) unsigned NOT NULL DEFAULT 0,
+  item_id int(10) unsigned NOT NULL DEFAULT 0,
+  item_parent_id int(10) unsigned NOT NULL DEFAULT 0,
+  user_id int(10) unsigned NOT NULL DEFAULT 0,
+  PRIMARY KEY (notification_type_id,item_id,item_parent_id,user_id)
+);
+insert into t1 values (1,1,1,1), (2,2,2,2), (3,3,3,3);
+
+let $consts=`select group_concat(concat("'",seq,"'")) from seq_1_to_4642`;
+
+--echo # Run crashing query
+--disable_query_log
+eval
+explain
+DELETE FROM t1
+WHERE
+  notification_type_id IN (3, 4, 5, 6, 23)
+  AND
+  user_id = '5044'
+  AND
+  item_parent_id IN ($consts)
+;
+--enable_query_log
+
+drop table t1;

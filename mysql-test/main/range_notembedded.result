@@ -159,7 +159,6 @@ left(@json, 2500)
     ]
 ]
 ## Repeat the above with a bit higher max_weight:
-set @tmp9750_weight=@@optimizer_max_sel_arg_weight;
 set optimizer_max_sel_arg_weight=120;
 explain select * from t1 where 
 kp1 in (1,2,3,4,5,6,7,8,9,10) and
@@ -225,3 +224,18 @@ SELECT *
 FROM mysql.help_relation ignore index (help_topic_id)
 WHERE (help_topic_id = 8 OR help_keyword_id = 0) AND help_keyword_id != 2 AND help_topic_id >= 1900;
 help_topic_id	help_keyword_id
+#
+# MDEV-24953: 10.5.9 crashes with large IN() list
+#
+CREATE TABLE t1 (
+notification_type_id smallint(4) unsigned NOT NULL DEFAULT 0,
+item_id int(10) unsigned NOT NULL DEFAULT 0,
+item_parent_id int(10) unsigned NOT NULL DEFAULT 0,
+user_id int(10) unsigned NOT NULL DEFAULT 0,
+PRIMARY KEY (notification_type_id,item_id,item_parent_id,user_id)
+);
+insert into t1 values (1,1,1,1), (2,2,2,2), (3,3,3,3);
+# Run crashing query
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	2	NULL	3	Using where
+drop table t1;
