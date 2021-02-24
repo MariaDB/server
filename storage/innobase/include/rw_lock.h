@@ -99,7 +99,6 @@ protected:
       /* Either conflicting (read) locks have been granted, or
       the WRITER_WAITING flag was set by some thread that is waiting
       to become WRITER. */
-      DBUG_ASSERT(!(~l & (UPDATER - 1)) || l == (UPDATER | WRITER_WAITING));
       DBUG_ASSERT(((WRITER | UPDATER) & l) == UPDATER);
       if (~(WRITER_WAITING | UPDATER) & l)
         return false;
