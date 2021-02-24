@@ -2464,7 +2464,30 @@ void st_select_lex_node::add_slave(st_select_lex_node *slave_arg)
   {
     slave= slave_arg;
     slave_arg->master= this;
+    slave->prev= &master->slave;
+    slave->next= 0;
   }
+}
+
+/*
+  @brief
+    Substitute this node in select tree for a newly creates node
+
+  @param  subst the node to substitute for
+
+  @details
+    The function substitute this node in the select tree for a newly
+    created node subst. This node is just removed from the tree but all
+    its link fields and the attached sub-tree remain untouched.
+*/
+
+void st_select_lex_node::substitute_in_tree(st_select_lex_node *subst)
+{
+  if ((subst->next= next))
+    next->prev= &subst->next;
+  subst->prev= prev;
+  (*prev)= subst;
+  subst->master= master;
 }
 
 

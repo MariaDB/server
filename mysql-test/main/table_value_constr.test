@@ -1459,4 +1459,61 @@ eval explain $q3;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-24910: TVC containing subquery used as a subselect
+--echo #
+
+create table t1 (a int) engine=myisam;
+insert into t1 values (3), (7), (1);
+create table t2 (b int) engine=myisam;
+insert into t2 values (1), (2);
+
+let $q1=
+select (values ((select 2))) from t2;
+eval $q1;
+eval explain $q1;
+eval prepare stmt from "$q1";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q2=
+select (values ((select * from t1 where a > 10))) from t2;
+eval $q2;
+eval explain $q2;
+eval prepare stmt from "$q2";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+create table t3 (a int);
+insert into t3 values
+ (3), (7), (7), (1), (3), (9), (7), (9), (8), (7), (8);
+
+create view v1 as select count(a) as c from t3 group by a;
+
+let $q3=
+select
+(values ((select * from t3 where a in (select * from v1))));
+eval $q3;
+eval explain $q3;
+eval prepare stmt from "$q3";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $q4=
+select
+(values ((select * from t3
+          where a > 10 and a in (select * from v1))));
+eval $q4;
+eval explain $q4;
+eval prepare stmt from "$q4";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop view v1;
+drop table t1,t2,t3;
+
 --echo End of 10.3 tests

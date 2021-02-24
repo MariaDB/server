@@ -711,6 +711,7 @@ public:
   void include_global(st_select_lex_node **plink);
   void exclude();
   void exclude_from_tree();
+  void substitute_in_tree(st_select_lex_node *subst);
 
   void set_slave(st_select_lex_node *slave_arg) { slave= slave_arg; }
   void move_node(st_select_lex_node *where_to_move)
