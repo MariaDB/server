@@ -33,3 +33,22 @@ INSERT INTO t1 SELECT * FROM seq_1_to_500;
 ROLLBACK;
 DROP TABLE t1;
 SET GLOBAL innodb_adaptive_hash_index = @save_ahi;
+
+--echo #
+--echo # MDEV-24951 Assertion m.first->second.valid(trx->undo_no) failed
+--echo # in trx_undo_report_row_operation
+--echo #
+
+CREATE TEMPORARY TABLE t (c INT) ENGINE=InnoDB;
+CREATE TEMPORARY TABLE t2 (c INT) ENGINE=InnoDB;
+SET tx_read_only=1;
+BEGIN;
+INSERT INTO t2 VALUES(0);
+INSERT INTO t VALUES(0);
+COMMIT;
+INSERT INTO t VALUES(0);
+
+--error ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION
+DROP TEMPORARY TABLE t,t2;
+SET tx_read_only=0;
+DROP TEMPORARY TABLE t,t2;

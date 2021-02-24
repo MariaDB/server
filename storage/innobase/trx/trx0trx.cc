@@ -397,8 +397,6 @@ void trx_t::free()
     autoinc_locks= NULL;
   }
 
-  mod_tables.clear();
-
   MEM_NOACCESS(&n_ref, sizeof n_ref);
   /* do not poison mutex */
   MEM_NOACCESS(&id, sizeof id);
@@ -522,6 +520,7 @@ trx_free_at_shutdown(trx_t *trx)
 
 	trx->commit_state();
 	trx->release_locks();
+	trx->mod_tables.clear();
 	trx_undo_free_at_shutdown(trx);
 
 	ut_a(!trx->read_only);
@@ -1270,8 +1269,6 @@ inline void trx_t::commit_tables()
 #endif
     }
   }
-
-  mod_tables.clear();
 }
 
 /** Evict a table definition due to the rollback of ALTER TABLE.
@@ -1474,6 +1471,7 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
 
   DBUG_LOG("trx", "Commit in memory: " << this);
   state= TRX_STATE_NOT_STARTED;
+  mod_tables.clear();
 
   assert_freed();
   trx_init(this);

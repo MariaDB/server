@@ -1062,6 +1062,7 @@ public:
     ut_ad(!is_referenced());
     ut_ad(!is_wsrep());
     ut_ad(!lock.was_chosen_as_deadlock_victim);
+    ut_ad(mod_tables.empty());
     ut_ad(!read_view.is_open());
     ut_ad(!lock.wait_thr);
     ut_ad(!lock.wait_lock);

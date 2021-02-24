@@ -34,3 +34,19 @@ INSERT INTO t1 SELECT * FROM seq_1_to_500;
 ROLLBACK;
 DROP TABLE t1;
 SET GLOBAL innodb_adaptive_hash_index = @save_ahi;
+#
+# MDEV-24951 Assertion m.first->second.valid(trx->undo_no) failed
+# in trx_undo_report_row_operation
+#
+CREATE TEMPORARY TABLE t (c INT) ENGINE=InnoDB;
+CREATE TEMPORARY TABLE t2 (c INT) ENGINE=InnoDB;
+SET tx_read_only=1;
+BEGIN;
+INSERT INTO t2 VALUES(0);
+INSERT INTO t VALUES(0);
+COMMIT;
+INSERT INTO t VALUES(0);
+DROP TEMPORARY TABLE t,t2;
+ERROR 25006: Cannot execute statement in a READ ONLY transaction
+SET tx_read_only=0;
+DROP TEMPORARY TABLE t,t2;
