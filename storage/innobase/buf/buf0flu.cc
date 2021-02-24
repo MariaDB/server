@@ -2130,10 +2130,12 @@ unemployed:
       double(UT_LIST_GET_LEN(buf_pool.LRU) + UT_LIST_GET_LEN(buf_pool.free));
 
     if (lsn_limit);
+    else if (srv_max_dirty_pages_pct_lwm != 0.0)
+    {
+      if (dirty_pct < srv_max_dirty_pages_pct_lwm)
+        goto unemployed;
+    }
     else if (dirty_pct < srv_max_buf_pool_modified_pct)
-      goto unemployed;
-    else if (srv_max_dirty_pages_pct_lwm == 0.0 ||
-             dirty_pct < srv_max_dirty_pages_pct_lwm)
       goto unemployed;
 
     const lsn_t oldest_lsn= buf_pool.get_oldest_modified()

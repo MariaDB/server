@@ -1569,10 +1569,17 @@ void wsrep_keys_free(wsrep_key_arr_t* key_arr)
     key_arr->keys_len= 0;
 }
 
-void
+/*!
+ * @param thd    thread
+ * @param tables list of tables
+ * @param keys   prepared keys
+
+ * @return true if parent table append was successfull, otherwise false.
+*/
+bool
 wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* keys)
 {
-  if (!WSREP(thd) || !WSREP_CLIENT(thd)) return;
+    bool fail= false;
     TABLE_LIST *table;
 
     thd->release_transactional_locks();
@@ -1583,6 +1590,8 @@ wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* key
          open_tables(thd, &tables, &counter, MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL))
     {
       WSREP_DEBUG("unable to open table for FK checks for %s", thd->query());
+      fail= true;
+      goto exit;
     }
 
     for (table= tables; table; table= table->next_local)
@@ -1604,14 +1613,18 @@ wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* key
       }
     }
 
+exit:
     /* close the table and release MDL locks */
     close_thread_tables(thd);
     thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
     for (table= tables; table; table= table->next_local)
     {
       table->table= NULL;
+      table->next_global= NULL;
       table->mdl_request.ticket= NULL;
     }
+
+    return fail;
 }
 
 /*!

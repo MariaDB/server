@@ -2202,6 +2202,19 @@ SELECT * FROM t2;
 DROP TABLE t1, t2;
 
 --echo #
+--echo # MDEV-23449: alias do not exist and a query do not report an error
+--echo #
+
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4), (5,5);
+
+--error ER_BAD_FIELD_ERROR
+SELECT a, b FROM t1 WHERE a IN (SELECT A.a FROM t1 A GROUP BY s.id);
+DROP TABLE t1;
+
+--echo # End of 10.2 tests
+
+--echo #
 --echo # MDEV-18335: Assertion `!error || error == 137' failed in subselect_rowid_merge_engine::init
 --echo #
 
@@ -2236,9 +2249,6 @@ from t2 join t1 on
 SET join_cache_level= @save_join_cache_level;
 
 DROP TABLE t1,t2,t3,t4;
-
---echo # End of 10.2 tests
-
 --echo #
 --echo # MDEV-21265: IN predicate conversion to IN subquery should be allowed for a broader set of datatype comparison
 --echo #

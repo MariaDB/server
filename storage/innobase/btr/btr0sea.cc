@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -705,6 +705,12 @@ btr_search_update_hash_ref(
 		return;
 	}
 
+	if (index != cursor->index) {
+		ut_ad(index->id == cursor->index->id);
+		btr_search_drop_page_hash_index(block);
+		return;
+	}
+
 	ut_ad(block->page.id().space() == index->table->space_id);
 	ut_ad(index == cursor->index);
 	ut_ad(!dict_index_is_ibuf(index));
@@ -1262,12 +1268,13 @@ retry:
 	part->latch.rd_lock(SRW_LOCK_CALL);
 	assert_block_ahi_valid(block);
 
-	if (!block->index || !btr_search_enabled) {
+	dict_index_t* index = block->index;
+
+	if (!index || !btr_search_enabled) {
 		part->latch.rd_unlock();
 		return;
 	}
 
-	dict_index_t* index = block->index;
 #ifdef MYSQL_INDEX_DISABLE_AHI
 	ut_ad(!index->disable_ahi);
 #endif
@@ -1710,12 +1717,17 @@ btr_search_move_or_delete_hash_entries(
 		: nullptr;
 
 	if (new_block->index) {
+drop_exit:
 		btr_search_drop_page_hash_index(block);
 		return;
 	}
 
 	if (!index) {
 		return;
+	}
+
+	if (index->freed()) {
+		goto drop_exit;
 	}
 
 	ahi_latch->rd_lock(SRW_LOCK_CALL);
@@ -1776,6 +1788,11 @@ void btr_search_update_hash_on_delete(btr_cur_t* cursor)
 
 	if (!index) {
 
+		return;
+	}
+
+	if (index != cursor->index) {
+		btr_search_drop_page_hash_index(block);
 		return;
 	}
 
@@ -1844,6 +1861,12 @@ void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
 
 	if (!index) {
 
+		return;
+	}
+
+	if (index != cursor->index) {
+		ut_ad(index->id == cursor->index->id);
+		btr_search_drop_page_hash_index(block);
 		return;
 	}
 
@@ -1933,6 +1956,12 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor,
 #ifdef MYSQL_INDEX_DISABLE_AHI
 	ut_a(!index->disable_ahi);
 #endif
+	if (index != cursor->index) {
+		ut_ad(index->id == cursor->index->id);
+		btr_search_drop_page_hash_index(block);
+		return;
+	}
+
 	ut_a(index == cursor->index);
 	ut_ad(!dict_index_is_ibuf(index));
 

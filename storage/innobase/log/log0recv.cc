@@ -2683,8 +2683,6 @@ void recv_sys_t::apply(bool last_batch)
     srv_operation == SRV_OPERATION_RESTORE ||
     srv_operation == SRV_OPERATION_RESTORE_EXPORT;
 
-  ut_d(recv_no_log_write = recv_no_ibuf_operations);
-
   mtr_t mtr;
 
   if (!pages.empty())
@@ -3637,7 +3635,8 @@ completed:
 		mysql_mutex_unlock(&log_sys.mutex);
 
 		ib::error() << "Recovered only to lsn:"
-			    << recv_sys.recovered_lsn << " checkpoint_lsn: " << checkpoint_lsn;
+			    << recv_sys.recovered_lsn
+			    << " checkpoint_lsn: " << checkpoint_lsn;
 
 		return(DB_ERROR);
 	}
@@ -3669,6 +3668,8 @@ completed:
 	mysql_mutex_lock(&recv_sys.mutex);
 	recv_sys.apply_log_recs = true;
 	recv_no_ibuf_operations = false;
+	ut_d(recv_no_log_write = srv_operation == SRV_OPERATION_RESTORE
+	     || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 	mysql_mutex_unlock(&recv_sys.mutex);
 	mysql_mutex_unlock(&log_sys.mutex);
 

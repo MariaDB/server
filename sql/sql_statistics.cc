@@ -1021,14 +1021,14 @@ public:
 
   void store_stat_fields()
   {
-    char buff[MAX_FIELD_WIDTH];
-    String val(buff, sizeof(buff), &my_charset_bin);
+    StringBuffer<MAX_FIELD_WIDTH> val;
 
     MY_BITMAP *old_map= dbug_tmp_use_all_columns(stat_table, &stat_table->read_set);
     for (uint i= COLUMN_STAT_MIN_VALUE; i <= COLUMN_STAT_HISTOGRAM; i++)
     {  
       Field *stat_field= stat_table->field[i];
-      if (table_field->collected_stats->is_null(i))
+      Column_statistics *stats= table_field->collected_stats;
+      if (stats->is_null(i))
         stat_field->set_null();
       else
       {
@@ -1041,47 +1041,37 @@ public:
             and move this implementation there
           */
           if (table_field->type() == MYSQL_TYPE_BIT)
-            stat_field->store(table_field->collected_stats->min_value->val_int(),true);
+            stat_field->store(stats->min_value->val_int(),true);
           else
-          {
-            Field *field= table_field->collected_stats->min_value;
-            field->store_to_statistical_minmax_field(stat_field, &val);
-          }
+            stats->min_value->store_to_statistical_minmax_field(stat_field, &val);
           break;
         }
         case COLUMN_STAT_MAX_VALUE:
         {
           if (table_field->type() == MYSQL_TYPE_BIT)
-            stat_field->store(table_field->collected_stats->max_value->val_int(),true);
+            stat_field->store(stats->max_value->val_int(),true);
           else
-          {
-            Field *field= table_field->collected_stats->max_value;
-            field->store_to_statistical_minmax_field(stat_field, &val);
-          }
+            stats->max_value->store_to_statistical_minmax_field(stat_field, &val);
           break;
         }
         case COLUMN_STAT_NULLS_RATIO:
-          stat_field->store(table_field->collected_stats->get_nulls_ratio());
+          stat_field->store(stats->get_nulls_ratio());
           break;
         case COLUMN_STAT_AVG_LENGTH:
-          stat_field->store(table_field->collected_stats->get_avg_length());
+          stat_field->store(stats->get_avg_length());
           break;
         case COLUMN_STAT_AVG_FREQUENCY:
-          stat_field->store(table_field->collected_stats->get_avg_frequency());
+          stat_field->store(stats->get_avg_frequency());
           break; 
         case COLUMN_STAT_HIST_SIZE:
-          stat_field->store(table_field->collected_stats->histogram.get_size());
+          stat_field->store(stats->histogram.get_size());
           break;
         case COLUMN_STAT_HIST_TYPE:
-          stat_field->store(table_field->collected_stats->histogram.get_type() +
-                            1);
+          stat_field->store(stats->histogram.get_type() + 1);
           break;
         case COLUMN_STAT_HISTOGRAM:
-          const char * col_histogram=
-          (const char *) (table_field->collected_stats->histogram.get_values());
-	  stat_field->store(col_histogram,
-                            table_field->collected_stats->histogram.get_size(),
-                            &my_charset_bin);
+	  stat_field->store((char *)stats->histogram.get_values(),
+                            stats->histogram.get_size(), &my_charset_bin);
           break;           
         }
       }
@@ -1139,14 +1129,20 @@ public:
           {
             Field *field= table_field->read_stats->min_value;
             field->set_notnull();
-            field->store_from_statistical_minmax_field(stat_field, &val);
+            if (table_field->type() == MYSQL_TYPE_BIT)
+              field->store(stat_field->val_int(), true);
+            else
+              field->store_from_statistical_minmax_field(stat_field, &val);
             break;
           }
           case COLUMN_STAT_MAX_VALUE:
           {
             Field *field= table_field->read_stats->max_value;
             field->set_notnull();
-            field->store_from_statistical_minmax_field(stat_field, &val);
+            if (table_field->type() == MYSQL_TYPE_BIT)
+              field->store(stat_field->val_int(), true);
+            else
+              field->store_from_statistical_minmax_field(stat_field, &val);
             break;
           }
           case COLUMN_STAT_NULLS_RATIO:
@@ -2101,20 +2097,24 @@ void create_min_max_statistical_fields_for_table_share(THD *thd,
 int alloc_statistics_for_table(THD* thd, TABLE *table)
 { 
   Field **field_ptr;
-  uint fields;
 
   DBUG_ENTER("alloc_statistics_for_table");
 
+  uint columns= 0;
+  for (field_ptr= table->field; *field_ptr; field_ptr++)
+  {
+    if (bitmap_is_set(table->read_set, (*field_ptr)->field_index))
+      columns++;
+  }
 
   Table_statistics *table_stats= 
     (Table_statistics *) alloc_root(&table->mem_root,
                                     sizeof(Table_statistics));
 
-  fields= table->s->fields ; 
   Column_statistics_collected *column_stats=
     (Column_statistics_collected *) alloc_root(&table->mem_root,
                                     sizeof(Column_statistics_collected) *
-				    (fields+1));
+				    columns);
 
   uint keys= table->s->keys;
   Index_statistics *index_stats=
@@ -2125,16 +2125,6 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   ulonglong *idx_avg_frequency= (ulonglong*) alloc_root(&table->mem_root,
                                                sizeof(ulonglong) * key_parts);
 
-  if (table->file->ha_rnd_init(TRUE))
-    DBUG_RETURN(1);
-  table->file->ha_rnd_end();
-
-  uint columns= 0;
-  for (field_ptr= table->field; *field_ptr; field_ptr++)
-  {
-    if (bitmap_is_set(table->read_set, (*field_ptr)->field_index))
-      columns++;
-  }
   uint hist_size= thd->variables.histogram_size;
   Histogram_type hist_type= (Histogram_type) (thd->variables.histogram_type);
   uchar *histogram= NULL;
@@ -2156,19 +2146,17 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   table_stats->idx_avg_frequency= idx_avg_frequency;
   table_stats->histograms= histogram;
   
-  memset(column_stats, 0, sizeof(Column_statistics) * (fields+1));
+  memset(column_stats, 0, sizeof(Column_statistics) * columns);
 
-  for (field_ptr= table->field; *field_ptr; field_ptr++, column_stats++)
+  for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
-    (*field_ptr)->collected_stats= column_stats;
-    (*field_ptr)->collected_stats->max_value= NULL;
-    (*field_ptr)->collected_stats->min_value= NULL;
     if (bitmap_is_set(table->read_set, (*field_ptr)->field_index))
     {
       column_stats->histogram.set_size(hist_size);
       column_stats->histogram.set_type(hist_type);
       column_stats->histogram.set_values(histogram);
       histogram+= hist_size;
+      (*field_ptr)->collected_stats= column_stats++;
     }
   }
 
@@ -2663,7 +2651,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
     table_field= *field_ptr;   
-    if (!bitmap_is_set(table->read_set, table_field->field_index))
+    if (!table_field->collected_stats)
       continue; 
     table_field->collected_stats->init(thd, table_field);
   }
@@ -2688,7 +2676,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
         for (field_ptr= table->field; *field_ptr; field_ptr++)
         {
           table_field= *field_ptr;
-          if (!bitmap_is_set(table->read_set, table_field->field_index))
+          if (!table_field->collected_stats)
             continue;
           if ((rc= table_field->collected_stats->add()))
             break;
@@ -2718,7 +2706,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
     table_field= *field_ptr;
-    if (!bitmap_is_set(table->read_set, table_field->field_index))
+    if (!table_field->collected_stats)
       continue;
     bitmap_set_bit(table->write_set, table_field->field_index); 
     if (!rc)
@@ -2822,7 +2810,7 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   for (Field **field_ptr= table->field; *field_ptr; field_ptr++)
   {
     Field *table_field= *field_ptr;
-    if (!bitmap_is_set(table->read_set, table_field->field_index))
+    if (!table_field->collected_stats)
       continue;
     restore_record(stat_table, s->default_values);
     column_stat.set_key_fields(table_field);
@@ -3757,6 +3745,7 @@ double get_column_range_cardinality(Field *field,
   if (!table->stats_is_read)
     return tab_records;
 
+  THD *thd= table->in_use;
   double col_nulls= tab_records * col_stats->get_nulls_ratio();
 
   double col_non_nulls= tab_records - col_nulls;
@@ -3787,7 +3776,7 @@ double get_column_range_cardinality(Field *field,
           col_stats->min_max_values_are_provided())
       {
         Histogram *hist= &col_stats->histogram;
-        if (hist->is_available())
+        if (hist->is_usable(thd))
         {
           store_key_image_to_rec(field, (uchar *) min_endp->key,
                                  field->key_length());
@@ -3831,10 +3820,10 @@ double get_column_range_cardinality(Field *field,
         max_mp_pos= 1.0;
 
       Histogram *hist= &col_stats->histogram;
-      if (!hist->is_available())
-        sel= (max_mp_pos - min_mp_pos);
-      else
+      if (hist->is_usable(thd))
         sel= hist->range_selectivity(min_mp_pos, max_mp_pos);
+      else
+        sel= (max_mp_pos - min_mp_pos);
       res= col_non_nulls * sel;
       set_if_bigger(res, col_stats->get_avg_frequency());
     }

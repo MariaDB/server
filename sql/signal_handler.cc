@@ -15,6 +15,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "mariadb.h"
+#include "my_dbug.h"
 #include <signal.h>
 
 //#include "sys_vars.h"
@@ -120,8 +121,8 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     my_safe_printf_stderr("Fatal " SIGNAL_FMT " while backtracing\n", sig);
     goto end;
   }
-
   segfaulted = 1;
+  DBUG_PRINT("error", ("handling fatal signal"));
 
   curr_time= my_time(0);
   localtime_r(&curr_time, &tm);

@@ -26,17 +26,12 @@ call mtr.add_suppression("WSREP: TO isolation failed for: ");
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 
 # Reset the master and restart the slave so that post-test checks can run
-
-
 --connection node_2
 --source include/start_mysqld.inc
---sleep 5
 --source include/wait_until_connected_again.inc
 
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc
-
---sleep 10
 
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --source include/wait_until_connected_again.inc
@@ -46,4 +41,3 @@ CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 --source include/auto_increment_offset_restore.inc
 
 --source include/galera_end.inc
-

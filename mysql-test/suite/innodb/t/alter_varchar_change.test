@@ -361,7 +361,15 @@ DROP PROCEDURE get_table_id;
 
 # LEN must increase here
 create table t (a varchar(100)) engine=innodb;
-select name, pos, mtype, prtype, len from information_schema.innodb_sys_columns where name='a';
+select sc.name, sc.pos, sc.mtype, sc.prtype, sc.len
+from information_schema.innodb_sys_columns sc
+inner join information_schema.innodb_sys_tables st
+on sc.table_id=st.table_id where st.name='test/t' and sc.name='a';
 alter table t modify a varchar(110), algorithm=inplace;
-select name, pos, mtype, prtype, len from information_schema.innodb_sys_columns where name='a';
+select sc.name, sc.pos, sc.mtype, sc.prtype, sc.len
+from information_schema.innodb_sys_columns sc
+inner join information_schema.innodb_sys_tables st
+on sc.table_id=st.table_id where st.name='test/t' and sc.name='a';
 drop table t;
+
+--echo # End of 10.2 tests
