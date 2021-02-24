@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2021, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -3137,11 +3137,7 @@ fil_reinit_space_header_for_table(
 	row_mysql_unlock_data_dictionary(trx);
 
 	DEBUG_SYNC_C("buffer_pool_scan");
-	/* Lock the search latch in shared mode to prevent user
-	from disabling AHI during the scan */
-	btr_search_s_lock_all();
 	buf_LRU_flush_or_remove_pages(id, NULL);
-	btr_search_s_unlock_all();
 
 	row_mysql_lock_data_dictionary(trx);
 
