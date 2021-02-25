@@ -2481,7 +2481,7 @@ static void store_key_options(THD *thd, String *packet, TABLE *table,
     }
 
     if (key_info->is_ignored)
-      packet->append(STRING_WITH_LEN(" IGNORE"));
+      packet->append(STRING_WITH_LEN(" IGNORED"));
   }
 }
 

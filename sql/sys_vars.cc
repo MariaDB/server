@@ -2714,7 +2714,6 @@ export const char *optimizer_switch_names[]=
   "rowid_filter",
   "condition_pushdown_from_having",
   "not_null_range_scan",
-  "ignore_indexes",
   "default", 
   NullS
 };

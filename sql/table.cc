@@ -1431,13 +1431,9 @@ void TABLE_SHARE::set_ignored_indexes()
 
 key_map TABLE_SHARE::usable_indexes(THD *thd)
 {
-  if (optimizer_flag(thd, OPTIMIZER_SWITCH_IGNORE_INDEXES))
-  {
-    key_map usable_indexes(keys_in_use);
-    usable_indexes.subtract(ignored_indexes);
-    return usable_indexes;
-  }
-  return keys_in_use;
+  key_map usable_indexes(keys_in_use);
+  usable_indexes.subtract(ignored_indexes);
+  return usable_indexes;
 }
 
 
@@ -8269,7 +8265,8 @@ bool TABLE_LIST::process_index_hints(TABLE *tbl)
       */
       if (tbl->s->keynames.type_names == 0 ||
           (pos= find_type(&tbl->s->keynames, hint->key_name.str,
-                          hint->key_name.length, 1)) <= 0)
+                          hint->key_name.length, 1)) <= 0 ||
+          (tbl->s->key_info[pos - 1].is_ignored))
       {
         my_error(ER_KEY_DOES_NOT_EXISTS, MYF(0), hint->key_name.str, alias.str);
         return 1;

@@ -97,7 +97,7 @@ t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
   `c` int(11) DEFAULT NULL,
   KEY `a` (`a`),
-  KEY `b` (`b`) IGNORE,
+  KEY `b` (`b`) IGNORED,
   KEY `c` (`c`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
@@ -378,4 +378,22 @@ ALTER TABLE t1 ALTER INDEX b IGNORE;
 EXPLAIN SELECT b FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	14	
+DROP TABLE t1;
+#
+# Using FORCE INDEX for an ignored index
+#
+CREATE TABLE t1(a INT, key k1(a));
+INSERT INTO t1 VALUES (1),(2),(3);
+EXPLAIN SELECT * FROM t1 FORCE INDEX(k1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	k1	5	NULL	3	Using index
+ALTER TABLE t1 ALTER INDEX k1 IGNORE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  KEY `k1` (`a`) IGNORED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+EXPLAIN SELECT * FROM t1 FORCE INDEX(k1);
+ERROR 42000: Key 'k1' doesn't exist in table 't1'
 DROP TABLE t1;
