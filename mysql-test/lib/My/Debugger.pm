@@ -74,7 +74,8 @@ my %debuggers = (
     options => '-f -o {log} {exe} {args}',
   },
   rr => {
-    options => 'record -o {log} {exe} {args}',
+    options => '_RR_TRACE_DIR={log} rr record {exe} {args}',
+    run => 'env',
     pre => sub {
       ::mtr_error('rr requires kernel.perf_event_paranoid <= 1')
         if ::mtr_grab_file('/proc/sys/kernel/perf_event_paranoid') > 1;
