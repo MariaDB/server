@@ -1536,11 +1536,11 @@ bool pfs_show_status(handlerton *hton, THD *thd,
       break;
     case 147:
       name= "(filename_hash).count";
-      size= filename_hash.count;
+      size= pfs_filename_hash.count;
       break;
     case 148:
       name= "(filename_hash).size";
-      size= filename_hash.size;
+      size= pfs_filename_hash.size;
       break;
     case 149:
       name= "(host_hash).count";
