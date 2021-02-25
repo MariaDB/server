@@ -150,23 +150,34 @@ exit:
 }
 
 
+/*
+   Return 1 if we should rotate the log
+*/
+
+my_bool logger_time_to_rotate(LOGGER_HANDLE *log)
+{
+  my_off_t filesize;
+  if (log->rotations > 0 &&
+      (filesize= my_tell(log->file, MYF(0))) != (my_off_t) -1 &&
+      ((ulonglong) filesize >= log->size_limit))
+    return 1;
+  return 0;
+}
+
+
 int logger_vprintf(LOGGER_HANDLE *log, const char* fmt, va_list ap)
 {
   int result;
-  my_off_t filesize;
   char cvtbuf[1024];
   size_t n_bytes;
 
   flogger_mutex_lock(&log->lock);
-  if (log->rotations > 0)
-    if ((filesize= my_tell(log->file, MYF(0))) == (my_off_t) -1 ||
-        ((unsigned long long)filesize >= log->size_limit &&
-         do_rotate(log)))
-    {
-      result= -1;
-      errno= my_errno;
-      goto exit; /* Log rotation needed but failed */
-    }
+  if (logger_time_to_rotate(log) && do_rotate(log))
+  {
+    result= -1;
+    errno= my_errno;
+    goto exit; /* Log rotation needed but failed */
+  }
 
   n_bytes= my_vsnprintf(cvtbuf, sizeof(cvtbuf), fmt, ap);
   if (n_bytes >= sizeof(cvtbuf))
@@ -180,21 +191,18 @@ exit:
 }
 
 
-int logger_write(LOGGER_HANDLE *log, const char *buffer, size_t size)
+static int logger_write_r(LOGGER_HANDLE *log, my_bool allow_rotations,
+                          const char *buffer, size_t size)
 {
   int result;
-  my_off_t filesize;
 
   flogger_mutex_lock(&log->lock);
-  if (log->rotations > 0)
-    if ((filesize= my_tell(log->file, MYF(0))) == (my_off_t) -1 ||
-        ((unsigned long long)filesize >= log->size_limit &&
-         do_rotate(log)))
-    {
-      result= -1;
-      errno= my_errno;
-      goto exit; /* Log rotation needed but failed */
-    }
+  if (allow_rotations && logger_time_to_rotate(log) && do_rotate(log))
+  {
+    result= -1;
+    errno= my_errno;
+    goto exit; /* Log rotation needed but failed */
+  }
 
   result= (int)my_write(log->file, (uchar *) buffer, size, MYF(0));
 
@@ -203,6 +211,11 @@ exit:
   return result;
 }
 
+
+int logger_write(LOGGER_HANDLE *log, const char *buffer, size_t size)
+{
+  return logger_write_r(log, TRUE, buffer, size);
+}
 
 int logger_rotate(LOGGER_HANDLE *log)
 {
