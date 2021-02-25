@@ -86,7 +86,7 @@ typedef struct {
              1 - error (callbck returned 1)
 */
 static int l_find(LF_SLIST **head, CHARSET_INFO *cs, uint32 hashnr,
-                 const uchar *key, uint keylen, CURSOR *cursor, LF_PINS *pins,
+                 const uchar *key, size_t keylen, CURSOR *cursor, LF_PINS *pins,
                  my_hash_walk_action callback)
 {
   uint32       cur_hashnr;
