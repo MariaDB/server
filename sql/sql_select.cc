@@ -10685,8 +10685,13 @@ JOIN_TAB *first_linear_tab(JOIN *join,
 
   if (first->bush_children && include_bush_roots == WITHOUT_BUSH_ROOTS)
   {
-    /* This JOIN_TAB is a SJM nest; Start from first table in nest */
-    return first->bush_children->start;
+    /* This JOIN_TAB is a nest; Start from first table in nest */
+    JOIN_TAB *tab= first->bush_children->start;
+    while (tab->bush_children)
+    {
+       tab= tab->bush_children->start;
+    }
+    return tab;
   }
 
   return first;
@@ -10726,18 +10731,18 @@ JOIN_TAB *next_linear_tab(JOIN* join, JOIN_TAB* tab,
 {
   if (include_bush_roots == WITH_BUSH_ROOTS && tab->bush_children)
   {
-    /* This JOIN_TAB is a SJM nest; Start from first table in nest */
+    /* This JOIN_TAB is a nest; Start from first table in nest */
     return tab->bush_children->start;
   }
 
   DBUG_ASSERT(!tab->last_leaf_in_bush || tab->bush_root_tab);
 
-  if (tab->bush_root_tab)       /* Are we inside an SJM nest */
+  while (tab->bush_root_tab)       /* Are we inside a nest */
   {
-    /* Inside SJM nest */
+    /* Inside a nest */
     if (!tab->last_leaf_in_bush)
       return tab+1;              /* Return next in nest */
-    /* Continue from the sjm on the top level */
+    /* Continue from the root of the nest on the upper level */
     tab= tab->bush_root_tab;
   }
 
@@ -10747,8 +10752,11 @@ JOIN_TAB *next_linear_tab(JOIN* join, JOIN_TAB* tab,
 
   if (include_bush_roots == WITHOUT_BUSH_ROOTS && tab->bush_children)
   {
-    /* This JOIN_TAB is a SJM nest; Start from first table in nest */
-    tab= tab->bush_children->start;
+    /* This JOIN_TAB is a nest; Start from first table in nest */
+    while (tab->bush_children)
+    {
+      tab= tab->bush_children->start;
+    }
   }
   return tab;
 }
@@ -10938,7 +10946,7 @@ bool JOIN::get_best_combination()
       DBUG_RETURN(TRUE);
 
     if (sort_nest_needed())
-      join_tab[const_tables + n_tables].is_sort_nest= TRUE;
+      join_tab[const_tables].is_sort_nest= TRUE;
     else
       setup_index_use_for_ordering(index_no);
   }
@@ -10953,136 +10961,17 @@ bool JOIN::get_best_combination()
   if (join_tab_ranges.push_back(root_range, thd->mem_root))
     DBUG_RETURN(TRUE);
 
-  JOIN_TAB *sjm_nest_end= NULL;
-  JOIN_TAB *sjm_nest_root= NULL;
-
-  for (j=join_tab, tablenr=0 ; tablenr < table_count ; tablenr++,j++)
+  for (j=join_tab, tablenr=0 ; tablenr < table_count ; j++)
   {
-    TABLE *form;
-    POSITION *cur_pos= &best_positions[tablenr];
-
-    if (j->is_sort_nest)
-    {
-      uint tables= n_tables;
-      j->join= this;
-      j->table= NULL;
-      j->ref.key = -1;
-      j->on_expr_ref= (Item**) &null_ptr;
-      j->records_read= calculate_record_count_for_sort_nest(tables);
-      j->records= (ha_rows) j->records_read;
-      j->cond_selectivity= 1.0;
-      sort_nest_info->nest_tab= j;
-      tablenr--;
-      continue;
-    }
-
-    if (cur_pos->sj_strategy == SJ_OPT_MATERIALIZE || 
-        cur_pos->sj_strategy == SJ_OPT_MATERIALIZE_SCAN)
-    {
-      /*
-        Ok, we've entered an SJ-Materialization semi-join (note that this can't
-        be done recursively, semi-joins are not allowed to be nested).
-        1. Put into main join order a JOIN_TAB that represents a lookup or scan
-           in the temptable.
-      */
-      bzero((void*)j, sizeof(JOIN_TAB));
-      j->join= this;
-      j->table= NULL; //temporary way to tell SJM tables from others.
-      j->ref.key = -1;
-      j->on_expr_ref= (Item**) &null_ptr;
-      j->keys= key_map(1); /* The unique index is always in 'possible keys' in EXPLAIN */
-
-      /*
-        2. Proceed with processing SJM nest's join tabs, putting them into the
-           sub-order
-      */
-      SJ_MATERIALIZATION_INFO *sjm= cur_pos->table->emb_sj_nest->sj_mat_info;
-      j->records_read= (sjm->is_sj_scan? sjm->rows : 1);
-      j->records= (ha_rows) j->records_read;
-      j->cond_selectivity= 1.0;
-      JOIN_TAB *jt;
-      JOIN_TAB_RANGE *jt_range;
-      if (!(jt= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB)*sjm->tables)) ||
-          !(jt_range= new JOIN_TAB_RANGE))
-        DBUG_RETURN(TRUE);
-      jt_range->start= jt;
-      jt_range->end= jt + sjm->tables;
-      JOIN_TAB *tab;
-      for (tab= jt; tab < jt_range->end; tab++)
-        bzero((void*)tab, sizeof(JOIN_TAB));
-
-      join_tab_ranges.push_back(jt_range, thd->mem_root);
-      j->bush_children= jt_range;
-      sjm_nest_end= jt + sjm->tables;
-      sjm_nest_root= j;
-
-      j= jt;
-    }
-    
-    *j= *best_positions[tablenr].table;
-
-    j->bush_root_tab= sjm_nest_root;
-
-    form= table[tablenr]= j->table;
-    form->reginfo.join_tab=j;
-    DBUG_PRINT("info",("type: %d", j->type));
-    if (j->type == JT_CONST)
-      goto loop_end;					// Handled in make_join_stat..
-
-    j->loosescan_match_tab= NULL;  //non-nulls will be set later
-    j->inside_loosescan_range= FALSE;
-    j->ref.key = -1;
-    j->ref.key_parts=0;
-
-    if (j->type == JT_SYSTEM)
-      goto loop_end;
-    if ( !(keyuse= best_positions[tablenr].key))
-    {
-      j->type=JT_ALL;
-      if (best_positions[tablenr].use_join_buffer &&
-          tablenr != const_tables)
-      full_join= 1;
-    }
-
-    /*if (best_positions[tablenr].sj_strategy == SJ_OPT_LOOSE_SCAN)
-    {
-      DBUG_ASSERT(!keyuse || keyuse->key ==
-                             best_positions[tablenr].loosescan_picker.loosescan_key);
-      j->index= best_positions[tablenr].loosescan_picker.loosescan_key;
-    }*/
-
-    if ((j->type == JT_REF || j->type == JT_EQ_REF) &&
-        is_hash_join_key_no(j->ref.key))
-      hash_join= TRUE; 
-
-    j->range_rowid_filter_info= best_positions[tablenr].range_rowid_filter_info;
-
-  loop_end:
-    /* 
-      Save records_read in JOIN_TAB so that select_describe()/etc don't have
-      to access join->best_positions[]. 
-    */
-    j->records_read= best_positions[tablenr].records_read;
-    j->cond_selectivity= best_positions[tablenr].cond_selectivity;
-    map2table[j->table->tablenr]= j;
-
-    /* If we've reached the end of sjm nest, switch back to main sequence */
-    if (j + 1 == sjm_nest_end)
-    {
-      j->last_leaf_in_bush= TRUE;
-      j= sjm_nest_root;
-      sjm_nest_root= NULL;
-      sjm_nest_end= NULL;
-    }
+    if (fill_join_tab_structures(&tablenr, j, NULL, NULL, FALSE))
+      DBUG_RETURN(TRUE);
   }
   root_range->end= j;
 
   used_tables= OUTER_REF_TABLE_BIT;		// Outer row is already read
   for (j=join_tab, tablenr=0 ; tablenr < table_count ; tablenr++,j++)
   {
-    if (j->is_sort_nest)
-      j++;
-    if (j->bush_children)
+    while (j->bush_children)
       j= j->bush_children->start;
 
     used_tables|= j->table->map;
@@ -11092,7 +10981,7 @@ bool JOIN::get_best_combination()
           create_ref_for_key(this, j, keyuse, TRUE, used_tables))
         DBUG_RETURN(TRUE);              // Something went wrong
     }
-    if (j->last_leaf_in_bush)
+    while (j->last_leaf_in_bush)
       j= j->bush_root_tab;
   }
  
@@ -30288,6 +30177,189 @@ bool is_range_predicate(Item *item, Item *value)
      (value->const_item() && !value->is_expensive()))
     return true;
   return false;
+}
+
+
+/*
+  @brief
+    Allocate a bush for a nest
+
+  @param
+    @tables           The number of tables in the bush
+
+  @retval
+  NULL        OOM
+  OTHERWISE   pointer to the bush
+*/
+JOIN_TAB_RANGE* JOIN::allocate_bush(uint tables)
+{
+  JOIN_TAB *jt;
+  JOIN_TAB_RANGE *jt_range;
+  if (!(jt= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB)*tables)) ||
+      !(jt_range= new JOIN_TAB_RANGE))
+    return NULL;
+  jt_range->start= jt;
+  jt_range->end= jt + tables;
+  JOIN_TAB *tab;
+  for (tab= jt; tab < jt_range->end; tab++)
+    bzero((void*)tab, sizeof(JOIN_TAB));
+  return jt_range;
+}
+
+
+
+/*
+@brief
+  Populate the join tab structures according to the picked join order
+
+
+@param
+  @tablenr                 [OUT]
+  @cur_tab                 current join tab structure to be filled
+  @nest_root               root tab of the nest, NULL otherwise
+  @nest_end                end tab of the nest, NULL otherwise
+  @inner_sjm_table         Set to TRUE if we are populating inner tables
+                           of an sjm-nest
+
+TODO varun: need more comments here
+*/
+bool JOIN::fill_join_tab_structures(uint *table_nr, JOIN_TAB *cur_tab,
+                                    JOIN_TAB *nest_root,
+                                    JOIN_TAB *nest_end,
+                                    bool inner_sjm_table)
+{
+  DBUG_ENTER("fill_join_tab_structures");
+  uint tablenr= *table_nr;
+  KEYUSE *keyuse;
+  TABLE *form;
+  POSITION *cur_pos= &best_positions[tablenr];
+
+  DBUG_ASSERT(tablenr < table_count);
+  if (cur_tab->is_sort_nest)
+  {
+    uint tables= sort_nest_info->number_of_tables();
+    cur_tab->join= this;
+    cur_tab->mat_nest_type= SORT_NEST;
+    cur_tab->table= NULL;
+    cur_tab->ref.key = -1;
+    cur_tab->on_expr_ref= (Item**) &null_ptr;
+    cur_tab->records_read= calculate_record_count_for_sort_nest(tables);
+    cur_tab->records= (ha_rows) cur_tab->records_read;
+    cur_tab->cond_selectivity= 1.0;
+    sort_nest_info->nest_tab= cur_tab;
+
+    JOIN_TAB_RANGE *jt_range;
+    if ((jt_range= allocate_bush(tables)) == NULL)
+      DBUG_RETURN(TRUE);
+
+    JOIN_TAB *jt= jt_range->start;
+    join_tab_ranges.push_back(jt_range, thd->mem_root);
+    cur_tab->bush_children= jt_range;
+
+    for (uint i= 0 ; i < tables; i++)
+    {
+      if (fill_join_tab_structures(table_nr, jt + i, cur_tab, jt + tables,
+                                   inner_sjm_table))
+        DBUG_RETURN(TRUE);
+    }
+    DBUG_RETURN(FALSE);
+  }
+
+  if (!inner_sjm_table && (cur_pos->sj_strategy == SJ_OPT_MATERIALIZE ||
+                           cur_pos->sj_strategy == SJ_OPT_MATERIALIZE_SCAN))
+  {
+    /*
+      Ok, we've entered an SJ-Materialization semi-join (note that this can't
+      be done recursively, semi-joins are not allowed to be nested).
+      1. Put into main join order a JOIN_TAB that represents a lookup or scan
+         in the temptable.
+    */
+    cur_tab->join= this;
+    cur_tab->table= NULL; //temporary way to tell SJM tables from others.
+    cur_tab->ref.key = -1;
+    cur_tab->on_expr_ref= (Item**) &null_ptr;
+    /* The unique index is always in 'possible keys' in EXPLAIN */
+    cur_tab->keys= key_map(1);
+    cur_tab->mat_nest_type= SJM_NEST;
+
+    /*
+      2. Proceed with processing SJM nest's join tabs, putting them into the
+         sub-order
+    */
+    SJ_MATERIALIZATION_INFO *sjm= cur_pos->table->emb_sj_nest->sj_mat_info;
+    cur_tab->records_read= (sjm->is_sj_scan? sjm->rows : 1);
+    cur_tab->records= (ha_rows) cur_tab->records_read;
+    cur_tab->cond_selectivity= 1.0;
+
+    JOIN_TAB_RANGE *jt_range;
+    if ((jt_range= allocate_bush(sjm->tables)) == NULL)
+      DBUG_RETURN(TRUE);
+
+    JOIN_TAB *jt= jt_range->start;
+    join_tab_ranges.push_back(jt_range, thd->mem_root);
+    cur_tab->bush_children= jt_range;
+
+    for (uint i= 0 ; i < sjm->tables; i++)
+    {
+      if (fill_join_tab_structures(table_nr, jt + i, cur_tab, jt + sjm->tables,
+                                   TRUE))
+        DBUG_RETURN(TRUE);
+    }
+    DBUG_RETURN(FALSE);
+  }
+
+  *cur_tab= *best_positions[tablenr].table;
+  cur_tab->bush_root_tab= nest_root;
+
+  form= table[tablenr]= cur_tab->table;
+  form->reginfo.join_tab=cur_tab;
+  DBUG_PRINT("info",("type: %d", cur_tab->type));
+  if (cur_tab->type == JT_CONST)
+    goto loop_end;          // Handled in make_join_stat..
+
+  cur_tab->loosescan_match_tab= NULL;  //non-nulls will be set later
+  cur_tab->inside_loosescan_range= FALSE;
+  cur_tab->ref.key = -1;
+  cur_tab->ref.key_parts=0;
+
+  if (cur_tab->type == JT_SYSTEM)
+    goto loop_end;
+  if ( !(keyuse= best_positions[tablenr].key))
+  {
+    cur_tab->type=JT_ALL;
+    if (best_positions[tablenr].use_join_buffer &&
+        tablenr != const_tables)
+    full_join= 1;
+  }
+
+  /*if (best_positions[tablenr].sj_strategy == SJ_OPT_LOOSE_SCAN)
+  {
+    DBUG_ASSERT(!keyuse || keyuse->key ==
+                           best_positions[tablenr].loosescan_picker.loosescan_key);
+    j->index= best_positions[tablenr].loosescan_picker.loosescan_key;
+  }*/
+
+  if ((cur_tab->type == JT_REF || cur_tab->type == JT_EQ_REF) &&
+      is_hash_join_key_no(cur_tab->ref.key))
+    hash_join= TRUE;
+
+  cur_tab->range_rowid_filter_info= best_positions[tablenr].range_rowid_filter_info;
+
+  loop_end:
+  /*
+    Save records_read in JOIN_TAB so that select_describe()/etc don't have
+    to access join->best_positions[].
+  */
+  cur_tab->records_read= best_positions[tablenr].records_read;
+  cur_tab->cond_selectivity= best_positions[tablenr].cond_selectivity;
+  map2table[cur_tab->table->tablenr]= cur_tab;
+
+  /* If we've reached the end of sjm nest, switch back to main sequence */
+  if (cur_tab + 1 == nest_end)
+    cur_tab->last_leaf_in_bush= TRUE;
+  (*table_nr)++;
+
+  DBUG_RETURN(FALSE);
 }
 
 

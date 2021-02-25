@@ -192,6 +192,8 @@ enum join_type { JT_UNKNOWN,JT_SYSTEM,JT_CONST,JT_EQ_REF,JT_REF,JT_MAYBE_REF,
 		 JT_UNIQUE_SUBQUERY, JT_INDEX_SUBQUERY, JT_INDEX_MERGE,
                  JT_HASH, JT_HASH_RANGE, JT_HASH_NEXT, JT_HASH_INDEX_MERGE};
 
+enum nest_type {NONE, SJM_NEST, SORT_NEST};
+
 class JOIN;
 
 enum enum_nested_loop_state
@@ -283,7 +285,7 @@ typedef struct st_join_table {
   st_join_table *first_unmatched; /**< used for optimization purposes only     */
 
   /*
-    For join tabs that are inside an SJM bush: root of the bush
+    For join tabs that are inside a nest bush: root of the bush
   */
   st_join_table *bush_root_tab;
 
@@ -296,6 +298,8 @@ typedef struct st_join_table {
     NULL - this join tab has no bush children
   */
   JOIN_TAB_RANGE *bush_children;
+
+  nest_type  mat_nest_type;
   
   /* Special content for EXPLAIN 'Extra' column or NULL if none */
   enum explain_extra_tag info;
@@ -650,7 +654,14 @@ typedef struct st_join_table {
 
   bool pfs_batch_update(JOIN *join);
 
-  bool is_sjm_nest() { return MY_TEST(bush_children); }
+  bool is_sjm_nest() const
+  {
+    return MY_TEST(bush_children && mat_nest_type == SJM_NEST);
+  }
+  bool is_sorted_nest() const
+  {
+    return MY_TEST(bush_children && mat_nest_type == SORT_NEST);
+  }
   
   /*
     If this join_tab reads a non-merged semi-join (also called jtbm), return
@@ -2011,6 +2022,10 @@ public:
   void make_notnull_conds_for_range_scans();
 
   bool transform_in_predicates_into_in_subq(THD *thd);
+  bool fill_join_tab_structures(uint *tablenr, JOIN_TAB *j,
+                                JOIN_TAB *sjm_nest_root,
+                                JOIN_TAB *sjm_nest_end, bool inner_sjm_table);
+  JOIN_TAB_RANGE* allocate_bush(uint tables);
 private:
   /**
     Create a temporary table to be used for processing DISTINCT/ORDER
