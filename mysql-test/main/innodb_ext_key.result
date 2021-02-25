@@ -804,5 +804,5 @@ PRIMARY KEY(pk)
 INSERT INTO t2 SELECT a,a FROM t1;
 EXPLAIN SELECT pk FROM t2 FORCE INDEX(k1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	k1	23	NULL	10	Using index
+1	SIMPLE	t2	index	NULL	k1	23	NULL	#	Using index
 DROP TABLE t1,t2;
