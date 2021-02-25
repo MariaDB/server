@@ -1279,13 +1279,24 @@ retry:
 	auto part = btr_search_sys.get_part(index_id,
 					    block->page.id().space());
 
-	rw_lock_s_lock(&part->latch);
+	dict_index_t* index = block->index;
+	bool is_freed = index && index->freed();
+
+	if (is_freed) {
+		rw_lock_x_lock(&part->latch);
+	} else {
+		rw_lock_s_lock(&part->latch);
+	}
+
 	assert_block_ahi_valid(block);
 
-	dict_index_t* index = block->index;
 
 	if (!index || !btr_search_enabled) {
-		rw_lock_s_unlock(&part->latch);
+		if (is_freed) {
+			rw_lock_x_unlock(&part->latch);
+		} else {
+			rw_lock_s_unlock(&part->latch);
+		}
 		return;
 	}
 
@@ -1304,7 +1315,9 @@ retry:
 	/* NOTE: The AHI fields of block must not be accessed after
 	releasing search latch, as the index page might only be s-latched! */
 
-	rw_lock_s_unlock(&part->latch);
+	if (!is_freed) {
+		rw_lock_s_unlock(&part->latch);
+	}
 
 	ut_a(n_fields > 0 || n_bytes > 0);
 
@@ -1355,15 +1368,17 @@ next_rec:
 		mem_heap_free(heap);
 	}
 
-	rw_lock_x_lock(&part->latch);
+	if (!is_freed) {
+		rw_lock_x_lock(&part->latch);
 
-	if (UNIV_UNLIKELY(!block->index)) {
-		/* Someone else has meanwhile dropped the hash index */
+		if (UNIV_UNLIKELY(!block->index)) {
+			/* Someone else has meanwhile dropped the
+			hash index */
+			goto cleanup;
+		}
 
-		goto cleanup;
+		ut_a(block->index == index);
 	}
-
-	ut_a(block->index == index);
 
 	if (block->curr_n_fields != n_fields
 	    || block->curr_n_bytes != n_bytes) {
