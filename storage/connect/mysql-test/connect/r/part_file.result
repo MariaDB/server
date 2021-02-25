@@ -99,8 +99,8 @@ PARTITION `1` VALUES LESS THAN(10),
 PARTITION `2` VALUES LESS THAN(50),
 PARTITION `3` VALUES LESS THAN(MAXVALUE));
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	id	A	NULL	NULL	NULL		XINDEX		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	id	A	NULL	NULL	NULL		XINDEX			NO
 INSERT INTO t1(id,msg) VALUES(4, 'four');
 SELECT * FROM dr1 ORDER BY fname, ftype;
 fname	ftype
@@ -294,8 +294,8 @@ part3	.txt
 #
 CREATE INDEX XID ON t1(id);
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	XID	1	id	A	NULL	NULL	NULL		XINDEX		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	XID	1	id	A	NULL	NULL	NULL		XINDEX			NO
 SELECT * FROM dr1 ORDER BY fname, ftype;
 fname	ftype
 part1	.fnx
@@ -309,7 +309,7 @@ id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	1	ref	XID	XID	4	const	1	
 DROP INDEX XID ON t1;
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 SELECT * FROM dr1 ORDER BY fname, ftype;
 fname	ftype
 part1	.txt
@@ -317,8 +317,8 @@ part2	.txt
 part3	.txt
 ALTER TABLE t1 ADD PRIMARY KEY (id);
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	id	A	NULL	NULL	NULL		XINDEX		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	id	A	NULL	NULL	NULL		XINDEX			NO
 SELECT * FROM dr1 ORDER BY fname, ftype;
 fname	ftype
 part1	.fnx
@@ -332,7 +332,7 @@ id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	1	const	PRIMARY	PRIMARY	4	const	1	
 ALTER TABLE t1 DROP PRIMARY KEY;
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 SELECT * FROM dr1 ORDER BY fname, ftype;
 fname	ftype
 part1	.txt

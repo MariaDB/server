@@ -4445,7 +4445,7 @@ without_overlaps_err:
       }
       create_info->period_info.unique_keys++;
     }
-
+    key_info->is_ignored= key->key_create_info.is_ignored;
     key_info++;
   }
 
@@ -7043,6 +7043,33 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
   return result;
 }
 
+
+/**
+  Look-up KEY object by index name using case-insensitive comparison.
+
+  @param key_name   Index name.
+  @param key_start  Start of array of KEYs for table.
+  @param key_end    End of array of KEYs for table.
+
+  @note Case-insensitive comparison is necessary to correctly
+        handle renaming of keys.
+
+  @retval non-NULL - pointer to KEY object for index found.
+  @retval NULL     - no index with such name found (or it is marked
+                     as renamed).
+*/
+
+static KEY *find_key_ci(const char *key_name, KEY *key_start, KEY *key_end)
+{
+  for (KEY *key = key_start; key < key_end; key++)
+  {
+    if (!my_strcasecmp(system_charset_info, key_name, key->name.str))
+      return key;
+  }
+  return NULL;
+}
+
+
 /**
    Compare original and new versions of a table and fill Alter_inplace_info
    describing differences between those versions.
@@ -7102,7 +7129,10 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
       ! (ha_alter_info->index_add_buffer=
           (uint*) thd->alloc(sizeof(uint) *
                             alter_info->key_list.elements)) ||
-      ha_alter_info->rename_keys.reserve(ha_alter_info->index_add_count))
+      ha_alter_info->rename_keys.reserve(ha_alter_info->index_add_count) ||
+      ! (ha_alter_info->index_altered_ignorability_buffer=
+           (KEY_PAIR*)thd->alloc(sizeof(KEY_PAIR) *
+                         alter_info->alter_index_ignorability_list.elements)))
     DBUG_RETURN(true);
 
   /*
@@ -7505,6 +7535,29 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table, bool varchar,
       --i; // this index once again
       break;
     }
+  }
+
+  List_iterator<Alter_index_ignorability>
+       ignorability_index_it(alter_info->alter_index_ignorability_list);
+  Alter_index_ignorability *alter_index_ignorability;
+  while((alter_index_ignorability= ignorability_index_it++))
+  {
+    const char *name= alter_index_ignorability->name();
+
+    KEY *old_key, *new_key;
+    old_key= find_key_ci(name, table->key_info, table_key_end);
+    new_key= find_key_ci(name, ha_alter_info->key_info_buffer, new_key_end);
+
+    DBUG_ASSERT(old_key != NULL);
+
+    if (new_key == NULL)
+    {
+      my_error(ER_KEY_DOES_NOT_EXISTS, MYF(0), name, table->s->table_name.str);
+      DBUG_RETURN(true);
+    }
+    new_key->is_ignored= alter_index_ignorability->is_ignored();
+    ha_alter_info->handler_flags|= ALTER_RENAME_INDEX;
+    ha_alter_info->add_altered_index_ignorability(old_key, new_key);
   }
 
   /*
@@ -8341,6 +8394,17 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   /* New key definitions are added here */
   List<Key> new_key_list;
   List<Alter_rename_key> rename_key_list(alter_info->alter_rename_key_list);
+
+  /*
+    Create a deep copy of the list of visibility for indexes, as it will be
+    altered here.
+  */
+  List<Alter_index_ignorability>
+         alter_index_ignorability_list(alter_info->alter_index_ignorability_list,
+                                       thd->mem_root);
+
+  list_copy_and_replace_each_value(alter_index_ignorability_list, thd->mem_root);
+
   List_iterator<Alter_drop> drop_it(alter_info->drop_list);
   List_iterator<Create_field> def_it(alter_info->create_list);
   List_iterator<Alter_column> alter_it(alter_info->alter_list);
@@ -8808,6 +8872,18 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       continue;
     }
 
+    List_iterator<Alter_index_ignorability>
+       ignorability_index_it(alter_index_ignorability_list);
+
+    Alter_index_ignorability *index_ignorability;
+    while((index_ignorability= ignorability_index_it++))
+    {
+      const char* name= index_ignorability->name();
+      if (!my_strcasecmp(system_charset_info, key_name, name))
+        ignorability_index_it.remove();
+    }
+
+
     /* If this index is to stay in the table check if it has to be renamed. */
     List_iterator<Alter_rename_key> rename_key_it(rename_key_list);
     Alter_rename_key *rename_key;
@@ -8956,6 +9032,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         key_create_info.parser_name= *plugin_name(key_info->parser);
       if (key_info->flags & HA_USES_COMMENT)
         key_create_info.comment= key_info->comment;
+      key_create_info.is_ignored= key_info->is_ignored;
 
       /*
         We're refreshing an already existing index. Since the index is not
@@ -8986,6 +9063,24 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         key_type= Key::FULLTEXT;
       else
         key_type= Key::MULTIPLE;
+
+      List_iterator<Alter_index_ignorability>
+           ignorability_index_it(alter_info->alter_index_ignorability_list);
+      Alter_index_ignorability *index_ignorability;
+      while((index_ignorability= ignorability_index_it++))
+      {
+        const char *name= index_ignorability->name();
+        if (!my_strcasecmp(system_charset_info, key_name, name))
+        {
+          if (table->s->primary_key <= MAX_KEY &&
+              table->key_info + table->s->primary_key == key_info)
+          {
+            my_error(ER_PK_INDEX_CANT_BE_IGNORED, MYF(0));
+            goto err;
+          }
+          key_create_info.is_ignored= index_ignorability->is_ignored();
+        }
+      }
 
       tmp_name.str= key_name;
       tmp_name.length= strlen(key_name);
@@ -9177,6 +9272,14 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   if (rename_key_list.elements)
   {
     my_error(ER_KEY_DOES_NOT_EXISTS, MYF(0), rename_key_list.head()->old_name.str,
+             table->s->table_name.str);
+    goto err;
+  }
+
+  if (alter_index_ignorability_list.elements)
+  {
+    my_error(ER_KEY_DOES_NOT_EXISTS, MYF(0),
+             alter_index_ignorability_list.head()->name(),
              table->s->table_name.str);
     goto err;
   }

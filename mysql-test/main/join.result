@@ -3337,9 +3337,9 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 set myisam_stats_method=@tmp1;
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	pk	A	1010	NULL	NULL		BTREE		
-t1	0	a	1	a	A	1010	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	pk	A	1010	NULL	NULL		BTREE			NO
+t1	0	a	1	a	A	1010	NULL	NULL	YES	BTREE			NO
 # t1 must use eq_ref(t1.a=t0.a) and rows must be 1 (and not 45):
 explain select * from t0,t1 where t0.a=t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

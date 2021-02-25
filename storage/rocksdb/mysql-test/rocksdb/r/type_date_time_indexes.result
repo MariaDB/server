@@ -9,8 +9,8 @@ t TIME,
 y YEAR
 ) ENGINE=rocksdb;
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	dt	A	1000	NULL	NULL		LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	dt	A	1000	NULL	NULL		LSMTREE			NO
 SET @tm = '2012-04-09 05:27:00';
 INSERT INTO t1 (d,dt,ts,t,y) VALUES
 ('2012-01-12', '2010-11-22 12:33:54', '2011-11-14 21:45:55', '00:12:33', '2000'),
@@ -49,9 +49,9 @@ pk TIME PRIMARY KEY,
 INDEX (ts)
 ) ENGINE=rocksdb;
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE		
-t1	1	ts	1	ts	A	500	NULL	NULL	YES	LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE			NO
+t1	1	ts	1	ts	A	500	NULL	NULL	YES	LSMTREE			NO
 SET @tm = '2012-04-09 05:27:00';
 INSERT INTO t1 (d,dt,ts,t,y,pk) VALUES
 ('2012-01-12', '2010-11-22 12:33:54', '2011-11-14 21:45:55', '00:12:33', '2000','12:00:00'),
@@ -81,10 +81,10 @@ pk TIME PRIMARY KEY,
 INDEX (y,t)
 ) ENGINE=rocksdb;
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE		
-t1	1	y	1	y	A	250	NULL	NULL	YES	LSMTREE		
-t1	1	y	2	t	A	500	NULL	NULL	YES	LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE			NO
+t1	1	y	1	y	A	250	NULL	NULL	YES	LSMTREE			NO
+t1	1	y	2	t	A	500	NULL	NULL	YES	LSMTREE			NO
 SET @tm = '2012-04-09 05:27:00';
 INSERT INTO t1 (d,dt,ts,t,y,pk) VALUES
 ('2012-01-12', '2010-11-22 12:33:54', '2011-11-14 21:45:55', '00:12:33', '2000','18:18:18'),

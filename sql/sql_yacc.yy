@@ -1388,6 +1388,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
         case_stmt_body opt_bin_mod opt_for_system_time_clause
         opt_if_exists_table_element opt_if_not_exists_table_element
         opt_recursive opt_format_xid opt_for_portion_of_time_clause
+        ignorability
 
 %type <object_ddl_options>
         create_or_replace
@@ -7031,7 +7032,11 @@ all_key_opt:
           { Lex->last_key->key_create_info.comment= $2; }
         | VISIBLE_SYM
           {
-            /* This is mainly for MySQL 8.0 compatiblity */
+            /* This is mainly for MySQL 8.0 compatibility */
+          }
+        | ignorability
+          {
+            Lex->last_key->key_create_info.is_ignored= $1;
           }
         | IDENT_sys equal TEXT_STRING_sys
           {
@@ -7087,6 +7092,11 @@ btree_or_rtree:
           BTREE_SYM { $$= HA_KEY_ALG_BTREE; }
         | RTREE_SYM { $$= HA_KEY_ALG_RTREE; }
         | HASH_SYM  { $$= HA_KEY_ALG_HASH; }
+        ;
+
+ignorability:
+          IGNORE_SYM { $$= true; }
+        | NOT_SYM IGNORE_SYM { $$= false; }
         ;
 
 key_list:
@@ -7782,6 +7792,16 @@ alter_list_item:
               MYSQL_YYABORT;
             if (unlikely(Lex->add_alter_list($4, $7, $3)))
               MYSQL_YYABORT;
+          }
+        | ALTER INDEX_SYM ident ignorability
+          {
+            LEX *lex= Lex;
+            Alter_index_ignorability *ac= new (thd->mem_root)
+                                        Alter_index_ignorability($3.str, $4);
+            if (ac == NULL)
+              MYSQL_YYABORT;
+            lex->alter_info.alter_index_ignorability_list.push_back(ac);
+            lex->alter_info.flags|= ALTER_INDEX_IGNORABILITY;
           }
         | ALTER opt_column opt_if_exists_table_element field_ident DROP DEFAULT
           {

@@ -249,10 +249,10 @@ b
 alter table t1 add index(a);
 alter table t1 add index(a,b);
 show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
-t1	1	a_2	1	a	A	NULL	NULL	NULL	YES	BTREE		
-t1	1	a_2	2	b	A	NULL	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	1	a_2	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	1	a_2	2	b	A	NULL	NULL	NULL	YES	BTREE			NO
 drop table t1;
 set debug_dbug= "+d,test_pseudo_invisible";
 Create table t1( a int default(99) invisible, b int);
@@ -280,7 +280,7 @@ ERROR 42000: Key column 'invisible' doesn't exist in table
 alter table t1 add index(b,invisible);
 ERROR 42000: Key column 'invisible' doesn't exist in table
 show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 drop table t1;
 set debug_dbug= "+d,test_completely_invisible";
 Create table t1( a int default(99) invisible, b int);
@@ -308,17 +308,17 @@ ERROR 42000: Key column 'invisible' doesn't exist in table
 alter table t1 add index(b,invisible);
 ERROR 42000: Key column 'invisible' doesn't exist in table
 show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 drop table t1;
 set debug_dbug= "+d,test_completely_invisible,test_invisible_index";
 Create table t1( a int default(99) , b int,c int, index(b));
 set debug_dbug=@old_debug;
 Show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE			NO
 select * from INFORMATION_SCHEMA.STATISTICS where TABLE_SCHEMA ='test' and table_name='t1';
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT
-def	test	t1	1	test	b	1	b	A	NULL	NULL	NULL	YES	BTREE		
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT	IGNORED
+def	test	t1	1	test	b	1	b	A	NULL	NULL	NULL	YES	BTREE			NO
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -359,8 +359,8 @@ invisible	a	b
 9	7	7
 set debug_dbug=@old_debug;
 Show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE			NO
 create index a1 on t1(invisible);
 ERROR 42000: Key column 'invisible' doesn't exist in table
 set debug_dbug= "+d,test_completely_invisible,test_invisible_index";
@@ -374,10 +374,10 @@ explain select * from t1 where invisible =9;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	invisible_2	NULL	NULL	NULL	7	Using where
 show indexes in t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE		
-t1	1	invisible	1	c	A	NULL	NULL	NULL	YES	BTREE		
-t1	1	invisible_2	1	invisible	A	NULL	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	1	invisible	1	c	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	1	invisible_2	1	invisible	A	NULL	NULL	NULL	YES	BTREE			NO
 drop table t1;
 set @old_debug= @@debug_dbug;
 CREATE TABLE t1 (i INT );

@@ -72,6 +72,7 @@ struct extra2_fields
   LEX_CUSTRING application_period;
   LEX_CUSTRING field_data_type_info;
   LEX_CUSTRING without_overlaps;
+  LEX_CUSTRING index_flags;
   void reset()
   { bzero((void*)this, sizeof(*this)); }
 };
@@ -1423,6 +1424,35 @@ void TABLE_SHARE::set_overlapped_keys()
 }
 
 
+/*
+  @brief
+    Set of indexes that are marked as IGNORE.
+*/
+
+void TABLE_SHARE::set_ignored_indexes()
+{
+  KEY *keyinfo= key_info;
+  for (uint i= 0; i < keys; i++, keyinfo++)
+  {
+    if (keyinfo->is_ignored)
+      ignored_indexes.set_bit(i);
+  }
+}
+
+
+/*
+  @brief
+    Set of indexes that the optimizer may use when creating an execution plan.
+*/
+
+key_map TABLE_SHARE::usable_indexes(THD *thd)
+{
+  key_map usable_indexes(keys_in_use);
+  usable_indexes.subtract(ignored_indexes);
+  return usable_indexes;
+}
+
+
 bool Item_field::check_index_dependence(void *arg)
 {
   TABLE *table= (TABLE *)arg;
@@ -1590,6 +1620,9 @@ bool read_extra2(const uchar *frm_image, size_t len, extra2_fields *fields)
         case EXTRA2_FIELD_DATA_TYPE_INFO:
           fail= read_extra2_section_once(extra2, length, &fields->field_data_type_info);
           break;
+        case EXTRA2_INDEX_FLAGS:
+          fail= read_extra2_section_once(extra2, length, &fields->index_flags);
+          break;
         default:
           /* abort frm parsing if it's an unknown but important extra2 value */
           if (type >= EXTRA2_ENGINE_IMPORTANT)
@@ -1748,6 +1781,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   MEM_ROOT *old_root= thd->mem_root;
   Virtual_column_info **table_check_constraints;
   extra2_fields extra2;
+  bool extra_index_flags_present= FALSE;
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
 
   keyinfo= &first_keyinfo;
@@ -1902,8 +1936,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     share->key_parts= key_parts= disk_buff[1];
   }
   share->keys_for_keyread.init(0);
+  share->ignored_indexes.init(0);
   share->keys_in_use.init(keys);
   ext_key_parts= key_parts;
+
+  if (extra2.index_flags.str && extra2.index_flags.length != keys)
+    goto err;
 
   len= (uint) uint2korr(disk_buff+4);
 
@@ -2100,9 +2138,26 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
   share->key_block_size= uint2korr(frm_image+62);
   keyinfo= share->key_info;
+
+
+  if (extra2.index_flags.str)
+    extra_index_flags_present= TRUE;
+
   for (uint i= 0; i < share->keys; i++, keyinfo++)
+  {
+    if (extra_index_flags_present)
+    {
+      uchar flags= *extra2.index_flags.str++;
+      keyinfo->is_ignored= (flags & EXTRA2_IGNORED_KEY);
+    }
+    else
+      keyinfo->is_ignored= FALSE;
+
     if (keyinfo->algorithm == HA_KEY_ALG_LONG_HASH)
       hash_fields++;
+  }
+
+  share->set_ignored_indexes();
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (par_image && plugin_data(se_plugin, handlerton*) == partition_hton)
@@ -2778,6 +2833,33 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           break;
         }
       }
+    }
+
+    /*
+      Make sure that the primary key is not marked as IGNORE
+      This can happen in the case
+        1) when IGNORE is mentioned in the Key specification
+        2) When a unique NON-NULLABLE key is promted to a primary key.
+           The unqiue key could have been marked as IGNORE when there
+           was a primary key in the table.
+
+           Eg:
+            CREATE TABLE t1(a INT NOT NULL, primary key(a), UNIQUE key1(a))
+             so for this table when we try to IGNORE key1
+             then we run:
+                ALTER TABLE t1 ALTER INDEX key1 IGNORE
+              this runs successsfully and key1 is marked as IGNORE.
+
+              But lets say then we drop the primary key
+               ALTER TABLE t1 DROP PRIMARY
+              then the UNIQUE key will be promoted to become the primary key
+              but then the UNIQUE key cannot be marked as IGNORE, so an
+              error is thrown
+    */
+    if (primary_key != MAX_KEY && keyinfo && keyinfo->is_ignored)
+    {
+        my_error(ER_PK_INDEX_CANT_BE_IGNORED, MYF(0));
+        goto err;
     }
 
     if (share->use_ext_keys)
@@ -8248,7 +8330,7 @@ bool TABLE_LIST::process_index_hints(TABLE *tbl)
 {
   /* initialize the result variables */
   tbl->keys_in_use_for_query= tbl->keys_in_use_for_group_by= 
-    tbl->keys_in_use_for_order_by= tbl->s->keys_in_use;
+    tbl->keys_in_use_for_order_by= tbl->s->usable_indexes(tbl->in_use);
 
   /* index hint list processing */
   if (index_hints)
@@ -8302,7 +8384,8 @@ bool TABLE_LIST::process_index_hints(TABLE *tbl)
       */
       if (tbl->s->keynames.type_names == 0 ||
           (pos= find_type(&tbl->s->keynames, hint->key_name.str,
-                          hint->key_name.length, 1)) <= 0)
+                          hint->key_name.length, 1)) <= 0 ||
+          (tbl->s->key_info[pos - 1].is_ignored))
       {
         my_error(ER_KEY_DOES_NOT_EXISTS, MYF(0), hint->key_name.str, alias.str);
         return 1;

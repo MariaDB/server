@@ -34,7 +34,7 @@ ATER TABLE `t1` ENGINE=S3;
 	<table_structure name="t1">
 		<field Field="pk" Type="int(11)" Null="NO" Key="PRI" Extra="" Comment="" />
 		<field Field="a" Type="int(11)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
-		<key Table="t1" Non_unique="0" Key_name="PRIMARY" Seq_in_index="1" Column_name="pk" Collation="A" Cardinality="4" Null="" Index_type="BTREE" Comment="" Index_comment="" />
+		<key Table="t1" Non_unique="0" Key_name="PRIMARY" Seq_in_index="1" Column_name="pk" Collation="A" Cardinality="4" Null="" Index_type="BTREE" Comment="" Index_comment="" Ignored="NO" />
 		<options Name="t1" Engine="Aria" Version="10" Row_format="Page" Rows="4" Avg_row_length="4096" Data_length="16384" Max_data_length="17592186011648" Index_length="16384" Data_free="0" Create_time="--TIME--" Collation="latin1_swedish_ci" Create_options="" Comment="" Max_index_length="9007199254732800" Temporary="N" />
 	</table_structure>
 	<table_data name="t1">

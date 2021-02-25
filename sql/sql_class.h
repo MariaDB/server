@@ -381,6 +381,29 @@ public:
 };
 
 
+/* An ALTER INDEX operation that changes the ignorability of an index. */
+class Alter_index_ignorability: public Sql_alloc
+{
+public:
+  Alter_index_ignorability(const char *name, bool is_ignored) :
+    m_name(name), m_is_ignored(is_ignored)
+  {
+    assert(name != NULL);
+  }
+
+  const char *name() const { return m_name; }
+
+  /* The ignorability after the operation is performed. */
+  bool is_ignored() const { return m_is_ignored; }
+  Alter_index_ignorability *clone(MEM_ROOT *mem_root) const
+    { return new (mem_root) Alter_index_ignorability(*this); }
+
+private:
+  const char *m_name;
+  bool m_is_ignored;
+};
+
+
 class Key :public Sql_alloc, public DDL_options {
 public:
   enum Keytype { PRIMARY, UNIQUE, MULTIPLE, FULLTEXT, SPATIAL, FOREIGN_KEY};

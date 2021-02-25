@@ -145,8 +145,8 @@ ok
 connection default;
 use mysqltest;
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	a	1	a	A	1	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	a	1	a	A	1	NULL	NULL	YES	BTREE			NO
 select count(*) from t1;
 count(*)
 1

@@ -7,12 +7,12 @@ CREATE SPATIAL INDEX idx3 on tab(c4 ASC) KEY_BLOCK_SIZE=8 ;
 CREATE SPATIAL INDEX idx4 on tab(c5 DESC) KEY_BLOCK_SIZE=4 
 COMMENT 'Spatial index on Geometry type column';
 SHOW INDEXES FROM tab;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-tab	0	PRIMARY	1	c1	A	0	NULL	NULL		BTREE		
-tab	1	idx1	1	c2	A	NULL	32	NULL		SPATIAL		
-tab	1	idx2	1	c3	A	NULL	32	NULL		SPATIAL		wl6968
-tab	1	idx3	1	c4	A	NULL	32	NULL		SPATIAL		
-tab	1	idx4	1	c5	A	NULL	32	NULL		SPATIAL		Spatial index on Geometry type column
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+tab	0	PRIMARY	1	c1	A	0	NULL	NULL		BTREE			NO
+tab	1	idx1	1	c2	A	NULL	32	NULL		SPATIAL			NO
+tab	1	idx2	1	c3	A	NULL	32	NULL		SPATIAL		wl6968	NO
+tab	1	idx3	1	c4	A	NULL	32	NULL		SPATIAL			NO
+tab	1	idx4	1	c5	A	NULL	32	NULL		SPATIAL		Spatial index on Geometry type column	NO
 INSERT INTO tab(c1,c2,c3,c4,c5) 
 VALUES(1,ST_GeomFromText('POINT(10 10)'),ST_GeomFromText('LINESTRING(5 5,20 20,30 30)'),
 ST_GeomFromText('POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))'),
@@ -437,11 +437,11 @@ CREATE SPATIAL INDEX idx3 on tab(c4 ASC) KEY_BLOCK_SIZE=2 ;
 CREATE SPATIAL INDEX idx4 on tab(c5 DESC) KEY_BLOCK_SIZE=8 
 COMMENT 'Spatial index on Geometry type column';
 SHOW INDEXES FROM tab;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-tab	1	idx1	1	c2	A	NULL	32	NULL		SPATIAL		
-tab	1	idx2	1	c3	A	NULL	32	NULL		SPATIAL		wl6968
-tab	1	idx3	1	c4	A	NULL	32	NULL		SPATIAL		
-tab	1	idx4	1	c5	A	NULL	32	NULL		SPATIAL		Spatial index on Geometry type column
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+tab	1	idx1	1	c2	A	NULL	32	NULL		SPATIAL			NO
+tab	1	idx2	1	c3	A	NULL	32	NULL		SPATIAL		wl6968	NO
+tab	1	idx3	1	c4	A	NULL	32	NULL		SPATIAL			NO
+tab	1	idx4	1	c5	A	NULL	32	NULL		SPATIAL		Spatial index on Geometry type column	NO
 INSERT INTO tab(c1,c2,c3,c4,c5) 
 VALUES(1,ST_GeomFromText('POINT(10 10)'),ST_GeomFromText('LINESTRING(5 5,20 20,30 30)'),
 ST_GeomFromText('POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))'),
@@ -854,12 +854,12 @@ CREATE SPATIAL INDEX idx3 on tab(c4 ASC) KEY_BLOCK_SIZE=16 ;
 CREATE SPATIAL INDEX idx4 on tab(c5 DESC) KEY_BLOCK_SIZE=16 
 COMMENT 'Spatial index on Geometry type column';
 SHOW INDEXES FROM tab;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-tab	0	PRIMARY	1	c1	A	0	NULL	NULL		BTREE		
-tab	1	idx1	1	c2	A	NULL	32	NULL		SPATIAL		
-tab	1	idx2	1	c3	A	NULL	32	NULL		SPATIAL		wl6968
-tab	1	idx3	1	c4	A	NULL	32	NULL		SPATIAL		
-tab	1	idx4	1	c5	A	NULL	32	NULL		SPATIAL		Spatial index on Geometry type column
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+tab	0	PRIMARY	1	c1	A	0	NULL	NULL		BTREE			NO
+tab	1	idx1	1	c2	A	NULL	32	NULL		SPATIAL			NO
+tab	1	idx2	1	c3	A	NULL	32	NULL		SPATIAL		wl6968	NO
+tab	1	idx3	1	c4	A	NULL	32	NULL		SPATIAL			NO
+tab	1	idx4	1	c5	A	NULL	32	NULL		SPATIAL		Spatial index on Geometry type column	NO
 INSERT INTO tab(c2,c3,c4,c5) 
 VALUES(ST_GeomFromText('POINT(10 10)'),ST_GeomFromText('LINESTRING(5 5,20 20,30 30)'),
 ST_GeomFromText('POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))'),
@@ -1255,8 +1255,8 @@ tab	CREATE TABLE `tab` (
   CONSTRAINT `tab_const` CHECK (cast(`c1` as char charset binary) > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW INDEX FROM tab;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-tab	1	idx1	1	c1	A	NULL	32	NULL		SPATIAL		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+tab	1	idx1	1	c1	A	NULL	32	NULL		SPATIAL			NO
 set @g1 = ST_GeomFromText('POINT(-1 -2)');
 SELECT ST_AsText(c1) FROM tab;
 ST_AsText(c1)

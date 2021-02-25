@@ -2899,6 +2899,7 @@ Null
 Index_type	BTREE
 Comment	
 Index_comment	
+Ignored	NO
 Table	t1
 Non_unique	0
 Key_name	k
@@ -2912,6 +2913,7 @@ Null
 Index_type	BTREE
 Comment	
 Index_comment	
+Ignored	NO
 DROP TABLE t1;
 #
 # Bug #47453: InnoDB incorrectly changes TIMESTAMP columns when 

@@ -1235,7 +1235,7 @@ int spider_db_mbase_result::fetch_table_cardinality(
   if (mode == 1)
   {
     uint num_fields = this->num_fields();
-    if (num_fields < 12 || num_fields > 13)
+    if (num_fields < 12 || num_fields > 14)
     {
       DBUG_PRINT("info",("spider num_fields < 12 || num_fields > 13"));
       DBUG_RETURN(ER_SPIDER_INVALID_REMOTE_TABLE_INFO_NUM);

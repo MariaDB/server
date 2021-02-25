@@ -346,6 +346,7 @@ def	information_schema	STATISTICS	CARDINALITY	10	NULL	YES	bigint	NULL	NULL	19	0	
 def	information_schema	STATISTICS	COLLATION	9	NULL	YES	varchar	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1)					NEVER	NULL
 def	information_schema	STATISTICS	COLUMN_NAME	8	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)					NEVER	NULL
 def	information_schema	STATISTICS	COMMENT	15	NULL	YES	varchar	16	48	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(16)					NEVER	NULL
+def	information_schema	STATISTICS	IGNORED	17	''	NO	varchar	3	9	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(3)					NEVER	NULL
 def	information_schema	STATISTICS	INDEX_COMMENT	16	''	NO	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)					NEVER	NULL
 def	information_schema	STATISTICS	INDEX_NAME	6	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)					NEVER	NULL
 def	information_schema	STATISTICS	INDEX_SCHEMA	5	''	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)					NEVER	NULL
@@ -902,6 +903,7 @@ NULL	information_schema	STATISTICS	SUB_PART	bigint	NULL	NULL	NULL	NULL	bigint(3)
 3.0000	information_schema	STATISTICS	INDEX_TYPE	varchar	16	48	utf8	utf8_general_ci	varchar(16)
 3.0000	information_schema	STATISTICS	COMMENT	varchar	16	48	utf8	utf8_general_ci	varchar(16)
 3.0000	information_schema	STATISTICS	INDEX_COMMENT	varchar	1024	3072	utf8	utf8_general_ci	varchar(1024)
+3.0000	information_schema	STATISTICS	IGNORED	varchar	3	9	utf8	utf8_general_ci	varchar(3)
 3.0000	information_schema	SYSTEM_VARIABLES	VARIABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	SYSTEM_VARIABLES	SESSION_VALUE	varchar	2048	6144	utf8	utf8_general_ci	varchar(2048)
 3.0000	information_schema	SYSTEM_VARIABLES	GLOBAL_VALUE	varchar	2048	6144	utf8	utf8_general_ci	varchar(2048)

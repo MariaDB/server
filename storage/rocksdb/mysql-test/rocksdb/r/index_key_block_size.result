@@ -5,9 +5,9 @@ pk INT PRIMARY KEY,
 KEY (a) KEY_BLOCK_SIZE=8
 ) ENGINE=rocksdb;
 SHOW KEYS IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	pk	A	#	NULL	NULL		LSMTREE		
-t1	1	a	1	a	A	#	NULL	NULL	YES	LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	pk	A	#	NULL	NULL		LSMTREE			NO
+t1	1	a	1	a	A	#	NULL	NULL	YES	LSMTREE			NO
 DROP TABLE t1;
 CREATE TABLE t1 (a INT,
 b CHAR(8),
@@ -15,9 +15,9 @@ pk INT PRIMARY KEY,
 KEY ind1(b ASC) KEY_BLOCK_SIZE=0
 ) ENGINE=rocksdb;
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	pk	A	#	NULL	NULL		LSMTREE		
-t1	1	ind1	1	b	A	#	NULL	NULL	YES	LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	pk	A	#	NULL	NULL		LSMTREE			NO
+t1	1	ind1	1	b	A	#	NULL	NULL	YES	LSMTREE			NO
 DROP TABLE t1;
 CREATE TABLE t1 (a INT,
 b CHAR(8),
@@ -26,8 +26,8 @@ PRIMARY KEY ind2(b(1) DESC) KEY_BLOCK_SIZE=32768 COMMENT 'big key_block_size val
 Warnings:
 Warning	1280	Name 'ind2' ignored for PRIMARY key.
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	b	A	#	1	NULL		LSMTREE		big key_block_size value
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	b	A	#	1	NULL		LSMTREE		big key_block_size value	NO
 DROP TABLE t1;
 CREATE TABLE t1 (a INT,
 b CHAR(8),
@@ -35,10 +35,10 @@ pk INT AUTO_INCREMENT PRIMARY KEY,
 KEY a_b(a,b) KEY_BLOCK_SIZE=8192
 ) ENGINE=rocksdb;
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	pk	A	#	NULL	NULL		LSMTREE		
-t1	1	a_b	1	a	A	#	NULL	NULL	YES	LSMTREE		
-t1	1	a_b	2	b	A	#	NULL	NULL	YES	LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	pk	A	#	NULL	NULL		LSMTREE			NO
+t1	1	a_b	1	a	A	#	NULL	NULL	YES	LSMTREE			NO
+t1	1	a_b	2	b	A	#	NULL	NULL	YES	LSMTREE			NO
 DROP TABLE t1;
 CREATE TABLE t1 (a INT,
 b CHAR(8),
@@ -47,7 +47,7 @@ PRIMARY KEY (b)
 INSERT INTO t1 (a,b) VALUES (100,'z');
 ALTER TABLE t1 ADD KEY(a) KEY_BLOCK_SIZE 8192;
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	b	A	#	NULL	NULL		LSMTREE		
-t1	1	a	1	a	A	#	NULL	NULL	YES	LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	b	A	#	NULL	NULL		LSMTREE			NO
+t1	1	a	1	a	A	#	NULL	NULL	YES	LSMTREE			NO
 DROP TABLE t1;

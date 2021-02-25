@@ -18,7 +18,7 @@ Testing XML format output
 		<field Field="point" Type="varchar(10)" Null="NO" Key="PRI" Extra="" Comment="" />
 		<field Field="data" Type="varchar(10)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 		<field Field="comment" Type="varchar(64)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
-		<key Table="t1" Non_unique="0" Key_name="PRIMARY" Seq_in_index="1" Column_name="point" Collation="A" Cardinality="1" Null="" Index_type="BTREE" Comment="" Index_comment="" />
+		<key Table="t1" Non_unique="0" Key_name="PRIMARY" Seq_in_index="1" Column_name="point" Collation="A" Cardinality="1" Null="" Index_type="BTREE" Comment="" Index_comment="" Ignored="NO" />
 	</table_structure>
 	<table_data name="t1">
 	<row>

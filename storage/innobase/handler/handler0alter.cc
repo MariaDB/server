@@ -115,7 +115,8 @@ static const alter_table_operations INNOBASE_INPLACE_IGNORE
 	| ALTER_DROP_CHECK_CONSTRAINT
 	| ALTER_RENAME
 	| ALTER_COLUMN_INDEX_LENGTH
-	| ALTER_CHANGE_INDEX_COMMENT;
+	| ALTER_CHANGE_INDEX_COMMENT
+	| ALTER_INDEX_IGNORABILITY;
 
 /** Operations on foreign key definitions (changing the schema only) */
 static const alter_table_operations INNOBASE_FOREIGN_OPERATIONS
@@ -1998,7 +1999,8 @@ ha_innobase::check_if_supported_inplace_alter(
 	    & ~(INNOBASE_INPLACE_IGNORE
 		| INNOBASE_ALTER_INSTANT
 		| INNOBASE_ALTER_NOREBUILD
-		| INNOBASE_ALTER_REBUILD)) {
+		| INNOBASE_ALTER_REBUILD
+		| ALTER_INDEX_IGNORABILITY)) {
 
 		if (ha_alter_info->handler_flags
 		    & ALTER_STORED_COLUMN_TYPE) {

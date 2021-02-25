@@ -1,0 +1,356 @@
+--echo #
+--echo # MDEV-7317: Make an index ignorable to the optimizer
+--echo #
+
+
+--echo # Test of ALTER INDEX syntax.
+
+CREATE TABLE t1 ( a INT, KEY (a) );
+SHOW KEYS FROM t1;
+ALTER TABLE t1 ALTER INDEX a IGNORE;
+SHOW KEYS FROM t1;
+ALTER TABLE t1 ALTER INDEX a NOT IGNORE;
+SHOW KEYS FROM t1;
+DROP TABLE t1;
+
+--echo # Test of CREATE INDEX syntax with IGNORE indexes.
+
+CREATE TABLE t1 ( a INT, b INT );
+CREATE INDEX a_ignorable ON t1(a) IGNORE;
+CREATE INDEX b_not_ignorable ON t1(a) NOT IGNORE;
+CREATE INDEX a_b_ignorable ON t1(a, b) IGNORE;
+SHOW INDEXES FROM t1;
+DROP TABLE t1;
+
+--echo # Test that IGNORE indexes are not used.
+
+CREATE TABLE t1 ( a INT, KEY (a) );
+CREATE TABLE t2 ( a INT, KEY (a) IGNORE );
+
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+INSERT INTO t2 SELECT * FROM t1;
+
+ANALYZE TABLE t1, t2;
+
+EXPLAIN SELECT a FROM t1;
+ALTER TABLE t1 ALTER INDEX a IGNORE;
+EXPLAIN SELECT a FROM t1;
+ALTER TABLE t1 ALTER INDEX a NOT IGNORE;
+EXPLAIN SELECT a FROM t1;
+
+EXPLAIN SELECT a FROM t2;
+ALTER TABLE t2 ALTER INDEX a NOT IGNORE;
+EXPLAIN SELECT a FROM t2;
+
+DROP TABLE t1, t2;
+
+--echo # Test that renaming an index does not change ignorability and vice versa.
+
+CREATE TABLE t1 (
+  a INT, INDEX (a),
+  b INT, INDEX (b) IGNORE
+);
+
+SHOW INDEXES FROM t1;
+
+ALTER TABLE t1 RENAME INDEX a TO a1;
+ALTER TABLE t1 RENAME INDEX b TO b1;
+
+SHOW INDEXES FROM t1;
+
+ALTER TABLE t1 ALTER INDEX a1 IGNORE;
+ALTER TABLE t1 ALTER INDEX b1 NOT IGNORE;
+
+SHOW INDEXES FROM t1;
+
+DROP TABLE t1;
+
+--echo # Test of SHOW CREATE TABLE.
+
+CREATE TABLE t1 (
+  a INT,
+  b INT,
+  c INT,
+  INDEX (a) NOT IGNORE,
+  INDEX (b) IGNORE,
+  INDEX (c)
+);
+
+SHOW CREATE TABLE t1;
+
+DROP TABLE t1;
+
+--echo # Test that primary key indexes can't be made ignorable.
+
+--error ER_PK_INDEX_CANT_BE_IGNORED
+CREATE TABLE t1 ( a INT, PRIMARY KEY (a) IGNORE );
+--error ER_PARSE_ERROR
+CREATE TABLE t1 ( a INT PRIMARY KEY IGNORE );
+--error ER_PARSE_ERROR
+CREATE TABLE t1 ( a INT KEY IGNORE );
+--error ER_PARSE_ERROR
+ALTER TABLE t1 ALTER INDEX PRIMARY IGNORE;
+
+CREATE TABLE t1(a INT NOT NULL);
+--error ER_PK_INDEX_CANT_BE_IGNORED
+ALTER TABLE t1 ADD PRIMARY KEY (a) IGNORE;
+
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (
+  a INT, KEY (a),
+  b INT, KEY (b) IGNORE
+);
+
+--error ER_KEY_DOES_NOT_EXISTS
+ALTER TABLE t1 RENAME INDEX no_such_index TO x;
+--error ER_KEY_DOES_NOT_EXISTS
+ALTER TABLE t1 ALTER INDEX no_such_index IGNORE;
+
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (
+  a INT, KEY (a),
+  b INT, KEY (b) IGNORE
+);
+
+--error ER_KEY_DOES_NOT_EXISTS
+ALTER TABLE t1 RENAME INDEX no_such_index TO x;
+--error ER_KEY_DOES_NOT_EXISTS
+ALTER TABLE t1 ALTER INDEX no_such_index IGNORE;
+
+
+--echo #
+--echo # Repeated alter actions. Should work.
+--echo #
+ALTER TABLE t1 ALTER INDEX a IGNORE, ALTER INDEX a NOT IGNORE;
+SHOW INDEXES FROM t1;
+ALTER TABLE t1 ALTER INDEX a NOT IGNORE, ALTER INDEX b IGNORE;
+SHOW INDEXES FROM t1;
+
+
+--echo #
+--echo # Various combinations of RENAME INDEX and ALTER INDEX ... IGNORE.
+--echo #
+--error ER_KEY_DOES_NOT_EXISTS
+ALTER TABLE t1 RENAME INDEX a TO x, RENAME INDEX x TO a;
+--error ER_KEY_DOES_NOT_EXISTS
+ALTER TABLE t1 RENAME INDEX a TO x, ALTER INDEX x IGNORE;
+--error ER_KEY_DOES_NOT_EXISTS
+ALTER TABLE t1 RENAME INDEX a TO x, ALTER INDEX a NOT IGNORE;
+--error ER_KEY_DOES_NOT_EXISTS
+ALTER TABLE t1 ALTER INDEX a NOT IGNORE, RENAME INDEX a TO x;
+
+
+--echo #
+--echo # Various algorithms and their effects.
+--echo #
+
+INSERT INTO t1 VALUES (1, 1), (2, 2), (3, 3);
+ANALYZE TABLE t1;
+
+--enable_info
+ALTER TABLE t1 ALTER INDEX a IGNORE, ALGORITHM = COPY;
+--disable_info
+ANALYZE TABLE t1;
+SHOW INDEXES FROM t1;
+
+--enable_info
+ALTER TABLE t1 ALTER INDEX a NOT IGNORE, ALGORITHM = INPLACE;
+--disable_info
+ANALYZE TABLE t1;
+SHOW INDEXES FROM t1;
+
+--enable_info
+ALTER TABLE t1 ALTER INDEX a IGNORE, ALGORITHM = DEFAULT;
+--disable_info
+ANALYZE TABLE t1;
+SHOW INDEXES FROM t1;
+
+--enable_info
+ALTER TABLE t1 ALTER INDEX a NOT IGNORE;
+--disable_info
+ANALYZE TABLE t1;
+SHOW INDEXES FROM t1;
+
+--error ER_KEY_DOES_NOT_EXISTS
+ALTER TABLE t1 ADD INDEX ab(a, b), ALTER INDEX ab IGNORE;
+
+DROP TABLE t1;
+
+
+--echo #
+--echo # The first NOT NULL UNIQUE index may of course be IGNORED if it is
+--echo # not promoted to a primary key
+--echo #
+
+CREATE TABLE t1 (
+  a INT NOT NULL,
+  b INT NOT NULL PRIMARY KEY,
+  UNIQUE KEY (a) IGNORE
+);
+SHOW INDEXES FROM t1;
+DROP TABLE t1;
+
+--echo # The check above applies only to the first NOT NULL UNIQUE index.
+CREATE TABLE t1 (
+  a INT NOT NULL,
+  b INT NOT NULL,
+  UNIQUE KEY (a),
+  UNIQUE KEY (b) IGNORE
+);
+SHOW INDEXES FROM t1;
+DROP TABLE t1;
+
+--error ER_PK_INDEX_CANT_BE_IGNORED
+CREATE TABLE t1 ( a INT NOT NULL, UNIQUE KEY (a) IGNORE);
+
+
+CREATE TEMPORARY TABLE t1 ( a INT, KEY (a) IGNORE);
+INSERT INTO t1 VALUES (0), (1), (2), (3);
+SHOW INDEXES FROM t1;
+EXPLAIN SELECT a FROM t1;
+
+ALTER TABLE t1 ALTER INDEX a NOT IGNORE;
+EXPLAIN SELECT a FROM t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # IGNORE fulltext indexes.
+--echo #
+CREATE TABLE t1 (a VARCHAR(200), b TEXT, FULLTEXT (a,b));
+INSERT INTO t1 VALUES('Some data', 'for full-text search');
+ANALYZE TABLE t1;
+
+let $query=
+EXPLAIN SELECT * FROM t1 WHERE MATCH(a, b) AGAINST ("collections");
+
+--eval $query
+ALTER TABLE t1 ALTER INDEX a IGNORE;
+
+--error ER_FT_MATCHING_KEY_NOT_FOUND
+--eval $query
+
+DROP TABLE t1;
+
+
+--echo #
+--echo # IGNORE indexes on AUTO_INCREMENT columns.
+--echo #
+CREATE TABLE t1 ( a INT AUTO_INCREMENT, KEY ( a ) );
+INSERT INTO t1 VALUES (), (), ();
+ANALYZE TABLE t1;
+
+EXPLAIN SELECT a FROM t1;
+ALTER TABLE t1 ALTER INDEX a IGNORE;
+SHOW INDEXES FROM t1;
+EXPLAIN SELECT a FROM t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # IGNORE spatial indexes
+--echo #
+
+
+CREATE TABLE t1 (
+  fid INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  g GEOMETRY NOT NULL,
+  SPATIAL KEY key1(g)
+);
+
+--disable_query_log
+let $1=150;
+let $2=150;
+while ($1)
+{
+  eval INSERT INTO t1 (g) VALUES (GeomFromText('LineString($1 $1, $2 $2)'));
+  dec $1;
+  inc $2;
+}
+--enable_query_log
+
+let $query= EXPLAIN SELECT fid, AsText(g) FROM t1
+WHERE Within(g, GeomFromText('Polygon((140 140,160 140,160 160,140 160,140 140))'));
+
+eval $query;
+ALTER TABLE t1 ALTER INDEX key1 IGNORE;
+SHOW INDEXES FROM t1;
+eval $query;
+
+DROP TABLE t1;
+
+CREATE TABLE t1 ( a INT GENERATED ALWAYS AS (1), KEY key1(a));
+INSERT INTO t1 VALUES (),(),();
+SHOW INDEXES FROM t1;
+EXPLAIN SELECT a FROM t1;
+ALTER TABLE t1 ALTER INDEX key1 IGNORE;
+SHOW INDEXES FROM t1;
+EXPLAIN SELECT a FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Partitioning on keys with an IGNORE index, IGNORE indexes over
+--echo # partitioned tables.
+--echo #
+
+--source include/have_partition.inc
+
+CREATE TABLE t1 (
+  a CHAR(2) NOT NULL,
+  b CHAR(2) NOT NULL,
+  c INT(10) UNSIGNED NOT NULL,
+  d VARCHAR(255) DEFAULT NULL,
+  e VARCHAR(1000) DEFAULT NULL,
+  KEY (a) IGNORE,
+  KEY (b)
+) PARTITION BY KEY (a) PARTITIONS 20;
+
+
+INSERT INTO t1 (a, b, c, d, e) VALUES
+('07', '03', 343, '1', '07_03_343'),
+('01', '04', 343, '2', '01_04_343'),
+('01', '06', 343, '3', '01_06_343'),
+('01', '07', 343, '4', '01_07_343'),
+('01', '08', 343, '5', '01_08_343'),
+('01', '09', 343, '6', '01_09_343'),
+('03', '03', 343, '7', '03_03_343'),
+('03', '06', 343, '8', '03_06_343'),
+('03', '07', 343, '9', '03_07_343'),
+('04', '03', 343, '10', '04_03_343'),
+('04', '06', 343, '11', '04_06_343'),
+('05', '03', 343, '12', '05_03_343'),
+('11', '03', 343, '13', '11_03_343'),
+('11', '04', 343, '14', '11_04_343');
+
+ANALYZE TABLE t1;
+
+EXPLAIN SELECT a FROM t1;
+EXPLAIN SELECT b FROM t1;
+EXPLAIN SELECT * FROM t1 WHERE a = '04';
+ALTER TABLE t1 ALTER INDEX a NOT IGNORE;
+EXPLAIN SELECT a FROM t1;
+EXPLAIN SELECT * FROM t1 WHERE a = '04';
+
+ALTER TABLE t1 ALTER INDEX b IGNORE;
+EXPLAIN SELECT b FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Using FORCE INDEX for an ignored index
+--echo #
+
+CREATE TABLE t1(a INT, key k1(a));
+INSERT INTO t1 VALUES (1),(2),(3);
+
+EXPLAIN SELECT * FROM t1 FORCE INDEX(k1);
+ALTER TABLE t1 ALTER INDEX k1 IGNORE;
+SHOW CREATE TABLE t1;
+--error ER_KEY_DOES_NOT_EXISTS
+EXPLAIN SELECT * FROM t1 FORCE INDEX(k1);
+
+DROP TABLE t1;

@@ -154,10 +154,10 @@ select count(distinct o_custkey) from orders;
 count(distinct o_custkey)
 100
 show index from orders;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-orders	0	PRIMARY	1	o_orderkey	A	1500	NULL	NULL		BTREE		
-orders	1	i_o_orderdate	1	o_orderDATE	A	1126	NULL	NULL	YES	BTREE		
-orders	1	i_o_custkey	1	o_custkey	A	100	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+orders	0	PRIMARY	1	o_orderkey	A	1500	NULL	NULL		BTREE			NO
+orders	1	i_o_orderdate	1	o_orderDATE	A	1126	NULL	NULL	YES	BTREE			NO
+orders	1	i_o_custkey	1	o_custkey	A	100	NULL	NULL	YES	BTREE			NO
 select index_name, column_name, cardinality from information_schema.statistics
 where table_name='orders';
 index_name	column_name	cardinality
@@ -656,33 +656,33 @@ dbt3_s001	lineitem	i_l_orderkey_quantity	1	4.0033
 dbt3_s001	lineitem	i_l_orderkey_quantity	2	1.0404
 dbt3_s001	lineitem	i_l_commitdate	1	2.7160
 SHOW INDEXES FROM lineitem;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-lineitem	0	PRIMARY	1	l_orderkey	A	1500	NULL	NULL		BTREE		
-lineitem	0	PRIMARY	2	l_linenumber	A	6005	NULL	NULL		BTREE		
-lineitem	1	i_l_shipdate	1	l_shipDATE	A	2266	NULL	NULL	YES	BTREE		
-lineitem	1	i_l_suppkey_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE		
-lineitem	1	i_l_suppkey_partkey	2	l_suppkey	A	699	NULL	NULL	YES	BTREE		
-lineitem	1	i_l_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE		
-lineitem	1	i_l_suppkey	1	l_suppkey	A	10	NULL	NULL	YES	BTREE		
-lineitem	1	i_l_receiptdate	1	l_receiptDATE	A	2268	NULL	NULL	YES	BTREE		
-lineitem	1	i_l_orderkey	1	l_orderkey	A	1500	NULL	NULL		BTREE		
-lineitem	1	i_l_orderkey_quantity	1	l_orderkey	A	1500	NULL	NULL		BTREE		
-lineitem	1	i_l_orderkey_quantity	2	l_quantity	A	5771	NULL	NULL	YES	BTREE		
-lineitem	1	i_l_commitdate	1	l_commitDATE	A	2210	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+lineitem	0	PRIMARY	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO
+lineitem	0	PRIMARY	2	l_linenumber	A	6005	NULL	NULL		BTREE			NO
+lineitem	1	i_l_shipdate	1	l_shipDATE	A	2266	NULL	NULL	YES	BTREE			NO
+lineitem	1	i_l_suppkey_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE			NO
+lineitem	1	i_l_suppkey_partkey	2	l_suppkey	A	699	NULL	NULL	YES	BTREE			NO
+lineitem	1	i_l_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE			NO
+lineitem	1	i_l_suppkey	1	l_suppkey	A	10	NULL	NULL	YES	BTREE			NO
+lineitem	1	i_l_receiptdate	1	l_receiptDATE	A	2268	NULL	NULL	YES	BTREE			NO
+lineitem	1	i_l_orderkey	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO
+lineitem	1	i_l_orderkey_quantity	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO
+lineitem	1	i_l_orderkey_quantity	2	l_quantity	A	5771	NULL	NULL	YES	BTREE			NO
+lineitem	1	i_l_commitdate	1	l_commitDATE	A	2210	NULL	NULL	YES	BTREE			NO
 SELECT * FROM INFORMATION_SCHEMA.STATISTICS WHERE table_name='lineitem';
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT
-def	dbt3_s001	lineitem	0	dbt3_s001	PRIMARY	1	l_orderkey	A	1500	NULL	NULL		BTREE		
-def	dbt3_s001	lineitem	0	dbt3_s001	PRIMARY	2	l_linenumber	A	6005	NULL	NULL		BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_shipdate	1	l_shipDATE	A	2266	NULL	NULL	YES	BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_suppkey_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_suppkey_partkey	2	l_suppkey	A	699	NULL	NULL	YES	BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_suppkey	1	l_suppkey	A	10	NULL	NULL	YES	BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_receiptdate	1	l_receiptDATE	A	2268	NULL	NULL	YES	BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_orderkey	1	l_orderkey	A	1500	NULL	NULL		BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_orderkey_quantity	1	l_orderkey	A	1500	NULL	NULL		BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_orderkey_quantity	2	l_quantity	A	5771	NULL	NULL	YES	BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_commitdate	1	l_commitDATE	A	2210	NULL	NULL	YES	BTREE		
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT	IGNORED
+def	dbt3_s001	lineitem	0	dbt3_s001	PRIMARY	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO
+def	dbt3_s001	lineitem	0	dbt3_s001	PRIMARY	2	l_linenumber	A	6005	NULL	NULL		BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_shipdate	1	l_shipDATE	A	2266	NULL	NULL	YES	BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_suppkey_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_suppkey_partkey	2	l_suppkey	A	699	NULL	NULL	YES	BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_suppkey	1	l_suppkey	A	10	NULL	NULL	YES	BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_receiptdate	1	l_receiptDATE	A	2268	NULL	NULL	YES	BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_orderkey	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_orderkey_quantity	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_orderkey_quantity	2	l_quantity	A	5771	NULL	NULL	YES	BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_commitdate	1	l_commitDATE	A	2210	NULL	NULL	YES	BTREE			NO
 SELECT
 COUNT(DISTINCT l_orderkey), COUNT(DISTINCT l_orderkey,l_linenumber),
 COUNT(DISTINCT l_shipDATE),

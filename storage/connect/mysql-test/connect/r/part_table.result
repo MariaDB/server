@@ -111,8 +111,8 @@ Warning	1105	Data repartition in 1 is unchecked
 Warning	1105	Data repartition in 2 is unchecked
 Warning	1105	Data repartition in 3 is unchecked
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	id	NULL	NULL	NULL	NULL		REMOTE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	id	NULL	NULL	NULL	NULL		REMOTE			NO
 INSERT INTO t1 VALUES(4, 'four');
 INSERT INTO t1 VALUES(40, 'forty');
 INSERT INTO t1 VALUES(72,'seventy two');

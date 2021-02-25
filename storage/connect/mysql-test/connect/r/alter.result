@@ -20,12 +20,12 @@ CREATE INDEX xd ON t1(d);
 DROP INDEX xd ON t1;
 ALTER TABLE t1 ADD INDEX xc (c), ADD INDEX xd (d);
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX		
-t1	1	xd	1	d	A	NULL	NULL	NULL		XINDEX		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX			NO
+t1	1	xd	1	d	A	NULL	NULL	NULL		XINDEX			NO
 ALTER TABLE t1 DROP INDEX xc, DROP INDEX xd;
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 #
 # Testing modifying columns inward table (not in-place)
 #
@@ -92,9 +92,9 @@ t1	CREATE TABLE `t1` (
   KEY `xd` (`d`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	xc	1	c	A	NULL	NULL	NULL		BTREE		
-t1	1	xd	1	d	A	NULL	NULL	NULL		BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	xc	1	c	A	NULL	NULL	NULL		BTREE			NO
+t1	1	xd	1	d	A	NULL	NULL	NULL		BTREE			NO
 SELECT * FROM t1;
 c	d
 1	One
@@ -110,9 +110,9 @@ t1	CREATE TABLE `t1` (
   KEY `xd` (`d`)
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX		
-t1	1	xd	1	d	A	NULL	NULL	NULL		XINDEX		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX			NO
+t1	1	xd	1	d	A	NULL	NULL	NULL		XINDEX			NO
 SELECT * FROM t1;
 c	d
 1	One
@@ -142,15 +142,15 @@ line
 #
 ALTER TABLE t1 ADD INDEX xc (c), ADD INDEX xd (d);
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX		
-t1	1	xd	1	d	A	NULL	NULL	NULL		XINDEX		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX			NO
+t1	1	xd	1	d	A	NULL	NULL	NULL		XINDEX			NO
 SELECT d FROM t1 WHERE c = 2;
 d
 Two
 ALTER TABLE t1 DROP INDEX xc, DROP INDEX xd;
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 #
 # Other alterations do not modify the file
 #
