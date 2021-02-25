@@ -173,6 +173,7 @@ enum extra2_frm_value_type {
   EXTRA2_GIS=2,
   EXTRA2_APPLICATION_TIME_PERIOD=3,
   EXTRA2_PERIOD_FOR_SYSTEM_TIME=4,
+  EXTRA2_INDEX_FLAGS=5,
 
 #define EXTRA2_ENGINE_IMPORTANT 128
 
@@ -184,6 +185,11 @@ enum extra2_frm_value_type {
 
 enum extra2_field_flags {
   VERS_OPTIMIZED_UPDATE= 1 << INVISIBLE_MAX_BITS,
+};
+
+enum extra2_index_flags {
+  EXTRA2_DEFAULT_INDEX_FLAGS,
+  EXTRA2_IGNORED_KEY
 };
 
 LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,

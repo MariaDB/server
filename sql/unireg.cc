@@ -119,6 +119,20 @@ static uchar *extra2_write_field_properties(uchar *pos,
   return pos;
 }
 
+static uchar *extra2_write_index_properties(uchar *pos, const KEY *keyinfo,
+                                            uint keys)
+{
+  *pos++= EXTRA2_INDEX_FLAGS;
+  pos= extra2_write_len(pos, keys);
+  for (uint i=0; i < keys; i++)
+  {
+    *pos++= keyinfo[i].is_ignored ?
+            EXTRA2_IGNORED_KEY :
+            EXTRA2_DEFAULT_INDEX_FLAGS;
+  }
+  return pos;
+}
+
 static uint16
 get_fieldno_by_name(HA_CREATE_INFO *create_info, List<Create_field> &create_fields,
                     const Lex_ident &field_name)
@@ -403,6 +417,14 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     extra2_size+= 1 + extra2_str_size(create_fields.elements);
   }
 
+  /*
+    To store the ignorability flag for each key.
+    Here 1 bytes is reserved to store the extra index flags for keys.
+    Currently only 1 bit is used, rest of the bits can be used in the future
+  */
+  if (keys)
+    extra2_size+= 1 + extra2_str_size(keys);
+
   for (i= 0; i < keys; i++)
     if (key_info[i].algorithm == HA_KEY_ALG_LONG_HASH)
       e_unique_hash_extra_parts++;
@@ -518,6 +540,10 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
 
   if (has_extra2_field_flags_)
     pos= extra2_write_field_properties(pos, create_fields);
+
+
+  if (keys)
+    pos= extra2_write_index_properties(pos, key_info, keys);
 
   int4store(pos, filepos); // end of the extra2 segment
   pos+= 4;

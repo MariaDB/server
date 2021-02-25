@@ -781,6 +781,12 @@ typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
 */
 #define ALTER_COLUMN_INDEX_LENGTH            (1ULL << 60)
 
+
+/**
+  Means that the ignorability of an index is changed.
+*/
+#define ALTER_INDEX_IGNORABILITY              (1ULL << 61)
+
 /*
   Flags set in partition_flags when altering partitions
 */
@@ -2353,6 +2359,26 @@ struct Table_specification_st: public HA_CREATE_INFO,
 
 
 /**
+  Structure describing changes to an index to be caused by ALTER TABLE.
+*/
+
+struct KEY_PAIR
+{
+  /**
+    Pointer to KEY object describing old version of index in
+    TABLE::key_info array for TABLE instance representing old
+    version of table.
+  */
+  KEY *old_key;
+  /**
+    Pointer to KEY object describing new version of index in
+    Alter_inplace_info::key_info_buffer array.
+  */
+  KEY *new_key;
+};
+
+
+/**
   In-place alter handler context.
 
   This is a superclass intended to be subclassed by individual handlers
@@ -2450,6 +2476,11 @@ public:
      sorted in increasing order.
   */
   uint *index_add_buffer;
+
+  KEY_PAIR  *index_altered_ignorability_buffer;
+
+  /** Size of index_altered_ignorability_buffer array. */
+  uint index_altered_ignorability_count;
 
   /**
      Old and new index names. Used for index rename.
@@ -2559,6 +2590,18 @@ public:
   */
   void report_unsupported_error(const char *not_supported,
                                 const char *try_instead) const;
+ void add_altered_index_ignorability(KEY *old_key, KEY *new_key)
+ {
+   KEY_PAIR *key_pair= index_altered_ignorability_buffer +
+                       index_altered_ignorability_count++;
+   key_pair->old_key= old_key;
+   key_pair->new_key= new_key;
+   DBUG_PRINT("info", ("index had ignorability altered: %i to %i",
+                      old_key->is_ignored,
+                      new_key->is_ignored));
+ }
+
+
 };
 
 
@@ -2575,6 +2618,7 @@ typedef struct st_key_create_information
     directly by the user (set by the parser).
   */
   bool check_for_duplicate_indexes;
+  bool is_ignored;
 } KEY_CREATE_INFO;
 
 

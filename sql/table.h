@@ -764,6 +764,10 @@ struct TABLE_SHARE
      Excludes keys disabled by ALTER TABLE ... DISABLE KEYS.
   */
   key_map keys_in_use;
+
+  /* The set of ignored indexes for a table. */
+  key_map ignored_indexes;
+
   key_map keys_for_keyread;
   ha_rows min_rows, max_rows;		/* create information */
   ulong   avg_row_length;		/* create information */
@@ -1151,6 +1155,8 @@ struct TABLE_SHARE
   void free_frm_image(const uchar *frm);
 
   void set_overlapped_keys();
+  void set_ignored_indexes();
+  key_map usable_indexes(THD *thd);
 };
 
 /* not NULL, but cannot be dereferenced */

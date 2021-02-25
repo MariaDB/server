@@ -6293,7 +6293,7 @@ bool Item_func_match::fix_index()
   {
     if ((table->key_info[keynr].flags & HA_FULLTEXT) &&
         (flags & FT_BOOL ? table->keys_in_use_for_query.is_set(keynr) :
-                           table->s->keys_in_use.is_set(keynr)))
+                           table->s->usable_indexes(table->in_use).is_set(keynr)))
 
     {
       ft_to_key[fts]=keynr;
