@@ -10,8 +10,8 @@ INSERT INTO t1 (a,b,c) VALUES
 ('N.America','test1','5a'),('Europe','test1','5b'),('Europe','test2','6v'),
 ('Africa','test3','4z'),('Africa','test4','1j'),('Antarctica','test4','1d');
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	c	A	1000	NULL	NULL		LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	c	A	1000	NULL	NULL		LSMTREE			NO
 EXPLAIN SELECT c FROM t1 WHERE c BETWEEN '1d' AND '6u';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	PRIMARY	PRIMARY	1	NULL	#	Using where; Using index
@@ -44,9 +44,9 @@ INSERT INTO t1 (a,b,c,pk) VALUES
 ('N.America','test1','5a',1),('Europe','test1','5b',2),('Europe','test2','6v',3),
 ('Africa','test3','4z',4),('Africa','test4','1j',5),('Antarctica','test4','1d',6);
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE		
-t1	1	b	1	b	A	500	NULL	NULL	YES	LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE			NO
+t1	1	b	1	b	A	500	NULL	NULL	YES	LSMTREE			NO
 EXPLAIN SELECT DISTINCT b FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	b	2	NULL	#	

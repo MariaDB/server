@@ -38,6 +38,7 @@ Null	YES
 Index_type	HASH
 Comment	
 Index_comment	
+Ignored	NO
 
 MyISAM file:         DATADIR/test/t1
 Record format:       Packed
@@ -52,8 +53,8 @@ select TABLE_CATALOG,TABLE_SCHEMA,TABLE_NAME,COLUMN_NAME,ORDINAL_POSITION,COLUMN
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	COLUMN_DEFAULT	IS_NULLABLE	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	CHARACTER_OCTET_LENGTH	NUMERIC_PRECISION	NUMERIC_SCALE	DATETIME_PRECISION	CHARACTER_SET_NAME	COLLATION_NAME	COLUMN_TYPE	COLUMN_KEY	EXTRA	COLUMN_COMMENT	IS_GENERATED	GENERATION_EXPRESSION
 def	test	t1	a	1	NULL	YES	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob	UNI			NEVER	NULL
 select * from information_schema.statistics where table_schema = 'test' and table_name = 't1';
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT
-def	test	t1	0	test	a	1	a	A	NULL	NULL	NULL	YES	HASH		
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT	IGNORED
+def	test	t1	0	test	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
 select   * from information_schema.key_column_usage where table_schema= 'test' and table_name= 't1';
 CONSTRAINT_CATALOG	def
 CONSTRAINT_SCHEMA	test
@@ -211,8 +212,8 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
 #add column with unique index on blob ;
 alter table t1 add column a blob unique;
 show create table t1;
@@ -240,9 +241,9 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `a` (`aa`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	a	1	aa	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	a	1	aa	A	NULL	NULL	NULL	YES	HASH			NO
 # try to change the blob unique datatype;
 #this will change index to b tree;
 alter table t1 modify  column aa  int ;
@@ -258,9 +259,9 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `a` (`aa`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	a	1	aa	A	NULL	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	a	1	aa	A	NULL	NULL	NULL	YES	BTREE			NO
 alter table t1 add column clm blob unique;
 #try changing the name ;
 alter table t1 change column clm clm_changed blob;
@@ -278,10 +279,10 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `clm` (`clm_changed`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	a	1	aa	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	clm	1	clm_changed	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	a	1	aa	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	clm	1	clm_changed	A	NULL	NULL	NULL	YES	HASH			NO
 #now drop the unique key;
 alter table t1 drop key clm;
 show create table t1;
@@ -297,17 +298,17 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `a` (`aa`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	a	1	aa	A	NULL	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	a	1	aa	A	NULL	NULL	NULL	YES	BTREE			NO
 drop table t1;
 create table t1 (a TEXT CHARSET latin1 COLLATE latin1_german2_ci unique);
 desc t1;
 Field	Type	Null	Key	Default	Extra
 a	text	YES	UNI	NULL	
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
 insert into t1 values ('ae');
 insert into t1 values ('AE');
 ERROR 23000: Duplicate entry 'AE' for key 'a'
@@ -319,9 +320,9 @@ Field	Type	Null	Key	Default	Extra
 a	int(11)	NO	PRI	NULL	
 b	blob	YES	UNI	NULL	
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	a	A	0	NULL	NULL		BTREE		
-t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	a	A	0	NULL	NULL		BTREE			NO
+t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH			NO
 insert into t1 values(1,1),(2,2),(3,3);
 insert into t1 values(1,1);
 ERROR 23000: Duplicate entry '1' for key 'b'
@@ -356,11 +357,11 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `e` (`e`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH		
-t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH			NO
 
 MyISAM file:         DATADIR/test/t1
 Record format:       Packed
@@ -382,11 +383,11 @@ def	test	t1	c	3	NULL	YES	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob	UNI			NE
 def	test	t1	d	4	NULL	YES	text	65535	65535	NULL	NULL	NULL	latin1	latin1_swedish_ci	text	UNI			NEVER	NULL
 def	test	t1	e	5	NULL	YES	varchar	3000	3000	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(3000)	UNI			NEVER	NULL
 select * from information_schema.statistics where table_schema = 'test' and table_name = 't1';
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT
-def	test	t1	0	test	a	1	a	A	NULL	NULL	NULL	YES	HASH		
-def	test	t1	0	test	c	1	c	A	NULL	NULL	NULL	YES	HASH		
-def	test	t1	0	test	d	1	d	A	NULL	NULL	NULL	YES	HASH		
-def	test	t1	0	test	e	1	e	A	NULL	NULL	NULL	YES	HASH		
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT	IGNORED
+def	test	t1	0	test	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
+def	test	t1	0	test	c	1	c	A	NULL	NULL	NULL	YES	HASH			NO
+def	test	t1	0	test	d	1	d	A	NULL	NULL	NULL	YES	HASH			NO
+def	test	t1	0	test	e	1	e	A	NULL	NULL	NULL	YES	HASH			NO
 select * from information_schema.key_column_usage where table_schema= 'test' and table_name= 't1';
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	POSITION_IN_UNIQUE_CONSTRAINT	REFERENCED_TABLE_SCHEMA	REFERENCED_TABLE_NAME	REFERENCED_COLUMN_NAME
 def	test	a	def	test	t1	a	1	NULL	NULL	NULL	NULL
@@ -549,11 +550,11 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `e` (`e`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH			NO
 #add column with unique index on blob;
 alter table t1 add column a blob unique;
 show create table t1;
@@ -574,12 +575,12 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `a` (`a`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH		
-t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
 #try to change the blob unique column name;
 #this will change index to b tree;
 alter table t1 modify  column a  int ,  modify column e int;
@@ -601,12 +602,12 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `d` (`d`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH			NO
 alter table t1 add column clm1 blob unique,add column clm2 blob unique;
 #try changing the name; 
 alter table t1 change column clm1 clm_changed1 blob, change column clm2 clm_changed2 blob;
@@ -632,14 +633,14 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `clm2` (`clm_changed2`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	clm1	1	clm_changed1	A	NULL	NULL	NULL	YES	HASH		
-t1	0	clm2	1	clm_changed2	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	clm1	1	clm_changed1	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	clm2	1	clm_changed2	A	NULL	NULL	NULL	YES	HASH			NO
 #now drop the unique key;
 alter table t1 drop key clm1, drop key clm2;
 show create table t1;
@@ -662,12 +663,12 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `d` (`d`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH			NO
 drop table t1;
 #now the table with key on multiple columns; the ultimate test;
 create table t1(a blob, b int , c varchar(2000) , d text  , e varchar(3000) , f longblob , g int , h text ,
@@ -703,21 +704,21 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `b` (`b`,`d`,`g`,`h`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
-t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH		
-t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	2	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	3	e	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	2	f	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	3	g	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	4	h	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	2	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	3	g	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	4	h	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	2	d	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	3	e	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	2	f	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	3	g	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	4	h	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	2	d	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	3	g	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	4	h	A	NULL	NULL	NULL	YES	HASH			NO
 
 MyISAM file:         DATADIR/test/t1
 Record format:       Packed
@@ -742,21 +743,21 @@ def	test	t1	f	6	NULL	YES	longblob	4294967295	4294967295	NULL	NULL	NULL	NULL	NULL
 def	test	t1	g	7	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)				NEVER	NULL
 def	test	t1	h	8	NULL	YES	text	65535	65535	NULL	NULL	NULL	latin1	latin1_swedish_ci	text				NEVER	NULL
 select * from information_schema.statistics where table_schema = 'test' and table_name = 't1';
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT
-def	test	t1	0	test	a	1	a	A	NULL	NULL	NULL	YES	HASH		
-def	test	t1	0	test	a	2	b	A	NULL	NULL	NULL	YES	HASH		
-def	test	t1	0	test	a	3	c	A	NULL	NULL	NULL	YES	HASH		
-def	test	t1	0	test	c	1	c	A	NULL	NULL	NULL	YES	HASH		
-def	test	t1	0	test	c	2	d	A	NULL	NULL	NULL	YES	HASH		
-def	test	t1	0	test	c	3	e	A	NULL	NULL	NULL	YES	HASH		
-def	test	t1	0	test	e	1	e	A	NULL	NULL	NULL	YES	HASH		
-def	test	t1	0	test	e	2	f	A	NULL	NULL	NULL	YES	HASH		
-def	test	t1	0	test	e	3	g	A	NULL	NULL	NULL	YES	HASH		
-def	test	t1	0	test	e	4	h	A	NULL	NULL	NULL	YES	HASH		
-def	test	t1	0	test	b	1	b	A	NULL	NULL	NULL	YES	HASH		
-def	test	t1	0	test	b	2	d	A	NULL	NULL	NULL	YES	HASH		
-def	test	t1	0	test	b	3	g	A	NULL	NULL	NULL	YES	HASH		
-def	test	t1	0	test	b	4	h	A	NULL	NULL	NULL	YES	HASH		
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT	IGNORED
+def	test	t1	0	test	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
+def	test	t1	0	test	a	2	b	A	NULL	NULL	NULL	YES	HASH			NO
+def	test	t1	0	test	a	3	c	A	NULL	NULL	NULL	YES	HASH			NO
+def	test	t1	0	test	c	1	c	A	NULL	NULL	NULL	YES	HASH			NO
+def	test	t1	0	test	c	2	d	A	NULL	NULL	NULL	YES	HASH			NO
+def	test	t1	0	test	c	3	e	A	NULL	NULL	NULL	YES	HASH			NO
+def	test	t1	0	test	e	1	e	A	NULL	NULL	NULL	YES	HASH			NO
+def	test	t1	0	test	e	2	f	A	NULL	NULL	NULL	YES	HASH			NO
+def	test	t1	0	test	e	3	g	A	NULL	NULL	NULL	YES	HASH			NO
+def	test	t1	0	test	e	4	h	A	NULL	NULL	NULL	YES	HASH			NO
+def	test	t1	0	test	b	1	b	A	NULL	NULL	NULL	YES	HASH			NO
+def	test	t1	0	test	b	2	d	A	NULL	NULL	NULL	YES	HASH			NO
+def	test	t1	0	test	b	3	g	A	NULL	NULL	NULL	YES	HASH			NO
+def	test	t1	0	test	b	4	h	A	NULL	NULL	NULL	YES	HASH			NO
 select * from information_schema.key_column_usage where table_schema= 'test' and table_name= 't1';
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	CONSTRAINT_NAME	TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	ORDINAL_POSITION	POSITION_IN_UNIQUE_CONSTRAINT	REFERENCED_TABLE_SCHEMA	REFERENCED_TABLE_NAME	REFERENCED_COLUMN_NAME
 def	test	a	def	test	t1	a	1	NULL	NULL	NULL	NULL
@@ -859,21 +860,21 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `b` (`b`,`d`,`g`,`h`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
-t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH		
-t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	2	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	3	e	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	2	f	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	3	g	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	4	h	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	2	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	3	g	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	4	h	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	2	d	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	3	e	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	2	f	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	3	g	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	4	h	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	2	d	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	3	g	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	4	h	A	NULL	NULL	NULL	YES	HASH			NO
 alter table t1 drop column db_row_hash_7  , drop column db_row_hash_5 ,
 drop column db_row_hash_1, drop column db_row_hash_2 ;
 show create table t1;
@@ -893,21 +894,21 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `b` (`b`,`d`,`g`,`h`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
-t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH		
-t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	2	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	3	e	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	2	f	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	3	g	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	4	h	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	2	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	3	g	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	4	h	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	2	d	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	3	e	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	2	f	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	3	g	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	4	h	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	2	d	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	3	g	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	4	h	A	NULL	NULL	NULL	YES	HASH			NO
 #try to change column names;
 alter table t1 change column a aa blob , change column b bb blob , change column d dd blob;
 show create table t1;
@@ -927,21 +928,21 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `b` (`bb`,`dd`,`g`,`h`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	a	1	aa	A	NULL	NULL	NULL	YES	HASH		
-t1	0	a	2	bb	A	NULL	NULL	NULL	YES	HASH		
-t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	2	dd	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	3	e	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	2	f	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	3	g	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	4	h	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	1	bb	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	2	dd	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	3	g	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	4	h	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	aa	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	2	bb	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	2	dd	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	3	e	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	2	f	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	3	g	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	4	h	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	1	bb	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	2	dd	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	3	g	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	4	h	A	NULL	NULL	NULL	YES	HASH			NO
 alter table t1 change column aa a blob , change column bb b blob , change column dd d blob;
 show create table t1;
 Table	Create Table
@@ -960,21 +961,21 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `b` (`b`,`d`,`g`,`h`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
-t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH		
-t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	2	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	3	e	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	2	f	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	3	g	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	4	h	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	2	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	3	g	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	4	h	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	2	d	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	3	e	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	2	f	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	3	g	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	4	h	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	2	d	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	3	g	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	4	h	A	NULL	NULL	NULL	YES	HASH			NO
 #now we will change the data type to int and varchar limit so that we no longer  require hash_index;
 #on key a_b_c;
 alter table t1 modify column a varchar(20) , modify column b varchar(20) , modify column c varchar(20);
@@ -995,21 +996,21 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `b` (`b`,`d`,`g`,`h`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	a	2	b	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	a	3	c	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	2	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	3	e	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	2	f	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	3	g	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	4	h	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	2	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	3	g	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	4	h	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	a	2	b	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	a	3	c	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	2	d	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	3	e	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	2	f	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	3	g	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	4	h	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	2	d	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	3	g	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	4	h	A	NULL	NULL	NULL	YES	HASH			NO
 #change it back;
 alter table t1 modify column a blob , modify column b blob , modify column c blob;
 show create table t1;
@@ -1029,21 +1030,21 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `b` (`b`,`d`,`g`,`h`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
-t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH		
-t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	2	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	3	e	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	2	f	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	3	g	A	NULL	NULL	NULL	YES	HASH		
-t1	0	e	4	h	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	2	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	3	g	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	4	h	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	1	c	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	2	d	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	3	e	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	2	f	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	3	g	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	e	4	h	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	2	d	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	3	g	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	4	h	A	NULL	NULL	NULL	YES	HASH			NO
 #try to delete blob column in unique;
 truncate table t1;
 #now try to delete keys;
@@ -1063,14 +1064,14 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `b` (`b`,`d`,`g`,`h`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
-t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH		
-t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	2	d	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	3	g	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	4	h	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	2	d	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	3	g	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	4	h	A	NULL	NULL	NULL	YES	HASH			NO
 drop table t1;
 #now alter table containing some data basically some tests with ignore;
 create table t1 (a blob);
@@ -1097,8 +1098,8 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `a` (`a`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
 drop table t1;
 #Now with multiple keys;
 create table t1(a blob , b blob, c blob , d blob , e int);
@@ -1135,12 +1136,12 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `b` (`b`,`d`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
-t1	0	a	2	c	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	2	d	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE			NO
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	2	c	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	2	d	A	NULL	NULL	NULL	YES	HASH			NO
 drop table t1;
 #visibility of db_row_hash 
 create table t1 (a blob unique , b blob unique);
@@ -1248,10 +1249,10 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `b` (`b`,`c`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	2	c	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	b	2	c	A	NULL	NULL	NULL	YES	HASH			NO
 insert into t1 values(concat(repeat('sachin',10000000),'1'),concat(repeat('sachin',10000000),'1'),
 concat(repeat('sachin',10000000),'1'));
 insert into t1 values(concat(repeat('sachin',10000000),'2'),concat(repeat('sachin',10000000),'2'),
@@ -1269,8 +1270,8 @@ desc t1;
 Field	Type	Null	Key	Default	Extra
 a	blob	YES	UNI	NULL	
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	a	1	a	A	NULL	3000	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	a	A	NULL	3000	NULL	YES	HASH			NO
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1301,11 +1302,11 @@ t1	CREATE TABLE `t1` (
   UNIQUE KEY `c` (`c`(4500),`d`) USING HASH
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	a	1	a	A	NULL	3500	NULL	YES	HASH		
-t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH		
-t1	0	c	1	c	A	NULL	4500	NULL	YES	HASH		
-t1	0	c	2	d	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	a	A	NULL	3500	NULL	YES	HASH			NO
+t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	c	1	c	A	NULL	4500	NULL	YES	HASH			NO
+t1	0	c	2	d	A	NULL	NULL	NULL	YES	HASH			NO
 drop table t1;
 disconnect newcon;
 connection default;

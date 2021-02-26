@@ -790,10 +790,10 @@ MAX(f1)
 TEST-INFO: SLAVE:  The INSERT is committed (Succeeded)
 connection master;
 SHOW INDEX FROM mysqltest1.t6;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 connection slave;
 SHOW INDEX FROM mysqltest1.t6;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 connection master;
 
 ######## CREATE INDEX my_idx5 ON mysqltest1.t5(f1) ########
@@ -833,12 +833,12 @@ MAX(f1)
 TEST-INFO: SLAVE:  The INSERT is committed (Succeeded)
 connection master;
 SHOW INDEX FROM mysqltest1.t5;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t5	1	my_idx5	1	f1	A	0	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t5	1	my_idx5	1	f1	A	0	NULL	NULL	YES	BTREE			NO
 connection slave;
 SHOW INDEX FROM mysqltest1.t5;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t5	1	my_idx5	1	f1	A	NULL	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t5	1	my_idx5	1	f1	A	NULL	NULL	NULL	YES	BTREE			NO
 connection master;
 
 ######## DROP DATABASE mysqltest2 ########

@@ -191,8 +191,8 @@ INDEX IX(ISBN)
 )
 ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='bib0.json' LRECL=320 OPTION_LIST='Pretty=0';
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	IX	1	ISBN	A	NULL	NULL	NULL		XINDEX		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	IX	1	ISBN	A	NULL	NULL	NULL		XINDEX			NO
 SELECT * FROM t1;
 ISBN	Language	Subject	AuthorFN	AuthorLN	Title	Translation	TranslatorFN	TranslatorLN	Publisher	Location	Year
 9782212090819	fr	applications	Jean-Michel	Bernadac	Construire une application XML	NULL	NULL	NULL	Eyrolles	Paris	1999

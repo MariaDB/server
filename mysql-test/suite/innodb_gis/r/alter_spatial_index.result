@@ -130,13 +130,13 @@ tab	CREATE TABLE `tab` (
   KEY `idx6` (`c4`(10)) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW INDEX FROM tab;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-tab	0	PRIMARY	1	c1	A	#	NULL	NULL		BTREE		
-tab	1	idx2	1	c2	A	#	32	NULL		SPATIAL		
-tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL		
-tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon
-tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry
-tab	1	idx6	1	c4	A	#	10	NULL		BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+tab	0	PRIMARY	1	c1	A	#	NULL	NULL		BTREE			NO
+tab	1	idx2	1	c2	A	#	32	NULL		SPATIAL			NO
+tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL			NO
+tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon	NO
+tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry	NO
+tab	1	idx6	1	c4	A	#	10	NULL		BTREE			NO
 SET @g1 = ST_GeomFromText('POLYGON((20 20,30 30,40 40,50 50,40 50,30 40,30 30,20 20))');
 SELECT c1,ST_Astext(c2),ST_Astext(c4) FROM tab WHERE ST_Crosses(tab.c4, @g1);
 c1	ST_Astext(c2)	ST_Astext(c4)
@@ -174,13 +174,13 @@ tab	CREATE TABLE `tab` (
   KEY `idx6` (`c44`(10)) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW INDEX FROM tab;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-tab	0	PRIMARY	1	c1	A	#	NULL	NULL		BTREE		
-tab	1	idx2	1	c22	A	#	32	NULL		SPATIAL		
-tab	1	idx3	1	c33	A	#	32	NULL		SPATIAL		
-tab	1	idx4	1	c44	A	#	32	NULL		SPATIAL		testing spatial index on Polygon
-tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry
-tab	1	idx6	1	c44	A	#	10	NULL		BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+tab	0	PRIMARY	1	c1	A	#	NULL	NULL		BTREE			NO
+tab	1	idx2	1	c22	A	#	32	NULL		SPATIAL			NO
+tab	1	idx3	1	c33	A	#	32	NULL		SPATIAL			NO
+tab	1	idx4	1	c44	A	#	32	NULL		SPATIAL		testing spatial index on Polygon	NO
+tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry	NO
+tab	1	idx6	1	c44	A	#	10	NULL		BTREE			NO
 ALTER TABLE tab CHANGE COLUMN c22 c2 POINT NOT NULL;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
@@ -206,13 +206,13 @@ tab	CREATE TABLE `tab` (
   KEY `idx6` (`c4`(10)) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW INDEX FROM tab;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-tab	0	PRIMARY	1	c1	A	#	NULL	NULL		BTREE		
-tab	1	idx2	1	c2	A	#	32	NULL		SPATIAL		
-tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL		
-tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon
-tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry
-tab	1	idx6	1	c4	A	#	10	NULL		BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+tab	0	PRIMARY	1	c1	A	#	NULL	NULL		BTREE			NO
+tab	1	idx2	1	c2	A	#	32	NULL		SPATIAL			NO
+tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL			NO
+tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon	NO
+tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry	NO
+tab	1	idx6	1	c4	A	#	10	NULL		BTREE			NO
 ALTER TABLE tab DISABLE KEYS;
 Warnings:
 Note	1031	Storage engine InnoDB of the table `test`.`tab` doesn't have this option
@@ -332,11 +332,11 @@ tab	CREATE TABLE `tab` (
   KEY `idx6` (`c4`(10)) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW INDEX FROM tab;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL		
-tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon
-tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry
-tab	1	idx6	1	c4	A	#	10	NULL		BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL			NO
+tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon	NO
+tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry	NO
+tab	1	idx6	1	c4	A	#	10	NULL		BTREE			NO
 DELETE FROM tab;
 ALTER TABLE tab ADD PRIMARY KEY(c2);
 affected rows: 0
@@ -364,14 +364,14 @@ tab	CREATE TABLE `tab` (
   SPATIAL KEY `idx2` (`c2`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW INDEX FROM tab;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-tab	0	PRIMARY	1	c2	A	#	25	NULL		BTREE		
-tab	0	const_1	1	c2	A	#	25	NULL		BTREE		
-tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL		
-tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon
-tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry
-tab	1	idx6	1	c4	A	#	10	NULL		BTREE		
-tab	1	idx2	1	c2	A	#	32	NULL		SPATIAL		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+tab	0	PRIMARY	1	c2	A	#	25	NULL		BTREE			NO
+tab	0	const_1	1	c2	A	#	25	NULL		BTREE			NO
+tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL			NO
+tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon	NO
+tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry	NO
+tab	1	idx6	1	c4	A	#	10	NULL		BTREE			NO
+tab	1	idx2	1	c2	A	#	32	NULL		SPATIAL			NO
 INSERT INTO tab(c1,c2,c3,c4,c5)
 VALUES(1,ST_GeomFromText('POINT(10 10)'),ST_GeomFromText('LINESTRING(5 5,20 20,30 30)'),
 ST_GeomFromText('POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))'),
@@ -406,14 +406,14 @@ tab	CREATE TABLE `tab` (
   SPATIAL KEY `idx2` (`c2`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW INDEX FROM tab;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-tab	0	PRIMARY	1	c5	A	#	10	NULL		BTREE		
-tab	0	const_1	1	c5	A	#	10	NULL		BTREE		
-tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL		
-tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon
-tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry
-tab	1	idx6	1	c4	A	#	10	NULL		BTREE		
-tab	1	idx2	1	c2	A	#	32	NULL		SPATIAL		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+tab	0	PRIMARY	1	c5	A	#	10	NULL		BTREE			NO
+tab	0	const_1	1	c5	A	#	10	NULL		BTREE			NO
+tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL			NO
+tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon	NO
+tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry	NO
+tab	1	idx6	1	c4	A	#	10	NULL		BTREE			NO
+tab	1	idx2	1	c2	A	#	32	NULL		SPATIAL			NO
 INSERT INTO tab(c1,c2,c3,c4,c5)
 VALUES(1,ST_GeomFromText('POINT(10 10)'),ST_GeomFromText('LINESTRING(5 5,20 20,30 30)'),
 ST_GeomFromText('POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))'),
@@ -540,13 +540,13 @@ tab	CREATE TABLE `tab` (
   KEY `idx6` (`c4`(10)) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW INDEX FROM tab;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-tab	0	PRIMARY	1	c1	A	#	NULL	NULL		BTREE		
-tab	1	idx2	1	c2	A	#	32	NULL		SPATIAL		
-tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL		
-tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon
-tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry
-tab	1	idx6	1	c4	A	#	10	NULL		BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+tab	0	PRIMARY	1	c1	A	#	NULL	NULL		BTREE			NO
+tab	1	idx2	1	c2	A	#	32	NULL		SPATIAL			NO
+tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL			NO
+tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon	NO
+tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry	NO
+tab	1	idx6	1	c4	A	#	10	NULL		BTREE			NO
 SET @g1 = ST_GeomFromText( 'POLYGON((7 1,6 2,6 3,10 3,10 1,7 1))');
 UPDATE tab SET C2 = ST_GeomFromText('POINT(1000 1000)') 
 WHERE MBRContains(tab.c4, @g1);
@@ -577,13 +577,13 @@ tab	CREATE TABLE `tab` (
   KEY `idx6` (`c4`(10)) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW INDEX FROM tab;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-tab	0	PRIMARY	1	c1	A	#	NULL	NULL		BTREE		
-tab	1	idx2	1	c2	A	#	32	NULL		SPATIAL		
-tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL		
-tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon
-tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry
-tab	1	idx6	1	c4	A	#	10	NULL		BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+tab	0	PRIMARY	1	c1	A	#	NULL	NULL		BTREE			NO
+tab	1	idx2	1	c2	A	#	32	NULL		SPATIAL			NO
+tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL			NO
+tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon	NO
+tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry	NO
+tab	1	idx6	1	c4	A	#	10	NULL		BTREE			NO
 ANALYZE TABLE tab;
 Table	Op	Msg_type	Msg_text
 test.tab	analyze	status	Engine-independent statistics collected
@@ -634,13 +634,13 @@ tab	CREATE TABLE `tab` (
   KEY `idx6` (`c4`(10)) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW INDEX FROM tab;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-tab	0	PRIMARY	1	c1	A	#	NULL	NULL		BTREE		
-tab	1	idx2	1	c2	A	#	32	NULL		SPATIAL		
-tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL		
-tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon
-tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry
-tab	1	idx6	1	c4	A	#	10	NULL		BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+tab	0	PRIMARY	1	c1	A	#	NULL	NULL		BTREE			NO
+tab	1	idx2	1	c2	A	#	32	NULL		SPATIAL			NO
+tab	1	idx3	1	c3	A	#	32	NULL		SPATIAL			NO
+tab	1	idx4	1	c4	A	#	32	NULL		SPATIAL		testing spatial index on Polygon	NO
+tab	1	idx5	1	c5	A	#	32	NULL		SPATIAL		testing spatial index on Geometry	NO
+tab	1	idx6	1	c4	A	#	10	NULL		BTREE			NO
 ANALYZE TABLE tab;
 Table	Op	Msg_type	Msg_text
 test.tab	analyze	status	Engine-independent statistics collected
@@ -716,12 +716,12 @@ child	CREATE TABLE `child` (
   SPATIAL KEY `idx2` (`parent_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW INDEX FROM parent;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-parent	0	PRIMARY	1	id	A	0	25	NULL		BTREE		
-parent	1	idx1	1	id	A	NULL	32	NULL		SPATIAL		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+parent	0	PRIMARY	1	id	A	0	25	NULL		BTREE			NO
+parent	1	idx1	1	id	A	NULL	32	NULL		SPATIAL			NO
 SHOW INDEX FROM child;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-child	1	idx2	1	parent_id	A	#	32	NULL		SPATIAL		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+child	1	idx2	1	parent_id	A	#	32	NULL		SPATIAL			NO
 ALTER TABLE child ADD FOREIGN KEY(parent_id) REFERENCES parent(id) ;
 ALTER TABLE child ADD FOREIGN KEY(parent_id) REFERENCES parent(id) ON DELETE CASCADE ;
 DROP table child,parent;
@@ -748,12 +748,12 @@ child	CREATE TABLE `child` (
   SPATIAL KEY `idx2` (`parent_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 SHOW INDEX FROM parent;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-parent	0	PRIMARY	1	id	A	0	10	NULL		BTREE		
-parent	1	idx1	1	id	A	NULL	32	NULL		SPATIAL		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+parent	0	PRIMARY	1	id	A	0	10	NULL		BTREE			NO
+parent	1	idx1	1	id	A	NULL	32	NULL		SPATIAL			NO
 SHOW INDEX FROM child;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-child	1	idx2	1	parent_id	A	NULL	32	NULL		SPATIAL		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+child	1	idx2	1	parent_id	A	NULL	32	NULL		SPATIAL			NO
 ALTER TABLE child ADD FOREIGN KEY(parent_id) REFERENCES parent(id) ;
 DROP table child,parent;
 create table t1 (c1 int) engine=innodb;

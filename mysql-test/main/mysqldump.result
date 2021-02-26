@@ -12,7 +12,7 @@ INSERT INTO t1 VALUES (1), (2);
 <database name="test">
 	<table_structure name="t1">
 		<field Field="a" Type="int(11)" Null="YES" Key="MUL" Default="NULL" Extra="" Comment="" />
-		<key Table="t1" Non_unique="1" Key_name="a" Seq_in_index="1" Column_name="a" Collation="A" Null="YES" Index_type="BTREE" Comment="" Index_comment="" />
+		<key Table="t1" Non_unique="1" Key_name="a" Seq_in_index="1" Column_name="a" Collation="A" Null="YES" Index_type="BTREE" Comment="" Index_comment="" Ignored="NO" />
 	</table_structure>
 	<table_data name="t1">
 	<row>

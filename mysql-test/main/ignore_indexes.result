@@ -4,15 +4,15 @@
 # Test of ALTER INDEX syntax.
 CREATE TABLE t1 ( a INT, KEY (a) );
 SHOW KEYS FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
 ALTER TABLE t1 ALTER INDEX a IGNORE;
 SHOW KEYS FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			YES
 ALTER TABLE t1 ALTER INDEX a NOT IGNORE;
 SHOW KEYS FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
 DROP TABLE t1;
 # Test of CREATE INDEX syntax with IGNORE indexes.
@@ -23,7 +23,7 @@ Warnings:
 Note	1831	Duplicate index `b_visible`. This is deprecated and will be disallowed in a future release
 CREATE INDEX a_b_invisible ON t1(a, b) IGNORE;
 SHOW INDEXES FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a_invisible	1	a	A	NULL	NULL	NULL	YES	BTREE			YES
 t1	1	b_visible	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
 t1	1	a_b_invisible	1	a	A	NULL	NULL	NULL	YES	BTREE			YES
@@ -65,19 +65,19 @@ a INT, INDEX (a),
 b INT, INDEX (b) IGNORE
 );
 SHOW INDEXES FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
 t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE			YES
 ALTER TABLE t1 RENAME INDEX a TO a1;
 ALTER TABLE t1 RENAME INDEX b TO b1;
 SHOW INDEXES FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a1	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
 t1	1	b1	1	b	A	NULL	NULL	NULL	YES	BTREE			YES
 ALTER TABLE t1 ALTER INDEX a1 IGNORE;
 ALTER TABLE t1 ALTER INDEX b1 NOT IGNORE;
 SHOW INDEXES FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a1	1	a	A	NULL	NULL	NULL	YES	BTREE			YES
 t1	1	b1	1	b	A	NULL	NULL	NULL	YES	BTREE			NO
 DROP TABLE t1;
@@ -136,12 +136,12 @@ ERROR 42000: Key 'no_such_index' doesn't exist in table 't1'
 #
 ALTER TABLE t1 ALTER INDEX a IGNORE, ALTER INDEX a NOT IGNORE;
 SHOW INDEXES FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
 t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE			YES
 ALTER TABLE t1 ALTER INDEX a NOT IGNORE, ALTER INDEX b IGNORE;
 SHOW INDEXES FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
 t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE			YES
 #
@@ -171,7 +171,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SHOW INDEXES FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	3	NULL	NULL	YES	BTREE			YES
 t1	1	b	1	b	A	3	NULL	NULL	YES	BTREE			YES
 ALTER TABLE t1 ALTER INDEX a NOT IGNORE, ALGORITHM = INPLACE;
@@ -182,7 +182,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 SHOW INDEXES FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	3	NULL	NULL	YES	BTREE			NO
 t1	1	b	1	b	A	3	NULL	NULL	YES	BTREE			YES
 ALTER TABLE t1 ALTER INDEX a IGNORE, ALGORITHM = DEFAULT;
@@ -193,7 +193,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 SHOW INDEXES FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	3	NULL	NULL	YES	BTREE			YES
 t1	1	b	1	b	A	3	NULL	NULL	YES	BTREE			YES
 ALTER TABLE t1 ALTER INDEX a NOT IGNORE;
@@ -204,7 +204,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 SHOW INDEXES FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	3	NULL	NULL	YES	BTREE			NO
 t1	1	b	1	b	A	3	NULL	NULL	YES	BTREE			YES
 ALTER TABLE t1 ADD INDEX ab(a, b), ALTER INDEX ab IGNORE;
@@ -220,7 +220,7 @@ b INT NOT NULL PRIMARY KEY,
 UNIQUE KEY (a) IGNORE
 );
 SHOW INDEXES FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	PRIMARY	1	b	A	0	NULL	NULL		BTREE			NO
 t1	0	a	1	a	A	0	NULL	NULL		BTREE			YES
 DROP TABLE t1;
@@ -232,7 +232,7 @@ UNIQUE KEY (a),
 UNIQUE KEY (b) IGNORE
 );
 SHOW INDEXES FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	a	1	a	A	0	NULL	NULL		BTREE			NO
 t1	0	b	1	b	A	0	NULL	NULL		BTREE			YES
 DROP TABLE t1;
@@ -241,7 +241,7 @@ ERROR HY000: A primary key cannot be marked as IGNORE
 CREATE TEMPORARY TABLE t1 ( a INT, KEY (a) IGNORE);
 INSERT INTO t1 VALUES (0), (1), (2), (3);
 SHOW INDEXES FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			YES
 EXPLAIN SELECT a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -282,7 +282,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	a	4	NULL	3	Using index
 ALTER TABLE t1 ALTER INDEX a IGNORE;
 SHOW INDEXES FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	3	NULL	NULL		BTREE			YES
 EXPLAIN SELECT a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -302,7 +302,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	key1	key1	34	NULL	8	Using where
 ALTER TABLE t1 ALTER INDEX key1 IGNORE;
 SHOW INDEXES FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	PRIMARY	1	fid	A	150	NULL	NULL		BTREE			NO
 t1	1	key1	1	g	A	NULL	32	NULL		SPATIAL			YES
 EXPLAIN SELECT fid, AsText(g) FROM t1
@@ -313,14 +313,14 @@ DROP TABLE t1;
 CREATE TABLE t1 ( a INT GENERATED ALWAYS AS (1), KEY key1(a));
 INSERT INTO t1 VALUES (),(),();
 SHOW INDEXES FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	key1	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
 EXPLAIN SELECT a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	key1	5	NULL	3	Using index
 ALTER TABLE t1 ALTER INDEX key1 IGNORE;
 SHOW INDEXES FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignore
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	key1	1	a	A	NULL	NULL	NULL	YES	BTREE			YES
 EXPLAIN SELECT a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

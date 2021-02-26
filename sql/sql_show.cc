@@ -9104,7 +9104,7 @@ ST_FIELD_INFO stat_fields_info[]=
   Column("COMMENT",       Varchar(16), NULLABLE, "Comment",     OPEN_FRM_ONLY),
   Column("INDEX_COMMENT", Varchar(INDEX_COMMENT_MAXLEN),
                                        NOT_NULL, "Index_comment",OPEN_FRM_ONLY),
-  Column("IGNORE",      Varchar(3),  NOT_NULL, "Ignore",        OPEN_FRM_ONLY),
+  Column("IGNORED",      Varchar(3),  NOT_NULL, "Ignored",        OPEN_FRM_ONLY),
   CEnd()
 };
 
