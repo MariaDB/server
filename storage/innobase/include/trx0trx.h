@@ -429,19 +429,12 @@ struct trx_lock_t
   trx_t *wait_trx;
   /** condition variable for !wait_lock; used with lock_sys.wait_mutex */
   pthread_cond_t cond;
-  /** lock wait start time, protected only by lock_sys.wait_mutex */
-  my_hrtime_t suspend_time;
+  /** lock wait start time */
+  Atomic_relaxed<my_hrtime_t> suspend_time;
 
-#ifdef WITH_WSREP
-  /** 2=high priority wsrep thread has marked this trx to abort;
+  /** 2=high priority WSREP thread has marked this trx to abort;
   1=another transaction chose this as a victim in deadlock resolution. */
   Atomic_relaxed<byte> was_chosen_as_deadlock_victim;
-#else
-  /** When the transaction decides to wait for a lock, it clears this;
-  set if another transaction chooses this transaction as a victim in deadlock
-  resolution. Protected by lock_sys.latch and lock_sys.wait_mutex. */
-  bool was_chosen_as_deadlock_victim;
-#endif
 
   /** Next available rec_pool[] entry */
   byte rec_cached;

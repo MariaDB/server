@@ -444,9 +444,8 @@ fill_trx_row(
 
 	ut_ad(!wait_lock == !requested_lock_row);
 
-	row->trx_wait_started = wait_lock
-		? hrtime_to_time(trx->lock.suspend_time)
-		: 0;
+	const my_hrtime_t suspend_time= trx->lock.suspend_time;
+	row->trx_wait_started = wait_lock ? hrtime_to_time(suspend_time) : 0;
 
 	row->trx_weight = static_cast<uintmax_t>(TRX_WEIGHT(trx));
 

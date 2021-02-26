@@ -903,31 +903,22 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id);
 @param trx   brute-force applier transaction running in the current thread */
 ATTRIBUTE_COLD ATTRIBUTE_NOINLINE static void lock_wait_wsrep(trx_t *trx)
 {
-  mysql_mutex_assert_owner(&lock_sys.wait_mutex);
-
-  const lock_t *wait_lock= trx->lock.wait_lock;
-  if (!wait_lock)
-    return;
-
+  DBUG_ASSERT(wsrep_on(trx->mysql_thd));
   if (!wsrep_thd_is_BF(trx->mysql_thd, false))
     return;
 
-  DBUG_ASSERT(wsrep_on(trx->mysql_thd));
-
   std::set<trx_t*> victims;
 
-  if (!lock_sys.wr_lock_try())
+  lock_sys.wr_lock(SRW_LOCK_CALL);
+  mysql_mutex_lock(&lock_sys.wait_mutex);
+
+  const lock_t *wait_lock= trx->lock.wait_lock;
+  if (!wait_lock)
   {
-    mysql_mutex_unlock(&lock_sys.wait_mutex);
-    lock_sys.wr_lock(SRW_LOCK_CALL);
-    mysql_mutex_lock(&lock_sys.wait_mutex);
-    wait_lock= trx->lock.wait_lock;
-    if (!wait_lock)
-    {
 func_exit:
-      lock_sys.wr_unlock();
-      return;
-    }
+    lock_sys.wr_unlock();
+    mysql_mutex_unlock(&lock_sys.wait_mutex);
+    return;
   }
 
   if (wait_lock->is_table())
@@ -978,8 +969,6 @@ func_exit:
 
   for (const auto &v : victim_id)
     lock_wait_wsrep_kill(trx, v.first, v.second);
-
-  mysql_mutex_lock(&lock_sys.wait_mutex);
 }
 #endif /* WITH_WSREP */
 
@@ -1701,130 +1690,131 @@ dberr_t lock_wait(que_thr_t *thr)
   const my_hrtime_t suspend_time= my_hrtime_coarse();
   ut_ad(!trx->dict_operation_lock_mode ||
         trx->dict_operation_lock_mode == RW_S_LATCH);
-  const bool row_lock_wait= thr->lock_state == QUE_THR_LOCK_ROW;
-  bool had_dict_lock= trx->dict_operation_lock_mode != 0;
 
-  mysql_mutex_lock(&lock_sys.wait_mutex);
-  trx->mutex_lock();
-  trx->error_state= DB_SUCCESS;
+  /* The wait_lock can be cleared by another thread in lock_grant(),
+  lock_rec_cancel(), or lock_cancel_waiting_and_release(). But, a wait
+  can only be initiated by the current thread which owns the transaction.
 
-  if (!trx->lock.wait_lock)
+  Even if trx->lock.wait_lock were changed, the object that it used to
+  point to it will remain valid memory (remain allocated from
+  trx->lock.lock_heap). If trx->lock.wait_lock was set to nullptr, the
+  original object could be transformed to a granted lock. On a page
+  split or merge, we would change trx->lock.wait_lock to point to
+  another waiting lock request object, and the old object would be
+  logically discarded.
+
+  In any case, it is safe to read the memory that wait_lock points to,
+  even though we are not holding any mutex. We are only reading
+  wait_lock->type_mode & (LOCK_TABLE | LOCK_AUTO_INC), which will be
+  unaffected by any page split or merge operation. (Furthermore,
+  table lock objects will never be cloned or moved.) */
+  const lock_t *const wait_lock= trx->lock.wait_lock;
+
+  if (!wait_lock)
   {
     /* The lock has already been released or this transaction
-    was chosen as a deadlock victim: no need to suspend */
-
-    if (trx->lock.was_chosen_as_deadlock_victim
-        IF_WSREP(.fetch_and(byte(~1)),))
-    {
-      IF_WSREP(,trx->lock.was_chosen_as_deadlock_victim= false);
+    was chosen as a deadlock victim: no need to wait */
+    if (trx->lock.was_chosen_as_deadlock_victim.fetch_and(byte(~1)))
       trx->error_state= DB_DEADLOCK;
-    }
+    else
+      trx->error_state= DB_SUCCESS;
 
-    mysql_mutex_unlock(&lock_sys.wait_mutex);
-    trx->mutex_unlock();
     return trx->error_state;
   }
 
   trx->lock.suspend_time= suspend_time;
-  trx->mutex_unlock();
+
+  const auto had_dict_lock= trx->dict_operation_lock_mode;
+  if (had_dict_lock) /* Release foreign key check latch */
+    row_mysql_unfreeze_data_dictionary(trx);
+
+  IF_WSREP(if (trx->is_wsrep()) lock_wait_wsrep(trx),);
+
+  const auto type_mode= wait_lock->type_mode;
+#ifdef HAVE_REPLICATION
+  /* Even though lock_wait_rpl_report() has nothing to do with
+  deadlock detection, it was always disabled by innodb_deadlock_detect=OFF.
+  We will keep it in that way, because unfortunately
+  thd_need_wait_reports() will hold even if parallel (or any) replication
+  is not being used. We want to be allow the user to skip
+  lock_wait_rpl_report(). */
+  const bool rpl= !(type_mode & LOCK_AUTO_INC) && trx->mysql_thd &&
+    innodb_deadlock_detect && thd_need_wait_reports(trx->mysql_thd);
+#endif
+  const bool row_lock_wait= thr->lock_state == QUE_THR_LOCK_ROW;
+  timespec abstime;
+  set_timespec_time_nsec(abstime, suspend_time.val * 1000);
+  abstime.MY_tv_sec+= innodb_lock_wait_timeout;
+  thd_wait_begin(trx->mysql_thd, (type_mode & LOCK_TABLE)
+		 ? THD_WAIT_TABLE_LOCK : THD_WAIT_ROW_LOCK);
+  dberr_t error_state= DB_SUCCESS;
+
+  mysql_mutex_lock(&lock_sys.wait_mutex);
+  if (trx->lock.wait_lock)
+  {
+    if (Deadlock::check_and_resolve(trx))
+    {
+      ut_ad(!trx->lock.wait_lock);
+      error_state= DB_DEADLOCK;
+      goto end_wait;
+    }
+  }
+  else
+    goto end_wait;
 
   if (row_lock_wait)
     lock_sys.wait_start();
 
-  int err= 0;
-  int wait_for= 0;
+#ifdef HAVE_REPLICATION
+  if (rpl)
+    lock_wait_rpl_report(trx);
+#endif
 
-  /* The wait_lock can be cleared by another thread in lock_grant(),
-  lock_rec_cancel(), or lock_cancel_waiting_and_release(). But, a wait
-  can only be initiated by the current thread which owns the transaction. */
-  if (const lock_t *wait_lock= trx->lock.wait_lock)
+  trx->error_state= DB_SUCCESS;
+
+  while (trx->lock.wait_lock)
   {
-    const auto type_mode= wait_lock->type_mode;
-    IF_WSREP(if (trx->is_wsrep()) lock_wait_wsrep(trx),);
-    mysql_mutex_unlock(&lock_sys.wait_mutex);
+    int err;
 
-    if (had_dict_lock) /* Release foreign key check latch */
-      row_mysql_unfreeze_data_dictionary(trx);
-
-    static_assert(THD_WAIT_TABLE_LOCK != 0, "compatibility");
-    static_assert(THD_WAIT_ROW_LOCK != 0, "compatibility");
-    wait_for= type_mode & LOCK_TABLE ? THD_WAIT_TABLE_LOCK : THD_WAIT_ROW_LOCK;
-
-#ifdef HAVE_REPLICATION
-    /* Even though lock_wait_rpl_report() has nothing to do with
-    deadlock detection, it was always disabled by innodb_deadlock_detect=OFF.
-    We will keep it in that way, because unfortunately
-    thd_need_wait_reports() will hold even if parallel (or any) replication
-    is not being used. We want to be allow the user to skip
-    lock_wait_rpl_report(). */
-    const bool rpl= !(type_mode & LOCK_AUTO_INC) && trx->mysql_thd &&
-      innodb_deadlock_detect && thd_need_wait_reports(trx->mysql_thd);
-#endif
-    timespec abstime;
-    set_timespec_time_nsec(abstime, suspend_time.val * 1000);
-    abstime.MY_tv_sec+= innodb_lock_wait_timeout;
-    thd_wait_begin(trx->mysql_thd, wait_for);
-
-    if (Deadlock::check_and_resolve(trx))
+    if (no_timeout)
     {
-      trx->error_state= DB_DEADLOCK;
-      goto end_wait;
+      my_cond_wait(&trx->lock.cond, &lock_sys.wait_mutex.m_mutex);
+      err= 0;
     }
-
-#ifdef HAVE_REPLICATION
-    if (rpl)
-      lock_wait_rpl_report(trx);
-#endif
-
-    while (trx->lock.wait_lock)
-    {
-      if (no_timeout)
-        my_cond_wait(&trx->lock.cond, &lock_sys.wait_mutex.m_mutex);
-      else
-        err= my_cond_timedwait(&trx->lock.cond, &lock_sys.wait_mutex.m_mutex,
-                               &abstime);
-      switch (trx->error_state) {
-      default:
-        if (trx_is_interrupted(trx))
-          /* innobase_kill_query() can only set trx->error_state=DB_INTERRUPTED
-          for any transaction that is attached to a connection. */
-          trx->error_state= DB_INTERRUPTED;
-        else if (!err)
-          continue;
-        else
-          break;
-        /* fall through */
-      case DB_DEADLOCK:
-      case DB_INTERRUPTED:
-        err= 0;
-      }
+    else
+      err= my_cond_timedwait(&trx->lock.cond, &lock_sys.wait_mutex.m_mutex,
+                             &abstime);
+    error_state= trx->error_state;
+    switch (error_state) {
+    case DB_DEADLOCK:
+    case DB_INTERRUPTED:
       break;
+    default:
+      ut_ad(error_state != DB_LOCK_WAIT_TIMEOUT);
+      if (trx_is_interrupted(trx))
+        /* innobase_kill_query() can only set trx->error_state=DB_INTERRUPTED
+        for any transaction that is attached to a connection. */
+        error_state= DB_INTERRUPTED;
+      else if (!err)
+        continue;
+#ifdef WITH_WSREP
+      else if (trx->is_wsrep() && wsrep_is_BF_lock_timeout(trx, false));
+#endif
+      else
+      {
+        error_state= DB_LOCK_WAIT_TIMEOUT;
+        lock_sys.timeouts++;
+      }
     }
+    break;
   }
-  else
-    had_dict_lock= false;
 
-end_wait:
   if (row_lock_wait)
     lock_sys.wait_resume(trx->mysql_thd, suspend_time, my_hrtime_coarse());
 
+end_wait:
   mysql_mutex_unlock(&lock_sys.wait_mutex);
-
-  if (wait_for)
-    thd_wait_end(trx->mysql_thd);
-
-  if (had_dict_lock)
-    row_mysql_freeze_data_dictionary(trx);
-
-  if (!err);
-#ifdef WITH_WSREP
-  else if (trx->is_wsrep() && wsrep_is_BF_lock_timeout(trx, false));
-#endif
-  else
-  {
-    trx->error_state= DB_LOCK_WAIT_TIMEOUT;
-    MONITOR_INC(MONITOR_TIMEOUT);
-  }
+  thd_wait_end(trx->mysql_thd);
 
   if (trx->lock.wait_lock)
   {
@@ -1837,12 +1827,16 @@ end_wait:
         lock_cancel_waiting_and_release(lock);
         trx->mutex_unlock();
       }
+      lock_sys.deadlock_check(true);
     }
-    lock_sys.deadlock_check();
     mysql_mutex_unlock(&lock_sys.wait_mutex);
   }
 
-  return trx->error_state;
+  if (had_dict_lock)
+    row_mysql_freeze_data_dictionary(trx);
+
+  trx->error_state= error_state;
+  return error_state;
 }
 
 
@@ -1854,11 +1848,9 @@ static void lock_wait_end(trx_t *trx)
   ut_ad(trx->state == TRX_STATE_ACTIVE);
   ut_ad(trx->lock.wait_thr);
 
-  if (trx->lock.was_chosen_as_deadlock_victim IF_WSREP(.fetch_and(byte(~1)),))
-  {
-    IF_WSREP(,trx->lock.was_chosen_as_deadlock_victim= false);
+  if (trx->lock.was_chosen_as_deadlock_victim.fetch_and(byte(~1)))
     trx->error_state= DB_DEADLOCK;
-  }
+
   trx->lock.wait_thr= nullptr;
   pthread_cond_signal(&trx->lock.cond);
 }
@@ -3848,7 +3840,7 @@ released:
   if (UNIV_UNLIKELY(Deadlock::to_be_checked))
   {
     mysql_mutex_lock(&lock_sys.wait_mutex);
-    lock_sys.deadlock_check();
+    lock_sys.deadlock_check(false);
     mysql_mutex_unlock(&lock_sys.wait_mutex);
   }
   trx->lock.was_chosen_as_deadlock_victim= false;
@@ -4125,10 +4117,11 @@ void lock_trx_print_wait_and_mvcc_state(FILE *file, const trx_t *trx,
 	trx->read_view.print_limits(file);
 
 	if (const lock_t* wait_lock = trx->lock.wait_lock) {
+		const my_hrtime_t suspend_time= trx->lock.suspend_time;
 		fprintf(file,
 			"------- TRX HAS BEEN WAITING %llu ns"
 			" FOR THIS LOCK TO BE GRANTED:\n",
-			now.val - trx->lock.suspend_time.val);
+			now.val - suspend_time.val);
 
 		if (!wait_lock->is_table()) {
 			mtr_t mtr;
@@ -5509,9 +5502,9 @@ lock_trx_handle_wait(
     mysql_mutex_lock(&lock_sys.wait_mutex);
     trx->mutex_lock();
     err= lock_trx_handle_wait_low(trx);
+    trx->mutex_unlock();
+    lock_sys.deadlock_check(true);
   }
-  trx->mutex_unlock();
-  lock_sys.deadlock_check();
   mysql_mutex_unlock(&lock_sys.wait_mutex);
   return err;
 }
@@ -5740,7 +5733,7 @@ namespace Deadlock
   @param current_trx whether trx belongs to the current thread
   @return the transaction to be rolled back (unless one was committed already)
   @return nullptr if no deadlock */
-  static trx_t *report(trx_t *const trx, bool current_trx= true)
+  static trx_t *report(trx_t *const trx, bool current_trx)
   {
     mysql_mutex_assert_owner(&lock_sys.wait_mutex);
     ut_ad(lock_sys.is_writer() == !current_trx);
@@ -5874,13 +5867,10 @@ namespace Deadlock
 
       ut_ad(victim->state == TRX_STATE_ACTIVE);
 
-      if (!current_trx || victim != trx)
-      {
-        victim->mutex_lock();
-        victim->lock.was_chosen_as_deadlock_victim= true;
-        lock_cancel_waiting_and_release(victim->lock.wait_lock);
-        victim->mutex_unlock();
-      }
+      victim->lock.was_chosen_as_deadlock_victim= true;
+      victim->mutex_lock();
+      lock_cancel_waiting_and_release(victim->lock.wait_lock);
+      victim->mutex_unlock();
 #ifdef WITH_WSREP
       if (victim->is_wsrep() && wsrep_thd_is_SR(victim->mysql_thd))
         wsrep_handle_SR_rollback(trx->mysql_thd, victim->mysql_thd);
@@ -5900,28 +5890,47 @@ Resolve a deadlock by choosing a transaction that will be rolled back.
 @return whether trx must report DB_DEADLOCK */
 static bool Deadlock::check_and_resolve(trx_t *trx)
 {
+  mysql_mutex_assert_owner(&lock_sys.wait_mutex);
+
   ut_ad(!trx->mutex_is_owner());
   ut_ad(trx->state == TRX_STATE_ACTIVE);
   ut_ad(!srv_read_only_mode);
 
-  mysql_mutex_lock(&lock_sys.wait_mutex);
-
   if (!innodb_deadlock_detect)
     return false;
 
-  if (UNIV_LIKELY(!find_cycle(trx)))
-    return trx->lock.was_chosen_as_deadlock_victim;
+  if (UNIV_LIKELY_NULL(find_cycle(trx)) && report(trx, true) == trx)
+    return true;
 
-  return report(trx) == trx || trx->lock.was_chosen_as_deadlock_victim;
+  if (UNIV_LIKELY(!trx->lock.was_chosen_as_deadlock_victim))
+    return false;
+
+  if (!lock_sys.wr_lock_try())
+  {
+    mysql_mutex_unlock(&lock_sys.wait_mutex);
+    lock_sys.wr_lock(SRW_LOCK_CALL);
+    mysql_mutex_lock(&lock_sys.wait_mutex);
+  }
+
+  if (lock_t *lock= trx->lock.wait_lock)
+  {
+    trx->mutex_lock();
+    lock_cancel_waiting_and_release(lock);
+    trx->mutex_unlock();
+  }
+
+  lock_sys.deadlock_check(true);
+  lock_sys.wr_unlock();
+  return true;
 }
 
 
 /** Check for deadlocks */
-void lock_sys_t::deadlock_check()
+void lock_sys_t::deadlock_check(bool locked)
 {
-  lock_sys.assert_unlocked();
+  ut_ad(lock_sys.is_writer() == locked);
   mysql_mutex_assert_owner(&lock_sys.wait_mutex);
-  bool locked= false;
+  bool acquired= false;
 
   if (Deadlock::to_be_checked)
   {
@@ -5932,10 +5941,10 @@ void lock_sys_t::deadlock_check()
         break;
       if (!locked)
       {
-        locked= lock_sys.wr_lock_try();
+        acquired= locked= lock_sys.wr_lock_try();
         if (!locked)
         {
-          locked= true;
+          acquired= locked= true;
           mysql_mutex_unlock(&lock_sys.wait_mutex);
           lock_sys.wr_lock(SRW_LOCK_CALL);
           mysql_mutex_lock(&lock_sys.wait_mutex);
@@ -5950,7 +5959,7 @@ void lock_sys_t::deadlock_check()
     Deadlock::to_be_checked= false;
   }
   ut_ad(Deadlock::to_check.empty());
-  if (locked)
+  if (acquired)
     lock_sys.wr_unlock();
 }
 

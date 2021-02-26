@@ -96,7 +96,8 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_DEFAULT_START, MONITOR_DEADLOCK},
 
 	{"lock_timeouts", "lock", "Number of lock timeouts",
-	 MONITOR_DEFAULT_ON,
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DEFAULT_ON | MONITOR_DISPLAY_CURRENT),
 	 MONITOR_DEFAULT_START, MONITOR_TIMEOUT},
 
 	{"lock_rec_lock_waits", "lock",
@@ -1882,6 +1883,9 @@ srv_mon_process_existing_counter(
 		break;
 	case MONITOR_DEADLOCK:
 		value = lock_sys.deadlocks;
+		break;
+	case MONITOR_TIMEOUT:
+		value = lock_sys.timeouts;
 		break;
 
 	default:

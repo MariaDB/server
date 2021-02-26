@@ -710,6 +710,8 @@ private:
 public:
   /** number of deadlocks detected; protected by wait_mutex */
   ulint deadlocks;
+  /** number of lock wait timeouts; protected by wait_mutex */
+  ulint timeouts;
   /**
     Constructor.
 
@@ -814,8 +816,9 @@ public:
   void close();
 
 
-  /** Check for deadlocks */
-  static void deadlock_check();
+  /** Check for deadlocks
+  @param locked lock_sys.is_writer() */
+  static void deadlock_check(bool locked);
 
 
   /** Note that a record lock wait started */

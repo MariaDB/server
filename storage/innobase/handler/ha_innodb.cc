@@ -4494,8 +4494,8 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
           lock_cancel_waiting_and_release(lock);
           trx->mutex_unlock();
         }
+        lock_sys.deadlock_check(true);
       }
-      lock_sys.deadlock_check();
       mysql_mutex_unlock(&lock_sys.wait_mutex);
     }
   }
