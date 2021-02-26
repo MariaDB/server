@@ -39,7 +39,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c crc32ieee.cc my_default.c
                                 tree.c typelib.c base64.c my_memmem.c
                                 my_getpagesize.c
                                 guess_malloc_library.c
-				lf_alloc-pin.c lf_dynarray.c lf_hash.c
+				lf_alloc-pin.c lf_dynarray.c lf_hash.cc
                                 safemalloc.c my_new.cc
 				my_getncpus.c my_safehash.c my_chmod.c my_rnd.c
                                 my_uuid.c wqueue.c waiting_threads.c ma_dyncol.c ../sql-common/my_time.c

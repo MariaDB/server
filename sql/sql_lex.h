@@ -793,7 +793,7 @@ public:
     link_next= NULL;
     link_prev= NULL;
   }
-
+  void substitute_in_tree(st_select_lex_node *subst);
 
   void set_slave(st_select_lex_node *slave_arg) { slave= slave_arg; }
   void move_node(st_select_lex_node *where_to_move)

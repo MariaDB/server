@@ -91,8 +91,8 @@ PFS_memory_stat *global_instr_class_memory_array= NULL;
 static PFS_ALIGNED PFS_cacheline_uint64 thread_internal_id_counter;
 
 /** Hash table for instrumented files. */
-LF_HASH filename_hash;
-/** True if filename_hash is initialized. */
+LF_HASH pfs_filename_hash;
+/** True if pfs_filename_hash is initialized. */
 static bool filename_hash_inited= false;
 
 my_bool show_compatibility_56= 0;
@@ -276,7 +276,7 @@ int init_file_hash(const PFS_global_param *param)
 {
   if ((! filename_hash_inited) && (param->m_file_sizing != 0))
   {
-    lf_hash_init(&filename_hash, sizeof(PFS_file*), LF_HASH_UNIQUE,
+    lf_hash_init(&pfs_filename_hash, sizeof(PFS_file*), LF_HASH_UNIQUE,
                  0, 0, filename_hash_get_key, &my_charset_bin);
     filename_hash_inited= true;
   }
@@ -288,7 +288,7 @@ void cleanup_file_hash(void)
 {
   if (filename_hash_inited)
   {
-    lf_hash_destroy(&filename_hash);
+    lf_hash_destroy(&pfs_filename_hash);
     filename_hash_inited= false;
   }
 }
@@ -722,7 +722,7 @@ void destroy_thread(PFS_thread *pfs)
 }
 
 /**
-  Get the hash pins for @c filename_hash.
+  Get the hash pins for @pfs_filename_hash.
   @param thread The running thread.
   @returns The LF_HASH pins for the thread.
 */
@@ -732,7 +732,7 @@ LF_PINS* get_filename_hash_pins(PFS_thread *thread)
   {
     if (! filename_hash_inited)
       return NULL;
-    thread->m_filename_hash_pins= lf_hash_get_pins(&filename_hash);
+    thread->m_filename_hash_pins= lf_hash_get_pins(&pfs_filename_hash);
   }
   return thread->m_filename_hash_pins;
 }
@@ -849,7 +849,7 @@ find_or_create_file(PFS_thread *thread, PFS_file_class *klass,
 search:
 
   entry= reinterpret_cast<PFS_file**>
-    (lf_hash_search(&filename_hash, pins,
+    (lf_hash_search(&pfs_filename_hash, pins,
                     normalized_filename, normalized_length));
   if (entry && (entry != MY_ERRPTR))
   {
@@ -883,7 +883,7 @@ search:
 
     int res;
     pfs->m_lock.dirty_to_allocated(& dirty_state);
-    res= lf_hash_insert(&filename_hash, pins,
+    res= lf_hash_insert(&pfs_filename_hash, pins,
                         &pfs);
     if (likely(res == 0))
     {
@@ -990,7 +990,7 @@ void find_and_rename_file(PFS_thread *thread, const char *old_filename,
 
   PFS_file **entry;
   entry= reinterpret_cast<PFS_file**>
-    (lf_hash_search(&filename_hash, pins,
+    (lf_hash_search(&pfs_filename_hash, pins,
                     normalized_filename, normalized_length));
 
   if (entry && (entry != MY_ERRPTR))
@@ -1001,7 +1001,7 @@ void find_and_rename_file(PFS_thread *thread, const char *old_filename,
     return;
   }
 
-  lf_hash_delete(&filename_hash, pins,
+  lf_hash_delete(&pfs_filename_hash, pins,
                  pfs->m_filename, pfs->m_filename_length);
 
   /*
@@ -1052,7 +1052,7 @@ void find_and_rename_file(PFS_thread *thread, const char *old_filename,
   pfs->m_filename_length= normalized_length;
 
   int res;
-  res= lf_hash_insert(&filename_hash, pins, &pfs);
+  res= lf_hash_insert(&pfs_filename_hash, pins, &pfs);
 
   if (likely(res == 0))
     return;
@@ -1095,7 +1095,7 @@ void destroy_file(PFS_thread *thread, PFS_file *pfs)
   LF_PINS *pins= get_filename_hash_pins(thread);
   DBUG_ASSERT(pins != NULL);
 
-  lf_hash_delete(&filename_hash, pins,
+  lf_hash_delete(&pfs_filename_hash, pins,
                  pfs->m_filename, pfs->m_filename_length);
   if (klass->is_singleton())
     klass->m_singleton= NULL;
