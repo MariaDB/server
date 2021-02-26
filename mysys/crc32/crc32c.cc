@@ -491,6 +491,17 @@ static int arch_ppc_probe(void) {
 
   return arch_ppc_crc32;
 }
+#elif _AIX
+static int arch_ppc_probe(void) {
+  arch_ppc_crc32 = 0;
+
+#if defined(__powerpc64__)
+  // AIX 7.1+ has vector crypto features on all POWER 8+
+  arch_ppc_crc32 = 1;
+#endif /* __powerpc64__ */
+
+  return arch_ppc_crc32;
+}
 #endif  // __linux__
 
 static bool isAltiVec() {
