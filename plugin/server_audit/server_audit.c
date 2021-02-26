@@ -819,6 +819,7 @@ enum sa_keywords
   SQLCOM_DML,
   SQLCOM_GRANT,
   SQLCOM_CREATE_USER,
+  SQLCOM_ALTER_USER,
   SQLCOM_CHANGE_MASTER,
   SQLCOM_CREATE_SERVER,
   SQLCOM_SET_OPTION,
@@ -926,6 +927,7 @@ struct sa_keyword passwd_keywords[]=
 {
   {3, "SET", &password_word, SQLCOM_SET_OPTION},
   {5, "ALTER", &server_word, SQLCOM_ALTER_SERVER},
+  {5, "ALTER", &user_word, SQLCOM_ALTER_USER},
   {5, "GRANT", 0, SQLCOM_GRANT},
   {6, "CREATE", &user_word, SQLCOM_CREATE_USER},
   {6, "CREATE", &server_word, SQLCOM_CREATE_SERVER},
@@ -1845,6 +1847,7 @@ do_log_query:
   {
     case SQLCOM_GRANT:
     case SQLCOM_CREATE_USER:
+    case SQLCOM_ALTER_USER:
       csize+= escape_string_hide_passwords(query, query_len,
                                            uh_buffer, uh_buffer_size,
                                            "IDENTIFIED", 10, "BY", 2, 0);
