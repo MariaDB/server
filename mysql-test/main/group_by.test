@@ -2041,5 +2041,28 @@ SELECT d != '2023-03-04' AS f, COUNT(*) FROM t1 GROUP BY d WITH ROLLUP;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-24710 Uninitialized value upon CREATE .. SELECT ... VALUE
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(8) NOT NULL DEFAULT '');
+INSERT INTO t1 (a) VALUES ('foo');
+CREATE TABLE t2 AS SELECT MAX(a) AS f1, a AS f2 FROM t1 WHERE VALUE(a) IS NOT NULL;
+SELECT * from t2;
+SELECT MAX(a) AS f1, a AS f2 FROM t1 WHERE VALUE(a) IS NOT NULL;
+SELECT MAX(a) AS f1, a AS f2 FROM t1 WHERE 1=0;
+drop table t1,t2;
+
+--echo # Extra test by to check the fix for MDEV-24710
+
+create table t20 (pk int primary key, a int);
+insert into t20 values (1,1);create table t21 (pk int primary key, b int not null);
+insert into t21 values (1,1);
+create table t22 (a int);
+insert into t22 values (1),(2);
+select a, (select max(t21.b) from t20 left join t21 on t21.pk=t20.a+10
+           where t20.pk=1 and rand(123) < 0.5) as SUBQ from t22;
+drop table t20, t21, t22;
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

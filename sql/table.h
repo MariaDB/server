@@ -3145,6 +3145,12 @@ inline void mark_as_null_row(TABLE *table)
     bfill(table->null_flags,table->s->null_bytes,255);
 }
 
+inline void unmark_as_null_row(TABLE *table)
+{
+  table->null_row=0;
+  table->status= STATUS_NO_RECORD;
+}
+
 bool is_simple_order(ORDER *order);
 
 class Open_tables_backup;
