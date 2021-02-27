@@ -98,6 +98,7 @@ void eprint(FILE *trace_file __attribute__ ((unused)),
   fputc('\n', trace_file);
   if (trace_file != stderr)
   {
+    va_start(args, format);
     my_printv_error(HA_ERR_INITIALIZATION, format, MYF(0), args);
   }
   va_end(args);
