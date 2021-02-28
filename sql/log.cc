@@ -7972,6 +7972,20 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
     DBUG_ASSERT(entry != NULL);
     cur= entry->thd->wait_for_commit_ptr;
   }
+#ifdef WITH_WSREP
+  if (wsrep_is_active(entry->thd) &&
+      wsrep_run_commit_hook(entry->thd, entry->all))
+  {
+    /*  Release commit order here */
+    if (wsrep_ordered_commit(entry->thd, entry->all))
+    {
+      result= -2;
+    }
+    /* return -3, if this is leader */
+    if (orig_queue == NULL)
+        result= -3;
+  }
+#endif /* WITH_WSREP */
 
 #ifdef WITH_WSREP
   if (wsrep_is_active(entry->thd) &&

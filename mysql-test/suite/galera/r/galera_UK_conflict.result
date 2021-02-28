@@ -119,12 +119,15 @@ SET debug_sync='RESET';
 connection node_1;
 SET GLOBAL wsrep_slave_threads = DEFAULT;
 connection node_2;
+SET SESSION wsrep_sync_wait=15;
 SELECT * FROM t1;
 f1	f2	f3
 1	1	0
 3	3	1
 4	4	2
 5	5	2
+7	7	7
+8	8	8
 10	10	0
 INSERT INTO t1 VALUES (7,7,7);
 INSERT INTO t1 VALUES (8,8,8);

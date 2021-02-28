@@ -346,11 +346,25 @@ bool wsrep_bf_abort(const THD* bf_thd, THD* victim_thd)
   WSREP_LOG_THD(victim_thd, "victim before");
   wsrep::seqno bf_seqno(bf_thd->wsrep_trx().ws_meta().seqno());
 
+  mysql_mutex_lock(&victim_thd->LOCK_thd_data);
   if (WSREP(victim_thd) && !victim_thd->wsrep_trx().active())
   {
-    WSREP_DEBUG("wsrep_bf_abort, BF abort for non active transaction");
-    wsrep_start_transaction(victim_thd, victim_thd->wsrep_next_trx_id());
+     WSREP_DEBUG("wsrep_bf_abort, BF abort for non active transaction");
+     switch (victim_thd->wsrep_trx().state()) {
+     case wsrep::transaction::s_aborting: /* fall through */
+     case wsrep::transaction::s_aborted:
+       WSREP_DEBUG("victim is aborting or has aborted");
+       mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
+      return false;
+     default: break;
+     }
+     /* the need to start wsrep transaction for BF aborting should be obsolete now
+        using debug assert to confirm this by testing
+      */
+     DBUG_ASSERT(0);
+     wsrep_start_transaction(victim_thd, victim_thd->wsrep_next_trx_id());
   }
+  mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
 
   bool ret;
   if (wsrep_thd_is_toi(bf_thd))

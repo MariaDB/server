@@ -266,6 +266,7 @@ SET debug_sync='RESET';
 SET GLOBAL wsrep_slave_threads = DEFAULT;
 
 --connection node_2
+SET SESSION wsrep_sync_wait=15;
 SELECT * FROM t1;
 
 # replicate some transactions, so that wsrep slave thread count can reach
