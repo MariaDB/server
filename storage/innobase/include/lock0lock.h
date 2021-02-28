@@ -859,6 +859,11 @@ public:
   @param id   page to be discarded
   @param page whether to discard also from lock_sys.prdt_hash */
   void prdt_page_free_from_discard(const page_id_t id, bool all= false);
+
+#ifdef WITH_WSREP
+  /** Cancel possible lock waiting for a transaction */
+  static void cancel_lock_wait_for_trx(trx_t *trx);
+#endif /* WITH_WSREP */
 };
 
 /** The lock system */

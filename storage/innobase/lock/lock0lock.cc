@@ -921,8 +921,13 @@ func_exit:
     dict_table_t *table= wait_lock->un_member.tab_lock.table;
     for (lock_t *lock= UT_LIST_GET_FIRST(table->locks); lock;
          lock= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock))
-      if (lock->trx != trx)
+      /* if victim has also BF status, but has earlier seqno, we have to wait */
+      if (lock->trx != trx &&
+          !(wsrep_thd_is_BF(lock->trx->mysql_thd, false) &&
+            wsrep_thd_order_before(lock->trx->mysql_thd, trx->mysql_thd)))
+      {
         victims.emplace(lock->trx);
+      }
   }
   else
   {
@@ -936,8 +941,13 @@ func_exit:
       if (!lock_rec_get_nth_bit(lock, heap_no))
         lock= lock_rec_get_next(heap_no, lock);
       do
-        if (lock->trx != trx)
+        /* if victim has also BF status, but has earlier seqno, we have to wait */
+        if (lock->trx != trx &&
+            !(wsrep_thd_is_BF(lock->trx->mysql_thd, false) &&
+              wsrep_thd_order_before(lock->trx->mysql_thd, trx->mysql_thd)))
+        {
           victims.emplace(lock->trx);
+        }
       while ((lock= lock_rec_get_next(heap_no, lock)));
     }
   }
@@ -5362,6 +5372,21 @@ static void lock_cancel_waiting_and_release(lock_t *lock)
   lock_wait_end(trx);
   trx->mutex_unlock();
 }
+#ifdef WITH_WSREP
+void lock_sys_t::cancel_lock_wait_for_trx(trx_t *trx)
+{
+  lock_sys.wr_lock(SRW_LOCK_CALL);
+  mysql_mutex_lock(&lock_sys.wait_mutex);
+  if (lock_t *lock= trx->lock.wait_lock)
+  {
+    /* check if victim is still waiting */
+    if (lock->is_waiting())
+      lock_cancel_waiting_and_release(lock);
+  }
+  lock_sys.wr_unlock();
+  mysql_mutex_unlock(&lock_sys.wait_mutex);
+}
+#endif /* WITH_WSREP */
 
 /** Cancel a waiting lock request.
 @param lock   waiting lock request
@@ -5758,8 +5783,15 @@ namespace Deadlock
     If current_trx=false, a concurrent commit is protected by both
     lock_sys.latch and lock_sys.wait_mutex. */
     const undo_no_t trx_weight= TRX_WEIGHT(trx) |
-      (trx->mysql_thd && thd_has_edited_nontrans_tables(trx->mysql_thd)
+      (trx->mysql_thd &&
+#ifdef WITH_WSREP
+       (thd_has_edited_nontrans_tables(trx->mysql_thd) ||
+        (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, false)))
+#else
+       thd_has_edited_nontrans_tables(trx->mysql_thd)
+#endif /* WITH_WSREP */
        ? 1ULL << 63 : 0);
+
     trx_t *victim= nullptr;
     undo_no_t victim_weight= ~0ULL;
     unsigned victim_pos= 0, trx_pos= 0;
@@ -5782,7 +5814,13 @@ namespace Deadlock
       {
         next= next->lock.wait_trx;
         const undo_no_t next_weight= TRX_WEIGHT(next) |
-          (next->mysql_thd && thd_has_edited_nontrans_tables(next->mysql_thd)
+          (next->mysql_thd &&
+#ifdef WITH_WSREP
+           (thd_has_edited_nontrans_tables(next->mysql_thd) ||
+            (next->is_wsrep() && wsrep_thd_is_BF(next->mysql_thd, false)))
+#else
+           thd_has_edited_nontrans_tables(next->mysql_thd)
+#endif /* WITH_WSREP */
            ? 1ULL << 63 : 0);
         if (next_weight < victim_weight)
         {

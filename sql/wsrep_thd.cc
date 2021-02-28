@@ -348,8 +348,23 @@ bool wsrep_bf_abort(const THD* bf_thd, THD* victim_thd)
 
   if (WSREP(victim_thd) && !victim_thd->wsrep_trx().active())
   {
-    WSREP_DEBUG("wsrep_bf_abort, BF abort for non active transaction");
-    wsrep_start_transaction(victim_thd, victim_thd->wsrep_next_trx_id());
+    WSREP_DEBUG("wsrep_bf_abort, BF abort for non active transaction."
+                " Victim state %s bf state %s",
+                wsrep::to_c_string(victim_thd->wsrep_trx().state()),
+                wsrep::to_c_string(bf_thd->wsrep_trx().state()));
+
+    switch (victim_thd->wsrep_trx().state()) {
+    case wsrep::transaction::s_aborting: /* fall through */
+    case wsrep::transaction::s_aborted:
+      WSREP_DEBUG("victim is aborting or has aborted");
+      break;
+    default: break;
+    }
+    /* victim may not have started transaction yet in wsrep context, but it may
+       have acquired MDL locks (due to DDL execution), and this has caused BF conflict.
+       such case does not require aborting in wsrep or replication provider state.
+    */
+    return false;
   }
 
   bool ret;
@@ -359,6 +374,7 @@ bool wsrep_bf_abort(const THD* bf_thd, THD* victim_thd)
   }
   else
   {
+    DBUG_ASSERT(WSREP(victim_thd) ? victim_thd->wsrep_trx().active() : 1);
     ret= victim_thd->wsrep_cs().bf_abort(bf_seqno);
   }
   if (ret)
