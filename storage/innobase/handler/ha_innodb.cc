@@ -2688,8 +2688,7 @@ the query cache.
 @param[in]	trx	transaction object
 @return whether the storing or retrieving from the query cache is permitted */
 static bool innobase_query_caching_table_check_low(
-	const dict_table_t*	table,
-	trx_t*			trx)
+	dict_table_t* table, trx_t* trx)
 {
 	/* The following conditions will decide the query cache
 	retrieval or storing into:
@@ -2714,8 +2713,10 @@ static bool innobase_query_caching_table_check_low(
 		return false;
 	}
 
-	LockMutexGuard g{SRW_LOCK_CALL};
-	return UT_LIST_GET_LEN(table->locks) == 0;
+	table->lock_mutex_lock();
+	auto len= UT_LIST_GET_LEN(table->locks);
+	table->lock_mutex_unlock();
+	return len == 0;
 }
 
 /** Checks if MySQL at the moment is allowed for this table to retrieve a
@@ -4483,21 +4484,7 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
       DBUG_VOID_RETURN;
 #endif /* WITH_WSREP */
     if (trx->lock.wait_lock)
-    {
-      {
-        LockMutexGuard g{SRW_LOCK_CALL};
-        mysql_mutex_lock(&lock_sys.wait_mutex);
-        if (lock_t *lock= trx->lock.wait_lock)
-        {
-          trx->mutex_lock();
-          trx->error_state= DB_INTERRUPTED;
-          lock_cancel_waiting_and_release(lock);
-          trx->mutex_unlock();
-        }
-        lock_sys.deadlock_check(true);
-      }
-      mysql_mutex_unlock(&lock_sys.wait_mutex);
-    }
+      lock_sys_t::cancel(trx);
   }
 
   DBUG_VOID_RETURN;

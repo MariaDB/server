@@ -504,15 +504,9 @@ lock_rec_get_index(
 /*===============*/
 	const lock_t*	lock);	/*!< in: lock */
 
-/*******************************************************************//**
-Check if there are any locks (table or rec) against table.
-@return TRUE if locks exist */
-bool
-lock_table_has_locks(
-/*=================*/
-	const dict_table_t*	table);	/*!< in: check if there are any locks
-					held on records in this table or on the
-					table itself */
+/** Check if there are any locks on a table.
+@return true if table has either table or record locks. */
+bool lock_table_has_locks(dict_table_t *table);
 
 /** Wait for a lock to be released.
 @retval DB_DEADLOCK if this transaction was chosen as the deadlock victim
@@ -528,15 +522,15 @@ void
 lock_unlock_table_autoinc(
 /*======================*/
 	trx_t*	trx);			/*!< in/out: transaction */
-/*********************************************************************//**
-Check whether the transaction has already been rolled back because it
-was selected as a deadlock victim, or if it has to wait then cancel
-the wait lock.
-@return DB_DEADLOCK, DB_LOCK_WAIT or DB_SUCCESS */
-dberr_t
-lock_trx_handle_wait(
-/*=================*/
-	trx_t*	trx);	/*!< in/out: trx lock state */
+
+/** Handle a pending lock wait (DB_LOCK_WAIT) in a semi-consistent read
+while holding a clustered index leaf page latch.
+@param trx           transaction that is or was waiting for a lock
+@retval DB_SUCCESS   if the lock was granted
+@retval DB_DEADLOCK  if the transaction must be aborted due to a deadlock
+@retval DB_LOCK_WAIT if a lock wait would be necessary; the pending
+                     lock request was released */
+dberr_t lock_trx_handle_wait(trx_t *trx);
 
 /*********************************************************************//**
 Checks that a transaction id is sensible, i.e., not in the future.
@@ -775,6 +769,16 @@ public:
                            std::memory_order_relaxed));
     return true;
   }
+  /** Try to acquire shared lock_sys.latch
+  @return whether the latch was acquired */
+  bool rd_lock_try()
+  {
+    ut_ad(!is_writer());
+    if (!latch.rd_lock_try()) return false;
+    ut_ad(!writer.load(std::memory_order_relaxed));
+    ut_d(readers.fetch_add(1, std::memory_order_relaxed));
+    return true;
+  }
 
   /** Assert that wr_lock() has been invoked by this thread */
   void assert_locked() const { ut_ad(is_writer()); }
@@ -816,10 +820,15 @@ public:
   void close();
 
 
-  /** Check for deadlocks
-  @param locked lock_sys.is_writer() */
-  static void deadlock_check(bool locked);
+  /** Check for deadlocks while holding only lock_sys.wait_mutex. */
+  void deadlock_check();
 
+  /** Cancel a waiting lock request.
+  @param lock   waiting lock request
+  @param trx    active transaction */
+  static void cancel(trx_t *trx, lock_t *lock);
+  /** Cancel a waiting lock request (if any) when killing a transaction */
+  static void cancel(trx_t *trx);
 
   /** Note that a record lock wait started */
   inline void wait_start();
@@ -1033,9 +1042,6 @@ lock_rtr_move_rec_list(
 	rtr_rec_move_t*		rec_move,	/*!< in: recording records
 						moved */
 	ulint			num_move);	/*!< in: num of rec to move */
-
-/** Cancel a waiting lock request and release possibly waiting transactions */
-void lock_cancel_waiting_and_release(lock_t *lock);
 
 #include "lock0lock.ic"
 
