@@ -7759,7 +7759,7 @@ static bool mysql_inplace_alter_table(THD *thd,
     Rename to the new name (if needed) will be handled separately below.
 
     TODO: remove this check of thd->is_error() (now it intercept
-    errors in some val_*() methoids and bring some single place to
+    errors in some val_*() methods and bring some single place to
     such error interception).
   */
   if (mysql_rename_table(db_type, &alter_ctx->new_db, &alter_ctx->tmp_name,
