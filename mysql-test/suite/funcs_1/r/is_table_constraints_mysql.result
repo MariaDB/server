@@ -14,6 +14,7 @@ def	mysql	PRIMARY	mysql	event	PRIMARY KEY
 def	mysql	PRIMARY	mysql	func	PRIMARY KEY
 def	mysql	PRIMARY	mysql	global_priv	PRIMARY KEY
 def	mysql	Priv	mysql	global_priv	CHECK
+def	mysql	Priv	mysql	global_priv	CHECK
 def	mysql	PRIMARY	mysql	gtid_slave_pos	PRIMARY KEY
 def	mysql	name	mysql	help_category	UNIQUE
 def	mysql	PRIMARY	mysql	help_category	PRIMARY KEY

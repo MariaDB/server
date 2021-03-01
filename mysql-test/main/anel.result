@@ -1,0 +1,61 @@
+#
+# MDEV-24602: cannot specify a name for a column check constraint
+#
+create table t(check (t>0),
+t int, constraint check(t>1), constraint t_named check(t>2));
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `t` int(11) DEFAULT NULL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (`t` > 0),
+  CONSTRAINT `CONSTRAINT_2` CHECK (`t` > 1),
+  CONSTRAINT `t_named` CHECK (`t` > 2)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t;
+create table t(t0 int,
+t1 int check (t1>0),
+t2 int constraint check(t2>0),
+t3 int constraint t_field check(t3>0));
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `t0` int(11) DEFAULT NULL,
+  `t1` int(11) DEFAULT NULL CHECK (`t1` > 0),
+  `t2` int(11) DEFAULT NULL CHECK (`t2` > 0),
+  `t3` int(11) DEFAULT NULL CHECK (`t3` > 0),
+  CONSTRAINT `t1` CHECK (`t1` > 0),
+  CONSTRAINT `t2` CHECK (`t2` > 0),
+  CONSTRAINT `t_field` CHECK (`t3` > 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t;
+create table t(t0 int,
+t1 int check (t1>0),
+t2 int constraint check(t2>0),
+t3 int constraint t_field check(t3>0),
+t4 int constraint t_field check(t4>0));
+ERROR HY000: Duplicate CHECK constraint name 't_field'
+#
+# MDEV-24598: duplicate CHECK constraint name
+#
+create table t(constraint t check(t>0), t int check(t<0));
+ERROR HY000: Duplicate CHECK constraint name 't'
+create table t(check(t>0), t int constraint CONSTRAINT_1 check(t<0));
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `t` int(11) DEFAULT NULL CHECK (`t` < 0),
+  CONSTRAINT `CONSTRAINT_2` CHECK (`t` > 0),
+  CONSTRAINT `CONSTRAINT_1` CHECK (`t` < 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t;
+create table t(check(t>0), t int constraint CONSTRAINT_2 check(t<0));
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `t` int(11) DEFAULT NULL CHECK (`t` < 0),
+  CONSTRAINT `CONSTRAINT_1` CHECK (`t` > 0),
+  CONSTRAINT `CONSTRAINT_2` CHECK (`t` < 0)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t;
+create table t (a int check (a>2), constraint a check (a < 5));
+ERROR HY000: Duplicate CHECK constraint name 'a'

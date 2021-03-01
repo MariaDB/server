@@ -49,6 +49,7 @@ def	foo	t1	CHK_tt	`tt` < 100
 def	foo	t1	CONSTRAINT_1	`tt` > 32
 def	foo	t1	CONSTRAINT_2	`tt` < 50
 def	foo	t1	t	`t` > 2
+def	foo	t1	t	`t` > 2
 ALTER TABLE t1
 DROP CONSTRAINT CHK_tt;
 SELECT * from information_schema.check_constraints;
@@ -57,6 +58,7 @@ def	foo	t0	CONSTRAINT_1	`t` > 32
 def	foo	t0	CONSTRAINT_2	`t` < 50
 def	foo	t1	CONSTRAINT_1	`tt` > 32
 def	foo	t1	CONSTRAINT_2	`tt` < 50
+def	foo	t1	t	`t` > 2
 def	foo	t1	t	`t` > 2
 CREATE TABLE t2
 (
@@ -72,7 +74,9 @@ def	foo	t0	CONSTRAINT_2	`t` < 50
 def	foo	t1	CONSTRAINT_1	`tt` > 32
 def	foo	t1	CONSTRAINT_2	`tt` < 50
 def	foo	t1	t	`t` > 2
+def	foo	t1	t	`t` > 2
 def	foo	t2	CHK_dates	`start_date` is null
+def	foo	t2	name	char_length(`name`) > 2
 def	foo	t2	name	char_length(`name`) > 2
 ALTER TABLE t1
 ADD CONSTRAINT CHK_new_ CHECK(t>tt);
@@ -84,13 +88,15 @@ def	foo	t1	CHK_new_	`t` > `tt`
 def	foo	t1	CONSTRAINT_1	`tt` > 32
 def	foo	t1	CONSTRAINT_2	`tt` < 50
 def	foo	t1	t	`t` > 2
+def	foo	t1	t	`t` > 2
 def	foo	t2	CHK_dates	`start_date` is null
+def	foo	t2	name	char_length(`name`) > 2
 def	foo	t2	name	char_length(`name`) > 2
 CREATE TABLE t3
 (
 a int,
 b int check (b>0), # field constraint named 'b'
-CONSTRAINT b check (b>10), # table constraint
+CONSTRAINT bb check (b>10), # table constraint
 # `CHECK_CLAUSE` should allow more then `var(64)` constraints
 CONSTRAINT b1 check (b<123456789012345678901234567890123456789012345678901234567890123456789)
 ) ENGINE=InnoDB;
@@ -102,11 +108,14 @@ def	foo	t1	CHK_new_	`t` > `tt`
 def	foo	t1	CONSTRAINT_1	`tt` > 32
 def	foo	t1	CONSTRAINT_2	`tt` < 50
 def	foo	t1	t	`t` > 2
+def	foo	t1	t	`t` > 2
 def	foo	t2	CHK_dates	`start_date` is null
 def	foo	t2	name	char_length(`name`) > 2
+def	foo	t2	name	char_length(`name`) > 2
 def	foo	t3	b	`b` > 0
-def	foo	t3	b	`b` > 10
+def	foo	t3	b	`b` > 0
 def	foo	t3	b1	`b` < 123456789012345678901234567890123456789012345678901234567890123456789
+def	foo	t3	bb	`b` > 10
 disconnect con1;
 CONNECT con2, localhost, boo2,, test;
 SELECT * from information_schema.check_constraints;
@@ -138,6 +147,7 @@ GRANT SELECT (a) ON `db`.`t1` TO `foo`@`%`
 SELECT * FROM information_schema.check_constraints;
 CONSTRAINT_CATALOG	CONSTRAINT_SCHEMA	TABLE_NAME	CONSTRAINT_NAME	CHECK_CLAUSE
 def	db	t1	CONSTRAINT_1	`b` > 0
+def	mysql	global_priv	Priv	json_valid(`Priv`)
 def	mysql	global_priv	Priv	json_valid(`Priv`)
 CONNECT con1,localhost, foo,, db;
 SELECT a FROM t1;

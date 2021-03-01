@@ -1,0 +1,42 @@
+--echo #
+--echo # MDEV-24602: cannot specify a name for a column check constraint
+--echo #
+
+# Table constraints (unnamed and named)
+create table t(check (t>0),
+               t int, constraint check(t>1), constraint t_named check(t>2));
+show create table t;
+drop table t;
+# Field constraints (with and without the names)
+create table t(t0 int,
+               t1 int check (t1>0),
+               t2 int constraint check(t2>0),
+               t3 int constraint t_field check(t3>0));
+show create table t;
+drop table t;
+--error ER_DUP_CONSTRAINT_NAME
+create table t(t0 int,
+               t1 int check (t1>0),
+               t2 int constraint check(t2>0),
+               t3 int constraint t_field check(t3>0),
+               t4 int constraint t_field check(t4>0));
+
+--echo #
+--echo # MDEV-24598: duplicate CHECK constraint name
+--echo #
+
+# Check table/field constraints with the same names
+--error ER_DUP_CONSTRAINT_NAME
+create table t(constraint t check(t>0), t int check(t<0));
+# We know that table check constraints is called `CONSTRAINT_1`, let's add the 
+# same for the field constraint.
+create table t(check(t>0), t int constraint CONSTRAINT_1 check(t<0));
+show create table t;
+drop table t;
+# Now vice versa
+create table t(check(t>0), t int constraint CONSTRAINT_2 check(t<0));
+show create table t;
+drop table t;
+
+--error ER_DUP_CONSTRAINT_NAME
+create table t (a int check (a>2), constraint a check (a < 5));

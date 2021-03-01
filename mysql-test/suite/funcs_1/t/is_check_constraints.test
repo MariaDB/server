@@ -69,7 +69,7 @@ CREATE TABLE t3
 (
 a int,
 b int check (b>0), # field constraint named 'b'
-CONSTRAINT b check (b>10), # table constraint
+CONSTRAINT bb check (b>10), # table constraint
 # `CHECK_CLAUSE` should allow more then `var(64)` constraints
 CONSTRAINT b1 check (b<123456789012345678901234567890123456789012345678901234567890123456789)
 ) ENGINE=InnoDB;

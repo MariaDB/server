@@ -333,7 +333,7 @@ static_assert(sizeof(YYSTYPE) == sizeof(void*)*2+8, "%union size check");
 bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %}
 
-%pure-parser                                    /* We have threads */
+%define api.pure                                    /* We have threads */
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
@@ -1244,7 +1244,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
    and until NEXT_SYM / PREVIOUS_SYM.
 */
 %left   PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE
-%left   TRANSACTION_SYM TIMESTAMP PERIOD_SYM SYSTEM USER COMMENT_SYM
+%left   TRANSACTION_SYM TIMESTAMP PERIOD_SYM SYSTEM USER COMMENT_SYM CONSTRAINT
 
 
 /*
@@ -5943,9 +5943,14 @@ period_for_application_time:
           }
         ;
 
+
 opt_check_constraint:
-          /* empty */      { $$= (Virtual_column_info*) 0; }
-        | check_constraint { $$= $1;}
+          /* empty */      { $$= (Virtual_column_info*) 0; } %prec PREC_BELOW_IDENTIFIER_OPT_SPECIAL_CASE
+        | opt_constraint check_constraint
+          {
+            $$= $2;
+            Lex->add_constraint($1, $2, FALSE);
+          }
         ;
 
 check_constraint:
