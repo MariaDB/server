@@ -1228,21 +1228,8 @@ trx_flush_log_if_needed(
 /** Process tables that were modified by the committing transaction. */
 inline void trx_t::commit_tables()
 {
-  if (mod_tables.empty())
-    return;
-
-  if (undo_no)
+  if (undo_no && !mod_tables.empty())
   {
-#if defined SAFE_MUTEX && defined UNIV_DEBUG
-    const bool preserve_tables= !innodb_evict_tables_on_commit_debug ||
-      is_recovered || /* avoid trouble with XA recovery */
-# if 1 /* if dict_stats_exec_sql() were not playing dirty tricks */
-      dict_sys.mutex_is_locked();
-# else /* this would be more proper way to do it */
-      dict_operation_lock_mode || dict_operation;
-# endif
-#endif
-
     const trx_id_t max_trx_id= trx_sys.get_max_trx_id();
     const auto now= start_time;
 
@@ -1251,22 +1238,6 @@ inline void trx_t::commit_tables()
       dict_table_t *table= p.first;
       table->update_time= now;
       table->query_cache_inv_trx_id= max_trx_id;
-
-#if defined SAFE_MUTEX && defined UNIV_DEBUG
-      if (preserve_tables || table->get_ref_count() || table->is_temporary() ||
-          UT_LIST_GET_LEN(table->locks))
-        /* do not evict when committing DDL operations or if some other
-        transaction is holding the table handle */
-        continue;
-      /* recheck while holding the mutex that blocks table->acquire() */
-      dict_sys.mutex_lock();
-      {
-        LockMutexGuard g{SRW_LOCK_CALL};
-        if (!table->get_ref_count() && !UT_LIST_GET_LEN(table->locks))
-          dict_sys.remove(table, true);
-      }
-      dict_sys.mutex_unlock();
-#endif
     }
   }
 }
@@ -1349,16 +1320,9 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
       so that there will be no race condition in lock_release(). */
       while (UNIV_UNLIKELY(is_referenced()))
         ut_delay(srv_spin_wait_delay);
-      release_locks();
-      id= 0;
     }
     else
-    {
       ut_ad(read_only || !rsegs.m_redo.rseg);
-      release_locks();
-    }
-
-    DEBUG_SYNC_C("after_trx_committed_in_memory");
 
     if (read_only || !rsegs.m_redo.rseg)
     {
@@ -1370,6 +1334,11 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
       MONITOR_INC(MONITOR_TRX_RW_COMMIT);
       is_recovered= false;
     }
+
+    release_locks();
+    id= 0;
+
+    DEBUG_SYNC_C("after_trx_committed_in_memory");
 
     while (dict_table_t *table= UT_LIST_GET_FIRST(lock.evicted_tables))
     {

@@ -3796,6 +3796,18 @@ restart:
 and release possible other transactions waiting because of these locks. */
 void lock_release(trx_t *trx)
 {
+#if defined SAFE_MUTEX && defined UNIV_DEBUG
+  std::set<table_id_t> to_evict;
+  if (innodb_evict_tables_on_commit_debug && !trx->is_recovered)
+# if 1 /* if dict_stats_exec_sql() were not playing dirty tricks */
+    if (!dict_sys.mutex_is_locked())
+# else /* this would be more proper way to do it */
+    if (!trx->dict_operation_lock_mode && !trx->dict_operation)
+# endif
+      for (const auto& p: trx->mod_tables)
+        if (!p.first->is_temporary())
+          to_evict.emplace(p.first->id);
+#endif
   ulint count;
 
   for (count= 5; count--; )
@@ -3848,6 +3860,20 @@ released:
 
   trx->lock.was_chosen_as_deadlock_victim= false;
   trx->lock.n_rec_locks= 0;
+
+#if defined SAFE_MUTEX && defined UNIV_DEBUG
+  if (to_evict.empty())
+    return;
+  dict_sys.mutex_lock();
+  LockMutexGuard g{SRW_LOCK_CALL};
+  for (const table_id_t id : to_evict)
+  {
+    if (dict_table_t *table= dict_sys.get_table(id))
+      if (!table->get_ref_count() && !UT_LIST_GET_LEN(table->locks))
+        dict_sys.remove(table, true);
+  }
+  dict_sys.mutex_unlock();
+#endif
 }
 
 /*********************************************************************//**
