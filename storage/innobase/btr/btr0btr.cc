@@ -4519,6 +4519,18 @@ btr_index_rec_validate(
 
 		rec_get_nth_field_offs(offsets, i, &len);
 
+		if (rec_offs_nth_extern(offsets, i)) {
+
+			const byte* data = rec_get_nth_field(
+				rec, offsets, i, &len);
+			len -= BTR_EXTERN_FIELD_REF_SIZE;
+			ulint extern_len = mach_read_from_4(
+				data + len + BTR_EXTERN_LEN + 4);
+			if (fixed_size == extern_len) {
+				continue;
+			}
+		}
+
 		/* Note that if fixed_size != 0, it equals the
 		length of a fixed-size column in the clustered index.
 		We should adjust it here.
