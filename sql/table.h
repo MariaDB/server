@@ -22,6 +22,7 @@
 #include "datadict.h"
 #include "sql_string.h"                         /* String */
 #include "lex_string.h"
+#include "span.h"
 
 #ifndef MYSQL_CLIENT
 
@@ -1864,8 +1865,8 @@ public:
   Lex_cstring referenced_table;
   enum_fk_option update_method;
   enum_fk_option delete_method;
-  List<Lex_cstring> foreign_fields;
-  List<Lex_cstring> referenced_fields;
+  st_::span<Lex_cstring> foreign_fields;
+  st_::span<Lex_cstring> referenced_fields;
 
 public:
   FK_info() :
@@ -1887,7 +1888,8 @@ public:
     // TODO: keep NULL in referenced_table for self-refs
     return 0 == cmp_table(referenced_table, foreign_table);
   }
-  bool assign(Foreign_key &fk, Table_name table);
+  bool alloc(MEM_ROOT *mem_root, size_t size);
+  void assign(Foreign_key &fk, Table_name table);
   FK_info * clone(MEM_ROOT *mem_root) const;
   Table_name for_table(MEM_ROOT *mem_root, bool copy= false) const;
   Table_name ref_table(MEM_ROOT *mem_root, bool copy= false) const;
