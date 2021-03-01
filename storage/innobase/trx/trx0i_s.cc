@@ -618,7 +618,6 @@ fill_lock_data(
 	const buf_block_t*	block;
 	const page_t*		page;
 	const rec_t*		rec;
-	const dict_index_t*	index;
 	ulint			n_fields;
 	mem_heap_t*		heap;
 	rec_offs		offsets_onstack[REC_OFFS_NORMAL_SIZE];
@@ -647,7 +646,8 @@ fill_lock_data(
 
 	rec = page_find_rec_with_heap_no(page, heap_no);
 
-	index = lock_rec_get_index(lock);
+	const dict_index_t* index = lock->index;
+	ut_ad(index->is_primary() || !dict_index_is_online_ddl(index));
 
 	n_fields = dict_index_get_n_unique(index);
 
@@ -689,6 +689,15 @@ fill_lock_data(
 	return(TRUE);
 }
 
+/** @return the table of a lock */
+static const dict_table_t *lock_get_table(const lock_t &lock)
+{
+  if (lock.is_table())
+    return lock.un_member.tab_lock.table;
+  ut_ad(lock.index->is_primary() || !dict_index_is_online_ddl(lock.index));
+  return lock.index->table;
+}
+
 /*******************************************************************//**
 Fills i_s_locks_row_t object. Returns its first argument.
 If memory can not be allocated then FALSE is returned.
@@ -703,9 +712,8 @@ static bool fill_locks_row(
 				volatile strings */
 {
 	row->lock_trx_id = lock->trx->id;
-	const bool is_table = lock->is_table();
 	const bool is_gap_lock = lock->is_gap();
-	ut_ad(!is_gap_lock || !is_table);
+	ut_ad(!is_gap_lock || !lock->is_table());
 	switch (lock->mode()) {
 	case LOCK_S:
 		row->lock_mode = uint8_t(1 + is_gap_lock);
@@ -727,8 +735,10 @@ static bool fill_locks_row(
 		row->lock_mode = 0;
 	}
 
+	const dict_table_t* table= lock_get_table(*lock);
+
 	row->lock_table = ha_storage_put_str_memlim(
-		cache->storage, lock_get_table_name(lock).m_name,
+		cache->storage, table->name.m_name,
 		MAX_ALLOWED_FOR_STORAGE(cache));
 
 	/* memory could not be allocated */
@@ -737,9 +747,9 @@ static bool fill_locks_row(
 		return false;
 	}
 
-	if (!is_table) {
+	if (!lock->is_table()) {
 		row->lock_index = ha_storage_put_str_memlim(
-			cache->storage, lock_rec_get_index(lock)->name,
+			cache->storage, lock->index->name,
 			MAX_ALLOWED_FOR_STORAGE(cache));
 
 		/* memory could not be allocated */
@@ -765,7 +775,7 @@ static bool fill_locks_row(
 		row->lock_data = NULL;
 	}
 
-	row->lock_table_id = lock_get_table_id(lock);
+	row->lock_table_id = table->id;
 
 	row->hash_chain.value = row;
 	ut_ad(i_s_locks_row_validate(row));
@@ -832,7 +842,7 @@ fold_lock(
 		it fails. */
 		ut_a(heap_no == 0xFFFF);
 
-		ret = (ulint) lock_get_table_id(lock);
+		ret = (ulint) lock_get_table(*lock)->id;
 	}
 
 	return(ret);
@@ -869,7 +879,7 @@ locks_row_eq_lock(
 		ut_a(heap_no == 0xFFFF);
 
 		return(row->lock_trx_id == lock->trx->id
-		       && row->lock_table_id == lock_get_table_id(lock));
+		       && row->lock_table_id == lock_get_table(*lock)->id);
 	}
 #endif
 }

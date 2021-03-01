@@ -5359,60 +5359,6 @@ static void lock_release_autoinc_locks(trx_t *trx, bool owns_wait_mutex)
   }
 }
 
-/*******************************************************************//**
-Gets the table on which the lock is.
-@return table */
-UNIV_INLINE
-dict_table_t*
-lock_get_table(
-/*===========*/
-	const lock_t*	lock)	/*!< in: lock */
-{
-  if (lock->is_table())
-    return lock->un_member.tab_lock.table;
-
-  ut_ad(lock->index->is_primary() || !dict_index_is_online_ddl(lock->index));
-  return lock->index->table;
-}
-
-/*******************************************************************//**
-Gets the id of the table on which the lock is.
-@return id of the table */
-table_id_t
-lock_get_table_id(
-/*==============*/
-	const lock_t*	lock)	/*!< in: lock */
-{
-	dict_table_t* table = lock_get_table(lock);
-	ut_ad(!table->is_temporary());
-	return(table->id);
-}
-
-/** Determine which table a lock is associated with.
-@param[in]	lock	the lock
-@return name of the table */
-const table_name_t&
-lock_get_table_name(
-	const lock_t*	lock)
-{
-	return(lock_get_table(lock)->name);
-}
-
-/*******************************************************************//**
-For a record lock, gets the index on which the lock is.
-@return index */
-const dict_index_t*
-lock_rec_get_index(
-/*===============*/
-	const lock_t*	lock)	/*!< in: lock */
-{
-  ut_ad(!lock->is_table());
-  ut_ad(dict_index_is_clust(lock->index) ||
-        !dict_index_is_online_ddl(lock->index));
-
-  return lock->index;
-}
-
 /** Cancel a waiting lock request and release possibly waiting transactions */
 static void lock_cancel_waiting_and_release(lock_t *lock)
 {

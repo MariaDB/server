@@ -481,29 +481,6 @@ lock_number_of_tables_locked(
 	const trx_lock_t*	trx_lock)	/*!< in: transaction locks */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/*******************************************************************//**
-Gets the id of the table on which the lock is.
-@return id of the table */
-table_id_t
-lock_get_table_id(
-/*==============*/
-	const lock_t*	lock);	/*!< in: lock */
-
-/** Determine which table a lock is associated with.
-@param[in]	lock	the lock
-@return name of the table */
-const table_name_t&
-lock_get_table_name(
-	const lock_t*	lock);
-
-/*******************************************************************//**
-For a record lock, gets the index on which the lock is.
-@return index */
-const dict_index_t*
-lock_rec_get_index(
-/*===============*/
-	const lock_t*	lock);	/*!< in: lock */
-
 /** Check if there are any locks on a table.
 @return true if table has either table or record locks. */
 bool lock_table_has_locks(dict_table_t *table);
