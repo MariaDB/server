@@ -4634,6 +4634,9 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
   }
   else
   {
+    if (thd->lex->describe)
+      select_options|= SELECT_DESCRIBE;
+
     /*
       When in EXPLAIN, delay deleting the joins so that they are still
       available when we're producing EXPLAIN EXTENDED warning text.
