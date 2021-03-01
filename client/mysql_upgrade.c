@@ -591,7 +591,7 @@ static int run_query(const char *query, DYNAMIC_STRING *ds_res,
                 defaults_file,
                 "--database=mysql",
                 "--batch", /* Turns off pager etc. */
-                opt_verbose >= 4 ? "--verbose" : "",
+                opt_verbose >= 5 ? "--verbose" : "",
                 force ? "--force": "--skip-force",
                 ds_res || opt_silent ? "--silent": "",
                 "<",
