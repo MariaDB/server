@@ -17224,7 +17224,13 @@ Field *Item::create_field_for_schema(THD *thd, TABLE *table)
                        the record in the original table.
                        If modify_item is 0 then fill_record() will update
                        the temporary table
-
+  @param table_cant_handle_bit_fields
+                       Set to 1 if the temporary table cannot handle bit
+                       fields. Only set for heap tables when the bit field
+                       is part of an index.
+  @param make_copy_field
+                       Set when using with rollup when we want to have
+                       an exact copy of the field.
   @retval
     0			on error
   @retval
@@ -17261,8 +17267,22 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
       my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATALERROR));
     return result;
   }
-  case Item::FIELD_ITEM:
   case Item::DEFAULT_VALUE_ITEM:
+  {
+    Field *field= ((Item_default_value*) item)->field;
+    if (field->default_value && (field->flags & BLOB_FLAG))
+    {
+      /*
+        We have to use a copy function when using a blob with default value
+        as the we have to calcuate the default value before we can use it.
+      */
+      return create_tmp_field_from_item(thd, item, table,
+                                        (make_copy_field ? 0 : copy_func),
+                                        modify_item);
+    }
+  }
+  /* Fall through */
+  case Item::FIELD_ITEM:
   case Item::CONTEXTUALLY_TYPED_VALUE_ITEM:
   case Item::INSERT_VALUE_ITEM:
   case Item::TRIGGER_FIELD_ITEM:
