@@ -350,10 +350,13 @@ IF (NOT BISON_FOUND)
       MESSAGE(FATAL_ERROR ${ERRMSG})
   ENDIF()
 ELSE()
+  IF (${CMAKE_BUILD_TYPE} MATCHES Debug)
+    SET(bison_debug_options "--report=itemsets,lookaheads -v")
+  ENDIF()
   BISON_TARGET(gen_sql_yacc ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
-             COMPILE_FLAGS "-p MYSQL")
+             COMPILE_FLAGS "-p MYSQL ${bison_debug_options}")
   BISON_TARGET(gen_sql_yacc_ora ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.yy ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
-             COMPILE_FLAGS "-p ORA")
+             COMPILE_FLAGS "-p ORA ${bison_debug_options}")
 ENDIF()
 
 IF(NOT CMAKE_CROSSCOMPILING)
