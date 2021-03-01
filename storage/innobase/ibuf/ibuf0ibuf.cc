@@ -688,19 +688,15 @@ ibuf_bitmap_get_map_page_func(
 	unsigned		line,
 	mtr_t*			mtr)
 {
-	buf_block_t*	block = NULL;
-	dberr_t		err = DB_SUCCESS;
-
-	block = buf_page_get_gen(
+	buf_block_t* block = buf_page_get_gen(
 		ibuf_bitmap_page_no_calc(page_id, zip_size),
-		zip_size, RW_X_LATCH, NULL, BUF_GET, file, line, mtr, &err);
+		zip_size, RW_X_LATCH, NULL, BUF_GET_POSSIBLY_FREED,
+		file, line, mtr);
 
-	if (err != DB_SUCCESS) {
-		return NULL;
+	if (block) {
+		buf_block_dbg_add_level(block, SYNC_IBUF_BITMAP);
 	}
 
-
-	buf_block_dbg_add_level(block, SYNC_IBUF_BITMAP);
 	return block;
 }
 
@@ -741,9 +737,12 @@ ibuf_set_free_bits_low(
 #endif /* UNIV_IBUF_DEBUG */
 	const page_id_t id(block->page.id());
 
-	ibuf_bitmap_page_set_bits<IBUF_BITMAP_FREE>(
-		ibuf_bitmap_get_map_page(id, block->zip_size(), mtr),
-		id, block->physical_size(), val, mtr);
+	if (buf_block_t* bitmap_page = ibuf_bitmap_get_map_page(
+			id, block->zip_size(), mtr)) {
+		ibuf_bitmap_page_set_bits<IBUF_BITMAP_FREE>(
+			bitmap_page, id, block->physical_size(),
+			val, mtr);
+	}
 }
 
 /************************************************************************//**
@@ -887,10 +886,13 @@ ibuf_update_free_bits_zip(
 		buf_page_make_young(&block->page);
 	}
 
-	ibuf_bitmap_page_set_bits<IBUF_BITMAP_FREE>(
-		ibuf_bitmap_get_map_page(block->page.id(), block->zip_size(),
-					 mtr),
-		block->page.id(), block->physical_size(), after, mtr);
+	if (buf_block_t* bitmap_page = ibuf_bitmap_get_map_page(
+		block->page.id(), block->zip_size(), mtr)) {
+
+		ibuf_bitmap_page_set_bits<IBUF_BITMAP_FREE>(
+			bitmap_page, block->page.id(),
+			block->physical_size(), after, mtr);
+	}
 }
 
 /**********************************************************************//**
@@ -3669,14 +3671,15 @@ ibuf_insert_to_index_page_low(
 	      "InnoDB: is now probably corrupt. Please run CHECK TABLE on\n"
 	      "InnoDB: that table.\n", stderr);
 
-	ib::error() << "page " << block->page.id() << ", size "
-		    << block->physical_size() << ", bitmap bits "
-		    << ibuf_bitmap_page_get_bits(
-			    ibuf_bitmap_get_map_page(block->page.id(),
-						     block->zip_size(),
-						     mtr)->frame,
-			    block->page.id(), block->zip_size(),
-			    IBUF_BITMAP_FREE, mtr);
+	if (buf_block_t *bitmap_page =  ibuf_bitmap_get_map_page(
+			block->page.id(), block->zip_size(), mtr)) {
+
+		ib::error() << "page " << block->page.id() << ", size "
+			    << block->physical_size() << ", bitmap bits "
+			    << ibuf_bitmap_page_get_bits(bitmap_page->frame,
+					block->page.id(), block->zip_size(),
+					IBUF_BITMAP_FREE, mtr);
+	}
 
 	ib::error() << BUG_REPORT_MSG;
 
