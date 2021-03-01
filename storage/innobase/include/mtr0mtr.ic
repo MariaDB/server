@@ -203,10 +203,6 @@ mtr_t::set_log_mode(mtr_log_t mode)
 	const mtr_log_t	old_mode = m_log_mode;
 
 	switch (old_mode) {
-	case MTR_LOG_NO_REDO:
-		/* Once this mode is set, it must not be changed. */
-		ut_ad(mode == MTR_LOG_NO_REDO || mode == MTR_LOG_NONE);
-		return(old_mode);
 	case MTR_LOG_NONE:
 		if (mode == old_mode || mode == MTR_LOG_SHORT_INSERTS) {
 			/* Keep MTR_LOG_NONE. */
@@ -214,12 +210,10 @@ mtr_t::set_log_mode(mtr_log_t mode)
 		}
 		/* fall through */
 	case MTR_LOG_SHORT_INSERTS:
-		ut_ad(mode == MTR_LOG_ALL);
+		ut_ad(mode == MTR_LOG_ALL || mode == MTR_LOG_NO_REDO);
 		/* fall through */
+	case MTR_LOG_NO_REDO:
 	case MTR_LOG_ALL:
-		/* MTR_LOG_NO_REDO can only be set before generating
-		any redo log records. */
-		ut_ad(mode != MTR_LOG_NO_REDO || m_n_log_recs == 0);
 		m_log_mode = mode;
 		return(old_mode);
 	}

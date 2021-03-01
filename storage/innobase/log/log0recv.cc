@@ -2267,7 +2267,7 @@ void recv_recover_page(buf_page_t* bpage)
 {
 	mtr_t mtr;
 	mtr.start();
-	mtr.set_log_mode(MTR_LOG_NONE);
+	mtr.set_log_mode(MTR_LOG_NO_REDO);
 
 	ut_ad(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
 	buf_block_t* block = reinterpret_cast<buf_block_t*>(bpage);
@@ -2385,7 +2385,7 @@ init_fail:
     goto init_fail;
 
   mtr.start();
-  mtr.set_log_mode(MTR_LOG_NONE);
+  mtr.set_log_mode(MTR_LOG_NO_REDO);
   buf_block_t* block = buf_page_create(page_id, page_size_t(space->flags),
                                        &mtr);
   if (recv_addr->state == RECV_PROCESSED)
@@ -2511,7 +2511,7 @@ ignore:
 			if (recv_addr->state == RECV_NOT_PROCESSED) {
 apply:
 				mtr.start();
-				mtr.set_log_mode(MTR_LOG_NONE);
+				mtr.set_log_mode(MTR_LOG_NO_REDO);
 				if (buf_block_t* block = buf_page_get_low(
 					    page_id, univ_page_size,
 					    RW_X_LATCH, NULL,

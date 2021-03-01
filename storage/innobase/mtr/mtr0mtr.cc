@@ -1006,7 +1006,7 @@ struct FindModifiedSpacePage
 void mtr_t::memo_modify_page(ulint space, ulint page)
 {
 
-  if (m_memo.empty())
+  if (m_log_mode == MTR_LOG_NONE || m_memo.empty())
     return;
   Iterate<FindModifiedSpacePage> iteration(
       (FindModifiedSpacePage(space, page)));
@@ -1045,7 +1045,7 @@ struct FindModifiedPtr
 @param[in]	ptr	pointer to within buffer frame */
 void mtr_t::memo_modify_page(const byte *ptr)
 {
-  if (m_memo.empty())
+  if (m_log_mode == MTR_LOG_NONE ||  m_memo.empty())
     return;
 
   Iterate<FindModifiedPtr> iteration((FindModifiedPtr(ptr)));

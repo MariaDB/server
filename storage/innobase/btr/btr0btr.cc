@@ -1496,7 +1496,7 @@ btr_page_reorganize_low(
 	data_size1 = page_get_data_size(page);
 	max_ins_size1 = page_get_max_insert_size_after_reorganize(page, 1);
 	/* Turn logging off */
-	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
+	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NO_REDO);
 
 	temp_block = buf_block_alloc(buf_pool);
 	temp_page = temp_block->frame;
