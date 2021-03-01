@@ -5239,6 +5239,8 @@ public:
   uint64                    wsrep_current_gtid_seqno;
   ulong                     wsrep_affected_rows;
   bool                      wsrep_has_ignored_error;
+  /* true if wsrep_on was ON in last wsrep_on_update */
+  bool                      wsrep_was_on;
 
   /*
     When enabled, do not replicate/binlog updates from the current table that's

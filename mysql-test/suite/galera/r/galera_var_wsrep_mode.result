@@ -1,0 +1,79 @@
+connection node_2;
+connection node_1;
+SELECT @@wsrep_mode;
+@@wsrep_mode
+
+SET GLOBAL wsrep_mode=DEFAULT;
+SELECT @@wsrep_mode;
+@@wsrep_mode
+
+SET SESSION wsrep_mode=DEFAULT;
+ERROR HY000: Variable 'wsrep_mode' is a GLOBAL variable and should be set with SET GLOBAL
+SELECT @@global.wsrep_mode;
+@@global.wsrep_mode
+
+SELECT @@session.wsrep_mode;
+ERROR HY000: Variable 'wsrep_mode' is a GLOBAL variable
+SET GLOBAL wsrep_mode=A;
+ERROR 42000: Variable 'wsrep_mode' can't be set to the value of 'A'
+SET GLOBAL wsrep_mode='A';
+ERROR 42000: Variable 'wsrep_mode' can't be set to the value of 'A'
+SET GLOBAL wsrep_mode=NULL;
+ERROR 42000: Variable 'wsrep_mode' can't be set to the value of 'NULL'
+SET GLOBAL wsrep_mode=64;
+ERROR 42000: Variable 'wsrep_mode' can't be set to the value of '64'
+SET GLOBAL wsrep_mode=REQUIRED_PRIMARY_KEY,REPLICATE_MYISAM;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+SET GLOBAL wsrep_mode=1;
+SELECT @@wsrep_mode;
+@@wsrep_mode
+STRICT_REPLICATION
+SET GLOBAL wsrep_mode=32;
+SELECT @@wsrep_mode;
+@@wsrep_mode
+DISALLOW_LOCAL_GTID
+SET GLOBAL wsrep_mode='';
+SELECT @@wsrep_mode;
+@@wsrep_mode
+
+SET GLOBAL wsrep_mode=STRICT_REPLICATION;
+SELECT @@wsrep_mode;
+@@wsrep_mode
+STRICT_REPLICATION
+SET GLOBAL wsrep_mode=BINLOG_ROW_FORMAT_ONLY;
+SELECT @@wsrep_mode;
+@@wsrep_mode
+BINLOG_ROW_FORMAT_ONLY
+SET GLOBAL wsrep_mode=REQUIRED_PRIMARY_KEY;
+SELECT @@wsrep_mode;
+@@wsrep_mode
+REQUIRED_PRIMARY_KEY
+SET GLOBAL wsrep_mode=REPLICATE_MYISAM;
+SELECT @@wsrep_mode;
+@@wsrep_mode
+REPLICATE_MYISAM
+SET GLOBAL wsrep_mode=REPLICATE_ARIA;
+SELECT @@wsrep_mode;
+@@wsrep_mode
+REPLICATE_ARIA
+SET GLOBAL wsrep_mode=DISALLOW_LOCAL_GTID;
+SELECT @@wsrep_mode;
+@@wsrep_mode
+DISALLOW_LOCAL_GTID
+SET GLOBAL wsrep_mode='STRICT_REPLICATION,BINLOG_ROW_FORMAT_ONLY';
+SELECT @@wsrep_mode;
+@@wsrep_mode
+STRICT_REPLICATION,BINLOG_ROW_FORMAT_ONLY
+SET GLOBAL wsrep_mode='STRICT_REPLICATION,BINLOG_ROW_FORMAT_ONLY,REQUIRED_PRIMARY_KEY,REPLICATE_MYISAM,REPLICATE_ARIA,DISALLOW_LOCAL_GTID';
+SELECT @@wsrep_mode;
+@@wsrep_mode
+STRICT_REPLICATION,BINLOG_ROW_FORMAT_ONLY,REQUIRED_PRIMARY_KEY,REPLICATE_MYISAM,REPLICATE_ARIA,DISALLOW_LOCAL_GTID
+SET GLOBAL wsrep_mode='BINLOG_ROW_FORMAT_ONLY,STRICT_REPLICATION';
+SELECT @@wsrep_mode;
+@@wsrep_mode
+STRICT_REPLICATION,BINLOG_ROW_FORMAT_ONLY
+SET GLOBAL wsrep_mode='STRICT_REPLICATION,REQUIRED_PRIMARY_KEY,REPLICATE_ARIA,DISALLOW_LOCAL_GTID';
+SELECT @@wsrep_mode;
+@@wsrep_mode
+STRICT_REPLICATION,REQUIRED_PRIMARY_KEY,REPLICATE_ARIA,DISALLOW_LOCAL_GTID
+SET GLOBAL wsrep_mode=DEFAULT;

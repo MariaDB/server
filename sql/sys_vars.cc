@@ -5933,6 +5933,7 @@ static const char *wsrep_mode_names[]=
   "REQUIRED_PRIMARY_KEY",
   "REPLICATE_MYISAM",
   "REPLICATE_ARIA",
+  "DISALLOW_LOCAL_GTID",
   NullS
 };
 static Sys_var_set Sys_wsrep_mode(

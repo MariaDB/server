@@ -4445,7 +4445,41 @@ restart:
       error= TRUE;
       goto error;
     }
-#endif
+
+    /* If user has issued wsrep_on = OFF and wsrep was on before
+    we need to check is local gtid feature disabled */
+    if (thd->wsrep_was_on &&
+	thd->variables.sql_log_bin == 1 &&
+	!WSREP(thd) &&
+        wsrep_check_mode(WSREP_MODE_DISALLOW_LOCAL_GTID))
+    {
+      enum_sql_command sql_command= thd->lex->sql_command;
+      bool is_dml_stmt= thd->get_command() != COM_STMT_PREPARE &&
+                    (sql_command == SQLCOM_INSERT ||
+                     sql_command == SQLCOM_INSERT_SELECT ||
+                     sql_command == SQLCOM_REPLACE ||
+                     sql_command == SQLCOM_REPLACE_SELECT ||
+                     sql_command == SQLCOM_UPDATE ||
+                     sql_command == SQLCOM_UPDATE_MULTI ||
+                     sql_command == SQLCOM_LOAD ||
+                     sql_command == SQLCOM_DELETE);
+
+      if (is_dml_stmt && !is_temporary_table(tables))
+      {
+        /* wsrep_mode = WSREP_MODE_DISALLOW_LOCAL_GTID, treat as error */
+        my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_OPTION_PREVENTS_STATEMENT,
+                            "You can't execute statements that would generate local "
+                            "GTIDs when wsrep_mode = DISALLOW_LOCAL_GTID is set. "
+                            "Try disabling binary logging with SET sql_log_bin=0 "
+                            "to execute this statement.");
+
+        error= TRUE;
+        goto error;
+      }
+    }
+#endif /* WITH_WSREP */
   }
 
 error:

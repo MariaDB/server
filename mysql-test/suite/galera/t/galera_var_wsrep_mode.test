@@ -1,0 +1,65 @@
+--source include/galera_cluster.inc
+
+# default
+SELECT @@wsrep_mode;
+
+SET GLOBAL wsrep_mode=DEFAULT;
+SELECT @@wsrep_mode;
+
+--error ER_GLOBAL_VARIABLE
+SET SESSION wsrep_mode=DEFAULT;
+SELECT @@global.wsrep_mode;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_mode;
+
+#
+# Incorrect input
+#
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL wsrep_mode=A;
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL wsrep_mode='A';
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL wsrep_mode=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL wsrep_mode=64;
+--error ER_PARSE_ERROR
+SET GLOBAL wsrep_mode=REQUIRED_PRIMARY_KEY,REPLICATE_MYISAM;
+#
+# Correct input
+#
+SET GLOBAL wsrep_mode=1;
+SELECT @@wsrep_mode;
+SET GLOBAL wsrep_mode=32;
+SELECT @@wsrep_mode;
+SET GLOBAL wsrep_mode='';
+SELECT @@wsrep_mode;
+SET GLOBAL wsrep_mode=STRICT_REPLICATION;
+SELECT @@wsrep_mode;
+SET GLOBAL wsrep_mode=BINLOG_ROW_FORMAT_ONLY;
+SELECT @@wsrep_mode;
+SET GLOBAL wsrep_mode=REQUIRED_PRIMARY_KEY;
+SELECT @@wsrep_mode;
+SET GLOBAL wsrep_mode=REPLICATE_MYISAM;
+SELECT @@wsrep_mode;
+SET GLOBAL wsrep_mode=REPLICATE_ARIA;
+SELECT @@wsrep_mode;
+SET GLOBAL wsrep_mode=DISALLOW_LOCAL_GTID;
+SELECT @@wsrep_mode;
+SET GLOBAL wsrep_mode='STRICT_REPLICATION,BINLOG_ROW_FORMAT_ONLY';
+SELECT @@wsrep_mode;
+SET GLOBAL wsrep_mode='STRICT_REPLICATION,BINLOG_ROW_FORMAT_ONLY,REQUIRED_PRIMARY_KEY,REPLICATE_MYISAM,REPLICATE_ARIA,DISALLOW_LOCAL_GTID';
+SELECT @@wsrep_mode;
+SET GLOBAL wsrep_mode='BINLOG_ROW_FORMAT_ONLY,STRICT_REPLICATION';
+SELECT @@wsrep_mode;
+SET GLOBAL wsrep_mode='STRICT_REPLICATION,REQUIRED_PRIMARY_KEY,REPLICATE_ARIA,DISALLOW_LOCAL_GTID';
+SELECT @@wsrep_mode;
+
+# reset
+SET GLOBAL wsrep_mode=DEFAULT;
+
+
+
+
+
+

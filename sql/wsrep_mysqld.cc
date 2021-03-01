@@ -1069,7 +1069,6 @@ void wsrep_recover()
   {
     WSREP_INFO("Recovered position: %s", oss.str().c_str());
   }
-  
 }
 
 
@@ -1089,7 +1088,7 @@ void wsrep_stop_replication(THD *thd)
   */
   if (thd && !thd->wsrep_applier) trans_rollback(thd);
   wsrep_close_client_connections(TRUE, thd);
- 
+
   /* wait until appliers have stopped */
   wsrep_wait_appliers_close(thd);
 
@@ -1424,9 +1423,23 @@ bool wsrep_check_mode_after_open_table (THD *thd,
         /* InnoDB table doesn't have explicit primary-key defined. */
         wsrep_push_warning(thd, WSREP_REQUIRE_PRIMARY_KEY, hton, tables);
       }
+
+      if (db_type != DB_TYPE_INNODB &&
+	  thd->variables.sql_log_bin == 1 &&
+	  wsrep_check_mode(WSREP_MODE_DISALLOW_LOCAL_GTID))
+      {
+        /* Table is not an InnoDB table and local GTIDs are disallowed */
+        my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_OPTION_PREVENTS_STATEMENT,
+                            "You can't execute statements that would generate local "
+                            "GTIDs when wsrep_mode = DISALLOW_LOCAL_GTID is set. "
+                            "Try disabling binary logging with SET sql_log_bin=0 "
+                            "to execute this statement.");
+        goto wsrep_error_label;
+      }
     }
   }
-
 
   return true;
 
@@ -2610,6 +2623,23 @@ static int wsrep_RSU_begin(THD *thd, const char *db_, const char *table_)
 {
   WSREP_DEBUG("RSU BEGIN: %lld, : %s", wsrep_thd_trx_seqno(thd),
               wsrep_thd_query(thd));
+
+  if (thd->variables.wsrep_OSU_method == WSREP_OSU_RSU &&
+      thd->variables.sql_log_bin == 1 &&
+      wsrep_check_mode(WSREP_MODE_DISALLOW_LOCAL_GTID))
+  {
+    /* wsrep_mode = WSREP_MODE_DISALLOW_LOCAL_GTID, treat as error */
+    my_error(ER_GALERA_REPLICATION_NOT_SUPPORTED, MYF(0));
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_OPTION_PREVENTS_STATEMENT,
+                        "You can't execute statements that would generate local "
+                        "GTIDs when wsrep_mode = DISALLOW_LOCAL_GTID is set. "
+                        "Try disabling binary logging with SET sql_log_bin=0 "
+                        "to execute this statement.");
+
+    return -1;
+  }
+
   if (thd->wsrep_cs().begin_rsu(5000))
   {
     WSREP_WARN("RSU begin failed");
@@ -2985,7 +3015,7 @@ void wsrep_close_client_connections(my_bool wait_to_end, THD* except_caller_thd)
 {
   /* Clear thread cache */
   thread_cache.final_flush();
-  
+
   /*
     First signal all threads that it's time to die
   */

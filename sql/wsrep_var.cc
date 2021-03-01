@@ -91,8 +91,10 @@ static bool refresh_provider_options()
   }
 }
 
-static void wsrep_set_wsrep_on()
+static void wsrep_set_wsrep_on(THD* thd)
 {
+  if (thd)
+    thd->wsrep_was_on= WSREP_ON_;
   WSREP_ON_= global_system_variables.wsrep_on && wsrep_provider &&
     strcmp(wsrep_provider, WSREP_NONE);
 }
@@ -125,7 +127,7 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
     thd->variables.wsrep_on= global_system_variables.wsrep_on= saved_wsrep_on;
   }
 
-  wsrep_set_wsrep_on();
+  wsrep_set_wsrep_on(thd);
 
   return false;
 }
@@ -445,7 +447,7 @@ bool wsrep_provider_update (sys_var *self, THD* thd, enum_var_type type)
   if (!rcode)
     refresh_provider_options();
 
-  wsrep_set_wsrep_on();
+  wsrep_set_wsrep_on(thd);
   mysql_mutex_lock(&LOCK_global_system_variables);
 
   return rcode;
@@ -465,7 +467,7 @@ void wsrep_provider_init (const char* value)
 
   if (wsrep_provider) my_free((void *)wsrep_provider);
   wsrep_provider= my_strdup(PSI_INSTRUMENT_MEM, value, MYF(0));
-  wsrep_set_wsrep_on();
+  wsrep_set_wsrep_on(NULL);
 }
 
 bool wsrep_provider_options_check(sys_var *self, THD* thd, set_var* var)
