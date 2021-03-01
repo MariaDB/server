@@ -383,7 +383,7 @@ TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,roles_mapping,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CREATE USER u3 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,user,
-TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'ALTER USER u3 IDENTIFIED BY \'pwd-456\'',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'ALTER USER u3 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,user,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
