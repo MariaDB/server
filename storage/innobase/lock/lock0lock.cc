@@ -4995,7 +4995,7 @@ static void lock_rec_block_validate(const page_id_t page_id)
 				   << page_id << " err " << err;
 		}
 
-		if (block) {
+		if (block && block->page.status != buf_page_t::FREED) {
 			buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
 
 			ut_ad(lock_rec_validate_page(block));

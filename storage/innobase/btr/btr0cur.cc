@@ -807,11 +807,13 @@ btr_cur_optimistic_latch_leaves(
 				mode, nullptr, BUF_GET_POSSIBLY_FREED,
 				__FILE__, __LINE__, mtr, &err);
 
-			if (err == DB_DECRYPTION_FAILED) {
+			if (!cursor->left_block) {
 				cursor->index->table->file_unreadable = true;
 			}
 
-			if (btr_page_get_next(cursor->left_block->frame)
+			if (cursor->left_block->page.status
+			    == buf_page_t::FREED
+			    || btr_page_get_next(cursor->left_block->frame)
 			    != curr_page_no) {
 				/* release the left block */
 				btr_leaf_page_release(
@@ -6072,7 +6074,7 @@ btr_estimate_n_rows_in_range_on_level(
 
 		ut_ad((block != NULL) == (err == DB_SUCCESS));
 
-		if (err != DB_SUCCESS) {
+		if (!block) {
 			if (err == DB_DECRYPTION_FAILED) {
 				ib_push_warning((void *)NULL,
 					DB_DECRYPTION_FAILED,

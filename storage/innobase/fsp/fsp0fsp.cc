@@ -417,6 +417,10 @@ xdes_get_descriptor_const(
 						  __FILE__, __LINE__, mtr)) {
 		buf_block_dbg_add_level(block, SYNC_FSP_PAGE);
 
+		if (block->page.status == buf_page_t::FREED) {
+			return nullptr;
+		}
+
 		ut_ad(page != 0 || space->free_limit == mach_read_from_4(
 			      FSP_FREE_LIMIT + FSP_HEADER_OFFSET
 			      + block->frame));
