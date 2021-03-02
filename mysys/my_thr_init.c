@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011 Oracle and/or its affiliates.
-   Copyright 2008-2011 Monty Program Ab
+   Copyright 2008, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -476,3 +476,139 @@ static void install_sigabrt_handler(void)
 }
 #endif
 
+#ifdef HAVE_PSI_MUTEX_INTERFACE
+ATTRIBUTE_COLD int psi_mutex_lock(mysql_mutex_t *that,
+                                  const char *file, uint line)
+{
+  PSI_mutex_locker_state state;
+  PSI_mutex_locker *locker= PSI_MUTEX_CALL(start_mutex_wait)
+    (&state, that->m_psi, PSI_MUTEX_LOCK, file, line);
+# ifdef SAFE_MUTEX
+  int result= safe_mutex_lock(&that->m_mutex, FALSE, file, line);
+# else
+  int result= pthread_mutex_lock(&that->m_mutex);
+# endif
+  if (locker)
+    PSI_MUTEX_CALL(end_mutex_wait)(locker, result);
+  return result;
+}
+
+ATTRIBUTE_COLD int psi_mutex_trylock(mysql_mutex_t *that,
+                                     const char *file, uint line)
+{
+  PSI_mutex_locker_state state;
+  PSI_mutex_locker *locker= PSI_MUTEX_CALL(start_mutex_wait)
+    (&state, that->m_psi, PSI_MUTEX_TRYLOCK, file, line);
+# ifdef SAFE_MUTEX
+  int result= safe_mutex_lock(&that->m_mutex, TRUE, file, line);
+# else
+  int result= pthread_mutex_trylock(&that->m_mutex);
+# endif
+  if (locker)
+    PSI_MUTEX_CALL(end_mutex_wait)(locker, result);
+  return result;
+}
+#endif /* HAVE_PSI_MUTEX_INTERFACE */
+
+#ifdef HAVE_PSI_RWLOCK_INTERFACE
+ATTRIBUTE_COLD
+int psi_rwlock_rdlock(mysql_rwlock_t *that, const char *file, uint line)
+{
+  PSI_rwlock_locker_state state;
+  PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_rdwait)
+    (&state, that->m_psi, PSI_RWLOCK_READLOCK, file, line);
+  int result= rw_rdlock(&that->m_rwlock);
+  if (locker)
+    PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, result);
+  return result;
+}
+
+ATTRIBUTE_COLD
+int psi_rwlock_tryrdlock(mysql_rwlock_t *that, const char *file, uint line)
+{
+  PSI_rwlock_locker_state state;
+  PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_rdwait)
+    (&state, that->m_psi, PSI_RWLOCK_TRYREADLOCK, file, line);
+  int result= rw_tryrdlock(&that->m_rwlock);
+  if (locker)
+    PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, result);
+  return result;
+}
+
+ATTRIBUTE_COLD
+int psi_rwlock_trywrlock(mysql_rwlock_t *that, const char *file, uint line)
+{
+  PSI_rwlock_locker_state state;
+  PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
+    (&state, that->m_psi, PSI_RWLOCK_TRYWRITELOCK, file, line);
+  int result= rw_trywrlock(&that->m_rwlock);
+  if (locker)
+    PSI_RWLOCK_CALL(end_rwlock_wrwait)(locker, result);
+  return result;
+}
+
+ATTRIBUTE_COLD
+int psi_rwlock_wrlock(mysql_rwlock_t *that, const char *file, uint line)
+{
+  PSI_rwlock_locker_state state;
+  PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
+    (&state, that->m_psi, PSI_RWLOCK_WRITELOCK, file, line);
+  int result= rw_wrlock(&that->m_rwlock);
+  if (locker)
+    PSI_RWLOCK_CALL(end_rwlock_wrwait)(locker, result);
+  return result;
+}
+
+# ifndef DISABLE_MYSQL_PRLOCK_H
+ATTRIBUTE_COLD
+int psi_prlock_rdlock(mysql_prlock_t *that, const char *file, uint line)
+{
+  PSI_rwlock_locker_state state;
+  PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_rdwait)
+    (&state, that->m_psi, PSI_RWLOCK_READLOCK, file, line);
+  int result= rw_pr_rdlock(&that->m_prlock);
+  if (locker)
+    PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, result);
+  return result;
+}
+
+ATTRIBUTE_COLD
+int psi_prlock_wrlock(mysql_prlock_t *that, const char *file, uint line)
+{
+  PSI_rwlock_locker_state state;
+  PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
+    (&state, that->m_psi, PSI_RWLOCK_WRITELOCK, file, line);
+  int result= rw_pr_wrlock(&that->m_prlock);
+  if (locker)
+    PSI_RWLOCK_CALL(end_rwlock_wrwait)(locker, result);
+  return result;
+}
+# endif /* !DISABLE_MYSQL_PRLOCK_H */
+#endif /* HAVE_PSI_RWLOCK_INTERFACE */
+
+#ifdef HAVE_PSI_COND_INTERFACE
+ATTRIBUTE_COLD int psi_cond_wait(mysql_cond_t *that, mysql_mutex_t *mutex,
+                                 const char *file, uint line)
+{
+  PSI_cond_locker_state state;
+  PSI_cond_locker *locker= PSI_COND_CALL(start_cond_wait)
+    (&state, that->m_psi, mutex->m_psi, PSI_COND_WAIT, file, line);
+  int result= my_cond_wait(&that->m_cond, &mutex->m_mutex);
+  if (locker)
+    PSI_COND_CALL(end_cond_wait)(locker, result);
+  return result;
+}
+
+ATTRIBUTE_COLD int psi_cond_timedwait(mysql_cond_t *that, mysql_mutex_t *mutex,
+                                      const struct timespec *abstime,
+                                      const char *file, uint line)
+{
+  PSI_cond_locker_state state;
+  PSI_cond_locker *locker= PSI_COND_CALL(start_cond_wait)
+    (&state, that->m_psi, mutex->m_psi, PSI_COND_TIMEDWAIT, file, line);
+  int result= my_cond_timedwait(&that->m_cond, &mutex->m_mutex, abstime);
+  if (psi_likely(locker))
+    PSI_COND_CALL(end_cond_wait)(locker, result);
+  return result;
+}
+#endif /* HAVE_PSI_COND_INTERFACE */
