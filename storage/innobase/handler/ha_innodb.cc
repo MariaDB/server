@@ -3702,7 +3702,8 @@ innobase_init(
 	innobase_hton->flush_logs = innobase_flush_logs;
 	innobase_hton->show_status = innobase_show_status;
 	innobase_hton->flags =
-		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS;
+		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS |
+		HTON_REQUIRES_CLOSE_AFTER_TRUNCATE;
 
 #ifdef WITH_WSREP
         innobase_hton->abort_transaction=wsrep_abort_transaction;
