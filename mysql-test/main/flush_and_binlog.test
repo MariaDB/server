@@ -27,3 +27,17 @@ FLUSH TABLES;
 --connection default
 --disconnect con1
 unlock tables;
+
+--echo # Second test from MDEV-23843
+
+CREATE TABLE t (a INT);
+FLUSH TABLES WITH READ LOCK;
+--connect (con1,localhost,root,,)
+SET lock_wait_timeout= 1;
+--error ER_LOCK_WAIT_TIMEOUT
+ANALYZE TABLE t;
+# Cleanup
+--disconnect con1
+--connection default
+UNLOCK TABLES;
+DROP TABLE t;
