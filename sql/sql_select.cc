@@ -14231,6 +14231,7 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
   {
     table_map order_tables=order->item[0]->used_tables();
     if (order->item[0]->with_sum_func() ||
+        order->item[0]->with_window_func ||
         /*
           If the outer table of an outer join is const (either by itself or
           after applying WHERE condition), grouping on a field from such a
