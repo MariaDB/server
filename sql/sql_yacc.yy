@@ -5849,11 +5849,16 @@ field_list_item:
 column_def:
           field_spec
           { $$= $1; }
-        | field_spec opt_constraint references
+        | field_spec opt_constraint
           {
-            if (unlikely(Lex->add_column_foreign_key($1->field_name, $2,
-                                                     *$3, DDL_options())))
+            if (unlikely(Lex->add_column_foreign_key($1->field_name,
+                                                     $2,
+                                                     DDL_options())))
               MYSQL_YYABORT;
+          }
+          references
+          {
+            Lex->last_foreign_key->init($4->db, $4->table, Lex->fk_options);
             $$= $1;
           }
         ;
@@ -5908,6 +5913,7 @@ key_def:
           {
             if (unlikely(Lex->check_add_key($4)))
               MYSQL_YYABORT;
+
             if (unlikely(Lex->add_table_foreign_key($5.str ? $5 : $1,
                                                     $1.str ? $1 : $5, $4)))
                MYSQL_YYABORT;
@@ -5915,8 +5921,7 @@ key_def:
           }
           '(' key_list ')' references
           {
-            Foreign_key &fk= static_cast<Foreign_key &>(*Lex->last_key);
-            fk.init($10->db, $10->table, Lex->fk_options, &Lex->ref_list);
+            Lex->last_foreign_key->init($10->db, $10->table, Lex->fk_options);
           }
 	;
 
@@ -6853,7 +6858,7 @@ references:
 
 opt_ref_list:
           /* empty */
-          { Lex->ref_list.empty(); }
+          { }
         | '(' ref_list ')'
         ;
 
@@ -6863,7 +6868,7 @@ ref_list:
             Key_part_spec *key= new (thd->mem_root) Key_part_spec(&$3, 0);
             if (unlikely(key == NULL))
               MYSQL_YYABORT;
-            Lex->ref_list.push_back(key, thd->mem_root);
+            Lex->last_foreign_key->ref_columns.push_back(key, thd->mem_root);
           }
         | ident
           {
@@ -6871,8 +6876,7 @@ ref_list:
             if (unlikely(key == NULL))
               MYSQL_YYABORT;
             LEX *lex= Lex;
-            lex->ref_list.empty();
-            lex->ref_list.push_back(key, thd->mem_root);
+            lex->last_foreign_key->ref_columns.push_back(key, thd->mem_root);
           }
         ;
 

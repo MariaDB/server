@@ -11426,7 +11426,6 @@ bool LEX::add_table_foreign_key(const LEX_CSTRING &name,
 
 bool LEX::add_column_foreign_key(const LEX_CSTRING &field_name,
                                  const LEX_CSTRING &constraint_name,
-                                 Table_ident &ref_table_name,
                                  DDL_options ddl_options)
 {
   if (last_field->vcol_info || last_field->vers_sys_field())
@@ -11444,9 +11443,7 @@ bool LEX::add_column_foreign_key(const LEX_CSTRING &field_name,
   Key_part_spec *key= new (thd->mem_root) Key_part_spec(&field_name, 0);
   if (unlikely(key == NULL))
     return true;
-  last_key->columns.push_back(key);
-  Foreign_key &fk= static_cast<Foreign_key &>(*last_key);
-  fk.init(ref_table_name.db, ref_table_name.table, fk_options, &ref_list);
+  last_foreign_key->columns.push_back(key);
   return false;
 }
 
