@@ -353,7 +353,7 @@ insert into users values (1);
 insert into groups values (1);
 create table t1 (   id int not null auto_increment, primary key (id)   ,user_name text );
 create table t2 (    id int not null auto_increment, primary key (id)   ,group_name text );
-create table t3 (    id int not null auto_increment, primary key (id)   ,user_id int   ,index user_idx (user_id)   ,foreign key (user_id) references users(id)   ,group_id int   ,index group_idx (group_id)   ,foreign key (group_id) references groups(id) );
+create table t3 (    id int not null auto_increment, primary key (id)   ,user_id int   ,index user_idx (user_id)   ,foreign key (user_id) references t1(id)   ,group_id int   ,index group_idx (group_id)   ,foreign key (group_id) references t2(id) );
 insert into t1 (user_name) values ('Tester');
 insert into t2 (group_name) values ('Group A');
 insert into t2 (group_name) values ('Group B');

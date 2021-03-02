@@ -256,6 +256,7 @@ ALTER IGNORE TABLE t1 ADD FOREIGN KEY (a) REFERENCES t2 (b);
 ERROR 42S02: Table 'test.t2' doesn't exist
 SHOW WARNINGS;
 Level	Code	Message
+Error	1146	Table 'test.t2' doesn't exist
 DROP TABLE t1;
 #
 # MDEV-18139 ALTER IGNORE ... ADD FOREIGN KEY causes bogus error

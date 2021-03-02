@@ -5858,7 +5858,9 @@ column_def:
           }
           references
           {
-            Lex->last_foreign_key->init($4->db, $4->table, Lex->fk_options);
+
+            if (unlikely(Lex->init_last_foreign_key($4)))
+              MYSQL_YYABORT;
             $$= $1;
           }
         ;
@@ -5921,7 +5923,8 @@ key_def:
           }
           '(' key_list ')' references
           {
-            Lex->last_foreign_key->init($10->db, $10->table, Lex->fk_options);
+            if (unlikely(Lex->init_last_foreign_key($10)))
+              MYSQL_YYABORT;
           }
 	;
 

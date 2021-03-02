@@ -11447,6 +11447,41 @@ bool LEX::add_column_foreign_key(const LEX_CSTRING &field_name,
   return false;
 }
 
+bool LEX::init_last_foreign_key(Table_ident *ref_table_name)
+{
+  if (ref_table_name->db.str == NULL)
+    ref_table_name->db= query_tables->db;
+
+  Table_ident lookup_ref_name(ref_table_name->db, ref_table_name->table);
+  if (lower_case_table_names)
+    lookup_ref_name.lowercase(thd->mem_root);
+
+  if (ref_table_name->db.str == NULL)
+    copy_db_to(&ref_table_name->db);
+  TABLE_LIST *ref_table= find_table_in_list(query_tables,
+                                            &TABLE_LIST::next_global,
+                                            &lookup_ref_name.db,
+                                            &lookup_ref_name.table);
+
+  if (ref_table == NULL &&
+      !(thd->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS))
+  {
+    ref_table= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+    if (unlikely(ref_table == NULL))
+      return true;
+    ref_table->init_one_table_for_prelocking(&lookup_ref_name.db,
+                                             &lookup_ref_name.table,
+                                             NULL, TL_READ,
+                                             TABLE_LIST::PRELOCK_NONE,
+                                             0, 0,
+                                             &query_tables_last,
+                                             false);
+  }
+  last_foreign_key->init(ref_table_name->db, ref_table_name->table, ref_table,
+                         fk_options);
+  return false;
+}
+
 
 bool LEX::stmt_grant_table(THD *thd,
                            Grant_privilege *grant,
