@@ -705,6 +705,7 @@ public:
   LEX_CSTRING constraint_name;
   LEX_CSTRING ref_db;
   LEX_CSTRING ref_table;
+  TABLE_LIST *ref_table_list;
   List<Key_part_spec> ref_columns;
   st_fk_options fk_options;
   Foreign_key(const LEX_CSTRING *name_arg,
@@ -744,7 +745,7 @@ public:
     return !foreign;
   }
   void init(const LEX_CSTRING& _ref_db, const LEX_CSTRING& _ref_table,
-            st_fk_options _fk_options);
+            TABLE_LIST *_ref_table_list, st_fk_options _fk_options);
   Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root);
   /**
     Used to make a clone of this object for ALTER/CREATE TABLE
@@ -1658,8 +1659,8 @@ public:
 class Server_side_cursor;
 
 /*
-  Struct to catch changes in column metadata that is sent to client. 
-  in the "result set metadata". Used to support 
+  Struct to catch changes in column metadata that is sent to client.
+  in the "result set metadata". Used to support
   MARIADB_CLIENT_CACHE_METADATA.
 */
 struct send_column_info_state
@@ -1672,7 +1673,7 @@ struct send_column_info_state
 
   /*
     Column info can only be changed by PreparedStatement::reprepare()
- 
+
     There is a class of "weird" prepared statements like SELECT ? or SELECT @a
     that are not immutable, and depend on input parameters or user variables
   */
@@ -1779,7 +1780,7 @@ public:
   LEX_CSTRING db;
 
   send_column_info_state column_info_state;
- 
+
   /* This is set to 1 of last call to send_result_to_client() was ok */
   my_bool query_cache_is_applicable;
 

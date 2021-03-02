@@ -195,18 +195,20 @@ Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
   constraint_name(rhs.constraint_name),
   ref_db(rhs.ref_db),
   ref_table(rhs.ref_table),
+  ref_table_list(rhs.ref_table_list),
   ref_columns(rhs.ref_columns,mem_root),
   fk_options(rhs.fk_options)
 {
   list_copy_and_replace_each_value(ref_columns, mem_root);
 }
-
 void Foreign_key::init(const LEX_CSTRING& _ref_db,
                        const LEX_CSTRING& _ref_table,
+                       TABLE_LIST *_ref_table_list,
                        st_fk_options _fk_options)
 {
   ref_db= _ref_db;
   ref_table= _ref_table;
+  ref_table_list= _ref_table_list;
   if (ref_columns.is_empty())
   {
     ref_columns= columns;
