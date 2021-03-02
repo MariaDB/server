@@ -3233,7 +3233,6 @@ public:
   Account_options account_options;
 
   Table_type table_type;                        /* Used for SHOW CREATE */
-  List<Key_part_spec> ref_list;
   List<LEX_USER>      users_list;
   List<Item>          *insert_list,field_list,value_list,update_list;
   List<List_item>     many_values;
@@ -3301,7 +3300,10 @@ public:
   udf_func udf;
   HA_CHECK_OPT   check_opt;                        // check/repair options
   Table_specification_st create_info;
-  Key *last_key;
+  union {
+    Key *last_key;
+    Foreign_key *last_foreign_key;
+  };
   LEX_MASTER_INFO mi;                              // used by CHANGE MASTER
   LEX_SERVER_OPTIONS server_options;
   LEX_CSTRING relay_log_connection_name;
@@ -4706,7 +4708,6 @@ public:
                              DDL_options ddl_options);
   bool add_column_foreign_key(const LEX_CSTRING &name,
                               const LEX_CSTRING &constraint_name,
-                              Table_ident &ref_table_name,
                               DDL_options ddl_options);
 };
 

@@ -203,12 +203,10 @@ Foreign_key::Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root)
 
 void Foreign_key::init(const LEX_CSTRING& _ref_db,
                        const LEX_CSTRING& _ref_table,
-                       st_fk_options _fk_options,
-                       List<Key_part_spec> *_ref_columns)
+                       st_fk_options _fk_options)
 {
   ref_db= _ref_db;
   ref_table= _ref_table;
-  ref_columns= *_ref_columns;
   if (ref_columns.is_empty())
   {
     ref_columns= columns;

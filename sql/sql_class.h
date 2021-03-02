@@ -744,7 +744,7 @@ public:
     return !foreign;
   }
   void init(const LEX_CSTRING& _ref_db, const LEX_CSTRING& _ref_table,
-            st_fk_options _fk_options, List<Key_part_spec> *_ref_columns);
+            st_fk_options _fk_options);
   Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root);
   /**
     Used to make a clone of this object for ALTER/CREATE TABLE
