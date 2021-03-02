@@ -4631,8 +4631,8 @@ static void lock_rec_block_validate(const page_id_t page_id)
 				   << page_id << " err " << err;
 		}
 
-		ut_ad(!block || lock_rec_validate_page(block,
-						       space->is_latched()));
+		ut_ad(!block || block->page.status == buf_page_t::FREED
+		      || lock_rec_validate_page(block, space->is_latched()));
 
 		mtr_commit(&mtr);
 

@@ -1000,6 +1000,9 @@ fil_crypt_read_crypt_data(fil_space_t* space)
 						  nullptr,
 						  BUF_GET_POSSIBLY_FREED,
 						  &mtr)) {
+		if (block->page.status == buf_page_t::FREED) {
+			goto func_exit;
+		}
 		mysql_mutex_lock(&fil_system.mutex);
 		if (!space->crypt_data && !space->is_stopping()) {
 			space->crypt_data = fil_space_read_crypt_data(
@@ -1007,6 +1010,7 @@ fil_crypt_read_crypt_data(fil_space_t* space)
 		}
 		mysql_mutex_unlock(&fil_system.mutex);
 	}
+func_exit:
 	mtr.commit();
 }
 
@@ -1059,6 +1063,9 @@ func_exit:
 		    page_id_t(space->id, 0), space->zip_size(),
 		    RW_X_LATCH, NULL, BUF_GET_POSSIBLY_FREED,
 		    &mtr, &err)) {
+		if (block->page.status == buf_page_t::FREED) {
+			goto abort;
+		}
 
 		crypt_data->type = CRYPT_SCHEME_1;
 		crypt_data->min_key_version = 0; // all pages are unencrypted
@@ -1798,7 +1805,10 @@ fil_crypt_rotate_page(
 		const lsn_t block_lsn = mach_read_from_8(FIL_PAGE_LSN + frame);
 		uint kv = buf_page_get_key_version(frame, space->flags);
 
-		if (space->is_stopping()) {
+		if (block->page.status == buf_page_t::FREED) {
+			/* Do not modify freed pages to avoid an assertion
+			failure on recovery.*/
+		} else if (space->is_stopping()) {
 			/* The tablespace is closing (in DROP TABLE or
 			TRUNCATE TABLE or similar): avoid further access */
 		} else if (!kv && !*reinterpret_cast<uint16_t*>
@@ -1827,9 +1837,6 @@ fil_crypt_rotate_page(
 			some dummy pages will be allocated, with 0 in
 			the FIL_PAGE_TYPE. Those pages should be
 			skipped from key rotation forever. */
-		} else if (block->page.status == buf_page_t::FREED) {
-			/* Do not modify freed pages to avoid an assertion
-			failure on recovery.*/
 		} else if (fil_crypt_needs_rotation(
 				crypt_data,
 				kv,
@@ -1982,8 +1989,10 @@ fil_crypt_flush_space(
 	if (buf_block_t* block = buf_page_get_gen(
 		    page_id_t(space->id, 0), space->zip_size(),
 		    RW_X_LATCH, NULL, BUF_GET_POSSIBLY_FREED, &mtr)) {
-		mtr.set_named_space(space);
-		crypt_data->write_page0(block, &mtr);
+		if (block->page.status != buf_page_t::FREED) {
+			mtr.set_named_space(space);
+			crypt_data->write_page0(block, &mtr);
+		}
 	}
 
 	mtr.commit();

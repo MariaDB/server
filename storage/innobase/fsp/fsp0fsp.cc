@@ -411,6 +411,10 @@ xdes_get_descriptor_const(
 						  nullptr,
 						  BUF_GET_POSSIBLY_FREED,
 						  mtr)) {
+		if (block->page.status == buf_page_t::FREED) {
+			return nullptr;
+		}
+
 		ut_ad(page != 0 || space->free_limit == mach_read_from_4(
 			      FSP_FREE_LIMIT + FSP_HEADER_OFFSET
 			      + block->frame));

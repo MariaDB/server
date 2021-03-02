@@ -4195,6 +4195,7 @@ void ibuf_merge_or_delete_for_page(buf_block_t *block, const page_id_t page_id,
 		if (bitmap_bits && fseg_page_is_free(
 				space, page_id.page_no())) {
 			ibuf_mtr_start(&mtr);
+			mtr.set_named_space(space);
 			ibuf_reset_bitmap(block, page_id, zip_size, &mtr);
 			ibuf_mtr_commit(&mtr);
 			bitmap_bits = 0;
