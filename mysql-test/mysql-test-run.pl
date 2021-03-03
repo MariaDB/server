@@ -211,6 +211,7 @@ my @DEFAULT_SUITES= qw(
     vcol-
     versioning-
     period-
+    sysschema-
   );
 my $opt_suites;
 
