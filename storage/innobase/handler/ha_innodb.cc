@@ -14044,7 +14044,7 @@ ha_innobase::info_low(
 		ulint	stat_clustered_index_size;
 		ulint	stat_sum_of_other_index_sizes;
 
-		dict_sys.mutex_lock();
+		ib_table->stats_mutex_lock();
 
 		ut_a(ib_table->stat_initialized);
 
@@ -14056,7 +14056,7 @@ ha_innobase::info_low(
 		stat_sum_of_other_index_sizes
 			= ib_table->stat_sum_of_other_index_sizes;
 
-		dict_sys.mutex_unlock();
+		ib_table->stats_mutex_unlock();
 
 		/*
 		The MySQL optimizer seems to assume in a left join that n_rows
@@ -14172,10 +14172,9 @@ ha_innobase::info_low(
 			stats.create_time = (ulong) stat_info.ctime;
 		}
 
-		struct Locking {
-			Locking() { dict_sys.mutex_lock(); }
-			~Locking() { dict_sys.mutex_unlock(); }
-		} locking;
+		ib_table->stats_mutex_lock();
+		auto _ = make_scope_exit([ib_table]() {
+			ib_table->stats_mutex_unlock(); });
 
 		ut_a(ib_table->stat_initialized);
 
