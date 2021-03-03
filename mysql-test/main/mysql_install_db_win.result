@@ -6,7 +6,7 @@ Setting root password
 Creation of the database was successful
 # Kill the server
 # restart: --datadir=MYSQLTEST_VARDIR/tmp/ddir --loose-innodb
-connect root,localhost,root,foo;
+connect  root,localhost,root,foo,mysql;
 SELECT @@datadir;
 @@datadir
 DATADIR/

@@ -9,7 +9,7 @@ exec $MYSQL_INSTALL_DB_EXE --datadir=$ddir --password=foo -R;
 let $restart_parameters=--datadir=$ddir --loose-innodb;
 --source include/start_mysqld.inc
 
-connect root,localhost,root,foo;
+connect (root,localhost,root,foo,mysql);
 # Smoke test - check that we're actually using datadir
 # we've created (i.e restart_parameters worked)
 --replace_result  $ddir DATADIR

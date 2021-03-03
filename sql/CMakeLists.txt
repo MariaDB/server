@@ -416,7 +416,7 @@ IF(TARGET mariadbd AND NOT CMAKE_CROSSCOMPILING)
      COMMAND ${CMAKE_COMMAND} -E make_directory data
      COMMAND ${CMAKE_COMMAND} -E chdir data ${CMAKE_COMMAND}
      ${CONFIG_PARAM}
-     -DTOP_SRCDIR="${CMAKE_SOURCE_DIR}"
+     -DTOP_SRCDIR="${CMAKE_BINARY_DIR}"
      -DBINDIR="${CMAKE_CURRENT_BINARY_DIR}"
      -DMYSQLD_EXECUTABLE="$<TARGET_FILE:mariadbd>"
      -DCMAKE_CFG_INTDIR="${CMAKE_CFG_INTDIR}"
@@ -443,14 +443,15 @@ IF(WIN32)
   # Create bootstrapper SQL script
   ADD_CUSTOM_COMMAND(OUTPUT    
     ${my_bootstrap_sql}
-    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_SOURCE_DIR}/scripts
-    cmd /c copy mysql_system_tables.sql+mysql_system_tables_data.sql+fill_help_tables.sql+mysql_performance_tables.sql+mysql_test_db.sql ${native_outfile}
+    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}/scripts
+    cmd /c copy mysql_system_tables.sql+mysql_system_tables_data.sql+fill_help_tables.sql+mysql_performance_tables.sql+mysql_test_db.sql+mysql_sys_schema.sql ${native_outfile}
     DEPENDS
     ${CMAKE_SOURCE_DIR}/scripts/mysql_system_tables.sql
     ${CMAKE_SOURCE_DIR}/scripts/mysql_system_tables_data.sql
     ${CMAKE_SOURCE_DIR}/scripts/fill_help_tables.sql
     ${CMAKE_SOURCE_DIR}/scripts/mysql_performance_tables.sql
     ${CMAKE_SOURCE_DIR}/scripts/mysql_test_db.sql
+    ${CMAKE_BINARY_DIR}/scripts/mysql_sys_schema.sql
   )
 
   ADD_CUSTOM_COMMAND(

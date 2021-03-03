@@ -40,19 +40,22 @@ IF(NOT WIN32 OR CMAKE_CROSSCOMPILING)
   MARK_AS_ADVANCED(CAT_EXECUTABLE)
 ENDIF()
 
+IF(NOT ("${CMAKE_BINARY_DIR}" STREQUAL "${CMAKE_SOURCE_DIR}"))
+  FOREACH(f fill_help_tables.sql mysql_system_tables_fix.sql mysql_system_tables.sql mysql_system_tables_data.sql mysql_performance_tables.sql)
+    CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${f} ${CMAKE_CURRENT_BINARY_DIR}/${f} COPYONLY)
+  ENDFOREACH()
+ENDIF()
+
 IF(CAT_EXECUTABLE)
   SET(CAT_COMMAND COMMAND
-    ${CMAKE_COMMAND} -E chdir  ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CAT_EXECUTABLE} mysql_system_tables_fix.sql mysql_system_tables.sql mysql_performance_tables.sql >
-    ${CMAKE_CURRENT_BINARY_DIR}/mysql_fix_privilege_tables.sql
+    ${CAT_EXECUTABLE} mysql_system_tables_fix.sql mysql_system_tables.sql mysql_performance_tables.sql mysql_sys_schema.sql>
+    mysql_fix_privilege_tables.sql
   )
 ELSEIF(WIN32)
-  FILE(TO_NATIVE_PATH ${CMAKE_CURRENT_BINARY_DIR}/mysql_fix_privilege_tables.sql
-   native_outfile )
   SET(CAT_COMMAND
-   COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_SOURCE_DIR}
-   cmd /c copy /b mysql_system_tables_fix.sql + mysql_system_tables.sql +  mysql_performance_tables.sql
-   ${native_outfile} )
+   COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_CURRENT_BINARY_DIR}
+   cmd /c copy /b mysql_system_tables_fix.sql + mysql_system_tables.sql +  mysql_performance_tables.sql + mysql_sys_schema.sql
+   mysql_fix_privilege_tables.sql )
 ELSE()
   MESSAGE(FATAL_ERROR "Cannot concatenate files")
 ENDIF()
@@ -70,6 +73,7 @@ ADD_CUSTOM_COMMAND(
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables_fix.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_performance_tables.sql
+  ${CMAKE_CURRENT_BINARY_DIR}/mysql_sys_schema.sql
 )
 
 # Add target for the above to be built
@@ -114,6 +118,7 @@ INSTALL(FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_to_mariadb.sql
   ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp.sql
   ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp_bootstrap.sql
+  ${CMAKE_CURRENT_BINARY_DIR}/mysql_sys_schema.sql
   ${FIX_PRIVILEGES_SQL}
   DESTINATION ${INSTALL_MYSQLSHAREDIR} COMPONENT Server
 )
@@ -394,3 +399,5 @@ IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_CXX_FLAGS MATCHES "-static")
     COMPONENT Development)
   ENDIF()
 ENDIF()
+
+ADD_SUBDIRECTORY(sys_schema)

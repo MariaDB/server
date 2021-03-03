@@ -62,7 +62,7 @@ row_format=compressed;
 create table t14(a int primary key) engine=innodb key_block_size=9;
 Warnings:
 Warning	1478	InnoDB: ignoring KEY_BLOCK_SIZE=9.
-SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
+SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' and table_schema != 'sys' order by table_name;
 table_schema	table_name	row_format	data_length	index_length
 mysqltest_innodb_zip	t0	Dynamic	{valid}	0
 mysqltest_innodb_zip	t00	Dynamic	{valid}	0
@@ -83,15 +83,15 @@ mysqltest_innodb_zip	t9	Compact	{valid}	0
 drop table t0,t00,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t13,t14;
 alter table t1 key_block_size=0;
 alter table t1 row_format=dynamic;
-SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
+SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' and table_schema != 'sys' order by table_name;
 table_schema	table_name	row_format	data_length	index_length
 mysqltest_innodb_zip	t1	Dynamic	{valid}	0
 alter table t1 row_format=compact;
-SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
+SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' and table_schema != 'sys' order by table_name;
 table_schema	table_name	row_format	data_length	index_length
 mysqltest_innodb_zip	t1	Compact	{valid}	0
 alter table t1 row_format=redundant;
-SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
+SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' and table_schema != 'sys' order by table_name;
 table_schema	table_name	row_format	data_length	index_length
 mysqltest_innodb_zip	t1	Redundant	{valid}	0
 drop table t1;
@@ -129,7 +129,7 @@ Table	Op	Msg_type	Msg_text
 mysqltest_innodb_zip.t2	analyze	status	Engine-independent statistics collected
 mysqltest_innodb_zip.t2	analyze	Warning	Engine-independent statistics are not collected for column 'b'
 mysqltest_innodb_zip.t2	analyze	status	OK
-SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
+SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' and table_schema != 'sys' order by table_name;
 table_schema	table_name	row_format	data_length	index_length
 mysqltest_innodb_zip	t1	Compressed	2048	1024
 mysqltest_innodb_zip	t2	Dynamic	{valid}	0
@@ -173,7 +173,7 @@ create table t8 (id int primary key) engine = innodb row_format = compressed;
 create table t9 (id int primary key) engine = innodb row_format = dynamic;
 create table t10(id int primary key) engine = innodb row_format = compact;
 create table t11(id int primary key) engine = innodb row_format = redundant;
-SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
+SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' and table_schema != 'sys' order by table_name;
 table_schema	table_name	row_format	data_length	index_length
 mysqltest_innodb_zip	t1	Dynamic	{valid}	0
 mysqltest_innodb_zip	t10	Compact	{valid}	0
@@ -212,7 +212,7 @@ Error	1005	Can't create table `mysqltest_innodb_zip`.`t4` (errno: 140 "Wrong cre
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
 create table t5 (id int primary key) engine = innodb
 key_block_size = 4 row_format = default;
-SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
+SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' and table_schema != 'sys' order by table_name;
 table_schema	table_name	row_format	data_length	index_length
 mysqltest_innodb_zip	t1	Compressed	4096	0
 mysqltest_innodb_zip	t5	Compressed	4096	0
@@ -244,7 +244,7 @@ Warning	1478	InnoDB: invalid KEY_BLOCK_SIZE = 9. Valid values are [1, 2, 4, 8, 1
 Warning	1478	InnoDB: cannot specify ROW_FORMAT = DYNAMIC with KEY_BLOCK_SIZE.
 Error	1005	Can't create table `mysqltest_innodb_zip`.`t2` (errno: 140 "Wrong create options")
 Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
-SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
+SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' and table_schema != 'sys' order by table_name;
 table_schema	table_name	row_format	data_length	index_length
 set global innodb_file_per_table = off;
 create table t1 (id int primary key) engine = innodb key_block_size = 1;
@@ -280,7 +280,7 @@ show warnings;
 Level	Code	Message
 create table t8 (id int primary key) engine = innodb row_format = compact;
 create table t9 (id int primary key) engine = innodb row_format = redundant;
-SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' order by table_name;
+SELECT table_schema, table_name, row_format, data_length, index_length FROM information_schema.tables WHERE engine='innodb' AND table_schema != 'mysql' and table_schema != 'sys' order by table_name;
 table_schema	table_name	row_format	data_length	index_length
 mysqltest_innodb_zip	t7	Dynamic	{valid}	0
 mysqltest_innodb_zip	t8	Compact	{valid}	0

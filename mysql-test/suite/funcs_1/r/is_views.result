@@ -68,9 +68,8 @@ CHARACTER_SET_CLIENT	varchar(32)	NO
 COLLATION_CONNECTION	varchar(32)	NO			
 ALGORITHM	varchar(10)	NO			
 SELECT table_catalog, table_schema, table_name
-FROM information_schema.views WHERE table_catalog IS NOT NULL;
+FROM information_schema.views WHERE table_catalog <> 'def';
 table_catalog	table_schema	table_name
-def	mysql	user
 ################################################################################
 # Testcase 3.2.13.2 + 3.2.13.3: INFORMATION_SCHEMA.VIEWS accessible information
 ################################################################################

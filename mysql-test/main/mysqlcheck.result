@@ -34,6 +34,7 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
+sys.sys_config                                     OK
 mtr.global_suppressions                            Table is already up to date
 mtr.test_suppressions                              Table is already up to date
 mysql.column_stats                                 OK
@@ -70,6 +71,7 @@ mysql.time_zone_transition_type                    OK
 mysql.transaction_registry
 note     : Table does not support optimize, doing recreate + analyze instead
 status   : OK
+sys.sys_config                                     OK
 mysql.column_stats                                 OK
 mysql.columns_priv                                 OK
 mysql.db                                           OK
@@ -465,6 +467,7 @@ warning  : Table is marked as crashed
 warning  : Size of datafile is: 4       Should be: 0
 error    : got error: 0 when reading datafile at record: 0
 error    : Corrupt
+sys.sys_config                                     Table is already up to date
 test.t2                                            Table is already up to date
 
 Repairing tables

@@ -1730,8 +1730,15 @@ sub collect_mysqld_features {
       # Enable or disable ARCHIVE plugin. Possible values are ON, OFF,
       # FORCE (don't start if the plugin fails to load),
       # FORCE_PLUS_PERMANENT (like FORCE, but the plugin can not be uninstalled).
+      # For Innodb I_S plugins that are referenced in sys schema
+      # do not make them optional, to prevent diffs in tests.
       push @optional_plugins, $1
-        if /^  --([-a-z0-9]+)\[=name\] +Enable or disable \w+ plugin. One of: ON, OFF, FORCE/;
+        if /^  --([-a-z0-9]+)\[=name\] +Enable or disable \w+ plugin. One of: ON, OFF, FORCE/
+           and $1 ne "innodb-metrics"
+           and $1 ne "innodb-buffer-page"
+           and $1 ne "innodb-lock-waits"
+           and $1 ne "innodb-locks"
+           and $1 ne "innodb-trx";
       next;
     }
 
@@ -3090,6 +3097,9 @@ sub mysql_install_db {
       mtr_appendfile_to_file("$sql_dir/fill_help_tables.sql",
            $bootstrap_sql_file);
 
+      # Append sys schema
+      mtr_appendfile_to_file("$gis_sp_path/mysql_sys_schema.sql",
+           $bootstrap_sql_file);
       # Create test database
       mtr_appendfile_to_file("$sql_dir/mysql_test_db.sql",
                             $bootstrap_sql_file);

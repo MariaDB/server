@@ -1,6 +1,6 @@
 CREATE DATABASE test1;
 CREATE PROCEDURE test1.sp3() BEGIN END;
-SHOW PROCEDURE STATUS;
+SHOW PROCEDURE STATUS WHERE Db <> 'sys';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
 mtr	add_suppression	PROCEDURE	root@localhost	#	#	DEFINER		utf8	utf8_general_ci	latin1_swedish_ci
 mtr	check_testcase	PROCEDURE	root@localhost	#	#	DEFINER		utf8	utf8_general_ci	latin1_swedish_ci

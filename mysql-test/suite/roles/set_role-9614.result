@@ -52,6 +52,7 @@ information_schema
 mtr
 mysql
 performance_schema
+sys
 test
 #
 # Try using the database as john.
