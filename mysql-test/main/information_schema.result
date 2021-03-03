@@ -14,6 +14,7 @@ CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_P
 def	mtr	latin1	latin1_swedish_ci	NULL	
 def	mysql	latin1	latin1_swedish_ci	NULL	
 def	performance_schema	utf8	utf8_general_ci	NULL	
+def	sys	utf8	utf8_general_ci	NULL	
 def	test	latin1	latin1_swedish_ci	NULL	
 select schema_name from information_schema.schemata;
 schema_name
@@ -21,6 +22,7 @@ information_schema
 mtr
 mysql
 performance_schema
+sys
 test
 show databases like 't%';
 Database (t%)
@@ -31,6 +33,7 @@ information_schema
 mtr
 mysql
 performance_schema
+sys
 test
 show databases where `database` = 't%';
 Database
@@ -368,12 +371,12 @@ test	sub1
 drop view v1;
 connect  user1,localhost,mysqltest_1,,;
 connection user1;
-select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES;
+select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES WHERE ROUTINE_SCHEMA <> 'sys';
 ROUTINE_NAME	ROUTINE_DEFINITION
 show create function sub1;
 ERROR 42000: FUNCTION sub1 does not exist
 connection user3;
-select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES;
+select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES WHERE ROUTINE_SCHEMA <> 'sys';
 ROUTINE_NAME	ROUTINE_DEFINITION
 sel2	NULL
 sub1	NULL
@@ -381,13 +384,13 @@ connection default;
 grant all privileges on test.* to mysqltest_1@localhost;
 connect  user2,localhost,mysqltest_1,,;
 connection user2;
-select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES;
+select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES WHERE ROUTINE_SCHEMA <> 'sys';
 ROUTINE_NAME	ROUTINE_DEFINITION
 sel2	NULL
 sub1	NULL
 create function sub2(i int) returns int
 return i+1;
-select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES;
+select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES WHERE ROUTINE_SCHEMA <> 'sys';
 ROUTINE_NAME	ROUTINE_DEFINITION
 sel2	NULL
 sub1	NULL
@@ -423,6 +426,7 @@ information_schema
 mtr
 mysql
 performance_schema
+sys
 test
 explain select * from v0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -458,7 +462,7 @@ latin1_swedish_nopad_ci
 latin1_nopad_bin
 show keys from v4;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
-select * from information_schema.views where TABLE_NAME like "v%";
+select * from information_schema.views where TABLE_NAME like "v%" AND TABLE_SCHEMA <> 'sys';
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
 def	test	v0	select `information_schema`.`schemata`.`SCHEMA_NAME` AS `c` from `information_schema`.`schemata`	NONE	NO	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
 def	test	v1	select `information_schema`.`tables`.`TABLE_NAME` AS `c` from `information_schema`.`tables` where `information_schema`.`tables`.`TABLE_NAME` = 'v1'	NONE	NO	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
@@ -563,7 +567,7 @@ create table t1(a int);
 create view v1 (c) as select a from t1 with check option;
 create view v2 (c) as select a from t1 WITH LOCAL CHECK OPTION;
 create view v3 (c) as select a from t1 WITH CASCADED CHECK OPTION;
-select * from information_schema.views;
+select * from information_schema.views where table_schema <> 'sys';
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
 def	mysql	user	select `mysql`.`global_priv`.`Host` AS `Host`,`mysql`.`global_priv`.`User` AS `User`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.plugin') in ('mysql_native_password','mysql_old_password'),ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.authentication_string'),''),'') AS `Password`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 1,'Y','N') AS `Select_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 2,'Y','N') AS `Insert_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 4,'Y','N') AS `Update_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 8,'Y','N') AS `Delete_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 16,'Y','N') AS `Create_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 32,'Y','N') AS `Drop_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 64,'Y','N') AS `Reload_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 128,'Y','N') AS `Shutdown_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 256,'Y','N') AS `Process_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 512,'Y','N') AS `File_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 1024,'Y','N') AS `Grant_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 2048,'Y','N') AS `References_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 4096,'Y','N') AS `Index_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 8192,'Y','N') AS `Alter_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 16384,'Y','N') AS `Show_db_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 32768,'Y','N') AS `Super_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 65536,'Y','N') AS `Create_tmp_table_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 131072,'Y','N') AS `Lock_tables_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 262144,'Y','N') AS `Execute_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 524288,'Y','N') AS `Repl_slave_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 1048576,'Y','N') AS `Repl_client_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 2097152,'Y','N') AS `Create_view_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 4194304,'Y','N') AS `Show_view_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 8388608,'Y','N') AS `Create_routine_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 16777216,'Y','N') AS `Alter_routine_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 33554432,'Y','N') AS `Create_user_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 67108864,'Y','N') AS `Event_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 134217728,'Y','N') AS `Trigger_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 268435456,'Y','N') AS `Create_tablespace_priv`,if(json_value(`mysql`.`global_priv`.`Priv`,'$.access') & 536870912,'Y','N') AS `Delete_history_priv`,elt(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.ssl_type'),0) + 1,'','ANY','X509','SPECIFIED') AS `ssl_type`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.ssl_cipher'),'') AS `ssl_cipher`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.x509_issuer'),'') AS `x509_issuer`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.x509_subject'),'') AS `x509_subject`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_questions'),0) as unsigned) AS `max_questions`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_updates'),0) as unsigned) AS `max_updates`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_connections'),0) as unsigned) AS `max_connections`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_user_connections'),0) as signed) AS `max_user_connections`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.plugin'),'') AS `plugin`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.authentication_string'),'') AS `authentication_string`,if(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.password_last_changed'),1) = 0,'Y','N') AS `password_expired`,elt(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.is_role'),0) + 1,'N','Y') AS `is_role`,ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.default_role'),'') AS `default_role`,cast(ifnull(json_value(`mysql`.`global_priv`.`Priv`,'$.max_statement_time'),0.0) as decimal(12,6)) AS `max_statement_time` from `mysql`.`global_priv`	NONE	YES	mariadb.sys@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
 def	test	v1	select `test`.`t1`.`a` AS `c` from `test`.`t1`	CASCADED	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
@@ -884,6 +888,20 @@ information_schema	TRIGGERS	ACTION_CONDITION
 information_schema	TRIGGERS	ACTION_STATEMENT
 information_schema	VIEWS	VIEW_DEFINITION
 mysql	global_priv	Priv
+sys	innodb_lock_waits	waiting_query
+sys	innodb_lock_waits	blocking_query
+sys	processlist	current_statement
+sys	processlist	last_statement
+sys	schema_auto_increment_columns	column_type
+sys	schema_table_lock_waits	waiting_query
+sys	session	current_statement
+sys	session	last_statement
+sys	statement_analysis	query
+sys	statements_with_errors_or_warnings	query
+sys	statements_with_full_table_scans	query
+sys	statements_with_runtimes_in_95th_percentile	query
+sys	statements_with_sorting	query
+sys	statements_with_temp_tables	query
 mysql	user	Password
 mysql	user	ssl_cipher
 mysql	user	x509_issuer
@@ -891,6 +909,17 @@ mysql	user	x509_subject
 mysql	user	plugin
 mysql	user	authentication_string
 mysql	user	default_role
+sys	x$processlist	current_statement
+sys	x$processlist	last_statement
+sys	x$schema_table_lock_waits	waiting_query
+sys	x$session	current_statement
+sys	x$session	last_statement
+sys	x$statement_analysis	query
+sys	x$statements_with_errors_or_warnings	query
+sys	x$statements_with_full_table_scans	query
+sys	x$statements_with_runtimes_in_95th_percentile	query
+sys	x$statements_with_sorting	query
+sys	x$statements_with_temp_tables	query
 select table_name, column_name, data_type from information_schema.columns
 where data_type = 'datetime' and table_name not like 'innodb_%'
 order by binary table_name, ordinal_position;
@@ -920,6 +949,9 @@ event	execute_at	datetime
 event	last_executed	datetime
 event	starts	datetime
 event	ends	datetime
+x$innodb_lock_waits	wait_started	datetime
+x$innodb_lock_waits	waiting_trx_started	datetime
+x$innodb_lock_waits	blocking_trx_started	datetime
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES A
 WHERE NOT EXISTS
 (SELECT * FROM INFORMATION_SCHEMA.COLUMNS B
@@ -1123,7 +1155,7 @@ drop procedure if exists p2;
 create procedure p1 () modifies sql data set @a = 5;
 create procedure p2 () set @a = 5;
 select sql_data_access from information_schema.routines
-where specific_name like 'p%';
+where specific_name like 'p%' and routine_schema = 'test';
 sql_data_access
 MODIFIES SQL DATA
 CONTAINS SQL
@@ -1264,7 +1296,7 @@ INSERT INTO t1 SET f1 = 1, f2 = 'Schoenenbourg', f3 = 1;
 CREATE FUNCTION func2() RETURNS BIGINT RETURN 1;
 CREATE FUNCTION func1() RETURNS BIGINT
 BEGIN
-RETURN ( SELECT COUNT(*) FROM INFORMATION_SCHEMA.VIEWS);
+RETURN ( SELECT COUNT(*) FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA <> 'sys');
 END//
 CREATE VIEW v1 AS SELECT 1 FROM t1
 WHERE f3 = (SELECT func2 ());
@@ -1421,9 +1453,109 @@ create table t2 (f1 int, f2 int);
 create view v2 as select f1+1 as a, f2 as b from t2;
 select table_name, is_updatable from information_schema.views order by table_name;
 table_name	is_updatable
+host_summary	NO
+host_summary_by_file_io	NO
+host_summary_by_file_io_type	YES
+host_summary_by_stages	YES
+host_summary_by_statement_latency	NO
+host_summary_by_statement_type	YES
+innodb_buffer_stats_by_schema	NO
+innodb_buffer_stats_by_table	NO
+innodb_lock_waits	NO
+io_by_thread_by_latency	NO
+io_global_by_file_by_bytes	YES
+io_global_by_file_by_latency	YES
+io_global_by_wait_by_bytes	YES
+io_global_by_wait_by_latency	YES
+latest_file_io	YES
+memory_by_host_by_current_bytes	NO
+memory_by_thread_by_current_bytes	NO
+memory_by_user_by_current_bytes	NO
+memory_global_by_current_bytes	YES
+memory_global_total	NO
+metrics	NO
+processlist	NO
+ps_check_lost_instrumentation	YES
+schema_auto_increment_columns	NO
+schema_index_statistics	YES
+schema_object_overview	NO
+schema_redundant_indexes	NO
+schema_tables_with_full_table_scans	YES
+schema_table_lock_waits	NO
+schema_table_statistics	NO
+schema_table_statistics_with_buffer	NO
+schema_unused_indexes	YES
+session	YES
+session_ssl_status	YES
+statements_with_errors_or_warnings	YES
+statements_with_full_table_scans	YES
+statements_with_runtimes_in_95th_percentile	YES
+statements_with_sorting	YES
+statements_with_temp_tables	YES
+statement_analysis	YES
 user	YES
+user_summary	NO
+user_summary_by_file_io	NO
+user_summary_by_file_io_type	YES
+user_summary_by_stages	YES
+user_summary_by_statement_latency	NO
+user_summary_by_statement_type	YES
 v1	NO
 v2	YES
+version	NO
+waits_by_host_by_latency	YES
+waits_by_user_by_latency	YES
+waits_global_by_latency	YES
+wait_classes_global_by_avg_latency	NO
+wait_classes_global_by_latency	NO
+x$host_summary	NO
+x$host_summary_by_file_io	NO
+x$host_summary_by_file_io_type	YES
+x$host_summary_by_stages	YES
+x$host_summary_by_statement_latency	NO
+x$host_summary_by_statement_type	YES
+x$innodb_buffer_stats_by_schema	NO
+x$innodb_buffer_stats_by_table	NO
+x$innodb_lock_waits	NO
+x$io_by_thread_by_latency	NO
+x$io_global_by_file_by_bytes	YES
+x$io_global_by_file_by_latency	YES
+x$io_global_by_wait_by_bytes	YES
+x$io_global_by_wait_by_latency	YES
+x$latest_file_io	YES
+x$memory_by_host_by_current_bytes	NO
+x$memory_by_thread_by_current_bytes	NO
+x$memory_by_user_by_current_bytes	NO
+x$memory_global_by_current_bytes	YES
+x$memory_global_total	NO
+x$processlist	NO
+x$ps_digest_95th_percentile_by_avg_us	NO
+x$ps_digest_avg_latency_distribution	NO
+x$ps_schema_table_statistics_io	NO
+x$schema_flattened_keys	NO
+x$schema_index_statistics	YES
+x$schema_tables_with_full_table_scans	YES
+x$schema_table_lock_waits	NO
+x$schema_table_statistics	NO
+x$schema_table_statistics_with_buffer	NO
+x$session	YES
+x$statements_with_errors_or_warnings	YES
+x$statements_with_full_table_scans	YES
+x$statements_with_runtimes_in_95th_percentile	YES
+x$statements_with_sorting	YES
+x$statements_with_temp_tables	YES
+x$statement_analysis	YES
+x$user_summary	NO
+x$user_summary_by_file_io	NO
+x$user_summary_by_file_io_type	YES
+x$user_summary_by_stages	YES
+x$user_summary_by_statement_latency	NO
+x$user_summary_by_statement_type	YES
+x$waits_by_host_by_latency	YES
+x$waits_by_user_by_latency	YES
+x$waits_global_by_latency	YES
+x$wait_classes_global_by_avg_latency	NO
+x$wait_classes_global_by_latency	NO
 delete from v1;
 drop view v1,v2;
 drop table t1,t2;

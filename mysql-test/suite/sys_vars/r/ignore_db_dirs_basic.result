@@ -12,6 +12,7 @@ information_schema
 mtr
 mysql
 performance_schema
+sys
 test
 USE ignored_db;
 ERROR 42000: Incorrect database name 'ignored_db'
@@ -40,6 +41,7 @@ lost+found
 mtr
 mysql
 performance_schema
+sys
 test
 DROP DATABASE `lost+found`;
 SET @@global.ignore_db_dirs = 'aha';

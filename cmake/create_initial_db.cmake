@@ -34,9 +34,11 @@ FOREACH(FILENAME mysql_system_tables.sql mysql_system_tables_data.sql mysql_perf
     ENDIF()
   ENDFOREACH()
 ENDFOREACH()
-FILE(READ ${TOP_SRCDIR}/scripts/fill_help_tables.sql CONTENTS)
-FILE(APPEND bootstrap.sql "${CONTENTS}")
 
+FOREACH(FILENAME ${TOP_SRCDIR}/scripts/fill_help_tables.sql ${TOP_SRCDIR}/scripts/mysql_sys_schema.sql)
+  FILE(READ ${FILENAME} CONTENTS)
+  FILE(APPEND bootstrap.sql "${CONTENTS}")
+ENDFOREACH()
 
 MAKE_DIRECTORY(mysql)
 

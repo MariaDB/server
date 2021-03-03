@@ -52,6 +52,7 @@ mtr
 mysql
 mysqltest
 performance_schema
+sys
 test
 flush tables with read lock;
 drop database mysqltest;
@@ -64,6 +65,7 @@ information_schema
 mtr
 mysql
 performance_schema
+sys
 test
 drop database mysqltest;
 ERROR HY000: Can't drop database 'mysqltest'; database doesn't exist

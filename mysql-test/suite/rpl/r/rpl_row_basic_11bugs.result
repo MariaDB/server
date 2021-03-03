@@ -8,6 +8,7 @@ information_schema
 mtr
 mysql
 performance_schema
+sys
 test
 test_ignore
 USE test;
@@ -43,6 +44,7 @@ information_schema
 mtr
 mysql
 performance_schema
+sys
 test
 USE test;
 SHOW TABLES;

@@ -11,6 +11,7 @@ schema_name
 information_schema
 mysql
 performance_schema
+sys
 test
 日本語
 龔龖龗

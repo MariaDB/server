@@ -187,19 +187,19 @@ drop view v1;
 
 connect (user1,localhost,mysqltest_1,,);
 connection user1;
-select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES;
+select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES WHERE ROUTINE_SCHEMA <> 'sys';
 --error ER_SP_DOES_NOT_EXIST
 show create function sub1;
 connection user3;
-select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES;
+select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES WHERE ROUTINE_SCHEMA <> 'sys';
 connection default;
 grant all privileges on test.* to mysqltest_1@localhost;
 connect (user2,localhost,mysqltest_1,,);
 connection user2;
-select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES;
+select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES WHERE ROUTINE_SCHEMA <> 'sys';
 create function sub2(i int) returns int
   return i+1;
-select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES;
+select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES WHERE ROUTINE_SCHEMA <> 'sys';
 show create procedure sel2;
 show create function sub1;
 show create function sub2;
@@ -233,7 +233,7 @@ where COLLATION_NAME like "latin1%";
 select * from v4;
 show keys from v4;
 --sorted_result
-select * from information_schema.views where TABLE_NAME like "v%";
+select * from information_schema.views where TABLE_NAME like "v%" AND TABLE_SCHEMA <> 'sys';
 drop view v0, v1, v2, v3, v4;
 
 #
@@ -285,7 +285,7 @@ create view v1 (c) as select a from t1 with check option;
 create view v2 (c) as select a from t1 WITH LOCAL CHECK OPTION;
 create view v3 (c) as select a from t1 WITH CASCADED CHECK OPTION;
 --sorted_result
-select * from information_schema.views;
+select * from information_schema.views where table_schema <> 'sys';
 grant select (a) on test.t1 to joe@localhost with grant option;
 select * from INFORMATION_SCHEMA.COLUMN_PRIVILEGES;
 select * from INFORMATION_SCHEMA.TABLE_PRIVILEGES;
@@ -671,7 +671,7 @@ drop procedure if exists p2;
 create procedure p1 () modifies sql data set @a = 5;
 create procedure p2 () set @a = 5;
 select sql_data_access from information_schema.routines
-where specific_name like 'p%';
+where specific_name like 'p%' and routine_schema = 'test';
 drop procedure p1;
 drop procedure p2;
 
@@ -835,7 +835,7 @@ CREATE FUNCTION func2() RETURNS BIGINT RETURN 1;
 delimiter //;
 CREATE FUNCTION func1() RETURNS BIGINT
 BEGIN
-  RETURN ( SELECT COUNT(*) FROM INFORMATION_SCHEMA.VIEWS);
+  RETURN ( SELECT COUNT(*) FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA <> 'sys');
 END//
 delimiter ;//
 

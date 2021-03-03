@@ -33,7 +33,7 @@ select  hex(table_name) from information_schema.tables where table_schema="test"
 select hex(table_name) from information_schema.tables where table_schema="test" and table_name like "t%";
 select  hex(table_name) from information_schema.tables where table_schema="test" and table_name like "v%";
 --replace_column 5 ts 6 ts
-SHOW PROCEDURE STATUS LIKE 'p%';
+SHOW PROCEDURE STATUS WHERE Name LIKE 'p%' and Db = 'test';
 
 --connection master
 DROP TABLE `tё`;

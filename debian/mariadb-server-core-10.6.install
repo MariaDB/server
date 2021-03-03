@@ -30,6 +30,7 @@ usr/share/mysql/japanese
 usr/share/mysql/korean
 usr/share/mysql/maria_add_gis_sp_bootstrap.sql
 usr/share/mysql/mysql_performance_tables.sql
+usr/share/mysql/mysql_sys_schema.sql
 usr/share/mysql/mysql_system_tables.sql
 usr/share/mysql/mysql_system_tables_data.sql
 usr/share/mysql/mysql_test_data_timezone.sql

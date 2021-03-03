@@ -65,6 +65,7 @@ information_schema
 mtr
 mysql
 performance_schema
+sys
 test
 SET ROLE NONE;
 connect  user_b, localhost, root,,;
