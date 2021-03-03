@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -1670,6 +1670,12 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 #define HTON_CAN_MERGE               (1 <<11) //Merge type table
 // Engine needs to access the main connect string in partitions
 #define HTON_CAN_READ_CONNECT_STRING_IN_PARTITION (1 <<12)
+
+/*
+  Table requires and close and reopen after truncate
+  If the handler has HTON_CAN_RECREATE, this flag is not used
+*/
+#define HTON_REQUIRES_CLOSE_AFTER_TRUNCATE (1 << 18)
 
 class Ha_trx_info;
 
