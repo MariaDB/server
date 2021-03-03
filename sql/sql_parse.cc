@@ -978,6 +978,7 @@ int bootstrap(MYSQL_FILE *file)
   DBUG_ENTER("handle_bootstrap");
 
   THD *thd= new THD(next_thread_id());
+  char *buffer= new char[MAX_BOOTSTRAP_QUERY_SIZE];
 #ifdef WITH_WSREP
   thd->variables.wsrep_on= 0;
 #endif
@@ -1011,12 +1012,12 @@ int bootstrap(MYSQL_FILE *file)
 
   for ( ; ; )
   {
-    char buffer[MAX_BOOTSTRAP_QUERY_SIZE] = "";
+    buffer[0]= 0;
     int rc, length;
     char *query;
     int error= 0;
 
-    rc= read_bootstrap_query(buffer, &length, file, fgets_fn, &error);
+    rc= read_bootstrap_query(buffer, &length, file, fgets_fn, 0, &error);
 
     if (rc == READ_BOOTSTRAP_EOF)
       break;
@@ -1099,6 +1100,7 @@ int bootstrap(MYSQL_FILE *file)
     thd->lex->restore_set_statement_var();
   }
   delete thd;
+  delete[] buffer;
   DBUG_RETURN(bootstrap_error);
 }
 
