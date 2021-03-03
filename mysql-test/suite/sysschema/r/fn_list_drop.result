@@ -1,0 +1,30 @@
+SELECT sys.list_drop('1,2,3,4,5', '1');
+sys.list_drop('1,2,3,4,5', '1')
+2,3,4,5
+SELECT sys.list_drop('1,2,3,4,5', '3');
+sys.list_drop('1,2,3,4,5', '3')
+1,2,4,5
+SELECT sys.list_drop('1,2,3,4,5', '5');
+sys.list_drop('1,2,3,4,5', '5')
+1,2,3,4
+SELECT sys.list_drop('1, 2, 3, 4, 5', '1');
+sys.list_drop('1, 2, 3, 4, 5', '1')
+ 2, 3, 4, 5
+SELECT sys.list_drop('1, 2, 3, 4, 5', '3');
+sys.list_drop('1, 2, 3, 4, 5', '3')
+1, 2, 4, 5
+SELECT sys.list_drop('1, 2, 3, 4, 5', '5');
+sys.list_drop('1, 2, 3, 4, 5', '5')
+1, 2, 3, 4
+SELECT sys.list_drop('1,2,3,4,5', NULL);
+ERROR 02200: Function sys.list_drop: in_drop_value input variable should not be NULL
+SET @sqlmode := @@sql_mode;
+SELECT @@sql_mode;
+@@sql_mode
+STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+SET SESSION sql_mode = sys.list_drop(@@sql_mode, 'STRICT_TRANS_TABLES');
+SELECT @@sql_mode;
+@@sql_mode
+ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+SET SESSION sql_mode = @sqlmode;
+SET @sqlmode := NULL;

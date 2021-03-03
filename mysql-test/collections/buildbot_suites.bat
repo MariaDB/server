@@ -7,4 +7,5 @@ plugins,^
 mariabackup,^
 roles,^
 auth_gssapi,^
-rocksdb
+rocksdb,^
+sysschema
