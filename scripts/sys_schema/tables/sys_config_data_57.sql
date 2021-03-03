@@ -22,3 +22,5 @@ INSERT IGNORE INTO sys.sys_config (variable, value) VALUES
     ('diagnostics.allow_i_s_tables', 'OFF'),
     ('diagnostics.include_raw', 'OFF'),
     ('ps_thread_trx_info.max_length', 65535);
+
+FLUSH TABLES sys.sys_config;
