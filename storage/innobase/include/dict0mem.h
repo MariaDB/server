@@ -1962,6 +1962,9 @@ struct dict_table_t {
   /** @return whether the current thread holds the lock_mutex */
   bool lock_mutex_is_owner() const
   { return lock_mutex_owner == os_thread_get_curr_id(); }
+  /** @return whether the current thread holds the stats_mutex (lock_mutex) */
+  bool stats_mutex_is_owner() const
+  { return lock_mutex_owner == os_thread_get_curr_id(); }
 #endif /* UNIV_DEBUG */
   void lock_mutex_init() { lock_mutex.init(); }
   void lock_mutex_destroy() { lock_mutex.destroy(); }
@@ -1986,6 +1989,16 @@ struct dict_table_t {
     ut_ad(lock_mutex_owner.exchange(0) == os_thread_get_curr_id());
     lock_mutex.wr_unlock();
   }
+
+  /* stats mutex lock currently defaults to lock_mutex but in the future,
+  there could be a use-case to have separate mutex for stats.
+  extra indirection (through inline so no performance hit) should
+  help simplify code and increase long-term maintainability */
+  void stats_mutex_init() { lock_mutex_init(); }
+  void stats_mutex_destroy() { lock_mutex_destroy(); }
+  void stats_mutex_lock() { lock_mutex_lock(); }
+  void stats_mutex_unlock() { lock_mutex_unlock(); }
+
 private:
 	/** Initialize instant->field_map.
 	@param[in]	table	table definition to copy from */

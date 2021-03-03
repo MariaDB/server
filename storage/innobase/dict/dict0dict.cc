@@ -334,7 +334,9 @@ dict_table_close(
 	if (last_handle && strchr(table->name.m_name, '/') != NULL
 	    && dict_stats_is_persistent_enabled(table)) {
 
+		table->stats_mutex_lock();
 		dict_stats_deinit(table);
+		table->stats_mutex_unlock();
 	}
 
 	MONITOR_DEC(MONITOR_TABLE_REFERENCE);

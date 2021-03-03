@@ -56,6 +56,7 @@ Created July 18, 2007 Vasil Dimov
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "dict0crea.h"
+#include "scope.h"
 
 /** The latest successfully looked up innodb_fts_aux_table */
 UNIV_INTERN table_id_t innodb_ft_aux_table_id;
@@ -5021,11 +5022,9 @@ i_s_dict_fill_sys_tablestats(
 			      table->name.m_name));
 
 	{
-		struct Locking
-		{
-			Locking() { dict_sys.mutex_lock(); }
-			~Locking() { dict_sys.mutex_unlock(); }
-		} locking;
+		table->stats_mutex_lock();
+		auto _ = make_scope_exit([table]() {
+			table->stats_mutex_unlock(); });
 
 		OK(fields[SYS_TABLESTATS_INIT]->store(table->stat_initialized,
 						      true));
