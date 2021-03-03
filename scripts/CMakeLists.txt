@@ -30,7 +30,7 @@ ENDMACRO()
 
 IF(NOT CMAKE_CROSSCOMPILING)
  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include)
- ADD_EXECUTABLE(comp_sql comp_sql.c)
+ ADD_EXECUTABLE(comp_sql comp_sql.c ../sql/sql_bootstrap.cc)
  TARGET_LINK_LIBRARIES(comp_sql)
 ENDIF()
 
