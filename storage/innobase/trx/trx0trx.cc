@@ -1276,22 +1276,6 @@ trx_update_mod_tables_timestamp(
 	const time_t now = time(NULL);
 
 	trx_mod_tables_t::const_iterator	end = trx->mod_tables.end();
-#ifdef UNIV_DEBUG
-# if MYSQL_VERSION_ID >= 100405
-#  define dict_sys_mutex dict_sys.mutex
-# else
-#  define dict_sys_mutex dict_sys->mutex
-# endif
-
-	const bool preserve_tables = !innodb_evict_tables_on_commit_debug
-		|| trx->is_recovered /* avoid trouble with XA recovery */
-# if 1 /* if dict_stats_exec_sql() were not playing dirty tricks */
-		|| mutex_own(&dict_sys_mutex)
-# else /* this would be more proper way to do it */
-		|| trx->dict_operation_lock_mode || trx->dict_operation
-# endif
-		;
-#endif
 
 	for (trx_mod_tables_t::const_iterator it = trx->mod_tables.begin();
 	     it != end;
@@ -1307,30 +1291,6 @@ trx_update_mod_tables_timestamp(
 		intrusive. */
 		dict_table_t* table = it->first;
 		table->update_time = now;
-#ifdef UNIV_DEBUG
-		if (preserve_tables || table->get_ref_count()
-		    || UT_LIST_GET_LEN(table->locks)) {
-			/* do not evict when committing DDL operations
-			or if some other transaction is holding the
-			table handle */
-			continue;
-		}
-		/* recheck while holding the mutex that blocks
-		table->acquire() */
-		mutex_enter(&dict_sys_mutex);
-		mutex_enter(&lock_sys.mutex);
-		const bool do_evict = !table->get_ref_count()
-			&& !UT_LIST_GET_LEN(table->locks);
-		mutex_exit(&lock_sys.mutex);
-		if (do_evict) {
-# if MYSQL_VERSION_ID >= 100405
-			dict_sys.remove(table, true);
-# else
-			dict_table_remove_from_cache_low(table, true);
-# endif
-		}
-		mutex_exit(&dict_sys_mutex);
-#endif
 	}
 
 	trx->mod_tables.clear();
@@ -1398,15 +1358,9 @@ trx_commit_in_memory(
 			while (UNIV_UNLIKELY(trx->is_referenced())) {
 				ut_delay(srv_spin_wait_delay);
 			}
-
-			trx->release_locks();
-			trx->id = 0;
 		} else {
 			ut_ad(trx->read_only || !trx->rsegs.m_redo.rseg);
-			trx->release_locks();
 		}
-
-		DEBUG_SYNC_C("after_trx_committed_in_memory");
 
 		if (trx->read_only || !trx->rsegs.m_redo.rseg) {
 			MONITOR_INC(MONITOR_TRX_RO_COMMIT);
@@ -1415,6 +1369,10 @@ trx_commit_in_memory(
 			MONITOR_INC(MONITOR_TRX_RW_COMMIT);
 			trx->is_recovered = false;
 		}
+
+		trx->release_locks();
+		trx->id = 0;
+		DEBUG_SYNC_C("after_trx_committed_in_memory");
 	}
 
 	ut_ad(!trx->rsegs.m_redo.undo);
