@@ -126,3 +126,13 @@ enum options_client
   Name of the performance schema database.
 */
 #define PERFORMANCE_SCHEMA_DB_NAME "performance_schema"
+
+/**
+  First mariadb version supporting the sys schema.
+*/
+#define FIRST_SYS_SCHEMA_VERSION 100600
+
+/**
+  Name of the sys schema database.
+*/
+#define SYS_SCHEMA_DB_NAME "sys"
