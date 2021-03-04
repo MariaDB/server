@@ -1000,15 +1000,14 @@ fil_space_extend_must_retry(
 
 }
 
-/*******************************************************************//**
-Reserves the fil_system.mutex and tries to make sure we can open at least one
+/** Reserves the fil_system.mutex and tries to make sure we can open at least one
 file while holding it. This should be called before calling
-fil_node_prepare_for_io(), because that function may need to open a file. */
+fil_node_prepare_for_io(), because that function may need to open a file.
+@param[in]	space_id	tablespace id
+@return whether the tablespace is usable for io */
 static
-void
-fil_mutex_enter_and_prepare_for_io(
-/*===============================*/
-	ulint	space_id)	/*!< in: space id */
+bool
+fil_mutex_enter_and_prepare_for_io(ulint space_id)
 {
 	for (ulint count = 0;;) {
 		mutex_enter(&fil_system.mutex);
@@ -1021,7 +1020,7 @@ fil_mutex_enter_and_prepare_for_io(
 		fil_space_t*	space = fil_space_get_by_id(space_id);
 
 		if (space == NULL) {
-			break;
+			return false;
 		}
 
 		fil_node_t*	node = UT_LIST_GET_LAST(space->chain);
@@ -1036,6 +1035,10 @@ fil_mutex_enter_and_prepare_for_io(
 			the insert buffer. The insert buffer is in
 			tablespace 0, and we cannot end up waiting in
 			this function. */
+		} else if (space->is_stopping() && !space->is_being_truncated) {
+			/* If the tablespace is being deleted then InnoDB
+			shouldn't prepare the tablespace for i/o */
+			return false;
 		} else if (!node || node->is_open()) {
 			/* If the file is already open, no need to do
 			anything; if the space does not exist, we handle the
@@ -1107,6 +1110,8 @@ fil_mutex_enter_and_prepare_for_io(
 
 		break;
 	}
+
+	return true;
 }
 
 /** Try to extend a tablespace if it is smaller than the specified size.
@@ -1123,7 +1128,10 @@ fil_space_extend(
 	bool	success;
 
 	do {
-		fil_mutex_enter_and_prepare_for_io(space->id);
+		if (!fil_mutex_enter_and_prepare_for_io(space->id)) {
+			success = false;
+			break;
+		}
 	} while (fil_space_extend_must_retry(
 			 space, UT_LIST_GET_LAST(space->chain), size,
 			 &success));
@@ -1478,7 +1486,9 @@ fil_space_t* fil_system_t::read_page0(ulint id)
 
 	/* It is possible that the tablespace is dropped while we are
 	not holding the mutex. */
-	fil_mutex_enter_and_prepare_for_io(id);
+	if (!fil_mutex_enter_and_prepare_for_io(id)) {
+		return NULL;
+	}
 
 	fil_space_t* space = fil_space_get_by_id(id);
 

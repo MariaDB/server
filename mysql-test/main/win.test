@@ -2523,6 +2523,26 @@ DROP VIEW v1;
 DROP TABLE t1,t2;
 
 --echo #
+--echo # MDEV-25032 Window functions without column references get removed from ORDER BY
+--echo #
+
+create table t1 (id int, score double);
+insert into t1 values
+(1, 5),
+(1, 6),
+(1, 6),
+(1, 6),
+(1, 7),
+(1, 8.1),
+(1, 9),
+(1, 10);
+select id, row_number() over () rn
+from t1
+order by rn desc;
+
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
