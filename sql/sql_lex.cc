@@ -2421,6 +2421,8 @@ void st_select_lex::init_select()
   with_dep= 0;
   join= 0;
   lock_type= TL_READ_DEFAULT;
+  save_many_values.empty();
+  save_insert_list= 0;
   tvc= 0;
   in_funcs.empty();
   curr_tvc_name= 0;
@@ -8302,16 +8304,52 @@ bool LEX::last_field_generated_always_as_row_end()
 }
 
 
+void LEX::save_values_list_state()
+{
+  current_select->save_many_values= many_values;
+  current_select->save_insert_list= insert_list;
+}
+
+
+void LEX::restore_values_list_state()
+{
+  many_values= current_select->save_many_values;
+  insert_list= current_select->save_insert_list;
+}
+
+
+void LEX::tvc_start()
+{
+  if (current_select == &select_lex)
+    mysql_init_select(this);
+  else
+    save_values_list_state();
+  many_values.empty();
+  insert_list= 0;
+}
+
+
+bool LEX::tvc_start_derived()
+{
+  if (current_select->linkage == GLOBAL_OPTIONS_TYPE ||
+      unlikely(mysql_new_select(this, 1, NULL)))
+    return true;
+  save_values_list_state();
+  many_values.empty();
+  insert_list= 0;
+  return false;
+}
+
+
 bool LEX::tvc_finalize()
 {
-  mysql_init_select(this);
   if (unlikely(!(current_select->tvc=
                new (thd->mem_root)
                table_value_constr(many_values,
                                   current_select,
                                   current_select->options))))
     return true;
-  many_values.empty();
+  restore_values_list_state();
   if (!current_select->master_unit()->fake_select_lex)
     current_select->master_unit()->add_fake_select_lex(thd);
   return false;
@@ -8326,9 +8364,6 @@ bool LEX::tvc_finalize_derived()
     thd->parse_error();
     return true;
   }
-  if (current_select->linkage == GLOBAL_OPTIONS_TYPE ||
-      unlikely(mysql_new_select(this, 1, NULL)))
-    return true;
   current_select->linkage= DERIVED_TABLE_TYPE;
   return tvc_finalize();
 }

@@ -12272,7 +12272,8 @@ derived_query_specification:
 derived_table_value_constructor:
           VALUES
           {
-            Lex->tvc_start();
+            if (Lex->tvc_start_derived())
+              MYSQL_YYABORT;
           }
           values_list
           {

@@ -1176,6 +1176,8 @@ public:
   /* it is for correct printing SELECT options */
   thr_lock_type lock_type;
   
+  List<List_item> save_many_values;
+  List<Item> *save_insert_list;
   table_value_constr *tvc;
   bool in_tvc;
 
@@ -4046,12 +4048,10 @@ public:
     return false;
   }
 
-  void tvc_start()
-  {
-    field_list.empty();
-    many_values.empty();
-    insert_list= 0;
-  }
+  void save_values_list_state();
+  void restore_values_list_state();
+  void tvc_start();
+  bool tvc_start_derived();
   bool tvc_finalize();
   bool tvc_finalize_derived();
 

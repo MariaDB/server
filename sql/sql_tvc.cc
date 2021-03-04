@@ -673,6 +673,8 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
   wrapper_sl->nest_level= tvc_sl->nest_level;
   wrapper_sl->parsing_place= tvc_sl->parsing_place;
   wrapper_sl->linkage= tvc_sl->linkage;
+  wrapper_sl->exclude_from_table_unique_test=
+                                 tvc_sl->exclude_from_table_unique_test;
 
   lex->current_select= wrapper_sl;
   item= new (thd->mem_root) Item_field(thd, &wrapper_sl->context,
